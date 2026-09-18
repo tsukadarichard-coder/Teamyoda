@@ -312,6 +312,161 @@ const CONDUCAO_CARTAO = {
   ],
 };
 
+/* ── Série C do manual: linguagem e comunicação do treinador (Parte 3) ──
+   Cada bloco é { tipo: "tabela"|"texto"|"lista"|"aviso", ... } pra renderizar
+   de forma genérica sem repetir markup por ficha. */
+const SERIE_CONDUCAO = [
+  {
+    id: "C-01", titulo: "Instruir em soluções",
+    frase: "O corpo não sabe executar na direção de algo que não deve acontecer — por isso toda instrução é dita como solução, nunca como proibição.",
+    blocos: [
+      { tipo: "tabela", titulo: "A conversão", cabecalho: ["Em vez de", "Instruir"], linhas: [
+        ["\"Não jogue na rede\"", "\"Jogue por cima da rede, acerte na área de saque\""],
+        ["\"Não erre para o fundo\"", "\"Deixe a bola cair antes da linha de base\""],
+        ["\"Não dá dupla\"", "\"Kick alto no meio, com margem\""],
+        ["\"Não fique parado\"", "\"Split no contato dele\""],
+        ["\"Não bata tão forte\"", "\"Braço solto, acelere no fim\""],
+        ["\"Não abra a raquete na bola baixa\"", "\"Flexione os joelhos e mantenha a face\""],
+      ] },
+      { tipo: "texto", titulo: "A regra de teste", texto: "Se o jogador pudesse executar sua instrução com os olhos fechados, ela é uma solução. Se ele precisaria primeiro descobrir o que fazer, é uma proibição disfarçada." },
+      { tipo: "aviso", texto: "Erro comum do professor experiente: dizer a solução depois da proibição — \"não joga na rede, joga mais alto\". O aluno já ouviu a primeira parte e travou. A solução vem sozinha." },
+    ],
+  },
+  {
+    id: "C-02", titulo: "Especificidade",
+    frase: "Elogio e correção genéricos não ensinam nada e o aluno percebe o vazio — a intervenção nomeia exatamente o quê.",
+    blocos: [
+      { tipo: "tabela", titulo: "A conversão", cabecalho: ["Evitar", "Usar"], linhas: [
+        ["\"Isso aí\", \"boa bola\", \"valeu\"", "\"Terminou o golpe lá no alto, percebeu?\""],
+        ["\"Tá errado\"", "\"Apoiou com a perna errada nessa jogada\""],
+        ["\"Concentra\"", "\"Olha o corpo dele quando ele for bater\""],
+        ["\"Melhorou\"", "\"A preparação começou antes do quique nessas três\""],
+        ["\"Erra menos\"", "\"Alvo dois metros dentro da linha\""],
+      ] },
+      { tipo: "texto", titulo: "Por que o elogio vago custa caro", texto: "Ele passa despercebido — e pior: ensina ao aluno que o professor não está olhando de verdade. Um \"boa bola\" dito a uma bola medíocre corrói a credibilidade de todos os elogios seguintes." },
+      { tipo: "tabela", titulo: "A estrutura de uma intervenção específica", cabecalho: ["Elemento", "Exemplo"], linhas: [
+        ["O nome", "\"José,\""],
+        ["O que aconteceu, concreto", "\"você apoiou com a perna errada\""],
+        ["Onde", "\"nessa jogada\""],
+        ["(Se elogio) a percepção", "\"percebeu?\""],
+      ] },
+      { tipo: "texto", titulo: "A pergunta final", texto: "É o que transforma correção em ferramenta. \"Percebeu?\" convida o aluno a registrar a sensação — e é a diferença entre ele ter uma correção e ter um instrumento." },
+    ],
+  },
+  {
+    id: "C-03", titulo: "A pergunta antes da resposta",
+    frase: "Perguntar primeiro constrói a capacidade de gerar informação própria; responder primeiro constrói dependência.",
+    blocos: [
+      { tipo: "tabela", titulo: "As duas intervenções, lado a lado", cabecalho: ["", "Dizer o que fazer", "Perguntar primeiro"], linhas: [
+        ["Velocidade", "Rápida", "Lenta"],
+        ["Melhora na sessão", "Grande", "Menor"],
+        ["O que constrói", "Uma correção", "Uma ferramenta"],
+        ["Em competição", "O aluno não tem por onde começar", "O aluno gera a própria informação"],
+      ] },
+      { tipo: "tabela", titulo: "O repertório de perguntas", cabecalho: ["Situação", "Pergunta"], linhas: [
+        ["Erro técnico repetido", "\"O que você sentiu nessa bola?\""],
+        ["Erro de decisão", "\"O que você viu antes de escolher essa jogada?\""],
+        ["Bola boa", "\"O que foi diferente nessa?\""],
+        ["Frustração", "\"Em que momento você achou que ia errar?\""],
+        ["Fim de série", "\"Em que bola sua atenção soltou?\""],
+        ["Fim de aula", "\"O que você leva daqui hoje?\""],
+      ] },
+      { tipo: "aviso", texto: "Quando NÃO perguntar: situação de risco, tempo curtíssimo, aluno saturado, ou quando a informação é puramente técnica e ele não tem como deduzi-la (a mecânica do saque não se descobre perguntando). A instrução direta continua sendo exatamente o certo em muitos momentos — a série C não a abole, apenas exige que o professor saiba qual das duas está usando, e por quê." },
+    ],
+  },
+  {
+    id: "C-04", titulo: "Reenquadramento",
+    frase: "Mudar o quadro de leitura de uma situação sem negar o fato — o que aconteceu continua o mesmo; o que aquilo significa muda.",
+    blocos: [
+      { tipo: "texto", titulo: "A diferença que importa", texto: "Reenquadrar não é mentir, não é minimizar e não é otimismo forçado. Se o aluno errou três seguidas, ele errou três seguidas. O reenquadramento não apaga isso — coloca o fato dentro de um quadro maior e verdadeiro." },
+      { tipo: "tabela", titulo: "Exemplos", cabecalho: ["Quadro do aluno", "Reenquadramento", "Por que é verdadeiro"], linhas: [
+        ["\"Errei três seguidas\"", "\"Três tentativas na jogada que estamos construindo\"", "O fato é o mesmo; o contexto de formação também é real"],
+        ["\"Não consigo fazer isso\"", "\"Ainda não — você não está treinado para isso hoje\"", "É literalmente verdade, e devolve o tempo ao processo"],
+        ["\"Meu backhand é ruim\"", "\"Seu backhand ainda não tem o que estamos construindo\"", "Separa identidade de estágio"],
+        ["\"Perdi para alguém pior que eu\"", "\"Você perdeu num dia em que não jogou o seu jogo\"", "Resultado é efeito colateral da performance"],
+        ["\"Sou nervoso em jogo\"", "\"Você ainda não tem repertório de partidas suficiente\"", "Exposição, não personalidade"],
+      ] },
+      { tipo: "aviso", texto: "O reenquadramento mais importante do método: quando um aluno diz \"eu deveria ter acertado aquela bola\", ele não entende que ainda não está treinado o suficiente para acertar aquilo — e o treinador comete o mesmo equívoco. Reenquadrar aqui é dizer: \"você acertaria essa bola daqui a um ano de trabalho. Hoje ela é a tentativa certa.\"" },
+      { tipo: "texto", titulo: "O que NÃO reenquadrar", texto: "Falta de esforço, atraso, desrespeito. Reenquadramento serve para devolver perspectiva sobre capacidade e tempo — não para desculpar conduta." },
+    ],
+  },
+  {
+    id: "C-05", titulo: "Ressignificação do erro",
+    frase: "Alterar o significado que o aluno atribui ao erro — de fracasso para informação.",
+    blocos: [
+      { tipo: "tabela", titulo: "Os três significados possíveis do erro", cabecalho: ["Significado atribuído", "O que o aluno faz em seguida"], linhas: [
+        ["Erro = fracasso pessoal", "Reduz o risco, joga para não errar, trava"],
+        ["Erro = acaso", "Repete o mesmo erro sem aprender"],
+        ["Erro = informação", "Ajusta, mantém a intenção, aprende"],
+      ] },
+      { tipo: "lista", titulo: "O que o professor faz para instalar o terceiro", itens: [
+        "Trata o erro como dado, não como evento emocional. \"Essa foi longa — o contato foi atrás. Próxima.\" Sem drama e sem consolo.",
+        "Distingue o erro certo do errado. Errar atacando quando a bola pedia ataque é o erro certo. Errar sustentando quando a bola pedia ataque é o erro caro. Se o professor não faz essa distinção em voz alta, o aluno aprende que todo erro é igual — e escolhe o mais seguro.",
+        "Comemora a tentativa correta que errou. Especialmente o ataque. Se o professor só reage à bola que entrou, o aluno aprende, pela reação, que errar atacando é pior que errar sustentando — essa é a origem silenciosa da passividade.",
+        "Nunca ressignifica corrigindo a jogada. Se o aluno atacou e errou, corrige-se ponto de contato ou apoio — jamais se pede mais efeito para a bola cair dentro. Isso não é ressignificação, é descaracterização.",
+      ] },
+      { tipo: "tabela", titulo: "Frases de trabalho", cabecalho: ["Momento", "Frase"], linhas: [
+        ["Erro atacando bola que pedia ataque", "\"Decisão certa. O contato ficou atrás — foi só isso.\""],
+        ["Erro sustentando bola que pedia ataque", "\"A bola pedia mais. Da próxima, entra.\""],
+        ["Sequência de erros", "\"O que os três têm em comum?\""],
+        ["Erro em ponto importante", "\"Mesma bola, outro placar. O placar não muda a jogada.\""],
+      ] },
+    ],
+  },
+  {
+    id: "C-06", titulo: "A linguagem sob pressão",
+    frase: "Quando a pressão aumenta, a quantidade de palavras diminui — e a presença faz o trabalho que a fala não faz.",
+    blocos: [
+      { tipo: "tabela", titulo: "A regra da compressão", cabecalho: ["Contexto", "Quantidade de instrução"], linhas: [
+        ["Treino técnico", "Normal — é aqui que se ensina"],
+        ["Treino com placar", "Reduzida — uma coisa por vez"],
+        ["Véspera de competição", "Mínima — plano de jogo em uma frase"],
+        ["Durante a partida", "Quase nenhuma — observar, não corrigir"],
+        ["Após derrota difícil", "Uma pergunta, depois silêncio"],
+      ] },
+      { tipo: "aviso", texto: "Durante a partida, a principal função do treinador não é corrigir — é observar onde o jogador perde confiança. Essa observação vira trabalho no treino seguinte, não instrução gritada da beira da quadra." },
+      { tipo: "texto", titulo: "A pergunta pós-jogo, antes de qualquer análise", texto: "\"Em quantos pontos você executou o protocolo de verdade?\" — vem antes de \"por que você perdeu aquele game\" porque coloca a conversa em algo sob controle do jogador. Análise técnica depois, de preferência no dia seguinte." },
+      { tipo: "tabela", titulo: "O que o corpo do treinador comunica", cabecalho: ["Conduta", "O que ensina"], linhas: [
+        ["Correção dada e esquecida dez minutos depois", "Que aquilo não era importante"],
+        ["Humor oscilando com o resultado da bola", "Que o resultado da bola é o que importa"],
+        ["Presença calma nos momentos decisivos", "Que dá para sustentar o estado sob pressão"],
+      ] },
+      { tipo: "texto", titulo: "", texto: "Nada disso se resolve com discurso. Resolve-se com constância — a única forma de comunicação que não se pode fingir por muito tempo." },
+    ],
+  },
+  {
+    id: "C-07", titulo: "A conversa de reavaliação",
+    frase: "A devolutiva é feita com o atleta, nunca sobre ele — e é o momento em que os critérios viram mapa, não cobrança.",
+    blocos: [
+      { tipo: "tabela", titulo: "A estrutura da conversa (15 a 20 minutos)", cabecalho: ["Etapa", "O que acontece"], linhas: [
+        ["1 · Abertura pelo aluno", "\"O que você acha que evoluiu no ciclo?\" — ele fala primeiro, sempre"],
+        ["2 · O que está completo", "Critérios cumpridos, nomeados um a um, com exemplos concretos"],
+        ["3 · O que falta", "Sem juízo: o que ainda não apareceu, e onde vai aparecer"],
+        ["4 · O foco do próximo ciclo", "Um ou dois pontos — nunca a lista inteira"],
+        ["5 · Fechamento pelo aluno", "\"O que você leva desta conversa?\""],
+      ] },
+      { tipo: "texto", titulo: "Por que o aluno fala primeiro", texto: "O que ele nomeia sozinho é o que ele consegue perceber. A diferença entre a autoavaliação dele e a observação do professor é a informação mais valiosa da conversa — e revela se o trabalho de percepção está funcionando." },
+      { tipo: "tabela", titulo: "O que não fazer nesta conversa", cabecalho: ["Não fazer", "Por quê"], linhas: [
+        ["Falar de resultado de torneio", "Resultado é efeito colateral da performance"],
+        ["Listar todos os critérios que faltam", "Vira cobrança e desmotiva"],
+        ["Comparar com outro aluno", "Cada um tem seu tempo; a comparação destrói o sistema"],
+        ["Prometer prazo de passagem de nível", "O tempo de cada um é o tempo de cada um"],
+        ["Corrigir tecnicamente durante a conversa", "Este é o momento do mapa, não da correção"],
+      ] },
+      { tipo: "aviso", texto: "Com pais (aluno menor): a mesma conversa, com o aluno presente. Nunca se fala do aluno na frente dele em terceira pessoa. E a mensagem estruturante da rede é dita: a fase infantojuvenil é formação, não resultado." },
+    ],
+  },
+];
+
+const PRATICA_CONDUCAO = [
+  { t: "Contagem de instruções", como: "Por uma aula, registrar quantas intervenções foram específicas e quantas foram vagas.", revela: "O dado costuma constranger — e é o melhor começo possível." },
+  { t: "Contagem de proibições", como: "Registrar quantas instruções começaram com \"não\".", revela: "Quase sempre mais do que o professor imagina." },
+  { t: "Uma aula só com perguntas", como: "Nenhuma instrução direta durante uma aula inteira.", revela: "Mostra o que o aluno consegue gerar sozinho — e o custo de tempo." },
+  { t: "Gravação de dois minutos", como: "Gravar o próprio áudio em quadra e ouvir depois.", revela: "Ninguém se ouve como fala." },
+  { t: "Observação por par", como: "O colega registra as intervenções durante a aula.", revela: "Ponto cego só se vê de fora." },
+  { t: "Reenquadramento por escrito", como: "Anotar três falas de aluno da semana e escrever o reenquadramento.", revela: "Treina a formulação antes de precisar dela em quadra." },
+];
+
 /* ── cursos de formação continuada, por módulo ── */
 const CURSOS_FORMACAO = [
   {
@@ -3965,7 +4120,7 @@ function App() {
           </div>
           <div className="mt-0.5"><Etiqueta>Ficha, periodização e sessão · 315 exercícios</Etiqueta></div>
           <nav className="flex gap-6 mt-3">
-            {[{ v: "alunos", r: "Jogadores" }, { v: "turmas", r: "Turmas" }, { v: "catalogo", r: "Catálogo" }, { v: "taticas", r: "Táticas" }, { v: "casos", r: "Casos" }, { v: "metodo", r: "Como decide" },
+            {[{ v: "alunos", r: "Jogadores" }, { v: "turmas", r: "Turmas" }, { v: "catalogo", r: "Catálogo" }, { v: "taticas", r: "Táticas" }, { v: "conducao", r: "Condução" }, { v: "casos", r: "Casos" }, { v: "metodo", r: "Como decide" },
               ...(papelAtual === "coordenador" ? [{ v: "equipe", r: "Equipe" }] : [])].map((t) => (
               <button key={t.v} onClick={() => { setAba(t.v); setAbertoId(null); }}
                 style={{ fontFamily: ARCH, fontSize: 13, fontWeight: aba === t.v ? 700 : 500, padding: "6px 0", cursor: "pointer", color: aba === t.v ? C.tinta : C.grafite, borderBottom: "2px solid " + (aba === t.v ? C.saibro : "transparent") }}>
@@ -3981,6 +4136,7 @@ function App() {
          aba === "catalogo" ? <TelaCatalogo /> :
          aba === "taticas" ? <TelaTaticas /> :
          aba === "casos" ? <TelaCasos /> :
+         aba === "conducao" ? <TelaConducao /> :
          aba === "metodo" ? <TelaMetodo /> :
          aba === "equipe" ? <TelaEquipe /> :
          aba === "turmas" ? <TelaTurmas alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} /> :
@@ -4186,6 +4342,80 @@ function TelaCasos() {
         </button>
       ))}
       <div className="mt-4"><Botao onClick={() => setEditando(novoCaso())} variante="saibro">Novo caso</Botao></div>
+    </div>
+  );
+}
+
+function BlocoConducao({ b }) {
+  if (b.tipo === "tabela") {
+    return (
+      <div className="mb-4">
+        {b.titulo && <h4 style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>{b.titulo}</h4>}
+        <Tabela cabecalho={b.cabecalho} linhas={b.linhas} />
+      </div>
+    );
+  }
+  if (b.tipo === "lista") {
+    return (
+      <div className="mb-4">
+        {b.titulo && <h4 style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>{b.titulo}</h4>}
+        {b.itens.map((it, i) => (
+          <div key={i} className="flex gap-3 mb-2">
+            <span style={{ fontFamily: ARCH, fontSize: 11, fontWeight: 700, color: C.saibro, flexShrink: 0 }}>{i + 1}</span>
+            <p style={{ ...prosa, fontSize: 13 }}>{it}</p>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  if (b.tipo === "aviso") return <Aviso>{b.texto}</Aviso>;
+  // texto simples
+  return (
+    <div className="mb-4">
+      {b.titulo && <h4 style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, marginBottom: 4 }}>{b.titulo}</h4>}
+      <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>{b.texto}</p>
+    </div>
+  );
+}
+
+function TelaConducao() {
+  const [praticaAberta, setPraticaAberta] = useState(false);
+  return (
+    <div>
+      <p style={{ ...prosa, marginBottom: 18 }}>
+        Parte 3 do manual · série C. Comunicação boa sobre diagnóstico errado só convence o aluno de
+        algo falso com mais eficiência — esta série serve ao que as outras produzem, nunca no lugar
+        delas.
+      </p>
+
+      {SERIE_CONDUCAO.map((c) => (
+        <Secao key={c.id} titulo={c.id + " · " + c.titulo}>
+          <p style={{ ...prosa, fontSize: 14, marginBottom: 14, fontStyle: "italic" }}>{c.frase}</p>
+          {c.blocos.map((b, i) => <BlocoConducao key={i} b={b} />)}
+        </Secao>
+      ))}
+
+      <div style={{ background: C.cal, border: "1px solid " + C.linha, padding: "12px 15px" }}>
+        <button onClick={() => setPraticaAberta(!praticaAberta)} className="w-full flex items-center justify-between gap-3" style={{ cursor: "pointer" }}>
+          <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>Prática da série C</span>
+          <Etiqueta>{praticaAberta ? "fechar" : "abrir"}</Etiqueta>
+        </button>
+        {praticaAberta && (
+          <div className="mt-3">
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>
+              As fichas desta série não se aprendem lendo — só na prática supervisionada.
+            </p>
+            {PRATICA_CONDUCAO.map((p) => (
+              <div key={p.t} className="mb-3" style={{ background: C.papel, border: "1px solid " + C.linha, padding: "10px 13px" }}>
+                <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>{p.t}</div>
+                <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 3 }}>{p.como}</p>
+                <p style={{ ...prosa, fontSize: 12, color: C.saibro, marginTop: 3 }}>Revela: {p.revela}</p>
+              </div>
+            ))}
+            <p style={{ ...prosa, fontSize: 13, fontStyle: "italic" }}>A meta não é falar menos. É que cada fala tenha destino.</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
