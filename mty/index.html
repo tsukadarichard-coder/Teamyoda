@@ -1205,6 +1205,91 @@ function promptPlanejamento(a) {
   ].join("\n");
 }
 
+function promptClassificacao(a) {
+  return [
+    "Você é assistente de um treinador de tênis que usa a Metodologia MTY.",
+    "A partir da ficha abaixo, sugira o ESTÁGIO e o NÍVEL do jogador. É essa classificação que",
+    "decide quais exercícios do catálogo entram no plano dele — leia a ficha inteira antes de decidir.",
+    "",
+    "ESTÁGIOS POSSÍVEIS (escolha exatamente um):",
+    "V · Vermelha — iniciação infantil, bola vermelha, quadra reduzida.",
+    "L · Laranja — infantil em progressão, bola laranja, quadra intermediária.",
+    "G · Verde — infantil avançado, bola verde, quadra cheia, ainda sem jogar com bola amarela de adulto.",
+    "A · Adulto — joga com bola e quadra de adulto, sem estrutura competitiva.",
+    "C · Competição — joga ou está pronto para torneios, com repertório tático e físico compatível.",
+    "",
+    "NÍVEIS POSSÍVEIS (escolha exatamente um — Y1 o repertório mais simples, Y6 o mais completo,",
+    "dentro do estágio Adulto ou Competição; para estágios infantis use o nível mais baixo compatível):",
+    "Y1, Y2, Y3, Y4, Y5, Y6.",
+    "",
+    "Baseie-se só no que a ficha mostra. Se a informação for insuficiente para decidir com segurança,",
+    "escolha a opção mais conservadora e diga isso na justificativa — nunca arbitre sem base.",
+    "",
+    "Devolva APENAS um JSON válido, sem texto antes ou depois, sem crases, neste formato:",
+    JSON.stringify({ estagio: "V|L|G|A|C", nivel: "Y1..Y6", justificativa: "duas ou três frases, citando o que da ficha sustenta a escolha" }),
+    "",
+    "FICHA:",
+    relatorioFicha(a),
+  ].join("\n");
+}
+
+function SugestaoClassificacao({ f, set }) {
+  const [sugestao, setSugestao] = useState(null);
+  const [gerando, setGerando] = useState(false);
+  const [erro, setErro] = useState("");
+
+  async function sugerir() {
+    setErro(""); setGerando(true); setSugestao(null);
+    try {
+      let t = (await chamarIA(promptClassificacao(f), 700)).trim();
+      t = t.replace(/^```(json)?/i, "").replace(/```$/, "").trim();
+      const i = t.indexOf("{");
+      if (i > 0) t = t.slice(i);
+      const obj = JSON.parse(t);
+      if (!ESTAGIOS.some((e) => e.s === obj.estagio)) throw new Error("Estágio sugerido inválido: " + obj.estagio);
+      if (!NIVEIS.includes(obj.nivel)) throw new Error("Nível sugerido inválido: " + obj.nivel);
+      setSugestao(obj);
+    } catch (e) {
+      setErro(String(e.message || e));
+    }
+    setGerando(false);
+  }
+  function aplicar() {
+    if (!sugestao) return;
+    set("estagio", sugestao.estagio);
+    set("nivel", sugestao.nivel);
+  }
+
+  return (
+    <div className="mb-4">
+      <Botao pequeno variante="vazio" onClick={sugerir} disabled={gerando}>
+        {gerando ? "Analisando a ficha…" : "Sugerir estágio e nível com IA"}
+      </Botao>
+      {erro && <div className="mt-2"><Aviso>{erro}</Aviso></div>}
+      {sugestao && (
+        <div className="mt-3" style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.quadra, padding: "12px 14px" }}>
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <Etiqueta cor={C.quadra}>Sugestão da IA</Etiqueta>
+            <Etiqueta>{ESTAGIOS.find((e) => e.s === sugestao.estagio)?.n || sugestao.estagio} · {sugestao.nivel}</Etiqueta>
+          </div>
+          <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginBottom: 10 }}>{sugestao.justificativa}</p>
+          <div className="flex gap-2 items-center">
+            <Botao pequeno onClick={aplicar}
+              disabled={f.estagio === sugestao.estagio && f.nivel === sugestao.nivel}>
+              {f.estagio === sugestao.estagio && f.nivel === sugestao.nivel ? "✓ aplicada" : "Aplicar sugestão"}
+            </Botao>
+            <Botao pequeno variante="vazio" onClick={() => setSugestao(null)}>Descartar</Botao>
+          </div>
+          <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginTop: 8 }}>
+            Rascunho da IA. O estágio e o nível continuam editáveis logo acima — o plano de treino é
+            sempre montado a partir do que estiver selecionado ali, não desta sugestão.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PainelRelatorio({ aluno, aoFechar }) {
   const txt = relatorioFicha(aluno);
   const [copiado, setCopiado] = useState(false);
@@ -1356,6 +1441,7 @@ function TelaFicha({ aluno, salvar }) {
           <Campo rotulo="Estágio"><Seletor opcoes={ESTAGIOS.map((e) => ({ v: e.s, r: e.s }))} valor={f.estagio} aoMudar={(v) => set("estagio", v)} /></Campo>
           <Campo rotulo="Nível"><Seletor opcoes={NIVEIS.map((n) => ({ v: n, r: n }))} valor={f.nivel} aoMudar={(v) => set("nivel", v)} /></Campo>
         </div>
+        <SugestaoClassificacao f={f} set={set} />
       </Secao>
 
       <Secao titulo="Diagnóstico — as quatro camadas" nota="A ordem é técnico, físico, tático, mental, e não pode ser invertida (D-01). Cada camada abre a seguinte.">
