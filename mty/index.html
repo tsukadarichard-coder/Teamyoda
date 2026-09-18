@@ -567,22 +567,43 @@ async function grave(chave, valor, compartilhado = false) {
 }
 
 /* ─────────────────────────── geração por IA ───────────────────────────
-   A chave da Anthropic mora no servidor (function gerar-ia). O app só
-   manda o prompt junto com o login de quem está pedindo — sem conta
-   numa academia, a function recusa antes de gastar um único token. */
+   A chave da Anthropic mora no servidor (function gerar-ia-background).
+   Sem conta numa academia, a function recusa antes de gastar um único
+   token. Gerar um plano passa fácil dos ~10s que uma function comum tem
+   pra responder, então essa roda em segundo plano (até 15 min) e escreve
+   o resultado em orgs/{orgId}/iaJobs/{jobId} — o app fica consultando
+   até aparecer, em vez de esperar a resposta direto na mesma chamada. */
 async function chamarIA(prompt, maxTokens) {
   if (!window.mtyAuth || !window.mtyAuth.usuario()) {
     throw new Error("Entre com sua conta da academia para gerar com IA.");
   }
+  const org = await organizacao();
+  if (!org) throw new Error("Sua conta ainda não está ligada a uma academia.");
+
+  const jobId = MTY.id("job");
   const token = await window.mtyAuth.tokenId();
-  const r = await fetch("/.netlify/functions/gerar-ia", {
+  const r = await fetch("/.netlify/functions/gerar-ia-background", {
     method: "POST",
     headers: { "content-type": "application/json", authorization: "Bearer " + token },
-    body: JSON.stringify({ prompt, maxTokens }),
+    body: JSON.stringify({ prompt, maxTokens, jobId }),
   });
-  const d = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(d.erro || ("Erro " + r.status));
-  return d.texto || "";
+  if (!r.ok && r.status !== 202) {
+    const d = await r.json().catch(() => ({}));
+    throw new Error(d.erro || ("Erro " + r.status));
+  }
+
+  const ref = db.collection("orgs").doc(org).collection("iaJobs").doc(jobId);
+  const limite = Date.now() + 150000; // até 2min30 esperando a IA terminar
+  while (Date.now() < limite) {
+    await new Promise((resolver) => setTimeout(resolver, 2500));
+    const snap = await ref.get();
+    if (snap.exists) {
+      const d = snap.data();
+      if (d.status === "pronto") { ref.delete().catch(() => {}); return d.texto || ""; }
+      if (d.status === "erro") { ref.delete().catch(() => {}); throw new Error(d.erro || "Falha ao gerar."); }
+    }
+  }
+  throw new Error("A IA está demorando mais que o esperado. Tente de novo em instantes.");
 }
 
 /* ─────────────────────────── peças ─────────────────────────── */
