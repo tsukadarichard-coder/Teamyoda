@@ -246,6 +246,94 @@ const NIVEIS = ["Y1", "Y2", "Y3", "Y4", "Y5", "Y6"];
 const PERFIS_CORPO = [{"v": "E1", "r": "E1 · Fundo com peso", "d": "Empurrar o adversário para trás até que a bola volte curta — e então atacar de meia quadra ou chegar à rede. A subida é a conclusão do terreno ganho, não uma jogada avulsa."}, {"v": "E2", "r": "E2 · Sobre a linha, plano", "d": "Reduzir o tempo do adversário pela antecipação, aproveitando a velocidade da bola que vem. Ganhar quadra rápido e terminar à frente."}, {"v": "E3", "r": "E3 · Nos dois terrenos", "d": "Impor a intenção certa para cada momento, e mudar de terreno antes do adversário perceber. É o perfil mais completo e o mais exigente de formação."}];
 const PERFIS_TEMPERAMENTO = [{"v": "T1", "r": "T1 · Cadenciado e variado", "d": "Naturalmente mais paciente. Constrói com mais bolas, varia altura e ritmo, aceita o ponto mais longo."}, {"v": "T2", "r": "T2 · Direto e curto", "d": "Naturalmente mais agressivo. Busca a definição cedo, ponto curto, decisão rápida."}];
 const OBJETIVOS_JOGO = [{"n": "Ganhar a quadra", "d": "Empurrar o adversário para trás da linha de fundo e avançar o próprio terreno."}, {"n": "Produzir ângulo", "d": "Abrir a quadra para o lado, obrigando o adversário a percorrer mais distância."}, {"n": "Diminuir o tempo", "d": "Fazer a bola chegar antes ao adversário."}];
+/* ── dia de chuva: quatro modelos de sessão sem quadra ── */
+const TREINO_CHUVA = [
+  {
+    id: "video", nome: "Modelo 1 · Vídeo", duracao: "90 min",
+    quando: "Quando houve jogo ou treino filmado nos últimos dias. Sem material gravado, escolha outro modelo.",
+    blocos: [
+      { t: "20 min", r: "Cada um sozinho", d: "Cada jogador assiste ao próprio material e escreve o que vê — sem o treinador comentando. O que ele nota sem ajuda é o dado." },
+      { t: "30 min", r: "Comparar sentir e acontecer", d: "O treinador mostra um ponto que o jogador não mencionou. A distância entre o que ele sentiu e o que aconteceu é o objeto da sessão." },
+      { t: "25 min", r: "A correção escolhida", d: "Para cada jogador, definir por escrito uma correção que entra no treino da semana, com o exercício que vai carregá-la." },
+      { t: "15 min", r: "Fechamento", d: "Debriefing pós-jogo estruturado: o que funcionou, o que não, por que os erros — o resultado do jogo não é o assunto." },
+    ],
+    saida: "Uma correção por jogador, com o exercício que vai carregá-la.",
+  },
+  {
+    id: "leitura", nome: "Modelo 2 · Leitura de jogo", duracao: "90 min",
+    quando: "Antes de torneio, ou quando o jogador não consegue descrever o adversário depois de ter jogado contra ele.",
+    blocos: [
+      { t: "25 min", r: "O próprio estilo", d: "Cada jogador descreve o próprio jogo: golpe de abertura preferido, direção sob pressão, onde erra a maioria dos pontos." },
+      { t: "30 min", r: "O adversário", d: "Escolher um adversário real e responder por escrito como ele abre o ponto, o que faz com bola funda e curta, o que muda quando o placar aperta." },
+      { t: "20 min", r: "O plano de jogo", d: "Três frases: como abrir os pontos, o que fazer no segundo saque dele, e o que fazer quando o plano não estiver funcionando." },
+      { t: "15 min", r: "Fechamento", d: "Cada um lê o próprio plano em voz alta. O grupo só pergunta — não corrige." },
+    ],
+    saida: "Um plano de jogo de três frases, por jogador.",
+  },
+  {
+    id: "rotina", nome: "Modelo 3 · Rotina e pressão", duracao: "75 min",
+    quando: "Quando o placar adverso está mudando o jogo do atleta.",
+    blocos: [
+      { t: "20 min", r: "A rotina, construída por ele", d: "Cada jogador escreve o próprio checklist de cinco passos antes do saque — executável em vinte segundos. O conteúdo é dele." },
+      { t: "20 min", r: "Respiração e recuperação", d: "Três respirações diafragmáticas cronometradas; depois com distração, para aproximar do jogo." },
+      { t: "20 min", r: "Placar imaginário, sem bola", d: "O treinador anuncia a situação e o jogador diz em voz alta o que vai fazer no próximo ponto. Não existe ponto para jogar — a resposta é o objeto." },
+      { t: "15 min", r: "Fechamento", d: "Cada um escreve a própria rotina em papel e leva — passa a valer no treino da semana." },
+    ],
+    saida: "O checklist de cinco passos, escrito pelo próprio jogador.",
+  },
+  {
+    id: "tecnica", nome: "Modelo 4 · Técnica sem bola", duracao: "60 min",
+    quando: "Quando um fundamento específico está em correção.",
+    blocos: [
+      { t: "10 min", r: "Visualização", d: "Cinco minutos de olhos fechados visualizando o fundamento em correção, depois cinco minutos descrevendo em voz alta o que visualizou." },
+      { t: "30 min", r: "Shadow com espelho ou vídeo", d: "Forehand e backhand, 3 séries de 20 repetições cada. Shadow lento e correto vale mais que shadow rápido e aproximado." },
+      { t: "10 min", r: "O objetivo único", d: "Definir o objetivo que vai valer na próxima sessão de quadra — um só, por jogador, escrito." },
+      { t: "10 min", r: "Fechamento", d: "Cada um mostra o próprio shadow uma última vez; o grupo aponta uma coisa — uma correção por vez." },
+    ],
+    saida: "O objetivo único da próxima sessão de quadra.",
+  },
+];
+
+/* ── cartão de bolso do Caderno de Condução, por formato ── */
+const CONDUCAO_CARTAO = {
+  geral: [
+    { t: "Dois volumes", d: "Instrução geral projetada. Correção individual ao lado, baixo." },
+    { t: "Tarefa declarada", d: "Quem não bate tem tarefa, dita antes. Uma só." },
+    { t: "Uma correção por vez", d: "O que você escolhe ignorar é decisão técnica." },
+    { t: "Elogio específico", d: "Nomeie o que ele fez, não o resultado da bola." },
+  ],
+  formatos: [
+    { t: "Criança", d: "A regra vira jogo. Frase curta. Nunca sermão." },
+    { t: "Adulto individual", d: "O porquê em uma frase, entre duas séries. Nunca palestra." },
+    { t: "Dupla", d: "Os dois com tarefa o tempo todo. Alimentar é tarefa." },
+    { t: "Grupo", d: "Rotação por repetição anunciada, não por relógio." },
+    { t: "Conexão", d: "Investimento não é oscilação. O alvo da frustração é o problema." },
+    { t: "Horizonte", d: "Respeite o que ele traz. Proponha o degrau adjacente, nunca o topo." },
+  ],
+};
+
+/* ── cursos de formação continuada, por módulo ── */
+const CURSOS_FORMACAO = [
+  {
+    id: "percepcao", nome: "Percepção em Quadra", modulos: [
+      { t: "Ver sem concluir", saida: "Consegue relatar dois minutos de aula real sem usar nenhuma palavra de estado." },
+      { t: "Notar o que mudou", saida: "Aponta um desvio real em um aluno da própria turma e diz se ainda precisa de confirmação ou já é padrão." },
+      { t: "Ler antes da bola chegar", saida: "Acerta, em observação cega do formador, se um aluno vai errar a próxima bola só pelo corpo, em pelo menos 6 de 10 tentativas." },
+      { t: "Escolher o momento", saida: "Apresenta ao grupo um caso real em que segurar a correção produziu resultado melhor do que corrigir na hora." },
+      { t: "Calibrar e confirmar", saida: "Demonstra, com um aluno real, uma correção confirmada por execução — não por resposta verbal." },
+      { t: "Encadear as dez", saida: "A ficha de caso escrita pelo professor sobre a própria aula separa corretamente observação de conclusão em pelo menos 8 de 10 registros." },
+    ],
+  },
+  {
+    id: "diagnostico", nome: "Diagnóstico em Casos Reais", modulos: [
+      { t: "A tentação de pular direto ao mental", saida: "Consegue, diante de um caso novo, listar o que checaria tecnicamente antes de levantar qualquer hipótese sobre o estado do aluno." },
+      { t: "Físico: a camada mais esquecida", saida: "Reconhece, em vídeo, os sinais visuais de fadiga que distinguem erro físico de erro técnico." },
+      { t: "Tático: decisão versus execução", saida: "Aplica a pergunta de separação em tempo real durante um caso ao vivo, não só em vídeo gravado." },
+      { t: "Mental: só depois de eliminar as outras três", saida: "Formula, para um caso mental genuíno, uma intervenção específica — não uma frase de estado." },
+    ],
+  },
+];
+
 const PADROES_TATICOS = [{"c": "P1", "n": "Saque aberto e a bola no espaço vazio", "e": "Um saque aberto que entre. Não precisa ser rápido — precisa ser aberto.", "nv": "Y4"}, {"c": "P2", "n": "Saque no corpo e a bola pelo centro", "e": "Um saque colocado, e paciência para não atacar a primeira bola.", "nv": "Y4"}, {"c": "P3", "n": "Cruzada até a curta, depois inside out", "e": "Uma cruzada confiável e a disposição de esperar. Este padrão vive da paciência.", "nv": "Y5"}, {"c": "P4", "n": "Backhand cruzado paciente até virar", "e": "Um backhand cruzado que aguente cinco bolas. Sem isso, o padrão não existe.", "nv": "Y5"}, {"c": "P5", "n": "A bola profunda ao centro", "e": "Nada além de altura sobre a rede. É o padrão mais barato tecnicamente e um dos mais eficazes.", "nv": "Y3"}, {"c": "P6", "n": "Curtinha depois de duas fundas", "e": "Um toque razoável e, sobretudo, disciplina para dar as duas fundas antes.", "nv": "Y4"}, {"c": "P7", "n": "Approach no backhand e cobertura da paralela", "e": "Um approach que não sobre e um voleio que não precise ser bonito.", "nv": "Y5"}, {"c": "P8", "n": "A defesa alta que recupera a posição", "e": "Nada. Qualquer jogador consegue, e quase nenhum amador faz.", "nv": "Y3"}, {"c": "P9", "n": "Devolução funda ao centro e a terceira bola", "e": "Um bloqueio de devolução. É o padrão de menor custo técnico do repertório.", "nv": "Y3"}, {"c": "P10", "n": "Saque e subida, versão simples", "e": "Um saque que entre com regularidade e disposição de sair da linha de base.", "nv": "Y4"}, {"c": "P11", "n": "A bola alta no backhand de uma mão", "e": "Altura sobre a rede e paciência. Não exige potência nenhuma.", "nv": "Y3"}, {"c": "P12", "n": "Abrir com ângulo curto e terminar na paralela", "e": "Um cruzado com ângulo, que exige ponto de contato à frente. É o padrão de maior custo técnico da lista.", "nv": "Y5"}, {"c": "P13", "n": "Mudar de direção quando o corpo permite", "e": "Reconhecer a bola confortável. É mais leitura que técnica.", "nv": "Y4"}, {"c": "P14", "n": "O lob ofensivo quando ele sobe", "e": "Um lob com alguma altura e alguma profundidade. Não precisa ser perfeito na primeira semana.", "nv": "Y4"}, {"c": "P15", "n": "A bola no corpo", "e": "Direção, e só. É tão barata quanto o P5.", "nv": "Y2"}, {"c": "P16", "n": "A curtinha depois de abrir o lado", "e": "Toque na curtinha e a disciplina de abrir antes. Sem a bola que abre, é só uma curtinha ruim.", "nv": "Y5"}];
 
 /* ── As áreas de trabalho. Cada uma vira um ciclo de estímulo no macro. ── */
@@ -709,6 +797,93 @@ function Aviso({ children, cor = C.saibro }) {
   return (
     <div style={{ background: C.cal, borderLeft: "3px solid " + cor, padding: "13px 15px", marginBottom: 16 }}>
       <p style={{ ...prosa, fontSize: 13.5 }}>{children}</p>
+    </div>
+  );
+}
+
+/* ── sugestão de dia de chuva, quando uma aula é cancelada por chuva ── */
+function TreinoChuva() {
+  const [abertoId, setAbertoId] = useState(null);
+  const modelo = abertoId ? TREINO_CHUVA.find((m) => m.id === abertoId) : null;
+
+  if (modelo) {
+    return (
+      <div style={{ background: C.papel, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.saibro, padding: 15 }}>
+        <button onClick={() => setAbertoId(null)} className="mb-2" style={{ ...prosa, fontSize: 12.5, color: C.grafite, cursor: "pointer" }}>← Os quatro modelos</button>
+        <div className="flex items-baseline justify-between gap-3 flex-wrap mb-1">
+          <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{modelo.nome}</span>
+          <Etiqueta>{modelo.duracao}</Etiqueta>
+        </div>
+        <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 12 }}>{modelo.quando}</p>
+        {modelo.blocos.map((b, i) => (
+          <div key={i} className="mb-2" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "9px 12px" }}>
+            <div className="flex items-center gap-2 mb-1">
+              <Etiqueta cor={C.saibro}>{b.t}</Etiqueta>
+              <span style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700 }}>{b.r}</span>
+            </div>
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>{b.d}</p>
+          </div>
+        ))}
+        <div className="mt-3" style={{ background: C.cal, borderLeft: "3px solid " + C.quadra, padding: "10px 13px" }}>
+          <Etiqueta cor={C.quadra}>O que sai daqui</Etiqueta>
+          <p style={{ ...prosa, fontSize: 12.5, marginTop: 4 }}>{modelo.saida}</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ background: C.papel, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.saibro, padding: 15 }}>
+      <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Sugestões de dia de chuva</div>
+      <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>
+        Sem quadra, é a única ocasião em que tático e mental têm tempo dedicado. Não junte dois modelos
+        na mesma sessão — cada um tem um objeto só.
+      </p>
+      {TREINO_CHUVA.map((m) => (
+        <button key={m.id} onClick={() => setAbertoId(m.id)} className="w-full text-left flex items-center justify-between gap-3"
+          style={{ background: C.cal, border: "1px solid " + C.linha, padding: "10px 13px", marginBottom: 7 }}>
+          <div>
+            <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>{m.nome}</div>
+            <div style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>{m.quando}</div>
+          </div>
+          <Etiqueta>{m.duracao}</Etiqueta>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ── cartão de bolso de condução, referência rápida por formato ── */
+function CartaoConducao() {
+  const [aberto, setAberto] = useState(false);
+  return (
+    <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "12px 15px" }}>
+      <button onClick={() => setAberto(!aberto)} className="w-full flex items-center justify-between gap-3" style={{ cursor: "pointer" }}>
+        <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>Cartão de bolso · condução por formato</span>
+        <Etiqueta>{aberto ? "fechar" : "abrir"}</Etiqueta>
+      </button>
+      {aberto && (
+        <div className="mt-3">
+          <div className="mb-3">
+            <Etiqueta cor={C.saibro}>Vale em qualquer formato</Etiqueta>
+            {CONDUCAO_CARTAO.geral.map((g) => (
+              <div key={g.t} className="mt-2">
+                <span style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700 }}>{g.t}</span>
+                <span style={{ ...prosa, fontSize: 12.5, color: C.grafite }}> — {g.d}</span>
+              </div>
+            ))}
+          </div>
+          <div>
+            <Etiqueta cor={C.saibro}>Por formato</Etiqueta>
+            {CONDUCAO_CARTAO.formatos.map((f) => (
+              <div key={f.t} className="mt-2">
+                <span style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700 }}>{f.t}</span>
+                <span style={{ ...prosa, fontSize: 12.5, color: C.grafite }}> — {f.d}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2423,6 +2598,7 @@ function TelaPlano({ aluno, alunos, setAlunos }) {
   const [relatorio, setRelatorio] = useState("");
   const [linkAluno, setLinkAluno] = useState("");
   const [gerandoLink, setGerandoLink] = useState(false);
+  const [chuvaAberta, setChuvaAberta] = useState(null);
 
   const plano = aluno.plano;
   const reg = aluno.regPlano || {};
@@ -2759,12 +2935,26 @@ function TelaPlano({ aluno, alunos, setAlunos }) {
                       </div>
                     )}
                     {(st === "falta" || st === "cancelada") && (
-                      <div className="flex gap-2 flex-wrap" style={{ padding: "0 14px 12px 14px" }}>
-                        <input type="date" style={{ ...entrada, width: 150, fontSize: 12.5, padding: "6px 9px" }}
-                          value={d.data || ""} onChange={(e) => campo(id, "data", e.target.value)} />
-                        <input list="motivos-cancelamento" style={{ ...entrada, flex: 1, minWidth: 210, fontSize: 12.5, padding: "6px 9px" }}
-                          placeholder={st === "cancelada" ? "motivo do cancelamento · ex: chuva" : "motivo da falta"}
-                          value={d.motivo || ""} onChange={(e) => campo(id, "motivo", e.target.value)} />
+                      <div style={{ padding: "0 14px 12px 14px" }}>
+                        <div className="flex gap-2 flex-wrap">
+                          <input type="date" style={{ ...entrada, width: 150, fontSize: 12.5, padding: "6px 9px" }}
+                            value={d.data || ""} onChange={(e) => campo(id, "data", e.target.value)} />
+                          <input list="motivos-cancelamento" style={{ ...entrada, flex: 1, minWidth: 210, fontSize: 12.5, padding: "6px 9px" }}
+                            placeholder={st === "cancelada" ? "motivo do cancelamento · ex: chuva" : "motivo da falta"}
+                            value={d.motivo || ""} onChange={(e) => campo(id, "motivo", e.target.value)} />
+                        </div>
+                        {st === "cancelada" && /chuva/i.test(d.motivo || "") && (
+                          <div className="mt-2">
+                            {chuvaAberta === id ? (
+                              <div>
+                                <TreinoChuva />
+                                <button onClick={() => setChuvaAberta(null)} className="mt-2" style={{ ...prosa, fontSize: 12, color: C.grafite, cursor: "pointer" }}>Ocultar sugestões</button>
+                              </div>
+                            ) : (
+                              <Botao pequeno variante="vazio" onClick={() => setChuvaAberta(id)}>🌧️ Ver sugestões de dia de chuva</Botao>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -3017,10 +3207,18 @@ function TelaLogin({ aoEntrar }) {
    aprovar — a function aprovar-treinador confere isso pelo próprio
    token de quem chama, não por um segredo separado. */
 function TelaEquipe() {
+  const [subaba, setSubaba] = useState("pedidos");
   const [pendentes, setPendentes] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [ocupado, setOcupado] = useState(null);
   const [erro, setErro] = useState("");
+  const [membros, setMembros] = useState([]);
+  const [carregandoForm, setCarregandoForm] = useState(true);
+
+  useEffect(() => {
+    leia("mty:formacao:v1", [], true).then((m) => { setMembros(m); setCarregandoForm(false); });
+  }, []);
+  useEffect(() => { if (!carregandoForm) grave("mty:formacao:v1", membros, true); }, [membros, carregandoForm]);
 
   async function carregar() {
     setCarregando(true);
@@ -3072,34 +3270,145 @@ function TelaEquipe() {
   return (
     <div>
       <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Equipe</h1>
-      <p style={{ ...prosa, color: C.grafite, marginBottom: 18 }}>
-        Pedidos de acesso de treinadores novos para esta academia.
+      <div className="flex gap-5 mb-6" style={{ borderBottom: "1px solid " + C.linha }}>
+        {[{ v: "pedidos", r: "Pedidos" }, { v: "formacao", r: "Formação" }].map((t) => (
+          <button key={t.v} onClick={() => setSubaba(t.v)}
+            style={{ fontFamily: ARCH, fontSize: 13, fontWeight: subaba === t.v ? 700 : 500, padding: "8px 0", cursor: "pointer",
+              color: subaba === t.v ? C.tinta : C.grafite, borderBottom: "2px solid " + (subaba === t.v ? C.saibro : "transparent"), marginBottom: -1 }}>
+            {t.r}
+          </button>
+        ))}
+      </div>
+
+      {subaba === "pedidos" ? (
+        <div>
+          <p style={{ ...prosa, color: C.grafite, marginBottom: 18 }}>
+            Pedidos de acesso de treinadores novos para esta academia.
+          </p>
+
+          {erro && <div className="mb-4"><Aviso>{erro}</Aviso></div>}
+
+          {carregando ? (
+            <p style={{ ...prosa, color: C.grafite }}>Carregando…</p>
+          ) : pendentes.length === 0 ? (
+            <p style={{ ...prosa, color: C.grafite }}>Nenhum pedido pendente no momento.</p>
+          ) : (
+            pendentes.map((p) => (
+              <div key={p.uid} style={{ background: C.cal, border: "1px solid " + C.linha, padding: "13px 15px", marginBottom: 9 }}>
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{p.nome || "Sem nome"}</div>
+                    <div style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>{p.email}</div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Botao pequeno onClick={() => aprovar(p.uid)} disabled={ocupado === p.uid}>
+                      {ocupado === p.uid ? "…" : "Aprovar"}
+                    </Botao>
+                    <Botao pequeno variante="vazio" onClick={() => recusar(p.uid)} disabled={ocupado === p.uid}>
+                      Recusar
+                    </Botao>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      ) : (
+        <SecaoFormacao membros={membros} setMembros={setMembros} carregando={carregandoForm} />
+      )}
+    </div>
+  );
+}
+
+function novoMembroFormacao(nome) {
+  return {
+    id: "mem-" + Date.now().toString(36),
+    nome: nome.trim(),
+    progresso: Object.fromEntries(CURSOS_FORMACAO.map((c) => [c.id, c.modulos.map(() => false)])),
+  };
+}
+
+function SecaoFormacao({ membros, setMembros, carregando }) {
+  const [nomeNovo, setNomeNovo] = useState("");
+  const [abertoId, setAbertoId] = useState(null);
+
+  function adicionar() {
+    if (!nomeNovo.trim()) return;
+    setMembros([...membros, novoMembroFormacao(nomeNovo)]);
+    setNomeNovo("");
+  }
+  function remover(id) {
+    if (!confirm("Remover este treinador da formação? O progresso registrado vai junto.")) return;
+    setMembros(membros.filter((m) => m.id !== id));
+    if (abertoId === id) setAbertoId(null);
+  }
+  function alternar(id, cursoId, idx) {
+    setMembros(membros.map((m) => {
+      if (m.id !== id) return m;
+      const prog = { ...m.progresso, [cursoId]: m.progresso[cursoId].map((v, i) => (i === idx ? !v : v)) };
+      return { ...m, progresso: prog };
+    }));
+  }
+  function contagem(m) {
+    const feitos = CURSOS_FORMACAO.reduce((n, c) => n + (m.progresso[c.id] || []).filter(Boolean).length, 0);
+    const total = CURSOS_FORMACAO.reduce((n, c) => n + c.modulos.length, 0);
+    return feitos + "/" + total;
+  }
+
+  const aberto = abertoId ? membros.find((m) => m.id === abertoId) : null;
+
+  return (
+    <div>
+      <p style={{ ...prosa, color: C.grafite, marginBottom: 16 }}>
+        Acompanhamento dos cursos de formação continuada — Percepção em Quadra e Diagnóstico em
+        Casos Reais — por treinador da equipe.
       </p>
 
-      {erro && <div className="mb-4"><Aviso>{erro}</Aviso></div>}
+      <div className="flex gap-2 mb-5">
+        <input style={entrada} value={nomeNovo} onChange={(e) => setNomeNovo(e.target.value)}
+          placeholder="Nome do treinador" onKeyDown={(e) => e.key === "Enter" && adicionar()} />
+        <Botao pequeno onClick={adicionar} disabled={!nomeNovo.trim()}>Adicionar</Botao>
+      </div>
 
       {carregando ? (
         <p style={{ ...prosa, color: C.grafite }}>Carregando…</p>
-      ) : pendentes.length === 0 ? (
-        <p style={{ ...prosa, color: C.grafite }}>Nenhum pedido pendente no momento.</p>
-      ) : (
-        pendentes.map((p) => (
-          <div key={p.uid} style={{ background: C.cal, border: "1px solid " + C.linha, padding: "13px 15px", marginBottom: 9 }}>
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <div>
-                <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{p.nome || "Sem nome"}</div>
-                <div style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>{p.email}</div>
-              </div>
-              <div className="flex gap-2">
-                <Botao pequeno onClick={() => aprovar(p.uid)} disabled={ocupado === p.uid}>
-                  {ocupado === p.uid ? "…" : "Aprovar"}
-                </Botao>
-                <Botao pequeno variante="vazio" onClick={() => recusar(p.uid)} disabled={ocupado === p.uid}>
-                  Recusar
-                </Botao>
-              </div>
+      ) : aberto ? (
+        <div>
+          <button onClick={() => setAbertoId(null)} className="mb-3" style={{ ...prosa, color: C.grafite, cursor: "pointer" }}>← Todos os treinadores</button>
+          <h2 style={{ fontFamily: ARCH, fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{aberto.nome}</h2>
+          <div className="mb-5"><Etiqueta>{contagem(aberto)} módulos concluídos</Etiqueta></div>
+          {CURSOS_FORMACAO.map((c) => (
+            <div key={c.id} className="mb-6">
+              <h3 style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginBottom: 9 }}>{c.nome}</h3>
+              {c.modulos.map((mod, i) => {
+                const feito = !!(aberto.progresso[c.id] || [])[i];
+                return (
+                  <div key={i} onClick={() => alternar(aberto.id, c.id, i)}
+                    style={{ background: feito ? "#F4F7F4" : C.cal, border: "1px solid " + C.linha,
+                      borderLeft: "3px solid " + (feito ? C.quadra : C.linha), padding: "10px 13px", marginBottom: 7, cursor: "pointer" }}>
+                    <div className="flex items-start gap-3">
+                      <span style={{ fontFamily: ARCH, fontSize: 16, lineHeight: 1.2, color: feito ? C.quadra : C.grafite }}>{feito ? "☑" : "☐"}</span>
+                      <div>
+                        <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>Módulo {i + 1} · {mod.t}</div>
+                        <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 3 }}>Sai do módulo: {mod.saida}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          </div>
+          ))}
+          <Botao variante="vazio" onClick={() => remover(aberto.id)}>Remover treinador</Botao>
+        </div>
+      ) : membros.length === 0 ? (
+        <p style={{ ...prosa, color: C.grafite }}>Nenhum treinador cadastrado na formação ainda.</p>
+      ) : (
+        membros.map((m) => (
+          <button key={m.id} onClick={() => setAbertoId(m.id)} className="w-full text-left flex items-center justify-between gap-3"
+            style={{ background: C.cal, border: "1px solid " + C.linha, padding: "13px 15px", marginBottom: 9 }}>
+            <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{m.nome}</div>
+            <Etiqueta>{contagem(m)}</Etiqueta>
+          </button>
         ))
       )}
     </div>
@@ -3145,6 +3454,8 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas }) {
         Pra jogadores que treinam juntos. Cada um mantém o próprio plano — a turma só une a
         aula do dia numa sessão só, com presença marcada de uma vez para o grupo.
       </p>
+
+      <CartaoConducao />
 
       {!criando ? (
         <Botao pequeno onClick={() => setCriando(true)}>Nova turma</Botao>
@@ -3197,6 +3508,7 @@ function SessaoTurma({ turma, alunos, setAlunos, aoFechar, aoRemover }) {
   const [motivoGeral, setMotivoGeral] = useState("");
   const [statusPorMembro, setStatusPorMembro] = useState({});
   const [salvo, setSalvo] = useState(false);
+  const [chuvaAberta, setChuvaAberta] = useState(false);
 
   function statusDe(alunoId) { return statusPorMembro[alunoId] || statusGeral; }
   function definirIndividual(alunoId, st) {
@@ -3246,6 +3558,19 @@ function SessaoTurma({ turma, alunos, setAlunos, aoFechar, aoRemover }) {
           </Campo>
         )}
       </div>
+
+      {statusGeral === "cancelada" && /chuva/i.test(motivoGeral) && (
+        <div className="mb-5">
+          {chuvaAberta ? (
+            <div>
+              <TreinoChuva />
+              <button onClick={() => setChuvaAberta(false)} className="mt-2" style={{ ...prosa, fontSize: 12, color: C.grafite, cursor: "pointer" }}>Ocultar sugestões</button>
+            </div>
+          ) : (
+            <Botao pequeno variante="vazio" onClick={() => setChuvaAberta(true)}>🌧️ Ver sugestões de dia de chuva</Botao>
+          )}
+        </div>
+      )}
 
       {membros.map((a) => {
         const prox = proximaAulaPendente(a);
