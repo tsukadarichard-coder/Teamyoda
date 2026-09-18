@@ -334,6 +334,110 @@ const CURSOS_FORMACAO = [
   },
 ];
 
+/* ── critérios de nível Y1–Y6, do Manual MTY (Parte 9) — a mesma escada para todos os
+   públicos; o que muda entre uma criança e um adulto é a velocidade, não o caminho. ── */
+const NIVEIS_CRITERIOS = [
+  {
+    nivel: "Y1", nome: "Descoberta",
+    capacidade: "Jogar o jogo. Sacar, trocar e disputar o ponto do início ao fim.",
+    publico: "Bola vermelha (crianças) · adulto iniciante com quadra e bola adaptadas conforme necessário",
+    criterios: [
+      "Saca por cima da rede e coloca a bola em jogo com regularidade",
+      "Disputa o ponto do início ao fim, sem interromper o jogo",
+      "Desloca-se e para equilibrado antes de golpear",
+      "Entra na quadra quando a bola sobra curta",
+      "Devolve o saque colocando a bola em jogo",
+      "Reconhece e nomeia bola alta e bola baixa",
+    ],
+    naoExige: "Direção intencional, profundidade, efeito, consistência de troca longa.",
+    nota: "Sinal de que está pronto para o Y2: já não pensa em \"acertar\" — está tentando ganhar o ponto.",
+  },
+  {
+    nivel: "Y2", nome: "Troca",
+    capacidade: "Sustentar a troca e começar o ponto com intenção.",
+    publico: "Bola laranja (crianças) · adulto em quadra completa",
+    criterios: [
+      "Sustenta troca cruzada de fundo sem quebra de padrão",
+      "Coloca o primeiro saque com intenção de direção declarada",
+      "Executa o salto de prontidão no contato do adversário na maioria das bolas",
+      "Devolve para dentro da quadra, não para trás",
+      "Reconhece e nomeia bola de ataque, de defesa e neutra",
+      "Ataca a bola que sobra, mesmo errando",
+      "Mantém posição de espera durante o ponto",
+    ],
+    naoExige: "Variação deliberada, construção em duas bolas, jogo de rede consistente.",
+    nota: "Atenção: é aqui que a passividade se instala se \"ataca a bola que sobra\" for negligenciado — quem sustenta bem e nunca ataca não está pronto para o Y3, mesmo com os outros critérios completos.",
+  },
+  {
+    nivel: "Y3", nome: "Direção",
+    capacidade: "Escolher para onde a bola vai, e ir à frente.",
+    publico: "Bola verde (crianças) · adulto intermediário",
+    criterios: [
+      "Escolhe direção com intenção declarada e executa",
+      "Sobe à rede e finaliza à frente",
+      "Devolve com consistência nos dois lados da quadra",
+      "Executa duas variações de saque com armado semelhante",
+      "Joga a bola no topo do quique quando ela permite",
+      "Reconhece quando pode mudar de direção, pelo próprio deslocamento",
+      "Usa curtinha ou variação como forma de ataque",
+      "Defende com bola alta e com bola acelerada",
+    ],
+    naoExige: "Padrões automatizados, matriz de decisão, jogo sob pressão de placar.",
+    nota: "Marca do Y3: o aluno já joga tênis — daqui em diante o trabalho é de repertório e de decisão, não de fundamentos.",
+  },
+  {
+    nivel: "Y4", nome: "Construção",
+    capacidade: "Construir o ponto em duas bolas, com papéis definidos.",
+    publico: "Competitivo social iniciante · juvenil em formação",
+    criterios: [
+      "Executa o padrão de duas bolas: uma que arma, uma que converte",
+      "Usa alvo de segurança na bola que arma e alvo de pressão na que converte — sem inverter",
+      "Sustenta o ponto sem antecipar o risco (erro não se concentra na bola 1–2)",
+      "Executa saque + primeira bola com plano definido antes",
+      "Executa devolução + primeira bola nas duas quadras",
+      "Ganha terreno durante o ponto quando a bola permite",
+      "Cobre a rota provável após subir à rede",
+      "Contorna com o forehand a partir de bola central",
+    ],
+    naoExige: "",
+    nota: "O critério \"sustenta o ponto sem antecipar o risco\" é a fronteira entre agressividade e pressa — quem ataca sempre e erra cedo não o cumpriu: esperar também é parte da construção.",
+  },
+  {
+    nivel: "Y5", nome: "Decisão",
+    capacidade: "Decidir sob pressão, com padrões automáticos.",
+    publico: "Competitivo social experiente · juvenil de competição",
+    criterios: [
+      "Tem dois ou três padrões próprios automatizados, acessados sem deliberar",
+      "Domina a matriz dos três caminhos da devolução após o saque",
+      "Executa o protocolo entre pontos com consistência",
+      "Mantém a intenção do segundo saque sob placar adverso",
+      "Defende para parar o ataque, não para devolver a bola",
+      "Reconhece a perda de iniciativa e reorganiza sem pânico",
+      "Sustenta plano de jogo por um set inteiro",
+      "Varia ritmo, altura e efeito para tirar referência de tempo",
+    ],
+    naoExige: "",
+    nota: "O que distingue do Y4: lá o aluno executa o padrão quando o exercício pede; aqui ele acessa o padrão sozinho, dentro do jogo, sob pressão.",
+  },
+  {
+    nivel: "Y6", nome: "Competição",
+    capacidade: "Competir com repertório completo, sustentando o plano em partida disputada.",
+    publico: "Competidor de torneio, do social ao juvenil de nível",
+    criterios: [
+      "Domina a matriz completa dos 18 cenários do saque",
+      "Executa os seis sistemas de ataque",
+      "Tem as três variações de saque com armado indistinguível",
+      "Ataca sob placar adverso, mantendo a decisão",
+      "Fecha jogo em vantagem sem mudar a intenção",
+      "Repertório completo de defesa e transição para o ataque",
+      "Lê o corpo do adversário durante o ponto, não a própria bola",
+      "Reconstrói o plano dentro da partida quando ele não funciona",
+    ],
+    naoExige: "",
+    nota: "O último critério só pode ser observado em competição real — é a informação mais valiosa que o Y6 produz. Depois do Y6 não há Y7: o trabalho vira especialização individual, pelo horizonte do jogador.",
+  },
+];
+
 const PADROES_TATICOS = [{"c": "P1", "n": "Saque aberto e a bola no espaço vazio", "e": "Um saque aberto que entre. Não precisa ser rápido — precisa ser aberto.", "nv": "Y4"}, {"c": "P2", "n": "Saque no corpo e a bola pelo centro", "e": "Um saque colocado, e paciência para não atacar a primeira bola.", "nv": "Y4"}, {"c": "P3", "n": "Cruzada até a curta, depois inside out", "e": "Uma cruzada confiável e a disposição de esperar. Este padrão vive da paciência.", "nv": "Y5"}, {"c": "P4", "n": "Backhand cruzado paciente até virar", "e": "Um backhand cruzado que aguente cinco bolas. Sem isso, o padrão não existe.", "nv": "Y5"}, {"c": "P5", "n": "A bola profunda ao centro", "e": "Nada além de altura sobre a rede. É o padrão mais barato tecnicamente e um dos mais eficazes.", "nv": "Y3"}, {"c": "P6", "n": "Curtinha depois de duas fundas", "e": "Um toque razoável e, sobretudo, disciplina para dar as duas fundas antes.", "nv": "Y4"}, {"c": "P7", "n": "Approach no backhand e cobertura da paralela", "e": "Um approach que não sobre e um voleio que não precise ser bonito.", "nv": "Y5"}, {"c": "P8", "n": "A defesa alta que recupera a posição", "e": "Nada. Qualquer jogador consegue, e quase nenhum amador faz.", "nv": "Y3"}, {"c": "P9", "n": "Devolução funda ao centro e a terceira bola", "e": "Um bloqueio de devolução. É o padrão de menor custo técnico do repertório.", "nv": "Y3"}, {"c": "P10", "n": "Saque e subida, versão simples", "e": "Um saque que entre com regularidade e disposição de sair da linha de base.", "nv": "Y4"}, {"c": "P11", "n": "A bola alta no backhand de uma mão", "e": "Altura sobre a rede e paciência. Não exige potência nenhuma.", "nv": "Y3"}, {"c": "P12", "n": "Abrir com ângulo curto e terminar na paralela", "e": "Um cruzado com ângulo, que exige ponto de contato à frente. É o padrão de maior custo técnico da lista.", "nv": "Y5"}, {"c": "P13", "n": "Mudar de direção quando o corpo permite", "e": "Reconhecer a bola confortável. É mais leitura que técnica.", "nv": "Y4"}, {"c": "P14", "n": "O lob ofensivo quando ele sobe", "e": "Um lob com alguma altura e alguma profundidade. Não precisa ser perfeito na primeira semana.", "nv": "Y4"}, {"c": "P15", "n": "A bola no corpo", "e": "Direção, e só. É tão barata quanto o P5.", "nv": "Y2"}, {"c": "P16", "n": "A curtinha depois de abrir o lado", "e": "Toque na curtinha e a disciplina de abrir antes. Sem a bola que abre, é só uma curtinha ruim.", "nv": "Y5"}];
 
 /* ── As áreas de trabalho. Cada uma vira um ciclo de estímulo no macro. ── */
@@ -888,6 +992,70 @@ function CartaoConducao() {
   );
 }
 
+/* ── critérios de um único nível (Y1–Y6), para exibir a legenda de um nível específico ── */
+function CriteriosDoNivel({ nivel }) {
+  const c = NIVEIS_CRITERIOS.find((n) => n.nivel === nivel);
+  if (!c) return null;
+  return (
+    <div>
+      <div className="flex items-baseline gap-2 flex-wrap mb-1">
+        <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{c.nivel} · {c.nome}</span>
+      </div>
+      <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 4 }}><b>Capacidade dominante:</b> {c.capacidade}</p>
+      <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 8 }}><b>Público:</b> {c.publico}</p>
+      {c.criterios.map((cr, i) => (
+        <div key={i} className="flex gap-2 mb-1.5">
+          <span style={{ fontFamily: ARCH, fontSize: 11, color: C.saibro, flexShrink: 0 }}>{i + 1}</span>
+          <p style={{ ...prosa, fontSize: 12.5 }}>{cr}</p>
+        </div>
+      ))}
+      {c.naoExige && (
+        <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 8 }}><b>O que ainda não se exige:</b> {c.naoExige}</p>
+      )}
+      <div className="mt-2" style={{ background: C.papel, borderLeft: "3px solid " + C.quadra, padding: "8px 11px" }}>
+        <p style={{ ...prosa, fontSize: 12 }}>{c.nota}</p>
+      </div>
+    </div>
+  );
+}
+
+/* ── legenda completa Y1–Y6, pra estudo do treinador (Parte 9 do manual) ── */
+function LegendaNiveis({ nivelInicial }) {
+  const [aberto, setAberto] = useState(false);
+  const [nivelAtivo, setNivelAtivo] = useState(nivelInicial || "Y1");
+  useEffect(() => { if (nivelInicial) setNivelAtivo(nivelInicial); }, [nivelInicial]);
+
+  return (
+    <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "12px 15px" }}>
+      <button onClick={() => setAberto(!aberto)} className="w-full flex items-center justify-between gap-3" style={{ cursor: "pointer" }}>
+        <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>Critérios de nível Y1–Y6</span>
+        <Etiqueta>{aberto ? "fechar" : "abrir"}</Etiqueta>
+      </button>
+      {aberto && (
+        <div className="mt-3">
+          <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 10 }}>
+            O aluno nunca é testado — é observado dentro das aulas normais. Um critério só é marcado depois de
+            aparecer em três ocasiões distintas, em aulas diferentes.
+          </p>
+          <div className="flex gap-1 flex-wrap mb-3">
+            {NIVEIS_CRITERIOS.map((c) => (
+              <button key={c.nivel} onClick={() => setNivelAtivo(c.nivel)}
+                style={{ fontFamily: ARCH, fontSize: 12, fontWeight: nivelAtivo === c.nivel ? 700 : 500, padding: "5px 10px",
+                  borderRadius: 2, cursor: "pointer", border: "1px solid " + (nivelAtivo === c.nivel ? C.tinta : C.linha),
+                  background: nivelAtivo === c.nivel ? C.tinta : C.papel, color: nivelAtivo === c.nivel ? C.papel : C.grafite }}>
+                {c.nivel}
+              </button>
+            ))}
+          </div>
+          <div style={{ background: C.papel, border: "1px solid " + C.linha, padding: "12px 14px" }}>
+            <CriteriosDoNivel nivel={nivelAtivo} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ─────────────────────────── cartão de exercício ─────────────────────────── */
 function CartaoExercicio({ e, aoTrocar, aoRemover }) {
   const [aberto, setAberto] = useState(false);
@@ -1218,9 +1386,15 @@ function promptClassificacao(a) {
     "A · Adulto — joga com bola e quadra de adulto, sem estrutura competitiva.",
     "C · Competição — joga ou está pronto para torneios, com repertório tático e físico compatível.",
     "",
-    "NÍVEIS POSSÍVEIS (escolha exatamente um — Y1 o repertório mais simples, Y6 o mais completo,",
-    "dentro do estágio Adulto ou Competição; para estágios infantis use o nível mais baixo compatível):",
-    "Y1, Y2, Y3, Y4, Y5, Y6.",
+    "NÍVEIS POSSÍVEIS (escolha exatamente um). O aluno nunca é testado — os critérios são o que se",
+    "observaria dele em aula, três vezes, antes de considerar cumprido. É a mesma escada para todos",
+    "os públicos: o que muda entre criança e adulto é a velocidade, não o caminho. Na dúvida entre",
+    "dois níveis, escolha o mais baixo — subir cedo frustra, subir com folga motiva.",
+    "",
+    ...NIVEIS_CRITERIOS.map((c) =>
+      c.nivel + " · " + c.nome + " — " + c.capacidade + " (" + c.publico + "). Critérios: " +
+      c.criterios.join("; ") + "." + (c.naoExige ? " Ainda não exige: " + c.naoExige : "")
+    ),
     "",
     "Baseie-se só no que a ficha mostra. Se a informação for insuficiente para decidir com segurança,",
     "escolha a opção mais conservadora e diga isso na justificativa — nunca arbitre sem base.",
@@ -1442,6 +1616,7 @@ function TelaFicha({ aluno, salvar }) {
           <Campo rotulo="Nível"><Seletor opcoes={NIVEIS.map((n) => ({ v: n, r: n }))} valor={f.nivel} aoMudar={(v) => set("nivel", v)} /></Campo>
         </div>
         <SugestaoClassificacao f={f} set={set} />
+        <LegendaNiveis nivelInicial={f.nivel} />
       </Secao>
 
       <Secao titulo="Diagnóstico — as quatro camadas" nota="A ordem é técnico, físico, tático, mental, e não pode ser invertida (D-01). Cada camada abre a seguinte.">
@@ -3851,6 +4026,8 @@ function TelaTaticas() {
         Parte 6 do manual. O perfil de cada jogador — corpo e temperamento — vive na ficha dele;
         aqui fica só a referência para consultar durante o planejamento.
       </p>
+
+      <LegendaNiveis />
 
       <Secao titulo="Os três objetivos do jogo" nota="Nesta ordem: ganha-se a quadra para poder produzir ângulo, e o ângulo é o que tira tempo.">
         {OBJETIVOS_JOGO.map((o, i) => (
