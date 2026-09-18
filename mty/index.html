@@ -467,6 +467,130 @@ const PRATICA_CONDUCAO = [
   { t: "Reenquadramento por escrito", como: "Anotar três falas de aluno da semana e escrever o reenquadramento.", revela: "Treina a formulação antes de precisar dela em quadra." },
 ];
 
+/* ── Públicos específicos (Parte 8 do manual) — mesmo currículo, mesmos critérios de
+   nível e mesma condução; o que muda é o recorte, o ritmo e a conversa. ── */
+const PUBLICOS_ESPECIFICOS = [
+  {
+    id: "resumo", titulo: "O que muda em cada frente",
+    blocos: [
+      { tipo: "tabela", cabecalho: ["Público", "O que muda"], linhas: [
+        ["Adulto competitivo social", "Tática pesa mais que técnica; ciclo de 8 semanas"],
+        ["Infantojuvenil competitivo social", "Compete sem projeto profissional"],
+        ["Infantojuvenil alto rendimento", "Projeto declarado e calendário desenhado"],
+        ["Adulto acima dos 50", "Carga, amplitude e expectativa"],
+        ["Aluno intermitente", "Regra de retomada"],
+        ["Dupla desigual", "Restrição, não redução"],
+        ["A família", "Sete situações e o que dizer em cada uma"],
+      ] },
+      { tipo: "texto", texto: "Nenhum destes públicos pede currículo novo: todos usam o mesmo catálogo, os mesmos critérios de nível e a mesma condução." },
+    ],
+  },
+  {
+    id: "competitivo-social", titulo: "Adulto competitivo social",
+    blocos: [
+      { tipo: "texto", texto: "Joga torneio interno, liga amadora ou ranking de clube — não é um recreativo com mais aulas, nem um atleta com menos tempo. Ele compete de verdade e tem só duas a quatro horas por semana: precisa de tática mais que de técnica, porque o tempo não permite reconstruir um golpe, mas permite reorganizar a decisão." },
+      { tipo: "tabela", titulo: "O que muda em relação ao recreativo", cabecalho: ["Dimensão", "Nesta frente", "Por quê"], linhas: [
+        ["Objetivo da formação", "Melhorar o resultado dentro do repertório que ele já tem", "Reconstruir técnica é projeto de dois anos que ele não vai sustentar"],
+        ["Proporção", "40% tática · 30% início do ponto · 20% técnica · 10% físico", "É o único público em que a tática pesa mais que a técnica"],
+        ["Currículo", "Continuação de Y4 a Y6, com os padrões filtrados pelo perfil dele", "Não é currículo novo: é o mesmo, com escolha mais dura do que entra"],
+        ["Ciclo", "8 semanas em vez de 12, ancorado no calendário do clube", "Ciclo de 12 semanas não cabe entre dois torneios amadores"],
+        ["Técnica específica", "Um estímulo por ciclo, não por três aulas", "Ele tem menos horas: o estímulo precisa durar mais para instalar"],
+        ["Registro", "Scout simplificado dos próprios jogos", "É o que dá a percepção de evolução que a sensação não dá"],
+      ] },
+      { tipo: "tabela", titulo: "O ciclo de oito semanas", cabecalho: ["Semanas", "Fase", "O que acontece"], linhas: [
+        ["1–2", "Base", "Volume alto, intensidade média. Um padrão tático novo instalado em trilho fechado."],
+        ["3–4", "Ampliação", "O padrão sai do trilho para o semiaberto. Início do ponto ganha peso."],
+        ["5", "Afinação", "Volume cai, especificidade sobe. Nenhum conteúdo novo entra."],
+        ["6", "Competição", "O torneio do clube. A semana de jogo é o treino da semana."],
+        ["7", "Regeneração", "Carga leve, conversa de reavaliação, decisão do próximo padrão."],
+        ["8", "Ponte", "Retomada e escolha do ciclo seguinte a partir do que o torneio revelou."],
+      ] },
+      { tipo: "texto", titulo: "O protocolo entre pontos, versão curta", texto: "Duas etapas apenas — respirar e decidir. Ele não tem volume de repetição para sustentar quatro etapas sob pressão; com quatro, o protocolo desaparece no primeiro game apertado e o aluno conclui que protocolo não funciona para ele." },
+      { tipo: "tabela", titulo: "Como tratar o resultado com ele", cabecalho: ["O que dizer", "O que não dizer"], linhas: [
+        ["\"Você executou o plano nos dois primeiros sets. É isso que a gente treinou.\"", "\"Você jogou bem, só teve azar.\""],
+        ["\"Perder executando é um bom dia de tênis. Perder sem plano é que é problema.\"", "\"Resultado não importa.\" Para ele importa, e negar isso quebra a confiança."],
+        ["\"Este torneio mostrou que o seu buraco é a devolução. É o ciclo que vem.\"", "\"Vamos rever tudo.\" Ele não tem tempo para rever tudo."],
+        ["\"Do que você lembra do 4-4 do segundo set?\"", "\"Você ficou nervoso.\" É inferência, não observação."],
+      ] },
+    ],
+  },
+  {
+    id: "infantojuvenil", titulo: "Infantojuvenil: duas frentes, não uma",
+    blocos: [
+      { tipo: "texto", texto: "A pergunta que define a frente não é \"ele tem talento?\". É \"a família e o jovem declararam um projeto?\" — explícito, revisitado a cada semestre e reversível sem constrangimento. Entra em alto rendimento quando quatro coisas coexistem: horizonte declarado por ele (não pela família), disponibilidade real de agenda, condição de sustentar o calendário, e critérios de nível Y5 cumpridos. Faltando qualquer uma, ele é competitivo social — uma frente diferente, não um nível inferior." },
+      { tipo: "tabela", titulo: "A comparação", cabecalho: ["", "Competitivo social", "Alto rendimento"], linhas: [
+        ["Quem é", "Compete no circuito estadual ou regional, sem projeto profissional", "Tem horizonte profissional declarado e calendário nacional ou internacional"],
+        ["Escola", "Em primeiro lugar, sempre — o tênis se ajusta à escola", "Escola preservada, mas o calendário do tênis condiciona escolhas"],
+        ["Volume", "3 a 4 sessões semanais, uma delas física", "6 a 10 sessões semanais, com físico dedicado"],
+        ["Calendário", "4 a 6 torneios por semestre, pela agenda da família", "Calendário desenhado do fim para o começo, com janelas definidas"],
+        ["Ciclo", "12 semanas, com competição pontuando o meio", "18 semanas ou mais, com mesociclos e ponte competitiva"],
+        ["Periodização", "Simplificada: base, afinação, competição, regeneração", "Completa, com curva de volume e intensidade e ciclos de estímulo"],
+        ["Critério de sucesso", "Permanência no esporte e evolução de nível", "Marcos objetivos por ano, com metas tangíveis"],
+        ["O risco", "Ser tratado como alto rendimento e desistir aos quinze", "Ser tratado como competitivo social e chegar tarde ao nível"],
+      ] },
+      { tipo: "aviso", texto: "A migração acontece nos dois sentidos, e a de volta é a mais importante de saber fazer. Um jovem que sai do alto rendimento e volta ao competitivo social não fracassou: mudou de projeto. A unidade que trata isso como queda perde o aluno, a família — e os irmãos mais novos." },
+    ],
+  },
+  {
+    id: "acima-50", titulo: "O adulto acima dos cinquenta",
+    blocos: [
+      { tipo: "texto", texto: "Não é um público frágil. É um público com um corpo diferente e uma expectativa diferente — e as duas coisas se resolvem com ajuste de condução, não com redução de exigência." },
+      { tipo: "tabela", cabecalho: ["O que muda", "O ajuste"], linhas: [
+        ["Tempo de reação menor", "Bola mais lenta e alimentação mais alta nas primeiras semanas. Bola verde com adulto iniciante não é vergonha nenhuma"],
+        ["Recuperação mais lenta entre esforços", "Blocos mais curtos com mais pausas, mantendo o volume total da aula"],
+        ["Amplitude de ombro reduzida", "Saque com movimento abreviado antes do completo. Reduza a exigência de pronação antes de reduzir a empunhadura"],
+        ["Medo de queda", "Nunca exija deslocamento para trás em corrida nas primeiras semanas. Recuo lateral primeiro"],
+        ["Histórico de lesão frequente", "Pergunte na primeira aula, e registre. É o público em que o histórico mais muda a condução"],
+        ["Expectativa", "Ele quer jogar, não quer ser atleta. Progresso percebido importa mais que progresso medido — mostre a ficha"],
+      ] },
+      { tipo: "aviso", texto: "A tentação é tratá-lo como iniciante frágil e reduzir tudo. O resultado é um aluno entediado que sai em dois meses. Reduza a carga por bloco, nunca a exigência da execução." },
+    ],
+  },
+  {
+    id: "intermitente", titulo: "O aluno intermitente e a aula avulsa",
+    blocos: [
+      { tipo: "texto", texto: "A maior parte dos alunos adultos não faz 24 aulas consecutivas — viaja, tem filho doente, some por três semanas. Fingir que o ciclo de 12 semanas cabe na vida dele produz um aluno que sente estar sempre atrasado. A solução não é um currículo paralelo: é uma regra de retomada." },
+      { tipo: "tabela", titulo: "A regra de retomada", cabecalho: ["Faltou", "Retoma em", "O que o professor faz"], linhas: [
+        ["Até 2 aulas", "Onde a turma está", "Nada além do normal — o conteúdo perdido reaparece na repetição distribuída"],
+        ["3 a 5 aulas", "Na aula anterior à que perdeu", "Comprime o intermediário no bloco 4, com estímulo individual"],
+        ["Mais de 5 aulas", "No início do mesociclo em curso", "E reavalia o estágio: ausência longa costuma pedir checagem física"],
+      ] },
+      { tipo: "texto", titulo: "Aula avulsa", texto: "Para o aluno que compra hora sem ciclo, vale a estrutura dos cinco blocos com um estímulo único declarado no início e retomado no fechamento. Sem ciclo não há progressão — e isso precisa ser dito na venda, não descoberto depois." },
+    ],
+  },
+  {
+    id: "dupla-desigual", titulo: "A dupla desigual",
+    blocos: [
+      { tipo: "texto", texto: "A situação mais comum da aula em dupla, e a que mais derruba a percepção de qualidade. O erro clássico é pedir ao mais avançado que jogue mais devagar — mata a bola dele, ensina passividade e transmite ao outro que ele é o problema." },
+      { tipo: "tabela", cabecalho: ["", "Como se faz"], linhas: [
+        ["O princípio", "Ninguém ocioso, ninguém humilhado. O mais avançado trabalha sob restrição; o menos avançado em condição favorável."],
+        ["Restrições que funcionam", "Menos quadra · alvo menor · uma bola a mais antes de pontuar · só pode terminar à frente · lado não dominante obrigatório"],
+        ["Restrições que não funcionam", "Pedir para bater mais devagar (mata a bola dele) ou pedir para \"ajudar\" (transforma o aluno em alimentador)"],
+        ["No bloco 2", "Alternância a cada 5 minutos, e o mais avançado saca com alvo reduzido"],
+        ["No bloco 4", "Estímulos diferentes, anunciados em voz alta — é o bloco em que a diferença de nível é irrelevante"],
+        ["No bloco 5", "Ponto entre os dois com a restrição valendo. Placar desigual por três aulas seguidas = a dupla está errada, é problema de formação de turma"],
+        ["Quando não insistir", "Diferença de dois estágios ou mais — aí não é gestão de dupla desigual, é turma montada errado"],
+      ] },
+    ],
+  },
+  {
+    id: "familia", titulo: "A conversa com a família",
+    blocos: [
+      { tipo: "texto", texto: "É a maior lacuna da frente de crianças, e afeta mais o trabalho do que qualquer detalhe técnico. Sete situações cobrem quase tudo o que acontece." },
+      { tipo: "tabela", cabecalho: ["Situação", "O que fazer"], linhas: [
+        ["Na matrícula", "Explique o sistema de bolas e níveis em trinta segundos, e diga que existem critérios objetivos. Quem sabe que existe critério pede menos exceção"],
+        ["A cada três meses", "Devolutiva curta com a ficha na mão. Mostre o que já cumpre e o que falta — a ficha com marcas visíveis é o melhor argumento que existe"],
+        ["Quando pedem para subir", "Nomeie os critérios que faltam, não a maturidade da criança. \"Faltam estes dois, e são eles que estamos treinando\""],
+        ["Quando a criança regride de bola", "Diga o critério objetivo de volta. Regressão com critério declarado é aceita; sem critério, parece castigo"],
+        ["Quando comparam com outra criança", "Nunca compare de volta, nem para defender. \"Cada um tem o seu tempo, e o dela está sendo ótimo\""],
+        ["Quando a família quer treinar junto", "Bem-vinda no jogo, nunca na aula. Pai corrigindo na lateral desfaz a aula inteira — isso se combina antes, não durante"],
+        ["O que nunca fazer", "Prometer prazo de evolução. Nenhum critério tem data, e a promessa quebrada custa o aluno"],
+      ] },
+      { tipo: "aviso", texto: "O princípio que atravessa as sete: a ficha decide, não o professor. Sempre que a conversa puder ser resolvida mostrando um critério objetivo, mostre — e sempre que não puder, é sinal de que o critério não existe e precisa ser escrito." },
+    ],
+  },
+];
+
 /* ── cursos de formação continuada, por módulo ── */
 const CURSOS_FORMACAO = [
   {
@@ -4120,7 +4244,7 @@ function App() {
           </div>
           <div className="mt-0.5"><Etiqueta>Ficha, periodização e sessão · 315 exercícios</Etiqueta></div>
           <nav className="flex gap-6 mt-3">
-            {[{ v: "alunos", r: "Jogadores" }, { v: "turmas", r: "Turmas" }, { v: "catalogo", r: "Catálogo" }, { v: "taticas", r: "Táticas" }, { v: "conducao", r: "Condução" }, { v: "casos", r: "Casos" }, { v: "metodo", r: "Como decide" },
+            {[{ v: "alunos", r: "Jogadores" }, { v: "turmas", r: "Turmas" }, { v: "catalogo", r: "Catálogo" }, { v: "taticas", r: "Táticas" }, { v: "conducao", r: "Condução" }, { v: "publicos", r: "Públicos" }, { v: "casos", r: "Casos" }, { v: "metodo", r: "Como decide" },
               ...(papelAtual === "coordenador" ? [{ v: "equipe", r: "Equipe" }] : [])].map((t) => (
               <button key={t.v} onClick={() => { setAba(t.v); setAbertoId(null); }}
                 style={{ fontFamily: ARCH, fontSize: 13, fontWeight: aba === t.v ? 700 : 500, padding: "6px 0", cursor: "pointer", color: aba === t.v ? C.tinta : C.grafite, borderBottom: "2px solid " + (aba === t.v ? C.saibro : "transparent") }}>
@@ -4137,6 +4261,7 @@ function App() {
          aba === "taticas" ? <TelaTaticas /> :
          aba === "casos" ? <TelaCasos /> :
          aba === "conducao" ? <TelaConducao /> :
+         aba === "publicos" ? <TelaPublicos /> :
          aba === "metodo" ? <TelaMetodo /> :
          aba === "equipe" ? <TelaEquipe /> :
          aba === "turmas" ? <TelaTurmas alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} /> :
@@ -4346,7 +4471,7 @@ function TelaCasos() {
   );
 }
 
-function BlocoConducao({ b }) {
+function BlocoReferencia({ b }) {
   if (b.tipo === "tabela") {
     return (
       <div className="mb-4">
@@ -4391,7 +4516,7 @@ function TelaConducao() {
       {SERIE_CONDUCAO.map((c) => (
         <Secao key={c.id} titulo={c.id + " · " + c.titulo}>
           <p style={{ ...prosa, fontSize: 14, marginBottom: 14, fontStyle: "italic" }}>{c.frase}</p>
-          {c.blocos.map((b, i) => <BlocoConducao key={i} b={b} />)}
+          {c.blocos.map((b, i) => <BlocoReferencia key={i} b={b} />)}
         </Secao>
       ))}
 
@@ -4416,6 +4541,22 @@ function TelaConducao() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function TelaPublicos() {
+  return (
+    <div>
+      <p style={{ ...prosa, marginBottom: 18 }}>
+        Parte 8 do manual. Nenhum destes públicos pede currículo novo — o mesmo catálogo, os mesmos
+        critérios de nível e a mesma condução. O que muda é o recorte, o ritmo e a conversa.
+      </p>
+      {PUBLICOS_ESPECIFICOS.map((p) => (
+        <Secao key={p.id} titulo={p.titulo}>
+          {p.blocos.map((b, i) => <BlocoReferencia key={i} b={b} />)}
+        </Secao>
+      ))}
     </div>
   );
 }
