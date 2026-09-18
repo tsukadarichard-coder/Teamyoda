@@ -2355,6 +2355,8 @@ function TelaPlano({ aluno, alunos, setAlunos }) {
 
   const plano = aluno.plano;
   const reg = aluno.regPlano || {};
+  const historico = aluno.historicoRelatorios || [];
+  const [abrirHist, setAbrirHist] = useState(null);
 
   function atualiza(campos) {
     setAlunos(alunos.map((a) => (a.id === aluno.id ? { ...a, ...campos } : a)));
@@ -2499,6 +2501,23 @@ function TelaPlano({ aluno, alunos, setAlunos }) {
     L.push("Aula sem observação escrita não é aula sem informação — é informação não registrada.");
     L.push("Campos de observação em branco seguem em aberto e entram no próximo ciclo.");
     setRelatorio(L.join("\n"));
+  }
+
+  function arquivar() {
+    const item = {
+      id: "REL-" + Date.now().toString(36),
+      data: new Date().toISOString(),
+      tipo: plano.tipo || "",
+      feitas, total: aulas.length,
+      texto: relatorio,
+    };
+    atualiza({ historicoRelatorios: [item, ...historico] });
+  }
+
+  function removerDoHistorico(id) {
+    if (!confirm("Remover este relatório do histórico? Não dá pra desfazer.")) return;
+    atualiza({ historicoRelatorios: historico.filter((h) => h.id !== id) });
+    if (abrirHist === id) setAbrirHist(null);
   }
 
   /* ── sem plano ainda ── */
@@ -2727,9 +2746,36 @@ function TelaPlano({ aluno, alunos, setAlunos }) {
           <div className="mb-2"><Etiqueta cor={C.quadra}>Relatório do ciclo</Etiqueta></div>
           <textarea readOnly value={relatorio}
             style={{ ...entrada, minHeight: 260, fontFamily: "ui-monospace, monospace", fontSize: 11.5, whiteSpace: "pre" }} />
-          <div className="mt-3">
+          <div className="mt-3 flex gap-2">
             <Botao pequeno variante="vazio" onClick={() => navigator.clipboard.writeText(relatorio)}>Copiar</Botao>
+            <Botao pequeno onClick={arquivar}>Arquivar no histórico</Botao>
           </div>
+        </div>
+      )}
+
+      {historico.length > 0 && (
+        <div className="mt-4">
+          <div className="mb-2"><Etiqueta>Histórico de relatórios · {historico.length}</Etiqueta></div>
+          {historico.map((h) => (
+            <div key={h.id} style={{ background: C.papel, border: "1px solid " + C.linha, padding: "10px 13px", marginBottom: 7 }}>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <p style={{ ...prosa, fontSize: 12.5 }}>
+                  {new Date(h.data).toLocaleDateString("pt-BR")} · {h.tipo || "ciclo"} · {h.feitas} de {h.total} aulas
+                </p>
+                <div className="flex gap-2">
+                  <Botao pequeno variante="vazio" onClick={() => setAbrirHist(abrirHist === h.id ? null : h.id)}>
+                    {abrirHist === h.id ? "Fechar" : "Ver"}
+                  </Botao>
+                  <Botao pequeno variante="vazio" onClick={() => navigator.clipboard.writeText(h.texto)}>Copiar</Botao>
+                  <Botao pequeno variante="vazio" onClick={() => removerDoHistorico(h.id)}>Remover</Botao>
+                </div>
+              </div>
+              {abrirHist === h.id && (
+                <textarea readOnly value={h.texto}
+                  style={{ ...entrada, minHeight: 220, marginTop: 9, fontFamily: "ui-monospace, monospace", fontSize: 11.5, whiteSpace: "pre" }} />
+              )}
+            </div>
+          ))}
         </div>
       )}
 
