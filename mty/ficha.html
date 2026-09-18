@@ -1,0 +1,549 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ficha de Entrada · Metodologia MTY</title>
+<style>
+  :root{
+    --papel:#F5F2F0; --tinta:#141210; --verm:#C8102E; --cinza:#6B6461;
+    --linha:#D8D1CB; --verde:#2E4739; --ocre:#C9A227; --branco:#fff;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  body{margin:0; background:var(--papel); color:var(--tinta);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    padding-bottom:120px}
+  .topo{background:var(--verm); height:7px}
+  .wrap{max-width:720px; margin:0 auto; padding:0 16px}
+  header{padding:26px 0 12px}
+  .kicker{font-size:11px; font-weight:700; letter-spacing:.09em; color:var(--cinza)}
+  h1{font-family:Georgia,"Times New Roman",serif; font-size:27px; margin:10px 0 4px; font-weight:700}
+  .sub{color:var(--cinza); font-size:14px}
+
+  .aviso{background:var(--branco); border:1px solid var(--linha);
+    border-left:4px solid var(--ocre); padding:13px 15px; margin:18px 0; font-size:13.5px}
+  .aviso b{display:block; font-size:11px; letter-spacing:.07em; color:var(--ocre); margin-bottom:5px}
+
+  .barra-sec{background:var(--tinta); color:#fff; padding:9px 14px; margin:26px 0 0;
+    border-left:4px solid var(--verm); font-size:12.5px; font-weight:700; letter-spacing:.05em}
+  .nota-sec{color:var(--cinza); font-size:12.5px; font-style:italic; margin:9px 0 4px}
+
+  .campo{margin:16px 0}
+  .rot{display:block; font-size:11.5px; font-weight:700; letter-spacing:.04em;
+    text-transform:uppercase; margin-bottom:6px}
+  textarea,input[type=text]{width:100%; border:1px solid var(--linha); background:var(--branco);
+    border-radius:3px; padding:10px 11px; font:inherit; font-size:15px; color:var(--tinta);
+    resize:vertical}
+  textarea{min-height:58px}
+  textarea:focus,input:focus{outline:none; border-color:var(--verm)}
+  textarea.ns,input.ns{background:#EFEBE7; color:var(--cinza); font-style:italic}
+
+  .linha-campo{display:flex; gap:8px; align-items:flex-start}
+  .linha-campo textarea,.linha-campo input{flex:1}
+  .bt-ns{flex:0 0 auto; border:1px solid var(--linha); background:var(--branco);
+    color:var(--cinza); border-radius:3px; padding:9px 10px; font-size:11.5px;
+    font-weight:700; cursor:pointer; white-space:nowrap; min-height:42px}
+  .bt-ns.on{background:var(--cinza); color:#fff; border-color:var(--cinza)}
+
+  .golpe{background:var(--branco); border:1px solid var(--linha);
+    border-left:4px solid var(--verm); padding:12px 14px; margin:12px 0}
+  .golpe h4{margin:0 0 10px; font-size:15px}
+  .mini{font-size:11px; font-weight:700; letter-spacing:.04em; color:var(--cinza);
+    text-transform:uppercase; margin-bottom:5px; display:block}
+
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+  @media(max-width:520px){.grid2{grid-template-columns:1fr}}
+
+  .rodape-fixo{position:fixed; left:0; right:0; bottom:0; background:var(--branco);
+    border-top:1px solid var(--linha); padding:11px 16px; z-index:50}
+  .rodape-in{max-width:720px; margin:0 auto; display:flex; gap:9px; align-items:center}
+  .prog{flex:1; font-size:12px; color:var(--cinza)}
+  .bt{border:none; border-radius:3px; padding:13px 18px; font-size:14px; font-weight:700;
+    cursor:pointer; font-family:inherit}
+  .bt-p{background:var(--verm); color:#fff}
+  .bt-s{background:var(--branco); color:var(--tinta); border:1px solid var(--linha)}
+  .bt-v{background:var(--verde); color:#fff}
+  .bt-w{background:#25D366; color:#0b3d20}
+
+  dialog{border:none; border-radius:4px; padding:0; max-width:680px; width:94%;
+    background:var(--papel)}
+  dialog::backdrop{background:rgba(0,0,0,.5)}
+  .dlg-in{padding:20px}
+  .dlg-in h3{margin:0 0 4px; font-family:Georgia,serif; font-size:20px}
+  #saida{width:100%; min-height:290px; font-family:ui-monospace,Menlo,Consolas,monospace;
+    font-size:12px; line-height:1.45; white-space:pre; overflow-x:auto}
+  .ok{background:var(--verde); color:#fff; padding:9px 12px; border-radius:3px;
+    font-size:13px; margin-top:10px; display:none}
+
+  /* ── folha de impressão ──
+     Na tela o bloco fica escondido; na impressão ele é a única coisa
+     visível, e o resto da interface some. Assim o "salvar como PDF" do
+     navegador produz um documento limpo, sem botões nem menus. */
+  #impressao{display:none}
+  @media print{
+    @page{ size:A4; margin:16mm 15mm; }
+    body{background:#fff; padding:0}
+    .topo,header,.aviso,#rascunhos,#form,.rodape-fixo,dialog{display:none !important}
+    #impressao{display:block}
+    .pr-cab{border-bottom:2.5px solid #C8102E; padding-bottom:9px; margin-bottom:16px}
+    .pr-kick{font-size:8.5pt; font-weight:700; letter-spacing:.09em; color:#6B6461}
+    .pr-nome{font-family:Georgia,serif; font-size:20pt; font-weight:700; margin:5px 0 2px}
+    .pr-meta{font-size:9pt; color:#6B6461}
+    .pr-sec{background:#141210; color:#fff; font-size:8.5pt; font-weight:700;
+      letter-spacing:.05em; padding:4px 9px; margin:15px 0 9px; border-left:3px solid #C8102E;
+      page-break-after:avoid}
+    .pr-golpe{border:1px solid #D8D1CB; border-left:2.5px solid #C8102E; padding:7px 10px;
+      margin-bottom:7px; page-break-inside:avoid}
+    .pr-golpe b{font-size:10.5pt}
+    .pr-l{margin:3px 0 0; font-size:9.5pt; line-height:1.4}
+    .pr-r{font-size:7.5pt; font-weight:700; letter-spacing:.04em; color:#6B6461;
+      text-transform:uppercase}
+    .pr-campo{margin-bottom:9px; page-break-inside:avoid}
+    .pr-ns{color:#6B6461; font-style:italic}
+    .pr-rod{margin-top:20px; border-top:1px solid #D8D1CB; padding-top:8px;
+      font-size:8pt; color:#6B6461; line-height:1.45}
+  }
+
+  .rasc{background:var(--branco); border:1px solid var(--linha); border-radius:3px;
+    padding:10px 12px; margin:7px 0; display:flex; align-items:center; gap:10px}
+  .rasc b{flex:1; font-size:14px}
+  .rasc small{color:var(--cinza); font-size:11.5px}
+  .bt-x{background:none; border:1px solid var(--linha); color:var(--cinza);
+    border-radius:3px; padding:6px 9px; font-size:11.5px; cursor:pointer}
+</style>
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore-compat.js"></script>
+<script src="mty-nuvem.js"></script>
+</head>
+<body>
+<div class="topo"></div>
+<div id="mty-faixa" style="font:12px system-ui;padding:6px 14px;text-align:center;color:#fff">Carregando…</div>
+<div class="wrap">
+
+<header>
+  <div class="kicker">METODOLOGIA MTY · TEAM YODA TENNIS PRO</div>
+  <h1>Ficha de entrada do jogador</h1>
+  <div class="sub">Para montar o planejamento individual</div>
+</header>
+
+<div class="aviso">
+  <b>ANTES DE PREENCHER</b>
+  A ordem dos blocos segue o protocolo do método: técnico, físico, tático e só então mental.
+  Se não souber algum item, toque em <strong>não sei</strong> em vez de estimar — campo honesto
+  vira item de observação no plano; campo chutado vira erro de diagnóstico.
+</div>
+
+<div id="rascunhos"></div>
+<div id="form"></div>
+
+</div>
+
+<div id="impressao"></div>
+
+<div class="rodape-fixo"><div class="rodape-in">
+  <div class="prog" id="prog">—</div>
+  <button class="bt bt-s" id="btNovo">Nova ficha</button>
+  <button class="bt bt-p" id="btGerar">Gerar relatório</button>
+</div></div>
+
+<dialog id="dlg"><div class="dlg-in">
+  <h3>Relatório da ficha</h3>
+  <p style="color:var(--cinza); font-size:13.5px; margin:6px 0 12px">
+    Copie e cole na conversa com o Claude para gerar o planejamento.</p>
+  <textarea id="saida" readonly></textarea>
+  <div id="mty-guardado" style="font-size:12.5px;margin-top:9px;color:#6B6461"></div>
+  <div class="ok" id="ok">Copiado. Agora é só colar na conversa.</div>
+  <div style="display:flex; gap:9px; margin-top:12px; flex-wrap:wrap">
+    <button class="bt bt-w" id="btZap">Enviar pelo WhatsApp</button>
+    <button class="bt bt-v" id="btShare">Escolher onde enviar</button>
+    <button class="bt bt-s" id="btPdf">Salvar em PDF</button>
+    <button class="bt bt-s" id="btCopiar">Copiar</button>
+    <button class="bt bt-s" id="btFechar">Fechar</button>
+  </div>
+  <p style="color:var(--cinza); font-size:12.5px; margin:11px 0 0">
+    <b>Enviar pelo WhatsApp</b> abre a conversa com o treinador responsável.
+    <b>Escolher onde enviar</b> abre a lista do celular, onde dá para escolher um grupo.</p>
+</div></dialog>
+
+<script>
+/* ═══════════ PARA ONDE VAI O RELATÓRIO ═══════════
+   Coloque aqui o número que recebe as fichas, com código do país e DDD,
+   só dígitos. Exemplo para São Paulo: "5511987654321".
+   Deixe vazio ("") para esconder o botão de envio direto. */
+const NUMERO_DESTINO = (typeof MTY_WHATSAPP !== "undefined") ? MTY_WHATSAPP : "";
+
+/* ─────────── definição da ficha (mesma ordem do PDF) ─────────── */
+const GOLPES = ['Forehand','Backhand','Saque','Devolução','Jogo de rede'];
+
+const BLOCOS = [
+ {n:'0', t:'Identificação e contexto', campos:[
+   {k:'nome',   r:'Nome', tipo:'texto', semNS:true},
+   {k:'idade',  r:'Idade', tipo:'texto', metade:true},
+   {k:'tempo',  r:'Há quanto tempo joga', tipo:'texto', metade:true},
+   {k:'freq',   r:'Vezes por semana', tipo:'texto', metade:true},
+   {k:'dur',    r:'Duração da aula', tipo:'texto', metade:true},
+   {k:'formato',r:'Formato (individual / dupla / grupo)', tipo:'texto'},
+   {k:'comp',   r:'Compete hoje? Pretende competir?', tipo:'area'},
+ ]},
+ {n:'1', t:'Técnico · golpe a golpe', golpes:true,
+  nota:'Para cada golpe: o que já funciona, o que falha e — mais importante — em que situação falha. "Erra o backhand" diz pouco; "erra o backhand quando a bola vem alta e ele está recuando" diz quase tudo.'},
+ {n:'2', t:'Físico e corpo',
+  nota:'Define o perfil espacial (E1, E2 ou E3). Estatura importa menos que deslocamento e resistência.',
+  campos:[
+   {k:'estatura',r:'Estatura aproximada', tipo:'texto', metade:true},
+   {k:'constit', r:'Constituição (leve / médio / forte)', tipo:'texto', metade:true},
+   {k:'desloc',  r:'Como se desloca — chega bem na bola larga? recupera o centro?', tipo:'area'},
+   {k:'resist',  r:'Resistência — em que momento da aula ou do jogo a qualidade cai', tipo:'area'},
+   {k:'lesoes',  r:'Lesões, dores ou limitações (e o que já foi orientado por médico)', tipo:'area'},
+ ]},
+ {n:'3', t:'Tático · o que ele faz no ponto',
+  nota:'Este é o bloco mais valioso da ficha. Descreve decisão, não execução — vale mais que a lista de golpes do bloco 1.',
+  campos:[
+   {k:'inicia', r:'Como ele inicia o ponto — o que tenta fazer com a primeira bola', tipo:'area'},
+   {k:'funda',  r:'O que faz quando a bola vem funda e ele está atrás da linha', tipo:'area'},
+   {k:'facil',  r:'O que faz quando tem a bola fácil, curta, para atacar', tipo:'area'},
+   {k:'pressao',r:'Sob pressão (placar apertado, adversário melhor) — o que muda', tipo:'area'},
+   {k:'varia',  r:'Repete o mesmo padrão ou varia? Qual padrão aparece mais?', tipo:'area'},
+ ]},
+ {n:'4', t:'Mental e temperamento',
+  nota:'Último na ordem, e de propósito: só se lê o mental depois de esgotar técnico, físico e tático. Descreva comportamento observado, não interpretação.',
+  campos:[
+   {k:'ritmo',  r:'Ritmo natural — cadenciado e paciente, ou direto e apressado?', tipo:'area'},
+   {k:'erro',   r:'Como reage ao próprio erro — repete a jogada ou foge dela?', tipo:'area'},
+   {k:'aperta', r:'Acelera ou trava quando o jogo aperta?', tipo:'area'},
+   {k:'correc', r:'Como recebe correção — pede detalhe, resiste, aceita tudo sem filtrar?', tipo:'area'},
+ ]},
+ {n:'5', t:'Objetivo',
+  nota:'O objetivo dele e o que você enxerga. Quando os dois não batem, isso é informação útil.',
+  campos:[
+   {k:'quer',   r:'O que ELE diz que quer', tipo:'area'},
+   {k:'prior',  r:'O que VOCÊ vê como prioridade real', tipo:'area'},
+   {k:'prazo',  r:'Prazo ou compromisso à vista (torneio, viagem, meta pessoal)', tipo:'area'},
+ ]},
+ {n:'6', t:'Em aberto',
+  nota:'O que ficou sem resposta hoje e precisa ser observado na próxima aula.',
+  campos:[{k:'aberto', r:'Observar na próxima aula', tipo:'area'}]},
+];
+
+const NS = '__NAOSEI__';
+let dados = {}, fichaId = null;
+
+/* ─────────── armazenamento local ─────────── */
+const CH = 'mty:fichas:v1';
+function lerTudo(){ try{ return JSON.parse(localStorage.getItem(CH)||'{}'); }catch(e){ return {}; } }
+function salvar(){
+  if(!fichaId) return;
+  const t = lerTudo();
+  t[fichaId] = {dados, quando: Date.now()};
+  try{ localStorage.setItem(CH, JSON.stringify(t)); }catch(e){}
+  pintarRascunhos();
+}
+function apagar(id){
+  const t = lerTudo(); delete t[id];
+  try{ localStorage.setItem(CH, JSON.stringify(t)); }catch(e){}
+  if(id===fichaId){ novaFicha(); } else { pintarRascunhos(); }
+}
+
+/* ─────────── montagem do formulário ─────────── */
+function campoHTML(c){
+  const v = dados[c.k]||'';
+  const ns = v===NS;
+  const val = ns ? 'não sei' : v;
+  const tag = c.tipo==='area'
+    ? `<textarea data-k="${c.k}" class="${ns?'ns':''}" ${ns?'readonly':''}>${ns?'não sei':escapar(v)}</textarea>`
+    : `<input type="text" data-k="${c.k}" class="${ns?'ns':''}" ${ns?'readonly':''} value="${ns?'não sei':escapar(v)}">`;
+  const bt = c.semNS ? '' :
+    `<button class="bt-ns ${ns?'on':''}" data-ns="${c.k}">não sei</button>`;
+  return `<div class="campo">
+    <span class="rot">${c.r}</span>
+    <div class="linha-campo">${tag}${bt}</div>
+  </div>`;
+}
+
+function escapar(s){ return String(s).replace(/[&<>"]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+
+function montar(){
+  let h = '';
+  for(const b of BLOCOS){
+    h += `<div class="barra-sec">${b.n} · ${b.t.toUpperCase()}</div>`;
+    if(b.nota) h += `<div class="nota-sec">${b.nota}</div>`;
+    if(b.golpes){
+      for(const g of GOLPES){
+        const kf = 'g_'+g+'_ok', kx = 'g_'+g+'_falha';
+        h += `<div class="golpe"><h4>${g}</h4>
+          ${campoHTML({k:kf, r:'Funciona', tipo:'area'})}
+          ${campoHTML({k:kx, r:'Falha quando', tipo:'area'})}
+        </div>`;
+      }
+    } else {
+      const meta = b.campos.filter(c=>c.metade), resto = b.campos.filter(c=>!c.metade);
+      if(meta.length) h += `<div class="grid2">${meta.map(campoHTML).join('')}</div>`;
+      h += resto.map(campoHTML).join('');
+    }
+  }
+  document.getElementById('form').innerHTML = h;
+  ligar();
+  progresso();
+}
+
+function ligar(){
+  document.querySelectorAll('[data-k]').forEach(el=>{
+    el.addEventListener('input', ()=>{
+      dados[el.dataset.k] = el.value;
+      salvar(); progresso();
+    });
+  });
+  document.querySelectorAll('[data-ns]').forEach(bt=>{
+    bt.addEventListener('click', ()=>{
+      const k = bt.dataset.ns;
+      dados[k] = (dados[k]===NS) ? '' : NS;
+      montar(); salvar();
+    });
+  });
+}
+
+function todasChaves(){
+  const ks = [];
+  for(const b of BLOCOS){
+    if(b.golpes){ for(const g of GOLPES){ ks.push('g_'+g+'_ok','g_'+g+'_falha'); } }
+    else { for(const c of b.campos) ks.push(c.k); }
+  }
+  return ks;
+}
+
+function progresso(){
+  const ks = todasChaves();
+  const feitos = ks.filter(k=>(dados[k]||'').trim()!=='').length;
+  const nsei = ks.filter(k=>dados[k]===NS).length;
+  document.getElementById('prog').textContent =
+    `${feitos} de ${ks.length} preenchidos` + (nsei?` · ${nsei} "não sei"`:'');
+}
+
+/* ─────────── rascunhos salvos ─────────── */
+function pintarRascunhos(){
+  const t = lerTudo();
+  const ids = Object.keys(t).sort((a,b)=>t[b].quando-t[a].quando);
+  const el = document.getElementById('rascunhos');
+  if(!ids.length){ el.innerHTML=''; return; }
+  el.innerHTML = `<div class="barra-sec">FICHAS SALVAS NESTE APARELHO</div>` +
+    ids.map(id=>{
+      const d = t[id].dados||{};
+      const nome = (d.nome||'').trim() || 'Sem nome';
+      const q = new Date(t[id].quando).toLocaleDateString('pt-BR');
+      const atual = id===fichaId ? ' · <span style="color:var(--verm)">aberta</span>' : '';
+      return `<div class="rasc"><b>${escapar(nome)}</b>
+        <small>${q}${atual}</small>
+        <button class="bt-x" data-abrir="${id}">abrir</button>
+        <button class="bt-x" data-apagar="${id}">apagar</button></div>`;
+    }).join('');
+  el.querySelectorAll('[data-abrir]').forEach(b=>b.onclick=()=>{
+    fichaId = b.dataset.abrir; dados = (lerTudo()[fichaId]||{}).dados||{};
+    montar(); pintarRascunhos(); window.scrollTo(0,0);
+  });
+  el.querySelectorAll('[data-apagar]').forEach(b=>b.onclick=()=>{
+    if(confirm('Apagar esta ficha? Não dá para desfazer.')) apagar(b.dataset.apagar);
+  });
+}
+
+function novaFicha(){
+  fichaId = 'f'+Date.now(); dados = {};
+  montar(); pintarRascunhos(); window.scrollTo(0,0);
+}
+
+/* ─────────── relatório ─────────── */
+function val(k){
+  const v = dados[k];
+  if(v===NS) return '[não sei]';
+  const s = (v||'').trim();
+  return s==='' ? '[em branco]' : s;
+}
+
+function relatorio(){
+  const L = [];
+  L.push('FICHA DE ENTRADA · METODOLOGIA MTY');
+  const nome = (dados.nome||'').trim() || 'sem nome';
+  L.push('Jogador: ' + nome);
+  L.push('Preenchida em: ' + new Date().toLocaleDateString('pt-BR'));
+  L.push('');
+  L.push('0 · CONTEXTO');
+  L.push('Idade: ' + val('idade'));
+  L.push('Tempo de jogo: ' + val('tempo'));
+  L.push('Frequência: ' + val('freq') + ' · Duração da aula: ' + val('dur'));
+  L.push('Formato: ' + val('formato'));
+  L.push('Competição: ' + val('comp'));
+  L.push('');
+  L.push('1 · TÉCNICO');
+  for(const g of GOLPES){
+    L.push(g);
+    L.push('  funciona: ' + val('g_'+g+'_ok'));
+    L.push('  falha quando: ' + val('g_'+g+'_falha'));
+  }
+  L.push('');
+  L.push('2 · FÍSICO E CORPO');
+  L.push('Estatura: ' + val('estatura') + ' · Constituição: ' + val('constit'));
+  L.push('Deslocamento: ' + val('desloc'));
+  L.push('Resistência: ' + val('resist'));
+  L.push('Lesões/limitações: ' + val('lesoes'));
+  L.push('');
+  L.push('3 · TÁTICO · O QUE FAZ NO PONTO');
+  L.push('Inicia o ponto: ' + val('inicia'));
+  L.push('Bola funda, atrás da linha: ' + val('funda'));
+  L.push('Bola fácil para atacar: ' + val('facil'));
+  L.push('Sob pressão: ' + val('pressao'));
+  L.push('Repete ou varia: ' + val('varia'));
+  L.push('');
+  L.push('4 · MENTAL E TEMPERAMENTO');
+  L.push('Ritmo natural: ' + val('ritmo'));
+  L.push('Reação ao próprio erro: ' + val('erro'));
+  L.push('Quando o jogo aperta: ' + val('aperta'));
+  L.push('Como recebe correção: ' + val('correc'));
+  L.push('');
+  L.push('5 · OBJETIVO');
+  L.push('O que ele diz que quer: ' + val('quer'));
+  L.push('Prioridade real (visão do treinador): ' + val('prior'));
+  L.push('Prazo/compromisso: ' + val('prazo'));
+  L.push('');
+  L.push('6 · EM ABERTO');
+  L.push(val('aberto'));
+  L.push('');
+  L.push('---');
+  L.push('Campos marcados [não sei] ou [em branco] devem entrar no planejamento como');
+  L.push('item de observação para a próxima aula, nunca preenchidos por suposição.');
+  return L.join('\n');
+}
+
+/* ─────────── eventos ─────────── */
+const dlg = document.getElementById('dlg');
+async function guardaNaNuvem(){
+  const alvo = document.getElementById('mty-guardado');
+  try{
+    const r = await MTY.grave('fichas', {
+      jogador: (dados.nome||'').trim() || 'sem nome',
+      tipo: "treinador",
+      preenchidaEm: new Date().toISOString().slice(0,10),
+      campos: dados,
+      relatorio: relatorio(),
+    }, fichaId);
+    if (alvo) {
+      alvo.textContent = r.nuvem
+        ? "Guardado na nuvem · referência " + r.id
+        : "Guardado neste aparelho · referência " + r.id;
+      alvo.style.color = r.nuvem ? "#2E4739" : "#C25A22";
+    }
+  }catch(e){
+    if (alvo){ alvo.textContent = "Não consegui guardar — o relatório continua válido."; }
+  }
+}
+
+document.getElementById('btGerar').onclick = ()=>{
+  document.getElementById('saida').value = relatorio();
+  guardaNaNuvem();
+  document.getElementById('ok').style.display='none';
+  dlg.showModal();
+};
+document.getElementById('btFechar').onclick = ()=>dlg.close();
+document.getElementById('btNovo').onclick = ()=>{
+  if(confirm('Abrir uma ficha nova? A atual continua salva neste aparelho.')) novaFicha();
+};
+/* ─────────── versão para impressão ───────────
+   Monta um documento com a identidade do método e chama a impressão do
+   navegador. No celular e no computador, a própria caixa de impressão
+   oferece "salvar como PDF" — por isso não é preciso nenhuma biblioteca. */
+function campoImpresso(rot, k){
+  const v = dados[k];
+  const ns = v === NS;
+  const txt = ns ? 'não sei' : ((v||'').trim() || '—');
+  return '<div class="pr-campo"><div class="pr-r">' + escapar(rot) + '</div>' +
+         '<p class="pr-l' + (ns ? ' pr-ns' : '') + '">' + escapar(txt) + '</p></div>';
+}
+
+function montaImpressao(){
+  const nome = (dados.nome||'').trim() || 'Sem nome';
+  const hoje = new Date().toLocaleDateString('pt-BR');
+  const meta = [
+    dados.idade ? 'Idade ' + dados.idade : '',
+    dados.tempo ? dados.tempo + ' de jogo' : '',
+    dados.freq ? dados.freq + ' por semana' : '',
+    dados.formato || '',
+  ].filter(Boolean).map(escapar).join(' · ');
+
+  let h = '<div class="pr-cab">' +
+    '<div class="pr-kick">METODOLOGIA MTY · TEAM YODA TENNIS PRO</div>' +
+    '<div class="pr-nome">' + escapar(nome) + '</div>' +
+    '<div class="pr-meta">Ficha de entrada · preenchida em ' + hoje +
+      (meta ? '<br>' + meta : '') + '</div></div>';
+
+  h += '<div class="pr-sec">0 · CONTEXTO</div>';
+  h += campoImpresso('Duração da aula', 'dur');
+  h += campoImpresso('Competição', 'comp');
+
+  h += '<div class="pr-sec">1 · TÉCNICO, GOLPE A GOLPE</div>';
+  GOLPES.forEach(function(g){
+    h += '<div class="pr-golpe"><b>' + escapar(g) + '</b>' +
+         campoImpresso('Funciona', 'g_'+g+'_ok') +
+         campoImpresso('Falha quando', 'g_'+g+'_falha') + '</div>';
+  });
+
+  BLOCOS.forEach(function(b){
+    if (b.golpes || b.n === '0') return;
+    h += '<div class="pr-sec">' + b.n + ' · ' + escapar(b.t.toUpperCase()) + '</div>';
+    b.campos.forEach(function(c){ h += campoImpresso(c.r, c.k); });
+  });
+
+  h += '<div class="pr-rod"><b>Campos marcados "não sei" e os que ficaram vazios ' +
+       'entram no planejamento como item de observação para a próxima aula — nunca ' +
+       'preenchidos por suposição.</b><br>' +
+       'Documento de trabalho da equipe técnica. Serve para construir o planejamento ' +
+       'do jogador, não para avaliá-lo.</div>';
+
+  document.getElementById('impressao').innerHTML = h;
+}
+
+document.getElementById('btPdf').onclick = ()=>{
+  montaImpressao();
+  dlg.close();
+  setTimeout(function(){ window.print(); }, 60);
+};
+
+document.getElementById('btZap').onclick = ()=>{
+  const t = document.getElementById('saida').value;
+  const base = NUMERO_DESTINO
+    ? 'https://wa.me/' + NUMERO_DESTINO + '?text='
+    : 'https://wa.me/?text=';
+  window.open(base + encodeURIComponent(t), '_blank');
+};
+
+document.getElementById('btShare').onclick = async ()=>{
+  const t = document.getElementById('saida').value;
+  const nome = (dados.nome||'').trim() || 'jogador';
+  if (navigator.share) {
+    try { await navigator.share({ title: 'Ficha de entrada — ' + nome, text: t }); return; }
+    catch(e){ if (e && e.name === 'AbortError') return; }
+  }
+  window.open('https://wa.me/?text=' + encodeURIComponent(t), '_blank');
+};
+
+document.getElementById('btCopiar').onclick = async ()=>{
+  const ta = document.getElementById('saida');
+  try{
+    await navigator.clipboard.writeText(ta.value);
+  }catch(e){
+    ta.removeAttribute('readonly'); ta.select(); document.execCommand('copy');
+    ta.setAttribute('readonly','');
+  }
+  document.getElementById('ok').style.display='block';
+};
+
+/* início */
+(function(){
+  if (typeof MTY !== 'undefined') MTY.faixa('mty-faixa');
+  if (!NUMERO_DESTINO) document.getElementById('btZap').style.display = 'none';
+  const t = lerTudo();
+  const ids = Object.keys(t).sort((a,b)=>t[b].quando-t[a].quando);
+  if(ids.length){ fichaId = ids[0]; dados = t[fichaId].dados||{}; }
+  else { fichaId = 'f'+Date.now(); dados = {}; }
+  montar(); pintarRascunhos();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+PASTA PARA A NETLIFY
+====================
+
+Falta UMA coisa antes de subir: as credenciais no mty-nuvem.js.
+
+1 · Abra mty-nuvem.js num editor de texto simples
+    (Bloco de Notas, TextEdit em texto puro, ou VS Code — NUNCA Word).
+
+2 · Nas linhas 11 a 16 troque cada "COLE_AQUI" pelo valor do Firebase.
+    Mantenha as aspas e a vírgula do fim.
+
+    A linha 26 também tem COLE_AQUI — NÃO MEXA NELA.
+    Ela é a verificação que descobre se você já preencheu.
+
+3 · Salve.
+
+4 · Arraste ESTA PASTA INTEIRA (a pasta, não os arquivos soltos)
+    para app.netlify.com/drop
+
+5 · Apague este arquivo depois, se quiser.
+
+
+OS ENDEREÇOS QUE VÃO NASCER
+---------------------------
+seusite.netlify.app                  → o aplicativo do treinador
+seusite.netlify.app/plano-tres.html  → o plano do Gustavo, Nicolas e Tito
+seusite.netlify.app/ficha.html       → a ficha de entrada
+
+
+COMO SABER SE DEU CERTO
+-----------------------
+Abra /plano-tres.html. Deve aparecer uma tela preta pedindo e-mail e senha.
+Se aparecer o plano direto, sem pedir login, as credenciais não foram lidas.
+
+Depois de entrar, a barra do topo mostra "conectado" em verde.
+Se mostrar "só neste aparelho" em laranja, alguma credencial está errada.
+
+
+ANTES DISSO TUDO
+----------------
+O Firebase precisa estar configurado: projeto criado, Firestore criado,
+Email/Senha ativado em Authentication, e a regra de segurança publicada.
+Está tudo no Implementacao_Passo_a_Passo_MTY.html, fases 1 e 2.

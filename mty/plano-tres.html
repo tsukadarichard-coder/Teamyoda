@@ -1,0 +1,2171 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ciclo de quatro semanas · Gustavo, Nicolas e Tito · MTY</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-auth-compat.js"></script>
+<script src="mty-nuvem.js"></script>
+<style>
+:root{
+  --papel:#F5F2F0;--tinta:#141210;--saibro:#C8102E;--quadra:#2E4739;
+  --grafite:#6B6461;--linha:#D8D1CB;--ocre:#C9A227;--branco:#fff;--alerta:#8A2B15;
+  --arch:"Archivo",system-ui,sans-serif;--serif:"Source Serif 4",Georgia,serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--papel);color:var(--tinta);font-family:var(--serif);
+  font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.faixa{height:7px;background:var(--saibro)}
+
+/* ── capa ── */
+.capa{background:var(--tinta);color:var(--papel);min-height:100vh;display:flex;
+  flex-direction:column;justify-content:space-between;padding:52px 44px 44px;position:relative}
+.capa::before{content:"";position:absolute;top:0;left:0;right:0;height:7px;background:var(--saibro)}
+.cmarca{font-family:var(--arch);font-size:10.5px;font-weight:700;letter-spacing:.2em;
+  text-transform:uppercase;color:#8B8179}
+.ccentro{padding:44px 0}
+.crotulo{font-family:var(--arch);font-size:11px;font-weight:700;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--saibro)}
+.cnome{font-family:var(--serif);font-size:76px;font-weight:600;line-height:.95;
+  letter-spacing:-.035em;margin:16px 0 20px;color:#fff}
+.csub{font-family:var(--serif);font-size:21px;line-height:1.4;color:#C9C2BA;max-width:30ch;
+  font-style:italic}
+.cescada{display:flex;gap:9px;margin:38px 0 0;max-width:430px}
+.cdeg{flex:1;border-top:4px solid #3A3532;padding-top:11px}
+.cdeg.on{border-top-color:var(--saibro)}
+.cdeg.trava{opacity:.42}
+.cdegc{font-family:var(--arch);font-size:15px;font-weight:700;color:#5C5551}
+.cdeg.on .cdegc{color:var(--saibro)}
+.cdegt{font-family:var(--arch);font-size:10.5px;color:#8B8179;line-height:1.4;margin-top:4px}
+.cdeg.on .cdegt{color:#C9C2BA}
+.cmeta{border-top:1px solid #2E2A28;padding-top:20px;display:flex;justify-content:space-between;
+  gap:24px;flex-wrap:wrap}
+.cmetal{font-family:var(--arch);font-size:12.5px;line-height:1.75;color:#C9C2BA}
+.cmetal b{color:#fff;font-weight:600}
+.ctag{font-family:var(--arch);font-size:9.5px;font-weight:700;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--saibro);align-self:flex-end;border:1px solid var(--saibro);
+  padding:6px 11px}
+@media(max-width:640px){.cnome{font-size:46px}.capa{padding:36px 26px}}
+@media print{.capa{min-height:0;height:262mm;page-break-after:always}}
+.folha{max-width:840px;margin:0 auto;padding:0 26px 60px}
+
+header{padding:40px 0 22px;border-bottom:2px solid var(--tinta)}
+.kick{font-family:var(--arch);font-size:10.5px;font-weight:700;letter-spacing:.15em;
+  text-transform:uppercase;color:var(--grafite)}
+h1{font-family:var(--serif);font-size:46px;font-weight:600;line-height:1;
+  letter-spacing:-.025em;margin:11px 0 6px}
+.sub{font-family:var(--arch);font-size:13.5px;color:var(--grafite);margin-bottom:13px}
+.selos{display:flex;gap:7px;flex-wrap:wrap}
+.selo{font-family:var(--arch);font-size:11px;font-weight:700;letter-spacing:.05em;
+  padding:5px 10px;border:1px solid var(--tinta);text-transform:uppercase}
+.selo.forte{background:var(--tinta);color:var(--papel)}
+.selo.alerta{border-color:var(--alerta);color:var(--alerta);background:#FBEDE9}
+
+h2{font-family:var(--serif);font-size:27px;font-weight:600;letter-spacing:-.012em;margin:0 0 4px}
+h3{font-family:var(--arch);font-size:15px;font-weight:700;margin:20px 0 6px}
+section{margin-top:44px}
+.num{font-family:var(--arch);font-size:10.5px;font-weight:700;letter-spacing:.15em;
+  color:var(--saibro);text-transform:uppercase}
+.leg{font-family:var(--arch);font-size:13.5px;color:var(--grafite);max-width:62ch;margin-bottom:19px}
+p{margin-bottom:13px;max-width:66ch}
+.marca{background:#FBEAEC;padding:1px 4px}
+.tese{font-family:var(--serif);font-size:21px;line-height:1.45;font-weight:600;
+  border-left:4px solid var(--saibro);padding:4px 0 4px 18px;margin:20px 0;max-width:60ch}
+
+/* cadeia */
+.cadeia{display:grid;grid-template-columns:repeat(4,1fr);margin:18px 0 6px}
+.elo{background:var(--branco);border:1px solid var(--linha);border-right:none;padding:14px}
+.elo:last-child{border-right:1px solid var(--linha)}
+.elo.raiz{background:#FBEAEC;border:1.5px solid var(--saibro);z-index:2}
+.elon{font-family:var(--arch);font-size:9.5px;font-weight:700;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--grafite)}
+.elo.raiz .elon{color:var(--saibro)}
+.elotxt{font-family:var(--arch);font-size:12.5px;line-height:1.45;margin-top:6px}
+.raizm{font-family:var(--arch);font-size:9px;font-weight:700;letter-spacing:.09em;
+  color:var(--saibro);margin-top:8px;display:block}
+.setas{display:grid;grid-template-columns:repeat(4,1fr);font-family:var(--arch);
+  font-size:15px;color:var(--linha);text-align:center}
+@media(max-width:720px){.cadeia{grid-template-columns:1fr}.setas{display:none}
+  .elo{border-right:1px solid var(--linha)}}
+
+/* tabela golpes */
+table{width:100%;border-collapse:collapse;font-family:var(--arch);font-size:12.5px;margin-top:14px}
+th{text-align:left;font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--grafite);padding:0 10px 7px 0;border-bottom:1.5px solid var(--tinta)}
+td{padding:9px 10px 9px 0;border-bottom:1px solid var(--linha);vertical-align:top;line-height:1.45}
+td.g{font-weight:700;white-space:nowrap}
+td.ok{color:var(--quadra)} td.mal{color:var(--alerta)}
+
+/* divergência */
+.div{background:var(--branco);border:1px solid var(--linha);border-left:4px solid var(--ocre);
+  padding:15px 17px;margin:15px 0}
+.divt{font-family:var(--arch);font-size:10px;font-weight:700;letter-spacing:.11em;
+  text-transform:uppercase;color:#8A6D14;margin-bottom:7px}
+.div p{font-family:var(--arch);font-size:13px;line-height:1.55;margin-bottom:8px}
+.div p:last-child{margin-bottom:0}
+
+/* escada */
+.escada{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;margin-top:16px}
+.deg{background:var(--branco);border:1px solid var(--linha);padding:15px 14px;position:relative}
+.deg.on{border:1.5px solid var(--tinta);box-shadow:0 3px 0 var(--saibro)}
+.deg.trava{opacity:.55;background:#F3EFEC}
+.degc{font-family:var(--arch);font-size:19px;font-weight:700;color:var(--linha)}
+.deg.on .degc{color:var(--saibro)}
+.degt{font-family:var(--arch);font-size:13px;font-weight:700;margin:4px 0}
+.degd{font-family:var(--arch);font-size:12px;color:var(--grafite);line-height:1.45}
+.aqui{position:absolute;top:-9px;right:12px;background:var(--saibro);color:#fff;
+  font-family:var(--arch);font-size:9px;font-weight:700;letter-spacing:.1em;padding:3px 8px}
+
+/* blocos com portão */
+.bloco{background:var(--branco);border:1px solid var(--linha);border-left:4px solid var(--quadra);
+  padding:18px 20px;margin-top:14px}
+.bcab{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;
+  margin-bottom:4px}
+.bn{font-family:var(--arch);font-size:10px;font-weight:700;letter-spacing:.12em;
+  color:var(--saibro);text-transform:uppercase}
+.bt{font-family:var(--serif);font-size:21px;font-weight:600}
+.bsem{font-family:var(--arch);font-size:11px;font-weight:700;color:var(--grafite)}
+.balvo{font-family:var(--arch);font-size:13px;color:var(--grafite);line-height:1.5;
+  margin-bottom:12px}
+.trab{display:flex;gap:11px;padding:9px 0;border-top:1px solid var(--linha);
+  font-family:var(--arch);font-size:12.5px;line-height:1.5}
+.trabn{font-weight:700;color:var(--saibro);flex:0 0 14px}
+.saida{margin-top:13px;background:var(--papel);border-left:3px solid var(--quadra);
+  padding:11px 13px;font-family:var(--arch);font-size:12px;line-height:1.5}
+.saidat{font-size:9.5px;font-weight:700;letter-spacing:.1em;color:var(--quadra);
+  text-transform:uppercase;display:block;margin-bottom:4px}
+.portao{display:flex;align-items:center;gap:12px;margin:14px 0;padding:12px 16px;
+  background:#FBEDE9;border:1px dashed var(--alerta);font-family:var(--arch);
+  font-size:12.5px;line-height:1.5;color:var(--alerta)}
+.pcad{font-size:19px;flex:0 0 auto}
+
+/* grade de aulas */
+.aulas{margin-top:13px;border:1px solid var(--linha);background:var(--papel)}
+.aula{display:grid;grid-template-columns:62px 1fr;border-bottom:1px solid var(--linha)}
+.aula:last-child{border-bottom:none}
+.aulan{background:var(--branco);border-right:1px solid var(--linha);padding:9px 10px;
+  font-family:var(--arch);font-size:11px;font-weight:700;color:var(--grafite);
+  display:flex;align-items:center}
+.aulac{padding:9px 12px;font-family:var(--arch);font-size:12.5px;line-height:1.45;
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.semsaque{font-size:9px;font-weight:700;letter-spacing:.08em;padding:2px 6px;
+  border:1px solid var(--alerta);color:var(--alerta);white-space:nowrap}
+.comsaque{font-size:9px;font-weight:700;letter-spacing:.08em;padding:2px 6px;
+  background:var(--quadra);color:#fff;white-space:nowrap}
+.aulastit{font-family:var(--arch);font-size:9.5px;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--grafite);margin-top:14px}
+
+/* não fazer */
+.naof{background:var(--branco);border:1px solid var(--alerta);padding:6px 18px 14px}
+.nf{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid var(--linha);
+  font-family:var(--arch);font-size:13px;line-height:1.5}
+.nf:last-child{border-bottom:none}
+.nfx{color:var(--alerta);font-weight:700;flex:0 0 auto}
+
+/* semanas e aulas */
+.bcab{background:var(--tinta);color:var(--papel);padding:17px 20px;margin-top:24px;
+  display:flex;justify-content:space-between;align-items:baseline;gap:14px;flex-wrap:wrap}
+.bn{font-family:var(--arch);font-size:10px;font-weight:700;letter-spacing:.15em;color:var(--saibro)}
+.bt{font-family:var(--serif);font-size:24px;font-weight:600;color:#fff;margin-top:3px}
+.bsem{font-family:var(--arch);font-size:11.5px;font-weight:700;color:#8B8179}
+.balvo{background:var(--branco);border:1px solid var(--linha);border-top:none;padding:14px 20px;
+  font-family:var(--arch);font-size:12.5px;line-height:1.55;color:var(--grafite)}
+.semana{border:1px solid var(--linha);background:var(--branco)}
+.semcab{display:flex;align-items:center;gap:12px;padding:10px 18px;background:var(--papel);
+  border-bottom:1px solid var(--linha);flex-wrap:wrap}
+.semn{font-family:var(--arch);font-size:10.5px;font-weight:700;letter-spacing:.1em;
+  background:var(--branco);border:1px solid var(--linha);padding:4px 9px}
+.semfoco{font-family:var(--arch);font-size:12.5px;font-weight:700;flex:1}
+.semcarga{font-family:var(--arch);font-size:10.5px;color:var(--grafite)}
+.aula{display:grid;grid-template-columns:46px 1fr 168px;border-bottom:1px solid var(--linha)}
+.aula:last-child{border-bottom:none}
+.aulan{padding:12px 8px;font-family:var(--arch);font-size:11px;font-weight:700;
+  color:var(--grafite);border-right:1px solid var(--linha);display:flex;
+  align-items:flex-start;justify-content:center}
+.aulac{padding:12px 15px}
+.aulat{font-family:var(--arch);font-size:12.5px;font-weight:700;margin-bottom:3px}
+.aulad{font-family:var(--arch);font-size:11.5px;color:var(--grafite);line-height:1.5}
+.aulax{padding:12px 14px;border-left:1px solid var(--linha);background:#FAF8F7}
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+.chip{font-family:var(--arch);font-size:10px;font-weight:700;padding:3px 6px;
+  background:var(--branco);border:1px solid var(--linha)}
+.chip.tr{border-color:var(--saibro);color:var(--saibro)}
+.selo-ss{font-family:var(--arch);font-size:8.5px;font-weight:700;letter-spacing:.07em;
+  padding:2px 5px;border:1px solid var(--alerta);color:var(--alerta);
+  display:inline-block;margin-top:6px}
+.selo-cs{font-family:var(--arch);font-size:8.5px;font-weight:700;letter-spacing:.07em;
+  padding:2px 5px;background:var(--quadra);color:#fff;display:inline-block;margin-top:6px}
+@media(max-width:720px){.aula{grid-template-columns:40px 1fr}
+  .aulax{grid-column:1/-1;border-left:none;border-top:1px solid var(--linha)}}
+
+/* sumário */
+.sumario{background:var(--branco);border:1px solid var(--linha);padding:21px 25px;margin-top:32px}
+.sumt{font-family:var(--arch);font-size:9.5px;font-weight:700;letter-spacing:.15em;
+  text-transform:uppercase;color:var(--saibro);margin-bottom:13px}
+.suml{display:flex;gap:13px;padding:7px 0;border-bottom:1px solid var(--linha);
+  font-family:var(--arch);font-size:12.5px;align-items:baseline}
+.suml:last-child{border-bottom:none}
+.sumn{font-weight:700;color:var(--saibro);width:18px;flex:0 0 auto}
+.sumd{color:var(--grafite);margin-left:auto;font-size:11px}
+
+/* gráficos */
+.graf{background:var(--branco);border:1px solid var(--linha);padding:19px 21px;margin:17px 0}
+.graft{font-family:var(--arch);font-size:9.5px;font-weight:700;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--saibro);margin-bottom:4px}
+.grafl{font-family:var(--arch);font-size:12px;color:var(--grafite);margin-bottom:13px;max-width:62ch}
+.gleg{display:flex;gap:17px;flex-wrap:wrap;margin-top:11px;padding-top:11px;
+  border-top:1px solid var(--linha)}
+.gl{font-family:var(--arch);font-size:11px;color:var(--grafite);display:flex;
+  align-items:center;gap:6px}
+.gsw{width:14px;height:3px;flex:0 0 auto}
+
+/* interação */
+button.chip{cursor:pointer;font-family:var(--arch)}
+button.chip:hover{background:var(--tinta);color:var(--papel);border-color:var(--tinta)}
+button.chip.tr:hover{background:var(--saibro);border-color:var(--saibro);color:#fff}
+.aula.feita{background:#F4F7F4}
+.aula.feita .aulat{color:var(--quadra)}
+.aulan{flex-direction:column;gap:7px;align-items:center}
+.bx{width:19px;height:19px;border:1.6px solid var(--linha);background:var(--branco);
+  cursor:pointer;display:grid;place-items:center;font-size:12px;color:#fff;padding:0;
+  font-family:var(--arch);font-weight:700;line-height:1}
+.bx.on{background:var(--quadra);border-color:var(--quadra)}
+.reg{grid-column:1/-1;border-top:1px dashed var(--linha);background:#FAFAF8;
+  padding:11px 15px;display:none;gap:10px;flex-wrap:wrap}
+.reg.aberto{display:flex}
+.reg input,.reg textarea{font-family:var(--arch);font-size:12px;border:1px solid var(--linha);
+  background:var(--branco);padding:7px 9px;border-radius:2px;color:var(--tinta)}
+.reg textarea{flex:1;min-width:230px;min-height:46px;resize:vertical}
+.reg input.dt{width:130px}
+.reg input.dor{width:150px;border-color:var(--alerta)}
+.reglab{font-family:var(--arch);font-size:9px;font-weight:700;letter-spacing:.09em;
+  color:var(--grafite);text-transform:uppercase;display:block;margin-bottom:3px}
+
+.barra-topo{position:sticky;top:0;z-index:40;background:var(--tinta);color:var(--papel);
+  padding:9px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.bprog{flex:1;min-width:150px;height:7px;background:#3A3532;overflow:hidden}
+.bpf{height:100%;background:var(--quadra);width:0%;transition:width .25s}
+.btxt{font-family:var(--arch);font-size:11.5px;font-weight:700}
+.bbt{font-family:var(--arch);font-size:11px;font-weight:700;padding:6px 12px;
+  background:var(--saibro);color:#fff;border:none;cursor:pointer;border-radius:2px}
+.bbt.sec{background:transparent;border:1px solid #4A4340;color:#C9C2BA}
+
+dialog{border:none;padding:0;max-width:640px;width:93%;background:var(--papel);
+  border-radius:3px}
+dialog::backdrop{background:rgba(20,18,16,.62)}
+.dl{padding:22px 24px}
+.dlc{font-family:var(--arch);font-size:11px;font-weight:700;letter-spacing:.1em;
+  color:var(--saibro)}
+.dln{font-family:var(--serif);font-size:24px;font-weight:600;margin:4px 0 3px}
+.dlf{font-family:var(--arch);font-size:11.5px;color:var(--grafite);margin-bottom:15px}
+.dli{margin-bottom:11px}
+.dlr{font-family:var(--arch);font-size:9px;font-weight:700;letter-spacing:.1em;
+  color:var(--grafite);text-transform:uppercase}
+.dlr.al{color:var(--alerta)}
+.dlt{font-family:var(--arch);font-size:12.5px;line-height:1.55;margin-top:3px}
+#saidarel{width:100%;min-height:300px;font-family:ui-monospace,Menlo,monospace;
+  font-size:11px;line-height:1.45;white-space:pre;border:1px solid var(--linha);
+  padding:11px;background:var(--branco)}
+
+@media print{.barra-topo,.bx,.reg .reglab,dialog{display:none!important}
+  .reg{display:flex!important;background:#fff;border-top:1px solid #D8D1CB}
+  button.chip{background:#fff!important;color:#141210!important}}
+
+/* observação */
+.obs{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--linha)}
+.obs:last-child{border-bottom:none}
+.qd{width:14px;height:14px;border:1.5px solid var(--grafite);flex:0 0 auto;margin-top:4px}
+.obst{font-family:var(--arch);font-size:13px;line-height:1.55}
+.urg{display:inline-block;background:var(--alerta);color:#fff;font-size:8.5px;font-weight:700;
+  letter-spacing:.09em;padding:2px 6px;margin-left:6px;vertical-align:middle}
+
+/* painel */
+.painel{margin-top:60px;border-top:3px solid var(--tinta)}
+.ptit{display:flex;justify-content:space-between;align-items:baseline;padding:16px 0 18px;
+  flex-wrap:wrap;gap:10px}
+.ptit h2{font-size:24px}
+.ptag{font-family:var(--arch);font-size:10.5px;font-weight:700;letter-spacing:.13em;
+  color:var(--saibro);text-transform:uppercase}
+.pg{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:760px){.pg{grid-template-columns:1fr}}
+.card{background:var(--branco);border:1px solid var(--linha);padding:15px 16px}
+.card.larga{grid-column:1/-1}
+.card.alerta{border-color:var(--alerta);border-left-width:4px}
+.crot{font-family:var(--arch);font-size:9.5px;font-weight:700;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--saibro);margin-bottom:11px}
+.card.alerta .crot{color:var(--alerta)}
+
+.linha12{display:flex;height:34px;border:1px solid var(--linha);margin-bottom:9px}
+.l12{display:grid;place-items:center;font-family:var(--arch);font-size:11px;font-weight:700;
+  color:#fff;border-right:2px solid var(--branco);text-align:center;line-height:1.2}
+.l12:last-child{border-right:none}
+.l12s{font-size:8.5px;font-weight:600;opacity:.85;display:block}
+
+.chk{font-family:var(--arch);font-size:12px;display:flex;gap:8px;align-items:flex-start;
+  padding:7px 0;line-height:1.45}
+.cx{width:12px;height:12px;border:1.5px solid var(--grafite);flex:0 0 auto;margin-top:3px}
+
+.rod{margin-top:22px;padding:15px 17px;background:var(--branco);border-left:3px solid var(--ocre);
+  font-family:var(--arch);font-size:12.5px;line-height:1.6}
+
+@media print{
+  @page{size:A4;margin:13mm}
+  body{background:#fff}.folha{max-width:none;padding:0}
+  header{padding:0 0 14px}h1{font-size:32px}
+  section{margin-top:24px;page-break-inside:avoid}
+  .painel{page-break-before:always;margin-top:0}
+  .card,.bloco,.semana,.bcab,.graf{page-break-inside:avoid}.faixa{height:5px}
+}
+
+.sem{border:1px solid var(--linha);background:var(--branco);margin-bottom:22px}
+.semc{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--tinta);
+  color:var(--papel);flex-wrap:wrap}
+.semn{font-family:var(--arch);font-size:11px;font-weight:700;letter-spacing:.1em;
+  background:var(--saibro);padding:4px 10px}
+.semf{font-family:var(--arch);font-size:13.5px;font-weight:700;flex:1}
+.semcg{font-family:var(--arch);font-size:11px;color:#A9A19B}
+.dia{border-bottom:1px solid var(--linha)}
+.dia:last-of-type{border-bottom:none}
+.diac{display:flex;align-items:center;gap:10px;padding:8px 16px;background:var(--papel);
+  border-bottom:1px solid var(--linha)}
+.dian{font-family:var(--arch);font-size:10.5px;font-weight:700;letter-spacing:.08em;
+  color:var(--tinta);min-width:38px}
+.diat{font-family:var(--arch);font-size:11.5px;color:var(--grafite);flex:1}
+.turno{display:grid;grid-template-columns:66px 1fr;border-bottom:1px solid var(--linha)}
+.turno:last-child{border-bottom:none}
+.turnol{padding:11px 12px;font-family:var(--arch);font-size:9.5px;font-weight:700;
+  letter-spacing:.07em;text-transform:uppercase;color:var(--saibro);
+  border-right:1px solid var(--linha);background:#FCFBFA}
+.turnoc{padding:11px 14px}
+.linha-ex{display:flex;gap:9px;align-items:flex-start;padding:5px 0;flex-wrap:wrap}
+.tag{font-family:var(--arch);font-size:9.5px;font-weight:700;padding:2px 6px;border-radius:2px;
+  flex:0 0 auto;margin-top:1px}
+.tag.tds{background:var(--tinta);color:#fff}
+.tag.g{background:#EDE4F5;color:#5B3487}
+.tag.n{background:#DDEEF3;color:#155A73}
+.tag.t{background:#F7E6D6;color:#8F4A0C}
+.tag.fun{background:#E6F0E8;color:#2E4739}
+.exd{font-family:var(--arch);font-size:12px;line-height:1.5;flex:1;min-width:180px}
+.cods{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px}
+.cd{font-family:var(--arch);font-size:9.5px;font-weight:700;padding:2px 5px;
+  background:var(--papel);border:1px solid var(--linha);cursor:pointer;color:var(--grafite);
+  border-radius:2px}
+.cd:hover{background:var(--tinta);color:#fff;border-color:var(--tinta)}
+
+.obsb{border-top:2px solid var(--linha);background:#FAFAF8;padding:13px 16px}
+.obsl{font-family:var(--arch);font-size:9.5px;font-weight:700;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--saibro);margin-bottom:8px}
+.obsi{background:var(--branco);border:1px solid var(--linha);padding:9px 12px;margin-bottom:6px;
+  font-family:var(--arch);font-size:12px;line-height:1.5}
+.obsm{font-size:9.5px;font-weight:700;color:var(--grafite);margin-bottom:3px;
+  display:flex;justify-content:space-between;gap:10px}
+.obsm button{background:none;border:none;color:var(--grafite);cursor:pointer;
+  font-family:var(--arch);font-size:9.5px}
+.obsadd{display:flex;gap:7px;flex-wrap:wrap;align-items:flex-start}
+.obsadd select,.obsadd textarea{font-family:var(--arch);font-size:12px;border:1px solid var(--linha);
+  background:var(--branco);padding:8px 10px;border-radius:2px;color:var(--tinta)}
+.obsadd textarea{flex:1;min-width:200px;min-height:42px;resize:vertical}
+.obsadd button{font-family:var(--arch);font-size:11.5px;font-weight:700;padding:9px 14px;
+  background:var(--tinta);color:#fff;border:none;cursor:pointer;border-radius:2px}
+
+.barra{position:sticky;top:0;z-index:50;background:var(--tinta);color:var(--papel);
+  padding:9px 18px;display:flex;align-items:center;gap:13px;flex-wrap:wrap}
+.barra input{font-family:var(--arch);font-size:12px;padding:5px 9px;border:1px solid #3A3532;
+  background:#221F1D;color:#fff;border-radius:2px;width:140px}
+.barra .bt{font-family:var(--arch);font-size:11.5px;font-weight:700;color:#C9C2BA;flex:1}
+.barra button{font-family:var(--arch);font-size:11px;font-weight:700;padding:6px 12px;
+  background:var(--saibro);color:#fff;border:none;cursor:pointer;border-radius:2px}
+#estado{font-family:var(--arch);font-size:11px;color:#8B8179}
+
+dialog{border:none;padding:0;max-width:640px;width:93%;background:var(--papel);border-radius:3px}
+dialog::backdrop{background:rgba(20,18,16,.62)}
+.dl{padding:22px 24px}
+.dlc{font-family:var(--arch);font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--saibro)}
+.dln{font-family:var(--serif);font-size:23px;font-weight:600;margin:4px 0 3px}
+.dlf{font-family:var(--arch);font-size:11.5px;color:var(--grafite);margin-bottom:15px}
+.dli{margin-bottom:11px}
+.dlr{font-family:var(--arch);font-size:9px;font-weight:700;letter-spacing:.1em;
+  color:var(--grafite);text-transform:uppercase}
+.dlr.al{color:var(--alerta)}
+.dlt{font-family:var(--arch);font-size:12.5px;line-height:1.55;margin-top:3px}
+.dlbt{font-family:var(--arch);font-size:12px;font-weight:700;padding:8px 15px;
+  background:var(--tinta);color:#fff;border:none;cursor:pointer;border-radius:2px;margin-top:12px}
+#saida{width:100%;min-height:300px;font-family:ui-monospace,Menlo,monospace;font-size:11px;
+  line-height:1.45;white-space:pre;border:1px solid var(--linha);padding:11px;background:#fff}
+
+.ses{margin-top:10px;border-top:1px dashed var(--linha);padding-top:10px}
+.sesl{font-family:var(--arch);font-size:9px;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--saibro);margin-bottom:7px}
+.sespres{display:flex;gap:5px;align-items:center;flex-wrap:wrap;margin-bottom:7px}
+.pz{font-family:var(--arch);font-size:10px;font-weight:700;padding:3px 9px;border-radius:2px;
+  cursor:pointer;border:1px solid var(--linha);background:var(--branco);color:var(--grafite)}
+.pz.on.g{background:#5B3487;border-color:#5B3487;color:#fff}
+.pz.on.n{background:#155A73;border-color:#155A73;color:#fff}
+.pz.on.t{background:#8F4A0C;border-color:#8F4A0C;color:#fff}
+.sesd{font-family:var(--arch);font-size:10px;color:var(--grafite)}
+.sesmet{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:8px}
+.sesmet label{font-family:var(--arch);font-size:10.5px;color:var(--grafite);
+  display:flex;align-items:center;gap:5px}
+.sesmet input{width:46px;font-family:var(--arch);font-size:11px;padding:3px 5px;
+  border:1px solid var(--linha);border-radius:2px;text-align:center}
+.mg,.mn,.mt{font-weight:700;font-size:9px;padding:1px 4px;border-radius:2px}
+.mg{background:#EDE4F5;color:#5B3487}.mn{background:#DDEEF3;color:#155A73}
+.mt{background:#F7E6D6;color:#8F4A0C}
+.seslist{margin-bottom:7px}
+.sesi{background:#FAFAF8;border:1px solid var(--linha);padding:7px 10px;margin-bottom:4px;
+  font-family:var(--arch);font-size:11.5px;line-height:1.45}
+.sesim{font-size:9px;font-weight:700;color:var(--grafite);margin-bottom:2px;
+  display:flex;justify-content:space-between}
+.sesim button{background:none;border:none;color:var(--grafite);cursor:pointer;font-size:9px}
+.sesadd{display:flex;gap:6px;flex-wrap:wrap}
+.sesadd textarea{flex:1;min-width:180px;font-family:var(--arch);font-size:11.5px;
+  border:1px solid var(--linha);padding:6px 9px;min-height:34px;resize:vertical;border-radius:2px}
+.sesadd button{font-family:var(--arch);font-size:10.5px;font-weight:700;padding:7px 12px;
+  background:var(--tinta);color:#fff;border:none;cursor:pointer;border-radius:2px}
+.leitura{border-top:1px solid var(--linha);margin-top:12px;padding-top:4px}
+.leitd{font-family:var(--arch);font-size:11.5px;color:var(--grafite);line-height:1.5;
+  margin-bottom:9px;max-width:62ch}
+.leiti{background:var(--branco);border:1px solid var(--linha);border-left:3px solid var(--quadra);
+  padding:10px 13px;margin-bottom:6px;font-family:var(--arch);font-size:12px;line-height:1.5}
+.leitim{font-size:9.5px;font-weight:700;color:var(--quadra);margin-bottom:3px;
+  display:flex;justify-content:space-between}
+.leitim button{background:none;border:none;color:var(--grafite);cursor:pointer;font-size:9.5px}
+.leitadd{display:flex;gap:7px;flex-wrap:wrap}
+.leitadd textarea{flex:1;min-width:220px;font-family:var(--arch);font-size:12px;
+  border:1px solid var(--linha);padding:8px 10px;min-height:48px;resize:vertical;border-radius:2px}
+.leitadd button{font-family:var(--arch);font-size:11px;font-weight:700;padding:9px 14px;
+  background:var(--quadra);color:#fff;border:none;cursor:pointer;border-radius:2px}
+.portao{position:fixed;inset:0;background:var(--tinta);z-index:200;display:grid;place-items:center;padding:22px}
+.portaoc{max-width:360px;width:100%}
+.portaoc h3{font-family:var(--serif);font-size:26px;color:#fff;margin-bottom:6px}
+.portaoc p{font-family:var(--arch);font-size:13px;color:#C9C2BA;line-height:1.6;margin-bottom:18px}
+.portaoc input{width:100%;font-family:var(--arch);font-size:14px;padding:11px 12px;
+  border:1px solid #3A3532;background:#221F1D;color:#fff;border-radius:2px;margin-bottom:9px}
+.portaoc button{width:100%;font-family:var(--arch);font-size:13px;font-weight:700;padding:12px;
+  background:var(--saibro);color:#fff;border:none;cursor:pointer;border-radius:2px}
+.portaoc .alt{background:transparent;border:1px solid #3A3532;color:#C9C2BA;margin-top:8px}
+.portaoc .err{font-family:var(--arch);font-size:12px;color:#FF8DA1;margin-top:10px}
+.semfim{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+.semres{font-family:var(--arch);font-size:11.5px;color:var(--grafite);line-height:1.5}
+.btsem{font-family:var(--arch);font-size:11px;font-weight:700;padding:8px 14px;
+  background:var(--saibro);color:#fff;border:none;cursor:pointer;border-radius:2px}
+.grafbox{background:var(--branco);border:1px solid var(--linha);padding:20px 22px;margin:18px 0}
+.grafl{font-family:var(--arch);font-size:12px;color:var(--grafite);margin-bottom:14px;max-width:62ch}
+.gleg{display:flex;gap:17px;flex-wrap:wrap;margin-top:11px;padding-top:11px;
+  border-top:1px solid var(--linha);font-family:var(--arch);font-size:11px;color:var(--grafite)}
+.gl{display:flex;align-items:center;gap:6px}
+.gsw{width:15px;height:3px}
+@media print{.sesadd,.sespres,.sesmet,.btsem{display:none}}
+@media print{.obsadd,.barra,dialog{display:none}.cd{cursor:default}}
+</style></head><body>
+<div class="capa">
+  <svg class="quadrafundo" viewBox="0 0 400 300"><g stroke="#fff" stroke-width="2" fill="none">
+    <polygon points="110,20 290,20 380,280 20,280"/><line x1="128" y1="20" x2="62" y2="280"/>
+    <line x1="272" y1="20" x2="338" y2="280"/><line x1="96" y1="80" x2="304" y2="80"/>
+    <line x1="200" y1="20" x2="200" y2="80"/><line x1="42" y1="170" x2="358" y2="170"/></g></svg>
+  <div class="cmarca">Metodologia MTY · Team Yoda Tennis Pro</div>
+  <div class="ccentro">
+    <div class="crotulo">Ciclo curto · quatro semanas</div>
+    <div class="cnome">Gustavo<br>Nicolas<br>Tito</div>
+    <div class="csub">Planos individuais que dividem quadra. O ponto termina em quatro
+      bolas, o fundamento não sai do plano, e o ciclo se reescreve ao fim.</div>
+  </div>
+  <div class="cmeta">
+    <div class="cml"><b>Eixo</b> saque, devolução e as quatro primeiras bolas<br>
+      <b>Volume</b> 5 a 6 sessões semanais · dois períodos<br>
+      <b>Fundamento</b> todos os dias, manhã e tarde</div>
+    <div class="cml" style="text-align:right"><b>Gustavo</b> E2 em construção · T1 acentuado<br>
+      <b>Nicolas</b> E1 · T1 · densidade<br>
+      <b>Tito</b> reconhecimento e saque</div>
+    <div class="ctag">Documento de trabalho · revisão em quadra</div>
+  </div>
+</div>
+<div class="portao" id="portao" style="display:none"><div class="portaoc">
+  <h3>Acesso da equipe</h3>
+  <p>Entre com o mesmo e-mail e senha do aplicativo. É assim que cada anotação fica
+     atribuída ao treinador certo — sem depender de digitar o nome.</p>
+  <input type="email" id="pemail" placeholder="e-mail" autocomplete="email">
+  <input type="password" id="psenha" placeholder="senha" autocomplete="current-password">
+  <button id="pentrar">Entrar</button>
+  <button class="alt" id="pcriar">Criar conta</button>
+  <div class="err" id="perro"></div>
+</div></div>
+
+<div class="barra">
+  <span class="bt">Ciclo de 4 semanas · Gustavo, Nicolas e Tito</span>
+  <span id="quem" style="font-family:var(--arch);font-size:11.5px;color:#C9C2BA"></span>
+  <button id="btsair" style="background:transparent;border:1px solid #3A3532;color:#C9C2BA">sair</button>
+  <span id="estado">carregando…</span>
+  <button id="btrel">Gerar relatório</button>
+</div>
+<div class="faixa"></div>
+<div class="folha">
+
+<div class="parte" style="border-top:none;margin-top:32px">
+  <div class="pn">Correção do método</div>
+  <h2>Duas coisas que estavam erradas</h2>
+
+  <div class="div"><div class="divt">Correção 1 · troca longa como exercício</div>
+    <p>Eu havia colocado séries de doze bolas ou mais como trabalho central de sustentação
+    do Nicolas — e isso <strong>contradiz o método</strong>. Cerca de 70% dos pontos do
+    circuito terminam em até quatro bolas, incluindo saque e devolução. Treinar troca longa
+    como exercício é preparar para um jogo que não acontece.</p>
+    <p>O próprio catálogo já avisava: o campo <em>ignorar</em> do exercício DT022 diz que
+    "a estratégia de encurtar o ponto está temporariamente suspensa — não é correção de
+    método". É um exercício de exceção, e eu o tratei como eixo.</p>
+    <p><strong>O que entra no lugar:</strong> a sustentação que o Nicolas precisa é
+    fisiológica, e se constrói por <strong>densidade</strong> — muitos pontos curtos com
+    pouco descanso entre eles —, não por duração de ponto. É mais específico ao jogo e mais
+    específico ao esforço real.</p></div>
+
+  <div class="div"><div class="divt">Correção 2 · o fundamento não sai do plano</div>
+    <p>Eu havia concentrado o trabalho técnico no primeiro bloco, como se ele fosse uma
+    etapa a vencer. Não é: <strong>o fundamento se trabalha ininterruptamente</strong>. Um
+    gesto se mantém por repetição distribuída, e some quando o plano o trata como assunto
+    encerrado.</p>
+    <p>Nesta versão, <strong>toda manhã abre com fundamento e toda tarde com base motora</strong>
+    — marcados com a etiqueta <span class="tag fun">FUND</span> na grade. Não é aquecimento:
+    é conteúdo, em todas as quatro semanas.</p></div>
+
+  <div class="ocre"><b>Terceira mudança · quatro semanas em vez de doze</b>
+    Ciclo curto se adapta melhor. Ao fim da semana 4 você gera o relatório e o ciclo seguinte
+    nasce do que aconteceu — não do que estava previsto três meses antes. O atleta muda a
+    cada competição, e o plano precisa acompanhar.</div>
+</div>
+
+<div class="parte">
+  <div class="pn">O eixo</div>
+  <h2>Saque, devolução, e as quatro primeiras bolas</h2>
+  <div class="tese"><p>É onde o jogo se decide, e é a lacuna comum aos três. Nenhum
+    exercício de saque termina no contato; nenhum de devolução termina na devolução.</p></div>
+  <table class="golpes">
+    <thead><tr><th>Jogador</th><th>Prioridade deste ciclo</th><th>Critério de saída</th></tr></thead>
+    <tbody>
+      <tr><td class="g">Gustavo</td><td>Ordem de decisão no meio-fundo, com a velocidade
+        preservada</td><td>Na bola fácil, escolhe o cruzado com ângulo em 7 de 10, sem
+        lembrete</td></tr>
+      <tr><td class="g">Nicolas</td><td>Sustentar por densidade, e chegar inteiro na bola
+        de ataque</td><td>Chega com os pés no chão em 7 de 10 entradas, em série densa</td></tr>
+      <tr><td class="g">Tito</td><td>Reconhecer a bola que autoriza, antes de acelerar</td>
+        <td>Declara antes da curta em 8 de 10, e a declaração corresponde ao que a bola
+        permitia</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="parte">
+  <div class="pn">A grade</div>
+  <h2>Quatro semanas, manhã e tarde</h2>
+  <p class="leg">Clique em qualquer código para ver a montagem completa. As etiquetas dizem
+    quem faz o quê: <span class="tag tds">todos</span> é o mesmo exercício com critério
+    individual; <span class="tag g">GUS</span> <span class="tag n">NIC</span>
+    <span class="tag t">TIT</span> é trabalho individualizado, com os outros dois alimentando
+    ou observando com tarefa declarada; <span class="tag fun">FUND</span> é o fundamento que
+    não sai de nenhum dia.</p>
+  <div class="sem">
+      <div class="semc"><span class="semn">SEMANA 1</span><span class="semf">Instalar as restrições · o ponto termina em quatro bolas</span>
+        <span class="semcg">volume médio · intensidade baixa</span></div><div class="obsl" style="padding:11px 16px 0"><b>Nesta semana ninguém acelera o saque.</b> Gustavo mantém o slice. Tito em volume baixo até o problema técnico ser identificado.</div><div class="dia">
+      <div class="diac"><span class="dian">SEG</span><span class="diat">Restrição de alvo e a sequência de quatro bolas</span></div>
+      <div class="turno"><div class="turnol">Manhã</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Fundamento do dia</b> — 20 min de abertura. Não sai do plano em nenhuma semana: o gesto se mantém por repetição distribuída, não por bloco isolado.<div class="cods"><button class="cd" data-ex="FB001">FB001</button><button class="cd" data-ex="FB002">FB002</button><button class="cd" data-ex="FB029">FB029</button><button class="cd" data-ex="FB030">FB030</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd"><b>Restrição 1 · alvo proibido.</b> Na primeira bola curta a paralela fecha. Gustavo: só cruzado ou ângulo, velocidade livre. Nicolas: critério é chegar com os pés no chão. Tito: declara &quot;ataque&quot; antes de bater.<div class="cods"><button class="cd" data-ex="DT010">DT010</button><button class="cd" data-ex="DT013">DT013</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd"><b>Ponto de quatro bolas.</b> O ponto encerra na quarta — vence quem estiver melhor posicionado. É o formato que espelha o jogo real.<div class="cods"><button class="cd" data-ex="JA002">JA002</button><button class="cd" data-ex="ADV001">ADV001</button></div></div></div>
+        <div class="ses" data-ses="s1d1m">
+      <div class="sesl">Anotar · SEG · manhã</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+      <div class="turno"><div class="turnol">Tarde</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Base motora e apoios</b> — 15 min. Precede o tático.<div class="cods"><button class="cd" data-ex="CO011">CO011</button><button class="cd" data-ex="CO004">CO004</button><button class="cd" data-ex="MV021">MV021</button></div></div></div><div class="linha-ex"><span class="tag g">GUS</span><span class="tag t">TIT</span><div class="exd">Corrida à direita isolada — dessa posição não existe finalização.<div class="cods"><button class="cd" data-ex="MV012">MV012</button><button class="cd" data-ex="MV003">MV003</button></div></div></div><div class="linha-ex"><span class="tag n">NIC</span><div class="exd"><b>Densidade, não troca longa.</b> Séries de pontos de quatro bolas com intervalo curto entre eles. A sustentação vem da recuperação entre pontos.<div class="cods"><button class="cd" data-ex="JA002">JA002</button><button class="cd" data-ex="CF020">CF020</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Físico específico.<div class="cods"><button class="cd" data-ex="CF015">CF015</button><button class="cd" data-ex="CF009">CF009</button></div></div></div>
+        <div class="ses" data-ses="s1d1t">
+      <div class="sesl">Anotar · SEG · tarde</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+    </div><div class="dia">
+      <div class="diac"><span class="dian">TER</span><span class="diat">Saque e devolução — nunca isolados</span></div>
+      <div class="turno"><div class="turnol">Manhã</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Fundamento do dia</b> — 20 min de abertura. Não sai do plano em nenhuma semana: o gesto se mantém por repetição distribuída, não por bloco isolado.<div class="cods"><button class="cd" data-ex="FB001">FB001</button><button class="cd" data-ex="FB002">FB002</button><button class="cd" data-ex="FB029">FB029</button><button class="cd" data-ex="FB030">FB030</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd"><b>Saque + primeira bola.</b> Gustavo: slice aberto, sem acelerar. Nicolas: volume, a aceleração não cai da série 1 à 4. Tito: um critério técnico por vez.<div class="cods"><button class="cd" data-ex="IP003">IP003</button><button class="cd" data-ex="PDS001">PDS001</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd"><b>Devolução + primeira bola.</b> Declara antes: funda ou de dentro. Só executa o que anunciou.<div class="cods"><button class="cd" data-ex="IP006">IP006</button><button class="cd" data-ex="IP007">IP007</button></div></div></div>
+        <div class="ses" data-ses="s1d2m">
+      <div class="sesl">Anotar · TER · manhã</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+      <div class="turno"><div class="turnol">Tarde</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Base motora e apoios</b> — 15 min. Precede o tático.<div class="cods"><button class="cd" data-ex="CO011">CO011</button><button class="cd" data-ex="CO004">CO004</button><button class="cd" data-ex="MV021">MV021</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Rede e conclusão — a observação do Gustavo começa aqui.<div class="cods"><button class="cd" data-ex="PDR001">PDR001</button><button class="cd" data-ex="AT008">AT008</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Ponto único com pressão — rotina completa antes.<div class="cods"><button class="cd" data-ex="ADV016">ADV016</button><button class="cd" data-ex="DM001">DM001</button></div></div></div>
+        <div class="ses" data-ses="s1d2t">
+      <div class="sesl">Anotar · TER · tarde</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+    </div><div class="dia">
+      <div class="diac"><span class="dian">QUA</span><span class="diat">Corredor de segurança</span></div>
+      <div class="turno"><div class="turnol">Manhã</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Fundamento do dia</b> — 20 min de abertura. Não sai do plano em nenhuma semana: o gesto se mantém por repetição distribuída, não por bloco isolado.<div class="cods"><button class="cd" data-ex="FB001">FB001</button><button class="cd" data-ex="FB002">FB002</button><button class="cd" data-ex="FB029">FB029</button><button class="cd" data-ex="FB030">FB030</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd"><b>Restrição 2 · corredor.</b> 1,5 m para dentro nas laterais. O ataque só conta dentro do corredor. A intenção segue sendo atacar.<div class="cods"><button class="cd" data-ex="DT014">DT014</button><button class="cd" data-ex="FB001">FB001</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Saque + primeira bola — manutenção.<div class="cods"><button class="cd" data-ex="PDS002">PDS002</button><button class="cd" data-ex="IP003">IP003</button></div></div></div>
+        <div class="ses" data-ses="s1d3m">
+      <div class="sesl">Anotar · QUA · manhã</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+      <div class="turno"><div class="turnol">Tarde</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Base motora e apoios</b> — 15 min. Precede o tático.<div class="cods"><button class="cd" data-ex="CO011">CO011</button><button class="cd" data-ex="CO004">CO004</button><button class="cd" data-ex="MV021">MV021</button></div></div></div><div class="linha-ex"><span class="tag n">NIC</span><div class="exd">Cobertura de quadra em alta intensidade — seis bolas, descanso curto.<div class="cods"><button class="cd" data-ex="MV025">MV025</button><button class="cd" data-ex="CF020">CF020</button></div></div></div><div class="linha-ex"><span class="tag g">GUS</span><div class="exd">Entrada e finalização à frente.<div class="cods"><button class="cd" data-ex="AT002">AT002</button><button class="cd" data-ex="AT003">AT003</button></div></div></div><div class="linha-ex"><span class="tag t">TIT</span><div class="exd">Reconhecer a bola que sobra no meio.<div class="cods"><button class="cd" data-ex="DT015">DT015</button><button class="cd" data-ex="TR019">TR019</button></div></div></div>
+        <div class="ses" data-ses="s1d3t">
+      <div class="sesl">Anotar · QUA · tarde</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+    </div><div class="dia">
+      <div class="diac"><span class="dian">QUI</span><span class="diat">Devolução declarada e transição</span></div>
+      <div class="turno"><div class="turnol">Manhã</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Fundamento do dia</b> — 20 min de abertura. Não sai do plano em nenhuma semana: o gesto se mantém por repetição distribuída, não por bloco isolado.<div class="cods"><button class="cd" data-ex="FB001">FB001</button><button class="cd" data-ex="FB002">FB002</button><button class="cd" data-ex="FB029">FB029</button><button class="cd" data-ex="FB030">FB030</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Devolução em duas intenções declaradas.<div class="cods"><button class="cd" data-ex="IP006">IP006</button><button class="cd" data-ex="FB023">FB023</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd"><b>Defesa profunda e transição para ataque.</b> Duas bolas de defesa, uma que autoriza. Reconhecer a virada.<div class="cods"><button class="cd" data-ex="DT021">DT021</button><button class="cd" data-ex="TR021">TR021</button></div></div></div>
+        <div class="ses" data-ses="s1d4m">
+      <div class="sesl">Anotar · QUI · manhã</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+      <div class="turno"><div class="turnol">Tarde</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Base motora e apoios</b> — 15 min. Precede o tático.<div class="cods"><button class="cd" data-ex="CO011">CO011</button><button class="cd" data-ex="CO004">CO004</button><button class="cd" data-ex="MV021">MV021</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Movimentação e split.<div class="cods"><button class="cd" data-ex="MV001">MV001</button><button class="cd" data-ex="MV021">MV021</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Técnica sob fadiga — circuito com exigência técnica.<div class="cods"><button class="cd" data-ex="ADV008">ADV008</button></div></div></div>
+        <div class="ses" data-ses="s1d4t">
+      <div class="sesl">Anotar · QUI · tarde</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+    </div><div class="dia">
+      <div class="diac"><span class="dian">SEX</span><span class="diat">As restrições dentro do ponto</span></div>
+      <div class="turno"><div class="turnol">Manhã</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Fundamento do dia</b> — 20 min de abertura. Não sai do plano em nenhuma semana: o gesto se mantém por repetição distribuída, não por bloco isolado.<div class="cods"><button class="cd" data-ex="FB001">FB001</button><button class="cd" data-ex="FB002">FB002</button><button class="cd" data-ex="FB029">FB029</button><button class="cd" data-ex="FB030">FB030</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Restrições 1 e 2 valendo em ponto disputado.<div class="cods"><button class="cd" data-ex="DT010">DT010</button><button class="cd" data-ex="DT014">DT014</button><button class="cd" data-ex="JA014">JA014</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Padrão de quatro bolas com construção nomeada.<div class="cods"><button class="cd" data-ex="TR020">TR020</button><button class="cd" data-ex="ADV001">ADV001</button></div></div></div>
+        <div class="ses" data-ses="s1d5m">
+      <div class="sesl">Anotar · SEX · manhã</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+      <div class="turno"><div class="turnol">Tarde</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Base motora e apoios</b> — 15 min. Precede o tático.<div class="cods"><button class="cd" data-ex="CO011">CO011</button><button class="cd" data-ex="CO004">CO004</button><button class="cd" data-ex="MV021">MV021</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Jogo condicionado com a regra do dia.<div class="cods"><button class="cd" data-ex="JA014">JA014</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Físico.<div class="cods"><button class="cd" data-ex="CF015">CF015</button></div></div></div>
+        <div class="ses" data-ses="s1d5t">
+      <div class="sesl">Anotar · SEX · tarde</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+    </div><div class="dia">
+      <div class="diac"><span class="dian">SÁB</span><span class="diat">Jogo</span></div>
+      <div class="turno"><div class="turnol">Manhã</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Fundamento do dia</b> — 20 min de abertura. Não sai do plano em nenhuma semana: o gesto se mantém por repetição distribuída, não por bloco isolado.<div class="cods"><button class="cd" data-ex="FB001">FB001</button><button class="cd" data-ex="FB002">FB002</button><button class="cd" data-ex="FB029">FB029</button><button class="cd" data-ex="FB030">FB030</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Set de treino com as restrições valendo. Registro por observação.<div class="cods"><button class="cd" data-ex="JA014">JA014</button><button class="cd" data-ex="DM013">DM013</button></div></div></div>
+        <div class="ses" data-ses="s1d6m">
+      <div class="sesl">Anotar · SÁB · manhã</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+      <div class="turno"><div class="turnol">Tarde</div><div class="turnoc"><div class="linha-ex"><div class="exd"><b>Livre.</b> Regeneração é parte do treino.<div class="cods"></div></div></div>
+        <div class="ses" data-ses="s1d6t">
+      <div class="sesl">Anotar · SÁB · tarde</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+    </div><div class="obsb">
+      <div class="semfim">
+        <div><div class="obsl">Fim da semana 1</div>
+          <div class="semres" data-res="1">—</div></div>
+        <button class="btsem" data-sem-rel="1">Relatório da semana 1</button>
+      </div>
+      <div class="leitura" data-leit="1">
+        <div class="obsl" style="margin-top:14px">Leitura da semana — uma por treinador</div>
+        <div class="leitd">A anotação de sessão registra o que aconteceu. Esta registra o que
+          você entendeu: o que mudou, o que não mudou, e o que faria diferente.</div>
+        <div class="leitlist"></div>
+        <div class="leitadd">
+          <textarea placeholder="sua leitura da semana"></textarea>
+          <button>Registrar leitura</button></div>
+      </div></div></div><div class="sem">
+      <div class="semc"><span class="semn">SEMANA 2</span><span class="semf">O ponto sobe de intensidade, não de duração</span>
+        <span class="semcg">volume médio · intensidade sobe</span></div><div class="obsl" style="padding:11px 16px 0"><b>Terça à tarde é a observação de rede do Gustavo</b> — item que trava a definição do trabalho de finalização dele.</div><div class="dia">
+      <div class="diac"><span class="dian">SEG</span><span class="diat">Restrição sem lembrete verbal</span></div>
+      <div class="turno"><div class="turnol">Manhã</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Fundamento do dia</b> — 20 min de abertura. Não sai do plano em nenhuma semana: o gesto se mantém por repetição distribuída, não por bloco isolado.<div class="cods"><button class="cd" data-ex="FB001">FB001</button><button class="cd" data-ex="FB002">FB002</button><button class="cd" data-ex="FB029">FB029</button><button class="cd" data-ex="FB030">FB030</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Restrição 1 sem aviso dentro do ponto. O erro acontece e a frase vem depois.<div class="cods"><button class="cd" data-ex="DT010">DT010</button><button class="cd" data-ex="JA014">JA014</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Ponto de quatro bolas em ritmo mais alto.<div class="cods"><button class="cd" data-ex="JA002">JA002</button><button class="cd" data-ex="ADV019">ADV019</button></div></div></div>
+        <div class="ses" data-ses="s2d1m">
+      <div class="sesl">Anotar · SEG · manhã</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+      <div class="turno"><div class="turnol">Tarde</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Base motora e apoios</b> — 15 min. Precede o tático.<div class="cods"><button class="cd" data-ex="CO011">CO011</button><button class="cd" data-ex="CO004">CO004</button><button class="cd" data-ex="MV021">MV021</button></div></div></div><div class="linha-ex"><span class="tag n">NIC</span><div class="exd"><b>Tabata específico.</b> Vinte segundos de esforço, dez de descanso — é o desenho fisiológico de um ponto real.<div class="cods"><button class="cd" data-ex="CF020">CF020</button></div></div></div><div class="linha-ex"><span class="tag g">GUS</span><span class="tag t">TIT</span><div class="exd">Entrada e finalização.<div class="cods"><button class="cd" data-ex="AT002">AT002</button><button class="cd" data-ex="PDR002">PDR002</button></div></div></div>
+        <div class="ses" data-ses="s2d1t">
+      <div class="sesl">Anotar · SEG · tarde</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+    </div><div class="dia">
+      <div class="diac"><span class="dian">TER</span><span class="diat">Saque, devolução e a terceira bola</span></div>
+      <div class="turno"><div class="turnol">Manhã</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Fundamento do dia</b> — 20 min de abertura. Não sai do plano em nenhuma semana: o gesto se mantém por repetição distribuída, não por bloco isolado.<div class="cods"><button class="cd" data-ex="FB001">FB001</button><button class="cd" data-ex="FB002">FB002</button><button class="cd" data-ex="FB029">FB029</button><button class="cd" data-ex="FB030">FB030</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Saque + primeira + terceira bola. A sequência completa de abertura.<div class="cods"><button class="cd" data-ex="IP003">IP003</button><button class="cd" data-ex="DT028">DT028</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Devolução + primeira bola em ponto disputado.<div class="cods"><button class="cd" data-ex="IP004">IP004</button><button class="cd" data-ex="IP006">IP006</button></div></div></div>
+        <div class="ses" data-ses="s2d2m">
+      <div class="sesl">Anotar · TER · manhã</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+      <div class="turno"><div class="turnol">Tarde</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Base motora e apoios</b> — 15 min. Precede o tático.<div class="cods"><button class="cd" data-ex="CO011">CO011</button><button class="cd" data-ex="CO004">CO004</button><button class="cd" data-ex="MV021">MV021</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd"><b>Observação de rede do Gustavo</b> — pegada, base na primeira volei, velocidade ou colocação, e o que faz diante do lob.<div class="cods"><button class="cd" data-ex="PDR001">PDR001</button><button class="cd" data-ex="PDR003">PDR003</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Físico.<div class="cods"><button class="cd" data-ex="CF015">CF015</button><button class="cd" data-ex="MV025">MV025</button></div></div></div>
+        <div class="ses" data-ses="s2d2t">
+      <div class="sesl">Anotar · TER · tarde</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+    </div><div class="dia">
+      <div class="diac"><span class="dian">QUA</span><span class="diat">Mudança de direção sob pressão</span></div>
+      <div class="turno"><div class="turnol">Manhã</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Fundamento do dia</b> — 20 min de abertura. Não sai do plano em nenhuma semana: o gesto se mantém por repetição distribuída, não por bloco isolado.<div class="cods"><button class="cd" data-ex="FB001">FB001</button><button class="cd" data-ex="FB002">FB002</button><button class="cd" data-ex="FB029">FB029</button><button class="cd" data-ex="FB030">FB030</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Mudança de direção — só a partir de bola confortável.<div class="cods"><button class="cd" data-ex="PDB001">PDB001</button><button class="cd" data-ex="PDB002">PDB002</button><button class="cd" data-ex="TR007">TR007</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Restrição do corredor mantida.<div class="cods"><button class="cd" data-ex="DT014">DT014</button></div></div></div>
+        <div class="ses" data-ses="s2d3m">
+      <div class="sesl">Anotar · QUA · manhã</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+      <div class="turno"><div class="turnol">Tarde</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Base motora e apoios</b> — 15 min. Precede o tático.<div class="cods"><button class="cd" data-ex="CO011">CO011</button><button class="cd" data-ex="CO004">CO004</button><button class="cd" data-ex="MV021">MV021</button></div></div></div><div class="linha-ex"><span class="tag n">NIC</span><div class="exd">Recuperação lateral em série curta, alta intensidade.<div class="cods"><button class="cd" data-ex="MV022">MV022</button><button class="cd" data-ex="CF020">CF020</button></div></div></div><div class="linha-ex"><span class="tag g">GUS</span><div class="exd">Backhand cruzado abrindo ângulo.<div class="cods"><button class="cd" data-ex="FB002">FB002</button><button class="cd" data-ex="DT016">DT016</button></div></div></div><div class="linha-ex"><span class="tag t">TIT</span><div class="exd">Declarar e fechar.<div class="cods"><button class="cd" data-ex="TR019">TR019</button><button class="cd" data-ex="AT003">AT003</button></div></div></div>
+        <div class="ses" data-ses="s2d3t">
+      <div class="sesl">Anotar · QUA · tarde</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+    </div><div class="dia">
+      <div class="diac"><span class="dian">QUI</span><span class="diat">Defesa e transição</span></div>
+      <div class="turno"><div class="turnol">Manhã</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Fundamento do dia</b> — 20 min de abertura. Não sai do plano em nenhuma semana: o gesto se mantém por repetição distribuída, não por bloco isolado.<div class="cods"><button class="cd" data-ex="FB001">FB001</button><button class="cd" data-ex="FB002">FB002</button><button class="cd" data-ex="FB029">FB029</button><button class="cd" data-ex="FB030">FB030</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">As duas defesas — alta para ganhar tempo, cruzada acelerada.<div class="cods"><button class="cd" data-ex="RT009">RT009</button><button class="cd" data-ex="DT021">DT021</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Saque + primeira bola, registro por posição.<div class="cods"><button class="cd" data-ex="DC008">DC008</button></div></div></div>
+        <div class="ses" data-ses="s2d4m">
+      <div class="sesl">Anotar · QUI · manhã</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+      <div class="turno"><div class="turnol">Tarde</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Base motora e apoios</b> — 15 min. Precede o tático.<div class="cods"><button class="cd" data-ex="CO011">CO011</button><button class="cd" data-ex="CO004">CO004</button><button class="cd" data-ex="MV021">MV021</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Técnica sob fadiga.<div class="cods"><button class="cd" data-ex="ADV008">ADV008</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Ponto único com pressão máxima.<div class="cods"><button class="cd" data-ex="ADV016">ADV016</button></div></div></div>
+        <div class="ses" data-ses="s2d4t">
+      <div class="sesl">Anotar · QUI · tarde</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+    </div><div class="dia">
+      <div class="diac"><span class="dian">SEX</span><span class="diat">Tudo junto em ponto</span></div>
+      <div class="turno"><div class="turnol">Manhã</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Fundamento do dia</b> — 20 min de abertura. Não sai do plano em nenhuma semana: o gesto se mantém por repetição distribuída, não por bloco isolado.<div class="cods"><button class="cd" data-ex="FB001">FB001</button><button class="cd" data-ex="FB002">FB002</button><button class="cd" data-ex="FB029">FB029</button><button class="cd" data-ex="FB030">FB030</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Restrições valendo, padrão de quatro bolas obrigatório.<div class="cods"><button class="cd" data-ex="TR020">TR020</button><button class="cd" data-ex="DT010">DT010</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Set curto com o tema da semana.<div class="cods"><button class="cd" data-ex="JA014">JA014</button></div></div></div>
+        <div class="ses" data-ses="s2d5m">
+      <div class="sesl">Anotar · SEX · manhã</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+      <div class="turno"><div class="turnol">Tarde</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Base motora e apoios</b> — 15 min. Precede o tático.<div class="cods"><button class="cd" data-ex="CO011">CO011</button><button class="cd" data-ex="CO004">CO004</button><button class="cd" data-ex="MV021">MV021</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Jogo aplicado com contagem de padrões.<div class="cods"><button class="cd" data-ex="DT030">DT030</button><button class="cd" data-ex="DM013">DM013</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Físico.<div class="cods"><button class="cd" data-ex="CF015">CF015</button></div></div></div>
+        <div class="ses" data-ses="s2d5t">
+      <div class="sesl">Anotar · SEX · tarde</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+    </div><div class="dia">
+      <div class="diac"><span class="dian">SÁB</span><span class="diat">Jogo observado</span></div>
+      <div class="turno"><div class="turnol">Manhã</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Fundamento do dia</b> — 20 min de abertura. Não sai do plano em nenhuma semana: o gesto se mantém por repetição distribuída, não por bloco isolado.<div class="cods"><button class="cd" data-ex="FB001">FB001</button><button class="cd" data-ex="FB002">FB002</button><button class="cd" data-ex="FB029">FB029</button><button class="cd" data-ex="FB030">FB030</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Set com registro estruturado. Sem instrução durante.<div class="cods"><button class="cd" data-ex="DM002">DM002</button><button class="cd" data-ex="JA014">JA014</button></div></div></div>
+        <div class="ses" data-ses="s2d6m">
+      <div class="sesl">Anotar · SÁB · manhã</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+      <div class="turno"><div class="turnol">Tarde</div><div class="turnoc"><div class="linha-ex"><div class="exd"><b>Livre.</b><div class="cods"></div></div></div>
+        <div class="ses" data-ses="s2d6t">
+      <div class="sesl">Anotar · SÁB · tarde</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+    </div><div class="obsb">
+      <div class="semfim">
+        <div><div class="obsl">Fim da semana 2</div>
+          <div class="semres" data-res="2">—</div></div>
+        <button class="btsem" data-sem-rel="2">Relatório da semana 2</button>
+      </div>
+      <div class="leitura" data-leit="2">
+        <div class="obsl" style="margin-top:14px">Leitura da semana — uma por treinador</div>
+        <div class="leitd">A anotação de sessão registra o que aconteceu. Esta registra o que
+          você entendeu: o que mudou, o que não mudou, e o que faria diferente.</div>
+        <div class="leitlist"></div>
+        <div class="leitadd">
+          <textarea placeholder="sua leitura da semana"></textarea>
+          <button>Registrar leitura</button></div>
+      </div></div></div><div class="sem">
+      <div class="semc"><span class="semn">SEMANA 3</span><span class="semf">Volume alto, sem alongar o ponto</span>
+        <span class="semcg">volume alto · intensidade média</span></div><div class="dia">
+      <div class="diac"><span class="dian">SEG</span><span class="diat">Densidade</span></div>
+      <div class="turno"><div class="turnol">Manhã</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Fundamento do dia</b> — 20 min de abertura. Não sai do plano em nenhuma semana: o gesto se mantém por repetição distribuída, não por bloco isolado.<div class="cods"><button class="cd" data-ex="FB001">FB001</button><button class="cd" data-ex="FB002">FB002</button><button class="cd" data-ex="FB029">FB029</button><button class="cd" data-ex="FB030">FB030</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Séries de pontos de quatro bolas, uma atrás da outra, descanso reduzido.<div class="cods"><button class="cd" data-ex="JA002">JA002</button><button class="cd" data-ex="ADV001">ADV001</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Restrições combinadas.<div class="cods"><button class="cd" data-ex="DT010">DT010</button><button class="cd" data-ex="DT014">DT014</button></div></div></div>
+        <div class="ses" data-ses="s3d1m">
+      <div class="sesl">Anotar · SEG · manhã</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+      <div class="turno"><div class="turnol">Tarde</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Base motora e apoios</b> — 15 min. Precede o tático.<div class="cods"><button class="cd" data-ex="CO011">CO011</button><button class="cd" data-ex="CO004">CO004</button><button class="cd" data-ex="MV021">MV021</button></div></div></div><div class="linha-ex"><span class="tag n">NIC</span><div class="exd"><b>É o trabalho central dele.</b> Muitos pontos curtos com pouco descanso — a capacidade vem da densidade, não da duração do ponto.<div class="cods"><button class="cd" data-ex="CF020">CF020</button><button class="cd" data-ex="MV025">MV025</button></div></div></div><div class="linha-ex"><span class="tag g">GUS</span><span class="tag t">TIT</span><div class="exd">Aproximação e volei.<div class="cods"><button class="cd" data-ex="AT008">AT008</button><button class="cd" data-ex="PDR002">PDR002</button></div></div></div>
+        <div class="ses" data-ses="s3d1t">
+      <div class="sesl">Anotar · SEG · tarde</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+    </div><div class="dia">
+      <div class="diac"><span class="dian">TER</span><span class="diat">Abertura completa</span></div>
+      <div class="turno"><div class="turnol">Manhã</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Fundamento do dia</b> — 20 min de abertura. Não sai do plano em nenhuma semana: o gesto se mantém por repetição distribuída, não por bloco isolado.<div class="cods"><button class="cd" data-ex="FB001">FB001</button><button class="cd" data-ex="FB002">FB002</button><button class="cd" data-ex="FB029">FB029</button><button class="cd" data-ex="FB030">FB030</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Saque + três bolas, com intenção definida em cada uma.<div class="cods"><button class="cd" data-ex="DT028">DT028</button><button class="cd" data-ex="IP003">IP003</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Devolução agressiva no segundo saque.<div class="cods"><button class="cd" data-ex="DT024">DT024</button><button class="cd" data-ex="FB024">FB024</button></div></div></div>
+        <div class="ses" data-ses="s3d2m">
+      <div class="sesl">Anotar · TER · manhã</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+      <div class="turno"><div class="turnol">Tarde</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Base motora e apoios</b> — 15 min. Precede o tático.<div class="cods"><button class="cd" data-ex="CO011">CO011</button><button class="cd" data-ex="CO004">CO004</button><button class="cd" data-ex="MV021">MV021</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Rede em ponto disputado.<div class="cods"><button class="cd" data-ex="PDR002">PDR002</button><button class="cd" data-ex="JA003">JA003</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Físico.<div class="cods"><button class="cd" data-ex="CF020">CF020</button></div></div></div>
+        <div class="ses" data-ses="s3d2t">
+      <div class="sesl">Anotar · TER · tarde</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+    </div><div class="dia">
+      <div class="diac"><span class="dian">QUA</span><span class="diat">Individualizado</span></div>
+      <div class="turno"><div class="turnol">Manhã</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Fundamento do dia</b> — 20 min de abertura. Não sai do plano em nenhuma semana: o gesto se mantém por repetição distribuída, não por bloco isolado.<div class="cods"><button class="cd" data-ex="FB001">FB001</button><button class="cd" data-ex="FB002">FB002</button><button class="cd" data-ex="FB029">FB029</button><button class="cd" data-ex="FB030">FB030</button></div></div></div><div class="linha-ex"><span class="tag g">GUS</span><div class="exd">Ordem de decisão: ganhar quadra antes de reduzir tempo.<div class="cods"><button class="cd" data-ex="TR001">TR001</button><button class="cd" data-ex="DT010">DT010</button></div></div></div><div class="linha-ex"><span class="tag n">NIC</span><div class="exd">Chegar inteiro na bola de ataque — o critério é a chegada.<div class="cods"><button class="cd" data-ex="AT002">AT002</button><button class="cd" data-ex="CO011">CO011</button></div></div></div><div class="linha-ex"><span class="tag t">TIT</span><div class="exd">Trilho da bola que autoriza — nomear antes de bater.<div class="cods"><button class="cd" data-ex="TR003">TR003</button><button class="cd" data-ex="DT015">DT015</button></div></div></div>
+        <div class="ses" data-ses="s3d3m">
+      <div class="sesl">Anotar · QUA · manhã</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+      <div class="turno"><div class="turnol">Tarde</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Base motora e apoios</b> — 15 min. Precede o tático.<div class="cods"><button class="cd" data-ex="CO011">CO011</button><button class="cd" data-ex="CO004">CO004</button><button class="cd" data-ex="MV021">MV021</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Movimentação em máxima cobertura.<div class="cods"><button class="cd" data-ex="MV025">MV025</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Ponto com placar adverso.<div class="cods"><button class="cd" data-ex="JA009">JA009</button></div></div></div>
+        <div class="ses" data-ses="s3d3t">
+      <div class="sesl">Anotar · QUA · tarde</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+    </div><div class="dia">
+      <div class="diac"><span class="dian">QUI</span><span class="diat">Padrões de duas armas</span></div>
+      <div class="turno"><div class="turnol">Manhã</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Fundamento do dia</b> — 20 min de abertura. Não sai do plano em nenhuma semana: o gesto se mantém por repetição distribuída, não por bloco isolado.<div class="cods"><button class="cd" data-ex="FB001">FB001</button><button class="cd" data-ex="FB002">FB002</button><button class="cd" data-ex="FB029">FB029</button><button class="cd" data-ex="FB030">FB030</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Comando alternado — o lado não dominante conduz.<div class="cods"><button class="cd" data-ex="DT012">DT012</button><button class="cd" data-ex="DT008">DT008</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Backhand paralelo apenas a partir da bola curta.<div class="cods"><button class="cd" data-ex="DT001">DT001</button><button class="cd" data-ex="FB004">FB004</button></div></div></div>
+        <div class="ses" data-ses="s3d4m">
+      <div class="sesl">Anotar · QUI · manhã</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+      <div class="turno"><div class="turnol">Tarde</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Base motora e apoios</b> — 15 min. Precede o tático.<div class="cods"><button class="cd" data-ex="CO011">CO011</button><button class="cd" data-ex="CO004">CO004</button><button class="cd" data-ex="MV021">MV021</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Técnica sob fadiga.<div class="cods"><button class="cd" data-ex="ADV008">ADV008</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Físico.<div class="cods"><button class="cd" data-ex="CF015">CF015</button></div></div></div>
+        <div class="ses" data-ses="s3d4t">
+      <div class="sesl">Anotar · QUI · tarde</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+    </div><div class="dia">
+      <div class="diac"><span class="dian">SEX</span><span class="diat">Aplicação</span></div>
+      <div class="turno"><div class="turnol">Manhã</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Fundamento do dia</b> — 20 min de abertura. Não sai do plano em nenhuma semana: o gesto se mantém por repetição distribuída, não por bloco isolado.<div class="cods"><button class="cd" data-ex="FB001">FB001</button><button class="cd" data-ex="FB002">FB002</button><button class="cd" data-ex="FB029">FB029</button><button class="cd" data-ex="FB030">FB030</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Set com padrão obrigatório e contagem.<div class="cods"><button class="cd" data-ex="DT030">DT030</button><button class="cd" data-ex="JA014">JA014</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Quatro bolas valendo dobro quando há construção.<div class="cods"><button class="cd" data-ex="TR020">TR020</button></div></div></div>
+        <div class="ses" data-ses="s3d5m">
+      <div class="sesl">Anotar · SEX · manhã</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+      <div class="turno"><div class="turnol">Tarde</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Base motora e apoios</b> — 15 min. Precede o tático.<div class="cods"><button class="cd" data-ex="CO011">CO011</button><button class="cd" data-ex="CO004">CO004</button><button class="cd" data-ex="MV021">MV021</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Jogo livre com debriefing.<div class="cods"><button class="cd" data-ex="DM013">DM013</button><button class="cd" data-ex="DM020">DM020</button></div></div></div>
+        <div class="ses" data-ses="s3d5t">
+      <div class="sesl">Anotar · SEX · tarde</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+    </div><div class="dia">
+      <div class="diac"><span class="dian">SÁB</span><span class="diat">Jogo</span></div>
+      <div class="turno"><div class="turnol">Manhã</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Fundamento do dia</b> — 20 min de abertura. Não sai do plano em nenhuma semana: o gesto se mantém por repetição distribuída, não por bloco isolado.<div class="cods"><button class="cd" data-ex="FB001">FB001</button><button class="cd" data-ex="FB002">FB002</button><button class="cd" data-ex="FB029">FB029</button><button class="cd" data-ex="FB030">FB030</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Set disputado.<div class="cods"><button class="cd" data-ex="JA014">JA014</button></div></div></div>
+        <div class="ses" data-ses="s3d6m">
+      <div class="sesl">Anotar · SÁB · manhã</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+      <div class="turno"><div class="turnol">Tarde</div><div class="turnoc"><div class="linha-ex"><div class="exd"><b>Livre.</b><div class="cods"></div></div></div>
+        <div class="ses" data-ses="s3d6t">
+      <div class="sesl">Anotar · SÁB · tarde</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+    </div><div class="obsb">
+      <div class="semfim">
+        <div><div class="obsl">Fim da semana 3</div>
+          <div class="semres" data-res="3">—</div></div>
+        <button class="btsem" data-sem-rel="3">Relatório da semana 3</button>
+      </div>
+      <div class="leitura" data-leit="3">
+        <div class="obsl" style="margin-top:14px">Leitura da semana — uma por treinador</div>
+        <div class="leitd">A anotação de sessão registra o que aconteceu. Esta registra o que
+          você entendeu: o que mudou, o que não mudou, e o que faria diferente.</div>
+        <div class="leitlist"></div>
+        <div class="leitadd">
+          <textarea placeholder="sua leitura da semana"></textarea>
+          <button>Registrar leitura</button></div>
+      </div></div></div><div class="sem">
+      <div class="semc"><span class="semn">SEMANA 4</span><span class="semf">Medir os critérios e redesenhar</span>
+        <span class="semcg">medição · fecha o ciclo curto</span></div><div class="obsl" style="padding:11px 16px 0"><b>Semana de medição.</b> Ao fim dela, gere o relatório e mande — o ciclo seguinte nasce do que aconteceu, não do que estava previsto.</div><div class="dia">
+      <div class="diac"><span class="dian">SEG</span><span class="diat">Medição individual</span></div>
+      <div class="turno"><div class="turnol">Manhã</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Fundamento do dia</b> — 20 min de abertura. Não sai do plano em nenhuma semana: o gesto se mantém por repetição distribuída, não por bloco isolado.<div class="cods"><button class="cd" data-ex="FB001">FB001</button><button class="cd" data-ex="FB002">FB002</button><button class="cd" data-ex="FB029">FB029</button><button class="cd" data-ex="FB030">FB030</button></div></div></div><div class="linha-ex"><span class="tag g">GUS</span><div class="exd">Na bola fácil, escolhe o cruzado com ângulo — 7 de 10, sem lembrete.<div class="cods"><button class="cd" data-ex="DT010">DT010</button><button class="cd" data-ex="JA014">JA014</button></div></div></div><div class="linha-ex"><span class="tag n">NIC</span><div class="exd">Chega com os pés no chão em 7 de 10 entradas, em série densa.<div class="cods"><button class="cd" data-ex="AT002">AT002</button><button class="cd" data-ex="JA002">JA002</button></div></div></div><div class="linha-ex"><span class="tag t">TIT</span><div class="exd">Declara a intenção antes da curta em 8 de 10, e a declaração corresponde.<div class="cods"><button class="cd" data-ex="TR019">TR019</button><button class="cd" data-ex="DT015">DT015</button></div></div></div>
+        <div class="ses" data-ses="s4d1m">
+      <div class="sesl">Anotar · SEG · manhã</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+      <div class="turno"><div class="turnol">Tarde</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Base motora e apoios</b> — 15 min. Precede o tático.<div class="cods"><button class="cd" data-ex="CO011">CO011</button><button class="cd" data-ex="CO004">CO004</button><button class="cd" data-ex="MV021">MV021</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Manutenção do que entrou.<div class="cods"><button class="cd" data-ex="FB001">FB001</button><button class="cd" data-ex="FB002">FB002</button></div></div></div>
+        <div class="ses" data-ses="s4d1t">
+      <div class="sesl">Anotar · SEG · tarde</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+    </div><div class="dia">
+      <div class="diac"><span class="dian">TER</span><span class="diat">Medição da abertura</span></div>
+      <div class="turno"><div class="turnol">Manhã</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Fundamento do dia</b> — 20 min de abertura. Não sai do plano em nenhuma semana: o gesto se mantém por repetição distribuída, não por bloco isolado.<div class="cods"><button class="cd" data-ex="FB001">FB001</button><button class="cd" data-ex="FB002">FB002</button><button class="cd" data-ex="FB029">FB029</button><button class="cd" data-ex="FB030">FB030</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Saque + primeira bola: registro por posição, os três.<div class="cods"><button class="cd" data-ex="DC008">DC008</button><button class="cd" data-ex="IP003">IP003</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Devolução + primeira: quantas ficam neutras ou ganhas.<div class="cods"><button class="cd" data-ex="IP006">IP006</button><button class="cd" data-ex="IP004">IP004</button></div></div></div>
+        <div class="ses" data-ses="s4d2m">
+      <div class="sesl">Anotar · TER · manhã</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+      <div class="turno"><div class="turnol">Tarde</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Base motora e apoios</b> — 15 min. Precede o tático.<div class="cods"><button class="cd" data-ex="CO011">CO011</button><button class="cd" data-ex="CO004">CO004</button><button class="cd" data-ex="MV021">MV021</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Rede.<div class="cods"><button class="cd" data-ex="PDR001">PDR001</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Físico.<div class="cods"><button class="cd" data-ex="CF015">CF015</button></div></div></div>
+        <div class="ses" data-ses="s4d2t">
+      <div class="sesl">Anotar · TER · tarde</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+    </div><div class="dia">
+      <div class="diac"><span class="dian">QUA</span><span class="diat">Set disputado com registro</span></div>
+      <div class="turno"><div class="turnol">Manhã</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Fundamento do dia</b> — 20 min de abertura. Não sai do plano em nenhuma semana: o gesto se mantém por repetição distribuída, não por bloco isolado.<div class="cods"><button class="cd" data-ex="FB001">FB001</button><button class="cd" data-ex="FB002">FB002</button><button class="cd" data-ex="FB029">FB029</button><button class="cd" data-ex="FB030">FB030</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Set com placar adverso e restrições valendo.<div class="cods"><button class="cd" data-ex="JA009">JA009</button><button class="cd" data-ex="JA014">JA014</button></div></div></div>
+        <div class="ses" data-ses="s4d3m">
+      <div class="sesl">Anotar · QUA · manhã</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+      <div class="turno"><div class="turnol">Tarde</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Base motora e apoios</b> — 15 min. Precede o tático.<div class="cods"><button class="cd" data-ex="CO011">CO011</button><button class="cd" data-ex="CO004">CO004</button><button class="cd" data-ex="MV021">MV021</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Debriefing estruturado, individual.<div class="cods"><button class="cd" data-ex="DM020">DM020</button></div></div></div>
+        <div class="ses" data-ses="s4d3t">
+      <div class="sesl">Anotar · QUA · tarde</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+    </div><div class="dia">
+      <div class="diac"><span class="dian">QUI</span><span class="diat">Livre para ajuste</span></div>
+      <div class="turno"><div class="turnol">Manhã</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Fundamento do dia</b> — 20 min de abertura. Não sai do plano em nenhuma semana: o gesto se mantém por repetição distribuída, não por bloco isolado.<div class="cods"><button class="cd" data-ex="FB001">FB001</button><button class="cd" data-ex="FB002">FB002</button><button class="cd" data-ex="FB029">FB029</button><button class="cd" data-ex="FB030">FB030</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Espaço reservado — o que a medição mostrar que falta.<div class="cods"></div></div></div>
+        <div class="ses" data-ses="s4d4m">
+      <div class="sesl">Anotar · QUI · manhã</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+      <div class="turno"><div class="turnol">Tarde</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Base motora e apoios</b> — 15 min. Precede o tático.<div class="cods"><button class="cd" data-ex="CO011">CO011</button><button class="cd" data-ex="CO004">CO004</button><button class="cd" data-ex="MV021">MV021</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Regenerativo.<div class="cods"><button class="cd" data-ex="CF017">CF017</button><button class="cd" data-ex="CF019">CF019</button></div></div></div>
+        <div class="ses" data-ses="s4d4t">
+      <div class="sesl">Anotar · QUI · tarde</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+    </div><div class="dia">
+      <div class="diac"><span class="dian">SEX</span><span class="diat">Fechamento</span></div>
+      <div class="turno"><div class="turnol">Manhã</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Fundamento do dia</b> — 20 min de abertura. Não sai do plano em nenhuma semana: o gesto se mantém por repetição distribuída, não por bloco isolado.<div class="cods"><button class="cd" data-ex="FB001">FB001</button><button class="cd" data-ex="FB002">FB002</button><button class="cd" data-ex="FB029">FB029</button><button class="cd" data-ex="FB030">FB030</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Jogo observado sem instrução.<div class="cods"><button class="cd" data-ex="DM002">DM002</button><button class="cd" data-ex="ADV009">ADV009</button></div></div></div>
+        <div class="ses" data-ses="s4d5m">
+      <div class="sesl">Anotar · SEX · manhã</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+      <div class="turno"><div class="turnol">Tarde</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Base motora e apoios</b> — 15 min. Precede o tático.<div class="cods"><button class="cd" data-ex="CO011">CO011</button><button class="cd" data-ex="CO004">CO004</button><button class="cd" data-ex="MV021">MV021</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Conversa de fechamento com cada um.<div class="cods"><button class="cd" data-ex="DM020">DM020</button></div></div></div>
+        <div class="ses" data-ses="s4d5t">
+      <div class="sesl">Anotar · SEX · tarde</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+    </div><div class="dia">
+      <div class="diac"><span class="dian">SÁB</span><span class="diat">Competição ou jogo</span></div>
+      <div class="turno"><div class="turnol">Manhã</div><div class="turnoc"><div class="linha-ex"><span class="tag fun">FUND</span><div class="exd"><b>Fundamento do dia</b> — 20 min de abertura. Não sai do plano em nenhuma semana: o gesto se mantém por repetição distribuída, não por bloco isolado.<div class="cods"><button class="cd" data-ex="FB001">FB001</button><button class="cd" data-ex="FB002">FB002</button><button class="cd" data-ex="FB029">FB029</button><button class="cd" data-ex="FB030">FB030</button></div></div></div><div class="linha-ex"><span class="tag tds">todos</span><div class="exd">Se houver torneio, ele é o fechamento.<div class="cods"></div></div></div>
+        <div class="ses" data-ses="s4d6m">
+      <div class="sesl">Anotar · SÁB · manhã</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+      <div class="turno"><div class="turnol">Tarde</div><div class="turnoc"><div class="linha-ex"><div class="exd"><b>Livre.</b><div class="cods"></div></div></div>
+        <div class="ses" data-ses="s4d6t">
+      <div class="sesl">Anotar · SÁB · tarde</div>
+      <div class="sespres">
+        <button class="pz g" data-p="Gustavo">Gustavo</button>
+        <button class="pz n" data-p="Nicolas">Nicolas</button>
+        <button class="pz t" data-p="Tito">Tito</button>
+        <span class="sesd">presença — clique para marcar</span>
+      </div>
+      <div class="sesmet">
+        <label><span class="mg">GUS</span> alvo certo na bola fácil
+          <input type="number" min="0" max="10" data-m="Gustavo" placeholder="—"> / 10</label>
+        <label><span class="mn">NIC</span> chegou inteiro
+          <input type="number" min="0" max="10" data-m="Nicolas" placeholder="—"> / 10</label>
+        <label><span class="mt">TIT</span> declarou certo
+          <input type="number" min="0" max="10" data-m="Tito" placeholder="—"> / 10</label>
+      </div>
+      <div class="seslist"></div>
+      <div class="sesadd">
+        <textarea placeholder="o que apareceu · o que não apareceu"></textarea>
+        <button>Anotar</button></div>
+    </div></div></div>
+    </div><div class="obsb">
+      <div class="semfim">
+        <div><div class="obsl">Fim da semana 4</div>
+          <div class="semres" data-res="4">—</div></div>
+        <button class="btsem" data-sem-rel="4">Relatório da semana 4</button>
+      </div>
+      <div class="leitura" data-leit="4">
+        <div class="obsl" style="margin-top:14px">Leitura da semana — uma por treinador</div>
+        <div class="leitd">A anotação de sessão registra o que aconteceu. Esta registra o que
+          você entendeu: o que mudou, o que não mudou, e o que faria diferente.</div>
+        <div class="leitlist"></div>
+        <div class="leitadd">
+          <textarea placeholder="sua leitura da semana"></textarea>
+          <button>Registrar leitura</button></div>
+      </div></div></div>
+</div>
+
+
+<div class="parte">
+  <div class="pn">Evolução</div>
+  <h2>O que os números mostram</h2>
+  <p class="leg">Cada sessão anotada alimenta este gráfico. A métrica de cada jogador é o
+    próprio critério de saída — não é nota, é a contagem que decide se o ciclo fecha.</p>
+  <div class="grafbox">
+    <div class="grafl">Sessões no eixo horizontal, na ordem em que foram anotadas.
+      A linha tracejada marca a meta de cada um.</div>
+    <div id="graf"></div>
+    <div class="gleg">
+      <span class="gl"><span class="gsw" style="background:#5B3487"></span>Gustavo · alvo certo na bola fácil</span>
+      <span class="gl"><span class="gsw" style="background:#155A73"></span>Nicolas · chegou inteiro</span>
+      <span class="gl"><span class="gsw" style="background:#8F4A0C"></span>Tito · declarou certo</span>
+    </div>
+  </div>
+  <div class="grafbox">
+    <div class="grafl">Presença por sessão. Falta não é lacuna no gráfico — é informação:
+      quem faltou tem estímulo pendente e entra na sessão seguinte.</div>
+    <div id="grafpres"></div>
+  </div>
+  <div class="ocre"><b>Sobre a métrica</b>
+    Ela vem do critério de saída de cada um e é sempre em dez. Anotar é opcional — mas sem o
+    número, o gráfico não existe e a decisão de fechar o bloco volta a ser impressão.</div>
+</div>
+<div class="parte">
+  <div class="pn">Depois da competição</div>
+  <h2>O que reescrever</h2>
+  <p class="leg">O atleta é um organismo vivo. Cada jogo produz informação que o plano
+    precisa absorver — e o resultado não é essa informação.</p>
+  <div class="obsb" data-comp="1" style="border-top:none;border:1px solid var(--linha)">
+    <div class="obsl">Registro pós-competição</div>
+    <div class="obslist"></div>
+    <div class="obsadd">
+      <select><option value="todos">Turma</option><option value="Gustavo">Gustavo</option>
+        <option value="Nicolas">Nicolas</option><option value="Tito">Tito</option></select>
+      <textarea placeholder="torneio · adversário · em que bola o padrão apareceu ou não · o que mudar no plano"></textarea>
+      <button>Registrar</button></div>
+  </div>
+  <div class="al"><b>O que não entra</b>
+    O resultado. Vitória ou derrota não antecipa nem atrasa nada. O que entra é a observação
+    de quadra: em que momento o alvo mudou, quantas vezes buscou a linha na bola fácil,
+    quantos pontos terminaram em até quatro bolas, se a rotina entre pontos sobreviveu.</div>
+</div>
+
+<div class="parte">
+  <div class="pn">Em observação</div>
+  <h2>O que segue em aberto</h2>
+  <div class="obs"><div class="qd"></div><div class="obst"><strong>a · A finalização do
+    Nicolas com ele descansado.</strong><span class="urg">DECIDE A PRIORIDADE</span><br>
+    Se errar mesmo chegando inteiro, a origem muda de sustentação para execução.</div></div>
+  <div class="obs"><div class="qd"></div><div class="obst"><strong>b · O jogo de rede do
+    Gustavo.</strong><br>Observação marcada na terça da semana 2. Trava a definição do
+    trabalho de finalização dele.</div></div>
+  <div class="obs"><div class="qd"></div><div class="obst"><strong>c · O problema técnico do
+    saque do Tito.</strong><br>Lançamento, contato ou cadeia? Até responder, volume baixo e
+    um critério por vez.</div></div>
+  <div class="obs"><div class="qd"></div><div class="obst"><strong>d · O golpe a golpe do
+    Nicolas e do Tito.</strong><br>Tenho sintomas, não mecânica. A origem dos dois é
+    inferência.</div></div>
+  <div class="obs"><div class="qd"></div><div class="obst"><strong>e · Lesões e limitações
+    dos três.</strong><br>Cinco a seis sessões, dois períodos, adolescentes.</div></div>
+  <div class="obs"><div class="qd"></div><div class="obst"><strong>f · O calendário de
+    competição.</strong><br>Varia por jogador. Sem datas, o ciclo tem conteúdo mas não tem
+    pico nem afinação.</div></div>
+</div>
+
+<div class="rod" style="margin-top:40px">
+  <strong>Rascunho para revisão do treinador.</strong> Ciclo curto, para se reescrever ao
+  fim de quatro semanas. Duas correções de método estão registradas no início: troca longa
+  não é exercício, e o fundamento não sai do plano.
+  <br><br>
+  Ao fim da semana 4, gere o relatório e mande — o ciclo seguinte nasce do que aconteceu.
+</div>
+</div>
+<dialog id="dex"><div class="dl" id="dexin"></div></dialog>
+<dialog id="drel"><div class="dl">
+  <div class="dlc" id="relk">Relatório</div>
+  <div class="dln" id="relt">Relatório</div>
+  <div class="dlf">Cole numa conversa para atualizar o planejamento.</div>
+  <textarea id="saida" readonly></textarea>
+  <div style="display:flex;gap:8px;margin-top:12px">
+    <button class="dlbt" id="btcopiar">Copiar tudo</button>
+    <button class="dlbt" style="background:#6B6461" onclick="document.getElementById('drel').close()">Fechar</button>
+  </div>
+</div></dialog>
+<script>
+const EX = {"ADV001":{"n":"Construção em 4 Bolas MTY","f":"Avançados","o":"Padrão de 4 bolas com intenção definida para cada uma.","m":"4 bolas: 1a abertura neutra profunda ao centro, 2a construção cruzada com ângulo, 3a preparação deep diagonal, 4a finalização no espaço aberto. Decisão em tempo real nas bolas 3 e 4.","g":"4 séries de 4 bolas","r":"Duas primeiras bolas alimentadas pelo treinador.","p":"Quatro bolas com decisão em tempo real a partir da segunda.","x":"A intenção distinta de cada uma das quatro bolas.","i":"O resultado da quarta bola. Só aplicar após o domínio dos padrões individuais — falha em série desmotiva sem ensinar."},"ADV008":{"n":"Condicionamento mais Técnica - Circuito","f":"Avançados","o":"Integrar condicionamento com execução técnica para simular fadiga.","m":"30 seg de corrida intensa, parar e executar 4 golpes técnicos, 30 seg de corrida, repetir. Manter qualidade técnica sob fadiga.","g":"4 circuitos de 3 min","r":"Circuito de dois minutos com estações mais simples.","p":"Quatro circuitos completos com exigência técnica crescente.","x":"A manutenção do padrão técnico sob fadiga acumulada.","i":"A queda técnica no último circuito. Ela é o dado, não o erro."},"ADV009":{"n":"Jogo de Tênis Intuitivo - Sem Instrução","f":"Avançados","o":"Avaliar o jogo do atleta sem qualquer instrução.","m":"Atleta joga 1 set completamente sem instrução prévia ou interrupção. Treinador apenas observa e anota.","g":"1 set","r":"Meio set de observação.","p":"Set completo sem qualquer palavra do treinador, com registro estruturado.","x":"O que aparece quando ninguém instrui — este é o jogo real do atleta.","i":"Absolutamente tudo, durante o set. Instruir aqui apaga o dado."},"ADV016":{"n":"Ponto Único - Pressão Máxima","f":"Avançados","o":"1 único ponto com pressão psicológica máxima.","m":"1 ponto jogado como se fosse a final de um torneio. Treinador constrói a narrativa antes.","g":"5-10 pontos únicos por sessão","r":"Ponto único sem consequência combinada.","p":"Ponto único com consequência real acordada antes.","x":"A rotina completa antes do ponto único.","i":"O resultado do ponto. O que se observa é a rotina que o antecedeu."},"ADV019":{"n":"Ritmo Acelerado - 80% do Tempo Normal","f":"Avançados","o":"Drills em 80% do tempo normal para desenvolver automatização.","m":"Pegar qualquer drill básico e executar com 80% do tempo entre bolas. Menos tempo para pensar, reagir com padrões automatizados.","g":"4 séries de qualquer drill básico","r":"Noventa por cento do tempo normal.","p":"Setenta por cento do tempo normal, em drill já dominado.","x":"A automatização — o que sobrevive quando não há tempo para pensar.","i":"Erros que aparecem sob tempo reduzido em drill ainda não dominado. Só se acelera o que já está estabelecido."},"AT002":{"n":"Ataque plano de meia quadra","f":"Ataque","o":"","m":"Bola de três quartos; atacar plano e para a frente.","g":"4×8","r":"bola mais alta, alvo amplo","p":"alvo reduzido, bola mais baixa","x":"ponto de contato à frente, apoio, terminação","i":"margem sobre a rede"},"AT003":{"n":"Ataque + finalização à frente","f":"Ataque","o":"","m":"Atacar e finalizar na rede na bola seguinte.","g":"3×8","r":"finalização com bola lançada","p":"passador tentando o passe","x":"split na zona de voleio","i":"qualidade do voleio nas primeiras sessões"},"AT008":{"n":"Approach paralelo + cobertura","f":"Ataque","o":"","m":"Approach na paralela e split na zona de voleio, cobrindo a rota provável.","g":"3×8","r":"sem passador","p":"passador com liberdade total","x":"linha de cobertura e timing do split","i":"o voleio"},"CF009":{"n":"Sprints Curtos - 5x5m","f":"Condicionamento","o":"Aceleração explosiva nos primeiros passos.","m":"Sprints de 5 metros máximos partindo da posição de espera. 6 repetições com 30 seg de descanso.","g":"6 séries de 5m, 30 seg descanso","r":"Quatro repetições com descanso ampliado.","p":"Sprints com partida a partir de estímulo visual do treinador.","x":"Os três primeiros passos — é neles que o tênis se decide.","i":"A velocidade máxima. Cinco metros nunca chegam à velocidade máxima."},"CF015":{"n":"Circuito - 4 Estações","f":"Condicionamento","o":"Condicionamento geral com circuito de 4 estações.","m":"Est.1: 30 seg corrida lateral. Est.2: 10 agachamentos explosivos. Est.3: 30 seg escadinha. Est.4: 10 sprints de 5m.","g":"4 circuitos completos","r":"Duas estações em vez de quatro; um circuito a menos.","p":"Quatro estações com tempo reduzido entre elas.","x":"A qualidade de execução na última estação de cada circuito.","i":"A comparação de desempenho entre estações diferentes."},"CF017":{"n":"Resistência Cardiovascular - Corrida","f":"Condicionamento","o":"Base aeróbica para manter qualidade técnica nos games finais.","m":"Corrida continua por 20-30 min em ritmo moderado.","g":"20-30 min","r":"Vinte minutos em ritmo confortável.","p":"Trinta minutos com variação de ritmo em blocos.","x":"A regularidade da respiração e do ritmo.","i":"A velocidade. Base aeróbica se constrói em ritmo baixo e sustentado."},"CF019":{"n":"Flexibilidade - Rotina de 10 Minutos","f":"Condicionamento","o":"Amplitude de movimento necessária para o tênis.","m":"Sequência: 1. Rotação de ombros 30s. 2. Flexão lateral de tronco 30s cada. 3. Agachamento profundo 30s. 4. Abertura de quadril 30s. 5. Flexão de quadríceps 30s cada.","g":"10 minutos pós-treino","r":"Amplitude parcial em cada posição; menos tempo.","p":"Amplitude completa com permanência maior em cada posição.","x":"A respiração durante a permanência e a ausência de dor aguda.","i":"A amplitude comparada a outro atleta. Cada corpo tem a sua."},"CF020":{"n":"HIIT Específico para Tênis - Tabata","f":"Condicionamento","o":"Potência anaeróbia específica para o ritmo de um ponto de tênis.","m":"20 seg de esforço máximo (corrida lateral, sprints, saltos) mais 10 seg de descanso. 8 vezes = 1 rodada. 3 rodadas.","g":"3 rodadas de 8 intervalos","r":"Duas rodadas em vez de três; intervalos mais longos.","p":"Três rodadas completas com movimentos específicos de quadra.","x":"A manutenção da qualidade de movimento no último intervalo de cada rodada.","i":"A queda de rendimento ao longo dos intervalos. É o desenho do estímulo."},"CO004":{"n":"Parar antes de bater","f":"Coordenação","o":"","m":"Corrida com freada obrigatória e equilíbrio verificável antes do contato.","g":"3×8","r":"distância curta","p":"distância longa com mudança de direção","x":"frenagem e base","i":"velocidade da corrida"},"CO011":{"n":"Passos pequenos finais","f":"Coordenação","o":"","m":"Dois ajustes obrigatórios de pernas antes de cada contato.","g":"3 × 10","r":"um ajuste","p":"três ajustes com bola variando","x":"existência dos ajustes","i":"o golpe"},"DC008":{"n":"Saque - 10 de 10 em Cada Posição","f":"Consistência","o":"Consistência máxima do saque em todas as posições.","m":"10 saques por posição: T no DC, aberto no DC, T no AC, aberto no AC. Registrar percentual. Meta: 70% em todas.","g":"10 saques por posição","r":"Cinco saques por posição; alvo ampliado.","p":"Registro mensal com meta progressiva por posição.","x":"A repetibilidade do lançamento entre as quatro posições.","i":"O percentual isolado de um dia. O valor deste exercício é a série histórica."},"DM001":{"n":"Rotina de 20 Segundos MTY","f":"Drills mentais","o":"Rotina pre-ponto MTY: respirar, resetar, decidir.","m":"Em exercícios de pontos: após cada ponto, 20 seg para respirar, olhar para as cordas e decidir a tática do próximo ponto.","g":"Integrado a qualquer exercício de pontos","r":"Rotina reduzida a duas etapas: respirar e decidir.","p":"Rotina completa mantida em situação de placar e sob fadiga.","x":"A presença das três etapas — respirar, fechar o ponto anterior, decidir o próximo.","i":"O resultado do ponto seguinte. O objetivo é executar a decisão tomada nos vinte segundos, não vencer o ponto."},"DM002":{"n":"Diagnóstico de Estilo de Jogo","f":"Drills mentais","o":"Mapear o padrão natural de jogo para construir o plano MTY individual.","m":"Atleta joga 1 set enquanto treinador anota: golpe favorito de abertura, direção preferida sob pressão, onde erra a maioria dos pontos, comportamento nos pontos decisivos.","g":"1 set de observação mais 20 min debriefing","r":"Observação restrita a um único bloco de jogo.","p":"Observação em set completo com registro estruturado por padrão.","x":"A leitura do padrão natural do jogador, sem intervenção durante a observação.","i":"Tudo, durante a observação. Corrigir aqui destrói o dado que se quer coletar."},"DM013":{"n":"Pontos sem Pontuação - Só Execução","f":"Drills mentais","o":"Remover a pressão do placar para focar na execução técnica.","m":"Jogadores jogam pontos normais mas sem placar. Ninguém conta. Foco exclusivo na execução com intenção.","g":"10-15 min","r":"Blocos de cinco minutos.","p":"Sessão inteira sem pontuação, com registro apenas de execução.","x":"O foco na execução quando o placar não existe.","i":"Qualquer menção a resultado. É exatamente o que se está removendo."},"DM020":{"n":"Debriefing Pós-Jogo Estruturado","f":"Drills mentais","o":"Análise pós-competição para acelerar o aprendizado.","m":"Após jogo ou simulação: 15 min de análise estruturada. O que funcionou. O que não funcionou. Por que os erros. O que trabalhar.","g":"15 min pós-jogo","r":"Três perguntas fixas de debriefing.","p":"Debriefing completo com registro escrito e comparação com jogos anteriores.","x":"A separação entre o que foi decisão e o que foi execução.","i":"O resultado do jogo. Ele já aconteceu e não é o assunto do debriefing."},"DT001":{"n":"Armar Dir - Finalizar Esq 1","f":"Drills táticos","o":"Construção pelo FH cruzado e finalização pelo invertido.","m":"FH cruzado profundo (construção) e FH invertido (finalização). Alvo definido. O cruzado deve ser fundo, não atacar na bola de construção.","g":"4 séries de 6-8 bolas","r":"Treinador alimenta as bolas de construção; o jogador executa só a finalização.","p":"Construção livre em número variável de bolas, com a finalização decidida em tempo real.","x":"O reconhecimento da bola que autoriza a virada para o invertido.","i":"O erro da bola de finalização. Se a decisão de finalizar estava certa, a decisão fica; corrige-se apoio ou contato — nunca se pede mais efeito."},"DT008":{"n":"Comando FH - 3 Direções","f":"Drills táticos","o":"Pressionar com FH em 3 direções consecutivas.","m":"2 bolas na direita (cruzada e paralela de FH) mais 1 bola no lado esquerdo (inside out). Pressão continua.","g":"4 séries de 6-9 bolas","r":"Duas direções em vez de três.","p":"Três direções com o adversário disputando o ponto livremente após a terceira.","x":"A manutenção da posição de comando entre as três bolas.","i":"Erros na terceira bola. Três bolas de pressão consecutivas é carga alta — o erro final é esperado."},"DT010":{"n":"Ponto Restrição - Só Cruzadas","f":"Drills táticos","o":"Controle tático sob restrição de direção.","m":"Jogadores jogam pontos normais mas SOMENTE com golpes cruzados. Ponto perdido automaticamente se bater na paralela.","g":"Sets de 4 games","r":"Restringir apenas um dos jogadores.","p":"Restrição para os dois, com games completos e placar valendo.","x":"A construção do ponto dentro do espaço restrito.","i":"A monotonia da troca. O ponto do exercício é justamente a paciência que ele impõe."},"DT012":{"n":"Ponto Restrição - BH Dominante","f":"Drills táticos","o":"Jogo construído pelo BH.","m":"Atleta deve usar o BH sempre que possível. Restrição mais difícil para a maioria dos destros.","g":"Sets de 4 games","r":"Permitir forehand nas bolas curtas.","p":"Restrição total com pressão deliberada no lado do forehand.","x":"A capacidade de construir e não apenas sustentar com o backhand.","i":"O número de erros. O lado menos usado erra mais — é o motivo do exercício existir."},"DT013":{"n":"Rally com Zona Proibida - Centro","f":"Drills táticos","o":"Evitar o centro da quadra ao golpear.","m":"Em rally livre, o centro da quadra do adversário é zona proibida. Só golpes para os cantos contam como positivos.","g":"5-7 min","r":"Zona proibida estreita, apenas o corredor central.","p":"Zona ampliada, com perda do ponto ao acertá-la.","x":"A consciência de direção em cada golpe.","i":"A velocidade. Bola lenta e fora do centro cumpre o objetivo."},"DT014":{"n":"Rally com Zona Proibida - Curta","f":"Drills táticos","o":"Evitar bolas curtas em todos os golpes.","m":"Em rally, bola antes da linha de serviço do adversário é ponto negativo. Força profundidade em todos os golpes.","g":"5-7 min","r":"Marcar a zona curta com cones visíveis e não penalizar de imediato.","p":"Perda do ponto na primeira bola curta, sem aviso.","x":"A altura sobre a rede — profundidade nasce da altura.","i":"A velocidade da bola. Bola alta e profunda é bola correta aqui."},"DT015":{"n":"3 Bolas de Construção mais Winner","f":"Drills táticos","o":"Padrão de 3 bolas de construção seguidas de finalização.","m":"Treinador alimenta 3 bolas de rally neutro. Na 4a bola, jogador tenta o winner. Regra: não pode tentar antes da 4a bola.","g":"6 séries de 4 bolas","r":"Treinador alimenta as três bolas de construção.","p":"Número de bolas de construção variável, com o jogador decidindo quando finalizar.","x":"O reconhecimento do momento em que a construção autoriza a finalização.","i":"O resultado do winner. Decisão certa com erro de execução é corrigida na execução, nunca na decisão."},"DT016":{"n":"Abertura de Quadra mais Subida a Rede","f":"Drills táticos","o":"Abrir quadra pelo cruzado e subir pela paralela.","m":"FH cruzado com ângulo para abrir espaço, depois bola curta para approach pela paralela e subida à rede.","g":"6 séries de 3 bolas J","r":"Bola de subida alimentada pelo treinador.","p":"Ponto disputado até o fim com o adversário buscando a passada.","x":"A continuidade do deslocamento entre a abertura e a subida.","i":"A qualidade do voleio final nas primeiras séries. O objeto é o encadeamento."},"DT021":{"n":"Defesa Profunda mais Transição Ataque","f":"Drills táticos","o":"Saída da posição defensiva para o ataque em sequência de 3 bolas.","m":"2 bolas profundas (defesa) mais 1 bola mais curta ou lenta (oportunidade). Atleta deve reconhecer e mudar para modo ataque.","g":"4 séries de 6 bolas","r":"Duas bolas em vez de três, com a virada anunciada.","p":"Número de bolas defensivas variável e virada decidida pelo jogador.","x":"O reconhecimento da bola que autoriza a transição.","i":"A escolha entre defesa alta e acelerada. As duas são válidas — a função da defesa é parar o ataque."},"DT024":{"n":"Segunda Bola do Adversário - Ataque","f":"Drills táticos","o":"Aproveitar a segunda bola do adversário para atacar.","m":"Treinador simula segundo saque fraco (bola mais lenta e curta). Jogador deve reconhecer e atacar agressivamente.","g":"8-12 devoluções","r":"Segundo saque alimentado à meia velocidade.","p":"Segundo saque real com o ponto disputado após a devolução.","x":"A entrada para dentro da quadra na devolução do segundo saque.","i":"O erro da devolução agressiva. Devolução de ataque que nunca erra não é ataque."},"DT028":{"n":"Sequência Saque mais 3 Bolas","f":"Drills táticos","o":"Padrão completo de abertura no saque com 3 bolas.","m":"Jogador saca, recebe a 1ª bola e joga mais 2 golpes com intenção tática definida. Não pode tentar winner antes da 3a bola.","g":"8-12 séries de 4 bolas","r":"Saque mais duas bolas.","p":"Saque mais três bolas com o ponto disputado a seguir.","x":"A manutenção da iniciativa ao longo das três bolas.","i":"O erro na terceira bola. É o ponto de maior carga da sequência."},"DT030":{"n":"Ponto Livre - Aplicação Tática","f":"Drills táticos","o":"Integrar todos os padrões táticos em situação de jogo livre.","m":"Jogadores jogam sets normais mas após cada ponto identificam o padrão tático que funcionou ou falhou. Debriefing de 30 seg após cada game.","g":"1 set de 6 games","r":"Um padrão obrigatório por game, anunciado antes.","p":"Jogo totalmente livre com debriefing sobre os padrões que apareceram.","x":"Se os padrões treinados aparecem espontaneamente ou só sob comando.","i":"Tudo, durante o jogo. Este é um exercício de observação — a correção vem no debriefing."},"FB001":{"n":"FH Cruzado Profundo","f":"Fundamentos","o":"Consistência e profundidade do forehand cruzado.","m":"Jogadores trocam bolas na cruzada de forehand buscando o último metro do fundo. Ritmo moderado. Treinador observa preparação, ponto de contato e finalização.","g":"5-7 min","r":"Treinador alimenta de cesta em vez de troca livre; quadra reduzida ao corredor da cruzada.","p":"Alvo no último metro; contar 8 cruzadas seguidas dentro do alvo antes de encerrar a série.","x":"Ponto de contato à frente do corpo e altura da bola sobre a rede — profundidade vem da altura, não da força.","i":"Velocidade da bola e escolha de direção. Bola curta aqui é erro de altura, não de intenção — não peça mais efeito para corrigir."},"FB002":{"n":"BH Cruzado Profundo","f":"Fundamentos","o":"Consistência e profundidade do backhand cruzado.","m":"Mesmo formato do FB001 com backhand cruzado. Para dois mãos: verificar braço não-dominante ativo. Para uma mão: checar posição do ombro no contato.","g":"5-7 min","r":"Treinador alimenta; bola parada no ponto alto para quem ainda não tem timing de backhand.","p":"Alvo no último metro e alternância de altura sob comando do treinador.","x":"Duas mãos: braço não-dominante ativo na aceleração. Uma mão: ombro fechado no contato.","i":"Velocidade. Diferença entre uma e duas mãos não se corrige — se acomoda; o gesto que o jogador traz é o ponto de partida."},"FB004":{"n":"BH Paralelo","f":"Fundamentos","o":"Backhand paralelo com profundidade.","m":"Jogadores trocam bolas na paralela de backhand. Para dois mãos: quadris devem rodar completamente na direção da paralela. Para uma mão: extensão do braço mais longa que no cruzado.","g":"5-7 min","r":"Alimentação de cesta com bola alta e lenta; encurtar a distância do alvo.","p":"Alternar paralela e cruzada mantendo profundidade em ambas.","x":"Duas mãos: rotação completa do quadril na direção da paralela. Uma mão: extensão longa do braço.","i":"A taxa de acerto. Este é o golpe de menor consistência natural — use o número como diagnóstico, não como meta da sessão."},"FB023":{"n":"Devolução - Bloco","f":"Fundamentos","o":"Devolução segura como primeira resposta ao saque.","m":"Treinador saca com velocidade moderada de ambos os lados. Jogador usa devolução de bloco: swing curto, contato firme, redirecionando com profundidade. Sem tentar acelerar.","g":"8-12 devoluções por lado","r":"Saque alimentado à meia velocidade ou por lançamento de mão.","p":"Saque real em velocidade de jogo, alternando lados.","x":"Preparação curta e split step no instante do contato do sacador.","i":"A profundidade da devolução. Bloco que entra já cumpriu o objetivo do exercício."},"FB024":{"n":"Devolução - Ataque FH","f":"Fundamentos","o":"Devolução agressiva de FH contra saques abertos.","m":"Treinador saca aberto no AC. Jogador usa devolução de FH agressiva: swing completo, intenção de cruzada profunda ou inside out. Decisão da direção antes do saque.","g":"8-12 devoluções","r":"Saque à meia velocidade e alvo amplo.","p":"Devolução de ataque seguida da primeira bola disputada.","x":"Entrada do corpo para dentro da quadra e ponto de contato à frente da linha.","i":"O erro para fora. Devolução de ataque erra — se ela nunca erra, não é ataque."},"FB029":{"n":"FH Shadow Drill","f":"Fundamentos","o":"Fixar o padrão motor do FH sem a pressão da bola.","m":"Shadow swings de FH: preparação completa, rotação dos quadris antes dos ombros, ponto de contato à frente do corpo, finalização acima do ombro oposto. Treinador corrige o gesto.","g":"3 séries de 20 repetições","r":"Movimento fracionado em quatro tempos, com pausa em cada um.","p":"Movimento em velocidade real, com deslocamento antes de cada repetição.","x":"Sequência base de apoio → preparação → contato → terminação, sem a pressão da bola.","i":"Ritmo. Shadow lento e correto vale mais que shadow rápido e aproximado."},"FB030":{"n":"BH Shadow Drill","f":"Fundamentos","o":"Fixar o padrão motor do BH sem a pressão da bola.","m":"Mesmo formato do FB029 com BH. Para dois mãos: início do movimento pelo braço não-dominante. Para uma mão: posição da pegada e extensão na finalização.","g":"3 séries de 20 repetições","r":"Movimento fracionado com pausa no ponto de contato imaginário.","p":"Shadow com deslocamento lateral e alternância de altura simulada.","x":"Coordenação entre rotação do tronco e chegada do braço.","i":"Detalhes finos de pegada. Shadow fixa o padrão amplo; a pegada se corrige com bola."},"IP003":{"n":"Saque + a bola seguinte","f":"Início do ponto","o":"","m":"Saca, o professor devolve neutro, o aluno executa a primeira bola com intenção definida.","g":"4 × 8 sequências","r":"devolução lançada pelo professor","p":"devolução real variando os três caminhos","x":"intenção da primeira bola, recuperação após o saque","i":"o resultado do ponto"},"IP004":{"n":"Devolução e ponto","f":"Início do ponto","o":"","m":"O ponto começa na devolução; sacador com saque controlado.","g":"4 × 6 pontos","r":"saque lançado por baixo","p":"sacador com saque pleno","x":"posição de espera e split","i":"potência da devolução"},"IP006":{"n":"Devolução + primeira bola","f":"Início do ponto","o":"","m":"Devolve e executa a bola seguinte com intenção definida.","g":"4×8","r":"primeira bola livre","p":"primeira bola com alvo de pressão","x":"recuperação ao centro dinâmico entre as duas bolas","i":"o terceiro golpe"},"IP007":{"n":"Devolução entrando","f":"Início do ponto","o":"","m":"Espera dentro da linha, bloqueia com direção e sai à frente.","g":"3 × 10","r":"segundo saque apenas","p":"primeiro saque forte","x":"timing do split no contato do sacador","i":"tamanho da preparação"},"JA002":{"n":"Ponto de quatro bolas","f":"Jogo aplicado","o":"","m":"O ponto encerra na quarta bola; vence quem estiver melhor posicionado.","g":"12 pontos","r":"seis bolas","p":"três bolas","x":"intenção desde a primeira bola","i":"trocas longas"},"JA003":{"n":"Frente vale dobro","f":"Jogo aplicado","o":"","m":"Ponto ganho à frente da linha de serviço vale dois.","g":"um set curto","r":"vale um e meio","p":"só pontua à frente","x":"disposição de subir","i":"qualidade do voleio"},"JA009":{"n":"Placar adverso","f":"Jogo aplicado","o":"","m":"O jogo começa 0-30 ou 2-4.","g":"2 sets curtos","r":"15-30","p":"0-40","x":"protocolo entre pontos","i":"o placar final"},"JA014":{"n":"Set curto com tema","f":"Jogo aplicado","o":"","m":"Set a 4 games com a regra do dia valendo.","g":"1–2 sets","r":"a 3 games","p":"com placar adverso somado","x":"transferência do tema para o jogo","i":"vitória"},"MV001":{"n":"Movimentação em X","f":"Movimentação","o":"Padrão de movimentação em X combinando defesa e ataque.","m":"Treinador lança 2 bolas profundas (defesa) e 2 curtas (ataque) alternando FH e BH. Jogador retorna sempre ao ponto central formando o X. Cones marcam os 4 pontos de chegada.","g":"4 séries de 8-12 bolas","r":"Reduzir a quatro bolas por série e ampliar o intervalo entre alimentações.","p":"Aumentar o ritmo da alimentação e retirar os cones de referência.","x":"A recuperação ao ponto central após cada golpe — esta é a métrica do exercício.","i":"A qualidade do golpe. Golpe médio com recuperação correta é execução correta aqui."},"MV003":{"n":"Movimentação em V Defensivo","f":"Movimentação","o":"Padrão de deslocamento em V para bolas defensivas.","m":"Treinador lança bolas profundas. Jogador recua, passa pela frente do cone, golpeia em defesa (alto e fundo) e recupera em diagonal.","g":"4 séries de 4-8 bolas","r":"Reduzir a profundidade da alimentação; menos bolas por série.","p":"Alimentação mais profunda e angulada, forçando saída em corrida.","x":"A saída do V defensivo e o primeiro passo de retorno.","i":"A escolha entre defesa alta e defesa acelerada. As duas convivem — a função é parar o ataque, não devolver mais uma bola."},"MV012":{"n":"Corrida FH - Cruzada","f":"Movimentação","o":"FH na corrida com saída para a cruzada profunda.","m":"Jogador simula BH e recebe FH na corrida. Bola golpeada na cruzada: funda, plana, sem ângulo excessivo.","g":"6 séries de 4 bolas","r":"Reduzir a distância da corrida; alimentação mais lenta.","p":"Duas bolas em corrida seguidas antes da saída cruzada.","x":"O apoio externo na saída e o equilíbrio no contato em corrida.","i":"A profundidade. Bola em corrida raramente é profunda — exigir isso quebra o equilíbrio do golpe."},"MV021":{"n":"Split Step - Timing de Reação","f":"Movimentação","o":"Timing correto do split step em relação ao contato do adversário.","m":"Treinador executa golpe. No momento exato do contato, jogador faz split step. Repetir com variação de posição.","g":"3 séries de 20 repetições","r":"Split step sem bola, no comando de voz do treinador.","p":"Split step com bola em velocidade real e direção imprevisível.","x":"O instante do split — ele acontece no contato do adversário, não depois.","i":"A altura do salto. Split step alto é split step lento."},"MV022":{"n":"Recuperação Lateral Rápida","f":"Movimentação","o":"Velocidade de recuperação lateral após golpes defensivos extremos.","m":"Treinador lança série de bolas alternando entre os dois lados extremos. Jogador deve recuperar o máximo possível entre golpes. Intensidade alta.","g":"4 séries de 6 bolas, 60 seg descanso","r":"Reduzir a amplitude do deslocamento defensivo.","p":"Duas recuperações extremas consecutivas antes do fim da série.","x":"O passo cruzado de saída da posição extrema.","i":"A qualidade da bola defensiva. Sair viva já é o resultado."},"MV025":{"n":"Quadra Inteira - Cobertura Total","f":"Movimentação","o":"Cobrir toda a quadra em sequência de alta intensidade.","m":"Treinador lança 6 bolas em ordem imprevisível: 2 cruzadas, 2 paralelas, 1 curta, 1 lob. Jogador cobre todas.","g":"4 séries de 6 bolas, 90 seg descanso","r":"Reduzir para quatro bolas por série e ampliar o descanso.","p":"Seis bolas em máxima amplitude com descanso reduzido.","x":"Economia de deslocamento — quem cobre a quadra inteira o faz com menos passos, não com mais velocidade.","i":"Erros técnicos sob fadiga extrema. Eles são o custo da carga e não indicam lacuna técnica."},"PDB001":{"n":"Mudança de Direção - FH","f":"Power · base","o":"FH com trajetória plana e mudança de direção.","m":"Jogador a direita recebe 4 bolas alternando cruzada e paralela de FH. Trajetória plana, spin mínimo, transferir peso para frente.","g":"6-8 séries de 4 bolas","r":"Duas bolas por série com alimentação mais lenta.","p":"Seis bolas com alimentação em ritmo real e alvo estreito.","x":"Transferência de peso para frente e trajetória plana da bola.","i":"O efeito. Este é um exercício de bola plana — pedir mais topspin descaracteriza o objetivo."},"PDB002":{"n":"Mudança de Direção - BH","f":"Power · base","o":"BH com trajetória plana e mudança de direção.","m":"Jogador a esquerda recebe 4 bolas alternando cruzada e paralela de BH. Mesmo princípio: entrar, transferir, trajetória plana.","g":"6-8 séries de 4 bolas","r":"Alimentação parada, sem deslocamento entre as bolas.","p":"Ritmo alto com mudança de direção comandada em tempo real.","x":"Estabilidade do apoio na mudança de direção do backhand.","i":"A profundidade. Velocidade da bola no ar é a medida aqui."},"PDR001":{"n":"Subida FH Paralela mais Voleio BH","f":"Power · rede","o":"Finalização na rede com voleio BH após approach FH paralelo.","m":"Bola curta, approach FH paralelo, voleio BH no lado oposto. Subida em movimento, split step antes do voleio.","g":"6-8 séries de 4 subidas J","r":"Approach alimentado com o jogador já em meia quadra.","p":"Ponto disputado após o voleio, com adversário buscando a passada.","x":"A sequência fluida entre approach, deslocamento e split step.","i":"A qualidade do approach quando o split step aconteceu no tempo certo."},"PDR002":{"n":"Subida FH Paralela mais Voleio FH","f":"Power · rede","o":"Finalização com voleio FH após approach FH paralelo.","m":"Mesma subida do PDR001 com voleio FH. Foco em colocação, não potência.","g":"6-8 séries de 4 subidas J","r":"Approach parado; voleio alimentado com a mão.","p":"Sequência em velocidade real com direção do voleio comandada.","x":"A cobertura do lado do forehand após o approach paralelo.","i":"A direção do voleio nas primeiras séries."},"PDR003":{"n":"Subida BH Paralela mais Voleio FH","f":"Power · rede","o":"Finalização com voleio FH após approach BH paralelo.","m":"Approach BH paralelo, voleio FH no lado oposto. Split step preciso após o approach de BH.","g":"6-8 séries de 4 subidas J","r":"Bola curta alimentada de cesta em meia quadra.","p":"Sequência completa com passada real do adversário.","x":"O deslocamento diagonal após o approach de backhand.","i":"A comparação de rendimento com o approach de forehand."},"PDS001":{"n":"Saque mais 1 Bola DC","f":"Power · saque","o":"Abertura do ponto no DC.","m":"Saque mais 1ª bola com decisão tática. Posição do saque e da 1ª bola variam. Decisão ANTES do saque.","g":"8-12 séries de 2 bolas","r":"Saque à meia velocidade; direção da primeira bola anunciada.","p":"Saque real com o ponto disputado após a primeira bola.","x":"A decisão tomada antes do saque e a recuperação para dentro da quadra.","i":"O percentual de primeiro saque. O objeto é o encadeamento saque–primeira bola."},"PDS002":{"n":"Saque mais 1 Bola AC","f":"Power · saque","o":"Abertura do ponto no AC.","m":"Mesmo formato do PDS001 no AC. Saque aberto vai para o BH do adversário.","g":"8-12 séries de 2 bolas","r":"Alvo do saque ampliado.","p":"Alvo estreito com registro do percentual do padrão completo.","x":"A adaptação da geometria do padrão ao lado da vantagem.","i":"A transposição direta do padrão do lado da igualdade."},"RT009":{"n":"As duas defesas","f":"Redução de tempo","o":"","m":"Alternar defesa alta e defesa acelerada, por chamada do professor durante o ponto.","g":"4 × 6 pontos","r":"alternância anunciada antes","p":"chamada durante o deslocamento","x":"capacidade de escolher a opção pedida","i":"qualidade fina de cada uma"},"TR001":{"n":"Trilho de ganho de quadra","f":"Trilhos","o":"Avançar terreno metro a metro, com o adversário recuando a cada bola.","m":"Combinado: três bolas fundas cruzadas, e a cada uma o jogador avança meio metro. Marque com cones as três posições de avanço. O parceiro devolve sempre fundo e cruzado.","g":"3 séries de 9 bolas","r":"Duas bolas em vez de três; o parceiro alimenta de cesto em vez de trocar.","p":"O avanço é decidido pelo jogador conforme a bola do outro, sem cones.","x":"A profundidade da bola. É ela que compra o metro — não a velocidade.","i":"A qualidade técnica do golpe. O objeto é o terreno ganho, e ele se mede nos pés."},"TR003":{"n":"Trilho da bola que autoriza","f":"Trilhos","o":"Reconhecer, antes de preparar, se a bola é de neutro, de ataque ou de defesa.","m":"Treinador alimenta três tipos de bola em ordem aleatória: funda e alta, curta e lenta, profunda e rápida. O jogador diz em voz alta 'neutra', 'ataque' ou 'defesa' antes de bater.","g":"4 séries de 10 bolas","r":"Duas categorias apenas: ataque e não-ataque.","p":"Sem falar em voz alta; a resposta aparece na escolha do golpe.","x":"A correspondência entre o que ele nomeou e o que ele jogou.","i":"O erro da bola. O objeto é o reconhecimento, e ele acontece antes do contato."},"TR007":{"n":"Trilho de mudança de direção","f":"Trilhos","o":"Mudar a diagonal apenas a partir de bola confortável.","m":"Treinador alimenta alternando bolas confortáveis (cintura, corpo equilibrado) e desconfortáveis (alta, larga, em corrida). O jogador só muda de direção nas confortáveis; nas outras, devolve na mesma diagonal.","g":"4 séries de 10 bolas","r":"As bolas confortáveis são anunciadas antes.","p":"Sem anúncio, com o jogador declarando em voz alta 'muda' ou 'mantém'.","x":"A decisão, não a execução. Mudar de bola difícil é erro mesmo quando a bola entra.","i":"O erro da bola mantida na diagonal. Ela está certa por definição."},"TR019":{"n":"Aberto: a intenção declarada","f":"Trilhos","o":"Instalar a intencionalidade de cada bola.","m":"Antes de cada ponto, o jogador declara em voz alta a intenção da primeira bola: empurrar, abrir, neutralizar ou terminar. O ponto é disputado normalmente.","g":"2 a 3 games","r":"Duas intenções possíveis apenas.","p":"Intenção declarada silenciosamente e verificada no debriefing.","x":"A correspondência entre o declarado e o jogado.","i":"O resultado do ponto. A medida é a fidelidade à intenção."},"TR020":{"n":"Aberto: quatro bolas","f":"Trilhos","o":"Encadear intenções sem alongar o ponto.","m":"Games normais. Ponto vale dobro se terminar em até quatro bolas com o ponto tendo sido construído — isto é, se as bolas anteriores tiveram função diferente entre si.","g":"2 a 4 games","r":"Contagem apenas, sem pontuação dobrada.","p":"O jogador precisa nomear as funções das bolas no fim de cada ponto.","x":"Se existe encadeamento ou se as bolas são todas iguais.","i":"Pontos longos. Eles acontecem e não são erro."},"TR021":{"n":"Aberto: sem bola de espera","f":"Trilhos","o":"Eliminar a bola sem intenção.","m":"Games normais. O jogador perde o ponto se jogar duas bolas seguidas sem mudar nada — mesma altura, mesma direção, mesma profundidade.","g":"2 a 3 games","r":"A regra vale a partir da terceira bola do ponto.","p":"A regra vale desde a primeira bola.","x":"A capacidade de dar função a toda bola, inclusive à de sustentação.","i":"Erros que aparecem por excesso de mudança nas primeiras séries."}};
+const DOC = "plano-tres-4sem-v2";
+const META = { Gustavo:7, Nicolas:7, Tito:8 };
+const COR  = { Gustavo:"#5B3487", Nicolas:"#155A73", Tito:"#8F4A0C" };
+const ROT  = { Gustavo:"alvo certo na bola fácil", Nicolas:"chegou inteiro", Tito:"declarou certo" };
+let dados = { sessoes:{}, comp:[] };   // sessoes[id] = {pres:[], met:{}, notas:[]}
+let salvando = null;
+
+let EU = null;   /* identidade vinda do login, ou nome local */
+function autor(){ return EU || "sem identificação"; }
+function meu(n){ return n.autor === autor(); }
+
+/* ── acesso ──
+   Com Firebase configurado, exige login e a identidade vem da conta.
+   Sem Firebase, cai para um nome digitado uma vez — que é o que dá para
+   garantir sem servidor. */
+function iniciaAcesso(){
+  const portao = document.getElementById("portao");
+  const temAuth = (typeof firebase !== "undefined") && (typeof MTY !== "undefined") && MTY.ligado;
+  if(!temAuth){
+    let n = null;
+    try{ n = localStorage.getItem("mty:autor"); }catch(e){}
+    if(!n){ n = (prompt("Seu nome, para assinar as anotações:")||"").trim(); 
+      try{ localStorage.setItem("mty:autor", n); }catch(e){} }
+    EU = n || "sem identificação";
+    document.getElementById("quem").textContent = EU + " · modo local";
+    document.getElementById("btsair").style.display = "none";
+    carrega();
+    return;
+  }
+  const auth = firebase.auth();
+  portao.style.display = "grid";
+  auth.onAuthStateChanged(function(u){
+    if(u){
+      EU = (u.email||"").split("@")[0];
+      document.getElementById("quem").textContent = EU;
+      portao.style.display = "none";
+      carrega();
+    } else {
+      portao.style.display = "grid";
+    }
+  });
+  function erro(e){
+    const m={"auth/invalid-email":"E-mail inválido.","auth/user-not-found":"Não existe conta com este e-mail.",
+      "auth/wrong-password":"Senha incorreta.","auth/invalid-credential":"E-mail ou senha incorretos.",
+      "auth/email-already-in-use":"Já existe conta com este e-mail. Use Entrar.",
+      "auth/weak-password":"A senha precisa de pelo menos 6 caracteres.",
+      "auth/operation-not-allowed":"Ative Email/Senha no console do Firebase."};
+    document.getElementById("perro").textContent = m[e.code] || "Não consegui entrar. Verifique a conexão.";
+  }
+  document.getElementById("pentrar").onclick=function(){
+    document.getElementById("perro").textContent="";
+    auth.signInWithEmailAndPassword(document.getElementById("pemail").value.trim(),
+      document.getElementById("psenha").value).catch(erro);
+  };
+  document.getElementById("pcriar").onclick=function(){
+    document.getElementById("perro").textContent="";
+    auth.createUserWithEmailAndPassword(document.getElementById("pemail").value.trim(),
+      document.getElementById("psenha").value).catch(erro);
+  };
+  document.getElementById("btsair").onclick=function(){ auth.signOut(); };
+}
+function estado(t,c){ const e=document.getElementById("estado"); e.textContent=t; e.style.color=c||"#8B8179"; }
+function ses(id){ return dados.sessoes[id] = dados.sessoes[id] || {pres:[], met:{}, notas:[]}; }
+
+async function carrega(){
+  try{ document.getElementById("autor").value=localStorage.getItem("mty:autor")||""; }catch(e){}
+  if(typeof MTY==="undefined"){ estado("modo local","#C25A22"); pinta(); return; }
+  const d=await MTY.leia("planos-obs",DOC);
+  if(d && d.dados) dados=d.dados;
+  estado(MTY.ligado?"conectado":"só neste aparelho", MTY.ligado?"#8FBF9F":"#C25A22");
+  pinta();
+}
+function salva(){
+  clearTimeout(salvando);
+  salvando=setTimeout(async function(){
+    if(typeof MTY==="undefined") return;
+    estado("salvando…");
+    const r=await MTY.grave("planos-obs",{plano:"Gustavo, Nicolas e Tito · ciclo 4 semanas",dados},DOC);
+    estado(r.nuvem?"salvo na nuvem":"salvo neste aparelho", r.nuvem?"#8FBF9F":"#C25A22");
+  },900);
+}
+
+/* ── sessões ── */
+document.querySelectorAll("[data-ses]").forEach(function(box){
+  const id=box.dataset.ses;
+  box.querySelectorAll(".pz").forEach(function(b){
+    b.onclick=function(){
+      const s=ses(id), j=b.dataset.p, i=s.pres.indexOf(j);
+      if(i<0) s.pres.push(j); else s.pres.splice(i,1);
+      salva(); pinta();
+    };
+  });
+  box.querySelectorAll("[data-m]").forEach(function(inp){
+    inp.onchange=function(){
+      const s=ses(id), v=inp.value.trim();
+      if(v==="") delete s.met[inp.dataset.m]; else s.met[inp.dataset.m]=Math.max(0,Math.min(10,Number(v)));
+      salva(); pinta();
+    };
+  });
+  box.querySelector(".sesadd button").onclick=function(){
+    const ta=box.querySelector("textarea"), t=(ta.value||"").trim();
+    if(!t) return;
+    ses(id).notas.push({autor:autor(),quando:new Date().toLocaleDateString("pt-BR"),txt:t});
+    ta.value=""; salva(); pinta();
+  };
+});
+
+function pinta(){
+  document.querySelectorAll("[data-ses]").forEach(function(box){
+    const id=box.dataset.ses, s=dados.sessoes[id]||{pres:[],met:{},notas:[]};
+    box.querySelectorAll(".pz").forEach(function(b){
+      b.classList.toggle("on", s.pres.indexOf(b.dataset.p)>=0);
+    });
+    box.querySelectorAll("[data-m]").forEach(function(inp){
+      const v=s.met[inp.dataset.m]; inp.value=(v===undefined?"":v);
+    });
+    const alvo=box.querySelector(".seslist");
+    alvo.innerHTML=(s.notas||[]).map(function(n,i){
+      return '<div class="sesi"><div class="sesim"><span>'+n.autor+' · '+n.quando+
+        '</span>'+(meu(n)?'<button data-d="'+id+'" data-i="'+i+'">remover</button>':'')+'</div>'+
+        n.txt.replace(/</g,"&lt;").replace(/\n/g,"<br>")+'</div>';
+    }).join("");
+    alvo.querySelectorAll("[data-d]").forEach(function(b){
+      b.onclick=function(){ if(!confirm("Remover?")) return;
+        dados.sessoes[b.dataset.d].notas.splice(Number(b.dataset.i),1); salva(); pinta(); };
+    });
+  });
+  document.querySelectorAll("[data-res]").forEach(function(el){
+    const n=el.dataset.res, ids=idsDaSemana(n);
+    const feitas=ids.filter(function(i){ const s=dados.sessoes[i]; return s && (s.pres.length||s.notas.length); }).length;
+    const notas=ids.reduce(function(a,i){ return a+((dados.sessoes[i]||{notas:[]}).notas.length); },0);
+    el.textContent=feitas+" de "+ids.length+" sessões anotadas · "+notas+" observações";
+  });
+  pintaLeituras();
+  desenha();
+}
+function idsDaSemana(n){
+  const ids=[];
+  document.querySelectorAll("[data-ses]").forEach(function(b){
+    if(b.dataset.ses.indexOf("s"+n+"d")===0) ids.push(b.dataset.ses);
+  });
+  return ids;
+}
+function ordemSessoes(){
+  const ids=[];
+  document.querySelectorAll("[data-ses]").forEach(function(b){ ids.push(b.dataset.ses); });
+  return ids;
+}
+
+/* ── gráficos ── */
+function desenha(){
+  const ids=ordemSessoes(), W=700, H=200, x0=34, y0=170, xf=690;
+  const px=function(i){ return x0+i*((xf-x0)/Math.max(ids.length-1,1)); };
+  const py=function(v){ return y0-(v/10)*(y0-20); };
+  let g='<svg viewBox="0 0 720 210" width="100%">';
+  g+='<g stroke="#D8D1CB" stroke-width="1"><line x1="'+x0+'" y1="20" x2="'+x0+'" y2="'+y0+'"/>'+
+     '<line x1="'+x0+'" y1="'+y0+'" x2="'+xf+'" y2="'+y0+'"/>';
+  [2,4,6,8,10].forEach(function(v){ g+='<line x1="'+x0+'" y1="'+py(v)+'" x2="'+xf+'" y2="'+py(v)+'" stroke-dasharray="2 4"/>'; });
+  g+='</g><g font-family="Archivo,sans-serif" font-size="9" fill="#6B6461">';
+  [0,2,4,6,8,10].forEach(function(v){ g+='<text x="8" y="'+(py(v)+3)+'">'+v+'</text>'; });
+  g+='</g>';
+  ["Gustavo","Nicolas","Tito"].forEach(function(j){
+    g+='<line x1="'+x0+'" y1="'+py(META[j])+'" x2="'+xf+'" y2="'+py(META[j])+
+       '" stroke="'+COR[j]+'" stroke-width="1" stroke-dasharray="5 4" opacity=".45"/>';
+    let d="", n=0;
+    ids.forEach(function(id,i){
+      const v=(dados.sessoes[id]||{met:{}}).met[j];
+      if(v===undefined) return;
+      d+=(n?" L":"M")+px(i).toFixed(1)+","+py(v).toFixed(1); n++;
+      g+='<circle cx="'+px(i).toFixed(1)+'" cy="'+py(v).toFixed(1)+'" r="3.2" fill="'+COR[j]+'"/>';
+    });
+    if(n>1) g+='<path d="'+d+'" fill="none" stroke="'+COR[j]+'" stroke-width="2.2"/>';
+  });
+  const algum=ids.some(function(id){ return Object.keys((dados.sessoes[id]||{met:{}}).met).length; });
+  if(!algum) g+='<text x="360" y="100" text-anchor="middle" font-family="Archivo,sans-serif" '+
+    'font-size="13" font-style="italic" fill="#B9B1AA">sem números anotados ainda</text>';
+  g+='</svg>';
+  document.getElementById("graf").innerHTML=g;
+
+  /* presença */
+  let p='<svg viewBox="0 0 720 130" width="100%">';
+  ["Gustavo","Nicolas","Tito"].forEach(function(j,k){
+    const y=26+k*34;
+    p+='<text x="8" y="'+(y+4)+'" font-family="Archivo,sans-serif" font-size="10" font-weight="700" fill="'+COR[j]+'">'+j.slice(0,3).toUpperCase()+'</text>';
+    ids.forEach(function(id,i){
+      const s=dados.sessoes[id];
+      const tem=s && s.pres.indexOf(j)>=0;
+      const anot=s && (s.pres.length||s.notas.length||Object.keys(s.met).length);
+      const w=(xf-x0)/ids.length-2;
+      p+='<rect x="'+(x0+i*((xf-x0)/ids.length))+'" y="'+(y-8)+'" width="'+w+'" height="17" '+
+         'fill="'+(tem?COR[j]:(anot?"#E8E3DE":"#F5F2F0"))+'" stroke="#fff" stroke-width="1"/>';
+    });
+  });
+  p+='<text x="'+x0+'" y="122" font-family="Archivo,sans-serif" font-size="9" fill="#6B6461">'+
+     'cheio: presente · claro: sessão anotada sem ele · vazio: sessão não anotada</text></svg>';
+  document.getElementById("grafpres").innerHTML=p;
+}
+
+/* ── relatórios ── */
+function linhasSessao(id, rotulo){
+  const s=dados.sessoes[id]; if(!s) return [];
+  if(!s.pres.length && !s.notas.length && !Object.keys(s.met).length) return [];
+  const L=["  "+rotulo];
+  if(s.pres.length) L.push("    presentes: "+s.pres.join(", "));
+  else L.push("    presentes: nenhum registrado");
+  const m=Object.keys(s.met);
+  if(m.length) L.push("    "+m.map(function(j){ return j+" "+s.met[j]+"/10 ("+ROT[j]+")"; }).join(" · "));
+  s.notas.forEach(function(n){ L.push("    · "+n.txt+"  ["+n.autor+", "+n.quando+"]"); });
+  return L;
+}
+function rotuloDe(id){
+  const m=id.match(/^s(\d)d(\d)([mt])$/);
+  const dias=["","SEG","TER","QUA","QUI","SEX","SÁB"];
+  return "Semana "+m[1]+" · "+dias[Number(m[2])]+" · "+(m[3]==="m"?"manhã":"tarde");
+}
+function relSemana(n){
+  const L=[];
+  L.push("RELATÓRIO DA SEMANA "+n+" · METODOLOGIA MTY");
+  L.push("Gustavo, Nicolas e Tito · ciclo curto de 4 semanas");
+  L.push("Gerado em: "+new Date().toLocaleDateString("pt-BR"));
+  L.push("");
+  const ids=idsDaSemana(n);
+  let vazias=0;
+  ids.forEach(function(id){
+    const l=linhasSessao(id, rotuloDe(id));
+    if(l.length) L.push.apply(L,l); else vazias++;
+  });
+  if(vazias) L.push("  ["+vazias+" sessões sem registro — informação não anotada, não ausência de informação]");
+  L.push("");
+  const leit=((dados.leituras||{})[n])||[];
+  L.push("LEITURA DOS TREINADORES");
+  if(leit.length) leit.forEach(function(x){ L.push("  ["+x.autor+", "+x.quando+"]"); L.push("    "+x.txt); });
+  else L.push("  [nenhuma leitura registrada]");
+  L.push("");
+  L.push("MÉDIA DA SEMANA");
+  ["Gustavo","Nicolas","Tito"].forEach(function(j){
+    const vs=ids.map(function(i){ return (dados.sessoes[i]||{met:{}}).met[j]; }).filter(function(v){ return v!==undefined; });
+    L.push("  "+j+": "+(vs.length? (vs.reduce(function(a,b){return a+b;},0)/vs.length).toFixed(1)+"/10 em "+vs.length+" sessões  (meta "+META[j]+")" : "sem números"));
+  });
+  return L.join("\n");
+}
+function relCiclo(){
+  const L=[];
+  L.push("RELATÓRIO DE CICLO · METODOLOGIA MTY");
+  L.push("Gustavo, Nicolas e Tito · ciclo curto de 4 semanas");
+  L.push("Gerado em: "+new Date().toLocaleDateString("pt-BR"));
+  L.push("");
+  L.push("═══ PÓS-COMPETIÇÃO ═══");
+  if((dados.comp||[]).length) dados.comp.forEach(function(n){
+    L.push("  ["+n.quem+"] "+n.quando+" · "+n.autor); L.push("    "+n.txt); });
+  else L.push("  [sem registro de competição no período]");
+  for(let w=1;w<=4;w++){ L.push(""); L.push("═══ SEMANA "+w+" ═══");
+    idsDaSemana(w).forEach(function(id){ const l=linhasSessao(id, rotuloDe(id)); if(l.length) L.push.apply(L,l); });
+    const lt=((dados.leituras||{})[w])||[];
+    if(lt.length){ L.push("  — leitura dos treinadores —");
+      lt.forEach(function(x){ L.push("    ["+x.autor+", "+x.quando+"] "+x.txt); }); } }
+  L.push("");
+  L.push("═══ EVOLUÇÃO DA MÉTRICA ═══");
+  ["Gustavo","Nicolas","Tito"].forEach(function(j){
+    const serie=ordemSessoes().map(function(i){ return (dados.sessoes[i]||{met:{}}).met[j]; }).filter(function(v){ return v!==undefined; });
+    L.push("  "+j+" ("+ROT[j]+", meta "+META[j]+"/10): "+(serie.length? serie.join(" → ") : "sem números"));
+  });
+  L.push("");
+  L.push("═══ SEGUE EM ABERTO ═══");
+  ["a · finalização do Nicolas com ele descansado","b · jogo de rede do Gustavo",
+   "c · problema técnico do saque do Tito","d · golpe a golpe do Nicolas e do Tito",
+   "e · lesões e limitações","f · calendário de competição"].forEach(function(t){ L.push("  "+t); });
+  L.push("");
+  L.push("---");
+  L.push("Sessão sem registro não é sessão sem informação — é informação não anotada.");
+  return L.join("\n");
+}
+function abreRel(kicker, titulo, txt){
+  document.getElementById("relk").textContent=kicker;
+  document.getElementById("relt").textContent=titulo;
+  document.getElementById("saida").value=txt;
+  document.getElementById("drel").showModal();
+}
+document.querySelectorAll("[data-sem-rel]").forEach(function(b){
+  b.onclick=function(){ const n=b.dataset.semRel;
+    abreRel("Fim da semana "+n,"Relatório da semana "+n, relSemana(n)); };
+});
+document.getElementById("btrel").onclick=function(){
+  abreRel("Fim de ciclo","Relatório das quatro semanas", relCiclo()); };
+document.getElementById("btcopiar").onclick=async function(){
+  const t=document.getElementById("saida");
+  try{ await navigator.clipboard.writeText(t.value); }
+  catch(e){ t.removeAttribute("readonly"); t.select(); document.execCommand("copy"); t.setAttribute("readonly",""); }
+};
+
+/* leitura semanal por treinador */
+document.querySelectorAll("[data-leit]").forEach(function(box){
+  const n=box.dataset.leit;
+  box.querySelector(".leitadd button").onclick=function(){
+    const ta=box.querySelector("textarea"), t=(ta.value||"").trim();
+    if(!t) return;
+    (dados.leituras=dados.leituras||{});
+    (dados.leituras[n]=dados.leituras[n]||[]).push({
+      autor:autor(), quando:new Date().toLocaleDateString("pt-BR"), txt:t});
+    ta.value=""; salva(); pintaLeituras();
+  };
+});
+function pintaLeituras(){
+  document.querySelectorAll("[data-leit]").forEach(function(box){
+    const n=box.dataset.leit, l=((dados.leituras||{})[n])||[];
+    box.querySelector(".leitlist").innerHTML = l.length ? l.map(function(x,i){
+      return '<div class="leiti"><div class="leitim"><span>'+x.autor+' · '+x.quando+'</span>'+
+        (meu(x)?'<button data-dl="'+n+'" data-i="'+i+'">remover</button>':'')+'</div>'+
+        x.txt.replace(/</g,"&lt;").replace(/\n/g,"<br>")+'</div>';
+    }).join("") : '<div class="leiti" style="color:#6B6461;font-style:italic;border-left-color:#D8D1CB">Nenhuma leitura registrada nesta semana.</div>';
+    box.querySelectorAll("[data-dl]").forEach(function(b){
+      b.onclick=function(){ if(!confirm("Remover sua leitura?")) return;
+        dados.leituras[b.dataset.dl].splice(Number(b.dataset.i),1); salva(); pintaLeituras(); };
+    });
+  });
+}
+
+/* pós-competição */
+(function(){
+  const box=document.querySelector('[data-comp]');
+  if(!box) return;
+  box.querySelector("button").onclick=function(){
+    const ta=box.querySelector("textarea"), sel=box.querySelector("select");
+    const t=(ta.value||"").trim(); if(!t) return;
+    (dados.comp=dados.comp||[]).push({quem:sel.value,autor:autor(),
+      quando:new Date().toLocaleDateString("pt-BR"),txt:t});
+    ta.value=""; salva(); pintaComp();
+  };
+  function pintaComp(){
+    box.querySelector(".obslist").innerHTML=(dados.comp||[]).map(function(n,i){
+      return '<div class="obsi"><div class="obsm"><span>'+n.quem+' · '+n.autor+' · '+n.quando+
+        '</span><button data-dc="'+i+'">remover</button></div>'+n.txt.replace(/</g,"&lt;")+'</div>';
+    }).join("") || '<div class="obsi" style="color:#6B6461;font-style:italic">Sem registro.</div>';
+    box.querySelectorAll("[data-dc]").forEach(function(b){
+      b.onclick=function(){ if(!confirm("Remover?")) return;
+        dados.comp.splice(Number(b.dataset.dc),1); salva(); pintaComp(); };
+    });
+  }
+  window.__pintaComp=pintaComp; pintaComp();
+})();
+
+iniciaAcesso();
+setInterval(function(){ if(typeof MTY!=="undefined" && MTY.ligado) carrega(); },60000);
+</script>
+</body></html>
