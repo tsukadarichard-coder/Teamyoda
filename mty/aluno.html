@@ -68,8 +68,9 @@ function escapar(s){ return String(s||'').replace(/[&<>"]/g, m=>({'&':'&amp;','<
     d.aulas.forEach(function(a){
       if (a.bloco !== blocoAtual) { blocoAtual = a.bloco; semanaAtual = null; html += '<div class="bloco">' + escapar(a.bloco) + '</div>'; }
       if (a.semana !== semanaAtual) { semanaAtual = a.semana; html += '<div class="semana">Semana ' + a.semana + (a.foco ? ' · ' + escapar(a.foco) : '') + '</div>'; }
-      html += '<div class="aula' + (a.feita ? ' feita' : '') + '">' +
-        '<span class="marca">' + (a.feita ? '✅' : '⬜') + '</span>' +
+      var marca = { feita: '✅', falta: '❌', cancelada: '🌧️' }[a.status] || '⬜';
+      html += '<div class="aula' + (a.status === 'feita' ? ' feita' : '') + '">' +
+        '<span class="marca">' + marca + '</span>' +
         '<span class="txt">' + escapar(a.titulo) + '</span>' +
         (a.data ? '<span class="data">' + escapar(a.data) + '</span>' : '') +
         '</div>';

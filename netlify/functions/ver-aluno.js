@@ -35,13 +35,15 @@ exports.handler = async function (event) {
         (sem.aulas || []).forEach((au) => {
           n++;
           const aid = "A" + String(n).padStart(2, "0");
+          const r = reg[aid] || {};
+          const status = r.status || (r.feita ? "feita" : "");
           aulas.push({
             bloco: b.titulo || b.nome || "",
             semana: sem.n,
             foco: sem.foco || "",
             titulo: au.t || "",
-            feita: !!(reg[aid] && reg[aid].feita),
-            data: (reg[aid] || {}).data || null,
+            status,
+            data: r.data || null,
           });
         })));
     }
@@ -52,7 +54,7 @@ exports.handler = async function (event) {
       tipoPlano: plano ? plano.tipo || "" : null,
       prioridade: plano ? plano.prioridade || "" : null,
       totalAulas: aulas.length,
-      aulasFeitas: aulas.filter((a) => a.feita).length,
+      aulasFeitas: aulas.filter((a) => a.status === "feita").length,
       aulas,
     });
   } catch (e) {

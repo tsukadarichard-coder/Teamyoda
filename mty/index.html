@@ -2464,12 +2464,21 @@ function TelaPlano({ aluno, alunos, setAlunos }) {
     return lista;
   }, [plano]);
 
-  const feitas = aulas.filter((a) => reg[a.id] && reg[a.id].feita).length;
+  /* status de cada aula: "" (pendente) | "feita" | "falta" | "cancelada".
+     Registros antigos só tinham "feita" (booleano) — continuam lidos certo. */
+  function status(id) {
+    const d = reg[id] || {};
+    if (d.status) return d.status;
+    return d.feita ? "feita" : "";
+  }
+  const feitas = aulas.filter((a) => status(a.id) === "feita").length;
 
-  function marca(id) {
+  function defineStatus(id, novo) {
     const d = { ...(reg[id] || {}) };
-    d.feita = !d.feita;
-    if (d.feita && !d.data) d.data = new Date().toISOString().slice(0, 10);
+    d.status = status(id) === novo ? "" : novo;
+    delete d.feita; // campo antigo — o status assume o lugar dele
+    if (d.status && !d.data) d.data = new Date().toISOString().slice(0, 10);
+    if (d.status !== "falta" && d.status !== "cancelada") d.motivo = "";
     atualiza({ regPlano: { ...reg, [id]: d } });
   }
   function campo(id, k, v) {
@@ -2509,17 +2518,24 @@ function TelaPlano({ aluno, alunos, setAlunos }) {
     L.push("");
     let bl = "";
     aulas.forEach((a) => {
+      if (status(a.id) !== "feita") return;
       const d = reg[a.id];
-      if (!d || !d.feita) return;
       if (a.bloco !== bl) { bl = a.bloco; L.push("── " + bl.toUpperCase() + " ──"); }
       L.push("Semana " + a.semana + " · " + a.t + " · " + (d.data || "sem data"));
       if ((d.obs || "").trim()) L.push("   " + d.obs.trim());
       L.push("   exercícios: " + (a.ex || []).join(" "));
     });
-    const naoFeitas = aulas.filter((a) => !reg[a.id] || !reg[a.id].feita);
+    const faltasCancel = aulas.filter((a) => status(a.id) === "falta" || status(a.id) === "cancelada");
+    if (faltasCancel.length) {
+      L.push("");
+      L.push("FALTAS E CANCELAMENTOS (" + faltasCancel.length + ")");
+      faltasCancel.forEach((a) => L.push("  " + (reg[a.id].data || "") + " · semana " + a.semana + " · " + a.t +
+        " · " + (status(a.id) === "falta" ? "falta" : "cancelada") + (reg[a.id].motivo ? " · " + reg[a.id].motivo : "")));
+    }
+    const naoFeitas = aulas.filter((a) => status(a.id) === "");
     if (naoFeitas.length) {
       L.push("");
-      L.push("NÃO REALIZADAS (" + naoFeitas.length + ")");
+      L.push("SEM REGISTRO (" + naoFeitas.length + ")");
       naoFeitas.forEach((a) => L.push("  Semana " + a.semana + " · " + a.t));
     }
     L.push("");
@@ -2631,6 +2647,11 @@ function TelaPlano({ aluno, alunos, setAlunos }) {
         </div>
       </div>
 
+      <datalist id="motivos-cancelamento">
+        <option value="Chuva" /><option value="Quadra indisponível" /><option value="Feriado" />
+        <option value="Doença" /><option value="Viagem" />
+      </datalist>
+
       <div className="mb-5">
         <Botao pequeno variante="vazio" onClick={gerarLinkAluno}>
           {gerandoLink ? "Gerando…" : "Link para o aluno (protótipo)"}
@@ -2679,19 +2700,25 @@ function TelaPlano({ aluno, alunos, setAlunos }) {
                 const idx = aulas.findIndex((x) => x.semana === sem.n && x.t === au.t && (x.ex || []).join() === (au.ex || []).join());
                 const id = idx >= 0 ? aulas[idx].id : "A?" + si + ai;
                 const d = reg[id] || {};
+                const st = status(id);
+                const corStatus = { feita: C.quadra, falta: "#8A2E2E", cancelada: C.saibro }[st] || C.linha;
                 return (
-                  <div key={ai} style={{ borderBottom: "1px solid " + C.linha, background: d.feita ? "#F4F7F4" : C.cal }}>
+                  <div key={ai} style={{ borderBottom: "1px solid " + C.linha,
+                    background: st === "feita" ? "#F4F7F4" : st ? "#FBF4F0" : C.cal }}>
                     <div className="flex gap-3" style={{ padding: "11px 14px" }}>
-                      <button onClick={() => marca(id)} title="marcar como realizada"
-                        style={{ width: 20, height: 20, flexShrink: 0, marginTop: 2, cursor: "pointer",
-                          border: "1.5px solid " + (d.feita ? C.quadra : C.linha),
-                          background: d.feita ? C.quadra : C.cal, color: "#fff",
-                          fontFamily: ARCH, fontSize: 12, fontWeight: 700, lineHeight: 1 }}>
-                        {d.feita ? "✓" : ""}
-                      </button>
                       <div className="flex-1">
+                        <div className="flex gap-1 flex-wrap mb-2">
+                          {[["feita", "Realizada"], ["falta", "Falta"], ["cancelada", "Cancelada"]].map(([v, r]) => (
+                            <button key={v} onClick={() => defineStatus(id, v)}
+                              style={{ fontFamily: ARCH, fontSize: 10.5, fontWeight: 700, padding: "4px 8px",
+                                borderRadius: 2, cursor: "pointer",
+                                border: "1px solid " + (st === v ? corStatus : C.linha),
+                                background: st === v ? corStatus : C.papel,
+                                color: st === v ? "#fff" : C.grafite }}>{r}</button>
+                          ))}
+                        </div>
                         <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700,
-                          color: d.feita ? C.quadra : C.tinta }}>{ai + 1} · {au.t}</div>
+                          color: st === "feita" ? C.quadra : C.tinta }}>{ai + 1} · {au.t}</div>
                         <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>{au.d}</p>
                         <div className="flex gap-1 flex-wrap mt-2">
                           {(au.ex || []).map((c) => (
@@ -2707,8 +2734,8 @@ function TelaPlano({ aluno, alunos, setAlunos }) {
                         </div>
                       </div>
                     </div>
-                    {d.feita && (
-                      <div className="flex gap-2 flex-wrap" style={{ padding: "0 14px 12px 47px" }}>
+                    {st === "feita" && (
+                      <div className="flex gap-2 flex-wrap" style={{ padding: "0 14px 12px 14px" }}>
                         <input type="date" style={{ ...entrada, width: 150, fontSize: 12.5, padding: "6px 9px" }}
                           value={d.data || ""} onChange={(e) => campo(id, "data", e.target.value)} />
                         <input style={{ ...entrada, width: 165, fontSize: 12.5, padding: "6px 9px", borderColor: C.saibro }}
@@ -2717,6 +2744,15 @@ function TelaPlano({ aluno, alunos, setAlunos }) {
                         <textarea rows={2} style={{ ...entrada, flex: 1, minWidth: 210, fontSize: 12.5, resize: "vertical" }}
                           placeholder="o que apareceu · o que não apareceu" value={d.obs || ""}
                           onChange={(e) => campo(id, "obs", e.target.value)} />
+                      </div>
+                    )}
+                    {(st === "falta" || st === "cancelada") && (
+                      <div className="flex gap-2 flex-wrap" style={{ padding: "0 14px 12px 14px" }}>
+                        <input type="date" style={{ ...entrada, width: 150, fontSize: 12.5, padding: "6px 9px" }}
+                          value={d.data || ""} onChange={(e) => campo(id, "data", e.target.value)} />
+                        <input list="motivos-cancelamento" style={{ ...entrada, flex: 1, minWidth: 210, fontSize: 12.5, padding: "6px 9px" }}
+                          placeholder={st === "cancelada" ? "motivo do cancelamento · ex: chuva" : "motivo da falta"}
+                          value={d.motivo || ""} onChange={(e) => campo(id, "motivo", e.target.value)} />
                       </div>
                     )}
                   </div>
