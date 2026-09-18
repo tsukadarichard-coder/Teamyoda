@@ -490,8 +490,10 @@ dialog::backdrop{background:rgba(20,18,16,.62)}
   <input type="email" id="pemail" placeholder="e-mail" autocomplete="email">
   <input type="password" id="psenha" placeholder="senha" autocomplete="current-password">
   <button id="pentrar">Entrar</button>
-  <button class="alt" id="pcriar">Criar conta</button>
   <div class="err" id="perro"></div>
+  <p style="font-family:var(--arch);font-size:11.5px;color:#8B8179;margin-top:12px">
+    Não há cadastro por aqui — sua conta é criada pelo administrador, já ligada à sua academia.
+  </p>
 </div></div>
 
 <div class="barra">
@@ -1868,19 +1870,12 @@ function iniciaAcesso(){
   function erro(e){
     const m={"auth/invalid-email":"E-mail inválido.","auth/user-not-found":"Não existe conta com este e-mail.",
       "auth/wrong-password":"Senha incorreta.","auth/invalid-credential":"E-mail ou senha incorretos.",
-      "auth/email-already-in-use":"Já existe conta com este e-mail. Use Entrar.",
-      "auth/weak-password":"A senha precisa de pelo menos 6 caracteres.",
-      "auth/operation-not-allowed":"Ative Email/Senha no console do Firebase."};
+      "auth/too-many-requests":"Muitas tentativas. Espere um pouco e tente de novo."};
     document.getElementById("perro").textContent = m[e.code] || "Não consegui entrar. Verifique a conexão.";
   }
   document.getElementById("pentrar").onclick=function(){
     document.getElementById("perro").textContent="";
     auth.signInWithEmailAndPassword(document.getElementById("pemail").value.trim(),
-      document.getElementById("psenha").value).catch(erro);
-  };
-  document.getElementById("pcriar").onclick=function(){
-    document.getElementById("perro").textContent="";
-    auth.createUserWithEmailAndPassword(document.getElementById("pemail").value.trim(),
       document.getElementById("psenha").value).catch(erro);
   };
   document.getElementById("btsair").onclick=function(){ auth.signOut(); };

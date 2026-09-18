@@ -1,0 +1,21 @@
+rules_version = '2';
+
+/* MTY · isolamento por academia.
+   Cada conta de treinador carrega uma custom claim "orgId" (atribuída
+   pelo administrador — nunca pelo próprio usuário). Um pedido só lê ou
+   escreve dentro de orgs/{orgId}/** se o token de quem pediu tiver essa
+   mesma orgId. Sem conta, sem claim, ou orgId diferente: acesso negado.
+
+   Publicar: console do Firebase → Firestore Database → Regras → colar
+   este arquivo → Publicar. */
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function orgDoToken() {
+      return request.auth != null ? request.auth.token.orgId : null;
+    }
+
+    match /orgs/{orgId}/{document=**} {
+      allow read, write: if orgDoToken() != null && orgDoToken() == orgId;
+    }
+  }
+}

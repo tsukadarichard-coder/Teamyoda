@@ -47,10 +47,13 @@ const firebaseConfig = (typeof MTY_CONFIG !== "undefined") ? MTY_CONFIG : {
 const CONFIGURADO =
   firebaseConfig.apiKey !== "COLE_AQUI" && firebaseConfig.projectId !== "COLE_AQUI";
 
+/* mty-nuvem.js (carregado antes deste script) já inicializou o Firebase
+   se estiver configurado — reaproveita o mesmo app em vez de chamar
+   initializeApp() de novo, o que lançaria "app já existe" e derrubaria
+   db/auth para null mesmo com tudo certo. */
 let db = null, auth = null;
 if (CONFIGURADO) {
   try {
-    firebase.initializeApp(firebaseConfig);
     db = firebase.firestore();
     auth = firebase.auth();
   } catch (e) {
@@ -59,56 +62,85 @@ if (CONFIGURADO) {
   }
 }
 
+/* ── organização do usuário logado ──
+   Cada conta carrega uma custom claim orgId, atribuída pelo administrador
+   (nunca pelo próprio usuário — não existe autocadastro). Dados na nuvem
+   vivem em orgs/{orgId}/... e são compartilhados por toda a academia. */
+let orgIdCache = null;
+if (auth) {
+  auth.onAuthStateChanged(async (u) => {
+    if (!u) { orgIdCache = null; return; }
+    try {
+      const tok = await u.getIdTokenResult(true);
+      orgIdCache = (tok.claims && tok.claims.orgId) || null;
+    } catch (e) { orgIdCache = null; }
+  });
+}
+async function organizacao() {
+  if (!auth || !auth.currentUser) return null;
+  if (orgIdCache) return orgIdCache;
+  try {
+    const tok = await auth.currentUser.getIdTokenResult();
+    orgIdCache = (tok.claims && tok.claims.orgId) || null;
+    return orgIdCache;
+  } catch (e) { return null; }
+}
+
 /* ── autenticação da equipe ──
    Só exposta quando há Firebase. O app lê window.mtyAuth para decidir se
-   mostra a tela de login. */
+   mostra a tela de login. Não existe "criar conta" aqui — uma conta nova
+   é criada pelo administrador (netlify/functions/provisionar-org.js),
+   já ligada à academia certa. */
 if (auth) {
   window.mtyAuth = {
     entrar: (email, senha) => auth.signInWithEmailAndPassword(email, senha),
-    criar: (email, senha) => auth.createUserWithEmailAndPassword(email, senha),
     sair: () => auth.signOut(),
     observar: (cb) => auth.onAuthStateChanged(cb),
     usuario: () => auth.currentUser,
+    tokenId: (forcar) => auth.currentUser ? auth.currentUser.getIdToken(!!forcar) : Promise.resolve(null),
+    organizacao,
   };
 }
 
-/* ── armazenamento: Firestore ou localStorage, mesma assinatura ── */
-function docId(key, shared) { return (shared ? "shared__" : "local__") + key; }
-
+/* ── armazenamento: Firestore (por academia) ou localStorage, mesma assinatura ──
+   Na nuvem não existe mais "local" vs "compartilhado" — uma vez logado
+   numa academia, tudo que se lê e grava é da academia inteira. */
 const storageFirestore = {
-  async get(key, shared) {
+  async get(key) {
+    const org = await organizacao();
+    if (!org) return null;
     try {
-      const snap = await db.collection("mty_dados").doc(docId(key, shared)).get();
-      return snap.exists ? { key, value: snap.data().value, shared: !!shared } : null;
+      const snap = await db.collection("orgs").doc(org).collection("dados").doc(key).get();
+      return snap.exists ? { key, value: snap.data().value, shared: true } : null;
     } catch (e) { console.error("Firestore get:", e); return null; }
   },
-  async set(key, value, shared) {
+  async set(key, value) {
+    const org = await organizacao();
+    if (!org) return null;
     try {
-      await db.collection("mty_dados").doc(docId(key, shared)).set({ value, atualizado: Date.now() });
-      return { key, value, shared: !!shared };
+      await db.collection("orgs").doc(org).collection("dados").doc(key).set({ value, atualizado: Date.now() });
+      return { key, value, shared: true };
     } catch (e) { console.error("Firestore set:", e); return null; }
   },
-  async delete(key, shared) {
+  async delete(key) {
+    const org = await organizacao();
+    if (!org) return null;
     try {
-      const ref = db.collection("mty_dados").doc(docId(key, shared));
+      const ref = db.collection("orgs").doc(org).collection("dados").doc(key);
       const snap = await ref.get();
       const had = snap.exists;
       await ref.delete();
-      return { key, deleted: had, shared: !!shared };
+      return { key, deleted: had, shared: true };
     } catch (e) { console.error("Firestore delete:", e); return null; }
   },
-  async list(prefix, shared) {
+  async list(prefix) {
+    const org = await organizacao();
+    if (!org) return null;
     try {
-      const base = shared ? "shared__" : "local__";
-      const snap = await db.collection("mty_dados").get();
+      const snap = await db.collection("orgs").doc(org).collection("dados").get();
       const keys = [];
-      snap.forEach((d) => {
-        if (d.id.indexOf(base) === 0) {
-          const k = d.id.slice(base.length);
-          if (!prefix || k.indexOf(prefix) === 0) keys.push(k);
-        }
-      });
-      return { keys, prefix: prefix || "", shared: !!shared };
+      snap.forEach((d) => { if (!prefix || d.id.indexOf(prefix) === 0) keys.push(d.id); });
+      return { keys, prefix: prefix || "", shared: true };
     } catch (e) { console.error("Firestore list:", e); return null; }
   },
 };
@@ -150,16 +182,30 @@ const storageLocal = {
 
 window.storage = db ? storageFirestore : storageLocal;
 
-(function () {
+async function atualizaFaixa() {
   const faixa = document.getElementById("mty-faixa");
-  if (db) {
-    faixa.textContent = "Equipe conectada — dados sincronizados (projeto: " + firebaseConfig.projectId + ")";
-    faixa.style.background = "#2E4739";
-  } else {
-    faixa.textContent = "Modo local — dados só neste aparelho, sem login. Configure o Firebase para a equipe toda acompanhar.";
+  if (!faixa) return;
+  if (!db) {
+    faixa.textContent = "Modo local — dados só neste aparelho, sem login. Configure o Firebase para a academia toda acompanhar.";
     faixa.style.background = "#C25A22";
+    return;
   }
-})();
+  if (!auth.currentUser) {
+    faixa.textContent = "Nuvem configurada — entre com sua conta para ver os dados da academia.";
+    faixa.style.background = "#C25A22";
+    return;
+  }
+  const org = await organizacao();
+  if (!org) {
+    faixa.textContent = "Conta sem academia vinculada — fale com o administrador.";
+    faixa.style.background = "#8A2E2E";
+    return;
+  }
+  faixa.textContent = "Academia conectada — dados sincronizados (org: " + org + ")";
+  faixa.style.background = "#2E4739";
+}
+atualizaFaixa();
+if (auth) auth.onAuthStateChanged(() => setTimeout(atualizaFaixa, 300));
 </script>
 
 <script type="text/babel" data-presets="react">
@@ -520,6 +566,25 @@ async function grave(chave, valor, compartilhado = false) {
   catch (e) { console.error("falha ao gravar", e); }
 }
 
+/* ─────────────────────────── geração por IA ───────────────────────────
+   A chave da Anthropic mora no servidor (function gerar-ia). O app só
+   manda o prompt junto com o login de quem está pedindo — sem conta
+   numa academia, a function recusa antes de gastar um único token. */
+async function chamarIA(prompt, maxTokens) {
+  if (!window.mtyAuth || !window.mtyAuth.usuario()) {
+    throw new Error("Entre com sua conta da academia para gerar com IA.");
+  }
+  const token = await window.mtyAuth.tokenId();
+  const r = await fetch("/.netlify/functions/gerar-ia", {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: "Bearer " + token },
+    body: JSON.stringify({ prompt, maxTokens }),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.erro || ("Erro " + r.status));
+  return d.texto || "";
+}
+
 /* ─────────────────────────── peças ─────────────────────────── */
 function Etiqueta({ children, cor = C.grafite }) {
   return (
@@ -839,9 +904,12 @@ function indiceParaEstagio(estagio) {
 }
 
 /* Pedido que devolve o PLANO já no formato da aba — sem passar por conversa. */
-function promptPlanoEstruturado(a, semanas, aulasSemana) {
+function promptPlanoEstruturado(a, semanas, aulasSemana, historico) {
   const nBlocos = 3;
   const porBloco = Math.ceil(semanas / nBlocos);
+  const ciclosAnteriores = (historico || []).slice(0, 3).map((h, i) =>
+    "── Ciclo " + (historico.length - i) + " · " + new Date(h.data).toLocaleDateString("pt-BR") + " ──\n" + h.texto
+  );
   return [
     "Você é assistente de planejamento da Metodologia MTY, método de tênis do treinador",
     "Richard Tsukada. Monte o planejamento deste jogador.",
@@ -854,6 +922,13 @@ function promptPlanoEstruturado(a, semanas, aulasSemana) {
     "",
     "FICHA DO JOGADOR:",
     relatorioFicha(a),
+    ...(ciclosAnteriores.length ? [
+      "",
+      "RELATÓRIOS DOS CICLOS ANTERIORES DESTE JOGADOR — o novo plano responde ao que",
+      "ficou em aberto, ao que foi atingido e ao que não foi, nunca repete um ciclo já",
+      "fechado como se fosse a primeira vez:",
+      ...ciclosAnteriores,
+    ] : []),
     "",
     "FORMATO: " + semanas + " semanas, " + nBlocos + " blocos de aproximadamente " + porBloco +
       " semanas, " + aulasSemana + " aulas por semana.",
@@ -912,41 +987,14 @@ function PainelRelatorio({ aluno, aoFechar }) {
   const txt = relatorioFicha(aluno);
   const [copiado, setCopiado] = useState(false);
   const [vista, setVista] = useState("ficha");
-  const [chave, setChave] = useState(() => {
-    try { return localStorage.getItem("mty:chave-ia") || ""; } catch { return ""; }
-  });
   const [plano, setPlano] = useState("");
   const [gerando, setGerando] = useState(false);
   const [erroIA, setErroIA] = useState("");
 
-  function guardaChave(v) {
-    setChave(v);
-    try { v ? localStorage.setItem("mty:chave-ia", v) : localStorage.removeItem("mty:chave-ia"); } catch {}
-  }
-
   async function gerarPlano() {
     setErroIA(""); setGerando(true); setPlano("");
     try {
-      const r = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-api-key": chave.trim(),
-          "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-direct-browser-access": "true",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 4000,
-          messages: [{ role: "user", content: promptPlanejamento(aluno) }],
-        }),
-      });
-      if (!r.ok) {
-        const d = await r.json().catch(() => ({}));
-        throw new Error(d?.error?.message || ("Erro " + r.status));
-      }
-      const d = await r.json();
-      setPlano((d.content || []).filter((x) => x.type === "text").map((x) => x.text).join("\n"));
+      setPlano(await chamarIA(promptPlanejamento(aluno), 4000));
     } catch (e) {
       setErroIA(String(e.message || e));
     }
@@ -983,25 +1031,6 @@ function PainelRelatorio({ aluno, aoFechar }) {
         </>
       ) : (
         <>
-          {!chave && (
-            <div style={{ background: C.papel, borderLeft: "3px solid " + C.saibro, padding: "12px 14px", marginBottom: 14 }}>
-              <p style={{ ...prosa, fontSize: 13.5, marginBottom: 8 }}>
-                Para gerar o planejamento aqui dentro, o app precisa de uma chave de API da
-                Anthropic. Ela fica guardada só neste aparelho — nunca no arquivo, nunca na nuvem
-                da equipe.
-              </p>
-              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>
-                A chave é paga por uso e é sua. Quem tiver acesso a este aparelho consegue vê-la —
-                então use um aparelho seu, não o de uso comum da academia.
-              </p>
-            </div>
-          )}
-
-          <Campo rotulo="Chave de API da Anthropic" nota={chave ? "Guardada neste aparelho. Apague o campo para removê-la." : "Começa com sk-ant-. Você cria em console.anthropic.com."}>
-            <input type="password" style={entrada} value={chave}
-              onChange={(e) => guardaChave(e.target.value)} placeholder="sk-ant-..." />
-          </Campo>
-
           <div className="flex gap-2 items-center mb-3">
             <Botao onClick={gerarPlano} variante="saibro">
               {gerando ? "Montando…" : plano ? "Gerar de novo" : "Gerar planejamento"}
@@ -2343,13 +2372,6 @@ function TelaPlano({ aluno, alunos, setAlunos }) {
   const [gerando, setGerando] = useState(false);
   const [semanas, setSemanas] = useState(12);
   const [aulasSem, setAulasSem] = useState(3);
-  const [chave, setChave] = useState(() => {
-    try { return localStorage.getItem("mty:chave-ia") || ""; } catch { return ""; }
-  });
-  function guardaChave(v) {
-    setChave(v);
-    try { v ? localStorage.setItem("mty:chave-ia", v) : localStorage.removeItem("mty:chave-ia"); } catch {}
-  }
   const [verEx, setVerEx] = useState(null);
   const [relatorio, setRelatorio] = useState("");
 
@@ -2379,26 +2401,7 @@ function TelaPlano({ aluno, alunos, setAlunos }) {
   async function gerarComIA() {
     setErro(""); setGerando(true);
     try {
-      const r = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-api-key": chave.trim(),
-          "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-direct-browser-access": "true",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 8000,
-          messages: [{ role: "user", content: promptPlanoEstruturado(aluno, semanas, aulasSem) }],
-        }),
-      });
-      if (!r.ok) {
-        const d = await r.json().catch(() => ({}));
-        throw new Error(d?.error?.message || ("Erro " + r.status));
-      }
-      const d = await r.json();
-      let t = (d.content || []).filter((x) => x.type === "text").map((x) => x.text).join("").trim();
+      let t = (await chamarIA(promptPlanoEstruturado(aluno, semanas, aulasSem, historico), 8000)).trim();
       t = t.replace(/^```(json)?/i, "").replace(/```$/, "").trim();
       const i = t.indexOf("{");
       if (i > 0) t = t.slice(i);
@@ -2529,23 +2532,7 @@ function TelaPlano({ aluno, alunos, setAlunos }) {
           ou cole um plano montado fora.
         </Aviso>
 
-        <Secao titulo="Gerar a partir da ficha" nota="Usa o que está preenchido na aba Ficha e escolhe os exercícios dentro do catálogo, respeitando o estágio do jogador.">
-          {!chave && (
-            <div style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "12px 14px", marginBottom: 14 }}>
-              <p style={{ ...prosa, fontSize: 13.5, marginBottom: 7 }}>
-                Para gerar aqui dentro, o app precisa de uma chave de API da Anthropic. Ela fica
-                guardada só neste aparelho — nunca no arquivo, nunca na nuvem da equipe.
-              </p>
-              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>
-                É paga por uso e é sua. Quem tiver acesso a este aparelho consegue vê-la — use um
-                aparelho seu, não o de uso comum da academia.
-              </p>
-            </div>
-          )}
-          <Campo rotulo="Chave de API" nota={chave ? "Guardada neste aparelho. Apague o campo para removê-la." : "Começa com sk-ant-. Você cria em console.anthropic.com."}>
-            <input type="password" style={entrada} value={chave}
-              onChange={(e) => guardaChave(e.target.value)} placeholder="sk-ant-..." />
-          </Campo>
+        <Secao titulo="Gerar a partir da ficha" nota="Usa o que está preenchido na aba Ficha e escolhe os exercícios dentro do catálogo, respeitando o estágio do jogador. Se o jogador já teve ciclos anteriores, o plano novo é montado considerando o que ficou registrado neles.">
           <div className="grid grid-cols-2 gap-3">
             <Campo rotulo="Semanas do ciclo">
               <Seletor opcoes={[8, 12, 16].map((n) => ({ v: n, r: n + " semanas" }))}
@@ -2840,7 +2827,6 @@ function TelaCatalogo() {
    direto, porque não há nuvem para proteger. Todos os treinadores que
    entram veem os mesmos dados: é conta de equipe, não de aluno. */
 function TelaLogin({ aoEntrar }) {
-  const [modo, setModo] = useState("entrar");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [erro, setErro] = useState("");
@@ -2849,8 +2835,7 @@ function TelaLogin({ aoEntrar }) {
   async function enviar() {
     setErro(""); setOcupado(true);
     try {
-      if (modo === "entrar") await window.mtyAuth.entrar(email.trim(), senha);
-      else await window.mtyAuth.criar(email.trim(), senha);
+      await window.mtyAuth.entrar(email.trim(), senha);
       aoEntrar();
     } catch (e) {
       const c = (e && e.code) || "";
@@ -2859,9 +2844,7 @@ function TelaLogin({ aoEntrar }) {
         "auth/user-not-found": "Não existe conta com este e-mail.",
         "auth/wrong-password": "Senha incorreta.",
         "auth/invalid-credential": "E-mail ou senha incorretos.",
-        "auth/email-already-in-use": "Já existe conta com este e-mail. Escolha Entrar.",
-        "auth/weak-password": "A senha precisa de pelo menos 6 caracteres.",
-        "auth/operation-not-allowed": "Ative Email/Senha no console do Firebase, em Authentication.",
+        "auth/too-many-requests": "Muitas tentativas. Espere um pouco e tente de novo.",
       };
       setErro(msgs[c] || "Não consegui completar. Verifique a conexão e tente de novo.");
     }
@@ -2875,24 +2858,12 @@ function TelaLogin({ aoEntrar }) {
         <div style={{ fontFamily: ARCH, fontSize: 21, fontWeight: 700 }}>Metodologia MTY</div>
         <div className="mt-1 mb-7"><Etiqueta>Acesso da equipe técnica</Etiqueta></div>
 
-        <div className="flex gap-2 mb-6">
-          {[["entrar", "Entrar"], ["criar", "Criar conta"]].map(([v, r]) => (
-            <button key={v} onClick={() => { setModo(v); setErro(""); }}
-              style={{ flex: 1, fontFamily: ARCH, fontSize: 13, fontWeight: modo === v ? 700 : 500,
-                padding: "10px 0", cursor: "pointer", borderRadius: 2,
-                border: "1px solid " + (modo === v ? C.tinta : C.linha),
-                background: modo === v ? C.tinta : C.cal, color: modo === v ? C.papel : C.grafite }}>
-              {r}
-            </button>
-          ))}
-        </div>
-
         <Campo rotulo="E-mail">
           <input type="email" autoComplete="email" style={entrada} value={email}
             onChange={(e) => setEmail(e.target.value)} placeholder="treinador@exemplo.com" />
         </Campo>
-        <Campo rotulo="Senha" nota={modo === "criar" ? "Pelo menos 6 caracteres." : null}>
-          <input type="password" autoComplete={modo === "criar" ? "new-password" : "current-password"}
+        <Campo rotulo="Senha">
+          <input type="password" autoComplete="current-password"
             style={entrada} value={senha} onChange={(e) => setSenha(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && email && senha) enviar(); }} />
         </Campo>
@@ -2908,12 +2879,13 @@ function TelaLogin({ aoEntrar }) {
             borderRadius: 2, cursor: ocupado ? "wait" : "pointer", border: "none",
             background: (!email || !senha) ? C.linha : C.saibro,
             color: (!email || !senha) ? C.grafite : "#fff" }}>
-          {ocupado ? "…" : modo === "entrar" ? "Entrar" : "Criar conta"}
+          {ocupado ? "…" : "Entrar"}
         </button>
 
         <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 18 }}>
-          Todos os treinadores que entram veem os mesmos jogadores, fichas e casos. É uma conta por
-          pessoa, com dados compartilhados pela equipe — não é acesso de aluno.
+          Todos os treinadores da mesma academia veem os mesmos jogadores, fichas e casos. Não há
+          cadastro por aqui — sua conta é criada pelo administrador, já ligada à sua academia. Sem
+          conta, fale com quem administra a MTY na sua academia.
         </p>
       </div>
     </div>

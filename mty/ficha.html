@@ -113,11 +113,37 @@
 </style>
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-auth-compat.js"></script>
 <script src="mty-nuvem.js"></script>
+<style>
+  #portao{display:none; position:fixed; inset:0; background:var(--papel); z-index:100}
+  #portao .in{max-width:360px; margin:0 auto; padding:70px 20px}
+  #portao h2{font-family:Georgia,serif; font-size:21px; margin:0 0 4px}
+  #portao input{width:100%; margin-bottom:11px}
+  #portao .erro{color:var(--verm); font-size:12.5px; margin-bottom:10px; display:none}
+</style>
 </head>
 <body>
 <div class="topo"></div>
 <div id="mty-faixa" style="font:12px system-ui;padding:6px 14px;text-align:center;color:#fff">Carregando…</div>
+
+<div id="portao">
+  <div class="in">
+    <h2>Metodologia MTY</h2>
+    <div class="sub" style="margin-bottom:20px">Acesso da equipe técnica</div>
+    <label class="rot">E-mail</label>
+    <input type="email" id="pemail" autocomplete="email" placeholder="treinador@exemplo.com">
+    <label class="rot">Senha</label>
+    <input type="password" id="psenha" autocomplete="current-password">
+    <div class="erro" id="perro"></div>
+    <button class="bt bt-p" style="width:100%" id="pentrar">Entrar</button>
+    <p style="color:var(--cinza);font-size:12px;margin-top:16px">
+      Não há cadastro por aqui — sua conta é criada pelo administrador, já ligada à sua academia.
+    </p>
+  </div>
+</div>
+
+<div id="conteudo" style="display:none">
 <div class="wrap">
 
 <header>
@@ -164,6 +190,8 @@
     <b>Enviar pelo WhatsApp</b> abre a conversa com o treinador responsável.
     <b>Escolher onde enviar</b> abre a lista do celular, onde dá para escolher um grupo.</p>
 </div></dialog>
+
+</div>
 
 <script>
 /* ═══════════ PARA ONDE VAI O RELATÓRIO ═══════════
@@ -534,15 +562,55 @@ document.getElementById('btCopiar').onclick = async ()=>{
   document.getElementById('ok').style.display='block';
 };
 
-/* início */
-(function(){
-  if (typeof MTY !== 'undefined') MTY.faixa('mty-faixa');
-  if (!NUMERO_DESTINO) document.getElementById('btZap').style.display = 'none';
+/* ─────────── acesso ───────────
+   Sem Firebase configurado, a ficha funciona igual a sempre, sem login.
+   Configurado, exige entrar antes — é isso que faz a gravação na nuvem
+   saber de qual academia é a ficha. */
+function iniciarApp(){
   const t = lerTudo();
   const ids = Object.keys(t).sort((a,b)=>t[b].quando-t[a].quando);
   if(ids.length){ fichaId = ids[0]; dados = t[fichaId].dados||{}; }
   else { fichaId = 'f'+Date.now(); dados = {}; }
   montar(); pintarRascunhos();
+}
+
+(function(){
+  if (!NUMERO_DESTINO) document.getElementById('btZap').style.display = 'none';
+  const temAuth = typeof MTY !== 'undefined' && MTY.ligado && MTY.auth;
+  if (!temAuth) {
+    if (typeof MTY !== 'undefined') MTY.faixa('mty-faixa');
+    document.getElementById('conteudo').style.display = 'block';
+    iniciarApp();
+    return;
+  }
+  const portao = document.getElementById('portao');
+  MTY.auth.observar(function(u){
+    if (u) {
+      portao.style.display = 'none';
+      document.getElementById('conteudo').style.display = 'block';
+      MTY.faixa('mty-faixa');
+      iniciarApp();
+    } else {
+      portao.style.display = 'block';
+    }
+  });
+  document.getElementById('pentrar').onclick = function(){
+    document.getElementById('perro').style.display = 'none';
+    MTY.auth.entrar(
+      document.getElementById('pemail').value.trim(),
+      document.getElementById('psenha').value
+    ).catch(function(e){
+      const msgs = {
+        'auth/invalid-email': 'E-mail inválido.',
+        'auth/user-not-found': 'Não existe conta com este e-mail.',
+        'auth/wrong-password': 'Senha incorreta.',
+        'auth/invalid-credential': 'E-mail ou senha incorretos.',
+      };
+      const el = document.getElementById('perro');
+      el.textContent = msgs[e.code] || 'Não consegui entrar. Verifique a conexão.';
+      el.style.display = 'block';
+    });
+  };
 })();
 </script>
 </body>
