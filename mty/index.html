@@ -591,6 +591,463 @@ const PUBLICOS_ESPECIFICOS = [
   },
 ];
 
+/* ── Série T do manual: fichas técnicas por golpe (Parte 2) ──
+   Mesmo formato de blocos { tipo, ... } usado em SERIE_CONDUCAO. */
+const SERIE_T = [
+  {
+    id: "T-01", titulo: "As seis fases",
+    frase: "O modelo de leitura que permite encontrar a causa do erro em vez do sintoma.",
+    blocos: [
+      { tipo: "tabela", cabecalho: ["Fase", "O que acontece"], linhas: [
+        ["1 · Preparação", "A raquete vai para trás pela rotação do quadril — não pelo braço"],
+        ["2 · Posicionamento e apoio", "Move-se à bola e organiza os pés para sustentar a rotação"],
+        ["3 · Aceleração", "A cadeia cinética restitui a energia armazenada, do solo à raquete"],
+        ["4 · Contato", "O instante em que as cordas atingem a bola"],
+        ["5 · Terminação", "A raquete é conduzida à frente, na direção do alvo"],
+        ["6 · Recuperação", "Retorno à posição — e primeira fase do golpe seguinte"],
+      ] },
+      { tipo: "tabela", titulo: "Mapa sintoma → causa provável", cabecalho: ["Sintoma", "Procurar em"], linhas: [
+        ["Terminação ruim", "Base atrasada (fase 2)"],
+        ["Contato fora do ponto", "Preparação tardia (fase 1) ou ajustes finais ausentes"],
+        ["Aceleração sem potência", "Joelhos que não flexionaram no apoio (fase 2)"],
+        ["Chegada atrasada", "Split step ou recuperação tratada como fim"],
+      ] },
+      { tipo: "aviso", texto: "O princípio que atravessa as seis fases: força dá lugar à velocidade da bola no ar e à qualidade da trajetória. O critério que organiza as escolhas é a redução do tempo do adversário, não a potência." },
+      { tipo: "texto", titulo: "Sobre a fase 6", texto: "O golpe só termina no salto de prontidão da bola seguinte. Quem trata a recuperação como parte do golpe chega ao próximo lance com meio passo de vantagem." },
+    ],
+  },
+  {
+    id: "T-02", titulo: "Forehand",
+    frase: "A arma principal da maioria dos jogadores — e o golpe que mais sofre com correção que descaracteriza a jogada.",
+    blocos: [
+      { tipo: "tabela", titulo: "Pontos de checagem por fase", cabecalho: ["Fase", "Pontos de checagem"], linhas: [
+        ["Preparação", "Semi-western pela versatilidade entre plano e topspin · unit turn: cabeça da raquete e quadril giram ao mesmo tempo · loop próximo à altura dos ombros · preparação completa antes do quique"],
+        ["Apoio", "Turn point próximo a 180° — faltar dá precisão, sobrar dá potência · antebraço não dominante paralelo à linha de base · pé dominante a ~45° · flexão funcional de joelhos 60–75° · os quatro apoios escolhidos pela situação"],
+        ["Aceleração", "Rotação do quadril à frente com auxílio do braço não dominante · descida da cabeça da raquete conforme o efeito · extensão dos joelhos como origem da potência · punho estabilizado antes do impacto · pronação"],
+        ["Contato", "À frente do corpo, cotovelo à frente do tronco em extensão parcial · face levemente fechada para topspin · altura próxima à cintura · centro de gravidade indo à frente"],
+        ["Terminação", "Trajetória nos três eixos: horizontal dá profundidade, lateral dá efeito, vertical dá altura · braço não dominante para a lateral e para cima"],
+        ["Recuperação", "Frenagem eficiente, sem passos extras · primeiro passo nas pontas · tronco voltado à rede · split ao final"],
+      ] },
+      { tipo: "tabela", titulo: "Os três erros mais comuns", cabecalho: ["Erro observado", "Onde nasce", "O que fazer"], linhas: [
+        ["Bola curta e alta", "Trajetória parabólica demais; contato atrás do corpo", "Trabalhar contato à frente e trajetória mais direta com o spin necessário"],
+        ["Falta de potência", "Joelhos sem flexão funcional na fase 2", "Extensão explosiva; nunca instruir \"bata mais forte\""],
+        ["Erro no ataque de meia quadra", "Ponto de contato ou apoio — nunca a decisão", "Corrigir contato e apoio. Jamais pedir mais efeito para cair dentro"],
+      ] },
+      { tipo: "texto", titulo: "Na troca de golpes", texto: "Forehand após forehand na corrida expõe a recuperação; forehand cruzado após paralelo expõe a base; forehand logo após o saque expõe a transição de empunhadura e a reposição." },
+    ],
+  },
+  {
+    id: "T-03", titulo: "Backhand de duas mãos",
+    frase: "O golpe mais estrutural do jogo — estabilidade vem da estrutura dos dois braços, não da força.",
+    blocos: [
+      { tipo: "tabela", titulo: "Pontos de checagem por fase", cabecalho: ["Fase", "Pontos de checagem"], linhas: [
+        ["Preparação", "Unit turn com as duas mãos na raquete — o braço não dominante comanda o backswing · loop mais compacto que o do forehand"],
+        ["Apoio", "Ombros girados ~90° em relação à rede · square ou closed favorecem a rotação completa, mas a escolha é situacional · pé da frente a ~45° · flexão 60–75°"],
+        ["Aceleração", "O quadril inicia · o braço não dominante puxa o swing, o dominante guia · punho firme antes do impacto"],
+        ["Contato", "Mais à frente que no forehand — exigência estrutural · altura da cintura · braços em estrutura firme"],
+        ["Terminação", "Sobre o ombro dominante, cotovelos altos"],
+        ["Recuperação", "Idêntica à do forehand"],
+      ] },
+      { tipo: "tabela", titulo: "Os três erros mais comuns", cabecalho: ["Erro observado", "Onde nasce", "O que fazer"], linhas: [
+        ["Bola sem profundidade", "Contato atrasado — o backhand exige contato mais à frente", "Antecipar a preparação, não acelerar o braço"],
+        ["Estrutura que desmonta em bola alta", "Apoio inadequado à altura", "Trabalhar escolha de apoio e ajustes de perna"],
+        ["Perda de controle sob pressão de tempo", "Backswing longo demais para a situação", "Reduzir amplitude mantendo a rotação"],
+      ] },
+      { tipo: "texto", titulo: "Na troca de golpes", texto: "O backhand após deslocamento longo expõe os ajustes finais; backhand seguido de subida à rede expõe a troca para continental." },
+    ],
+  },
+  {
+    id: "T-04", titulo: "Backhand de uma mão",
+    frase: "O golpe que menos perdoa atraso — o alcance menor exige preparação antecipada como condição, não como virtude.",
+    blocos: [
+      { tipo: "tabela", titulo: "Pontos de checagem por fase", cabecalho: ["Fase", "Pontos de checagem"], linhas: [
+        ["Preparação", "O ombro dominante aponta a bola cedo · preparação necessariamente mais antecipada que nos demais golpes"],
+        ["Apoio", "Ombros girados ~90° · square ou closed favorecem a rotação · pé da frente a ~45°"],
+        ["Aceleração", "O quadril inicia · o braço não dominante estende para trás como contrapeso enquanto o dominante acelera · punho firme antes do impacto"],
+        ["Contato", "Braço estendido no contato, bem à frente do corpo"],
+        ["Terminação", "O braço segue a linha do alvo e abre; o contrapeso atrás impede o giro precoce — girar cedo abre a bola"],
+        ["Recuperação", "Idêntica à do forehand"],
+      ] },
+      { tipo: "tabela", titulo: "Os três erros mais comuns", cabecalho: ["Erro observado", "Onde nasce", "O que fazer"], linhas: [
+        ["Bola que abre para fora", "Giro precoce do tronco na terminação", "Trabalhar o contrapeso do braço não dominante"],
+        ["Falha em bola alta", "Estrutura do golpe e escolha de apoio", "Slice como opção legítima, não como fuga"],
+        ["Atraso crônico", "Preparação iniciada tarde na fase 1", "Antecipar o gesto do ombro, não acelerar o swing"],
+      ] },
+      { tipo: "texto", titulo: "Na troca de golpes", texto: "É o golpe que mais sofre na transição de empunhadura vinda do forehand; observar especialmente após bola aberta." },
+    ],
+  },
+  {
+    id: "T-05", titulo: "Saque — base comum das três faces",
+    frase: "O único golpe inteiramente sob controle de quem executa — e por isso o espelho mais fiel do estado de quem o executa.",
+    blocos: [
+      { tipo: "tabela", titulo: "Pontos de checagem por fase", cabecalho: ["Fase", "Pontos de checagem"], linhas: [
+        ["Preparação", "Continental obrigatória — é ela que permite a pronação completa · plataforma ou pinpoint, mas consistente · o lançamento é parte da preparação · armado contínuo, em um só ritmo"],
+        ["Apoio", "Pé da frente apontando o poste direito · peso inicia atrás · flexão sincronizada com a subida da bola — referência ~65° no joelho da frente e 67° no de trás · tronco inclinado ~25°"],
+        ["Aceleração", "Tríplice extensão inicia a cadeia · cotovelo sobe e a raquete cai atrás das costas, rotação externa de ombro ~130° · rotação interna do ombro e pronação são os últimos elos e os maiores geradores de velocidade"],
+        ["Contato", "No ponto mais alto de alcance, à frente do corpo · braço a ~110° em relação ao tronco, cotovelo ainda com ~30° de flexão"],
+        ["Terminação", "Pronação completa e queda natural pelo lado oposto · desaceleração gradativa — freio brusco custa velocidade e cobra caro no ombro"],
+        ["Recuperação", "Aterrissagem dentro da quadra sobre o pé da frente · split antes do golpe do adversário"],
+      ] },
+      { tipo: "aviso", texto: "Sobre a flexão de joelhos: o valor de 90° que ainda circula é excessivo. Mas o corte não é livre — abaixo de ~55° há perda medida na velocidade da raquete. É uma faixa, não um alvo." },
+      { tipo: "tabela", titulo: "Os três erros mais comuns", cabecalho: ["Erro observado", "Onde nasce", "O que fazer"], linhas: [
+        ["Saque rápido mas leve", "Sequenciamento da cadeia; rotação interna e pronação incompletas", "Trabalhar cadeia e velocidade de braço — não força"],
+        ["Punho lento, sobretudo no kick", "Tríplice extensão e rotação externa no armado — não é a mão", "Regressão à raiz: cadeia, mobilidade, força em velocidade angular"],
+        ["Lançamento irregular", "Decisão do tipo de saque ainda aberta quando a mão solta a bola", "Fechar a decisão antes do primeiro quique"],
+      ] },
+      { tipo: "texto", titulo: "A regra que vale para o saque inteiro", texto: "A decisão vem antes da rotina, nunca durante. A rotina não é o tempo de decidir — é o tempo de deixar de decidir." },
+    ],
+  },
+  {
+    id: "T-06", titulo: "Saque — plano, slice e kick",
+    frase: "Três variações que compartilham base, preparação e aceleração — e divergem apenas no lançamento e no contato. É essa identidade que torna o saque indecifrável.",
+    blocos: [
+      { tipo: "tabela", cabecalho: ["Variação", "Lançamento", "Contato"], linhas: [
+        ["Plano", "À frente e levemente à direita", "Palma através da bola, no ponto mais alto"],
+        ["Slice", "Mais à direita", "Escovada lateral"],
+        ["Kick", "Sobre a cabeça ou levemente atrás", "Escovada de baixo para cima, com arqueamento de tronco"],
+      ] },
+      { tipo: "aviso", texto: "O que NUNCA pode mudar entre as três: o ritmo do armado, a posição dos pés, a trajetória do braço até a posição de troféu. Se o adversário consegue ler a variação pelo armado, o saque perdeu sua principal vantagem." },
+      { tipo: "tabela", titulo: "Os três erros mais comuns", cabecalho: ["Erro observado", "Onde nasce", "O que fazer"], linhas: [
+        ["Variação telegrafada", "Armado diferente por variação", "Trabalhar as três em série alternada, com parceiro tentando antecipar"],
+        ["Kick que não sobe", "Falta de arqueamento e de escovada ascendente", "Progressão sem alvo, depois com alvo profundo na vantagem"],
+        ["Segundo saque muito abaixo do primeiro", "Ausência de intenção — \"não errar\" não é intenção", "Alvo e plano declarados antes da rotina"],
+      ] },
+      { tipo: "texto", titulo: "Sobre o segundo saque", texto: "A diferença em relação ao primeiro quase sempre excede o que a técnica justificaria. O jogador tira velocidade, efeito e intenção — e isso não é escolha técnica ruim, é uma escolha que ele não sabe que fez. A pergunta útil não é \"como bater melhor\", é qual é a intenção deste saque." },
+    ],
+  },
+  {
+    id: "T-07", titulo: "Devolução",
+    frase: "O golpe que decide metade dos games e que menos se treina — com duas formas distintas que se treinam separadamente.",
+    blocos: [
+      { tipo: "tabela", titulo: "Pontos de checagem por fase", cabecalho: ["Fase", "Pontos de checagem"], linhas: [
+        ["Preparação", "Meia preparação: giro de ombros sem backswing completo · primeiro saque pede bloqueio com direção, segundo permite golpe pleno"],
+        ["Apoio", "Atrás da linha no primeiro saque, dentro da quadra no segundo · o timing do split no contato do sacador é o fundamento número um da devolução · avanço cruzado na diagonal"],
+        ["Aceleração", "Compacta e para frente, o peso vai para dentro · contra velocidade, estabilizar vale mais que acelerar"],
+        ["Contato", "À frente, estrutura firme · alvo primário: profundidade central para neutralizar, ou ângulo para atacar o segundo saque · o kick exige pegar na subida ou no topo, nunca na descida"],
+        ["Terminação", "Proporcional à intenção: curta no bloqueio, completa no ataque"],
+        ["Recuperação", "Imediata ao centro dinâmico — ou emenda de avanço, quando a devolução foi agressiva"],
+      ] },
+      { tipo: "tabela", titulo: "As duas devoluções", cabecalho: ["", "Entrando", "De trás"], linhas: [
+        ["Quando", "Segundo saque, ou primeiro previsível", "Primeiro saque forte"],
+        ["O que se busca", "Roubar tempo, atacar cedo", "Profundidade e neutralização"],
+        ["Erro típico", "Preparação grande demais para o tempo", "Contato na descida da bola"],
+      ] },
+      { tipo: "tabela", titulo: "Os três erros mais comuns", cabecalho: ["Erro observado", "Onde nasce", "O que fazer"], linhas: [
+        ["Devolução curta", "Contato na descida; falta de transferência para dentro", "Trabalhar contato no topo e peso à frente"],
+        ["Chegada atrasada", "Split fora de tempo — lendo a bola, não o corpo do sacador", "RT011 e trabalho de olhar"],
+        ["Devolução sem direção", "Ausência de alvo declarado", "Declarar alvo antes do saque"],
+      ] },
+    ],
+  },
+  {
+    id: "T-08", titulo: "Voleio",
+    frase: "O golpe em que a fase de apoio é o golpe — quem chega equilibrado voleia bem quase automaticamente.",
+    blocos: [
+      { tipo: "tabela", titulo: "Pontos de checagem por fase", cabecalho: ["Fase", "Pontos de checagem"], linhas: [
+        ["Preparação", "Continental fixa para os dois lados — zero troca em situação rápida · raquete à frente do corpo, cabeça acima do punho · backswing mínimo: o giro de ombros é toda a preparação"],
+        ["Apoio", "Split no momento exato do golpe adversário · base larga, centro de gravidade baixo, peso nas pontas"],
+        ["Aceleração", "Curtíssima: passada em direção à bola com o pé oposto ao lado do voleio · a energia vem da passada e da bola do adversário, não do swing"],
+        ["Contato", "Sempre à frente do corpo · punho firme, leve corte por baixo para controle · bola baixa se resolve com flexão de joelhos, não abrindo a raquete"],
+        ["Terminação", "Mínima — a raquete para apontando o alvo"],
+        ["Recuperação", "Novo split, fechando o ângulo da resposta. Na rede, a recuperação é para frente e para o centro do ângulo, nunca para trás"],
+      ] },
+      { tipo: "tabela", titulo: "Os três erros mais comuns", cabecalho: ["Erro observado", "Onde nasce", "O que fazer"], linhas: [
+        ["Armar como golpe de fundo", "Preparação — o erro clássico", "Raquete apresentada, giro de ombros apenas"],
+        ["Voleio na rede ou longo", "Terminação longa demais", "A raquete para apontando o alvo"],
+        ["Hesitação com base parada", "A decisão não foi tomada antes de chegar", "Reduzir opções na subida, não acelerar a reação"],
+      ] },
+      { tipo: "texto", titulo: "Na troca de golpes", texto: "Um voleio ruim após approach pode não ter nada de errado no voleio — pode ser uma troca de empunhadura que não coube no tempo. Observar sempre a transição, não só o golpe." },
+    ],
+  },
+  {
+    id: "T-09", titulo: "Smash",
+    frase: "O golpe que, quando irregular, faz o jogador deixar de subir — e por isso vale mais do que a sua frequência sugere.",
+    blocos: [
+      { tipo: "tabela", titulo: "Pontos de checagem por fase", cabecalho: ["Fase", "Pontos de checagem"], linhas: [
+        ["Preparação", "Armado abreviado de saque: raquete direto à posição de troféu · braço não dominante aponta a bola — é o mirante que organiza o golpe e mede a distância"],
+        ["Apoio", "Deslocamento para trás com passada cruzada, nunca de costas em corridinha · posicionar a bola à frente da cabeça · base lateral à rede, peso no pé de trás"],
+        ["Aceleração", "Idêntica à do saque: tríplice extensão, cotovelo sobe, rotação interna e pronação"],
+        ["Contato", "No ponto mais alto, à frente da cabeça · bolas muito altas ou com vento: deixar quicar e tratar como saque"],
+        ["Terminação", "Completa e relaxada, com desaceleração gradativa"],
+        ["Recuperação", "Reposição imediata — o smash mal terminado geralmente volta"],
+      ] },
+      { tipo: "tabela", titulo: "Os três erros mais comuns", cabecalho: ["Erro observado", "Onde nasce", "O que fazer"], linhas: [
+        ["Bola atrás da cabeça", "Deslocamento insuficiente ou tardio", "Passada cruzada; trabalhar o recuo antes do golpe"],
+        ["Irregularidade sob lob alto", "Decisão de deixar quicar não considerada", "Ensinar explicitamente a opção de tratar como saque"],
+        ["Braço tenso e desaceleração brusca", "Tentativa de força em vez de velocidade", "Braço solto, terminação completa"],
+      ] },
+      { tipo: "aviso", texto: "Consequência tática da irregularidade: um jogador com smash inconsistente evita subir à rede — e perde os vinte pontos percentuais de aproveitamento que a subida oferece. Corrigir o smash é decisão tática, não só técnica." },
+    ],
+  },
+  {
+    id: "T-10", titulo: "Curtinha e aproximação",
+    frase: "Dois golpes que vivem de disfarce e de intenção — e que são formas legítimas de ataque sem exigir potência.",
+    blocos: [
+      { tipo: "texto", titulo: "Curtinha", texto: "A preparação deve ser idêntica à do drive de ataque até o último instante — a curtinha telegrafada morre na raquete do adversário. A decisão acontece tarde, na descida da raquete: o swing desarma no meio do caminho e vira toque, com a face abrindo sob a bola e mãos macias, como quem pega um ovo sem quebrar. O contato é abaixo do equador, absorvendo velocidade, com backspin suficiente para segurar o segundo quique dentro da área de saque. A recuperação é sempre um avanço." },
+      { tipo: "texto", titulo: "Aproximação (approach)", texto: "É o único golpe em que atravessar a bola andando é correto. A preparação é compacta durante a corrida, porque o approach nunca espera a bola parar. No backhand, a face já abre para o slice. O contato acontece à frente, na subida ou no topo do quique, e a direção padrão é a paralela, que fecha o ângulo de passada — a cruzada existe como variação deliberada, não como hábito." },
+      { tipo: "aviso", texto: "A terminação real do approach não é o movimento da raquete: é o split step na zona de voleio, antes do golpe do adversário. A sexta fase do approach é, literalmente, a segunda fase do voleio." },
+      { tipo: "tabela", titulo: "Os três erros mais comuns", cabecalho: ["Erro observado", "Onde nasce", "O que fazer"], linhas: [
+        ["Curtinha telegrafada", "Preparação diferente do drive", "Trabalhar identidade da preparação com parceiro antecipando"],
+        ["Approach curto que vira presa", "Contato na descida; falta de avanço", "Contato na subida, atravessando a bola"],
+        ["Passado com facilidade após subir", "Split ausente ou tardio na zona de voleio", "O split é a terminação — treinar como parte do golpe"],
+      ] },
+      { tipo: "texto", texto: "Dado de apoio: o approach de forehand pesado no backhand, caindo atrás do adversário, é o padrão de approach mais eficiente medido — cerca de 71% de aproveitamento." },
+    ],
+  },
+  {
+    id: "T-11", titulo: "Empunhaduras",
+    frase: "O primeiro fundamento, porque determina o ponto de contato ideal, a altura confortável, o efeito natural e até a movimentação exigida — é decisão biomecânica, nunca preferência estética.",
+    blocos: [
+      { tipo: "tabela", cabecalho: ["Empunhadura", "Contato ideal", "Efeito natural", "Aplicações"], linhas: [
+        ["Continental", "Baixo, lateral ou alto (saque)", "Slice, plano", "Saque nas três variações, voleios, smash, curtinha, devolução de bloqueio, slice de backhand"],
+        ["Eastern", "Cintura, à frente", "Plano, topspin leve", "Transição, primeira bola de ataque, formação juvenil"],
+        ["Semi-western", "Cintura-peito, mais à frente", "Topspin pesado", "Trocas de fundo, apoio aberto, jogo moderno"],
+      ] },
+      { tipo: "texto", titulo: "Continental", texto: "Mão como se segurasse um martelo. Universal das situações de rede e do saque: mesmo grip para voleio dos dois lados sem troca em situação rápida, e obrigatória no saque para permitir a pronação completa. Sem ela não existe saque com potência e efeito de nível competitivo. Limitação: pouco suporte para topspin em bolas altas de fundo." },
+      { tipo: "texto", titulo: "Eastern", texto: "A empunhadura de transição perfeita: contato à frente na altura da cintura, boa mistura de plano e topspin moderado, troca rápida para continental. Frequentemente o ponto de partida do forehand juvenil, porque ensina contato limpo à frente antes da evolução para a semi-western." },
+      { tipo: "texto", titulo: "Semi-western", texto: "Padrão do fundo de quadra moderno: contato mais alto e mais à frente, topspin pesado com segurança sobre a rede. Custo nas bolas muito baixas e curtinhas, e na transição para a rede." },
+      { tipo: "aviso", texto: "O erro mais caro: tratar a troca de empunhadura como detalhe. Todas as variáveis de mudança de golpe e de empunhadura podem causar o erro — e o erro aparece no golpe seguinte, não na troca." },
+    ],
+  },
+  {
+    id: "T-12", titulo: "Apoios e a técnica entre dois golpes",
+    frase: "Os quatro apoios são ferramentas situacionais — e a técnica que importa é a que sobrevive à transição entre golpes.",
+    blocos: [
+      { tipo: "tabela", titulo: "Os quatro apoios", cabecalho: ["Apoio", "Quando serve"], linhas: [
+        ["Open", "Sob pressão de tempo, bolas altas, quando a recuperação importa mais"],
+        ["Semi-open", "O intermediário mais usado em troca de fundo"],
+        ["Square", "Com tempo disponível — tende a entregar mais velocidade"],
+        ["Closed", "Bolas baixas, slice, aproximação"],
+      ] },
+      { tipo: "aviso", texto: "A correção que a evidência impõe: o apoio aberto é dominante — cerca de 84% dos forehands profissionais — porque favorece a recuperação e o jogo sob pressão de tempo, não porque gere mais velocidade. A taxa cai para ~65% em situações favoráveis, e estudos comparativos encontraram o square produzindo velocidade de bola significativamente maior. Ensinar apenas um apoio empobrece o repertório: os quatro são situacionais." },
+      { tipo: "tabela", titulo: "A técnica entre dois golpes — o que observar", cabecalho: ["Transição", "O que ela expõe"], linhas: [
+        ["Forehand após forehand na corrida", "Recuperação e ajustes finais"],
+        ["Forehand cruzado após paralelo", "Base e organização dos pés"],
+        ["Golpe imediatamente após o saque", "Reposição e transição de empunhadura"],
+        ["Approach seguido de voleio", "Troca de empunhadura dentro do tempo disponível"],
+        ["Defesa seguida de contra-ataque", "Reorganização de posição e altura de bola"],
+      ] },
+      { tipo: "texto", titulo: "A regra de leitura", texto: "Quando um golpe falha repetidamente na transição mas funciona isolado, o problema não é o golpe. É a transição — e a correção vai para a fase 6 do golpe anterior, não para a fase 1 do golpe que falhou." },
+    ],
+  },
+];
+
+/* ── Série M do manual: movimentação (Parte 2) ── */
+const SERIE_M = [
+  {
+    id: "M-01", titulo: "Split step",
+    frase: "O salto de prontidão que transforma posição em estado — e cujo timing é dado pelo corpo do adversário, não pela bola.",
+    blocos: [
+      { tipo: "tabela", cabecalho: ["Elemento", "Referência"], linhas: [
+        ["Momento de início", "Antes do contato do adversário, lendo o gesto — não a bola"],
+        ["Aterrissagem", "Pontas dos pés, base larga, centro de gravidade baixo"],
+        ["Estado ao aterrissar", "Reativo neutro: capaz de partir para qualquer direção"],
+        ["Ligação", "Abre e fecha toda sequência de movimentação"],
+      ] },
+      { tipo: "aviso", texto: "A distinção que o professor precisa enxergar: existe diferença enorme entre recuperar a posição e estar recuperado. A primeira é trajetória; a segunda é estado. Um jogador pode chegar ao centro, parar por uma fração de segundo, peso nos calcanhares, olhar ainda na própria bola — está posicionado, não está pronto." },
+      { tipo: "texto", texto: "Dado: quem executa o split cobre a distância de resposta próxima cerca de 13% mais rápido, com tempo de início de produção de força aproximadamente 44% menor." },
+      { tipo: "tabela", titulo: "Os três erros mais comuns", cabecalho: ["Erro observado", "Onde nasce", "O que fazer"], linhas: [
+        ["Split atrasado", "Olhar preso na própria bola após o contato", "Série de olhar pós-contato; RT011"],
+        ["Split alto e longo", "Confusão entre saltar e estar pronto", "Reduzir amplitude; foco na aterrissagem, não no salto"],
+        ["Aterrissagem nos calcanhares", "Chegada sem intenção de repartir", "Tratar recuperação como início, não como fim (M-04)"],
+      ] },
+    ],
+  },
+  {
+    id: "M-02", titulo: "Os padrões de deslocamento",
+    frase: "Dez padrões com nome próprio, porque nome cria vocabulário comum entre treinador e atleta — e cada um resolve um problema específico de tempo e distância.",
+    blocos: [
+      { tipo: "tabela", cabecalho: ["Padrão", "O problema que resolve"], linhas: [
+        ["Split step", "Prontidão no contato do adversário; abre e fecha toda sequência"],
+        ["Passada cruzada", "Cobrir distância mantendo o tronco orientado à quadra; substitui o recuo de costas"],
+        ["Hop step", "Ajuste saltado curto para enquadrar a bola sem desfazer a rotação já armada"],
+        ["Avanço cruzado na devolução", "Primeiro passo diagonal a partir do split: ataca a bola em vez de esperá-la"],
+        ["Passada dupla de fundo", "Os dois ajustes curtos finais antes do contato — a afinação fina da distância"],
+        ["Passada dupla de rede", "Os dois ajustes entre o split e o voleio: garantem voleio com o corpo"],
+        ["Movimentação lateral", "Recuperação ao centro dinâmico com o quadril de frente para a quadra"],
+        ["Movimentação em X", "Liga os quatro cantos pelo centro; treina a decisão de rota"],
+        ["Entrada e saída em V", "Entrar na diagonal para golpear cedo e sair na diagonal oposta"],
+        ["Pernas para inside out / inside in", "Recuo diagonal do pé de trás, quadril abrindo, recuperação imediata"],
+      ] },
+      { tipo: "aviso", texto: "A regra que atravessa todos: toda decisão é tomada com base no deslocamento. Não basta saber onde o jogador está — é preciso saber de onde ele sai e para onde vai (ver M-03 e P-04)." },
+    ],
+  },
+  {
+    id: "M-03", titulo: "Os ajustes finais",
+    frase: "Os dois ou três passos de dez ou quinze centímetros que ninguém treina — e que determinam o ponto de contato.",
+    blocos: [
+      { tipo: "tabela", titulo: "A assimetria que explica o problema", cabecalho: ["Deslocamento grande", "Deslocamento pequeno"], linhas: [
+        ["A corrida até a bola aberta, o recuo até a profunda", "Os dois ou três ajustes finais antes do contato"],
+        ["Visível, atlético, aparece em vídeo", "Invisível, não atlético, não aparece em vídeo nenhum"],
+        ["Muito treinado", "Quase nunca treinado"],
+        ["Leva o jogador até perto da bola", "Define o ponto de contato"],
+      ] },
+      { tipo: "texto", titulo: "A causa real dos erros de ponto de contato", texto: "Não é má técnica de golpe. É a ausência desses ajustes — o jogador chegou perto o suficiente, achou que estava bom, e bateu de onde parou. Chegar perto o suficiente é uma decisão, quase sempre inconsciente, de encerrar a atenção antes do fim da tarefa." },
+      { tipo: "aviso", texto: "A imagem para a quadra: alguém carregando um copo cheio até a borda. O erro não está no percurso — está nas paradas. É no instante em que a pessoa chega e relaxa, meio passo antes de pousar o copo, que a água transborda." },
+      { tipo: "tabela", titulo: "Os três erros mais comuns", cabecalho: ["Erro observado", "Onde nasce", "O que fazer"], linhas: [
+        ["Contato irregular apesar de boa técnica", "Ajustes finais ausentes", "CO011: dois ajustes obrigatórios antes de cada contato"],
+        ["Bate de onde parou", "Atenção encerrada antes do fim da tarefa", "Exercício de percepção: notar o instante em que decidiu que já chegou"],
+        ["Erro só em bola que chega diferente do previsto", "Hop step não construído", "Trabalhar ajuste saltado sem desfazer a rotação"],
+      ] },
+    ],
+  },
+  {
+    id: "M-04", titulo: "A recuperação como início",
+    frase: "Inverter a ordem em que o movimento é normalmente ensinado — não \"eu bato e depois recupero\", mas \"eu recupero, e é assim que o próximo golpe começa\".",
+    blocos: [
+      { tipo: "tabela", titulo: "Por que a inversão importa", cabecalho: ["\"Bato e depois recupero\"", "\"Recupero, e o próximo golpe começa\""], linhas: [
+        ["A recuperação é apêndice do golpe que passou", "A recuperação é a primeira fase do golpe que vem"],
+        ["Tarefa administrativa, com o resto da atenção", "Recebe a atenção que se dá ao início de algo importante"],
+        ["O jogador chega tarde e não sabe por quê", "O jogador parece mais rápido sem ter ficado mais rápido"],
+      ] },
+      { tipo: "tabela", titulo: "Pontos de checagem", cabecalho: ["Elemento", "Referência"], linhas: [
+        ["Frenagem", "Eficiente, sem passos extras nem freada brusca"],
+        ["Primeiro passo", "Nas pontas dos pés"],
+        ["Corrida de volta", "Tronco e cabeça voltados para a rede"],
+        ["Destino", "Centro dinâmico — o centro do leque de respostas possíveis, não o meio geométrico"],
+        ["Fechamento", "Split step antes do golpe do adversário"],
+        ["Na rede", "Recuperação para frente e para o centro do ângulo, nunca para trás"],
+      ] },
+      { tipo: "tabela", titulo: "Os três erros mais comuns", cabecalho: ["Erro observado", "Onde nasce", "O que fazer"], linhas: [
+        ["Assiste à própria bola", "Olhar não desloca para o corpo do adversário", "Série com a única tarefa de desviar o olhar após o contato"],
+        ["Recupera para o meio geométrico", "Conceito de centro dinâmico ausente", "P-04: regra das cruzadas e centro relativo"],
+        ["Chega e para", "Recuperação tratada como fim", "Encadear recuperação e split como uma coisa só"],
+      ] },
+    ],
+  },
+];
+
+/* ── Série P do manual: ponto e tática (Parte 2) ── */
+const SERIE_P = [
+  {
+    id: "P-01", titulo: "As três leituras e a decisão como padrão",
+    frase: "Toda bola é neutra, de ataque ou de defesa — e reconhecer qual é a primeira decisão tática de qualquer ponto.",
+    blocos: [
+      { tipo: "tabela", cabecalho: ["Leitura", "O que cabe"], linhas: [
+        ["Neutra", "Sustentar"],
+        ["Defesa", "Priorizar profundidade e recuperação"],
+        ["Ataque", "Converter"],
+      ] },
+      { tipo: "aviso", texto: "A contaminação pelo estado: quem acabou de ser atacado duas vezes classifica como defesa uma bola curta e alta; quem acabou de acertar dois winners ataca bola que não pedia ataque. Nos dois casos o jogador não está lendo a bola — está lendo o próprio estado e chamando isso de leitura." },
+      { tipo: "texto", titulo: "As decisões são padrões — e padrões se treinam", texto: "Em 99% das vezes as decisões em quadra são automáticas, formadas pelos padrões de treino e pelas capacidades técnicas. O erro de decisão é resultado daquilo que foi treinado, ou daquilo que não foi — não adianta apenas falar, o jogador precisa repetir mecanicamente a decisão mais correta até que ela substitua a menos assertiva." },
+      { tipo: "texto", titulo: "A assimetria ataque/defesa", texto: "É fácil reconhecer defesa e decidir defender. O difícil é decidir atacar quando há demanda — por medo de errar atacando, e por uma cultura que trata acertar a bola na quadra como objetivo e não como meio. A arma principal do jogo agressivo são as pernas." },
+    ],
+  },
+  {
+    id: "P-02", titulo: "Os seis sistemas de ataque",
+    frase: "Padrões de duas bolas com papéis definidos — a primeira arma, a segunda converte.",
+    blocos: [
+      { tipo: "tabela", cabecalho: ["Sistema", "Lógica tática"], linhas: [
+        ["Forehand cruzado + ataque paralelo", "O cruzado profundo empurra para fora; a paralela ataca o espaço atrás dele"],
+        ["Forehand cruzado + inside out", "O cruzado fixa; o inside out ataca o mesmo canto com ângulo mais agudo"],
+        ["Forehand cruzado + inside in", "Quando o adversário troca a direção, o inside in pega o contrapé"],
+        ["Forehand paralelo + inside out", "A paralela surpreende; a resposta central vira presa do inside out"],
+        ["Backhand cruzado + inside out", "A troca de backhand cria a bola central curta; o contorno converte"],
+        ["Backhand paralelo + inside out", "A paralela de backhand — bola de coragem — abre a quadra inteira"],
+      ] },
+      { tipo: "aviso", texto: "A regra de ouro: a bola que arma tem alvo de segurança, cerca de dois metros das linhas. A bola que converte tem alvo de pressão. Inverter isso — arriscar na armação — é a origem da maior parte dos erros não forçados em construção de ponto." },
+      { tipo: "tabela", titulo: "Os três erros mais comuns", cabecalho: ["Erro observado", "Onde nasce", "O que fazer"], linhas: [
+        ["Erro na primeira bola da sequência", "Alvo de pressão usado na bola que armava", "Registrar posição do erro; trabalhar tolerância de sustentar"],
+        ["Executa no exercício e não no jogo", "Padrão verbalizado, não automatizado", "Repetição mecânica até acesso sem deliberar"],
+        ["Ataca sempre, erra cedo", "Impaciência disfarçada de agressividade", "Expor ao desconforto de sustentar — não explicar o padrão que ele já sabe"],
+      ] },
+      { tipo: "texto", texto: "Nota: os seis sistemas reaparecem na Parte 6 como padrões numerados, com custo técnico e nível de entrada (P3 e P4 correspondem ao inside out, P12 ao cruzado + ataque paralelo). Quando divergirem em detalhe, esta ficha descreve o fundamento; a Parte 6 descreve o ensino." },
+    ],
+  },
+  {
+    id: "P-03", titulo: "Defesa e contra-ataque",
+    frase: "A função da defesa não é acertar mais uma bola na quadra — é parar o ataque.",
+    blocos: [
+      { tipo: "tabela", titulo: "As duas defesas", cabecalho: ["", "Defesa alta", "Defesa acelerada"], linhas: [
+        ["O que faz", "Compra tempo e espaço", "Tira tempo do adversário e cria contra-ataque"],
+        ["Quando", "Desequilíbrio grande, necessidade de recompor", "Quando há estrutura mínima para acelerar"],
+        ["Risco", "A bola lenta e alta hoje é atacada, voleada ou contra-atacada", "Erro por instabilidade"],
+      ] },
+      { tipo: "texto", titulo: "O repertório completo", texto: "Ataque paralelo de forehand e de backhand como contra-ataque quando o adversário abre o ângulo primeiro · defesa cruzada dos dois lados, porque a cruzada dá mais quadra e mais tempo · lobs defensivo e ofensivo · os quatro passing shots, sendo o cruzado o de mais margem e o paralelo a punição da cobertura errada · e a bola funda e alta pelo centro, que é o reset que tira os ângulos e devolve o ponto ao neutro." },
+      { tipo: "tabela", titulo: "Os três erros mais comuns", cabecalho: ["Erro observado", "Onde nasce", "O que fazer"], linhas: [
+        ["Defende e continua defendendo", "Não reconhece o momento de transição", "Trabalhar reconhecimento da perda e da retomada de iniciativa"],
+        ["Só tem uma defesa", "Repertório limitado", "RT009 e JA011: alternância obrigatória"],
+        ["Levanta a bola por hábito, não por escolha", "Padrão único treinado", "Introduzir a defesa acelerada como opção deliberada"],
+      ] },
+    ],
+  },
+  {
+    id: "P-04", titulo: "Teoria do centro e geometria do deslocamento",
+    frase: "Onde esperar, quando avançar, quando recuar — e o critério concreto para a decisão mais arriscada do jogo de fundo.",
+    blocos: [
+      { tipo: "tabela", cabecalho: ["Conceito", "Fundamento"], linhas: [
+        ["Teoria do centro", "Quanto mais você abre ângulos e mexe o adversário, mais a bola dele tende a voltar para o centro — desde que a sua bola seja profunda. Ângulo raso sem profundidade devolve o ângulo ao adversário"],
+        ["Regra das cruzadas", "A tendência natural da bola é voltar cruzada: mais quadra, rede mais baixa, menos risco. O posicionamento de espera não é o meio geométrico, é o meio relativo — o centro do leque de respostas possíveis"],
+        ["Avanço para o ataque", "Quando sua bola empurra ou desequilibra, o corpo avança. Ganhar terreno é ganhar tempo e ângulo"],
+        ["Recuo para a defesa", "Recuo organizado, diagonal, nunca de costas. Recuar é tático, não é derrota"],
+        ["Cobertura de rede", "Seguir a linha do próprio approach, fechando o ângulo de passada"],
+        ["Diminuição de tempo", "Cada metro e cada décimo roubado reduz a qualidade da resposta. Toda decisão tática pode ser lida por essa régua"],
+      ] },
+      { tipo: "tabela", titulo: "A geometria do deslocamento", cabecalho: ["Situação", "Para onde o corpo vai", "Mudança de direção"], linhas: [
+        ["Bola muito aberta na cruzada", "Para fora da quadra — mais longe do lado oposto", "Não recomendada"],
+        ["Troca de cruzada que induz ao centro", "Já em direção ao lado oposto", "Mais lógica — o deslocamento trabalha a favor"],
+      ] },
+      { tipo: "aviso", texto: "Mudar de direção é estatisticamente mais arriscado: a janela sobre a rede muda e o tempo de ajuste diminui. É decisão deliberada, nunca hábito — o critério é \"meu deslocamento está me levando para lá?\", não \"posso mudar?\"." },
+    ],
+  },
+  {
+    id: "P-05", titulo: "A matriz de decisão do saque",
+    frase: "Dezoito cenários que precisam estar pré-resolvidos, porque nos quatro décimos entre uma bola e outra não há tempo para escolher — só para reconhecer.",
+    blocos: [
+      { tipo: "tabela", titulo: "As três variáveis (3 × 2 × 3 = 18 cenários)", cabecalho: ["Variável", "Opções"], linhas: [
+        ["Direção do saque", "Aberto · no corpo · fechado"],
+        ["Lado da quadra", "Iguais · vantagem"],
+        ["Caminho da devolução", "Cruzada · meio · paralela"],
+      ] },
+      { tipo: "tabela", titulo: "Exemplos de leitura", cabecalho: ["Saque", "Consequência", "Primeira bola natural"], linhas: [
+        ["Aberto na quadra de iguais", "Abre o ângulo à direita; devolução cruzada mais provável", "Atacar o espaço deixado do lado oposto"],
+        ["No corpo", "Encurta e centraliza a devolução", "Bola agressiva pelo centro, negando ângulo e tempo"],
+        ["Fechado", "Tira o ângulo do devolvedor", "Proteger a paralela"],
+      ] },
+      { tipo: "aviso", texto: "Os dados que confirmam o mapa: cerca de duas em cada três devoluções voltam pelo meio da quadra. Quando a devolução volta no forehand do sacador, ele ganha o ponto em torno de 65% das vezes; angulada nos cantos, cai para 58–59%. A devolução na paralela é apenas ~11% do total — rota subutilizada e ponto cego do sacador." },
+      { tipo: "texto", titulo: "Na quadra de vantagem", texto: "Cerca de 71% dos segundos saques vão ao backhand, e entre 71 e 78% das devoluções voltam cruzadas para aquele lado — o que justifica treinar especificamente o contorno de forehand nessa situação." },
+    ],
+  },
+  {
+    id: "P-06", titulo: "Devolução e primeira bola",
+    frase: "O mapa do devolvedor — porque metade dos games começa com ele, e é o bloco menos treinado do jogo.",
+    blocos: [
+      { tipo: "tabela", cabecalho: ["Devolução", "Intenção", "Quando"], linhas: [
+        ["Meio e funda, nos dois lados", "Neutralizar — tira o ângulo do sacador e dá tempo", "Primeiro saque forte"],
+        ["Cruzada, nos dois lados", "Construir — mais quadra e mais margem sobre a rede", "Saque médio"],
+        ["Paralela", "Surpreender — rota subutilizada, ponto cego do sacador", "Deliberadamente, não por hábito"],
+        ["Entrando e agressiva", "Roubar tempo — encurta o tempo do sacador", "Segundo saque, ou primeiro previsível"],
+      ] },
+      { tipo: "texto", texto: "A combinação completa é devolução mais primeira bola: devolvida cruzada ou paralela, em iguais ou em vantagem, com a bola seguinte já com intenção definida." },
+      { tipo: "tabela", titulo: "Os três erros mais comuns", cabecalho: ["Erro observado", "Onde nasce", "O que fazer"], linhas: [
+        ["Devolve e \"vê o que acontece\"", "Ausência de plano para a bola seguinte", "Declarar intenção da primeira bola antes do ponto"],
+        ["Devolve sempre igual", "Padrão único treinado", "Trabalhar as quatro intenções em rodízio"],
+        ["Chega tarde no segundo saque", "Espera na posição do primeiro", "Duas posições de espera distintas, treinadas separadamente"],
+      ] },
+    ],
+  },
+  {
+    id: "P-07", titulo: "Como construir uma estratégia",
+    frase: "Toda estratégia tem três elementos — se faltar um, é um golpe, não uma estratégia.",
+    blocos: [
+      { tipo: "lista", titulo: "Os três elementos obrigatórios", itens: [
+        "Uma bola que cria uma condição — profundidade, altura, ângulo, falta de ritmo.",
+        "Uma bola que explora a resposta provável, prevista pela teoria do centro e pela regra das cruzadas.",
+        "O posicionamento que antecipa essa resposta.",
+      ] },
+      { tipo: "tabela", titulo: "As quatro estratégias de base", cabecalho: ["Estratégia", "Como funciona"], linhas: [
+        ["Abertura de quadra", "Bola profunda que congela o adversário atrás; ângulo cruzado curto que o tira da quadra"],
+        ["Briga de cruzadas", "Fixar a troca na cruzada sustentando profundidade até receber a bola mais central ou curta — e então mudar"],
+        ["Variações de velocidade, efeito, altura e direção", "Bola alta com spin na cruzada, seguida de plana e rápida no lado oposto: a primeira desloca, a segunda pune"],
+        ["Bola pesada no saibro", "Alta e pesada no backhand para forçar resposta central; posicionar-se atrás e ao centro, contornar com o forehand"],
+      ] },
+      { tipo: "texto", titulo: "Derivadas", texto: "Saque aberto e quadra vazia · corpo e centro · alto no backhand e curtinha · devolução funda central e briga de forehand · slice de quebra e aceleração · serve-volley pontual como surpresa." },
+      { tipo: "aviso", texto: "Como adaptar ao jogador: as estratégias devem ser escolhidas pelos recursos que ele possui. Um jogador sem bola pesada não executa a estratégia do saibro; um sem curtinha confiável não executa a quarta derivada. Dar estratégia sem recurso é o mesmo erro que cobrar decisão sem ferramenta." },
+      { tipo: "texto", titulo: "Sobre padrões próprios", texto: "A partir do Y5, o trabalho não é ampliar o repertório indefinidamente — é automatizar dois ou três padrões próprios, escolhidos pelas características do jogador, até que sejam acessados sem deliberar." },
+    ],
+  },
+];
+
 /* ── cursos de formação continuada, por módulo ── */
 const CURSOS_FORMACAO = [
   {
@@ -4244,7 +4701,7 @@ function App() {
           </div>
           <div className="mt-0.5"><Etiqueta>Ficha, periodização e sessão · 315 exercícios</Etiqueta></div>
           <nav className="flex gap-6 mt-3">
-            {[{ v: "alunos", r: "Jogadores" }, { v: "turmas", r: "Turmas" }, { v: "catalogo", r: "Catálogo" }, { v: "taticas", r: "Táticas" }, { v: "conducao", r: "Condução" }, { v: "publicos", r: "Públicos" }, { v: "casos", r: "Casos" }, { v: "metodo", r: "Como decide" },
+            {[{ v: "alunos", r: "Jogadores" }, { v: "turmas", r: "Turmas" }, { v: "catalogo", r: "Catálogo" }, { v: "tecnica", r: "Técnica" }, { v: "taticas", r: "Táticas" }, { v: "conducao", r: "Condução" }, { v: "publicos", r: "Públicos" }, { v: "casos", r: "Casos" }, { v: "metodo", r: "Como decide" },
               ...(papelAtual === "coordenador" ? [{ v: "equipe", r: "Equipe" }] : [])].map((t) => (
               <button key={t.v} onClick={() => { setAba(t.v); setAbertoId(null); }}
                 style={{ fontFamily: ARCH, fontSize: 13, fontWeight: aba === t.v ? 700 : 500, padding: "6px 0", cursor: "pointer", color: aba === t.v ? C.tinta : C.grafite, borderBottom: "2px solid " + (aba === t.v ? C.saibro : "transparent") }}>
@@ -4259,6 +4716,7 @@ function App() {
         {carregando ? <p style={{ ...prosa, color: C.grafite }}>Carregando…</p> :
          aba === "catalogo" ? <TelaCatalogo /> :
          aba === "taticas" ? <TelaTaticas /> :
+         aba === "tecnica" ? <TelaTecnica /> :
          aba === "casos" ? <TelaCasos /> :
          aba === "conducao" ? <TelaConducao /> :
          aba === "publicos" ? <TelaPublicos /> :
@@ -4541,6 +4999,40 @@ function TelaConducao() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function FichaTecnica({ f }) {
+  return (
+    <Secao titulo={f.id + " · " + f.titulo}>
+      <p style={{ ...prosa, fontSize: 14, marginBottom: 14, fontStyle: "italic" }}>{f.frase}</p>
+      {f.blocos.map((b, i) => <BlocoReferencia key={i} b={b} />)}
+    </Secao>
+  );
+}
+
+function TelaTecnica() {
+  const [subaba, setSubaba] = useState("t");
+  const series = { t: SERIE_T, m: SERIE_M, p: SERIE_P };
+  return (
+    <div>
+      <p style={{ ...prosa, marginBottom: 14 }}>
+        Parte 2 do manual. Uma ficha por golpe, movimentação ou decisão tática — cada uma responde
+        sozinha à pergunta de quadra. O campo que mais importa em cada uma é o dos erros mais
+        comuns: a ligação sintoma → causa.
+      </p>
+      <div className="flex gap-2 mb-6 flex-wrap">
+        {[["t", "T · Golpes"], ["m", "M · Movimentação"], ["p", "P · Ponto e tática"]].map(([v, r]) => (
+          <button key={v} onClick={() => setSubaba(v)}
+            style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: subaba === v ? 700 : 500, padding: "7px 12px",
+              borderRadius: 2, cursor: "pointer", border: "1px solid " + (subaba === v ? C.tinta : C.linha),
+              background: subaba === v ? C.tinta : C.cal, color: subaba === v ? C.papel : C.grafite }}>
+            {r}
+          </button>
+        ))}
+      </div>
+      {series[subaba].map((f) => <FichaTecnica key={f.id} f={f} />)}
     </div>
   );
 }
