@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin · Metodologia MTY</title>
+<style>
+  :root{ --papel:#F5F2F0; --tinta:#141210; --verm:#C8102E; --cinza:#6B6461; --linha:#D8D1CB; --verde:#2E4739; }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--papel); color:var(--tinta);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; padding:0 0 60px}
+  .topo{background:var(--verm); height:7px}
+  .wrap{max-width:480px; margin:0 auto; padding:0 18px}
+  header{padding:24px 0 8px}
+  h1{font-family:Georgia,serif; font-size:22px; margin:8px 0 2px}
+  .sub{color:var(--cinza); font-size:13px}
+  .campo{margin:16px 0}
+  label{display:block; font-size:11.5px; font-weight:700; letter-spacing:.04em;
+    text-transform:uppercase; margin-bottom:6px; color:var(--cinza)}
+  input{width:100%; border:1px solid var(--linha); background:#fff; border-radius:3px;
+    padding:11px 12px; font:inherit; font-size:15px; color:var(--tinta)}
+  input:focus{outline:none; border-color:var(--verm)}
+  .bt{width:100%; border:none; border-radius:3px; padding:14px; font-size:15px; font-weight:700;
+    cursor:pointer; font-family:inherit; background:var(--verm); color:#fff; margin-top:8px}
+  .bt[disabled]{opacity:.6}
+  .resultado{margin-top:18px; padding:13px 14px; border-radius:3px; font-size:13.5px;
+    white-space:pre-wrap; word-break:break-word; display:none}
+  .ok{background:var(--verde); color:#fff}
+  .erro{background:#fff; border:1px solid var(--linha); border-left:4px solid var(--verm)}
+  .aviso{background:#fff; border:1px solid var(--linha); border-left:4px solid #C9A227;
+    padding:12px 14px; margin:18px 0; font-size:12.5px; color:var(--cinza)}
+</style>
+</head>
+<body>
+<div class="topo"></div>
+<div class="wrap">
+<header>
+  <div class="sub">METODOLOGIA MTY · ADMIN</div>
+  <h1>Criar academia</h1>
+  <div class="sub">Só para quem administra o sistema — cria a conta do treinador já ligada à academia.</div>
+</header>
+
+<div class="aviso">
+  Esta página não fica visível em nenhum menu do app — só quem tem o link chega aqui.
+  Ainda assim, evite deixá-la aberta em aparelho de terceiros.
+</div>
+
+<div class="campo">
+  <label>Segredo de administrador</label>
+  <input type="password" id="segredo" autocomplete="off">
+</div>
+<div class="campo">
+  <label>Identificador da academia (orgId)</label>
+  <input type="text" id="orgId" placeholder="team-yoda" autocomplete="off">
+</div>
+<div class="campo">
+  <label>Nome da academia</label>
+  <input type="text" id="nomeAcademia" placeholder="Team Yoda Tennis Pro">
+</div>
+<div class="campo">
+  <label>E-mail do treinador</label>
+  <input type="email" id="email" autocomplete="off">
+</div>
+<div class="campo">
+  <label>Senha</label>
+  <input type="text" id="senha" placeholder="pelo menos 6 caracteres" autocomplete="off">
+</div>
+
+<button class="bt" id="btCriar">Criar academia</button>
+<div class="resultado" id="resultado"></div>
+
+</div>
+<script>
+document.getElementById('btCriar').onclick = async function(){
+  const bt = this;
+  const el = document.getElementById('resultado');
+  el.style.display = 'none';
+
+  const segredo = document.getElementById('segredo').value.trim();
+  const orgId = document.getElementById('orgId').value.trim();
+  const nomeAcademia = document.getElementById('nomeAcademia').value.trim();
+  const email = document.getElementById('email').value.trim();
+  const senha = document.getElementById('senha').value;
+
+  if (!segredo || !orgId || !email || !senha) {
+    el.className = 'resultado erro';
+    el.textContent = 'Preencha segredo, orgId, e-mail e senha.';
+    el.style.display = 'block';
+    return;
+  }
+
+  bt.disabled = true; bt.textContent = 'Criando…';
+  try {
+    const r = await fetch('/.netlify/functions/provisionar-org', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-admin-secret': segredo },
+      body: JSON.stringify({ orgId, nomeAcademia, email, senha }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.erro || ('Erro ' + r.status));
+    el.className = 'resultado ok';
+    el.textContent = 'Pronto. Academia "' + d.orgId + '" criada para ' + d.email + '.\n\n' + (d.aviso || '');
+    el.style.display = 'block';
+  } catch (e) {
+    el.className = 'resultado erro';
+    el.textContent = String(e.message || e);
+    el.style.display = 'block';
+  }
+  bt.disabled = false; bt.textContent = 'Criar academia';
+};
+</script>
+</body>
+</html>
