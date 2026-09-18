@@ -615,18 +615,19 @@ function Etiqueta({ children, cor = C.grafite }) {
   );
 }
 
-function Botao({ children, onClick, variante = "cheio", pequeno }) {
+function Botao({ children, onClick, variante = "cheio", pequeno, disabled }) {
   const base = {
     fontFamily: ARCH, fontSize: pequeno ? 12 : 14, fontWeight: 600,
     padding: pequeno ? "6px 12px" : "11px 18px", borderRadius: 2,
-    cursor: "pointer", border: "1px solid " + C.tinta,
+    cursor: disabled ? "default" : "pointer", border: "1px solid " + C.tinta,
+    opacity: disabled ? 0.55 : 1,
   };
   const v = {
     cheio: { ...base, background: C.tinta, color: C.papel },
     vazio: { ...base, background: "transparent", color: C.tinta },
     saibro: { ...base, background: C.saibro, color: "#fff", borderColor: C.saibro },
   };
-  return <button onClick={onClick} style={v[variante]}>{children}</button>;
+  return <button onClick={onClick} disabled={disabled} style={v[variante]}>{children}</button>;
 }
 
 const entrada = {
@@ -2915,6 +2916,25 @@ function TelaCatalogo() {
    Só existe quando o Firebase está configurado. Em modo local o app abre
    direto, porque não há nuvem para proteger. Todos os treinadores que
    entram veem os mesmos dados: é conta de equipe, não de aluno. */
+function TelaSemAcademia() {
+  return (
+    <div style={{ background: C.papel, minHeight: "100vh" }}>
+      <div style={{ height: 4, background: C.saibro }} />
+      <div style={{ maxWidth: 400, margin: "0 auto", padding: "56px 22px", textAlign: "center" }}>
+        <img src="assets/logo-team-yoda.jpg" alt="Team Yoda" style={{ height: 34, margin: "0 auto 18px" }} />
+        <h1 style={{ fontFamily: ARCH, fontSize: 18, fontWeight: 700 }}>Pedido em análise</h1>
+        <p style={{ ...prosa, fontSize: 14, color: C.grafite, marginTop: 10 }}>
+          Sua conta existe, mas ainda não foi aprovada pelo coordenador da academia.
+          Assim que ele aprovar, saia e entre de novo para o acesso valer.
+        </p>
+        <div className="mt-6">
+          <Botao variante="vazio" onClick={() => window.mtyAuth.sair()}>Sair</Botao>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TelaLogin({ aoEntrar }) {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
@@ -2972,11 +2992,105 @@ function TelaLogin({ aoEntrar }) {
         </button>
 
         <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 18 }}>
-          Todos os treinadores da mesma academia veem os mesmos jogadores, fichas e casos. Não há
-          cadastro por aqui — sua conta é criada pelo administrador, já ligada à sua academia. Sem
-          conta, fale com quem administra a MTY na sua academia.
+          Todos os treinadores da mesma academia veem os mesmos jogadores, fichas e casos.
+          Ainda não tem conta? <a href="solicitar-acesso.html" style={{ color: C.saibro }}>Solicite acesso à sua academia</a> —
+          o coordenador precisa aprovar antes de você entrar.
         </p>
       </div>
+    </div>
+  );
+}
+
+/* ── equipe da academia (só coordenador) ──
+   Pedidos de acesso ficam pendentes até alguém com role "coordenador"
+   aprovar — a function aprovar-treinador confere isso pelo próprio
+   token de quem chama, não por um segredo separado. */
+function TelaEquipe() {
+  const [pendentes, setPendentes] = useState([]);
+  const [carregando, setCarregando] = useState(true);
+  const [ocupado, setOcupado] = useState(null);
+  const [erro, setErro] = useState("");
+
+  async function carregar() {
+    setCarregando(true);
+    try {
+      const org = await organizacao();
+      const snap = await db.collection("orgs").doc(org).collection("solicitacoes")
+        .where("status", "==", "pendente").get();
+      const lista = [];
+      snap.forEach((d) => lista.push({ uid: d.id, ...d.data() }));
+      setPendentes(lista);
+    } catch (e) {
+      setErro(String(e.message || e));
+    }
+    setCarregando(false);
+  }
+  useEffect(() => { carregar(); }, []);
+
+  async function aprovar(uid) {
+    setOcupado(uid); setErro("");
+    try {
+      const token = await window.mtyAuth.tokenId();
+      const r = await fetch("/.netlify/functions/aprovar-treinador", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: "Bearer " + token },
+        body: JSON.stringify({ uid }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.erro || ("Erro " + r.status));
+      await carregar();
+    } catch (e) {
+      setErro(String(e.message || e));
+    }
+    setOcupado(null);
+  }
+
+  async function recusar(uid) {
+    setOcupado(uid); setErro("");
+    try {
+      const org = await organizacao();
+      await db.collection("orgs").doc(org).collection("solicitacoes").doc(uid)
+        .set({ status: "recusada" }, { merge: true });
+      await carregar();
+    } catch (e) {
+      setErro(String(e.message || e));
+    }
+    setOcupado(null);
+  }
+
+  return (
+    <div>
+      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Equipe</h1>
+      <p style={{ ...prosa, color: C.grafite, marginBottom: 18 }}>
+        Pedidos de acesso de treinadores novos para esta academia.
+      </p>
+
+      {erro && <div className="mb-4"><Aviso>{erro}</Aviso></div>}
+
+      {carregando ? (
+        <p style={{ ...prosa, color: C.grafite }}>Carregando…</p>
+      ) : pendentes.length === 0 ? (
+        <p style={{ ...prosa, color: C.grafite }}>Nenhum pedido pendente no momento.</p>
+      ) : (
+        pendentes.map((p) => (
+          <div key={p.uid} style={{ background: C.cal, border: "1px solid " + C.linha, padding: "13px 15px", marginBottom: 9 }}>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{p.nome || "Sem nome"}</div>
+                <div style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>{p.email}</div>
+              </div>
+              <div className="flex gap-2">
+                <Botao pequeno onClick={() => aprovar(p.uid)} disabled={ocupado === p.uid}>
+                  {ocupado === p.uid ? "…" : "Aprovar"}
+                </Botao>
+                <Botao pequeno variante="vazio" onClick={() => recusar(p.uid)} disabled={ocupado === p.uid}>
+                  Recusar
+                </Botao>
+              </div>
+            </div>
+          </div>
+        ))
+      )}
     </div>
   );
 }
@@ -2990,6 +3104,9 @@ function App() {
   const exigeLogin = typeof window !== "undefined" && !!window.mtyAuth;
   const [autenticado, setAutenticado] = useState(!exigeLogin);
   const [checando, setChecando] = useState(exigeLogin);
+  const [orgAtual, setOrgAtual] = useState(null);
+  const [papelAtual, setPapelAtual] = useState(null);
+  const [verificandoOrg, setVerificandoOrg] = useState(exigeLogin);
 
   useEffect(() => {
     if (!exigeLogin) return;
@@ -2997,9 +3114,23 @@ function App() {
   }, [exigeLogin]);
 
   useEffect(() => {
-    if (!autenticado) return;
+    if (!exigeLogin || !autenticado) { setVerificandoOrg(false); return; }
+    setVerificandoOrg(true);
+    (async () => {
+      const org = await organizacao();
+      setOrgAtual(org);
+      try {
+        const tok = await window.mtyAuth.usuario().getIdTokenResult();
+        setPapelAtual((tok.claims && tok.claims.role) || null);
+      } catch (e) { setPapelAtual(null); }
+      setVerificandoOrg(false);
+    })();
+  }, [exigeLogin, autenticado]);
+
+  useEffect(() => {
+    if (!autenticado || (exigeLogin && !orgAtual)) return;
     leia("mty:alunos:v2", []).then((a) => { setAlunos(a); setCarregando(false); });
-  }, [autenticado]);
+  }, [autenticado, orgAtual]);
   useEffect(() => { if (autenticado && !carregando) grave("mty:alunos:v2", alunos); }, [alunos, carregando, autenticado]);
 
   const aberto = abertoId ? alunos.find((a) => a.id === abertoId) : null;
@@ -3015,6 +3146,9 @@ function App() {
   if (checando)
     return <div style={{ background: C.papel, minHeight: "100vh", padding: 60, textAlign: "center", fontFamily: ARCH, color: C.grafite }}>Verificando acesso…</div>;
   if (!autenticado) return <TelaLogin aoEntrar={() => setAutenticado(true)} />;
+  if (verificandoOrg)
+    return <div style={{ background: C.papel, minHeight: "100vh", padding: 60, textAlign: "center", fontFamily: ARCH, color: C.grafite }}>Verificando sua academia…</div>;
+  if (exigeLogin && !orgAtual) return <TelaSemAcademia />;
 
   return (
     <div style={{ background: C.papel, minHeight: "100vh", color: C.tinta }}>
@@ -3038,7 +3172,8 @@ function App() {
           </div>
           <div className="mt-0.5"><Etiqueta>Ficha, periodização e sessão · 315 exercícios</Etiqueta></div>
           <nav className="flex gap-6 mt-3">
-            {[{ v: "alunos", r: "Jogadores" }, { v: "catalogo", r: "Catálogo" }, { v: "taticas", r: "Táticas" }, { v: "casos", r: "Casos" }, { v: "metodo", r: "Como decide" }].map((t) => (
+            {[{ v: "alunos", r: "Jogadores" }, { v: "catalogo", r: "Catálogo" }, { v: "taticas", r: "Táticas" }, { v: "casos", r: "Casos" }, { v: "metodo", r: "Como decide" },
+              ...(papelAtual === "coordenador" ? [{ v: "equipe", r: "Equipe" }] : [])].map((t) => (
               <button key={t.v} onClick={() => { setAba(t.v); setAbertoId(null); }}
                 style={{ fontFamily: ARCH, fontSize: 13, fontWeight: aba === t.v ? 700 : 500, padding: "6px 0", cursor: "pointer", color: aba === t.v ? C.tinta : C.grafite, borderBottom: "2px solid " + (aba === t.v ? C.saibro : "transparent") }}>
                 {t.r}
@@ -3054,6 +3189,7 @@ function App() {
          aba === "taticas" ? <TelaTaticas /> :
          aba === "casos" ? <TelaCasos /> :
          aba === "metodo" ? <TelaMetodo /> :
+         aba === "equipe" ? <TelaEquipe /> :
          aberto ? (
           <div>
             <button onClick={() => setAbertoId(null)} className="mb-3" style={{ ...prosa, color: C.grafite, cursor: "pointer" }}>← Todos os jogadores</button>

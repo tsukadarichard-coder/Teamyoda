@@ -46,7 +46,7 @@ exports.handler = async function (event) {
     } catch (e) {
       usuario = await admin.auth().createUser({ email, password: senha });
     }
-    await admin.auth().setCustomUserClaims(usuario.uid, { orgId });
+    await admin.auth().setCustomUserClaims(usuario.uid, { orgId, role: "coordenador" });
     await admin.firestore().collection("orgs").doc(orgId).collection("meta").doc("info").set({
       nome: nomeAcademia || orgId,
       atualizadoEm: new Date().toISOString(),

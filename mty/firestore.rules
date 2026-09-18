@@ -17,5 +17,14 @@ service cloud.firestore {
     match /orgs/{orgId}/{document=**} {
       allow read, write: if orgDoToken() != null && orgDoToken() == orgId;
     }
+
+    /* Pedido de acesso de um treinador novo — ele ainda não tem orgId
+       (só ganha isso quando o coordenador aprova, via function), então a
+       regra acima não bastaria. Só pode criar/ler o PRÓPRIO pedido,
+       nunca ler o de outra pessoa nem a lista inteira. */
+    match /orgs/{orgId}/solicitacoes/{uid} {
+      allow create: if request.auth != null && request.auth.uid == uid;
+      allow read: if request.auth != null && request.auth.uid == uid;
+    }
   }
 }

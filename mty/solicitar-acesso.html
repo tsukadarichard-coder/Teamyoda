@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Solicitar acesso · Metodologia MTY</title>
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-auth-compat.js"></script>
+<script src="mty-nuvem.js"></script>
+<style>
+  :root{ --papel:#F5F2F0; --tinta:#141210; --verm:#C8102E; --cinza:#6B6461; --linha:#D8D1CB; --verde:#2E4739; }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--papel); color:var(--tinta);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; padding:0 0 60px}
+  .topo{background:var(--verm); height:7px}
+  .wrap{max-width:420px; margin:0 auto; padding:0 20px}
+  header{padding:26px 0 14px; text-align:center}
+  header img{height:34px}
+  h1{font-family:Georgia,serif; font-size:20px; margin:14px 0 4px}
+  .sub{color:var(--cinza); font-size:13px}
+  .campo{margin:16px 0}
+  label{display:block; font-size:11.5px; font-weight:700; letter-spacing:.04em;
+    text-transform:uppercase; margin-bottom:6px; color:var(--cinza)}
+  input{width:100%; border:1px solid var(--linha); background:#fff; border-radius:3px;
+    padding:11px 12px; font:inherit; font-size:15px; color:var(--tinta)}
+  input:focus{outline:none; border-color:var(--verm)}
+  .bt{width:100%; border:none; border-radius:3px; padding:14px; font-size:15px; font-weight:700;
+    cursor:pointer; font-family:inherit; background:var(--verm); color:#fff; margin-top:8px}
+  .bt[disabled]{opacity:.6}
+  .msg{margin-top:16px; padding:13px 14px; border-radius:3px; font-size:13.5px; display:none}
+  .ok{background:var(--verde); color:#fff}
+  .erro{background:#fff; border:1px solid var(--linha); border-left:4px solid var(--verm)}
+</style>
+</head>
+<body>
+<div class="topo"></div>
+<div class="wrap">
+<header>
+  <img src="assets/logo-team-yoda.jpg" alt="Team Yoda">
+  <h1>Solicitar acesso</h1>
+  <div class="sub">Pra treinador que ainda não tem conta na Metodologia MTY</div>
+</header>
+
+<div id="form">
+  <div class="campo">
+    <label>Seu nome</label>
+    <input type="text" id="nome" autocomplete="name">
+  </div>
+  <div class="campo">
+    <label>E-mail</label>
+    <input type="email" id="email" autocomplete="email">
+  </div>
+  <div class="campo">
+    <label>Senha</label>
+    <input type="password" id="senha" autocomplete="new-password" placeholder="pelo menos 6 caracteres">
+  </div>
+  <div class="campo">
+    <label>Identificador da academia</label>
+    <input type="text" id="orgId" placeholder="peça ao seu coordenador, ex: team-yoda">
+  </div>
+  <button class="bt" id="btEnviar">Solicitar acesso</button>
+  <div class="msg" id="msg"></div>
+</div>
+</div>
+
+<script>
+(function(){
+  var p = new URLSearchParams(location.search);
+  var orgPreenchido = p.get('org');
+  if (orgPreenchido) document.getElementById('orgId').value = orgPreenchido;
+
+  if (typeof MTY === 'undefined' || !MTY.ligado) {
+    document.getElementById('form').innerHTML =
+      '<div class="msg erro" style="display:block">Este app ainda não está com a nuvem configurada — fale com o coordenador.</div>';
+    return;
+  }
+
+  document.getElementById('btEnviar').onclick = async function(){
+    var btn = this, msg = document.getElementById('msg');
+    msg.style.display = 'none';
+
+    var nome = document.getElementById('nome').value.trim();
+    var email = document.getElementById('email').value.trim();
+    var senha = document.getElementById('senha').value;
+    var orgId = document.getElementById('orgId').value.trim();
+
+    if (!nome || !email || !senha || !orgId) {
+      msg.className = 'msg erro'; msg.textContent = 'Preencha todos os campos.'; msg.style.display = 'block';
+      return;
+    }
+
+    btn.disabled = true; btn.textContent = 'Enviando…';
+    try {
+      var cred = await firebase.auth().createUserWithEmailAndPassword(email, senha);
+      var db = firebase.firestore();
+      await db.collection('orgs').doc(orgId).collection('solicitacoes').doc(cred.user.uid).set({
+        nome: nome, email: email, status: 'pendente', criadoEm: new Date().toISOString(),
+      });
+      document.getElementById('form').innerHTML =
+        '<div class="msg ok" style="display:block">Pedido enviado! Assim que o coordenador da academia aprovar, você já pode entrar com este e-mail e senha na tela principal.</div>';
+      await firebase.auth().signOut();
+    } catch (e) {
+      var msgs = {
+        'auth/email-already-in-use': 'Já existe uma conta com este e-mail. Se já pediu acesso antes, fale com o coordenador.',
+        'auth/invalid-email': 'E-mail inválido.',
+        'auth/weak-password': 'A senha precisa de pelo menos 6 caracteres.',
+      };
+      msg.className = 'msg erro';
+      msg.textContent = msgs[e.code] || String(e.message || e);
+      msg.style.display = 'block';
+      btn.disabled = false; btn.textContent = 'Solicitar acesso';
+    }
+  };
+})();
+</script>
+</body>
+</html>
