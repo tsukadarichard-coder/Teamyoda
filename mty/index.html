@@ -2859,6 +2859,7 @@ function TelaPlano({ aluno, alunos, setAlunos }) {
   const [relatorio, setRelatorio] = useState("");
   const [linkAluno, setLinkAluno] = useState("");
   const [gerandoLink, setGerandoLink] = useState(false);
+  const [linkCopiado, setLinkCopiado] = useState(false);
   const [chuvaAberta, setChuvaAberta] = useState(null);
 
   const plano = aluno.plano;
@@ -3079,9 +3080,21 @@ function TelaPlano({ aluno, alunos, setAlunos }) {
       const url = location.origin + "/aluno.html?org=" + encodeURIComponent(org || "") +
         "&id=" + encodeURIComponent(aluno.id) + "&t=" + encodeURIComponent(chave);
       setLinkAluno(url);
+      setLinkCopiado(false);
     } finally {
       setGerandoLink(false);
     }
+  }
+
+  async function copiarLinkAluno() {
+    try {
+      await navigator.clipboard.writeText(linkAluno);
+    } catch {
+      const campo = document.getElementById("mty-link-aluno");
+      if (campo) { campo.select(); document.execCommand("copy"); }
+    }
+    setLinkCopiado(true);
+    setTimeout(() => setLinkCopiado(false), 2000);
   }
 
   return (
@@ -3106,10 +3119,10 @@ function TelaPlano({ aluno, alunos, setAlunos }) {
           {gerandoLink ? "Gerando…" : "Link para o aluno (protótipo)"}
         </Botao>
         {linkAluno && (
-          <div className="mt-2 flex gap-2 items-center">
-            <input readOnly value={linkAluno} style={{ ...entrada, fontSize: 12, flex: 1 }}
+          <div className="mt-2 flex gap-2 items-center flex-wrap">
+            <input id="mty-link-aluno" readOnly value={linkAluno} style={{ ...entrada, fontSize: 12, flex: 1 }}
               onFocus={(e) => e.target.select()} />
-            <Botao pequeno variante="vazio" onClick={() => navigator.clipboard.writeText(linkAluno)}>Copiar</Botao>
+            <Botao pequeno variante="vazio" onClick={copiarLinkAluno}>{linkCopiado ? "✓ copiado" : "Copiar"}</Botao>
           </div>
         )}
       </div>
