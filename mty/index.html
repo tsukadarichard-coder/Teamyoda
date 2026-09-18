@@ -845,6 +845,31 @@ function novoAluno() {
   };
 }
 
+/* ── aulas do plano, achatadas numa lista única, e o status de cada uma ──
+   Compartilhado entre a tela de plano individual e a sessão de turma —
+   as duas precisam enxergar exatamente a mesma "próxima aula pendente". */
+function listaAulas(plano) {
+  if (!plano) return [];
+  const lista = [];
+  let n = 0;
+  plano.blocos.forEach((b) => (b.semanasLista || []).forEach((sem) =>
+    (sem.aulas || []).forEach((au) => {
+      n++;
+      lista.push({ id: "A" + String(n).padStart(2, "0"), bloco: b.titulo || b.nome,
+        semana: sem.n, foco: sem.foco, ...au });
+    })));
+  return lista;
+}
+function statusAula(reg, id) {
+  const d = (reg || {})[id] || {};
+  if (d.status) return d.status;
+  return d.feita ? "feita" : "";
+}
+function proximaAulaPendente(aluno) {
+  const aulas = listaAulas(aluno.plano);
+  return aulas.find((a) => statusAula(aluno.regPlano, a.id) === "") || null;
+}
+
 /* Texto da ficha para colar numa conversa e gerar o planejamento.
    Campos vazios ou marcados viram item de observação, nunca suposição. */
 function relatorioFicha(a) {
@@ -2452,25 +2477,11 @@ function TelaPlano({ aluno, alunos, setAlunos }) {
     }
   }
 
-  const aulas = useMemo(() => {
-    if (!plano) return [];
-    const lista = [];
-    let n = 0;
-    plano.blocos.forEach((b) => (b.semanasLista || []).forEach((sem) =>
-      (sem.aulas || []).forEach((au) => {
-        n++;
-        lista.push({ id: "A" + String(n).padStart(2, "0"), bloco: b.titulo || b.nome,
-          semana: sem.n, foco: sem.foco, ...au });
-      })));
-    return lista;
-  }, [plano]);
+  const aulas = useMemo(() => listaAulas(plano), [plano]);
 
-  /* status de cada aula: "" (pendente) | "feita" | "falta" | "cancelada".
-     Registros antigos só tinham "feita" (booleano) — continuam lidos certo. */
+  /* status de cada aula: "" (pendente) | "feita" | "falta" | "cancelada". */
   function status(id) {
-    const d = reg[id] || {};
-    if (d.status) return d.status;
-    return d.feita ? "feita" : "";
+    return statusAula(reg, id);
   }
   const feitas = aulas.filter((a) => status(a.id) === "feita").length;
 
@@ -3095,8 +3106,189 @@ function TelaEquipe() {
   );
 }
 
+/* ── turmas (aulas em dupla/grupo) ──
+   Cada jogador continua com o plano dele, individual, gerado do jeito
+   de sempre. A turma só agrupa quem treina junto — a sessão une a
+   próxima aula pendente de cada um numa tela só, e marca presença de
+   todo mundo em uma ação (com espaço pra corrigir por pessoa: chuva
+   cancela a turma inteira, mas um jogador específico pode ter faltado
+   por outro motivo mesmo com o resto treinando). */
+function TelaTurmas({ alunos, setAlunos, turmas, setTurmas }) {
+  const [abertaId, setAbertaId] = useState(null);
+  const [criando, setCriando] = useState(false);
+  const [nome, setNome] = useState("");
+  const [membrosSel, setMembrosSel] = useState([]);
+  const [duracao, setDuracao] = useState("1h");
+
+  const aberta = abertaId ? turmas.find((t) => t.id === abertaId) : null;
+  if (aberta) {
+    return (
+      <SessaoTurma turma={aberta} alunos={alunos} setAlunos={setAlunos}
+        aoFechar={() => setAbertaId(null)}
+        aoRemover={() => { setTurmas(turmas.filter((t) => t.id !== aberta.id)); setAbertaId(null); }} />
+    );
+  }
+
+  function alternarMembro(id) {
+    setMembrosSel((sel) => sel.includes(id) ? sel.filter((x) => x !== id) : [...sel, id]);
+  }
+  function criarTurma() {
+    if (!nome.trim() || membrosSel.length < 2) return;
+    setTurmas([...turmas, { id: "turma-" + Date.now(), nome: nome.trim(), membros: membrosSel, duracaoPadrao: duracao }]);
+    setNome(""); setMembrosSel([]); setDuracao("1h"); setCriando(false);
+  }
+
+  return (
+    <div>
+      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Turmas</h1>
+      <p style={{ ...prosa, color: C.grafite, marginBottom: 18 }}>
+        Pra jogadores que treinam juntos. Cada um mantém o próprio plano — a turma só une a
+        aula do dia numa sessão só, com presença marcada de uma vez para o grupo.
+      </p>
+
+      {!criando ? (
+        <Botao pequeno onClick={() => setCriando(true)}>Nova turma</Botao>
+      ) : (
+        <div style={{ background: C.cal, border: "1px solid " + C.linha, padding: 15, marginBottom: 18 }}>
+          <Campo rotulo="Nome da turma">
+            <input style={entrada} value={nome} onChange={(e) => setNome(e.target.value)} placeholder="ex: Terça 17h" />
+          </Campo>
+          <Campo rotulo="Duração padrão">
+            <Seletor opcoes={[{ v: "1h", r: "1h" }, { v: "1h30", r: "1h30" }, { v: "2h", r: "2h" }]} valor={duracao} aoMudar={setDuracao} />
+          </Campo>
+          <Campo rotulo="Jogadores (mínimo 2)">
+            <div className="flex flex-wrap gap-2">
+              {alunos.map((a) => (
+                <button key={a.id} onClick={() => alternarMembro(a.id)}
+                  style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 600, padding: "6px 11px", borderRadius: 2, cursor: "pointer",
+                    border: "1px solid " + (membrosSel.includes(a.id) ? C.tinta : C.linha),
+                    background: membrosSel.includes(a.id) ? C.tinta : C.papel,
+                    color: membrosSel.includes(a.id) ? C.papel : C.grafite }}>
+                  {a.nome || "Sem nome"}
+                </button>
+              ))}
+            </div>
+          </Campo>
+          <div className="flex gap-2">
+            <Botao pequeno onClick={criarTurma} disabled={!nome.trim() || membrosSel.length < 2}>Criar turma</Botao>
+            <Botao pequeno variante="vazio" onClick={() => { setCriando(false); setNome(""); setMembrosSel([]); }}>Cancelar</Botao>
+          </div>
+        </div>
+      )}
+
+      {turmas.length === 0 ? (
+        <p style={{ ...prosa, color: C.grafite }}>Nenhuma turma criada ainda.</p>
+      ) : (
+        turmas.map((t) => (
+          <div key={t.id} onClick={() => setAbertaId(t.id)}
+            style={{ background: C.cal, border: "1px solid " + C.linha, padding: "13px 15px", marginBottom: 9, cursor: "pointer" }}>
+            <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{t.nome}</div>
+            <div className="mt-1"><Etiqueta>{t.duracaoPadrao} · {t.membros.length} jogadores</Etiqueta></div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+function SessaoTurma({ turma, alunos, setAlunos, aoFechar, aoRemover }) {
+  const membros = turma.membros.map((id) => alunos.find((a) => a.id === id)).filter(Boolean);
+  const [statusGeral, setStatusGeral] = useState("feita");
+  const [motivoGeral, setMotivoGeral] = useState("");
+  const [statusPorMembro, setStatusPorMembro] = useState({});
+  const [salvo, setSalvo] = useState(false);
+
+  function statusDe(alunoId) { return statusPorMembro[alunoId] || statusGeral; }
+  function definirIndividual(alunoId, st) {
+    setStatusPorMembro((s) => ({ ...s, [alunoId]: s[alunoId] === st ? null : st }));
+  }
+
+  function salvarSessao() {
+    const hoje = new Date().toISOString().slice(0, 10);
+    setAlunos(alunos.map((a) => {
+      if (!turma.membros.includes(a.id)) return a;
+      const prox = proximaAulaPendente(a);
+      if (!prox) return a;
+      const st = statusDe(a.id);
+      const reg = { ...(a.regPlano || {}) };
+      const d = { status: st, data: hoje };
+      if (st === "falta" || st === "cancelada") d.motivo = motivoGeral;
+      reg[prox.id] = d;
+      return { ...a, regPlano: reg };
+    }));
+    setSalvo(true);
+  }
+
+  return (
+    <div>
+      <button onClick={aoFechar} className="mb-3" style={{ ...prosa, color: C.grafite, cursor: "pointer" }}>← Turmas</button>
+      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>{turma.nome}</h1>
+      <div className="mb-5"><Etiqueta>{turma.duracaoPadrao} · {membros.length} jogadores</Etiqueta></div>
+
+      <div style={{ background: C.cal, border: "1px solid " + C.linha, padding: 15, marginBottom: 18 }}>
+        <Campo rotulo="Status da sessão de hoje" nota="Aplica pra todo mundo — dá pra corrigir por jogador na lista abaixo.">
+          <div className="flex gap-1 flex-wrap">
+            {[["feita", "Realizada"], ["falta", "Falta coletiva"], ["cancelada", "Cancelada"]].map(([v, r]) => (
+              <button key={v} onClick={() => setStatusGeral(v)}
+                style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "6px 10px", borderRadius: 2, cursor: "pointer",
+                  border: "1px solid " + (statusGeral === v ? C.tinta : C.linha),
+                  background: statusGeral === v ? C.tinta : C.papel, color: statusGeral === v ? C.papel : C.grafite }}>{r}</button>
+            ))}
+          </div>
+        </Campo>
+        {(statusGeral === "falta" || statusGeral === "cancelada") && (
+          <Campo rotulo="Motivo">
+            <input list="motivos-cancelamento-turma" style={entrada} value={motivoGeral}
+              onChange={(e) => setMotivoGeral(e.target.value)} placeholder="ex: chuva" />
+            <datalist id="motivos-cancelamento-turma">
+              <option value="Chuva" /><option value="Quadra indisponível" /><option value="Feriado" />
+            </datalist>
+          </Campo>
+        )}
+      </div>
+
+      {membros.map((a) => {
+        const prox = proximaAulaPendente(a);
+        const st = statusDe(a.id);
+        return (
+          <div key={a.id} style={{ background: C.papel, border: "1px solid " + C.linha, padding: "12px 15px", marginBottom: 9 }}>
+            <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
+              <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{a.nome || "Sem nome"}</div>
+              <div className="flex gap-1">
+                {[["feita", "Realizada"], ["falta", "Falta"], ["cancelada", "Cancelada"]].map(([v, r]) => (
+                  <button key={v} onClick={() => definirIndividual(a.id, v)}
+                    style={{ fontFamily: ARCH, fontSize: 10.5, fontWeight: 700, padding: "4px 8px", borderRadius: 2, cursor: "pointer",
+                      border: "1px solid " + (st === v ? C.saibro : C.linha),
+                      background: st === v ? C.saibro : C.papel, color: st === v ? "#fff" : C.grafite }}>{r}</button>
+                ))}
+              </div>
+            </div>
+            {!a.plano ? (
+              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Este jogador ainda não tem plano.</p>
+            ) : !prox ? (
+              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Sem aula pendente — plano em dia ou concluído.</p>
+            ) : (
+              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>
+                {prox.bloco} · semana {prox.semana} · <b style={{ color: C.tinta }}>{prox.t}</b>
+              </p>
+            )}
+          </div>
+        );
+      })}
+
+      <div className="flex gap-2 items-center mt-4">
+        <Botao onClick={salvarSessao}>Salvar sessão</Botao>
+        <Botao variante="vazio" onClick={aoRemover}>Remover turma</Botao>
+        {salvo && <Etiqueta cor={C.quadra}>✓ sessão registrada em cada jogador</Etiqueta>}
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [alunos, setAlunos] = useState([]);
+  const [turmas, setTurmas] = useState([]);
+  const [carregandoTurmas, setCarregandoTurmas] = useState(true);
   const [abertoId, setAbertoId] = useState(null);
   const [aba, setAba] = useState("alunos");
   const [subaba, setSubaba] = useState("ficha");
@@ -3130,8 +3322,10 @@ function App() {
   useEffect(() => {
     if (!autenticado || (exigeLogin && !orgAtual)) return;
     leia("mty:alunos:v2", []).then((a) => { setAlunos(a); setCarregando(false); });
+    leia("mty:turmas:v1", [], true).then((t) => { setTurmas(t); setCarregandoTurmas(false); });
   }, [autenticado, orgAtual]);
   useEffect(() => { if (autenticado && !carregando) grave("mty:alunos:v2", alunos); }, [alunos, carregando, autenticado]);
+  useEffect(() => { if (autenticado && !carregandoTurmas) grave("mty:turmas:v1", turmas, true); }, [turmas, carregandoTurmas, autenticado]);
 
   const aberto = abertoId ? alunos.find((a) => a.id === abertoId) : null;
 
@@ -3172,7 +3366,7 @@ function App() {
           </div>
           <div className="mt-0.5"><Etiqueta>Ficha, periodização e sessão · 315 exercícios</Etiqueta></div>
           <nav className="flex gap-6 mt-3">
-            {[{ v: "alunos", r: "Jogadores" }, { v: "catalogo", r: "Catálogo" }, { v: "taticas", r: "Táticas" }, { v: "casos", r: "Casos" }, { v: "metodo", r: "Como decide" },
+            {[{ v: "alunos", r: "Jogadores" }, { v: "turmas", r: "Turmas" }, { v: "catalogo", r: "Catálogo" }, { v: "taticas", r: "Táticas" }, { v: "casos", r: "Casos" }, { v: "metodo", r: "Como decide" },
               ...(papelAtual === "coordenador" ? [{ v: "equipe", r: "Equipe" }] : [])].map((t) => (
               <button key={t.v} onClick={() => { setAba(t.v); setAbertoId(null); }}
                 style={{ fontFamily: ARCH, fontSize: 13, fontWeight: aba === t.v ? 700 : 500, padding: "6px 0", cursor: "pointer", color: aba === t.v ? C.tinta : C.grafite, borderBottom: "2px solid " + (aba === t.v ? C.saibro : "transparent") }}>
@@ -3190,6 +3384,7 @@ function App() {
          aba === "casos" ? <TelaCasos /> :
          aba === "metodo" ? <TelaMetodo /> :
          aba === "equipe" ? <TelaEquipe /> :
+         aba === "turmas" ? <TelaTurmas alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} /> :
          aberto ? (
           <div>
             <button onClick={() => setAbertoId(null)} className="mb-3" style={{ ...prosa, color: C.grafite, cursor: "pointer" }}>← Todos os jogadores</button>
