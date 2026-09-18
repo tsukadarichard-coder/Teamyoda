@@ -15,12 +15,12 @@
    ═══════════════════════════════════════════════════════════════════ */
 
 const MTY_CONFIG = {
-  apiKey: "COLE_AQUI",
-  authDomain: "COLE_AQUI",
-  projectId: "COLE_AQUI",
-  storageBucket: "COLE_AQUI",
-  messagingSenderId: "COLE_AQUI",
-  appId: "COLE_AQUI",
+  apiKey: "AIzaSyDxtc8qn1GQjNQRYReRi4UH6ACNnYcn9Y4",
+  authDomain: "metodologia-mty.firebaseapp.com",
+  projectId: "metodologia-mty",
+  storageBucket: "metodologia-mty.firebasestorage.app",
+  messagingSenderId: "545940708034",
+  appId: "1:545940708034:web:88ac30dcf4f7c6e190b95b",
 };
 
 /* Número que recebe as fichas pelo WhatsApp — código do país + DDD, só dígitos. */
