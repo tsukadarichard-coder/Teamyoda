@@ -2395,6 +2395,8 @@ function TelaPlano({ aluno, alunos, setAlunos }) {
   const [aulasSem, setAulasSem] = useState(3);
   const [verEx, setVerEx] = useState(null);
   const [relatorio, setRelatorio] = useState("");
+  const [linkAluno, setLinkAluno] = useState("");
+  const [gerandoLink, setGerandoLink] = useState(false);
 
   const plano = aluno.plano;
   const reg = aluno.regPlano || {};
@@ -2600,6 +2602,23 @@ function TelaPlano({ aluno, alunos, setAlunos }) {
 
   const pct = aulas.length ? Math.round((feitas / aulas.length) * 100) : 0;
 
+  async function gerarLinkAluno() {
+    setGerandoLink(true);
+    try {
+      let chave = aluno.linkToken;
+      if (!chave) {
+        chave = MTY.id("aluno");
+        atualiza({ linkToken: chave });
+      }
+      const org = await organizacao();
+      const url = location.origin + "/aluno.html?org=" + encodeURIComponent(org || "") +
+        "&id=" + encodeURIComponent(aluno.id) + "&t=" + encodeURIComponent(chave);
+      setLinkAluno(url);
+    } finally {
+      setGerandoLink(false);
+    }
+  }
+
   return (
     <div>
       <div className="mb-5">
@@ -2610,6 +2629,19 @@ function TelaPlano({ aluno, alunos, setAlunos }) {
         <div style={{ height: 7, background: C.linha }}>
           <div style={{ height: "100%", width: pct + "%", background: C.quadra }} />
         </div>
+      </div>
+
+      <div className="mb-5">
+        <Botao pequeno variante="vazio" onClick={gerarLinkAluno}>
+          {gerandoLink ? "Gerando…" : "Link para o aluno (protótipo)"}
+        </Botao>
+        {linkAluno && (
+          <div className="mt-2 flex gap-2 items-center">
+            <input readOnly value={linkAluno} style={{ ...entrada, fontSize: 12, flex: 1 }}
+              onFocus={(e) => e.target.select()} />
+            <Botao pequeno variante="vazio" onClick={() => navigator.clipboard.writeText(linkAluno)}>Copiar</Botao>
+          </div>
+        )}
       </div>
 
       <div style={{ background: "#FDF6E7", borderLeft: "3px solid #C9A227", padding: "11px 14px", marginBottom: 16 }}>
