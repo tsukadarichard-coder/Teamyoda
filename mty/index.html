@@ -1169,6 +1169,142 @@ const FICHAS_DIAGNOSTICO = [
   },
 ];
 
+/* ── Programa de aulas (Parte 7) — estrutura universal + resumo de cada trilha.
+   As "fichas de aula" e as "fichas semanais de competição" do manual são apenas
+   o mesmo conteúdo formatado em branco para impressão — não reproduzidas aqui. ── */
+const PROGRAMA_ESTRUTURA = {
+  blocos: [
+    { t: "Ciclo de 12 semanas", d: "M1 Instalação (1–4): instalar os padrões do nível. M2 Ampliação (5–8): ampliar repertório e variação. M3 Consolidação (9–12): consolidar sob pressão de jogo e verificar critérios de nível. Duas aulas por semana é a referência; com uma aula semanal, o mesmo programa em 24 semanas." },
+    { t: "Os cinco blocos de toda aula", d: "1 · Abertura com bola (movimento e bola desde o primeiro minuto — nunca fila parada). 2 · Início do ponto (saque, devolução e a bola seguinte — obrigatório em todos os níveis). 3 · Parte geral programada (o tema da semana, nunca improvisado). 4 · Técnica específica (a demanda individual — nunca pulada em aula de grupo). 5 · Jogo aplicado + fechamento (a situação treinada virando ponto; uma frase por aluno)." },
+    { t: "Percentuais por nível", d: "Y1–Y2: abertura 10% · início do ponto 25% · parte geral 30% · específica 20% · jogo+fechamento 15%. Y3–Y4: 8% · 30% · 25% · 22% · 15%. Y5–Y6: 7% · 35% · 20% · 23% · 15%. O bloco de início do ponto cresce com o nível — o oposto do ensino tradicional, que o empurra para o fim conforme o aluno avança." },
+  ],
+  protocolos: [
+    "P1 · Bola desde o primeiro minuto — nenhuma fila com mais de dois alunos parados.",
+    "P2 · Instrução em solução, nunca proibição — \"jogue por cima da rede, na área de saque\", nunca \"não jogue na rede\".",
+    "P3 · Uma correção por vez, sustentada por várias aulas — três correções na mesma bola equivalem a nenhuma.",
+    "P4 · A pergunta antes da resposta — \"o que você sentiu nessa bola?\" antes da instrução direta, sempre que houver tempo.",
+    "P5 · Nunca corrigir a decisão junto com a técnica — decisão certa e erro de execução, corrige-se a execução; decisão errada, corrige-se só a decisão.",
+    "P6 · Nunca descaracterizar a jogada — corrige-se ponto de contato ou apoio; jamais se pede mais efeito para a bola de ataque cair dentro.",
+    "P7 · Elogiar a tentativa correta que errou — especialmente o ataque, ou o aluno aprende que errar atacando é pior que errar sustentando.",
+    "P8 · Fechamento com uma frase — cada aluno sai sabendo o que treinou e o que observar até a próxima.",
+  ],
+  reducaoTempo: {
+    intro: "O grande ponto do jogo é diminuir o tempo do adversário — não é bater forte, é chegar antes, jogar mais cedo, ocupar espaço à frente, variar, surpreender. Ataque é uma das formas de reduzir tempo, e nem sempre a melhor.",
+    traducoes: [
+      { nivel: "Criança (vermelha)", como: "\"Não deixa ele ficar pronto\" · \"Chega antes da bola\"" },
+      { nivel: "Criança (laranja/verde)", como: "\"Pega a bola mais cedo\" · \"Vai para a frente quando ela sobrar\"" },
+      { nivel: "Adulto iniciante", como: "\"Tirar o tempo dele vale mais do que bater forte\"" },
+      { nivel: "Intermediário", como: "Contato no topo do quique · entrar na quadra · variar altura e ritmo" },
+      { nivel: "Competitivo", como: "Cada décimo roubado reduz a qualidade da resposta do adversário" },
+    ],
+    forca: "O tenista não joga fazendo força — joga em torno de 70% da força. O que produz bola boa é velocidade de braço, não esforço muscular. \"Bate mais forte\" é instrução ruim: produz tensão, e tensão reduz velocidade.",
+  },
+  ludico: {
+    intro: "Toda aula de criança tem uma brincadeira — não é adorno nem prêmio, é conteúdo do método, com código no catálogo e propósito declarado. O mesmo split step feito como exercício produz ~30 saltos com atenção decaindo; dentro de um pega-pega produz ~200 saltos com atenção crescente.",
+    regras: [
+      "Toda brincadeira tem propósito declarado — se o professor não consegue dizer o que ela treina, ela não entra na aula.",
+      "A regra faz o trabalho da instrução — se premia o ataque, a criança ataca sem que ninguém precise pedir.",
+      "Ninguém fica de fora por muito tempo — eliminação existe, mas com retorno rápido e engraçado.",
+      "Cada brincadeira diz o que se ignora — numa brincadeira de abertura, ignora-se tudo.",
+      "A vitória não é o ponto — conta-se e comemora-se, mas o placar da brincadeira nunca vira medida do aluno.",
+    ],
+    naoMuda: "Os cinco blocos (incluindo a técnica específica) · início do ponto com no mínimo 25% da aula · a hierarquia técnica antes de tática antes de mental · padrões agressivos desde a iniciação · a verificação silenciosa dos critérios de nível, enquanto a criança brinca sem saber que está sendo observada.",
+  },
+};
+
+const TRILHAS_INFANTIS = [
+  {
+    id: "A", nome: "Crianças · Bola Vermelha", nivel: "Y1",
+    publico: "5 a 8 anos · quadra 36 pés (11 m × 5,5 m) · rede ~83 cm · bola vermelha (75% mais lenta)",
+    objetivo: "A criança saca, joga o ponto e se diverte desde a primeira aula — e já aprende que a bola curta é um convite para ir à frente.",
+    mesociclos: [
+      { m: "M1 · Instalação (1–4)", tema: "Saque por cima disputando o ponto do início ao fim; coordenação (pegar, lançar, rebater); deslocamento lateral com base; entrar na quadra na bola curta." },
+      { m: "M2 · Ampliação (5–8)", tema: "Velocidade de braço (lançar longe, solto); redução de tempo (chegar antes da bola); mudança de direção; subida à rede e voleio brincado." },
+      { m: "M3 · Consolidação (9–12)", tema: "Base e equilíbrio sob movimento; ler a bola (alta/baixa/curta/funda); ataque na bola que sobra; aula de festa e passagem de nível na 24ª." },
+    ],
+    criterios: "Saca por cima da rede com regularidade · disputa o ponto do início ao fim · desloca-se com base e para equilibrada para bater · vai à frente na bola curta · nomeia bola alta e bola baixa.",
+  },
+  {
+    id: "B", nome: "Crianças · Bola Laranja", nivel: "Y2",
+    publico: "8 a 10 anos · quadra 60 pés (18 m × 6,5 m) · bola laranja (50% mais lenta)",
+    objetivo: "O ponto passa a ser construído em duas bolas, e a devolução passa a ser para dentro da quadra.",
+    mesociclos: [
+      { m: "M1 · Instalação (1–4)", tema: "Base de apoio e transferência de peso; cruzada de fundo com direção; devolução para dentro da quadra; salto de prontidão no contato do outro." },
+      { m: "M2 · Ampliação (5–8)", tema: "Velocidade de braço; redução de tempo (contato mais cedo); mudança de direção; approach e voleio; curtinha como variação." },
+      { m: "M3 · Consolidação (9–12)", tema: "Construção — bola que arma, bola que converte; ler e classificar a bola; ataque na meia quadra sem \"garantir\" (P6 em foco); transição defesa→ataque." },
+    ],
+    criterios: "Sustenta troca cruzada · coloca o primeiro saque com intenção de direção · executa o salto de prontidão na maioria das bolas · devolve para dentro da quadra · reconhece e nomeia bola de ataque e de defesa · joga ponto mantendo posição de espera.",
+  },
+  {
+    id: "C", nome: "Crianças · Bola Verde", nivel: "Y3",
+    publico: "10 a 12 anos · quadra completa · bola verde (25% mais lenta)",
+    objetivo: "Direção com intenção, subida à rede como parte do ponto, e o primeiro repertório de padrões de duas bolas.",
+    mesociclos: [
+      { m: "M1 · Instalação (1–4)", tema: "Empunhadura continental no saque; timing do split no contato do sacador; abrir a quadra com o saque; profundidade e negar ângulo; approach e voleio." },
+      { m: "M2 · Ampliação (5–8)", tema: "Introdução do slice; velocidade de braço e pronação; briga de cruzadas; padrão de duas bolas (bola que arma/converte); geometria do deslocamento; as duas defesas." },
+      { m: "M3 · Consolidação (9–12)", tema: "Três caminhos da devolução pré-resolvidos; padrões de abertura; ataque de meia quadra (P6 em foco); rede completa (smash e cobertura de lob); duas variações de saque; introdução do protocolo entre pontos." },
+    ],
+    criterios: "Escolhe direção com intenção · sobe à rede e finaliza · devolve com consistência nos dois lados · reconhece quando pode mudar de direção · executa duas variações de saque.",
+  },
+];
+
+const TRILHA_ADULTOS = {
+  formatos: [
+    { f: "D · Grupo (3–6)", inicio: "Rodízio: dois sacam, dois devolvem, troca a cada 4", geral: "Rodízio dinâmico, todos ativos", especifica: "Rodízio: um ativo, demais exigindo excelência dele", risco: "A específica sumir" },
+    { f: "E · Dupla", inicio: "Alternância a cada 5 min", geral: "Um executa, outro alimenta com tarefa própria", especifica: "Alternância declarada a cada 5 min", risco: "O alimentador virar espectador" },
+    { f: "F · Individual", inicio: "Contínuo, com o professor devolvendo ou sacando", geral: "Densidade máxima, cuidado com sobrecarga", especifica: "Uma correção por vez (P3) — risco maior aqui", risco: "Correção contínua travar o aluno" },
+  ],
+  mesociclos: [
+    { m: "M1 · Instalação (1–4)", tema: "Base de apoio e empunhaduras; cruzada de fundo com margem; split no contato do outro; direção com dois alvos amplos; redução de tempo (contato mais cedo); ler a bola (sobra ou não)." },
+    { m: "M2 · Ampliação (5–8)", tema: "Velocidade de braço (braço solto, punho firme só no impacto); profundidade e margem; approach e voleio; ataque na bola curta; curtinha como variação; as duas defesas." },
+    { m: "M3 · Consolidação (9–12)", tema: "Bola que arma e bola que converte; ler e classificar em voz alta; ataque de meia quadra sem \"garantir\" (P6 em foco); rede completa; duas variações de saque; devolutiva de nível na 24ª." },
+  ],
+  atencao: "O adulto iniciante quer \"acertar\". O professor precisa premiar a tentativa correta que errou (P7) desde a primeira semana, ou a passividade se instala antes da técnica. Para muitos adultos, atacar será rede, curtinha e variação — não bola acelerada; isso é ataque legítimo e deve ser tratado como tal.",
+};
+
+const TRILHA_COMPETICAO = {
+  publico: "Juvenil de competição e competitivo social. O currículo é o mesmo; muda a bússola — no juvenil, o profissional que ele pode se tornar; no social, o próximo torneio que ele quer disputar bem.",
+  semestre: [
+    { sem: "1–4", fase: "Base I", funcao: "Primeiro par de estímulos por ciclo · construção de volume" },
+    { sem: "5–8", fase: "Base II", funcao: "Segundo par · volume alto, intensidade subindo" },
+    { sem: "9–10", fase: "Afinação I", funcao: "Volume cai, especificidade sobe · adaptação de piso" },
+    { sem: "11", fase: "Competição 1", funcao: "A competição é o treino da semana" },
+    { sem: "12", fase: "Regeneração", funcao: "3 dias livres · reavaliação com o atleta · rotação parcial" },
+    { sem: "13–16", fase: "Base III", funcao: "Estímulos rotacionados pelo que a competição revelou" },
+    { sem: "17–18", fase: "Afinação II", funcao: "Idem, comprimida" },
+    { sem: "19", fase: "Competição 2", funcao: "—" },
+    { sem: "20–22", fase: "Ponte competitiva", funcao: "Competição 3 ou jogos de nível + manutenção" },
+    { sem: "23", fase: "Base IV curta", funcao: "Retomada técnica" },
+    { sem: "24", fase: "Descanso", funcao: "5–7 dias sem raquete · avaliação semestral · desenho do semestre seguinte" },
+  ],
+  ciclosEstimulo: [
+    { c: "A · Saque", e1: "Cadeia completa, velocidade de braço, variação em desenvolvimento", e2: "As três faces com armado idêntico · matriz de decisão" },
+    { c: "B · Devolução", e1: "Entrando: split, avanço cruzado, bloqueio com direção", e2: "De trás: golpe pleno, profundidade central" },
+    { c: "C · Fundo e construção", e1: "Trajetória e pernas: redução de tempo", e2: "Padrões próprios: os dois ou três que ele mais usa" },
+    { c: "D · Rede e finalização", e1: "Smash e voleio de decisão", e2: "Approach pesado + cobertura" },
+  ],
+  volumeTatico: [
+    { bloco: "Padrões de até 4 bolas (abertura e primeira construção)", pct: "60%" },
+    { bloco: "Trocas médias de 5 a 8 golpes", pct: "25%" },
+    { bloco: "Trocas longas e defesa extrema", pct: "15%" },
+  ],
+  semanaCompeticao: [
+    { momento: "Véspera", conduta: "Treino leve 60–75 min no horário provável do jogo · reconhecimento de quadra" },
+    { momento: "Antes do jogo", conduta: "Ativação 20 min + 30–40 min de quadra: saque, devolução, padrões curtos · plano em uma frase" },
+    { momento: "Durante", conduta: "Observar onde a confiança se perde · menos palavras · presença calma" },
+    { momento: "Depois", conduta: "\"Em quantos pontos você executou o protocolo de verdade?\" antes de qualquer análise técnica" },
+    { momento: "Dia sem jogo", conduta: "Manutenção 60–90 min · os fundamentos gerais do macro continuam · nunca correção reativa ao último jogo" },
+  ],
+  regra: "O bloco de início de ponto ocupa 35% de toda sessão — saque+1 e devolução+1 são o núcleo permanente, não um tema que se visita. Cada estímulo é mantido por 3 treinos, com rotação parcial: ao fim do bloco, substitui-se apenas um. O resultado é efeito colateral da performance — nunca se muda a rota do planejamento por um resultado.",
+};
+
+const AUTOVERIFICACAO_PROFESSOR = [
+  "Todo aluno teve bloco de técnica específica, ou ele sumiu no grupo?",
+  "Minhas instruções foram soluções ou proibições?",
+  "Corrigi uma coisa por vez, ou empilhei correções?",
+  "Em algum momento pedi mais efeito para uma bola de ataque cair dentro?",
+];
+
 /* ── cursos de formação continuada, por módulo ── */
 const CURSOS_FORMACAO = [
   {
@@ -4958,7 +5094,7 @@ function App() {
           </div>
           <div className="mt-0.5"><Etiqueta>Ficha, periodização e sessão · 315 exercícios</Etiqueta></div>
           <nav className="flex gap-6 mt-3">
-            {[{ v: "alunos", r: "Jogadores" }, { v: "turmas", r: "Turmas" }, { v: "catalogo", r: "Catálogo" }, { v: "tecnica", r: "Técnica" }, { v: "taticas", r: "Táticas" }, { v: "conducao", r: "Condução" }, { v: "publicos", r: "Públicos" }, { v: "casos", r: "Casos" }, { v: "metodo", r: "Como decide" },
+            {[{ v: "alunos", r: "Jogadores" }, { v: "turmas", r: "Turmas" }, { v: "catalogo", r: "Catálogo" }, { v: "tecnica", r: "Técnica" }, { v: "taticas", r: "Táticas" }, { v: "conducao", r: "Condução" }, { v: "publicos", r: "Públicos" }, { v: "aulas", r: "Aulas" }, { v: "casos", r: "Casos" }, { v: "metodo", r: "Como decide" },
               ...(papelAtual === "coordenador" ? [{ v: "equipe", r: "Equipe" }] : [])].map((t) => (
               <button key={t.v} onClick={() => { setAba(t.v); setAbertoId(null); }}
                 style={{ fontFamily: ARCH, fontSize: 13, fontWeight: aba === t.v ? 700 : 500, padding: "6px 0", cursor: "pointer", color: aba === t.v ? C.tinta : C.grafite, borderBottom: "2px solid " + (aba === t.v ? C.saibro : "transparent") }}>
@@ -4977,6 +5113,7 @@ function App() {
          aba === "casos" ? <TelaCasos /> :
          aba === "conducao" ? <TelaConducao /> :
          aba === "publicos" ? <TelaPublicos /> :
+         aba === "aulas" ? <TelaAulas /> :
          aba === "metodo" ? <TelaMetodo /> :
          aba === "equipe" ? <TelaEquipe /> :
          aba === "turmas" ? <TelaTurmas alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} /> :
@@ -5362,6 +5499,138 @@ function TelaTecnica() {
         ))}
       </div>
       {series[subaba].map((f) => <FichaTecnica key={f.id} f={f} />)}
+    </div>
+  );
+}
+
+function TelaAulas() {
+  const [subaba, setSubaba] = useState("estrutura");
+  return (
+    <div>
+      <p style={{ ...prosa, marginBottom: 14 }}>
+        Parte 7 do manual — o mais prescritivo de todos. Padroniza a estrutura da aula, o tema de
+        cada semana e os protocolos de condução; o que fica sempre aberto é o bloco de técnica
+        específica, preenchido pelo diagnóstico de cada aluno.
+      </p>
+      <div className="flex gap-2 mb-6 flex-wrap">
+        {[["estrutura", "Estrutura"], ["a", "Trilha A · Y1"], ["b", "Trilha B · Y2"], ["c", "Trilha C · Y3"], ["adultos", "Adultos · D/E/F"], ["g", "Trilha G · Competição"]].map(([v, r]) => (
+          <button key={v} onClick={() => setSubaba(v)}
+            style={{ fontFamily: ARCH, fontSize: 12, fontWeight: subaba === v ? 700 : 500, padding: "6px 11px",
+              borderRadius: 2, cursor: "pointer", border: "1px solid " + (subaba === v ? C.tinta : C.linha),
+              background: subaba === v ? C.tinta : C.cal, color: subaba === v ? C.papel : C.grafite }}>
+            {r}
+          </button>
+        ))}
+      </div>
+
+      {subaba === "estrutura" && (
+        <div>
+          <Secao titulo="A estrutura de toda aula">
+            {PROGRAMA_ESTRUTURA.blocos.map((b) => (
+              <div key={b.t} className="mb-3" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "10px 13px" }}>
+                <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>{b.t}</div>
+                <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>{b.d}</p>
+              </div>
+            ))}
+          </Secao>
+
+          <Secao titulo="Os oito protocolos de quadra" nota="Valem em toda aula, de toda trilha, em toda unidade.">
+            {PROGRAMA_ESTRUTURA.protocolos.map((p, i) => (
+              <div key={i} className="flex gap-3 mb-2">
+                <p style={{ ...prosa, fontSize: 12.5 }}>{p}</p>
+              </div>
+            ))}
+          </Secao>
+
+          <Secao titulo="O eixo que atravessa todas as trilhas" nota="Reduzir o tempo do adversário — o grande ponto do jogo, ensinado desde a primeira aula.">
+            <p style={{ ...prosa, fontSize: 13, marginBottom: 10 }}>{PROGRAMA_ESTRUTURA.reducaoTempo.intro}</p>
+            <Tabela cabecalho={["Nível", "Como se diz"]} linhas={PROGRAMA_ESTRUTURA.reducaoTempo.traducoes.map((t) => [t.nivel, t.como])} />
+            <Aviso>{PROGRAMA_ESTRUTURA.reducaoTempo.forca}</Aviso>
+          </Secao>
+
+          <Secao titulo="O trabalho lúdico" nota="Toda aula de criança tem uma brincadeira — conteúdo do método, não adorno.">
+            <p style={{ ...prosa, fontSize: 13, marginBottom: 10 }}>{PROGRAMA_ESTRUTURA.ludico.intro}</p>
+            <h4 style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>As cinco regras da brincadeira MTY</h4>
+            {PROGRAMA_ESTRUTURA.ludico.regras.map((r, i) => (
+              <div key={i} className="flex gap-3 mb-2">
+                <span style={{ fontFamily: ARCH, fontSize: 11, fontWeight: 700, color: C.saibro, flexShrink: 0 }}>{i + 1}</span>
+                <p style={{ ...prosa, fontSize: 12.5 }}>{r}</p>
+              </div>
+            ))}
+            <Aviso cor={C.quadra}><b>O que não muda por ser lúdico:</b> {PROGRAMA_ESTRUTURA.ludico.naoMuda}</Aviso>
+          </Secao>
+
+          <Secao titulo="Autoverificação do professor" nota="Quatro perguntas em trinta segundos, ao fim de cada aula.">
+            {AUTOVERIFICACAO_PROFESSOR.map((p, i) => (
+              <div key={i} className="flex gap-3 mb-2">
+                <span style={{ fontFamily: ARCH, fontSize: 11, fontWeight: 700, color: C.saibro, flexShrink: 0 }}>{i + 1}</span>
+                <p style={{ ...prosa, fontSize: 12.5 }}>{p}</p>
+              </div>
+            ))}
+            <Aviso>A quarta pergunta é a mais importante do manual. Se a resposta for sim, a jogada foi descaracterizada — e o custo aparece meses depois, quando o aluno já não ataca mais.</Aviso>
+          </Secao>
+        </div>
+      )}
+
+      {["a", "b", "c"].includes(subaba) && (() => {
+        const t = TRILHAS_INFANTIS.find((x) => x.id === subaba.toUpperCase());
+        return (
+          <Secao titulo={"Trilha " + t.id + " — " + t.nome} nota={"Nível " + t.nivel + " · " + t.publico}>
+            <p style={{ ...prosa, fontSize: 13, marginBottom: 14 }}><b>Objetivo do ciclo:</b> {t.objetivo}</p>
+            {t.mesociclos.map((m) => (
+              <div key={m.m} className="mb-3" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "10px 13px" }}>
+                <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>{m.m}</div>
+                <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>{m.tema}</p>
+              </div>
+            ))}
+            <Aviso cor={C.quadra}><b>Critérios verificados ao longo do ciclo:</b> {t.criterios}</Aviso>
+          </Secao>
+        );
+      })()}
+
+      {subaba === "adultos" && (
+        <div>
+          <Secao titulo="Trilhas D, E, F — Adultos" nota="Grupo (D), dupla (E) e individual (F) compartilham o mesmo currículo de 24 aulas — o que muda é a condução, não o conteúdo.">
+            <Tabela cabecalho={["", "D · Grupo", "E · Dupla", "F · Individual"]}
+              linhas={[
+                ["Início do ponto", ...TRILHA_ADULTOS.formatos.map((f) => f.inicio)],
+                ["Parte geral", ...TRILHA_ADULTOS.formatos.map((f) => f.geral)],
+                ["Específica", ...TRILHA_ADULTOS.formatos.map((f) => f.especifica)],
+                ["Risco do formato", ...TRILHA_ADULTOS.formatos.map((f) => f.risco)],
+              ]} />
+          </Secao>
+          <Secao titulo="Mesociclos">
+            {TRILHA_ADULTOS.mesociclos.map((m) => (
+              <div key={m.m} className="mb-3" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "10px 13px" }}>
+                <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>{m.m}</div>
+                <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>{m.tema}</p>
+              </div>
+            ))}
+            <Aviso>{TRILHA_ADULTOS.atencao}</Aviso>
+          </Secao>
+        </div>
+      )}
+
+      {subaba === "g" && (
+        <div>
+          <Secao titulo="Trilha G — Competição" nota={TRILHA_COMPETICAO.publico}>
+            <h4 style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>Estrutura do semestre (24 semanas)</h4>
+            <Tabela cabecalho={["Semanas", "Fase", "Função"]}
+              linhas={TRILHA_COMPETICAO.semestre.map((s) => [s.sem, s.fase, s.funcao])} />
+          </Secao>
+          <Secao titulo="Os quatro ciclos de estímulo" nota="Cada estímulo mantido por 3 treinos; ao fim do bloco, substitui-se apenas um — rotação parcial.">
+            <Tabela cabecalho={["Ciclo", "Estímulo 1", "Estímulo 2"]}
+              linhas={TRILHA_COMPETICAO.ciclosEstimulo.map((c) => [c.c, c.e1, c.e2])} />
+          </Secao>
+          <Secao titulo="Proporção do volume tático">
+            <Tabela cabecalho={["Bloco", "%"]} linhas={TRILHA_COMPETICAO.volumeTatico.map((v) => [v.bloco, v.pct])} />
+          </Secao>
+          <Secao titulo="Semana de competição">
+            <Tabela cabecalho={["Momento", "Conduta"]} linhas={TRILHA_COMPETICAO.semanaCompeticao.map((s) => [s.momento, s.conduta])} />
+          </Secao>
+          <Aviso cor={C.quadra}>{TRILHA_COMPETICAO.regra}</Aviso>
+        </div>
+      )}
     </div>
   );
 }
