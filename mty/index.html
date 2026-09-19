@@ -4692,11 +4692,31 @@ function TelaEquipe() {
   const [erro, setErro] = useState("");
   const [membros, setMembros] = useState([]);
   const [carregandoForm, setCarregandoForm] = useState(true);
+  const [linkConvite, setLinkConvite] = useState("");
+  const [linkCopiado, setLinkCopiado] = useState(false);
 
   useEffect(() => {
     leia("mty:formacao:v1", [], true).then((m) => { setMembros(m); setCarregandoForm(false); });
   }, []);
   useEffect(() => { if (!carregandoForm) grave("mty:formacao:v1", membros, true); }, [membros, carregandoForm]);
+
+  useEffect(() => {
+    (async () => {
+      const org = await organizacao();
+      if (org) setLinkConvite(location.origin + "/solicitar-acesso.html?org=" + encodeURIComponent(org));
+    })();
+  }, []);
+
+  async function copiarLinkConvite() {
+    try {
+      await navigator.clipboard.writeText(linkConvite);
+    } catch {
+      const campo = document.getElementById("mty-link-convite");
+      if (campo) { campo.select(); document.execCommand("copy"); }
+    }
+    setLinkCopiado(true);
+    setTimeout(() => setLinkCopiado(false), 2000);
+  }
 
   async function carregar() {
     setCarregando(true);
@@ -4760,9 +4780,22 @@ function TelaEquipe() {
 
       {subaba === "pedidos" ? (
         <div>
-          <p style={{ ...prosa, color: C.grafite, marginBottom: 18 }}>
+          <p style={{ ...prosa, color: C.grafite, marginBottom: 10 }}>
             Pedidos de acesso de treinadores novos para esta academia.
           </p>
+
+          {linkConvite && (
+            <div className="mb-5">
+              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 6 }}>
+                Envie este link ao treinador novo — a academia já vem preenchida, então não tem como ele digitar errado e o pedido "sumir".
+              </p>
+              <div className="flex gap-2 items-center flex-wrap">
+                <input id="mty-link-convite" readOnly value={linkConvite} style={{ ...entrada, fontSize: 12, flex: 1 }}
+                  onFocus={(e) => e.target.select()} />
+                <Botao pequeno variante="vazio" onClick={copiarLinkConvite}>{linkCopiado ? "✓ copiado" : "Copiar"}</Botao>
+              </div>
+            </div>
+          )}
 
           {erro && <div className="mb-4"><Aviso>{erro}</Aviso></div>}
 

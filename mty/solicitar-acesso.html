@@ -68,7 +68,12 @@
 (function(){
   var p = new URLSearchParams(location.search);
   var orgPreenchido = p.get('org');
-  if (orgPreenchido) document.getElementById('orgId').value = orgPreenchido;
+  if (orgPreenchido) {
+    var campoOrg = document.getElementById('orgId');
+    campoOrg.value = orgPreenchido;
+    campoOrg.readOnly = true;
+    campoOrg.style.background = '#EFEAE4';
+  }
 
   if (typeof MTY === 'undefined' || !MTY.ligado) {
     document.getElementById('form').innerHTML =
@@ -83,7 +88,7 @@
     var nome = document.getElementById('nome').value.trim();
     var email = document.getElementById('email').value.trim();
     var senha = document.getElementById('senha').value;
-    var orgId = document.getElementById('orgId').value.trim();
+    var orgId = document.getElementById('orgId').value.trim().toLowerCase();
 
     if (!nome || !email || !senha || !orgId) {
       msg.className = 'msg erro'; msg.textContent = 'Preencha todos os campos.'; msg.style.display = 'block';
