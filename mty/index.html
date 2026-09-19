@@ -2350,9 +2350,42 @@ function statusAula(reg, id) {
   if (d.status) return d.status;
   return d.feita ? "feita" : "";
 }
-function proximaAulaPendente(aluno) {
+/* A aula que vale agora: a primeira do plano que ainda não foi "feita".
+   Falta e cancelada NÃO avançam — a aula continua em vigor até ser
+   realizada, então uma aula cancelada por chuva se repete na próxima vez. */
+function aulaEmVigor(aluno) {
   const aulas = listaAulas(aluno.plano);
-  return aulas.find((a) => statusAula(aluno.regPlano, a.id) === "") || null;
+  return aulas.find((a) => statusAula(aluno.regPlano, a.id) !== "feita") || null;
+}
+
+/* Mostrado assim que o treinador abre o aluno, pra não precisar procurar
+   na lista qual aula vale hoje. */
+function CardAulaEmVigor({ aluno, aoClicar }) {
+  if (!aluno.plano) return null;
+  const aula = aulaEmVigor(aluno);
+  if (!aula) {
+    return (
+      <div className="mb-5" style={{ background: "#F4F7F4", borderLeft: "3px solid " + C.quadra, padding: "11px 14px" }}>
+        <Etiqueta cor={C.quadra}>Plano concluído</Etiqueta>
+        <p style={{ ...prosa, fontSize: 13, marginTop: 4 }}>Todas as aulas deste ciclo foram realizadas.</p>
+      </div>
+    );
+  }
+  const reg = (aluno.regPlano || {})[aula.id] || {};
+  const repetindo = reg.status === "falta" || reg.status === "cancelada";
+  return (
+    <button onClick={aoClicar} className="w-full text-left mb-5"
+      style={{ display: "block", background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "11px 14px", cursor: aoClicar ? "pointer" : "default" }}>
+      <Etiqueta cor={C.saibro}>Aula em vigor</Etiqueta>
+      <p style={{ ...prosa, fontSize: 14, fontWeight: 700, marginTop: 4 }}>{aula.bloco} · semana {aula.semana} · {aula.t}</p>
+      {repetindo && (
+        <p style={{ ...prosa, fontSize: 12.5, color: C.saibro, marginTop: 3 }}>
+          Repetindo — a aula anterior foi marcada como {reg.status === "falta" ? "falta" : "cancelada"}
+          {reg.motivo ? " (" + reg.motivo + ")" : ""}{reg.data ? " em " + reg.data : ""}.
+        </p>
+      )}
+    </button>
+  );
 }
 
 /* Texto da ficha para colar numa conversa e gerar o planejamento.
@@ -4996,7 +5029,7 @@ function SessaoTurma({ turma, alunos, setAlunos, aoFechar, aoRemover }) {
     const hoje = new Date().toISOString().slice(0, 10);
     setAlunos(alunos.map((a) => {
       if (!turma.membros.includes(a.id)) return a;
-      const prox = proximaAulaPendente(a);
+      const prox = aulaEmVigor(a);
       if (!prox) return a;
       const st = statusDe(a.id);
       const reg = { ...(a.regPlano || {}) };
@@ -5050,7 +5083,7 @@ function SessaoTurma({ turma, alunos, setAlunos, aoFechar, aoRemover }) {
       )}
 
       {membros.map((a) => {
-        const prox = proximaAulaPendente(a);
+        const prox = aulaEmVigor(a);
         const st = statusDe(a.id);
         return (
           <div key={a.id} style={{ background: C.papel, border: "1px solid " + C.linha, padding: "12px 15px", marginBottom: 9 }}>
@@ -5196,6 +5229,7 @@ function App() {
             <button onClick={() => setAbertoId(null)} className="mb-3" style={{ ...prosa, color: C.grafite, cursor: "pointer" }}>← Todos os jogadores</button>
             <h1 style={{ fontFamily: ARCH, fontSize: 25, fontWeight: 700, lineHeight: 1.1 }}>{aberto.nome || "Sem nome"}</h1>
             <div className="mt-2 mb-5"><Etiqueta>{aberto.nivel} · Estágio {aberto.estagio} · {aberto.semanas} semanas · {aberto.historico.length} sessões</Etiqueta></div>
+            <CardAulaEmVigor aluno={aberto} aoClicar={() => setSubaba("plano")} />
             <div className="flex gap-5 mb-6" style={{ borderBottom: "1px solid " + C.linha }}>
               {[{ v: "ficha", r: "Ficha" }, { v: "plano", r: "Plano" }, { v: "periodizacao", r: "Periodização" }, { v: "sessao", r: "Sessão" }, { v: "scout", r: "Scout" }, { v: "registro", r: "Caderno" }].map((t) => (
                 <button key={t.v} onClick={() => setSubaba(t.v)}
@@ -5217,17 +5251,27 @@ function App() {
               Cada jogador guarda a ficha das quatro camadas, o calendário e o histórico de sessões.
               É desse conjunto que sai a periodização.
             </p>
-            {alunos.map((a) => (
-              <button key={a.id} onClick={() => { setAbertoId(a.id); setSubaba("ficha"); }}
-                className="w-full text-left flex items-center justify-between gap-3"
-                style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 2, padding: "13px 15px", marginBottom: 8 }}>
-                <div>
-                  <div style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{a.nome || "Sem nome"}</div>
-                  <div className="mt-1"><Etiqueta>{a.nivel} · Estágio {a.estagio} · {a.inicio ? `início ${a.inicio}` : "sem calendário"}</Etiqueta></div>
-                </div>
-                <span style={{ color: C.grafite, fontSize: 20 }}>→</span>
-              </button>
-            ))}
+            {alunos.map((a) => {
+              const emVigor = a.plano ? aulaEmVigor(a) : null;
+              const regEmVigor = emVigor ? (a.regPlano || {})[emVigor.id] || {} : null;
+              const repetindo = regEmVigor && (regEmVigor.status === "falta" || regEmVigor.status === "cancelada");
+              return (
+                <button key={a.id} onClick={() => { setAbertoId(a.id); setSubaba("ficha"); }}
+                  className="w-full text-left flex items-center justify-between gap-3"
+                  style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 2, padding: "13px 15px", marginBottom: 8 }}>
+                  <div>
+                    <div style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{a.nome || "Sem nome"}</div>
+                    <div className="mt-1"><Etiqueta>{a.nivel} · Estágio {a.estagio} · {a.inicio ? `início ${a.inicio}` : "sem calendário"}</Etiqueta></div>
+                    {emVigor && (
+                      <p style={{ ...prosa, fontSize: 12.5, color: C.saibro, marginTop: 4 }}>
+                        {repetindo ? "Repetindo: " : "Em vigor: "}{emVigor.t}
+                      </p>
+                    )}
+                  </div>
+                  <span style={{ color: C.grafite, fontSize: 20 }}>→</span>
+                </button>
+              );
+            })}
             <div className="mt-4"><Botao onClick={criar} variante="saibro">Novo jogador</Botao></div>
           </div>
         )}
