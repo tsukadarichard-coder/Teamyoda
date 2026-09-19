@@ -4694,6 +4694,9 @@ function TelaEquipe() {
   const [carregandoForm, setCarregandoForm] = useState(true);
   const [linkConvite, setLinkConvite] = useState("");
   const [linkCopiado, setLinkCopiado] = useState(false);
+  const [emailCorrigir, setEmailCorrigir] = useState("");
+  const [corrigindo, setCorrigindo] = useState(false);
+  const [msgCorrigir, setMsgCorrigir] = useState(null);
 
   useEffect(() => {
     leia("mty:formacao:v1", [], true).then((m) => { setMembros(m); setCarregandoForm(false); });
@@ -4765,6 +4768,34 @@ function TelaEquipe() {
     setOcupado(null);
   }
 
+  /* Quando o treinador digitou a academia errada em solicitar-acesso.html
+     (antes de existir o link de convite, ou mesmo com ele, por engano), a
+     conta dele já existe mas o pedido ficou pendurado numa organização que
+     ninguém enxerga daqui — e ele não consegue tentar de novo (e-mail já
+     cadastrado). O coordenador resolve direto pelo e-mail, sem precisar
+     achar o pedido perdido. */
+  async function corrigirCadastro() {
+    const email = emailCorrigir.trim();
+    if (!email) return;
+    setCorrigindo(true); setMsgCorrigir(null);
+    try {
+      const token = await window.mtyAuth.tokenId();
+      const r = await fetch("/.netlify/functions/corrigir-cadastro", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: "Bearer " + token },
+        body: JSON.stringify({ email }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.erro || ("Erro " + r.status));
+      setMsgCorrigir({ ok: true, texto: "Pronto — " + email + " já está vinculado a esta academia. Ele já pode entrar de novo com a mesma senha." });
+      setEmailCorrigir("");
+      await carregar();
+    } catch (e) {
+      setMsgCorrigir({ ok: false, texto: String(e.message || e) });
+    }
+    setCorrigindo(false);
+  }
+
   return (
     <div>
       <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Equipe</h1>
@@ -4823,6 +4854,28 @@ function TelaEquipe() {
               </div>
             ))
           )}
+
+          <div style={{ background: C.cal, border: "1px solid " + C.linha, padding: "13px 15px", marginTop: 22 }}>
+            <p style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Um treinador criou a conta mas o pedido não aparece aqui?</p>
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>
+              Provavelmente ele digitou a academia errada. Como o e-mail já ficou cadastrado, ele não consegue tentar
+              de novo sozinho — coloque o e-mail dele aqui que eu vinculo direto a esta academia.
+            </p>
+            <div className="flex gap-2 items-center flex-wrap">
+              <input type="email" style={{ ...entrada, fontSize: 13, flex: 1, minWidth: 200 }} value={emailCorrigir}
+                onChange={(e) => setEmailCorrigir(e.target.value)} placeholder="e-mail do treinador" />
+              <Botao pequeno onClick={corrigirCadastro} disabled={corrigindo || !emailCorrigir.trim()}>
+                {corrigindo ? "…" : "Vincular a esta academia"}
+              </Botao>
+            </div>
+            {msgCorrigir && (
+              <div className="mt-3">
+                {msgCorrigir.ok
+                  ? <p style={{ ...prosa, fontSize: 12.5, color: C.quadra, fontWeight: 600 }}>✓ {msgCorrigir.texto}</p>
+                  : <Aviso>{msgCorrigir.texto}</Aviso>}
+              </div>
+            )}
+          </div>
         </div>
       ) : (
         <SecaoFormacao membros={membros} setMembros={setMembros} carregando={carregandoForm} />
