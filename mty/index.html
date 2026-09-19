@@ -5122,7 +5122,7 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas }) {
   const aberta = abertaId ? turmas.find((t) => t.id === abertaId) : null;
   if (aberta) {
     return (
-      <SessaoTurma turma={aberta} alunos={alunos} setAlunos={setAlunos}
+      <SessaoTurma turma={aberta} alunos={alunos} setAlunos={setAlunos} setTurmas={setTurmas}
         aoFechar={() => setAbertaId(null)}
         aoRemover={() => { setTurmas(turmas.filter((t) => t.id !== aberta.id)); setAbertaId(null); }} />
     );
@@ -5210,33 +5210,46 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas }) {
   );
 }
 
-function SessaoTurma({ turma, alunos, setAlunos, aoFechar, aoRemover }) {
+function SessaoTurma({ turma, alunos, setAlunos, setTurmas, aoFechar, aoRemover }) {
   const membros = turma.membros.map((id) => alunos.find((a) => a.id === id)).filter(Boolean);
   const [statusGeral, setStatusGeral] = useState("feita");
-  const [motivoGeral, setMotivoGeral] = useState("");
-  const [statusPorMembro, setStatusPorMembro] = useState({});
-  const [salvo, setSalvo] = useState(false);
+  const [motivo, setMotivo] = useState("");
+  const [nota, setNota] = useState("");
+  const [salvo, setSalvo] = useState(null);
   const [chuvaAberta, setChuvaAberta] = useState(false);
 
-  function statusDe(alunoId) { return statusPorMembro[alunoId] || statusGeral; }
-  function definirIndividual(alunoId, st) {
-    setStatusPorMembro((s) => ({ ...s, [alunoId]: s[alunoId] === st ? null : st }));
-  }
+  const pendencias = turma.pendencias || [];
+  const pendenciasAbertas = pendencias.filter((p) => !p.resolvida);
 
+  /* Quando a sessão sai como planejado ("Realizada"), o plano de cada
+     jogador avança normalmente. Quando não sai (chuva, quadra, o grupo
+     não fechou etc.), NÃO tentamos decidir por cada jogador — fica só
+     uma "pendência do grupo" pendurada na turma, com motivo e uma
+     anotação livre, pro professor decidir depois como repor. */
   function salvarSessao() {
     const hoje = new Date().toISOString().slice(0, 10);
-    setAlunos(alunos.map((a) => {
-      if (!turma.membros.includes(a.id)) return a;
-      const prox = aulaEmVigor(a);
-      if (!prox) return a;
-      const st = statusDe(a.id);
-      const reg = { ...(a.regPlano || {}) };
-      const d = { status: st, data: hoje };
-      if (st === "falta" || st === "cancelada") d.motivo = motivoGeral;
-      reg[prox.id] = d;
-      return { ...a, regPlano: reg };
+    if (statusGeral === "feita") {
+      setAlunos(alunos.map((a) => {
+        if (!turma.membros.includes(a.id)) return a;
+        const prox = aulaEmVigor(a);
+        if (!prox) return a;
+        const reg = { ...(a.regPlano || {}), [prox.id]: { status: "feita", data: hoje } };
+        return { ...a, regPlano: reg };
+      }));
+    } else {
+      setTurmas((turmasAtuais) => turmasAtuais.map((t) => t.id !== turma.id ? t : {
+        ...t,
+        pendencias: [...(t.pendencias || []), { id: "pend-" + Date.now(), data: hoje, motivo, nota, resolvida: false }],
+      }));
+    }
+    setSalvo(statusGeral);
+  }
+
+  function marcarResolvida(id) {
+    setTurmas((turmasAtuais) => turmasAtuais.map((t) => t.id !== turma.id ? t : {
+      ...t,
+      pendencias: (t.pendencias || []).map((p) => p.id === id ? { ...p, resolvida: true } : p),
     }));
-    setSalvo(true);
   }
 
   return (
@@ -5252,10 +5265,27 @@ function SessaoTurma({ turma, alunos, setAlunos, aoFechar, aoRemover }) {
         </p>
       )}
 
+      {pendenciasAbertas.length > 0 && (
+        <div className="mb-5">
+          <Aviso>
+            {pendenciasAbertas.length === 1 ? "1 pendência do grupo em aberto" : pendenciasAbertas.length + " pendências do grupo em aberto"} — precisa de reposição.
+          </Aviso>
+          {pendenciasAbertas.map((p) => (
+            <div key={p.id} style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.saibro, padding: "10px 13px", marginTop: 8 }}>
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>{p.data}{p.motivo ? " · " + p.motivo : ""}</div>
+                <Botao pequeno variante="vazio" onClick={() => marcarResolvida(p.id)}>Marcar como resolvida</Botao>
+              </div>
+              {p.nota && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>{p.nota}</p>}
+            </div>
+          ))}
+        </div>
+      )}
+
       <div style={{ background: C.cal, border: "1px solid " + C.linha, padding: 15, marginBottom: 18 }}>
-        <Campo rotulo="Status da sessão de hoje" nota="Aplica pra todo mundo — dá pra corrigir por jogador na lista abaixo.">
+        <Campo rotulo="Sessão de hoje">
           <div className="flex gap-1 flex-wrap">
-            {[["feita", "Realizada"], ["falta", "Falta coletiva"], ["cancelada", "Cancelada"]].map(([v, r]) => (
+            {[["feita", "Realizada"], ["pendencia", "Pendência do grupo"]].map(([v, r]) => (
               <button key={v} onClick={() => setStatusGeral(v)}
                 style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "6px 10px", borderRadius: 2, cursor: "pointer",
                   border: "1px solid " + (statusGeral === v ? C.tinta : C.linha),
@@ -5263,18 +5293,24 @@ function SessaoTurma({ turma, alunos, setAlunos, aoFechar, aoRemover }) {
             ))}
           </div>
         </Campo>
-        {(statusGeral === "falta" || statusGeral === "cancelada") && (
-          <Campo rotulo="Motivo">
-            <input list="motivos-cancelamento-turma" style={entrada} value={motivoGeral}
-              onChange={(e) => setMotivoGeral(e.target.value)} placeholder="ex: chuva" />
-            <datalist id="motivos-cancelamento-turma">
-              <option value="Chuva" /><option value="Quadra indisponível" /><option value="Feriado" />
-            </datalist>
-          </Campo>
+        {statusGeral === "pendencia" && (
+          <div>
+            <Campo rotulo="Motivo">
+              <input list="motivos-cancelamento-turma" style={entrada} value={motivo}
+                onChange={(e) => setMotivo(e.target.value)} placeholder="ex: chuva" />
+              <datalist id="motivos-cancelamento-turma">
+                <option value="Chuva" /><option value="Quadra indisponível" /><option value="Feriado" /><option value="Grupo não fechou" />
+              </datalist>
+            </Campo>
+            <Campo rotulo="Anotação" nota="Fica registrado na turma pra decidir a reposição depois — não mexe no plano individual de ninguém.">
+              <textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={nota}
+                onChange={(e) => setNota(e.target.value)} placeholder="ex: repor sábado 9h, avisar os pais" />
+            </Campo>
+          </div>
         )}
       </div>
 
-      {statusGeral === "cancelada" && /chuva/i.test(motivoGeral) && (
+      {statusGeral === "pendencia" && /chuva/i.test(motivo) && (
         <div className="mb-5">
           {chuvaAberta ? (
             <div>
@@ -5289,20 +5325,9 @@ function SessaoTurma({ turma, alunos, setAlunos, aoFechar, aoRemover }) {
 
       {membros.map((a) => {
         const prox = aulaEmVigor(a);
-        const st = statusDe(a.id);
         return (
           <div key={a.id} style={{ background: C.papel, border: "1px solid " + C.linha, padding: "12px 15px", marginBottom: 9 }}>
-            <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
-              <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{a.nome || "Sem nome"}</div>
-              <div className="flex gap-1">
-                {[["feita", "Realizada"], ["falta", "Falta"], ["cancelada", "Cancelada"]].map(([v, r]) => (
-                  <button key={v} onClick={() => definirIndividual(a.id, v)}
-                    style={{ fontFamily: ARCH, fontSize: 10.5, fontWeight: 700, padding: "4px 8px", borderRadius: 2, cursor: "pointer",
-                      border: "1px solid " + (st === v ? C.saibro : C.linha),
-                      background: st === v ? C.saibro : C.papel, color: st === v ? "#fff" : C.grafite }}>{r}</button>
-                ))}
-              </div>
-            </div>
+            <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginBottom: 6 }}>{a.nome || "Sem nome"}</div>
             {!a.plano ? (
               <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Este jogador ainda não tem plano.</p>
             ) : !prox ? (
@@ -5319,7 +5344,8 @@ function SessaoTurma({ turma, alunos, setAlunos, aoFechar, aoRemover }) {
       <div className="flex gap-2 items-center mt-4">
         <Botao onClick={salvarSessao}>Salvar sessão</Botao>
         <Botao variante="vazio" onClick={aoRemover}>Remover turma</Botao>
-        {salvo && <Etiqueta cor={C.quadra}>✓ sessão registrada em cada jogador</Etiqueta>}
+        {salvo === "feita" && <Etiqueta cor={C.quadra}>✓ sessão registrada em cada jogador</Etiqueta>}
+        {salvo === "pendencia" && <Etiqueta cor={C.saibro}>✓ pendência do grupo registrada</Etiqueta>}
       </div>
     </div>
   );
