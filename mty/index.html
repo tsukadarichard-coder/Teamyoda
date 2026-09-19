@@ -109,6 +109,31 @@ if (auth) {
   };
 }
 
+/* ── professores da academia ──
+   Não existe um cadastro de "professor" à parte — um professor é
+   qualquer conta aprovada em orgs/{org}/solicitacoes (mais o próprio
+   coordenador, que também pode dar aula). Usado pra escolher o
+   "professor responsável" de um jogador ou de uma turma, e pra montar
+   o dashboard e a agenda de cada um. */
+async function listaProfessores() {
+  const lista = [];
+  const u = auth && auth.currentUser;
+  if (u) lista.push({ uid: u.uid, nome: (u.email || "Eu").split("@")[0], email: u.email || "" });
+  const org = await organizacao();
+  if (db && org) {
+    try {
+      const snap = await db.collection("orgs").doc(org).collection("solicitacoes")
+        .where("status", "==", "aprovada").get();
+      snap.forEach((d) => {
+        if (u && d.id === u.uid) return;
+        const dados = d.data();
+        lista.push({ uid: d.id, nome: dados.nome || dados.email || "Sem nome", email: dados.email || "" });
+      });
+    } catch (e) {}
+  }
+  return lista;
+}
+
 /* ── armazenamento: Firestore (por academia) ou localStorage, mesma assinatura ──
    Na nuvem não existe mais "local" vs "compartilhado" — uma vez logado
    numa academia, tudo que se lê e grava é da academia inteira. */
@@ -2007,6 +2032,48 @@ function Seletor({ opcoes, valor, aoMudar }) {
   );
 }
 
+const DIAS_SEMANA = [
+  { v: 1, r: "Seg" }, { v: 2, r: "Ter" }, { v: 3, r: "Qua" }, { v: 4, r: "Qui" },
+  { v: 5, r: "Sex" }, { v: 6, r: "Sáb" }, { v: 0, r: "Dom" },
+];
+function nomeDia(v) { return (DIAS_SEMANA.find((d) => d.v === v) || {}).r || "?"; }
+
+/* ── horários fixos semanais, usado tanto por jogador individual quanto por turma ──
+   Uma lista de {dia, hora} — pra suportar 2 a 5 vezes por semana sem
+   modelar nada além disso (sem quadra, sem duração por horário: a
+   duração já vem do cadastro da turma ou é sempre a mesma pro particular). */
+function EditorHorarios({ horarios, setHorarios }) {
+  const [dia, setDia] = useState(1);
+  const [hora, setHora] = useState("17:00");
+
+  function adicionar() {
+    if (horarios.some((h) => h.dia === dia && h.hora === hora)) return;
+    setHorarios([...horarios, { dia, hora }].sort((a, b) => a.dia - b.dia || a.hora.localeCompare(b.hora)));
+  }
+  function remover(i) { setHorarios(horarios.filter((_, k) => k !== i)); }
+
+  return (
+    <div>
+      {horarios.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-3">
+          {horarios.map((h, i) => (
+            <span key={i} className="flex items-center gap-2" style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 600,
+              padding: "5px 10px", border: "1px solid " + C.linha, borderRadius: 2, background: C.cal, color: C.grafite }}>
+              {nomeDia(h.dia)} {h.hora}
+              <button onClick={() => remover(i)} style={{ border: "none", background: "none", cursor: "pointer", color: C.saibro, fontWeight: 700, padding: 0 }}>×</button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="flex gap-2 items-center flex-wrap">
+        <Seletor opcoes={DIAS_SEMANA} valor={dia} aoMudar={setDia} />
+        <input type="time" style={{ ...entrada, width: 100 }} value={hora} onChange={(e) => setHora(e.target.value)} />
+        <Botao pequeno variante="vazio" onClick={adicionar}>+ Adicionar</Botao>
+      </div>
+    </div>
+  );
+}
+
 function Secao({ titulo, children, nota }) {
   return (
     <section className="mb-9">
@@ -2334,6 +2401,7 @@ function novoAluno() {
     inicio: "", semanas: 18, competicoes: [{ nome: "", data: "" }],
     diasQuadra: 5, periodos: 2, escola: "noite", musculacao: 3,
     historico: [], registros: [],
+    professorUid: "", professorNome: "", horarios: [],
   };
 }
 
@@ -2739,6 +2807,12 @@ function TelaFicha({ aluno, salvar }) {
   const ent = (k) => (f.entrada || {})[k] || "";
   const setEnt = (k, v) => setF((x) => ({ ...x, entrada: { ...(x.entrada || {}), [k]: v } }));
   const [mostraRel, setMostraRel] = useState(false);
+  const [professores, setProfessores] = useState([]);
+  useEffect(() => { listaProfessores().then(setProfessores); }, []);
+  function escolherProfessor(uid) {
+    const p = professores.find((x) => x.uid === uid);
+    setF((x) => ({ ...x, professorUid: uid, professorNome: p ? p.nome : "" }));
+  }
 
   const camadaPreenchida = (k) => f.camadas[k].trim().length > 0;
   const liberada = { tecnico: true, fisico: camadaPreenchida("tecnico"), tatico: camadaPreenchida("fisico"), mental: camadaPreenchida("tatico") };
@@ -2773,6 +2847,15 @@ function TelaFicha({ aluno, salvar }) {
     <div>
       <Secao titulo="Identificação" nota="F-01 do manual: a ficha de avaliação inicial.">
         <Campo rotulo="Nome"><input style={entrada} value={f.nome} onChange={(e) => set("nome", e.target.value)} placeholder="Nome do jogador ou da turma" /></Campo>
+        {professores.length > 0 && (
+          <Campo rotulo="Professor responsável" nota="Define de qual dashboard este jogador aparece por padrão.">
+            <Seletor opcoes={[{ v: "", r: "Sem professor definido" }, ...professores.map((p) => ({ v: p.uid, r: p.nome }))]}
+              valor={f.professorUid || ""} aoMudar={escolherProfessor} />
+          </Campo>
+        )}
+        <Campo rotulo="Horário fixo de treino" nota="Alimenta a Grade de horário e a Agenda semanal.">
+          <EditorHorarios horarios={f.horarios || []} setHorarios={(h) => set("horarios", h)} />
+        </Campo>
         <div className="grid grid-cols-2 gap-3">
           <Campo rotulo="Nascimento"><input type="date" style={entrada} value={f.nascimento} onChange={(e) => set("nascimento", e.target.value)} /></Campo>
           <Campo rotulo="Altura atual / projeção">
@@ -5030,7 +5113,11 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas }) {
   const [criando, setCriando] = useState(false);
   const [nome, setNome] = useState("");
   const [membrosSel, setMembrosSel] = useState([]);
-  const [duracao, setDuracao] = useState("1h");
+  const [duracao, setDuracao] = useState("2h");
+  const [professorUid, setProfessorUid] = useState("");
+  const [horarios, setHorarios] = useState([]);
+  const [professores, setProfessores] = useState([]);
+  useEffect(() => { listaProfessores().then(setProfessores); }, []);
 
   const aberta = abertaId ? turmas.find((t) => t.id === abertaId) : null;
   if (aberta) {
@@ -5046,8 +5133,12 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas }) {
   }
   function criarTurma() {
     if (!nome.trim() || membrosSel.length < 2) return;
-    setTurmas([...turmas, { id: "turma-" + Date.now(), nome: nome.trim(), membros: membrosSel, duracaoPadrao: duracao }]);
-    setNome(""); setMembrosSel([]); setDuracao("1h"); setCriando(false);
+    const prof = professores.find((p) => p.uid === professorUid);
+    setTurmas([...turmas, {
+      id: "turma-" + Date.now(), nome: nome.trim(), membros: membrosSel, duracaoPadrao: duracao,
+      professorUid, professorNome: prof ? prof.nome : "", horarios,
+    }]);
+    setNome(""); setMembrosSel([]); setDuracao("2h"); setProfessorUid(""); setHorarios([]); setCriando(false);
   }
 
   return (
@@ -5069,6 +5160,15 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas }) {
           </Campo>
           <Campo rotulo="Duração padrão">
             <Seletor opcoes={[{ v: "1h", r: "1h" }, { v: "1h30", r: "1h30" }, { v: "2h", r: "2h" }]} valor={duracao} aoMudar={setDuracao} />
+          </Campo>
+          {professores.length > 0 && (
+            <Campo rotulo="Professor responsável">
+              <Seletor opcoes={[{ v: "", r: "A definir" }, ...professores.map((p) => ({ v: p.uid, r: p.nome }))]}
+                valor={professorUid} aoMudar={setProfessorUid} />
+            </Campo>
+          )}
+          <Campo rotulo="Dias e horários de treino" nota="Pode ter de 2 a 5 por semana. Alimenta a Grade de horário e a Agenda semanal.">
+            <EditorHorarios horarios={horarios} setHorarios={setHorarios} />
           </Campo>
           <Campo rotulo="Jogadores (mínimo 2)">
             <div className="flex flex-wrap gap-2">
@@ -5097,7 +5197,12 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas }) {
           <div key={t.id} onClick={() => setAbertaId(t.id)}
             style={{ background: C.cal, border: "1px solid " + C.linha, padding: "13px 15px", marginBottom: 9, cursor: "pointer" }}>
             <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{t.nome}</div>
-            <div className="mt-1"><Etiqueta>{t.duracaoPadrao} · {t.membros.length} jogadores</Etiqueta></div>
+            <div className="mt-1"><Etiqueta>{t.duracaoPadrao} · {t.membros.length} jogadores{t.professorNome ? " · prof. " + t.professorNome : ""}</Etiqueta></div>
+            {(t.horarios || []).length > 0 && (
+              <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 4 }}>
+                {t.horarios.map((h) => nomeDia(h.dia) + " " + h.hora).join(" · ")}
+              </p>
+            )}
           </div>
         ))
       )}
@@ -5138,7 +5243,14 @@ function SessaoTurma({ turma, alunos, setAlunos, aoFechar, aoRemover }) {
     <div>
       <button onClick={aoFechar} className="mb-3" style={{ ...prosa, color: C.grafite, cursor: "pointer" }}>← Turmas</button>
       <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>{turma.nome}</h1>
-      <div className="mb-5"><Etiqueta>{turma.duracaoPadrao} · {membros.length} jogadores</Etiqueta></div>
+      <div style={{ marginBottom: (turma.horarios || []).length > 0 ? 4 : 20 }}>
+        <Etiqueta>{turma.duracaoPadrao} · {membros.length} jogadores{turma.professorNome ? " · prof. " + turma.professorNome : ""}</Etiqueta>
+      </div>
+      {(turma.horarios || []).length > 0 && (
+        <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 20 }}>
+          {turma.horarios.map((h) => nomeDia(h.dia) + " " + h.hora).join(" · ")}
+        </p>
+      )}
 
       <div style={{ background: C.cal, border: "1px solid " + C.linha, padding: 15, marginBottom: 18 }}>
         <Campo rotulo="Status da sessão de hoje" nota="Aplica pra todo mundo — dá pra corrigir por jogador na lista abaixo.">
@@ -5213,7 +5325,131 @@ function SessaoTurma({ turma, alunos, setAlunos, aoFechar, aoRemover }) {
   );
 }
 
-const NAV_PRINCIPAL = [{ v: "alunos", r: "Jogadores" }, { v: "turmas", r: "Turmas" }, { v: "casos", r: "Casos" }];
+/* ── grade de horário e agenda semanal ──
+   Junta os horários fixos de turmas e de jogadores individuais numa
+   visão só. Não modela quadra nem conflito de horário — só "quem
+   treina quando, com qual professor", pra grade (visual) e agenda
+   (lista por dia) ficarem sempre iguais, lidas da mesma lista. */
+function compromissosDaSemana(alunos, turmas) {
+  const lista = [];
+  turmas.forEach((t) => (t.horarios || []).forEach((h) => lista.push({
+    tipo: "turma", dia: h.dia, hora: h.hora, titulo: t.nome, detalhe: t.duracaoPadrao,
+    professorUid: t.professorUid || "", professorNome: t.professorNome || "",
+  })));
+  alunos.forEach((a) => (a.horarios || []).forEach((h) => lista.push({
+    tipo: "individual", dia: h.dia, hora: h.hora, titulo: a.nome || "Sem nome", detalhe: "particular",
+    professorUid: a.professorUid || "", professorNome: a.professorNome || "",
+  })));
+  return lista.sort((x, y) => x.dia - y.dia || x.hora.localeCompare(y.hora));
+}
+
+function TelaAgenda({ alunos, turmas, uidAtual, exigeLogin }) {
+  const [modo, setModo] = useState("grade");
+  const [verTodos, setVerTodos] = useState(false);
+
+  const todos = useMemo(() => compromissosDaSemana(alunos, turmas), [alunos, turmas]);
+  const compromissos = (!exigeLogin || verTodos || !uidAtual)
+    ? todos
+    : todos.filter((c) => !c.professorUid || c.professorUid === uidAtual);
+
+  const horas = [...new Set(compromissos.map((c) => c.hora))].sort();
+
+  return (
+    <div>
+      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Agenda</h1>
+      <p style={{ ...prosa, color: C.grafite, marginBottom: 14 }}>
+        Vem dos horários fixos cadastrados na ficha de cada jogador e em cada turma.
+      </p>
+
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-5">
+        <div className="flex gap-2">
+          {[{ v: "grade", r: "Grade" }, { v: "semana", r: "Semana" }].map((t) => (
+            <button key={t.v} onClick={() => setModo(t.v)}
+              style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, padding: "6px 11px", borderRadius: 2, cursor: "pointer",
+                border: "1px solid " + (modo === t.v ? C.tinta : C.linha),
+                background: modo === t.v ? C.tinta : C.papel, color: modo === t.v ? C.papel : C.grafite }}>
+              {t.r}
+            </button>
+          ))}
+        </div>
+        {exigeLogin && uidAtual && (
+          <div className="flex gap-2">
+            {[{ v: false, r: "Meus horários" }, { v: true, r: "Toda a academia" }].map((t) => (
+              <button key={String(t.v)} onClick={() => setVerTodos(t.v)}
+                style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, padding: "6px 11px", borderRadius: 2, cursor: "pointer",
+                  border: "1px solid " + (verTodos === t.v ? C.saibro : C.linha),
+                  background: verTodos === t.v ? C.saibro : C.papel, color: verTodos === t.v ? "#fff" : C.grafite }}>
+                {t.r}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {compromissos.length === 0 ? (
+        <p style={{ ...prosa, color: C.grafite }}>
+          Nenhum horário fixo cadastrado ainda. Adicione em "Horário fixo de treino" na ficha do jogador,
+          ou em "Dias e horários de treino" ao criar uma turma.
+        </p>
+      ) : modo === "grade" ? (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 640 }}>
+            <thead>
+              <tr>
+                <th style={{ ...celulaGrade, background: C.papel }}></th>
+                {DIAS_SEMANA.map((d) => (
+                  <th key={d.v} style={{ ...celulaGrade, fontFamily: ARCH, fontSize: 12, fontWeight: 700, textAlign: "left" }}>{d.r}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {horas.map((hora) => (
+                <tr key={hora}>
+                  <td style={{ ...celulaGrade, fontFamily: ARCH, fontSize: 12, fontWeight: 700, color: C.grafite, whiteSpace: "nowrap" }}>{hora}</td>
+                  {DIAS_SEMANA.map((d) => {
+                    const aqui = compromissos.filter((c) => c.dia === d.v && c.hora === hora);
+                    return (
+                      <td key={d.v} style={{ ...celulaGrade, minWidth: 110 }}>
+                        {aqui.map((c, i) => (
+                          <div key={i} className="mb-1" style={{ fontSize: 11.5, lineHeight: 1.3 }}>
+                            <div style={{ fontWeight: 700 }}>{c.titulo}</div>
+                            <div style={{ color: C.grafite }}>{c.professorNome || "sem professor"}</div>
+                          </div>
+                        ))}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        DIAS_SEMANA.map((d) => {
+          const doDia = compromissos.filter((c) => c.dia === d.v);
+          if (doDia.length === 0) return null;
+          return (
+            <div key={d.v} className="mb-5">
+              <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.08em", color: C.grafite }}>{d.r}</div>
+              {doDia.map((c, i) => (
+                <div key={i} style={{ background: C.cal, border: "1px solid " + C.linha, padding: "10px 13px", marginBottom: 6 }}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{c.hora} · {c.titulo}</div>
+                    <Etiqueta>{c.detalhe}</Etiqueta>
+                  </div>
+                  <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>{c.professorNome || "sem professor definido"}</p>
+                </div>
+              ))}
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+}
+const celulaGrade = { border: "1px solid " + C.linha, padding: "8px 10px", verticalAlign: "top" };
+
+const NAV_PRINCIPAL = [{ v: "alunos", r: "Jogadores" }, { v: "turmas", r: "Turmas" }, { v: "agenda", r: "Agenda" }, { v: "casos", r: "Casos" }];
 const NAV_MANUAL = [{ v: "catalogo", r: "Catálogo" }, { v: "tecnica", r: "Técnica" }, { v: "taticas", r: "Táticas" },
   { v: "conducao", r: "Condução" }, { v: "publicos", r: "Públicos" }, { v: "aulas", r: "Aulas" }, { v: "metodo", r: "Como decide" }];
 
@@ -5232,6 +5468,8 @@ function App() {
   const [orgAtual, setOrgAtual] = useState(null);
   const [papelAtual, setPapelAtual] = useState(null);
   const [verificandoOrg, setVerificandoOrg] = useState(exigeLogin);
+  const [verTodosAlunos, setVerTodosAlunos] = useState(false);
+  const uidAtual = exigeLogin && window.mtyAuth.usuario() ? window.mtyAuth.usuario().uid : null;
 
   useEffect(() => {
     if (!exigeLogin) return;
@@ -5261,6 +5499,13 @@ function App() {
   useEffect(() => { if (autenticado && !carregandoTurmas) grave("mty:turmas:v1", turmas, true); }, [turmas, carregandoTurmas, autenticado]);
 
   const aberto = abertoId ? alunos.find((a) => a.id === abertoId) : null;
+  /* Dashboard do professor: por padrão só os alunos dele (mais os que
+     ainda não têm professor definido, pra nada sumir com a migração).
+     "Todos os alunos" mostra a academia inteira, com o professor de
+     cada um — pra qualquer treinador, não só o coordenador. */
+  const alunosExibidos = (!exigeLogin || verTodosAlunos || !uidAtual)
+    ? alunos
+    : alunos.filter((a) => !a.professorUid || a.professorUid === uidAtual);
 
   function criar() {
     const n = novoAluno();
@@ -5348,6 +5593,7 @@ function App() {
          aba === "metodo" ? <TelaMetodo /> :
          aba === "equipe" ? <TelaEquipe /> :
          aba === "turmas" ? <TelaTurmas alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} /> :
+         aba === "agenda" ? <TelaAgenda alunos={alunos} turmas={turmas} uidAtual={uidAtual} exigeLogin={exigeLogin} /> :
          aberto ? (
           <div>
             <button onClick={() => setAbertoId(null)} className="mb-3" style={{ ...prosa, color: C.grafite, cursor: "pointer" }}>← Todos os jogadores</button>
@@ -5371,31 +5617,53 @@ function App() {
           </div>
         ) : (
           <div>
-            <p style={{ ...prosa, color: C.grafite, marginBottom: 20 }}>
+            <p style={{ ...prosa, color: C.grafite, marginBottom: 14 }}>
               Cada jogador guarda a ficha das quatro camadas, o calendário e o histórico de sessões.
               É desse conjunto que sai a periodização.
             </p>
-            {alunos.map((a) => {
-              const emVigor = a.plano ? aulaEmVigor(a) : null;
-              const regEmVigor = emVigor ? (a.regPlano || {})[emVigor.id] || {} : null;
-              const repetindo = regEmVigor && (regEmVigor.status === "falta" || regEmVigor.status === "cancelada");
-              return (
-                <button key={a.id} onClick={() => { setAbertoId(a.id); setSubaba("ficha"); }}
-                  className="w-full text-left flex items-center justify-between gap-3"
-                  style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 2, padding: "13px 15px", marginBottom: 8 }}>
-                  <div>
-                    <div style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{a.nome || "Sem nome"}</div>
-                    <div className="mt-1"><Etiqueta>{a.nivel} · Estágio {a.estagio} · {a.inicio ? `início ${a.inicio}` : "sem calendário"}</Etiqueta></div>
-                    {emVigor && (
-                      <p style={{ ...prosa, fontSize: 12.5, color: C.saibro, marginTop: 4 }}>
-                        {repetindo ? "Repetindo: " : "Em vigor: "}{emVigor.t}
-                      </p>
-                    )}
-                  </div>
-                  <span style={{ color: C.grafite, fontSize: 20 }}>→</span>
-                </button>
-              );
-            })}
+            {exigeLogin && uidAtual && (
+              <div className="flex gap-5 mb-5" style={{ borderBottom: "1px solid " + C.linha }}>
+                {[{ v: false, r: "Meus alunos" }, { v: true, r: "Todos os alunos" }].map((t) => (
+                  <button key={String(t.v)} onClick={() => setVerTodosAlunos(t.v)}
+                    style={{ fontFamily: ARCH, fontSize: 13, fontWeight: verTodosAlunos === t.v ? 700 : 500, padding: "8px 0", cursor: "pointer",
+                      color: verTodosAlunos === t.v ? C.tinta : C.grafite, borderBottom: "2px solid " + (verTodosAlunos === t.v ? C.saibro : "transparent"), marginBottom: -1 }}>
+                    {t.r}
+                  </button>
+                ))}
+              </div>
+            )}
+            {alunosExibidos.length === 0 ? (
+              <p style={{ ...prosa, color: C.grafite, marginBottom: 16 }}>Nenhum jogador seu por enquanto.</p>
+            ) : (
+              alunosExibidos.map((a) => {
+                const emVigor = a.plano ? aulaEmVigor(a) : null;
+                const regEmVigor = emVigor ? (a.regPlano || {})[emVigor.id] || {} : null;
+                const repetindo = regEmVigor && (regEmVigor.status === "falta" || regEmVigor.status === "cancelada");
+                return (
+                  <button key={a.id} onClick={() => { setAbertoId(a.id); setSubaba("ficha"); }}
+                    className="w-full text-left flex items-center justify-between gap-3"
+                    style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 2, padding: "13px 15px", marginBottom: 8 }}>
+                    <div>
+                      <div style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{a.nome || "Sem nome"}</div>
+                      <div className="mt-1">
+                        <Etiqueta>{a.nivel} · Estágio {a.estagio} · {a.inicio ? `início ${a.inicio}` : "sem calendário"}</Etiqueta>
+                      </div>
+                      {verTodosAlunos && (
+                        <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 4 }}>
+                          Professor: {a.professorNome || "sem professor definido"}
+                        </p>
+                      )}
+                      {emVigor && (
+                        <p style={{ ...prosa, fontSize: 12.5, color: C.saibro, marginTop: 4 }}>
+                          {repetindo ? "Repetindo: " : "Em vigor: "}{emVigor.t}
+                        </p>
+                      )}
+                    </div>
+                    <span style={{ color: C.grafite, fontSize: 20 }}>→</span>
+                  </button>
+                );
+              })
+            )}
             <div className="mt-4"><Botao onClick={criar} variante="saibro">Novo jogador</Botao></div>
           </div>
         )}
