@@ -1510,6 +1510,127 @@ const NIVEIS_CRITERIOS = [
   },
 ];
 
+/* ── trilha de classificação ──
+   Mesmo com o plano personalizado, todo jogador está sempre em algum
+   ponto de um caminho, com critério claro do que falta pro próximo.
+
+   Infantil: segue o Play and Stay da ETF — bola vermelha, laranja e
+   verde já são os próprios estágios (V/L/G), então a "categoria" ali é
+   o próprio estágio e os critérios são os de Y1/Y2/Y3 (NIVEIS_CRITERIOS).
+
+   Adulto e Competição: o estágio (A/C) não muda — quem avança é a
+   categoria dentro dele, do jeito que foi descrito pelo método: o
+   iniciante fica na categoria até executar todos os fundamentos
+   básicos (técnica + mobilidade de quadra são os dois pilares que o
+   seguram ali); o intermediário já disputa partida de verdade e tem
+   um ou dois fundamentos muito bons, mas rede e pernas ainda atrasam;
+   o avançado tem tudo bem executado e compete — daí em diante quem
+   decide a evolução é o refinamento técnico, não mais um pré-requisito
+   que falta. Competição segue a mesma lógica, para o juvenil/social de
+   competição, com a entrada/meio/topo descritos pelo coordenador. */
+const CATEGORIAS_ADULTO = [
+  {
+    id: "iniciante-1", nome: "Iniciante 1", nivelSugerido: "Y1",
+    foco: "Ainda aprendendo os fundamentos — saque, direita e esquerda não saem com regularidade.",
+    criterios: [
+      "Coloca o saque em jogo, mesmo sem consistência",
+      "Executa o gesto de direita e de esquerda, mesmo com erro técnico visível",
+      "Ainda não sustenta uma troca de bola básica (2–3 bolas seguidas na mesma direção)",
+      "Movimentação pela quadra é insegura — não recupera a posição depois de bater",
+    ],
+  },
+  {
+    id: "iniciante-2", nome: "Iniciante 2", nivelSugerido: "Y1",
+    foco: "Os fundamentos aparecem com mais regularidade, mas ainda falta um deles ou a mobilidade pela quadra.",
+    criterios: [
+      "Executa saque, direita e esquerda com técnica reconhecível na maioria das tentativas",
+      "Sustenta uma troca de bola básica, cruzada ou paralela",
+      "Ainda tem uma lacuna clara: falta um fundamento (um golpe, ou o saque) OU a mobilidade pela quadra",
+      "Só joga bola de brincadeira — ainda não disputa ponto com placar",
+    ],
+  },
+  {
+    id: "iniciante-3", nome: "Iniciante 3", nivelSugerido: "Y2",
+    foco: "Executa todos os fundamentos básicos do tênis — o degrau de saída do iniciante.",
+    criterios: [
+      "Executa saque, direita, esquerda e um contato básico de rede — todos, mesmo sem refinamento",
+      "Sustenta a troca de bola básica sem quebrar o padrão",
+      "Movimenta-se e recupera a posição de espera entre as bolas",
+      "Ainda não disputa partidas competitivas — só jogo recreativo (é isso que muda no intermediário)",
+    ],
+  },
+  {
+    id: "intermediario", nome: "Intermediário", nivelSugerido: "Y3",
+    foco: "Já disputa partida de verdade. Um ou dois fundamentos são muito bons; rede e trabalho de pernas ainda atrasam.",
+    criterios: [
+      "Já disputa partidas competitivas (com placar), não só jogo recreativo",
+      "Executa com maestria um ou dois fundamentos (ex.: direita ou saque)",
+      "Aplica direção e estratégia com intenção durante o ponto — não só rebate",
+      "Jogo de rede e trabalho de pernas ainda estão claramente atrás do resto do jogo",
+    ],
+  },
+  {
+    id: "avancado", nome: "Avançado", nivelSugerido: "Y4",
+    foco: "Todos os fundamentos bem executados, participa de competições. Teto desta trilha.",
+    criterios: [
+      "Executa bem todos os fundamentos de base: saque, devolução, direita, esquerda e rede",
+      "Participa de competições",
+      "Sustenta um plano de jogo dentro da partida",
+      "A partir daqui a evolução é por refinamento técnico — os pré-requisitos já estão completos",
+    ],
+  },
+];
+
+const CATEGORIAS_COMPETICAO = [
+  {
+    id: "competicao-iniciante", nome: "Competição · Iniciante", nivelSugerido: "Y4",
+    foco: "Já tem todos os fundamentos, mas com deficiências técnicas e de movimentação — a entrada na competição.",
+    criterios: [
+      "Já possui todos os fundamentos (não está mais no processo de aprendê-los)",
+      "Ainda tem deficiências técnicas visíveis em pelo menos um fundamento",
+      "Movimentação pela quadra ainda é uma limitação clara",
+      "Compete, mas sem estratégia consistente",
+    ],
+  },
+  {
+    id: "competicao-intermediario", nome: "Competição · Intermediário", nivelSugerido: "Y5",
+    foco: "Aplica alguma estratégia e já se movimenta melhor, mas ainda sem a consistência necessária para o próximo nível.",
+    criterios: [
+      "Possui todos os fundamentos com menos deficiências técnicas",
+      "Já aplica alguma estratégia dentro da partida",
+      "Movimentação pela quadra é melhor, mas ainda não sustenta alta consistência na partida inteira",
+      "Vence pontos com plano, mas ainda perde consistência em momentos de pressão",
+    ],
+  },
+  {
+    id: "competicao-avancado", nome: "Competição · Avançado", nivelSugerido: "Y6",
+    foco: "Todos os fundamentos, boa estratégia e plano de jogo — mas ainda não é profissional. Teto desta trilha.",
+    criterios: [
+      "Aplica uma boa estratégia com plano de jogo definido",
+      "Movimentação de quadra muito boa",
+      "Sustenta o nível de jogo ao longo da partida inteira",
+      "Ainda não é considerado profissional — teto desta trilha de classificação",
+    ],
+  },
+];
+
+/* Categorias por estágio — V/L/G usam o próprio estágio como categoria
+   (não têm subdivisão: um "L" só é reclassificado virando "G"). */
+function categoriasDoEstagio(estagio) {
+  const idx = ["V", "L", "G"].indexOf(estagio);
+  if (idx >= 0) {
+    const info = NIVEIS_CRITERIOS[idx];
+    return [{
+      id: estagio, nome: ESTAGIOS[idx].n + " · Play and Stay (" + info.nivel + ")",
+      nivelSugerido: info.nivel, foco: info.capacidade, criterios: info.criterios,
+      proximoEstagio: ["L", "G", null][idx],
+    }];
+  }
+  if (estagio === "A") return CATEGORIAS_ADULTO;
+  if (estagio === "C") return CATEGORIAS_COMPETICAO;
+  return [];
+}
+
 const PADROES_TATICOS = [
   { c: "P1", n: "Saque aberto e a bola no espaço vazio", e: "Um saque aberto que entre. Não precisa ser rápido — precisa ser aberto.", nv: "Y4",
     seq: "Saque aberto · primeira bola no espaço vazio, sem acelerar demais · terceira bola termina.",
@@ -2291,6 +2412,90 @@ function LegendaNiveis({ nivelInicial }) {
   );
 }
 
+/* ── trilha de classificação, por jogador ──
+   Mostra onde o jogador está e o que falta pra próxima categoria — a
+   marcação fica presa ao par (estágio, categoria) atual: trocar de
+   categoria começa um checklist novo, do jeito que uma trilha real
+   funciona (não dá pra "voltar" um critério de um degrau já passado). */
+function TrilhaClassificacao({ f, set }) {
+  const lista = categoriasDoEstagio(f.estagio);
+  if (lista.length === 0) return null;
+
+  const semSubdivisao = lista.length === 1 && lista[0].id === f.estagio;
+  const atual = semSubdivisao ? lista[0] : (lista.find((c) => c.id === f.categoria) || lista[0]);
+  const idxAtual = lista.findIndex((c) => c.id === atual.id);
+  const proxima = !semSubdivisao && idxAtual >= 0 && idxAtual < lista.length - 1 ? lista[idxAtual + 1] : null;
+  const marcados = f.criteriosClassificacao || {};
+  const feitos = atual.criterios.filter((_, i) => marcados[atual.id + ":" + i]).length;
+  const completo = feitos === atual.criterios.length;
+
+  function alternar(i) {
+    const chave = atual.id + ":" + i;
+    set("criteriosClassificacao", { ...marcados, [chave]: !marcados[chave] });
+  }
+
+  function registrarSalto(novaCategoriaId, novoEstagio) {
+    if (novoEstagio) set("estagio", novoEstagio);
+    if (novaCategoriaId) set("categoria", novaCategoriaId);
+    set("historicoCategorias", [...(f.historicoCategorias || []), { data: new Date().toISOString().slice(0, 10), de: atual.nome }]);
+  }
+
+  return (
+    <div className="mb-5">
+      {!semSubdivisao && (
+        <Campo rotulo="Categoria dentro do estágio">
+          <Seletor opcoes={lista.map((c) => ({ v: c.id, r: c.nome }))} valor={atual.id} aoMudar={(v) => set("categoria", v)} />
+        </Campo>
+      )}
+      <div style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + (completo ? C.quadra : C.saibro), padding: "13px 15px" }}>
+        <div className="flex items-baseline justify-between gap-3 flex-wrap mb-1">
+          <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{atual.nome}</span>
+          <Etiqueta cor={completo ? C.quadra : C.grafite}>{feitos} de {atual.criterios.length} critérios</Etiqueta>
+        </div>
+        <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>{atual.foco}</p>
+        {atual.criterios.map((cr, i) => {
+          const feito = !!marcados[atual.id + ":" + i];
+          return (
+            <div key={i} onClick={() => alternar(i)}
+              style={{ background: feito ? "#F4F7F4" : C.papel, border: "1px solid " + C.linha,
+                borderLeft: "3px solid " + (feito ? C.quadra : C.linha), padding: "9px 12px", marginBottom: 6, cursor: "pointer" }}>
+              <div className="flex items-start gap-3">
+                <span style={{ fontFamily: ARCH, fontSize: 15, lineHeight: 1.3, color: feito ? C.quadra : C.grafite }}>{feito ? "☑" : "☐"}</span>
+                <p style={{ ...prosa, fontSize: 12.5 }}>{cr}</p>
+              </div>
+            </div>
+          );
+        })}
+        <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginTop: 4 }}>
+          Marque um critério só depois de observá-lo em três ocasiões distintas, em aulas diferentes.
+        </p>
+
+        {completo && (proxima || (semSubdivisao && atual.proximoEstagio)) && (
+          <div className="mt-3">
+            <Botao pequeno onClick={() => registrarSalto(
+              proxima ? proxima.id : null,
+              semSubdivisao ? atual.proximoEstagio : null
+            )}>
+              Avançar para {proxima ? proxima.nome : ESTAGIOS.find((e) => e.s === atual.proximoEstagio).n}
+            </Botao>
+          </div>
+        )}
+        {completo && !proxima && !(semSubdivisao && atual.proximoEstagio) && (
+          <p style={{ ...prosa, fontSize: 12.5, color: C.quadra, marginTop: 8, fontWeight: 600 }}>
+            Teto desta trilha — a partir daqui a evolução é pelo refinamento técnico, não por um novo degrau.
+          </p>
+        )}
+      </div>
+
+      {(f.historicoCategorias || []).length > 0 && (
+        <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginTop: 8 }}>
+          Trilha percorrida: {f.historicoCategorias.map((h) => h.de).join(" → ")} → {atual.nome}
+        </p>
+      )}
+    </div>
+  );
+}
+
 /* ─────────────────────────── cartão de exercício ─────────────────────────── */
 function CartaoExercicio({ e, aoTrocar, aoRemover }) {
   const [aberto, setAberto] = useState(false);
@@ -2421,6 +2626,7 @@ function novoAluno() {
     diasQuadra: 5, periodos: 2, escola: "noite", musculacao: 3,
     historico: [], registros: [],
     professorUid: "", professorNome: "", horarios: [],
+    categoria: "", criteriosClassificacao: {}, historicoCategorias: [],
   };
 }
 
@@ -2478,6 +2684,31 @@ function CardAulaEmVigor({ aluno, aoClicar }) {
           {reg.motivo ? " (" + reg.motivo + ")" : ""}{reg.data ? " em " + reg.data : ""}.
         </p>
       )}
+    </button>
+  );
+}
+
+/* Resumo compacto da trilha de classificação, no topo do jogador — pra
+   ele (e o professor) verem de cara onde está e o que falta, sem
+   precisar entrar na aba Ficha. */
+function CardTrilha({ aluno, aoClicar }) {
+  const lista = categoriasDoEstagio(aluno.estagio);
+  if (lista.length === 0) return null;
+  const semSubdivisao = lista.length === 1 && lista[0].id === aluno.estagio;
+  const atual = semSubdivisao ? lista[0] : (lista.find((c) => c.id === aluno.categoria) || lista[0]);
+  const marcados = aluno.criteriosClassificacao || {};
+  const faltam = atual.criterios.filter((_, i) => !marcados[atual.id + ":" + i]).length;
+
+  return (
+    <button onClick={aoClicar} className="w-full text-left mb-5"
+      style={{ display: "block", background: C.cal, border: "1px solid " + C.linha, padding: "11px 14px", cursor: aoClicar ? "pointer" : "default" }}>
+      <Etiqueta>Trilha de classificação</Etiqueta>
+      <p style={{ ...prosa, fontSize: 14, fontWeight: 700, marginTop: 4 }}>{atual.nome}</p>
+      <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>
+        {faltam === 0 ? "Todos os critérios cumpridos — pronto para avançar." :
+          faltam === 1 ? "Falta 1 critério para o próximo nível." :
+          "Faltam " + faltam + " critérios para o próximo nível."}
+      </p>
     </button>
   );
 }
@@ -3016,6 +3247,10 @@ function TelaFicha({ aluno, salvar }) {
           <Campo rotulo="Estágio"><Seletor opcoes={ESTAGIOS.map((e) => ({ v: e.s, r: e.s }))} valor={f.estagio} aoMudar={(v) => set("estagio", v)} /></Campo>
           <Campo rotulo="Nível"><Seletor opcoes={NIVEIS.map((n) => ({ v: n, r: n }))} valor={f.nivel} aoMudar={(v) => set("nivel", v)} /></Campo>
         </div>
+        <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>
+          A trilha abaixo é a categoria de verdade — o que falta pra este jogador mudar de nível dentro do estágio escolhido.
+        </p>
+        <TrilhaClassificacao f={f} set={set} />
         <SugestaoClassificacao f={f} set={set} />
         <LegendaNiveis nivelInicial={f.nivel} />
       </Secao>
@@ -5772,6 +6007,7 @@ function App() {
             <button onClick={() => setAbertoId(null)} className="mb-3" style={{ ...prosa, color: C.grafite, cursor: "pointer" }}>← Todos os jogadores</button>
             <h1 style={{ fontFamily: ARCH, fontSize: 25, fontWeight: 700, lineHeight: 1.1 }}>{aberto.nome || "Sem nome"}</h1>
             <div className="mt-2 mb-5"><Etiqueta>{aberto.nivel} · Estágio {aberto.estagio} · {aberto.semanas} semanas · {aberto.historico.length} sessões</Etiqueta></div>
+            <CardTrilha aluno={aberto} aoClicar={() => setSubaba("ficha")} />
             <CardAulaEmVigor aluno={aberto} aoClicar={() => setSubaba("plano")} />
             <div className="flex gap-5 mb-6" style={{ borderBottom: "1px solid " + C.linha }}>
               {[{ v: "ficha", r: "Ficha" }, { v: "plano", r: "Plano" }, { v: "periodizacao", r: "Periodização" }, { v: "sessao", r: "Sessão" }, { v: "scout", r: "Scout" }, { v: "registro", r: "Caderno" }].map((t) => (
