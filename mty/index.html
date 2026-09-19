@@ -1048,6 +1048,127 @@ const SERIE_P = [
   },
 ];
 
+/* ── Série E do manual: categorias de exercício — mapa das famílias (Parte 4) ── */
+const CATEGORIAS_EXERCICIO = [
+  { c: "FB", foco: "Golpes isolados, shadow, empunhaduras, apoios", quando: "Construção e correção técnica" },
+  { c: "MV", foco: "Padrões de pernas, deslocamento, recuperação", quando: "Trabalho de base e específico de pés" },
+  { c: "DT", foco: "Decisão, construção, padrões de jogo", quando: "Bloco tático das tardes" },
+  { c: "PDB", foco: "Mudança de direção, abertura de quadra", quando: "Construção de ponto" },
+  { c: "PDR", foco: "Approach, voleio, smash, cobertura", quando: "Pacote de rede, sempre integrado" },
+  { c: "PDS", foco: "Saque e primeira bola, matriz", quando: "Alto rendimento" },
+  { c: "PDD", foco: "Devolução e primeira bola", quando: "Alto rendimento" },
+  { c: "DC", foco: "Precisão direcional, variação, sequências controladas", quando: "Manutenção e afinação" },
+  { c: "CF", foco: "Preparação física específica", quando: "Integrado ao preparador" },
+  { c: "DM", foco: "Rotinas, foco, checklists", quando: "Dentro dos blocos, nunca à parte" },
+  { c: "IP", foco: "Saque e devolução como unidade, com a bola seguinte", quando: "Obrigatório em toda aula — 25% a 35%" },
+  { c: "RT", foco: "Antecipação, contato mais cedo, espaço, variação", quando: "Bloco geral, todos os níveis" },
+  { c: "CO", foco: "Coordenação, propriocepção, equilíbrio, reação", quando: "Iniciação e regressão à raiz" },
+  { c: "AT", foco: "Característica agressiva desde a iniciação", quando: "Bloco geral e específico" },
+  { c: "JA", foco: "Pontos e jogos com regra que força o tema", quando: "Bloco 5 de toda aula" },
+];
+const BLOCO_FAMILIAS = [
+  { bloco: "1 · Abertura com bola", familias: "CO · RT" },
+  { bloco: "2 · Início do ponto", familias: "IP (e PDS/PDD no alto rendimento)" },
+  { bloco: "3 · Parte geral", familias: "CO · RT · MV · AT · DT" },
+  { bloco: "4 · Técnica específica", familias: "Qualquer — definida pelo diagnóstico" },
+  { bloco: "5 · Jogo aplicado", familias: "JA" },
+];
+
+/* ── Fichas de diagnóstico avançado (Séries D e I, Parte 4) ── */
+const FICHAS_DIAGNOSTICO = [
+  {
+    id: "D-03", titulo: "O que olhar nas bases de apoio",
+    frase: "O primeiro lugar onde se olha em qualquer diagnóstico técnico — porque todo golpe nasce de baixo para cima.",
+    blocos: [
+      { tipo: "tabela", titulo: "A sequência de observação", cabecalho: ["#", "O que olhar", "O que revela"], linhas: [
+        ["1", "O jogador para antes de golpear?", "Se não para, nada acima disso pode ser avaliado"],
+        ["2", "A base é larga o suficiente para sustentar a rotação?", "Base estreita produz golpe de braço"],
+        ["3", "Os joelhos flexionam em faixa funcional (60–75°)?", "Sem flexão não há extensão explosiva — a origem da potência"],
+        ["4", "Há extensão explosiva subsequente?", "O critério útil é a extensão, não o valor absoluto da flexão"],
+        ["5", "O apoio escolhido cabe na situação?", "Os quatro apoios são situacionais, nunca hierárquicos"],
+        ["6", "Há os dois ajustes finais antes do contato?", "Sua ausência é a causa mais comum de erro de ponto de contato"],
+      ] },
+      { tipo: "aviso", texto: "O que NÃO avaliar nesta etapa: empunhadura, terminação, efeito, direção. Elas dependem do que se observou aqui — avaliá-las antes produz diagnóstico errado." },
+      { tipo: "tabela", titulo: "Os três erros de leitura mais comuns do treinador", cabecalho: ["Erro do avaliador", "Consequência"], linhas: [
+        ["Avaliar apoio com o aluno parado, alimentado na mão", "O apoio que importa é o que sobrevive ao deslocamento"],
+        ["Confundir base larga com base útil", "Larga e sem flexão não sustenta nada"],
+        ["Julgar o apoio isoladamente do tempo disponível", "Com tempo, o square; sob pressão, o aberto"],
+      ] },
+    ],
+  },
+  {
+    id: "D-05", titulo: "Avaliação tática",
+    frase: "Avaliar decisão é avaliar repertório disponível — nunca inteligência ou vontade.",
+    blocos: [
+      { tipo: "tabela", titulo: "O que se observa", cabecalho: ["Dimensão", "Pergunta de avaliação"], linhas: [
+        ["Reconhecimento", "Ele identifica bola neutra, de ataque e de defesa?"],
+        ["Velocidade do reconhecimento", "Reconhece antes ou reage depois?"],
+        ["Contaminação pelo estado", "A leitura muda conforme o placar ou o ponto anterior?"],
+        ["Repertório de resposta", "Para cada leitura, quantas respostas ele tem disponíveis?"],
+        ["Automatização", "Executa o padrão no exercício e também no jogo?"],
+        ["Assimetria ataque/defesa", "Decide defender com facilidade e atacar com dificuldade?"],
+      ] },
+      { tipo: "aviso", texto: "A pergunta que orienta todo o resto: quando ele não ataca uma bola que pedia ataque, é porque não viu, ou porque não tem a ferramenta? Se não viu, é trabalho de leitura. Se não tem a ferramenta, é trabalho técnico — e insistir na leitura será perda de tempo." },
+    ],
+  },
+  {
+    id: "D-06", titulo: "Avaliação mental — o que é observável",
+    frase: "Avaliamos comportamentos observáveis, não estados internos inferidos — e sempre depois de esgotadas as camadas anteriores.",
+    blocos: [
+      { tipo: "tabela", titulo: "O que é observável (e portanto avaliável)", cabecalho: ["Comportamento", "Como se observa"], linhas: [
+        ["Rotina antes do saque executada com atenção real", "Os elementos recebem foco ou passam automáticos?"],
+        ["Posição do erro na sequência", "Erros concentrados na bola 1–2 indicam pressa"],
+        ["Bola em que a atenção solta em séries longas", "Marcada pelo próprio jogador"],
+        ["Para onde vai o olhar após o contato", "Própria bola ou corpo do adversário"],
+        ["Conduta entre pontos", "Fecha o ponto anterior ou continua nele?"],
+        ["Comportamento sob placar adverso", "A intenção se mantém ou encolhe?"],
+        ["Reação ao erro", "Ajusta, repete ou reduz o risco?"],
+      ] },
+      { tipo: "texto", titulo: "O que NÃO é observável — e por isso não se diagnostica", texto: "Ansiedade, \"falta de confiança\" como traço, \"cabeça fraca\", medo. São inferências, não observações — e quase sempre são leituras equivocadas de outra coisa. A perda de confiança tem endereço: acontece porque naquela jogada específica existe uma falha técnica. Torna-se mental por consequência do volume de erros. Antes que se torne mental, o jogo tem que ser observado de forma técnica." },
+      { tipo: "aviso", texto: "O limite honesto desta ficha: o treinador não é psicólogo e não diagnostica condições de saúde mental. Se aparecerem sinais de sofrimento que ultrapassem o desempenho esportivo, o encaminhamento é para a família e para um profissional qualificado. Isso não é falha do treinador: é competência de outro campo." },
+    ],
+  },
+  {
+    id: "D-08", titulo: "Reavaliação periódica",
+    frase: "Feita com o atleta, nunca sobre ele — e com o objetivo de decidir a rotação parcial, não de julgar o ciclo.",
+    blocos: [
+      { tipo: "tabela", titulo: "Quando", cabecalho: ["Tipo", "Frequência"], linhas: [
+        ["Devolutiva de nível", "Trimestral"],
+        ["Reavaliação completa (quatro camadas)", "Semestral"],
+        ["Reavaliação extraordinária", "Após lesão, estirão de crescimento, ou dois ciclos sem evolução"],
+      ] },
+      { tipo: "tabela", titulo: "O que a reavaliação decide", cabecalho: ["Decisão", "Critério"], linhas: [
+        ["Qual estímulo sai", "O que se consolidou — rotação parcial, nunca troca total"],
+        ["Qual entra", "O que o ciclo e a competição revelaram"],
+        ["O que permanece", "Tudo o mais"],
+        ["Se o nível muda", "Critérios completos, verificados em três ocasiões"],
+      ] },
+      { tipo: "aviso", texto: "A regra da rotação parcial: substitui-se apenas um estímulo por ciclo. Trocar todos ao mesmo tempo apaga a referência do que estava funcionando. O que nunca entra na reavaliação: resultado de torneio como medida de progresso." },
+    ],
+  },
+  {
+    id: "I-07", titulo: "Conversa de reavaliação com o atleta",
+    frase: "A operacionalização, no contexto de competição, da conversa descrita na ficha C-07.",
+    blocos: [
+      { tipo: "tabela", titulo: "A diferença em relação à devolutiva de nível", cabecalho: ["", "Devolutiva de nível (C-07)", "Reavaliação do atleta (I-07)"], linhas: [
+        ["Público", "Todos os alunos", "Competitivo (Y4+)"],
+        ["Frequência", "Trimestral", "Ao fim de cada mesociclo e após competição"],
+        ["Base", "Critérios de nível", "Métricas do ciclo + o que a competição revelou"],
+        ["Produto", "Foco do próximo ciclo", "Rotação parcial dos estímulos"],
+      ] },
+      { tipo: "tabela", titulo: "A estrutura", cabecalho: ["Etapa", "Conteúdo"], linhas: [
+        ["1", "O atleta fala primeiro: o que ele acha que evoluiu e o que travou"],
+        ["2", "As métricas do ciclo, lidas juntos — não apresentadas como veredito"],
+        ["3", "Onde a confiança se perdeu, e qual falha técnica estava por trás"],
+        ["4", "O que sai e o que entra nos estímulos, com o acordo dele"],
+        ["5", "O atleta fecha dizendo o que leva"],
+      ] },
+      { tipo: "texto", titulo: "Por que o acordo importa", texto: "Um estímulo que o atleta não entende por que está treinando é executado sem atenção — e volume sem atenção grava o hábito oposto." },
+      { tipo: "aviso", texto: "O que não fazer: listar tudo o que faltou · comparar com outro atleta · atribuir a derrota a \"cabeça\" antes de esgotar a leitura técnica · prometer prazo de resultado." },
+    ],
+  },
+];
+
 /* ── cursos de formação continuada, por módulo ── */
 const CURSOS_FORMACAO = [
   {
@@ -4211,6 +4332,27 @@ function TelaPlano({ aluno, alunos, setAlunos }) {
   );
 }
 
+function MapaFamilias() {
+  const [aberto, setAberto] = useState(false);
+  return (
+    <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "12px 15px" }}>
+      <button onClick={() => setAberto(!aberto)} className="w-full flex items-center justify-between gap-3" style={{ cursor: "pointer" }}>
+        <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>Mapa das famílias · foco e quando usar</span>
+        <Etiqueta>{aberto ? "fechar" : "abrir"}</Etiqueta>
+      </button>
+      {aberto && (
+        <div className="mt-3">
+          <Tabela cabecalho={["Cód.", "Foco", "Quando usar"]}
+            linhas={CATEGORIAS_EXERCICIO.map((c) => [c.c, c.foco, c.quando])} />
+          <h4 style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, margin: "14px 0 6px" }}>Qual família para qual bloco da aula</h4>
+          <Tabela cabecalho={["Bloco da aula", "Famílias"]}
+            linhas={BLOCO_FAMILIAS.map((b) => [b.bloco, b.familias])} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TelaCatalogo() {
   const [busca, setBusca] = useState("");
   const [estagio, setEstagio] = useState("todos");
@@ -4226,6 +4368,7 @@ function TelaCatalogo() {
   }, [busca, estagio, familia]);
   return (
     <div>
+      <MapaFamilias />
       <input style={{ ...entrada, marginBottom: 14 }} value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por código, nome ou montagem" />
       <Campo rotulo="Estágio"><Seletor opcoes={[{ v: "todos", r: "Todos" }, ...ESTAGIOS.map((e) => ({ v: e.s, r: e.s }))]} valor={estagio} aoMudar={setEstagio} /></Campo>
       <Campo rotulo="Família"><Seletor opcoes={[{ v: "todas", r: "Todas" }, ...Object.keys(FAM).map((f) => ({ v: f, r: f }))]} valor={familia} aoMudar={setFamilia} /></Campo>
@@ -5272,6 +5415,18 @@ function TelaMetodo() {
         corrigir e ignorar foram deduzidos do método e ainda esperam revisão exercício a exercício.
         Os outros 126 (novos, lúdicos e a família de trilhos táticos) já nasceram neste formato.
       </Aviso>
+
+      <Secao titulo="Diagnóstico avançado" nota="Séries D e I do manual — complemento às quatro camadas (D-01) e à conversa de reavaliação (C-07), para quando o diagnóstico geral não basta.">
+        {FICHAS_DIAGNOSTICO.map((f) => (
+          <div key={f.id} className="mb-6">
+            <div className="flex items-baseline gap-2 mb-2">
+              <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{f.id} · {f.titulo}</span>
+            </div>
+            <p style={{ ...prosa, fontSize: 13, marginBottom: 10, fontStyle: "italic" }}>{f.frase}</p>
+            {f.blocos.map((b, i) => <BlocoReferencia key={i} b={b} />)}
+          </div>
+        ))}
+      </Secao>
     </div>
   );
 }
