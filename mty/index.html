@@ -2050,6 +2050,13 @@ const DIAS_SEMANA = [
 ];
 function nomeDia(v) { return (DIAS_SEMANA.find((d) => d.v === v) || {}).r || "?"; }
 
+/* Formata "prof. X" ou "prof. X · aux. Y" — o segundo treinador de uma
+   turma é sempre auxiliar, nunca responsável. */
+function rotuloProfessores(professorNome, auxiliarNome) {
+  if (!professorNome) return "";
+  return " · prof. " + professorNome + (auxiliarNome ? " · aux. " + auxiliarNome : "");
+}
+
 /* ── horários fixos semanais, usado tanto por jogador individual quanto por turma ──
    Uma lista de {dia, hora} — pra suportar 2 a 5 vezes por semana sem
    modelar nada além disso (sem quadra, sem duração por horário: a
@@ -5130,6 +5137,7 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas }) {
   const [membrosSel, setMembrosSel] = useState([]);
   const [duracao, setDuracao] = useState("2h");
   const [professorUid, setProfessorUid] = useState("");
+  const [auxiliarUid, setAuxiliarUid] = useState("");
   const [horarios, setHorarios] = useState([]);
   const [professores, setProfessores] = useState([]);
   useEffect(() => { listaProfessores().then(setProfessores); }, []);
@@ -5149,11 +5157,14 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas }) {
   function criarTurma() {
     if (!nome.trim() || membrosSel.length < 2) return;
     const prof = professores.find((p) => p.uid === professorUid);
+    const aux = professores.find((p) => p.uid === auxiliarUid);
     setTurmas([...turmas, {
       id: "turma-" + Date.now(), nome: nome.trim(), membros: membrosSel, duracaoPadrao: duracao,
-      professorUid, professorNome: prof ? prof.nome : "", horarios,
+      professorUid, professorNome: prof ? prof.nome : "",
+      professorAuxiliarUid: auxiliarUid, professorAuxiliarNome: aux ? aux.nome : "",
+      horarios,
     }]);
-    setNome(""); setMembrosSel([]); setDuracao("2h"); setProfessorUid(""); setHorarios([]); setCriando(false);
+    setNome(""); setMembrosSel([]); setDuracao("2h"); setProfessorUid(""); setAuxiliarUid(""); setHorarios([]); setCriando(false);
   }
 
   return (
@@ -5179,7 +5190,13 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas }) {
           {professores.length > 0 && (
             <Campo rotulo="Professor responsável">
               <Seletor opcoes={[{ v: "", r: "A definir" }, ...professores.map((p) => ({ v: p.uid, r: p.nome }))]}
-                valor={professorUid} aoMudar={setProfessorUid} />
+                valor={professorUid} aoMudar={(v) => { setProfessorUid(v); if (v === auxiliarUid) setAuxiliarUid(""); }} />
+            </Campo>
+          )}
+          {professores.length > 1 && (
+            <Campo rotulo="Professor auxiliar" nota="Opcional — o segundo professor da turma entra sempre como auxiliar, nunca como responsável.">
+              <Seletor opcoes={[{ v: "", r: "Nenhum" }, ...professores.filter((p) => p.uid !== professorUid).map((p) => ({ v: p.uid, r: p.nome }))]}
+                valor={auxiliarUid} aoMudar={setAuxiliarUid} />
             </Campo>
           )}
           <Campo rotulo="Dias e horários de treino" nota="Pode ter de 2 a 5 por semana. Alimenta a Grade de horário e a Agenda semanal.">
@@ -5212,7 +5229,7 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas }) {
           <div key={t.id} onClick={() => setAbertaId(t.id)}
             style={{ background: C.cal, border: "1px solid " + C.linha, padding: "13px 15px", marginBottom: 9, cursor: "pointer" }}>
             <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{t.nome}</div>
-            <div className="mt-1"><Etiqueta>{t.duracaoPadrao} · {t.membros.length} jogadores{t.professorNome ? " · prof. " + t.professorNome : ""}</Etiqueta></div>
+            <div className="mt-1"><Etiqueta>{t.duracaoPadrao} · {t.membros.length} jogadores{rotuloProfessores(t.professorNome, t.professorAuxiliarNome)}</Etiqueta></div>
             {(t.horarios || []).length > 0 && (
               <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 4 }}>
                 {t.horarios.map((h) => nomeDia(h.dia) + " " + h.hora).join(" · ")}
@@ -5272,7 +5289,7 @@ function SessaoTurma({ turma, alunos, setAlunos, setTurmas, aoFechar, aoRemover 
       <button onClick={aoFechar} className="mb-3" style={{ ...prosa, color: C.grafite, cursor: "pointer" }}>← Turmas</button>
       <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>{turma.nome}</h1>
       <div style={{ marginBottom: (turma.horarios || []).length > 0 ? 4 : 20 }}>
-        <Etiqueta>{turma.duracaoPadrao} · {membros.length} jogadores{turma.professorNome ? " · prof. " + turma.professorNome : ""}</Etiqueta>
+        <Etiqueta>{turma.duracaoPadrao} · {membros.length} jogadores{rotuloProfessores(turma.professorNome, turma.professorAuxiliarNome)}</Etiqueta>
       </div>
       {(turma.horarios || []).length > 0 && (
         <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 20 }}>
@@ -5376,6 +5393,7 @@ function compromissosDaSemana(alunos, turmas) {
   turmas.forEach((t) => (t.horarios || []).forEach((h) => lista.push({
     tipo: "turma", dia: h.dia, hora: h.hora, titulo: t.nome, detalhe: t.duracaoPadrao,
     professorUid: t.professorUid || "", professorNome: t.professorNome || "",
+    professorAuxiliarUid: t.professorAuxiliarUid || "", professorAuxiliarNome: t.professorAuxiliarNome || "",
   })));
   alunos.forEach((a) => (a.horarios || []).forEach((h) => lista.push({
     tipo: "individual", dia: h.dia, hora: h.hora, titulo: a.nome || "Sem nome", detalhe: "particular",
@@ -5391,10 +5409,11 @@ function compromissosDaSemana(alunos, turmas) {
    já que vêm de outra fonte (solicitacoes, não alunos/turmas). */
 function avisosDoProfessor(alunos, turmas, uidAtual) {
   const meu = (professorUid) => !professorUid || professorUid === uidAtual;
+  const minhaTurma = (t) => meu(t.professorUid) || t.professorAuxiliarUid === uidAtual;
   const diaHoje = new Date().getDay();
 
   const lembretes = [];
-  turmas.filter((t) => meu(t.professorUid)).forEach((t) =>
+  turmas.filter(minhaTurma).forEach((t) =>
     (t.horarios || []).filter((h) => h.dia === diaHoje).forEach((h) =>
       lembretes.push({ tipo: "turma", titulo: t.nome, hora: h.hora })));
   alunos.filter((a) => meu(a.professorUid)).forEach((a) =>
@@ -5403,7 +5422,7 @@ function avisosDoProfessor(alunos, turmas, uidAtual) {
   lembretes.sort((x, y) => x.hora.localeCompare(y.hora));
 
   const pendencias = [];
-  turmas.filter((t) => meu(t.professorUid)).forEach((t) =>
+  turmas.filter(minhaTurma).forEach((t) =>
     (t.pendencias || []).filter((p) => !p.resolvida).forEach((p) =>
       pendencias.push({ turma: t.nome, ...p })));
 
@@ -5417,7 +5436,7 @@ function TelaAgenda({ alunos, turmas, uidAtual, exigeLogin }) {
   const todos = useMemo(() => compromissosDaSemana(alunos, turmas), [alunos, turmas]);
   const compromissos = (!exigeLogin || verTodos || !uidAtual)
     ? todos
-    : todos.filter((c) => !c.professorUid || c.professorUid === uidAtual);
+    : todos.filter((c) => !c.professorUid || c.professorUid === uidAtual || c.professorAuxiliarUid === uidAtual);
 
   const horas = [...new Set(compromissos.map((c) => c.hora))].sort();
 
@@ -5480,7 +5499,7 @@ function TelaAgenda({ alunos, turmas, uidAtual, exigeLogin }) {
                         {aqui.map((c, i) => (
                           <div key={i} className="mb-1" style={{ fontSize: 11.5, lineHeight: 1.3 }}>
                             <div style={{ fontWeight: 700 }}>{c.titulo}</div>
-                            <div style={{ color: C.grafite }}>{c.professorNome || "sem professor"}</div>
+                            <div style={{ color: C.grafite }}>{c.professorNome || "sem professor"}{c.professorAuxiliarNome ? " + " + c.professorAuxiliarNome : ""}</div>
                           </div>
                         ))}
                       </td>
@@ -5504,7 +5523,9 @@ function TelaAgenda({ alunos, turmas, uidAtual, exigeLogin }) {
                     <div style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{c.hora} · {c.titulo}</div>
                     <Etiqueta>{c.detalhe}</Etiqueta>
                   </div>
-                  <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>{c.professorNome || "sem professor definido"}</p>
+                  <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>
+                    {c.professorNome || "sem professor definido"}{c.professorAuxiliarNome ? " · aux. " + c.professorAuxiliarNome : ""}
+                  </p>
                 </div>
               ))}
             </div>
