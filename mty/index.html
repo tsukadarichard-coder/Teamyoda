@@ -134,6 +134,18 @@ async function listaProfessores() {
   return lista;
 }
 
+/* ── quantos pedidos de acesso de treinador estão parados esperando o coordenador ──
+   Usado só pro sininho de avisos — a lista de verdade, com aprovar/recusar, mora em Equipe > Pedidos. */
+async function contarPedidosPendentes() {
+  const org = await organizacao();
+  if (!db || !org) return 0;
+  try {
+    const snap = await db.collection("orgs").doc(org).collection("solicitacoes")
+      .where("status", "==", "pendente").get();
+    return snap.docs ? snap.docs.length : 0;
+  } catch (e) { return 0; }
+}
+
 /* ── armazenamento: Firestore (por academia) ou localStorage, mesma assinatura ──
    Na nuvem não existe mais "local" vs "compartilhado" — uma vez logado
    numa academia, tudo que se lê e grava é da academia inteira. */
@@ -2876,12 +2888,6 @@ function TelaFicha({ aluno, salvar }) {
         <Campo rotulo="Contexto familiar e do jogador" nota="Convívio, expectativas, suporte, pressão, relação com o erro e com o esforço.">
           <textarea rows={3} style={{ ...entrada, resize: "vertical" }} value={f.contexto} onChange={(e) => set("contexto", e.target.value)} />
         </Campo>
-        <div className="grid grid-cols-2 gap-3">
-          <Campo rotulo="Estágio"><Seletor opcoes={ESTAGIOS.map((e) => ({ v: e.s, r: e.s }))} valor={f.estagio} aoMudar={(v) => set("estagio", v)} /></Campo>
-          <Campo rotulo="Nível"><Seletor opcoes={NIVEIS.map((n) => ({ v: n, r: n }))} valor={f.nivel} aoMudar={(v) => set("nivel", v)} /></Campo>
-        </div>
-        <SugestaoClassificacao f={f} set={set} />
-        <LegendaNiveis nivelInicial={f.nivel} />
       </Secao>
 
       <Secao titulo="Diagnóstico — as quatro camadas" nota="A ordem é técnico, físico, tático, mental, e não pode ser invertida (D-01). Cada camada abre a seguinte.">
@@ -2996,6 +3002,15 @@ function TelaFicha({ aluno, salvar }) {
         <Campo rotulo="Períodos por dia"><Seletor opcoes={[{ v: 1, r: "Um" }, { v: 2, r: "Dois" }]} valor={f.periodos} aoMudar={(v) => set("periodos", v)} /></Campo>
         <Campo rotulo="Escola"><Seletor opcoes={[{ v: "manha", r: "Manhã" }, { v: "tarde", r: "Tarde" }, { v: "noite", r: "Noite" }, { v: "nao", r: "Não estuda" }]} valor={f.escola} aoMudar={(v) => set("escola", v)} /></Campo>
         <Campo rotulo="Musculação por semana"><Seletor opcoes={[0, 1, 2, 3].map((n) => ({ v: n, r: String(n) }))} valor={f.musculacao} aoMudar={(v) => set("musculacao", v)} /></Campo>
+      </Secao>
+
+      <Secao titulo="Classificação" nota="Vem por último de propósito: só faz sentido classificar depois de preencher o diagnóstico e o perfil de jogo acima.">
+        <div className="grid grid-cols-2 gap-3">
+          <Campo rotulo="Estágio"><Seletor opcoes={ESTAGIOS.map((e) => ({ v: e.s, r: e.s }))} valor={f.estagio} aoMudar={(v) => set("estagio", v)} /></Campo>
+          <Campo rotulo="Nível"><Seletor opcoes={NIVEIS.map((n) => ({ v: n, r: n }))} valor={f.nivel} aoMudar={(v) => set("nivel", v)} /></Campo>
+        </div>
+        <SugestaoClassificacao f={f} set={set} />
+        <LegendaNiveis nivelInicial={f.nivel} />
       </Secao>
 
       {mostraRel && <PainelRelatorio aluno={f} aoFechar={() => setMostraRel(false)} />}
@@ -5369,6 +5384,32 @@ function compromissosDaSemana(alunos, turmas) {
   return lista.sort((x, y) => x.dia - y.dia || x.hora.localeCompare(y.hora));
 }
 
+/* ── avisos do sininho ──
+   Só o que o professor logado precisa saber hoje: o que tem treino hoje
+   (dele, ou sem professor definido) e pendências de grupo em aberto nas
+   turmas dele. Pedidos de cadastro (só coordenador) somam-se à parte,
+   já que vêm de outra fonte (solicitacoes, não alunos/turmas). */
+function avisosDoProfessor(alunos, turmas, uidAtual) {
+  const meu = (professorUid) => !professorUid || professorUid === uidAtual;
+  const diaHoje = new Date().getDay();
+
+  const lembretes = [];
+  turmas.filter((t) => meu(t.professorUid)).forEach((t) =>
+    (t.horarios || []).filter((h) => h.dia === diaHoje).forEach((h) =>
+      lembretes.push({ tipo: "turma", titulo: t.nome, hora: h.hora })));
+  alunos.filter((a) => meu(a.professorUid)).forEach((a) =>
+    (a.horarios || []).filter((h) => h.dia === diaHoje).forEach((h) =>
+      lembretes.push({ tipo: "individual", titulo: a.nome || "Sem nome", hora: h.hora })));
+  lembretes.sort((x, y) => x.hora.localeCompare(y.hora));
+
+  const pendencias = [];
+  turmas.filter((t) => meu(t.professorUid)).forEach((t) =>
+    (t.pendencias || []).filter((p) => !p.resolvida).forEach((p) =>
+      pendencias.push({ turma: t.nome, ...p })));
+
+  return { lembretes, pendencias };
+}
+
 function TelaAgenda({ alunos, turmas, uidAtual, exigeLogin }) {
   const [modo, setModo] = useState("grade");
   const [verTodos, setVerTodos] = useState(false);
@@ -5495,6 +5536,8 @@ function App() {
   const [papelAtual, setPapelAtual] = useState(null);
   const [verificandoOrg, setVerificandoOrg] = useState(exigeLogin);
   const [verTodosAlunos, setVerTodosAlunos] = useState(false);
+  const [avisosAberto, setAvisosAberto] = useState(false);
+  const [pedidosPendentesCount, setPedidosPendentesCount] = useState(0);
   const uidAtual = exigeLogin && window.mtyAuth.usuario() ? window.mtyAuth.usuario().uid : null;
 
   useEffect(() => {
@@ -5523,6 +5566,25 @@ function App() {
   }, [autenticado, orgAtual]);
   useEffect(() => { if (autenticado && !carregando) grave("mty:alunos:v2", alunos); }, [alunos, carregando, autenticado]);
   useEffect(() => { if (autenticado && !carregandoTurmas) grave("mty:turmas:v1", turmas, true); }, [turmas, carregandoTurmas, autenticado]);
+
+  /* pedidos de cadastro parados: só interessa ao coordenador, então nem
+     tenta buscar pros outros papéis. Sondagem simples — não precisa de
+     tempo real pra um número que só o sininho mostra. */
+  useEffect(() => {
+    if (papelAtual !== "coordenador") { setPedidosPendentesCount(0); return; }
+    let ativo = true;
+    function checar() { contarPedidosPendentes().then((n) => { if (ativo) setPedidosPendentesCount(n); }); }
+    checar();
+    const t = setInterval(checar, 60000);
+    return () => { ativo = false; clearInterval(t); };
+  }, [papelAtual]);
+
+  const avisos = avisosDoProfessor(alunos, turmas, uidAtual);
+  const totalAvisos = avisos.lembretes.length + avisos.pendencias.length + pedidosPendentesCount;
+  function abrirAvisos() {
+    if (!avisosAberto && papelAtual === "coordenador") contarPedidosPendentes().then(setPedidosPendentesCount);
+    setAvisosAberto(!avisosAberto);
+  }
 
   const aberto = abertoId ? alunos.find((a) => a.id === abertoId) : null;
   /* Dashboard do professor: por padrão só os alunos dele (mais os que
@@ -5561,12 +5623,76 @@ function App() {
         <div className="px-5 pt-4 pb-2" style={{ maxWidth: 760, margin: "0 auto" }}>
           <div className="flex items-center justify-between gap-3">
             <img src="assets/logo-team-yoda.jpg" alt="Team Yoda" style={{ height: 26 }} />
-            {exigeLogin && (
-              <button onClick={() => window.mtyAuth.sair()}
-                style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 600, color: C.grafite, cursor: "pointer", padding: "4px 8px", border: "1px solid " + C.linha, borderRadius: 2, background: C.cal }}>
-                sair
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {exigeLogin && uidAtual && (
+                <div style={{ position: "relative" }}>
+                  <button onClick={abrirAvisos}
+                    style={{ position: "relative", fontSize: 16, cursor: "pointer", padding: "4px 8px", border: "1px solid " + C.linha, borderRadius: 2, background: C.cal }}>
+                    🔔
+                    {totalAvisos > 0 && (
+                      <span style={{ position: "absolute", top: -5, right: -5, background: C.saibro, color: "#fff",
+                        fontFamily: ARCH, fontSize: 10, fontWeight: 700, borderRadius: 999, minWidth: 16, height: 16,
+                        display: "flex", alignItems: "center", justifyContent: "center", padding: "0 3px" }}>
+                        {totalAvisos}
+                      </span>
+                    )}
+                  </button>
+                  {avisosAberto && (
+                    <>
+                      <div onClick={() => setAvisosAberto(false)} style={{ position: "fixed", inset: 0, zIndex: 19 }} />
+                      <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 6, background: C.papel,
+                        border: "1px solid " + C.linha, borderRadius: 2, boxShadow: "0 4px 14px rgba(0,0,0,.12)", zIndex: 20, width: 260, maxHeight: 340, overflowY: "auto", padding: 12 }}>
+                        {totalAvisos === 0 ? (
+                          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Nada pra avisar por agora.</p>
+                        ) : (
+                          <>
+                            {avisos.lembretes.length > 0 && (
+                              <div className="mb-3">
+                                <Etiqueta>Hoje</Etiqueta>
+                                {avisos.lembretes.map((l, i) => (
+                                  <button key={i} onClick={() => { setAba(l.tipo === "turma" ? "turmas" : "alunos"); setAvisosAberto(false); }}
+                                    className="w-full text-left" style={{ display: "block", padding: "6px 0", border: "none", background: "none", cursor: "pointer" }}>
+                                    <p style={{ ...prosa, fontSize: 12.5 }}>{l.hora} · {l.titulo}</p>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                            {avisos.pendencias.length > 0 && (
+                              <div className="mb-3">
+                                <Etiqueta cor={C.saibro}>Pendências do grupo</Etiqueta>
+                                {avisos.pendencias.map((p, i) => (
+                                  <button key={i} onClick={() => { setAba("turmas"); setAvisosAberto(false); }}
+                                    className="w-full text-left" style={{ display: "block", padding: "6px 0", border: "none", background: "none", cursor: "pointer" }}>
+                                    <p style={{ ...prosa, fontSize: 12.5 }}>{p.turma} · {p.data}{p.motivo ? " · " + p.motivo : ""}</p>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                            {pedidosPendentesCount > 0 && (
+                              <div>
+                                <Etiqueta cor={C.saibro}>Equipe</Etiqueta>
+                                <button onClick={() => { setAba("equipe"); setAvisosAberto(false); }}
+                                  className="w-full text-left" style={{ display: "block", padding: "6px 0", border: "none", background: "none", cursor: "pointer" }}>
+                                  <p style={{ ...prosa, fontSize: 12.5 }}>
+                                    {pedidosPendentesCount === 1 ? "1 pedido de cadastro" : pedidosPendentesCount + " pedidos de cadastro"} esperando
+                                  </p>
+                                </button>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+              {exigeLogin && (
+                <button onClick={() => window.mtyAuth.sair()}
+                  style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 600, color: C.grafite, cursor: "pointer", padding: "4px 8px", border: "1px solid " + C.linha, borderRadius: 2, background: C.cal }}>
+                  sair
+                </button>
+              )}
+            </div>
           </div>
           <div className="mt-0.5"><Etiqueta>Ficha, periodização e sessão · 315 exercícios</Etiqueta></div>
           <nav style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
