@@ -1174,7 +1174,121 @@ const NIVEIS_CRITERIOS = [
   },
 ];
 
-const PADROES_TATICOS = [{"c": "P1", "n": "Saque aberto e a bola no espaço vazio", "e": "Um saque aberto que entre. Não precisa ser rápido — precisa ser aberto.", "nv": "Y4"}, {"c": "P2", "n": "Saque no corpo e a bola pelo centro", "e": "Um saque colocado, e paciência para não atacar a primeira bola.", "nv": "Y4"}, {"c": "P3", "n": "Cruzada até a curta, depois inside out", "e": "Uma cruzada confiável e a disposição de esperar. Este padrão vive da paciência.", "nv": "Y5"}, {"c": "P4", "n": "Backhand cruzado paciente até virar", "e": "Um backhand cruzado que aguente cinco bolas. Sem isso, o padrão não existe.", "nv": "Y5"}, {"c": "P5", "n": "A bola profunda ao centro", "e": "Nada além de altura sobre a rede. É o padrão mais barato tecnicamente e um dos mais eficazes.", "nv": "Y3"}, {"c": "P6", "n": "Curtinha depois de duas fundas", "e": "Um toque razoável e, sobretudo, disciplina para dar as duas fundas antes.", "nv": "Y4"}, {"c": "P7", "n": "Approach no backhand e cobertura da paralela", "e": "Um approach que não sobre e um voleio que não precise ser bonito.", "nv": "Y5"}, {"c": "P8", "n": "A defesa alta que recupera a posição", "e": "Nada. Qualquer jogador consegue, e quase nenhum amador faz.", "nv": "Y3"}, {"c": "P9", "n": "Devolução funda ao centro e a terceira bola", "e": "Um bloqueio de devolução. É o padrão de menor custo técnico do repertório.", "nv": "Y3"}, {"c": "P10", "n": "Saque e subida, versão simples", "e": "Um saque que entre com regularidade e disposição de sair da linha de base.", "nv": "Y4"}, {"c": "P11", "n": "A bola alta no backhand de uma mão", "e": "Altura sobre a rede e paciência. Não exige potência nenhuma.", "nv": "Y3"}, {"c": "P12", "n": "Abrir com ângulo curto e terminar na paralela", "e": "Um cruzado com ângulo, que exige ponto de contato à frente. É o padrão de maior custo técnico da lista.", "nv": "Y5"}, {"c": "P13", "n": "Mudar de direção quando o corpo permite", "e": "Reconhecer a bola confortável. É mais leitura que técnica.", "nv": "Y4"}, {"c": "P14", "n": "O lob ofensivo quando ele sobe", "e": "Um lob com alguma altura e alguma profundidade. Não precisa ser perfeito na primeira semana.", "nv": "Y4"}, {"c": "P15", "n": "A bola no corpo", "e": "Direção, e só. É tão barata quanto o P5.", "nv": "Y2"}, {"c": "P16", "n": "A curtinha depois de abrir o lado", "e": "Toque na curtinha e a disciplina de abrir antes. Sem a bola que abre, é só uma curtinha ruim.", "nv": "Y5"}];
+const PADROES_TATICOS = [
+  { c: "P1", n: "Saque aberto e a bola no espaço vazio", e: "Um saque aberto que entre. Não precisa ser rápido — precisa ser aberto.", nv: "Y4",
+    seq: "Saque aberto · primeira bola no espaço vazio, sem acelerar demais · terceira bola termina.",
+    erro: "Acelerar demais a primeira bola e errar. A quadra já está aberta: você só precisa colocar a bola lá." },
+  { c: "P2", n: "Saque no corpo e a bola pelo centro", e: "Um saque colocado, e paciência para não atacar a primeira bola.", nv: "Y4",
+    seq: "Saque no corpo · primeira bola funda ao centro · a resposta dele vem sem ângulo e você escolhe.",
+    erro: "Tratar a devolução dele como bola de ataque. Ela é neutra: você está construindo, não terminando." },
+  { c: "P3", n: "Cruzada até a curta, depois inside out", e: "Uma cruzada confiável e a disposição de esperar. Este padrão vive da paciência.", nv: "Y5",
+    seq: "Cruzadas com margem · bola curta dele · você entra e joga inside out para o espaço.",
+    erro: "Virar antes da bola curta chegar. Se você virar de uma bola profunda, dá o ângulo de volta para ele." },
+  { c: "P4", n: "Backhand cruzado paciente até virar", e: "Um backhand cruzado que aguente cinco bolas. Sem isso, o padrão não existe.", nv: "Y5",
+    seq: "Backhands cruzados fundos · a bola que sobra no meio · forehand invertido para o lado aberto.",
+    erro: "Contornar de qualquer bola. Só se contorna a bola que já veio para o meio." },
+  { c: "P5", n: "A bola profunda ao centro", e: "Nada além de altura sobre a rede. É o padrão mais barato tecnicamente e um dos mais eficazes.", nv: "Y3",
+    seq: "Uma bola alta e funda ao centro · a resposta dele vem sem ângulo · você escolhe o lado.",
+    erro: "Achar que é bola de covarde. É bola de quem entendeu geometria." },
+  { c: "P6", n: "Curtinha depois de duas fundas", e: "Um toque razoável e, sobretudo, disciplina para dar as duas fundas antes.", nv: "Y4",
+    seq: "Duas fundas · uma curtinha · e você sobe atrás dela.",
+    erro: "Dar a curtinha cedo, de bola profunda dele ou com ele já na linha de base. Aí ela vira presente." },
+  { c: "P7", n: "Approach no backhand e cobertura da paralela", e: "Um approach que não sobre e um voleio que não precise ser bonito.", nv: "Y5",
+    seq: "Bola de approach baixa no backhand dele · você sobe pela mesma linha · cobre a paralela e deixa a cruzada, que é mais difícil.",
+    erro: "Subir atrás de bola alta. Bola alta dá tempo, e tempo dá passada." },
+  { c: "P8", n: "A defesa alta que recupera a posição", e: "Nada. Qualquer jogador consegue, e quase nenhum amador faz.", nv: "Y3",
+    seq: "Bola alta e funda ao centro · você volta para o meio · o ponto reinicia neutro.",
+    erro: "Tentar bola vencedora da defesa. Você erra, e ainda por cima da pior posição da quadra." },
+  { c: "P9", n: "Devolução funda ao centro e a terceira bola", e: "Um bloqueio de devolução. É o padrão de menor custo técnico do repertório.", nv: "Y3",
+    seq: "Devolução funda pelo meio · ele responde sem ângulo · você escolhe o lado na terceira bola.",
+    erro: "Tentar ganhar o ponto na devolução. O ponto se ganha na terceira bola, não na segunda." },
+  { c: "P10", n: "Saque e subida, versão simples", e: "Um saque que entre com regularidade e disposição de sair da linha de base.", nv: "Y4",
+    seq: "Saque colocado · dois passos para dentro · se a devolução for fraca, sobe e termina; se for boa, recua.",
+    erro: "Correr para a rede sem olhar a devolução. Subida é decisão, não automatismo." },
+  { c: "P11", n: "A bola alta no backhand de uma mão", e: "Altura sobre a rede e paciência. Não exige potência nenhuma.", nv: "Y3",
+    seq: "Bola alta e funda no backhand dele · ele encurta ou levanta · você entra e ataca.",
+    erro: "Usar contra backhand de duas mãos, que sofre menos com altura e mais com bola aberta e baixa." },
+  { c: "P12", n: "Abrir com ângulo curto e terminar na paralela", e: "Um cruzado com ângulo, que exige ponto de contato à frente. É o padrão de maior custo técnico da lista.", nv: "Y5",
+    seq: "Cruzado curto e angulado · ele responde de fora da quadra · paralela no espaço.",
+    erro: "Jogar o ângulo de trás da linha de base. De lá, o ângulo não abre nada e ainda te expõe." },
+  { c: "P13", n: "Mudar de direção quando o corpo permite", e: "Reconhecer a bola confortável. É mais leitura que técnica.", nv: "Y4",
+    seq: "Trocas na cruzada · uma bola confortável no meio da quadra · mudança para a paralela.",
+    erro: "Mudar de direção de bola difícil. É a causa número um de erro não forçado no intermediário." },
+  { c: "P14", n: "O lob ofensivo quando ele sobe", e: "Um lob com alguma altura e alguma profundidade. Não precisa ser perfeito na primeira semana.", nv: "Y4",
+    seq: "Ele sobe · você joga o lob por cima do lado do backhand dele · sobe atrás.",
+    erro: "Usar lob só quando está sem opção. Aí ele sai curto e vira presente." },
+  { c: "P15", n: "A bola no corpo", e: "Direção, e só. É tão barata quanto o P5.", nv: "Y2",
+    seq: "Bola funda no corpo · resposta curta e sem ângulo · você entra e escolhe.",
+    erro: "Achar que é jogada sem graça. É a jogada que os profissionais mais usam no saque e a que os amadores mais ignoram." },
+  { c: "P16", n: "A curtinha depois de abrir o lado", e: "Toque na curtinha e a disciplina de abrir antes. Sem a bola que abre, é só uma curtinha ruim.", nv: "Y5",
+    seq: "Bola angulada que o tira da quadra · curtinha do lado oposto · você sobe atrás.",
+    erro: "Dar a curtinha com ele já dentro da quadra. Aí você está entregando o ponto." },
+];
+
+/* ── conteúdo novo da Parte 6: vocabulário, escada por nível, básico, placar e duplas ── */
+const VOCABULARIO_TATICO = [
+  { t: "A bola neutra", oQueE: "Chega na altura da sua cintura, no seu lado bom, com você equilibrado — e nada nela obriga o adversário a nada.", oQueFazer: "Jogue fundo e ao centro, com margem. Existe para não piorar a sua situação e para esperar a próxima.", erro: "Tratar bola neutra como bola de ataque. É o erro que mais custa pontos ao intermediário." },
+  { t: "A bola de ataque", oQueE: "Quica curta, sobe pouco, ou vem lenta — e você chega nela com o corpo para dentro da quadra e o contato entre a cintura e o peito.", oQueFazer: "Entre na quadra e acelere, com alvo mais próximo das linhas.", erro: "Atacar de trás da linha de base. Se você teve que recuar para bater, não era bola de ataque." },
+  { t: "A bola de defesa", oQueE: "Vem funda, rápida, ou você chega correndo e desequilibrado.", oQueFazer: "Duas respostas certas: alta e funda para ganhar tempo, ou acelerada na cruzada para parar o ataque dele.", erro: "Tentar ganhar o ponto da defesa. A função da defesa é parar o ataque do outro." },
+  { t: "A bola que arma", oQueE: "A bola que cria a situação. Vem antes da bola que ganha o ponto.", oQueFazer: "Alvo de segurança: dois metros para dentro das linhas, com altura confortável sobre a rede.", erro: "Usar alvo de pressão na bola que arma." },
+  { t: "A bola que converte", oQueE: "A bola que termina, e só existe se a anterior armou.", oQueFazer: "Alvo de pressão: mais perto das linhas, mais rápida, ou na rede.", erro: "Converter sem ter armado, ou armar e converter com a mesma bola de segurança." },
+  { t: "Margem", oQueE: "A distância entre onde você mira e onde a bola sai. Sobre a rede e para dentro das linhas.", oQueFazer: "Bola profunda nasce de altura sobre a rede, não de velocidade.", erro: "Baixar a bola para \"acertar mais\". Bola rasante entra menos e pressiona menos." },
+  { t: "Reduzir o tempo", oQueE: "Tirar tempo do adversário. É o objetivo central, e vale mais que potência.", oQueFazer: "Três formas, só uma é bater forte: pegar a bola mais cedo, jogar mais fundo, ganhar terreno indo à frente.", erro: "Achar que reduzir o tempo é bater mais forte." },
+  { t: "O padrão", oQueE: "Uma sequência de duas a quatro bolas com intenções diferentes, decidida antes de começar.", oQueFazer: "Ter uma primeira intenção clara e uma segunda prevista. Dois ou três padrões bem executados bastam.", erro: "Improvisar cada bola." },
+];
+
+const ESCADA_TATICA = [
+  { nivel: "Y1", nome: "Descoberta", entra: "Nenhum conteúdo tático formal.", padroes: "Nenhum padrão.", nota: "A criança joga o ponto do início ao fim. Falar de padrões aqui é ruído." },
+  { nivel: "Y2", nome: "Troca", entra: "Direção e a bola no corpo.", padroes: "P15", nota: "Duas intenções: jogar para o lado aberto, e jogar no corpo quando não há lado aberto. Só isso, e por meses." },
+  { nivel: "Y3", nome: "Direção", entra: "A bola profunda ao centro e a devolução em jogo.", padroes: "P5 · P8 · P9 · P11", nota: "Entra a noção de tirar o ângulo do adversário — o primeiro conceito verdadeiramente tático, e barato tecnicamente." },
+  { nivel: "Y4", nome: "Construção", entra: "A bola que arma e a bola que converte.", padroes: "P1 · P2 · P6 · P13 · P14 · P10", nota: "O divisor de águas entre bater bola e jogar tênis." },
+  { nivel: "Y5", nome: "Decisão", entra: "Padrões completos e leitura do adversário.", padroes: "P3 · P4 · P7 · P12 · P16", nota: "O aluno escolhe entre dois ou três padrões conforme o que lê, e começa a identificar o tipo de jogador do outro lado." },
+  { nivel: "Y6", nome: "Competição", entra: "Plano de jogo, placar e plano B.", padroes: "Todos, mais tática de placar", nota: "Tática por situação de placar, plano escrito antes do jogo, e a disciplina de não abandoná-lo no terceiro game." },
+];
+
+const BASICO_TATICO = [
+  { t: "B1 · Mudar a direção da bola", d: "Tirar a bola da diagonal em que ela está.", nota: "Só se muda a direção de bola confortável: altura entre a cintura e o peito, corpo equilibrado, sem correr. Mudar de direção de bola difícil é a causa mais comum de erro não forçado." },
+  { t: "B2 · Virar a quadra", d: "Contornar para jogar do lado dominante e reorganizar o ponto em torno dele.", nota: "Vira-se a bola que já veio para o meio. Virar bola profunda no canto devolve o ângulo ao adversário." },
+  { t: "B3 · Transitar da defesa para o ataque", d: "Sair da posição defensiva sem tentar ganhar o ponto na primeira oportunidade.", nota: "A defesa tem duas formas — alta para ganhar tempo, acelerada para parar o ataque — e as duas existem para devolver o ponto ao neutro. A transição é a bola seguinte, não a mesma bola." },
+  { t: "B4 · Ganhar a quadra", d: "Avançar terreno metro a metro, empurrando o adversário para trás.", nota: "É o objetivo central do jogo e o mais mal ensinado. Cada bola profunda que faz o adversário recuar um metro é um metro que você avança." },
+  { t: "B5 · Negar ângulo", d: "Jogar pelo centro quando o adversário está em posição de abrir a quadra.", nota: "Bola funda ao centro é a jogada mais subestimada do tênis. Tira do adversário a possibilidade de angular e devolve o ponto ao seu controle." },
+  { t: "B6 · Reconhecer a bola que autoriza", d: "Saber, antes de preparar, se aquela bola é de neutro, de ataque ou de defesa.", nota: "Antes disto, nenhum padrão funciona. É o pré-requisito de toda a tática." },
+];
+
+const TATICA_PLACAR = [
+  { sit: "0-30 e 15-40 sacando", fazer: "Aumente o percentual do primeiro saque, mesmo tirando velocidade. Jogue o padrão que você mais domina, não o mais bonito.", erro: "Sacar mais forte para \"resolver\". É onde nasce a dupla falta em placar adverso." },
+  { sit: "40-0 e 40-15 sacando", fazer: "É o melhor momento do jogo para testar um padrão novo ou um saque diferente — se der errado, ainda restam dois pontos.", erro: "Jogar seguro porque está ganhando. Você desperdiça o único momento de risco barato do jogo." },
+  { sit: "30-30 e 40-40", fazer: "O padrão mais automático que você tem. Não é hora de escolher: é hora de executar o que sai sozinho.", erro: "Inventar. Sob pressão, sai o que está automatizado — e nada mais." },
+  { sit: "Break point contra você", fazer: "Primeiro saque com margem, no corpo ou no lado que ele devolve pior. Rotina completa antes de sacar, sem pressa.", erro: "Encurtar a rotina porque está nervoso. É exatamente quando ela mais serve." },
+  { sit: "Break point a favor", fazer: "Devolução em jogo, funda e ao centro. Não é hora de winner de devolução.", erro: "Tentar terminar na devolução. A maioria dos break points se perde na segunda bola do ponto." },
+  { sit: "Sacando para o set", fazer: "Jogue o game como qualquer outro: mesma rotina, mesmo padrão, mesma respiração. Aceite que vai estar mais tenso — isso é normal e não muda o plano.", erro: "Mudar alguma coisa. Quem muda o jogo no game do set, perde o game do set." },
+  { sit: "Tiebreak", fazer: "Dois padrões só, alternados. Os dois primeiros pontos de saque com o primeiro dentro, custe o que custar em velocidade.", erro: "Jogar diferente porque é tiebreak. É o mesmo tênis, com menos margem para dias ruins." },
+];
+
+const TATICA_DUPLAS = [
+  { t: "A regra que resolve metade dos erros", d: "O meio é do jogador da rede. Se a bola vem pelo centro e um de vocês está na rede, é dele.", erro: "Duas raquetes no mesmo lugar e ninguém no resto da quadra. É o erro mais comum das duplas amadoras." },
+  { t: "A dupla se move junta", d: "Vocês estão ligados por uma corda de seis metros. Se um vai para o lado, o outro acompanha.", erro: "Um sobe e o outro fica no fundo, em formação de um contra dois — a mais frágil que existe." },
+  { t: "Quem saca, sobe — ou fica, mas os dois decidem antes", d: "Serve-volley em dupla é o padrão clássico. Se você não sobe, o seu parceiro precisa saber antes do saque.", erro: "Decidir no meio do ponto. A dupla vive de combinado, não de improviso." },
+  { t: "A devolução da dupla é cruzada, quase sempre", d: "A devolução cruzada e baixa tira o jogador da rede do ponto e é o tiro de maior margem.", erro: "Devolver na paralela para \"passar\" o jogador da rede. É o tiro mais estreito da quadra e ele está ali esperando." },
+  { t: "A bola baixa é a arma da dupla", d: "Todo jogador da rede sofre com bola nos pés. Bola baixa obriga ele a levantar e a próxima é sua.", erro: "Tentar passar por cima ou pelo lado antes de tentar por baixo." },
+  { t: "O lob é jogada de construção, não de desespero", d: "Um lob bem colocado inverte as posições: eles recuam e vocês sobem.", erro: "Usar lob só quando está sem opção. Aí ele sai curto." },
+];
+
+const ENSINO_TATICO = [
+  { fase: "1 · Trilho fechado", oQueE: "A jogada inteira é combinada. O jogador sabe o que vem e onde vai. Repete até a decisão virar automática.", carga: "8 a 12 repetições por série, três séries. O trilho se mantém por três aulas.", erro: "Ficar no trilho fechado. Ele é fase, não destino — jogador que só treina em trilho não reconhece a situação no jogo." },
+  { fase: "2 · Semiaberto", oQueE: "O ponto começa com alimentação do treinador na situação do padrão, e segue com bola viva até o fim.", carga: "De 6 a 10 pontos por série. O treinador alimenta sempre a mesma situação de entrada.", erro: "Alimentar situações diferentes a cada ponto. A entrada precisa ser constante para que o padrão apareça." },
+  { fase: "3 · Aberto com regra", oQueE: "Ponto disputado do início ao fim, com uma regra que premia o padrão.", carga: "Games ou blocos de pontos. É o bloco 5 de toda aula.", erro: "Explicar em vez de montar a regra. Instrução explica; regra instala." },
+  { fase: "4 · Sem treinador", oQueE: "Dois jogadores executam o trilho entre si: início fechado combinado, depois abertura do ponto.", carga: "O início é sempre o mesmo e combinado; a partir da terceira bola, ponto livre.", erro: "Combinar o ponto inteiro. Depois da entrada, tem de ser jogo." },
+];
+
+const ERROS_PROFESSOR_TATICA = [
+  { erro: "Ensinar tática antes do recurso técnico", produz: "O aluno não consegue executar e conclui que é ruim de cabeça." },
+  { erro: "Ensinar muitos padrões", produz: "Dois padrões automáticos valem mais que oito conhecidos. Sempre." },
+  { erro: "Explicar em vez de montar a regra", produz: "O que é explicado se esquece; o que é executado sob regra fica." },
+  { erro: "Corrigir decisão e técnica na mesma bola", produz: "As duas correções se anulam e o aluno não sabe qual delas atender." },
+  { erro: "Tratar bola neutra como bola de ataque no exercício", produz: "O aluno aprende a atacar de posição ruim, e leva isso para o jogo." },
+  { erro: "Achar que tática é para o aluno avançado", produz: "Direção e bola no corpo são tática, e cabem no Y2." },
+];
 
 /* ── As áreas de trabalho. Cada uma vira um ciclo de estímulo no macro. ── */
 const AREAS = {
@@ -4770,6 +4884,7 @@ function App() {
 
 function TelaTaticas() {
   const [nivelFiltro, setNivelFiltro] = useState("todos");
+  const [padraoAberto, setPadraoAberto] = useState(null);
   const padroes = nivelFiltro === "todos" ? PADROES_TATICOS : PADROES_TATICOS.filter((p) => p.nv === nivelFiltro);
 
   return (
@@ -4781,6 +4896,17 @@ function TelaTaticas() {
 
       <LegendaNiveis />
 
+      <Secao titulo="O vocabulário" nota="Oito termos. O aluno não precisa decorá-los — o professor precisa usá-los sempre da mesma forma.">
+        {VOCABULARIO_TATICO.map((v) => (
+          <div key={v.t} className="mb-3" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "10px 13px" }}>
+            <div style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{v.t}</div>
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}><b>O que é:</b> {v.oQueE}</p>
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 3 }}><b>O que se faz:</b> {v.oQueFazer}</p>
+            <p style={{ ...prosa, fontSize: 12.5, color: C.saibro, marginTop: 3 }}><b>O erro do aluno:</b> {v.erro}</p>
+          </div>
+        ))}
+      </Secao>
+
       <Secao titulo="Os três objetivos do jogo" nota="Nesta ordem: ganha-se a quadra para poder produzir ângulo, e o ângulo é o que tira tempo.">
         {OBJETIVOS_JOGO.map((o, i) => (
           <div key={o.n} className="flex gap-4 mb-3">
@@ -4790,6 +4916,24 @@ function TelaTaticas() {
               <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginTop: 2 }}>{o.d}</p>
             </div>
           </div>
+        ))}
+      </Secao>
+
+      <Secao titulo="O básico, para todo tenista" nota="Antes de qualquer padrão específico e antes de qualquer perfil. A ordem de ensino é sempre: o básico primeiro, o específico depois.">
+        {BASICO_TATICO.map((b) => (
+          <div key={b.t} className="mb-3" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "10px 13px" }}>
+            <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>{b.t}</div>
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 3 }}>{b.d}</p>
+            <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 3, fontStyle: "italic" }}>{b.nota}</p>
+          </div>
+        ))}
+      </Secao>
+
+      <Secao titulo="A escada tática por nível" nota="Não se antecipa conteúdo, e não se pula degrau.">
+        <Tabela cabecalho={["Nível", "O que entra", "Padrões"]}
+          linhas={ESCADA_TATICA.map((e) => [e.nivel + " · " + e.nome, e.entra, e.padroes])} />
+        {ESCADA_TATICA.map((e) => (
+          <p key={e.nivel} style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 8 }}><b>{e.nivel}:</b> {e.nota}</p>
         ))}
       </Secao>
 
@@ -4811,7 +4955,7 @@ function TelaTaticas() {
         ))}
       </Secao>
 
-      <Secao titulo="Os dezesseis padrões" nota="Escolha pelo custo técnico do jogador, nunca pelo mais bonito. Filtre por nível de entrada.">
+      <Secao titulo="Os dezesseis padrões" nota="Escolha pelo custo técnico do jogador, nunca pelo mais bonito. Filtre por nível de entrada, e clique num padrão pra ver a sequência e o erro mais comum.">
         <div className="flex gap-2 mb-3 flex-wrap">
           {["todos", "Y2", "Y3", "Y4", "Y5", "Y6"].map((n) => (
             <button key={n} onClick={() => setNivelFiltro(n)}
@@ -4822,13 +4966,20 @@ function TelaTaticas() {
           ))}
         </div>
         {padroes.map((p) => (
-          <div key={p.c} className="mb-2" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "9px 12px" }}>
+          <div key={p.c} onClick={() => setPadraoAberto(padraoAberto === p.c ? null : p.c)}
+            className="mb-2" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "9px 12px", cursor: "pointer" }}>
             <div className="flex items-center gap-2">
               <span style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, color: C.saibro }}>{p.c}</span>
               <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700, flex: 1 }}>{p.n}</span>
               <Etiqueta>{p.nv}</Etiqueta>
             </div>
             <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>{p.e}</p>
+            {padraoAberto === p.c && (
+              <div className="mt-2" style={{ borderTop: "1px solid " + C.linha, paddingTop: 8 }}>
+                <p style={{ ...prosa, fontSize: 12.5, marginBottom: 4 }}><b>Sequência:</b> {p.seq}</p>
+                <p style={{ ...prosa, fontSize: 12.5, color: C.saibro }}><b>Como sai errado:</b> {p.erro}</p>
+              </div>
+            )}
           </div>
         ))}
       </Secao>
@@ -4838,6 +4989,41 @@ function TelaTaticas() {
         primeiro para instalar a decisão, semiaberto depois, aberto com regra por último. Um
         padrão novo entra pelo trilho — nunca direto no ponto livre.
       </Aviso>
+
+      <Secao titulo="Como se ensina tática" nota="A parte mais importante desta tela. Tática mal ensinada não é tática pela metade: é aluno travado, que pensa demais e executa de menos.">
+        <p style={{ ...prosa, fontSize: 13, marginBottom: 12 }}>
+          Tática não se ensina só explicando — ela se ensina simulando, em trilho fechado, até a
+          decisão virar automática, e só depois se abre.
+        </p>
+        <Tabela cabecalho={["Fase", "Carga"]} linhas={ENSINO_TATICO.map((f) => [f.fase, f.carga])} />
+        {ENSINO_TATICO.map((f) => (
+          <div key={f.fase} className="mt-3" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "10px 13px" }}>
+            <p style={{ ...prosa, fontSize: 12.5 }}>{f.oQueE}</p>
+            <p style={{ ...prosa, fontSize: 12, color: C.saibro, marginTop: 4 }}><b>Erro:</b> {f.erro}</p>
+          </div>
+        ))}
+        <h3 style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, margin: "18px 0 9px" }}>Os erros do professor</h3>
+        <Tabela cabecalho={["O erro", "O que ele produz"]} linhas={ERROS_PROFESSOR_TATICA.map((e) => [e.erro, e.produz])} />
+      </Secao>
+
+      <Secao titulo="Tática por situação de placar" nota="Conteúdo de Y6, e o mais negligenciado de todos.">
+        <Tabela cabecalho={["Situação", "O que fazer", "O erro"]}
+          linhas={TATICA_PLACAR.map((p) => [p.sit, p.fazer, p.erro])} />
+        <Aviso cor={C.quadra}>
+          O 40-0 é o ponto mais desperdiçado do tênis amador — o único momento em que o risco é
+          barato, e justamente quando quase todo jogador joga seguro.
+        </Aviso>
+      </Secao>
+
+      <Secao titulo="Tática de duplas" nota="A lacuna que mais aparece no jogo de sábado do adulto recreativo. Seis regras resolvem a maior parte dos erros.">
+        {TATICA_DUPLAS.map((d) => (
+          <div key={d.t} className="mb-3" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "10px 13px" }}>
+            <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>{d.t}</div>
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 3 }}>{d.d}</p>
+            <p style={{ ...prosa, fontSize: 12, color: C.saibro, marginTop: 3 }}><b>O erro:</b> {d.erro}</p>
+          </div>
+        ))}
+      </Secao>
     </div>
   );
 }
