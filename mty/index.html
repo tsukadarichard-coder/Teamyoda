@@ -288,6 +288,12 @@ const FAM = {
   CF: "Condicionamento físico", DM: "Drills mentais", ADV: "Drills avançados MTY",
 };
 
+/* ── plano grátis ──
+   Só orgs criadas por cadastro-individual.js vêm marcadas plano:"gratis"
+   em orgs/{org}/meta/info — academias antigas ou provisionadas pelo
+   admin não têm esse campo e continuam sem limite algum. */
+const LIMITE_ALUNOS_GRATIS = 5;
+
 const ESTAGIOS = [
   { s: "V", n: "Vermelha" }, { s: "L", n: "Laranja" }, { s: "G", n: "Verde" },
   { s: "A", n: "Adulto" }, { s: "C", n: "Competição" },
@@ -5075,6 +5081,9 @@ function TelaLogin({ aoEntrar }) {
           Ainda não tem conta? <a href="solicitar-acesso.html" style={{ color: C.saibro }}>Solicite acesso à sua academia</a> —
           o coordenador precisa aprovar antes de você entrar.
         </p>
+        <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 10 }}>
+          Treinador independente, sem academia? <a href="cadastro-individual.html" style={{ color: C.saibro }}>Crie sua conta</a> — grátis pra começar.
+        </p>
       </div>
     </div>
   );
@@ -6100,10 +6109,12 @@ function App() {
   const [checando, setChecando] = useState(exigeLogin);
   const [orgAtual, setOrgAtual] = useState(null);
   const [papelAtual, setPapelAtual] = useState(null);
+  const [planoAtual, setPlanoAtual] = useState(null);
   const [verificandoOrg, setVerificandoOrg] = useState(exigeLogin);
   const [verTodosAlunos, setVerTodosAlunos] = useState(false);
   const [avisosAberto, setAvisosAberto] = useState(false);
   const [pedidosPendentesCount, setPedidosPendentesCount] = useState(0);
+  const [limiteAtingido, setLimiteAtingido] = useState(false);
   const uidAtual = exigeLogin && window.mtyAuth.usuario() ? window.mtyAuth.usuario().uid : null;
 
   useEffect(() => {
@@ -6121,6 +6132,10 @@ function App() {
         const tok = await window.mtyAuth.usuario().getIdTokenResult();
         setPapelAtual((tok.claims && tok.claims.role) || null);
       } catch (e) { setPapelAtual(null); }
+      try {
+        const info = await db.collection("orgs").doc(org).collection("meta").doc("info").get();
+        setPlanoAtual(info.exists ? (info.data().plano || null) : null);
+      } catch (e) { setPlanoAtual(null); }
       setVerificandoOrg(false);
     })();
   }, [exigeLogin, autenticado]);
@@ -6162,6 +6177,10 @@ function App() {
     : alunos.filter((a) => !a.professorUid || a.professorUid === uidAtual);
 
   function criar() {
+    if (planoAtual === "gratis" && alunos.length >= LIMITE_ALUNOS_GRATIS) {
+      setLimiteAtingido(true);
+      return;
+    }
     const n = novoAluno();
     setAlunos([...alunos, n]);
     setAbertoId(n.id);
@@ -6258,6 +6277,9 @@ function App() {
                     </>
                   )}
                 </div>
+              )}
+              {planoAtual === "gratis" && (
+                <Etiqueta cor={C.saibro}>Plano grátis</Etiqueta>
               )}
               {exigeLogin && uidAtual && orgAtual && (
                 <EditorMeuNome org={orgAtual} uid={uidAtual} emailAtual={window.mtyAuth.usuario() ? window.mtyAuth.usuario().email : ""} />
@@ -6397,6 +6419,14 @@ function App() {
                   </button>
                 );
               })
+            )}
+            {limiteAtingido && (
+              <div className="mt-4 mb-2" style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "13px 15px" }}>
+                <p style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, marginBottom: 4 }}>O plano grátis vai até {LIMITE_ALUNOS_GRATIS} jogadores</p>
+                <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>
+                  Você já tem {LIMITE_ALUNOS_GRATIS}. Pra cadastrar mais, fale com a gente sobre os planos pagos.
+                </p>
+              </div>
             )}
             <div className="mt-4"><Botao onClick={criar} variante="saibro">Novo jogador</Botao></div>
           </div>
