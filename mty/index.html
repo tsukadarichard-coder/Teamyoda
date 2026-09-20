@@ -1645,6 +1645,84 @@ function categoriasDoEstagio(estagio) {
   return [];
 }
 
+/* Fase ampla do jogador — é o que o treinador precisa saber de cara,
+   antes de qualquer diagnóstico: é criança, adulto ou juvenil/adulto
+   de competição. Decide o catálogo de exercícios da ficha inteira. */
+function faseDoEstagio(estagio) {
+  if (["V", "L", "G"].includes(estagio)) return "Criança · Play and Stay";
+  if (estagio === "C") return "Juvenil ou adulto de competição";
+  return "Adulto";
+}
+
+/* O caminho da infância é sempre V → L → G, mesmo que o jogador atual
+   esteja só numa dessas três — diferente de categoriasDoEstagio, que
+   devolve só o degrau em que ele está agora. */
+function nodesFaseCrianca() {
+  return ["V", "L", "G"].map((s, i) => {
+    const info = NIVEIS_CRITERIOS[i];
+    return { id: s, nome: ESTAGIOS.find((e) => e.s === s).n, nivelSugerido: info.nivel, foco: info.capacidade, criterios: info.criterios };
+  });
+}
+/* O caminho inteiro (todos os degraus, não só o atual) pra desenhar a trilha visual. */
+function nodesDaTrilha(estagio) {
+  if (["V", "L", "G"].includes(estagio)) return nodesFaseCrianca();
+  if (estagio === "A") return CATEGORIAS_ADULTO;
+  if (estagio === "C") return CATEGORIAS_COMPETICAO;
+  return [];
+}
+
+/* Caminho visual da progressão: onde o jogador já passou (✓, verde),
+   onde está agora (destacado, com quantos critérios já cumpriu) e o
+   que ainda vem pela frente (apagado). Pensado pra abrir junto com o
+   jogador na aula — não só o treinador ler sozinho depois. */
+function TrilhaVisual({ estagio, categoria, criteriosClassificacao }) {
+  const nodes = nodesDaTrilha(estagio);
+  if (nodes.length === 0) return null;
+  const idxAtual = ["V", "L", "G"].includes(estagio)
+    ? nodes.findIndex((n) => n.id === estagio)
+    : Math.max(0, nodes.findIndex((n) => n.id === categoria));
+  const marcados = criteriosClassificacao || {};
+
+  return (
+    <div className="mt-2 mb-3">
+      <div className="flex items-start" style={{ overflowX: "auto", paddingBottom: 2 }}>
+        {nodes.map((n, i) => {
+          const passado = i < idxAtual;
+          const atual = i === idxAtual;
+          const feitos = n.criterios ? n.criterios.filter((_, k) => marcados[n.id + ":" + k]).length : 0;
+          const cor = passado ? C.quadra : atual ? C.saibro : C.linha;
+          return (
+            <React.Fragment key={n.id}>
+              {i > 0 && (
+                <div style={{ height: 2, flex: 1, minWidth: 16, marginTop: 13, background: i <= idxAtual ? C.quadra : C.linha }} />
+              )}
+              <div style={{ textAlign: "center", minWidth: 88, flexShrink: 0 }}>
+                <div style={{
+                  width: 27, height: 27, borderRadius: "50%", margin: "0 auto",
+                  border: "2px solid " + cor, background: passado ? C.quadra : atual ? C.saibro : C.cal,
+                  color: passado || atual ? "#fff" : C.grafite,
+                  fontFamily: ARCH, fontSize: 12, fontWeight: 700,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  {passado ? "✓" : i + 1}
+                </div>
+                <p style={{ fontFamily: ARCH, fontSize: 10.5, fontWeight: atual ? 700 : 500, color: atual ? C.tinta : C.grafite, marginTop: 5, lineHeight: 1.25 }}>
+                  {n.nome}
+                </p>
+                {n.criterios && (
+                  <p style={{ ...prosa, fontSize: 10, color: atual ? C.saibro : C.grafite, marginTop: 1 }}>
+                    {passado ? "concluído" : atual ? feitos + "/" + n.criterios.length : n.nivelSugerido}
+                  </p>
+                )}
+              </div>
+            </React.Fragment>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 const PADROES_TATICOS = [
   { c: "P1", n: "Saque aberto e a bola no espaço vazio", e: "Um saque aberto que entre. Não precisa ser rápido — precisa ser aberto.", nv: "Y4",
     seq: "Saque aberto · primeira bola no espaço vazio, sem acelerar demais · terceira bola termina.",
@@ -2717,13 +2795,15 @@ function CardTrilha({ aluno, aoClicar }) {
   return (
     <button onClick={aoClicar} className="w-full text-left mb-5"
       style={{ display: "block", background: C.cal, border: "1px solid " + C.linha, padding: "11px 14px", cursor: aoClicar ? "pointer" : "default" }}>
-      <Etiqueta>Trilha de classificação</Etiqueta>
-      <p style={{ ...prosa, fontSize: 14, fontWeight: 700, marginTop: 4 }}>{atual.nome}</p>
+      <Etiqueta>{faseDoEstagio(aluno.estagio)}</Etiqueta>
+      <TrilhaVisual estagio={aluno.estagio} categoria={aluno.categoria} criteriosClassificacao={aluno.criteriosClassificacao} />
+      <p style={{ ...prosa, fontSize: 14, fontWeight: 700 }}>{atual.nome}</p>
       <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>
         {faltam === 0 ? "Todos os critérios cumpridos — pronto para avançar." :
           faltam === 1 ? "Falta 1 critério para o próximo nível." :
           "Faltam " + faltam + " critérios para o próximo nível."}
       </p>
+      {aoClicar && <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 6 }}>Toque aqui para abrir a ficha →</p>}
     </button>
   );
 }
@@ -3002,6 +3082,13 @@ function TelaFicha({ aluno, salvar }) {
 
   return (
     <div>
+      <Secao titulo="Classificação inicial" nota="Antes de tudo: é criança, adulto ou juvenil/adulto de competição? Isso decide o catálogo de exercícios e a trilha de progressão usados no resto da ficha.">
+        <Campo rotulo="Estágio">
+          <Seletor opcoes={ESTAGIOS.map((e) => ({ v: e.s, r: e.n }))} valor={f.estagio} aoMudar={(v) => set("estagio", v)} />
+        </Campo>
+        <Etiqueta cor={C.grafite}>{faseDoEstagio(f.estagio)}</Etiqueta>
+      </Secao>
+
       <Secao titulo="Identificação" nota="F-01 do manual: a ficha de avaliação inicial.">
         <Campo rotulo="Nome"><input style={entrada} value={f.nome} onChange={(e) => set("nome", e.target.value)} placeholder="Nome do jogador ou da turma" /></Campo>
         {professores.length > 0 && (
@@ -3144,14 +3231,9 @@ function TelaFicha({ aluno, salvar }) {
         <Campo rotulo="Musculação por semana"><Seletor opcoes={[0, 1, 2, 3].map((n) => ({ v: n, r: String(n) }))} valor={f.musculacao} aoMudar={(v) => set("musculacao", v)} /></Campo>
       </Secao>
 
-      <Secao titulo="Classificação" nota="Vem por último de propósito: só faz sentido classificar depois de preencher o diagnóstico e o perfil de jogo acima.">
-        <div className="grid grid-cols-2 gap-3">
-          <Campo rotulo="Estágio"><Seletor opcoes={ESTAGIOS.map((e) => ({ v: e.s, r: e.s }))} valor={f.estagio} aoMudar={(v) => set("estagio", v)} /></Campo>
-          <Campo rotulo="Nível"><Seletor opcoes={NIVEIS.map((n) => ({ v: n, r: n }))} valor={f.nivel} aoMudar={(v) => set("nivel", v)} /></Campo>
-        </div>
-        <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>
-          A trilha abaixo é a categoria de verdade — o que falta pra este jogador mudar de nível dentro do estágio escolhido.
-        </p>
+      <Secao titulo="Nível e trilha de progressão" nota="O estágio já foi definido no topo da ficha. Com o diagnóstico acima preenchido, a sugestão de nível vem dos dados coletados — e a trilha abaixo mostra visualmente onde o jogador está, o que já passou e o caminho até o teto deste estágio.">
+        <Campo rotulo="Nível"><Seletor opcoes={NIVEIS.map((n) => ({ v: n, r: n }))} valor={f.nivel} aoMudar={(v) => set("nivel", v)} /></Campo>
+        <TrilhaVisual estagio={f.estagio} categoria={f.categoria} criteriosClassificacao={f.criteriosClassificacao} />
         <TrilhaClassificacao f={f} set={set} />
         <SugestaoClassificacao f={f} set={set} />
         <LegendaNiveis nivelInicial={f.nivel} />
