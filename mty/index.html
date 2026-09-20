@@ -2897,6 +2897,36 @@ function indiceParaEstagio(estagio) {
     f + " (" + (FAM[f] || f) + "): " + porFam[f].join(" · ")).join("\n");
 }
 
+/* Mesma ideia, para um GRUPO de estágios (turma) — a união dos catálogos,
+   marcando entre colchetes pra qual estágio cada exercício serve, pra
+   IA montar estações/variações quando a turma for de nível misto. */
+function indiceParaEstagios(estagios) {
+  const set = new Set(estagios);
+  const porFam = {};
+  EXERCICIOS.filter((e) => e.e.some((s) => set.has(s))).forEach((e) => {
+    const validos = e.e.filter((s) => set.has(s)).join(",");
+    (porFam[e.f] = porFam[e.f] || []).push(e.c + " " + e.n + " [" + validos + "]");
+  });
+  return Object.keys(porFam).sort().map((f) =>
+    f + " (" + (FAM[f] || f) + "): " + porFam[f].join(" · ")).join("\n");
+}
+
+/* Validação de um plano recém-gerado ou colado — compartilhada entre o
+   plano individual e o plano de turma, já que a forma do JSON é a mesma. */
+function validarPlanoJSON(alvo) {
+  if (!alvo.blocos || !alvo.blocos.length) throw new Error("Não encontrei os blocos do plano.");
+  const ruins = [];
+  alvo.blocos.forEach((b) => (b.semanasLista || []).forEach((sem) =>
+    (sem.aulas || []).forEach((au) => (au.ex || []).forEach((c) => {
+      if (!EXERCICIOS.some((e) => e.c === c)) ruins.push(c);
+    }))));
+  if (ruins.length)
+    throw new Error("Códigos que não existem no catálogo: " + [...new Set(ruins)].join(", "));
+  const raizes = (alvo.cadeia || []).filter((c) => c.raiz).length;
+  if (raizes > 1) throw new Error("O plano marcou " + raizes + " camadas como origem. Só pode haver uma.");
+  return alvo;
+}
+
 /* Pedido que devolve o PLANO já no formato da aba — sem passar por conversa. */
 function promptPlanoEstruturado(a, semanas, aulasSemana, historico) {
   const nBlocos = 3;
@@ -2957,6 +2987,82 @@ function promptPlanoEstruturado(a, semanas, aulasSemana, historico) {
     "  competição) isso vale mesmo em semanas de pico ou afinação: a maioria dos pontos no ATP Tour",
     "  se decide nos quatro primeiros golpes do ponto, então saque e devolução nunca saem do plano,",
     "  só mudam de peso.",
+  ].join("\n");
+}
+
+/* Pedido de plano pra uma TURMA inteira — uma única aula em grupo, não
+   os planos de cada jogador colados lado a lado. É isso que faz os
+   planos "conversarem": em vez de cada membro seguir um roteiro
+   diferente no mesmo horário de quadra, o grupo tem um cronograma só,
+   calibrado pelas fichas de todo mundo. */
+function promptPlanoTurma(turma, membros, semanas, aulasSemana, historico) {
+  const nBlocos = 3;
+  const porBloco = Math.ceil(semanas / nBlocos);
+  const estagios = [...new Set(membros.map((m) => m.estagio))];
+  const ciclosAnteriores = (historico || []).slice(0, 3).map((h, i) =>
+    "── Ciclo " + (historico.length - i) + " · " + new Date(h.data).toLocaleDateString("pt-BR") + " ──\n" + h.texto
+  );
+  return [
+    "Você é assistente de planejamento da Metodologia MTY, método de tênis do treinador",
+    "Richard Tsukada. Monte o planejamento de uma TURMA (\"" + turma.nome + "\") — uma aula em",
+    "grupo, não " + membros.length + " planos individuais colados um atrás do outro. O grupo",
+    "treina no mesmo horário de quadra; o plano precisa funcionar como UMA sessão que todos",
+    "fazem juntos (ou em estações/duplas dentro da mesma aula, quando fizer sentido).",
+    "",
+    "PRINCÍPIOS TRAVADOS — obrigatórios:",
+    ...PRINCIPIOS_MTY.map((p, i) => (i + 1) + ". " + p),
+    "",
+    "ESTÁGIOS PRESENTES NO GRUPO: " + estagios.join(", ") + (estagios.length > 1
+      ? " — grupo misto. Cada exercício abaixo mostra entre colchetes pra quais estágios ele serve;"
+        + " use isso pra montar estações ou variações dentro da mesma aula onde os níveis exigirem."
+      : "."),
+    "",
+    "EXERCÍCIOS DISPONÍVEIS (união dos estágios do grupo) — use SOMENTE estes códigos:",
+    indiceParaEstagios(estagios),
+    "",
+    "FICHAS DOS " + membros.length + " JOGADORES DO GRUPO:",
+    ...membros.flatMap((m, i) => ["", "── Jogador " + (i + 1) + " · " + (m.nome || "sem nome") + " ──", relatorioFicha(m)]),
+    ...(ciclosAnteriores.length ? [
+      "",
+      "RELATÓRIOS DOS CICLOS ANTERIORES DESTA TURMA — o novo plano responde ao que ficou em",
+      "aberto, ao que foi atingido e ao que não foi, nunca repete um ciclo já fechado como se",
+      "fosse a primeira vez:",
+      ...ciclosAnteriores,
+    ] : []),
+    "",
+    "FORMATO: " + semanas + " semanas, " + nBlocos + " blocos de aproximadamente " + porBloco +
+      " semanas, " + aulasSemana + " aulas por semana.",
+    "",
+    "Devolva APENAS um JSON válido, sem texto antes ou depois, sem crases, neste formato:",
+    JSON.stringify({
+      tipo: "Plano de turma · N semanas",
+      prioridade: "a prioridade do ciclo para o grupo, em uma frase",
+      cadeia: [{ camada: "Técnico", txt: "...", raiz: true }, { camada: "Físico", txt: "..." },
+               { camada: "Tático", txt: "..." }, { camada: "Mental", txt: "..." }],
+      blocos: [{
+        nome: "Bloco um", titulo: "...", semanas: "1 a 4", etiqueta: "N AULAS",
+        alvo: "...", saida: "critério observável do grupo",
+        portao: "condição de abertura do bloco seguinte, ou vazio",
+        semanasLista: [{ n: 1, foco: "...", carga: "...", aulas: [
+          { t: "título da aula", d: "o que se faz — inclua como dividir o grupo se for o caso",
+            ex: ["CO004", "FB001"], selo: "ss" }
+        ] }]
+      }],
+      observacao: [{ t: "a · campo", d: "por que importa", urgente: false }],
+    }),
+    "",
+    "REGRAS:",
+    "· marque raiz:true em UMA camada só.",
+    "· selo: \"ss\" quando a aula não pode ter saque, \"cs:30\" quando tem com número, ou omita.",
+    "· nenhum código fora da lista acima. Códigos inventados invalidam o plano.",
+    "· critério de saída sempre observável, nunca por calendário — e observável no grupo inteiro,",
+    "  não só num jogador.",
+    "· TODA semana do plano precisa ter pelo menos uma aula com exercício de saque (famílias PDS/IP)",
+    "  e pelo menos uma com exercício de devolução (busca por \"devolu\" no catálogo) — a maioria dos",
+    "  pontos no ATP Tour se decide nos quatro primeiros golpes do ponto.",
+    "· se os estágios do grupo forem muito diferentes entre si, diga isso em observacao com",
+    "  urgente:true — pode ser sinal de que a turma deveria ser dividida em vez de forçar um",
+    "  plano só.",
   ].join("\n");
 }
 
@@ -4742,7 +4848,13 @@ function LinhaDeRaciocinio({ plano, aulas, status }) {
 /* ─────────────────────────── plano do ciclo ───────────────────────────
    O plano chega como JSON gerado na conversa. Aqui ele vira documento vivo:
    o treinador marca aula, anota, consulta o exercício e fecha o ciclo. */
-function TelaPlano({ aluno, alunos, setAlunos }) {
+/* Serve tanto o plano individual (aluno/alunos/setAlunos) quanto o
+   plano de turma (turma/membros/turmas/setTurmas) — é o mesmo formato
+   de plano (blocos/semanas/aulas), só muda de onde ele vem (ficha de
+   um jogador só, ou fichas do grupo inteiro) e onde ele é salvo. */
+function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas }) {
+  const eTurma = !!turma;
+  const entidade = eTurma ? turma : aluno;
   const [colando, setColando] = useState(false);
   const [texto, setTexto] = useState("");
   const [erro, setErro] = useState("");
@@ -4755,33 +4867,25 @@ function TelaPlano({ aluno, alunos, setAlunos }) {
   const [linkCopiado, setLinkCopiado] = useState(false);
   const [chuvaAberta, setChuvaAberta] = useState(null);
 
-  const plano = aluno.plano;
-  const reg = aluno.regPlano || {};
-  const historico = aluno.historicoRelatorios || [];
+  const plano = entidade.plano;
+  const reg = entidade.regPlano || {};
+  const historico = entidade.historicoRelatorios || [];
   const [abrirHist, setAbrirHist] = useState(null);
 
   function atualiza(campos) {
-    setAlunos(alunos.map((a) => (a.id === aluno.id ? { ...a, ...campos } : a)));
+    if (eTurma) setTurmas(turmas.map((t) => (t.id === turma.id ? { ...t, ...campos } : t)));
+    else setAlunos(alunos.map((a) => (a.id === aluno.id ? { ...a, ...campos } : a)));
   }
 
-  function valida(alvo) {
-    if (!alvo.blocos || !alvo.blocos.length) throw new Error("Não encontrei os blocos do plano.");
-    const ruins = [];
-    alvo.blocos.forEach((b) => (b.semanasLista || []).forEach((sem) =>
-      (sem.aulas || []).forEach((au) => (au.ex || []).forEach((c) => {
-        if (!EXERCICIOS.some((e) => e.c === c)) ruins.push(c);
-      }))));
-    if (ruins.length)
-      throw new Error("Códigos que não existem no catálogo: " + [...new Set(ruins)].join(", "));
-    const raizes = (alvo.cadeia || []).filter((c) => c.raiz).length;
-    if (raizes > 1) throw new Error("O plano marcou " + raizes + " camadas como origem. Só pode haver uma.");
-    return alvo;
-  }
+  const valida = validarPlanoJSON;
 
   async function gerarComIA() {
     setErro(""); setGerando(true);
     try {
-      let t = (await chamarIA(promptPlanoEstruturado(aluno, semanas, aulasSem, historico), 8000)).trim();
+      const prompt = eTurma
+        ? promptPlanoTurma(turma, membros, semanas, aulasSem, historico)
+        : promptPlanoEstruturado(aluno, semanas, aulasSem, historico);
+      let t = (await chamarIA(prompt, 8000)).trim();
       t = t.replace(/^```(json)?/i, "").replace(/```$/, "").trim();
       const i = t.indexOf("{");
       if (i > 0) t = t.slice(i);
@@ -4836,7 +4940,7 @@ function TelaPlano({ aluno, alunos, setAlunos }) {
     const NOTA = { sim: "ATINGIDO", par: "PARCIAL", nao: "NÃO ATINGIDO", "": "não avaliado" };
     const L = [];
     L.push("RELATÓRIO DE CICLO · METODOLOGIA MTY");
-    L.push("Jogador: " + (aluno.nome || "sem nome") + " · " + (plano.tipo || ""));
+    L.push((eTurma ? "Turma: " : "Jogador: ") + (entidade.nome || "sem nome") + " · " + (plano.tipo || ""));
     L.push("Gerado em: " + new Date().toLocaleDateString("pt-BR"));
     L.push("Aulas realizadas: " + feitas + " de " + aulas.length);
     L.push("");
@@ -4910,26 +5014,36 @@ function TelaPlano({ aluno, alunos, setAlunos }) {
     return (
       <div>
         <Aviso cor={C.quadra}>
-          Este jogador ainda não tem plano. Preencha a ficha de entrada e gere aqui mesmo —
-          ou cole um plano montado fora.
+          {eTurma ? "Esta turma ainda não tem plano. Gere aqui mesmo a partir das fichas do grupo — ou cole um plano montado fora."
+            : "Este jogador ainda não tem plano. Preencha a ficha de entrada e gere aqui mesmo — ou cole um plano montado fora."}
         </Aviso>
 
-        <Secao titulo="Gerar a partir da ficha" nota="Usa o que está preenchido na aba Ficha e escolhe os exercícios dentro do catálogo, respeitando o estágio do jogador. Se o jogador já teve ciclos anteriores, o plano novo é montado considerando o que ficou registrado neles.">
+        <Secao titulo={eTurma ? "Gerar a partir das fichas do grupo" : "Gerar a partir da ficha"}
+          nota={eTurma
+            ? "Usa o que está preenchido na ficha de cada jogador do grupo e monta UM plano pra turma inteira, escolhendo exercícios que sirvam pra todos (ou em estações, se os níveis pedirem). Se a turma já teve ciclos anteriores, o plano novo considera o que ficou registrado neles."
+            : "Usa o que está preenchido na aba Ficha e escolhe os exercícios dentro do catálogo, respeitando o estágio do jogador. Se o jogador já teve ciclos anteriores, o plano novo é montado considerando o que ficou registrado neles."}>
           <div className="grid grid-cols-2 gap-3">
             <Campo rotulo="Semanas do ciclo">
               <Seletor opcoes={[8, 12, 16].map((n) => ({ v: n, r: n + " semanas" }))}
                 valor={semanas} aoMudar={setSemanas} />
             </Campo>
             <Campo rotulo="Aulas por semana"
-              nota={aluno.periodos >= 2 ? "Ficha marca dois turnos por dia — jogador de competição costuma somar mais aulas na semana." : null}>
+              nota={!eTurma && aluno.periodos >= 2 ? "Ficha marca dois turnos por dia — jogador de competição costuma somar mais aulas na semana." : null}>
               <Seletor opcoes={[1, 2, 3, 4, 5, 6, 7, 8, 10].map((n) => ({ v: n, r: String(n) }))}
                 valor={aulasSem} aoMudar={setAulasSem} />
             </Campo>
           </div>
-          {!(aluno.camadas.tecnico || "").trim() && (
+          {!eTurma && !(aluno.camadas.tecnico || "").trim() && (
             <Aviso>
               A camada técnica da ficha está vazia. O plano vai sair genérico — preencha a aba
               Ficha antes de gerar.
+            </Aviso>
+          )}
+          {eTurma && membros.some((m) => !(m.camadas.tecnico || "").trim()) && (
+            <Aviso>
+              {membros.filter((m) => !(m.camadas.tecnico || "").trim()).map((m) => m.nome || "sem nome").join(", ")}
+              {" "}ainda {membros.filter((m) => !(m.camadas.tecnico || "").trim()).length === 1 ? "está" : "estão"} com a camada
+              técnica da ficha vazia. O plano vai sair genérico pra {membros.filter((m) => !(m.camadas.tecnico || "").trim()).length === 1 ? "esse jogador" : "esses jogadores"} — preencha a ficha antes de gerar.
             </Aviso>
           )}
           {erro && <Aviso>{erro}</Aviso>}
@@ -5004,18 +5118,20 @@ function TelaPlano({ aluno, alunos, setAlunos }) {
         <option value="Doença" /><option value="Viagem" />
       </datalist>
 
-      <div className="mb-5">
-        <Botao pequeno variante="vazio" onClick={gerarLinkAluno}>
-          {gerandoLink ? "Gerando…" : "Link para o aluno (protótipo)"}
-        </Botao>
-        {linkAluno && (
-          <div className="mt-2 flex gap-2 items-center flex-wrap">
-            <input id="mty-link-aluno" readOnly value={linkAluno} style={{ ...entrada, fontSize: 12, flex: 1 }}
-              onFocus={(e) => e.target.select()} />
-            <Botao pequeno variante="vazio" onClick={copiarLinkAluno}>{linkCopiado ? "✓ copiado" : "Copiar"}</Botao>
-          </div>
-        )}
-      </div>
+      {!eTurma && (
+        <div className="mb-5">
+          <Botao pequeno variante="vazio" onClick={gerarLinkAluno}>
+            {gerandoLink ? "Gerando…" : "Link para o aluno (protótipo)"}
+          </Botao>
+          {linkAluno && (
+            <div className="mt-2 flex gap-2 items-center flex-wrap">
+              <input id="mty-link-aluno" readOnly value={linkAluno} style={{ ...entrada, fontSize: 12, flex: 1 }}
+                onFocus={(e) => e.target.select()} />
+              <Botao pequeno variante="vazio" onClick={copiarLinkAluno}>{linkCopiado ? "✓ copiado" : "Copiar"}</Botao>
+            </div>
+          )}
+        </div>
+      )}
 
       <div style={{ background: "#FDF6E7", borderLeft: "3px solid #C9A227", padding: "11px 14px", marginBottom: 16 }}>
         <p style={{ ...prosa, fontSize: 13 }}>
@@ -5176,7 +5292,8 @@ function TelaPlano({ aluno, alunos, setAlunos }) {
       <div className="flex gap-2 flex-wrap mb-4">
         <Botao onClick={gerar} variante="saibro">Gerar relatório do ciclo</Botao>
         <Botao variante="vazio" onClick={() => {
-          if (confirm("Remover o plano deste jogador? Os registros vão junto.")) atualiza({ plano: null, regPlano: {} });
+          const msg = eTurma ? "Remover o plano desta turma? Os registros vão junto." : "Remover o plano deste jogador? Os registros vão junto.";
+          if (confirm(msg)) atualiza({ plano: null, regPlano: {} });
         }}>Remover plano</Botao>
       </div>
 
@@ -5837,7 +5954,7 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas }) {
   const aberta = abertaId ? turmas.find((t) => t.id === abertaId) : null;
   if (aberta) {
     return (
-      <SessaoTurma turma={aberta} alunos={alunos} setAlunos={setAlunos} setTurmas={setTurmas}
+      <SessaoTurma turma={aberta} alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas}
         aoFechar={() => setAbertaId(null)}
         aoRemover={() => { setTurmas(turmas.filter((t) => t.id !== aberta.id)); setAbertaId(null); }} />
     );
@@ -5934,8 +6051,9 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas }) {
   );
 }
 
-function SessaoTurma({ turma, alunos, setAlunos, setTurmas, aoFechar, aoRemover }) {
+function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, aoRemover }) {
   const membros = turma.membros.map((id) => alunos.find((a) => a.id === id)).filter(Boolean);
+  const [subaba, setSubaba] = useState("sessao");
   const [statusGeral, setStatusGeral] = useState("feita");
   const [motivo, setMotivo] = useState("");
   const [nota, setNota] = useState("");
@@ -5944,22 +6062,34 @@ function SessaoTurma({ turma, alunos, setAlunos, setTurmas, aoFechar, aoRemover 
 
   const pendencias = turma.pendencias || [];
   const pendenciasAbertas = pendencias.filter((p) => !p.resolvida);
+  /* Com plano de turma, o grupo segue UM cronograma — a aula em vigor é
+     a da turma, não a de cada jogador. Sem plano de turma ainda, cada
+     um continua com o próprio (comportamento de antes da unificação). */
+  const aulaTurma = turma.plano ? aulaEmVigor(turma) : null;
 
-  /* Quando a sessão sai como planejado ("Realizada"), o plano de cada
-     jogador avança normalmente. Quando não sai (chuva, quadra, o grupo
-     não fechou etc.), NÃO tentamos decidir por cada jogador — fica só
-     uma "pendência do grupo" pendurada na turma, com motivo e uma
-     anotação livre, pro professor decidir depois como repor. */
+  /* Quando a sessão sai como planejado ("Realizada"): se a turma tem
+     plano próprio, avança só ele (uma marcação, pro grupo inteiro). Sem
+     plano de turma, cai no comportamento antigo — avança o plano
+     individual de cada jogador que tiver um. Quando não sai como
+     planejado (chuva, quadra, o grupo não fechou etc.), NÃO tentamos
+     decidir por cada jogador — fica só uma "pendência do grupo"
+     pendurada na turma, com motivo e uma anotação livre. */
   function salvarSessao() {
     const hoje = new Date().toISOString().slice(0, 10);
     if (statusGeral === "feita") {
-      setAlunos(alunos.map((a) => {
-        if (!turma.membros.includes(a.id)) return a;
-        const prox = aulaEmVigor(a);
-        if (!prox) return a;
-        const reg = { ...(a.regPlano || {}), [prox.id]: { status: "feita", data: hoje } };
-        return { ...a, regPlano: reg };
-      }));
+      if (turma.plano && aulaTurma) {
+        setTurmas(turmas.map((t) => t.id !== turma.id ? t : {
+          ...t, regPlano: { ...(t.regPlano || {}), [aulaTurma.id]: { status: "feita", data: hoje } },
+        }));
+      } else if (!turma.plano) {
+        setAlunos(alunos.map((a) => {
+          if (!turma.membros.includes(a.id)) return a;
+          const prox = aulaEmVigor(a);
+          if (!prox) return a;
+          const reg = { ...(a.regPlano || {}), [prox.id]: { status: "feita", data: hoje } };
+          return { ...a, regPlano: reg };
+        }));
+      }
     } else {
       setTurmas((turmasAtuais) => turmasAtuais.map((t) => t.id !== turma.id ? t : {
         ...t,
@@ -5989,6 +6119,20 @@ function SessaoTurma({ turma, alunos, setAlunos, setTurmas, aoFechar, aoRemover 
         </p>
       )}
 
+      <div className="flex gap-5 mb-6" style={{ borderBottom: "1px solid " + C.linha }}>
+        {[{ v: "sessao", r: "Sessão" }, { v: "plano", r: "Plano" }].map((t) => (
+          <button key={t.v} onClick={() => setSubaba(t.v)}
+            style={{ fontFamily: ARCH, fontSize: 13, fontWeight: subaba === t.v ? 700 : 500, padding: "8px 0", cursor: "pointer",
+              color: subaba === t.v ? C.tinta : C.grafite, borderBottom: "2px solid " + (subaba === t.v ? C.saibro : "transparent"), marginBottom: -1 }}>
+            {t.r}
+          </button>
+        ))}
+      </div>
+
+      {subaba === "plano" ? (
+        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} />
+      ) : (
+      <>
       {pendenciasAbertas.length > 0 && (
         <div className="mb-5">
           <Aviso>
@@ -6047,30 +6191,53 @@ function SessaoTurma({ turma, alunos, setAlunos, setTurmas, aoFechar, aoRemover 
         </div>
       )}
 
-      {membros.map((a) => {
-        const prox = aulaEmVigor(a);
-        return (
-          <div key={a.id} style={{ background: C.papel, border: "1px solid " + C.linha, padding: "12px 15px", marginBottom: 9 }}>
-            <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginBottom: 6 }}>{a.nome || "Sem nome"}</div>
-            {!a.plano ? (
-              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Este jogador ainda não tem plano.</p>
-            ) : !prox ? (
-              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Sem aula pendente — plano em dia ou concluído.</p>
-            ) : (
-              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>
-                {prox.bloco} · semana {prox.semana} · <b style={{ color: C.tinta }}>{prox.t}</b>
-              </p>
-            )}
+      {turma.plano ? (
+        aulaTurma ? (
+          <div className="mb-5" style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "13px 15px" }}>
+            <Etiqueta cor={C.saibro}>Aula em vigor do plano da turma</Etiqueta>
+            <p style={{ ...prosa, fontSize: 14, fontWeight: 700, marginTop: 4 }}>{aulaTurma.bloco} · semana {aulaTurma.semana} · {aulaTurma.t}</p>
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>{aulaTurma.d}</p>
           </div>
-        );
-      })}
+        ) : (
+          <div className="mb-5" style={{ background: "#F4F7F4", borderLeft: "3px solid " + C.quadra, padding: "11px 14px" }}>
+            <Etiqueta cor={C.quadra}>Plano da turma concluído</Etiqueta>
+            <p style={{ ...prosa, fontSize: 13, marginTop: 4 }}>Todas as aulas deste ciclo foram realizadas.</p>
+          </div>
+        )
+      ) : (
+        <>
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 12 }}>
+            Esta turma ainda não tem um plano só pra ela — cada jogador segue o próprio plano individual.{" "}
+            <button onClick={() => setSubaba("plano")} style={{ border: "none", background: "none", color: C.saibro, cursor: "pointer", padding: 0, fontFamily: "inherit", fontSize: "inherit" }}>Montar o plano da turma →</button>
+          </p>
+          {membros.map((a) => {
+            const prox = aulaEmVigor(a);
+            return (
+              <div key={a.id} style={{ background: C.papel, border: "1px solid " + C.linha, padding: "12px 15px", marginBottom: 9 }}>
+                <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginBottom: 6 }}>{a.nome || "Sem nome"}</div>
+                {!a.plano ? (
+                  <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Este jogador ainda não tem plano.</p>
+                ) : !prox ? (
+                  <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Sem aula pendente — plano em dia ou concluído.</p>
+                ) : (
+                  <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>
+                    {prox.bloco} · semana {prox.semana} · <b style={{ color: C.tinta }}>{prox.t}</b>
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </>
+      )}
 
       <div className="flex gap-2 items-center mt-4">
         <Botao onClick={salvarSessao}>Salvar sessão</Botao>
         <Botao variante="vazio" onClick={aoRemover}>Remover turma</Botao>
-        {salvo === "feita" && <Etiqueta cor={C.quadra}>✓ sessão registrada em cada jogador</Etiqueta>}
+        {salvo === "feita" && <Etiqueta cor={C.quadra}>{turma.plano ? "✓ sessão registrada no plano da turma" : "✓ sessão registrada em cada jogador"}</Etiqueta>}
         {salvo === "pendencia" && <Etiqueta cor={C.saibro}>✓ pendência do grupo registrada</Etiqueta>}
       </div>
+      </>
+      )}
     </div>
   );
 }
