@@ -3717,7 +3717,18 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
   const [obs, setObs] = useState({ corrigi: "", ignorei: "", mudaria: "", nota: 3 });
   const [statusAulaPlano, setStatusAulaPlano] = useState("feita");
   const [motivoAulaPlano, setMotivoAulaPlano] = useState("");
+  const [personalizados, setPersonalizados] = useState([]);
+  const [textoPersonalizado, setTextoPersonalizado] = useState("");
   const ciclos = useMemo(() => montaCiclos(aluno.prioridades, aluno.estagio), [aluno]);
+
+  function adicionarPersonalizado() {
+    if (!textoPersonalizado.trim()) return;
+    setPersonalizados((p) => [...p, { id: "custom" + Date.now(), texto: textoPersonalizado.trim() }]);
+    setTextoPersonalizado("");
+  }
+  function removerPersonalizado(id) {
+    setPersonalizados((p) => p.filter((x) => x.id !== id));
+  }
 
   /* A sessão de hoje é sempre pra aula em vigor do Plano, quando existe
      uma — é isso que fecha o ciclo "o que falta → monto o treino →
@@ -3734,11 +3745,31 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
      deixava o treinador sem saber qual delas seguir; agora só existe
      uma. O ciclo avulso (sorteio por prioridade) só entra em cena
      quando o jogador não tem uma aula do Plano pra seguir hoje. */
+  /* Uma sessão completa tem partes, não só a lista de exercícios da
+     aula: aquecimento primeiro, sempre; e saque + devolução garantidos
+     no conteúdo, mesmo quando a aula do Plano em si não trouxe os
+     dois (o método não abre mão disso — ver PRINCIPIOS_MTY). O
+     conteúdo específico da aula continua sendo exatamente o que o
+     Plano definiu; isto só garante que a sessão não fique incompleta
+     ao redor dele. */
   function gerar() {
     setDivergencias([]);
     if (aulaAtual) {
-      const exs = (aulaAtual.ex || []).map((c) => EXERCICIOS.find((e) => e.c === c)).filter(Boolean);
-      setPlano({ daAula: true, exercicios: exs });
+      const evitar = new Set(aluno.historico.slice(-2).flat());
+      const aquecimento = sorteia(EXERCICIOS.filter((e) => BLOCOS[0].familias.includes(e.f) && e.e.includes(aluno.estagio)), evitar, 1);
+      let conteudo = (aulaAtual.ex || []).map((c) => EXERCICIOS.find((e) => e.c === c)).filter(Boolean);
+      const usados = new Set(conteudo.map((e) => e.c));
+      const temSaque = conteudo.some((e) => AREAS.saque.busca.test(e.n + " " + e.m));
+      const temDevolucao = conteudo.some((e) => AREAS.devolucao.busca.test(e.n + " " + e.m));
+      if (!temSaque) {
+        const [s] = sorteia(EXERCICIOS.filter((e) => AREAS.saque.busca.test(e.n + " " + e.m) && e.e.includes(aluno.estagio) && !usados.has(e.c)), evitar, 1);
+        if (s) { conteudo = [...conteudo, s]; usados.add(s.c); }
+      }
+      if (!temDevolucao) {
+        const [d] = sorteia(EXERCICIOS.filter((e) => AREAS.devolucao.busca.test(e.n + " " + e.m) && e.e.includes(aluno.estagio) && !usados.has(e.c)), evitar, 1);
+        if (d) conteudo = [...conteudo, d];
+      }
+      setPlano({ daAula: true, aquecimento, conteudo });
       return;
     }
     const evitar = new Set(aluno.historico.slice(-2).flat());
@@ -3756,16 +3787,20 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
     );
   }
 
+  /* No modo daAula, "id" é a seção ("aquecimento" ou "conteudo"), não
+     um id numérico de bloco — as duas seções são arrays soltos no
+     próprio objeto do plano, não uma lista de blocos. */
   function trocar(id, i) {
     setPlano((p) => {
       if (p.daAula) {
-        const usados = new Set(p.exercicios.map((e) => e.c));
+        const lista = p[id];
+        const usados = new Set([...p.aquecimento, ...p.conteudo].map((e) => e.c));
         const pool = EXERCICIOS.filter((e) => e.e.includes(aluno.estagio) && !usados.has(e.c));
         if (!pool.length) return p;
         const novo = pool[Math.floor(Math.random() * pool.length)];
-        const saiu = p.exercicios[i];
+        const saiu = lista[i];
         setDivergencias((d) => [...d, { bloco: aulaAtual.t, tipo: "troca", saiu: saiu.c, entrou: novo.c }]);
-        return { ...p, exercicios: p.exercicios.map((e, k) => (k === i ? novo : e)) };
+        return { ...p, [id]: lista.map((e, k) => (k === i ? novo : e)) };
       }
       return p.map((b) => {
         if (b.id !== id) return b;
@@ -3783,8 +3818,9 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
   function remover(id, i) {
     setPlano((p) => {
       if (p.daAula) {
-        setDivergencias((d) => [...d, { bloco: aulaAtual.t, tipo: "corte", saiu: p.exercicios[i].c }]);
-        return { ...p, exercicios: p.exercicios.filter((_, k) => k !== i) };
+        const lista = p[id];
+        setDivergencias((d) => [...d, { bloco: aulaAtual.t, tipo: "corte", saiu: lista[i].c }]);
+        return { ...p, [id]: lista.filter((_, k) => k !== i) };
       }
       return p.map((b) => {
         if (b.id !== id) return b;
@@ -3796,7 +3832,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
 
   function registrar() {
     const hoje = new Date().toISOString().slice(0, 10);
-    const cods = plano.daAula ? plano.exercicios.map((e) => e.c) : plano.flatMap((b) => b.exercicios.map((e) => e.c));
+    const cods = plano.daAula ? [...plano.aquecimento, ...plano.conteudo].map((e) => e.c) : plano.flatMap((b) => b.exercicios.map((e) => e.c));
     /* O relatório desta sessão vira a observação da aula no Plano — é
        daqui que o fechamento de ciclo (e o próximo plano gerado por IA)
        vai buscar o que realmente aconteceu na quadra, em vez do
@@ -3809,7 +3845,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
     const reg = {
       id: "r" + Date.now(), tipo: "sessao", data: hoje,
       ciclo: aulaAtual ? (aulaAtual.bloco + " · semana " + aulaAtual.semana + " · " + aulaAtual.t) : (ciclos[cicloAtivo].letra + " · " + ciclos[cicloAtivo].nome),
-      duracao, exercicios: cods, divergencias, ...obs,
+      duracao, exercicios: cods, exerciciosPersonalizados: personalizados.map((p) => p.texto), divergencias, ...obs,
       aulaDoPlano: aulaAtual ? aulaAtual.t : null,
     };
     setAlunos(alunos.map((a) => {
@@ -3827,6 +3863,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
     setPlano(null); setFechando(false); setDivergencias([]);
     setObs({ corrigi: "", ignorei: "", mudaria: "", nota: 3 });
     setStatusAulaPlano("feita"); setMotivoAulaPlano("");
+    setPersonalizados([]); setTextoPersonalizado("");
   }
 
   const total = plano && !plano.daAula ? plano.reduce((s, b) => s + b.minutos, 0) : 1;
@@ -3872,15 +3909,28 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
       {plano && (
         <div className="mt-7">
           {plano.daAula ? (
-            <div className="mb-6">
-              {plano.exercicios.length === 0 ? (
-                <Aviso>Nenhum dos códigos de exercício desta aula foi encontrado no catálogo — confira o Plano.</Aviso>
-              ) : (
-                plano.exercicios.map((e, i) => (
-                  <CartaoExercicio key={e.c + i} e={e} aoTrocar={() => trocar(null, i)} aoRemover={() => remover(null, i)} />
-                ))
-              )}
-            </div>
+            <>
+              <div className="mb-6">
+                <h3 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 9 }}>Aquecimento</h3>
+                {plano.aquecimento.length === 0 ? (
+                  <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Nenhum exercício de base motora encontrado pro estágio deste jogador.</p>
+                ) : (
+                  plano.aquecimento.map((e, i) => (
+                    <CartaoExercicio key={e.c + i} e={e} aoTrocar={() => trocar("aquecimento", i)} aoRemover={() => remover("aquecimento", i)} />
+                  ))
+                )}
+              </div>
+              <div className="mb-6">
+                <h3 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 9 }}>Conteúdo da aula</h3>
+                {plano.conteudo.length === 0 ? (
+                  <Aviso>Nenhum dos códigos de exercício desta aula foi encontrado no catálogo — confira o Plano.</Aviso>
+                ) : (
+                  plano.conteudo.map((e, i) => (
+                    <CartaoExercicio key={e.c + i} e={e} aoTrocar={() => trocar("conteudo", i)} aoRemover={() => remover("conteudo", i)} />
+                  ))
+                )}
+              </div>
+            </>
           ) : (
             <>
               <div className="flex gap-4 mb-6">
@@ -3914,6 +3964,28 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
               ))}
             </>
           )}
+
+          <div className="mb-6">
+            <h3 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Exercício do treinador</h3>
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 9 }}>
+              Algo específico pra trabalhar hoje que não está no catálogo do método — escreva e ele entra na sessão.
+            </p>
+            {personalizados.map((p) => (
+              <div key={p.id} style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.grafite, borderRadius: 2, padding: "9px 12px", marginBottom: 7 }}>
+                <div className="flex items-start justify-between gap-3">
+                  <p style={{ ...prosa, fontSize: 13.5, flex: 1 }}>{p.texto}</p>
+                  <button onClick={() => removerPersonalizado(p.id)} title="Remover" style={iconeEstilo}>×</button>
+                </div>
+              </div>
+            ))}
+            <div className="flex gap-2">
+              <input style={entrada} value={textoPersonalizado} onChange={(e) => setTextoPersonalizado(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); adicionarPersonalizado(); } }}
+                placeholder="ex: trabalhar o approach de backhand com aproximação curta" />
+              <Botao pequeno onClick={adicionarPersonalizado}>Adicionar</Botao>
+            </div>
+          </div>
+
           {divergencias.length > 0 && (
             <Aviso cor={C.quadra}>
               {divergencias.length} {divergencias.length === 1 ? "mudança sua" : "mudanças suas"} sobre
@@ -4566,6 +4638,12 @@ function TelaRegistro({ aluno, alunos, setAlunos }) {
                         <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>
                           Ciclo {r.ciclo} · {r.exercicios.length} exercícios
                           {r.divergencias?.length ? ` · ${r.divergencias.length} divergências` : ""}
+                          {(r.exerciciosPersonalizados || []).length > 0 && (
+                            <><br /><span style={{ color: C.grafite }}>
+                              {r.exerciciosPersonalizados.length === 1 ? "Exercício do treinador: " : "Exercícios do treinador: "}
+                              {r.exerciciosPersonalizados.join(" · ")}
+                            </span></>
+                          )}
                           {r.mudaria ? <><br /><span style={{ color: C.saibro }}>Teria montado diferente: {r.mudaria}</span></> : null}
                         </p>
                       )}
