@@ -2601,8 +2601,11 @@ function CartaoExercicio({ e, aoTrocar, aoRemover }) {
     <div style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + (e.v ? C.quadra : C.saibro), borderRadius: 2, padding: "11px 13px", marginBottom: 7 }}>
       <div className="flex items-start justify-between gap-3">
         <button onClick={() => setAberto(!aberto)} className="text-left flex-1">
-          <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{e.c} · {e.n}</div>
-          <div className="mt-1"><Etiqueta>{e.e.join(" · ")} | {e.g}</Etiqueta></div>
+          <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{e.custom ? e.n : e.c + " · " + e.n}</div>
+          {(e.e.length > 0 || e.g) && (
+            <div className="mt-1"><Etiqueta>{[e.e.join(" · "), e.g].filter(Boolean).join(" | ")}</Etiqueta></div>
+          )}
+          {e.custom && <div className="mt-1"><Etiqueta cor={C.saibro}>exercício do treinador</Etiqueta></div>}
         </button>
         {(aoTrocar || aoRemover) && (
           <div className="flex gap-1 shrink-0">
@@ -2614,12 +2617,15 @@ function CartaoExercicio({ e, aoTrocar, aoRemover }) {
       {aberto && (
         <div className="mt-3 pt-3" style={{ borderTop: "1px solid " + C.linha }}>
           {e.o && <p style={{ ...prosa, fontSize: 13.5, fontStyle: "italic", color: C.grafite, marginBottom: 7 }}>{e.o}</p>}
-          <Linha rotulo="Montagem" texto={e.m} />
-          <Linha rotulo="− Regressão" texto={e.r} />
-          <Linha rotulo="+ Progressão" texto={e.p} />
-          <Linha rotulo="Corrigir" texto={e.x} />
-          <Linha rotulo="Ignorar" texto={e.i} destaque />
+          {e.m && <Linha rotulo="Montagem" texto={e.m} />}
+          {e.r && <Linha rotulo="− Regressão" texto={e.r} />}
+          {e.p && <Linha rotulo="+ Progressão" texto={e.p} />}
+          {e.x && <Linha rotulo="Corrigir" texto={e.x} />}
+          {e.i && <Linha rotulo="Ignorar" texto={e.i} destaque />}
           {e.d && <Linha rotulo="Dica" texto={e.d} />}
+          {e.custom && !e.m && !e.r && !e.p && !e.x && !e.i && !e.d && (
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Sem detalhes preenchidos além do nome.</p>
+          )}
         </div>
       )}
     </div>
@@ -3172,8 +3178,11 @@ function TelaFicha({ aluno, salvar }) {
   const setEnt = (k, v) => setF((x) => ({ ...x, entrada: { ...(x.entrada || {}), [k]: v } }));
   const [professores, setProfessores] = useState([]);
   useEffect(() => { listaProfessores().then(setProfessores); }, []);
+  /* Toda edição de ficha fica com carimbo de hora — é o que permite ao
+     Plano saber que a ficha mudou depois que ele foi gerado, e oferecer
+     revisão a partir das aulas que ainda faltam (ver TelaPlano). */
   function salvarEFechar() {
-    salvar(f);
+    salvar({ ...f, fichaAtualizadaEm: new Date().toISOString() });
     setEditando(false);
     setSalvo(true);
     setTimeout(() => setSalvo(false), 2500);
@@ -3708,6 +3717,20 @@ function garanteSaqueEDevolucao(pool, evitar) {
   return [...umSaque, ...umaDevolucao];
 }
 
+/* Até a bola laranja (V e L), o treino tem que ser lúdico — brincadeira
+   não é intervalo do treino, é o treino (Play and Stay). O catálogo já
+   tem a família BR (brincadeiras) só pra isso; esta função garante que
+   toda sessão de um jogador V/L carrega pelo menos uma, em vez de
+   depender do sorteio genérico topar com ela por acaso. */
+function garanteBrincadeira(exerciciosAtuais, evitar, estagio) {
+  if (!["V", "L"].includes(estagio)) return exerciciosAtuais;
+  if (exerciciosAtuais.some((e) => e.f === "BR")) return exerciciosAtuais;
+  const usados = new Set(exerciciosAtuais.map((e) => e.c));
+  const pool = EXERCICIOS.filter((e) => e.f === "BR" && e.e.includes(estagio) && !usados.has(e.c));
+  const [brincadeira] = sorteia(pool, evitar, 1);
+  return brincadeira ? [...exerciciosAtuais, brincadeira] : exerciciosAtuais;
+}
+
 function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
   const [cicloAtivo, setCiclo] = useState(0);
   const [duracao, setDuracao] = useState(90);
@@ -3718,16 +3741,28 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
   const [statusAulaPlano, setStatusAulaPlano] = useState("feita");
   const [motivoAulaPlano, setMotivoAulaPlano] = useState("");
   const [personalizados, setPersonalizados] = useState([]);
-  const [textoPersonalizado, setTextoPersonalizado] = useState("");
+  const PERSONALIZADO_VAZIO = { n: "", m: "", r: "", p: "", x: "", i: "", d: "" };
+  const [novoPersonalizado, setNovoPersonalizado] = useState(PERSONALIZADO_VAZIO);
   const ciclos = useMemo(() => montaCiclos(aluno.prioridades, aluno.estagio), [aluno]);
 
-  function adicionarPersonalizado() {
-    if (!textoPersonalizado.trim()) return;
-    setPersonalizados((p) => [...p, { id: "custom" + Date.now(), texto: textoPersonalizado.trim() }]);
-    setTextoPersonalizado("");
+  function setCampoPersonalizado(k, v) {
+    setNovoPersonalizado((x) => ({ ...x, [k]: v }));
   }
-  function removerPersonalizado(id) {
-    setPersonalizados((p) => p.filter((x) => x.id !== id));
+  /* O exercício do treinador vira um exercício de verdade na sessão —
+     mesmos critérios do catálogo (montagem, regressão, progressão,
+     correção, o que ignorar), só que escrito na hora, não vindo do
+     manual. Só o nome é obrigatório; o resto é o que der pra preencher. */
+  function adicionarPersonalizado() {
+    if (!novoPersonalizado.n.trim()) return;
+    setPersonalizados((p) => [...p, {
+      c: "PERS-" + Date.now(), n: novoPersonalizado.n.trim(), e: [], g: "", o: "", v: 1, custom: true,
+      m: novoPersonalizado.m.trim(), r: novoPersonalizado.r.trim(), p: novoPersonalizado.p.trim(),
+      x: novoPersonalizado.x.trim(), i: novoPersonalizado.i.trim(), d: novoPersonalizado.d.trim(),
+    }]);
+    setNovoPersonalizado(PERSONALIZADO_VAZIO);
+  }
+  function removerPersonalizado(c) {
+    setPersonalizados((p) => p.filter((x) => x.c !== c));
   }
 
   /* A sessão de hoje é sempre pra aula em vigor do Plano, quando existe
@@ -3769,6 +3804,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
         const [d] = sorteia(EXERCICIOS.filter((e) => AREAS.devolucao.busca.test(e.n + " " + e.m) && e.e.includes(aluno.estagio) && !usados.has(e.c)), evitar, 1);
         if (d) conteudo = [...conteudo, d];
       }
+      conteudo = garanteBrincadeira(conteudo, evitar, aluno.estagio);
       setPlano({ daAula: true, aquecimento, conteudo });
       return;
     }
@@ -3781,7 +3817,8 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
         const familias = b.id === 4 ? areaCiclo.familias : b.familias;
         const pool = EXERCICIOS.filter((e) => familias.includes(e.f) && e.e.includes(aluno.estagio));
         const min = Math.round(duracao * pesos[i]);
-        const exercicios = b.id === 3 ? garanteSaqueEDevolucao(pool, evitar) : sorteia(pool, evitar, min >= 18 ? 2 : 1);
+        let exercicios = b.id === 3 ? garanteSaqueEDevolucao(pool, evitar) : sorteia(pool, evitar, min >= 18 ? 2 : 1);
+        if (b.id === 5) exercicios = garanteBrincadeira(exercicios, evitar, aluno.estagio);
         return { ...b, familias, minutos: min, percentual: Math.round(pesos[i] * 100), exercicios };
       })
     );
@@ -3845,7 +3882,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
     const reg = {
       id: "r" + Date.now(), tipo: "sessao", data: hoje,
       ciclo: aulaAtual ? (aulaAtual.bloco + " · semana " + aulaAtual.semana + " · " + aulaAtual.t) : (ciclos[cicloAtivo].letra + " · " + ciclos[cicloAtivo].nome),
-      duracao, exercicios: cods, exerciciosPersonalizados: personalizados.map((p) => p.texto), divergencias, ...obs,
+      duracao, exercicios: cods, exerciciosPersonalizados: personalizados.map((p) => p.n), divergencias, ...obs,
       aulaDoPlano: aulaAtual ? aulaAtual.t : null,
     };
     setAlunos(alunos.map((a) => {
@@ -3863,7 +3900,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
     setPlano(null); setFechando(false); setDivergencias([]);
     setObs({ corrigi: "", ignorei: "", mudaria: "", nota: 3 });
     setStatusAulaPlano("feita"); setMotivoAulaPlano("");
-    setPersonalizados([]); setTextoPersonalizado("");
+    setPersonalizados([]); setNovoPersonalizado(PERSONALIZADO_VAZIO);
   }
 
   const total = plano && !plano.daAula ? plano.reduce((s, b) => s + b.minutos, 0) : 1;
@@ -3904,7 +3941,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
           </Campo>
         </>
       )}
-      <Botao onClick={gerar} variante="saibro">{plano ? "Gerar outra proposta" : "Gerar sessão"}</Botao>
+      {!plano && <Botao onClick={gerar} variante="saibro">Gerar sessão</Botao>}
 
       {plano && (
         <div className="mt-7">
@@ -3968,21 +4005,39 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
           <div className="mb-6">
             <h3 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Exercício do treinador</h3>
             <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 9 }}>
-              Algo específico pra trabalhar hoje que não está no catálogo do método — escreva e ele entra na sessão.
+              Algo específico pra trabalhar hoje que não está no catálogo do método. Só o nome é obrigatório —
+              o resto é opcional, mas segue os mesmos critérios usados nos exercícios do manual.
             </p>
             {personalizados.map((p) => (
-              <div key={p.id} style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.grafite, borderRadius: 2, padding: "9px 12px", marginBottom: 7 }}>
-                <div className="flex items-start justify-between gap-3">
-                  <p style={{ ...prosa, fontSize: 13.5, flex: 1 }}>{p.texto}</p>
-                  <button onClick={() => removerPersonalizado(p.id)} title="Remover" style={iconeEstilo}>×</button>
-                </div>
-              </div>
+              <CartaoExercicio key={p.c} e={p} aoRemover={() => removerPersonalizado(p.c)} />
             ))}
-            <div className="flex gap-2">
-              <input style={entrada} value={textoPersonalizado} onChange={(e) => setTextoPersonalizado(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); adicionarPersonalizado(); } }}
-                placeholder="ex: trabalhar o approach de backhand com aproximação curta" />
-              <Botao pequeno onClick={adicionarPersonalizado}>Adicionar</Botao>
+            <div style={{ background: C.papel, border: "1px solid " + C.linha, padding: "12px 13px" }}>
+              <Campo rotulo="Nome do exercício">
+                <input style={entrada} value={novoPersonalizado.n} onChange={(e) => setCampoPersonalizado("n", e.target.value)}
+                  placeholder="ex: Approach curto com decisão de rede" />
+              </Campo>
+              <Campo rotulo="Montagem (opcional)">
+                <textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={novoPersonalizado.m}
+                  onChange={(e) => setCampoPersonalizado("m", e.target.value)} placeholder="como o exercício é montado" />
+              </Campo>
+              <div className="grid grid-cols-2 gap-3">
+                <Campo rotulo="− Regressão (opcional)">
+                  <input style={entrada} value={novoPersonalizado.r} onChange={(e) => setCampoPersonalizado("r", e.target.value)} />
+                </Campo>
+                <Campo rotulo="+ Progressão (opcional)">
+                  <input style={entrada} value={novoPersonalizado.p} onChange={(e) => setCampoPersonalizado("p", e.target.value)} />
+                </Campo>
+              </div>
+              <Campo rotulo="Corrigir (opcional)">
+                <input style={entrada} value={novoPersonalizado.x} onChange={(e) => setCampoPersonalizado("x", e.target.value)} />
+              </Campo>
+              <Campo rotulo="Ignorar (opcional)">
+                <input style={entrada} value={novoPersonalizado.i} onChange={(e) => setCampoPersonalizado("i", e.target.value)} />
+              </Campo>
+              <Campo rotulo="Dica (opcional)">
+                <input style={entrada} value={novoPersonalizado.d} onChange={(e) => setCampoPersonalizado("d", e.target.value)} />
+              </Campo>
+              <Botao pequeno onClick={adicionarPersonalizado} disabled={!novoPersonalizado.n.trim()}>Adicionar à sessão</Botao>
             </div>
           </div>
 
@@ -4922,6 +4977,39 @@ function LinhaDeRaciocinio({ plano, aulas, status }) {
   );
 }
 
+/* Ciclos fechados (revisão pela ficha, ou fechamento manual de ciclo) —
+   nada se perde quando um plano é substituído; fica arquivado aqui,
+   visível tanto com o plano atual quanto com a tela "ainda não tem
+   plano" (pra mostrar que o ciclo anterior não sumiu, só foi fechado). */
+function HistoricoRelatorios({ historico, abrirHist, setAbrirHist, removerDoHistorico }) {
+  if (historico.length === 0) return null;
+  return (
+    <div className="mt-4">
+      <div className="mb-2"><Etiqueta>Histórico de relatórios · {historico.length}</Etiqueta></div>
+      {historico.map((h) => (
+        <div key={h.id} style={{ background: C.papel, border: "1px solid " + C.linha, padding: "10px 13px", marginBottom: 7 }}>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <p style={{ ...prosa, fontSize: 12.5 }}>
+              {new Date(h.data).toLocaleDateString("pt-BR")} · {h.tipo || "ciclo"} · {h.feitas} de {h.total} aulas
+            </p>
+            <div className="flex gap-2">
+              <Botao pequeno variante="vazio" onClick={() => setAbrirHist(abrirHist === h.id ? null : h.id)}>
+                {abrirHist === h.id ? "Fechar" : "Ver"}
+              </Botao>
+              <Botao pequeno variante="vazio" onClick={() => navigator.clipboard.writeText(h.texto)}>Copiar</Botao>
+              <Botao pequeno variante="vazio" onClick={() => removerDoHistorico(h.id)}>Remover</Botao>
+            </div>
+          </div>
+          {abrirHist === h.id && (
+            <textarea readOnly value={h.texto}
+              style={{ ...entrada, minHeight: 220, marginTop: 9, fontFamily: "ui-monospace, monospace", fontSize: 11.5, whiteSpace: "pre" }} />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ─────────────────────────── catálogo ─────────────────────────── */
 /* ─────────────────────────── plano do ciclo ───────────────────────────
    O plano chega como JSON gerado na conversa. Aqui ele vira documento vivo:
@@ -4968,6 +5056,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
       const i = t.indexOf("{");
       if (i > 0) t = t.slice(i);
       const alvo = valida(JSON.parse(t));
+      alvo.geradoEm = new Date().toISOString();
       atualiza({ plano: alvo, regPlano: {} });
     } catch (e) {
       setErro(String(e.message || e));
@@ -4983,6 +5072,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
       if (i > 0) t = t.slice(i);
       const p = JSON.parse(t);
       const alvo = valida(p.plano || p);
+      alvo.geradoEm = new Date().toISOString();
       atualiza({ plano: alvo, regPlano: {} });
       setColando(false); setTexto("");
     } catch (e) {
@@ -5013,7 +5103,11 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
     atualiza({ regPlano: { ...reg, __fech: { ...(reg.__fech || {}), [k]: v } } });
   }
 
-  function gerar() {
+  /* Função pura (não mexe em estado) pra poder ser reaproveitada tanto
+     pelo botão manual "Gerar relatório do ciclo" quanto pela revisão
+     automática quando a ficha muda — essa última precisa do texto na
+     hora, sem esperar o setState de `relatorio` propagar. */
+  function construirRelatorio() {
     const F = reg.__fech || {};
     const NOTA = { sim: "ATINGIDO", par: "PARCIAL", nao: "NÃO ATINGIDO", "": "não avaliado" };
     const L = [];
@@ -5067,7 +5161,28 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
     L.push("---");
     L.push("Aula sem observação escrita não é aula sem informação — é informação não registrada.");
     L.push("Campos de observação em branco seguem em aberto e entram no próximo ciclo.");
-    setRelatorio(L.join("\n"));
+    return L.join("\n");
+  }
+
+  function gerar() {
+    setRelatorio(construirRelatorio());
+  }
+
+  /* A ficha mudou depois que este plano foi gerado — em vez de tentar
+     remendar o plano existente (arriscando desalinhar as aulas já
+     feitas), fecha o ciclo até aqui como fechamento normal (mesmo
+     relatório, arquivado do mesmo jeito) e libera a tela pra gerar um
+     novo plano a partir da ficha atual — que já vai lembrar deste ciclo
+     via histórico de relatórios. */
+  function revisarComFichaAtualizada() {
+    const item = {
+      id: "REL-" + Date.now().toString(36),
+      data: new Date().toISOString(),
+      tipo: (plano.tipo || "") + " (revisado pela ficha)",
+      feitas, total: aulas.length,
+      texto: construirRelatorio(),
+    };
+    atualiza({ plano: null, regPlano: {}, historicoRelatorios: [item, ...historico] });
   }
 
   function arquivar() {
@@ -5148,6 +5263,8 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
             </div>
           </div>
         )}
+
+        <HistoricoRelatorios historico={historico} abrirHist={abrirHist} setAbrirHist={setAbrirHist} removerDoHistorico={removerDoHistorico} />
       </div>
     );
   }
@@ -5190,6 +5307,24 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
         </div>
         <RoscaStatus contagem={contagemStatus(aulas, status)} />
       </div>
+
+      {!eTurma && aluno.fichaAtualizadaEm && plano.geradoEm && aluno.fichaAtualizadaEm > plano.geradoEm && (
+        <div className="mb-5">
+          <Aviso>
+            A ficha deste jogador foi atualizada depois que este plano foi gerado.{" "}
+            {feitas > 0
+              ? "As " + feitas + (feitas === 1 ? " aula já realizada fica" : " aulas já realizadas ficam") + " arquivadas como um ciclo fechado, e você monta um plano novo com a ficha atual."
+              : "Nenhuma aula deste plano foi realizada ainda, então dá pra gerar um novo direto."}
+          </Aviso>
+          <div className="mt-2">
+            <Botao pequeno variante="saibro" onClick={() => {
+              if (confirm(feitas > 0
+                ? "Arquivar as " + feitas + " aulas já realizadas como ciclo fechado e gerar um plano novo com a ficha atual?"
+                : "Gerar um plano novo com a ficha atual, no lugar deste?")) revisarComFichaAtualizada();
+            }}>Revisar planejamento com a ficha atual</Botao>
+          </div>
+        </div>
+      )}
 
       <datalist id="motivos-cancelamento">
         <option value="Chuva" /><option value="Quadra indisponível" /><option value="Feriado" />
@@ -5387,31 +5522,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
         </div>
       )}
 
-      {historico.length > 0 && (
-        <div className="mt-4">
-          <div className="mb-2"><Etiqueta>Histórico de relatórios · {historico.length}</Etiqueta></div>
-          {historico.map((h) => (
-            <div key={h.id} style={{ background: C.papel, border: "1px solid " + C.linha, padding: "10px 13px", marginBottom: 7 }}>
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <p style={{ ...prosa, fontSize: 12.5 }}>
-                  {new Date(h.data).toLocaleDateString("pt-BR")} · {h.tipo || "ciclo"} · {h.feitas} de {h.total} aulas
-                </p>
-                <div className="flex gap-2">
-                  <Botao pequeno variante="vazio" onClick={() => setAbrirHist(abrirHist === h.id ? null : h.id)}>
-                    {abrirHist === h.id ? "Fechar" : "Ver"}
-                  </Botao>
-                  <Botao pequeno variante="vazio" onClick={() => navigator.clipboard.writeText(h.texto)}>Copiar</Botao>
-                  <Botao pequeno variante="vazio" onClick={() => removerDoHistorico(h.id)}>Remover</Botao>
-                </div>
-              </div>
-              {abrirHist === h.id && (
-                <textarea readOnly value={h.texto}
-                  style={{ ...entrada, minHeight: 220, marginTop: 9, fontFamily: "ui-monospace, monospace", fontSize: 11.5, whiteSpace: "pre" }} />
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+      <HistoricoRelatorios historico={historico} abrirHist={abrirHist} setAbrirHist={setAbrirHist} removerDoHistorico={removerDoHistorico} />
 
     </div>
   );
