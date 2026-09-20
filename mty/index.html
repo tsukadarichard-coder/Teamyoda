@@ -118,8 +118,15 @@ if (auth) {
 async function listaProfessores() {
   const lista = [];
   const u = auth && auth.currentUser;
-  if (u) lista.push({ uid: u.uid, nome: (u.email || "Eu").split("@")[0], email: u.email || "" });
   const org = await organizacao();
+  let meuNome = null;
+  if (u && db && org) {
+    try {
+      const meuDoc = await db.collection("orgs").doc(org).collection("solicitacoes").doc(u.uid).get();
+      if (meuDoc.exists && meuDoc.data().nome) meuNome = meuDoc.data().nome;
+    } catch (e) {}
+  }
+  if (u) lista.push({ uid: u.uid, nome: meuNome || (u.email || "Eu").split("@")[0], email: u.email || "" });
   if (db && org) {
     try {
       const snap = await db.collection("orgs").doc(org).collection("solicitacoes")
@@ -5073,6 +5080,62 @@ function TelaLogin({ aoEntrar }) {
   );
 }
 
+/* ── "meu nome" ──
+   Sem isso, quem entra por solicitar-acesso.html digita o nome certo,
+   mas quem foi vinculado por "corrigir cadastro" (ou logou antes desse
+   campo existir) só tinha o e-mail pra aparecer em toda seleção de
+   professor. Guarda em orgs/{org}/solicitacoes/{uid}.nome — o mesmo
+   lugar de onde listaProfessores() já lê — pra qualquer um corrigir o
+   próprio nome, sem depender do coordenador. */
+function EditorMeuNome({ org, uid, emailAtual }) {
+  const [nome, setNome] = useState("");
+  const [carregado, setCarregado] = useState(false);
+  const [editando, setEditando] = useState(false);
+  const [rascunho, setRascunho] = useState("");
+  const [salvando, setSalvando] = useState(false);
+
+  useEffect(() => {
+    if (!db || !org || !uid) { setCarregado(true); return; }
+    db.collection("orgs").doc(org).collection("solicitacoes").doc(uid).get()
+      .then((d) => setNome(d.exists ? (d.data().nome || "") : ""))
+      .catch(() => {})
+      .then(() => setCarregado(true));
+  }, [org, uid]);
+
+  async function salvar() {
+    const novo = rascunho.trim();
+    if (!novo) return;
+    setSalvando(true);
+    try {
+      await db.collection("orgs").doc(org).collection("solicitacoes").doc(uid)
+        .set({ nome: novo, email: emailAtual || "" }, { merge: true });
+      setNome(novo);
+      setEditando(false);
+    } catch (e) {}
+    setSalvando(false);
+  }
+
+  if (!carregado) return null;
+  if (editando) {
+    return (
+      <div className="flex items-center gap-1">
+        <input autoFocus style={{ ...entrada, fontSize: 11.5, padding: "4px 6px", width: 130 }} value={rascunho}
+          onChange={(e) => setRascunho(e.target.value)} placeholder="Seu nome"
+          onKeyDown={(e) => e.key === "Enter" && salvar()} />
+        <Botao pequeno onClick={salvar} disabled={salvando || !rascunho.trim()}>{salvando ? "…" : "Salvar"}</Botao>
+        <button onClick={() => setEditando(false)} style={{ border: "none", background: "none", cursor: "pointer", color: C.grafite, fontSize: 15 }}>×</button>
+      </div>
+    );
+  }
+  return (
+    <button onClick={() => { setRascunho(nome); setEditando(true); }} title="Como seu nome aparece pros outros"
+      style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 600, color: C.grafite, cursor: "pointer", padding: "4px 8px",
+        border: "1px solid " + C.linha, borderRadius: 2, background: C.cal, maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+      {nome || "+ meu nome"}
+    </button>
+  );
+}
+
 /* ── equipe da academia (só coordenador) ──
    Pedidos de acesso ficam pendentes até alguém com role "coordenador"
    aprovar — a function aprovar-treinador confere isso pelo próprio
@@ -5088,6 +5151,7 @@ function TelaEquipe() {
   const [linkConvite, setLinkConvite] = useState("");
   const [linkCopiado, setLinkCopiado] = useState(false);
   const [emailCorrigir, setEmailCorrigir] = useState("");
+  const [nomeCorrigir, setNomeCorrigir] = useState("");
   const [corrigindo, setCorrigindo] = useState(false);
   const [msgCorrigir, setMsgCorrigir] = useState(null);
 
@@ -5169,6 +5233,7 @@ function TelaEquipe() {
      achar o pedido perdido. */
   async function corrigirCadastro() {
     const email = emailCorrigir.trim();
+    const nome = nomeCorrigir.trim();
     if (!email) return;
     setCorrigindo(true); setMsgCorrigir(null);
     try {
@@ -5176,12 +5241,12 @@ function TelaEquipe() {
       const r = await fetch("/.netlify/functions/corrigir-cadastro", {
         method: "POST",
         headers: { "content-type": "application/json", authorization: "Bearer " + token },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, nome }),
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.erro || ("Erro " + r.status));
-      setMsgCorrigir({ ok: true, texto: "Pronto — " + email + " já está vinculado a esta academia. Ele já pode entrar de novo com a mesma senha." });
-      setEmailCorrigir("");
+      setMsgCorrigir({ ok: true, texto: "Pronto — " + (nome || email) + " já está vinculado a esta academia. Ele já pode entrar de novo com a mesma senha." });
+      setEmailCorrigir(""); setNomeCorrigir("");
       await carregar();
     } catch (e) {
       setMsgCorrigir({ ok: false, texto: String(e.message || e) });
@@ -5252,11 +5317,13 @@ function TelaEquipe() {
             <p style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Um treinador criou a conta mas o pedido não aparece aqui?</p>
             <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>
               Provavelmente ele digitou a academia errada. Como o e-mail já ficou cadastrado, ele não consegue tentar
-              de novo sozinho — coloque o e-mail dele aqui que eu vinculo direto a esta academia.
+              de novo sozinho — coloque o e-mail (e o nome, se souber) que eu vinculo direto a esta academia.
             </p>
             <div className="flex gap-2 items-center flex-wrap">
-              <input type="email" style={{ ...entrada, fontSize: 13, flex: 1, minWidth: 200 }} value={emailCorrigir}
+              <input type="email" style={{ ...entrada, fontSize: 13, flex: 1, minWidth: 160 }} value={emailCorrigir}
                 onChange={(e) => setEmailCorrigir(e.target.value)} placeholder="e-mail do treinador" />
+              <input style={{ ...entrada, fontSize: 13, flex: 1, minWidth: 140 }} value={nomeCorrigir}
+                onChange={(e) => setNomeCorrigir(e.target.value)} placeholder="nome dele (opcional)" />
               <Botao pequeno onClick={corrigirCadastro} disabled={corrigindo || !emailCorrigir.trim()}>
                 {corrigindo ? "…" : "Vincular a esta academia"}
               </Botao>
@@ -6074,7 +6141,7 @@ function App() {
         <div className="px-5 pt-4 pb-2" style={{ maxWidth: 760, margin: "0 auto" }}>
           <div className="flex items-center justify-between gap-3">
             <img src="assets/logo-team-yoda.jpg" alt="Team Yoda" style={{ height: 26 }} />
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2" style={{ flexWrap: "wrap", justifyContent: "flex-end" }}>
               {exigeLogin && uidAtual && (
                 <div style={{ position: "relative" }}>
                   <button onClick={abrirAvisos}
@@ -6136,6 +6203,9 @@ function App() {
                     </>
                   )}
                 </div>
+              )}
+              {exigeLogin && uidAtual && orgAtual && (
+                <EditorMeuNome org={orgAtual} uid={uidAtual} emailAtual={window.mtyAuth.usuario() ? window.mtyAuth.usuario().email : ""} />
               )}
               {exigeLogin && (
                 <button onClick={() => window.mtyAuth.sair()}

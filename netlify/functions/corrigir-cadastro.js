@@ -32,6 +32,7 @@ exports.handler = async function (event) {
   catch (e) { return resposta(400, { erro: "Corpo da requisição inválido." }); }
 
   const email = (corpo.email || "").trim();
+  const nome = (corpo.nome || "").trim();
   if (!email) return resposta(400, { erro: "Faltou o e-mail do treinador." });
 
   try {
@@ -39,7 +40,7 @@ exports.handler = async function (event) {
     await admin.auth().setCustomUserClaims(usuario.uid, { orgId: claims.orgId, role: "treinador" });
     await admin.firestore().collection("orgs").doc(claims.orgId).collection("solicitacoes").doc(usuario.uid)
       .set({
-        nome: usuario.displayName || email, email,
+        nome: nome || usuario.displayName || email, email,
         status: "aprovada", corrigidaEm: new Date().toISOString(),
       }, { merge: true });
 
