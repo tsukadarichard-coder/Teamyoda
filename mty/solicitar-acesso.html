@@ -28,6 +28,8 @@
   .bt{width:100%; border:none; border-radius:3px; padding:14px; font-size:15px; font-weight:700;
     cursor:pointer; font-family:inherit; background:var(--verm); color:#fff; margin-top:8px}
   .bt[disabled]{opacity:.6}
+  .bt{transition:transform .06s ease, opacity .06s ease}
+  .bt:active:not([disabled]){transform:scale(0.97); opacity:.85}
   .msg{margin-top:16px; padding:13px 14px; border-radius:3px; font-size:13.5px; display:none}
   .ok{background:var(--verde); color:#fff}
   .erro{background:#fff; border:1px solid var(--linha); border-left:4px solid var(--verm)}
