@@ -2698,6 +2698,7 @@ function CardAulaEmVigor({ aluno, aoClicar }) {
           {reg.motivo ? " (" + reg.motivo + ")" : ""}{reg.data ? " em " + reg.data : ""}.
         </p>
       )}
+      {aoClicar && <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 6 }}>Toque aqui para montar a sessão de hoje →</p>}
     </button>
   );
 }
@@ -3414,14 +3415,23 @@ function sorteia(lista, evitar, n) {
   return saida;
 }
 
-function TelaSessao({ aluno, alunos, setAlunos }) {
+function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
   const [cicloAtivo, setCiclo] = useState(0);
   const [duracao, setDuracao] = useState(90);
   const [plano, setPlano] = useState(null);
   const [divergencias, setDivergencias] = useState([]);
   const [fechando, setFechando] = useState(false);
   const [obs, setObs] = useState({ corrigi: "", ignorei: "", mudaria: "", nota: 3 });
+  const [statusAulaPlano, setStatusAulaPlano] = useState("feita");
+  const [motivoAulaPlano, setMotivoAulaPlano] = useState("");
   const ciclos = useMemo(() => montaCiclos(aluno.prioridades, aluno.estagio), [aluno]);
+
+  /* A sessão de hoje é sempre pra aula em vigor do Plano, quando existe
+     uma — é isso que fecha o ciclo "o que falta → monto o treino →
+     marco como feito", sem o treinador precisar ir a outra aba achar
+     qual aula é essa. Sem plano (ou plano concluído), a sessão continua
+     funcionando solta, do jeito que sempre funcionou. */
+  const aulaAtual = aluno.plano ? aulaEmVigor(aluno) : null;
 
   const pesoBase = aluno.baseMotora === "pobre" ? 0.2 : aluno.baseMotora === "rica" ? 0.1 : 0.15;
 
@@ -3463,17 +3473,27 @@ function TelaSessao({ aluno, alunos, setAlunos }) {
   }
 
   function registrar() {
+    const hoje = new Date().toISOString().slice(0, 10);
     const cods = plano.flatMap((b) => b.exercicios.map((e) => e.c));
     const reg = {
-      id: "r" + Date.now(), tipo: "sessao", data: new Date().toISOString().slice(0, 10),
+      id: "r" + Date.now(), tipo: "sessao", data: hoje,
       ciclo: ciclos[cicloAtivo].letra + " · " + ciclos[cicloAtivo].nome,
       duracao, exercicios: cods, divergencias, ...obs,
+      aulaDoPlano: aulaAtual ? aulaAtual.t : null,
     };
-    setAlunos(alunos.map((a) => a.id === aluno.id
-      ? { ...a, historico: [...a.historico, cods], registros: [...(a.registros || []), reg] }
-      : a));
+    setAlunos(alunos.map((a) => {
+      if (a.id !== aluno.id) return a;
+      const atualizado = { ...a, historico: [...a.historico, cods], registros: [...(a.registros || []), reg] };
+      if (aulaAtual) {
+        const d = { status: statusAulaPlano, data: hoje };
+        if (statusAulaPlano !== "feita") d.motivo = motivoAulaPlano;
+        atualizado.regPlano = { ...(a.regPlano || {}), [aulaAtual.id]: d };
+      }
+      return atualizado;
+    }));
     setPlano(null); setFechando(false); setDivergencias([]);
     setObs({ corrigi: "", ignorei: "", mudaria: "", nota: 3 });
+    setStatusAulaPlano("feita"); setMotivoAulaPlano("");
   }
 
   const total = plano ? plano.reduce((s, b) => s + b.minutos, 0) : 1;
@@ -3482,6 +3502,28 @@ function TelaSessao({ aluno, alunos, setAlunos }) {
 
   return (
     <div>
+      {aulaAtual ? (
+        <div className="mb-5" style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "13px 15px" }}>
+          <Etiqueta cor={C.saibro}>Sessão de hoje é a aula em vigor do Plano</Etiqueta>
+          <p style={{ ...prosa, fontSize: 14, fontWeight: 700, marginTop: 4 }}>{aulaAtual.bloco} · semana {aulaAtual.semana} · {aulaAtual.t}</p>
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>
+            Gere o treino abaixo do jeito que preferir — ao fechar a sessão, isso marca essa aula no Plano.
+          </p>
+        </div>
+      ) : aluno.plano ? (
+        <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "13px 15px" }}>
+          <Etiqueta cor={C.quadra}>Plano concluído</Etiqueta>
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>Esta sessão não vai marcar nada no Plano — todas as aulas dele já foram feitas.</p>
+        </div>
+      ) : (
+        <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "13px 15px" }}>
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>
+            Este jogador ainda não tem um Plano — esta sessão fica avulsa, só no Caderno.{" "}
+            {setSubaba && <button onClick={() => setSubaba("plano")} style={{ border: "none", background: "none", color: C.saibro, cursor: "pointer", padding: 0, fontFamily: "inherit", fontSize: "inherit" }}>Montar o plano do jogador →</button>}
+          </p>
+        </div>
+      )}
+
       <Campo rotulo="Ciclo ativo hoje" nota="O caderno do treinador manda decidir isto antes de entrar na quadra.">
         <Seletor opcoes={ciclos.map((c, i) => ({ v: i, r: `${c.letra} · ${c.nome}` }))} valor={cicloAtivo} aoMudar={setCiclo} />
       </Campo>
@@ -3534,6 +3576,29 @@ function TelaSessao({ aluno, alunos, setAlunos }) {
           ) : (
             <div style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.saibro, padding: 16 }}>
               <div className="mb-3"><Etiqueta cor={C.saibro}>Menos de dois minutos, ainda na quadra</Etiqueta></div>
+
+              {aulaAtual && (
+                <Campo rotulo="E a aula do Plano?" nota={aulaAtual.bloco + " · semana " + aulaAtual.semana + " · " + aulaAtual.t}>
+                  <div className="flex gap-1 flex-wrap mb-2">
+                    {[["feita", "Realizada"], ["falta", "Falta"], ["cancelada", "Cancelada"]].map(([v, r]) => (
+                      <button key={v} onClick={() => setStatusAulaPlano(v)}
+                        style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "6px 10px", borderRadius: 2, cursor: "pointer",
+                          border: "1px solid " + (statusAulaPlano === v ? C.tinta : C.linha),
+                          background: statusAulaPlano === v ? C.tinta : C.papel, color: statusAulaPlano === v ? C.papel : C.grafite }}>{r}</button>
+                    ))}
+                  </div>
+                  {statusAulaPlano !== "feita" && (
+                    <>
+                      <input list="motivos-cancelamento-sessao" style={entrada} value={motivoAulaPlano}
+                        onChange={(e) => setMotivoAulaPlano(e.target.value)} placeholder="motivo (ex: chuva)" />
+                      <datalist id="motivos-cancelamento-sessao">
+                        <option value="Chuva" /><option value="Quadra indisponível" /><option value="Doença" /><option value="Viagem" />
+                      </datalist>
+                    </>
+                  )}
+                </Campo>
+              )}
+
               <Campo rotulo="O que corrigi hoje">
                 <textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={obs.corrigi}
                   onChange={(e) => setObs({ ...obs, corrigi: e.target.value })}
@@ -3551,7 +3616,7 @@ function TelaSessao({ aluno, alunos, setAlunos }) {
                 <Seletor opcoes={[1, 2, 3, 4, 5].map((n) => ({ v: n, r: String(n) }))} valor={obs.nota}
                   aoMudar={(v) => setObs({ ...obs, nota: v })} />
               </Campo>
-              <Botao onClick={registrar} variante="saibro">Salvar no caderno</Botao>
+              <Botao onClick={registrar} variante="saibro">{aulaAtual ? "Salvar e marcar no Plano" : "Salvar no caderno"}</Botao>
             </div>
           )}
         </div>
@@ -6243,9 +6308,9 @@ function App() {
             <h1 style={{ fontFamily: ARCH, fontSize: 25, fontWeight: 700, lineHeight: 1.1 }}>{aberto.nome || "Sem nome"}</h1>
             <div className="mt-2 mb-5"><Etiqueta>{aberto.nivel} · Estágio {aberto.estagio} · {aberto.semanas} semanas · {aberto.historico.length} sessões</Etiqueta></div>
             <CardTrilha aluno={aberto} aoClicar={() => setSubaba("ficha")} />
-            <CardAulaEmVigor aluno={aberto} aoClicar={() => setSubaba("plano")} />
+            <CardAulaEmVigor aluno={aberto} aoClicar={() => setSubaba("sessao")} />
             <div className="flex gap-5 mb-6" style={{ borderBottom: "1px solid " + C.linha }}>
-              {[{ v: "ficha", r: "Ficha" }, { v: "plano", r: "Plano" }, { v: "periodizacao", r: "Periodização" }, { v: "sessao", r: "Sessão" }, { v: "scout", r: "Scout" }, { v: "registro", r: "Caderno" }].map((t) => (
+              {[{ v: "ficha", r: "Ficha" }, { v: "plano", r: "Plano" }, { v: "periodizacao", r: "Periodização" }, { v: "sessao", r: "Sessão de hoje" }, { v: "scout", r: "Scout" }, { v: "registro", r: "Caderno" }].map((t) => (
                 <button key={t.v} onClick={() => setSubaba(t.v)}
                   style={{ fontFamily: ARCH, fontSize: 13, fontWeight: subaba === t.v ? 700 : 500, padding: "8px 0", cursor: "pointer", color: subaba === t.v ? C.tinta : C.grafite, borderBottom: "2px solid " + (subaba === t.v ? C.saibro : "transparent"), marginBottom: -1 }}>
                   {t.r}
@@ -6253,11 +6318,11 @@ function App() {
               ))}
             </div>
             {subaba === "ficha" ? <TelaFicha aluno={aberto} salvar={salvar} /> :
-             subaba === "plano" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
+             subaba === "plano" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} /> :
              subaba === "periodizacao" ? <TelaPeriodizacao aluno={aberto} /> :
              subaba === "scout" ? <TelaScout aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
              subaba === "registro" ? <TelaRegistro aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
-             <TelaSessao aluno={aberto} alunos={alunos} setAlunos={setAlunos} />}
+             <TelaSessao aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} />}
           </div>
         ) : (
           <div>
