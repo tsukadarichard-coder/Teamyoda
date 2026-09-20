@@ -4645,7 +4645,12 @@ function RoscaStatus({ contagem, tamanho = 108 }) {
 function semanasSemSaqueDevolucao(aulas) {
   const porSemana = {};
   aulas.forEach((a) => {
-    const s = porSemana[a.semana] || (porSemana[a.semana] = { saque: false, devolucao: false });
+    /* a numeração de semana é relativa ao bloco (Bloco 1 · semana 1,
+       Bloco 2 · semana 1, ...) — agrupar só por número de semana
+       juntava blocos diferentes e escondia uma semana sem cobertura
+       atrás da cobertura de outro bloco que calhava do mesmo número. */
+    const chave = a.bloco + "·" + a.semana;
+    const s = porSemana[chave] || (porSemana[chave] = { saque: false, devolucao: false });
     (a.ex || []).forEach((c) => {
       const ex = EXERCICIOS.find((e) => e.c === c);
       if (!ex) return;
