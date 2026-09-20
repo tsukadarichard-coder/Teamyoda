@@ -2526,9 +2526,15 @@ function TrilhaClassificacao({ f, set }) {
     set("criteriosClassificacao", { ...marcados, [chave]: !marcados[chave] });
   }
 
+  /* Avançar um degrau da trilha também atualiza o nível (Y1–Y6) pro
+     nivelSugerido do degrau novo — a classificação por critério e a
+     escada de níveis do método são a mesma coisa, não duas fichas que
+     o treinador precisa manter sincronizadas na mão. */
   function registrarSalto(novaCategoriaId, novoEstagio) {
     if (novoEstagio) set("estagio", novoEstagio);
     if (novaCategoriaId) set("categoria", novaCategoriaId);
+    const alvo = proxima || (novoEstagio ? categoriasDoEstagio(novoEstagio)[0] : null);
+    if (alvo && alvo.nivelSugerido) set("nivel", alvo.nivelSugerido);
     set("historicoCategorias", [...(f.historicoCategorias || []), { data: new Date().toISOString().slice(0, 10), de: atual.nome }]);
   }
 
@@ -2781,30 +2787,30 @@ function CardAulaEmVigor({ aluno, aoClicar }) {
   );
 }
 
-/* Resumo compacto da trilha de classificação, no topo do jogador — pra
-   ele (e o professor) verem de cara onde está e o que falta, sem
-   precisar entrar na aba Ficha. */
-function CardTrilha({ aluno, aoClicar }) {
+/* Trilha de classificação, no topo do jogador — pra ele (e o professor)
+   verem de cara onde está, e MEXEREM ali mesmo: marcar um critério
+   observado hoje não deveria exigir entrar na ficha e depois salvar.
+   Grava direto no aluno (como o Plano já faz), sem passar por um
+   buffer de edição. TrilhaClassificacao é genérico o bastante pra
+   aceitar o aluno no lugar do buffer da ficha (f/set). */
+function CardTrilha({ aluno, aoMudar, aoAbrirFicha }) {
   const lista = categoriasDoEstagio(aluno.estagio);
   if (lista.length === 0) return null;
-  const semSubdivisao = lista.length === 1 && lista[0].id === aluno.estagio;
-  const atual = semSubdivisao ? lista[0] : (lista.find((c) => c.id === aluno.categoria) || lista[0]);
-  const marcados = aluno.criteriosClassificacao || {};
-  const faltam = atual.criterios.filter((_, i) => !marcados[atual.id + ":" + i]).length;
+  const set = (k, v) => aoMudar({ [k]: v });
 
   return (
-    <button onClick={aoClicar} className="w-full text-left mb-5"
-      style={{ display: "block", background: C.cal, border: "1px solid " + C.linha, padding: "11px 14px", cursor: aoClicar ? "pointer" : "default" }}>
-      <Etiqueta>{faseDoEstagio(aluno.estagio)}</Etiqueta>
+    <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "11px 14px" }}>
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <Etiqueta>{faseDoEstagio(aluno.estagio)}</Etiqueta>
+        {aoAbrirFicha && (
+          <button onClick={aoAbrirFicha} style={{ border: "none", background: "none", color: C.grafite, cursor: "pointer", padding: 0, fontFamily: ARCH, fontSize: 11.5, fontWeight: 600 }}>
+            Ver ficha completa →
+          </button>
+        )}
+      </div>
       <TrilhaVisual estagio={aluno.estagio} categoria={aluno.categoria} criteriosClassificacao={aluno.criteriosClassificacao} />
-      <p style={{ ...prosa, fontSize: 14, fontWeight: 700 }}>{atual.nome}</p>
-      <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>
-        {faltam === 0 ? "Todos os critérios cumpridos — pronto para avançar." :
-          faltam === 1 ? "Falta 1 critério para o próximo nível." :
-          "Faltam " + faltam + " critérios para o próximo nível."}
-      </p>
-      {aoClicar && <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 6 }}>Toque aqui para abrir a ficha →</p>}
-    </button>
+      <TrilhaClassificacao f={aluno} set={set} />
+    </div>
   );
 }
 
@@ -2827,6 +2833,9 @@ function relatorioFicha(a) {
   L.push("Lateralidade: " + a.lateralidade + " · Backhand: " + a.backhand);
   L.push("Altura atual/projeção: " + (a.alturaAtual || "—") + " / " + (a.projecaoAltura || "—"));
   L.push("Tipo físico: " + a.tipoFisico + " · Base motora: " + a.baseMotora);
+  L.push("Rotina de treino: " + (a.diasQuadra || "—") + " dias de quadra por semana, " +
+    (a.periodos >= 2 ? "dois turnos por dia (dobrado — típico de competição)" : "um turno por dia") +
+    " · musculação " + (a.musculacao || 0) + "x/semana · escola: " + a.escola);
   if ((a.contexto || "").trim()) L.push("Contexto: " + a.contexto.trim());
   L.push("");
   L.push("1 · TÉCNICO");
@@ -3312,7 +3321,7 @@ function ResumoFicha({ aluno: a, aoEditar, salvo }) {
 
       <Secao titulo="Calendário">
         <p style={prosa}>
-          {a.inicio ? "Início " + a.inicio : "sem data de início"} · {a.semanas} semanas · {a.diasQuadra} dias de quadra por semana
+          {a.inicio ? "Início " + a.inicio : "sem data de início"} · {a.semanas} semanas · {a.diasQuadra} dias de quadra por semana · {a.periodos >= 2 ? "dois turnos por dia" : "um turno por dia"}
         </p>
       </Secao>
 
@@ -4785,8 +4794,9 @@ function TelaPlano({ aluno, alunos, setAlunos }) {
               <Seletor opcoes={[8, 12, 16].map((n) => ({ v: n, r: n + " semanas" }))}
                 valor={semanas} aoMudar={setSemanas} />
             </Campo>
-            <Campo rotulo="Aulas por semana">
-              <Seletor opcoes={[1, 2, 3, 4, 5].map((n) => ({ v: n, r: String(n) }))}
+            <Campo rotulo="Aulas por semana"
+              nota={aluno.periodos >= 2 ? "Ficha marca dois turnos por dia — jogador de competição costuma somar mais aulas na semana." : null}>
+              <Seletor opcoes={[1, 2, 3, 4, 5, 6, 7, 8, 10].map((n) => ({ v: n, r: String(n) }))}
                 valor={aulasSem} aoMudar={setAulasSem} />
             </Campo>
           </div>
@@ -6520,7 +6530,7 @@ function App() {
             </div>
             <h1 style={{ fontFamily: ARCH, fontSize: 25, fontWeight: 700, lineHeight: 1.1 }}>{aberto.nome || "Sem nome"}</h1>
             <div className="mt-2 mb-5"><Etiqueta>{aberto.nivel} · Estágio {aberto.estagio} · {aberto.semanas} semanas · {aberto.historico.length} sessões</Etiqueta></div>
-            <CardTrilha aluno={aberto} aoClicar={() => setSubaba("ficha")} />
+            <CardTrilha aluno={aberto} aoMudar={(patch) => setAlunos(alunos.map((a) => (a.id === aberto.id ? { ...a, ...patch } : a)))} aoAbrirFicha={() => setSubaba("ficha")} />
             <CardAulaEmVigor aluno={aberto} aoClicar={() => setSubaba("sessao")} />
             <div className="flex gap-5 mb-6" style={{ borderBottom: "1px solid " + C.linha }}>
               {[{ v: "ficha", r: "Ficha" }, { v: "plano", r: "Plano" }, { v: "periodizacao", r: "Periodização" }, { v: "sessao", r: "Sessão de hoje" }, { v: "scout", r: "Scout" }, { v: "registro", r: "Caderno" }].map((t) => (
