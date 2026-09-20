@@ -3038,14 +3038,25 @@ function SugestaoClassificacao({ f, set }) {
 
 function TelaFicha({ aluno, salvar }) {
   const [f, setF] = useState(aluno);
-  useEffect(() => setF(aluno), [aluno.id]);
+  /* Jogador sem nome ainda é ficha nova — abre direto pra edição. Uma
+     ficha já preenchida abre fechada, só o resumo: reabrir pra editar
+     é uma ação deliberada, não o padrão — o que alimenta o plano daqui
+     pra frente são os relatórios das aulas, não reedições da ficha. */
+  const [editando, setEditando] = useState(!aluno.nome);
+  useEffect(() => { setF(aluno); setEditando(!aluno.nome); }, [aluno.id]);
+  const [salvo, setSalvo] = useState(false);
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
   const setCamada = (k, v) => setF((x) => ({ ...x, camadas: { ...x.camadas, [k]: v } }));
   const ent = (k) => (f.entrada || {})[k] || "";
   const setEnt = (k, v) => setF((x) => ({ ...x, entrada: { ...(x.entrada || {}), [k]: v } }));
   const [professores, setProfessores] = useState([]);
-  const [salvo, setSalvo] = useState(false);
   useEffect(() => { listaProfessores().then(setProfessores); }, []);
+  function salvarEFechar() {
+    salvar(f);
+    setEditando(false);
+    setSalvo(true);
+    setTimeout(() => setSalvo(false), 2500);
+  }
   function escolherProfessor(uid) {
     const p = professores.find((x) => x.uid === uid);
     setF((x) => ({ ...x, professorUid: uid, professorNome: p ? p.nome : "" }));
@@ -3054,11 +3065,19 @@ function TelaFicha({ aluno, salvar }) {
   const camadaPreenchida = (k) => f.camadas[k].trim().length > 0;
   const liberada = { tecnico: true, fisico: camadaPreenchida("tecnico"), tatico: camadaPreenchida("fisico"), mental: camadaPreenchida("tatico") };
 
+  /* Todos os hooks do componente ficam acima desta linha — o early
+     return abaixo (ficha fechada, só resumo) precisa vir depois de
+     todos eles, senão a ordem dos hooks muda entre o modo resumo e o
+     modo edição e o React quebra. */
   const alertaMental = useMemo(() => {
     const t = (f.camadas.mental + " " + f.camadas.tatico).toLowerCase();
     const gatilhos = ["insegur", "nervos", "medo", "falta de agressividade", "cabeça", "mole", "trava", "ansios"];
     return gatilhos.some((g) => t.includes(g)) && f.camadas.tecnico.trim().length < 30;
   }, [f.camadas]);
+
+  if (!editando) {
+    return <ResumoFicha aluno={aluno} aoEditar={() => setEditando(true)} salvo={salvo} />;
+  }
 
   function mudaLista(campo, i, chave, valor) {
     setF((x) => {
@@ -3240,9 +3259,64 @@ function TelaFicha({ aluno, salvar }) {
       </Secao>
 
       <div className="flex items-center gap-2">
-        <Botao onClick={() => { salvar(f); setSalvo(true); setTimeout(() => setSalvo(false), 2000); }} variante="saibro">Salvar ficha</Botao>
-        {salvo && <Etiqueta cor={C.quadra}>✓ ficha salva</Etiqueta>}
+        <Botao onClick={salvarEFechar} variante="saibro">Salvar ficha</Botao>
+        {aluno.nome && <Botao variante="vazio" onClick={() => setEditando(false)}>Cancelar</Botao>}
       </div>
+    </div>
+  );
+}
+
+/* Ficha já preenchida: fica fechada, só um resumo do que já foi
+   observado — reabrir pra editar é deliberado, não o padrão. O que
+   mantém o plano atualizado daqui pra frente são os relatórios das
+   aulas (Sessão e fechamento de ciclo do Plano), não reedições daqui. */
+function ResumoFicha({ aluno: a, aoEditar, salvo }) {
+  const camadasRot = [["tecnico", "Técnico"], ["fisico", "Físico"], ["tatico", "Tático"], ["mental", "Mental"]];
+  const temCamada = camadasRot.some(([k]) => (a.camadas[k] || "").trim());
+  const corpo = PERFIS_CORPO.find((p) => p.v === a.perfilCorpo);
+  const temperamento = PERFIS_TEMPERAMENTO.find((p) => p.v === a.perfilTemperamento);
+
+  return (
+    <div>
+      {salvo && <div className="mb-4"><Etiqueta cor={C.quadra}>✓ ficha salva</Etiqueta></div>}
+
+      <div className="flex items-start justify-between gap-3 flex-wrap mb-6">
+        <div>
+          <Etiqueta>{faseDoEstagio(a.estagio)} · nível {a.nivel}</Etiqueta>
+          <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginTop: 4 }}>
+            {a.professorNome ? "Prof. " + a.professorNome + " · " : ""}
+            {(a.horarios || []).length ? a.horarios.map((h) => nomeDia(h.dia) + " " + h.hora).join(", ") : "sem horário fixo definido"}
+          </p>
+        </div>
+        <Botao pequeno variante="vazio" onClick={aoEditar}>Editar ficha</Botao>
+      </div>
+
+      <Secao titulo="Diagnóstico">
+        {temCamada ? camadasRot.map(([k, rot]) => (a.camadas[k] || "").trim() && <Linha key={k} rotulo={rot} texto={a.camadas[k]} />)
+          : <p style={{ ...prosa, color: C.grafite }}>Diagnóstico ainda não preenchido.</p>}
+      </Secao>
+
+      <Secao titulo="Perfil de jogo">
+        {corpo && <Linha rotulo="Corpo" texto={corpo.r} />}
+        {temperamento && <Linha rotulo="Temperamento" texto={temperamento.r} />}
+        {!corpo && !temperamento && <p style={{ ...prosa, color: C.grafite }}>Perfil de jogo ainda não definido.</p>}
+      </Secao>
+
+      <Secao titulo="Prioridades">
+        <p style={prosa}>{a.prioridades.map((p) => AREAS[p].nome).join(" → ")}</p>
+      </Secao>
+
+      <Secao titulo="Horizonte">
+        {a.objetivoFinal ? <Linha rotulo="Objetivo" texto={a.objetivoFinal} /> : <p style={{ ...prosa, color: C.grafite }}>Sem objetivo final definido.</p>}
+      </Secao>
+
+      <Secao titulo="Calendário">
+        <p style={prosa}>
+          {a.inicio ? "Início " + a.inicio : "sem data de início"} · {a.semanas} semanas · {a.diasQuadra} dias de quadra por semana
+        </p>
+      </Secao>
+
+      <Botao variante="vazio" onClick={aoEditar}>Editar ficha</Botao>
     </div>
   );
 }
@@ -3517,12 +3591,23 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
 
   const pesoBase = aluno.baseMotora === "pobre" ? 0.2 : aluno.baseMotora === "rica" ? 0.1 : 0.15;
 
+  /* Havendo aula em vigor no Plano, a sessão NÃO sorteia nada — usa
+     exatamente os exercícios que aquela aula já definiu. Duas fontes de
+     treino pro mesmo dia (o ciclo avulso e a aula do Plano) é o que
+     deixava o treinador sem saber qual delas seguir; agora só existe
+     uma. O ciclo avulso (sorteio por prioridade) só entra em cena
+     quando o jogador não tem uma aula do Plano pra seguir hoje. */
   function gerar() {
+    setDivergencias([]);
+    if (aulaAtual) {
+      const exs = (aulaAtual.ex || []).map((c) => EXERCICIOS.find((e) => e.c === c)).filter(Boolean);
+      setPlano({ daAula: true, exercicios: exs });
+      return;
+    }
     const evitar = new Set(aluno.historico.slice(-2).flat());
     const f3 = fatiaInicio(aluno.nivel);
     const areaCiclo = AREAS[ciclos[cicloAtivo].areaId];
     const pesos = [pesoBase, 0.2, f3, 0.2, Math.max(0.1, 1 - (pesoBase + 0.4 + f3))];
-    setDivergencias([]);
     setPlano(
       BLOCOS.map((b, i) => {
         const familias = b.id === 4 ? areaCiclo.familias : b.familias;
@@ -3534,32 +3619,58 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
   }
 
   function trocar(id, i) {
-    setPlano((p) => p.map((b) => {
-      if (b.id !== id) return b;
-      const usados = new Set(p.flatMap((x) => x.exercicios.map((e) => e.c)));
-      const pool = EXERCICIOS.filter((e) => b.familias.includes(e.f) && e.e.includes(aluno.estagio) && !usados.has(e.c));
-      if (!pool.length) return b;
-      const novo = pool[Math.floor(Math.random() * pool.length)];
-      const saiu = b.exercicios[i];
-      setDivergencias((d) => [...d, { bloco: b.nome, tipo: "troca", saiu: saiu.c, entrou: novo.c }]);
-      return { ...b, exercicios: b.exercicios.map((e, k) => (k === i ? novo : e)) };
-    }));
+    setPlano((p) => {
+      if (p.daAula) {
+        const usados = new Set(p.exercicios.map((e) => e.c));
+        const pool = EXERCICIOS.filter((e) => e.e.includes(aluno.estagio) && !usados.has(e.c));
+        if (!pool.length) return p;
+        const novo = pool[Math.floor(Math.random() * pool.length)];
+        const saiu = p.exercicios[i];
+        setDivergencias((d) => [...d, { bloco: aulaAtual.t, tipo: "troca", saiu: saiu.c, entrou: novo.c }]);
+        return { ...p, exercicios: p.exercicios.map((e, k) => (k === i ? novo : e)) };
+      }
+      return p.map((b) => {
+        if (b.id !== id) return b;
+        const usados = new Set(p.flatMap((x) => x.exercicios.map((e) => e.c)));
+        const pool = EXERCICIOS.filter((e) => b.familias.includes(e.f) && e.e.includes(aluno.estagio) && !usados.has(e.c));
+        if (!pool.length) return b;
+        const novo = pool[Math.floor(Math.random() * pool.length)];
+        const saiu = b.exercicios[i];
+        setDivergencias((d) => [...d, { bloco: b.nome, tipo: "troca", saiu: saiu.c, entrou: novo.c }]);
+        return { ...b, exercicios: b.exercicios.map((e, k) => (k === i ? novo : e)) };
+      });
+    });
   }
 
   function remover(id, i) {
-    setPlano((p) => p.map((b) => {
-      if (b.id !== id) return b;
-      setDivergencias((d) => [...d, { bloco: b.nome, tipo: "corte", saiu: b.exercicios[i].c }]);
-      return { ...b, exercicios: b.exercicios.filter((_, k) => k !== i) };
-    }));
+    setPlano((p) => {
+      if (p.daAula) {
+        setDivergencias((d) => [...d, { bloco: aulaAtual.t, tipo: "corte", saiu: p.exercicios[i].c }]);
+        return { ...p, exercicios: p.exercicios.filter((_, k) => k !== i) };
+      }
+      return p.map((b) => {
+        if (b.id !== id) return b;
+        setDivergencias((d) => [...d, { bloco: b.nome, tipo: "corte", saiu: b.exercicios[i].c }]);
+        return { ...b, exercicios: b.exercicios.filter((_, k) => k !== i) };
+      });
+    });
   }
 
   function registrar() {
     const hoje = new Date().toISOString().slice(0, 10);
-    const cods = plano.flatMap((b) => b.exercicios.map((e) => e.c));
+    const cods = plano.daAula ? plano.exercicios.map((e) => e.c) : plano.flatMap((b) => b.exercicios.map((e) => e.c));
+    /* O relatório desta sessão vira a observação da aula no Plano — é
+       daqui que o fechamento de ciclo (e o próximo plano gerado por IA)
+       vai buscar o que realmente aconteceu na quadra, em vez do
+       treinador ter que reabrir e reescrever isso em outro lugar. */
+    const notasSessao = [
+      obs.corrigi.trim() && ("Corrigi: " + obs.corrigi.trim()),
+      obs.ignorei.trim() && ("Deixei passar: " + obs.ignorei.trim()),
+      obs.mudaria.trim() && ("Teria montado diferente: " + obs.mudaria.trim()),
+    ].filter(Boolean).join(" · ");
     const reg = {
       id: "r" + Date.now(), tipo: "sessao", data: hoje,
-      ciclo: ciclos[cicloAtivo].letra + " · " + ciclos[cicloAtivo].nome,
+      ciclo: aulaAtual ? (aulaAtual.bloco + " · semana " + aulaAtual.semana + " · " + aulaAtual.t) : (ciclos[cicloAtivo].letra + " · " + ciclos[cicloAtivo].nome),
       duracao, exercicios: cods, divergencias, ...obs,
       aulaDoPlano: aulaAtual ? aulaAtual.t : null,
     };
@@ -3567,8 +3678,10 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
       if (a.id !== aluno.id) return a;
       const atualizado = { ...a, historico: [...a.historico, cods], registros: [...(a.registros || []), reg] };
       if (aulaAtual) {
-        const d = { status: statusAulaPlano, data: hoje };
-        if (statusAulaPlano !== "feita") d.motivo = motivoAulaPlano;
+        const anterior = (a.regPlano || {})[aulaAtual.id] || {};
+        const d = { ...anterior, status: statusAulaPlano, data: hoje };
+        if (statusAulaPlano !== "feita") d.motivo = motivoAulaPlano; else delete d.motivo;
+        if (notasSessao) d.obs = notasSessao;
         atualizado.regPlano = { ...(a.regPlano || {}), [aulaAtual.id]: d };
       }
       return atualizado;
@@ -3578,8 +3691,8 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
     setStatusAulaPlano("feita"); setMotivoAulaPlano("");
   }
 
-  const total = plano ? plano.reduce((s, b) => s + b.minutos, 0) : 1;
-  const pctIP = plano ? Math.round((plano[2].minutos / total) * 100) : 0;
+  const total = plano && !plano.daAula ? plano.reduce((s, b) => s + b.minutos, 0) : 1;
+  const pctIP = plano && !plano.daAula ? Math.round((plano[2].minutos / total) * 100) : 0;
   const dentro = pctIP >= 25 && pctIP <= 35;
 
   return (
@@ -3589,7 +3702,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
           <Etiqueta cor={C.saibro}>Sessão de hoje é a aula em vigor do Plano</Etiqueta>
           <p style={{ ...prosa, fontSize: 14, fontWeight: 700, marginTop: 4 }}>{aulaAtual.bloco} · semana {aulaAtual.semana} · {aulaAtual.t}</p>
           <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>
-            Gere o treino abaixo do jeito que preferir — ao fechar a sessão, isso marca essa aula no Plano.
+            É o mesmo treino que está no Plano pra esta aula — não um novo sorteio. Ao fechar a sessão, isso marca essa aula como feita.
           </p>
         </div>
       ) : aluno.plano ? (
@@ -3606,45 +3719,63 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
         </div>
       )}
 
-      <Campo rotulo="Ciclo ativo hoje" nota="O caderno do treinador manda decidir isto antes de entrar na quadra.">
-        <Seletor opcoes={ciclos.map((c, i) => ({ v: i, r: `${c.letra} · ${c.nome}` }))} valor={cicloAtivo} aoMudar={setCiclo} />
-      </Campo>
-      <Campo rotulo="Duração">
-        <Seletor opcoes={[45, 60, 90, 120].map((d) => ({ v: d, r: d + " min" }))} valor={duracao} aoMudar={setDuracao} />
-      </Campo>
+      {!aulaAtual && (
+        <>
+          <Campo rotulo="Ciclo ativo hoje" nota="O caderno do treinador manda decidir isto antes de entrar na quadra.">
+            <Seletor opcoes={ciclos.map((c, i) => ({ v: i, r: `${c.letra} · ${c.nome}` }))} valor={cicloAtivo} aoMudar={setCiclo} />
+          </Campo>
+          <Campo rotulo="Duração">
+            <Seletor opcoes={[45, 60, 90, 120].map((d) => ({ v: d, r: d + " min" }))} valor={duracao} aoMudar={setDuracao} />
+          </Campo>
+        </>
+      )}
       <Botao onClick={gerar} variante="saibro">{plano ? "Gerar outra proposta" : "Gerar sessão"}</Botao>
 
       {plano && (
         <div className="mt-7">
-          <div className="flex gap-4 mb-6">
-            <div className="flex flex-col" style={{ width: 10, minHeight: 170 }}>
-              {plano.map((b) => (
-                <div key={b.id} title={b.nome} style={{ flexGrow: b.minutos, background: b.id === 3 ? C.saibro : C.quadra, opacity: b.id === 3 ? 1 : 0.2 + b.id * 0.06, borderBottom: "2px solid " + C.papel }} />
-              ))}
+          {plano.daAula ? (
+            <div className="mb-6">
+              {plano.exercicios.length === 0 ? (
+                <Aviso>Nenhum dos códigos de exercício desta aula foi encontrado no catálogo — confira o Plano.</Aviso>
+              ) : (
+                plano.exercicios.map((e, i) => (
+                  <CartaoExercicio key={e.c + i} e={e} aoTrocar={() => trocar(null, i)} aoRemover={() => remover(null, i)} />
+                ))
+              )}
             </div>
-            <div className="flex-1 self-center">
-              <div style={{ fontFamily: ARCH, fontSize: 32, fontWeight: 700, lineHeight: 1, color: dentro ? C.tinta : C.saibro }}>{pctIP}%</div>
-              <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginTop: 4 }}>
-                da sessão em início do ponto.{" "}
-                {dentro ? "Dentro da faixa do método (25–35%)." : <span style={{ color: C.saibro }}>Fora da faixa de 25–35%.</span>}
-              </p>
-            </div>
-          </div>
-
-          {plano.map((b) => (
-            <div key={b.id} className="mb-6">
-              <div className="flex items-baseline justify-between gap-3 mb-1">
-                <h3 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>
-                  <span style={{ color: b.id === 3 ? C.saibro : C.grafite, marginRight: 8 }}>{b.id}</span>{b.nome}
-                </h3>
-                <Etiqueta cor={b.id === 3 ? C.saibro : C.grafite}>{b.minutos} min · {b.percentual}%</Etiqueta>
+          ) : (
+            <>
+              <div className="flex gap-4 mb-6">
+                <div className="flex flex-col" style={{ width: 10, minHeight: 170 }}>
+                  {plano.map((b) => (
+                    <div key={b.id} title={b.nome} style={{ flexGrow: b.minutos, background: b.id === 3 ? C.saibro : C.quadra, opacity: b.id === 3 ? 1 : 0.2 + b.id * 0.06, borderBottom: "2px solid " + C.papel }} />
+                  ))}
+                </div>
+                <div className="flex-1 self-center">
+                  <div style={{ fontFamily: ARCH, fontSize: 32, fontWeight: 700, lineHeight: 1, color: dentro ? C.tinta : C.saibro }}>{pctIP}%</div>
+                  <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginTop: 4 }}>
+                    da sessão em início do ponto.{" "}
+                    {dentro ? "Dentro da faixa do método (25–35%)." : <span style={{ color: C.saibro }}>Fora da faixa de 25–35%.</span>}
+                  </p>
+                </div>
               </div>
-              <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginBottom: 9 }}>{b.porque}</p>
-              {b.exercicios.map((e, i) => (
-                <CartaoExercicio key={e.c} e={e} aoTrocar={() => trocar(b.id, i)} aoRemover={() => remover(b.id, i)} />
+
+              {plano.map((b) => (
+                <div key={b.id} className="mb-6">
+                  <div className="flex items-baseline justify-between gap-3 mb-1">
+                    <h3 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>
+                      <span style={{ color: b.id === 3 ? C.saibro : C.grafite, marginRight: 8 }}>{b.id}</span>{b.nome}
+                    </h3>
+                    <Etiqueta cor={b.id === 3 ? C.saibro : C.grafite}>{b.minutos} min · {b.percentual}%</Etiqueta>
+                  </div>
+                  <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginBottom: 9 }}>{b.porque}</p>
+                  {b.exercicios.map((e, i) => (
+                    <CartaoExercicio key={e.c} e={e} aoTrocar={() => trocar(b.id, i)} aoRemover={() => remover(b.id, i)} />
+                  ))}
+                </div>
               ))}
-            </div>
-          ))}
+            </>
+          )}
           {divergencias.length > 0 && (
             <Aviso cor={C.quadra}>
               {divergencias.length} {divergencias.length === 1 ? "mudança sua" : "mudanças suas"} sobre
