@@ -2864,29 +2864,6 @@ function promptPlanoEstruturado(a, semanas, aulasSemana, historico) {
   ].join("\n");
 }
 
-function promptPlanejamento(a) {
-  return [
-    "Você é assistente de um treinador de tênis que usa a Metodologia MTY.",
-    "Monte um planejamento individual a partir da ficha abaixo.",
-    "",
-    "PRINCÍPIOS DO MÉTODO — obrigatórios, não negociáveis:",
-    ...PRINCIPIOS_MTY.map((p, i) => (i + 1) + ". " + p),
-    "",
-    "ESTRUTURA DA RESPOSTA:",
-    "1. Leitura do jogador — o que a ficha mostra, nas quatro camadas, na ordem certa.",
-    "2. Perfil sugerido — corpo (E1/E2/E3) e temperamento (T1/T2), com a justificativa observável. Se a ficha não sustentar a classificação, diga isso em vez de arbitrar.",
-    "3. Prioridades em ordem, com o porquê de cada uma.",
-    "4. Padrões táticos compatíveis com o custo técnico atual do jogador.",
-    "5. Plano de quatro semanas, com o trilho de cada padrão novo.",
-    "6. O que observar na próxima aula — todo campo [não sei] ou [em branco] entra aqui.",
-    "",
-    "Escreva em português do Brasil, direto, sem jargão de coach. Este é um RASCUNHO para o treinador revisar e assinar — nunca material final para o aluno.",
-    "",
-    "FICHA:",
-    relatorioFicha(a),
-  ].join("\n");
-}
-
 function promptClassificacao(a) {
   return [
     "Você é assistente de um treinador de tênis que usa a Metodologia MTY.",
@@ -2978,91 +2955,6 @@ function SugestaoClassificacao({ f, set }) {
   );
 }
 
-function PainelRelatorio({ aluno, aoFechar }) {
-  const txt = relatorioFicha(aluno);
-  const [copiado, setCopiado] = useState(false);
-  const [vista, setVista] = useState("ficha");
-  const [plano, setPlano] = useState("");
-  const [gerando, setGerando] = useState(false);
-  const [erroIA, setErroIA] = useState("");
-
-  async function gerarPlano() {
-    setErroIA(""); setGerando(true); setPlano("");
-    try {
-      setPlano(await chamarIA(promptPlanejamento(aluno), 4000));
-    } catch (e) {
-      setErroIA(String(e.message || e));
-    }
-    setGerando(false);
-  }
-  async function copiar() {
-    try { await navigator.clipboard.writeText(txt); }
-    catch { const t = document.getElementById("mty-rel"); t.select(); document.execCommand("copy"); }
-    setCopiado(true);
-  }
-  return (
-    <div style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.quadra, padding: 16, marginBottom: 18 }}>
-      <div className="flex gap-2 mb-4">
-        {[["ficha", "Relatório da ficha"], ["plano", "Gerar planejamento"]].map(([v, r]) => (
-          <button key={v} onClick={() => setVista(v)}
-            style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: vista === v ? 700 : 500,
-              padding: "7px 12px", borderRadius: 2, cursor: "pointer",
-              border: "1px solid " + (vista === v ? C.tinta : C.linha),
-              background: vista === v ? C.tinta : C.cal, color: vista === v ? C.papel : C.grafite }}>
-            {r}
-          </button>
-        ))}
-      </div>
-
-      {vista === "ficha" ? (
-        <>
-          <textarea id="mty-rel" readOnly value={txt}
-            style={{ ...entrada, minHeight: 260, fontFamily: "ui-monospace, Menlo, Consolas, monospace", fontSize: 11.5, lineHeight: 1.45, whiteSpace: "pre" }} />
-          <div className="flex gap-2 mt-3 items-center">
-            <Botao onClick={copiar} variante="saibro">Copiar tudo</Botao>
-            <Botao variante="vazio" onClick={aoFechar}>Fechar</Botao>
-            {copiado && <Etiqueta cor={C.quadra}>✓ copiado</Etiqueta>}
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="flex gap-2 items-center mb-3">
-            <Botao onClick={gerarPlano} variante="saibro">
-              {gerando ? "Montando…" : plano ? "Gerar de novo" : "Gerar planejamento"}
-            </Botao>
-            <Botao variante="vazio" onClick={aoFechar}>Fechar</Botao>
-          </div>
-
-          {erroIA && (
-            <div style={{ background: C.papel, borderLeft: "3px solid " + C.saibro, padding: "11px 13px", marginBottom: 12 }}>
-              <p style={{ ...prosa, fontSize: 13, color: C.saibro }}>{erroIA}</p>
-            </div>
-          )}
-
-          {plano && (
-            <>
-              <div style={{ background: "#FDF6E7", borderLeft: "3px solid #C9A227", padding: "11px 13px", marginBottom: 10 }}>
-                <p style={{ ...prosa, fontSize: 13 }}>
-                  <b>Rascunho.</b> Leia inteiro antes de usar. Nenhum planejamento gerado aqui vai
-                  para o aluno sem um treinador revisar e assinar.
-                </p>
-              </div>
-              <textarea readOnly value={plano}
-                style={{ ...entrada, minHeight: 320, fontSize: 13.5, lineHeight: 1.5 }} />
-              <div className="flex gap-2 mt-3 items-center">
-                <Botao pequeno variante="vazio" onClick={async () => {
-                  try { await navigator.clipboard.writeText(plano); setCopiado(true); } catch {}
-                }}>Copiar planejamento</Botao>
-                {copiado && <Etiqueta cor={C.quadra}>✓ copiado</Etiqueta>}
-              </div>
-            </>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
 function TelaFicha({ aluno, salvar }) {
   const [f, setF] = useState(aluno);
   useEffect(() => setF(aluno), [aluno.id]);
@@ -3070,8 +2962,8 @@ function TelaFicha({ aluno, salvar }) {
   const setCamada = (k, v) => setF((x) => ({ ...x, camadas: { ...x.camadas, [k]: v } }));
   const ent = (k) => (f.entrada || {})[k] || "";
   const setEnt = (k, v) => setF((x) => ({ ...x, entrada: { ...(x.entrada || {}), [k]: v } }));
-  const [mostraRel, setMostraRel] = useState(false);
   const [professores, setProfessores] = useState([]);
+  const [salvo, setSalvo] = useState(false);
   useEffect(() => { listaProfessores().then(setProfessores); }, []);
   function escolherProfessor(uid) {
     const p = professores.find((x) => x.uid === uid);
@@ -3199,11 +3091,6 @@ function TelaFicha({ aluno, salvar }) {
             ))}
           </div>
         ))}
-
-        <Botao variante="vazio" onClick={() => setMostraRel(true)}>Gerar relatório da ficha</Botao>
-        <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 8 }}>
-          Gera o texto pronto para colar numa conversa com o Claude e montar o planejamento.
-        </p>
       </Secao>
 
       <Secao titulo="Prioridades" nota="A ordem define os ciclos de estímulo do macro e a proporção do volume tático. Arraste pelas setas.">
@@ -3269,9 +3156,10 @@ function TelaFicha({ aluno, salvar }) {
         <LegendaNiveis nivelInicial={f.nivel} />
       </Secao>
 
-      {mostraRel && <PainelRelatorio aluno={f} aoFechar={() => setMostraRel(false)} />}
-
-      <Botao onClick={() => salvar(f)} variante="saibro">Salvar ficha</Botao>
+      <div className="flex items-center gap-2">
+        <Botao onClick={() => { salvar(f); setSalvo(true); setTimeout(() => setSalvo(false), 2000); }} variante="saibro">Salvar ficha</Botao>
+        {salvo && <Etiqueta cor={C.quadra}>✓ ficha salva</Etiqueta>}
+      </div>
     </div>
   );
 }
