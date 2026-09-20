@@ -2762,6 +2762,38 @@ function aulaEmVigor(aluno) {
   return aulas.find((a) => statusAula(aluno.regPlano, a.id) !== "feita") || null;
 }
 
+/* Pedido de reposição que o próprio aluno faz pelo link público (aluno.html)
+   — o horário preferido é só uma sugestão dele; aprovar aqui apenas
+   registra a decisão, não move nada sozinho na agenda. Quem combina o
+   encaixe de verdade (quadra, horário do professor) é o treinador, por
+   fora do app, como já acontece com pendência de turma. */
+function CardPedidosReposicao({ aluno, aoMudar }) {
+  const pendentes = (aluno.pedidosReposicao || []).filter((p) => p.status === "pendente");
+  if (pendentes.length === 0) return null;
+
+  function resolver(id, status) {
+    aoMudar({ pedidosReposicao: (aluno.pedidosReposicao || []).map((p) => (p.id === id ? { ...p, status } : p)) });
+  }
+
+  return (
+    <div className="mb-5" style={{ background: C.cal, borderLeft: "3px solid #C9A227", padding: "13px 15px" }}>
+      <Etiqueta cor="#C9A227">{pendentes.length === 1 ? "Pedido de reposição do aluno" : pendentes.length + " pedidos de reposição do aluno"}</Etiqueta>
+      {pendentes.map((p) => (
+        <div key={p.id} className="mt-2" style={{ paddingTop: 8, borderTop: "1px solid " + C.linha }}>
+          <p style={{ ...prosa, fontSize: 13.5 }}>
+            Prefere <b>{(DIAS_SEMANA.find((d) => d.v === p.diaPreferido) || {}).r || p.diaPreferido}</b> às <b>{p.horaPreferido}</b>
+            {p.nota ? " — " + p.nota : ""}
+          </p>
+          <div className="flex gap-2 mt-1">
+            <Botao pequeno onClick={() => resolver(p.id, "aprovado")}>Aprovar</Botao>
+            <Botao pequeno variante="vazio" onClick={() => resolver(p.id, "recusado")}>Recusar</Botao>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* Mostrado assim que o treinador abre o aluno, pra não precisar procurar
    na lista qual aula vale hoje. */
 function CardAulaEmVigor({ aluno, aoClicar }) {
@@ -3163,7 +3195,7 @@ function SugestaoClassificacao({ f, set }) {
   );
 }
 
-function TelaFicha({ aluno, salvar }) {
+function TelaFicha({ aluno, salvar, papelAtual }) {
   const [f, setF] = useState(aluno);
   /* Jogador sem nome ainda é ficha nova — abre direto pra edição. Uma
      ficha já preenchida abre fechada, só o resumo: reabrir pra editar
@@ -3206,7 +3238,7 @@ function TelaFicha({ aluno, salvar }) {
   }, [f.camadas]);
 
   if (!editando) {
-    return <ResumoFicha aluno={aluno} aoEditar={() => setEditando(true)} salvo={salvo} />;
+    return <ResumoFicha aluno={aluno} aoEditar={() => setEditando(true)} salvo={salvo} papelAtual={papelAtual} />;
   }
 
   function mudaLista(campo, i, chave, valor) {
@@ -3400,7 +3432,7 @@ function TelaFicha({ aluno, salvar }) {
    observado — reabrir pra editar é deliberado, não o padrão. O que
    mantém o plano atualizado daqui pra frente são os relatórios das
    aulas (Sessão e fechamento de ciclo do Plano), não reedições daqui. */
-function ResumoFicha({ aluno: a, aoEditar, salvo }) {
+function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual }) {
   const camadasRot = [["tecnico", "Técnico"], ["fisico", "Físico"], ["tatico", "Tático"], ["mental", "Mental"]];
   const temCamada = camadasRot.some(([k]) => (a.camadas[k] || "").trim());
   const corpo = PERFIS_CORPO.find((p) => p.v === a.perfilCorpo);
@@ -3445,6 +3477,17 @@ function ResumoFicha({ aluno: a, aoEditar, salvo }) {
           {a.inicio ? "Início " + a.inicio : "sem data de início"} · {a.semanas} semanas · {a.diasQuadra} dias de quadra por semana · {a.periodos >= 2 ? "dois turnos por dia" : "um turno por dia"}
         </p>
       </Secao>
+
+      {papelAtual === "coordenador" && (a.feedbacksAluno || []).length > 0 && (
+        <Secao titulo="Feedback do aluno" nota="Enviado pelo próprio aluno, pelo link dele — só o coordenador vê este campo, o treinador não.">
+          {a.feedbacksAluno.map((f) => (
+            <div key={f.id} style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid #C9A227", padding: "10px 13px", marginBottom: 7 }}>
+              <Etiqueta>{new Date(f.data).toLocaleDateString("pt-BR")}</Etiqueta>
+              <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>{f.texto}</p>
+            </div>
+          ))}
+        </Secao>
+      )}
 
       <Botao variante="vazio" onClick={aoEditar}>Editar ficha</Botao>
     </div>
@@ -4669,6 +4712,18 @@ function TelaRegistro({ aluno, alunos, setAlunos }) {
           ]}
           valor={modo} aoMudar={setModo} />
       </div>
+
+      {(aluno.jogosRelatados || []).length > 0 && (
+        <div className="mb-6">
+          <Etiqueta>Jogos relatados pelo aluno, pelo link dele</Etiqueta>
+          {aluno.jogosRelatados.map((j) => (
+            <div key={j.id} style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.grafite, padding: "10px 13px", marginTop: 8 }}>
+              <Etiqueta>{new Date(j.data).toLocaleDateString("pt-BR")}</Etiqueta>
+              <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>{j.texto}</p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {modo === "jogo" && <FormJogo aoSalvar={adiciona} />}
       {modo === "semana" && <FormSemana aoSalvar={adiciona} />}
@@ -6984,6 +7039,7 @@ function App() {
             <h1 style={{ fontFamily: ARCH, fontSize: 25, fontWeight: 700, lineHeight: 1.1 }}>{aberto.nome || "Sem nome"}</h1>
             <div className="mt-2 mb-5"><Etiqueta>{aberto.nivel} · Estágio {aberto.estagio} · {aberto.semanas} semanas · {aberto.historico.length} sessões</Etiqueta></div>
             <CardTrilha aluno={aberto} aoMudar={(patch) => setAlunos(alunos.map((a) => (a.id === aberto.id ? { ...a, ...patch } : a)))} aoAbrirFicha={() => setSubaba("ficha")} />
+            <CardPedidosReposicao aluno={aberto} aoMudar={(patch) => setAlunos(alunos.map((a) => (a.id === aberto.id ? { ...a, ...patch } : a)))} />
             <CardAulaEmVigor aluno={aberto} aoClicar={() => setSubaba("sessao")} />
             <div className="flex gap-5 mb-6" style={{ borderBottom: "1px solid " + C.linha }}>
               {[{ v: "ficha", r: "Ficha" }, { v: "plano", r: "Plano" }, { v: "periodizacao", r: "Periodização" }, { v: "sessao", r: "Sessão de hoje" }, { v: "scout", r: "Scout" }, { v: "registro", r: "Caderno" }].map((t) => (
@@ -6993,7 +7049,7 @@ function App() {
                 </button>
               ))}
             </div>
-            {subaba === "ficha" ? <TelaFicha aluno={aberto} salvar={salvar} /> :
+            {subaba === "ficha" ? <TelaFicha aluno={aberto} salvar={salvar} papelAtual={papelAtual} /> :
              subaba === "plano" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} /> :
              subaba === "periodizacao" ? <TelaPeriodizacao aluno={aberto} /> :
              subaba === "scout" ? <TelaScout aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :

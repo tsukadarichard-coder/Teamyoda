@@ -34,6 +34,26 @@
   .carregando{color:var(--cinza); padding:30px 0}
   .sincronia{font-size:11.5px; color:var(--cinza); text-align:right; margin-top:22px}
   .sincronia.piscando{color:var(--verde)}
+
+  .painel{background:#fff; border:1px solid var(--linha); border-radius:6px; padding:15px 16px; margin-top:18px}
+  .painel h2{font-family:Georgia,serif; font-size:15px; margin:0 0 4px}
+  .painel .desc{font-size:12.5px; color:var(--cinza); margin:0 0 11px}
+  .btn{font:600 13px -apple-system,sans-serif; padding:9px 14px; border-radius:4px; border:1px solid var(--tinta);
+    background:var(--tinta); color:#fff; cursor:pointer}
+  .btn.fraco{background:#fff; color:var(--tinta)}
+  .btn.perigo{background:var(--verm); border-color:var(--verm); color:#fff}
+  .btn:disabled{opacity:.5; cursor:default}
+  .linha-btns{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px}
+  textarea, .campo-texto{width:100%; font:14px/1.4 -apple-system,sans-serif; padding:9px 10px; border:1px solid var(--linha);
+    border-radius:4px; resize:vertical; background:var(--papel)}
+  .aviso-mini{font-size:12px; color:var(--cinza); margin-top:6px}
+  .confirmado{font-size:12.5px; color:var(--verde); margin-top:8px; font-weight:600}
+  .grade{display:grid; grid-template-columns:repeat(7, 1fr); gap:3px; margin:10px 0}
+  .grade .rot{font-size:10px; text-align:center; color:var(--cinza); font-weight:700}
+  .cel{font-size:10.5px; text-align:center; padding:5px 2px; border-radius:3px; border:1px solid var(--linha); cursor:pointer; background:var(--papel)}
+  .cel.ocupado{background:#EFE7E4; color:var(--cinza); cursor:default; text-decoration:line-through}
+  .cel.sel{background:var(--verde); color:#fff; border-color:var(--verde)}
+  .pedido-pendente{background:#FDF6E7; border:1px solid #C9A227; border-radius:4px; padding:10px 12px; font-size:12.5px; margin-top:8px}
 </style>
 </head>
 <body>
@@ -79,6 +99,19 @@ function legendaRosca(feita, pendente, repetindo) {
   }).join('');
 }
 
+const NOMES_DIA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+function horariosPadrao() {
+  const lista = [];
+  for (let h = 7; h <= 21; h++) lista.push((h < 10 ? '0' : '') + h + ':00');
+  return lista;
+}
+function todosHorarios(agenda) {
+  const set = {};
+  horariosPadrao().forEach(function (h) { set[h] = true; });
+  Object.keys(agenda || {}).forEach(function (dia) { (agenda[dia] || []).forEach(function (h) { set[h] = true; }); });
+  return Object.keys(set).sort();
+}
+
 (function(){
   const p = new URLSearchParams(location.search);
   const org = p.get('org'), id = p.get('id'), t = p.get('t');
@@ -91,8 +124,28 @@ function legendaRosca(feita, pendente, repetindo) {
   }
 
   let ultimoJson = null;
+  let ultimoDado = null;
 
-  async function carregar() {
+  /* Estado das telinhas de ação — fica fora do innerHTML (que é
+     reconstruído a cada atualização), pra abrir um painel ou digitar
+     numa caixa de texto não se perder na próxima sincronia automática. */
+  const ui = {
+    painel: null, // 'cancelar' | 'reagendar' | 'feedback' | 'jogo' | null
+    diaEscolhido: null, horaEscolhida: null,
+    mensagem: null, enviando: false,
+  };
+
+  async function postAcao(corpo) {
+    const r = await fetch('/.netlify/functions/ver-aluno', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(Object.assign({ org: org, id: id, t: t }, corpo)),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.erro || ('Erro ' + r.status));
+    return d;
+  }
+
+  async function carregar(forcarRender) {
     try {
       const r = await fetch('/.netlify/functions/ver-aluno?org=' + encodeURIComponent(org) + '&id=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(t));
       const d = await r.json();
@@ -102,38 +155,211 @@ function legendaRosca(feita, pendente, repetindo) {
       const primeiraCarga = ultimoJson === null;
       const mudou = textoJson !== ultimoJson;
       ultimoJson = textoJson;
-      if (!mudou) { marcarSincronia(false); return; }
+      ultimoDado = d;
+      if (!mudou && !forcarRender) { marcarSincronia(false); return; }
 
-      if (!d.temPlano) {
-        el.innerHTML = '<header><h1>' + escapar(d.nome) + '</h1><div class="sub">Ainda não há um plano montado para você.</div></header>';
-      } else {
-        const repetindo = d.aulas.filter(function (a) { return a.status === 'falta' || a.status === 'cancelada'; }).length;
-        const pendente = d.totalAulas - d.aulasFeitas - repetindo;
-        let html = '';
-        html += '<header><h1>' + escapar(d.nome) + '</h1><div class="sub">' + escapar(d.tipoPlano) + '</div></header>';
-        if (d.prioridade) html += '<p class="sub">' + escapar(d.prioridade) + '</p>';
-        html += '<div class="rosca-wrap">' + rosquinhaSvg(d.aulasFeitas, pendente, repetindo) +
-          '<div>' + legendaRosca(d.aulasFeitas, pendente, repetindo) +
-          '<div class="progtxt">' + d.aulasFeitas + ' de ' + d.totalAulas + ' aulas</div></div></div>';
-
-        let blocoAtual = null, semanaAtual = null;
-        d.aulas.forEach(function(a){
-          if (a.bloco !== blocoAtual) { blocoAtual = a.bloco; semanaAtual = null; html += '<div class="bloco">' + escapar(a.bloco) + '</div>'; }
-          if (a.semana !== semanaAtual) { semanaAtual = a.semana; html += '<div class="semana">Semana ' + a.semana + (a.foco ? ' · ' + escapar(a.foco) : '') + '</div>'; }
-          var marca = { feita: '✅', falta: '❌', cancelada: '🌧️' }[a.status] || '⬜';
-          html += '<div class="aula' + (a.status === 'feita' ? ' feita' : '') + '">' +
-            '<span class="marca">' + marca + '</span>' +
-            '<span class="txt">' + escapar(a.titulo) + '</span>' +
-            (a.data ? '<span class="data">' + escapar(a.data) + '</span>' : '') +
-            '</div>';
-        });
-
-        html += '<div class="sincronia" id="mty-sincronia"></div>';
-        el.innerHTML = html;
-      }
+      render(d);
       marcarSincronia(!primeiraCarga);
     } catch (e) {
       el.innerHTML = '<div class="erro">' + escapar(e.message || String(e)) + '</div>';
+    }
+  }
+
+  function render(d) {
+    if (!d.temPlano) {
+      el.innerHTML = '<header><h1>' + escapar(d.nome) + '</h1><div class="sub">Ainda não há um plano montado para você.</div></header>';
+      return;
+    }
+    const repetindo = d.aulas.filter(function (a) { return a.status === 'falta' || a.status === 'cancelada'; }).length;
+    const pendente = d.totalAulas - d.aulasFeitas - repetindo;
+    let html = '';
+    html += '<header><h1>' + escapar(d.nome) + '</h1><div class="sub">' + escapar(d.tipoPlano) + '</div></header>';
+    if (d.prioridade) html += '<p class="sub">' + escapar(d.prioridade) + '</p>';
+    html += '<div class="rosca-wrap">' + rosquinhaSvg(d.aulasFeitas, pendente, repetindo) +
+      '<div>' + legendaRosca(d.aulasFeitas, pendente, repetindo) +
+      '<div class="progtxt">' + d.aulasFeitas + ' de ' + d.totalAulas + ' aulas</div></div></div>';
+
+    let blocoAtual = null, semanaAtual = null;
+    d.aulas.forEach(function(a){
+      if (a.bloco !== blocoAtual) { blocoAtual = a.bloco; semanaAtual = null; html += '<div class="bloco">' + escapar(a.bloco) + '</div>'; }
+      if (a.semana !== semanaAtual) { semanaAtual = a.semana; html += '<div class="semana">Semana ' + a.semana + (a.foco ? ' · ' + escapar(a.foco) : '') + '</div>'; }
+      var marca = { feita: '✅', falta: '❌', cancelada: '🌧️' }[a.status] || '⬜';
+      html += '<div class="aula' + (a.status === 'feita' ? ' feita' : '') + '">' +
+        '<span class="marca">' + marca + '</span>' +
+        '<span class="txt">' + escapar(a.titulo) + '</span>' +
+        (a.data ? '<span class="data">' + escapar(a.data) + '</span>' : '') +
+        '</div>';
+    });
+
+    html += painelSuaAula(d);
+    html += painelFeedback(d);
+    html += painelJogo(d);
+    html += '<div class="sincronia" id="mty-sincronia"></div>';
+    el.innerHTML = html;
+    ligarEventos(d);
+  }
+
+  function painelSuaAula(d) {
+    const pendentes = (d.pedidosReposicao || []).filter(function (p) { return p.status === 'pendente'; });
+    let html = '<div class="painel">';
+    html += '<h2>Sua aula</h2>';
+    if (!d.aulaEmVigor) {
+      html += '<p class="desc">Nenhuma aula pendente no momento — nada para cancelar ou reagendar.</p></div>';
+      return html;
+    }
+    html += '<p class="desc">' + escapar(d.aulaEmVigor.bloco) + ' · semana ' + d.aulaEmVigor.semana + ' · <b>' + escapar(d.aulaEmVigor.titulo) + '</b></p>';
+
+    if (pendentes.length > 0) {
+      html += '<div class="pedido-pendente">Você já pediu reposição para ' + NOMES_DIA[pendentes[0].diaPreferido] +
+        ' ' + escapar(pendentes[0].horaPreferido) + ' — aguardando seu treinador confirmar.</div>';
+    } else {
+      html += '<div class="linha-btns">' +
+        '<button class="btn perigo" data-acao="abrir-cancelar">Cancelar esta aula</button>' +
+        '<button class="btn fraco" data-acao="abrir-reagendar">Pedir outro horário</button>' +
+        '</div>';
+    }
+
+    if (ui.painel === 'cancelar') {
+      const horasDeAviso = d.proximaAula ? (new Date(d.proximaAula).getTime() - Date.now()) / 3600000 : null;
+      const dentroDoPrazo = horasDeAviso !== null && horasDeAviso >= 24;
+      html += '<div class="painel" style="margin-top:10px;background:var(--papel)">' +
+        '<p class="desc">Cancelar com pelo menos 24h de antecedência não conta como aula realizada — seu treinador repõe. ' +
+        'Com menos de 24h, o horário já está reservado e esta aula é contada como realizada mesmo assim.</p>' +
+        (horasDeAviso === null
+          ? '<p class="aviso-mini">Sem horário fixo cadastrado — fale com seu treinador para cancelar.</p>'
+          : '<p class="aviso-mini" style="color:' + (dentroDoPrazo ? 'var(--verde)' : 'var(--verm)') + ';font-weight:600">' +
+            (dentroDoPrazo
+              ? 'Ainda dá tempo — faltam ' + Math.round(horasDeAviso) + 'h para sua aula. Cancelar agora NÃO conta como realizada.'
+              : 'Faltam só ' + Math.max(0, Math.round(horasDeAviso)) + 'h para sua aula — menos de 24h. Cancelar agora conta como realizada.') +
+            '</p>') +
+        '<div class="linha-btns">' +
+        '<button class="btn perigo" data-acao="confirmar-cancelar" ' + (ui.enviando || horasDeAviso === null ? 'disabled' : '') + '>Confirmar cancelamento</button>' +
+        '<button class="btn fraco" data-acao="fechar-painel">Voltar</button>' +
+        '</div></div>';
+    }
+    if (ui.painel === 'reagendar') {
+      html += '<div class="painel" style="margin-top:10px;background:var(--papel)">' +
+        '<p class="desc">Toque num horário livre da grade abaixo pra sugerir a troca. Isto vira um pedido — seu treinador confirma.</p>' +
+        html_gradeAgenda(d.agendaOcupada || {}) +
+        '<textarea id="mty-nota-reagendar" rows="2" placeholder="Algo a explicar? (opcional)"></textarea>' +
+        '<div class="linha-btns">' +
+        '<button class="btn" data-acao="enviar-reagendar" ' + (ui.enviando || ui.diaEscolhido === null ? 'disabled' : '') + '>Enviar pedido</button>' +
+        '<button class="btn fraco" data-acao="fechar-painel">Cancelar</button>' +
+        '</div></div>';
+    }
+    if (ui.painel === 'msg-sua-aula' && ui.mensagem) {
+      html += '<div class="confirmado">' + escapar(ui.mensagem) + '</div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function html_gradeAgenda(agenda) {
+    const horas = todosHorarios(agenda);
+    let html = '<div class="grade">';
+    NOMES_DIA.forEach(function (nome) { html += '<div class="rot">' + nome + '</div>'; });
+    horas.forEach(function (hora) {
+      for (let dia = 0; dia < 7; dia++) {
+        const ocupado = (agenda[dia] || agenda[String(dia)] || []).indexOf(hora) >= 0;
+        const selecionado = ui.diaEscolhido === dia && ui.horaEscolhida === hora;
+        const classe = ocupado ? 'cel ocupado' : (selecionado ? 'cel sel' : 'cel');
+        html += '<div class="' + classe + '" ' + (ocupado ? '' : 'data-acao="escolher-horario" data-dia="' + dia + '" data-hora="' + hora + '"') + '>' +
+          (ocupado ? '·' : hora) + '</div>';
+      }
+    });
+    html += '</div>';
+    return html;
+  }
+
+  function painelFeedback(d) {
+    let html = '<div class="painel">';
+    html += '<h2>Feedback para o coordenador</h2>';
+    html += '<p class="desc">Vai direto para o coordenador da academia — seu treinador não vê este campo.</p>';
+    if (ui.painel === 'msg-feedback' && ui.mensagem) {
+      html += '<div class="confirmado">' + escapar(ui.mensagem) + '</div>';
+    } else {
+      html += '<textarea id="mty-texto-feedback" rows="3" placeholder="O que você quer contar pro coordenador?"></textarea>' +
+        '<div class="linha-btns"><button class="btn" data-acao="enviar-feedback" ' + (ui.enviando ? 'disabled' : '') + '>Enviar feedback</button></div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function painelJogo(d) {
+    let html = '<div class="painel">';
+    html += '<h2>Descreva um jogo</h2>';
+    html += '<p class="desc">Fica disponível para seu treinador consultar — como foi o jogo, o que funcionou, o que não funcionou.</p>';
+    if (ui.painel === 'msg-jogo' && ui.mensagem) {
+      html += '<div class="confirmado">' + escapar(ui.mensagem) + '</div>';
+    } else {
+      html += '<textarea id="mty-texto-jogo" rows="3" placeholder="Contra quem, o resultado, o que você notou..."></textarea>' +
+        '<div class="linha-btns"><button class="btn" data-acao="enviar-jogo" ' + (ui.enviando ? 'disabled' : '') + '>Enviar</button></div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function ligarEventos(d) {
+    el.querySelectorAll('[data-acao]').forEach(function (btn) {
+      btn.addEventListener('click', function () { onAcao(btn.dataset, d); });
+    });
+  }
+
+  async function onAcao(dataset, d) {
+    const acao = dataset.acao;
+    if (acao === 'abrir-cancelar') { ui.painel = 'cancelar'; ui.mensagem = null; render(d); return; }
+    if (acao === 'abrir-reagendar') { ui.painel = 'reagendar'; ui.diaEscolhido = null; ui.horaEscolhida = null; ui.mensagem = null; render(d); return; }
+    if (acao === 'fechar-painel') { ui.painel = null; render(d); return; }
+    if (acao === 'escolher-horario') { ui.diaEscolhido = Number(dataset.dia); ui.horaEscolhida = dataset.hora; render(d); return; }
+
+    if (acao === 'confirmar-cancelar') {
+      ui.enviando = true; render(d);
+      try {
+        const resp = await postAcao({ acao: 'cancelar' });
+        ui.enviando = false; ui.painel = 'msg-sua-aula'; ui.mensagem = resp.mensagem;
+        await carregar(true);
+      } catch (e) {
+        ui.enviando = false; ui.painel = 'msg-sua-aula'; ui.mensagem = 'Não deu: ' + e.message; render(ultimoDado);
+      }
+      return;
+    }
+    if (acao === 'enviar-reagendar') {
+      const nota = (document.getElementById('mty-nota-reagendar') || {}).value || '';
+      ui.enviando = true; render(d);
+      try {
+        const resp = await postAcao({ acao: 'reagendar', diaPreferido: ui.diaEscolhido, horaPreferido: ui.horaEscolhida, nota: nota });
+        ui.enviando = false; ui.painel = 'msg-sua-aula'; ui.mensagem = resp.mensagem;
+        await carregar(true);
+      } catch (e) {
+        ui.enviando = false; ui.painel = 'msg-sua-aula'; ui.mensagem = 'Não deu: ' + e.message; render(ultimoDado);
+      }
+      return;
+    }
+    if (acao === 'enviar-feedback') {
+      const texto = (document.getElementById('mty-texto-feedback') || {}).value || '';
+      if (!texto.trim()) return;
+      ui.enviando = true; render(d);
+      try {
+        const resp = await postAcao({ acao: 'feedback', texto: texto });
+        ui.enviando = false; ui.painel = 'msg-feedback'; ui.mensagem = resp.mensagem || 'Enviado ao coordenador.';
+        render(ultimoDado);
+      } catch (e) {
+        ui.enviando = false; ui.painel = null; alert('Não deu: ' + e.message); render(ultimoDado);
+      }
+      return;
+    }
+    if (acao === 'enviar-jogo') {
+      const texto = (document.getElementById('mty-texto-jogo') || {}).value || '';
+      if (!texto.trim()) return;
+      ui.enviando = true; render(d);
+      try {
+        const resp = await postAcao({ acao: 'jogo', texto: texto });
+        ui.enviando = false; ui.painel = 'msg-jogo'; ui.mensagem = resp.mensagem || 'Enviado.';
+        render(ultimoDado);
+      } catch (e) {
+        ui.enviando = false; ui.painel = null; alert('Não deu: ' + e.message); render(ultimoDado);
+      }
+      return;
     }
   }
 
