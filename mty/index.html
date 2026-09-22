@@ -7700,7 +7700,11 @@ function App() {
                 Manual <span style={{ fontSize: 10 }}>{manualAberto ? "▲" : "▼"}</span>
               </button>
               {manualAberto && (
-                <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 6, background: C.papel,
+                /* left:0 (não right:0) — o botão "Manual" pode cair na
+                   ponta esquerda de uma linha quebrada no celular; ancorar
+                   pela direita jogava o menu (180px) pra fora da tela à
+                   esquerda, cortando o texto de cada item. */
+                <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 6, background: C.papel,
                   border: "1px solid " + C.linha, borderRadius: 2, boxShadow: "0 4px 14px rgba(0,0,0,.12)", zIndex: 20, minWidth: 180 }}>
                   {NAV_MANUAL.map((t) => (
                     <button key={t.v} onClick={() => { setAba(t.v); setAbertoId(null); setManualAberto(false); }}
