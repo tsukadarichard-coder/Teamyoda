@@ -9,6 +9,24 @@
    que o app lê quando o job termina. */
 const { admin, app } = require("./_firebase-admin");
 
+/* Conta o uso real de IA por academia — só chamado quando a Anthropic
+   de fato gerou algo (sucesso ou cortado por tamanho, tudo cobrado do
+   mesmo jeito); uma recusa antes de gerar (400/401/429) não é chamada
+   aqui. Falha em registrar nunca derruba a geração em si. */
+async function registrarUso(orgId, dados) {
+  try {
+    const usage = dados.usage || {};
+    await admin.firestore().collection("orgs").doc(orgId).collection("meta").doc("usoIA").set({
+      geracoes: admin.firestore.FieldValue.increment(1),
+      tokensEntrada: admin.firestore.FieldValue.increment(usage.input_tokens || 0),
+      tokensSaida: admin.firestore.FieldValue.increment(usage.output_tokens || 0),
+      ultimaEm: new Date().toISOString(),
+    }, { merge: true });
+  } catch (e) {
+    console.error("Falha ao registrar uso de IA:", e);
+  }
+}
+
 exports.handler = async function (event) {
   if (event.httpMethod !== "POST") return { statusCode: 405, body: "Método não permitido." };
 
@@ -74,6 +92,7 @@ exports.handler = async function (event) {
       });
       return { statusCode: 202, body: "" };
     }
+    await registrarUso(claims.orgId, dados);
     if (dados.stop_reason === "max_tokens") {
       await ref.set({
         status: "erro",

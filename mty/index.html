@@ -6873,7 +6873,31 @@ function TileEstat({ rotulo, valor, cor }) {
   );
 }
 
-function TelaDashboard({ alunos, turmas, papelAtual, uidAtual, exigeLogin, irPara }) {
+/* Preço do claude-sonnet-5 (modelo usado em gerar-ia-background.js):
+   US$2/milhão de tokens de entrada, US$10/milhão de saída. Só uma
+   estimativa pra dar noção de gasto sem precisar abrir o painel da
+   Anthropic — a fatura de verdade sai de lá. */
+const PRECO_IA = { entrada: 2 / 1e6, saida: 10 / 1e6 };
+function CardUsoIA({ usoIA }) {
+  const geracoes = (usoIA && usoIA.geracoes) || 0;
+  if (geracoes === 0) return null;
+  const custo = (usoIA.tokensEntrada || 0) * PRECO_IA.entrada + (usoIA.tokensSaida || 0) * PRECO_IA.saida;
+  return (
+    <div className="mb-6" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "14px 16px" }}>
+      <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Uso de IA nesta academia</div>
+      <p style={{ ...prosa, fontSize: 13 }}>
+        {geracoes} {geracoes === 1 ? "geração" : "gerações"} até agora · custo estimado{" "}
+        <b>US$ {custo < 0.01 ? "< 0,01" : custo.toFixed(2).replace(".", ",")}</b>
+      </p>
+      <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginTop: 4 }}>
+        Estimativa pelo preço do modelo usado (claude-sonnet-5) — a fatura de verdade fica no painel da Anthropic.
+        Atualiza ao recarregar a página.
+      </p>
+    </div>
+  );
+}
+
+function TelaDashboard({ alunos, turmas, papelAtual, uidAtual, exigeLogin, irPara, usoIA }) {
   const [verTodos, setVerTodos] = useState(false);
   const meus = (professorUid) => !professorUid || professorUid === uidAtual;
 
@@ -6922,6 +6946,8 @@ function TelaDashboard({ alunos, turmas, papelAtual, uidAtual, exigeLogin, irPar
           <RoscaStatus contagem={status} />
         )}
       </div>
+
+      {papelAtual === "coordenador" && <CardUsoIA usoIA={usoIA} />}
 
       {verTodos && porProfessor.length > 0 && (
         <div className="mb-6" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "14px 16px" }}>
@@ -7125,6 +7151,7 @@ function App() {
   const [orgAtual, setOrgAtual] = useState(null);
   const [papelAtual, setPapelAtual] = useState(null);
   const [planoAtual, setPlanoAtual] = useState(null);
+  const [usoIA, setUsoIA] = useState(null);
   const [verificandoOrg, setVerificandoOrg] = useState(exigeLogin);
   const [verTodosAlunos, setVerTodosAlunos] = useState(false);
   const [avisosAberto, setAvisosAberto] = useState(false);
@@ -7151,6 +7178,10 @@ function App() {
         const info = await db.collection("orgs").doc(org).collection("meta").doc("info").get();
         setPlanoAtual(info.exists ? (info.data().plano || null) : null);
       } catch (e) { setPlanoAtual(null); }
+      try {
+        const uso = await db.collection("orgs").doc(org).collection("meta").doc("usoIA").get();
+        setUsoIA(uso.exists ? uso.data() : null);
+      } catch (e) { setUsoIA(null); }
       setVerificandoOrg(false);
     })();
   }, [exigeLogin, autenticado]);
@@ -7363,7 +7394,7 @@ function App() {
          aba === "equipe" ? <TelaEquipe alunos={alunos} turmas={turmas} /> :
          aba === "turmas" ? <TelaTurmas alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} /> :
          aba === "agenda" ? <TelaAgenda alunos={alunos} turmas={turmas} uidAtual={uidAtual} exigeLogin={exigeLogin} /> :
-         aba === "dashboard" ? <TelaDashboard alunos={alunos} turmas={turmas} papelAtual={papelAtual} uidAtual={uidAtual} exigeLogin={exigeLogin}
+         aba === "dashboard" ? <TelaDashboard alunos={alunos} turmas={turmas} papelAtual={papelAtual} uidAtual={uidAtual} exigeLogin={exigeLogin} usoIA={usoIA}
            irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }} /> :
          aberto ? (
           <div>
