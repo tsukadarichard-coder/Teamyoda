@@ -167,7 +167,11 @@ function todosHorarios(agenda) {
 
   function render(d) {
     if (!d.temPlano) {
-      el.innerHTML = '<header><h1>' + escapar(d.nome) + '</h1><div class="sub">Ainda não há um plano montado para você.</div></header>';
+      // sem plano ainda, mas dá pra dizer o que gostaria de trabalhar e
+      // mandar feedback — o pedido pode até virar insumo do primeiro plano.
+      el.innerHTML = '<header><h1>' + escapar(d.nome) + '</h1><div class="sub">Ainda não há um plano montado para você.</div></header>' +
+        painelDuvida(d) + painelFeedback(d) + '<div class="sincronia" id="mty-sincronia"></div>';
+      ligarEventos(d);
       return;
     }
     const repetindo = d.aulas.filter(function (a) { return a.status === 'falta' || a.status === 'cancelada'; }).length;
@@ -192,6 +196,7 @@ function todosHorarios(agenda) {
     });
 
     html += painelSuaAula(d);
+    html += painelDuvida(d);
     html += painelFeedback(d);
     html += painelJogo(d);
     html += '<div class="sincronia" id="mty-sincronia"></div>';
@@ -271,6 +276,28 @@ function todosHorarios(agenda) {
     return html;
   }
 
+  function painelDuvida(d) {
+    const pedidos = d.pedidosConteudo || [];
+    let html = '<div class="painel">';
+    html += '<h2>O que você gostaria de trabalhar</h2>';
+    html += '<p class="desc">Vai para o seu treinador. Se ele aprovar, entra no seu próximo planejamento.</p>';
+    if (ui.painel === 'msg-duvida' && ui.mensagem) {
+      html += '<div class="confirmado">' + escapar(ui.mensagem) + '</div>';
+    } else {
+      html += '<textarea id="mty-texto-duvida" rows="3" placeholder="Um golpe, uma dúvida, algo que você quer treinar mais..."></textarea>' +
+        '<div class="linha-btns"><button class="btn" data-acao="enviar-duvida" ' + (ui.enviando ? 'disabled' : '') + '>Enviar</button></div>';
+    }
+    if (pedidos.length) {
+      const ROTULO_STATUS = { pendente: 'aguardando seu treinador', aprovado: 'aprovado — entrou no planejamento', recusado: 'não aprovado desta vez' };
+      html += pedidos.slice(0, 5).map(function (p) {
+        return '<div class="pedido-pendente" style="margin-top:8px">' + escapar(p.texto) +
+          '<br><span class="aviso-mini">' + (ROTULO_STATUS[p.status] || p.status) + '</span></div>';
+      }).join('');
+    }
+    html += '</div>';
+    return html;
+  }
+
   function painelFeedback(d) {
     let html = '<div class="painel">';
     html += '<h2>Feedback para o coordenador</h2>';
@@ -332,6 +359,19 @@ function todosHorarios(agenda) {
         await carregar(true);
       } catch (e) {
         ui.enviando = false; ui.painel = 'msg-sua-aula'; ui.mensagem = 'Não deu: ' + e.message; render(ultimoDado);
+      }
+      return;
+    }
+    if (acao === 'enviar-duvida') {
+      const texto = (document.getElementById('mty-texto-duvida') || {}).value || '';
+      if (!texto.trim()) return;
+      ui.enviando = true; render(d);
+      try {
+        const resp = await postAcao({ acao: 'duvida', texto: texto });
+        ui.enviando = false; ui.painel = 'msg-duvida'; ui.mensagem = resp.mensagem || 'Enviado.';
+        await carregar(true);
+      } catch (e) {
+        ui.enviando = false; ui.painel = null; alert('Não deu: ' + e.message); render(ultimoDado);
       }
       return;
     }

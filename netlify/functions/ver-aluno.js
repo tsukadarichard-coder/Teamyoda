@@ -145,6 +145,7 @@ async function handleGet(event) {
     pedidosReposicao: aluno.pedidosReposicao || [],
     feedbacksEnviados: aluno.feedbacksAluno || [],
     jogosRelatados: aluno.jogosRelatados || [],
+    pedidosConteudo: aluno.pedidosConteudo || [],
   });
 }
 
@@ -164,6 +165,7 @@ async function handlePost(event) {
   if (acao === "reagendar") return await acaoReagendar(refAlunos, alunos, idx, aluno, body);
   if (acao === "feedback") return await acaoTexto(refAlunos, alunos, idx, aluno, body, "feedbacksAluno");
   if (acao === "jogo") return await acaoTexto(refAlunos, alunos, idx, aluno, body, "jogosRelatados");
+  if (acao === "duvida") return await acaoDuvida(refAlunos, alunos, idx, aluno, body);
   throw new ErroPublico(400, "Ação desconhecida.");
 }
 
@@ -224,6 +226,25 @@ async function acaoReagendar(refAlunos, alunos, idx, aluno, body) {
   alunos[idx] = aluno;
   await salvar(refAlunos, alunos);
   return resposta(200, { ok: true, mensagem: "Pedido enviado — seu treinador vai confirmar o novo horário." });
+}
+
+/* O que o aluno gostaria de trabalhar / suas dúvidas — diferente do
+   feedback (que é secreto, só pro coordenador), isto é dirigido ao
+   treinador e carrega um status: só vira insumo de verdade pro
+   planejamento se o treinador aprovar (ver CardPedidosConteudo no app). */
+async function acaoDuvida(refAlunos, alunos, idx, aluno, body) {
+  const texto = String(body.texto || "").trim();
+  if (!texto) throw new ErroPublico(400, "Escreva o que você gostaria de trabalhar antes de enviar.");
+  const item = {
+    id: "duvida-" + Date.now().toString(36),
+    criadoEm: new Date().toISOString(),
+    texto: texto.slice(0, LIMITE_TEXTO),
+    status: "pendente",
+  };
+  aluno.pedidosConteudo = [item, ...(aluno.pedidosConteudo || [])].slice(0, LIMITE_LISTA);
+  alunos[idx] = aluno;
+  await salvar(refAlunos, alunos);
+  return resposta(200, { ok: true, mensagem: "Enviado — seu treinador vai avaliar e pode incluir isso no seu planejamento." });
 }
 
 async function acaoTexto(refAlunos, alunos, idx, aluno, body, campo) {
