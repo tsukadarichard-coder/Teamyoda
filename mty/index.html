@@ -260,7 +260,7 @@ if (auth) auth.onAuthStateChanged(() => setTimeout(atualizaFaixa, 300));
 </script>
 
 <script type="text/babel" data-presets="react">
-const { useState, useEffect, useMemo } = React;
+const { useState, useEffect, useMemo, useRef } = React;
 const { ComposedChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceArea,
   PieChart, Pie, Cell, BarChart, Bar, CartesianGrid, Legend } = Recharts;
 
@@ -2177,7 +2177,9 @@ async function grave(chave, valor, compartilhado = false) {
    pra responder, então essa roda em segundo plano (até 15 min) e escreve
    o resultado em orgs/{orgId}/iaJobs/{jobId} — o app fica consultando
    até aparecer, em vez de esperar a resposta direto na mesma chamada. */
-async function chamarIA(prompt, maxTokens) {
+async function chamarIA(prompt, maxTokens, aoProgredir) {
+  const etapa = (t) => { if (aoProgredir) aoProgredir(t); };
+  etapa("Conferindo a conta");
   if (!window.mtyAuth || !window.mtyAuth.usuario()) {
     throw new Error("Entre com sua conta da academia para gerar com IA.");
   }
@@ -2186,6 +2188,7 @@ async function chamarIA(prompt, maxTokens) {
 
   const jobId = MTY.id("job");
   const token = await window.mtyAuth.tokenId();
+  etapa("Enviando o pedido");
   const r = await fetch("/.netlify/functions/gerar-ia-background", {
     method: "POST",
     headers: { "content-type": "application/json", authorization: "Bearer " + token },
@@ -2197,17 +2200,21 @@ async function chamarIA(prompt, maxTokens) {
   }
 
   const ref = db.collection("orgs").doc(org).collection("iaJobs").doc(jobId);
-  const limite = Date.now() + 150000; // até 2min30 esperando a IA terminar
+  /* 4 min de paciência: a function em segundo plano tem até 15, e um
+     plano que demora mais que o normal ainda é um plano — desistir cedo
+     joga fora um pedido que já foi pago e que provavelmente chegaria. */
+  const limite = Date.now() + 240000;
+  etapa("A IA está montando");
   while (Date.now() < limite) {
     await new Promise((resolver) => setTimeout(resolver, 2500));
     const snap = await ref.get();
     if (snap.exists) {
       const d = snap.data();
-      if (d.status === "pronto") { ref.delete().catch(() => {}); return d.texto || ""; }
+      if (d.status === "pronto") { etapa("Lendo o que voltou"); ref.delete().catch(() => {}); return d.texto || ""; }
       if (d.status === "erro") { ref.delete().catch(() => {}); throw new Error(d.erro || "Falha ao gerar."); }
     }
   }
-  throw new Error("A IA está demorando mais que o esperado. Tente de novo em instantes.");
+  throw new Error("Passou de quatro minutos sem resposta da IA. O pedido pode ainda estar rodando no servidor — espere um pouco e tente de novo.");
 }
 
 /* ─────────────────────────── peças ─────────────────────────── */
@@ -2246,6 +2253,37 @@ function Campo({ rotulo, children, nota }) {
       <div className="mb-2"><Etiqueta>{rotulo}</Etiqueta></div>
       {children}
       {nota && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 5 }}>{nota}</p>}
+    </div>
+  );
+}
+
+/* Espera de uma geração com IA. A function em segundo plano só responde
+   no fim — não existe percentual real vindo do servidor pra mostrar.
+   Então a barra anda pelo tempo decorrido contra o tempo típico, e para
+   em 92%: ela indica que a coisa está viva e quanto já se passou, sem
+   fingir que terminou antes de o plano chegar de verdade. */
+function BarraProgresso({ segundos, etapa, estimativa = 60, aoCancelar }) {
+  const pct = Math.max(4, Math.min(92, Math.round((segundos / estimativa) * 92)));
+  const passouDoNormal = segundos > estimativa;
+  return (
+    <div className="mt-3" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "12px 14px" }}>
+      <div className="flex items-baseline justify-between gap-3 mb-2">
+        <Etiqueta cor={C.tinta}>{etapa || "Montando"}…</Etiqueta>
+        <Etiqueta>{segundos < 60 ? segundos + "s" : Math.floor(segundos / 60) + "min " + (segundos % 60) + "s"}</Etiqueta>
+      </div>
+      <div style={{ height: 6, background: C.linha, borderRadius: 3, overflow: "hidden" }}>
+        <div style={{ width: pct + "%", height: "100%", background: passouDoNormal ? "#C9A227" : C.saibro, transition: "width .5s linear" }} />
+      </div>
+      <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 8 }}>
+        {passouDoNormal
+          ? "Está levando mais que o normal, mas o pedido continua rodando no servidor. Vale esperar mais um pouco."
+          : "Costuma levar de trinta segundos a um minuto. Pode deixar a aba aberta."}
+      </p>
+      {aoCancelar && (
+        <div className="mt-2">
+          <Botao pequeno variante="vazio" onClick={aoCancelar}>Parar de esperar</Botao>
+        </div>
+      )}
     </div>
   );
 }
@@ -5213,6 +5251,8 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
   const [texto, setTexto] = useState("");
   const [erro, setErro] = useState("");
   const [gerando, setGerando] = useState(false);
+  const [etapaIA, setEtapaIA] = useState("");
+  const [segundosIA, setSegundosIA] = useState(0);
   const [semanas, setSemanas] = useState(4);
   const [aulasSem, setAulasSem] = useState(3);
   const [relatorio, setRelatorio] = useState("");
@@ -5226,6 +5266,16 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
   const historico = entidade.historicoRelatorios || [];
   const [abrirHist, setAbrirHist] = useState(null);
 
+  /* Cronômetro da espera da IA. Fica aqui em cima, junto dos outros
+     hooks, porque abaixo tem o early return do "ainda não tem plano" —
+     e é justamente nessa tela que a barra de progresso aparece. */
+  useEffect(() => {
+    if (!gerando) { setSegundosIA(0); return; }
+    const inicio = Date.now();
+    const t = setInterval(() => setSegundosIA(Math.round((Date.now() - inicio) / 1000)), 500);
+    return () => clearInterval(t);
+  }, [gerando]);
+
   function atualiza(campos) {
     if (eTurma) setTurmas(turmas.map((t) => (t.id === turma.id ? { ...t, ...campos } : t)));
     else setAlunos(alunos.map((a) => (a.id === aluno.id ? { ...a, ...campos } : a)));
@@ -5233,13 +5283,25 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
 
   const valida = validarPlanoJSON;
 
+  /* Cada geração leva um número. Parar de esperar, colar um plano à mão
+     ou disparar outra geração invalidam a anterior: quando a IA velha
+     finalmente responde, ela vê que já não é a geração da vez e sai sem
+     sobrescrever o que está na tela nem apagar a barra da geração nova.
+     Um booleano não daria conta — a geração seguinte o zeraria, e a
+     resposta atrasada da primeira voltaria a valer. */
+  const geracaoAtual = useRef(0);
+
   async function gerarComIA() {
-    setErro(""); setGerando(true);
+    const minhaGeracao = ++geracaoAtual.current;
+    const aindaVale = () => geracaoAtual.current === minhaGeracao;
+    setErro(""); setGerando(true); setEtapaIA("Preparando o pedido");
     try {
       const prompt = eTurma
         ? promptPlanoTurma(turma, membros, semanas, aulasSem, historico)
         : promptPlanoEstruturado(aluno, semanas, aulasSem, historico);
-      let t = (await chamarIA(prompt, 8000)).trim();
+      let t = (await chamarIA(prompt, 8000, (et) => { if (aindaVale()) setEtapaIA(et); })).trim();
+      if (!aindaVale()) return;
+      setEtapaIA("Conferindo o plano que voltou");
       t = t.replace(/^```(json)?/i, "").replace(/```$/, "").trim();
       const i = t.indexOf("{");
       if (i > 0) t = t.slice(i);
@@ -5247,12 +5309,21 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
       alvo.geradoEm = new Date().toISOString();
       atualiza({ plano: alvo, regPlano: {} });
     } catch (e) {
-      setErro(String(e.message || e));
+      if (aindaVale()) setErro(String(e.message || e));
+    } finally {
+      if (aindaVale()) { setGerando(false); setEtapaIA(""); }
     }
-    setGerando(false);
+  }
+
+  function pararDeEsperar() {
+    geracaoAtual.current++;
+    setGerando(false); setEtapaIA("");
   }
 
   function importar() {
+    // um plano colado à mão ganha de uma geração ainda em andamento
+    geracaoAtual.current++;
+    setGerando(false); setEtapaIA("");
     setErro("");
     try {
       let t = texto.trim().replace(/^```(json)?/i, "").replace(/```$/, "").trim();
@@ -5430,13 +5501,12 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
           )}
           {erro && <Aviso>{erro}</Aviso>}
           <div className="flex gap-2 flex-wrap items-center">
-            <Botao onClick={gerarComIA} variante="saibro">
+            <Botao onClick={gerarComIA} variante="saibro" disabled={gerando}>
               {gerando ? "Montando o plano…" : "Gerar planejamento"}
             </Botao>
             <Botao variante="vazio" onClick={() => setColando(true)}>Colar plano pronto</Botao>
           </div>
-          {gerando && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 9 }}>
-            Costuma levar de trinta segundos a um minuto.</p>}
+          {gerando && <BarraProgresso segundos={segundosIA} etapa={etapaIA} estimativa={eTurma ? 80 : 60} aoCancelar={pararDeEsperar} />}
         </Secao>
 
         {colando && (
