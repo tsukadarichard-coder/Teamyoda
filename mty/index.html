@@ -7271,7 +7271,19 @@ function avisosDoProfessor(alunos, turmas, uidAtual) {
     (t.pendencias || []).filter((p) => !p.resolvida).forEach((p) =>
       pendencias.push({ turma: t.nome, ...p })));
 
-  return { lembretes, pendencias };
+  /* O que o aluno pede pelo link dele (o que quer trabalhar, pedido de
+     reposição) só existia dentro da própria página do aluno — sem
+     nenhum aviso central, o treinador só via se abrisse aquele aluno
+     por acaso. Agora entra no sino, igual lembrete e pendência. */
+  const pedidosAlunos = [];
+  alunos.filter((a) => meu(a.professorUid)).forEach((a) => {
+    (a.pedidosConteudo || []).filter((p) => p.status === "pendente").forEach((p) =>
+      pedidosAlunos.push({ alunoId: a.id, alunoNome: a.nome || "Sem nome", tipo: "conteudo", texto: p.texto }));
+    (a.pedidosReposicao || []).filter((p) => p.status === "pendente").forEach((p) =>
+      pedidosAlunos.push({ alunoId: a.id, alunoNome: a.nome || "Sem nome", tipo: "reposicao", texto: null }));
+  });
+
+  return { lembretes, pendencias, pedidosAlunos };
 }
 
 /* ── dashboard ──
@@ -7716,7 +7728,7 @@ function App() {
   }, [papelAtual]);
 
   const avisos = avisosDoProfessor(alunos, turmas, uidAtual);
-  const totalAvisos = avisos.lembretes.length + avisos.pendencias.length + pedidosPendentesCount;
+  const totalAvisos = avisos.lembretes.length + avisos.pendencias.length + avisos.pedidosAlunos.length + pedidosPendentesCount;
   function abrirAvisos() {
     if (!avisosAberto && papelAtual === "coordenador") contarPedidosPendentes().then(setPedidosPendentesCount);
     setAvisosAberto(!avisosAberto);
@@ -7811,6 +7823,19 @@ function App() {
                                   <button key={i} onClick={() => { setAba("turmas"); setAvisosAberto(false); }}
                                     className="w-full text-left" style={{ display: "block", padding: "6px 0", border: "none", background: "none", cursor: "pointer" }}>
                                     <p style={{ ...prosa, fontSize: 12.5 }}>{p.turma} · {p.data}{p.motivo ? " · " + p.motivo : ""}</p>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                            {avisos.pedidosAlunos.length > 0 && (
+                              <div className="mb-3">
+                                <Etiqueta cor={C.saibro}>Pedidos dos alunos</Etiqueta>
+                                {avisos.pedidosAlunos.map((p, i) => (
+                                  <button key={i} onClick={() => { setAba("alunos"); setAbertoId(p.alunoId); setAvisosAberto(false); }}
+                                    className="w-full text-left" style={{ display: "block", padding: "6px 0", border: "none", background: "none", cursor: "pointer" }}>
+                                    <p style={{ ...prosa, fontSize: 12.5 }}>
+                                      <b>{p.alunoNome}</b> · {p.tipo === "conteudo" ? "quer trabalhar: " + p.texto : "pediu reposição"}
+                                    </p>
                                   </button>
                                 ))}
                               </div>
