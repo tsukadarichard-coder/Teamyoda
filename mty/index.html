@@ -2846,16 +2846,29 @@ function novoAluno() {
 /* ── aulas do plano, achatadas numa lista única, e o status de cada uma ──
    Compartilhado entre a tela de plano individual e a sessão de turma —
    as duas precisam enxergar exatamente a mesma "próxima aula pendente". */
-function listaAulas(plano) {
+/* regPlano é opcional: quando informado, as aulas de reforço geradas por
+   "ainda não bati o critério de saída" (ver blocoLiberado/reforçarBloco)
+   entram na lista, logo depois das aulas programadas do próprio bloco —
+   contam pra progresso, dashboard e checklist do mesmo jeito que as
+   demais, só que nascem de uma decisão do treinador, não da IA. */
+function listaAulas(plano, regPlano) {
   if (!plano) return [];
   const lista = [];
   let n = 0;
-  plano.blocos.forEach((b) => (b.semanasLista || []).forEach((sem) =>
-    (sem.aulas || []).forEach((au) => {
-      n++;
-      lista.push({ id: "A" + String(n).padStart(2, "0"), bloco: b.titulo || b.nome,
-        semana: sem.n, foco: sem.foco, ...au });
-    })));
+  plano.blocos.forEach((b, bi) => {
+    const nomeBloco = b.titulo || b.nome;
+    (b.semanasLista || []).forEach((sem) =>
+      (sem.aulas || []).forEach((au) => {
+        n++;
+        lista.push({ id: "A" + String(n).padStart(2, "0"), bloco: nomeBloco,
+          semana: sem.n, foco: sem.foco, ...au });
+      }));
+    const reforcos = (((regPlano || {}).__blocos || {})[nomeBloco] || {}).reforcos || [];
+    reforcos.forEach((r, ri) => {
+      lista.push({ id: "REF" + bi + "-" + ri, bloco: nomeBloco, semana: "reforço",
+        foco: "Reforço do critério de saída", t: "Reforço " + (ri + 1), ex: r.ex || [], reforco: true });
+    });
+  });
   return lista;
 }
 function statusAula(reg, id) {
@@ -2863,12 +2876,51 @@ function statusAula(reg, id) {
   if (d.status) return d.status;
   return d.feita ? "feita" : "";
 }
+/* Um bloco (exceto o último — esse é resolvido pelo Fechamento do ciclo)
+   só libera o próximo depois que o treinador confirma, na aba Aulas, que
+   o critério de saída foi observado — não basta ter dado todas as aulas
+   programadas. Enquanto não confirma, pode reforçar (ver reforços acima),
+   e o que reforçar continua contando dentro do bloco atual. */
+function blocoLiberado(regPlano, nomeBloco) {
+  const info = ((regPlano || {}).__blocos || {})[nomeBloco];
+  return !!(info && info.liberado);
+}
+function gateDeBloco(plano, regPlano, nomeBloco) {
+  const nomes = plano.blocos.map((b) => b.titulo || b.nome);
+  if (nomes[nomes.length - 1] === nomeBloco) return null; // último bloco: fecha pelo ciclo, não por gate
+  const b = plano.blocos.find((bb) => (bb.titulo || bb.nome) === nomeBloco);
+  if (!b || !b.saida) return null;
+  if (blocoLiberado(regPlano, nomeBloco)) return null;
+  return { id: "GATE-" + nomeBloco, gate: true, bloco: nomeBloco, semana: null,
+    t: "Aguardando confirmação do critério de saída", ex: [] };
+}
 /* A aula que vale agora: a primeira do plano que ainda não foi "feita".
    Falta e cancelada NÃO avançam — a aula continua em vigor até ser
-   realizada, então uma aula cancelada por chuva se repete na próxima vez. */
+   realizada, então uma aula cancelada por chuva se repete na próxima vez.
+   Quando um bloco termina suas aulas (programadas + reforços) sem que o
+   treinador tenha confirmado o critério de saída, a aula em vigor vira um
+   "portão" em vez de pular pro próximo bloco — ver gateDeBloco. */
 function aulaEmVigor(aluno) {
-  const aulas = listaAulas(aluno.plano);
-  return aulas.find((a) => statusAula(aluno.regPlano, a.id) !== "feita") || null;
+  const plano = aluno.plano;
+  if (!plano) return null;
+  const regPlano = aluno.regPlano || {};
+  const aulas = listaAulas(plano, regPlano);
+  let blocoAtual = null;
+  for (const a of aulas) {
+    if (a.bloco !== blocoAtual) {
+      if (blocoAtual !== null) {
+        const gate = gateDeBloco(plano, regPlano, blocoAtual);
+        if (gate) return gate;
+      }
+      blocoAtual = a.bloco;
+    }
+    if (statusAula(regPlano, a.id) !== "feita") return a;
+  }
+  if (blocoAtual !== null) {
+    const gate = gateDeBloco(plano, regPlano, blocoAtual);
+    if (gate) return gate;
+  }
+  return null;
 }
 
 /* Pedido de reposição que o próprio aluno faz pelo link público (aluno.html)
@@ -2940,7 +2992,7 @@ function CardPedidosConteudo({ aluno, aoMudar }) {
 
 /* Mostrado assim que o treinador abre o aluno, pra não precisar procurar
    na lista qual aula vale hoje. */
-function CardAulaEmVigor({ aluno, aoClicar }) {
+function CardAulaEmVigor({ aluno, aoClicar, aoAbrirAulas }) {
   if (!aluno.plano) return null;
   const aula = aulaEmVigor(aluno);
   if (!aula) {
@@ -2949,6 +3001,20 @@ function CardAulaEmVigor({ aluno, aoClicar }) {
         <Etiqueta cor={C.quadra}>Plano concluído</Etiqueta>
         <p style={{ ...prosa, fontSize: 13, marginTop: 4 }}>Todas as aulas deste ciclo foram realizadas.</p>
       </div>
+    );
+  }
+  if (aula.gate) {
+    return (
+      <button onClick={aoAbrirAulas} className="w-full text-left mb-5"
+        style={{ display: "block", background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "11px 14px", cursor: aoAbrirAulas ? "pointer" : "default" }}>
+        <Etiqueta cor={C.saibro}>Bloco aguardando confirmação</Etiqueta>
+        <p style={{ ...prosa, fontSize: 14, fontWeight: 700, marginTop: 4 }}>{aula.bloco} · critério de saída ainda não confirmado</p>
+        <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 3 }}>
+          As aulas programadas deste bloco já foram todas dadas. Falta decidir, na aba Aulas, se o jogador já
+          demonstra o critério de saída (libera o próximo bloco) ou se ainda precisa de reforço.
+        </p>
+        {aoAbrirAulas && <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 6 }}>Toque aqui para decidir →</p>}
+      </button>
     );
   }
   const reg = (aluno.regPlano || {})[aula.id] || {};
@@ -3984,7 +4050,11 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
      marco como feito", sem o treinador precisar ir a outra aba achar
      qual aula é essa. Sem plano (ou plano concluído), a sessão continua
      funcionando solta, do jeito que sempre funcionou. */
-  const aulaAtual = aluno.plano ? aulaEmVigor(aluno) : null;
+  const aulaEmVigorBruta = aluno.plano ? aulaEmVigor(aluno) : null;
+  /* Um bloco aguardando confirmação do critério de saída não é uma aula
+     de verdade pra montar sessão — trata como se não houvesse aula em
+     vigor (cai no ciclo avulso), com um aviso acima explicando o motivo. */
+  const aulaAtual = aulaEmVigorBruta && !aulaEmVigorBruta.gate ? aulaEmVigorBruta : null;
 
   const pesoBase = aluno.baseMotora === "pobre" ? 0.2 : aluno.baseMotora === "rica" ? 0.1 : 0.15;
 
@@ -4129,6 +4199,15 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
           <p style={{ ...prosa, fontSize: 14, fontWeight: 700, marginTop: 4 }}>{aulaAtual.bloco} · semana {aulaAtual.semana} · {aulaAtual.t}</p>
           <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>
             É o mesmo treino que está no Plano pra esta aula — não um novo sorteio. Ao fechar a sessão, isso marca essa aula como feita.
+          </p>
+        </div>
+      ) : aulaEmVigorBruta && aulaEmVigorBruta.gate ? (
+        <div className="mb-5" style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "13px 15px" }}>
+          <Etiqueta cor={C.saibro}>Bloco aguardando confirmação</Etiqueta>
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>
+            {aulaEmVigorBruta.bloco} já deu todas as aulas programadas — falta confirmar, na{" "}
+            <button onClick={() => setSubaba("aulas")} style={{ border: "none", background: "none", color: C.saibro, cursor: "pointer", padding: 0, fontFamily: "inherit", fontSize: "inherit", fontWeight: 700 }}>aba Aulas</button>
+            , o critério de saída. Esta sessão não vai marcar nada no Plano — monte um treino avulso abaixo se quiser treinar hoje mesmo assim.
           </p>
         </div>
       ) : aluno.plano ? (
@@ -5126,14 +5205,23 @@ function semanasSemSaqueDevolucao(aulas) {
   return Object.values(porSemana).filter((s) => !s.saque || !s.devolucao).length;
 }
 
-function LinhaDeRaciocinio({ plano, aulas, status }) {
-  const porBloco = plano.blocos.map((b) => {
-    const aulasDoBloco = aulas.filter((a) => a.bloco === (b.titulo || b.nome));
+function LinhaDeRaciocinio({ plano, aulas, status, reg }) {
+  const porBloco = plano.blocos.map((b, bi) => {
+    const nomeBloco = b.titulo || b.nome;
+    const aulasDoBloco = aulas.filter((a) => a.bloco === nomeBloco);
     const c = contagemStatus(aulasDoBloco, status);
     const saidaTexto = typeof b.saida === "string" && b.saida.trim() ? b.saida.trim()
       : b.saida ? "Critério de saída avaliado no fechamento do ciclo." : null;
+    /* A transição de bloco (exceto a do último, que fecha pelo ciclo) só é
+       liberada quando o treinador confirma o critério de saída na aba
+       Aulas — este selo é só informativo aqui no resumo. */
+    let gate = null;
+    if (b.saida && bi < plano.blocos.length - 1) {
+      if (blocoLiberado(reg, nomeBloco)) gate = "liberado";
+      else if (aulasDoBloco.length > 0 && aulasDoBloco.every((a) => status(a.id) === "feita")) gate = "aguardando";
+    }
     return { nome: b.nome, titulo: b.titulo, semanas: b.semanas, alvo: b.alvo,
-      saidaTexto, portao: b.portao, total: aulasDoBloco.length, ...c };
+      saidaTexto, portao: b.portao, total: aulasDoBloco.length, gate, ...c };
   });
   const cadeia = plano.cadeia || [];
   const semanasFalhas = useMemo(() => semanasSemSaqueDevolucao(aulas), [aulas]);
@@ -5193,6 +5281,8 @@ function LinhaDeRaciocinio({ plano, aulas, status }) {
           <div className="flex items-baseline gap-2 flex-wrap">
             <span style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>{b.nome} · {b.titulo}</span>
             <Etiqueta>semanas {b.semanas}</Etiqueta>
+            {b.gate === "liberado" && <Etiqueta cor={C.quadra}>✓ liberado</Etiqueta>}
+            {b.gate === "aguardando" && <Etiqueta cor={C.saibro}>aguardando confirmação</Etiqueta>}
           </div>
           {b.alvo && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 3 }}>{b.alvo}</p>}
           {b.saidaTexto && <p style={{ ...prosa, fontSize: 12, color: C.quadra, marginTop: 3 }}><b>Critério de saída:</b> {b.saidaTexto}</p>}
@@ -5244,6 +5334,78 @@ function HistoricoRelatorios({ historico, abrirHist, setAbrirHist, removerDoHist
    plano de turma (turma/membros/turmas/setTurmas) — é o mesmo formato
    de plano (blocos/semanas/aulas), só muda de onde ele vem (ficha de
    um jogador só, ou fichas do grupo inteiro) e onde ele é salvo. */
+/* Um cartão de aula da aba Aulas — status (Realizada/Falta/Cancelada) +
+   campos de registro. Extraído pra ser reaproveitado tanto pelas aulas
+   programadas quanto pelas aulas de reforço (ver reforcarBloco em
+   TelaPlano), que têm o mesmo checklist mas nascem de forma diferente. */
+function CardAulaChecklist({ id, indice, titulo, descricao, selo, status, defineStatus, reg, campo, chuvaAberta, setChuvaAberta }) {
+  const d = reg[id] || {};
+  const st = status(id);
+  const corStatus = { feita: C.quadra, falta: "#8A2E2E", cancelada: C.saibro }[st] || C.linha;
+  return (
+    <div style={{ borderBottom: "1px solid " + C.linha, background: st === "feita" ? "#F4F7F4" : st ? "#FBF4F0" : C.cal }}>
+      <div className="flex gap-3" style={{ padding: "11px 14px" }}>
+        <div className="flex-1">
+          <div className="flex gap-1 flex-wrap mb-2">
+            {[["feita", "Realizada"], ["falta", "Falta"], ["cancelada", "Cancelada"]].map(([v, r]) => (
+              <button key={v} onClick={() => defineStatus(id, v)}
+                style={{ fontFamily: ARCH, fontSize: 10.5, fontWeight: 700, padding: "4px 8px",
+                  borderRadius: 2, cursor: "pointer",
+                  border: "1px solid " + (st === v ? corStatus : C.linha),
+                  background: st === v ? corStatus : C.papel,
+                  color: st === v ? "#fff" : C.grafite }}>{r}</button>
+            ))}
+          </div>
+          <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700,
+            color: st === "feita" ? C.quadra : C.tinta }}>{indice} · {titulo}</div>
+          {descricao && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>{descricao}</p>}
+          {(selo === "ss" || (selo && selo.indexOf("cs:") === 0)) && (
+            <div className="flex gap-1 flex-wrap mt-2">
+              {selo === "ss" && <Etiqueta cor={C.saibro}>sem saque</Etiqueta>}
+              {selo && selo.indexOf("cs:") === 0 &&
+                <Etiqueta cor={C.quadra}>saque · {selo.split(":")[1]}</Etiqueta>}
+            </div>
+          )}
+        </div>
+      </div>
+      {st === "feita" && (
+        <div className="flex gap-2 flex-wrap" style={{ padding: "0 14px 12px 14px" }}>
+          <input type="date" style={{ ...entrada, width: 150, fontSize: 12.5, padding: "6px 9px" }}
+            value={d.data || ""} onChange={(e) => campo(id, "data", e.target.value)} />
+          <input style={{ ...entrada, width: 165, fontSize: 12.5, padding: "6px 9px", borderColor: C.saibro }}
+            placeholder="dor · min / bolas" value={d.dor || ""}
+            onChange={(e) => campo(id, "dor", e.target.value)} />
+          <textarea rows={2} style={{ ...entrada, flex: 1, minWidth: 210, fontSize: 12.5, resize: "vertical" }}
+            placeholder="o que apareceu · o que não apareceu" value={d.obs || ""}
+            onChange={(e) => campo(id, "obs", e.target.value)} />
+        </div>
+      )}
+      {(st === "falta" || st === "cancelada") && (
+        <div style={{ padding: "0 14px 12px 14px" }}>
+          <div className="flex gap-2 flex-wrap">
+            <input type="date" style={{ ...entrada, width: 150, fontSize: 12.5, padding: "6px 9px" }}
+              value={d.data || ""} onChange={(e) => campo(id, "data", e.target.value)} />
+            <input list="motivos-cancelamento" style={{ ...entrada, flex: 1, minWidth: 210, fontSize: 12.5, padding: "6px 9px" }}
+              placeholder={st === "cancelada" ? "motivo do cancelamento · ex: chuva" : "motivo da falta"}
+              value={d.motivo || ""} onChange={(e) => campo(id, "motivo", e.target.value)} />
+          </div>
+          {st === "cancelada" && /chuva/i.test(d.motivo || "") && (
+            <div className="mt-2">
+              {chuvaAberta === id ? (
+                <div>
+                  <TreinoChuva />
+                  <button onClick={() => setChuvaAberta(null)} className="mt-2" style={{ ...prosa, fontSize: 12, color: C.grafite, cursor: "pointer" }}>Ocultar sugestões</button>
+                </div>
+              ) : (
+                <Botao pequeno variante="vazio" onClick={() => setChuvaAberta(id)}>🌧️ Ver sugestões de dia de chuva</Botao>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas, modo = "resumo" }) {
   const eTurma = !!turma;
   const entidade = eTurma ? turma : aluno;
@@ -5345,7 +5507,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
     }
   }
 
-  const aulas = useMemo(() => listaAulas(plano), [plano]);
+  const aulas = useMemo(() => listaAulas(plano, reg), [plano, reg]);
 
   /* status de cada aula: "" (pendente) | "feita" | "falta" | "cancelada". */
   function status(id) {
@@ -5366,6 +5528,25 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
   }
   function fech(k, v) {
     atualiza({ regPlano: { ...reg, __fech: { ...(reg.__fech || {}), [k]: v } } });
+  }
+  /* Confirmar o critério de saída de um bloco (que não seja o último) é o
+     que libera as aulas do bloco seguinte — ver aulaEmVigor/gateDeBloco.
+     "Ainda não" não trava nada: acrescenta uma aula de reforço dentro do
+     próprio bloco, sorteada do mesmo pool de exercícios que ele já usa,
+     e o treinador decide de novo quando ela for dada. */
+  function confirmarSaidaBloco(nomeBloco) {
+    const blocos = reg.__blocos || {};
+    atualiza({ regPlano: { ...reg, __blocos: { ...blocos, [nomeBloco]: { ...(blocos[nomeBloco] || {}), liberado: true } } } });
+  }
+  function reforcarBloco(nomeBloco) {
+    const codigos = new Set();
+    aulas.filter((a) => a.bloco === nomeBloco).forEach((a) => (a.ex || []).forEach((c) => codigos.add(c)));
+    const pool = TODOS_EXERCICIOS().filter((e) => codigos.has(e.c));
+    const escolhidos = sorteia(pool.length ? pool : TODOS_EXERCICIOS(), new Set(), Math.min(2, pool.length || 2));
+    const blocos = reg.__blocos || {};
+    const atual = blocos[nomeBloco] || {};
+    const reforcos = [...(atual.reforcos || []), { ex: escolhidos.map((e) => e.c) }];
+    atualiza({ regPlano: { ...reg, __blocos: { ...blocos, [nomeBloco]: { ...atual, reforcos } } } });
   }
 
   /* Função pura (não mexe em estado) pra poder ser reaproveitada tanto
@@ -5637,7 +5818,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
             </div>
           )}
 
-          <LinhaDeRaciocinio plano={plano} aulas={aulas} status={status} />
+          <LinhaDeRaciocinio plano={plano} aulas={aulas} status={status} reg={reg} />
         </>
       )}
 
@@ -5662,83 +5843,83 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
               {(sem.aulas || []).map((au, ai) => {
                 const idx = aulas.findIndex((x) => x.semana === sem.n && x.t === au.t && (x.ex || []).join() === (au.ex || []).join());
                 const id = idx >= 0 ? aulas[idx].id : "A?" + si + ai;
-                const d = reg[id] || {};
-                const st = status(id);
-                const corStatus = { feita: C.quadra, falta: "#8A2E2E", cancelada: C.saibro }[st] || C.linha;
                 return (
-                  <div key={ai} style={{ borderBottom: "1px solid " + C.linha,
-                    background: st === "feita" ? "#F4F7F4" : st ? "#FBF4F0" : C.cal }}>
-                    <div className="flex gap-3" style={{ padding: "11px 14px" }}>
-                      <div className="flex-1">
-                        <div className="flex gap-1 flex-wrap mb-2">
-                          {[["feita", "Realizada"], ["falta", "Falta"], ["cancelada", "Cancelada"]].map(([v, r]) => (
-                            <button key={v} onClick={() => defineStatus(id, v)}
-                              style={{ fontFamily: ARCH, fontSize: 10.5, fontWeight: 700, padding: "4px 8px",
-                                borderRadius: 2, cursor: "pointer",
-                                border: "1px solid " + (st === v ? corStatus : C.linha),
-                                background: st === v ? corStatus : C.papel,
-                                color: st === v ? "#fff" : C.grafite }}>{r}</button>
-                          ))}
-                        </div>
-                        <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700,
-                          color: st === "feita" ? C.quadra : C.tinta }}>{ai + 1} · {au.t}</div>
-                        <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>{au.d}</p>
-                        {(au.selo === "ss" || (au.selo && au.selo.indexOf("cs:") === 0)) && (
-                          <div className="flex gap-1 flex-wrap mt-2">
-                            {au.selo === "ss" && <Etiqueta cor={C.saibro}>sem saque</Etiqueta>}
-                            {au.selo && au.selo.indexOf("cs:") === 0 &&
-                              <Etiqueta cor={C.quadra}>saque · {au.selo.split(":")[1]}</Etiqueta>}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    {st === "feita" && (
-                      <div className="flex gap-2 flex-wrap" style={{ padding: "0 14px 12px 14px" }}>
-                        <input type="date" style={{ ...entrada, width: 150, fontSize: 12.5, padding: "6px 9px" }}
-                          value={d.data || ""} onChange={(e) => campo(id, "data", e.target.value)} />
-                        <input style={{ ...entrada, width: 165, fontSize: 12.5, padding: "6px 9px", borderColor: C.saibro }}
-                          placeholder="dor · min / bolas" value={d.dor || ""}
-                          onChange={(e) => campo(id, "dor", e.target.value)} />
-                        <textarea rows={2} style={{ ...entrada, flex: 1, minWidth: 210, fontSize: 12.5, resize: "vertical" }}
-                          placeholder="o que apareceu · o que não apareceu" value={d.obs || ""}
-                          onChange={(e) => campo(id, "obs", e.target.value)} />
-                      </div>
-                    )}
-                    {(st === "falta" || st === "cancelada") && (
-                      <div style={{ padding: "0 14px 12px 14px" }}>
-                        <div className="flex gap-2 flex-wrap">
-                          <input type="date" style={{ ...entrada, width: 150, fontSize: 12.5, padding: "6px 9px" }}
-                            value={d.data || ""} onChange={(e) => campo(id, "data", e.target.value)} />
-                          <input list="motivos-cancelamento" style={{ ...entrada, flex: 1, minWidth: 210, fontSize: 12.5, padding: "6px 9px" }}
-                            placeholder={st === "cancelada" ? "motivo do cancelamento · ex: chuva" : "motivo da falta"}
-                            value={d.motivo || ""} onChange={(e) => campo(id, "motivo", e.target.value)} />
-                        </div>
-                        {st === "cancelada" && /chuva/i.test(d.motivo || "") && (
-                          <div className="mt-2">
-                            {chuvaAberta === id ? (
-                              <div>
-                                <TreinoChuva />
-                                <button onClick={() => setChuvaAberta(null)} className="mt-2" style={{ ...prosa, fontSize: 12, color: C.grafite, cursor: "pointer" }}>Ocultar sugestões</button>
-                              </div>
-                            ) : (
-                              <Botao pequeno variante="vazio" onClick={() => setChuvaAberta(id)}>🌧️ Ver sugestões de dia de chuva</Botao>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  <CardAulaChecklist key={ai} id={id} indice={ai + 1} titulo={au.t} descricao={au.d} selo={au.selo}
+                    status={status} defineStatus={defineStatus} reg={reg} campo={campo}
+                    chuvaAberta={chuvaAberta} setChuvaAberta={setChuvaAberta} />
                 );
               })}
             </div>
           ))}
-          {b.saida && (
-            <div style={{ background: C.papel, border: "1px solid " + C.linha, borderTop: "none",
-              borderLeft: "3px solid " + C.quadra, padding: "12px 15px" }}>
-              <Etiqueta cor={C.quadra}>Critério de saída</Etiqueta>
-              <p style={{ ...prosa, fontSize: 13, marginTop: 4 }}>{b.saida}</p>
-            </div>
-          )}
+          {(() => {
+            const nomeBloco = b.titulo || b.nome;
+            const reforcos = ((reg.__blocos || {})[nomeBloco] || {}).reforcos || [];
+            if (!reforcos.length) return null;
+            return (
+              <div style={{ border: "1px solid " + C.linha, borderTop: "none", background: C.cal }}>
+                <div className="flex items-center gap-3 flex-wrap" style={{ padding: "9px 14px", background: C.papel, borderBottom: "1px solid " + C.linha }}>
+                  <Etiqueta cor={C.saibro}>Reforço</Etiqueta>
+                  <span style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, flex: 1 }}>Aulas extras até confirmar o critério de saída</span>
+                </div>
+                {reforcos.map((r, ri) => (
+                  <CardAulaChecklist key={ri} id={"REF" + bi + "-" + ri} indice={"Reforço " + (ri + 1)} titulo="Reforço do bloco"
+                    descricao="Os exercícios aparecem ao montar a sessão de hoje pra esta aula."
+                    status={status} defineStatus={defineStatus} reg={reg} campo={campo}
+                    chuvaAberta={chuvaAberta} setChuvaAberta={setChuvaAberta} />
+                ))}
+              </div>
+            );
+          })()}
+          {(() => {
+            if (!b.saida) return null;
+            const nomeBloco = b.titulo || b.nome;
+            const saidaTexto = typeof b.saida === "string" ? b.saida : "";
+            const ehUltimo = bi === plano.blocos.length - 1;
+            /* O último bloco não tem transição pra travar — quem fecha o
+               ciclo é a seção "Fechamento do ciclo", no resumo. */
+            if (ehUltimo) {
+              return (
+                <div style={{ background: C.papel, border: "1px solid " + C.linha, borderTop: "none",
+                  borderLeft: "3px solid " + C.quadra, padding: "12px 15px" }}>
+                  <Etiqueta cor={C.quadra}>Critério de saída</Etiqueta>
+                  <p style={{ ...prosa, fontSize: 13, marginTop: 4 }}>{saidaTexto || "Avaliado no fechamento do ciclo."}</p>
+                </div>
+              );
+            }
+            if (blocoLiberado(reg, nomeBloco)) {
+              return (
+                <div style={{ background: "#F4F7F4", border: "1px solid " + C.linha, borderTop: "none",
+                  borderLeft: "3px solid " + C.quadra, padding: "12px 15px" }}>
+                  <Etiqueta cor={C.quadra}>✓ Critério de saída confirmado</Etiqueta>
+                  {saidaTexto && <p style={{ ...prosa, fontSize: 13, marginTop: 4 }}>{saidaTexto}</p>}
+                </div>
+              );
+            }
+            const aulasDoBloco = aulas.filter((a) => a.bloco === nomeBloco);
+            const todasFeitas = aulasDoBloco.length > 0 && aulasDoBloco.every((a) => status(a.id) === "feita");
+            if (!todasFeitas) {
+              return (
+                <div style={{ background: C.papel, border: "1px solid " + C.linha, borderTop: "none",
+                  borderLeft: "3px solid " + C.quadra, padding: "12px 15px" }}>
+                  <Etiqueta cor={C.quadra}>Critério de saída</Etiqueta>
+                  <p style={{ ...prosa, fontSize: 13, marginTop: 4 }}>{saidaTexto || "Avaliado ao fim do bloco."}</p>
+                </div>
+              );
+            }
+            return (
+              <div style={{ background: C.cal, border: "1px solid " + C.saibro, borderTop: "none", padding: "13px 15px" }}>
+                <Etiqueta cor={C.saibro}>Bloco aguardando confirmação</Etiqueta>
+                <p style={{ ...prosa, fontSize: 13, marginTop: 4 }}>
+                  As aulas programadas deste bloco já foram todas dadas. O jogador já demonstra este critério?
+                </p>
+                {saidaTexto && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, margin: "4px 0 10px" }}>{saidaTexto}</p>}
+                <div className="flex gap-2 flex-wrap">
+                  <Botao pequeno variante="saibro" onClick={() => confirmarSaidaBloco(nomeBloco)}>Sim, liberar o próximo bloco</Botao>
+                  <Botao pequeno variante="vazio" onClick={() => reforcarBloco(nomeBloco)}>Ainda não — acrescentar reforço</Botao>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       ))}
 
@@ -6626,7 +6807,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
   function salvarSessao() {
     const hoje = new Date().toISOString().slice(0, 10);
     if (statusGeral === "feita") {
-      if (turma.plano && aulaTurma) {
+      if (turma.plano && aulaTurma && !aulaTurma.gate) {
         setTurmas(turmas.map((t) => t.id !== turma.id ? t : {
           ...t, regPlano: { ...(t.regPlano || {}), [aulaTurma.id]: { status: "feita", data: hoje } },
         }));
@@ -6743,7 +6924,17 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
       )}
 
       {turma.plano ? (
-        aulaTurma ? (
+        aulaTurma && aulaTurma.gate ? (
+          <div className="mb-5" style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "13px 15px" }}>
+            <Etiqueta cor={C.saibro}>Bloco aguardando confirmação</Etiqueta>
+            <p style={{ ...prosa, fontSize: 14, fontWeight: 700, marginTop: 4 }}>{aulaTurma.bloco} · critério de saída ainda não confirmado</p>
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>
+              As aulas programadas deste bloco já foram todas dadas. Decida na aba{" "}
+              <button onClick={() => setSubaba("aulas")} style={{ border: "none", background: "none", color: C.saibro, cursor: "pointer", padding: 0, fontFamily: "inherit", fontSize: "inherit", fontWeight: 700 }}>Aulas</button>
+              {" "}se o grupo já demonstra o critério (libera o próximo bloco) ou se ainda precisa de reforço.
+            </p>
+          </div>
+        ) : aulaTurma ? (
           <div className="mb-5" style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "13px 15px" }}>
             <Etiqueta cor={C.saibro}>Aula em vigor do plano da turma</Etiqueta>
             <p style={{ ...prosa, fontSize: 14, fontWeight: 700, marginTop: 4 }}>{aulaTurma.bloco} · semana {aulaTurma.semana} · {aulaTurma.t}</p>
@@ -6848,7 +7039,7 @@ function agregarStatusAlunos(alunos) {
   const c = { feita: 0, pendente: 0, repetindo: 0 };
   alunos.forEach((a) => {
     if (!a.plano) return;
-    const aulas = listaAulas(a.plano);
+    const aulas = listaAulas(a.plano, a.regPlano);
     const s = contagemStatus(aulas, (id) => statusAula(a.regPlano, id));
     c.feita += s.feita; c.pendente += s.pendente; c.repetindo += s.repetindo;
   });
@@ -6870,7 +7061,7 @@ function aulasDadasDetalhe(alunos, dias, professorNome) {
   const linhas = [];
   alunos.forEach((a) => {
     if (professorNome && (a.professorNome || "Sem professor") !== professorNome) return;
-    const aulas = listaAulas(a.plano);
+    const aulas = listaAulas(a.plano, a.regPlano);
     aulas.forEach((au) => {
       const r = (a.regPlano || {})[au.id];
       if (r && r.status === "feita" && r.data && new Date(r.data).getTime() >= limite) {
@@ -6885,7 +7076,7 @@ function aulasPorProfessor(alunos) {
   alunos.forEach((a) => {
     if (!a.plano) return;
     const nome = a.professorNome || "Sem professor";
-    const feitas = listaAulas(a.plano).filter((x) => statusAula(a.regPlano, x.id) === "feita").length;
+    const feitas = listaAulas(a.plano, a.regPlano).filter((x) => statusAula(a.regPlano, x.id) === "feita").length;
     mapa[nome] = (mapa[nome] || 0) + feitas;
   });
   return Object.entries(mapa).map(([nome, valor]) => ({ nome, valor })).sort((a, b) => b.valor - a.valor);
@@ -7472,7 +7663,7 @@ function App() {
             <CardTrilha aluno={aberto} aoMudar={(patch) => setAlunos(alunos.map((a) => (a.id === aberto.id ? { ...a, ...patch } : a)))} aoAbrirFicha={() => setSubaba("ficha")} />
             <CardPedidosReposicao aluno={aberto} aoMudar={(patch) => setAlunos(alunos.map((a) => (a.id === aberto.id ? { ...a, ...patch } : a)))} />
             <CardPedidosConteudo aluno={aberto} aoMudar={(patch) => setAlunos(alunos.map((a) => (a.id === aberto.id ? { ...a, ...patch } : a)))} />
-            <CardAulaEmVigor aluno={aberto} aoClicar={() => setSubaba("sessao")} />
+            <CardAulaEmVigor aluno={aberto} aoClicar={() => setSubaba("sessao")} aoAbrirAulas={() => setSubaba("aulas")} />
             <div className="flex flex-wrap mb-6" style={{ gap: "4px 20px", borderBottom: "1px solid " + C.linha }}>
               {[{ v: "ficha", r: "Ficha" }, { v: "plano", r: "Plano" }, { v: "aulas", r: "Aulas" }, { v: "periodizacao", r: "Periodização" }, { v: "sessao", r: "Sessão de hoje" }, { v: "scout", r: "Scout" }, { v: "registro", r: "Caderno" }].map((t) => (
                 <button key={t.v} onClick={() => setSubaba(t.v)}
