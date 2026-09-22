@@ -5299,13 +5299,19 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
       const prompt = eTurma
         ? promptPlanoTurma(turma, membros, semanas, aulasSem, historico)
         : promptPlanoEstruturado(aluno, semanas, aulasSem, historico);
-      let t = (await chamarIA(prompt, 8000, (et) => { if (aindaVale()) setEtapaIA(et); })).trim();
+      let t = (await chamarIA(prompt, 16000, (et) => { if (aindaVale()) setEtapaIA(et); })).trim();
       if (!aindaVale()) return;
       setEtapaIA("Conferindo o plano que voltou");
       t = t.replace(/^```(json)?/i, "").replace(/```$/, "").trim();
       const i = t.indexOf("{");
       if (i > 0) t = t.slice(i);
-      const alvo = valida(JSON.parse(t));
+      let json;
+      try {
+        json = JSON.parse(t);
+      } catch (e) {
+        throw new Error("A IA devolveu um texto que não é um JSON válido (" + (e.message || e) + "). Tente gerar de novo.");
+      }
+      const alvo = valida(json);
       alvo.geradoEm = new Date().toISOString();
       atualiza({ plano: alvo, regPlano: {} });
     } catch (e) {
@@ -5444,6 +5450,20 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
     atualiza({ plano: null, regPlano: {}, historicoRelatorios: [item, ...historico] });
   }
 
+  /* Vale tanto pro aluno quanto pra turma: pra turma, qualquer membro do
+     grupo com a ficha editada depois da geração já conta — o plano da
+     turma nasce da soma das fichas de todo mundo. */
+  const fichaMudouDepoisDoPlano = plano && (eTurma
+    ? membros.some((m) => m.fichaAtualizadaEm && plano.geradoEm && m.fichaAtualizadaEm > plano.geradoEm)
+    : aluno.fichaAtualizadaEm && plano.geradoEm && aluno.fichaAtualizadaEm > plano.geradoEm);
+
+  function refazerPlanejamento() {
+    const msg = feitas > 0
+      ? "Arquivar as " + feitas + " aulas já realizadas como ciclo fechado e gerar um plano novo com a ficha atual?"
+      : "Gerar um plano novo com a ficha atual, no lugar deste?";
+    if (confirm(msg)) revisarComFichaAtualizada();
+  }
+
   function arquivar() {
     const item = {
       id: "REL-" + Date.now().toString(36),
@@ -5567,20 +5587,17 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
         <RoscaStatus contagem={contagemStatus(aulas, status)} />
       </div>
 
-      {!eTurma && aluno.fichaAtualizadaEm && plano.geradoEm && aluno.fichaAtualizadaEm > plano.geradoEm && (
+      {fichaMudouDepoisDoPlano && (
         <div className="mb-5">
           <Aviso>
-            A ficha deste jogador foi atualizada depois que este plano foi gerado.{" "}
+            {eTurma ? "A ficha de pelo menos um jogador do grupo foi atualizada depois que este plano foi gerado."
+              : "A ficha deste jogador foi atualizada depois que este plano foi gerado."}{" "}
             {feitas > 0
               ? "As " + feitas + (feitas === 1 ? " aula já realizada fica" : " aulas já realizadas ficam") + " arquivadas como um ciclo fechado, e você monta um plano novo com a ficha atual."
               : "Nenhuma aula deste plano foi realizada ainda, então dá pra gerar um novo direto."}
           </Aviso>
           <div className="mt-2">
-            <Botao pequeno variante="saibro" onClick={() => {
-              if (confirm(feitas > 0
-                ? "Arquivar as " + feitas + " aulas já realizadas como ciclo fechado e gerar um plano novo com a ficha atual?"
-                : "Gerar um plano novo com a ficha atual, no lugar deste?")) revisarComFichaAtualizada();
-            }}>Revisar planejamento com a ficha atual</Botao>
+            <Botao pequeno variante="saibro" onClick={refazerPlanejamento}>Revisar planejamento com a ficha atual</Botao>
           </div>
         </div>
       )}
@@ -5763,6 +5780,9 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
 
       <div className="flex gap-2 flex-wrap mb-4">
         <Botao onClick={gerar} variante="saibro">Gerar relatório do ciclo</Botao>
+        {!fichaMudouDepoisDoPlano && (
+          <Botao variante="vazio" onClick={refazerPlanejamento}>Refazer planejamento com a ficha atual</Botao>
+        )}
         <Botao variante="vazio" onClick={() => {
           const msg = eTurma ? "Remover o plano desta turma? Os registros vão junto." : "Remover o plano deste jogador? Os registros vão junto.";
           if (confirm(msg)) atualiza({ plano: null, regPlano: {} });
@@ -7266,15 +7286,13 @@ function App() {
             </div>
           </div>
           <div className="mt-0.5"><Etiqueta>Ficha, periodização e sessão · 315 exercícios</Etiqueta></div>
-          <nav style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 22, overflowX: "auto", whiteSpace: "nowrap", minWidth: 0 }}>
-              {[...NAV_PRINCIPAL, ...(papelAtual === "coordenador" ? [{ v: "equipe", r: "Equipe" }] : [])].map((t) => (
-                <button key={t.v} onClick={() => { setAba(t.v); setAbertoId(null); setManualAberto(false); }}
-                  style={{ fontFamily: ARCH, fontSize: 13, fontWeight: aba === t.v ? 700 : 500, padding: "6px 0", cursor: "pointer", flexShrink: 0, border: "none", background: "none", color: aba === t.v ? C.tinta : C.grafite, borderBottom: "2px solid " + (aba === t.v ? C.saibro : "transparent") }}>
-                  {t.r}
-                </button>
-              ))}
-            </div>
+          <nav style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px 18px", marginTop: 12 }}>
+            {[...NAV_PRINCIPAL, ...(papelAtual === "coordenador" ? [{ v: "equipe", r: "Equipe" }] : [])].map((t) => (
+              <button key={t.v} onClick={() => { setAba(t.v); setAbertoId(null); setManualAberto(false); }}
+                style={{ fontFamily: ARCH, fontSize: 13, fontWeight: aba === t.v ? 700 : 500, padding: "6px 0", cursor: "pointer", flexShrink: 0, border: "none", background: "none", color: aba === t.v ? C.tinta : C.grafite, borderBottom: "2px solid " + (aba === t.v ? C.saibro : "transparent") }}>
+                {t.r}
+              </button>
+            ))}
             <div style={{ position: "relative", flexShrink: 0 }}>
               <button onClick={() => setManualAberto(!manualAberto)} className="flex items-center gap-1"
                 style={{ fontFamily: ARCH, fontSize: 13, fontWeight: NAV_MANUAL.some((t) => t.v === aba) ? 700 : 500, padding: "6px 0", cursor: "pointer", border: "none", background: "none",
@@ -7331,10 +7349,10 @@ function App() {
             <CardPedidosReposicao aluno={aberto} aoMudar={(patch) => setAlunos(alunos.map((a) => (a.id === aberto.id ? { ...a, ...patch } : a)))} />
             <CardPedidosConteudo aluno={aberto} aoMudar={(patch) => setAlunos(alunos.map((a) => (a.id === aberto.id ? { ...a, ...patch } : a)))} />
             <CardAulaEmVigor aluno={aberto} aoClicar={() => setSubaba("sessao")} />
-            <div className="flex gap-5 mb-6" style={{ borderBottom: "1px solid " + C.linha }}>
+            <div className="flex flex-wrap mb-6" style={{ gap: "4px 20px", borderBottom: "1px solid " + C.linha }}>
               {[{ v: "ficha", r: "Ficha" }, { v: "plano", r: "Plano" }, { v: "periodizacao", r: "Periodização" }, { v: "sessao", r: "Sessão de hoje" }, { v: "scout", r: "Scout" }, { v: "registro", r: "Caderno" }].map((t) => (
                 <button key={t.v} onClick={() => setSubaba(t.v)}
-                  style={{ fontFamily: ARCH, fontSize: 13, fontWeight: subaba === t.v ? 700 : 500, padding: "8px 0", cursor: "pointer", color: subaba === t.v ? C.tinta : C.grafite, borderBottom: "2px solid " + (subaba === t.v ? C.saibro : "transparent"), marginBottom: -1 }}>
+                  style={{ fontFamily: ARCH, fontSize: 13, fontWeight: subaba === t.v ? 700 : 500, padding: "8px 0", cursor: "pointer", flexShrink: 0, color: subaba === t.v ? C.tinta : C.grafite, borderBottom: "2px solid " + (subaba === t.v ? C.saibro : "transparent"), marginBottom: -1 }}>
                   {t.r}
                 </button>
               ))}

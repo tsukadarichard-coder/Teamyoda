@@ -45,7 +45,11 @@ exports.handler = async function (event) {
     return { statusCode: 202, body: "" };
   }
 
-  const tokensMax = Math.min(Math.max(Number(maxTokens) || 4000, 1), 8000);
+  /* claude-sonnet-5 aceita até 128 mil tokens de saída — um plano de
+     turma com várias semanas e aulas detalhadas passa fácil de 8 mil e
+     saía cortado no meio do JSON (o app via isso como "JSON Parse
+     error: Unexpected EOF", sem dizer o que realmente aconteceu). */
+  const tokensMax = Math.min(Math.max(Number(maxTokens) || 4000, 1), 32000);
 
   try {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
@@ -66,6 +70,14 @@ exports.handler = async function (event) {
       await ref.set({
         status: "erro",
         erro: (dados && dados.error && dados.error.message) || ("Erro " + r.status),
+        criadoEm: new Date().toISOString(),
+      });
+      return { statusCode: 202, body: "" };
+    }
+    if (dados.stop_reason === "max_tokens") {
+      await ref.set({
+        status: "erro",
+        erro: "A resposta da IA foi cortada por passar do limite de tamanho antes de terminar o plano. Tente com menos aulas por semana, ou gere de novo — às vezes sai mais enxuto.",
         criadoEm: new Date().toISOString(),
       });
       return { statusCode: 202, body: "" };
