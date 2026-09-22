@@ -7087,6 +7087,37 @@ function App() {
   const [aba, setAba] = useState("dashboard");
   const [subaba, setSubaba] = useState("ficha");
   const [manualAberto, setManualAberto] = useState(false);
+  const manualRef = useRef(null);
+  const manualAbriuEm = useRef(0);
+  function alternarManual() {
+    // um segundo toque (fantasma ou dedo escorregando) pode cair de novo
+    // bem em cima deste mesmo botão — ignora um fechamento tentado a
+    // menos de 400ms de ter aberto, e deixa o toque fora (acima) ou
+    // escolher um item cuidar de fechar de verdade.
+    if (manualAberto && Date.now() - manualAbriuEm.current < 400) return;
+    if (!manualAberto) manualAbriuEm.current = Date.now();
+    setManualAberto(!manualAberto);
+  }
+  /* Fecha ao tocar fora — mas o listener só é registrado DEPOIS que o
+     menu abre (no efeito, não no clique que abriu). Um overlay de tela
+     inteira com onClick fechava o próprio menu sozinho no celular: o
+     toque "fantasma" que os navegadores mobile disparam ~300ms depois do
+     toque real caía bem em cima do overlay recém-criado, na mesma
+     posição do botão "Manual", fechando o menu antes de dar tempo de
+     escolher algo. Ouvir mousedown/touchstart no documento (registrado
+     um tick depois de abrir) não sofre com isso. */
+  useEffect(() => {
+    if (!manualAberto) return;
+    function aoTocarFora(e) {
+      if (manualRef.current && !manualRef.current.contains(e.target)) setManualAberto(false);
+    }
+    document.addEventListener("mousedown", aoTocarFora);
+    document.addEventListener("touchstart", aoTocarFora);
+    return () => {
+      document.removeEventListener("mousedown", aoTocarFora);
+      document.removeEventListener("touchstart", aoTocarFora);
+    };
+  }, [manualAberto]);
   const [carregando, setCarregando] = useState(true);
   const exigeLogin = typeof window !== "undefined" && !!window.mtyAuth;
   const [autenticado, setAutenticado] = useState(!exigeLogin);
@@ -7293,29 +7324,26 @@ function App() {
                 {t.r}
               </button>
             ))}
-            <div style={{ position: "relative", flexShrink: 0 }}>
-              <button onClick={() => setManualAberto(!manualAberto)} className="flex items-center gap-1"
+            <div ref={manualRef} style={{ position: "relative", flexShrink: 0 }}>
+              <button onClick={alternarManual} className="flex items-center gap-1"
                 style={{ fontFamily: ARCH, fontSize: 13, fontWeight: NAV_MANUAL.some((t) => t.v === aba) ? 700 : 500, padding: "6px 0", cursor: "pointer", border: "none", background: "none",
                   color: NAV_MANUAL.some((t) => t.v === aba) ? C.tinta : C.grafite,
                   borderBottom: "2px solid " + (NAV_MANUAL.some((t) => t.v === aba) ? C.saibro : "transparent") }}>
                 Manual <span style={{ fontSize: 10 }}>{manualAberto ? "▲" : "▼"}</span>
               </button>
               {manualAberto && (
-                <>
-                  <div onClick={() => setManualAberto(false)} style={{ position: "fixed", inset: 0, zIndex: 19 }} />
-                  <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 6, background: C.papel,
-                    border: "1px solid " + C.linha, borderRadius: 2, boxShadow: "0 4px 14px rgba(0,0,0,.12)", zIndex: 20, minWidth: 180 }}>
-                    {NAV_MANUAL.map((t) => (
-                      <button key={t.v} onClick={() => { setAba(t.v); setAbertoId(null); setManualAberto(false); }}
-                        className="w-full text-left"
-                        style={{ display: "block", fontFamily: ARCH, fontSize: 13, fontWeight: aba === t.v ? 700 : 500,
-                          padding: "9px 14px", cursor: "pointer", whiteSpace: "nowrap", border: "none",
-                          color: aba === t.v ? C.tinta : C.grafite, background: aba === t.v ? C.cal : "transparent" }}>
-                        {t.r}
-                      </button>
-                    ))}
-                  </div>
-                </>
+                <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 6, background: C.papel,
+                  border: "1px solid " + C.linha, borderRadius: 2, boxShadow: "0 4px 14px rgba(0,0,0,.12)", zIndex: 20, minWidth: 180 }}>
+                  {NAV_MANUAL.map((t) => (
+                    <button key={t.v} onClick={() => { setAba(t.v); setAbertoId(null); setManualAberto(false); }}
+                      className="w-full text-left"
+                      style={{ display: "block", fontFamily: ARCH, fontSize: 13, fontWeight: aba === t.v ? 700 : 500,
+                        padding: "9px 14px", cursor: "pointer", whiteSpace: "nowrap", border: "none",
+                        color: aba === t.v ? C.tinta : C.grafite, background: aba === t.v ? C.cal : "transparent" }}>
+                      {t.r}
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
           </nav>
