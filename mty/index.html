@@ -2756,6 +2756,37 @@ const ENTRADA_BLOCOS = [
 
 const AREA_OPCOES = Object.entries(AREAS).map(([id, a]) => ({ id, nome: a.nome }));
 
+/* A partir daqui o catálogo de métricas por área (AREAS.metricas — número
+   e protocolo) já se aplica; antes disso a régua é a escada de nível
+   (NIVEIS_CRITERIOS), sem quantificar — é a mesma leitura que
+   PUBLICOS_ESPECIFICOS faz ("nenhum público pede critério novo, todos
+   usam o mesmo catálogo e os mesmos critérios de nível"). */
+const NIVEL_MIN_METRICAS = "Y4";
+function nivelDeReferencia(entidade, eTurma, membros) {
+  if (!eTurma) return entidade.nivel || "Y1";
+  const niveis = (membros || []).map((m) => m.nivel || "Y1");
+  if (!niveis.length) return "Y1";
+  return niveis.reduce((min, n) => (NIVEIS.indexOf(n) < NIVEIS.indexOf(min) ? n : min), niveis[0]);
+}
+/* O critério de saída de um bloco vem direto do catálogo do manual, não
+   de texto livre da IA — a IA só aponta a área (bloco.areaFoco, um id
+   fixo de AREAS); a régua concreta é sempre a mesma pra todo mundo.
+   Sem areaFoco válido (planos antigos, ou colados à mão), cai no critério
+   em texto livre de sempre — ver o uso em TelaPlano. */
+function criteriosDeSaidaDoBloco(bloco, entidade, eTurma, membros) {
+  const area = AREAS[bloco.areaFoco];
+  if (!area) return null;
+  const nivel = nivelDeReferencia(entidade, eTurma, membros);
+  const usaMetricas = NIVEIS.indexOf(nivel) >= NIVEIS.indexOf(NIVEL_MIN_METRICAS);
+  if (usaMetricas && area.metricas && area.metricas.length) {
+    return { areaNome: area.nome, nivel, itens: area.metricas.map(([m, protocolo, meta]) => m + " — " + protocolo + " · meta " + meta) };
+  }
+  const infoNivel = NIVEIS_CRITERIOS.find((n) => n.nivel === nivel);
+  if (!infoNivel) return null;
+  const relevantes = infoNivel.criterios.filter((c) => area.busca.test(c));
+  return { areaNome: area.nome, nivel, itens: relevantes.length ? relevantes : infoNivel.criterios };
+}
+
 /* Campo da ficha de entrada, com marcador "não sei". A distinção entre
    "não perguntei" e "campo vazio" é o que impede o plano de ser construído
    sobre suposição. */
@@ -2889,7 +2920,7 @@ function gateDeBloco(plano, regPlano, nomeBloco) {
   const nomes = plano.blocos.map((b) => b.titulo || b.nome);
   if (nomes[nomes.length - 1] === nomeBloco) return null; // último bloco: fecha pelo ciclo, não por gate
   const b = plano.blocos.find((bb) => (bb.titulo || bb.nome) === nomeBloco);
-  if (!b || !b.saida) return null;
+  if (!b || !(b.saida || (b.areaFoco && AREAS[b.areaFoco]))) return null;
   if (blocoLiberado(regPlano, nomeBloco)) return null;
   return { id: "GATE-" + nomeBloco, gate: true, bloco: nomeBloco, semana: null,
     t: "Aguardando confirmação do critério de saída", ex: [] };
@@ -3229,7 +3260,8 @@ function promptPlanoEstruturado(a, semanas, aulasSemana, historico) {
                { camada: "Tático", txt: "..." }, { camada: "Mental", txt: "..." }],
       blocos: [{
         nome: "Bloco um", titulo: "...", semanas: "1 a 4", etiqueta: "N AULAS",
-        alvo: "...", saida: "critério observável",
+        alvo: "...", areaFoco: "saque|devolucao|fundo|rede|movimentacao|mental|tatica",
+        saida: "uma frase de contexto — o critério de verdade vem do catálogo da área, não deste texto",
         portao: "condição de abertura do bloco seguinte, ou vazio",
         semanasLista: [{ n: 1, foco: "...", carga: "...", aulas: [
           { t: "título da aula", d: "o que se faz", ex: ["CO004", "FB001"], selo: "ss" }
@@ -3244,7 +3276,12 @@ function promptPlanoEstruturado(a, semanas, aulasSemana, historico) {
     "· selo: \"ss\" quando a aula não pode ter saque, \"cs:30\" quando tem com número, ou omita.",
     "· todo campo [não sei] ou [em branco] da ficha vira um item de observacao.",
     "· nenhum código fora da lista acima. Códigos inventados invalidam o plano.",
-    "· critério de saída sempre observável, nunca por calendário.",
+    "· areaFoco é obrigatório em todo bloco (exceto o último, que fecha pelo ciclo) e precisa ser",
+    "  exatamente um destes ids: saque, devolucao, fundo, rede, movimentacao, mental, tatica — é essa",
+    "  área que decide, sozinha, qual critério do catálogo o app vai cobrar pra liberar o próximo",
+    "  bloco. Escolha a área que o bloco realmente está construindo, não a mais fácil de marcar.",
+    "· critério de saída sempre observável, nunca por calendário — mas quem escreve o critério de",
+    "  verdade é o catálogo (via areaFoco), não este texto livre.",
     "· TODA semana do plano precisa ter pelo menos uma aula com exercício de saque (famílias PDS/IP)",
     "  e pelo menos uma com exercício de devolução (busca por \"devolu\" no catálogo) — não precisa ser",
     "  a mesma aula, mas nenhuma semana pode ficar sem os dois. No estágio A ou C (adulto ou",
@@ -3305,7 +3342,8 @@ function promptPlanoTurma(turma, membros, semanas, aulasSemana, historico) {
                { camada: "Tático", txt: "..." }, { camada: "Mental", txt: "..." }],
       blocos: [{
         nome: "Bloco um", titulo: "...", semanas: "1 a 4", etiqueta: "N AULAS",
-        alvo: "...", saida: "critério observável do grupo",
+        alvo: "...", areaFoco: "saque|devolucao|fundo|rede|movimentacao|mental|tatica",
+        saida: "uma frase de contexto — o critério de verdade vem do catálogo da área, não deste texto",
         portao: "condição de abertura do bloco seguinte, ou vazio",
         semanasLista: [{ n: 1, foco: "...", carga: "...", aulas: [
           { t: "título da aula", d: "o que se faz — inclua como dividir o grupo se for o caso",
@@ -3319,6 +3357,10 @@ function promptPlanoTurma(turma, membros, semanas, aulasSemana, historico) {
     "· marque raiz:true em UMA camada só.",
     "· selo: \"ss\" quando a aula não pode ter saque, \"cs:30\" quando tem com número, ou omita.",
     "· nenhum código fora da lista acima. Códigos inventados invalidam o plano.",
+    "· areaFoco é obrigatório em todo bloco (exceto o último, que fecha pelo ciclo) e precisa ser",
+    "  exatamente um destes ids: saque, devolucao, fundo, rede, movimentacao, mental, tatica — essa",
+    "  área decide o critério do catálogo que o app cobra pra liberar o próximo bloco, igual pra",
+    "  qualquer turma (o mesmo catálogo vale pra todo público, só muda o ritmo do ciclo).",
     "· critério de saída sempre observável, nunca por calendário — e observável no grupo inteiro,",
     "  não só num jogador.",
     "· TODA semana do plano precisa ter pelo menos uma aula com exercício de saque (famílias PDS/IP)",
@@ -5216,7 +5258,7 @@ function LinhaDeRaciocinio({ plano, aulas, status, reg }) {
        liberada quando o treinador confirma o critério de saída na aba
        Aulas — este selo é só informativo aqui no resumo. */
     let gate = null;
-    if (b.saida && bi < plano.blocos.length - 1) {
+    if ((b.saida || (b.areaFoco && AREAS[b.areaFoco])) && bi < plano.blocos.length - 1) {
       if (blocoLiberado(reg, nomeBloco)) gate = "liberado";
       else if (aulasDoBloco.length > 0 && aulasDoBloco.every((a) => status(a.id) === "feita")) gate = "aguardando";
     }
@@ -5537,6 +5579,15 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
   function confirmarSaidaBloco(nomeBloco) {
     const blocos = reg.__blocos || {};
     atualiza({ regPlano: { ...reg, __blocos: { ...blocos, [nomeBloco]: { ...(blocos[nomeBloco] || {}), liberado: true } } } });
+  }
+  /* Quando o bloco tem areaFoco, o critério vira uma checklist do catálogo
+     (ver criteriosDeSaidaDoBloco) marcada item a item — só libera quando
+     todos estiverem marcados, pra não virar um "sim" de um clique só. */
+  function marcarCriterioBloco(nomeBloco, i) {
+    const blocos = reg.__blocos || {};
+    const atual = blocos[nomeBloco] || {};
+    const marcados = { ...(atual.criteriosMarcados || {}), [i]: !(atual.criteriosMarcados || {})[i] };
+    atualiza({ regPlano: { ...reg, __blocos: { ...blocos, [nomeBloco]: { ...atual, criteriosMarcados: marcados } } } });
   }
   function reforcarBloco(nomeBloco) {
     const codigos = new Set();
@@ -5871,9 +5922,10 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
             );
           })()}
           {(() => {
-            if (!b.saida) return null;
             const nomeBloco = b.titulo || b.nome;
+            const catalogo = criteriosDeSaidaDoBloco(b, entidade, eTurma, membros);
             const saidaTexto = typeof b.saida === "string" ? b.saida : "";
+            if (!catalogo && !saidaTexto && !b.saida) return null;
             const ehUltimo = bi === plano.blocos.length - 1;
             /* O último bloco não tem transição pra travar — quem fecha o
                ciclo é a seção "Fechamento do ciclo", no resumo. */
@@ -5891,6 +5943,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                 <div style={{ background: "#F4F7F4", border: "1px solid " + C.linha, borderTop: "none",
                   borderLeft: "3px solid " + C.quadra, padding: "12px 15px" }}>
                   <Etiqueta cor={C.quadra}>✓ Critério de saída confirmado</Etiqueta>
+                  {catalogo && <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 4 }}>Catálogo · {catalogo.areaNome} · {catalogo.nivel}</p>}
                   {saidaTexto && <p style={{ ...prosa, fontSize: 13, marginTop: 4 }}>{saidaTexto}</p>}
                 </div>
               );
@@ -5902,19 +5955,47 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                 <div style={{ background: C.papel, border: "1px solid " + C.linha, borderTop: "none",
                   borderLeft: "3px solid " + C.quadra, padding: "12px 15px" }}>
                   <Etiqueta cor={C.quadra}>Critério de saída</Etiqueta>
-                  <p style={{ ...prosa, fontSize: 13, marginTop: 4 }}>{saidaTexto || "Avaliado ao fim do bloco."}</p>
+                  {saidaTexto && <p style={{ ...prosa, fontSize: 13, marginTop: 4 }}>{saidaTexto}</p>}
+                  {catalogo && (
+                    <ul style={{ margin: "6px 0 0 18px", padding: 0 }}>
+                      {catalogo.itens.map((texto, i) => (
+                        <li key={i} style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>{texto}</li>
+                      ))}
+                    </ul>
+                  )}
+                  {!saidaTexto && !catalogo && <p style={{ ...prosa, fontSize: 13, marginTop: 4 }}>Avaliado ao fim do bloco.</p>}
                 </div>
               );
             }
+            /* Bloco com areaFoco: o critério vira checklist do catálogo do
+               manual (AREAS.metricas a partir de Y4, NIVEIS_CRITERIOS antes
+               disso) — só libera quando cada item foi marcado, não com um
+               "sim" de um clique. Sem areaFoco (plano antigo, ou colado à
+               mão), cai no texto livre de sempre. */
+            const marcados = ((reg.__blocos || {})[nomeBloco] || {}).criteriosMarcados || {};
+            const todosMarcados = catalogo ? catalogo.itens.every((_, i) => marcados[i]) : true;
             return (
               <div style={{ background: C.cal, border: "1px solid " + C.saibro, borderTop: "none", padding: "13px 15px" }}>
                 <Etiqueta cor={C.saibro}>Bloco aguardando confirmação</Etiqueta>
                 <p style={{ ...prosa, fontSize: 13, marginTop: 4 }}>
-                  As aulas programadas deste bloco já foram todas dadas. O jogador já demonstra este critério?
+                  {catalogo
+                    ? "As aulas programadas deste bloco já foram todas dadas. Confirme item a item, direto do catálogo do método (" + catalogo.areaNome + " · " + catalogo.nivel + "):"
+                    : "As aulas programadas deste bloco já foram todas dadas. O jogador já demonstra este critério?"}
                 </p>
                 {saidaTexto && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, margin: "4px 0 10px" }}>{saidaTexto}</p>}
+                {catalogo && (
+                  <div className="mb-2">
+                    {catalogo.itens.map((texto, i) => (
+                      <label key={i} className="flex items-start gap-2" style={{ fontSize: 12.5, marginTop: 6, cursor: "pointer" }}>
+                        <input type="checkbox" checked={!!marcados[i]} onChange={() => marcarCriterioBloco(nomeBloco, i)}
+                          style={{ marginTop: 3, flexShrink: 0 }} />
+                        <span style={prosa}>{texto}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
                 <div className="flex gap-2 flex-wrap">
-                  <Botao pequeno variante="saibro" onClick={() => confirmarSaidaBloco(nomeBloco)}>Sim, liberar o próximo bloco</Botao>
+                  <Botao pequeno variante="saibro" disabled={!todosMarcados} onClick={() => confirmarSaidaBloco(nomeBloco)}>Sim, liberar o próximo bloco</Botao>
                   <Botao pequeno variante="vazio" onClick={() => reforcarBloco(nomeBloco)}>Ainda não — acrescentar reforço</Botao>
                 </div>
               </div>
