@@ -4137,7 +4137,11 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
     if (aulaAtual) {
       const evitar = new Set(aluno.historico.slice(-2).flat());
       const aquecimento = sorteia(exerciciosParaSorteio().filter((e) => BLOCOS[0].familias.includes(e.f) && e.e.includes(aluno.estagio)), evitar, 1);
-      let conteudo = (aulaAtual.ex || []).map((c) => TODOS_EXERCICIOS().find((e) => e.c === c)).filter(Boolean);
+      /* !e.semBola aqui também — não só no sorteio: uma aula do Plano
+         gerada ANTES desta regra (ou colada à mão) pode ter um código
+         sem bola preso no ex[], e olhar só o sorteio automático não
+         bastava pra tirar ele da sessão de hoje. */
+      let conteudo = (aulaAtual.ex || []).map((c) => TODOS_EXERCICIOS().find((e) => e.c === c)).filter((e) => e && !e.semBola);
       const usados = new Set(conteudo.map((e) => e.c));
       const temSaque = conteudo.some((e) => AREAS.saque.busca.test(e.n + " " + e.m));
       const temDevolucao = conteudo.some((e) => AREAS.devolucao.busca.test(e.n + " " + e.m));
@@ -4366,7 +4370,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
               <div className="mb-6">
                 <h3 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 9 }}>Conteúdo da aula</h3>
                 {plano.conteudo.length === 0 ? (
-                  <Aviso>Nenhum dos códigos de exercício desta aula foi encontrado no catálogo — confira o Plano.</Aviso>
+                  <Aviso>Nenhum exercício com bola sobrou desta aula — os códigos ou não existem no catálogo, ou são exercícios sem bola (reservados pra dia de chuva). Confira o Plano.</Aviso>
                 ) : (
                   plano.conteudo.map((e, i) => (
                     <CartaoExercicio key={e.c + i} e={e} aoTrocar={() => trocar("conteudo", i)} aoRemover={() => remover("conteudo", i)} />
@@ -7005,6 +7009,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
   const [nota, setNota] = useState("");
   const [salvo, setSalvo] = useState(null);
   const [chuvaAberta, setChuvaAberta] = useState(false);
+  const [chuvaModeloId, setChuvaModeloId] = useState(null);
 
   const pendencias = turma.pendencias || [];
   const pendenciasAbertas = pendencias.filter((p) => !p.resolvida);
@@ -7022,17 +7027,19 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
      pendurada na turma, com motivo e uma anotação livre. */
   function salvarSessao() {
     const hoje = new Date().toISOString().slice(0, 10);
-    if (statusGeral === "feita") {
+    const modeloChuva = statusGeral === "chuva" ? TREINO_CHUVA.find((m) => m.id === chuvaModeloId) : null;
+    const obsChuva = modeloChuva ? ("Dia de chuva — " + modeloChuva.nome + ". " + modeloChuva.saida) : "";
+    if (statusGeral === "feita" || statusGeral === "chuva") {
       if (turma.plano && aulaTurma && !aulaTurma.gate) {
         setTurmas(turmas.map((t) => t.id !== turma.id ? t : {
-          ...t, regPlano: { ...(t.regPlano || {}), [aulaTurma.id]: { status: "feita", data: hoje } },
+          ...t, regPlano: { ...(t.regPlano || {}), [aulaTurma.id]: { status: "feita", data: hoje, ...(obsChuva ? { obs: obsChuva } : {}) } },
         }));
       } else if (!turma.plano) {
         setAlunos(alunos.map((a) => {
           if (!turma.membros.includes(a.id)) return a;
           const prox = aulaEmVigor(a);
           if (!prox) return a;
-          const reg = { ...(a.regPlano || {}), [prox.id]: { status: "feita", data: hoje } };
+          const reg = { ...(a.regPlano || {}), [prox.id]: { status: "feita", data: hoje, ...(obsChuva ? { obs: obsChuva } : {}) } };
           return { ...a, regPlano: reg };
         }));
       }
@@ -7043,6 +7050,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
       }));
     }
     setSalvo(statusGeral);
+    setChuvaModeloId(null);
   }
 
   function marcarResolvida(id) {
@@ -7101,8 +7109,8 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
       <div style={{ background: C.cal, border: "1px solid " + C.linha, padding: 15, marginBottom: 18 }}>
         <Campo rotulo="Sessão de hoje">
           <div className="flex gap-1 flex-wrap">
-            {[["feita", "Realizada"], ["pendencia", "Pendência do grupo"]].map(([v, r]) => (
-              <button key={v} onClick={() => setStatusGeral(v)}
+            {[["feita", "Realizada"], ["chuva", "🌧️ Foi dia de chuva"], ["pendencia", "Pendência do grupo"]].map(([v, r]) => (
+              <button key={v} onClick={() => { setStatusGeral(v); if (v !== "chuva") setChuvaModeloId(null); }}
                 style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "6px 10px", borderRadius: 2, cursor: "pointer",
                   border: "1px solid " + (statusGeral === v ? C.tinta : C.linha),
                   background: statusGeral === v ? C.tinta : C.papel, color: statusGeral === v ? C.papel : C.grafite }}>{r}</button>
@@ -7122,6 +7130,25 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
               <textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={nota}
                 onChange={(e) => setNota(e.target.value)} placeholder="ex: repor sábado 9h, avisar os pais" />
             </Campo>
+          </div>
+        )}
+        {statusGeral === "chuva" && (
+          <div className="mt-2">
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 9 }}>
+              A turma treinou — só não deu pra jogar em quadra. Escolha um modelo (isso NÃO vira pendência: a aula do
+              Plano conta como realizada).
+            </p>
+            {TREINO_CHUVA.map((m) => (
+              <button key={m.id} onClick={() => setChuvaModeloId(m.id)} className="w-full text-left flex items-center justify-between gap-3"
+                style={{ background: chuvaModeloId === m.id ? C.cal : C.papel, border: "1px solid " + (chuvaModeloId === m.id ? C.saibro : C.linha),
+                  padding: "10px 13px", marginBottom: 7, cursor: "pointer" }}>
+                <div>
+                  <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>{m.nome}</div>
+                  <div style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>{m.quando}</div>
+                </div>
+                <Etiqueta cor={chuvaModeloId === m.id ? C.saibro : C.grafite}>{m.duracao}</Etiqueta>
+              </button>
+            ))}
           </div>
         )}
       </div>
@@ -7188,10 +7215,11 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
         </>
       )}
 
-      <div className="flex gap-2 items-center mt-4">
-        <Botao onClick={salvarSessao}>Salvar sessão</Botao>
+      <div className="flex gap-2 items-center mt-4 flex-wrap">
+        <Botao onClick={salvarSessao} disabled={statusGeral === "chuva" && !chuvaModeloId}>Salvar sessão</Botao>
         <Botao variante="vazio" onClick={aoRemover}>Remover turma</Botao>
         {salvo === "feita" && <Etiqueta cor={C.quadra}>{turma.plano ? "✓ sessão registrada no plano da turma" : "✓ sessão registrada em cada jogador"}</Etiqueta>}
+        {salvo === "chuva" && <Etiqueta cor={C.quadra}>✓ dia de chuva registrado como sessão realizada</Etiqueta>}
         {salvo === "pendencia" && <Etiqueta cor={C.saibro}>✓ pendência do grupo registrada</Etiqueta>}
       </div>
       </>
