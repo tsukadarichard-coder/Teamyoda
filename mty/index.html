@@ -5244,7 +5244,7 @@ function HistoricoRelatorios({ historico, abrirHist, setAbrirHist, removerDoHist
    plano de turma (turma/membros/turmas/setTurmas) — é o mesmo formato
    de plano (blocos/semanas/aulas), só muda de onde ele vem (ficha de
    um jogador só, ou fichas do grupo inteiro) e onde ele é salvo. */
-function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas }) {
+function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas, modo = "resumo" }) {
   const eTurma = !!turma;
   const entidade = eTurma ? turma : aluno;
   const [colando, setColando] = useState(false);
@@ -5607,37 +5607,41 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
         <option value="Doença" /><option value="Viagem" />
       </datalist>
 
-      {!eTurma && (
-        <div className="mb-5">
-          <Botao pequeno variante="vazio" onClick={gerarLinkAluno}>
-            {gerandoLink ? "Gerando…" : "Link para o aluno (protótipo)"}
-          </Botao>
-          {linkAluno && (
-            <div className="mt-2 flex gap-2 items-center flex-wrap">
-              <input id="mty-link-aluno" readOnly value={linkAluno} style={{ ...entrada, fontSize: 12, flex: 1 }}
-                onFocus={(e) => e.target.select()} />
-              <Botao pequeno variante="vazio" onClick={copiarLinkAluno}>{linkCopiado ? "✓ copiado" : "Copiar"}</Botao>
+      {modo === "resumo" && (
+        <>
+          {!eTurma && (
+            <div className="mb-5">
+              <Botao pequeno variante="vazio" onClick={gerarLinkAluno}>
+                {gerandoLink ? "Gerando…" : "Link para o aluno (protótipo)"}
+              </Botao>
+              {linkAluno && (
+                <div className="mt-2 flex gap-2 items-center flex-wrap">
+                  <input id="mty-link-aluno" readOnly value={linkAluno} style={{ ...entrada, fontSize: 12, flex: 1 }}
+                    onFocus={(e) => e.target.select()} />
+                  <Botao pequeno variante="vazio" onClick={copiarLinkAluno}>{linkCopiado ? "✓ copiado" : "Copiar"}</Botao>
+                </div>
+              )}
             </div>
           )}
-        </div>
+
+          <div style={{ background: "#FDF6E7", borderLeft: "3px solid #C9A227", padding: "11px 14px", marginBottom: 16 }}>
+            <p style={{ ...prosa, fontSize: 13 }}>
+              <b>Rascunho.</b> Leia o plano inteiro antes de conduzir. Nenhum planejamento vai para
+              o aluno sem um treinador revisar e assinar.
+            </p>
+          </div>
+
+          {plano.prioridade && (
+            <div style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "12px 15px", marginBottom: 18 }}>
+              <p style={{ ...prosa, fontSize: 14 }}>{plano.prioridade}</p>
+            </div>
+          )}
+
+          <LinhaDeRaciocinio plano={plano} aulas={aulas} status={status} />
+        </>
       )}
 
-      <div style={{ background: "#FDF6E7", borderLeft: "3px solid #C9A227", padding: "11px 14px", marginBottom: 16 }}>
-        <p style={{ ...prosa, fontSize: 13 }}>
-          <b>Rascunho.</b> Leia o plano inteiro antes de conduzir. Nenhum planejamento vai para
-          o aluno sem um treinador revisar e assinar.
-        </p>
-      </div>
-
-      {plano.prioridade && (
-        <div style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "12px 15px", marginBottom: 18 }}>
-          <p style={{ ...prosa, fontSize: 14 }}>{plano.prioridade}</p>
-        </div>
-      )}
-
-      <LinhaDeRaciocinio plano={plano} aulas={aulas} status={status} />
-
-      {plano.blocos.map((b, bi) => (
+      {modo === "aulas" && plano.blocos.map((b, bi) => (
         <div key={bi} className="mb-7">
           <div style={{ background: C.tinta, color: C.papel, padding: "12px 15px" }}>
             <div style={{ fontFamily: ARCH, fontSize: 10, fontWeight: 700, letterSpacing: ".12em", color: C.saibro }}>
@@ -5738,71 +5742,74 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
         </div>
       ))}
 
-      <Secao titulo="Fechamento do ciclo" nota="É esta parte que faz o próximo ciclo conversar com este. Sem ela, o plano seguinte recebe o que foi feito, mas não o que foi aprendido.">
-        <h3 style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginBottom: 9 }}>Os critérios de saída</h3>
-        {plano.blocos.filter((b) => b.saida).map((b, i) => {
-          const v = (reg.__fech || {})["nota:C" + i] || "";
-          return (
-            <div key={i} style={{ background: C.cal, border: "1px solid " + C.linha, padding: "13px 15px", marginBottom: 9 }}>
-              <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>{b.nome} · {b.titulo}</div>
-              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, margin: "5px 0 9px" }}>{b.saida}</p>
-              <div className="flex gap-2 flex-wrap mb-2">
-                {[["sim", "atingido", C.quadra], ["par", "parcial", C.ocre || "#C9A227"], ["nao", "não atingido", C.saibro]].map(([k, r, cor]) => (
-                  <button key={k} onClick={() => fech("nota:C" + i, v === k ? "" : k)}
-                    style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "6px 12px", cursor: "pointer",
-                      borderRadius: 2, border: "1px solid " + (v === k ? cor : C.linha),
-                      background: v === k ? cor : C.papel, color: v === k ? "#fff" : C.grafite }}>{r}</button>
-                ))}
+      {modo === "resumo" && (
+        <>
+          <Secao titulo="Fechamento do ciclo" nota="É esta parte que faz o próximo ciclo conversar com este. Sem ela, o plano seguinte recebe o que foi feito, mas não o que foi aprendido.">
+            <h3 style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginBottom: 9 }}>Os critérios de saída</h3>
+            {plano.blocos.filter((b) => b.saida).map((b, i) => {
+              const v = (reg.__fech || {})["nota:C" + i] || "";
+              return (
+                <div key={i} style={{ background: C.cal, border: "1px solid " + C.linha, padding: "13px 15px", marginBottom: 9 }}>
+                  <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>{b.nome} · {b.titulo}</div>
+                  <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, margin: "5px 0 9px" }}>{b.saida}</p>
+                  <div className="flex gap-2 flex-wrap mb-2">
+                    {[["sim", "atingido", C.quadra], ["par", "parcial", C.ocre || "#C9A227"], ["nao", "não atingido", C.saibro]].map(([k, r, cor]) => (
+                      <button key={k} onClick={() => fech("nota:C" + i, v === k ? "" : k)}
+                        style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "6px 12px", cursor: "pointer",
+                          borderRadius: 2, border: "1px solid " + (v === k ? cor : C.linha),
+                          background: v === k ? cor : C.papel, color: v === k ? "#fff" : C.grafite }}>{r}</button>
+                    ))}
+                  </div>
+                  <textarea rows={2} style={{ ...entrada, resize: "vertical", fontSize: 12.5 }}
+                    placeholder="o que faltou, ou o que apareceu além do esperado"
+                    value={(reg.__fech || {})["crit:C" + i] || ""}
+                    onChange={(e) => fech("crit:C" + i, e.target.value)} />
+                </div>
+              );
+            })}
+
+            <h3 style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, margin: "20px 0 9px" }}>O que estava em observação</h3>
+            {(plano.observacao || []).map((o, i) => (
+              <div key={i} style={{ background: C.cal, border: "1px solid " + C.linha, padding: "13px 15px", marginBottom: 9 }}>
+                <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>
+                  {o.t}{o.urgente && <span style={{ background: C.saibro, color: "#fff", fontSize: 9,
+                    fontWeight: 700, padding: "2px 6px", marginLeft: 7 }}>MAIS URGENTE</span>}
+                </div>
+                <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, margin: "5px 0 8px" }}>{o.d}</p>
+                <textarea rows={2} style={{ ...entrada, resize: "vertical", fontSize: 12.5 }}
+                  placeholder="o que se descobriu. Se continua em aberto, escrever isso."
+                  value={(reg.__fech || {})["obs:O" + i] || ""}
+                  onChange={(e) => fech("obs:O" + i, e.target.value)} />
               </div>
-              <textarea rows={2} style={{ ...entrada, resize: "vertical", fontSize: 12.5 }}
-                placeholder="o que faltou, ou o que apareceu além do esperado"
-                value={(reg.__fech || {})["crit:C" + i] || ""}
-                onChange={(e) => fech("crit:C" + i, e.target.value)} />
-            </div>
-          );
-        })}
+            ))}
+          </Secao>
 
-        <h3 style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, margin: "20px 0 9px" }}>O que estava em observação</h3>
-        {(plano.observacao || []).map((o, i) => (
-          <div key={i} style={{ background: C.cal, border: "1px solid " + C.linha, padding: "13px 15px", marginBottom: 9 }}>
-            <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>
-              {o.t}{o.urgente && <span style={{ background: C.saibro, color: "#fff", fontSize: 9,
-                fontWeight: 700, padding: "2px 6px", marginLeft: 7 }}>MAIS URGENTE</span>}
-            </div>
-            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, margin: "5px 0 8px" }}>{o.d}</p>
-            <textarea rows={2} style={{ ...entrada, resize: "vertical", fontSize: 12.5 }}
-              placeholder="o que se descobriu. Se continua em aberto, escrever isso."
-              value={(reg.__fech || {})["obs:O" + i] || ""}
-              onChange={(e) => fech("obs:O" + i, e.target.value)} />
+          <div className="flex gap-2 flex-wrap mb-4">
+            <Botao onClick={gerar} variante="saibro">Gerar relatório do ciclo</Botao>
+            {!fichaMudouDepoisDoPlano && (
+              <Botao variante="vazio" onClick={refazerPlanejamento}>Refazer planejamento com a ficha atual</Botao>
+            )}
+            <Botao variante="vazio" onClick={() => {
+              const msg = eTurma ? "Remover o plano desta turma? Os registros vão junto." : "Remover o plano deste jogador? Os registros vão junto.";
+              if (confirm(msg)) atualiza({ plano: null, regPlano: {} });
+            }}>Remover plano</Botao>
           </div>
-        ))}
-      </Secao>
 
-      <div className="flex gap-2 flex-wrap mb-4">
-        <Botao onClick={gerar} variante="saibro">Gerar relatório do ciclo</Botao>
-        {!fichaMudouDepoisDoPlano && (
-          <Botao variante="vazio" onClick={refazerPlanejamento}>Refazer planejamento com a ficha atual</Botao>
-        )}
-        <Botao variante="vazio" onClick={() => {
-          const msg = eTurma ? "Remover o plano desta turma? Os registros vão junto." : "Remover o plano deste jogador? Os registros vão junto.";
-          if (confirm(msg)) atualiza({ plano: null, regPlano: {} });
-        }}>Remover plano</Botao>
-      </div>
+          {relatorio && (
+            <div style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.quadra, padding: 15 }}>
+              <div className="mb-2"><Etiqueta cor={C.quadra}>Relatório do ciclo</Etiqueta></div>
+              <textarea readOnly value={relatorio}
+                style={{ ...entrada, minHeight: 260, fontFamily: "ui-monospace, monospace", fontSize: 11.5, whiteSpace: "pre" }} />
+              <div className="mt-3 flex gap-2">
+                <Botao pequeno variante="vazio" onClick={() => navigator.clipboard.writeText(relatorio)}>Copiar</Botao>
+                <Botao pequeno onClick={arquivar}>Arquivar no histórico</Botao>
+              </div>
+            </div>
+          )}
 
-      {relatorio && (
-        <div style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.quadra, padding: 15 }}>
-          <div className="mb-2"><Etiqueta cor={C.quadra}>Relatório do ciclo</Etiqueta></div>
-          <textarea readOnly value={relatorio}
-            style={{ ...entrada, minHeight: 260, fontFamily: "ui-monospace, monospace", fontSize: 11.5, whiteSpace: "pre" }} />
-          <div className="mt-3 flex gap-2">
-            <Botao pequeno variante="vazio" onClick={() => navigator.clipboard.writeText(relatorio)}>Copiar</Botao>
-            <Botao pequeno onClick={arquivar}>Arquivar no histórico</Botao>
-          </div>
-        </div>
+          <HistoricoRelatorios historico={historico} abrirHist={abrirHist} setAbrirHist={setAbrirHist} removerDoHistorico={removerDoHistorico} />
+        </>
       )}
-
-      <HistoricoRelatorios historico={historico} abrirHist={abrirHist} setAbrirHist={setAbrirHist} removerDoHistorico={removerDoHistorico} />
-
     </div>
   );
 }
@@ -6661,10 +6668,10 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
         </p>
       )}
 
-      <div className="flex gap-5 mb-6" style={{ borderBottom: "1px solid " + C.linha }}>
-        {[{ v: "sessao", r: "Sessão" }, { v: "plano", r: "Plano" }].map((t) => (
+      <div className="flex flex-wrap gap-5 mb-6" style={{ borderBottom: "1px solid " + C.linha }}>
+        {[{ v: "sessao", r: "Sessão" }, { v: "plano", r: "Plano" }, { v: "aulas", r: "Aulas" }].map((t) => (
           <button key={t.v} onClick={() => setSubaba(t.v)}
-            style={{ fontFamily: ARCH, fontSize: 13, fontWeight: subaba === t.v ? 700 : 500, padding: "8px 0", cursor: "pointer",
+            style={{ fontFamily: ARCH, fontSize: 13, fontWeight: subaba === t.v ? 700 : 500, padding: "8px 0", cursor: "pointer", flexShrink: 0,
               color: subaba === t.v ? C.tinta : C.grafite, borderBottom: "2px solid " + (subaba === t.v ? C.saibro : "transparent"), marginBottom: -1 }}>
             {t.r}
           </button>
@@ -6672,7 +6679,9 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
       </div>
 
       {subaba === "plano" ? (
-        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} />
+        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} modo="resumo" />
+      ) : subaba === "aulas" ? (
+        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} modo="aulas" />
       ) : (
       <>
       {pendenciasAbertas.length > 0 && (
@@ -6853,6 +6862,24 @@ function aulasDadasRecentes(alunos, dias) {
   }));
   return n;
 }
+/* Mesma janela de aulasDadasRecentes, mas devolvendo cada aula (não só a
+   contagem) — é o que abre quando o treinador clica no card do
+   Dashboard, ou numa barra do gráfico por professor. */
+function aulasDadasDetalhe(alunos, dias, professorNome) {
+  const limite = Date.now() - dias * 86400000;
+  const linhas = [];
+  alunos.forEach((a) => {
+    if (professorNome && (a.professorNome || "Sem professor") !== professorNome) return;
+    const aulas = listaAulas(a.plano);
+    aulas.forEach((au) => {
+      const r = (a.regPlano || {})[au.id];
+      if (r && r.status === "feita" && r.data && new Date(r.data).getTime() >= limite) {
+        linhas.push({ alunoId: a.id, alunoNome: a.nome || "Sem nome", titulo: au.t, bloco: au.bloco, semana: au.semana, data: r.data });
+      }
+    });
+  });
+  return linhas.sort((x, y) => (x.data < y.data ? 1 : -1));
+}
 function aulasPorProfessor(alunos) {
   const mapa = {};
   alunos.forEach((a) => {
@@ -6864,12 +6891,17 @@ function aulasPorProfessor(alunos) {
   return Object.entries(mapa).map(([nome, valor]) => ({ nome, valor })).sort((a, b) => b.valor - a.valor);
 }
 
-function TileEstat({ rotulo, valor, cor }) {
+function TileEstat({ rotulo, valor, cor, onClick, ativo }) {
+  const Tag = onClick ? "button" : "div";
   return (
-    <div style={{ background: C.cal, border: "1px solid " + C.linha, padding: "13px 15px" }}>
-      <div style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, color: cor || C.tinta, lineHeight: 1 }}>{valor}</div>
-      <div style={{ fontFamily: ARCH, fontSize: 10.5, color: C.grafite, textTransform: "uppercase", letterSpacing: "0.06em", marginTop: 5 }}>{rotulo}</div>
-    </div>
+    <Tag onClick={onClick || undefined} className={onClick ? "w-full text-left" : undefined}
+      style={{ background: ativo ? C.tinta : C.cal, border: "1px solid " + (ativo ? C.tinta : C.linha), padding: "13px 15px",
+        cursor: onClick ? "pointer" : "default" }}>
+      <div style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, color: ativo ? C.papel : (cor || C.tinta), lineHeight: 1 }}>{valor}</div>
+      <div style={{ fontFamily: ARCH, fontSize: 10.5, color: ativo ? C.papel : C.grafite, textTransform: "uppercase", letterSpacing: "0.06em", marginTop: 5 }}>
+        {rotulo}{onClick ? (ativo ? " ▲" : " ▾") : ""}
+      </div>
+    </Tag>
   );
 }
 
@@ -6899,6 +6931,10 @@ function CardUsoIA({ usoIA }) {
 
 function TelaDashboard({ alunos, turmas, papelAtual, uidAtual, exigeLogin, irPara, usoIA }) {
   const [verTodos, setVerTodos] = useState(false);
+  /* null fechado, "abertas"/"dadas" abrem a lista do card correspondente,
+     ou o nome de um professor quando vem de um clique na barra do
+     gráfico "aulas dadas por professor" — mesma lista, filtrada. */
+  const [detalhe, setDetalhe] = useState(null);
   const meus = (professorUid) => !professorUid || professorUid === uidAtual;
 
   const alunosVistos = (!exigeLogin || verTodos || !uidAtual) ? alunos : alunos.filter((a) => meus(a.professorUid));
@@ -6907,6 +6943,9 @@ function TelaDashboard({ alunos, turmas, papelAtual, uidAtual, exigeLogin, irPar
   const status = agregarStatusAlunos(alunosVistos);
   const abertos = alunosVistos.filter((a) => a.plano && aulaEmVigor(a));
   const dadas7 = aulasDadasRecentes(alunosVistos, 7);
+  const ehProfessorFiltro = detalhe && detalhe !== "abertas" && detalhe !== "dadas";
+  const dadasDetalhe = (detalhe === "dadas" || ehProfessorFiltro)
+    ? aulasDadasDetalhe(alunosVistos, 7, ehProfessorFiltro ? detalhe : null) : [];
   let pendenciasAbertas = 0;
   turmasVistas.forEach((t) => (t.pendencias || []).forEach((p) => { if (!p.resolvida) pendenciasAbertas++; }));
   const porProfessor = verTodos ? aulasPorProfessor(alunosVistos) : [];
@@ -6933,10 +6972,55 @@ function TelaDashboard({ alunos, turmas, papelAtual, uidAtual, exigeLogin, irPar
 
       <div className="mb-5" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
         <TileEstat rotulo="Jogadores" valor={alunosVistos.length} />
-        <TileEstat rotulo="Aulas em aberto" valor={abertos.length} cor={abertos.length > 0 ? C.saibro : C.tinta} />
-        <TileEstat rotulo="Aulas dadas · 7 dias" valor={dadas7} cor={C.quadra} />
+        <TileEstat rotulo="Aulas em aberto" valor={abertos.length} cor={abertos.length > 0 ? C.saibro : C.tinta}
+          ativo={detalhe === "abertas"} onClick={abertos.length > 0 ? () => setDetalhe(detalhe === "abertas" ? null : "abertas") : null} />
+        <TileEstat rotulo="Aulas dadas · 7 dias" valor={dadas7} cor={C.quadra}
+          ativo={detalhe === "dadas"} onClick={dadas7 > 0 ? () => setDetalhe(detalhe === "dadas" ? null : "dadas") : null} />
         <TileEstat rotulo="Pendências de grupo" valor={pendenciasAbertas} cor={pendenciasAbertas > 0 ? C.saibro : C.tinta} />
       </div>
+
+      {detalhe === "abertas" && (
+        <div className="mb-6">
+          <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Aulas em aberto</div>
+          {abertos.map((a) => {
+            const aula = aulaEmVigor(a);
+            return (
+              <button key={a.id} onClick={() => irPara(a.id)} className="w-full text-left flex items-center justify-between gap-3"
+                style={{ background: C.cal, border: "1px solid " + C.linha, padding: "11px 14px", marginBottom: 7, cursor: "pointer" }}>
+                <div>
+                  <div style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{a.nome || "Sem nome"}</div>
+                  <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>{aula.bloco} · semana {aula.semana} · {aula.t}</p>
+                </div>
+                <span style={{ color: C.grafite, fontSize: 18 }}>→</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {(detalhe === "dadas" || ehProfessorFiltro) && (
+        <div className="mb-6">
+          <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, marginBottom: 10 }}>
+            {ehProfessorFiltro ? "Aulas dadas por " + detalhe + " · 7 dias" : "Aulas dadas · 7 dias"}
+          </div>
+          {dadasDetalhe.length === 0 ? (
+            <p style={{ ...prosa, color: C.grafite, fontSize: 12.5 }}>Nada por aqui nesses 7 dias.</p>
+          ) : (
+            dadasDetalhe.map((d, i) => (
+              <button key={i} onClick={() => irPara(d.alunoId)} className="w-full text-left flex items-center justify-between gap-3"
+                style={{ background: C.cal, border: "1px solid " + C.linha, padding: "11px 14px", marginBottom: 7, cursor: "pointer" }}>
+                <div>
+                  <div style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{d.alunoNome}</div>
+                  <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>
+                    {d.bloco} · semana {d.semana} · {d.titulo} · {new Date(d.data).toLocaleDateString("pt-BR")}
+                  </p>
+                </div>
+                <span style={{ color: C.grafite, fontSize: 18 }}>→</span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
 
       <div className="mb-6" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "14px 16px" }}>
         <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Aulas do ciclo, no conjunto</div>
@@ -6958,35 +7042,16 @@ function TelaDashboard({ alunos, turmas, papelAtual, uidAtual, exigeLogin, irPar
                 <CartesianGrid horizontal={false} stroke={C.linha} />
                 <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: C.grafite }} axisLine={{ stroke: C.linha }} tickLine={false} />
                 <YAxis type="category" dataKey="nome" width={110} tick={{ fontSize: 11.5, fill: C.tinta }} axisLine={{ stroke: C.linha }} tickLine={false} />
-                <Tooltip formatter={(v) => [v + " aula" + (v === 1 ? "" : "s"), "Feitas"]}
+                <Tooltip formatter={(v) => [v + " aula" + (v === 1 ? "" : "s"), "Feitas · clique pra ver quais"]}
                   contentStyle={{ fontFamily: ARCH, fontSize: 12, border: "1px solid " + C.linha, borderRadius: 2 }} />
-                <Bar dataKey="valor" fill={C.quadra} radius={[0, 3, 3, 0]} maxBarSize={22} isAnimationActive={false} />
+                <Bar dataKey="valor" fill={C.quadra} radius={[0, 3, 3, 0]} maxBarSize={22} isAnimationActive={false}
+                  cursor="pointer" onClick={(d) => setDetalhe(detalhe === d.nome ? null : d.nome)} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
       )}
 
-      <div>
-        <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Aulas em aberto</div>
-        {abertos.length === 0 ? (
-          <p style={{ ...prosa, color: C.grafite, fontSize: 12.5 }}>Nada em aberto — todo mundo em dia ou sem plano ainda.</p>
-        ) : (
-          abertos.map((a) => {
-            const aula = aulaEmVigor(a);
-            return (
-              <button key={a.id} onClick={() => irPara(a.id)} className="w-full text-left flex items-center justify-between gap-3"
-                style={{ background: C.cal, border: "1px solid " + C.linha, padding: "11px 14px", marginBottom: 7, cursor: "pointer" }}>
-                <div>
-                  <div style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{a.nome || "Sem nome"}</div>
-                  <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>{aula.bloco} · semana {aula.semana} · {aula.t}</p>
-                </div>
-                <span style={{ color: C.grafite, fontSize: 18 }}>→</span>
-              </button>
-            );
-          })
-        )}
-      </div>
     </div>
   );
 }
@@ -7409,7 +7474,7 @@ function App() {
             <CardPedidosConteudo aluno={aberto} aoMudar={(patch) => setAlunos(alunos.map((a) => (a.id === aberto.id ? { ...a, ...patch } : a)))} />
             <CardAulaEmVigor aluno={aberto} aoClicar={() => setSubaba("sessao")} />
             <div className="flex flex-wrap mb-6" style={{ gap: "4px 20px", borderBottom: "1px solid " + C.linha }}>
-              {[{ v: "ficha", r: "Ficha" }, { v: "plano", r: "Plano" }, { v: "periodizacao", r: "Periodização" }, { v: "sessao", r: "Sessão de hoje" }, { v: "scout", r: "Scout" }, { v: "registro", r: "Caderno" }].map((t) => (
+              {[{ v: "ficha", r: "Ficha" }, { v: "plano", r: "Plano" }, { v: "aulas", r: "Aulas" }, { v: "periodizacao", r: "Periodização" }, { v: "sessao", r: "Sessão de hoje" }, { v: "scout", r: "Scout" }, { v: "registro", r: "Caderno" }].map((t) => (
                 <button key={t.v} onClick={() => setSubaba(t.v)}
                   style={{ fontFamily: ARCH, fontSize: 13, fontWeight: subaba === t.v ? 700 : 500, padding: "8px 0", cursor: "pointer", flexShrink: 0, color: subaba === t.v ? C.tinta : C.grafite, borderBottom: "2px solid " + (subaba === t.v ? C.saibro : "transparent"), marginBottom: -1 }}>
                   {t.r}
@@ -7417,7 +7482,8 @@ function App() {
               ))}
             </div>
             {subaba === "ficha" ? <TelaFicha aluno={aberto} salvar={salvar} papelAtual={papelAtual} /> :
-             subaba === "plano" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} /> :
+             subaba === "plano" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="resumo" /> :
+             subaba === "aulas" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="aulas" /> :
              subaba === "periodizacao" ? <TelaPeriodizacao aluno={aberto} /> :
              subaba === "scout" ? <TelaScout aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
              subaba === "registro" ? <TelaRegistro aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
