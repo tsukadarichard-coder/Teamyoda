@@ -7,8 +7,13 @@
    curl -X POST https://SEU-SITE.netlify.app/.netlify/functions/provisionar-org \
      -H "content-type: application/json" \
      -H "x-admin-secret: SEU_ADMIN_SECRET" \
-     -d '{"orgId":"team-yoda","nomeAcademia":"Team Yoda Tennis Pro","logoUrl":"https://SEU-SITE.netlify.app/assets/logo-team-yoda.jpg","email":"treinador@exemplo.com","senha":"umaSenhaForte123"}'
-   logoUrl é opcional — sem ele, a academia vê o próprio nome como logotipo de texto no lugar do logo. */
+     -d '{"orgId":"team-yoda","nomeAcademia":"Team Yoda Tennis Pro","logoUrl":"https://SEU-SITE.netlify.app/assets/logo-team-yoda.jpg","email":"treinador@exemplo.com","senha":"umaSenhaForte123","plano":"essencial","planoAtivoAte":"2027-01-01"}'
+   logoUrl é opcional — sem ele, a academia vê o próprio nome como logotipo de texto no lugar do logo.
+   plano é opcional ("gratis", "essencial" ou "premium" — ver LIMITES_POR_PLANO
+   no index.html; sem esse campo, a academia fica sem limite de jogadores,
+   igual academia antiga). planoAtivoAte é opcional ("AAAA-MM-DD") — depois
+   dessa data o app para de aceitar jogador novo até você rodar de novo
+   este mesmo comando com uma data mais adiante (renovação manual). */
 const { admin, app } = require("./_firebase-admin");
 
 exports.handler = async function (event) {
@@ -28,7 +33,7 @@ exports.handler = async function (event) {
     return resposta(400, { erro: "Corpo da requisição inválido." });
   }
 
-  const { orgId, nomeAcademia, logoUrl, email, senha } = corpo;
+  const { orgId, nomeAcademia, logoUrl, email, senha, plano, planoAtivoAte } = corpo;
   if (!orgId || !email || !senha) {
     return resposta(400, { erro: "Faltou orgId, email ou senha." });
   }
@@ -37,6 +42,12 @@ exports.handler = async function (event) {
   }
   if (String(senha).length < 6) {
     return resposta(400, { erro: "A senha precisa de pelo menos 6 caracteres." });
+  }
+  if (plano && !["gratis", "essencial", "premium"].includes(plano)) {
+    return resposta(400, { erro: 'plano precisa ser "gratis", "essencial" ou "premium".' });
+  }
+  if (planoAtivoAte && !/^\d{4}-\d{2}-\d{2}$/.test(planoAtivoAte)) {
+    return resposta(400, { erro: 'planoAtivoAte precisa estar no formato "AAAA-MM-DD".' });
   }
 
   try {
@@ -57,6 +68,8 @@ exports.handler = async function (event) {
        precisar subir nada nem mudar de código). */
     const identidade = { nome: nomeAcademia || orgId, atualizadoEm: new Date().toISOString() };
     if (logoUrl) identidade.logoUrl = logoUrl;
+    if (plano) identidade.plano = plano;
+    if (planoAtivoAte) identidade.planoAtivoAte = planoAtivoAte;
     await admin.firestore().collection("orgs").doc(orgId).collection("meta").doc("info").set(identidade, { merge: true });
 
     return resposta(200, {

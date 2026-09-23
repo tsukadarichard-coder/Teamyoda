@@ -308,11 +308,22 @@ const FAM = {
   CF: "Condicionamento físico", DM: "Drills mentais", ADV: "Drills avançados MTY",
 };
 
-/* ── plano grátis ──
-   Só orgs criadas por cadastro-individual.js vêm marcadas plano:"gratis"
-   em orgs/{org}/meta/info — academias antigas ou provisionadas pelo
-   admin não têm esse campo e continuam sem limite algum. */
+/* ── planos pagos ──
+   plano vem de orgs/{org}/meta/info.plano. Orgs criadas por
+   cadastro-individual.js vêm marcadas "gratis"; academias provisionadas
+   pelo admin podem vir com "essencial" ou "premium" (ver
+   provisionar-org.js). Academias antigas, ou provisionadas sem esse
+   campo, continuam sem limite algum — comportamento anterior preservado.
+   planoAtivoAte (opcional, "AAAA-MM-DD") é até quando a licença está
+   paga; hoje é controlado manualmente pelo Richard, sem cobrança
+   automática — quando vence, o app para de aceitar novos jogadores até
+   ele atualizar a data. */
 const LIMITE_ALUNOS_GRATIS = 5;
+const LIMITES_POR_PLANO = { gratis: LIMITE_ALUNOS_GRATIS, essencial: 30, premium: null };
+const NOMES_PLANO = { gratis: "Plano grátis", essencial: "Plano Essencial", premium: "Plano Premium" };
+function limiteDeAlunos(plano) {
+  return plano && Object.prototype.hasOwnProperty.call(LIMITES_POR_PLANO, plano) ? LIMITES_POR_PLANO[plano] : null;
+}
 
 const ESTAGIOS = [
   { s: "V", n: "Vermelha" }, { s: "L", n: "Laranja" }, { s: "G", n: "Verde" },
@@ -7889,6 +7900,7 @@ function App() {
   const [orgAtual, setOrgAtual] = useState(null);
   const [papelAtual, setPapelAtual] = useState(null);
   const [planoAtual, setPlanoAtual] = useState(null);
+  const [planoAtivoAte, setPlanoAtivoAte] = useState(null);
   const [identidade, setIdentidade] = useState(null);
   const [usoIA, setUsoIA] = useState(null);
   const [verificandoOrg, setVerificandoOrg] = useState(exigeLogin);
@@ -7916,8 +7928,9 @@ function App() {
       try {
         const info = await db.collection("orgs").doc(org).collection("meta").doc("info").get();
         setPlanoAtual(info.exists ? (info.data().plano || null) : null);
+        setPlanoAtivoAte(info.exists ? (info.data().planoAtivoAte || null) : null);
         setIdentidade(info.exists ? { nome: info.data().nome || "", logoUrl: info.data().logoUrl || "" } : null);
-      } catch (e) { setPlanoAtual(null); setIdentidade(null); }
+      } catch (e) { setPlanoAtual(null); setPlanoAtivoAte(null); setIdentidade(null); }
       try {
         const uso = await db.collection("orgs").doc(org).collection("meta").doc("usoIA").get();
         setUsoIA(uso.exists ? uso.data() : null);
@@ -7978,8 +7991,10 @@ function App() {
     ? alunos
     : alunos.filter((a) => !a.professorUid || a.professorUid === uidAtual);
 
+  const limitePlano = limiteDeAlunos(planoAtual);
+  const planoVencido = !!(planoAtivoAte && planoAtivoAte < new Date().toISOString().slice(0, 10));
   function criar() {
-    if (planoAtual === "gratis" && alunos.length >= LIMITE_ALUNOS_GRATIS) {
+    if (planoVencido || (limitePlano != null && alunos.length >= limitePlano)) {
       setLimiteAtingido(true);
       return;
     }
@@ -8093,8 +8108,8 @@ function App() {
                   )}
                 </div>
               )}
-              {planoAtual === "gratis" && (
-                <Etiqueta cor={C.saibro}>Plano grátis</Etiqueta>
+              {planoAtual && NOMES_PLANO[planoAtual] && (
+                <Etiqueta cor={C.saibro}>{NOMES_PLANO[planoAtual]}{planoVencido ? " · vencido" : ""}</Etiqueta>
               )}
               {exigeLogin && uidAtual && orgAtual && (
                 <EditorMeuNome org={orgAtual} uid={uidAtual} emailAtual={window.mtyAuth.usuario() ? window.mtyAuth.usuario().email : ""} />
@@ -8239,10 +8254,21 @@ function App() {
             )}
             {limiteAtingido && (
               <div className="mt-4 mb-2" style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "13px 15px" }}>
-                <p style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, marginBottom: 4 }}>O plano grátis vai até {LIMITE_ALUNOS_GRATIS} jogadores</p>
-                <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>
-                  Você já tem {LIMITE_ALUNOS_GRATIS}. Pra cadastrar mais, fale com a gente sobre os planos pagos.
-                </p>
+                {planoVencido ? (
+                  <>
+                    <p style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, marginBottom: 4 }}>A licença desta academia venceu em {planoAtivoAte}</p>
+                    <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>
+                      Pra voltar a cadastrar jogadores, é só renovar a licença — fale com a gente.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{NOMES_PLANO[planoAtual] || "Este plano"} vai até {limitePlano} jogadores</p>
+                    <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>
+                      Você já tem {limitePlano}. Pra cadastrar mais, fale com a gente sobre um plano maior.
+                    </p>
+                  </>
+                )}
               </div>
             )}
             <div className="mt-4"><Botao onClick={criar} variante="saibro">Novo jogador</Botao></div>
