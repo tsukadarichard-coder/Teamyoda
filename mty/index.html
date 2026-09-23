@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-<title>Metodologia MTY — Team Yoda Tennis Pro</title>
+<title>Painel do Treinador</title>
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png">
 <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
@@ -11,7 +11,7 @@
 <meta name="theme-color" content="#C8102E">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Team Yoda">
+<meta name="apple-mobile-web-app-title" content="Painel do Treinador">
 
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -2235,6 +2235,21 @@ async function chamarIA(prompt, maxTokens, aoProgredir) {
 }
 
 /* ─────────────────────────── peças ─────────────────────────── */
+/* Marca da academia no lugar do logo fixo da Team Yoda — sem
+   identidade carregada (telas de antes do login, onde ainda não se
+   sabe de qual academia é) ou sem nada configurado pela academia,
+   cai num rótulo neutro. Com logoUrl definido, mostra o logo dela;
+   sem logo mas com nome, mostra o nome como um logotipo de texto. */
+function Marca({ identidade, altura = 26 }) {
+  const nome = identidade && identidade.nome;
+  const logoUrl = identidade && identidade.logoUrl;
+  if (logoUrl) return <img src={logoUrl} alt={nome || "Academia"} style={{ height: altura, maxWidth: 220, objectFit: "contain" }} />;
+  return (
+    <span style={{ fontFamily: ARCH, fontWeight: 700, fontSize: Math.round(altura * 0.62), color: C.tinta, lineHeight: 1 }}>
+      {nome || "Painel do Treinador"}
+    </span>
+  );
+}
 function Etiqueta({ children, cor = C.grafite }) {
   return (
     <span style={{ fontFamily: ARCH, fontSize: 10, fontWeight: 600, letterSpacing: "0.14em", textTransform: "uppercase", color: cor }}>
@@ -6488,7 +6503,7 @@ function TelaSemAcademia() {
     <div style={{ background: C.papel, minHeight: "100vh" }}>
       <div style={{ height: 4, background: C.saibro }} />
       <div style={{ maxWidth: 400, margin: "0 auto", padding: "56px 22px", textAlign: "center" }}>
-        <img src="assets/logo-team-yoda.jpg" alt="Team Yoda" style={{ height: 34, margin: "0 auto 18px" }} />
+        <div style={{ margin: "0 auto 18px" }}><Marca altura={34} /></div>
         <h1 style={{ fontFamily: ARCH, fontSize: 18, fontWeight: 700 }}>Pedido em análise</h1>
         <p style={{ ...prosa, fontSize: 14, color: C.grafite, marginTop: 10 }}>
           Sua conta existe, mas ainda não foi aprovada pelo coordenador da academia.
@@ -6531,7 +6546,7 @@ function TelaLogin({ aoEntrar }) {
     <div style={{ background: C.papel, minHeight: "100vh" }}>
       <div style={{ height: 4, background: C.saibro }} />
       <div style={{ maxWidth: 400, margin: "0 auto", padding: "56px 22px" }}>
-        <img src="assets/logo-team-yoda.jpg" alt="Team Yoda" style={{ height: 34, marginBottom: 10 }} />
+        <div style={{ marginBottom: 10 }}><Marca altura={34} /></div>
         <div className="mt-1 mb-7"><Etiqueta>Acesso da equipe técnica</Etiqueta></div>
 
         <Campo rotulo="E-mail">
@@ -7874,6 +7889,7 @@ function App() {
   const [orgAtual, setOrgAtual] = useState(null);
   const [papelAtual, setPapelAtual] = useState(null);
   const [planoAtual, setPlanoAtual] = useState(null);
+  const [identidade, setIdentidade] = useState(null);
   const [usoIA, setUsoIA] = useState(null);
   const [verificandoOrg, setVerificandoOrg] = useState(exigeLogin);
   const [verTodosAlunos, setVerTodosAlunos] = useState(false);
@@ -7900,7 +7916,8 @@ function App() {
       try {
         const info = await db.collection("orgs").doc(org).collection("meta").doc("info").get();
         setPlanoAtual(info.exists ? (info.data().plano || null) : null);
-      } catch (e) { setPlanoAtual(null); }
+        setIdentidade(info.exists ? { nome: info.data().nome || "", logoUrl: info.data().logoUrl || "" } : null);
+      } catch (e) { setPlanoAtual(null); setIdentidade(null); }
       try {
         const uso = await db.collection("orgs").doc(org).collection("meta").doc("usoIA").get();
         setUsoIA(uso.exists ? uso.data() : null);
@@ -7908,6 +7925,13 @@ function App() {
       setVerificandoOrg(false);
     })();
   }, [exigeLogin, autenticado]);
+
+  /* O título da aba troca pro nome da própria academia assim que a
+     identidade dela carrega — antes disso (ou pra quem não configurou
+     nome) fica o rótulo neutro do <title> estático. */
+  useEffect(() => {
+    document.title = identidade && identidade.nome ? identidade.nome + " · Painel do Treinador" : "Painel do Treinador";
+  }, [identidade]);
 
   useEffect(() => {
     if (!autenticado || (exigeLogin && !orgAtual)) return;
@@ -7992,7 +8016,7 @@ function App() {
         <div style={{ height: 4, background: C.saibro }} />
         <div className="px-5 pt-4 pb-2" style={{ maxWidth: 760, margin: "0 auto" }}>
           <div className="flex items-center justify-between gap-3">
-            <img src="assets/logo-team-yoda.jpg" alt="Team Yoda" style={{ height: 26 }} />
+            <Marca identidade={identidade} altura={26} />
             <div className="flex items-center gap-2" style={{ flexWrap: "wrap", justifyContent: "flex-end" }}>
               {exigeLogin && uidAtual && (
                 <div style={{ position: "relative" }}>

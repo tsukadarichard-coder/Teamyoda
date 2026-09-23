@@ -1,7 +1,7 @@
 {
-  "name": "Metodologia MTY · Team Yoda",
-  "short_name": "Team Yoda",
-  "description": "Ficha, periodização e sessão · Metodologia MTY",
+  "name": "Painel do Treinador",
+  "short_name": "Treinador",
+  "description": "Ficha, periodização e sessão de treino",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#F5F2F0",

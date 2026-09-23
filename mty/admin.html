@@ -58,6 +58,10 @@
   <input type="text" id="nomeAcademia" placeholder="Team Yoda Tennis Pro">
 </div>
 <div class="campo">
+  <label>Logo da academia (opcional)</label>
+  <input type="url" id="logoUrl" placeholder="https://.../logo.png — sem isso, o nome vira o logotipo" autocomplete="off">
+</div>
+<div class="campo">
   <label>E-mail do treinador</label>
   <input type="email" id="email" autocomplete="off">
 </div>
@@ -79,6 +83,7 @@ document.getElementById('btCriar').onclick = async function(){
   const segredo = document.getElementById('segredo').value.trim();
   const orgId = document.getElementById('orgId').value.trim();
   const nomeAcademia = document.getElementById('nomeAcademia').value.trim();
+  const logoUrl = document.getElementById('logoUrl').value.trim();
   const email = document.getElementById('email').value.trim();
   const senha = document.getElementById('senha').value;
 
@@ -94,7 +99,7 @@ document.getElementById('btCriar').onclick = async function(){
     const r = await fetch('/.netlify/functions/provisionar-org', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-admin-secret': segredo },
-      body: JSON.stringify({ orgId, nomeAcademia, email, senha }),
+      body: JSON.stringify({ orgId, nomeAcademia, logoUrl, email, senha }),
     });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(d.erro || ('Erro ' + r.status));

@@ -7,7 +7,8 @@
    curl -X POST https://SEU-SITE.netlify.app/.netlify/functions/provisionar-org \
      -H "content-type: application/json" \
      -H "x-admin-secret: SEU_ADMIN_SECRET" \
-     -d '{"orgId":"team-yoda","nomeAcademia":"Team Yoda Tennis Pro","email":"treinador@exemplo.com","senha":"umaSenhaForte123"}' */
+     -d '{"orgId":"team-yoda","nomeAcademia":"Team Yoda Tennis Pro","logoUrl":"https://SEU-SITE.netlify.app/assets/logo-team-yoda.jpg","email":"treinador@exemplo.com","senha":"umaSenhaForte123"}'
+   logoUrl é opcional — sem ele, a academia vê o próprio nome como logotipo de texto no lugar do logo. */
 const { admin, app } = require("./_firebase-admin");
 
 exports.handler = async function (event) {
@@ -27,7 +28,7 @@ exports.handler = async function (event) {
     return resposta(400, { erro: "Corpo da requisição inválido." });
   }
 
-  const { orgId, nomeAcademia, email, senha } = corpo;
+  const { orgId, nomeAcademia, logoUrl, email, senha } = corpo;
   if (!orgId || !email || !senha) {
     return resposta(400, { erro: "Faltou orgId, email ou senha." });
   }
@@ -47,10 +48,16 @@ exports.handler = async function (event) {
       usuario = await admin.auth().createUser({ email, password: senha });
     }
     await admin.auth().setCustomUserClaims(usuario.uid, { orgId, role: "coordenador" });
-    await admin.firestore().collection("orgs").doc(orgId).collection("meta").doc("info").set({
-      nome: nomeAcademia || orgId,
-      atualizadoEm: new Date().toISOString(),
-    }, { merge: true });
+    /* nome e logoUrl são a identidade que troca a marca fixa do app
+       (Team Yoda) pela da própria academia, assim que ela loga — ver
+       o componente Marca no index.html. logoUrl aceita qualquer URL
+       pública de imagem, inclusive um asset já hospedado no próprio
+       site (ex.: a Team Yoda pode apontar pro próprio logo dela em
+       https://SEU-SITE.netlify.app/assets/logo-team-yoda.jpg, sem
+       precisar subir nada nem mudar de código). */
+    const identidade = { nome: nomeAcademia || orgId, atualizadoEm: new Date().toISOString() };
+    if (logoUrl) identidade.logoUrl = logoUrl;
+    await admin.firestore().collection("orgs").doc(orgId).collection("meta").doc("info").set(identidade, { merge: true });
 
     return resposta(200, {
       ok: true,
