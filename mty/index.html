@@ -4350,6 +4350,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
   const PERSONALIZADO_VAZIO = { n: "", m: "", r: "", p: "", x: "", i: "", d: "" };
   const [novoPersonalizado, setNovoPersonalizado] = useState(PERSONALIZADO_VAZIO);
   const [chuvaMenuAberto, setChuvaMenuAberto] = useState(false);
+  const [salvo, setSalvo] = useState(null); // null | "plano" | "avulso"
   const ciclos = useMemo(() => montaCiclos(aluno.prioridades, aluno.estagio), [aluno]);
 
   /* Dia de chuva sem cancelar a aula: a quadra não deu, mas o encontro
@@ -4530,6 +4531,14 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
     setObs({ corrigi: "", ignorei: "", mudaria: "", nota: 3 });
     setStatusAulaPlano("feita"); setMotivoAulaPlano("");
     setPersonalizados([]); setNovoPersonalizado(PERSONALIZADO_VAZIO);
+    /* Confirmação visível de que o registro foi salvo — o relatório desta
+       sessão vai para aluno.registros (aba Caderno) e, quando havia aula
+       do Plano em vigor, também para regPlano[aulaAtual.id].obs (é dali
+       que o fechamento de ciclo e o próximo plano por IA leem). Sem isso
+       na tela, "salvou mesmo?" ficava sem resposta — o formulário só
+       desaparecia. */
+    setSalvo(aulaAtual ? "plano" : "avulso");
+    setTimeout(() => setSalvo(null), 4000);
   }
 
   const total = plano && !plano.daAula && !plano.chuva ? plano.reduce((s, b) => s + b.minutos, 0) : 1;
@@ -4538,6 +4547,11 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
 
   return (
     <div>
+      {salvo && (
+        <div className="mb-4" style={{ background: C.quadra, padding: "9px 13px" }}>
+          <Etiqueta cor="#fff">{salvo === "plano" ? "✓ sessão registrada e marcada no plano" : "✓ sessão registrada no caderno"}</Etiqueta>
+        </div>
+      )}
       {aulaAtual ? (
         <div className="mb-5" style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "13px 15px" }}>
           <Etiqueta cor={C.saibro}>Sessão de hoje é a aula em vigor do Plano</Etiqueta>
@@ -5752,7 +5766,15 @@ function LinhaDeRaciocinio({ plano, aulas, status, reg }) {
    visível tanto com o plano atual quanto com a tela "ainda não tem
    plano" (pra mostrar que o ciclo anterior não sumiu, só foi fechado). */
 function HistoricoRelatorios({ historico, abrirHist, setAbrirHist, removerDoHistorico }) {
+  const [copiadoId, setCopiadoId] = useState(null);
   if (historico.length === 0) return null;
+
+  async function copiar(h) {
+    await navigator.clipboard.writeText(h.texto);
+    setCopiadoId(h.id);
+    setTimeout(() => setCopiadoId((atual) => (atual === h.id ? null : atual)), 2000);
+  }
+
   return (
     <div className="mt-4">
       <div className="mb-2"><Etiqueta>Histórico de relatórios · {historico.length}</Etiqueta></div>
@@ -5766,7 +5788,7 @@ function HistoricoRelatorios({ historico, abrirHist, setAbrirHist, removerDoHist
               <Botao pequeno variante="vazio" onClick={() => setAbrirHist(abrirHist === h.id ? null : h.id)}>
                 {abrirHist === h.id ? "Fechar" : "Ver"}
               </Botao>
-              <Botao pequeno variante="vazio" onClick={() => navigator.clipboard.writeText(h.texto)}>Copiar</Botao>
+              <Botao pequeno variante="vazio" onClick={() => copiar(h)}>{copiadoId === h.id ? "✓ copiado" : "Copiar"}</Botao>
               <Botao pequeno variante="vazio" onClick={() => removerDoHistorico(h.id)}>Remover</Botao>
             </div>
           </div>
@@ -5872,6 +5894,8 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
   const [semanas, setSemanas] = useState(4);
   const [aulasSem, setAulasSem] = useState(3);
   const [relatorio, setRelatorio] = useState("");
+  const [relatorioCopiado, setRelatorioCopiado] = useState(false);
+  const [relatorioArquivado, setRelatorioArquivado] = useState(false);
   const [linkAluno, setLinkAluno] = useState("");
   const [gerandoLink, setGerandoLink] = useState(false);
   const [linkCopiado, setLinkCopiado] = useState(false);
@@ -6124,6 +6148,14 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
       texto: relatorio,
     };
     atualiza({ historicoRelatorios: [item, ...historico] });
+    setRelatorioArquivado(true);
+    setTimeout(() => setRelatorioArquivado(false), 4000);
+  }
+
+  async function copiarRelatorio() {
+    await navigator.clipboard.writeText(relatorio);
+    setRelatorioCopiado(true);
+    setTimeout(() => setRelatorioCopiado(false), 2000);
   }
 
   function removerDoHistorico(id) {
@@ -6503,8 +6535,8 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
               <textarea readOnly value={relatorio}
                 style={{ ...entrada, minHeight: 260, fontFamily: "ui-monospace, monospace", fontSize: 11.5, whiteSpace: "pre" }} />
               <div className="mt-3 flex gap-2">
-                <Botao pequeno variante="vazio" onClick={() => navigator.clipboard.writeText(relatorio)}>Copiar</Botao>
-                <Botao pequeno onClick={arquivar}>Arquivar no histórico</Botao>
+                <Botao pequeno variante="vazio" onClick={copiarRelatorio}>{relatorioCopiado ? "✓ copiado" : "Copiar"}</Botao>
+                <Botao pequeno onClick={arquivar}>{relatorioArquivado ? "✓ arquivado no histórico" : "Arquivar no histórico"}</Botao>
               </div>
             </div>
           )}
@@ -8247,6 +8279,17 @@ function App() {
   const [verificandoOrg, setVerificandoOrg] = useState(exigeLogin);
   const [verTodosAlunos, setVerTodosAlunos] = useState(false);
   const [avisosAberto, setAvisosAberto] = useState(false);
+  /* Avisos são recalculados do zero a cada render (aula de hoje, pendência,
+     pedido do aluno) — sem estado próprio, o mesmo aviso reaparecia
+     idêntico toda vez que o sininho abria de novo, mesmo já tendo sido
+     clicado. Isto guarda, só nesta sessão do navegador (não precisa
+     persistir — amanhã a agenda já é outra), quais avisos o treinador já
+     abriu, pra sumirem da lista e da contagem sem precisar mudar o dado
+     de verdade por trás deles. */
+  const [avisosVistos, setAvisosVistos] = useState(() => new Set());
+  function marcarAvisoVisto(id) {
+    setAvisosVistos((atual) => new Set(atual).add(id));
+  }
   const [pedidosPendentesCount, setPedidosPendentesCount] = useState(0);
   const [limiteAtingido, setLimiteAtingido] = useState(false);
   const uidAtual = exigeLogin && window.mtyAuth.usuario() ? window.mtyAuth.usuario().uid : null;
@@ -8319,7 +8362,13 @@ function App() {
   }, [papelAtual]);
 
   const avisos = avisosDoProfessor(alunos, turmas, uidAtual);
-  const totalAvisos = avisos.lembretes.length + avisos.pendencias.length + avisos.pedidosAlunos.length + pedidosPendentesCount;
+  const idLembrete = (l) => "lembrete:" + l.tipo + ":" + l.titulo + ":" + l.hora;
+  const idPendencia = (p) => "pendencia:" + (p.id || p.turma + ":" + p.data);
+  const idPedidoAluno = (p) => "pedido:" + p.alunoId + ":" + p.tipo + ":" + (p.texto || "");
+  const lembretesVisiveis = avisos.lembretes.filter((l) => !avisosVistos.has(idLembrete(l)));
+  const pendenciasVisiveis = avisos.pendencias.filter((p) => !avisosVistos.has(idPendencia(p)));
+  const pedidosAlunosVisiveis = avisos.pedidosAlunos.filter((p) => !avisosVistos.has(idPedidoAluno(p)));
+  const totalAvisos = lembretesVisiveis.length + pendenciasVisiveis.length + pedidosAlunosVisiveis.length + pedidosPendentesCount;
   function abrirAvisos() {
     if (!avisosAberto && papelAtual === "coordenador") contarPedidosPendentes().then(setPedidosPendentesCount);
     setAvisosAberto(!avisosAberto);
@@ -8405,33 +8454,33 @@ function App() {
                           <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Nada pra avisar por agora.</p>
                         ) : (
                           <>
-                            {avisos.lembretes.length > 0 && (
+                            {lembretesVisiveis.length > 0 && (
                               <div className="mb-3">
                                 <Etiqueta>Hoje</Etiqueta>
-                                {avisos.lembretes.map((l, i) => (
-                                  <button key={i} onClick={() => { setAba(l.tipo === "turma" ? "turmas" : "alunos"); setAvisosAberto(false); }}
+                                {lembretesVisiveis.map((l, i) => (
+                                  <button key={i} onClick={() => { marcarAvisoVisto(idLembrete(l)); setAba(l.tipo === "turma" ? "turmas" : "alunos"); setAvisosAberto(false); }}
                                     className="w-full text-left" style={{ display: "block", padding: "6px 0", border: "none", background: "none", cursor: "pointer" }}>
                                     <p style={{ ...prosa, fontSize: 12.5 }}>{l.hora} · {l.titulo}</p>
                                   </button>
                                 ))}
                               </div>
                             )}
-                            {avisos.pendencias.length > 0 && (
+                            {pendenciasVisiveis.length > 0 && (
                               <div className="mb-3">
                                 <Etiqueta cor={C.saibro}>Pendências do grupo</Etiqueta>
-                                {avisos.pendencias.map((p, i) => (
-                                  <button key={i} onClick={() => { setAba("turmas"); setAvisosAberto(false); }}
+                                {pendenciasVisiveis.map((p, i) => (
+                                  <button key={i} onClick={() => { marcarAvisoVisto(idPendencia(p)); setAba("turmas"); setAvisosAberto(false); }}
                                     className="w-full text-left" style={{ display: "block", padding: "6px 0", border: "none", background: "none", cursor: "pointer" }}>
                                     <p style={{ ...prosa, fontSize: 12.5 }}>{p.turma} · {p.data}{p.motivo ? " · " + p.motivo : ""}</p>
                                   </button>
                                 ))}
                               </div>
                             )}
-                            {avisos.pedidosAlunos.length > 0 && (
+                            {pedidosAlunosVisiveis.length > 0 && (
                               <div className="mb-3">
                                 <Etiqueta cor={C.saibro}>Pedidos dos alunos</Etiqueta>
-                                {avisos.pedidosAlunos.map((p, i) => (
-                                  <button key={i} onClick={() => { setAba("alunos"); setAbertoId(p.alunoId); setAvisosAberto(false); }}
+                                {pedidosAlunosVisiveis.map((p, i) => (
+                                  <button key={i} onClick={() => { marcarAvisoVisto(idPedidoAluno(p)); setAba("alunos"); setAbertoId(p.alunoId); setAvisosAberto(false); }}
                                     className="w-full text-left" style={{ display: "block", padding: "6px 0", border: "none", background: "none", cursor: "pointer" }}>
                                     <p style={{ ...prosa, fontSize: 12.5 }}>
                                       <b>{p.alunoNome}</b> · {p.tipo === "conteudo" ? "quer trabalhar: " + p.texto : "pediu reposição"}
