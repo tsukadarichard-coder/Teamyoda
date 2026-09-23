@@ -2325,6 +2325,33 @@ function Seletor({ opcoes, valor, aoMudar }) {
   );
 }
 
+/* Mesmo visual do Seletor, mas pra campos que aceitam mais de uma opção
+   marcada ao mesmo tempo (ex.: arma do jogador — dá pra ter mais de uma
+   arma de verdade) — valor é sempre um array. */
+function SeletorMulti({ opcoes, valor, aoMudar }) {
+  const marcados = valor || [];
+  function alternar(v) {
+    aoMudar(marcados.includes(v) ? marcados.filter((x) => x !== v) : [...marcados, v]);
+  }
+  return (
+    <div className="flex flex-wrap gap-2">
+      {opcoes.map((o) => {
+        const on = marcados.includes(o.v);
+        return (
+          <button key={String(o.v)} onClick={() => alternar(o.v)}
+            style={{
+              fontFamily: ARCH, fontSize: 13, fontWeight: on ? 700 : 500, padding: "8px 13px",
+              borderRadius: 2, cursor: "pointer", border: "1px solid " + (on ? C.tinta : C.linha),
+              background: on ? C.tinta : C.cal, color: on ? C.papel : C.grafite,
+            }}>
+            {on ? "✓ " : ""}{o.r}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 const DIAS_SEMANA = [
   { v: 1, r: "Seg" }, { v: 2, r: "Ter" }, { v: 3, r: "Qua" }, { v: 4, r: "Qui" },
   { v: 5, r: "Sex" }, { v: 6, r: "Sáb" }, { v: 0, r: "Dom" },
@@ -2883,7 +2910,7 @@ function novoAluno() {
     objetivoFinal: "", marcos: [{ ano: "", marco: "", precisa: "" }],
     camadas: { tecnico: "", fisico: "", tatico: "", mental: "" },
     prioridades: ["saque", "devolucao", "fundo", "rede"],
-    arma: "fundo",
+    armas: ["fundo"],
     inicio: "", semanas: 18, competicoes: [{ nome: "", data: "" }],
     diasQuadra: 5, periodos: 2, escola: "noite", musculacao: 3,
     historico: [], registros: [],
@@ -3113,6 +3140,15 @@ function CardTrilha({ aluno, aoMudar, aoAbrirFicha }) {
 
 /* Texto da ficha para colar numa conversa e gerar o planejamento.
    Campos vazios ou marcados viram item de observação, nunca suposição. */
+/* Fichas salvas antes desta virar múltipla escolha ainda têm "arma"
+   (string única) em vez de "armas" (array) — lê os dois formatos, sem
+   precisar migrar nada em silêncio nem perder o que já estava salvo. */
+function armasDoJogador(f) {
+  if (Array.isArray(f.armas) && f.armas.length) return f.armas;
+  if (f.arma) return [f.arma];
+  return [];
+}
+
 function relatorioFicha(a) {
   const e = a.entrada || {};
   const v = (k) => {
@@ -3169,7 +3205,7 @@ function relatorioFicha(a) {
     L.push("Objetivo (adulto): " + (obj ? obj.r + " — " + obj.d : "[não definido]"));
   }
   L.push("Prioridades: " + a.prioridades.map((p, i) => (i + 1) + ") " + AREAS[p].nome).join(" · "));
-  L.push("Arma do jogador: " + AREAS[a.arma].nome);
+  L.push("Arma(s) do jogador: " + (armasDoJogador(a).map((id) => AREAS[id].nome).join(" · ") || "[não definida]"));
   if ((a.objetivoFinal || "").trim()) L.push("Objetivo final: " + a.objetivoFinal.trim());
   if ((a.pedidosConteudoAprovados || []).length) {
     L.push("");
@@ -3750,8 +3786,8 @@ function TelaFicha({ aluno, salvar, papelAtual }) {
             <button onClick={() => mover(i, 1)} style={iconeEstilo}>↓</button>
           </div>
         ))}
-        <Campo rotulo="Arma do jogador" nota="O que já funciona entra como manutenção, não some do plano.">
-          <Seletor opcoes={AREA_OPCOES.map((a) => ({ v: a.id, r: a.nome }))} valor={f.arma} aoMudar={(v) => set("arma", v)} />
+        <Campo rotulo="Arma(s) do jogador" nota="O que já funciona entra como manutenção, não some do plano. Pode marcar mais de uma.">
+          <SeletorMulti opcoes={AREA_OPCOES.map((a) => ({ v: a.id, r: a.nome }))} valor={armasDoJogador(f)} aoMudar={(v) => set("armas", v)} />
         </Campo>
       </Secao>
 
