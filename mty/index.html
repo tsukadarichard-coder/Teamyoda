@@ -6399,7 +6399,24 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
             )}
             <Botao variante="vazio" onClick={() => {
               const msg = eTurma ? "Remover o plano desta turma? Os registros vão junto." : "Remover o plano deste jogador? Os registros vão junto.";
-              if (confirm(msg)) atualiza({ plano: null, regPlano: {} });
+              if (!confirm(msg)) return;
+              /* Se já rolou aula neste ciclo, remover sem arquivar apagaria
+                 esse histórico do que a IA vê pra montar o próximo plano —
+                 mesma lógica de revisarComFichaAtualizada, só que disparada
+                 por "Remover" em vez de "Refazer". Sem aula feita ainda,
+                 não há o que preservar: remove direto. */
+              if (feitas > 0) {
+                const item = {
+                  id: "REL-" + Date.now().toString(36),
+                  data: new Date().toISOString(),
+                  tipo: (plano.tipo || "") + " (arquivado ao remover o plano)",
+                  feitas, total: aulas.length,
+                  texto: construirRelatorio(),
+                };
+                atualiza({ plano: null, regPlano: {}, historicoRelatorios: [item, ...historico] });
+              } else {
+                atualiza({ plano: null, regPlano: {} });
+              }
             }}>Remover plano</Botao>
           </div>
 
