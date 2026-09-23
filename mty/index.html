@@ -7129,7 +7129,10 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas }) {
         turmas.map((t) => (
           <div key={t.id} onClick={() => setAbertaId(t.id)}
             style={{ background: C.cal, border: "1px solid " + C.linha, padding: "13px 15px", marginBottom: 9, cursor: "pointer" }}>
-            <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{t.nome}</div>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{t.nome}</div>
+              {!t.plano && <Etiqueta cor={C.saibro}>sem plano — toque pra montar</Etiqueta>}
+            </div>
             <div className="mt-1"><Etiqueta>{t.duracaoPadrao} · {t.membros.length} jogadores{rotuloProfessores(t.professorNome, t.professorAuxiliarNome)}</Etiqueta></div>
             {(t.horarios || []).length > 0 && (
               <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 4 }}>
@@ -7145,7 +7148,10 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas }) {
 
 function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, aoRemover }) {
   const membros = turma.membros.map((id) => alunos.find((a) => a.id === id)).filter(Boolean);
-  const [subaba, setSubaba] = useState("sessao");
+  /* Sem plano ainda, a aba Sessão só mostra "esta turma não tem plano" —
+     abre direto em Plano pra "gerar os treinos" ser a primeira coisa que
+     aparece, em vez de escondido atrás de um link dentro da Sessão. */
+  const [subaba, setSubaba] = useState(turma.plano ? "sessao" : "plano");
   const [statusGeral, setStatusGeral] = useState("feita");
   const [motivo, setMotivo] = useState("");
   const [nota, setNota] = useState("");
