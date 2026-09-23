@@ -7,13 +7,20 @@
    curl -X POST https://SEU-SITE.netlify.app/.netlify/functions/provisionar-org \
      -H "content-type: application/json" \
      -H "x-admin-secret: SEU_ADMIN_SECRET" \
-     -d '{"orgId":"team-yoda","nomeAcademia":"Team Yoda Tennis Pro","logoUrl":"https://SEU-SITE.netlify.app/assets/logo-team-yoda.jpg","email":"treinador@exemplo.com","senha":"umaSenhaForte123","plano":"essencial","planoAtivoAte":"2027-01-01"}'
+     -d '{"orgId":"team-yoda","nomeAcademia":"Team Yoda Tennis Pro","logoUrl":"https://SEU-SITE.netlify.app/assets/logo-team-yoda.jpg","email":"treinador@exemplo.com","senha":"umaSenhaForte123","plano":"essencial","planoAtivoAte":"2027-01-01","mostrarManual":false}'
    logoUrl é opcional — sem ele, a academia vê o próprio nome como logotipo de texto no lugar do logo.
    plano é opcional ("gratis", "essencial" ou "premium" — ver LIMITES_POR_PLANO
    no index.html; sem esse campo, a academia fica sem limite de jogadores,
    igual academia antiga). planoAtivoAte é opcional ("AAAA-MM-DD") — depois
    dessa data o app para de aceitar jogador novo até você rodar de novo
-   este mesmo comando com uma data mais adiante (renovação manual). */
+   este mesmo comando com uma data mais adiante (renovação manual).
+   mostrarManual (opcional, true/false) decide se a aba "Manual" (Catálogo,
+   Técnica, Táticas, Condução, Públicos, Como decide — a documentação do
+   método MTY da própria Team Yoda) aparece pra essa academia. Sem esse
+   campo no documento, o app mostra normalmente (compatível com toda
+   academia de antes desta opção existir); a partir de agora o admin.html
+   manda sempre um valor explícito, e o padrão do formulário é ocultar
+   pra academia nova, já que o método é da Team Yoda, não dela. */
 const { admin, app } = require("./_firebase-admin");
 
 exports.handler = async function (event) {
@@ -33,7 +40,7 @@ exports.handler = async function (event) {
     return resposta(400, { erro: "Corpo da requisição inválido." });
   }
 
-  const { orgId, nomeAcademia, logoUrl, email, senha, plano, planoAtivoAte } = corpo;
+  const { orgId, nomeAcademia, logoUrl, email, senha, plano, planoAtivoAte, mostrarManual } = corpo;
   if (!orgId || !email || !senha) {
     return resposta(400, { erro: "Faltou orgId, email ou senha." });
   }
@@ -70,6 +77,7 @@ exports.handler = async function (event) {
     if (logoUrl) identidade.logoUrl = logoUrl;
     if (plano) identidade.plano = plano;
     if (planoAtivoAte) identidade.planoAtivoAte = planoAtivoAte;
+    if (typeof mostrarManual === "boolean") identidade.mostrarManual = mostrarManual;
     await admin.firestore().collection("orgs").doc(orgId).collection("meta").doc("info").set(identidade, { merge: true });
 
     return resposta(200, {
