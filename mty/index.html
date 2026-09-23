@@ -7158,6 +7158,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
   const [salvo, setSalvo] = useState(null);
   const [chuvaAberta, setChuvaAberta] = useState(false);
   const [chuvaModeloId, setChuvaModeloId] = useState(null);
+  const [sessaoTurma, setSessaoTurma] = useState(null); // { aquecimento, conteudo } | null — a sessão de hoje da turma, com exercícios de verdade pra rodar em quadra
 
   const pendencias = turma.pendencias || [];
   const pendenciasAbertas = pendencias.filter((p) => !p.resolvida);
@@ -7165,6 +7166,43 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
      a da turma, não a de cada jogador. Sem plano de turma ainda, cada
      um continua com o próprio (comportamento de antes da unificação). */
   const aulaTurma = turma.plano ? aulaEmVigor(turma) : null;
+  const estagiosTurma = [...new Set(membros.map((m) => m.estagio))];
+
+  /* Monta a sessão de hoje da turma de verdade (com exercícios pra rodar
+     em quadra), igual a Sessão de hoje individual já faz — antes disso a
+     tela só mostrava o título da aula, sem exercício nenhum, então não
+     dava pra "gerar a sessão do dia" de fato, só marcar status depois. */
+  function gerarSessaoTurma() {
+    const evitar = new Set();
+    const aquecimento = sorteia(exerciciosParaSorteio().filter((e) => BLOCOS[0].familias.includes(e.f) && e.e.some((s) => estagiosTurma.includes(s))), evitar, 1);
+    let conteudo = (aulaTurma.ex || []).map((c) => TODOS_EXERCICIOS().find((e) => e.c === c)).filter((e) => e && !e.semBola);
+    const usados = new Set(conteudo.map((e) => e.c));
+    const temSaque = conteudo.some((e) => AREAS.saque.busca.test(e.n + " " + e.m));
+    const temDevolucao = conteudo.some((e) => AREAS.devolucao.busca.test(e.n + " " + e.m));
+    if (!temSaque) {
+      const [s] = sorteia(exerciciosParaSorteio().filter((e) => AREAS.saque.busca.test(e.n + " " + e.m) && e.e.some((x) => estagiosTurma.includes(x)) && !usados.has(e.c)), evitar, 1);
+      if (s) { conteudo = [...conteudo, s]; usados.add(s.c); }
+    }
+    if (!temDevolucao) {
+      const [d] = sorteia(exerciciosParaSorteio().filter((e) => AREAS.devolucao.busca.test(e.n + " " + e.m) && e.e.some((x) => estagiosTurma.includes(x)) && !usados.has(e.c)), evitar, 1);
+      if (d) conteudo = [...conteudo, d];
+    }
+    if (estagiosTurma.some((s) => s === "V" || s === "L")) conteudo = garanteBrincadeira(conteudo, evitar, estagiosTurma.find((s) => s === "V" || s === "L"));
+    setSessaoTurma({ aquecimento, conteudo });
+  }
+  function trocarSessaoTurma(secao, i) {
+    setSessaoTurma((p) => {
+      const lista = p[secao];
+      const usados = new Set([...p.aquecimento, ...p.conteudo].map((e) => e.c));
+      const pool = exerciciosParaSorteio().filter((e) => e.e.some((s) => estagiosTurma.includes(s)) && !usados.has(e.c));
+      if (!pool.length) return p;
+      const novo = pool[Math.floor(Math.random() * pool.length)];
+      return { ...p, [secao]: lista.map((e, k) => (k === i ? novo : e)) };
+    });
+  }
+  function removerSessaoTurma(secao, i) {
+    setSessaoTurma((p) => ({ ...p, [secao]: p[secao].filter((_, k) => k !== i) }));
+  }
 
   /* Quando a sessão sai como planejado ("Realizada"): se a turma tem
      plano próprio, avança só ele (uma marcação, pro grupo inteiro). Sem
@@ -7199,6 +7237,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
     }
     setSalvo(statusGeral);
     setChuvaModeloId(null);
+    setSessaoTurma(null);
   }
 
   function marcarResolvida(id) {
@@ -7326,11 +7365,35 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
             </p>
           </div>
         ) : aulaTurma ? (
-          <div className="mb-5" style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "13px 15px" }}>
-            <Etiqueta cor={C.saibro}>Aula em vigor do plano da turma</Etiqueta>
-            <p style={{ ...prosa, fontSize: 14, fontWeight: 700, marginTop: 4 }}>{aulaTurma.bloco} · semana {aulaTurma.semana} · {aulaTurma.t}</p>
-            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>{aulaTurma.d}</p>
-          </div>
+          <>
+            <div className="mb-5" style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "13px 15px" }}>
+              <Etiqueta cor={C.saibro}>Aula em vigor do plano da turma</Etiqueta>
+              <p style={{ ...prosa, fontSize: 14, fontWeight: 700, marginTop: 4 }}>{aulaTurma.bloco} · semana {aulaTurma.semana} · {aulaTurma.t}</p>
+              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>{aulaTurma.d}</p>
+            </div>
+            {!sessaoTurma ? (
+              <div className="mb-5"><Botao onClick={gerarSessaoTurma} variante="saibro">Gerar sessão de hoje</Botao></div>
+            ) : (
+              <div className="mb-5">
+                <h3 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 9 }}>Aquecimento</h3>
+                {sessaoTurma.aquecimento.length === 0 ? (
+                  <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Nenhum exercício de base motora encontrado pros estágios desta turma.</p>
+                ) : (
+                  sessaoTurma.aquecimento.map((e, i) => (
+                    <CartaoExercicio key={e.c + i} e={e} aoTrocar={() => trocarSessaoTurma("aquecimento", i)} aoRemover={() => removerSessaoTurma("aquecimento", i)} />
+                  ))
+                )}
+                <h3 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, margin: "18px 0 9px" }}>Conteúdo da aula</h3>
+                {sessaoTurma.conteudo.length === 0 ? (
+                  <Aviso>Nenhum exercício com bola sobrou desta aula — os códigos ou não existem no catálogo, ou são exercícios sem bola (reservados pra dia de chuva). Confira o Plano.</Aviso>
+                ) : (
+                  sessaoTurma.conteudo.map((e, i) => (
+                    <CartaoExercicio key={e.c + i} e={e} aoTrocar={() => trocarSessaoTurma("conteudo", i)} aoRemover={() => removerSessaoTurma("conteudo", i)} />
+                  ))
+                )}
+              </div>
+            )}
+          </>
         ) : (
           <div className="mb-5" style={{ background: "#F4F7F4", borderLeft: "3px solid " + C.quadra, padding: "11px 14px" }}>
             <Etiqueta cor={C.quadra}>Plano da turma concluído</Etiqueta>
