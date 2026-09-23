@@ -1405,6 +1405,13 @@ const AUTOVERIFICACAO_PROFESSOR = [
 ];
 
 /* ── cursos de formação continuada, por módulo ── */
+/* Cada módulo tem uma "saída" — o critério de demonstração, sempre em
+   texto livre — que o próprio treinador responde com um caso real (ver
+   AutoAvaliacaoModulo). O "quiz" de cada curso é objetivo e autocorrigido,
+   só pra confirmar que o conteúdo foi lido — nunca substitui a saída, que
+   é a avaliação de verdade. As perguntas do quiz usam sempre o texto
+   literal já presente no método (NIVEIS_CRITERIOS, FORMACAO_STAFF_INFO,
+   PRINCIPIOS_MTY) — nunca inventam critério novo. */
 const CURSOS_FORMACAO = [
   {
     id: "percepcao", nome: "Percepção em Quadra", modulos: [
@@ -1415,6 +1422,14 @@ const CURSOS_FORMACAO = [
       { t: "Calibrar e confirmar", saida: "Demonstra, com um aluno real, uma correção confirmada por execução — não por resposta verbal." },
       { t: "Encadear as dez", saida: "A ficha de caso escrita pelo professor sobre a própria aula separa corretamente observação de conclusão em pelo menos 8 de 10 registros." },
     ],
+    quiz: [
+      { p: "No módulo \"Ver sem concluir\", o que caracteriza um relato correto de dois minutos de aula?",
+        opcoes: ["Não usar nenhuma palavra de estado", "Descrever a intenção do aluno", "Incluir uma hipótese sobre a causa do erro", "Dar uma nota de 0 a 10 pro desempenho"], certa: 0 },
+      { p: "O módulo \"Escolher o momento\" pede um caso real em que:",
+        opcoes: ["Corrigir na hora sempre funciona melhor", "Segurar a correção produziu resultado melhor do que corrigir na hora", "O aluno pediu a correção antes", "A correção foi feita em grupo, não individual"], certa: 1 },
+      { p: "Uma correção está \"confirmada\" (módulo \"Calibrar e confirmar\") quando:",
+        opcoes: ["O aluno diz que entendeu", "O treinador demonstra de novo", "O aluno executa o movimento corrigido", "Passa uma semana sem repetir o erro"], certa: 2 },
+    ],
   },
   {
     id: "diagnostico", nome: "Diagnóstico em Casos Reais", modulos: [
@@ -1422,6 +1437,14 @@ const CURSOS_FORMACAO = [
       { t: "Físico: a camada mais esquecida", saida: "Reconhece, em vídeo, os sinais visuais de fadiga que distinguem erro físico de erro técnico." },
       { t: "Tático: decisão versus execução", saida: "Aplica a pergunta de separação em tempo real durante um caso ao vivo, não só em vídeo gravado." },
       { t: "Mental: só depois de eliminar as outras três", saida: "Formula, para um caso mental genuíno, uma intervenção específica — não uma frase de estado." },
+    ],
+    quiz: [
+      { p: "Qual é a ordem de diagnóstico travada da Metodologia MTY?",
+        opcoes: ["Mental, técnico, tático, físico", "Técnico, físico, tático, mental", "Tático, mental, técnico, físico", "Não existe ordem fixa — depende do caso"], certa: 1 },
+      { p: "Por que o físico é chamado de \"a camada mais esquecida\"?",
+        opcoes: ["Porque não afeta o jogo", "Porque só importa em competição", "Porque sinais de fadiga costumam ser confundidos com erro técnico", "Porque é sempre a última camada a ser diagnosticada"], certa: 2 },
+      { p: "\"Tático: decisão versus execução\" ajuda o treinador a distinguir o quê num erro?",
+        opcoes: ["Se a bola caiu dentro ou fora", "Se o golpe foi cruzado ou paralelo", "Se o erro foi de decisão (escolha errada) ou de execução (escolha certa, mal executada)", "Se o aluno está cansado"], certa: 2 },
     ],
   },
   {
@@ -1433,6 +1456,30 @@ const CURSOS_FORMACAO = [
       { t: "Planejamento (semanas 22–27) · Marco 4", saida: "Defende diante do grupo um planejamento completo de mesociclo para um aluno real, coerente com o diagnóstico e sem ancorar em resultado de torneio." },
       { t: "Comunicação (semanas 28–32) · Marco 5", saida: "Conduz uma conversa de reavaliação real com um aluno seguindo a estrutura C-07, com o aluno falando primeiro e sem prometer prazo." },
       { t: "Competição e fechamento (semanas 33–36) · Marco final", saida: "Apresenta o caso completo de um aluno acompanhado no programa inteiro, incluindo o que faria diferente se recomeçasse." },
+    ],
+    quiz: [
+      { p: "No mecanismo \"Duplas cruzadas\", como funciona a devolutiva?",
+        opcoes: ["De cima para baixo, só do formador", "Mútua, entre um par fixo mais e menos experiente", "Anônima, por formulário", "Só por escrito, sem conversa"], certa: 1 },
+      { p: "A partir de que módulo começa o \"Rodízio de condução\" (cada encontro conduzido por um treinador diferente)?",
+        opcoes: ["Módulo 1", "Módulo 3", "Módulo 5", "Nunca — é sempre o formador"], certa: 1 },
+      { p: "O que a certificação \"Assistente MTY\" habilita?",
+        opcoes: ["Conduzir competição (Y5–Y6)", "Formar novos treinadores", "Conduzir aulas de iniciação (Y1–Y2) sob supervisão", "Nada — é só um título simbólico"], certa: 2 },
+    ],
+  },
+  {
+    id: "escada-niveis", nome: "A Escada Y1–Y6", modulos: [
+      { t: "A infância: Y1 a Y3", saida: "Explica, com suas próprias palavras, a diferença entre um aluno Y1 e um Y3 para um responsável leigo, sem usar jargão técnico." },
+      { t: "A entrada na competição: Y4", saida: "Aponta, na ficha de um aluno real, se ele já cumpre \"sustenta o ponto sem antecipar o risco\" — o critério mais confundido do Y4." },
+      { t: "Decidir sob pressão: Y5", saida: "Descreve um padrão próprio automatizado que viu um aluno acessar sozinho, sem ser mandado, dentro de um jogo de verdade." },
+      { t: "Competição plena: Y6", saida: "Relata, de uma competição real de um aluno, um momento em que ele reconstruiu o plano de jogo dentro da própria partida." },
+    ],
+    quiz: [
+      { p: "Qual critério pertence ao Y2 (Troca), não ao Y1 (Descoberta)?",
+        opcoes: ["Reconhece e nomeia bola alta e bola baixa", "Ataca a bola que sobra, mesmo errando", "Saca por cima da rede e coloca a bola em jogo com regularidade", "Desloca-se e para equilibrado antes de golpear"], certa: 1 },
+      { p: "O que distingue o Y5 do Y4, segundo a nota do próprio nível?",
+        opcoes: ["Y5 é só sobre condicionamento físico", "No Y4 o aluno executa o padrão quando o exercício pede; no Y5 ele acessa sozinho, dentro do jogo, sob pressão", "Y4 já compete e Y5 ainda não", "Não há diferença real entre os dois"], certa: 1 },
+      { p: "Qual critério do Y6 só pode ser observado em competição real, nunca em treino?",
+        opcoes: ["Domina a matriz completa dos 18 cenários do saque", "Executa os seis sistemas de ataque", "Reconstrói o plano dentro da partida quando ele não funciona", "Tem as três variações de saque com armado indistinguível"], certa: 2 },
     ],
   },
 ];
@@ -6796,25 +6843,18 @@ function VisaoGeralEquipe({ alunos, turmas }) {
    Pedidos de acesso ficam pendentes até alguém com role "coordenador"
    aprovar — a function aprovar-treinador confere isso pelo próprio
    token de quem chama, não por um segredo separado. */
-function TelaEquipe({ alunos, turmas }) {
+function TelaEquipe({ alunos, turmas, membros, setMembros, carregandoForm }) {
   const [subaba, setSubaba] = useState("visao");
   const [pendentes, setPendentes] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [ocupado, setOcupado] = useState(null);
   const [erro, setErro] = useState("");
-  const [membros, setMembros] = useState([]);
-  const [carregandoForm, setCarregandoForm] = useState(true);
   const [linkConvite, setLinkConvite] = useState("");
   const [linkCopiado, setLinkCopiado] = useState(false);
   const [emailCorrigir, setEmailCorrigir] = useState("");
   const [nomeCorrigir, setNomeCorrigir] = useState("");
   const [corrigindo, setCorrigindo] = useState(false);
   const [msgCorrigir, setMsgCorrigir] = useState(null);
-
-  useEffect(() => {
-    leia("mty:formacao:v1", [], true).then((m) => { setMembros(m); setCarregandoForm(false); });
-  }, []);
-  useEffect(() => { if (!carregandoForm) grave("mty:formacao:v1", membros, true); }, [membros, carregandoForm]);
 
   useEffect(() => {
     (async () => {
@@ -7002,12 +7042,156 @@ function TelaEquipe({ alunos, turmas }) {
   );
 }
 
-function novoMembroFormacao(nome) {
+/* uid: quando vem de um treinador de verdade (a formação virou
+   autodidata — ver TelaFormacaoPessoal), amarra o registro à conta dele,
+   pra ele sempre reencontrar o próprio progresso ao entrar. Registro
+   antigo, cadastrado à mão pelo coordenador antes disso existir, continua
+   com uid null — segue funcionando, só não abre sozinho pra ninguém. */
+function novoMembroFormacao(nome, uid) {
   return {
-    id: "mem-" + Date.now().toString(36),
-    nome: nome.trim(),
-    progresso: Object.fromEntries(CURSOS_FORMACAO.map((c) => [c.id, c.modulos.map(() => false)])),
+    id: uid || "mem-" + Date.now().toString(36),
+    uid: uid || null,
+    nome: (nome || "").trim(),
+    progresso: Object.fromEntries(CURSOS_FORMACAO.map((c) => [c.id, c.modulos.map(() => ({ concluido: false, resposta: "", confianca: null, comentario: "" }))])),
+    quiz: Object.fromEntries(CURSOS_FORMACAO.filter((c) => (c.quiz || []).length).map((c) => [c.id, { respostas: c.quiz.map(() => null), acertos: null }])),
   };
+}
+
+/* Lê o progresso de um módulo tolerando o formato antigo (um boolean
+   solto, de antes da formação virar autodidata) — sem isso, todo
+   registro criado antes desta mudança quebraria ao abrir. */
+function progressoModulo(membro, cursoId, idx) {
+  const raw = ((membro.progresso || {})[cursoId] || [])[idx];
+  if (raw && typeof raw === "object") return { concluido: false, resposta: "", confianca: null, comentario: "", ...raw };
+  return { concluido: !!raw, resposta: "", confianca: null, comentario: "" };
+}
+
+function contagemFormacao(membro) {
+  const feitos = CURSOS_FORMACAO.reduce((n, c) =>
+    n + c.modulos.filter((_, i) => progressoModulo(membro, c.id, i).concluido).length, 0);
+  const total = CURSOS_FORMACAO.reduce((n, c) => n + c.modulos.length, 0);
+  return feitos + "/" + total;
+}
+
+/* Módulo com "saída" pra responder por escrito (o texto é a avaliação
+   de verdade — nunca uma suposição do treinador sobre si mesmo sem
+   registro) + confiança de 1 a 5. Em modoCoordenador, os três campos do
+   treinador ficam travados e só o comentário de supervisão é editável —
+   Richard revisa, não preenche por ele. */
+function AutoAvaliacaoModulo({ mod, indice, progresso, aoMudar, modoCoordenador }) {
+  const podeConcluir = progresso.resposta.trim().length > 0;
+  return (
+    <div style={{ background: progresso.concluido ? "#F4F7F4" : C.cal, border: "1px solid " + C.linha,
+      borderLeft: "3px solid " + (progresso.concluido ? C.quadra : C.linha), padding: "12px 14px", marginBottom: 9 }}>
+      <div className="flex items-start gap-3 mb-2">
+        {!modoCoordenador && (
+          <button onClick={() => podeConcluir && aoMudar({ concluido: !progresso.concluido })} disabled={!podeConcluir}
+            style={{ border: "none", background: "none", padding: 0, cursor: podeConcluir ? "pointer" : "default",
+              fontFamily: ARCH, fontSize: 16, lineHeight: 1.2, color: progresso.concluido ? C.quadra : (podeConcluir ? C.grafite : C.linha) }}>
+            {progresso.concluido ? "☑" : "☐"}
+          </button>
+        )}
+        <div className="flex-1">
+          <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, color: progresso.concluido ? C.quadra : C.tinta }}>
+            Módulo {indice + 1} · {mod.t}{modoCoordenador && progresso.concluido ? " · concluído" : ""}
+          </div>
+          <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 3 }}>Demonstre: {mod.saida}</p>
+        </div>
+      </div>
+      {modoCoordenador ? (
+        <div className="mt-2" style={{ paddingLeft: 4 }}>
+          <p style={{ ...prosa, fontSize: 12.5, whiteSpace: "pre-wrap", background: C.papel, padding: "8px 10px", borderRadius: 2 }}>
+            {progresso.resposta.trim() || "[o treinador ainda não escreveu a resposta deste módulo]"}
+          </p>
+          {progresso.confianca && <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginTop: 4 }}>Confiança que ele próprio deu: {progresso.confianca}/5</p>}
+          <div className="mt-2">
+            <Campo rotulo="Comentário de supervisão">
+              <textarea rows={2} style={{ ...entrada, resize: "vertical", fontSize: 12.5 }}
+                value={progresso.comentario} onChange={(e) => aoMudar({ comentario: e.target.value })}
+                placeholder="devolutiva pra este módulo — o que faltou, o que foi bem" />
+            </Campo>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-2" style={{ paddingLeft: 4 }}>
+          <textarea rows={3} style={{ ...entrada, resize: "vertical", fontSize: 12.5 }}
+            value={progresso.resposta} onChange={(e) => aoMudar({ resposta: e.target.value, ...(e.target.value.trim() ? {} : { concluido: false }) })}
+            placeholder="escreva o caso real que demonstra este módulo" />
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
+            <span style={{ ...prosa, fontSize: 11.5, color: C.grafite }}>Quão confiante você está nisso?</span>
+            <Seletor opcoes={[1, 2, 3, 4, 5].map((n) => ({ v: n, r: String(n) }))} valor={progresso.confianca || 0}
+              aoMudar={(v) => aoMudar({ confianca: v })} />
+          </div>
+          {!podeConcluir && <p style={{ ...prosa, fontSize: 11, color: C.grafite, marginTop: 4 }}>Escreva a resposta pra poder marcar como concluído.</p>}
+          {progresso.comentario && (
+            <div className="mt-2" style={{ background: C.papel, borderLeft: "3px solid " + C.saibro, padding: "8px 10px" }}>
+              <Etiqueta cor={C.saibro}>Comentário do coordenador</Etiqueta>
+              <p style={{ ...prosa, fontSize: 12, marginTop: 3 }}>{progresso.comentario}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* Quiz objetivo, autocorrigido — confirma que o conteúdo foi lido antes
+   de partir pra "saída" de cada módulo, que é a avaliação de verdade. */
+function QuizCurso({ curso, quizState, aoResponder, modoCoordenador }) {
+  const perguntas = curso.quiz || [];
+  if (!perguntas.length) return null;
+  const [rascunho, setRascunho] = useState(quizState.respostas);
+  const jaRespondeu = quizState.acertos !== null;
+
+  function escolher(i, v) {
+    setRascunho((r) => r.map((x, k) => (k === i ? v : x)));
+  }
+  function conferir() {
+    const acertos = rascunho.reduce((n, r, i) => n + (r === perguntas[i].certa ? 1 : 0), 0);
+    aoResponder({ respostas: rascunho, acertos });
+  }
+
+  return (
+    <div className="mt-4" style={{ background: C.papel, border: "1px solid " + C.linha, padding: "12px 14px" }}>
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <span style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700 }}>Quiz do curso</span>
+        {(jaRespondeu || modoCoordenador) && (
+          <Etiqueta cor={quizState.acertos === perguntas.length ? C.quadra : C.saibro}>
+            {quizState.acertos === null ? "ainda não respondeu" : quizState.acertos + " de " + perguntas.length + " certas"}
+          </Etiqueta>
+        )}
+      </div>
+      {perguntas.map((q, i) => (
+        <div key={i} className="mb-3">
+          <p style={{ ...prosa, fontSize: 12.5, fontWeight: 600, marginBottom: 5 }}>{i + 1}. {q.p}</p>
+          {q.opcoes.map((op, oi) => {
+            const marcada = modoCoordenador ? quizState.respostas[i] === oi : rascunho[i] === oi;
+            const mostrarCerto = (jaRespondeu || modoCoordenador) && oi === q.certa;
+            const mostrarErrado = (jaRespondeu || modoCoordenador) && marcada && oi !== q.certa;
+            return (
+              <button key={oi} disabled={modoCoordenador || jaRespondeu} onClick={() => escolher(i, oi)}
+                className="w-full text-left flex items-center gap-2" style={{ padding: "6px 9px", marginBottom: 3, border: "none",
+                  background: mostrarCerto ? "#F4F7F4" : mostrarErrado ? "#FBF0EE" : "transparent",
+                  cursor: modoCoordenador || jaRespondeu ? "default" : "pointer" }}>
+                <span style={{ fontFamily: ARCH, fontSize: 13, color: mostrarCerto ? C.quadra : mostrarErrado ? C.saibro : (marcada ? C.tinta : C.grafite) }}>
+                  {marcada ? "●" : "○"}
+                </span>
+                <span style={{ ...prosa, fontSize: 12.5, color: mostrarCerto ? C.quadra : mostrarErrado ? C.saibro : C.tinta }}>{op}</span>
+              </button>
+            );
+          })}
+        </div>
+      ))}
+      {!modoCoordenador && !jaRespondeu && (
+        <Botao pequeno onClick={conferir} disabled={rascunho.some((r) => r === null)}>Conferir respostas</Botao>
+      )}
+      {!modoCoordenador && jaRespondeu && quizState.acertos < perguntas.length && (
+        <Botao pequeno variante="vazio" onClick={() => { setRascunho(perguntas.map(() => null)); aoResponder({ respostas: perguntas.map(() => null), acertos: null }); }}>
+          Tentar de novo
+        </Botao>
+      )}
+    </div>
+  );
 }
 
 function ReferenciaFormacaoStaff() {
@@ -7045,6 +7229,11 @@ function ReferenciaFormacaoStaff() {
   );
 }
 
+/* Visão do coordenador: supervisão, não preenchimento. Cada treinador
+   preenche o próprio progresso em "Formação" (TelaFormacaoPessoal); aqui
+   o coordenador só lê o que foi escrito e deixa comentário — o registro
+   manual por nome continua existindo, pra quem ainda não tem conta
+   própria no sistema. */
 function SecaoFormacao({ membros, setMembros, carregando }) {
   const [nomeNovo, setNomeNovo] = useState("");
   const [abertoId, setAbertoId] = useState(null);
@@ -7059,19 +7248,14 @@ function SecaoFormacao({ membros, setMembros, carregando }) {
     setMembros(membros.filter((m) => m.id !== id));
     if (abertoId === id) setAbertoId(null);
   }
-  function alternar(id, cursoId, idx) {
+  function mudarModulo(id, cursoId, idx, patch) {
     setMembros(membros.map((m) => {
       if (m.id !== id) return m;
       const curso = CURSOS_FORMACAO.find((c) => c.id === cursoId);
-      const atual = m.progresso[cursoId] || curso.modulos.map(() => false);
-      const prog = { ...m.progresso, [cursoId]: atual.map((v, i) => (i === idx ? !v : v)) };
-      return { ...m, progresso: prog };
+      const atual = curso.modulos.map((_, i) => progressoModulo(m, cursoId, i));
+      atual[idx] = { ...atual[idx], ...patch };
+      return { ...m, progresso: { ...m.progresso, [cursoId]: atual } };
     }));
-  }
-  function contagem(m) {
-    const feitos = CURSOS_FORMACAO.reduce((n, c) => n + (m.progresso[c.id] || []).filter(Boolean).length, 0);
-    const total = CURSOS_FORMACAO.reduce((n, c) => n + c.modulos.length, 0);
-    return feitos + "/" + total;
   }
 
   const aberto = abertoId ? membros.find((m) => m.id === abertoId) : null;
@@ -7079,15 +7263,15 @@ function SecaoFormacao({ membros, setMembros, carregando }) {
   return (
     <div>
       <p style={{ ...prosa, color: C.grafite, marginBottom: 16 }}>
-        Acompanhamento dos cursos de formação — Percepção em Quadra, Diagnóstico em Casos Reais e
-        a Formação Interna de 36 semanas — por treinador da equipe.
+        Supervisão da formação — cada treinador preenche o próprio progresso, com texto e quiz, na
+        aba "Formação". Aqui você acompanha e deixa comentário, sem precisar preencher por ele.
       </p>
 
       <ReferenciaFormacaoStaff />
 
       <div className="flex gap-2 mb-5">
         <input style={entrada} value={nomeNovo} onChange={(e) => setNomeNovo(e.target.value)}
-          placeholder="Nome do treinador" onKeyDown={(e) => e.key === "Enter" && adicionar()} />
+          placeholder="Nome do treinador (sem conta própria ainda)" onKeyDown={(e) => e.key === "Enter" && adicionar()} />
         <Botao pequeno onClick={adicionar} disabled={!nomeNovo.trim()}>Adicionar</Botao>
       </div>
 
@@ -7097,41 +7281,102 @@ function SecaoFormacao({ membros, setMembros, carregando }) {
         <div>
           <button onClick={() => setAbertoId(null)} className="mb-3" style={{ ...prosa, color: C.grafite, cursor: "pointer" }}>← Todos os treinadores</button>
           <h2 style={{ fontFamily: ARCH, fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{aberto.nome}</h2>
-          <div className="mb-5"><Etiqueta>{contagem(aberto)} módulos concluídos</Etiqueta></div>
+          <div className="mb-5"><Etiqueta>{contagemFormacao(aberto)} módulos concluídos</Etiqueta></div>
           {CURSOS_FORMACAO.map((c) => (
             <div key={c.id} className="mb-6">
               <h3 style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginBottom: 9 }}>{c.nome}</h3>
-              {c.modulos.map((mod, i) => {
-                const feito = !!(aberto.progresso[c.id] || [])[i];
-                return (
-                  <div key={i} onClick={() => alternar(aberto.id, c.id, i)}
-                    style={{ background: feito ? "#F4F7F4" : C.cal, border: "1px solid " + C.linha,
-                      borderLeft: "3px solid " + (feito ? C.quadra : C.linha), padding: "10px 13px", marginBottom: 7, cursor: "pointer" }}>
-                    <div className="flex items-start gap-3">
-                      <span style={{ fontFamily: ARCH, fontSize: 16, lineHeight: 1.2, color: feito ? C.quadra : C.grafite }}>{feito ? "☑" : "☐"}</span>
-                      <div>
-                        <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>Módulo {i + 1} · {mod.t}</div>
-                        <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 3 }}>Sai do módulo: {mod.saida}</p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+              {c.modulos.map((mod, i) => (
+                <AutoAvaliacaoModulo key={i} mod={mod} indice={i} progresso={progressoModulo(aberto, c.id, i)}
+                  aoMudar={(patch) => mudarModulo(aberto.id, c.id, i, patch)} modoCoordenador />
+              ))}
+              {(c.quiz || []).length > 0 && (
+                <QuizCurso curso={c} quizState={aberto.quiz && aberto.quiz[c.id] ? aberto.quiz[c.id] : { respostas: c.quiz.map(() => null), acertos: null }}
+                  aoResponder={() => {}} modoCoordenador />
+              )}
             </div>
           ))}
           <Botao variante="vazio" onClick={() => remover(aberto.id)}>Remover treinador</Botao>
         </div>
       ) : membros.length === 0 ? (
-        <p style={{ ...prosa, color: C.grafite }}>Nenhum treinador cadastrado na formação ainda.</p>
+        <p style={{ ...prosa, color: C.grafite }}>Nenhum treinador na formação ainda — cada um aparece aqui assim que abrir a própria aba "Formação".</p>
       ) : (
         membros.map((m) => (
           <button key={m.id} onClick={() => setAbertoId(m.id)} className="w-full text-left flex items-center justify-between gap-3"
             style={{ background: C.cal, border: "1px solid " + C.linha, padding: "13px 15px", marginBottom: 9 }}>
             <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{m.nome}</div>
-            <Etiqueta>{contagem(m)}</Etiqueta>
+            <Etiqueta>{contagemFormacao(m)}</Etiqueta>
           </button>
         ))
       )}
+    </div>
+  );
+}
+
+/* Formação autodidata do próprio treinador — encontra (ou cria, no
+   primeiro acesso) o registro amarrado à própria conta, e deixa ele
+   preencher texto, quiz e confiança no próprio ritmo. O coordenador
+   nunca preenche isto por ele — só acompanha e comenta em Equipe →
+   Formação (ver SecaoFormacao). */
+function TelaFormacaoPessoal({ membros, setMembros, carregando, uidAtual }) {
+  const [meuNome, setMeuNome] = useState("");
+  const [carregandoNome, setCarregandoNome] = useState(true);
+
+  useEffect(() => {
+    listaProfessores().then((lista) => {
+      const eu = lista.find((p) => p.uid === uidAtual);
+      setMeuNome(eu ? eu.nome : "Eu");
+      setCarregandoNome(false);
+    }).catch(() => setCarregandoNome(false));
+  }, [uidAtual]);
+
+  const meuRegistro = membros.find((m) => m.uid === uidAtual);
+  useEffect(() => {
+    if (carregando || carregandoNome || meuRegistro) return;
+    setMembros((atual) => atual.some((m) => m.uid === uidAtual) ? atual : [...atual, novoMembroFormacao(meuNome, uidAtual)]);
+  }, [carregando, carregandoNome, meuRegistro, uidAtual, meuNome]);
+
+  function mudarModulo(cursoId, idx, patch) {
+    setMembros(membros.map((m) => {
+      if (m.uid !== uidAtual) return m;
+      const curso = CURSOS_FORMACAO.find((c) => c.id === cursoId);
+      const atual = curso.modulos.map((_, i) => progressoModulo(m, cursoId, i));
+      atual[idx] = { ...atual[idx], ...patch };
+      return { ...m, progresso: { ...m.progresso, [cursoId]: atual } };
+    }));
+  }
+  function responderQuiz(cursoId, resultado) {
+    setMembros(membros.map((m) => (m.uid === uidAtual ? { ...m, quiz: { ...m.quiz, [cursoId]: resultado } } : m)));
+  }
+
+  if (carregando || carregandoNome || !meuRegistro) {
+    return <p style={{ ...prosa, color: C.grafite }}>Carregando…</p>;
+  }
+
+  return (
+    <div>
+      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Formação</h1>
+      <p style={{ ...prosa, color: C.grafite, marginBottom: 6 }}>
+        Estudo no seu ritmo — leia a saída de cada módulo, responda com um caso real seu, faça o
+        quiz, e marque como concluído quando estiver pronto. O coordenador acompanha e comenta,
+        mas quem preenche é você.
+      </p>
+      <div className="mb-5"><Etiqueta cor={C.quadra}>{contagemFormacao(meuRegistro)} módulos concluídos</Etiqueta></div>
+
+      <ReferenciaFormacaoStaff />
+
+      {CURSOS_FORMACAO.map((c) => (
+        <div key={c.id} className="mb-7">
+          <h3 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 9 }}>{c.nome}</h3>
+          {c.modulos.map((mod, i) => (
+            <AutoAvaliacaoModulo key={i} mod={mod} indice={i} progresso={progressoModulo(meuRegistro, c.id, i)}
+              aoMudar={(patch) => mudarModulo(c.id, i, patch)} />
+          ))}
+          {(c.quiz || []).length > 0 && (
+            <QuizCurso curso={c} quizState={meuRegistro.quiz && meuRegistro.quiz[c.id] ? meuRegistro.quiz[c.id] : { respostas: c.quiz.map(() => null), acertos: null }}
+              aoResponder={(resultado) => responderQuiz(c.id, resultado)} />
+          )}
+        </div>
+      ))}
     </div>
   );
 }
@@ -7947,6 +8192,13 @@ function App() {
   const [carregandoTurmas, setCarregandoTurmas] = useState(true);
   const [exerciciosCustom, setExerciciosCustom] = useState([]);
   const [carregandoCustom, setCarregandoCustom] = useState(true);
+  /* Formação da equipe, no App (não em TelaEquipe): tanto a aba "Formação"
+     (o próprio treinador preenche) quanto "Equipe → Formação" (o
+     coordenador acompanha) precisam enxergar a mesma lista — se cada
+     tela carregasse e gravasse por conta própria, a última a salvar
+     apagaria o que a outra tinha acabado de escrever. */
+  const [membrosFormacao, setMembrosFormacao] = useState([]);
+  const [carregandoFormacao, setCarregandoFormacao] = useState(true);
   const [abertoId, setAbertoId] = useState(null);
   const [aba, setAba] = useState("dashboard");
   const [subaba, setSubaba] = useState("ficha");
@@ -8040,9 +8292,11 @@ function App() {
     leia("mty:alunos:v2", []).then((a) => { setAlunos(a); setCarregando(false); });
     leia("mty:turmas:v1", [], true).then((t) => { setTurmas(t); setCarregandoTurmas(false); });
     leia("mty:exerciciosCustom:v1", [], true).then((ex) => { setExerciciosCustom(ex); setCatalogoCustom(ex); setCarregandoCustom(false); });
+    leia("mty:formacao:v1", [], true).then((m) => { setMembrosFormacao(m); setCarregandoFormacao(false); });
 }, [autenticado, orgAtual]);
   useEffect(() => { if (autenticado && !carregando) grave("mty:alunos:v2", alunos); }, [alunos, carregando, autenticado]);
   useEffect(() => { if (autenticado && !carregandoTurmas) grave("mty:turmas:v1", turmas, true); }, [turmas, carregandoTurmas, autenticado]);
+  useEffect(() => { if (autenticado && !carregandoFormacao) grave("mty:formacao:v1", membrosFormacao, true); }, [membrosFormacao, carregandoFormacao, autenticado]);
   // sincronizado durante o render (não num useEffect): TelaCatalogo e as
   // funções de geração leem TODOS_EXERCICIOS() no mesmo render em que
   // exerciciosCustom muda — um efeito rodaria tarde demais pra isso e o
@@ -8220,7 +8474,9 @@ function App() {
           </div>
           <div className="mt-0.5"><Etiqueta>Ficha, periodização e sessão · 315 exercícios</Etiqueta></div>
           <nav style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, marginTop: 14 }}>
-            {[...NAV_PRINCIPAL, ...(papelAtual === "coordenador" ? [{ v: "equipe", r: "Equipe" }] : [])].map((t) => (
+            {[...NAV_PRINCIPAL,
+              ...(exigeLogin && uidAtual ? [{ v: "formacao", r: "Formação" }] : []),
+              ...(papelAtual === "coordenador" ? [{ v: "equipe", r: "Equipe" }] : [])].map((t) => (
               <button key={t.v} onClick={() => { setAba(t.v); setAbertoId(null); setManualAberto(false); }}
                 style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 600, padding: "7px 13px", borderRadius: 3, cursor: "pointer", flexShrink: 0,
                   border: "1px solid transparent", background: aba === t.v ? C.tinta : "transparent", color: aba === t.v ? C.papel : C.grafite }}>
@@ -8269,7 +8525,8 @@ function App() {
          aba === "publicos" ? <TelaPublicos /> :
          aba === "aulas" ? <TelaAulas /> :
          aba === "metodo" ? <TelaMetodo /> :
-         aba === "equipe" ? <TelaEquipe alunos={alunos} turmas={turmas} /> :
+         aba === "equipe" ? <TelaEquipe alunos={alunos} turmas={turmas} membros={membrosFormacao} setMembros={setMembrosFormacao} carregandoForm={carregandoFormacao} /> :
+         aba === "formacao" ? <TelaFormacaoPessoal membros={membrosFormacao} setMembros={setMembrosFormacao} carregando={carregandoFormacao} uidAtual={uidAtual} /> :
          aba === "turmas" ? <TelaTurmas alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} /> :
          aba === "agenda" ? <TelaAgenda alunos={alunos} turmas={turmas} uidAtual={uidAtual} exigeLogin={exigeLogin} /> :
          aba === "dashboard" ? <TelaDashboard alunos={alunos} turmas={turmas} papelAtual={papelAtual} uidAtual={uidAtual} exigeLogin={exigeLogin} usoIA={usoIA} identidade={identidade}
