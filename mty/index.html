@@ -1686,6 +1686,22 @@ function categoriasDoEstagio(estagio) {
   return [];
 }
 
+/* Onde o jogador está na trilha agora, e o que falta marcar pra avançar
+   — mesmo cálculo que TrilhaClassificacao usa pra desenhar o checklist,
+   só que como dado puro. É isso que faz a classificação virar limitador
+   de verdade pro planejamento: relatorioFicha usa isto pra dizer à IA
+   quais critérios ainda faltam, em vez de só informar nível e estágio
+   como um rótulo solto. */
+function statusTrilha(f) {
+  const lista = categoriasDoEstagio(f.estagio);
+  if (lista.length === 0) return null;
+  const semSubdivisao = lista.length === 1 && lista[0].id === f.estagio;
+  const atual = semSubdivisao ? lista[0] : (lista.find((c) => c.id === f.categoria) || lista[0]);
+  const marcados = f.criteriosClassificacao || {};
+  const pendentes = atual.criterios.filter((_, i) => !marcados[atual.id + ":" + i]);
+  return { atual, pendentes, feitos: atual.criterios.length - pendentes.length, total: atual.criterios.length, completo: pendentes.length === 0 };
+}
+
 /* Fase ampla do jogador — é o que o treinador precisa saber de cara,
    antes de qualquer diagnóstico: é criança, adulto ou juvenil/adulto
    de competição. Decide o catálogo de exercícios da ficha inteira. */
@@ -2635,12 +2651,10 @@ function TrilhaClassificacao({ f, set }) {
   if (lista.length === 0) return null;
 
   const semSubdivisao = lista.length === 1 && lista[0].id === f.estagio;
-  const atual = semSubdivisao ? lista[0] : (lista.find((c) => c.id === f.categoria) || lista[0]);
+  const { atual, feitos, total, completo } = statusTrilha(f);
   const idxAtual = lista.findIndex((c) => c.id === atual.id);
   const proxima = !semSubdivisao && idxAtual >= 0 && idxAtual < lista.length - 1 ? lista[idxAtual + 1] : null;
   const marcados = f.criteriosClassificacao || {};
-  const feitos = atual.criterios.filter((_, i) => marcados[atual.id + ":" + i]).length;
-  const completo = feitos === atual.criterios.length;
 
   function alternar(i) {
     const chave = atual.id + ":" + i;
@@ -3223,6 +3237,22 @@ function relatorioFicha(a) {
   [["tecnico", "Técnico"], ["fisico", "Físico"], ["tatico", "Tático"], ["mental", "Mental"]]
     .forEach(([k, r]) => L.push(r + ": " + ((a.camadas[k] || "").trim() || "[em branco]")));
   L.push("");
+  L.push("CLASSIFICAÇÃO NA ESCADA DO MÉTODO (Y1–Y6)");
+  const trilha = statusTrilha(a);
+  if (trilha) {
+    L.push("Degrau atual: " + trilha.atual.nome + " · nível de referência " + a.nivel);
+    L.push(trilha.feitos + " de " + trilha.total + " critérios de classificação já observados neste degrau.");
+    if (trilha.pendentes.length) {
+      L.push("Critérios AINDA PENDENTES deste degrau — o plano deve priorizar blocos que trabalhem");
+      L.push("exatamente estes pontos, não conteúdo genérico do nível:");
+      trilha.pendentes.forEach((c) => L.push("  · " + c));
+    } else {
+      L.push("Todos os critérios deste degrau já foram observados — o jogador está pronto para o próximo degrau da trilha.");
+    }
+  } else {
+    L.push("Sem trilha de classificação cadastrada para este estágio.");
+  }
+  L.push("");
   L.push("PERFIL E PRIORIDADES");
   L.push("Perfil de corpo: " + (a.perfilCorpo || "[não definido]"));
   L.push("Temperamento: " + (a.perfilTemperamento || "[não definido]"));
@@ -3388,6 +3418,11 @@ function promptPlanoEstruturado(a, semanas, aulasSemana, historico) {
     "  exatamente um destes ids: saque, devolucao, fundo, rede, movimentacao, mental, tatica — é essa",
     "  área que decide, sozinha, qual critério do catálogo o app vai cobrar pra liberar o próximo",
     "  bloco. Escolha a área que o bloco realmente está construindo, não a mais fácil de marcar.",
+    "· a ficha lista os critérios de classificação AINDA PENDENTES do jogador na escada do método",
+    "  (Y1–Y6) — a divisão dos blocos deve nascer disso: o primeiro bloco (ou os primeiros) ataca",
+    "  o(s) critério(s) pendente(s) mais urgente(s), escolhendo o areaFoco que melhor corresponde a",
+    "  ele(s), em vez de blocos genéricos do nível. Se um critério pendente não corresponder bem a",
+    "  nenhum dos sete ids de areaFoco, registre isso em observacao em vez de forçar um encaixe.",
     "· critério de saída sempre observável, nunca por calendário — mas quem escreve o critério de",
     "  verdade é o catálogo (via areaFoco), não este texto livre.",
     "· TODA semana do plano precisa ter pelo menos uma aula com exercício de saque (famílias PDS/IP)",
@@ -3517,6 +3552,10 @@ function promptPlanoTurma(turma, membros, semanas, aulasSemana, historico) {
     "  exatamente um destes ids: saque, devolucao, fundo, rede, movimentacao, mental, tatica — essa",
     "  área decide o critério do catálogo que o app cobra pra liberar o próximo bloco, igual pra",
     "  qualquer turma (o mesmo catálogo vale pra todo público, só muda o ritmo do ciclo).",
+    "· cada ficha lista os critérios de classificação AINDA PENDENTES daquele jogador na escada do",
+    "  método (Y1–Y6). Priorize, nos primeiros blocos, os critérios pendentes mais comuns entre os",
+    "  membros do grupo, escolhendo o areaFoco correspondente — não um bloco genérico do nível.",
+    "  Critério pendente que não corresponda a nenhum dos sete ids vai para observacao, não é ignorado.",
     "· critério de saída sempre observável, nunca por calendário — e observável no grupo inteiro,",
     "  não só num jogador.",
     "· TODA semana do plano precisa ter pelo menos uma aula com exercício de saque (famílias PDS/IP)",
