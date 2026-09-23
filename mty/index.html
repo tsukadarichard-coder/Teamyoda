@@ -1583,7 +1583,32 @@ const NIVEIS_CRITERIOS = [
    decide a evolução é o refinamento técnico, não mais um pré-requisito
    que falta. Competição segue a mesma lógica, para o juvenil/social de
    competição, com a entrada/meio/topo descritos pelo coordenador. */
-const CATEGORIAS_ADULTO = [
+/* Funde os critérios adaptados (Adulto/Competição) com os critérios
+   "oficiais" da escada Y1–Y6 (NIVEIS_CRITERIOS) — sem isso, a trilha do
+   adulto e da competição vivia só do texto adaptado, e a versão que o
+   manual chama de "referência" nunca virava checklist de verdade pra
+   quem não é criança. Anexa (nunca insere no meio, pra não bagunçar o
+   índice de quem já tem criteriosClassificacao marcado) os critérios do
+   nível na ÚLTIMA categoria de cada sequência que aponta pro mesmo
+   nivelSugerido — é só ao SAIR daquela categoria que o jogador realmente
+   alcança aquele degrau da escada oficial; as categorias anteriores da
+   mesma sequência (ex.: Iniciante 1 e 2, ambas Y1) ficam só com o texto
+   adaptado, mais fino, do próprio degrau intermediário. */
+function mesclarComEscadaDoNivel(lista) {
+  return lista.map((cat, i) => {
+    const proxima = lista[i + 1];
+    if (proxima && proxima.nivelSugerido === cat.nivelSugerido) return cat;
+    const nivel = NIVEIS_CRITERIOS.find((n) => n.nivel === cat.nivelSugerido);
+    if (!nivel) return cat;
+    return {
+      ...cat,
+      criterios: [...cat.criterios, ...nivel.criterios],
+      notaEscada: nivel.nota,
+    };
+  });
+}
+
+const CATEGORIAS_ADULTO = mesclarComEscadaDoNivel([
   {
     id: "iniciante-1", nome: "Iniciante 1", nivelSugerido: "Y1",
     foco: "Ainda aprendendo os fundamentos — saque, direita e esquerda não saem com regularidade.",
@@ -1634,9 +1659,9 @@ const CATEGORIAS_ADULTO = [
       "A partir daqui a evolução é por refinamento técnico — os pré-requisitos já estão completos",
     ],
   },
-];
+]);
 
-const CATEGORIAS_COMPETICAO = [
+const CATEGORIAS_COMPETICAO = mesclarComEscadaDoNivel([
   {
     id: "competicao-iniciante", nome: "Competição · Iniciante", nivelSugerido: "Y4",
     foco: "Já tem todos os fundamentos, mas com deficiências técnicas e de movimentação — a entrada na competição.",
@@ -1667,7 +1692,7 @@ const CATEGORIAS_COMPETICAO = [
       "Ainda não é considerado profissional — teto desta trilha de classificação",
     ],
   },
-];
+]);
 
 /* Categorias por estágio — V/L/G usam o próprio estágio como categoria
    (não têm subdivisão: um "L" só é reclassificado virando "G"). */
@@ -2702,6 +2727,11 @@ function TrilhaClassificacao({ f, set }) {
         <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginTop: 4 }}>
           Marque um critério só depois de observá-lo em três ocasiões distintas, em aulas diferentes.
         </p>
+        {atual.notaEscada && (
+          <div className="mt-2" style={{ background: C.papel, borderLeft: "3px solid " + C.quadra, padding: "8px 11px" }}>
+            <p style={{ ...prosa, fontSize: 12 }}>{atual.notaEscada}</p>
+          </div>
+        )}
 
         {completo && (proxima || (semSubdivisao && atual.proximoEstagio)) && (
           <div className="mt-3">
