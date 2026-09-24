@@ -9482,10 +9482,6 @@ function App() {
         button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid ${C.saibro}; outline-offset: 2px; }
         button { transition: transform .06s ease, opacity .06s ease; }
         button:active:not(:disabled) { transform: scale(0.96); opacity: 0.75; }
-        @media (max-width: 860px) {
-          .mty-sidebar { position: static !important; width: 100% !important; height: auto !important; bottom: auto !important; }
-          .mty-topbar, .mty-main { margin-left: 0 !important; }
-        }
       `}</style>
 
       <header className="mty-sidebar" style={{ position: "fixed", left: 0, top: 0, bottom: 0, width: 252, overflowY: "auto",
