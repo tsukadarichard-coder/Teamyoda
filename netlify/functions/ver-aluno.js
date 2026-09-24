@@ -146,6 +146,7 @@ async function handleGet(event) {
     feedbacksEnviados: aluno.feedbacksAluno || [],
     jogosRelatados: aluno.jogosRelatados || [],
     pedidosConteudo: aluno.pedidosConteudo || [],
+    historicoRelatorios: aluno.historicoRelatorios || [],
   });
 }
 

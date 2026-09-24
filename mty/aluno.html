@@ -99,6 +99,82 @@ function legendaRosca(feita, pendente, repetindo) {
   }).join('');
 }
 
+/* Mesma lógica do painel do treinador: os critérios de saída são sempre
+   a mesma pergunta (atingido/parcial/não atingido) em todo ciclo, então
+   dá pra comparar % de critérios atingidos entre ciclos, mesmo com plano
+   e texto diferentes em cada um. Sem biblioteca de gráfico aqui — é um
+   SVG simples, na mesma linha da rosquinhaSvg acima. */
+function graficoEvolucaoSvg(pontos) {
+  if (pontos.length < 2) return '';
+  const w = 280, h = 120, padL = 22, padR = 8, padT = 10, padB = 8;
+  const innerW = w - padL - padR, innerH = h - padT - padB;
+  function x(i) { return padL + (pontos.length === 1 ? 0 : (i / (pontos.length - 1)) * innerW); }
+  function y(v) { return padT + innerH - (v / 100) * innerH; }
+  function linha(chave, cor) {
+    const segmentos = [];
+    let atual = [];
+    pontos.forEach(function (p, i) {
+      if (p[chave] == null) { if (atual.length > 1) segmentos.push(atual); atual = []; return; }
+      atual.push([x(i), y(p[chave])]);
+    });
+    if (atual.length > 1) segmentos.push(atual);
+    const linhas = segmentos.map(function (seg) {
+      const d = seg.map(function (p, i) { return (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ' ' + p[1].toFixed(1); }).join(' ');
+      return '<path d="' + d + '" fill="none" stroke="' + cor + '" stroke-width="2" />';
+    }).join('');
+    const pontosSvg = pontos.map(function (p, i) {
+      return p[chave] == null ? '' : '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(p[chave]).toFixed(1) + '" r="3" fill="' + cor + '" />';
+    }).join('');
+    return linhas + pontosSvg;
+  }
+  const grade = [0, 50, 100].map(function (v) {
+    return '<line x1="' + padL + '" x2="' + (w - padR) + '" y1="' + y(v).toFixed(1) + '" y2="' + y(v).toFixed(1) + '" stroke="var(--linha)" stroke-width="1" />' +
+      '<text x="' + (padL - 4) + '" y="' + (y(v) + 3).toFixed(1) + '" font-size="8" text-anchor="end" fill="var(--cinza)">' + v + '</text>';
+  }).join('');
+  return '<svg width="100%" viewBox="0 0 ' + w + ' ' + h + '" style="max-width:320px">' + grade +
+    linha('pctCriterios', 'var(--verde)') + linha('pctAulas', 'var(--tinta)') + '</svg>';
+}
+
+const NOTA_COR_REL = { sim: '#2E4739', par: '#C9A227', nao: '#C8102E' };
+const NOTA_LABEL_REL = { sim: 'Atingido', par: 'Parcial', nao: 'Não atingido' };
+
+/* Mesma técnica do painel do treinador: sem biblioteca de PDF — abre uma
+   aba com HTML limpo e chama a impressão do navegador ("Salvar como PDF"
+   em qualquer aparelho, sem precisar de nada além do próprio navegador). */
+function exportarRelatorioPDF(d, id) {
+  const h = (d.historicoRelatorios || []).find(function (x) { return x.id === id; });
+  if (!h) return;
+  const janela = window.open('', '_blank');
+  if (!janela) { alert('Seu navegador bloqueou a aba de exportação — permita pop-ups pra este site e tente de novo.'); return; }
+  const criteriosHtml = (h.criterios || []).map(function (c) {
+    const cor = NOTA_COR_REL[c.resultado] || '#8A8580';
+    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #E4DED9">' +
+      '<span style="width:10px;height:10px;border-radius:999px;background:' + cor + ';flex-shrink:0"></span>' +
+      '<span style="flex:1;font-size:13.5px">' + escapar(c.nome) + '</span>' +
+      '<span style="font-size:11.5px;font-weight:700;color:' + cor + '">' + (NOTA_LABEL_REL[c.resultado] || 'Não avaliado') + '</span></div>';
+  }).join('');
+  janela.document.write(
+    '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">' +
+    '<title>Relatório de ciclo · ' + escapar(d.nome) + '</title>' +
+    '<style>' +
+    'body{font-family:-apple-system,system-ui,sans-serif;color:#141210;max-width:640px;margin:30px auto;padding:0 20px}' +
+    'h1{font-family:Georgia,serif;font-size:20px;margin:0 0 4px}' +
+    '.sub{color:#6B6461;font-size:13px;margin-bottom:20px}' +
+    'h2{font-family:Georgia,serif;font-size:15px;margin:26px 0 8px}' +
+    'pre{white-space:pre-wrap;font:12.5px/1.5 ui-monospace,monospace;background:#F5F2F0;padding:14px;border-radius:4px}' +
+    '@media print { .no-print{display:none} }' +
+    '</style></head><body>' +
+    '<h1>Relatório de ciclo</h1>' +
+    '<div class="sub">' + escapar(d.nome) + ' · ' + escapar(h.tipo || '') + ' · gerado em ' +
+      new Date(h.data).toLocaleDateString('pt-BR') + ' · ' + h.feitas + ' de ' + h.total + ' aulas</div>' +
+    (criteriosHtml ? '<h2>Critérios de saída</h2>' + criteriosHtml : '') +
+    '<h2>Relatório completo</h2><pre>' + escapar(h.texto) + '</pre>' +
+    '<button class="no-print" onclick="window.print()" style="margin-top:20px;padding:10px 16px;font-weight:700;cursor:pointer">Salvar como PDF / Imprimir</button>' +
+    '</body></html>'
+  );
+  janela.document.close();
+}
+
 const NOMES_DIA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 function horariosPadrao() {
   const lista = [];
@@ -133,6 +209,7 @@ function todosHorarios(agenda) {
     painel: null, // 'cancelar' | 'reagendar' | 'feedback' | 'jogo' | null
     diaEscolhido: null, horaEscolhida: null,
     mensagem: null, enviando: false,
+    relatorioAberto: null, // id do relatório de ciclo aberto na lista, ou null
   };
 
   async function postAcao(corpo) {
@@ -170,7 +247,7 @@ function todosHorarios(agenda) {
       // sem plano ainda, mas dá pra dizer o que gostaria de trabalhar e
       // mandar feedback — o pedido pode até virar insumo do primeiro plano.
       el.innerHTML = '<header><h1>' + escapar(d.nome) + '</h1><div class="sub">Ainda não há um plano montado para você.</div></header>' +
-        painelDuvida(d) + painelFeedback(d) + '<div class="sincronia" id="mty-sincronia"></div>';
+        painelRelatorios(d) + painelDuvida(d) + painelFeedback(d) + '<div class="sincronia" id="mty-sincronia"></div>';
       ligarEventos(d);
       return;
     }
@@ -195,6 +272,7 @@ function todosHorarios(agenda) {
         '</div>';
     });
 
+    html += painelRelatorios(d);
     html += painelSuaAula(d);
     html += painelDuvida(d);
     html += painelFeedback(d);
@@ -202,6 +280,51 @@ function todosHorarios(agenda) {
     html += '<div class="sincronia" id="mty-sincronia"></div>';
     el.innerHTML = html;
     ligarEventos(d);
+  }
+
+  function painelRelatorios(d) {
+    const historico = d.historicoRelatorios || [];
+    if (!historico.length) return '';
+    const pontos = historico.slice().reverse().map(function (h) {
+      const comCriterios = (h.criterios || []).length > 0;
+      const pctCriterios = comCriterios ? Math.round(100 * h.criterios.reduce(function (s, c) {
+        return s + (c.resultado === 'sim' ? 1 : c.resultado === 'par' ? 0.5 : 0);
+      }, 0) / h.criterios.length) : null;
+      const pctAulas = h.total > 0 ? Math.round(100 * (h.feitas / h.total)) : null;
+      return { pctCriterios: pctCriterios, pctAulas: pctAulas };
+    });
+    let html = '<div class="painel">';
+    html += '<h2>Seus relatórios de ciclo</h2>';
+    html += '<p class="desc">O que seu treinador observou ao fechar cada ciclo de treino.</p>';
+    const grafico = graficoEvolucaoSvg(pontos);
+    if (grafico) {
+      html += '<div style="margin:8px 0">' + grafico + '</div>' +
+        '<div style="display:flex;gap:14px;font-size:11.5px;margin-bottom:10px">' +
+        '<span><span style="color:var(--verde);font-weight:700">▬</span> Critérios atingidos</span>' +
+        '<span><span style="color:var(--tinta);font-weight:700">▬</span> Aulas realizadas</span></div>';
+    }
+    html += historico.map(function (h) {
+      const aberto = ui.relatorioAberto === h.id;
+      const criteriosHtml = (h.criterios || []).map(function (c) {
+        const cor = NOTA_COR_REL[c.resultado] || 'var(--cinza)';
+        const rot = NOTA_LABEL_REL[c.resultado] || 'Não avaliado';
+        return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;font-size:12.5px">' +
+          '<span style="width:8px;height:8px;border-radius:999px;background:' + cor + ';flex-shrink:0"></span>' +
+          '<span style="flex:1">' + escapar(c.nome) + '</span><span style="font-size:11px;font-weight:700;color:' + cor + '">' + rot + '</span></div>';
+      }).join('');
+      return '<div style="border-top:1px solid var(--linha);padding:10px 0">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">' +
+        '<span style="font-size:12.5px">' + new Date(h.data).toLocaleDateString('pt-BR') + ' · ' + escapar(h.tipo || 'ciclo') + ' · ' + h.feitas + ' de ' + h.total + ' aulas</span>' +
+        '<span class="linha-btns" style="margin-top:0">' +
+        '<button class="btn fraco" data-acao="alternar-relatorio" data-id="' + h.id + '">' + (aberto ? 'Fechar' : 'Ver') + '</button>' +
+        '<button class="btn fraco" data-acao="exportar-relatorio-pdf" data-id="' + h.id + '">Exportar PDF</button>' +
+        '</span></div>' +
+        (aberto ? '<div style="margin-top:8px">' + criteriosHtml +
+          '<pre style="white-space:pre-wrap;font-size:11.5px;background:var(--papel);padding:10px;border-radius:4px;margin-top:8px">' + escapar(h.texto) + '</pre></div>' : '') +
+        '</div>';
+    }).join('');
+    html += '</div>';
+    return html;
   }
 
   function painelSuaAula(d) {
@@ -338,6 +461,8 @@ function todosHorarios(agenda) {
     if (acao === 'abrir-reagendar') { ui.painel = 'reagendar'; ui.diaEscolhido = null; ui.horaEscolhida = null; ui.mensagem = null; render(d); return; }
     if (acao === 'fechar-painel') { ui.painel = null; render(d); return; }
     if (acao === 'escolher-horario') { ui.diaEscolhido = Number(dataset.dia); ui.horaEscolhida = dataset.hora; render(d); return; }
+    if (acao === 'alternar-relatorio') { ui.relatorioAberto = (ui.relatorioAberto === dataset.id) ? null : dataset.id; render(d); return; }
+    if (acao === 'exportar-relatorio-pdf') { exportarRelatorioPDF(d, dataset.id); return; }
 
     if (acao === 'confirmar-cancelar') {
       ui.enviando = true; render(d);
