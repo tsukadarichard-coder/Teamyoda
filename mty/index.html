@@ -8102,6 +8102,184 @@ function TelaFormacaoPessoal({ membros, setMembros, carregando, uidAtual, irPara
   );
 }
 
+/* ── quadras e reservas ──
+   Agenda de aluguel avulso de quadra/espaço, separada das turmas e do
+   plano de cada jogador — pensada pra também virar o destino de uma
+   reserva feita por WhatsApp no futuro (mesma coleção, só quem grava
+   muda). Qualquer pessoa pode reservar, mesmo sem ser aluno cadastrado
+   — por isso o contato é nome+telefone livre, não um vínculo com ficha.
+   Sem cobrança e sem recorrência nesta primeira versão. */
+function novaQuadra() {
+  return { id: "quadra-" + Date.now(), nome: "", ativa: true };
+}
+function novaReserva() {
+  return {
+    id: "reserva-" + Date.now(), quadraId: "", data: "", horaInicio: "", horaFim: "",
+    nomeContato: "", telefoneContato: "", observacao: "", criadoEm: new Date().toISOString(),
+  };
+}
+function reservasSeSobrepoem(a, b) {
+  return a.data === b.data && a.quadraId === b.quadraId && a.horaInicio < b.horaFim && a.horaFim > b.horaInicio;
+}
+function formatarDataLonga(data) {
+  if (!data) return "";
+  const d = new Date(data + "T00:00:00");
+  if (isNaN(d.getTime())) return data;
+  const texto = d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" });
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
+function TelaQuadras({ quadras, setQuadras, reservas, setReservas }) {
+  const [gerenciando, setGerenciando] = useState(false);
+  const [nomeNovaQuadra, setNomeNovaQuadra] = useState("");
+  const [dataEscolhida, setDataEscolhida] = useState(() => new Date().toISOString().slice(0, 10));
+  const [formAbertoEm, setFormAbertoEm] = useState(null); // quadraId com o form de nova reserva aberto
+  const [rascunho, setRascunho] = useState(novaReserva());
+  const [erro, setErro] = useState("");
+
+  const quadrasAtivas = quadras.filter((q) => q.ativa !== false);
+
+  function adicionarQuadra() {
+    if (!nomeNovaQuadra.trim()) return;
+    setQuadras([...quadras, { ...novaQuadra(), nome: nomeNovaQuadra.trim() }]);
+    setNomeNovaQuadra("");
+  }
+  function removerQuadra(id) {
+    if (!confirm("Remover esta quadra? As reservas já feitas nela continuam guardadas, mas ela some da lista.")) return;
+    setQuadras(quadras.map((q) => (q.id === id ? { ...q, ativa: false } : q)));
+  }
+
+  function abrirFormReserva(quadraId) {
+    setErro("");
+    setRascunho({ ...novaReserva(), quadraId, data: dataEscolhida });
+    setFormAbertoEm(quadraId);
+  }
+  function confirmarReserva() {
+    const r = rascunho;
+    if (!r.data || !r.horaInicio || !r.horaFim || !r.nomeContato.trim() || !r.telefoneContato.trim()) {
+      setErro("Preencha data, horário de início e fim, nome e telefone de contato.");
+      return;
+    }
+    if (r.horaFim <= r.horaInicio) {
+      setErro("O horário de fim precisa ser depois do horário de início.");
+      return;
+    }
+    if (reservas.some((existente) => reservasSeSobrepoem(existente, r))) {
+      setErro("Já existe uma reserva nesta quadra que se sobrepõe a este horário.");
+      return;
+    }
+    setReservas([...reservas, { ...r, nomeContato: r.nomeContato.trim(), telefoneContato: r.telefoneContato.trim() }]);
+    setFormAbertoEm(null);
+    setErro("");
+  }
+  function removerReserva(id) {
+    if (!confirm("Cancelar esta reserva?")) return;
+    setReservas(reservas.filter((r) => r.id !== id));
+  }
+
+  return (
+    <div>
+      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Quadras</h1>
+      <p style={{ ...prosa, color: C.grafite, marginBottom: 18 }}>
+        Agenda de reserva avulsa de quadra ou espaço — separada das turmas e do plano de cada
+        jogador. Qualquer pessoa pode reservar, mesmo sem ser aluno cadastrado na academia.
+      </p>
+
+      <div className="mb-6" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "12px 15px" }}>
+        <button onClick={() => setGerenciando(!gerenciando)} className="w-full flex items-center justify-between gap-3" style={{ cursor: "pointer" }}>
+          <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>Gerenciar quadras ({quadrasAtivas.length})</span>
+          <Etiqueta>{gerenciando ? "fechar" : "abrir"}</Etiqueta>
+        </button>
+        {gerenciando && (
+          <div className="mt-3">
+            {quadrasAtivas.length === 0 && (
+              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>Nenhuma quadra cadastrada ainda.</p>
+            )}
+            {quadrasAtivas.map((q) => (
+              <div key={q.id} className="flex items-center justify-between gap-3 mb-2" style={{ background: C.papel, border: "1px solid " + C.linha, padding: "8px 11px" }}>
+                <span style={{ ...prosa, fontSize: 13 }}>{q.nome}</span>
+                <button onClick={() => removerQuadra(q.id)} title="Remover quadra" style={iconeEstilo}>×</button>
+              </div>
+            ))}
+            <div className="flex gap-2 mt-3 flex-wrap items-center">
+              <input style={{ ...entrada, flex: 1, minWidth: 180 }} value={nomeNovaQuadra} onChange={(e) => setNomeNovaQuadra(e.target.value)}
+                placeholder="ex: Quadra 1 · saibro" onKeyDown={(e) => e.key === "Enter" && adicionarQuadra()} />
+              <Botao pequeno onClick={adicionarQuadra} disabled={!nomeNovaQuadra.trim()}>Adicionar quadra</Botao>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <Campo rotulo="Ver reservas do dia">
+        <input type="date" style={{ ...entrada, maxWidth: 220 }} value={dataEscolhida}
+          onChange={(e) => setDataEscolhida(e.target.value)} />
+      </Campo>
+      <div className="mb-5"><Etiqueta>{formatarDataLonga(dataEscolhida)}</Etiqueta></div>
+
+      {quadrasAtivas.length === 0 ? (
+        <p style={{ ...prosa, color: C.grafite }}>Cadastre uma quadra acima pra começar a receber reservas.</p>
+      ) : (
+        quadrasAtivas.map((q) => {
+          const doDia = reservas.filter((r) => r.quadraId === q.id && r.data === dataEscolhida)
+            .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
+          return (
+            <div key={q.id} className="mb-6" style={{ border: "1px solid " + C.linha, padding: "13px 15px" }}>
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{q.nome}</div>
+                <Botao pequeno variante="vazio" onClick={() => abrirFormReserva(q.id)}>+ Nova reserva</Botao>
+              </div>
+
+              {doDia.length === 0 ? (
+                <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Nenhuma reserva pra este dia.</p>
+              ) : (
+                doDia.map((r) => (
+                  <div key={r.id} className="flex items-center justify-between gap-3 mb-2" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "9px 12px" }}>
+                    <div>
+                      <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>{r.horaInicio} – {r.horaFim} · {r.nomeContato}</div>
+                      <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>
+                        {r.telefoneContato}{r.observacao ? " · " + r.observacao : ""}
+                      </p>
+                    </div>
+                    <button onClick={() => removerReserva(r.id)} title="Cancelar reserva" style={iconeEstilo}>×</button>
+                  </div>
+                ))
+              )}
+
+              {formAbertoEm === q.id && (
+                <div className="mt-3" style={{ background: C.papel, border: "1px solid " + C.linha, padding: "12px 14px" }}>
+                  <div className="flex gap-2 flex-wrap">
+                    <Campo rotulo="Data"><input type="date" style={entrada} value={rascunho.data}
+                      onChange={(e) => setRascunho({ ...rascunho, data: e.target.value })} /></Campo>
+                    <Campo rotulo="Início"><input type="time" style={entrada} value={rascunho.horaInicio}
+                      onChange={(e) => setRascunho({ ...rascunho, horaInicio: e.target.value })} /></Campo>
+                    <Campo rotulo="Fim"><input type="time" style={entrada} value={rascunho.horaFim}
+                      onChange={(e) => setRascunho({ ...rascunho, horaFim: e.target.value })} /></Campo>
+                  </div>
+                  <Campo rotulo="Nome de quem reserva">
+                    <input style={entrada} value={rascunho.nomeContato} onChange={(e) => setRascunho({ ...rascunho, nomeContato: e.target.value })} />
+                  </Campo>
+                  <Campo rotulo="Telefone (com WhatsApp, se possível)">
+                    <input style={entrada} value={rascunho.telefoneContato} onChange={(e) => setRascunho({ ...rascunho, telefoneContato: e.target.value })}
+                      placeholder="(11) 90000-0000" />
+                  </Campo>
+                  <Campo rotulo="Observação" nota="Opcional">
+                    <input style={entrada} value={rascunho.observacao} onChange={(e) => setRascunho({ ...rascunho, observacao: e.target.value })} />
+                  </Campo>
+                  {erro && <div className="mb-2"><Aviso>{erro}</Aviso></div>}
+                  <div className="flex gap-2">
+                    <Botao pequeno onClick={confirmarReserva}>Confirmar reserva</Botao>
+                    <Botao pequeno variante="vazio" onClick={() => { setFormAbertoEm(null); setErro(""); }}>Cancelar</Botao>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
 /* ── turmas (aulas em dupla/grupo) ──
    Cada jogador continua com o plano dele, individual, gerado do jeito
    de sempre. A turma só agrupa quem treina junto — a sessão une a
@@ -8962,7 +9140,7 @@ function TelaAgenda({ alunos, turmas, uidAtual, exigeLogin }) {
 }
 const celulaGrade = { border: "1px solid " + C.linha, padding: "8px 10px", verticalAlign: "top" };
 
-const NAV_PRINCIPAL = [{ v: "dashboard", r: "Dashboard" }, { v: "alunos", r: "Jogadores" }, { v: "turmas", r: "Turmas" }, { v: "agenda", r: "Agenda" }, { v: "casos", r: "Casos" }];
+const NAV_PRINCIPAL = [{ v: "dashboard", r: "Dashboard" }, { v: "alunos", r: "Jogadores" }, { v: "turmas", r: "Turmas" }, { v: "quadras", r: "Quadras" }, { v: "agenda", r: "Agenda" }, { v: "casos", r: "Casos" }];
 const NAV_MANUAL = [{ v: "catalogo", r: "Catálogo" }, { v: "tecnica", r: "Técnica" }, { v: "taticas", r: "Táticas" },
   { v: "conducao", r: "Condução" }, { v: "publicos", r: "Públicos" }, { v: "aulas", r: "Aulas" }, { v: "metodo", r: "Como decide" }];
 
@@ -8970,6 +9148,10 @@ function App() {
   const [alunos, setAlunos] = useState([]);
   const [turmas, setTurmas] = useState([]);
   const [carregandoTurmas, setCarregandoTurmas] = useState(true);
+  const [quadras, setQuadras] = useState([]);
+  const [carregandoQuadras, setCarregandoQuadras] = useState(true);
+  const [reservas, setReservas] = useState([]);
+  const [carregandoReservas, setCarregandoReservas] = useState(true);
   const [exerciciosCustom, setExerciciosCustom] = useState([]);
   const [carregandoCustom, setCarregandoCustom] = useState(true);
   /* Formação da equipe, no App (não em TelaEquipe): tanto a aba "Formação"
@@ -9100,9 +9282,13 @@ function App() {
     leia("mty:turmas:v1", [], true).then((t) => { setTurmas(t); setCarregandoTurmas(false); });
     leia("mty:exerciciosCustom:v1", [], true).then((ex) => { setExerciciosCustom(ex); setCatalogoCustom(ex); setCarregandoCustom(false); });
     leia("mty:formacao:v1", [], true).then((m) => { setMembrosFormacao(m); setCarregandoFormacao(false); });
+    leia("mty:quadras:v1", [], true).then((q) => { setQuadras(q); setCarregandoQuadras(false); });
+    leia("mty:reservas:v1", [], true).then((r) => { setReservas(r); setCarregandoReservas(false); });
 }, [autenticado, orgAtual]);
   useEffect(() => { if (autenticado && !carregando) grave("mty:alunos:v2", alunos); }, [alunos, carregando, autenticado]);
   useEffect(() => { if (autenticado && !carregandoTurmas) grave("mty:turmas:v1", turmas, true); }, [turmas, carregandoTurmas, autenticado]);
+  useEffect(() => { if (autenticado && !carregandoQuadras) grave("mty:quadras:v1", quadras, true); }, [quadras, carregandoQuadras, autenticado]);
+  useEffect(() => { if (autenticado && !carregandoReservas) grave("mty:reservas:v1", reservas, true); }, [reservas, carregandoReservas, autenticado]);
   useEffect(() => { if (autenticado && !carregandoFormacao) grave("mty:formacao:v1", membrosFormacao, true); }, [membrosFormacao, carregandoFormacao, autenticado]);
   // sincronizado durante o render (não num useEffect): TelaCatalogo e as
   // funções de geração leem TODOS_EXERCICIOS() no mesmo render em que
@@ -9343,6 +9529,7 @@ function App() {
            irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }} irParaManual={irParaManual} /> :
          aba === "formacao" ? <TelaFormacaoPessoal membros={membrosFormacao} setMembros={setMembrosFormacao} carregando={carregandoFormacao} uidAtual={uidAtual} irParaManual={irParaManual} /> :
          aba === "turmas" ? <TelaTurmas alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} papelAtual={papelAtual} uidAtual={uidAtual} /> :
+         aba === "quadras" ? <TelaQuadras quadras={quadras} setQuadras={setQuadras} reservas={reservas} setReservas={setReservas} /> :
          aba === "agenda" ? <TelaAgenda alunos={alunos} turmas={turmas} uidAtual={uidAtual} exigeLogin={exigeLogin} /> :
          aba === "dashboard" ? <TelaDashboard alunos={alunos} turmas={turmas} papelAtual={papelAtual} uidAtual={uidAtual} exigeLogin={exigeLogin} usoIA={usoIA} identidade={identidade}
            irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }} /> :
