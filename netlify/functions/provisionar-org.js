@@ -20,7 +20,13 @@
    campo no documento, o app mostra normalmente (compatível com toda
    academia de antes desta opção existir); a partir de agora o admin.html
    manda sempre um valor explícito, e o padrão do formulário é ocultar
-   pra academia nova, já que o método é da Team Yoda, não dela. */
+   pra academia nova, já que o método é da Team Yoda, não dela.
+   mostrarQuadras (opcional, true/false) decide se a aba "Quadras" (reserva
+   avulsa de quadra/espaço, com link público de reserva pro cliente) aparece
+   pra essa academia — é o oposto do mostrarManual: sem esse campo, a aba
+   fica ESCONDIDA (nenhuma academia de antes desta opção usava isso, e a
+   Team Yoda não aluga quadra), só liga pra quem for provisionado com a
+   opção marcada. */
 const { admin, app } = require("./_firebase-admin");
 
 exports.handler = async function (event) {
@@ -40,7 +46,7 @@ exports.handler = async function (event) {
     return resposta(400, { erro: "Corpo da requisição inválido." });
   }
 
-  const { orgId, nomeAcademia, logoUrl, email, senha, plano, planoAtivoAte, mostrarManual } = corpo;
+  const { orgId, nomeAcademia, logoUrl, email, senha, plano, planoAtivoAte, mostrarManual, mostrarQuadras } = corpo;
   if (!orgId || !email || !senha) {
     return resposta(400, { erro: "Faltou orgId, email ou senha." });
   }
@@ -78,6 +84,7 @@ exports.handler = async function (event) {
     if (plano) identidade.plano = plano;
     if (planoAtivoAte) identidade.planoAtivoAte = planoAtivoAte;
     if (typeof mostrarManual === "boolean") identidade.mostrarManual = mostrarManual;
+    if (typeof mostrarQuadras === "boolean") identidade.mostrarQuadras = mostrarQuadras;
     await admin.firestore().collection("orgs").doc(orgId).collection("meta").doc("info").set(identidade, { merge: true });
 
     return resposta(200, {

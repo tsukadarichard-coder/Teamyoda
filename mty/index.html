@@ -8115,7 +8115,8 @@ function novaQuadra() {
 function novaReserva() {
   return {
     id: "reserva-" + Date.now(), quadraId: "", data: "", horaInicio: "", horaFim: "",
-    nomeContato: "", telefoneContato: "", observacao: "", criadoEm: new Date().toISOString(),
+    nomeContato: "", telefoneContato: "", observacao: "", origem: "staff", vistoPeloStaff: true,
+    criadoEm: new Date().toISOString(),
   };
 }
 function reservasSeSobrepoem(a, b) {
@@ -8128,16 +8129,36 @@ function formatarDataLonga(data) {
   const texto = d.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" });
   return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
+/* Grade de meia em meia hora, 06:00 às 23:00 — a mesma faixa que o link
+   público (reservar.html) usa, pra a visão do treinador bater exatamente
+   com o que o cliente vê. */
+const FAIXAS_MEIA_HORA = (() => {
+  const lista = [];
+  for (let h = 6; h < 23; h++) {
+    lista.push(String(h).padStart(2, "0") + ":00");
+    lista.push(String(h).padStart(2, "0") + ":30");
+  }
+  lista.push("23:00");
+  return lista;
+})();
 
-function TelaQuadras({ quadras, setQuadras, reservas, setReservas }) {
+function TelaQuadras({ quadras, setQuadras, reservas, setReservas, orgAtual }) {
   const [gerenciando, setGerenciando] = useState(false);
   const [nomeNovaQuadra, setNomeNovaQuadra] = useState("");
   const [dataEscolhida, setDataEscolhida] = useState(() => new Date().toISOString().slice(0, 10));
-  const [formAbertoEm, setFormAbertoEm] = useState(null); // quadraId com o form de nova reserva aberto
-  const [rascunho, setRascunho] = useState(novaReserva());
+  const [rascunho, setRascunho] = useState(null); // null = nenhum form de reserva aberto
   const [erro, setErro] = useState("");
+  const [linkCopiado, setLinkCopiado] = useState(false);
 
   const quadrasAtivas = quadras.filter((q) => q.ativa !== false);
+  const linkReserva = orgAtual ? location.origin + "/reservar.html?org=" + encodeURIComponent(orgAtual) : "";
+
+  async function copiarLink() {
+    try { await navigator.clipboard.writeText(linkReserva); }
+    catch { const c = document.getElementById("mty-link-reserva"); if (c) { c.select(); document.execCommand("copy"); } }
+    setLinkCopiado(true);
+    setTimeout(() => setLinkCopiado(false), 2000);
+  }
 
   function adicionarQuadra() {
     if (!nomeNovaQuadra.trim()) return;
@@ -8149,10 +8170,13 @@ function TelaQuadras({ quadras, setQuadras, reservas, setReservas }) {
     setQuadras(quadras.map((q) => (q.id === id ? { ...q, ativa: false } : q)));
   }
 
-  function abrirFormReserva(quadraId) {
+  function reservaEm(quadraId, hora) {
+    return reservas.find((r) => r.quadraId === quadraId && r.data === dataEscolhida && r.horaInicio <= hora && r.horaFim > hora);
+  }
+  function abrirFormNaFaixa(quadraId, hora) {
     setErro("");
-    setRascunho({ ...novaReserva(), quadraId, data: dataEscolhida });
-    setFormAbertoEm(quadraId);
+    const fim = FAIXAS_MEIA_HORA[FAIXAS_MEIA_HORA.indexOf(hora) + 1] || hora;
+    setRascunho({ ...novaReserva(), quadraId, data: dataEscolhida, horaInicio: hora, horaFim: fim });
   }
   function confirmarReserva() {
     const r = rascunho;
@@ -8169,7 +8193,7 @@ function TelaQuadras({ quadras, setQuadras, reservas, setReservas }) {
       return;
     }
     setReservas([...reservas, { ...r, nomeContato: r.nomeContato.trim(), telefoneContato: r.telefoneContato.trim() }]);
-    setFormAbertoEm(null);
+    setRascunho(null);
     setErro("");
   }
   function removerReserva(id) {
@@ -8177,13 +8201,30 @@ function TelaQuadras({ quadras, setQuadras, reservas, setReservas }) {
     setReservas(reservas.filter((r) => r.id !== id));
   }
 
+  const quadraDoRascunho = rascunho ? quadrasAtivas.find((q) => q.id === rascunho.quadraId) : null;
+
   return (
     <div>
       <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Quadras</h1>
       <p style={{ ...prosa, color: C.grafite, marginBottom: 18 }}>
-        Agenda de reserva avulsa de quadra ou espaço — separada das turmas e do plano de cada
-        jogador. Qualquer pessoa pode reservar, mesmo sem ser aluno cadastrado na academia.
+        Agenda de reserva avulsa de quadra ou espaço, de meia em meia hora — separada das turmas e
+        do plano de cada jogador. Qualquer pessoa pode reservar, mesmo sem ser aluno cadastrado.
       </p>
+
+      {linkReserva && (
+        <div className="mb-6" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "12px 15px" }}>
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 6 }}>
+            Link público de reserva — envie pro cliente. Ele escolhe o dia, vê quais quadras estão
+            livres ou ocupadas, e reserva sozinho, sem precisar de conta. Você recebe um aviso aqui
+            assim que ele reservar.
+          </p>
+          <div className="flex gap-2 items-center flex-wrap">
+            <input id="mty-link-reserva" readOnly value={linkReserva} style={{ ...entrada, fontSize: 12, flex: 1 }}
+              onFocus={(e) => e.target.select()} />
+            <Botao pequeno variante="vazio" onClick={copiarLink}>{linkCopiado ? "✓ copiado" : "Copiar"}</Botao>
+          </div>
+        </div>
+      )}
 
       <div className="mb-6" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "12px 15px" }}>
         <button onClick={() => setGerenciando(!gerenciando)} className="w-full flex items-center justify-between gap-3" style={{ cursor: "pointer" }}>
@@ -8210,71 +8251,96 @@ function TelaQuadras({ quadras, setQuadras, reservas, setReservas }) {
         )}
       </div>
 
-      <Campo rotulo="Ver reservas do dia">
+      <Campo rotulo="Ver agenda do dia">
         <input type="date" style={{ ...entrada, maxWidth: 220 }} value={dataEscolhida}
-          onChange={(e) => setDataEscolhida(e.target.value)} />
+          onChange={(e) => { setDataEscolhida(e.target.value); setRascunho(null); }} />
       </Campo>
       <div className="mb-5"><Etiqueta>{formatarDataLonga(dataEscolhida)}</Etiqueta></div>
 
       {quadrasAtivas.length === 0 ? (
         <p style={{ ...prosa, color: C.grafite }}>Cadastre uma quadra acima pra começar a receber reservas.</p>
       ) : (
-        quadrasAtivas.map((q) => {
-          const doDia = reservas.filter((r) => r.quadraId === q.id && r.data === dataEscolhida)
-            .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
-          return (
-            <div key={q.id} className="mb-6" style={{ border: "1px solid " + C.linha, padding: "13px 15px" }}>
-              <div className="flex items-center justify-between gap-3 mb-3">
-                <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{q.nome}</div>
-                <Botao pequeno variante="vazio" onClick={() => abrirFormReserva(q.id)}>+ Nova reserva</Botao>
-              </div>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 90 + quadrasAtivas.length * 150 }}>
+            <thead>
+              <tr>
+                <th style={{ ...celulaGrade, background: C.papel }}></th>
+                {quadrasAtivas.map((q) => (
+                  <th key={q.id} style={{ ...celulaGrade, fontFamily: ARCH, fontSize: 12, fontWeight: 700, textAlign: "left" }}>{q.nome}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {FAIXAS_MEIA_HORA.slice(0, -1).map((hora) => (
+                <tr key={hora}>
+                  <td style={{ ...celulaGrade, fontFamily: ARCH, fontSize: 12, fontWeight: 700, color: C.grafite, whiteSpace: "nowrap" }}>{hora}</td>
+                  {quadrasAtivas.map((q) => {
+                    const r = reservaEm(q.id, hora);
+                    if (r) {
+                      const primeiraFaixa = r.horaInicio === hora;
+                      return (
+                        <td key={q.id} style={{ ...celulaGrade, minWidth: 140, background: primeiraFaixa ? C.cal : "#EFEAE4" }}>
+                          {primeiraFaixa && (
+                            <div className="flex items-center justify-between gap-2">
+                              <div>
+                                <div style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700 }}>{r.nomeContato}</div>
+                                <div style={{ ...prosa, fontSize: 10.5, color: C.grafite }}>
+                                  {r.horaInicio}–{r.horaFim}{r.origem === "cliente" ? " · reservado pelo cliente" : ""}
+                                </div>
+                              </div>
+                              <button onClick={() => removerReserva(r.id)} title="Cancelar reserva"
+                                style={{ ...iconeEstilo, width: 20, height: 20, fontSize: 12, flexShrink: 0 }}>×</button>
+                            </div>
+                          )}
+                        </td>
+                      );
+                    }
+                    return (
+                      <td key={q.id} style={{ ...celulaGrade, minWidth: 140, padding: 0 }}>
+                        <button onClick={() => abrirFormNaFaixa(q.id, hora)}
+                          style={{ width: "100%", height: "100%", minHeight: 32, border: "none", background: "transparent",
+                            cursor: "pointer", fontFamily: ARCH, fontSize: 11, color: C.linha }}>
+                          livre
+                        </button>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-              {doDia.length === 0 ? (
-                <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Nenhuma reserva pra este dia.</p>
-              ) : (
-                doDia.map((r) => (
-                  <div key={r.id} className="flex items-center justify-between gap-3 mb-2" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "9px 12px" }}>
-                    <div>
-                      <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>{r.horaInicio} – {r.horaFim} · {r.nomeContato}</div>
-                      <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>
-                        {r.telefoneContato}{r.observacao ? " · " + r.observacao : ""}
-                      </p>
-                    </div>
-                    <button onClick={() => removerReserva(r.id)} title="Cancelar reserva" style={iconeEstilo}>×</button>
-                  </div>
-                ))
-              )}
-
-              {formAbertoEm === q.id && (
-                <div className="mt-3" style={{ background: C.papel, border: "1px solid " + C.linha, padding: "12px 14px" }}>
-                  <div className="flex gap-2 flex-wrap">
-                    <Campo rotulo="Data"><input type="date" style={entrada} value={rascunho.data}
-                      onChange={(e) => setRascunho({ ...rascunho, data: e.target.value })} /></Campo>
-                    <Campo rotulo="Início"><input type="time" style={entrada} value={rascunho.horaInicio}
-                      onChange={(e) => setRascunho({ ...rascunho, horaInicio: e.target.value })} /></Campo>
-                    <Campo rotulo="Fim"><input type="time" style={entrada} value={rascunho.horaFim}
-                      onChange={(e) => setRascunho({ ...rascunho, horaFim: e.target.value })} /></Campo>
-                  </div>
-                  <Campo rotulo="Nome de quem reserva">
-                    <input style={entrada} value={rascunho.nomeContato} onChange={(e) => setRascunho({ ...rascunho, nomeContato: e.target.value })} />
-                  </Campo>
-                  <Campo rotulo="Telefone (com WhatsApp, se possível)">
-                    <input style={entrada} value={rascunho.telefoneContato} onChange={(e) => setRascunho({ ...rascunho, telefoneContato: e.target.value })}
-                      placeholder="(11) 90000-0000" />
-                  </Campo>
-                  <Campo rotulo="Observação" nota="Opcional">
-                    <input style={entrada} value={rascunho.observacao} onChange={(e) => setRascunho({ ...rascunho, observacao: e.target.value })} />
-                  </Campo>
-                  {erro && <div className="mb-2"><Aviso>{erro}</Aviso></div>}
-                  <div className="flex gap-2">
-                    <Botao pequeno onClick={confirmarReserva}>Confirmar reserva</Botao>
-                    <Botao pequeno variante="vazio" onClick={() => { setFormAbertoEm(null); setErro(""); }}>Cancelar</Botao>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })
+      {rascunho && (
+        <div className="mt-5" style={{ background: C.papel, border: "1px solid " + C.linha, padding: "14px 16px" }}>
+          <div style={{ fontFamily: ARCH, fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
+            Nova reserva{quadraDoRascunho ? " · " + quadraDoRascunho.nome : ""}
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <Campo rotulo="Data"><input type="date" style={entrada} value={rascunho.data}
+              onChange={(e) => setRascunho({ ...rascunho, data: e.target.value })} /></Campo>
+            <Campo rotulo="Início"><input type="time" style={entrada} value={rascunho.horaInicio}
+              onChange={(e) => setRascunho({ ...rascunho, horaInicio: e.target.value })} /></Campo>
+            <Campo rotulo="Fim"><input type="time" style={entrada} value={rascunho.horaFim}
+              onChange={(e) => setRascunho({ ...rascunho, horaFim: e.target.value })} /></Campo>
+          </div>
+          <Campo rotulo="Nome de quem reserva">
+            <input style={entrada} value={rascunho.nomeContato} onChange={(e) => setRascunho({ ...rascunho, nomeContato: e.target.value })} />
+          </Campo>
+          <Campo rotulo="Telefone (com WhatsApp, se possível)">
+            <input style={entrada} value={rascunho.telefoneContato} onChange={(e) => setRascunho({ ...rascunho, telefoneContato: e.target.value })}
+              placeholder="(11) 90000-0000" />
+          </Campo>
+          <Campo rotulo="Observação" nota="Opcional">
+            <input style={entrada} value={rascunho.observacao} onChange={(e) => setRascunho({ ...rascunho, observacao: e.target.value })} />
+          </Campo>
+          {erro && <div className="mb-2"><Aviso>{erro}</Aviso></div>}
+          <div className="flex gap-2">
+            <Botao pequeno onClick={confirmarReserva}>Confirmar reserva</Botao>
+            <Botao pequeno variante="vazio" onClick={() => { setRascunho(null); setErro(""); }}>Cancelar</Botao>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -8778,7 +8844,7 @@ function compromissosDaSemana(alunos, turmas) {
    (dele, ou sem professor definido) e pendências de grupo em aberto nas
    turmas dele. Pedidos de cadastro (só coordenador) somam-se à parte,
    já que vêm de outra fonte (solicitacoes, não alunos/turmas). */
-function avisosDoProfessor(alunos, turmas, uidAtual) {
+function avisosDoProfessor(alunos, turmas, reservas, uidAtual) {
   const meu = (professorUid) => !professorUid || professorUid === uidAtual;
   const minhaTurma = (t) => meu(t.professorUid) || t.professorAuxiliarUid === uidAtual;
   const diaHoje = new Date().getDay();
@@ -8809,7 +8875,15 @@ function avisosDoProfessor(alunos, turmas, uidAtual) {
       pedidosAlunos.push({ alunoId: a.id, alunoNome: a.nome || "Sem nome", tipo: "reposicao", texto: null }));
   });
 
-  return { lembretes, pendencias, pedidosAlunos };
+  /* Reserva feita pelo cliente no link público (reservar.html) — quem
+     gerencia a quadra precisa saber que alguém reservou, sem precisar
+     ficar checando a aba toda hora. vistoPeloStaff é persistido na
+     própria reserva (não no Set de avisos vistos da sessão), porque uma
+     reserva feita hoje pra daqui a duas semanas não pode "expirar" do
+     aviso só porque a página foi recarregada. */
+  const reservasNovas = (reservas || []).filter((r) => r.origem === "cliente" && !r.vistoPeloStaff);
+
+  return { lembretes, pendencias, pedidosAlunos, reservasNovas };
 }
 
 /* ── dashboard ──
@@ -9140,7 +9214,7 @@ function TelaAgenda({ alunos, turmas, uidAtual, exigeLogin }) {
 }
 const celulaGrade = { border: "1px solid " + C.linha, padding: "8px 10px", verticalAlign: "top" };
 
-const NAV_PRINCIPAL = [{ v: "dashboard", r: "Dashboard" }, { v: "alunos", r: "Jogadores" }, { v: "turmas", r: "Turmas" }, { v: "quadras", r: "Quadras" }, { v: "agenda", r: "Agenda" }, { v: "casos", r: "Casos" }];
+const NAV_PRINCIPAL = [{ v: "dashboard", r: "Dashboard" }, { v: "alunos", r: "Jogadores" }, { v: "turmas", r: "Turmas" }, { v: "agenda", r: "Agenda" }, { v: "casos", r: "Casos" }];
 const NAV_MANUAL = [{ v: "catalogo", r: "Catálogo" }, { v: "tecnica", r: "Técnica" }, { v: "taticas", r: "Táticas" },
   { v: "conducao", r: "Condução" }, { v: "publicos", r: "Públicos" }, { v: "aulas", r: "Aulas" }, { v: "metodo", r: "Como decide" }];
 
@@ -9259,7 +9333,7 @@ function App() {
         const info = await db.collection("orgs").doc(org).collection("meta").doc("info").get();
         setPlanoAtual(info.exists ? (info.data().plano || null) : null);
         setPlanoAtivoAte(info.exists ? (info.data().planoAtivoAte || null) : null);
-        setIdentidade(info.exists ? { nome: info.data().nome || "", logoUrl: info.data().logoUrl || "", mostrarManual: info.data().mostrarManual } : null);
+        setIdentidade(info.exists ? { nome: info.data().nome || "", logoUrl: info.data().logoUrl || "", mostrarManual: info.data().mostrarManual, mostrarQuadras: info.data().mostrarQuadras } : null);
       } catch (e) { setPlanoAtual(null); setPlanoAtivoAte(null); setIdentidade(null); }
       try {
         const uso = await db.collection("orgs").doc(org).collection("meta").doc("usoIA").get();
@@ -9311,14 +9385,20 @@ function App() {
     return () => { ativo = false; clearInterval(t); };
   }, [papelAtual]);
 
-  const avisos = avisosDoProfessor(alunos, turmas, uidAtual);
+  const avisos = avisosDoProfessor(alunos, turmas, reservas, uidAtual);
   const idLembrete = (l) => "lembrete:" + l.tipo + ":" + l.titulo + ":" + l.hora;
   const idPendencia = (p) => "pendencia:" + (p.id || p.turma + ":" + p.data);
   const idPedidoAluno = (p) => "pedido:" + p.alunoId + ":" + p.tipo + ":" + (p.texto || "");
   const lembretesVisiveis = avisos.lembretes.filter((l) => !avisosVistos.has(idLembrete(l)));
   const pendenciasVisiveis = avisos.pendencias.filter((p) => !avisosVistos.has(idPendencia(p)));
   const pedidosAlunosVisiveis = avisos.pedidosAlunos.filter((p) => !avisosVistos.has(idPedidoAluno(p)));
-  const totalAvisos = lembretesVisiveis.length + pendenciasVisiveis.length + pedidosAlunosVisiveis.length + pedidosPendentesCount;
+  const reservasNovasVisiveis = avisos.reservasNovas;
+  function verReserva(r) {
+    setReservas(reservas.map((x) => (x.id === r.id ? { ...x, vistoPeloStaff: true } : x)));
+    setAba("quadras");
+    setAvisosAberto(false);
+  }
+  const totalAvisos = lembretesVisiveis.length + pendenciasVisiveis.length + pedidosAlunosVisiveis.length + reservasNovasVisiveis.length + pedidosPendentesCount;
   function abrirAvisos() {
     if (!avisosAberto && papelAtual === "coordenador") contarPedidosPendentes().then(setPedidosPendentesCount);
     setAvisosAberto(!avisosAberto);
@@ -9342,6 +9422,11 @@ function App() {
      vendo normalmente; só quem é provisionado dali pra frente sem marcar
      a opção fica sem essa aba. */
   const mostraManual = !identidade || typeof identidade.mostrarManual !== "boolean" || identidade.mostrarManual;
+  /* Quadras é o oposto do Manual: uma feature nova, que nenhuma academia
+     usava antes de existir — então o padrão é ficar ESCONDIDA (inclusive
+     pra Team Yoda, que não aluga quadra), e só aparece pra quem for
+     provisionado explicitamente com a opção marcada. */
+  const mostraQuadras = !!identidade && identidade.mostrarQuadras === true;
   function criar() {
     if (planoVencido || (limitePlano != null && alunos.length >= limitePlano)) {
       setLimiteAtingido(true);
@@ -9439,6 +9524,19 @@ function App() {
                                 ))}
                               </div>
                             )}
+                            {reservasNovasVisiveis.length > 0 && (
+                              <div className="mb-3">
+                                <Etiqueta cor={C.saibro}>Reservas de quadra</Etiqueta>
+                                {reservasNovasVisiveis.map((r) => (
+                                  <button key={r.id} onClick={() => verReserva(r)}
+                                    className="w-full text-left" style={{ display: "block", padding: "6px 0", border: "none", background: "none", cursor: "pointer" }}>
+                                    <p style={{ ...prosa, fontSize: 12.5 }}>
+                                      <b>{r.nomeContato}</b> reservou {r.data} às {r.horaInicio}
+                                    </p>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
                             {pedidosPendentesCount > 0 && (
                               <div>
                                 <Etiqueta cor={C.saibro}>Equipe</Etiqueta>
@@ -9475,6 +9573,7 @@ function App() {
           <div className="mt-0.5"><Etiqueta>Ficha, periodização e sessão · 315 exercícios</Etiqueta></div>
           <nav style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, marginTop: 14 }}>
             {[...NAV_PRINCIPAL,
+              ...(mostraQuadras ? [{ v: "quadras", r: "Quadras" }] : []),
               ...(exigeLogin && uidAtual ? [{ v: "formacao", r: "Formação" }] : []),
               ...(papelAtual === "coordenador" ? [{ v: "equipe", r: "Equipe" }] : [])].map((t) => (
               <button key={t.v} onClick={() => { setAba(t.v); setAbertoId(null); setManualAberto(false); }}
@@ -9529,7 +9628,7 @@ function App() {
            irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }} irParaManual={irParaManual} /> :
          aba === "formacao" ? <TelaFormacaoPessoal membros={membrosFormacao} setMembros={setMembrosFormacao} carregando={carregandoFormacao} uidAtual={uidAtual} irParaManual={irParaManual} /> :
          aba === "turmas" ? <TelaTurmas alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} papelAtual={papelAtual} uidAtual={uidAtual} /> :
-         aba === "quadras" ? <TelaQuadras quadras={quadras} setQuadras={setQuadras} reservas={reservas} setReservas={setReservas} /> :
+         aba === "quadras" && mostraQuadras ? <TelaQuadras quadras={quadras} setQuadras={setQuadras} reservas={reservas} setReservas={setReservas} orgAtual={orgAtual} /> :
          aba === "agenda" ? <TelaAgenda alunos={alunos} turmas={turmas} uidAtual={uidAtual} exigeLogin={exigeLogin} /> :
          aba === "dashboard" ? <TelaDashboard alunos={alunos} turmas={turmas} papelAtual={papelAtual} uidAtual={uidAtual} exigeLogin={exigeLogin} usoIA={usoIA} identidade={identidade}
            irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }} /> :

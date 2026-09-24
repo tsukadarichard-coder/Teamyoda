@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reservar quadra</title>
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<style>
+  :root{ --papel:#F5F2F0; --tinta:#141210; --verm:#C8102E; --cinza:#6B6461; --linha:#D8D1CB; --verde:#2E4739; --cal:#EFEAE4; }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--papel); color:var(--tinta);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; padding:0 0 60px}
+  .topo{background:var(--verm); height:7px}
+  .wrap{max-width:640px; margin:0 auto; padding:0 18px}
+  header{padding:24px 0 10px}
+  h1{font-family:Georgia,serif; font-size:20px; margin:8px 0 4px}
+  .sub{color:var(--cinza); font-size:13px}
+  label{display:block; font-size:11.5px; font-weight:700; letter-spacing:.04em;
+    text-transform:uppercase; margin-bottom:6px; color:var(--cinza)}
+  input, select{width:100%; border:1px solid var(--linha); background:#fff; border-radius:3px;
+    padding:10px 11px; font:inherit; font-size:15px; color:var(--tinta)}
+  input:focus, select:focus{outline:none; border-color:var(--verm)}
+  .campo{margin:14px 0}
+  .bt{border:none; border-radius:3px; padding:12px 16px; font-size:14px; font-weight:700;
+    cursor:pointer; font-family:inherit; background:var(--verm); color:#fff;
+    transition:transform .06s ease, opacity .06s ease}
+  .bt[disabled]{opacity:.6; cursor:default}
+  .bt:active:not([disabled]){transform:scale(0.97); opacity:.85}
+  .bt-vazio{background:#fff; border:1px solid var(--linha); color:var(--tinta)}
+  .msg{margin-top:14px; padding:13px 14px; border-radius:3px; font-size:13.5px}
+  .ok{background:var(--verde); color:#fff}
+  .erro{background:#fff; border:1px solid var(--linha); border-left:4px solid var(--verm)}
+  table{border-collapse:collapse; width:100%; margin-top:14px; font-size:12.5px}
+  th, td{border:1px solid var(--linha); padding:6px 8px; text-align:left; white-space:nowrap}
+  th{font-size:10.5px; text-transform:uppercase; letter-spacing:.03em; color:var(--cinza); font-weight:700; background:var(--papel)}
+  td.hora{font-weight:700; color:var(--cinza); background:var(--papel)}
+  .slot{background:none; border:none; width:100%; height:100%; min-height:28px; cursor:pointer;
+    font:inherit; font-size:11px; color:var(--linha); padding:4px}
+  .slot:hover{background:var(--cal)}
+  td.ocupado{background:var(--cal); font-size:11px; color:var(--cinza)}
+  .grade-wrap{overflow-x:auto}
+  .form-reserva{margin-top:18px; background:#fff; border:1px solid var(--linha); border-radius:4px; padding:16px}
+  .form-reserva h3{font-family:Georgia,serif; font-size:15px; margin:0 0 10px}
+</style>
+</head>
+<body>
+<div class="topo"></div>
+<div class="wrap">
+<header>
+  <h1 id="titulo-academia">Reservar quadra</h1>
+  <div class="sub" id="subtitulo">Escolha o dia, veja os horários livres e reserve — sem precisar de conta.</div>
+</header>
+
+<div id="conteudo">
+  <p class="sub">Carregando…</p>
+</div>
+</div>
+
+<script>
+(function () {
+  var params = new URLSearchParams(location.search);
+  var org = params.get('org');
+  var conteudo = document.getElementById('conteudo');
+  var FAIXAS = (function () {
+    var lista = [];
+    for (var h = 6; h < 23; h++) {
+      lista.push((h < 10 ? '0' + h : h) + ':00');
+      lista.push((h < 10 ? '0' + h : h) + ':30');
+    }
+    lista.push('23:00');
+    return lista;
+  })();
+  function hojeISO() {
+    var d = new Date();
+    var m = d.getMonth() + 1, dia = d.getDate();
+    return d.getFullYear() + '-' + (m < 10 ? '0' + m : m) + '-' + (dia < 10 ? '0' + dia : dia);
+  }
+  function somaMinutos(hora, min) {
+    var partes = hora.split(':');
+    var total = parseInt(partes[0], 10) * 60 + parseInt(partes[1], 10) + min;
+    var hh = Math.floor(total / 60) % 24, mm = total % 60;
+    return (hh < 10 ? '0' + hh : hh) + ':' + (mm < 10 ? '0' + mm : mm);
+  }
+
+  if (!org) {
+    conteudo.innerHTML = '<div class="msg erro">Link incompleto — peça o link certo pra academia.</div>';
+    return;
+  }
+
+  var estado = { data: hojeISO(), quadras: [], ocupados: [], rascunho: null, carregando: true, erro: null, sucesso: null };
+
+  async function carregar() {
+    estado.carregando = true; estado.erro = null;
+    render();
+    try {
+      var r = await fetch('/.netlify/functions/reservar-quadra?org=' + encodeURIComponent(org) + '&data=' + encodeURIComponent(estado.data));
+      var d = await r.json().catch(function () { return {}; });
+      if (!r.ok) throw new Error(d.erro || ('Erro ' + r.status));
+      estado.quadras = d.quadras || [];
+      estado.ocupados = d.ocupados || [];
+      if (d.academia) document.getElementById('titulo-academia').textContent = 'Reservar quadra · ' + d.academia;
+    } catch (e) {
+      estado.erro = String(e.message || e);
+      estado.quadras = [];
+      estado.ocupados = [];
+    }
+    estado.carregando = false;
+    render();
+  }
+
+  function ocupadoEm(quadraId, hora) {
+    return estado.ocupados.find(function (o) {
+      return o.quadraId === quadraId && o.horaInicio <= hora && o.horaFim > hora;
+    });
+  }
+
+  function abrirForm(quadraId, hora, quadraNome) {
+    estado.rascunho = { quadraId, quadraNome, horaInicio: hora, duracao: 60, nomeContato: '', telefoneContato: '', observacao: '' };
+    estado.sucesso = null;
+    render();
+    var el = document.getElementById('form-reserva-topo');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  async function confirmar() {
+    var r = estado.rascunho;
+    var horaFim = somaMinutos(r.horaInicio, r.duracao);
+    var nome = document.getElementById('rv-nome').value.trim();
+    var telefone = document.getElementById('rv-telefone').value.trim();
+    var obs = document.getElementById('rv-obs').value.trim();
+    if (!nome || !telefone) {
+      estado.erroForm = 'Preencha nome e telefone.';
+      render();
+      return;
+    }
+    document.getElementById('rv-confirmar').disabled = true;
+    document.getElementById('rv-confirmar').textContent = 'Reservando…';
+    try {
+      var resp = await fetch('/.netlify/functions/reservar-quadra', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          org: org, quadraId: r.quadraId, data: estado.data, horaInicio: r.horaInicio, horaFim: horaFim,
+          nomeContato: nome, telefoneContato: telefone, observacao: obs,
+        }),
+      });
+      var d = await resp.json().catch(function () { return {}; });
+      if (!resp.ok) throw new Error(d.erro || ('Erro ' + resp.status));
+      estado.rascunho = null;
+      estado.erroForm = null;
+      estado.sucesso = r.quadraNome + ' reservada de ' + r.horaInicio + ' às ' + horaFim + '.';
+      await carregar();
+    } catch (e) {
+      estado.erroForm = String(e.message || e);
+      render();
+    }
+  }
+
+  function render() {
+    if (estado.carregando) {
+      conteudo.innerHTML = '<p class="sub">Carregando…</p>';
+      return;
+    }
+    var html = '';
+    html += '<div class="campo"><label>Dia</label><input type="date" id="campo-data" value="' + estado.data + '"></div>';
+
+    if (estado.erro) {
+      html += '<div class="msg erro">' + escapeHtml(estado.erro) + '</div>';
+      conteudo.innerHTML = html;
+      wireDataInput();
+      return;
+    }
+    if (estado.sucesso) {
+      html += '<div class="msg ok">✓ Reserva confirmada — ' + escapeHtml(estado.sucesso) + '</div>';
+    }
+    if (estado.quadras.length === 0) {
+      html += '<p class="sub">Nenhuma quadra disponível pra reserva no momento.</p>';
+      conteudo.innerHTML = html;
+      wireDataInput();
+      return;
+    }
+
+    html += '<div class="grade-wrap"><table><thead><tr><th></th>';
+    estado.quadras.forEach(function (q) { html += '<th>' + escapeHtml(q.nome) + '</th>'; });
+    html += '</tr></thead><tbody>';
+    for (var i = 0; i < FAIXAS.length - 1; i++) {
+      var hora = FAIXAS[i];
+      html += '<tr><td class="hora">' + hora + '</td>';
+      estado.quadras.forEach(function (q) {
+        var ocupado = ocupadoEm(q.id, hora);
+        if (ocupado) {
+          html += '<td class="ocupado">' + (ocupado.horaInicio === hora ? 'ocupado' : '') + '</td>';
+        } else {
+          html += '<td style="padding:0"><button class="slot" data-quadra="' + q.id + '" data-hora="' + hora + '" data-nome="' + escapeHtml(q.nome) + '">livre</button></td>';
+        }
+      });
+      html += '</tr>';
+    }
+    html += '</tbody></table></div>';
+
+    if (estado.rascunho) {
+      var r = estado.rascunho;
+      html += '<div class="form-reserva" id="form-reserva-topo">';
+      html += '<h3>Reservar ' + escapeHtml(r.quadraNome) + ' · ' + r.horaInicio + '</h3>';
+      html += '<div class="campo"><label>Duração</label><select id="rv-duracao">';
+      [30, 60, 90, 120].forEach(function (min) {
+        html += '<option value="' + min + '"' + (min === r.duracao ? ' selected' : '') + '>' + (min < 60 ? min + ' min' : (min / 60) + 'h' + (min % 60 ? (min % 60) : '')) + '</option>';
+      });
+      html += '</select></div>';
+      html += '<div class="campo"><label>Seu nome</label><input type="text" id="rv-nome" autocomplete="name"></div>';
+      html += '<div class="campo"><label>Telefone (WhatsApp, se possível)</label><input type="text" id="rv-telefone" placeholder="(11) 90000-0000" autocomplete="tel"></div>';
+      html += '<div class="campo"><label>Observação (opcional)</label><input type="text" id="rv-obs"></div>';
+      if (estado.erroForm) html += '<div class="msg erro">' + escapeHtml(estado.erroForm) + '</div>';
+      html += '<div style="display:flex; gap:8px; margin-top:6px">';
+      html += '<button class="bt" id="rv-confirmar">Confirmar reserva</button>';
+      html += '<button class="bt bt-vazio" id="rv-cancelar">Cancelar</button>';
+      html += '</div></div>';
+    }
+
+    conteudo.innerHTML = html;
+    wireDataInput();
+
+    Array.prototype.forEach.call(conteudo.querySelectorAll('.slot'), function (btn) {
+      btn.onclick = function () { abrirForm(btn.getAttribute('data-quadra'), btn.getAttribute('data-hora'), btn.getAttribute('data-nome')); };
+    });
+    if (estado.rascunho) {
+      document.getElementById('rv-duracao').onchange = function (e) { estado.rascunho.duracao = parseInt(e.target.value, 10); };
+      document.getElementById('rv-confirmar').onclick = confirmar;
+      document.getElementById('rv-cancelar').onclick = function () { estado.rascunho = null; render(); };
+    }
+  }
+
+  function wireDataInput() {
+    var campo = document.getElementById('campo-data');
+    if (campo) campo.onchange = function (e) { estado.data = e.target.value; estado.rascunho = null; estado.sucesso = null; carregar(); };
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  carregar();
+})();
+</script>
+</body>
+</html>
