@@ -7131,10 +7131,42 @@ function EditorMeuNome({ org, uid, emailAtual }) {
    (isso já é o Dashboard com "toda a academia"), e sim "cada um deles,
    lado a lado". A grade de horário completa mora na Agenda; aqui é
    gente, não grade. */
-function VisaoGeralEquipe({ alunos, turmas }) {
+function VisaoGeralEquipe({ alunos, turmas, uidAtual, irPara }) {
   const [professores, setProfessores] = useState([]);
   const [carregando, setCarregando] = useState(true);
-  useEffect(() => { listaProfessores().then((p) => { setProfessores(p); setCarregando(false); }); }, []);
+  const [selecionado, setSelecionado] = useState(null); // uid do professor aberto, ou null
+  const [removendo, setRemovendo] = useState(null);
+  const [erro, setErro] = useState("");
+
+  function carregar() {
+    setCarregando(true);
+    listaProfessores().then((p) => { setProfessores(p); setCarregando(false); });
+  }
+  useEffect(carregar, []);
+
+  /* Remove o ACESSO dele a esta academia (revoga a claim e marca o
+     pedido como removido) — não apaga a conta do Firebase nem os
+     jogadores já atribuídos a ele, que continuam com o nome salvo até
+     alguém reatribuir. Reversível: basta aprová-lo de novo em Pedidos. */
+  async function removerProfessor(p) {
+    if (!confirm("Remover " + p.nome + " desta academia? Ele perde o acesso — pode ser reaprovado depois em Pedidos.")) return;
+    setRemovendo(p.uid); setErro("");
+    try {
+      const token = await window.mtyAuth.tokenId();
+      const r = await fetch("/.netlify/functions/remover-treinador", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: "Bearer " + token },
+        body: JSON.stringify({ uid: p.uid }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.erro || ("Erro " + r.status));
+      if (selecionado === p.uid) setSelecionado(null);
+      carregar();
+    } catch (e) {
+      setErro(String(e.message || e));
+    }
+    setRemovendo(null);
+  }
 
   if (carregando) return <p style={{ ...prosa, color: C.grafite }}>Carregando…</p>;
 
@@ -7149,22 +7181,75 @@ function VisaoGeralEquipe({ alunos, turmas }) {
   });
   const semDono = alunos.filter((a) => !a.professorUid).length;
 
+  const profAberto = selecionado ? linhas.find((l) => l.uid === selecionado) : null;
+  if (profAberto) {
+    const meus = alunos.filter((a) => a.professorUid === profAberto.uid);
+    return (
+      <div>
+        <button onClick={() => setSelecionado(null)} className="mb-4" style={{ ...prosa, color: C.grafite, cursor: "pointer" }}>← Todos os professores</button>
+        <h2 style={{ fontFamily: ARCH, fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{profAberto.nome}</h2>
+        <div className="flex flex-wrap gap-2 mb-5">
+          <Etiqueta>{profAberto.alunos} jogador{profAberto.alunos === 1 ? "" : "es"}</Etiqueta>
+          <Etiqueta>{profAberto.turmas} turma{profAberto.turmas === 1 ? "" : "s"}</Etiqueta>
+          <Etiqueta cor={profAberto.abertos > 0 ? C.saibro : C.grafite}>{profAberto.abertos} aula{profAberto.abertos === 1 ? "" : "s"} em aberto</Etiqueta>
+          <Etiqueta cor={C.quadra}>{profAberto.dadas7} dada{profAberto.dadas7 === 1 ? "" : "s"} · 7 dias</Etiqueta>
+        </div>
+        {meus.length === 0 ? (
+          <p style={{ ...prosa, color: C.grafite, marginBottom: 16 }}>Nenhum jogador atribuído a este professor ainda.</p>
+        ) : (
+          meus.map((a) => {
+            const emVigor = a.plano ? aulaEmVigor(a) : null;
+            const regEmVigor = emVigor ? (a.regPlano || {})[emVigor.id] || {} : null;
+            const repetindo = regEmVigor && (regEmVigor.status === "falta" || regEmVigor.status === "cancelada");
+            return (
+              <button key={a.id} onClick={() => irPara(a.id)} className="w-full text-left flex items-center justify-between gap-3"
+                style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 2, padding: "13px 15px", marginBottom: 8 }}>
+                <div>
+                  <div style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{a.nome || "Sem nome"}</div>
+                  <div className="mt-1"><Etiqueta>{a.nivel} · Estágio {a.estagio} · {a.inicio ? `início ${a.inicio}` : "sem calendário"}</Etiqueta></div>
+                  {emVigor && (
+                    <p style={{ ...prosa, fontSize: 12.5, color: C.saibro, marginTop: 4 }}>
+                      {repetindo ? "Repetindo: " : "Em vigor: "}{emVigor.t}
+                    </p>
+                  )}
+                </div>
+                <span style={{ color: C.grafite, fontSize: 20 }}>→</span>
+              </button>
+            );
+          })
+        )}
+      </div>
+    );
+  }
+
   return (
     <div>
       <p style={{ ...prosa, color: C.grafite, marginBottom: 4 }}>
-        Um retrato de cada professor da academia. Pra ver a grade de horário completa, use a Agenda com "Toda a academia".
+        Um retrato de cada professor da academia. Toque no nome pra ver os jogadores dele. Pra ver a grade de horário completa, use a Agenda com "Toda a academia".
       </p>
       {semDono > 0 && (
         <p style={{ ...prosa, fontSize: 12.5, color: C.saibro, marginBottom: 14 }}>
           {semDono} jogador{semDono === 1 ? "" : "es"} ainda sem professor definido.
         </p>
       )}
+      {erro && <div className="mb-4"><Aviso>{erro}</Aviso></div>}
       {linhas.length === 0 ? (
         <p style={{ ...prosa, color: C.grafite, marginTop: 10 }}>Nenhum professor aprovado na academia ainda.</p>
       ) : (
         linhas.map((l) => (
           <div key={l.uid} style={{ background: C.cal, border: "1px solid " + C.linha, padding: "13px 15px", marginBottom: 9 }}>
-            <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginBottom: 7 }}>{l.nome}</div>
+            <div className="flex items-center justify-between gap-3 flex-wrap mb-7" style={{ marginBottom: 7 }}>
+              <button onClick={() => setSelecionado(l.uid)}
+                style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, cursor: "pointer", border: "none", background: "none", padding: 0, color: C.tinta, textDecoration: "underline" }}>
+                {l.nome}
+              </button>
+              {l.uid !== uidAtual && (
+                <button onClick={() => removerProfessor(l)} disabled={removendo === l.uid}
+                  style={{ fontFamily: ARCH, fontSize: 11, fontWeight: 700, color: C.saibro, cursor: "pointer", border: "none", background: "none", padding: 0 }}>
+                  {removendo === l.uid ? "removendo…" : "Excluir professor"}
+                </button>
+              )}
+            </div>
             <div className="flex flex-wrap gap-2">
               <Etiqueta>{l.alunos} jogador{l.alunos === 1 ? "" : "es"}</Etiqueta>
               <Etiqueta>{l.turmas} turma{l.turmas === 1 ? "" : "s"}</Etiqueta>
@@ -7183,7 +7268,7 @@ function VisaoGeralEquipe({ alunos, turmas }) {
    Pedidos de acesso ficam pendentes até alguém com role "coordenador"
    aprovar — a function aprovar-treinador confere isso pelo próprio
    token de quem chama, não por um segredo separado. */
-function TelaEquipe({ alunos, turmas, membros, setMembros, carregandoForm }) {
+function TelaEquipe({ alunos, turmas, membros, setMembros, carregandoForm, uidAtual, irPara }) {
   const [subaba, setSubaba] = useState("visao");
   const [pendentes, setPendentes] = useState([]);
   const [carregando, setCarregando] = useState(true);
@@ -7304,7 +7389,7 @@ function TelaEquipe({ alunos, turmas, membros, setMembros, carregandoForm }) {
       </div>
 
       {subaba === "visao" ? (
-        <VisaoGeralEquipe alunos={alunos} turmas={turmas} />
+        <VisaoGeralEquipe alunos={alunos} turmas={turmas} uidAtual={uidAtual} irPara={irPara} />
       ) : subaba === "pedidos" ? (
         <div>
           <p style={{ ...prosa, color: C.grafite, marginBottom: 10 }}>
@@ -8888,7 +8973,8 @@ function App() {
          aba === "publicos" ? <TelaPublicos /> :
          aba === "aulas" ? <TelaAulas /> :
          aba === "metodo" ? <TelaMetodo /> :
-         aba === "equipe" ? <TelaEquipe alunos={alunos} turmas={turmas} membros={membrosFormacao} setMembros={setMembrosFormacao} carregandoForm={carregandoFormacao} /> :
+         aba === "equipe" ? <TelaEquipe alunos={alunos} turmas={turmas} membros={membrosFormacao} setMembros={setMembrosFormacao} carregandoForm={carregandoFormacao} uidAtual={uidAtual}
+           irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }} /> :
          aba === "formacao" ? <TelaFormacaoPessoal membros={membrosFormacao} setMembros={setMembrosFormacao} carregando={carregandoFormacao} uidAtual={uidAtual} /> :
          aba === "turmas" ? <TelaTurmas alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} papelAtual={papelAtual} uidAtual={uidAtual} /> :
          aba === "agenda" ? <TelaAgenda alunos={alunos} turmas={turmas} uidAtual={uidAtual} exigeLogin={exigeLogin} /> :
