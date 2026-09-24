@@ -344,6 +344,16 @@ const OBJETIVOS_ADULTO = [
   { v: "competicao", r: "Competição", d: "Compete — a cobrança e a progressão seguem o padrão competitivo normal do método." },
   { v: "nao", r: "Não compete", d: "Recreativo: sem cobrança de resultado, mas quer aprender e melhorar golpes e tática de verdade." },
 ];
+/* Disposição é ortogonal ao objetivo acima: objetivo é O QUE ele joga
+   (simples/duplas/compete ou não); disposição é QUEM ele é na quadra —
+   motivação, tolerância a correção, o que sustenta o interesse dele.
+   Preencher isto bem exige o mesmo olhar apurado que o diagnóstico
+   técnico (ver o curso "Observação: a ficha do adulto" em Formação). */
+const DISPOSICOES_ADULTO = [
+  { v: "evoluir", r: "Quer evoluir de verdade", d: "Motivado pela técnica e pelo resultado — acompanha a correção, cobra progresso de si mesmo, tolera repetição se enxergar o porquê." },
+  { v: "manutencao", r: "Rotina, saúde e convívio", d: "Treina pela regularidade e pelo bem-estar — não busca alta exigência técnica, mas quer aprender de verdade e se desmotiva com correção em excesso ou aula muito repetitiva." },
+  { v: "competitivo", r: "Competitivo por natureza", d: "Não compete formalmente, mas não gosta de perder ponto nem de exercício sem disputa — usar isso a favor, com jogo e desafio dentro da aula, não contra." },
+];
 const OBJETIVOS_JOGO = [{"n": "Ganhar a quadra", "d": "Empurrar o adversário para trás da linha de fundo e avançar o próprio terreno."}, {"n": "Produzir ângulo", "d": "Abrir a quadra para o lado, obrigando o adversário a percorrer mais distância."}, {"n": "Diminuir o tempo", "d": "Fazer a bola chegar antes ao adversário."}];
 /* ── dia de chuva: quatro modelos de sessão sem quadra ── */
 const TREINO_CHUVA = [
@@ -1480,6 +1490,22 @@ const CURSOS_FORMACAO = [
         opcoes: ["Y5 é só sobre condicionamento físico", "No Y4 o aluno executa o padrão quando o exercício pede; no Y5 ele acessa sozinho, dentro do jogo, sob pressão", "Y4 já compete e Y5 ainda não", "Não há diferença real entre os dois"], certa: 1 },
       { p: "Qual critério do Y6 só pode ser observado em competição real, nunca em treino?",
         opcoes: ["Domina a matriz completa dos 18 cenários do saque", "Executa os seis sistemas de ataque", "Reconstrói o plano dentro da partida quando ele não funciona", "Tem as três variações de saque com armado indistinguível"], certa: 2 },
+    ],
+  },
+  {
+    id: "leitura-ficha", nome: "Leitura da Ficha: Observar Antes de Escrever", modulos: [
+      { t: "Ver antes de rotular", saida: "Preenche o campo de comportamento (adulto) ou contexto (juvenil) de um aluno real citando três observações concretas de humor ou comunicação, de aulas diferentes, sem usar nenhuma palavra de estado como \"desmotivado\" ou \"inseguro\"." },
+      { t: "Disposição não é objetivo", saida: "Para um aluno adulto real, escreve a Disposição e o Objetivo dele em duas frases separadas, sem repetir a mesma informação nas duas — uma é quem ele é na quadra, a outra é o que ele joga." },
+      { t: "Quando marcar dificuldade de consistência", saida: "Observa duas aulas de um aluno que erra muito e decide, por escrito, se é dificuldade de consistência (não sustenta a troca) ou erro tático (sustenta, mas escolhe mal) — os dois pedem planos diferentes." },
+      { t: "Tempo treinando muda a leitura", saida: "Compara, por escrito, a ficha de um adulto motivado com poucos meses de quadra e a de um adulto no mesmo nível técnico com anos de treino — e explica por que o plano de cada um não pode ser igual mesmo com o mesmo diagnóstico técnico." },
+    ],
+    quiz: [
+      { p: "No campo \"Disposição do aluno adulto\", qual opção descreve alguém que treina pela rotina, saúde e convívio, sem buscar alta exigência técnica?",
+        opcoes: ["Quer evoluir de verdade", "Rotina, saúde e convívio", "Competitivo por natureza", "Não compete"], certa: 1 },
+      { p: "Por que o aluno adulto não preenche \"Contexto familiar e do jogador\" como o juvenil?",
+        opcoes: ["Porque adulto não tem família", "Porque no adulto o que importa é quem ele é na quadra agora — comportamento, humor, comunicação — não a criação dele", "Porque esse campo é opcional pra todo mundo", "Porque só o diagnóstico técnico entra na ficha do adulto"], certa: 1 },
+      { p: "Quando a ficha marca \"dificuldade de consistência\", o que o plano deve incluir?",
+        opcoes: ["Mais variedade de exercícios pra distrair do erro", "Um bloco de risco tático maior pra forçar a decisão", "Pelo menos um exercício semanal de bate-bola cruzado com o treinador, sem exigir variação — mesmo contrariando o princípio geral do método", "Remover saque e devolução até a consistência melhorar"], certa: 2 },
     ],
   },
 ];
@@ -3022,7 +3048,8 @@ function novoAluno() {
     id: "a" + Date.now(), nome: "", nascimento: "", lateralidade: "destro", backhand: "duas",
     alturaAtual: "", projecaoAltura: "", tipoFisico: "medio", baseMotora: "media",
     contexto: "", estagio: "C", nivel: "Y5", perfilCorpo: "", perfilTemperamento: "",
-    objetivoAdulto: "",
+    objetivoAdulto: "", disposicaoAdulto: "", comportamentoAdulto: "",
+    tempoTreinando: "", dificuldadeConsistencia: false,
     entrada: {}, plano: null, regPlano: {}, avaliacaoTecnica: {},
     objetivoFinal: "", marcos: [{ ano: "", marco: "", precisa: "" }],
     camadas: { tecnico: "", fisico: "", tatico: "", mental: "" },
@@ -3286,7 +3313,19 @@ function relatorioFicha(a) {
   L.push("Rotina de treino: " + (a.diasQuadra || "—") + " dias de quadra por semana, " +
     (a.periodos >= 2 ? "dois turnos por dia (dobrado — típico de competição)" : "um turno por dia") +
     " · musculação " + (a.musculacao || 0) + "x/semana · escola: " + a.escola);
-  if ((a.contexto || "").trim()) L.push("Contexto: " + a.contexto.trim());
+  const TEMPO_TREINANDO_R = { novo: "menos de 6 meses", intermediario: "6 meses a 2 anos", experiente: "mais de 2 anos" };
+  L.push("Tempo treinando: " + (TEMPO_TREINANDO_R[a.tempoTreinando] || "[não definido]"));
+  /* Adulto não usa contexto familiar — o que importa ali não é a criação
+     da pessoa, é quem ela é dentro da quadra agora (ver DISPOSICOES_ADULTO
+     e o campo comportamentoAdulto, preenchidos no lugar de "contexto"). */
+  if (a.estagio === "A") {
+    const disp = DISPOSICOES_ADULTO.find((d) => d.v === a.disposicaoAdulto);
+    L.push("Disposição do aluno adulto: " + (disp ? disp.r + " — " + disp.d : "[não definida]"));
+    if ((a.comportamentoAdulto || "").trim()) L.push("Comportamento em quadra: " + a.comportamentoAdulto.trim());
+  } else if ((a.contexto || "").trim()) {
+    L.push("Contexto: " + a.contexto.trim());
+  }
+  if (a.dificuldadeConsistencia) L.push("ALERTA: treinador marcou dificuldade de consistência — erra demais pra sustentar a troca de bolas.");
   L.push("");
   L.push("1 · TÉCNICO");
   GOLPES_ENTRADA.forEach((g) => {
@@ -3435,7 +3474,43 @@ function regrasAdulto(a) {
     "· Não compete: nada de cobrança de resultado ou de exigência técnica alta — mas ele quer",
     "  aprender e melhorar golpes e tática de verdade. Garanta espaço nas aulas pra jogo (ponto",
     "  aplicado) e treino de controle (consistência/rally), não só exercício isolado.");
+  /* Disposição é quem ele é na quadra, não o que ele joga (isso é o
+     objetivo, acima) — muda o TOM da condução, nunca o conteúdo técnico
+     em si nem o grau de exigência definido pelo objetivo. */
+  if (a.disposicaoAdulto === "evoluir") linhas.push(
+    "· Disposição: quer evoluir de verdade. Pode cobrar correção técnica com mais densidade e",
+    "  explicar o porquê de cada uma — ele tolera repetição se enxergar o motivo.");
+  if (a.disposicaoAdulto === "manutencao") linhas.push(
+    "· Disposição: treina por rotina, saúde e convívio — não por alta exigência técnica. Evite",
+    "  excesso de correção seguida ou aula repetitiva demais; ele se desmotiva com isso mesmo",
+    "  quando o objetivo declarado pede mais cobrança. Varie o formato do exercício mais do que",
+    "  variaria para um aluno do tipo \"quer evoluir de verdade\".");
+  if (a.disposicaoAdulto === "competitivo") linhas.push(
+    "· Disposição: competitivo por natureza, mesmo sem competir formalmente — não gosta de perder",
+    "  ponto nem de exercício sem disputa. Use isso a favor: transforme exercício isolado em jogo",
+    "  ou placar sempre que der, em vez de pedir repetição neutra sem contexto de disputa.");
   return linhas;
+}
+
+/* Sinal de diagnóstico (não é exclusivo do adulto, mas é ali que mais
+   aparece e mais pesa — ver o pedido do treinador). Erra demais pra
+   sustentar a troca de bolas é diferente de erro tático: nenhuma
+   variedade de exercício ajuda enquanto o jogador não sustenta rally
+   nenhum. Isso justifica quebrar, por um tempo, o princípio geral do
+   método de não fixar em bate-bola puro — a própria ficha marca que é
+   uma EXCEÇÃO deliberada, não o novo padrão do plano inteiro. */
+function regrasConsistencia(a) {
+  if (!a.dificuldadeConsistencia) return [];
+  return [
+    "· ALERTA DE CONSISTÊNCIA: a ficha marca que o jogador erra demais pra sustentar a troca de",
+    "  bolas — isso é sobre não conseguir manter o ponto vivo, não sobre risco tático. Inclua pelo",
+    "  menos um exercício por semana de bate-bola cruzado, só entre jogador e treinador, sem",
+    "  variação de alvo nem de trajetória exigida (família DC do catálogo) — o objetivo dele é",
+    "  puramente sustentar a troca, não construir padrão de jogo.",
+    "· Isto contraria o princípio geral do método de não fixar em bate-bola sem variação — é uma",
+    "  exceção deliberada enquanto a consistência não vier, não o novo formato padrão da aula. Não",
+    "  remova saque nem devolução do plano por causa disto: eles continuam obrigatórios (regra acima).",
+  ];
 }
 
 function promptPlanoEstruturado(a, semanas, aulasSemana, historico) {
@@ -3509,6 +3584,7 @@ function promptPlanoEstruturado(a, semanas, aulasSemana, historico) {
     "  se decide nos quatro primeiros golpes do ponto, então saque e devolução nunca saem do plano,",
     "  só mudam de peso.",
     ...regrasAdulto(a),
+    ...regrasConsistencia(a),
   ].join("\n");
 }
 
@@ -3540,6 +3616,17 @@ function regrasAdultosTurma(membros) {
     "· Há jogador(es) recreativo(s), que não competem: sem cobrança de resultado nem exigência",
     "  técnica alta pra eles — mas querem aprender e melhorar mesmo assim. Garanta espaço na aula",
     "  pra jogo (ponto aplicado) e treino de controle, não só exercício isolado.");
+  const disposicoes = new Set(adultos.map((m) => m.disposicaoAdulto).filter(Boolean));
+  if (disposicoes.has("manutencao")) linhas.push(
+    "· Há jogador(es) que treinam por rotina/saúde/convívio, não por alta exigência técnica: pra",
+    "  eles, na parte ESPECÍFICA, evite correção em excesso ou repetição sem variar o formato.");
+  if (disposicoes.has("competitivo")) linhas.push(
+    "· Há jogador(es) competitivo(s) por natureza mesmo sem competir formalmente: pra eles, prefira",
+    "  transformar a parte específica em jogo com placar em vez de repetição neutra.");
+  if (adultos.some((m) => m.dificuldadeConsistencia)) linhas.push(
+    "· Há jogador(es) adulto(s) marcado(s) com dificuldade de consistência (erram demais pra",
+    "  sustentar a troca): garanta pra ele(s), na parte ESPECÍFICA, bate-bola cruzado (família DC)",
+    "  sem exigência de variação — exceção deliberada ao formato geral da turma, só pra ele(s).");
   return linhas;
 }
 
@@ -3846,9 +3933,25 @@ function TelaFicha({ aluno, salvar, papelAtual }) {
         <Campo rotulo="Histórico de atividades na infância" nota="Define quanto o bloco de base motora pesa. Trabalho geral igual para todos significa que o diagnóstico não foi feito.">
           <Seletor opcoes={[{ v: "pobre", r: "Pouca variedade" }, { v: "media", r: "Média" }, { v: "rica", r: "Muitos esportes" }]} valor={f.baseMotora} aoMudar={(v) => set("baseMotora", v)} />
         </Campo>
-        <Campo rotulo="Contexto familiar e do jogador" nota="Convívio, expectativas, suporte, pressão, relação com o erro e com o esforço.">
-          <textarea rows={3} style={{ ...entrada, resize: "vertical" }} value={f.contexto} onChange={(e) => set("contexto", e.target.value)} />
+        <Campo rotulo="Tempo treinando" nota="Calibra expectativa: um adulto motivado com 3 meses de quadra não lê igual a um com 3 anos platôs.">
+          <Seletor opcoes={[{ v: "novo", r: "Menos de 6 meses" }, { v: "intermediario", r: "6 meses a 2 anos" }, { v: "experiente", r: "Mais de 2 anos" }]}
+            valor={f.tempoTreinando} aoMudar={(v) => set("tempoTreinando", v)} />
         </Campo>
+        {f.estagio !== "A" ? (
+          <Campo rotulo="Contexto familiar e do jogador" nota="Convívio, expectativas, suporte, pressão, relação com o erro e com o esforço.">
+            <textarea rows={3} style={{ ...entrada, resize: "vertical" }} value={f.contexto} onChange={(e) => set("contexto", e.target.value)} />
+          </Campo>
+        ) : (
+          <>
+            <Campo rotulo="Disposição do aluno adulto" nota="Não é o objetivo dele (isso vem em Perfil de jogo) — é quem ele é na quadra: o que motiva, o que desmotiva.">
+              <Seletor opcoes={DISPOSICOES_ADULTO.map((d) => ({ v: d.v, r: d.r }))} valor={f.disposicaoAdulto} aoMudar={(v) => set("disposicaoAdulto", v)} />
+            </Campo>
+            {f.disposicaoAdulto && <p style={{ ...prosa, color: C.grafite, fontSize: 13, marginTop: -6, marginBottom: 14 }}>{DISPOSICOES_ADULTO.find((d) => d.v === f.disposicaoAdulto).d}</p>}
+            <Campo rotulo="Comportamento em quadra" nota="Humor, comunicação, paciência com o próprio erro, se é comunicativo ou fechado — substitui o contexto familiar no adulto: aqui o que importa é a pessoa que está treinando, não a criação dela.">
+              <textarea rows={3} style={{ ...entrada, resize: "vertical" }} value={f.comportamentoAdulto} onChange={(e) => set("comportamentoAdulto", e.target.value)} />
+            </Campo>
+          </>
+        )}
       </Secao>
 
       <Secao titulo="Diagnóstico — as quatro camadas" nota="A ordem é técnico, físico, tático, mental, e não pode ser invertida (D-01). Cada camada abre a seguinte.">
@@ -3889,6 +3992,9 @@ function TelaFicha({ aluno, salvar, papelAtual }) {
             {f.objetivoAdulto && <p style={{ ...prosa, color: C.grafite, fontSize: 13, marginTop: -6 }}>{OBJETIVOS_ADULTO.find((o) => o.v === f.objetivoAdulto).d}</p>}
           </>
         )}
+        <Campo rotulo="Dificuldade de consistência" nota="Erra demais pra sustentar a troca de bolas — não é sobre risco tático, é sobre não conseguir manter o ponto vivo. Mais comum e mais decisivo no adulto, mas vale para qualquer estágio.">
+          <Seletor opcoes={[{ v: false, r: "Não" }, { v: true, r: "Sim" }]} valor={f.dificuldadeConsistencia} aoMudar={(v) => set("dificuldadeConsistencia", v)} />
+        </Campo>
       </Secao>
 
       <Secao titulo="Ficha de entrada" nota="Preencha na ordem dos blocos — ela segue o protocolo do método. Onde não souber, marque 'não sei': campo honesto vira item de observação; campo chutado vira erro de diagnóstico.">
@@ -3995,6 +4101,7 @@ function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual }) {
   const corpo = PERFIS_CORPO.find((p) => p.v === a.perfilCorpo);
   const temperamento = PERFIS_TEMPERAMENTO.find((p) => p.v === a.perfilTemperamento);
   const objetivoAdulto = OBJETIVOS_ADULTO.find((o) => o.v === a.objetivoAdulto);
+  const disposicaoAdulto = DISPOSICOES_ADULTO.find((d) => d.v === a.disposicaoAdulto);
 
   return (
     <div>
@@ -4024,7 +4131,10 @@ function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual }) {
         {corpo && <Linha rotulo="Corpo" texto={corpo.r} />}
         {temperamento && <Linha rotulo="Temperamento" texto={temperamento.r} />}
         {a.estagio === "A" && objetivoAdulto && <Linha rotulo="Objetivo" texto={objetivoAdulto.r} />}
-        {!corpo && !temperamento && !(a.estagio === "A" && objetivoAdulto) && <p style={{ ...prosa, color: C.grafite }}>Perfil de jogo ainda não definido.</p>}
+        {a.estagio === "A" && disposicaoAdulto && <Linha rotulo="Disposição" texto={disposicaoAdulto.r} />}
+        {a.dificuldadeConsistencia && <Linha rotulo="Consistência" texto="Dificuldade marcada — erra demais pra sustentar a troca de bolas." />}
+        {!corpo && !temperamento && !(a.estagio === "A" && objetivoAdulto) && !(a.estagio === "A" && disposicaoAdulto) && !a.dificuldadeConsistencia &&
+          <p style={{ ...prosa, color: C.grafite }}>Perfil de jogo ainda não definido.</p>}
       </Secao>
 
       <Secao titulo="Prioridades">
