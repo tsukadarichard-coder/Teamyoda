@@ -5896,11 +5896,98 @@ function LinhaDeRaciocinio({ plano, aulas, status, reg }) {
   );
 }
 
+function escaparHTML(s) {
+  return String(s || "").replace(/[&<>"]/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[m]));
+}
+
+const NOTA_COR = { sim: "#2E4739", par: "#C9A227", nao: "#C8102E", "": "#8A8580" };
+const NOTA_LABEL = { sim: "Atingido", par: "Parcial", nao: "Não atingido", "": "Não avaliado" };
+
+/* Exportação em PDF sem biblioteca nenhuma: abre uma aba com um
+   documento HTML limpo e chama a caixa de impressão do navegador — em
+   qualquer aparelho, "Imprimir" tem a opção "Salvar como PDF" (ou vai
+   direto pro app de arquivos, no celular). Nada de Markdown aqui — é
+   isso que o treinador e o jogador vão querer mostrar/guardar, não um
+   arquivo de texto cru. */
+function exportarRelatorioPDF(h, nomeEntidade) {
+  const janela = window.open("", "_blank");
+  if (!janela) { alert("O navegador bloqueou a janela de exportação — permita pop-ups pra este site e tente de novo."); return; }
+  const criteriosHTML = (h.criterios || []).map((c) => (
+    '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #E4DED9">' +
+    '<span style="width:10px;height:10px;border-radius:999px;background:' + (NOTA_COR[c.resultado] || NOTA_COR[""]) + ';flex-shrink:0"></span>' +
+    '<span style="flex:1;font-size:13.5px">' + escaparHTML(c.nome) + '</span>' +
+    '<span style="font-size:11.5px;font-weight:700;color:' + (NOTA_COR[c.resultado] || NOTA_COR[""]) + '">' + (NOTA_LABEL[c.resultado] || NOTA_LABEL[""]) + '</span>' +
+    '</div>'
+  )).join("");
+  janela.document.write(
+    '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">' +
+    '<title>Relatório de ciclo · ' + escaparHTML(nomeEntidade) + '</title>' +
+    '<style>' +
+    'body{font-family:-apple-system,system-ui,sans-serif;color:#141210;max-width:640px;margin:30px auto;padding:0 20px}' +
+    'h1{font-family:Georgia,serif;font-size:20px;margin:0 0 4px}' +
+    '.sub{color:#6B6461;font-size:13px;margin-bottom:20px}' +
+    'h2{font-family:Georgia,serif;font-size:15px;margin:26px 0 8px}' +
+    'pre{white-space:pre-wrap;font:12.5px/1.5 ui-monospace,monospace;background:#F5F2F0;padding:14px;border-radius:4px}' +
+    '@media print { .no-print{display:none} }' +
+    '</style></head><body>' +
+    '<h1>Relatório de ciclo</h1>' +
+    '<div class="sub">' + escaparHTML(nomeEntidade) + ' · ' + escaparHTML(h.tipo || "") + ' · gerado em ' +
+      new Date(h.data).toLocaleDateString("pt-BR") + ' · ' + h.feitas + ' de ' + h.total + ' aulas</div>' +
+    (criteriosHTML ? '<h2>Critérios de saída</h2>' + criteriosHTML : "") +
+    '<h2>Relatório completo</h2><pre>' + escaparHTML(h.texto) + '</pre>' +
+    '<button class="no-print" onclick="window.print()" style="margin-top:20px;padding:10px 16px;font-weight:700;cursor:pointer">Salvar como PDF / Imprimir</button>' +
+    '</body></html>'
+  );
+  janela.document.close();
+}
+
 /* Ciclos fechados (revisão pela ficha, ou fechamento manual de ciclo) —
    nada se perde quando um plano é substituído; fica arquivado aqui,
    visível tanto com o plano atual quanto com a tela "ainda não tem
    plano" (pra mostrar que o ciclo anterior não sumiu, só foi fechado). */
-function HistoricoRelatorios({ historico, abrirHist, setAbrirHist, removerDoHistorico }) {
+/* Os critérios de saída são sempre a mesma pergunta, ciclo após ciclo —
+   isso é o que permite comparar % de critérios atingidos de um ciclo pro
+   outro, mesmo com plano e texto diferentes em cada um. "Aulas
+   realizadas" dá pra calcular em QUALQUER ciclo do histórico, mesmo os
+   arquivados antes desta métrica existir — só "critérios atingidos" fica
+   de fora dos ciclos antigos, que não guardaram o dado estruturado. */
+function GraficoEvolucao({ historico }) {
+  const cronologico = [...historico].reverse();
+  const dados = cronologico.map((h, i) => {
+    const comCriterios = (h.criterios || []).length > 0;
+    const pctCriterios = comCriterios
+      ? Math.round(100 * h.criterios.reduce((s, c) => s + (c.resultado === "sim" ? 1 : c.resultado === "par" ? 0.5 : 0), 0) / h.criterios.length)
+      : null;
+    const pctAulas = h.total > 0 ? Math.round(100 * (h.feitas / h.total)) : null;
+    return { rotulo: "Ciclo " + (i + 1), data: new Date(h.data).toLocaleDateString("pt-BR"), pctCriterios, pctAulas };
+  });
+  if (dados.length < 2) return null;
+  return (
+    <div className="mb-5">
+      <div className="mb-2"><Etiqueta>Evolução ao longo dos ciclos</Etiqueta></div>
+      <div style={{ height: 180, marginLeft: -18 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={dados}>
+            <CartesianGrid vertical={false} stroke={C.linha} />
+            <XAxis dataKey="rotulo" tick={{ fontSize: 9, fontFamily: ARCH, fill: C.grafite }} interval={0} />
+            <YAxis domain={[0, 100]} tick={{ fontSize: 9, fontFamily: ARCH, fill: C.grafite }} width={28} unit="%" />
+            <Tooltip contentStyle={{ fontFamily: ARCH, fontSize: 12, borderRadius: 2, border: "1px solid " + C.linha }}
+              labelFormatter={(r, p) => r + (p && p[0] ? " · " + p[0].payload.data : "")}
+              formatter={(v, n) => [v == null ? "sem dado" : v + "%", n === "pctCriterios" ? "Critérios atingidos" : "Aulas realizadas"]} />
+            <Line type="monotone" dataKey="pctCriterios" stroke={C.quadra} strokeWidth={2} connectNulls dot={{ r: 3 }} />
+            <Line type="monotone" dataKey="pctAulas" stroke={C.grafite} strokeWidth={2} connectNulls dot={{ r: 3 }} />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="flex gap-4 mt-1">
+        <Etiqueta cor={C.quadra}>▬ Critérios atingidos</Etiqueta>
+        <Etiqueta cor={C.grafite}>▬ Aulas realizadas</Etiqueta>
+      </div>
+    </div>
+  );
+}
+
+function HistoricoRelatorios({ historico, abrirHist, setAbrirHist, removerDoHistorico, podeEditar = true, nomeEntidade }) {
   const [copiadoId, setCopiadoId] = useState(null);
   if (historico.length === 0) return null;
 
@@ -5912,6 +5999,7 @@ function HistoricoRelatorios({ historico, abrirHist, setAbrirHist, removerDoHist
 
   return (
     <div className="mt-4">
+      <GraficoEvolucao historico={historico} />
       <div className="mb-2"><Etiqueta>Histórico de relatórios · {historico.length}</Etiqueta></div>
       {historico.map((h) => (
         <div key={h.id} style={{ background: C.papel, border: "1px solid " + C.linha, padding: "10px 13px", marginBottom: 7 }}>
@@ -5924,7 +6012,8 @@ function HistoricoRelatorios({ historico, abrirHist, setAbrirHist, removerDoHist
                 {abrirHist === h.id ? "Fechar" : "Ver"}
               </Botao>
               <Botao pequeno variante="vazio" onClick={() => copiar(h)}>{copiadoId === h.id ? "✓ copiado" : "Copiar"}</Botao>
-              <Botao pequeno variante="vazio" onClick={() => removerDoHistorico(h.id)}>Remover</Botao>
+              <Botao pequeno variante="vazio" onClick={() => exportarRelatorioPDF(h, nomeEntidade)}>Exportar PDF</Botao>
+              {podeEditar && <Botao pequeno variante="vazio" onClick={() => removerDoHistorico(h.id)}>Remover</Botao>}
             </div>
           </div>
           {abrirHist === h.id && (
@@ -6183,6 +6272,17 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
      pelo botão manual "Gerar relatório do ciclo" quanto pela revisão
      automática quando a ficha muda — essa última precisa do texto na
      hora, sem esperar o setState de `relatorio` propagar. */
+  /* Os critérios de saída são sempre a mesma pergunta (atingido / parcial /
+     não atingido), ciclo após ciclo — isto é o que faz dar pra montar um
+     gráfico de evolução comparável entre ciclos, mesmo quando o texto de
+     cada critério muda de plano pra plano (ver GraficoEvolucao). */
+  function criteriosDoFechamento(F) {
+    return plano.blocos.filter((b) => b.saida).map((b, i) => ({
+      nome: (b.nome || "") + " · " + (b.titulo || ""),
+      resultado: F["nota:C" + i] || "",
+    }));
+  }
+
   function construirRelatorio() {
     const F = reg.__fech || {};
     const NOTA = { sim: "ATINGIDO", par: "PARCIAL", nao: "NÃO ATINGIDO", "": "não avaliado" };
@@ -6257,6 +6357,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
       tipo: (plano.tipo || "") + " (revisado pela ficha)",
       feitas, total: aulas.length,
       texto: construirRelatorio(),
+      criterios: criteriosDoFechamento(reg.__fech || {}),
     };
     atualiza({ plano: null, regPlano: {}, historicoRelatorios: [item, ...historico] });
   }
@@ -6282,6 +6383,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
       tipo: plano.tipo || "",
       feitas, total: aulas.length,
       texto: relatorio,
+      criterios: criteriosDoFechamento(reg.__fech || {}),
     };
     atualiza({ historicoRelatorios: [item, ...historico] });
     setRelatorioArquivado(true);
@@ -6365,7 +6467,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
           </div>
         )}
 
-        <HistoricoRelatorios historico={historico} abrirHist={abrirHist} setAbrirHist={setAbrirHist} removerDoHistorico={removerDoHistorico} />
+        <HistoricoRelatorios historico={historico} abrirHist={abrirHist} setAbrirHist={setAbrirHist} removerDoHistorico={removerDoHistorico} podeEditar={podeEditar} nomeEntidade={entidade.nome} />
       </div>
     );
   }
@@ -6660,6 +6762,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                   tipo: (plano.tipo || "") + " (arquivado ao remover o plano)",
                   feitas, total: aulas.length,
                   texto: construirRelatorio(),
+                  criterios: criteriosDoFechamento(reg.__fech || {}),
                 };
                 atualiza({ plano: null, regPlano: {}, historicoRelatorios: [item, ...historico] });
               } else {
@@ -6675,12 +6778,16 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                 style={{ ...entrada, minHeight: 260, fontFamily: "ui-monospace, monospace", fontSize: 11.5, whiteSpace: "pre" }} />
               <div className="mt-3 flex gap-2">
                 <Botao pequeno variante="vazio" onClick={copiarRelatorio}>{relatorioCopiado ? "✓ copiado" : "Copiar"}</Botao>
+                <Botao pequeno variante="vazio" onClick={() => exportarRelatorioPDF(
+                  { data: new Date().toISOString(), tipo: plano.tipo, feitas, total: aulas.length, texto: relatorio, criterios: criteriosDoFechamento(reg.__fech || {}) },
+                  entidade.nome
+                )}>Exportar PDF</Botao>
                 <Botao pequeno disabled={!podeEditar} onClick={arquivar}>{relatorioArquivado ? "✓ arquivado no histórico" : "Arquivar no histórico"}</Botao>
               </div>
             </div>
           )}
 
-          <HistoricoRelatorios historico={historico} abrirHist={abrirHist} setAbrirHist={setAbrirHist} removerDoHistorico={removerDoHistorico} />
+          <HistoricoRelatorios historico={historico} abrirHist={abrirHist} setAbrirHist={setAbrirHist} removerDoHistorico={removerDoHistorico} podeEditar={podeEditar} nomeEntidade={entidade.nome} />
         </>
       )}
     </div>
