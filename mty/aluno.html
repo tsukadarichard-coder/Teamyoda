@@ -59,8 +59,71 @@
 <body>
 <div class="topo"></div>
 <div class="wrap">
+<div id="mty-instalar"></div>
 <div id="conteudo"><div class="carregando">Carregando…</div></div>
 </div>
+<script>
+/* Manifest gerado na hora, não um arquivo estático: o link do aluno
+   carrega org/id/t na própria URL, e um manifest fixo (start_url fixo)
+   faria o ícone instalado abrir sem esses parâmetros — "link incompleto".
+   Gerando o manifest com start_url = URL atual, o ícone reabre exatamente
+   este link do aluno. */
+(function () {
+  const manifest = {
+    name: 'Meu plano · Metodologia MTY', short_name: 'Meu plano',
+    start_url: location.pathname + location.search, display: 'standalone',
+    background_color: '#F5F2F0', theme_color: '#C8102E',
+    icons: [
+      { src: 'assets/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: 'assets/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+      { src: 'assets/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+    ],
+  };
+  const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+  const link = document.createElement('link');
+  link.rel = 'manifest';
+  link.href = URL.createObjectURL(blob);
+  document.head.appendChild(link);
+})();
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
+
+/* Mesma ideia do app do treinador: sem API única entre navegadores —
+   Chrome/Android dispara beforeinstallprompt (dá pra chamar .prompt()
+   num clique); iOS Safari não tem nenhuma API, só a orientação de tocar
+   em Compartilhar → Adicionar à Tela de Início. Fica fora do ciclo de
+   render(d) porque não depende dos dados do aluno nem deve sumir a cada
+   sincronia automática. */
+(function () {
+  const el = document.getElementById('mty-instalar');
+  let deferredPrompt = null;
+  function padrao() {
+    const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    if (standalone) { el.innerHTML = ''; return; }
+    if (deferredPrompt) {
+      el.innerHTML = '<div class="painel"><p class="desc">Instale este link na tela de início do seu celular — abre direto, sem digitar o endereço de novo.</p>' +
+        '<button class="btn" id="mty-btn-instalar">Instalar</button></div>';
+      document.getElementById('mty-btn-instalar').addEventListener('click', async function () {
+        deferredPrompt.prompt();
+        await deferredPrompt.userChoice;
+        deferredPrompt = null;
+        padrao();
+      });
+      return;
+    }
+    if (ios) {
+      el.innerHTML = '<div class="painel"><p class="desc">Pra instalar na tela de início: toque em <b>Compartilhar</b> ' +
+        '(o ícone com uma seta pra cima) e depois em <b>"Adicionar à Tela de Início"</b>.</p></div>';
+      return;
+    }
+    el.innerHTML = '';
+  }
+  window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); deferredPrompt = e; padrao(); });
+  window.addEventListener('appinstalled', function () { deferredPrompt = null; padrao(); });
+  padrao();
+})();
+</script>
 <script>
 function escapar(s){ return String(s||'').replace(/[&<>"]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
 

@@ -257,6 +257,10 @@ async function atualizaFaixa() {
 }
 atualizaFaixa();
 if (auth) auth.onAuthStateChanged(() => setTimeout(atualizaFaixa, 300));
+
+/* Só pra habilitar "instalar como app" (beforeinstallprompt) no
+   Chrome/Android — ver o componente InstalarApp mais abaixo. */
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 </script>
 
 <script type="text/babel" data-presets="react">
@@ -6939,6 +6943,63 @@ function TelaSemAcademia() {
   );
 }
 
+/* "Adicionar à tela de início" não tem uma API única entre navegadores:
+   Chrome/Android (e Edge/desktop) disparam beforeinstallprompt e dá pra
+   chamar .prompt() num clique; iOS Safari não tem NENHUMA API pra isso —
+   só dá pra orientar o toque em Compartilhar → Adicionar à Tela de
+   Início. Sem nenhum dos dois sinais (ex: desktop Firefox), não mostra
+   nada — instrução sem ação possível só confunde. */
+function InstalarApp({ compacto }) {
+  const [prompt, setPrompt] = useState(null);
+  const [instalado, setInstalado] = useState(false);
+  useEffect(() => {
+    function aoPedir(e) { e.preventDefault(); setPrompt(e); }
+    function aoInstalar() { setInstalado(true); setPrompt(null); }
+    window.addEventListener("beforeinstallprompt", aoPedir);
+    window.addEventListener("appinstalled", aoInstalar);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", aoPedir);
+      window.removeEventListener("appinstalled", aoInstalar);
+    };
+  }, []);
+  const standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  if (instalado || standalone || (!prompt && !ios)) return null;
+
+  async function instalar() {
+    if (!prompt) return;
+    prompt.prompt();
+    await prompt.userChoice;
+    setPrompt(null);
+  }
+
+  if (compacto) {
+    return prompt ? (
+      <button onClick={instalar} style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 600, color: C.grafite, cursor: "pointer",
+        padding: "4px 8px", border: "1px solid " + C.linha, borderRadius: 2, background: C.cal }}>
+        instalar app
+      </button>
+    ) : (
+      <Etiqueta cor={C.grafite}>Instalar: compartilhar → tela de início</Etiqueta>
+    );
+  }
+
+  return (
+    <div style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.saibro, padding: "11px 13px", marginTop: 18 }}>
+      {prompt ? (
+        <>
+          <p style={{ ...prosa, fontSize: 13, marginBottom: 8 }}>Instale o app na tela de início do seu celular — abre direto, sem digitar o endereço de novo.</p>
+          <Botao pequeno onClick={instalar}>Instalar app</Botao>
+        </>
+      ) : (
+        <p style={{ ...prosa, fontSize: 13 }}>
+          Pra instalar na tela de início: toque em <b>Compartilhar</b> (o ícone com uma seta pra cima) e depois em <b>"Adicionar à Tela de Início"</b>.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function TelaLogin({ aoEntrar }) {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
@@ -7003,6 +7064,7 @@ function TelaLogin({ aoEntrar }) {
         <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 10 }}>
           Treinador independente, sem academia? <a href="cadastro-individual.html" style={{ color: C.saibro }}>Crie sua conta</a> — grátis pra começar.
         </p>
+        <InstalarApp />
       </div>
     </div>
   );
@@ -8764,6 +8826,7 @@ function App() {
               {exigeLogin && uidAtual && orgAtual && (
                 <EditorMeuNome org={orgAtual} uid={uidAtual} emailAtual={window.mtyAuth.usuario() ? window.mtyAuth.usuario().email : ""} />
               )}
+              {exigeLogin && uidAtual && <InstalarApp compacto />}
               {exigeLogin && (
                 <button onClick={() => window.mtyAuth.sair()}
                   style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 600, color: C.grafite, cursor: "pointer", padding: "4px 8px", border: "1px solid " + C.linha, borderRadius: 2, background: C.cal }}>
