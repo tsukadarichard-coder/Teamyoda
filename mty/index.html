@@ -120,13 +120,15 @@ async function listaProfessores() {
   const u = auth && auth.currentUser;
   const org = await organizacao();
   let meuNome = null;
+  let meuRole = "coordenador";
   if (u && db && org) {
     try {
       const meuDoc = await db.collection("orgs").doc(org).collection("solicitacoes").doc(u.uid).get();
       if (meuDoc.exists && meuDoc.data().nome) meuNome = meuDoc.data().nome;
+      if (meuDoc.exists && meuDoc.data().role) meuRole = meuDoc.data().role;
     } catch (e) {}
   }
-  if (u) lista.push({ uid: u.uid, nome: meuNome || (u.email || "Eu").split("@")[0], email: u.email || "" });
+  if (u) lista.push({ uid: u.uid, nome: meuNome || (u.email || "Eu").split("@")[0], email: u.email || "", role: meuRole });
   if (db && org) {
     try {
       const snap = await db.collection("orgs").doc(org).collection("solicitacoes")
@@ -134,7 +136,7 @@ async function listaProfessores() {
       snap.forEach((d) => {
         if (u && d.id === u.uid) return;
         const dados = d.data();
-        lista.push({ uid: d.id, nome: dados.nome || dados.email || "Sem nome", email: dados.email || "" });
+        lista.push({ uid: d.id, nome: dados.nome || dados.email || "Sem nome", email: dados.email || "", role: dados.role || "treinador" });
       });
     } catch (e) {}
   }
@@ -7377,6 +7379,7 @@ function VisaoGeralEquipe({ alunos, turmas, uidAtual, irPara }) {
   const [carregando, setCarregando] = useState(true);
   const [selecionado, setSelecionado] = useState(null); // uid do professor aberto, ou null
   const [removendo, setRemovendo] = useState(null);
+  const [promovendo, setPromovendo] = useState(null);
   const [erro, setErro] = useState("");
 
   function carregar() {
@@ -7407,6 +7410,28 @@ function VisaoGeralEquipe({ alunos, turmas, uidAtual, irPara }) {
       setErro(String(e.message || e));
     }
     setRemovendo(null);
+  }
+
+  /* Promove um treinador a coordenador — ele passa a ver Academia/Quadras
+     e a própria aba de Equipe, e ganha os mesmos poderes de aprovar,
+     remover e promover outros. Não tem "rebaixar" ainda. */
+  async function promoverProfessor(p) {
+    if (!confirm("Promover " + p.nome + " a coordenador? Ele passa a ter acesso total à academia.")) return;
+    setPromovendo(p.uid); setErro("");
+    try {
+      const token = await window.mtyAuth.tokenId();
+      const r = await fetch("/.netlify/functions/promover-treinador", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: "Bearer " + token },
+        body: JSON.stringify({ uid: p.uid }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.erro || ("Erro " + r.status));
+      carregar();
+    } catch (e) {
+      setErro(String(e.message || e));
+    }
+    setPromovendo(null);
   }
 
   if (carregando) return <p style={{ ...prosa, color: C.grafite }}>Carregando…</p>;
@@ -7485,13 +7510,22 @@ function VisaoGeralEquipe({ alunos, turmas, uidAtual, irPara }) {
                 {l.nome}
               </button>
               {l.uid !== uidAtual && (
-                <button onClick={() => removerProfessor(l)} disabled={removendo === l.uid}
-                  style={{ fontFamily: ARCH, fontSize: 11, fontWeight: 700, color: C.saibro, cursor: "pointer", border: "none", background: "none", padding: 0 }}>
-                  {removendo === l.uid ? "removendo…" : "Excluir professor"}
-                </button>
+                <div className="flex items-center gap-3">
+                  {l.role !== "coordenador" && (
+                    <button onClick={() => promoverProfessor(l)} disabled={promovendo === l.uid}
+                      style={{ fontFamily: ARCH, fontSize: 11, fontWeight: 700, color: C.quadra, cursor: "pointer", border: "none", background: "none", padding: 0 }}>
+                      {promovendo === l.uid ? "promovendo…" : "Promover a coordenador"}
+                    </button>
+                  )}
+                  <button onClick={() => removerProfessor(l)} disabled={removendo === l.uid}
+                    style={{ fontFamily: ARCH, fontSize: 11, fontWeight: 700, color: C.saibro, cursor: "pointer", border: "none", background: "none", padding: 0 }}>
+                    {removendo === l.uid ? "removendo…" : "Excluir professor"}
+                  </button>
+                </div>
               )}
             </div>
             <div className="flex flex-wrap gap-2">
+              {l.role === "coordenador" && <Etiqueta cor={C.quadra}>Coordenador</Etiqueta>}
               <Etiqueta>{l.alunos} jogador{l.alunos === 1 ? "" : "es"}</Etiqueta>
               <Etiqueta>{l.turmas} turma{l.turmas === 1 ? "" : "s"}</Etiqueta>
               <Etiqueta cor={l.abertos > 0 ? C.saibro : C.grafite}>{l.abertos} aula{l.abertos === 1 ? "" : "s"} em aberto</Etiqueta>
@@ -9399,7 +9433,7 @@ function App() {
   const lembretesVisiveis = avisos.lembretes.filter((l) => !avisosVistos.has(idLembrete(l)));
   const pendenciasVisiveis = avisos.pendencias.filter((p) => !avisosVistos.has(idPendencia(p)));
   const pedidosAlunosVisiveis = avisos.pedidosAlunos.filter((p) => !avisosVistos.has(idPedidoAluno(p)));
-  const reservasNovasVisiveis = avisos.reservasNovas;
+  const reservasNovasVisiveis = papelAtual === "coordenador" ? avisos.reservasNovas : [];
   function verReserva(r) {
     setReservas(reservas.map((x) => (x.id === r.id ? { ...x, vistoPeloStaff: true } : x)));
     setAba("quadras");
@@ -9433,9 +9467,10 @@ function App() {
      usava antes de existir — então o padrão é ficar ESCONDIDA (inclusive
      pra Team Yoda, que não aluga quadra), e só aparece pra quem for
      provisionado explicitamente com a opção marcada. */
-  const mostraQuadras = !!identidade && identidade.mostrarQuadras === true;
+  const mostraQuadras = !!identidade && identidade.mostrarQuadras === true && papelAtual === "coordenador";
   /* Menu lateral, por segmento: "Meu trabalho" é o dia a dia de qualquer
-     treinador; "Academia" é gestão (por enquanto só Quadras, opcional);
+     treinador; "Academia" é gestão (por enquanto só Quadras, opcional) e
+     só aparece pro coordenador — os demais treinadores nem veem a aba;
      "Equipe" é só do coordenador. Um grupo sem nenhum item (ex.: Academia
      numa academia sem Quadras) simplesmente não aparece. */
   const gruposNav = [

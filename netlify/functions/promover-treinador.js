@@ -1,7 +1,7 @@
-/* Aprova um pedido de acesso pendente. Só quem já é coordenador da
-   academia pode chamar isso — verificado pela própria claim de quem
-   está logado, não por um segredo à parte (diferente de
-   provisionar-org, que cria a primeira conta de uma academia nova). */
+/* Promove um treinador já aprovado a coordenador. Só quem já é
+   coordenador da academia pode chamar isso — verificado pela própria
+   claim de quem está logado, no mesmo padrão de aprovar-treinador.
+   Não existe "rebaixar" ainda. */
 const { admin, app } = require("./_firebase-admin");
 
 exports.handler = async function (event) {
@@ -19,7 +19,7 @@ exports.handler = async function (event) {
     return resposta(401, { erro: "Login inválido ou expirado." });
   }
   if (!claims.orgId || claims.role !== "coordenador") {
-    return resposta(403, { erro: "Só o coordenador da academia pode aprovar pedidos." });
+    return resposta(403, { erro: "Só o coordenador da academia pode promover alguém." });
   }
 
   let corpo;
@@ -27,15 +27,17 @@ exports.handler = async function (event) {
   catch (e) { return resposta(400, { erro: "Corpo da requisição inválido." }); }
 
   const { uid } = corpo;
-  if (!uid) return resposta(400, { erro: "Faltou o uid do pedido." });
+  if (!uid) return resposta(400, { erro: "Faltou o uid do professor." });
 
   try {
     const ref = admin.firestore().collection("orgs").doc(claims.orgId).collection("solicitacoes").doc(uid);
     const snap = await ref.get();
-    if (!snap.exists) return resposta(404, { erro: "Não encontrei esse pedido." });
+    if (!snap.exists || snap.data().status !== "aprovada") {
+      return resposta(404, { erro: "Não encontrei esse professor na academia." });
+    }
 
-    await admin.auth().setCustomUserClaims(uid, { orgId: claims.orgId, role: "treinador" });
-    await ref.set({ status: "aprovada", role: "treinador", aprovadaEm: new Date().toISOString() }, { merge: true });
+    await admin.auth().setCustomUserClaims(uid, { orgId: claims.orgId, role: "coordenador" });
+    await ref.set({ role: "coordenador" }, { merge: true });
 
     return resposta(200, { ok: true });
   } catch (e) {

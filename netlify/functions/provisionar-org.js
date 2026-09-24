@@ -87,6 +87,22 @@ exports.handler = async function (event) {
     if (typeof mostrarQuadras === "boolean") identidade.mostrarQuadras = mostrarQuadras;
     await admin.firestore().collection("orgs").doc(orgId).collection("meta").doc("info").set(identidade, { merge: true });
 
+    /* Também registra essa conta em solicitacoes, do mesmo jeito que um
+       treinador aprovado — assim listaProfessores() e a aba Equipe
+       enxergam o próprio coordenador com o role certo desde o início.
+       Só define nome/status na primeira vez, pra não sobrescrever um
+       nome que o coordenador já tenha editado numa reprovisão. */
+    const solicitacaoRef = admin.firestore().collection("orgs").doc(orgId).collection("solicitacoes").doc(usuario.uid);
+    const solicitacaoAtual = await solicitacaoRef.get();
+    if (!solicitacaoAtual.exists) {
+      await solicitacaoRef.set({
+        nome: nomeAcademia || email, email, status: "aprovada", role: "coordenador",
+        criadoEm: new Date().toISOString(),
+      });
+    } else {
+      await solicitacaoRef.set({ role: "coordenador" }, { merge: true });
+    }
+
     return resposta(200, {
       ok: true,
       orgId,

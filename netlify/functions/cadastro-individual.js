@@ -63,7 +63,7 @@ exports.handler = async function (event) {
       criadoEm: new Date().toISOString(),
     });
     await db.collection("orgs").doc(orgId).collection("solicitacoes").doc(usuario.uid).set({
-      nome: nome, email: email, status: "aprovada", criadoEm: new Date().toISOString(),
+      nome: nome, email: email, status: "aprovada", role: "coordenador", criadoEm: new Date().toISOString(),
     });
 
     return resposta(200, { ok: true, orgId, email });
