@@ -1512,6 +1512,126 @@ const CURSOS_FORMACAO = [
         opcoes: ["Mais variedade de exercícios pra distrair do erro", "Um bloco de risco tático maior pra forçar a decisão", "Pelo menos um exercício semanal de bate-bola cruzado com o treinador, sem exigir variação — mesmo contrariando o princípio geral do método", "Remover saque e devolução até a consistência melhorar"], certa: 2 },
     ],
   },
+  /* ── a partir daqui, um curso por aba do Manual — a aba continua existindo
+     pra consulta a qualquer momento; aqui o treinador lê, aplica num caso
+     real e faz o quiz, e o progresso fica registrado módulo a módulo. ── */
+  {
+    id: "catalogo-familias", nome: "Catálogo: Famílias e Blocos da Aula", modulos: [
+      { t: "O mapa das famílias", saida: "Na aba Manual → Catálogo, abra o Mapa das famílias. Escolha três exercícios que você nunca usou e diga, pra cada um, a família (código), o foco declarado e em qual bloco da aula ele entra." },
+      { t: "IP é obrigatório, não opcional", saida: "Explique, com um caso real seu, o que muda numa aula quando o bloco de início do ponto (família IP) fica abaixo de 25% do tempo total." },
+      { t: "Drills mentais nunca à parte", saida: "Descreva uma aula sua em que trabalhou um drill mental (família DM) integrado a outro bloco — não como um momento isolado de \"trabalho mental\"." },
+    ],
+    quiz: [
+      { p: "Qual família de exercício é obrigatória em toda aula, ocupando de 25% a 35% do tempo?",
+        opcoes: ["DC — Drills de consistência", "IP — Início do ponto", "JA — Jogo aplicado", "CF — Condicionamento físico"], certa: 1 },
+      { p: "Segundo o mapa de blocos do catálogo, quais famílias entram no Bloco 3 (parte geral) da aula?",
+        opcoes: ["Só JA", "CO · RT · MV · AT · DT", "Só PDS e PDD", "FB e DC apenas"], certa: 1 },
+      { p: "Sobre a família DM (drills mentais), o catálogo diz que ela deve entrar:",
+        opcoes: ["Como um bloco à parte, no fim da aula", "Dentro dos blocos regulares, nunca separada", "Só a partir do nível Y4", "Só em aula individual"], certa: 1 },
+    ],
+  },
+  {
+    id: "taticas-vocabulario-padroes", nome: "Táticas: Vocabulário, Escada e Padrões", modulos: [
+      { t: "O vocabulário tático", saida: "Na aba Manual → Táticas, leia \"O vocabulário\" (os oito termos). Escolha um aluno real e, pra três desses termos (por exemplo bola neutra, bola de ataque, bola de defesa), escreva um exemplo de bola que ele jogou recentemente encaixando em cada um." },
+      { t: "Os três objetivos, na ordem certa", saida: "Explique com um caso real por que \"ganhar a quadra\" vem antes de \"produzir ângulo\", e este antes de \"diminuir o tempo\" — o que dá errado quando se inverte a ordem?" },
+      { t: "O básico antes do específico", saida: "Escolha um dos seis pontos do \"básico, para todo tenista\" (B1 a B6) e descreva um aluno que ainda não domina esse básico, mesmo já tendo perfil de corpo ou temperamento definido na ficha." },
+      { t: "A escada tática, degrau a degrau", saida: "Para um aluno seu classificado em Y3, Y4 ou Y5, diga que padrões táticos (da lista de 16) ele já deveria estar treinando segundo a escada — e diga se isso bate com o que você vem trabalhando com ele." },
+      { t: "Escolher o padrão certo", saida: "Escolha um dos dezesseis padrões táticos (P1 a P16) e explique, pra um aluno real, por que ele se encaixa (ou ainda não) no custo técnico que esse padrão exige." },
+      { t: "Placar, duplas e o trilho", saida: "Descreva uma situação de placar (por exemplo 40-0 sacando, ou break point) que você viveu com um aluno recentemente, e diga se a conduta dele bateu com o que o manual recomenda pra essa situação." },
+    ],
+    quiz: [
+      { p: "Qual é a ordem correta dos três objetivos do jogo, segundo o manual?",
+        opcoes: ["Diminuir o tempo · Produzir ângulo · Ganhar a quadra", "Ganhar a quadra · Produzir ângulo · Diminuir o tempo", "Produzir ângulo · Ganhar a quadra · Diminuir o tempo", "Não há ordem — os três valem o mesmo"], certa: 1 },
+      { p: "Segundo a escada tática por nível, em que nível entra pela primeira vez o padrão \"bola que arma e bola que converte\"?",
+        opcoes: ["Y2", "Y3", "Y4", "Y6"], certa: 2 },
+      { p: "Sobre os dezesseis padrões táticos, qual é a regra pra escolher um pra um aluno?",
+        opcoes: ["O mais bonito de se ver", "O que o adversário menos espera", "O custo técnico do jogador — nunca o mais bonito", "O que o próprio aluno pede pra treinar"], certa: 2 },
+    ],
+  },
+  {
+    id: "conducao-serie-c", nome: "Condução: A Série C", modulos: [
+      { t: "Instrução como solução (C-01)", saida: "Pegue três proibições que você disse em aulas recentes (\"não faz isso\", \"não erra pra lá\") e reescreva cada uma como solução, no formato do manual." },
+      { t: "Especificidade (C-02)", saida: "Escreva uma correção ou elogio vago que você deu recentemente (\"boa bola\", \"melhorou\") e reescreva no formato específico: nome, o que aconteceu, onde, e a pergunta final." },
+      { t: "A pergunta antes da resposta (C-03)", saida: "Conduza uma aula (ou parte dela) só com perguntas, sem instrução direta, e relate o que o aluno conseguiu gerar sozinho — e o que ele não conseguiu." },
+      { t: "Reenquadramento e ressignificação do erro (C-04 e C-05)", saida: "Escreva uma fala real de um aluno seu (algo como \"meu backhand é ruim\" ou \"errei três seguidas\") e o reenquadramento que você daria, sem negar o fato." },
+      { t: "A conversa de reavaliação (C-07)", saida: "Descreva como foi (ou como seria) a última conversa de reavaliação que você teve com um aluno — ele falou primeiro? Você evitou comparar com outro aluno ou prometer prazo?" },
+    ],
+    quiz: [
+      { p: "Segundo C-01, qual é a \"regra de teste\" pra saber se uma instrução é solução, não proibição disfarçada?",
+        opcoes: ["Se ela usa a palavra \"não\"", "Se o jogador conseguiria executá-la de olhos fechados", "Se ela é dita em tom calmo", "Se o aluno concorda com ela"], certa: 1 },
+      { p: "Segundo C-05 (ressignificação do erro), o que NUNCA se deve fazer quando um aluno erra atacando uma bola que pedia ataque?",
+        opcoes: ["Elogiar a tentativa", "Corrigir o ponto de contato ou o apoio", "Pedir mais efeito pra bola cair dentro — descaracterizando a jogada", "Dizer \"próxima\""], certa: 2 },
+      { p: "Na conversa de reavaliação (C-07), quem fala primeiro?",
+        opcoes: ["O treinador, explicando o que faltou", "O aluno", "Os pais, se o aluno for menor", "Ninguém — é só leitura da ficha"], certa: 1 },
+    ],
+  },
+  {
+    id: "tecnica-series-tmp", nome: "Técnica: Golpes, Movimentação e Ponto", modulos: [
+      { t: "As seis fases (T-01)", saida: "Escolha um erro técnico recente de um aluno e, usando o mapa sintoma→causa do manual, diga em qual das seis fases (preparação, apoio, aceleração, contato, terminação, recuperação) está a causa provável — não o sintoma." },
+      { t: "Golpes de fundo (T-02 a T-04)", saida: "Escolha um aluno com erro recorrente de forehand ou backhand e descreva a correção que você daria — evitando pedir \"mais força\" ou \"mais efeito\"." },
+      { t: "Saque (T-05 e T-06)", saida: "Observe o saque de um aluno e diga se o armado (ritmo, posição dos pés, trajetória do braço) muda entre o saque plano, o slice e o kick dele — o manual diz que isso NUNCA deveria mudar." },
+      { t: "Rede e transições (T-08 a T-10, M-01 a M-04)", saida: "Descreva um caso de um aluno que erra voleio ou smash, e diga se a causa está na técnica do golpe em si ou na fase de apoio/deslocamento que vem antes dele." },
+      { t: "Empunhaduras e apoios (T-11 e T-12)", saida: "Escolha um aluno e diga qual empunhadura de fundo ele usa (eastern, semi-western) e qual apoio (aberto, semiaberto, quadrado, fechado) ele usa com mais frequência — e se isso é situacional ou virou hábito único." },
+      { t: "Ponto e tática (série P)", saida: "Escolha um dos seis sistemas de ataque (P-02) e descreva um aluno que já executa esse padrão, ou que precisaria treiná-lo." },
+    ],
+    quiz: [
+      { p: "Segundo T-02, qual instrução o manual diz que NUNCA se deve dar pra corrigir falta de potência?",
+        opcoes: ["\"Flexione mais os joelhos\"", "\"Bata mais forte\"", "\"Acelere o braço\"", "\"Prepare mais cedo\""], certa: 1 },
+      { p: "Sobre as três variações de saque (plano, slice, kick), o que NUNCA pode mudar entre elas?",
+        opcoes: ["O tipo de efeito na bola", "O ritmo do armado, a posição dos pés e a trajetória do braço até o troféu", "A altura do lançamento", "Nada — as três são livres"], certa: 1 },
+      { p: "Segundo T-12, os quatro apoios (aberto, semiaberto, quadrado, fechado) são:",
+        opcoes: ["Hierárquicos — um é sempre melhor que os outros", "Situacionais — cada um serve pra uma situação diferente", "Só usados em nível avançado", "Escolha estética do jogador"], certa: 1 },
+    ],
+  },
+  {
+    id: "aulas-estrutura-trilhas", nome: "Aulas: Estrutura, Protocolos e Trilhas", modulos: [
+      { t: "Os cinco blocos e os oito protocolos", saida: "Na sua próxima aula, registre quantos dos oito protocolos de quadra (P1 a P8) você conseguiu manter conscientemente — e qual foi o mais difícil de sustentar." },
+      { t: "O eixo da redução de tempo", saida: "Escolha um aluno de qualquer nível e traduza \"reduzir o tempo do adversário\" pra linguagem que ele entenderia, seguindo os exemplos do manual por faixa de nível." },
+      { t: "O trabalho lúdico", saida: "Para uma brincadeira que você usa (ou pretende usar) com crianças, diga qual é o propósito declarado dela — o que ela treina de verdade — e o que a regra da brincadeira faz sem precisar de instrução." },
+      { t: "As trilhas por nível", saida: "Escolha um aluno numa das trilhas (A, B, C, adultos D/E/F, ou G de competição) e diga em qual mesociclo (M1, M2 ou M3) ele está, e o que deveria estar sendo trabalhado agora." },
+      { t: "A autoverificação do professor", saida: "Ao fim de uma aula real, responda as quatro perguntas de autoverificação do manual — principalmente a quarta: você pediu mais efeito pra alguma bola de ataque cair dentro?" },
+    ],
+    quiz: [
+      { p: "Segundo o manual, o bloco de início do ponto (saque+devolução) deve, à medida que o nível sobe:",
+        opcoes: ["Diminuir de proporção, dando lugar à técnica específica", "Crescer de proporção — o oposto do ensino tradicional", "Ficar sempre igual, em qualquer nível", "Sumir a partir do Y5"], certa: 1 },
+      { p: "Qual é a \"pergunta mais importante do manual\", segundo a autoverificação do professor?",
+        opcoes: ["Todo aluno teve o bloco de técnica específica?", "Em algum momento pedi mais efeito pra uma bola de ataque cair dentro?", "Corrigi uma coisa de cada vez?", "Minhas instruções foram soluções?"], certa: 1 },
+      { p: "Sobre os estímulos técnicos no ciclo de competição (Trilha G), a regra da rotação é:",
+        opcoes: ["Trocar todos os estímulos a cada bloco", "Manter cada estímulo por três treinos e trocar só um por vez (rotação parcial)", "Escolher um estímulo novo a cada aula", "Usar sempre os mesmos estímulos o ano inteiro"], certa: 1 },
+    ],
+  },
+  {
+    id: "publicos-especificos", nome: "Públicos Específicos", modulos: [
+      { t: "Adulto competitivo social", saida: "Para um aluno adulto que compete (torneio interno, liga, ranking de clube), diga se a proporção de tática/técnica que você tem usado com ele bate com os 40%/30%/20%/10% do manual (tática/início do ponto/técnica/físico)." },
+      { t: "Infantojuvenil: duas frentes", saida: "Para um aluno juvenil seu, diga se ele está na frente competitivo social ou alto rendimento, e justifique usando as quatro condições do manual (horizonte declarado por ele, agenda, calendário, critérios Y5 cumpridos)." },
+      { t: "Adulto acima de 50 e o aluno intermitente", saida: "Descreva um aluno mais velho ou um aluno intermitente seu, e diga qual ajuste do manual (carga, retomada) você já aplica e qual ainda não." },
+      { t: "A dupla desigual e a conversa com a família", saida: "Se você dá aula em dupla desigual ou lida com famílias de alunos crianças, descreva uma situação real e diga se a conduta bateu com o que o manual recomenda (restrição em vez de redução; nunca prometer prazo)." },
+    ],
+    quiz: [
+      { p: "No adulto competitivo social, qual proporção o manual recomenda entre tática e o resto?",
+        opcoes: ["Tática pesa menos que técnica, como em qualquer outro público", "40% tática — é o único público em que a tática pesa mais que a técnica", "100% tático, sem trabalho técnico", "A mesma proporção do juvenil de competição"], certa: 1 },
+      { p: "Segundo o manual, o que NUNCA se deve fazer com o jogador mais avançado numa dupla desigual?",
+        opcoes: ["Dar restrição de quadra ou de alvo pra ele", "Pedir pra ele bater mais devagar", "Fazer ele sacar com alvo reduzido", "Anunciar os estímulos em voz alta"], certa: 1 },
+      { p: "Sobre conversar com a família de um aluno criança, qual é o princípio que atravessa as sete situações do manual?",
+        opcoes: ["O professor decide, a família aceita", "A ficha decide, não o professor", "Nunca conversar com a família", "Prometer prazo de evolução pra tranquilizar"], certa: 1 },
+    ],
+  },
+  {
+    id: "metodo-principios", nome: "Método: Princípios e Diagnóstico Avançado", modulos: [
+      { t: "Os onze princípios", saida: "Escolha três dos onze princípios numerados do Método e diga, com um caso real, como cada um já apareceu (ou deveria ter aparecido) no seu trabalho." },
+      { t: "A divergência é o dado", saida: "Lembre de uma vez em que você discordou de uma sugestão do sistema (ou do plano) e trocou ou cortou algo — o que isso revelou sobre a regra que gerou aquela sugestão?" },
+      { t: "Bases de apoio e leitura tática (D-03, D-05)", saida: "Escolha um aluno e aplique nele a sequência de observação de D-03 (bases de apoio) — o que você percebeu que não tinha notado antes?" },
+      { t: "O que não se diagnostica (D-06) e a reavaliação periódica (D-08, I-07)", saida: "Descreva um caso em que você (ou outro treinador) rotulou um aluno como \"cabeça fraca\" ou \"inseguro\" sem checar antes se havia uma falha técnica por trás." },
+    ],
+    quiz: [
+      { p: "Segundo o princípio 4 do Método, volume e intensidade:",
+        opcoes: ["Sobem juntos na competição", "Nunca estão no pico ao mesmo tempo — um sobe enquanto o outro cai", "São a mesma coisa", "Não têm relação entre si"], certa: 1 },
+      { p: "Segundo D-06, o que o manual diz sobre diagnosticar \"ansiedade\" ou \"cabeça fraca\" num aluno?",
+        opcoes: ["São diagnósticos válidos sempre que o aluno erra sob pressão", "São inferências, não observações — o treinador observa comportamentos, não estados internos", "Só um psicólogo pode usar esses termos, mas o treinador pode diagnosticar do mesmo jeito", "É a primeira coisa a avaliar, antes da técnica"], certa: 1 },
+      { p: "Segundo D-08, a regra da rotação parcial na reavaliação periódica é:",
+        opcoes: ["Trocar todos os estímulos de uma vez", "Substituir apenas um estímulo por ciclo", "Nunca trocar nenhum estímulo", "Trocar com base no resultado do último torneio"], certa: 1 },
+    ],
+  },
 ];
 
 /* ── referência do curso de Formação Interna (Parte 11) — como o programa funciona,
