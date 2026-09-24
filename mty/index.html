@@ -1517,9 +1517,15 @@ const CURSOS_FORMACAO = [
      real e faz o quiz, e o progresso fica registrado módulo a módulo. ── */
   {
     id: "catalogo-familias", nome: "Catálogo: Famílias e Blocos da Aula", modulos: [
-      { t: "O mapa das famílias", saida: "Na aba Manual → Catálogo, abra o Mapa das famílias. Escolha três exercícios que você nunca usou e diga, pra cada um, a família (código), o foco declarado e em qual bloco da aula ele entra." },
-      { t: "IP é obrigatório, não opcional", saida: "Explique, com um caso real seu, o que muda numa aula quando o bloco de início do ponto (família IP) fica abaixo de 25% do tempo total." },
-      { t: "Drills mentais nunca à parte", saida: "Descreva uma aula sua em que trabalhou um drill mental (família DM) integrado a outro bloco — não como um momento isolado de \"trabalho mental\"." },
+      { t: "O mapa das famílias",
+        teoria: "O catálogo organiza os 315 exercícios em famílias por código: FB (golpes isolados, shadow, empunhaduras, apoios), MV (padrões de deslocamento), DT (decisão e construção, bloco tático das tardes), PDB/PDR/PDS/PDD (power drills de base, rede, saque e devolução — alto rendimento), DC (precisão direcional e consistência), CF (físico específico), DM (rotinas e foco), IP (saque e devolução como unidade), RT (antecipação e redução de tempo), CO (coordenação e base motora), AT (ataque desde a iniciação) e JA (jogo aplicado com regra). Cada família tem foco e momento certo de entrar — o mapa de blocos diz qual família cabe em qual dos cinco blocos da aula: Bloco 1 usa CO·RT; Bloco 2 usa IP; Bloco 3 usa CO·RT·MV·AT·DT; Bloco 4 é definido pelo diagnóstico individual; Bloco 5 usa JA.",
+        saida: "Escolha três exercícios do catálogo que você nunca usou e diga, pra cada um, a família (código), o foco declarado e em qual bloco da aula ele entra." },
+      { t: "IP é obrigatório, não opcional",
+        teoria: "A família IP (início do ponto: saque e devolução como unidade, com a bola seguinte) é a única marcada como obrigatória em toda aula, ocupando de 25% a 35% do tempo total — não é um tema que se visita de vez em quando, é núcleo permanente. Isso existe porque a maioria dos pontos, mesmo fora do alto rendimento, se decide nos primeiros golpes da troca.",
+        saida: "Explique, com um caso real seu, o que muda numa aula quando o bloco de início do ponto (família IP) fica abaixo de 25% do tempo total." },
+      { t: "Drills mentais nunca à parte",
+        teoria: "A família DM (drills mentais: rotinas, foco, checklists) tem uma instrução própria no catálogo: \"dentro dos blocos, nunca à parte\". Trabalho mental não é uma seção isolada da aula (tipo \"agora vamos trabalhar a cabeça\") — ele entra embutido dentro de exercícios técnicos, táticos ou físicos que já estão em andamento.",
+        saida: "Descreva uma aula sua em que trabalhou um drill mental (família DM) integrado a outro bloco — não como um momento isolado de \"trabalho mental\"." },
     ],
     quiz: [
       { p: "Qual família de exercício é obrigatória em toda aula, ocupando de 25% a 35% do tempo?",
@@ -1532,12 +1538,24 @@ const CURSOS_FORMACAO = [
   },
   {
     id: "taticas-vocabulario-padroes", nome: "Táticas: Vocabulário, Escada e Padrões", modulos: [
-      { t: "O vocabulário tático", saida: "Na aba Manual → Táticas, leia \"O vocabulário\" (os oito termos). Escolha um aluno real e, pra três desses termos (por exemplo bola neutra, bola de ataque, bola de defesa), escreva um exemplo de bola que ele jogou recentemente encaixando em cada um." },
-      { t: "Os três objetivos, na ordem certa", saida: "Explique com um caso real por que \"ganhar a quadra\" vem antes de \"produzir ângulo\", e este antes de \"diminuir o tempo\" — o que dá errado quando se inverte a ordem?" },
-      { t: "O básico antes do específico", saida: "Escolha um dos seis pontos do \"básico, para todo tenista\" (B1 a B6) e descreva um aluno que ainda não domina esse básico, mesmo já tendo perfil de corpo ou temperamento definido na ficha." },
-      { t: "A escada tática, degrau a degrau", saida: "Para um aluno seu classificado em Y3, Y4 ou Y5, diga que padrões táticos (da lista de 16) ele já deveria estar treinando segundo a escada — e diga se isso bate com o que você vem trabalhando com ele." },
-      { t: "Escolher o padrão certo", saida: "Escolha um dos dezesseis padrões táticos (P1 a P16) e explique, pra um aluno real, por que ele se encaixa (ou ainda não) no custo técnico que esse padrão exige." },
-      { t: "Placar, duplas e o trilho", saida: "Descreva uma situação de placar (por exemplo 40-0 sacando, ou break point) que você viveu com um aluno recentemente, e diga se a conduta dele bateu com o que o manual recomenda pra essa situação." },
+      { t: "O vocabulário tático",
+        teoria: "Oito termos que o professor precisa usar sempre do mesmo jeito (o aluno não precisa decorá-los): bola neutra (chega equilibrada, sem obrigar nada do adversário — jogar fundo e ao centro; erro comum: tratá-la como bola de ataque); bola de ataque (curta ou lenta, contato entre a cintura e o peito — entrar e acelerar; erro: atacar de trás da linha de base); bola de defesa (funda, rápida, ou você desequilibrado — responder alta e funda, ou acelerada cruzada; erro: tentar ganhar o ponto da defesa); bola que arma (alvo de segurança, ~2m dentro das linhas) e bola que converte (alvo de pressão, mais perto das linhas — erro: inverter os dois); margem (a bola funda nasce de altura sobre a rede, não de velocidade); reduzir o tempo (o objetivo central — pegar a bola mais cedo, jogar mais fundo, ganhar terreno; não é bater mais forte); e o padrão (sequência de 2 a 4 bolas com intenções decididas antes, nunca improvisada).",
+        saida: "Escolha um aluno real e, pra três desses termos (por exemplo bola neutra, bola de ataque, bola de defesa), escreva um exemplo de bola que ele jogou recentemente encaixando em cada um." },
+      { t: "Os três objetivos, na ordem certa",
+        teoria: "Os três objetivos do jogo têm ordem fixa: 1) ganhar a quadra (empurrar o adversário pra trás e avançar terreno), que serve pra poder 2) produzir ângulo (abrir a quadra pro lado), que é o que permite 3) diminuir o tempo (fazer a bola chegar antes). Todo padrão tático serve a um destes três — o que não serve a nenhum não é tática, é jogada bonita.",
+        saida: "Explique com um caso real por que \"ganhar a quadra\" vem antes de \"produzir ângulo\", e este antes de \"diminuir o tempo\" — o que dá errado quando se inverte a ordem?" },
+      { t: "O básico antes do específico",
+        teoria: "Antes de qualquer padrão específico ou perfil, existem seis pontos básicos pra todo tenista: B1 mudar a direção da bola (só de bola confortável — mudar de bola difícil é a causa mais comum de erro não forçado); B2 virar a quadra; B3 transitar da defesa pro ataque, pela bola seguinte, não a mesma bola; B4 ganhar a quadra, metro a metro; B5 negar ângulo, jogando fundo ao centro (a jogada mais subestimada do tênis); B6 reconhecer a bola que autoriza — saber se é neutra, de ataque ou defesa antes de preparar, o pré-requisito de toda a tática.",
+        saida: "Escolha um dos seis pontos do \"básico, para todo tenista\" (B1 a B6) e descreva um aluno que ainda não domina esse básico, mesmo já tendo perfil de corpo ou temperamento definido na ficha." },
+      { t: "A escada tática, degrau a degrau",
+        teoria: "A escada tática segue os mesmos níveis Y1–Y6, sem pular degrau: Y1 não tem conteúdo tático formal; Y2 entra só direção e bola no corpo (padrão P15); Y3 traz a bola profunda ao centro e a devolução em jogo (P5, P8, P9, P11); Y4 é o divisor de águas entre bater bola e jogar tênis — a bola que arma e a que converte (P1, P2, P6, P10, P13, P14); Y5 traz padrões completos e leitura do adversário (P3, P4, P7, P12, P16); Y6 é plano de jogo, placar e plano B, com todos os padrões.",
+        saida: "Para um aluno seu classificado em Y3, Y4 ou Y5, diga que padrões táticos (da lista de 16) ele já deveria estar treinando segundo a escada — e diga se isso bate com o que você vem trabalhando com ele." },
+      { t: "Escolher o padrão certo",
+        teoria: "Existem dezesseis padrões táticos numerados (P1 a P16), cada um com exigência técnica, nível de entrada, sequência de bolas e erro comum documentados. A regra pra escolher qual ensinar não é o mais bonito — é o custo técnico do jogador: um padrão que exige um golpe que o aluno ainda não tem vira frustração, não tática.",
+        saida: "Escolha um dos dezesseis padrões táticos (P1 a P16) e explique, pra um aluno real, por que ele se encaixa (ou ainda não) no custo técnico que esse padrão exige." },
+      { t: "Placar, duplas e o trilho",
+        teoria: "Sete situações de placar têm conduta própria — por exemplo, 40-0 sacando é o melhor momento pra testar algo novo, porque o risco é barato; break point contra você pede saque com margem e rotina completa, sem pressa. Nas duplas, seis regras resolvem a maioria dos erros: o meio é do jogador da rede; a dupla se move junta; a devolução é cruzada quase sempre. E nenhum padrão novo entra direto no ponto livre — passa pelo trilho: fechado primeiro (decisão combinada), semiaberto depois (entrada controlada), aberto com regra por último (ponto de verdade premiando o padrão).",
+        saida: "Descreva uma situação de placar (por exemplo 40-0 sacando, ou break point) que você viveu com um aluno recentemente, e diga se a conduta dele bateu com o que o manual recomenda pra essa situação." },
     ],
     quiz: [
       { p: "Qual é a ordem correta dos três objetivos do jogo, segundo o manual?",
@@ -1550,11 +1568,21 @@ const CURSOS_FORMACAO = [
   },
   {
     id: "conducao-serie-c", nome: "Condução: A Série C", modulos: [
-      { t: "Instrução como solução (C-01)", saida: "Pegue três proibições que você disse em aulas recentes (\"não faz isso\", \"não erra pra lá\") e reescreva cada uma como solução, no formato do manual." },
-      { t: "Especificidade (C-02)", saida: "Escreva uma correção ou elogio vago que você deu recentemente (\"boa bola\", \"melhorou\") e reescreva no formato específico: nome, o que aconteceu, onde, e a pergunta final." },
-      { t: "A pergunta antes da resposta (C-03)", saida: "Conduza uma aula (ou parte dela) só com perguntas, sem instrução direta, e relate o que o aluno conseguiu gerar sozinho — e o que ele não conseguiu." },
-      { t: "Reenquadramento e ressignificação do erro (C-04 e C-05)", saida: "Escreva uma fala real de um aluno seu (algo como \"meu backhand é ruim\" ou \"errei três seguidas\") e o reenquadramento que você daria, sem negar o fato." },
-      { t: "A conversa de reavaliação (C-07)", saida: "Descreva como foi (ou como seria) a última conversa de reavaliação que você teve com um aluno — ele falou primeiro? Você evitou comparar com outro aluno ou prometer prazo?" },
+      { t: "Instrução como solução (C-01)",
+        teoria: "Toda instrução deve ser dita como solução, nunca como proibição — o corpo não sabe executar na direção de algo que não deve acontecer. A regra de teste: se o jogador conseguiria executar de olhos fechados, é solução (\"jogue por cima da rede, na área de saque\"); se ele precisaria primeiro descobrir o que fazer, é proibição disfarçada (\"não jogue na rede\"). Erro comum até de professor experiente: dizer a solução DEPOIS da proibição — o aluno já travou na primeira parte.",
+        saida: "Pegue três proibições que você disse em aulas recentes (\"não faz isso\", \"não erra pra lá\") e reescreva cada uma como solução, no formato do manual." },
+      { t: "Especificidade (C-02)",
+        teoria: "Elogio e correção genéricos (\"boa bola\", \"melhorou\", \"concentra\") não ensinam nada, e o aluno percebe o vazio — um \"boa bola\" numa bola medíocre corrói a credibilidade dos elogios seguintes. A estrutura de uma intervenção específica: o nome do aluno → o que aconteceu, concreto → onde → (se for elogio) uma pergunta final como \"percebeu?\", que convida o aluno a registrar a própria sensação.",
+        saida: "Escreva uma correção ou elogio vago que você deu recentemente (\"boa bola\", \"melhorou\") e reescreva no formato específico: nome, o que aconteceu, onde, e a pergunta final." },
+      { t: "A pergunta antes da resposta (C-03)",
+        teoria: "Perguntar antes de responder constrói a capacidade do aluno de gerar informação própria; responder direto constrói dependência — em competição, essa diferença decide se ele sabe se ajustar sozinho. Repertório por situação: erro técnico repetido → \"o que você sentiu nessa bola?\"; erro de decisão → \"o que você viu antes de escolher essa jogada?\". Mas há quando NÃO perguntar: situação de risco, tempo curtíssimo, aluno saturado, ou quando a informação é puramente técnica e ele não tem como deduzir sozinho.",
+        saida: "Conduza uma aula (ou parte dela) só com perguntas, sem instrução direta, e relate o que o aluno conseguiu gerar sozinho — e o que ele não conseguiu." },
+      { t: "Reenquadramento e ressignificação do erro (C-04 e C-05)",
+        teoria: "Reenquadrar é mudar o significado de uma situação sem negar o fato — por exemplo, trocar \"meu backhand é ruim\" por \"seu backhand ainda não tem o que estamos construindo\". O erro tem três significados possíveis: fracasso pessoal (trava o jogo), acaso (não aprende), ou informação (ajusta e mantém a intenção) — o método instala o terceiro tratando o erro como dado, não evento emocional, e nunca ressignificando CORRIGINDO a jogada: se o aluno atacou e errou, corrige-se ponto de contato ou apoio, jamais se pede mais efeito pra bola cair dentro.",
+        saida: "Escreva uma fala real de um aluno seu (algo como \"meu backhand é ruim\" ou \"errei três seguidas\") e o reenquadramento que você daria, sem negar o fato." },
+      { t: "A conversa de reavaliação (C-07)",
+        teoria: "A devolutiva é feita COM o atleta, nunca sobre ele. Estrutura de 15 a 20 minutos: o aluno fala primeiro (\"o que você acha que evoluiu?\"); depois o que está completo, nomeado com exemplos; o que falta, sem juízo; o foco do próximo ciclo (um ou dois pontos, nunca a lista inteira); e o aluno fecha dizendo o que leva. O que nunca fazer: falar de resultado de torneio, listar tudo que falta, comparar com outro aluno, ou prometer prazo de passagem de nível.",
+        saida: "Descreva como foi (ou como seria) a última conversa de reavaliação que você teve com um aluno — ele falou primeiro? Você evitou comparar com outro aluno ou prometer prazo?" },
     ],
     quiz: [
       { p: "Segundo C-01, qual é a \"regra de teste\" pra saber se uma instrução é solução, não proibição disfarçada?",
@@ -1567,12 +1595,24 @@ const CURSOS_FORMACAO = [
   },
   {
     id: "tecnica-series-tmp", nome: "Técnica: Golpes, Movimentação e Ponto", modulos: [
-      { t: "As seis fases (T-01)", saida: "Escolha um erro técnico recente de um aluno e, usando o mapa sintoma→causa do manual, diga em qual das seis fases (preparação, apoio, aceleração, contato, terminação, recuperação) está a causa provável — não o sintoma." },
-      { t: "Golpes de fundo (T-02 a T-04)", saida: "Escolha um aluno com erro recorrente de forehand ou backhand e descreva a correção que você daria — evitando pedir \"mais força\" ou \"mais efeito\"." },
-      { t: "Saque (T-05 e T-06)", saida: "Observe o saque de um aluno e diga se o armado (ritmo, posição dos pés, trajetória do braço) muda entre o saque plano, o slice e o kick dele — o manual diz que isso NUNCA deveria mudar." },
-      { t: "Rede e transições (T-08 a T-10, M-01 a M-04)", saida: "Descreva um caso de um aluno que erra voleio ou smash, e diga se a causa está na técnica do golpe em si ou na fase de apoio/deslocamento que vem antes dele." },
-      { t: "Empunhaduras e apoios (T-11 e T-12)", saida: "Escolha um aluno e diga qual empunhadura de fundo ele usa (eastern, semi-western) e qual apoio (aberto, semiaberto, quadrado, fechado) ele usa com mais frequência — e se isso é situacional ou virou hábito único." },
-      { t: "Ponto e tática (série P)", saida: "Escolha um dos seis sistemas de ataque (P-02) e descreva um aluno que já executa esse padrão, ou que precisaria treiná-lo." },
+      { t: "As seis fases (T-01)",
+        teoria: "Todo golpe tem seis fases: preparação, posicionamento e apoio, aceleração, contato, terminação, recuperação. O mapa sintoma→causa aponta a fase real do erro: terminação ruim geralmente vem de base atrasada (fase 2, não fase 5); contato fora do ponto vem de preparação tardia (fase 1); aceleração sem potência vem de joelhos que não flexionaram no apoio (fase 2). O princípio que atravessa tudo: força dá lugar à velocidade da bola no ar e à qualidade da trajetória — o critério é reduzir o tempo do adversário, não a potência.",
+        saida: "Escolha um erro técnico recente de um aluno e, usando o mapa sintoma→causa do manual, diga em qual das seis fases (preparação, apoio, aceleração, contato, terminação, recuperação) está a causa provável — não o sintoma." },
+      { t: "Golpes de fundo (T-02 a T-04)",
+        teoria: "No forehand, os erros mais comuns vêm de contato atrás do corpo ou de joelhos sem flexão funcional — e a correção NUNCA é \"bata mais forte\" nem pedir mais efeito pra bola cair dentro (isso descaracteriza a jogada). O backhand de duas mãos tira estabilidade da estrutura dos dois braços, não da força, com contato mais à frente que no forehand. O de uma mão exige preparação antecipada como condição, não virtude — o ombro dominante aponta a bola cedo, e o slice é opção legítima em bola alta, não fuga.",
+        saida: "Escolha um aluno com erro recorrente de forehand ou backhand e descreva a correção que você daria — evitando pedir \"mais força\" ou \"mais efeito\"." },
+      { t: "Saque (T-05 e T-06)",
+        teoria: "O saque tem base comum às três variações: continental obrigatória, flexão sincronizada numa faixa de ~55° a 75° nos joelhos (o valor de 90° que ainda circula é excessivo, mas abaixo de ~55° há perda medida de velocidade), tríplice extensão, e a decisão do tipo de saque vem ANTES da rotina, nunca durante. O que nunca pode mudar entre plano, slice e kick é o ritmo do armado, a posição dos pés e a trajetória do braço até a posição de troféu — só o lançamento e o contato mudam. Se o adversário lê a variação pelo armado, o saque perdeu a vantagem.",
+        saida: "Observe o saque de um aluno e diga se o armado (ritmo, posição dos pés, trajetória do braço) muda entre o saque plano, o slice e o kick dele — o manual diz que isso NUNCA deveria mudar." },
+      { t: "Rede e transições (T-08 a T-10, M-01 a M-04)",
+        teoria: "No voleio, a fase de apoio praticamente É o golpe — quem chega equilibrado voleia quase automaticamente; erro clássico é armar como golpe de fundo. O smash irregular tem consequência tática grave: o jogador evita subir à rede e perde os ~20 pontos percentuais de aproveitamento que a subida oferece. Na movimentação, o split step tem timing dado pelo corpo do adversário, não pela bola. E os ajustes finais de 10 a 15 centímetros antes do contato — pequenos, quase nunca treinados — são a causa real da maioria dos erros de ponto de contato, mais que má técnica de golpe.",
+        saida: "Descreva um caso de um aluno que erra voleio ou smash, e diga se a causa está na técnica do golpe em si ou na fase de apoio/deslocamento que vem antes dele." },
+      { t: "Empunhaduras e apoios (T-11 e T-12)",
+        teoria: "A empunhadura é decisão biomecânica, não preferência estética: continental serve saque/voleio/smash/slice; eastern é ponto de partida comum do forehand juvenil; semi-western é o padrão do fundo de quadra moderno, com custo em bolas baixas e na transição pra rede. Os quatro apoios (aberto, semiaberto, quadrado, fechado) são situacionais, nunca hierárquicos — o aberto é dominante (~84% dos forehands profissionais) por favorecer recuperação sob pressão de tempo, não por gerar mais velocidade; com tempo disponível, o quadrado tende a produzir bola mais rápida. Ensinar só um apoio empobrece o repertório.",
+        saida: "Escolha um aluno e diga qual empunhadura de fundo ele usa (eastern, semi-western) e qual apoio (aberto, semiaberto, quadrado, fechado) ele usa com mais frequência — e se isso é situacional ou virou hábito único." },
+      { t: "Ponto e tática (série P)",
+        teoria: "Toda bola é neutra, de ataque ou de defesa, e reconhecer qual é a primeira decisão tática de qualquer ponto — mas o estado contamina a leitura (quem acabou de ser atacado classifica bola curta como defesa). Os seis sistemas de ataque são padrões de duas bolas com papéis definidos: a que arma tem alvo de segurança, a que converte tem alvo de pressão — inverter isso é a origem da maioria dos erros não forçados em construção de ponto.",
+        saida: "Escolha um dos seis sistemas de ataque (P-02) e descreva um aluno que já executa esse padrão, ou que precisaria treiná-lo." },
     ],
     quiz: [
       { p: "Segundo T-02, qual instrução o manual diz que NUNCA se deve dar pra corrigir falta de potência?",
@@ -1585,11 +1625,11 @@ const CURSOS_FORMACAO = [
   },
   {
     id: "aulas-estrutura-trilhas", nome: "Aulas: Estrutura, Protocolos e Trilhas", modulos: [
-      { t: "Os cinco blocos e os oito protocolos", saida: "Na sua próxima aula, registre quantos dos oito protocolos de quadra (P1 a P8) você conseguiu manter conscientemente — e qual foi o mais difícil de sustentar." },
-      { t: "O eixo da redução de tempo", saida: "Escolha um aluno de qualquer nível e traduza \"reduzir o tempo do adversário\" pra linguagem que ele entenderia, seguindo os exemplos do manual por faixa de nível." },
-      { t: "O trabalho lúdico", saida: "Para uma brincadeira que você usa (ou pretende usar) com crianças, diga qual é o propósito declarado dela — o que ela treina de verdade — e o que a regra da brincadeira faz sem precisar de instrução." },
-      { t: "As trilhas por nível", saida: "Escolha um aluno numa das trilhas (A, B, C, adultos D/E/F, ou G de competição) e diga em qual mesociclo (M1, M2 ou M3) ele está, e o que deveria estar sendo trabalhado agora." },
-      { t: "A autoverificação do professor", saida: "Ao fim de uma aula real, responda as quatro perguntas de autoverificação do manual — principalmente a quarta: você pediu mais efeito pra alguma bola de ataque cair dentro?" },
+      { t: "Os cinco blocos e os oito protocolos", teoria: "Toda aula tem cinco blocos: 1 abertura com bola (nunca fila parada), 2 início do ponto (saque+devolução, obrigatório), 3 parte geral programada (tema da semana, nunca improvisado), 4 técnica específica (a demanda individual, nunca pulada em aula de grupo), 5 jogo aplicado + fechamento. E oito protocolos valem em toda aula, de toda trilha: bola desde o primeiro minuto; instrução em solução; uma correção por vez; pergunta antes da resposta; nunca corrigir decisão e técnica juntas; nunca descaracterizar a jogada; elogiar a tentativa correta que errou; fechar com uma frase.", saida: "Na sua próxima aula, registre quantos dos oito protocolos de quadra (P1 a P8) você conseguiu manter conscientemente — e qual foi o mais difícil de sustentar." },
+      { t: "O eixo da redução de tempo", teoria: "Reduzir o tempo do adversário é o eixo que atravessa todas as trilhas, ensinado desde a primeira aula — não é bater forte, é chegar antes, jogar mais cedo, ocupar espaço à frente. O tenista joga em torno de 70% da força; \"bate mais forte\" produz tensão, e tensão reduz velocidade de braço. A tradução muda por nível: pra criança pequena é \"não deixa ele ficar pronto\"; pro competitivo é \"cada décimo roubado reduz a qualidade da resposta do adversário\".", saida: "Escolha um aluno de qualquer nível e traduza \"reduzir o tempo do adversário\" pra linguagem que ele entenderia, seguindo os exemplos do manual por faixa de nível." },
+      { t: "O trabalho lúdico", teoria: "Toda aula de criança tem uma brincadeira com código no catálogo e propósito declarado — não é adorno. O mesmo split step feito isolado produz ~30 saltos com atenção caindo; dentro de um pega-pega produz ~200 saltos com atenção crescendo. Cinco regras: propósito declarado; a regra faz o trabalho da instrução; ninguém fica de fora por muito tempo; cada brincadeira diz o que se ignora; a vitória não vira medida do aluno. O que NÃO muda por ser lúdico: os cinco blocos, o mínimo de 25% em início de ponto, e a verificação silenciosa dos critérios de nível.", saida: "Para uma brincadeira que você usa (ou pretende usar) com crianças, diga qual é o propósito declarado dela — o que ela treina de verdade — e o que a regra da brincadeira faz sem precisar de instrução." },
+      { t: "As trilhas por nível", teoria: "Cada trilha (A/B/C infantis, D/E/F adultos, G competição) segue um ciclo de 12 semanas em três mesociclos: M1 Instalação (1–4, instala os padrões do nível), M2 Ampliação (5–8, amplia repertório e variação), M3 Consolidação (9–12, consolida sob pressão de jogo e verifica critérios). Os adultos (D grupo, E dupla, F individual) compartilham o mesmo currículo de 24 aulas — muda a condução, não o conteúdo. A trilha de competição segue um semestre de 24 semanas com bases, afinações e competições intercaladas.", saida: "Escolha um aluno numa das trilhas (A, B, C, adultos D/E/F, ou G de competição) e diga em qual mesociclo (M1, M2 ou M3) ele está, e o que deveria estar sendo trabalhado agora." },
+      { t: "A autoverificação do professor", teoria: "Ao fim de cada aula, quatro perguntas: todo aluno teve o bloco de técnica específica, ou sumiu no grupo? Minhas instruções foram soluções ou proibições? Corrigi uma coisa por vez, ou empilhei correções? Em algum momento pedi mais efeito pra uma bola de ataque cair dentro? Essa última é chamada, no manual, de a pergunta mais importante — se a resposta for sim, a jogada foi descaracterizada, e o custo aparece meses depois, quando o aluno já não ataca mais.", saida: "Ao fim de uma aula real, responda as quatro perguntas de autoverificação do manual — principalmente a quarta: você pediu mais efeito pra alguma bola de ataque cair dentro?" },
     ],
     quiz: [
       { p: "Segundo o manual, o bloco de início do ponto (saque+devolução) deve, à medida que o nível sobe:",
@@ -1602,10 +1642,10 @@ const CURSOS_FORMACAO = [
   },
   {
     id: "publicos-especificos", nome: "Públicos Específicos", modulos: [
-      { t: "Adulto competitivo social", saida: "Para um aluno adulto que compete (torneio interno, liga, ranking de clube), diga se a proporção de tática/técnica que você tem usado com ele bate com os 40%/30%/20%/10% do manual (tática/início do ponto/técnica/físico)." },
-      { t: "Infantojuvenil: duas frentes", saida: "Para um aluno juvenil seu, diga se ele está na frente competitivo social ou alto rendimento, e justifique usando as quatro condições do manual (horizonte declarado por ele, agenda, calendário, critérios Y5 cumpridos)." },
-      { t: "Adulto acima de 50 e o aluno intermitente", saida: "Descreva um aluno mais velho ou um aluno intermitente seu, e diga qual ajuste do manual (carga, retomada) você já aplica e qual ainda não." },
-      { t: "A dupla desigual e a conversa com a família", saida: "Se você dá aula em dupla desigual ou lida com famílias de alunos crianças, descreva uma situação real e diga se a conduta bateu com o que o manual recomenda (restrição em vez de redução; nunca prometer prazo)." },
+      { t: "Adulto competitivo social", teoria: "É o único público em que a tática pesa mais que a técnica: 40% tática, 30% início do ponto, 20% técnica, 10% físico — porque reconstruir técnica é projeto de dois anos que ele não vai sustentar, mas reorganizar decisão cabe no tempo que ele tem. Ciclo de 8 semanas (não 12), ancorado no calendário do clube, com só um estímulo técnico por ciclo.", saida: "Para um aluno adulto que compete (torneio interno, liga, ranking de clube), diga se a proporção de tática/técnica que você tem usado com ele bate com os 40%/30%/20%/10% do manual (tática/início do ponto/técnica/físico)." },
+      { t: "Infantojuvenil: duas frentes", teoria: "A pergunta que decide a frente não é \"ele tem talento?\" — é se família e jovem declararam um projeto. Entra em alto rendimento só quando coexistem quatro coisas: horizonte declarado por ELE (não pela família), agenda disponível, condição de sustentar o calendário, e critérios de nível Y5 cumpridos. Faltando qualquer uma, ele é competitivo social — uma frente diferente, não um nível inferior. E a migração de volta ao competitivo social não é fracasso: é mudança de projeto.", saida: "Para um aluno juvenil seu, diga se ele está na frente competitivo social ou alto rendimento, e justifique usando as quatro condições do manual (horizonte declarado por ele, agenda, calendário, critérios Y5 cumpridos)." },
+      { t: "Adulto acima de 50 e o aluno intermitente", teoria: "O adulto acima de 50 não é um público frágil — tem um corpo e uma expectativa diferentes, que se resolvem com ajuste de condução: bola mais lenta, blocos mais curtos com mais pausas (mantendo o volume total), nunca exigir corrida pra trás nas primeiras semanas. A regra é reduzir a carga por bloco, nunca a exigência da execução. Já o aluno intermitente segue uma regra de retomada por tempo de ausência: até 2 aulas, retoma onde a turma está; de 3 a 5, na aula anterior à que perdeu; mais de 5, no início do mesociclo, com reavaliação física.", saida: "Descreva um aluno mais velho ou um aluno intermitente seu, e diga qual ajuste do manual (carga, retomada) você já aplica e qual ainda não." },
+      { t: "A dupla desigual e a conversa com a família", teoria: "Na dupla desigual, o erro clássico é pedir ao mais avançado que jogue mais devagar — mata a bola dele e ensina passividade. O princípio: ninguém ocioso, ninguém humilhado — o mais avançado trabalha sob restrição (menos quadra, alvo menor), o menos avançado em condição favorável. Já com a família, sete situações têm conduta própria, e um princípio atravessa todas: a ficha decide, não o professor — sempre que der pra mostrar um critério objetivo, mostra-se; e nunca se promete prazo de evolução.", saida: "Se você dá aula em dupla desigual ou lida com famílias de alunos crianças, descreva uma situação real e diga se a conduta bateu com o que o manual recomenda (restrição em vez de redução; nunca prometer prazo)." },
     ],
     quiz: [
       { p: "No adulto competitivo social, qual proporção o manual recomenda entre tática e o resto?",
@@ -1618,10 +1658,10 @@ const CURSOS_FORMACAO = [
   },
   {
     id: "metodo-principios", nome: "Método: Princípios e Diagnóstico Avançado", modulos: [
-      { t: "Os onze princípios", saida: "Escolha três dos onze princípios numerados do Método e diga, com um caso real, como cada um já apareceu (ou deveria ter aparecido) no seu trabalho." },
-      { t: "A divergência é o dado", saida: "Lembre de uma vez em que você discordou de uma sugestão do sistema (ou do plano) e trocou ou cortou algo — o que isso revelou sobre a regra que gerou aquela sugestão?" },
-      { t: "Bases de apoio e leitura tática (D-03, D-05)", saida: "Escolha um aluno e aplique nele a sequência de observação de D-03 (bases de apoio) — o que você percebeu que não tinha notado antes?" },
-      { t: "O que não se diagnostica (D-06) e a reavaliação periódica (D-08, I-07)", saida: "Descreva um caso em que você (ou outro treinador) rotulou um aluno como \"cabeça fraca\" ou \"inseguro\" sem checar antes se havia uma falha técnica por trás." },
+      { t: "Os onze princípios", teoria: "Entre os onze princípios do Método: a ordem das camadas é travada (técnico abre físico, que abre tático, que abre mental — nunca invertida); volume e intensidade nunca estão no pico juntos (um sobe na base, o outro na competição); repetição é distribuída (cada estímulo dura três treinos, rotação parcial); o olhar decide (toda proposta do sistema é editável antes de registrar); os três objetivos do jogo têm ordem fixa; e o trilho é a progressão de ensino (fechado, semiaberto, aberto com regra — nunca direto no ponto livre).", saida: "Escolha três dos onze princípios numerados do Método e diga, com um caso real, como cada um já apareceu (ou deveria ter aparecido) no seu trabalho." },
+      { t: "A divergência é o dado", teoria: "Cada troca ou corte que o treinador faz sobre uma proposta do sistema fica registrado — e uma regra que é recusada toda vez está errada e precisa ser reescrita. É assim que o método se corrige: a divergência do treinador na quadra é informação, não ruído a ser ignorado.", saida: "Lembre de uma vez em que você discordou de uma sugestão do sistema (ou do plano) e trocou ou cortou algo — o que isso revelou sobre a regra que gerou aquela sugestão?" },
+      { t: "Bases de apoio e leitura tática (D-03, D-05)", teoria: "D-03 é o primeiro lugar que se olha em qualquer diagnóstico técnico, porque todo golpe nasce de baixo pra cima: o jogador para antes de golpear? A base sustenta a rotação? Os joelhos flexionam em faixa funcional (60–75°)? O que NÃO avaliar nesta etapa: empunhadura, terminação, efeito, direção — elas dependem do que foi observado na base. Já D-05 trata avaliação tática como avaliação de repertório disponível, nunca de inteligência ou vontade: quando o aluno não ataca uma bola que pedia ataque, a pergunta é se ele não viu (trabalho de leitura) ou não tem a ferramenta (trabalho técnico) — insistir na leitura errada é perda de tempo.", saida: "Escolha um aluno e aplique nele a sequência de observação de D-03 (bases de apoio) — o que você percebeu que não tinha notado antes?" },
+      { t: "O que não se diagnostica (D-06) e a reavaliação periódica (D-08, I-07)", teoria: "D-06 avalia comportamentos observáveis, nunca estados internos inferidos: ansiedade, \"falta de confiança\" como traço, \"cabeça fraca\", medo — são inferências, não observações. O treinador não é psicólogo; sinais de sofrimento real vão pra família e um profissional. Já D-08 estabelece a regra da rotação parcial na reavaliação periódica: substitui-se apenas um estímulo por ciclo, nunca todos de uma vez — e resultado de torneio nunca entra como medida de progresso.", saida: "Descreva um caso em que você (ou outro treinador) rotulou um aluno como \"cabeça fraca\" ou \"inseguro\" sem checar antes se havia uma falha técnica por trás." },
     ],
     quiz: [
       { p: "Segundo o princípio 4 do Método, volume e intensidade:",
@@ -3184,6 +3224,7 @@ function novoAluno() {
     historico: [], registros: [],
     professorUid: "", professorNome: "", horarios: [],
     categoria: "", criteriosClassificacao: {}, historicoCategorias: [],
+    classificacaoSugeridaEm: null,
   };
 }
 
@@ -3980,11 +4021,24 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
   const setAvaliacaoGolpe = (g, v) => setF((x) => ({ ...x, avaliacaoTecnica: { ...(x.avaliacaoTecnica || {}), [g]: v } }));
   const [professores, setProfessores] = useState([]);
   useEffect(() => { listaProfessores().then(setProfessores); }, []);
+  const [sugestaoAuto, setSugestaoAuto] = useState(null);
+  const [sugerindoAuto, setSugerindoAuto] = useState(false);
+
   /* Toda edição de ficha fica com carimbo de hora — é o que permite ao
      Plano saber que a ficha mudou depois que ele foi gerado, e oferecer
-     revisão a partir das aulas que ainda faltam (ver TelaPlano). */
-  function salvarEFechar() {
-    salvar({ ...f, fichaAtualizadaEm: new Date().toISOString() });
+     revisão a partir das aulas que ainda faltam (ver TelaPlano).
+
+     A sugestão automática de estágio/nível dispara uma vez só, no
+     primeiro save em que a camada técnica já está preenchida — nunca de
+     novo depois disso (cada disparo é uma chamada de IA, e não faz
+     sentido repetir isso a cada edição de ficha). O botão manual
+     "Sugerir estágio e nível com IA" continua disponível pra pedir de
+     novo a qualquer momento. */
+  async function salvarEFechar() {
+    const dados = { ...f, fichaAtualizadaEm: new Date().toISOString() };
+    const primeiraClassificacao = !aluno.classificacaoSugeridaEm && (f.camadas.tecnico || "").trim().length > 0;
+    if (primeiraClassificacao) dados.classificacaoSugeridaEm = dados.fichaAtualizadaEm;
+    salvar(dados);
     setEditando(false);
     setSalvo(true);
     // a ficha de edição é longa; sem isto o resumo (bem mais curto) troca
@@ -3992,6 +4046,33 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
     // "ficha salva" — que fica no topo — nunca chega a ser visto.
     window.scrollTo({ top: 0, behavior: "smooth" });
     setTimeout(() => setSalvo(false), 4000);
+
+    if (primeiraClassificacao) {
+      setSugerindoAuto(true);
+      try {
+        let t = (await chamarIA(promptClassificacao(dados), 700)).trim();
+        t = t.replace(/^```(json)?/i, "").replace(/```$/, "").trim();
+        const i = t.indexOf("{");
+        if (i > 0) t = t.slice(i);
+        const obj = JSON.parse(t);
+        if (ESTAGIOS.some((e) => e.s === obj.estagio) && NIVEIS.includes(obj.nivel)) setSugestaoAuto(obj);
+      } catch (e) {
+        // silencioso — é uma sugestão automática de bônus; um erro de IA aqui não pode travar nem assustar quem só queria salvar a ficha.
+      }
+      setSugerindoAuto(false);
+    }
+  }
+  function aplicarSugestaoAuto() {
+    if (!sugestaoAuto) return;
+    // A ficha já fechou pra edição quando esta sugestão aparece (mora no
+    // resumo, não no formulário) — mas o rascunho local `f` continua
+    // vivo no componente e reabre junto se o treinador clicar em "Editar
+    // ficha" de novo. Sem sincronizar `f` aqui, reabrir e salvar sem
+    // mexer em nada reverteria estágio/nível pro valor antigo do rascunho.
+    const atualizado = { ...aluno, estagio: sugestaoAuto.estagio, nivel: sugestaoAuto.nivel, fichaAtualizadaEm: new Date().toISOString() };
+    salvar(atualizado);
+    setF(atualizado);
+    setSugestaoAuto(null);
   }
   function escolherProfessor(uid) {
     const p = professores.find((x) => x.uid === uid);
@@ -4012,7 +4093,8 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
   }, [f.camadas]);
 
   if (!editando) {
-    return <ResumoFicha aluno={aluno} aoEditar={() => setEditando(true)} salvo={salvo} papelAtual={papelAtual} podeEditar={podeEditar} />;
+    return <ResumoFicha aluno={aluno} aoEditar={() => setEditando(true)} salvo={salvo} papelAtual={papelAtual} podeEditar={podeEditar}
+      sugerindoAuto={sugerindoAuto} sugestaoAuto={sugestaoAuto} aplicarSugestaoAuto={aplicarSugestaoAuto} descartarSugestaoAuto={() => setSugestaoAuto(null)} />;
   }
   if (!podeEditar) return <ResumoFicha aluno={aluno} aoEditar={() => {}} salvo={salvo} papelAtual={papelAtual} podeEditar={false} />;
 
@@ -4235,7 +4317,7 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
    observado — reabrir pra editar é deliberado, não o padrão. O que
    mantém o plano atualizado daqui pra frente são os relatórios das
    aulas (Sessão e fechamento de ciclo do Plano), não reedições daqui. */
-function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual, podeEditar = true }) {
+function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual, podeEditar = true, sugerindoAuto, sugestaoAuto, aplicarSugestaoAuto, descartarSugestaoAuto }) {
   const camadasRot = [["tecnico", "Técnico"], ["fisico", "Físico"], ["tatico", "Tático"], ["mental", "Mental"]];
   const temCamada = camadasRot.some(([k]) => (a.camadas[k] || "").trim());
   const corpo = PERFIS_CORPO.find((p) => p.v === a.perfilCorpo);
@@ -4265,6 +4347,25 @@ function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual, podeEditar = true 
       </div>
       {!podeEditar && (
         <Aviso>Este jogador é de outro treinador — a ficha fica travada pra edição. Só o professor responsável ou o coordenador podem editá-la.</Aviso>
+      )}
+
+      {sugerindoAuto && (
+        <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "12px 14px" }}>
+          <Etiqueta cor={C.grafite}>Analisando a ficha pra sugerir o nível…</Etiqueta>
+        </div>
+      )}
+      {sugestaoAuto && (
+        <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.quadra, padding: "12px 14px" }}>
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <Etiqueta cor={C.quadra}>Sugestão automática da IA</Etiqueta>
+            <Etiqueta>{ESTAGIOS.find((e) => e.s === sugestaoAuto.estagio)?.n || sugestaoAuto.estagio} · {sugestaoAuto.nivel}</Etiqueta>
+          </div>
+          <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginBottom: 10 }}>{sugestaoAuto.justificativa}</p>
+          <div className="flex gap-2">
+            <Botao pequeno onClick={aplicarSugestaoAuto}>Aplicar sugestão</Botao>
+            <Botao pequeno variante="vazio" onClick={descartarSugestaoAuto}>Descartar</Botao>
+          </div>
+        </div>
       )}
 
       <Secao titulo="Diagnóstico">
@@ -7611,6 +7712,22 @@ function progressoModulo(membro, cursoId, idx) {
   return { concluido: !!raw, resposta: "", confianca: null, comentario: "" };
 }
 
+/* Sequencial, como uma trilha de aulas: só dá pra escrever a resposta do
+   módulo N se todos os módulos anteriores DESTE MESMO curso já estiverem
+   concluídos. Cursos diferentes não travam entre si — cada um cobre um
+   tema próprio (ficha, manual, formação interna...), sem ordem lógica
+   única entre eles. O quiz do curso também fica travado até o último
+   módulo ser concluído — ele fecha o curso, não abre ele. */
+function moduloBloqueado(membro, cursoId, idx) {
+  for (let i = 0; i < idx; i++) {
+    if (!progressoModulo(membro, cursoId, i).concluido) return true;
+  }
+  return false;
+}
+function quizBloqueado(membro, curso) {
+  return curso.modulos.some((_, i) => !progressoModulo(membro, curso.id, i).concluido);
+}
+
 function contagemFormacao(membro) {
   const feitos = CURSOS_FORMACAO.reduce((n, c) =>
     n + c.modulos.filter((_, i) => progressoModulo(membro, c.id, i).concluido).length, 0);
@@ -7623,8 +7740,21 @@ function contagemFormacao(membro) {
    registro) + confiança de 1 a 5. Em modoCoordenador, os três campos do
    treinador ficam travados e só o comentário de supervisão é editável —
    Richard revisa, não preenche por ele. */
-function AutoAvaliacaoModulo({ mod, indice, progresso, aoMudar, modoCoordenador }) {
+function AutoAvaliacaoModulo({ mod, indice, progresso, aoMudar, modoCoordenador, bloqueado }) {
   const podeConcluir = progresso.resposta.trim().length > 0;
+  if (bloqueado && !modoCoordenador) {
+    return (
+      <div style={{ background: C.papel, border: "1px solid " + C.linha, padding: "12px 14px", marginBottom: 9, opacity: 0.6 }}>
+        <div className="flex items-start gap-3">
+          <span style={{ fontFamily: ARCH, fontSize: 16, lineHeight: 1.2, color: C.grafite }}>🔒</span>
+          <div className="flex-1">
+            <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, color: C.grafite }}>Módulo {indice + 1} · {mod.t}</div>
+            <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 3 }}>Conclua o módulo anterior pra desbloquear este.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
     <div style={{ background: progresso.concluido ? "#F4F7F4" : C.cal, border: "1px solid " + C.linha,
       borderLeft: "3px solid " + (progresso.concluido ? C.quadra : C.linha), padding: "12px 14px", marginBottom: 9 }}>
@@ -7638,8 +7768,14 @@ function AutoAvaliacaoModulo({ mod, indice, progresso, aoMudar, modoCoordenador 
         )}
         <div className="flex-1">
           <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, color: progresso.concluido ? C.quadra : C.tinta }}>
-            Módulo {indice + 1} · {mod.t}{modoCoordenador && progresso.concluido ? " · concluído" : ""}
+            Módulo {indice + 1} · {mod.t}{modoCoordenador && progresso.concluido ? " · concluído" : ""}{modoCoordenador && bloqueado ? " · ainda bloqueado pro treinador" : ""}
           </div>
+          {mod.teoria && (
+            <div className="mt-2 mb-2" style={{ background: C.papel, borderLeft: "3px solid " + C.grafite, padding: "9px 11px" }}>
+              <Etiqueta cor={C.grafite}>Leia antes de responder</Etiqueta>
+              <p style={{ ...prosa, fontSize: 12.5, color: C.tinta, marginTop: 5 }}>{mod.teoria}</p>
+            </div>
+          )}
           <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 3 }}>Demonstre: {mod.saida}</p>
         </div>
       </div>
@@ -7682,7 +7818,7 @@ function AutoAvaliacaoModulo({ mod, indice, progresso, aoMudar, modoCoordenador 
 
 /* Quiz objetivo, autocorrigido — confirma que o conteúdo foi lido antes
    de partir pra "saída" de cada módulo, que é a avaliação de verdade. */
-function QuizCurso({ curso, quizState, aoResponder, modoCoordenador }) {
+function QuizCurso({ curso, quizState, aoResponder, modoCoordenador, bloqueado }) {
   const perguntas = curso.quiz || [];
   if (!perguntas.length) return null;
   const [rascunho, setRascunho] = useState(quizState.respostas);
@@ -7694,6 +7830,17 @@ function QuizCurso({ curso, quizState, aoResponder, modoCoordenador }) {
   function conferir() {
     const acertos = rascunho.reduce((n, r, i) => n + (r === perguntas[i].certa ? 1 : 0), 0);
     aoResponder({ respostas: rascunho, acertos });
+  }
+
+  if (bloqueado && !modoCoordenador) {
+    return (
+      <div className="mt-4" style={{ background: C.papel, border: "1px solid " + C.linha, padding: "12px 14px", opacity: 0.6 }}>
+        <div className="flex items-center gap-3">
+          <span style={{ fontFamily: ARCH, fontSize: 16, lineHeight: 1.2, color: C.grafite }}>🔒</span>
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Conclua todos os módulos deste curso pra desbloquear o quiz.</p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -7832,11 +7979,11 @@ function SecaoFormacao({ membros, setMembros, carregando }) {
               <h3 style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginBottom: 9 }}>{c.nome}</h3>
               {c.modulos.map((mod, i) => (
                 <AutoAvaliacaoModulo key={i} mod={mod} indice={i} progresso={progressoModulo(aberto, c.id, i)}
-                  aoMudar={(patch) => mudarModulo(aberto.id, c.id, i, patch)} modoCoordenador />
+                  aoMudar={(patch) => mudarModulo(aberto.id, c.id, i, patch)} modoCoordenador bloqueado={moduloBloqueado(aberto, c.id, i)} />
               ))}
               {(c.quiz || []).length > 0 && (
                 <QuizCurso curso={c} quizState={aberto.quiz && aberto.quiz[c.id] ? aberto.quiz[c.id] : { respostas: c.quiz.map(() => null), acertos: null }}
-                  aoResponder={() => {}} modoCoordenador />
+                  aoResponder={() => {}} modoCoordenador bloqueado={quizBloqueado(aberto, c)} />
               )}
             </div>
           ))}
@@ -7914,11 +8061,11 @@ function TelaFormacaoPessoal({ membros, setMembros, carregando, uidAtual }) {
           <h3 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 9 }}>{c.nome}</h3>
           {c.modulos.map((mod, i) => (
             <AutoAvaliacaoModulo key={i} mod={mod} indice={i} progresso={progressoModulo(meuRegistro, c.id, i)}
-              aoMudar={(patch) => mudarModulo(c.id, i, patch)} />
+              aoMudar={(patch) => mudarModulo(c.id, i, patch)} bloqueado={moduloBloqueado(meuRegistro, c.id, i)} />
           ))}
           {(c.quiz || []).length > 0 && (
             <QuizCurso curso={c} quizState={meuRegistro.quiz && meuRegistro.quiz[c.id] ? meuRegistro.quiz[c.id] : { respostas: c.quiz.map(() => null), acertos: null }}
-              aoResponder={(resultado) => responderQuiz(c.id, resultado)} />
+              aoResponder={(resultado) => responderQuiz(c.id, resultado)} bloqueado={quizBloqueado(meuRegistro, c)} />
           )}
         </div>
       ))}
