@@ -9299,6 +9299,13 @@ function App() {
   const [verificandoOrg, setVerificandoOrg] = useState(exigeLogin);
   const [verTodosAlunos, setVerTodosAlunos] = useState(false);
   const [avisosAberto, setAvisosAberto] = useState(false);
+  /* Menu lateral: cada grupo abre/fecha independente, mas começa todo
+     aberto — assim quem já usa o app continua vendo tudo de cara, sem
+     precisar clicar em nada antes de navegar. */
+  const [gruposAbertos, setGruposAbertos] = useState({ trabalho: true, academia: true, equipe: true });
+  function alternarGrupo(id) {
+    setGruposAbertos((atual) => ({ ...atual, [id]: !atual[id] }));
+  }
   /* Avisos são recalculados do zero a cada render (aula de hoje, pendência,
      pedido do aluno) — sem estado próprio, o mesmo aviso reaparecia
      idêntico toda vez que o sininho abria de novo, mesmo já tendo sido
@@ -9427,6 +9434,22 @@ function App() {
      pra Team Yoda, que não aluga quadra), e só aparece pra quem for
      provisionado explicitamente com a opção marcada. */
   const mostraQuadras = !!identidade && identidade.mostrarQuadras === true;
+  /* Menu lateral, por segmento: "Meu trabalho" é o dia a dia de qualquer
+     treinador; "Academia" é gestão (por enquanto só Quadras, opcional);
+     "Equipe" é só do coordenador. Um grupo sem nenhum item (ex.: Academia
+     numa academia sem Quadras) simplesmente não aparece. */
+  const gruposNav = [
+    { id: "trabalho", label: "Meu trabalho", itens: [
+      ...NAV_PRINCIPAL,
+      ...(exigeLogin && uidAtual ? [{ v: "formacao", r: "Formação" }] : []),
+    ] },
+    { id: "academia", label: "Academia", itens: [
+      ...(mostraQuadras ? [{ v: "quadras", r: "Quadras" }] : []),
+    ] },
+    { id: "equipe", label: "Coordenação", badge: "coordenador", itens: [
+      ...(papelAtual === "coordenador" ? [{ v: "equipe", r: "Equipe" }] : []),
+    ] },
+  ].filter((g) => g.itens.length > 0);
   function criar() {
     if (planoVencido || (limitePlano != null && alunos.length >= limitePlano)) {
       setLimiteAtingido(true);
@@ -9459,162 +9482,190 @@ function App() {
         button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid ${C.saibro}; outline-offset: 2px; }
         button { transition: transform .06s ease, opacity .06s ease; }
         button:active:not(:disabled) { transform: scale(0.96); opacity: 0.75; }
+        @media (max-width: 860px) {
+          .mty-sidebar { position: static !important; width: 100% !important; height: auto !important; bottom: auto !important; }
+          .mty-topbar, .mty-main { margin-left: 0 !important; }
+        }
       `}</style>
 
-      <header style={{ borderBottom: "1px solid " + C.linha, background: C.cal, position: "sticky", top: 0, zIndex: 10 }}>
+      <header className="mty-sidebar" style={{ position: "fixed", left: 0, top: 0, bottom: 0, width: 252, overflowY: "auto",
+        background: C.cal, borderRight: "1px solid " + C.linha, zIndex: 10 }}>
         <div style={{ height: 4, background: C.saibro }} />
-        <div className="px-5 pt-4 pb-2" style={{ maxWidth: 760, margin: "0 auto" }}>
-          <div className="flex items-center justify-between gap-3">
-            <Marca identidade={identidade} altura={26} />
-            <div className="flex items-center gap-2" style={{ flexWrap: "wrap", justifyContent: "flex-end" }}>
-              {exigeLogin && uidAtual && (
-                <div style={{ position: "relative" }}>
-                  <button onClick={abrirAvisos}
-                    style={{ position: "relative", fontSize: 16, cursor: "pointer", padding: "4px 8px", border: "1px solid " + C.linha, borderRadius: 2, background: C.cal }}>
-                    🔔
-                    {totalAvisos > 0 && (
-                      <span style={{ position: "absolute", top: -5, right: -5, background: C.saibro, color: "#fff",
-                        fontFamily: ARCH, fontSize: 10, fontWeight: 700, borderRadius: 999, minWidth: 16, height: 16,
-                        display: "flex", alignItems: "center", justifyContent: "center", padding: "0 3px" }}>
-                        {totalAvisos}
-                      </span>
-                    )}
-                  </button>
-                  {avisosAberto && (
-                    <>
-                      <div onClick={() => setAvisosAberto(false)} style={{ position: "fixed", inset: 0, zIndex: 19 }} />
-                      <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 6, background: C.papel,
-                        border: "1px solid " + C.linha, borderRadius: 2, boxShadow: "0 4px 14px rgba(0,0,0,.12)", zIndex: 20, width: 260, maxHeight: 340, overflowY: "auto", padding: 12 }}>
-                        {totalAvisos === 0 ? (
-                          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Nada pra avisar por agora.</p>
-                        ) : (
-                          <>
-                            {lembretesVisiveis.length > 0 && (
-                              <div className="mb-3">
-                                <Etiqueta>Hoje</Etiqueta>
-                                {lembretesVisiveis.map((l, i) => (
-                                  <button key={i} onClick={() => { marcarAvisoVisto(idLembrete(l)); setAba(l.tipo === "turma" ? "turmas" : "alunos"); setAvisosAberto(false); }}
-                                    className="w-full text-left" style={{ display: "block", padding: "6px 0", border: "none", background: "none", cursor: "pointer" }}>
-                                    <p style={{ ...prosa, fontSize: 12.5 }}>{l.hora} · {l.titulo}</p>
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                            {pendenciasVisiveis.length > 0 && (
-                              <div className="mb-3">
-                                <Etiqueta cor={C.saibro}>Pendências do grupo</Etiqueta>
-                                {pendenciasVisiveis.map((p, i) => (
-                                  <button key={i} onClick={() => { marcarAvisoVisto(idPendencia(p)); setAba("turmas"); setAvisosAberto(false); }}
-                                    className="w-full text-left" style={{ display: "block", padding: "6px 0", border: "none", background: "none", cursor: "pointer" }}>
-                                    <p style={{ ...prosa, fontSize: 12.5 }}>{p.turma} · {p.data}{p.motivo ? " · " + p.motivo : ""}</p>
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                            {pedidosAlunosVisiveis.length > 0 && (
-                              <div className="mb-3">
-                                <Etiqueta cor={C.saibro}>Pedidos dos alunos</Etiqueta>
-                                {pedidosAlunosVisiveis.map((p, i) => (
-                                  <button key={i} onClick={() => { marcarAvisoVisto(idPedidoAluno(p)); setAba("alunos"); setAbertoId(p.alunoId); setAvisosAberto(false); }}
-                                    className="w-full text-left" style={{ display: "block", padding: "6px 0", border: "none", background: "none", cursor: "pointer" }}>
-                                    <p style={{ ...prosa, fontSize: 12.5 }}>
-                                      <b>{p.alunoNome}</b> · {p.tipo === "conteudo" ? "quer trabalhar: " + p.texto : "pediu reposição"}
-                                    </p>
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                            {reservasNovasVisiveis.length > 0 && (
-                              <div className="mb-3">
-                                <Etiqueta cor={C.saibro}>Reservas de quadra</Etiqueta>
-                                {reservasNovasVisiveis.map((r) => (
-                                  <button key={r.id} onClick={() => verReserva(r)}
-                                    className="w-full text-left" style={{ display: "block", padding: "6px 0", border: "none", background: "none", cursor: "pointer" }}>
-                                    <p style={{ ...prosa, fontSize: 12.5 }}>
-                                      <b>{r.nomeContato}</b> reservou {r.data} às {r.horaInicio}
-                                    </p>
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                            {pedidosPendentesCount > 0 && (
-                              <div>
-                                <Etiqueta cor={C.saibro}>Equipe</Etiqueta>
-                                <button onClick={() => { setAba("equipe"); setAvisosAberto(false); }}
-                                  className="w-full text-left" style={{ display: "block", padding: "6px 0", border: "none", background: "none", cursor: "pointer" }}>
-                                  <p style={{ ...prosa, fontSize: 12.5 }}>
-                                    {pedidosPendentesCount === 1 ? "1 pedido de cadastro" : pedidosPendentesCount + " pedidos de cadastro"} esperando
-                                  </p>
-                                </button>
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </>
+        <div style={{ padding: "18px 18px 14px" }}>
+          <Marca identidade={identidade} altura={26} />
+          <div className="mt-2"><Etiqueta>Ficha, periodização e sessão · 315 exercícios</Etiqueta></div>
+        </div>
+        <nav style={{ display: "block", padding: "4px 10px 18px" }}>
+          {gruposNav.map((g) => (
+            <div key={g.id} className="mb-1">
+              <button onClick={() => alternarGrupo(g.id)} className="w-full flex items-center justify-between gap-2"
+                style={{ padding: "9px 8px", border: "none", background: "none", cursor: "pointer", borderRadius: 3 }}>
+                <span className="flex items-center gap-2">
+                  <Etiqueta>{g.label}</Etiqueta>
+                  {g.badge && (
+                    <span style={{ fontFamily: ARCH, fontSize: 9, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase",
+                      color: "#fff", background: C.saibro, padding: "2px 6px", borderRadius: 999 }}>{g.badge}</span>
                   )}
+                </span>
+                <span style={{ fontSize: 13, color: C.grafite, fontWeight: 700 }}>{gruposAbertos[g.id] ? "−" : "+"}</span>
+              </button>
+              {gruposAbertos[g.id] && (
+                <div className="flex flex-col" style={{ gap: 1 }}>
+                  {g.itens.map((t) => (
+                    <button key={t.v} onClick={() => { setAba(t.v); setAbertoId(null); setManualAberto(false); }}
+                      className="text-left"
+                      style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 600, padding: "8px 10px", borderRadius: 3, cursor: "pointer",
+                        border: "none", background: aba === t.v ? C.tinta : "transparent", color: aba === t.v ? C.papel : C.grafite }}>
+                      {t.r}
+                    </button>
+                  ))}
                 </div>
               )}
-              {planoAtual && NOMES_PLANO[planoAtual] && (
-                <Etiqueta cor={C.saibro}>{NOMES_PLANO[planoAtual]}{planoVencido ? " · vencido" : ""}</Etiqueta>
-              )}
-              {exigeLogin && uidAtual && orgAtual && (
-                <EditorMeuNome org={orgAtual} uid={uidAtual} emailAtual={window.mtyAuth.usuario() ? window.mtyAuth.usuario().email : ""} />
-              )}
-              {exigeLogin && uidAtual && <InstalarApp compacto />}
-              {exigeLogin && (
-                <button onClick={() => window.mtyAuth.sair()}
-                  style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 600, color: C.grafite, cursor: "pointer", padding: "4px 8px", border: "1px solid " + C.linha, borderRadius: 2, background: C.cal }}>
-                  sair
-                </button>
+            </div>
+          ))}
+          {mostraManual && (
+            /* O dropdown do Manual virou lista inline (como os outros
+               grupos) em vez de flutuar ao lado — dentro de uma barra
+               lateral com scroll próprio, um popup absoluto corria o
+               risco de ficar cortado. A mecânica de abrir/fechar (guarda
+               contra clique fantasma, fechar ao tocar fora, fechar ao
+               escolher um item) continua a mesma de sempre — alternarManual
+               e manualAberto não mudaram, só a posição visual do resultado. */
+            <div ref={manualRef} className="mb-1">
+              <button onClick={alternarManual} className="w-full flex items-center justify-between gap-2"
+                style={{ padding: "9px 8px", border: "none", cursor: "pointer", borderRadius: 3,
+                  background: NAV_MANUAL.some((t) => t.v === aba) ? C.tinta : "none" }}>
+                <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 600,
+                  color: NAV_MANUAL.some((t) => t.v === aba) ? C.papel : C.grafite }}>Manual</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: NAV_MANUAL.some((t) => t.v === aba) ? C.papel : C.grafite }}>
+                  {manualAberto ? "−" : "+"}
+                </span>
+              </button>
+              {manualAberto && (
+                <div className="flex flex-col" style={{ gap: 1 }}>
+                  {NAV_MANUAL.map((t) => (
+                    <button key={t.v} onClick={() => { setAba(t.v); setAbertoId(null); setManualAberto(false); }}
+                      className="text-left"
+                      style={{ fontFamily: ARCH, fontSize: 13, fontWeight: aba === t.v ? 700 : 500, padding: "7px 10px 7px 18px",
+                        borderRadius: 3, cursor: "pointer", border: "none",
+                        color: aba === t.v ? C.tinta : C.grafite, background: aba === t.v ? "#EFEAE4" : "transparent" }}>
+                      {t.r}
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
-          </div>
-          <div className="mt-0.5"><Etiqueta>Ficha, periodização e sessão · 315 exercícios</Etiqueta></div>
-          <nav style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, marginTop: 14 }}>
-            {[...NAV_PRINCIPAL,
-              ...(mostraQuadras ? [{ v: "quadras", r: "Quadras" }] : []),
-              ...(exigeLogin && uidAtual ? [{ v: "formacao", r: "Formação" }] : []),
-              ...(papelAtual === "coordenador" ? [{ v: "equipe", r: "Equipe" }] : [])].map((t) => (
-              <button key={t.v} onClick={() => { setAba(t.v); setAbertoId(null); setManualAberto(false); }}
-                style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 600, padding: "7px 13px", borderRadius: 3, cursor: "pointer", flexShrink: 0,
-                  border: "1px solid transparent", background: aba === t.v ? C.tinta : "transparent", color: aba === t.v ? C.papel : C.grafite }}>
-                {t.r}
-              </button>
-            ))}
-            {mostraManual && (
-              <div ref={manualRef} style={{ position: "relative", flexShrink: 0 }}>
-                <button onClick={alternarManual} className="flex items-center gap-1"
-                  style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 600, padding: "7px 13px", borderRadius: 3, cursor: "pointer", border: "1px solid transparent",
-                    background: NAV_MANUAL.some((t) => t.v === aba) ? C.tinta : "transparent",
-                    color: NAV_MANUAL.some((t) => t.v === aba) ? C.papel : C.grafite }}>
-                  Manual <span style={{ fontSize: 10 }}>{manualAberto ? "▲" : "▼"}</span>
-                </button>
-                {manualAberto && (
-                  /* left:0 (não right:0) — o botão "Manual" pode cair na
-                     ponta esquerda de uma linha quebrada no celular; ancorar
-                     pela direita jogava o menu (180px) pra fora da tela à
-                     esquerda, cortando o texto de cada item. */
-                  <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 8, background: C.papel, padding: 4,
-                    border: "1px solid " + C.linha, borderRadius: 4, boxShadow: "0 8px 20px rgba(0,0,0,.12)", zIndex: 20, minWidth: 180 }}>
-                    {NAV_MANUAL.map((t) => (
-                      <button key={t.v} onClick={() => { setAba(t.v); setAbertoId(null); setManualAberto(false); }}
-                        className="w-full text-left"
-                        style={{ display: "block", fontFamily: ARCH, fontSize: 13, fontWeight: aba === t.v ? 700 : 500,
-                          padding: "9px 12px", borderRadius: 3, cursor: "pointer", whiteSpace: "nowrap", border: "none",
-                          color: aba === t.v ? C.tinta : C.grafite, background: aba === t.v ? C.cal : "transparent" }}>
-                        {t.r}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </nav>
-        </div>
+          )}
+        </nav>
       </header>
 
-      <main className="px-5 py-6" style={{ maxWidth: 760, margin: "0 auto" }}>
+      <div className="mty-topbar" style={{ marginLeft: 252, borderBottom: "1px solid " + C.linha, background: C.cal, position: "sticky", top: 0, zIndex: 9 }}>
+        <div className="px-5 py-2 flex items-center gap-2" style={{ flexWrap: "wrap", justifyContent: "flex-end" }}>
+          {exigeLogin && uidAtual && (
+            <div style={{ position: "relative" }}>
+              <button onClick={abrirAvisos}
+                style={{ position: "relative", fontSize: 16, cursor: "pointer", padding: "4px 8px", border: "1px solid " + C.linha, borderRadius: 2, background: C.cal }}>
+                🔔
+                {totalAvisos > 0 && (
+                  <span style={{ position: "absolute", top: -5, right: -5, background: C.saibro, color: "#fff",
+                    fontFamily: ARCH, fontSize: 10, fontWeight: 700, borderRadius: 999, minWidth: 16, height: 16,
+                    display: "flex", alignItems: "center", justifyContent: "center", padding: "0 3px" }}>
+                    {totalAvisos}
+                  </span>
+                )}
+              </button>
+              {avisosAberto && (
+                <>
+                  <div onClick={() => setAvisosAberto(false)} style={{ position: "fixed", inset: 0, zIndex: 19 }} />
+                  <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 6, background: C.papel,
+                    border: "1px solid " + C.linha, borderRadius: 2, boxShadow: "0 4px 14px rgba(0,0,0,.12)", zIndex: 20, width: 260, maxHeight: 340, overflowY: "auto", padding: 12 }}>
+                    {totalAvisos === 0 ? (
+                      <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Nada pra avisar por agora.</p>
+                    ) : (
+                      <>
+                        {lembretesVisiveis.length > 0 && (
+                          <div className="mb-3">
+                            <Etiqueta>Hoje</Etiqueta>
+                            {lembretesVisiveis.map((l, i) => (
+                              <button key={i} onClick={() => { marcarAvisoVisto(idLembrete(l)); setAba(l.tipo === "turma" ? "turmas" : "alunos"); setAvisosAberto(false); }}
+                                className="w-full text-left" style={{ display: "block", padding: "6px 0", border: "none", background: "none", cursor: "pointer" }}>
+                                <p style={{ ...prosa, fontSize: 12.5 }}>{l.hora} · {l.titulo}</p>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {pendenciasVisiveis.length > 0 && (
+                          <div className="mb-3">
+                            <Etiqueta cor={C.saibro}>Pendências do grupo</Etiqueta>
+                            {pendenciasVisiveis.map((p, i) => (
+                              <button key={i} onClick={() => { marcarAvisoVisto(idPendencia(p)); setAba("turmas"); setAvisosAberto(false); }}
+                                className="w-full text-left" style={{ display: "block", padding: "6px 0", border: "none", background: "none", cursor: "pointer" }}>
+                                <p style={{ ...prosa, fontSize: 12.5 }}>{p.turma} · {p.data}{p.motivo ? " · " + p.motivo : ""}</p>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {pedidosAlunosVisiveis.length > 0 && (
+                          <div className="mb-3">
+                            <Etiqueta cor={C.saibro}>Pedidos dos alunos</Etiqueta>
+                            {pedidosAlunosVisiveis.map((p, i) => (
+                              <button key={i} onClick={() => { marcarAvisoVisto(idPedidoAluno(p)); setAba("alunos"); setAbertoId(p.alunoId); setAvisosAberto(false); }}
+                                className="w-full text-left" style={{ display: "block", padding: "6px 0", border: "none", background: "none", cursor: "pointer" }}>
+                                <p style={{ ...prosa, fontSize: 12.5 }}>
+                                  <b>{p.alunoNome}</b> · {p.tipo === "conteudo" ? "quer trabalhar: " + p.texto : "pediu reposição"}
+                                </p>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {reservasNovasVisiveis.length > 0 && (
+                          <div className="mb-3">
+                            <Etiqueta cor={C.saibro}>Reservas de quadra</Etiqueta>
+                            {reservasNovasVisiveis.map((r) => (
+                              <button key={r.id} onClick={() => verReserva(r)}
+                                className="w-full text-left" style={{ display: "block", padding: "6px 0", border: "none", background: "none", cursor: "pointer" }}>
+                                <p style={{ ...prosa, fontSize: 12.5 }}>
+                                  <b>{r.nomeContato}</b> reservou {r.data} às {r.horaInicio}
+                                </p>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {pedidosPendentesCount > 0 && (
+                          <div>
+                            <Etiqueta cor={C.saibro}>Equipe</Etiqueta>
+                            <button onClick={() => { setAba("equipe"); setAvisosAberto(false); }}
+                              className="w-full text-left" style={{ display: "block", padding: "6px 0", border: "none", background: "none", cursor: "pointer" }}>
+                              <p style={{ ...prosa, fontSize: 12.5 }}>
+                                {pedidosPendentesCount === 1 ? "1 pedido de cadastro" : pedidosPendentesCount + " pedidos de cadastro"} esperando
+                              </p>
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+          {planoAtual && NOMES_PLANO[planoAtual] && (
+            <Etiqueta cor={C.saibro}>{NOMES_PLANO[planoAtual]}{planoVencido ? " · vencido" : ""}</Etiqueta>
+          )}
+          {exigeLogin && uidAtual && orgAtual && (
+            <EditorMeuNome org={orgAtual} uid={uidAtual} emailAtual={window.mtyAuth.usuario() ? window.mtyAuth.usuario().email : ""} />
+          )}
+          {exigeLogin && uidAtual && <InstalarApp compacto />}
+          {exigeLogin && (
+            <button onClick={() => window.mtyAuth.sair()}
+              style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 600, color: C.grafite, cursor: "pointer", padding: "4px 8px", border: "1px solid " + C.linha, borderRadius: 2, background: C.cal }}>
+              sair
+            </button>
+          )}
+        </div>
+      </div>
+
+      <main className="mty-main px-5 py-6" style={{ maxWidth: 760, marginLeft: 252 }}>
         {carregando ? <p style={{ ...prosa, color: C.grafite }}>Carregando…</p> :
          aba === "catalogo" ? <TelaCatalogo exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
          aba === "taticas" ? <TelaTaticas /> :
