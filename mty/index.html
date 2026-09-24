@@ -3824,7 +3824,22 @@ function SugestaoClassificacao({ f, set }) {
   );
 }
 
-function TelaFicha({ aluno, salvar, papelAtual }) {
+/* Controle de edição: o coordenador edita qualquer um; um treinador
+   comum só edita quem é dele (ou quem ainda não tem dono — pra não
+   travar um jogador recém-criado antes de atribuir professor). Isto é
+   um portão de UI, no mesmo nível dos outros checks de papelAtual já
+   usados no app — não é imposto pelas regras do Firestore. */
+function podeEditarAluno(aluno, papelAtual, uidAtual) {
+  if (papelAtual === "coordenador" || !uidAtual) return true;
+  return !aluno.professorUid || aluno.professorUid === uidAtual;
+}
+function podeEditarTurma(turma, papelAtual, uidAtual) {
+  if (papelAtual === "coordenador" || !uidAtual) return true;
+  return !turma.professorUid || turma.professorUid === uidAtual || turma.professorAuxiliarUid === uidAtual;
+}
+
+function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
+  const podeEditar = podeEditarAluno(aluno, papelAtual, uidAtual);
   const [f, setF] = useState(aluno);
   /* Jogador sem nome ainda é ficha nova — abre direto pra edição. Uma
      ficha já preenchida abre fechada, só o resumo: reabrir pra editar
@@ -3873,8 +3888,9 @@ function TelaFicha({ aluno, salvar, papelAtual }) {
   }, [f.camadas]);
 
   if (!editando) {
-    return <ResumoFicha aluno={aluno} aoEditar={() => setEditando(true)} salvo={salvo} papelAtual={papelAtual} />;
+    return <ResumoFicha aluno={aluno} aoEditar={() => setEditando(true)} salvo={salvo} papelAtual={papelAtual} podeEditar={podeEditar} />;
   }
+  if (!podeEditar) return <ResumoFicha aluno={aluno} aoEditar={() => {}} salvo={salvo} papelAtual={papelAtual} podeEditar={false} />;
 
   function mudaLista(campo, i, chave, valor) {
     setF((x) => {
@@ -4095,7 +4111,7 @@ function TelaFicha({ aluno, salvar, papelAtual }) {
    observado — reabrir pra editar é deliberado, não o padrão. O que
    mantém o plano atualizado daqui pra frente são os relatórios das
    aulas (Sessão e fechamento de ciclo do Plano), não reedições daqui. */
-function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual }) {
+function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual, podeEditar = true }) {
   const camadasRot = [["tecnico", "Técnico"], ["fisico", "Físico"], ["tatico", "Tático"], ["mental", "Mental"]];
   const temCamada = camadasRot.some(([k]) => (a.camadas[k] || "").trim());
   const corpo = PERFIS_CORPO.find((p) => p.v === a.perfilCorpo);
@@ -4119,8 +4135,13 @@ function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual }) {
             {(a.horarios || []).length ? a.horarios.map((h) => nomeDia(h.dia) + " " + h.hora).join(", ") : "sem horário fixo definido"}
           </p>
         </div>
-        <Botao pequeno variante="vazio" onClick={aoEditar}>Editar ficha</Botao>
+        {podeEditar
+          ? <Botao pequeno variante="vazio" onClick={aoEditar}>Editar ficha</Botao>
+          : <Etiqueta cor={C.grafite}>Ficha de outro treinador · somente leitura</Etiqueta>}
       </div>
+      {!podeEditar && (
+        <Aviso>Este jogador é de outro treinador — a ficha fica travada pra edição. Só o professor responsável ou o coordenador podem editá-la.</Aviso>
+      )}
 
       <Secao titulo="Diagnóstico">
         {temCamada ? camadasRot.map(([k, rot]) => (a.camadas[k] || "").trim() && <Linha key={k} rotulo={rot} texto={a.camadas[k]} />)
@@ -4162,7 +4183,7 @@ function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual }) {
         </Secao>
       )}
 
-      <Botao variante="vazio" onClick={aoEditar}>Editar ficha</Botao>
+      {podeEditar && <Botao variante="vazio" onClick={aoEditar}>Editar ficha</Botao>}
     </div>
   );
 }
@@ -4447,7 +4468,8 @@ function garanteBrincadeira(exerciciosAtuais, evitar, estagio) {
   return brincadeira ? [...exerciciosAtuais, brincadeira] : exerciciosAtuais;
 }
 
-function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
+function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual }) {
+  const podeEditar = podeEditarAluno(aluno, papelAtual, uidAtual);
   const [cicloAtivo, setCiclo] = useState(0);
   const [duracao, setDuracao] = useState(90);
   const [plano, setPlano] = useState(null);
@@ -4662,6 +4684,9 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
           <Etiqueta cor="#fff">{salvo === "plano" ? "✓ sessão registrada e marcada no plano" : "✓ sessão registrada no caderno"}</Etiqueta>
         </div>
       )}
+      {!podeEditar && (
+        <div className="mb-5"><Aviso>Este jogador é de outro treinador — só ele (ou o coordenador) pode registrar a sessão dele.</Aviso></div>
+      )}
       {aulaAtual ? (
         <div className="mb-5" style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "13px 15px" }}>
           <Etiqueta cor={C.saibro}>Sessão de hoje é a aula em vigor do Plano</Etiqueta>
@@ -4705,8 +4730,8 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
       )}
       {!plano && (
         <div className="flex gap-2 flex-wrap items-center">
-          <Botao onClick={gerar} variante="saibro">Gerar sessão</Botao>
-          <Botao variante="vazio" onClick={() => setChuvaMenuAberto(!chuvaMenuAberto)}>🌧️ Foi dia de chuva</Botao>
+          <Botao onClick={gerar} variante="saibro" disabled={!podeEditar}>Gerar sessão</Botao>
+          <Botao variante="vazio" disabled={!podeEditar} onClick={() => setChuvaMenuAberto(!chuvaMenuAberto)}>🌧️ Foi dia de chuva</Botao>
         </div>
       )}
       {!plano && chuvaMenuAberto && (
@@ -4863,7 +4888,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba }) {
           )}
 
           {!fechando ? (
-            <Botao onClick={() => setFechando(true)}>Fechar a sessão</Botao>
+            <Botao onClick={() => setFechando(true)} disabled={!podeEditar}>Fechar a sessão</Botao>
           ) : (
             <div style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.saibro, padding: 16 }}>
               <div className="mb-3"><Etiqueta cor={C.saibro}>Menos de dois minutos, ainda na quadra</Etiqueta></div>
@@ -5924,7 +5949,7 @@ function HistoricoRelatorios({ historico, abrirHist, setAbrirHist, removerDoHist
    campos de registro. Extraído pra ser reaproveitado tanto pelas aulas
    programadas quanto pelas aulas de reforço (ver reforcarBloco em
    TelaPlano), que têm o mesmo checklist mas nascem de forma diferente. */
-function CardAulaChecklist({ id, indice, titulo, descricao, selo, status, defineStatus, reg, campo, chuvaAberta, setChuvaAberta }) {
+function CardAulaChecklist({ id, indice, titulo, descricao, selo, status, defineStatus, reg, campo, chuvaAberta, setChuvaAberta, podeEditar = true }) {
   const d = reg[id] || {};
   const st = status(id);
   const corStatus = { feita: C.quadra, falta: "#8A2E2E", cancelada: C.saibro }[st] || C.linha;
@@ -5934,9 +5959,9 @@ function CardAulaChecklist({ id, indice, titulo, descricao, selo, status, define
         <div className="flex-1">
           <div className="flex gap-1 flex-wrap mb-2">
             {[["feita", "Realizada"], ["falta", "Falta"], ["cancelada", "Cancelada"]].map(([v, r]) => (
-              <button key={v} onClick={() => defineStatus(id, v)}
+              <button key={v} disabled={!podeEditar} onClick={() => defineStatus(id, v)}
                 style={{ fontFamily: ARCH, fontSize: 10.5, fontWeight: 700, padding: "4px 8px",
-                  borderRadius: 2, cursor: "pointer",
+                  borderRadius: 2, cursor: podeEditar ? "pointer" : "default", opacity: podeEditar ? 1 : 0.6,
                   border: "1px solid " + (st === v ? corStatus : C.linha),
                   background: st === v ? corStatus : C.papel,
                   color: st === v ? "#fff" : C.grafite }}>{r}</button>
@@ -5956,12 +5981,12 @@ function CardAulaChecklist({ id, indice, titulo, descricao, selo, status, define
       </div>
       {st === "feita" && (
         <div className="flex gap-2 flex-wrap" style={{ padding: "0 14px 12px 14px" }}>
-          <input type="date" style={{ ...entrada, width: 150, fontSize: 12.5, padding: "6px 9px" }}
+          <input type="date" disabled={!podeEditar} style={{ ...entrada, width: 150, fontSize: 12.5, padding: "6px 9px" }}
             value={d.data || ""} onChange={(e) => campo(id, "data", e.target.value)} />
-          <input style={{ ...entrada, width: 165, fontSize: 12.5, padding: "6px 9px", borderColor: C.saibro }}
+          <input disabled={!podeEditar} style={{ ...entrada, width: 165, fontSize: 12.5, padding: "6px 9px", borderColor: C.saibro }}
             placeholder="dor · min / bolas" value={d.dor || ""}
             onChange={(e) => campo(id, "dor", e.target.value)} />
-          <textarea rows={2} style={{ ...entrada, flex: 1, minWidth: 210, fontSize: 12.5, resize: "vertical" }}
+          <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, flex: 1, minWidth: 210, fontSize: 12.5, resize: "vertical" }}
             placeholder="o que apareceu · o que não apareceu" value={d.obs || ""}
             onChange={(e) => campo(id, "obs", e.target.value)} />
         </div>
@@ -5969,9 +5994,9 @@ function CardAulaChecklist({ id, indice, titulo, descricao, selo, status, define
       {(st === "falta" || st === "cancelada") && (
         <div style={{ padding: "0 14px 12px 14px" }}>
           <div className="flex gap-2 flex-wrap">
-            <input type="date" style={{ ...entrada, width: 150, fontSize: 12.5, padding: "6px 9px" }}
+            <input type="date" disabled={!podeEditar} style={{ ...entrada, width: 150, fontSize: 12.5, padding: "6px 9px" }}
               value={d.data || ""} onChange={(e) => campo(id, "data", e.target.value)} />
-            <input list="motivos-cancelamento" style={{ ...entrada, flex: 1, minWidth: 210, fontSize: 12.5, padding: "6px 9px" }}
+            <input list="motivos-cancelamento" disabled={!podeEditar} style={{ ...entrada, flex: 1, minWidth: 210, fontSize: 12.5, padding: "6px 9px" }}
               placeholder={st === "cancelada" ? "motivo do cancelamento · ex: chuva" : "motivo da falta"}
               value={d.motivo || ""} onChange={(e) => campo(id, "motivo", e.target.value)} />
           </div>
@@ -5992,9 +6017,10 @@ function CardAulaChecklist({ id, indice, titulo, descricao, selo, status, define
     </div>
   );
 }
-function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas, modo = "resumo" }) {
+function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas, modo = "resumo", papelAtual, uidAtual }) {
   const eTurma = !!turma;
   const entidade = eTurma ? turma : aluno;
+  const podeEditar = eTurma ? podeEditarTurma(turma, papelAtual, uidAtual) : podeEditarAluno(aluno, papelAtual, uidAtual);
   const [colando, setColando] = useState(false);
   const [texto, setTexto] = useState("");
   const [erro, setErro] = useState("");
@@ -6278,6 +6304,9 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
   if (!plano) {
     return (
       <div>
+        {!podeEditar && (
+          <Aviso>{eTurma ? "Esta turma" : "Este jogador"} é de outro treinador — a montagem do plano fica travada. Só o professor responsável ou o coordenador podem gerar ou colar um plano.</Aviso>
+        )}
         <Aviso cor={C.quadra}>
           {eTurma ? "Esta turma ainda não tem plano. Gere aqui mesmo a partir das fichas do grupo — ou cole um plano montado fora."
             : "Este jogador ainda não tem plano. Preencha a ficha de entrada e gere aqui mesmo — ou cole um plano montado fora."}
@@ -6314,10 +6343,10 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
           )}
           {erro && <Aviso>{erro}</Aviso>}
           <div className="flex gap-2 flex-wrap items-center">
-            <Botao onClick={gerarComIA} variante="saibro" disabled={gerando}>
+            <Botao onClick={gerarComIA} variante="saibro" disabled={gerando || !podeEditar}>
               {gerando ? "Montando o plano…" : "Gerar planejamento"}
             </Botao>
-            <Botao variante="vazio" onClick={() => setColando(true)}>Colar plano pronto</Botao>
+            <Botao variante="vazio" disabled={!podeEditar} onClick={() => setColando(true)}>Colar plano pronto</Botao>
           </div>
           {gerando && <BarraProgresso segundos={segundosIA} etapa={etapaIA} estimativa={eTurma ? 80 : 60} aoCancelar={pararDeEsperar} />}
         </Secao>
@@ -6462,7 +6491,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                 return (
                   <CardAulaChecklist key={ai} id={id} indice={ai + 1} titulo={au.t} selo={au.selo}
                     status={status} defineStatus={defineStatus} reg={reg} campo={campo}
-                    chuvaAberta={chuvaAberta} setChuvaAberta={setChuvaAberta} />
+                    chuvaAberta={chuvaAberta} setChuvaAberta={setChuvaAberta} podeEditar={podeEditar} />
                 );
               })}
             </div>
@@ -6481,7 +6510,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                   <CardAulaChecklist key={ri} id={"REF" + bi + "-" + ri} indice={"Reforço " + (ri + 1)} titulo="Reforço do bloco"
                     descricao="Os exercícios aparecem ao montar a sessão de hoje pra esta aula."
                     status={status} defineStatus={defineStatus} reg={reg} campo={campo}
-                    chuvaAberta={chuvaAberta} setChuvaAberta={setChuvaAberta} />
+                    chuvaAberta={chuvaAberta} setChuvaAberta={setChuvaAberta} podeEditar={podeEditar} />
                 ))}
               </div>
             );
@@ -6551,8 +6580,8 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                 {catalogo && (
                   <div className="mb-2">
                     {catalogo.itens.map((texto, i) => (
-                      <label key={i} className="flex items-start gap-2" style={{ fontSize: 12.5, marginTop: 6, cursor: "pointer" }}>
-                        <input type="checkbox" checked={!!marcados[i]} onChange={() => marcarCriterioBloco(nomeBloco, i)}
+                      <label key={i} className="flex items-start gap-2" style={{ fontSize: 12.5, marginTop: 6, cursor: podeEditar ? "pointer" : "default" }}>
+                        <input type="checkbox" disabled={!podeEditar} checked={!!marcados[i]} onChange={() => marcarCriterioBloco(nomeBloco, i)}
                           style={{ marginTop: 3, flexShrink: 0 }} />
                         <span style={prosa}>{texto}</span>
                       </label>
@@ -6560,8 +6589,8 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                   </div>
                 )}
                 <div className="flex gap-2 flex-wrap">
-                  <Botao pequeno variante="saibro" disabled={!todosMarcados} onClick={() => confirmarSaidaBloco(nomeBloco)}>Sim, liberar o próximo bloco</Botao>
-                  <Botao pequeno variante="vazio" onClick={() => reforcarBloco(nomeBloco)}>Ainda não — acrescentar reforço</Botao>
+                  <Botao pequeno variante="saibro" disabled={!todosMarcados || !podeEditar} onClick={() => confirmarSaidaBloco(nomeBloco)}>Sim, liberar o próximo bloco</Botao>
+                  <Botao pequeno variante="vazio" disabled={!podeEditar} onClick={() => reforcarBloco(nomeBloco)}>Ainda não — acrescentar reforço</Botao>
                 </div>
               </div>
             );
@@ -6581,13 +6610,13 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                   <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, margin: "5px 0 9px" }}>{b.saida}</p>
                   <div className="flex gap-2 flex-wrap mb-2">
                     {[["sim", "atingido", C.quadra], ["par", "parcial", C.ocre || "#C9A227"], ["nao", "não atingido", C.saibro]].map(([k, r, cor]) => (
-                      <button key={k} onClick={() => fech("nota:C" + i, v === k ? "" : k)}
-                        style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "6px 12px", cursor: "pointer",
+                      <button key={k} disabled={!podeEditar} onClick={() => fech("nota:C" + i, v === k ? "" : k)}
+                        style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "6px 12px", cursor: podeEditar ? "pointer" : "default",
                           borderRadius: 2, border: "1px solid " + (v === k ? cor : C.linha),
                           background: v === k ? cor : C.papel, color: v === k ? "#fff" : C.grafite }}>{r}</button>
                     ))}
                   </div>
-                  <textarea rows={2} style={{ ...entrada, resize: "vertical", fontSize: 12.5 }}
+                  <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, resize: "vertical", fontSize: 12.5 }}
                     placeholder="o que faltou, ou o que apareceu além do esperado"
                     value={(reg.__fech || {})["crit:C" + i] || ""}
                     onChange={(e) => fech("crit:C" + i, e.target.value)} />
@@ -6603,7 +6632,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                     fontWeight: 700, padding: "2px 6px", marginLeft: 7 }}>MAIS URGENTE</span>}
                 </div>
                 <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, margin: "5px 0 8px" }}>{o.d}</p>
-                <textarea rows={2} style={{ ...entrada, resize: "vertical", fontSize: 12.5 }}
+                <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, resize: "vertical", fontSize: 12.5 }}
                   placeholder="o que se descobriu. Se continua em aberto, escrever isso."
                   value={(reg.__fech || {})["obs:O" + i] || ""}
                   onChange={(e) => fech("obs:O" + i, e.target.value)} />
@@ -6614,9 +6643,9 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
           <div className="flex gap-2 flex-wrap mb-4">
             <Botao onClick={gerar} variante="saibro">Gerar relatório do ciclo</Botao>
             {!fichaMudouDepoisDoPlano && (
-              <Botao variante="vazio" onClick={refazerPlanejamento}>Refazer planejamento com a ficha atual</Botao>
+              <Botao variante="vazio" disabled={!podeEditar} onClick={refazerPlanejamento}>Refazer planejamento com a ficha atual</Botao>
             )}
-            <Botao variante="vazio" onClick={() => {
+            <Botao variante="vazio" disabled={!podeEditar} onClick={() => {
               const msg = eTurma ? "Remover o plano desta turma? Os registros vão junto." : "Remover o plano deste jogador? Os registros vão junto.";
               if (!confirm(msg)) return;
               /* Se já rolou aula neste ciclo, remover sem arquivar apagaria
@@ -6646,7 +6675,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                 style={{ ...entrada, minHeight: 260, fontFamily: "ui-monospace, monospace", fontSize: 11.5, whiteSpace: "pre" }} />
               <div className="mt-3 flex gap-2">
                 <Botao pequeno variante="vazio" onClick={copiarRelatorio}>{relatorioCopiado ? "✓ copiado" : "Copiar"}</Botao>
-                <Botao pequeno onClick={arquivar}>{relatorioArquivado ? "✓ arquivado no histórico" : "Arquivar no histórico"}</Botao>
+                <Botao pequeno disabled={!podeEditar} onClick={arquivar}>{relatorioArquivado ? "✓ arquivado no histórico" : "Arquivar no histórico"}</Botao>
               </div>
             </div>
           )}
@@ -7530,7 +7559,7 @@ function TelaFormacaoPessoal({ membros, setMembros, carregando, uidAtual }) {
    todo mundo em uma ação (com espaço pra corrigir por pessoa: chuva
    cancela a turma inteira, mas um jogador específico pode ter faltado
    por outro motivo mesmo com o resto treinando). */
-function TelaTurmas({ alunos, setAlunos, turmas, setTurmas }) {
+function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual }) {
   const [abertaId, setAbertaId] = useState(null);
   const [criando, setCriando] = useState(false);
   const [nome, setNome] = useState("");
@@ -7546,6 +7575,7 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas }) {
   if (aberta) {
     return (
       <SessaoTurma turma={aberta} alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas}
+        papelAtual={papelAtual} uidAtual={uidAtual}
         aoFechar={() => setAbertaId(null)}
         aoRemover={() => { setTurmas(turmas.filter((t) => t.id !== aberta.id)); setAbertaId(null); }} />
     );
@@ -7645,7 +7675,8 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas }) {
   );
 }
 
-function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, aoRemover }) {
+function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, aoRemover, papelAtual, uidAtual }) {
+  const podeEditar = podeEditarTurma(turma, papelAtual, uidAtual);
   const membros = turma.membros.map((id) => alunos.find((a) => a.id === id)).filter(Boolean);
   /* Sem plano ainda, a aba Sessão só mostra "esta turma não tem plano" —
      abre direto em Plano pra "gerar os treinos" ser a primeira coisa que
@@ -7770,11 +7801,14 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
       </div>
 
       {subaba === "plano" ? (
-        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} modo="resumo" />
+        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} modo="resumo" papelAtual={papelAtual} uidAtual={uidAtual} />
       ) : subaba === "aulas" ? (
-        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} modo="aulas" />
+        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} />
       ) : (
       <>
+      {!podeEditar && (
+        <div className="mb-5"><Aviso>Esta turma é de outro treinador — a sessão fica travada pra edição. Só o professor responsável, o auxiliar ou o coordenador podem registrá-la.</Aviso></div>
+      )}
       {pendenciasAbertas.length > 0 && (
         <div className="mb-5">
           <Aviso>
@@ -7784,7 +7818,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
             <div key={p.id} style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.saibro, padding: "10px 13px", marginTop: 8 }}>
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>{p.data}{p.motivo ? " · " + p.motivo : ""}</div>
-                <Botao pequeno variante="vazio" onClick={() => marcarResolvida(p.id)}>Marcar como resolvida</Botao>
+                <Botao pequeno variante="vazio" disabled={!podeEditar} onClick={() => marcarResolvida(p.id)}>Marcar como resolvida</Botao>
               </div>
               {p.nota && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>{p.nota}</p>}
             </div>
@@ -7926,8 +7960,8 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
       )}
 
       <div className="flex gap-2 items-center mt-4 flex-wrap">
-        <Botao onClick={salvarSessao} disabled={statusGeral === "chuva" && !chuvaModeloId}>Salvar sessão</Botao>
-        <Botao variante="vazio" onClick={aoRemover}>Remover turma</Botao>
+        <Botao onClick={salvarSessao} disabled={!podeEditar || (statusGeral === "chuva" && !chuvaModeloId)}>Salvar sessão</Botao>
+        <Botao variante="vazio" disabled={!podeEditar} onClick={aoRemover}>Remover turma</Botao>
         {salvo === "feita" && <Etiqueta cor={C.quadra}>{turma.plano ? "✓ sessão registrada no plano da turma" : "✓ sessão registrada em cada jogador"}</Etiqueta>}
         {salvo === "chuva" && <Etiqueta cor={C.quadra}>✓ dia de chuva registrado como sessão realizada</Etiqueta>}
         {salvo === "pendencia" && <Etiqueta cor={C.saibro}>✓ pendência do grupo registrada</Etiqueta>}
@@ -8686,7 +8720,7 @@ function App() {
          aba === "metodo" ? <TelaMetodo /> :
          aba === "equipe" ? <TelaEquipe alunos={alunos} turmas={turmas} membros={membrosFormacao} setMembros={setMembrosFormacao} carregandoForm={carregandoFormacao} /> :
          aba === "formacao" ? <TelaFormacaoPessoal membros={membrosFormacao} setMembros={setMembrosFormacao} carregando={carregandoFormacao} uidAtual={uidAtual} /> :
-         aba === "turmas" ? <TelaTurmas alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} /> :
+         aba === "turmas" ? <TelaTurmas alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} papelAtual={papelAtual} uidAtual={uidAtual} /> :
          aba === "agenda" ? <TelaAgenda alunos={alunos} turmas={turmas} uidAtual={uidAtual} exigeLogin={exigeLogin} /> :
          aba === "dashboard" ? <TelaDashboard alunos={alunos} turmas={turmas} papelAtual={papelAtual} uidAtual={uidAtual} exigeLogin={exigeLogin} usoIA={usoIA} identidade={identidade}
            irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }} /> :
@@ -8710,13 +8744,13 @@ function App() {
                 </button>
               ))}
             </div>
-            {subaba === "ficha" ? <TelaFicha aluno={aberto} salvar={salvar} papelAtual={papelAtual} /> :
-             subaba === "plano" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="resumo" /> :
-             subaba === "aulas" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="aulas" /> :
+            {subaba === "ficha" ? <TelaFicha aluno={aberto} salvar={salvar} papelAtual={papelAtual} uidAtual={uidAtual} /> :
+             subaba === "plano" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="resumo" papelAtual={papelAtual} uidAtual={uidAtual} /> :
+             subaba === "aulas" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} /> :
              subaba === "periodizacao" ? <TelaPeriodizacao aluno={aberto} /> :
              subaba === "scout" ? <TelaScout aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
              subaba === "registro" ? <TelaRegistro aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
-             <TelaSessao aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} />}
+             <TelaSessao aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} papelAtual={papelAtual} uidAtual={uidAtual} />}
           </div>
         ) : (
           <div>
