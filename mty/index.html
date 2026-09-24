@@ -9307,17 +9307,30 @@ function App() {
      toque real caía bem em cima do overlay recém-criado, na mesma
      posição do botão "Manual", fechando o menu antes de dar tempo de
      escolher algo. Ouvir mousedown/touchstart no documento (registrado
-     um tick depois de abrir) não sofre com isso. */
+     um tick depois de abrir) não sofre com isso.
+     Os dois eventos usam uma noção diferente de "fora": no mouse
+     (mousedown), "fora" é fora da caixinha do próprio Manual — clicar em
+     qualquer outro ponto da barra lateral (ex.: no logo, em outro grupo)
+     fecha ele, igual sempre foi. Já no toque (touchstart), "fora" precisa
+     ser fora da barra lateral INTEIRA: quando o menu não cabe na tela
+     (ex.: celular deitado), tentar rolar a barra pra ver o resto da lista
+     começa com um toque em outro ponto dela mesma — se isso contasse como
+     "fora", o menu fechava assim que o dedo tocava a tela pra rolar, antes
+     do gesto completar. Tocar em outro item da barra já fecha o Manual
+     sozinho, pelo próprio onClick de cada botão. */
   useEffect(() => {
     if (!manualAberto) return;
-    function aoTocarFora(e) {
+    function aoClicarComMouse(e) {
       if (manualRef.current && !manualRef.current.contains(e.target)) setManualAberto(false);
     }
-    document.addEventListener("mousedown", aoTocarFora);
-    document.addEventListener("touchstart", aoTocarFora);
+    function aoTocarComDedo(e) {
+      if (!e.target.closest(".mty-sidebar")) setManualAberto(false);
+    }
+    document.addEventListener("mousedown", aoClicarComMouse);
+    document.addEventListener("touchstart", aoTocarComDedo);
     return () => {
-      document.removeEventListener("mousedown", aoTocarFora);
-      document.removeEventListener("touchstart", aoTocarFora);
+      document.removeEventListener("mousedown", aoClicarComMouse);
+      document.removeEventListener("touchstart", aoTocarComDedo);
     };
   }, [manualAberto]);
   const [carregando, setCarregando] = useState(true);
@@ -9340,6 +9353,13 @@ function App() {
   function alternarGrupo(id) {
     setGruposAbertos((atual) => ({ ...atual, [id]: !atual[id] }));
   }
+  /* No celular em pé, a barra lateral de 252px não cabe do lado do
+     conteúdo — vira uma gaveta que fica recolhida por padrão (o CSS,
+     no <style> abaixo, cuida de escondê-la fora da tela só em telas
+     estreitas) e abre por cima de tudo com o botão ☰ do topo. Sempre à
+     esquerda, nunca empilhada — só entra e sai por toque. No computador
+     o botão ☰ nem aparece (também via CSS), e esse estado não tem efeito. */
+  const [menuMobileAberto, setMenuMobileAberto] = useState(false);
   /* Avisos são recalculados do zero a cada render (aula de hoje, pendência,
      pedido do aluno) — sem estado próprio, o mesmo aviso reaparecia
      idêntico toda vez que o sininho abria de novo, mesmo já tendo sido
@@ -9367,7 +9387,13 @@ function App() {
       const org = await organizacao();
       setOrgAtual(org);
       try {
-        const tok = await window.mtyAuth.usuario().getIdTokenResult();
+        /* força a renovação do token (em vez de usar o que já estava em
+           cache) — sem isso, quem acabou de ser promovido a coordenador,
+           ou teve mostrarQuadras ligado pra academia, só via a mudança
+           depois de sair e entrar de novo: o SDK do Firebase não sabe
+           sozinho que uma claim mudou no servidor, e reaproveitava o
+           token antigo até ele expirar por conta própria (até 1h). */
+        const tok = await window.mtyAuth.usuario().getIdTokenResult(true);
         setPapelAtual((tok.claims && tok.claims.role) || null);
       } catch (e) { setPapelAtual(null); }
       try {
@@ -9517,10 +9543,26 @@ function App() {
         button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid ${C.saibro}; outline-offset: 2px; }
         button { transition: transform .06s ease, opacity .06s ease; }
         button:active:not(:disabled) { transform: scale(0.96); opacity: 0.75; }
+        .mty-sidebar { transition: transform .2s ease; }
+        .mty-hamburger { display: none; }
+        @media (max-width: 760px) {
+          /* Em pé no celular, os 252px fixos da barra não sobram do lado
+             do conteúdo — ela vira uma gaveta escondida fora da tela à
+             esquerda por padrão, e desliza por cima de tudo (nunca
+             empurrando ou empilhando nada) quando o botão ☰ abre ela. */
+          .mty-sidebar { transform: translateX(-100%); }
+          .mty-sidebar.aberta { transform: translateX(0); box-shadow: 4px 0 18px rgba(0,0,0,.18); }
+          .mty-hamburger { display: inline-flex !important; }
+          .mty-topbar, .mty-main { margin-left: 0 !important; }
+        }
       `}</style>
 
-      <header className="mty-sidebar" style={{ position: "fixed", left: 0, top: 0, bottom: 0, width: 252, overflowY: "auto",
-        background: C.cal, borderRight: "1px solid " + C.linha, zIndex: 10 }}>
+      {menuMobileAberto && (
+        <div onClick={() => setMenuMobileAberto(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.35)", zIndex: 25 }} />
+      )}
+
+      <header className={"mty-sidebar" + (menuMobileAberto ? " aberta" : "")} style={{ position: "fixed", left: 0, top: 0, bottom: 0, width: 252, overflowY: "auto",
+        background: C.cal, borderRight: "1px solid " + C.linha, zIndex: 30 }}>
         <div style={{ height: 4, background: C.saibro }} />
         <div style={{ padding: "18px 18px 14px" }}>
           <Marca identidade={identidade} altura={26} />
@@ -9543,7 +9585,7 @@ function App() {
               {gruposAbertos[g.id] && (
                 <div className="flex flex-col" style={{ gap: 1 }}>
                   {g.itens.map((t) => (
-                    <button key={t.v} onClick={() => { setAba(t.v); setAbertoId(null); setManualAberto(false); }}
+                    <button key={t.v} onClick={() => { setAba(t.v); setAbertoId(null); setManualAberto(false); setMenuMobileAberto(false); }}
                       className="text-left"
                       style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 600, padding: "8px 10px", borderRadius: 3, cursor: "pointer",
                         border: "none", background: aba === t.v ? C.tinta : "transparent", color: aba === t.v ? C.papel : C.grafite }}>
@@ -9575,7 +9617,7 @@ function App() {
               {manualAberto && (
                 <div className="flex flex-col" style={{ gap: 1 }}>
                   {NAV_MANUAL.map((t) => (
-                    <button key={t.v} onClick={() => { setAba(t.v); setAbertoId(null); setManualAberto(false); }}
+                    <button key={t.v} onClick={() => { setAba(t.v); setAbertoId(null); setManualAberto(false); setMenuMobileAberto(false); }}
                       className="text-left"
                       style={{ fontFamily: ARCH, fontSize: 13, fontWeight: aba === t.v ? 700 : 500, padding: "7px 10px 7px 18px",
                         borderRadius: 3, cursor: "pointer", border: "none",
@@ -9591,7 +9633,12 @@ function App() {
       </header>
 
       <div className="mty-topbar" style={{ marginLeft: 252, borderBottom: "1px solid " + C.linha, background: C.cal, position: "sticky", top: 0, zIndex: 9 }}>
-        <div className="px-5 py-2 flex items-center gap-2" style={{ flexWrap: "wrap", justifyContent: "flex-end" }}>
+        <div className="px-5 py-2 flex items-center gap-2" style={{ justifyContent: "flex-end" }}>
+          <button className="mty-hamburger" onClick={() => setMenuMobileAberto(true)} aria-label="Abrir menu"
+            style={{ marginRight: "auto", fontSize: 18, cursor: "pointer", padding: "4px 9px", border: "1px solid " + C.linha, borderRadius: 2, background: C.cal }}>
+            ☰
+          </button>
+          <div className="flex items-center gap-2" style={{ flexWrap: "wrap", justifyContent: "flex-end" }}>
           {exigeLogin && uidAtual && (
             <div style={{ position: "relative" }}>
               <button onClick={abrirAvisos}
@@ -9693,6 +9740,7 @@ function App() {
               sair
             </button>
           )}
+          </div>
         </div>
       </div>
 
