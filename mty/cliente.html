@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reservas e inscrições</title>
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<style>
+  :root{ --papel:#F5F2F0; --tinta:#141210; --verm:#C8102E; --cinza:#6B6461; --linha:#D8D1CB; --verde:#2E4739; --cal:#EFEAE4; }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--papel); color:var(--tinta);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; padding-bottom:64px}
+  .topo{background:var(--verm); height:6px}
+  .wrap{max-width:640px; margin:0 auto; padding:0 18px}
+  header{padding:22px 0 10px}
+  h1{font-family:Georgia,serif; font-size:19px; margin:0}
+  h2{font-family:Georgia,serif; font-size:16px; margin:0 0 4px}
+  .sub{color:var(--cinza); font-size:13px}
+  label{display:block; font-size:11.5px; font-weight:700; letter-spacing:.04em;
+    text-transform:uppercase; margin-bottom:6px; color:var(--cinza)}
+  input, select{width:100%; border:1px solid var(--linha); background:#fff; border-radius:3px;
+    padding:10px 11px; font:inherit; font-size:15px; color:var(--tinta)}
+  input:focus, select:focus{outline:none; border-color:var(--verm)}
+  .campo{margin:14px 0}
+  .bt{border:none; border-radius:3px; padding:12px 16px; font-size:14px; font-weight:700;
+    cursor:pointer; font-family:inherit; background:var(--verm); color:#fff;
+    transition:transform .06s ease, opacity .06s ease}
+  .bt[disabled]{opacity:.6; cursor:default}
+  .bt:active:not([disabled]){transform:scale(0.97); opacity:.85}
+  .bt-vazio{background:#fff; border:1px solid var(--linha); color:var(--tinta)}
+  .msg{margin-top:14px; padding:13px 14px; border-radius:3px; font-size:13.5px}
+  .ok{background:var(--verde); color:#fff}
+  .erro{background:#fff; border:1px solid var(--linha); border-left:4px solid var(--verm)}
+  table{border-collapse:collapse; width:100%; margin-top:14px; font-size:12.5px}
+  th, td{border:1px solid var(--linha); padding:6px 8px; text-align:left; white-space:nowrap}
+  th{font-size:10.5px; text-transform:uppercase; letter-spacing:.03em; color:var(--cinza); font-weight:700; background:var(--papel)}
+  td.hora{font-weight:700; color:var(--cinza); background:var(--papel)}
+  .slot{background:none; border:none; width:100%; height:100%; min-height:28px; cursor:pointer;
+    font:inherit; font-size:11px; color:var(--linha); padding:4px}
+  .slot:hover{background:var(--cal)}
+  td.ocupado{background:var(--cal); font-size:11px; color:var(--cinza)}
+  .grade-wrap{overflow-x:auto}
+  .form-reserva{background:#fff; padding:16px; white-space:normal}
+  .form-reserva h3{font-family:Georgia,serif; font-size:15px; margin:0 0 10px}
+  .card{background:#fff; border:1px solid var(--linha); border-radius:4px; padding:14px 16px; margin-top:12px}
+  .card h3{font-family:Georgia,serif; font-size:15px; margin:0}
+  .etiqueta{font-size:10.5px; text-transform:uppercase; letter-spacing:.03em; color:var(--cinza); font-weight:700}
+  .form-inline{margin-top:12px; padding-top:12px; border-top:1px solid var(--linha)}
+  .card-destaque{background:var(--tinta); color:#fff; border-color:var(--tinta)}
+  .card-destaque .sub{color:#cfc9c4}
+  .nav-inferior{position:fixed; left:0; right:0; bottom:0; display:flex; background:#fff; border-top:1px solid var(--linha)}
+  .nav-inferior button{flex:1; border:none; background:none; padding:10px 4px 12px; font:inherit; font-size:11px;
+    font-weight:700; color:var(--cinza); cursor:pointer}
+  .nav-inferior button.ativo{color:var(--tinta)}
+  .nav-inferior button .ponto{display:block; width:5px; height:5px; margin:0 auto 4px; border-radius:999px; background:transparent}
+  .nav-inferior button.ativo .ponto{background:var(--verm)}
+</style>
+</head>
+<body>
+<div class="topo"></div>
+<div class="wrap">
+<header>
+  <h1 id="titulo-academia">Reservas e inscrições</h1>
+  <div class="sub">Avulso ou recorrente — sem precisar de conta.</div>
+</header>
+<div id="conteudo"><p class="sub">Carregando…</p></div>
+</div>
+
+<div class="nav-inferior" id="nav-inferior"></div>
+
+<script>
+(function () {
+  var params = new URLSearchParams(location.search);
+  var org = params.get('org');
+  var conteudo = document.getElementById('conteudo');
+  var navInferior = document.getElementById('nav-inferior');
+  var abaAtual = 'inicio';
+
+  var FAIXAS = (function () {
+    var lista = [];
+    for (var h = 6; h < 23; h++) {
+      lista.push((h < 10 ? '0' + h : h) + ':00');
+      lista.push((h < 10 ? '0' + h : h) + ':30');
+    }
+    lista.push('23:00');
+    return lista;
+  })();
+  function hojeISO() {
+    var d = new Date();
+    var m = d.getMonth() + 1, dia = d.getDate();
+    return d.getFullYear() + '-' + (m < 10 ? '0' + m : m) + '-' + (dia < 10 ? '0' + dia : dia);
+  }
+  function somaMinutos(hora, min) {
+    var partes = hora.split(':');
+    var total = parseInt(partes[0], 10) * 60 + parseInt(partes[1], 10) + min;
+    var hh = Math.floor(total / 60) % 24, mm = total % 60;
+    return (hh < 10 ? '0' + hh : hh) + ':' + (mm < 10 ? '0' + mm : mm);
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  if (!org) {
+    conteudo.innerHTML = '<div class="msg erro">Link incompleto — peça o link certo pra academia.</div>';
+    return;
+  }
+
+  function definirTituloAcademia(nome) {
+    if (nome) document.getElementById('titulo-academia').textContent = nome;
+  }
+
+  /* ── aba Reservar (quadra) — mesma lógica de reservar.html, só que
+     vive dentro de uma aba em vez de ser a página inteira. */
+  var Reservar = {
+    estado: { data: hojeISO(), quadras: [], ocupados: [], rascunho: null, carregando: true, erro: null, sucesso: null, erroForm: null, carregouUmaVez: false },
+    async carregar() {
+      var e = this.estado;
+      e.carregando = true; e.erro = null;
+      if (abaAtual === 'reservar') this.render();
+      try {
+        var r = await fetch('/.netlify/functions/reservar-quadra?org=' + encodeURIComponent(org) + '&data=' + encodeURIComponent(e.data));
+        var d = await r.json().catch(function () { return {}; });
+        if (!r.ok) throw new Error(d.erro || ('Erro ' + r.status));
+        e.quadras = d.quadras || [];
+        e.ocupados = d.ocupados || [];
+        if (d.academia) definirTituloAcademia(d.academia);
+      } catch (err) {
+        e.erro = String(err.message || err);
+        e.quadras = []; e.ocupados = [];
+      }
+      e.carregando = false; e.carregouUmaVez = true;
+      if (abaAtual === 'reservar') this.render();
+    },
+    ocupadoEm(quadraId, hora) {
+      return this.estado.ocupados.find(function (o) { return o.quadraId === quadraId && o.horaInicio <= hora && o.horaFim > hora; });
+    },
+    abrirForm(quadraId, hora, quadraNome) {
+      this.estado.rascunho = { quadraId: quadraId, quadraNome: quadraNome, horaInicio: hora, duracao: 60 };
+      this.estado.sucesso = null; this.estado.erroForm = null;
+      this.render();
+    },
+    async confirmar() {
+      var e = this.estado, r = e.rascunho;
+      var horaFim = somaMinutos(r.horaInicio, r.duracao);
+      var nome = document.getElementById('rv-nome').value.trim();
+      var telefone = document.getElementById('rv-telefone').value.trim();
+      var obs = document.getElementById('rv-obs').value.trim();
+      if (!nome || !telefone) { e.erroForm = 'Preencha nome e telefone.'; this.render(); return; }
+      var self = this;
+      try {
+        var resp = await fetch('/.netlify/functions/reservar-quadra', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ org: org, quadraId: r.quadraId, data: e.data, horaInicio: r.horaInicio, horaFim: horaFim, nomeContato: nome, telefoneContato: telefone, observacao: obs }),
+        });
+        var d = await resp.json().catch(function () { return {}; });
+        if (!resp.ok) throw new Error(d.erro || ('Erro ' + resp.status));
+        e.rascunho = null; e.erroForm = null;
+        e.sucesso = r.quadraNome + ' reservada de ' + r.horaInicio + ' às ' + horaFim + '.';
+        await self.carregar();
+      } catch (err) {
+        e.erroForm = String(err.message || err);
+        this.render();
+      }
+    },
+    linhaFormulario(colspan) {
+      var r = this.estado.rascunho;
+      var html = '<tr id="form-reserva-topo"><td colspan="' + colspan + '" class="form-reserva">';
+      html += '<h3>Reservar ' + escapeHtml(r.quadraNome) + ' · ' + r.horaInicio + '</h3>';
+      html += '<div class="campo"><label>Duração</label><select id="rv-duracao">';
+      [30, 60, 90, 120].forEach(function (min) {
+        html += '<option value="' + min + '"' + (min === r.duracao ? ' selected' : '') + '>' + (min < 60 ? min + ' min' : (min / 60) + 'h' + (min % 60 ? (min % 60) : '')) + '</option>';
+      });
+      html += '</select></div>';
+      html += '<div class="campo"><label>Seu nome</label><input type="text" id="rv-nome" autocomplete="name"></div>';
+      html += '<div class="campo"><label>Telefone (WhatsApp, se possível)</label><input type="text" id="rv-telefone" placeholder="(11) 90000-0000" autocomplete="tel"></div>';
+      html += '<div class="campo"><label>Observação (opcional)</label><input type="text" id="rv-obs"></div>';
+      if (this.estado.erroForm) html += '<div class="msg erro">' + escapeHtml(this.estado.erroForm) + '</div>';
+      html += '<div style="display:flex; gap:8px; margin-top:6px">';
+      html += '<button class="bt" id="rv-confirmar">Confirmar reserva</button>';
+      html += '<button class="bt bt-vazio" id="rv-cancelar">Cancelar</button>';
+      html += '</div></td></tr>';
+      return html;
+    },
+    render() {
+      var e = this.estado;
+      if (e.carregando && !e.carregouUmaVez) { conteudo.innerHTML = '<p class="sub">Carregando…</p>'; return; }
+      var html = '<h2>Reservar quadra</h2><div class="campo"><label>Dia</label><input type="date" id="campo-data" value="' + e.data + '"></div>';
+      if (e.erro) {
+        html += '<div class="msg erro">' + escapeHtml(e.erro) + '</div>';
+        conteudo.innerHTML = html; this.wire(); return;
+      }
+      if (e.sucesso) html += '<div class="msg ok">✓ Reserva confirmada — ' + escapeHtml(e.sucesso) + '</div>';
+      if (e.quadras.length === 0) {
+        html += '<p class="sub">Nenhuma quadra disponível pra reserva no momento.</p>';
+        conteudo.innerHTML = html; this.wire(); return;
+      }
+      var self = this;
+      var colspan = e.quadras.length + 1;
+      html += '<div class="grade-wrap"><table><thead><tr><th></th>';
+      e.quadras.forEach(function (q) { html += '<th>' + escapeHtml(q.nome) + '</th>'; });
+      html += '</tr></thead><tbody>';
+      for (var i = 0; i < FAIXAS.length - 1; i++) {
+        var hora = FAIXAS[i];
+        html += '<tr><td class="hora">' + hora + '</td>';
+        e.quadras.forEach(function (q) {
+          var ocupado = self.ocupadoEm(q.id, hora);
+          if (ocupado) html += '<td class="ocupado">' + (ocupado.horaInicio === hora ? 'ocupado' : '') + '</td>';
+          else html += '<td style="padding:0"><button class="slot" data-quadra="' + q.id + '" data-hora="' + hora + '" data-nome="' + escapeHtml(q.nome) + '">livre</button></td>';
+        });
+        html += '</tr>';
+        if (e.rascunho && e.rascunho.horaInicio === hora) html += this.linhaFormulario(colspan);
+      }
+      html += '</tbody></table></div>';
+      conteudo.innerHTML = html;
+      this.wire();
+    },
+    wire() {
+      var self = this;
+      var campoData = document.getElementById('campo-data');
+      if (campoData) campoData.onchange = function (ev) { self.estado.data = ev.target.value; self.estado.rascunho = null; self.estado.sucesso = null; self.carregar(); };
+      Array.prototype.forEach.call(conteudo.querySelectorAll('.slot'), function (btn) {
+        btn.onclick = function () { self.abrirForm(btn.getAttribute('data-quadra'), btn.getAttribute('data-hora'), btn.getAttribute('data-nome')); };
+      });
+      if (this.estado.rascunho) {
+        document.getElementById('rv-duracao').onchange = function (ev) { self.estado.rascunho.duracao = parseInt(ev.target.value, 10); };
+        document.getElementById('rv-confirmar').onclick = function () { self.confirmar(); };
+        document.getElementById('rv-cancelar').onclick = function () { self.estado.rascunho = null; self.render(); };
+      }
+    },
+  };
+
+  /* ── aba Torneios & Eventos — mesma lógica de inscricao.html, dentro
+     da aba em vez de página própria. */
+  var Torneios = {
+    estado: { torneios: [], eventos: [], aberto: null, carregando: true, erro: null, sucesso: null, erroForm: null, carregouUmaVez: false },
+    async carregar() {
+      var e = this.estado;
+      e.carregando = true; e.erro = null;
+      if (abaAtual === 'torneios') this.render();
+      try {
+        var r = await fetch('/.netlify/functions/inscricao-torneio-evento?org=' + encodeURIComponent(org));
+        var d = await r.json().catch(function () { return {}; });
+        if (!r.ok) throw new Error(d.erro || ('Erro ' + r.status));
+        e.torneios = d.torneios || []; e.eventos = d.eventos || [];
+        if (d.academia) definirTituloAcademia(d.academia);
+      } catch (err) {
+        e.erro = String(err.message || err);
+        e.torneios = []; e.eventos = [];
+      }
+      e.carregando = false; e.carregouUmaVez = true;
+      if (abaAtual === 'torneios') this.render();
+    },
+    alternar(chave) {
+      this.estado.aberto = this.estado.aberto === chave ? null : chave;
+      this.estado.erroForm = null;
+      this.render();
+    },
+    async confirmarTorneio(torneio) {
+      var categoriaId = document.getElementById('in-categoria').value;
+      var nome = document.getElementById('in-nome').value.trim();
+      var telefone = document.getElementById('in-telefone').value.trim();
+      if (!nome || !telefone) { this.estado.erroForm = 'Preencha nome e telefone.'; this.render(); return; }
+      var categoriaNome = (torneio.categorias.find(function (c) { return c.id === categoriaId; }) || {}).nome;
+      await this.enviar({ org: org, tipo: 'torneio', torneioId: torneio.id, categoriaId: categoriaId, nomeContato: nome, telefoneContato: telefone },
+        'Inscrição confirmada em ' + torneio.nome + ' · ' + categoriaNome + '.');
+    },
+    async confirmarEvento(evento) {
+      var nome = document.getElementById('in-nome').value.trim();
+      var telefone = document.getElementById('in-telefone').value.trim();
+      if (!nome || !telefone) { this.estado.erroForm = 'Preencha nome e telefone.'; this.render(); return; }
+      var self = this;
+      await this.enviar({ org: org, tipo: 'evento', eventoId: evento.id, nomeContato: nome, telefoneContato: telefone }, null, function (d) {
+        return d.status === 'espera' ? 'Você entrou na lista de espera de ' + evento.nome + '.' : 'Inscrição confirmada em ' + evento.nome + '.';
+      });
+    },
+    async enviar(corpo, mensagemFixa, mensagemFn) {
+      var e = this.estado;
+      try {
+        var r = await fetch('/.netlify/functions/inscricao-torneio-evento', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(corpo) });
+        var d = await r.json().catch(function () { return {}; });
+        if (!r.ok) throw new Error(d.erro || ('Erro ' + r.status));
+        e.aberto = null; e.erroForm = null;
+        e.sucesso = mensagemFn ? mensagemFn(d) : mensagemFixa;
+        await this.carregar();
+      } catch (err) {
+        e.erroForm = String(err.message || err);
+        this.render();
+      }
+    },
+    formInline(categorias) {
+      var html = '<div class="form-inline">';
+      if (categorias) {
+        html += '<div class="campo"><label>Categoria</label><select id="in-categoria">';
+        categorias.forEach(function (c) { html += '<option value="' + c.id + '">' + escapeHtml(c.nome) + '</option>'; });
+        html += '</select></div>';
+      }
+      html += '<div class="campo"><label>Seu nome</label><input type="text" id="in-nome" autocomplete="name"></div>';
+      html += '<div class="campo"><label>Telefone (WhatsApp, se possível)</label><input type="text" id="in-telefone" placeholder="(11) 90000-0000" autocomplete="tel"></div>';
+      if (this.estado.erroForm) html += '<div class="msg erro">' + escapeHtml(this.estado.erroForm) + '</div>';
+      html += '<div style="display:flex; gap:8px; margin-top:6px">';
+      html += '<button class="bt" id="in-confirmar">Confirmar inscrição</button>';
+      html += '<button class="bt bt-vazio" id="in-cancelar">Cancelar</button>';
+      html += '</div></div>';
+      return html;
+    },
+    render() {
+      var e = this.estado;
+      if (e.carregando && !e.carregouUmaVez) { conteudo.innerHTML = '<p class="sub">Carregando…</p>'; return; }
+      var html = '<h2>Torneios &amp; Eventos</h2><p class="sub">Abertos pra qualquer cliente — sem precisar de conta.</p>';
+      if (e.erro) { conteudo.innerHTML = html + '<div class="msg erro">' + escapeHtml(e.erro) + '</div>'; return; }
+      if (e.sucesso) html += '<div class="msg ok">✓ ' + escapeHtml(e.sucesso) + '</div>';
+
+      if (e.torneios.length === 0 && e.eventos.length === 0) {
+        html += '<p class="sub" style="margin-top:12px">Nada com inscrições abertas no momento.</p>';
+        conteudo.innerHTML = html; return;
+      }
+
+      if (e.torneios.length > 0) {
+        e.torneios.forEach(function (t) {
+          var chave = 'torneio-' + t.id;
+          html += '<div class="card"><h3>' + escapeHtml(t.nome) + '</h3>';
+          var periodo = t.dataInicio ? t.dataInicio + (t.dataFim && t.dataFim !== t.dataInicio ? ' – ' + t.dataFim : '') : '';
+          html += '<div class="sub">' + [periodo, t.local].filter(Boolean).map(escapeHtml).join(' · ') + '</div>';
+          if (t.categorias.length === 0) html += '<p class="sub" style="margin-top:8px">Nenhuma categoria aberta ainda.</p>';
+          else if (e.aberto === chave) html += this.formInline(t.categorias);
+          else html += '<button class="bt" style="margin-top:10px" data-abrir="' + chave + '">Inscrever-se</button>';
+          html += '</div>';
+        }, this);
+      }
+      if (e.eventos.length > 0) {
+        e.eventos.forEach(function (ev) {
+          var chave = 'evento-' + ev.id;
+          var lotado = ev.vagas != null && ev.confirmados >= ev.vagas;
+          html += '<div class="card"><h3>' + escapeHtml(ev.nome) + '</h3>';
+          var quando = [ev.data, ev.horaInicio ? ev.horaInicio + (ev.horaFim ? '–' + ev.horaFim : '') : null, ev.local].filter(Boolean).map(escapeHtml).join(' · ');
+          html += '<div class="sub">' + quando + '</div>';
+          if (ev.descricao) html += '<p class="sub" style="margin-top:6px">' + escapeHtml(ev.descricao) + '</p>';
+          html += '<div class="etiqueta" style="margin-top:8px">' + (ev.vagas != null ? ev.confirmados + '/' + ev.vagas + ' vagas' : 'vagas ilimitadas') + '</div>';
+          if (e.aberto === chave) html += this.formInline(null);
+          else html += '<button class="bt' + (lotado ? ' bt-vazio' : '') + '" style="margin-top:10px" data-abrir="' + chave + '">' + (lotado ? 'Entrar na lista de espera' : 'Inscrever-se') + '</button>';
+          html += '</div>';
+        }, this);
+      }
+
+      conteudo.innerHTML = html;
+      var self = this;
+      Array.prototype.forEach.call(conteudo.querySelectorAll('[data-abrir]'), function (btn) {
+        btn.onclick = function () { self.alternar(btn.getAttribute('data-abrir')); };
+      });
+      if (e.aberto) {
+        var cancelar = document.getElementById('in-cancelar');
+        if (cancelar) cancelar.onclick = function () { e.aberto = null; e.erroForm = null; self.render(); };
+        var confirmar = document.getElementById('in-confirmar');
+        if (confirmar) {
+          if (e.aberto.indexOf('torneio-') === 0) {
+            var torneio = e.torneios.find(function (t) { return 'torneio-' + t.id === e.aberto; });
+            confirmar.onclick = function () { self.confirmarTorneio(torneio); };
+          } else {
+            var evento = e.eventos.find(function (ev) { return 'evento-' + ev.id === e.aberto; });
+            confirmar.onclick = function () { self.confirmarEvento(evento); };
+          }
+        }
+      }
+    },
+  };
+
+  function renderInicio() {
+    var html = '<h2>Bem-vindo(a)</h2>';
+    html += '<p class="sub">Reserve sua quadra, participe dos nossos torneios e eventos, ou torne-se sócio.</p>';
+    html += '<div class="card" style="cursor:pointer" data-ir="reservar"><h3>Reservar quadra</h3><div class="sub">Avulso ou recorrente — sem precisar de conta.</div></div>';
+    html += '<div class="card" style="cursor:pointer" data-ir="torneios"><h3>Torneios &amp; Eventos</h3><div class="sub">Veja o que está aberto e inscreva-se.</div></div>';
+    html += '<div class="card card-destaque" style="cursor:pointer" data-ir="conta"><h3>Seja sócio</h3><div class="sub">Mensalidade recorrente, acesso às quadras. Regras em breve.</div></div>';
+    conteudo.innerHTML = html;
+    Array.prototype.forEach.call(conteudo.querySelectorAll('[data-ir]'), function (card) {
+      card.onclick = function () { mostrarAba(card.getAttribute('data-ir')); };
+    });
+  }
+
+  function renderConta() {
+    conteudo.innerHTML = '<h2>Sua conta</h2>'
+      + '<div class="card"><h3>Em breve</h3>'
+      + '<p class="sub" style="margin-top:6px">A área do sócio (login, mensalidade e benefícios) ainda está sendo definida. '
+      + 'Assim que estiver pronta, você poderá entrar por aqui pra acompanhar sua assinatura.</p></div>';
+  }
+
+  var ABAS = [
+    { id: 'inicio', label: 'Início', render: renderInicio },
+    { id: 'reservar', label: 'Reservar', render: function () { Reservar.render(); } },
+    { id: 'torneios', label: 'Torneios', render: function () { Torneios.render(); } },
+    { id: 'conta', label: 'Conta', render: renderConta },
+  ];
+
+  function renderNav() {
+    navInferior.innerHTML = ABAS.map(function (a) {
+      return '<button data-aba="' + a.id + '" class="' + (abaAtual === a.id ? 'ativo' : '') + '"><span class="ponto"></span>' + a.label + '</button>';
+    }).join('');
+    Array.prototype.forEach.call(navInferior.querySelectorAll('button'), function (btn) {
+      btn.onclick = function () { mostrarAba(btn.getAttribute('data-aba')); };
+    });
+  }
+
+  function mostrarAba(id) {
+    abaAtual = id;
+    renderNav();
+    var aba = ABAS.find(function (a) { return a.id === id; });
+    aba.render();
+  }
+
+  renderNav();
+  renderInicio();
+  Reservar.carregar();
+  Torneios.carregar();
+})();
+</script>
+</body>
+</html>
