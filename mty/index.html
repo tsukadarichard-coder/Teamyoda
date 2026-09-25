@@ -302,6 +302,33 @@ const C = {
   linha: "#DDD6D0",
   quadra: "#2E4739",
 };
+/* ── tema visual por academia ──
+   As telas inteiras leem C.tinta/papel/cal/saibro/grafite/linha/quadra
+   direto (não como prop, não como contexto) — então, em vez de reescrever
+   centenas de referências, o "tema" troca os valores desse mesmo objeto
+   C no lugar (mutação, não substituição), assim que a academia é
+   identificada. Toda tela que já leu C.xxx neste render vai ler os
+   valores novos no próximo — e o próximo render acontece de qualquer
+   jeito, junto com o resto do carregamento da identidade da academia. */
+const TEMA_PADRAO = { ...C };
+const TEMAS_POR_ACADEMIA = {
+  /* 39 Ranch Tennis Club — clube de campo, preto e dourado, com um verde
+     de mata no lugar do verde de quadra padrão. Academia sem nenhuma
+     ligação com a Team Yoda; só o orgId muda o tema, o resto do app
+     (estrutura, telas, textos) é o mesmo em ambas. */
+  "39-ranch": {
+    tinta: "#1A1712",
+    papel: "#F7F2E4",
+    cal: "#FFFDF7",
+    saibro: "#B8902E",
+    grafite: "#5B5347",
+    linha: "#E6DCC3",
+    quadra: "#2F4A34",
+  },
+};
+function aplicarTema(orgId) {
+  Object.assign(C, TEMAS_POR_ACADEMIA[orgId] || TEMA_PADRAO);
+}
 
 const ARCH = "Archivo, system-ui, sans-serif";
 const SERIF = "'Source Serif 4', Georgia, serif";
@@ -9386,6 +9413,7 @@ function App() {
     (async () => {
       const org = await organizacao();
       setOrgAtual(org);
+      aplicarTema(org);
       try {
         /* força a renovação do token (em vez de usar o que já estava em
            cache) — sem isso, quem acabou de ser promovido a coordenador,
