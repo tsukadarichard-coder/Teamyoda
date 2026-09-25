@@ -39,7 +39,7 @@
   .slot:hover{background:var(--cal)}
   td.ocupado{background:var(--cal); font-size:11px; color:var(--cinza)}
   .grade-wrap{overflow-x:auto}
-  .form-reserva{margin-top:18px; background:#fff; border:1px solid var(--linha); border-radius:4px; padding:16px}
+  .form-reserva{background:#fff; padding:16px; white-space:normal}
   .form-reserva h3{font-family:Georgia,serif; font-size:15px; margin:0 0 10px}
 </style>
 </head>
@@ -106,6 +106,26 @@
     }
     estado.carregando = false;
     render();
+  }
+
+  function linhaFormulario(colspan) {
+    var r = estado.rascunho;
+    var html = '<tr id="form-reserva-topo"><td colspan="' + colspan + '" class="form-reserva">';
+    html += '<h3>Reservar ' + escapeHtml(r.quadraNome) + ' · ' + r.horaInicio + '</h3>';
+    html += '<div class="campo"><label>Duração</label><select id="rv-duracao">';
+    [30, 60, 90, 120].forEach(function (min) {
+      html += '<option value="' + min + '"' + (min === r.duracao ? ' selected' : '') + '>' + (min < 60 ? min + ' min' : (min / 60) + 'h' + (min % 60 ? (min % 60) : '')) + '</option>';
+    });
+    html += '</select></div>';
+    html += '<div class="campo"><label>Seu nome</label><input type="text" id="rv-nome" autocomplete="name"></div>';
+    html += '<div class="campo"><label>Telefone (WhatsApp, se possível)</label><input type="text" id="rv-telefone" placeholder="(11) 90000-0000" autocomplete="tel"></div>';
+    html += '<div class="campo"><label>Observação (opcional)</label><input type="text" id="rv-obs"></div>';
+    if (estado.erroForm) html += '<div class="msg erro">' + escapeHtml(estado.erroForm) + '</div>';
+    html += '<div style="display:flex; gap:8px; margin-top:6px">';
+    html += '<button class="bt" id="rv-confirmar">Confirmar reserva</button>';
+    html += '<button class="bt bt-vazio" id="rv-cancelar">Cancelar</button>';
+    html += '</div></td></tr>';
+    return html;
   }
 
   function ocupadoEm(quadraId, hora) {
@@ -180,6 +200,7 @@
       return;
     }
 
+    var colspan = estado.quadras.length + 1;
     html += '<div class="grade-wrap"><table><thead><tr><th></th>';
     estado.quadras.forEach(function (q) { html += '<th>' + escapeHtml(q.nome) + '</th>'; });
     html += '</tr></thead><tbody>';
@@ -195,27 +216,14 @@
         }
       });
       html += '</tr>';
+      // o mini-formulário nasce como uma linha extra logo abaixo do
+      // horário tocado, empurrando as linhas seguintes pra baixo — em
+      // vez de abrir separado, fora da grade.
+      if (estado.rascunho && estado.rascunho.horaInicio === hora) {
+        html += linhaFormulario(colspan);
+      }
     }
     html += '</tbody></table></div>';
-
-    if (estado.rascunho) {
-      var r = estado.rascunho;
-      html += '<div class="form-reserva" id="form-reserva-topo">';
-      html += '<h3>Reservar ' + escapeHtml(r.quadraNome) + ' · ' + r.horaInicio + '</h3>';
-      html += '<div class="campo"><label>Duração</label><select id="rv-duracao">';
-      [30, 60, 90, 120].forEach(function (min) {
-        html += '<option value="' + min + '"' + (min === r.duracao ? ' selected' : '') + '>' + (min < 60 ? min + ' min' : (min / 60) + 'h' + (min % 60 ? (min % 60) : '')) + '</option>';
-      });
-      html += '</select></div>';
-      html += '<div class="campo"><label>Seu nome</label><input type="text" id="rv-nome" autocomplete="name"></div>';
-      html += '<div class="campo"><label>Telefone (WhatsApp, se possível)</label><input type="text" id="rv-telefone" placeholder="(11) 90000-0000" autocomplete="tel"></div>';
-      html += '<div class="campo"><label>Observação (opcional)</label><input type="text" id="rv-obs"></div>';
-      if (estado.erroForm) html += '<div class="msg erro">' + escapeHtml(estado.erroForm) + '</div>';
-      html += '<div style="display:flex; gap:8px; margin-top:6px">';
-      html += '<button class="bt" id="rv-confirmar">Confirmar reserva</button>';
-      html += '<button class="bt bt-vazio" id="rv-cancelar">Cancelar</button>';
-      html += '</div></div>';
-    }
 
     conteudo.innerHTML = html;
     wireDataInput();
