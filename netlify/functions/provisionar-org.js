@@ -25,9 +25,13 @@
    avulsa de quadra/espaço, com link público de reserva pro cliente) aparece
    pra essa academia — é o oposto do mostrarManual: sem esse campo, a aba
    fica ESCONDIDA (nenhuma academia de antes desta opção usava isso), só
-   liga pra quem for provisionado com a opção marcada. A Team Yoda é a
-   exceção: tem uma liberação própria no código (index.html e
-   reservar-quadra.js), sem depender deste campo. */
+   liga pra quem for provisionado com a opção marcada. Team Yoda e 39
+   Ranch são exceção: têm uma liberação própria no código (index.html e
+   reservar-quadra.js), sem depender deste campo.
+   mostrarTorneiosEventos (opcional, true/false) decide se as abas
+   "Torneios" e "Eventos" (chaveamento, lista de presença, inscrição
+   pública em inscricao.html) aparecem — mesmo padrão do mostrarQuadras
+   (ESCONDIDO por padrão), com a mesma exceção pra Team Yoda e 39 Ranch. */
 const { admin, app } = require("./_firebase-admin");
 
 exports.handler = async function (event) {
@@ -47,7 +51,7 @@ exports.handler = async function (event) {
     return resposta(400, { erro: "Corpo da requisição inválido." });
   }
 
-  const { orgId, nomeAcademia, logoUrl, email, senha, plano, planoAtivoAte, mostrarManual, mostrarQuadras } = corpo;
+  const { orgId, nomeAcademia, logoUrl, email, senha, plano, planoAtivoAte, mostrarManual, mostrarQuadras, mostrarTorneiosEventos } = corpo;
   if (!orgId || !email || !senha) {
     return resposta(400, { erro: "Faltou orgId, email ou senha." });
   }
@@ -86,6 +90,7 @@ exports.handler = async function (event) {
     if (planoAtivoAte) identidade.planoAtivoAte = planoAtivoAte;
     if (typeof mostrarManual === "boolean") identidade.mostrarManual = mostrarManual;
     if (typeof mostrarQuadras === "boolean") identidade.mostrarQuadras = mostrarQuadras;
+    if (typeof mostrarTorneiosEventos === "boolean") identidade.mostrarTorneiosEventos = mostrarTorneiosEventos;
     await admin.firestore().collection("orgs").doc(orgId).collection("meta").doc("info").set(identidade, { merge: true });
 
     /* Também registra essa conta em solicitacoes, do mesmo jeito que um

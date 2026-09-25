@@ -28,8 +28,6 @@
   html, body { margin: 0; padding: 0; background: #F5F2F0; }
   #mty-faixa { font-family: system-ui, sans-serif; font-size: 12px; padding: 6px 14px;
     text-align: center; color: #fff; }
-</style>
-</head>
 <body>
 
 <div id="mty-faixa">Carregando…</div>
@@ -8203,6 +8201,52 @@ const FAIXAS_MEIA_HORA = (() => {
   return lista;
 })();
 
+/* ── torneios ──
+   Categorias e o chaveamento moram dentro do próprio torneio (mesmo
+   padrão de turma.membros) — não existe coleção separada de inscrição
+   ou partida. O chaveamento é preenchido à mão pelo coordenador (nome
+   dos jogadores, placar, quem venceu) — não existe sorteio nem avanço
+   automático nesta primeira versão. */
+function novoTorneio() {
+  return {
+    id: "torneio-" + Date.now(), nome: "", dataInicio: "", dataFim: "", local: "",
+    status: "inscricoes", categorias: [], criadoEm: new Date().toISOString(),
+  };
+}
+function novaCategoriaTorneio(nome) {
+  return { id: "categoria-" + Date.now(), nome, inscritos: [], partidas: [] };
+}
+function novaInscricaoTorneio() {
+  return {
+    id: "inscricao-" + Date.now(), nomeContato: "", telefoneContato: "",
+    origem: "staff", vistoPeloStaff: true, criadoEm: new Date().toISOString(),
+  };
+}
+function novaPartidaTorneio() {
+  return { id: "partida-" + Date.now(), rodada: "", jogador1: "", placar1: "", jogador2: "", placar2: "" };
+}
+
+/* ── eventos ──
+   Clínica, noite social, exibição — cada convidado (confirmado ou em
+   lista de espera) mora dentro do próprio evento, igual às categorias
+   do torneio. vagas null = sem limite (evento.vagas). */
+function novoEvento() {
+  return {
+    id: "evento-" + Date.now(), nome: "", data: "", horaInicio: "", horaFim: "", local: "",
+    tipo: "social", descricao: "", vagas: null, ativo: true,
+    convidados: [], criadoEm: new Date().toISOString(),
+  };
+}
+function novaInscricaoEvento() {
+  return {
+    id: "inscricao-" + Date.now(), nomeContato: "", telefoneContato: "", status: "confirmado",
+    origem: "staff", vistoPeloStaff: true, criadoEm: new Date().toISOString(),
+  };
+}
+const TIPOS_EVENTO = { clinica: "Clínica", social: "Social", exibicao: "Exibição", outro: "Outro" };
+const STATUS_TORNEIO = { inscricoes: "Inscrições abertas", andamento: "Em andamento", encerrado: "Encerrado" };
+const STATUS_TORNEIO_COR = { inscricoes: C.saibro, andamento: C.tinta, encerrado: C.grafite };
+
 function TelaQuadras({ quadras, setQuadras, reservas, setReservas, orgAtual }) {
   const [gerenciando, setGerenciando] = useState(false);
   const [nomeNovaQuadra, setNomeNovaQuadra] = useState("");
@@ -8402,6 +8446,431 @@ function TelaQuadras({ quadras, setQuadras, reservas, setReservas, orgAtual }) {
             <Botao pequeno variante="vazio" onClick={() => { setRascunho(null); setErro(""); }}>Cancelar</Botao>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+function TelaTorneios({ torneios, setTorneios, orgAtual }) {
+  const [criando, setCriando] = useState(false);
+  const [nomeNovo, setNomeNovo] = useState("");
+  const [dataInicioNovo, setDataInicioNovo] = useState("");
+  const [dataFimNovo, setDataFimNovo] = useState("");
+  const [localNovo, setLocalNovo] = useState("");
+  const [categoriasNovo, setCategoriasNovo] = useState("");
+  const [abertoId, setAbertoId] = useState(null);
+  const [categoriaSelecionada, setCategoriaSelecionada] = useState(null);
+  const [nomeCategoriaNova, setNomeCategoriaNova] = useState("");
+  const [nomeInscrito, setNomeInscrito] = useState("");
+  const [telefoneInscrito, setTelefoneInscrito] = useState("");
+  const [rodadaNova, setRodadaNova] = useState("");
+  const [jogador1Novo, setJogador1Novo] = useState("");
+  const [placar1Novo, setPlacar1Novo] = useState("");
+  const [jogador2Novo, setJogador2Novo] = useState("");
+  const [placar2Novo, setPlacar2Novo] = useState("");
+
+  const linkInscricao = orgAtual ? location.origin + "/inscricao.html?org=" + encodeURIComponent(orgAtual) : "";
+
+  function criarTorneio() {
+    if (!nomeNovo.trim()) return;
+    const categorias = categoriasNovo.split(",").map((c) => c.trim()).filter(Boolean).map((nome) => novaCategoriaTorneio(nome));
+    setTorneios([...torneios, { ...novoTorneio(), nome: nomeNovo.trim(), dataInicio: dataInicioNovo, dataFim: dataFimNovo, local: localNovo.trim(), categorias }]);
+    setNomeNovo(""); setDataInicioNovo(""); setDataFimNovo(""); setLocalNovo(""); setCategoriasNovo(""); setCriando(false);
+  }
+  function removerTorneio(id) {
+    if (!confirm("Excluir este torneio? Essa ação não pode ser desfeita.")) return;
+    setTorneios(torneios.filter((t) => t.id !== id));
+    if (abertoId === id) setAbertoId(null);
+  }
+  function mudarStatus(id, status) {
+    setTorneios(torneios.map((t) => (t.id === id ? { ...t, status } : t)));
+  }
+  function atualizarCategorias(torneioId, categorias) {
+    setTorneios(torneios.map((t) => (t.id === torneioId ? { ...t, categorias } : t)));
+  }
+
+  const aberto = abertoId ? torneios.find((t) => t.id === abertoId) : null;
+  const categoriaAtual = aberto ? (aberto.categorias.find((c) => c.id === categoriaSelecionada) || aberto.categorias[0] || null) : null;
+
+  function adicionarCategoria() {
+    if (!nomeCategoriaNova.trim() || !aberto) return;
+    atualizarCategorias(aberto.id, [...aberto.categorias, novaCategoriaTorneio(nomeCategoriaNova.trim())]);
+    setNomeCategoriaNova("");
+  }
+  function adicionarInscrito() {
+    if (!nomeInscrito.trim() || !telefoneInscrito.trim() || !aberto || !categoriaAtual) return;
+    const nova = { ...novaInscricaoTorneio(), nomeContato: nomeInscrito.trim(), telefoneContato: telefoneInscrito.trim() };
+    atualizarCategorias(aberto.id, aberto.categorias.map((c) => (c.id === categoriaAtual.id ? { ...c, inscritos: [...c.inscritos, nova] } : c)));
+    setNomeInscrito(""); setTelefoneInscrito("");
+  }
+  function removerInscrito(inscricaoId) {
+    if (!aberto || !categoriaAtual) return;
+    atualizarCategorias(aberto.id, aberto.categorias.map((c) => (c.id === categoriaAtual.id ? { ...c, inscritos: c.inscritos.filter((i) => i.id !== inscricaoId) } : c)));
+  }
+  function adicionarPartida() {
+    if (!jogador1Novo.trim() || !jogador2Novo.trim() || !aberto || !categoriaAtual) return;
+    const nova = { ...novaPartidaTorneio(), rodada: rodadaNova.trim() || "Partida", jogador1: jogador1Novo.trim(), placar1: placar1Novo.trim(), jogador2: jogador2Novo.trim(), placar2: placar2Novo.trim() };
+    atualizarCategorias(aberto.id, aberto.categorias.map((c) => (c.id === categoriaAtual.id ? { ...c, partidas: [...c.partidas, nova] } : c)));
+    setRodadaNova(""); setJogador1Novo(""); setPlacar1Novo(""); setJogador2Novo(""); setPlacar2Novo("");
+  }
+  function removerPartida(partidaId) {
+    if (!aberto || !categoriaAtual) return;
+    atualizarCategorias(aberto.id, aberto.categorias.map((c) => (c.id === categoriaAtual.id ? { ...c, partidas: c.partidas.filter((p) => p.id !== partidaId) } : c)));
+  }
+
+  if (aberto) {
+    return (
+      <div>
+        <button onClick={() => { setAbertoId(null); setCategoriaSelecionada(null); }} className="mb-4" style={{ ...prosa, color: C.grafite, cursor: "pointer" }}>← Todos os torneios</button>
+        <div className="flex items-center gap-3 flex-wrap mb-2">
+          <h1 style={{ fontFamily: ARCH, fontSize: 20, fontWeight: 700 }}>{aberto.nome}</h1>
+          <Etiqueta cor={STATUS_TORNEIO_COR[aberto.status]}>{STATUS_TORNEIO[aberto.status]}</Etiqueta>
+        </div>
+        <p style={{ ...prosa, color: C.grafite, marginBottom: 14 }}>
+          {aberto.dataInicio ? formatarDataLonga(aberto.dataInicio) : ""}
+          {aberto.dataFim && aberto.dataFim !== aberto.dataInicio ? " – " + formatarDataLonga(aberto.dataFim) : ""}
+          {aberto.local ? " · " + aberto.local : ""}
+        </p>
+        <div className="flex gap-2 flex-wrap mb-5">
+          {Object.keys(STATUS_TORNEIO).map((s) => (
+            <Botao key={s} pequeno variante={aberto.status === s ? "cheio" : "vazio"} onClick={() => mudarStatus(aberto.id, s)}>{STATUS_TORNEIO[s]}</Botao>
+          ))}
+        </div>
+
+        {aberto.categorias.length > 0 && (
+          <div className="flex gap-2 flex-wrap mb-4" style={{ borderBottom: "1px solid " + C.linha, paddingBottom: 8 }}>
+            {aberto.categorias.map((c) => (
+              <button key={c.id} onClick={() => setCategoriaSelecionada(c.id)}
+                style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, padding: "6px 10px", cursor: "pointer", border: "none",
+                  background: "none", color: categoriaAtual && categoriaAtual.id === c.id ? C.tinta : C.grafite,
+                  borderBottom: categoriaAtual && categoriaAtual.id === c.id ? "2px solid " + C.saibro : "2px solid transparent" }}>
+                {c.nome}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2 mb-6 flex-wrap items-center">
+          <input style={{ ...entrada, flex: 1, minWidth: 160 }} value={nomeCategoriaNova} onChange={(e) => setNomeCategoriaNova(e.target.value)}
+            placeholder="ex: Duplas Mistas" onKeyDown={(e) => e.key === "Enter" && adicionarCategoria()} />
+          <Botao pequeno variante="vazio" onClick={adicionarCategoria} disabled={!nomeCategoriaNova.trim()}>+ Categoria</Botao>
+        </div>
+
+        {categoriaAtual ? (
+          <div>
+            <div style={{ fontFamily: ARCH, fontWeight: 700, fontSize: 14, marginBottom: 8 }}>Inscritos ({categoriaAtual.inscritos.length})</div>
+            {categoriaAtual.inscritos.length === 0 && (
+              <p style={{ ...prosa, color: C.grafite, marginBottom: 10 }}>Nenhum inscrito ainda nesta categoria.</p>
+            )}
+            {categoriaAtual.inscritos.map((i) => (
+              <div key={i.id} className="flex items-center justify-between gap-3 mb-2" style={{ background: C.papel, border: "1px solid " + C.linha, padding: "8px 11px" }}>
+                <div>
+                  <div style={{ ...prosa, fontSize: 13 }}>{i.nomeContato}</div>
+                  <div style={{ ...prosa, fontSize: 11.5, color: C.grafite }}>
+                    {i.telefoneContato}{i.origem === "cliente" ? " · inscrição pelo cliente" : ""}
+                  </div>
+                </div>
+                <button onClick={() => removerInscrito(i.id)} title="Remover inscrito" style={iconeEstilo}>×</button>
+              </div>
+            ))}
+            <div className="flex gap-2 mt-3 mb-8 flex-wrap items-center">
+              <input style={{ ...entrada, flex: 1, minWidth: 140 }} value={nomeInscrito} onChange={(e) => setNomeInscrito(e.target.value)} placeholder="Nome" />
+              <input style={{ ...entrada, flex: 1, minWidth: 140 }} value={telefoneInscrito} onChange={(e) => setTelefoneInscrito(e.target.value)} placeholder="Telefone" />
+              <Botao pequeno onClick={adicionarInscrito} disabled={!nomeInscrito.trim() || !telefoneInscrito.trim()}>+ Adicionar inscrito</Botao>
+            </div>
+
+            <div style={{ fontFamily: ARCH, fontWeight: 700, fontSize: 14, marginBottom: 8 }}>Chaveamento — partidas registradas</div>
+            {categoriaAtual.partidas.length === 0 && (
+              <p style={{ ...prosa, color: C.grafite, marginBottom: 10 }}>Nenhuma partida registrada ainda.</p>
+            )}
+            {categoriaAtual.partidas.map((p) => (
+              <div key={p.id} className="flex items-center justify-between gap-3 mb-2" style={{ background: C.papel, border: "1px solid " + C.linha, padding: "8px 11px" }}>
+                <div>
+                  <Etiqueta>{p.rodada}</Etiqueta>
+                  <div style={{ ...prosa, fontSize: 13, marginTop: 3 }}>{p.jogador1} {p.placar1} — {p.placar2} {p.jogador2}</div>
+                </div>
+                <button onClick={() => removerPartida(p.id)} title="Remover partida" style={iconeEstilo}>×</button>
+              </div>
+            ))}
+            <div className="flex gap-2 mt-3 flex-wrap items-end">
+              <Campo rotulo="Rodada"><input style={{ ...entrada, width: 130 }} value={rodadaNova} onChange={(e) => setRodadaNova(e.target.value)} placeholder="ex: Semifinal" /></Campo>
+              <Campo rotulo="Jogador 1"><input style={{ ...entrada, width: 140 }} value={jogador1Novo} onChange={(e) => setJogador1Novo(e.target.value)} /></Campo>
+              <Campo rotulo="Placar 1"><input style={{ ...entrada, width: 70 }} value={placar1Novo} onChange={(e) => setPlacar1Novo(e.target.value)} /></Campo>
+              <Campo rotulo="Jogador 2"><input style={{ ...entrada, width: 140 }} value={jogador2Novo} onChange={(e) => setJogador2Novo(e.target.value)} /></Campo>
+              <Campo rotulo="Placar 2"><input style={{ ...entrada, width: 70 }} value={placar2Novo} onChange={(e) => setPlacar2Novo(e.target.value)} /></Campo>
+              <div className="mb-4"><Botao pequeno onClick={adicionarPartida} disabled={!jogador1Novo.trim() || !jogador2Novo.trim()}>+ Adicionar partida</Botao></div>
+            </div>
+          </div>
+        ) : (
+          <p style={{ ...prosa, color: C.grafite }}>Crie uma categoria acima pra começar a receber inscrições.</p>
+        )}
+
+        <div className="mt-8">
+          <button onClick={() => removerTorneio(aberto.id)}
+            style={{ fontFamily: ARCH, fontSize: 11, fontWeight: 700, color: C.saibro, cursor: "pointer", border: "none", background: "none", padding: 0 }}>
+            Excluir torneio
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Torneios</h1>
+      <p style={{ ...prosa, color: C.grafite, marginBottom: 18 }}>
+        Chaveamento, inscrições e resultados — separado das turmas e da agenda de aulas.
+      </p>
+
+      {linkInscricao && (
+        <div className="mb-6" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "12px 15px" }}>
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 6 }}>
+            Link público de inscrição — o mesmo serve pros eventos. Envie pro cliente.
+          </p>
+          <div className="flex gap-2 items-center flex-wrap">
+            <input readOnly value={linkInscricao} style={{ ...entrada, fontSize: 12, flex: 1 }} onFocus={(e) => e.target.select()} />
+          </div>
+        </div>
+      )}
+
+      <div className="mb-6" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "12px 15px" }}>
+        <button onClick={() => setCriando(!criando)} className="w-full flex items-center justify-between gap-3" style={{ cursor: "pointer" }}>
+          <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>Novo torneio</span>
+          <Etiqueta>{criando ? "fechar" : "abrir"}</Etiqueta>
+        </button>
+        {criando && (
+          <div className="mt-3">
+            <Campo rotulo="Nome"><input style={entrada} value={nomeNovo} onChange={(e) => setNomeNovo(e.target.value)} /></Campo>
+            <div className="flex gap-2 flex-wrap">
+              <Campo rotulo="Início"><input type="date" style={entrada} value={dataInicioNovo} onChange={(e) => setDataInicioNovo(e.target.value)} /></Campo>
+              <Campo rotulo="Fim"><input type="date" style={entrada} value={dataFimNovo} onChange={(e) => setDataFimNovo(e.target.value)} /></Campo>
+            </div>
+            <Campo rotulo="Local" nota="Opcional"><input style={entrada} value={localNovo} onChange={(e) => setLocalNovo(e.target.value)} /></Campo>
+            <Campo rotulo="Categorias" nota="Separadas por vírgula — ex: Simples Masculino, Simples Feminino, Duplas Mistas">
+              <input style={entrada} value={categoriasNovo} onChange={(e) => setCategoriasNovo(e.target.value)} />
+            </Campo>
+            <Botao pequeno onClick={criarTorneio} disabled={!nomeNovo.trim()}>Criar torneio</Botao>
+          </div>
+        )}
+      </div>
+
+      {torneios.length === 0 ? (
+        <p style={{ ...prosa, color: C.grafite }}>Nenhum torneio cadastrado ainda.</p>
+      ) : (
+        torneios.map((t) => (
+          <button key={t.id} onClick={() => setAbertoId(t.id)} className="w-full text-left"
+            style={{ display: "block", background: C.cal, border: "1px solid " + C.linha, padding: "13px 15px", marginBottom: 9, cursor: "pointer" }}>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <div style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{t.nome}</div>
+                <div style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 3 }}>
+                  {t.categorias.map((c) => c.nome).join(" · ") || "Sem categorias"}
+                </div>
+              </div>
+              <Etiqueta cor={STATUS_TORNEIO_COR[t.status]}>{STATUS_TORNEIO[t.status]}</Etiqueta>
+            </div>
+          </button>
+        ))
+      )}
+    </div>
+  );
+}
+
+function TelaEventos({ eventos, setEventos, orgAtual }) {
+  const [criando, setCriando] = useState(false);
+  const [nomeNovo, setNomeNovo] = useState("");
+  const [dataNovo, setDataNovo] = useState("");
+  const [horaInicioNovo, setHoraInicioNovo] = useState("");
+  const [horaFimNovo, setHoraFimNovo] = useState("");
+  const [localNovo, setLocalNovo] = useState("");
+  const [tipoNovo, setTipoNovo] = useState("social");
+  const [descricaoNovo, setDescricaoNovo] = useState("");
+  const [vagasNovo, setVagasNovo] = useState("");
+  const [abertoId, setAbertoId] = useState(null);
+  const [nomeConvidado, setNomeConvidado] = useState("");
+  const [telefoneConvidado, setTelefoneConvidado] = useState("");
+
+  const linkInscricao = orgAtual ? location.origin + "/inscricao.html?org=" + encodeURIComponent(orgAtual) : "";
+
+  function criarEvento() {
+    if (!nomeNovo.trim()) return;
+    const vagasNum = vagasNovo.trim() ? parseInt(vagasNovo, 10) : null;
+    setEventos([...eventos, {
+      ...novoEvento(), nome: nomeNovo.trim(), data: dataNovo, horaInicio: horaInicioNovo, horaFim: horaFimNovo,
+      local: localNovo.trim(), tipo: tipoNovo, descricao: descricaoNovo.trim(),
+      vagas: Number.isFinite(vagasNum) ? vagasNum : null,
+    }]);
+    setNomeNovo(""); setDataNovo(""); setHoraInicioNovo(""); setHoraFimNovo(""); setLocalNovo("");
+    setTipoNovo("social"); setDescricaoNovo(""); setVagasNovo(""); setCriando(false);
+  }
+  function removerEvento(id) {
+    if (!confirm("Excluir este evento? Essa ação não pode ser desfeita.")) return;
+    setEventos(eventos.filter((e) => e.id !== id));
+    if (abertoId === id) setAbertoId(null);
+  }
+  function alternarAtivo(id) {
+    setEventos(eventos.map((e) => (e.id === id ? { ...e, ativo: !e.ativo } : e)));
+  }
+  function atualizarConvidados(eventoId, convidados) {
+    setEventos(eventos.map((e) => (e.id === eventoId ? { ...e, convidados } : e)));
+  }
+
+  const aberto = abertoId ? eventos.find((e) => e.id === abertoId) : null;
+  const confirmados = aberto ? aberto.convidados.filter((c) => c.status === "confirmado").length : 0;
+  const vagasRestantes = aberto && aberto.vagas != null ? aberto.vagas - confirmados : null;
+
+  function adicionarConvidado() {
+    if (!nomeConvidado.trim() || !telefoneConvidado.trim() || !aberto) return;
+    const status = aberto.vagas != null && vagasRestantes <= 0 ? "espera" : "confirmado";
+    const novo = { ...novaInscricaoEvento(), nomeContato: nomeConvidado.trim(), telefoneContato: telefoneConvidado.trim(), status };
+    atualizarConvidados(aberto.id, [...aberto.convidados, novo]);
+    setNomeConvidado(""); setTelefoneConvidado("");
+  }
+  function removerConvidado(id) {
+    if (!aberto) return;
+    atualizarConvidados(aberto.id, aberto.convidados.filter((c) => c.id !== id));
+  }
+  function alternarStatusConvidado(id) {
+    if (!aberto) return;
+    atualizarConvidados(aberto.id, aberto.convidados.map((c) => (c.id === id ? { ...c, status: c.status === "confirmado" ? "espera" : "confirmado" } : c)));
+  }
+
+  if (aberto) {
+    return (
+      <div>
+        <button onClick={() => setAbertoId(null)} className="mb-4" style={{ ...prosa, color: C.grafite, cursor: "pointer" }}>← Todos os eventos</button>
+        <div className="flex items-center gap-3 flex-wrap mb-2">
+          <h1 style={{ fontFamily: ARCH, fontSize: 20, fontWeight: 700 }}>{aberto.nome}</h1>
+          <Etiqueta>{TIPOS_EVENTO[aberto.tipo] || aberto.tipo}</Etiqueta>
+        </div>
+        <p style={{ ...prosa, color: C.grafite, marginBottom: 4 }}>
+          {aberto.data ? formatarDataLonga(aberto.data) : ""}
+          {aberto.horaInicio ? " · " + aberto.horaInicio + (aberto.horaFim ? "–" + aberto.horaFim : "") : ""}
+          {aberto.local ? " · " + aberto.local : ""}
+        </p>
+        {aberto.descricao && <p style={{ ...prosa, marginBottom: 14 }}>{aberto.descricao}</p>}
+
+        {aberto.vagas != null && (
+          <div className="mb-5">
+            <Etiqueta cor={vagasRestantes <= 0 ? C.saibro : C.grafite}>{confirmados}/{aberto.vagas} vagas preenchidas</Etiqueta>
+          </div>
+        )}
+
+        <Botao pequeno variante={aberto.ativo ? "vazio" : "cheio"} onClick={() => alternarAtivo(aberto.id)}>
+          {aberto.ativo ? "Encerrar inscrições" : "Reabrir inscrições"}
+        </Botao>
+
+        <div style={{ fontFamily: ARCH, fontWeight: 700, fontSize: 14, margin: "20px 0 8px" }}>Lista de presença ({aberto.convidados.length})</div>
+        {aberto.convidados.length === 0 && (
+          <p style={{ ...prosa, color: C.grafite, marginBottom: 10 }}>Ninguém confirmado ainda.</p>
+        )}
+        {aberto.convidados.map((c) => (
+          <div key={c.id} className="flex items-center justify-between gap-3 mb-2" style={{ background: C.papel, border: "1px solid " + C.linha, padding: "8px 11px" }}>
+            <div>
+              <div style={{ ...prosa, fontSize: 13 }}>{c.nomeContato}</div>
+              <div style={{ ...prosa, fontSize: 11.5, color: C.grafite }}>
+                {c.telefoneContato}{c.origem === "cliente" ? " · inscrição pelo cliente" : ""}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button onClick={() => alternarStatusConvidado(c.id)}
+                style={{ fontFamily: ARCH, fontSize: 10, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase",
+                  color: c.status === "confirmado" ? C.quadra : C.saibro, cursor: "pointer", border: "none", background: "none" }}>
+                {c.status === "confirmado" ? "confirmado" : "lista de espera"}
+              </button>
+              <button onClick={() => removerConvidado(c.id)} title="Remover" style={iconeEstilo}>×</button>
+            </div>
+          </div>
+        ))}
+        <div className="flex gap-2 mt-3 mb-8 flex-wrap items-center">
+          <input style={{ ...entrada, flex: 1, minWidth: 140 }} value={nomeConvidado} onChange={(e) => setNomeConvidado(e.target.value)} placeholder="Nome" />
+          <input style={{ ...entrada, flex: 1, minWidth: 140 }} value={telefoneConvidado} onChange={(e) => setTelefoneConvidado(e.target.value)} placeholder="Telefone" />
+          <Botao pequeno onClick={adicionarConvidado} disabled={!nomeConvidado.trim() || !telefoneConvidado.trim()}>+ Adicionar convidado</Botao>
+        </div>
+
+        <div className="mt-8">
+          <button onClick={() => removerEvento(aberto.id)}
+            style={{ fontFamily: ARCH, fontSize: 11, fontWeight: 700, color: C.saibro, cursor: "pointer", border: "none", background: "none", padding: 0 }}>
+            Excluir evento
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Eventos</h1>
+      <p style={{ ...prosa, color: C.grafite, marginBottom: 18 }}>
+        Clínicas, noites sociais e exibições — com lista de presença e vagas controladas.
+      </p>
+
+      {linkInscricao && (
+        <div className="mb-6" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "12px 15px" }}>
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 6 }}>
+            Link público de inscrição — o mesmo serve pros torneios. Envie pro cliente.
+          </p>
+          <div className="flex gap-2 items-center flex-wrap">
+            <input readOnly value={linkInscricao} style={{ ...entrada, fontSize: 12, flex: 1 }} onFocus={(e) => e.target.select()} />
+          </div>
+        </div>
+      )}
+
+      <div className="mb-6" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "12px 15px" }}>
+        <button onClick={() => setCriando(!criando)} className="w-full flex items-center justify-between gap-3" style={{ cursor: "pointer" }}>
+          <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>Novo evento</span>
+          <Etiqueta>{criando ? "fechar" : "abrir"}</Etiqueta>
+        </button>
+        {criando && (
+          <div className="mt-3">
+            <Campo rotulo="Nome"><input style={entrada} value={nomeNovo} onChange={(e) => setNomeNovo(e.target.value)} /></Campo>
+            <div className="flex gap-2 flex-wrap">
+              <Campo rotulo="Data"><input type="date" style={entrada} value={dataNovo} onChange={(e) => setDataNovo(e.target.value)} /></Campo>
+              <Campo rotulo="Início"><input type="time" style={entrada} value={horaInicioNovo} onChange={(e) => setHoraInicioNovo(e.target.value)} /></Campo>
+              <Campo rotulo="Fim"><input type="time" style={entrada} value={horaFimNovo} onChange={(e) => setHoraFimNovo(e.target.value)} /></Campo>
+            </div>
+            <Campo rotulo="Local" nota="Opcional"><input style={entrada} value={localNovo} onChange={(e) => setLocalNovo(e.target.value)} /></Campo>
+            <Campo rotulo="Tipo">
+              <select style={entrada} value={tipoNovo} onChange={(e) => setTipoNovo(e.target.value)}>
+                {Object.keys(TIPOS_EVENTO).map((t) => <option key={t} value={t}>{TIPOS_EVENTO[t]}</option>)}
+              </select>
+            </Campo>
+            <Campo rotulo="Descrição" nota="Opcional"><input style={entrada} value={descricaoNovo} onChange={(e) => setDescricaoNovo(e.target.value)} /></Campo>
+            <Campo rotulo="Vagas" nota="Em branco = sem limite">
+              <input type="number" min="1" style={{ ...entrada, maxWidth: 120 }} value={vagasNovo} onChange={(e) => setVagasNovo(e.target.value)} />
+            </Campo>
+            <Botao pequeno onClick={criarEvento} disabled={!nomeNovo.trim()}>Criar evento</Botao>
+          </div>
+        )}
+      </div>
+
+      {eventos.length === 0 ? (
+        <p style={{ ...prosa, color: C.grafite }}>Nenhum evento cadastrado ainda.</p>
+      ) : (
+        eventos.map((ev) => {
+          const confirmadosEv = ev.convidados.filter((c) => c.status === "confirmado").length;
+          return (
+            <button key={ev.id} onClick={() => setAbertoId(ev.id)} className="w-full text-left"
+              style={{ display: "block", background: C.cal, border: "1px solid " + C.linha, padding: "13px 15px", marginBottom: 9, cursor: "pointer" }}>
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{ev.nome}</span>
+                    <Etiqueta>{TIPOS_EVENTO[ev.tipo] || ev.tipo}</Etiqueta>
+                  </div>
+                  <div style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 3 }}>
+                    {ev.data ? formatarDataLonga(ev.data) : "Sem data"}{ev.horaInicio ? " · " + ev.horaInicio : ""}
+                  </div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ ...prosa, fontSize: 12.5, fontWeight: 700 }}>
+                    {ev.vagas != null ? confirmadosEv + "/" + ev.vagas + " vagas" : "Vagas ilimitadas"}
+                  </div>
+                  {!ev.ativo && <Etiqueta cor={C.grafite}>inscrições encerradas</Etiqueta>}
+                </div>
+              </div>
+            </button>
+          );
+        })
       )}
     </div>
   );
@@ -8905,7 +9374,7 @@ function compromissosDaSemana(alunos, turmas) {
    (dele, ou sem professor definido) e pendências de grupo em aberto nas
    turmas dele. Pedidos de cadastro (só coordenador) somam-se à parte,
    já que vêm de outra fonte (solicitacoes, não alunos/turmas). */
-function avisosDoProfessor(alunos, turmas, reservas, uidAtual) {
+function avisosDoProfessor(alunos, turmas, reservas, torneios, eventos, uidAtual) {
   const meu = (professorUid) => !professorUid || professorUid === uidAtual;
   const minhaTurma = (t) => meu(t.professorUid) || t.professorAuxiliarUid === uidAtual;
   const diaHoje = new Date().getDay();
@@ -8944,7 +9413,18 @@ function avisosDoProfessor(alunos, turmas, reservas, uidAtual) {
      aviso só porque a página foi recarregada. */
   const reservasNovas = (reservas || []).filter((r) => r.origem === "cliente" && !r.vistoPeloStaff);
 
-  return { lembretes, pendencias, pedidosAlunos, reservasNovas };
+  /* Mesma ideia, pra quem se inscreveu num torneio ou evento pelo link
+     público (inscricao.html) — inscritos/convidados moram dentro do
+     próprio torneio/evento, então precisa achatar em uma lista só. */
+  const inscricoesTorneioNovas = [];
+  (torneios || []).forEach((t) => (t.categorias || []).forEach((c) =>
+    (c.inscritos || []).filter((i) => i.origem === "cliente" && !i.vistoPeloStaff).forEach((i) =>
+      inscricoesTorneioNovas.push({ torneioId: t.id, torneioNome: t.nome, categoriaId: c.id, categoriaNome: c.nome, ...i }))));
+  const inscricoesEventoNovas = [];
+  (eventos || []).forEach((e) => (e.convidados || []).filter((c) => c.origem === "cliente" && !c.vistoPeloStaff).forEach((c) =>
+    inscricoesEventoNovas.push({ eventoId: e.id, eventoNome: e.nome, ...c })));
+
+  return { lembretes, pendencias, pedidosAlunos, reservasNovas, inscricoesTorneioNovas, inscricoesEventoNovas };
 }
 
 /* ── dashboard ──
@@ -9287,6 +9767,10 @@ function App() {
   const [carregandoQuadras, setCarregandoQuadras] = useState(true);
   const [reservas, setReservas] = useState([]);
   const [carregandoReservas, setCarregandoReservas] = useState(true);
+  const [torneios, setTorneios] = useState([]);
+  const [carregandoTorneios, setCarregandoTorneios] = useState(true);
+  const [eventos, setEventos] = useState([]);
+  const [carregandoEventos, setCarregandoEventos] = useState(true);
   const [exerciciosCustom, setExerciciosCustom] = useState([]);
   const [carregandoCustom, setCarregandoCustom] = useState(true);
   /* Formação da equipe, no App (não em TelaEquipe): tanto a aba "Formação"
@@ -9428,7 +9912,11 @@ function App() {
         const info = await db.collection("orgs").doc(org).collection("meta").doc("info").get();
         setPlanoAtual(info.exists ? (info.data().plano || null) : null);
         setPlanoAtivoAte(info.exists ? (info.data().planoAtivoAte || null) : null);
-        setIdentidade(info.exists ? { nome: info.data().nome || "", logoUrl: info.data().logoUrl || "", mostrarManual: info.data().mostrarManual, mostrarQuadras: info.data().mostrarQuadras } : null);
+        setIdentidade(info.exists ? {
+          nome: info.data().nome || "", logoUrl: info.data().logoUrl || "",
+          mostrarManual: info.data().mostrarManual, mostrarQuadras: info.data().mostrarQuadras,
+          mostrarTorneiosEventos: info.data().mostrarTorneiosEventos,
+        } : null);
       } catch (e) { setPlanoAtual(null); setPlanoAtivoAte(null); setIdentidade(null); }
       try {
         const uso = await db.collection("orgs").doc(org).collection("meta").doc("usoIA").get();
@@ -9453,11 +9941,15 @@ function App() {
     leia("mty:formacao:v1", [], true).then((m) => { setMembrosFormacao(m); setCarregandoFormacao(false); });
     leia("mty:quadras:v1", [], true).then((q) => { setQuadras(q); setCarregandoQuadras(false); });
     leia("mty:reservas:v1", [], true).then((r) => { setReservas(r); setCarregandoReservas(false); });
+    leia("mty:torneios:v1", [], true).then((t) => { setTorneios(t); setCarregandoTorneios(false); });
+    leia("mty:eventos:v1", [], true).then((e) => { setEventos(e); setCarregandoEventos(false); });
 }, [autenticado, orgAtual]);
   useEffect(() => { if (autenticado && !carregando) grave("mty:alunos:v2", alunos); }, [alunos, carregando, autenticado]);
   useEffect(() => { if (autenticado && !carregandoTurmas) grave("mty:turmas:v1", turmas, true); }, [turmas, carregandoTurmas, autenticado]);
   useEffect(() => { if (autenticado && !carregandoQuadras) grave("mty:quadras:v1", quadras, true); }, [quadras, carregandoQuadras, autenticado]);
   useEffect(() => { if (autenticado && !carregandoReservas) grave("mty:reservas:v1", reservas, true); }, [reservas, carregandoReservas, autenticado]);
+  useEffect(() => { if (autenticado && !carregandoTorneios) grave("mty:torneios:v1", torneios, true); }, [torneios, carregandoTorneios, autenticado]);
+  useEffect(() => { if (autenticado && !carregandoEventos) grave("mty:eventos:v1", eventos, true); }, [eventos, carregandoEventos, autenticado]);
   useEffect(() => { if (autenticado && !carregandoFormacao) grave("mty:formacao:v1", membrosFormacao, true); }, [membrosFormacao, carregandoFormacao, autenticado]);
   // sincronizado durante o render (não num useEffect): TelaCatalogo e as
   // funções de geração leem TODOS_EXERCICIOS() no mesmo render em que
@@ -9480,7 +9972,7 @@ function App() {
     return () => { ativo = false; clearInterval(t); };
   }, [papelAtual]);
 
-  const avisos = avisosDoProfessor(alunos, turmas, reservas, uidAtual);
+  const avisos = avisosDoProfessor(alunos, turmas, reservas, torneios, eventos, uidAtual);
   const idLembrete = (l) => "lembrete:" + l.tipo + ":" + l.titulo + ":" + l.hora;
   const idPendencia = (p) => "pendencia:" + (p.id || p.turma + ":" + p.data);
   const idPedidoAluno = (p) => "pedido:" + p.alunoId + ":" + p.tipo + ":" + (p.texto || "");
@@ -9488,12 +9980,34 @@ function App() {
   const pendenciasVisiveis = avisos.pendencias.filter((p) => !avisosVistos.has(idPendencia(p)));
   const pedidosAlunosVisiveis = avisos.pedidosAlunos.filter((p) => !avisosVistos.has(idPedidoAluno(p)));
   const reservasNovasVisiveis = papelAtual === "coordenador" ? avisos.reservasNovas : [];
+  const inscricoesTorneioNovasVisiveis = papelAtual === "coordenador" ? avisos.inscricoesTorneioNovas : [];
+  const inscricoesEventoNovasVisiveis = papelAtual === "coordenador" ? avisos.inscricoesEventoNovas : [];
   function verReserva(r) {
     setReservas(reservas.map((x) => (x.id === r.id ? { ...x, vistoPeloStaff: true } : x)));
     setAba("quadras");
     setAvisosAberto(false);
   }
-  const totalAvisos = lembretesVisiveis.length + pendenciasVisiveis.length + pedidosAlunosVisiveis.length + reservasNovasVisiveis.length + pedidosPendentesCount;
+  function verInscricaoTorneio(i) {
+    setTorneios(torneios.map((t) => (t.id !== i.torneioId ? t : {
+      ...t,
+      categorias: t.categorias.map((c) => (c.id !== i.categoriaId ? c : {
+        ...c,
+        inscritos: c.inscritos.map((x) => (x.id === i.id ? { ...x, vistoPeloStaff: true } : x)),
+      })),
+    })));
+    setAba("torneios");
+    setAvisosAberto(false);
+  }
+  function verInscricaoEvento(i) {
+    setEventos(eventos.map((e) => (e.id !== i.eventoId ? e : {
+      ...e,
+      convidados: e.convidados.map((x) => (x.id === i.id ? { ...x, vistoPeloStaff: true } : x)),
+    })));
+    setAba("eventos");
+    setAvisosAberto(false);
+  }
+  const totalAvisos = lembretesVisiveis.length + pendenciasVisiveis.length + pedidosAlunosVisiveis.length +
+    reservasNovasVisiveis.length + inscricoesTorneioNovasVisiveis.length + inscricoesEventoNovasVisiveis.length + pedidosPendentesCount;
   function abrirAvisos() {
     if (!avisosAberto && papelAtual === "coordenador") contarPedidosPendentes().then(setPedidosPendentesCount);
     setAvisosAberto(!avisosAberto);
@@ -9524,12 +10038,19 @@ function App() {
      própria aqui, sem depender desse campo (o mesmo vale do lado do
      servidor, em reservar-quadra.js, pro link público de reserva). Só
      pro coordenador, do mesmo jeito que qualquer outra academia. */
-  const mostraQuadras = papelAtual === "coordenador" && (orgAtual === "team-yoda" || (!!identidade && identidade.mostrarQuadras === true));
+  const mostraQuadras = papelAtual === "coordenador" && (orgAtual === "team-yoda" || orgAtual === "39-ranch" || (!!identidade && identidade.mostrarQuadras === true));
+  /* Torneios e Eventos seguem o mesmo padrão de Quadras: escondidos por
+     padrão, e a Team Yoda tem a mesma liberação direta (sem depender do
+     campo mostrarTorneiosEventos, que ainda não dá pra ligar em produção
+     sem o ADMIN_SECRET). Um único campo/flag liga as duas abas juntas —
+     nasceram como um pedido só ("torneios e eventos"), então não faz
+     sentido ligar uma sem a outra por enquanto. */
+  const mostraTorneiosEventos = papelAtual === "coordenador" && (orgAtual === "team-yoda" || orgAtual === "39-ranch" || (!!identidade && identidade.mostrarTorneiosEventos === true));
   /* Menu lateral, por segmento: "Meu trabalho" é o dia a dia de qualquer
-     treinador; "Academia" é gestão (por enquanto só Quadras, opcional) e
-     só aparece pro coordenador — os demais treinadores nem veem a aba;
-     "Equipe" é só do coordenador. Um grupo sem nenhum item (ex.: Academia
-     numa academia sem Quadras) simplesmente não aparece. */
+     treinador; "Academia" é gestão (Quadras, Torneios, Eventos — cada
+     recurso opcional) e só aparece pro coordenador — os demais
+     treinadores nem veem a aba; "Equipe" é só do coordenador. Um grupo
+     sem nenhum item (ex.: Academia numa academia sem nada disso) some. */
   const gruposNav = [
     { id: "trabalho", label: "Meu trabalho", itens: [
       ...NAV_PRINCIPAL,
@@ -9537,6 +10058,7 @@ function App() {
     ] },
     { id: "academia", label: "Academia", itens: [
       ...(mostraQuadras ? [{ v: "quadras", r: "Quadras" }] : []),
+      ...(mostraTorneiosEventos ? [{ v: "torneios", r: "Torneios" }, { v: "eventos", r: "Eventos" }] : []),
     ] },
     { id: "equipe", label: "Coordenação", badge: "coordenador", itens: [
       ...(papelAtual === "coordenador" ? [{ v: "equipe", r: "Equipe" }] : []),
@@ -9740,6 +10262,33 @@ function App() {
                             ))}
                           </div>
                         )}
+                        {inscricoesTorneioNovasVisiveis.length > 0 && (
+                          <div className="mb-3">
+                            <Etiqueta cor={C.saibro}>Inscrições em torneio</Etiqueta>
+                            {inscricoesTorneioNovasVisiveis.map((i) => (
+                              <button key={i.id} onClick={() => verInscricaoTorneio(i)}
+                                className="w-full text-left" style={{ display: "block", padding: "6px 0", border: "none", background: "none", cursor: "pointer" }}>
+                                <p style={{ ...prosa, fontSize: 12.5 }}>
+                                  <b>{i.nomeContato}</b> se inscreveu em {i.torneioNome} · {i.categoriaNome}
+                                </p>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {inscricoesEventoNovasVisiveis.length > 0 && (
+                          <div className="mb-3">
+                            <Etiqueta cor={C.saibro}>Inscrições em evento</Etiqueta>
+                            {inscricoesEventoNovasVisiveis.map((i) => (
+                              <button key={i.id} onClick={() => verInscricaoEvento(i)}
+                                className="w-full text-left" style={{ display: "block", padding: "6px 0", border: "none", background: "none", cursor: "pointer" }}>
+                                <p style={{ ...prosa, fontSize: 12.5 }}>
+                                  <b>{i.nomeContato}</b> se inscreveu em {i.eventoNome}
+                                  {i.status === "espera" ? " · lista de espera" : ""}
+                                </p>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                         {pedidosPendentesCount > 0 && (
                           <div>
                             <Etiqueta cor={C.saibro}>Equipe</Etiqueta>
@@ -9790,6 +10339,8 @@ function App() {
          aba === "formacao" ? <TelaFormacaoPessoal membros={membrosFormacao} setMembros={setMembrosFormacao} carregando={carregandoFormacao} uidAtual={uidAtual} irParaManual={irParaManual} /> :
          aba === "turmas" ? <TelaTurmas alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} papelAtual={papelAtual} uidAtual={uidAtual} /> :
          aba === "quadras" && mostraQuadras ? <TelaQuadras quadras={quadras} setQuadras={setQuadras} reservas={reservas} setReservas={setReservas} orgAtual={orgAtual} /> :
+         aba === "torneios" && mostraTorneiosEventos ? <TelaTorneios torneios={torneios} setTorneios={setTorneios} orgAtual={orgAtual} /> :
+         aba === "eventos" && mostraTorneiosEventos ? <TelaEventos eventos={eventos} setEventos={setEventos} orgAtual={orgAtual} /> :
          aba === "agenda" ? <TelaAgenda alunos={alunos} turmas={turmas} uidAtual={uidAtual} exigeLogin={exigeLogin} /> :
          aba === "dashboard" ? <TelaDashboard alunos={alunos} turmas={turmas} papelAtual={papelAtual} uidAtual={uidAtual} exigeLogin={exigeLogin} usoIA={usoIA} identidade={identidade}
            irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }} /> :

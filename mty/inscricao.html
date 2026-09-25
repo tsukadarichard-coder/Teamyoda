@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Torneios e eventos</title>
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<style>
+  :root{ --papel:#F5F2F0; --tinta:#141210; --verm:#C8102E; --cinza:#6B6461; --linha:#D8D1CB; --verde:#2E4739; --cal:#EFEAE4; }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--papel); color:var(--tinta);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; padding:0 0 60px}
+  .topo{background:var(--verm); height:7px}
+  .wrap{max-width:640px; margin:0 auto; padding:0 18px}
+  header{padding:24px 0 10px}
+  h1{font-family:Georgia,serif; font-size:20px; margin:8px 0 4px}
+  h2{font-family:Georgia,serif; font-size:16px; margin:26px 0 4px}
+  .sub{color:var(--cinza); font-size:13px}
+  label{display:block; font-size:11.5px; font-weight:700; letter-spacing:.04em;
+    text-transform:uppercase; margin-bottom:6px; color:var(--cinza)}
+  input, select{width:100%; border:1px solid var(--linha); background:#fff; border-radius:3px;
+    padding:10px 11px; font:inherit; font-size:15px; color:var(--tinta)}
+  input:focus, select:focus{outline:none; border-color:var(--verm)}
+  .campo{margin:14px 0}
+  .bt{border:none; border-radius:3px; padding:12px 16px; font-size:14px; font-weight:700;
+    cursor:pointer; font-family:inherit; background:var(--verm); color:#fff;
+    transition:transform .06s ease, opacity .06s ease}
+  .bt[disabled]{opacity:.6; cursor:default}
+  .bt:active:not([disabled]){transform:scale(0.97); opacity:.85}
+  .bt-vazio{background:#fff; border:1px solid var(--linha); color:var(--tinta)}
+  .msg{margin-top:14px; padding:13px 14px; border-radius:3px; font-size:13.5px}
+  .ok{background:var(--verde); color:#fff}
+  .erro{background:#fff; border:1px solid var(--linha); border-left:4px solid var(--verm)}
+  .card{background:#fff; border:1px solid var(--linha); border-radius:4px; padding:14px 16px; margin-top:12px}
+  .card h3{font-family:Georgia,serif; font-size:15px; margin:0}
+  .etiqueta{font-size:10.5px; text-transform:uppercase; letter-spacing:.03em; color:var(--cinza); font-weight:700}
+  .form-inline{margin-top:12px; padding-top:12px; border-top:1px solid var(--linha)}
+</style>
+</head>
+<body>
+<div class="topo"></div>
+<div class="wrap">
+<header>
+  <h1 id="titulo-academia">Torneios e eventos</h1>
+  <div class="sub">Veja o que está aberto e inscreva-se — sem precisar de conta.</div>
+</header>
+
+<div id="conteudo">
+  <p class="sub">Carregando…</p>
+</div>
+</div>
+
+<script>
+(function () {
+  var params = new URLSearchParams(location.search);
+  var org = params.get('org');
+  var conteudo = document.getElementById('conteudo');
+
+  if (!org) {
+    conteudo.innerHTML = '<div class="msg erro">Link incompleto — peça o link certo pra academia.</div>';
+    return;
+  }
+
+  var estado = { torneios: [], eventos: [], aberto: null, carregando: true, erro: null, sucesso: null, erroForm: null };
+
+  async function carregar() {
+    estado.carregando = true; estado.erro = null;
+    render();
+    try {
+      var r = await fetch('/.netlify/functions/inscricao-torneio-evento?org=' + encodeURIComponent(org));
+      var d = await r.json().catch(function () { return {}; });
+      if (!r.ok) throw new Error(d.erro || ('Erro ' + r.status));
+      estado.torneios = d.torneios || [];
+      estado.eventos = d.eventos || [];
+      if (d.academia) document.getElementById('titulo-academia').textContent = 'Torneios e eventos · ' + d.academia;
+    } catch (e) {
+      estado.erro = String(e.message || e);
+      estado.torneios = [];
+      estado.eventos = [];
+    }
+    estado.carregando = false;
+    render();
+  }
+
+  function alternar(chave) {
+    estado.aberto = estado.aberto === chave ? null : chave;
+    estado.erroForm = null;
+    render();
+  }
+
+  async function confirmarTorneio(torneio) {
+    var categoriaId = document.getElementById('sel-categoria').value;
+    var nome = document.getElementById('in-nome').value.trim();
+    var telefone = document.getElementById('in-telefone').value.trim();
+    if (!nome || !telefone) { estado.erroForm = 'Preencha nome e telefone.'; render(); return; }
+    await enviar({ org: org, tipo: 'torneio', torneioId: torneio.id, categoriaId: categoriaId, nomeContato: nome, telefoneContato: telefone },
+      function (d) { return 'Inscrição confirmada em ' + torneio.nome + ' · ' + (torneio.categorias.find(function (c) { return c.id === categoriaId; }) || {}).nome + '.'; });
+  }
+
+  async function confirmarEvento(evento) {
+    var nome = document.getElementById('in-nome').value.trim();
+    var telefone = document.getElementById('in-telefone').value.trim();
+    if (!nome || !telefone) { estado.erroForm = 'Preencha nome e telefone.'; render(); return; }
+    await enviar({ org: org, tipo: 'evento', eventoId: evento.id, nomeContato: nome, telefoneContato: telefone },
+      function (d) { return d.status === 'espera' ? 'Você entrou na lista de espera de ' + evento.nome + '.' : 'Inscrição confirmada em ' + evento.nome + '.'; });
+  }
+
+  async function enviar(corpo, mensagem) {
+    var bt = document.getElementById('bt-confirmar');
+    if (bt) { bt.disabled = true; bt.textContent = 'Enviando…'; }
+    try {
+      var r = await fetch('/.netlify/functions/inscricao-torneio-evento', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(corpo),
+      });
+      var d = await r.json().catch(function () { return {}; });
+      if (!r.ok) throw new Error(d.erro || ('Erro ' + r.status));
+      estado.aberto = null;
+      estado.erroForm = null;
+      estado.sucesso = mensagem(d);
+      await carregar();
+    } catch (e) {
+      estado.erroForm = String(e.message || e);
+      render();
+    }
+  }
+
+  function formInline(categorias) {
+    var html = '<div class="form-inline">';
+    if (categorias) {
+      html += '<div class="campo"><label>Categoria</label><select id="sel-categoria">';
+      categorias.forEach(function (c) { html += '<option value="' + c.id + '">' + escapeHtml(c.nome) + '</option>'; });
+      html += '</select></div>';
+    }
+    html += '<div class="campo"><label>Seu nome</label><input type="text" id="in-nome" autocomplete="name"></div>';
+    html += '<div class="campo"><label>Telefone (WhatsApp, se possível)</label><input type="text" id="in-telefone" placeholder="(11) 90000-0000" autocomplete="tel"></div>';
+    if (estado.erroForm) html += '<div class="msg erro">' + escapeHtml(estado.erroForm) + '</div>';
+    html += '<div style="display:flex; gap:8px; margin-top:6px">';
+    html += '<button class="bt" id="bt-confirmar">Confirmar inscrição</button>';
+    html += '<button class="bt bt-vazio" id="bt-cancelar">Cancelar</button>';
+    html += '</div></div>';
+    return html;
+  }
+
+  function render() {
+    if (estado.carregando) {
+      conteudo.innerHTML = '<p class="sub">Carregando…</p>';
+      return;
+    }
+    var html = '';
+    if (estado.erro) {
+      conteudo.innerHTML = '<div class="msg erro">' + escapeHtml(estado.erro) + '</div>';
+      return;
+    }
+    if (estado.sucesso) html += '<div class="msg ok">✓ ' + escapeHtml(estado.sucesso) + '</div>';
+
+    if (estado.torneios.length === 0 && estado.eventos.length === 0) {
+      html += '<p class="sub">Nada com inscrições abertas no momento.</p>';
+      conteudo.innerHTML = html;
+      return;
+    }
+
+    if (estado.torneios.length > 0) {
+      html += '<h2>Torneios</h2>';
+      estado.torneios.forEach(function (t) {
+        var chave = 'torneio-' + t.id;
+        html += '<div class="card">';
+        html += '<h3>' + escapeHtml(t.nome) + '</h3>';
+        var periodo = t.dataInicio ? t.dataInicio + (t.dataFim && t.dataFim !== t.dataInicio ? ' – ' + t.dataFim : '') : '';
+        html += '<div class="sub">' + [periodo, t.local].filter(Boolean).map(escapeHtml).join(' · ') + '</div>';
+        if (t.categorias.length === 0) {
+          html += '<p class="sub" style="margin-top:8px">Nenhuma categoria aberta ainda.</p>';
+        } else if (estado.aberto === chave) {
+          html += formInline(t.categorias);
+        } else {
+          html += '<button class="bt" style="margin-top:10px" data-abrir="' + chave + '">Inscrever-se</button>';
+        }
+        html += '</div>';
+      });
+    }
+
+    if (estado.eventos.length > 0) {
+      html += '<h2>Eventos</h2>';
+      estado.eventos.forEach(function (e) {
+        var chave = 'evento-' + e.id;
+        var lotado = e.vagas != null && e.confirmados >= e.vagas;
+        html += '<div class="card">';
+        html += '<h3>' + escapeHtml(e.nome) + '</h3>';
+        var quando = [e.data, e.horaInicio ? e.horaInicio + (e.horaFim ? '–' + e.horaFim : '') : null, e.local].filter(Boolean).map(escapeHtml).join(' · ');
+        html += '<div class="sub">' + quando + '</div>';
+        if (e.descricao) html += '<p class="sub" style="margin-top:6px">' + escapeHtml(e.descricao) + '</p>';
+        html += '<div class="etiqueta" style="margin-top:8px">' + (e.vagas != null ? e.confirmados + '/' + e.vagas + ' vagas' : 'vagas ilimitadas') + '</div>';
+        if (estado.aberto === chave) {
+          html += formInline(null);
+        } else {
+          html += '<button class="bt' + (lotado ? ' bt-vazio' : '') + '" style="margin-top:10px" data-abrir="' + chave + '">' + (lotado ? 'Entrar na lista de espera' : 'Inscrever-se') + '</button>';
+        }
+        html += '</div>';
+      });
+    }
+
+    conteudo.innerHTML = html;
+
+    Array.prototype.forEach.call(conteudo.querySelectorAll('[data-abrir]'), function (btn) {
+      btn.onclick = function () { alternar(btn.getAttribute('data-abrir')); };
+    });
+    if (estado.aberto) {
+      var cancelar = document.getElementById('bt-cancelar');
+      if (cancelar) cancelar.onclick = function () { estado.aberto = null; estado.erroForm = null; render(); };
+      var confirmar = document.getElementById('bt-confirmar');
+      if (confirmar) {
+        if (estado.aberto.indexOf('torneio-') === 0) {
+          var torneio = estado.torneios.find(function (t) { return 'torneio-' + t.id === estado.aberto; });
+          confirmar.onclick = function () { confirmarTorneio(torneio); };
+        } else {
+          var evento = estado.eventos.find(function (e) { return 'evento-' + e.id === estado.aberto; });
+          confirmar.onclick = function () { confirmarEvento(evento); };
+        }
+      }
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  carregar();
+})();
+</script>
+</body>
+</html>
