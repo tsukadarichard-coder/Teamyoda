@@ -24,9 +24,10 @@
    mostrarQuadras (opcional, true/false) decide se a aba "Quadras" (reserva
    avulsa de quadra/espaço, com link público de reserva pro cliente) aparece
    pra essa academia — é o oposto do mostrarManual: sem esse campo, a aba
-   fica ESCONDIDA (nenhuma academia de antes desta opção usava isso, e a
-   Team Yoda não aluga quadra), só liga pra quem for provisionado com a
-   opção marcada. */
+   fica ESCONDIDA (nenhuma academia de antes desta opção usava isso), só
+   liga pra quem for provisionado com a opção marcada. A Team Yoda é a
+   exceção: tem uma liberação própria no código (index.html e
+   reservar-quadra.js), sem depender deste campo. */
 const { admin, app } = require("./_firebase-admin");
 
 exports.handler = async function (event) {

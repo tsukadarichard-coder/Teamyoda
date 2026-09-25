@@ -9490,10 +9490,13 @@ function App() {
      a opção fica sem essa aba. */
   const mostraManual = !identidade || typeof identidade.mostrarManual !== "boolean" || identidade.mostrarManual;
   /* Quadras é o oposto do Manual: uma feature nova, que nenhuma academia
-     usava antes de existir — então o padrão é ficar ESCONDIDA (inclusive
-     pra Team Yoda, que não aluga quadra), e só aparece pra quem for
-     provisionado explicitamente com a opção marcada. */
-  const mostraQuadras = !!identidade && identidade.mostrarQuadras === true && papelAtual === "coordenador";
+     usava antes de existir — então o padrão é ficar ESCONDIDA, e só
+     aparece pra quem for provisionado explicitamente com a opção
+     marcada. A Team Yoda passou a usar Quadras e tem uma liberação
+     própria aqui, sem depender desse campo (o mesmo vale do lado do
+     servidor, em reservar-quadra.js, pro link público de reserva). Só
+     pro coordenador, do mesmo jeito que qualquer outra academia. */
+  const mostraQuadras = papelAtual === "coordenador" && (orgAtual === "team-yoda" || (!!identidade && identidade.mostrarQuadras === true));
   /* Menu lateral, por segmento: "Meu trabalho" é o dia a dia de qualquer
      treinador; "Academia" é gestão (por enquanto só Quadras, opcional) e
      só aparece pro coordenador — os demais treinadores nem veem a aba;

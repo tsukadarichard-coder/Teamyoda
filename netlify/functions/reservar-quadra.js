@@ -1,8 +1,8 @@
 /* Reserva pública de quadra/espaço — sem login, pelo link que o
    treinador copia na aba Quadras (reservar.html?org=ORGID). Só funciona
-   pra academia com orgs/{org}/meta/info.mostrarQuadras === true; pra
-   qualquer outra (inclusive Team Yoda, que não usa isso), a function
-   recusa antes de expor qualquer dado.
+   pra academia com orgs/{org}/meta/info.mostrarQuadras === true (a Team
+   Yoda tem uma liberação própria aqui embaixo, sem precisar desse campo);
+   pra qualquer outra, a function recusa antes de expor qualquer dado.
 
    GET não expõe nome nem telefone de quem já reservou — só o horário
    ocupado, pra não vazar dado de um cliente pro outro. Quem vê os
@@ -38,10 +38,15 @@ exports.handler = async function (event) {
 async function confereAcademiaHabilitada(org) {
   if (!org) throw new ErroPublico(400, "Link incompleto.");
   const info = await admin.firestore().collection("orgs").doc(org).collection("meta").doc("info").get();
-  if (!info.exists || info.data().mostrarQuadras !== true) {
+  const dados = info.exists ? info.data() : {};
+  // Team Yoda passou a usar Quadras — liberada direto aqui, sem depender
+  // do campo mostrarQuadras (evita precisar de outra chamada ao
+  // provisionar-org só pra isso).
+  if (org === "team-yoda") return dados;
+  if (!info.exists || dados.mostrarQuadras !== true) {
     throw new ErroPublico(404, "Esta academia não usa reserva de quadra por este link.");
   }
-  return info.data();
+  return dados;
 }
 
 function reservasSeSobrepoem(a, b) {
