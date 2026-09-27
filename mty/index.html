@@ -264,6 +264,7 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catc
 </script>
 
 <script type="text/babel" data-presets="react">
+/* build: forçar novo hash de arquivo no CDN do Netlify */
 const { useState, useEffect, useMemo, useRef } = React;
 const { ComposedChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceArea,
   PieChart, Pie, Cell, BarChart, Bar, CartesianGrid, Legend } = Recharts;
