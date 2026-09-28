@@ -59,9 +59,14 @@
   .nav-inferior button.ativo{color:var(--tinta)}
   .nav-inferior button .ponto{display:block; width:5px; height:5px; margin:0 auto 4px; border-radius:999px; background:transparent}
   .nav-inferior button.ativo .ponto{background:var(--verm)}
+  .splash{position:fixed; inset:0; z-index:999; display:flex; align-items:center; justify-content:center;
+    background:var(--papel); transition:opacity .35s ease; opacity:1}
+  .splash.saindo{opacity:0; pointer-events:none}
+  .splash img{width:min(58vw, 220px); height:auto}
 </style>
 </head>
 <body>
+<div class="splash" id="splash"><img id="splash-logo" alt="" style="display:none"></div>
 <div class="topo"></div>
 <div class="wrap">
 <header>
@@ -104,6 +109,27 @@
     if (linkFavicon) linkFavicon.href = cfg.favicon;
     if (metaTitulo) metaTitulo.content = cfg.titulo;
     if (metaTema) metaTema.content = cfg.corTema;
+  })();
+
+  /* tela de abertura — some sozinha depois de um instante (dá tempo do
+     primeiro fetch já estar em andamento por trás dela); quem não está
+     nesta tabela nem chega a ver a tela, pra não segurar a entrada no
+     app por uma marca que não existe pra essa academia. */
+  var LOGO_POR_ACADEMIA = {
+    'team-yoda': 'assets/logo-team-yoda.jpg',
+    '39-ranch': 'assets/logo-39-ranch.png',
+  };
+  (function mostrarSplash() {
+    var splash = document.getElementById('splash');
+    var logoSrc = LOGO_POR_ACADEMIA[org];
+    if (!logoSrc) { splash.style.display = 'none'; return; }
+    var img = document.getElementById('splash-logo');
+    img.src = logoSrc;
+    img.style.display = 'block';
+    setTimeout(function () {
+      splash.classList.add('saindo');
+      setTimeout(function () { splash.style.display = 'none'; }, 400);
+    }, 1100);
   })();
 
   var conteudo = document.getElementById('conteudo');
