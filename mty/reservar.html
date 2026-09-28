@@ -64,6 +64,18 @@
   var org = params.get('org');
   var conteudo = document.getElementById('conteudo');
 
+  /* tema por academia — mesmas cores do painel do treinador e do
+     cliente.html; quem não está aqui fica com a cor padrão do :root. */
+  var TEMA_POR_ACADEMIA = {
+    '39-ranch': { '--verm': '#B8902E', '--papel': '#F7F2E4', '--tinta': '#1A1712', '--cinza': '#5B5347', '--linha': '#E6DCC3', '--verde': '#2F4A34', '--cal': '#FFFDF7' },
+  };
+  (function () {
+    var tema = TEMA_POR_ACADEMIA[org];
+    if (!tema) return;
+    var raiz = document.documentElement.style;
+    Object.keys(tema).forEach(function (k) { raiz.setProperty(k, tema[k]); });
+  })();
+
   /* logo no cabeçalho por academia — mesmos arquivos usados no cliente.html;
      quem não está aqui não vê imagem nenhuma, só o texto. */
   var LOGO_POR_ACADEMIA = {

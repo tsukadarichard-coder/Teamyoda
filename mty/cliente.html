@@ -116,6 +116,21 @@
      Só é usado quando a URL não já tem um ?org= explícito. */
   var org = params.get('org') || window.__ORG_FORCADO || null;
 
+  /* tema por academia — mesmas cores já usadas no painel do treinador
+     (TEMAS_POR_ACADEMIA em index.html), só que aplicadas como variáveis
+     CSS em vez de mutar um objeto de estilo do React. Quem não está
+     nesta tabela (inclusive Team Yoda) fica com a cor padrão já fixa
+     no :root do arquivo. */
+  var TEMA_POR_ACADEMIA = {
+    '39-ranch': { '--verm': '#B8902E', '--papel': '#F7F2E4', '--tinta': '#1A1712', '--cinza': '#5B5347', '--linha': '#E6DCC3', '--verde': '#2F4A34', '--cal': '#FFFDF7' },
+  };
+  (function aplicarTema() {
+    var tema = TEMA_POR_ACADEMIA[org];
+    if (!tema) return;
+    var raiz = document.documentElement.style;
+    Object.keys(tema).forEach(function (k) { raiz.setProperty(k, tema[k]); });
+  })();
+
   /* ícone/nome ao "adicionar à tela de início" — troca as tags estáticas
      do <head> pelas da academia certa assim que sabemos o org da URL
      (não precisa esperar nenhum fetch). Quem não está nesta tabela
