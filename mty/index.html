@@ -8974,6 +8974,85 @@ function TelaEventos({ eventos, setEventos, orgAtual }) {
   );
 }
 
+/* ── clientes ──
+   Agrega, num só lugar, todo mundo que já apareceu como contato avulso
+   em Quadras, Torneios ou Eventos — sem precisar abrir cada aba pra
+   achar um nome. Só leitura por enquanto: os dados continuam morando
+   dentro de reserva/inscrito/convidado; é a base pra um cadastro de
+   cliente de verdade (CRM) mais pra frente. */
+function contatosDeClientes(quadras, reservas, torneios, eventos) {
+  const nomeQuadra = (id) => (quadras.find((q) => q.id === id) || {}).nome || "";
+  const lista = [];
+  reservas.forEach((r) => {
+    if (!r.nomeContato) return;
+    lista.push({
+      id: "reserva-" + r.id, nome: r.nomeContato, telefone: r.telefoneContato,
+      tipo: "Quadra", contexto: [nomeQuadra(r.quadraId), r.data ? formatarDataLonga(r.data) : "", r.horaInicio].filter(Boolean).join(" · "),
+      data: r.data || "", criadoEm: r.criadoEm || "",
+    });
+  });
+  torneios.forEach((t) => {
+    (t.categorias || []).forEach((cat) => {
+      (cat.inscritos || []).forEach((i) => {
+        if (!i.nomeContato) return;
+        lista.push({
+          id: "torneio-" + i.id, nome: i.nomeContato, telefone: i.telefoneContato,
+          tipo: "Torneio", contexto: [t.nome, cat.nome].filter(Boolean).join(" · "),
+          data: t.dataInicio || "", criadoEm: i.criadoEm || "",
+        });
+      });
+    });
+  });
+  eventos.forEach((ev) => {
+    (ev.convidados || []).forEach((c) => {
+      if (!c.nomeContato) return;
+      lista.push({
+        id: "evento-" + c.id, nome: c.nomeContato, telefone: c.telefoneContato,
+        tipo: "Evento", contexto: ev.nome + (c.status === "espera" ? " · lista de espera" : ""),
+        data: ev.data || "", criadoEm: c.criadoEm || "",
+      });
+    });
+  });
+  return lista.sort((a, b) => (b.criadoEm || "").localeCompare(a.criadoEm || ""));
+}
+const TIPO_CLIENTE_COR = { Quadra: C.quadra, Torneio: C.saibro, Evento: C.tinta };
+
+function TelaClientes({ quadras, reservas, torneios, eventos }) {
+  const [busca, setBusca] = useState("");
+  const contatos = useMemo(() => contatosDeClientes(quadras, reservas, torneios, eventos), [quadras, reservas, torneios, eventos]);
+  const alvo = busca.trim().toLowerCase();
+  const filtrados = alvo ? contatos.filter((c) => (c.nome + " " + c.telefone).toLowerCase().includes(alvo)) : contatos;
+
+  return (
+    <div>
+      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Clientes</h1>
+      <p style={{ ...prosa, color: C.grafite, marginBottom: 16 }}>
+        Todo mundo que já reservou quadra, se inscreveu em torneio ou confirmou presença em evento — num só lugar, do contato mais recente pro mais antigo.
+      </p>
+      <input style={{ ...entrada, marginBottom: 14 }} value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nome ou telefone" />
+      {contatos.length === 0 ? (
+        <p style={{ ...prosa, color: C.grafite }}>Nenhum cliente ainda — assim que alguém reservar uma quadra, se inscrever num torneio ou confirmar presença num evento, aparece aqui.</p>
+      ) : filtrados.length === 0 ? (
+        <p style={{ ...prosa, color: C.grafite }}>Nenhum resultado para "{busca}".</p>
+      ) : (
+        filtrados.map((c) => (
+          <div key={c.id} style={{ background: C.cal, border: "1px solid " + C.linha, padding: "11px 14px", marginBottom: 8 }}>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{c.nome}</span>
+              <Etiqueta cor={TIPO_CLIENTE_COR[c.tipo] || C.grafite}>{c.tipo}</Etiqueta>
+            </div>
+            <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginTop: 3 }}>{c.contexto}</p>
+            <div className="flex items-center justify-between gap-3 flex-wrap mt-1">
+              <span style={{ ...prosa, fontSize: 12.5 }}>{c.telefone}</span>
+              {c.data && <Etiqueta>{formatarDataLonga(c.data)}</Etiqueta>}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
 /* ── turmas (aulas em dupla/grupo) ──
    Cada jogador continua com o plano dele, individual, gerado do jeito
    de sempre. A turma só agrupa quem treina junto — a sessão une a
@@ -10180,6 +10259,7 @@ function App() {
     { id: "academia", label: "Academia", itens: [
       ...(mostraQuadras ? [{ v: "quadras", r: "Quadras" }] : []),
       ...(mostraTorneiosEventos ? [{ v: "torneios", r: "Torneios" }, { v: "eventos", r: "Eventos" }] : []),
+      ...(mostraQuadras || mostraTorneiosEventos ? [{ v: "clientes", r: "Clientes" }] : []),
     ] },
     { id: "equipe", label: "Coordenação", badge: "coordenador", itens: [
       ...(papelAtual === "coordenador" ? [{ v: "equipe", r: "Equipe" }] : []),
@@ -10462,6 +10542,7 @@ function App() {
          aba === "quadras" && mostraQuadras ? <TelaQuadras quadras={quadras} setQuadras={setQuadras} reservas={reservas} setReservas={setReservas} orgAtual={orgAtual} /> :
          aba === "torneios" && mostraTorneiosEventos ? <TelaTorneios torneios={torneios} setTorneios={setTorneios} orgAtual={orgAtual} /> :
          aba === "eventos" && mostraTorneiosEventos ? <TelaEventos eventos={eventos} setEventos={setEventos} orgAtual={orgAtual} /> :
+         aba === "clientes" && (mostraQuadras || mostraTorneiosEventos) ? <TelaClientes quadras={quadras} reservas={reservas} torneios={torneios} eventos={eventos} /> :
          aba === "agenda" ? <TelaAgenda alunos={alunos} turmas={turmas} uidAtual={uidAtual} exigeLogin={exigeLogin} /> :
          aba === "dashboard" ? <TelaDashboard alunos={alunos} turmas={turmas} papelAtual={papelAtual} uidAtual={uidAtual} exigeLogin={exigeLogin} usoIA={usoIA} identidade={identidade}
            irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }} /> :
