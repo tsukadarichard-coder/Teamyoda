@@ -70,7 +70,7 @@ async function handleGet(event) {
 
   return resposta(200, {
     academia: info.nome || org,
-    quadras: quadras.map((qd) => ({ id: qd.id, nome: qd.nome })),
+    quadras: quadras.map((qd) => ({ id: qd.id, nome: qd.nome, faixasPreco: qd.faixasPreco || [] })),
     ocupados,
   });
 }

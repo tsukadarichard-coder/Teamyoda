@@ -124,6 +124,9 @@
     var m = d.getMonth() + 1, dia = d.getDate();
     return d.getFullYear() + '-' + (m < 10 ? '0' + m : m) + '-' + (dia < 10 ? '0' + dia : dia);
   }
+  function formatarPreco(v) {
+    return 'R$ ' + v.toFixed(2).replace('.', ',');
+  }
   function somaMinutos(hora, min) {
     var partes = hora.split(':');
     var total = parseInt(partes[0], 10) * 60 + parseInt(partes[1], 10) + min;
@@ -169,6 +172,12 @@
     },
     ocupadoEm(quadraId, hora) {
       return this.estado.ocupados.find(function (o) { return o.quadraId === quadraId && o.horaInicio <= hora && o.horaFim > hora; });
+    },
+    precoNaHora(quadra, hora) {
+      var faixa = (quadra.faixasPreco || []).find(function (f) {
+        return f.inicio <= hora && hora < f.fim && f.preco !== '' && f.preco != null && !isNaN(Number(f.preco));
+      });
+      return faixa ? Number(faixa.preco) : null;
     },
     abrirForm(quadraId, hora, quadraNome) {
       this.estado.rascunho = { quadraId: quadraId, quadraNome: quadraNome, horaInicio: hora, duracao: 60 };
@@ -240,8 +249,10 @@
         html += '<tr><td class="hora">' + hora + '</td>';
         e.quadras.forEach(function (q) {
           var ocupado = self.ocupadoEm(q.id, hora);
+          var preco = self.precoNaHora(q, hora);
           if (ocupado) html += '<td class="ocupado">' + (ocupado.horaInicio === hora ? 'ocupado' : '') + '</td>';
-          else html += '<td style="padding:0"><button class="slot" data-quadra="' + q.id + '" data-hora="' + hora + '" data-nome="' + escapeHtml(q.nome) + '">livre</button></td>';
+          else html += '<td style="padding:0"><button class="slot" data-quadra="' + q.id + '" data-hora="' + hora + '" data-nome="' + escapeHtml(q.nome) + '">' +
+            (preco != null ? escapeHtml(formatarPreco(preco)) : 'livre') + '</button></td>';
         });
         html += '</tr>';
         if (e.rascunho && e.rascunho.horaInicio === hora) html += this.linhaFormulario(colspan);

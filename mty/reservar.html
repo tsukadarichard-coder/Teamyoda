@@ -134,6 +134,16 @@
     });
   }
 
+  function precoNaHora(quadra, hora) {
+    var faixa = (quadra.faixasPreco || []).find(function (f) {
+      return f.inicio <= hora && hora < f.fim && f.preco !== '' && f.preco != null && !isNaN(Number(f.preco));
+    });
+    return faixa ? Number(faixa.preco) : null;
+  }
+  function formatarPreco(v) {
+    return 'R$ ' + v.toFixed(2).replace('.', ',');
+  }
+
   function abrirForm(quadraId, hora, quadraNome) {
     estado.rascunho = { quadraId, quadraNome, horaInicio: hora, duracao: 60, nomeContato: '', telefoneContato: '', observacao: '' };
     estado.sucesso = null;
@@ -212,7 +222,9 @@
         if (ocupado) {
           html += '<td class="ocupado">' + (ocupado.horaInicio === hora ? 'ocupado' : '') + '</td>';
         } else {
-          html += '<td style="padding:0"><button class="slot" data-quadra="' + q.id + '" data-hora="' + hora + '" data-nome="' + escapeHtml(q.nome) + '">livre</button></td>';
+          var preco = precoNaHora(q, hora);
+          html += '<td style="padding:0"><button class="slot" data-quadra="' + q.id + '" data-hora="' + hora + '" data-nome="' + escapeHtml(q.nome) + '">' +
+            (preco != null ? escapeHtml(formatarPreco(preco)) : 'livre') + '</button></td>';
         }
       });
       html += '</tr>';

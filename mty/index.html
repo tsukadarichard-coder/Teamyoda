@@ -8200,7 +8200,22 @@ function TelaFormacaoPessoal({ membros, setMembros, carregando, uidAtual, irPara
    — por isso o contato é nome+telefone livre, não um vínculo com ficha.
    Sem cobrança e sem recorrência nesta primeira versão. */
 function novaQuadra() {
-  return { id: "quadra-" + Date.now(), nome: "", ativa: true };
+  return { id: "quadra-" + Date.now(), nome: "", ativa: true, faixasPreco: [] };
+}
+/* faixasPreco é opcional — sem nenhuma faixa cobrindo um horário, ele
+   aparece como "livre" (sem preço), igual sempre foi. Faixas cobrindo
+   parte do dia (ex: 16h–17h mais caro que o resto) são normais — a
+   busca abaixo usa a PRIMEIRA que bater, então faixas sobrepostas
+   ficam por conta de quem cadastra (não há UI de validar overlap). */
+function novaFaixaPreco() {
+  return { id: "faixa-" + Date.now(), inicio: "06:00", fim: "23:00", preco: "" };
+}
+function precoNaHora(quadra, hora) {
+  const faixa = (quadra.faixasPreco || []).find((f) => f.inicio <= hora && hora < f.fim && f.preco !== "" && f.preco != null && !isNaN(Number(f.preco)));
+  return faixa ? Number(faixa.preco) : null;
+}
+function formatarPreco(v) {
+  return "R$ " + v.toFixed(2).replace(".", ",");
 }
 function novaReserva() {
   return {
@@ -8305,6 +8320,19 @@ function TelaQuadras({ quadras, setQuadras, reservas, setReservas, orgAtual }) {
     if (!confirm("Remover esta quadra? As reservas já feitas nela continuam guardadas, mas ela some da lista.")) return;
     setQuadras(quadras.map((q) => (q.id === id ? { ...q, ativa: false } : q)));
   }
+  function adicionarFaixaPreco(quadraId) {
+    setQuadras(quadras.map((q) => (q.id === quadraId ? { ...q, faixasPreco: [...(q.faixasPreco || []), novaFaixaPreco()] } : q)));
+  }
+  function atualizarFaixaPreco(quadraId, faixaId, patch) {
+    setQuadras(quadras.map((q) => (q.id === quadraId
+      ? { ...q, faixasPreco: (q.faixasPreco || []).map((f) => (f.id === faixaId ? { ...f, ...patch } : f)) }
+      : q)));
+  }
+  function removerFaixaPreco(quadraId, faixaId) {
+    setQuadras(quadras.map((q) => (q.id === quadraId
+      ? { ...q, faixasPreco: (q.faixasPreco || []).filter((f) => f.id !== faixaId) }
+      : q)));
+  }
 
   function reservaEm(quadraId, hora) {
     return reservas.find((r) => r.quadraId === quadraId && r.data === dataEscolhida && r.horaInicio <= hora && r.horaFim > hora);
@@ -8373,9 +8401,29 @@ function TelaQuadras({ quadras, setQuadras, reservas, setReservas, orgAtual }) {
               <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>Nenhuma quadra cadastrada ainda.</p>
             )}
             {quadrasAtivas.map((q) => (
-              <div key={q.id} className="flex items-center justify-between gap-3 mb-2" style={{ background: C.papel, border: "1px solid " + C.linha, padding: "8px 11px" }}>
-                <span style={{ ...prosa, fontSize: 13 }}>{q.nome}</span>
-                <button onClick={() => removerQuadra(q.id)} title="Remover quadra" style={iconeEstilo}>×</button>
+              <div key={q.id} className="mb-2" style={{ background: C.papel, border: "1px solid " + C.linha, padding: "8px 11px" }}>
+                <div className="flex items-center justify-between gap-3">
+                  <span style={{ ...prosa, fontSize: 13 }}>{q.nome}</span>
+                  <button onClick={() => removerQuadra(q.id)} title="Remover quadra" style={iconeEstilo}>×</button>
+                </div>
+                <div className="mt-2">
+                  <div style={{ ...prosa, fontSize: 10.5, color: C.grafite, marginBottom: 4 }}>
+                    Preço por horário (opcional — sem faixa cadastrada, o horário some como "livre", sem preço)
+                  </div>
+                  {(q.faixasPreco || []).map((f) => (
+                    <div key={f.id} className="flex gap-2 items-center mb-1 flex-wrap">
+                      <input type="time" style={{ ...entrada, width: 92, fontSize: 12 }} value={f.inicio}
+                        onChange={(e) => atualizarFaixaPreco(q.id, f.id, { inicio: e.target.value })} />
+                      <span style={{ fontSize: 11, color: C.grafite }}>até</span>
+                      <input type="time" style={{ ...entrada, width: 92, fontSize: 12 }} value={f.fim}
+                        onChange={(e) => atualizarFaixaPreco(q.id, f.id, { fim: e.target.value })} />
+                      <input type="number" step="0.01" min="0" placeholder="valor" style={{ ...entrada, width: 82, fontSize: 12 }} value={f.preco}
+                        onChange={(e) => atualizarFaixaPreco(q.id, f.id, { preco: e.target.value })} />
+                      <button onClick={() => removerFaixaPreco(q.id, f.id)} title="Remover faixa" style={iconeEstilo}>×</button>
+                    </div>
+                  ))}
+                  <Botao pequeno variante="vazio" onClick={() => adicionarFaixaPreco(q.id)}>+ faixa de preço</Botao>
+                </div>
               </div>
             ))}
             <div className="flex gap-2 mt-3 flex-wrap items-center">
@@ -8431,12 +8479,13 @@ function TelaQuadras({ quadras, setQuadras, reservas, setReservas, orgAtual }) {
                         </td>
                       );
                     }
+                    const preco = precoNaHora(q, hora);
                     return (
                       <td key={q.id} style={{ ...celulaGrade, minWidth: 140, padding: 0 }}>
                         <button onClick={() => abrirFormNaFaixa(q.id, hora)}
                           style={{ width: "100%", height: "100%", minHeight: 32, border: "none", background: "transparent",
-                            cursor: "pointer", fontFamily: ARCH, fontSize: 11, color: C.linha }}>
-                          livre
+                            cursor: "pointer", fontFamily: ARCH, fontSize: 11, color: preco != null ? C.quadra : C.linha }}>
+                          {preco != null ? formatarPreco(preco) : "livre"}
                         </button>
                       </td>
                     );
