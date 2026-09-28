@@ -151,7 +151,24 @@
   /* ── aba Reservar (quadra) — mesma lógica de reservar.html, só que
      vive dentro de uma aba em vez de ser a página inteira. */
   var Reservar = {
-    estado: { data: hojeISO(), quadras: [], ocupados: [], rascunho: null, carregando: true, erro: null, sucesso: null, erroForm: null, carregouUmaVez: false },
+    estado: {
+      data: hojeISO(), quadras: [], ocupados: [], rascunho: null, carregando: true, erro: null, sucesso: null, erroForm: null, carregouUmaVez: false,
+      filtroPiso: '', filtroCobertura: '', filtroIluminacao: false,
+    },
+    pisosDisponiveis() {
+      var vistos = {}, lista = [];
+      this.estado.quadras.forEach(function (q) { if (q.piso && !vistos[q.piso]) { vistos[q.piso] = true; lista.push(q.piso); } });
+      return lista;
+    },
+    quadrasFiltradas() {
+      var e = this.estado;
+      return e.quadras.filter(function (q) {
+        if (e.filtroPiso && q.piso !== e.filtroPiso) return false;
+        if (e.filtroCobertura && q.cobertura !== e.filtroCobertura) return false;
+        if (e.filtroIluminacao && !q.iluminacao) return false;
+        return true;
+      });
+    },
     async carregar() {
       var e = this.estado;
       e.carregando = true; e.erro = null;
@@ -240,14 +257,36 @@
         conteudo.innerHTML = html; this.wire(); return;
       }
       var self = this;
-      var colspan = e.quadras.length + 1;
+      var pisos = this.pisosDisponiveis();
+      var temCaracteristicas = pisos.length > 0 || e.quadras.some(function (q) { return q.cobertura; }) || e.quadras.some(function (q) { return q.iluminacao; });
+      if (temCaracteristicas) {
+        html += '<div class="campo" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">';
+        if (pisos.length > 0) {
+          html += '<select id="filtro-piso"><option value="">Piso (todos)</option>';
+          pisos.forEach(function (p) { html += '<option value="' + escapeHtml(p) + '"' + (e.filtroPiso === p ? ' selected' : '') + '>' + escapeHtml(p) + '</option>'; });
+          html += '</select>';
+        }
+        html += '<select id="filtro-cobertura"><option value="">Cobertura (todas)</option>';
+        html += '<option value="coberta"' + (e.filtroCobertura === 'coberta' ? ' selected' : '') + '>Coberta</option>';
+        html += '<option value="descoberta"' + (e.filtroCobertura === 'descoberta' ? ' selected' : '') + '>Descoberta</option>';
+        html += '</select>';
+        html += '<label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer">';
+        html += '<input type="checkbox" id="filtro-iluminacao"' + (e.filtroIluminacao ? ' checked' : '') + '> Só com iluminação</label>';
+        html += '</div>';
+      }
+      var quadras = this.quadrasFiltradas();
+      if (quadras.length === 0) {
+        html += '<p class="sub">Nenhuma quadra encontrada com esses filtros.</p>';
+        conteudo.innerHTML = html; this.wire(); return;
+      }
+      var colspan = quadras.length + 1;
       html += '<div class="grade-wrap"><table><thead><tr><th></th>';
-      e.quadras.forEach(function (q) { html += '<th>' + escapeHtml(q.nome) + '</th>'; });
+      quadras.forEach(function (q) { html += '<th>' + escapeHtml(q.nome) + '</th>'; });
       html += '</tr></thead><tbody>';
       for (var i = 0; i < FAIXAS.length - 1; i++) {
         var hora = FAIXAS[i];
         html += '<tr><td class="hora">' + hora + '</td>';
-        e.quadras.forEach(function (q) {
+        quadras.forEach(function (q) {
           var ocupado = self.ocupadoEm(q.id, hora);
           var preco = self.precoNaHora(q, hora);
           if (ocupado) html += '<td class="ocupado">' + (ocupado.horaInicio === hora ? 'ocupado' : '') + '</td>';
@@ -265,6 +304,12 @@
       var self = this;
       var campoData = document.getElementById('campo-data');
       if (campoData) campoData.onchange = function (ev) { self.estado.data = ev.target.value; self.estado.rascunho = null; self.estado.sucesso = null; self.carregar(); };
+      var filtroPiso = document.getElementById('filtro-piso');
+      if (filtroPiso) filtroPiso.onchange = function (ev) { self.estado.filtroPiso = ev.target.value; self.render(); };
+      var filtroCobertura = document.getElementById('filtro-cobertura');
+      if (filtroCobertura) filtroCobertura.onchange = function (ev) { self.estado.filtroCobertura = ev.target.value; self.render(); };
+      var filtroIluminacao = document.getElementById('filtro-iluminacao');
+      if (filtroIluminacao) filtroIluminacao.onchange = function (ev) { self.estado.filtroIluminacao = ev.target.checked; self.render(); };
       Array.prototype.forEach.call(conteudo.querySelectorAll('.slot'), function (btn) {
         btn.onclick = function () { self.abrirForm(btn.getAttribute('data-quadra'), btn.getAttribute('data-hora'), btn.getAttribute('data-nome')); };
       });

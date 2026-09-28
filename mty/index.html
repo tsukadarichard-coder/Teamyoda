@@ -8200,8 +8200,9 @@ function TelaFormacaoPessoal({ membros, setMembros, carregando, uidAtual, irPara
    — por isso o contato é nome+telefone livre, não um vínculo com ficha.
    Sem cobrança e sem recorrência nesta primeira versão. */
 function novaQuadra() {
-  return { id: "quadra-" + Date.now(), nome: "", ativa: true, faixasPreco: [] };
+  return { id: "quadra-" + Date.now(), nome: "", ativa: true, faixasPreco: [], piso: "", cobertura: "", iluminacao: false };
 }
+const COBERTURA_LABEL = { coberta: "Coberta", descoberta: "Descoberta" };
 /* faixasPreco é opcional — sem nenhuma faixa cobrindo um horário, ele
    aparece como "livre" (sem preço), igual sempre foi. Faixas cobrindo
    parte do dia (ex: 16h–17h mais caro que o resto) são normais — a
@@ -8320,6 +8321,9 @@ function TelaQuadras({ quadras, setQuadras, reservas, setReservas, orgAtual }) {
     if (!confirm("Remover esta quadra? As reservas já feitas nela continuam guardadas, mas ela some da lista.")) return;
     setQuadras(quadras.map((q) => (q.id === id ? { ...q, ativa: false } : q)));
   }
+  function atualizarQuadra(quadraId, patch) {
+    setQuadras(quadras.map((q) => (q.id === quadraId ? { ...q, ...patch } : q)));
+  }
   function adicionarFaixaPreco(quadraId) {
     setQuadras(quadras.map((q) => (q.id === quadraId ? { ...q, faixasPreco: [...(q.faixasPreco || []), novaFaixaPreco()] } : q)));
   }
@@ -8405,6 +8409,20 @@ function TelaQuadras({ quadras, setQuadras, reservas, setReservas, orgAtual }) {
                 <div className="flex items-center justify-between gap-3">
                   <span style={{ ...prosa, fontSize: 13 }}>{q.nome}</span>
                   <button onClick={() => removerQuadra(q.id)} title="Remover quadra" style={iconeEstilo}>×</button>
+                </div>
+                <div className="mt-2 flex gap-2 flex-wrap items-center">
+                  <input style={{ ...entrada, width: 130, fontSize: 12 }} placeholder="piso (ex: saibro)" value={q.piso || ""}
+                    onChange={(e) => atualizarQuadra(q.id, { piso: e.target.value })} />
+                  <select style={{ ...entrada, width: 120, fontSize: 12 }} value={q.cobertura || ""}
+                    onChange={(e) => atualizarQuadra(q.id, { cobertura: e.target.value })}>
+                    <option value="">Cobertura</option>
+                    <option value="coberta">Coberta</option>
+                    <option value="descoberta">Descoberta</option>
+                  </select>
+                  <label className="flex items-center gap-1.5" style={{ ...prosa, fontSize: 12, cursor: "pointer" }}>
+                    <input type="checkbox" checked={!!q.iluminacao} onChange={(e) => atualizarQuadra(q.id, { iluminacao: e.target.checked })} />
+                    Iluminação
+                  </label>
                 </div>
                 <div className="mt-2">
                   <div style={{ ...prosa, fontSize: 10.5, color: C.grafite, marginBottom: 4 }}>

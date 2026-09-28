@@ -70,7 +70,10 @@ async function handleGet(event) {
 
   return resposta(200, {
     academia: info.nome || org,
-    quadras: quadras.map((qd) => ({ id: qd.id, nome: qd.nome, faixasPreco: qd.faixasPreco || [] })),
+    quadras: quadras.map((qd) => ({
+      id: qd.id, nome: qd.nome, faixasPreco: qd.faixasPreco || [],
+      piso: qd.piso || "", cobertura: qd.cobertura || "", iluminacao: !!qd.iluminacao,
+    })),
     ocupados,
   });
 }

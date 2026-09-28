@@ -87,7 +87,26 @@
     return;
   }
 
-  var estado = { data: hojeISO(), quadras: [], ocupados: [], rascunho: null, carregando: true, erro: null, sucesso: null };
+  var estado = {
+    data: hojeISO(), quadras: [], ocupados: [], rascunho: null, carregando: true, erro: null, sucesso: null,
+    filtroPiso: '', filtroCobertura: '', filtroIluminacao: false,
+  };
+
+  function pisosDisponiveis() {
+    var vistos = {}, lista = [];
+    estado.quadras.forEach(function (q) {
+      if (q.piso && !vistos[q.piso]) { vistos[q.piso] = true; lista.push(q.piso); }
+    });
+    return lista;
+  }
+  function quadrasFiltradas() {
+    return estado.quadras.filter(function (q) {
+      if (estado.filtroPiso && q.piso !== estado.filtroPiso) return false;
+      if (estado.filtroCobertura && q.cobertura !== estado.filtroCobertura) return false;
+      if (estado.filtroIluminacao && !q.iluminacao) return false;
+      return true;
+    });
+  }
 
   async function carregar() {
     estado.carregando = true; estado.erro = null;
@@ -210,14 +229,41 @@
       return;
     }
 
-    var colspan = estado.quadras.length + 1;
+    var pisos = pisosDisponiveis();
+    var temCaracteristicas = pisos.length > 0 || estado.quadras.some(function (q) { return q.cobertura; }) || estado.quadras.some(function (q) { return q.iluminacao; });
+    if (temCaracteristicas) {
+      html += '<div class="campo" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">';
+      if (pisos.length > 0) {
+        html += '<select id="filtro-piso"><option value="">Piso (todos)</option>';
+        pisos.forEach(function (p) { html += '<option value="' + escapeHtml(p) + '"' + (estado.filtroPiso === p ? ' selected' : '') + '>' + escapeHtml(p) + '</option>'; });
+        html += '</select>';
+      }
+      html += '<select id="filtro-cobertura"><option value="">Cobertura (todas)</option>';
+      html += '<option value="coberta"' + (estado.filtroCobertura === 'coberta' ? ' selected' : '') + '>Coberta</option>';
+      html += '<option value="descoberta"' + (estado.filtroCobertura === 'descoberta' ? ' selected' : '') + '>Descoberta</option>';
+      html += '</select>';
+      html += '<label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer">';
+      html += '<input type="checkbox" id="filtro-iluminacao"' + (estado.filtroIluminacao ? ' checked' : '') + '> Só com iluminação</label>';
+      html += '</div>';
+    }
+
+    var quadras = quadrasFiltradas();
+    if (quadras.length === 0) {
+      html += '<p class="sub">Nenhuma quadra encontrada com esses filtros.</p>';
+      conteudo.innerHTML = html;
+      wireDataInput();
+      wireFiltros();
+      return;
+    }
+
+    var colspan = quadras.length + 1;
     html += '<div class="grade-wrap"><table><thead><tr><th></th>';
-    estado.quadras.forEach(function (q) { html += '<th>' + escapeHtml(q.nome) + '</th>'; });
+    quadras.forEach(function (q) { html += '<th>' + escapeHtml(q.nome) + '</th>'; });
     html += '</tr></thead><tbody>';
     for (var i = 0; i < FAIXAS.length - 1; i++) {
       var hora = FAIXAS[i];
       html += '<tr><td class="hora">' + hora + '</td>';
-      estado.quadras.forEach(function (q) {
+      quadras.forEach(function (q) {
         var ocupado = ocupadoEm(q.id, hora);
         if (ocupado) {
           html += '<td class="ocupado">' + (ocupado.horaInicio === hora ? 'ocupado' : '') + '</td>';
@@ -239,6 +285,7 @@
 
     conteudo.innerHTML = html;
     wireDataInput();
+    wireFiltros();
 
     Array.prototype.forEach.call(conteudo.querySelectorAll('.slot'), function (btn) {
       btn.onclick = function () { abrirForm(btn.getAttribute('data-quadra'), btn.getAttribute('data-hora'), btn.getAttribute('data-nome')); };
@@ -253,6 +300,14 @@
   function wireDataInput() {
     var campo = document.getElementById('campo-data');
     if (campo) campo.onchange = function (e) { estado.data = e.target.value; estado.rascunho = null; estado.sucesso = null; carregar(); };
+  }
+  function wireFiltros() {
+    var fp = document.getElementById('filtro-piso');
+    if (fp) fp.onchange = function (e) { estado.filtroPiso = e.target.value; render(); };
+    var fc = document.getElementById('filtro-cobertura');
+    if (fc) fc.onchange = function (e) { estado.filtroCobertura = e.target.value; render(); };
+    var fi = document.getElementById('filtro-iluminacao');
+    if (fi) fi.onchange = function (e) { estado.filtroIluminacao = e.target.checked; render(); };
   }
 
   function escapeHtml(s) {
