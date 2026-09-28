@@ -53,20 +53,47 @@
   .form-inline{margin-top:12px; padding-top:12px; border-top:1px solid var(--linha)}
   .card-destaque{background:var(--tinta); color:#fff; border-color:var(--tinta)}
   .card-destaque .sub{color:#cfc9c4}
+  .menu-item{display:flex; align-items:center; gap:14px; background:#fff; border:1px solid var(--linha);
+    border-radius:10px; padding:14px 16px; margin-top:12px; cursor:pointer; text-align:left; width:100%}
+  .menu-item .icone{width:44px; height:44px; border-radius:10px; background:var(--cal); flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; font-size:21px}
+  .menu-item .texto{flex:1; min-width:0}
+  .menu-item .texto h3{font-family:Georgia,serif; font-size:15px; margin:0 0 2px; color:var(--tinta)}
+  .menu-item .seta{color:var(--linha); font-size:20px; flex-shrink:0}
+  .quadra-card{background:#fff; border:1px solid var(--linha); border-radius:8px; padding:14px 16px; margin-top:12px}
+  .quadra-card h3{font-family:Georgia,serif; font-size:15px; margin:0 0 8px}
+  .pill{display:inline-block; font-size:10.5px; font-weight:700; letter-spacing:.02em; color:var(--cinza);
+    background:var(--papel); border:1px solid var(--linha); border-radius:999px; padding:3px 10px; margin:0 6px 6px 0}
+  .quadra-card a.abrir{font-size:13px; font-weight:700; color:var(--verm); text-decoration:none; display:inline-block; margin-top:2px}
+  .lista-horarios{margin-top:10px}
+  .linha-horario{display:flex; align-items:center; justify-content:space-between; border-radius:8px;
+    padding:12px 14px; margin-bottom:8px; font-size:13.5px; cursor:default}
+  .linha-horario.ocupado{background:var(--papel); color:var(--cinza)}
+  .linha-horario.livre-sem-preco{background:var(--papel); color:var(--linha); cursor:pointer; border:none; width:100%; font:inherit; text-align:left}
+  .linha-horario.disponivel{background:#EAF3EC; color:var(--verde); cursor:pointer; border:none; width:100%; font:inherit; text-align:left}
+  .linha-horario .valor{font-weight:700}
+  .voltar-quadras{background:none; border:none; color:var(--verm); font:inherit; font-size:13px; font-weight:700;
+    cursor:pointer; padding:0; margin-bottom:12px}
   .nav-inferior{position:fixed; left:0; right:0; bottom:0; display:flex; background:#fff; border-top:1px solid var(--linha)}
   .nav-inferior button{flex:1; border:none; background:none; padding:10px 4px 12px; font:inherit; font-size:11px;
     font-weight:700; color:var(--cinza); cursor:pointer}
   .nav-inferior button.ativo{color:var(--tinta)}
   .nav-inferior button .ponto{display:block; width:5px; height:5px; margin:0 auto 4px; border-radius:999px; background:transparent}
   .nav-inferior button.ativo .ponto{background:var(--verm)}
-  .splash{position:fixed; inset:0; z-index:999; display:flex; align-items:center; justify-content:center;
-    background:var(--papel); transition:opacity .35s ease; opacity:1}
+  .splash{position:fixed; inset:0; z-index:999; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; gap:26px; background:var(--papel); transition:opacity .35s ease; opacity:1}
   .splash.saindo{opacity:0; pointer-events:none}
   .splash img{width:min(58vw, 220px); height:auto}
+  .splash .barra{width:130px; height:4px; border-radius:999px; background:rgba(255,255,255,.2); overflow:hidden}
+  .splash .barra span{display:block; height:100%; width:0; border-radius:999px; background:#fff; animation:mty-carregar 2s ease-out forwards}
+  @keyframes mty-carregar{ from{width:0%} to{width:100%} }
 </style>
 </head>
 <body>
-<div class="splash" id="splash"><img id="splash-logo" alt="" style="display:none"></div>
+<div class="splash" id="splash">
+  <img id="splash-logo" alt="" style="display:none">
+  <div class="barra" id="splash-barra" style="display:none"><span></span></div>
+</div>
 <div class="topo"></div>
 <div class="wrap">
 <header>
@@ -116,20 +143,22 @@
      nesta tabela nem chega a ver a tela, pra não segurar a entrada no
      app por uma marca que não existe pra essa academia. */
   var LOGO_POR_ACADEMIA = {
-    'team-yoda': 'assets/logo-team-yoda.jpg',
-    '39-ranch': 'assets/logo-39-ranch.png',
+    'team-yoda': { src: 'assets/logo-team-yoda-transparente.png', fundo: '#141210' },
+    '39-ranch': { src: 'assets/logo-39-ranch.png', fundo: '#141210' },
   };
   (function mostrarSplash() {
     var splash = document.getElementById('splash');
-    var logoSrc = LOGO_POR_ACADEMIA[org];
-    if (!logoSrc) { splash.style.display = 'none'; return; }
+    var cfg = LOGO_POR_ACADEMIA[org];
+    if (!cfg) { splash.style.display = 'none'; return; }
+    splash.style.background = cfg.fundo;
     var img = document.getElementById('splash-logo');
-    img.src = logoSrc;
+    img.src = cfg.src;
     img.style.display = 'block';
+    document.getElementById('splash-barra').style.display = 'block';
     setTimeout(function () {
       splash.classList.add('saindo');
       setTimeout(function () { splash.style.display = 'none'; }, 400);
-    }, 1100);
+    }, 2200);
   })();
 
   var conteudo = document.getElementById('conteudo');
@@ -179,7 +208,17 @@
   var Reservar = {
     estado: {
       data: hojeISO(), quadras: [], ocupados: [], rascunho: null, carregando: true, erro: null, sucesso: null, erroForm: null, carregouUmaVez: false,
-      filtroPiso: '', filtroCobertura: '', filtroIluminacao: false,
+      filtroPiso: '', filtroCobertura: '', filtroIluminacao: false, quadraSelecionada: null,
+    },
+    abrirQuadra(id) {
+      this.estado.quadraSelecionada = id;
+      this.estado.rascunho = null; this.estado.sucesso = null; this.estado.erroForm = null;
+      this.render();
+    },
+    voltarQuadras() {
+      this.estado.quadraSelecionada = null;
+      this.estado.rascunho = null; this.estado.sucesso = null; this.estado.erroForm = null;
+      this.render();
     },
     pisosDisponiveis() {
       var vistos = {}, lista = [];
@@ -250,9 +289,9 @@
         this.render();
       }
     },
-    linhaFormulario(colspan) {
+    formularioReserva() {
       var r = this.estado.rascunho;
-      var html = '<tr id="form-reserva-topo"><td colspan="' + colspan + '" class="form-reserva">';
+      var html = '<div id="form-reserva-topo" class="form-reserva" style="border-radius:8px; margin:-2px 0 10px">';
       html += '<h3>Reservar ' + escapeHtml(r.quadraNome) + ' · ' + r.horaInicio + '</h3>';
       html += '<div class="campo"><label>Duração</label><select id="rv-duracao">';
       [30, 60, 90, 120].forEach(function (min) {
@@ -266,68 +305,89 @@
       html += '<div style="display:flex; gap:8px; margin-top:6px">';
       html += '<button class="bt" id="rv-confirmar">Confirmar reserva</button>';
       html += '<button class="bt bt-vazio" id="rv-cancelar">Cancelar</button>';
-      html += '</div></td></tr>';
+      html += '</div></div>';
       return html;
     },
     render() {
       var e = this.estado;
       if (e.carregando && !e.carregouUmaVez) { conteudo.innerHTML = '<p class="sub">Carregando…</p>'; return; }
-      var html = '<h2>Reservar quadra</h2><div class="campo"><label>Dia</label><input type="date" id="campo-data" value="' + e.data + '"></div>';
       if (e.erro) {
-        html += '<div class="msg erro">' + escapeHtml(e.erro) + '</div>';
-        conteudo.innerHTML = html; this.wire(); return;
+        conteudo.innerHTML = '<h2>Quadras</h2><div class="msg erro">' + escapeHtml(e.erro) + '</div>';
+        this.wire(); return;
       }
-      if (e.sucesso) html += '<div class="msg ok">✓ Reserva confirmada — ' + escapeHtml(e.sucesso) + '</div>';
       if (e.quadras.length === 0) {
-        html += '<p class="sub">Nenhuma quadra disponível pra reserva no momento.</p>';
-        conteudo.innerHTML = html; this.wire(); return;
+        conteudo.innerHTML = '<h2>Quadras</h2><p class="sub">Nenhuma quadra disponível pra reserva no momento.</p>';
+        this.wire(); return;
       }
+
       var self = this;
-      var pisos = this.pisosDisponiveis();
-      var temCaracteristicas = pisos.length > 0 || e.quadras.some(function (q) { return q.cobertura; }) || e.quadras.some(function (q) { return q.iluminacao; });
-      if (temCaracteristicas) {
-        html += '<div class="campo" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">';
-        if (pisos.length > 0) {
-          html += '<select id="filtro-piso"><option value="">Piso (todos)</option>';
-          pisos.forEach(function (p) { html += '<option value="' + escapeHtml(p) + '"' + (e.filtroPiso === p ? ' selected' : '') + '>' + escapeHtml(p) + '</option>'; });
+      var quadraAtual = e.quadraSelecionada ? e.quadras.find(function (q) { return q.id === e.quadraSelecionada; }) : null;
+      var html = '';
+
+      if (!quadraAtual) {
+        html += '<h2>Quadras</h2><p class="sub">Escolha uma quadra pra ver os horários disponíveis.</p>';
+        var pisos = this.pisosDisponiveis();
+        var temCaracteristicas = pisos.length > 0 || e.quadras.some(function (q) { return q.cobertura; }) || e.quadras.some(function (q) { return q.iluminacao; });
+        if (temCaracteristicas) {
+          html += '<div class="campo" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">';
+          if (pisos.length > 0) {
+            html += '<select id="filtro-piso"><option value="">Piso (todos)</option>';
+            pisos.forEach(function (p) { html += '<option value="' + escapeHtml(p) + '"' + (e.filtroPiso === p ? ' selected' : '') + '>' + escapeHtml(p) + '</option>'; });
+            html += '</select>';
+          }
+          html += '<select id="filtro-cobertura"><option value="">Cobertura (todas)</option>';
+          html += '<option value="coberta"' + (e.filtroCobertura === 'coberta' ? ' selected' : '') + '>Coberta</option>';
+          html += '<option value="descoberta"' + (e.filtroCobertura === 'descoberta' ? ' selected' : '') + '>Descoberta</option>';
           html += '</select>';
+          html += '<label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer">';
+          html += '<input type="checkbox" id="filtro-iluminacao"' + (e.filtroIluminacao ? ' checked' : '') + '> Só com iluminação</label>';
+          html += '</div>';
         }
-        html += '<select id="filtro-cobertura"><option value="">Cobertura (todas)</option>';
-        html += '<option value="coberta"' + (e.filtroCobertura === 'coberta' ? ' selected' : '') + '>Coberta</option>';
-        html += '<option value="descoberta"' + (e.filtroCobertura === 'descoberta' ? ' selected' : '') + '>Descoberta</option>';
-        html += '</select>';
-        html += '<label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer">';
-        html += '<input type="checkbox" id="filtro-iluminacao"' + (e.filtroIluminacao ? ' checked' : '') + '> Só com iluminação</label>';
-        html += '</div>';
+        var quadras = this.quadrasFiltradas();
+        if (quadras.length === 0) {
+          html += '<p class="sub">Nenhuma quadra encontrada com esses filtros.</p>';
+        } else {
+          quadras.forEach(function (q) {
+            html += '<div class="quadra-card"><h3>' + escapeHtml(q.nome) + '</h3>';
+            var pillsHtml = '';
+            if (q.piso) pillsHtml += '<span class="pill">' + escapeHtml(q.piso) + '</span>';
+            if (q.cobertura) pillsHtml += '<span class="pill">' + (q.cobertura === 'coberta' ? 'Coberta' : 'Descoberta') + '</span>';
+            if (q.iluminacao) pillsHtml += '<span class="pill">Iluminação</span>';
+            if (pillsHtml) html += '<div>' + pillsHtml + '</div>';
+            html += '<a href="javascript:void(0)" class="abrir" data-abrir-quadra="' + q.id + '">Ver horários disponíveis →</a>';
+            html += '</div>';
+          });
+        }
+        conteudo.innerHTML = html;
+        this.wire();
+        return;
       }
-      var quadras = this.quadrasFiltradas();
-      if (quadras.length === 0) {
-        html += '<p class="sub">Nenhuma quadra encontrada com esses filtros.</p>';
-        conteudo.innerHTML = html; this.wire(); return;
-      }
-      var colspan = quadras.length + 1;
-      html += '<div class="grade-wrap"><table><thead><tr><th></th>';
-      quadras.forEach(function (q) { html += '<th>' + escapeHtml(q.nome) + '</th>'; });
-      html += '</tr></thead><tbody>';
+
+      html += '<button class="voltar-quadras" data-voltar="1">← Todas as quadras</button>';
+      html += '<h2>' + escapeHtml(quadraAtual.nome) + '</h2>';
+      html += '<div class="campo"><label>Dia</label><input type="date" id="campo-data" value="' + e.data + '"></div>';
+      if (e.sucesso) html += '<div class="msg ok">✓ Reserva confirmada — ' + escapeHtml(e.sucesso) + '</div>';
+      html += '<div class="lista-horarios">';
       for (var i = 0; i < FAIXAS.length - 1; i++) {
-        var hora = FAIXAS[i];
-        html += '<tr><td class="hora">' + hora + '</td>';
-        quadras.forEach(function (q) {
-          var ocupado = self.ocupadoEm(q.id, hora);
-          var preco = self.precoNaHora(q, hora);
-          if (ocupado) html += '<td class="ocupado">' + (ocupado.horaInicio === hora ? 'ocupado' : '') + '</td>';
-          else html += '<td style="padding:0"><button class="slot" data-quadra="' + q.id + '" data-hora="' + hora + '" data-nome="' + escapeHtml(q.nome) + '">' +
-            (preco != null ? escapeHtml(formatarPreco(preco)) : 'livre') + '</button></td>';
-        });
-        html += '</tr>';
-        if (e.rascunho && e.rascunho.horaInicio === hora) html += this.linhaFormulario(colspan);
+        var hora = FAIXAS[i], horaFimFaixa = FAIXAS[i + 1];
+        var ocupado = self.ocupadoEm(quadraAtual.id, hora);
+        if (ocupado) {
+          html += '<div class="linha-horario ocupado"><span>' + hora + ' – ' + horaFimFaixa + '</span><span>Ocupado</span></div>';
+        } else {
+          var preco = self.precoNaHora(quadraAtual, hora);
+          var classe = preco != null ? 'disponivel' : 'livre-sem-preco';
+          html += '<button class="linha-horario ' + classe + '" data-hora="' + hora + '"><span>' + hora + ' – ' + horaFimFaixa + '</span><span class="valor">' +
+            (preco != null ? escapeHtml(formatarPreco(preco)) : 'Livre') + '</span></button>';
+        }
+        if (e.rascunho && e.rascunho.horaInicio === hora) html += this.formularioReserva();
       }
-      html += '</tbody></table></div>';
+      html += '</div>';
       conteudo.innerHTML = html;
       this.wire();
     },
     wire() {
       var self = this;
+      var e = this.estado;
       var campoData = document.getElementById('campo-data');
       if (campoData) campoData.onchange = function (ev) { self.estado.data = ev.target.value; self.estado.rascunho = null; self.estado.sucesso = null; self.carregar(); };
       var filtroPiso = document.getElementById('filtro-piso');
@@ -336,8 +396,16 @@
       if (filtroCobertura) filtroCobertura.onchange = function (ev) { self.estado.filtroCobertura = ev.target.value; self.render(); };
       var filtroIluminacao = document.getElementById('filtro-iluminacao');
       if (filtroIluminacao) filtroIluminacao.onchange = function (ev) { self.estado.filtroIluminacao = ev.target.checked; self.render(); };
-      Array.prototype.forEach.call(conteudo.querySelectorAll('.slot'), function (btn) {
-        btn.onclick = function () { self.abrirForm(btn.getAttribute('data-quadra'), btn.getAttribute('data-hora'), btn.getAttribute('data-nome')); };
+      Array.prototype.forEach.call(conteudo.querySelectorAll('[data-abrir-quadra]'), function (a) {
+        a.onclick = function () { self.abrirQuadra(a.getAttribute('data-abrir-quadra')); };
+      });
+      var voltar = conteudo.querySelector('[data-voltar]');
+      if (voltar) voltar.onclick = function () { self.voltarQuadras(); };
+      Array.prototype.forEach.call(conteudo.querySelectorAll('.linha-horario[data-hora]'), function (btn) {
+        btn.onclick = function () {
+          var quadra = e.quadras.find(function (q) { return q.id === e.quadraSelecionada; });
+          self.abrirForm(e.quadraSelecionada, btn.getAttribute('data-hora'), quadra ? quadra.nome : '');
+        };
       });
       if (this.estado.rascunho) {
         document.getElementById('rv-duracao').onchange = function (ev) { self.estado.rascunho.duracao = parseInt(ev.target.value, 10); };
@@ -483,11 +551,20 @@
   };
 
   function renderInicio() {
-    var html = '<h2>Bem-vindo(a)</h2>';
-    html += '<p class="sub">Reserve sua quadra, participe dos nossos torneios e eventos, ou torne-se sócio.</p>';
-    html += '<div class="card" style="cursor:pointer" data-ir="reservar"><h3>Reservar quadra</h3><div class="sub">Avulso ou recorrente — sem precisar de conta.</div></div>';
-    html += '<div class="card" style="cursor:pointer" data-ir="torneios"><h3>Torneios &amp; Eventos</h3><div class="sub">Veja o que está aberto e inscreva-se.</div></div>';
-    html += '<div class="card card-destaque" style="cursor:pointer" data-ir="conta"><h3>Seja sócio</h3><div class="sub">Mensalidade recorrente, acesso às quadras. Regras em breve.</div></div>';
+    var html = '<div class="sub" style="text-transform:uppercase; letter-spacing:.04em; font-weight:700; font-size:11px">Bem-vindo</div>';
+    html += '<h2 style="font-size:20px; margin-bottom:16px">Explore a academia</h2>';
+    var itens = [
+      { ir: 'reservar', icone: '🎾', titulo: 'Quadras', desc: 'Reserve uma quadra pra jogar' },
+      { ir: 'torneios', icone: '🏆', titulo: 'Torneios & Eventos', desc: 'Veja o que está aberto e inscreva-se' },
+      { ir: 'conta', icone: '👤', titulo: 'Sócios', desc: 'Acesse sua área ou torne-se sócio' },
+    ];
+    itens.forEach(function (it) {
+      html += '<button class="menu-item" data-ir="' + it.ir + '">'
+        + '<span class="icone">' + it.icone + '</span>'
+        + '<span class="texto"><h3>' + it.titulo + '</h3><div class="sub">' + it.desc + '</div></span>'
+        + '<span class="seta">›</span>'
+        + '</button>';
+    });
     conteudo.innerHTML = html;
     Array.prototype.forEach.call(conteudo.querySelectorAll('[data-ir]'), function (card) {
       card.onclick = function () { mostrarAba(card.getAttribute('data-ir')); };
