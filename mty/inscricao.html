@@ -13,6 +13,7 @@
   .topo{background:var(--verm); height:7px}
   .wrap{max-width:640px; margin:0 auto; padding:0 18px}
   header{padding:24px 0 10px}
+  .logo-cabecalho{height:38px; width:auto; display:block; margin-bottom:8px}
   h1{font-family:Georgia,serif; font-size:20px; margin:8px 0 4px}
   h2{font-family:Georgia,serif; font-size:16px; margin:26px 0 4px}
   .sub{color:var(--cinza); font-size:13px}
@@ -41,6 +42,7 @@
 <div class="topo"></div>
 <div class="wrap">
 <header>
+  <img id="logo-academia" class="logo-cabecalho" style="display:none" alt="">
   <h1 id="titulo-academia">Torneios e eventos</h1>
   <div class="sub">Veja o que está aberto e inscreva-se — sem precisar de conta.</div>
 </header>
@@ -55,6 +57,20 @@
   var params = new URLSearchParams(location.search);
   var org = params.get('org');
   var conteudo = document.getElementById('conteudo');
+
+  /* logo no cabeçalho por academia — mesmos arquivos usados no cliente.html;
+     quem não está aqui não vê imagem nenhuma, só o texto. */
+  var LOGO_POR_ACADEMIA = {
+    'team-yoda': 'assets/logo-team-yoda-transparente.png',
+    '39-ranch': 'assets/logo-39-ranch.png',
+  };
+  (function () {
+    var src = LOGO_POR_ACADEMIA[org];
+    if (!src) return;
+    var logo = document.getElementById('logo-academia');
+    logo.src = src;
+    logo.style.display = 'block';
+  })();
 
   if (!org) {
     conteudo.innerHTML = '<div class="msg erro">Link incompleto — peça o link certo pra academia.</div>';
