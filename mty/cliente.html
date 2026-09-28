@@ -108,7 +108,11 @@
 <script>
 (function () {
   var params = new URLSearchParams(location.search);
-  var org = params.get('org');
+  /* window.__ORG_FORCADO vem de um domínio próprio de academia (ex:
+     39tennis.com.br), injetado por uma Edge Function do Netlify antes
+     deste script rodar — ver netlify/edge-functions/dominio-personalizado.ts.
+     Só é usado quando a URL não já tem um ?org= explícito. */
+  var org = params.get('org') || window.__ORG_FORCADO || null;
 
   /* ícone/nome ao "adicionar à tela de início" — troca as tags estáticas
      do <head> pelas da academia certa assim que sabemos o org da URL
