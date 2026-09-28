@@ -4,7 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Reservas e inscrições</title>
-<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png" id="link-favicon">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png" id="link-apple-icon">
+<link rel="manifest" href="manifest-cliente.json" id="link-manifest">
+<meta name="theme-color" content="#C8102E" id="meta-theme-color">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Reservas" id="meta-apple-title">
 <style>
   :root{ --papel:#F5F2F0; --tinta:#141210; --verm:#C8102E; --cinza:#6B6461; --linha:#D8D1CB; --verde:#2E4739; --cal:#EFEAE4; }
   *{box-sizing:border-box}
@@ -72,6 +77,35 @@
 (function () {
   var params = new URLSearchParams(location.search);
   var org = params.get('org');
+
+  /* ícone/nome ao "adicionar à tela de início" — troca as tags estáticas
+     do <head> pelas da academia certa assim que sabemos o org da URL
+     (não precisa esperar nenhum fetch). Quem não está nesta tabela
+     (inclusive Team Yoda) fica com o padrão que já está no arquivo. */
+  var ICONES_PWA_POR_ACADEMIA = {
+    '39-ranch': {
+      manifest: 'manifest-cliente-39-ranch.json',
+      appleIcon: 'assets/apple-touch-icon-39-ranch.png',
+      favicon: 'assets/favicon-32-39-ranch.png',
+      titulo: '39 Ranch Tennis Club',
+      corTema: '#1A1712',
+    },
+  };
+  (function aplicarIconesPWA() {
+    var cfg = ICONES_PWA_POR_ACADEMIA[org];
+    if (!cfg) return;
+    var linkManifest = document.getElementById('link-manifest');
+    var linkAppleIcon = document.getElementById('link-apple-icon');
+    var linkFavicon = document.getElementById('link-favicon');
+    var metaTitulo = document.getElementById('meta-apple-title');
+    var metaTema = document.getElementById('meta-theme-color');
+    if (linkManifest) linkManifest.href = cfg.manifest;
+    if (linkAppleIcon) linkAppleIcon.href = cfg.appleIcon;
+    if (linkFavicon) linkFavicon.href = cfg.favicon;
+    if (metaTitulo) metaTitulo.content = cfg.titulo;
+    if (metaTema) metaTema.content = cfg.corTema;
+  })();
+
   var conteudo = document.getElementById('conteudo');
   var navInferior = document.getElementById('nav-inferior');
   var abaAtual = 'inicio';

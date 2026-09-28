@@ -1,0 +1,14 @@
+{
+  "name": "Team Yoda · Reservas e Inscrições",
+  "short_name": "Reservas",
+  "description": "Reserva de quadra e inscrição em torneio/evento, sem precisar de conta",
+  "start_url": "./cliente.html?org=team-yoda",
+  "display": "standalone",
+  "background_color": "#F5F2F0",
+  "theme_color": "#C8102E",
+  "icons": [
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

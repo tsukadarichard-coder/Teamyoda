@@ -6,12 +6,12 @@
 <title>Painel do Treinador</title>
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png">
-<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#C8102E">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png" id="link-apple-icon">
+<link rel="manifest" href="manifest.json" id="link-manifest">
+<meta name="theme-color" content="#C8102E" id="meta-theme-color">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Painel do Treinador">
+<meta name="apple-mobile-web-app-title" content="Painel do Treinador" id="meta-apple-title">
 
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -329,6 +329,34 @@ const TEMAS_POR_ACADEMIA = {
 };
 function aplicarTema(orgId) {
   Object.assign(C, TEMAS_POR_ACADEMIA[orgId] || TEMA_PADRAO);
+}
+
+/* ── ícone de instalação (PWA) por academia ──
+   O <link rel="manifest">, o apple-touch-icon e o nome mostrado ao
+   "adicionar à tela de início" são tags estáticas do <head> — trocamos
+   o atributo delas em runtime, assim que a academia é identificada, pra
+   quem instalar o app depois disso já pegar o ícone certo. Time Yoda é
+   o padrão do próprio arquivo (nada a fazer); academia sem ícone
+   próprio nesta tabela também cai no padrão. */
+const ICONES_PWA_POR_ACADEMIA = {
+  "39-ranch": {
+    manifest: "manifest-39-ranch.json",
+    appleIcon: "assets/apple-touch-icon-39-ranch.png",
+    titulo: "39 Ranch Tennis Club",
+    corTema: "#1A1712",
+  },
+};
+function aplicarIconesPWA(orgId) {
+  const cfg = ICONES_PWA_POR_ACADEMIA[orgId];
+  if (!cfg) return;
+  const linkManifest = document.getElementById("link-manifest");
+  const linkAppleIcon = document.getElementById("link-apple-icon");
+  const metaTitulo = document.getElementById("meta-apple-title");
+  const metaTema = document.getElementById("meta-theme-color");
+  if (linkManifest) linkManifest.href = cfg.manifest;
+  if (linkAppleIcon) linkAppleIcon.href = cfg.appleIcon;
+  if (metaTitulo) metaTitulo.content = cfg.titulo;
+  if (metaTema) metaTema.content = cfg.corTema;
 }
 
 const ARCH = "Archivo, system-ui, sans-serif";
@@ -9901,6 +9929,7 @@ function App() {
       const org = await organizacao();
       setOrgAtual(org);
       aplicarTema(org);
+      aplicarIconesPWA(org);
       try {
         /* força a renovação do token (em vez de usar o que já estava em
            cache) — sem isso, quem acabou de ser promovido a coordenador,
@@ -9936,31 +9965,53 @@ function App() {
     document.title = identidade && identidade.nome ? identidade.nome + " · Painel do Treinador" : "Painel do Treinador";
   }, [identidade]);
 
+  /* trava contra gravar dado errado ao trocar de conta/academia na MESMA
+     aba (sem recarregar a página) — ex.: sair de uma organização e entrar
+     em outra. "carregando" sozinho não bastava: ele só volta a false
+     quando a NOVA leitura termina, mas os efeitos de gravação logo abaixo
+     rodam no MESMO ciclo em que "autenticado"/"orgAtual" mudam, e nesse
+     instante ainda enxergam o "carregando" da leitura ANTERIOR (React só
+     aplica o setCarregando(true) daqui num próximo render) — gravando por
+     uma fração de segundo, na organização nova, os dados que ainda
+     estavam em memória da organização ANTERIOR. Uma ref muda na hora,
+     sem esperar re-render, e os efeitos de gravação abaixo passam a
+     também exigir prontoRef.current.<chave> === true, que só essa mesma
+     leitura (a mais recente) pode marcar. */
+  const prontoRef = useRef({});
   useEffect(() => {
     if (!autenticado || (exigeLogin && !orgAtual)) return;
-    leia("mty:alunos:v2", []).then((a) => { setAlunos(a); setCarregando(false); });
-    leia("mty:turmas:v1", [], true).then((t) => { setTurmas(t); setCarregandoTurmas(false); });
-    leia("mty:exerciciosCustom:v1", [], true).then((ex) => { setExerciciosCustom(ex); setCatalogoCustom(ex); setCarregandoCustom(false); });
-    leia("mty:formacao:v1", [], true).then((m) => { setMembrosFormacao(m); setCarregandoFormacao(false); });
-    leia("mty:quadras:v1", [], true).then((q) => { setQuadras(q); setCarregandoQuadras(false); });
-    leia("mty:reservas:v1", [], true).then((r) => { setReservas(r); setCarregandoReservas(false); });
-    leia("mty:torneios:v1", [], true).then((t) => { setTorneios(t); setCarregandoTorneios(false); });
-    leia("mty:eventos:v1", [], true).then((e) => { setEventos(e); setCarregandoEventos(false); });
+    prontoRef.current = {};
+    setCarregando(true);
+    setCarregandoTurmas(true);
+    setCarregandoCustom(true);
+    setCarregandoFormacao(true);
+    setCarregandoQuadras(true);
+    setCarregandoReservas(true);
+    setCarregandoTorneios(true);
+    setCarregandoEventos(true);
+    leia("mty:alunos:v2", []).then((a) => { setAlunos(a); prontoRef.current.alunos = true; setCarregando(false); });
+    leia("mty:turmas:v1", [], true).then((t) => { setTurmas(t); prontoRef.current.turmas = true; setCarregandoTurmas(false); });
+    leia("mty:exerciciosCustom:v1", [], true).then((ex) => { setExerciciosCustom(ex); setCatalogoCustom(ex); prontoRef.current.exerciciosCustom = true; setCarregandoCustom(false); });
+    leia("mty:formacao:v1", [], true).then((m) => { setMembrosFormacao(m); prontoRef.current.formacao = true; setCarregandoFormacao(false); });
+    leia("mty:quadras:v1", [], true).then((q) => { setQuadras(q); prontoRef.current.quadras = true; setCarregandoQuadras(false); });
+    leia("mty:reservas:v1", [], true).then((r) => { setReservas(r); prontoRef.current.reservas = true; setCarregandoReservas(false); });
+    leia("mty:torneios:v1", [], true).then((t) => { setTorneios(t); prontoRef.current.torneios = true; setCarregandoTorneios(false); });
+    leia("mty:eventos:v1", [], true).then((e) => { setEventos(e); prontoRef.current.eventos = true; setCarregandoEventos(false); });
 }, [autenticado, orgAtual]);
-  useEffect(() => { if (autenticado && !carregando) grave("mty:alunos:v2", alunos); }, [alunos, carregando, autenticado]);
-  useEffect(() => { if (autenticado && !carregandoTurmas) grave("mty:turmas:v1", turmas, true); }, [turmas, carregandoTurmas, autenticado]);
-  useEffect(() => { if (autenticado && !carregandoQuadras) grave("mty:quadras:v1", quadras, true); }, [quadras, carregandoQuadras, autenticado]);
-  useEffect(() => { if (autenticado && !carregandoReservas) grave("mty:reservas:v1", reservas, true); }, [reservas, carregandoReservas, autenticado]);
-  useEffect(() => { if (autenticado && !carregandoTorneios) grave("mty:torneios:v1", torneios, true); }, [torneios, carregandoTorneios, autenticado]);
-  useEffect(() => { if (autenticado && !carregandoEventos) grave("mty:eventos:v1", eventos, true); }, [eventos, carregandoEventos, autenticado]);
-  useEffect(() => { if (autenticado && !carregandoFormacao) grave("mty:formacao:v1", membrosFormacao, true); }, [membrosFormacao, carregandoFormacao, autenticado]);
+  useEffect(() => { if (autenticado && !carregando && prontoRef.current.alunos) grave("mty:alunos:v2", alunos); }, [alunos, carregando, autenticado]);
+  useEffect(() => { if (autenticado && !carregandoTurmas && prontoRef.current.turmas) grave("mty:turmas:v1", turmas, true); }, [turmas, carregandoTurmas, autenticado]);
+  useEffect(() => { if (autenticado && !carregandoQuadras && prontoRef.current.quadras) grave("mty:quadras:v1", quadras, true); }, [quadras, carregandoQuadras, autenticado]);
+  useEffect(() => { if (autenticado && !carregandoReservas && prontoRef.current.reservas) grave("mty:reservas:v1", reservas, true); }, [reservas, carregandoReservas, autenticado]);
+  useEffect(() => { if (autenticado && !carregandoTorneios && prontoRef.current.torneios) grave("mty:torneios:v1", torneios, true); }, [torneios, carregandoTorneios, autenticado]);
+  useEffect(() => { if (autenticado && !carregandoEventos && prontoRef.current.eventos) grave("mty:eventos:v1", eventos, true); }, [eventos, carregandoEventos, autenticado]);
+  useEffect(() => { if (autenticado && !carregandoFormacao && prontoRef.current.formacao) grave("mty:formacao:v1", membrosFormacao, true); }, [membrosFormacao, carregandoFormacao, autenticado]);
   // sincronizado durante o render (não num useEffect): TelaCatalogo e as
   // funções de geração leem TODOS_EXERCICIOS() no mesmo render em que
   // exerciciosCustom muda — um efeito rodaria tarde demais pra isso e o
   // exercício recém-cadastrado só apareceria depois de outro re-render.
   setCatalogoCustom(exerciciosCustom);
   useEffect(() => {
-    if (autenticado && !carregandoCustom) grave("mty:exerciciosCustom:v1", exerciciosCustom, true);
+    if (autenticado && !carregandoCustom && prontoRef.current.exerciciosCustom) grave("mty:exerciciosCustom:v1", exerciciosCustom, true);
   }, [exerciciosCustom, carregandoCustom, autenticado]);
 
   /* pedidos de cadastro parados: só interessa ao coordenador, então nem
