@@ -5113,6 +5113,13 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
     });
   }
 
+  function adicionar(id, e) {
+    setPlano((p) => {
+      if (p.daAula) return { ...p, [id]: [...p[id], e] };
+      return p.map((b) => (b.id !== id ? b : { ...b, exercicios: [...b.exercicios, e] }));
+    });
+  }
+
   function registrar() {
     const hoje = new Date().toISOString().slice(0, 10);
     const cods = plano.chuva ? [] : plano.daAula ? [...plano.aquecimento, ...plano.conteudo].map((e) => e.c) : plano.flatMap((b) => b.exercicios.map((e) => e.c));
@@ -5290,7 +5297,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
                 )}
                 <AdicionarExercicioCatalogo
                   jaUsados={new Set([...plano.aquecimento, ...plano.conteudo].map((e) => e.c))}
-                  aoAdicionar={(e) => setPlano((p) => ({ ...p, aquecimento: [...p.aquecimento, e] }))} />
+                  aoAdicionar={(e) => adicionar("aquecimento", e)} />
               </div>
               <div className="mb-6">
                 <h3 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 9 }}>Conteúdo da aula</h3>
@@ -5302,6 +5309,9 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
                       aoAtualizar={(dados) => atualizar("conteudo", i, dados)} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} />
                   ))
                 )}
+                <AdicionarExercicioCatalogo
+                  jaUsados={new Set([...plano.aquecimento, ...plano.conteudo].map((e) => e.c))}
+                  aoAdicionar={(e) => adicionar("conteudo", e)} />
               </div>
             </>
           ) : (
@@ -5334,6 +5344,9 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
                     <CartaoExercicio key={e.c} e={e} aoTrocar={() => trocar(b.id, i)} aoRemover={() => remover(b.id, i)}
                       aoAtualizar={(dados) => atualizar(b.id, i, dados)} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} />
                   ))}
+                  <AdicionarExercicioCatalogo
+                    jaUsados={new Set(plano.flatMap((x) => x.exercicios.map((e) => e.c)))}
+                    aoAdicionar={(e) => adicionar(b.id, e)} />
                 </div>
               ))}
             </>
@@ -9625,6 +9638,9 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
   function atualizarSessaoTurma(secao, i, atualizado) {
     setSessaoTurma((p) => ({ ...p, [secao]: p[secao].map((e, k) => (k === i ? atualizado : e)) }));
   }
+  function adicionarSessaoTurma(secao, e) {
+    setSessaoTurma((p) => ({ ...p, [secao]: [...p[secao], e] }));
+  }
 
   /* Quando a sessão sai como planejado ("Realizada"): se a turma tem
      plano próprio, avança só ele (uma marcação, pro grupo inteiro). Sem
@@ -9850,7 +9866,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
                 )}
                 <AdicionarExercicioCatalogo
                   jaUsados={new Set([...sessaoTurma.aquecimento, ...sessaoTurma.conteudo].map((e) => e.c))}
-                  aoAdicionar={(e) => setSessaoTurma((p) => ({ ...p, aquecimento: [...p.aquecimento, e] }))} />
+                  aoAdicionar={(e) => adicionarSessaoTurma("aquecimento", e)} />
                 <h3 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, margin: "18px 0 9px" }}>Conteúdo da aula</h3>
                 {sessaoTurma.conteudo.length === 0 ? (
                   <Aviso>Nenhum exercício com bola sobrou desta aula — os códigos ou não existem no catálogo, ou são exercícios sem bola (reservados pra dia de chuva). Confira o Plano.</Aviso>
@@ -9860,6 +9876,9 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
                       aoAtualizar={(dados) => atualizarSessaoTurma("conteudo", i, dados)} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} />
                   ))
                 )}
+                <AdicionarExercicioCatalogo
+                  jaUsados={new Set([...sessaoTurma.aquecimento, ...sessaoTurma.conteudo].map((e) => e.c))}
+                  aoAdicionar={(e) => adicionarSessaoTurma("conteudo", e)} />
               </div>
             )}
           </>
