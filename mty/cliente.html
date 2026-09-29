@@ -71,6 +71,11 @@
     padding:12px 14px; margin-bottom:8px; font-size:13.5px; cursor:default}
   .linha-horario.ocupado{background:var(--papel); color:var(--cinza)}
   .linha-horario.livre-sem-preco{background:var(--papel); color:var(--linha); cursor:pointer; border:none; width:100%; font:inherit; text-align:left}
+  .linha-horario.info{cursor:default}
+  .dia-seletor{display:flex; gap:6px; flex-wrap:wrap; margin:12px 0}
+  .dia-seletor button{border:1px solid var(--linha); background:#fff; color:var(--cinza); border-radius:999px;
+    padding:6px 12px; font:inherit; font-size:12.5px; font-weight:700; cursor:pointer}
+  .dia-seletor button.ativo{background:var(--tinta); border-color:var(--tinta); color:#fff}
   .linha-horario.disponivel{background:#EAF3EC; color:var(--verde); cursor:pointer; border:none; width:100%; font:inherit; text-align:left}
   .linha-horario .valor{font-weight:700}
   .voltar-quadras{background:none; border:none; color:var(--verm); font:inherit; font-size:13px; font-weight:700;
@@ -195,6 +200,11 @@
   var conteudo = document.getElementById('conteudo');
   var navInferior = document.getElementById('nav-inferior');
   var abaAtual = 'inicio';
+
+  var DIAS_SEMANA = [
+    { v: 1, r: 'Seg' }, { v: 2, r: 'Ter' }, { v: 3, r: 'Qua' }, { v: 4, r: 'Qui' },
+    { v: 5, r: 'Sex' }, { v: 6, r: 'Sáb' }, { v: 0, r: 'Dom' },
+  ];
 
   var FAIXAS = (function () {
     var lista = [];
@@ -581,11 +591,71 @@
     },
   };
 
+  /* ── aba Aulas — grade de ocupação, sem identificar quem está em cada
+     horário. Serve pro cliente ver onde a academia já tem aula marcada
+     antes de pedir uma quadra ou horário particular. Só leitura: quem
+     edita é a academia, dentro do painel. */
+  var Aulas = {
+    estado: { diaSelecionado: new Date().getDay(), ocupados: [], carregando: true, erro: null, carregouUmaVez: false },
+    async carregar() {
+      var e = this.estado;
+      e.carregando = true; e.erro = null;
+      if (abaAtual === 'aulas') this.render();
+      try {
+        var r = await fetch('/.netlify/functions/aulas-grade?org=' + encodeURIComponent(org));
+        var d = await r.json().catch(function () { return {}; });
+        if (!r.ok) throw new Error(d.erro || ('Erro ' + r.status));
+        e.ocupados = d.ocupados || [];
+        if (d.academia) definirTituloAcademia(d.academia);
+      } catch (err) {
+        e.erro = String(err.message || err);
+        e.ocupados = [];
+      }
+      e.carregando = false; e.carregouUmaVez = true;
+      if (abaAtual === 'aulas') this.render();
+    },
+    selecionarDia(dia) {
+      this.estado.diaSelecionado = dia;
+      this.render();
+    },
+    render() {
+      var e = this.estado;
+      if (e.carregando && !e.carregouUmaVez) { conteudo.innerHTML = '<p class="sub">Carregando…</p>'; return; }
+      var html = '<h2>Aulas</h2><p class="sub">Horários já ocupados por aula (sem identificar quem) — o resto está livre.</p>';
+      if (e.erro) { conteudo.innerHTML = html + '<div class="msg erro">' + escapeHtml(e.erro) + '</div>'; return; }
+
+      html += '<div class="dia-seletor">';
+      DIAS_SEMANA.forEach(function (d) {
+        html += '<button data-dia="' + d.v + '" class="' + (e.diaSelecionado === d.v ? 'ativo' : '') + '">' + d.r + '</button>';
+      });
+      html += '</div>';
+
+      html += '<div class="lista-horarios">';
+      for (var i = 0; i < FAIXAS.length - 1; i++) {
+        var hora = FAIXAS[i];
+        var ocupado = e.ocupados.indexOf(e.diaSelecionado + '-' + hora) > -1;
+        if (ocupado) {
+          html += '<div class="linha-horario ocupado"><span>' + hora + '</span><span>Ocupado</span></div>';
+        } else {
+          html += '<div class="linha-horario livre-sem-preco info"><span>' + hora + '</span><span class="valor">Livre</span></div>';
+        }
+      }
+      html += '</div>';
+
+      conteudo.innerHTML = html;
+      var self = this;
+      Array.prototype.forEach.call(conteudo.querySelectorAll('[data-dia]'), function (btn) {
+        btn.onclick = function () { self.selecionarDia(parseInt(btn.getAttribute('data-dia'), 10)); };
+      });
+    },
+  };
+
   function renderInicio() {
     var html = '<div class="sub" style="text-transform:uppercase; letter-spacing:.04em; font-weight:700; font-size:11px">Bem-vindo</div>';
     html += '<h2 style="font-size:20px; margin-bottom:16px">Explore a academia</h2>';
     var itens = [
       { ir: 'reservar', icone: '🎾', titulo: 'Quadras', desc: 'Reserve uma quadra pra jogar' },
+      { ir: 'aulas', icone: '📅', titulo: 'Aulas', desc: 'Veja os horários já ocupados por aula' },
       { ir: 'torneios', icone: '🏆', titulo: 'Torneios & Eventos', desc: 'Veja o que está aberto e inscreva-se' },
       { ir: 'conta', icone: '👤', titulo: 'Sócios', desc: 'Acesse sua área ou torne-se sócio' },
     ];
@@ -612,6 +682,7 @@
   var ABAS = [
     { id: 'inicio', label: 'Início', render: renderInicio },
     { id: 'reservar', label: 'Reservar', render: function () { Reservar.render(); } },
+    { id: 'aulas', label: 'Aulas', render: function () { Aulas.render(); } },
     { id: 'torneios', label: 'Torneios', render: function () { Torneios.render(); } },
     { id: 'conta', label: 'Conta', render: renderConta },
   ];
@@ -636,6 +707,7 @@
   renderInicio();
   Reservar.carregar();
   Torneios.carregar();
+  Aulas.carregar();
 })();
 </script>
 </body>
