@@ -6638,6 +6638,9 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
   const [linkAluno, setLinkAluno] = useState("");
   const [gerandoLink, setGerandoLink] = useState(false);
   const [linkCopiado, setLinkCopiado] = useState(false);
+  const [linksMembros, setLinksMembros] = useState({});
+  const [gerandoMembroId, setGerandoMembroId] = useState(null);
+  const [membroCopiadoId, setMembroCopiadoId] = useState(null);
   const [chuvaAberta, setChuvaAberta] = useState(null);
 
   const plano = entidade.plano;
@@ -7015,6 +7018,40 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
     setTimeout(() => setLinkCopiado(false), 2000);
   }
 
+  /* Numa turma, o link é sempre do JOGADOR (aluno.html não tem versão de
+     grupo) — cada membro tem o próprio, igual ao que já existe fora da
+     turma; isso só evita o treinador ter que sair da turma, achar o
+     jogador em Jogadores e entrar na ficha dele só pra pegar o link. */
+  async function gerarLinkMembro(membro) {
+    setGerandoMembroId(membro.id);
+    try {
+      let chave = membro.linkToken;
+      if (!chave) {
+        chave = MTY.id("aluno");
+        setAlunos(alunos.map((a) => (a.id === membro.id ? { ...a, linkToken: chave } : a)));
+      }
+      const org = await organizacao();
+      const url = location.origin + "/aluno.html?org=" + encodeURIComponent(org || "") +
+        "&id=" + encodeURIComponent(membro.id) + "&t=" + encodeURIComponent(chave);
+      setLinksMembros((l) => ({ ...l, [membro.id]: url }));
+      setMembroCopiadoId(null);
+    } finally {
+      setGerandoMembroId(null);
+    }
+  }
+  async function copiarLinkMembro(membroId) {
+    const url = linksMembros[membroId];
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      const campo = document.getElementById("mty-link-membro-" + membroId);
+      if (campo) { campo.select(); document.execCommand("copy"); }
+    }
+    setMembroCopiadoId(membroId);
+    setTimeout(() => setMembroCopiadoId((id) => (id === membroId ? null : id)), 2000);
+  }
+
   return (
     <div>
       <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "14px 16px" }}>
@@ -7059,6 +7096,28 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                   <Botao pequeno variante="vazio" onClick={copiarLinkAluno}>{linkCopiado ? "✓ copiado" : "Copiar"}</Botao>
                 </div>
               )}
+            </div>
+          )}
+
+          {eTurma && (
+            <div className="mb-5">
+              <div className="mb-2"><Etiqueta>Link para os jogadores (protótipo)</Etiqueta></div>
+              {membros.map((m) => (
+                <div key={m.id} className="flex items-center gap-2 flex-wrap mb-2">
+                  <span style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, minWidth: 100 }}>{m.nome || "Sem nome"}</span>
+                  {!linksMembros[m.id] ? (
+                    <Botao pequeno variante="vazio" onClick={() => gerarLinkMembro(m)}>
+                      {gerandoMembroId === m.id ? "Gerando…" : "Gerar link"}
+                    </Botao>
+                  ) : (
+                    <>
+                      <input id={"mty-link-membro-" + m.id} readOnly value={linksMembros[m.id]} style={{ ...entrada, fontSize: 12, flex: 1, minWidth: 160 }}
+                        onFocus={(e) => e.target.select()} />
+                      <Botao pequeno variante="vazio" onClick={() => copiarLinkMembro(m.id)}>{membroCopiadoId === m.id ? "✓ copiado" : "Copiar"}</Botao>
+                    </>
+                  )}
+                </div>
+              ))}
             </div>
           )}
 
@@ -9663,7 +9722,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
       </div>
 
       {subaba === "plano" ? (
-        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} modo="resumo" papelAtual={papelAtual} uidAtual={uidAtual} />
+        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} alunos={alunos} setAlunos={setAlunos} modo="resumo" papelAtual={papelAtual} uidAtual={uidAtual} />
       ) : subaba === "aulas" ? (
         <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} />
       ) : subaba === "scout" ? (
