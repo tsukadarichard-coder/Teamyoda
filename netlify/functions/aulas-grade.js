@@ -16,6 +16,27 @@ const CHAVE_ALUNOS = "mty:alunos:v2";
 const CHAVE_TURMAS = "mty:turmas:v1";
 const CHAVE_BLOQUEIOS = "mty:bloqueiosAula:v1";
 
+/* Mesma lógica de duração do painel (ver DURACOES_TREINO/minutosDaDuracao
+   em index.html) — duplicada aqui porque esta function roda isolada, sem
+   acesso ao bundle do React. Um treino de 2h precisa aparecer ocupado
+   nas quatro meias horas que ele cobre, não só na que ele começa. */
+function minutosDaDuracao(d) { return { "1h": 60, "1h30": 90, "2h": 120 }[d] || 90; }
+function horaMaisMinutos(hora, minutos) {
+  const [h, m] = hora.split(":").map(Number);
+  const total = h * 60 + m + minutos;
+  const hh = Math.floor(total / 60) % 24, mm = total % 60;
+  return String(hh).padStart(2, "0") + ":" + String(mm).padStart(2, "0");
+}
+function faixasDeMeiaHora(horaInicio, horaFim) {
+  const lista = [];
+  let atual = horaInicio;
+  while (atual < horaFim) {
+    lista.push(atual);
+    atual = horaMaisMinutos(atual, 30);
+  }
+  return lista;
+}
+
 exports.handler = async function (event) {
   try {
     app();
@@ -35,8 +56,14 @@ exports.handler = async function (event) {
     const bloqueios = snapBloqueios.exists ? JSON.parse(snapBloqueios.data().value || "[]") : [];
 
     const ocupados = new Set();
-    turmas.forEach((t) => (t.horarios || []).forEach((h) => ocupados.add(h.dia + "-" + h.hora)));
-    alunos.forEach((a) => (a.horarios || []).forEach((h) => ocupados.add(h.dia + "-" + h.hora)));
+    turmas.forEach((t) => (t.horarios || []).forEach((h) => {
+      const fim = horaMaisMinutos(h.hora, minutosDaDuracao(t.duracaoPadrao));
+      faixasDeMeiaHora(h.hora, fim).forEach((hora) => ocupados.add(h.dia + "-" + hora));
+    }));
+    alunos.forEach((a) => (a.horarios || []).forEach((h) => {
+      const fim = horaMaisMinutos(h.hora, minutosDaDuracao(a.duracaoPadrao));
+      faixasDeMeiaHora(h.hora, fim).forEach((hora) => ocupados.add(h.dia + "-" + hora));
+    }));
     bloqueios.forEach((b) => ocupados.add(b.dia + "-" + b.hora));
 
     return resposta(200, { academia: info.nome || org, ocupados: [...ocupados] });

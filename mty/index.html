@@ -304,6 +304,12 @@ function TODOS_EXERCICIOS() {
    listando todos (TODOS_EXERCICIOS), inclusive pra consulta no Manual —
    só o sorteio automático usa este filtro. */
 function exerciciosParaSorteio() { return TODOS_EXERCICIOS().filter((e) => !e.semBola); }
+/* Aquecimento é sem bola por definição — o corpo entra em movimento antes
+   de qualquer troca. O catálogo só tem 5 exercícios marcados semBola:true
+   (ver linha ~296), então aqui NÃO filtra por família de bloco como o
+   sorteio de conteúdo faz — com um pool tão pequeno, cruzar com família
+   deixaria estágios inteiros sem opção nenhuma pra sortear. */
+function exerciciosSemBola() { return TODOS_EXERCICIOS().filter((e) => e.semBola); }
 
 /* ─────────────────────────── identidade ─────────────────────────── */
 const C = {
@@ -2513,7 +2519,7 @@ function proporcaoTatica(prioridades) {
 function montaGrade({ diasQuadra, periodos, escola, musculacao }) {
   const dias = ["SEG", "TER", "QUA", "QUI", "SEX", "SÁB", "DOM"];
   const ativos = dias.slice(0, Math.min(diasQuadra, 6));
-  const musDias = ["SEG", "QUA", "SEX"].slice(0, musculacao);
+  const musDias = ["SEG", "TER", "QUA", "QUI", "SEX"].slice(0, musculacao);
   const manhaEscola = escola === "manha";
 
   const faixas = [];
@@ -2751,6 +2757,35 @@ const DIAS_SEMANA = [
   { v: 5, r: "Sex" }, { v: 6, r: "Sáb" }, { v: 0, r: "Dom" },
 ];
 function nomeDia(v) { return (DIAS_SEMANA.find((d) => d.v === v) || {}).r || "?"; }
+
+/* ── duração pré-determinada de um horário fixo ──
+   Turma já tinha duracaoPadrao (uma só, valendo pra todos os horários
+   dela); o jogador individual ganha o mesmo campo. É essa duração que
+   diz quanto tempo, a partir do "hora" cadastrado, o horário realmente
+   ocupa — sem isso, tanto a Agenda quanto a Grade de aulas só sabiam o
+   instante em que um treino começa, nunca até quando ele segura a
+   quadra/professor, e um treino de 2h aparecia livre a partir da
+   segunda meia hora. */
+const DURACOES_TREINO = [{ v: "1h", r: "1h" }, { v: "1h30", r: "1h30" }, { v: "2h", r: "2h" }];
+function minutosDaDuracao(d) { return { "1h": 60, "1h30": 90, "2h": 120 }[d] || 90; }
+function horaMaisMinutos(hora, minutos) {
+  const [h, m] = hora.split(":").map(Number);
+  const total = h * 60 + m + minutos;
+  const hh = Math.floor(total / 60) % 24, mm = total % 60;
+  return String(hh).padStart(2, "0") + ":" + String(mm).padStart(2, "0");
+}
+/* Meias horas cobertas por um intervalo [horaInicio, horaFim) — usado
+   tanto pra listar as linhas da grade quanto pra decidir se um horário
+   específico está dentro da faixa ocupada por um compromisso. */
+function faixasDeMeiaHora(horaInicio, horaFim) {
+  const lista = [];
+  let atual = horaInicio;
+  while (atual < horaFim) {
+    lista.push(atual);
+    atual = horaMaisMinutos(atual, 30);
+  }
+  return lista;
+}
 
 /* Formata "prof. X" ou "prof. X · aux. Y" — o segundo treinador de uma
    turma é sempre auxiliar, nunca responsável. */
@@ -3202,6 +3237,37 @@ function Linha({ rotulo, texto, destaque }) {
   );
 }
 
+/* Busca e adiciona um exercício qualquer do catálogo (com bola inclusive)
+   a uma lista da sessão — usado no Aquecimento pra deixar espaço ao
+   treinador que quiser fugir do sorteio sem bola por algum motivo. */
+function AdicionarExercicioCatalogo({ jaUsados, aoAdicionar }) {
+  const [busca, setBusca] = useState("");
+  const [aberto, setAberto] = useState(false);
+  const resultados = useMemo(() => {
+    const t = busca.trim().toLowerCase();
+    if (!t) return [];
+    return TODOS_EXERCICIOS().filter((e) => !jaUsados.has(e.c) && (e.c + " " + e.n).toLowerCase().includes(t)).slice(0, 6);
+  }, [busca, jaUsados]);
+  if (!aberto) {
+    return <Botao pequeno variante="vazio" onClick={() => setAberto(true)}>+ Adicionar exercício do catálogo</Botao>;
+  }
+  return (
+    <div className="mb-3" style={{ background: C.papel, border: "1px solid " + C.linha, padding: "10px 12px" }}>
+      <input style={entrada} value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por código ou nome" autoFocus />
+      {resultados.map((e) => (
+        <button key={e.c} onClick={() => { aoAdicionar(e); setBusca(""); setAberto(false); }} className="w-full text-left"
+          style={{ display: "block", padding: "7px 9px", marginTop: 6, border: "1px solid " + C.linha, borderRadius: 2, background: C.cal, cursor: "pointer" }}>
+          <span style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700 }}>{e.custom ? e.n : e.c + " · " + e.n}</span>
+        </button>
+      ))}
+      {busca.trim() && resultados.length === 0 && <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 6 }}>Nenhum exercício encontrado.</p>}
+      <button onClick={() => { setAberto(false); setBusca(""); }} style={{ ...prosa, fontSize: 12, color: C.grafite, cursor: "pointer", marginTop: 6, border: "none", background: "none", padding: 0 }}>
+        Cancelar
+      </button>
+    </div>
+  );
+}
+
 /* ─────────────────────────── ficha do aluno ─────────────────────────── */
 const NS = "__NAOSEI__";
 const GOLPES_ENTRADA = ["Forehand", "Backhand", "Saque", "Devolução", "Jogo de rede"];
@@ -3379,7 +3445,7 @@ function novoAluno() {
     inicio: "", semanas: 18, competicoes: [{ nome: "", data: "" }],
     diasQuadra: 5, periodos: 2, escola: "noite", musculacao: 3,
     historico: [], registros: [],
-    professorUid: "", professorNome: "", horarios: [],
+    professorUid: "", professorNome: "", horarios: [], duracaoPadrao: "1h30",
     categoria: "", criteriosClassificacao: {}, historicoCategorias: [],
     classificacaoSugeridaEm: null,
   };
@@ -4295,6 +4361,9 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
         <Campo rotulo="Horário fixo de treino" nota="Alimenta a Grade de horário e a Agenda semanal.">
           <EditorHorarios horarios={f.horarios || []} setHorarios={(h) => set("horarios", h)} />
         </Campo>
+        <Campo rotulo="Duração do treino" nota="Cada horário acima ocupa esse tempo inteiro na Agenda e na Grade de aulas — não só o instante em que começa.">
+          <Seletor opcoes={DURACOES_TREINO} valor={f.duracaoPadrao || "1h30"} aoMudar={(v) => set("duracaoPadrao", v)} />
+        </Campo>
         <div className="grid grid-cols-2 gap-3">
           <Campo rotulo="Nascimento"><input type="date" style={entrada} value={f.nascimento} onChange={(e) => set("nascimento", e.target.value)} /></Campo>
           <Campo rotulo="Altura atual / projeção">
@@ -4448,10 +4517,10 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
           ))}
           <Botao pequeno variante="vazio" onClick={() => addLista("competicoes", { nome: "", data: "" })}>+ Competição</Botao>
         </Campo>
-        <Campo rotulo="Dias de quadra por semana"><Seletor opcoes={[3, 4, 5, 6].map((d) => ({ v: d, r: d + " dias" }))} valor={f.diasQuadra} aoMudar={(v) => set("diasQuadra", v)} /></Campo>
+        <Campo rotulo="Dias de quadra por semana"><Seletor opcoes={[1, 2, 3, 4, 5, 6, 7].map((d) => ({ v: d, r: d + " dias" }))} valor={f.diasQuadra} aoMudar={(v) => set("diasQuadra", v)} /></Campo>
         <Campo rotulo="Períodos por dia"><Seletor opcoes={[{ v: 1, r: "Um" }, { v: 2, r: "Dois" }]} valor={f.periodos} aoMudar={(v) => set("periodos", v)} /></Campo>
         <Campo rotulo="Escola"><Seletor opcoes={[{ v: "manha", r: "Manhã" }, { v: "tarde", r: "Tarde" }, { v: "noite", r: "Noite" }, { v: "nao", r: "Não estuda" }]} valor={f.escola} aoMudar={(v) => set("escola", v)} /></Campo>
-        <Campo rotulo="Musculação por semana"><Seletor opcoes={[0, 1, 2, 3].map((n) => ({ v: n, r: String(n) }))} valor={f.musculacao} aoMudar={(v) => set("musculacao", v)} /></Campo>
+        <Campo rotulo="Musculação por semana"><Seletor opcoes={[0, 1, 2, 3, 4, 5].map((n) => ({ v: n, r: String(n) }))} valor={f.musculacao} aoMudar={(v) => set("musculacao", v)} /></Campo>
       </Secao>
 
       <Secao titulo="Nível e trilha de progressão" nota="O estágio já foi definido no topo da ficha. Com o diagnóstico acima preenchido, a sugestão de nível vem dos dados coletados — e a trilha abaixo mostra visualmente onde o jogador está, o que já passou e o caminho até o teto deste estágio.">
@@ -4852,20 +4921,41 @@ function garanteBrincadeira(exerciciosAtuais, evitar, estagio) {
 
 function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual, exerciciosCustom, setExerciciosCustom }) {
   const podeEditar = podeEditarAluno(aluno, papelAtual, uidAtual);
+  const hoje = new Date().toISOString().slice(0, 10);
+  /* A sessão gerada some se ficar só na memória do navegador — celular
+     hiberna, aba fecha, e lá se vai o que já tinha sido montado (e
+     qualquer edição feita nele) sem nunca ter sido registrado de
+     verdade. rascunhoSessao grava esse estado no PRÓPRIO aluno (mesmo
+     mecanismo de qualquer outro dado dele), então ele sobrevive a
+     fechar o app e aparece pra qualquer um que abrir esse jogador,
+     em qualquer aparelho. Expira no fim do dia — um rascunho de ontem
+     não deve ressurgir escondendo o botão de gerar sessão hoje. */
+  const rascunho = aluno.rascunhoSessao && aluno.rascunhoSessao.criadoEm === hoje ? aluno.rascunhoSessao : null;
   const [cicloAtivo, setCiclo] = useState(0);
   const [duracao, setDuracao] = useState(90);
-  const [plano, setPlano] = useState(null);
-  const [divergencias, setDivergencias] = useState([]);
+  const [plano, setPlano] = useState(() => (rascunho ? rascunho.plano : null));
+  const [divergencias, setDivergencias] = useState(() => (rascunho ? rascunho.divergencias : []));
   const [fechando, setFechando] = useState(false);
   const [obs, setObs] = useState({ corrigi: "", ignorei: "", mudaria: "", nota: 3 });
   const [statusAulaPlano, setStatusAulaPlano] = useState("feita");
   const [motivoAulaPlano, setMotivoAulaPlano] = useState("");
-  const [personalizados, setPersonalizados] = useState([]);
+  const [personalizados, setPersonalizados] = useState(() => (rascunho ? rascunho.personalizados : []));
   const PERSONALIZADO_VAZIO = { n: "", m: "", r: "", p: "", x: "", i: "", d: "" };
   const [novoPersonalizado, setNovoPersonalizado] = useState(PERSONALIZADO_VAZIO);
   const [chuvaMenuAberto, setChuvaMenuAberto] = useState(false);
   const [salvo, setSalvo] = useState(null); // null | "plano" | "avulso"
   const ciclos = useMemo(() => montaCiclos(aluno.prioridades, aluno.estagio), [aluno]);
+
+  const rascunhoPrimeiraRef = useRef(true);
+  useEffect(() => {
+    if (rascunhoPrimeiraRef.current) { rascunhoPrimeiraRef.current = false; return; }
+    setAlunos((prev) => prev.map((a) => (a.id !== aluno.id ? a : {
+      ...a, rascunhoSessao: plano ? { plano, personalizados, divergencias, criadoEm: hoje } : null,
+    })));
+  }, [plano, personalizados, divergencias]);
+  function descartarRascunho() {
+    setPlano(null); setPersonalizados([]); setDivergencias([]);
+  }
 
   /* Dia de chuva sem cancelar a aula: a quadra não deu, mas o encontro
      aconteceu — usa um dos quatro modelos prontos (TREINO_CHUVA) como a
@@ -4928,7 +5018,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
     setDivergencias([]);
     if (aulaAtual) {
       const evitar = new Set(aluno.historico.slice(-2).flat());
-      const aquecimento = sorteia(exerciciosParaSorteio().filter((e) => BLOCOS[0].familias.includes(e.f) && e.e.includes(aluno.estagio)), evitar, 1);
+      const aquecimento = sorteia(exerciciosSemBola().filter((e) => e.e.includes(aluno.estagio)), evitar, 2);
       /* !e.semBola aqui também — não só no sorteio: uma aula do Plano
          gerada ANTES desta regra (ou colada à mão) pode ter um código
          sem bola preso no ex[], e olhar só o sorteio automático não
@@ -4973,7 +5063,8 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
       if (p.daAula) {
         const lista = p[id];
         const usados = new Set([...p.aquecimento, ...p.conteudo].map((e) => e.c));
-        const pool = exerciciosParaSorteio().filter((e) => e.e.includes(aluno.estagio) && !usados.has(e.c));
+        const pool = (id === "aquecimento" ? exerciciosSemBola() : exerciciosParaSorteio())
+          .filter((e) => e.e.includes(aluno.estagio) && !usados.has(e.c));
         if (!pool.length) return p;
         const novo = pool[Math.floor(Math.random() * pool.length)];
         const saiu = lista[i];
@@ -5151,6 +5242,14 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
 
       {plano && (
         <div className="mt-7">
+          <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+            <Etiqueta cor={C.quadra}>✓ Sessão salva — continua aqui mesmo se fechar o app ou trocar de aparelho</Etiqueta>
+            {podeEditar && (
+              <button onClick={descartarRascunho} style={{ ...prosa, fontSize: 12, color: C.grafite, cursor: "pointer", border: "none", background: "none", padding: 0 }}>
+                Descartar e gerar outra
+              </button>
+            )}
+          </div>
           {plano.chuva ? (
             (() => {
               const modelo = TREINO_CHUVA.find((m) => m.id === plano.modeloId);
@@ -5189,6 +5288,9 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
                       aoAtualizar={(dados) => atualizar("aquecimento", i, dados)} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} />
                   ))
                 )}
+                <AdicionarExercicioCatalogo
+                  jaUsados={new Set([...plano.aquecimento, ...plano.conteudo].map((e) => e.c))}
+                  aoAdicionar={(e) => setPlano((p) => ({ ...p, aquecimento: [...p.aquecimento, e] }))} />
               </div>
               <div className="mb-6">
                 <h3 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 9 }}>Conteúdo da aula</h3>
@@ -6438,24 +6540,36 @@ function HistoricoRelatorios({ historico, abrirHist, setAbrirHist, removerDoHist
    campos de registro. Extraído pra ser reaproveitado tanto pelas aulas
    programadas quanto pelas aulas de reforço (ver reforcarBloco em
    TelaPlano), que têm o mesmo checklist mas nascem de forma diferente. */
-function CardAulaChecklist({ id, indice, titulo, descricao, selo, status, defineStatus, reg, campo, chuvaAberta, setChuvaAberta, podeEditar = true }) {
+function CardAulaChecklist({ id, indice, titulo, descricao, selo, status, defineStatus, reg, campo, chuvaAberta, setChuvaAberta, podeEditar = true, papelAtual }) {
   const d = reg[id] || {};
   const st = status(id);
   const corStatus = { feita: C.quadra, falta: "#8A2E2E", cancelada: C.saibro }[st] || C.linha;
+  /* Confirmar pela primeira vez (feita/falta/cancelada), e repetir uma
+     aula que ficou falta/cancelada até de fato acontecer, continua sendo
+     do treinador responsável — é o trabalho normal dele, e é assim que
+     aulaEmVigor já trata essas duas: só "feita" tira a aula da fila de
+     pendentes (ver aulaEmVigor). Só MUDAR uma aula que já está "feita"
+     passa a exigir o coordenador: sem isso, qualquer um podia reabrir e
+     reescrever o histórico de uma aula já dada, o que tira a confiança
+     do controle. */
+  const podeMudarStatus = podeEditar && (st !== "feita" || papelAtual === "coordenador");
   return (
     <div style={{ borderBottom: "1px solid " + C.linha, background: st === "feita" ? "#F4F7F4" : st ? "#FBF4F0" : C.cal }}>
       <div className="flex gap-3" style={{ padding: "11px 14px" }}>
         <div className="flex-1">
           <div className="flex gap-1 flex-wrap mb-2">
             {[["feita", "Realizada"], ["falta", "Falta"], ["cancelada", "Cancelada"]].map(([v, r]) => (
-              <button key={v} disabled={!podeEditar} onClick={() => defineStatus(id, v)}
+              <button key={v} disabled={!podeMudarStatus} onClick={() => defineStatus(id, v)}
                 style={{ fontFamily: ARCH, fontSize: 10.5, fontWeight: 700, padding: "4px 8px",
-                  borderRadius: 2, cursor: podeEditar ? "pointer" : "default", opacity: podeEditar ? 1 : 0.6,
+                  borderRadius: 2, cursor: podeMudarStatus ? "pointer" : "default", opacity: podeMudarStatus ? 1 : 0.6,
                   border: "1px solid " + (st === v ? corStatus : C.linha),
                   background: st === v ? corStatus : C.papel,
                   color: st === v ? "#fff" : C.grafite }}>{r}</button>
             ))}
           </div>
+          {st === "feita" && podeEditar && papelAtual !== "coordenador" && (
+            <div className="mb-2"><Etiqueta cor={C.grafite}>Confirmada — só o coordenador pode mudar o status agora</Etiqueta></div>
+          )}
           <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700,
             color: st === "feita" ? C.quadra : C.tinta }}>{indice} · {titulo}</div>
           {descricao && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>{descricao}</p>}
@@ -6993,7 +7107,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                 return (
                   <CardAulaChecklist key={ai} id={id} indice={ai + 1} titulo={au.t} selo={au.selo}
                     status={status} defineStatus={defineStatus} reg={reg} campo={campo}
-                    chuvaAberta={chuvaAberta} setChuvaAberta={setChuvaAberta} podeEditar={podeEditar} />
+                    chuvaAberta={chuvaAberta} setChuvaAberta={setChuvaAberta} podeEditar={podeEditar} papelAtual={papelAtual} />
                 );
               })}
             </div>
@@ -7012,7 +7126,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                   <CardAulaChecklist key={ri} id={"REF" + bi + "-" + ri} indice={"Reforço " + (ri + 1)} titulo="Reforço do bloco"
                     descricao="Os exercícios aparecem ao montar a sessão de hoje pra esta aula."
                     status={status} defineStatus={defineStatus} reg={reg} campo={campo}
-                    chuvaAberta={chuvaAberta} setChuvaAberta={setChuvaAberta} podeEditar={podeEditar} />
+                    chuvaAberta={chuvaAberta} setChuvaAberta={setChuvaAberta} podeEditar={podeEditar} papelAtual={papelAtual} />
                 ))}
               </div>
             );
@@ -9229,7 +9343,7 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual
             <input style={entrada} value={nome} onChange={(e) => setNome(e.target.value)} placeholder="ex: Terça 17h" />
           </Campo>
           <Campo rotulo="Duração padrão">
-            <Seletor opcoes={[{ v: "1h", r: "1h" }, { v: "1h30", r: "1h30" }, { v: "2h", r: "2h" }]} valor={duracao} aoMudar={setDuracao} />
+            <Seletor opcoes={DURACOES_TREINO} valor={duracao} aoMudar={setDuracao} />
           </Campo>
           {professores.length > 0 && (
             <Campo rotulo="Professor responsável">
@@ -9378,6 +9492,12 @@ function TelaScoutTurma({ membros, alunos, setAlunos }) {
 function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, aoRemover, papelAtual, uidAtual, exerciciosCustom, setExerciciosCustom }) {
   const podeEditar = podeEditarTurma(turma, papelAtual, uidAtual);
   const membros = turma.membros.map((id) => alunos.find((a) => a.id === id)).filter(Boolean);
+  const hoje = new Date().toISOString().slice(0, 10);
+  /* Mesma trava de perda que a sessão individual: a sessão de turma
+     gerada some se o celular hibernar antes de registrar — ver
+     rascunhoSessao em TelaSessao. Aqui o rascunho mora na PRÓPRIA
+     turma, visível pra qualquer treinador que abrir essa turma. */
+  const rascunhoTurma = turma.rascunhoSessaoTurma && turma.rascunhoSessaoTurma.criadoEm === hoje ? turma.rascunhoSessaoTurma : null;
   /* Sem plano ainda, a aba Sessão só mostra "esta turma não tem plano" —
      abre direto em Plano pra "gerar os treinos" ser a primeira coisa que
      aparece, em vez de escondido atrás de um link dentro da Sessão. */
@@ -9385,10 +9505,19 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
   const [statusGeral, setStatusGeral] = useState("feita");
   const [motivo, setMotivo] = useState("");
   const [nota, setNota] = useState("");
+  const [obs, setObs] = useState({ corrigi: "", ignorei: "", mudaria: "", nota: 3 });
   const [salvo, setSalvo] = useState(null);
   const [chuvaAberta, setChuvaAberta] = useState(false);
   const [chuvaModeloId, setChuvaModeloId] = useState(null);
-  const [sessaoTurma, setSessaoTurma] = useState(null); // { aquecimento, conteudo } | null — a sessão de hoje da turma, com exercícios de verdade pra rodar em quadra
+  const [sessaoTurma, setSessaoTurma] = useState(() => (rascunhoTurma ? rascunhoTurma.sessaoTurma : null)); // { aquecimento, conteudo } | null — a sessão de hoje da turma, com exercícios de verdade pra rodar em quadra
+
+  const rascunhoTurmaPrimeiraRef = useRef(true);
+  useEffect(() => {
+    if (rascunhoTurmaPrimeiraRef.current) { rascunhoTurmaPrimeiraRef.current = false; return; }
+    setTurmas((prev) => prev.map((t) => (t.id !== turma.id ? t : {
+      ...t, rascunhoSessaoTurma: sessaoTurma ? { sessaoTurma, criadoEm: hoje } : null,
+    })));
+  }, [sessaoTurma]);
 
   const pendencias = turma.pendencias || [];
   const pendenciasAbertas = pendencias.filter((p) => !p.resolvida);
@@ -9404,7 +9533,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
      dava pra "gerar a sessão do dia" de fato, só marcar status depois. */
   function gerarSessaoTurma() {
     const evitar = new Set();
-    const aquecimento = sorteia(exerciciosParaSorteio().filter((e) => BLOCOS[0].familias.includes(e.f) && e.e.some((s) => estagiosTurma.includes(s))), evitar, 1);
+    const aquecimento = sorteia(exerciciosSemBola().filter((e) => e.e.some((s) => estagiosTurma.includes(s))), evitar, 2);
     let conteudo = (aulaTurma.ex || []).map((c) => TODOS_EXERCICIOS().find((e) => e.c === c)).filter((e) => e && !e.semBola);
     const usados = new Set(conteudo.map((e) => e.c));
     const temSaque = conteudo.some((e) => AREAS.saque.busca.test(e.n + " " + e.m));
@@ -9424,7 +9553,8 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
     setSessaoTurma((p) => {
       const lista = p[secao];
       const usados = new Set([...p.aquecimento, ...p.conteudo].map((e) => e.c));
-      const pool = exerciciosParaSorteio().filter((e) => e.e.some((s) => estagiosTurma.includes(s)) && !usados.has(e.c));
+      const pool = (secao === "aquecimento" ? exerciciosSemBola() : exerciciosParaSorteio())
+        .filter((e) => e.e.some((s) => estagiosTurma.includes(s)) && !usados.has(e.c));
       if (!pool.length) return p;
       const novo = pool[Math.floor(Math.random() * pool.length)];
       return { ...p, [secao]: lista.map((e, k) => (k === i ? novo : e)) };
@@ -9447,18 +9577,29 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
   function salvarSessao() {
     const hoje = new Date().toISOString().slice(0, 10);
     const modeloChuva = statusGeral === "chuva" ? TREINO_CHUVA.find((m) => m.id === chuvaModeloId) : null;
-    const obsChuva = modeloChuva ? ("Dia de chuva — " + modeloChuva.nome + ". " + modeloChuva.saida) : "";
+    /* Mesmo esquema da sessão individual: o relatório de fechamento
+       (corrigi/deixei passar/teria montado diferente) também vira a
+       observação da aula no Plano da turma — não só um campo solto no
+       caderno de cada jogador. */
+    const notasSessao = [
+      modeloChuva && ("Dia de chuva — " + modeloChuva.nome + ". " + modeloChuva.saida),
+      obs.corrigi.trim() && ("Corrigi: " + obs.corrigi.trim()),
+      obs.ignorei.trim() && ("Deixei passar: " + obs.ignorei.trim()),
+      obs.mudaria.trim() && ("Teria montado diferente: " + obs.mudaria.trim()),
+    ].filter(Boolean).join(" · ");
     if (statusGeral === "feita" || statusGeral === "chuva") {
       if (turma.plano && aulaTurma && !aulaTurma.gate) {
         setTurmas(turmas.map((t) => t.id !== turma.id ? t : {
-          ...t, regPlano: { ...(t.regPlano || {}), [aulaTurma.id]: { status: "feita", data: hoje, ...(obsChuva ? { obs: obsChuva } : {}) } },
+          ...t, regPlano: { ...(t.regPlano || {}), [aulaTurma.id]: { status: "feita", data: hoje, ...(notasSessao ? { obs: notasSessao } : {}) } },
         }));
       }
       /* Sessão de turma também vira Caderno de cada jogador — antes disso
          uma aula em grupo só marcava status no Plano (ou nem isso), e o
          jogador não acumulava histórico nenhum das aulas em turma, só das
          sessões individuais. Cada membro recebe seu próprio registro,
-         igual ao que TelaSessao grava pra uma aula avulsa. */
+         igual ao que TelaSessao grava pra uma aula avulsa — mesmos campos
+         de anotação (corrigi/ignorei/mudaria/presença), preenchidos uma
+         vez pelo treinador e copiados pra cada jogador do grupo. */
       const cods = sessaoTurma ? [...sessaoTurma.aquecimento, ...sessaoTurma.conteudo].map((e) => e.c) : [];
       const ciclo = modeloChuva ? ("Dia de chuva · " + modeloChuva.nome)
         : aulaTurma ? (turma.nome + " · " + aulaTurma.bloco + " · semana " + aulaTurma.semana + " · " + aulaTurma.t)
@@ -9467,13 +9608,13 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
         if (!turma.membros.includes(a.id)) return a;
         const reg = {
           id: "r" + Date.now() + "-" + a.id, tipo: "sessao", data: hoje, ciclo, turma: turma.nome,
-          duracao: turma.duracaoPadrao, exercicios: cods, exerciciosPersonalizados: [], divergencias: [],
+          duracao: turma.duracaoPadrao, exercicios: cods, exerciciosPersonalizados: [], divergencias: [], ...obs,
           aulaDoPlano: aulaTurma ? aulaTurma.t : null,
         };
         let atualizado = { ...a, historico: [...(a.historico || []), cods], registros: [...(a.registros || []), reg] };
         if (!turma.plano) {
           const prox = aulaEmVigor(a);
-          if (prox) atualizado.regPlano = { ...(a.regPlano || {}), [prox.id]: { status: "feita", data: hoje, ...(obsChuva ? { obs: obsChuva } : {}) } };
+          if (prox) atualizado.regPlano = { ...(a.regPlano || {}), [prox.id]: { status: "feita", data: hoje, ...(notasSessao ? { obs: notasSessao } : {}) } };
         }
         return atualizado;
       }));
@@ -9486,6 +9627,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
     setSalvo(statusGeral);
     setChuvaModeloId(null);
     setSessaoTurma(null);
+    setObs({ corrigi: "", ignorei: "", mudaria: "", nota: 3 });
   }
 
   function marcarResolvida(id) {
@@ -9630,6 +9772,14 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
               <div className="mb-5"><Botao onClick={gerarSessaoTurma} variante="saibro">Gerar sessão de hoje</Botao></div>
             ) : (
               <div className="mb-5">
+                <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+                  <Etiqueta cor={C.quadra}>✓ Sessão salva — continua aqui mesmo se fechar o app ou trocar de aparelho</Etiqueta>
+                  {podeEditar && (
+                    <button onClick={() => setSessaoTurma(null)} style={{ ...prosa, fontSize: 12, color: C.grafite, cursor: "pointer", border: "none", background: "none", padding: 0 }}>
+                      Descartar e gerar outra
+                    </button>
+                  )}
+                </div>
                 <h3 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 9 }}>Aquecimento</h3>
                 {sessaoTurma.aquecimento.length === 0 ? (
                   <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Nenhum exercício de base motora encontrado pros estágios desta turma.</p>
@@ -9639,6 +9789,9 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
                       aoAtualizar={(dados) => atualizarSessaoTurma("aquecimento", i, dados)} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} />
                   ))
                 )}
+                <AdicionarExercicioCatalogo
+                  jaUsados={new Set([...sessaoTurma.aquecimento, ...sessaoTurma.conteudo].map((e) => e.c))}
+                  aoAdicionar={(e) => setSessaoTurma((p) => ({ ...p, aquecimento: [...p.aquecimento, e] }))} />
                 <h3 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, margin: "18px 0 9px" }}>Conteúdo da aula</h3>
                 {sessaoTurma.conteudo.length === 0 ? (
                   <Aviso>Nenhum exercício com bola sobrou desta aula — os códigos ou não existem no catálogo, ou são exercícios sem bola (reservados pra dia de chuva). Confira o Plano.</Aviso>
@@ -9683,6 +9836,28 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
         </>
       )}
 
+      {(statusGeral === "feita" || statusGeral === "chuva") && (
+        <div className="mt-6" style={{ background: C.cal, border: "1px solid " + C.linha, padding: 15 }}>
+          <div className="mb-3"><Etiqueta cor={C.saibro}>Fechamento da sessão — vai pro caderno de cada jogador do grupo</Etiqueta></div>
+          <Campo rotulo="O que corrigi hoje">
+            <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, resize: "vertical" }} value={obs.corrigi}
+              onChange={(e) => setObs({ ...obs, corrigi: e.target.value })} placeholder="Em que camada estava a causa" />
+          </Campo>
+          <Campo rotulo="O que vi e deixei passar" nota="O campo mais valioso do registro: o que você escolheu ignorar hoje, e por quê.">
+            <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, resize: "vertical" }} value={obs.ignorei}
+              onChange={(e) => setObs({ ...obs, ignorei: e.target.value })} />
+          </Campo>
+          <Campo rotulo="O que eu teria montado diferente" nota="Se a proposta não servia, escreva o que serviria. É isso que corrige as regras.">
+            <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, resize: "vertical" }} value={obs.mudaria}
+              onChange={(e) => setObs({ ...obs, mudaria: e.target.value })} />
+          </Campo>
+          <Campo rotulo="Presença geral do grupo na sessão">
+            <Seletor opcoes={[1, 2, 3, 4, 5].map((n) => ({ v: n, r: String(n) }))} valor={obs.nota}
+              aoMudar={(v) => setObs({ ...obs, nota: v })} />
+          </Campo>
+        </div>
+      )}
+
       <div className="flex gap-2 items-center mt-4 flex-wrap">
         <Botao onClick={salvarSessao} disabled={!podeEditar || (statusGeral === "chuva" && !chuvaModeloId)}>Salvar sessão</Botao>
         <Botao variante="vazio" disabled={!podeEditar} onClick={aoRemover}>Remover turma</Botao>
@@ -9704,12 +9879,14 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
 function compromissosDaSemana(alunos, turmas) {
   const lista = [];
   turmas.forEach((t) => (t.horarios || []).forEach((h) => lista.push({
-    tipo: "turma", dia: h.dia, hora: h.hora, titulo: t.nome, detalhe: t.duracaoPadrao,
+    tipo: "turma", dia: h.dia, hora: h.hora, horaFim: horaMaisMinutos(h.hora, minutosDaDuracao(t.duracaoPadrao)),
+    titulo: t.nome, detalhe: t.duracaoPadrao,
     professorUid: t.professorUid || "", professorNome: t.professorNome || "",
     professorAuxiliarUid: t.professorAuxiliarUid || "", professorAuxiliarNome: t.professorAuxiliarNome || "",
   })));
   alunos.forEach((a) => (a.horarios || []).forEach((h) => lista.push({
-    tipo: "individual", dia: h.dia, hora: h.hora, titulo: a.nome || "Sem nome", detalhe: "particular",
+    tipo: "individual", dia: h.dia, hora: h.hora, horaFim: horaMaisMinutos(h.hora, minutosDaDuracao(a.duracaoPadrao)),
+    titulo: a.nome || "Sem nome", detalhe: a.duracaoPadrao || "1h30",
     professorUid: a.professorUid || "", professorNome: a.professorNome || "",
   })));
   return lista.sort((x, y) => x.dia - y.dia || x.hora.localeCompare(y.hora));
@@ -9729,7 +9906,9 @@ function novoBloqueioAula() {
 function gradeAulasDetalhe(alunos, turmas, bloqueiosAula) {
   const mapa = {};
   compromissosDaSemana(alunos, turmas).forEach((c) => {
-    mapa[chaveGradeAula(c.dia, c.hora)] = { ocupado: true, bloqueio: null };
+    faixasDeMeiaHora(c.hora, c.horaFim).forEach((hora) => {
+      mapa[chaveGradeAula(c.dia, hora)] = { ocupado: true, bloqueio: null };
+    });
   });
   bloqueiosAula.forEach((b) => {
     mapa[chaveGradeAula(b.dia, b.hora)] = { ocupado: true, bloqueio: b };
@@ -10104,7 +10283,7 @@ function TelaAgenda({ alunos, turmas, uidAtual, exigeLogin }) {
     ? todos
     : todos.filter((c) => !c.professorUid || c.professorUid === uidAtual || c.professorAuxiliarUid === uidAtual);
 
-  const horas = [...new Set(compromissos.map((c) => c.hora))].sort();
+  const horas = [...new Set(compromissos.flatMap((c) => faixasDeMeiaHora(c.hora, c.horaFim)))].sort();
 
   return (
     <div>
@@ -10159,13 +10338,19 @@ function TelaAgenda({ alunos, turmas, uidAtual, exigeLogin }) {
                 <tr key={hora}>
                   <td style={{ ...celulaGrade, fontFamily: ARCH, fontSize: 12, fontWeight: 700, color: C.grafite, whiteSpace: "nowrap" }}>{hora}</td>
                   {DIAS_SEMANA.map((d) => {
-                    const aqui = compromissos.filter((c) => c.dia === d.v && c.hora === hora);
+                    const aqui = compromissos.filter((c) => c.dia === d.v && c.hora <= hora && hora < c.horaFim);
                     return (
                       <td key={d.v} style={{ ...celulaGrade, minWidth: 110 }}>
                         {aqui.map((c, i) => (
                           <div key={i} className="mb-1" style={{ fontSize: 11.5, lineHeight: 1.3 }}>
-                            <div style={{ fontWeight: 700 }}>{c.titulo}</div>
-                            <div style={{ color: C.grafite }}>{c.professorNome || "sem professor"}{c.professorAuxiliarNome ? " + " + c.professorAuxiliarNome : ""}</div>
+                            {c.hora === hora ? (
+                              <>
+                                <div style={{ fontWeight: 700 }}>{c.titulo}</div>
+                                <div style={{ color: C.grafite }}>{c.professorNome || "sem professor"}{c.professorAuxiliarNome ? " + " + c.professorAuxiliarNome : ""}</div>
+                              </>
+                            ) : (
+                              <div style={{ color: C.grafite, fontStyle: "italic" }}>↕ {c.titulo}</div>
+                            )}
                           </div>
                         ))}
                       </td>
@@ -10186,7 +10371,7 @@ function TelaAgenda({ alunos, turmas, uidAtual, exigeLogin }) {
               {doDia.map((c, i) => (
                 <div key={i} style={{ background: C.cal, border: "1px solid " + C.linha, padding: "10px 13px", marginBottom: 6 }}>
                   <div className="flex items-center justify-between gap-3">
-                    <div style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{c.hora} · {c.titulo}</div>
+                    <div style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{c.hora}–{c.horaFim} · {c.titulo}</div>
                     <Etiqueta>{c.detalhe}</Etiqueta>
                   </div>
                   <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>
