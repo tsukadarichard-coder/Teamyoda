@@ -6065,7 +6065,10 @@ function exportarCadernoPDF(a, identidade) {
     '<div class="sub">' + escaparHTML(a.nome || "sem nome") + ' · estágio ' + escaparHTML(a.estagio) + ' · nível ' + escaparHTML(a.nivel) + ' · ' + regs.length + ' registros</div>' +
     sessHTML + jogosHTML + semanasHTML + medHTML +
     '<p class="rodape">Material de campo. Serve para corrigir o método, não para julgar o jogador.</p>' +
-    '<button class="no-print" onclick="window.print()" style="margin-top:20px;padding:10px 16px;font-weight:700;cursor:pointer">Salvar como PDF / Imprimir</button>' +
+    '<div class="no-print" style="margin-top:20px;display:flex;gap:10px">' +
+    '<button onclick="window.print()" style="padding:10px 16px;font-weight:700;cursor:pointer">Salvar como PDF / Imprimir</button>' +
+    '<button onclick="window.close()" style="padding:10px 16px;font-weight:700;cursor:pointer;background:transparent;border:1px solid #14121055">← Voltar ao app</button>' +
+    '</div>' +
     '</body></html>'
   );
   janela.document.close();
@@ -6591,7 +6594,10 @@ function exportarRelatorioPDF(h, nomeEntidade, identidade) {
       new Date(h.data).toLocaleDateString("pt-BR") + ' · ' + h.feitas + ' de ' + h.total + ' aulas</div>' +
     (criteriosHTML ? '<h2>Critérios de saída</h2>' + criteriosHTML : "") +
     '<h2>Relatório completo</h2>' + formatarRelatorioHTML(h.texto) +
-    '<button class="no-print" onclick="window.print()" style="margin-top:20px;padding:10px 16px;font-weight:700;cursor:pointer">Salvar como PDF / Imprimir</button>' +
+    '<div class="no-print" style="margin-top:20px;display:flex;gap:10px">' +
+    '<button onclick="window.print()" style="padding:10px 16px;font-weight:700;cursor:pointer">Salvar como PDF / Imprimir</button>' +
+    '<button onclick="window.close()" style="padding:10px 16px;font-weight:700;cursor:pointer;background:transparent;border:1px solid #14121055">← Voltar ao app</button>' +
+    '</div>' +
     '</body></html>'
   );
   janela.document.close();
