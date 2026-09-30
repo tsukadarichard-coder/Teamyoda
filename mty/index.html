@@ -3038,112 +3038,98 @@ function LegendaNiveis({ nivelInicial }) {
   );
 }
 
-/* ── trilha de classificação, por jogador ──
-   Mostra onde o jogador está e o que falta pra próxima categoria — a
-   marcação fica presa ao par (estágio, categoria) atual: trocar de
-   categoria começa um checklist novo, do jeito que uma trilha real
-   funciona (não dá pra "voltar" um critério de um degrau já passado). */
+/* ── questionário de classificação, por jogador ──
+   Todos os degraus do estágio aparecem de uma vez, em ordem (Y1 pra
+   cima) — um questionário, não uma trilha em que cada degrau só
+   libera o próximo. O treinador vai marcando o que já observou em
+   qualquer um deles; o nível do jogador é calculado ao vivo, sempre:
+   sobe de degrau em degrau, sem pular nenhum — o último 100% marcado,
+   em sequência a partir do primeiro. Marcar um critério de um degrau
+   mais adiante não "adianta" nada sozinho: o nível só sobe quando os
+   degraus anteriores também estiverem completos. */
 function TrilhaClassificacao({ f, set }) {
   const lista = categoriasDoEstagio(f.estagio);
   if (lista.length === 0) return null;
-
-  const semSubdivisao = lista.length === 1 && lista[0].id === f.estagio;
-  const { atual, feitos, total, completo } = statusTrilha(f);
-  const idxAtual = lista.findIndex((c) => c.id === atual.id);
-  const proxima = !semSubdivisao && idxAtual >= 0 && idxAtual < lista.length - 1 ? lista[idxAtual + 1] : null;
   const marcados = f.criteriosClassificacao || {};
 
-  function alternar(i) {
-    const chave = atual.id + ":" + i;
+  function alternar(categoriaId, i) {
+    const chave = categoriaId + ":" + i;
     set("criteriosClassificacao", { ...marcados, [chave]: !marcados[chave] });
   }
 
-  /* O Nível (Y1–Y6) não existe mais como escolha manual em lugar nenhum
-     da ficha — não há seletor Y1..Y6 pra clicar. Ele é sempre o
-     nivelSugerido da categoria em que o jogador está agora, sincronizado
-     sozinho aqui. Mudar a categoria (pela lista abaixo, pelo botão
-     "Avançar", ou pelo Estágio lá em cima) já move o nível junto; o
-     treinador só clica nos critérios que observa em quadra — decidir a
-     letra/número nunca é um passo separado que sobra pra ele. */
-  useEffect(() => {
-    if (atual.nivelSugerido && f.nivel !== atual.nivelSugerido) {
-      set("nivel", atual.nivelSugerido);
-    }
-    if (f.categoria !== atual.id) {
-      set("categoria", atual.id);
-    }
-  }, [atual.id, atual.nivelSugerido]);
-
-  function registrarSalto(novaCategoriaId, novoEstagio) {
-    if (novoEstagio) set("estagio", novoEstagio);
-    if (novaCategoriaId) set("categoria", novaCategoriaId);
-    set("historicoCategorias", [...(f.historicoCategorias || []), { data: new Date().toISOString().slice(0, 10), de: atual.nome }]);
+  function completoNaCategoria(cat) {
+    return cat.criterios.every((_, i) => !!marcados[cat.id + ":" + i]);
   }
+
+  let nivelAlcancado = null;
+  let categoriaAtual = lista[0].id;
+  for (const cat of lista) {
+    if (completoNaCategoria(cat)) {
+      nivelAlcancado = cat.nivelSugerido || nivelAlcancado;
+      categoriaAtual = cat.id;
+    } else {
+      categoriaAtual = cat.id;
+      break;
+    }
+  }
+  const tudoCompleto = lista.every(completoNaCategoria);
+  const nivelFinal = nivelAlcancado || lista[0].nivelSugerido;
+
+  /* O Nível (Y1–Y6) não existe como escolha manual em lugar nenhum da
+     ficha — é sempre o resultado do questionário acima, sincronizado
+     sozinho aqui a cada clique. */
+  useEffect(() => {
+    if (nivelFinal && f.nivel !== nivelFinal) set("nivel", nivelFinal);
+    if (f.categoria !== categoriaAtual) set("categoria", categoriaAtual);
+  }, [categoriaAtual, nivelFinal]);
 
   return (
     <div className="mb-5">
-      {!semSubdivisao && (
-        <Campo rotulo="Categoria dentro do estágio">
-          <Seletor opcoes={lista.map((c) => ({ v: c.id, r: c.nome }))} valor={atual.id} aoMudar={(v) => set("categoria", v)} />
-        </Campo>
-      )}
-      <div style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + (completo ? C.quadra : C.saibro), padding: "13px 15px" }}>
-        <div className="flex items-baseline justify-between gap-3 flex-wrap mb-1">
-          <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{atual.nome}</span>
-          <Etiqueta cor={completo ? C.quadra : C.grafite}>{feitos} de {atual.criterios.length} critérios</Etiqueta>
-        </div>
-        <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>{atual.foco}</p>
-        {atual.nivelSugerido && (
-          <p style={{ ...prosa, fontSize: 12, color: completo ? C.quadra : C.grafite, fontWeight: completo ? 700 : 400, marginBottom: 10 }}>
-            {completo
-              ? "✓ Todos os critérios marcados — nível confirmado em " + atual.nivelSugerido + "."
-              : "Nível desta ficha, pelos critérios já marcados: " + atual.nivelSugerido + " (não existe escolha manual — só o que for clicado abaixo)."}
-          </p>
-        )}
-        {atual.criterios.map((cr, i) => {
-          const feito = !!marcados[atual.id + ":" + i];
-          return (
-            <div key={i} onClick={() => alternar(i)}
-              style={{ background: feito ? "#F4F7F4" : C.papel, border: "1px solid " + C.linha,
-                borderLeft: "3px solid " + (feito ? C.quadra : C.linha), padding: "9px 12px", marginBottom: 6, cursor: "pointer" }}>
-              <div className="flex items-start gap-3">
-                <span style={{ fontFamily: ARCH, fontSize: 15, lineHeight: 1.3, color: feito ? C.quadra : C.grafite }}>{feito ? "☑" : "☐"}</span>
-                <p style={{ ...prosa, fontSize: 12.5 }}>{cr}</p>
-              </div>
+      <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 14 }}>
+        Vá marcando, em cada degrau abaixo, os critérios que você já observou do jogador em quadra
+        — em três ocasiões distintas, em aulas diferentes. Vale para todos os degraus de uma vez, na
+        ordem em que aparecem; o resultado, ao final, é calculado sozinho.
+      </p>
+      {lista.map((cat) => {
+        const feitos = cat.criterios.filter((_, i) => !!marcados[cat.id + ":" + i]).length;
+        const completo = feitos === cat.criterios.length;
+        return (
+          <div key={cat.id} className="mb-4" style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + (completo ? C.quadra : C.saibro), padding: "13px 15px" }}>
+            <div className="flex items-baseline justify-between gap-3 flex-wrap mb-1">
+              <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{cat.nome}</span>
+              <Etiqueta cor={completo ? C.quadra : C.grafite}>{feitos} de {cat.criterios.length} critérios</Etiqueta>
             </div>
-          );
-        })}
-        <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginTop: 4 }}>
-          Marque um critério só depois de observá-lo em três ocasiões distintas, em aulas diferentes.
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>{cat.foco}</p>
+            {cat.criterios.map((cr, i) => {
+              const feito = !!marcados[cat.id + ":" + i];
+              return (
+                <div key={i} onClick={() => alternar(cat.id, i)}
+                  style={{ background: feito ? "#F4F7F4" : C.papel, border: "1px solid " + C.linha,
+                    borderLeft: "3px solid " + (feito ? C.quadra : C.linha), padding: "9px 12px", marginBottom: 6, cursor: "pointer" }}>
+                  <div className="flex items-start gap-3">
+                    <span style={{ fontFamily: ARCH, fontSize: 15, lineHeight: 1.3, color: feito ? C.quadra : C.grafite }}>{feito ? "☑" : "☐"}</span>
+                    <p style={{ ...prosa, fontSize: 12.5 }}>{cr}</p>
+                  </div>
+                </div>
+              );
+            })}
+            {cat.notaEscada && (
+              <div className="mt-2" style={{ background: C.papel, borderLeft: "3px solid " + C.quadra, padding: "8px 11px" }}>
+                <p style={{ ...prosa, fontSize: 12 }}>{cat.notaEscada}</p>
+              </div>
+            )}
+          </div>
+        );
+      })}
+      <div style={{ background: C.tinta, padding: "15px 17px" }}>
+        <Etiqueta cor="#fff">Nível do jogador, pelo questionário</Etiqueta>
+        <p style={{ fontFamily: ARCH, fontSize: 26, fontWeight: 700, color: "#fff", marginTop: 4 }}>{nivelFinal}</p>
+        <p style={{ ...prosa, fontSize: 12.5, color: "#D8D3CC", marginTop: 4 }}>
+          {tudoCompleto
+            ? "Todos os degraus deste estágio foram marcados — teto da trilha aqui. A evolução a partir daqui é por refinamento técnico."
+            : "Sobe sozinho conforme os degraus acima forem completados, em ordem — sem pular nenhum."}
         </p>
-        {atual.notaEscada && (
-          <div className="mt-2" style={{ background: C.papel, borderLeft: "3px solid " + C.quadra, padding: "8px 11px" }}>
-            <p style={{ ...prosa, fontSize: 12 }}>{atual.notaEscada}</p>
-          </div>
-        )}
-
-        {completo && (proxima || (semSubdivisao && atual.proximoEstagio)) && (
-          <div className="mt-3">
-            <Botao pequeno onClick={() => registrarSalto(
-              proxima ? proxima.id : null,
-              semSubdivisao ? atual.proximoEstagio : null
-            )}>
-              Avançar para {proxima ? proxima.nome : ESTAGIOS.find((e) => e.s === atual.proximoEstagio).n}
-            </Botao>
-          </div>
-        )}
-        {completo && !proxima && !(semSubdivisao && atual.proximoEstagio) && (
-          <p style={{ ...prosa, fontSize: 12.5, color: C.quadra, marginTop: 8, fontWeight: 600 }}>
-            Teto desta trilha — a partir daqui a evolução é pelo refinamento técnico, não por um novo degrau.
-          </p>
-        )}
       </div>
-
-      {(f.historicoCategorias || []).length > 0 && (
-        <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginTop: 8 }}>
-          Trilha percorrida: {f.historicoCategorias.map((h) => h.de).join(" → ")} → {atual.nome}
-        </p>
-      )}
     </div>
   );
 }
@@ -3473,7 +3459,7 @@ function novoAluno() {
     diasQuadra: 5, periodos: 2, escola: "noite", musculacao: 3,
     historico: [], registros: [],
     professorUid: "", professorNome: "", horarios: [], duracaoPadrao: "1h30",
-    categoria: "", criteriosClassificacao: {}, historicoCategorias: [],
+    categoria: "", criteriosClassificacao: {},
     classificacaoSugeridaEm: null,
   };
 }
@@ -3670,16 +3656,15 @@ function CardAulaEmVigor({ aluno, aoClicar, aoAbrirAulas }) {
   );
 }
 
-/* Trilha de classificação, no topo do jogador — pra ele (e o professor)
-   verem de cara onde está, e MEXEREM ali mesmo: marcar um critério
-   observado hoje não deveria exigir entrar na ficha e depois salvar.
-   Grava direto no aluno (como o Plano já faz), sem passar por um
-   buffer de edição. TrilhaClassificacao é genérico o bastante pra
-   aceitar o aluno no lugar do buffer da ficha (f/set). */
-function CardTrilha({ aluno, aoMudar, aoAbrirFicha }) {
+/* Trilha de classificação, no topo do jogador — só um resumo visual (o
+   caminho percorrido/a percorrer) pra ele e o professor verem de cara
+   onde está, sem editar nada aqui. Marcar critério é um passo da Ficha
+   agora (o questionário de classificação, logo depois do tipo do
+   aluno) — não faz sentido ter dois lugares diferentes clicáveis
+   mexendo na mesma marcação ao mesmo tempo. */
+function CardTrilha({ aluno, aoAbrirFicha }) {
   const lista = categoriasDoEstagio(aluno.estagio);
   if (lista.length === 0) return null;
-  const set = (k, v) => aoMudar({ [k]: v });
 
   return (
     <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "11px 14px" }}>
@@ -3692,7 +3677,6 @@ function CardTrilha({ aluno, aoMudar, aoAbrirFicha }) {
         )}
       </div>
       <TrilhaVisual estagio={aluno.estagio} categoria={aluno.categoria} criteriosClassificacao={aluno.criteriosClassificacao} />
-      <TrilhaClassificacao f={aluno} set={set} />
     </div>
   );
 }
@@ -4438,11 +4422,18 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
         )}
       </Secao>
 
-      <Secao titulo="Classificação inicial" nota="É criança, adulto ou juvenil/adulto de competição? Isso decide o catálogo de exercícios e a trilha de progressão usados no resto da ficha.">
+      <Secao titulo="Classificação inicial" nota="É criança, adulto ou juvenil/adulto de competição? Isso decide o catálogo de exercícios e o questionário de nível usados no resto da ficha.">
         <Campo rotulo="Estágio">
           <Seletor opcoes={ESTAGIOS.map((e) => ({ v: e.s, r: e.n }))} valor={f.estagio} aoMudar={(v) => set("estagio", v)} />
         </Campo>
         <Etiqueta cor={C.grafite}>{faseDoEstagio(f.estagio)}</Etiqueta>
+      </Secao>
+
+      <Secao titulo="Questionário de nível (Y1–Y6)" nota="Não existe uma escolha manual de Nível — é sempre o que os critérios marcados abaixo indicam. Vá respondendo em ordem; ao final, o sistema apresenta o nível do jogador sozinho.">
+        <TrilhaVisual estagio={f.estagio} categoria={f.categoria} criteriosClassificacao={f.criteriosClassificacao} />
+        <TrilhaClassificacao f={f} set={set} />
+        <SugestaoClassificacao f={f} set={set} />
+        <LegendaNiveis nivelInicial={f.nivel} />
       </Secao>
 
       <Secao titulo="Diagnóstico — as quatro camadas" nota="A ordem é técnico, físico, tático, mental, e não pode ser invertida (D-01). Cada camada abre a seguinte.">
@@ -4564,13 +4555,6 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
         <Campo rotulo="Períodos por dia"><Seletor opcoes={[{ v: 1, r: "Um" }, { v: 2, r: "Dois" }]} valor={f.periodos} aoMudar={(v) => set("periodos", v)} /></Campo>
         <Campo rotulo="Escola"><Seletor opcoes={[{ v: "manha", r: "Manhã" }, { v: "tarde", r: "Tarde" }, { v: "noite", r: "Noite" }, { v: "nao", r: "Não estuda" }]} valor={f.escola} aoMudar={(v) => set("escola", v)} /></Campo>
         <Campo rotulo="Musculação por semana"><Seletor opcoes={[0, 1, 2, 3, 4, 5].map((n) => ({ v: n, r: String(n) }))} valor={f.musculacao} aoMudar={(v) => set("musculacao", v)} /></Campo>
-      </Secao>
-
-      <Secao titulo="Nível e trilha de progressão" nota="Não existe uma escolha manual de Nível aqui — é sempre o que os critérios marcados abaixo indicam. Clique nos critérios que você já observou em quadra; o Nível (Y1–Y6) é sugerido sozinho a partir disso, e a trilha abaixo mostra visualmente onde o jogador está, o que já passou e o caminho até o teto deste estágio.">
-        <TrilhaVisual estagio={f.estagio} categoria={f.categoria} criteriosClassificacao={f.criteriosClassificacao} />
-        <TrilhaClassificacao f={f} set={set} />
-        <SugestaoClassificacao f={f} set={set} />
-        <LegendaNiveis nivelInicial={f.nivel} />
       </Secao>
 
       <div className="flex items-center gap-2">
@@ -11137,7 +11121,7 @@ function App() {
             </div>
             <h1 style={{ fontFamily: ARCH, fontSize: 25, fontWeight: 700, lineHeight: 1.1 }}>{aberto.nome || "Sem nome"}</h1>
             <div className="mt-2 mb-5"><Etiqueta>{aberto.nivel} · Estágio {aberto.estagio} · {aberto.semanas} semanas · {aberto.historico.length} sessões</Etiqueta></div>
-            <CardTrilha aluno={aberto} aoMudar={(patch) => setAlunos((prev) => prev.map((a) => (a.id === aberto.id ? { ...a, ...patch } : a)))} aoAbrirFicha={() => setSubaba("ficha")} />
+            <CardTrilha aluno={aberto} aoAbrirFicha={() => setSubaba("ficha")} />
             <CardPedidosReposicao aluno={aberto} aoMudar={(patch) => setAlunos((prev) => prev.map((a) => (a.id === aberto.id ? { ...a, ...patch } : a)))} />
             <CardPedidosConteudo aluno={aberto} aoMudar={(patch) => setAlunos((prev) => prev.map((a) => (a.id === aberto.id ? { ...a, ...patch } : a)))} />
             <CardAulaEmVigor aluno={aberto} aoClicar={() => setSubaba("sessao")} aoAbrirAulas={() => setSubaba("aulas")} />
