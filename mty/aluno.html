@@ -313,8 +313,11 @@ function painelEvolucao(d) {
     '</div>';
 }
 
+/* Rótulo neutro pro jogador — "Não atingido" soa como apontar erro; aqui
+   é sempre factual, nunca crítico: o que já ficou pronto e o que ainda
+   está em construção. */
 const NOTA_COR_REL = { sim: '#2E4739', par: '#C9A227', nao: '#C8102E' };
-const NOTA_LABEL_REL = { sim: 'Atingido', par: 'Parcial', nao: 'Não atingido' };
+const NOTA_LABEL_REL = { sim: 'Atingido', par: 'Em andamento', nao: 'Em construção' };
 
 /* Mesma técnica do painel do treinador: sem biblioteca de PDF — abre uma
    aba com HTML limpo e chama a impressão do navegador ("Salvar como PDF"
@@ -464,6 +467,39 @@ function todosHorarios(agenda) {
     ligarEventos(d);
   }
 
+  /* O relatório de ciclo (h.texto) é escrito pra o treinador — carrega
+     critério "não atingido", registro de dor, faltas e observações que
+     podem soar como crítica. O jogador não precisa disso pra ter
+     feedback: só precisa saber o que foi trabalhado. Esta função lê
+     APENAS os blocos de aulas realizadas (as linhas "── BLOCO ──" e os
+     temas de cada uma, na mesma convenção de texto de construirRelatorio
+     em index.html) e ignora todo o resto — nada de dor, falta ou nota. */
+  function resumoFactualCiclo(h) {
+    const linhas = String(h.texto || '').split('\n');
+    const blocos = [];
+    let atual = null;
+    linhas.forEach(function (linhaCrua) {
+      const linha = linhaCrua.trim();
+      const divisorFraco = linha.match(/^─+\s*(.*?)\s*─+$/);
+      if (divisorFraco) { atual = { nome: divisorFraco[1], temas: [] }; blocos.push(atual); return; }
+      if (!atual) return;
+      const m = linha.match(/^Semana\s+\d+\s+·\s+(.+?)\s+·/);
+      if (m && m[1]) atual.temas.push(m[1]);
+    });
+    return blocos.filter(function (b) { return b.temas.length > 0; });
+  }
+
+  function evolucaoFactualHtml(h) {
+    const blocos = resumoFactualCiclo(h);
+    if (!blocos.length) return '';
+    return '<div style="margin-top:8px;padding:10px;background:var(--papel);border-radius:4px">' +
+      '<div style="font-size:11px;font-weight:700;color:var(--cinza);text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px">O que foi trabalhado</div>' +
+      blocos.map(function (b) {
+        return '<p style="font-size:12.5px;margin:0 0 4px;line-height:1.5"><b>' + escapar(b.nome) + ':</b> ' + b.temas.map(escapar).join(', ') + '</p>';
+      }).join('') +
+      '</div>';
+  }
+
   function painelRelatorios(d) {
     const historico = d.historicoRelatorios || [];
     if (!historico.length) return '';
@@ -498,9 +534,10 @@ function todosHorarios(agenda) {
         '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">' +
         '<span style="font-size:12.5px">' + new Date(h.data).toLocaleDateString('pt-BR') + ' · ' + escapar(h.tipo || 'ciclo') + ' · ' + h.feitas + ' de ' + h.total + ' aulas</span>' +
         '<span class="linha-btns" style="margin-top:0">' +
-        '<button class="btn fraco" data-acao="alternar-relatorio" data-id="' + h.id + '">' + (aberto ? 'Fechar' : 'Ver') + '</button>' +
+        '<button class="btn fraco" data-acao="alternar-relatorio" data-id="' + h.id + '">' + (aberto ? 'Fechar' : 'Ver detalhes') + '</button>' +
         '<button class="btn fraco" data-acao="exportar-relatorio-pdf" data-id="' + h.id + '">Exportar PDF</button>' +
         '</span></div>' +
+        evolucaoFactualHtml(h) +
         (aberto ? '<div style="margin-top:8px">' + criteriosHtml +
           '<pre style="white-space:pre-wrap;font-size:11.5px;background:var(--papel);padding:10px;border-radius:4px;margin-top:8px">' + escapar(h.texto) + '</pre></div>' : '') +
         '</div>';
