@@ -2044,6 +2044,16 @@ function categoriasDoEstagio(estagio) {
   return [];
 }
 
+/* A categoria cujo nivelSugerido bate com o nível dado, dentro do
+   estágio dado — usado quando algo de fora (a sugestão por IA) define o
+   nível direto, sem passar pelo checklist: sem isso, a categoria ficaria
+   dessincronizada do nível recém-aplicado, e a ficha voltaria a mostrar
+   dois números diferentes pro mesmo jogador. */
+function categoriaPeloNivel(estagio, nivel) {
+  const achada = categoriasDoEstagio(estagio).find((c) => c.nivelSugerido === nivel);
+  return achada ? achada.id : null;
+}
+
 /* Onde o jogador está na trilha agora, e o que falta marcar pra avançar
    — mesmo cálculo que TrilhaClassificacao usa pra desenhar o checklist,
    só que como dado puro. É isso que faz a classificação virar limitador
@@ -3048,15 +3058,25 @@ function TrilhaClassificacao({ f, set }) {
     set("criteriosClassificacao", { ...marcados, [chave]: !marcados[chave] });
   }
 
-  /* Avançar um degrau da trilha também atualiza o nível (Y1–Y6) pro
-     nivelSugerido do degrau novo — a classificação por critério e a
-     escada de níveis do método são a mesma coisa, não duas fichas que
-     o treinador precisa manter sincronizadas na mão. */
+  /* O Nível (Y1–Y6) não existe mais como escolha manual em lugar nenhum
+     da ficha — não há seletor Y1..Y6 pra clicar. Ele é sempre o
+     nivelSugerido da categoria em que o jogador está agora, sincronizado
+     sozinho aqui. Mudar a categoria (pela lista abaixo, pelo botão
+     "Avançar", ou pelo Estágio lá em cima) já move o nível junto; o
+     treinador só clica nos critérios que observa em quadra — decidir a
+     letra/número nunca é um passo separado que sobra pra ele. */
+  useEffect(() => {
+    if (atual.nivelSugerido && f.nivel !== atual.nivelSugerido) {
+      set("nivel", atual.nivelSugerido);
+    }
+    if (f.categoria !== atual.id) {
+      set("categoria", atual.id);
+    }
+  }, [atual.id, atual.nivelSugerido]);
+
   function registrarSalto(novaCategoriaId, novoEstagio) {
     if (novoEstagio) set("estagio", novoEstagio);
     if (novaCategoriaId) set("categoria", novaCategoriaId);
-    const alvo = proxima || (novoEstagio ? categoriasDoEstagio(novoEstagio)[0] : null);
-    if (alvo && alvo.nivelSugerido) set("nivel", alvo.nivelSugerido);
     set("historicoCategorias", [...(f.historicoCategorias || []), { data: new Date().toISOString().slice(0, 10), de: atual.nome }]);
   }
 
@@ -3073,6 +3093,13 @@ function TrilhaClassificacao({ f, set }) {
           <Etiqueta cor={completo ? C.quadra : C.grafite}>{feitos} de {atual.criterios.length} critérios</Etiqueta>
         </div>
         <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>{atual.foco}</p>
+        {atual.nivelSugerido && (
+          <p style={{ ...prosa, fontSize: 12, color: completo ? C.quadra : C.grafite, fontWeight: completo ? 700 : 400, marginBottom: 10 }}>
+            {completo
+              ? "✓ Todos os critérios marcados — nível confirmado em " + atual.nivelSugerido + "."
+              : "Nível desta ficha, pelos critérios já marcados: " + atual.nivelSugerido + " (não existe escolha manual — só o que for clicado abaixo)."}
+          </p>
+        )}
         {atual.criterios.map((cr, i) => {
           const feito = !!marcados[atual.id + ":" + i];
           return (
@@ -4179,6 +4206,8 @@ function SugestaoClassificacao({ f, set }) {
   function aplicar() {
     if (!sugestao) return;
     set("estagio", sugestao.estagio);
+    const categoriaId = categoriaPeloNivel(sugestao.estagio, sugestao.nivel);
+    if (categoriaId) set("categoria", categoriaId);
     set("nivel", sugestao.nivel);
   }
 
@@ -4234,7 +4263,19 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
      é uma ação deliberada, não o padrão — o que alimenta o plano daqui
      pra frente são os relatórios das aulas, não reedições da ficha. */
   const [editando, setEditando] = useState(!aluno.nome);
-  useEffect(() => { setF(aluno); setEditando(!aluno.nome); }, [aluno.id]);
+  /* O nível já entra corrigido aqui (não só depois, no efeito de
+     TrilhaClassificacao) — do contrário, o efeito de TrilhaClassificacao
+     (que roda no componente FILHO, antes do efeito deste componente PAI
+     na mesma leva de montagem) corrigiria o nível primeiro, e este
+     setF(aluno) rodaria logo em seguida e apagaria a correção, voltando
+     pro nível cru gravado no cadastro. */
+  useEffect(() => {
+    const st = statusTrilha(aluno);
+    const nivelCorrigido = st && st.atual.nivelSugerido ? st.atual.nivelSugerido : aluno.nivel;
+    const categoriaCorrigida = st ? st.atual.id : aluno.categoria;
+    setF({ ...aluno, nivel: nivelCorrigido, categoria: categoriaCorrigida });
+    setEditando(!aluno.nome);
+  }, [aluno.id]);
   const [salvo, setSalvo] = useState(false);
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
   const setCamada = (k, v) => setF((x) => ({ ...x, camadas: { ...x.camadas, [k]: v } }));
@@ -4292,7 +4333,9 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
     // vivo no componente e reabre junto se o treinador clicar em "Editar
     // ficha" de novo. Sem sincronizar `f` aqui, reabrir e salvar sem
     // mexer em nada reverteria estágio/nível pro valor antigo do rascunho.
-    const atualizado = { ...aluno, estagio: sugestaoAuto.estagio, nivel: sugestaoAuto.nivel, fichaAtualizadaEm: new Date().toISOString() };
+    const categoriaId = categoriaPeloNivel(sugestaoAuto.estagio, sugestaoAuto.nivel);
+    const atualizado = { ...aluno, estagio: sugestaoAuto.estagio, nivel: sugestaoAuto.nivel,
+      ...(categoriaId ? { categoria: categoriaId } : {}), fichaAtualizadaEm: new Date().toISOString() };
     salvar(atualizado);
     setF(atualizado);
     setSugestaoAuto(null);
@@ -4343,13 +4386,6 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
 
   return (
     <div>
-      <Secao titulo="Classificação inicial" nota="Antes de tudo: é criança, adulto ou juvenil/adulto de competição? Isso decide o catálogo de exercícios e a trilha de progressão usados no resto da ficha.">
-        <Campo rotulo="Estágio">
-          <Seletor opcoes={ESTAGIOS.map((e) => ({ v: e.s, r: e.n }))} valor={f.estagio} aoMudar={(v) => set("estagio", v)} />
-        </Campo>
-        <Etiqueta cor={C.grafite}>{faseDoEstagio(f.estagio)}</Etiqueta>
-      </Secao>
-
       <Secao titulo="Identificação" nota="F-01 do manual: a ficha de avaliação inicial.">
         <Campo rotulo="Nome"><input style={entrada} value={f.nome} onChange={(e) => set("nome", e.target.value)} placeholder="Nome do jogador ou da turma" /></Campo>
         {professores.length > 0 && (
@@ -4400,6 +4436,13 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
             </Campo>
           </>
         )}
+      </Secao>
+
+      <Secao titulo="Classificação inicial" nota="É criança, adulto ou juvenil/adulto de competição? Isso decide o catálogo de exercícios e a trilha de progressão usados no resto da ficha.">
+        <Campo rotulo="Estágio">
+          <Seletor opcoes={ESTAGIOS.map((e) => ({ v: e.s, r: e.n }))} valor={f.estagio} aoMudar={(v) => set("estagio", v)} />
+        </Campo>
+        <Etiqueta cor={C.grafite}>{faseDoEstagio(f.estagio)}</Etiqueta>
       </Secao>
 
       <Secao titulo="Diagnóstico — as quatro camadas" nota="A ordem é técnico, físico, tático, mental, e não pode ser invertida (D-01). Cada camada abre a seguinte.">
@@ -4523,8 +4566,7 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
         <Campo rotulo="Musculação por semana"><Seletor opcoes={[0, 1, 2, 3, 4, 5].map((n) => ({ v: n, r: String(n) }))} valor={f.musculacao} aoMudar={(v) => set("musculacao", v)} /></Campo>
       </Secao>
 
-      <Secao titulo="Nível e trilha de progressão" nota="O estágio já foi definido no topo da ficha. Com o diagnóstico acima preenchido, a sugestão de nível vem dos dados coletados — e a trilha abaixo mostra visualmente onde o jogador está, o que já passou e o caminho até o teto deste estágio.">
-        <Campo rotulo="Nível"><Seletor opcoes={NIVEIS.map((n) => ({ v: n, r: n }))} valor={f.nivel} aoMudar={(v) => set("nivel", v)} /></Campo>
+      <Secao titulo="Nível e trilha de progressão" nota="Não existe uma escolha manual de Nível aqui — é sempre o que os critérios marcados abaixo indicam. Clique nos critérios que você já observou em quadra; o Nível (Y1–Y6) é sugerido sozinho a partir disso, e a trilha abaixo mostra visualmente onde o jogador está, o que já passou e o caminho até o teto deste estágio.">
         <TrilhaVisual estagio={f.estagio} categoria={f.categoria} criteriosClassificacao={f.criteriosClassificacao} />
         <TrilhaClassificacao f={f} set={set} />
         <SugestaoClassificacao f={f} set={set} />
@@ -11095,9 +11137,9 @@ function App() {
             </div>
             <h1 style={{ fontFamily: ARCH, fontSize: 25, fontWeight: 700, lineHeight: 1.1 }}>{aberto.nome || "Sem nome"}</h1>
             <div className="mt-2 mb-5"><Etiqueta>{aberto.nivel} · Estágio {aberto.estagio} · {aberto.semanas} semanas · {aberto.historico.length} sessões</Etiqueta></div>
-            <CardTrilha aluno={aberto} aoMudar={(patch) => setAlunos(alunos.map((a) => (a.id === aberto.id ? { ...a, ...patch } : a)))} aoAbrirFicha={() => setSubaba("ficha")} />
-            <CardPedidosReposicao aluno={aberto} aoMudar={(patch) => setAlunos(alunos.map((a) => (a.id === aberto.id ? { ...a, ...patch } : a)))} />
-            <CardPedidosConteudo aluno={aberto} aoMudar={(patch) => setAlunos(alunos.map((a) => (a.id === aberto.id ? { ...a, ...patch } : a)))} />
+            <CardTrilha aluno={aberto} aoMudar={(patch) => setAlunos((prev) => prev.map((a) => (a.id === aberto.id ? { ...a, ...patch } : a)))} aoAbrirFicha={() => setSubaba("ficha")} />
+            <CardPedidosReposicao aluno={aberto} aoMudar={(patch) => setAlunos((prev) => prev.map((a) => (a.id === aberto.id ? { ...a, ...patch } : a)))} />
+            <CardPedidosConteudo aluno={aberto} aoMudar={(patch) => setAlunos((prev) => prev.map((a) => (a.id === aberto.id ? { ...a, ...patch } : a)))} />
             <CardAulaEmVigor aluno={aberto} aoClicar={() => setSubaba("sessao")} aoAbrirAulas={() => setSubaba("aulas")} />
             <div className="flex flex-wrap mb-6" style={{ gap: "4px 20px", borderBottom: "1px solid " + C.linha }}>
               {[{ v: "ficha", r: "Ficha" }, { v: "plano", r: "Plano" }, { v: "aulas", r: "Aulas" }, { v: "periodizacao", r: "Periodização" }, { v: "sessao", r: "Sessão de hoje" }, { v: "scout", r: "Scout" }, { v: "registro", r: "Caderno" }].map((t) => (
