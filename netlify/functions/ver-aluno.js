@@ -130,8 +130,16 @@ async function handleGet(event) {
     if (snapT.exists) turmas = JSON.parse(snapT.data().value || "[]");
   } catch (e) { turmas = []; }
 
+  let academiaNome = "";
+  try {
+    const info = await admin.firestore().collection("orgs").doc(org).collection("meta").doc("info").get();
+    if (info.exists) academiaNome = info.data().nome || "";
+  } catch (e) { academiaNome = ""; }
+
   return resposta(200, {
     nome: aluno.nome || "Jogador",
+    academiaNome,
+    nivel: aluno.nivel || null,
     temPlano: !!plano,
     tipoPlano: plano ? plano.tipo || "" : null,
     prioridade: plano ? plano.prioridade || "" : null,

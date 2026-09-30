@@ -127,6 +127,64 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catc
 <script>
 function escapar(s){ return String(s||'').replace(/[&<>"]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
 
+/* Mesma convenção de texto do relatório de ciclo do app do treinador
+   (═══ TÍTULO ═══, ── bloco ──, CAIXA ALTA, indentação como detalhe) —
+   interpretada aqui em HTML de verdade, pra não aparecer cru num <pre>
+   pro aluno. */
+function formatarRelatorioHTML(texto) {
+  const linhas = String(texto || '').split('\n');
+  const partes = [];
+  let paragrafo = [];
+  function fecharParagrafo() {
+    if (paragrafo.length) {
+      partes.push('<p style="margin:0 0 10px;font-size:13px;line-height:1.6">' + paragrafo.join('<br>') + '</p>');
+      paragrafo = [];
+    }
+  }
+  linhas.forEach(function (linhaCrua) {
+    const linha = linhaCrua.trim();
+    if (!linha) { fecharParagrafo(); return; }
+    const divisorForte = linha.match(/^═+\s*(.*?)\s*═+$/);
+    if (divisorForte) {
+      fecharParagrafo();
+      partes.push('<h2 style="font-family:Georgia,serif;font-size:15px;margin:22px 0 10px;padding-bottom:6px;border-bottom:2px solid #C8102E">' + escapar(divisorForte[1]) + '</h2>');
+      return;
+    }
+    const divisorFraco = linha.match(/^─+\s*(.*?)\s*─+$/);
+    if (divisorFraco) {
+      fecharParagrafo();
+      partes.push('<h3 style="font-family:Georgia,serif;font-size:12.5px;margin:16px 0 6px;color:#6B6461;text-transform:uppercase;letter-spacing:.03em">' + escapar(divisorFraco[1]) + '</h3>');
+      return;
+    }
+    if (linha === '---') { fecharParagrafo(); partes.push('<hr style="border:none;border-top:1px solid #D8D1CB;margin:18px 0">'); return; }
+    const soCaixaAlta = linha.length < 80 && /[A-ZÀ-Ú]/.test(linha) && !/[a-zà-ú]/.test(linha);
+    if (soCaixaAlta) {
+      fecharParagrafo();
+      partes.push('<h3 style="font-family:Georgia,serif;font-size:12.5px;margin:16px 0 6px">' + escapar(linha) + '</h3>');
+      return;
+    }
+    const indentado = /^\s{2,}/.test(linhaCrua);
+    if (indentado) {
+      fecharParagrafo();
+      partes.push('<p style="margin:0 0 6px 16px;font-size:12.5px;color:#6B6461;line-height:1.5">' + escapar(linha) + '</p>');
+      return;
+    }
+    paragrafo.push(escapar(linha));
+  });
+  fecharParagrafo();
+  return partes.join('');
+}
+
+/* Mesmo cabeçalho de marca usado no PDF do app do treinador — nome da
+   academia (d.academiaNome) quando o backend consegue achar, senão só
+   a identidade da Metodologia MTY. */
+function cabecalhoRelatorioHTML(academiaNome) {
+  return '<div style="border-bottom:3px solid #C8102E;padding-bottom:10px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:flex-end;gap:10px">' +
+    '<div><div style="font-family:Georgia,serif;font-weight:700;font-size:13px;letter-spacing:.02em">METODOLOGIA MTY</div>' +
+    (academiaNome ? '<div style="font-size:11.5px;color:#6B6461;margin-top:2px">' + escapar(academiaNome) + '</div>' : '') +
+    '</div></div>';
+}
+
 /* Mesma leitura de três estados usada no app do treinador: feita (verde),
    pendente (cinza, neutro) e repetindo — falta/cancelada, ainda vai
    precisar de reposição (vermelho). */
@@ -198,6 +256,63 @@ function graficoEvolucaoSvg(pontos) {
     linha('pctCriterios', 'var(--verde)') + linha('pctAulas', 'var(--tinta)') + '</svg>';
 }
 
+/* A mesma escada Y1–Y6 do método, versão curta pro aluno — a descrição
+   completa (critérios técnicos, o que "ainda não exige" etc.) é pro
+   treinador observar em quadra; aqui o que importa é o jogador entender
+   o caminho inteiro e onde ele está agora, não virar uma segunda ficha
+   técnica. Nomes e "capacidade" batem com NIVEIS_CRITERIOS do app do
+   treinador (duplicado aqui porque esta página roda isolada, sem
+   acesso ao bundle React). */
+const NIVEIS_ESCADA = [
+  { v: 'Y1', nome: 'Descoberta', capacidade: 'Jogar o jogo — sacar, trocar bola e disputar o ponto do início ao fim.' },
+  { v: 'Y2', nome: 'Troca', capacidade: 'Sustentar a troca de bola e começar o ponto com intenção.' },
+  { v: 'Y3', nome: 'Direção', capacidade: 'Escolher para onde a bola vai, e ir à frente na quadra.' },
+  { v: 'Y4', nome: 'Construção', capacidade: 'Construir o ponto em duas bolas, cada uma com um papel definido.' },
+  { v: 'Y5', nome: 'Decisão', capacidade: 'Decidir sob pressão, com padrões que já saem automáticos.' },
+  { v: 'Y6', nome: 'Competição', capacidade: 'Competir com repertório completo, sustentando o plano na partida.' },
+];
+
+/* Escada visual Y1→Y6: de baixo pra cima, como se sobe de verdade —
+   degraus já alcançados em verde, o atual em destaque, os que faltam
+   mais claros (o aluno vê de cara quanto já andou e quanto falta). */
+function escadaNiveisHtml(nivelAtual) {
+  const idxAtual = NIVEIS_ESCADA.findIndex(function (n) { return n.v === nivelAtual; });
+  const ordem = NIVEIS_ESCADA.slice().reverse();
+  return ordem.map(function (n, i) {
+    const idx = NIVEIS_ESCADA.length - 1 - i;
+    const passado = idxAtual >= 0 && idx < idxAtual;
+    const atual = idx === idxAtual;
+    const futuro = idxAtual >= 0 && idx > idxAtual;
+    const cor = passado ? 'var(--verde)' : atual ? 'var(--verm)' : 'var(--linha)';
+    const ehUltimo = i === ordem.length - 1;
+    const proximoIdx = idx - 1;
+    const linhaAlcancada = idxAtual >= 0 && proximoIdx >= 0 && proximoIdx <= idxAtual;
+    return '<div style="display:flex;gap:12px">' +
+      '<div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;width:34px">' +
+      '<div style="width:34px;height:34px;border-radius:999px;flex-shrink:0;background:' + (passado || atual ? cor : '#fff') +
+        ';border:2px solid ' + cor + ';display:flex;align-items:center;justify-content:center;' +
+        'font-family:Georgia,serif;font-weight:700;font-size:12.5px;color:' + (passado || atual ? '#fff' : cor) + '">' +
+        (passado ? '✓' : n.v) + '</div>' +
+      (!ehUltimo ? '<div style="width:2px;flex:1;min-height:18px;background:' + (linhaAlcancada ? 'var(--verde)' : 'var(--linha)') + '"></div>' : '') +
+      '</div>' +
+      '<div style="padding-bottom:' + (ehUltimo ? '0' : '16') + 'px;opacity:' + (futuro ? '.55' : '1') + '">' +
+      '<div style="font-family:Georgia,serif;font-weight:700;font-size:14px">' + n.v + ' · ' + escapar(n.nome) +
+        (atual ? ' <span style="font-size:10px;font-weight:700;background:var(--verm);color:#fff;padding:2px 7px;border-radius:999px;margin-left:3px;vertical-align:middle;white-space:nowrap">VOCÊ ESTÁ AQUI</span>' : '') +
+        '</div>' +
+      '<div style="font-size:12.5px;color:var(--cinza);margin-top:2px">' + escapar(n.capacidade) + '</div>' +
+      '</div></div>';
+  }).join('');
+}
+
+function painelEvolucao(d) {
+  if (!d.nivel) return '';
+  return '<div class="painel">' +
+    '<h2>Sua evolução no método</h2>' +
+    '<p class="desc">O caminho inteiro tem 6 níveis, do primeiro contato com o jogo até competir com repertório completo. Aqui está onde você está agora — e o que vem pela frente.</p>' +
+    escadaNiveisHtml(d.nivel) +
+    '</div>';
+}
+
 const NOTA_COR_REL = { sim: '#2E4739', par: '#C9A227', nao: '#C8102E' };
 const NOTA_LABEL_REL = { sim: 'Atingido', par: 'Parcial', nao: 'Não atingido' };
 
@@ -224,14 +339,14 @@ function exportarRelatorioPDF(d, id) {
     'h1{font-family:Georgia,serif;font-size:20px;margin:0 0 4px}' +
     '.sub{color:#6B6461;font-size:13px;margin-bottom:20px}' +
     'h2{font-family:Georgia,serif;font-size:15px;margin:26px 0 8px}' +
-    'pre{white-space:pre-wrap;font:12.5px/1.5 ui-monospace,monospace;background:#F5F2F0;padding:14px;border-radius:4px}' +
     '@media print { .no-print{display:none} }' +
     '</style></head><body>' +
+    cabecalhoRelatorioHTML(d.academiaNome) +
     '<h1>Relatório de ciclo</h1>' +
     '<div class="sub">' + escapar(d.nome) + ' · ' + escapar(h.tipo || '') + ' · gerado em ' +
       new Date(h.data).toLocaleDateString('pt-BR') + ' · ' + h.feitas + ' de ' + h.total + ' aulas</div>' +
     (criteriosHtml ? '<h2>Critérios de saída</h2>' + criteriosHtml : '') +
-    '<h2>Relatório completo</h2><pre>' + escapar(h.texto) + '</pre>' +
+    '<h2>Relatório completo</h2>' + formatarRelatorioHTML(h.texto) +
     '<button class="no-print" onclick="window.print()" style="margin-top:20px;padding:10px 16px;font-weight:700;cursor:pointer">Salvar como PDF / Imprimir</button>' +
     '</body></html>'
   );
@@ -310,7 +425,7 @@ function todosHorarios(agenda) {
       // sem plano ainda, mas dá pra dizer o que gostaria de trabalhar e
       // mandar feedback — o pedido pode até virar insumo do primeiro plano.
       el.innerHTML = '<header><h1>' + escapar(d.nome) + '</h1><div class="sub">Ainda não há um plano montado para você.</div></header>' +
-        painelRelatorios(d) + painelDuvida(d) + painelFeedback(d) + '<div class="sincronia" id="mty-sincronia"></div>';
+        painelEvolucao(d) + painelRelatorios(d) + painelDuvida(d) + painelFeedback(d) + '<div class="sincronia" id="mty-sincronia"></div>';
       ligarEventos(d);
       return;
     }
@@ -322,6 +437,7 @@ function todosHorarios(agenda) {
     html += '<div class="rosca-wrap">' + rosquinhaSvg(d.aulasFeitas, pendente, repetindo) +
       '<div>' + legendaRosca(d.aulasFeitas, pendente, repetindo) +
       '<div class="progtxt">' + d.aulasFeitas + ' de ' + d.totalAulas + ' aulas</div></div></div>';
+    html += painelEvolucao(d);
 
     let blocoAtual = null, semanaAtual = null;
     d.aulas.forEach(function(a){

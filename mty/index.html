@@ -3448,7 +3448,7 @@ function novoAluno() {
     id: "a" + Date.now(), nome: "", nascimento: "", lateralidade: "destro", backhand: "duas",
     alturaAtual: "", projecaoAltura: "", tipoFisico: "medio", baseMotora: "media",
     contexto: "", estagio: "C", nivel: "Y5", perfilCorpo: "", perfilTemperamento: "",
-    objetivoAdulto: "", disposicaoAdulto: "", comportamentoAdulto: "",
+    objetivosAdulto: [], disposicaoAdulto: "", comportamentoAdulto: "",
     tempoTreinando: "", dificuldadeConsistencia: false,
     entrada: {}, plano: null, regPlano: {}, avaliacaoTecnica: {},
     objetivoFinal: "", marcos: [{ ano: "", marco: "", precisa: "" }],
@@ -3692,6 +3692,16 @@ function armasDoJogador(f) {
   return [];
 }
 
+/* Mesma ideia: fichas salvas antes do objetivo do adulto virar múltipla
+   escolha ainda têm "objetivoAdulto" (string única) em vez de
+   "objetivosAdulto" (array) — um jogador pode jogar simples E duplas,
+   e competir ou não é uma escolha à parte de qual formato ele joga. */
+function objetivosDoAdulto(f) {
+  if (Array.isArray(f.objetivosAdulto) && f.objetivosAdulto.length) return f.objetivosAdulto;
+  if (f.objetivoAdulto) return [f.objetivoAdulto];
+  return [];
+}
+
 function relatorioFicha(a) {
   const e = a.entrada || {};
   const v = (k) => {
@@ -3772,8 +3782,8 @@ function relatorioFicha(a) {
   L.push("Perfil de corpo: " + (a.perfilCorpo || "[não definido]"));
   L.push("Temperamento: " + (a.perfilTemperamento || "[não definido]"));
   if (a.estagio === "A") {
-    const obj = OBJETIVOS_ADULTO.find((o) => o.v === a.objetivoAdulto);
-    L.push("Objetivo (adulto): " + (obj ? obj.r + " — " + obj.d : "[não definido]"));
+    const objs = objetivosDoAdulto(a).map((v) => OBJETIVOS_ADULTO.find((o) => o.v === v)).filter(Boolean);
+    L.push("Objetivo (adulto): " + (objs.length ? objs.map((o) => o.r + " — " + o.d).join(" · ") : "[não definido]"));
   }
   L.push("Prioridades: " + a.prioridades.map((p, i) => (i + 1) + ") " + AREAS[p].nome).join(" · "));
   L.push("Arma(s) do jogador: " + (armasDoJogador(a).map((id) => AREAS[id].nome).join(" · ") || "[não definida]"));
@@ -3858,18 +3868,21 @@ function validarPlanoJSON(alvo) {
    e o tratamento do objetivo declarado (simples/duplas/não compete). */
 function regrasAdulto(a) {
   if (a.estagio !== "A") return [];
-  const obj = OBJETIVOS_ADULTO.find((o) => o.v === a.objetivoAdulto);
+  const objsV = objetivosDoAdulto(a);
   const linhas = [
     "· Jogador adulto: o jogo dele deve ser mais conservador em risco do que o de um juvenil — mas",
     "  o temperamento PRÓPRIO dele (" + (a.perfilTemperamento ? PERFIS_TEMPERAMENTO.find((p) => p.v === a.perfilTemperamento).r : "não definido na ficha") + ") nunca é",
     "  substituído por isso. Ajusta-se o grau de risco tático dentro do estilo dele (mais agressivo",
     "  ou mais defensivo), nunca contra o estilo.",
   ];
-  if (obj && obj.v === "simples") linhas.push("· Objetivo declarado: simples. Ensine os fundamentos gerais do jogo de simples.");
-  if (obj && obj.v === "duplas") linhas.push(
+  if (objsV.includes("simples")) linhas.push("· Objetivo declarado: simples. Ensine os fundamentos gerais do jogo de simples.");
+  if (objsV.includes("duplas")) linhas.push(
     "· Objetivo declarado: duplas. Ensine os fundamentos gerais do jogo de duplas — posicionamento",
     "  de dupla, saque e devolução voltados à subida à rede, comunicação entre os dois.");
-  if (obj && obj.v === "nao") linhas.push(
+  if (objsV.includes("simples") && objsV.includes("duplas")) linhas.push(
+    "· Joga os dois formatos (simples e duplas) — distribua conteúdo dos dois na aula, sem",
+    "  descartar nenhum por causa do outro.");
+  if (objsV.includes("nao")) linhas.push(
     "· Não compete: nada de cobrança de resultado ou de exigência técnica alta — mas ele quer",
     "  aprender e melhorar golpes e tática de verdade. Garanta espaço nas aulas pra jogo (ponto",
     "  aplicado) e treino de controle (consistência/rally), não só exercício isolado.");
@@ -4008,7 +4021,7 @@ function regrasAdultosTurma(membros) {
     "  junto), uma parte ESPECÍFICA (o que cada jogador precisa, mesmo que em estações) e um",
     "  exercício de APLICAÇÃO PRÁTICA (jogo/ponto) pra fechar — descreva isso no campo \"d\" de cada aula.",
   ];
-  const objetivos = new Set(adultos.map((m) => m.objetivoAdulto).filter(Boolean));
+  const objetivos = new Set(adultos.flatMap((m) => objetivosDoAdulto(m)));
   if (objetivos.has("duplas")) linhas.push("· Há jogador(es) com objetivo em duplas: inclua fundamentos gerais de duplas nas estações dele(s).");
   if (objetivos.has("simples")) linhas.push("· Há jogador(es) com objetivo em simples: fundamentos gerais de simples nas estações dele(s).");
   if (objetivos.has("nao")) linhas.push(
@@ -4262,6 +4275,11 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
   }, [aluno.id]);
   const [salvo, setSalvo] = useState(false);
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
+  const objetivosAdultoAtuais = objetivosDoAdulto(f);
+  function alternarObjetivoAdulto(v) {
+    const atuais = objetivosDoAdulto(f);
+    set("objetivosAdulto", atuais.includes(v) ? atuais.filter((x) => x !== v) : [...atuais, v]);
+  }
   const setCamada = (k, v) => setF((x) => ({ ...x, camadas: { ...x.camadas, [k]: v } }));
   const ent = (k) => (f.entrada || {})[k] || "";
   const setEnt = (k, v) => setF((x) => ({ ...x, entrada: { ...(x.entrada || {}), [k]: v } }));
@@ -4468,10 +4486,24 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
         {f.perfilTemperamento && <p style={{ ...prosa, color: C.grafite, fontSize: 13, marginTop: -6, marginBottom: f.estagio === "A" ? 14 : 0 }}>{PERFIS_TEMPERAMENTO.find((p) => p.v === f.perfilTemperamento).d}</p>}
         {f.estagio === "A" && (
           <>
-            <Campo rotulo="Objetivo" nota="Muda o que entra na aula — nunca sobrescreve o temperamento dele acima.">
-              <Seletor opcoes={OBJETIVOS_ADULTO.map((o) => ({ v: o.v, r: o.r }))} valor={f.objetivoAdulto} aoMudar={(v) => set("objetivoAdulto", v)} />
+            <Campo rotulo="Objetivo" nota="Pode marcar mais de um — ex: joga simples e duplas, ou joga duplas e compete. Muda o que entra na aula, nunca sobrescreve o temperamento dele acima.">
+              <div className="flex flex-wrap gap-2">
+                {OBJETIVOS_ADULTO.map((o) => {
+                  const on = objetivosAdultoAtuais.includes(o.v);
+                  return (
+                    <button key={o.v} type="button" onClick={() => alternarObjetivoAdulto(o.v)}
+                      style={{ fontFamily: ARCH, fontSize: 13, fontWeight: on ? 700 : 500, padding: "8px 13px",
+                        borderRadius: 2, cursor: "pointer", border: "1px solid " + (on ? C.tinta : C.linha),
+                        background: on ? C.tinta : C.cal, color: on ? C.papel : C.grafite }}>
+                      {o.r}
+                    </button>
+                  );
+                })}
+              </div>
             </Campo>
-            {f.objetivoAdulto && <p style={{ ...prosa, color: C.grafite, fontSize: 13, marginTop: -6 }}>{OBJETIVOS_ADULTO.find((o) => o.v === f.objetivoAdulto).d}</p>}
+            {objetivosAdultoAtuais.length > 0 && objetivosAdultoAtuais.map((v) => (
+              <p key={v} style={{ ...prosa, color: C.grafite, fontSize: 13, marginTop: -6, marginBottom: 4 }}>{OBJETIVOS_ADULTO.find((o) => o.v === v).d}</p>
+            ))}
           </>
         )}
         <Campo rotulo="Dificuldade de consistência" nota="Erra demais pra sustentar a troca de bolas — não é sobre risco tático, é sobre não conseguir manter o ponto vivo. Mais comum e mais decisivo no adulto, mas vale para qualquer estágio.">
@@ -4574,7 +4606,7 @@ function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual, podeEditar = true,
   const temCamada = camadasRot.some(([k]) => (a.camadas[k] || "").trim());
   const corpo = PERFIS_CORPO.find((p) => p.v === a.perfilCorpo);
   const temperamento = PERFIS_TEMPERAMENTO.find((p) => p.v === a.perfilTemperamento);
-  const objetivoAdulto = OBJETIVOS_ADULTO.find((o) => o.v === a.objetivoAdulto);
+  const objetivosAdulto = objetivosDoAdulto(a).map((v) => OBJETIVOS_ADULTO.find((o) => o.v === v)).filter(Boolean);
   const disposicaoAdulto = DISPOSICOES_ADULTO.find((d) => d.v === a.disposicaoAdulto);
 
   return (
@@ -4628,10 +4660,10 @@ function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual, podeEditar = true,
       <Secao titulo="Perfil de jogo">
         {corpo && <Linha rotulo="Corpo" texto={corpo.r} />}
         {temperamento && <Linha rotulo="Temperamento" texto={temperamento.r} />}
-        {a.estagio === "A" && objetivoAdulto && <Linha rotulo="Objetivo" texto={objetivoAdulto.r} />}
+        {a.estagio === "A" && objetivosAdulto.length > 0 && <Linha rotulo="Objetivo" texto={objetivosAdulto.map((o) => o.r).join(" · ")} />}
         {a.estagio === "A" && disposicaoAdulto && <Linha rotulo="Disposição" texto={disposicaoAdulto.r} />}
         {a.dificuldadeConsistencia && <Linha rotulo="Consistência" texto="Dificuldade marcada — erra demais pra sustentar a troca de bolas." />}
-        {!corpo && !temperamento && !(a.estagio === "A" && objetivoAdulto) && !(a.estagio === "A" && disposicaoAdulto) && !a.dificuldadeConsistencia &&
+        {!corpo && !temperamento && !(a.estagio === "A" && objetivosAdulto.length > 0) && !(a.estagio === "A" && disposicaoAdulto) && !a.dificuldadeConsistencia &&
           <p style={{ ...prosa, color: C.grafite }}>Perfil de jogo ainda não definido.</p>}
       </Secao>
 
@@ -5953,68 +5985,93 @@ function Relatorio({ aluno, alunos, setAlunos, cfg, pontos, placar, aoSair }) {
 /* ─────────────────────────── caderno ─────────────────────────── */
 const DIAS_SEM = ["SEG", "TER", "QUA", "QUI", "SEX"];
 
-function exportaCaderno(a) {
+/* Exportação do caderno em PDF, mesmo padrão de exportarRelatorioPDF
+   (window.open + botão de imprimir) — layout da Metodologia MTY/academia,
+   com tabelas HTML de verdade pros blocos de jogos/semanas/medições, nunca
+   um arquivo .md cru com sintaxe de pipes. */
+function exportarCadernoPDF(a, identidade) {
+  const janela = window.open("", "_blank");
+  if (!janela) { alert("O navegador bloqueou a janela de exportação — permita pop-ups pra este site e tente de novo."); return; }
   const regs = a.registros || [];
-  const L = [`# Caderno — ${a.nome || "sem nome"}`, ""];
-  L.push(`Estágio ${a.estagio} · nível ${a.nivel} · ${regs.length} registros`, "");
 
   const sess = regs.filter((r) => r.tipo === "sessao");
-  if (sess.length) {
-    L.push("## Sessões", "");
-    sess.forEach((r) => {
-      L.push(`### ${r.data} · ciclo ${r.ciclo} · ${r.duracao} min`);
-      L.push(`Aplicados: ${r.exercicios.join(" · ")}`);
-      if (r.corrigi) L.push(`**Corrigi:** ${r.corrigi}`);
-      if (r.ignorei) L.push(`**Vi e deixei passar:** ${r.ignorei}`);
-      if (r.mudaria) L.push(`**Teria montado diferente:** ${r.mudaria}`);
-      if (r.turma) L.push(`Sessão em turma: ${r.turma}`);
-      if (r.nota != null) L.push(`Presença do jogador: ${r.nota}/5`);
-      if (r.divergencias?.length) {
-        L.push("Divergências sobre a proposta:");
-        r.divergencias.forEach((d) => L.push(`- ${d.bloco}: ${d.tipo === "troca" ? `${d.saiu} → ${d.entrou}` : `cortou ${d.saiu}`}`));
-      }
-      L.push("");
-    });
-  }
+  const sessHTML = sess.length ? (
+    '<h2>Sessões</h2>' + sess.map((r) => (
+      '<div style="margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid #E4DED9">' +
+      '<h3>' + escaparHTML(r.data) + ' · ciclo ' + escaparHTML(r.ciclo) + ' · ' + escaparHTML(r.duracao) + ' min</h3>' +
+      '<p class="detalhe">Aplicados: ' + escaparHTML((r.exercicios || []).join(" · ")) + '</p>' +
+      (r.corrigi ? '<p class="detalhe"><b>Corrigi:</b> ' + escaparHTML(r.corrigi) + '</p>' : '') +
+      (r.ignorei ? '<p class="detalhe"><b>Vi e deixei passar:</b> ' + escaparHTML(r.ignorei) + '</p>' : '') +
+      (r.mudaria ? '<p class="detalhe"><b>Teria montado diferente:</b> ' + escaparHTML(r.mudaria) + '</p>' : '') +
+      (r.turma ? '<p class="detalhe">Sessão em turma: ' + escaparHTML(r.turma) + '</p>' : '') +
+      (r.nota != null ? '<p class="detalhe">Presença do jogador: ' + escaparHTML(r.nota) + '/5</p>' : '') +
+      ((r.divergencias || []).length ? (
+        '<p class="detalhe">Divergências sobre a proposta:</p><ul class="detalhe">' +
+        r.divergencias.map((d) => '<li>' + escaparHTML(d.bloco) + ': ' + (d.tipo === "troca" ? escaparHTML(d.saiu) + ' → ' + escaparHTML(d.entrou) : 'cortou ' + escaparHTML(d.saiu)) + '</li>').join("") +
+        '</ul>'
+      ) : "") +
+      '</div>'
+    )).join("")
+  ) : "";
 
   const jogos = regs.filter((r) => r.tipo === "jogo");
-  if (jogos.length) {
-    L.push("## Jogos", "");
-    L.push("| Data | Torneio | Adversário | Plano em uma frase | Protocolo | Erros bola 1–2 | O que o jogo revelou | Resultado |");
-    L.push("|---|---|---|---|---|---|---|---|");
-    jogos.forEach((r) => L.push(`| ${r.data} | ${r.torneio} | ${r.adversario} | ${r.plano} | ${r.protocolo}% | ${r.erros12}% | ${r.revelou} | ${r.resultado} |`));
-    L.push("");
-  }
+  const jogosHTML = jogos.length ? (
+    '<h2>Jogos</h2><table><thead><tr><th>Data</th><th>Torneio</th><th>Adversário</th><th>Plano em uma frase</th><th>Protocolo</th><th>Erros bola 1–2</th><th>O que o jogo revelou</th><th>Resultado</th></tr></thead><tbody>' +
+    jogos.map((r) => (
+      '<tr><td>' + escaparHTML(r.data) + '</td><td>' + escaparHTML(r.torneio) + '</td><td>' + escaparHTML(r.adversario) + '</td><td>' +
+      escaparHTML(r.plano) + '</td><td>' + escaparHTML(r.protocolo) + '%</td><td>' + escaparHTML(r.erros12) + '%</td><td>' +
+      escaparHTML(r.revelou) + '</td><td>' + escaparHTML(r.resultado) + '</td></tr>'
+    )).join("") + '</tbody></table>'
+  ) : "";
 
   const semanas = regs.filter((r) => r.tipo === "semana");
-  if (semanas.length) {
-    L.push("## Planilha semanal (F-03)", "");
-    semanas.forEach((r) => {
-      L.push(`### Semana de ${r.data}`, "");
-      L.push("| Dia | Erros bola 1–2 (%) | Bola em que a atenção soltou | Protocolo nos sets (%) | Observação |");
-      L.push("|---|---|---|---|---|");
-      DIAS_SEM.forEach((d) => {
+  const semanasHTML = semanas.length ? (
+    '<h2>Planilha semanal (F-03)</h2>' + semanas.map((r) => (
+      '<h3>Semana de ' + escaparHTML(r.data) + '</h3>' +
+      '<table><thead><tr><th>Dia</th><th>Erros bola 1–2 (%)</th><th>Bola em que a atenção soltou</th><th>Protocolo nos sets (%)</th><th>Observação</th></tr></thead><tbody>' +
+      DIAS_SEM.map((d) => {
         const l = r.linhas[d] || {};
-        L.push(`| ${d} | ${l.erros || ""} | ${l.atencao || ""} | ${l.protocolo || ""} | ${l.obs || ""} |`);
-      });
-      L.push("");
-    });
-  }
+        return '<tr><td>' + escaparHTML(d) + '</td><td>' + escaparHTML(l.erros) + '</td><td>' + escaparHTML(l.atencao) + '</td><td>' +
+          escaparHTML(l.protocolo) + '</td><td>' + escaparHTML(l.obs) + '</td></tr>';
+      }).join("") + '</tbody></table>'
+    )).join("")
+  ) : "";
 
   const med = regs.filter((r) => r.tipo === "medicao");
-  if (med.length) {
-    L.push("## Medições dos critérios", "");
-    L.push("| Data | Área | Métrica | Valor |");
-    L.push("|---|---|---|---|");
-    med.forEach((r) => L.push(`| ${r.data} | ${r.area} | ${r.metrica} | ${r.valor} |`));
-    L.push("");
-  }
+  const medHTML = med.length ? (
+    '<h2>Medições dos critérios</h2><table><thead><tr><th>Data</th><th>Área</th><th>Métrica</th><th>Valor</th></tr></thead><tbody>' +
+    med.map((r) => '<tr><td>' + escaparHTML(r.data) + '</td><td>' + escaparHTML(r.area) + '</td><td>' + escaparHTML(r.metrica) + '</td><td>' + escaparHTML(r.valor) + '</td></tr>').join("") +
+    '</tbody></table>'
+  ) : "";
 
-  L.push("---", "", "Material de campo. Serve para corrigir o método, não para julgar o jogador.");
-  return L.join("\n");
+  janela.document.write(
+    '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">' +
+    '<title>Caderno · ' + escaparHTML(a.nome || "sem nome") + '</title>' +
+    '<style>' +
+    'body{font-family:-apple-system,system-ui,sans-serif;color:#141210;max-width:720px;margin:30px auto;padding:0 20px}' +
+    'h1{font-family:Georgia,serif;font-size:20px;margin:0 0 4px}' +
+    '.sub{color:#6B6461;font-size:13px;margin-bottom:20px}' +
+    'h2{font-family:Georgia,serif;font-size:15px;margin:26px 0 8px;padding-bottom:6px;border-bottom:2px solid #C8102E}' +
+    'h3{font-family:Georgia,serif;font-size:13px;margin:14px 0 6px}' +
+    '.detalhe{font-size:12.5px;margin:0 0 4px;line-height:1.5}' +
+    'table{width:100%;border-collapse:collapse;margin-bottom:10px;font-size:12px}' +
+    'th,td{border:1px solid #D8D1CB;padding:5px 7px;text-align:left}' +
+    'th{background:#F4F0EB}' +
+    '.rodape{margin-top:24px;padding-top:10px;border-top:1px solid #D8D1CB;font-size:11.5px;color:#6B6461;font-style:italic}' +
+    '@media print { .no-print{display:none} }' +
+    '</style></head><body>' +
+    cabecalhoRelatorioHTML(identidade) +
+    '<h1>Caderno de campo</h1>' +
+    '<div class="sub">' + escaparHTML(a.nome || "sem nome") + ' · estágio ' + escaparHTML(a.estagio) + ' · nível ' + escaparHTML(a.nivel) + ' · ' + regs.length + ' registros</div>' +
+    sessHTML + jogosHTML + semanasHTML + medHTML +
+    '<p class="rodape">Material de campo. Serve para corrigir o método, não para julgar o jogador.</p>' +
+    '<button class="no-print" onclick="window.print()" style="margin-top:20px;padding:10px 16px;font-weight:700;cursor:pointer">Salvar como PDF / Imprimir</button>' +
+    '</body></html>'
+  );
+  janela.document.close();
 }
 
-function TelaRegistro({ aluno, alunos, setAlunos }) {
+function TelaRegistro({ aluno, alunos, setAlunos, identidade }) {
   const [modo, setModo] = useState("historico");
   const regs = aluno.registros || [];
 
@@ -6027,13 +6084,7 @@ function TelaRegistro({ aluno, alunos, setAlunos }) {
   }
 
   function baixar() {
-    const blob = new Blob([exportaCaderno(aluno)], { type: "text/markdown;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const el = document.createElement("a");
-    el.href = url;
-    el.download = `caderno-${(aluno.nome || "jogador").toLowerCase().replace(/\s+/g, "-")}.md`;
-    el.click();
-    URL.revokeObjectURL(url);
+    exportarCadernoPDF(aluno, identidade);
   }
 
   return (
@@ -6112,7 +6163,7 @@ function TelaRegistro({ aluno, alunos, setAlunos }) {
                 </div>
               ))}
               <div className="mt-5">
-                <Botao onClick={baixar} variante="saibro">Baixar caderno em Markdown</Botao>
+                <Botao onClick={baixar} variante="saibro">Exportar caderno em PDF</Botao>
                 <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 10 }}>
                   Este arquivo é o que sustenta a revisão do método. Junte alguns meses e traga o
                   conjunto — é lendo o acumulado que dá para ver quais regras erram sempre.
@@ -6444,13 +6495,77 @@ function escaparHTML(s) {
 const NOTA_COR = { sim: "#2E4739", par: "#C9A227", nao: "#C8102E", "": "#8A8580" };
 const NOTA_LABEL = { sim: "Atingido", par: "Parcial", nao: "Não atingido", "": "Não avaliado" };
 
+/* O relatório de ciclo (construirRelatorio, em TelaPlano) é texto puro
+   com uma convenção própria de seções (═══ TÍTULO ═══, ── bloco ──,
+   CABEÇALHOS EM CAIXA ALTA, linhas indentadas como detalhe) — nunca foi
+   markdown de verdade, mas impresso cru num <pre> monoespaçado parecia
+   um arquivo de texto solto, não um relatório da academia. Esta função
+   interpreta essa convenção e devolve HTML com títulos, divisórias e
+   parágrafos de verdade — sem precisar mudar como o relatório é gerado
+   nem como fica salvo (o texto puro continua existindo, pro "Copiar"
+   e pra compatibilidade com relatórios já salvos). */
+function formatarRelatorioHTML(texto) {
+  const linhas = String(texto || "").split("\n");
+  const partes = [];
+  let paragrafo = [];
+  function fecharParagrafo() {
+    if (paragrafo.length) {
+      partes.push('<p style="margin:0 0 10px;font-size:13px;line-height:1.6">' + paragrafo.join("<br>") + '</p>');
+      paragrafo = [];
+    }
+  }
+  linhas.forEach((linhaCrua) => {
+    const linha = linhaCrua.trim();
+    if (!linha) { fecharParagrafo(); return; }
+    const divisorForte = linha.match(/^═+\s*(.*?)\s*═+$/);
+    if (divisorForte) {
+      fecharParagrafo();
+      partes.push('<h2 style="font-family:Georgia,serif;font-size:15px;margin:22px 0 10px;padding-bottom:6px;border-bottom:2px solid #C8102E">' + escaparHTML(divisorForte[1]) + '</h2>');
+      return;
+    }
+    const divisorFraco = linha.match(/^─+\s*(.*?)\s*─+$/);
+    if (divisorFraco) {
+      fecharParagrafo();
+      partes.push('<h3 style="font-family:Georgia,serif;font-size:12.5px;margin:16px 0 6px;color:#6B6461;text-transform:uppercase;letter-spacing:.03em">' + escaparHTML(divisorFraco[1]) + '</h3>');
+      return;
+    }
+    if (linha === "---") { fecharParagrafo(); partes.push('<hr style="border:none;border-top:1px solid #D8D1CB;margin:18px 0">'); return; }
+    const soCaixaAlta = linha.length < 80 && /[A-ZÀ-Ú]/.test(linha) && !/[a-zà-ú]/.test(linha);
+    if (soCaixaAlta) {
+      fecharParagrafo();
+      partes.push('<h3 style="font-family:Georgia,serif;font-size:12.5px;margin:16px 0 6px">' + escaparHTML(linha) + '</h3>');
+      return;
+    }
+    const indentado = /^\s{2,}/.test(linhaCrua);
+    if (indentado) {
+      fecharParagrafo();
+      partes.push('<p style="margin:0 0 6px 16px;font-size:12.5px;color:#6B6461;line-height:1.5">' + escaparHTML(linha) + '</p>');
+      return;
+    }
+    paragrafo.push(escaparHTML(linha));
+  });
+  fecharParagrafo();
+  return partes.join("");
+}
+
+/* Cabeçalho comum aos relatórios internos em PDF — a mesma identidade
+   visual em todos (Metodologia MTY), mais o nome da academia quando
+   disponível (identidade vem do App, carregado da conta logada). */
+function cabecalhoRelatorioHTML(identidade) {
+  const nomeAcademia = identidade && identidade.nome;
+  return '<div style="border-bottom:3px solid #C8102E;padding-bottom:10px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:flex-end;gap:10px">' +
+    '<div><div style="font-family:Georgia,serif;font-weight:700;font-size:13px;letter-spacing:.02em">METODOLOGIA MTY</div>' +
+    (nomeAcademia ? '<div style="font-size:11.5px;color:#6B6461;margin-top:2px">' + escaparHTML(nomeAcademia) + '</div>' : '') +
+    '</div></div>';
+}
+
 /* Exportação em PDF sem biblioteca nenhuma: abre uma aba com um
    documento HTML limpo e chama a caixa de impressão do navegador — em
    qualquer aparelho, "Imprimir" tem a opção "Salvar como PDF" (ou vai
-   direto pro app de arquivos, no celular). Nada de Markdown aqui — é
-   isso que o treinador e o jogador vão querer mostrar/guardar, não um
-   arquivo de texto cru. */
-function exportarRelatorioPDF(h, nomeEntidade) {
+   direto pro app de arquivos, no celular). Layout da Metodologia MTY
+   (e da academia, quando identidade é passada) — nunca um dump de
+   texto cru. */
+function exportarRelatorioPDF(h, nomeEntidade, identidade) {
   const janela = window.open("", "_blank");
   if (!janela) { alert("O navegador bloqueou a janela de exportação — permita pop-ups pra este site e tente de novo."); return; }
   const criteriosHTML = (h.criterios || []).map((c) => (
@@ -6468,14 +6583,14 @@ function exportarRelatorioPDF(h, nomeEntidade) {
     'h1{font-family:Georgia,serif;font-size:20px;margin:0 0 4px}' +
     '.sub{color:#6B6461;font-size:13px;margin-bottom:20px}' +
     'h2{font-family:Georgia,serif;font-size:15px;margin:26px 0 8px}' +
-    'pre{white-space:pre-wrap;font:12.5px/1.5 ui-monospace,monospace;background:#F5F2F0;padding:14px;border-radius:4px}' +
     '@media print { .no-print{display:none} }' +
     '</style></head><body>' +
+    cabecalhoRelatorioHTML(identidade) +
     '<h1>Relatório de ciclo</h1>' +
     '<div class="sub">' + escaparHTML(nomeEntidade) + ' · ' + escaparHTML(h.tipo || "") + ' · gerado em ' +
       new Date(h.data).toLocaleDateString("pt-BR") + ' · ' + h.feitas + ' de ' + h.total + ' aulas</div>' +
     (criteriosHTML ? '<h2>Critérios de saída</h2>' + criteriosHTML : "") +
-    '<h2>Relatório completo</h2><pre>' + escaparHTML(h.texto) + '</pre>' +
+    '<h2>Relatório completo</h2>' + formatarRelatorioHTML(h.texto) +
     '<button class="no-print" onclick="window.print()" style="margin-top:20px;padding:10px 16px;font-weight:700;cursor:pointer">Salvar como PDF / Imprimir</button>' +
     '</body></html>'
   );
@@ -6528,7 +6643,7 @@ function GraficoEvolucao({ historico }) {
   );
 }
 
-function HistoricoRelatorios({ historico, abrirHist, setAbrirHist, removerDoHistorico, podeEditar = true, nomeEntidade }) {
+function HistoricoRelatorios({ historico, abrirHist, setAbrirHist, removerDoHistorico, podeEditar = true, nomeEntidade, identidade }) {
   const [copiadoId, setCopiadoId] = useState(null);
   if (historico.length === 0) return null;
 
@@ -6553,7 +6668,7 @@ function HistoricoRelatorios({ historico, abrirHist, setAbrirHist, removerDoHist
                 {abrirHist === h.id ? "Fechar" : "Ver"}
               </Botao>
               <Botao pequeno variante="vazio" onClick={() => copiar(h)}>{copiadoId === h.id ? "✓ copiado" : "Copiar"}</Botao>
-              <Botao pequeno variante="vazio" onClick={() => exportarRelatorioPDF(h, nomeEntidade)}>Exportar PDF</Botao>
+              <Botao pequeno variante="vazio" onClick={() => exportarRelatorioPDF(h, nomeEntidade, identidade)}>Exportar PDF</Botao>
               {podeEditar && <Botao pequeno variante="vazio" onClick={() => removerDoHistorico(h.id)}>Remover</Botao>}
             </div>
           </div>
@@ -6659,7 +6774,7 @@ function CardAulaChecklist({ id, indice, titulo, descricao, selo, status, define
     </div>
   );
 }
-function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas, modo = "resumo", papelAtual, uidAtual }) {
+function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas, modo = "resumo", papelAtual, uidAtual, identidade }) {
   const eTurma = !!turma;
   const entidade = eTurma ? turma : aluno;
   const podeEditar = eTurma ? podeEditarTurma(turma, papelAtual, uidAtual) : podeEditarAluno(aluno, papelAtual, uidAtual);
@@ -7023,7 +7138,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
           </div>
         )}
 
-        <HistoricoRelatorios historico={historico} abrirHist={abrirHist} setAbrirHist={setAbrirHist} removerDoHistorico={removerDoHistorico} podeEditar={podeEditar} nomeEntidade={entidade.nome} />
+        <HistoricoRelatorios historico={historico} abrirHist={abrirHist} setAbrirHist={setAbrirHist} removerDoHistorico={removerDoHistorico} podeEditar={podeEditar} nomeEntidade={entidade.nome} identidade={identidade} />
       </div>
     );
   }
@@ -7392,14 +7507,14 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                 <Botao pequeno variante="vazio" onClick={copiarRelatorio}>{relatorioCopiado ? "✓ copiado" : "Copiar"}</Botao>
                 <Botao pequeno variante="vazio" onClick={() => exportarRelatorioPDF(
                   { data: new Date().toISOString(), tipo: plano.tipo, feitas, total: aulas.length, texto: relatorio, criterios: criteriosDoFechamento(reg.__fech || {}) },
-                  entidade.nome
+                  entidade.nome, identidade
                 )}>Exportar PDF</Botao>
                 <Botao pequeno disabled={!podeEditar} onClick={arquivar}>{relatorioArquivado ? "✓ arquivado no histórico" : "Arquivar no histórico"}</Botao>
               </div>
             </div>
           )}
 
-          <HistoricoRelatorios historico={historico} abrirHist={abrirHist} setAbrirHist={setAbrirHist} removerDoHistorico={removerDoHistorico} podeEditar={podeEditar} nomeEntidade={entidade.nome} />
+          <HistoricoRelatorios historico={historico} abrirHist={abrirHist} setAbrirHist={setAbrirHist} removerDoHistorico={removerDoHistorico} podeEditar={podeEditar} nomeEntidade={entidade.nome} identidade={identidade} />
         </>
       )}
     </div>
@@ -9384,7 +9499,7 @@ function TelaClientes({ quadras, reservas, torneios, eventos }) {
    todo mundo em uma ação (com espaço pra corrigir por pessoa: chuva
    cancela a turma inteira, mas um jogador específico pode ter faltado
    por outro motivo mesmo com o resto treinando). */
-function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual, exerciciosCustom, setExerciciosCustom }) {
+function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual, exerciciosCustom, setExerciciosCustom, identidade }) {
   const [abertaId, setAbertaId] = useState(null);
   const [criando, setCriando] = useState(false);
   const [nome, setNome] = useState("");
@@ -9400,7 +9515,7 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual
   if (aberta) {
     return (
       <SessaoTurma turma={aberta} alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas}
-        papelAtual={papelAtual} uidAtual={uidAtual}
+        papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade}
         exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom}
         aoFechar={() => setAbertaId(null)}
         aoRemover={() => { setTurmas(turmas.filter((t) => t.id !== aberta.id)); setAbertaId(null); }} />
@@ -9587,7 +9702,7 @@ function TelaScoutTurma({ membros, alunos, setAlunos }) {
   );
 }
 
-function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, aoRemover, papelAtual, uidAtual, exerciciosCustom, setExerciciosCustom }) {
+function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, aoRemover, papelAtual, uidAtual, exerciciosCustom, setExerciciosCustom, identidade }) {
   const podeEditar = podeEditarTurma(turma, papelAtual, uidAtual);
   const membros = turma.membros.map((id) => alunos.find((a) => a.id === id)).filter(Boolean);
   const hoje = new Date().toISOString().slice(0, 10);
@@ -9764,9 +9879,9 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
       </div>
 
       {subaba === "plano" ? (
-        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} alunos={alunos} setAlunos={setAlunos} modo="resumo" papelAtual={papelAtual} uidAtual={uidAtual} />
+        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} alunos={alunos} setAlunos={setAlunos} modo="resumo" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} />
       ) : subaba === "aulas" ? (
-        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} />
+        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} />
       ) : subaba === "scout" ? (
         <TelaScoutTurma membros={membros} alunos={alunos} setAlunos={setAlunos} />
       ) : (
@@ -11103,7 +11218,7 @@ function App() {
          aba === "equipe" ? <TelaEquipe alunos={alunos} turmas={turmas} membros={membrosFormacao} setMembros={setMembrosFormacao} carregandoForm={carregandoFormacao} uidAtual={uidAtual}
            irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }} irParaManual={irParaManual} /> :
          aba === "formacao" ? <TelaFormacaoPessoal membros={membrosFormacao} setMembros={setMembrosFormacao} carregando={carregandoFormacao} uidAtual={uidAtual} irParaManual={irParaManual} /> :
-         aba === "turmas" ? <TelaTurmas alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} papelAtual={papelAtual} uidAtual={uidAtual}
+         aba === "turmas" ? <TelaTurmas alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade}
            exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
          aba === "quadras" && mostraQuadras ? <TelaQuadras quadras={quadras} setQuadras={setQuadras} reservas={reservas} setReservas={setReservas} orgAtual={orgAtual} /> :
          aba === "grade-aulas" && mostraQuadras ? <TelaGradeAulas alunos={alunos} turmas={turmas} bloqueiosAula={bloqueiosAula} setBloqueiosAula={setBloqueiosAula} orgAtual={orgAtual} /> :
@@ -11134,11 +11249,11 @@ function App() {
               ))}
             </div>
             {subaba === "ficha" ? <TelaFicha aluno={aberto} salvar={salvar} papelAtual={papelAtual} uidAtual={uidAtual} /> :
-             subaba === "plano" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="resumo" papelAtual={papelAtual} uidAtual={uidAtual} /> :
-             subaba === "aulas" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} /> :
+             subaba === "plano" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="resumo" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} /> :
+             subaba === "aulas" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} /> :
              subaba === "periodizacao" ? <TelaPeriodizacao aluno={aberto} /> :
              subaba === "scout" ? <TelaScout aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
-             subaba === "registro" ? <TelaRegistro aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
+             subaba === "registro" ? <TelaRegistro aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade} /> :
              <TelaSessao aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} papelAtual={papelAtual} uidAtual={uidAtual}
                exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} />}
           </div>
