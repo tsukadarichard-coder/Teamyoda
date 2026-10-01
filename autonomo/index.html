@@ -32,11 +32,23 @@
 </head>
 <body>
 
-<div id="mty-faixa">Carregando…</div>
+<div id="mty-faixa"></div>
 <div id="root">
-  <div style="max-width:760px;margin:60px auto;padding:0 20px;font-family:system-ui,sans-serif;color:#6B6461;">
-    Carregando o app da Metodologia MTY…
+  <div style="min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:24px; padding:20px; box-sizing:border-box; background:#F5F2F0;">
+    <img src="assets/logo-quadralab.png" alt="QuadraLab" style="height:44px; opacity:0; animation: mty-boot-fade .5s ease .05s forwards;">
+    <div style="width:180px; height:5px; background:#DDD6D0; border-radius:999px; overflow:hidden; position:relative;">
+      <div style="position:absolute; top:0; height:100%; background:#67AD2E; border-radius:999px; animation: mty-boot-barra 1.3s cubic-bezier(.4,0,.2,1) infinite;"></div>
+    </div>
   </div>
+  <style>
+    @keyframes mty-boot-fade { to { opacity: 1; } }
+    @keyframes mty-boot-barra {
+      0%   { left: -40%; width: 40%; }
+      55%  { left: 30%; width: 55%; }
+      100% { left: 100%; width: 40%; }
+    }
+  </style>
 </div>
 
 <script>
