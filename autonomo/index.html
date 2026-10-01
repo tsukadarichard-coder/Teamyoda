@@ -3916,7 +3916,29 @@ function regrasConsistencia(a) {
   ];
 }
 
-function promptPlanoEstruturado(a, semanas, aulasSemana, historico) {
+/* Ênfase do ciclo: dá ao treinador liberdade pra pedir mais peso numa
+   camada ou em jogo de pontos sem precisar reescrever a ficha. É peso
+   relativo pro texto do prompt, não um filtro rígido no catálogo — por
+   isso nunca anula as regras travadas (saque/devolução toda semana etc.),
+   só influencia a escolha dentro do que já é permitido. */
+function textoEnfase(enfase) {
+  if (!enfase) return [];
+  const t = enfase.tecnico ?? 50, a = enfase.tatico ?? 50, f = enfase.fisico ?? 50, p = enfase.pontos ?? 50;
+  if (t === 50 && a === 50 && f === 50 && p === 50) return [];
+  return [
+    "",
+    "ÊNFASE PEDIDA PELO TREINADOR PRA ESTE CICLO (0 a 100 cada, peso relativo entre as camadas —",
+    "não precisa somar 100): técnico " + t + " · tático " + a + " · físico " + f + " · pontos/jogo " + p + ".",
+    "· Pondere a escolha de exercícios, o tempo de cada bloco e a proporção de jogo de pontos (rally",
+    "  livre, pontos com restrição, sets) de acordo com esses pesos — mais tático pede mais exercício",
+    "  de padrão e decisão; mais pontos pede mais tempo de bola em jogo com placar; mais técnico pede",
+    "  mais repetição isolada de golpe; mais físico pede mais exercício de deslocamento e carga.",
+    "· Isso nunca anula as regras travadas acima (saque e devolução toda semana, etc.) — só muda o",
+    "  peso dentro do que já é permitido.",
+  ];
+}
+
+function promptPlanoEstruturado(a, semanas, aulasSemana, historico, enfase) {
   const nBlocos = 3;
   const porBloco = Math.ceil(semanas / nBlocos);
   const ciclosAnteriores = (historico || []).slice(0, 3).map((h, i) =>
@@ -3944,6 +3966,7 @@ function promptPlanoEstruturado(a, semanas, aulasSemana, historico) {
     "",
     "FORMATO: " + semanas + " semanas, " + nBlocos + " blocos de aproximadamente " + porBloco +
       " semanas, " + aulasSemana + " aulas por semana.",
+    ...textoEnfase(enfase),
     "",
     "Devolva APENAS um JSON válido, sem texto antes ou depois, sem crases, neste formato:",
     JSON.stringify({
@@ -4054,7 +4077,7 @@ function regrasCompeticaoTurma(membros) {
   ];
 }
 
-function promptPlanoTurma(turma, membros, semanas, aulasSemana, historico) {
+function promptPlanoTurma(turma, membros, semanas, aulasSemana, historico, enfase) {
   const nBlocos = 3;
   const porBloco = Math.ceil(semanas / nBlocos);
   const estagios = [...new Set(membros.map((m) => m.estagio))];
@@ -4091,6 +4114,7 @@ function promptPlanoTurma(turma, membros, semanas, aulasSemana, historico) {
     "",
     "FORMATO: " + semanas + " semanas, " + nBlocos + " blocos de aproximadamente " + porBloco +
       " semanas, " + aulasSemana + " aulas por semana.",
+    ...textoEnfase(enfase),
     "",
     "Devolva APENAS um JSON válido, sem texto antes ou depois, sem crases, neste formato:",
     JSON.stringify({
@@ -6820,6 +6844,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
   const [segundosIA, setSegundosIA] = useState(0);
   const [semanas, setSemanas] = useState(4);
   const [aulasSem, setAulasSem] = useState(3);
+  const [enfase, setEnfase] = useState({ tecnico: 50, tatico: 50, fisico: 50, pontos: 50 });
   const [relatorio, setRelatorio] = useState("");
   const [relatorioCopiado, setRelatorioCopiado] = useState(false);
   const [relatorioArquivado, setRelatorioArquivado] = useState(false);
@@ -6867,8 +6892,8 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
     setErro(""); setGerando(true); setEtapaIA("Preparando o pedido");
     try {
       const prompt = eTurma
-        ? promptPlanoTurma(turma, membros, semanas, aulasSem, historico)
-        : promptPlanoEstruturado(aluno, semanas, aulasSem, historico);
+        ? promptPlanoTurma(turma, membros, semanas, aulasSem, historico, enfase)
+        : promptPlanoEstruturado(aluno, semanas, aulasSem, historico, enfase);
       /* Plano de turma descreve estações/divisão do grupo por aula, às
          vezes pra vários jogadores de níveis diferentes — sai bem mais
          longo que um plano individual e estourava os 16000 tokens de
@@ -7135,6 +7160,18 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                 valor={aulasSem} aoMudar={setAulasSem} />
             </Campo>
           </div>
+
+          <Campo rotulo="Ênfase do ciclo" nota="Dá mais peso pro que você quer trabalhar mais nesse ciclo — não precisa somar 100, é prioridade relativa entre as camadas. Deixe em 50 pra equilibrado.">
+            {[["tecnico", "Técnico"], ["tatico", "Tático"], ["fisico", "Físico"], ["pontos", "Pontos / jogo"]].map(([k, rot]) => (
+              <div key={k} className="flex items-center gap-3 mb-2">
+                <span style={{ ...prosa, width: 100, fontSize: 13, flexShrink: 0 }}>{rot}</span>
+                <input type="range" min={0} max={100} value={enfase[k]}
+                  onChange={(e) => setEnfase((x) => ({ ...x, [k]: Number(e.target.value) }))}
+                  style={{ flex: 1, accentColor: C.saibro }} />
+                <span style={{ fontFamily: ARCH, fontWeight: 700, fontSize: 13, width: 28, textAlign: "right", flexShrink: 0 }}>{enfase[k]}</span>
+              </div>
+            ))}
+          </Campo>
           {!eTurma && !(aluno.camadas.tecnico || "").trim() && (
             <Aviso>
               A camada técnica da ficha está vazia. O plano vai sair genérico — preencha a aba
@@ -9955,10 +9992,10 @@ function TelaMetodo() {
 
 /* A tela de abertura (logo + barra) precisa de um tempo mínimo visível —
    numa conexão rápida ou com tudo em cache, os scripts carregam rápido
-   demais e ela pisca sem dar tempo de ver. Garante ~5s do início do
+   demais e ela pisca sem dar tempo de ver. Garante ~7s do início do
    carregamento da página até o app de fato aparecer, sem atrasar quem
    já esperou mais que isso numa conexão lenta. */
-const ESPERA_MINIMA_SPLASH = 5000;
+const ESPERA_MINIMA_SPLASH = 7000;
 const decorridoBoot = Date.now() - (window.__bootInicio || Date.now());
 setTimeout(() => {
   ReactDOM.createRoot(document.getElementById("root")).render(<App />);
