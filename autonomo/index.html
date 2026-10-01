@@ -9,7 +9,7 @@
 <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png">
 <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png" id="link-apple-icon">
 <link rel="manifest" href="manifest.json?v=2" id="link-manifest">
-<meta name="theme-color" content="#67AD2E" id="meta-theme-color">
+<meta name="theme-color" content="#69B32A" id="meta-theme-color">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="QuadraLab" id="meta-apple-title">
@@ -26,7 +26,7 @@
 <script src="https://cdn.tailwindcss.com"></script>
 
 <style>
-  html, body { margin: 0; padding: 0; background: #F5F2F0; }
+  html, body { margin: 0; padding: 0; background: #F6F8F7; }
   #mty-faixa { font-family: system-ui, sans-serif; font-size: 12px; padding: 6px 14px;
     text-align: center; color: #fff; }
 </style>
@@ -36,10 +36,10 @@
 <div id="mty-faixa"></div>
 <div id="root">
   <div style="min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center;
-    gap:24px; padding:20px; box-sizing:border-box; background:#F5F2F0;">
+    gap:24px; padding:20px; box-sizing:border-box; background:#F6F8F7;">
     <img src="assets/logo-quadralab.png" alt="QuadraLab" style="height:44px; opacity:0; animation: mty-boot-fade .5s ease .05s forwards;">
-    <div style="width:180px; height:5px; background:#DDD6D0; border-radius:999px; overflow:hidden; position:relative;">
-      <div style="position:absolute; top:0; height:100%; background:#67AD2E; border-radius:999px; animation: mty-boot-barra 1.3s cubic-bezier(.4,0,.2,1) infinite;"></div>
+    <div style="width:180px; height:5px; background:#E2E8E5; border-radius:999px; overflow:hidden; position:relative;">
+      <div style="position:absolute; top:0; height:100%; background:#69B32A; border-radius:999px; animation: mty-boot-barra 1.3s cubic-bezier(.4,0,.2,1) infinite;"></div>
     </div>
   </div>
   <style>
@@ -243,7 +243,7 @@ async function atualizaFaixa() {
     return;
   }
   faixa.textContent = "Conectado — seus dados estão sincronizados na nuvem.";
-  faixa.style.background = "#2E4739";
+  faixa.style.background = "#103B32";
 }
 atualizaFaixa();
 if (auth) auth.onAuthStateChanged(() => setTimeout(atualizaFaixa, 300));
@@ -301,20 +301,21 @@ function exerciciosSemBola() { return TODOS_EXERCICIOS().filter((e) => e.semBola
 
 /* ─────────────────────────── identidade ─────────────────────────── */
 const C = {
-  tinta: "#141210",
-  papel: "#F5F2F0",
+  tinta: "#17251F",
+  papel: "#F6F8F7",
   cal: "#FFFFFF",
-  saibro: "#67AD2E",
-  grafite: "#6B6461",
-  linha: "#DDD6D0",
-  quadra: "#2E4739",
+  saibro: "#69B32A",
+  grafite: "#5B6B63",
+  linha: "#E2E8E5",
+  quadra: "#103B32",
 };
 /* ── elevação (sombra) ──
-   Duas profundidades: SOMBRA pra cartões e painéis em repouso,
-   SOMBRA_ALTA pra coisas "flutuando" por cima do resto (dropdowns,
-   modais, botão primário no hover). */
-const SOMBRA = "0 1px 2px rgba(20,18,16,.05), 0 2px 10px rgba(20,18,16,.06)";
-const SOMBRA_ALTA = "0 4px 10px rgba(20,18,16,.08), 0 10px 30px rgba(20,18,16,.12)";
+   Duas profundidades, as duas discretas — identidade esportiva é
+   precisão, não efeito de vidro. SOMBRA pra cartões e painéis em
+   repouso, SOMBRA_ALTA pra coisas "flutuando" por cima do resto
+   (dropdowns, modais, botão primário no hover). */
+const SOMBRA = "0 1px 2px rgba(16,59,50,.04), 0 1px 3px rgba(16,59,50,.05)";
+const SOMBRA_ALTA = "0 2px 6px rgba(16,59,50,.07), 0 6px 16px rgba(16,59,50,.08)";
 /* ── tema visual ──
    As telas inteiras leem C.tinta/papel/cal/saibro/grafite/linha/quadra
    direto (não como prop, não como contexto) — um produto de marca única
@@ -330,8 +331,8 @@ function aplicarTema(orgId) {
    todo mundo, sem tabela por academia como no app da Team Yoda. */
 function aplicarIconesPWA(orgId) {}
 
-const ARCH = "Archivo, system-ui, sans-serif";
-const SERIF = "'Source Serif 4', Georgia, serif";
+const ARCH = "Inter, system-ui, sans-serif";
+const SERIF = ARCH; // uma família só, sem serifa — identidade de SaaS esportivo, não de editorial
 
 const FAM = {
   IP: "Início do ponto", RT: "Redução de tempo", CO: "Coordenação e base motora",
@@ -2351,10 +2352,10 @@ const LETRAS = ["A", "B", "C", "D", "E", "F"];
 
 /* ── perfis de carga por fase: volume e intensidade nunca no pico juntos ── */
 const PERFIL_FASE = {
-  "Base I": { vol: 70, int: 45, cor: "#2E4739" },
-  "Base II": { vol: 88, int: 60, cor: "#2E4739" },
-  "Base III": { vol: 82, int: 65, cor: "#2E4739" },
-  "Base IV": { vol: 80, int: 68, cor: "#2E4739" },
+  "Base I": { vol: 70, int: 45, cor: "#103B32" },
+  "Base II": { vol: 88, int: 60, cor: "#103B32" },
+  "Base III": { vol: 82, int: 65, cor: "#103B32" },
+  "Base IV": { vol: 80, int: 68, cor: "#103B32" },
   Afinação: { vol: 55, int: 82, cor: "#8A7B33" },
   Torneio: { vol: 35, int: 100, cor: "#C8102E" },
   "Ponte competitiva": { vol: 50, int: 88, cor: "#C8102E" },
@@ -2633,9 +2634,65 @@ function Marca({ identidade, altura = 26 }) {
 }
 function Etiqueta({ children, cor = C.grafite }) {
   return (
-    <span style={{ fontFamily: ARCH, fontSize: 10, fontWeight: 600, letterSpacing: "0.14em", textTransform: "uppercase", color: cor }}>
+    <span style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 600, letterSpacing: "0.01em", color: cor }}>
       {children}
     </span>
+  );
+}
+
+/* ── ícones ──
+   Uma família só (traço, 1.8px, cantos arredondados) pra navegação e
+   controles do cabeçalho — nada de emoji solto misturado com o resto
+   da identidade visual. */
+function IconeInicio({ tam = 20 }) {
+  return (
+    <svg width={tam} height={tam} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 11.5 12 4l9 7.5" />
+      <path d="M5.5 10v9a1 1 0 0 0 1 1H9a1 1 0 0 0 1-1v-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v4a1 1 0 0 0 1 1h2.5a1 1 0 0 0 1-1v-9" />
+    </svg>
+  );
+}
+function IconeJogadores({ tam = 20 }) {
+  return (
+    <svg width={tam} height={tam} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="9" cy="8" r="3" />
+      <path d="M3.5 20c0-3.3 2.5-6 5.5-6s5.5 2.7 5.5 6" />
+      <circle cx="17" cy="9" r="2.3" />
+      <path d="M15 20c.2-2.6 1.7-4.6 3.8-5.2" />
+    </svg>
+  );
+}
+function IconeAgenda({ tam = 20 }) {
+  return (
+    <svg width={tam} height={tam} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3.5" y="5" width="17" height="15" rx="2.2" />
+      <path d="M3.5 9.5h17" />
+      <path d="M8 3v3.2M16 3v3.2" />
+    </svg>
+  );
+}
+function IconeMais({ tam = 20 }) {
+  return (
+    <svg width={tam} height={tam} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="5" cy="12" r="1.3" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none" />
+      <circle cx="19" cy="12" r="1.3" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+function IconeSino({ tam = 18 }) {
+  return (
+    <svg width={tam} height={tam} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 10a6 6 0 0 1 12 0c0 4 1.5 5.5 2 6H4c.5-.5 2-2 2-6Z" />
+      <path d="M10 19a2 2 0 0 0 4 0" />
+    </svg>
+  );
+}
+function IconeSeta({ tam = 18 }) {
+  return (
+    <svg width={tam} height={tam} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 5l7 7-7 7" />
+    </svg>
   );
 }
 
@@ -2663,7 +2720,7 @@ const entrada = {
   width: "100%", padding: "9px 11px", border: "1px solid " + C.linha, borderRadius: 10,
   background: C.cal, fontFamily: SERIF, fontSize: 15, color: C.tinta,
 };
-const prosa = { fontFamily: SERIF, fontSize: 14.5, lineHeight: 1.55, color: C.tinta, margin: 0 };
+const prosa = { fontFamily: SERIF, fontSize: 16, lineHeight: 1.5, color: C.tinta, margin: 0 };
 
 function Campo({ rotulo, children, nota }) {
   return (
@@ -5640,8 +5697,8 @@ function aplicaPonto(e0, nos) {
 }
 
 const FIM_PONTO = [
-  { v: "winner_nos", r: "Winner meu", nos: true, cor: "#2E4739" },
-  { v: "erro_dele", r: "Erro dele", nos: true, cor: "#2E4739" },
+  { v: "winner_nos", r: "Winner meu", nos: true, cor: "#103B32" },
+  { v: "erro_dele", r: "Erro dele", nos: true, cor: "#103B32" },
   { v: "erro_nos", r: "Erro meu", nos: false, cor: "#C8102E" },
   { v: "winner_dele", r: "Winner dele", nos: false, cor: "#C8102E" },
 ];
@@ -6103,7 +6160,7 @@ function exportarCadernoPDF(a, identidade) {
     'body{font-family:-apple-system,system-ui,sans-serif;color:#141210;max-width:720px;margin:30px auto;padding:0 20px}' +
     'h1{font-family:Georgia,serif;font-size:20px;margin:0 0 4px}' +
     '.sub{color:#6B6461;font-size:13px;margin-bottom:20px}' +
-    'h2{font-family:Georgia,serif;font-size:15px;margin:26px 0 8px;padding-bottom:6px;border-bottom:2px solid #67AD2E}' +
+    'h2{font-family:Georgia,serif;font-size:15px;margin:26px 0 8px;padding-bottom:6px;border-bottom:2px solid #69B32A}' +
     'h3{font-family:Georgia,serif;font-size:13px;margin:14px 0 6px}' +
     '.detalhe{font-size:12.5px;margin:0 0 4px;line-height:1.5}' +
     'table{width:100%;border-collapse:collapse;margin-bottom:10px;font-size:12px}' +
@@ -6353,7 +6410,7 @@ function RoscaStatus({ contagem, tamanho = 108 }) {
         </ResponsiveContainer>
         <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", pointerEvents: "none" }}>
           <span style={{ fontFamily: ARCH, fontSize: 20, fontWeight: 700 }}>{pct}%</span>
-          <span style={{ fontFamily: ARCH, fontSize: 9.5, color: C.grafite, textTransform: "uppercase", letterSpacing: "0.06em" }}>feitas</span>
+          <span style={{ fontFamily: ARCH, fontSize: 11, fontWeight: 600, color: C.grafite }}>feitas</span>
         </div>
       </div>
       <div>
@@ -6547,7 +6604,7 @@ function escaparHTML(s) {
   return String(s || "").replace(/[&<>"]/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[m]));
 }
 
-const NOTA_COR = { sim: "#2E4739", par: "#C9A227", nao: "#C8102E", "": "#8A8580" };
+const NOTA_COR = { sim: "#103B32", par: "#C9A227", nao: "#C8102E", "": "#8A8580" };
 const NOTA_LABEL = { sim: "Atingido", par: "Parcial", nao: "Não atingido", "": "Não avaliado" };
 
 /* O relatório de ciclo (construirRelatorio, em TelaPlano) é texto puro
@@ -6575,7 +6632,7 @@ function formatarRelatorioHTML(texto) {
     const divisorForte = linha.match(/^═+\s*(.*?)\s*═+$/);
     if (divisorForte) {
       fecharParagrafo();
-      partes.push('<h2 style="font-family:Georgia,serif;font-size:15px;margin:22px 0 10px;padding-bottom:6px;border-bottom:2px solid #67AD2E">' + escaparHTML(divisorForte[1]) + '</h2>');
+      partes.push('<h2 style="font-family:Georgia,serif;font-size:15px;margin:22px 0 10px;padding-bottom:6px;border-bottom:2px solid #69B32A">' + escaparHTML(divisorForte[1]) + '</h2>');
       return;
     }
     const divisorFraco = linha.match(/^─+\s*(.*?)\s*─+$/);
@@ -6608,7 +6665,7 @@ function formatarRelatorioHTML(texto) {
    disponível (identidade vem do App, carregado da conta logada). */
 function cabecalhoRelatorioHTML(identidade) {
   const nomeAcademia = identidade && identidade.nome;
-  return '<div style="border-bottom:3px solid #67AD2E;padding-bottom:10px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:flex-end;gap:10px">' +
+  return '<div style="border-bottom:3px solid #69B32A;padding-bottom:10px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:flex-end;gap:10px">' +
     '<div><div style="font-family:Georgia,serif;font-weight:700;font-size:13px;letter-spacing:.02em">QUADRALAB</div>' +
     (nomeAcademia ? '<div style="font-size:11.5px;color:#6B6461;margin-top:2px">' + escaparHTML(nomeAcademia) + '</div>' : '') +
     '</div></div>';
@@ -7745,7 +7802,7 @@ function TelaSemAcademia() {
    só dá pra orientar o toque em Compartilhar → Adicionar à Tela de
    Início. Sem nenhum dos dois sinais (ex: desktop Firefox), não mostra
    nada — instrução sem ação possível só confunde. */
-function InstalarApp({ compacto }) {
+function InstalarApp({ compacto, linha }) {
   const [prompt, setPrompt] = useState(null);
   const [instalado, setInstalado] = useState(false);
   useEffect(() => {
@@ -7777,6 +7834,16 @@ function InstalarApp({ compacto }) {
       </button>
     ) : (
       <Etiqueta cor={C.grafite}>Instalar: compartilhar → tela de início</Etiqueta>
+    );
+  }
+
+  if (linha) {
+    return (
+      <button onClick={prompt ? instalar : undefined} className="w-full text-left"
+        style={{ padding: "12px 14px", border: "none", borderTop: "1px solid " + C.linha, background: "none",
+          cursor: prompt ? "pointer" : "default", fontFamily: ARCH, fontSize: 14, fontWeight: 600, color: C.tinta }}>
+        {prompt ? "Instalar app" : "Instalar: compartilhar → tela de início"}
+      </button>
     );
   }
 
@@ -7872,7 +7939,7 @@ function TelaLogin({ aoEntrar }) {
    professor. Guarda em orgs/{org}/solicitacoes/{uid}.nome — o mesmo
    lugar de onde listaProfessores() já lê — pra qualquer um corrigir o
    próprio nome, sem depender do coordenador. */
-function EditorMeuNome({ org, uid, emailAtual, nome, carregado, aoSalvar }) {
+function EditorMeuNome({ org, uid, emailAtual, nome, carregado, aoSalvar, linha }) {
   const [editando, setEditando] = useState(false);
   const [rascunho, setRascunho] = useState("");
   const [salvando, setSalvando] = useState(false);
@@ -7893,13 +7960,28 @@ function EditorMeuNome({ org, uid, emailAtual, nome, carregado, aoSalvar }) {
   if (!carregado) return null;
   if (editando) {
     return (
-      <div className="flex items-center gap-1">
-        <input autoFocus style={{ ...entrada, fontSize: 11.5, padding: "4px 6px", width: 130 }} value={rascunho}
-          onChange={(e) => setRascunho(e.target.value)} placeholder="Seu nome"
+      <div className="flex items-center gap-1" style={linha ? { padding: "10px 14px" } : undefined}>
+        <input autoFocus style={{ ...entrada, fontSize: linha ? 14 : 11.5, padding: linha ? "8px 10px" : "4px 6px", flex: linha ? 1 : undefined, width: linha ? undefined : 130 }}
+          value={rascunho} onChange={(e) => setRascunho(e.target.value)} placeholder="Seu nome"
           onKeyDown={(e) => e.key === "Enter" && salvar()} />
         <Botao pequeno onClick={salvar} disabled={salvando || !rascunho.trim()}>{salvando ? "…" : "Salvar"}</Botao>
-        <button onClick={() => setEditando(false)} style={{ border: "none", background: "none", cursor: "pointer", color: C.grafite, fontSize: 15 }}>×</button>
+        <button onClick={() => setEditando(false)} aria-label="Cancelar"
+          style={{ border: "none", background: "none", cursor: "pointer", color: C.grafite, fontSize: 18, minWidth: 28, minHeight: 28 }}>×</button>
       </div>
+    );
+  }
+  if (linha) {
+    return (
+      <button onClick={() => { setRascunho(nome); setEditando(true); }} className="w-full flex items-center justify-between gap-3 text-left"
+        style={{ padding: "12px 14px", border: "none", background: "none", cursor: "pointer" }}>
+        <span style={{ overflow: "hidden" }}>
+          <div style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, color: C.tinta, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {nome || "Adicionar seu nome"}
+          </div>
+          {emailAtual && <div style={{ ...prosa, fontSize: 12.5, color: C.grafite, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{emailAtual}</div>}
+        </span>
+        <span style={{ ...prosa, fontSize: 12.5, color: C.saibro, flexShrink: 0 }}>editar</span>
+      </button>
     );
   }
   return (
@@ -7908,6 +7990,47 @@ function EditorMeuNome({ org, uid, emailAtual, nome, carregado, aoSalvar }) {
         border: "1px solid " + C.linha, borderRadius: 10, background: C.cal, maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
       {nome || "+ meu nome"}
     </button>
+  );
+}
+
+/* ── menu do perfil (avatar) ──
+   Consolida o que antes eram quatro controles soltos no topo (sino à
+   parte, etiqueta de plano, botão de nome, botão de instalar, botão de
+   sair) num avatar só — o cabeçalho fica limpo e o nome do usuário para
+   de se repetir pela tela (ficha só no painel, não solto no topo). */
+function MenuPerfil({ org, uid, emailAtual, nome, carregado, aoSalvarNome, planoAtual, planoVencido }) {
+  const [aberto, setAberto] = useState(false);
+  const inicial = (nome || emailAtual || "?").trim().charAt(0).toUpperCase() || "?";
+  return (
+    <div style={{ position: "relative" }}>
+      <button onClick={() => setAberto((v) => !v)} aria-label="Menu do perfil" aria-haspopup="true" aria-expanded={aberto}
+        style={{ width: 40, height: 40, minWidth: 44, minHeight: 44, borderRadius: "50%", border: "none",
+          background: C.quadra, color: "#fff", fontFamily: ARCH, fontSize: 15, fontWeight: 700, cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        {inicial}
+      </button>
+      {aberto && (
+        <>
+          <div onClick={() => setAberto(false)} style={{ position: "fixed", inset: 0, zIndex: 29 }} />
+          <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 8, background: C.cal,
+            border: "1px solid " + C.linha, borderRadius: 14, boxShadow: SOMBRA_ALTA, zIndex: 30,
+            width: 240, maxWidth: "calc(100vw - 24px)", overflow: "hidden" }}>
+            <EditorMeuNome org={org} uid={uid} emailAtual={emailAtual} nome={nome} carregado={carregado} aoSalvar={aoSalvarNome} linha />
+            {planoAtual && NOMES_PLANO[planoAtual] && (
+              <div style={{ padding: "10px 14px", borderTop: "1px solid " + C.linha }}>
+                <Etiqueta cor={C.saibro}>{NOMES_PLANO[planoAtual]}{planoVencido ? " · vencido" : ""}</Etiqueta>
+              </div>
+            )}
+            <InstalarApp linha />
+            <button onClick={() => window.mtyAuth.sair()} className="w-full text-left"
+              style={{ padding: "12px 14px", border: "none", borderTop: "1px solid " + C.linha, background: "none",
+                cursor: "pointer", fontFamily: ARCH, fontSize: 14, fontWeight: 600, color: C.tinta }}>
+              Sair
+            </button>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -8606,10 +8729,10 @@ function TileEstat({ rotulo, valor, cor, onClick, ativo }) {
   const Tag = onClick ? "button" : "div";
   return (
     <Tag onClick={onClick || undefined} className={"mty-cartao" + (onClick ? " w-full text-left" : "")}
-      style={{ background: ativo ? C.tinta : C.cal, border: "1px solid " + (ativo ? C.tinta : C.linha), borderRadius: 10, padding: "14px 16px",
-        boxShadow: SOMBRA, cursor: onClick ? "pointer" : "default" }}>
-      <div style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, color: ativo ? C.papel : (cor || C.tinta), lineHeight: 1 }}>{valor}</div>
-      <div style={{ fontFamily: ARCH, fontSize: 10.5, color: ativo ? C.papel : C.grafite, textTransform: "uppercase", letterSpacing: "0.06em", marginTop: 5 }}>
+      style={{ background: ativo ? C.quadra : C.cal, border: "1px solid " + (ativo ? C.quadra : C.linha), borderRadius: 12,
+        padding: "10px 12px", boxShadow: SOMBRA, cursor: onClick ? "pointer" : "default", minHeight: onClick ? 44 : undefined }}>
+      <div style={{ fontFamily: ARCH, fontSize: 19, fontWeight: 700, color: ativo ? "#fff" : (cor || C.tinta), lineHeight: 1.15 }}>{valor}</div>
+      <div style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 600, color: ativo ? "rgba(255,255,255,.85)" : C.grafite, marginTop: 2 }}>
         {rotulo}{onClick ? (ativo ? " ▲" : " ▾") : ""}
       </div>
     </Tag>
@@ -8626,13 +8749,13 @@ function CardUsoIA({ usoIA }) {
   if (geracoes === 0) return null;
   const custo = (usoIA.tokensEntrada || 0) * PRECO_IA.entrada + (usoIA.tokensSaida || 0) * PRECO_IA.saida;
   return (
-    <div className="mb-6" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderRadius: 10, padding: "16px 18px", boxShadow: SOMBRA }}>
-      <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Uso de IA nesta academia</div>
-      <p style={{ ...prosa, fontSize: 13 }}>
+    <div className="mb-6" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 12, padding: "14px 16px" }}>
+      <div style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700, marginBottom: 6 }}>Uso de IA</div>
+      <p style={{ ...prosa, fontSize: 13.5 }}>
         {geracoes} {geracoes === 1 ? "geração" : "gerações"} até agora · custo estimado{" "}
         <b>US$ {custo < 0.01 ? "< 0,01" : custo.toFixed(2).replace(".", ",")}</b>
       </p>
-      <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginTop: 4 }}>
+      <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 4 }}>
         Estimativa pelo preço do modelo usado (claude-sonnet-5) — a fatura de verdade fica no painel da Anthropic.
         Atualiza ao recarregar a página.
       </p>
@@ -8640,8 +8763,14 @@ function CardUsoIA({ usoIA }) {
   );
 }
 
-function TelaDashboard({ alunos, turmas, uidAtual, exigeLogin, irPara, usoIA, identidade }) {
-  /* null fechado, "abertas"/"dadas" abrem a lista do card correspondente. */
+/* ── Início ──
+   Ordem fixa pedida no redesign: saudação, convite de ação, botão
+   principal, próximas aulas (só quando existem), pendências que pedem
+   ação (só quando existem) e por último o resumo compacto dos
+   indicadores — nunca o contrário. Tudo aqui é dado real: sem jogador
+   nenhum, a tela mostra o estado vazio em vez de inventar números. */
+function TelaDashboard({ alunos, turmas, uidAtual, exigeLogin, irPara, usoIA, identidade, meuNome, aoCriarPlanejamento, aoAbrirTurmas }) {
+  /* null fechado, "dadas" abre a lista do card correspondente. */
   const [detalhe, setDetalhe] = useState(null);
 
   const status = agregarStatusAlunos(alunos);
@@ -8650,67 +8779,98 @@ function TelaDashboard({ alunos, turmas, uidAtual, exigeLogin, irPara, usoIA, id
   const dadasDetalhe = detalhe === "dadas" ? aulasDadasDetalhe(alunos, 7, null) : [];
   let pendenciasAbertas = 0;
   turmas.forEach((t) => (t.pendencias || []).forEach((p) => { if (!p.resolvida) pendenciasAbertas++; }));
+  const primeiroNome = (meuNome || "").trim().split(" ")[0];
+  const saudacao = primeiroNome ? "Olá, " + primeiroNome : "Olá";
+
+  if (alunos.length === 0) {
+    return (
+      <div>
+        <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 800, marginBottom: 4 }}>{saudacao}</h1>
+        <p style={{ ...prosa, color: C.grafite, marginBottom: 20 }}>Vamos preparar sua próxima aula?</p>
+        <div style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 16, padding: "26px 22px" }}>
+          <h2 style={{ fontFamily: ARCH, fontSize: 17, fontWeight: 700, marginBottom: 8 }}>Seu primeiro planejamento começa aqui.</h2>
+          <p style={{ ...prosa, color: C.grafite, marginBottom: 18 }}>
+            Escolha um jogador ou uma turma para preparar as próximas aulas.
+          </p>
+          <Botao variante="saibro" onClick={aoCriarPlanejamento}>Criar planejamento</Botao>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
-      {identidade && identidade.nome && (
-        <div className="mb-1"><Etiqueta>{identidade.nome}</Etiqueta></div>
-      )}
-      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Dashboard</h1>
-      <p style={{ ...prosa, color: C.grafite, marginBottom: 14 }}>Seu painel, de uma vez.</p>
+      <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 800, marginBottom: 4 }}>{saudacao}</h1>
+      <p style={{ ...prosa, color: C.grafite, marginBottom: 18 }}>Vamos preparar sua próxima aula?</p>
 
-      <div className="mb-5" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
-        <TileEstat rotulo="Jogadores" valor={alunos.length} />
-        <TileEstat rotulo="Aulas em aberto" valor={abertos.length} cor={abertos.length > 0 ? C.saibro : C.tinta}
-          ativo={detalhe === "abertas"} onClick={abertos.length > 0 ? () => setDetalhe(detalhe === "abertas" ? null : "abertas") : null} />
-        <TileEstat rotulo="Aulas dadas · 7 dias" valor={dadas7} cor={C.quadra}
-          ativo={detalhe === "dadas"} onClick={dadas7 > 0 ? () => setDetalhe(detalhe === "dadas" ? null : "dadas") : null} />
-        <TileEstat rotulo="Pendências de grupo" valor={pendenciasAbertas} cor={pendenciasAbertas > 0 ? C.saibro : C.tinta} />
-      </div>
+      <div className="mb-6"><Botao variante="saibro" onClick={aoCriarPlanejamento}>Criar planejamento</Botao></div>
 
-      {detalhe === "abertas" && (
+      {abertos.length > 0 && (
         <div className="mb-6">
-          <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Aulas em aberto</div>
-          {abertos.map((a) => {
+          <h2 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 10 }}>Próximas aulas</h2>
+          {abertos.slice(0, 5).map((a) => {
             const aula = aulaEmVigor(a);
             return (
               <button key={a.id} onClick={() => irPara(a.id)} className="mty-cartao w-full text-left flex items-center justify-between gap-3"
-                style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderRadius: 10, padding: "12px 15px", marginBottom: 8, cursor: "pointer", boxShadow: SOMBRA }}>
-                <div>
-                  <div style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{a.nome || "Sem nome"}</div>
-                  <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>{aula.bloco} · semana {aula.semana} · {aula.t}</p>
+                style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 12, padding: "13px 15px", marginBottom: 8, cursor: "pointer" }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700 }}>{a.nome || "Sem nome"}</div>
+                  <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {aula.bloco} · semana {aula.semana} · {aula.t}
+                  </p>
                 </div>
-                <span style={{ color: C.grafite, fontSize: 18 }}>→</span>
+                <span style={{ color: C.grafite, flexShrink: 0 }}><IconeSeta tam={18} /></span>
               </button>
             );
           })}
+          {abertos.length > 5 && (
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>+ {abertos.length - 5} {abertos.length - 5 === 1 ? "outra aula pronta" : "outras aulas prontas"} pra dar.</p>
+          )}
         </div>
       )}
 
+      {pendenciasAbertas > 0 && (
+        <div className="mb-6" style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.saibro, boxShadow: SOMBRA, borderRadius: 12, padding: "14px 16px" }}>
+          <h2 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Pendências que precisam de ação</h2>
+          <p style={{ ...prosa, color: C.grafite, marginBottom: 10 }}>
+            {pendenciasAbertas} {pendenciasAbertas === 1 ? "pendência em aberto" : "pendências em aberto"} nas suas turmas.
+          </p>
+          <Botao pequeno variante="vazio" onClick={aoAbrirTurmas}>Ver turmas</Botao>
+        </div>
+      )}
+
+      <div className="mb-3" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
+        <TileEstat rotulo="Jogadores" valor={alunos.length} />
+        <TileEstat rotulo="Aulas prontas pra dar" valor={abertos.length} cor={abertos.length > 0 ? C.saibro : C.tinta} />
+        <TileEstat rotulo="Aulas realizadas na semana" valor={dadas7} cor={C.quadra}
+          ativo={detalhe === "dadas"} onClick={dadas7 > 0 ? () => setDetalhe(detalhe === "dadas" ? null : "dadas") : null} />
+        <TileEstat rotulo="Turmas com pendências" valor={pendenciasAbertas} cor={pendenciasAbertas > 0 ? C.saibro : C.tinta} />
+      </div>
+
       {detalhe === "dadas" && (
         <div className="mb-6">
-          <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Aulas dadas · 7 dias</div>
+          <div style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700, marginBottom: 10 }}>Aulas realizadas na semana</div>
           {dadasDetalhe.length === 0 ? (
             <p style={{ ...prosa, color: C.grafite, fontSize: 12.5 }}>Nada por aqui nesses 7 dias.</p>
           ) : (
             dadasDetalhe.map((d, i) => (
               <button key={i} onClick={() => irPara(d.alunoId)} className="mty-cartao w-full text-left flex items-center justify-between gap-3"
-                style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderRadius: 10, padding: "12px 15px", marginBottom: 8, cursor: "pointer", boxShadow: SOMBRA }}>
-                <div>
+                style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 12, padding: "12px 15px", marginBottom: 8, cursor: "pointer" }}>
+                <div style={{ minWidth: 0 }}>
                   <div style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{d.alunoNome}</div>
                   <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>
                     {d.bloco} · semana {d.semana} · {d.titulo} · {new Date(d.data).toLocaleDateString("pt-BR")}
                   </p>
                 </div>
-                <span style={{ color: C.grafite, fontSize: 18 }}>→</span>
+                <span style={{ color: C.grafite, flexShrink: 0 }}><IconeSeta tam={18} /></span>
               </button>
             ))
           )}
         </div>
       )}
 
-      <div className="mb-6" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderRadius: 10, padding: "16px 18px", boxShadow: SOMBRA }}>
-        <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Aulas do ciclo, no conjunto</div>
+      <div className="mb-6" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 12, padding: "16px 18px" }}>
+        <div style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700, marginBottom: 10 }}>Planejamento atual</div>
         {status.feita + status.pendente + status.repetindo === 0 ? (
           <p style={{ ...prosa, color: C.grafite, fontSize: 12.5 }}>Nenhum plano montado ainda por aqui.</p>
         ) : (
@@ -8800,7 +8960,7 @@ function TelaAgenda({ alunos, turmas }) {
           if (doDia.length === 0) return null;
           return (
             <div key={d.v} className="mb-5">
-              <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.08em", color: C.grafite }}>{d.r}</div>
+              <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginBottom: 8, color: C.tinta }}>{d.r}</div>
               {doDia.map((c, i) => (
                 <div key={i} style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, padding: "10px 13px", marginBottom: 6 }}>
                   <div className="flex items-center justify-between gap-3">
@@ -8821,7 +8981,7 @@ function TelaAgenda({ alunos, turmas }) {
 }
 const celulaGrade = { border: "1px solid " + C.linha, padding: "8px 10px", verticalAlign: "top" };
 
-const NAV_PRINCIPAL = [{ v: "dashboard", r: "Dashboard" }, { v: "alunos", r: "Jogadores" }, { v: "turmas", r: "Turmas" }, { v: "agenda", r: "Agenda" }, { v: "casos", r: "Casos" }];
+const NAV_PRINCIPAL = [{ v: "dashboard", r: "Início" }, { v: "alunos", r: "Jogadores" }, { v: "turmas", r: "Turmas" }, { v: "agenda", r: "Agenda" }, { v: "casos", r: "Casos" }];
 const NAV_MANUAL = [{ v: "catalogo", r: "Catálogo" }, { v: "tecnica", r: "Técnica" }, { v: "taticas", r: "Táticas" },
   { v: "conducao", r: "Condução" }, { v: "publicos", r: "Públicos" }, { v: "aulas", r: "Aulas" }, { v: "metodo", r: "Como decide" }];
 
@@ -9093,7 +9253,7 @@ function App() {
   return (
     <div style={{ background: C.papel, minHeight: "100vh", color: C.tinta }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         * { -webkit-tap-highlight-color: transparent; }
         button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid ${C.saibro}; outline-offset: 2px; }
         button { transition: transform .06s ease, opacity .06s ease; }
@@ -9105,24 +9265,27 @@ function App() {
         .mty-cartao:hover { box-shadow: ${SOMBRA_ALTA}; }
         .mty-sidebar { transition: transform .2s ease; }
         .mty-hamburger { display: none; }
+        .mty-topo-logo { display: none; }
+        .mty-bottomnav { display: none; }
+        .mty-bottomnav-item:focus-visible { outline-offset: -2px; }
         @media (max-width: 760px) {
-          /* Em pé no celular, os 252px fixos da barra não sobram do lado
-             do conteúdo — ela vira uma gaveta escondida fora da tela à
-             esquerda por padrão, e desliza por cima de tudo (nunca
-             empurrando ou empilhando nada) quando o botão ☰ abre ela. */
+          /* No celular a navegação some do topo: a barra de 252px vira
+             uma gaveta escondida fora da tela, reservada pro item "Mais"
+             da barra inferior — Início, Jogadores e Agenda já têm atalho
+             direto lá embaixo, sem precisar abrir gaveta nenhuma. */
           .mty-sidebar { transform: translateX(-100%); }
           .mty-sidebar.aberta { transform: translateX(0); box-shadow: 4px 0 18px rgba(0,0,0,.18); }
           .mty-hamburger { display: inline-flex !important; }
+          .mty-topo-logo { display: block !important; }
           .mty-topbar, .mty-main { margin-left: 0 !important; }
-          /* O sino de avisos fica entre outros botões (plano, nome, sair)
-             numa fileira que quebra linha no celular — o dropdown, ancorado
-             no próprio botão do sino, saía da tela quando ele não era mais
-             o último item à direita. Em telas estreitas ele vira um painel
-             fixo, preso pelas duas bordas laterais (nunca mais largo que a
-             tela, nem cortado por causa de onde o sino calhou de parar). */
+          .mty-bottomnav { display: block !important; }
+          .mty-main { padding-bottom: calc(76px + env(safe-area-inset-bottom)) !important; }
+          /* O dropdown do sino, ancorado no próprio botão, saía da tela em
+             telas estreitas — vira painel fixo, preso pelas duas bordas
+             laterais (nunca mais largo que a tela, nunca cortado). */
           .mty-avisos-painel {
             position: fixed !important;
-            top: 54px !important;
+            top: 60px !important;
             left: 12px !important;
             right: 12px !important;
             width: auto !important;
@@ -9137,17 +9300,14 @@ function App() {
 
       <header className={"mty-sidebar" + (menuMobileAberto ? " aberta" : "")} style={{ position: "fixed", left: 0, top: 0, bottom: 0, width: 252, overflowY: "auto",
         background: C.cal, borderRight: "1px solid " + C.linha, zIndex: 30 }}>
-        <div style={{ height: 4, background: C.saibro }} />
-        <img src="assets/logo-quadralab-mark.png" alt="" aria-hidden="true" style={{
-          position: "absolute", left: "50%", bottom: 10, transform: "translateX(-50%)",
-          width: 220, opacity: 0.06, pointerEvents: "none", zIndex: 0 }} />
-        <div style={{ padding: "18px 18px 14px", position: "relative", zIndex: 1 }}>
-          <img src="assets/logo-quadralab.png" alt="QuadraLab" style={{ height: 26, maxWidth: 220, objectFit: "contain" }} />
-          {meuNome ? (
-            <div className="mt-2" style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 600, color: C.grafite }}>{meuNome}</div>
-          ) : (
-            <div className="mt-2"><Etiqueta>Ficha, periodização e sessão · 315 exercícios</Etiqueta></div>
-          )}
+        <div style={{ height: 4, background: C.quadra }} />
+        <div className="flex items-center justify-between" style={{ padding: "18px 18px 14px" }}>
+          <img src="assets/logo-quadralab.png" alt="QuadraLab" style={{ height: 26, maxWidth: 190, objectFit: "contain" }} />
+          <button className="mty-hamburger" onClick={() => setMenuMobileAberto(false)} aria-label="Fechar menu"
+            style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center",
+              border: "1px solid " + C.linha, borderRadius: 10, background: C.cal, color: C.tinta, cursor: "pointer", fontSize: 18, lineHeight: "34px", textAlign: "center", padding: 0 }}>
+            ×
+          </button>
         </div>
         <nav style={{ display: "block", padding: "4px 10px 18px", position: "relative", zIndex: 1 }}>
           {gruposNav.map((g) => (
@@ -9215,17 +9375,15 @@ function App() {
       </header>
 
       <div className="mty-topbar" style={{ marginLeft: 252, borderBottom: "1px solid " + C.linha, background: C.cal, position: "sticky", top: 0, zIndex: 9 }}>
-        <div className="px-5 py-2 flex items-center gap-2" style={{ justifyContent: "flex-end" }}>
-          <button className="mty-hamburger" onClick={() => setMenuMobileAberto(true)} aria-label="Abrir menu"
-            style={{ marginRight: "auto", fontSize: 18, cursor: "pointer", padding: "4px 9px", border: "1px solid " + C.linha, borderRadius: 10, background: C.cal }}>
-            ☰
-          </button>
-          <div className="flex items-center gap-2" style={{ flexWrap: "wrap", justifyContent: "flex-end" }}>
+        <div className="px-4 flex items-center gap-2" style={{ height: 56 }}>
+          <img src="assets/logo-quadralab.png" alt="QuadraLab" className="mty-topo-logo" style={{ height: 22, objectFit: "contain", marginRight: "auto" }} />
+          <div className="flex items-center gap-2" style={{ marginLeft: "auto" }}>
           {exigeLogin && uidAtual && (
             <div style={{ position: "relative" }}>
-              <button onClick={abrirAvisos}
-                style={{ position: "relative", fontSize: 16, cursor: "pointer", padding: "4px 8px", border: "1px solid " + C.linha, borderRadius: 10, background: C.cal }}>
-                🔔
+              <button onClick={abrirAvisos} aria-label="Notificações"
+                style={{ position: "relative", color: C.tinta, cursor: "pointer", padding: "10px", width: 44, height: 44,
+                  display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid " + C.linha, borderRadius: 12, background: C.cal }}>
+                <IconeSino tam={19} />
                 {totalAvisos > 0 && (
                   <span style={{ position: "absolute", top: -5, right: -5, background: C.saibro, color: "#fff",
                     fontFamily: ARCH, fontSize: 10, fontWeight: 700, borderRadius: 999, minWidth: 16, height: 16,
@@ -9285,25 +9443,16 @@ function App() {
               )}
             </div>
           )}
-          {planoAtual && NOMES_PLANO[planoAtual] && (
-            <Etiqueta cor={C.saibro}>{NOMES_PLANO[planoAtual]}{planoVencido ? " · vencido" : ""}</Etiqueta>
-          )}
           {exigeLogin && uidAtual && orgAtual && (
-            <EditorMeuNome org={orgAtual} uid={uidAtual} emailAtual={window.mtyAuth.usuario() ? window.mtyAuth.usuario().email : ""}
-              nome={meuNome} carregado={meuNomeCarregado} aoSalvar={setMeuNome} />
-          )}
-          {exigeLogin && uidAtual && <InstalarApp compacto />}
-          {exigeLogin && (
-            <button onClick={() => window.mtyAuth.sair()}
-              style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 600, color: C.grafite, cursor: "pointer", padding: "4px 8px", border: "1px solid " + C.linha, borderRadius: 10, background: C.cal }}>
-              sair
-            </button>
+            <MenuPerfil org={orgAtual} uid={uidAtual} emailAtual={window.mtyAuth.usuario() ? window.mtyAuth.usuario().email : ""}
+              nome={meuNome} carregado={meuNomeCarregado} aoSalvarNome={setMeuNome}
+              planoAtual={planoAtual} planoVencido={planoVencido} />
           )}
           </div>
         </div>
       </div>
 
-      <main className="mty-main px-5 py-6" style={{ maxWidth: 760, marginLeft: 252 }}>
+      <main className="mty-main px-4 py-6" style={{ maxWidth: 760, marginLeft: 252 }}>
         {carregando ? <p style={{ ...prosa, color: C.grafite }}>Carregando…</p> :
          aba === "catalogo" ? <TelaCatalogo exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
          aba === "taticas" ? <TelaTaticas /> :
@@ -9316,8 +9465,9 @@ function App() {
          aba === "turmas" ? <TelaTurmas alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade}
            exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
          aba === "agenda" ? <TelaAgenda alunos={alunos} turmas={turmas} /> :
-         aba === "dashboard" ? <TelaDashboard alunos={alunos} turmas={turmas} uidAtual={uidAtual} exigeLogin={exigeLogin} usoIA={usoIA} identidade={identidade}
-           irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }} /> :
+         aba === "dashboard" ? <TelaDashboard alunos={alunos} turmas={turmas} uidAtual={uidAtual} exigeLogin={exigeLogin} usoIA={usoIA} identidade={identidade} meuNome={meuNome}
+           irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }}
+           aoCriarPlanejamento={() => setAba("alunos")} aoAbrirTurmas={() => setAba("turmas")} /> :
          aberto ? (
           <div>
             <div className="flex items-center justify-between gap-3 mb-3">
@@ -9444,6 +9594,43 @@ function App() {
           </div>
         )}
       </main>
+
+      <nav className="mty-bottomnav" aria-label="Navegação principal" style={{
+        position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 28, background: C.quadra,
+        paddingBottom: "env(safe-area-inset-bottom)" }}>
+        <div className="flex items-stretch" style={{ maxWidth: 760, margin: "0 auto" }}>
+          {[
+            { v: "dashboard", r: "Início", Icone: IconeInicio },
+            { v: "alunos", r: "Jogadores", Icone: IconeJogadores },
+            { v: "agenda", r: "Agenda", Icone: IconeAgenda },
+          ].map((t) => {
+            const ativo = aba === t.v && !menuMobileAberto;
+            return (
+              <button key={t.v} className="mty-bottomnav-item flex-1 flex flex-col items-center justify-center gap-1"
+                onClick={() => { setAba(t.v); setAbertoId(null); setMenuMobileAberto(false); }}
+                aria-current={ativo ? "page" : undefined}
+                style={{ border: "none", background: "none", cursor: "pointer", padding: "9px 4px", minHeight: 56,
+                  color: ativo ? "#fff" : "rgba(255,255,255,.65)" }}>
+                <t.Icone tam={21} />
+                <span style={{ fontFamily: ARCH, fontSize: 11, fontWeight: ativo ? 700 : 600 }}>{t.r}</span>
+              </button>
+            );
+          })}
+          {(() => {
+            const ativo = menuMobileAberto || ["turmas", "casos"].includes(aba);
+            return (
+              <button className="mty-bottomnav-item flex-1 flex flex-col items-center justify-center gap-1"
+                onClick={() => setMenuMobileAberto(true)} aria-current={ativo ? "page" : undefined}
+                aria-haspopup="true" aria-expanded={menuMobileAberto}
+                style={{ border: "none", background: "none", cursor: "pointer", padding: "9px 4px", minHeight: 56,
+                  color: ativo ? "#fff" : "rgba(255,255,255,.65)" }}>
+                <IconeMais tam={21} />
+                <span style={{ fontFamily: ARCH, fontSize: 11, fontWeight: ativo ? 700 : 600 }}>Mais</span>
+              </button>
+            );
+          })()}
+        </div>
+      </nav>
     </div>
   );
 }

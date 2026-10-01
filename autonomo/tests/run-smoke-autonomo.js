@@ -4,7 +4,7 @@ function tem(texto, trecho) { return texto.toLowerCase().includes(trecho.toLower
 
 (async () => {
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox'] });
-  const page = await browser.newPage();
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
 
@@ -27,14 +27,35 @@ function tem(texto, trecho) { return texto.toLowerCase().includes(trecho.toLower
   await page.waitForTimeout(700);
 
   let body = await page.evaluate(() => document.body.innerText);
-  assert(body.includes('Dashboard'), 'login funciona, mostra o Dashboard: ' + body.slice(0, 300));
+  assert(tem(body, 'Início') && body.includes('Olá, Richard'), 'login funciona, mostra o Início com saudação: ' + body.slice(0, 300));
+  assert(!body.includes('Dashboard'), 'o rótulo "Dashboard" não aparece mais em lugar nenhum: ' + body.slice(0, 300));
+
+  // ── estado vazio: sem jogador nenhum, mostra o convite pra criar o primeiro planejamento ──
+  assert(body.includes('Seu primeiro planejamento começa aqui.') && body.includes('Criar planejamento'),
+    'estado vazio do Início é real (sem jogador) e tem o botão de ação: ' + body.slice(0, 600));
 
   // ── o nome do treinador não pode aparecer duas vezes no menu lateral ──
-  const nomesNoMenu = await page.locator('.mty-sidebar:has-text("Richard Tsukada")').evaluate((el) =>
+  const nomesNoMenu = await page.locator('.mty-sidebar').evaluate((el) =>
     (el.innerText.match(/Richard Tsukada/g) || []).length);
-  assert(nomesNoMenu === 1, 'o nome do treinador aparece só uma vez no menu (não duas): achou ' + nomesNoMenu + ' vez(es)');
+  assert(nomesNoMenu === 0, 'o nome do treinador não aparece solto no menu lateral — só dentro do menu do perfil: achou ' + nomesNoMenu + ' vez(es)');
   const logoNoMenu = await page.locator('.mty-sidebar img[alt="QuadraLab"]').count();
   assert(logoNoMenu >= 1, 'o logo do QuadraLab aparece no topo do menu');
+
+  // ── menu do perfil: avatar consolida nome, plano e sair ──
+  await page.getByLabel('Menu do perfil').click();
+  await page.waitForTimeout(150);
+  body = await page.evaluate(() => document.body.innerText);
+  assert(body.includes('Richard Tsukada') && /plano gr.tis/i.test(body) && body.includes('Sair'),
+    'o menu do perfil mostra nome completo, plano e Sair juntos: ' + body.slice(0, 500));
+  await page.keyboard.press('Escape').catch(() => {});
+  await page.mouse.click(600, 10);
+  await page.waitForTimeout(150);
+
+  // ── botão "Criar planejamento" do estado vazio conecta no fluxo real de Jogadores ──
+  await page.getByText('Criar planejamento', { exact: true }).click();
+  await page.waitForTimeout(200);
+  body = await page.evaluate(() => document.body.innerText);
+  assert(tem(body, 'Novo jogador'), '"Criar planejamento" leva pra tela de Jogadores (fluxo existente): ' + body.slice(0, 400));
 
   // ── módulos de academia removidos não aparecem mais no menu ──
   assert(!/\bEquipe\b/.test(body), 'não existe mais aba Equipe: ' + body.slice(0, 600));
@@ -46,8 +67,6 @@ function tem(texto, trecho) { return texto.toLowerCase().includes(trecho.toLower
   assert(!body.includes('Clientes'), 'não existe mais aba Clientes: ' + body.slice(0, 600));
 
   // ── o núcleo do produto continua funcionando: criar jogador, ficha, questionário, plano ──
-  await page.getByText('Jogadores', { exact: true }).first().click();
-  await page.waitForTimeout(200);
   await page.getByText('Novo jogador', { exact: true }).click();
   await page.waitForTimeout(200);
   await page.fill('input[placeholder="Nome do jogador ou da turma"]', 'Teste Autônomo');
@@ -97,7 +116,49 @@ function tem(texto, trecho) { return texto.toLowerCase().includes(trecho.toLower
   body = await page.evaluate(() => document.body.innerText);
   assert(/nova turma/i.test(body), 'a aba Turmas continua existindo: ' + body.slice(0, 500));
 
-  assert(errors.length === 0, 'sem erro de JS durante todo o fluxo: ' + JSON.stringify(errors));
-  console.log('\nTODOS OS TESTES DE SMOKE DO FORK AUTÔNOMO PASSARAM');
+  // ── Início com dados reais: resumo compacto dos indicadores, sem o nome repetido ──
+  await page.getByText('Início', { exact: true }).first().click();
+  await page.waitForTimeout(200);
+  body = await page.evaluate(() => document.body.innerText);
+  assert(tem(body, 'Jogadores') && tem(body, 'Aulas prontas pra dar') && tem(body, 'Aulas realizadas na semana') && tem(body, 'Turmas com pendências'),
+    'o resumo compacto dos indicadores usa os novos rótulos: ' + body.slice(0, 1200));
+  assert(tem(body, 'Planejamento atual'), '"Aulas do ciclo, no conjunto" virou "Planejamento atual": ' + body.slice(0, 1200));
+
+  assert(errors.length === 0, 'sem erro de JS durante todo o fluxo desktop: ' + JSON.stringify(errors));
   await browser.close();
+
+  // ── navegação mobile: barra inferior fixa (Início / Jogadores / Agenda / Mais) ──
+  const browser2 = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox'] });
+  const page2 = await browser2.newPage({ viewport: { width: 390, height: 844 } });
+  const errors2 = [];
+  page2.on('pageerror', e => errors2.push(e.message));
+  await page2.goto('http://localhost:8781/autonomo.html', { waitUntil: 'networkidle' });
+  await page2.evaluate(() => { window.__proximasClaims = { orgId: 'team-yoda', role: 'coordenador' }; });
+  await page2.fill('input[type=email]', 'coord@team-yoda.com');
+  await page2.fill('input[type=password]', 'x');
+  await page2.click('text=Entrar');
+  await page2.waitForTimeout(700);
+
+  const bottomNavVisible = await page2.locator('.mty-bottomnav').isVisible();
+  assert(bottomNavVisible, 'a barra inferior fixa aparece no celular (390px)');
+  const itensBarra = await page2.locator('.mty-bottomnav button').allTextContents();
+  assert(itensBarra.some((t) => t.includes('Início')) && itensBarra.some((t) => t.includes('Jogadores')) &&
+    itensBarra.some((t) => t.includes('Agenda')) && itensBarra.some((t) => t.includes('Mais')),
+    'a barra inferior tem Início, Jogadores, Agenda e Mais: ' + JSON.stringify(itensBarra));
+  const sidebarEscondida = await page2.locator('.mty-sidebar').evaluate((el) => getComputedStyle(el).transform !== 'none' && !el.classList.contains('aberta'));
+  assert(sidebarEscondida, 'o menu lateral antigo fica fora da tela no celular (vira conteúdo do "Mais")');
+
+  // sem rolagem horizontal na tela inicial mobile
+  const semScrollX = await page2.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
+  assert(semScrollX, 'não há rolagem horizontal no Início em 390px');
+
+  await page2.getByText('Mais', { exact: true }).click();
+  await page2.waitForTimeout(250);
+  const corpoMais = await page2.evaluate(() => document.body.innerText);
+  assert(tem(corpoMais, 'Turmas') && tem(corpoMais, 'Casos'), '"Mais" abre o menu completo com Turmas e Casos: ' + corpoMais.slice(0, 400));
+
+  assert(errors2.length === 0, 'sem erro de JS no fluxo mobile: ' + JSON.stringify(errors2));
+  await browser2.close();
+
+  console.log('\nTODOS OS TESTES DE SMOKE DO FORK AUTÔNOMO PASSARAM');
 })().catch((e) => { console.error(e); process.exit(1); });
