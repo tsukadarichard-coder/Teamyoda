@@ -22,12 +22,12 @@
    o que é seguro por padrão, mas não sincroniza nada entre dispositivos
    nem libera o link do aluno/relatórios na nuvem. */
 const MTY_CONFIG = {
-  apiKey: "COLE_AQUI",
-  authDomain: "COLE_AQUI",
-  projectId: "COLE_AQUI",
-  storageBucket: "COLE_AQUI",
-  messagingSenderId: "COLE_AQUI",
-  appId: "COLE_AQUI",
+  apiKey: "AIzaSyBEHp7uzFqH1D_9pnHcZFm21ITXP3bpFFo",
+  authDomain: "mty-coach.firebaseapp.com",
+  projectId: "mty-coach",
+  storageBucket: "mty-coach.firebasestorage.app",
+  messagingSenderId: "108398981681",
+  appId: "1:108398981681:web:1c8b377f3effb96c399b10",
 };
 
 /* Número que recebe as fichas pelo WhatsApp — código do país + DDD, só dígitos. */
