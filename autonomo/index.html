@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png">
 <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png" id="link-apple-icon">
 <link rel="manifest" href="manifest.json" id="link-manifest">
-<meta name="theme-color" content="#C8102E" id="meta-theme-color">
+<meta name="theme-color" content="#67AD2E" id="meta-theme-color">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="QuadraLab" id="meta-apple-title">
@@ -316,66 +316,25 @@ const C = {
   tinta: "#141210",
   papel: "#F5F2F0",
   cal: "#FFFFFF",
-  saibro: "#C8102E",
+  saibro: "#67AD2E",
   grafite: "#6B6461",
   linha: "#DDD6D0",
   quadra: "#2E4739",
 };
-/* ── tema visual por academia ──
+/* ── tema visual ──
    As telas inteiras leem C.tinta/papel/cal/saibro/grafite/linha/quadra
-   direto (não como prop, não como contexto) — então, em vez de reescrever
-   centenas de referências, o "tema" troca os valores desse mesmo objeto
-   C no lugar (mutação, não substituição), assim que a academia é
-   identificada. Toda tela que já leu C.xxx neste render vai ler os
-   valores novos no próximo — e o próximo render acontece de qualquer
-   jeito, junto com o resto do carregamento da identidade da academia. */
+   direto (não como prop, não como contexto) — um produto de marca única
+   (QuadraLab), sem tema por academia como no app da Team Yoda; esta
+   função existe só pra manter o reset para os valores-padrão. */
 const TEMA_PADRAO = { ...C };
-const TEMAS_POR_ACADEMIA = {
-  /* 39 Ranch Tennis Club — clube de campo, preto e dourado, com um verde
-     de mata no lugar do verde de quadra padrão. Academia sem nenhuma
-     ligação com a Team Yoda; só o orgId muda o tema, o resto do app
-     (estrutura, telas, textos) é o mesmo em ambas. */
-  "39-ranch": {
-    tinta: "#1A1712",
-    papel: "#F7F2E4",
-    cal: "#FFFDF7",
-    saibro: "#B8902E",
-    grafite: "#5B5347",
-    linha: "#E6DCC3",
-    quadra: "#2F4A34",
-  },
-};
 function aplicarTema(orgId) {
-  Object.assign(C, TEMAS_POR_ACADEMIA[orgId] || TEMA_PADRAO);
+  Object.assign(C, TEMA_PADRAO);
 }
 
-/* ── ícone de instalação (PWA) por academia ──
-   O <link rel="manifest">, o apple-touch-icon e o nome mostrado ao
-   "adicionar à tela de início" são tags estáticas do <head> — trocamos
-   o atributo delas em runtime, assim que a academia é identificada, pra
-   quem instalar o app depois disso já pegar o ícone certo. Time Yoda é
-   o padrão do próprio arquivo (nada a fazer); academia sem ícone
-   próprio nesta tabela também cai no padrão. */
-const ICONES_PWA_POR_ACADEMIA = {
-  "39-ranch": {
-    manifest: "manifest-39-ranch.json",
-    appleIcon: "assets/apple-touch-icon-39-ranch.png",
-    titulo: "39 Ranch Tennis Club",
-    corTema: "#1A1712",
-  },
-};
-function aplicarIconesPWA(orgId) {
-  const cfg = ICONES_PWA_POR_ACADEMIA[orgId];
-  if (!cfg) return;
-  const linkManifest = document.getElementById("link-manifest");
-  const linkAppleIcon = document.getElementById("link-apple-icon");
-  const metaTitulo = document.getElementById("meta-apple-title");
-  const metaTema = document.getElementById("meta-theme-color");
-  if (linkManifest) linkManifest.href = cfg.manifest;
-  if (linkAppleIcon) linkAppleIcon.href = cfg.appleIcon;
-  if (metaTitulo) metaTitulo.content = cfg.titulo;
-  if (metaTema) metaTema.content = cfg.corTema;
-}
+/* ── ícone de instalação (PWA) ──
+   Marca única (QuadraLab) — o ícone do manifest.json já é o certo pra
+   todo mundo, sem tabela por academia como no app da Team Yoda. */
+function aplicarIconesPWA(orgId) {}
 
 const ARCH = "Archivo, system-ui, sans-serif";
 const SERIF = "'Source Serif 4', Georgia, serif";
@@ -2658,17 +2617,21 @@ async function chamarIA(prompt, maxTokens, aoProgredir) {
 /* Marca da academia no lugar do logo fixo da Team Yoda — sem
    identidade carregada (telas de antes do login, onde ainda não se
    sabe de qual academia é) ou sem nada configurado pela academia,
-   cai num rótulo neutro. Com logoUrl definido, mostra o logo dela;
-   sem logo mas com nome, mostra o nome como um logotipo de texto. */
+   cai na logo própria do QuadraLab. Com logoUrl definido, mostra o
+   logo da academia; sem logo mas com nome, mostra o nome como um
+   logotipo de texto. */
 function Marca({ identidade, altura = 26 }) {
   const nome = identidade && identidade.nome;
   const logoUrl = identidade && identidade.logoUrl;
   if (logoUrl) return <img src={logoUrl} alt={nome || "Academia"} style={{ height: altura, maxWidth: 220, objectFit: "contain" }} />;
-  return (
-    <span style={{ fontFamily: ARCH, fontWeight: 700, fontSize: Math.round(altura * 0.62), color: C.tinta, lineHeight: 1 }}>
-      {nome || "QuadraLab"}
-    </span>
-  );
+  if (nome) {
+    return (
+      <span style={{ fontFamily: ARCH, fontWeight: 700, fontSize: Math.round(altura * 0.62), color: C.tinta, lineHeight: 1 }}>
+        {nome}
+      </span>
+    );
+  }
+  return <img src="assets/logo-quadralab.png" alt="QuadraLab" style={{ height: altura, maxWidth: 220, objectFit: "contain" }} />;
 }
 function Etiqueta({ children, cor = C.grafite }) {
   return (
@@ -6106,7 +6069,7 @@ function exportarCadernoPDF(a, identidade) {
     'body{font-family:-apple-system,system-ui,sans-serif;color:#141210;max-width:720px;margin:30px auto;padding:0 20px}' +
     'h1{font-family:Georgia,serif;font-size:20px;margin:0 0 4px}' +
     '.sub{color:#6B6461;font-size:13px;margin-bottom:20px}' +
-    'h2{font-family:Georgia,serif;font-size:15px;margin:26px 0 8px;padding-bottom:6px;border-bottom:2px solid #C8102E}' +
+    'h2{font-family:Georgia,serif;font-size:15px;margin:26px 0 8px;padding-bottom:6px;border-bottom:2px solid #67AD2E}' +
     'h3{font-family:Georgia,serif;font-size:13px;margin:14px 0 6px}' +
     '.detalhe{font-size:12.5px;margin:0 0 4px;line-height:1.5}' +
     'table{width:100%;border-collapse:collapse;margin-bottom:10px;font-size:12px}' +
@@ -6578,7 +6541,7 @@ function formatarRelatorioHTML(texto) {
     const divisorForte = linha.match(/^═+\s*(.*?)\s*═+$/);
     if (divisorForte) {
       fecharParagrafo();
-      partes.push('<h2 style="font-family:Georgia,serif;font-size:15px;margin:22px 0 10px;padding-bottom:6px;border-bottom:2px solid #C8102E">' + escaparHTML(divisorForte[1]) + '</h2>');
+      partes.push('<h2 style="font-family:Georgia,serif;font-size:15px;margin:22px 0 10px;padding-bottom:6px;border-bottom:2px solid #67AD2E">' + escaparHTML(divisorForte[1]) + '</h2>');
       return;
     }
     const divisorFraco = linha.match(/^─+\s*(.*?)\s*─+$/);
@@ -6611,7 +6574,7 @@ function formatarRelatorioHTML(texto) {
    disponível (identidade vem do App, carregado da conta logada). */
 function cabecalhoRelatorioHTML(identidade) {
   const nomeAcademia = identidade && identidade.nome;
-  return '<div style="border-bottom:3px solid #C8102E;padding-bottom:10px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:flex-end;gap:10px">' +
+  return '<div style="border-bottom:3px solid #67AD2E;padding-bottom:10px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:flex-end;gap:10px">' +
     '<div><div style="font-family:Georgia,serif;font-weight:700;font-size:13px;letter-spacing:.02em">QUADRALAB</div>' +
     (nomeAcademia ? '<div style="font-size:11.5px;color:#6B6461;margin-top:2px">' + escaparHTML(nomeAcademia) + '</div>' : '') +
     '</div></div>';
@@ -9114,11 +9077,14 @@ function App() {
       <header className={"mty-sidebar" + (menuMobileAberto ? " aberta" : "")} style={{ position: "fixed", left: 0, top: 0, bottom: 0, width: 252, overflowY: "auto",
         background: C.cal, borderRight: "1px solid " + C.linha, zIndex: 30 }}>
         <div style={{ height: 4, background: C.saibro }} />
-        <div style={{ padding: "18px 18px 14px" }}>
+        <img src="assets/logo-quadralab-mark.png" alt="" aria-hidden="true" style={{
+          position: "absolute", left: "50%", bottom: 10, transform: "translateX(-50%)",
+          width: 220, opacity: 0.06, pointerEvents: "none", zIndex: 0 }} />
+        <div style={{ padding: "18px 18px 14px", position: "relative", zIndex: 1 }}>
           <Marca identidade={identidade} altura={26} />
           <div className="mt-2"><Etiqueta>Ficha, periodização e sessão · 315 exercícios</Etiqueta></div>
         </div>
-        <nav style={{ display: "block", padding: "4px 10px 18px" }}>
+        <nav style={{ display: "block", padding: "4px 10px 18px", position: "relative", zIndex: 1 }}>
           {gruposNav.map((g) => (
             <div key={g.id} className="mb-1">
               <button onClick={() => alternarGrupo(g.id)} className="w-full flex items-center justify-between gap-2"
