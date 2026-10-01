@@ -2710,7 +2710,7 @@ function IconeSeta({ tam = 18 }) {
   );
 }
 
-function Botao({ children, onClick, variante = "cheio", pequeno, disabled }) {
+function Botao({ children, onClick, variante = "cheio", pequeno, disabled, style, type }) {
   const base = {
     fontFamily: ARCH, fontSize: pequeno ? 12 : 14, fontWeight: 600,
     padding: pequeno ? "7px 13px" : "11px 20px", borderRadius: 10,
@@ -2718,13 +2718,18 @@ function Botao({ children, onClick, variante = "cheio", pequeno, disabled }) {
     opacity: disabled ? 0.55 : 1, transition: "transform .1s ease, box-shadow .15s ease, opacity .15s ease",
     boxShadow: disabled ? "none" : SOMBRA,
   };
+  /* Verde-escuro é a cor principal de botão preenchido — "cheio" e
+     "saibro" (nome mantido por compatibilidade com ~70 chamadas
+     existentes) renderizam iguais agora. O verde vivo (C.saibro) fica
+     reservado pra acento/destaque: estado ativo, badge, barra de
+     progresso — nunca pro preenchimento de botão. */
   const v = {
-    cheio: { ...base, background: C.tinta, color: C.papel },
+    cheio: { ...base, background: C.quadra, color: "#fff", borderColor: C.quadra },
     vazio: { ...base, background: "transparent", color: C.tinta, boxShadow: "none" },
-    saibro: { ...base, background: C.saibro, color: "#fff", borderColor: C.saibro },
+    saibro: { ...base, background: C.quadra, color: "#fff", borderColor: C.quadra },
   };
   return (
-    <button className="mty-botao" onClick={onClick} disabled={disabled} style={v[variante]}>
+    <button type={type || "button"} className="mty-botao" onClick={onClick} disabled={disabled} style={{ ...v[variante], ...style }}>
       {children}
     </button>
   );
@@ -2786,8 +2791,8 @@ function Seletor({ opcoes, valor, aoMudar }) {
           <button key={String(o.v)} onClick={() => aoMudar(o.v)}
             style={{
               fontFamily: ARCH, fontSize: 13, fontWeight: on ? 700 : 500, padding: "8px 13px",
-              borderRadius: 10, cursor: "pointer", border: "1px solid " + (on ? C.tinta : C.linha),
-              background: on ? C.tinta : C.cal, color: on ? C.papel : C.grafite,
+              borderRadius: 10, cursor: "pointer", border: "1px solid " + (on ? C.quadra : C.linha),
+              background: on ? C.quadra : C.cal, color: on ? "#fff" : C.grafite,
             }}>
             {o.r}
           </button>
@@ -2813,8 +2818,8 @@ function SeletorMulti({ opcoes, valor, aoMudar }) {
           <button key={String(o.v)} onClick={() => alternar(o.v)}
             style={{
               fontFamily: ARCH, fontSize: 13, fontWeight: on ? 700 : 500, padding: "8px 13px",
-              borderRadius: 10, cursor: "pointer", border: "1px solid " + (on ? C.tinta : C.linha),
-              background: on ? C.tinta : C.cal, color: on ? C.papel : C.grafite,
+              borderRadius: 10, cursor: "pointer", border: "1px solid " + (on ? C.quadra : C.linha),
+              background: on ? C.quadra : C.cal, color: on ? "#fff" : C.grafite,
             }}>
             {on ? "✓ " : ""}{o.r}
           </button>
@@ -2829,6 +2834,25 @@ const DIAS_SEMANA = [
   { v: 5, r: "Sex" }, { v: 6, r: "Sáb" }, { v: 0, r: "Dom" },
 ];
 function nomeDia(v) { return (DIAS_SEMANA.find((d) => d.v === v) || {}).r || "?"; }
+/* Próximo horário fixo de UM jogador ou turma (pra mostrar "próximo
+   treino" na lista de Jogadores sem montar a agenda inteira) — mesma
+   lógica de distância de proximoCompromisso, só que já recebendo os
+   horarios de uma entidade só. */
+function proximoHorarioTexto(horarios) {
+  if (!horarios || horarios.length === 0) return null;
+  const agora = new Date();
+  const diaHoje = agora.getDay();
+  const horaAtual = String(agora.getHours()).padStart(2, "0") + ":" + String(agora.getMinutes()).padStart(2, "0");
+  function distancia(h) {
+    let dias = (h.dia - diaHoje + 7) % 7;
+    if (dias === 0 && h.hora < horaAtual) dias = 7;
+    return dias * 1440 + Number(h.hora.slice(0, 2)) * 60 + Number(h.hora.slice(3, 5));
+  }
+  const prox = [...horarios].sort((x, y) => distancia(x) - distancia(y))[0];
+  const dias = (prox.dia - diaHoje + 7) % 7;
+  const rotulo = dias === 0 ? "Hoje" : dias === 1 ? "Amanhã" : nomeDia(prox.dia);
+  return rotulo + " " + prox.hora;
+}
 
 /* ── duração pré-determinada de um horário fixo ──
    Turma já tinha duracaoPadrao (uma só, valendo pra todos os horários
@@ -7953,9 +7977,8 @@ function TelaLogin({ aoEntrar }) {
    professor. Guarda em orgs/{org}/solicitacoes/{uid}.nome — o mesmo
    lugar de onde listaProfessores() já lê — pra qualquer um corrigir o
    próprio nome, sem depender do coordenador. */
-function EditorMeuNome({ org, uid, emailAtual, nome, carregado, aoSalvar, linha }) {
-  const [editando, setEditando] = useState(false);
-  const [rascunho, setRascunho] = useState("");
+function EditorMeuNome({ org, uid, emailAtual, nome, carregado, aoSalvar, aoCancelar }) {
+  const [rascunho, setRascunho] = useState(nome || "");
   const [salvando, setSalvando] = useState(false);
 
   async function salvar() {
@@ -7966,44 +7989,32 @@ function EditorMeuNome({ org, uid, emailAtual, nome, carregado, aoSalvar, linha 
       await db.collection("orgs").doc(org).collection("solicitacoes").doc(uid)
         .set({ nome: novo, email: emailAtual || "" }, { merge: true });
       aoSalvar(novo);
-      setEditando(false);
     } catch (e) {}
     setSalvando(false);
   }
 
   if (!carregado) return null;
-  if (editando) {
-    return (
-      <div className="flex items-center gap-1" style={linha ? { padding: "10px 14px" } : undefined}>
-        <input autoFocus style={{ ...entrada, fontSize: linha ? 14 : 11.5, padding: linha ? "8px 10px" : "4px 6px", flex: linha ? 1 : undefined, width: linha ? undefined : 130 }}
-          value={rascunho} onChange={(e) => setRascunho(e.target.value)} placeholder="Seu nome"
-          onKeyDown={(e) => e.key === "Enter" && salvar()} />
-        <Botao pequeno onClick={salvar} disabled={salvando || !rascunho.trim()}>{salvando ? "…" : "Salvar"}</Botao>
-        <button onClick={() => setEditando(false)} aria-label="Cancelar"
-          style={{ border: "none", background: "none", cursor: "pointer", color: C.grafite, fontSize: 18, minWidth: 28, minHeight: 28 }}>×</button>
-      </div>
-    );
-  }
-  if (linha) {
-    return (
-      <button onClick={() => { setRascunho(nome); setEditando(true); }} className="w-full flex items-center justify-between gap-3 text-left"
-        style={{ padding: "12px 14px", border: "none", background: "none", cursor: "pointer" }}>
-        <span style={{ overflow: "hidden" }}>
-          <div style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, color: C.tinta, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {nome || "Adicionar seu nome"}
-          </div>
-          {emailAtual && <div style={{ ...prosa, fontSize: 12.5, color: C.grafite, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{emailAtual}</div>}
-        </span>
-        <span style={{ ...prosa, fontSize: 12.5, color: C.saibro, flexShrink: 0 }}>editar</span>
-      </button>
-    );
-  }
   return (
-    <button onClick={() => { setRascunho(nome); setEditando(true); }} title="Como seu nome aparece pros outros"
-      style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 600, color: C.grafite, cursor: "pointer", padding: "4px 8px",
-        border: "1px solid " + C.linha, borderRadius: 10, background: C.cal, maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-      {nome || "+ meu nome"}
-    </button>
+    <div style={{ padding: 14 }}>
+      <label style={{ fontFamily: ARCH, fontSize: 11, fontWeight: 700, color: C.grafite, textTransform: "uppercase",
+        letterSpacing: ".04em", display: "block", marginBottom: 4 }}>
+        Nome
+      </label>
+      <input autoFocus style={{ ...entrada, fontSize: 14, padding: "9px 10px", width: "100%", marginBottom: 12 }}
+        value={rascunho} onChange={(e) => setRascunho(e.target.value)} placeholder="Seu nome"
+        onKeyDown={(e) => e.key === "Enter" && salvar()} />
+      <label style={{ fontFamily: ARCH, fontSize: 11, fontWeight: 700, color: C.grafite, textTransform: "uppercase",
+        letterSpacing: ".04em", display: "block", marginBottom: 4 }}>
+        E-mail
+      </label>
+      <p style={{ ...prosa, fontSize: 13.5, color: C.tinta, wordBreak: "break-all", marginBottom: 14 }}>{emailAtual || "—"}</p>
+      <div className="flex items-center gap-2">
+        <Botao pequeno onClick={salvar} disabled={salvando || !rascunho.trim()} style={{ flex: 1 }}>
+          {salvando ? "Salvando…" : "Salvar"}
+        </Botao>
+        <Botao pequeno variante="vazio" onClick={aoCancelar}>Cancelar</Botao>
+      </div>
+    </div>
   );
 }
 
@@ -8014,7 +8025,12 @@ function EditorMeuNome({ org, uid, emailAtual, nome, carregado, aoSalvar, linha 
    de se repetir pela tela (ficha só no painel, não solto no topo). */
 function MenuPerfil({ org, uid, emailAtual, nome, carregado, aoSalvarNome, planoAtual, planoVencido }) {
   const [aberto, setAberto] = useState(false);
+  const [editando, setEditando] = useState(false);
+  const [planoAberto, setPlanoAberto] = useState(false);
   const inicial = (nome || emailAtual || "?").trim().charAt(0).toUpperCase() || "?";
+
+  function fechar() { setAberto(false); setEditando(false); setPlanoAberto(false); }
+
   return (
     <div style={{ position: "relative" }}>
       <button onClick={() => setAberto((v) => !v)} aria-label="Menu do perfil" aria-haspopup="true" aria-expanded={aberto}
@@ -8027,22 +8043,57 @@ function MenuPerfil({ org, uid, emailAtual, nome, carregado, aoSalvarNome, plano
       </button>
       {aberto && (
         <>
-          <div onClick={() => setAberto(false)} style={{ position: "fixed", inset: 0, zIndex: 29 }} />
+          <div onClick={fechar} style={{ position: "fixed", inset: 0, zIndex: 29 }} />
           <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 8, background: C.cal,
             border: "1px solid " + C.linha, borderRadius: 14, boxShadow: SOMBRA_ALTA, zIndex: 30,
-            width: 240, maxWidth: "calc(100vw - 24px)", overflow: "hidden" }}>
-            <EditorMeuNome org={org} uid={uid} emailAtual={emailAtual} nome={nome} carregado={carregado} aoSalvar={aoSalvarNome} linha />
-            {planoAtual && NOMES_PLANO[planoAtual] && (
-              <div style={{ padding: "10px 14px", borderTop: "1px solid " + C.linha }}>
-                <Etiqueta cor={C.saibro}>{NOMES_PLANO[planoAtual]}{planoVencido ? " · vencido" : ""}</Etiqueta>
-              </div>
+            width: 272, maxWidth: "calc(100vw - 24px)", overflow: "hidden" }}>
+            {editando ? (
+              <EditorMeuNome org={org} uid={uid} emailAtual={emailAtual} nome={nome} carregado={carregado}
+                aoSalvar={(n) => { aoSalvarNome(n); setEditando(false); }} aoCancelar={() => setEditando(false)} />
+            ) : (
+              <>
+                <div style={{ padding: "14px 14px 12px" }}>
+                  <div style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, color: C.tinta }}>
+                    {nome || "Adicionar seu nome"}
+                  </div>
+                  {emailAtual && (
+                    <div style={{ ...prosa, fontSize: 12.5, color: C.grafite, wordBreak: "break-all", marginTop: 2 }}>
+                      {emailAtual}
+                    </div>
+                  )}
+                </div>
+                <button onClick={() => setEditando(true)} className="w-full text-left"
+                  style={{ padding: "12px 14px", border: "none", borderTop: "1px solid " + C.linha, background: "none",
+                    cursor: "pointer", fontFamily: ARCH, fontSize: 14, fontWeight: 600, color: C.tinta, minHeight: 44 }}>
+                  Editar perfil
+                </button>
+                <button onClick={() => setPlanoAberto((v) => !v)} className="w-full text-left" aria-expanded={planoAberto}
+                  style={{ padding: "12px 14px", border: "none", borderTop: "1px solid " + C.linha, background: "none",
+                    cursor: "pointer", minHeight: 44 }}>
+                  <span className="flex items-center justify-between gap-2">
+                    <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 600, color: C.tinta }}>Meu plano</span>
+                    {planoAtual && NOMES_PLANO[planoAtual] && (
+                      <Etiqueta cor={C.saibro}>{NOMES_PLANO[planoAtual]}{planoVencido ? " · vencido" : ""}</Etiqueta>
+                    )}
+                  </span>
+                </button>
+                {planoAberto && (
+                  <div style={{ padding: "0 14px 12px" }}>
+                    <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>
+                      {planoVencido
+                        ? "Sua licença venceu — fale com a gente pra renovar."
+                        : "Pra trocar de plano ou tirar dúvidas, fale com a gente."}
+                    </p>
+                  </div>
+                )}
+                <InstalarApp linha />
+                <button onClick={() => window.mtyAuth.sair()} className="w-full text-left"
+                  style={{ padding: "13px 14px", border: "none", borderTop: "1px solid " + C.linha, marginTop: 4, background: "none",
+                    cursor: "pointer", fontFamily: ARCH, fontSize: 14, fontWeight: 700, color: "#B3261E", minHeight: 44 }}>
+                  Sair
+                </button>
+              </>
             )}
-            <InstalarApp linha />
-            <button onClick={() => window.mtyAuth.sair()} className="w-full text-left"
-              style={{ padding: "12px 14px", border: "none", borderTop: "1px solid " + C.linha, background: "none",
-                cursor: "pointer", fontFamily: ARCH, fontSize: 14, fontWeight: 600, color: C.tinta }}>
-              Sair
-            </button>
           </div>
         </>
       )}
@@ -8649,13 +8700,13 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
 function compromissosDaSemana(alunos, turmas) {
   const lista = [];
   turmas.forEach((t) => (t.horarios || []).forEach((h) => lista.push({
-    tipo: "turma", dia: h.dia, hora: h.hora, horaFim: horaMaisMinutos(h.hora, minutosDaDuracao(t.duracaoPadrao)),
+    tipo: "turma", id: t.id, dia: h.dia, hora: h.hora, horaFim: horaMaisMinutos(h.hora, minutosDaDuracao(t.duracaoPadrao)),
     titulo: t.nome, detalhe: t.duracaoPadrao,
     professorUid: t.professorUid || "", professorNome: t.professorNome || "",
     professorAuxiliarUid: t.professorAuxiliarUid || "", professorAuxiliarNome: t.professorAuxiliarNome || "",
   })));
   alunos.forEach((a) => (a.horarios || []).forEach((h) => lista.push({
-    tipo: "individual", dia: h.dia, hora: h.hora, horaFim: horaMaisMinutos(h.hora, minutosDaDuracao(a.duracaoPadrao)),
+    tipo: "individual", id: a.id, dia: h.dia, hora: h.hora, horaFim: horaMaisMinutos(h.hora, minutosDaDuracao(a.duracaoPadrao)),
     titulo: a.nome || "Sem nome", detalhe: a.duracaoPadrao || "1h30",
     professorUid: a.professorUid || "", professorNome: a.professorNome || "",
   })));
@@ -8838,40 +8889,11 @@ function TelaDashboard({ alunos, turmas, uidAtual, exigeLogin, irPara, aoAbrirSe
   const primeiroNome = (meuNome || "").trim().split(" ")[0];
   const saudacao = primeiroNome ? "Olá, " + primeiroNome : "Olá";
 
-  if (alunos.length === 0 && turmas.length === 0) {
-    return (
-      <div>
-        <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>{saudacao}</h1>
-        <p style={{ ...prosa, color: C.grafite, marginBottom: 20 }}>Vamos preparar sua próxima aula?</p>
-        <div style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 16, padding: "24px 20px" }}>
-          <h2 style={{ fontFamily: ARCH, fontSize: 17, fontWeight: 700, marginBottom: 8 }}>Prepare suas próximas aulas</h2>
-          <p style={{ ...prosa, color: C.grafite, marginBottom: 18 }}>
-            Escolha um jogador ou turma para começar seu planejamento.
-          </p>
-          <Botao variante="saibro" onClick={aoCriarPlanejamento}>Criar planejamento</Botao>
-        </div>
-      </div>
-    );
-  }
-
   const prox = proximoCompromisso(alunos, turmas);
-
-  /* Planejamento em destaque: prioriza a mesma entidade da próxima aula
-     (a narrativa "é isso que vem aí, e é assim que está o plano dela"
-     é mais útil que um agregado solto) — só cai pro primeiro jogador
-     com plano ativo se a próxima aula ainda não tiver um. */
-  let entidadePlano = prox && prox.entidade.plano && aulaEmVigor(prox.entidade) ? prox.entidade : null;
-  if (!entidadePlano) entidadePlano = abertos[0] || turmas.find((t) => t.plano && aulaEmVigor(t)) || null;
-  const progresso = entidadePlano ? progressoPlano(entidadePlano) : null;
 
   function aoVerAula() {
     if (!prox) return;
     if (prox.tipo === "individual") aoAbrirSessao(prox.entidade.id);
-    else aoAbrirTurmas();
-  }
-  function aoContinuar() {
-    if (!entidadePlano) return;
-    if (abertos.includes(entidadePlano) || alunos.includes(entidadePlano)) irPara(entidadePlano.id);
     else aoAbrirTurmas();
   }
 
@@ -8886,8 +8908,11 @@ function TelaDashboard({ alunos, turmas, uidAtual, exigeLogin, irPara, aoAbrirSe
 
   return (
     <div>
-      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>{saudacao}</h1>
-      <p style={{ ...prosa, color: C.grafite, marginBottom: 20 }}>Vamos preparar sua próxima aula?</p>
+      <h1 style={{ fontFamily: ARCH, fontSize: 26, fontWeight: 700, marginBottom: 4 }}>{saudacao}</h1>
+      <p style={{ ...prosa, fontSize: 15, color: C.grafite, marginBottom: 18 }}>Vamos preparar sua próxima aula?</p>
+
+      {/* ── ação principal: única entrada pra criar planejamento na tela toda ── */}
+      <div className="mb-5"><Botao variante="saibro" onClick={aoCriarPlanejamento} style={{ width: "100%" }}>Criar planejamento</Botao></div>
 
       {/* ── próxima aula ── */}
       <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 14, padding: "16px 18px" }}>
@@ -8899,7 +8924,7 @@ function TelaDashboard({ alunos, turmas, uidAtual, exigeLogin, irPara, aoAbrirSe
             <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginTop: 4 }}>
               {prox.objetivo || "Ainda sem plano montado pra essa aula."}
             </p>
-            <div className="mt-3"><Botao onClick={aoVerAula}>Ver aula</Botao></div>
+            <div className="mt-3"><Botao onClick={aoVerAula}>Ver planejamento</Botao></div>
           </div>
         ) : (
           <div className="mt-2">
@@ -8921,46 +8946,23 @@ function TelaDashboard({ alunos, turmas, uidAtual, exigeLogin, irPara, aoAbrirSe
         </div>
       )}
 
-      {/* ── planejamento em destaque ── */}
-      <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 14, padding: "16px 18px" }}>
-        {entidadePlano ? (
-          <>
-            <Etiqueta>Planejamento</Etiqueta>
-            <h2 style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, marginTop: 6 }}>
-              {entidadePlano.nome || "Sem nome"}
-            </h2>
-            {entidadePlano.plano.prioridade && (
-              <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginTop: 2 }}>{entidadePlano.plano.prioridade}</p>
-            )}
-            {progresso && (
-              <div className="mt-3">
-                <div style={{ height: 6, background: C.papel, borderRadius: 999, overflow: "hidden" }}>
-                  <div style={{ width: progresso.pct + "%", height: "100%", background: C.saibro, borderRadius: 999 }} />
-                </div>
-                <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 5 }}>{progresso.feitas} de {progresso.total} aulas feitas</p>
-              </div>
-            )}
-            <div className="mt-3"><Botao variante="vazio" onClick={aoContinuar}>Continuar planejamento</Botao></div>
-          </>
-        ) : (
-          <>
-            <h2 style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700 }}>Prepare suas próximas aulas</h2>
-            <p style={{ ...prosa, color: C.grafite, marginTop: 4 }}>Escolha um jogador ou turma para começar seu planejamento.</p>
-            <div className="mt-3"><Botao variante="saibro" onClick={aoCriarPlanejamento}>Criar planejamento</Botao></div>
-          </>
-        )}
-      </div>
-
-      {/* ── resumo compacto dos indicadores ── */}
-      <div className="mb-5" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
+      {/* ── resumo compacto dos indicadores ──
+         "Aulas prontas": tem conteúdo de plano pronto pra dar (não é sobre
+         estar agendada no calendário — ver "Próxima aula" acima pra isso).
+         "Aulas na semana": já dadas, não as que ainda vão acontecer.
+         "Pendências": trocas e avisos em aberto nas turmas, não aulas. */}
+      <div className="mb-2" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
         <TileEstat rotulo="Jogadores" valor={alunos.length} onClick={aoCriarPlanejamento} />
         <TileEstat rotulo="Aulas prontas" valor={abertos.length} cor={abertos.length > 0 ? C.saibro : C.tinta}
           ativo={detalhe === "prontas"} onClick={abertos.length > 0 ? () => setDetalhe(detalhe === "prontas" ? null : "prontas") : null} />
-        <TileEstat rotulo="Aulas nesta semana" valor={dadas7} cor={C.quadra}
+        <TileEstat rotulo="Aulas na semana" valor={dadas7} cor={C.quadra}
           ativo={detalhe === "semana"} onClick={dadas7 > 0 ? () => setDetalhe(detalhe === "semana" ? null : "semana") : null} />
         <TileEstat rotulo="Pendências" valor={pendenciasAbertas} cor={pendenciasAbertas > 0 ? C.saibro : C.tinta}
           onClick={pendenciasAbertas > 0 ? aoAbrirTurmas : null} />
       </div>
+      <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginBottom: 20 }}>
+        "Aulas prontas" já têm conteúdo pra dar · "na semana" já foram dadas · "pendências" são trocas e avisos em aberto nas turmas.
+      </p>
 
       {detalhe === "prontas" && (
         <div className="mb-5">
@@ -9010,8 +9012,87 @@ function TelaDashboard({ alunos, turmas, uidAtual, exigeLogin, irPara, aoAbrirSe
   );
 }
 
-function TelaAgenda({ alunos, turmas }) {
+/* Ícone de calendário, mesma família de traço dos demais ícones do app —
+   só pro bloco de estado vazio da Agenda. */
+function IconeCalendario({ tam = 28 }) {
+  return (
+    <svg width={tam} height={tam} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3.5" y="5" width="17" height="15" rx="2.2" />
+      <path d="M3.5 9.5h17" />
+      <path d="M8 3v3.2M16 3v3.2" />
+    </svg>
+  );
+}
+
+/* Escolher pra quem adicionar o horário: reaproveita o cadastro que já
+   existe (Horário fixo de treino na ficha do jogador, ou na turma) — não
+   cria uma agenda paralela. Jogador abre direto na própria ficha; turma
+   (sem deep link por entidade ainda) abre a lista de Turmas. */
+function EscolherParaAgendar({ alunos, turmas, aoEscolherJogador, aoAbrirTurmas, aoFechar }) {
+  return (
+    <>
+      <div onClick={aoFechar} style={{ position: "fixed", inset: 0, background: "rgba(16,30,25,.4)", zIndex: 39 }} />
+      <div role="dialog" aria-modal="true" aria-label="Escolher jogador ou turma"
+        style={{ position: "fixed", left: 0, right: 0, bottom: 0, background: C.cal, zIndex: 40,
+          borderRadius: "16px 16px 0 0", boxShadow: SOMBRA_ALTA, maxHeight: "70vh", display: "flex", flexDirection: "column" }}>
+        <div className="flex items-center justify-between" style={{ padding: "14px 18px", borderBottom: "1px solid " + C.linha }}>
+          <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>Adicionar horário pra quem?</span>
+          <button onClick={aoFechar} aria-label="Fechar" style={{ width: 36, height: 36, border: "none", background: "none", cursor: "pointer", fontSize: 20, color: C.grafite }}>×</button>
+        </div>
+        <div style={{ overflowY: "auto", padding: "8px 10px" }}>
+          {alunos.map((a) => (
+            <button key={a.id} onClick={() => aoEscolherJogador(a.id)} className="w-full text-left"
+              style={{ display: "block", padding: "12px 10px", border: "none", background: "none", cursor: "pointer", borderRadius: 10, minHeight: 44 }}>
+              <span style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 600 }}>{a.nome || "Cadastro incompleto"}</span>
+              <span style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginLeft: 8 }}>Jogador</span>
+            </button>
+          ))}
+          {turmas.map((t) => (
+            <button key={t.id} onClick={aoAbrirTurmas} className="w-full text-left"
+              style={{ display: "block", padding: "12px 10px", border: "none", background: "none", cursor: "pointer", borderRadius: 10, minHeight: 44 }}>
+              <span style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 600 }}>{t.nome}</span>
+              <span style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginLeft: 8 }}>Turma</span>
+            </button>
+          ))}
+          {alunos.length === 0 && turmas.length === 0 && (
+            <p style={{ ...prosa, color: C.grafite, padding: "12px 10px" }}>Cadastre um jogador ou turma primeiro.</p>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function PainelMais({ aba, setAba, aoFechar }) {
+  const itens = NAV_PRINCIPAL.filter((t) => !["dashboard", "alunos", "agenda"].includes(t.v));
+  return (
+    <>
+      <div onClick={aoFechar} style={{ position: "fixed", inset: 0, background: "rgba(16,30,25,.4)", zIndex: 39 }} />
+      <div role="dialog" aria-modal="true" aria-label="Mais opções"
+        style={{ position: "fixed", left: 0, right: 0, bottom: 0, background: C.cal, zIndex: 40,
+          borderRadius: "16px 16px 0 0", boxShadow: SOMBRA_ALTA, paddingBottom: "env(safe-area-inset-bottom)" }}>
+        <div className="flex items-center justify-between" style={{ padding: "14px 18px", borderBottom: "1px solid " + C.linha }}>
+          <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>Mais</span>
+          <button onClick={aoFechar} aria-label="Fechar" style={{ width: 36, height: 36, border: "none", background: "none", cursor: "pointer", fontSize: 20, color: C.grafite }}>×</button>
+        </div>
+        <div style={{ padding: "8px 10px 16px" }}>
+          {itens.map((t) => (
+            <button key={t.v} onClick={() => { setAba(t.v); aoFechar(); }} className="w-full text-left"
+              aria-current={aba === t.v ? "page" : undefined}
+              style={{ display: "block", padding: "13px 12px", border: "none", cursor: "pointer", borderRadius: 10, minHeight: 44,
+                background: aba === t.v ? C.saibro : "none", color: aba === t.v ? "#fff" : C.tinta }}>
+              <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 600 }}>{t.r}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function TelaAgenda({ alunos, turmas, aoEscolherJogador, aoAbrirTurmas }) {
   const [modo, setModo] = useState("grade");
+  const [escolhendo, setEscolhendo] = useState(false);
 
   const compromissos = useMemo(() => compromissosDaSemana(alunos, turmas), [alunos, turmas]);
 
@@ -9019,29 +9100,40 @@ function TelaAgenda({ alunos, turmas }) {
 
   return (
     <div>
-      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Agenda</h1>
-      <p style={{ ...prosa, color: C.grafite, marginBottom: 14 }}>
-        Vem dos horários fixos cadastrados na ficha de cada jogador e em cada turma.
+      <h1 style={{ fontFamily: ARCH, fontSize: 26, fontWeight: 700, marginBottom: 4 }}>Agenda</h1>
+      <p style={{ ...prosa, fontSize: 15, color: C.grafite, marginBottom: 16 }}>
+        Seus horários de jogadores e turmas.
       </p>
 
-      <div className="flex items-center justify-between gap-3 flex-wrap mb-5">
-        <div className="flex gap-2">
-          {[{ v: "grade", r: "Grade" }, { v: "semana", r: "Semana" }].map((t) => (
-            <button key={t.v} onClick={() => setModo(t.v)}
-              style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, padding: "6px 11px", borderRadius: 10, cursor: "pointer",
-                border: "1px solid " + (modo === t.v ? C.tinta : C.linha),
-                background: modo === t.v ? C.tinta : C.papel, color: modo === t.v ? C.papel : C.grafite }}>
-              {t.r}
-            </button>
-          ))}
+      {escolhendo && (
+        <EscolherParaAgendar alunos={alunos} turmas={turmas} aoAbrirTurmas={aoAbrirTurmas}
+          aoEscolherJogador={(id) => { setEscolhendo(false); aoEscolherJogador(id); }}
+          aoFechar={() => setEscolhendo(false)} />
+      )}
+
+      {compromissos.length > 0 && (
+        <div className="flex items-center justify-between gap-3 flex-wrap mb-5">
+          <div role="tablist" aria-label="Modo de visualização" className="flex gap-2">
+            {[{ v: "grade", r: "Grade" }, { v: "semana", r: "Semana" }].map((t) => (
+              <button key={t.v} role="tab" aria-selected={modo === t.v} onClick={() => setModo(t.v)}
+                style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, padding: "8px 13px", borderRadius: 10, cursor: "pointer", minHeight: 36,
+                  border: "1px solid " + (modo === t.v ? C.quadra : C.linha),
+                  background: modo === t.v ? C.quadra : C.cal, color: modo === t.v ? "#fff" : C.grafite }}>
+                {t.r}
+              </button>
+            ))}
+          </div>
+          <Botao pequeno variante="vazio" onClick={() => setEscolhendo(true)}>+ Adicionar horário</Botao>
         </div>
-      </div>
+      )}
 
       {compromissos.length === 0 ? (
-        <p style={{ ...prosa, color: C.grafite }}>
-          Nenhum horário fixo cadastrado ainda. Adicione em "Horário fixo de treino" na ficha do jogador,
-          ou em "Dias e horários de treino" ao criar uma turma.
-        </p>
+        <div style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 16, padding: "28px 20px", textAlign: "center" }}>
+          <div style={{ color: C.grafite, marginBottom: 10, display: "flex", justifyContent: "center" }}><IconeCalendario /></div>
+          <h2 style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Sua agenda está vazia</h2>
+          <p style={{ ...prosa, color: C.grafite, marginBottom: 16 }}>Adicione um horário para organizar suas próximas aulas.</p>
+          <Botao variante="saibro" onClick={() => setEscolhendo(true)}>Adicionar horário</Botao>
+        </div>
       ) : modo === "grade" ? (
         <div style={{ overflowX: "auto" }}>
           <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 640 }}>
@@ -9062,16 +9154,12 @@ function TelaAgenda({ alunos, turmas }) {
                     return (
                       <td key={d.v} style={{ ...celulaGrade, minWidth: 110 }}>
                         {aqui.map((c, i) => (
-                          <div key={i} className="mb-1" style={{ fontSize: 11.5, lineHeight: 1.3 }}>
-                            {c.hora === hora ? (
-                              <>
-                                <div style={{ fontWeight: 700 }}>{c.titulo}</div>
-                                <div style={{ color: C.grafite }}>{c.professorNome || "sem professor"}{c.professorAuxiliarNome ? " + " + c.professorAuxiliarNome : ""}</div>
-                              </>
-                            ) : (
-                              <div style={{ color: C.grafite, fontStyle: "italic" }}>↕ {c.titulo}</div>
-                            )}
-                          </div>
+                          <button key={i} onClick={() => (c.tipo === "individual" ? aoEscolherJogador(c.id) : aoAbrirTurmas())}
+                            className="mb-1 w-full text-left" style={{ fontSize: 11.5, lineHeight: 1.3, border: "none", background: "none",
+                              cursor: "pointer", padding: 0, fontWeight: c.hora === hora ? 700 : 400,
+                              color: c.hora === hora ? C.tinta : C.grafite, fontStyle: c.hora === hora ? "normal" : "italic" }}>
+                            {c.hora === hora ? c.titulo : "↕ " + c.titulo}
+                          </button>
                         ))}
                       </td>
                     );
@@ -9089,15 +9177,15 @@ function TelaAgenda({ alunos, turmas }) {
             <div key={d.v} className="mb-5">
               <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginBottom: 8, color: C.tinta }}>{d.r}</div>
               {doDia.map((c, i) => (
-                <div key={i} style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, padding: "10px 13px", marginBottom: 6 }}>
-                  <div className="flex items-center justify-between gap-3">
+                <button key={i} onClick={() => (c.tipo === "individual" ? aoEscolherJogador(c.id) : aoAbrirTurmas())}
+                  className="mty-cartao w-full text-left flex items-center justify-between gap-3"
+                  style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 12, padding: "12px 15px", marginBottom: 8, cursor: "pointer", minHeight: 44 }}>
+                  <div style={{ minWidth: 0 }}>
                     <div style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{c.hora}–{c.horaFim} · {c.titulo}</div>
                     <Etiqueta>{c.detalhe}</Etiqueta>
                   </div>
-                  <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>
-                    {c.professorNome || "sem professor definido"}{c.professorAuxiliarNome ? " · aux. " + c.professorAuxiliarNome : ""}
-                  </p>
-                </div>
+                  <span style={{ color: C.grafite, flexShrink: 0 }}><IconeSeta tam={18} /></span>
+                </button>
               ))}
             </div>
           );
@@ -9199,13 +9287,11 @@ function App() {
   const [meuNome, setMeuNome] = useState("");
   const [meuNomeCarregado, setMeuNomeCarregado] = useState(!exigeLogin);
   const [verificandoOrg, setVerificandoOrg] = useState(exigeLogin);
-  /* Lista de Jogadores organizada em menu (professor > tipo de aula) —
-     cada grupo lembra se foi aberto/fechado na mão; quando o treinador
-     ainda não tocou num grupo, undefined cai no padrão esperto (só abre
-     sozinho quando é o único grupo existente, senão fica fechado pra não
-     virar lista extensa de novo). */
-  const [professoresAbertos, setProfessoresAbertos] = useState({});
-  const [tiposAulaAbertos, setTiposAulaAbertos] = useState({});
+  /* Lista de Jogadores: busca por nome + filtro por estágio — lista
+     simples, sem agrupamento por professor (produto de um treinador só,
+     esse nível nunca ajuda) nem caixas aninhadas por categoria. */
+  const [buscaJogador, setBuscaJogador] = useState("");
+  const [filtroEstagioJogador, setFiltroEstagioJogador] = useState("todos");
   const [avisosAberto, setAvisosAberto] = useState(false);
   /* Menu lateral: cada grupo abre/fecha independente, mas começa todo
      aberto — assim quem já usa o app continua vendo tudo de cara, sem
@@ -9214,13 +9300,11 @@ function App() {
   function alternarGrupo(id) {
     setGruposAbertos((atual) => ({ ...atual, [id]: !atual[id] }));
   }
-  /* No celular em pé, a barra lateral de 252px não cabe do lado do
-     conteúdo — vira uma gaveta que fica recolhida por padrão (o CSS,
-     no <style> abaixo, cuida de escondê-la fora da tela só em telas
-     estreitas) e abre por cima de tudo com o botão ☰ do topo. Sempre à
-     esquerda, nunca empilhada — só entra e sai por toque. No computador
-     o botão ☰ nem aparece (também via CSS), e esse estado não tem efeito. */
-  const [menuMobileAberto, setMenuMobileAberto] = useState(false);
+  /* No celular a barra lateral de 252px nem existe — fica escondida por
+     CSS (só o computador a vê). "Mais", na barra inferior, abre este
+     painel próprio deslizando de baixo, só com os acessos que não cabem
+     ali embaixo (Turmas, Casos) — sem repetir Início/Jogadores/Agenda. */
+  const [maisAberto, setMaisAberto] = useState(false);
   /* Avisos são recalculados do zero a cada render (aula de hoje, pendência,
      pedido do aluno) — sem estado próprio, o mesmo aviso reaparecia
      idêntico toda vez que o sininho abria de novo, mesmo já tendo sido
@@ -9390,19 +9474,16 @@ function App() {
         .mty-navitem:hover { background: ${C.papel} !important; }
         .mty-cartao { transition: box-shadow .15s ease, transform .15s ease; }
         .mty-cartao:hover { box-shadow: ${SOMBRA_ALTA}; }
-        .mty-sidebar { transition: transform .2s ease; }
-        .mty-hamburger { display: none; }
         .mty-topo-logo { display: none; }
         .mty-bottomnav { display: none; }
         .mty-bottomnav-item:focus-visible { outline-offset: -2px; }
         @media (max-width: 760px) {
-          /* No celular a navegação some do topo: a barra de 252px vira
-             uma gaveta escondida fora da tela, reservada pro item "Mais"
-             da barra inferior — Início, Jogadores e Agenda já têm atalho
-             direto lá embaixo, sem precisar abrir gaveta nenhuma. */
-          .mty-sidebar { transform: translateX(-100%); }
-          .mty-sidebar.aberta { transform: translateX(0); box-shadow: 4px 0 18px rgba(0,0,0,.18); }
-          .mty-hamburger { display: inline-flex !important; }
+          /* No celular a barra lateral de 252px nem existe — fica escondida
+             por CSS (só o computador a vê). "Mais", na barra inferior, abre
+             um painel próprio deslizando de baixo (PainelMais), só com os
+             acessos que não cabem ali embaixo (Turmas, Casos) — sem repetir
+             Início/Jogadores/Agenda, que já têm atalho direto. */
+          .mty-sidebar { display: none; }
           .mty-topo-logo { display: block !important; }
           .mty-topbar, .mty-main { margin-left: 0 !important; }
           .mty-bottomnav { display: block !important; }
@@ -9421,20 +9502,11 @@ function App() {
         }
       `}</style>
 
-      {menuMobileAberto && (
-        <div onClick={() => setMenuMobileAberto(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.35)", zIndex: 25 }} />
-      )}
-
-      <header className={"mty-sidebar" + (menuMobileAberto ? " aberta" : "")} style={{ position: "fixed", left: 0, top: 0, bottom: 0, width: 252, overflowY: "auto",
+      <header className="mty-sidebar" style={{ position: "fixed", left: 0, top: 0, bottom: 0, width: 252, overflowY: "auto",
         background: C.cal, borderRight: "1px solid " + C.linha, zIndex: 30 }}>
         <div style={{ height: 4, background: C.quadra }} />
         <div className="flex items-center justify-between" style={{ padding: "18px 18px 14px" }}>
           <img src="assets/logo-quadralab.png" alt="QuadraLab" style={{ height: 30, maxWidth: 190, objectFit: "contain" }} />
-          <button className="mty-hamburger" onClick={() => setMenuMobileAberto(false)} aria-label="Fechar menu"
-            style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center",
-              border: "1px solid " + C.linha, borderRadius: 10, background: C.cal, color: C.tinta, cursor: "pointer", fontSize: 18, lineHeight: "34px", textAlign: "center", padding: 0 }}>
-            ×
-          </button>
         </div>
         <nav style={{ display: "block", padding: "4px 10px 18px", position: "relative", zIndex: 1 }}>
           {gruposNav.map((g) => (
@@ -9453,7 +9525,7 @@ function App() {
               {gruposAbertos[g.id] && (
                 <div className="flex flex-col" style={{ gap: 1 }}>
                   {g.itens.map((t) => (
-                    <button key={t.v} onClick={() => { setAba(t.v); setAbertoId(null); setManualAberto(false); setMenuMobileAberto(false); }}
+                    <button key={t.v} onClick={() => { setAba(t.v); setAbertoId(null); setManualAberto(false); }}
                       className={"text-left" + (aba === t.v ? "" : " mty-navitem")}
                       style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 600, padding: "8px 10px", borderRadius: 10, cursor: "pointer",
                         border: "none", transition: "background .12s ease",
@@ -9486,7 +9558,7 @@ function App() {
               {manualAberto && (
                 <div className="flex flex-col" style={{ gap: 1 }}>
                   {NAV_MANUAL.map((t) => (
-                    <button key={t.v} onClick={() => { setAba(t.v); setAbertoId(null); setManualAberto(false); setMenuMobileAberto(false); }}
+                    <button key={t.v} onClick={() => { setAba(t.v); setAbertoId(null); setManualAberto(false); }}
                       className="text-left"
                       style={{ fontFamily: ARCH, fontSize: 13, fontWeight: aba === t.v ? 700 : 500, padding: "7px 10px 7px 18px",
                         borderRadius: 10, cursor: "pointer", border: "none",
@@ -9591,7 +9663,9 @@ function App() {
          aba === "metodo" ? <TelaMetodo /> :
          aba === "turmas" ? <TelaTurmas alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade}
            exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
-         aba === "agenda" ? <TelaAgenda alunos={alunos} turmas={turmas} /> :
+         aba === "agenda" ? <TelaAgenda alunos={alunos} turmas={turmas}
+           aoEscolherJogador={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("ficha"); }}
+           aoAbrirTurmas={() => setAba("turmas")} /> :
          aba === "dashboard" ? <TelaDashboard alunos={alunos} turmas={turmas} uidAtual={uidAtual} exigeLogin={exigeLogin} usoIA={usoIA} identidade={identidade} meuNome={meuNome}
            irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }}
            aoAbrirSessao={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("sessao"); }}
@@ -9627,80 +9701,16 @@ function App() {
           </div>
         ) : (
           <div>
-            <p style={{ ...prosa, color: C.grafite, marginBottom: 14 }}>
-              Cada jogador guarda a ficha das quatro camadas, o calendário e o histórico de sessões.
-              É desse conjunto que sai a periodização.
+            <div className="flex items-start justify-between gap-3 mb-1">
+              <h1 style={{ fontFamily: ARCH, fontSize: 26, fontWeight: 700 }}>Jogadores</h1>
+              <Botao onClick={criar}>Novo jogador</Botao>
+            </div>
+            <p style={{ ...prosa, fontSize: 15, color: C.grafite, marginBottom: 16 }}>
+              Consulte seus jogadores e acompanhe seus treinos.
             </p>
-            {alunosExibidos.length === 0 ? (
-              <p style={{ ...prosa, color: C.grafite, marginBottom: 16 }}>Nenhum jogador seu por enquanto.</p>
-            ) : (() => {
-              const agrupado = agruparAlunosPorProfessorETipo(alunosExibidos);
-              const professores = Object.keys(agrupado).sort((x, y) => x.localeCompare(y, "pt-BR"));
-              return professores.map((prof) => {
-                const tipos = agrupado[prof];
-                const tiposPresentes = ORDEM_TIPOS_AULA.filter((t) => tipos[t]);
-                const totalProf = tiposPresentes.reduce((s, t) => s + tipos[t].length, 0);
-                const profAberto = professoresAbertos[prof] !== undefined ? professoresAbertos[prof] : professores.length === 1;
-                return (
-                  <div key={prof} className="mb-3" style={{ border: "1px solid " + C.linha, borderRadius: 10, overflow: "hidden" }}>
-                    <button onClick={() => setProfessoresAbertos((p) => ({ ...p, [prof]: !profAberto }))}
-                      className="w-full flex items-center justify-between gap-3"
-                      style={{ padding: "12px 15px", background: C.cal, cursor: "pointer", border: "none" }}>
-                      <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{prof}</span>
-                      <span style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 600, color: C.grafite, flexShrink: 0 }}>
-                        {totalProf} {totalProf === 1 ? "jogador" : "jogadores"} · {profAberto ? "−" : "+"}
-                      </span>
-                    </button>
-                    {profAberto && tiposPresentes.map((tipo) => {
-                      const listaTipo = tipos[tipo];
-                      const chave = prof + "|" + tipo;
-                      const tipoAberto = tiposAulaAbertos[chave] !== undefined ? tiposAulaAbertos[chave] : tiposPresentes.length === 1;
-                      return (
-                        <div key={tipo} style={{ borderTop: "1px solid " + C.linha }}>
-                          <button onClick={() => setTiposAulaAbertos((p) => ({ ...p, [chave]: !tipoAberto }))}
-                            className="w-full flex items-center justify-between gap-3"
-                            style={{ padding: "9px 15px 9px 26px", background: C.papel, cursor: "pointer", border: "none" }}>
-                            <span style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 600, color: C.grafite }}>{tipo}</span>
-                            <span style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 600, color: C.grafite, flexShrink: 0 }}>
-                              {listaTipo.length} · {tipoAberto ? "−" : "+"}
-                            </span>
-                          </button>
-                          {tipoAberto && (
-                            <div style={{ padding: "10px 12px 2px" }}>
-                              {listaTipo.map((a) => {
-                                const emVigor = a.plano ? aulaEmVigor(a) : null;
-                                const regEmVigor = emVigor ? (a.regPlano || {})[emVigor.id] || {} : null;
-                                const repetindo = regEmVigor && (regEmVigor.status === "falta" || regEmVigor.status === "cancelada");
-                                return (
-                                  <button key={a.id} onClick={() => { setAbertoId(a.id); setSubaba("ficha"); }}
-                                    className="w-full text-left flex items-center justify-between gap-3"
-                                    style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderRadius: 10, padding: "13px 15px", marginBottom: 8 }}>
-                                    <div>
-                                      <div style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{a.nome || "Sem nome"}</div>
-                                      <div className="mt-1">
-                                        <Etiqueta>{nomeNivel(a.nivel)} · Estágio {a.estagio} · {a.inicio ? `início ${a.inicio}` : "sem calendário"}</Etiqueta>
-                                      </div>
-                                      {emVigor && (
-                                        <p style={{ ...prosa, fontSize: 12.5, color: C.saibro, marginTop: 4 }}>
-                                          {repetindo ? "Repetindo: " : "Em vigor: "}{emVigor.t}
-                                        </p>
-                                      )}
-                                    </div>
-                                    <span style={{ color: C.grafite, fontSize: 20 }}>→</span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              });
-            })()}
+
             {limiteAtingido && (
-              <div className="mt-4 mb-2" style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "13px 15px" }}>
+              <div className="mb-4" style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.saibro, borderRadius: 12, padding: "13px 15px" }}>
                 {planoVencido ? (
                   <>
                     <p style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, marginBottom: 4 }}>A licença desta academia venceu em {planoAtivoAte}</p>
@@ -9718,7 +9728,72 @@ function App() {
                 )}
               </div>
             )}
-            <div className="mt-4"><Botao onClick={criar} variante="saibro">Novo jogador</Botao></div>
+
+            {alunosExibidos.length === 0 ? (
+              <p style={{ ...prosa, color: C.grafite }}>Nenhum jogador seu por enquanto.</p>
+            ) : (() => {
+              const busca = buscaJogador.trim().toLowerCase();
+              const estagiosPresentes = [...new Set(alunosExibidos.map((a) => nomeTipoAula(a.estagio)))]
+                .sort((x, y) => ORDEM_TIPOS_AULA.indexOf(x) - ORDEM_TIPOS_AULA.indexOf(y));
+              const porEstagio = filtroEstagioJogador === "todos" ? alunosExibidos
+                : alunosExibidos.filter((a) => nomeTipoAula(a.estagio) === filtroEstagioJogador);
+              const filtrados = busca ? porEstagio.filter((a) => (a.nome || "").toLowerCase().includes(busca)) : porEstagio;
+              return (
+                <>
+                  <div className="mb-3">
+                    <input value={buscaJogador} onChange={(e) => setBuscaJogador(e.target.value)}
+                      placeholder="Buscar por nome" aria-label="Buscar jogador por nome" style={entrada} />
+                  </div>
+                  {/* Filtro por estágio só aparece quando há mais de um — com um
+                      grupo só, a barra de chips não ajudaria em nada. */}
+                  {estagiosPresentes.length > 1 && (
+                    <div className="mb-4">
+                      <Seletor opcoes={[{ v: "todos", r: "Todos" }, ...estagiosPresentes.map((t) => ({ v: t, r: t }))]}
+                        valor={filtroEstagioJogador} aoMudar={setFiltroEstagioJogador} />
+                    </div>
+                  )}
+                  {filtrados.length === 0 ? (
+                    <p style={{ ...prosa, color: C.grafite }}>
+                      {busca ? `Nenhum jogador encontrado para "${buscaJogador.trim()}".` : "Nenhum jogador neste estágio."}
+                    </p>
+                  ) : (
+                    <div>
+                      {filtrados.map((a) => {
+                        const incompleto = !a.nome;
+                        const emVigor = a.plano ? aulaEmVigor(a) : null;
+                        const regEmVigor = emVigor ? (a.regPlano || {})[emVigor.id] || {} : null;
+                        const repetindo = regEmVigor && (regEmVigor.status === "falta" || regEmVigor.status === "cancelada");
+                        const proximoTreino = proximoHorarioTexto(a.horarios);
+                        return (
+                          <button key={a.id} onClick={() => { setAbertoId(a.id); setSubaba("ficha"); }}
+                            className="mty-navitem w-full text-left flex items-center justify-between gap-3"
+                            style={{ background: "none", border: "none", borderBottom: "1px solid " + C.linha, borderRadius: 10, padding: "13px 6px", minHeight: 44 }}>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontFamily: ARCH, fontSize: 15.5, fontWeight: 700, color: incompleto ? C.grafite : C.tinta, fontStyle: incompleto ? "italic" : "normal" }}>
+                                {incompleto ? "Cadastro incompleto" : a.nome}
+                              </div>
+                              {incompleto ? (
+                                <p style={{ ...prosa, fontSize: 13, color: C.saibro, marginTop: 2 }}>Completar cadastro</p>
+                              ) : (
+                                <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                  {nomeNivel(a.nivel)} · {nomeTipoAula(a.estagio)}{proximoTreino ? " · próximo treino " + proximoTreino : ""}
+                                </p>
+                              )}
+                              {emVigor && !incompleto && (
+                                <p style={{ ...prosa, fontSize: 12.5, color: C.saibro, marginTop: 2 }}>
+                                  {repetindo ? "Repetindo: " : "Em vigor: "}{emVigor.t}
+                                </p>
+                              )}
+                            </div>
+                            <span style={{ color: C.grafite, flexShrink: 0 }}><IconeSeta tam={18} /></span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         )}
       </main>
@@ -9732,10 +9807,10 @@ function App() {
             { v: "alunos", r: "Jogadores", Icone: IconeJogadores },
             { v: "agenda", r: "Agenda", Icone: IconeAgenda },
           ].map((t) => {
-            const ativo = aba === t.v && !menuMobileAberto;
+            const ativo = aba === t.v && !maisAberto;
             return (
               <button key={t.v} className="mty-bottomnav-item flex-1 flex flex-col items-center justify-center gap-1"
-                onClick={() => { setAba(t.v); setAbertoId(null); setMenuMobileAberto(false); }}
+                onClick={() => { setAba(t.v); setAbertoId(null); setMaisAberto(false); }}
                 aria-current={ativo ? "page" : undefined}
                 style={{ border: "none", background: "none", cursor: "pointer", padding: "9px 4px", minHeight: 56,
                   color: ativo ? "#fff" : "rgba(255,255,255,.65)" }}>
@@ -9745,11 +9820,11 @@ function App() {
             );
           })}
           {(() => {
-            const ativo = menuMobileAberto || ["turmas", "casos"].includes(aba);
+            const ativo = maisAberto || ["turmas", "casos"].includes(aba);
             return (
               <button className="mty-bottomnav-item flex-1 flex flex-col items-center justify-center gap-1"
-                onClick={() => setMenuMobileAberto(true)} aria-current={ativo ? "page" : undefined}
-                aria-haspopup="true" aria-expanded={menuMobileAberto}
+                onClick={() => setMaisAberto(true)} aria-current={ativo ? "page" : undefined}
+                aria-haspopup="true" aria-expanded={maisAberto}
                 style={{ border: "none", background: "none", cursor: "pointer", padding: "9px 4px", minHeight: 56,
                   color: ativo ? "#fff" : "rgba(255,255,255,.65)" }}>
                 <IconeMais tam={21} />
@@ -9759,6 +9834,10 @@ function App() {
           })()}
         </div>
       </nav>
+
+      {maisAberto && (
+        <PainelMais aba={aba} setAba={setAba} aoFechar={() => setMaisAberto(false)} />
+      )}
     </div>
   );
 }
