@@ -1941,7 +1941,7 @@ const CATEGORIAS_ADULTO = mesclarComEscadaDoNivel([
     ],
   },
   {
-    id: "iniciante-3", nome: "Iniciante 3", nivelSugerido: "Y2",
+    id: "iniciante-3", nome: "Intermediário 1", nivelSugerido: "Y2",
     foco: "Executa todos os fundamentos básicos do tênis — o degrau de saída do iniciante.",
     criterios: [
       "Executa saque, direita, esquerda e um contato básico de rede — todos, mesmo sem refinamento",
@@ -1951,7 +1951,7 @@ const CATEGORIAS_ADULTO = mesclarComEscadaDoNivel([
     ],
   },
   {
-    id: "intermediario", nome: "Intermediário", nivelSugerido: "Y3",
+    id: "intermediario", nome: "Intermediário 2", nivelSugerido: "Y3",
     foco: "Já disputa partida de verdade. Um ou dois fundamentos são muito bons; rede e trabalho de pernas ainda atrasam.",
     criterios: [
       "Já disputa partidas competitivas (com placar), não só jogo recreativo",
@@ -2112,9 +2112,9 @@ function TrilhaVisual({ estagio, categoria, criteriosClassificacao }) {
                 <p style={{ fontFamily: ARCH, fontSize: 10.5, fontWeight: atual ? 700 : 500, color: atual ? C.tinta : C.grafite, marginTop: 5, lineHeight: 1.25 }}>
                   {n.nome}
                 </p>
-                {n.criterios && (
+                {n.criterios && (passado || atual) && (
                   <p style={{ ...prosa, fontSize: 10, color: atual ? C.saibro : C.grafite, marginTop: 1 }}>
-                    {passado ? "concluído" : atual ? feitos + "/" + n.criterios.length : n.nivelSugerido}
+                    {passado ? "concluído" : feitos + "/" + n.criterios.length}
                   </p>
                 )}
               </div>
@@ -2968,7 +2968,7 @@ function CriteriosDoNivel({ nivel }) {
   return (
     <div>
       <div className="flex items-baseline gap-2 flex-wrap mb-1">
-        <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{c.nivel} · {c.nome}</span>
+        <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{c.nome}</span>
       </div>
       <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 4 }}><b>Capacidade dominante:</b> {c.capacidade}</p>
       <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 8 }}><b>Público:</b> {c.publico}</p>
@@ -2997,7 +2997,7 @@ function LegendaNiveis({ nivelInicial }) {
   return (
     <div id="legenda-niveis" className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, padding: "12px 15px", scrollMarginTop: 90 }}>
       <button onClick={() => setAberto(!aberto)} className="w-full flex items-center justify-between gap-3" style={{ cursor: "pointer" }}>
-        <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>Critérios de nível Y1–Y6</span>
+        <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>Critérios de nível</span>
         <Etiqueta>{aberto ? "fechar" : "abrir"}</Etiqueta>
       </button>
       {aberto && (
@@ -3012,7 +3012,7 @@ function LegendaNiveis({ nivelInicial }) {
                 style={{ fontFamily: ARCH, fontSize: 12, fontWeight: nivelAtivo === c.nivel ? 700 : 500, padding: "5px 10px",
                   borderRadius: 10, cursor: "pointer", border: "1px solid " + (nivelAtivo === c.nivel ? C.tinta : C.linha),
                   background: nivelAtivo === c.nivel ? C.tinta : C.papel, color: nivelAtivo === c.nivel ? C.papel : C.grafite }}>
-                {c.nivel}
+                {c.nome}
               </button>
             ))}
           </div>
@@ -3292,14 +3292,7 @@ const NIVEIS_FASE = [
 /* Campos da ficha de entrada. A ordem segue o protocolo: técnico, físico,
    tático, mental — e é ela que evita começar o diagnóstico pelo estado. */
 const ENTRADA_BLOCOS = [
-  { n: "2", t: "Físico observado",
-    nota: "Alimenta o perfil de corpo. Deslocamento e resistência pesam mais que estatura.",
-    campos: [
-      ["desloc", "Como se desloca — chega na bola larga? recupera o centro?"],
-      ["resist", "Resistência — em que momento da aula ou do jogo a qualidade cai"],
-      ["lesoes", "Lesões, dores ou limitações"],
-    ] },
-  { n: "3", t: "Tático · o que faz no ponto",
+  { n: "2", t: "Tático · o que faz no ponto",
     nota: "O bloco mais valioso. Descreve decisão, não execução — vale mais que a lista de golpes.",
     campos: [
       ["inicia", "Como inicia o ponto — o que tenta com a primeira bola"],
@@ -3308,22 +3301,14 @@ const ENTRADA_BLOCOS = [
       ["pressao", "Sob pressão — o que muda"],
       ["varia", "Repete o mesmo padrão ou varia? Qual aparece mais?"],
     ] },
-  { n: "4", t: "Mental observado",
-    nota: "Comportamento observado, não interpretação. Alimenta o temperamento.",
-    campos: [
-      ["ritmo", "Ritmo natural — cadenciado ou direto"],
-      ["reacaoErro", "Como reage ao próprio erro — repete a jogada ou foge dela"],
-      ["aperta", "Acelera ou trava quando o jogo aperta"],
-      ["correcao", "Como recebe correção"],
-    ] },
-  { n: "5", t: "Objetivo",
+  { n: "3", t: "Objetivo",
     nota: "Quando o que ele quer e o que você vê não batem, isso é informação.",
     campos: [
       ["quer", "O que ELE diz que quer"],
       ["prioridadeReal", "O que VOCÊ vê como prioridade real"],
       ["prazo", "Prazo ou compromisso à vista"],
     ] },
-  { n: "6", t: "Em aberto",
+  { n: "4", t: "Em aberto",
     nota: "O que ficou sem resposta e precisa ser observado na próxima aula.",
     campos: [["aberto", "Observar na próxima aula"]] },
 ];
@@ -4276,12 +4261,6 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
   useEffect(() => { listaProfessores().then(setProfessores); }, []);
   const [sugestaoAuto, setSugestaoAuto] = useState(null);
   const [sugerindoAuto, setSugerindoAuto] = useState(false);
-  /* A ficha completa do método tem muito campo — a maioria opcional pra
-     montar o primeiro plano. Por padrão mostra só o essencial (nome,
-     estágio, diagnóstico das quatro camadas e a sugestão de nível pela
-     IA); o resto fica atrás de um "mostrar mais", sem perder nada pra
-     quem quiser preencher td. */
-  const [avancado, setAvancado] = useState(false);
   const [trilhaManual, setTrilhaManual] = useState(false);
 
   /* Toda edição de ficha fica com carimbo de hora — é o que permite ao
@@ -4341,9 +4320,6 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
     setF((x) => ({ ...x, professorUid: uid, professorNome: p ? p.nome : "" }));
   }
 
-  const camadaPreenchida = (k) => f.camadas[k].trim().length > 0;
-  const liberada = { tecnico: true, fisico: camadaPreenchida("tecnico"), tatico: camadaPreenchida("fisico"), mental: camadaPreenchida("tatico") };
-
   /* Todos os hooks do componente ficam acima desta linha — o early
      return abaixo (ficha fechada, só resumo) precisa vir depois de
      todos eles, senão a ordem dos hooks muda entre o modo resumo e o
@@ -4382,7 +4358,7 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
 
   return (
     <div>
-      <Secao titulo="Identificação" nota="F-01 do manual: a ficha de avaliação inicial.">
+      <Secao titulo="Identificação" nota="A ficha de avaliação inicial do jogador.">
         <Campo rotulo="Nome"><input style={entrada} value={f.nome} onChange={(e) => set("nome", e.target.value)} placeholder="Nome do jogador ou da turma" /></Campo>
         {professores.length > 0 && (
           <Campo rotulo="Professor responsável" nota="Define de qual dashboard este jogador aparece por padrão.">
@@ -4407,7 +4383,7 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
         </div>
         <Campo rotulo="Lateralidade"><Seletor opcoes={[{ v: "destro", r: "Destro" }, { v: "canhoto", r: "Canhoto" }]} valor={f.lateralidade} aoMudar={(v) => set("lateralidade", v)} /></Campo>
         <Campo rotulo="Backhand"><Seletor opcoes={[{ v: "duas", r: "Duas mãos" }, { v: "uma", r: "Uma mão" }]} valor={f.backhand} aoMudar={(v) => set("backhand", v)} /></Campo>
-        <Campo rotulo="Composição física" nota="O tipo de treino se define pelo tipo físico (D-02).">
+        <Campo rotulo="Composição física" nota="O tipo de treino se define pelo tipo físico.">
           <Seletor opcoes={[{ v: "leve", r: "Leve" }, { v: "medio", r: "Médio" }, { v: "forte", r: "Forte" }]} valor={f.tipoFisico} aoMudar={(v) => set("tipoFisico", v)} />
         </Campo>
         <Campo rotulo="Histórico de atividades na infância" nota="Define quanto o bloco de base motora pesa. Trabalho geral igual para todos significa que o diagnóstico não foi feito.">
@@ -4441,7 +4417,7 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
         <Etiqueta cor={C.grafite}>{faseDoEstagio(f.estagio)}</Etiqueta>
       </Secao>
 
-      <Secao titulo="Nível do jogador (Y1–Y6)" nota="Não existe uma escolha manual de nível — é sempre calculado. O jeito rápido: escreva o diagnóstico nas quatro camadas logo abaixo e peça a sugestão da IA aqui.">
+      <Secao titulo="Nível do jogador" nota="Não existe uma escolha manual de nível — é sempre calculado. O jeito rápido: escreva o diagnóstico nas quatro camadas logo abaixo e peça a sugestão da IA aqui.">
         <TrilhaVisual estagio={f.estagio} categoria={f.categoria} criteriosClassificacao={f.criteriosClassificacao} />
         <SugestaoClassificacao f={f} set={set} />
         {trilhaManual ? (
@@ -4455,15 +4431,15 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
         <LegendaNiveis nivelInicial={f.nivel} />
       </Secao>
 
-      <Secao titulo="Diagnóstico — as quatro camadas" nota="A ordem é técnico, físico, tático, mental, e não pode ser invertida (D-01). Cada camada abre a seguinte.">
-        {[["tecnico", "1 · Técnico", "Bases de apoio, golpes por fase, trocas de golpe e de empunhadura"],
-          ["fisico", "2 · Físico", "Capacidades associadas às qualidades técnicas"],
-          ["tatico", "3 · Tático", "Repertório de decisões disponível, lido à luz das camadas 1 e 2"],
-          ["mental", "4 · Mental", "Observações à luz de tudo o que já foi observado"]].map(([k, rot, dica]) => (
-          <div key={k} className="mb-4" style={{ opacity: liberada[k] ? 1 : 0.45 }}>
-            <div className="mb-2"><Etiqueta cor={liberada[k] ? C.tinta : C.grafite}>{rot}</Etiqueta></div>
-            <textarea rows={3} disabled={!liberada[k]} placeholder={liberada[k] ? dica : "Preencha a camada anterior primeiro"}
-              style={{ ...entrada, resize: "vertical", background: liberada[k] ? C.cal : C.papel }}
+      <Secao titulo="Diagnóstico — as quatro camadas">
+        {[["tecnico", "Técnico", "Bases de apoio, golpes por fase, trocas de golpe e de empunhadura"],
+          ["fisico", "Físico", "Capacidades associadas às qualidades técnicas"],
+          ["tatico", "Tático", "Repertório de decisões disponível em quadra"],
+          ["mental", "Mental", "Observações de comportamento e postura"]].map(([k, rot, dica]) => (
+          <div key={k} className="mb-4">
+            <div className="mb-2"><Etiqueta cor={C.tinta}>{rot}</Etiqueta></div>
+            <textarea rows={3} placeholder={dica}
+              style={{ ...entrada, resize: "vertical" }}
               value={f.camadas[k]} onChange={(e) => setCamada(k, e.target.value)} />
           </div>
         ))}
@@ -4476,21 +4452,7 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
         )}
       </Secao>
 
-      <div className="mb-5">
-        <Botao pequeno variante="vazio" onClick={() => setAvancado(!avancado)}>
-          {avancado ? "Ocultar detalhes adicionais" : "Mostrar detalhes adicionais (opcional)"}
-        </Botao>
-        {!avancado && (
-          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 8 }}>
-            Perfil de jogo, diagnóstico golpe a golpe, prioridades, objetivo de longo prazo e rotina
-            semanal — dá pra deixar pra depois e já salvar a ficha só com o essencial acima.
-          </p>
-        )}
-      </div>
-
-      {avancado && (
-      <>
-      <Secao titulo="Perfil de jogo" nota="Parte 6 do manual: o jogo nasce do corpo e do temperamento do jogador — não se escolhe, se reconhece.">
+      <Secao titulo="Perfil de jogo" nota="O jogo nasce do corpo e do temperamento do jogador — não se escolhe, se reconhece.">
         <Campo rotulo="Perfil de corpo">
           <Seletor opcoes={PERFIS_CORPO.map((p) => ({ v: p.v, r: p.r }))} valor={f.perfilCorpo} aoMudar={(v) => set("perfilCorpo", v)} />
         </Campo>
@@ -4526,7 +4488,7 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
         </Campo>
       </Secao>
 
-      <Secao titulo="Ficha de entrada" nota="Preencha na ordem dos blocos — ela segue o protocolo do método. Onde não souber, marque 'não sei': campo honesto vira item de observação; campo chutado vira erro de diagnóstico.">
+      <Secao titulo="Ficha de entrada" nota="Preencha na ordem dos blocos. Onde não souber, marque 'não sei': campo honesto vira item de observação; campo chutado vira erro de diagnóstico.">
         <div className="mb-5">
           <div className="mb-2"><Etiqueta cor={C.tinta}>1 · Técnico, golpe a golpe</Etiqueta></div>
           <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>
@@ -4567,44 +4529,6 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
           <SeletorMulti opcoes={AREA_OPCOES.map((a) => ({ v: a.id, r: a.nome }))} valor={armasDoJogador(f)} aoMudar={(v) => set("armas", v)} />
         </Campo>
       </Secao>
-
-      <Secao titulo="Horizonte" nota="Planejamento do fim para o começo: o objetivo distante é a bússola de tudo o que vem antes.">
-        <Campo rotulo="Objetivo final">
-          <input style={entrada} value={f.objetivoFinal} onChange={(e) => set("objetivoFinal", e.target.value)} placeholder="Ex.: os 4 Grand Slams juvenis em 2028" />
-        </Campo>
-        {f.marcos.map((m, i) => (
-          <div key={i} className="mb-2 grid grid-cols-12 gap-2">
-            <input style={{ ...entrada, gridColumn: "span 3" }} value={m.ano} onChange={(e) => mudaLista("marcos", i, "ano", e.target.value)} placeholder="Ano" />
-            <input style={{ ...entrada, gridColumn: "span 8" }} value={m.marco} onChange={(e) => mudaLista("marcos", i, "marco", e.target.value)} placeholder="Marco intermediário" />
-            <button onClick={() => tiraLista("marcos", i)} style={{ ...iconeEstilo, gridColumn: "span 1" }}>×</button>
-            <input style={{ ...entrada, gridColumn: "span 12" }} value={m.precisa} onChange={(e) => mudaLista("marcos", i, "precisa", e.target.value)} placeholder="O que precisa estar pronto" />
-          </div>
-        ))}
-        <Botao pequeno variante="vazio" onClick={() => addLista("marcos", { ano: "", marco: "", precisa: "" })}>+ Marco</Botao>
-      </Secao>
-
-      <Secao titulo="Calendário e rotina" nota="As datas de competição desenham as fases sozinhas.">
-        <div className="grid grid-cols-2 gap-3">
-          <Campo rotulo="Início do ciclo"><input type="date" style={entrada} value={f.inicio} onChange={(e) => set("inicio", e.target.value)} /></Campo>
-          <Campo rotulo="Semanas"><input type="number" min={4} max={52} style={entrada} value={f.semanas} onChange={(e) => set("semanas", Number(e.target.value))} /></Campo>
-        </div>
-        <Campo rotulo="Competições">
-          {f.competicoes.map((c, i) => (
-            <div key={i} className="flex gap-2 mb-2">
-              <input style={entrada} value={c.nome} onChange={(e) => mudaLista("competicoes", i, "nome", e.target.value)} placeholder="Nome do torneio" />
-              <input type="date" style={{ ...entrada, maxWidth: 160 }} value={c.data} onChange={(e) => mudaLista("competicoes", i, "data", e.target.value)} />
-              <button onClick={() => tiraLista("competicoes", i)} style={iconeEstilo}>×</button>
-            </div>
-          ))}
-          <Botao pequeno variante="vazio" onClick={() => addLista("competicoes", { nome: "", data: "" })}>+ Competição</Botao>
-        </Campo>
-        <Campo rotulo="Dias de quadra por semana"><Seletor opcoes={[1, 2, 3, 4, 5, 6, 7].map((d) => ({ v: d, r: d + " dias" }))} valor={f.diasQuadra} aoMudar={(v) => set("diasQuadra", v)} /></Campo>
-        <Campo rotulo="Períodos por dia"><Seletor opcoes={[{ v: 1, r: "Um" }, { v: 2, r: "Dois" }]} valor={f.periodos} aoMudar={(v) => set("periodos", v)} /></Campo>
-        <Campo rotulo="Escola"><Seletor opcoes={[{ v: "manha", r: "Manhã" }, { v: "tarde", r: "Tarde" }, { v: "noite", r: "Noite" }, { v: "nao", r: "Não estuda" }]} valor={f.escola} aoMudar={(v) => set("escola", v)} /></Campo>
-        <Campo rotulo="Musculação por semana"><Seletor opcoes={[0, 1, 2, 3, 4, 5].map((n) => ({ v: n, r: String(n) }))} valor={f.musculacao} aoMudar={(v) => set("musculacao", v)} /></Campo>
-      </Secao>
-      </>
-      )}
 
       <div className="flex items-center gap-2">
         <Botao onClick={salvarEFechar} variante="saibro">Salvar ficha</Botao>
@@ -4686,16 +4610,6 @@ function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual, podeEditar = true,
 
       <Secao titulo="Prioridades">
         <p style={prosa}>{a.prioridades.map((p) => AREAS[p].nome).join(" → ")}</p>
-      </Secao>
-
-      <Secao titulo="Horizonte">
-        {a.objetivoFinal ? <Linha rotulo="Objetivo" texto={a.objetivoFinal} /> : <p style={{ ...prosa, color: C.grafite }}>Sem objetivo final definido.</p>}
-      </Secao>
-
-      <Secao titulo="Calendário">
-        <p style={prosa}>
-          {a.inicio ? "Início " + a.inicio : "sem data de início"} · {a.semanas} semanas · {a.diasQuadra} dias de quadra por semana · {a.periodos >= 2 ? "dois turnos por dia" : "um turno por dia"}
-        </p>
       </Secao>
 
       {papelAtual === "coordenador" && (a.feedbacksAluno || []).length > 0 && (

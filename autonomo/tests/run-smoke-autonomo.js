@@ -36,15 +36,16 @@ function assert(cond, msg) { if (!cond) throw new Error('FALHOU: ' + msg); conso
   await page.waitForTimeout(200);
   await page.fill('input[placeholder="Nome do jogador ou da turma"]', 'Teste Autônomo');
   body = await page.evaluate(() => document.body.innerText);
-  assert(body.includes('Identificação') && body.includes('Classificação inicial') && /N.vel do jogador/i.test(body),
+  assert(body.includes('Identificação') && body.includes('Classificação inicial') && body.includes('Nível do jogador'),
     'a ficha com o bloco de nível continua existindo: ' + body.slice(0, 1500));
-  assert(!body.includes('Ficha de entrada') && !body.includes('Calendário e rotina') && body.includes('Mostrar detalhes adicionais'),
-    'a ficha abre simplificada por padrão, sem os detalhes opcionais: ' + body.slice(0, 1500));
-  await page.getByText('Mostrar detalhes adicionais', { exact: false }).click();
-  await page.waitForTimeout(150);
-  body = await page.evaluate(() => document.body.innerText);
-  assert(body.includes('Perfil de jogo') && body.includes('Ficha de entrada') && body.includes('Horizonte'),
-    'os detalhes opcionais aparecem ao pedir "mostrar mais": ' + body.slice(0, 1500));
+  assert(!/Y1.{0,3}Y6|\(Y1|Nível do jogador \(Y/i.test(body),
+    'não sobra citação literal de Y1-Y6 no título: ' + body.slice(0, 1500));
+  assert(body.includes('Perfil de jogo') && body.includes('Ficha de entrada') && body.includes('Prioridades'),
+    'Perfil de jogo, Ficha de entrada e Prioridades já aparecem sem precisar de "mostrar mais": ' + body.slice(0, 2000));
+  assert(!body.includes('Horizonte') && !body.includes('Calendário e rotina'),
+    'Horizonte e Calendário e rotina ficam ocultos: ' + body.slice(0, 2000));
+  assert(!body.includes('Físico observado') && !body.includes('Mental observado'),
+    'Ficha de entrada não tem mais os blocos de Físico e Mental observado: ' + body.slice(0, 2000));
   await page.getByText('Salvar ficha', { exact: true }).click();
   await page.waitForTimeout(200);
   body = await page.evaluate(() => document.body.innerText);
