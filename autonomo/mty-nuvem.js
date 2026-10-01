@@ -31,7 +31,7 @@ const MTY_CONFIG = {
 };
 
 /* Número que recebe as fichas pelo WhatsApp — código do país + DDD, só dígitos. */
-const MTY_WHATSAPP = "COLE_AQUI";
+const MTY_WHATSAPP = "5511941773228";
 
 /* ─────────────────────────────────────────────────────────────────── */
 
