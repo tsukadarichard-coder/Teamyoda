@@ -1905,6 +1905,10 @@ const NIVEIS_CRITERIOS = [
    alcança aquele degrau da escada oficial; as categorias anteriores da
    mesma sequência (ex.: Iniciante 1 e 2, ambas Y1) ficam só com o texto
    adaptado, mais fino, do próprio degrau intermediário. */
+function nomeNivel(codigo) {
+  const c = NIVEIS_CRITERIOS.find((n) => n.nivel === codigo);
+  return c ? c.nome : codigo;
+}
 function mesclarComEscadaDoNivel(lista) {
   return lista.map((cat, i) => {
     const proxima = lista[i + 1];
@@ -4190,7 +4194,7 @@ function SugestaoClassificacao({ f, set }) {
         <div className="mt-3" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderLeft: "3px solid " + C.quadra, padding: "12px 14px" }}>
           <div className="flex items-center gap-2 mb-2 flex-wrap">
             <Etiqueta cor={C.quadra}>Sugestão da IA</Etiqueta>
-            <Etiqueta>{ESTAGIOS.find((e) => e.s === sugestao.estagio)?.n || sugestao.estagio} · {sugestao.nivel}</Etiqueta>
+            <Etiqueta>{ESTAGIOS.find((e) => e.s === sugestao.estagio)?.n || sugestao.estagio} · {nomeNivel(sugestao.nivel)}</Etiqueta>
           </div>
           <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginBottom: 10 }}>{sugestao.justificativa}</p>
           <div className="flex gap-2 items-center">
@@ -4560,7 +4564,7 @@ function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual, podeEditar = true,
 
       <div className="flex items-start justify-between gap-3 flex-wrap mb-6">
         <div>
-          <Etiqueta>{faseDoEstagio(a.estagio)} · nível {a.nivel}</Etiqueta>
+          <Etiqueta>{faseDoEstagio(a.estagio)} · nível {nomeNivel(a.nivel)}</Etiqueta>
           <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginTop: 4 }}>
             {a.professorNome ? "Prof. " + a.professorNome + " · " : ""}
             {(a.horarios || []).length ? a.horarios.map((h) => nomeDia(h.dia) + " " + h.hora).join(", ") : "sem horário fixo definido"}
@@ -4583,7 +4587,7 @@ function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual, podeEditar = true,
         <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderLeft: "3px solid " + C.quadra, padding: "12px 14px" }}>
           <div className="flex items-center gap-2 mb-2 flex-wrap">
             <Etiqueta cor={C.quadra}>Sugestão automática da IA</Etiqueta>
-            <Etiqueta>{ESTAGIOS.find((e) => e.s === sugestaoAuto.estagio)?.n || sugestaoAuto.estagio} · {sugestaoAuto.nivel}</Etiqueta>
+            <Etiqueta>{ESTAGIOS.find((e) => e.s === sugestaoAuto.estagio)?.n || sugestaoAuto.estagio} · {nomeNivel(sugestaoAuto.nivel)}</Etiqueta>
           </div>
           <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginBottom: 10 }}>{sugestaoAuto.justificativa}</p>
           <div className="flex gap-2">
@@ -4632,7 +4636,7 @@ function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual, podeEditar = true,
 function exportaMarkdown(a, fases, grupos, ciclos, prop, grade) {
   const L = [];
   L.push(`# Planejamento e periodização — ${a.nome || "sem nome"}`);
-  L.push(`\n${a.semanas} semanas · início ${a.inicio || "—"} · estágio ${a.estagio} · nível ${a.nivel}\n`);
+  L.push(`\n${a.semanas} semanas · início ${a.inicio || "—"} · estágio ${a.estagio} · nível ${nomeNivel(a.nivel)}\n`);
   if (a.objetivoFinal) L.push(`**Objetivo final:** ${a.objetivoFinal}\n`);
   L.push("## Visão geral: do fim para o começo\n");
   L.push("| Horizonte | Marco | O que precisa estar pronto |");
@@ -5993,7 +5997,7 @@ function exportarCadernoPDF(a, identidade) {
     '</style></head><body>' +
     cabecalhoRelatorioHTML(identidade) +
     '<h1>Caderno de campo</h1>' +
-    '<div class="sub">' + escaparHTML(a.nome || "sem nome") + ' · estágio ' + escaparHTML(a.estagio) + ' · nível ' + escaparHTML(a.nivel) + ' · ' + regs.length + ' registros</div>' +
+    '<div class="sub">' + escaparHTML(a.nome || "sem nome") + ' · estágio ' + escaparHTML(a.estagio) + ' · nível ' + escaparHTML(nomeNivel(a.nivel)) + ' · ' + regs.length + ' registros</div>' +
     sessHTML + jogosHTML + semanasHTML + medHTML +
     '<p class="rodape">Material de campo. Serve para corrigir o método, não para julgar o jogador.</p>' +
     '<div class="no-print" style="margin-top:20px;display:flex;gap:10px">' +
@@ -6334,7 +6338,7 @@ function VisaoGeralBlocos({ plano, aulas, status, reg, entidade, eTurma, membros
       </div>
       {atual && (atual.saidaTexto || catalogo) && (
         <div className="mt-3" style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "11px 14px" }}>
-          <Etiqueta cor={C.saibro}>Pra mudar de {atual.titulo}{catalogo ? " (nível " + catalogo.nivel + ")" : ""}</Etiqueta>
+          <Etiqueta cor={C.saibro}>Pra mudar de {atual.titulo}{catalogo ? " (nível " + nomeNivel(catalogo.nivel) + ")" : ""}</Etiqueta>
           {catalogo ? (
             <ul style={{ margin: "6px 0 0 18px", padding: 0 }}>
               {catalogo.itens.map((texto, i) => (
@@ -7303,7 +7307,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                 <div style={{ background: "#F4F7F4", border: "1px solid " + C.linha, borderTop: "none",
                   borderLeft: "3px solid " + C.quadra, padding: "12px 15px" }}>
                   <Etiqueta cor={C.quadra}>✓ Critério de saída confirmado</Etiqueta>
-                  {catalogo && <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 4 }}>Catálogo · {catalogo.areaNome} · {catalogo.nivel}</p>}
+                  {catalogo && <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 4 }}>Catálogo · {catalogo.areaNome} · {nomeNivel(catalogo.nivel)}</p>}
                   {saidaTexto && <p style={{ ...prosa, fontSize: 13, marginTop: 4 }}>{saidaTexto}</p>}
                 </div>
               );
@@ -7339,7 +7343,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                 <Etiqueta cor={C.saibro}>Bloco aguardando confirmação</Etiqueta>
                 <p style={{ ...prosa, fontSize: 13, marginTop: 4 }}>
                   {catalogo
-                    ? "As aulas programadas deste bloco já foram todas dadas. Confirme item a item, direto do catálogo do método (" + catalogo.areaNome + " · " + catalogo.nivel + "):"
+                    ? "As aulas programadas deste bloco já foram todas dadas. Confirme item a item, direto do catálogo (" + catalogo.areaNome + " · " + nomeNivel(catalogo.nivel) + "):"
                     : "As aulas programadas deste bloco já foram todas dadas. O jogador já demonstra este critério?"}
                 </p>
                 {saidaTexto && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, margin: "4px 0 10px" }}>{saidaTexto}</p>}
@@ -9191,7 +9195,7 @@ function App() {
               <button onClick={() => removerAluno(aberto.id)} style={{ ...prosa, fontSize: 12.5, color: C.saibro, cursor: "pointer" }}>Remover jogador</button>
             </div>
             <h1 style={{ fontFamily: ARCH, fontSize: 25, fontWeight: 700, lineHeight: 1.1 }}>{aberto.nome || "Sem nome"}</h1>
-            <div className="mt-2 mb-5"><Etiqueta>{aberto.nivel} · Estágio {aberto.estagio} · {aberto.semanas} semanas · {aberto.historico.length} sessões</Etiqueta></div>
+            <div className="mt-2 mb-5"><Etiqueta>{nomeNivel(aberto.nivel)} · Estágio {aberto.estagio} · {aberto.semanas} semanas · {aberto.historico.length} sessões</Etiqueta></div>
             <CardTrilha aluno={aberto} aoAbrirFicha={() => setSubaba("ficha")} />
             <CardPedidosReposicao aluno={aberto} aoMudar={(patch) => setAlunos((prev) => prev.map((a) => (a.id === aberto.id ? { ...a, ...patch } : a)))} />
             <CardPedidosConteudo aluno={aberto} aoMudar={(patch) => setAlunos((prev) => prev.map((a) => (a.id === aberto.id ? { ...a, ...patch } : a)))} />
@@ -9266,7 +9270,7 @@ function App() {
                                     <div>
                                       <div style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{a.nome || "Sem nome"}</div>
                                       <div className="mt-1">
-                                        <Etiqueta>{a.nivel} · Estágio {a.estagio} · {a.inicio ? `início ${a.inicio}` : "sem calendário"}</Etiqueta>
+                                        <Etiqueta>{nomeNivel(a.nivel)} · Estágio {a.estagio} · {a.inicio ? `início ${a.inicio}` : "sem calendário"}</Etiqueta>
                                       </div>
                                       {emVigor && (
                                         <p style={{ ...prosa, fontSize: 12.5, color: C.saibro, marginTop: 4 }}>
