@@ -9955,10 +9955,10 @@ function TelaMetodo() {
 
 /* A tela de abertura (logo + barra) precisa de um tempo mínimo visível —
    numa conexão rápida ou com tudo em cache, os scripts carregam rápido
-   demais e ela pisca sem dar tempo de ver. Garante ~1.1s do início do
+   demais e ela pisca sem dar tempo de ver. Garante ~3s do início do
    carregamento da página até o app de fato aparecer, sem atrasar quem
    já esperou mais que isso numa conexão lenta. */
-const ESPERA_MINIMA_SPLASH = 1800;
+const ESPERA_MINIMA_SPLASH = 3000;
 const decorridoBoot = Date.now() - (window.__bootInicio || Date.now());
 setTimeout(() => {
   ReactDOM.createRoot(document.getElementById("root")).render(<App />);
