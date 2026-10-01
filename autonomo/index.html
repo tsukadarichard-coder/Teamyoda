@@ -3296,7 +3296,14 @@ const NIVEIS_FASE = [
 /* Campos da ficha de entrada. A ordem segue o protocolo: técnico, físico,
    tático, mental — e é ela que evita começar o diagnóstico pelo estado. */
 const ENTRADA_BLOCOS = [
-  { n: "2", t: "Tático · o que faz no ponto",
+  { n: "2", t: "Físico observado", oculto: true,
+    nota: "Alimenta o perfil de corpo. Deslocamento e resistência pesam mais que estatura.",
+    campos: [
+      ["desloc", "Como se desloca — chega na bola larga? recupera o centro?"],
+      ["resist", "Resistência — em que momento da aula ou do jogo a qualidade cai"],
+      ["lesoes", "Lesões, dores ou limitações"],
+    ] },
+  { n: "3", t: "Tático · o que faz no ponto",
     nota: "O bloco mais valioso. Descreve decisão, não execução — vale mais que a lista de golpes.",
     campos: [
       ["inicia", "Como inicia o ponto — o que tenta com a primeira bola"],
@@ -3305,14 +3312,22 @@ const ENTRADA_BLOCOS = [
       ["pressao", "Sob pressão — o que muda"],
       ["varia", "Repete o mesmo padrão ou varia? Qual aparece mais?"],
     ] },
-  { n: "3", t: "Objetivo",
+  { n: "4", t: "Mental observado", oculto: true,
+    nota: "Comportamento observado, não interpretação. Alimenta o temperamento.",
+    campos: [
+      ["ritmo", "Ritmo natural — cadenciado ou direto"],
+      ["reacaoErro", "Como reage ao próprio erro — repete a jogada ou foge dela"],
+      ["aperta", "Acelera ou trava quando o jogo aperta"],
+      ["correcao", "Como recebe correção"],
+    ] },
+  { n: "5", t: "Objetivo",
     nota: "Quando o que ele quer e o que você vê não batem, isso é informação.",
     campos: [
       ["quer", "O que ELE diz que quer"],
       ["prioridadeReal", "O que VOCÊ vê como prioridade real"],
       ["prazo", "Prazo ou compromisso à vista"],
     ] },
-  { n: "4", t: "Em aberto",
+  { n: "6", t: "Em aberto",
     nota: "O que ficou sem resposta e precisa ser observado na próxima aula.",
     campos: [["aberto", "Observar na próxima aula"]] },
 ];
@@ -4266,6 +4281,11 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
   const [sugestaoAuto, setSugestaoAuto] = useState(null);
   const [sugerindoAuto, setSugerindoAuto] = useState(false);
   const [trilhaManual, setTrilhaManual] = useState(false);
+  /* Físico observado, Mental observado, Horizonte e Calendário e rotina
+     continuam existindo (nada foi apagado nem some do que a IA lê) —
+     só ficam escondidos por padrão, atrás deste botão, enquanto ainda
+     estão em avaliação pra decidir o que fica de vez na ficha. */
+  const [mostrarOcultos, setMostrarOcultos] = useState(false);
 
   /* Toda edição de ficha fica com carimbo de hora — é o que permite ao
      Plano saber que a ficha mudou depois que ele foi gerado, e oferecer
@@ -4509,7 +4529,7 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
           ))}
         </div>
 
-        {ENTRADA_BLOCOS.map((b) => (
+        {ENTRADA_BLOCOS.filter((b) => !b.oculto || mostrarOcultos).map((b) => (
           <div key={b.n} className="mb-5">
             <div className="mb-2"><Etiqueta cor={C.tinta}>{b.n} · {b.t}</Etiqueta></div>
             <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>{b.nota}</p>
@@ -4534,6 +4554,58 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
         </Campo>
       </Secao>
 
+      <div className="mb-5">
+        <Botao pequeno variante="vazio" onClick={() => setMostrarOcultos(!mostrarOcultos)}>
+          {mostrarOcultos ? "Ocultar campos em avaliação" : "Mostrar campos em avaliação (Físico, Mental, Horizonte, Calendário)"}
+        </Botao>
+        {!mostrarOcultos && (
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 8 }}>
+            Esses campos não foram apagados — só ficam escondidos por padrão enquanto decidimos
+            o que fica de vez na ficha. Nada do que já foi preenchido neles se perde.
+          </p>
+        )}
+      </div>
+
+      {mostrarOcultos && (
+      <>
+      <Secao titulo="Horizonte" nota="Planejamento do fim para o começo: o objetivo distante é a bússola de tudo o que vem antes.">
+        <Campo rotulo="Objetivo final">
+          <input style={entrada} value={f.objetivoFinal} onChange={(e) => set("objetivoFinal", e.target.value)} placeholder="Ex.: os 4 Grand Slams juvenis em 2028" />
+        </Campo>
+        {f.marcos.map((m, i) => (
+          <div key={i} className="mb-2 grid grid-cols-12 gap-2">
+            <input style={{ ...entrada, gridColumn: "span 3" }} value={m.ano} onChange={(e) => mudaLista("marcos", i, "ano", e.target.value)} placeholder="Ano" />
+            <input style={{ ...entrada, gridColumn: "span 8" }} value={m.marco} onChange={(e) => mudaLista("marcos", i, "marco", e.target.value)} placeholder="Marco intermediário" />
+            <button onClick={() => tiraLista("marcos", i)} style={{ ...iconeEstilo, gridColumn: "span 1" }}>×</button>
+            <input style={{ ...entrada, gridColumn: "span 12" }} value={m.precisa} onChange={(e) => mudaLista("marcos", i, "precisa", e.target.value)} placeholder="O que precisa estar pronto" />
+          </div>
+        ))}
+        <Botao pequeno variante="vazio" onClick={() => addLista("marcos", { ano: "", marco: "", precisa: "" })}>+ Marco</Botao>
+      </Secao>
+
+      <Secao titulo="Calendário e rotina" nota="As datas de competição desenham as fases sozinhas.">
+        <div className="grid grid-cols-2 gap-3">
+          <Campo rotulo="Início do ciclo"><input type="date" style={entrada} value={f.inicio} onChange={(e) => set("inicio", e.target.value)} /></Campo>
+          <Campo rotulo="Semanas"><input type="number" min={4} max={52} style={entrada} value={f.semanas} onChange={(e) => set("semanas", Number(e.target.value))} /></Campo>
+        </div>
+        <Campo rotulo="Competições">
+          {f.competicoes.map((c, i) => (
+            <div key={i} className="flex gap-2 mb-2">
+              <input style={entrada} value={c.nome} onChange={(e) => mudaLista("competicoes", i, "nome", e.target.value)} placeholder="Nome do torneio" />
+              <input type="date" style={{ ...entrada, maxWidth: 160 }} value={c.data} onChange={(e) => mudaLista("competicoes", i, "data", e.target.value)} />
+              <button onClick={() => tiraLista("competicoes", i)} style={iconeEstilo}>×</button>
+            </div>
+          ))}
+          <Botao pequeno variante="vazio" onClick={() => addLista("competicoes", { nome: "", data: "" })}>+ Competição</Botao>
+        </Campo>
+        <Campo rotulo="Dias de quadra por semana"><Seletor opcoes={[1, 2, 3, 4, 5, 6, 7].map((d) => ({ v: d, r: d + " dias" }))} valor={f.diasQuadra} aoMudar={(v) => set("diasQuadra", v)} /></Campo>
+        <Campo rotulo="Períodos por dia"><Seletor opcoes={[{ v: 1, r: "Um" }, { v: 2, r: "Dois" }]} valor={f.periodos} aoMudar={(v) => set("periodos", v)} /></Campo>
+        <Campo rotulo="Escola"><Seletor opcoes={[{ v: "manha", r: "Manhã" }, { v: "tarde", r: "Tarde" }, { v: "noite", r: "Noite" }, { v: "nao", r: "Não estuda" }]} valor={f.escola} aoMudar={(v) => set("escola", v)} /></Campo>
+        <Campo rotulo="Musculação por semana"><Seletor opcoes={[0, 1, 2, 3, 4, 5].map((n) => ({ v: n, r: String(n) }))} valor={f.musculacao} aoMudar={(v) => set("musculacao", v)} /></Campo>
+      </Secao>
+      </>
+      )}
+
       <div className="flex items-center gap-2">
         <Botao onClick={salvarEFechar} variante="saibro">Salvar ficha</Botao>
         {aluno.nome && <Botao variante="vazio" onClick={() => setEditando(false)}>Cancelar</Botao>}
@@ -4553,6 +4625,7 @@ function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual, podeEditar = true,
   const temperamento = PERFIS_TEMPERAMENTO.find((p) => p.v === a.perfilTemperamento);
   const objetivosAdulto = objetivosDoAdulto(a).map((v) => OBJETIVOS_ADULTO.find((o) => o.v === v)).filter(Boolean);
   const disposicaoAdulto = DISPOSICOES_ADULTO.find((d) => d.v === a.disposicaoAdulto);
+  const [mostrarOcultos, setMostrarOcultos] = useState(false);
 
   return (
     <div>
@@ -4615,6 +4688,26 @@ function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual, podeEditar = true,
       <Secao titulo="Prioridades">
         <p style={prosa}>{a.prioridades.map((p) => AREAS[p].nome).join(" → ")}</p>
       </Secao>
+
+      <div className="mb-5">
+        <Botao pequeno variante="vazio" onClick={() => setMostrarOcultos(!mostrarOcultos)}>
+          {mostrarOcultos ? "Ocultar campos em avaliação" : "Mostrar campos em avaliação (Horizonte, Calendário)"}
+        </Botao>
+      </div>
+
+      {mostrarOcultos && (
+      <>
+      <Secao titulo="Horizonte">
+        {a.objetivoFinal ? <Linha rotulo="Objetivo" texto={a.objetivoFinal} /> : <p style={{ ...prosa, color: C.grafite }}>Sem objetivo final definido.</p>}
+      </Secao>
+
+      <Secao titulo="Calendário">
+        <p style={prosa}>
+          {a.inicio ? "Início " + a.inicio : "sem data de início"} · {a.semanas} semanas · {a.diasQuadra} dias de quadra por semana · {a.periodos >= 2 ? "dois turnos por dia" : "um turno por dia"}
+        </p>
+      </Secao>
+      </>
+      )}
 
       {papelAtual === "coordenador" && (a.feedbacksAluno || []).length > 0 && (
         <Secao titulo="Feedback do aluno" nota="Enviado pelo próprio aluno, pelo link dele — só o coordenador vê este campo, o treinador não.">
@@ -9012,7 +9105,7 @@ function App() {
           position: "absolute", left: "50%", bottom: 10, transform: "translateX(-50%)",
           width: 220, opacity: 0.06, pointerEvents: "none", zIndex: 0 }} />
         <div style={{ padding: "18px 18px 14px", position: "relative", zIndex: 1 }}>
-          <Marca identidade={identidade} altura={26} />
+          <img src="assets/logo-quadralab.png" alt="QuadraLab" style={{ height: 26, maxWidth: 220, objectFit: "contain" }} />
           {meuNome ? (
             <div className="mt-2" style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 600, color: C.grafite }}>{meuNome}</div>
           ) : (

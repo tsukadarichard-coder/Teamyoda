@@ -1,5 +1,6 @@
 const { chromium } = require('/opt/node22/lib/node_modules/playwright');
 function assert(cond, msg) { if (!cond) throw new Error('FALHOU: ' + msg); console.log('OK:', msg); }
+function tem(texto, trecho) { return texto.toLowerCase().includes(trecho.toLowerCase()); } // rótulos viram MAIÚSCULO via CSS (text-transform), innerText reflete isso
 
 (async () => {
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox'] });
@@ -11,7 +12,15 @@ function assert(cond, msg) { if (!cond) throw new Error('FALHOU: ' + msg); conso
   await page.waitForTimeout(300);
   assert(errors.length === 0, 'sem erro de JS no carregamento inicial: ' + JSON.stringify(errors));
 
-  await page.evaluate(() => { window.__proximasClaims = { orgId: 'team-yoda', role: 'coordenador' }; });
+  await page.evaluate(() => {
+    window.__proximasClaims = { orgId: 'team-yoda', role: 'coordenador' };
+    // Reproduz o cadastro individual: o nome do treinador vai tanto pro
+    // meta/info da org (usado antes pela Marca) quanto pro registro dele
+    // em solicitacoes (usado por "meu nome") — exatamente o que causava
+    // o nome aparecer duas vezes no menu lateral.
+    window.__docs['orgs/team-yoda/meta/info'] = { nome: 'Richard Tsukada', individual: true, plano: 'gratis' };
+    window.__docs['orgs/team-yoda/solicitacoes/uid-coord@team-yoda.com'] = { nome: 'Richard Tsukada', email: 'coord@team-yoda.com', status: 'aprovada', role: 'coordenador' };
+  });
   await page.fill('input[type=email]', 'coord@team-yoda.com');
   await page.fill('input[type=password]', 'x');
   await page.click('text=Entrar');
@@ -19,6 +28,13 @@ function assert(cond, msg) { if (!cond) throw new Error('FALHOU: ' + msg); conso
 
   let body = await page.evaluate(() => document.body.innerText);
   assert(body.includes('Dashboard'), 'login funciona, mostra o Dashboard: ' + body.slice(0, 300));
+
+  // ── o nome do treinador não pode aparecer duas vezes no menu lateral ──
+  const nomesNoMenu = await page.locator('.mty-sidebar:has-text("Richard Tsukada")').evaluate((el) =>
+    (el.innerText.match(/Richard Tsukada/g) || []).length);
+  assert(nomesNoMenu === 1, 'o nome do treinador aparece só uma vez no menu (não duas): achou ' + nomesNoMenu + ' vez(es)');
+  const logoNoMenu = await page.locator('.mty-sidebar img[alt="QuadraLab"]').count();
+  assert(logoNoMenu >= 1, 'o logo do QuadraLab aparece no topo do menu');
 
   // ── módulos de academia removidos não aparecem mais no menu ──
   assert(!/\bEquipe\b/.test(body), 'não existe mais aba Equipe: ' + body.slice(0, 600));
@@ -42,10 +58,22 @@ function assert(cond, msg) { if (!cond) throw new Error('FALHOU: ' + msg); conso
     'não sobra citação literal de Y1-Y6 no título: ' + body.slice(0, 1500));
   assert(body.includes('Perfil de jogo') && body.includes('Ficha de entrada') && body.includes('Prioridades'),
     'Perfil de jogo, Ficha de entrada e Prioridades já aparecem sem precisar de "mostrar mais": ' + body.slice(0, 2000));
-  assert(!body.includes('Horizonte') && !body.includes('Calendário e rotina'),
-    'Horizonte e Calendário e rotina ficam ocultos: ' + body.slice(0, 2000));
-  assert(!body.includes('Físico observado') && !body.includes('Mental observado'),
-    'Ficha de entrada não tem mais os blocos de Físico e Mental observado: ' + body.slice(0, 2000));
+  assert(!tem(body, 'Objetivo final') && !tem(body, 'Início do ciclo'),
+    'Horizonte e Calendário ficam ocultos por padrão (nada foi apagado, só escondido): ' + body.slice(0, 2000));
+  assert(!tem(body, 'Físico observado') && !tem(body, 'Mental observado'),
+    'Físico observado e Mental observado ficam ocultos por padrão na Ficha de entrada: ' + body.slice(0, 2000));
+  await page.getByText('Mostrar campos em avaliação', { exact: false }).click();
+  await page.waitForTimeout(150);
+  body = await page.evaluate(() => document.body.innerText);
+  assert(tem(body, 'Físico observado') && tem(body, 'Mental observado'),
+    'o botão "mostrar campos em avaliação" revela Físico e Mental observado (nada foi apagado): ' + body.slice(0, 2000));
+  assert(tem(body, 'Objetivo final') && tem(body, 'Calendário e rotina'),
+    'o mesmo botão revela Horizonte e Calendário e rotina: ' + body.slice(0, 2000));
+  await page.getByText('Ocultar campos em avaliação', { exact: true }).click();
+  await page.waitForTimeout(150);
+  body = await page.evaluate(() => document.body.innerText);
+  assert(!tem(body, 'Objetivo final') && !tem(body, 'Físico observado'),
+    'o botão esconde de novo sem apagar nada: ' + body.slice(0, 2000));
   await page.getByText('Salvar ficha', { exact: true }).click();
   await page.waitForTimeout(200);
   body = await page.evaluate(() => document.body.innerText);
