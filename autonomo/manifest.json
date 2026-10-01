@@ -1,6 +1,6 @@
 {
-  "name": "Saibro — Professor Autônomo",
-  "short_name": "Saibro",
+  "name": "QuadraLab — Professor Autônomo",
+  "short_name": "QuadraLab",
   "description": "Ficha, plano de aula por IA e evolução do aluno — para o professor autônomo",
   "start_url": "./index.html",
   "display": "standalone",

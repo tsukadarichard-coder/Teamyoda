@@ -14,7 +14,7 @@
    organização (função netlify/functions/provisionar-org.js).
    ═══════════════════════════════════════════════════════════════════ */
 
-/* Projeto Firebase PRÓPRIO deste produto (Saibro) — nunca o mesmo da
+/* Projeto Firebase PRÓPRIO deste produto (QuadraLab) — nunca o mesmo da
    Team Yoda. Preencha depois de criar o projeto novo no Firebase Console
    (Configurações do projeto → Seus apps → Config do SDK) e ativar
    Firestore + Authentication (Email/senha) nele. Enquanto estiver
