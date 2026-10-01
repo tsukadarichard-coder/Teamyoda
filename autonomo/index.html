@@ -4314,6 +4314,13 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
   useEffect(() => { listaProfessores().then(setProfessores); }, []);
   const [sugestaoAuto, setSugestaoAuto] = useState(null);
   const [sugerindoAuto, setSugerindoAuto] = useState(false);
+  /* A ficha completa do método tem muito campo — a maioria opcional pra
+     montar o primeiro plano. Por padrão mostra só o essencial (nome,
+     estágio, diagnóstico das quatro camadas e a sugestão de nível pela
+     IA); o resto fica atrás de um "mostrar mais", sem perder nada pra
+     quem quiser preencher td. */
+  const [avancado, setAvancado] = useState(false);
+  const [trilhaManual, setTrilhaManual] = useState(false);
 
   /* Toda edição de ficha fica com carimbo de hora — é o que permite ao
      Plano saber que a ficha mudou depois que ele foi gerado, e oferecer
@@ -4472,10 +4479,17 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
         <Etiqueta cor={C.grafite}>{faseDoEstagio(f.estagio)}</Etiqueta>
       </Secao>
 
-      <Secao titulo="Questionário de nível (Y1–Y6)" nota="Não existe uma escolha manual de Nível — é sempre o que os critérios marcados abaixo indicam. Vá respondendo em ordem; ao final, o sistema apresenta o nível do jogador sozinho.">
+      <Secao titulo="Nível do jogador (Y1–Y6)" nota="Não existe uma escolha manual de nível — é sempre calculado. O jeito rápido: escreva o diagnóstico nas quatro camadas logo abaixo e peça a sugestão da IA aqui.">
         <TrilhaVisual estagio={f.estagio} categoria={f.categoria} criteriosClassificacao={f.criteriosClassificacao} />
-        <TrilhaClassificacao f={f} set={set} />
         <SugestaoClassificacao f={f} set={set} />
+        {trilhaManual ? (
+          <>
+            <TrilhaClassificacao f={f} set={set} />
+            <Botao pequeno variante="vazio" onClick={() => setTrilhaManual(false)}>Ocultar critério por critério</Botao>
+          </>
+        ) : (
+          <Botao pequeno variante="vazio" onClick={() => setTrilhaManual(true)}>Prefiro marcar critério por critério</Botao>
+        )}
         <LegendaNiveis nivelInicial={f.nivel} />
       </Secao>
 
@@ -4500,6 +4514,20 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
         )}
       </Secao>
 
+      <div className="mb-5">
+        <Botao pequeno variante="vazio" onClick={() => setAvancado(!avancado)}>
+          {avancado ? "Ocultar detalhes adicionais" : "Mostrar detalhes adicionais (opcional)"}
+        </Botao>
+        {!avancado && (
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 8 }}>
+            Perfil de jogo, diagnóstico golpe a golpe, prioridades, objetivo de longo prazo e rotina
+            semanal — dá pra deixar pra depois e já salvar a ficha só com o essencial acima.
+          </p>
+        )}
+      </div>
+
+      {avancado && (
+      <>
       <Secao titulo="Perfil de jogo" nota="Parte 6 do manual: o jogo nasce do corpo e do temperamento do jogador — não se escolhe, se reconhece.">
         <Campo rotulo="Perfil de corpo">
           <Seletor opcoes={PERFIS_CORPO.map((p) => ({ v: p.v, r: p.r }))} valor={f.perfilCorpo} aoMudar={(v) => set("perfilCorpo", v)} />
@@ -4613,6 +4641,8 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
         <Campo rotulo="Escola"><Seletor opcoes={[{ v: "manha", r: "Manhã" }, { v: "tarde", r: "Tarde" }, { v: "noite", r: "Noite" }, { v: "nao", r: "Não estuda" }]} valor={f.escola} aoMudar={(v) => set("escola", v)} /></Campo>
         <Campo rotulo="Musculação por semana"><Seletor opcoes={[0, 1, 2, 3, 4, 5].map((n) => ({ v: n, r: String(n) }))} valor={f.musculacao} aoMudar={(v) => set("musculacao", v)} /></Campo>
       </Secao>
+      </>
+      )}
 
       <div className="flex items-center gap-2">
         <Botao onClick={salvarEFechar} variante="saibro">Salvar ficha</Botao>

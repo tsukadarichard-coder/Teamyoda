@@ -36,8 +36,15 @@ function assert(cond, msg) { if (!cond) throw new Error('FALHOU: ' + msg); conso
   await page.waitForTimeout(200);
   await page.fill('input[placeholder="Nome do jogador ou da turma"]', 'Teste Autônomo');
   body = await page.evaluate(() => document.body.innerText);
-  assert(body.includes('Identificação') && body.includes('Classificação inicial') && /Question.rio de n.vel/i.test(body),
-    'a ficha com o questionário de nível continua existindo: ' + body.slice(0, 1500));
+  assert(body.includes('Identificação') && body.includes('Classificação inicial') && /N.vel do jogador/i.test(body),
+    'a ficha com o bloco de nível continua existindo: ' + body.slice(0, 1500));
+  assert(!body.includes('Ficha de entrada') && !body.includes('Calendário e rotina') && body.includes('Mostrar detalhes adicionais'),
+    'a ficha abre simplificada por padrão, sem os detalhes opcionais: ' + body.slice(0, 1500));
+  await page.getByText('Mostrar detalhes adicionais', { exact: false }).click();
+  await page.waitForTimeout(150);
+  body = await page.evaluate(() => document.body.innerText);
+  assert(body.includes('Perfil de jogo') && body.includes('Ficha de entrada') && body.includes('Horizonte'),
+    'os detalhes opcionais aparecem ao pedir "mostrar mais": ' + body.slice(0, 1500));
   await page.getByText('Salvar ficha', { exact: true }).click();
   await page.waitForTimeout(200);
   body = await page.evaluate(() => document.body.innerText);
