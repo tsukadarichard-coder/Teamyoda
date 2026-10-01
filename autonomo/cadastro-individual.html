@@ -11,37 +11,44 @@
 <style>
   :root{ --papel:#F5F2F0; --tinta:#141210; --verm:#67AD2E; --cinza:#6B6461; --linha:#D8D1CB; --verde:#2E4739; }
   *{box-sizing:border-box}
-  body{margin:0; background:var(--papel); color:var(--tinta);
-    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; padding:0 0 60px}
-  .topo{background:var(--verm); height:7px}
-  .wrap{max-width:420px; margin:0 auto; padding:0 20px}
-  header{padding:26px 0 14px; text-align:center}
-  header img{height:34px}
-  h1{font-family:Georgia,serif; font-size:20px; margin:14px 0 4px}
+  body{margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+    background:var(--papel); color:var(--tinta);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; padding:40px 20px}
+  .pagina{width:100%; max-width:400px}
+  .marca{text-align:center; margin-bottom:22px}
+  .marca img{height:36px}
+  .cartao{background:#fff; border:1px solid var(--linha); border-radius:16px; padding:28px 26px;
+    box-shadow:0 4px 10px rgba(20,18,16,.08), 0 10px 30px rgba(20,18,16,.1)}
+  header{padding:0 0 18px; text-align:center}
+  h1{font-family:Georgia,serif; font-size:20px; margin:0 0 4px}
   .sub{color:var(--cinza); font-size:13px}
   .selo{display:inline-block; margin-top:10px; padding:4px 10px; border-radius:999px; background:#EFEAE4;
     color:var(--cinza); font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase}
   .campo{margin:16px 0}
   label{display:block; font-size:11.5px; font-weight:700; letter-spacing:.04em;
     text-transform:uppercase; margin-bottom:6px; color:var(--cinza)}
-  input{width:100%; border:1px solid var(--linha); background:#fff; border-radius:3px;
-    padding:11px 12px; font:inherit; font-size:15px; color:var(--tinta)}
-  input:focus{outline:none; border-color:var(--verm)}
-  .bt{width:100%; border:none; border-radius:3px; padding:14px; font-size:15px; font-weight:700;
+  input{width:100%; border:1px solid var(--linha); background:#fff; border-radius:10px;
+    padding:11px 12px; font:inherit; font-size:15px; color:var(--tinta); transition:border-color .15s ease, box-shadow .15s ease}
+  input:focus{outline:none; border-color:var(--verm); box-shadow:0 0 0 3px rgba(103,173,46,.18)}
+  .bt{width:100%; border:none; border-radius:10px; padding:14px; font-size:15px; font-weight:700;
     cursor:pointer; font-family:inherit; background:var(--verm); color:#fff; margin-top:8px;
-    transition:transform .06s ease, opacity .06s ease}
-  .bt[disabled]{opacity:.6}
+    box-shadow:0 1px 2px rgba(20,18,16,.05), 0 2px 10px rgba(20,18,16,.06);
+    transition:transform .1s ease, opacity .15s ease, box-shadow .15s ease}
+  .bt[disabled]{opacity:.6; box-shadow:none}
   .bt:active:not([disabled]){transform:scale(0.97); opacity:.85}
-  .msg{margin-top:16px; padding:13px 14px; border-radius:3px; font-size:13.5px; display:none}
+  .bt:hover:not([disabled]){box-shadow:0 4px 10px rgba(20,18,16,.08), 0 10px 30px rgba(20,18,16,.12)}
+  .msg{margin-top:16px; padding:13px 14px; border-radius:10px; font-size:13.5px; display:none}
   .ok{background:var(--verde); color:#fff}
-  .erro{background:#fff; border:1px solid var(--linha); border-left:4px solid var(--verm)}
+  .erro{background:var(--papel); border:1px solid var(--linha); border-left:4px solid var(--verm)}
   .rodape{margin-top:22px; text-align:center; font-size:12.5px; color:var(--cinza)}
-  .rodape a{color:var(--verm)}
+  .rodape a{color:var(--verm); font-weight:600}
 </style>
 </head>
 <body>
-<div class="topo"></div>
-<div class="wrap">
+<div class="pagina">
+<div class="marca"><img src="assets/logo-quadralab.png" alt="QuadraLab"></div>
+
+<div class="cartao">
 <header>
   <h1>Criar minha conta</h1>
   <div class="sub">Pra treinador independente — sem academia, sem convite</div>
@@ -63,6 +70,7 @@
   </div>
   <button class="bt" id="btEnviar">Criar minha conta</button>
   <div class="msg" id="msg"></div>
+</div>
 </div>
 
 </div>
