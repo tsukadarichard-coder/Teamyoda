@@ -7881,176 +7881,6 @@ function EditorMeuNome({ org, uid, emailAtual }) {
   );
 }
 
-/* ── visão geral da equipe (dashboard do coordenador) ──
-   Um retrato de cada professor da academia — não o painel de um só
-   (isso já é o Dashboard com "toda a academia"), e sim "cada um deles,
-   lado a lado". A grade de horário completa mora na Agenda; aqui é
-   gente, não grade. */
-function VisaoGeralEquipe({ alunos, turmas, uidAtual, irPara }) {
-  const [professores, setProfessores] = useState([]);
-  const [carregando, setCarregando] = useState(true);
-  const [selecionado, setSelecionado] = useState(null); // uid do professor aberto, ou null
-  const [removendo, setRemovendo] = useState(null);
-  const [promovendo, setPromovendo] = useState(null);
-  const [erro, setErro] = useState("");
-
-  function carregar() {
-    setCarregando(true);
-    listaProfessores().then((p) => { setProfessores(p); setCarregando(false); });
-  }
-  useEffect(carregar, []);
-
-  /* Remove o ACESSO dele a esta academia (revoga a claim e marca o
-     pedido como removido) — não apaga a conta do Firebase nem os
-     jogadores já atribuídos a ele, que continuam com o nome salvo até
-     alguém reatribuir. Reversível: basta aprová-lo de novo em Pedidos. */
-  async function removerProfessor(p) {
-    if (!confirm("Remover " + p.nome + " desta academia? Ele perde o acesso — pode ser reaprovado depois em Pedidos.")) return;
-    setRemovendo(p.uid); setErro("");
-    try {
-      const token = await window.mtyAuth.tokenId();
-      const r = await fetch("/.netlify/functions/remover-treinador", {
-        method: "POST",
-        headers: { "content-type": "application/json", authorization: "Bearer " + token },
-        body: JSON.stringify({ uid: p.uid }),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d.erro || ("Erro " + r.status));
-      if (selecionado === p.uid) setSelecionado(null);
-      carregar();
-    } catch (e) {
-      setErro(String(e.message || e));
-    }
-    setRemovendo(null);
-  }
-
-  /* Promove um treinador a coordenador — ele passa a ver Academia/Quadras
-     e a própria aba de Equipe, e ganha os mesmos poderes de aprovar,
-     remover e promover outros. Não tem "rebaixar" ainda. */
-  async function promoverProfessor(p) {
-    if (!confirm("Promover " + p.nome + " a coordenador? Ele passa a ter acesso total à academia.")) return;
-    setPromovendo(p.uid); setErro("");
-    try {
-      const token = await window.mtyAuth.tokenId();
-      const r = await fetch("/.netlify/functions/promover-treinador", {
-        method: "POST",
-        headers: { "content-type": "application/json", authorization: "Bearer " + token },
-        body: JSON.stringify({ uid: p.uid }),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d.erro || ("Erro " + r.status));
-      carregar();
-    } catch (e) {
-      setErro(String(e.message || e));
-    }
-    setPromovendo(null);
-  }
-
-  if (carregando) return <p style={{ ...prosa, color: C.grafite }}>Carregando…</p>;
-
-  const linhas = professores.map((p) => {
-    const meus = alunos.filter((a) => a.professorUid === p.uid);
-    const abertos = meus.filter((a) => a.plano && aulaEmVigor(a)).length;
-    const dadas7 = aulasDadasRecentes(meus, 7);
-    const minhasTurmas = turmas.filter((t) => t.professorUid === p.uid || t.professorAuxiliarUid === p.uid);
-    let pendencias = 0;
-    minhasTurmas.forEach((t) => (t.pendencias || []).forEach((pd) => { if (!pd.resolvida) pendencias++; }));
-    return { ...p, alunos: meus.length, abertos, dadas7, pendencias, turmas: minhasTurmas.length };
-  });
-  const semDono = alunos.filter((a) => !a.professorUid).length;
-
-  const profAberto = selecionado ? linhas.find((l) => l.uid === selecionado) : null;
-  if (profAberto) {
-    const meus = alunos.filter((a) => a.professorUid === profAberto.uid);
-    return (
-      <div>
-        <button onClick={() => setSelecionado(null)} className="mb-4" style={{ ...prosa, color: C.grafite, cursor: "pointer" }}>← Todos os professores</button>
-        <h2 style={{ fontFamily: ARCH, fontSize: 18, fontWeight: 700, marginBottom: 4 }}>{profAberto.nome}</h2>
-        <div className="flex flex-wrap gap-2 mb-5">
-          <Etiqueta>{profAberto.alunos} jogador{profAberto.alunos === 1 ? "" : "es"}</Etiqueta>
-          <Etiqueta>{profAberto.turmas} turma{profAberto.turmas === 1 ? "" : "s"}</Etiqueta>
-          <Etiqueta cor={profAberto.abertos > 0 ? C.saibro : C.grafite}>{profAberto.abertos} aula{profAberto.abertos === 1 ? "" : "s"} em aberto</Etiqueta>
-          <Etiqueta cor={C.quadra}>{profAberto.dadas7} dada{profAberto.dadas7 === 1 ? "" : "s"} · 7 dias</Etiqueta>
-        </div>
-        {meus.length === 0 ? (
-          <p style={{ ...prosa, color: C.grafite, marginBottom: 16 }}>Nenhum jogador atribuído a este professor ainda.</p>
-        ) : (
-          meus.map((a) => {
-            const emVigor = a.plano ? aulaEmVigor(a) : null;
-            const regEmVigor = emVigor ? (a.regPlano || {})[emVigor.id] || {} : null;
-            const repetindo = regEmVigor && (regEmVigor.status === "falta" || regEmVigor.status === "cancelada");
-            return (
-              <button key={a.id} onClick={() => irPara(a.id)} className="w-full text-left flex items-center justify-between gap-3"
-                style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 2, padding: "13px 15px", marginBottom: 8 }}>
-                <div>
-                  <div style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{a.nome || "Sem nome"}</div>
-                  <div className="mt-1"><Etiqueta>{a.nivel} · Estágio {a.estagio} · {a.inicio ? `início ${a.inicio}` : "sem calendário"}</Etiqueta></div>
-                  {emVigor && (
-                    <p style={{ ...prosa, fontSize: 12.5, color: C.saibro, marginTop: 4 }}>
-                      {repetindo ? "Repetindo: " : "Em vigor: "}{emVigor.t}
-                    </p>
-                  )}
-                </div>
-                <span style={{ color: C.grafite, fontSize: 20 }}>→</span>
-              </button>
-            );
-          })
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <p style={{ ...prosa, color: C.grafite, marginBottom: 4 }}>
-        Um retrato de cada professor da academia. Toque no nome pra ver os jogadores dele. Pra ver a grade de horário completa, use a Agenda com "Toda a academia".
-      </p>
-      {semDono > 0 && (
-        <p style={{ ...prosa, fontSize: 12.5, color: C.saibro, marginBottom: 14 }}>
-          {semDono} jogador{semDono === 1 ? "" : "es"} ainda sem professor definido.
-        </p>
-      )}
-      {erro && <div className="mb-4"><Aviso>{erro}</Aviso></div>}
-      {linhas.length === 0 ? (
-        <p style={{ ...prosa, color: C.grafite, marginTop: 10 }}>Nenhum professor aprovado na academia ainda.</p>
-      ) : (
-        linhas.map((l) => (
-          <div key={l.uid} style={{ background: C.cal, border: "1px solid " + C.linha, padding: "13px 15px", marginBottom: 9 }}>
-            <div className="flex items-center justify-between gap-3 flex-wrap mb-7" style={{ marginBottom: 7 }}>
-              <button onClick={() => setSelecionado(l.uid)}
-                style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, cursor: "pointer", border: "none", background: "none", padding: 0, color: C.tinta, textDecoration: "underline" }}>
-                {l.nome}
-              </button>
-              {l.uid !== uidAtual && (
-                <div className="flex items-center gap-3">
-                  {l.role !== "coordenador" && (
-                    <button onClick={() => promoverProfessor(l)} disabled={promovendo === l.uid}
-                      style={{ fontFamily: ARCH, fontSize: 11, fontWeight: 700, color: C.quadra, cursor: "pointer", border: "none", background: "none", padding: 0 }}>
-                      {promovendo === l.uid ? "promovendo…" : "Promover a coordenador"}
-                    </button>
-                  )}
-                  <button onClick={() => removerProfessor(l)} disabled={removendo === l.uid}
-                    style={{ fontFamily: ARCH, fontSize: 11, fontWeight: 700, color: C.saibro, cursor: "pointer", border: "none", background: "none", padding: 0 }}>
-                    {removendo === l.uid ? "removendo…" : "Excluir professor"}
-                  </button>
-                </div>
-              )}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {l.role === "coordenador" && <Etiqueta cor={C.quadra}>Coordenador</Etiqueta>}
-              <Etiqueta>{l.alunos} jogador{l.alunos === 1 ? "" : "es"}</Etiqueta>
-              <Etiqueta>{l.turmas} turma{l.turmas === 1 ? "" : "s"}</Etiqueta>
-              <Etiqueta cor={l.abertos > 0 ? C.saibro : C.grafite}>{l.abertos} aula{l.abertos === 1 ? "" : "s"} em aberto</Etiqueta>
-              <Etiqueta cor={C.quadra}>{l.dadas7} dada{l.dadas7 === 1 ? "" : "s"} · 7 dias</Etiqueta>
-              {l.pendencias > 0 && <Etiqueta cor={C.saibro}>{l.pendencias} pendência{l.pendencias === 1 ? "" : "s"} de grupo</Etiqueta>}
-            </div>
-          </div>
-        ))
-      )}
-    </div>
-  );
-}
-
 function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual, exerciciosCustom, setExerciciosCustom, identidade }) {
   const [abertaId, setAbertaId] = useState(null);
   const [criando, setCriando] = useState(false);
@@ -8741,16 +8571,6 @@ function aulasDadasDetalhe(alunos, dias, professorNome) {
   });
   return linhas.sort((x, y) => (x.data < y.data ? 1 : -1));
 }
-function aulasPorProfessor(alunos) {
-  const mapa = {};
-  alunos.forEach((a) => {
-    if (!a.plano) return;
-    const nome = a.professorNome || "Sem professor";
-    const feitas = listaAulas(a.plano, a.regPlano).filter((x) => statusAula(a.regPlano, x.id) === "feita").length;
-    mapa[nome] = (mapa[nome] || 0) + feitas;
-  });
-  return Object.entries(mapa).map(([nome, valor]) => ({ nome, valor })).sort((a, b) => b.valor - a.valor);
-}
 
 function TileEstat({ rotulo, valor, cor, onClick, ativo }) {
   const Tag = onClick ? "button" : "div";
@@ -8790,26 +8610,16 @@ function CardUsoIA({ usoIA }) {
   );
 }
 
-function TelaDashboard({ alunos, turmas, papelAtual, uidAtual, exigeLogin, irPara, usoIA, identidade }) {
-  const [verTodos, setVerTodos] = useState(false);
-  /* null fechado, "abertas"/"dadas" abrem a lista do card correspondente,
-     ou o nome de um professor quando vem de um clique na barra do
-     gráfico "aulas dadas por professor" — mesma lista, filtrada. */
+function TelaDashboard({ alunos, turmas, uidAtual, exigeLogin, irPara, usoIA, identidade }) {
+  /* null fechado, "abertas"/"dadas" abrem a lista do card correspondente. */
   const [detalhe, setDetalhe] = useState(null);
-  const meus = (professorUid) => !professorUid || professorUid === uidAtual;
 
-  const alunosVistos = (!exigeLogin || verTodos || !uidAtual) ? alunos : alunos.filter((a) => meus(a.professorUid));
-  const turmasVistas = (!exigeLogin || verTodos || !uidAtual) ? turmas : turmas.filter((t) => meus(t.professorUid) || t.professorAuxiliarUid === uidAtual);
-
-  const status = agregarStatusAlunos(alunosVistos);
-  const abertos = alunosVistos.filter((a) => a.plano && aulaEmVigor(a));
-  const dadas7 = aulasDadasRecentes(alunosVistos, 7);
-  const ehProfessorFiltro = detalhe && detalhe !== "abertas" && detalhe !== "dadas";
-  const dadasDetalhe = (detalhe === "dadas" || ehProfessorFiltro)
-    ? aulasDadasDetalhe(alunosVistos, 7, ehProfessorFiltro ? detalhe : null) : [];
+  const status = agregarStatusAlunos(alunos);
+  const abertos = alunos.filter((a) => a.plano && aulaEmVigor(a));
+  const dadas7 = aulasDadasRecentes(alunos, 7);
+  const dadasDetalhe = detalhe === "dadas" ? aulasDadasDetalhe(alunos, 7, null) : [];
   let pendenciasAbertas = 0;
-  turmasVistas.forEach((t) => (t.pendencias || []).forEach((p) => { if (!p.resolvida) pendenciasAbertas++; }));
-  const porProfessor = verTodos ? aulasPorProfessor(alunosVistos) : [];
+  turmas.forEach((t) => (t.pendencias || []).forEach((p) => { if (!p.resolvida) pendenciasAbertas++; }));
 
   return (
     <div>
@@ -8817,25 +8627,10 @@ function TelaDashboard({ alunos, turmas, papelAtual, uidAtual, exigeLogin, irPar
         <div className="mb-1"><Etiqueta>{identidade.nome}</Etiqueta></div>
       )}
       <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Dashboard</h1>
-      <p style={{ ...prosa, color: C.grafite, marginBottom: 14 }}>
-        {verTodos ? "A academia inteira, de uma vez." : "Só o que é seu — mais quem ainda não tem professor definido."}
-      </p>
-
-      {exigeLogin && uidAtual && (
-        <div className="flex gap-2 mb-5">
-          {[{ v: false, r: "Meu painel" }, { v: true, r: "Toda a academia" }].map((t) => (
-            <button key={String(t.v)} onClick={() => setVerTodos(t.v)}
-              style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, padding: "6px 11px", borderRadius: 3, cursor: "pointer",
-                border: "1px solid " + (verTodos === t.v ? C.saibro : C.linha),
-                background: verTodos === t.v ? C.saibro : C.papel, color: verTodos === t.v ? "#fff" : C.grafite }}>
-              {t.r}
-            </button>
-          ))}
-        </div>
-      )}
+      <p style={{ ...prosa, color: C.grafite, marginBottom: 14 }}>Seu painel, de uma vez.</p>
 
       <div className="mb-5" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
-        <TileEstat rotulo="Jogadores" valor={alunosVistos.length} />
+        <TileEstat rotulo="Jogadores" valor={alunos.length} />
         <TileEstat rotulo="Aulas em aberto" valor={abertos.length} cor={abertos.length > 0 ? C.saibro : C.tinta}
           ativo={detalhe === "abertas"} onClick={abertos.length > 0 ? () => setDetalhe(detalhe === "abertas" ? null : "abertas") : null} />
         <TileEstat rotulo="Aulas dadas · 7 dias" valor={dadas7} cor={C.quadra}
@@ -8862,11 +8657,9 @@ function TelaDashboard({ alunos, turmas, papelAtual, uidAtual, exigeLogin, irPar
         </div>
       )}
 
-      {(detalhe === "dadas" || ehProfessorFiltro) && (
+      {detalhe === "dadas" && (
         <div className="mb-6">
-          <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, marginBottom: 10 }}>
-            {ehProfessorFiltro ? "Aulas dadas por " + detalhe + " · 7 dias" : "Aulas dadas · 7 dias"}
-          </div>
+          <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Aulas dadas · 7 dias</div>
           {dadasDetalhe.length === 0 ? (
             <p style={{ ...prosa, color: C.grafite, fontSize: 12.5 }}>Nada por aqui nesses 7 dias.</p>
           ) : (
@@ -8895,39 +8688,15 @@ function TelaDashboard({ alunos, turmas, papelAtual, uidAtual, exigeLogin, irPar
         )}
       </div>
 
-      {papelAtual === "coordenador" && <CardUsoIA usoIA={usoIA} />}
-
-      {verTodos && porProfessor.length > 0 && (
-        <div className="mb-6" style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 8, padding: "16px 18px" }}>
-          <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Aulas dadas por professor</div>
-          <div style={{ width: "100%", height: Math.max(60, porProfessor.length * 34) }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={porProfessor} layout="vertical" margin={{ left: 8, right: 16, top: 4, bottom: 4 }}>
-                <CartesianGrid horizontal={false} stroke={C.linha} />
-                <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: C.grafite }} axisLine={{ stroke: C.linha }} tickLine={false} />
-                <YAxis type="category" dataKey="nome" width={110} tick={{ fontSize: 11.5, fill: C.tinta }} axisLine={{ stroke: C.linha }} tickLine={false} />
-                <Tooltip formatter={(v) => [v + " aula" + (v === 1 ? "" : "s"), "Feitas · clique pra ver quais"]}
-                  contentStyle={{ fontFamily: ARCH, fontSize: 12, border: "1px solid " + C.linha, borderRadius: 2 }} />
-                <Bar dataKey="valor" fill={C.quadra} radius={[0, 3, 3, 0]} maxBarSize={22} isAnimationActive={false}
-                  cursor="pointer" onClick={(d) => setDetalhe(detalhe === d.nome ? null : d.nome)} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
-
+      <CardUsoIA usoIA={usoIA} />
     </div>
   );
 }
 
-function TelaAgenda({ alunos, turmas, uidAtual, exigeLogin }) {
+function TelaAgenda({ alunos, turmas }) {
   const [modo, setModo] = useState("grade");
-  const [verTodos, setVerTodos] = useState(false);
 
-  const todos = useMemo(() => compromissosDaSemana(alunos, turmas), [alunos, turmas]);
-  const compromissos = (!exigeLogin || verTodos || !uidAtual)
-    ? todos
-    : todos.filter((c) => !c.professorUid || c.professorUid === uidAtual || c.professorAuxiliarUid === uidAtual);
+  const compromissos = useMemo(() => compromissosDaSemana(alunos, turmas), [alunos, turmas]);
 
   const horas = [...new Set(compromissos.flatMap((c) => faixasDeMeiaHora(c.hora, c.horaFim)))].sort();
 
@@ -8949,18 +8718,6 @@ function TelaAgenda({ alunos, turmas, uidAtual, exigeLogin }) {
             </button>
           ))}
         </div>
-        {exigeLogin && uidAtual && (
-          <div className="flex gap-2">
-            {[{ v: false, r: "Meus horários" }, { v: true, r: "Toda a academia" }].map((t) => (
-              <button key={String(t.v)} onClick={() => setVerTodos(t.v)}
-                style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, padding: "6px 11px", borderRadius: 2, cursor: "pointer",
-                  border: "1px solid " + (verTodos === t.v ? C.saibro : C.linha),
-                  background: verTodos === t.v ? C.saibro : C.papel, color: verTodos === t.v ? "#fff" : C.grafite }}>
-                {t.r}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       {compromissos.length === 0 ? (
@@ -9119,7 +8876,6 @@ function App() {
   const [identidade, setIdentidade] = useState(null);
   const [usoIA, setUsoIA] = useState(null);
   const [verificandoOrg, setVerificandoOrg] = useState(exigeLogin);
-  const [verTodosAlunos, setVerTodosAlunos] = useState(false);
   /* Lista de Jogadores organizada em menu (professor > tipo de aula) —
      cada grupo lembra se foi aberto/fechado na mão; quando o treinador
      ainda não tocou num grupo, undefined cai no padrão esperto (só abre
@@ -9169,16 +8925,13 @@ function App() {
       setOrgAtual(org);
       aplicarTema(org);
       aplicarIconesPWA(org);
-      try {
-        /* força a renovação do token (em vez de usar o que já estava em
-           cache) — sem isso, quem acabou de ser promovido a coordenador,
-           ou teve mostrarQuadras ligado pra academia, só via a mudança
-           depois de sair e entrar de novo: o SDK do Firebase não sabe
-           sozinho que uma claim mudou no servidor, e reaproveitava o
-           token antigo até ele expirar por conta própria (até 1h). */
-        const tok = await window.mtyAuth.usuario().getIdTokenResult(true);
-        setPapelAtual((tok.claims && tok.claims.role) || null);
-      } catch (e) { setPapelAtual(null); }
+      /* Produto de usuário único — cada conta é o único profissional dos
+         próprios dados, sem equipe nem hierarquia. papelAtual continua
+         existindo (em vez de arrancado de cada tela) só porque esta base
+         de código é compartilhada com o app da academia, onde a distinção
+         coordenador/treinador faz sentido; aqui ele é sempre "coordenador"
+         pra liberar a UI inteira pro próprio dono da conta. */
+      setPapelAtual("coordenador");
       try {
         const info = await db.collection("orgs").doc(org).collection("meta").doc("info").get();
         setPlanoAtual(info.exists ? (info.data().plano || null) : null);
@@ -9251,13 +9004,7 @@ function App() {
   }
 
   const aberto = abertoId ? alunos.find((a) => a.id === abertoId) : null;
-  /* Dashboard do professor: por padrão só os alunos dele (mais os que
-     ainda não têm professor definido, pra nada sumir com a migração).
-     "Todos os alunos" mostra a academia inteira, com o professor de
-     cada um — pra qualquer treinador, não só o coordenador. */
-  const alunosExibidos = (!exigeLogin || verTodosAlunos || !uidAtual)
-    ? alunos
-    : alunos.filter((a) => !a.professorUid || a.professorUid === uidAtual);
+  const alunosExibidos = alunos;
 
   const limitePlano = limiteDeAlunos(planoAtual);
   const planoVencido = !!(planoAtivoAte && planoAtivoAte < new Date().toISOString().slice(0, 10));
@@ -9510,8 +9257,8 @@ function App() {
          aba === "metodo" ? <TelaMetodo /> :
          aba === "turmas" ? <TelaTurmas alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade}
            exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
-         aba === "agenda" ? <TelaAgenda alunos={alunos} turmas={turmas} uidAtual={uidAtual} exigeLogin={exigeLogin} /> :
-         aba === "dashboard" ? <TelaDashboard alunos={alunos} turmas={turmas} papelAtual={papelAtual} uidAtual={uidAtual} exigeLogin={exigeLogin} usoIA={usoIA} identidade={identidade}
+         aba === "agenda" ? <TelaAgenda alunos={alunos} turmas={turmas} /> :
+         aba === "dashboard" ? <TelaDashboard alunos={alunos} turmas={turmas} uidAtual={uidAtual} exigeLogin={exigeLogin} usoIA={usoIA} identidade={identidade}
            irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }} /> :
          aberto ? (
           <div>
@@ -9548,17 +9295,6 @@ function App() {
               Cada jogador guarda a ficha das quatro camadas, o calendário e o histórico de sessões.
               É desse conjunto que sai a periodização.
             </p>
-            {exigeLogin && uidAtual && (
-              <div className="flex gap-5 mb-5" style={{ borderBottom: "1px solid " + C.linha }}>
-                {[{ v: false, r: "Meus alunos" }, { v: true, r: "Todos os alunos" }].map((t) => (
-                  <button key={String(t.v)} onClick={() => setVerTodosAlunos(t.v)}
-                    style={{ fontFamily: ARCH, fontSize: 13, fontWeight: verTodosAlunos === t.v ? 700 : 500, padding: "8px 0", cursor: "pointer",
-                      color: verTodosAlunos === t.v ? C.tinta : C.grafite, borderBottom: "2px solid " + (verTodosAlunos === t.v ? C.saibro : "transparent"), marginBottom: -1 }}>
-                    {t.r}
-                  </button>
-                ))}
-              </div>
-            )}
             {alunosExibidos.length === 0 ? (
               <p style={{ ...prosa, color: C.grafite, marginBottom: 16 }}>Nenhum jogador seu por enquanto.</p>
             ) : (() => {
