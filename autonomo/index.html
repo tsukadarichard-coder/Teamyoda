@@ -27,8 +27,14 @@
 
 <style>
   html, body { margin: 0; padding: 0; background: #F6F8F7; }
-  #mty-faixa { font-family: system-ui, sans-serif; font-size: 12px; padding: 6px 14px;
-    text-align: center; color: #fff; }
+  /* Indicador de sincronização: discreto (uma tira fina, sem texto visível)
+     quando está tudo certo — só vira um aviso de verdade, com texto e
+     altura normal, quando precisa de ação (sem login, sem nuvem configurada,
+     conta sem área). */
+  #mty-faixa { font-family: Inter, system-ui, sans-serif; font-size: 12px;
+    text-align: center; color: #fff; overflow: hidden; transition: all .15s ease; }
+  #mty-faixa.mty-faixa-ok { height: 3px; padding: 0; }
+  #mty-faixa.mty-faixa-alerta { padding: 7px 14px; }
 </style>
 </head>
 <body>
@@ -226,24 +232,32 @@ window.storage = db ? storageFirestore : storageLocal;
 async function atualizaFaixa() {
   const faixa = document.getElementById("mty-faixa");
   if (!faixa) return;
+  function alerta(texto, cor) {
+    faixa.textContent = texto;
+    faixa.style.background = cor;
+    faixa.className = "mty-faixa-alerta";
+    faixa.title = texto;
+  }
+  function ok(texto, cor) {
+    faixa.textContent = texto;
+    faixa.style.background = cor;
+    faixa.className = "mty-faixa-ok";
+    faixa.title = texto;
+  }
   if (!db) {
-    faixa.textContent = "Modo local — dados só neste aparelho, sem login. Configure o Firebase pra sincronizar entre seus aparelhos.";
-    faixa.style.background = "#C25A22";
+    alerta("Modo local — dados só neste aparelho, sem login. Configure o Firebase pra sincronizar entre seus aparelhos.", "#C25A22");
     return;
   }
   if (!auth.currentUser) {
-    faixa.textContent = "Nuvem configurada — entre com sua conta para ver seus dados.";
-    faixa.style.background = "#C25A22";
+    alerta("Nuvem configurada — entre com sua conta para ver seus dados.", "#C25A22");
     return;
   }
   const org = await organizacao();
   if (!org) {
-    faixa.textContent = "Conta sem área vinculada — entre em contato com o suporte.";
-    faixa.style.background = "#8A2E2E";
+    alerta("Conta sem área vinculada — entre em contato com o suporte.", "#8A2E2E");
     return;
   }
-  faixa.textContent = "Conectado — seus dados estão sincronizados na nuvem.";
-  faixa.style.background = "#103B32";
+  ok("Conectado — seus dados estão sincronizados na nuvem.", "#103B32");
 }
 atualizaFaixa();
 if (auth) auth.onAuthStateChanged(() => setTimeout(atualizaFaixa, 300));
@@ -8004,10 +8018,12 @@ function MenuPerfil({ org, uid, emailAtual, nome, carregado, aoSalvarNome, plano
   return (
     <div style={{ position: "relative" }}>
       <button onClick={() => setAberto((v) => !v)} aria-label="Menu do perfil" aria-haspopup="true" aria-expanded={aberto}
-        style={{ width: 40, height: 40, minWidth: 44, minHeight: 44, borderRadius: "50%", border: "none",
-          background: C.quadra, color: "#fff", fontFamily: ARCH, fontSize: 15, fontWeight: 700, cursor: "pointer",
-          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-        {inicial}
+        style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: 0 }}>
+        <span style={{ width: 32, height: 32, borderRadius: "50%", background: C.quadra, color: "#fff",
+          fontFamily: ARCH, fontSize: 13.5, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {inicial}
+        </span>
       </button>
       {aberto && (
         <>
@@ -8646,6 +8662,42 @@ function compromissosDaSemana(alunos, turmas) {
   return lista.sort((x, y) => x.dia - y.dia || x.hora.localeCompare(y.hora));
 }
 
+/* ── próxima aula (tela Início) ──
+   Olha os horários fixos de jogadores e turmas e acha o próximo que vai
+   acontecer a partir de agora — hoje se ainda não passou, senão o mais
+   cedo possível no resto da semana. É sobre a AGENDA (quando), não sobre
+   o conteúdo do plano — o "objetivo" é um complemento, lido à parte. */
+function proximoCompromisso(alunos, turmas) {
+  const agora = new Date();
+  const diaHoje = agora.getDay();
+  const horaAtual = String(agora.getHours()).padStart(2, "0") + ":" + String(agora.getMinutes()).padStart(2, "0");
+  const todos = [];
+  turmas.forEach((t) => (t.horarios || []).forEach((h) => todos.push({ tipo: "turma", entidade: t, titulo: t.nome, dia: h.dia, hora: h.hora })));
+  alunos.forEach((a) => (a.horarios || []).forEach((h) => todos.push({ tipo: "individual", entidade: a, titulo: a.nome || "Sem nome", dia: h.dia, hora: h.hora })));
+  if (todos.length === 0) return null;
+  function distanciaEmMinutos(c) {
+    let dias = (c.dia - diaHoje + 7) % 7;
+    if (dias === 0 && c.hora < horaAtual) dias = 7;
+    return dias * 1440 + Number(c.hora.slice(0, 2)) * 60 + Number(c.hora.slice(3, 5));
+  }
+  todos.sort((x, y) => distanciaEmMinutos(x) - distanciaEmMinutos(y));
+  const prox = todos[0];
+  const dias = (prox.dia - diaHoje + 7) % 7;
+  const hoje = dias === 0 && prox.hora >= horaAtual;
+  const amanha = dias === 1;
+  const emVigor = prox.entidade.plano ? aulaEmVigor(prox.entidade) : null;
+  return { ...prox, diaLabel: hoje ? "Hoje" : amanha ? "Amanhã" : nomeDia(prox.dia), objetivo: emVigor ? emVigor.t : null };
+}
+
+/* ── progresso de um plano (jogador ou turma — mesmo formato de dados) ── */
+function progressoPlano(entidade) {
+  if (!entidade.plano) return null;
+  const aulas = listaAulas(entidade.plano, entidade.regPlano || {});
+  if (aulas.length === 0) return null;
+  const feitas = aulas.filter((a) => statusAula(entidade.regPlano || {}, a.id) === "feita").length;
+  return { feitas, total: aulas.length, pct: Math.round((feitas / aulas.length) * 100) };
+}
+
 /* ── avisos do sininho ──
    Só o que o professor logado precisa saber hoje: o que tem treino hoje
    (dele, ou sem professor definido) e pendências de grupo em aberto nas
@@ -8727,13 +8779,17 @@ function aulasDadasDetalhe(alunos, dias, professorNome) {
 
 function TileEstat({ rotulo, valor, cor, onClick, ativo }) {
   const Tag = onClick ? "button" : "div";
+  /* ativo===undefined mas tem onClick: o toque navega pra outra tela
+     (não expande aqui dentro) — mostra só o cursor de toque, sem a seta
+     de abrir/fechar, que é exclusiva de quem alterna um detalhe inline. */
+  const alterna = !!onClick && ativo !== undefined;
   return (
     <Tag onClick={onClick || undefined} className={"mty-cartao" + (onClick ? " w-full text-left" : "")}
       style={{ background: ativo ? C.quadra : C.cal, border: "1px solid " + (ativo ? C.quadra : C.linha), borderRadius: 12,
         padding: "10px 12px", boxShadow: SOMBRA, cursor: onClick ? "pointer" : "default", minHeight: onClick ? 44 : undefined }}>
       <div style={{ fontFamily: ARCH, fontSize: 19, fontWeight: 700, color: ativo ? "#fff" : (cor || C.tinta), lineHeight: 1.15 }}>{valor}</div>
       <div style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 600, color: ativo ? "rgba(255,255,255,.85)" : C.grafite, marginTop: 2 }}>
-        {rotulo}{onClick ? (ativo ? " ▲" : " ▾") : ""}
+        {rotulo}{alterna ? (ativo ? " ▲" : " ▾") : ""}
       </div>
     </Tag>
   );
@@ -8769,28 +8825,28 @@ function CardUsoIA({ usoIA }) {
    ação (só quando existem) e por último o resumo compacto dos
    indicadores — nunca o contrário. Tudo aqui é dado real: sem jogador
    nenhum, a tela mostra o estado vazio em vez de inventar números. */
-function TelaDashboard({ alunos, turmas, uidAtual, exigeLogin, irPara, usoIA, identidade, meuNome, aoCriarPlanejamento, aoAbrirTurmas }) {
-  /* null fechado, "dadas" abre a lista do card correspondente. */
+function TelaDashboard({ alunos, turmas, uidAtual, exigeLogin, irPara, aoAbrirSessao, usoIA, identidade, meuNome,
+  aoCriarPlanejamento, aoAbrirTurmas, aoAbrirAgenda }) {
+  /* null fechado; "prontas"/"semana" abrem a lista do indicador correspondente. */
   const [detalhe, setDetalhe] = useState(null);
 
-  const status = agregarStatusAlunos(alunos);
   const abertos = alunos.filter((a) => a.plano && aulaEmVigor(a));
   const dadas7 = aulasDadasRecentes(alunos, 7);
-  const dadasDetalhe = detalhe === "dadas" ? aulasDadasDetalhe(alunos, 7, null) : [];
+  const dadasDetalhe = detalhe === "semana" ? aulasDadasDetalhe(alunos, 7, null) : [];
   let pendenciasAbertas = 0;
   turmas.forEach((t) => (t.pendencias || []).forEach((p) => { if (!p.resolvida) pendenciasAbertas++; }));
   const primeiroNome = (meuNome || "").trim().split(" ")[0];
   const saudacao = primeiroNome ? "Olá, " + primeiroNome : "Olá";
 
-  if (alunos.length === 0) {
+  if (alunos.length === 0 && turmas.length === 0) {
     return (
       <div>
-        <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 800, marginBottom: 4 }}>{saudacao}</h1>
+        <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>{saudacao}</h1>
         <p style={{ ...prosa, color: C.grafite, marginBottom: 20 }}>Vamos preparar sua próxima aula?</p>
-        <div style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 16, padding: "26px 22px" }}>
-          <h2 style={{ fontFamily: ARCH, fontSize: 17, fontWeight: 700, marginBottom: 8 }}>Seu primeiro planejamento começa aqui.</h2>
+        <div style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 16, padding: "24px 20px" }}>
+          <h2 style={{ fontFamily: ARCH, fontSize: 17, fontWeight: 700, marginBottom: 8 }}>Prepare suas próximas aulas</h2>
           <p style={{ ...prosa, color: C.grafite, marginBottom: 18 }}>
-            Escolha um jogador ou uma turma para preparar as próximas aulas.
+            Escolha um jogador ou turma para começar seu planejamento.
           </p>
           <Botao variante="saibro" onClick={aoCriarPlanejamento}>Criar planejamento</Botao>
         </div>
@@ -8798,24 +8854,125 @@ function TelaDashboard({ alunos, turmas, uidAtual, exigeLogin, irPara, usoIA, id
     );
   }
 
+  const prox = proximoCompromisso(alunos, turmas);
+
+  /* Planejamento em destaque: prioriza a mesma entidade da próxima aula
+     (a narrativa "é isso que vem aí, e é assim que está o plano dela"
+     é mais útil que um agregado solto) — só cai pro primeiro jogador
+     com plano ativo se a próxima aula ainda não tiver um. */
+  let entidadePlano = prox && prox.entidade.plano && aulaEmVigor(prox.entidade) ? prox.entidade : null;
+  if (!entidadePlano) entidadePlano = abertos[0] || turmas.find((t) => t.plano && aulaEmVigor(t)) || null;
+  const progresso = entidadePlano ? progressoPlano(entidadePlano) : null;
+
+  function aoVerAula() {
+    if (!prox) return;
+    if (prox.tipo === "individual") aoAbrirSessao(prox.entidade.id);
+    else aoAbrirTurmas();
+  }
+  function aoContinuar() {
+    if (!entidadePlano) return;
+    if (abertos.includes(entidadePlano) || alunos.includes(entidadePlano)) irPara(entidadePlano.id);
+    else aoAbrirTurmas();
+  }
+
+  /* Agenda de hoje: o resto do dia, sem repetir o item já mostrado como
+     "próxima aula" logo acima. */
+  const agora = new Date();
+  const diaHoje = agora.getDay();
+  const horaAtual = String(agora.getHours()).padStart(2, "0") + ":" + String(agora.getMinutes()).padStart(2, "0");
+  const hojeRestante = compromissosDaSemana(alunos, turmas)
+    .filter((c) => c.dia === diaHoje && c.hora >= horaAtual)
+    .filter((c) => !(prox && c.titulo === prox.titulo && c.hora === prox.hora));
+
   return (
     <div>
-      <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 800, marginBottom: 4 }}>{saudacao}</h1>
-      <p style={{ ...prosa, color: C.grafite, marginBottom: 18 }}>Vamos preparar sua próxima aula?</p>
+      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>{saudacao}</h1>
+      <p style={{ ...prosa, color: C.grafite, marginBottom: 20 }}>Vamos preparar sua próxima aula?</p>
 
-      <div className="mb-6"><Botao variante="saibro" onClick={aoCriarPlanejamento}>Criar planejamento</Botao></div>
+      {/* ── próxima aula ── */}
+      <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 14, padding: "16px 18px" }}>
+        <Etiqueta cor={C.saibro}>Próxima aula</Etiqueta>
+        {prox ? (
+          <div className="mt-2">
+            <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>{prox.diaLabel} · {prox.hora}</p>
+            <h2 style={{ fontFamily: ARCH, fontSize: 18, fontWeight: 700, marginTop: 2 }}>{prox.titulo}</h2>
+            <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginTop: 4 }}>
+              {prox.objetivo || "Ainda sem plano montado pra essa aula."}
+            </p>
+            <div className="mt-3"><Botao onClick={aoVerAula}>Ver aula</Botao></div>
+          </div>
+        ) : (
+          <div className="mt-2">
+            <p style={{ ...prosa, color: C.grafite, marginTop: 2 }}>Nenhuma aula agendada.</p>
+            <div className="mt-3"><Botao variante="vazio" onClick={aoAbrirAgenda}>Agendar aula</Botao></div>
+          </div>
+        )}
+      </div>
 
-      {abertos.length > 0 && (
-        <div className="mb-6">
-          <h2 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 10 }}>Próximas aulas</h2>
-          {abertos.slice(0, 5).map((a) => {
+      {hojeRestante.length > 0 && (
+        <div className="mb-5">
+          <h2 style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginBottom: 8 }}>Hoje, mais tarde</h2>
+          {hojeRestante.map((c, i) => (
+            <div key={i} className="flex items-center justify-between gap-3 mb-1.5" style={{ padding: "4px 0" }}>
+              <span style={{ ...prosa, fontSize: 13.5 }}>{c.titulo}</span>
+              <span style={{ ...prosa, fontSize: 13, color: C.grafite, flexShrink: 0 }}>{c.hora}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── planejamento em destaque ── */}
+      <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 14, padding: "16px 18px" }}>
+        {entidadePlano ? (
+          <>
+            <Etiqueta>Planejamento</Etiqueta>
+            <h2 style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, marginTop: 6 }}>
+              {entidadePlano.nome || "Sem nome"}
+            </h2>
+            {entidadePlano.plano.prioridade && (
+              <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginTop: 2 }}>{entidadePlano.plano.prioridade}</p>
+            )}
+            {progresso && (
+              <div className="mt-3">
+                <div style={{ height: 6, background: C.papel, borderRadius: 999, overflow: "hidden" }}>
+                  <div style={{ width: progresso.pct + "%", height: "100%", background: C.saibro, borderRadius: 999 }} />
+                </div>
+                <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 5 }}>{progresso.feitas} de {progresso.total} aulas feitas</p>
+              </div>
+            )}
+            <div className="mt-3"><Botao variante="vazio" onClick={aoContinuar}>Continuar planejamento</Botao></div>
+          </>
+        ) : (
+          <>
+            <h2 style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700 }}>Prepare suas próximas aulas</h2>
+            <p style={{ ...prosa, color: C.grafite, marginTop: 4 }}>Escolha um jogador ou turma para começar seu planejamento.</p>
+            <div className="mt-3"><Botao variante="saibro" onClick={aoCriarPlanejamento}>Criar planejamento</Botao></div>
+          </>
+        )}
+      </div>
+
+      {/* ── resumo compacto dos indicadores ── */}
+      <div className="mb-5" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
+        <TileEstat rotulo="Jogadores" valor={alunos.length} onClick={aoCriarPlanejamento} />
+        <TileEstat rotulo="Aulas prontas" valor={abertos.length} cor={abertos.length > 0 ? C.saibro : C.tinta}
+          ativo={detalhe === "prontas"} onClick={abertos.length > 0 ? () => setDetalhe(detalhe === "prontas" ? null : "prontas") : null} />
+        <TileEstat rotulo="Aulas nesta semana" valor={dadas7} cor={C.quadra}
+          ativo={detalhe === "semana"} onClick={dadas7 > 0 ? () => setDetalhe(detalhe === "semana" ? null : "semana") : null} />
+        <TileEstat rotulo="Pendências" valor={pendenciasAbertas} cor={pendenciasAbertas > 0 ? C.saibro : C.tinta}
+          onClick={pendenciasAbertas > 0 ? aoAbrirTurmas : null} />
+      </div>
+
+      {detalhe === "prontas" && (
+        <div className="mb-5">
+          <div style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700, marginBottom: 10 }}>Aulas prontas</div>
+          {abertos.map((a) => {
             const aula = aulaEmVigor(a);
             return (
               <button key={a.id} onClick={() => irPara(a.id)} className="mty-cartao w-full text-left flex items-center justify-between gap-3"
-                style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 12, padding: "13px 15px", marginBottom: 8, cursor: "pointer" }}>
+                style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 12, padding: "12px 15px", marginBottom: 8, cursor: "pointer" }}>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700 }}>{a.nome || "Sem nome"}</div>
-                  <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  <div style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{a.nome || "Sem nome"}</div>
+                  <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     {aula.bloco} · semana {aula.semana} · {aula.t}
                   </p>
                 </div>
@@ -8823,33 +8980,12 @@ function TelaDashboard({ alunos, turmas, uidAtual, exigeLogin, irPara, usoIA, id
               </button>
             );
           })}
-          {abertos.length > 5 && (
-            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>+ {abertos.length - 5} {abertos.length - 5 === 1 ? "outra aula pronta" : "outras aulas prontas"} pra dar.</p>
-          )}
         </div>
       )}
 
-      {pendenciasAbertas > 0 && (
-        <div className="mb-6" style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.saibro, boxShadow: SOMBRA, borderRadius: 12, padding: "14px 16px" }}>
-          <h2 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Pendências que precisam de ação</h2>
-          <p style={{ ...prosa, color: C.grafite, marginBottom: 10 }}>
-            {pendenciasAbertas} {pendenciasAbertas === 1 ? "pendência em aberto" : "pendências em aberto"} nas suas turmas.
-          </p>
-          <Botao pequeno variante="vazio" onClick={aoAbrirTurmas}>Ver turmas</Botao>
-        </div>
-      )}
-
-      <div className="mb-3" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
-        <TileEstat rotulo="Jogadores" valor={alunos.length} />
-        <TileEstat rotulo="Aulas prontas pra dar" valor={abertos.length} cor={abertos.length > 0 ? C.saibro : C.tinta} />
-        <TileEstat rotulo="Aulas realizadas na semana" valor={dadas7} cor={C.quadra}
-          ativo={detalhe === "dadas"} onClick={dadas7 > 0 ? () => setDetalhe(detalhe === "dadas" ? null : "dadas") : null} />
-        <TileEstat rotulo="Turmas com pendências" valor={pendenciasAbertas} cor={pendenciasAbertas > 0 ? C.saibro : C.tinta} />
-      </div>
-
-      {detalhe === "dadas" && (
-        <div className="mb-6">
-          <div style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700, marginBottom: 10 }}>Aulas realizadas na semana</div>
+      {detalhe === "semana" && (
+        <div className="mb-5">
+          <div style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700, marginBottom: 10 }}>Aulas nesta semana</div>
           {dadasDetalhe.length === 0 ? (
             <p style={{ ...prosa, color: C.grafite, fontSize: 12.5 }}>Nada por aqui nesses 7 dias.</p>
           ) : (
@@ -8868,15 +9004,6 @@ function TelaDashboard({ alunos, turmas, uidAtual, exigeLogin, irPara, usoIA, id
           )}
         </div>
       )}
-
-      <div className="mb-6" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 12, padding: "16px 18px" }}>
-        <div style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700, marginBottom: 10 }}>Planejamento atual</div>
-        {status.feita + status.pendente + status.repetindo === 0 ? (
-          <p style={{ ...prosa, color: C.grafite, fontSize: 12.5 }}>Nenhum plano montado ainda por aqui.</p>
-        ) : (
-          <RoscaStatus contagem={status} />
-        )}
-      </div>
 
       <CardUsoIA usoIA={usoIA} />
     </div>
@@ -9302,7 +9429,7 @@ function App() {
         background: C.cal, borderRight: "1px solid " + C.linha, zIndex: 30 }}>
         <div style={{ height: 4, background: C.quadra }} />
         <div className="flex items-center justify-between" style={{ padding: "18px 18px 14px" }}>
-          <img src="assets/logo-quadralab.png" alt="QuadraLab" style={{ height: 26, maxWidth: 190, objectFit: "contain" }} />
+          <img src="assets/logo-quadralab.png" alt="QuadraLab" style={{ height: 30, maxWidth: 190, objectFit: "contain" }} />
           <button className="mty-hamburger" onClick={() => setMenuMobileAberto(false)} aria-label="Fechar menu"
             style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center",
               border: "1px solid " + C.linha, borderRadius: 10, background: C.cal, color: C.tinta, cursor: "pointer", fontSize: 18, lineHeight: "34px", textAlign: "center", padding: 0 }}>
@@ -9376,14 +9503,14 @@ function App() {
 
       <div className="mty-topbar" style={{ marginLeft: 252, borderBottom: "1px solid " + C.linha, background: C.cal, position: "sticky", top: 0, zIndex: 9 }}>
         <div className="px-4 flex items-center gap-2" style={{ height: 56 }}>
-          <img src="assets/logo-quadralab.png" alt="QuadraLab" className="mty-topo-logo" style={{ height: 22, objectFit: "contain", marginRight: "auto" }} />
-          <div className="flex items-center gap-2" style={{ marginLeft: "auto" }}>
+          <img src="assets/logo-quadralab.png" alt="QuadraLab" className="mty-topo-logo" style={{ height: 28, objectFit: "contain", marginRight: "auto" }} />
+          <div className="flex items-center gap-1" style={{ marginLeft: "auto" }}>
           {exigeLogin && uidAtual && (
             <div style={{ position: "relative" }}>
               <button onClick={abrirAvisos} aria-label="Notificações"
-                style={{ position: "relative", color: C.tinta, cursor: "pointer", padding: "10px", width: 44, height: 44,
-                  display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid " + C.linha, borderRadius: 12, background: C.cal }}>
-                <IconeSino tam={19} />
+                style={{ position: "relative", color: C.grafite, cursor: "pointer", width: 44, height: 44,
+                  display: "flex", alignItems: "center", justifyContent: "center", border: "none", borderRadius: 12, background: "none" }}>
+                <IconeSino tam={18} />
                 {totalAvisos > 0 && (
                   <span style={{ position: "absolute", top: -5, right: -5, background: C.saibro, color: "#fff",
                     fontFamily: ARCH, fontSize: 10, fontWeight: 700, borderRadius: 999, minWidth: 16, height: 16,
@@ -9452,7 +9579,7 @@ function App() {
         </div>
       </div>
 
-      <main className="mty-main px-4 py-6" style={{ maxWidth: 760, marginLeft: 252 }}>
+      <main className="mty-main px-5 py-6" style={{ maxWidth: 760, marginLeft: 252 }}>
         {carregando ? <p style={{ ...prosa, color: C.grafite }}>Carregando…</p> :
          aba === "catalogo" ? <TelaCatalogo exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
          aba === "taticas" ? <TelaTaticas /> :
@@ -9467,7 +9594,8 @@ function App() {
          aba === "agenda" ? <TelaAgenda alunos={alunos} turmas={turmas} /> :
          aba === "dashboard" ? <TelaDashboard alunos={alunos} turmas={turmas} uidAtual={uidAtual} exigeLogin={exigeLogin} usoIA={usoIA} identidade={identidade} meuNome={meuNome}
            irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }}
-           aoCriarPlanejamento={() => setAba("alunos")} aoAbrirTurmas={() => setAba("turmas")} /> :
+           aoAbrirSessao={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("sessao"); }}
+           aoCriarPlanejamento={() => setAba("alunos")} aoAbrirTurmas={() => setAba("turmas")} aoAbrirAgenda={() => setAba("agenda")} /> :
          aberto ? (
           <div>
             <div className="flex items-center justify-between gap-3 mb-3">

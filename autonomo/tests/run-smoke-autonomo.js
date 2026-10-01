@@ -31,7 +31,7 @@ function tem(texto, trecho) { return texto.toLowerCase().includes(trecho.toLower
   assert(!body.includes('Dashboard'), 'o rótulo "Dashboard" não aparece mais em lugar nenhum: ' + body.slice(0, 300));
 
   // ── estado vazio: sem jogador nenhum, mostra o convite pra criar o primeiro planejamento ──
-  assert(body.includes('Seu primeiro planejamento começa aqui.') && body.includes('Criar planejamento'),
+  assert(body.includes('Prepare suas próximas aulas') && body.includes('Criar planejamento'),
     'estado vazio do Início é real (sem jogador) e tem o botão de ação: ' + body.slice(0, 600));
 
   // ── o nome do treinador não pode aparecer duas vezes no menu lateral ──
@@ -116,13 +116,18 @@ function tem(texto, trecho) { return texto.toLowerCase().includes(trecho.toLower
   body = await page.evaluate(() => document.body.innerText);
   assert(/nova turma/i.test(body), 'a aba Turmas continua existindo: ' + body.slice(0, 500));
 
-  // ── Início com dados reais: resumo compacto dos indicadores, sem o nome repetido ──
+  // ── Início com dados reais: próxima aula, planejamento e indicadores ──
   await page.getByText('Início', { exact: true }).first().click();
   await page.waitForTimeout(200);
   body = await page.evaluate(() => document.body.innerText);
-  assert(tem(body, 'Jogadores') && tem(body, 'Aulas prontas pra dar') && tem(body, 'Aulas realizadas na semana') && tem(body, 'Turmas com pendências'),
-    'o resumo compacto dos indicadores usa os novos rótulos: ' + body.slice(0, 1200));
-  assert(tem(body, 'Planejamento atual'), '"Aulas do ciclo, no conjunto" virou "Planejamento atual": ' + body.slice(0, 1200));
+  assert(tem(body, 'Próxima aula') && tem(body, 'Nenhuma aula agendada') && tem(body, 'Agendar aula'),
+    'o cartão "Próxima aula" aparece antes dos indicadores, com estado vazio real (jogador sem horário fixo): ' + body.slice(0, 1200));
+  assert(tem(body, 'Prepare suas próximas aulas') && tem(body, 'Criar planejamento'),
+    'o cartão de planejamento mostra o estado vazio (jogador sem plano ainda): ' + body.slice(0, 1200));
+  assert(tem(body, 'Jogadores') && tem(body, 'Aulas prontas') && tem(body, 'Aulas nesta semana') && tem(body, 'Pendências'),
+    'o resumo compacto dos indicadores usa os novos rótulos: ' + body.slice(0, 1600));
+  const quantosCriarPlanejamento = (body.match(/Criar planejamento/g) || []).length;
+  assert(quantosCriarPlanejamento === 1, 'o botão "Criar planejamento" não se repete em partes diferentes da tela: achou ' + quantosCriarPlanejamento + ' vez(es)');
 
   assert(errors.length === 0, 'sem erro de JS durante todo o fluxo desktop: ' + JSON.stringify(errors));
   await browser.close();
