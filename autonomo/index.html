@@ -2767,8 +2767,8 @@ function nomeDia(v) { return (DIAS_SEMANA.find((d) => d.v === v) || {}).r || "?"
    instante em que um treino começa, nunca até quando ele segura a
    quadra/professor, e um treino de 2h aparecia livre a partir da
    segunda meia hora. */
-const DURACOES_TREINO = [{ v: "1h", r: "1h" }, { v: "1h30", r: "1h30" }, { v: "2h", r: "2h" }];
-function minutosDaDuracao(d) { return { "1h": 60, "1h30": 90, "2h": 120 }[d] || 90; }
+const DURACOES_TREINO = [{ v: "30min", r: "30min" }, { v: "1h", r: "1h" }, { v: "1h30", r: "1h30" }, { v: "2h", r: "2h" }];
+function minutosDaDuracao(d) { return { "30min": 30, "1h": 60, "1h30": 90, "2h": 120 }[d] || 90; }
 function horaMaisMinutos(hora, minutos) {
   const [h, m] = hora.split(":").map(Number);
   const total = h * 60 + m + minutos;
