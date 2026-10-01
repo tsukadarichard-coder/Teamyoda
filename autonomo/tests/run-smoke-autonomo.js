@@ -86,47 +86,65 @@ function tem(texto, trecho) { return texto.toLowerCase().includes(trecho.toLower
   assert(!body.includes('Eventos'), 'não existe mais aba Eventos: ' + body.slice(0, 600));
   assert(!body.includes('Clientes'), 'não existe mais aba Clientes: ' + body.slice(0, 600));
 
-  // ── o núcleo do produto continua funcionando: criar jogador, ficha, questionário, plano ──
+  // ── o núcleo do produto continua funcionando: criar jogador, ficha em etapas, plano ──
   await page.getByText('Novo jogador', { exact: true }).click();
   await page.waitForTimeout(200);
+  body = await page.evaluate(() => document.body.innerText);
+  assert(tem(body, 'Etapa 1 de 5') && tem(body, 'Dados'), 'ficha nova abre direto na etapa 1 (Dados), com barra de progresso: ' + body.slice(0, 500));
+  assert(body.includes('Novo jogador') && body.includes('Cadastro incompleto'),
+    'cabeçalho mostra "Novo jogador" e "Cadastro incompleto" sem nome, sem inventar classificação: ' + body.slice(0, 500));
   await page.fill('input[placeholder="Nome do jogador ou da turma"]', 'Teste Autônomo');
+
+  // nascimento numa linha própria, alturas com rótulo e unidade — sem sobreposição
+  assert(tem(body, 'Nascimento') && tem(body, 'Altura atual (m)') && tem(body, 'Altura projetada (m)'),
+    'nascimento e alturas em campos próprios, com unidade explícita: ' + body.slice(0, 1200));
+
+  await page.getByText('Salvar e continuar', { exact: true }).click();
+  await page.waitForTimeout(250);
   body = await page.evaluate(() => document.body.innerText);
-  assert(body.includes('Identificação') && body.includes('Classificação inicial') && body.includes('Nível do jogador'),
-    'a ficha com o bloco de nível continua existindo: ' + body.slice(0, 1500));
-  assert(!/Y1.{0,3}Y6|\(Y1|Nível do jogador \(Y/i.test(body),
-    'não sobra citação literal de Y1-Y6 no título: ' + body.slice(0, 1500));
-  assert(body.includes('Perfil de jogo') && body.includes('Ficha de entrada') && body.includes('Prioridades'),
-    'Perfil de jogo, Ficha de entrada e Prioridades já aparecem sem precisar de "mostrar mais": ' + body.slice(0, 2000));
-  assert(!tem(body, 'Objetivo final') && !tem(body, 'Início do ciclo'),
-    'Horizonte e Calendário ficam ocultos por padrão (nada foi apagado, só escondido): ' + body.slice(0, 2000));
-  assert(!tem(body, 'Físico observado') && !tem(body, 'Mental observado'),
-    'Físico observado e Mental observado ficam ocultos por padrão na Ficha de entrada: ' + body.slice(0, 2000));
-  await page.getByText('Mostrar campos em avaliação', { exact: false }).click();
-  await page.waitForTimeout(150);
+  assert(tem(body, 'Etapa 2 de 5') && tem(body, 'Rotina') && tem(body, 'Horário fixo de treino'),
+    'avança pra etapa 2 (Rotina) sem perder o nome digitado: ' + body.slice(0, 500));
+  assert(tem(body, 'salvo'), 'mostra confirmação real de salvamento, não antes da hora: ' + body.slice(0, 300));
+
+  await page.getByText('Salvar e continuar', { exact: true }).click();
+  await page.waitForTimeout(250);
   body = await page.evaluate(() => document.body.innerText);
-  assert(tem(body, 'Físico observado') && tem(body, 'Mental observado'),
-    'o botão "mostrar campos em avaliação" revela Físico e Mental observado (nada foi apagado): ' + body.slice(0, 2000));
-  assert(tem(body, 'Objetivo final') && tem(body, 'Calendário e rotina'),
-    'o mesmo botão revela Horizonte e Calendário e rotina: ' + body.slice(0, 2000));
-  await page.getByText('Ocultar campos em avaliação', { exact: true }).click();
-  await page.waitForTimeout(150);
+  assert(tem(body, 'Etapa 3 de 5') && tem(body, 'Classificação inicial') && tem(body, 'critérios confirmados'),
+    'etapa 3 (Nível) com cartão compacto, sem a sequência horizontal cortada: ' + body.slice(0, 800));
+
+  await page.getByText('Salvar e continuar', { exact: true }).click();
+  await page.waitForTimeout(250);
   body = await page.evaluate(() => document.body.innerText);
-  assert(!tem(body, 'Objetivo final') && !tem(body, 'Físico observado'),
-    'o botão esconde de novo sem apagar nada: ' + body.slice(0, 2000));
-  await page.getByText('Salvar ficha', { exact: true }).click();
-  await page.waitForTimeout(200);
+  assert(tem(body, 'Etapa 4 de 5') && tem(body, 'Perfil de jogo') && tem(body, 'Avaliação por golpe'),
+    'etapa 4 (Avaliação) com Perfil de jogo e Avaliação por golpe: ' + body.slice(0, 800));
+  assert(tem(body, 'Forehand') && tem(body, 'Não avaliado'), 'golpes aparecem recolhidos com estado "Não avaliado": ' + body.slice(0, 1200));
+  assert(!tem(body, 'Em quais situações funciona bem?'), 'perguntas do golpe ficam ocultas até expandir o bloco');
+
+  await page.getByText('Salvar e continuar', { exact: true }).click();
+  await page.waitForTimeout(250);
   body = await page.evaluate(() => document.body.innerText);
-  assert(body.includes('Teste Autônomo'), 'o jogador foi salvo e a ficha abre normalmente: ' + body.slice(0, 500));
+  assert(tem(body, 'Etapa 5 de 5') && tem(body, 'Revisão') && tem(body, 'Pendências') && tem(body, 'Concluir ficha'),
+    'etapa 5 (Revisão) mostra pendências não-bloqueantes e "Concluir ficha": ' + body.slice(0, 1200));
+
+  await page.getByText('Concluir ficha', { exact: true }).click();
+  await page.waitForTimeout(300);
+  body = await page.evaluate(() => document.body.innerText);
+  assert(body.includes('Teste Autônomo') && !tem(body, 'Etapa 5 de 5'), 'o jogador foi salvo e a ficha fecha pro resumo: ' + body.slice(0, 500));
 
   await page.getByText('Plano', { exact: true }).first().click();
   await page.waitForTimeout(200);
   body = await page.evaluate(() => document.body.innerText);
   assert(/gerar.*partir da ficha|colar plano pronto/i.test(body), 'a tela de Plano (geração por IA) continua existindo: ' + body.slice(0, 800));
 
+  await page.getByText('Mais ▼', { exact: true }).click();
+  await page.waitForTimeout(150);
+  body = await page.evaluate(() => document.body.innerText);
+  assert(tem(body, 'Periodização') && tem(body, 'Sessão de hoje') && tem(body, 'Scout') && tem(body, 'Caderno'),
+    '"Mais" do jogador reúne Periodização/Sessão de hoje/Scout/Caderno, distinto do "Mais" global: ' + body.slice(0, 500));
   await page.getByText('Caderno', { exact: true }).click();
   await page.waitForTimeout(200);
   body = await page.evaluate(() => document.body.innerText);
-  assert(/registrado ainda|histórico/i.test(body), 'o Caderno continua existindo: ' + body.slice(0, 500));
+  assert(/registrado ainda|histórico/i.test(body), 'o Caderno continua existindo, agora dentro de "Mais": ' + body.slice(0, 500));
 
   // ── Turmas continua existindo (versão leve, mantida no roadmap) ──
   await page.getByText('← Todos os jogadores', { exact: true }).click();
