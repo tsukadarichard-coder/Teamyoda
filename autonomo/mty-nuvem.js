@@ -14,17 +14,24 @@
    organização (função netlify/functions/provisionar-org.js).
    ═══════════════════════════════════════════════════════════════════ */
 
+/* Projeto Firebase PRÓPRIO deste produto (MTY Coach) — nunca o mesmo da
+   Team Yoda. Preencha depois de criar o projeto novo no Firebase Console
+   (Configurações do projeto → Seus apps → Config do SDK) e ativar
+   Firestore + Authentication (Email/senha) nele. Enquanto estiver
+   "COLE_AQUI", o app roda só no aparelho (localStorage), sem nuvem —
+   o que é seguro por padrão, mas não sincroniza nada entre dispositivos
+   nem libera o link do aluno/relatórios na nuvem. */
 const MTY_CONFIG = {
-  apiKey: "AIzaSyDxtc8qn1GQjNQRYReRi4UH6ACNnYcn9Y4",
-  authDomain: "metodologia-mty.firebaseapp.com",
-  projectId: "metodologia-mty",
-  storageBucket: "metodologia-mty.firebasestorage.app",
-  messagingSenderId: "545940708034",
-  appId: "1:545940708034:web:88ac30dcf4f7c6e190b95b",
+  apiKey: "COLE_AQUI",
+  authDomain: "COLE_AQUI",
+  projectId: "COLE_AQUI",
+  storageBucket: "COLE_AQUI",
+  messagingSenderId: "COLE_AQUI",
+  appId: "COLE_AQUI",
 };
 
 /* Número que recebe as fichas pelo WhatsApp — código do país + DDD, só dígitos. */
-const MTY_WHATSAPP = "5511941773228";
+const MTY_WHATSAPP = "COLE_AQUI";
 
 /* ─────────────────────────────────────────────────────────────────── */
 
