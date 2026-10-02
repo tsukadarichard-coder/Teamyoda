@@ -3450,7 +3450,7 @@ const iconeEstilo = { fontFamily: ARCH, fontSize: 15, width: 27, height: 27, bor
 function Linha({ rotulo, texto, destaque }) {
   return (
     <div className="flex gap-3 mb-1.5">
-      <div style={{ width: 78, flexShrink: 0, paddingTop: 2 }}>
+      <div style={{ width: 106, flexShrink: 0, paddingTop: 2 }}>
         <Etiqueta cor={destaque ? C.saibro : C.grafite}>{rotulo}</Etiqueta>
       </div>
       <p style={{ ...prosa, fontSize: 13.5, color: destaque ? C.saibro : C.tinta }}>{texto}</p>
