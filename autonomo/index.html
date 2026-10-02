@@ -419,6 +419,11 @@ const ESTAGIOS = [
   { s: "V", n: "Vermelha" }, { s: "L", n: "Laranja" }, { s: "G", n: "Verde" },
   { s: "A", n: "Adulto" }, { s: "C", n: "Competição" },
 ];
+/* Nome real de cada sigla de estágio (bola vermelha/laranja/verde, depois
+   adulto/competição), pra nunca mostrar só "V · L · G · A · C" sem
+   explicar o que cada letra significa — vem do próprio catálogo, não
+   inventado aqui. */
+const ESTAGIO_NOME = Object.fromEntries(ESTAGIOS.map((s) => [s.s, s.n]));
 const NIVEIS = ["Y1", "Y2", "Y3", "Y4", "Y5", "Y6"];
 
 /* Tipo de aula, pro filtro em menu da lista de Jogadores — é o mesmo
@@ -3327,6 +3332,12 @@ function EditorExercicio({ ex, aoSalvar, aoCancelar }) {
     n: ex.n || "", f: ex.f || Object.keys(FAM)[0], e: ex.e || [], m: ex.m || "",
     g: ex.g || "", r: ex.r || "", p: ex.p || "", x: ex.x || "", i: ex.i || "", o: ex.o || "", d: ex.d || "",
   });
+  /* Editar aqui só muda ESTA ocorrência, nesta sessão, por padrão — marcar
+     a caixa é o que decide propagar pra biblioteca da academia (afetando
+     toda sessão futura que usar este código). Sem isso, qualquer ajuste
+     pontual (ex: uma carga diferente só por hoje) reescrevia o catálogo
+     original pra todo mundo. */
+  const [salvarNoCatalogo, setSalvarNoCatalogo] = useState(false);
   const set = (k, v) => setDados((x) => ({ ...x, [k]: v }));
   function alternaEstagio(s) {
     setDados((x) => ({ ...x, e: x.e.includes(s) ? x.e.filter((v) => v !== s) : [...x.e, s] }));
@@ -3357,49 +3368,70 @@ function EditorExercicio({ ex, aoSalvar, aoCancelar }) {
       <Campo rotulo="Progressão"><textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={dados.p} onChange={(e) => set("p", e.target.value)} /></Campo>
       <Campo rotulo="Corrigir"><textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={dados.x} onChange={(e) => set("x", e.target.value)} /></Campo>
       <Campo rotulo="Ignorar"><textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={dados.i} onChange={(e) => set("i", e.target.value)} /></Campo>
+      <label className="flex items-start gap-2 mb-3" style={{ cursor: "pointer" }}>
+        <input type="checkbox" checked={salvarNoCatalogo} onChange={(e) => setSalvarNoCatalogo(e.target.checked)} style={{ marginTop: 3, flexShrink: 0 }} />
+        <span style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Também salvar na biblioteca da academia (afeta futuras sessões de qualquer jogador). Sem marcar, vale só para esta ocorrência, hoje.</span>
+      </label>
       <div className="flex gap-2">
-        <Botao variante="saibro" onClick={() => aoSalvar(dados)} disabled={!dados.n.trim()}>Salvar exercício</Botao>
+        <Botao variante="saibro" onClick={() => aoSalvar(dados, salvarNoCatalogo)} disabled={!dados.n.trim()}>Salvar exercício</Botao>
         <Botao variante="vazio" onClick={aoCancelar}>Cancelar</Botao>
       </div>
     </div>
   );
 }
 
-function CartaoExercicio({ e, aoTrocar, aoRemover, aoAtualizar, exerciciosCustom, setExerciciosCustom }) {
+function CartaoExercicio({ e, aoTrocar, aoRemover, aoAtualizar, exerciciosCustom, setExerciciosCustom, duracaoMin, aoMudarDuracao, aoMoverCima, aoMoverBaixo }) {
   const [aberto, setAberto] = useState(false);
   const [editando, setEditando] = useState(false);
   const podeEditar = !!(exerciciosCustom && setExerciciosCustom);
-  function salvarEdicao(dados) {
+  function salvarEdicao(dados, salvarNoCatalogo) {
     const atualizado = { ...e, ...dados, c: e.c, custom: true };
-    salvarEdicaoExercicio(exerciciosCustom, setExerciciosCustom, e, atualizado);
-    // Além de entrar pra biblioteca (vale pras próximas sessões), atualiza
-    // também o cartão já exibido NESTA sessão — senão a edição só apareceria
-    // se a sessão fosse gerada de novo.
+    if (salvarNoCatalogo) salvarEdicaoExercicio(exerciciosCustom, setExerciciosCustom, e, atualizado);
+    // Atualiza o cartão já exibido NESTA sessão de qualquer forma — senão a
+    // edição não apareceria até a sessão ser gerada de novo.
     if (aoAtualizar) aoAtualizar(atualizado);
     setEditando(false);
   }
   return (
-    <div style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderLeft: "3px solid " + (e.v ? C.quadra : C.saibro), borderRadius: 10, padding: "11px 13px", marginBottom: 7 }}>
+    <div style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderLeft: "3px solid " + (e.v ? C.quadra : C.saibro), borderRadius: 10, padding: "11px 13px", marginBottom: 7 }}>
       <div className="flex items-start justify-between gap-3">
-        <button onClick={() => setAberto(!aberto)} className="text-left flex-1">
-          <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{e.custom ? e.n : e.c + " · " + e.n}</div>
-          {(e.e.length > 0 || e.g) && (
-            <div className="mt-1"><Etiqueta>{[e.e.join(" · "), e.g].filter(Boolean).join(" | ")}</Etiqueta></div>
-          )}
+        <button onClick={() => setAberto(!aberto)} aria-expanded={aberto} className="text-left flex-1">
+          <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{e.n}</div>
+          {e.o && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>{e.o}</p>}
+          <div className="flex items-center gap-2 flex-wrap mt-1">
+            {duracaoMin != null && <Etiqueta>{duracaoMin} min</Etiqueta>}
+            {e.g && <Etiqueta>{e.g}</Etiqueta>}
+            {e.e.length > 0 && <Etiqueta>{e.e.map((s) => ESTAGIO_NOME[s] || s).join(" · ")}</Etiqueta>}
+            {!e.custom && <span style={{ ...prosa, fontSize: 11, color: C.grafite }}>{e.c}</span>}
+          </div>
           {e.custom && <div className="mt-1"><Etiqueta cor={C.saibro}>exercício do treinador</Etiqueta></div>}
+          <span style={{ ...prosa, fontSize: 12, color: C.saibro, fontWeight: 700, display: "inline-block", marginTop: 6 }}>
+            {aberto ? "Ocultar execução" : "Ver execução"}
+          </span>
         </button>
-        {(aoTrocar || aoRemover || podeEditar) && (
-          <div className="flex gap-1 shrink-0">
-            {aoTrocar && <button onClick={aoTrocar} title="Trocar" style={iconeEstilo}>↻</button>}
-            {podeEditar && <button onClick={() => { setEditando(!editando); setAberto(true); }} title="Editar" style={iconeEstilo}>✎</button>}
-            {aoRemover && <button onClick={aoRemover} title="Remover" style={iconeEstilo}>×</button>}
+        {(aoMoverCima || aoMoverBaixo || aoTrocar || aoRemover || podeEditar) && (
+          <div className="flex gap-1 shrink-0 flex-wrap justify-end" style={{ maxWidth: 96 }}>
+            {aoMoverCima && <button onClick={aoMoverCima} aria-label="Mover exercício pra cima" title="Mover pra cima" style={iconeEstilo}>↑</button>}
+            {aoMoverBaixo && <button onClick={aoMoverBaixo} aria-label="Mover exercício pra baixo" title="Mover pra baixo" style={iconeEstilo}>↓</button>}
+            {aoTrocar && <button onClick={aoTrocar} aria-label="Substituir exercício" title="Substituir" style={iconeEstilo}>↻</button>}
+            {podeEditar && <button onClick={() => { setEditando(!editando); setAberto(true); }} aria-label="Editar exercício" title="Editar" style={iconeEstilo}>✎</button>}
+            {aoRemover && <button onClick={aoRemover} aria-label="Remover exercício" title="Remover" style={iconeEstilo}>×</button>}
           </div>
         )}
       </div>
+      {aoMudarDuracao && (
+        <div className="flex items-center gap-2 mt-2">
+          <label htmlFor={"dur-" + e.c} style={{ ...prosa, fontSize: 11.5, color: C.grafite }}>Duração estimada</label>
+          <input id={"dur-" + e.c} type="number" min={1} value={duracaoMin}
+            onChange={(ev) => aoMudarDuracao(Math.max(1, Number(ev.target.value) || 1))}
+            style={{ ...entrada, width: 58, padding: "4px 6px", fontSize: 12.5 }} />
+          <span style={{ ...prosa, fontSize: 11.5, color: C.grafite }}>min</span>
+        </div>
+      )}
       {aberto && editando && <EditorExercicio ex={e} aoSalvar={salvarEdicao} aoCancelar={() => setEditando(false)} />}
       {aberto && !editando && (
         <div className="mt-3 pt-3" style={{ borderTop: "1px solid " + C.linha }}>
-          {e.o && <p style={{ ...prosa, fontSize: 13.5, fontStyle: "italic", color: C.grafite, marginBottom: 7 }}>{e.o}</p>}
+          {!e.custom && <p style={{ ...prosa, fontSize: 11, color: C.grafite, marginBottom: 6 }}>Código do catálogo: {e.c}</p>}
           {e.m && <Linha rotulo="Montagem" texto={e.m} />}
           {e.r && <Linha rotulo="− Regressão" texto={e.r} />}
           {e.p && <Linha rotulo="+ Progressão" texto={e.p} />}
@@ -5663,6 +5695,7 @@ function garanteBrincadeira(exerciciosAtuais, evitar, estagio) {
 
 function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual, exerciciosCustom, setExerciciosCustom }) {
   const podeEditar = podeEditarAluno(aluno, papelAtual, uidAtual);
+  const exigeLogin = typeof window !== "undefined" && !!window.mtyAuth;
   const hoje = new Date().toISOString().slice(0, 10);
   /* A sessão gerada some se ficar só na memória do navegador — celular
      hiberna, aba fecha, e lá se vai o que já tinha sido montado (e
@@ -5678,14 +5711,33 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
   const [plano, setPlano] = useState(() => (rascunho ? rascunho.plano : null));
   const [divergencias, setDivergencias] = useState(() => (rascunho ? rascunho.divergencias : []));
   const [fechando, setFechando] = useState(false);
-  const [obs, setObs] = useState({ corrigi: "", ignorei: "", mudaria: "", nota: 3 });
+  const [salvandoRegistro, setSalvandoRegistro] = useState(false);
+  const registrandoRef = useRef(false);
+  const [obs, setObs] = useState({ corrigi: "", ignorei: "", mudaria: "", proximoFoco: "", nota: 3 });
   const [statusAulaPlano, setStatusAulaPlano] = useState("feita");
   const [motivoAulaPlano, setMotivoAulaPlano] = useState("");
+  /* Quais exercícios foram feitos, parcialmente feitos ou não feitos —
+     independente do status macro da aula (Realizada/Falta/Cancelada).
+     Só existe o que o treinador de fato marcar diferente do padrão; não
+     persiste nada até o registro ser salvo. */
+  const [statusExercicios, setStatusExercicios] = useState({});
   const [personalizados, setPersonalizados] = useState(() => (rascunho ? rascunho.personalizados : []));
-  const PERSONALIZADO_VAZIO = { n: "", m: "", r: "", p: "", x: "", i: "", d: "" };
+  const PERSONALIZADO_VAZIO = { n: "", m: "", g: "", r: "", p: "", x: "", i: "", d: "" };
   const [novoPersonalizado, setNovoPersonalizado] = useState(PERSONALIZADO_VAZIO);
+  const [formPersonalizadoAberto, setFormPersonalizadoAberto] = useState(false);
   const [chuvaMenuAberto, setChuvaMenuAberto] = useState(false);
   const [salvo, setSalvo] = useState(null); // null | "plano" | "avulso"
+  const [estadoSalvo, setEstadoSalvo] = useState(null); // null | "salvando" | "salvo" | "erro"
+  const [comoFuncionaAberto, setComoFuncionaAberto] = useState(false);
+  /* Desfazer uma remoção — guarda o exercício removido e onde estava, só
+     por alguns segundos, sem exigir reabrir "Trocar" ou montar a sessão
+     de novo pra recuperar algo removido sem querer. */
+  const [ultimoRemovido, setUltimoRemovido] = useState(null); // {escopo, i, ex} | null
+  useEffect(() => {
+    if (!ultimoRemovido) return;
+    const t = setTimeout(() => setUltimoRemovido(null), 8000);
+    return () => clearTimeout(t);
+  }, [ultimoRemovido]);
   const ciclos = useMemo(() => montaCiclos(aluno.prioridades, aluno.estagio), [aluno]);
 
   const rascunhoPrimeiraRef = useRef(true);
@@ -5720,7 +5772,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
   function adicionarPersonalizado() {
     if (!novoPersonalizado.n.trim()) return;
     setPersonalizados((p) => [...p, {
-      c: "PERS-" + Date.now(), n: novoPersonalizado.n.trim(), e: [], g: "", o: "", v: 1, custom: true,
+      c: "PERS-" + Date.now(), n: novoPersonalizado.n.trim(), e: [], g: novoPersonalizado.g.trim(), o: "", v: 1, custom: true,
       m: novoPersonalizado.m.trim(), r: novoPersonalizado.r.trim(), p: novoPersonalizado.p.trim(),
       x: novoPersonalizado.x.trim(), i: novoPersonalizado.i.trim(), d: novoPersonalizado.d.trim(),
     }]);
@@ -5831,13 +5883,61 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
       if (p.daAula) {
         const lista = p[id];
         setDivergencias((d) => [...d, { bloco: aulaAtual.t, tipo: "corte", saiu: lista[i].c }]);
+        setUltimoRemovido({ escopo: id, i, ex: lista[i] });
         return { ...p, [id]: lista.filter((_, k) => k !== i) };
       }
       return p.map((b) => {
         if (b.id !== id) return b;
         setDivergencias((d) => [...d, { bloco: b.nome, tipo: "corte", saiu: b.exercicios[i].c }]);
+        setUltimoRemovido({ escopo: id, i, ex: b.exercicios[i] });
         return { ...b, exercicios: b.exercicios.filter((_, k) => k !== i) };
       });
+    });
+  }
+
+  function desfazerRemocao() {
+    if (!ultimoRemovido) return;
+    const { escopo, i, ex } = ultimoRemovido;
+    setPlano((p) => {
+      if (p.daAula) {
+        const lista = [...p[escopo]];
+        lista.splice(Math.min(i, lista.length), 0, ex);
+        return { ...p, [escopo]: lista };
+      }
+      return p.map((b) => {
+        if (b.id !== escopo) return b;
+        const lista = [...b.exercicios];
+        lista.splice(Math.min(i, lista.length), 0, ex);
+        return { ...b, exercicios: lista };
+      });
+    });
+    setUltimoRemovido(null);
+  }
+
+  /* Reordenar: sobe/desce um exercício uma posição — funciona igual no
+     celular e no computador, sem precisar de arrastar-e-soltar. */
+  function mover(id, i, direcao) {
+    setPlano((p) => {
+      function trocarPosicoes(lista) {
+        const j = i + direcao;
+        if (j < 0 || j >= lista.length) return lista;
+        const nova = [...lista];
+        [nova[i], nova[j]] = [nova[j], nova[i]];
+        return nova;
+      }
+      if (p.daAula) return { ...p, [id]: trocarPosicoes(p[id]) };
+      return p.map((b) => (b.id !== id ? b : { ...b, exercicios: trocarPosicoes(b.exercicios) }));
+    });
+  }
+
+  /* Duração por exercício é uma estimativa editável (nenhum exercício do
+     catálogo carrega um tempo próprio) — 8 min é só o ponto de partida;
+     o treinador ajusta pra refletir o que realmente leva com este grupo. */
+  function minDe(e) { return e.duracaoMin || 8; }
+  function mudarDuracao(id, i, min) {
+    setPlano((p) => {
+      if (p.daAula) return { ...p, [id]: p[id].map((e, k) => (k === i ? { ...e, duracaoMin: min } : e)) };
+      return p.map((b) => (b.id !== id ? b : { ...b, exercicios: b.exercicios.map((e, k) => (k === i ? { ...e, duracaoMin: min } : e)) }));
     });
   }
 
@@ -5862,9 +5962,24 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
     });
   }
 
-  function registrar() {
+  /* Assíncrona e com guarda contra duplo toque — a confirmação só aparece
+     depois que grave() devolve sucesso de verdade, nunca antes. Fechar o
+     app, sair da página ou recolher a sessão nunca chama isto sozinho:
+     só o toque explícito em "Confirmar registro" conclui a aula.
+     A guarda usa uma ref, não o estado `salvandoRegistro` — dois toques
+     em sequência muito rápida chegam antes do React re-renderizar o botão
+     desabilitado, e o estado (assíncrono) ainda leria o valor antigo nos
+     dois casos; a ref muda na hora, sem esperar re-render. */
+  async function registrar() {
+    if (registrandoRef.current) return;
+    registrandoRef.current = true;
+    setSalvandoRegistro(true);
+    setEstadoSalvo("salvando");
     const hoje = new Date().toISOString().slice(0, 10);
-    const cods = plano.chuva ? [] : plano.daAula ? [...plano.aquecimento, ...plano.conteudo].map((e) => e.c) : plano.flatMap((b) => b.exercicios.map((e) => e.c));
+    const todosExercicios = listaTodosExercicios();
+    const cods = todosExercicios.map((e) => e.c);
+    const exerciciosStatus = {};
+    todosExercicios.forEach((e) => { exerciciosStatus[e.c] = statusExercicios[e.c] || "feito"; });
     const modeloChuva = plano.chuva ? TREINO_CHUVA.find((m) => m.id === plano.modeloId) : null;
     /* O relatório desta sessão vira a observação da aula no Plano — é
        daqui que o fechamento de ciclo (e o próximo plano gerado por IA)
@@ -5874,18 +5989,19 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
       modeloChuva && ("Dia de chuva — " + modeloChuva.nome + ". " + modeloChuva.saida),
       obs.corrigi.trim() && ("Corrigi: " + obs.corrigi.trim()),
       obs.ignorei.trim() && ("Deixei passar: " + obs.ignorei.trim()),
-      obs.mudaria.trim() && ("Teria montado diferente: " + obs.mudaria.trim()),
+      obs.mudaria.trim() && ("Adaptação: " + obs.mudaria.trim()),
+      obs.proximoFoco.trim() && ("Próximo foco: " + obs.proximoFoco.trim()),
     ].filter(Boolean).join(" · ");
     const reg = {
       id: "r" + Date.now(), tipo: "sessao", data: hoje,
       ciclo: aulaAtual ? (aulaAtual.bloco + " · semana " + aulaAtual.semana + " · " + aulaAtual.t)
         : modeloChuva ? ("Dia de chuva · " + modeloChuva.nome) : (ciclos[cicloAtivo].letra + " · " + ciclos[cicloAtivo].nome),
-      duracao, exercicios: cods, exerciciosPersonalizados: personalizados.map((p) => p.n), divergencias, ...obs,
+      duracao, exercicios: cods, exerciciosStatus, exerciciosPersonalizados: personalizados.map((p) => p.n), divergencias, ...obs,
       aulaDoPlano: aulaAtual ? aulaAtual.t : null,
     };
-    setAlunos(alunos.map((a) => {
+    const alunosAtualizados = alunos.map((a) => {
       if (a.id !== aluno.id) return a;
-      const atualizado = { ...a, historico: [...a.historico, cods], registros: [...(a.registros || []), reg] };
+      const atualizado = { ...a, historico: [...a.historico, cods], registros: [...(a.registros || []), reg], rascunhoSessao: null };
       if (aulaAtual) {
         const anterior = (a.regPlano || {})[aulaAtual.id] || {};
         const d = { ...anterior, status: statusAulaPlano, data: hoje };
@@ -5894,11 +6010,18 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
         atualizado.regPlano = { ...(a.regPlano || {}), [aulaAtual.id]: d };
       }
       return atualizado;
-    }));
-    setPlano(null); setFechando(false); setDivergencias([]);
-    setObs({ corrigi: "", ignorei: "", mudaria: "", nota: 3 });
+    });
+    const ok = await grave("mty:alunos:v2", alunosAtualizados);
+    setAlunos(alunosAtualizados);
+    if (!ok) { setEstadoSalvo("erro"); setSalvandoRegistro(false); registrandoRef.current = false; return; }
+    setPlano(null); setFechando(false); setDivergencias([]); setStatusExercicios({});
+    setObs({ corrigi: "", ignorei: "", mudaria: "", proximoFoco: "", nota: 3 });
     setStatusAulaPlano("feita"); setMotivoAulaPlano("");
-    setPersonalizados([]); setNovoPersonalizado(PERSONALIZADO_VAZIO);
+    setPersonalizados([]); setNovoPersonalizado(PERSONALIZADO_VAZIO); setFormPersonalizadoAberto(false);
+    setSalvandoRegistro(false);
+    registrandoRef.current = false;
+    setEstadoSalvo("salvo");
+    setTimeout(() => setEstadoSalvo(null), 3000);
     /* Confirmação visível de que o registro foi salvo — o relatório desta
        sessão vai para aluno.registros (aba Caderno) e, quando havia aula
        do Plano em vigor, também para regPlano[aulaAtual.id].obs (é dali
@@ -5909,14 +6032,77 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
     setTimeout(() => setSalvo(null), 4000);
   }
 
+  /* Lista plana de todos os exercícios da sessão atual, qualquer que seja
+     o modo (daAula / ciclo avulso / chuva) — usada pro total de duração,
+     pro registro final e pra evitar reescrever o mesmo flatMap 3 vezes. */
+  function listaTodosExercicios() {
+    if (!plano || plano.chuva) return [];
+    if (plano.daAula) return [...plano.aquecimento, ...plano.conteudo];
+    return plano.flatMap((b) => b.exercicios);
+  }
+  const todosExerciciosAtuais = listaTodosExercicios();
+  const duracaoTotalEstimada = todosExerciciosAtuais.reduce((s, e) => s + minDe(e), 0);
+  const duracaoDisponivel = aulaAtual ? minutosDaDuracao(aluno.duracaoPadrao || "1h30") : duracao;
+  const duracaoEstourou = todosExerciciosAtuais.length > 0 && duracaoTotalEstimada > duracaoDisponivel;
+
   const total = plano && !plano.daAula && !plano.chuva ? plano.reduce((s, b) => s + b.minutos, 0) : 1;
   const pctIP = plano && !plano.daAula && !plano.chuva ? Math.round((plano[2].minutos / total) * 100) : 0;
   const dentro = pctIP >= 25 && pctIP <= 35;
 
+  const gateAtivo = !aulaAtual && aulaEmVigorBruta && aulaEmVigorBruta.gate;
+  const explicacaoSessao = aulaAtual
+    ? "É o mesmo treino que está no Plano pra esta aula — não um novo sorteio. Ao confirmar o registro no fim, isso marca essa aula como feita."
+    : gateAtivo
+    ? "Esta sessão não vai marcar nada no Plano enquanto o critério de saída do bloco não for confirmado — monte um treino avulso abaixo se quiser treinar hoje mesmo assim."
+    : aluno.plano
+    ? "Esta sessão não vai marcar nada no Plano — todas as aulas dele já foram feitas."
+    : "Este jogador ainda não tem um Plano — esta sessão fica avulsa, só registrada no Caderno.";
+
   return (
     <div>
-      <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Sessão de hoje</h1>
-      <p style={{ ...prosa, fontSize: 14, color: C.grafite, marginBottom: 16 }}>Consulta rápida pra usar na quadra — sequência, tempo e registro no fim.</p>
+      {/* ── cabeçalho compacto: quem, título curto da aula, semana/bloco, duração, salvamento ── */}
+      <div className="mb-5">
+        <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, fontWeight: 700 }}>{aluno.nome || "Jogador"}</p>
+        <h1 style={{ fontFamily: ARCH, fontSize: 21, fontWeight: 700, marginTop: 2 }}>
+          {aulaAtual ? aulaAtual.t : gateAtivo ? "Bloco aguardando confirmação" : plano && plano.chuva ? "Dia de chuva" : plano ? "Sessão avulsa" : "Sessão de hoje"}
+        </h1>
+        <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>
+          {aulaAtual ? aulaAtual.bloco + " · semana " + aulaAtual.semana : gateAtivo ? aulaEmVigorBruta.bloco : "Consulta rápida pra usar na quadra"}
+        </p>
+        {aulaAtual && aulaAtual.d && <p style={{ ...prosa, fontSize: 13, marginTop: 6 }}>{aulaAtual.d}</p>}
+        {gateAtivo && (
+          <button onClick={() => setSubaba("aulas")} style={{ ...prosa, fontSize: 12.5, color: C.saibro, fontWeight: 700, border: "none", background: "none", cursor: "pointer", padding: 0, marginTop: 6 }}>
+            Confirmar critério de saída na aba Aulas →
+          </button>
+        )}
+        <div className="flex items-center gap-3 flex-wrap mt-2">
+          {plano && todosExerciciosAtuais.length > 0 && (
+            <Etiqueta cor={duracaoEstourou ? C.saibro : C.grafite}>
+              {duracaoTotalEstimada} min previstos{duracaoEstourou ? " · acima do disponível (" + duracaoDisponivel + " min)" : ""}
+            </Etiqueta>
+          )}
+          {estadoSalvo && (
+            <span style={{ ...prosa, fontSize: 11.5, color: estadoSalvo === "erro" ? "#8A2E2E" : C.grafite }}>
+              {estadoSalvo === "salvando" ? "Salvando…" : estadoSalvo === "erro" ? "Não foi possível salvar. Tentar novamente." : "Salvo"}
+            </span>
+          )}
+        </div>
+        <button onClick={() => setComoFuncionaAberto(!comoFuncionaAberto)} aria-expanded={comoFuncionaAberto}
+          style={{ ...prosa, fontSize: 12, color: C.saibro, fontWeight: 700, border: "none", background: "none", cursor: "pointer", padding: 0, marginTop: 8 }}>
+          {comoFuncionaAberto ? "Ocultar explicação" : "Como funciona"}
+        </button>
+        {comoFuncionaAberto && (
+          <div className="mt-2" style={{ background: C.papel, border: "1px solid " + C.linha, borderRadius: 10, padding: "11px 13px" }}>
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>{explicacaoSessao}</p>
+            {!aulaAtual && !gateAtivo && !aluno.plano && setSubaba && (
+              <button onClick={() => setSubaba("plano")} style={{ ...prosa, fontSize: 12.5, color: C.saibro, fontWeight: 700, border: "none", background: "none", cursor: "pointer", padding: 0, marginTop: 6 }}>
+                Montar o plano do jogador →
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
       {salvo && (
         <div className="mb-4" style={{ background: C.quadra, padding: "9px 13px" }}>
           <Etiqueta cor="#fff">{salvo === "plano" ? "✓ sessão registrada e marcada no plano" : "✓ sessão registrada no caderno"}</Etiqueta>
@@ -5924,36 +6110,6 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
       )}
       {!podeEditar && (
         <div className="mb-5"><Aviso>Este jogador é de outro treinador — só ele (ou o coordenador) pode registrar a sessão dele.</Aviso></div>
-      )}
-      {aulaAtual ? (
-        <div className="mb-5" style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "13px 15px" }}>
-          <Etiqueta cor={C.saibro}>Sessão de hoje é a aula em vigor do Plano</Etiqueta>
-          <p style={{ ...prosa, fontSize: 14, fontWeight: 700, marginTop: 4 }}>{aulaAtual.bloco} · semana {aulaAtual.semana} · {aulaAtual.t}</p>
-          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>
-            É o mesmo treino que está no Plano pra esta aula — não um novo sorteio. Ao fechar a sessão, isso marca essa aula como feita.
-          </p>
-        </div>
-      ) : aulaEmVigorBruta && aulaEmVigorBruta.gate ? (
-        <div className="mb-5" style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "13px 15px" }}>
-          <Etiqueta cor={C.saibro}>Bloco aguardando confirmação</Etiqueta>
-          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>
-            {aulaEmVigorBruta.bloco} já deu todas as aulas programadas — falta confirmar, na{" "}
-            <button onClick={() => setSubaba("aulas")} style={{ border: "none", background: "none", color: C.saibro, cursor: "pointer", padding: 0, fontFamily: "inherit", fontSize: "inherit", fontWeight: 700 }}>aba Aulas</button>
-            , o critério de saída. Esta sessão não vai marcar nada no Plano — monte um treino avulso abaixo se quiser treinar hoje mesmo assim.
-          </p>
-        </div>
-      ) : aluno.plano ? (
-        <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, padding: "13px 15px" }}>
-          <Etiqueta cor={C.quadra}>Plano concluído</Etiqueta>
-          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>Esta sessão não vai marcar nada no Plano — todas as aulas dele já foram feitas.</p>
-        </div>
-      ) : (
-        <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, padding: "13px 15px" }}>
-          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>
-            Este jogador ainda não tem um Plano — esta sessão fica avulsa, só no Caderno.{" "}
-            {setSubaba && <button onClick={() => setSubaba("plano")} style={{ border: "none", background: "none", color: C.saibro, cursor: "pointer", padding: 0, fontFamily: "inherit", fontSize: "inherit" }}>Montar o plano do jogador →</button>}
-          </p>
-        </div>
       )}
 
       {!aulaAtual && (
@@ -5994,10 +6150,12 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
       {plano && (
         <div className="mt-7">
           <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
-            <Etiqueta cor={C.quadra}>✓ Sessão salva — continua aqui mesmo se fechar o app ou trocar de aparelho</Etiqueta>
+            <Etiqueta cor={C.quadra}>{exigeLogin ? "Rascunho salvo — sincronizando com a nuvem" : "Rascunho salvo neste aparelho"}</Etiqueta>
             {podeEditar && (
-              <button onClick={descartarRascunho} style={{ ...prosa, fontSize: 12, color: C.grafite, cursor: "pointer", border: "none", background: "none", padding: 0 }}>
-                Descartar e gerar outra
+              <button onClick={() => {
+                if (confirm("Isso substitui apenas o rascunho desta sessão ainda não salva, com um novo sorteio — nenhuma aula já registrada é afetada. Gerar uma versão nova agora?")) descartarRascunho();
+              }} style={{ ...prosa, fontSize: 12, color: C.grafite, cursor: "pointer", border: "none", background: "none", padding: 0 }}>
+                Gerar nova versão desta aula
               </button>
             )}
           </div>
@@ -6036,7 +6194,10 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
                 ) : (
                   plano.aquecimento.map((e, i) => (
                     <CartaoExercicio key={e.c + i} e={e} aoTrocar={() => trocar("aquecimento", i)} aoRemover={() => remover("aquecimento", i)}
-                      aoAtualizar={(dados) => atualizar("aquecimento", i, dados)} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} />
+                      aoAtualizar={(dados) => atualizar("aquecimento", i, dados)} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom}
+                      duracaoMin={minDe(e)} aoMudarDuracao={(min) => mudarDuracao("aquecimento", i, min)}
+                      aoMoverCima={i > 0 ? () => mover("aquecimento", i, -1) : undefined}
+                      aoMoverBaixo={i < plano.aquecimento.length - 1 ? () => mover("aquecimento", i, 1) : undefined} />
                   ))
                 )}
                 <AdicionarExercicioCatalogo
@@ -6050,7 +6211,10 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
                 ) : (
                   plano.conteudo.map((e, i) => (
                     <CartaoExercicio key={e.c + i} e={e} aoTrocar={() => trocar("conteudo", i)} aoRemover={() => remover("conteudo", i)}
-                      aoAtualizar={(dados) => atualizar("conteudo", i, dados)} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} />
+                      aoAtualizar={(dados) => atualizar("conteudo", i, dados)} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom}
+                      duracaoMin={minDe(e)} aoMudarDuracao={(min) => mudarDuracao("conteudo", i, min)}
+                      aoMoverCima={i > 0 ? () => mover("conteudo", i, -1) : undefined}
+                      aoMoverBaixo={i < plano.conteudo.length - 1 ? () => mover("conteudo", i, 1) : undefined} />
                   ))
                 )}
                 <AdicionarExercicioCatalogo
@@ -6086,7 +6250,10 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
                   <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginBottom: 9 }}>{b.porque}</p>
                   {b.exercicios.map((e, i) => (
                     <CartaoExercicio key={e.c} e={e} aoTrocar={() => trocar(b.id, i)} aoRemover={() => remover(b.id, i)}
-                      aoAtualizar={(dados) => atualizar(b.id, i, dados)} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} />
+                      aoAtualizar={(dados) => atualizar(b.id, i, dados)} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom}
+                      duracaoMin={minDe(e)} aoMudarDuracao={(min) => mudarDuracao(b.id, i, min)}
+                      aoMoverCima={i > 0 ? () => mover(b.id, i, -1) : undefined}
+                      aoMoverBaixo={i < b.exercicios.length - 1 ? () => mover(b.id, i, 1) : undefined} />
                   ))}
                   <AdicionarExercicioCatalogo
                     jaUsados={new Set(plano.flatMap((x) => x.exercicios.map((e) => e.c)))}
@@ -6096,44 +6263,48 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
             </>
           )}
 
+          {ultimoRemovido && (
+            <div className="mb-4 flex items-center justify-between gap-3" style={{ background: C.papel, border: "1px solid " + C.linha, borderRadius: 10, padding: "9px 13px" }}>
+              <span style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Exercício removido · {ultimoRemovido.ex.n}</span>
+              <button onClick={desfazerRemocao} style={{ ...prosa, fontSize: 12.5, color: C.saibro, fontWeight: 700, border: "none", background: "none", cursor: "pointer", padding: 0 }}>
+                Desfazer
+              </button>
+            </div>
+          )}
+
           {!plano.chuva && (
             <div className="mb-6">
-              <h3 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Exercício do treinador</h3>
-              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 9 }}>
-                Algo específico pra trabalhar hoje que não está no catálogo do método. Só o nome é obrigatório —
-                o resto é opcional, mas segue os mesmos critérios usados nos exercícios do manual.
-              </p>
               {personalizados.map((p) => (
                 <CartaoExercicio key={p.c} e={p} aoRemover={() => removerPersonalizado(p.c)} />
               ))}
-              <div style={{ background: C.papel, border: "1px solid " + C.linha, padding: "12px 13px" }}>
-                <Campo rotulo="Nome do exercício">
-                  <input style={entrada} value={novoPersonalizado.n} onChange={(e) => setCampoPersonalizado("n", e.target.value)}
-                    placeholder="ex: Approach curto com decisão de rede" />
-                </Campo>
-                <Campo rotulo="Montagem (opcional)">
-                  <textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={novoPersonalizado.m}
-                    onChange={(e) => setCampoPersonalizado("m", e.target.value)} placeholder="como o exercício é montado" />
-                </Campo>
-                <div className="grid grid-cols-2 gap-3">
-                  <Campo rotulo="− Regressão (opcional)">
-                    <input style={entrada} value={novoPersonalizado.r} onChange={(e) => setCampoPersonalizado("r", e.target.value)} />
+              {!formPersonalizadoAberto ? (
+                <Botao variante="vazio" onClick={() => setFormPersonalizadoAberto(true)} disabled={!podeEditar}>+ Adicionar exercício próprio</Botao>
+              ) : (
+                <div style={{ background: C.papel, border: "1px solid " + C.linha, borderRadius: 10, padding: "13px 15px" }}>
+                  <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>
+                    Algo específico pra trabalhar hoje que não está no catálogo. Vale só nesta aula.
+                  </p>
+                  <Campo rotulo="Nome do exercício">
+                    <input style={entrada} value={novoPersonalizado.n} onChange={(e) => setCampoPersonalizado("n", e.target.value)}
+                      placeholder="ex: Approach curto com decisão de rede" />
                   </Campo>
-                  <Campo rotulo="+ Progressão (opcional)">
-                    <input style={entrada} value={novoPersonalizado.p} onChange={(e) => setCampoPersonalizado("p", e.target.value)} />
+                  <Campo rotulo="Instrução principal (opcional)">
+                    <textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={novoPersonalizado.m}
+                      onChange={(e) => setCampoPersonalizado("m", e.target.value)} placeholder="como o exercício é montado" />
                   </Campo>
+                  <Campo rotulo="Duração ou volume (opcional)">
+                    <input style={entrada} value={novoPersonalizado.g} onChange={(e) => setCampoPersonalizado("g", e.target.value)} placeholder="ex: 10 min, ou 4 séries de 6 bolas" />
+                  </Campo>
+                  {!novoPersonalizado.n.trim() && (
+                    <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginBottom: 8 }}>Preencha ao menos o nome pra poder adicionar.</p>
+                  )}
+                  <div className="flex gap-2 flex-wrap mb-3">
+                    <Botao pequeno onClick={adicionarPersonalizado} disabled={!novoPersonalizado.n.trim()}>Adicionar nesta aula</Botao>
+                    <Botao pequeno variante="vazio" onClick={() => setFormPersonalizadoAberto(false)}>Fechar</Botao>
+                  </div>
+                  <DetalhesOpcionaisPersonalizado novoPersonalizado={novoPersonalizado} setCampoPersonalizado={setCampoPersonalizado} />
                 </div>
-                <Campo rotulo="Corrigir (opcional)">
-                  <input style={entrada} value={novoPersonalizado.x} onChange={(e) => setCampoPersonalizado("x", e.target.value)} />
-                </Campo>
-                <Campo rotulo="Ignorar (opcional)">
-                  <input style={entrada} value={novoPersonalizado.i} onChange={(e) => setCampoPersonalizado("i", e.target.value)} />
-                </Campo>
-                <Campo rotulo="Dica (opcional)">
-                  <input style={entrada} value={novoPersonalizado.d} onChange={(e) => setCampoPersonalizado("d", e.target.value)} />
-                </Campo>
-                <Botao pequeno onClick={adicionarPersonalizado} disabled={!novoPersonalizado.n.trim()}>Adicionar à sessão</Botao>
-              </div>
+              )}
             </div>
           )}
 
@@ -6145,54 +6316,131 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
             </Aviso>
           )}
 
-          {!fechando ? (
-            <Botao onClick={() => setFechando(true)} disabled={!podeEditar}>Finalizar e registrar aula</Botao>
-          ) : (
-            <div style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderLeft: "3px solid " + C.saibro, padding: 16 }}>
-              <div className="mb-3"><Etiqueta cor={C.saibro}>Menos de dois minutos, ainda na quadra</Etiqueta></div>
+          {/* espaço reservado pra não deixar a barra fixa de finalizar cobrindo o último cartão */}
+          <div style={{ height: 76 }} />
 
-              {aulaAtual && (
-                <Campo rotulo="E a aula do Plano?" nota={aulaAtual.bloco + " · semana " + aulaAtual.semana + " · " + aulaAtual.t}>
-                  <div className="flex gap-1 flex-wrap mb-2">
-                    {[["feita", "Realizada"], ["falta", "Falta"], ["cancelada", "Cancelada"]].map(([v, r]) => (
-                      <button key={v} onClick={() => setStatusAulaPlano(v)}
-                        style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "6px 10px", borderRadius: 10, cursor: "pointer",
-                          border: "1px solid " + (statusAulaPlano === v ? C.tinta : C.linha),
-                          background: statusAulaPlano === v ? C.tinta : C.papel, color: statusAulaPlano === v ? C.papel : C.grafite }}>{r}</button>
-                    ))}
-                  </div>
-                  {statusAulaPlano !== "feita" && (
-                    <>
-                      <input list="motivos-cancelamento-sessao" style={entrada} value={motivoAulaPlano}
-                        onChange={(e) => setMotivoAulaPlano(e.target.value)} placeholder="motivo (ex: chuva)" />
-                      <datalist id="motivos-cancelamento-sessao">
-                        <option value="Chuva" /><option value="Quadra indisponível" /><option value="Doença" /><option value="Viagem" />
-                      </datalist>
-                    </>
-                  )}
-                </Campo>
-              )}
-
-              <Campo rotulo="O que corrigi hoje">
-                <textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={obs.corrigi}
-                  onChange={(e) => setObs({ ...obs, corrigi: e.target.value })}
-                  placeholder="Em que camada estava a causa" />
-              </Campo>
-              <Campo rotulo="O que vi e deixei passar" nota="O campo mais valioso do registro: o que você escolheu ignorar hoje, e por quê.">
-                <textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={obs.ignorei}
-                  onChange={(e) => setObs({ ...obs, ignorei: e.target.value })} />
-              </Campo>
-              <Campo rotulo="O que eu teria montado diferente" nota="Se a proposta não servia, escreva o que serviria. É isso que corrige as regras.">
-                <textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={obs.mudaria}
-                  onChange={(e) => setObs({ ...obs, mudaria: e.target.value })} />
-              </Campo>
-              <Campo rotulo="Presença do jogador na sessão">
-                <Seletor opcoes={[1, 2, 3, 4, 5].map((n) => ({ v: n, r: String(n) }))} valor={obs.nota}
-                  aoMudar={(v) => setObs({ ...obs, nota: v })} />
-              </Campo>
-              <Botao onClick={registrar} variante="saibro">{aulaAtual ? "Salvar e marcar no Plano" : "Salvar no caderno"}</Botao>
+          {!fechando && (
+            <div className="mty-barra-finalizar" style={{ position: "fixed", left: 0, right: 0,
+              zIndex: 27, background: C.papel, borderTop: "1px solid " + C.linha, padding: "10px 16px",
+              boxShadow: "0 -2px 10px rgba(16,59,50,.08)" }}>
+              <div style={{ maxWidth: 760, margin: "0 auto" }}>
+                <Botao onClick={() => setFechando(true)} disabled={!podeEditar}>Finalizar e registrar aula</Botao>
+              </div>
             </div>
           )}
+
+          {fechando && (
+            <>
+              <div onClick={() => !salvandoRegistro && setFechando(false)} style={{ position: "fixed", inset: 0, background: "rgba(16,30,25,.4)", zIndex: 39 }} />
+              <div role="dialog" aria-modal="true" aria-label="Finalizar e registrar aula"
+                style={{ position: "fixed", left: 0, right: 0, bottom: 0, background: C.cal, zIndex: 40,
+                  borderRadius: "16px 16px 0 0", boxShadow: SOMBRA_ALTA, maxHeight: "88vh", display: "flex", flexDirection: "column" }}>
+                <div className="flex items-center justify-between" style={{ padding: "14px 18px", borderBottom: "1px solid " + C.linha }}>
+                  <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>Finalizar e registrar aula</span>
+                  <button onClick={() => !salvandoRegistro && setFechando(false)} aria-label="Fechar" style={{ width: 36, height: 36, border: "none", background: "none", cursor: "pointer", fontSize: 20, color: C.grafite }}>×</button>
+                </div>
+                <div style={{ overflowY: "auto", padding: "16px 18px", paddingBottom: "calc(16px + env(safe-area-inset-bottom))" }}>
+
+                  {todosExerciciosAtuais.length > 0 && (
+                    <Campo rotulo="Atividades realizadas" nota="Indique o que não foi feito ou só parcialmente — o resto conta como feito.">
+                      {todosExerciciosAtuais.map((e) => {
+                        const st = statusExercicios[e.c] || "feito";
+                        return (
+                          <div key={e.c} className="flex items-center justify-between gap-2 flex-wrap mb-2">
+                            <span style={{ ...prosa, fontSize: 13 }}>{e.n}</span>
+                            <div className="flex gap-1 flex-wrap">
+                              {[["feito", "Feito"], ["parcial", "Parcial"], ["nao_feito", "Não feito"]].map(([v, r]) => (
+                                <button key={v} onClick={() => setStatusExercicios((x) => ({ ...x, [e.c]: v }))}
+                                  style={{ fontFamily: ARCH, fontSize: 10.5, fontWeight: 700, padding: "5px 9px", borderRadius: 10, cursor: "pointer",
+                                    border: "1px solid " + (st === v ? C.tinta : C.linha),
+                                    background: st === v ? C.tinta : C.papel, color: st === v ? C.papel : C.grafite }}>{r}</button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </Campo>
+                  )}
+
+                  {aulaAtual && (
+                    <Campo rotulo="E a aula do Plano?" nota={aulaAtual.bloco + " · semana " + aulaAtual.semana + " · " + aulaAtual.t}>
+                      <div className="flex gap-1 flex-wrap mb-2">
+                        {[["feita", "Realizada"], ["falta", "Falta"], ["cancelada", "Cancelada"]].map(([v, r]) => (
+                          <button key={v} onClick={() => setStatusAulaPlano(v)}
+                            style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "6px 10px", borderRadius: 10, cursor: "pointer",
+                              border: "1px solid " + (statusAulaPlano === v ? C.tinta : C.linha),
+                              background: statusAulaPlano === v ? C.tinta : C.papel, color: statusAulaPlano === v ? C.papel : C.grafite }}>{r}</button>
+                        ))}
+                      </div>
+                      {statusAulaPlano !== "feita" && (
+                        <>
+                          <input list="motivos-cancelamento-sessao" style={entrada} value={motivoAulaPlano}
+                            onChange={(e) => setMotivoAulaPlano(e.target.value)} placeholder="motivo (ex: chuva)" />
+                          <datalist id="motivos-cancelamento-sessao">
+                            <option value="Chuva" /><option value="Quadra indisponível" /><option value="Doença" /><option value="Viagem" />
+                          </datalist>
+                        </>
+                      )}
+                    </Campo>
+                  )}
+
+                  <Campo rotulo="Adaptações" nota="Se a proposta não servia, o que você mudou ou faria diferente.">
+                    <textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={obs.mudaria}
+                      onChange={(e) => setObs({ ...obs, mudaria: e.target.value })} />
+                  </Campo>
+                  <Campo rotulo="Observações" nota="O que corrigiu hoje e o que escolheu deixar passar — o campo mais valioso do registro.">
+                    <textarea rows={2} style={{ ...entrada, resize: "vertical", marginBottom: 8 }} value={obs.corrigi}
+                      onChange={(e) => setObs({ ...obs, corrigi: e.target.value })} placeholder="o que corrigi" />
+                    <textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={obs.ignorei}
+                      onChange={(e) => setObs({ ...obs, ignorei: e.target.value })} placeholder="o que vi e deixei passar" />
+                  </Campo>
+                  <Campo rotulo="Próximo foco" nota="O que deveria entrar no próximo ciclo — alimenta o fechamento e o próximo plano.">
+                    <textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={obs.proximoFoco}
+                      onChange={(e) => setObs({ ...obs, proximoFoco: e.target.value })} />
+                  </Campo>
+                  <Campo rotulo="Presença do jogador na sessão">
+                    <Seletor opcoes={[1, 2, 3, 4, 5].map((n) => ({ v: n, r: String(n) }))} valor={obs.nota}
+                      aoMudar={(v) => setObs({ ...obs, nota: v })} />
+                  </Campo>
+
+                  {aulaAtual && statusAulaPlano === "feita" && (
+                    <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>
+                      Ao confirmar este registro, a aula será marcada como realizada.
+                    </p>
+                  )}
+                  {estadoSalvo === "erro" && <Aviso>Não foi possível salvar. Tente novamente.</Aviso>}
+                  <Botao onClick={registrar} variante="saibro" disabled={salvandoRegistro}>
+                    {salvandoRegistro ? "Salvando…" : aulaAtual ? "Confirmar registro e marcar no Plano" : "Confirmar registro no caderno"}
+                  </Botao>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* Campos opcionais do exercício do treinador, agrupados à parte — só o
+   nome é indispensável pra adicionar algo à aula; o resto é o que der. */
+function DetalhesOpcionaisPersonalizado({ novoPersonalizado, setCampoPersonalizado }) {
+  const [aberto, setAberto] = useState(false);
+  return (
+    <div className="mt-2 pt-2" style={{ borderTop: "1px solid " + C.linha }}>
+      <button onClick={() => setAberto(!aberto)} aria-expanded={aberto}
+        style={{ ...prosa, fontSize: 12.5, color: C.saibro, fontWeight: 700, border: "none", background: "none", cursor: "pointer", padding: 0 }}>
+        {aberto ? "Ocultar detalhes opcionais" : "Detalhes opcionais"}
+      </button>
+      {aberto && (
+        <div className="mt-3">
+          <Campo rotulo="Montagem"><textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={novoPersonalizado.m}
+            onChange={(e) => setCampoPersonalizado("m", e.target.value)} /></Campo>
+          <Campo rotulo="− Regressão"><input style={entrada} value={novoPersonalizado.r} onChange={(e) => setCampoPersonalizado("r", e.target.value)} /></Campo>
+          <Campo rotulo="+ Progressão"><input style={entrada} value={novoPersonalizado.p} onChange={(e) => setCampoPersonalizado("p", e.target.value)} /></Campo>
+          <Campo rotulo="Corrigir"><input style={entrada} value={novoPersonalizado.x} onChange={(e) => setCampoPersonalizado("x", e.target.value)} /></Campo>
+          <Campo rotulo="Ignorar"><input style={entrada} value={novoPersonalizado.i} onChange={(e) => setCampoPersonalizado("i", e.target.value)} /></Campo>
+          <Campo rotulo="Dica"><input style={entrada} value={novoPersonalizado.d} onChange={(e) => setCampoPersonalizado("d", e.target.value)} /></Campo>
         </div>
       )}
     </div>
@@ -11360,6 +11608,13 @@ function App() {
         .mty-topo-logo { display: none; }
         .mty-bottomnav { display: none; }
         .mty-bottomnav-item:focus-visible { outline-offset: -2px; }
+        /* Barra fixa de "Finalizar e registrar aula" — no celular fica acima
+           da navegação inferior; no computador, que não tem essa barra,
+           encosta direto na borda da tela. */
+        .mty-barra-finalizar { bottom: 0; }
+        @media (max-width: 760px) {
+          .mty-barra-finalizar { bottom: calc(56px + env(safe-area-inset-bottom)); }
+        }
         @media (max-width: 760px) {
           /* No celular a barra lateral de 252px nem existe — fica escondida
              por CSS (só o computador a vê). "Mais", na barra inferior, abre
@@ -11599,7 +11854,7 @@ function App() {
                   </div>
                   <CardPedidosReposicao aluno={aberto} aoMudar={(patch) => setAlunos((prev) => prev.map((a) => (a.id === aberto.id ? { ...a, ...patch } : a)))} />
                   <CardPedidosConteudo aluno={aberto} aoMudar={(patch) => setAlunos((prev) => prev.map((a) => (a.id === aberto.id ? { ...a, ...patch } : a)))} />
-                  <CardAulaEmVigor aluno={aberto} aoClicar={() => setSubaba("sessao")} aoAbrirAulas={() => setSubaba("aulas")} />
+                  {subaba !== "sessao" && <CardAulaEmVigor aluno={aberto} aoClicar={() => setSubaba("sessao")} aoAbrirAulas={() => setSubaba("aulas")} />}
                 </>
               );
             })()}
