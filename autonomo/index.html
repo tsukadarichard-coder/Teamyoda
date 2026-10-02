@@ -2109,6 +2109,25 @@ function statusTrilha(f) {
   return { atual, pendentes, feitos: atual.criterios.length - pendentes.length, total: atual.criterios.length, completo: pendentes.length === 0 };
 }
 
+/* Única fonte do que aparece como "nível" em qualquer lugar da ficha —
+   cabeçalho do jogador, cartão de nível, resumo, lista de jogadores.
+   Sempre calculado a partir da trilha (categoria + critérios marcados),
+   nunca do campo f.nivel bruto, que pode ficar momentaneamente
+   dessincronizado entre o rascunho em edição e o que já foi salvo. Com
+   zero critério confirmado não existe avaliação de verdade ainda —
+   mostrar um nível específico aí seria tratar ausência de dado como se
+   fosse o nível mais baixo, que é exatamente o que a metodologia probe. */
+function resumoNivel(x) {
+  const st = statusTrilha(x);
+  if (!st) return null;
+  const pendente = st.feitos === 0;
+  return {
+    st, pendente,
+    textoNivel: pendente ? "Avaliação pendente" : "Nível " + nomeNivel(st.atual.nivelSugerido),
+    linha: st.atual.nome + (pendente ? " · Avaliação pendente" : " · Nível " + nomeNivel(st.atual.nivelSugerido)),
+  };
+}
+
 /* Fase ampla do jogador — é o que o treinador precisa saber de cara,
    antes de qualquer diagnóstico: é criança, adulto ou juvenil/adulto
    de competição. Decide o catálogo de exercícios da ficha inteira. */
@@ -2139,6 +2158,10 @@ function nodesDaTrilha(estagio) {
    onde está agora (destacado, com quantos critérios já cumpriu) e o
    que ainda vem pela frente (apagado). Pensado pra abrir junto com o
    jogador na aula — não só o treinador ler sozinho depois. */
+/* Lista vertical, sempre — a versão horizontal anterior cortava nomes
+   mais longos (ex.: "Competição · Avançado") nas telas estreitas, sem
+   indicação clara de que dava pra rolar. Em coluna, nome completo,
+   nível atual e progresso ficam sempre visíveis, sem rolagem nenhuma. */
 function TrilhaVisual({ estagio, categoria, criteriosClassificacao }) {
   const nodes = nodesDaTrilha(estagio);
   if (nodes.length === 0) return null;
@@ -2149,40 +2172,39 @@ function TrilhaVisual({ estagio, categoria, criteriosClassificacao }) {
 
   return (
     <div className="mt-2 mb-3">
-      <div className="flex items-start" style={{ overflowX: "auto", paddingBottom: 2 }}>
-        {nodes.map((n, i) => {
-          const passado = i < idxAtual;
-          const atual = i === idxAtual;
-          const feitos = n.criterios ? n.criterios.filter((_, k) => marcados[n.id + ":" + k]).length : 0;
-          const cor = passado ? C.quadra : atual ? C.saibro : C.linha;
-          return (
-            <React.Fragment key={n.id}>
-              {i > 0 && (
-                <div style={{ height: 2, flex: 1, minWidth: 16, marginTop: 13, background: i <= idxAtual ? C.quadra : C.linha }} />
-              )}
-              <div style={{ textAlign: "center", minWidth: 88, flexShrink: 0 }}>
-                <div style={{
-                  width: 27, height: 27, borderRadius: "50%", margin: "0 auto",
-                  border: "2px solid " + cor, background: passado ? C.quadra : atual ? C.saibro : C.cal,
-                  color: passado || atual ? "#fff" : C.grafite,
-                  fontFamily: ARCH, fontSize: 12, fontWeight: 700,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}>
-                  {passado ? "✓" : i + 1}
-                </div>
-                <p style={{ fontFamily: ARCH, fontSize: 10.5, fontWeight: atual ? 700 : 500, color: atual ? C.tinta : C.grafite, marginTop: 5, lineHeight: 1.25 }}>
-                  {n.nome}
-                </p>
-                {n.criterios && (passado || atual) && (
-                  <p style={{ ...prosa, fontSize: 10, color: atual ? C.saibro : C.grafite, marginTop: 1 }}>
-                    {passado ? "concluído" : feitos + "/" + n.criterios.length}
-                  </p>
-                )}
+      {nodes.map((n, i) => {
+        const passado = i < idxAtual;
+        const atual = i === idxAtual;
+        const ultimo = i === nodes.length - 1;
+        const feitos = n.criterios ? n.criterios.filter((_, k) => marcados[n.id + ":" + k]).length : 0;
+        const cor = passado ? C.quadra : atual ? C.saibro : C.linha;
+        return (
+          <div key={n.id} style={{ display: "flex", gap: 12 }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
+              <div style={{
+                width: 26, height: 26, borderRadius: "50%",
+                border: "2px solid " + cor, background: passado ? C.quadra : atual ? C.saibro : C.cal,
+                color: passado || atual ? "#fff" : C.grafite,
+                fontFamily: ARCH, fontSize: 11.5, fontWeight: 700,
+                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+              }}>
+                {passado ? "✓" : i + 1}
               </div>
-            </React.Fragment>
-          );
-        })}
-      </div>
+              {!ultimo && <div style={{ width: 2, flex: 1, minHeight: 20, background: i < idxAtual ? C.quadra : C.linha }} />}
+            </div>
+            <div style={{ paddingBottom: ultimo ? 0 : 14 }}>
+              <p style={{ fontFamily: ARCH, fontSize: 13, fontWeight: atual ? 700 : 500, color: atual ? C.tinta : C.grafite, marginTop: 3, lineHeight: 1.3 }}>
+                {n.nome}
+              </p>
+              {n.criterios && (passado || atual) && (
+                <p style={{ ...prosa, fontSize: 11.5, color: atual ? C.saibro : C.grafite, marginTop: 1 }}>
+                  {passado ? "concluído" : feitos + " de " + n.criterios.length + " critérios"}
+                </p>
+              )}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -3601,10 +3623,17 @@ function FasesGolpe({ golpe, avaliacao, aoMudar }) {
 }
 
 function novoAluno() {
+  /* nivel precisa nascer de acordo com o que statusTrilha calcularia pra
+     categoria vazia (sempre a primeira categoria do estágio padrão) —
+     qualquer outro valor fixo aqui dessincroniza o rascunho recém-criado
+     assim que a trilha de classificação calcular o nível por conta
+     própria (ver comentário em TrilhaClassificacao). */
+  const estagioPadrao = "C";
+  const nivelPadrao = categoriasDoEstagio(estagioPadrao)[0].nivelSugerido;
   return {
     id: "a" + Date.now(), nome: "", nascimento: "", lateralidade: "destro", backhand: "duas",
     alturaAtual: "", projecaoAltura: "", tipoFisico: "medio", baseMotora: "media",
-    contexto: "", estagio: "C", nivel: "Y5", perfilCorpo: "", perfilTemperamento: "",
+    contexto: "", estagio: estagioPadrao, nivel: nivelPadrao, perfilCorpo: "", perfilTemperamento: "",
     objetivosAdulto: [], disposicaoAdulto: "", comportamentoAdulto: "",
     tempoTreinando: "", dificuldadeConsistencia: false,
     entrada: {}, plano: null, regPlano: {}, avaliacaoTecnica: {},
@@ -3829,8 +3858,8 @@ function CardTrilha({ aluno, aoVerCriterios }) {
   if (lista.length === 0) return null;
 
   return (
-    <div className="mb-5">
-      <CartaoNivel f={aluno} aberto={false} aoVerCriterios={aoVerCriterios} />
+    <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 12, padding: "11px 14px" }}>
+      <CartaoNivel f={aluno} aoAbrirAvaliacao={aoVerCriterios} />
     </div>
   );
 }
@@ -4388,8 +4417,8 @@ function SugestaoClassificacao({ f, set }) {
 
   return (
     <div className="mb-4">
-      <Botao pequeno variante="vazio" onClick={sugerir} disabled={gerando}>
-        {gerando ? "Analisando a ficha…" : "Sugerir estágio e nível com IA"}
+      <Botao pequeno onClick={sugerir} disabled={gerando}>
+        {gerando ? "Analisando a ficha…" : "Receber sugestão da IA"}
       </Botao>
       {erro && <div className="mt-2"><Aviso>{erro}</Aviso></div>}
       {sugestao && (
@@ -4486,25 +4515,38 @@ function AjudaContextual({ titulo = "Como avaliar?", children }) {
    inventa um "avaliado" separado de "confirmado" que não existe no
    modelo de dados — um critério está marcado (confirmado em três
    ocasiões) ou ainda não está. */
-function CartaoNivel({ f, aberto, aoVerCriterios }) {
-  const st = statusTrilha(f);
-  if (!st) return null;
+/* Resumo compacto — uma linha de categoria/nível, uma de progresso, e
+   (opcional) uma seta pra abrir a avaliação. Nunca um cartão grande:
+   os detalhes completos (critérios, sugestão da IA, evolução) moram só
+   na etapa de Avaliação da ficha — este resumo não duplica nada disso,
+   só aponta pra lá quando aoAbrirAvaliacao é passado. */
+function CartaoNivel({ f, aoAbrirAvaliacao }) {
+  const r = resumoNivel(f);
+  if (!r) return null;
+  const { st, pendente } = r;
+  const Tag = aoAbrirAvaliacao ? "button" : "div";
   return (
-    <div style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 12, padding: "14px 16px" }}>
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <Etiqueta>{faseDoEstagio(f.estagio)}</Etiqueta>
-          <p style={{ fontFamily: ARCH, fontSize: 18, fontWeight: 700, marginTop: 4 }}>{st.atual.nome}</p>
-          <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginTop: 2 }}>Nível {nomeNivel(f.nivel)}</p>
-        </div>
-        <Etiqueta cor={st.completo ? C.quadra : C.grafite}>{st.feitos} de {st.total} critérios confirmados</Etiqueta>
+    <Tag type={aoAbrirAvaliacao ? "button" : undefined} onClick={aoAbrirAvaliacao}
+      className={aoAbrirAvaliacao ? "w-full text-left" : undefined}
+      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
+        background: "none", border: "none", padding: 0, minHeight: aoAbrirAvaliacao ? 44 : undefined,
+        cursor: aoAbrirAvaliacao ? "pointer" : "default", width: "100%" }}>
+      <div style={{ minWidth: 0 }}>
+        <Etiqueta cor={C.grafite}>{faseDoEstagio(f.estagio)}</Etiqueta>
+        <p style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700, marginTop: 2 }}>
+          {st.atual.nome} · {pendente ? "Avaliação pendente" : "Nível " + nomeNivel(st.atual.nivelSugerido)}
+        </p>
+        {!pendente && (
+          <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 1 }}>{st.feitos} de {st.total} critérios confirmados</p>
+        )}
       </div>
-      <div className="mt-3">
-        <Botao pequeno variante="vazio" onClick={aoVerCriterios}>
-          {aberto ? "Ocultar critérios e evolução" : "Ver critérios e evolução"}
-        </Botao>
-      </div>
-    </div>
+      {aoAbrirAvaliacao && (
+        <span style={{ display: "flex", alignItems: "center", gap: 4, color: C.grafite, flexShrink: 0 }}>
+          <Etiqueta cor={C.grafite}>Avaliar</Etiqueta>
+          <IconeSeta tam={14} />
+        </span>
+      )}
+    </Tag>
   );
 }
 
@@ -4512,6 +4554,28 @@ function CartaoNivel({ f, aberto, aoVerCriterios }) {
    contam como respondido; só a ausência total conta como vazio. É essa
    distinção que dá o estado Não avaliado/Parcial/Preenchido do golpe. */
 function estadoCampoFicha(v) { return v === NS || (v && v.trim()) ? "respondido" : "vazio"; }
+
+/* Mesmos critérios de pendências do resumo da etapa 5 (Revisão), só que
+   aplicados direto no cadastro salvo — usado pela lista de Jogadores pra
+   saber em que etapa retomar um rascunho, sem precisar abrir a ficha. */
+function primeiraEtapaPendente(a) {
+  if (!a.nome || !a.nascimento) return 1;
+  if ((a.horarios || []).length === 0) return 2;
+  const st = statusTrilha(a);
+  if (st && st.feitos === 0) return 3;
+  const entrada = a.entrada || {};
+  const golpesPendentes = GOLPES_ENTRADA.some((g) =>
+    estadoCampoFicha(entrada["g_" + g + "_ok"]) === "vazio" && estadoCampoFicha(entrada["g_" + g + "_falha"]) === "vazio");
+  if (golpesPendentes || !a.perfilCorpo || !a.perfilTemperamento) return 4;
+  return null;
+}
+
+function formatarDataHoraCurta(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("pt-BR") + " às " + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
 
 /* Avaliação de um golpe, recolhida por padrão — nome, estado (Não
    avaliado/Parcial/Preenchido) e um resumo curto quando há algo
@@ -4581,7 +4645,7 @@ function sinteseGolpesFicha(f) {
   return partes.join("\n");
 }
 
-function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirEtapaAlvo }) {
+function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirEtapaAlvo, aoMudarEditando }) {
   const podeEditar = podeEditarAluno(aluno, papelAtual, uidAtual);
   const [f, setF] = useState(aluno);
   /* Jogador sem nome ainda é ficha nova — abre direto pra edição. Uma
@@ -4589,6 +4653,7 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
      é uma ação deliberada, não o padrão — o que alimenta o plano daqui
      pra frente são os relatórios das aulas, não reedições da ficha. */
   const [editando, setEditando] = useState(!aluno.nome);
+  useEffect(() => { if (aoMudarEditando) aoMudarEditando(editando); }, [editando]);
   const [etapa, setEtapa] = useState(etapaAlvo || 1);
   /* O nível já entra corrigido aqui (não só depois, no efeito de
      TrilhaClassificacao) — do contrário, o efeito de TrilhaClassificacao
@@ -4633,7 +4698,6 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
   const [sugestaoAuto, setSugestaoAuto] = useState(null);
   const [sugerindoAuto, setSugerindoAuto] = useState(false);
   const [trilhaManual, setTrilhaManual] = useState(false);
-  const [criteriosAbertos, setCriteriosAbertos] = useState(false);
   /* Mais campos de rotina (Períodos, Escola, Musculação, Horizonte,
      Calendário) e Prioridades do plano continuam existindo — só ficam
      escondidos por padrão, atrás destes botões. Nada do que já foi
@@ -4677,8 +4741,8 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
      primeiro save em que a camada técnica já está preenchida — nunca de
      novo depois disso (cada disparo é uma chamada de IA, e não faz
      sentido repetir isso a cada edição de ficha). O botão manual
-     "Sugerir estágio e nível com IA" continua disponível pra pedir de
-     novo a qualquer momento. */
+     "Receber sugestão da IA" continua disponível pra pedir de novo a
+     qualquer momento. */
   async function concluirFicha() {
     const primeiraClassificacao = !aluno.classificacaoSugeridaEm && (f.camadas.tecnico || "").trim().length > 0;
     const agora = new Date().toISOString();
@@ -4784,19 +4848,21 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
 
   return (
     <div>
-      {aluno.nome && (
-        <div className="flex justify-end mb-1">
+      <div className="flex items-center justify-between gap-3 mb-1">
+        <Etiqueta cor={C.grafite}>{aluno.nome ? "Editando cadastro" : "Novo cadastro"}</Etiqueta>
+        {aluno.nome && (
           <button onClick={() => setEditando(false)} style={{ ...prosa, fontSize: 12.5, color: C.grafite, background: "none", border: "none", cursor: "pointer", minHeight: 32 }}>
             Cancelar
           </button>
-        </div>
-      )}
+        )}
+      </div>
       <ProgressoFicha etapa={etapa} />
 
       {estadoSalvo === "erro" && <Aviso cor="#B3261E">Não deu pra salvar agora — confira sua internet e tente de novo.</Aviso>}
       {estadoSalvo === "ok" && (
-        <div className="mb-4" style={{ background: C.quadra, padding: "9px 13px" }}>
-          <Etiqueta cor="#fff">✓ salvo</Etiqueta>
+        <div className="mb-4 flex items-center gap-1.5">
+          <span style={{ color: C.quadra, fontSize: 13 }}>✓</span>
+          <Etiqueta cor={C.quadra}>Salvo</Etiqueta>
         </div>
       )}
 
@@ -4914,23 +4980,24 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
             <Etiqueta cor={C.grafite}>{faseDoEstagio(f.estagio)}</Etiqueta>
           </Secao>
 
-          <Secao titulo="Nível do jogador" nota="Não existe uma escolha manual de nível — é sempre calculado a partir dos critérios confirmados.">
-            <CartaoNivel f={f} aberto={criteriosAbertos} aoVerCriterios={() => setCriteriosAbertos(!criteriosAbertos)} />
-            {criteriosAbertos && (
-              <div className="mt-4">
-                <TrilhaVisual estagio={f.estagio} categoria={f.categoria} criteriosClassificacao={f.criteriosClassificacao} />
-                <SugestaoClassificacao f={f} set={set} />
-                {trilhaManual ? (
-                  <>
-                    <TrilhaClassificacao f={f} set={set} />
-                    <Botao pequeno variante="vazio" onClick={() => setTrilhaManual(false)}>Ocultar critério por critério</Botao>
-                  </>
-                ) : (
-                  <Botao pequeno variante="vazio" onClick={() => setTrilhaManual(true)}>Prefiro marcar critério por critério</Botao>
-                )}
-                <LegendaNiveis nivelInicial={f.nivel} />
-              </div>
-            )}
+          <Secao titulo="Nível do jogador" nota="Ninguém escolhe o nível direto — ele vem da avaliação em quadra. Peça uma sugestão da IA pra revisar, ou avalie pelos critérios você mesmo.">
+            <CartaoNivel f={f} />
+            <div className="mt-3 mb-4">
+              <TrilhaVisual estagio={f.estagio} categoria={f.categoria} criteriosClassificacao={f.criteriosClassificacao} />
+            </div>
+
+            <SugestaoClassificacao f={f} set={set} />
+
+            <div className="mb-2">
+              <Botao pequeno variante="vazio" onClick={() => setTrilhaManual(!trilhaManual)}>
+                {trilhaManual ? "Ocultar avaliação por critérios" : "Avaliar pelos critérios"}
+              </Botao>
+            </div>
+            {trilhaManual && <TrilhaClassificacao f={f} set={set} />}
+
+            <div className="mt-4">
+              <LegendaNiveis nivelInicial={f.nivel} />
+            </div>
           </Secao>
         </>
       )}
@@ -5107,7 +5174,8 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
             <div className="mt-2"><Botao pequeno variante="vazio" onClick={() => setEtapa(2)}>Editar Rotina</Botao></div>
           </Secao>
           <Secao titulo="Nível">
-            <CartaoNivel f={f} aberto={false} aoVerCriterios={() => setEtapa(3)} />
+            <CartaoNivel f={f} />
+            <div className="mt-2"><Botao pequeno variante="vazio" onClick={() => setEtapa(3)}>Editar Nível</Botao></div>
           </Secao>
           <Secao titulo="Avaliação">
             <Linha rotulo="Golpes avaliados" texto={(GOLPES_ENTRADA.length - GOLPES_ENTRADA.filter((g) =>
@@ -5155,18 +5223,20 @@ function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual, podeEditar = true,
   const objetivosAdulto = objetivosDoAdulto(a).map((v) => OBJETIVOS_ADULTO.find((o) => o.v === v)).filter(Boolean);
   const disposicaoAdulto = DISPOSICOES_ADULTO.find((d) => d.v === a.disposicaoAdulto);
   const [mostrarOcultos, setMostrarOcultos] = useState(false);
+  const rn = resumoNivel(a);
 
   return (
     <div>
       {salvo && (
-        <div className="mb-4" style={{ background: C.quadra, padding: "9px 13px" }}>
-          <Etiqueta cor="#fff">✓ ficha salva</Etiqueta>
+        <div className="mb-4 flex items-center gap-1.5">
+          <span style={{ color: C.quadra, fontSize: 14 }}>✓</span>
+          <Etiqueta cor={C.quadra}>Ficha salva</Etiqueta>
         </div>
       )}
 
       <div className="flex items-start justify-between gap-3 flex-wrap mb-6">
         <div>
-          <Etiqueta>{faseDoEstagio(a.estagio)} · nível {nomeNivel(a.nivel)}</Etiqueta>
+          <Etiqueta>{rn ? rn.linha : faseDoEstagio(a.estagio)}</Etiqueta>
           <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginTop: 4 }}>
             {a.professorNome ? "Prof. " + a.professorNome + " · " : ""}
             {(a.horarios || []).length ? a.horarios.map((h) => nomeDia(h.dia) + " " + h.hora).join(", ") : "sem horário fixo definido"}
@@ -9587,7 +9657,7 @@ function aulasDadasDetalhe(alunos, dias, professorNome) {
   return linhas.sort((x, y) => (x.data < y.data ? 1 : -1));
 }
 
-function TileEstat({ rotulo, valor, cor, onClick, ativo }) {
+function TileEstat({ rotulo, valor, cor, onClick, ativo, legenda }) {
   const Tag = onClick ? "button" : "div";
   /* ativo===undefined mas tem onClick: o toque navega pra outra tela
      (não expande aqui dentro) — mostra só o cursor de toque, sem a seta
@@ -9601,6 +9671,11 @@ function TileEstat({ rotulo, valor, cor, onClick, ativo }) {
       <div style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 600, color: ativo ? "rgba(255,255,255,.85)" : C.grafite, marginTop: 2 }}>
         {rotulo}{alterna ? (ativo ? " ▲" : " ▾") : ""}
       </div>
+      {legenda && (
+        <div style={{ fontFamily: ARCH, fontSize: 10.5, fontWeight: 500, color: ativo ? "rgba(255,255,255,.75)" : C.grafite, marginTop: 1 }}>
+          {legenda}
+        </div>
+      )}
     </Tag>
   );
 }
@@ -9682,6 +9757,11 @@ function TelaDashboard({ alunos, turmas, uidAtual, exigeLogin, irPara, aoAbrirSe
   /* null fechado; "prontas"/"semana" abrem a lista do indicador correspondente. */
   const [detalhe, setDetalhe] = useState(null);
 
+  /* "Jogadores" conta só cadastros com nome — um rascunho ainda sem nome
+     não é um jogador ativo de verdade, é um cadastro em andamento (fica
+     visível à parte, como pendência, não somado aqui). */
+  const jogadoresAtivos = alunos.filter((a) => a.nome).length;
+  const rascunhosIncompletos = alunos.length - jogadoresAtivos;
   const abertos = alunos.filter((a) => a.plano && aulaEmVigor(a));
   const dadas7 = aulasDadasRecentes(alunos, 7);
   const dadasDetalhe = detalhe === "semana" ? aulasDadasDetalhe(alunos, 7, null) : [];
@@ -9792,22 +9872,22 @@ function TelaDashboard({ alunos, turmas, uidAtual, exigeLogin, irPara, aoAbrirSe
       )}
 
       {/* ── resumo compacto dos indicadores ──
-         "Aulas prontas": tem conteúdo de plano pronto pra dar (não é sobre
-         estar agendada no calendário — ver "Próxima aula" acima pra isso).
-         "Aulas na semana": já dadas, não as que ainda vão acontecer.
-         "Pendências": trocas e avisos em aberto nas turmas, não aulas. */}
+         Cada cartão já carrega sua própria legenda curta — nada de uma
+         única linha de rodapé tentando explicar os quatro ao mesmo tempo. */}
       <div className="mb-2" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
-        <TileEstat rotulo="Jogadores" valor={alunos.length} onClick={aoCriarPlanejamento} />
-        <TileEstat rotulo="Aulas prontas" valor={abertos.length} cor={abertos.length > 0 ? C.saibro : C.tinta}
+        <TileEstat rotulo="Jogadores" valor={jogadoresAtivos} legenda="com cadastro completo" onClick={aoCriarPlanejamento} />
+        <TileEstat rotulo="Aulas prontas" valor={abertos.length} cor={abertos.length > 0 ? C.saibro : C.tinta} legenda="com plano pronto pra dar"
           ativo={detalhe === "prontas"} onClick={abertos.length > 0 ? () => setDetalhe(detalhe === "prontas" ? null : "prontas") : null} />
-        <TileEstat rotulo="Aulas na semana" valor={dadas7} cor={C.quadra}
+        <TileEstat rotulo="Aulas na semana" valor={dadas7} cor={C.quadra} legenda="já dadas, últimos 7 dias"
           ativo={detalhe === "semana"} onClick={dadas7 > 0 ? () => setDetalhe(detalhe === "semana" ? null : "semana") : null} />
-        <TileEstat rotulo="Pendências" valor={pendenciasAbertas} cor={pendenciasAbertas > 0 ? C.saibro : C.tinta}
+        <TileEstat rotulo="Pendências" valor={pendenciasAbertas} cor={pendenciasAbertas > 0 ? C.saibro : C.tinta} legenda="avisos em aberto nas turmas"
           onClick={pendenciasAbertas > 0 ? aoAbrirTurmas : null} />
       </div>
-      <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginBottom: 20 }}>
-        "Aulas prontas" já têm conteúdo pra dar · "na semana" já foram dadas · "pendências" são trocas e avisos em aberto nas turmas.
-      </p>
+      {rascunhosIncompletos > 0 && (
+        <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 20 }}>
+          {rascunhosIncompletos === 1 ? "Mais 1 cadastro" : "Mais " + rascunhosIncompletos + " cadastros"} ainda sem nome, não contados acima — veja em Jogadores.
+        </p>
+      )}
 
       {detalhe === "prontas" && (
         <div className="mb-5">
@@ -10056,10 +10136,12 @@ function AgendarAulaDialog({ alunos, turmas, setAlunos, setTurmas, dataInicial, 
         <div style={{ overflowY: "auto", padding: "14px 18px" }}>
           {passo === "escolher" ? (
             <>
-              {alunos.map((a) => (
+              {/* Cadastros ainda sem nome não aparecem aqui — não dá pra
+                  agendar aula pra um jogador que ainda nem tem nome. */}
+              {alunos.filter((a) => a.nome).map((a) => (
                 <button key={a.id} onClick={() => escolher("individual", a.id)} className="w-full text-left"
                   style={{ display: "block", padding: "12px 10px", border: "none", background: "none", cursor: "pointer", borderRadius: 10, minHeight: 44 }}>
-                  <span style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 600 }}>{a.nome || "Cadastro incompleto"}</span>
+                  <span style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 600 }}>{a.nome}</span>
                   <span style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginLeft: 8 }}>Jogador</span>
                 </button>
               ))}
@@ -10070,7 +10152,7 @@ function AgendarAulaDialog({ alunos, turmas, setAlunos, setTurmas, dataInicial, 
                   <span style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginLeft: 8 }}>Turma</span>
                 </button>
               ))}
-              {alunos.length === 0 && turmas.length === 0 && (
+              {alunos.filter((a) => a.nome).length === 0 && turmas.length === 0 && (
                 <p style={{ ...prosa, color: C.grafite, padding: "12px 10px" }}>Cadastre um jogador ou turma primeiro.</p>
               )}
             </>
@@ -10439,6 +10521,11 @@ function App() {
      etapa Nível da ficha (ver TelaFicha/etapaAlvo) — nulo o resto do
      tempo, sem afetar a navegação normal entre as abas do jogador. */
   const [etapaFichaAlvo, setEtapaFichaAlvo] = useState(null);
+  /* Enquanto a ficha está em edição, o cabeçalho do jogador esconde os
+     cartões de resumo (classificação, pedidos, aula em vigor) — durante
+     o preenchimento, o que importa é nome, status do cadastro, etapa
+     atual e os campos dela; o resumo volta assim que a edição fecha. */
+  const [editandoFicha, setEditandoFicha] = useState(false);
   const [opcoesJogadorAberto, setOpcoesJogadorAberto] = useState(false);
   const [maisSubabaAberto, setMaisSubabaAberto] = useState(false);
   const [manualAberto, setManualAberto] = useState(false);
@@ -10627,7 +10714,20 @@ function App() {
     leia("mty:turmas:v1", [], true).then((t) => { setTurmas(t); prontoRef.current.turmas = true; setCarregandoTurmas(false); });
     leia("mty:exerciciosCustom:v1", [], true).then((ex) => { setExerciciosCustom(ex); setCatalogoCustom(ex); prontoRef.current.exerciciosCustom = true; setCarregandoCustom(false); });
 }, [autenticado, orgAtual]);
-  useEffect(() => { if (autenticado && !carregando && prontoRef.current.alunos) grave("mty:alunos:v2", alunos); }, [alunos, carregando, autenticado]);
+  /* Jogadores recém-criados por "Novo jogador" entram aqui até o primeiro
+     salvamento de verdade (Salvar rascunho/Salvar e continuar/Concluir).
+     Enquanto isso, ficam fora do que é gravado e da lista de Jogadores —
+     abrir "Novo jogador" e sair sem tocar em nada não deixa resíduo
+     nenhum no armazenamento. Nunca remove um jogador que já foi salvo
+     alguma vez (removerAluno continua sendo a única forma de apagar algo
+     que já existe de verdade). */
+  const [rascunhosNaoConfirmados, setRascunhosNaoConfirmados] = useState(() => new Set());
+  useEffect(() => {
+    if (autenticado && !carregando && prontoRef.current.alunos) {
+      const paraGravar = rascunhosNaoConfirmados.size === 0 ? alunos : alunos.filter((a) => !rascunhosNaoConfirmados.has(a.id));
+      grave("mty:alunos:v2", paraGravar);
+    }
+  }, [alunos, carregando, autenticado, rascunhosNaoConfirmados]);
   useEffect(() => { if (autenticado && !carregandoTurmas && prontoRef.current.turmas) grave("mty:turmas:v1", turmas, true); }, [turmas, carregandoTurmas, autenticado]);
   // sincronizado durante o render (não num useEffect): TelaCatalogo e as
   // funções de geração leem TODOS_EXERCICIOS() no mesmo render em que
@@ -10651,7 +10751,7 @@ function App() {
   }
 
   const aberto = abertoId ? alunos.find((a) => a.id === abertoId) : null;
-  const alunosExibidos = alunos;
+  const alunosExibidos = rascunhosNaoConfirmados.size === 0 ? alunos : alunos.filter((a) => !rascunhosNaoConfirmados.has(a.id));
 
   const limitePlano = limiteDeAlunos(planoAtual);
   const planoVencido = !!(planoAtivoAte && planoAtivoAte < new Date().toISOString().slice(0, 10));
@@ -10676,6 +10776,7 @@ function App() {
     }
     const n = novoAluno();
     setAlunos([...alunos, n]);
+    setRascunhosNaoConfirmados((prev) => new Set(prev).add(n.id));
     setAbertoId(n.id);
     setSubaba("ficha");
   }
@@ -10684,11 +10785,17 @@ function App() {
      depois que o dado realmente chegou no armazenamento, nunca antes.
      O efeito que observa `alunos` (abaixo, perto de prontoRef) continua
      gravando sozinho a cada mudança — chamar grave() aqui de novo é
-     redundante, não arriscado: mesma chave, mesmo conteúdo final. */
+     redundante, não arriscado: mesma chave, mesmo conteúdo final.
+     Qualquer salvar() confirma o rascunho (sai de rascunhosNaoConfirmados)
+     — é o primeiro save de verdade que torna este jogador "existente". */
   async function salvar(f) {
-    const atualizados = alunos.map((a) => (a.id === f.id ? f : a));
+    const atualizados = alunos.some((a) => a.id === f.id) ? alunos.map((a) => (a.id === f.id ? f : a)) : [...alunos, f];
     setAlunos(atualizados);
-    return grave("mty:alunos:v2", atualizados);
+    if (rascunhosNaoConfirmados.has(f.id)) {
+      setRascunhosNaoConfirmados((prev) => { const next = new Set(prev); next.delete(f.id); return next; });
+    }
+    const paraGravar = atualizados.filter((a) => a.id === f.id || !rascunhosNaoConfirmados.has(a.id));
+    return grave("mty:alunos:v2", paraGravar);
   }
   function removerAluno(id) {
     if (!confirm("Remover este jogador? A ficha, o plano e o histórico dele vão junto — não dá pra desfazer.")) return;
@@ -10939,16 +11046,27 @@ function App() {
               </div>
             </div>
             <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, lineHeight: 1.1 }}>{aberto.nome || "Novo jogador"}</h1>
-            <div className="mt-2 mb-5">
-              {(() => {
-                const st = statusTrilha(aberto);
-                return <Etiqueta>{!aberto.nome ? "Cadastro incompleto" : st ? st.atual.nome + " · nível " + nomeNivel(aberto.nivel) : "categoria não definida"}</Etiqueta>;
-              })()}
-            </div>
-            <CardTrilha aluno={aberto} aoVerCriterios={() => { setEtapaFichaAlvo(3); setSubaba("ficha"); }} />
-            <CardPedidosReposicao aluno={aberto} aoMudar={(patch) => setAlunos((prev) => prev.map((a) => (a.id === aberto.id ? { ...a, ...patch } : a)))} />
-            <CardPedidosConteudo aluno={aberto} aoMudar={(patch) => setAlunos((prev) => prev.map((a) => (a.id === aberto.id ? { ...a, ...patch } : a)))} />
-            <CardAulaEmVigor aluno={aberto} aoClicar={() => setSubaba("sessao")} aoAbrirAulas={() => setSubaba("aulas")} />
+            {(() => {
+              /* Durante a edição da própria ficha, estes cartões de resumo
+                 (classificação, pedidos, aula em vigor) só duplicariam o que
+                 já aparece dentro das etapas — ficam escondidos até fechar
+                 a edição, pra priorizar nome, status, etapa e campos. */
+              const mostrarResumo = subaba !== "ficha" || !editandoFicha;
+              if (!aberto.nome) {
+                return <div className="mt-2 mb-5"><Etiqueta cor={C.grafite}>Cadastro incompleto</Etiqueta></div>;
+              }
+              if (!mostrarResumo) return null;
+              return (
+                <>
+                  <div className="mt-2">
+                    <CardTrilha aluno={aberto} aoVerCriterios={() => { setEtapaFichaAlvo(3); setSubaba("ficha"); }} />
+                  </div>
+                  <CardPedidosReposicao aluno={aberto} aoMudar={(patch) => setAlunos((prev) => prev.map((a) => (a.id === aberto.id ? { ...a, ...patch } : a)))} />
+                  <CardPedidosConteudo aluno={aberto} aoMudar={(patch) => setAlunos((prev) => prev.map((a) => (a.id === aberto.id ? { ...a, ...patch } : a)))} />
+                  <CardAulaEmVigor aluno={aberto} aoClicar={() => setSubaba("sessao")} aoAbrirAulas={() => setSubaba("aulas")} />
+                </>
+              );
+            })()}
             <div className="flex items-center mb-6" style={{ gap: 2, borderBottom: "1px solid " + C.linha }}>
               {[{ v: "ficha", r: "Ficha" }, { v: "plano", r: "Plano" }, { v: "aulas", r: "Aulas" }].map((t) => (
                 <button key={t.v} onClick={() => { setSubaba(t.v); setMaisSubabaAberto(false); }}
@@ -10990,7 +11108,7 @@ function App() {
               })()}
             </div>
             {subaba === "ficha" ? <TelaFicha aluno={aberto} salvar={salvar} papelAtual={papelAtual} uidAtual={uidAtual}
-                etapaAlvo={etapaFichaAlvo} aoConsumirEtapaAlvo={() => setEtapaFichaAlvo(null)} /> :
+                etapaAlvo={etapaFichaAlvo} aoConsumirEtapaAlvo={() => setEtapaFichaAlvo(null)} aoMudarEditando={setEditandoFicha} /> :
              subaba === "plano" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="resumo" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} /> :
              subaba === "aulas" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} /> :
              subaba === "periodizacao" ? <TelaPeriodizacao aluno={aberto} aoCriarPeriodo={() => { setEtapaFichaAlvo(2); setSubaba("ficha"); }} /> :
@@ -11060,23 +11178,30 @@ function App() {
                     <div>
                       {filtrados.map((a) => {
                         const incompleto = !a.nome;
+                        const etapaPendente = incompleto ? primeiraEtapaPendente(a) : null;
                         const emVigor = a.plano ? aulaEmVigor(a) : null;
                         const regEmVigor = emVigor ? (a.regPlano || {})[emVigor.id] || {} : null;
                         const repetindo = regEmVigor && (regEmVigor.status === "falta" || regEmVigor.status === "cancelada");
                         const proximoTreino = proximoHorarioTexto(a.horarios);
+                        const ultimaEdicao = formatarDataHoraCurta(a.fichaAtualizadaEm);
                         return (
-                          <button key={a.id} onClick={() => { setAbertoId(a.id); setSubaba("ficha"); }}
+                          <button key={a.id} onClick={() => { setAbertoId(a.id); setSubaba("ficha"); if (incompleto && etapaPendente) setEtapaFichaAlvo(etapaPendente); }}
                             className="mty-navitem w-full text-left flex items-center justify-between gap-3"
                             style={{ background: "none", border: "none", borderBottom: "1px solid " + C.linha, borderRadius: 10, padding: "13px 6px", minHeight: 44 }}>
                             <div style={{ minWidth: 0 }}>
                               <div style={{ fontFamily: ARCH, fontSize: 15.5, fontWeight: 700, color: incompleto ? C.grafite : C.tinta, fontStyle: incompleto ? "italic" : "normal" }}>
-                                {incompleto ? "Cadastro incompleto" : a.nome}
+                                {incompleto ? "Jogador sem nome" : a.nome}
                               </div>
                               {incompleto ? (
-                                <p style={{ ...prosa, fontSize: 13, color: C.saibro, marginTop: 2 }}>Completar cadastro</p>
+                                <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginTop: 2 }}>
+                                  {ultimaEdicao ? "Editado em " + ultimaEdicao + " · " : ""}
+                                  <span style={{ color: C.saibro, fontWeight: 600 }}>
+                                    Continuar cadastro{etapaPendente ? " — " + ETAPAS_FICHA[etapaPendente - 1].titulo : ""}
+                                  </span>
+                                </p>
                               ) : (
                                 <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                  {nomeNivel(a.nivel)} · {nomeTipoAula(a.estagio)}{proximoTreino ? " · próximo treino " + proximoTreino : ""}
+                                  {(resumoNivel(a) || {}).textoNivel || nomeNivel(a.nivel)} · {nomeTipoAula(a.estagio)}{proximoTreino ? " · próximo treino " + proximoTreino : ""}
                                 </p>
                               )}
                               {emVigor && !incompleto && (
