@@ -11420,7 +11420,20 @@ function App() {
 
   useEffect(() => {
     if (!exigeLogin) return;
-    return window.mtyAuth.observar((u) => { setAutenticado(!!u); setChecando(false); });
+    /* Numa conexão rápida (cache do navegador quente, sessão já salva),
+       o Firebase responde em poucas dezenas de milissegundos — a logo
+       aparecia e sumia rápido demais pra dar tempo de ver. Um piso
+       pequeno (450ms) só adia o instante de trocar de tela quando a
+       verificação REAL já terminou antes disso — numa conexão lenta,
+       onde o Firebase demora mais que isso sozinho, não soma nada: o
+       usuário nunca espera mais do que a verificação de verdade levaria. */
+    const inicio = Date.now();
+    const PISO_MS = 450;
+    return window.mtyAuth.observar((u) => {
+      const faltam = PISO_MS - (Date.now() - inicio);
+      const aplicar = () => { setAutenticado(!!u); setChecando(false); };
+      if (faltam > 0) setTimeout(aplicar, faltam); else aplicar();
+    });
   }, [exigeLogin]);
 
   useEffect(() => {
@@ -11586,7 +11599,13 @@ function App() {
   }
 
   if (checando)
-    return <div style={{ background: C.papel, minHeight: "100vh", padding: 60, textAlign: "center", fontFamily: ARCH, color: C.grafite }}>Verificando acesso…</div>;
+    return (
+      <div style={{ background: C.papel, minHeight: "100vh", display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center", gap: 14, padding: 24 }}>
+        <Marca altura={34} />
+        <p style={{ fontFamily: ARCH, fontSize: 13, color: C.grafite, margin: 0 }}>Verificando acesso…</p>
+      </div>
+    );
   if (!autenticado) return <TelaAutenticacao aoEntrar={() => setAutenticado(true)} />;
   if (verificandoOrg)
     return <div style={{ background: C.papel, minHeight: "100vh", padding: 60, textAlign: "center", fontFamily: ARCH, color: C.grafite }}>Verificando sua academia…</div>;
