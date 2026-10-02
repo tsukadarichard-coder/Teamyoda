@@ -4580,6 +4580,21 @@ function primeiraEtapaPendente(a) {
   return null;
 }
 
+/* O que "Vamos preparar sua primeira aula?" considera essencial pra
+   gerar um planejamento — bem menos que a ficha inteira (pendencias
+   acima): nome, nascimento e horário fixo. O resto (nível, critérios,
+   avaliação por golpe, perfil) é trabalho de observar o jogador em
+   quadra ao longo das primeiras aulas, não um requisito de dia um —
+   por isso fica pra depois, como o produto já trata em outros lugares. */
+function onboardingDadosEssenciaisOk(a) {
+  return !!(a && a.nome && a.nascimento && (a.horarios || []).length > 0);
+}
+function onboardingEtapaPendente(a) {
+  if (!a.nome || !a.nascimento) return 1;
+  if ((a.horarios || []).length === 0) return 2;
+  return null;
+}
+
 function formatarDataHoraCurta(iso) {
   if (!iso) return "";
   const d = new Date(iso);
@@ -8630,11 +8645,13 @@ function TelaLogin({ aoEntrar, aoVerSobre }) {
   return (
     <div style={{ background: C.papel, minHeight: "100vh" }}>
       <style>{`
-        .mty-login-grid { max-width: 420px; margin: 0 auto; padding: 32px 20px 40px; }
+        .mty-login-grid { max-width: 420px; margin: 0 auto; padding: 24px 20px 40px; }
+        .mty-login-hero { margin-bottom: 28px; }
         .mty-login-hero-extra { display: none; }
         @media (min-width: 760px) {
           .mty-login-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center;
             max-width: 980px; min-height: 100vh; padding: 40px; }
+          .mty-login-hero { margin-bottom: 0; }
           .mty-login-hero-extra { display: block; }
         }
         .mty-login-form button:focus-visible, .mty-login-hero a:focus-visible,
@@ -8729,7 +8746,7 @@ function TelaLogin({ aoEntrar, aoVerSobre }) {
           </div>
 
           <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 18, textAlign: "center" }}>
-            Ainda não tem conta? <a href="cadastro-individual.html" style={{ color: C.saibro, fontWeight: 700 }}>Crie sua conta</a> — grátis pra começar.
+            Ainda não tem conta? <a href="cadastro-individual.html" style={{ color: C.saibro, fontWeight: 700 }}>Crie sua conta</a> — grátis para até {LIMITE_ALUNOS_GRATIS} jogadores.
           </p>
           <InstalarApp />
         </div>
@@ -8808,6 +8825,9 @@ function TelaSobreQuadraLab({ aoVoltar }) {
             houver um gravado — sem player vazio enquanto isso não existir. */}
 
         <div style={{ textAlign: "center", marginTop: 40 }}>
+          <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginBottom: 14 }}>
+            Grátis para até {LIMITE_ALUNOS_GRATIS} jogadores — sem prazo pra experimentar.
+          </p>
           <Botao onClick={() => { window.location.href = "cadastro-individual.html"; }}>Criar minha conta</Botao>
           <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 12 }}>
             Já tem conta?{" "}
@@ -9826,9 +9846,81 @@ function EscolherPlanejamentoDialog({ alunos, turmas, aoEscolherJogador, aoEscol
   );
 }
 
+/* "Vamos preparar sua primeira aula?" — mesma linguagem visual da
+   trilha de evolução (lista vertical, círculo numerado/✓, linha
+   conectando) já usada na Ficha, reaproveitada aqui pelo mesmo motivo:
+   progresso real, nunca um número de telas visitadas. */
+function CardPrimeirosPassos({ passo1Ok, passo2Ok, passo3Ok, aoPasso1, aoPasso2, aoPasso3, aoDispensar }) {
+  const passos = [
+    { feito: passo1Ok, titulo: "Cadastrar o primeiro jogador", onClick: passo1Ok ? null : aoPasso1 },
+    { feito: passo2Ok, titulo: "Preencher as informações essenciais", onClick: !passo1Ok || passo2Ok ? null : aoPasso2 },
+    { feito: passo3Ok, titulo: "Criar o primeiro planejamento", onClick: !passo2Ok || passo3Ok ? null : aoPasso3 },
+  ];
+  const atualIdx = passos.findIndex((p) => !p.feito);
+  return (
+    <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 14, padding: "16px 18px", boxShadow: SOMBRA }}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <Etiqueta cor={C.saibro}>Primeiros passos</Etiqueta>
+          <p style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, marginTop: 4 }}>Vamos preparar sua primeira aula?</p>
+        </div>
+        <button onClick={aoDispensar} aria-label="Dispensar orientação de primeiros passos"
+          style={{ background: "none", border: "none", cursor: "pointer", color: C.grafite, fontSize: 18,
+            width: 32, height: 32, flexShrink: 0, lineHeight: 1 }}>×</button>
+      </div>
+      <div className="mt-3">
+        {passos.map((p, i) => {
+          const atual = i === atualIdx;
+          const ultimo = i === passos.length - 1;
+          const cor = p.feito ? C.quadra : atual ? C.saibro : C.linha;
+          const conteudo = (
+            <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: atual ? 700 : 500,
+              color: p.feito ? C.grafite : atual ? C.tinta : C.grafite,
+              textDecoration: atual && p.onClick ? "underline" : "none" }}>
+              {p.titulo}
+            </span>
+          );
+          return (
+            <div key={i} style={{ display: "flex", gap: 12 }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
+                <div style={{ width: 24, height: 24, borderRadius: "50%", border: "2px solid " + cor,
+                  background: p.feito ? C.quadra : atual ? C.saibro : C.cal, color: (p.feito || atual) ? "#fff" : C.grafite,
+                  fontFamily: ARCH, fontSize: 11, fontWeight: 700,
+                  display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  {p.feito ? "✓" : i + 1}
+                </div>
+                {!ultimo && <div style={{ width: 2, flex: 1, minHeight: 16, background: p.feito ? C.quadra : C.linha }} />}
+              </div>
+              <div style={{ paddingBottom: ultimo ? 2 : 12 }}>
+                {p.onClick ? (
+                  <button type="button" onClick={p.onClick} style={{ background: "none", border: "none", padding: 0,
+                    cursor: "pointer", textAlign: "left", minHeight: 32 }}>
+                    {conteudo}
+                  </button>
+                ) : conteudo}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function TelaDashboard({ alunos, turmas, uidAtual, exigeLogin, irPara, aoAbrirSessao, usoIA, identidade, meuNome,
-  aoCriarPlanejamento, aoAbrirTurmas, aoAbrirAgenda, aoAdicionarJogador }) {
+  aoCriarPlanejamento, aoAbrirTurmas, aoAbrirAgenda, aoAdicionarJogador, aoEditarDados,
+  onboardingDispensado, setOnboardingDispensado }) {
   const [escolhendoPlanejamento, setEscolhendoPlanejamento] = useState(false);
+  /* "Vamos preparar sua primeira aula?" — três marcos reais, não um
+     contador de telas visitadas. Some sozinho quando os três já
+     aconteceram; pra quem já tem uma prática rodando (jogadores e
+     planos reais), isso já nasce completo e o cartão nunca aparece. */
+  const primeiroJogador = useMemo(() => alunos.find((a) => a.nome) || null, [alunos]);
+  const onboardingPasso1 = !!primeiroJogador;
+  const onboardingPasso2 = onboardingPasso1 && onboardingDadosEssenciaisOk(primeiroJogador);
+  const onboardingPasso3 = alunos.some((a) => a.plano);
+  const onboardingCompleto = onboardingPasso1 && onboardingPasso2 && onboardingPasso3;
+  const mostrarOnboarding = !onboardingCompleto && !onboardingDispensado;
   /* null fechado; "prontas"/"semana" abrem a lista do indicador correspondente. */
   const [detalhe, setDetalhe] = useState(null);
 
@@ -9868,7 +9960,26 @@ function TelaDashboard({ alunos, turmas, uidAtual, exigeLogin, irPara, aoAbrirSe
   return (
     <div>
       <h1 style={{ fontFamily: ARCH, fontSize: 26, fontWeight: 700, marginBottom: 4 }}>{saudacao}</h1>
-      <p style={{ ...prosa, fontSize: 15, color: C.grafite, marginBottom: 18 }}>Vamos preparar sua próxima aula?</p>
+      <p style={{ ...prosa, fontSize: 15, color: C.grafite, marginBottom: onboardingDispensado && !onboardingCompleto ? 4 : 18 }}>
+        Vamos preparar sua próxima aula?
+      </p>
+      {onboardingDispensado && !onboardingCompleto && (
+        <div className="mb-4">
+          <button type="button" onClick={() => setOnboardingDispensado(false)}
+            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: ARCH,
+              fontSize: 12.5, fontWeight: 700, color: C.quadra, textDecoration: "underline" }}>
+            Retomar primeiros passos
+          </button>
+        </div>
+      )}
+      {mostrarOnboarding && (
+        <CardPrimeirosPassos
+          passo1Ok={onboardingPasso1} passo2Ok={onboardingPasso2} passo3Ok={onboardingPasso3}
+          aoPasso1={aoAdicionarJogador}
+          aoPasso2={() => primeiroJogador && aoEditarDados(primeiroJogador.id, onboardingEtapaPendente(primeiroJogador) || 1)}
+          aoPasso3={() => primeiroJogador && irPara(primeiroJogador.id)}
+          aoDispensar={() => setOnboardingDispensado(true)} />
+      )}
 
       {/* ── ação principal: única entrada pra criar planejamento na tela toda ──
          Pede primeiro se é pra um jogador ou uma turma — são fluxos
@@ -10789,6 +10900,15 @@ function App() {
      sem esperar re-render, e os efeitos de gravação abaixo passam a
      também exigir prontoRef.current.<chave> === true, que só essa mesma
      leitura (a mais recente) pode marcar. */
+  /* "Vamos preparar sua primeira aula?" — dispensável e retomável: só
+     grava de verdade depois que o valor salvo já foi lido (senão o
+     "false" inicial do useState sobrescreveria um "true" já salvo antes
+     da leitura chegar). */
+  const [onboardingDispensado, setOnboardingDispensado] = useState(false);
+  const [onboardingCarregado, setOnboardingCarregado] = useState(false);
+  useEffect(() => {
+    if (autenticado && onboardingCarregado) grave("mty:onboardingDispensado", onboardingDispensado, true);
+  }, [onboardingDispensado, onboardingCarregado, autenticado]);
   const prontoRef = useRef({});
   useEffect(() => {
     if (!autenticado || (exigeLogin && !orgAtual)) return;
@@ -10799,6 +10919,7 @@ function App() {
     leia("mty:alunos:v2", []).then((a) => { setAlunos(a); prontoRef.current.alunos = true; setCarregando(false); });
     leia("mty:turmas:v1", [], true).then((t) => { setTurmas(t); prontoRef.current.turmas = true; setCarregandoTurmas(false); });
     leia("mty:exerciciosCustom:v1", [], true).then((ex) => { setExerciciosCustom(ex); setCatalogoCustom(ex); prontoRef.current.exerciciosCustom = true; setCarregandoCustom(false); });
+    leia("mty:onboardingDispensado", false, true).then((v) => { setOnboardingDispensado(v); setOnboardingCarregado(true); });
 }, [autenticado, orgAtual]);
   /* Jogadores recém-criados por "Novo jogador" entram aqui até o primeiro
      salvamento de verdade (Salvar rascunho/Salvar e continuar/Concluir).
@@ -11107,7 +11228,9 @@ function App() {
            irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }}
            aoAbrirSessao={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("sessao"); }}
            aoCriarPlanejamento={() => setAba("alunos")} aoAbrirTurmas={() => setAba("turmas")} aoAbrirAgenda={() => setAba("agenda")}
-           aoAdicionarJogador={() => { criar(); setAba("alunos"); }} /> :
+           aoAdicionarJogador={() => { criar(); setAba("alunos"); }}
+           aoEditarDados={(id, et) => { setAba("alunos"); setAbertoId(id); setSubaba("ficha"); setEtapaFichaAlvo(et); }}
+           onboardingDispensado={onboardingDispensado} setOnboardingDispensado={setOnboardingDispensado} /> :
          aberto ? (
           <div>
             <div className="flex items-center justify-between gap-3 mb-3">

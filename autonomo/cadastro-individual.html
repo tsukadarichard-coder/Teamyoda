@@ -2,113 +2,207 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>Criar minha conta · QuadraLab</title>
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png">
 <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
-<meta name="theme-color" content="#67AD2E">
+<meta name="theme-color" content="#103B32">
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-auth-compat.js"></script>
+<script src="mty-nuvem.js"></script>
 <style>
-  :root{ --papel:#F5F2F0; --tinta:#141210; --verm:#67AD2E; --cinza:#6B6461; --linha:#D8D1CB; --verde:#2E4739; }
-  *{box-sizing:border-box}
-  body{margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
-    background:var(--papel); color:var(--tinta);
-    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; padding:40px 20px}
-  .pagina{width:100%; max-width:400px}
-  .marca{text-align:center; margin-bottom:22px}
-  .marca img{height:36px}
-  .cartao{background:#fff; border:1px solid var(--linha); border-radius:16px; padding:28px 26px;
-    box-shadow:0 4px 10px rgba(20,18,16,.08), 0 10px 30px rgba(20,18,16,.1)}
-  header{padding:0 0 18px; text-align:center}
-  h1{font-family:Georgia,serif; font-size:20px; margin:0 0 4px}
-  .sub{color:var(--cinza); font-size:13px}
-  .selo{display:inline-block; margin-top:10px; padding:4px 10px; border-radius:999px; background:#EFEAE4;
-    color:var(--cinza); font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase}
-  .campo{margin:16px 0}
-  label{display:block; font-size:11.5px; font-weight:700; letter-spacing:.04em;
-    text-transform:uppercase; margin-bottom:6px; color:var(--cinza)}
-  input{width:100%; border:1px solid var(--linha); background:#fff; border-radius:10px;
-    padding:11px 12px; font:inherit; font-size:15px; color:var(--tinta); transition:border-color .15s ease, box-shadow .15s ease}
-  input:focus{outline:none; border-color:var(--verm); box-shadow:0 0 0 3px rgba(103,173,46,.18)}
-  .bt{width:100%; border:none; border-radius:10px; padding:14px; font-size:15px; font-weight:700;
-    cursor:pointer; font-family:inherit; background:var(--verm); color:#fff; margin-top:8px;
-    box-shadow:0 1px 2px rgba(20,18,16,.05), 0 2px 10px rgba(20,18,16,.06);
-    transition:transform .1s ease, opacity .15s ease, box-shadow .15s ease}
-  .bt[disabled]{opacity:.6; box-shadow:none}
-  .bt:active:not([disabled]){transform:scale(0.97); opacity:.85}
-  .bt:hover:not([disabled]){box-shadow:0 4px 10px rgba(20,18,16,.08), 0 10px 30px rgba(20,18,16,.12)}
-  .msg{margin-top:16px; padding:13px 14px; border-radius:10px; font-size:13.5px; display:none}
-  .ok{background:var(--verde); color:#fff}
-  .erro{background:var(--papel); border:1px solid var(--linha); border-left:4px solid var(--verm)}
-  .rodape{margin-top:22px; text-align:center; font-size:12.5px; color:var(--cinza)}
-  .rodape a{color:var(--verm); font-weight:600}
+  :root{
+    --tinta:#17251F; --papel:#F6F8F7; --cal:#FFFFFF; --saibro:#69B32A;
+    --grafite:#5B6B63; --linha:#E2E8E5; --quadra:#103B32;
+    --sombra: 0 1px 2px rgba(16,59,50,.04), 0 1px 3px rgba(16,59,50,.05);
+    --sombra-alta: 0 2px 6px rgba(16,59,50,.07), 0 6px 16px rgba(16,59,50,.08);
+  }
+  *{ box-sizing:border-box }
+  html, body { margin:0; padding:0; background:var(--papel); }
+  body{
+    min-height:100vh; color:var(--tinta);
+    font-family: Inter, system-ui, sans-serif; font-size:15px; line-height:1.5;
+  }
+  .pagina{ max-width:420px; margin:0 auto; padding:32px 20px 40px; }
+  .marca{ text-align:center; margin-bottom:20px; }
+  .marca img{ height:36px; max-width:220px; object-fit:contain; }
+  .cartao{ background:var(--cal); border:1px solid var(--linha); border-radius:16px; padding:28px 24px; box-shadow:var(--sombra-alta); }
+  h1{ font-family:inherit; font-size:19px; font-weight:700; margin:0 0 6px; color:var(--tinta); }
+  .sub{ color:var(--grafite); font-size:14px; margin:0 0 14px; }
+  .selo-linha{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:18px; }
+  .selo{ display:inline-block; padding:4px 10px; border-radius:999px; background:var(--papel); border:1px solid var(--linha);
+    color:var(--quadra); font-size:12px; font-weight:700; }
+  .link-detalhes{ background:none; border:none; padding:0; cursor:pointer; font:inherit; font-size:12.5px;
+    font-weight:600; color:var(--quadra); text-decoration:underline; }
+  .detalhes{ display:none; background:var(--papel); border-left:3px solid var(--saibro); border-radius:6px;
+    padding:10px 12px; margin:-8px 0 16px; font-size:13px; color:var(--grafite); }
+  .detalhes.aberto{ display:block; }
+  .campo{ margin-bottom:16px; }
+  label{ display:block; font-size:12.5px; font-weight:600; letter-spacing:.01em; margin-bottom:6px; color:var(--grafite); }
+  input{ width:100%; border:1px solid var(--linha); background:var(--cal); border-radius:10px;
+    padding:12px 13px; font:inherit; font-size:16px; color:var(--tinta); min-height:44px;
+    transition:border-color .15s ease, box-shadow .15s ease; }
+  input:focus{ outline:none; border-color:var(--saibro); box-shadow:0 0 0 3px rgba(105,179,42,.18); }
+  button:focus-visible, a:focus-visible{ outline:2px solid var(--saibro); outline-offset:2px; }
+  .campo-senha{ position:relative; }
+  .campo-senha input{ padding-right:46px; }
+  .btn-olho{ position:absolute; right:0; top:50%; transform:translateY(-50%); width:44px; height:44px;
+    display:flex; align-items:center; justify-content:center; background:none; border:none; cursor:pointer; color:var(--grafite); }
+  .requisito{ margin:6px 0 0; font-size:12.5px; color:var(--grafite); display:flex; align-items:center; gap:6px; }
+  .requisito.ok{ color:var(--quadra); font-weight:600; }
+  .requisito .marca-check{ width:14px; text-align:center; }
+  .bt{ width:100%; border:none; border-radius:10px; padding:13px 0; min-height:48px; font-size:15px; font-weight:700;
+    cursor:pointer; font-family:inherit; background:var(--quadra); color:#fff; margin-top:6px;
+    box-shadow:var(--sombra); transition:opacity .15s ease; }
+  .bt[disabled]{ opacity:.55; box-shadow:none; cursor:default; }
+  .bt:active:not([disabled]){ opacity:.85; }
+  .msg{ margin:0 0 14px; padding:11px 13px; border-radius:6px; font-size:13.5px; background:var(--papel); }
+  .msg.erro{ border-left:3px solid #B3261E; color:#8A2E2E; }
+  .msg.ok{ border-left:3px solid var(--saibro); color:var(--quadra); }
+  .rodape{ margin-top:18px; text-align:center; font-size:12.5px; color:var(--grafite); }
+  .rodape a{ color:var(--saibro); font-weight:700; text-decoration:none; }
+  .rodape a:hover{ text-decoration:underline; }
+  .verificando{ text-align:center; padding:60px 20px; color:var(--grafite); font-size:14px; }
 </style>
 </head>
 <body>
-<div class="pagina">
-<div class="marca"><img src="assets/logo-quadralab.png" alt="QuadraLab"></div>
-
-<div class="cartao">
-<header>
-  <h1>Criar minha conta</h1>
-  <div class="sub">Pra treinador independente — sem academia, sem convite</div>
-  <div class="selo">Plano grátis pra começar</div>
-</header>
-
-<div id="form">
-  <div class="campo">
-    <label>Seu nome</label>
-    <input type="text" id="nome" autocomplete="name">
-  </div>
-  <div class="campo">
-    <label>E-mail</label>
-    <input type="email" id="email" autocomplete="email">
-  </div>
-  <div class="campo">
-    <label>Senha</label>
-    <input type="password" id="senha" autocomplete="new-password" placeholder="pelo menos 6 caracteres">
-  </div>
-  <button class="bt" id="btEnviar">Criar minha conta</button>
-  <div class="msg" id="msg"></div>
-</div>
-</div>
-
+<div class="pagina" id="pagina">
+  <div class="verificando" id="verificando">Verificando acesso…</div>
 </div>
 
 <script>
-document.getElementById('btEnviar').onclick = async function(){
-  var btn = this, msg = document.getElementById('msg');
-  msg.style.display = 'none';
+var CONFIGURADO = (typeof MTY_CONFIG !== "undefined") && MTY_CONFIG.apiKey !== "COLE_AQUI";
+var auth = null;
+if (CONFIGURADO) { try { auth = firebase.auth(); } catch (e) { auth = null; } }
 
-  var nome = document.getElementById('nome').value.trim();
-  var email = document.getElementById('email').value.trim();
-  var senha = document.getElementById('senha').value;
+/* Alguém com sessão válida não precisa ver o formulário de cadastro de
+   novo — manda direto pro app, igual ao login já faz na outra direção. */
+function mostrarFormulario() {
+  document.getElementById('pagina').innerHTML =
+    '<div class="marca"><img src="assets/logo-quadralab.png" alt="QuadraLab"></div>' +
+    '<div class="cartao">' +
+      '<h1>Crie sua conta</h1>' +
+      '<p class="sub">Comece a organizar suas aulas de tênis em um só lugar.</p>' +
+      '<div class="selo-linha">' +
+        '<span class="selo">Grátis para até 5 jogadores</span>' +
+        '<button type="button" class="link-detalhes" id="btDetalhes">Ver detalhes</button>' +
+      '</div>' +
+      '<div class="detalhes" id="detalhes">Agenda, ficha do jogador, planejamento com IA e histórico completo, sem prazo — o plano grátis só limita o número de jogadores cadastrados ao mesmo tempo. Para mais jogadores, fale com a gente depois de criar sua conta.</div>' +
+      '<form id="form" autocomplete="on">' +
+        '<div class="campo">' +
+          '<label for="nome">Seu nome</label>' +
+          '<input type="text" id="nome" name="name" autocomplete="name">' +
+        '</div>' +
+        '<div class="campo">' +
+          '<label for="email">E-mail</label>' +
+          '<input type="email" id="email" name="email" inputmode="email" autocomplete="email" placeholder="seuemail@exemplo.com">' +
+        '</div>' +
+        '<div class="campo">' +
+          '<label for="senha">Senha</label>' +
+          '<div class="campo-senha">' +
+            '<input type="password" id="senha" name="new-password" autocomplete="new-password">' +
+            '<button type="button" class="btn-olho" id="btOlho" aria-label="Mostrar senha">' + olhoAberto() + '</button>' +
+          '</div>' +
+          '<p class="requisito" id="requisito"><span class="marca-check">○</span> Pelo menos 6 caracteres</p>' +
+        '</div>' +
+        '<div id="msgErro"></div>' +
+        '<button type="submit" class="bt" id="btEnviar" disabled>Criar minha conta</button>' +
+      '</form>' +
+      '<div id="msgOk"></div>' +
+    '</div>' +
+    '<p class="rodape" id="rodape">Já tem conta? <a href="index.html">Entrar</a></p>';
 
-  if (!nome || !email || !senha) {
-    msg.className = 'msg erro'; msg.textContent = 'Preencha todos os campos.'; msg.style.display = 'block';
-    return;
+  var nomeEl = document.getElementById('nome');
+  var emailEl = document.getElementById('email');
+  var senhaEl = document.getElementById('senha');
+  var btEnviar = document.getElementById('btEnviar');
+  var btOlho = document.getElementById('btOlho');
+  var requisito = document.getElementById('requisito');
+  var mostrando = false;
+
+  document.getElementById('btDetalhes').onclick = function () {
+    document.getElementById('detalhes').classList.toggle('aberto');
+  };
+
+  function olhoTroca() {
+    mostrando = !mostrando;
+    senhaEl.type = mostrando ? 'text' : 'password';
+    btOlho.setAttribute('aria-label', mostrando ? 'Ocultar senha' : 'Mostrar senha');
+    btOlho.innerHTML = mostrando ? olhoFechado() : olhoAberto();
   }
+  btOlho.onclick = olhoTroca;
 
-  btn.disabled = true; btn.textContent = 'Criando…';
-  try {
-    var r = await fetch('/.netlify/functions/cadastro-individual', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ nome: nome, email: email, senha: senha }),
-    });
-    var d = await r.json().catch(function () { return {}; });
-    if (!r.ok) throw new Error(d.erro || ('Erro ' + r.status));
-
-    document.getElementById('form').innerHTML =
-      '<div class="msg ok" style="display:block">Conta criada! Já pode entrar com este e-mail e senha na tela principal — sua área é só sua, ninguém mais vê seus dados.</div>' +
-      '<a class="bt" style="display:block; text-align:center; text-decoration:none; box-sizing:border-box" href="index.html">Entrar agora</a>';
-  } catch (e) {
-    msg.className = 'msg erro';
-    msg.textContent = e.message || String(e);
-    msg.style.display = 'block';
-    btn.disabled = false; btn.textContent = 'Criar minha conta';
+  function atualizarEstado() {
+    var senhaOk = senhaEl.value.length >= 6;
+    requisito.className = 'requisito' + (senhaOk ? ' ok' : '');
+    requisito.querySelector('.marca-check').textContent = senhaOk ? '✓' : '○';
+    btEnviar.disabled = !(nomeEl.value.trim() && emailEl.value.trim() && senhaOk);
   }
-};
+  nomeEl.oninput = atualizarEstado;
+  emailEl.oninput = atualizarEstado;
+  senhaEl.oninput = atualizarEstado;
+
+  document.getElementById('form').onsubmit = async function (ev) {
+    ev.preventDefault();
+    if (btEnviar.disabled || btEnviar.textContent === 'Criando sua conta…') return;
+    var msgErro = document.getElementById('msgErro');
+    msgErro.innerHTML = '';
+
+    var nome = nomeEl.value.trim();
+    var email = emailEl.value.trim();
+    var senha = senhaEl.value;
+
+    btEnviar.disabled = true;
+    btEnviar.textContent = 'Criando sua conta…';
+    try {
+      var r = await fetch('/.netlify/functions/cadastro-individual', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ nome: nome, email: email, senha: senha }),
+      });
+      var d = await r.json().catch(function () { return {}; });
+      if (!r.ok) throw new Error(d.erro || ('Erro ' + r.status));
+
+      // Conta criada no servidor — agora loga de verdade no cliente e
+      // segue pro app, em vez de mandar a pessoa digitar tudo de novo.
+      document.getElementById('msgOk').innerHTML = '<div class="msg ok">Conta criada! Entrando…</div>';
+      document.getElementById('form').style.display = 'none';
+      document.getElementById('rodape').style.display = 'none';
+      if (auth) {
+        await auth.signInWithEmailAndPassword(email, senha);
+      }
+      window.location.href = 'index.html';
+    } catch (e) {
+      msgErro.innerHTML = '<div class="msg erro" role="alert">' + escapeHtml(e.message || String(e)) + '</div>';
+      btEnviar.disabled = false;
+      btEnviar.textContent = 'Criar minha conta';
+      // nome e e-mail continuam preenchidos — só a senha seria sensível
+      // o bastante pra não valer a pena preservar.
+    }
+  };
+}
+
+function olhoAberto() {
+  return '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.8-7 10-7 10 7 10 7-3.8 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>';
+}
+function olhoFechado() {
+  return '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M6.5 6.6C4 8.3 2 12 2 12s3.8 7 10 7c1.3 0 2.5-.3 3.6-.8M10.6 5.2A10.6 10.6 0 0 1 12 5c6.2 0 10 7 10 7a16.6 16.6 0 0 1-3.2 4.1"/><path d="M9.5 9.8A3 3 0 0 0 12 15a3 3 0 0 0 2.2-.9"/></svg>';
+}
+function escapeHtml(s) {
+  var d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+if (auth) {
+  auth.onAuthStateChanged(function (u) {
+    if (u) { window.location.href = 'index.html'; return; }
+    mostrarFormulario();
+  });
+} else {
+  mostrarFormulario();
+}
 </script>
 </body>
 </html>
