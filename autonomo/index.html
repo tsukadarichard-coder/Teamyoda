@@ -14,6 +14,41 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="QuadraLab" id="meta-apple-title">
 
+<script>
+/* Se um dos scripts essenciais abaixo (React, Firebase, Babel) não
+   carregar — sem internet, CDN fora do ar — o app nunca chega a assumir
+   o lugar da tela de abertura e o visitante fica olhando pra ela pra
+   sempre, sem explicação. Isto fica de olho ANTES desses scripts (pra
+   pegar até a falha do primeiro deles) e troca a tela por uma mensagem
+   com "Tentar novamente" se isso acontecer: ou um recurso falha
+   explicitamente, ou passa tempo demais sem o app avisar que terminou
+   de carregar. */
+(function () {
+  var pronto = false;
+  window.__mtyMarcarPronto = function () { pronto = true; };
+  function mostrarFalhaDeCarregamento() {
+    if (pronto) return;
+    var raiz = document.getElementById("root");
+    if (!raiz) { setTimeout(mostrarFalhaDeCarregamento, 50); return; }
+    raiz.innerHTML =
+      '<div style="min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center;' +
+      ' gap:16px; padding:24px; box-sizing:border-box; background:#F6F8F7; text-align:center;' +
+      ' font-family: Inter, system-ui, sans-serif;">' +
+      '<img src="assets/logo-quadralab.png" alt="QuadraLab" style="height:40px;">' +
+      '<p style="font-size:14px; line-height:1.5; color:#5B6B63; max-width:280px; margin:0;">' +
+      'Não foi possível carregar o QuadraLab. Verifique sua conexão com a internet e tente de novo.</p>' +
+      '<button type="button" onclick="location.reload()" style="font-family: Inter, system-ui, sans-serif;' +
+      ' font-size:14px; font-weight:700; padding:12px 22px; border-radius:10px; border:none;' +
+      ' background:#103B32; color:#fff; cursor:pointer;">Tentar novamente</button>' +
+      '</div>';
+  }
+  window.addEventListener("error", function (ev) {
+    if (ev && ev.target && ev.target.tagName === "SCRIPT") mostrarFalhaDeCarregamento();
+  }, true);
+  setTimeout(mostrarFalhaDeCarregamento, 15000);
+})();
+</script>
+
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/prop-types@15/prop-types.min.js"></script>
@@ -120,6 +155,7 @@ async function organizacao() {
 if (auth) {
   window.mtyAuth = {
     entrar: (email, senha) => auth.signInWithEmailAndPassword(email, senha),
+    recuperarSenha: (email) => auth.sendPasswordResetEmail(email),
     sair: () => auth.signOut(),
     observar: (cb) => auth.onAuthStateChanged(cb),
     usuario: () => auth.currentUser,
@@ -249,7 +285,13 @@ async function atualizaFaixa() {
     return;
   }
   if (!auth.currentUser) {
-    alerta("Nuvem configurada — entre com sua conta para ver seus dados.", "#C25A22");
+    /* Não estar logado é o estado normal de quem ainda não entrou — a
+       própria tela de login já explica isso. A faixa só deve chamar
+       atenção quando há algo de fato pendente (ver abaixo). */
+    faixa.textContent = "";
+    faixa.title = "";
+    faixa.className = "mty-faixa-ok";
+    faixa.style.background = "transparent";
     return;
   }
   const org = await organizacao();
@@ -2704,6 +2746,23 @@ function IconeSino({ tam = 18 }) {
     <svg width={tam} height={tam} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M6 10a6 6 0 0 1 12 0c0 4 1.5 5.5 2 6H4c.5-.5 2-2 2-6Z" />
       <path d="M10 19a2 2 0 0 0 4 0" />
+    </svg>
+  );
+}
+function IconeOlho({ tam = 18 }) {
+  return (
+    <svg width={tam} height={tam} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 12s3.8-7 10-7 10 7 10 7-3.8 7-10 7-10-7-10-7Z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+function IconeOlhoFechado({ tam = 18 }) {
+  return (
+    <svg width={tam} height={tam} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 3l18 18" />
+      <path d="M6.5 6.6C4 8.3 2 12 2 12s3.8 7 10 7c1.3 0 2.5-.3 3.6-.8M10.6 5.2A10.6 10.6 0 0 1 12 5c6.2 0 10 7 10 7a16.6 16.6 0 0 1-3.2 4.1" />
+      <path d="M9.5 9.8A3 3 0 0 0 12 15a3 3 0 0 0 2.2-.9" />
     </svg>
   );
 }
@@ -8397,19 +8456,42 @@ function InstalarApp({ compacto, linha }) {
   );
 }
 
-function TelaLogin({ aoEntrar }) {
+/* Campo de login: mesma base do `entrada` global, mas com fonte de 16px
+   (evita o zoom automático do Safari/iOS ao focar) e altura mínima de
+   44px — alvo de toque confortável, só para esta tela de primeiro acesso. */
+const entradaLogin = { ...entrada, padding: "12px 13px", fontSize: 16, minHeight: 44 };
+
+/* Os três benefícios mostrados aqui (e na apresentação pública, logo
+   abaixo) descrevem só o que já existe e funciona no app — Agenda, ficha
+   do jogador e plano/sessão — nunca algo planejado ou ainda não pronto. */
+const BENEFICIOS_QUADRALAB = [
+  { Icone: IconeAgenda, titulo: "Agenda sem conflito de horário",
+    texto: "Veja o dia e a semana, agende aulas avulsas ou recorrentes e saiba na hora se dois compromissos colidem." },
+  { Icone: IconeJogadores, titulo: "Ficha completa de cada aluno",
+    texto: "Rotina, nível por golpe e avaliação num só lugar — sempre à mão antes da próxima aula." },
+  { Icone: IconeInicio, titulo: "Plano e sessão prontos pra quadra",
+    texto: "Monte o plano de aulas e consulte a sequência de exercícios direto na quadra, sem planilha solta." },
+];
+
+function TelaLogin({ aoEntrar, aoVerSobre }) {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
+  const [mostrarSenha, setMostrarSenha] = useState(false);
   const [erro, setErro] = useState("");
   const [ocupado, setOcupado] = useState(false);
+  const [recuperando, setRecuperando] = useState(false);
+  const [avisoRecuperacao, setAvisoRecuperacao] = useState("");
 
-  async function enviar() {
-    setErro(""); setOcupado(true);
+  async function enviar(e) {
+    if (e) e.preventDefault();
+    if (ocupado || !email || !senha) return;
+    setErro(""); setAvisoRecuperacao(""); setOcupado(true);
     try {
       await window.mtyAuth.entrar(email.trim(), senha);
       aoEntrar();
-    } catch (e) {
-      const c = (e && e.code) || "";
+      return;
+    } catch (err) {
+      const c = (err && err.code) || "";
       const msgs = {
         "auth/invalid-email": "E-mail inválido.",
         "auth/user-not-found": "Não existe conta com este e-mail.",
@@ -8422,48 +8504,229 @@ function TelaLogin({ aoEntrar }) {
     setOcupado(false);
   }
 
+  async function recuperarSenha() {
+    if (!email.trim()) {
+      setErro("Digite seu e-mail acima para recuperar a senha.");
+      return;
+    }
+    setErro(""); setAvisoRecuperacao(""); setRecuperando(true);
+    try {
+      await window.mtyAuth.recuperarSenha(email.trim());
+      setAvisoRecuperacao("Se este e-mail tiver uma conta, enviamos um link de recuperação de senha.");
+    } catch (err) {
+      const c = (err && err.code) || "";
+      if (c === "auth/user-not-found") {
+        /* Mesma mensagem de sucesso mesmo sem conta encontrada — evita
+           que alguém descubra, por tentativa, quais e-mails têm cadastro. */
+        setAvisoRecuperacao("Se este e-mail tiver uma conta, enviamos um link de recuperação de senha.");
+      } else if (c === "auth/invalid-email") {
+        setErro("E-mail inválido.");
+      } else {
+        setErro("Não consegui enviar agora. Verifique a conexão e tente de novo.");
+      }
+    }
+    setRecuperando(false);
+  }
+
   return (
-    <div style={{ background: C.papel, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 20px" }}>
-      <div style={{ width: "100%", maxWidth: 400 }}>
-        <div style={{ textAlign: "center", marginBottom: 26 }}><Marca altura={38} /></div>
-
-        <div className="mty-cartao" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderRadius: 16,
-          padding: "30px 26px", boxShadow: SOMBRA_ALTA }}>
-          <div className="mb-6" style={{ textAlign: "center" }}><Etiqueta>Acesso do treinador</Etiqueta></div>
-
-          <Campo rotulo="E-mail">
-            <input type="email" autoComplete="email" style={entrada} value={email}
-              onChange={(e) => setEmail(e.target.value)} placeholder="treinador@exemplo.com" />
-          </Campo>
-          <Campo rotulo="Senha">
-            <input type="password" autoComplete="current-password"
-              style={entrada} value={senha} onChange={(e) => setSenha(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && email && senha) enviar(); }} />
-          </Campo>
-
-          {erro && (
-            <div style={{ background: C.papel, borderLeft: "3px solid " + C.saibro, borderRadius: 6, padding: "11px 13px", marginBottom: 14 }}>
-              <p style={{ ...prosa, fontSize: 13.5, color: C.saibro }}>{erro}</p>
-            </div>
-          )}
-
-          <button onClick={enviar} disabled={ocupado || !email || !senha}
-            style={{ width: "100%", fontFamily: ARCH, fontSize: 14, fontWeight: 700, padding: "13px 0",
-              borderRadius: 10, cursor: ocupado ? "wait" : "pointer", border: "none", transition: "opacity .15s ease",
-              boxShadow: (!email || !senha) ? "none" : SOMBRA,
-              background: (!email || !senha) ? C.linha : C.saibro,
-              color: (!email || !senha) ? C.grafite : "#fff" }}>
-            {ocupado ? "…" : "Entrar"}
+    <div style={{ background: C.papel, minHeight: "100vh" }}>
+      <style>{`
+        .mty-login-grid { max-width: 420px; margin: 0 auto; padding: 32px 20px 40px; }
+        .mty-login-hero-extra { display: none; }
+        @media (min-width: 760px) {
+          .mty-login-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center;
+            max-width: 980px; min-height: 100vh; padding: 40px; }
+          .mty-login-hero-extra { display: block; }
+        }
+        .mty-login-form button:focus-visible, .mty-login-hero a:focus-visible,
+        .mty-login-hero button:focus-visible { outline: 2px solid ${C.saibro}; outline-offset: 2px; }
+        .mty-login-form input:focus { border-color: ${C.saibro} !important; box-shadow: 0 0 0 3px ${C.saibro}26; }
+      `}</style>
+      <div className="mty-login-grid">
+        <div className="mty-login-hero">
+          <Marca altura={36} />
+          <h1 style={{ fontFamily: ARCH, fontSize: 25, fontWeight: 800, color: C.tinta, margin: "20px 0 10px", lineHeight: 1.28 }}>
+            Mais tempo em quadra. Mais clareza no planejamento.
+          </h1>
+          <p style={{ ...prosa, fontSize: 15, color: C.grafite, marginBottom: 14 }}>
+            Organize suas aulas de tênis e o acompanhamento dos alunos em um só lugar.
+          </p>
+          <button type="button" onClick={aoVerSobre} style={{ background: "none", border: "none", padding: 0,
+            cursor: "pointer", fontFamily: ARCH, fontSize: 13.5, fontWeight: 700, color: C.quadra, textDecoration: "underline" }}>
+            Conheça o QuadraLab
           </button>
+
+          <div className="mty-login-hero-extra" style={{ marginTop: 36 }}>
+            {BENEFICIOS_QUADRALAB.map((b, i) => (
+              <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 18 }}>
+                <div style={{ width: 34, height: 34, borderRadius: 9, background: C.cal, border: "1px solid " + C.linha,
+                  display: "flex", alignItems: "center", justifyContent: "center", color: C.quadra, flexShrink: 0 }}>
+                  <b.Icone tam={18} />
+                </div>
+                <p style={{ ...prosa, fontSize: 14, color: C.tinta, marginTop: 6 }}>{b.texto}</p>
+              </div>
+            ))}
+          </div>
         </div>
 
-        <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 18, textAlign: "center" }}>
-          Ainda não tem conta? <a href="cadastro-individual.html" style={{ color: C.saibro, fontWeight: 600 }}>Crie a sua</a> — grátis pra começar.
-        </p>
-        <InstalarApp />
+        <div>
+          <div className="mty-cartao" style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 16,
+            padding: "28px 24px", boxShadow: SOMBRA_ALTA }}>
+            <h2 style={{ fontFamily: ARCH, fontSize: 19, fontWeight: 700, color: C.tinta, margin: "0 0 18px" }}>
+              Entre na sua conta
+            </h2>
+
+            <form className="mty-login-form" onSubmit={enviar} noValidate>
+              <Campo rotulo="E-mail">
+                <input type="email" autoComplete="email" inputMode="email" style={entradaLogin} value={email}
+                  onChange={(e) => setEmail(e.target.value)} placeholder="seuemail@exemplo.com" />
+              </Campo>
+              <Campo rotulo="Senha">
+                <div style={{ position: "relative" }}>
+                  <input type={mostrarSenha ? "text" : "password"} autoComplete="current-password"
+                    style={{ ...entradaLogin, paddingRight: 44 }} value={senha}
+                    onChange={(e) => setSenha(e.target.value)} />
+                  <button type="button" onClick={() => setMostrarSenha((v) => !v)}
+                    aria-label={mostrarSenha ? "Ocultar senha" : "Mostrar senha"}
+                    style={{ position: "absolute", right: 2, top: "50%", transform: "translateY(-50%)",
+                      width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center",
+                      background: "none", border: "none", cursor: "pointer", color: C.grafite }}>
+                    {mostrarSenha ? <IconeOlhoFechado tam={19} /> : <IconeOlho tam={19} />}
+                  </button>
+                </div>
+              </Campo>
+
+              <div style={{ textAlign: "right", marginTop: -6, marginBottom: 16 }}>
+                <button type="button" onClick={recuperarSenha} disabled={recuperando}
+                  style={{ background: "none", border: "none", padding: "4px 0", cursor: recuperando ? "default" : "pointer",
+                    fontFamily: ARCH, fontSize: 12.5, fontWeight: 600, color: C.quadra, textDecoration: "underline",
+                    opacity: recuperando ? .6 : 1 }}>
+                  {recuperando ? "Enviando…" : "Esqueci minha senha"}
+                </button>
+              </div>
+
+              {erro && (
+                <div role="alert" style={{ background: C.papel, borderLeft: "3px solid #B3261E", borderRadius: 6, padding: "11px 13px", marginBottom: 14 }}>
+                  <p style={{ ...prosa, fontSize: 13.5, color: "#8A2E2E" }}>{erro}</p>
+                </div>
+              )}
+              {avisoRecuperacao && (
+                <div role="status" style={{ background: C.papel, borderLeft: "3px solid " + C.saibro, borderRadius: 6, padding: "11px 13px", marginBottom: 14 }}>
+                  <p style={{ ...prosa, fontSize: 13.5, color: C.quadra }}>{avisoRecuperacao}</p>
+                </div>
+              )}
+
+              <button type="submit" disabled={ocupado || !email || !senha}
+                style={{ width: "100%", fontFamily: ARCH, fontSize: 15, fontWeight: 700, padding: "13px 0", minHeight: 48,
+                  borderRadius: 10, cursor: ocupado ? "wait" : (!email || !senha) ? "default" : "pointer",
+                  border: "none", transition: "opacity .15s ease",
+                  boxShadow: (!email || !senha || ocupado) ? "none" : SOMBRA,
+                  background: (!email || !senha) ? C.linha : C.quadra,
+                  color: (!email || !senha) ? C.grafite : "#fff",
+                  opacity: ocupado ? .75 : 1 }}>
+                {ocupado ? "Entrando…" : "Entrar"}
+              </button>
+            </form>
+          </div>
+
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 18, textAlign: "center" }}>
+            Ainda não tem conta? <a href="cadastro-individual.html" style={{ color: C.saibro, fontWeight: 700 }}>Crie sua conta</a> — grátis pra começar.
+          </p>
+          <InstalarApp />
+        </div>
       </div>
     </div>
   );
+}
+
+function TelaSobreQuadraLab({ aoVoltar }) {
+  const beneficios = [
+    { ...BENEFICIOS_QUADRALAB[0], demo: (
+        <div style={{ background: C.papel, border: "1px solid " + C.linha, borderRadius: 10, padding: "10px 12px" }}>
+          <Etiqueta cor={C.quadra}>18:00 – 19:00</Etiqueta>
+          <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>Ana Souza (demonstração)</p>
+          <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>✓ Agendada</p>
+        </div>
+      ) },
+    { ...BENEFICIOS_QUADRALAB[1], demo: (
+        <div style={{ background: C.papel, border: "1px solid " + C.linha, borderRadius: 10, padding: "10px 12px" }}>
+          <p style={{ ...prosa, fontSize: 13.5 }}>Pedro Lima (demonstração)</p>
+          <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>Nível Y3 · avaliação em dia</p>
+        </div>
+      ) },
+    { ...BENEFICIOS_QUADRALAB[2], demo: (
+        <div style={{ background: C.papel, border: "1px solid " + C.linha, borderRadius: 10, padding: "10px 12px" }}>
+          <p style={{ ...prosa, fontSize: 13.5 }}>Sessão de hoje (demonstração)</p>
+          <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>1. Aquecimento — 10 min · 2. Construção cruzada — 15 min</p>
+        </div>
+      ) },
+  ];
+
+  return (
+    <div style={{ background: C.papel, minHeight: "100vh" }}>
+      <style>{`
+        .mty-sobre-wrap { max-width: 880px; margin: 0 auto; padding: 24px 20px 56px;
+          display: flex; flex-direction: column; justify-content: center; min-height: 100vh; }
+        .mty-sobre-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+        @media (min-width: 760px) {
+          .mty-sobre-grid { grid-template-columns: repeat(3, 1fr); gap: 20px; }
+        }
+        .mty-sobre-wrap button:focus-visible, .mty-sobre-wrap a:focus-visible { outline: 2px solid ${C.saibro}; outline-offset: 2px; }
+      `}</style>
+      <div className="mty-sobre-wrap">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28, flexWrap: "wrap", gap: 12 }}>
+          <Marca altura={30} />
+          <button type="button" onClick={aoVoltar} style={{ background: "none", border: "none", cursor: "pointer",
+            fontFamily: ARCH, fontSize: 13.5, fontWeight: 700, color: C.quadra, textDecoration: "underline" }}>
+            Voltar para login
+          </button>
+        </div>
+
+        <h1 style={{ fontFamily: ARCH, fontSize: 27, fontWeight: 800, color: C.tinta, margin: "0 0 12px", lineHeight: 1.28 }}>
+          Mais tempo em quadra. Mais clareza no planejamento.
+        </h1>
+        <p style={{ ...prosa, fontSize: 15.5, color: C.grafite, marginBottom: 10, maxWidth: 620 }}>
+          QuadraLab é feito para o professor de tênis autônomo: quem dá aulas particulares e precisa organizar
+          agenda, fichas de alunos e planejamento de treino sem depender de planilhas e cadernos soltos.
+        </p>
+
+        <div className="mty-sobre-grid" style={{ marginTop: 28 }}>
+          {beneficios.map((b, i) => (
+            <div key={i} className="mty-cartao" style={{ background: C.cal, border: "1px solid " + C.linha,
+              borderRadius: 14, padding: 18, boxShadow: SOMBRA }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: C.papel, border: "1px solid " + C.linha,
+                display: "flex", alignItems: "center", justifyContent: "center", color: C.quadra, marginBottom: 10 }}>
+                <b.Icone tam={17} />
+              </div>
+              <p style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700, color: C.tinta, margin: "0 0 6px" }}>{b.titulo}</p>
+              <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginBottom: 12 }}>{b.texto}</p>
+              {b.demo}
+            </div>
+          ))}
+        </div>
+
+        {/* Espaço reservado para um vídeo curto de demonstração, quando
+            houver um gravado — sem player vazio enquanto isso não existir. */}
+
+        <div style={{ textAlign: "center", marginTop: 40 }}>
+          <Botao onClick={() => { window.location.href = "cadastro-individual.html"; }}>Criar minha conta</Botao>
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 12 }}>
+            Já tem conta?{" "}
+            <button type="button" onClick={aoVoltar} style={{ background: "none", border: "none", padding: 0,
+              cursor: "pointer", color: C.saibro, fontWeight: 700, fontFamily: ARCH, fontSize: 12.5, textDecoration: "underline" }}>
+              Entrar
+            </button>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TelaAutenticacao({ aoEntrar }) {
+  const [tela, setTela] = useState("login");
+  if (tela === "sobre") return <TelaSobreQuadraLab aoVoltar={() => setTela("login")} />;
+  return <TelaLogin aoEntrar={aoEntrar} aoVerSobre={() => setTela("sobre")} />;
 }
 
 /* ── "meu nome" ──
@@ -10435,7 +10698,7 @@ function App() {
 
   if (checando)
     return <div style={{ background: C.papel, minHeight: "100vh", padding: 60, textAlign: "center", fontFamily: ARCH, color: C.grafite }}>Verificando acesso…</div>;
-  if (!autenticado) return <TelaLogin aoEntrar={() => setAutenticado(true)} />;
+  if (!autenticado) return <TelaAutenticacao aoEntrar={() => setAutenticado(true)} />;
   if (verificandoOrg)
     return <div style={{ background: C.papel, minHeight: "100vh", padding: 60, textAlign: "center", fontFamily: ARCH, color: C.grafite }}>Verificando sua academia…</div>;
   if (exigeLogin && !orgAtual) return <TelaSemAcademia />;
@@ -11421,16 +11684,11 @@ function TelaMetodo() {
   );
 }
 
-/* A tela de abertura (logo + barra) precisa de um tempo mínimo visível —
-   numa conexão rápida ou com tudo em cache, os scripts carregam rápido
-   demais e ela pisca sem dar tempo de ver. Garante ~7s do início do
-   carregamento da página até o app de fato aparecer, sem atrasar quem
-   já esperou mais que isso numa conexão lenta. */
-const ESPERA_MINIMA_SPLASH = 7000;
-const decorridoBoot = Date.now() - (window.__bootInicio || Date.now());
-setTimeout(() => {
-  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
-}, Math.max(0, ESPERA_MINIMA_SPLASH - decorridoBoot));
+/* Mostra o app assim que ele estiver pronto — sem espera artificial.
+   window.__mtyMarcarPronto() (definido logo depois da tela de abertura,
+   no <head>) cancela a mensagem de falha de conexão por timeout. */
+if (window.__mtyMarcarPronto) window.__mtyMarcarPronto();
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
 
 </script>
 </body>
