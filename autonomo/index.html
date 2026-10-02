@@ -12079,46 +12079,53 @@ function App() {
                 </>
               );
             })()}
-            <div className="flex items-center mb-6" style={{ gap: 2, borderBottom: "1px solid " + C.linha, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-              {[{ v: "ficha", r: "Ficha" }, { v: "plano", r: "Plano" }, { v: "aulas", r: "Aulas" }, { v: "fechamento", r: "Fechamento" }].map((t) => (
-                <button key={t.v} onClick={() => { setSubaba(t.v); setMaisSubabaAberto(false); }}
-                  style={{ fontFamily: ARCH, fontSize: 13, fontWeight: subaba === t.v ? 700 : 500, padding: "10px 10px", cursor: "pointer", minHeight: 44,
-                    background: "none", border: "none", borderBottom: "2px solid " + (subaba === t.v ? C.saibro : "transparent"),
-                    color: subaba === t.v ? C.tinta : C.grafite, marginBottom: -1, flexShrink: 0, whiteSpace: "nowrap" }}>
-                  {t.r}
-                </button>
-              ))}
-              {(() => {
-                const itensMais = [{ v: "periodizacao", r: "Periodização" }, { v: "sessao", r: "Sessão de hoje" }, { v: "scout", r: "Scout" }, { v: "registro", r: "Caderno" }];
-                const maisAtivo = itensMais.some((t) => t.v === subaba);
-                return (
-                  <div style={{ position: "relative", flexShrink: 0 }}>
+            {(() => {
+              const itensMais = [{ v: "periodizacao", r: "Periodização" }, { v: "sessao", r: "Sessão de hoje" }, { v: "scout", r: "Scout" }, { v: "registro", r: "Caderno" }];
+              const maisAtivo = itensMais.some((t) => t.v === subaba);
+              return (
+                <div className="mb-6">
+                  {/* A lista de "Mais" não pode flutuar como popup absoluto aqui:
+                      esta barra de abas tem rolagem horizontal (overflow-x: auto)
+                      pra caber na tela, e isso faz o navegador cortar também
+                      qualquer coisa que vaze verticalmente de dentro dela — o
+                      popup abria (a setinha virava ▲) mas ficava invisível,
+                      cortado pelo próprio contêiner. Por isso a lista aparece
+                      abaixo da barra inteira, fora da área com scroll, igual ao
+                      dropdown do Manual na barra lateral. */}
+                  <div className="flex items-center" style={{ gap: 2, borderBottom: "1px solid " + C.linha, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+                    {[{ v: "ficha", r: "Ficha" }, { v: "plano", r: "Plano" }, { v: "aulas", r: "Aulas" }, { v: "fechamento", r: "Fechamento" }].map((t) => (
+                      <button key={t.v} onClick={() => { setSubaba(t.v); setMaisSubabaAberto(false); }}
+                        style={{ fontFamily: ARCH, fontSize: 13, fontWeight: subaba === t.v ? 700 : 500, padding: "10px 10px", cursor: "pointer", minHeight: 44,
+                          background: "none", border: "none", borderBottom: "2px solid " + (subaba === t.v ? C.saibro : "transparent"),
+                          color: subaba === t.v ? C.tinta : C.grafite, marginBottom: -1, flexShrink: 0, whiteSpace: "nowrap" }}>
+                        {t.r}
+                      </button>
+                    ))}
                     <button onClick={() => setMaisSubabaAberto((v) => !v)} aria-haspopup="true" aria-expanded={maisSubabaAberto}
                       style={{ fontFamily: ARCH, fontSize: 13, fontWeight: maisAtivo ? 700 : 500, padding: "10px 12px", cursor: "pointer", minHeight: 44,
                         background: "none", border: "none", borderBottom: "2px solid " + (maisAtivo ? C.saibro : "transparent"),
-                        color: maisAtivo ? C.tinta : C.grafite, marginBottom: -1, whiteSpace: "nowrap" }}>
+                        color: maisAtivo ? C.tinta : C.grafite, marginBottom: -1, flexShrink: 0, whiteSpace: "nowrap" }}>
                       {(maisAtivo ? itensMais.find((t) => t.v === subaba).r : "Mais") + (maisSubabaAberto ? " ▲" : " ▼")}
                     </button>
-                    {maisSubabaAberto && (
-                      <>
-                        <div onClick={() => setMaisSubabaAberto(false)} style={{ position: "fixed", inset: 0, zIndex: 29 }} />
-                        <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, background: C.cal, border: "1px solid " + C.linha,
-                          borderRadius: 10, boxShadow: SOMBRA_ALTA, zIndex: 30, minWidth: 190, overflow: "hidden" }}>
-                          {itensMais.map((t) => (
-                            <button key={t.v} onClick={() => { setSubaba(t.v); setMaisSubabaAberto(false); }} className="w-full text-left"
-                              aria-current={subaba === t.v ? "page" : undefined}
-                              style={{ padding: "11px 14px", border: "none", background: subaba === t.v ? C.papel : "none", cursor: "pointer",
-                                fontFamily: ARCH, fontSize: 13.5, fontWeight: subaba === t.v ? 700 : 500, color: C.tinta, minHeight: 44 }}>
-                              {t.r}
-                            </button>
-                          ))}
-                        </div>
-                      </>
-                    )}
                   </div>
-                );
-              })()}
-            </div>
+                  {maisSubabaAberto && (
+                    <div className="flex flex-wrap" style={{ gap: 6, padding: "10px 0 0" }}>
+                      {itensMais.map((t) => (
+                        <button key={t.v} onClick={() => { setSubaba(t.v); setMaisSubabaAberto(false); }}
+                          aria-current={subaba === t.v ? "page" : undefined}
+                          style={{ padding: "8px 14px", borderRadius: 999, cursor: "pointer", minHeight: 36,
+                            border: "1px solid " + (subaba === t.v ? C.saibro : C.linha),
+                            background: subaba === t.v ? C.saibro : C.cal,
+                            fontFamily: ARCH, fontSize: 13, fontWeight: subaba === t.v ? 700 : 500,
+                            color: subaba === t.v ? "#fff" : C.tinta }}>
+                          {t.r}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             {subaba === "ficha" ? <TelaFicha aluno={aberto} salvar={salvar} papelAtual={papelAtual} uidAtual={uidAtual}
                 etapaAlvo={etapaFichaAlvo} aoConsumirEtapaAlvo={() => setEtapaFichaAlvo(null)} aoMudarEditando={setEditandoFicha} /> :
              subaba === "plano" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="resumo" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} /> :
