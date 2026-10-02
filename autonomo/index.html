@@ -6,6 +6,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
 <title>QuadraLab</title>
 <meta name="description" content="QuadraLab — plataforma para treinadores de tênis.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://quadralab.com.br">
+<meta property="og:title" content="QuadraLab — plataforma para treinadores de tênis">
+<meta property="og:description" content="Ficha, plano de aula por IA e evolução do aluno — para o professor de tênis autônomo.">
+<meta property="og:image" content="https://quadralab.com.br/assets/icon-512.png">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="QuadraLab — plataforma para treinadores de tênis">
+<meta name="twitter:description" content="Ficha, plano de aula por IA e evolução do aluno — para o professor de tênis autônomo.">
+<meta name="twitter:image" content="https://quadralab.com.br/assets/icon-512.png">
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png">
 <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png" id="link-apple-icon">
@@ -9425,24 +9434,37 @@ function TelaLogin({ aoEntrar, aoVerSobre }) {
   );
 }
 
+function RotuloDemonstracao() {
+  return (
+    <div style={{ display: "inline-flex", alignItems: "center", gap: 4, marginBottom: 6 }}>
+      <span style={{ fontFamily: ARCH, fontSize: 9.5, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase",
+        color: C.grafite, background: "#EFEAE4", border: "1px solid " + C.linha, borderRadius: 999, padding: "2px 8px" }}>
+        Exemplo · dados fictícios
+      </span>
+    </div>
+  );
+}
 function TelaSobreQuadraLab({ aoVoltar }) {
   const beneficios = [
     { ...BENEFICIOS_QUADRALAB[0], demo: (
         <div style={{ background: C.papel, border: "1px solid " + C.linha, borderRadius: 10, padding: "10px 12px" }}>
+          <RotuloDemonstracao />
           <Etiqueta cor={C.quadra}>18:00 – 19:00</Etiqueta>
-          <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>Ana Souza (demonstração)</p>
+          <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>Ana Souza</p>
           <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>✓ Agendada</p>
         </div>
       ) },
     { ...BENEFICIOS_QUADRALAB[1], demo: (
         <div style={{ background: C.papel, border: "1px solid " + C.linha, borderRadius: 10, padding: "10px 12px" }}>
-          <p style={{ ...prosa, fontSize: 13.5 }}>Pedro Lima (demonstração)</p>
+          <RotuloDemonstracao />
+          <p style={{ ...prosa, fontSize: 13.5 }}>Pedro Lima</p>
           <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>Nível Y3 · avaliação em dia</p>
         </div>
       ) },
     { ...BENEFICIOS_QUADRALAB[2], demo: (
         <div style={{ background: C.papel, border: "1px solid " + C.linha, borderRadius: 10, padding: "10px 12px" }}>
-          <p style={{ ...prosa, fontSize: 13.5 }}>Sessão de hoje (demonstração)</p>
+          <RotuloDemonstracao />
+          <p style={{ ...prosa, fontSize: 13.5 }}>Sessão de hoje</p>
           <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>1. Aquecimento — 10 min · 2. Construção cruzada — 15 min</p>
         </div>
       ) },
@@ -10841,6 +10863,13 @@ function PainelMais({ aba, setAba, aoFechar }) {
               <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 600 }}>{t.r}</span>
             </button>
           ))}
+          <div style={{ borderTop: "1px solid " + C.linha, margin: "6px 2px" }} />
+          <button onClick={() => { setAba("ajuda"); aoFechar(); }} className="w-full text-left"
+            aria-current={aba === "ajuda" ? "page" : undefined}
+            style={{ display: "block", padding: "13px 12px", border: "none", cursor: "pointer", borderRadius: 10, minHeight: 44,
+              background: aba === "ajuda" ? C.saibro : "none", color: aba === "ajuda" ? "#fff" : C.grafite }}>
+            <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 600 }}>Ajuda</span>
+          </button>
         </div>
       </div>
     </>
@@ -11378,6 +11407,50 @@ const NAV_PRINCIPAL = [{ v: "dashboard", r: "Início" }, { v: "alunos", r: "Joga
 const NAV_MANUAL = [{ v: "catalogo", r: "Catálogo" }, { v: "tecnica", r: "Técnica" }, { v: "taticas", r: "Táticas" },
   { v: "conducao", r: "Condução" }, { v: "publicos", r: "Públicos" }, { v: "aulas", r: "Aulas" }, { v: "metodo", r: "Como decide" }];
 
+/* Orientações de uso — não é suporte ao vivo (sem telefone/e-mail/prazo
+   de resposta, porque não existe canal definido pra isso ainda). Cada
+   pergunta vira seu próprio bloco, fechado por padrão. */
+const AJUDA_TOPICOS = [
+  { t: "Como crio o primeiro planejamento?",
+    d: "Cadastre o jogador em Jogadores → Novo jogador, preencha ao menos nome, nascimento e horário fixo " +
+       "(o resto pode ficar pra depois). Abra a aba Plano do jogador e toque em Gerar planejamento — ele usa o " +
+       "que já estiver preenchido na ficha. Revise o plano gerado e toque em Usar este plano pra confirmar." },
+  { t: "Como edito uma aula?",
+    d: "Abra o jogador (ou a turma) e vá em Sessão de hoje. Toque em um exercício pra trocar, ajustar a duração " +
+       "ou adicionar um exercício do catálogo. As mudanças ficam só nessa sessão — não alteram o planejamento " +
+       "de base, que continua disponível pras próximas aulas." },
+  { t: "Como registro a aula realizada?",
+    d: "Na Sessão de hoje, depois de dar a aula, toque em Finalizar e registrar aula. Isso fecha o registro " +
+       "dessa aula (sem contar duas vezes se você tocar de novo por engano) e atualiza o progresso do ciclo em Aulas e Fechamento." },
+  { t: "Esqueci minha senha — como recupero o acesso?",
+    d: "Na tela de entrada, toque em Esqueci minha senha com seu e-mail de cadastro preenchido. Você recebe um " +
+       "link de recuperação por e-mail — confira também a caixa de spam. Ainda sem acesso? Peça pra quem criou " +
+       "a conta (administrador) verificar o e-mail cadastrado." },
+];
+function TelaAjuda() {
+  const [abertoI, setAbertoI] = useState(0);
+  return (
+    <div style={{ maxWidth: 620 }}>
+      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 800, marginBottom: 6 }}>Ajuda</h1>
+      <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginBottom: 24 }}>
+        Orientações rápidas pra quatro situações comuns. Não é um canal de atendimento — se precisar de algo além
+        disso, fale com quem administra sua conta.
+      </p>
+      {AJUDA_TOPICOS.map((top, i) => (
+        <div key={i} className="mty-cartao" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA,
+          borderRadius: 12, padding: "14px 16px", marginBottom: 10 }}>
+          <button type="button" onClick={() => setAbertoI(abertoI === i ? -1 : i)} className="w-full flex items-center justify-between gap-3 text-left"
+            style={{ border: "none", background: "none", cursor: "pointer", padding: 0, minHeight: 32 }}>
+            <span style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700, color: C.tinta }}>{top.t}</span>
+            <span style={{ fontSize: 14, color: C.grafite, flexShrink: 0 }}>{abertoI === i ? "−" : "+"}</span>
+          </button>
+          {abertoI === i && <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginTop: 10 }}>{top.d}</p>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function App() {
   const [alunos, setAlunos] = useState([]);
   const [turmas, setTurmas] = useState([]);
@@ -11667,6 +11740,16 @@ function App() {
       setLimiteAtingido(true);
       return;
     }
+    /* Clicar em "Adicionar jogador" (ou no atalho de primeiros passos) de
+       novo antes de nomear o rascunho anterior reabre o mesmo rascunho,
+       em vez de criar um segundo jogador sem nome — evita duplicar
+       quando a mesma intenção é clicada mais de uma vez. */
+    const rascunhoSemNome = alunos.find((a) => !a.nome);
+    if (rascunhoSemNome) {
+      setAbertoId(rascunhoSemNome.id);
+      setSubaba("ficha");
+      return;
+    }
     const n = novoAluno();
     setAlunos([...alunos, n]);
     setRascunhosNaoConfirmados((prev) => new Set(prev).add(n.id));
@@ -11839,6 +11922,13 @@ function App() {
             </div>
           )}
         </nav>
+        <div style={{ padding: "8px 18px 16px" }}>
+          <button onClick={() => setAba("ajuda")} aria-current={aba === "ajuda" ? "page" : undefined}
+            style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 600, color: C.grafite, background: "none",
+              border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>
+            Ajuda
+          </button>
+        </div>
       </header>
 
       <div className="mty-topbar" style={{ marginLeft: 252, borderBottom: "1px solid " + C.linha, background: C.cal, position: "sticky", top: 0, zIndex: 9 }}>
@@ -11921,6 +12011,7 @@ function App() {
 
       <main className="mty-main px-5 py-6" style={{ maxWidth: 760, marginLeft: 252 }}>
         {carregando ? <p style={{ ...prosa, color: C.grafite }}>Carregando…</p> :
+         aba === "ajuda" ? <TelaAjuda /> :
          aba === "catalogo" ? <TelaCatalogo exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
          aba === "taticas" ? <TelaTaticas /> :
          aba === "tecnica" ? <TelaTecnica focoId={focoManualId} /> :
