@@ -5,10 +5,11 @@
 <script>window.__bootInicio = Date.now();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
 <title>QuadraLab</title>
+<meta name="description" content="QuadraLab — plataforma para treinadores de tênis.">
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png">
 <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png" id="link-apple-icon">
-<link rel="manifest" href="manifest.json?v=2" id="link-manifest">
+<link rel="manifest" href="manifest.json?v=3" id="link-manifest">
 <meta name="theme-color" content="#69B32A" id="meta-theme-color">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -3449,11 +3450,11 @@ function CartaoExercicio({ e, aoTrocar, aoRemover, aoAtualizar, exerciciosCustom
 const iconeEstilo = { fontFamily: ARCH, fontSize: 15, width: 27, height: 27, border: "1px solid " + C.linha, borderRadius: 10, background: C.papel, color: C.grafite, cursor: "pointer", lineHeight: 1 };
 function Linha({ rotulo, texto, destaque }) {
   return (
-    <div className="flex gap-3 mb-1.5">
-      <div style={{ width: 106, flexShrink: 0, paddingTop: 2 }}>
+    <div className="mty-linha">
+      <div className="mty-linha-rotulo">
         <Etiqueta cor={destaque ? C.saibro : C.grafite}>{rotulo}</Etiqueta>
       </div>
-      <p style={{ ...prosa, fontSize: 13.5, color: destaque ? C.saibro : C.tinta }}>{texto}</p>
+      <p className="mty-linha-valor" style={{ ...prosa, fontSize: 13.5, color: destaque ? C.saibro : C.tinta }}>{texto}</p>
     </div>
   );
 }
@@ -3598,7 +3599,7 @@ function CampoEntrada({ rotulo, valor, aoMudar, nota }) {
     <div className="mb-4">
       <div className="mb-2"><Etiqueta>{rotulo}</Etiqueta></div>
       <div className="flex gap-2 items-start">
-        <textarea rows={2} readOnly={ns}
+        <textarea rows={2} readOnly={ns} spellCheck lang="pt-BR"
           style={{ ...entrada, resize: "vertical", flex: 1,
             background: ns ? C.papel : C.cal, color: ns ? C.grafite : C.tinta,
             fontStyle: ns ? "italic" : "normal" }}
@@ -4634,6 +4635,16 @@ function formatarDataHoraCurta(iso) {
   return d.toLocaleDateString("pt-BR") + " às " + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
+/* Palavras que sinalizam estado emocional/comportamental — usado pra
+   avisar quando esse tipo de observação foi escrito no campo errado
+   (ex.: "ansioso" dentro de Tático). Só um aviso: nunca move ou
+   reescreve o texto sozinho, quem decide é sempre o treinador. */
+const GATILHOS_EMOCIONAL = ["insegur", "nervos", "medo", "falta de agressividade", "cabeça", "mole", "trava", "ansios"];
+function pareceEmocional(texto) {
+  const t = (texto || "").toLowerCase();
+  return GATILHOS_EMOCIONAL.some((g) => t.includes(g));
+}
+
 /* Avaliação de um golpe, recolhida por padrão — nome, estado (Não
    avaliado/Parcial/Preenchido) e um resumo curto quando há algo
    escrito. Abre pra mostrar as duas perguntas-guia e, opcionalmente,
@@ -4852,10 +4863,19 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
      todos eles, senão a ordem dos hooks muda entre o modo resumo e o
      modo edição e o React quebra. */
   const alertaMental = useMemo(() => {
-    const t = (f.camadas.mental + " " + f.camadas.tatico).toLowerCase();
-    const gatilhos = ["insegur", "nervos", "medo", "falta de agressividade", "cabeça", "mole", "trava", "ansios"];
-    return gatilhos.some((g) => t.includes(g)) && f.camadas.tecnico.trim().length < 30;
+    return pareceEmocional(f.camadas.mental + " " + f.camadas.tatico) && f.camadas.tecnico.trim().length < 30;
   }, [f.camadas]);
+  /* Sinal específico do campo Tática: texto que soa emocional/comportamental
+     escrito ali (ex.: "ansioso") — convida a revisar a categoria, mas nunca
+     move ou reescreve sozinho; só o treinador decide, clicando. */
+  const taticoPareceEmocional = useMemo(() => pareceEmocional(f.camadas.tatico), [f.camadas.tatico]);
+  function moverTaticoParaMental() {
+    const texto = f.camadas.tatico.trim();
+    if (!texto) return;
+    if (!confirm('Mover este texto de "Tática" para "Mental"? O campo Tática fica em branco — nada é apagado, só muda de lugar.')) return;
+    setCamada("mental", (f.camadas.mental.trim() ? f.camadas.mental.trim() + "\n" : "") + texto);
+    setCamada("tatico", "");
+  }
 
   const pendencias = useMemo(() => {
     const lista = [];
@@ -5130,8 +5150,11 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
           <Secao titulo="Dimensões">
             <div className="mb-5">
               <div className="mb-2"><Etiqueta cor={C.tinta}>Técnica — síntese geral</Etiqueta></div>
+              <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 6 }}>
+                Quais golpes estão consistentes? Onde ocorre a dificuldade?
+              </p>
               <textarea rows={3} placeholder="Bases de apoio, golpes por fase, trocas de golpe e de empunhadura"
-                style={{ ...entrada, resize: "vertical" }}
+                spellCheck lang="pt-BR" style={{ ...entrada, resize: "vertical" }}
                 value={f.camadas.tecnico} onChange={(e) => setCamada("tecnico", e.target.value)} />
               {!f.camadas.tecnico.trim() && sinteseGolpesFicha(f) && (
                 <div className="mt-2">
@@ -5147,7 +5170,11 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
 
             <div className="mb-5">
               <div className="mb-2"><Etiqueta cor={C.tinta}>Física</Etiqueta></div>
-              <textarea rows={3} placeholder="Capacidades associadas às qualidades técnicas" style={{ ...entrada, resize: "vertical" }}
+              <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 6 }}>
+                Como se desloca, recupera a posição e mantém a qualidade?
+              </p>
+              <textarea rows={3} placeholder="Capacidades associadas às qualidades técnicas" spellCheck lang="pt-BR"
+                style={{ ...entrada, resize: "vertical" }}
                 value={f.camadas.fisico} onChange={(e) => setCamada("fisico", e.target.value)} />
               <button type="button" onClick={() => setGuiaFisico(!guiaFisico)} className="mt-2"
                 style={{ display: "block", fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, color: C.grafite, background: "none", border: "none", cursor: "pointer", padding: 0, minHeight: 32 }}>
@@ -5163,8 +5190,25 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
 
             <div className="mb-5">
               <div className="mb-2"><Etiqueta cor={C.tinta}>Tática</Etiqueta></div>
-              <textarea rows={3} placeholder="Repertório de decisões disponível em quadra" style={{ ...entrada, resize: "vertical" }}
+              <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 6 }}>
+                Como constrói o ponto e escolhe os alvos?
+              </p>
+              <textarea rows={3} placeholder="Repertório de decisões disponível em quadra" spellCheck lang="pt-BR"
+                style={{ ...entrada, resize: "vertical" }}
                 value={f.camadas.tatico} onChange={(e) => setCamada("tatico", e.target.value)} />
+              {taticoPareceEmocional && (
+                <div className="mt-2">
+                  <Aviso>
+                    Este texto soa mais a comportamento/estado emocional do que a tática. Se for o caso, você
+                    pode revisar a categoria — nada é movido automaticamente.{" "}
+                    <button type="button" onClick={moverTaticoParaMental}
+                      style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, color: "inherit", background: "none",
+                        border: "none", padding: 0, cursor: "pointer", textDecoration: "underline" }}>
+                      Mover para Mental
+                    </button>
+                  </Aviso>
+                </div>
+              )}
               <button type="button" onClick={() => setGuiaTatico(!guiaTatico)} className="mt-2"
                 style={{ display: "block", fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, color: C.grafite, background: "none", border: "none", cursor: "pointer", padding: 0, minHeight: 32 }}>
                 {(guiaTatico ? "Ocultar perguntas-guia" : "Perguntas-guia") + (guiaTatico ? " ▲" : " ▼")}
@@ -5179,7 +5223,11 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
 
             <div className="mb-5">
               <div className="mb-2"><Etiqueta cor={C.tinta}>Mental</Etiqueta></div>
-              <textarea rows={3} placeholder="Observações de comportamento e postura" style={{ ...entrada, resize: "vertical" }}
+              <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 6 }}>
+                Como reage ao erro e às situações de pressão?
+              </p>
+              <textarea rows={3} placeholder="Observações de comportamento e postura" spellCheck lang="pt-BR"
+                style={{ ...entrada, resize: "vertical" }}
                 value={f.camadas.mental} onChange={(e) => setCamada("mental", e.target.value)} />
               {alertaMental && (
                 <div className="mt-2">
@@ -5299,6 +5347,8 @@ function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual, podeEditar = true,
   const objetivosAdulto = objetivosDoAdulto(a).map((v) => OBJETIVOS_ADULTO.find((o) => o.v === v)).filter(Boolean);
   const disposicaoAdulto = DISPOSICOES_ADULTO.find((d) => d.v === a.disposicaoAdulto);
   const [mostrarOcultos, setMostrarOcultos] = useState(false);
+  const [verPerfilExplicado, setVerPerfilExplicado] = useState(false);
+  const taticoResumoEmocional = pareceEmocional(a.camadas.tatico);
   const rn = resumoNivel(a);
 
   return (
@@ -5345,9 +5395,24 @@ function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual, podeEditar = true,
         </div>
       )}
 
-      <Secao titulo="Diagnóstico">
-        {temCamada ? camadasRot.map(([k, rot]) => (a.camadas[k] || "").trim() && <Linha key={k} rotulo={rot} texto={a.camadas[k]} />)
-          : <p style={{ ...prosa, color: C.grafite }}>Diagnóstico ainda não preenchido.</p>}
+      <Secao titulo="Avaliação do treinador"
+        nota={a.fichaAtualizadaEm ? "Atualizado em " + formatarDataHoraCurta(a.fichaAtualizadaEm) : undefined}>
+        {temCamada ? camadasRot.map(([k, rot]) => (a.camadas[k] || "").trim() && (
+          <div key={k}>
+            <Linha rotulo={rot} texto={a.camadas[k]} />
+            {k === "tatico" && taticoResumoEmocional && (
+              <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginTop: -4, marginBottom: 10 }}>
+                Este texto soa mais a comportamento/estado emocional do que a tática.
+                {podeEditar && <> <button type="button" onClick={aoEditar}
+                  style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, color: "inherit", background: "none",
+                    border: "none", padding: 0, cursor: "pointer", textDecoration: "underline" }}>
+                  Revisar categoria
+                </button></>}
+              </p>
+            )}
+          </div>
+        ))
+          : <p style={{ ...prosa, color: C.grafite }}>Avaliação do treinador ainda não preenchida — o que não foi observado aparece como "Não informado" ou "Ainda não avaliado", nunca como conclusão.</p>}
       </Secao>
 
       <Secao titulo="Perfil de jogo">
@@ -5358,25 +5423,59 @@ function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual, podeEditar = true,
         {a.dificuldadeConsistencia && <Linha rotulo="Consistência" texto="Dificuldade marcada — erra demais pra sustentar a troca de bolas." />}
         {!corpo && !temperamento && !(a.estagio === "A" && objetivosAdulto.length > 0) && !(a.estagio === "A" && disposicaoAdulto) && !a.dificuldadeConsistencia &&
           <p style={{ ...prosa, color: C.grafite }}>Perfil de jogo ainda não definido.</p>}
+        {(corpo || temperamento) && (
+          <div className="mt-2">
+            <button type="button" onClick={() => setVerPerfilExplicado(!verPerfilExplicado)}
+              style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, color: C.grafite, background: "none", border: "none", cursor: "pointer", padding: 0, minHeight: 32 }}>
+              {(verPerfilExplicado ? "Ocultar explicação" : "Entenda o perfil") + (verPerfilExplicado ? " ▲" : " ▼")}
+            </button>
+            {verPerfilExplicado && (
+              <div className="mt-2" style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "12px 14px" }}>
+                <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 10 }}>
+                  "Corpo" é de onde o jogador consegue jogar a partir de — não é estatura nem físico. "Temperamento"
+                  é o ritmo de decisão dele em quadra. Os dois não se escolhem: se reconhecem observando o jogo, e
+                  cruzam entre si — existe jogador alto e direto, e pequeno e cadenciado.
+                </p>
+                {corpo && (
+                  <div className="mb-3">
+                    <p style={{ ...prosa, fontSize: 13.5, fontWeight: 700, marginBottom: 2 }}>{corpo.r.includes(" · ") ? corpo.r.split(" · ")[1] : corpo.r}</p>
+                    <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 4 }}>{corpo.d}</p>
+                    <Etiqueta cor={C.grafite}>{corpo.v}</Etiqueta>
+                  </div>
+                )}
+                {temperamento && (
+                  <div>
+                    <p style={{ ...prosa, fontSize: 13.5, fontWeight: 700, marginBottom: 2 }}>{temperamento.r.includes(" · ") ? temperamento.r.split(" · ")[1] : temperamento.r}</p>
+                    <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 4 }}>{temperamento.d}</p>
+                    <Etiqueta cor={C.grafite}>{temperamento.v}</Etiqueta>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </Secao>
 
-      <Secao titulo="Prioridades">
-        <p style={prosa}>{a.prioridades.map((p) => AREAS[p].nome).join(" → ")}</p>
+      <Secao titulo="Prioridades de desenvolvimento"
+        nota="As duas primeiras recebem mais volume de treino no ciclo — não é a ordem da aula.">
+        <ol style={{ ...prosa, listStyleType: "decimal", paddingLeft: 20, margin: 0 }}>
+          {a.prioridades.map((p) => <li key={p} style={{ marginBottom: 4 }}>{AREAS[p].nome}</li>)}
+        </ol>
       </Secao>
 
       <div className="mb-5">
         <Botao pequeno variante="vazio" onClick={() => setMostrarOcultos(!mostrarOcultos)}>
-          {mostrarOcultos ? "Ocultar campos em avaliação" : "Mostrar campos em avaliação (Horizonte, Calendário)"}
+          {mostrarOcultos ? "Ocultar informações complementares" : "Ver informações complementares"}
         </Botao>
       </div>
 
       {mostrarOcultos && (
       <>
-      <Secao titulo="Horizonte">
+      <Secao titulo="Horizonte" nota="Objetivo de longo prazo do jogador — não muda a cada ciclo.">
         {a.objetivoFinal ? <Linha rotulo="Objetivo" texto={a.objetivoFinal} /> : <p style={{ ...prosa, color: C.grafite }}>Sem objetivo final definido.</p>}
       </Secao>
 
-      <Secao titulo="Calendário">
+      <Secao titulo="Calendário" nota="Datas e rotina de quadra que ajudam a planejar o ciclo.">
         <p style={prosa}>
           {a.inicio ? "Início " + a.inicio : "sem data de início"} · {a.semanas} semanas · {a.diasQuadra ? a.diasQuadra + " dia" + (a.diasQuadra === 1 ? "" : "s") + " de quadra por semana" : "dias de quadra por semana não informados"} · {a.periodos == null ? "turnos por dia não informados" : a.periodos >= 2 ? "dois turnos por dia" : "um turno por dia"}
         </p>
@@ -5394,8 +5493,6 @@ function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual, podeEditar = true,
           ))}
         </Secao>
       )}
-
-      {podeEditar && <Botao variante="vazio" onClick={aoEditar}>Editar ficha</Botao>}
     </div>
   );
 }
@@ -7019,7 +7116,7 @@ function exportarCadernoPDF(a, identidade) {
     '<p class="rodape">Material de campo. Serve para corrigir o método, não para julgar o jogador.</p>' +
     '<div class="no-print" style="margin-top:20px;display:flex;gap:10px">' +
     '<button onclick="window.print()" style="padding:10px 16px;font-weight:700;cursor:pointer">Salvar como PDF / Imprimir</button>' +
-    '<button onclick="window.close()" style="padding:10px 16px;font-weight:700;cursor:pointer;background:transparent;border:1px solid #14121055">← Voltar ao app</button>' +
+    '<button onclick="window.close()" style="padding:10px 16px;font-weight:700;cursor:pointer;background:transparent;border:1px solid #14121055">← Voltar à plataforma</button>' +
     '</div>' +
     '</body></html>'
   );
@@ -7675,7 +7772,7 @@ function exportarRelatorioPDF(h, nomeEntidade, identidade) {
     '<h2>Relatório completo</h2>' + formatarRelatorioHTML(h.texto) +
     '<div class="no-print" style="margin-top:20px;display:flex;gap:10px">' +
     '<button onclick="window.print()" style="padding:10px 16px;font-weight:700;cursor:pointer">Salvar como PDF / Imprimir</button>' +
-    '<button onclick="window.close()" style="padding:10px 16px;font-weight:700;cursor:pointer;background:transparent;border:1px solid #14121055">← Voltar ao app</button>' +
+    '<button onclick="window.close()" style="padding:10px 16px;font-weight:700;cursor:pointer;background:transparent;border:1px solid #14121055">← Voltar à plataforma</button>' +
     '</div>' +
     '</body></html>'
   );
@@ -9122,7 +9219,7 @@ function InstalarApp({ compacto, linha }) {
       <button onClick={prompt ? instalar : undefined} className="w-full text-left"
         style={{ padding: "12px 14px", border: "none", borderTop: "1px solid " + C.linha, background: "none",
           cursor: prompt ? "pointer" : "default", fontFamily: ARCH, fontSize: 14, fontWeight: 600, color: C.tinta }}>
-        {prompt ? "Instalar app" : "Instalar: compartilhar → tela de início"}
+        {prompt ? "Instalar" : "Instalar: compartilhar → tela de início"}
       </button>
     );
   }
@@ -9131,8 +9228,8 @@ function InstalarApp({ compacto, linha }) {
     <div style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderLeft: "3px solid " + C.saibro, borderRadius: 10, padding: "11px 13px", marginTop: 18 }}>
       {prompt ? (
         <>
-          <p style={{ ...prosa, fontSize: 13, marginBottom: 8 }}>Instale o app na tela de início do seu celular — abre direto, sem digitar o endereço de novo.</p>
-          <Botao pequeno onClick={instalar}>Instalar app</Botao>
+          <p style={{ ...prosa, fontSize: 13, marginBottom: 8 }}>Instale a plataforma na tela de início do seu celular — abre direto, sem digitar o endereço de novo.</p>
+          <Botao pequeno onClick={instalar}>Instalar</Botao>
         </>
       ) : (
         <p style={{ ...prosa, fontSize: 13 }}>
@@ -9242,7 +9339,7 @@ function TelaLogin({ aoEntrar, aoVerSobre }) {
           </p>
           <button type="button" onClick={aoVerSobre} style={{ background: "none", border: "none", padding: 0,
             cursor: "pointer", fontFamily: ARCH, fontSize: 13.5, fontWeight: 700, color: C.quadra, textDecoration: "underline" }}>
-            Conheça o QuadraLab
+            Conheça a plataforma
           </button>
 
           <div className="mty-login-hero-extra" style={{ marginTop: 36 }}>
@@ -9371,6 +9468,9 @@ function TelaSobreQuadraLab({ aoVoltar }) {
           </button>
         </div>
 
+        <p style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, color: C.quadra, margin: "0 0 10px", textTransform: "uppercase", letterSpacing: "0.03em" }}>
+          QuadraLab — plataforma para treinadores de tênis
+        </p>
         <h1 style={{ fontFamily: ARCH, fontSize: 27, fontWeight: 800, color: C.tinta, margin: "0 0 12px", lineHeight: 1.28 }}>
           Mais tempo em quadra. Mais clareza no planejamento.
         </h1>
@@ -10046,7 +10146,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
             ) : (
               <div className="mb-5">
                 <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
-                  <Etiqueta cor={C.quadra}>✓ Sessão salva — continua aqui mesmo se fechar o app ou trocar de aparelho</Etiqueta>
+                  <Etiqueta cor={C.quadra}>✓ Sessão salva — continua aqui mesmo se fechar a plataforma ou trocar de aparelho</Etiqueta>
                   {podeEditar && (
                     <button onClick={() => setSessaoTurma(null)} style={{ ...prosa, fontSize: 12, color: C.grafite, cursor: "pointer", border: "none", background: "none", padding: 0 }}>
                       Descartar e gerar outra
@@ -10703,8 +10803,6 @@ function TelaDashboard({ alunos, turmas, uidAtual, exigeLogin, irPara, aoAbrirSe
           )}
         </div>
       )}
-
-      <CardUsoIA usoIA={usoIA} />
     </div>
   );
 }
@@ -11627,6 +11725,19 @@ function App() {
         .mty-topo-logo { display: none; }
         .mty-bottomnav { display: none; }
         .mty-bottomnav-item:focus-visible { outline-offset: -2px; }
+        /* Linha rótulo/valor da ficha (Avaliação do treinador, Perfil de
+           jogo, exercícios da sessão etc.) — empilhado por padrão (celular),
+           sem largura fixa, com quebra natural. Só vira coluna lado a lado
+           quando a tela tem espaço de sobra, e mesmo aí usa flex-wrap: se o
+           rótulo for longo ou o espaço disponível for menor (ex. painel
+           lateral estreito), volta a empilhar sozinho. */
+        .mty-linha { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
+        .mty-linha-valor { margin: 0; overflow-wrap: anywhere; }
+        @media (min-width: 640px) {
+          .mty-linha { flex-direction: row; flex-wrap: wrap; column-gap: 14px; row-gap: 2px; align-items: baseline; }
+          .mty-linha-rotulo { flex: 0 0 auto; padding-top: 2px; min-width: 92px; }
+          .mty-linha-valor { flex: 1 1 220px; min-width: 200px; }
+        }
         /* Barra fixa de "Finalizar e registrar aula" — no celular fica acima
            da navegação inferior; no computador, que não tem essa barra,
            encosta direto na borda da tela. */
@@ -12579,7 +12690,7 @@ function TelaMetodo() {
         para o treinador decidir.
       </p>
       {[
-        ["A ficha é a F-01", "Identificação, corpo, histórico de atividades, contexto e as quatro camadas. Os campos são os do manual, não uma invenção do app."],
+        ["A ficha é a F-01", "Identificação, corpo, histórico de atividades, contexto e as quatro camadas. Os campos são os do manual, não uma invenção da plataforma."],
         ["A ordem das camadas é travada", "Técnico abre físico, que abre tático, que abre mental. Analisar o mental antes do técnico é julgar a coragem de alguém apoiado no pé errado."],
         ["As competições desenham as fases", "Semana do torneio, duas de afinação antes da primeira competição e uma antes das seguintes, regeneração depois, ponte entre torneios próximos, descanso no fim. O resto vira base."],
         ["Volume e intensidade nunca no pico juntos", "O volume sobe na base e cai na competição; a intensidade faz o inverso. É essa separação que protege o corpo."],
