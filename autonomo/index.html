@@ -2920,6 +2920,10 @@ const DIAS_SEMANA = [
   { v: 5, r: "Sex" }, { v: 6, r: "Sáb" }, { v: 0, r: "Dom" },
 ];
 function nomeDia(v) { return (DIAS_SEMANA.find((d) => d.v === v) || {}).r || "?"; }
+/* "1 aula"/"2 aulas" — concatenar número + palavra sem checar singular
+   gerava "1 aulas"/"1 dias" em vários textos (ficha, relatório, prompt
+   de IA). Um só lugar pra essa regra, reaproveitado em todos eles. */
+function plural(n, singular, pluralForma) { return n + " " + (n === 1 ? singular : (pluralForma || singular + "s")); }
 /* Próximo horário fixo de UM jogador ou turma (pra mostrar "próximo
    treino" na lista de Jogadores sem montar a agenda inteira) — mesma
    lógica de distância de proximoCompromisso, só que já recebendo os
@@ -3630,19 +3634,25 @@ function novoAluno() {
      própria (ver comentário em TrilhaClassificacao). */
   const estagioPadrao = "C";
   const nivelPadrao = categoriasDoEstagio(estagioPadrao)[0].nivelSugerido;
+  /* Nenhum campo pessoal/físico nasce pré-selecionado — "destro", "medio"
+     ou "5 dias" escolhidos pela interface, sem o treinador ter tocado no
+     campo, virariam informação falsa na ficha e no relatório que alimenta
+     o planejamento. Cada um começa vazio/null até o treinador escolher de
+     verdade; a interface mostra "Não informado" nesse estado (ver Seletor
+     e relatorioFicha). */
   return {
-    id: "a" + Date.now(), nome: "", nascimento: "", lateralidade: "destro", backhand: "duas",
-    alturaAtual: "", projecaoAltura: "", tipoFisico: "medio", baseMotora: "media",
+    id: "a" + Date.now(), nome: "", nascimento: "", lateralidade: "", backhand: "",
+    alturaAtual: "", projecaoAltura: "", tipoFisico: "", baseMotora: "",
     contexto: "", estagio: estagioPadrao, nivel: nivelPadrao, perfilCorpo: "", perfilTemperamento: "",
     objetivosAdulto: [], disposicaoAdulto: "", comportamentoAdulto: "",
-    tempoTreinando: "", dificuldadeConsistencia: false,
+    tempoTreinando: "", dificuldadeConsistencia: null,
     entrada: {}, plano: null, regPlano: {}, avaliacaoTecnica: {},
     objetivoFinal: "", marcos: [{ ano: "", marco: "", precisa: "" }],
     camadas: { tecnico: "", fisico: "", tatico: "", mental: "" },
     prioridades: ["saque", "devolucao", "fundo", "rede"],
     armas: ["fundo"],
     inicio: "", semanas: 18, competicoes: [{ nome: "", data: "" }],
-    diasQuadra: 5, periodos: 2, escola: "noite", musculacao: 3,
+    diasQuadra: null, periodos: null, escola: "", musculacao: null,
     historico: [], registros: [], anotacoes: [],
     professorUid: "", professorNome: "", horarios: [], duracaoPadrao: "1h30",
     categoria: "", criteriosClassificacao: {},
@@ -3899,12 +3909,12 @@ function relatorioFicha(a) {
   L.push("");
   L.push("0 · CONTEXTO");
   L.push("Nascimento: " + (a.nascimento || "—") + " · Estágio: " + a.estagio + " · Nível: " + a.nivel);
-  L.push("Lateralidade: " + a.lateralidade + " · Backhand: " + a.backhand);
+  L.push("Lateralidade: " + (a.lateralidade || "não informado") + " · Backhand: " + (a.backhand || "não informado"));
   L.push("Altura atual/projeção: " + (a.alturaAtual || "—") + " / " + (a.projecaoAltura || "—"));
-  L.push("Tipo físico: " + a.tipoFisico + " · Base motora: " + a.baseMotora);
-  L.push("Rotina de treino: " + (a.diasQuadra || "—") + " dias de quadra por semana, " +
-    (a.periodos >= 2 ? "dois turnos por dia (dobrado — típico de competição)" : "um turno por dia") +
-    " · musculação " + (a.musculacao || 0) + "x/semana · escola: " + a.escola);
+  L.push("Tipo físico: " + (a.tipoFisico || "não informado") + " · Base motora: " + (a.baseMotora || "não informado"));
+  L.push("Rotina de treino: " + (a.diasQuadra ? a.diasQuadra + " dia" + (a.diasQuadra === 1 ? "" : "s") + " de quadra por semana" : "dias de quadra por semana não informados") + ", " +
+    (a.periodos == null ? "turnos por dia não informados" : a.periodos >= 2 ? "dois turnos por dia (dobrado — típico de competição)" : "um turno por dia") +
+    " · musculação " + (a.musculacao == null ? "não informada" : a.musculacao + "x/semana") + " · escola: " + (a.escola || "não informado"));
   const TEMPO_TREINANDO_R = { novo: "menos de 6 meses", intermediario: "6 meses a 2 anos", experiente: "mais de 2 anos" };
   L.push("Tempo treinando: " + (TEMPO_TREINANDO_R[a.tempoTreinando] || "[não definido]"));
   /* Adulto não usa contexto familiar — o que importa ali não é a criação
@@ -4156,8 +4166,8 @@ function promptPlanoEstruturado(a, semanas, aulasSemana, historico, enfase) {
       ...ciclosAnteriores,
     ] : []),
     "",
-    "FORMATO: " + semanas + " semanas, " + nBlocos + " blocos de aproximadamente " + porBloco +
-      " semanas, " + aulasSemana + " aulas por semana.",
+    "FORMATO: " + plural(semanas, "semana") + ", " + plural(nBlocos, "bloco") + " de aproximadamente " + plural(porBloco, "semana") +
+      ", " + plural(aulasSemana, "aula") + " por semana.",
     ...textoEnfase(enfase),
     "",
     "Devolva APENAS um JSON válido, sem texto antes ou depois, sem crases, neste formato:",
@@ -4304,8 +4314,8 @@ function promptPlanoTurma(turma, membros, semanas, aulasSemana, historico, enfas
       ...ciclosAnteriores,
     ] : []),
     "",
-    "FORMATO: " + semanas + " semanas, " + nBlocos + " blocos de aproximadamente " + porBloco +
-      " semanas, " + aulasSemana + " aulas por semana.",
+    "FORMATO: " + plural(semanas, "semana") + ", " + plural(nBlocos, "bloco") + " de aproximadamente " + plural(porBloco, "semana") +
+      ", " + plural(aulasSemana, "aula") + " por semana.",
     ...textoEnfase(enfase),
     "",
     "Devolva APENAS um JSON válido, sem texto antes ou depois, sem crases, neste formato:",
@@ -4559,7 +4569,7 @@ function estadoCampoFicha(v) { return v === NS || (v && v.trim()) ? "respondido"
    aplicados direto no cadastro salvo — usado pela lista de Jogadores pra
    saber em que etapa retomar um rascunho, sem precisar abrir a ficha. */
 function primeiraEtapaPendente(a) {
-  if (!a.nome || !a.nascimento) return 1;
+  if (!a.nome || !a.nascimento || !a.lateralidade || !a.backhand) return 1;
   if ((a.horarios || []).length === 0) return 2;
   const st = statusTrilha(a);
   if (st && st.feitos === 0) return 3;
@@ -4804,6 +4814,8 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
     const lista = [];
     if (!f.nome) lista.push({ t: "Nome do jogador", etapa: 1 });
     if (!f.nascimento) lista.push({ t: "Data de nascimento", etapa: 1 });
+    if (!f.lateralidade) lista.push({ t: "Lateralidade", etapa: 1 });
+    if (!f.backhand) lista.push({ t: "Backhand", etapa: 1 });
     if ((f.horarios || []).length === 0) lista.push({ t: "Horário fixo de treino", etapa: 2 });
     const st = statusTrilha(f);
     if (st && st.feitos === 0) lista.push({ t: "Nenhum critério de nível confirmado ainda", etapa: 3 });
@@ -4868,18 +4880,29 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
 
       {etapa === 1 && (
         <Secao titulo="Dados do jogador" nota="Identificação básica — o que não muda de aula pra aula.">
-          <Campo rotulo="Nome"><input style={entrada} value={f.nome} onChange={(e) => set("nome", e.target.value)} placeholder="Nome do jogador ou da turma" /></Campo>
+          <Campo rotulo="Nome"><input style={entrada} value={f.nome} onChange={(e) => set("nome", e.target.value)} placeholder="Nome do jogador" /></Campo>
           <Campo rotulo="Nascimento"><input type="date" style={entrada} value={f.nascimento} onChange={(e) => set("nascimento", e.target.value)} /></Campo>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {f.estagio !== "A" ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Campo rotulo="Altura atual (m)"><input style={entrada} value={f.alturaAtual} onChange={(e) => set("alturaAtual", e.target.value)} placeholder="1,78" /></Campo>
+              <Campo rotulo="Altura projetada (m)" nota="Estimativa de altura adulta, só quando houver uma referência confiável (ex.: avaliação de um profissional, altura dos pais). Deixe em branco se não tiver essa base.">
+                <input style={entrada} value={f.projecaoAltura} onChange={(e) => set("projecaoAltura", e.target.value)} placeholder="1,88" />
+              </Campo>
+            </div>
+          ) : (
             <Campo rotulo="Altura atual (m)"><input style={entrada} value={f.alturaAtual} onChange={(e) => set("alturaAtual", e.target.value)} placeholder="1,78" /></Campo>
-            <Campo rotulo="Altura projetada (m)"><input style={entrada} value={f.projecaoAltura} onChange={(e) => set("projecaoAltura", e.target.value)} placeholder="1,88" /></Campo>
-          </div>
-          <Campo rotulo="Lateralidade"><Seletor opcoes={[{ v: "destro", r: "Destro" }, { v: "canhoto", r: "Canhoto" }]} valor={f.lateralidade} aoMudar={(v) => set("lateralidade", v)} /></Campo>
-          <Campo rotulo="Backhand"><Seletor opcoes={[{ v: "duas", r: "Duas mãos" }, { v: "uma", r: "Uma mão" }]} valor={f.backhand} aoMudar={(v) => set("backhand", v)} /></Campo>
-          <Campo rotulo="Composição física" nota="O tipo de treino se define pelo tipo físico.">
+          )}
+          <Campo rotulo="Lateralidade" nota={!f.lateralidade ? "Não informado" : null}>
+            <Seletor opcoes={[{ v: "destro", r: "Destro" }, { v: "canhoto", r: "Canhoto" }]} valor={f.lateralidade} aoMudar={(v) => set("lateralidade", v)} />
+          </Campo>
+          <Campo rotulo="Backhand" nota={!f.backhand ? "Não informado" : null}>
+            <Seletor opcoes={[{ v: "duas", r: "Duas mãos" }, { v: "uma", r: "Uma mão" }]} valor={f.backhand} aoMudar={(v) => set("backhand", v)} />
+          </Campo>
+          <Campo rotulo="Composição física"
+            nota={(!f.tipoFisico ? "Não informado. " : "") + "Critério livre do treinador — a metodologia ainda não define leve/médio/forte de forma objetiva. Preencha só se usar isso na prática."}>
             <Seletor opcoes={[{ v: "leve", r: "Leve" }, { v: "medio", r: "Médio" }, { v: "forte", r: "Forte" }]} valor={f.tipoFisico} aoMudar={(v) => set("tipoFisico", v)} />
           </Campo>
-          <Campo rotulo="Histórico de atividades na infância" nota="Define quanto o bloco de base motora pesa.">
+          <Campo rotulo="Histórico de atividades na infância" nota={(!f.baseMotora ? "Não informado. " : "") + "Define quanto o bloco de base motora pesa."}>
             <Seletor opcoes={[{ v: "pobre", r: "Pouca variedade" }, { v: "media", r: "Média" }, { v: "rica", r: "Muitos esportes" }]} valor={f.baseMotora} aoMudar={(v) => set("baseMotora", v)} />
           </Campo>
           {f.estagio !== "A" ? (
@@ -4912,11 +4935,11 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
             <Campo rotulo="Horário fixo de treino" nota="Alimenta a Grade de horário e a Agenda semanal.">
               <EditorHorarios horarios={f.horarios || []} setHorarios={(h) => set("horarios", h)} />
             </Campo>
-            <Campo rotulo="Duração do treino" nota="Cada horário acima ocupa esse tempo inteiro na Agenda e na Grade de aulas.">
+            <Campo rotulo="Duração da aula" nota="Cada horário acima ocupa esse tempo inteiro na Agenda e na Grade de aulas.">
               <Seletor opcoes={DURACOES_TREINO} valor={f.duracaoPadrao || "1h30"} aoMudar={(v) => set("duracaoPadrao", v)} />
             </Campo>
-            <Campo rotulo="Dias de quadra por semana">
-              <Seletor opcoes={[1, 2, 3, 4, 5, 6, 7].map((d) => ({ v: d, r: d + " dias" }))} valor={f.diasQuadra} aoMudar={(v) => set("diasQuadra", v)} />
+            <Campo rotulo="Dias de quadra por semana" nota={!f.diasQuadra ? "Não informado" : null}>
+              <Seletor opcoes={[1, 2, 3, 4, 5, 6, 7].map((d) => ({ v: d, r: d + (d === 1 ? " dia" : " dias") }))} valor={f.diasQuadra} aoMudar={(v) => set("diasQuadra", v)} />
             </Campo>
             <Campo rotulo="Tempo treinando" nota="Calibra expectativa: um adulto com 3 meses não lê igual a alguém com 3 anos.">
               <Seletor opcoes={[{ v: "novo", r: "Menos de 6 meses" }, { v: "intermediario", r: "6 meses a 2 anos" }, { v: "experiente", r: "Mais de 2 anos" }]}
@@ -4932,9 +4955,15 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
           {mostrarMaisRotina && (
             <>
               <Secao titulo="Mais rotina">
-                <Campo rotulo="Períodos por dia"><Seletor opcoes={[{ v: 1, r: "Um" }, { v: 2, r: "Dois" }]} valor={f.periodos} aoMudar={(v) => set("periodos", v)} /></Campo>
-                <Campo rotulo="Escola"><Seletor opcoes={[{ v: "manha", r: "Manhã" }, { v: "tarde", r: "Tarde" }, { v: "noite", r: "Noite" }, { v: "nao", r: "Não estuda" }]} valor={f.escola} aoMudar={(v) => set("escola", v)} /></Campo>
-                <Campo rotulo="Musculação por semana"><Seletor opcoes={[0, 1, 2, 3, 4, 5].map((n) => ({ v: n, r: String(n) }))} valor={f.musculacao} aoMudar={(v) => set("musculacao", v)} /></Campo>
+                <Campo rotulo="Períodos por dia" nota={f.periodos == null ? "Não informado" : null}>
+                  <Seletor opcoes={[{ v: 1, r: "Um" }, { v: 2, r: "Dois" }]} valor={f.periodos} aoMudar={(v) => set("periodos", v)} />
+                </Campo>
+                <Campo rotulo="Escola" nota={!f.escola ? "Não informado" : null}>
+                  <Seletor opcoes={[{ v: "manha", r: "Manhã" }, { v: "tarde", r: "Tarde" }, { v: "noite", r: "Noite" }, { v: "nao", r: "Não estuda" }]} valor={f.escola} aoMudar={(v) => set("escola", v)} />
+                </Campo>
+                <Campo rotulo="Musculação por semana" nota={f.musculacao == null ? "Não informado" : null}>
+                  <Seletor opcoes={[0, 1, 2, 3, 4, 5].map((n) => ({ v: n, r: String(n) }))} valor={f.musculacao} aoMudar={(v) => set("musculacao", v)} />
+                </Campo>
               </Secao>
               <Secao titulo="Horizonte" nota="Planejamento do fim para o começo.">
                 <Campo rotulo="Objetivo final">
@@ -5035,7 +5064,7 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
                 ))}
               </>
             )}
-            <Campo rotulo="Dificuldade de consistência" nota="Erra demais pra sustentar a troca de bolas.">
+            <Campo rotulo="Dificuldade de consistência" nota={(f.dificuldadeConsistencia == null ? "Não informado. " : "") + "Erra demais pra sustentar a troca de bolas."}>
               <Seletor opcoes={[{ v: false, r: "Não" }, { v: true, r: "Sim" }]} valor={f.dificuldadeConsistencia} aoMudar={(v) => set("dificuldadeConsistencia", v)} />
             </Campo>
           </Secao>
@@ -5302,7 +5331,7 @@ function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual, podeEditar = true,
 
       <Secao titulo="Calendário">
         <p style={prosa}>
-          {a.inicio ? "Início " + a.inicio : "sem data de início"} · {a.semanas} semanas · {a.diasQuadra} dias de quadra por semana · {a.periodos >= 2 ? "dois turnos por dia" : "um turno por dia"}
+          {a.inicio ? "Início " + a.inicio : "sem data de início"} · {a.semanas} semanas · {a.diasQuadra ? a.diasQuadra + " dia" + (a.diasQuadra === 1 ? "" : "s") + " de quadra por semana" : "dias de quadra por semana não informados"} · {a.periodos == null ? "turnos por dia não informados" : a.periodos >= 2 ? "dois turnos por dia" : "um turno por dia"}
         </p>
       </Secao>
       </>
@@ -5931,7 +5960,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
       {!plano && chuvaMenuAberto && (
         <div className="mt-4">
           <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>
-            A aula rolou, só não deu pra jogar em quadra — escolha um modelo pra registrar como a sessão de hoje
+            A aula aconteceu, só não deu pra jogar em quadra — escolha um modelo pra registrar o que foi feito hoje
             (isso NÃO cancela a aula do Plano; ela conta como realizada).
           </p>
           {TREINO_CHUVA.map((m) => (
@@ -7750,7 +7779,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
     });
     L.push("");
     const dores = aulas.filter((a) => (reg[a.id] || {}).dor);
-    L.push("REGISTRO DE DOR — " + (dores.length ? dores.length + " aulas com registro" : "nenhum registro no período"));
+    L.push("REGISTRO DE DOR — " + (dores.length ? plural(dores.length, "aula") + " com registro" : "nenhum registro no período"));
     dores.forEach((a) => L.push("  " + (reg[a.id].data || "") + " · semana " + a.semana + " · " + reg[a.id].dor));
     L.push("");
     let bl = "";
@@ -7813,7 +7842,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
 
   function refazerPlanejamento() {
     const msg = feitas > 0
-      ? "Arquivar as " + feitas + " aulas já realizadas como ciclo fechado e gerar um plano novo com a ficha atual?"
+      ? "Arquivar " + (feitas === 1 ? "a 1 aula já realizada" : "as " + feitas + " aulas já realizadas") + " como ciclo fechado e gerar um plano novo com a ficha atual?"
       : "Gerar um plano novo com a ficha atual, no lugar deste?";
     if (confirm(msg)) revisarComFichaAtualizada();
   }
@@ -9004,15 +9033,17 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual
           <Campo rotulo="Dias e horários de treino" nota="Pode ter de 2 a 5 por semana. Alimenta a Grade de horário e a Agenda semanal.">
             <EditorHorarios horarios={horarios} setHorarios={setHorarios} />
           </Campo>
-          <Campo rotulo="Jogadores (mínimo 2)">
+          <Campo rotulo="Jogadores (mínimo 2)" nota="Reúne jogadores já cadastrados — a ficha, a avaliação e o plano de cada um continuam individuais.">
             <div className="flex flex-wrap gap-2">
-              {alunos.map((a) => (
+              {/* Cadastros ainda sem nome não aparecem aqui — não dá pra
+                  colocar numa turma um jogador que ainda nem tem nome. */}
+              {alunos.filter((a) => a.nome).map((a) => (
                 <button key={a.id} onClick={() => alternarMembro(a.id)}
                   style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 600, padding: "6px 11px", borderRadius: 10, cursor: "pointer",
                     border: "1px solid " + (membrosSel.includes(a.id) ? C.tinta : C.linha),
                     background: membrosSel.includes(a.id) ? C.tinta : C.papel,
                     color: membrosSel.includes(a.id) ? C.papel : C.grafite }}>
-                  {a.nome || "Sem nome"}
+                  {a.nome}
                 </button>
               ))}
             </div>
@@ -9054,7 +9085,7 @@ function GerenciarMembrosTurma({ turma, alunos, setTurmas, podeEditar }) {
   const [aberto, setAberto] = useState(false);
   const [addId, setAddId] = useState("");
   const membros = turma.membros.map((id) => alunos.find((a) => a.id === id)).filter(Boolean);
-  const disponiveis = alunos.filter((a) => !turma.membros.includes(a.id));
+  const disponiveis = alunos.filter((a) => a.nome && !turma.membros.includes(a.id));
 
   function adicionar() {
     if (!addId) return;
@@ -9076,7 +9107,7 @@ function GerenciarMembrosTurma({ turma, alunos, setTurmas, podeEditar }) {
         <div className="mt-3">
           {membros.map((m) => (
             <div key={m.id} className="flex items-center justify-between gap-3 mb-2" style={{ background: C.papel, border: "1px solid " + C.linha, padding: "8px 11px" }}>
-              <span style={{ ...prosa, fontSize: 13 }}>{m.nome || "Sem nome"}</span>
+              <span style={{ ...prosa, fontSize: 13 }}>{m.nome || "Jogador sem nome"}</span>
               {podeEditar && <button onClick={() => remover(m.id)} title="Remover da turma" style={iconeEstilo}>×</button>}
             </div>
           ))}
@@ -9085,7 +9116,7 @@ function GerenciarMembrosTurma({ turma, alunos, setTurmas, podeEditar }) {
           )}
           {podeEditar && disponiveis.length > 0 && (
             <div className="flex gap-2 mt-3 flex-wrap items-center">
-              <Seletor opcoes={[{ v: "", r: "Adicionar jogador…" }, ...disponiveis.map((a) => ({ v: a.id, r: a.nome || "Sem nome" }))]}
+              <Seletor opcoes={[{ v: "", r: "Adicionar jogador…" }, ...disponiveis.map((a) => ({ v: a.id, r: a.nome }))]}
                 valor={addId} aoMudar={setAddId} />
               <Botao pequeno onClick={adicionar} disabled={!addId}>Adicionar</Botao>
             </div>
@@ -9752,8 +9783,52 @@ function planosParaRevisar(alunos, turmas) {
   return lista;
 }
 
+/* "Criar planejamento" precisa deixar claro se o plano é de um jogador
+   ou de uma turma — são fluxos diferentes (TelaPlano lê `aluno` ou
+   `turma`, nunca os dois). Mesmo padrão visual do "Agendar pra quem?"
+   da Agenda, reaproveitado aqui pelo mesmo motivo. */
+function EscolherPlanejamentoDialog({ alunos, turmas, aoEscolherJogador, aoEscolherTurma, aoFechar, aoAdicionarJogador }) {
+  const jogadores = alunos.filter((a) => a.nome);
+  return (
+    <>
+      <div onClick={aoFechar} style={{ position: "fixed", inset: 0, background: "rgba(16,30,25,.4)", zIndex: 39 }} />
+      <div role="dialog" aria-modal="true" aria-label="Criar planejamento pra quem?"
+        style={{ position: "fixed", left: 0, right: 0, bottom: 0, background: C.cal, zIndex: 40,
+          borderRadius: "16px 16px 0 0", boxShadow: SOMBRA_ALTA, maxHeight: "85vh", display: "flex", flexDirection: "column" }}>
+        <div className="flex items-center justify-between" style={{ padding: "14px 18px", borderBottom: "1px solid " + C.linha }}>
+          <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>Criar planejamento pra quem?</span>
+          <button onClick={aoFechar} aria-label="Fechar" style={{ width: 36, height: 36, border: "none", background: "none", cursor: "pointer", fontSize: 20, color: C.grafite }}>×</button>
+        </div>
+        <div style={{ overflowY: "auto", padding: "14px 18px" }}>
+          {jogadores.map((a) => (
+            <button key={a.id} onClick={() => aoEscolherJogador(a.id)} className="w-full text-left"
+              style={{ display: "block", padding: "12px 10px", border: "none", background: "none", cursor: "pointer", borderRadius: 10, minHeight: 44 }}>
+              <span style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 600 }}>{a.nome}</span>
+              <span style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginLeft: 8 }}>Jogador</span>
+            </button>
+          ))}
+          {turmas.map((t) => (
+            <button key={t.id} onClick={() => aoEscolherTurma(t.id)} className="w-full text-left"
+              style={{ display: "block", padding: "12px 10px", border: "none", background: "none", cursor: "pointer", borderRadius: 10, minHeight: 44 }}>
+              <span style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 600 }}>{t.nome}</span>
+              <span style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginLeft: 8 }}>Turma</span>
+            </button>
+          ))}
+          {jogadores.length === 0 && turmas.length === 0 && (
+            <div style={{ padding: "12px 10px" }}>
+              <p style={{ ...prosa, color: C.grafite, marginBottom: 10 }}>Cadastre um jogador ou uma turma primeiro.</p>
+              {aoAdicionarJogador && <Botao pequeno onClick={aoAdicionarJogador}>+ Adicionar jogador</Botao>}
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
 function TelaDashboard({ alunos, turmas, uidAtual, exigeLogin, irPara, aoAbrirSessao, usoIA, identidade, meuNome,
   aoCriarPlanejamento, aoAbrirTurmas, aoAbrirAgenda, aoAdicionarJogador }) {
+  const [escolhendoPlanejamento, setEscolhendoPlanejamento] = useState(false);
   /* null fechado; "prontas"/"semana" abrem a lista do indicador correspondente. */
   const [detalhe, setDetalhe] = useState(null);
 
@@ -9795,12 +9870,23 @@ function TelaDashboard({ alunos, turmas, uidAtual, exigeLogin, irPara, aoAbrirSe
       <h1 style={{ fontFamily: ARCH, fontSize: 26, fontWeight: 700, marginBottom: 4 }}>{saudacao}</h1>
       <p style={{ ...prosa, fontSize: 15, color: C.grafite, marginBottom: 18 }}>Vamos preparar sua próxima aula?</p>
 
-      {/* ── ação principal: única entrada pra criar planejamento na tela toda ── */}
-      <div className="mb-3"><Botao variante="saibro" onClick={aoCriarPlanejamento} style={{ width: "100%" }}>Criar planejamento</Botao></div>
+      {/* ── ação principal: única entrada pra criar planejamento na tela toda ──
+         Pede primeiro se é pra um jogador ou uma turma — são fluxos
+         diferentes, cada um com seu próprio TelaPlano. */}
+      <div className="mb-3">
+        <Botao variante="saibro" onClick={() => setEscolhendoPlanejamento(true)} style={{ width: "100%" }}>Criar planejamento</Botao>
+      </div>
       <div className="flex gap-2 flex-wrap mb-5">
         <Botao pequeno variante="vazio" onClick={aoAdicionarJogador}>+ Adicionar jogador</Botao>
         <Botao pequeno variante="vazio" onClick={aoAbrirAgenda}>+ Agendar aula</Botao>
       </div>
+      {escolhendoPlanejamento && (
+        <EscolherPlanejamentoDialog alunos={alunos} turmas={turmas}
+          aoEscolherJogador={(id) => { setEscolhendoPlanejamento(false); irPara(id); }}
+          aoEscolherTurma={() => { setEscolhendoPlanejamento(false); aoAbrirTurmas(); }}
+          aoFechar={() => setEscolhendoPlanejamento(false)}
+          aoAdicionarJogador={() => { setEscolhendoPlanejamento(false); aoAdicionarJogador(); }} />
+      )}
 
       {/* ── próxima aula ── */}
       <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 14, padding: "16px 18px" }}>
