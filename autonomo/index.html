@@ -5832,7 +5832,11 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
   const [novoPersonalizado, setNovoPersonalizado] = useState(PERSONALIZADO_VAZIO);
   const [formPersonalizadoAberto, setFormPersonalizadoAberto] = useState(false);
   const [chuvaMenuAberto, setChuvaMenuAberto] = useState(false);
-  const [salvo, setSalvo] = useState(null); // null | "plano" | "avulso"
+  /* Substitui o antigo aviso de 4s: depois de registrar, mostra uma tela
+     de confirmação de verdade (resumo do que foi informado, progresso
+     do plano, próxima aula prevista e uma ação clara) em vez de só uma
+     tarja que desaparece sozinha enquanto o formulário já tinha sumido. */
+  const [resumoRegistro, setResumoRegistro] = useState(null);
   const [estadoSalvo, setEstadoSalvo] = useState(null); // null | "salvando" | "salvo" | "erro"
   const [comoFuncionaAberto, setComoFuncionaAberto] = useState(false);
   /* Desfazer uma remoção — guarda o exercício removido e onde estava, só
@@ -6120,6 +6124,24 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
     const ok = await grave("mty:alunos:v2", alunosAtualizados);
     setAlunos(alunosAtualizados);
     if (!ok) { setEstadoSalvo("erro"); setSalvandoRegistro(false); registrandoRef.current = false; return; }
+
+    /* Resumo real pra tela de confirmação — calculado a partir do aluno
+       JÁ ATUALIZADO (não do estado antigo), pra "próxima aula prevista"
+       e "progresso do plano" já refletirem este registro, sem esperar
+       um novo render vindo de cima. */
+    const alunoAtualizado = alunosAtualizados.find((a) => a.id === aluno.id);
+    const feitosExercicios = todosExercicios.filter((e) => (exerciciosStatus[e.c] || "feito") === "feito").length;
+    const resumo = {
+      aulaTitulo: aulaAtual ? aulaAtual.t : modeloChuva ? ("Dia de chuva — " + modeloChuva.nome) : "Sessão avulsa",
+      duracao, totalExercicios: cods.length, feitosExercicios,
+      notas: !!notasSessao, marcouPlano: !!aulaAtual,
+    };
+    if (aulaAtual && alunoAtualizado.plano) {
+      const aulasAtual = listaAulas(alunoAtualizado.plano, alunoAtualizado.regPlano);
+      resumo.progresso = { feitas: aulasAtual.filter((a) => statusAula(alunoAtualizado.regPlano, a.id) === "feita").length, total: aulasAtual.length };
+      resumo.proxima = aulaEmVigor(alunoAtualizado);
+    }
+
     setPlano(null); setFechando(false); setDivergencias([]); setStatusExercicios({});
     setObs({ corrigi: "", ignorei: "", mudaria: "", proximoFoco: "", nota: 3 });
     setStatusAulaPlano("feita"); setMotivoAulaPlano("");
@@ -6131,11 +6153,11 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
     /* Confirmação visível de que o registro foi salvo — o relatório desta
        sessão vai para aluno.registros (aba Caderno) e, quando havia aula
        do Plano em vigor, também para regPlano[aulaAtual.id].obs (é dali
-       que o fechamento de ciclo e o próximo plano por IA leem). Sem isso
-       na tela, "salvou mesmo?" ficava sem resposta — o formulário só
-       desaparecia. */
-    setSalvo(aulaAtual ? "plano" : "avulso");
-    setTimeout(() => setSalvo(null), 4000);
+       que o fechamento de ciclo e o próximo plano por IA leem). Fica na
+       tela até o treinador escolher uma ação (nunca some sozinha) —
+       mostra o que foi registrado, o progresso do plano e a próxima
+       aula, em vez de só um "deu certo" genérico. */
+    setResumoRegistro(resumo);
   }
 
   /* Lista plana de todos os exercícios da sessão atual, qualquer que seja
@@ -6166,6 +6188,10 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
 
   return (
     <div>
+      {resumoRegistro ? (
+        <ConfirmacaoRegistroAula resumo={resumoRegistro} aoFechar={() => setResumoRegistro(null)} setSubaba={setSubaba} />
+      ) : (
+      <>
       {/* ── cabeçalho compacto: quem, título curto da aula, semana/bloco, duração, salvamento ── */}
       <div className="mb-5">
         <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, fontWeight: 700 }}>{aluno.nome || "Jogador"}</p>
@@ -6209,11 +6235,6 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
         )}
       </div>
 
-      {salvo && (
-        <div className="mb-4" style={{ background: C.quadra, padding: "9px 13px" }}>
-          <Etiqueta cor="#fff">{salvo === "plano" ? "✓ sessão registrada e marcada no plano" : "✓ sessão registrada no caderno"}</Etiqueta>
-        </div>
-      )}
       {!podeEditar && (
         <div className="mb-5"><Aviso>Este jogador é de outro treinador — só ele (ou o coordenador) pode registrar a sessão dele.</Aviso></div>
       )}
@@ -6524,6 +6545,66 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
           )}
         </div>
       )}
+      </>
+      )}
+    </div>
+  );
+}
+
+/* Tela de confirmação depois de registrar uma aula — fica até o
+   treinador escolher uma ação (nunca some sozinha): o que foi
+   registrado, o progresso atualizado do plano e a próxima aula
+   prevista, quando existir. */
+function ConfirmacaoRegistroAula({ resumo, aoFechar, setSubaba }) {
+  const temProximaReal = resumo.proxima && !resumo.proxima.gate;
+  return (
+    <div style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, boxShadow: SOMBRA_ALTA, padding: 18 }}>
+      <div style={{ background: C.quadra, borderRadius: 8, padding: "9px 13px", marginBottom: 14 }}>
+        <Etiqueta cor="#fff">{resumo.marcouPlano ? "✓ Aula registrada e marcada no plano" : "✓ Sessão registrada no caderno"}</Etiqueta>
+      </div>
+
+      <p style={{ fontFamily: ARCH, fontSize: 17, fontWeight: 700, marginBottom: 4 }}>{resumo.aulaTitulo}</p>
+      <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginBottom: 16 }}>
+        {resumo.duracao} min · {resumo.feitosExercicios} de {resumo.totalExercicios} {resumo.totalExercicios === 1 ? "exercício" : "exercícios"} feitos
+        {resumo.notas ? " · observações registradas" : ""}
+      </p>
+
+      {resumo.progresso && (
+        <div className="mb-4">
+          <Etiqueta cor={C.grafite}>Progresso do plano</Etiqueta>
+          <p style={{ fontFamily: ARCH, fontSize: 19, fontWeight: 700, marginTop: 4 }}>
+            {resumo.progresso.feitas} de {resumo.progresso.total} aulas realizadas
+          </p>
+        </div>
+      )}
+
+      {resumo.proxima && (
+        <div className="mb-4" style={{ borderLeft: "3px solid " + C.saibro, paddingLeft: 12 }}>
+          <Etiqueta cor={C.saibro}>{resumo.proxima.gate ? "Próximo passo" : "Próxima aula prevista"}</Etiqueta>
+          <p style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700, marginTop: 4 }}>{resumo.proxima.t}</p>
+          {!resumo.proxima.gate && (
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>{resumo.proxima.bloco} · semana {resumo.proxima.semana}</p>
+          )}
+        </div>
+      )}
+      {resumo.marcouPlano && !resumo.proxima && (
+        <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginBottom: 14 }}>
+          Esse era o último passo pendente do ciclo — hora de fechar e gerar o relatório.
+        </p>
+      )}
+
+      <div className="flex gap-2 flex-wrap">
+        {resumo.proxima && resumo.proxima.gate && setSubaba && (
+          <Botao variante="saibro" onClick={() => { aoFechar(); setSubaba("aulas"); }}>Confirmar critério na aba Aulas</Botao>
+        )}
+        {temProximaReal && (
+          <Botao variante="saibro" onClick={aoFechar}>Preparar a próxima sessão</Botao>
+        )}
+        {resumo.marcouPlano && !resumo.proxima && setSubaba && (
+          <Botao variante="saibro" onClick={() => { aoFechar(); setSubaba("plano"); }}>Ver o plano e fechar o ciclo</Botao>
+        )}
+        {!temProximaReal && <Botao variante="vazio" onClick={aoFechar}>Fechar</Botao>}
+      </div>
     </div>
   );
 }
@@ -8186,6 +8267,17 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
     }
   }
 
+  /* Confirmar o plano candidato (gerado por IA ou colado) é o primeiro
+     "salvar" de verdade que este jogador recebe — não pode ser otimista.
+     Usa o mesmo salvarComEstado() do resto do app: só fecha o cartão de
+     revisão e avança pro plano ativo depois que grave() confirma a
+     escrita; em caso de falha, o cartão continua ali, com o plano
+     candidato intacto, pra tentar de novo sem perder nada. */
+  async function usarPlanoCandidato() {
+    const ok = await salvarComEstado({ plano: planoCandidato, regPlano: {} });
+    if (ok) setPlanoCandidato(null);
+  }
+
   const aulas = useMemo(() => listaAulas(plano, reg), [plano, reg]);
 
   /* status de cada aula: "" (pendente) | "feita" | "falta" | "cancelada". */
@@ -8481,10 +8573,17 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
               {plural(planoCandidato.blocos.length, "bloco")} · {plural(listaAulas(planoCandidato, {}).length, "aula")}
               {historico.length > 0 ? " · o ciclo anterior fica arquivado no histórico, logo abaixo" : ""}
             </p>
-            <div className="flex gap-2 mt-3 flex-wrap">
-              <Botao variante="saibro" onClick={() => { atualiza({ plano: planoCandidato, regPlano: {} }); setPlanoCandidato(null); }}>Usar este plano</Botao>
-              <Botao variante="vazio" onClick={() => setPlanoCandidato(null)}>Descartar e tentar de novo</Botao>
+            <div className="flex gap-2 mt-3 flex-wrap items-center">
+              <Botao variante="saibro" onClick={usarPlanoCandidato} disabled={estadoSalvo === "salvando"}>
+                {estadoSalvo === "salvando" ? "Salvando…" : "Usar este plano"}
+              </Botao>
+              <Botao variante="vazio" disabled={estadoSalvo === "salvando"} onClick={() => setPlanoCandidato(null)}>Descartar e tentar de novo</Botao>
             </div>
+            {estadoSalvo === "erro" && (
+              <p style={{ ...prosa, fontSize: 12.5, color: "#8A2E2E", marginTop: 9 }}>
+                Não foi possível salvar agora — confira sua internet e toque em "Usar este plano" de novo.
+              </p>
+            )}
           </div>
         )}
 
@@ -9445,12 +9544,14 @@ function MotivoQuadra({ opacidade = 0.14 }) {
 /* Cada item abaixo descreve só o que já existe e funciona no app —
    nunca algo planejado ou ainda não pronto. */
 const PASSOS_COMO_FUNCIONA = [
-  { numero: "01", Icone: IconeJogadores, titulo: "Conheça o jogador",
-    texto: "Reúna informações, objetivos e observações para orientar o trabalho." },
-  { numero: "02", Icone: IconeAgenda, titulo: "Organize o planejamento",
-    texto: "Defina o foco das aulas, consulte os exercícios e ajuste as atividades." },
-  { numero: "03", Icone: IconeGrafico, titulo: "Registre a aula",
-    texto: "Guarde o que foi realizado e os pontos de atenção para dar continuidade ao acompanhamento." },
+  { numero: "01", Icone: IconeJogadores, titulo: "Cadastrar jogador",
+    texto: "Crie a ficha do jogador com os dados essenciais para começar." },
+  { numero: "02", Icone: IconeLista, titulo: "Registrar avaliação",
+    texto: "Observe e registre o nível técnico e tático de cada golpe, conforme a metodologia." },
+  { numero: "03", Icone: IconeAgenda, titulo: "Preparar planejamento",
+    texto: "Gere o ciclo de aulas a partir da ficha, revise e confirme antes de usar." },
+  { numero: "04", Icone: IconeGrafico, titulo: "Conduzir e registrar aula",
+    texto: "Siga os exercícios da sessão e registre o que foi feito ao final." },
 ];
 
 const RECURSOS_QUADRALAB = [
@@ -9604,7 +9705,8 @@ function TelaVendas({ aoEntrar }) {
         .qlab-secao-alt { background: #EFF3F0; }
 
         .qlab-passos { display: grid; grid-template-columns: 1fr; gap: 24px; }
-        @media (min-width: 760px) { .qlab-passos { grid-template-columns: repeat(3, 1fr); gap: 28px; } }
+        @media (min-width: 560px) { .qlab-passos { grid-template-columns: repeat(2, 1fr); gap: 26px; } }
+        @media (min-width: 980px) { .qlab-passos { grid-template-columns: repeat(4, 1fr); gap: 24px; } }
         .qlab-passo-numero { font-family: ${ARCH}; font-size: 13px; font-weight: 700; color: ${C.saibro};
           background: ${C.papel}; border: 1px solid ${C.linha}; border-radius: 999px; width: 30px; height: 30px;
           display: inline-flex; align-items: center; justify-content: center; margin-bottom: 14px; }
@@ -9705,22 +9807,6 @@ function TelaVendas({ aoEntrar }) {
         </div>
       </section>
 
-      <section className="qlab-secao" id="qlab-como-funciona">
-        <div className="qlab-secao-cabecalho">
-          <h2>Da preparação ao acompanhamento</h2>
-        </div>
-        <div className="qlab-passos">
-          {PASSOS_COMO_FUNCIONA.map((p, i) => (
-            <div key={i} className="qlab-passo">
-              <span className="qlab-passo-numero">{p.numero}</span>
-              <div className="qlab-passo-icone"><p.Icone tam={26} /></div>
-              <h3>{p.titulo}</h3>
-              <p>{p.texto}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
       <section className="qlab-secao qlab-secao-alt" id="qlab-demonstracao">
         <div className="qlab-secao-cabecalho">
           <p className="qlab-secao-eyebrow">Plataforma intuitiva e prática</p>
@@ -9738,6 +9824,22 @@ function TelaVendas({ aoEntrar }) {
                 <h3>{c.titulo}</h3>
                 <p>{c.texto}</p>
               </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="qlab-secao" id="qlab-como-funciona">
+        <div className="qlab-secao-cabecalho">
+          <h2>Do cadastro ao registro da aula</h2>
+        </div>
+        <div className="qlab-passos">
+          {PASSOS_COMO_FUNCIONA.map((p, i) => (
+            <div key={i} className="qlab-passo">
+              <span className="qlab-passo-numero">{p.numero}</span>
+              <div className="qlab-passo-icone"><p.Icone tam={26} /></div>
+              <h3>{p.titulo}</h3>
+              <p>{p.texto}</p>
             </div>
           ))}
         </div>
