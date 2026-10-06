@@ -385,6 +385,8 @@ function aplicarIconesPWA(orgId) {
 
 const ARCH = "Inter, system-ui, sans-serif";
 const SERIF = ARCH; // uma família só, sem serifa — identidade QuadraLab
+const SOMBRA = "0 1px 2px rgba(16,59,50,.04), 0 1px 3px rgba(16,59,50,.05)";
+const SOMBRA_ALTA = "0 2px 6px rgba(16,59,50,.07), 0 6px 16px rgba(16,59,50,.08)";
 
 const FAM = {
   IP: "Início do ponto", RT: "Redução de tempo", CO: "Coordenação e base motora",
@@ -2110,6 +2112,32 @@ function faseDoEstagio(estagio) {
   return "Adulto";
 }
 
+/* Nome do nível (ex. "Descoberta") a partir do código (ex. "Y1") — única
+   fonte pra traduzir o código técnico em texto pro treinador. */
+function nomeNivel(codigo) {
+  const c = NIVEIS_CRITERIOS.find((n) => n.nivel === codigo);
+  return c ? c.nome : codigo;
+}
+
+/* Única fonte do que aparece como "nível" em qualquer lugar da ficha —
+   cabeçalho do jogador, cartão de nível, resumo, lista de jogadores.
+   Sempre calculado a partir da trilha (categoria + critérios marcados),
+   nunca do campo f.nivel bruto, que pode ficar momentaneamente
+   dessincronizado entre o rascunho em edição e o que já foi salvo. Com
+   zero critério confirmado não existe avaliação de verdade ainda —
+   mostrar um nível específico aí seria tratar ausência de dado como se
+   fosse o nível mais baixo, que é exatamente o que a metodologia probe. */
+function resumoNivel(x) {
+  const st = statusTrilha(x);
+  if (!st) return null;
+  const pendente = st.feitos === 0;
+  return {
+    st, pendente,
+    textoNivel: pendente ? "Avaliação pendente" : "Nível " + nomeNivel(st.atual.nivelSugerido),
+    linha: st.atual.nome + (pendente ? " · Avaliação pendente" : " · Nível " + nomeNivel(st.atual.nivelSugerido)),
+  };
+}
+
 /* O caminho da infância é sempre V → L → G, mesmo que o jogador atual
    esteja só numa dessas três — diferente de categoriasDoEstagio, que
    devolve só o degrau em que ele está agora. */
@@ -2609,8 +2637,10 @@ async function leia(chave, padrao, compartilhado = false) {
   } catch { return padrao; }
 }
 async function grave(chave, valor, compartilhado = false) {
-  try { await window.storage.set(chave, JSON.stringify(valor), compartilhado); }
-  catch (e) { console.error("falha ao gravar", e); }
+  try {
+    const r = await window.storage.set(chave, JSON.stringify(valor), compartilhado);
+    return !!r;
+  } catch (e) { console.error("falha ao gravar", e); return false; }
 }
 
 /* ─────────────────────────── geração por IA ───────────────────────────
@@ -3272,11 +3302,11 @@ function CartaoExercicio({ e, aoTrocar, aoRemover, aoAtualizar, exerciciosCustom
 const iconeEstilo = { fontFamily: ARCH, fontSize: 15, width: 27, height: 27, border: "1px solid " + C.linha, borderRadius: 10, background: C.papel, color: C.grafite, cursor: "pointer", lineHeight: 1 };
 function Linha({ rotulo, texto, destaque }) {
   return (
-    <div className="flex gap-3 mb-1.5">
-      <div style={{ width: 78, flexShrink: 0, paddingTop: 2 }}>
+    <div className="mty-linha">
+      <div className="mty-linha-rotulo">
         <Etiqueta cor={destaque ? C.saibro : C.grafite}>{rotulo}</Etiqueta>
       </div>
-      <p style={{ ...prosa, fontSize: 13.5, color: destaque ? C.saibro : C.tinta }}>{texto}</p>
+      <p className="mty-linha-valor" style={{ ...prosa, fontSize: 13.5, color: destaque ? C.saibro : C.tinta }}>{texto}</p>
     </div>
   );
 }
@@ -4283,7 +4313,189 @@ function podeEditarTurma(turma, papelAtual, uidAtual) {
   return !turma.professorUid || turma.professorUid === uidAtual || turma.professorAuxiliarUid === uidAtual;
 }
 
-function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
+function IconeSeta({ tam = 18 }) {
+  return (
+    <svg width={tam} height={tam} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 5l7 7-7 7" />
+    </svg>
+  );
+}
+
+const ETAPAS_FICHA = [
+  { n: 1, titulo: "Dados" },
+  { n: 2, titulo: "Rotina" },
+  { n: 3, titulo: "Nível" },
+  { n: 4, titulo: "Avaliação" },
+  { n: 5, titulo: "Revisão" },
+];
+
+/* "Etapa X de 5" + nome da etapa + barra compacta — progresso de
+   PREENCHIMENTO da ficha. Não confundir com TrilhaVisual/CartaoNivel,
+   que mostram progresso de EVOLUÇÃO esportiva do jogador: são duas
+   barras diferentes, de duas coisas diferentes. */
+function ProgressoFicha({ etapa }) {
+  const info = ETAPAS_FICHA[etapa - 1];
+  return (
+    <div className="mb-5">
+      <div className="flex items-baseline justify-between gap-3 mb-2">
+        <Etiqueta cor={C.grafite}>Etapa {etapa} de {ETAPAS_FICHA.length}</Etiqueta>
+        <h2 style={{ fontFamily: ARCH, fontSize: 19, fontWeight: 700 }}>{info.titulo}</h2>
+      </div>
+      <div className="flex" style={{ gap: 6 }}>
+        {ETAPAS_FICHA.map((e) => (
+          <div key={e.n} style={{ flex: 1, height: 4, borderRadius: 999, background: e.n <= etapa ? C.saibro : C.linha }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* Explicação completa e exemplos ficam escondidos por padrão — só a
+   orientação curta junto do campo fica sempre visível. */
+function AjudaContextual({ titulo = "Como avaliar?", children }) {
+  const [aberto, setAberto] = useState(false);
+  return (
+    <div className="mb-3">
+      <button type="button" onClick={() => setAberto(!aberto)}
+        style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, color: C.grafite, background: "none",
+          border: "none", cursor: "pointer", padding: 0, minHeight: 32 }}>
+        {titulo}{aberto ? " ▲" : " ▼"}
+      </button>
+      {aberto && (
+        <div className="mt-2" style={{ background: C.papel, borderLeft: "3px solid " + C.linha, padding: "9px 12px" }}>
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>{children}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* Resumo compacto — uma linha de categoria/nível, uma de progresso, e
+   (opcional) uma seta pra abrir a avaliação. Nunca um cartão grande:
+   os detalhes completos (critérios, sugestão da IA, evolução) moram só
+   na etapa de Avaliação da ficha — este resumo não duplica nada disso,
+   só aponta pra lá quando aoAbrirAvaliacao é passado. */
+function CartaoNivel({ f, aoAbrirAvaliacao }) {
+  const r = resumoNivel(f);
+  if (!r) return null;
+  const { st, pendente } = r;
+  const Tag = aoAbrirAvaliacao ? "button" : "div";
+  return (
+    <Tag type={aoAbrirAvaliacao ? "button" : undefined} onClick={aoAbrirAvaliacao}
+      className={aoAbrirAvaliacao ? "w-full text-left" : undefined}
+      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
+        background: "none", border: "none", padding: 0, minHeight: aoAbrirAvaliacao ? 44 : undefined,
+        cursor: aoAbrirAvaliacao ? "pointer" : "default", width: "100%" }}>
+      <div style={{ minWidth: 0 }}>
+        <Etiqueta cor={C.grafite}>{faseDoEstagio(f.estagio)}</Etiqueta>
+        <p style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700, marginTop: 2 }}>
+          {st.atual.nome} · {pendente ? "Avaliação pendente" : "Nível " + nomeNivel(st.atual.nivelSugerido)}
+        </p>
+        {!pendente && (
+          <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 1 }}>{st.feitos} de {st.total} critérios confirmados</p>
+        )}
+      </div>
+      {aoAbrirAvaliacao && (
+        <span style={{ display: "flex", alignItems: "center", gap: 4, color: C.grafite, flexShrink: 0 }}>
+          <Etiqueta cor={C.grafite}>Avaliar</Etiqueta>
+          <IconeSeta tam={14} />
+        </span>
+      )}
+    </Tag>
+  );
+}
+
+/* "vazio" vs "respondido" — um texto real OU "Ainda não observei" (NS)
+   contam como respondido; só a ausência total conta como vazio. É essa
+   distinção que dá o estado Não avaliado/Parcial/Preenchido do golpe. */
+function estadoCampoFicha(v) { return v === NS || (v && v.trim()) ? "respondido" : "vazio"; }
+
+function formatarDataHoraCurta(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("pt-BR") + " às " + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+/* Palavras que sinalizam estado emocional/comportamental — usado pra
+   avisar quando esse tipo de observação foi escrito no campo errado
+   (ex.: "ansioso" dentro de Tático). Só um aviso: nunca move ou
+   reescreve o texto sozinho, quem decide é sempre o treinador. */
+const GATILHOS_EMOCIONAL = ["insegur", "nervos", "medo", "falta de agressividade", "cabeça", "mole", "trava", "ansios"];
+function pareceEmocional(texto) {
+  const t = (texto || "").toLowerCase();
+  return GATILHOS_EMOCIONAL.some((g) => t.includes(g));
+}
+
+/* Avaliação de um golpe, recolhida por padrão — nome, estado (Não
+   avaliado/Parcial/Preenchido) e um resumo curto quando há algo
+   escrito. Abre pra mostrar as duas perguntas-guia e, opcionalmente,
+   as seis fases (preservadas sem alteração, ver FasesGolpe). */
+function BlocoGolpe({ golpe, ent, setEnt, avaliacao, aoMudarAvaliacao }) {
+  const [aberto, setAberto] = useState(false);
+  const ok = ent("g_" + golpe + "_ok");
+  const falha = ent("g_" + golpe + "_falha");
+  const okResp = estadoCampoFicha(ok) === "respondido";
+  const falhaResp = estadoCampoFicha(falha) === "respondido";
+  const estado = (okResp && falhaResp) ? "Preenchido" : (okResp || falhaResp) ? "Parcial" : "Não avaliado";
+  const corEstado = estado === "Preenchido" ? C.quadra : estado === "Parcial" ? C.saibro : C.grafite;
+
+  function trecho(v) {
+    if (v === NS) return null;
+    const t = (v || "").trim();
+    return t ? (t.length > 60 ? t.slice(0, 60) + "…" : t) : null;
+  }
+  const trechoOk = trecho(ok);
+  const trechoFalha = trecho(falha);
+  const ambosNS = ok === NS && falha === NS;
+
+  return (
+    <div style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10,
+      borderLeft: "3px solid " + corEstado, marginBottom: 9, overflow: "hidden" }}>
+      <button type="button" onClick={() => setAberto(!aberto)} className="w-full text-left"
+        style={{ padding: "12px 13px", border: "none", background: "none", cursor: "pointer", minHeight: 44 }}>
+        <div className="flex items-center justify-between gap-3">
+          <span style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700 }}>{golpe}</span>
+          <Etiqueta cor={corEstado}>{estado}</Etiqueta>
+        </div>
+        {!aberto && (trechoOk || trechoFalha || ambosNS) && (
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>
+            {ambosNS ? "Ainda não observado." : [trechoOk && "Funciona: " + trechoOk, trechoFalha && "Dificuldade: " + trechoFalha].filter(Boolean).join(" · ")}
+          </p>
+        )}
+      </button>
+      {aberto && (
+        <div style={{ padding: "0 13px 13px" }}>
+          <CampoEntrada rotulo="Em quais situações funciona bem?" valor={ok} aoMudar={(v) => setEnt("g_" + golpe + "_ok", v)} />
+          <CampoEntrada rotulo="Em quais situações apresenta dificuldade?" valor={falha} aoMudar={(v) => setEnt("g_" + golpe + "_falha", v)} />
+          <FasesGolpe golpe={golpe} avaliacao={avaliacao} aoMudar={aoMudarAvaliacao} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* Rascunho de síntese técnica a partir do que já foi escrito golpe a
+   golpe — só texto que o próprio treinador escreveu, nunca inferência
+   apresentada como fato. Usado como ponto de partida opcional; nunca
+   substitui um texto que já exista em camadas.tecnico. */
+function sinteseGolpesFicha(f) {
+  const partes = [];
+  GOLPES_ENTRADA.forEach((g) => {
+    const ok = (f.entrada || {})["g_" + g + "_ok"];
+    const falha = (f.entrada || {})["g_" + g + "_falha"];
+    const okTxt = ok && ok !== NS ? ok.trim() : "";
+    const falhaTxt = falha && falha !== NS ? falha.trim() : "";
+    if (!okTxt && !falhaTxt) return;
+    let linha = g + ":";
+    if (okTxt) linha += " funciona quando " + okTxt + ".";
+    if (falhaTxt) linha += " Apresenta dificuldade quando " + falhaTxt + ".";
+    partes.push(linha);
+  });
+  return partes.join("\n");
+}
+
+function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirEtapaAlvo, aoMudarEditando }) {
   const podeEditar = podeEditarAluno(aluno, papelAtual, uidAtual);
   const [f, setF] = useState(aluno);
   /* Jogador sem nome ainda é ficha nova — abre direto pra edição. Uma
@@ -4291,6 +4503,8 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
      é uma ação deliberada, não o padrão — o que alimenta o plano daqui
      pra frente são os relatórios das aulas, não reedições da ficha. */
   const [editando, setEditando] = useState(!aluno.nome);
+  useEffect(() => { if (aoMudarEditando) aoMudarEditando(editando); }, [editando]);
+  const [etapa, setEtapa] = useState(etapaAlvo || 1);
   /* O nível já entra corrigido aqui (não só depois, no efeito de
      TrilhaClassificacao) — do contrário, o efeito de TrilhaClassificacao
      (que roda no componente FILHO, antes do efeito deste componente PAI
@@ -4303,8 +4517,21 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
     const categoriaCorrigida = st ? st.atual.id : aluno.categoria;
     setF({ ...aluno, nivel: nivelCorrigido, categoria: categoriaCorrigida });
     setEditando(!aluno.nome);
+    setEtapa(1);
   }, [aluno.id]);
+  /* "Ver critérios e evolução" no cabeçalho do jogador pode mandar
+     direto pra etapa Nível, mesmo sem trocar de jogador (aluno.id
+     igual) — por isso este é um efeito à parte, disparado só quando
+     etapaAlvo muda de verdade, não a cada novo render. */
+  useEffect(() => {
+    if (etapaAlvo) {
+      setEditando(true);
+      setEtapa(etapaAlvo);
+      if (aoConsumirEtapaAlvo) aoConsumirEtapaAlvo();
+    }
+  }, [etapaAlvo]);
   const [salvo, setSalvo] = useState(false);
+  const [estadoSalvo, setEstadoSalvo] = useState(null); // null | "salvando" | "ok" | "erro"
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
   const objetivosAdultoAtuais = objetivosDoAdulto(f);
   function alternarObjetivoAdulto(v) {
@@ -4320,6 +4547,41 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
   useEffect(() => { listaProfessores().then(setProfessores); }, []);
   const [sugestaoAuto, setSugestaoAuto] = useState(null);
   const [sugerindoAuto, setSugerindoAuto] = useState(false);
+  const [trilhaManual, setTrilhaManual] = useState(false);
+  /* Mais campos de rotina (Períodos, Escola, Musculação, Horizonte,
+     Calendário) e Prioridades do plano continuam existindo — só ficam
+     escondidos por padrão, atrás destes botões. Nada do que já foi
+     preenchido se perde ao recolher. */
+  const [mostrarMaisRotina, setMostrarMaisRotina] = useState(false);
+  const [mostrarMaisAvaliacao, setMostrarMaisAvaliacao] = useState(false);
+  const [guiaFisico, setGuiaFisico] = useState(false);
+  const [guiaTatico, setGuiaTatico] = useState(false);
+  const [guiaMental, setGuiaMental] = useState(false);
+
+  /* Grava de verdade (aguarda a confirmação de `salvar`, que por sua vez
+     aguarda a persistência real) antes de qualquer "salvo" aparecer na
+     tela — nunca mostra sucesso antes da hora. */
+  async function persistir(extra) {
+    const dados = { ...f, fichaAtualizadaEm: new Date().toISOString(), ...(extra || {}) };
+    setEstadoSalvo("salvando");
+    const ok = await salvar(dados);
+    setF(dados);
+    setEstadoSalvo(ok ? "ok" : "erro");
+    return { ok, dados };
+  }
+  async function salvarRascunho() {
+    const { ok } = await persistir();
+    if (ok) setTimeout(() => setEstadoSalvo(null), 3000);
+  }
+  async function avancar() {
+    const { ok } = await persistir();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (ok) setEtapa((e) => Math.min(ETAPAS_FICHA.length, e + 1));
+  }
+  function voltar() {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    setEtapa((e) => Math.max(1, e - 1));
+  }
 
   /* Toda edição de ficha fica com carimbo de hora — é o que permite ao
      Plano saber que a ficha mudou depois que ele foi gerado, e oferecer
@@ -4329,13 +4591,13 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
      primeiro save em que a camada técnica já está preenchida — nunca de
      novo depois disso (cada disparo é uma chamada de IA, e não faz
      sentido repetir isso a cada edição de ficha). O botão manual
-     "Sugerir estágio e nível com IA" continua disponível pra pedir de
-     novo a qualquer momento. */
-  async function salvarEFechar() {
-    const dados = { ...f, fichaAtualizadaEm: new Date().toISOString() };
+     "Receber sugestão da IA" continua disponível pra pedir de novo a
+     qualquer momento. */
+  async function concluirFicha() {
     const primeiraClassificacao = !aluno.classificacaoSugeridaEm && (f.camadas.tecnico || "").trim().length > 0;
-    if (primeiraClassificacao) dados.classificacaoSugeridaEm = dados.fichaAtualizadaEm;
-    salvar(dados);
+    const agora = new Date().toISOString();
+    const { ok, dados } = await persistir({ fichaAtualizadaEm: agora, ...(primeiraClassificacao ? { classificacaoSugeridaEm: agora } : {}) });
+    if (!ok) return;
     setEditando(false);
     setSalvo(true);
     // a ficha de edição é longa; sem isto o resumo (bem mais curto) troca
@@ -4378,6 +4640,11 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
     setF((x) => ({ ...x, professorUid: uid, professorNome: p ? p.nome : "" }));
   }
 
+  /* A ordem técnico → físico → tático → mental não pode ser invertida
+     (D-01 do manual) — cada camada só se abre depois da anterior ter
+     algo escrito. Única regra de bloqueio que a ficha em etapas herda
+     do formulário antigo; o resto (perguntas-guia, síntese a partir dos
+     golpes) é a melhoria de edição que vem da QuadraLab. */
   const camadaPreenchida = (k) => f.camadas[k].trim().length > 0;
   const liberada = { tecnico: true, fisico: camadaPreenchida("tecnico"), tatico: camadaPreenchida("fisico"), mental: camadaPreenchida("tatico") };
 
@@ -4386,13 +4653,38 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
      todos eles, senão a ordem dos hooks muda entre o modo resumo e o
      modo edição e o React quebra. */
   const alertaMental = useMemo(() => {
-    const t = (f.camadas.mental + " " + f.camadas.tatico).toLowerCase();
-    const gatilhos = ["insegur", "nervos", "medo", "falta de agressividade", "cabeça", "mole", "trava", "ansios"];
-    return gatilhos.some((g) => t.includes(g)) && f.camadas.tecnico.trim().length < 30;
+    return pareceEmocional(f.camadas.mental + " " + f.camadas.tatico) && f.camadas.tecnico.trim().length < 30;
   }, [f.camadas]);
+  /* Sinal específico do campo Tática: texto que soa emocional/comportamental
+     escrito ali (ex.: "ansioso") — convida a revisar a categoria, mas nunca
+     move ou reescreve sozinho; só o treinador decide, clicando. */
+  const taticoPareceEmocional = useMemo(() => pareceEmocional(f.camadas.tatico), [f.camadas.tatico]);
+  function moverTaticoParaMental() {
+    const texto = f.camadas.tatico.trim();
+    if (!texto) return;
+    if (!confirm('Mover este texto de "Tática" para "Mental"? O campo Tática fica em branco — nada é apagado, só muda de lugar.')) return;
+    setCamada("mental", (f.camadas.mental.trim() ? f.camadas.mental.trim() + "\n" : "") + texto);
+    setCamada("tatico", "");
+  }
+
+  const pendencias = useMemo(() => {
+    const lista = [];
+    if (!f.nome) lista.push({ t: "Nome do jogador", etapa: 1 });
+    if (!f.nascimento) lista.push({ t: "Data de nascimento", etapa: 1 });
+    if (!f.lateralidade) lista.push({ t: "Lateralidade", etapa: 1 });
+    if (!f.backhand) lista.push({ t: "Backhand", etapa: 1 });
+    if ((f.horarios || []).length === 0) lista.push({ t: "Horário fixo de treino", etapa: 2 });
+    const st = statusTrilha(f);
+    if (st && st.feitos === 0) lista.push({ t: "Nenhum critério de nível confirmado ainda", etapa: 3 });
+    const golpesPendentes = GOLPES_ENTRADA.filter((g) =>
+      estadoCampoFicha(ent("g_" + g + "_ok")) === "vazio" && estadoCampoFicha(ent("g_" + g + "_falha")) === "vazio");
+    if (golpesPendentes.length) lista.push({ t: golpesPendentes.length + " golpe(s) ainda sem avaliação: " + golpesPendentes.join(", "), etapa: 4 });
+    if (!f.perfilCorpo || !f.perfilTemperamento) lista.push({ t: "Perfil de jogo incompleto", etapa: 4 });
+    return lista;
+  }, [f]);
 
   if (!editando) {
-    return <ResumoFicha aluno={aluno} aoEditar={() => setEditando(true)} salvo={salvo} papelAtual={papelAtual} podeEditar={podeEditar}
+    return <ResumoFicha aluno={aluno} aoEditar={() => { setEtapa(1); setEditando(true); }} salvo={salvo} papelAtual={papelAtual} podeEditar={podeEditar}
       sugerindoAuto={sugerindoAuto} sugestaoAuto={sugestaoAuto} aplicarSugestaoAuto={aplicarSugestaoAuto} descartarSugestaoAuto={() => setSugestaoAuto(null)} />;
   }
   if (!podeEditar) return <ResumoFicha aluno={aluno} aoEditar={() => {}} salvo={salvo} papelAtual={papelAtual} podeEditar={false} />;
@@ -4417,212 +4709,417 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
     });
   }
 
+  const blocoFisico = ENTRADA_BLOCOS.find((b) => b.n === "2");
+  const blocoTatico = ENTRADA_BLOCOS.find((b) => b.n === "3");
+  const blocoMental = ENTRADA_BLOCOS.find((b) => b.n === "4");
+  const blocoObjetivo = ENTRADA_BLOCOS.find((b) => b.n === "5");
+  const blocoAberto = ENTRADA_BLOCOS.find((b) => b.n === "6");
+
   return (
     <div>
-      <Secao titulo="Identificação" nota="F-01 do manual: a ficha de avaliação inicial.">
-        <Campo rotulo="Nome"><input style={entrada} value={f.nome} onChange={(e) => set("nome", e.target.value)} placeholder="Nome do jogador ou da turma" /></Campo>
-        {professores.length > 0 && (
-          <Campo rotulo="Professor responsável" nota="Define de qual dashboard este jogador aparece por padrão.">
-            <Seletor opcoes={[{ v: "", r: "Sem professor definido" }, ...professores.map((p) => ({ v: p.uid, r: p.nome }))]}
-              valor={f.professorUid || ""} aoMudar={escolherProfessor} />
-          </Campo>
+      <div className="flex items-center justify-between gap-3 mb-1">
+        <Etiqueta cor={C.grafite}>{aluno.nome ? "Editando ficha" : "Novo cadastro"}</Etiqueta>
+        {aluno.nome && (
+          <button onClick={() => setEditando(false)} style={{ ...prosa, fontSize: 12.5, color: C.grafite, background: "none", border: "none", cursor: "pointer", minHeight: 32 }}>
+            Cancelar
+          </button>
         )}
-        <Campo rotulo="Horário fixo de treino" nota="Alimenta a Grade de horário e a Agenda semanal.">
-          <EditorHorarios horarios={f.horarios || []} setHorarios={(h) => set("horarios", h)} />
-        </Campo>
-        <Campo rotulo="Duração do treino" nota="Cada horário acima ocupa esse tempo inteiro na Agenda e na Grade de aulas — não só o instante em que começa.">
-          <Seletor opcoes={DURACOES_TREINO} valor={f.duracaoPadrao || "1h30"} aoMudar={(v) => set("duracaoPadrao", v)} />
-        </Campo>
-        <div className="grid grid-cols-2 gap-3">
+      </div>
+      <ProgressoFicha etapa={etapa} />
+
+      {estadoSalvo === "erro" && <Aviso cor="#B3261E">Não deu pra salvar agora — confira sua internet e tente de novo.</Aviso>}
+      {estadoSalvo === "ok" && (
+        <div className="mb-4 flex items-center gap-1.5">
+          <span style={{ color: C.quadra, fontSize: 13 }}>✓</span>
+          <Etiqueta cor={C.quadra}>Salvo</Etiqueta>
+        </div>
+      )}
+
+      {etapa === 1 && (
+        <Secao titulo="Dados do jogador" nota="F-01 do manual: a ficha de avaliação inicial — identificação básica, o que não muda de aula pra aula.">
+          <Campo rotulo="Nome"><input style={entrada} value={f.nome} onChange={(e) => set("nome", e.target.value)} placeholder="Nome do jogador" /></Campo>
           <Campo rotulo="Nascimento"><input type="date" style={entrada} value={f.nascimento} onChange={(e) => set("nascimento", e.target.value)} /></Campo>
-          <Campo rotulo="Altura atual / projeção">
-            <div className="flex gap-2">
-              <input style={entrada} value={f.alturaAtual} onChange={(e) => set("alturaAtual", e.target.value)} placeholder="1,78" />
-              <input style={entrada} value={f.projecaoAltura} onChange={(e) => set("projecaoAltura", e.target.value)} placeholder="1,88" />
+          {f.estagio !== "A" ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Campo rotulo="Altura atual (m)"><input style={entrada} value={f.alturaAtual} onChange={(e) => set("alturaAtual", e.target.value)} placeholder="1,78" /></Campo>
+              <Campo rotulo="Altura projetada (m)" nota="Estimativa de altura adulta, só quando houver uma referência confiável (ex.: avaliação de um profissional, altura dos pais). Deixe em branco se não tiver essa base.">
+                <input style={entrada} value={f.projecaoAltura} onChange={(e) => set("projecaoAltura", e.target.value)} placeholder="1,88" />
+              </Campo>
             </div>
+          ) : (
+            <Campo rotulo="Altura atual (m)"><input style={entrada} value={f.alturaAtual} onChange={(e) => set("alturaAtual", e.target.value)} placeholder="1,78" /></Campo>
+          )}
+          <Campo rotulo="Lateralidade" nota={!f.lateralidade ? "Não informado" : null}>
+            <Seletor opcoes={[{ v: "destro", r: "Destro" }, { v: "canhoto", r: "Canhoto" }]} valor={f.lateralidade} aoMudar={(v) => set("lateralidade", v)} />
           </Campo>
-        </div>
-        <Campo rotulo="Lateralidade"><Seletor opcoes={[{ v: "destro", r: "Destro" }, { v: "canhoto", r: "Canhoto" }]} valor={f.lateralidade} aoMudar={(v) => set("lateralidade", v)} /></Campo>
-        <Campo rotulo="Backhand"><Seletor opcoes={[{ v: "duas", r: "Duas mãos" }, { v: "uma", r: "Uma mão" }]} valor={f.backhand} aoMudar={(v) => set("backhand", v)} /></Campo>
-        <Campo rotulo="Composição física" nota="O tipo de treino se define pelo tipo físico (D-02).">
-          <Seletor opcoes={[{ v: "leve", r: "Leve" }, { v: "medio", r: "Médio" }, { v: "forte", r: "Forte" }]} valor={f.tipoFisico} aoMudar={(v) => set("tipoFisico", v)} />
-        </Campo>
-        <Campo rotulo="Histórico de atividades na infância" nota="Define quanto o bloco de base motora pesa. Trabalho geral igual para todos significa que o diagnóstico não foi feito.">
-          <Seletor opcoes={[{ v: "pobre", r: "Pouca variedade" }, { v: "media", r: "Média" }, { v: "rica", r: "Muitos esportes" }]} valor={f.baseMotora} aoMudar={(v) => set("baseMotora", v)} />
-        </Campo>
-        <Campo rotulo="Tempo treinando" nota="Calibra expectativa: um adulto motivado com 3 meses de quadra não lê igual a um com 3 anos platôs.">
-          <Seletor opcoes={[{ v: "novo", r: "Menos de 6 meses" }, { v: "intermediario", r: "6 meses a 2 anos" }, { v: "experiente", r: "Mais de 2 anos" }]}
-            valor={f.tempoTreinando} aoMudar={(v) => set("tempoTreinando", v)} />
-        </Campo>
-        {f.estagio !== "A" ? (
-          <Campo rotulo="Contexto familiar e do jogador" nota="Convívio, expectativas, suporte, pressão, relação com o erro e com o esforço.">
-            <textarea rows={3} style={{ ...entrada, resize: "vertical" }} value={f.contexto} onChange={(e) => set("contexto", e.target.value)} />
+          <Campo rotulo="Backhand" nota={!f.backhand ? "Não informado" : null}>
+            <Seletor opcoes={[{ v: "duas", r: "Duas mãos" }, { v: "uma", r: "Uma mão" }]} valor={f.backhand} aoMudar={(v) => set("backhand", v)} />
           </Campo>
-        ) : (
-          <>
-            <Campo rotulo="Disposição do aluno adulto" nota="Não é o objetivo dele (isso vem em Perfil de jogo) — é quem ele é na quadra: o que motiva, o que desmotiva.">
-              <Seletor opcoes={DISPOSICOES_ADULTO.map((d) => ({ v: d.v, r: d.r }))} valor={f.disposicaoAdulto} aoMudar={(v) => set("disposicaoAdulto", v)} />
+          <Campo rotulo="Composição física"
+            nota={(!f.tipoFisico ? "Não informado. " : "") + "O tipo de treino se define pelo tipo físico (D-02)."}>
+            <Seletor opcoes={[{ v: "leve", r: "Leve" }, { v: "medio", r: "Médio" }, { v: "forte", r: "Forte" }]} valor={f.tipoFisico} aoMudar={(v) => set("tipoFisico", v)} />
+          </Campo>
+          <Campo rotulo="Histórico de atividades na infância" nota={(!f.baseMotora ? "Não informado. " : "") + "Define quanto o bloco de base motora pesa. Trabalho geral igual para todos significa que o diagnóstico não foi feito."}>
+            <Seletor opcoes={[{ v: "pobre", r: "Pouca variedade" }, { v: "media", r: "Média" }, { v: "rica", r: "Muitos esportes" }]} valor={f.baseMotora} aoMudar={(v) => set("baseMotora", v)} />
+          </Campo>
+          {f.estagio !== "A" ? (
+            <Campo rotulo="Contexto familiar e do jogador" nota="Convívio, expectativas, suporte, relação com o erro e com o esforço.">
+              <textarea rows={3} style={{ ...entrada, resize: "vertical" }} value={f.contexto} onChange={(e) => set("contexto", e.target.value)} />
             </Campo>
-            {f.disposicaoAdulto && <p style={{ ...prosa, color: C.grafite, fontSize: 13, marginTop: -6, marginBottom: 14 }}>{DISPOSICOES_ADULTO.find((d) => d.v === f.disposicaoAdulto).d}</p>}
-            <Campo rotulo="Comportamento em quadra" nota="Humor, comunicação, paciência com o próprio erro, se é comunicativo ou fechado — substitui o contexto familiar no adulto: aqui o que importa é a pessoa que está treinando, não a criação dela.">
-              <textarea rows={3} style={{ ...entrada, resize: "vertical" }} value={f.comportamentoAdulto} onChange={(e) => set("comportamentoAdulto", e.target.value)} />
+          ) : (
+            <>
+              <Campo rotulo="Disposição do aluno adulto" nota="O que motiva, o que desmotiva — não é o objetivo dele (isso vem em Avaliação → Perfil de jogo).">
+                <Seletor opcoes={DISPOSICOES_ADULTO.map((d) => ({ v: d.v, r: d.r }))} valor={f.disposicaoAdulto} aoMudar={(v) => set("disposicaoAdulto", v)} />
+              </Campo>
+              {f.disposicaoAdulto && <p style={{ ...prosa, color: C.grafite, fontSize: 13, marginTop: -6, marginBottom: 14 }}>{DISPOSICOES_ADULTO.find((d) => d.v === f.disposicaoAdulto).d}</p>}
+              <Campo rotulo="Comportamento em quadra" nota="Humor, comunicação, paciência com o próprio erro.">
+                <textarea rows={3} style={{ ...entrada, resize: "vertical" }} value={f.comportamentoAdulto} onChange={(e) => set("comportamentoAdulto", e.target.value)} />
+              </Campo>
+            </>
+          )}
+        </Secao>
+      )}
+
+      {etapa === 2 && (
+        <>
+          <Secao titulo="Rotina de treino" nota="Dias, horários, duração e tempo de prática — o que organiza a semana do jogador.">
+            {professores.length > 0 && (
+              <Campo rotulo="Professor responsável" nota="Define de qual dashboard este jogador aparece por padrão.">
+                <Seletor opcoes={[{ v: "", r: "Sem professor definido" }, ...professores.map((p) => ({ v: p.uid, r: p.nome }))]}
+                  valor={f.professorUid || ""} aoMudar={escolherProfessor} />
+              </Campo>
+            )}
+            <Campo rotulo="Horário fixo de treino" nota="Alimenta a Grade de horário e a Agenda semanal.">
+              <EditorHorarios horarios={f.horarios || []} setHorarios={(h) => set("horarios", h)} />
             </Campo>
-          </>
-        )}
-      </Secao>
+            <Campo rotulo="Duração da aula" nota="Cada horário acima ocupa esse tempo inteiro na Agenda e na Grade de aulas.">
+              <Seletor opcoes={DURACOES_TREINO} valor={f.duracaoPadrao || "1h30"} aoMudar={(v) => set("duracaoPadrao", v)} />
+            </Campo>
+            <Campo rotulo="Dias de quadra por semana" nota={!f.diasQuadra ? "Não informado" : null}>
+              <Seletor opcoes={[1, 2, 3, 4, 5, 6, 7].map((d) => ({ v: d, r: d + (d === 1 ? " dia" : " dias") }))} valor={f.diasQuadra} aoMudar={(v) => set("diasQuadra", v)} />
+            </Campo>
+            <Campo rotulo="Tempo treinando" nota="Calibra expectativa: um adulto com 3 meses não lê igual a alguém com 3 anos.">
+              <Seletor opcoes={[{ v: "novo", r: "Menos de 6 meses" }, { v: "intermediario", r: "6 meses a 2 anos" }, { v: "experiente", r: "Mais de 2 anos" }]}
+                valor={f.tempoTreinando} aoMudar={(v) => set("tempoTreinando", v)} />
+            </Campo>
+          </Secao>
 
-      <Secao titulo="Classificação inicial" nota="É criança, adulto ou juvenil/adulto de competição? Isso decide o catálogo de exercícios e o questionário de nível usados no resto da ficha.">
-        <Campo rotulo="Estágio">
-          <Seletor opcoes={ESTAGIOS.map((e) => ({ v: e.s, r: e.n }))} valor={f.estagio} aoMudar={(v) => set("estagio", v)} />
-        </Campo>
-        <Etiqueta cor={C.grafite}>{faseDoEstagio(f.estagio)}</Etiqueta>
-      </Secao>
-
-      <Secao titulo="Questionário de nível (Y1–Y6)" nota="Não existe uma escolha manual de Nível — é sempre o que os critérios marcados abaixo indicam. Vá respondendo em ordem; ao final, o sistema apresenta o nível do jogador sozinho.">
-        <TrilhaVisual estagio={f.estagio} categoria={f.categoria} criteriosClassificacao={f.criteriosClassificacao} />
-        <TrilhaClassificacao f={f} set={set} />
-        <SugestaoClassificacao f={f} set={set} />
-        <LegendaNiveis nivelInicial={f.nivel} />
-      </Secao>
-
-      <Secao titulo="Diagnóstico — as quatro camadas" nota="A ordem é técnico, físico, tático, mental, e não pode ser invertida (D-01). Cada camada abre a seguinte.">
-        {[["tecnico", "1 · Técnico", "Bases de apoio, golpes por fase, trocas de golpe e de empunhadura"],
-          ["fisico", "2 · Físico", "Capacidades associadas às qualidades técnicas"],
-          ["tatico", "3 · Tático", "Repertório de decisões disponível, lido à luz das camadas 1 e 2"],
-          ["mental", "4 · Mental", "Observações à luz de tudo o que já foi observado"]].map(([k, rot, dica]) => (
-          <div key={k} className="mb-4" style={{ opacity: liberada[k] ? 1 : 0.45 }}>
-            <div className="mb-2"><Etiqueta cor={liberada[k] ? C.tinta : C.grafite}>{rot}</Etiqueta></div>
-            <textarea rows={3} disabled={!liberada[k]} placeholder={liberada[k] ? dica : "Preencha a camada anterior primeiro"}
-              style={{ ...entrada, resize: "vertical", background: liberada[k] ? C.cal : C.papel }}
-              value={f.camadas[k]} onChange={(e) => setCamada(k, e.target.value)} />
+          <div className="mb-5">
+            <Botao pequeno variante="vazio" onClick={() => setMostrarMaisRotina(!mostrarMaisRotina)}>
+              {mostrarMaisRotina ? "Ocultar mais campos de rotina" : "Mostrar mais campos de rotina"}
+            </Botao>
           </div>
-        ))}
-        {alertaMental && (
-          <Aviso>
-            Há leitura de estado com pouca evidência técnica registrada. Antes de nomear isso como
-            cabeça, verifique se existe ferramenta técnica para a jogada e em que bola da sequência o
-            erro acontece. Muito do que parece insegurança é uma base que não sustenta o golpe.
-          </Aviso>
-        )}
-      </Secao>
+          {mostrarMaisRotina && (
+            <>
+              <Secao titulo="Mais rotina">
+                <Campo rotulo="Períodos por dia" nota={f.periodos == null ? "Não informado" : null}>
+                  <Seletor opcoes={[{ v: 1, r: "Um" }, { v: 2, r: "Dois" }]} valor={f.periodos} aoMudar={(v) => set("periodos", v)} />
+                </Campo>
+                <Campo rotulo="Escola" nota={!f.escola ? "Não informado" : null}>
+                  <Seletor opcoes={[{ v: "manha", r: "Manhã" }, { v: "tarde", r: "Tarde" }, { v: "noite", r: "Noite" }, { v: "nao", r: "Não estuda" }]} valor={f.escola} aoMudar={(v) => set("escola", v)} />
+                </Campo>
+                <Campo rotulo="Musculação por semana" nota={f.musculacao == null ? "Não informado" : null}>
+                  <Seletor opcoes={[0, 1, 2, 3, 4, 5].map((n) => ({ v: n, r: String(n) }))} valor={f.musculacao} aoMudar={(v) => set("musculacao", v)} />
+                </Campo>
+              </Secao>
+              <Secao titulo="Horizonte" nota="Planejamento do fim para o começo.">
+                <Campo rotulo="Objetivo final">
+                  <input style={entrada} value={f.objetivoFinal} onChange={(e) => set("objetivoFinal", e.target.value)} placeholder="Ex.: os 4 Grand Slams juvenis em 2028" />
+                </Campo>
+                {f.marcos.map((m, i) => (
+                  <div key={i} className="mb-2 grid grid-cols-12 gap-2">
+                    <input style={{ ...entrada, gridColumn: "span 3" }} value={m.ano} onChange={(e) => mudaLista("marcos", i, "ano", e.target.value)} placeholder="Ano" />
+                    <input style={{ ...entrada, gridColumn: "span 8" }} value={m.marco} onChange={(e) => mudaLista("marcos", i, "marco", e.target.value)} placeholder="Marco intermediário" />
+                    <button onClick={() => tiraLista("marcos", i)} style={{ ...iconeEstilo, gridColumn: "span 1" }}>×</button>
+                    <input style={{ ...entrada, gridColumn: "span 12" }} value={m.precisa} onChange={(e) => mudaLista("marcos", i, "precisa", e.target.value)} placeholder="O que precisa estar pronto" />
+                  </div>
+                ))}
+                <Botao pequeno variante="vazio" onClick={() => addLista("marcos", { ano: "", marco: "", precisa: "" })}>+ Marco</Botao>
+              </Secao>
+              <Secao titulo="Calendário" nota="As datas de competição desenham as fases sozinhas.">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Campo rotulo="Início do ciclo"><input type="date" style={entrada} value={f.inicio} onChange={(e) => set("inicio", e.target.value)} /></Campo>
+                  <Campo rotulo="Semanas"><input type="number" min={4} max={52} style={entrada} value={f.semanas} onChange={(e) => set("semanas", Number(e.target.value))} /></Campo>
+                </div>
+                <Campo rotulo="Competições">
+                  {f.competicoes.map((c, i) => (
+                    <div key={i} className="flex gap-2 mb-2">
+                      <input style={entrada} value={c.nome} onChange={(e) => mudaLista("competicoes", i, "nome", e.target.value)} placeholder="Nome do torneio" />
+                      <input type="date" style={{ ...entrada, maxWidth: 160 }} value={c.data} onChange={(e) => mudaLista("competicoes", i, "data", e.target.value)} />
+                      <button onClick={() => tiraLista("competicoes", i)} style={iconeEstilo}>×</button>
+                    </div>
+                  ))}
+                  <Botao pequeno variante="vazio" onClick={() => addLista("competicoes", { nome: "", data: "" })}>+ Competição</Botao>
+                </Campo>
+              </Secao>
+            </>
+          )}
+        </>
+      )}
 
-      <Secao titulo="Perfil de jogo" nota="Parte 6 do manual: o jogo nasce do corpo e do temperamento do jogador — não se escolhe, se reconhece.">
-        <Campo rotulo="Perfil de corpo">
-          <Seletor opcoes={PERFIS_CORPO.map((p) => ({ v: p.v, r: p.r }))} valor={f.perfilCorpo} aoMudar={(v) => set("perfilCorpo", v)} />
-        </Campo>
-        {f.perfilCorpo && <p style={{ ...prosa, color: C.grafite, fontSize: 13, marginTop: -6, marginBottom: 14 }}>{PERFIS_CORPO.find((p) => p.v === f.perfilCorpo).d}</p>}
-        <Campo rotulo="Temperamento">
-          <Seletor opcoes={PERFIS_TEMPERAMENTO.map((p) => ({ v: p.v, r: p.r }))} valor={f.perfilTemperamento} aoMudar={(v) => set("perfilTemperamento", v)} />
-        </Campo>
-        {f.perfilTemperamento && <p style={{ ...prosa, color: C.grafite, fontSize: 13, marginTop: -6, marginBottom: f.estagio === "A" ? 14 : 0 }}>{PERFIS_TEMPERAMENTO.find((p) => p.v === f.perfilTemperamento).d}</p>}
-        {f.estagio === "A" && (
-          <>
-            <Campo rotulo="Objetivo" nota="Pode marcar mais de um — ex: joga simples e duplas, ou joga duplas e compete. Muda o que entra na aula, nunca sobrescreve o temperamento dele acima.">
-              <div className="flex flex-wrap gap-2">
-                {OBJETIVOS_ADULTO.map((o) => {
-                  const on = objetivosAdultoAtuais.includes(o.v);
-                  return (
-                    <button key={o.v} type="button" onClick={() => alternarObjetivoAdulto(o.v)}
-                      style={{ fontFamily: ARCH, fontSize: 13, fontWeight: on ? 700 : 500, padding: "8px 13px",
-                        borderRadius: 10, cursor: "pointer", border: "1px solid " + (on ? C.tinta : C.linha),
-                        background: on ? C.tinta : C.cal, color: on ? C.papel : C.grafite }}>
-                      {o.r}
+      {etapa === 3 && (
+        <>
+          <Secao titulo="Classificação inicial" nota="É criança, adulto ou juvenil/adulto de competição? Isso decide o catálogo de exercícios e o questionário de nível usados no resto da ficha.">
+            <Campo rotulo="Estágio">
+              <Seletor opcoes={ESTAGIOS.map((e) => ({ v: e.s, r: e.n }))} valor={f.estagio} aoMudar={(v) => set("estagio", v)} />
+            </Campo>
+            <Etiqueta cor={C.grafite}>{faseDoEstagio(f.estagio)}</Etiqueta>
+          </Secao>
+
+          <Secao titulo="Nível do jogador" nota="Ninguém escolhe o nível direto — ele vem da avaliação em quadra. Peça uma sugestão da IA pra revisar, ou avalie pelos critérios você mesmo.">
+            <CartaoNivel f={f} />
+            <div className="mt-3 mb-4">
+              <TrilhaVisual estagio={f.estagio} categoria={f.categoria} criteriosClassificacao={f.criteriosClassificacao} />
+            </div>
+
+            <SugestaoClassificacao f={f} set={set} />
+
+            <div className="mb-2">
+              <Botao pequeno variante="vazio" onClick={() => setTrilhaManual(!trilhaManual)}>
+                {trilhaManual ? "Ocultar avaliação por critérios" : "Avaliar pelos critérios"}
+              </Botao>
+            </div>
+            {trilhaManual && <TrilhaClassificacao f={f} set={set} />}
+
+            <div className="mt-4">
+              <LegendaNiveis nivelInicial={f.nivel} />
+            </div>
+          </Secao>
+        </>
+      )}
+
+      {etapa === 4 && (
+        <>
+          <Secao titulo="Perfil de jogo" nota="Parte 6 do manual: o jogo nasce do corpo e do temperamento do jogador — não se escolhe, se reconhece.">
+            <Campo rotulo="Perfil de corpo">
+              <Seletor opcoes={PERFIS_CORPO.map((p) => ({ v: p.v, r: p.r }))} valor={f.perfilCorpo} aoMudar={(v) => set("perfilCorpo", v)} />
+            </Campo>
+            {f.perfilCorpo && <p style={{ ...prosa, color: C.grafite, fontSize: 13, marginTop: -6, marginBottom: 14 }}>{PERFIS_CORPO.find((p) => p.v === f.perfilCorpo).d}</p>}
+            <Campo rotulo="Temperamento">
+              <Seletor opcoes={PERFIS_TEMPERAMENTO.map((p) => ({ v: p.v, r: p.r }))} valor={f.perfilTemperamento} aoMudar={(v) => set("perfilTemperamento", v)} />
+            </Campo>
+            {f.perfilTemperamento && <p style={{ ...prosa, color: C.grafite, fontSize: 13, marginTop: -6, marginBottom: f.estagio === "A" ? 14 : 0 }}>{PERFIS_TEMPERAMENTO.find((p) => p.v === f.perfilTemperamento).d}</p>}
+            {f.estagio === "A" && (
+              <>
+                <Campo rotulo="Objetivo" nota="Pode marcar mais de um. Muda o que entra na aula, nunca sobrescreve o temperamento acima.">
+                  <div className="flex flex-wrap gap-2">
+                    {OBJETIVOS_ADULTO.map((o) => {
+                      const on = objetivosAdultoAtuais.includes(o.v);
+                      return (
+                        <button key={o.v} type="button" onClick={() => alternarObjetivoAdulto(o.v)}
+                          style={{ fontFamily: ARCH, fontSize: 13, fontWeight: on ? 700 : 500, padding: "8px 13px", minHeight: 44,
+                            borderRadius: 10, cursor: "pointer", border: "1px solid " + (on ? C.quadra : C.linha),
+                            background: on ? C.quadra : C.cal, color: on ? "#fff" : C.grafite }}>
+                          {o.r}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </Campo>
+                {objetivosAdultoAtuais.length > 0 && objetivosAdultoAtuais.map((v) => (
+                  <p key={v} style={{ ...prosa, color: C.grafite, fontSize: 13, marginTop: -6, marginBottom: 4 }}>{OBJETIVOS_ADULTO.find((o) => o.v === v).d}</p>
+                ))}
+              </>
+            )}
+            <Campo rotulo="Dificuldade de consistência" nota={(f.dificuldadeConsistencia == null ? "Não informado. " : "") + "Erra demais pra sustentar a troca de bolas."}>
+              <Seletor opcoes={[{ v: false, r: "Não" }, { v: true, r: "Sim" }]} valor={f.dificuldadeConsistencia} aoMudar={(v) => set("dificuldadeConsistencia", v)} />
+            </Campo>
+          </Secao>
+
+          <Secao titulo="Avaliação por golpe" nota="Toque em cada golpe pra avaliar.">
+            <AjudaContextual>
+              "Erra o backhand" diz pouco. "Erra o backhand quando a bola vem alta e ele está recuando" diz
+              quase tudo. Descreva a situação, não só o golpe — e marque "Ainda não observei" quando for o
+              caso, em vez de deixar em branco ou chutar uma resposta.
+            </AjudaContextual>
+            {GOLPES_ENTRADA.map((g) => (
+              <BlocoGolpe key={g} golpe={g} ent={ent} setEnt={setEnt} avaliacao={avaliacaoGolpe(g)} aoMudarAvaliacao={(v) => setAvaliacaoGolpe(g, v)} />
+            ))}
+          </Secao>
+
+          <Secao titulo="Dimensões" nota="A ordem é técnico, físico, tático, mental, e não pode ser invertida (D-01). Cada camada abre a seguinte.">
+            <div className="mb-5">
+              <div className="mb-2"><Etiqueta cor={C.tinta}>Técnica — síntese geral</Etiqueta></div>
+              <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 6 }}>
+                Quais golpes estão consistentes? Onde ocorre a dificuldade?
+              </p>
+              <textarea rows={3} placeholder="Bases de apoio, golpes por fase, trocas de golpe e de empunhadura"
+                spellCheck lang="pt-BR" style={{ ...entrada, resize: "vertical" }}
+                value={f.camadas.tecnico} onChange={(e) => setCamada("tecnico", e.target.value)} />
+              {!f.camadas.tecnico.trim() && sinteseGolpesFicha(f) && (
+                <div className="mt-2">
+                  <Botao pequeno variante="vazio" onClick={() => setCamada("tecnico", sinteseGolpesFicha(f))}>
+                    Usar observações dos golpes como ponto de partida
+                  </Botao>
+                </div>
+              )}
+              <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 6 }}>
+                Sua síntese do que já foi observado golpe a golpe acima — sempre editável, nunca sobrescrita sozinha.
+              </p>
+            </div>
+
+            <div className="mb-5" style={{ opacity: liberada.fisico ? 1 : 0.45 }}>
+              <div className="mb-2"><Etiqueta cor={liberada.fisico ? C.tinta : C.grafite}>Física</Etiqueta></div>
+              <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 6 }}>
+                Como se desloca, recupera a posição e mantém a qualidade?
+              </p>
+              <textarea rows={3} disabled={!liberada.fisico} placeholder={liberada.fisico ? "Capacidades associadas às qualidades técnicas" : "Preencha a camada Técnica primeiro"} spellCheck lang="pt-BR"
+                style={{ ...entrada, resize: "vertical", background: liberada.fisico ? C.cal : C.papel }}
+                value={f.camadas.fisico} onChange={(e) => setCamada("fisico", e.target.value)} />
+              <button type="button" onClick={() => setGuiaFisico(!guiaFisico)} className="mt-2"
+                style={{ display: "block", fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, color: C.grafite, background: "none", border: "none", cursor: "pointer", padding: 0, minHeight: 32 }}>
+                {(guiaFisico ? "Ocultar perguntas-guia" : "Perguntas-guia") + (guiaFisico ? " ▲" : " ▼")}
+              </button>
+              {guiaFisico && (
+                <div className="mt-3">
+                  <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>{blocoFisico.nota}</p>
+                  {blocoFisico.campos.map(([k, rot]) => <CampoEntrada key={k} rotulo={rot} valor={ent(k)} aoMudar={(v) => setEnt(k, v)} />)}
+                </div>
+              )}
+            </div>
+
+            <div className="mb-5" style={{ opacity: liberada.tatico ? 1 : 0.45 }}>
+              <div className="mb-2"><Etiqueta cor={liberada.tatico ? C.tinta : C.grafite}>Tática</Etiqueta></div>
+              <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 6 }}>
+                Como constrói o ponto e escolhe os alvos?
+              </p>
+              <textarea rows={3} disabled={!liberada.tatico} placeholder={liberada.tatico ? "Repertório de decisões disponível em quadra" : "Preencha a camada Física primeiro"} spellCheck lang="pt-BR"
+                style={{ ...entrada, resize: "vertical", background: liberada.tatico ? C.cal : C.papel }}
+                value={f.camadas.tatico} onChange={(e) => setCamada("tatico", e.target.value)} />
+              {taticoPareceEmocional && (
+                <div className="mt-2">
+                  <Aviso>
+                    Este texto soa mais a comportamento/estado emocional do que a tática. Se for o caso, você
+                    pode revisar a categoria — nada é movido automaticamente.{" "}
+                    <button type="button" onClick={moverTaticoParaMental}
+                      style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, color: "inherit", background: "none",
+                        border: "none", padding: 0, cursor: "pointer", textDecoration: "underline" }}>
+                      Mover para Mental
                     </button>
-                  );
-                })}
-              </div>
+                  </Aviso>
+                </div>
+              )}
+              <button type="button" onClick={() => setGuiaTatico(!guiaTatico)} className="mt-2"
+                style={{ display: "block", fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, color: C.grafite, background: "none", border: "none", cursor: "pointer", padding: 0, minHeight: 32 }}>
+                {(guiaTatico ? "Ocultar perguntas-guia" : "Perguntas-guia") + (guiaTatico ? " ▲" : " ▼")}
+              </button>
+              {guiaTatico && (
+                <div className="mt-3">
+                  <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>{blocoTatico.nota}</p>
+                  {blocoTatico.campos.map(([k, rot]) => <CampoEntrada key={k} rotulo={rot} valor={ent(k)} aoMudar={(v) => setEnt(k, v)} />)}
+                </div>
+              )}
+            </div>
+
+            <div className="mb-5" style={{ opacity: liberada.mental ? 1 : 0.45 }}>
+              <div className="mb-2"><Etiqueta cor={liberada.mental ? C.tinta : C.grafite}>Mental</Etiqueta></div>
+              <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 6 }}>
+                Como reage ao erro e às situações de pressão?
+              </p>
+              <textarea rows={3} disabled={!liberada.mental} placeholder={liberada.mental ? "Observações de comportamento e postura" : "Preencha a camada Tática primeiro"} spellCheck lang="pt-BR"
+                style={{ ...entrada, resize: "vertical", background: liberada.mental ? C.cal : C.papel }}
+                value={f.camadas.mental} onChange={(e) => setCamada("mental", e.target.value)} />
+              {alertaMental && (
+                <div className="mt-2">
+                  <Aviso>
+                    Há leitura de estado com pouca evidência técnica registrada. Verifique se existe
+                    ferramenta técnica pra jogada e em que bola da sequência o erro acontece antes de nomear
+                    isso como "cabeça" — muito do que parece insegurança é uma base que não sustenta o golpe.
+                  </Aviso>
+                </div>
+              )}
+              <button type="button" onClick={() => setGuiaMental(!guiaMental)} className="mt-2"
+                style={{ display: "block", fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, color: C.grafite, background: "none", border: "none", cursor: "pointer", padding: 0, minHeight: 32 }}>
+                {(guiaMental ? "Ocultar perguntas-guia" : "Perguntas-guia") + (guiaMental ? " ▲" : " ▼")}
+              </button>
+              {guiaMental && (
+                <div className="mt-3">
+                  <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>{blocoMental.nota}</p>
+                  {blocoMental.campos.map(([k, rot]) => <CampoEntrada key={k} rotulo={rot} valor={ent(k)} aoMudar={(v) => setEnt(k, v)} />)}
+                </div>
+              )}
+            </div>
+
+            <Campo rotulo="Objetivo do jogador" nota="Quando o que ele quer e o que você vê não batem, isso é informação.">
+              {blocoObjetivo.campos.map(([k, rot]) => (
+                <CampoEntrada key={k} rotulo={rot} valor={ent(k)} aoMudar={(v) => setEnt(k, v)} />
+              ))}
             </Campo>
-            {objetivosAdultoAtuais.length > 0 && objetivosAdultoAtuais.map((v) => (
-              <p key={v} style={{ ...prosa, color: C.grafite, fontSize: 13, marginTop: -6, marginBottom: 4 }}>{OBJETIVOS_ADULTO.find((o) => o.v === v).d}</p>
-            ))}
-          </>
+            <Campo rotulo="Para observar na próxima aula">
+              {blocoAberto.campos.map(([k, rot]) => (
+                <CampoEntrada key={k} rotulo={rot} valor={ent(k)} aoMudar={(v) => setEnt(k, v)} />
+              ))}
+            </Campo>
+          </Secao>
+
+          <div className="mb-5">
+            <Botao pequeno variante="vazio" onClick={() => setMostrarMaisAvaliacao(!mostrarMaisAvaliacao)}>
+              {mostrarMaisAvaliacao ? "Ocultar prioridades do plano" : "Mostrar prioridades do plano"}
+            </Botao>
+          </div>
+          {mostrarMaisAvaliacao && (
+            <Secao titulo="Prioridades" nota="A ordem define os ciclos de estímulo do macro e a proporção do volume tático. Arraste pelas setas.">
+              {f.prioridades.map((p, i) => (
+                <div key={p} className="flex items-center gap-3 mb-2" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderLeft: "3px solid " + (i < 2 ? C.saibro : C.linha), padding: "9px 12px" }}>
+                  <span style={{ fontFamily: ARCH, fontWeight: 700, fontSize: 13, color: i < 2 ? C.saibro : C.grafite, width: 18 }}>{LETRAS[i]}</span>
+                  <span style={{ ...prosa, flex: 1 }}>{AREAS[p].nome}</span>
+                  <button onClick={() => mover(i, -1)} style={iconeEstilo}>↑</button>
+                  <button onClick={() => mover(i, 1)} style={iconeEstilo}>↓</button>
+                </div>
+              ))}
+              <Campo rotulo="Arma(s) do jogador" nota="O que já funciona entra como manutenção, não some do plano. Pode marcar mais de uma.">
+                <SeletorMulti opcoes={AREA_OPCOES.map((a) => ({ v: a.id, r: a.nome }))} valor={armasDoJogador(f)} aoMudar={(v) => set("armas", v)} />
+              </Campo>
+            </Secao>
+          )}
+        </>
+      )}
+
+      {etapa === 5 && (
+        <>
+          <Secao titulo="Dados">
+            <Linha rotulo="Nome" texto={f.nome || "Sem nome ainda"} />
+            <Linha rotulo="Nascimento" texto={f.nascimento || "não informado"} />
+            <div className="mt-2"><Botao pequeno variante="vazio" onClick={() => setEtapa(1)}>Editar Dados</Botao></div>
+          </Secao>
+          <Secao titulo="Rotina">
+            <Linha rotulo="Horários" texto={(f.horarios || []).length ? f.horarios.map((h) => nomeDia(h.dia) + " " + h.hora).join(", ") : "nenhum horário fixo definido"} />
+            <Linha rotulo="Duração" texto={f.duracaoPadrao || "1h30"} />
+            <div className="mt-2"><Botao pequeno variante="vazio" onClick={() => setEtapa(2)}>Editar Rotina</Botao></div>
+          </Secao>
+          <Secao titulo="Nível">
+            <CartaoNivel f={f} />
+            <div className="mt-2"><Botao pequeno variante="vazio" onClick={() => setEtapa(3)}>Editar Nível</Botao></div>
+          </Secao>
+          <Secao titulo="Avaliação">
+            <Linha rotulo="Golpes avaliados" texto={(GOLPES_ENTRADA.length - GOLPES_ENTRADA.filter((g) =>
+              estadoCampoFicha(ent("g_" + g + "_ok")) === "vazio" && estadoCampoFicha(ent("g_" + g + "_falha")) === "vazio").length) + " de " + GOLPES_ENTRADA.length} />
+            <div className="mt-2"><Botao pequeno variante="vazio" onClick={() => setEtapa(4)}>Editar Avaliação</Botao></div>
+          </Secao>
+
+          {pendencias.length > 0 && (
+            <Secao titulo="Pendências" nota="Nada aqui impede concluir a ficha — são lembretes do que ainda falta observar.">
+              {pendencias.map((p, i) => (
+                <div key={i} className="flex items-center justify-between gap-3 mb-2" style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.saibro, borderRadius: 10, padding: "9px 12px" }}>
+                  <p style={{ ...prosa, fontSize: 13 }}>{p.t}</p>
+                  <Botao pequeno variante="vazio" onClick={() => setEtapa(p.etapa)}>Completar</Botao>
+                </div>
+              ))}
+            </Secao>
+          )}
+        </>
+      )}
+
+      <div className="flex items-center gap-2 mt-6" style={{ flexWrap: "wrap" }}>
+        {etapa > 1 && <Botao variante="vazio" onClick={voltar} disabled={estadoSalvo === "salvando"}>Voltar</Botao>}
+        <Botao variante="vazio" onClick={salvarRascunho} disabled={estadoSalvo === "salvando"}>
+          {estadoSalvo === "salvando" ? "Salvando…" : "Salvar rascunho"}
+        </Botao>
+        {etapa < ETAPAS_FICHA.length ? (
+          <Botao variante="saibro" onClick={avancar} disabled={estadoSalvo === "salvando"}>Salvar e continuar</Botao>
+        ) : (
+          <Botao variante="saibro" onClick={concluirFicha} disabled={estadoSalvo === "salvando" || sugerindoAuto}>Concluir ficha</Botao>
         )}
-        <Campo rotulo="Dificuldade de consistência" nota="Erra demais pra sustentar a troca de bolas — não é sobre risco tático, é sobre não conseguir manter o ponto vivo. Mais comum e mais decisivo no adulto, mas vale para qualquer estágio.">
-          <Seletor opcoes={[{ v: false, r: "Não" }, { v: true, r: "Sim" }]} valor={f.dificuldadeConsistencia} aoMudar={(v) => set("dificuldadeConsistencia", v)} />
-        </Campo>
-      </Secao>
-
-      <Secao titulo="Ficha de entrada" nota="Preencha na ordem dos blocos — ela segue o protocolo do método. Onde não souber, marque 'não sei': campo honesto vira item de observação; campo chutado vira erro de diagnóstico.">
-        <div className="mb-5">
-          <div className="mb-2"><Etiqueta cor={C.tinta}>1 · Técnico, golpe a golpe</Etiqueta></div>
-          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>
-            "Erra o backhand" diz pouco. "Erra o backhand quando a bola vem alta e ele está
-            recuando" diz quase tudo.
-          </p>
-          {GOLPES_ENTRADA.map((g) => (
-            <div key={g} style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.saibro, padding: "11px 13px", marginBottom: 9 }}>
-              <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginBottom: 8 }}>{g}</div>
-              <CampoEntrada rotulo="Funciona" valor={ent("g_" + g + "_ok")} aoMudar={(v) => setEnt("g_" + g + "_ok", v)} />
-              <CampoEntrada rotulo="Falha quando" valor={ent("g_" + g + "_falha")} aoMudar={(v) => setEnt("g_" + g + "_falha", v)} />
-              <FasesGolpe golpe={g} avaliacao={avaliacaoGolpe(g)} aoMudar={(v) => setAvaliacaoGolpe(g, v)} />
-            </div>
-          ))}
-        </div>
-
-        {ENTRADA_BLOCOS.map((b) => (
-          <div key={b.n} className="mb-5">
-            <div className="mb-2"><Etiqueta cor={C.tinta}>{b.n} · {b.t}</Etiqueta></div>
-            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>{b.nota}</p>
-            {b.campos.map(([k, rot]) => (
-              <CampoEntrada key={k} rotulo={rot} valor={ent(k)} aoMudar={(v) => setEnt(k, v)} />
-            ))}
-          </div>
-        ))}
-      </Secao>
-
-      <Secao titulo="Prioridades" nota="A ordem define os ciclos de estímulo do macro e a proporção do volume tático. Arraste pelas setas.">
-        {f.prioridades.map((p, i) => (
-          <div key={p} className="flex items-center gap-3 mb-2" style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + (i < 2 ? C.saibro : C.linha), padding: "9px 12px" }}>
-            <span style={{ fontFamily: ARCH, fontWeight: 700, fontSize: 13, color: i < 2 ? C.saibro : C.grafite, width: 18 }}>{LETRAS[i]}</span>
-            <span style={{ ...prosa, flex: 1 }}>{AREAS[p].nome}</span>
-            <button onClick={() => mover(i, -1)} style={iconeEstilo}>↑</button>
-            <button onClick={() => mover(i, 1)} style={iconeEstilo}>↓</button>
-          </div>
-        ))}
-        <Campo rotulo="Arma(s) do jogador" nota="O que já funciona entra como manutenção, não some do plano. Pode marcar mais de uma.">
-          <SeletorMulti opcoes={AREA_OPCOES.map((a) => ({ v: a.id, r: a.nome }))} valor={armasDoJogador(f)} aoMudar={(v) => set("armas", v)} />
-        </Campo>
-      </Secao>
-
-      <Secao titulo="Horizonte" nota="Planejamento do fim para o começo: o objetivo distante é a bússola de tudo o que vem antes.">
-        <Campo rotulo="Objetivo final">
-          <input style={entrada} value={f.objetivoFinal} onChange={(e) => set("objetivoFinal", e.target.value)} placeholder="Ex.: os 4 Grand Slams juvenis em 2028" />
-        </Campo>
-        {f.marcos.map((m, i) => (
-          <div key={i} className="mb-2 grid grid-cols-12 gap-2">
-            <input style={{ ...entrada, gridColumn: "span 3" }} value={m.ano} onChange={(e) => mudaLista("marcos", i, "ano", e.target.value)} placeholder="Ano" />
-            <input style={{ ...entrada, gridColumn: "span 8" }} value={m.marco} onChange={(e) => mudaLista("marcos", i, "marco", e.target.value)} placeholder="Marco intermediário" />
-            <button onClick={() => tiraLista("marcos", i)} style={{ ...iconeEstilo, gridColumn: "span 1" }}>×</button>
-            <input style={{ ...entrada, gridColumn: "span 12" }} value={m.precisa} onChange={(e) => mudaLista("marcos", i, "precisa", e.target.value)} placeholder="O que precisa estar pronto" />
-          </div>
-        ))}
-        <Botao pequeno variante="vazio" onClick={() => addLista("marcos", { ano: "", marco: "", precisa: "" })}>+ Marco</Botao>
-      </Secao>
-
-      <Secao titulo="Calendário e rotina" nota="As datas de competição desenham as fases sozinhas.">
-        <div className="grid grid-cols-2 gap-3">
-          <Campo rotulo="Início do ciclo"><input type="date" style={entrada} value={f.inicio} onChange={(e) => set("inicio", e.target.value)} /></Campo>
-          <Campo rotulo="Semanas"><input type="number" min={4} max={52} style={entrada} value={f.semanas} onChange={(e) => set("semanas", Number(e.target.value))} /></Campo>
-        </div>
-        <Campo rotulo="Competições">
-          {f.competicoes.map((c, i) => (
-            <div key={i} className="flex gap-2 mb-2">
-              <input style={entrada} value={c.nome} onChange={(e) => mudaLista("competicoes", i, "nome", e.target.value)} placeholder="Nome do torneio" />
-              <input type="date" style={{ ...entrada, maxWidth: 160 }} value={c.data} onChange={(e) => mudaLista("competicoes", i, "data", e.target.value)} />
-              <button onClick={() => tiraLista("competicoes", i)} style={iconeEstilo}>×</button>
-            </div>
-          ))}
-          <Botao pequeno variante="vazio" onClick={() => addLista("competicoes", { nome: "", data: "" })}>+ Competição</Botao>
-        </Campo>
-        <Campo rotulo="Dias de quadra por semana"><Seletor opcoes={[1, 2, 3, 4, 5, 6, 7].map((d) => ({ v: d, r: d + " dias" }))} valor={f.diasQuadra} aoMudar={(v) => set("diasQuadra", v)} /></Campo>
-        <Campo rotulo="Períodos por dia"><Seletor opcoes={[{ v: 1, r: "Um" }, { v: 2, r: "Dois" }]} valor={f.periodos} aoMudar={(v) => set("periodos", v)} /></Campo>
-        <Campo rotulo="Escola"><Seletor opcoes={[{ v: "manha", r: "Manhã" }, { v: "tarde", r: "Tarde" }, { v: "noite", r: "Noite" }, { v: "nao", r: "Não estuda" }]} valor={f.escola} aoMudar={(v) => set("escola", v)} /></Campo>
-        <Campo rotulo="Musculação por semana"><Seletor opcoes={[0, 1, 2, 3, 4, 5].map((n) => ({ v: n, r: String(n) }))} valor={f.musculacao} aoMudar={(v) => set("musculacao", v)} /></Campo>
-      </Secao>
-
-      <div className="flex items-center gap-2">
-        <Botao onClick={salvarEFechar} variante="saibro">Salvar ficha</Botao>
-        {aluno.nome && <Botao variante="vazio" onClick={() => setEditando(false)}>Cancelar</Botao>}
       </div>
     </div>
   );
@@ -4639,18 +5136,23 @@ function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual, podeEditar = true,
   const temperamento = PERFIS_TEMPERAMENTO.find((p) => p.v === a.perfilTemperamento);
   const objetivosAdulto = objetivosDoAdulto(a).map((v) => OBJETIVOS_ADULTO.find((o) => o.v === v)).filter(Boolean);
   const disposicaoAdulto = DISPOSICOES_ADULTO.find((d) => d.v === a.disposicaoAdulto);
+  const [mostrarOcultos, setMostrarOcultos] = useState(false);
+  const [verPerfilExplicado, setVerPerfilExplicado] = useState(false);
+  const taticoResumoEmocional = pareceEmocional(a.camadas.tatico);
+  const rn = resumoNivel(a);
 
   return (
     <div>
       {salvo && (
-        <div className="mb-4" style={{ background: C.quadra, padding: "9px 13px" }}>
-          <Etiqueta cor="#fff">✓ ficha salva</Etiqueta>
+        <div className="mb-4 flex items-center gap-1.5">
+          <span style={{ color: C.quadra, fontSize: 14 }}>✓</span>
+          <Etiqueta cor={C.quadra}>Ficha salva</Etiqueta>
         </div>
       )}
 
       <div className="flex items-start justify-between gap-3 flex-wrap mb-6">
         <div>
-          <Etiqueta>{faseDoEstagio(a.estagio)} · nível {a.nivel}</Etiqueta>
+          <Etiqueta>{rn ? rn.linha : faseDoEstagio(a.estagio)}</Etiqueta>
           <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginTop: 4 }}>
             {a.professorNome ? "Prof. " + a.professorNome + " · " : ""}
             {(a.horarios || []).length ? a.horarios.map((h) => nomeDia(h.dia) + " " + h.hora).join(", ") : "sem horário fixo definido"}
@@ -4665,15 +5167,15 @@ function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual, podeEditar = true,
       )}
 
       {sugerindoAuto && (
-        <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "12px 14px" }}>
+        <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, padding: "12px 14px" }}>
           <Etiqueta cor={C.grafite}>Analisando a ficha pra sugerir o nível…</Etiqueta>
         </div>
       )}
       {sugestaoAuto && (
-        <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.quadra, padding: "12px 14px" }}>
+        <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderLeft: "3px solid " + C.quadra, padding: "12px 14px" }}>
           <div className="flex items-center gap-2 mb-2 flex-wrap">
             <Etiqueta cor={C.quadra}>Sugestão automática da IA</Etiqueta>
-            <Etiqueta>{ESTAGIOS.find((e) => e.s === sugestaoAuto.estagio)?.n || sugestaoAuto.estagio} · {sugestaoAuto.nivel}</Etiqueta>
+            <Etiqueta>{ESTAGIOS.find((e) => e.s === sugestaoAuto.estagio)?.n || sugestaoAuto.estagio} · {nomeNivel(sugestaoAuto.nivel)}</Etiqueta>
           </div>
           <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginBottom: 10 }}>{sugestaoAuto.justificativa}</p>
           <div className="flex gap-2">
@@ -4683,9 +5185,24 @@ function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual, podeEditar = true,
         </div>
       )}
 
-      <Secao titulo="Diagnóstico">
-        {temCamada ? camadasRot.map(([k, rot]) => (a.camadas[k] || "").trim() && <Linha key={k} rotulo={rot} texto={a.camadas[k]} />)
-          : <p style={{ ...prosa, color: C.grafite }}>Diagnóstico ainda não preenchido.</p>}
+      <Secao titulo="Avaliação do treinador"
+        nota={a.fichaAtualizadaEm ? "Atualizado em " + formatarDataHoraCurta(a.fichaAtualizadaEm) : undefined}>
+        {temCamada ? camadasRot.map(([k, rot]) => (a.camadas[k] || "").trim() && (
+          <div key={k}>
+            <Linha rotulo={rot} texto={a.camadas[k]} />
+            {k === "tatico" && taticoResumoEmocional && (
+              <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginTop: -4, marginBottom: 10 }}>
+                Este texto soa mais a comportamento/estado emocional do que a tática.
+                {podeEditar && <> <button type="button" onClick={aoEditar}
+                  style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, color: "inherit", background: "none",
+                    border: "none", padding: 0, cursor: "pointer", textDecoration: "underline" }}>
+                  Revisar categoria
+                </button></>}
+              </p>
+            )}
+          </div>
+        ))
+          : <p style={{ ...prosa, color: C.grafite }}>Avaliação do treinador ainda não preenchida — o que não foi observado aparece como "Não informado" ou "Ainda não avaliado", nunca como conclusão.</p>}
       </Secao>
 
       <Secao titulo="Perfil de jogo">
@@ -4696,34 +5213,76 @@ function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual, podeEditar = true,
         {a.dificuldadeConsistencia && <Linha rotulo="Consistência" texto="Dificuldade marcada — erra demais pra sustentar a troca de bolas." />}
         {!corpo && !temperamento && !(a.estagio === "A" && objetivosAdulto.length > 0) && !(a.estagio === "A" && disposicaoAdulto) && !a.dificuldadeConsistencia &&
           <p style={{ ...prosa, color: C.grafite }}>Perfil de jogo ainda não definido.</p>}
+        {(corpo || temperamento) && (
+          <div className="mt-2">
+            <button type="button" onClick={() => setVerPerfilExplicado(!verPerfilExplicado)}
+              style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, color: C.grafite, background: "none", border: "none", cursor: "pointer", padding: 0, minHeight: 32 }}>
+              {(verPerfilExplicado ? "Ocultar explicação" : "Entenda o perfil") + (verPerfilExplicado ? " ▲" : " ▼")}
+            </button>
+            {verPerfilExplicado && (
+              <div className="mt-2" style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "12px 14px" }}>
+                <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 10 }}>
+                  "Corpo" é de onde o jogador consegue jogar a partir de — não é estatura nem físico. "Temperamento"
+                  é o ritmo de decisão dele em quadra. Os dois não se escolhem: se reconhecem observando o jogo, e
+                  cruzam entre si — existe jogador alto e direto, e pequeno e cadenciado.
+                </p>
+                {corpo && (
+                  <div className="mb-3">
+                    <p style={{ ...prosa, fontSize: 13.5, fontWeight: 700, marginBottom: 2 }}>{corpo.r.includes(" · ") ? corpo.r.split(" · ")[1] : corpo.r}</p>
+                    <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 4 }}>{corpo.d}</p>
+                    <Etiqueta cor={C.grafite}>{corpo.v}</Etiqueta>
+                  </div>
+                )}
+                {temperamento && (
+                  <div>
+                    <p style={{ ...prosa, fontSize: 13.5, fontWeight: 700, marginBottom: 2 }}>{temperamento.r.includes(" · ") ? temperamento.r.split(" · ")[1] : temperamento.r}</p>
+                    <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 4 }}>{temperamento.d}</p>
+                    <Etiqueta cor={C.grafite}>{temperamento.v}</Etiqueta>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </Secao>
 
-      <Secao titulo="Prioridades">
-        <p style={prosa}>{a.prioridades.map((p) => AREAS[p].nome).join(" → ")}</p>
+      <Secao titulo="Prioridades de desenvolvimento"
+        nota="As duas primeiras recebem mais volume de treino no ciclo — não é a ordem da aula.">
+        <ol style={{ ...prosa, listStyleType: "decimal", paddingLeft: 20, margin: 0 }}>
+          {a.prioridades.map((p) => <li key={p} style={{ marginBottom: 4 }}>{AREAS[p].nome}</li>)}
+        </ol>
       </Secao>
 
-      <Secao titulo="Horizonte">
+      <div className="mb-5">
+        <Botao pequeno variante="vazio" onClick={() => setMostrarOcultos(!mostrarOcultos)}>
+          {mostrarOcultos ? "Ocultar informações complementares" : "Ver informações complementares"}
+        </Botao>
+      </div>
+
+      {mostrarOcultos && (
+      <>
+      <Secao titulo="Horizonte" nota="Objetivo de longo prazo do jogador — não muda a cada ciclo.">
         {a.objetivoFinal ? <Linha rotulo="Objetivo" texto={a.objetivoFinal} /> : <p style={{ ...prosa, color: C.grafite }}>Sem objetivo final definido.</p>}
       </Secao>
 
-      <Secao titulo="Calendário">
+      <Secao titulo="Calendário" nota="Datas e rotina de quadra que ajudam a planejar o ciclo.">
         <p style={prosa}>
-          {a.inicio ? "Início " + a.inicio : "sem data de início"} · {a.semanas} semanas · {a.diasQuadra} dias de quadra por semana · {a.periodos >= 2 ? "dois turnos por dia" : "um turno por dia"}
+          {a.inicio ? "Início " + a.inicio : "sem data de início"} · {a.semanas} semanas · {a.diasQuadra ? a.diasQuadra + " dia" + (a.diasQuadra === 1 ? "" : "s") + " de quadra por semana" : "dias de quadra por semana não informados"} · {a.periodos == null ? "turnos por dia não informados" : a.periodos >= 2 ? "dois turnos por dia" : "um turno por dia"}
         </p>
       </Secao>
+      </>
+      )}
 
       {papelAtual === "coordenador" && (a.feedbacksAluno || []).length > 0 && (
         <Secao titulo="Feedback do aluno" nota="Enviado pelo próprio aluno, pelo link dele — só o coordenador vê este campo, o treinador não.">
           {a.feedbacksAluno.map((f) => (
-            <div key={f.id} style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid #C9A227", padding: "10px 13px", marginBottom: 7 }}>
+            <div key={f.id} style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderLeft: "3px solid #C9A227", padding: "10px 13px", marginBottom: 7 }}>
               <Etiqueta>{new Date(f.data).toLocaleDateString("pt-BR")}</Etiqueta>
               <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>{f.texto}</p>
             </div>
           ))}
         </Secao>
       )}
-
-      {podeEditar && <Botao variante="vazio" onClick={aoEditar}>Editar ficha</Botao>}
     </div>
   );
 }
@@ -11016,7 +11575,17 @@ function App() {
     setAbertoId(n.id);
     setSubaba("ficha");
   }
-  function salvar(f) { setAlunos(alunos.map((a) => (a.id === f.id ? f : a))); }
+  /* Chamado direto pela ficha em etapas pra confirmar o salvamento de
+     verdade (salvando/salvo/erro) — além do efeito que observa `alunos`
+     (acima) e grava sozinho a cada mudança. Gravar aqui também é
+     redundante com aquele efeito, não arriscado: mesma chave, mesmo
+     conteúdo final; só assim a ficha tem uma confirmação real pra
+     mostrar antes de avançar de etapa. */
+  function salvar(f) {
+    const atualizados = alunos.map((a) => (a.id === f.id ? f : a));
+    setAlunos(atualizados);
+    return grave("mty:alunos:v2", atualizados);
+  }
   function removerAluno(id) {
     if (!confirm("Remover este jogador? A ficha, o plano e o histórico dele vão junto — não dá pra desfazer.")) return;
     setAlunos(alunos.filter((a) => a.id !== id));
@@ -11063,6 +11632,19 @@ function App() {
             width: auto !important;
             max-width: none !important;
           }
+        }
+        /* Linha rótulo/valor da ficha (Avaliação do treinador, Perfil de
+           jogo, exercícios da sessão etc.) — empilhado por padrão (celular),
+           sem largura fixa, com quebra natural. Só vira coluna lado a lado
+           quando a tela tem espaço de sobra, e mesmo aí usa flex-wrap: se o
+           rótulo for longo ou o espaço disponível for menor (ex. painel
+           lateral estreito), volta a empilhar sozinho. */
+        .mty-linha { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
+        .mty-linha-valor { margin: 0; overflow-wrap: anywhere; }
+        @media (min-width: 640px) {
+          .mty-linha { flex-direction: row; flex-wrap: wrap; column-gap: 14px; row-gap: 2px; align-items: baseline; }
+          .mty-linha-rotulo { flex: 0 0 auto; padding-top: 2px; min-width: 92px; }
+          .mty-linha-valor { flex: 1 1 220px; min-width: 200px; }
         }
       `}</style>
 
