@@ -4011,7 +4011,26 @@ function regrasConsistencia(a) {
   ];
 }
 
-function promptPlanoEstruturado(a, semanas, aulasSemana, historico) {
+function plural(n, singular, pluralForma) { return n + " " + (n === 1 ? singular : (pluralForma || singular + "s")); }
+
+function textoEnfase(enfase) {
+  if (!enfase) return [];
+  const t = enfase.tecnico ?? 50, a = enfase.tatico ?? 50, f = enfase.fisico ?? 50, p = enfase.pontos ?? 50;
+  if (t === 50 && a === 50 && f === 50 && p === 50) return [];
+  return [
+    "",
+    "ÊNFASE PEDIDA PELO TREINADOR PRA ESTE CICLO (0 a 100 cada, peso relativo entre as camadas —",
+    "não precisa somar 100): técnico " + t + " · tático " + a + " · físico " + f + " · pontos/jogo " + p + ".",
+    "· Pondere a escolha de exercícios, o tempo de cada bloco e a proporção de jogo de pontos (rally",
+    "  livre, pontos com restrição, sets) de acordo com esses pesos — mais tático pede mais exercício",
+    "  de padrão e decisão; mais pontos pede mais tempo de bola em jogo com placar; mais técnico pede",
+    "  mais repetição isolada de golpe; mais físico pede mais exercício de deslocamento e carga.",
+    "· Isso nunca anula as regras travadas acima (saque e devolução toda semana, etc.) — só muda o",
+    "  peso dentro do que já é permitido.",
+  ];
+}
+
+function promptPlanoEstruturado(a, semanas, aulasSemana, historico, enfase) {
   const nBlocos = 3;
   const porBloco = Math.ceil(semanas / nBlocos);
   const ciclosAnteriores = (historico || []).slice(0, 3).map((h, i) =>
@@ -4037,8 +4056,9 @@ function promptPlanoEstruturado(a, semanas, aulasSemana, historico) {
       ...ciclosAnteriores,
     ] : []),
     "",
-    "FORMATO: " + semanas + " semanas, " + nBlocos + " blocos de aproximadamente " + porBloco +
-      " semanas, " + aulasSemana + " aulas por semana.",
+    "FORMATO: " + plural(semanas, "semana") + ", " + plural(nBlocos, "bloco") + " de aproximadamente " + plural(porBloco, "semana") +
+      ", " + plural(aulasSemana, "aula") + " por semana.",
+    ...textoEnfase(enfase),
     "",
     "Devolva APENAS um JSON válido, sem texto antes ou depois, sem crases, neste formato:",
     JSON.stringify({
@@ -4149,7 +4169,7 @@ function regrasCompeticaoTurma(membros) {
   ];
 }
 
-function promptPlanoTurma(turma, membros, semanas, aulasSemana, historico) {
+function promptPlanoTurma(turma, membros, semanas, aulasSemana, historico, enfase) {
   const nBlocos = 3;
   const porBloco = Math.ceil(semanas / nBlocos);
   const estagios = [...new Set(membros.map((m) => m.estagio))];
@@ -4184,8 +4204,9 @@ function promptPlanoTurma(turma, membros, semanas, aulasSemana, historico) {
       ...ciclosAnteriores,
     ] : []),
     "",
-    "FORMATO: " + semanas + " semanas, " + nBlocos + " blocos de aproximadamente " + porBloco +
-      " semanas, " + aulasSemana + " aulas por semana.",
+    "FORMATO: " + plural(semanas, "semana") + ", " + plural(nBlocos, "bloco") + " de aproximadamente " + plural(porBloco, "semana") +
+      ", " + plural(aulasSemana, "aula") + " por semana.",
+    ...textoEnfase(enfase),
     "",
     "Devolva APENAS um JSON válido, sem texto antes ou depois, sem crases, neste formato:",
     JSON.stringify({
@@ -7750,7 +7771,7 @@ function HistoricoRelatorios({ historico, abrirHist, setAbrirHist, removerDoHist
    campos de registro. Extraído pra ser reaproveitado tanto pelas aulas
    programadas quanto pelas aulas de reforço (ver reforcarBloco em
    TelaPlano), que têm o mesmo checklist mas nascem de forma diferente. */
-function CardAulaChecklist({ id, indice, titulo, descricao, selo, status, defineStatus, reg, campo, chuvaAberta, setChuvaAberta, podeEditar = true, papelAtual }) {
+function CardAulaChecklist({ id, indice, titulo, descricao, selo, qtdExercicios, status, defineStatus, reg, campo, chuvaAberta, setChuvaAberta, podeEditar = true, papelAtual }) {
   const d = reg[id] || {};
   const st = status(id);
   const corStatus = { feita: C.quadra, falta: "#8A2E2E", cancelada: C.saibro }[st] || C.linha;
@@ -7783,6 +7804,11 @@ function CardAulaChecklist({ id, indice, titulo, descricao, selo, status, define
           <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700,
             color: st === "feita" ? C.quadra : C.tinta }}>{indice} · {titulo}</div>
           {descricao && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>{descricao}</p>}
+          {!!qtdExercicios && (
+            <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>
+              {qtdExercicios} {qtdExercicios === 1 ? "exercício" : "exercícios"} — detalhes e trocas na Sessão de hoje
+            </p>
+          )}
           {(selo === "ss" || (selo && selo.indexOf("cs:") === 0)) && (
             <div className="flex gap-1 flex-wrap mt-2">
               {selo === "ss" && <Etiqueta cor={C.saibro}>sem saque</Etiqueta>}
@@ -7830,10 +7856,84 @@ function CardAulaChecklist({ id, indice, titulo, descricao, selo, status, define
     </div>
   );
 }
-function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas, modo = "resumo", papelAtual, uidAtual, identidade }) {
+
+/* ── status do plano: duas dimensões independentes ──
+   Revisão (alguém leu e assinou o conteúdo) e Execução (quanto do ciclo já
+   rolou em quadra) são perguntas diferentes — um plano pode estar
+   "aprovado" e "não iniciado" ao mesmo tempo, ou "em andamento" sem nunca
+   ter sido formalmente revisado. Um único Etiqueta "Ativo" escondia
+   exatamente a pergunta que importa: alguém revisou isto de verdade?
+   Regenerar o plano (gerarComIA/importar) sempre cria um objeto `plano`
+   novo, sem `aprovado` — a aprovação nunca sobrevive, por construção, a
+   uma mudança real de conteúdo. */
+function statusRevisao(plano, fichaMudou) {
+  if (fichaMudou) return "aguardando_revisao";
+  if (plano.aprovado) return "aprovado";
+  return "rascunho";
+}
+const REVISAO_LABEL = { rascunho: "Rascunho", aguardando_revisao: "Aguardando revisão", aprovado: "Aprovado" };
+const REVISAO_COR = { rascunho: "#6B6461", aguardando_revisao: "#C9A227", aprovado: C.quadra };
+
+function statusExecucao(feitas, total) {
+  if (total === 0 || feitas === 0) return "nao_iniciado";
+  if (feitas >= total) return "concluido";
+  return "em_andamento";
+}
+const EXECUCAO_LABEL = { nao_iniciado: "Não iniciado", em_andamento: "Em andamento", concluido: "Concluído" };
+
+/* Quantidade de aulas por status, pra números explícitos em vez de uma
+   barra que parece indicar conclusão. Canceladas não entram em
+   "previstas": ausência de aula não é aula perdida contra o jogador, e
+   contar como se fosse infla artificialmente a sensação de atraso. */
+function resumoAulas(aulas, statusDe) {
+  const c = { realizadas: 0, faltas: 0, canceladas: 0, pendentes: 0 };
+  aulas.forEach((a) => {
+    const st = statusDe(a.id);
+    if (st === "feita") c.realizadas++;
+    else if (st === "falta") c.faltas++;
+    else if (st === "cancelada") c.canceladas++;
+    else c.pendentes++;
+  });
+  return { ...c, previstas: aulas.length - c.canceladas };
+}
+
+/* Números explícitos + legenda, sem informação que só aparece ao tocar
+   num gráfico — substitui a rosquinha de %, que lia como "conclusão"
+   mesmo quando só media quantidade prevista (e inflava faltas/canceladas
+   contra o jogador). */
+function ResumoAulasPlano({ aulas, status }) {
+  if (aulas.length === 0) return null;
+  const r = resumoAulas(aulas, status);
+  return (
+    <div>
+      <p style={{ fontFamily: ARCH, fontSize: 19, fontWeight: 700 }}>{r.realizadas} de {r.previstas} aulas realizadas</p>
+      <div className="flex gap-3 flex-wrap mt-2">
+        <span className="flex items-center gap-2" style={{ ...prosa, fontSize: 12.5 }}>
+          <span style={{ width: 9, height: 9, borderRadius: 999, background: C.quadra, display: "inline-block", flexShrink: 0 }} />Realizadas · {r.realizadas}
+        </span>
+        <span className="flex items-center gap-2" style={{ ...prosa, fontSize: 12.5 }}>
+          <span style={{ width: 9, height: 9, borderRadius: 999, background: C.linha, display: "inline-block", flexShrink: 0 }} />Pendentes · {r.pendentes}
+        </span>
+        {r.faltas > 0 && (
+          <span className="flex items-center gap-2" style={{ ...prosa, fontSize: 12.5, color: "#8A2E2E" }}>
+            <span style={{ width: 9, height: 9, borderRadius: 999, background: "#8A2E2E", display: "inline-block", flexShrink: 0 }} />Faltas · {r.faltas}
+          </span>
+        )}
+        {r.canceladas > 0 && (
+          <span className="flex items-center gap-2" style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>
+            <span style={{ width: 9, height: 9, borderRadius: 999, background: C.saibro, display: "inline-block", flexShrink: 0 }} />Canceladas · {r.canceladas} (fora do total previsto)
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas, modo = "resumo", papelAtual, uidAtual, identidade, setSubaba }) {
   const eTurma = !!turma;
   const entidade = eTurma ? turma : aluno;
   const podeEditar = eTurma ? podeEditarTurma(turma, papelAtual, uidAtual) : podeEditarAluno(aluno, papelAtual, uidAtual);
+  const exigeLogin = typeof window !== "undefined" && !!window.mtyAuth;
   const [colando, setColando] = useState(false);
   const [texto, setTexto] = useState("");
   const [erro, setErro] = useState("");
@@ -7842,6 +7942,11 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
   const [segundosIA, setSegundosIA] = useState(0);
   const [semanas, setSemanas] = useState(4);
   const [aulasSem, setAulasSem] = useState(3);
+  const [enfase, setEnfase] = useState({ tecnico: 50, tatico: 50, fisico: 50, pontos: 50 });
+  /* Um plano recém-gerado/colado não vira vigente sozinho — fica em
+     planoCandidato pra dar um instante de "revisar antes de usar",
+     tanto na primeira geração quanto ao refazer o ciclo. */
+  const [planoCandidato, setPlanoCandidato] = useState(null);
   const [relatorio, setRelatorio] = useState("");
   const [relatorioCopiado, setRelatorioCopiado] = useState(false);
   const [relatorioArquivado, setRelatorioArquivado] = useState(false);
@@ -7852,11 +7957,31 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
   const [gerandoMembroId, setGerandoMembroId] = useState(null);
   const [membroCopiadoId, setMembroCopiadoId] = useState(null);
   const [chuvaAberta, setChuvaAberta] = useState(null);
+  const [menuAcoes, setMenuAcoes] = useState(false);
+  const [aprovando, setAprovando] = useState(false);
+  /* Estado real de salvamento — só vira "salvo" depois que grave() confirma
+     a escrita, nunca otimista. "Salvo na nuvem" só é dito com conta na
+     nuvem (exigeLogin); no aparelho sem login não existe sincronização
+     nenhuma pra prometer. */
+  const [estadoSalvo, setEstadoSalvo] = useState(null); // null | "salvando" | "salvo" | "erro"
 
   const plano = entidade.plano;
   const reg = entidade.regPlano || {};
   const historico = entidade.historicoRelatorios || [];
+  const planosArquivados = entidade.planosArquivados || [];
   const [abrirHist, setAbrirHist] = useState(null);
+  const [abrirArquivados, setAbrirArquivados] = useState(false);
+
+  async function salvarComEstado(campos) {
+    setEstadoSalvo("salvando");
+    const alvoLista = eTurma ? turmas.map((t) => (t.id === turma.id ? { ...t, ...campos } : t))
+      : alunos.map((a) => (a.id === aluno.id ? { ...a, ...campos } : a));
+    const ok = await grave(eTurma ? "mty:turmas:v1" : "mty:alunos:v2", alvoLista, eTurma);
+    atualiza(campos);
+    setEstadoSalvo(ok ? "salvo" : "erro");
+    if (ok) setTimeout(() => setEstadoSalvo((s) => (s === "salvo" ? null : s)), 3000);
+    return ok;
+  }
 
   /* Cronômetro da espera da IA. Fica aqui em cima, junto dos outros
      hooks, porque abaixo tem o early return do "ainda não tem plano" —
@@ -7889,8 +8014,8 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
     setErro(""); setGerando(true); setEtapaIA("Preparando o pedido");
     try {
       const prompt = eTurma
-        ? promptPlanoTurma(turma, membros, semanas, aulasSem, historico)
-        : promptPlanoEstruturado(aluno, semanas, aulasSem, historico);
+        ? promptPlanoTurma(turma, membros, semanas, aulasSem, historico, enfase)
+        : promptPlanoEstruturado(aluno, semanas, aulasSem, historico, enfase);
       /* Plano de turma descreve estações/divisão do grupo por aula, às
          vezes pra vários jogadores de níveis diferentes — sai bem mais
          longo que um plano individual e estourava os 16000 tokens de
@@ -7912,7 +8037,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
       }
       const alvo = valida(json);
       alvo.geradoEm = new Date().toISOString();
-      atualiza({ plano: alvo, regPlano: {} });
+      setPlanoCandidato(alvo);
     } catch (e) {
       if (aindaVale()) setErro(String(e.message || e));
     } finally {
@@ -7937,11 +8062,22 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
       const p = JSON.parse(t);
       const alvo = valida(p.plano || p);
       alvo.geradoEm = new Date().toISOString();
-      atualiza({ plano: alvo, regPlano: {} });
+      setPlanoCandidato(alvo);
       setColando(false); setTexto("");
     } catch (e) {
       setErro(String(e.message || e));
     }
+  }
+
+  /* Confirmar o plano candidato (gerado por IA ou colado) é o primeiro
+     "salvar" de verdade que este jogador recebe — não pode ser otimista.
+     Usa o mesmo salvarComEstado() do resto do app: só fecha o cartão de
+     revisão e avança pro plano ativo depois que grave() confirma a
+     escrita; em caso de falha, o cartão continua ali, com o plano
+     candidato intacto, pra tentar de novo sem perder nada. */
+  async function usarPlanoCandidato() {
+    const ok = await salvarComEstado({ plano: planoCandidato, regPlano: {} });
+    if (ok) setPlanoCandidato(null);
   }
 
   const aulas = useMemo(() => listaAulas(plano, reg), [plano, reg]);
@@ -8010,65 +8146,106 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
     }));
   }
 
-  function construirRelatorio() {
+  /* Prévia (zero aulas), parcial (ciclo em andamento) ou final (ciclo
+     fechado de verdade — arquivamento, não só "todas as aulas feitas") —
+     nunca o mesmo rótulo pros três, pra não deixar o treinador (ou quem
+     ler o PDF) ler uma prévia como se fosse o fechamento oficial. */
+  function rotuloRelatorio(fechamentoEfetivo) {
+    if (fechamentoEfetivo) return "RELATÓRIO FINAL DE CICLO";
+    if (feitas === 0) return "PRÉVIA DO RELATÓRIO — CICLO NÃO INICIADO";
+    if (feitas < aulas.length) return "RELATÓRIO PARCIAL — CICLO EM ANDAMENTO";
+    return "RELATÓRIO FINAL — PRONTO PARA ARQUIVAR";
+  }
+
+  /* Uma estrutura só, nas sete seções pedidas — sem repetir cabeçalho,
+     identificação ou critérios em mais de um lugar. `fechamentoEfetivo`
+     marca os relatórios gerados por um fechamento de verdade (arquivar,
+     refazer, remover) como FINAL, nunca como prévia/parcial, mesmo que o
+     texto em si seja idêntico ao que já estava na tela. */
+  function construirRelatorio(fechamentoEfetivo) {
     const F = reg.__fech || {};
-    const NOTA = { sim: "ATINGIDO", par: "PARCIAL", nao: "NÃO ATINGIDO", "": "não avaliado" };
+    const NOTA = { sim: "ATINGIDO", par: "PARCIAL", nao: "NÃO ATINGIDO", "": "NÃO AVALIADO" };
+    const treinador = entidade.professorNome || (identidade && identidade.nome) || "não informado";
+    const versao = plano.aprovado ? "v" + (plano.aprovadoVersao || 1) + " · aprovada" : "rascunho — ainda não aprovada";
     const L = [];
-    L.push("RELATÓRIO DE CICLO · METODOLOGIA MTY");
-    L.push((eTurma ? "Turma: " : "Jogador: ") + (entidade.nome || "sem nome") + " · " + (plano.tipo || ""));
-    L.push("Gerado em: " + new Date().toLocaleDateString("pt-BR"));
-    L.push("Aulas realizadas: " + feitas + " de " + aulas.length);
+    L.push(rotuloRelatorio(fechamentoEfetivo) + " · METODOLOGIA MTY");
     L.push("");
-    L.push("═══ FECHAMENTO DO CICLO ═══");
+    L.push("═══ 1 · IDENTIFICAÇÃO ═══");
+    L.push((eTurma ? "Turma: " : "Jogador: ") + (entidade.nome || "sem nome"));
+    L.push("Treinador: " + treinador);
+    L.push("Período: " + (plano.tipo || "plano do ciclo") + (plano.geradoEm ? " · desde " + new Date(plano.geradoEm).toLocaleDateString("pt-BR") : ""));
+    L.push("Versão: " + versao);
     L.push("");
-    L.push("CRITÉRIOS DE SAÍDA");
-    plano.blocos.filter((b) => b.saida).forEach((b, i) => {
-      L.push("  " + (b.nome || "") + " · " + (b.titulo || "") + ": " + NOTA[F["nota:C" + i] || ""]);
-      const t = (F["crit:C" + i] || "").trim();
-      if (t) L.push("    " + t);
-    });
+    L.push("═══ 2 · OBJETIVO DO CICLO ═══");
+    L.push(plano.prioridade || "Não informado no plano.");
     L.push("");
-    L.push("O QUE ESTAVA EM OBSERVAÇÃO");
-    (plano.observacao || []).forEach((o, i) => {
-      L.push("  " + o.t);
-      L.push("    " + ((F["obs:O" + i] || "").trim() || "[segue em aberto — não foi preenchido]"));
-    });
+    L.push("═══ 3 · AULAS PREVISTAS E REALIZADAS ═══");
+    const r = resumoAulas(aulas, status);
+    L.push(r.realizadas + " de " + r.previstas + " aulas previstas realizadas.");
+    if (r.faltas) L.push(plural(r.faltas, "falta"));
+    if (r.canceladas) L.push(plural(r.canceladas, "cancelamento") + " (fora do total previsto)");
     L.push("");
-    const dores = aulas.filter((a) => (reg[a.id] || {}).dor);
-    L.push("REGISTRO DE DOR — " + (dores.length ? dores.length + " aulas com registro" : "nenhum registro no período"));
-    dores.forEach((a) => L.push("  " + (reg[a.id].data || "") + " · semana " + a.semana + " · " + reg[a.id].dor));
-    L.push("");
+    L.push("═══ 4 · ATIVIDADES E ADAPTAÇÕES REGISTRADAS ═══");
     let bl = "";
+    let houveAtividade = false;
     aulas.forEach((a) => {
       if (status(a.id) !== "feita") return;
+      houveAtividade = true;
       const d = reg[a.id];
       if (a.bloco !== bl) { bl = a.bloco; L.push("── " + bl.toUpperCase() + " ──"); }
       L.push("Semana " + a.semana + " · " + a.t + " · " + (d.data || "sem data"));
       if ((d.obs || "").trim()) L.push("   " + d.obs.trim());
       L.push("   exercícios: " + (a.ex || []).join(" "));
     });
-    const faltasCancel = aulas.filter((a) => status(a.id) === "falta" || status(a.id) === "cancelada");
-    if (faltasCancel.length) {
+    if (!houveAtividade) L.push("Nenhuma aula realizada ainda neste ciclo.");
+    const dores = aulas.filter((a) => (reg[a.id] || {}).dor);
+    if (dores.length) {
       L.push("");
-      L.push("FALTAS E CANCELAMENTOS (" + faltasCancel.length + ")");
+      L.push(plural(dores.length, "registro de dor") + ":");
+      dores.forEach((a) => L.push("  " + (reg[a.id].data || "") + " · semana " + a.semana + " · " + reg[a.id].dor));
+    }
+    L.push("");
+    L.push("═══ 5 · RESULTADOS OBSERVADOS E CRITÉRIOS AVALIADOS ═══");
+    const criteriosB = plano.blocos.filter((b) => b.saida);
+    if (criteriosB.length === 0) L.push("Este plano não define critérios de saída avaliáveis.");
+    criteriosB.forEach((b, i) => {
+      L.push("  " + (b.nome || "") + " · " + (b.titulo || "") + ": " + NOTA[F["nota:C" + i] || ""]);
+      const t = (F["crit:C" + i] || "").trim();
+      if (t) L.push("    " + t);
+    });
+    L.push("");
+    L.push("═══ 6 · PONTOS EM ABERTO ═══");
+    const faltasCancel = aulas.filter((a) => status(a.id) === "falta" || status(a.id) === "cancelada");
+    const naoFeitas = aulas.filter((a) => status(a.id) === "");
+    const obsAbertas = (plano.observacao || []).filter((o, i) => !((F["obs:O" + i] || "").trim()));
+    if (faltasCancel.length) {
+      L.push(plural(faltasCancel.length, "aula") + " com falta ou cancelamento:");
       faltasCancel.forEach((a) => L.push("  " + (reg[a.id].data || "") + " · semana " + a.semana + " · " + a.t +
         " · " + (status(a.id) === "falta" ? "falta" : "cancelada") + (reg[a.id].motivo ? " · " + reg[a.id].motivo : "")));
     }
-    const naoFeitas = aulas.filter((a) => status(a.id) === "");
     if (naoFeitas.length) {
-      L.push("");
-      L.push("SEM REGISTRO (" + naoFeitas.length + ")");
+      L.push(plural(naoFeitas.length, "aula") + " sem registro ainda:");
       naoFeitas.forEach((a) => L.push("  Semana " + a.semana + " · " + a.t));
     }
+    if (obsAbertas.length) {
+      L.push(plural(obsAbertas.length, "observação") + " ainda sem resposta:");
+      obsAbertas.forEach((o) => L.push("  " + o.t + (o.urgente ? " (prioridade alta)" : "")));
+    }
+    if (!faltasCancel.length && !naoFeitas.length && !obsAbertas.length) L.push("Nenhum ponto em aberto registrado.");
+    L.push("");
+    L.push("═══ 7 · PRÓXIMO FOCO PROPOSTO ═══");
+    const obsRespondidas = (plano.observacao || []).map((o, i) => (F["obs:O" + i] || "").trim()).filter(Boolean);
+    if (obsRespondidas.length) obsRespondidas.forEach((t) => L.push("  " + t));
+    else L.push("Nenhum foco definido ainda — preencha as observações do fechamento pra isso entrar no próximo plano.");
     L.push("");
     L.push("---");
     L.push("Aula sem observação escrita não é aula sem informação — é informação não registrada.");
-    L.push("Campos de observação em branco seguem em aberto e entram no próximo ciclo.");
+    L.push("Para revisão do treinador antes de qualquer decisão de continuidade.");
     return L.join("\n");
   }
 
   function gerar() {
-    setRelatorio(construirRelatorio());
+    setRelatorio(construirRelatorio(false));
   }
 
   /* A ficha mudou depois que este plano foi gerado — em vez de tentar
@@ -8083,10 +8260,11 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
       data: new Date().toISOString(),
       tipo: (plano.tipo || "") + " (revisado pela ficha)",
       feitas, total: aulas.length,
-      texto: construirRelatorio(),
+      texto: construirRelatorio(true),
       criterios: criteriosDoFechamento(reg.__fech || {}),
     };
-    atualiza({ plano: null, regPlano: {}, historicoRelatorios: [item, ...historico] });
+    const arquivado = { id: "PLA-" + Date.now().toString(36), data: new Date().toISOString(), plano, regPlano: reg };
+    atualiza({ plano: null, regPlano: {}, historicoRelatorios: [item, ...historico], planosArquivados: [arquivado, ...planosArquivados] });
   }
 
   /* Vale tanto pro aluno quanto pra turma: pra turma, qualquer membro do
@@ -8098,12 +8276,20 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
 
   function refazerPlanejamento() {
     const msg = feitas > 0
-      ? "Arquivar as " + feitas + " aulas já realizadas como ciclo fechado e gerar um plano novo com a ficha atual?"
+      ? "Arquivar " + (feitas === 1 ? "a 1 aula já realizada" : "as " + feitas + " aulas já realizadas") + " como ciclo fechado e gerar um plano novo com a ficha atual?"
       : "Gerar um plano novo com a ficha atual, no lugar deste?";
     if (confirm(msg)) revisarComFichaAtualizada();
   }
 
   function arquivar() {
+    /* Clicar em "Arquivar" de novo sobre o mesmo relatório (sem gerar um
+       novo) não deve empilhar cópias idênticas no histórico — só a data
+       muda, o conteúdo é o mesmo que já está lá. */
+    if (historico[0] && historico[0].texto === relatorio) {
+      setRelatorioArquivado(true);
+      setTimeout(() => setRelatorioArquivado(false), 4000);
+      return;
+    }
     const item = {
       id: "REL-" + Date.now().toString(36),
       data: new Date().toISOString(),
@@ -8123,6 +8309,43 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
     setTimeout(() => setRelatorioCopiado(false), 2000);
   }
 
+  /* Revisão e aprovação são a mesma ação — não existe "revisar" sem
+     decidir se aprova. Aprovar nunca sobrevive a um plano novo (gerar de
+     novo substitui o objeto `plano` inteiro), então não precisa de lógica
+     extra pra "invalidar": já nasce sem `aprovado` por construção. */
+  async function aprovarPlano() {
+    setAprovando(true);
+    const email = (typeof window !== "undefined" && window.mtyAuth && window.mtyAuth.usuario()) ? window.mtyAuth.usuario().email : "treinador";
+    const versao = (plano.aprovadoVersao || 0) + 1;
+    await salvarComEstado({ plano: { ...plano, aprovado: true, aprovadoEm: new Date().toISOString(), aprovadoPor: email, aprovadoVersao: versao } });
+    setAprovando(false);
+  }
+
+  /* "Arquivar plano" substitui "Remover plano": mesmo gatilho (fecha o
+     ciclo, limpa a tela pra um novo), mas agora sempre recuperável — o
+     plano estruturado inteiro (não só o texto do relatório) fica em
+     planosArquivados, com "Restaurar" disponível na tela "sem plano". */
+  function arquivarPlanoAtual() {
+    const msg = eTurma ? "Arquivar o plano desta turma? Pode ser restaurado depois, em \"planos arquivados\"."
+      : "Arquivar o plano deste jogador? Pode ser restaurado depois, em \"planos arquivados\".";
+    if (!confirm(msg)) return;
+    const arquivadoPlano = { id: "PLA-" + Date.now().toString(36), data: new Date().toISOString(), plano, regPlano: reg };
+    if (feitas > 0) {
+      const item = {
+        id: "REL-" + Date.now().toString(36),
+        data: new Date().toISOString(),
+        tipo: (plano.tipo || "") + " (arquivado)",
+        feitas, total: aulas.length,
+        texto: construirRelatorio(true),
+        criterios: criteriosDoFechamento(reg.__fech || {}),
+      };
+      atualiza({ plano: null, regPlano: {}, historicoRelatorios: [item, ...historico], planosArquivados: [arquivadoPlano, ...planosArquivados] });
+    } else {
+      atualiza({ plano: null, regPlano: {}, planosArquivados: [arquivadoPlano, ...planosArquivados] });
+    }
+    setMenuAcoes(false);
+  }
+
   function removerDoHistorico(id) {
     if (!confirm("Remover este relatório do histórico? Não dá pra desfazer.")) return;
     atualiza({ historicoRelatorios: historico.filter((h) => h.id !== id) });
@@ -8133,15 +8356,40 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
   if (!plano) {
     return (
       <div>
+        <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Plano</h1>
+        <div className="mb-4"><Etiqueta cor={C.grafite}>Rascunho</Etiqueta></div>
         {!podeEditar && (
           <Aviso>{eTurma ? "Esta turma" : "Este jogador"} é de outro treinador — a montagem do plano fica travada. Só o professor responsável ou o coordenador podem gerar ou colar um plano.</Aviso>
         )}
         <Aviso cor={C.quadra}>
-          {eTurma ? "Esta turma ainda não tem plano. Gere aqui mesmo a partir das fichas do grupo — ou cole um plano montado fora."
-            : "Este jogador ainda não tem plano. Preencha a ficha de entrada e gere aqui mesmo — ou cole um plano montado fora."}
+          {eTurma ? "Esta turma ainda não tem um planejamento. Gere aqui mesmo a partir das fichas do grupo — ou cole um plano montado fora."
+            : "Este jogador ainda não tem um planejamento. Preencha a ficha de entrada e gere aqui mesmo — ou cole um plano montado fora."}
         </Aviso>
 
-        <Secao titulo={eTurma ? "Gerar a partir das fichas do grupo" : "Gerar a partir da ficha"}
+        {planoCandidato && (
+          <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA_ALTA, borderRadius: 10, borderLeft: "3px solid " + C.saibro, padding: 16 }}>
+            <Etiqueta cor={C.saibro}>Plano gerado — revise antes de usar</Etiqueta>
+            <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginTop: 7 }}>{planoCandidato.tipo || "Plano do ciclo"}</p>
+            {planoCandidato.prioridade && <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>{planoCandidato.prioridade}</p>}
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 6 }}>
+              {plural(planoCandidato.blocos.length, "bloco")} · {plural(listaAulas(planoCandidato, {}).length, "aula")}
+              {historico.length > 0 ? " · o ciclo anterior fica arquivado no histórico, logo abaixo" : ""}
+            </p>
+            <div className="flex gap-2 mt-3 flex-wrap items-center">
+              <Botao variante="saibro" onClick={usarPlanoCandidato} disabled={estadoSalvo === "salvando"}>
+                {estadoSalvo === "salvando" ? "Salvando…" : "Usar este plano"}
+              </Botao>
+              <Botao variante="vazio" disabled={estadoSalvo === "salvando"} onClick={() => setPlanoCandidato(null)}>Descartar e tentar de novo</Botao>
+            </div>
+            {estadoSalvo === "erro" && (
+              <p style={{ ...prosa, fontSize: 12.5, color: "#8A2E2E", marginTop: 9 }}>
+                Não foi possível salvar agora — confira sua internet e toque em "Usar este plano" de novo.
+              </p>
+            )}
+          </div>
+        )}
+
+        {!planoCandidato && <Secao titulo={eTurma ? "Gerar a partir das fichas do grupo" : "Gerar a partir da ficha"}
           nota={eTurma
             ? "Usa o que está preenchido na ficha de cada jogador do grupo e monta UM plano pra turma inteira, escolhendo exercícios que sirvam pra todos (ou em estações, se os níveis pedirem). Se a turma já teve ciclos anteriores, o plano novo considera o que ficou registrado neles."
             : "Usa o que está preenchido na aba Ficha e escolhe os exercícios dentro do catálogo, respeitando o estágio do jogador. Se o jogador já teve ciclos anteriores, o plano novo é montado considerando o que ficou registrado neles."}>
@@ -8157,6 +8405,18 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                 valor={aulasSem} aoMudar={setAulasSem} />
             </Campo>
           </div>
+
+          <Campo rotulo="Ênfase do ciclo" nota="Dá mais peso pro que você quer trabalhar mais nesse ciclo — não precisa somar 100, é prioridade relativa entre as camadas. Deixe em 50 pra equilibrado.">
+            {[["tecnico", "Técnico"], ["tatico", "Tático"], ["fisico", "Físico"], ["pontos", "Pontos / jogo"]].map(([k, rot]) => (
+              <div key={k} className="flex items-center gap-3 mb-2">
+                <span style={{ ...prosa, width: 100, fontSize: 13, flexShrink: 0 }}>{rot}</span>
+                <input type="range" min={0} max={100} value={enfase[k]}
+                  onChange={(e) => setEnfase((x) => ({ ...x, [k]: Number(e.target.value) }))}
+                  style={{ flex: 1, accentColor: C.saibro }} />
+                <span style={{ fontFamily: ARCH, fontWeight: 700, fontSize: 13, width: 28, textAlign: "right", flexShrink: 0 }}>{enfase[k]}</span>
+              </div>
+            ))}
+          </Campo>
           {!eTurma && !(aluno.camadas.tecnico || "").trim() && (
             <Aviso>
               A camada técnica da ficha está vazia. O plano vai sair genérico — preencha a aba
@@ -8178,9 +8438,9 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
             <Botao variante="vazio" disabled={!podeEditar} onClick={() => setColando(true)}>Colar plano pronto</Botao>
           </div>
           {gerando && <BarraProgresso segundos={segundosIA} etapa={etapaIA} estimativa={eTurma ? 80 : 60} aoCancelar={pararDeEsperar} />}
-        </Secao>
+        </Secao>}
 
-        {colando && (
+        {!planoCandidato && colando && (
           <div>
             <Campo rotulo="Cole o JSON do plano" nota="Pode colar com as crases do bloco de código — eu limpo.">
               <textarea rows={9} style={{ ...entrada, resize: "vertical", fontFamily: "ui-monospace, monospace", fontSize: 12 }}
@@ -8195,6 +8455,27 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
         )}
 
         <HistoricoRelatorios historico={historico} abrirHist={abrirHist} setAbrirHist={setAbrirHist} removerDoHistorico={removerDoHistorico} podeEditar={podeEditar} nomeEntidade={entidade.nome} identidade={identidade} />
+
+        {planosArquivados.length > 0 && (
+          <div className="mt-4">
+            <button onClick={() => setAbrirArquivados(!abrirArquivados)} style={{ ...prosa, fontSize: 12.5, color: C.grafite, cursor: "pointer", border: "none", background: "none", padding: 0, fontWeight: 700 }}>
+              {abrirArquivados ? "Ocultar" : "Ver"} planos arquivados · {planosArquivados.length}
+            </button>
+            {abrirArquivados && planosArquivados.map((item) => (
+              <div key={item.id} style={{ background: C.papel, border: "1px solid " + C.linha, padding: "10px 13px", marginTop: 9 }}>
+                <p style={{ ...prosa, fontSize: 12.5 }}>{new Date(item.data).toLocaleDateString("pt-BR")} · {item.plano.tipo || "plano"}</p>
+                {podeEditar && (
+                  <div className="mt-1">
+                    <Botao pequeno variante="vazio" onClick={() => {
+                      if (!confirm("Restaurar este plano arquivado como o plano vigente? Substitui o que estiver em andamento agora.")) return;
+                      atualiza({ plano: item.plano, regPlano: item.regPlano || {}, planosArquivados: planosArquivados.filter((x) => x.id !== item.id) });
+                    }}>Restaurar</Botao>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
@@ -8262,29 +8543,90 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
     setTimeout(() => setMembroCopiadoId((id) => (id === membroId ? null : id)), 2000);
   }
 
+  const revisaoAtual = statusRevisao(plano, fichaMudouDepoisDoPlano);
+  const execucaoAtual = statusExecucao(feitas, aulas.length);
+  const proximaAulaBruta = aulaEmVigor(entidade);
+  const proximaAula = proximaAulaBruta && !proximaAulaBruta.gate ? proximaAulaBruta : null;
+  const proximaAulaGate = proximaAulaBruta && proximaAulaBruta.gate ? proximaAulaBruta : null;
+
   return (
     <div>
-      <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "14px 16px" }}>
-        <div className="flex items-baseline justify-between gap-3 mb-3">
-          <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{plano.tipo || "Plano do ciclo"}</span>
-          <Etiqueta>{feitas} de {aulas.length} aulas</Etiqueta>
+      <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, marginBottom: 4 }}>
+        {modo === "aulas" ? "Aulas" : modo === "fechamento" ? "Fechamento" : "Plano"}
+      </h1>
+      <p style={{ ...prosa, fontSize: 14, color: C.grafite, marginBottom: 16 }}>
+        {modo === "aulas" ? "Sequência de aulas por bloco, com acesso à sessão de cada uma."
+          : modo === "fechamento" ? "Critérios do ciclo, observações e relatório."
+          : "Objetivo, período e estado do planejamento."}
+      </p>
+
+      {/* ── cabeçalho comum às três seções: quem, objetivo, período, status, progresso ── */}
+      <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, padding: "14px 16px" }}>
+        <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{entidade.nome || (eTurma ? "Turma" : "Jogador")}</span>
+        {plano.prioridade && <p style={{ ...prosa, fontSize: 13.5, margin: "4px 0 0" }}>{plano.prioridade}</p>}
+        <p style={{ ...prosa, fontSize: 12, color: C.grafite, margin: "4px 0 10px" }}>
+          {plano.tipo || "Plano do ciclo"}{plano.geradoEm ? " · desde " + new Date(plano.geradoEm).toLocaleDateString("pt-BR") : ""}
+        </p>
+        <div className="flex gap-2 flex-wrap mb-3">
+          <Etiqueta cor={REVISAO_COR[revisaoAtual]}>{REVISAO_LABEL[revisaoAtual]}</Etiqueta>
+          <Etiqueta cor={C.grafite}>{EXECUCAO_LABEL[execucaoAtual]}</Etiqueta>
         </div>
-        <RoscaStatus contagem={contagemStatus(aulas, status)} />
+        <ResumoAulasPlano aulas={aulas} status={status} />
+        {estadoSalvo && (
+          <p style={{ ...prosa, fontSize: 11.5, color: estadoSalvo === "erro" ? "#8A2E2E" : C.grafite, marginTop: 9 }}>
+            {estadoSalvo === "salvando" ? "Salvando…" : estadoSalvo === "erro" ? "Não foi possível salvar. Tentar novamente."
+              : exigeLogin ? "Salvo na nuvem" : "Salvo"}
+          </p>
+        )}
       </div>
 
-      {fichaMudouDepoisDoPlano && (
-        <div className="mb-5">
-          <Aviso>
-            {eTurma ? "A ficha de pelo menos um jogador do grupo foi atualizada depois que este plano foi gerado."
-              : "A ficha deste jogador foi atualizada depois que este plano foi gerado."}{" "}
-            {feitas > 0
-              ? "As " + feitas + (feitas === 1 ? " aula já realizada fica" : " aulas já realizadas ficam") + " arquivadas como um ciclo fechado, e você monta um plano novo com a ficha atual."
-              : "Nenhuma aula deste plano foi realizada ainda, então dá pra gerar um novo direto."}
-          </Aviso>
-          <div className="mt-2">
-            <Botao pequeno variante="saibro" onClick={refazerPlanejamento}>Revisar planejamento com a ficha atual</Botao>
+      {proximaAula && (
+        <div className="mb-5" style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "13px 15px" }}>
+          <Etiqueta cor={C.saibro}>Próxima aula</Etiqueta>
+          <p style={{ ...prosa, fontSize: 14, fontWeight: 700, marginTop: 4 }}>{proximaAula.t}</p>
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>{proximaAula.bloco} · semana {proximaAula.semana}</p>
+          {setSubaba && <div className="mt-2"><Botao pequeno variante="vazio" onClick={() => setSubaba("sessao")}>Abrir sessão de hoje</Botao></div>}
+        </div>
+      )}
+      {proximaAulaGate && (
+        <div className="mb-5" style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "13px 15px" }}>
+          <Etiqueta cor={C.saibro}>Bloco aguardando confirmação</Etiqueta>
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>
+            {proximaAulaGate.bloco} já deu todas as aulas programadas — confirme o critério de saída na aba Aulas.
+          </p>
+        </div>
+      )}
+      {!proximaAula && !proximaAulaGate && execucaoAtual === "concluido" && (
+        <div className="mb-5" style={{ background: "#F4F7F4", borderLeft: "3px solid " + C.quadra, padding: "11px 14px" }}>
+          <Etiqueta cor={C.quadra}>Plano concluído</Etiqueta>
+          <p style={{ ...prosa, fontSize: 13, marginTop: 4 }}>Todas as aulas deste ciclo foram realizadas — feche o ciclo na aba Fechamento.</p>
+        </div>
+      )}
+
+      {revisaoAtual !== "aprovado" && (
+        <div className="mb-5" style={{ background: revisaoAtual === "aguardando_revisao" ? "#FDF6E7" : C.papel,
+          borderLeft: "3px solid " + (revisaoAtual === "aguardando_revisao" ? "#C9A227" : C.linha), padding: "12px 15px" }}>
+          <p style={{ ...prosa, fontSize: 13 }}>
+            {revisaoAtual === "aguardando_revisao"
+              ? (eTurma ? "A ficha de pelo menos um jogador do grupo mudou depois que este plano foi gerado — revise antes de seguir."
+                  : "A ficha deste jogador mudou depois que este plano foi gerado — revise antes de seguir.")
+              : "Rascunho — leia o plano inteiro antes de conduzir. Nenhum planejamento vale como revisado até alguém aprovar."}
+          </p>
+          <div className="mt-2 flex gap-2 flex-wrap">
+            {revisaoAtual === "aguardando_revisao" ? (
+              <Botao pequeno variante="saibro" onClick={refazerPlanejamento}>Revisar planejamento com a ficha atual</Botao>
+            ) : (
+              <Botao pequeno variante="saibro" disabled={!podeEditar || aprovando} onClick={aprovarPlano}>
+                {aprovando ? "Aprovando…" : "Revisar e aprovar"}
+              </Botao>
+            )}
           </div>
         </div>
+      )}
+      {revisaoAtual === "aprovado" && (
+        <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 16 }}>
+          Aprovado por {plano.aprovadoPor || "—"} em {new Date(plano.aprovadoEm).toLocaleDateString("pt-BR")} · versão {plano.aprovadoVersao}.
+        </p>
       )}
 
       <datalist id="motivos-cancelamento">
@@ -8294,56 +8636,6 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
 
       {modo === "resumo" && (
         <>
-          {!eTurma && (
-            <div className="mb-5">
-              <Botao pequeno variante="vazio" onClick={gerarLinkAluno}>
-                {gerandoLink ? "Gerando…" : "Link para o aluno (protótipo)"}
-              </Botao>
-              {linkAluno && (
-                <div className="mt-2 flex gap-2 items-center flex-wrap">
-                  <input id="mty-link-aluno" readOnly value={linkAluno} style={{ ...entrada, fontSize: 12, flex: 1 }}
-                    onFocus={(e) => e.target.select()} />
-                  <Botao pequeno variante="vazio" onClick={copiarLinkAluno}>{linkCopiado ? "✓ copiado" : "Copiar"}</Botao>
-                </div>
-              )}
-            </div>
-          )}
-
-          {eTurma && (
-            <div className="mb-5">
-              <div className="mb-2"><Etiqueta>Link para os jogadores (protótipo)</Etiqueta></div>
-              {membros.map((m) => (
-                <div key={m.id} className="flex items-center gap-2 flex-wrap mb-2">
-                  <span style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, minWidth: 100 }}>{m.nome || "Sem nome"}</span>
-                  {!linksMembros[m.id] ? (
-                    <Botao pequeno variante="vazio" onClick={() => gerarLinkMembro(m)}>
-                      {gerandoMembroId === m.id ? "Gerando…" : "Gerar link"}
-                    </Botao>
-                  ) : (
-                    <>
-                      <input id={"mty-link-membro-" + m.id} readOnly value={linksMembros[m.id]} style={{ ...entrada, fontSize: 12, flex: 1, minWidth: 160 }}
-                        onFocus={(e) => e.target.select()} />
-                      <Botao pequeno variante="vazio" onClick={() => copiarLinkMembro(m.id)}>{membroCopiadoId === m.id ? "✓ copiado" : "Copiar"}</Botao>
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div style={{ background: "#FDF6E7", borderLeft: "3px solid #C9A227", padding: "11px 14px", marginBottom: 16 }}>
-            <p style={{ ...prosa, fontSize: 13 }}>
-              <b>Rascunho.</b> Leia o plano inteiro antes de conduzir. Nenhum planejamento vai para
-              o aluno sem um treinador revisar e assinar.
-            </p>
-          </div>
-
-          {plano.prioridade && (
-            <div style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "12px 15px", marginBottom: 18 }}>
-              <p style={{ ...prosa, fontSize: 14 }}>{plano.prioridade}</p>
-            </div>
-          )}
-
           <LinhaDeRaciocinio plano={plano} aulas={aulas} status={status} reg={reg} />
         </>
       )}
@@ -8374,7 +8666,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                 const idx = aulas.findIndex((x) => x.semana === sem.n && x.t === au.t && (x.ex || []).join() === (au.ex || []).join());
                 const id = idx >= 0 ? aulas[idx].id : "A?" + si + ai;
                 return (
-                  <CardAulaChecklist key={ai} id={id} indice={ai + 1} titulo={au.t} selo={au.selo}
+                  <CardAulaChecklist key={ai} id={id} indice={ai + 1} titulo={au.t} selo={au.selo} qtdExercicios={(au.ex || []).length}
                     status={status} defineStatus={defineStatus} reg={reg} campo={campo}
                     chuvaAberta={chuvaAberta} setChuvaAberta={setChuvaAberta} podeEditar={podeEditar} papelAtual={papelAtual} />
                 );
@@ -8422,7 +8714,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                 <div style={{ background: "#F4F7F4", border: "1px solid " + C.linha, borderTop: "none",
                   borderLeft: "3px solid " + C.quadra, padding: "12px 15px" }}>
                   <Etiqueta cor={C.quadra}>✓ Critério de saída confirmado</Etiqueta>
-                  {catalogo && <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 4 }}>Catálogo · {catalogo.areaNome} · {catalogo.nivel}</p>}
+                  {catalogo && <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 4 }}>Catálogo · {catalogo.areaNome} · {nomeNivel(catalogo.nivel)}</p>}
                   {saidaTexto && <p style={{ ...prosa, fontSize: 13, marginTop: 4 }}>{saidaTexto}</p>}
                 </div>
               );
@@ -8458,7 +8750,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                 <Etiqueta cor={C.saibro}>Bloco aguardando confirmação</Etiqueta>
                 <p style={{ ...prosa, fontSize: 13, marginTop: 4 }}>
                   {catalogo
-                    ? "As aulas programadas deste bloco já foram todas dadas. Confirme item a item, direto do catálogo do método (" + catalogo.areaNome + " · " + catalogo.nivel + "):"
+                    ? "As aulas programadas deste bloco já foram todas dadas. Confirme item a item, direto do catálogo (" + catalogo.areaNome + " · " + nomeNivel(catalogo.nivel) + "):"
                     : "As aulas programadas deste bloco já foram todas dadas. O jogador já demonstra este critério?"}
                 </p>
                 {saidaTexto && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, margin: "4px 0 10px" }}>{saidaTexto}</p>}
@@ -8483,96 +8775,163 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
         </div>
       ))}
 
-      {modo === "resumo" && (
-        <>
-          <Secao titulo="Fechamento do ciclo" nota="É esta parte que faz o próximo ciclo conversar com este. Sem ela, o plano seguinte recebe o que foi feito, mas não o que foi aprendido.">
-            <h3 style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginBottom: 9 }}>Os critérios de saída</h3>
-            {plano.blocos.filter((b) => b.saida).map((b, i) => {
-              const v = (reg.__fech || {})["nota:C" + i] || "";
-              return (
-                <div key={i} style={{ background: C.cal, border: "1px solid " + C.linha, padding: "13px 15px", marginBottom: 9 }}>
-                  <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>{b.nome} · {b.titulo}</div>
-                  <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, margin: "5px 0 9px" }}>{b.saida}</p>
-                  <div className="flex gap-2 flex-wrap mb-2">
-                    {[["sim", "atingido", C.quadra], ["par", "parcial", C.ocre || "#C9A227"], ["nao", "não atingido", C.saibro]].map(([k, r, cor]) => (
-                      <button key={k} disabled={!podeEditar} onClick={() => fech("nota:C" + i, v === k ? "" : k)}
-                        style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "6px 12px", cursor: podeEditar ? "pointer" : "default",
-                          borderRadius: 10, border: "1px solid " + (v === k ? cor : C.linha),
-                          background: v === k ? cor : C.papel, color: v === k ? "#fff" : C.grafite }}>{r}</button>
-                    ))}
+      {modo === "fechamento" && (() => {
+        const F = reg.__fech || {};
+        const observacaoComIndice = (plano.observacao || []).map((o, i) => ({ ...o, i, respondida: !!(F["obs:O" + i] || "").trim() }));
+        const pendentes = observacaoComIndice.filter((o) => !o.respondida);
+        const realizadas = observacaoComIndice.filter((o) => o.respondida);
+        const aulasComObs = aulas.filter((a) => status(a.id) === "feita" && (reg[a.id] || {}).obs);
+        return (
+          <>
+            <Secao titulo="Critérios do ciclo" nota="A mesma pergunta de sempre — atingido, parcial, não atingido — pra poder comparar de um ciclo pro outro. 'Não avaliado' não é 'não atingido': é só o que ninguém chegou a conferir ainda.">
+              {plano.blocos.filter((b) => b.saida).length === 0 && (
+                <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Este plano não define critérios de saída avaliáveis.</p>
+              )}
+              {plano.blocos.filter((b) => b.saida).map((b, i) => {
+                const v = F["nota:C" + i] || "";
+                return (
+                  <div key={i} style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, padding: "13px 15px", marginBottom: 9 }}>
+                    <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>{b.nome} · {b.titulo}</div>
+                    <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, margin: "5px 0 9px" }}>{b.saida}</p>
+                    <div className="flex gap-2 flex-wrap items-center mb-2">
+                      {[["sim", "atingido", C.quadra], ["par", "parcial", "#C9A227"], ["nao", "não atingido", C.saibro]].map(([k, r, cor]) => (
+                        <button key={k} disabled={!podeEditar} onClick={() => fech("nota:C" + i, v === k ? "" : k)}
+                          style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "6px 12px", cursor: podeEditar ? "pointer" : "default",
+                            borderRadius: 10, border: "1px solid " + (v === k ? cor : C.linha),
+                            background: v === k ? cor : C.papel, color: v === k ? "#fff" : C.grafite }}>{r}</button>
+                      ))}
+                      {!v && <Etiqueta cor={C.grafite}>ainda não avaliado</Etiqueta>}
+                    </div>
+                    <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, resize: "vertical", fontSize: 12.5 }}
+                      placeholder="o que faltou, ou o que apareceu além do esperado"
+                      value={F["crit:C" + i] || ""}
+                      onChange={(e) => fech("crit:C" + i, e.target.value)} />
                   </div>
+                );
+              })}
+            </Secao>
+
+            <Secao titulo="Observações realizadas" nota="Evidências já registradas nas aulas — origem e data de cada uma.">
+              {aulasComObs.length === 0 && realizadas.length === 0 && (
+                <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Nenhuma observação registrada ainda neste ciclo.</p>
+              )}
+              {aulasComObs.map((a) => (
+                <div key={a.id} style={{ background: C.papel, border: "1px solid " + C.linha, borderRadius: 10, padding: "11px 13px", marginBottom: 7 }}>
+                  <p style={{ ...prosa, fontSize: 12, color: C.grafite }}>Semana {a.semana} · {a.t} · {reg[a.id].data ? new Date(reg[a.id].data + "T00:00:00").toLocaleDateString("pt-BR") : "sem data"}</p>
+                  <p style={{ ...prosa, fontSize: 13, marginTop: 4 }}>{reg[a.id].obs}</p>
+                </div>
+              ))}
+              {realizadas.map((o) => (
+                <div key={o.i} style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, padding: "13px 15px", marginBottom: 9 }}>
+                  <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>{o.t}</div>
+                  <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, margin: "5px 0 8px" }}>{o.d}</p>
                   <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, resize: "vertical", fontSize: 12.5 }}
-                    placeholder="o que faltou, ou o que apareceu além do esperado"
-                    value={(reg.__fech || {})["crit:C" + i] || ""}
-                    onChange={(e) => fech("crit:C" + i, e.target.value)} />
+                    value={F["obs:O" + o.i] || ""} onChange={(e) => fech("obs:O" + o.i, e.target.value)} />
                 </div>
-              );
-            })}
+              ))}
+            </Secao>
 
-            <h3 style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, margin: "20px 0 9px" }}>O que estava em observação</h3>
-            {(plano.observacao || []).map((o, i) => (
-              <div key={i} style={{ background: C.cal, border: "1px solid " + C.linha, padding: "13px 15px", marginBottom: 9 }}>
-                <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>
-                  {o.t}{o.urgente && <span style={{ background: C.saibro, color: "#fff", fontSize: 9,
-                    fontWeight: 700, padding: "2px 6px", marginLeft: 7 }}>MAIS URGENTE</span>}
-                </div>
-                <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, margin: "5px 0 8px" }}>{o.d}</p>
-                <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, resize: "vertical", fontSize: 12.5 }}
-                  placeholder="o que se descobriu. Se continua em aberto, escrever isso."
-                  value={(reg.__fech || {})["obs:O" + i] || ""}
-                  onChange={(e) => fech("obs:O" + i, e.target.value)} />
-              </div>
-            ))}
-          </Secao>
-
-          <div className="flex gap-2 flex-wrap mb-4">
-            <Botao onClick={gerar} variante="saibro">Gerar relatório do ciclo</Botao>
-            {!fichaMudouDepoisDoPlano && (
-              <Botao variante="vazio" disabled={!podeEditar} onClick={refazerPlanejamento}>Refazer planejamento com a ficha atual</Botao>
+            {pendentes.length > 0 && (
+              <Secao titulo="Pendências de informação" nota="O que a ficha ou o plano apontaram como relevante e ainda não tem resposta.">
+                {pendentes.map((o) => (
+                  <div key={o.i} style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, padding: "13px 15px", marginBottom: 9 }}>
+                    <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>
+                      {o.t}
+                      {o.urgente && <span style={{ display: "inline-block", whiteSpace: "nowrap", background: "#FDF6E7",
+                        border: "1px solid #C9A227", color: "#8A6D1A", fontSize: 10.5, fontWeight: 700, padding: "3px 8px",
+                        borderRadius: 999, marginLeft: 7 }}>Prioridade alta</span>}
+                    </div>
+                    <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, margin: "5px 0 8px" }}>{o.d}</p>
+                    <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, resize: "vertical", fontSize: 12.5 }}
+                      placeholder="o que se descobriu. Se continua em aberto, escrever isso."
+                      value={F["obs:O" + o.i] || ""} onChange={(e) => fech("obs:O" + o.i, e.target.value)} />
+                  </div>
+                ))}
+              </Secao>
             )}
-            <Botao variante="vazio" disabled={!podeEditar} onClick={() => {
-              const msg = eTurma ? "Remover o plano desta turma? Os registros vão junto." : "Remover o plano deste jogador? Os registros vão junto.";
-              if (!confirm(msg)) return;
-              /* Se já rolou aula neste ciclo, remover sem arquivar apagaria
-                 esse histórico do que a IA vê pra montar o próximo plano —
-                 mesma lógica de revisarComFichaAtualizada, só que disparada
-                 por "Remover" em vez de "Refazer". Sem aula feita ainda,
-                 não há o que preservar: remove direto. */
-              if (feitas > 0) {
-                const item = {
-                  id: "REL-" + Date.now().toString(36),
-                  data: new Date().toISOString(),
-                  tipo: (plano.tipo || "") + " (arquivado ao remover o plano)",
-                  feitas, total: aulas.length,
-                  texto: construirRelatorio(),
-                  criterios: criteriosDoFechamento(reg.__fech || {}),
-                };
-                atualiza({ plano: null, regPlano: {}, historicoRelatorios: [item, ...historico] });
-              } else {
-                atualiza({ plano: null, regPlano: {} });
-              }
-            }}>Remover plano</Botao>
-          </div>
 
-          {relatorio && (
-            <div style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.quadra, padding: 15 }}>
-              <div className="mb-2"><Etiqueta cor={C.quadra}>Relatório do ciclo</Etiqueta></div>
-              <textarea readOnly value={relatorio}
-                style={{ ...entrada, minHeight: 260, fontFamily: "ui-monospace, monospace", fontSize: 11.5, whiteSpace: "pre" }} />
-              <div className="mt-3 flex gap-2">
-                <Botao pequeno variante="vazio" onClick={copiarRelatorio}>{relatorioCopiado ? "✓ copiado" : "Copiar"}</Botao>
-                <Botao pequeno variante="vazio" onClick={() => exportarRelatorioPDF(
-                  { data: new Date().toISOString(), tipo: plano.tipo, feitas, total: aulas.length, texto: relatorio, criterios: criteriosDoFechamento(reg.__fech || {}) },
-                  entidade.nome, identidade
-                )}>Exportar PDF</Botao>
-                <Botao pequeno disabled={!podeEditar} onClick={arquivar}>{relatorioArquivado ? "✓ arquivado no histórico" : "Arquivar no histórico"}</Botao>
-              </div>
+            <div className="flex gap-2 flex-wrap items-center mb-4">
+              <Botao onClick={gerar} variante="saibro">Gerar relatório do ciclo</Botao>
+              {!fichaMudouDepoisDoPlano && (
+                <Botao variante="vazio" disabled={!podeEditar} onClick={refazerPlanejamento}>Refazer planejamento com a ficha atual</Botao>
+              )}
+              {podeEditar && (
+                <div style={{ position: "relative" }}>
+                  <button onClick={() => setMenuAcoes(!menuAcoes)} aria-haspopup="true" aria-expanded={menuAcoes}
+                    aria-label="Mais ações do plano"
+                    style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, padding: "10px 12px", cursor: "pointer", minHeight: 44,
+                      background: "none", border: "1px solid " + C.linha, borderRadius: 10, color: C.grafite }}>⋯</button>
+                  {menuAcoes && (
+                    <>
+                      <div onClick={() => setMenuAcoes(false)} style={{ position: "fixed", inset: 0, zIndex: 29 }} />
+                      <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, background: C.cal, border: "1px solid " + C.linha,
+                        borderRadius: 10, boxShadow: SOMBRA_ALTA, zIndex: 30, minWidth: 200, overflow: "hidden" }}>
+                        <button onClick={arquivarPlanoAtual} className="w-full text-left"
+                          style={{ padding: "11px 14px", border: "none", background: "none", cursor: "pointer",
+                            fontFamily: ARCH, fontSize: 13.5, fontWeight: 500, color: "#8A2E2E", minHeight: 44 }}>
+                          Arquivar plano
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
-          )}
 
-          <HistoricoRelatorios historico={historico} abrirHist={abrirHist} setAbrirHist={setAbrirHist} removerDoHistorico={removerDoHistorico} podeEditar={podeEditar} nomeEntidade={entidade.nome} identidade={identidade} />
-        </>
-      )}
+            {relatorio && (
+              <div style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderLeft: "3px solid " + C.quadra, padding: 15 }}>
+                <div className="mb-2"><Etiqueta cor={C.quadra}>{rotuloRelatorio(false)}</Etiqueta></div>
+                <div style={{ fontFamily: ARCH }} dangerouslySetInnerHTML={{ __html: formatarRelatorioHTML(relatorio) }} />
+                <div className="mt-3 flex gap-2 flex-wrap">
+                  <Botao pequeno variante="vazio" onClick={copiarRelatorio}>{relatorioCopiado ? "✓ copiado" : "Copiar"}</Botao>
+                  <Botao pequeno variante="vazio" onClick={() => exportarRelatorioPDF(
+                    { data: new Date().toISOString(), tipo: plano.tipo, feitas, total: aulas.length, texto: relatorio, criterios: criteriosDoFechamento(reg.__fech || {}) },
+                    entidade.nome, identidade
+                  )}>Exportar PDF</Botao>
+                  <Botao pequeno disabled={!podeEditar} onClick={arquivar}>{relatorioArquivado ? "✓ arquivado no histórico" : "Arquivar no histórico"}</Botao>
+                </div>
+              </div>
+            )}
+
+            <HistoricoRelatorios historico={historico} abrirHist={abrirHist} setAbrirHist={setAbrirHist} removerDoHistorico={removerDoHistorico} podeEditar={podeEditar} nomeEntidade={entidade.nome} identidade={identidade} />
+
+            <div className="mt-6 pt-4" style={{ borderTop: "1px solid " + C.linha }}>
+              {!eTurma ? (
+                <div>
+                  <Botao pequeno variante="vazio" onClick={gerarLinkAluno}>{gerandoLink ? "Gerando…" : "Compartilhar com o jogador"}</Botao>
+                  <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginTop: 6 }}>Recurso em construção — o link funciona, mas a experiência do lado do jogador ainda está sendo ajustada.</p>
+                  {linkAluno && (
+                    <div className="mt-2 flex gap-2 items-center flex-wrap">
+                      <input id="mty-link-aluno" readOnly value={linkAluno} style={{ ...entrada, fontSize: 12, flex: 1 }}
+                        onFocus={(e) => e.target.select()} />
+                      <Botao pequeno variante="vazio" onClick={copiarLinkAluno}>{linkCopiado ? "✓ copiado" : "Copiar"}</Botao>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <Etiqueta>Compartilhar com os jogadores</Etiqueta>
+                  <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, margin: "4px 0 8px" }}>Recurso em construção — o link funciona, mas a experiência do lado do jogador ainda está sendo ajustada.</p>
+                  {membros.map((m) => (
+                    <div key={m.id} className="flex items-center gap-2 flex-wrap mb-2">
+                      <span style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, minWidth: 100 }}>{m.nome || "Sem nome"}</span>
+                      {!linksMembros[m.id] ? (
+                        <Botao pequeno variante="vazio" onClick={() => gerarLinkMembro(m)}>{gerandoMembroId === m.id ? "Gerando…" : "Gerar link"}</Botao>
+                      ) : (
+                        <>
+                          <input id={"mty-link-membro-" + m.id} readOnly value={linksMembros[m.id]} style={{ ...entrada, fontSize: 12, flex: 1, minWidth: 160 }}
+                            onFocus={(e) => e.target.select()} />
+                          <Botao pequeno variante="vazio" onClick={() => copiarLinkMembro(m.id)}>{membroCopiadoId === m.id ? "✓ copiado" : "Copiar"}</Botao>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        );
+      })()}
     </div>
   );
 }
@@ -10942,7 +11301,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
       <GerenciarMembrosTurma turma={turma} alunos={alunos} setTurmas={setTurmas} podeEditar={podeEditar} />
 
       <div className="flex flex-wrap gap-5 mb-6" style={{ borderBottom: "1px solid " + C.linha }}>
-        {[{ v: "sessao", r: "Sessão" }, { v: "plano", r: "Plano" }, { v: "aulas", r: "Aulas" }, { v: "scout", r: "Scout" }].map((t) => (
+        {[{ v: "sessao", r: "Sessão" }, { v: "plano", r: "Plano" }, { v: "aulas", r: "Aulas" }, { v: "fechamento", r: "Fechamento" }, { v: "scout", r: "Scout" }].map((t) => (
           <button key={t.v} onClick={() => setSubaba(t.v)}
             style={{ fontFamily: ARCH, fontSize: 13, fontWeight: subaba === t.v ? 700 : 500, padding: "8px 0", cursor: "pointer", flexShrink: 0,
               color: subaba === t.v ? C.tinta : C.grafite, borderBottom: "2px solid " + (subaba === t.v ? C.saibro : "transparent"), marginBottom: -1 }}>
@@ -10952,9 +11311,11 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
       </div>
 
       {subaba === "plano" ? (
-        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} alunos={alunos} setAlunos={setAlunos} modo="resumo" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} />
+        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="resumo" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} />
       ) : subaba === "aulas" ? (
-        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} />
+        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} setSubaba={setSubaba} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} />
+      ) : subaba === "fechamento" ? (
+        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} setSubaba={setSubaba} modo="fechamento" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} />
       ) : subaba === "scout" ? (
         <TelaScoutTurma membros={membros} alunos={alunos} setAlunos={setAlunos} />
       ) : (
@@ -12732,7 +13093,7 @@ function App() {
                       abaixo da barra inteira, fora da área com scroll, igual ao
                       dropdown do Manual na barra lateral. */}
                   <div className="flex items-center" style={{ gap: 2, borderBottom: "1px solid " + C.linha, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-                    {[{ v: "ficha", r: "Ficha" }, { v: "plano", r: "Plano" }, { v: "aulas", r: "Aulas" }].map((t) => (
+                    {[{ v: "ficha", r: "Ficha" }, { v: "plano", r: "Plano" }, { v: "aulas", r: "Aulas" }, { v: "fechamento", r: "Fechamento" }].map((t) => (
                       <button key={t.v} onClick={() => { setSubaba(t.v); setMaisSubabaAberto(false); }}
                         style={{ fontFamily: ARCH, fontSize: 13, fontWeight: subaba === t.v ? 700 : 500, padding: "10px 10px", cursor: "pointer", minHeight: 44,
                           background: "none", border: "none", borderBottom: "2px solid " + (subaba === t.v ? C.saibro : "transparent"),
@@ -12769,6 +13130,7 @@ function App() {
                 etapaAlvo={etapaFichaAlvo} aoConsumirEtapaAlvo={() => setEtapaFichaAlvo(null)} aoMudarEditando={setEditandoFicha} /> :
              subaba === "plano" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="resumo" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} /> :
              subaba === "aulas" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} /> :
+             subaba === "fechamento" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="fechamento" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} /> :
              subaba === "periodizacao" ? <TelaPeriodizacao aluno={aberto} aoCriarPeriodo={() => { setEtapaFichaAlvo(2); setSubaba("ficha"); }} /> :
              subaba === "scout" ? <TelaScout aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
              subaba === "registro" ? <TelaRegistro aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade} /> :
