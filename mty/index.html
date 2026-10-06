@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png">
 <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png" id="link-apple-icon">
 <link rel="manifest" href="manifest.json" id="link-manifest">
-<meta name="theme-color" content="#C8102E" id="meta-theme-color">
+<meta name="theme-color" content="#103B32" id="meta-theme-color">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Painel do Treinador" id="meta-apple-title">
@@ -23,10 +23,13 @@
 <script src="mty-nuvem.js"></script>
 <script crossorigin src="https://unpkg.com/@babel/standalone@7.29.9/babel.min.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
 <style>
-  html, body { margin: 0; padding: 0; background: #F5F2F0; }
-  #mty-faixa { font-family: system-ui, sans-serif; font-size: 12px; padding: 6px 14px;
+  html, body { margin: 0; padding: 0; background: #F6F8F7; }
+  #mty-faixa { font-family: Inter, system-ui, sans-serif; font-size: 12px; padding: 6px 14px;
     text-align: center; color: #fff; }
 </style>
 </head>
@@ -312,14 +315,17 @@ function exerciciosParaSorteio() { return TODOS_EXERCICIOS().filter((e) => !e.se
 function exerciciosSemBola() { return TODOS_EXERCICIOS().filter((e) => e.semBola); }
 
 /* ─────────────────────────── identidade ─────────────────────────── */
+/* Paleta padrão — identidade visual QuadraLab (a plataforma que roda por
+   trás deste painel). Academia com tema próprio (ver TEMAS_POR_ACADEMIA
+   abaixo) continua com a cor dela, sem mudança nenhuma. */
 const C = {
-  tinta: "#141210",
-  papel: "#F5F2F0",
+  tinta: "#17251F",
+  papel: "#F6F8F7",
   cal: "#FFFFFF",
-  saibro: "#C8102E",
-  grafite: "#6B6461",
-  linha: "#DDD6D0",
-  quadra: "#2E4739",
+  saibro: "#69B32A",
+  grafite: "#5B6B63",
+  linha: "#E2E8E5",
+  quadra: "#103B32",
 };
 /* ── tema visual por academia ──
    As telas inteiras leem C.tinta/papel/cal/saibro/grafite/linha/quadra
@@ -377,8 +383,8 @@ function aplicarIconesPWA(orgId) {
   if (metaTema) metaTema.content = cfg.corTema;
 }
 
-const ARCH = "Archivo, system-ui, sans-serif";
-const SERIF = "'Source Serif 4', Georgia, serif";
+const ARCH = "Inter, system-ui, sans-serif";
+const SERIF = ARCH; // uma família só, sem serifa — identidade QuadraLab
 
 const FAM = {
   IP: "Início do ponto", RT: "Redução de tempo", CO: "Coordenação e base motora",
@@ -2681,7 +2687,7 @@ function Etiqueta({ children, cor = C.grafite }) {
 function Botao({ children, onClick, variante = "cheio", pequeno, disabled }) {
   const base = {
     fontFamily: ARCH, fontSize: pequeno ? 12 : 14, fontWeight: 600,
-    padding: pequeno ? "6px 12px" : "11px 18px", borderRadius: 2,
+    padding: pequeno ? "6px 12px" : "11px 18px", borderRadius: 10,
     cursor: disabled ? "default" : "pointer", border: "1px solid " + C.tinta,
     opacity: disabled ? 0.55 : 1,
   };
@@ -2694,7 +2700,7 @@ function Botao({ children, onClick, variante = "cheio", pequeno, disabled }) {
 }
 
 const entrada = {
-  width: "100%", padding: "9px 11px", border: "1px solid " + C.linha, borderRadius: 2,
+  width: "100%", padding: "9px 11px", border: "1px solid " + C.linha, borderRadius: 10,
   background: C.cal, fontFamily: SERIF, fontSize: 15, color: C.tinta,
 };
 const prosa = { fontFamily: SERIF, fontSize: 14.5, lineHeight: 1.55, color: C.tinta, margin: 0 };
@@ -2749,7 +2755,7 @@ function Seletor({ opcoes, valor, aoMudar }) {
           <button key={String(o.v)} onClick={() => aoMudar(o.v)}
             style={{
               fontFamily: ARCH, fontSize: 13, fontWeight: on ? 700 : 500, padding: "8px 13px",
-              borderRadius: 2, cursor: "pointer", border: "1px solid " + (on ? C.tinta : C.linha),
+              borderRadius: 10, cursor: "pointer", border: "1px solid " + (on ? C.tinta : C.linha),
               background: on ? C.tinta : C.cal, color: on ? C.papel : C.grafite,
             }}>
             {o.r}
@@ -2776,7 +2782,7 @@ function SeletorMulti({ opcoes, valor, aoMudar }) {
           <button key={String(o.v)} onClick={() => alternar(o.v)}
             style={{
               fontFamily: ARCH, fontSize: 13, fontWeight: on ? 700 : 500, padding: "8px 13px",
-              borderRadius: 2, cursor: "pointer", border: "1px solid " + (on ? C.tinta : C.linha),
+              borderRadius: 10, cursor: "pointer", border: "1px solid " + (on ? C.tinta : C.linha),
               background: on ? C.tinta : C.cal, color: on ? C.papel : C.grafite,
             }}>
             {on ? "✓ " : ""}{o.r}
@@ -2849,7 +2855,7 @@ function EditorHorarios({ horarios, setHorarios }) {
         <div className="flex flex-wrap gap-2 mb-3">
           {horarios.map((h, i) => (
             <span key={i} className="flex items-center gap-2" style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 600,
-              padding: "5px 10px", border: "1px solid " + C.linha, borderRadius: 2, background: C.cal, color: C.grafite }}>
+              padding: "5px 10px", border: "1px solid " + C.linha, borderRadius: 10, background: C.cal, color: C.grafite }}>
               {nomeDia(h.dia)} {h.hora}
               <button onClick={() => remover(i)} style={{ border: "none", background: "none", cursor: "pointer", color: C.saibro, fontWeight: 700, padding: 0 }}>×</button>
             </span>
@@ -3048,7 +3054,7 @@ function LegendaNiveis({ nivelInicial }) {
             {NIVEIS_CRITERIOS.map((c) => (
               <button key={c.nivel} onClick={() => setNivelAtivo(c.nivel)}
                 style={{ fontFamily: ARCH, fontSize: 12, fontWeight: nivelAtivo === c.nivel ? 700 : 500, padding: "5px 10px",
-                  borderRadius: 2, cursor: "pointer", border: "1px solid " + (nivelAtivo === c.nivel ? C.tinta : C.linha),
+                  borderRadius: 10, cursor: "pointer", border: "1px solid " + (nivelAtivo === c.nivel ? C.tinta : C.linha),
                   background: nivelAtivo === c.nivel ? C.tinta : C.papel, color: nivelAtivo === c.nivel ? C.papel : C.grafite }}>
                 {c.nivel}
               </button>
@@ -3191,7 +3197,7 @@ function EditorExercicio({ ex, aoSalvar, aoCancelar }) {
             return (
               <button key={s.s} type="button" onClick={() => alternaEstagio(s.s)}
                 style={{ fontFamily: ARCH, fontSize: 13, fontWeight: on ? 700 : 500, padding: "8px 13px",
-                  borderRadius: 2, cursor: "pointer", border: "1px solid " + (on ? C.tinta : C.linha),
+                  borderRadius: 10, cursor: "pointer", border: "1px solid " + (on ? C.tinta : C.linha),
                   background: on ? C.tinta : C.cal, color: on ? C.papel : C.grafite }}>
                 {s.n}
               </button>
@@ -3228,7 +3234,7 @@ function CartaoExercicio({ e, aoTrocar, aoRemover, aoAtualizar, exerciciosCustom
     setEditando(false);
   }
   return (
-    <div style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + (e.v ? C.quadra : C.saibro), borderRadius: 2, padding: "11px 13px", marginBottom: 7 }}>
+    <div style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + (e.v ? C.quadra : C.saibro), borderRadius: 10, padding: "11px 13px", marginBottom: 7 }}>
       <div className="flex items-start justify-between gap-3">
         <button onClick={() => setAberto(!aberto)} className="text-left flex-1">
           <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{e.custom ? e.n : e.c + " · " + e.n}</div>
@@ -3263,7 +3269,7 @@ function CartaoExercicio({ e, aoTrocar, aoRemover, aoAtualizar, exerciciosCustom
     </div>
   );
 }
-const iconeEstilo = { fontFamily: ARCH, fontSize: 15, width: 27, height: 27, border: "1px solid " + C.linha, borderRadius: 2, background: C.papel, color: C.grafite, cursor: "pointer", lineHeight: 1 };
+const iconeEstilo = { fontFamily: ARCH, fontSize: 15, width: 27, height: 27, border: "1px solid " + C.linha, borderRadius: 10, background: C.papel, color: C.grafite, cursor: "pointer", lineHeight: 1 };
 function Linha({ rotulo, texto, destaque }) {
   return (
     <div className="flex gap-3 mb-1.5">
@@ -3294,7 +3300,7 @@ function AdicionarExercicioCatalogo({ jaUsados, aoAdicionar }) {
       <input style={entrada} value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por código ou nome" autoFocus />
       {resultados.map((e) => (
         <button key={e.c} onClick={() => { aoAdicionar(e); setBusca(""); setAberto(false); }} className="w-full text-left"
-          style={{ display: "block", padding: "7px 9px", marginTop: 6, border: "1px solid " + C.linha, borderRadius: 2, background: C.cal, cursor: "pointer" }}>
+          style={{ display: "block", padding: "7px 9px", marginTop: 6, border: "1px solid " + C.linha, borderRadius: 10, background: C.cal, cursor: "pointer" }}>
           <span style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700 }}>{e.custom ? e.n : e.c + " · " + e.n}</span>
         </button>
       ))}
@@ -3416,7 +3422,7 @@ function CampoEntrada({ rotulo, valor, aoMudar, nota }) {
           onChange={(e) => aoMudar(e.target.value)} />
         <button onClick={() => aoMudar(ns ? "" : NS)}
           style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "10px 11px",
-            borderRadius: 2, cursor: "pointer", whiteSpace: "nowrap",
+            borderRadius: 10, cursor: "pointer", whiteSpace: "nowrap",
             border: "1px solid " + (ns ? C.grafite : C.linha),
             background: ns ? C.grafite : C.cal, color: ns ? C.cal : C.grafite }}>
           não sei
@@ -4518,7 +4524,7 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual }) {
                   return (
                     <button key={o.v} type="button" onClick={() => alternarObjetivoAdulto(o.v)}
                       style={{ fontFamily: ARCH, fontSize: 13, fontWeight: on ? 700 : 500, padding: "8px 13px",
-                        borderRadius: 2, cursor: "pointer", border: "1px solid " + (on ? C.tinta : C.linha),
+                        borderRadius: 10, cursor: "pointer", border: "1px solid " + (on ? C.tinta : C.linha),
                         background: on ? C.tinta : C.cal, color: on ? C.papel : C.grafite }}>
                       {o.r}
                     </button>
@@ -4800,7 +4806,7 @@ function TelaPeriodizacao({ aluno }) {
               ))}
               <XAxis dataKey="rotulo" tick={{ fontSize: 9, fontFamily: ARCH, fill: C.grafite }} interval={0} />
               <YAxis tick={{ fontSize: 9, fontFamily: ARCH, fill: C.grafite }} width={28} />
-              <Tooltip contentStyle={{ fontFamily: ARCH, fontSize: 12, borderRadius: 2, border: "1px solid " + C.linha }}
+              <Tooltip contentStyle={{ fontFamily: ARCH, fontSize: 12, borderRadius: 10, border: "1px solid " + C.linha }}
                 formatter={(v, n) => [v, n === "volume" ? "Volume" : "Intensidade"]} />
               <Area type="monotone" dataKey="volume" stroke={C.quadra} fill={C.quadra} fillOpacity={0.16} strokeWidth={2} />
               <Line type="monotone" dataKey="intensidade" stroke={C.saibro} strokeWidth={2} dot={false} />
@@ -5495,7 +5501,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
                   <div className="flex gap-1 flex-wrap mb-2">
                     {[["feita", "Realizada"], ["falta", "Falta"], ["cancelada", "Cancelada"]].map(([v, r]) => (
                       <button key={v} onClick={() => setStatusAulaPlano(v)}
-                        style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "6px 10px", borderRadius: 2, cursor: "pointer",
+                        style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "6px 10px", borderRadius: 10, cursor: "pointer",
                           border: "1px solid " + (statusAulaPlano === v ? C.tinta : C.linha),
                           background: statusAulaPlano === v ? C.tinta : C.papel, color: statusAulaPlano === v ? C.papel : C.grafite }}>{r}</button>
                     ))}
@@ -5701,7 +5707,7 @@ function TelaScout({ aluno, alunos, setAlunos }) {
   return (
     <div>
       <div style={{ position: "sticky", top: 96, background: C.papel, paddingBottom: 10, zIndex: 5 }}>
-        <div style={{ background: C.tinta, color: C.papel, padding: "12px 15px", borderRadius: 2 }}>
+        <div style={{ background: C.tinta, color: C.papel, padding: "12px 15px", borderRadius: 10 }}>
           <div className="flex items-center justify-between">
             <div>
               <div style={{ fontFamily: ARCH, fontSize: 10, letterSpacing: "0.14em", opacity: 0.7 }}>
@@ -5750,7 +5756,7 @@ function TelaScout({ aluno, alunos, setAlunos }) {
                   } else setRascunho({ saquePre: v });
                 }}
                 style={{ flex: 1, fontFamily: ARCH, fontSize: 13, fontWeight: 600, padding: "12px 6px",
-                  border: "1px solid " + (v === "df" ? C.saibro : C.linha), borderRadius: 2,
+                  border: "1px solid " + (v === "df" ? C.saibro : C.linha), borderRadius: 10,
                   background: C.cal, color: v === "df" ? C.saibro : C.tinta, cursor: "pointer" }}>
                 {r}
               </button>
@@ -5769,7 +5775,7 @@ function TelaScout({ aluno, alunos, setAlunos }) {
                   fim: op.v, nos: op.nos, saque: rascunho?.saquePre || null, bola: null, causa: null,
                   protocolo: false, rede: false, ataquePerdido: false, adverso, sacador: placar.saque } })}
                 style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, padding: "20px 8px",
-                  border: "1px solid " + op.cor, borderRadius: 2, background: C.cal, color: op.cor, cursor: "pointer" }}>
+                  border: "1px solid " + op.cor, borderRadius: 10, background: C.cal, color: op.cor, cursor: "pointer" }}>
                 {op.r}
               </button>
             ))}
@@ -5793,7 +5799,7 @@ function TelaScout({ aluno, alunos, setAlunos }) {
           <div className="flex flex-wrap gap-2 mb-4">
             {[["protocolo", "Protocolo antes do ponto"], ["rede", "Subiu à rede"], ["ataquePerdido", "Demanda de ataque não convertida"]].map(([k, r]) => (
               <button key={k} onClick={() => setRascunho({ ...rascunho, [k]: !rascunho[k] })}
-                style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 600, padding: "7px 11px", borderRadius: 2,
+                style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 600, padding: "7px 11px", borderRadius: 10,
                   cursor: "pointer", border: "1px solid " + (rascunho[k] ? C.tinta : C.linha),
                   background: rascunho[k] ? C.tinta : C.cal, color: rascunho[k] ? C.papel : C.grafite }}>
                 {rascunho[k] ? "✓ " : ""}{r}
@@ -5805,7 +5811,7 @@ function TelaScout({ aluno, alunos, setAlunos }) {
           <div className="grid grid-cols-3 gap-2">
             {["1-2", "3-4", "5+"].map((b) => (
               <button key={b} onClick={() => confirma(b)}
-                style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, padding: "18px 6px", borderRadius: 2,
+                style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, padding: "18px 6px", borderRadius: 10,
                   cursor: "pointer", border: "1px solid " + C.tinta, background: C.tinta, color: C.papel }}>
                 {b}
               </button>
@@ -6321,7 +6327,7 @@ function RoscaStatus({ contagem, tamanho = 108 }) {
               {dados.map((d, i) => <Cell key={i} fill={d.cor} />)}
             </Pie>
             <Tooltip formatter={(v, n) => [v + " aula" + (v === 1 ? "" : "s"), n]}
-              contentStyle={{ fontFamily: ARCH, fontSize: 12, border: "1px solid " + C.linha, borderRadius: 2 }} />
+              contentStyle={{ fontFamily: ARCH, fontSize: 12, border: "1px solid " + C.linha, borderRadius: 10 }} />
           </PieChart>
         </ResponsiveContainer>
         <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", pointerEvents: "none" }}>
@@ -6414,7 +6420,7 @@ function VisaoGeralBlocos({ plano, aulas, status, reg, entidade, eTurma, membros
             <XAxis type="number" allowDecimals={false} hide />
             <YAxis type="category" dataKey="nome" width={72} tick={{ fontSize: 11, fill: C.tinta }} axisLine={{ stroke: C.linha }} tickLine={false} />
             <Tooltip formatter={(v, n) => [v + " aula" + (v === 1 ? "" : "s"), n]}
-              contentStyle={{ fontFamily: ARCH, fontSize: 12, border: "1px solid " + C.linha, borderRadius: 2 }} />
+              contentStyle={{ fontFamily: ARCH, fontSize: 12, border: "1px solid " + C.linha, borderRadius: 10 }} />
             <Bar dataKey="feita" stackId="s" fill={C.quadra} name="Feitas" isAnimationActive={false} />
             <Bar dataKey="pendente" stackId="s" fill={C.linha} name="Pendentes" isAnimationActive={false} />
             <Bar dataKey="repetindo" stackId="s" fill={C.saibro} name="Repetindo" isAnimationActive={false} radius={[0, 3, 3, 0]} />
@@ -6489,7 +6495,7 @@ function LinhaDeRaciocinio({ plano, aulas, status, reg }) {
                 <XAxis type="number" allowDecimals={false} hide />
                 <YAxis type="category" dataKey="nome" width={72} tick={{ fontSize: 11, fill: C.tinta }} axisLine={{ stroke: C.linha }} tickLine={false} />
                 <Tooltip formatter={(v, n) => [v + " aula" + (v === 1 ? "" : "s"), n]}
-                  contentStyle={{ fontFamily: ARCH, fontSize: 12, border: "1px solid " + C.linha, borderRadius: 2 }} />
+                  contentStyle={{ fontFamily: ARCH, fontSize: 12, border: "1px solid " + C.linha, borderRadius: 10 }} />
                 <Bar dataKey="feita" stackId="s" fill={C.quadra} name="Feitas" isAnimationActive={false} />
                 <Bar dataKey="pendente" stackId="s" fill={C.linha} name="Pendentes" isAnimationActive={false} />
                 <Bar dataKey="repetindo" stackId="s" fill={C.saibro} name="Repetindo" isAnimationActive={false} radius={[0, 3, 3, 0]} />
@@ -6658,7 +6664,7 @@ function GraficoEvolucao({ historico }) {
             <CartesianGrid vertical={false} stroke={C.linha} />
             <XAxis dataKey="rotulo" tick={{ fontSize: 9, fontFamily: ARCH, fill: C.grafite }} interval={0} />
             <YAxis domain={[0, 100]} tick={{ fontSize: 9, fontFamily: ARCH, fill: C.grafite }} width={28} unit="%" />
-            <Tooltip contentStyle={{ fontFamily: ARCH, fontSize: 12, borderRadius: 2, border: "1px solid " + C.linha }}
+            <Tooltip contentStyle={{ fontFamily: ARCH, fontSize: 12, borderRadius: 10, border: "1px solid " + C.linha }}
               labelFormatter={(r, p) => r + (p && p[0] ? " · " + p[0].payload.data : "")}
               formatter={(v, n) => [v == null ? "sem dado" : v + "%", n === "pctCriterios" ? "Critérios atingidos" : "Aulas realizadas"]} />
             <Line type="monotone" dataKey="pctCriterios" stroke={C.quadra} strokeWidth={2} connectNulls dot={{ r: 3 }} />
@@ -6746,7 +6752,7 @@ function CardAulaChecklist({ id, indice, titulo, descricao, selo, status, define
             {[["feita", "Realizada"], ["falta", "Falta"], ["cancelada", "Cancelada"]].map(([v, r]) => (
               <button key={v} disabled={!podeMudarStatus} onClick={() => defineStatus(id, v)}
                 style={{ fontFamily: ARCH, fontSize: 10.5, fontWeight: 700, padding: "4px 8px",
-                  borderRadius: 2, cursor: podeMudarStatus ? "pointer" : "default", opacity: podeMudarStatus ? 1 : 0.6,
+                  borderRadius: 10, cursor: podeMudarStatus ? "pointer" : "default", opacity: podeMudarStatus ? 1 : 0.6,
                   border: "1px solid " + (st === v ? corStatus : C.linha),
                   background: st === v ? corStatus : C.papel,
                   color: st === v ? "#fff" : C.grafite }}>{r}</button>
@@ -7472,7 +7478,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                     {[["sim", "atingido", C.quadra], ["par", "parcial", C.ocre || "#C9A227"], ["nao", "não atingido", C.saibro]].map(([k, r, cor]) => (
                       <button key={k} disabled={!podeEditar} onClick={() => fech("nota:C" + i, v === k ? "" : k)}
                         style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "6px 12px", cursor: podeEditar ? "pointer" : "default",
-                          borderRadius: 2, border: "1px solid " + (v === k ? cor : C.linha),
+                          borderRadius: 10, border: "1px solid " + (v === k ? cor : C.linha),
                           background: v === k ? cor : C.papel, color: v === k ? "#fff" : C.grafite }}>{r}</button>
                     ))}
                   </div>
@@ -7616,7 +7622,7 @@ function NovoExercicioAcademia({ aoAdicionar }) {
             return (
               <button key={s.s} type="button" onClick={() => alternaEstagio(s.s)}
                 style={{ fontFamily: ARCH, fontSize: 13, fontWeight: on ? 700 : 500, padding: "8px 13px",
-                  borderRadius: 2, cursor: "pointer", border: "1px solid " + (on ? C.tinta : C.linha),
+                  borderRadius: 10, cursor: "pointer", border: "1px solid " + (on ? C.tinta : C.linha),
                   background: on ? C.tinta : C.cal, color: on ? C.papel : C.grafite }}>
                 {s.n}
               </button>
@@ -7731,7 +7737,7 @@ function InstalarApp({ compacto }) {
   if (compacto) {
     return prompt ? (
       <button onClick={instalar} style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 600, color: C.grafite, cursor: "pointer",
-        padding: "4px 8px", border: "1px solid " + C.linha, borderRadius: 2, background: C.cal }}>
+        padding: "4px 8px", border: "1px solid " + C.linha, borderRadius: 10, background: C.cal }}>
         instalar app
       </button>
     ) : (
@@ -7752,6 +7758,22 @@ function InstalarApp({ compacto }) {
         </p>
       )}
     </div>
+  );
+}
+
+/* Selo discreto — o painel continua "Team Yoda" pra quem usa no dia a
+   dia; isto só identifica a tecnologia por trás, pro discurso comercial
+   ("Team Yoda é cliente QuadraLab"). Nunca substitui o nome da
+   academia nem o logo dela (ver Marca, acima). */
+function SeloQuadraLab() {
+  return (
+    <a href="https://quadralab.com.br" target="_blank" rel="noopener noreferrer"
+      style={{ display: "inline-flex", alignItems: "center", gap: 7, textDecoration: "none" }}>
+      <img src="assets/logo-quadralab-mark.png" alt="" style={{ height: 16, width: 16, objectFit: "contain", flexShrink: 0 }} />
+      <span style={{ fontFamily: ARCH, fontSize: 11, color: C.grafite }}>
+        Tecnologia <strong style={{ color: C.tinta }}>QuadraLab</strong>
+      </span>
+    </a>
   );
 }
 
@@ -7805,7 +7827,7 @@ function TelaLogin({ aoEntrar }) {
 
         <button onClick={enviar} disabled={ocupado || !email || !senha}
           style={{ width: "100%", fontFamily: ARCH, fontSize: 14, fontWeight: 700, padding: "13px 0",
-            borderRadius: 2, cursor: ocupado ? "wait" : "pointer", border: "none",
+            borderRadius: 10, cursor: ocupado ? "wait" : "pointer", border: "none",
             background: (!email || !senha) ? C.linha : C.saibro,
             color: (!email || !senha) ? C.grafite : "#fff" }}>
           {ocupado ? "…" : "Entrar"}
@@ -7820,6 +7842,7 @@ function TelaLogin({ aoEntrar }) {
           Treinador independente, sem academia? <a href="cadastro-individual.html" style={{ color: C.saibro }}>Crie sua conta</a> — grátis pra começar.
         </p>
         <InstalarApp />
+        <div style={{ marginTop: 26 }}><SeloQuadraLab /></div>
       </div>
     </div>
   );
@@ -7875,7 +7898,7 @@ function EditorMeuNome({ org, uid, emailAtual }) {
   return (
     <button onClick={() => { setRascunho(nome); setEditando(true); }} title="Como seu nome aparece pros outros"
       style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 600, color: C.grafite, cursor: "pointer", padding: "4px 8px",
-        border: "1px solid " + C.linha, borderRadius: 2, background: C.cal, maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        border: "1px solid " + C.linha, borderRadius: 10, background: C.cal, maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
       {nome || "+ meu nome"}
     </button>
   );
@@ -7981,7 +8004,7 @@ function VisaoGeralEquipe({ alunos, turmas, uidAtual, irPara }) {
             const repetindo = regEmVigor && (regEmVigor.status === "falta" || regEmVigor.status === "cancelada");
             return (
               <button key={a.id} onClick={() => irPara(a.id)} className="w-full text-left flex items-center justify-between gap-3"
-                style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 2, padding: "13px 15px", marginBottom: 8 }}>
+                style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "13px 15px", marginBottom: 8 }}>
                 <div>
                   <div style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{a.nome || "Sem nome"}</div>
                   <div className="mt-1"><Etiqueta>{a.nivel} · Estágio {a.estagio} · {a.inicio ? `início ${a.inicio}` : "sem calendário"}</Etiqueta></div>
@@ -8354,7 +8377,7 @@ function AutoAvaliacaoModulo({ mod, indice, progresso, aoMudar, modoCoordenador,
       </div>
       {modoCoordenador ? (
         <div className="mt-2" style={{ paddingLeft: 4 }}>
-          <p style={{ ...prosa, fontSize: 12.5, whiteSpace: "pre-wrap", background: C.papel, padding: "8px 10px", borderRadius: 2 }}>
+          <p style={{ ...prosa, fontSize: 12.5, whiteSpace: "pre-wrap", background: C.papel, padding: "8px 10px", borderRadius: 10 }}>
             {progresso.resposta.trim() || "[o treinador ainda não escreveu a resposta deste módulo]"}
           </p>
           {progresso.confianca && <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginTop: 4 }}>Confiança que ele próprio deu: {progresso.confianca}/5</p>}
@@ -9492,7 +9515,7 @@ function TelaClientes({ quadras, reservas, torneios, eventos }) {
       <div className="flex gap-2 flex-wrap mb-3">
         {FILTROS_CLIENTE.map((f) => (
           <button key={f} onClick={() => setFiltroTipo(f)}
-            style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, padding: "6px 11px", borderRadius: 2, cursor: "pointer",
+            style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, padding: "6px 11px", borderRadius: 10, cursor: "pointer",
               border: "1px solid " + (filtroTipo === f ? C.tinta : C.linha),
               background: filtroTipo === f ? C.tinta : C.papel, color: filtroTipo === f ? C.papel : C.grafite }}>
             {f}
@@ -9608,7 +9631,7 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual
             <div className="flex flex-wrap gap-2">
               {alunos.map((a) => (
                 <button key={a.id} onClick={() => alternarMembro(a.id)}
-                  style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 600, padding: "6px 11px", borderRadius: 2, cursor: "pointer",
+                  style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 600, padding: "6px 11px", borderRadius: 10, cursor: "pointer",
                     border: "1px solid " + (membrosSel.includes(a.id) ? C.tinta : C.linha),
                     background: membrosSel.includes(a.id) ? C.tinta : C.papel,
                     color: membrosSel.includes(a.id) ? C.papel : C.grafite }}>
@@ -9942,7 +9965,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
           <div className="flex gap-1 flex-wrap">
             {[["feita", "Realizada"], ["chuva", "🌧️ Foi dia de chuva"], ["pendencia", "Pendência do grupo"]].map(([v, r]) => (
               <button key={v} onClick={() => { setStatusGeral(v); if (v !== "chuva") setChuvaModeloId(null); }}
-                style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "6px 10px", borderRadius: 2, cursor: "pointer",
+                style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "6px 10px", borderRadius: 10, cursor: "pointer",
                   border: "1px solid " + (statusGeral === v ? C.tinta : C.linha),
                   background: statusGeral === v ? C.tinta : C.papel, color: statusGeral === v ? C.papel : C.grafite }}>{r}</button>
             ))}
@@ -10202,7 +10225,7 @@ function TelaGradeAulas({ alunos, turmas, bloqueiosAula, setBloqueiosAula, orgAt
       <div className="flex gap-2 flex-wrap mb-4">
         {DIAS_SEMANA.map((d) => (
           <button key={d.v} onClick={() => { setDiaSelecionado(d.v); setHoraEmEdicao(null); }}
-            style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, padding: "6px 11px", borderRadius: 2, cursor: "pointer",
+            style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, padding: "6px 11px", borderRadius: 10, cursor: "pointer",
               border: "1px solid " + (diaSelecionado === d.v ? C.tinta : C.linha),
               background: diaSelecionado === d.v ? C.tinta : C.papel, color: diaSelecionado === d.v ? C.papel : C.grafite }}>
             {d.r}
@@ -10511,7 +10534,7 @@ function TelaDashboard({ alunos, turmas, papelAtual, uidAtual, exigeLogin, irPar
                 <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11, fill: C.grafite }} axisLine={{ stroke: C.linha }} tickLine={false} />
                 <YAxis type="category" dataKey="nome" width={110} tick={{ fontSize: 11.5, fill: C.tinta }} axisLine={{ stroke: C.linha }} tickLine={false} />
                 <Tooltip formatter={(v) => [v + " aula" + (v === 1 ? "" : "s"), "Feitas · clique pra ver quais"]}
-                  contentStyle={{ fontFamily: ARCH, fontSize: 12, border: "1px solid " + C.linha, borderRadius: 2 }} />
+                  contentStyle={{ fontFamily: ARCH, fontSize: 12, border: "1px solid " + C.linha, borderRadius: 10 }} />
                 <Bar dataKey="valor" fill={C.quadra} radius={[0, 3, 3, 0]} maxBarSize={22} isAnimationActive={false}
                   cursor="pointer" onClick={(d) => setDetalhe(detalhe === d.nome ? null : d.nome)} />
               </BarChart>
@@ -10546,7 +10569,7 @@ function TelaAgenda({ alunos, turmas, uidAtual, exigeLogin }) {
         <div className="flex gap-2">
           {[{ v: "grade", r: "Grade" }, { v: "semana", r: "Semana" }].map((t) => (
             <button key={t.v} onClick={() => setModo(t.v)}
-              style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, padding: "6px 11px", borderRadius: 2, cursor: "pointer",
+              style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, padding: "6px 11px", borderRadius: 10, cursor: "pointer",
                 border: "1px solid " + (modo === t.v ? C.tinta : C.linha),
                 background: modo === t.v ? C.tinta : C.papel, color: modo === t.v ? C.papel : C.grafite }}>
               {t.r}
@@ -10557,7 +10580,7 @@ function TelaAgenda({ alunos, turmas, uidAtual, exigeLogin }) {
           <div className="flex gap-2">
             {[{ v: false, r: "Meus horários" }, { v: true, r: "Toda a academia" }].map((t) => (
               <button key={String(t.v)} onClick={() => setVerTodos(t.v)}
-                style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, padding: "6px 11px", borderRadius: 2, cursor: "pointer",
+                style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, padding: "6px 11px", borderRadius: 10, cursor: "pointer",
                   border: "1px solid " + (verTodos === t.v ? C.saibro : C.linha),
                   background: verTodos === t.v ? C.saibro : C.papel, color: verTodos === t.v ? "#fff" : C.grafite }}>
                 {t.r}
@@ -11010,7 +11033,7 @@ function App() {
   return (
     <div style={{ background: C.papel, minHeight: "100vh", color: C.tinta }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         * { -webkit-tap-highlight-color: transparent; }
         button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid ${C.saibro}; outline-offset: 2px; }
         button { transition: transform .06s ease, opacity .06s ease; }
@@ -11121,14 +11144,14 @@ function App() {
       <div className="mty-topbar" style={{ marginLeft: 252, borderBottom: "1px solid " + C.linha, background: C.cal, position: "sticky", top: 0, zIndex: 9 }}>
         <div className="px-5 py-2 flex items-center gap-2" style={{ justifyContent: "flex-end" }}>
           <button className="mty-hamburger" onClick={() => setMenuMobileAberto(true)} aria-label="Abrir menu"
-            style={{ marginRight: "auto", fontSize: 18, cursor: "pointer", padding: "4px 9px", border: "1px solid " + C.linha, borderRadius: 2, background: C.cal }}>
+            style={{ marginRight: "auto", fontSize: 18, cursor: "pointer", padding: "4px 9px", border: "1px solid " + C.linha, borderRadius: 10, background: C.cal }}>
             ☰
           </button>
           <div className="flex items-center gap-2" style={{ flexWrap: "wrap", justifyContent: "flex-end" }}>
           {exigeLogin && uidAtual && (
             <div style={{ position: "relative" }}>
               <button onClick={abrirAvisos}
-                style={{ position: "relative", fontSize: 16, cursor: "pointer", padding: "4px 8px", border: "1px solid " + C.linha, borderRadius: 2, background: C.cal }}>
+                style={{ position: "relative", fontSize: 16, cursor: "pointer", padding: "4px 8px", border: "1px solid " + C.linha, borderRadius: 10, background: C.cal }}>
                 🔔
                 {totalAvisos > 0 && (
                   <span style={{ position: "absolute", top: -5, right: -5, background: C.saibro, color: "#fff",
@@ -11142,7 +11165,7 @@ function App() {
                 <>
                   <div onClick={() => setAvisosAberto(false)} style={{ position: "fixed", inset: 0, zIndex: 19 }} />
                   <div className="mty-avisos-painel" style={{ position: "absolute", top: "100%", right: 0, marginTop: 6, background: C.papel,
-                    border: "1px solid " + C.linha, borderRadius: 2, boxShadow: "0 4px 14px rgba(0,0,0,.12)", zIndex: 20, width: 260, maxWidth: "calc(100vw - 24px)", maxHeight: 340, overflowY: "auto", overflowX: "hidden", padding: 12, wordBreak: "break-word" }}>
+                    border: "1px solid " + C.linha, borderRadius: 10, boxShadow: "0 4px 14px rgba(0,0,0,.12)", zIndex: 20, width: 260, maxWidth: "calc(100vw - 24px)", maxHeight: 340, overflowY: "auto", overflowX: "hidden", padding: 12, wordBreak: "break-word" }}>
                     {totalAvisos === 0 ? (
                       <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Nada pra avisar por agora.</p>
                     ) : (
@@ -11249,7 +11272,7 @@ function App() {
           {exigeLogin && uidAtual && <InstalarApp compacto />}
           {exigeLogin && (
             <button onClick={() => window.mtyAuth.sair()}
-              style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 600, color: C.grafite, cursor: "pointer", padding: "4px 8px", border: "1px solid " + C.linha, borderRadius: 2, background: C.cal }}>
+              style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 600, color: C.grafite, cursor: "pointer", padding: "4px 8px", border: "1px solid " + C.linha, borderRadius: 10, background: C.cal }}>
               sair
             </button>
           )}
@@ -11337,7 +11360,7 @@ function App() {
                 const totalProf = tiposPresentes.reduce((s, t) => s + tipos[t].length, 0);
                 const profAberto = professoresAbertos[prof] !== undefined ? professoresAbertos[prof] : professores.length === 1;
                 return (
-                  <div key={prof} className="mb-3" style={{ border: "1px solid " + C.linha, borderRadius: 2, overflow: "hidden" }}>
+                  <div key={prof} className="mb-3" style={{ border: "1px solid " + C.linha, borderRadius: 10, overflow: "hidden" }}>
                     <button onClick={() => setProfessoresAbertos((p) => ({ ...p, [prof]: !profAberto }))}
                       className="w-full flex items-center justify-between gap-3"
                       style={{ padding: "12px 15px", background: C.cal, cursor: "pointer", border: "none" }}>
@@ -11369,7 +11392,7 @@ function App() {
                                 return (
                                   <button key={a.id} onClick={() => { setAbertoId(a.id); setSubaba("ficha"); }}
                                     className="w-full text-left flex items-center justify-between gap-3"
-                                    style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 2, padding: "13px 15px", marginBottom: 8 }}>
+                                    style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "13px 15px", marginBottom: 8 }}>
                                     <div>
                                       <div style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{a.nome || "Sem nome"}</div>
                                       <div className="mt-1">
@@ -11499,7 +11522,7 @@ function TelaTaticas() {
           {["todos", "Y2", "Y3", "Y4", "Y5", "Y6"].map((n) => (
             <button key={n} onClick={() => setNivelFiltro(n)}
               style={{ fontFamily: ARCH, fontSize: 12, fontWeight: nivelFiltro === n ? 700 : 500, padding: "4px 10px", cursor: "pointer",
-                background: nivelFiltro === n ? C.tinta : C.cal, color: nivelFiltro === n ? C.cal : C.grafite, border: "1px solid " + C.linha, borderRadius: 2 }}>
+                background: nivelFiltro === n ? C.tinta : C.cal, color: nivelFiltro === n ? C.cal : C.grafite, border: "1px solid " + C.linha, borderRadius: 10 }}>
               {n === "todos" ? "Todos" : n}
             </button>
           ))}
@@ -11641,7 +11664,7 @@ function TelaCasos() {
         <p style={{ ...prosa, color: C.grafite }}>Nenhum caso ainda. O primeiro pode ser seu.</p>
       ) : filtrados.map((c) => (
         <button key={c.id} onClick={() => setEditando(c)} className="w-full text-left"
-          style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 2, padding: "11px 14px", marginBottom: 8, display: "block" }}>
+          style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "11px 14px", marginBottom: 8, display: "block" }}>
           <div className="flex items-center justify-between">
             <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{c.aluno || "Sem identificação"}</span>
             <Etiqueta>{c.data}{c.autor ? " · " + c.autor : ""}</Etiqueta>
@@ -11755,7 +11778,7 @@ function TelaTecnica({ focoId }) {
         {[["t", "T · Golpes"], ["m", "M · Movimentação"], ["p", "P · Ponto e tática"]].map(([v, r]) => (
           <button key={v} onClick={() => setSubaba(v)}
             style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: subaba === v ? 700 : 500, padding: "7px 12px",
-              borderRadius: 2, cursor: "pointer", border: "1px solid " + (subaba === v ? C.tinta : C.linha),
+              borderRadius: 10, cursor: "pointer", border: "1px solid " + (subaba === v ? C.tinta : C.linha),
               background: subaba === v ? C.tinta : C.cal, color: subaba === v ? C.papel : C.grafite }}>
             {r}
           </button>
@@ -11779,7 +11802,7 @@ function TelaAulas() {
         {[["estrutura", "Estrutura"], ["a", "Trilha A · Y1"], ["b", "Trilha B · Y2"], ["c", "Trilha C · Y3"], ["adultos", "Adultos · D/E/F"], ["g", "Trilha G · Competição"]].map(([v, r]) => (
           <button key={v} onClick={() => setSubaba(v)}
             style={{ fontFamily: ARCH, fontSize: 12, fontWeight: subaba === v ? 700 : 500, padding: "6px 11px",
-              borderRadius: 2, cursor: "pointer", border: "1px solid " + (subaba === v ? C.tinta : C.linha),
+              borderRadius: 10, cursor: "pointer", border: "1px solid " + (subaba === v ? C.tinta : C.linha),
               background: subaba === v ? C.tinta : C.cal, color: subaba === v ? C.papel : C.grafite }}>
             {r}
           </button>
