@@ -33,6 +33,20 @@ const MTY_CONFIG = {
 /* Número que recebe as fichas pelo WhatsApp — código do país + DDD, só dígitos. */
 const MTY_WHATSAPP = "5511941773228";
 
+/* ── métricas de produto (opcional) ──
+   Só pra enxergar em que etapa o treinador trava no caminho
+   apresentação → cadastro → primeiro jogador → plano salvo → aula
+   registrada — nunca manda nome, ficha, avaliação ou observação de
+   jogador nenhum, só o nome da etapa (ver MTY.evento() abaixo).
+
+   Pra ativar: crie uma conta grátis em https://posthog.com, crie um
+   projeto e cole a "Project API Key" dele aqui (Configurações do
+   projeto → chaves de API de projeto). Enquanto estiver "COLE_AQUI",
+   MTY.evento() não faz nada — nenhum script de terceiro chega a
+   carregar e nenhuma métrica é coletada. */
+const POSTHOG_KEY = "COLE_AQUI";
+const POSTHOG_HOST = "https://us.i.posthog.com";
+
 /* ─────────────────────────────────────────────────────────────────── */
 
 const MTY = (function () {
@@ -54,6 +68,44 @@ const MTY = (function () {
   function id(prefixo) {
     return prefixo + "-" + Date.now().toString(36) + "-" +
       Math.random().toString(36).slice(2, 7);
+  }
+
+  /* ── métricas de produto ──
+     Carrega o PostHog só se a chave estiver preenchida — sem ela, nada
+     é injetado na página. O pacote vem de uma versão exata do CDN (não
+     "a mais nova de sempre"): foi exatamente um script de terceiro sem
+     versão travada que derrubou a Metodologia MTY em produção uma vez
+     (ver commit do fix do Babel) — aqui não se repete isso.
+     autocapture/pageview/gravação de sessão ficam desligados de
+     propósito: só os eventos que o próprio app dispara, nomeados,
+     chegam ao PostHog — nunca o clique em cima do nome de um jogador. */
+  let posthogPronto = false;
+  if (POSTHOG_KEY !== "COLE_AQUI" && typeof document !== "undefined") {
+    try {
+      const s = document.createElement("script");
+      s.src = "https://unpkg.com/posthog-js@1.438.1/dist/array.js";
+      s.crossOrigin = "anonymous";
+      s.onload = function () {
+        try {
+          window.posthog.init(POSTHOG_KEY, {
+            api_host: POSTHOG_HOST,
+            autocapture: false, capture_pageview: false, capture_pageleave: false,
+            disable_session_recording: true,
+          });
+          posthogPronto = true;
+        } catch (e) { posthogPronto = false; }
+      };
+      document.head.appendChild(s);
+    } catch (e) { posthogPronto = false; }
+  }
+  /* Dispara um evento de ETAPA do funil (ex.: "conta_criada",
+     "jogador_criado", "plano_salvo", "aula_registrada") — nunca com
+     nome, ficha, avaliação nem observação de jogador. Sem chave
+     configurada, ou enquanto o script ainda não carregou, não faz
+     nada — nunca trava nem lança erro pro resto do app. */
+  function evento(nome) {
+    if (!posthogPronto || typeof window.posthog === "undefined") return;
+    try { window.posthog.capture(nome); } catch (e) {}
   }
 
   function apelido(nome) {
@@ -196,5 +248,5 @@ const MTY = (function () {
     tokenId: (forcar) => auth.currentUser ? auth.currentUser.getIdToken(!!forcar) : Promise.resolve(null),
   } : null;
 
-  return { ligado: !!db, grave, leia, lista, faixa, apelido, id, organizacao, auth: authApi };
+  return { ligado: !!db, grave, leia, lista, faixa, apelido, id, organizacao, auth: authApi, evento };
 })();

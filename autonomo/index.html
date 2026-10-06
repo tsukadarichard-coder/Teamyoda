@@ -6124,6 +6124,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
     const ok = await grave("mty:alunos:v2", alunosAtualizados);
     setAlunos(alunosAtualizados);
     if (!ok) { setEstadoSalvo("erro"); setSalvandoRegistro(false); registrandoRef.current = false; return; }
+    MTY.evento("aula_registrada");
 
     /* Resumo real pra tela de confirmação — calculado a partir do aluno
        JÁ ATUALIZADO (não do estado antigo), pra "próxima aula prevista"
@@ -8275,7 +8276,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
      candidato intacto, pra tentar de novo sem perder nada. */
   async function usarPlanoCandidato() {
     const ok = await salvarComEstado({ plano: planoCandidato, regPlano: {} });
-    if (ok) setPlanoCandidato(null);
+    if (ok) { setPlanoCandidato(null); MTY.evento("plano_salvo"); }
   }
 
   const aulas = useMemo(() => listaAulas(plano, reg), [plano, reg]);
@@ -12127,6 +12128,12 @@ function App() {
      Qualquer salvar() confirma o rascunho (sai de rascunhosNaoConfirmados)
      — é o primeiro save de verdade que torna este jogador "existente". */
   async function salvar(f) {
+    /* Métrica de etapa (nunca o nome/ficha dele): só na primeira vez que
+       ESTA conta confirma um jogador de verdade — rascunho virando
+       cadastro feito é exatamente o "cadastrar jogador" do funil. */
+    if (rascunhosNaoConfirmados.has(f.id) && f.nome && !alunos.some((a) => a.nome && a.id !== f.id)) {
+      MTY.evento("jogador_criado");
+    }
     const atualizados = alunos.some((a) => a.id === f.id) ? alunos.map((a) => (a.id === f.id ? f : a)) : [...alunos, f];
     setAlunos(atualizados);
     if (rascunhosNaoConfirmados.has(f.id)) {
