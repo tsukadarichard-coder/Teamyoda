@@ -3518,7 +3518,7 @@ function novoAluno() {
     armas: ["fundo"],
     inicio: "", semanas: 18, competicoes: [{ nome: "", data: "" }],
     diasQuadra: 5, periodos: 2, escola: "noite", musculacao: 3,
-    historico: [], registros: [],
+    historico: [], registros: [], anotacoes: [],
     professorUid: "", professorNome: "", horarios: [], duracaoPadrao: "1h30",
     categoria: "", criteriosClassificacao: {},
     classificacaoSugeridaEm: null,
@@ -4313,6 +4313,18 @@ function IconeSeta({ tam = 18 }) {
   return (
     <svg width={tam} height={tam} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M9 5l7 7-7 7" />
+    </svg>
+  );
+}
+
+/* Ícone de calendário, mesma família de traço dos demais ícones do app —
+   só pro bloco de estado vazio da Periodização. */
+function IconeCalendario({ tam = 28 }) {
+  return (
+    <svg width={tam} height={tam} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3.5" y="5" width="17" height="15" rx="2.2" />
+      <path d="M3.5 9.5h17" />
+      <path d="M8 3v3.2M16 3v3.2" />
     </svg>
   );
 }
@@ -5320,7 +5332,7 @@ function exportaMarkdown(a, fases, grupos, ciclos, prop, grade) {
   return L.join("\n");
 }
 
-function TelaPeriodizacao({ aluno }) {
+function TelaPeriodizacao({ aluno, aoCriarPeriodo }) {
   const pronto = aluno.inicio && aluno.semanas >= 4;
   const fases = useMemo(() => (pronto ? montaFases(aluno) : []), [aluno]);
   const grupos = useMemo(() => agrupaFases(fases), [fases]);
@@ -5329,7 +5341,18 @@ function TelaPeriodizacao({ aluno }) {
   const grade = montaGrade(aluno);
 
   if (!pronto)
-    return <Aviso>Defina a data de início e o número de semanas na ficha para desenhar as fases.</Aviso>;
+    return (
+      <div>
+        <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Periodização</h1>
+        <p style={{ ...prosa, fontSize: 14, color: C.grafite, marginBottom: 16 }}>Períodos, focos de trabalho e aulas vinculadas ao longo do ciclo.</p>
+        <div style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 16, padding: "28px 20px", textAlign: "center" }}>
+          <div style={{ color: C.grafite, marginBottom: 10, display: "flex", justifyContent: "center" }}><IconeCalendario /></div>
+          <h2 style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Nenhum período de treino definido</h2>
+          <p style={{ ...prosa, color: C.grafite, marginBottom: 16 }}>Defina a data de início e o número de semanas na ficha pra desenhar as fases.</p>
+          {aoCriarPeriodo && <Botao variante="saibro" onClick={aoCriarPeriodo}>Criar período</Botao>}
+        </div>
+      </div>
+    );
 
   const dados = fases.map((s) => ({
     n: s.n, rotulo: "S" + s.n,
@@ -5351,6 +5374,8 @@ function TelaPeriodizacao({ aluno }) {
 
   return (
     <div>
+      <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Periodização</h1>
+      <p style={{ ...prosa, fontSize: 14, color: C.grafite, marginBottom: 16 }}>Períodos, focos de trabalho e aulas vinculadas ao longo do ciclo.</p>
       <Secao titulo="O ciclo em uma imagem" nota="O volume sobe nos mesociclos de base e cai nas semanas de afinação e torneio; a intensidade faz o caminho oposto e chega ao pico exatamente na competição. Nenhuma semana combina volume máximo com intensidade máxima — é essa separação que protege o corpo.">
         <div style={{ height: 210, marginLeft: -18 }}>
           <ResponsiveContainer width="100%" height="100%">
@@ -6225,9 +6250,12 @@ function TelaScout({ aluno, alunos, setAlunos }) {
     : "";
 
   /* ── antes ── */
-  if (fase === "antes")
+  if (fase === "antes") {
+    const partidasAnteriores = (aluno.registros || []).filter((r) => r.tipo === "jogo");
     return (
       <div>
+        <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Scout</h1>
+        <p style={{ ...prosa, fontSize: 14, color: C.grafite, marginBottom: 16 }}>Registre a partida ponto a ponto, direto da quadra.</p>
         <Aviso cor={C.quadra}>
           Dois toques por ponto: como terminou e em que bola. O placar se calcula sozinho, para que
           o jogo sob placar adverso possa ser lido depois.
@@ -6247,8 +6275,23 @@ function TelaScout({ aluno, alunos, setAlunos }) {
             valor={cfg.saca} aoMudar={(v) => setCfg({ ...cfg, saca: v })} />
         </Campo>
         <Botao onClick={comecar} variante="saibro">Começar a coleta</Botao>
+
+        {partidasAnteriores.length > 0 && (
+          <div className="mt-6">
+            <h2 style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginBottom: 8 }}>Partidas registradas</h2>
+            {[...partidasAnteriores].reverse().slice(0, 5).map((r) => (
+              <div key={r.id} style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10,
+                borderLeft: "3px solid " + C.saibro, padding: "10px 13px", marginBottom: 7 }}>
+                <Etiqueta>{r.data}</Etiqueta>
+                <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>{r.torneio} · {r.adversario} · {r.resultado}</p>
+                <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>Protocolo entre pontos: {r.protocolo}%</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
+  }
 
   /* ── relatório ── */
   if (fase === "depois")
@@ -6339,7 +6382,7 @@ function TelaScout({ aluno, alunos, setAlunos }) {
       )}
 
       {rascunho?.fim && (
-        <div style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.saibro, padding: 15 }}>
+        <div style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderLeft: "3px solid " + C.saibro, padding: 15 }}>
           <div className="mb-3">
             <Etiqueta cor={C.saibro}>{FIM_PONTO.find((o) => o.v === rascunho.fim).r}</Etiqueta>
           </div>
@@ -6660,6 +6703,94 @@ function exportarCadernoPDF(a, identidade) {
   janela.document.close();
 }
 
+function PainelAnotacoes({ aluno, setAlunos, alunos }) {
+  const anotacoes = aluno.anotacoes || [];
+  const [busca, setBusca] = useState("");
+  const [editando, setEditando] = useState(null); // null | "nova" | id
+  const [titulo, setTitulo] = useState("");
+  const [texto, setTexto] = useState("");
+  const [aulaRef, setAulaRef] = useState("");
+  const [apagando, setApagando] = useState(null);
+
+  function abrirNova() {
+    setEditando("nova"); setTitulo(""); setTexto(""); setAulaRef("");
+  }
+  function abrirEdicao(a) {
+    setEditando(a.id); setTitulo(a.titulo); setTexto(a.texto); setAulaRef(a.aulaRef || "");
+  }
+  function salvar() {
+    if (!texto.trim()) return;
+    const dados = { titulo: titulo.trim() || "Sem título", texto: texto.trim(), aulaRef: aulaRef.trim(),
+      data: new Date().toISOString().slice(0, 10) };
+    const lista = editando === "nova"
+      ? [...anotacoes, { id: "an" + Date.now(), ...dados }]
+      : anotacoes.map((a) => (a.id === editando ? { ...a, ...dados, data: a.data } : a));
+    setAlunos(alunos.map((al) => (al.id === aluno.id ? { ...al, anotacoes: lista } : al)));
+    setEditando(null);
+  }
+  function apagar(id) {
+    setAlunos(alunos.map((al) => (al.id === aluno.id ? { ...al, anotacoes: anotacoes.filter((a) => a.id !== id) } : al)));
+    setApagando(null);
+  }
+
+  const filtradas = busca.trim()
+    ? anotacoes.filter((a) => (a.titulo + " " + a.texto).toLowerCase().includes(busca.trim().toLowerCase()))
+    : anotacoes;
+
+  if (editando) {
+    return (
+      <div>
+        <Campo rotulo="Título"><input style={entrada} value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Ex.: Conversa sobre a pré-temporada" /></Campo>
+        <Campo rotulo="Anotação"><textarea rows={5} style={{ ...entrada, resize: "vertical" }} value={texto} onChange={(e) => setTexto(e.target.value)} /></Campo>
+        <Campo rotulo="Vínculo com uma aula (opcional)"><input style={entrada} value={aulaRef} onChange={(e) => setAulaRef(e.target.value)} placeholder="Ex.: aula de terça, semana 3" /></Campo>
+        <div className="flex gap-2">
+          <Botao variante="saibro" onClick={salvar} disabled={!texto.trim()}>Salvar anotação</Botao>
+          <Botao variante="vazio" onClick={() => setEditando(null)}>Cancelar</Botao>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+        <input style={{ ...entrada, maxWidth: 260 }} value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar anotação" />
+        <Botao pequeno onClick={abrirNova}>+ Nova anotação</Botao>
+      </div>
+      {anotacoes.length === 0 ? (
+        <Aviso cor={C.quadra}>Suas observações sobre este jogador ficam aqui. Comece com "Criar anotação".</Aviso>
+      ) : filtradas.length === 0 ? (
+        <p style={{ ...prosa, color: C.grafite }}>Nenhuma anotação encontrada para "{busca}".</p>
+      ) : (
+        [...filtradas].reverse().map((a) => (
+          <div key={a.id} style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, padding: "11px 13px", marginBottom: 8 }}>
+            <div className="flex justify-between items-start gap-3">
+              <button onClick={() => abrirEdicao(a)} className="text-left flex-1" style={{ border: "none", background: "none", cursor: "pointer", padding: 0 }}>
+                <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{a.titulo}</div>
+                <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {a.texto}
+                </p>
+                <div className="flex items-center gap-2 flex-wrap mt-2">
+                  <Etiqueta>{new Date(a.data).toLocaleDateString("pt-BR")}</Etiqueta>
+                  {a.aulaRef && <Etiqueta cor={C.saibro}>{a.aulaRef}</Etiqueta>}
+                </div>
+              </button>
+              {apagando === a.id ? (
+                <div className="flex gap-1 flex-shrink-0">
+                  <button onClick={() => apagar(a.id)} style={{ ...iconeEstilo, color: "#B3261E", borderColor: "#B3261E" }} aria-label="Confirmar exclusão">✓</button>
+                  <button onClick={() => setApagando(null)} style={iconeEstilo} aria-label="Cancelar exclusão">×</button>
+                </div>
+              ) : (
+                <button onClick={() => setApagando(a.id)} style={iconeEstilo} aria-label="Excluir anotação">×</button>
+              )}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
 function TelaRegistro({ aluno, alunos, setAlunos, identidade }) {
   const [modo, setModo] = useState("historico");
   const regs = aluno.registros || [];
@@ -6678,10 +6809,13 @@ function TelaRegistro({ aluno, alunos, setAlunos, identidade }) {
 
   return (
     <div>
+      <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Caderno</h1>
+      <p style={{ ...prosa, fontSize: 14, color: C.grafite, marginBottom: 16 }}>Anotações, jogos, planilhas e medições deste jogador.</p>
       <div className="flex flex-wrap gap-2 mb-6">
         <Seletor
           opcoes={[
             { v: "historico", r: "Histórico" },
+            { v: "anotacoes", r: "Anotações" },
             { v: "jogo", r: "+ Jogo" },
             { v: "semana", r: "+ Semana" },
             { v: "medicao", r: "+ Medição" },
@@ -6689,11 +6823,13 @@ function TelaRegistro({ aluno, alunos, setAlunos, identidade }) {
           valor={modo} aoMudar={setModo} />
       </div>
 
+      {modo === "anotacoes" && <PainelAnotacoes aluno={aluno} alunos={alunos} setAlunos={setAlunos} />}
+
       {(aluno.jogosRelatados || []).length > 0 && (
         <div className="mb-6">
           <Etiqueta>Jogos relatados pelo aluno, pelo link dele</Etiqueta>
           {aluno.jogosRelatados.map((j) => (
-            <div key={j.id} style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.grafite, padding: "10px 13px", marginTop: 8 }}>
+            <div key={j.id} style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderLeft: "3px solid " + C.grafite, padding: "10px 13px", marginTop: 8 }}>
               <Etiqueta>{new Date(j.data).toLocaleDateString("pt-BR")}</Etiqueta>
               <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>{j.texto}</p>
             </div>
@@ -6716,7 +6852,7 @@ function TelaRegistro({ aluno, alunos, setAlunos, identidade }) {
             <>
               <div className="mb-4"><Etiqueta>{regs.length} registros</Etiqueta></div>
               {[...regs].reverse().map((r) => (
-                <div key={r.id} style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + (r.tipo === "jogo" ? C.saibro : C.quadra), padding: "11px 13px", marginBottom: 8 }}>
+                <div key={r.id} style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderLeft: "3px solid " + (r.tipo === "jogo" ? C.saibro : C.quadra), padding: "11px 13px", marginBottom: 8 }}>
                   <div className="flex justify-between items-start gap-3">
                     <div className="flex-1">
                       <Etiqueta>{r.data} · {r.tipo}</Etiqueta>
@@ -11988,7 +12124,7 @@ function App() {
                 etapaAlvo={etapaFichaAlvo} aoConsumirEtapaAlvo={() => setEtapaFichaAlvo(null)} aoMudarEditando={setEditandoFicha} /> :
              subaba === "plano" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="resumo" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} /> :
              subaba === "aulas" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} /> :
-             subaba === "periodizacao" ? <TelaPeriodizacao aluno={aberto} /> :
+             subaba === "periodizacao" ? <TelaPeriodizacao aluno={aberto} aoCriarPeriodo={() => { setEtapaFichaAlvo(2); setSubaba("ficha"); }} /> :
              subaba === "scout" ? <TelaScout aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
              subaba === "registro" ? <TelaRegistro aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade} /> :
              <TelaSessao aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} papelAtual={papelAtual} uidAtual={uidAtual}
