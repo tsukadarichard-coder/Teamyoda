@@ -3723,21 +3723,17 @@ function CardAulaEmVigor({ aluno, aoClicar, aoAbrirAulas }) {
    agora (o questionário de classificação, logo depois do tipo do
    aluno) — não faz sentido ter dois lugares diferentes clicáveis
    mexendo na mesma marcação ao mesmo tempo. */
-function CardTrilha({ aluno, aoAbrirFicha }) {
+/* Cartão compacto no cabeçalho do jogador — categoria, nível atual e
+   critérios confirmados, em vez da sequência horizontal da trilha (que
+   cortava títulos em tela estreita). "Ver critérios e evolução" manda
+   direto pra etapa Nível da ficha, já em modo de edição. */
+function CardTrilha({ aluno, aoVerCriterios }) {
   const lista = categoriasDoEstagio(aluno.estagio);
   if (lista.length === 0) return null;
 
   return (
-    <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "11px 14px" }}>
-      <div className="flex items-center justify-between gap-3 mb-3">
-        <Etiqueta>{faseDoEstagio(aluno.estagio)}</Etiqueta>
-        {aoAbrirFicha && (
-          <button onClick={aoAbrirFicha} style={{ border: "none", background: "none", color: C.grafite, cursor: "pointer", padding: 0, fontFamily: ARCH, fontSize: 11.5, fontWeight: 600 }}>
-            Ver ficha completa →
-          </button>
-        )}
-      </div>
-      <TrilhaVisual estagio={aluno.estagio} categoria={aluno.categoria} criteriosClassificacao={aluno.criteriosClassificacao} />
+    <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 12, padding: "11px 14px" }}>
+      <CartaoNivel f={aluno} aoAbrirAvaliacao={aoVerCriterios} />
     </div>
   );
 }
@@ -11250,6 +11246,15 @@ function App() {
   const [abertoId, setAbertoId] = useState(null);
   const [aba, setAba] = useState("dashboard");
   const [subaba, setSubaba] = useState("ficha");
+  /* "Ver critérios e evolução" no cabeçalho do jogador manda direto pra
+     etapa Nível da ficha (ver TelaFicha/etapaAlvo) — nulo o resto do
+     tempo, sem afetar a navegação normal entre as abas do jogador. */
+  const [etapaFichaAlvo, setEtapaFichaAlvo] = useState(null);
+  /* Enquanto a ficha está em edição, não precisamos esconder nada aqui
+     (mty mostra o cabeçalho de qualquer forma) — guardado só pra passar
+     pra TelaFicha, que usa isto pra avisar o pai quando entra/sai do
+     modo de edição. */
+  const [editandoFicha, setEditandoFicha] = useState(false);
   const [manualAberto, setManualAberto] = useState(false);
   const manualRef = useRef(null);
   const manualAbriuEm = useRef(0);
@@ -11893,7 +11898,7 @@ function App() {
             </div>
             <h1 style={{ fontFamily: ARCH, fontSize: 25, fontWeight: 700, lineHeight: 1.1 }}>{aberto.nome || "Sem nome"}</h1>
             <div className="mt-2 mb-5"><Etiqueta>{aberto.nivel} · Estágio {aberto.estagio} · {aberto.semanas} semanas · {aberto.historico.length} sessões</Etiqueta></div>
-            <CardTrilha aluno={aberto} aoAbrirFicha={() => setSubaba("ficha")} />
+            <CardTrilha aluno={aberto} aoVerCriterios={() => { setEtapaFichaAlvo(3); setSubaba("ficha"); }} />
             <CardPedidosReposicao aluno={aberto} aoMudar={(patch) => setAlunos((prev) => prev.map((a) => (a.id === aberto.id ? { ...a, ...patch } : a)))} />
             <CardPedidosConteudo aluno={aberto} aoMudar={(patch) => setAlunos((prev) => prev.map((a) => (a.id === aberto.id ? { ...a, ...patch } : a)))} />
             <CardAulaEmVigor aluno={aberto} aoClicar={() => setSubaba("sessao")} aoAbrirAulas={() => setSubaba("aulas")} />
@@ -11905,7 +11910,8 @@ function App() {
                 </button>
               ))}
             </div>
-            {subaba === "ficha" ? <TelaFicha aluno={aberto} salvar={salvar} papelAtual={papelAtual} uidAtual={uidAtual} /> :
+            {subaba === "ficha" ? <TelaFicha aluno={aberto} salvar={salvar} papelAtual={papelAtual} uidAtual={uidAtual}
+                etapaAlvo={etapaFichaAlvo} aoConsumirEtapaAlvo={() => setEtapaFichaAlvo(null)} aoMudarEditando={setEditandoFicha} /> :
              subaba === "plano" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="resumo" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} /> :
              subaba === "aulas" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} /> :
              subaba === "periodizacao" ? <TelaPeriodizacao aluno={aberto} /> :
