@@ -2131,7 +2131,11 @@ function nomeNivel(codigo) {
 function resumoNivel(x) {
   const st = statusTrilha(x);
   if (!st) return null;
-  const pendente = st.feitos === 0;
+  /* x.nivelAvaliado só existe (e só vale false) quando o nível veio de
+     um atalho que pula o checklist — a sugestão por IA (ver
+     SugestaoClassificacao.aplicar). Sem isso, feitos===0 já cobre o
+     caso comum de "ninguém marcou nada ainda". */
+  const pendente = st.feitos === 0 || x.nivelAvaliado === false;
   return {
     st, pendente,
     textoNivel: pendente ? "Avaliação pendente" : "Nível " + nomeNivel(st.atual.nivelSugerido),
@@ -3180,6 +3184,11 @@ function TrilhaClassificacao({ f, set }) {
   }
   const tudoCompleto = lista.every(completoNaCategoria);
   const nivelFinal = nivelAlcancado || lista[0].nivelSugerido;
+  /* Diferente de "tem nível" — isto é "o nível bate com o que o
+     questionário abaixo realmente confirma". Fica false enquanto nem o
+     primeiro degrau foi concluído (nivelFinal está caindo no default
+     lista[0], não numa conclusão de verdade). */
+  const nivelConfirmadoPorCriterios = nivelAlcancado !== null;
 
   /* O Nível (Y1–Y6) não existe como escolha manual em lugar nenhum da
      ficha — é sempre o resultado do questionário acima, sincronizado
@@ -3187,7 +3196,8 @@ function TrilhaClassificacao({ f, set }) {
   useEffect(() => {
     if (nivelFinal && f.nivel !== nivelFinal) set("nivel", nivelFinal);
     if (f.categoria !== categoriaAtual) set("categoria", categoriaAtual);
-  }, [categoriaAtual, nivelFinal]);
+    if (!!f.nivelAvaliado !== nivelConfirmadoPorCriterios) set("nivelAvaliado", nivelConfirmadoPorCriterios);
+  }, [categoriaAtual, nivelFinal, nivelConfirmadoPorCriterios]);
 
   return (
     <div className="mb-5">
@@ -4553,6 +4563,13 @@ function SugestaoClassificacao({ f, set }) {
     const categoriaId = categoriaPeloNivel(sugestao.estagio, sugestao.nivel);
     if (categoriaId) set("categoria", categoriaId);
     set("nivel", sugestao.nivel);
+    /* A IA lê a ficha inteira, não os critérios observados em quadra —
+       então isto NUNCA é uma avaliação de verdade, só uma hipótese de
+       trabalho. nivelAvaliado:false é o que permite a qualquer lugar
+       que mostra o nível (inclusive o link do aluno) saber que esta
+       classificação ainda não passou pelo checklist de observação em
+       quadra, em vez de tratar um palpite como se fosse confirmado. */
+    set("nivelAvaliado", false);
   }
 
   return (
@@ -5439,6 +5456,19 @@ function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual, podeEditar = true,
   const taticoResumoEmocional = pareceEmocional(a.camadas.tatico);
   const rn = resumoNivel(a);
 
+  /* Busca à parte (nunca lido junto com a lista inteira de alunos) e só
+     quando o papel é coordenador — além da regra do Firestore, isto
+     evita que o payload chegue ao navegador do treinador. */
+  const [feedbacksCoord, setFeedbacksCoord] = useState(null);
+  useEffect(() => {
+    if (papelAtual !== "coordenador") { setFeedbacksCoord(null); return; }
+    let cancelado = false;
+    leia("mty:feedbacks-coordenador:v1", {}).then((mapa) => {
+      if (!cancelado) setFeedbacksCoord((mapa || {})[a.id] || []);
+    });
+    return () => { cancelado = true; };
+  }, [papelAtual, a.id]);
+
   return (
     <div>
       {salvo && (
@@ -5571,9 +5601,9 @@ function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual, podeEditar = true,
       </>
       )}
 
-      {papelAtual === "coordenador" && (a.feedbacksAluno || []).length > 0 && (
+      {papelAtual === "coordenador" && (feedbacksCoord || []).length > 0 && (
         <Secao titulo="Feedback do aluno" nota="Enviado pelo próprio aluno, pelo link dele — só o coordenador vê este campo, o treinador não.">
-          {a.feedbacksAluno.map((f) => (
+          {feedbacksCoord.map((f) => (
             <div key={f.id} style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderLeft: "3px solid #C9A227", padding: "10px 13px", marginBottom: 7 }}>
               <Etiqueta>{new Date(f.data).toLocaleDateString("pt-BR")}</Etiqueta>
               <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>{f.texto}</p>
@@ -8264,6 +8294,8 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
   const [membroCopiadoId, setMembroCopiadoId] = useState(null);
   const [chuvaAberta, setChuvaAberta] = useState(null);
   const [menuAcoes, setMenuAcoes] = useState(false);
+  const [gerenciarAberto, setGerenciarAberto] = useState(false);
+  const [criteriosAbertos, setCriteriosAbertos] = useState(false);
   const [aprovando, setAprovando] = useState(false);
   /* Estado real de salvamento — só vira "salvo" depois que grave() confirma
      a escrita, nunca otimista. "Salvo na nuvem" só é dito com conta na
@@ -8972,7 +9004,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
     try {
       let chave = aluno.linkToken;
       if (!chave) {
-        chave = MTY.id("aluno");
+        chave = MTY.tokenSeguro();
         atualiza({ linkToken: chave });
       }
       const org = await organizacao();
@@ -9005,7 +9037,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
     try {
       let chave = membro.linkToken;
       if (!chave) {
-        chave = MTY.id("aluno");
+        chave = MTY.tokenSeguro();
         setAlunos(alunos.map((a) => (a.id === membro.id ? { ...a, linkToken: chave } : a)));
       }
       const org = await organizacao();
@@ -9054,9 +9086,13 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
         <p style={{ ...prosa, fontSize: 12, color: C.grafite, margin: "4px 0 10px" }}>
           {plano.tipo || "Plano do ciclo"}{plano.geradoEm ? " · desde " + new Date(plano.geradoEm).toLocaleDateString("pt-BR") : ""}
         </p>
-        <div className="flex gap-2 flex-wrap mb-3">
-          <Etiqueta cor={REVISAO_COR[revisaoAtual]}>{REVISAO_LABEL[revisaoAtual]}</Etiqueta>
-          <Etiqueta cor={C.grafite}>{EXECUCAO_LABEL[execucaoAtual]}</Etiqueta>
+        <div className="flex gap-x-4 gap-y-1 flex-wrap mb-3">
+          <span className="flex items-center gap-1.5" style={{ ...prosa, fontSize: 11.5, color: C.grafite }}>
+            Aprovação: <Etiqueta cor={REVISAO_COR[revisaoAtual]}>{REVISAO_LABEL[revisaoAtual]}</Etiqueta>
+          </span>
+          <span className="flex items-center gap-1.5" style={{ ...prosa, fontSize: 11.5, color: C.grafite }}>
+            Execução: <Etiqueta cor={C.grafite}>{EXECUCAO_LABEL[execucaoAtual]}</Etiqueta>
+          </span>
         </div>
         <ResumoAulasPlano aulas={aulas} status={status} />
         {estadoSalvo && (
@@ -9124,6 +9160,28 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
       {modo === "resumo" && (
         <>
           <LinhaDeRaciocinio plano={plano} aulas={aulas} status={status} reg={reg} />
+
+          {/* Ficavam na aba Fechamento, no meio das ações de fechar o ciclo —
+              mas "recomeçar o planejamento" não é um resultado do ciclo, é uma
+              decisão sobre o PLANO em si, então mora aqui. */}
+          <div className="mt-6 pt-4" style={{ borderTop: "1px solid " + C.linha }}>
+            <button onClick={() => setGerenciarAberto(!gerenciarAberto)}
+              style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, color: C.grafite, background: "none", border: "none",
+                cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 6 }}>
+              Gerenciar planejamento {gerenciarAberto ? "▲" : "▼"}
+            </button>
+            {gerenciarAberto && (
+              <div className="mt-3 flex gap-2 flex-wrap">
+                {!fichaMudouDepoisDoPlano && (
+                  <Botao variante="vazio" disabled={!podeEditar} onClick={refazerPlanejamento}>Refazer planejamento com a ficha atual</Botao>
+                )}
+                {!eTurma && (
+                  <Botao variante="vazio" disabled={!podeEditar} onClick={() => comecarNovoPlano("programa")}>Usar um programa em vez deste</Botao>
+                )}
+                <Botao variante="vazio" disabled={!podeEditar} onClick={() => comecarNovoPlano("importar")}>Importar outro plano</Botao>
+              </div>
+            )}
+          </div>
         </>
       )}
 
@@ -9268,8 +9326,20 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
         const pendentes = observacaoComIndice.filter((o) => !o.respondida);
         const realizadas = observacaoComIndice.filter((o) => o.respondida);
         const aulasComObs = aulas.filter((a) => status(a.id) === "feita" && (reg[a.id] || {}).obs);
+        const cicloSemRegistros = feitas === 0 && aulasComObs.length === 0 && (plano.observacao || []).every((o, i) => !(F["obs:O" + i] || "").trim());
         return (
           <>
+            {cicloSemRegistros && (
+              <div className="mb-5" style={{ background: C.papel, borderLeft: "3px solid " + C.linha, padding: "12px 15px" }}>
+                <p style={{ ...prosa, fontSize: 13 }}>O ciclo ainda não tem aulas registradas. Os resultados serão reunidos aqui conforme o acompanhamento.</p>
+              </div>
+            )}
+            {cicloSemRegistros && !criteriosAbertos ? (
+              <button onClick={() => setCriteriosAbertos(true)} className="mb-5"
+                style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, color: C.grafite, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                Ver critérios do ciclo ▼
+              </button>
+            ) : (
             <Secao titulo="Critérios do ciclo" nota="A mesma pergunta de sempre — atingido, parcial, não atingido — pra poder comparar de um ciclo pro outro. 'Não avaliado' não é 'não atingido': é só o que ninguém chegou a conferir ainda.">
               {plano.blocos.filter((b) => b.saida).length === 0 && (
                 <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Este plano não define critérios de saída avaliáveis.</p>
@@ -9297,7 +9367,9 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                 );
               })}
             </Secao>
+            )}
 
+            {!cicloSemRegistros && (
             <Secao titulo="Observações realizadas" nota="Evidências já registradas nas aulas — origem e data de cada uma.">
               {aulasComObs.length === 0 && realizadas.length === 0 && (
                 <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Nenhuma observação registrada ainda neste ciclo.</p>
@@ -9317,6 +9389,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                 </div>
               ))}
             </Secao>
+            )}
 
             {pendentes.length > 0 && (
               <Secao titulo="Pendências de informação" nota="O que a ficha ou o plano apontaram como relevante e ainda não tem resposta.">
@@ -9339,13 +9412,6 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
 
             <div className="flex gap-2 flex-wrap items-center mb-4">
               <Botao onClick={gerar} variante="saibro">Gerar relatório do ciclo</Botao>
-              {!fichaMudouDepoisDoPlano && (
-                <Botao variante="vazio" disabled={!podeEditar} onClick={refazerPlanejamento}>Refazer planejamento com a ficha atual</Botao>
-              )}
-              {!eTurma && (
-                <Botao variante="vazio" disabled={!podeEditar} onClick={() => comecarNovoPlano("programa")}>Usar um programa em vez deste</Botao>
-              )}
-              <Botao variante="vazio" disabled={!podeEditar} onClick={() => comecarNovoPlano("importar")}>Importar outro plano</Botao>
               {podeEditar && (
                 <div style={{ position: "relative" }}>
                   <button onClick={() => setMenuAcoes(!menuAcoes)} aria-haspopup="true" aria-expanded={menuAcoes}

@@ -13,6 +13,13 @@ class ErroPublico extends Error {
 
 const CHAVE_ALUNOS = "mty:alunos:v2";
 const CHAVE_TURMAS = "mty:turmas:v1";
+/* Documento À PARTE do resto dos dados da academia (ver firestore.rules):
+   só essa separação física faz a regra "role == coordenador" barrar o
+   treinador de verdade — enquanto o feedback vivesse dentro do mesmo
+   blob que o treinador já lê (CHAVE_ALUNOS), nenhuma regra por campo
+   seria possível, porque o Firestore protege documentos inteiros, não
+   chaves soltas dentro de um JSON serializado num campo "value". */
+const CHAVE_FEEDBACKS_COORD = "mty:feedbacks-coordenador:v1";
 const LIMITE_TEXTO = 2000;
 const LIMITE_LISTA = 100;
 
@@ -89,6 +96,17 @@ function agendaOcupada(alunos, turmas) {
   return saida;
 }
 
+async function lerFeedbacksCoord(org) {
+  const ref = admin.firestore().collection("orgs").doc(org).collection("dados").doc(CHAVE_FEEDBACKS_COORD);
+  const snap = await ref.get();
+  if (!snap.exists) return { ref, mapa: {} };
+  try { return { ref, mapa: JSON.parse(snap.data().value || "{}") }; }
+  catch (e) { return { ref, mapa: {} }; }
+}
+async function salvarFeedbacksCoord(ref, mapa) {
+  await ref.set({ value: JSON.stringify(mapa), atualizado: Date.now() });
+}
+
 async function carregarContexto(org, id, t) {
   app();
   const refAlunos = admin.firestore().collection("orgs").doc(org).collection("dados").doc(CHAVE_ALUNOS);
@@ -114,13 +132,24 @@ async function handleGet(event) {
   const { alunos, idx } = await carregarContexto(org, id, t);
   const aluno = alunos[idx];
 
-  const plano = aluno.plano;
-  const reg = aluno.regPlano || {};
+  /* Nunca expõe rascunho pelo link do aluno — só o que o treinador já
+     revisou e aprovou. Sem isto, qualquer edição em andamento (inclusive
+     um plano recém-colado, ainda por revisar) ficaria visível assim que
+     salva, antes de qualquer revisão humana — o oposto do que o link é
+     pra mostrar. Uma ficha mudada depois da aprovação (aguardando_revisao
+     no app do treinador) ainda aparece aqui como "aprovado": o conteúdo
+     já revisado continua sendo o mais correto a mostrar até uma nova
+     aprovação substituir — não há dado novo pra esconder, só uma
+     bandeira de revisão pendente que só faz sentido do lado do treinador. */
+  const planoAprovado = !!(aluno.plano && aluno.plano.aprovado);
+  const plano = planoAprovado ? aluno.plano : null;
+  const planoRascunho = !!(aluno.plano && !aluno.plano.aprovado);
+  const reg = planoAprovado ? (aluno.regPlano || {}) : {};
   const aulas = listaAulas(plano).map((a) => {
     const r = reg[a.id] || {};
     return { bloco: a.bloco, semana: a.semana, foco: a.foco, titulo: a.t || "", status: r.status || (r.feita ? "feita" : ""), data: r.data || null };
   });
-  const emVigor = aulaEmVigor(aluno);
+  const emVigor = aulaEmVigor({ plano, regPlano: reg });
   const agora = new Date();
   const proxima = proximaOcorrencia(aluno.horarios, agora);
 
@@ -136,11 +165,26 @@ async function handleGet(event) {
     if (info.exists) academiaNome = info.data().nome || "";
   } catch (e) { academiaNome = ""; }
 
+  let feedbacksEnviados = [];
+  try {
+    const { mapa } = await lerFeedbacksCoord(org);
+    feedbacksEnviados = mapa[id] || [];
+  } catch (e) { feedbacksEnviados = []; }
+
   return resposta(200, {
     nome: aluno.nome || "Jogador",
     academiaNome,
     nivel: aluno.nivel || null,
+    /* false só quando o nível veio de um atalho que pula o checklist de
+       critérios observados em quadra (sugestão por IA aplicada direto —
+       ver SugestaoClassificacao.aplicar em index.html); ausente/true
+       nos demais casos. Sem isto, o link do aluno mostraria a escada
+       Y1–Y6 inteira como "alcançada" por posição na lista, mesmo quando
+       ninguém nunca confirmou nenhum critério — é exatamente o cenário
+       que não pode virar certeza visual pro jogador. */
+    nivelAvaliado: aluno.nivelAvaliado !== false,
     temPlano: !!plano,
+    planoRascunho,
     tipoPlano: plano ? plano.tipo || "" : null,
     prioridade: plano ? plano.prioridade || "" : null,
     totalAulas: aulas.length,
@@ -151,7 +195,7 @@ async function handleGet(event) {
     proximaAula: proxima ? proxima.toISOString() : null,
     agendaOcupada: agendaOcupada(alunos, turmas),
     pedidosReposicao: aluno.pedidosReposicao || [],
-    feedbacksEnviados: aluno.feedbacksAluno || [],
+    feedbacksEnviados,
     jogosRelatados: aluno.jogosRelatados || [],
     pedidosConteudo: aluno.pedidosConteudo || [],
     historicoRelatorios: aluno.historicoRelatorios || [],
@@ -172,7 +216,7 @@ async function handlePost(event) {
 
   if (acao === "cancelar") return await acaoCancelar(refAlunos, alunos, idx, aluno);
   if (acao === "reagendar") return await acaoReagendar(refAlunos, alunos, idx, aluno, body);
-  if (acao === "feedback") return await acaoTexto(refAlunos, alunos, idx, aluno, body, "feedbacksAluno");
+  if (acao === "feedback") return await acaoFeedbackCoord(org, id, body);
   if (acao === "jogo") return await acaoTexto(refAlunos, alunos, idx, aluno, body, "jogosRelatados");
   if (acao === "duvida") return await acaoDuvida(refAlunos, alunos, idx, aluno, body);
   throw new ErroPublico(400, "Ação desconhecida.");
@@ -188,6 +232,7 @@ async function salvar(refAlunos, alunos) {
    aula em vigor é marcada "feita" — o horário estava reservado e foi
    usado, avisado tarde ou não. */
 async function acaoCancelar(refAlunos, alunos, idx, aluno) {
+  if (!aluno.plano || !aluno.plano.aprovado) throw new ErroPublico(400, "Não há aula pendente para cancelar.");
   const aula = aulaEmVigor(aluno);
   if (!aula) throw new ErroPublico(400, "Não há aula pendente para cancelar.");
   if (!aluno.horarios || !aluno.horarios.length) {
@@ -254,6 +299,20 @@ async function acaoDuvida(refAlunos, alunos, idx, aluno, body) {
   alunos[idx] = aluno;
   await salvar(refAlunos, alunos);
   return resposta(200, { ok: true, mensagem: "Enviado — seu treinador vai avaliar e pode incluir isso no seu planejamento." });
+}
+
+/* Grava no documento separado (CHAVE_FEEDBACKS_COORD), nunca no blob
+   mty:alunos:v2 que o treinador lê inteiro — ver o comentário em
+   firestore.rules sobre por que isto precisa ser um documento à parte
+   pra promessa "seu treinador não vê este campo" valer de verdade. */
+async function acaoFeedbackCoord(org, id, body) {
+  const texto = String(body.texto || "").trim();
+  if (!texto) throw new ErroPublico(400, "Escreva algo antes de enviar.");
+  const { ref, mapa } = await lerFeedbacksCoord(org);
+  const item = { id: "feedbacksAluno-" + Date.now().toString(36), data: new Date().toISOString(), texto: texto.slice(0, LIMITE_TEXTO) };
+  mapa[id] = [item, ...(mapa[id] || [])].slice(0, LIMITE_LISTA);
+  await salvarFeedbacksCoord(ref, mapa);
+  return resposta(200, { ok: true, mensagem: "Enviado ao coordenador." });
 }
 
 async function acaoTexto(refAlunos, alunos, idx, aluno, body, campo) {

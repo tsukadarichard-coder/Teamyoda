@@ -97,24 +97,40 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catc
 (function () {
   const el = document.getElementById('mty-instalar');
   let deferredPrompt = null;
+  function dispensado() {
+    try { return localStorage.getItem('mty-instalar-dispensado') === '1'; } catch (e) { return false; }
+  }
+  function dispensar() {
+    try { localStorage.setItem('mty-instalar-dispensado', '1'); } catch (e) {}
+    el.innerHTML = '';
+  }
   function padrao() {
     const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
     const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    if (standalone) { el.innerHTML = ''; return; }
+    /* Discreto de propósito: nunca repete depois que o aluno já instalou
+       ou já disse "não, obrigado" uma vez — e a próxima aula (render(d))
+       sempre aparece acima disto na ordem visual da página. */
+    if (standalone || dispensado()) { el.innerHTML = ''; return; }
     if (deferredPrompt) {
-      el.innerHTML = '<div class="painel"><p class="desc">Instale este link na tela de início do seu celular — abre direto, sem digitar o endereço de novo.</p>' +
-        '<button class="btn" id="mty-btn-instalar">Instalar</button></div>';
+      el.innerHTML = '<div class="painel" style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">' +
+        '<div><p class="desc" style="margin:0 0 8px">Instale este link na tela de início do seu celular — abre direto, sem digitar o endereço de novo.</p>' +
+        '<button class="btn" id="mty-btn-instalar">Instalar</button></div>' +
+        '<button id="mty-btn-dispensar-instalar" aria-label="Dispensar" style="background:none;border:none;color:var(--cinza);font-size:16px;cursor:pointer;padding:0 2px">✕</button></div>';
       document.getElementById('mty-btn-instalar').addEventListener('click', async function () {
         deferredPrompt.prompt();
         await deferredPrompt.userChoice;
         deferredPrompt = null;
         padrao();
       });
+      document.getElementById('mty-btn-dispensar-instalar').addEventListener('click', dispensar);
       return;
     }
     if (ios) {
-      el.innerHTML = '<div class="painel"><p class="desc">Pra instalar na tela de início: toque em <b>Compartilhar</b> ' +
-        '(o ícone com uma seta pra cima) e depois em <b>"Adicionar à Tela de Início"</b>.</p></div>';
+      el.innerHTML = '<div class="painel" style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">' +
+        '<p class="desc" style="margin:0">Pra instalar na tela de início: toque em <b>Compartilhar</b> ' +
+        '(o ícone com uma seta pra cima) e depois em <b>"Adicionar à Tela de Início"</b>.</p>' +
+        '<button id="mty-btn-dispensar-instalar" aria-label="Dispensar" style="background:none;border:none;color:var(--cinza);font-size:16px;cursor:pointer;padding:0 2px">✕</button></div>';
+      document.getElementById('mty-btn-dispensar-instalar').addEventListener('click', dispensar);
       return;
     }
     el.innerHTML = '';
@@ -306,10 +322,17 @@ function escadaNiveisHtml(nivelAtual) {
 
 function painelEvolucao(d) {
   if (!d.nivel) return '';
+  if (d.nivelAvaliado === false) {
+    return '<div class="painel">' +
+      '<h2>Sua evolução no método</h2>' +
+      '<p class="desc">Seu treinador ainda está confirmando sua classificação inicial neste método — assim que isso ficar pronto, o caminho completo aparece aqui.</p>' +
+      '</div>';
+  }
   return '<div class="painel">' +
     '<h2>Sua evolução no método</h2>' +
     '<p class="desc">O caminho inteiro tem 6 níveis, do primeiro contato com o jogo até competir com repertório completo. Aqui está onde você está agora — e o que vem pela frente.</p>' +
     escadaNiveisHtml(d.nivel) +
+    '<p class="aviso-mini" style="margin-top:10px">Os níveis abaixo do atual fazem parte do caminho até aqui, dentro da classificação registrada pelo seu treinador — não é uma reavaliação individual de cada um.</p>' +
     '</div>';
 }
 
@@ -390,10 +413,15 @@ function todosHorarios(agenda) {
      reconstruído a cada atualização), pra abrir um painel ou digitar
      numa caixa de texto não se perder na próxima sincronia automática. */
   const ui = {
-    painel: null, // 'cancelar' | 'reagendar' | 'feedback' | 'jogo' | null
+    painel: null, // 'cancelar' | 'reagendar' | null
     diaEscolhido: null, horaEscolhida: null,
     mensagem: null, enviando: false,
     relatorioAberto: null, // id do relatório de ciclo aberto na lista, ou null
+    semanaAberta: null, // chave "bloco·semana" do bloco de semana expandido no plano compacto
+    formAberto: null, // 'duvida' | 'jogo' | 'feedback' | null — só um dos três formulários por vez
+    rascunhos: { duvida: '', jogo: '', feedback: '' }, // preserva o que foi digitado ao trocar de formulário
+    mensagemForm: null, // { tipo, texto, erro }
+    enviandoForm: false,
   };
 
   async function postAcao(corpo) {
@@ -426,12 +454,23 @@ function todosHorarios(agenda) {
     }
   }
 
+  /* Ordem pensada pro aluno, não pro treinador: primeiro quem ele é e o
+     que busca, depois a próxima aula (a pergunta mais prática), só então
+     o progresso do ciclo inteiro, a semana atual em detalhe, o nível no
+     método (separado da execução — ver evolucaoFactualHtml) e por fim os
+     canais de contato. */
   function render(d) {
     if (!d.temPlano) {
       // sem plano ainda, mas dá pra dizer o que gostaria de trabalhar e
       // mandar feedback — o pedido pode até virar insumo do primeiro plano.
-      el.innerHTML = '<header><h1>' + escapar(d.nome) + '</h1><div class="sub">Ainda não há um plano montado para você.</div></header>' +
-        painelEvolucao(d) + painelRelatorios(d) + painelDuvida(d) + painelFeedback(d) + '<div class="sincronia" id="mty-sincronia"></div>';
+      // planoRascunho: existe um plano, só que ainda não foi revisado e
+      // aprovado pelo treinador — o link nunca mostra rascunho, então a
+      // mensagem precisa dizer isso, não "ainda não há nada".
+      const subtitulo = d.planoRascunho
+        ? 'Seu treinador está preparando seu plano — assim que for revisado e aprovado, aparece aqui.'
+        : 'Ainda não há um plano montado para você.';
+      el.innerHTML = '<header><h1>' + escapar(d.nome) + '</h1><div class="sub">' + subtitulo + '</div></header>' +
+        painelEvolucao(d) + painelRelatorios(d) + painelComunicacao(d) + '<div class="sincronia" id="mty-sincronia"></div>';
       ligarEventos(d);
       return;
     }
@@ -440,31 +479,86 @@ function todosHorarios(agenda) {
     let html = '';
     html += '<header><h1>' + escapar(d.nome) + '</h1><div class="sub">' + escapar(d.tipoPlano) + '</div></header>';
     if (d.prioridade) html += '<p class="sub">' + escapar(d.prioridade) + '</p>';
-    html += '<div class="rosca-wrap">' + rosquinhaSvg(d.aulasFeitas, pendente, repetindo) +
+    html += painelProximaAula(d);
+    html += '<div class="painel"><h2>Progresso do ciclo</h2><div class="rosca-wrap" style="margin-top:0">' + rosquinhaSvg(d.aulasFeitas, pendente, repetindo) +
       '<div>' + legendaRosca(d.aulasFeitas, pendente, repetindo) +
-      '<div class="progtxt">' + d.aulasFeitas + ' de ' + d.totalAulas + ' aulas</div></div></div>';
+      '<div class="progtxt">' + d.aulasFeitas + ' de ' + d.totalAulas + ' aulas realizadas — isto é execução, não é uma nota sobre sua técnica.</div></div></div></div>';
+    html += painelSemanas(d);
     html += painelEvolucao(d);
-
-    let blocoAtual = null, semanaAtual = null;
-    d.aulas.forEach(function(a){
-      if (a.bloco !== blocoAtual) { blocoAtual = a.bloco; semanaAtual = null; html += '<div class="bloco">' + escapar(a.bloco) + '</div>'; }
-      if (a.semana !== semanaAtual) { semanaAtual = a.semana; html += '<div class="semana">Semana ' + a.semana + (a.foco ? ' · ' + escapar(a.foco) : '') + '</div>'; }
-      var marca = { feita: '✅', falta: '❌', cancelada: '🌧️' }[a.status] || '⬜';
-      html += '<div class="aula' + (a.status === 'feita' ? ' feita' : '') + '">' +
-        '<span class="marca">' + marca + '</span>' +
-        '<span class="txt">' + escapar(a.titulo) + '</span>' +
-        (a.data ? '<span class="data">' + escapar(a.data) + '</span>' : '') +
-        '</div>';
-    });
-
     html += painelRelatorios(d);
-    html += painelSuaAula(d);
-    html += painelDuvida(d);
-    html += painelFeedback(d);
-    html += painelJogo(d);
+    html += painelComunicacao(d);
     html += '<div class="sincronia" id="mty-sincronia"></div>';
     el.innerHTML = html;
     ligarEventos(d);
+  }
+
+  /* Agrupa o plano achatado (d.aulas) de volta em bloco → semana, só pra
+     desenhar os blocos compactos — o mesmo dado de sempre, outra forma. */
+  function agruparEmSemanas(aulas) {
+    const blocos = [];
+    let blocoAtual = null, semanaAtual = null, grupoBloco = null, grupoSemana = null;
+    aulas.forEach(function (a) {
+      if (a.bloco !== blocoAtual) { blocoAtual = a.bloco; semanaAtual = null; grupoBloco = { bloco: a.bloco, semanas: [] }; blocos.push(grupoBloco); }
+      if (a.semana !== semanaAtual) { semanaAtual = a.semana; grupoSemana = { semana: a.semana, foco: a.foco, chave: a.bloco + '·' + a.semana, aulas: [] }; grupoBloco.semanas.push(grupoSemana); }
+      grupoSemana.aulas.push(a);
+    });
+    return blocos;
+  }
+
+  /* Semana que abre sozinha, sem o aluno precisar escolher: a primeira
+     com alguma aula ainda não realizada, ou — se o ciclo inteiro já foi
+     dado — a última, pra nunca cair com tudo fechado por padrão. */
+  function semanaAtualPadrao(blocos) {
+    for (const b of blocos) for (const s of b.semanas) if (s.aulas.some(function (a) { return a.status !== 'feita'; })) return s.chave;
+    const ultimoBloco = blocos[blocos.length - 1];
+    const ultimaSemana = ultimoBloco && ultimoBloco.semanas[ultimoBloco.semanas.length - 1];
+    return ultimaSemana ? ultimaSemana.chave : null;
+  }
+
+  const ROTULO_STATUS_AULA = { feita: 'Realizada', falta: 'Falta (será reposta)', cancelada: 'Cancelada (será reposta)' };
+
+  /* Blocos de semana que abrem/fecham — só a semana atual (a da próxima
+     aula pendente) começa aberta; as outras ficam resumidas num título +
+     contagem, pra não jogar o plano inteiro na tela de uma vez. Estados
+     em texto ("Planejada"/"Realizada"), nunca um quadrado sem rótulo —
+     isso parecia uma caixa de marcar que o aluno pudesse clicar, quando
+     quem decide se a aula foi realizada é sempre o treinador. */
+  function painelSemanas(d) {
+    const blocos = agruparEmSemanas(d.aulas);
+    if (!blocos.length) return '';
+    const chaveAtual = semanaAtualPadrao(blocos);
+    let html = '<div class="painel"><h2>Seu plano, semana a semana</h2>';
+    blocos.forEach(function (b) {
+      html += '<div class="bloco">' + escapar(b.bloco) + '</div>';
+      b.semanas.forEach(function (s) {
+        const realizadas = s.aulas.filter(function (a) { return a.status === 'feita'; }).length;
+        // null = ainda não mexeu em nada -> abre só a semana atual por padrão;
+        // depois do primeiro clique, ui.semanaAberta vira a fonte da verdade
+        // (inclusive '' pra "tudo fechado", quando o aluno fecha a própria atual).
+        const estaAberta = ui.semanaAberta === null ? (s.chave === chaveAtual) : (ui.semanaAberta === s.chave);
+        html += '<div style="border:1px solid var(--linha);border-radius:4px;margin-bottom:8px;overflow:hidden">';
+        html += '<button data-acao="alternar-semana" data-chave="' + escapar(s.chave) + '" style="width:100%;text-align:left;background:#fff;border:none;padding:10px 12px;cursor:pointer;font:inherit;color:inherit">' +
+          '<div class="semana" style="margin:0">Semana ' + s.semana + (s.foco ? ' · ' + escapar(s.foco) : '') + '</div>' +
+          '<div style="font-size:12.5px;margin-top:3px">' + realizadas + ' de ' + s.aulas.length + ' aulas realizadas' +
+          '<span style="float:right;color:var(--cinza)">' + (estaAberta ? '▲' : '▼') + '</span></div></button>';
+        if (estaAberta) {
+          html += '<div style="padding:0 12px 10px">';
+          s.aulas.forEach(function (a) {
+            const rot = ROTULO_STATUS_AULA[a.status] || 'Planejada';
+            const cor = a.status === 'feita' ? 'var(--verde)' : (a.status === 'falta' || a.status === 'cancelada') ? 'var(--verm)' : 'var(--cinza)';
+            html += '<div class="aula' + (a.status === 'feita' ? ' feita' : '') + '" style="margin-bottom:6px">' +
+              '<span class="txt">' + escapar(a.titulo) + '</span>' +
+              '<span style="font-size:10.5px;font-weight:700;color:' + cor + ';white-space:nowrap">' + rot + '</span>' +
+              (a.data ? '<span class="data">' + escapar(a.data) + '</span>' : '') +
+              '</div>';
+          });
+          html += '</div>';
+        }
+        html += '</div>';
+      });
+    });
+    html += '</div>';
+    return html;
   }
 
   /* O relatório de ciclo (h.texto) é escrito pra o treinador — carrega
@@ -546,15 +640,26 @@ function todosHorarios(agenda) {
     return html;
   }
 
-  function painelSuaAula(d) {
+  /* "Próxima aula" é sempre a pedagogicamente próxima (a primeira ainda
+     não realizada do plano) — d.proximaAula é só o horário fixo mais
+     próximo, um dado de agenda, não necessariamente desta mesma aula.
+     Nunca inventamos um horário: sem data calculada, dizemos isso. */
+  function painelProximaAula(d) {
     const pendentes = (d.pedidosReposicao || []).filter(function (p) { return p.status === 'pendente'; });
     let html = '<div class="painel">';
-    html += '<h2>Sua aula</h2>';
+    html += '<h2>Próxima aula</h2>';
     if (!d.aulaEmVigor) {
       html += '<p class="desc">Nenhuma aula pendente no momento — nada para cancelar ou reagendar.</p></div>';
       return html;
     }
-    html += '<p class="desc">' + escapar(d.aulaEmVigor.bloco) + ' · semana ' + d.aulaEmVigor.semana + ' · <b>' + escapar(d.aulaEmVigor.titulo) + '</b></p>';
+    const quando = d.proximaAula ? new Date(d.proximaAula) : null;
+    html += '<p class="desc" style="margin-bottom:4px"><b>' + escapar(d.aulaEmVigor.titulo) + '</b></p>';
+    html += '<p class="desc" style="margin:0 0 10px">' + escapar(d.aulaEmVigor.bloco) + ' · semana ' + d.aulaEmVigor.semana + '</p>';
+    html += '<p class="desc" style="margin:0 0 12px">' +
+      (quando
+        ? 'Horário: ' + quando.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' }) + ' às ' + quando.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+        : 'Horário ainda não definido — fale com seu treinador para agendar.') +
+      '</p>';
 
     if (pendentes.length > 0) {
       html += '<div class="pedido-pendente">Você já pediu reposição para ' + NOMES_DIA[pendentes[0].diaPreferido] +
@@ -618,51 +723,57 @@ function todosHorarios(agenda) {
     return html;
   }
 
-  function painelDuvida(d) {
-    const pedidos = d.pedidosConteudo || [];
-    let html = '<div class="painel">';
-    html += '<h2>O que você gostaria de trabalhar</h2>';
-    html += '<p class="desc">Vai para o seu treinador. Se ele aprovar, entra no seu próximo planejamento.</p>';
-    if (ui.painel === 'msg-duvida' && ui.mensagem) {
-      html += '<div class="confirmado">' + escapar(ui.mensagem) + '</div>';
-    } else {
-      html += '<textarea id="mty-texto-duvida" rows="3" placeholder="Um golpe, uma dúvida, algo que você quer treinar mais..."></textarea>' +
-        '<div class="linha-btns"><button class="btn" data-acao="enviar-duvida" ' + (ui.enviando ? 'disabled' : '') + '>Enviar</button></div>';
-    }
-    if (pedidos.length) {
-      const ROTULO_STATUS = { pendente: 'aguardando seu treinador', aprovado: 'aprovado — entrou no planejamento', recusado: 'não aprovado desta vez' };
-      html += pedidos.slice(0, 5).map(function (p) {
-        return '<div class="pedido-pendente" style="margin-top:8px">' + escapar(p.texto) +
-          '<br><span class="aviso-mini">' + (ROTULO_STATUS[p.status] || p.status) + '</span></div>';
-      }).join('');
-    }
-    html += '</div>';
-    return html;
-  }
+  /* Os três formulários que já existiam (dúvida/jogo/feedback) viviam
+     sempre abertos ao mesmo tempo na tela — três caixas de texto, a
+     maioria delas vazia a maior parte do tempo. Agora são três botões;
+     só um formulário abre por vez, e o rascunho do que não foi enviado
+     sobrevive a trocar de botão (ui.rascunhos), porque fechar um pra
+     abrir outro não deveria custar o que a pessoa já tinha escrito. */
+  const BOTOES_COMUNICACAO = [
+    { tipo: 'duvida', rotulo: 'Sugerir um foco de treino', acaoApi: 'duvida',
+      destino: 'Vai para o seu treinador — se ele aprovar, entra no seu próximo planejamento.',
+      placeholder: 'Um golpe, uma dúvida, algo que você quer treinar mais...' },
+    { tipo: 'jogo', rotulo: 'Relatar um jogo', acaoApi: 'jogo',
+      destino: 'Fica disponível para seu treinador consultar — como foi o jogo, o que funcionou, o que não funcionou.',
+      placeholder: 'Contra quem, o resultado, o que você notou...' },
+    { tipo: 'feedback', rotulo: 'Falar com a coordenação', acaoApi: 'feedback',
+      destino: 'Vai direto para o coordenador da academia — seu treinador não vê este campo.',
+      placeholder: 'O que você quer contar pro coordenador?' },
+  ];
+  const ROTULO_STATUS_DUVIDA = { pendente: 'aguardando seu treinador', aprovado: 'aprovado — entrou no planejamento', recusado: 'não aprovado desta vez' };
 
-  function painelFeedback(d) {
-    let html = '<div class="painel">';
-    html += '<h2>Feedback para o coordenador</h2>';
-    html += '<p class="desc">Vai direto para o coordenador da academia — seu treinador não vê este campo.</p>';
-    if (ui.painel === 'msg-feedback' && ui.mensagem) {
-      html += '<div class="confirmado">' + escapar(ui.mensagem) + '</div>';
-    } else {
-      html += '<textarea id="mty-texto-feedback" rows="3" placeholder="O que você quer contar pro coordenador?"></textarea>' +
-        '<div class="linha-btns"><button class="btn" data-acao="enviar-feedback" ' + (ui.enviando ? 'disabled' : '') + '>Enviar feedback</button></div>';
-    }
+  function painelComunicacao(d) {
+    let html = '<div class="painel"><h2>Fale com a plataforma</h2><p class="desc">Escolha o que você quer fazer — cada um vai para quem precisa ver.</p>';
+    html += '<div class="linha-btns">';
+    BOTOES_COMUNICACAO.forEach(function (b) {
+      html += '<button class="btn fraco" data-acao="abrir-form" data-tipo="' + b.tipo + '">' + b.rotulo + '</button>';
+    });
     html += '</div>';
-    return html;
-  }
 
-  function painelJogo(d) {
-    let html = '<div class="painel">';
-    html += '<h2>Descreva um jogo</h2>';
-    html += '<p class="desc">Fica disponível para seu treinador consultar — como foi o jogo, o que funcionou, o que não funcionou.</p>';
-    if (ui.painel === 'msg-jogo' && ui.mensagem) {
-      html += '<div class="confirmado">' + escapar(ui.mensagem) + '</div>';
-    } else {
-      html += '<textarea id="mty-texto-jogo" rows="3" placeholder="Contra quem, o resultado, o que você notou..."></textarea>' +
-        '<div class="linha-btns"><button class="btn" data-acao="enviar-jogo" ' + (ui.enviando ? 'disabled' : '') + '>Enviar</button></div>';
+    const atual = BOTOES_COMUNICACAO.find(function (b) { return b.tipo === ui.formAberto; });
+    if (atual) {
+      const sucesso = ui.mensagemForm && ui.mensagemForm.tipo === atual.tipo && !ui.mensagemForm.erro;
+      html += '<div class="painel" style="margin-top:10px;background:var(--papel)">';
+      html += '<p class="desc">' + atual.destino + '</p>';
+      if (sucesso) {
+        html += '<div class="confirmado">' + escapar(ui.mensagemForm.texto) + '</div>';
+      } else {
+        if (ui.mensagemForm && ui.mensagemForm.tipo === atual.tipo && ui.mensagemForm.erro) {
+          html += '<p class="aviso-mini" style="color:var(--verm);font-weight:600">' + escapar(ui.mensagemForm.texto) + '</p>';
+        }
+        html += '<textarea id="mty-form-texto" rows="3" placeholder="' + escapar(atual.placeholder) + '">' + escapar(ui.rascunhos[atual.tipo] || '') + '</textarea>' +
+          '<div class="linha-btns">' +
+          '<button class="btn" data-acao="enviar-form" ' + (ui.enviandoForm ? 'disabled' : '') + '>' + (ui.enviandoForm ? 'Enviando…' : 'Enviar') + '</button>' +
+          '<button class="btn fraco" data-acao="fechar-form">Fechar</button>' +
+          '</div>';
+      }
+      if (atual.tipo === 'duvida' && (d.pedidosConteudo || []).length) {
+        html += d.pedidosConteudo.slice(0, 5).map(function (p) {
+          return '<div class="pedido-pendente" style="margin-top:8px">' + escapar(p.texto) +
+            '<br><span class="aviso-mini">' + (ROTULO_STATUS_DUVIDA[p.status] || p.status) + '</span></div>';
+        }).join('');
+      }
+      html += '</div>';
     }
     html += '</div>';
     return html;
@@ -672,6 +783,12 @@ function todosHorarios(agenda) {
     el.querySelectorAll('[data-acao]').forEach(function (btn) {
       btn.addEventListener('click', function () { onAcao(btn.dataset, d); });
     });
+    // grava o rascunho a cada tecla, sem re-renderizar (perderia o foco e o
+    // cursor) — é por isso que o texto sobrevive a fechar/trocar de formulário.
+    const campoForm = document.getElementById('mty-form-texto');
+    if (campoForm && ui.formAberto) {
+      campoForm.addEventListener('input', function () { ui.rascunhos[ui.formAberto] = campoForm.value; });
+    }
   }
 
   async function onAcao(dataset, d) {
@@ -682,6 +799,15 @@ function todosHorarios(agenda) {
     if (acao === 'escolher-horario') { ui.diaEscolhido = Number(dataset.dia); ui.horaEscolhida = dataset.hora; render(d); return; }
     if (acao === 'alternar-relatorio') { ui.relatorioAberto = (ui.relatorioAberto === dataset.id) ? null : dataset.id; render(d); return; }
     if (acao === 'exportar-relatorio-pdf') { exportarRelatorioPDF(d, dataset.id); return; }
+    if (acao === 'alternar-semana') {
+      // alterna: se já está aberta (pelo default ou por escolha anterior), fecha; senão abre só essa.
+      const blocos = agruparEmSemanas(d.aulas);
+      const chaveAtualPadrao = semanaAtualPadrao(blocos);
+      const estavaAberta = ui.semanaAberta === null ? dataset.chave === chaveAtualPadrao : ui.semanaAberta === dataset.chave;
+      ui.semanaAberta = estavaAberta ? '' : dataset.chave;
+      render(d);
+      return;
+    }
 
     if (acao === 'confirmar-cancelar') {
       ui.enviando = true; render(d);
@@ -706,42 +832,27 @@ function todosHorarios(agenda) {
       }
       return;
     }
-    if (acao === 'enviar-duvida') {
-      const texto = (document.getElementById('mty-texto-duvida') || {}).value || '';
-      if (!texto.trim()) return;
-      ui.enviando = true; render(d);
+    if (acao === 'abrir-form') { ui.formAberto = dataset.tipo; ui.mensagemForm = null; render(d); return; }
+    if (acao === 'fechar-form') { ui.formAberto = null; render(d); return; }
+    if (acao === 'enviar-form') {
+      if (ui.enviandoForm) return; // trava contra duplo clique / reenvio por falha de rede
+      const tipo = ui.formAberto;
+      const botao = BOTOES_COMUNICACAO.find(function (b) { return b.tipo === tipo; });
+      const texto = (ui.rascunhos[tipo] || '').trim();
+      if (!botao || !texto) return;
+      ui.enviandoForm = true; ui.mensagemForm = null; render(d);
       try {
-        const resp = await postAcao({ acao: 'duvida', texto: texto });
-        ui.enviando = false; ui.painel = 'msg-duvida'; ui.mensagem = resp.mensagem || 'Enviado.';
+        const resp = await postAcao({ acao: botao.acaoApi, texto: texto });
+        ui.enviandoForm = false;
+        ui.mensagemForm = { tipo: tipo, texto: resp.mensagem || 'Enviado.', erro: false };
+        ui.rascunhos[tipo] = ''; // só limpa o rascunho quando o envio realmente deu certo
         await carregar(true);
       } catch (e) {
-        ui.enviando = false; ui.painel = null; alert('Não deu: ' + e.message); render(ultimoDado);
-      }
-      return;
-    }
-    if (acao === 'enviar-feedback') {
-      const texto = (document.getElementById('mty-texto-feedback') || {}).value || '';
-      if (!texto.trim()) return;
-      ui.enviando = true; render(d);
-      try {
-        const resp = await postAcao({ acao: 'feedback', texto: texto });
-        ui.enviando = false; ui.painel = 'msg-feedback'; ui.mensagem = resp.mensagem || 'Enviado ao coordenador.';
+        // mantém o formulário aberto com o texto digitado — tentar de novo
+        // não pode custar reescrever tudo por causa de uma falha de rede.
+        ui.enviandoForm = false;
+        ui.mensagemForm = { tipo: tipo, texto: 'Não deu: ' + e.message, erro: true };
         render(ultimoDado);
-      } catch (e) {
-        ui.enviando = false; ui.painel = null; alert('Não deu: ' + e.message); render(ultimoDado);
-      }
-      return;
-    }
-    if (acao === 'enviar-jogo') {
-      const texto = (document.getElementById('mty-texto-jogo') || {}).value || '';
-      if (!texto.trim()) return;
-      ui.enviando = true; render(d);
-      try {
-        const resp = await postAcao({ acao: 'jogo', texto: texto });
-        ui.enviando = false; ui.painel = 'msg-jogo'; ui.mensagem = resp.mensagem || 'Enviado.';
-        render(ultimoDado);
-      } catch (e) {
-        ui.enviando = false; ui.painel = null; alert('Não deu: ' + e.message); render(ultimoDado);
       }
       return;
     }
