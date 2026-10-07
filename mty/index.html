@@ -3306,7 +3306,7 @@ function EditorExercicio({ ex, aoSalvar, aoCancelar }) {
   );
 }
 
-function CartaoExercicio({ e, aoTrocar, aoRemover, aoAtualizar, exerciciosCustom, setExerciciosCustom, duracaoMin, aoMudarDuracao, aoMoverCima, aoMoverBaixo }) {
+function CartaoExercicio({ e, aoTrocar, aoRemover, aoAtualizar, exerciciosCustom, setExerciciosCustom, duracaoMin, aoMudarDuracao, aoMoverCima, aoMoverBaixo, aoAlternarFeito, proximo }) {
   const [aberto, setAberto] = useState(false);
   const [editando, setEditando] = useState(false);
   const podeEditar = !!(exerciciosCustom && setExerciciosCustom);
@@ -3319,10 +3319,13 @@ function CartaoExercicio({ e, aoTrocar, aoRemover, aoAtualizar, exerciciosCustom
     setEditando(false);
   }
   return (
-    <div style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderLeft: "3px solid " + (e.v ? C.quadra : C.saibro), borderRadius: 10, padding: "11px 13px", marginBottom: 7 }}>
+    <div style={{ background: e.feito ? C.papel : C.cal, opacity: e.feito ? 0.6 : 1,
+      border: "1px solid " + (proximo ? C.saibro : C.linha), borderWidth: proximo ? 2 : 1,
+      boxShadow: SOMBRA, borderLeft: "3px solid " + (e.feito ? C.grafite : e.v ? C.quadra : C.saibro), borderRadius: 10, padding: "11px 13px", marginBottom: 7 }}>
+      {proximo && <div className="mb-1"><Etiqueta cor={C.saibro}>Próximo</Etiqueta></div>}
       <div className="flex items-start justify-between gap-3">
         <button onClick={() => setAberto(!aberto)} aria-expanded={aberto} className="text-left flex-1">
-          <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{e.n}</div>
+          <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, textDecoration: e.feito ? "line-through" : "none" }}>{e.n}</div>
           {e.o && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>{e.o}</p>}
           <div className="flex items-center gap-2 flex-wrap mt-1">
             {duracaoMin != null && <Etiqueta>{duracaoMin} min</Etiqueta>}
@@ -3335,8 +3338,12 @@ function CartaoExercicio({ e, aoTrocar, aoRemover, aoAtualizar, exerciciosCustom
             {aberto ? "Ocultar execução" : "Ver execução"}
           </span>
         </button>
-        {(aoMoverCima || aoMoverBaixo || aoTrocar || aoRemover || podeEditar) && (
+        {(aoMoverCima || aoMoverBaixo || aoTrocar || aoRemover || aoAlternarFeito || podeEditar) && (
           <div className="flex gap-1 shrink-0 flex-wrap justify-end" style={{ maxWidth: 96 }}>
+            {aoAlternarFeito && (
+              <button onClick={aoAlternarFeito} aria-label={e.feito ? "Desmarcar como feito" : "Marcar como feito"} title={e.feito ? "Feito" : "Marcar feito"}
+                style={{ ...iconeEstilo, background: e.feito ? C.quadra : C.papel, color: e.feito ? "#fff" : C.grafite, borderColor: e.feito ? C.quadra : C.linha }}>✓</button>
+            )}
             {aoMoverCima && <button onClick={aoMoverCima} aria-label="Mover exercício pra cima" title="Mover pra cima" style={iconeEstilo}>↑</button>}
             {aoMoverBaixo && <button onClick={aoMoverBaixo} aria-label="Mover exercício pra baixo" title="Mover pra baixo" style={iconeEstilo}>↓</button>}
             {aoTrocar && <button onClick={aoTrocar} aria-label="Substituir exercício" title="Substituir" style={iconeEstilo}>↻</button>}
@@ -6115,6 +6122,31 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
     });
   }
 
+  /* Marcar como feito durante a execução: o exercício some da visão
+     principal (vai pro grupo recolhido "Concluídos", no fim da lista) e
+     o próximo pendente passa a ser destacado — assim o treinador olha
+     uma coisa só em quadra. Alternar de volta (clicar de novo) só tira
+     a marcação, sem tentar adivinhar a posição de origem. */
+  function marcarFeito(id, i) {
+    setPlano((p) => {
+      function moverProFim(lista) {
+        const nova = [...lista];
+        const [item] = nova.splice(i, 1);
+        nova.push({ ...item, feito: true });
+        return nova;
+      }
+      if (p.daAula) return { ...p, [id]: moverProFim(p[id]) };
+      return p.map((b) => (b.id !== id ? b : { ...b, exercicios: moverProFim(b.exercicios) }));
+    });
+  }
+  function desmarcarFeito(id, i) {
+    setPlano((p) => {
+      function tirarMarca(lista) { return lista.map((e, k) => (k === i ? { ...e, feito: false } : e)); }
+      if (p.daAula) return { ...p, [id]: tirarMarca(p[id]) };
+      return p.map((b) => (b.id !== id ? b : { ...b, exercicios: tirarMarca(b.exercicios) }));
+    });
+  }
+
   /* Duração por exercício é uma estimativa editável (nenhum exercício do
      catálogo carrega um tempo próprio) — 8 min é só o ponto de partida;
      o treinador ajusta pra refletir o que realmente leva com este grupo. */
@@ -6399,7 +6431,9 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
                       aoAtualizar={(dados) => atualizar("aquecimento", i, dados)} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom}
                       duracaoMin={minDe(e)} aoMudarDuracao={(min) => mudarDuracao("aquecimento", i, min)}
                       aoMoverCima={i > 0 ? () => mover("aquecimento", i, -1) : undefined}
-                      aoMoverBaixo={i < plano.aquecimento.length - 1 ? () => mover("aquecimento", i, 1) : undefined} />
+                      aoMoverBaixo={i < plano.aquecimento.length - 1 ? () => mover("aquecimento", i, 1) : undefined}
+                      aoAlternarFeito={() => (e.feito ? desmarcarFeito("aquecimento", i) : marcarFeito("aquecimento", i))}
+                      proximo={!e.feito && i === plano.aquecimento.findIndex((x) => !x.feito)} />
                   ))
                 )}
                 <AdicionarExercicioCatalogo
@@ -6416,7 +6450,9 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
                       aoAtualizar={(dados) => atualizar("conteudo", i, dados)} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom}
                       duracaoMin={minDe(e)} aoMudarDuracao={(min) => mudarDuracao("conteudo", i, min)}
                       aoMoverCima={i > 0 ? () => mover("conteudo", i, -1) : undefined}
-                      aoMoverBaixo={i < plano.conteudo.length - 1 ? () => mover("conteudo", i, 1) : undefined} />
+                      aoMoverBaixo={i < plano.conteudo.length - 1 ? () => mover("conteudo", i, 1) : undefined}
+                      aoAlternarFeito={() => (e.feito ? desmarcarFeito("conteudo", i) : marcarFeito("conteudo", i))}
+                      proximo={!e.feito && i === plano.conteudo.findIndex((x) => !x.feito)} />
                   ))
                 )}
                 <AdicionarExercicioCatalogo
@@ -6455,7 +6491,9 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
                       aoAtualizar={(dados) => atualizar(b.id, i, dados)} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom}
                       duracaoMin={minDe(e)} aoMudarDuracao={(min) => mudarDuracao(b.id, i, min)}
                       aoMoverCima={i > 0 ? () => mover(b.id, i, -1) : undefined}
-                      aoMoverBaixo={i < b.exercicios.length - 1 ? () => mover(b.id, i, 1) : undefined} />
+                      aoMoverBaixo={i < b.exercicios.length - 1 ? () => mover(b.id, i, 1) : undefined}
+                      aoAlternarFeito={() => (e.feito ? desmarcarFeito(b.id, i) : marcarFeito(b.id, i))}
+                      proximo={!e.feito && i === b.exercicios.findIndex((x) => !x.feito)} />
                   ))}
                   <AdicionarExercicioCatalogo
                     jaUsados={new Set(plano.flatMap((x) => x.exercicios.map((e) => e.c)))}
@@ -8039,12 +8077,28 @@ function CardAulaChecklist({ id, indice, titulo, descricao, selo, qtdExercicios,
           )}
           <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700,
             color: st === "feita" ? C.quadra : C.tinta }}>{indice} · {titulo}</div>
-          {descricao && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>{descricao}</p>}
+          {descricao && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2, whiteSpace: "pre-line" }}>{descricao}</p>}
           {!!qtdExercicios && (
             <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>
               {qtdExercicios} {qtdExercicios === 1 ? "exercício" : "exercícios"} — detalhes e trocas na Sessão de hoje
             </p>
           )}
+          {/* Espaço dissertativo do treinador — fica registrado ANTES da
+              aula acontecer (não depende de status), separado do texto
+              fixo acima. Mora em reg[id] (igual data/obs/motivo), então
+              sobrevive no histórico quando o ciclo é arquivado, e dá pra
+              reaproveitar lendo o ciclo anterior em "Ver planos
+              arquivados". Vale pra qualquer programa — correção técnica,
+              tático, duplas ou o avançado de estrutura aberta. */}
+          <div className="mt-2">
+            <label style={{ ...prosa, fontSize: 11, color: C.grafite, fontWeight: 700 }} htmlFor={"nota-treinador-" + id}>
+              O que você vai fazer nesta aula
+            </label>
+            <textarea id={"nota-treinador-" + id} rows={2} disabled={!podeEditar}
+              style={{ ...entrada, resize: "vertical", fontSize: 12.5, marginTop: 4 }}
+              placeholder="ex: corrigir o apoio do forehand, trabalhar o pop-push-open-close com o lado direito"
+              value={d.notaTreinador || ""} onChange={(e) => campo(id, "notaTreinador", e.target.value)} />
+          </div>
           {(selo === "ss" || (selo && selo.indexOf("cs:") === 0)) && (
             <div className="flex gap-1 flex-wrap mt-2">
               {selo === "ss" && <Etiqueta cor={C.saibro}>sem saque</Etiqueta>}
@@ -9080,7 +9134,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                 const idx = aulas.findIndex((x) => x.semana === sem.n && x.t === au.t && (x.ex || []).join() === (au.ex || []).join());
                 const id = idx >= 0 ? aulas[idx].id : "A?" + si + ai;
                 return (
-                  <CardAulaChecklist key={ai} id={id} indice={ai + 1} titulo={au.t} selo={au.selo} qtdExercicios={(au.ex || []).length}
+                  <CardAulaChecklist key={ai} id={id} indice={ai + 1} titulo={au.t} descricao={au.d} selo={au.selo} qtdExercicios={(au.ex || []).length}
                     status={status} defineStatus={defineStatus} reg={reg} campo={campo}
                     chuvaAberta={chuvaAberta} setChuvaAberta={setChuvaAberta} podeEditar={podeEditar} papelAtual={papelAtual} />
                 );
@@ -11676,6 +11730,26 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
   function adicionarSessaoTurma(secao, e) {
     setSessaoTurma((p) => ({ ...p, [secao]: [...p[secao], e] }));
   }
+  function moverSessaoTurma(secao, i, direcao) {
+    setSessaoTurma((p) => {
+      const j = i + direcao;
+      if (j < 0 || j >= p[secao].length) return p;
+      const lista = [...p[secao]];
+      [lista[i], lista[j]] = [lista[j], lista[i]];
+      return { ...p, [secao]: lista };
+    });
+  }
+  function marcarFeitoSessaoTurma(secao, i) {
+    setSessaoTurma((p) => {
+      const lista = [...p[secao]];
+      const [item] = lista.splice(i, 1);
+      lista.push({ ...item, feito: true });
+      return { ...p, [secao]: lista };
+    });
+  }
+  function desmarcarFeitoSessaoTurma(secao, i) {
+    setSessaoTurma((p) => ({ ...p, [secao]: p[secao].map((e, k) => (k === i ? { ...e, feito: false } : e)) }));
+  }
 
   /* Quando a sessão sai como planejado ("Realizada"): se a turma tem
      plano próprio, avança só ele (uma marcação, pro grupo inteiro). Sem
@@ -11967,7 +12041,11 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
                 ) : (
                   sessaoTurma.aquecimento.map((e, i) => (
                     <CartaoExercicio key={e.c + i} e={e} aoTrocar={() => trocarSessaoTurma("aquecimento", i)} aoRemover={() => removerSessaoTurma("aquecimento", i)}
-                      aoAtualizar={(dados) => atualizarSessaoTurma("aquecimento", i, dados)} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} />
+                      aoAtualizar={(dados) => atualizarSessaoTurma("aquecimento", i, dados)} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom}
+                      aoMoverCima={i > 0 ? () => moverSessaoTurma("aquecimento", i, -1) : undefined}
+                      aoMoverBaixo={i < sessaoTurma.aquecimento.length - 1 ? () => moverSessaoTurma("aquecimento", i, 1) : undefined}
+                      aoAlternarFeito={() => (e.feito ? desmarcarFeitoSessaoTurma("aquecimento", i) : marcarFeitoSessaoTurma("aquecimento", i))}
+                      proximo={!e.feito && i === sessaoTurma.aquecimento.findIndex((x) => !x.feito)} />
                   ))
                 )}
                 <AdicionarExercicioCatalogo
@@ -11979,7 +12057,11 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
                 ) : (
                   sessaoTurma.conteudo.map((e, i) => (
                     <CartaoExercicio key={e.c + i} e={e} aoTrocar={() => trocarSessaoTurma("conteudo", i)} aoRemover={() => removerSessaoTurma("conteudo", i)}
-                      aoAtualizar={(dados) => atualizarSessaoTurma("conteudo", i, dados)} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} />
+                      aoAtualizar={(dados) => atualizarSessaoTurma("conteudo", i, dados)} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom}
+                      aoMoverCima={i > 0 ? () => moverSessaoTurma("conteudo", i, -1) : undefined}
+                      aoMoverBaixo={i < sessaoTurma.conteudo.length - 1 ? () => moverSessaoTurma("conteudo", i, 1) : undefined}
+                      aoAlternarFeito={() => (e.feito ? desmarcarFeitoSessaoTurma("conteudo", i) : marcarFeitoSessaoTurma("conteudo", i))}
+                      proximo={!e.feito && i === sessaoTurma.conteudo.findIndex((x) => !x.feito)} />
                   ))
                 )}
                 <AdicionarExercicioCatalogo
