@@ -6211,7 +6211,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
         <div className="flex items-center gap-3 flex-wrap mt-2">
           {plano && todosExerciciosAtuais.length > 0 && (
             <Etiqueta cor={duracaoEstourou ? C.saibro : C.grafite}>
-              {duracaoTotalEstimada} min previstos{duracaoEstourou ? " · acima do disponível (" + duracaoDisponivel + " min)" : ""}
+              {duracaoTotalEstimada} de {duracaoDisponivel} min previstos nos exercícios{duracaoEstourou ? " · acima da duração disponível" : ""}
             </Etiqueta>
           )}
           {estadoSalvo && (
@@ -6242,7 +6242,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
 
       {!aulaAtual && (
         <>
-          <Campo rotulo="Ciclo ativo hoje" nota="O caderno do treinador manda decidir isto antes de entrar na quadra.">
+          <Campo rotulo="Ciclo ativo hoje" nota="Escolha o foco da sessão antes de começar.">
             <Seletor opcoes={ciclos.map((c, i) => ({ v: i, r: `${c.letra} · ${c.nome}` }))} valor={cicloAtivo} aoMudar={setCiclo} />
           </Campo>
           <Campo rotulo="Duração">
@@ -6278,7 +6278,10 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
       {plano && (
         <div className="mt-7">
           <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
-            <Etiqueta cor={C.quadra}>{exigeLogin ? "Rascunho salvo — sincronizando com a nuvem" : "Rascunho salvo neste aparelho"}</Etiqueta>
+            <Etiqueta cor={estadoSalvo === "erro" ? "#8A2E2E" : C.quadra}>
+              {estadoSalvo === "salvando" ? "Salvando…" : estadoSalvo === "erro" ? "Não foi possível salvar — tentar novamente"
+                : exigeLogin ? "Rascunho salvo na nuvem" : "Rascunho salvo neste aparelho"}
+            </Etiqueta>
             {podeEditar && (
               <button onClick={() => {
                 if (confirm("Isso substitui apenas o rascunho desta sessão ainda não salva, com um novo sorteio — nenhuma aula já registrada é afetada. Gerar uma versão nova agora?")) descartarRascunho();
@@ -8767,8 +8770,8 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
           {plano.tipo || "Plano do ciclo"}{plano.geradoEm ? " · desde " + new Date(plano.geradoEm).toLocaleDateString("pt-BR") : ""}
         </p>
         <div className="flex gap-2 flex-wrap mb-3">
-          <Etiqueta cor={REVISAO_COR[revisaoAtual]}>{REVISAO_LABEL[revisaoAtual]}</Etiqueta>
-          <Etiqueta cor={C.grafite}>{EXECUCAO_LABEL[execucaoAtual]}</Etiqueta>
+          <Etiqueta cor={REVISAO_COR[revisaoAtual]}>Revisão: {REVISAO_LABEL[revisaoAtual]}</Etiqueta>
+          <Etiqueta cor={C.grafite}>Execução: {EXECUCAO_LABEL[execucaoAtual]}</Etiqueta>
         </div>
         <ResumoAulasPlano aulas={aulas} status={status} />
         {estadoSalvo && (
@@ -9543,42 +9546,47 @@ function MotivoQuadra({ opacidade = 0.14 }) {
 }
 
 /* Cada item abaixo descreve só o que já existe e funciona no app —
-   nunca algo planejado ou ainda não pronto. */
+   nunca algo planejado ou ainda não pronto. Títulos e textos evitam
+   repetir o que já aparece nas legendas das capturas (CAPTURAS_DEMONSTRACAO,
+   abaixo) e nos recursos complementares (RECURSOS_QUADRALAB) — cada
+   lista cobre um ângulo diferente do mesmo fluxo. */
 const PASSOS_COMO_FUNCIONA = [
-  { numero: "01", Icone: IconeJogadores, titulo: "Cadastrar jogador",
-    texto: "Crie a ficha do jogador com os dados essenciais para começar." },
-  { numero: "02", Icone: IconeLista, titulo: "Registrar avaliação",
-    texto: "Observe e registre o nível técnico e tático de cada golpe, conforme a metodologia." },
-  { numero: "03", Icone: IconeAgenda, titulo: "Preparar planejamento",
-    texto: "Gere o ciclo de aulas a partir da ficha, revise e confirme antes de usar." },
-  { numero: "04", Icone: IconeGrafico, titulo: "Conduzir e registrar aula",
-    texto: "Siga os exercícios da sessão e registre o que foi feito ao final." },
+  { numero: "01", titulo: "Cadastre o jogador",
+    texto: "Dados essenciais para começar o acompanhamento." },
+  { numero: "02", titulo: "Registre sua avaliação",
+    texto: "Nível técnico e tático de cada golpe, conforme a metodologia." },
+  { numero: "03", titulo: "Prepare e revise o planejamento",
+    texto: "Gere o ciclo a partir da ficha e aprove antes de usar." },
+  { numero: "04", titulo: "Conduza e registre a aula",
+    texto: "Siga a sessão e registre o que foi feito ao final." },
 ];
 
+/* Só o que ainda não foi dito nas capturas nem nas etapas — catálogo,
+   ajustes livres e o papel da IA (antes uma seção inteira própria,
+   agora um item a mais aqui, pra não repetir um bloco de página só
+   pra isso). */
 const RECURSOS_QUADRALAB = [
-  { Icone: IconeJogadores, titulo: "Ficha de cada jogador",
-    texto: "Rotina, nível por golpe e avaliação do treinador, sempre à mão." },
-  { Icone: IconeAgenda, titulo: "Planejamento das aulas",
-    texto: "Monte o ciclo, defina o foco e acompanhe o progresso das aulas." },
   { Icone: IconeLista, titulo: "Catálogo de exercícios",
     texto: "Consulte exercícios prontos pra montar a sessão rapidamente." },
   { Icone: IconeGrafico, titulo: "Ajustes do treinador",
-    texto: "Troque, adicione ou remova exercícios da sessão quando quiser." },
-  { Icone: IconeInicio, titulo: "Registro das aulas",
-    texto: "Marque o que foi feito e o que ficou pendente, aula a aula." },
-  { Icone: IconeRelogio, titulo: "Histórico e relatórios",
-    texto: "Feche o ciclo com um relatório e use-o de base pro próximo planejamento." },
+    texto: "Troque, adicione ou remova exercícios quando quiser, sem travar o planejamento." },
+  { Icone: IconeIA, titulo: "Apoio da IA",
+    texto: "A IA sugere um planejamento com base na ficha — você revisa e aprova antes de usar." },
 ];
 
+/* Exemplo fictício e coerente (Beatriz Lima, conta de demonstração),
+   mostrando os quatro estados que o treinador de verdade vê no dia a
+   dia já resolvidos — ficha avaliada, plano aprovado, sessão pronta pra
+   quadra, aula registrada — não telas vazias, pendentes ou bloqueadas. */
 const CAPTURAS_DEMONSTRACAO = [
-  { src: "assets/demo-ficha.png", titulo: "Ficha do jogador",
-    texto: "Rotina, nível por golpe e avaliação do treinador num só lugar." },
-  { src: "assets/demo-plano.png", titulo: "Planejamento do ciclo",
-    texto: "Defina objetivo, período e acompanhe o progresso das aulas do ciclo." },
-  { src: "assets/demo-sessao.png", titulo: "Exercícios da sessão",
-    texto: "Selecione exercícios do catálogo e organize a aula de forma rápida e prática." },
-  { src: "assets/demo-relatorio.png", titulo: "Relatório de aula",
-    texto: "Feche o ciclo com os critérios observados e o que ainda está em aberto." },
+  { src: "assets/demo-ficha.png", titulo: "Conheça cada jogador",
+    texto: "Reúna avaliações e objetivos para orientar o planejamento." },
+  { src: "assets/demo-plano.png", titulo: "Planeje suas próximas aulas",
+    texto: "Organize o ciclo e revise os exercícios antes de começar." },
+  { src: "assets/demo-sessao.png", titulo: "Leve a sessão para a quadra",
+    texto: "Consulte a sequência e os detalhes do treino." },
+  { src: "assets/demo-relatorio.png", titulo: "Registre para dar continuidade",
+    texto: "Use suas observações para orientar as próximas aulas." },
 ];
 
 const FAQ_QUADRALAB = [
@@ -9637,17 +9645,36 @@ function LightboxCaptura({ captura, aoFechar }) {
    Só aparece pra quem não está autenticado — ver App(), mais abaixo. */
 function TelaVendas({ aoEntrar }) {
   const [capturaAberta, setCapturaAberta] = useState(null);
+  const [telaLoginAberta, setTelaLoginAberta] = useState(false);
+  const [ehDesktop, setEhDesktop] = useState(() => typeof window !== "undefined" ? window.innerWidth >= 860 : true);
+  useEffect(() => {
+    function aoRedimensionar() { setEhDesktop(window.innerWidth >= 860); }
+    window.addEventListener("resize", aoRedimensionar);
+    return () => window.removeEventListener("resize", aoRedimensionar);
+  }, []);
 
   function irParaSecao(id) {
     const el = document.getElementById(id);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   }
-  function abrirLogin() {
-    irParaSecao("qlab-login");
+  function focarCampoLogin() {
     setTimeout(() => {
       const campo = document.getElementById("qlab-login-email");
       if (campo) campo.focus();
     }, 420);
+  }
+  /* No celular o formulário fica fora do fluxo principal: "Entrar" abre
+     uma tela dedicada por cima da página, sem navegar — ao fechar, a
+     rolagem volta pro mesmo ponto. No desktop o cartão já fica visível
+     ao lado do pitch, então só rolamos até ele. */
+  function abrirLogin() {
+    if (ehDesktop) {
+      irParaSecao("qlab-login");
+      focarCampoLogin();
+    } else {
+      setTelaLoginAberta(true);
+      focarCampoLogin();
+    }
   }
   function irParaCadastro() {
     window.location.href = "cadastro-individual.html";
@@ -9659,7 +9686,12 @@ function TelaVendas({ aoEntrar }) {
         .qlab-vendas * { box-sizing: border-box; }
         .qlab-vendas a { color: inherit; }
         .qlab-header { position: sticky; top: 0; z-index: 30; background: #fff; border-bottom: 1px solid ${C.linha};
-          display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px; }
+          display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 20px; }
+        @media (max-width: 420px) {
+          .qlab-header { padding: 10px 14px; gap: 6px; }
+          .qlab-header .qlab-btn { padding: 9px 13px; font-size: 13px; }
+        }
+        .qlab-cartao-login { scroll-margin-top: 76px; }
         .qlab-nav { display: none; gap: 28px; }
         .qlab-nav a { font-family: ${ARCH}; font-size: 14px; font-weight: 600; color: ${C.tinta}; text-decoration: none; }
         .qlab-nav a:hover { color: ${C.quadra}; }
@@ -9696,7 +9728,19 @@ function TelaVendas({ aoEntrar }) {
           .qlab-motivo { width: 340px; height: 340px; right: -40px; bottom: -40px; }
         }
 
-        .qlab-secao { padding: 52px 20px; max-width: 1080px; margin: 0 auto; }
+        /* No celular o formulário de login só existe (via React) como
+           tela dedicada, renderizada fora da seção hero — assim nunca
+           fica presa na pilha de empilhamento do cabeçalho fixo. No
+           desktop ele é renderizado normalmente ao lado do pitch. */
+        .qlab-login-overlay-mobile { position: fixed; inset: 0; z-index: 70; background: rgba(10,20,16,.92);
+          display: flex; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 56px 16px 40px; }
+        .qlab-login-overlay-mobile > div { width: 100%; max-width: 420px; position: relative; }
+        .qlab-login-overlay-fechar { position: fixed; top: 16px; right: 16px; background: rgba(255,255,255,.12);
+          border: 1px solid rgba(255,255,255,.3); color: #fff; border-radius: 999px; width: 40px; height: 40px;
+          display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 71; }
+        .qlab-login-overlay-fechar:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+        .qlab-secao { padding: 52px 20px; max-width: 1080px; margin: 0 auto; scroll-margin-top: 76px; }
         .qlab-secao-cabecalho { text-align: center; max-width: 620px; margin: 0 auto 36px; }
         .qlab-secao-eyebrow { display: inline-flex; align-items: center; gap: 10px; font-family: ${ARCH}; font-size: 12px;
           font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: ${C.saibro}; margin: 0 0 12px; }
@@ -9708,11 +9752,11 @@ function TelaVendas({ aoEntrar }) {
         .qlab-passos { display: grid; grid-template-columns: 1fr; gap: 24px; }
         @media (min-width: 560px) { .qlab-passos { grid-template-columns: repeat(2, 1fr); gap: 26px; } }
         @media (min-width: 980px) { .qlab-passos { grid-template-columns: repeat(4, 1fr); gap: 24px; } }
+        .qlab-passo-cabecalho { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
         .qlab-passo-numero { font-family: ${ARCH}; font-size: 13px; font-weight: 700; color: ${C.saibro};
-          background: ${C.papel}; border: 1px solid ${C.linha}; border-radius: 999px; width: 30px; height: 30px;
-          display: inline-flex; align-items: center; justify-content: center; margin-bottom: 14px; }
-        .qlab-passo-icone { color: ${C.quadra}; margin-bottom: 10px; }
-        .qlab-passo h3 { font-family: ${ARCH}; font-size: 16.5px; font-weight: 700; color: ${C.tinta}; margin: 0 0 6px; }
+          background: ${C.papel}; border: 1px solid ${C.linha}; border-radius: 999px; width: 28px; height: 28px;
+          display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .qlab-passo h3 { font-family: ${ARCH}; font-size: 16.5px; font-weight: 700; color: ${C.tinta}; margin: 0; }
         .qlab-passo p { font-family: ${SERIF}; font-size: 14px; color: ${C.grafite}; margin: 0; line-height: 1.5; }
 
         .qlab-capturas { display: grid; grid-template-columns: 1fr; gap: 22px; align-items: start; }
@@ -9740,14 +9784,6 @@ function TelaVendas({ aoEntrar }) {
         .qlab-recurso-cartao .qlab-icone { color: ${C.quadra}; margin-bottom: 10px; }
         .qlab-recurso-cartao h3 { font-family: ${ARCH}; font-size: 15px; font-weight: 700; color: ${C.tinta}; margin: 0 0 6px; }
         .qlab-recurso-cartao p { font-family: ${SERIF}; font-size: 13.5px; color: ${C.grafite}; margin: 0; line-height: 1.5; }
-
-        .qlab-ia { background: ${C.quadra}; color: #fff; border-radius: 20px; padding: 32px 26px;
-          display: flex; flex-direction: column; gap: 16px; align-items: flex-start; max-width: 1080px; margin: 0 auto; }
-        @media (min-width: 760px) { .qlab-ia { flex-direction: row; align-items: center; gap: 28px; padding: 40px 44px; } }
-        .qlab-ia-icone { width: 48px; height: 48px; border-radius: 12px; background: rgba(255,255,255,.1); color: ${C.saibro};
-          display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-        .qlab-ia h2 { font-family: ${ARCH}; font-size: 22px; font-weight: 800; color: #fff; margin: 0 0 8px; }
-        .qlab-ia p { font-family: ${SERIF}; font-size: 15px; color: #D9E3DE; margin: 0; max-width: 560px; line-height: 1.55; }
 
         .qlab-faq-lista { display: flex; flex-direction: column; gap: 10px; }
         .qlab-faq-item { background: #fff; border: 1px solid ${C.linha}; border-radius: 10px; padding: 4px 18px; }
@@ -9804,15 +9840,35 @@ function TelaVendas({ aoEntrar }) {
               </button>
             </div>
           </div>
-          <CartaoLogin aoEntrar={aoEntrar} />
+          {ehDesktop && (
+            <div className="qlab-hero-login">
+              <CartaoLogin aoEntrar={aoEntrar} />
+            </div>
+          )}
         </div>
       </section>
+
+      {/* No celular o cartão de login só existe nesta tela dedicada, fora
+          da pilha de empilhamento do cabeçalho/hero — nunca os dois ao
+          mesmo tempo, pra não duplicar o id do formulário. */}
+      {!ehDesktop && telaLoginAberta && (
+        <div role="dialog" aria-modal="true" aria-label="Entrar na plataforma" className="qlab-login-overlay-mobile"
+          onClick={() => setTelaLoginAberta(false)}>
+          <button type="button" onClick={() => setTelaLoginAberta(false)} aria-label="Fechar"
+            className="qlab-login-overlay-fechar">
+            <IconeFechar tam={20} />
+          </button>
+          <div onClick={(e) => e.stopPropagation()}>
+            <CartaoLogin aoEntrar={aoEntrar} />
+          </div>
+        </div>
+      )}
 
       <section className="qlab-secao qlab-secao-alt" id="qlab-demonstracao">
         <div className="qlab-secao-cabecalho">
           <p className="qlab-secao-eyebrow">Plataforma intuitiva e prática</p>
           <h2>Veja a plataforma por dentro.</h2>
-          <p className="qlab-secao-sub">Capturas reais da plataforma, com dados fictícios.</p>
+          <p className="qlab-secao-sub">Exemplo com dados fictícios.</p>
         </div>
         <div className="qlab-capturas">
           {CAPTURAS_DEMONSTRACAO.map((c, i) => (
@@ -9837,9 +9893,10 @@ function TelaVendas({ aoEntrar }) {
         <div className="qlab-passos">
           {PASSOS_COMO_FUNCIONA.map((p, i) => (
             <div key={i} className="qlab-passo">
-              <span className="qlab-passo-numero">{p.numero}</span>
-              <div className="qlab-passo-icone"><p.Icone tam={26} /></div>
-              <h3>{p.titulo}</h3>
+              <div className="qlab-passo-cabecalho">
+                <span className="qlab-passo-numero">{p.numero}</span>
+                <h3>{p.titulo}</h3>
+              </div>
               <p>{p.texto}</p>
             </div>
           ))}
@@ -9858,16 +9915,6 @@ function TelaVendas({ aoEntrar }) {
               <p>{r.texto}</p>
             </div>
           ))}
-        </div>
-      </section>
-
-      <section className="qlab-secao" aria-label="Papel da inteligência artificial">
-        <div className="qlab-ia">
-          <div className="qlab-ia-icone"><IconeIA tam={24} /></div>
-          <div>
-            <h2>A IA sugere. Você decide.</h2>
-            <p>Use as sugestões como apoio, revise o conteúdo e adapte o planejamento à realidade de cada jogador.</p>
-          </div>
         </div>
       </section>
 
@@ -11834,6 +11881,16 @@ function App() {
   const [editandoFicha, setEditandoFicha] = useState(false);
   const [opcoesJogadorAberto, setOpcoesJogadorAberto] = useState(false);
   const [maisSubabaAberto, setMaisSubabaAberto] = useState(false);
+  /* O botão "Mais" muda de rótulo pro nome da aba ativa (ex.: "Sessão de
+     hoje") quando uma delas está selecionada — nomes mais longos que
+     "Mais" podem passar da largura visível da barra com rolagem
+     horizontal, e o navegador não rola sozinho pra revelar o botão.
+     Esse efeito rola a barra até o próprio botão sempre que a aba ativa
+     muda, pra ele nunca ficar cortado na borda da tela. */
+  const maisBotaoRef = useRef(null);
+  useEffect(() => {
+    if (maisBotaoRef.current) maisBotaoRef.current.scrollIntoView({ behavior: "smooth", inline: "end", block: "nearest" });
+  }, [subaba]);
   const [manualAberto, setManualAberto] = useState(false);
   const manualRef = useRef(null);
   const manualAbriuEm = useRef(0);
@@ -12470,7 +12527,7 @@ function App() {
                         {t.r}
                       </button>
                     ))}
-                    <button onClick={() => setMaisSubabaAberto((v) => !v)} aria-haspopup="true" aria-expanded={maisSubabaAberto}
+                    <button ref={maisBotaoRef} onClick={() => setMaisSubabaAberto((v) => !v)} aria-haspopup="true" aria-expanded={maisSubabaAberto}
                       style={{ fontFamily: ARCH, fontSize: 13, fontWeight: maisAtivo ? 700 : 500, padding: "10px 12px", cursor: "pointer", minHeight: 44,
                         background: "none", border: "none", borderBottom: "2px solid " + (maisAtivo ? C.saibro : "transparent"),
                         color: maisAtivo ? C.tinta : C.grafite, marginBottom: -1, flexShrink: 0, whiteSpace: "nowrap" }}>
