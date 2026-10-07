@@ -418,6 +418,7 @@ function todosHorarios(agenda) {
     mensagem: null, enviando: false,
     relatorioAberto: null, // id do relatório de ciclo aberto na lista, ou null
     semanaAberta: null, // chave "bloco·semana" do bloco de semana expandido no plano compacto
+    glossarioAberto: false,
     formAberto: null, // 'duvida' | 'jogo' | 'feedback' | null — só um dos três formulários por vez
     rascunhos: { duvida: '', jogo: '', feedback: '' }, // preserva o que foi digitado ao trocar de formulário
     mensagemForm: null, // { tipo, texto, erro }
@@ -484,6 +485,7 @@ function todosHorarios(agenda) {
       '<div>' + legendaRosca(d.aulasFeitas, pendente, repetindo) +
       '<div class="progtxt">' + d.aulasFeitas + ' de ' + d.totalAulas + ' aulas realizadas — isto é execução, não é uma nota sobre sua técnica.</div></div></div></div>';
     html += painelSemanas(d);
+    html += painelGlossario(d.aulas);
     html += painelEvolucao(d);
     html += painelRelatorios(d);
     html += painelComunicacao(d);
@@ -516,6 +518,35 @@ function todosHorarios(agenda) {
   }
 
   const ROTULO_STATUS_AULA = { feita: 'Realizada', falta: 'Falta (será reposta)', cancelada: 'Cancelada (será reposta)' };
+
+  /* Só os termos com definição real já escrita na metodologia (ENSINO_TATICO
+     em index.html, duplicado aqui pela mesma razão de sempre — esta página
+     roda isolada). Termos sem fonte textual pronta (ex.: "power drill", que
+     só existe como código interno PDB/PDR/PDS, nunca como texto) ficam de
+     fora — explicar errado é peor que não explicar. */
+  const GLOSSARIO = [
+    { termo: /trilho fechado/i, rotulo: 'Trilho fechado', explicacao: 'A jogada inteira é combinada: o jogador sabe o que vem e para onde vai, repetindo até a decisão virar automática. É uma fase do aprendizado, não o jogo de verdade — depois dela vêm fases mais livres.' },
+    { termo: /semiabert/i, rotulo: 'Semiaberto', explicacao: 'O ponto começa com uma bola alimentada pelo treinador numa situação específica, e a partir daí segue como bola viva, disputada de verdade.' },
+  ];
+  function termosNoPlano(aulas) {
+    const texto = aulas.flatMap(function (a) { return [a.foco, a.titulo]; }).filter(Boolean).join(' · ');
+    return GLOSSARIO.filter(function (g) { return g.termo.test(texto); });
+  }
+  function painelGlossario(aulas) {
+    const achados = termosNoPlano(aulas);
+    if (!achados.length) return '';
+    const aberto = ui.glossarioAberto;
+    let html = '<div class="painel"><h2>Termos usados no seu plano</h2>';
+    if (!aberto) {
+      html += '<button data-acao="abrir-glossario" class="btn fraco">Ver o que esses termos significam</button>';
+    } else {
+      html += achados.map(function (g) {
+        return '<p style="margin:0 0 10px"><b>' + escapar(g.rotulo) + '</b> — ' + escapar(g.explicacao) + '</p>';
+      }).join('');
+    }
+    html += '</div>';
+    return html;
+  }
 
   /* Blocos de semana que abrem/fecham — só a semana atual (a da próxima
      aula pendente) começa aberta; as outras ficam resumidas num título +
@@ -799,6 +830,7 @@ function todosHorarios(agenda) {
     if (acao === 'escolher-horario') { ui.diaEscolhido = Number(dataset.dia); ui.horaEscolhida = dataset.hora; render(d); return; }
     if (acao === 'alternar-relatorio') { ui.relatorioAberto = (ui.relatorioAberto === dataset.id) ? null : dataset.id; render(d); return; }
     if (acao === 'exportar-relatorio-pdf') { exportarRelatorioPDF(d, dataset.id); return; }
+    if (acao === 'abrir-glossario') { ui.glossarioAberto = true; render(d); return; }
     if (acao === 'alternar-semana') {
       // alterna: se já está aberta (pelo default ou por escolha anterior), fecha; senão abre só essa.
       const blocos = agruparEmSemanas(d.aulas);

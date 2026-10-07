@@ -6225,6 +6225,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
      dois casos; a ref muda na hora, sem esperar re-render. */
   async function registrar() {
     if (registrandoRef.current) return;
+    if (previaSemAprovacao) return; // defesa a mais: o botão já não aparece neste estado
     registrandoRef.current = true;
     setSalvandoRegistro(true);
     setEstadoSalvo("salvando");
@@ -6321,7 +6322,10 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
   const dentro = pctIP >= 25 && pctIP <= 35;
 
   const gateAtivo = !aulaAtual && aulaEmVigorBruta && aulaEmVigorBruta.gate;
-  const explicacaoSessao = aulaAtual
+  const previaSemAprovacao = !!(aulaAtual && aluno.plano && !aluno.plano.aprovado);
+  const explicacaoSessao = previaSemAprovacao
+    ? "É o mesmo treino que está no Plano pra esta aula — mas esse plano ainda não foi revisado e aprovado. Isto é uma pré-visualização; não vai marcar nada como feito até o plano ser aprovado."
+    : aulaAtual
     ? "É o mesmo treino que está no Plano pra esta aula — não um novo sorteio. Ao confirmar o registro no fim, isso marca essa aula como feita."
     : gateAtivo
     ? "Esta sessão não vai marcar nada no Plano enquanto o critério de saída do bloco não for confirmado — monte um treino avulso abaixo se quiser treinar hoje mesmo assim."
@@ -6345,6 +6349,9 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
           {aulaAtual ? aulaAtual.bloco + " · semana " + aulaAtual.semana : gateAtivo ? aulaEmVigorBruta.bloco : "Consulta rápida pra usar na quadra"}
         </p>
         {aulaAtual && aulaAtual.d && <p style={{ ...prosa, fontSize: 13, marginTop: 6 }}>{aulaAtual.d}</p>}
+        {previaSemAprovacao && (
+          <div className="mt-2"><Etiqueta cor={C.saibro}>Pré-visualização — plano ainda não aprovado</Etiqueta></div>
+        )}
         {gateAtivo && (
           <button onClick={() => setSubaba("aulas")} style={{ ...prosa, fontSize: 12.5, color: C.saibro, fontWeight: 700, border: "none", background: "none", cursor: "pointer", padding: 0, marginTop: 6 }}>
             Confirmar critério de saída na aba Aulas →
@@ -6394,7 +6401,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
       )}
       {!plano && (
         <div className="flex gap-2 flex-wrap items-center">
-          <Botao onClick={gerar} variante="saibro" disabled={!podeEditar}>Gerar sessão</Botao>
+          <Botao onClick={gerar} variante="saibro" disabled={!podeEditar}>{previaSemAprovacao ? "Pré-visualizar sessão" : "Gerar sessão"}</Botao>
           <Botao variante="vazio" disabled={!podeEditar} onClick={() => setChuvaMenuAberto(!chuvaMenuAberto)}>🌧️ Foi dia de chuva</Botao>
         </div>
       )}
@@ -6685,9 +6692,21 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
                     </p>
                   )}
                   {estadoSalvo === "erro" && <Aviso>Não foi possível salvar. Tente novamente.</Aviso>}
-                  <Botao onClick={registrar} variante="saibro" disabled={salvandoRegistro}>
-                    {salvandoRegistro ? "Salvando…" : aulaAtual ? "Confirmar registro e marcar no Plano" : "Confirmar registro no caderno"}
-                  </Botao>
+                  {/* Esta sessão está presa à aula em vigor de um plano que
+                      ninguém revisou ainda — registrar aqui marcaria essa
+                      aula como realizada num plano que pode nem ser o
+                      definitivo. A pré-visualização (montar e ver a sessão)
+                      continua liberada; só a conclusão espera a aprovação. */}
+                  {previaSemAprovacao ? (
+                    <div>
+                      <Aviso>Este plano ainda não foi revisado e aprovado — esta é uma pré-visualização da sessão. Aprove o planejamento antes de registrar a aula como realizada.</Aviso>
+                      {setSubaba && <div className="mt-2"><Botao variante="vazio" onClick={() => setSubaba("plano")}>Ir para o Plano e revisar</Botao></div>}
+                    </div>
+                  ) : (
+                    <Botao onClick={registrar} variante="saibro" disabled={salvandoRegistro}>
+                      {salvandoRegistro ? "Salvando…" : aulaAtual ? "Confirmar registro e marcar no Plano" : "Confirmar registro no caderno"}
+                    </Botao>
+                  )}
                 </div>
               </div>
             </>
@@ -9017,6 +9036,19 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
     }
   }
 
+  /* Revogar não é só "esconder o link na tela" — limpa o linkToken no
+     próprio jogador, e ver-aluno.js confere exatamente esse valor
+     (carregarContexto) antes de devolver qualquer dado. Sem o token
+     batendo, o link antigo (em qualquer lugar que tenha sido colado)
+     passa a dar "link inválido", de verdade, não só deixa de aparecer
+     aqui. Gerar de novo depois cria um token novo, diferente. */
+  function revogarLinkAluno() {
+    if (!confirm("Revogar este link? Quem já tiver o link antigo (inclusive salvo ou enviado por mensagem) deixa de conseguir abri-lo.")) return;
+    atualiza({ linkToken: null });
+    setLinkAluno("");
+    setLinkCopiado(false);
+  }
+
   async function copiarLinkAluno() {
     try {
       await navigator.clipboard.writeText(linkAluno);
@@ -9048,6 +9080,11 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
     } finally {
       setGerandoMembroId(null);
     }
+  }
+  function revogarLinkMembro(membroId) {
+    if (!confirm("Revogar este link? Quem já tiver o link antigo deixa de conseguir abri-lo.")) return;
+    setAlunos(alunos.map((a) => (a.id === membroId ? { ...a, linkToken: null } : a)));
+    setLinksMembros((l) => { const n = { ...l }; delete n[membroId]; return n; });
   }
   async function copiarLinkMembro(membroId) {
     const url = linksMembros[membroId];
@@ -9456,13 +9493,19 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
               {!eTurma ? (
                 <div>
                   <Botao pequeno variante="vazio" onClick={gerarLinkAluno}>{gerandoLink ? "Gerando…" : "Compartilhar com o jogador"}</Botao>
-                  <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginTop: 6 }}>Recurso em construção — o link funciona, mas a experiência do lado do jogador ainda está sendo ajustada.</p>
+                  <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginTop: 6 }}>Recurso em construção — o link funciona, mas a experiência do lado do jogador ainda está sendo ajustada. Mostra só o que estiver aprovado; rascunho nunca aparece pra ele.</p>
                   {linkAluno && (
-                    <div className="mt-2 flex gap-2 items-center flex-wrap">
-                      <input id="mty-link-aluno" readOnly value={linkAluno} style={{ ...entrada, fontSize: 12, flex: 1 }}
-                        onFocus={(e) => e.target.select()} />
-                      <Botao pequeno variante="vazio" onClick={copiarLinkAluno}>{linkCopiado ? "✓ copiado" : "Copiar"}</Botao>
-                    </div>
+                    <>
+                      <div className="mt-2 flex gap-2 items-center flex-wrap">
+                        <input id="mty-link-aluno" readOnly value={linkAluno} style={{ ...entrada, fontSize: 12, flex: 1 }}
+                          onFocus={(e) => e.target.select()} />
+                        <Botao pequeno variante="vazio" onClick={copiarLinkAluno}>{linkCopiado ? "✓ copiado" : "Copiar"}</Botao>
+                      </div>
+                      <div className="mt-2 flex gap-2 flex-wrap">
+                        <Botao pequeno variante="vazio" onClick={() => window.open(linkAluno, "_blank")}>Pré-visualizar como o jogador vê</Botao>
+                        <Botao pequeno variante="vazio" disabled={!podeEditar} onClick={revogarLinkAluno}>Revogar link</Botao>
+                      </div>
+                    </>
                   )}
                 </div>
               ) : (
@@ -9470,16 +9513,24 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                   <Etiqueta>Compartilhar com os jogadores</Etiqueta>
                   <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, margin: "4px 0 8px" }}>Recurso em construção — o link funciona, mas a experiência do lado do jogador ainda está sendo ajustada.</p>
                   {membros.map((m) => (
-                    <div key={m.id} className="flex items-center gap-2 flex-wrap mb-2">
-                      <span style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, minWidth: 100 }}>{m.nome || "Sem nome"}</span>
-                      {!linksMembros[m.id] ? (
-                        <Botao pequeno variante="vazio" onClick={() => gerarLinkMembro(m)}>{gerandoMembroId === m.id ? "Gerando…" : "Gerar link"}</Botao>
-                      ) : (
-                        <>
-                          <input id={"mty-link-membro-" + m.id} readOnly value={linksMembros[m.id]} style={{ ...entrada, fontSize: 12, flex: 1, minWidth: 160 }}
-                            onFocus={(e) => e.target.select()} />
-                          <Botao pequeno variante="vazio" onClick={() => copiarLinkMembro(m.id)}>{membroCopiadoId === m.id ? "✓ copiado" : "Copiar"}</Botao>
-                        </>
+                    <div key={m.id} className="mb-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, minWidth: 100 }}>{m.nome || "Sem nome"}</span>
+                        {!linksMembros[m.id] ? (
+                          <Botao pequeno variante="vazio" onClick={() => gerarLinkMembro(m)}>{gerandoMembroId === m.id ? "Gerando…" : "Gerar link"}</Botao>
+                        ) : (
+                          <>
+                            <input id={"mty-link-membro-" + m.id} readOnly value={linksMembros[m.id]} style={{ ...entrada, fontSize: 12, flex: 1, minWidth: 160 }}
+                              onFocus={(e) => e.target.select()} />
+                            <Botao pequeno variante="vazio" onClick={() => copiarLinkMembro(m.id)}>{membroCopiadoId === m.id ? "✓ copiado" : "Copiar"}</Botao>
+                          </>
+                        )}
+                      </div>
+                      {linksMembros[m.id] && (
+                        <div className="mt-1 flex gap-2 flex-wrap">
+                          <Botao pequeno variante="vazio" onClick={() => window.open(linksMembros[m.id], "_blank")}>Pré-visualizar como o jogador vê</Botao>
+                          <Botao pequeno variante="vazio" disabled={!podeEditar} onClick={() => revogarLinkMembro(m.id)}>Revogar link</Botao>
+                        </div>
                       )}
                     </div>
                   ))}
