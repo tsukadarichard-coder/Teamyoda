@@ -2764,7 +2764,12 @@ function Botao({ children, onClick, variante = "cheio", pequeno, disabled, style
   const v = {
     cheio: { ...base, background: C.tinta, color: C.papel },
     vazio: { ...base, background: "transparent", color: C.tinta },
-    saibro: { ...base, background: C.saibro, color: "#fff", borderColor: C.saibro },
+    /* Branco sobre C.saibro (#69B32A) mede ~2.6:1 de contraste — abaixo
+       do mínimo de 3:1 do WCAG mesmo pra texto grande/negrito. Um verde
+       mais escuro, só no preenchimento do botão (C.saibro em si continua
+       igual pra bordas/etiquetas, que não têm esse problema), passa de
+       5:1 sem perder a identidade verde-lima/verde-escuro. */
+    saibro: { ...base, background: "#3D7A1A", color: "#fff", borderColor: "#3D7A1A" },
   };
   return <button type={type} onClick={onClick} disabled={disabled} style={{ ...v[variante], ...style }}>{children}</button>;
 }
@@ -3046,7 +3051,7 @@ function CartaoConducao() {
   return (
     <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "12px 15px" }}>
       <button onClick={() => setAberto(!aberto)} className="w-full flex items-center justify-between gap-3" style={{ cursor: "pointer" }}>
-        <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>Cartão de bolso · condução por formato</span>
+        <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>Guia de condução da turma</span>
         <Etiqueta>{aberto ? "fechar" : "abrir"}</Etiqueta>
       </button>
       {aberto && (
@@ -4142,6 +4147,31 @@ function gerarPlanoDePrograma(programaId, aluno, opcoes) {
     }],
     observacao: [],
   });
+}
+
+/* Textos do cartão de "Programas prontos" (nível/abrangência/conteúdo),
+   derivados dos campos que o programa já tem — nunca inventando
+   quantidade de aulas, duração ou compatibilidade que não estejam
+   codificadas em gerarPlanoDePrograma. Todo programa não-aberto gera
+   sempre 4 aulas em ciclo contínuo (ver NUM_AULAS ali); o aberto não
+   gera exercício nenhum, só o roteiro da aula. */
+function rotuloNivelPrograma(p) {
+  return p.nivel ? p.nivel.charAt(0).toUpperCase() + p.nivel.slice(1) : "Qualquer nível";
+}
+function rotuloAbrangenciaPrograma(p) {
+  return p.aberto ? "Roteiro por aula — sem ciclo fixo" : "Ciclo contínuo · 4 aulas";
+}
+function rotuloConteudoPrograma(p) {
+  return p.aberto
+    ? "Sem exercício fixo do catálogo — o drill é criado por você a partir do padrão de jogo do atleta."
+    : "Exercícios reais do catálogo, escolhidos pelo estágio do jogador" + (p.areasDisponiveis ? " e pelo golpe/área que você escolher." : ".");
+}
+function detalhesPrograma(p) {
+  if (p.id === "tecnico")
+    return "A aula segue 3 passos com o mesmo exercício: bola morta perto do aluno, progressão com cesto do outro lado da rede, e bate-bola de fundo pra consolidar o mesmo aspecto técnico. Esses 3 passos se repetem nas 4 aulas do ciclo, até você confirmar o critério de saída no Fechamento.";
+  if (p.aberto)
+    return "Sem exercício fixo do catálogo — você identifica as jogadas que o atleta mais usa e monta o drill específico a partir delas, aula a aula.";
+  return "O mesmo foco de núcleo se repete nas 4 aulas do ciclo — é a repetição que consolida a correção ou o padrão tático. Revise e confirme o critério de saída no Fechamento quando o jogador mostrar domínio.";
 }
 
 /* Pedido que devolve o PLANO já no formato da aba — sem passar por conversa. */
@@ -8135,12 +8165,11 @@ function ResumoAulasPlano({ aulas, status }) {
   );
 }
 
-function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas, modo = "resumo", papelAtual, uidAtual, identidade, setSubaba }) {
+function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas, modo = "resumo", papelAtual, uidAtual, identidade, setSubaba, aoAcessarFicha }) {
   const eTurma = !!turma;
   const entidade = eTurma ? turma : aluno;
   const podeEditar = eTurma ? podeEditarTurma(turma, papelAtual, uidAtual) : podeEditarAluno(aluno, papelAtual, uidAtual);
   const exigeLogin = typeof window !== "undefined" && !!window.mtyAuth;
-  const [colando, setColando] = useState(false);
   const [texto, setTexto] = useState("");
   const [erro, setErro] = useState("");
   const [gerando, setGerando] = useState(false);
@@ -8156,6 +8185,14 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
   const [programaEscolhido, setProgramaEscolhido] = useState(null);
   const [areaTecnica, setAreaTecnica] = useState("fundo");
   const [erroPrograma, setErroPrograma] = useState("");
+  /* Qual dos 3 caminhos de criação está aberto — null mostra só a
+     pergunta "como deseja preparar". Trocar de opção preserva o que já
+     foi preenchido em cada uma (são estados separados, nenhum é limpo
+     ao trocar), e nada é gerado/substituído sozinho: só quando o
+     treinador confirma dentro da opção escolhida. */
+  const [modoCriacao, setModoCriacao] = useState(null); // null | "ficha" | "programa" | "importar"
+  const [filtroCategoriaPrograma, setFiltroCategoriaPrograma] = useState("todos");
+  const [verDetalhesPrograma, setVerDetalhesPrograma] = useState(null);
   const [relatorio, setRelatorio] = useState("");
   const [relatorioCopiado, setRelatorioCopiado] = useState(false);
   const [relatorioArquivado, setRelatorioArquivado] = useState(false);
@@ -8497,12 +8534,23 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
     ? membros.some((m) => m.fichaAtualizadaEm && plano.geradoEm && m.fichaAtualizadaEm > plano.geradoEm)
     : aluno.fichaAtualizadaEm && plano.geradoEm && aluno.fichaAtualizadaEm > plano.geradoEm);
 
-  function refazerPlanejamento() {
+  /* Ponto único pra qualquer um dos 3 caminhos de criação substituir um
+     plano já existente — sempre explica o efeito (arquiva o que já foi
+     feito, preservando o histórico) e exige confirmação antes. Depois de
+     arquivar, cai no estado "sem plano" com o caminho escolhido já
+     aberto, em vez de voltar pro menu de 3 opções do zero. */
+  function comecarNovoPlano(modo) {
+    const efeito = modo === "programa" ? "e escolher um programa pronto no lugar dele"
+      : modo === "importar" ? "e importar outro plano no lugar dele"
+      : "e gerar um plano novo com a ficha atual";
     const msg = feitas > 0
-      ? "Arquivar " + (feitas === 1 ? "a 1 aula já realizada" : "as " + feitas + " aulas já realizadas") + " como ciclo fechado e gerar um plano novo com a ficha atual?"
-      : "Gerar um plano novo com a ficha atual, no lugar deste?";
-    if (confirm(msg)) revisarComFichaAtualizada();
+      ? "Arquivar " + (feitas === 1 ? "a 1 aula já realizada" : "as " + feitas + " aulas já realizadas") + " como ciclo fechado " + efeito + "?"
+      : "Arquivar este plano " + efeito + "?";
+    if (!confirm(msg)) return;
+    revisarComFichaAtualizada();
+    setModoCriacao(modo);
   }
+  function refazerPlanejamento() { comecarNovoPlano("ficha"); }
 
   function arquivar() {
     /* Clicar em "Arquivar" de novo sobre o mesmo relatório (sem gerar um
@@ -8577,26 +8625,56 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
 
   /* ── sem plano ainda ── */
   if (!plano) {
+    const fichaIncompletaDe = eTurma
+      ? membros.filter((m) => !(m.camadas.tecnico || "").trim())
+      : (!(aluno.camadas.tecnico || "").trim() ? [aluno] : []);
+    const programaAtual = programaEscolhido ? PROGRAMAS_PRONTOS.find((p) => p.id === programaEscolhido) : null;
+    const categoriasPrograma = [
+      { v: "todos", r: "Todos" }, { v: "tecnico", r: "Correção técnica" }, { v: "tatico", r: "Tático" }, { v: "duplas", r: "Duplas" },
+    ];
+    const rotuloCategoria = { tecnico: "Correção técnica", tatico: "Tático", duplas: "Duplas" };
+
     return (
       <div>
         <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Plano</h1>
-        <div className="mb-4"><Etiqueta cor={C.grafite}>Rascunho</Etiqueta></div>
+        <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginBottom: 4 }}>{entidade.nome || (eTurma ? "Turma sem nome" : "Jogador sem nome")}</p>
+        <div className="mb-4"><Etiqueta cor={C.grafite}>Sem planejamento</Etiqueta></div>
         {!podeEditar && (
           <Aviso>{eTurma ? "Esta turma" : "Este jogador"} é de outro treinador — a montagem do plano fica travada. Só o professor responsável ou o coordenador podem gerar ou colar um plano.</Aviso>
         )}
-        <Aviso cor={C.quadra}>
-          {eTurma ? "Esta turma ainda não tem um planejamento. Gere aqui mesmo a partir das fichas do grupo — ou cole um plano montado fora."
-            : "Este jogador ainda não tem um planejamento. Preencha a ficha de entrada e gere aqui mesmo — ou cole um plano montado fora."}
-        </Aviso>
+        {!planoCandidato && (
+          <Aviso cor={C.quadra}>
+            {eTurma ? "Esta turma ainda não tem um planejamento. Escolha uma opção abaixo para começar."
+              : "Este jogador ainda não tem um planejamento. Escolha uma opção abaixo para começar."}
+          </Aviso>
+        )}
 
         {planoCandidato && (
           <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA_ALTA, borderRadius: 10, borderLeft: "3px solid " + C.saibro, padding: 16 }}>
             <Etiqueta cor={C.saibro}>Plano gerado — revise antes de usar</Etiqueta>
-            <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginTop: 7 }}>{planoCandidato.tipo || "Plano do ciclo"}</p>
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 7 }}>{entidade.nome}</p>
+            <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginTop: 3 }}>{planoCandidato.tipo || "Plano do ciclo"}</p>
             {planoCandidato.prioridade && <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>{planoCandidato.prioridade}</p>}
+            {planoCandidato.blocos[0] && planoCandidato.blocos[0].areaFoco && (
+              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>
+                Estrutura: {planoCandidato.blocos[0].titulo || planoCandidato.blocos[0].nome} · critério de saída em {(AREAS[planoCandidato.blocos[0].areaFoco] || {}).nome || planoCandidato.blocos[0].areaFoco}
+              </p>
+            )}
             <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 6 }}>
               {plural(planoCandidato.blocos.length, "bloco")} · {plural(listaAulas(planoCandidato, {}).length, "aula")}
               {historico.length > 0 ? " · o ciclo anterior fica arquivado no histórico, logo abaixo" : ""}
+            </p>
+            {listaAulas(planoCandidato, {}).every((a) => (a.ex || []).length === 0) ? (
+              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 6, fontStyle: "italic" }}>
+                Este é um roteiro sem exercício fixo do catálogo — a aula é criada por você em quadra, a partir do padrão de jogo do atleta.
+              </p>
+            ) : (
+              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 6 }}>
+                Exercícios já incluídos: {[...new Set(listaAulas(planoCandidato, {}).flatMap((a) => a.ex || []))].length} códigos do catálogo, reais, filtrados pelo estágio {eTurma ? "do grupo" : "do jogador"}.
+              </p>
+            )}
+            <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 8 }}>
+              Isto ainda não foi salvo — é só uma prévia. O modelo original do programa não é alterado; esta é uma cópia só {eTurma ? "desta turma" : "deste jogador"}, que passa a valer quando você confirmar abaixo.
             </p>
             <div className="flex gap-2 mt-3 flex-wrap items-center">
               <Botao variante="saibro" onClick={usarPlanoCandidato} disabled={estadoSalvo === "salvando"}>
@@ -8612,48 +8690,122 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
           </div>
         )}
 
-        {!planoCandidato && !eTurma && <Secao titulo="Programas prontos"
-          nota="Estruturas fixas que já validam o que você faz no dia a dia — sem IA, sem espera. Escolhe um, confere os exercícios reais que ele já busca no catálogo pro estágio do jogador, e revisa antes de usar, igual ao plano gerado.">
+        {!planoCandidato && (
+          <div className="mb-6">
+            <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 10 }}>Como deseja preparar o planejamento?</p>
+            <div className="flex flex-col gap-2">
+              <button type="button" onClick={() => setModoCriacao("ficha")}
+                style={{ textAlign: "left", padding: "13px 14px", borderRadius: 10, cursor: "pointer",
+                  border: (modoCriacao === "ficha" ? "2px solid " + C.quadra : "1px solid " + C.linha),
+                  background: modoCriacao === "ficha" ? C.cal : "#fff" }}>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, color: C.tinta }}>Gerar pela ficha</span>
+                  <span style={{ display: "inline-block", background: C.quadra, color: "#fff", fontSize: 9.5, fontWeight: 700, padding: "2px 8px",
+                    borderRadius: 999, letterSpacing: ".04em", textTransform: "uppercase" }}>Caminho principal</span>
+                </div>
+                <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 3 }}>
+                  Usa as informações e a avaliação {eTurma ? "de cada jogador do grupo" : "do jogador"}.
+                </p>
+              </button>
+              {!eTurma && (
+                <button type="button" onClick={() => setModoCriacao("programa")}
+                  style={{ textAlign: "left", padding: "13px 14px", borderRadius: 10, cursor: "pointer",
+                    border: (modoCriacao === "programa" ? "2px solid " + C.quadra : "1px solid " + C.linha),
+                    background: modoCriacao === "programa" ? C.cal : "#fff" }}>
+                  <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, color: C.tinta }}>Usar um programa</span>
+                  <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 3 }}>Escolhe uma estrutura de treino pronta e adapta ao jogador.</p>
+                </button>
+              )}
+              <button type="button" onClick={() => setModoCriacao("importar")}
+                style={{ textAlign: "left", padding: "13px 14px", borderRadius: 10, cursor: "pointer",
+                  border: (modoCriacao === "importar" ? "2px solid " + C.quadra : "1px solid " + C.linha),
+                  background: modoCriacao === "importar" ? C.cal : "#fff" }}>
+                <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, color: C.tinta }}>Importar planejamento</span>
+                <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 3 }}>Aproveita um plano já montado fora, colando o JSON aqui.</p>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!planoCandidato && modoCriacao === "programa" && !eTurma && <Secao titulo="Programas prontos"
+          nota="Escolha uma estrutura de treino, adapte ao jogador e revise antes de usar.">
+          <div className="flex gap-2 flex-wrap mb-4">
+            {categoriasPrograma.map((c) => (
+              <button key={c.v} type="button" onClick={() => setFiltroCategoriaPrograma(c.v)}
+                style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, padding: "6px 12px", borderRadius: 999, cursor: "pointer",
+                  border: "1px solid " + (filtroCategoriaPrograma === c.v ? C.quadra : C.linha),
+                  background: filtroCategoriaPrograma === c.v ? C.quadra : "#fff",
+                  color: filtroCategoriaPrograma === c.v ? "#fff" : C.grafite }}>
+                {c.r}
+              </button>
+            ))}
+          </div>
           <div className="flex flex-col gap-2 mb-3">
-            {["tecnico", "tatico", "duplas"].map((cat) => (
+            {["tecnico", "tatico", "duplas"].filter((cat) => filtroCategoriaPrograma === "todos" || filtroCategoriaPrograma === cat).map((cat) => (
               <div key={cat}>
                 <p style={{ fontFamily: ARCH, fontSize: 11, fontWeight: 700, color: C.grafite, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 6 }}>
-                  {cat === "tecnico" ? "Correção técnica" : cat === "tatico" ? "Tático" : "Duplas"}
+                  {rotuloCategoria[cat]}
                 </p>
                 <div className="flex flex-col gap-2 mb-2">
-                  {PROGRAMAS_PRONTOS.filter((p) => p.categoria === cat).map((p) => (
-                    <button key={p.id} type="button" disabled={!podeEditar}
-                      onClick={() => setProgramaEscolhido(programaEscolhido === p.id ? null : p.id)}
-                      style={{ textAlign: "left", padding: "10px 12px", borderRadius: 10, cursor: podeEditar ? "pointer" : "default",
-                        border: "1px solid " + (programaEscolhido === p.id ? C.quadra : C.linha),
-                        background: programaEscolhido === p.id ? C.cal : "#fff" }}>
-                      <p style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700, color: C.tinta }}>{p.nome}</p>
-                      <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 3 }}>{p.descricao}</p>
-                    </button>
-                  ))}
+                  {PROGRAMAS_PRONTOS.filter((p) => p.categoria === cat).map((p) => {
+                    const selecionado = programaEscolhido === p.id;
+                    return (
+                      <div key={p.id} style={{ borderRadius: 10, border: "1px solid " + (selecionado ? C.quadra : C.linha),
+                        background: selecionado ? C.cal : "#fff", overflow: "hidden" }}>
+                        <button type="button" disabled={!podeEditar}
+                          onClick={() => setProgramaEscolhido(selecionado ? null : p.id)}
+                          className="w-full" style={{ textAlign: "left", padding: "10px 12px", cursor: podeEditar ? "pointer" : "default", background: "none", border: "none" }}>
+                          <div className="flex items-start justify-between gap-2">
+                            <p style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700, color: C.tinta }}>{p.nome}</p>
+                            {selecionado && (
+                              <span style={{ flexShrink: 0, fontFamily: ARCH, fontSize: 10, fontWeight: 700, color: C.quadra, display: "flex", alignItems: "center", gap: 3 }}>
+                                ✓ Selecionado
+                              </span>
+                            )}
+                          </div>
+                          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 3 }}>{p.descricao}</p>
+                          <div className="flex gap-3 flex-wrap mt-2">
+                            <span style={{ ...prosa, fontSize: 11, color: C.grafite }}><b style={{ color: C.tinta }}>Nível:</b> {rotuloNivelPrograma(p)}</span>
+                            <span style={{ ...prosa, fontSize: 11, color: C.grafite }}><b style={{ color: C.tinta }}>Abrangência:</b> {rotuloAbrangenciaPrograma(p)}</span>
+                          </div>
+                          <p style={{ ...prosa, fontSize: 11, color: C.grafite, marginTop: 3 }}><b style={{ color: C.tinta }}>Conteúdo:</b> {rotuloConteudoPrograma(p)}</p>
+                        </button>
+                        <button type="button" onClick={() => setVerDetalhesPrograma(verDetalhesPrograma === p.id ? null : p.id)}
+                          style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, color: C.saibro, cursor: "pointer", border: "none",
+                            background: "none", padding: "0 12px 10px", display: "block" }}>
+                          {verDetalhesPrograma === p.id ? "Ocultar detalhes" : "Ver detalhes"}
+                        </button>
+                        {verDetalhesPrograma === p.id && (
+                          <p style={{ ...prosa, fontSize: 12, color: C.grafite, padding: "0 12px 12px" }}>{detalhesPrograma(p)}</p>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ))}
           </div>
 
-          {programaEscolhido && (
+          {programaAtual && (
             <div className="mb-3" style={{ background: C.papel, border: "1px solid " + C.linha, borderRadius: 10, padding: 14 }}>
-              {PROGRAMAS_PRONTOS.find((p) => p.id === programaEscolhido).areasDisponiveis && (
+              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>
+                Selecionado: <b style={{ color: C.tinta }}>{programaAtual.nome}</b>
+              </p>
+              {programaAtual.areasDisponiveis && (
                 <div className="mb-3">
                   <Campo rotulo="Qual golpe/área corrigir?">
-                    <Seletor
-                      opcoes={PROGRAMAS_PRONTOS.find((p) => p.id === programaEscolhido).areasDisponiveis.map((k) => ({ v: k, r: AREAS[k].nome }))}
+                    <Seletor opcoes={programaAtual.areasDisponiveis.map((k) => ({ v: k, r: AREAS[k].nome }))}
                       valor={areaTecnica} aoMudar={setAreaTecnica} />
                   </Campo>
                 </div>
               )}
               {erroPrograma && <Aviso>{erroPrograma}</Aviso>}
-              <Botao variante="saibro" disabled={!podeEditar} onClick={gerarDoPrograma}>Usar este programa</Botao>
+              <Botao variante="saibro" disabled={!podeEditar} onClick={gerarDoPrograma}>Revisar programa</Botao>
             </div>
           )}
         </Secao>}
 
-        {!planoCandidato && <Secao titulo={eTurma ? "Gerar a partir das fichas do grupo" : "Gerar a partir da ficha"}
+        {!planoCandidato && modoCriacao === "ficha" && <Secao titulo={eTurma ? "Gerar a partir das fichas do grupo" : "Gerar a partir da ficha"}
           nota={eTurma
             ? "Usa o que está preenchido na ficha de cada jogador do grupo e monta UM plano pra turma inteira, escolhendo exercícios que sirvam pra todos (ou em estações, se os níveis pedirem). Se a turma já teve ciclos anteriores, o plano novo considera o que ficou registrado neles."
             : "Usa o que está preenchido na aba Ficha e escolhe os exercícios dentro do catálogo, respeitando o estágio do jogador. Se o jogador já teve ciclos anteriores, o plano novo é montado considerando o que ficou registrado neles."}>
@@ -8681,17 +8833,19 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
               </div>
             ))}
           </Campo>
-          {!eTurma && !(aluno.camadas.tecnico || "").trim() && (
+          {fichaIncompletaDe.length > 0 && (
             <Aviso>
-              A camada técnica da ficha está vazia. O plano vai sair genérico — preencha a aba
-              Ficha antes de gerar.
-            </Aviso>
-          )}
-          {eTurma && membros.some((m) => !(m.camadas.tecnico || "").trim()) && (
-            <Aviso>
-              {membros.filter((m) => !(m.camadas.tecnico || "").trim()).map((m) => m.nome || "sem nome").join(", ")}
-              {" "}ainda {membros.filter((m) => !(m.camadas.tecnico || "").trim()).length === 1 ? "está" : "estão"} com a camada
-              técnica da ficha vazia. O plano vai sair genérico pra {membros.filter((m) => !(m.camadas.tecnico || "").trim()).length === 1 ? "esse jogador" : "esses jogadores"} — preencha a ficha antes de gerar.
+              Falta preencher a camada técnica da ficha de {fichaIncompletaDe.map((m) => m.nome || "sem nome").join(", ")}
+              {" "}— o plano vai sair genérico até isso ser preenchido.
+              {!eTurma && aoAcessarFicha && (
+                <>
+                  {" "}
+                  <button type="button" onClick={aoAcessarFicha}
+                    style={{ border: "none", background: "none", color: C.saibro, cursor: "pointer", padding: 0, fontFamily: "inherit", fontSize: "inherit", fontWeight: 700 }}>
+                    Preencher agora →
+                  </button>
+                </>
+              )}
             </Aviso>
           )}
           {erro && <Aviso>{erro}</Aviso>}
@@ -8699,23 +8853,19 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
             <Botao onClick={gerarComIA} variante="saibro" disabled={gerando || !podeEditar}>
               {gerando ? "Montando o plano…" : "Gerar planejamento"}
             </Botao>
-            <Botao variante="vazio" disabled={!podeEditar} onClick={() => setColando(true)}>Colar plano pronto</Botao>
           </div>
           {gerando && <BarraProgresso segundos={segundosIA} etapa={etapaIA} estimativa={eTurma ? 80 : 60} aoCancelar={pararDeEsperar} />}
         </Secao>}
 
-        {!planoCandidato && colando && (
-          <div>
+        {!planoCandidato && modoCriacao === "importar" && (
+          <Secao titulo="Importar planejamento" nota="Cole o JSON de um plano montado fora da plataforma.">
             <Campo rotulo="Cole o JSON do plano" nota="Pode colar com as crases do bloco de código — eu limpo.">
               <textarea rows={9} style={{ ...entrada, resize: "vertical", fontFamily: "ui-monospace, monospace", fontSize: 12 }}
                 value={texto} onChange={(e) => setTexto(e.target.value)} />
             </Campo>
             {erro && <Aviso>{erro}</Aviso>}
-            <div className="flex gap-2">
-              <Botao onClick={importar} variante="saibro">Importar</Botao>
-              <Botao variante="vazio" onClick={() => { setColando(false); setErro(""); }}>Cancelar</Botao>
-            </div>
-          </div>
+            <Botao onClick={importar} variante="saibro" disabled={!podeEditar}>Importar</Botao>
+          </Secao>
         )}
 
         <HistoricoRelatorios historico={historico} abrirHist={abrirHist} setAbrirHist={setAbrirHist} removerDoHistorico={removerDoHistorico} podeEditar={podeEditar} nomeEntidade={entidade.nome} identidade={identidade} />
@@ -9119,6 +9269,10 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
               {!fichaMudouDepoisDoPlano && (
                 <Botao variante="vazio" disabled={!podeEditar} onClick={refazerPlanejamento}>Refazer planejamento com a ficha atual</Botao>
               )}
+              {!eTurma && (
+                <Botao variante="vazio" disabled={!podeEditar} onClick={() => comecarNovoPlano("programa")}>Usar um programa em vez deste</Botao>
+              )}
+              <Botao variante="vazio" disabled={!podeEditar} onClick={() => comecarNovoPlano("importar")}>Importar outro plano</Botao>
               {podeEditar && (
                 <div style={{ position: "relative" }}>
                   <button onClick={() => setMenuAcoes(!menuAcoes)} aria-haspopup="true" aria-expanded={menuAcoes}
@@ -11205,6 +11359,7 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual
   const [auxiliarUid, setAuxiliarUid] = useState("");
   const [horarios, setHorarios] = useState([]);
   const [professores, setProfessores] = useState([]);
+  const [detalhesAbertosId, setDetalhesAbertosId] = useState(null);
   useEffect(() => { listaProfessores().then(setProfessores); }, []);
 
   const aberta = abertaId ? turmas.find((t) => t.id === abertaId) : null;
@@ -11236,17 +11391,15 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual
 
   return (
     <div>
-      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Turmas</h1>
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
+        <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700 }}>Turmas</h1>
+        {!criando && <Botao pequeno onClick={() => setCriando(true)}>Nova turma</Botao>}
+      </div>
       <p style={{ ...prosa, color: C.grafite, marginBottom: 18 }}>
-        Pra jogadores que treinam juntos. Cada um mantém o próprio plano — a turma só une a
-        aula do dia numa sessão só, com presença marcada de uma vez para o grupo.
+        Organize as aulas em grupo mantendo o planejamento e o acompanhamento de cada jogador.
       </p>
 
-      <CartaoConducao />
-
-      {!criando ? (
-        <Botao pequeno onClick={() => setCriando(true)}>Nova turma</Botao>
-      ) : (
+      {criando && (
         <div style={{ background: C.cal, border: "1px solid " + C.linha, padding: 15, marginBottom: 18 }}>
           <Campo rotulo="Nome da turma">
             <input style={entrada} value={nome} onChange={(e) => setNome(e.target.value)} placeholder="ex: Terça 17h" />
@@ -11292,22 +11445,58 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual
       {turmas.length === 0 ? (
         <p style={{ ...prosa, color: C.grafite }}>Nenhuma turma criada ainda.</p>
       ) : (
-        turmas.map((t) => (
-          <div key={t.id} onClick={() => setAbertaId(t.id)}
-            style={{ background: C.cal, border: "1px solid " + C.linha, padding: "13px 15px", marginBottom: 9, cursor: "pointer" }}>
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{t.nome}</div>
-              {!t.plano && <Etiqueta cor={C.saibro}>sem plano — toque pra montar</Etiqueta>}
-            </div>
-            <div className="mt-1"><Etiqueta>{t.duracaoPadrao} · {t.membros.length} jogadores{rotuloProfessores(t.professorNome, t.professorAuxiliarNome)}</Etiqueta></div>
-            {(t.horarios || []).length > 0 && (
-              <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 4 }}>
-                {t.horarios.map((h) => nomeDia(h.dia) + " " + h.hora).join(" · ")}
+        turmas.map((t) => {
+          const proxima = proximaAulaDaTurma(t);
+          const detalhesAbertos = detalhesAbertosId === t.id;
+          return (
+            <div key={t.id} onClick={() => setAbertaId(t.id)}
+              style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "13px 15px", marginBottom: 9, cursor: "pointer" }}>
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{t.nome}</div>
+                {!t.plano && <Etiqueta cor={C.saibro}>sem plano — toque pra montar</Etiqueta>}
+              </div>
+              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>
+                {t.duracaoPadrao} · {plural(t.membros.length, "jogador")}{t.professorNome ? " · prof. " + t.professorNome : ""}
               </p>
-            )}
-          </div>
-        ))
+              {proxima ? (
+                <p style={{ ...prosa, fontSize: 12.5, color: C.quadra, fontWeight: 700, marginTop: 4 }}>
+                  Próxima aula: {proxima.diaLabel} às {proxima.hora}
+                </p>
+              ) : (t.horarios || []).length > 0 ? (
+                <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 4 }}>
+                  {t.horarios.map((h) => nomeDia(h.dia) + " " + h.hora).join(" · ")}
+                </p>
+              ) : null}
+              <div className="flex items-center justify-between gap-3 flex-wrap mt-2">
+                <button type="button" onClick={(e) => { e.stopPropagation(); setDetalhesAbertosId(detalhesAbertos ? null : t.id); }}
+                  style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, color: C.saibro, cursor: "pointer", border: "none", background: "none", padding: 0 }}>
+                  {detalhesAbertos ? "Ocultar detalhes" : "Ver detalhes"}
+                </button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); setAbertaId(t.id); }}
+                  style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, color: C.tinta, cursor: "pointer", border: "none", background: "none", padding: 0 }}>
+                  Abrir turma →
+                </button>
+              </div>
+              {detalhesAbertos && (
+                <div className="mt-2" style={{ borderTop: "1px solid " + C.linha, paddingTop: 8 }} onClick={(e) => e.stopPropagation()}>
+                  {t.professorAuxiliarNome && (
+                    <p style={{ ...prosa, fontSize: 12, color: C.grafite }}>Auxiliar: {t.professorAuxiliarNome}</p>
+                  )}
+                  {(t.horarios || []).length > 0 ? (
+                    <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: t.professorAuxiliarNome ? 4 : 0 }}>
+                      Horários: {t.horarios.map((h) => nomeDia(h.dia) + " " + h.hora).join(" · ")}
+                    </p>
+                  ) : (
+                    <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: t.professorAuxiliarNome ? 4 : 0 }}>Nenhum horário fixo cadastrado.</p>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })
       )}
+
+      <div className="mt-6"><CartaoConducao /></div>
     </div>
   );
 }
@@ -11418,6 +11607,15 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
   const [salvo, setSalvo] = useState(null);
   const [chuvaAberta, setChuvaAberta] = useState(false);
   const [chuvaModeloId, setChuvaModeloId] = useState(null);
+  /* Presença de cada jogador nesta sessão: undefined (ainda não marcada,
+     conta como presente se salvar assim — nunca vira falta sozinho),
+     "presente" ou "ausente". "Marcar todos presentes" só preenche o
+     estado inicial — o treinador ainda pode ajustar um a um antes de
+     salvar. Cada jogador ausente não recebe o histórico da aula nem
+     avança o próprio plano — só um registro de falta. */
+  const [presenca, setPresenca] = useState({});
+  const [obsIndividual, setObsIndividual] = useState({});
+  const [notaAbertaId, setNotaAbertaId] = useState(null);
   const [sessaoTurma, setSessaoTurma] = useState(() => (rascunhoTurma ? rascunhoTurma.sessaoTurma : null)); // { aquecimento, conteudo } | null — a sessão de hoje da turma, com exercícios de verdade pra rodar em quadra
 
   const rascunhoTurmaPrimeiraRef = useRef(true);
@@ -11518,15 +11716,32 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
         : turma.nome;
       setAlunos(alunos.map((a) => {
         if (!turma.membros.includes(a.id)) return a;
+        /* Não marcada ainda = conta como presente ao salvar (é o caso
+           comum — o treinador só mexe em quem faltou). Só "ausente"
+           explícito muda o registro: o jogador não recebe o conteúdo da
+           aula como feito nem avança o próprio plano — ver seção 6 do
+           pedido de melhorias (uma sessão coletiva não pode concluir
+           etapas de quem não participou). */
+        const ausente = presenca[a.id] === "ausente";
+        const notaPessoal = (obsIndividual[a.id] || "").trim();
         const reg = {
           id: "r" + Date.now() + "-" + a.id, tipo: "sessao", data: hoje, ciclo, turma: turma.nome,
-          duracao: turma.duracaoPadrao, exercicios: cods, exerciciosPersonalizados: [], divergencias: [], ...obs,
+          duracao: turma.duracaoPadrao, presenca: ausente ? "ausente" : "presente",
+          exercicios: ausente ? [] : cods, exerciciosPersonalizados: [], divergencias: [], ...obs,
+          notaIndividual: notaPessoal,
           aulaDoPlano: aulaTurma ? aulaTurma.t : null,
         };
-        let atualizado = { ...a, historico: [...(a.historico || []), cods], registros: [...(a.registros || []), reg] };
-        if (!turma.plano) {
-          const prox = aulaEmVigor(a);
-          if (prox) atualizado.regPlano = { ...(a.regPlano || {}), [prox.id]: { status: "feita", data: hoje, ...(notasSessao ? { obs: notasSessao } : {}) } };
+        /* Salvar de novo no mesmo dia pra esta turma substitui o registro
+           anterior em vez de empilhar duplicata — ver seção 6, "impedir
+           duplicação de registros ao salvar novamente". */
+        const registrosSemHoje = (a.registros || []).filter((r) => !(r.data === hoje && r.turma === turma.nome));
+        let atualizado = { ...a, registros: [...registrosSemHoje, reg] };
+        if (!ausente) {
+          atualizado.historico = [...(a.historico || []), cods];
+          if (!turma.plano) {
+            const prox = aulaEmVigor(a);
+            if (prox) atualizado.regPlano = { ...(a.regPlano || {}), [prox.id]: { status: "feita", data: hoje, ...(notasSessao ? { obs: notasSessao } : {}) } };
+          }
         }
         return atualizado;
       }));
@@ -11540,6 +11755,9 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
     setChuvaModeloId(null);
     setSessaoTurma(null);
     setObs({ corrigi: "", ignorei: "", mudaria: "", nota: 3 });
+    setPresenca({});
+    setObsIndividual({});
+    setNotaAbertaId(null);
   }
 
   function marcarResolvida(id) {
@@ -11664,6 +11882,55 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
         </div>
       )}
 
+      {(statusGeral === "feita" || statusGeral === "chuva") && (
+        <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: 15 }}>
+          <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+            <Etiqueta>Presença</Etiqueta>
+            <Botao pequeno variante="vazio" disabled={!podeEditar}
+              onClick={() => setPresenca(Object.fromEntries(membros.map((m) => [m.id, "presente"])))}>
+              Marcar todos presentes
+            </Botao>
+          </div>
+          {membros.map((m) => {
+            const st = presenca[m.id];
+            const notaAberta = notaAbertaId === m.id;
+            return (
+              <div key={m.id} className="mb-2" style={{ borderBottom: "1px solid " + C.linha, paddingBottom: 8 }}>
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 600 }}>{m.nome || "Sem nome"}</span>
+                  <div className="flex gap-1">
+                    <button type="button" disabled={!podeEditar} onClick={() => setPresenca((p) => ({ ...p, [m.id]: "presente" }))}
+                      style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "5px 10px", borderRadius: 10, cursor: "pointer",
+                        border: "1px solid " + (st === "presente" ? C.quadra : C.linha),
+                        background: st === "presente" ? C.quadra : C.papel, color: st === "presente" ? "#fff" : C.grafite }}>
+                      Presente
+                    </button>
+                    <button type="button" disabled={!podeEditar} onClick={() => setPresenca((p) => ({ ...p, [m.id]: "ausente" }))}
+                      style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "5px 10px", borderRadius: 10, cursor: "pointer",
+                        border: "1px solid " + (st === "ausente" ? "#8A2E2E" : C.linha),
+                        background: st === "ausente" ? "#8A2E2E" : C.papel, color: st === "ausente" ? "#fff" : C.grafite }}>
+                      Ausente
+                    </button>
+                  </div>
+                </div>
+                {!st && (
+                  <p style={{ ...prosa, fontSize: 11, color: C.grafite, marginTop: 4 }}>Ainda não marcada — conta como presente se você salvar assim.</p>
+                )}
+                <button type="button" onClick={() => setNotaAbertaId(notaAberta ? null : m.id)}
+                  style={{ ...prosa, fontSize: 11.5, color: C.saibro, cursor: "pointer", border: "none", background: "none", padding: 0, marginTop: 4, fontWeight: 700 }}>
+                  {notaAberta ? "Ocultar nota individual" : (obsIndividual[m.id] ? "Editar nota individual" : "+ nota individual")}
+                </button>
+                {notaAberta && (
+                  <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, resize: "vertical", fontSize: 12.5, marginTop: 6 }}
+                    value={obsIndividual[m.id] || ""} onChange={(e) => setObsIndividual((o) => ({ ...o, [m.id]: e.target.value }))}
+                    placeholder="Observação só deste jogador nesta sessão." />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {turma.plano ? (
         aulaTurma && aulaTurma.gate ? (
           <div className="mb-5" style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "13px 15px" }}>
@@ -11768,7 +12035,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
             <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, resize: "vertical" }} value={obs.mudaria}
               onChange={(e) => setObs({ ...obs, mudaria: e.target.value })} />
           </Campo>
-          <Campo rotulo="Presença geral do grupo na sessão">
+          <Campo rotulo="Engajamento geral do grupo na sessão" nota="Nota de 1 a 5 — a presença de cada jogador já é marcada individualmente acima.">
             <Seletor opcoes={[1, 2, 3, 4, 5].map((n) => ({ v: n, r: String(n) }))} valor={obs.nota}
               aoMudar={(v) => setObs({ ...obs, nota: v })} />
           </Campo>
@@ -11834,6 +12101,29 @@ function proximoCompromisso(alunos, turmas) {
   const amanha = dias === 1;
   const emVigor = prox.entidade.plano ? aulaEmVigor(prox.entidade) : null;
   return { ...prox, diaLabel: hoje ? "Hoje" : amanha ? "Amanhã" : nomeDia(prox.dia), objetivo: emVigor ? emVigor.t : null };
+}
+
+/* Mesma lógica de "qual é o próximo compromisso", só que restrita aos
+   horários de UMA turma — pros cartões da lista de Turmas mostrarem
+   dia+hora reais (considerando a recorrência semanal), nunca inventados.
+   Sem horários cadastrados, devolve null — a lista mostra só o texto
+   descritivo dos horários, não finge saber quando é a próxima aula. */
+function proximaAulaDaTurma(turma) {
+  const horarios = turma.horarios || [];
+  if (horarios.length === 0) return null;
+  const agora = new Date();
+  const diaHoje = agora.getDay();
+  const horaAtual = String(agora.getHours()).padStart(2, "0") + ":" + String(agora.getMinutes()).padStart(2, "0");
+  function distancia(h) {
+    let dias = (h.dia - diaHoje + 7) % 7;
+    if (dias === 0 && h.hora < horaAtual) dias = 7;
+    return dias * 1440 + Number(h.hora.slice(0, 2)) * 60 + Number(h.hora.slice(3, 5));
+  }
+  const prox = [...horarios].sort((x, y) => distancia(x) - distancia(y))[0];
+  const dias = (prox.dia - diaHoje + 7) % 7;
+  const hoje = dias === 0 && prox.hora >= horaAtual;
+  const amanha = dias === 1;
+  return { dia: prox.dia, hora: prox.hora, diaLabel: hoje ? "Hoje" : amanha ? "Amanhã" : nomeDia(prox.dia) };
 }
 
 /* Um plano "precisa de revisão" quando a ficha de quem ele atende mudou
@@ -12732,6 +13022,7 @@ function App() {
   const [professoresAbertos, setProfessoresAbertos] = useState({});
   const [tiposAulaAbertos, setTiposAulaAbertos] = useState({});
   const [avisosAberto, setAvisosAberto] = useState(false);
+  const [perfilAberto, setPerfilAberto] = useState(false);
   /* Menu lateral: cada grupo abre/fecha independente, mas começa todo
      aberto — assim quem já usa o app continua vendo tudo de cara, sem
      precisar clicar em nada antes de navegar. */
@@ -13140,9 +13431,12 @@ function App() {
           <div className="flex items-center gap-2" style={{ flexWrap: "wrap", justifyContent: "flex-end" }}>
           {exigeLogin && uidAtual && (
             <div style={{ position: "relative" }}>
-              <button onClick={abrirAvisos}
-                style={{ position: "relative", fontSize: 16, cursor: "pointer", padding: "4px 8px", border: "1px solid " + C.linha, borderRadius: 10, background: C.cal }}>
-                🔔
+              <button onClick={abrirAvisos} aria-label="Avisos"
+                style={{ position: "relative", display: "flex", alignItems: "center", cursor: "pointer", padding: "7px 8px", border: "1px solid " + C.linha, borderRadius: 10, background: C.cal, color: C.grafite }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                </svg>
                 {totalAvisos > 0 && (
                   <span style={{ position: "absolute", top: -5, right: -5, background: C.saibro, color: "#fff",
                     fontFamily: ARCH, fontSize: 10, fontWeight: 700, borderRadius: 999, minWidth: 16, height: 16,
@@ -13253,18 +13547,39 @@ function App() {
               )}
             </div>
           )}
-          {planoAtual && NOMES_PLANO[planoAtual] && (
-            <Etiqueta cor={C.saibro}>{NOMES_PLANO[planoAtual]}{planoVencido ? " · vencido" : ""}</Etiqueta>
-          )}
           {exigeLogin && uidAtual && orgAtual && (
             <EditorMeuNome org={orgAtual} uid={uidAtual} emailAtual={window.mtyAuth.usuario() ? window.mtyAuth.usuario().email : ""} />
           )}
           {exigeLogin && uidAtual && <InstalarApp compacto />}
-          {exigeLogin && (
-            <button onClick={() => window.mtyAuth.sair()}
-              style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 600, color: C.grafite, cursor: "pointer", padding: "4px 8px", border: "1px solid " + C.linha, borderRadius: 10, background: C.cal }}>
-              sair
-            </button>
+          {(exigeLogin || (planoAtual && NOMES_PLANO[planoAtual])) && (
+            <div style={{ position: "relative" }}>
+              <button onClick={() => setPerfilAberto(!perfilAberto)} aria-label="Perfil" aria-haspopup="true" aria-expanded={perfilAberto}
+                style={{ display: "flex", alignItems: "center", cursor: "pointer", padding: "7px 8px", border: "1px solid " + C.linha, borderRadius: 10, background: C.cal, color: C.grafite }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+              </button>
+              {perfilAberto && (
+                <>
+                  <div onClick={() => setPerfilAberto(false)} style={{ position: "fixed", inset: 0, zIndex: 19 }} />
+                  <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 6, background: C.cal, border: "1px solid " + C.linha,
+                    borderRadius: 10, boxShadow: SOMBRA_ALTA, zIndex: 20, minWidth: 190, overflow: "hidden" }}>
+                    {planoAtual && NOMES_PLANO[planoAtual] && (
+                      <div style={{ padding: "11px 14px", borderBottom: exigeLogin ? "1px solid " + C.linha : "none" }}>
+                        <Etiqueta cor={C.saibro}>{NOMES_PLANO[planoAtual]}{planoVencido ? " · vencido" : ""}</Etiqueta>
+                      </div>
+                    )}
+                    {exigeLogin && (
+                      <button onClick={() => window.mtyAuth.sair()} className="w-full text-left"
+                        style={{ padding: "11px 14px", border: "none", background: "none", cursor: "pointer", fontFamily: ARCH, fontSize: 13.5, fontWeight: 600, color: C.grafite, minHeight: 44 }}>
+                        Sair
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           )}
           </div>
         </div>
@@ -13392,9 +13707,9 @@ function App() {
             })()}
             {subaba === "ficha" ? <TelaFicha aluno={aberto} salvar={salvar} papelAtual={papelAtual} uidAtual={uidAtual}
                 etapaAlvo={etapaFichaAlvo} aoConsumirEtapaAlvo={() => setEtapaFichaAlvo(null)} aoMudarEditando={setEditandoFicha} /> :
-             subaba === "plano" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="resumo" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} /> :
-             subaba === "aulas" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} /> :
-             subaba === "fechamento" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="fechamento" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} /> :
+             subaba === "plano" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="resumo" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} /> :
+             subaba === "aulas" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} /> :
+             subaba === "fechamento" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="fechamento" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} /> :
              subaba === "periodizacao" ? <TelaPeriodizacao aluno={aberto} aoCriarPeriodo={() => { setEtapaFichaAlvo(2); setSubaba("ficha"); }} /> :
              subaba === "scout" ? <TelaScout aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
              subaba === "registro" ? <TelaRegistro aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade} /> :
