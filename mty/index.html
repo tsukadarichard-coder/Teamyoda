@@ -4063,7 +4063,7 @@ const PROGRAMAS_PRONTOS = [
    complementos (rede/saque/pontos) ficam como sugestão no texto da
    aula, não entram automaticamente — o treinador adiciona com
    "+ Adicionar exercício do catálogo" se quiser. */
-function gerarPlanoDePrograma(programaId, aluno, opcoes) {
+function gerarPlanoDePrograma(programaId, alvo, opcoes) {
   opcoes = opcoes || {};
   const prog = PROGRAMAS_PRONTOS.find((p) => p.id === programaId);
   if (!prog) throw new Error("Programa não encontrado.");
@@ -4071,7 +4071,13 @@ function gerarPlanoDePrograma(programaId, aluno, opcoes) {
   if (prog.areasDisponiveis && !prog.areasDisponiveis.includes(areaFoco))
     throw new Error("Escolha um golpe/área válido para este programa.");
   const area = AREAS[areaFoco];
-  const estagio = aluno.estagio;
+  /* `alvo` é um jogador (tem .estagio) ou uma turma (tem .estagios — a
+     união dos estágios de todo mundo do grupo, igual a sessão de turma
+     já calcula pro sorteio do dia). O filtro usa "some" pra cobrir os
+     dois casos com o mesmo código: um exercício entra se servir a
+     QUALQUER um dos estágios do alvo. */
+  const estagiosAlvo = alvo.estagios || [alvo.estagio];
+  const temEstagio = (e) => e.e.some((s) => estagiosAlvo.includes(s));
   const NUM_AULAS = 4;
 
   const textoComplementos = prog.categoria === "duplas"
@@ -4090,12 +4096,12 @@ function gerarPlanoDePrograma(programaId, aluno, opcoes) {
        realmente decidir qual exercício entra — por busca de texto
        (area.busca), não só pela família genérica FB/DC. Sem isso,
        trocar de área não mudava nada na aula. */
-    const poolPrincipal = exerciciosParaSorteio().filter((e) => e.e.includes(estagio) && prog.nucleoFamilias.includes(e.f) && area.busca.test(e.n + " " + e.m));
+    const poolPrincipal = exerciciosParaSorteio().filter((e) => temEstagio(e) && prog.nucleoFamilias.includes(e.f) && area.busca.test(e.n + " " + e.m));
     const [principal] = sorteia(poolPrincipal.length ? poolPrincipal
-      : exerciciosParaSorteio().filter((e) => e.e.includes(estagio) && prog.nucleoFamilias.includes(e.f)), new Set(), 1);
-    const poolFechamento = exerciciosParaSorteio().filter((e) => e.e.includes(estagio) && e.f === "DC" && area.busca.test(e.n + " " + e.m));
+      : exerciciosParaSorteio().filter((e) => temEstagio(e) && prog.nucleoFamilias.includes(e.f)), new Set(), 1);
+    const poolFechamento = exerciciosParaSorteio().filter((e) => temEstagio(e) && e.f === "DC" && area.busca.test(e.n + " " + e.m));
     const [fechamento] = sorteia(poolFechamento.length ? poolFechamento
-      : exerciciosParaSorteio().filter((e) => e.e.includes(estagio) && e.f === "DC"), new Set(principal ? [principal.c] : []), 1);
+      : exerciciosParaSorteio().filter((e) => temEstagio(e) && e.f === "DC"), new Set(principal ? [principal.c] : []), 1);
     nucleo = [principal, fechamento].filter(Boolean);
     /* As 3 etapas que o treinador descreveu (bola morta → cesto do
        outro lado → bate-bola de fundo) viram o texto da aula, usando
@@ -4108,7 +4114,7 @@ function gerarPlanoDePrograma(programaId, aluno, opcoes) {
         "3 · Bate-bola de fundo (5-10 min): " + (fechamento ? fechamento.m : "consolide o mesmo aspecto em troca viva de fundo.");
     }
   } else if (!prog.aberto) {
-    const poolNucleo = exerciciosParaSorteio().filter((e) => prog.nucleoFamilias.includes(e.f) && e.e.includes(estagio)
+    const poolNucleo = exerciciosParaSorteio().filter((e) => prog.nucleoFamilias.includes(e.f) && temEstagio(e)
       && (e.nivel === undefined || e.nivel === prog.nivel));
     nucleo = sorteia(poolNucleo, new Set(), Math.min(3, poolNucleo.length || 3));
   }
@@ -4128,7 +4134,7 @@ function gerarPlanoDePrograma(programaId, aluno, opcoes) {
       });
       continue;
     }
-    const aquecimento = sorteia(exerciciosSemBola().filter((e) => e.e.includes(estagio)), evitarAquecimento, 2);
+    const aquecimento = sorteia(exerciciosSemBola().filter(temEstagio), evitarAquecimento, 2);
     aquecimento.forEach((e) => evitarAquecimento.add(e.c));
     const descricao = estrutura3Passos
       ? estrutura3Passos + "\n\n" + textoComplementos
@@ -8386,8 +8392,13 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
   function gerarDoPrograma() {
     setErroPrograma("");
     try {
-      const alvo = gerarPlanoDePrograma(programaEscolhido, aluno, { areaFoco: areaTecnica });
-      setPlanoCandidato(alvo);
+      /* Pra turma, não existe "o estágio" — existem os estágios de cada
+         membro do grupo. Passa a união deles (igual a sessão de turma já
+         faz pro sorteio do dia): um exercício entra se servir a QUALQUER
+         jogador do grupo, não só a um estágio fixo. */
+      const alvoPrograma = eTurma ? { estagios: [...new Set(membros.map((m) => m.estagio))] } : aluno;
+      const planoGerado = gerarPlanoDePrograma(programaEscolhido, alvoPrograma, { areaFoco: areaTecnica });
+      setPlanoCandidato(planoGerado);
       setProgramaEscolhido(null);
     } catch (e) {
       setErroPrograma(String(e.message || e));
@@ -8761,15 +8772,15 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                   Usa as informações e a avaliação {eTurma ? "de cada jogador do grupo" : "do jogador"}.
                 </p>
               </button>
-              {!eTurma && (
-                <button type="button" onClick={() => setModoCriacao("programa")}
-                  style={{ textAlign: "left", padding: "13px 14px", borderRadius: 10, cursor: "pointer",
-                    border: (modoCriacao === "programa" ? "2px solid " + C.quadra : "1px solid " + C.linha),
-                    background: modoCriacao === "programa" ? C.cal : "#fff" }}>
-                  <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, color: C.tinta }}>Usar um programa</span>
-                  <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 3 }}>Escolhe uma estrutura de treino pronta e adapta ao jogador.</p>
-                </button>
-              )}
+              <button type="button" onClick={() => setModoCriacao("programa")}
+                style={{ textAlign: "left", padding: "13px 14px", borderRadius: 10, cursor: "pointer",
+                  border: (modoCriacao === "programa" ? "2px solid " + C.quadra : "1px solid " + C.linha),
+                  background: modoCriacao === "programa" ? C.cal : "#fff" }}>
+                <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, color: C.tinta }}>Usar um programa</span>
+                <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 3 }}>
+                  Escolhe uma estrutura de treino pronta e adapta {eTurma ? "ao grupo" : "ao jogador"}.
+                </p>
+              </button>
               <button type="button" onClick={() => setModoCriacao("importar")}
                 style={{ textAlign: "left", padding: "13px 14px", borderRadius: 10, cursor: "pointer",
                   border: (modoCriacao === "importar" ? "2px solid " + C.quadra : "1px solid " + C.linha),
@@ -8781,8 +8792,16 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
           </div>
         )}
 
-        {!planoCandidato && modoCriacao === "programa" && !eTurma && <Secao titulo="Programas prontos"
-          nota="Escolha uma estrutura de treino, adapte ao jogador e revise antes de usar.">
+        {!planoCandidato && modoCriacao === "programa" && <Secao titulo="Programas prontos"
+          nota={"Escolha uma estrutura de treino, adapte " + (eTurma ? "ao grupo" : "ao jogador") + " e revise antes de usar."}>
+          {eTurma && (
+            <Aviso>
+              Numa turma, o programa vale pro grupo inteiro — os exercícios são escolhidos pra servir a todos os
+              estágios presentes. Na Correção Técnica isso só faz sentido quando o grupo precisa corrigir o
+              mesmo aspecto; se cada jogador tem uma necessidade diferente, prefira gerar o plano de cada um
+              individualmente.
+            </Aviso>
+          )}
           <div className="flex gap-2 flex-wrap mb-4">
             {categoriasPrograma.map((c) => (
               <button key={c.v} type="button" onClick={() => setFiltroCategoriaPrograma(c.v)}
