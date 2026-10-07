@@ -74,10 +74,10 @@
   }
   .foto-hero {
     position: absolute; inset: 0; z-index: 0;
-    background:
-      radial-gradient(ellipse 70% 55% at 75% 15%, rgba(255,200,120,.55), transparent 60%),
-      linear-gradient(200deg, #C97A3A 0%, #8A4A24 32%, #4A2E1C 58%, #1A140E 100%);
+    background-image: url("assets/foto-bola.jpg");
+    background-size: cover; background-position: center;
   }
+  .cta-final .foto-hero { background-position: 70% 35%; transform: scale(1.15); }
   .foto-hero::after {
     content: ""; position: absolute; inset: 0;
     background:
@@ -86,9 +86,8 @@
   }
   .foto-escura {
     position: absolute; inset: 0; z-index: 0;
-    background:
-      radial-gradient(ellipse 60% 50% at 20% 10%, rgba(230,160,90,.35), transparent 60%),
-      linear-gradient(160deg, #3A2A1A 0%, #211810 55%, #15110D 100%);
+    background-image: url("assets/foto-bola.jpg");
+    background-size: cover; background-position: center;
   }
   .foto-escura::after {
     content: ""; position: absolute; inset: 0;
@@ -97,8 +96,8 @@
   .foto-card {
     position: relative; overflow: hidden; border-radius: 14px; aspect-ratio: 4 / 3;
   }
-  .foto-card.a { background: linear-gradient(145deg, #C98A4D, #7A4524 55%, #2C1F14); }
-  .foto-card.b { background: linear-gradient(145deg, #6B4A2E, #3A2A1C 55%, #19130D); }
+  .foto-card.a { background-image: url("assets/foto-natureza.jpg"); background-size: cover; background-position: center; }
+  .foto-card.b { background-image: url("assets/foto-restaurante.jpg"); background-size: cover; background-position: center; }
   .foto-card .ilustrativa-selo { right: 10px; bottom: 10px; }
 
   /* ── header ── */
