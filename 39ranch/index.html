@@ -1,0 +1,619 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>39 Ranch Tennis Club | Tênis, natureza e boa mesa</title>
+<meta name="description" content="Duas quadras de saibro, natureza e boa mesa. Conheça o 39 Ranch Tennis Club — inauguração em novembro.">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#15130F">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="39 Ranch Tennis Club | Tênis, natureza e boa mesa">
+<meta property="og:description" content="Duas quadras de saibro, natureza e boa mesa. Conheça o 39 Ranch Tennis Club — inauguração em novembro.">
+<meta property="og:image" content="assets/logo-39-ranch.png">
+<meta name="twitter:card" content="summary">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --tinta: #1A1712;
+    --papel: #FAF6EC;
+    --cal: #FFFFFF;
+    --marfim: #F3ECDA;
+    --preto: #121110;
+    --dourado: #C9A24B;
+    --dourado-escuro: #A8822F;
+    --saibro: #A8632E;
+    --grafite: #6B6457;
+    --linha: #E7E0D0;
+    --serif: "Playfair Display", Georgia, serif;
+    --sans: Inter, system-ui, -apple-system, sans-serif;
+    --sombra: 0 2px 10px rgba(18, 17, 16, .08);
+    --sombra-alta: 0 10px 34px rgba(18, 17, 16, .16);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--papel); color: var(--tinta);
+    font: 16px/1.6 var(--sans); -webkit-font-smoothing: antialiased;
+  }
+  img { max-width: 100%; display: block; }
+  a { color: inherit; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+  section { padding: 84px 0; }
+  @media (max-width: 720px) { section { padding: 56px 0; } }
+  .olho {
+    font-family: var(--sans); font-size: 12.5px; font-weight: 700; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--dourado-escuro);
+  }
+  h1, h2, h3 { font-family: var(--serif); font-weight: 700; margin: 0; color: var(--tinta); }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px; font-family: var(--sans);
+    font-weight: 700; font-size: 15px; padding: 14px 26px; border-radius: 999px;
+    border: none; cursor: pointer; text-decoration: none; line-height: 1; min-height: 48px;
+    transition: transform .15s ease, box-shadow .15s ease, opacity .15s ease;
+  }
+  .btn:active { transform: scale(.98); }
+  .btn-dourado { background: var(--dourado); color: #241B05; box-shadow: var(--sombra); }
+  .btn-dourado:hover { box-shadow: var(--sombra-alta); }
+  .btn-fantasma { background: none; color: inherit; padding: 14px 6px; }
+  .btn-fantasma .seta { transition: transform .15s ease; }
+  .btn-fantasma:hover .seta { transform: translateX(3px); }
+  .btn[disabled] { opacity: .6; cursor: default; }
+  .ilustrativa-selo {
+    position: absolute; right: 14px; bottom: 14px; z-index: 2;
+    background: rgba(18,17,16,.55); color: #fff; font-size: 10.5px; font-weight: 600;
+    letter-spacing: .04em; padding: 5px 10px; border-radius: 999px; backdrop-filter: blur(2px);
+  }
+  .foto-hero {
+    position: absolute; inset: 0; z-index: 0;
+    background:
+      radial-gradient(ellipse 70% 55% at 75% 15%, rgba(255,200,120,.55), transparent 60%),
+      linear-gradient(200deg, #C97A3A 0%, #8A4A24 32%, #4A2E1C 58%, #1A140E 100%);
+  }
+  .foto-hero::after {
+    content: ""; position: absolute; inset: 0;
+    background:
+      linear-gradient(0deg, rgba(10,9,7,.78) 0%, rgba(10,9,7,.42) 42%, rgba(10,9,7,.18) 100%),
+      repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0 2px, transparent 2px 180px);
+  }
+  .foto-escura {
+    position: absolute; inset: 0; z-index: 0;
+    background:
+      radial-gradient(ellipse 60% 50% at 20% 10%, rgba(230,160,90,.35), transparent 60%),
+      linear-gradient(160deg, #3A2A1A 0%, #211810 55%, #15110D 100%);
+  }
+  .foto-escura::after {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(0deg, rgba(8,7,6,.82) 0%, rgba(8,7,6,.5) 55%, rgba(8,7,6,.35) 100%);
+  }
+  .foto-card {
+    position: relative; overflow: hidden; border-radius: 14px; aspect-ratio: 4 / 3;
+  }
+  .foto-card.a { background: linear-gradient(145deg, #C98A4D, #7A4524 55%, #2C1F14); }
+  .foto-card.b { background: linear-gradient(145deg, #6B4A2E, #3A2A1C 55%, #19130D); }
+  .foto-card .ilustrativa-selo { right: 10px; bottom: 10px; }
+
+  /* ── header ── */
+  header {
+    position: sticky; top: 0; z-index: 40; background: var(--preto);
+    border-bottom: 1px solid rgba(255,255,255,.08);
+  }
+  header .wrap { display: flex; align-items: center; justify-content: space-between; height: 76px; gap: 20px; }
+  .marca-site { display: flex; align-items: center; gap: 10px; text-decoration: none; flex-shrink: 0; }
+  .marca-site img { height: 46px; width: auto; }
+  nav.nav-desktop { display: flex; align-items: center; gap: 30px; }
+  nav.nav-desktop a {
+    color: #F3ECDA; text-decoration: none; font-size: 14.5px; font-weight: 500;
+    opacity: .88; transition: opacity .15s ease;
+  }
+  nav.nav-desktop a:hover { opacity: 1; }
+  header .acoes { display: flex; align-items: center; gap: 14px; }
+  .btn-menu {
+    display: none; background: none; border: none; cursor: pointer; padding: 8px;
+    color: #F3ECDA; min-height: 44px; min-width: 44px;
+  }
+  .menu-mobile {
+    display: none; position: fixed; inset: 76px 0 0 0; z-index: 39; background: var(--preto);
+    padding: 10px 24px 30px; overflow-y: auto;
+  }
+  .menu-mobile.aberto { display: block; }
+  .menu-mobile a {
+    display: block; color: #F3ECDA; text-decoration: none; font-size: 18px; font-weight: 600;
+    padding: 16px 2px; border-bottom: 1px solid rgba(255,255,255,.08);
+  }
+  .menu-mobile .btn { margin-top: 20px; width: 100%; justify-content: center; }
+  @media (max-width: 860px) {
+    nav.nav-desktop, header .acoes .btn-dourado { display: none; }
+    .btn-menu { display: inline-flex; align-items: center; justify-content: center; }
+  }
+
+  /* ── hero ── */
+  .hero { position: relative; color: #fff; padding: 64px 0 90px; overflow: hidden; }
+  .hero .wrap { position: relative; z-index: 1; display: grid; grid-template-columns: 1.15fr .85fr; gap: 56px; align-items: start; }
+  .hero .olho { color: var(--dourado); }
+  .hero h1 { font-size: 52px; line-height: 1.08; margin: 14px 0 20px; color: #fff; }
+  .hero h1 .destaque { color: var(--dourado); }
+  .hero p.desc { font-size: 17px; line-height: 1.6; color: #EDE6D6; max-width: 480px; margin: 0 0 30px; }
+  .hero .botoes { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .hero .botoes .btn-fantasma { color: #fff; }
+  .form-card {
+    background: var(--marfim); border-radius: 16px; padding: 30px 28px; box-shadow: var(--sombra-alta);
+    color: var(--tinta);
+  }
+  .form-card h2 { font-size: 23px; margin-bottom: 6px; }
+  .form-card .sub { color: var(--grafite); font-size: 14px; margin-bottom: 20px; }
+  .campo { margin-bottom: 14px; }
+  .campo label {
+    display: block; font-size: 12px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
+    color: var(--grafite); margin-bottom: 6px;
+  }
+  .campo input, .campo select {
+    width: 100%; border: 1px solid var(--linha); background: var(--cal); border-radius: 9px;
+    padding: 12px 13px; font: inherit; font-size: 15px; color: var(--tinta); min-height: 46px;
+  }
+  .campo input:focus, .campo select:focus, .consentimento input:focus-visible, .btn:focus-visible, nav a:focus-visible {
+    outline: 2px solid var(--dourado-escuro); outline-offset: 2px;
+  }
+  .campo .erro-campo { color: #8A2E2E; font-size: 12.5px; margin-top: 5px; display: none; }
+  .campo.invalido input, .campo.invalido select { border-color: #8A2E2E; }
+  .campo.invalido .erro-campo { display: block; }
+  .consentimento {
+    display: flex; align-items: flex-start; gap: 9px; margin: 16px 0 6px; font-size: 12.5px;
+    line-height: 1.5; color: var(--grafite);
+  }
+  .consentimento input { margin-top: 3px; width: 16px; height: 16px; flex-shrink: 0; }
+  .consentimento a { text-decoration: underline; }
+  .form-card .nota-envio { font-size: 11.5px; color: var(--grafite); margin-top: 10px; text-align: center; }
+  .form-card .btn { width: 100%; justify-content: center; margin-top: 6px; }
+  .form-sucesso, .form-erro-geral { display: none; }
+  .form-sucesso.mostrar {
+    display: block; text-align: center; padding: 18px 6px;
+  }
+  .form-sucesso .marca-check {
+    width: 46px; height: 46px; border-radius: 999px; background: var(--dourado); color: #241B05;
+    display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; font-size: 22px;
+  }
+  .form-sucesso h3 { font-size: 19px; margin-bottom: 8px; }
+  .form-sucesso p { color: var(--grafite); font-size: 14px; margin: 0; }
+  .form-erro-geral.mostrar {
+    display: block; background: #FBEAEA; border: 1px solid #E4B9B9; color: #7A2A2A;
+    font-size: 13px; padding: 10px 13px; border-radius: 9px; margin-bottom: 14px;
+  }
+  @media (max-width: 980px) {
+    .hero .wrap { grid-template-columns: 1fr; gap: 36px; }
+    .hero h1 { font-size: 36px; }
+  }
+  @media (max-width: 480px) {
+    .hero { padding: 40px 0 56px; }
+    .hero h1 { font-size: 30px; }
+    .form-card { padding: 24px 20px; }
+  }
+
+  /* ── seu tênis seu ritmo ── */
+  .ritmo { text-align: center; }
+  .ritmo h2 { font-size: 32px; margin-bottom: 44px; }
+  .ritmo-grade { display: grid; grid-template-columns: repeat(3, 1fr); gap: 36px; }
+  .ritmo-item { padding: 0 14px; }
+  .ritmo-icone {
+    width: 56px; height: 56px; margin: 0 auto 18px; border-radius: 999px; border: 1.5px solid var(--dourado);
+    display: flex; align-items: center; justify-content: center; color: var(--dourado-escuro);
+  }
+  .ritmo-item h3 { font-size: 18px; margin-bottom: 8px; }
+  .ritmo-item p { color: var(--grafite); font-size: 14.5px; margin: 0; line-height: 1.55; }
+  @media (max-width: 720px) {
+    .ritmo-grade { grid-template-columns: 1fr; gap: 34px; }
+  }
+
+  /* ── experiência ── */
+  .experiencia { background: var(--marfim); }
+  .experiencia .cabecalho { text-align: center; max-width: 620px; margin: 0 auto 46px; }
+  .experiencia .cabecalho h2 { font-size: 32px; margin-top: 10px; }
+  .exp-grade { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+  .exp-card figcaption { margin-top: 16px; }
+  .exp-card h3 { font-size: 19px; margin-bottom: 6px; }
+  .exp-card p { color: var(--grafite); font-size: 14.5px; margin: 0; line-height: 1.55; }
+  @media (max-width: 720px) { .exp-grade { grid-template-columns: 1fr; } }
+
+  /* ── cta escura ── */
+  .cta-escura { position: relative; color: #fff; padding: 90px 0; overflow: hidden; }
+  .cta-escura .wrap { position: relative; z-index: 1; max-width: 640px; }
+  .cta-escura h2 { font-size: 34px; color: #fff; margin-bottom: 16px; line-height: 1.15; }
+  .cta-escura p { font-size: 16.5px; color: #EDE6D6; line-height: 1.6; margin: 0 0 26px; max-width: 480px; }
+  @media (max-width: 480px) { .cta-escura h2 { font-size: 27px; } }
+
+  /* ── faq ── */
+  .faq { max-width: 760px; margin: 0 auto; }
+  .faq .cabecalho { text-align: center; margin-bottom: 40px; }
+  .faq .cabecalho h2 { font-size: 32px; margin-top: 10px; }
+  .faq-item { border-bottom: 1px solid var(--linha); }
+  .faq-item summary {
+    list-style: none; cursor: pointer; padding: 20px 4px; display: flex; align-items: center;
+    justify-content: space-between; gap: 16px; font-weight: 600; font-size: 16px; min-height: 44px;
+  }
+  .faq-item summary::-webkit-details-marker { display: none; }
+  .faq-item summary .sinal { color: var(--dourado-escuro); font-size: 20px; flex-shrink: 0; transition: transform .2s ease; }
+  .faq-item[open] summary .sinal { transform: rotate(45deg); }
+  .faq-item .resposta { padding: 0 4px 20px; color: var(--grafite); font-size: 14.5px; line-height: 1.6; margin: 0; }
+  .faq-item summary:focus-visible { outline: 2px solid var(--dourado-escuro); outline-offset: 2px; border-radius: 4px; }
+
+  /* ── cta final ── */
+  .cta-final { position: relative; color: #fff; padding: 110px 0; text-align: center; overflow: hidden; }
+  .cta-final .wrap { position: relative; z-index: 1; }
+  .cta-final h2 { font-size: 38px; color: #fff; margin-bottom: 28px; }
+  @media (max-width: 480px) { .cta-final h2 { font-size: 28px; } .cta-final { padding: 74px 0; } }
+
+  /* ── footer ── */
+  footer { background: var(--preto); color: #D8D1C3; padding: 56px 0 30px; }
+  .rodape-topo { display: flex; justify-content: space-between; gap: 40px; flex-wrap: wrap; padding-bottom: 36px; border-bottom: 1px solid rgba(255,255,255,.1); }
+  .rodape-marca img { height: 54px; width: auto; margin-bottom: 14px; }
+  .rodape-marca p { font-size: 13px; color: #A69D8A; max-width: 260px; margin: 0; line-height: 1.6; }
+  .rodape-nav { display: flex; gap: 48px; flex-wrap: wrap; }
+  .rodape-nav .coluna h4 {
+    font-family: var(--sans); font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+    color: #A69D8A; margin: 0 0 14px;
+  }
+  .rodape-nav .coluna a {
+    display: block; color: #E7E0D0; text-decoration: none; font-size: 14.5px; margin-bottom: 11px;
+  }
+  .rodape-nav .coluna a:hover { text-decoration: underline; }
+  .powered-by { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; padding: 30px 0 18px; }
+  .powered-by span { font-size: 12px; color: #A69D8A; letter-spacing: .04em; text-transform: uppercase; }
+  .powered-by .marcas { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+  .powered-by img { height: 20px; width: auto; opacity: .92; }
+  .powered-by img.quadralab { height: 24px; }
+  .copyright { font-size: 12.5px; color: #78705F; padding-top: 10px; }
+  @media (max-width: 720px) {
+    .rodape-topo { flex-direction: column; }
+    .rodape-nav { gap: 32px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <a class="marca-site" href="#topo" aria-label="39 Ranch Tennis Club — início">
+      <img src="assets/logo-39-ranch.png" alt="39 Ranch Tennis Club">
+    </a>
+    <nav class="nav-desktop" aria-label="Navegação principal">
+      <a href="#topo">O clube</a>
+      <a href="#aulas">Aulas</a>
+      <a href="#experiencia">Experiência</a>
+      <a href="#duvidas">Dúvidas</a>
+    </nav>
+    <div class="acoes">
+      <a class="btn btn-dourado" href="#form-interesse">Tenho interesse</a>
+      <button class="btn-menu" id="btAbrirMenu" aria-label="Abrir menu" aria-expanded="false" aria-controls="menuMobile">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<div class="menu-mobile" id="menuMobile">
+  <a href="#topo">O clube</a>
+  <a href="#aulas">Aulas</a>
+  <a href="#experiencia">Experiência</a>
+  <a href="#duvidas">Dúvidas</a>
+  <a class="btn btn-dourado" href="#form-interesse">Tenho interesse</a>
+</div>
+
+<main id="topo">
+  <section class="hero" aria-labelledby="hero-titulo">
+    <div class="foto-hero" aria-hidden="true"></div>
+    <span class="ilustrativa-selo" style="right:24px; bottom:24px;">Imagem ilustrativa</span>
+    <div class="wrap">
+      <div>
+        <p class="olho">Inauguração em novembro</p>
+        <h1 id="hero-titulo">Um novo lugar para viver <span class="destaque">o tênis.</span></h1>
+        <p class="desc">Duas quadras de saibro, natureza e boa mesa. Conheça o 39 Ranch Tennis Club.</p>
+        <div class="botoes">
+          <a class="btn btn-dourado" href="#form-interesse">Quero conhecer <span aria-hidden="true">→</span></a>
+          <a class="btn btn-fantasma" href="#experiencia">Explore o clube</a>
+        </div>
+      </div>
+
+      <div class="form-card" id="form-interesse">
+        <div id="formConteudo">
+          <h2>Seu próximo jogo começa aqui.</h2>
+          <p class="sub">Receba novidades sobre a inauguração.</p>
+
+          <div class="form-erro-geral" id="formErroGeral" role="alert"></div>
+
+          <form id="formInteresse" novalidate>
+            <div class="campo" id="campoNome">
+              <label for="nome">Nome</label>
+              <input type="text" id="nome" name="nome" placeholder="Seu nome completo" autocomplete="name">
+              <p class="erro-campo">Preencha seu nome.</p>
+            </div>
+            <div class="campo" id="campoWhatsapp">
+              <label for="whatsapp">WhatsApp</label>
+              <input type="tel" id="whatsapp" name="whatsapp" placeholder="(00) 00000-0000" autocomplete="tel" inputmode="tel">
+              <p class="erro-campo">Preencha um WhatsApp válido, com DDD.</p>
+            </div>
+            <div class="campo" id="campoInteresse">
+              <label for="interesse">Seu interesse</label>
+              <select id="interesse" name="interesse">
+                <option value="" selected disabled>Escolha uma opção</option>
+                <option value="comecar">Começar a jogar</option>
+                <option value="evoluir">Evoluir no tênis</option>
+                <option value="conhecer">Conhecer a academia</option>
+              </select>
+              <p class="erro-campo">Escolha uma opção de interesse.</p>
+            </div>
+
+            <div class="consentimento">
+              <input type="checkbox" id="consentimento" name="consentimento">
+              <label for="consentimento">
+                Concordo em ser contatado(a) pelo 39 Ranch Tennis Club e li a
+                <a href="privacidade.html" target="_blank" rel="noopener">Política de Privacidade</a>.
+              </label>
+            </div>
+            <p class="erro-campo" id="erroConsentimento" style="display:none; margin: -8px 0 10px;">É preciso concordar em ser contatado(a) para enviar.</p>
+
+            <button type="submit" class="btn btn-dourado" id="btEnviar">Quero receber novidades</button>
+            <p class="nota-envio">Ao enviar, você concorda em receber nosso contato.</p>
+          </form>
+        </div>
+
+        <div class="form-sucesso" id="formSucesso">
+          <div class="marca-check" aria-hidden="true">✓</div>
+          <h3>Recebemos seu contato!</h3>
+          <p>A equipe do 39 Ranch vai te procurar pelo WhatsApp com as novidades da inauguração.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="ritmo" id="aulas" aria-labelledby="ritmo-titulo">
+    <div class="wrap">
+      <h2 id="ritmo-titulo">Seu tênis. Seu ritmo.</h2>
+      <div class="ritmo-grade">
+        <div class="ritmo-item">
+          <div class="ritmo-icone" aria-hidden="true">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><path d="M6 6c2.2 2 3.2 4 3.2 6s-1 4-3.2 6M18 6c-2.2 2-3.2 4-3.2 6s1 4 3.2 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          </div>
+          <h3>Comece a jogar</h3>
+          <p>Aprenda os fundamentos e ganhe confiança em quadra.</p>
+        </div>
+        <div class="ritmo-item">
+          <div class="ritmo-icone" aria-hidden="true">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M5 19V11M12 19V5M19 19v-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <h3>Evolua no jogo</h3>
+          <p>Desenvolva técnica, consistência e novas possibilidades.</p>
+        </div>
+        <div class="ritmo-item">
+          <div class="ritmo-icone" aria-hidden="true">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><circle cx="8.5" cy="9" r="2.6" stroke="currentColor" stroke-width="1.6"/><circle cx="17" cy="10.5" r="2.1" stroke="currentColor" stroke-width="1.6"/><path d="M3.5 19c.6-3 2.5-4.7 5-4.7s4.4 1.7 5 4.7M14.3 19c.4-2.2 1.8-3.6 3.9-3.6 1.6 0 2.9.8 3.6 2.1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          </div>
+          <h3>Viva o tênis</h3>
+          <p>Movimento, encontros e prazer em jogar.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="experiencia" id="experiencia" aria-labelledby="experiencia-titulo">
+    <div class="wrap">
+      <div class="cabecalho">
+        <p class="olho">A experiência 39 Ranch</p>
+        <h2 id="experiencia-titulo">O melhor do seu dia, dentro e fora da quadra.</h2>
+      </div>
+      <div class="exp-grade">
+        <figure class="exp-card">
+          <div class="foto-card a">
+            <span class="ilustrativa-selo">Imagem ilustrativa</span>
+          </div>
+          <figcaption>
+            <h3>Tênis junto à natureza</h3>
+            <p>Duas quadras de saibro em um ambiente para jogar e aproveitar.</p>
+          </figcaption>
+        </figure>
+        <figure class="exp-card">
+          <div class="foto-card b">
+            <span class="ilustrativa-selo">Imagem ilustrativa</span>
+          </div>
+          <figcaption>
+            <h3>Boa mesa depois do jogo</h3>
+            <p>A experiência continua no restaurante 39 Ranch.</p>
+          </figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta-escura" aria-labelledby="cta-escura-titulo">
+    <div class="foto-escura" aria-hidden="true"></div>
+    <span class="ilustrativa-selo">Imagem ilustrativa</span>
+    <div class="wrap">
+      <h2 id="cta-escura-titulo">Um espaço para começar. E continuar evoluindo.</h2>
+      <p>Conte para nós o que você busca no tênis e conheça as possibilidades da academia.</p>
+      <a class="btn btn-dourado" id="btFaleComEquipe" href="#form-interesse">Fale com a equipe <span aria-hidden="true">→</span></a>
+    </div>
+  </section>
+
+  <section class="faq" id="duvidas" aria-labelledby="faq-titulo">
+    <div class="wrap">
+      <div class="cabecalho">
+        <p class="olho">Dúvidas frequentes</p>
+        <h2 id="faq-titulo">Antes do primeiro saque.</h2>
+      </div>
+
+      <details class="faq-item">
+        <summary>Preciso já saber jogar? <span class="sinal" aria-hidden="true">+</span></summary>
+        <p class="resposta">Você pode demonstrar interesse mesmo que esteja começando. Conte seu nível no formulário para receber orientações da equipe.</p>
+      </details>
+      <details class="faq-item">
+        <summary>Como recebo informações sobre as aulas? <span class="sinal" aria-hidden="true">+</span></summary>
+        <p class="resposta">Preencha o formulário com seu nome, WhatsApp e interesse. A equipe entrará em contato com as informações disponíveis.</p>
+      </details>
+      <details class="faq-item">
+        <summary>Quando será a inauguração? <span class="sinal" aria-hidden="true">+</span></summary>
+        <p class="resposta">A inauguração está prevista para novembro. Cadastre-se para acompanhar as novidades e receber a confirmação da data.</p>
+      </details>
+    </div>
+  </section>
+
+  <section class="cta-final" aria-labelledby="cta-final-titulo">
+    <div class="foto-hero" aria-hidden="true"></div>
+    <span class="ilustrativa-selo">Imagem ilustrativa</span>
+    <div class="wrap">
+      <h2 id="cta-final-titulo">Nos encontramos em novembro.</h2>
+      <a class="btn btn-dourado" href="#form-interesse">Quero acompanhar <span aria-hidden="true">→</span></a>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="rodape-topo">
+      <div class="rodape-marca">
+        <img src="assets/logo-39-ranch.png" alt="39 Ranch Tennis Club">
+        <p>Duas quadras de saibro, natureza e boa mesa.</p>
+      </div>
+      <div class="rodape-nav">
+        <div class="coluna">
+          <h4>Navegação</h4>
+          <a href="#topo">O clube</a>
+          <a href="#aulas">Aulas</a>
+          <a href="#experiencia">Experiência</a>
+          <a href="#duvidas">Dúvidas</a>
+        </div>
+        <div class="coluna">
+          <h4>Contato</h4>
+          <a href="#form-interesse">Fale conosco</a>
+          <a href="privacidade.html">Política de Privacidade</a>
+        </div>
+      </div>
+    </div>
+    <div class="powered-by">
+      <span>powered by</span>
+      <div class="marcas">
+        <img src="assets/logo-team-yoda-transparente.png" alt="Team Yoda">
+        <img class="quadralab" src="assets/logo-quadralab-mark.png" alt="QuadraLab">
+      </div>
+    </div>
+    <p class="copyright">© <span id="anoAtual"></span> 39 Ranch Tennis Club. Todos os direitos reservados.</p>
+  </div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ── conteúdo fácil de editar ──
+     WHATSAPP_NUMERO vazio = ainda não configurado: os botões de WhatsApp
+     direcionam pro formulário em vez de um telefone inventado. Quando o
+     número oficial existir, só preencher aqui (DDI+DDD+número, só
+     dígitos) que os botões passam a abrir o WhatsApp direto. */
+  var WHATSAPP_NUMERO = "";
+  var WHATSAPP_MENSAGEM = "Olá! Quero saber mais sobre o 39 Ranch Tennis Club.";
+
+  document.getElementById("anoAtual").textContent = new Date().getFullYear();
+
+  if (WHATSAPP_NUMERO) {
+    var btWpp = document.getElementById("btFaleComEquipe");
+    btWpp.href = "https://wa.me/" + WHATSAPP_NUMERO + "?text=" + encodeURIComponent(WHATSAPP_MENSAGEM);
+    btWpp.target = "_blank";
+    btWpp.rel = "noopener";
+  }
+
+  /* ── menu mobile ── */
+  var btAbrirMenu = document.getElementById("btAbrirMenu");
+  var menuMobile = document.getElementById("menuMobile");
+  function fecharMenu() {
+    menuMobile.classList.remove("aberto");
+    btAbrirMenu.setAttribute("aria-expanded", "false");
+  }
+  btAbrirMenu.addEventListener("click", function () {
+    var aberto = menuMobile.classList.toggle("aberto");
+    btAbrirMenu.setAttribute("aria-expanded", String(aberto));
+  });
+  menuMobile.querySelectorAll("a").forEach(function (a) {
+    a.addEventListener("click", fecharMenu);
+  });
+
+  /* ── formulário de interesse ──
+     Validação real, estado de envio, confirmação só depois da resposta
+     do backend, e erro explícito se a integração não responder — nunca
+     um "enviado" otimista. */
+  var form = document.getElementById("formInteresse");
+  var btEnviar = document.getElementById("btEnviar");
+  var formConteudo = document.getElementById("formConteudo");
+  var formSucesso = document.getElementById("formSucesso");
+  var formErroGeral = document.getElementById("formErroGeral");
+  var erroConsentimento = document.getElementById("erroConsentimento");
+
+  function limparErros() {
+    ["campoNome", "campoWhatsapp", "campoInteresse"].forEach(function (id) {
+      document.getElementById(id).classList.remove("invalido");
+    });
+    erroConsentimento.style.display = "none";
+    formErroGeral.classList.remove("mostrar");
+    formErroGeral.textContent = "";
+  }
+
+  function validar() {
+    limparErros();
+    var ok = true;
+    var nome = document.getElementById("nome").value.trim();
+    var whatsapp = document.getElementById("whatsapp").value.trim();
+    var interesse = document.getElementById("interesse").value;
+    var consentimento = document.getElementById("consentimento").checked;
+
+    if (!nome) { document.getElementById("campoNome").classList.add("invalido"); ok = false; }
+    if (whatsapp.replace(/\D/g, "").length < 10) { document.getElementById("campoWhatsapp").classList.add("invalido"); ok = false; }
+    if (!interesse) { document.getElementById("campoInteresse").classList.add("invalido"); ok = false; }
+    if (!consentimento) { erroConsentimento.style.display = "block"; ok = false; }
+
+    return ok ? { nome: nome, whatsapp: whatsapp, interesse: interesse, consentimento: consentimento } : null;
+  }
+
+  form.addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var dados = validar();
+    if (!dados) return;
+
+    dados.origem = "site-39ranch";
+    btEnviar.disabled = true;
+    btEnviar.textContent = "Enviando…";
+
+    fetch("/.netlify/functions/registrar-interesse", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(dados),
+    })
+      .then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (corpo) {
+          if (!r.ok || !corpo.ok) throw new Error(corpo.erro || "Não foi possível enviar agora.");
+          return corpo;
+        });
+      })
+      .then(function () {
+        formConteudo.style.display = "none";
+        formSucesso.classList.add("mostrar");
+      })
+      .catch(function (e) {
+        formErroGeral.textContent = String(e.message || "Não foi possível enviar agora. Tente novamente em instantes.");
+        formErroGeral.classList.add("mostrar");
+      })
+      .finally(function () {
+        btEnviar.disabled = false;
+        btEnviar.textContent = "Quero receber novidades";
+      });
+  });
+})();
+</script>
+</body>
+</html>
