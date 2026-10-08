@@ -3277,6 +3277,7 @@ function EditorExercicio({ ex, aoSalvar, aoCancelar }) {
   const [dados, setDados] = useState({
     n: ex.n || "", f: ex.f || Object.keys(FAM)[0], e: ex.e || [], m: ex.m || "",
     g: ex.g || "", r: ex.r || "", p: ex.p || "", x: ex.x || "", i: ex.i || "", o: ex.o || "", d: ex.d || "",
+    videoUrl: ex.videoUrl || "", diagrama: ex.diagrama || { pontos: [], setas: [] },
   });
   /* Editar aqui só muda ESTA ocorrência, nesta sessão, por padrão — marcar
      a caixa é o que decide propagar pra biblioteca da academia (afetando
@@ -3315,6 +3316,13 @@ function EditorExercicio({ ex, aoSalvar, aoCancelar }) {
       <Campo rotulo="Corrigir"><textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={dados.x} onChange={(e) => set("x", e.target.value)} /></Campo>
       <Campo rotulo="Ignorar"><textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={dados.i} onChange={(e) => set("i", e.target.value)} /></Campo>
       <Campo rotulo="Dica"><textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={dados.d} onChange={(e) => set("d", e.target.value)} /></Campo>
+      <Campo rotulo="Vídeo de demonstração (opcional)" nota="Link do YouTube ou Vimeo.">
+        <input style={entrada} value={dados.videoUrl} onChange={(e) => set("videoUrl", e.target.value)} placeholder="https://youtube.com/watch?v=..." />
+        <BuscaVideoYouTube consultaInicial={dados.n} aoEscolher={(url) => set("videoUrl", url)} />
+      </Campo>
+      <Campo rotulo="Diagrama de quadra (opcional)">
+        <QuadraDiagrama diagrama={dados.diagrama} editavel aoMudar={(d) => set("diagrama", d)} />
+      </Campo>
       <label className="flex items-start gap-2 mb-3" style={{ cursor: "pointer" }}>
         <input type="checkbox" checked={salvarNoCatalogo} onChange={(e) => setSalvarNoCatalogo(e.target.checked)} style={{ marginTop: 3, flexShrink: 0 }} />
         <span style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Também salvar na biblioteca da academia (afeta futuras sessões de qualquer jogador). Sem marcar, vale só para esta ocorrência, hoje.</span>
@@ -3392,7 +3400,9 @@ function CartaoExercicio({ e, aoTrocar, aoRemover, aoAtualizar, exerciciosCustom
           {e.x && <Linha rotulo="Corrigir" texto={e.x} />}
           {e.i && <Linha rotulo="Ignorar" texto={e.i} destaque />}
           {e.d && <Linha rotulo="Dica" texto={e.d} />}
-          {e.custom && !e.m && !e.r && !e.p && !e.x && !e.i && !e.d && (
+          {e.videoUrl && <div className="mt-2 mb-2"><VideoExercicio url={e.videoUrl} /></div>}
+          {e.diagrama && (e.diagrama.pontos || []).length > 0 && <div className="mt-2 mb-2"><QuadraDiagrama diagrama={e.diagrama} editavel={false} /></div>}
+          {e.custom && !e.m && !e.r && !e.p && !e.x && !e.i && !e.d && !e.videoUrl && !(e.diagrama && (e.diagrama.pontos || []).length > 0) && (
             <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Sem detalhes preenchidos além do nome.</p>
           )}
         </div>
@@ -3408,6 +3418,193 @@ function Linha({ rotulo, texto, destaque }) {
         <Etiqueta cor={destaque ? C.saibro : C.grafite}>{rotulo}</Etiqueta>
       </div>
       <p className="mty-linha-valor" style={{ ...prosa, fontSize: 13.5, color: destaque ? C.saibro : C.tinta }}>{texto}</p>
+    </div>
+  );
+}
+
+/* Reconhece link do YouTube ou Vimeo (watch, shorts, youtu.be, embed,
+   vimeo.com/NNN) e devolve a URL de embed — null se não reconhecer, pra
+   quem chama decidir o que fazer (ex.: mostrar como link simples). */
+function videoEmbedUrl(url) {
+  if (!url) return null;
+  const u = url.trim();
+  const yt = u.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{6,})/);
+  if (yt) return "https://www.youtube.com/embed/" + yt[1];
+  const vm = u.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+  if (vm) return "https://player.vimeo.com/video/" + vm[1];
+  return null;
+}
+function VideoExercicio({ url }) {
+  const src = videoEmbedUrl(url);
+  if (!src) {
+    return (
+      <p style={{ ...prosa, fontSize: 12, color: C.grafite }}>
+        Link de vídeo não reconhecido (use um link do YouTube ou Vimeo).{" "}
+        <a href={url} target="_blank" rel="noreferrer" style={{ color: C.saibro, fontWeight: 700 }}>Abrir link →</a>
+      </p>
+    );
+  }
+  return (
+    <div style={{ position: "relative", width: "100%", aspectRatio: "16/9", borderRadius: 8, overflow: "hidden", background: "#000" }}>
+      <iframe src={src} title="Vídeo do exercício" loading="lazy"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: "none" }} />
+    </div>
+  );
+}
+
+/* Chama a function do servidor que busca no YouTube (chave protegida,
+   nunca no navegador) — devolve só os resultados, nunca anexa nada
+   sozinho. Precisa de login/organização, igual chamarIA. */
+async function buscarVideoYouTube(query) {
+  if (!window.mtyAuth || !window.mtyAuth.usuario()) {
+    throw new Error("Entre com sua conta da academia para buscar vídeos.");
+  }
+  const token = await window.mtyAuth.tokenId();
+  const r = await fetch("/.netlify/functions/buscar-video-youtube", {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: "Bearer " + token },
+    body: JSON.stringify({ query }),
+  });
+  const dados = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(dados.erro || ("Erro " + r.status));
+  return dados.resultados || [];
+}
+/* Botão + lista de resultados da busca — o treinador escolhe qual
+   vídeo serve antes de qualquer coisa ser salva no exercício. */
+function BuscaVideoYouTube({ consultaInicial, aoEscolher }) {
+  const [aberto, setAberto] = useState(false);
+  const [buscando, setBuscando] = useState(false);
+  const [erro, setErro] = useState("");
+  const [resultados, setResultados] = useState([]);
+  async function buscar() {
+    setBuscando(true); setErro(""); setResultados([]);
+    try {
+      const r = await buscarVideoYouTube(consultaInicial);
+      setResultados(r);
+      if (!r.length) setErro("Nenhum vídeo encontrado — tente colar o link manualmente.");
+    } catch (e) {
+      setErro(String(e.message || e));
+    } finally {
+      setBuscando(false);
+    }
+  }
+  return (
+    <div className="mt-2">
+      <Botao variante="vazio" onClick={() => { setAberto(true); buscar(); }} disabled={buscando || !consultaInicial.trim()}>
+        {buscando ? "Buscando no YouTube…" : "🔎 Buscar vídeo no YouTube"}
+      </Botao>
+      {aberto && erro && <div className="mt-2"><Aviso>{erro}</Aviso></div>}
+      {aberto && resultados.length > 0 && (
+        <div className="flex flex-col gap-2 mt-2">
+          {resultados.map((v) => (
+            <button key={v.videoId} type="button"
+              onClick={() => { aoEscolher("https://www.youtube.com/watch?v=" + v.videoId); setAberto(false); }}
+              className="flex gap-2 items-start text-left" style={{ border: "1px solid " + C.linha, borderRadius: 8, padding: 8, background: "#fff", cursor: "pointer" }}>
+              {v.miniatura && <img src={v.miniatura} alt="" style={{ width: 80, height: 45, objectFit: "cover", borderRadius: 4, flexShrink: 0 }} />}
+              <span>
+                <span style={{ display: "block", fontFamily: ARCH, fontSize: 12.5, fontWeight: 700 }}>{v.titulo}</span>
+                <span style={{ display: "block", ...prosa, fontSize: 11, color: C.grafite }}>{v.canal}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* Diagrama de quadra: pontos marcados pelo treinador (posição do
+   jogador, da bola etc.) ligados por setas (trajetória/movimento).
+   Guardado em diagrama.pontos ([{x,y,rotulo}], eixo 0-100 x 0-220) e
+   diagrama.setas ([[iOrigem,iDestino], ...]). Não é um editor de
+   arrastar — clique adiciona ponto (modo "ponto") ou liga dois pontos
+   já existentes em sequência (modo "seta"), o suficiente pra desenhar
+   um padrão tático sem precisar de uma ferramenta de desenho completa. */
+function QuadraDiagrama({ diagrama, editavel, aoMudar }) {
+  const pontos = (diagrama && diagrama.pontos) || [];
+  const setas = (diagrama && diagrama.setas) || [];
+  const [modo, setModo] = useState("ponto");
+  const [origemSeta, setOrigemSeta] = useState(null);
+  const svgRef = useRef(null);
+
+  function aoClicarSvg(ev) {
+    if (!editavel || modo !== "ponto") return;
+    const rect = svgRef.current.getBoundingClientRect();
+    const x = Math.max(0, Math.min(100, Math.round(((ev.clientX - rect.left) / rect.width) * 100)));
+    const y = Math.max(0, Math.min(220, Math.round(((ev.clientY - rect.top) / rect.height) * 220)));
+    aoMudar({ pontos: [...pontos, { x, y, rotulo: String(pontos.length + 1) }], setas });
+  }
+  function aoClicarPonto(ev, i) {
+    if (!editavel || modo !== "seta") return;
+    ev.stopPropagation();
+    if (origemSeta === null) { setOrigemSeta(i); return; }
+    if (origemSeta !== i) aoMudar({ pontos, setas: [...setas, [origemSeta, i]] });
+    setOrigemSeta(null);
+  }
+  function limpar() { aoMudar({ pontos: [], setas: [] }); setOrigemSeta(null); }
+  function desfazer() {
+    if (setas.length) { aoMudar({ pontos, setas: setas.slice(0, -1) }); return; }
+    if (pontos.length) aoMudar({ pontos: pontos.slice(0, -1), setas });
+  }
+
+  return (
+    <div>
+      {editavel && (
+        <div className="flex gap-2 flex-wrap items-center mb-2">
+          <button type="button" onClick={() => { setModo("ponto"); setOrigemSeta(null); }}
+            style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "5px 10px", borderRadius: 8, cursor: "pointer",
+              border: "1px solid " + (modo === "ponto" ? C.tinta : C.linha), background: modo === "ponto" ? C.tinta : "#fff", color: modo === "ponto" ? C.papel : C.grafite }}>
+            + Ponto
+          </button>
+          <button type="button" onClick={() => setModo("seta")}
+            style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "5px 10px", borderRadius: 8, cursor: "pointer",
+              border: "1px solid " + (modo === "seta" ? C.tinta : C.linha), background: modo === "seta" ? C.tinta : "#fff", color: modo === "seta" ? C.papel : C.grafite }}>
+            → Seta{modo === "seta" && origemSeta !== null ? " (escolha o destino)" : ""}
+          </button>
+          <button type="button" onClick={desfazer} disabled={!pontos.length}
+            style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "5px 10px", borderRadius: 8, cursor: pontos.length ? "pointer" : "default",
+              border: "1px solid " + C.linha, background: "#fff", color: C.grafite, opacity: pontos.length ? 1 : 0.5 }}>
+            Desfazer
+          </button>
+          <button type="button" onClick={limpar} disabled={!pontos.length}
+            style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "5px 10px", borderRadius: 8, cursor: pontos.length ? "pointer" : "default",
+              border: "1px solid " + C.linha, background: "#fff", color: C.grafite, opacity: pontos.length ? 1 : 0.5 }}>
+            Limpar
+          </button>
+        </div>
+      )}
+      <svg ref={svgRef} viewBox="0 0 100 220" onClick={aoClicarSvg}
+        style={{ width: "100%", maxWidth: 220, aspectRatio: "100 / 220", background: "#EDE7DD", border: "1px solid " + C.linha,
+          borderRadius: 8, cursor: editavel && modo === "ponto" ? "crosshair" : "default", display: "block", margin: "0 auto" }}>
+        <rect x="5" y="10" width="90" height="200" fill="none" stroke={C.grafite} strokeWidth="1" />
+        <rect x="17.5" y="10" width="65" height="200" fill="none" stroke={C.grafite} strokeWidth="0.6" />
+        <line x1="5" y1="110" x2="95" y2="110" stroke={C.saibro} strokeWidth="1.2" />
+        <line x1="17.5" y1="50" x2="82.5" y2="50" stroke={C.grafite} strokeWidth="0.6" />
+        <line x1="17.5" y1="170" x2="82.5" y2="170" stroke={C.grafite} strokeWidth="0.6" />
+        <line x1="50" y1="50" x2="50" y2="170" stroke={C.grafite} strokeWidth="0.6" />
+        <defs>
+          <marker id="mty-seta-ponta" markerWidth="6" markerHeight="6" refX="4" refY="3" orient="auto">
+            <path d="M0,0 L6,3 L0,6 Z" fill={C.quadra} />
+          </marker>
+        </defs>
+        {setas.map(([de, para], i) => {
+          const a = pontos[de], b = pontos[para];
+          if (!a || !b) return null;
+          return <line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={C.quadra} strokeWidth="1.3" markerEnd="url(#mty-seta-ponta)" />;
+        })}
+        {pontos.map((p, i) => (
+          <g key={i} onClick={(ev) => aoClicarPonto(ev, i)} style={{ cursor: editavel && modo === "seta" ? "pointer" : "default" }}>
+            <circle cx={p.x} cy={p.y} r={origemSeta === i ? 5 : 4} fill={origemSeta === i ? C.saibro : C.tinta} stroke="#fff" strokeWidth="0.8" />
+            <text x={p.x} y={p.y + 0.5} textAnchor="middle" dominantBaseline="middle" fontSize="4.5" fill="#fff" fontFamily={ARCH} fontWeight="700">{p.rotulo}</text>
+          </g>
+        ))}
+      </svg>
+      {editavel && (
+        <p style={{ ...prosa, fontSize: 11, color: C.grafite, marginTop: 4, textAlign: "center" }}>
+          Clique na quadra pra marcar posição, ou em "Seta" e depois em dois pontos pra ligar a trajetória.
+        </p>
+      )}
     </div>
   );
 }
@@ -9829,7 +10026,7 @@ function MapaFamilias() {
    que a IA recebe e pra busca aqui no catálogo, exatamente como um
    exercício do manual (só que marcado como "exercício do treinador"). */
 function NovoExercicioAcademia({ aoAdicionar }) {
-  const VAZIO = { n: "", f: Object.keys(FAM)[0], e: [], m: "", g: "", r: "", p: "", x: "", i: "", o: "" };
+  const VAZIO = { n: "", f: Object.keys(FAM)[0], e: [], m: "", g: "", r: "", p: "", x: "", i: "", o: "", videoUrl: "", diagrama: { pontos: [], setas: [] } };
   const [aberto, setAberto] = useState(false);
   const [ex, setEx] = useState(VAZIO);
   const set = (k, v) => setEx((x) => ({ ...x, [k]: v }));
@@ -9842,6 +10039,7 @@ function NovoExercicioAcademia({ aoAdicionar }) {
       c: "CUSTOM-" + Date.now().toString(36).toUpperCase(),
       n: ex.n.trim(), f: ex.f, e: ex.e, m: ex.m.trim(), g: ex.g.trim(),
       r: ex.r.trim(), p: ex.p.trim(), x: ex.x.trim(), i: ex.i.trim(), o: ex.o.trim(),
+      videoUrl: ex.videoUrl.trim(), diagrama: ex.diagrama,
       custom: true,
     });
     setEx(VAZIO);
@@ -9881,6 +10079,13 @@ function NovoExercicioAcademia({ aoAdicionar }) {
       <Campo rotulo="Progressão"><textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={ex.p} onChange={(e) => set("p", e.target.value)} /></Campo>
       <Campo rotulo="Corrigir"><textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={ex.x} onChange={(e) => set("x", e.target.value)} /></Campo>
       <Campo rotulo="Ignorar"><textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={ex.i} onChange={(e) => set("i", e.target.value)} /></Campo>
+      <Campo rotulo="Vídeo de demonstração (opcional)" nota="Link do YouTube ou Vimeo.">
+        <input style={entrada} value={ex.videoUrl} onChange={(e) => set("videoUrl", e.target.value)} placeholder="https://youtube.com/watch?v=..." />
+        <BuscaVideoYouTube consultaInicial={ex.n} aoEscolher={(url) => set("videoUrl", url)} />
+      </Campo>
+      <Campo rotulo="Diagrama de quadra (opcional)">
+        <QuadraDiagrama diagrama={ex.diagrama} editavel aoMudar={(d) => set("diagrama", d)} />
+      </Campo>
       <div className="flex gap-2">
         <Botao variante="saibro" onClick={adicionar} disabled={!ex.n.trim()}>Adicionar à biblioteca</Botao>
         <Botao variante="vazio" onClick={() => { setEx(VAZIO); setAberto(false); }}>Cancelar</Botao>
