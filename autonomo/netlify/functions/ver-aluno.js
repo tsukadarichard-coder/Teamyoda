@@ -34,6 +34,47 @@ exports.handler = async function (event) {
   }
 };
 
+/* ── mapa de calor de conceitos (versão simplificada pro aluno) ──
+   O mapeamento família→conceito e o cálculo em si moram no app do
+   treinador (index.html), que é quem GRAVA reg.temas já com `.conceito`
+   resolvido — esta function só agrega o que já está pronto, por isso só
+   precisa da lista fixa de conceitos (pra ordem das linhas) e do
+   "pior status" (mesmo critério do app do treinador: um conceito que
+   falhou numa parte da aula aparece como pendência, não fica escondido
+   por ter ido bem em outra parte). */
+const CONCEITOS = ["Saque e devolução", "Construção de ponto", "Rede e finalização", "Movimentação e base", "Tático e jogo", "Físico e mental"];
+const ORDEM_GRAVIDADE_STATUS_CONCEITO = { nao_atingiu: 0, parcial: 1, atingiu: 2 };
+function piorStatusConceito(statuses) {
+  return statuses.reduce((pior, s) => (ORDEM_GRAVIDADE_STATUS_CONCEITO[s] < ORDEM_GRAVIDADE_STATUS_CONCEITO[pior] ? s : pior));
+}
+/* Só as últimas 6 aulas com `.temas` — a versão do aluno é sempre um
+   recorte recente, nunca o histórico inteiro (isso fica só no painel do
+   treinador). A "leitura da aula" (texto livre do treinador) NUNCA é
+   enviada aqui: só o status por conceito e a frase de insight, calculada
+   aqui mesmo, como corrigi/ignorei/mudaria também não são enviados — são
+   notas do treinador, não um dado pro jogador ler bruto. */
+function mapaConceitosDoAluno(registros) {
+  const comTemas = (registros || [])
+    .filter((r) => Array.isArray(r.temas) && r.temas.length > 0)
+    .sort((a, b) => String(a.data || "").localeCompare(String(b.data || "")) || String(a.id || "").localeCompare(String(b.id || "")));
+  const ultimas = comTemas.slice(-6);
+  const colunas = ultimas.map((r, i) => {
+    const celulas = {};
+    CONCEITOS.forEach((c) => {
+      const statusDoConceito = r.temas.filter((t) => t.conceito === c).map((t) => t.status).filter(Boolean);
+      if (statusDoConceito.length) celulas[c] = piorStatusConceito(statusDoConceito);
+    });
+    return { indice: i + 1, celulas };
+  });
+  // insight: o conceito com mais células "atingiu" nestas últimas aulas
+  const contagem = {};
+  colunas.forEach((col) => CONCEITOS.forEach((c) => { if (col.celulas[c] === "atingiu") contagem[c] = (contagem[c] || 0) + 1; }));
+  let melhor = null, melhorN = 0;
+  CONCEITOS.forEach((c) => { if ((contagem[c] || 0) > melhorN) { melhor = c; melhorN = contagem[c]; } });
+  const insight = melhor ? ("Nas últimas aulas, ele vem atingindo bem os objetivos de " + melhor.toLowerCase() + ".") : null;
+  return { colunas, insight };
+}
+
 /* ── mesma lógica de "aula em vigor" do app do treinador, duplicada aqui
    porque esta function roda isolada (sem acesso ao script do app). ── */
 function listaAulas(plano) {
@@ -214,6 +255,7 @@ async function handleGet(event) {
     jogosRelatados: aluno.jogosRelatados || [],
     pedidosConteudo: aluno.pedidosConteudo || [],
     historicoRelatorios: aluno.historicoRelatorios || [],
+    mapaConceitos: mapaConceitosDoAluno(aluno.registros),
   });
 }
 

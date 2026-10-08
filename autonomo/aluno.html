@@ -11,7 +11,11 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Meu plano">
 <style>
-  :root{ --papel:#F5F2F0; --tinta:#141210; --verm:#67AD2E; --cinza:#6B6461; --linha:#D8D1CB; --verde:#2E4739; }
+  :root{ --papel:#F5F2F0; --tinta:#141210; --verm:#67AD2E; --cinza:#6B6461; --linha:#D8D1CB; --verde:#2E4739;
+    /* Cores do mapa de calor de conceitos — fixas, independentes de
+       --verm (aqui é o verde da marca QuadraLab, não dá pra usar pra
+       "não atingido" — ficaria verde = ruim). */
+    --conc-atingiu:#1F6B4A; --conc-parcial:#C9A227; --conc-nao:#A6432F; }
   *{box-sizing:border-box}
   body{margin:0; background:var(--papel); color:var(--tinta);
     font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; padding:0 0 60px}
@@ -320,6 +324,53 @@ function escadaNiveisHtml(nivelAtual) {
   }).join('');
 }
 
+/* Mapa de calor de conceitos — versão simplificada pro aluno: só as
+   últimas aulas (d.mapaConceitos já vem recortado em até 6 pela
+   function ver-aluno.js), sem nomes de bloco, com a frase de insight já
+   calculada no servidor. Linhas fixas (mesma ordem de CONCEITOS_ALUNO em
+   toda tela que usa isto); cor = STATUS, não intensidade, com glifo (✕ ◐
+   ✓) pra nunca depender só da cor; toque numa célula mostra a mesma
+   frase do title num texto abaixo (ver data-acao="tocar-celula-conceito"
+   em ligarEventos). */
+const CONCEITOS_ALUNO = ["Saque e devolução", "Construção de ponto", "Rede e finalização", "Movimentação e base", "Tático e jogo", "Físico e mental"];
+const CONCEITO_STATUS_LABEL_ALUNO = { atingiu: 'Atingiu', parcial: 'Parcial', nao_atingiu: 'Não atingiu', nao_trabalhado: 'Não trabalhado' };
+function corStatusConceitoAluno(status) {
+  return status === 'atingiu' ? 'var(--conc-atingiu)' : status === 'parcial' ? 'var(--conc-parcial)' : status === 'nao_atingiu' ? 'var(--conc-nao)' : 'var(--linha)';
+}
+function glifoStatusConceito(status) {
+  return status === 'atingiu' ? '✓' : status === 'parcial' ? '◐' : status === 'nao_atingiu' ? '✕' : '';
+}
+function painelMapaConceitos(d, ui) {
+  const m = d.mapaConceitos;
+  if (!m || !m.colunas || !m.colunas.length) return '';
+  const linhas = CONCEITOS_ALUNO.map(function (conceito) {
+    const celulas = m.colunas.map(function (col) {
+      const status = col.celulas[conceito] || 'nao_trabalhado';
+      const cor = corStatusConceitoAluno(status);
+      const texto = 'Aula ' + col.indice + ' · ' + conceito + ' · ' + CONCEITO_STATUS_LABEL_ALUNO[status];
+      return '<td style="padding:2px"><div data-acao="tocar-celula-conceito" data-texto="' + escapar(texto) + '" title="' + escapar(texto) + '" ' +
+        'style="width:26px;height:26px;border-radius:5px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:700;' +
+        'background:' + cor + ';color:' + (status === 'nao_trabalhado' ? 'var(--cinza)' : '#fff') + ';' +
+        'border:1px solid ' + (status === 'nao_trabalhado' ? 'var(--linha)' : 'transparent') + '">' + escapar(glifoStatusConceito(status)) + '</div></td>';
+    }).join('');
+    return '<tr><td style="font-size:11px;font-weight:700;padding-right:8px;white-space:nowrap">' + escapar(conceito) + '</td>' + celulas + '</tr>';
+  }).join('');
+  const legenda = ['atingiu', 'parcial', 'nao_atingiu', 'nao_trabalhado'].map(function (s) {
+    return '<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--cinza);margin:0 12px 6px 0">' +
+      '<span style="width:14px;height:14px;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;' +
+      'background:' + corStatusConceitoAluno(s) + ';color:' + (s === 'nao_trabalhado' ? 'var(--cinza)' : '#fff') + ';' +
+      'border:1px solid ' + (s === 'nao_trabalhado' ? 'var(--linha)' : 'transparent') + '">' + escapar(glifoStatusConceito(s)) + '</span>' + escapar(CONCEITO_STATUS_LABEL_ALUNO[s]) + '</span>';
+  }).join('');
+  return '<div class="painel">' +
+    '<h2>Evolução por conceito</h2>' +
+    '<p class="desc">Como foram as últimas aulas, por tema trabalhado — é status, não é intensidade.</p>' +
+    (m.insight ? '<p style="font-size:13px;font-weight:600;margin:0 0 12px">' + escapar(m.insight) + '</p>' : '') +
+    '<div style="overflow-x:auto"><table style="border-collapse:collapse">' + linhas + '</table></div>' +
+    '<div style="margin-top:10px;display:flex;flex-wrap:wrap">' + legenda + '</div>' +
+    (ui && ui.celulaConceitoSelecionada ? '<p class="aviso-mini" style="margin-top:4px">' + escapar(ui.celulaConceitoSelecionada) + '</p>' : '') +
+    '</div>';
+}
+
 function painelEvolucao(d) {
   if (!d.nivel) return '';
   if (d.nivelAvaliado === false) {
@@ -419,6 +470,7 @@ function todosHorarios(agenda) {
     relatorioAberto: null, // id do relatório de ciclo aberto na lista, ou null
     semanaAberta: null, // chave "bloco·semana" do bloco de semana expandido no plano compacto
     glossarioAberto: false,
+    celulaConceitoSelecionada: null, // texto da última célula do mapa de conceitos tocada (fallback de toque, sem :hover)
     formAberto: null, // 'duvida' | 'jogo' | 'feedback' | null — só um dos três formulários por vez
     rascunhos: { duvida: '', jogo: '', feedback: '' }, // preserva o que foi digitado ao trocar de formulário
     mensagemForm: null, // { tipo, texto, erro }
@@ -471,7 +523,7 @@ function todosHorarios(agenda) {
         ? 'Seu treinador está preparando seu plano — assim que for revisado e aprovado, aparece aqui.'
         : 'Ainda não há um plano montado para você.';
       el.innerHTML = '<header><h1>' + escapar(d.nome) + '</h1><div class="sub">' + subtitulo + '</div></header>' +
-        painelEvolucao(d) + painelRelatorios(d) + painelComunicacao(d) + '<div class="sincronia" id="mty-sincronia"></div>';
+        painelMapaConceitos(d, ui) + painelEvolucao(d) + painelRelatorios(d) + painelComunicacao(d) + '<div class="sincronia" id="mty-sincronia"></div>';
       ligarEventos(d);
       return;
     }
@@ -486,6 +538,7 @@ function todosHorarios(agenda) {
       '<div class="progtxt">' + d.aulasFeitas + ' de ' + d.totalAulas + ' aulas realizadas — isto é execução, não é uma nota sobre sua técnica.</div></div></div></div>';
     html += painelSemanas(d);
     html += painelGlossario(d.aulas);
+    html += painelMapaConceitos(d, ui);
     html += painelEvolucao(d);
     html += painelRelatorios(d);
     html += painelComunicacao(d);
@@ -831,6 +884,7 @@ function todosHorarios(agenda) {
     if (acao === 'alternar-relatorio') { ui.relatorioAberto = (ui.relatorioAberto === dataset.id) ? null : dataset.id; render(d); return; }
     if (acao === 'exportar-relatorio-pdf') { exportarRelatorioPDF(d, dataset.id); return; }
     if (acao === 'abrir-glossario') { ui.glossarioAberto = true; render(d); return; }
+    if (acao === 'tocar-celula-conceito') { ui.celulaConceitoSelecionada = dataset.texto; render(d); return; }
     if (acao === 'alternar-semana') {
       // alterna: se já está aberta (pelo default ou por escolha anterior), fecha; senão abre só essa.
       const blocos = agruparEmSemanas(d.aulas);

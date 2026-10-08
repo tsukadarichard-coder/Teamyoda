@@ -419,6 +419,61 @@ const FAM = {
   CF: "Condicionamento físico", DM: "Drills mentais", ADV: "Drills avançados MTY", PT: "Padrões táticos",
 };
 
+/* ── mapa de calor de conceitos pedagógicos ──
+   As 16 famílias do catálogo (FAM) são granulares demais pra um mapa de
+   calor por aula — ninguém lê 16 linhas de uma vez. Agrupamos em 6
+   "conceitos" pedagógicos, fixos, nesta ordem (é a ordem de exibição em
+   toda tela que usa isto). Cada família pertence a exatamente um
+   conceito. */
+const CONCEITOS = ["Saque e devolução", "Construção de ponto", "Rede e finalização", "Movimentação e base", "Tático e jogo", "Físico e mental"];
+const CONCEITO_POR_FAMILIA = {
+  IP: "Saque e devolução", PDS: "Saque e devolução",
+  RT: "Construção de ponto", DT: "Construção de ponto", PT: "Construção de ponto", DC: "Construção de ponto",
+  AT: "Rede e finalização", PDR: "Rede e finalização",
+  CO: "Movimentação e base", MV: "Movimentação e base", FB: "Movimentação e base", PDB: "Movimentação e base",
+  JA: "Tático e jogo", ADV: "Tático e jogo",
+  CF: "Físico e mental", DM: "Físico e mental",
+};
+/* Cores e glifos do mapa de calor — fixos, independentes do tema da
+   academia. O status é sempre a mesma cor em qualquer academia; só o
+   cinza de "não trabalhado" segue o tema (é neutro, sem carga
+   semântica). Os glifos (✕ ◐ ✓) existem pra nunca depender só da cor —
+   célula cinza não tem glifo (não há o que marcar). */
+const CONCEITO_STATUS_COR = { atingiu: "#1F6B4A", parcial: "#C9A227", nao_atingiu: "#A6432F" };
+const CONCEITO_STATUS_GLIFO = { atingiu: "✓", parcial: "◐", nao_atingiu: "✕", nao_trabalhado: "" };
+const CONCEITO_STATUS_LABEL = { atingiu: "Atingiu", parcial: "Parcial", nao_atingiu: "Não atingiu", nao_trabalhado: "Não trabalhado" };
+function corStatusConceito(status) { return CONCEITO_STATUS_COR[status] || C.linha; }
+
+/* Pra uma mesma aula, mais de um tema pode mapear pro mesmo conceito —
+   a célula daquele conceito naquela aula precisa de um status só. Usamos
+   o PIOR status entre os temas, não uma média arredondada: pedagogicamente,
+   um conceito que falhou numa parte da aula merece aparecer como
+   pendência, não ficar escondido por ter ido bem em outra parte. */
+const ORDEM_GRAVIDADE_STATUS_CONCEITO = { nao_atingiu: 0, parcial: 1, atingiu: 2 };
+function piorStatusConceito(statuses) {
+  return statuses.reduce((pior, s) => (ORDEM_GRAVIDADE_STATUS_CONCEITO[s] < ORDEM_GRAVIDADE_STATUS_CONCEITO[pior] ? s : pior));
+}
+
+/* Monta as colunas do mapa de calor (uma por aula fechada) a partir do
+   histórico de registros do aluno. Só entram aulas em que o treinador
+   de fato preencheu a leitura por tema ao fechar a sessão (reg.temas não
+   vazio) — sessões de chuva (sem família/conceito associado) e registros
+   salvos antes desta função existir simplesmente não têm `.temas` e
+   ficam de fora, sem erro e sem célula fantasma. */
+function construirColunasConceitos(registros) {
+  return (registros || [])
+    .filter((r) => Array.isArray(r.temas) && r.temas.length > 0)
+    .sort((a, b) => String(a.data || "").localeCompare(String(b.data || "")) || String(a.id || "").localeCompare(String(b.id || "")))
+    .map((r, i) => {
+      const celulas = {};
+      CONCEITOS.forEach((c) => {
+        const statusDoConceito = r.temas.filter((t) => t.conceito === c).map((t) => t.status).filter(Boolean);
+        if (statusDoConceito.length) celulas[c] = piorStatusConceito(statusDoConceito);
+      });
+      return { indice: i + 1, data: r.data || null, titulo: r.aulaDoPlano || r.ciclo || "Sessão", blocoNome: r.blocoNome || null, celulas };
+    });
+}
+
 /* ── planos pagos ──
    plano vem de orgs/{org}/meta/info.plano. Orgs criadas por
    cadastro-individual.js vêm marcadas "gratis"; academias provisionadas
@@ -3092,6 +3147,102 @@ function Secao({ titulo, children, nota, id }) {
       {nota && <p style={{ ...prosa, color: C.grafite, marginBottom: 14 }}>{nota}</p>}
       {children}
     </section>
+  );
+}
+
+/* Mapa de calor de conceitos pedagógicos — linhas fixas (CONCEITOS),
+   colunas = aulas fechadas (já filtradas e numeradas por quem chama,
+   ver construirColunasConceitos). Cor = STATUS, não intensidade: cinza
+   (sem glifo) quando o conceito não entrou naquela aula; vermelho
+   terroso/âmbar/verde com um glifo (✕ ◐ ✓) quando entrou — o glifo
+   garante que a leitura nunca dependa só da cor. Tooltip nativo (title)
+   cobre o mouse; num toque, a mesma frase aparece numa linha abaixo da
+   grade, porque toque não dispara :hover/title de forma confiável. */
+function MapaCalorConceitos({ colunas, compacto }) {
+  const [selecionada, setSelecionada] = useState(null);
+  if (!colunas || colunas.length === 0) {
+    return <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Nenhuma aula com leitura por conceito registrada ainda.</p>;
+  }
+  const lado = compacto ? 26 : 32;
+  return (
+    <div>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ borderCollapse: "collapse" }}>
+          <tbody>
+            {CONCEITOS.map((conceito) => (
+              <tr key={conceito}>
+                <td style={{ fontFamily: ARCH, fontSize: compacto ? 11 : 11.5, fontWeight: 700, paddingRight: 10, paddingBottom: 4, whiteSpace: "nowrap" }}>
+                  {conceito}
+                </td>
+                {colunas.map((col, i) => {
+                  const status = col.celulas[conceito] || "nao_trabalhado";
+                  const cor = corStatusConceito(status);
+                  const texto = "Aula " + col.indice + " · " + conceito + " · " + CONCEITO_STATUS_LABEL[status];
+                  return (
+                    <td key={i} style={{ padding: 2 }}>
+                      <button type="button" title={texto} onClick={() => setSelecionada(texto)}
+                        style={{ width: lado, height: lado, borderRadius: 6, cursor: "pointer", padding: 0,
+                          border: "1px solid " + (status === "nao_trabalhado" ? C.linha : "transparent"),
+                          background: status === "nao_trabalhado" ? C.linha : cor,
+                          color: status === "nao_trabalhado" ? C.grafite : "#fff",
+                          fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        {CONCEITO_STATUS_GLIFO[status]}
+                      </button>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {selecionada && <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 6 }}>{selecionada}</p>}
+      <div className="flex gap-3 flex-wrap mt-3">
+        {["atingiu", "parcial", "nao_atingiu", "nao_trabalhado"].map((k) => (
+          <span key={k} className="flex items-center gap-1.5" style={{ ...prosa, fontSize: 11.5, color: C.grafite }}>
+            <span style={{ width: 15, height: 15, borderRadius: 4, display: "inline-flex", alignItems: "center", justifyContent: "center",
+              fontSize: 9.5, fontWeight: 700, background: k === "nao_trabalhado" ? C.linha : corStatusConceito(k),
+              color: k === "nao_trabalhado" ? C.grafite : "#fff", border: k === "nao_trabalhado" ? "1px solid " + C.linha : "none" }}>
+              {CONCEITO_STATUS_GLIFO[k]}
+            </span>
+            {CONCEITO_STATUS_LABEL[k]}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* Seção "Evolução por conceito" na aba Plano do jogador — mapa de calor
+   completo, com TODAS as aulas já fechadas (que têm `.temas`), agrupadas
+   por bloco do Plano quando o histórico atravessa mais de um bloco. Sem
+   bloco (ciclo avulso, ou plano sem blocos) cai num mapa só, sem
+   subtítulos de grupo. */
+function SecaoEvolucaoConceitos({ aluno }) {
+  const colunas = useMemo(() => construirColunasConceitos(aluno.registros), [aluno.registros]);
+  const grupos = useMemo(() => {
+    const vistos = [];
+    colunas.forEach((c) => { if (!vistos.includes(c.blocoNome)) vistos.push(c.blocoNome); });
+    return vistos;
+  }, [colunas]);
+  const temMaisDeUmBloco = grupos.length > 1 && grupos.some(Boolean);
+  return (
+    <Secao titulo="Evolução por conceito" nota="O que foi registrado, aula a aula, sobre o que de fato foi atingido em cada conceito pedagógico — status, não intensidade.">
+      {colunas.length === 0 ? (
+        <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>
+          Nenhuma aula com leitura por conceito ainda — isso é preenchido ao finalizar cada aula, em "Sessão de hoje".
+        </p>
+      ) : temMaisDeUmBloco ? (
+        grupos.map((g, gi) => (
+          <div key={gi} className="mb-6">
+            <p style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, color: C.grafite, marginBottom: 8 }}>{g || "Sem bloco"}</p>
+            <MapaCalorConceitos colunas={colunas.filter((c) => c.blocoNome === g)} />
+          </div>
+        ))
+      ) : (
+        <MapaCalorConceitos colunas={colunas} />
+      )}
+    </Secao>
   );
 }
 
@@ -6468,7 +6619,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
   const [fechando, setFechando] = useState(false);
   const [salvandoRegistro, setSalvandoRegistro] = useState(false);
   const registrandoRef = useRef(false);
-  const [obs, setObs] = useState({ corrigi: "", ignorei: "", mudaria: "", proximoFoco: "", nota: 3 });
+  const [obs, setObs] = useState({ corrigi: "", ignorei: "", mudaria: "", proximoFoco: "", leituraDaAula: "", nota: 3 });
   const [statusAulaPlano, setStatusAulaPlano] = useState("feita");
   const [motivoAulaPlano, setMotivoAulaPlano] = useState("");
   /* Quais exercícios foram feitos, parcialmente feitos ou não feitos —
@@ -6476,6 +6627,12 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
      Só existe o que o treinador de fato marcar diferente do padrão; não
      persiste nada até o registro ser salvo. */
   const [statusExercicios, setStatusExercicios] = useState({});
+  /* Status por TEMA da aula (não por exercício, não por "fundamento"
+     genérico) — alimenta o mapa de calor de conceitos do Plano. Chave é
+     o índice do tema dentro de `temas` (abaixo); sem seleção, o tema
+     simplesmente não entra no registro (não existe um 4º status
+     "não avaliado" aqui — ver reg.temas em registrar()). */
+  const [statusTemas, setStatusTemas] = useState({});
   const [personalizados, setPersonalizados] = useState(() => (rascunho ? rascunho.personalizados : []));
   const PERSONALIZADO_VAZIO = { n: "", m: "", g: "", r: "", p: "", x: "", i: "", d: "" };
   const [novoPersonalizado, setNovoPersonalizado] = useState(PERSONALIZADO_VAZIO);
@@ -6784,13 +6941,28 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
       obs.ignorei.trim() && ("Deixei passar: " + obs.ignorei.trim()),
       obs.mudaria.trim() && ("Adaptação: " + obs.mudaria.trim()),
       obs.proximoFoco.trim() && ("Próximo foco: " + obs.proximoFoco.trim()),
+      obs.leituraDaAula.trim() && ("Leitura da aula: " + obs.leituraDaAula.trim()),
     ].filter(Boolean).join(" · ");
+    /* Só os temas que o treinador de fato avaliou entram no registro —
+       sem seleção, o tema simplesmente não aparece em reg.temas (não
+       existe um status default "atingiu" por omissão aqui, diferente de
+       exerciciosStatus acima: isto é um julgamento pedagógico, não dá
+       pra supor silenciosamente). É isto que alimenta o mapa de calor de
+       conceitos (ver construirColunasConceitos). */
+    const temasRegistrados = temas
+      .map((t, i) => ({ nome: t.nome, conceito: t.conceito, status: statusTemas[i] }))
+      .filter((t) => t.status);
     const reg = {
       id: "r" + Date.now(), tipo: "sessao", data: hoje,
       ciclo: aulaAtual ? (aulaAtual.bloco + " · semana " + aulaAtual.semana + " · " + aulaAtual.t)
         : modeloChuva ? ("Dia de chuva · " + modeloChuva.nome) : (ciclos[cicloAtivo].letra + " · " + ciclos[cicloAtivo].nome),
       duracao, exercicios: cods, exerciciosStatus, exerciciosPersonalizados: personalizados.map((p) => p.n), divergencias, ...obs,
       aulaDoPlano: aulaAtual ? aulaAtual.t : null,
+      temas: temasRegistrados,
+      // bloco do Plano a que esta aula pertence — null no ciclo avulso e
+      // no dia de chuva (não existe bloco de Plano pra agrupar ali); é o
+      // que permite ao mapa de calor do Plano agrupar colunas por bloco.
+      blocoNome: aulaAtual ? aulaAtual.bloco : null,
     };
     const alunosAtualizados = alunos.map((a) => {
       if (a.id !== aluno.id) return a;
@@ -6827,7 +6999,8 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
     }
 
     setPlano(null); setFechando(false); setDivergencias([]); setStatusExercicios({});
-    setObs({ corrigi: "", ignorei: "", mudaria: "", proximoFoco: "", nota: 3 });
+    setObs({ corrigi: "", ignorei: "", mudaria: "", proximoFoco: "", leituraDaAula: "", nota: 3 });
+    setStatusTemas({});
     setStatusAulaPlano("feita"); setMotivoAulaPlano("");
     setPersonalizados([]); setNovoPersonalizado(PERSONALIZADO_VAZIO); setFormPersonalizadoAberto(false);
     setSalvandoRegistro(false);
@@ -6856,6 +7029,42 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
   const duracaoTotalEstimada = todosExerciciosAtuais.reduce((s, e) => s + minDe(e), 0);
   const duracaoDisponivel = aulaAtual ? minutosDaDuracao(aluno.duracaoPadrao || "1h30") : duracao;
   const duracaoEstourou = todosExerciciosAtuais.length > 0 && duracaoTotalEstimada > duracaoDisponivel;
+
+  /* Só o CONTEÚDO real da aula entra nos temas — não o aquecimento (nem,
+     no ciclo avulso, o bloco 1 "Base motora e entrada", que é o
+     equivalente do aquecimento ali): aquecimento não é o que a aula se
+     propôs a trabalhar, é só a entrada em movimento. Exercícios
+     personalizados (criados na hora, sem `f`/família) não entram — sem
+     família não há como calcular o conceito, e forçar um conceito
+     arbitrário nele seria inventar um dado que o treinador não deu. */
+  function exerciciosParaTemas() {
+    if (!plano || plano.chuva) return [];
+    const lista = plano.daAula ? plano.conteudo : plano.filter((b) => b.id !== 1).flatMap((b) => b.exercicios);
+    return lista.filter((e) => e && e.f && CONCEITO_POR_FAMILIA[e.f]);
+  }
+  /* Preenchimento por TOQUE não pode ser exercício-por-exercício (complexo
+     demais) nem uma lista fixa de "fundamentos" genéricos — tem que ser
+     por TEMA DA AULA, ou seja, o que de fato estava planejado pra hoje.
+     Com poucos exercícios (até 5), cada um já É um tema. Com mais que
+     isso, listar um por um estouraria o formulário — agrupamos por
+     conceito pedagógico em vez disso (no máximo os 6 de CONCEITOS). */
+  function montarTemas() {
+    const exs = exerciciosParaTemas();
+    if (exs.length === 0) return [];
+    if (exs.length <= 5) {
+      return exs.map((e) => ({
+        nome: e.n,
+        descricao: (e.o && e.o.trim()) || (e.m && e.m.trim() ? (e.m.trim().length > 90 ? e.m.trim().slice(0, 90) + "…" : e.m.trim()) : ""),
+        conceito: CONCEITO_POR_FAMILIA[e.f],
+      }));
+    }
+    const porConceito = {};
+    exs.forEach((e) => { (porConceito[CONCEITO_POR_FAMILIA[e.f]] = porConceito[CONCEITO_POR_FAMILIA[e.f]] || []).push(e); });
+    return CONCEITOS.filter((c) => porConceito[c]).map((c) => ({
+      nome: c, descricao: porConceito[c].map((e) => e.n).join(" · "), conceito: c,
+    }));
+  }
+  const temas = useMemo(montarTemas, [plano]);
 
   const total = plano && !plano.daAula && !plano.chuva ? plano.reduce((s, b) => s + b.minutos, 0) : 1;
   const pctIP = plano && !plano.daAula && !plano.chuva ? Math.round((plano[2].minutos / total) * 100) : 0;
@@ -7187,6 +7396,31 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
                       })}
                     </Campo>
                   )}
+
+                  {temas.length > 0 && (
+                    <Campo rotulo="Leitura por tema da aula" nota="O que de fato foi atingido hoje, por tema — não por exercício, não uma lista fixa de fundamentos. Alimenta o mapa de calor de conceitos, na aba Plano.">
+                      {temas.map((t, i) => (
+                        <div key={i} className="mb-3">
+                          <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>{t.nome}</div>
+                          {t.descricao && <p style={{ ...prosa, fontSize: 12, color: C.grafite, margin: "2px 0 6px" }}>{t.descricao}</p>}
+                          <div className="flex gap-1 flex-wrap">
+                            {[["nao_atingiu", "Não atingiu"], ["parcial", "Parcial"], ["atingiu", "Atingiu"]].map(([v, r]) => (
+                              <button key={v} type="button"
+                                onClick={() => setStatusTemas((x) => ({ ...x, [i]: x[i] === v ? undefined : v }))}
+                                style={{ fontFamily: ARCH, fontSize: 10.5, fontWeight: 700, padding: "5px 9px", borderRadius: 10, cursor: "pointer",
+                                  border: "1px solid " + (statusTemas[i] === v ? corStatusConceito(v) : C.linha),
+                                  background: statusTemas[i] === v ? corStatusConceito(v) : C.papel,
+                                  color: statusTemas[i] === v ? "#fff" : C.grafite }}>{r}</button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </Campo>
+                  )}
+                  <Campo rotulo="Leitura da aula" nota="A impressão geral sobre como a aula foi, além dos temas — fica guardada no histórico do jogador.">
+                    <textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={obs.leituraDaAula}
+                      onChange={(e) => setObs({ ...obs, leituraDaAula: e.target.value })} />
+                  </Campo>
 
                   {aulaAtual && (
                     <Campo rotulo="E a aula do Plano?" nota={aulaAtual.bloco + " · semana " + aulaAtual.semana + " · " + aulaAtual.t}>
@@ -9888,6 +10122,12 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
       {modo === "resumo" && (
         <>
           <LinhaDeRaciocinio plano={plano} aulas={aulas} status={status} reg={reg} />
+
+          {/* Mapa de calor completo — só faz sentido pra um jogador (cada
+              um tem a própria leitura por tema); uma turma não acumula
+              `.registros` com temas na entidade em si, cada membro tem o
+              dele. Ver SecaoEvolucaoConceitos. */}
+          {!eTurma && <SecaoEvolucaoConceitos aluno={entidade} />}
 
           {/* Ficavam na aba Fechamento, no meio das ações de fechar o ciclo —
               mas "recomeçar o planejamento" não é um resultado do ciclo, é uma
