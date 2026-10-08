@@ -551,6 +551,10 @@ const LINKS_CHECKOUT_EDUZZ = {
   essencial: "https://sun.eduzz.com/6W4GYZEOOZ",
   premium: "https://sun.eduzz.com/DOR8KEP69Y",
 };
+const PRECOS_PLANO = {
+  essencial: { preco: "R$ 29,90/mês", beneficio: "até 30 jogadores" },
+  premium: { preco: "R$ 59,90/mês", beneficio: "jogadores ilimitados" },
+};
 
 const ESTAGIOS = [
   { s: "V", n: "Vermelha" }, { s: "L", n: "Laranja" }, { s: "G", n: "Verde" },
@@ -3016,10 +3020,22 @@ function abrirCheckoutEduzz(plano) {
    a compra pelo e-mail do comprador: por isso o aviso pra usar o mesmo
    e-mail do login, senão a Eduzz cria uma conta nova em vez de fazer
    upgrade da existente. */
+function CartaoPlano({ plano }) {
+  const preco = PRECOS_PLANO[plano];
+  if (!preco) return null;
+  return (
+    <div style={{ background: C.papel, border: "1px solid " + C.linha, borderRadius: 10, padding: "8px 10px" }}>
+      <p style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, margin: 0 }}>{NOMES_PLANO[plano]}</p>
+      <p style={{ ...prosa, fontSize: 12, color: C.grafite, margin: "2px 0 0" }}>{preco.preco} · {preco.beneficio}</p>
+    </div>
+  );
+}
+
 function BotoesAssinatura({ planoAtual, planoVencido, emailAtual, pequeno }) {
   if (planoVencido && (planoAtual === "essencial" || planoAtual === "premium")) {
     return (
       <div className="mt-2">
+        <div className="mb-2"><CartaoPlano plano={planoAtual} /></div>
         <Botao pequeno={pequeno} onClick={() => abrirCheckoutEduzz(planoAtual)}>Renovar {NOMES_PLANO[planoAtual]}</Botao>
         {emailAtual && (
           <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginTop: 6 }}>
@@ -3033,16 +3049,18 @@ function BotoesAssinatura({ planoAtual, planoVencido, emailAtual, pequeno }) {
   if (!planosDisponiveis.length) return null;
   return (
     <div className="mt-2">
+      <div className="mb-2" style={{ display: "grid", gap: 6, gridTemplateColumns: planosDisponiveis.length > 1 ? "1fr 1fr" : "1fr" }}>
+        {planosDisponiveis.map((p) => <CartaoPlano key={p} plano={p} />)}
+      </div>
       <div className="flex gap-2 flex-wrap">
         {planosDisponiveis.map((p) => (
           <Botao key={p} pequeno={pequeno} onClick={() => abrirCheckoutEduzz(p)}>Assinar {NOMES_PLANO[p]}</Botao>
         ))}
       </div>
-      {emailAtual && (
-        <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginTop: 6 }}>
-          Use o e-mail <b>{emailAtual}</b> na hora de pagar — é assim que a gente identifica sua conta.
-        </p>
-      )}
+      <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginTop: 6 }}>
+        7 dias grátis para testar antes da primeira cobrança.
+        {emailAtual && <> Use o e-mail <b>{emailAtual}</b> na hora de pagar — é assim que a gente identifica sua conta.</>}
+      </p>
     </div>
   );
 }
