@@ -343,6 +343,9 @@ function glifoStatusConceito(status) {
 function painelMapaConceitos(d, ui) {
   const m = d.mapaConceitos;
   if (!m || !m.colunas || !m.colunas.length) return '';
+  const cabecalho = '<tr><td></td>' + m.colunas.map(function (col) {
+    return '<td style="padding:2px;text-align:center"><span style="font-size:9.5px;font-weight:700;color:var(--cinza)">A' + escapar(String(col.indice)) + '</span></td>';
+  }).join('') + '</tr>';
   const linhas = CONCEITOS_ALUNO.map(function (conceito) {
     const celulas = m.colunas.map(function (col) {
       const status = col.celulas[conceito] || 'nao_trabalhado';
@@ -365,7 +368,7 @@ function painelMapaConceitos(d, ui) {
     '<h2>Evolução por conceito</h2>' +
     '<p class="desc">Como foram as últimas aulas, por tema trabalhado — é status, não é intensidade.</p>' +
     (m.insight ? '<p style="font-size:13px;font-weight:600;margin:0 0 12px">' + escapar(m.insight) + '</p>' : '') +
-    '<div style="overflow-x:auto"><table style="border-collapse:collapse">' + linhas + '</table></div>' +
+    '<div style="overflow-x:auto"><table style="border-collapse:collapse">' + cabecalho + linhas + '</table></div>' +
     '<div style="margin-top:10px;display:flex;flex-wrap:wrap">' + legenda + '</div>' +
     (ui && ui.celulaConceitoSelecionada ? '<p class="aviso-mini" style="margin-top:4px">' + escapar(ui.celulaConceitoSelecionada) + '</p>' : '') +
     '</div>';

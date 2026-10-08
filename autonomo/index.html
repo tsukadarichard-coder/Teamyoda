@@ -3224,6 +3224,16 @@ function MapaCalorConceitos({ colunas, compacto }) {
     <div>
       <div style={{ overflowX: "auto" }}>
         <table style={{ borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              <td></td>
+              {colunas.map((col, i) => (
+                <td key={i} style={{ padding: 2, textAlign: "center" }}>
+                  <span style={{ fontFamily: ARCH, fontSize: 9.5, fontWeight: 700, color: C.grafite }}>A{col.indice}</span>
+                </td>
+              ))}
+            </tr>
+          </thead>
           <tbody>
             {CONCEITOS.map((conceito) => (
               <tr key={conceito}>
