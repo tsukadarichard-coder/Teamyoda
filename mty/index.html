@@ -7565,6 +7565,68 @@ const FIM_PONTO = [
   { v: "winner_dele", r: "Winner dele", nos: false, cor: "#C8102E" },
 ];
 
+/* Evolução do scout ao longo dos jogos — mesmo padrão de GraficoEvolucao
+   (linha dupla, eixo único 0–100%), pra comparar o padrão de vários
+   jogos ao longo do tempo em vez de abrir um de cada vez. Só entram no
+   gráfico os jogos com reg.scout (jogos salvos antes dessa métrica
+   existir ficam de fora daqui, mas continuam na tabela de comparação
+   como "—"). Ordem cronológica (mais antigo primeiro), igual ao tempo. */
+function EvolucaoScout({ jogos }) {
+  const comScout = jogos.filter((r) => r.scout);
+  const dados = comScout.map((r, i) => ({
+    rotulo: "Jogo " + (i + 1),
+    data: new Date(r.data).toLocaleDateString("pt-BR"),
+    pctProtocolo: r.scout.pctProtocolo,
+    pctErrosCurtos: r.scout.pctErrosCurtos,
+  }));
+  if (dados.length < 2) return null;
+  return (
+    <div className="mb-5">
+      <div className="mb-2"><Etiqueta>Evolução ao longo dos jogos</Etiqueta></div>
+      <div style={{ height: 180, marginLeft: -18 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={dados}>
+            <CartesianGrid vertical={false} stroke={C.linha} />
+            <XAxis dataKey="rotulo" tick={{ fontSize: 9, fontFamily: ARCH, fill: C.grafite }} interval={0} />
+            <YAxis domain={[0, 100]} tick={{ fontSize: 9, fontFamily: ARCH, fill: C.grafite }} width={28} unit="%" />
+            <Tooltip contentStyle={{ fontFamily: ARCH, fontSize: 12, borderRadius: 10, border: "1px solid " + C.linha }}
+              labelFormatter={(r, p) => r + (p && p[0] ? " · " + p[0].payload.data : "")}
+              formatter={(v, n) => [v + "%", n === "pctProtocolo" ? "Protocolo entre pontos" : "Erros na bola 1–2"]} />
+            <Line type="monotone" dataKey="pctProtocolo" stroke={C.quadra} strokeWidth={2} dot={{ r: 3 }} />
+            <Line type="monotone" dataKey="pctErrosCurtos" stroke={C.grafite} strokeWidth={2} dot={{ r: 3 }} />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="flex gap-4 mt-1">
+        <Etiqueta cor={C.quadra}>▬ Protocolo entre pontos</Etiqueta>
+        <Etiqueta cor={C.grafite}>▬ Erros na bola 1–2</Etiqueta>
+      </div>
+    </div>
+  );
+}
+
+/* Tabela com todos os jogos lado a lado — o pedido original era "todos
+   os dados para comparação futura", e um gráfico sozinho não entrega
+   isso (só dá pra ver 2 métricas de cada vez). Jogos sem reg.scout
+   (salvos antes dessa métrica existir) aparecem com "—" nas colunas
+   que dependem dela. */
+function ComparacaoJogos({ jogos }) {
+  const linhas = [...jogos].reverse().map((r) => [
+    new Date(r.data).toLocaleDateString("pt-BR"),
+    r.adversario || "—",
+    r.scout ? r.scout.pctProtocolo + "%" : "—",
+    r.scout ? r.scout.pctErrosCurtos + "%" : "—",
+    r.scout ? `${r.scout.errosDecisao}/${r.scout.errosExec}` : "—",
+    r.scout ? r.scout.ataquePerdido : "—",
+  ]);
+  return (
+    <div className="mb-5">
+      <div className="mb-2"><Etiqueta>Comparar jogos · {jogos.length}</Etiqueta></div>
+      <Tabela cabecalho={["Data", "Adversário", "Protocolo", "Erros 1–2", "Decisão/Execução", "Ataques perdidos"]} linhas={linhas} />
+    </div>
+  );
+}
+
 function TelaScout({ aluno, alunos, setAlunos }) {
   const [fase, setFase] = useState("antes");
   const [cfg, setCfg] = useState({ adversario: "", torneio: "", formato: "3sets", saca: "nos" });
@@ -7638,6 +7700,8 @@ function TelaScout({ aluno, alunos, setAlunos }) {
 
         {partidasAnteriores.length > 0 && (
           <div className="mt-6">
+            <EvolucaoScout jogos={partidasAnteriores} />
+            <ComparacaoJogos jogos={partidasAnteriores} />
             <h2 style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginBottom: 8 }}>Partidas registradas</h2>
             {[...partidasAnteriores].reverse().slice(0, 5).map((r) => (
               <div key={r.id} style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10,
