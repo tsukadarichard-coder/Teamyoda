@@ -308,11 +308,22 @@ function TODOS_EXERCICIOS() {
    só o sorteio automático usa este filtro. */
 function exerciciosParaSorteio() { return TODOS_EXERCICIOS().filter((e) => !e.semBola); }
 /* Aquecimento é sem bola por definição — o corpo entra em movimento antes
-   de qualquer troca. O catálogo só tem 5 exercícios marcados semBola:true
-   (ver linha ~296), então aqui NÃO filtra por família de bloco como o
-   sorteio de conteúdo faz — com um pool tão pequeno, cruzar com família
-   deixaria estágios inteiros sem opção nenhuma pra sortear. */
+   de qualquer troca. O catálogo só tem 18 exercícios marcados
+   semBola:true (ver linha ~296), então aqui NÃO filtra por família de
+   bloco como o sorteio de conteúdo faz — com um pool tão pequeno, cruzar
+   com família deixaria estágios inteiros sem opção nenhuma pra sortear. */
 function exerciciosSemBola() { return TODOS_EXERCICIOS().filter((e) => e.semBola); }
+/* Pedido explícito: o sorteio do aquecimento passa a incluir a família
+   inteira de Movimentação (MV) — footwork e deslocamento, parte deles
+   com bola alimentada pelo treinador — além do que já era semBola. As
+   outras famílias (CO/CF com elástico, medicine ball etc.) continuam de
+   fora: só MV se soma ao que já entrava. */
+function exerciciosAquecimento() {
+  const semBola = exerciciosSemBola();
+  const vistos = new Set(semBola.map((e) => e.c));
+  const mv = TODOS_EXERCICIOS().filter((e) => e.f === "MV" && !vistos.has(e.c));
+  return [...semBola, ...mv];
+}
 
 /* ─────────────────────────── identidade ─────────────────────────── */
 /* Paleta padrão — identidade visual QuadraLab (a plataforma que roda por
@@ -3992,9 +4003,48 @@ function indiceParaEstagios(estagios) {
     f + " (" + (FAM[f] || f) + "): " + porFam[f].join(" · ")).join("\n");
 }
 
+/* As quatro áreas que são golpe/fundamento, não leitura de jogo nem
+   físico/mental — onde "foco técnico" tem um sentido concreto: um golpe
+   específico que precisa de correção. */
+const AREAS_TECNICAS = ["saque", "devolucao", "fundo", "rede"];
+
+/* Mesma garantia que o programa pronto "Correção Técnica" já fazia só
+   para si mesmo (poolPrincipal por área + fallback genérico) — aqui vale
+   pra QUALQUER plano (IA, colado, ou outro programa pronto) que tenha um
+   bloco de área técnica: sem isso, o bloco podia ficar só com exercícios
+   de leitura/tática que a IA (ou o texto colado) escolheu, sem nenhum
+   drill de correção pontual do próprio golpe — exatamente o que define
+   um bloco técnico. Não sorteia de novo a cada aula: só completa o que
+   já está montado, uma vez, se faltar. */
+function garantirCorrecaoTecnica(blocos, estagiosAlvo) {
+  if (!estagiosAlvo || !estagiosAlvo.length) return;
+  const temEstagio = (e) => e.e.some((s) => estagiosAlvo.includes(s));
+  (blocos || []).forEach((b) => {
+    if (!AREAS_TECNICAS.includes(b.areaFoco)) return;
+    const area = AREAS[b.areaFoco];
+    if (!area) return;
+    (b.semanasLista || []).forEach((sem) => (sem.aulas || []).forEach((au) => {
+      au.ex = au.ex || [];
+      const jaTemCorrecao = au.ex.some((c) => {
+        const ex = TODOS_EXERCICIOS().find((e) => e.c === c);
+        return ex && (ex.f === "FB" || ex.f === "DC");
+      });
+      if (jaTemCorrecao) return;
+      const poolEspecifico = exerciciosParaSorteio().filter((e) =>
+        temEstagio(e) && (e.f === "FB" || e.f === "DC") && area.busca.test(e.n + " " + e.m));
+      const poolGenerico = exerciciosParaSorteio().filter((e) => temEstagio(e) && (e.f === "FB" || e.f === "DC"));
+      const [escolhido] = sorteia(poolEspecifico.length ? poolEspecifico : poolGenerico, new Set(), 1);
+      if (escolhido) au.ex.push(escolhido.c);
+    }));
+  });
+}
+
 /* Validação de um plano recém-gerado ou colado — compartilhada entre o
-   plano individual e o plano de turma, já que a forma do JSON é a mesma. */
-function validarPlanoJSON(alvo) {
+   plano individual e o plano de turma, já que a forma do JSON é a mesma.
+   estagiosAlvo é opcional: só quem chama sabendo o(s) estágio(s) do
+   jogador/turma consegue acionar a garantia de correção técnica acima;
+   sem ele, a validação segue igual a sempre. */
+function validarPlanoJSON(alvo, estagiosAlvo) {
   if (!alvo.blocos || !alvo.blocos.length) throw new Error("Não encontrei os blocos do plano.");
   const ruins = [];
   alvo.blocos.forEach((b) => (b.semanasLista || []).forEach((sem) =>
@@ -4005,6 +4055,7 @@ function validarPlanoJSON(alvo) {
     throw new Error("Códigos que não existem no catálogo: " + [...new Set(ruins)].join(", "));
   const raizes = (alvo.cadeia || []).filter((c) => c.raiz).length;
   if (raizes > 1) throw new Error("O plano marcou " + raizes + " camadas como origem. Só pode haver uma.");
+  garantirCorrecaoTecnica(alvo.blocos, estagiosAlvo);
   return alvo;
 }
 
@@ -4144,7 +4195,7 @@ function gerarPlanoDePrograma(programaId, alvo, opcoes) {
       });
       continue;
     }
-    const aquecimento = sorteia(exerciciosSemBola().filter(temEstagio), evitarAquecimento, 2);
+    const aquecimento = sorteia(exerciciosAquecimento().filter(temEstagio), evitarAquecimento, 2);
     aquecimento.forEach((e) => evitarAquecimento.add(e.c));
     const descricao = estrutura3Passos
       ? estrutura3Passos + "\n\n" + textoComplementos
@@ -4169,7 +4220,7 @@ function gerarPlanoDePrograma(programaId, alvo, opcoes) {
       semanasLista: aulas.map((au, i) => ({ n: i + 1, foco: prog.nome, carga: "moderada", aulas: [au] })),
     }],
     observacao: [],
-  });
+  }, estagiosAlvo);
 }
 
 /* Textos do cartão de "Programas prontos" (nível/abrangência/conteúdo),
@@ -6031,7 +6082,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
     setDivergencias([]);
     if (aulaAtual) {
       const evitar = new Set(aluno.historico.slice(-2).flat());
-      const aquecimento = sorteia(exerciciosSemBola().filter((e) => e.e.includes(aluno.estagio)), evitar, 2);
+      const aquecimento = sorteia(exerciciosAquecimento().filter((e) => e.e.includes(aluno.estagio)), evitar, 2);
       /* !e.semBola aqui também — não só no sorteio: uma aula do Plano
          gerada ANTES desta regra (ou colada à mão) pode ter um código
          sem bola preso no ex[], e olhar só o sorteio automático não
@@ -6060,13 +6111,12 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
       BLOCOS.map((b, i) => {
         const familias = b.id === 4 ? areaCiclo.familias : b.familias;
         /* Bloco 1 é o aquecimento: tem que ser igual ao que a aula do
-           Plano já garante (exerciciosSemBola) — sem bola, sem
-           equipamento de academia, sempre possível em quadra — em vez
-           de sortear qualquer coisa das famílias CO/CF/MV, que incluem
-           exercício com bola e com equipamento (elástico, medicine
-           ball) impróprios pra abrir a aula. */
+           Plano já garante (exerciciosAquecimento) — semBola mais a
+           família Movimentação inteira — em vez de sortear qualquer
+           coisa de CO/CF, que incluem equipamento (elástico, medicine
+           ball) impróprio pra abrir a aula. */
         const pool = b.id === 1
-          ? exerciciosSemBola().filter((e) => e.e.includes(aluno.estagio))
+          ? exerciciosAquecimento().filter((e) => e.e.includes(aluno.estagio))
           : exerciciosParaSorteio().filter((e) => familias.includes(e.f) && e.e.includes(aluno.estagio));
         const min = Math.round(duracao * pesos[i]);
         let exercicios = b.id === 3 ? garanteSaqueEDevolucao(pool, evitar) : sorteia(pool, evitar, min >= 18 ? 2 : 1);
@@ -6084,7 +6134,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
       if (p.daAula) {
         const lista = p[id];
         const usados = new Set([...p.aquecimento, ...p.conteudo].map((e) => e.c));
-        const pool = (id === "aquecimento" ? exerciciosSemBola() : exerciciosParaSorteio())
+        const pool = (id === "aquecimento" ? exerciciosAquecimento() : exerciciosParaSorteio())
           .filter((e) => e.e.includes(aluno.estagio) && !usados.has(e.c));
         if (!pool.length) return p;
         const novo = pool[Math.floor(Math.random() * pool.length)];
@@ -6095,7 +6145,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
       return p.map((b) => {
         if (b.id !== id) return b;
         const usados = new Set(p.flatMap((x) => x.exercicios.map((e) => e.c)));
-        const pool = (b.id === 1 ? exerciciosSemBola() : exerciciosParaSorteio().filter((e) => b.familias.includes(e.f)))
+        const pool = (b.id === 1 ? exerciciosAquecimento() : exerciciosParaSorteio().filter((e) => b.familias.includes(e.f)))
           .filter((e) => e.e.includes(aluno.estagio) && !usados.has(e.c));
         if (!pool.length) return b;
         const novo = pool[Math.floor(Math.random() * pool.length)];
@@ -8392,7 +8442,8 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
       } catch (e) {
         throw new Error("A IA devolveu um texto que não é um JSON válido (" + (e.message || e) + "). Tente gerar de novo.");
       }
-      const alvo = valida(json);
+      const estagiosAlvo = eTurma ? membros.map((m) => m.estagio) : [aluno.estagio];
+      const alvo = valida(json, estagiosAlvo);
       alvo.geradoEm = new Date().toISOString();
       setPlanoCandidato(alvo);
     } catch (e) {
@@ -8417,7 +8468,8 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
       const i = t.indexOf("{");
       if (i > 0) t = t.slice(i);
       const p = JSON.parse(t);
-      const alvo = valida(p.plano || p);
+      const estagiosAlvo = eTurma ? membros.map((m) => m.estagio) : [aluno.estagio];
+      const alvo = valida(p.plano || p, estagiosAlvo);
       alvo.geradoEm = new Date().toISOString();
       setPlanoCandidato(alvo);
       setColando(false); setTexto("");
@@ -11830,7 +11882,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
      dava pra "gerar a sessão do dia" de fato, só marcar status depois. */
   function gerarSessaoTurma() {
     const evitar = new Set();
-    const aquecimento = sorteia(exerciciosSemBola().filter((e) => e.e.some((s) => estagiosTurma.includes(s))), evitar, 2);
+    const aquecimento = sorteia(exerciciosAquecimento().filter((e) => e.e.some((s) => estagiosTurma.includes(s))), evitar, 2);
     let conteudo = (aulaTurma.ex || []).map((c) => TODOS_EXERCICIOS().find((e) => e.c === c)).filter((e) => e && !e.semBola);
     const usados = new Set(conteudo.map((e) => e.c));
     const temSaque = conteudo.some((e) => AREAS.saque.busca.test(e.n + " " + e.m));
@@ -11850,7 +11902,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
     setSessaoTurma((p) => {
       const lista = p[secao];
       const usados = new Set([...p.aquecimento, ...p.conteudo].map((e) => e.c));
-      const pool = (secao === "aquecimento" ? exerciciosSemBola() : exerciciosParaSorteio())
+      const pool = (secao === "aquecimento" ? exerciciosAquecimento() : exerciciosParaSorteio())
         .filter((e) => e.e.some((s) => estagiosTurma.includes(s)) && !usados.has(e.c));
       if (!pool.length) return p;
       const novo = pool[Math.floor(Math.random() * pool.length)];
