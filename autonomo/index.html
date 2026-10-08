@@ -4350,21 +4350,22 @@ function gerarPlanoDePrograma(programaId, alvo, opcoes) {
 
   /* As 7 etapas pedidas pelo treinador pra jogada observada (pernas →
      intensidade → técnica → bola morta por etapas → mesma progressão
-     do outro lado da quadra → jogada inteira → situação real). As 3
-     primeiras são exercícios DE VERDADE do catálogo — pernas/
-     movimentação (família MV), intensidade de deslocamento (CF),
-     técnica de membros superiores (FB/DC) — porque isso não depende
-     da jogada específica, só do estágio do jogador; sorteado uma vez
-     só e repetido no ciclo, igual ao núcleo dos outros programas. As
-     últimas 4 são inevitavelmente específicas da jogada descrita —
-     nenhum exercício do catálogo nasceu sabendo a jogada real de cada
-     atleta — por isso entram como roteiro de etapas no texto da aula,
-     não como item sorteado. */
-  let pernas = null, intensidade = null, tecnica = null;
+     do outro lado da quadra → jogada inteira → situação real) só tem
+     sentido se forem REALMENTE sobre a jogada descrita — um exercício
+     sorteado do catálogo (ex.: um MV qualquer pro estágio) é genérico
+     por definição, porque foi escrito antes de existir essa jogada.
+     Por isso as 3 primeiras etapas (pernas/intensidade/técnica) e os
+     textos das etapas 4-7 vêm prontos de fora (gerarJogadaComIA, em
+     TelaPlano, que chama a IA e cria exercícios novos específicos
+     dessa jogada antes de montar o plano) — esta função só monta a
+     estrutura, nunca inventa conteúdo genérico pro programa aberto. */
+  let pernas = null, intensidade = null, tecnica = null, etapasJogada = null;
   if (prog.aberto) {
-    [pernas] = sorteia(exerciciosParaSorteio().filter((e) => e.f === "MV" && temEstagio(e)), new Set(), 1);
-    [intensidade] = sorteia(exerciciosParaSorteio().filter((e) => e.f === "CF" && temEstagio(e)), new Set(), 1);
-    [tecnica] = sorteia(exerciciosParaSorteio().filter((e) => (e.f === "FB" || e.f === "DC") && temEstagio(e)), new Set(), 1);
+    const ex3 = opcoes.exerciciosJogada;
+    if (!ex3 || ex3.length !== 3)
+      throw new Error("Gere os exercícios específicos dessa jogada (com IA) antes de montar o programa.");
+    [pernas, intensidade, tecnica] = ex3;
+    etapasJogada = opcoes.etapasJogada || {};
   }
 
   const aulas = [];
@@ -4374,13 +4375,13 @@ function gerarPlanoDePrograma(programaId, alvo, opcoes) {
       aulas.push({
         t: prog.nome + " — aula " + (i + 1),
         d: "Jogada observada deste atleta: " + padraoTatico + "\n\n" +
-          "1 · Pernas e movimentação" + (pernas ? " (" + pernas.n + "): " + pernas.m : "") + "\n" +
-          "2 · Intensidade de movimentação" + (intensidade ? " (" + intensidade.n + "): " + intensidade.m : "") + "\n" +
-          "3 · Técnica de membros superiores, ajustada pra essa jogada" + (tecnica ? " (" + tecnica.n + "): " + tecnica.m : "") + "\n" +
-          "4 · Bola morta perto do jogador: divida a jogada em etapas (entrada, construção, finalização) e alimente cada etapa isoladamente, de perto.\n" +
-          "5 · Mesma progressão, agora lançada do outro lado da quadra: repita as etapas com a bola vindo de mais longe, como na jogada real.\n" +
-          "6 · Jogada inteira: junte as etapas num único drill contínuo, do início ao fim da jogada.\n" +
-          "7 · Situação real: pontos de verdade cobrando a jogada inteira, sem alimentação.\n\n" +
+          "1 · Pernas e movimentação (" + pernas.n + "): " + pernas.m + "\n" +
+          "2 · Intensidade de movimentação (" + intensidade.n + "): " + intensidade.m + "\n" +
+          "3 · Técnica de membros superiores, ajustada pra essa jogada (" + tecnica.n + "): " + tecnica.m + "\n" +
+          "4 · Bola morta perto do jogador: " + (etapasJogada.bolaMorta || "divida a jogada em etapas e alimente cada uma isoladamente, de perto.") + "\n" +
+          "5 · Mesma progressão, agora lançada do outro lado da quadra: " + (etapasJogada.outroLado || "repita as etapas com a bola vindo de mais longe, como na jogada real.") + "\n" +
+          "6 · Jogada inteira: " + (etapasJogada.completa || "junte as etapas num único drill contínuo, do início ao fim da jogada.") + "\n" +
+          "7 · Situação real: " + (etapasJogada.situacaoReal || "pontos de verdade cobrando a jogada inteira, sem alimentação.") + "\n\n" +
           "Durante o drill, corrija apoio, terminação e contato — é aí que o treinador precisa estar atento.",
         ex: [pernas, intensidade, tecnica].filter(Boolean).map((e) => e.c),
       });
@@ -4412,6 +4413,54 @@ function gerarPlanoDePrograma(programaId, alvo, opcoes) {
     }],
     observacao: [],
   }, estagiosAlvo);
+}
+
+/* Prompt da IA que cria os 3 exercícios (pernas/intensidade/técnica) e
+   os 4 textos de etapa (bola morta/outro lado/completa/situação real)
+   ESPECÍFICOS da jogada que o treinador descreveu — usado só pelo
+   programa "Tático Avançado" (aberto), em gerarJogadaComIA (TelaPlano).
+   Pedir pro modelo criar exercício NOVO em vez de escolher do catálogo
+   é intencional: um exercício do catálogo foi escrito antes de existir
+   essa jogada, então por definição não é sobre ela. */
+function promptJogadaTatica(padraoTatico, estagiosAlvo, eTurma) {
+  return [
+    "Você é assistente de planejamento de tênis de um app de gestão de treino.",
+    "O treinador descreveu a jogada tática que " + (eTurma ? "o grupo" : "o jogador") + " mais repete em pontos reais:",
+    "",
+    "\"" + padraoTatico + "\"",
+    "",
+    "Crie um treino ESPECÍFICO pra essa jogada exata — não um treino genérico de tênis, nem um",
+    "exercício padrão de catálogo reaproveitado. Precisa de:",
+    "",
+    "1) TRÊS exercícios NOVOS, cada um atacando um aspecto da MESMA jogada descrita acima:",
+    "   - papel \"pernas\": o padrão de apoios e deslocamento que ESSA jogada específica exige",
+    "   - papel \"intensidade\": a mesma movimentação da jogada, agora em ritmo/carga de jogo",
+    "   - papel \"tecnica\": o ajuste de braço/empunhadura/contato que essa jogada específica pede",
+    "",
+    "2) QUATRO textos curtos (2 a 4 frases cada), citando a entrada, a construção e a finalização",
+    "   da JOGADA DESCRITA (nunca um exemplo genérico de tênis):",
+    "   - bolaMorta: como alimentar essa jogada em bola morta, de perto, dividida em etapas",
+    "   - outroLado: a mesma progressão de etapas, lançada do outro lado da quadra",
+    "   - completa: a jogada inteira, contínua, do início ao fim",
+    "   - situacaoReal: pontos de verdade cobrando essa jogada completa",
+    "",
+    "Devolva APENAS um JSON válido, sem texto antes ou depois, sem crases, neste formato:",
+    JSON.stringify({
+      exercicios: [
+        { papel: "pernas", n: "nome curto", m: "como fazer: execução e objetivo", g: "série/tempo", r: "versão mais simples (regressão)", p: "progressão", x: "o que o treinador observa", i: "erro comum a evitar" },
+        { papel: "intensidade", n: "...", m: "...", g: "...", r: "...", p: "...", x: "...", i: "..." },
+        { papel: "tecnica", n: "...", m: "...", g: "...", r: "...", p: "...", x: "...", i: "..." },
+      ],
+      etapas: { bolaMorta: "...", outroLado: "...", completa: "...", situacaoReal: "..." },
+    }),
+    "",
+    "REGRAS:",
+    "· todo texto precisa referenciar concretamente a jogada descrita — se um exercício ou etapa",
+    "  faria sentido pra qualquer jogada de tênis, está genérico demais e precisa ser reescrito.",
+    "· nunca inclua nome de jogador, time ou qualquer dado pessoal — só a jogada tática em si.",
+    "· estágio do jogador: " + estagiosAlvo.join(", ") + " — calibre a dificuldade pra isso.",
+    "· português do Brasil, direto, sem floreio, sem markdown.",
+  ].join("\n");
 }
 
 /* Textos do cartão de "Programas prontos" (nível/abrangência/conteúdo),
@@ -8568,7 +8617,7 @@ function CardAulaChecklist({ id, indice, titulo, descricao, selo, qtdExercicios,
     </div>
   );
 }
-function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas, modo = "resumo", papelAtual, uidAtual, identidade, setSubaba, aoAcessarFicha }) {
+function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas, modo = "resumo", papelAtual, uidAtual, identidade, setSubaba, aoAcessarFicha, exerciciosCustom, setExerciciosCustom }) {
   const eTurma = !!turma;
   const entidade = eTurma ? turma : aluno;
   const podeEditar = eTurma ? podeEditarTurma(turma, papelAtual, uidAtual) : podeEditarAluno(aluno, papelAtual, uidAtual);
@@ -8736,7 +8785,11 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
 
   /* Programas prontos não dependem de IA nem de rede — monta na hora,
      com exercícios reais do catálogo, e cai no mesmo cartão de revisão
-     ("Usar este plano") que o plano de IA já usa. */
+     ("Usar este plano") que o plano de IA já usa. ÚNICA exceção: o
+     programa aberto ("tatico_avancado"), que precisa de exercícios de
+     verdade sobre a jogada que o treinador descreveu — isso só a IA
+     resolve (ver gerarJogadaComIA abaixo), então esta função nunca é
+     chamada pra esse programa. */
   function gerarDoPrograma() {
     setErroPrograma("");
     try {
@@ -8751,6 +8804,70 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
       setPadraoObservado("");
     } catch (e) {
       setErroPrograma(String(e.message || e));
+    }
+  }
+
+  /* O programa "Tático Avançado" (aberto) não sorteia exercício do
+     catálogo — pede pra IA criar 3 exercícios novos (pernas,
+     intensidade, técnica) e 4 textos de etapa específicos da jogada
+     que o treinador descreveu (ver promptJogadaTatica). Os exercícios
+     novos entram na biblioteca da academia (exerciciosCustom) como
+     qualquer exercício cadastrado à mão — ficam lá, editáveis, mesmo
+     depois desse plano. setCatalogoCustom() é chamado direto (além do
+     setExerciciosCustom, que persiste) porque TODOS_EXERCICIOS() só
+     reflete o estado React no próximo render — sem isso,
+     validarPlanoJSON (chamado ainda dentro desta função) rejeitaria
+     os códigos recém-criados como "inexistentes no catálogo". */
+  async function gerarJogadaComIA() {
+    const minhaGeracao = ++geracaoAtual.current;
+    const aindaVale = () => geracaoAtual.current === minhaGeracao;
+    setErroPrograma(""); setGerando(true); setEtapaIA("Preparando o pedido");
+    try {
+      const estagiosAlvo = eTurma ? [...new Set(membros.map((m) => m.estagio))] : [aluno.estagio];
+      const prompt = promptJogadaTatica(padraoObservado.trim(), estagiosAlvo, eTurma);
+      let t = (await chamarIA(prompt, 4000, (et) => { if (aindaVale()) setEtapaIA(et); })).trim();
+      if (!aindaVale()) return;
+      setEtapaIA("Conferindo os exercícios que voltaram");
+      t = t.replace(/^```(json)?/i, "").replace(/```$/, "").trim();
+      const i = t.indexOf("{");
+      if (i > 0) t = t.slice(i);
+      let json;
+      try {
+        json = JSON.parse(t);
+      } catch (e) {
+        throw new Error("A IA devolveu um texto que não é um JSON válido (" + (e.message || e) + "). Tente gerar de novo.");
+      }
+      if (!Array.isArray(json.exercicios) || json.exercicios.length !== 3)
+        throw new Error("A IA não devolveu os 3 exercícios esperados (pernas, intensidade, técnica). Tente gerar de novo.");
+      const familiaPorPapel = { pernas: "MV", intensidade: "CF", tecnica: "FB" };
+      const agora = Date.now().toString(36).toUpperCase();
+      const novos = json.exercicios.map((e, idx) => ({
+        c: "CUSTOM-" + agora + "-" + idx,
+        n: (e.n || "Exercício da jogada").toString().trim(),
+        f: familiaPorPapel[e.papel] || "FB",
+        e: estagiosAlvo,
+        m: (e.m || "").toString().trim(),
+        g: (e.g || "").toString().trim(),
+        r: (e.r || "").toString().trim(),
+        p: (e.p || "").toString().trim(),
+        x: (e.x || "").toString().trim(),
+        i: (e.i || "").toString().trim(),
+        o: "", v: 0, custom: true,
+      }));
+      const etapasJogada = json.etapas && typeof json.etapas === "object" ? json.etapas : {};
+      setCatalogoCustom([...EXERCICIOS_CUSTOM, ...novos]);
+      const alvoPrograma = eTurma ? { estagios: estagiosAlvo } : aluno;
+      const planoGerado = gerarPlanoDePrograma(programaEscolhido, alvoPrograma, {
+        padraoTatico: padraoObservado, exerciciosJogada: novos, etapasJogada,
+      });
+      setExerciciosCustom([...exerciciosCustom, ...novos]);
+      setPlanoCandidato(planoGerado);
+      setProgramaEscolhido(null);
+      setPadraoObservado("");
+    } catch (e) {
+      if (aindaVale()) setErroPrograma(String(e.message || e));
+    } finally {
+      if (aindaVale()) { setGerando(false); setEtapaIA(""); }
     }
   }
 
@@ -9252,7 +9369,16 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                 </div>
               )}
               {erroPrograma && <Aviso>{erroPrograma}</Aviso>}
-              <Botao variante="saibro" disabled={!podeEditar || (programaAtual.aberto && !padraoObservado.trim())} onClick={gerarDoPrograma}>Revisar programa</Botao>
+              {programaAtual.aberto ? (
+                <>
+                  <Botao variante="saibro" disabled={!podeEditar || !padraoObservado.trim() || gerando} onClick={gerarJogadaComIA}>
+                    {gerando ? "Criando os exercícios da jogada…" : "Gerar exercícios com IA"}
+                  </Botao>
+                  {gerando && <BarraProgresso segundos={segundosIA} etapa={etapaIA} estimativa={30} aoCancelar={pararDeEsperar} />}
+                </>
+              ) : (
+                <Botao variante="saibro" disabled={!podeEditar} onClick={gerarDoPrograma}>Revisar programa</Botao>
+              )}
             </div>
           )}
         </Secao>}
@@ -11284,11 +11410,11 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
       </div>
 
       {subaba === "plano" ? (
-        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} alunos={alunos} setAlunos={setAlunos} modo="resumo" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} />
+        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} alunos={alunos} setAlunos={setAlunos} modo="resumo" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} />
       ) : subaba === "aulas" ? (
-        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} />
+        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} />
       ) : subaba === "fechamento" ? (
-        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} alunos={alunos} setAlunos={setAlunos} modo="fechamento" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} />
+        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} alunos={alunos} setAlunos={setAlunos} modo="fechamento" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} />
       ) : subaba === "scout" ? (
         <TelaScoutTurma membros={membros} alunos={alunos} setAlunos={setAlunos} />
       ) : (
@@ -13453,9 +13579,9 @@ function App() {
             })()}
             {subaba === "ficha" ? <TelaFicha aluno={aberto} salvar={salvar} papelAtual={papelAtual} uidAtual={uidAtual}
                 etapaAlvo={etapaFichaAlvo} aoConsumirEtapaAlvo={() => setEtapaFichaAlvo(null)} aoMudarEditando={setEditandoFicha} /> :
-             subaba === "plano" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="resumo" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} /> :
-             subaba === "aulas" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} /> :
-             subaba === "fechamento" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="fechamento" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} /> :
+             subaba === "plano" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="resumo" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
+             subaba === "aulas" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
+             subaba === "fechamento" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="fechamento" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
              subaba === "periodizacao" ? <TelaPeriodizacao aluno={aberto} aoCriarPeriodo={() => { setEtapaFichaAlvo(2); setSubaba("ficha"); }} /> :
              subaba === "scout" ? <TelaScout aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
              subaba === "registro" ? <TelaRegistro aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade} /> :
