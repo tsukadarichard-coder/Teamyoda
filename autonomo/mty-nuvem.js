@@ -123,6 +123,28 @@ const MTY = (function () {
     try { window.posthog.capture(nome); } catch (e) {}
   }
 
+  /* ── identificação da conta, pro painel de uso ──
+     Liga os eventos acima a uma pessoa ESTÁVEL no PostHog (a orgId —
+     nunca o nome, e-mail ou qualquer dado de jogador), pra dar: quais
+     contas estão ativas e quando cada uma logou por último (Persons,
+     automático), o funil completo por conta em vez de por navegador
+     avulso, e o volume de uso por conta (contagem de jogador_criado/
+     plano_salvo/aula_registrada ao longo do tempo). Chamada de dentro
+     de organizacao(), que já roda em todo lugar que precisa saber a
+     organização — assim pega o primeiro momento em que org e PostHog
+     estiverem prontos, sem depender de ordem de carregamento. */
+  let orgIdentificado = null;
+  function identificarOrg(org) {
+    if (!org || !posthogPronto || typeof window.posthog === "undefined") return;
+    if (orgIdentificado === org) return;
+    const primeira = !orgIdentificado;
+    try {
+      window.posthog.identify(org);
+      if (primeira) window.posthog.capture("login");
+      orgIdentificado = org;
+    } catch (e) {}
+  }
+
   function apelido(nome) {
     return (nome || "sem-nome").toLowerCase()
       .normalize("NFD").replace(/[̀-ͯ]/g, "")
@@ -150,10 +172,11 @@ const MTY = (function () {
 
   async function organizacao() {
     if (!auth || !auth.currentUser) return null;
-    if (claimsCache && claimsCache.orgId) return claimsCache.orgId;
+    if (claimsCache && claimsCache.orgId) { identificarOrg(claimsCache.orgId); return claimsCache.orgId; }
     try {
       const tok = await auth.currentUser.getIdTokenResult();
       claimsCache = tok.claims || {};
+      if (claimsCache.orgId) identificarOrg(claimsCache.orgId);
       return claimsCache.orgId || null;
     } catch (e) {
       return null;
