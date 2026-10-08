@@ -540,7 +540,7 @@ function registrosDaTurma(turma, membros) {
    paga; hoje é controlado manualmente pelo Richard, sem cobrança
    automática — quando vence, o app para de aceitar novos jogadores até
    ele atualizar a data. */
-const LIMITE_ALUNOS_GRATIS = 5;
+const LIMITE_ALUNOS_GRATIS = 3;
 const LIMITES_POR_PLANO = { gratis: LIMITE_ALUNOS_GRATIS, essencial: 30, premium: null };
 const NOMES_PLANO = { gratis: "Plano grátis", essencial: "Plano Essencial", premium: "Plano Premium" };
 function limiteDeAlunos(plano) {
@@ -11106,7 +11106,7 @@ const FAQ_QUADRALAB = [
   { p: "Para quem é o QuadraLab?",
     r: "Para o professor de tênis autônomo — quem dá aulas particulares e organiza sozinho a própria agenda, as fichas dos alunos e o planejamento das aulas." },
   { p: "Como começo a usar?",
-    r: "Crie sua conta gratuita, cadastre até 5 jogadores e preencha a ficha de cada um. A partir da ficha, a plataforma já ajuda a montar o primeiro planejamento." },
+    r: "Crie sua conta gratuita, cadastre até 3 jogadores e preencha a ficha de cada um. A partir da ficha, a plataforma já ajuda a montar o primeiro planejamento." },
   { p: "Posso editar os exercícios e o planejamento?",
     r: "Sim. Você pode trocar, adicionar ou remover exercícios da sessão e ajustar o planejamento quando quiser — nada fica travado." },
   { p: "Como funciona o apoio da IA?",
@@ -11116,7 +11116,7 @@ const FAQ_QUADRALAB = [
   { p: "Preciso instalar alguma coisa?",
     r: "Não. Funciona direto no navegador. Se quiser, dá pra adicionar um atalho na tela de início do celular, mas isso é só conveniência — não é obrigatório pra usar." },
   { p: "Quais são as condições de acesso?",
-    r: "Hoje o acesso é gratuito para até 5 jogadores, sem prazo para experimentar. Outras condições de acesso ainda não estão definidas." },
+    r: "O plano gratuito cobre até 3 jogadores, sem prazo para experimentar. Pra mais jogadores, o Essencial libera até 30 (R$ 29,90/mês) e o Premium libera ilimitado (R$ 59,90/mês)." },
 ];
 
 function FaqItem({ pergunta, resposta }) {
