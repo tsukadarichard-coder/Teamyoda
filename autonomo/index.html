@@ -359,11 +359,22 @@ function TODOS_EXERCICIOS() {
    só o sorteio automático usa este filtro. */
 function exerciciosParaSorteio() { return TODOS_EXERCICIOS().filter((e) => !e.semBola); }
 /* Aquecimento é sem bola por definição — o corpo entra em movimento antes
-   de qualquer troca. O catálogo só tem 5 exercícios marcados semBola:true
-   (ver linha ~296), então aqui NÃO filtra por família de bloco como o
-   sorteio de conteúdo faz — com um pool tão pequeno, cruzar com família
-   deixaria estágios inteiros sem opção nenhuma pra sortear. */
+   de qualquer troca. O catálogo só tem 18 exercícios marcados
+   semBola:true (ver linha ~296), então aqui NÃO filtra por família de
+   bloco como o sorteio de conteúdo faz — com um pool tão pequeno, cruzar
+   com família deixaria estágios inteiros sem opção nenhuma pra sortear. */
 function exerciciosSemBola() { return TODOS_EXERCICIOS().filter((e) => e.semBola); }
+/* Pedido explícito: o sorteio do aquecimento passa a incluir a família
+   inteira de Movimentação (MV) — footwork e deslocamento, parte deles
+   com bola alimentada pelo treinador — além do que já era semBola. As
+   outras famílias (CO/CF com elástico, medicine ball etc.) continuam de
+   fora: só MV se soma ao que já entrava. */
+function exerciciosAquecimento() {
+  const semBola = exerciciosSemBola();
+  const vistos = new Set(semBola.map((e) => e.c));
+  const mv = TODOS_EXERCICIOS().filter((e) => e.f === "MV" && !vistos.has(e.c));
+  return [...semBola, ...mv];
+}
 
 /* ─────────────────────────── identidade ─────────────────────────── */
 const C = {
@@ -2135,7 +2146,11 @@ function statusTrilha(f) {
 function resumoNivel(x) {
   const st = statusTrilha(x);
   if (!st) return null;
-  const pendente = st.feitos === 0;
+  /* x.nivelAvaliado só existe (e só vale false) quando o nível veio de
+     um atalho que pula o checklist — a sugestão por IA (ver
+     SugestaoClassificacao.aplicar). Sem isso, feitos===0 já cobre o
+     caso comum de "ninguém marcou nada ainda". */
+  const pendente = st.feitos === 0 || x.nivelAvaliado === false;
   return {
     st, pendente,
     textoNivel: pendente ? "Avaliação pendente" : "Nível " + nomeNivel(st.atual.nivelSugerido),
@@ -3175,7 +3190,7 @@ function CartaoConducao() {
   return (
     <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, padding: "12px 15px" }}>
       <button onClick={() => setAberto(!aberto)} className="w-full flex items-center justify-between gap-3" style={{ cursor: "pointer" }}>
-        <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>Cartão de bolso · condução por formato</span>
+        <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>Guia de condução da turma</span>
         <Etiqueta>{aberto ? "fechar" : "abrir"}</Etiqueta>
       </button>
       {aberto && (
@@ -3304,6 +3319,11 @@ function TrilhaClassificacao({ f, set }) {
   }
   const tudoCompleto = lista.every(completoNaCategoria);
   const nivelFinal = nivelAlcancado || lista[0].nivelSugerido;
+  /* Diferente de "tem nível" — isto é "o nível bate com o que o
+     questionário abaixo realmente confirma". Fica false enquanto nem o
+     primeiro degrau foi concluído (nivelFinal está caindo no default
+     lista[0], não numa conclusão de verdade). */
+  const nivelConfirmadoPorCriterios = nivelAlcancado !== null;
 
   /* O Nível (Y1–Y6) não existe como escolha manual em lugar nenhum da
      ficha — é sempre o resultado do questionário acima, sincronizado
@@ -3311,7 +3331,8 @@ function TrilhaClassificacao({ f, set }) {
   useEffect(() => {
     if (nivelFinal && f.nivel !== nivelFinal) set("nivel", nivelFinal);
     if (f.categoria !== categoriaAtual) set("categoria", categoriaAtual);
-  }, [categoriaAtual, nivelFinal]);
+    if (!!f.nivelAvaliado !== nivelConfirmadoPorCriterios) set("nivelAvaliado", nivelConfirmadoPorCriterios);
+  }, [categoriaAtual, nivelFinal, nivelConfirmadoPorCriterios]);
 
   return (
     <div className="mb-5">
@@ -3429,7 +3450,7 @@ function EditorExercicio({ ex, aoSalvar, aoCancelar }) {
   );
 }
 
-function CartaoExercicio({ e, aoTrocar, aoRemover, aoAtualizar, exerciciosCustom, setExerciciosCustom, duracaoMin, aoMudarDuracao, aoMoverCima, aoMoverBaixo }) {
+function CartaoExercicio({ e, aoTrocar, aoRemover, aoAtualizar, exerciciosCustom, setExerciciosCustom, duracaoMin, aoMudarDuracao, aoMoverCima, aoMoverBaixo, aoAlternarFeito, proximo }) {
   const [aberto, setAberto] = useState(false);
   const [editando, setEditando] = useState(false);
   const podeEditar = !!(exerciciosCustom && setExerciciosCustom);
@@ -3442,10 +3463,13 @@ function CartaoExercicio({ e, aoTrocar, aoRemover, aoAtualizar, exerciciosCustom
     setEditando(false);
   }
   return (
-    <div style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderLeft: "3px solid " + (e.v ? C.quadra : C.saibro), borderRadius: 10, padding: "11px 13px", marginBottom: 7 }}>
+    <div style={{ background: e.feito ? C.papel : C.cal, opacity: e.feito ? 0.6 : 1,
+      border: "1px solid " + (proximo ? C.saibro : C.linha), borderWidth: proximo ? 2 : 1,
+      boxShadow: SOMBRA, borderLeft: "3px solid " + (e.feito ? C.grafite : e.v ? C.quadra : C.saibro), borderRadius: 10, padding: "11px 13px", marginBottom: 7 }}>
+      {proximo && <div className="mb-1"><Etiqueta cor={C.saibro}>Próximo</Etiqueta></div>}
       <div className="flex items-start justify-between gap-3">
         <button onClick={() => setAberto(!aberto)} aria-expanded={aberto} className="text-left flex-1">
-          <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{e.n}</div>
+          <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, textDecoration: e.feito ? "line-through" : "none" }}>{e.n}</div>
           {e.o && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>{e.o}</p>}
           <div className="flex items-center gap-2 flex-wrap mt-1">
             {duracaoMin != null && <Etiqueta>{duracaoMin} min</Etiqueta>}
@@ -3458,8 +3482,12 @@ function CartaoExercicio({ e, aoTrocar, aoRemover, aoAtualizar, exerciciosCustom
             {aberto ? "Ocultar execução" : "Ver execução"}
           </span>
         </button>
-        {(aoMoverCima || aoMoverBaixo || aoTrocar || aoRemover || podeEditar) && (
+        {(aoMoverCima || aoMoverBaixo || aoTrocar || aoRemover || aoAlternarFeito || podeEditar) && (
           <div className="flex gap-1 shrink-0 flex-wrap justify-end" style={{ maxWidth: 96 }}>
+            {aoAlternarFeito && (
+              <button onClick={aoAlternarFeito} aria-label={e.feito ? "Desmarcar como feito" : "Marcar como feito"} title={e.feito ? "Feito" : "Marcar feito"}
+                style={{ ...iconeEstilo, background: e.feito ? C.quadra : C.papel, color: e.feito ? "#fff" : C.grafite, borderColor: e.feito ? C.quadra : C.linha }}>✓</button>
+            )}
             {aoMoverCima && <button onClick={aoMoverCima} aria-label="Mover exercício pra cima" title="Mover pra cima" style={iconeEstilo}>↑</button>}
             {aoMoverBaixo && <button onClick={aoMoverBaixo} aria-label="Mover exercício pra baixo" title="Mover pra baixo" style={iconeEstilo}>↓</button>}
             {aoTrocar && <button onClick={aoTrocar} aria-label="Substituir exercício" title="Substituir" style={iconeEstilo}>↻</button>}
@@ -4119,9 +4147,48 @@ function indiceParaEstagios(estagios) {
     f + " (" + (FAM[f] || f) + "): " + porFam[f].join(" · ")).join("\n");
 }
 
+/* As quatro áreas que são golpe/fundamento, não leitura de jogo nem
+   físico/mental — onde "foco técnico" tem um sentido concreto: um golpe
+   específico que precisa de correção. */
+const AREAS_TECNICAS = ["saque", "devolucao", "fundo", "rede"];
+
+/* Mesma garantia que o programa pronto "Correção Técnica" já fazia só
+   para si mesmo (poolPrincipal por área + fallback genérico) — aqui vale
+   pra QUALQUER plano (IA, colado, ou outro programa pronto) que tenha um
+   bloco de área técnica: sem isso, o bloco podia ficar só com exercícios
+   de leitura/tática que a IA (ou o texto colado) escolheu, sem nenhum
+   drill de correção pontual do próprio golpe — exatamente o que define
+   um bloco técnico. Não sorteia de novo a cada aula: só completa o que
+   já está montado, uma vez, se faltar. */
+function garantirCorrecaoTecnica(blocos, estagiosAlvo) {
+  if (!estagiosAlvo || !estagiosAlvo.length) return;
+  const temEstagio = (e) => e.e.some((s) => estagiosAlvo.includes(s));
+  (blocos || []).forEach((b) => {
+    if (!AREAS_TECNICAS.includes(b.areaFoco)) return;
+    const area = AREAS[b.areaFoco];
+    if (!area) return;
+    (b.semanasLista || []).forEach((sem) => (sem.aulas || []).forEach((au) => {
+      au.ex = au.ex || [];
+      const jaTemCorrecao = au.ex.some((c) => {
+        const ex = TODOS_EXERCICIOS().find((e) => e.c === c);
+        return ex && (ex.f === "FB" || ex.f === "DC");
+      });
+      if (jaTemCorrecao) return;
+      const poolEspecifico = exerciciosParaSorteio().filter((e) =>
+        temEstagio(e) && (e.f === "FB" || e.f === "DC") && area.busca.test(e.n + " " + e.m));
+      const poolGenerico = exerciciosParaSorteio().filter((e) => temEstagio(e) && (e.f === "FB" || e.f === "DC"));
+      const [escolhido] = sorteia(poolEspecifico.length ? poolEspecifico : poolGenerico, new Set(), 1);
+      if (escolhido) au.ex.push(escolhido.c);
+    }));
+  });
+}
+
 /* Validação de um plano recém-gerado ou colado — compartilhada entre o
-   plano individual e o plano de turma, já que a forma do JSON é a mesma. */
-function validarPlanoJSON(alvo) {
+   plano individual e o plano de turma, já que a forma do JSON é a mesma.
+   estagiosAlvo é opcional: só quem chama sabendo o(s) estágio(s) do
+   jogador/turma consegue acionar a garantia de correção técnica acima;
+   sem ele, a validação segue igual a sempre. */
+function validarPlanoJSON(alvo, estagiosAlvo) {
   if (!alvo.blocos || !alvo.blocos.length) throw new Error("Não encontrei os blocos do plano.");
   const ruins = [];
   alvo.blocos.forEach((b) => (b.semanasLista || []).forEach((sem) =>
@@ -4132,6 +4199,7 @@ function validarPlanoJSON(alvo) {
     throw new Error("Códigos que não existem no catálogo: " + [...new Set(ruins)].join(", "));
   const raizes = (alvo.cadeia || []).filter((c) => c.raiz).length;
   if (raizes > 1) throw new Error("O plano marcou " + raizes + " camadas como origem. Só pode haver uma.");
+  garantirCorrecaoTecnica(alvo.blocos, estagiosAlvo);
   return alvo;
 }
 
@@ -4200,7 +4268,7 @@ const PROGRAMAS_PRONTOS = [
    complementos (rede/saque/pontos) ficam como sugestão no texto da
    aula, não entram automaticamente — o treinador adiciona com
    "+ Adicionar exercício do catálogo" se quiser. */
-function gerarPlanoDePrograma(programaId, aluno, opcoes) {
+function gerarPlanoDePrograma(programaId, alvo, opcoes) {
   opcoes = opcoes || {};
   const prog = PROGRAMAS_PRONTOS.find((p) => p.id === programaId);
   if (!prog) throw new Error("Programa não encontrado.");
@@ -4208,7 +4276,13 @@ function gerarPlanoDePrograma(programaId, aluno, opcoes) {
   if (prog.areasDisponiveis && !prog.areasDisponiveis.includes(areaFoco))
     throw new Error("Escolha um golpe/área válido para este programa.");
   const area = AREAS[areaFoco];
-  const estagio = aluno.estagio;
+  /* `alvo` é um jogador (tem .estagio) ou uma turma (tem .estagios — a
+     união dos estágios de todo mundo do grupo, igual a sessão de turma
+     já calcula pro sorteio do dia). O filtro usa "some" pra cobrir os
+     dois casos com o mesmo código: um exercício entra se servir a
+     QUALQUER um dos estágios do alvo. */
+  const estagiosAlvo = alvo.estagios || [alvo.estagio];
+  const temEstagio = (e) => e.e.some((s) => estagiosAlvo.includes(s));
   const NUM_AULAS = 4;
 
   const textoComplementos = prog.categoria === "duplas"
@@ -4227,12 +4301,12 @@ function gerarPlanoDePrograma(programaId, aluno, opcoes) {
        realmente decidir qual exercício entra — por busca de texto
        (area.busca), não só pela família genérica FB/DC. Sem isso,
        trocar de área não mudava nada na aula. */
-    const poolPrincipal = exerciciosParaSorteio().filter((e) => e.e.includes(estagio) && prog.nucleoFamilias.includes(e.f) && area.busca.test(e.n + " " + e.m));
+    const poolPrincipal = exerciciosParaSorteio().filter((e) => temEstagio(e) && prog.nucleoFamilias.includes(e.f) && area.busca.test(e.n + " " + e.m));
     const [principal] = sorteia(poolPrincipal.length ? poolPrincipal
-      : exerciciosParaSorteio().filter((e) => e.e.includes(estagio) && prog.nucleoFamilias.includes(e.f)), new Set(), 1);
-    const poolFechamento = exerciciosParaSorteio().filter((e) => e.e.includes(estagio) && e.f === "DC" && area.busca.test(e.n + " " + e.m));
+      : exerciciosParaSorteio().filter((e) => temEstagio(e) && prog.nucleoFamilias.includes(e.f)), new Set(), 1);
+    const poolFechamento = exerciciosParaSorteio().filter((e) => temEstagio(e) && e.f === "DC" && area.busca.test(e.n + " " + e.m));
     const [fechamento] = sorteia(poolFechamento.length ? poolFechamento
-      : exerciciosParaSorteio().filter((e) => e.e.includes(estagio) && e.f === "DC"), new Set(principal ? [principal.c] : []), 1);
+      : exerciciosParaSorteio().filter((e) => temEstagio(e) && e.f === "DC"), new Set(principal ? [principal.c] : []), 1);
     nucleo = [principal, fechamento].filter(Boolean);
     /* As 3 etapas que o treinador descreveu (bola morta → cesto do
        outro lado → bate-bola de fundo) viram o texto da aula, usando
@@ -4245,7 +4319,7 @@ function gerarPlanoDePrograma(programaId, aluno, opcoes) {
         "3 · Bate-bola de fundo (5-10 min): " + (fechamento ? fechamento.m : "consolide o mesmo aspecto em troca viva de fundo.");
     }
   } else if (!prog.aberto) {
-    const poolNucleo = exerciciosParaSorteio().filter((e) => prog.nucleoFamilias.includes(e.f) && e.e.includes(estagio)
+    const poolNucleo = exerciciosParaSorteio().filter((e) => prog.nucleoFamilias.includes(e.f) && temEstagio(e)
       && (e.nivel === undefined || e.nivel === prog.nivel));
     nucleo = sorteia(poolNucleo, new Set(), Math.min(3, poolNucleo.length || 3));
   }
@@ -4265,7 +4339,7 @@ function gerarPlanoDePrograma(programaId, aluno, opcoes) {
       });
       continue;
     }
-    const aquecimento = sorteia(exerciciosSemBola().filter((e) => e.e.includes(estagio)), evitarAquecimento, 2);
+    const aquecimento = sorteia(exerciciosAquecimento().filter(temEstagio), evitarAquecimento, 2);
     aquecimento.forEach((e) => evitarAquecimento.add(e.c));
     const descricao = estrutura3Passos
       ? estrutura3Passos + "\n\n" + textoComplementos
@@ -4290,7 +4364,32 @@ function gerarPlanoDePrograma(programaId, aluno, opcoes) {
       semanasLista: aulas.map((au, i) => ({ n: i + 1, foco: prog.nome, carga: "moderada", aulas: [au] })),
     }],
     observacao: [],
-  });
+  }, estagiosAlvo);
+}
+
+/* Textos do cartão de "Programas prontos" (nível/abrangência/conteúdo),
+   derivados dos campos que o programa já tem — nunca inventando
+   quantidade de aulas, duração ou compatibilidade que não estejam
+   codificadas em gerarPlanoDePrograma. Todo programa não-aberto gera
+   sempre 4 aulas em ciclo contínuo (ver NUM_AULAS ali); o aberto não
+   gera exercício nenhum, só o roteiro da aula. */
+function rotuloNivelPrograma(p) {
+  return p.nivel ? p.nivel.charAt(0).toUpperCase() + p.nivel.slice(1) : "Qualquer nível";
+}
+function rotuloAbrangenciaPrograma(p) {
+  return p.aberto ? "Roteiro por aula — sem ciclo fixo" : "Ciclo contínuo · 4 aulas";
+}
+function rotuloConteudoPrograma(p) {
+  return p.aberto
+    ? "Sem exercício fixo do catálogo — o drill é criado por você a partir do padrão de jogo do atleta."
+    : "Exercícios reais do catálogo, escolhidos pelo estágio do jogador" + (p.areasDisponiveis ? " e pelo golpe/área que você escolher." : ".");
+}
+function detalhesPrograma(p) {
+  if (p.id === "tecnico")
+    return "A aula segue 3 passos com o mesmo exercício: bola morta perto do aluno, progressão com cesto do outro lado da rede, e bate-bola de fundo pra consolidar o mesmo aspecto técnico. Esses 3 passos se repetem nas 4 aulas do ciclo, até você confirmar o critério de saída no Fechamento.";
+  if (p.aberto)
+    return "Sem exercício fixo do catálogo — você identifica as jogadas que o atleta mais usa e monta o drill específico a partir delas, aula a aula.";
+  return "O mesmo foco de núcleo se repete nas 4 aulas do ciclo — é a repetição que consolida a correção ou o padrão tático. Revise e confirme o critério de saída no Fechamento quando o jogador mostrar domínio.";
 }
 
 /* Pedido que devolve o PLANO já no formato da aba — sem passar por conversa. */
@@ -4662,6 +4761,13 @@ function SugestaoClassificacao({ f, set }) {
     const categoriaId = categoriaPeloNivel(sugestao.estagio, sugestao.nivel);
     if (categoriaId) set("categoria", categoriaId);
     set("nivel", sugestao.nivel);
+    /* A IA lê a ficha inteira, não os critérios observados em quadra —
+       então isto NUNCA é uma avaliação de verdade, só uma hipótese de
+       trabalho. nivelAvaliado:false é o que permite a qualquer lugar
+       que mostra o nível (inclusive o link do aluno) saber que esta
+       classificação ainda não passou pelo checklist de observação em
+       quadra, em vez de tratar um palpite como se fosse confirmado. */
+    set("nivelAvaliado", false);
   }
 
   return (
@@ -5557,6 +5663,19 @@ function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual, podeEditar = true,
   const taticoResumoEmocional = pareceEmocional(a.camadas.tatico);
   const rn = resumoNivel(a);
 
+  /* Busca à parte (nunca lido junto com a lista inteira de alunos) e só
+     quando o papel é coordenador — além da regra do Firestore, isto
+     evita que o payload chegue ao navegador do treinador. */
+  const [feedbacksCoord, setFeedbacksCoord] = useState(null);
+  useEffect(() => {
+    if (papelAtual !== "coordenador") { setFeedbacksCoord(null); return; }
+    let cancelado = false;
+    leia("mty:feedbacks-coordenador:v1", {}).then((mapa) => {
+      if (!cancelado) setFeedbacksCoord((mapa || {})[a.id] || []);
+    });
+    return () => { cancelado = true; };
+  }, [papelAtual, a.id]);
+
   return (
     <div>
       {salvo && (
@@ -5689,9 +5808,9 @@ function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual, podeEditar = true,
       </>
       )}
 
-      {papelAtual === "coordenador" && (a.feedbacksAluno || []).length > 0 && (
+      {papelAtual === "coordenador" && (feedbacksCoord || []).length > 0 && (
         <Secao titulo="Feedback do aluno" nota="Enviado pelo próprio aluno, pelo link dele — só o coordenador vê este campo, o treinador não.">
-          {a.feedbacksAluno.map((f) => (
+          {feedbacksCoord.map((f) => (
             <div key={f.id} style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderLeft: "3px solid #C9A227", padding: "10px 13px", marginBottom: 7 }}>
               <Etiqueta>{new Date(f.data).toLocaleDateString("pt-BR")}</Etiqueta>
               <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>{f.texto}</p>
@@ -6119,7 +6238,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
     setDivergencias([]);
     if (aulaAtual) {
       const evitar = new Set(aluno.historico.slice(-2).flat());
-      const aquecimento = sorteia(exerciciosSemBola().filter((e) => e.e.includes(aluno.estagio)), evitar, 2);
+      const aquecimento = sorteia(exerciciosAquecimento().filter((e) => e.e.includes(aluno.estagio)), evitar, 2);
       /* !e.semBola aqui também — não só no sorteio: uma aula do Plano
          gerada ANTES desta regra (ou colada à mão) pode ter um código
          sem bola preso no ex[], e olhar só o sorteio automático não
@@ -6148,13 +6267,12 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
       BLOCOS.map((b, i) => {
         const familias = b.id === 4 ? areaCiclo.familias : b.familias;
         /* Bloco 1 é o aquecimento: tem que ser igual ao que a aula do
-           Plano já garante (exerciciosSemBola) — sem bola, sem
-           equipamento de academia, sempre possível em quadra — em vez
-           de sortear qualquer coisa das famílias CO/CF/MV, que incluem
-           exercício com bola e com equipamento (elástico, medicine
-           ball) impróprios pra abrir a aula. */
+           Plano já garante (exerciciosAquecimento) — semBola mais a
+           família Movimentação inteira — em vez de sortear qualquer
+           coisa de CO/CF, que incluem equipamento (elástico, medicine
+           ball) impróprio pra abrir a aula. */
         const pool = b.id === 1
-          ? exerciciosSemBola().filter((e) => e.e.includes(aluno.estagio))
+          ? exerciciosAquecimento().filter((e) => e.e.includes(aluno.estagio))
           : exerciciosParaSorteio().filter((e) => familias.includes(e.f) && e.e.includes(aluno.estagio));
         const min = Math.round(duracao * pesos[i]);
         let exercicios = b.id === 3 ? garanteSaqueEDevolucao(pool, evitar) : sorteia(pool, evitar, min >= 18 ? 2 : 1);
@@ -6172,7 +6290,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
       if (p.daAula) {
         const lista = p[id];
         const usados = new Set([...p.aquecimento, ...p.conteudo].map((e) => e.c));
-        const pool = (id === "aquecimento" ? exerciciosSemBola() : exerciciosParaSorteio())
+        const pool = (id === "aquecimento" ? exerciciosAquecimento() : exerciciosParaSorteio())
           .filter((e) => e.e.includes(aluno.estagio) && !usados.has(e.c));
         if (!pool.length) return p;
         const novo = pool[Math.floor(Math.random() * pool.length)];
@@ -6183,7 +6301,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
       return p.map((b) => {
         if (b.id !== id) return b;
         const usados = new Set(p.flatMap((x) => x.exercicios.map((e) => e.c)));
-        const pool = (b.id === 1 ? exerciciosSemBola() : exerciciosParaSorteio().filter((e) => b.familias.includes(e.f)))
+        const pool = (b.id === 1 ? exerciciosAquecimento() : exerciciosParaSorteio().filter((e) => b.familias.includes(e.f)))
           .filter((e) => e.e.includes(aluno.estagio) && !usados.has(e.c));
         if (!pool.length) return b;
         const novo = pool[Math.floor(Math.random() * pool.length)];
@@ -6246,6 +6364,31 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
     });
   }
 
+  /* Marcar como feito durante a execução: o exercício some da visão
+     principal (vai pro grupo recolhido "Concluídos", no fim da lista) e
+     o próximo pendente passa a ser destacado — assim o treinador olha
+     uma coisa só em quadra. Alternar de volta (clicar de novo) só tira
+     a marcação, sem tentar adivinhar a posição de origem. */
+  function marcarFeito(id, i) {
+    setPlano((p) => {
+      function moverProFim(lista) {
+        const nova = [...lista];
+        const [item] = nova.splice(i, 1);
+        nova.push({ ...item, feito: true });
+        return nova;
+      }
+      if (p.daAula) return { ...p, [id]: moverProFim(p[id]) };
+      return p.map((b) => (b.id !== id ? b : { ...b, exercicios: moverProFim(b.exercicios) }));
+    });
+  }
+  function desmarcarFeito(id, i) {
+    setPlano((p) => {
+      function tirarMarca(lista) { return lista.map((e, k) => (k === i ? { ...e, feito: false } : e)); }
+      if (p.daAula) return { ...p, [id]: tirarMarca(p[id]) };
+      return p.map((b) => (b.id !== id ? b : { ...b, exercicios: tirarMarca(b.exercicios) }));
+    });
+  }
+
   /* Duração por exercício é uma estimativa editável (nenhum exercício do
      catálogo carrega um tempo próprio) — 8 min é só o ponto de partida;
      o treinador ajusta pra refletir o que realmente leva com este grupo. */
@@ -6288,6 +6431,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
      dois casos; a ref muda na hora, sem esperar re-render. */
   async function registrar() {
     if (registrandoRef.current) return;
+    if (previaSemAprovacao) return; // defesa a mais: o botão já não aparece neste estado
     registrandoRef.current = true;
     setSalvandoRegistro(true);
     setEstadoSalvo("salvando");
@@ -6385,7 +6529,10 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
   const dentro = pctIP >= 25 && pctIP <= 35;
 
   const gateAtivo = !aulaAtual && aulaEmVigorBruta && aulaEmVigorBruta.gate;
-  const explicacaoSessao = aulaAtual
+  const previaSemAprovacao = !!(aulaAtual && aluno.plano && !aluno.plano.aprovado);
+  const explicacaoSessao = previaSemAprovacao
+    ? "É o mesmo treino que está no Plano pra esta aula — mas esse plano ainda não foi revisado e aprovado. Isto é uma pré-visualização; não vai marcar nada como feito até o plano ser aprovado."
+    : aulaAtual
     ? "É o mesmo treino que está no Plano pra esta aula — não um novo sorteio. Ao confirmar o registro no fim, isso marca essa aula como feita."
     : gateAtivo
     ? "Esta sessão não vai marcar nada no Plano enquanto o critério de saída do bloco não for confirmado — monte um treino avulso abaixo se quiser treinar hoje mesmo assim."
@@ -6409,6 +6556,9 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
           {aulaAtual ? aulaAtual.bloco + " · semana " + aulaAtual.semana : gateAtivo ? aulaEmVigorBruta.bloco : "Consulta rápida pra usar na quadra"}
         </p>
         {aulaAtual && aulaAtual.d && <p style={{ ...prosa, fontSize: 13, marginTop: 6 }}>{aulaAtual.d}</p>}
+        {previaSemAprovacao && (
+          <div className="mt-2"><Etiqueta cor={C.saibro}>Pré-visualização — plano ainda não aprovado</Etiqueta></div>
+        )}
         {gateAtivo && (
           <button onClick={() => setSubaba("aulas")} style={{ ...prosa, fontSize: 12.5, color: C.saibro, fontWeight: 700, border: "none", background: "none", cursor: "pointer", padding: 0, marginTop: 6 }}>
             Confirmar critério de saída na aba Aulas →
@@ -6458,7 +6608,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
       )}
       {!plano && (
         <div className="flex gap-2 flex-wrap items-center">
-          <Botao onClick={gerar} variante="saibro" disabled={!podeEditar}>Gerar sessão</Botao>
+          <Botao onClick={gerar} variante="saibro" disabled={!podeEditar}>{previaSemAprovacao ? "Pré-visualizar sessão" : "Gerar sessão"}</Botao>
           <Botao variante="vazio" disabled={!podeEditar} onClick={() => setChuvaMenuAberto(!chuvaMenuAberto)}>🌧️ Foi dia de chuva</Botao>
         </div>
       )}
@@ -6534,7 +6684,9 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
                       aoAtualizar={(dados) => atualizar("aquecimento", i, dados)} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom}
                       duracaoMin={minDe(e)} aoMudarDuracao={(min) => mudarDuracao("aquecimento", i, min)}
                       aoMoverCima={i > 0 ? () => mover("aquecimento", i, -1) : undefined}
-                      aoMoverBaixo={i < plano.aquecimento.length - 1 ? () => mover("aquecimento", i, 1) : undefined} />
+                      aoMoverBaixo={i < plano.aquecimento.length - 1 ? () => mover("aquecimento", i, 1) : undefined}
+                      aoAlternarFeito={() => (e.feito ? desmarcarFeito("aquecimento", i) : marcarFeito("aquecimento", i))}
+                      proximo={!e.feito && i === plano.aquecimento.findIndex((x) => !x.feito)} />
                   ))
                 )}
                 <AdicionarExercicioCatalogo
@@ -6551,7 +6703,9 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
                       aoAtualizar={(dados) => atualizar("conteudo", i, dados)} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom}
                       duracaoMin={minDe(e)} aoMudarDuracao={(min) => mudarDuracao("conteudo", i, min)}
                       aoMoverCima={i > 0 ? () => mover("conteudo", i, -1) : undefined}
-                      aoMoverBaixo={i < plano.conteudo.length - 1 ? () => mover("conteudo", i, 1) : undefined} />
+                      aoMoverBaixo={i < plano.conteudo.length - 1 ? () => mover("conteudo", i, 1) : undefined}
+                      aoAlternarFeito={() => (e.feito ? desmarcarFeito("conteudo", i) : marcarFeito("conteudo", i))}
+                      proximo={!e.feito && i === plano.conteudo.findIndex((x) => !x.feito)} />
                   ))
                 )}
                 <AdicionarExercicioCatalogo
@@ -6590,7 +6744,9 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
                       aoAtualizar={(dados) => atualizar(b.id, i, dados)} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom}
                       duracaoMin={minDe(e)} aoMudarDuracao={(min) => mudarDuracao(b.id, i, min)}
                       aoMoverCima={i > 0 ? () => mover(b.id, i, -1) : undefined}
-                      aoMoverBaixo={i < b.exercicios.length - 1 ? () => mover(b.id, i, 1) : undefined} />
+                      aoMoverBaixo={i < b.exercicios.length - 1 ? () => mover(b.id, i, 1) : undefined}
+                      aoAlternarFeito={() => (e.feito ? desmarcarFeito(b.id, i) : marcarFeito(b.id, i))}
+                      proximo={!e.feito && i === b.exercicios.findIndex((x) => !x.feito)} />
                   ))}
                   <AdicionarExercicioCatalogo
                     jaUsados={new Set(plano.flatMap((x) => x.exercicios.map((e) => e.c)))}
@@ -6746,9 +6902,21 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
                     </p>
                   )}
                   {estadoSalvo === "erro" && <Aviso>Não foi possível salvar. Tente novamente.</Aviso>}
-                  <Botao onClick={registrar} variante="saibro" disabled={salvandoRegistro}>
-                    {salvandoRegistro ? "Salvando…" : aulaAtual ? "Confirmar registro e marcar no Plano" : "Confirmar registro no caderno"}
-                  </Botao>
+                  {/* Esta sessão está presa à aula em vigor de um plano que
+                      ninguém revisou ainda — registrar aqui marcaria essa
+                      aula como realizada num plano que pode nem ser o
+                      definitivo. A pré-visualização (montar e ver a sessão)
+                      continua liberada; só a conclusão espera a aprovação. */}
+                  {previaSemAprovacao ? (
+                    <div>
+                      <Aviso>Este plano ainda não foi revisado e aprovado — esta é uma pré-visualização da sessão. Aprove o planejamento antes de registrar a aula como realizada.</Aviso>
+                      {setSubaba && <div className="mt-2"><Botao variante="vazio" onClick={() => setSubaba("plano")}>Ir para o Plano e revisar</Botao></div>}
+                    </div>
+                  ) : (
+                    <Botao onClick={registrar} variante="saibro" disabled={salvandoRegistro}>
+                      {salvandoRegistro ? "Salvando…" : aulaAtual ? "Confirmar registro e marcar no Plano" : "Confirmar registro no caderno"}
+                    </Botao>
+                  )}
                 </div>
               </div>
             </>
@@ -8284,12 +8452,28 @@ function CardAulaChecklist({ id, indice, titulo, descricao, selo, qtdExercicios,
           )}
           <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700,
             color: st === "feita" ? C.quadra : C.tinta }}>{indice} · {titulo}</div>
-          {descricao && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>{descricao}</p>}
+          {descricao && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2, whiteSpace: "pre-line" }}>{descricao}</p>}
           {!!qtdExercicios && (
             <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>
               {qtdExercicios} {qtdExercicios === 1 ? "exercício" : "exercícios"} — detalhes e trocas na Sessão de hoje
             </p>
           )}
+          {/* Espaço dissertativo do treinador — fica registrado ANTES da
+              aula acontecer (não depende de status), separado do texto
+              fixo acima. Mora em reg[id] (igual data/obs/motivo), então
+              sobrevive no histórico quando o ciclo é arquivado, e dá pra
+              reaproveitar lendo o ciclo anterior em "Ver planos
+              arquivados". Vale pra qualquer programa — correção técnica,
+              tático, duplas ou o avançado de estrutura aberta. */}
+          <div className="mt-2">
+            <label style={{ ...prosa, fontSize: 11, color: C.grafite, fontWeight: 700 }} htmlFor={"nota-treinador-" + id}>
+              O que você vai fazer nesta aula
+            </label>
+            <textarea id={"nota-treinador-" + id} rows={2} disabled={!podeEditar}
+              style={{ ...entrada, resize: "vertical", fontSize: 12.5, marginTop: 4 }}
+              placeholder="ex: corrigir o apoio do forehand, trabalhar o pop-push-open-close com o lado direito"
+              value={d.notaTreinador || ""} onChange={(e) => campo(id, "notaTreinador", e.target.value)} />
+          </div>
           {(selo === "ss" || (selo && selo.indexOf("cs:") === 0)) && (
             <div className="flex gap-1 flex-wrap mt-2">
               {selo === "ss" && <Etiqueta cor={C.saibro}>sem saque</Etiqueta>}
@@ -8337,12 +8521,11 @@ function CardAulaChecklist({ id, indice, titulo, descricao, selo, qtdExercicios,
     </div>
   );
 }
-function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas, modo = "resumo", papelAtual, uidAtual, identidade, setSubaba }) {
+function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas, modo = "resumo", papelAtual, uidAtual, identidade, setSubaba, aoAcessarFicha }) {
   const eTurma = !!turma;
   const entidade = eTurma ? turma : aluno;
   const podeEditar = eTurma ? podeEditarTurma(turma, papelAtual, uidAtual) : podeEditarAluno(aluno, papelAtual, uidAtual);
   const exigeLogin = typeof window !== "undefined" && !!window.mtyAuth;
-  const [colando, setColando] = useState(false);
   const [texto, setTexto] = useState("");
   const [erro, setErro] = useState("");
   const [gerando, setGerando] = useState(false);
@@ -8358,6 +8541,14 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
   const [programaEscolhido, setProgramaEscolhido] = useState(null);
   const [areaTecnica, setAreaTecnica] = useState("fundo");
   const [erroPrograma, setErroPrograma] = useState("");
+  /* Qual dos 3 caminhos de criação está aberto — null mostra só a
+     pergunta "como deseja preparar". Trocar de opção preserva o que já
+     foi preenchido em cada uma (são estados separados, nenhum é limpo
+     ao trocar), e nada é gerado/substituído sozinho: só quando o
+     treinador confirma dentro da opção escolhida. */
+  const [modoCriacao, setModoCriacao] = useState(null); // null | "ficha" | "programa" | "importar"
+  const [filtroCategoriaPrograma, setFiltroCategoriaPrograma] = useState("todos");
+  const [verDetalhesPrograma, setVerDetalhesPrograma] = useState(null);
   const [relatorio, setRelatorio] = useState("");
   const [relatorioCopiado, setRelatorioCopiado] = useState(false);
   const [relatorioArquivado, setRelatorioArquivado] = useState(false);
@@ -8369,6 +8560,8 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
   const [membroCopiadoId, setMembroCopiadoId] = useState(null);
   const [chuvaAberta, setChuvaAberta] = useState(null);
   const [menuAcoes, setMenuAcoes] = useState(false);
+  const [gerenciarAberto, setGerenciarAberto] = useState(false);
+  const [criteriosAbertos, setCriteriosAbertos] = useState(false);
   const [aprovando, setAprovando] = useState(false);
   /* Estado real de salvamento — só vira "salvo" depois que grave() confirma
      a escrita, nunca otimista. "Salvo na nuvem" só é dito com conta na
@@ -8446,7 +8639,8 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
       } catch (e) {
         throw new Error("A IA devolveu um texto que não é um JSON válido (" + (e.message || e) + "). Tente gerar de novo.");
       }
-      const alvo = valida(json);
+      const estagiosAlvo = eTurma ? membros.map((m) => m.estagio) : [aluno.estagio];
+      const alvo = valida(json, estagiosAlvo);
       alvo.geradoEm = new Date().toISOString();
       setPlanoCandidato(alvo);
     } catch (e) {
@@ -8471,7 +8665,8 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
       const i = t.indexOf("{");
       if (i > 0) t = t.slice(i);
       const p = JSON.parse(t);
-      const alvo = valida(p.plano || p);
+      const estagiosAlvo = eTurma ? membros.map((m) => m.estagio) : [aluno.estagio];
+      const alvo = valida(p.plano || p, estagiosAlvo);
       alvo.geradoEm = new Date().toISOString();
       setPlanoCandidato(alvo);
       setColando(false); setTexto("");
@@ -8497,8 +8692,13 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
   function gerarDoPrograma() {
     setErroPrograma("");
     try {
-      const alvo = gerarPlanoDePrograma(programaEscolhido, aluno, { areaFoco: areaTecnica });
-      setPlanoCandidato(alvo);
+      /* Pra turma, não existe "o estágio" — existem os estágios de cada
+         membro do grupo. Passa a união deles (igual a sessão de turma já
+         faz pro sorteio do dia): um exercício entra se servir a QUALQUER
+         jogador do grupo, não só a um estágio fixo. */
+      const alvoPrograma = eTurma ? { estagios: [...new Set(membros.map((m) => m.estagio))] } : aluno;
+      const planoGerado = gerarPlanoDePrograma(programaEscolhido, alvoPrograma, { areaFoco: areaTecnica });
+      setPlanoCandidato(planoGerado);
       setProgramaEscolhido(null);
     } catch (e) {
       setErroPrograma(String(e.message || e));
@@ -8699,12 +8899,23 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
     ? membros.some((m) => m.fichaAtualizadaEm && plano.geradoEm && m.fichaAtualizadaEm > plano.geradoEm)
     : aluno.fichaAtualizadaEm && plano.geradoEm && aluno.fichaAtualizadaEm > plano.geradoEm);
 
-  function refazerPlanejamento() {
+  /* Ponto único pra qualquer um dos 3 caminhos de criação substituir um
+     plano já existente — sempre explica o efeito (arquiva o que já foi
+     feito, preservando o histórico) e exige confirmação antes. Depois de
+     arquivar, cai no estado "sem plano" com o caminho escolhido já
+     aberto, em vez de voltar pro menu de 3 opções do zero. */
+  function comecarNovoPlano(modo) {
+    const efeito = modo === "programa" ? "e escolher um programa pronto no lugar dele"
+      : modo === "importar" ? "e importar outro plano no lugar dele"
+      : "e gerar um plano novo com a ficha atual";
     const msg = feitas > 0
-      ? "Arquivar " + (feitas === 1 ? "a 1 aula já realizada" : "as " + feitas + " aulas já realizadas") + " como ciclo fechado e gerar um plano novo com a ficha atual?"
-      : "Gerar um plano novo com a ficha atual, no lugar deste?";
-    if (confirm(msg)) revisarComFichaAtualizada();
+      ? "Arquivar " + (feitas === 1 ? "a 1 aula já realizada" : "as " + feitas + " aulas já realizadas") + " como ciclo fechado " + efeito + "?"
+      : "Arquivar este plano " + efeito + "?";
+    if (!confirm(msg)) return;
+    revisarComFichaAtualizada();
+    setModoCriacao(modo);
   }
+  function refazerPlanejamento() { comecarNovoPlano("ficha"); }
 
   function arquivar() {
     /* Clicar em "Arquivar" de novo sobre o mesmo relatório (sem gerar um
@@ -8779,26 +8990,56 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
 
   /* ── sem plano ainda ── */
   if (!plano) {
+    const fichaIncompletaDe = eTurma
+      ? membros.filter((m) => !(m.camadas.tecnico || "").trim())
+      : (!(aluno.camadas.tecnico || "").trim() ? [aluno] : []);
+    const programaAtual = programaEscolhido ? PROGRAMAS_PRONTOS.find((p) => p.id === programaEscolhido) : null;
+    const categoriasPrograma = [
+      { v: "todos", r: "Todos" }, { v: "tecnico", r: "Correção técnica" }, { v: "tatico", r: "Tático" }, { v: "duplas", r: "Duplas" },
+    ];
+    const rotuloCategoria = { tecnico: "Correção técnica", tatico: "Tático", duplas: "Duplas" };
+
     return (
       <div>
         <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Plano</h1>
-        <div className="mb-4"><Etiqueta cor={C.grafite}>Rascunho</Etiqueta></div>
+        <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginBottom: 4 }}>{entidade.nome || (eTurma ? "Turma sem nome" : "Jogador sem nome")}</p>
+        <div className="mb-4"><Etiqueta cor={C.grafite}>Sem planejamento</Etiqueta></div>
         {!podeEditar && (
           <Aviso>{eTurma ? "Esta turma" : "Este jogador"} é de outro treinador — a montagem do plano fica travada. Só o professor responsável ou o coordenador podem gerar ou colar um plano.</Aviso>
         )}
-        <Aviso cor={C.quadra}>
-          {eTurma ? "Esta turma ainda não tem um planejamento. Gere aqui mesmo a partir das fichas do grupo — ou cole um plano montado fora."
-            : "Este jogador ainda não tem um planejamento. Preencha a ficha de entrada e gere aqui mesmo — ou cole um plano montado fora."}
-        </Aviso>
+        {!planoCandidato && (
+          <Aviso cor={C.quadra}>
+            {eTurma ? "Esta turma ainda não tem um planejamento. Escolha uma opção abaixo para começar."
+              : "Este jogador ainda não tem um planejamento. Escolha uma opção abaixo para começar."}
+          </Aviso>
+        )}
 
         {planoCandidato && (
           <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA_ALTA, borderRadius: 10, borderLeft: "3px solid " + C.saibro, padding: 16 }}>
             <Etiqueta cor={C.saibro}>Plano gerado — revise antes de usar</Etiqueta>
-            <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginTop: 7 }}>{planoCandidato.tipo || "Plano do ciclo"}</p>
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 7 }}>{entidade.nome}</p>
+            <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginTop: 3 }}>{planoCandidato.tipo || "Plano do ciclo"}</p>
             {planoCandidato.prioridade && <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>{planoCandidato.prioridade}</p>}
+            {planoCandidato.blocos[0] && planoCandidato.blocos[0].areaFoco && (
+              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>
+                Estrutura: {planoCandidato.blocos[0].titulo || planoCandidato.blocos[0].nome} · critério de saída em {(AREAS[planoCandidato.blocos[0].areaFoco] || {}).nome || planoCandidato.blocos[0].areaFoco}
+              </p>
+            )}
             <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 6 }}>
               {plural(planoCandidato.blocos.length, "bloco")} · {plural(listaAulas(planoCandidato, {}).length, "aula")}
               {historico.length > 0 ? " · o ciclo anterior fica arquivado no histórico, logo abaixo" : ""}
+            </p>
+            {listaAulas(planoCandidato, {}).every((a) => (a.ex || []).length === 0) ? (
+              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 6, fontStyle: "italic" }}>
+                Este é um roteiro sem exercício fixo do catálogo — a aula é criada por você em quadra, a partir do padrão de jogo do atleta.
+              </p>
+            ) : (
+              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 6 }}>
+                Exercícios já incluídos: {[...new Set(listaAulas(planoCandidato, {}).flatMap((a) => a.ex || []))].length} códigos do catálogo, reais, filtrados pelo estágio {eTurma ? "do grupo" : "do jogador"}.
+              </p>
+            )}
+            <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 8 }}>
+              Isto ainda não foi salvo — é só uma prévia. O modelo original do programa não é alterado; esta é uma cópia só {eTurma ? "desta turma" : "deste jogador"}, que passa a valer quando você confirmar abaixo.
             </p>
             <div className="flex gap-2 mt-3 flex-wrap items-center">
               <Botao variante="saibro" onClick={usarPlanoCandidato} disabled={estadoSalvo === "salvando"}>
@@ -8814,48 +9055,130 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
           </div>
         )}
 
-        {!planoCandidato && !eTurma && <Secao titulo="Programas prontos"
-          nota="Estruturas fixas que já validam o que você faz no dia a dia — sem IA, sem espera. Escolhe um, confere os exercícios reais que ele já busca no catálogo pro estágio do jogador, e revisa antes de usar, igual ao plano gerado.">
+        {!planoCandidato && (
+          <div className="mb-6">
+            <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 10 }}>Como deseja preparar o planejamento?</p>
+            <div className="flex flex-col gap-2">
+              <button type="button" onClick={() => setModoCriacao("ficha")}
+                style={{ textAlign: "left", padding: "13px 14px", borderRadius: 10, cursor: "pointer",
+                  border: (modoCriacao === "ficha" ? "2px solid " + C.quadra : "1px solid " + C.linha),
+                  background: modoCriacao === "ficha" ? C.cal : "#fff" }}>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, color: C.tinta }}>Gerar pela ficha</span>
+                  <span style={{ display: "inline-block", background: C.quadra, color: "#fff", fontSize: 9.5, fontWeight: 700, padding: "2px 8px",
+                    borderRadius: 999, letterSpacing: ".04em", textTransform: "uppercase" }}>Caminho principal</span>
+                </div>
+                <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 3 }}>
+                  Usa as informações e a avaliação {eTurma ? "de cada jogador do grupo" : "do jogador"}.
+                </p>
+              </button>
+              <button type="button" onClick={() => setModoCriacao("programa")}
+                style={{ textAlign: "left", padding: "13px 14px", borderRadius: 10, cursor: "pointer",
+                  border: (modoCriacao === "programa" ? "2px solid " + C.quadra : "1px solid " + C.linha),
+                  background: modoCriacao === "programa" ? C.cal : "#fff" }}>
+                <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, color: C.tinta }}>Usar um programa</span>
+                <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 3 }}>
+                  Escolhe uma estrutura de treino pronta e adapta {eTurma ? "ao grupo" : "ao jogador"}.
+                </p>
+              </button>
+              <button type="button" onClick={() => setModoCriacao("importar")}
+                style={{ textAlign: "left", padding: "13px 14px", borderRadius: 10, cursor: "pointer",
+                  border: (modoCriacao === "importar" ? "2px solid " + C.quadra : "1px solid " + C.linha),
+                  background: modoCriacao === "importar" ? C.cal : "#fff" }}>
+                <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, color: C.tinta }}>Importar planejamento</span>
+                <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 3 }}>Aproveita um plano já montado fora, colando o JSON aqui.</p>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!planoCandidato && modoCriacao === "programa" && <Secao titulo="Programas prontos"
+          nota={"Escolha uma estrutura de treino, adapte " + (eTurma ? "ao grupo" : "ao jogador") + " e revise antes de usar."}>
+          {eTurma && (
+            <Aviso>
+              Numa turma, o programa vale pro grupo inteiro — os exercícios são escolhidos pra servir a todos os
+              estágios presentes. Na Correção Técnica isso só faz sentido quando o grupo precisa corrigir o
+              mesmo aspecto; se cada jogador tem uma necessidade diferente, prefira gerar o plano de cada um
+              individualmente.
+            </Aviso>
+          )}
+          <div className="flex gap-2 flex-wrap mb-4">
+            {categoriasPrograma.map((c) => (
+              <button key={c.v} type="button" onClick={() => setFiltroCategoriaPrograma(c.v)}
+                style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, padding: "6px 12px", borderRadius: 999, cursor: "pointer",
+                  border: "1px solid " + (filtroCategoriaPrograma === c.v ? C.quadra : C.linha),
+                  background: filtroCategoriaPrograma === c.v ? C.quadra : "#fff",
+                  color: filtroCategoriaPrograma === c.v ? "#fff" : C.grafite }}>
+                {c.r}
+              </button>
+            ))}
+          </div>
           <div className="flex flex-col gap-2 mb-3">
-            {["tecnico", "tatico", "duplas"].map((cat) => (
+            {["tecnico", "tatico", "duplas"].filter((cat) => filtroCategoriaPrograma === "todos" || filtroCategoriaPrograma === cat).map((cat) => (
               <div key={cat}>
                 <p style={{ fontFamily: ARCH, fontSize: 11, fontWeight: 700, color: C.grafite, textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 6 }}>
-                  {cat === "tecnico" ? "Correção técnica" : cat === "tatico" ? "Tático" : "Duplas"}
+                  {rotuloCategoria[cat]}
                 </p>
                 <div className="flex flex-col gap-2 mb-2">
-                  {PROGRAMAS_PRONTOS.filter((p) => p.categoria === cat).map((p) => (
-                    <button key={p.id} type="button" disabled={!podeEditar}
-                      onClick={() => setProgramaEscolhido(programaEscolhido === p.id ? null : p.id)}
-                      style={{ textAlign: "left", padding: "10px 12px", borderRadius: 10, cursor: podeEditar ? "pointer" : "default",
-                        border: "1px solid " + (programaEscolhido === p.id ? C.quadra : C.linha),
-                        background: programaEscolhido === p.id ? C.cal : "#fff" }}>
-                      <p style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700, color: C.tinta }}>{p.nome}</p>
-                      <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 3 }}>{p.descricao}</p>
-                    </button>
-                  ))}
+                  {PROGRAMAS_PRONTOS.filter((p) => p.categoria === cat).map((p) => {
+                    const selecionado = programaEscolhido === p.id;
+                    return (
+                      <div key={p.id} style={{ borderRadius: 10, border: "1px solid " + (selecionado ? C.quadra : C.linha),
+                        background: selecionado ? C.cal : "#fff", overflow: "hidden" }}>
+                        <button type="button" disabled={!podeEditar}
+                          onClick={() => setProgramaEscolhido(selecionado ? null : p.id)}
+                          className="w-full" style={{ textAlign: "left", padding: "10px 12px", cursor: podeEditar ? "pointer" : "default", background: "none", border: "none" }}>
+                          <div className="flex items-start justify-between gap-2">
+                            <p style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700, color: C.tinta }}>{p.nome}</p>
+                            {selecionado && (
+                              <span style={{ flexShrink: 0, fontFamily: ARCH, fontSize: 10, fontWeight: 700, color: C.quadra, display: "flex", alignItems: "center", gap: 3 }}>
+                                ✓ Selecionado
+                              </span>
+                            )}
+                          </div>
+                          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 3 }}>{p.descricao}</p>
+                          <div className="flex gap-3 flex-wrap mt-2">
+                            <span style={{ ...prosa, fontSize: 11, color: C.grafite }}><b style={{ color: C.tinta }}>Nível:</b> {rotuloNivelPrograma(p)}</span>
+                            <span style={{ ...prosa, fontSize: 11, color: C.grafite }}><b style={{ color: C.tinta }}>Abrangência:</b> {rotuloAbrangenciaPrograma(p)}</span>
+                          </div>
+                          <p style={{ ...prosa, fontSize: 11, color: C.grafite, marginTop: 3 }}><b style={{ color: C.tinta }}>Conteúdo:</b> {rotuloConteudoPrograma(p)}</p>
+                        </button>
+                        <button type="button" onClick={() => setVerDetalhesPrograma(verDetalhesPrograma === p.id ? null : p.id)}
+                          style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, color: C.saibro, cursor: "pointer", border: "none",
+                            background: "none", padding: "0 12px 10px", display: "block" }}>
+                          {verDetalhesPrograma === p.id ? "Ocultar detalhes" : "Ver detalhes"}
+                        </button>
+                        {verDetalhesPrograma === p.id && (
+                          <p style={{ ...prosa, fontSize: 12, color: C.grafite, padding: "0 12px 12px" }}>{detalhesPrograma(p)}</p>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ))}
           </div>
 
-          {programaEscolhido && (
+          {programaAtual && (
             <div className="mb-3" style={{ background: C.papel, border: "1px solid " + C.linha, borderRadius: 10, padding: 14 }}>
-              {PROGRAMAS_PRONTOS.find((p) => p.id === programaEscolhido).areasDisponiveis && (
+              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>
+                Selecionado: <b style={{ color: C.tinta }}>{programaAtual.nome}</b>
+              </p>
+              {programaAtual.areasDisponiveis && (
                 <div className="mb-3">
                   <Campo rotulo="Qual golpe/área corrigir?">
-                    <Seletor
-                      opcoes={PROGRAMAS_PRONTOS.find((p) => p.id === programaEscolhido).areasDisponiveis.map((k) => ({ v: k, r: AREAS[k].nome }))}
+                    <Seletor opcoes={programaAtual.areasDisponiveis.map((k) => ({ v: k, r: AREAS[k].nome }))}
                       valor={areaTecnica} aoMudar={setAreaTecnica} />
                   </Campo>
                 </div>
               )}
               {erroPrograma && <Aviso>{erroPrograma}</Aviso>}
-              <Botao variante="saibro" disabled={!podeEditar} onClick={gerarDoPrograma}>Usar este programa</Botao>
+              <Botao variante="saibro" disabled={!podeEditar} onClick={gerarDoPrograma}>Revisar programa</Botao>
             </div>
           )}
         </Secao>}
 
-        {!planoCandidato && <Secao titulo={eTurma ? "Gerar a partir das fichas do grupo" : "Gerar a partir da ficha"}
+        {!planoCandidato && modoCriacao === "ficha" && <Secao titulo={eTurma ? "Gerar a partir das fichas do grupo" : "Gerar a partir da ficha"}
           nota={eTurma
             ? "Usa o que está preenchido na ficha de cada jogador do grupo e monta UM plano pra turma inteira, escolhendo exercícios que sirvam pra todos (ou em estações, se os níveis pedirem). Se a turma já teve ciclos anteriores, o plano novo considera o que ficou registrado neles."
             : "Usa o que está preenchido na aba Ficha e escolhe os exercícios dentro do catálogo, respeitando o estágio do jogador. Se o jogador já teve ciclos anteriores, o plano novo é montado considerando o que ficou registrado neles."}>
@@ -8883,17 +9206,19 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
               </div>
             ))}
           </Campo>
-          {!eTurma && !(aluno.camadas.tecnico || "").trim() && (
+          {fichaIncompletaDe.length > 0 && (
             <Aviso>
-              A camada técnica da ficha está vazia. O plano vai sair genérico — preencha a aba
-              Ficha antes de gerar.
-            </Aviso>
-          )}
-          {eTurma && membros.some((m) => !(m.camadas.tecnico || "").trim()) && (
-            <Aviso>
-              {membros.filter((m) => !(m.camadas.tecnico || "").trim()).map((m) => m.nome || "sem nome").join(", ")}
-              {" "}ainda {membros.filter((m) => !(m.camadas.tecnico || "").trim()).length === 1 ? "está" : "estão"} com a camada
-              técnica da ficha vazia. O plano vai sair genérico pra {membros.filter((m) => !(m.camadas.tecnico || "").trim()).length === 1 ? "esse jogador" : "esses jogadores"} — preencha a ficha antes de gerar.
+              Falta preencher a camada técnica da ficha de {fichaIncompletaDe.map((m) => m.nome || "sem nome").join(", ")}
+              {" "}— o plano vai sair genérico até isso ser preenchido.
+              {!eTurma && aoAcessarFicha && (
+                <>
+                  {" "}
+                  <button type="button" onClick={aoAcessarFicha}
+                    style={{ border: "none", background: "none", color: C.saibro, cursor: "pointer", padding: 0, fontFamily: "inherit", fontSize: "inherit", fontWeight: 700 }}>
+                    Preencher agora →
+                  </button>
+                </>
+              )}
             </Aviso>
           )}
           {erro && <Aviso>{erro}</Aviso>}
@@ -8901,23 +9226,19 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
             <Botao onClick={gerarComIA} variante="saibro" disabled={gerando || !podeEditar}>
               {gerando ? "Montando o plano…" : "Gerar planejamento"}
             </Botao>
-            <Botao variante="vazio" disabled={!podeEditar} onClick={() => setColando(true)}>Colar plano pronto</Botao>
           </div>
           {gerando && <BarraProgresso segundos={segundosIA} etapa={etapaIA} estimativa={eTurma ? 80 : 60} aoCancelar={pararDeEsperar} />}
         </Secao>}
 
-        {!planoCandidato && colando && (
-          <div>
+        {!planoCandidato && modoCriacao === "importar" && (
+          <Secao titulo="Importar planejamento" nota="Cole o JSON de um plano montado fora da plataforma.">
             <Campo rotulo="Cole o JSON do plano" nota="Pode colar com as crases do bloco de código — eu limpo.">
               <textarea rows={9} style={{ ...entrada, resize: "vertical", fontFamily: "ui-monospace, monospace", fontSize: 12 }}
                 value={texto} onChange={(e) => setTexto(e.target.value)} />
             </Campo>
             {erro && <Aviso>{erro}</Aviso>}
-            <div className="flex gap-2">
-              <Botao onClick={importar} variante="saibro">Importar</Botao>
-              <Botao variante="vazio" onClick={() => { setColando(false); setErro(""); }}>Cancelar</Botao>
-            </div>
-          </div>
+            <Botao onClick={importar} variante="saibro" disabled={!podeEditar}>Importar</Botao>
+          </Secao>
         )}
 
         <HistoricoRelatorios historico={historico} abrirHist={abrirHist} setAbrirHist={setAbrirHist} removerDoHistorico={removerDoHistorico} podeEditar={podeEditar} nomeEntidade={entidade.nome} identidade={identidade} />
@@ -8951,7 +9272,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
     try {
       let chave = aluno.linkToken;
       if (!chave) {
-        chave = MTY.id("aluno");
+        chave = MTY.tokenSeguro();
         atualiza({ linkToken: chave });
       }
       const org = await organizacao();
@@ -8962,6 +9283,19 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
     } finally {
       setGerandoLink(false);
     }
+  }
+
+  /* Revogar não é só "esconder o link na tela" — limpa o linkToken no
+     próprio jogador, e ver-aluno.js confere exatamente esse valor
+     (carregarContexto) antes de devolver qualquer dado. Sem o token
+     batendo, o link antigo (em qualquer lugar que tenha sido colado)
+     passa a dar "link inválido", de verdade, não só deixa de aparecer
+     aqui. Gerar de novo depois cria um token novo, diferente. */
+  function revogarLinkAluno() {
+    if (!confirm("Revogar este link? Quem já tiver o link antigo (inclusive salvo ou enviado por mensagem) deixa de conseguir abri-lo.")) return;
+    atualiza({ linkToken: null });
+    setLinkAluno("");
+    setLinkCopiado(false);
   }
 
   async function copiarLinkAluno() {
@@ -8984,7 +9318,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
     try {
       let chave = membro.linkToken;
       if (!chave) {
-        chave = MTY.id("aluno");
+        chave = MTY.tokenSeguro();
         setAlunos(alunos.map((a) => (a.id === membro.id ? { ...a, linkToken: chave } : a)));
       }
       const org = await organizacao();
@@ -8995,6 +9329,11 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
     } finally {
       setGerandoMembroId(null);
     }
+  }
+  function revogarLinkMembro(membroId) {
+    if (!confirm("Revogar este link? Quem já tiver o link antigo deixa de conseguir abri-lo.")) return;
+    setAlunos(alunos.map((a) => (a.id === membroId ? { ...a, linkToken: null } : a)));
+    setLinksMembros((l) => { const n = { ...l }; delete n[membroId]; return n; });
   }
   async function copiarLinkMembro(membroId) {
     const url = linksMembros[membroId];
@@ -9033,9 +9372,13 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
         <p style={{ ...prosa, fontSize: 12, color: C.grafite, margin: "4px 0 10px" }}>
           {plano.tipo || "Plano do ciclo"}{plano.geradoEm ? " · desde " + new Date(plano.geradoEm).toLocaleDateString("pt-BR") : ""}
         </p>
-        <div className="flex gap-2 flex-wrap mb-3">
-          <Etiqueta cor={REVISAO_COR[revisaoAtual]}>Revisão: {REVISAO_LABEL[revisaoAtual]}</Etiqueta>
-          <Etiqueta cor={C.grafite}>Execução: {EXECUCAO_LABEL[execucaoAtual]}</Etiqueta>
+        <div className="flex gap-x-4 gap-y-1 flex-wrap mb-3">
+          <span className="flex items-center gap-1.5" style={{ ...prosa, fontSize: 11.5, color: C.grafite }}>
+            Aprovação: <Etiqueta cor={REVISAO_COR[revisaoAtual]}>{REVISAO_LABEL[revisaoAtual]}</Etiqueta>
+          </span>
+          <span className="flex items-center gap-1.5" style={{ ...prosa, fontSize: 11.5, color: C.grafite }}>
+            Execução: <Etiqueta cor={C.grafite}>{EXECUCAO_LABEL[execucaoAtual]}</Etiqueta>
+          </span>
         </div>
         <ResumoAulasPlano aulas={aulas} status={status} />
         {estadoSalvo && (
@@ -9103,6 +9446,28 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
       {modo === "resumo" && (
         <>
           <LinhaDeRaciocinio plano={plano} aulas={aulas} status={status} reg={reg} />
+
+          {/* Ficavam na aba Fechamento, no meio das ações de fechar o ciclo —
+              mas "recomeçar o planejamento" não é um resultado do ciclo, é uma
+              decisão sobre o PLANO em si, então mora aqui. */}
+          <div className="mt-6 pt-4" style={{ borderTop: "1px solid " + C.linha }}>
+            <button onClick={() => setGerenciarAberto(!gerenciarAberto)}
+              style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, color: C.grafite, background: "none", border: "none",
+                cursor: "pointer", padding: 0, display: "flex", alignItems: "center", gap: 6 }}>
+              Gerenciar planejamento {gerenciarAberto ? "▲" : "▼"}
+            </button>
+            {gerenciarAberto && (
+              <div className="mt-3 flex gap-2 flex-wrap">
+                {!fichaMudouDepoisDoPlano && (
+                  <Botao variante="vazio" disabled={!podeEditar} onClick={refazerPlanejamento}>Refazer planejamento com a ficha atual</Botao>
+                )}
+                {!eTurma && (
+                  <Botao variante="vazio" disabled={!podeEditar} onClick={() => comecarNovoPlano("programa")}>Usar um programa em vez deste</Botao>
+                )}
+                <Botao variante="vazio" disabled={!podeEditar} onClick={() => comecarNovoPlano("importar")}>Importar outro plano</Botao>
+              </div>
+            )}
+          </div>
         </>
       )}
 
@@ -9132,7 +9497,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                 const idx = aulas.findIndex((x) => x.semana === sem.n && x.t === au.t && (x.ex || []).join() === (au.ex || []).join());
                 const id = idx >= 0 ? aulas[idx].id : "A?" + si + ai;
                 return (
-                  <CardAulaChecklist key={ai} id={id} indice={ai + 1} titulo={au.t} selo={au.selo} qtdExercicios={(au.ex || []).length}
+                  <CardAulaChecklist key={ai} id={id} indice={ai + 1} titulo={au.t} descricao={au.d} selo={au.selo} qtdExercicios={(au.ex || []).length}
                     status={status} defineStatus={defineStatus} reg={reg} campo={campo}
                     chuvaAberta={chuvaAberta} setChuvaAberta={setChuvaAberta} podeEditar={podeEditar} papelAtual={papelAtual} />
                 );
@@ -9247,8 +9612,20 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
         const pendentes = observacaoComIndice.filter((o) => !o.respondida);
         const realizadas = observacaoComIndice.filter((o) => o.respondida);
         const aulasComObs = aulas.filter((a) => status(a.id) === "feita" && (reg[a.id] || {}).obs);
+        const cicloSemRegistros = feitas === 0 && aulasComObs.length === 0 && (plano.observacao || []).every((o, i) => !(F["obs:O" + i] || "").trim());
         return (
           <>
+            {cicloSemRegistros && (
+              <div className="mb-5" style={{ background: C.papel, borderLeft: "3px solid " + C.linha, padding: "12px 15px" }}>
+                <p style={{ ...prosa, fontSize: 13 }}>O ciclo ainda não tem aulas registradas. Os resultados serão reunidos aqui conforme o acompanhamento.</p>
+              </div>
+            )}
+            {cicloSemRegistros && !criteriosAbertos ? (
+              <button onClick={() => setCriteriosAbertos(true)} className="mb-5"
+                style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, color: C.grafite, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                Ver critérios do ciclo ▼
+              </button>
+            ) : (
             <Secao titulo="Critérios do ciclo" nota="A mesma pergunta de sempre — atingido, parcial, não atingido — pra poder comparar de um ciclo pro outro. 'Não avaliado' não é 'não atingido': é só o que ninguém chegou a conferir ainda.">
               {plano.blocos.filter((b) => b.saida).length === 0 && (
                 <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Este plano não define critérios de saída avaliáveis.</p>
@@ -9276,7 +9653,9 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                 );
               })}
             </Secao>
+            )}
 
+            {!cicloSemRegistros && (
             <Secao titulo="Observações realizadas" nota="Evidências já registradas nas aulas — origem e data de cada uma.">
               {aulasComObs.length === 0 && realizadas.length === 0 && (
                 <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Nenhuma observação registrada ainda neste ciclo.</p>
@@ -9296,6 +9675,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                 </div>
               ))}
             </Secao>
+            )}
 
             {pendentes.length > 0 && (
               <Secao titulo="Pendências de informação" nota="O que a ficha ou o plano apontaram como relevante e ainda não tem resposta.">
@@ -9318,9 +9698,6 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
 
             <div className="flex gap-2 flex-wrap items-center mb-4">
               <Botao onClick={gerar} variante="saibro">Gerar relatório do ciclo</Botao>
-              {!fichaMudouDepoisDoPlano && (
-                <Botao variante="vazio" disabled={!podeEditar} onClick={refazerPlanejamento}>Refazer planejamento com a ficha atual</Botao>
-              )}
               {podeEditar && (
                 <div style={{ position: "relative" }}>
                   <button onClick={() => setMenuAcoes(!menuAcoes)} aria-haspopup="true" aria-expanded={menuAcoes}
@@ -9365,13 +9742,19 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
               {!eTurma ? (
                 <div>
                   <Botao pequeno variante="vazio" onClick={gerarLinkAluno}>{gerandoLink ? "Gerando…" : "Compartilhar com o jogador"}</Botao>
-                  <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginTop: 6 }}>Recurso em construção — o link funciona, mas a experiência do lado do jogador ainda está sendo ajustada.</p>
+                  <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginTop: 6 }}>Recurso em construção — o link funciona, mas a experiência do lado do jogador ainda está sendo ajustada. Mostra só o que estiver aprovado; rascunho nunca aparece pra ele.</p>
                   {linkAluno && (
-                    <div className="mt-2 flex gap-2 items-center flex-wrap">
-                      <input id="mty-link-aluno" readOnly value={linkAluno} style={{ ...entrada, fontSize: 12, flex: 1 }}
-                        onFocus={(e) => e.target.select()} />
-                      <Botao pequeno variante="vazio" onClick={copiarLinkAluno}>{linkCopiado ? "✓ copiado" : "Copiar"}</Botao>
-                    </div>
+                    <>
+                      <div className="mt-2 flex gap-2 items-center flex-wrap">
+                        <input id="mty-link-aluno" readOnly value={linkAluno} style={{ ...entrada, fontSize: 12, flex: 1 }}
+                          onFocus={(e) => e.target.select()} />
+                        <Botao pequeno variante="vazio" onClick={copiarLinkAluno}>{linkCopiado ? "✓ copiado" : "Copiar"}</Botao>
+                      </div>
+                      <div className="mt-2 flex gap-2 flex-wrap">
+                        <Botao pequeno variante="vazio" onClick={() => window.open(linkAluno, "_blank")}>Pré-visualizar como o jogador vê</Botao>
+                        <Botao pequeno variante="vazio" disabled={!podeEditar} onClick={revogarLinkAluno}>Revogar link</Botao>
+                      </div>
+                    </>
                   )}
                 </div>
               ) : (
@@ -9379,16 +9762,24 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                   <Etiqueta>Compartilhar com os jogadores</Etiqueta>
                   <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, margin: "4px 0 8px" }}>Recurso em construção — o link funciona, mas a experiência do lado do jogador ainda está sendo ajustada.</p>
                   {membros.map((m) => (
-                    <div key={m.id} className="flex items-center gap-2 flex-wrap mb-2">
-                      <span style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, minWidth: 100 }}>{m.nome || "Sem nome"}</span>
-                      {!linksMembros[m.id] ? (
-                        <Botao pequeno variante="vazio" onClick={() => gerarLinkMembro(m)}>{gerandoMembroId === m.id ? "Gerando…" : "Gerar link"}</Botao>
-                      ) : (
-                        <>
-                          <input id={"mty-link-membro-" + m.id} readOnly value={linksMembros[m.id]} style={{ ...entrada, fontSize: 12, flex: 1, minWidth: 160 }}
-                            onFocus={(e) => e.target.select()} />
-                          <Botao pequeno variante="vazio" onClick={() => copiarLinkMembro(m.id)}>{membroCopiadoId === m.id ? "✓ copiado" : "Copiar"}</Botao>
-                        </>
+                    <div key={m.id} className="mb-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, minWidth: 100 }}>{m.nome || "Sem nome"}</span>
+                        {!linksMembros[m.id] ? (
+                          <Botao pequeno variante="vazio" onClick={() => gerarLinkMembro(m)}>{gerandoMembroId === m.id ? "Gerando…" : "Gerar link"}</Botao>
+                        ) : (
+                          <>
+                            <input id={"mty-link-membro-" + m.id} readOnly value={linksMembros[m.id]} style={{ ...entrada, fontSize: 12, flex: 1, minWidth: 160 }}
+                              onFocus={(e) => e.target.select()} />
+                            <Botao pequeno variante="vazio" onClick={() => copiarLinkMembro(m.id)}>{membroCopiadoId === m.id ? "✓ copiado" : "Copiar"}</Botao>
+                          </>
+                        )}
+                      </div>
+                      {linksMembros[m.id] && (
+                        <div className="mt-1 flex gap-2 flex-wrap">
+                          <Botao pequeno variante="vazio" onClick={() => window.open(linksMembros[m.id], "_blank")}>Pré-visualizar como o jogador vê</Botao>
+                          <Botao pequeno variante="vazio" disabled={!podeEditar} onClick={() => revogarLinkMembro(m.id)}>Revogar link</Botao>
+                        </div>
                       )}
                     </div>
                   ))}
@@ -10358,6 +10749,7 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual
   const [auxiliarUid, setAuxiliarUid] = useState("");
   const [horarios, setHorarios] = useState([]);
   const [professores, setProfessores] = useState([]);
+  const [detalhesAbertosId, setDetalhesAbertosId] = useState(null);
   useEffect(() => { listaProfessores().then(setProfessores); }, []);
 
   const aberta = abertaId ? turmas.find((t) => t.id === abertaId) : null;
@@ -10389,17 +10781,15 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual
 
   return (
     <div>
-      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Turmas</h1>
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
+        <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700 }}>Turmas</h1>
+        {!criando && <Botao pequeno onClick={() => setCriando(true)}>Nova turma</Botao>}
+      </div>
       <p style={{ ...prosa, color: C.grafite, marginBottom: 18 }}>
-        Pra jogadores que treinam juntos. Cada um mantém o próprio plano — a turma só une a
-        aula do dia numa sessão só, com presença marcada de uma vez para o grupo.
+        Organize as aulas em grupo mantendo o planejamento e o acompanhamento de cada jogador.
       </p>
 
-      <CartaoConducao />
-
-      {!criando ? (
-        <Botao pequeno onClick={() => setCriando(true)}>Nova turma</Botao>
-      ) : (
+      {criando && (
         <div style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, padding: 15, marginBottom: 18 }}>
           <Campo rotulo="Nome da turma">
             <input style={entrada} value={nome} onChange={(e) => setNome(e.target.value)} placeholder="ex: Terça 17h" />
@@ -10447,22 +10837,58 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual
       {turmas.length === 0 ? (
         <p style={{ ...prosa, color: C.grafite }}>Nenhuma turma criada ainda.</p>
       ) : (
-        turmas.map((t) => (
-          <div key={t.id} onClick={() => setAbertaId(t.id)}
-            style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, padding: "13px 15px", marginBottom: 9, cursor: "pointer" }}>
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{t.nome}</div>
-              {!t.plano && <Etiqueta cor={C.saibro}>sem plano — toque pra montar</Etiqueta>}
-            </div>
-            <div className="mt-1"><Etiqueta>{t.duracaoPadrao} · {t.membros.length} jogadores{rotuloProfessores(t.professorNome, t.professorAuxiliarNome)}</Etiqueta></div>
-            {(t.horarios || []).length > 0 && (
-              <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 4 }}>
-                {t.horarios.map((h) => nomeDia(h.dia) + " " + h.hora).join(" · ")}
+        turmas.map((t) => {
+          const proxima = proximaAulaDaTurma(t);
+          const detalhesAbertos = detalhesAbertosId === t.id;
+          return (
+            <div key={t.id} onClick={() => setAbertaId(t.id)}
+              style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "13px 15px", marginBottom: 9, cursor: "pointer" }}>
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{t.nome}</div>
+                {!t.plano && <Etiqueta cor={C.saibro}>sem plano — toque pra montar</Etiqueta>}
+              </div>
+              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>
+                {t.duracaoPadrao} · {plural(t.membros.length, "jogador")}{t.professorNome ? " · prof. " + t.professorNome : ""}
               </p>
-            )}
-          </div>
-        ))
+              {proxima ? (
+                <p style={{ ...prosa, fontSize: 12.5, color: C.quadra, fontWeight: 700, marginTop: 4 }}>
+                  Próxima aula: {proxima.diaLabel} às {proxima.hora}
+                </p>
+              ) : (t.horarios || []).length > 0 ? (
+                <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 4 }}>
+                  {t.horarios.map((h) => nomeDia(h.dia) + " " + h.hora).join(" · ")}
+                </p>
+              ) : null}
+              <div className="flex items-center justify-between gap-3 flex-wrap mt-2">
+                <button type="button" onClick={(e) => { e.stopPropagation(); setDetalhesAbertosId(detalhesAbertos ? null : t.id); }}
+                  style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, color: C.saibro, cursor: "pointer", border: "none", background: "none", padding: 0 }}>
+                  {detalhesAbertos ? "Ocultar detalhes" : "Ver detalhes"}
+                </button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); setAbertaId(t.id); }}
+                  style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, color: C.tinta, cursor: "pointer", border: "none", background: "none", padding: 0 }}>
+                  Abrir turma →
+                </button>
+              </div>
+              {detalhesAbertos && (
+                <div className="mt-2" style={{ borderTop: "1px solid " + C.linha, paddingTop: 8 }} onClick={(e) => e.stopPropagation()}>
+                  {t.professorAuxiliarNome && (
+                    <p style={{ ...prosa, fontSize: 12, color: C.grafite }}>Auxiliar: {t.professorAuxiliarNome}</p>
+                  )}
+                  {(t.horarios || []).length > 0 ? (
+                    <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: t.professorAuxiliarNome ? 4 : 0 }}>
+                      Horários: {t.horarios.map((h) => nomeDia(h.dia) + " " + h.hora).join(" · ")}
+                    </p>
+                  ) : (
+                    <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: t.professorAuxiliarNome ? 4 : 0 }}>Nenhum horário fixo cadastrado.</p>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })
       )}
+
+      <div className="mt-6"><CartaoConducao /></div>
     </div>
   );
 }
@@ -10573,6 +10999,15 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
   const [salvo, setSalvo] = useState(null);
   const [chuvaAberta, setChuvaAberta] = useState(false);
   const [chuvaModeloId, setChuvaModeloId] = useState(null);
+  /* Presença de cada jogador nesta sessão: undefined (ainda não marcada,
+     conta como presente se salvar assim — nunca vira falta sozinho),
+     "presente" ou "ausente". "Marcar todos presentes" só preenche o
+     estado inicial — o treinador ainda pode ajustar um a um antes de
+     salvar. Cada jogador ausente não recebe o histórico da aula nem
+     avança o próprio plano — só um registro de falta. */
+  const [presenca, setPresenca] = useState({});
+  const [obsIndividual, setObsIndividual] = useState({});
+  const [notaAbertaId, setNotaAbertaId] = useState(null);
   const [sessaoTurma, setSessaoTurma] = useState(() => (rascunhoTurma ? rascunhoTurma.sessaoTurma : null)); // { aquecimento, conteudo } | null — a sessão de hoje da turma, com exercícios de verdade pra rodar em quadra
 
   const rascunhoTurmaPrimeiraRef = useRef(true);
@@ -10597,7 +11032,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
      dava pra "gerar a sessão do dia" de fato, só marcar status depois. */
   function gerarSessaoTurma() {
     const evitar = new Set();
-    const aquecimento = sorteia(exerciciosSemBola().filter((e) => e.e.some((s) => estagiosTurma.includes(s))), evitar, 2);
+    const aquecimento = sorteia(exerciciosAquecimento().filter((e) => e.e.some((s) => estagiosTurma.includes(s))), evitar, 2);
     let conteudo = (aulaTurma.ex || []).map((c) => TODOS_EXERCICIOS().find((e) => e.c === c)).filter((e) => e && !e.semBola);
     const usados = new Set(conteudo.map((e) => e.c));
     const temSaque = conteudo.some((e) => AREAS.saque.busca.test(e.n + " " + e.m));
@@ -10617,7 +11052,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
     setSessaoTurma((p) => {
       const lista = p[secao];
       const usados = new Set([...p.aquecimento, ...p.conteudo].map((e) => e.c));
-      const pool = (secao === "aquecimento" ? exerciciosSemBola() : exerciciosParaSorteio())
+      const pool = (secao === "aquecimento" ? exerciciosAquecimento() : exerciciosParaSorteio())
         .filter((e) => e.e.some((s) => estagiosTurma.includes(s)) && !usados.has(e.c));
       if (!pool.length) return p;
       const novo = pool[Math.floor(Math.random() * pool.length)];
@@ -10632,6 +11067,26 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
   }
   function adicionarSessaoTurma(secao, e) {
     setSessaoTurma((p) => ({ ...p, [secao]: [...p[secao], e] }));
+  }
+  function moverSessaoTurma(secao, i, direcao) {
+    setSessaoTurma((p) => {
+      const j = i + direcao;
+      if (j < 0 || j >= p[secao].length) return p;
+      const lista = [...p[secao]];
+      [lista[i], lista[j]] = [lista[j], lista[i]];
+      return { ...p, [secao]: lista };
+    });
+  }
+  function marcarFeitoSessaoTurma(secao, i) {
+    setSessaoTurma((p) => {
+      const lista = [...p[secao]];
+      const [item] = lista.splice(i, 1);
+      lista.push({ ...item, feito: true });
+      return { ...p, [secao]: lista };
+    });
+  }
+  function desmarcarFeitoSessaoTurma(secao, i) {
+    setSessaoTurma((p) => ({ ...p, [secao]: p[secao].map((e, k) => (k === i ? { ...e, feito: false } : e)) }));
   }
 
   /* Quando a sessão sai como planejado ("Realizada"): se a turma tem
@@ -10673,15 +11128,32 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
         : turma.nome;
       setAlunos(alunos.map((a) => {
         if (!turma.membros.includes(a.id)) return a;
+        /* Não marcada ainda = conta como presente ao salvar (é o caso
+           comum — o treinador só mexe em quem faltou). Só "ausente"
+           explícito muda o registro: o jogador não recebe o conteúdo da
+           aula como feito nem avança o próprio plano — ver seção 6 do
+           pedido de melhorias (uma sessão coletiva não pode concluir
+           etapas de quem não participou). */
+        const ausente = presenca[a.id] === "ausente";
+        const notaPessoal = (obsIndividual[a.id] || "").trim();
         const reg = {
           id: "r" + Date.now() + "-" + a.id, tipo: "sessao", data: hoje, ciclo, turma: turma.nome,
-          duracao: turma.duracaoPadrao, exercicios: cods, exerciciosPersonalizados: [], divergencias: [], ...obs,
+          duracao: turma.duracaoPadrao, presenca: ausente ? "ausente" : "presente",
+          exercicios: ausente ? [] : cods, exerciciosPersonalizados: [], divergencias: [], ...obs,
+          notaIndividual: notaPessoal,
           aulaDoPlano: aulaTurma ? aulaTurma.t : null,
         };
-        let atualizado = { ...a, historico: [...(a.historico || []), cods], registros: [...(a.registros || []), reg] };
-        if (!turma.plano) {
-          const prox = aulaEmVigor(a);
-          if (prox) atualizado.regPlano = { ...(a.regPlano || {}), [prox.id]: { status: "feita", data: hoje, ...(notasSessao ? { obs: notasSessao } : {}) } };
+        /* Salvar de novo no mesmo dia pra esta turma substitui o registro
+           anterior em vez de empilhar duplicata — ver seção 6, "impedir
+           duplicação de registros ao salvar novamente". */
+        const registrosSemHoje = (a.registros || []).filter((r) => !(r.data === hoje && r.turma === turma.nome));
+        let atualizado = { ...a, registros: [...registrosSemHoje, reg] };
+        if (!ausente) {
+          atualizado.historico = [...(a.historico || []), cods];
+          if (!turma.plano) {
+            const prox = aulaEmVigor(a);
+            if (prox) atualizado.regPlano = { ...(a.regPlano || {}), [prox.id]: { status: "feita", data: hoje, ...(notasSessao ? { obs: notasSessao } : {}) } };
+          }
         }
         return atualizado;
       }));
@@ -10695,6 +11167,9 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
     setChuvaModeloId(null);
     setSessaoTurma(null);
     setObs({ corrigi: "", ignorei: "", mudaria: "", nota: 3 });
+    setPresenca({});
+    setObsIndividual({});
+    setNotaAbertaId(null);
   }
 
   function marcarResolvida(id) {
@@ -10819,6 +11294,55 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
         </div>
       )}
 
+      {(statusGeral === "feita" || statusGeral === "chuva") && (
+        <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: 15 }}>
+          <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+            <Etiqueta>Presença</Etiqueta>
+            <Botao pequeno variante="vazio" disabled={!podeEditar}
+              onClick={() => setPresenca(Object.fromEntries(membros.map((m) => [m.id, "presente"])))}>
+              Marcar todos presentes
+            </Botao>
+          </div>
+          {membros.map((m) => {
+            const st = presenca[m.id];
+            const notaAberta = notaAbertaId === m.id;
+            return (
+              <div key={m.id} className="mb-2" style={{ borderBottom: "1px solid " + C.linha, paddingBottom: 8 }}>
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 600 }}>{m.nome || "Sem nome"}</span>
+                  <div className="flex gap-1">
+                    <button type="button" disabled={!podeEditar} onClick={() => setPresenca((p) => ({ ...p, [m.id]: "presente" }))}
+                      style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "5px 10px", borderRadius: 10, cursor: "pointer",
+                        border: "1px solid " + (st === "presente" ? C.quadra : C.linha),
+                        background: st === "presente" ? C.quadra : C.papel, color: st === "presente" ? "#fff" : C.grafite }}>
+                      Presente
+                    </button>
+                    <button type="button" disabled={!podeEditar} onClick={() => setPresenca((p) => ({ ...p, [m.id]: "ausente" }))}
+                      style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "5px 10px", borderRadius: 10, cursor: "pointer",
+                        border: "1px solid " + (st === "ausente" ? "#8A2E2E" : C.linha),
+                        background: st === "ausente" ? "#8A2E2E" : C.papel, color: st === "ausente" ? "#fff" : C.grafite }}>
+                      Ausente
+                    </button>
+                  </div>
+                </div>
+                {!st && (
+                  <p style={{ ...prosa, fontSize: 11, color: C.grafite, marginTop: 4 }}>Ainda não marcada — conta como presente se você salvar assim.</p>
+                )}
+                <button type="button" onClick={() => setNotaAbertaId(notaAberta ? null : m.id)}
+                  style={{ ...prosa, fontSize: 11.5, color: C.saibro, cursor: "pointer", border: "none", background: "none", padding: 0, marginTop: 4, fontWeight: 700 }}>
+                  {notaAberta ? "Ocultar nota individual" : (obsIndividual[m.id] ? "Editar nota individual" : "+ nota individual")}
+                </button>
+                {notaAberta && (
+                  <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, resize: "vertical", fontSize: 12.5, marginTop: 6 }}
+                    value={obsIndividual[m.id] || ""} onChange={(e) => setObsIndividual((o) => ({ ...o, [m.id]: e.target.value }))}
+                    placeholder="Observação só deste jogador nesta sessão." />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {turma.plano ? (
         aulaTurma && aulaTurma.gate ? (
           <div className="mb-5" style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "13px 15px" }}>
@@ -10855,7 +11379,11 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
                 ) : (
                   sessaoTurma.aquecimento.map((e, i) => (
                     <CartaoExercicio key={e.c + i} e={e} aoTrocar={() => trocarSessaoTurma("aquecimento", i)} aoRemover={() => removerSessaoTurma("aquecimento", i)}
-                      aoAtualizar={(dados) => atualizarSessaoTurma("aquecimento", i, dados)} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} />
+                      aoAtualizar={(dados) => atualizarSessaoTurma("aquecimento", i, dados)} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom}
+                      aoMoverCima={i > 0 ? () => moverSessaoTurma("aquecimento", i, -1) : undefined}
+                      aoMoverBaixo={i < sessaoTurma.aquecimento.length - 1 ? () => moverSessaoTurma("aquecimento", i, 1) : undefined}
+                      aoAlternarFeito={() => (e.feito ? desmarcarFeitoSessaoTurma("aquecimento", i) : marcarFeitoSessaoTurma("aquecimento", i))}
+                      proximo={!e.feito && i === sessaoTurma.aquecimento.findIndex((x) => !x.feito)} />
                   ))
                 )}
                 <AdicionarExercicioCatalogo
@@ -10867,7 +11395,11 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
                 ) : (
                   sessaoTurma.conteudo.map((e, i) => (
                     <CartaoExercicio key={e.c + i} e={e} aoTrocar={() => trocarSessaoTurma("conteudo", i)} aoRemover={() => removerSessaoTurma("conteudo", i)}
-                      aoAtualizar={(dados) => atualizarSessaoTurma("conteudo", i, dados)} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} />
+                      aoAtualizar={(dados) => atualizarSessaoTurma("conteudo", i, dados)} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom}
+                      aoMoverCima={i > 0 ? () => moverSessaoTurma("conteudo", i, -1) : undefined}
+                      aoMoverBaixo={i < sessaoTurma.conteudo.length - 1 ? () => moverSessaoTurma("conteudo", i, 1) : undefined}
+                      aoAlternarFeito={() => (e.feito ? desmarcarFeitoSessaoTurma("conteudo", i) : marcarFeitoSessaoTurma("conteudo", i))}
+                      proximo={!e.feito && i === sessaoTurma.conteudo.findIndex((x) => !x.feito)} />
                   ))
                 )}
                 <AdicionarExercicioCatalogo
@@ -10923,7 +11455,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
             <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, resize: "vertical" }} value={obs.mudaria}
               onChange={(e) => setObs({ ...obs, mudaria: e.target.value })} />
           </Campo>
-          <Campo rotulo="Presença geral do grupo na sessão">
+          <Campo rotulo="Engajamento geral do grupo na sessão" nota="Nota de 1 a 5 — a presença de cada jogador já é marcada individualmente acima.">
             <Seletor opcoes={[1, 2, 3, 4, 5].map((n) => ({ v: n, r: String(n) }))} valor={obs.nota}
               aoMudar={(v) => setObs({ ...obs, nota: v })} />
           </Campo>
@@ -11150,6 +11682,29 @@ function registrosPendentesAgenda(alunos, turmas) {
     });
   }
   return pendentes;
+}
+
+/* Mesma lógica de "qual é o próximo compromisso", só que restrita aos
+   horários de UMA turma — pros cartões da lista de Turmas mostrarem
+   dia+hora reais (considerando a recorrência semanal), nunca inventados.
+   Sem horários cadastrados, devolve null — a lista mostra só o texto
+   descritivo dos horários, não finge saber quando é a próxima aula. */
+function proximaAulaDaTurma(turma) {
+  const horarios = turma.horarios || [];
+  if (horarios.length === 0) return null;
+  const agora = new Date();
+  const diaHoje = agora.getDay();
+  const horaAtual = String(agora.getHours()).padStart(2, "0") + ":" + String(agora.getMinutes()).padStart(2, "0");
+  function distancia(h) {
+    let dias = (h.dia - diaHoje + 7) % 7;
+    if (dias === 0 && h.hora < horaAtual) dias = 7;
+    return dias * 1440 + Number(h.hora.slice(0, 2)) * 60 + Number(h.hora.slice(3, 5));
+  }
+  const prox = [...horarios].sort((x, y) => distancia(x) - distancia(y))[0];
+  const dias = (prox.dia - diaHoje + 7) % 7;
+  const hoje = dias === 0 && prox.hora >= horaAtual;
+  const amanha = dias === 1;
+  return { dia: prox.dia, hora: prox.hora, diaLabel: hoje ? "Hoje" : amanha ? "Amanhã" : nomeDia(prox.dia) };
 }
 
 /* Um plano "precisa de revisão" quando a ficha de quem ele atende mudou
@@ -12239,6 +12794,7 @@ function App() {
   const [buscaJogador, setBuscaJogador] = useState("");
   const [filtroEstagioJogador, setFiltroEstagioJogador] = useState("todos");
   const [avisosAberto, setAvisosAberto] = useState(false);
+  const [perfilAberto, setPerfilAberto] = useState(false);
   /* Menu lateral: cada grupo abre/fecha independente, mas começa todo
      aberto — assim quem já usa o app continua vendo tudo de cara, sem
      precisar clicar em nada antes de navegar. */
@@ -12818,9 +13374,9 @@ function App() {
             })()}
             {subaba === "ficha" ? <TelaFicha aluno={aberto} salvar={salvar} papelAtual={papelAtual} uidAtual={uidAtual}
                 etapaAlvo={etapaFichaAlvo} aoConsumirEtapaAlvo={() => setEtapaFichaAlvo(null)} aoMudarEditando={setEditandoFicha} /> :
-             subaba === "plano" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="resumo" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} /> :
-             subaba === "aulas" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} /> :
-             subaba === "fechamento" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="fechamento" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} /> :
+             subaba === "plano" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="resumo" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} /> :
+             subaba === "aulas" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} /> :
+             subaba === "fechamento" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="fechamento" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} /> :
              subaba === "periodizacao" ? <TelaPeriodizacao aluno={aberto} aoCriarPeriodo={() => { setEtapaFichaAlvo(2); setSubaba("ficha"); }} /> :
              subaba === "scout" ? <TelaScout aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
              subaba === "registro" ? <TelaRegistro aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade} /> :
