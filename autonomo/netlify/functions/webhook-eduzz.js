@@ -46,7 +46,7 @@
    upgrade automático até você preencher aqui). */
 const MAPA_PRODUTO = {
   "3124922": { plano: "essencial", duracaoDias: 32 }, // QuadraLab Essencial · R$29,90/mês · até 30 jogadores
-  // "P789": { plano: "premium", duracaoDias: null },
+  "3124932": { plano: "premium", duracaoDias: 32 }, // QuadraLab Premium · R$59,90/mês · jogadores ilimitados
 };
 
 /* event (data.event) que contam como "aprovado, liberar acesso" e
