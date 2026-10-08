@@ -8014,29 +8014,18 @@ function leitura(r) {
   return sinais;
 }
 
-function Relatorio({ aluno, alunos, setAlunos, cfg, pontos, placar, aoSair }) {
-  const r = useMemo(() => resume(pontos), [pontos]);
-  const sinais = useMemo(() => leitura(r), [r]);
-  const [salvo, setSalvo] = useState(false);
-
+/* Leitura/tabelas do scout — isolado pra ser usado tanto no fluxo de
+   coleta ao vivo (Relatorio, abaixo) quanto na revisão de um jogo já
+   salvo no Caderno (DetalheJogoRegistro): antes só existia no fluxo ao
+   vivo, então depois de fechar o relatório os dados ficavam salvos no
+   registro (reg.scout) mas sem nenhuma tela que mostrasse de novo —
+   na prática, "perdidos" pra quem quisesse rever ou comparar jogos. */
+function ResumoScout({ r, sinais, aluno, alunos, setAlunos }) {
   const dados = [
     { faixa: "1–2 bolas", valor: r.pctCurtos },
     { faixa: "3–4 bolas", valor: r.pctMedios },
     { faixa: "5+ bolas", valor: r.pctLongos },
   ];
-
-  function salvar() {
-    const reg = {
-      id: "r" + Date.now(), tipo: "jogo", data: new Date().toISOString().slice(0, 10),
-      torneio: cfg.torneio || "jogo-treino", adversario: cfg.adversario || "—",
-      plano: "", protocolo: r.pctProtocolo, erros12: r.pctErrosCurtos,
-      revelou: sinais.map((s) => s[1]).join(" "),
-      resultado: placar ? [...placar.sets.map((x) => `${x[0]}-${x[1]}`)].join(" ") || "não concluído" : "—",
-      scout: { ...r, pontos },
-    };
-    setAlunos(alunos.map((a) => a.id === aluno.id ? { ...a, registros: [...(a.registros || []), reg] } : a));
-    setSalvo(true);
-  }
 
   function reordenar() {
     const areas = [...new Set(sinais.map((s) => s[0]))];
@@ -8044,11 +8033,8 @@ function Relatorio({ aluno, alunos, setAlunos, cfg, pontos, placar, aoSair }) {
     setAlunos(alunos.map((a) => a.id === aluno.id ? { ...a, prioridades: nova } : a));
   }
 
-  if (!pontos.length)
-    return <div><Aviso>Nenhum ponto coletado.</Aviso><Botao onClick={aoSair}>Voltar</Botao></div>;
-
   return (
-    <div>
+    <>
       <Secao titulo="Onde o ponto se decidiu" nota="Cerca de 70% dos pontos do circuito terminam em até quatro bolas. É contra essa referência que se lê o jogo.">
         <div className="flex mb-3" style={{ height: 40 }}>
           {dados.map((d, i) => (
@@ -8112,6 +8098,49 @@ function Relatorio({ aluno, alunos, setAlunos, cfg, pontos, placar, aoSair }) {
           </div>
         )}
       </Secao>
+    </>
+  );
+}
+
+/* Ver o scout completo de um jogo já salvo no Caderno — mesma leitura
+   de ResumoScout, recalculada a partir do que foi salvo em reg.scout
+   (nunca um texto congelado), pra comparar jogos ao longo do tempo. */
+function DetalheJogoRegistro({ r, aluno, alunos, setAlunos }) {
+  if (!r.scout || !(r.scout.pontos || []).length) {
+    return <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 10 }}>Esse jogo não tem dados detalhados de scout salvos.</p>;
+  }
+  const sinais = leitura(r.scout);
+  return (
+    <div className="mt-3 pt-3" style={{ borderTop: "1px solid " + C.linha }}>
+      <ResumoScout r={r.scout} sinais={sinais} aluno={aluno} alunos={alunos} setAlunos={setAlunos} />
+    </div>
+  );
+}
+
+function Relatorio({ aluno, alunos, setAlunos, cfg, pontos, placar, aoSair }) {
+  const r = useMemo(() => resume(pontos), [pontos]);
+  const sinais = useMemo(() => leitura(r), [r]);
+  const [salvo, setSalvo] = useState(false);
+
+  function salvar() {
+    const reg = {
+      id: "r" + Date.now(), tipo: "jogo", data: new Date().toISOString().slice(0, 10),
+      torneio: cfg.torneio || "jogo-treino", adversario: cfg.adversario || "—",
+      plano: "", protocolo: r.pctProtocolo, erros12: r.pctErrosCurtos,
+      revelou: sinais.map((s) => s[1]).join(" "),
+      resultado: placar ? [...placar.sets.map((x) => `${x[0]}-${x[1]}`)].join(" ") || "não concluído" : "—",
+      scout: { ...r, pontos },
+    };
+    setAlunos(alunos.map((a) => a.id === aluno.id ? { ...a, registros: [...(a.registros || []), reg] } : a));
+    setSalvo(true);
+  }
+
+  if (!pontos.length)
+    return <div><Aviso>Nenhum ponto coletado.</Aviso><Botao onClick={aoSair}>Voltar</Botao></div>;
+
+  return (
+    <div>
+      <ResumoScout r={r} sinais={sinais} aluno={aluno} alunos={alunos} setAlunos={setAlunos} />
 
       <Aviso>
         Um jogo é uma amostra. Três jogos na mesma direção são um sinal; um jogo isolado é ruído. O
@@ -8410,6 +8439,12 @@ function TelaRegistro({ aluno, alunos, setAlunos, identidade }) {
                           {r.revelou ? <><br /><span style={{ color: C.grafite }}>{r.revelou}</span></> : null}
                         </p>
                       )}
+                      {r.tipo === "jogo" && r.scout && (
+                        <button onClick={() => setAbertoId(abertoId === r.id ? null : r.id)}
+                          style={{ ...prosa, fontSize: 12, color: C.saibro, fontWeight: 700, cursor: "pointer", border: "none", background: "none", padding: 0, marginTop: 6 }}>
+                          {abertoId === r.id ? "Ocultar scout completo" : "Ver scout completo"}
+                        </button>
+                      )}
                       {r.tipo === "semana" && (
                         <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>Planilha da semana preenchida</p>
                       )}
@@ -8421,6 +8456,9 @@ function TelaRegistro({ aluno, alunos, setAlunos, identidade }) {
                   </div>
                   {r.tipo === "sessao" && abertoId === r.id && (
                     <DetalheSessaoRegistro r={r} aoSalvar={(campos) => atualizarRegistro(r.id, campos)} />
+                  )}
+                  {r.tipo === "jogo" && abertoId === r.id && (
+                    <DetalheJogoRegistro r={r} aluno={aluno} alunos={alunos} setAlunos={setAlunos} />
                   )}
                 </div>
               ))}
