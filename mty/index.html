@@ -4116,6 +4116,20 @@ const PROGRAMAS_PRONTOS = [
   },
 ];
 
+/* Referência pra ajudar o treinador a NOMEAR a jogada do atleta no
+   programa "Tático Avançado" (aberto) — não é exercício do catálogo,
+   é vocabulário comum pra destravar a observação. Resume, num formato
+   de reconhecimento rápido, as mesmas jogadas que os drills PT/DT/AT
+   do catálogo já descrevem em detalhe. */
+const JOGADAS_TATICAS_COMUNS = [
+  { nome: "Puxa e inverte (abre e fecha)", descricao: "Puxa a bola cruzada funda pra abrir espaço e fecha o ponto mudando de direção pra paralela, no lado que ficou vazio." },
+  { nome: "Sobe no approach de bola curta", descricao: "Qualquer bola curta ou fraca do adversário é o gatilho pra subir à rede com o approach e fechar no voleio." },
+  { nome: "Ataca a segunda bola", descricao: "Reconhece quando o saque do adversário é fraco ou curto e já entra agressivo nessa bola, sem esperar a troca se formar." },
+  { nome: "Serve e vem (saque e voleio)", descricao: "Sobe à rede direto depois do próprio saque, sem esperar a resposta — mais comum em saques fortes ou no corpo." },
+  { nome: "Defende longo e espera o erro", descricao: "Mantém a bola alta e profunda de fundo até o adversário forçar e errar, sem tentar vencer o ponto sozinho." },
+  { nome: "Variação de ritmo com slice/bola alta", descricao: "Quebra o ritmo da troca com uma bola mais lenta ou com efeito, pra tirar o adversário do automático antes de atacar." },
+];
+
 /* Monta o plano de um programa pronto pra um jogador — mesmo formato de
    validarPlanoJSON. `opcoes.areaFoco` é obrigatório só pro programa
    "tecnico" (o treinador escolhe qual golpe/área corrigir); os demais
@@ -4131,6 +4145,16 @@ function gerarPlanoDePrograma(programaId, alvo, opcoes) {
   const areaFoco = prog.areasDisponiveis ? opcoes.areaFoco : prog.areaFoco;
   if (prog.areasDisponiveis && !prog.areasDisponiveis.includes(areaFoco))
     throw new Error("Escolha um golpe/área válido para este programa.");
+  /* Este programa não tem exercício fixo do catálogo — o drill nasce
+     da observação do treinador, não de sorteio. Sem essa descrição, a
+     aula fica vazia (só o roteiro genérico), que é exatamente o
+     problema que o treinador reportou: sem instrução nenhuma de que
+     ele precisa avaliar a jogada real do atleta antes de montar a
+     sessão. Por isso é obrigatório, igual à área técnica do programa
+     "tecnico" acima. */
+  const padraoTatico = opcoes.padraoTatico ? opcoes.padraoTatico.trim() : "";
+  if (prog.aberto && !padraoTatico)
+    throw new Error("Descreva a jogada que você observou neste jogador (ou turma) antes de montar o programa.");
   const area = AREAS[areaFoco];
   /* `alvo` é um jogador (tem .estagio) ou uma turma (tem .estagios — a
      união dos estágios de todo mundo do grupo, igual a sessão de turma
@@ -4186,11 +4210,12 @@ function gerarPlanoDePrograma(programaId, alvo, opcoes) {
     if (prog.aberto) {
       aulas.push({
         t: prog.nome + " — aula " + (i + 1),
-        d: "Estrutura aberta: comece com um aquecimento simples (bate-bola). Depois, o drill das " +
-          "principais jogadas deste atleta — do início do ponto até a finalização, ou só uma parte " +
-          "dele — criado por você a partir do padrão de jogo real dele. Feche com pontos aplicando " +
-          "essa tática. Durante o drill, corrija apoio, terminação e contato — é aí que o treinador " +
-          "precisa estar atento.",
+        d: "Jogada observada deste atleta: " + padraoTatico + "\n\n" +
+          "1 · Aquecimento simples (bate-bola). " +
+          "2 · Alimente a ENTRADA da jogada acima (a bola que dá origem a ela) e deixe o jogador repetir " +
+          "até o padrão sair automático — pelo menos 4-6 séries. " +
+          "3 · Pontos reais cobrando essa mesma jogada, sem alimentação. " +
+          "Durante o drill, corrija apoio, terminação e contato — é aí que o treinador precisa estar atento.",
         ex: [],
       });
       continue;
@@ -8343,6 +8368,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
   const [planoCandidato, setPlanoCandidato] = useState(null);
   const [programaEscolhido, setProgramaEscolhido] = useState(null);
   const [areaTecnica, setAreaTecnica] = useState("fundo");
+  const [padraoObservado, setPadraoObservado] = useState("");
   const [erroPrograma, setErroPrograma] = useState("");
   /* Qual dos 3 caminhos de criação está aberto — null mostra só a
      pergunta "como deseja preparar". Trocar de opção preserva o que já
@@ -8500,9 +8526,10 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
          faz pro sorteio do dia): um exercício entra se servir a QUALQUER
          jogador do grupo, não só a um estágio fixo. */
       const alvoPrograma = eTurma ? { estagios: [...new Set(membros.map((m) => m.estagio))] } : aluno;
-      const planoGerado = gerarPlanoDePrograma(programaEscolhido, alvoPrograma, { areaFoco: areaTecnica });
+      const planoGerado = gerarPlanoDePrograma(programaEscolhido, alvoPrograma, { areaFoco: areaTecnica, padraoTatico: padraoObservado });
       setPlanoCandidato(planoGerado);
       setProgramaEscolhido(null);
+      setPadraoObservado("");
     } catch (e) {
       setErroPrograma(String(e.message || e));
     }
@@ -8975,8 +9002,35 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                   </Campo>
                 </div>
               )}
+              {programaAtual.aberto && (
+                <div className="mb-3">
+                  <Aviso>
+                    Antes de montar: assista (ou lembre de) este {eTurma ? "grupo" : "jogador"} jogando pontos
+                    reais e identifique a jogada que ele mais repete — como o ponto começa, como ele constrói
+                    e como costuma terminar (ataque, erro provocado ou vitória). O drill desta aula nasce dessa
+                    observação, não de um exercício pronto do catálogo.
+                  </Aviso>
+                  <p style={{ ...prosa, fontSize: 11.5, fontWeight: 700, color: C.grafite, textTransform: "uppercase", letterSpacing: ".04em", marginTop: 12, marginBottom: 6 }}>
+                    Jogadas mais comuns, pra ajudar a reconhecer e nomear a dele
+                  </p>
+                  <div className="flex flex-col gap-2 mb-3">
+                    {JOGADAS_TATICAS_COMUNS.map((j) => (
+                      <div key={j.nome} style={{ border: "1px solid " + C.linha, borderRadius: 8, padding: "8px 10px", background: "#fff" }}>
+                        <p style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, color: C.tinta }}>{j.nome}</p>
+                        <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginTop: 2 }}>{j.descricao}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <Campo rotulo="Qual jogada você vai treinar com este jogador?"
+                    nota="Descreva o padrão real dele — de onde vem (saque, defesa, troca de fundo) até onde termina (ataque, subida à rede, erro provocado). Pode usar um dos exemplos acima como ponto de partida. Isso entra no roteiro de cada aula do ciclo.">
+                    <textarea rows={3} style={{ ...entrada, resize: "vertical" }} value={padraoObservado}
+                      onChange={(e) => setPadraoObservado(e.target.value)}
+                      placeholder="Ex.: Puxa cruzado de forehand até abrir espaço e sobe à rede quando a bola volta curta no meio." />
+                  </Campo>
+                </div>
+              )}
               {erroPrograma && <Aviso>{erroPrograma}</Aviso>}
-              <Botao variante="saibro" disabled={!podeEditar} onClick={gerarDoPrograma}>Revisar programa</Botao>
+              <Botao variante="saibro" disabled={!podeEditar || (programaAtual.aberto && !padraoObservado.trim())} onClick={gerarDoPrograma}>Revisar programa</Botao>
             </div>
           )}
         </Secao>}
