@@ -1,46 +1,59 @@
 /* Integração com a Eduzz: libera (ou revoga) acesso à QuadraLab
    automaticamente quando alguém compra, é reembolsado ou tem a
-   assinatura cancelada — sem precisar rodar provisionar-org na mão.
+   fatura cancelada/chargeback — sem precisar rodar provisionar-org
+   na mão.
 
-   ⚠️ ATENÇÃO — PENDÊNCIA CONHECIDA: os nomes de campo usados abaixo
-   (cus_email, cus_name, trans_cod, trans_status, product_cod) são um
-   ponto de partida baseado no formato clássico do webhook da Eduzz,
-   NÃO foram confirmados contra um payload real desta conta. Antes de
-   usar em produção: dispare uma notificação de teste pelo painel da
-   Eduzz (Configurações → Integrações/Webhook), compare o corpo
-   recebido com a função interpretarEvento() logo abaixo, e ajuste os
-   nomes de campo e os códigos de status se precisar. Essa é a ÚNICA
-   função que deveria precisar de ajuste — o resto (parsing do corpo,
-   verificação do segredo, criar/ajustar conta) já segue o mesmo
-   padrão comprovado de cadastro-individual.js e provisionar-org.js.
+   Formato confirmado contra um payload REAL de teste disparado pelo
+   Developer Hub da Eduzz (console.eduzz.com → Developer Hub →
+   Receba eventos) em 08/10/2026 — não é mais o webhook clássico
+   (cus_email/trans_status), é JSON puro:
+     { id, event, data: { id, status, buyer: {...}, items: [...],
+       transaction: {...}, producer: {...}, ... }, sentDate }
 
    ── Como configurar na Eduzz ──
-   Cadastre como URL de webhook (não dá pra mandar cabeçalho customizado
-   no webhook clássico da Eduzz, por isso o segredo vai na própria URL):
-     https://quadralab.com.br/.netlify/functions/webhook-eduzz?chave=SEU_WEBHOOK_SECRET
-   SEU_WEBHOOK_SECRET é um valor que você escolhe e configura também
-   na variável de ambiente WEBHOOK_EDUZZ_SECRET no Netlify (Site
-   configuration → Environment variables) — sem isso configurado a
-   function recusa qualquer chamada.
+   1. console.eduzz.com → ícone de grade (apps) → "developer hub"
+      → card "Webhooks configurados" → "Criar configuração".
+   2. URL: https://quadralab.com.br/.netlify/functions/webhook-eduzz?chave=SEU_WEBHOOK_SECRET
+      SEU_WEBHOOK_SECRET é escolhido por você e configurado também na
+      variável de ambiente WEBHOOK_EDUZZ_SECRET no Netlify (Site
+      configuration → Environment variables) — sem isso configurado
+      a function recusa qualquer chamada. A Eduzz também manda um
+      cabeçalho x-signature próprio, mas não conseguimos confirmar o
+      algoritmo de assinatura dela contra um payload de teste real
+      (o campo "originSecret" que o payload de teste traz não bateu
+      como chave HMAC-SHA256) — por isso a proteção real é a `chave`
+      na URL, que está 100% sob nosso controle.
+   3. Marque os eventos: "Fatura paga", "Fatura cancelada", "Fatura
+      reembolsada" e "Chargeback de Faturas".
+
+   ── Payloads de TESTE da Eduzz ──
+   O botão de teste do Developer Hub manda um comprador fictício real
+   (ex.: alice.johnson@example.com) — se processássemos isso à risca
+   criaríamos uma conta de verdade pra esse e-mail fake em produção.
+   Os payloads de teste trazem um campo a mais, `data.producer.
+   originSecret`, que os de produção não têm — usamos a presença dele
+   como sinal de "isto é só um teste" e ignoramos sem criar nada.
 
    ── Qual produto vira qual plano ──
-   Preencha MAPA_PRODUTO com o código de cada produto da Eduzz (o
-   payload de teste vai mostrar o campo certo — provavelmente
-   product_cod). duracaoDias é quantos dias o acesso dura a partir da
-   aprovação (renovação de assinatura estende a partir da data atual
-   de validade, nunca a partir de hoje, pra não perder dias já pagos);
-   use null pra um produto que não expira (acesso vitalício). */
+   Preencha MAPA_PRODUTO com o productId de cada produto da Eduzz
+   (aparece em data.items[0].productId no payload — o primeiro produto
+   do checkout decide o plano). duracaoDias é quantos dias o acesso
+   dura a partir da aprovação (renovação de assinatura estende a partir
+   da data atual de validade, nunca a partir de hoje, pra não perder
+   dias já pagos); use null pra um produto que não expira (acesso
+   vitalício). Enquanto estiver vazio, qualquer fatura paga sem produto
+   mapeado cai no plano "gratis" (nunca dá acesso indevido, só fica sem
+   upgrade automático até você preencher aqui). */
 const MAPA_PRODUTO = {
-  // "123456": { plano: "essencial", duracaoDias: 32 },
-  // "654321": { plano: "premium", duracaoDias: null },
+  // "P567": { plano: "essencial", duracaoDias: 32 },
+  // "P789": { plano: "premium", duracaoDias: null },
 };
 
-/* Status que contam como "aprovado, liberar acesso" e "revogar acesso"
-   — confirme os códigos reais contra o payload de teste antes de usar.
-   O webhook clássico da Eduzz historicamente usa números (ex.: 3 para
-   venda completa) — ajuste a lista abaixo quando confirmar. */
-const STATUS_APROVADO = ["3", "paid", "completa"];
-const STATUS_REVOGAR = ["5", "6", "7", "8", "cancelled", "refunded", "chargeback"];
+/* event (data.event) que contam como "aprovado, liberar acesso" e
+   "revogar acesso" — confirmados contra os 4 payloads de teste reais
+   disparados no Developer Hub. */
+const EVENTOS_APROVADO = ["myeduzz.invoice_paid"];
+const EVENTOS_REVOGAR = ["myeduzz.invoice_canceled", "myeduzz.invoice_refunded", "myeduzz.invoice_chargeback"];
 
 const { admin, app } = require("./_firebase-admin");
 
@@ -59,32 +72,21 @@ function senhaAleatoria() {
   return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
 }
 
-/* Eduzz pode mandar o corpo como JSON ou como formulário
-   (application/x-www-form-urlencoded) — trata os dois. */
-function parseCorpo(event) {
-  const tipo = (event.headers["content-type"] || event.headers["Content-Type"] || "").toLowerCase();
-  const corpo = event.body || "";
-  if (tipo.includes("application/json")) {
-    try { return JSON.parse(corpo); } catch (e) { return {}; }
-  }
-  const params = new URLSearchParams(corpo);
-  const obj = {};
-  for (const [k, v] of params) obj[k] = v;
-  return obj;
-}
-
-/* ÚNICA função que deve precisar de ajuste depois de ver um payload
-   real da Eduzz — isola toda a interpretação dos nomes de campo. */
-function interpretarEvento(dados) {
-  const transacaoId = String(dados.trans_cod || dados.cod || dados.id || "").trim();
-  const email = String(dados.cus_email || dados.email || "").trim().toLowerCase();
-  const nome = String(dados.cus_name || dados.nome || "").trim();
-  const produtoCod = String(dados.product_cod || dados.cod_produto || "").trim();
-  const statusBruto = String(dados.trans_status || dados.status || "").trim().toLowerCase();
+/* ÚNICA função que deve precisar de ajuste se a Eduzz mudar o formato
+   do payload — isola toda a interpretação do corpo. */
+function interpretarEvento(corpo) {
+  const dados = (corpo && corpo.data) || {};
+  const eventoBruto = String(corpo.event || "").trim();
+  const email = String((dados.buyer || {}).email || "").trim().toLowerCase();
+  const nome = String((dados.buyer || {}).name || "").trim();
+  const faturaId = String(dados.id || "").trim();
+  const primeiroItem = (dados.items || [])[0] || {};
+  const produtoCod = String(primeiroItem.productId || "").trim();
+  const ehTeste = !!((dados.producer || {}).originSecret);
   return {
-    transacaoId, email, nome, produtoCod, statusBruto,
-    aprovado: STATUS_APROVADO.includes(statusBruto),
-    revogar: STATUS_REVOGAR.includes(statusBruto),
+    faturaId, email, nome, produtoCod, eventoBruto, ehTeste,
+    aprovado: EVENTOS_APROVADO.includes(eventoBruto),
+    revogar: EVENTOS_REVOGAR.includes(eventoBruto),
   };
 }
 
@@ -96,19 +98,30 @@ exports.handler = async function (event) {
   if (!segredoEsperado) return resposta(500, { erro: "WEBHOOK_EDUZZ_SECRET não configurado no Netlify." });
   if (segredoRecebido !== segredoEsperado) return resposta(401, { erro: "Chave de webhook ausente ou incorreta." });
 
-  const dados = parseCorpo(event);
-  const ev = interpretarEvento(dados);
-  if (!ev.transacaoId || !ev.email) {
-    return resposta(200, { ok: false, ignorado: "corpo sem transacaoId/email reconhecíveis — payload: " + JSON.stringify(dados).slice(0, 500) });
+  let corpo;
+  try {
+    corpo = JSON.parse(event.body || "{}");
+  } catch (e) {
+    return resposta(200, { ok: false, ignorado: "corpo não é um JSON válido." });
+  }
+
+  const ev = interpretarEvento(corpo);
+  if (ev.ehTeste) {
+    // disparo de teste do Developer Hub (comprador fictício) — nunca cria conta de verdade.
+    return resposta(200, { ok: true, teste: true });
+  }
+  if (!ev.faturaId || !ev.email) {
+    return resposta(200, { ok: false, ignorado: "corpo sem id de fatura/e-mail reconhecíveis — evento: " + ev.eventoBruto });
   }
 
   try {
     app();
     const db = admin.firestore();
 
-    // idempotência: Eduzz reenvia o mesmo evento se não receber 200 —
-    // nunca processa a mesma transação duas vezes.
-    const refEvento = db.collection("webhooksEduzzProcessados").doc(ev.transacaoId);
+    // idempotência: Eduzz pode reenviar o mesmo evento se não receber 200 —
+    // nunca processa a mesma combinação fatura+evento duas vezes.
+    const chaveEvento = ev.faturaId + "|" + ev.eventoBruto;
+    const refEvento = db.collection("webhooksEduzzProcessados").doc(chaveEvento);
     if ((await refEvento.get()).exists) {
       return resposta(200, { ok: true, jaProcessado: true });
     }
@@ -118,12 +131,12 @@ exports.handler = async function (event) {
     } else if (ev.revogar) {
       await revogarAcesso(db, ev);
     }
-    // qualquer outro status (ex.: "aguardando pagamento") é ignorado de
-    // propósito — só reage a aprovação e revogação — mas confirma 200
+    // qualquer outro evento (ex.: fatura criada, em negociação) é ignorado
+    // de propósito — só reage a aprovação e revogação — mas confirma 200
     // mesmo assim, pra Eduzz não ficar reenviando.
 
     await refEvento.set({
-      status: ev.statusBruto, email: ev.email, processadoEm: new Date().toISOString(),
+      evento: ev.eventoBruto, email: ev.email, processadoEm: new Date().toISOString(),
     });
     return resposta(200, { ok: true });
   } catch (e) {
@@ -179,7 +192,7 @@ async function liberarAcesso(db, ev) {
   await refInfo.set({
     nome: infoAtual.nome || ev.nome || ev.email, individual: true, plano,
     ...(planoAtivoAte ? { planoAtivoAte } : {}),
-    eduzzUltimaTransacao: ev.transacaoId, eduzzAtualizadoEm: new Date().toISOString(),
+    eduzzUltimaFatura: ev.faturaId, eduzzAtualizadoEm: new Date().toISOString(),
     ...(infoAtual.criadoEm ? {} : { criadoEm: new Date().toISOString() }),
   }, { merge: true });
 }
@@ -201,7 +214,7 @@ async function revogarAcesso(db, ev) {
   // sozinho (LIMITES_POR_PLANO) — não apaga quem já existe.
   await db.collection("orgs").doc(orgId).collection("meta").doc("info").set({
     plano: "gratis", planoAtivoAte: admin.firestore.FieldValue.delete(),
-    eduzzUltimaTransacao: ev.transacaoId, eduzzRevogadoEm: new Date().toISOString(),
+    eduzzUltimaFatura: ev.faturaId, eduzzRevogadoEm: new Date().toISOString(),
   }, { merge: true });
 }
 
