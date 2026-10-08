@@ -4348,6 +4348,25 @@ function gerarPlanoDePrograma(programaId, alvo, opcoes) {
     nucleo = sorteia(poolNucleo, new Set(), Math.min(3, poolNucleo.length || 3));
   }
 
+  /* As 7 etapas pedidas pelo treinador pra jogada observada (pernas →
+     intensidade → técnica → bola morta por etapas → mesma progressão
+     do outro lado da quadra → jogada inteira → situação real). As 3
+     primeiras são exercícios DE VERDADE do catálogo — pernas/
+     movimentação (família MV), intensidade de deslocamento (CF),
+     técnica de membros superiores (FB/DC) — porque isso não depende
+     da jogada específica, só do estágio do jogador; sorteado uma vez
+     só e repetido no ciclo, igual ao núcleo dos outros programas. As
+     últimas 4 são inevitavelmente específicas da jogada descrita —
+     nenhum exercício do catálogo nasceu sabendo a jogada real de cada
+     atleta — por isso entram como roteiro de etapas no texto da aula,
+     não como item sorteado. */
+  let pernas = null, intensidade = null, tecnica = null;
+  if (prog.aberto) {
+    [pernas] = sorteia(exerciciosParaSorteio().filter((e) => e.f === "MV" && temEstagio(e)), new Set(), 1);
+    [intensidade] = sorteia(exerciciosParaSorteio().filter((e) => e.f === "CF" && temEstagio(e)), new Set(), 1);
+    [tecnica] = sorteia(exerciciosParaSorteio().filter((e) => (e.f === "FB" || e.f === "DC") && temEstagio(e)), new Set(), 1);
+  }
+
   const aulas = [];
   const evitarAquecimento = new Set();
   for (let i = 0; i < NUM_AULAS; i++) {
@@ -4355,12 +4374,15 @@ function gerarPlanoDePrograma(programaId, alvo, opcoes) {
       aulas.push({
         t: prog.nome + " — aula " + (i + 1),
         d: "Jogada observada deste atleta: " + padraoTatico + "\n\n" +
-          "1 · Aquecimento simples (bate-bola). " +
-          "2 · Alimente a ENTRADA da jogada acima (a bola que dá origem a ela) e deixe o jogador repetir " +
-          "até o padrão sair automático — pelo menos 4-6 séries. " +
-          "3 · Pontos reais cobrando essa mesma jogada, sem alimentação. " +
+          "1 · Pernas e movimentação" + (pernas ? " (" + pernas.n + "): " + pernas.m : "") + "\n" +
+          "2 · Intensidade de movimentação" + (intensidade ? " (" + intensidade.n + "): " + intensidade.m : "") + "\n" +
+          "3 · Técnica de membros superiores, ajustada pra essa jogada" + (tecnica ? " (" + tecnica.n + "): " + tecnica.m : "") + "\n" +
+          "4 · Bola morta perto do jogador: divida a jogada em etapas (entrada, construção, finalização) e alimente cada etapa isoladamente, de perto.\n" +
+          "5 · Mesma progressão, agora lançada do outro lado da quadra: repita as etapas com a bola vindo de mais longe, como na jogada real.\n" +
+          "6 · Jogada inteira: junte as etapas num único drill contínuo, do início ao fim da jogada.\n" +
+          "7 · Situação real: pontos de verdade cobrando a jogada inteira, sem alimentação.\n\n" +
           "Durante o drill, corrija apoio, terminação e contato — é aí que o treinador precisa estar atento.",
-        ex: [],
+        ex: [pernas, intensidade, tecnica].filter(Boolean).map((e) => e.c),
       });
       continue;
     }
@@ -4406,14 +4428,14 @@ function rotuloAbrangenciaPrograma(p) {
 }
 function rotuloConteudoPrograma(p) {
   return p.aberto
-    ? "Sem exercício fixo do catálogo — o drill é criado por você a partir do padrão de jogo do atleta."
+    ? "3 exercícios reais do catálogo (pernas, intensidade, técnica) + 4 etapas específicas da jogada que você descrever."
     : "Exercícios reais do catálogo, escolhidos pelo estágio do jogador" + (p.areasDisponiveis ? " e pelo golpe/área que você escolher." : ".");
 }
 function detalhesPrograma(p) {
   if (p.id === "tecnico")
     return "A aula segue 3 passos com o mesmo exercício: bola morta perto do aluno, progressão com cesto do outro lado da rede, e bate-bola de fundo pra consolidar o mesmo aspecto técnico. Esses 3 passos se repetem nas 4 aulas do ciclo, até você confirmar o critério de saída no Fechamento.";
   if (p.aberto)
-    return "Sem exercício fixo do catálogo — você identifica as jogadas que o atleta mais usa e monta o drill específico a partir delas, aula a aula.";
+    return "A aula segue 7 etapas a partir da jogada que você descrever: pernas e movimentação, intensidade de deslocamento e técnica de membros superiores (exercícios reais do catálogo, pelo estágio do jogador) — depois bola morta por etapas perto do jogador, a mesma progressão lançada do outro lado da quadra, a jogada inteira em drill contínuo, e uma situação real de ponto cobrando a jogada completa.";
   return "O mesmo foco de núcleo se repete nas 4 aulas do ciclo — é a repetição que consolida a correção ou o padrão tático. Revise e confirme o critério de saída no Fechamento quando o jogador mostrar domínio.";
 }
 
@@ -9204,8 +9226,11 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                   <Aviso>
                     Antes de montar: assista (ou lembre de) este {eTurma ? "grupo" : "jogador"} jogando pontos
                     reais e identifique a jogada que ele mais repete — como o ponto começa, como ele constrói
-                    e como costuma terminar (ataque, erro provocado ou vitória). O drill desta aula nasce dessa
-                    observação, não de um exercício pronto do catálogo.
+                    e como costuma terminar (ataque, erro provocado ou vitória). A partir dessa descrição, a
+                    aula monta sozinha as 7 etapas: pernas e movimentação, intensidade de deslocamento e
+                    técnica de membros superiores vêm de exercícios reais do catálogo pelo estágio do jogador;
+                    as 4 etapas finais (bola morta por partes, progressão do outro lado da quadra, a jogada
+                    inteira e uma situação real) usam exatamente a jogada que você descrever abaixo.
                   </Aviso>
                   <p style={{ ...prosa, fontSize: 11.5, fontWeight: 700, color: C.grafite, textTransform: "uppercase", letterSpacing: ".04em", marginTop: 12, marginBottom: 6 }}>
                     Jogadas mais comuns, pra ajudar a reconhecer e nomear a dele
