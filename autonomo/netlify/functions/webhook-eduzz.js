@@ -45,7 +45,7 @@
    mapeado cai no plano "gratis" (nunca dá acesso indevido, só fica sem
    upgrade automático até você preencher aqui). */
 const MAPA_PRODUTO = {
-  // "P567": { plano: "essencial", duracaoDias: 32 },
+  "3124922": { plano: "essencial", duracaoDias: 32 }, // QuadraLab Essencial · R$29,90/mês · até 30 jogadores
   // "P789": { plano: "premium", duracaoDias: null },
 };
 
