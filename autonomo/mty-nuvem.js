@@ -44,7 +44,7 @@ const MTY_WHATSAPP = "5511941773228";
    projeto → chaves de API de projeto). Enquanto estiver "COLE_AQUI",
    MTY.evento() não faz nada — nenhum script de terceiro chega a
    carregar e nenhuma métrica é coletada. */
-const POSTHOG_KEY = "COLE_AQUI";
+const POSTHOG_KEY = "phc_xH7caRrDfn33GHmph7MKaf7T4uPZ2SyLZdEYBY4QhQae";
 const POSTHOG_HOST = "https://us.i.posthog.com";
 
 /* ─────────────────────────────────────────────────────────────────── */
