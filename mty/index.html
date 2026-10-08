@@ -8153,6 +8153,7 @@ function PainelAnotacoes({ aluno, setAlunos, alunos }) {
 
 function TelaRegistro({ aluno, alunos, setAlunos, identidade }) {
   const [modo, setModo] = useState("historico");
+  const [abertoId, setAbertoId] = useState(null);
   const regs = aluno.registros || [];
 
   function adiciona(reg) {
@@ -8161,6 +8162,16 @@ function TelaRegistro({ aluno, alunos, setAlunos, identidade }) {
   }
   function apaga(id) {
     setAlunos(alunos.map((a) => a.id === aluno.id ? { ...a, registros: a.registros.filter((r) => r.id !== id) } : a));
+  }
+  /* Complementar uma sessão já fechada (corrigi/leitura da aula/avaliação
+     por tema) sem precisar reabrir "Sessão de hoje" — o treinador às
+     vezes só lembra de um detalhe depois, ou quer ajustar um status de
+     tema depois de ver o mapa de calor. Atualiza só os campos passados,
+     mantendo id/data/exercícios intactos. */
+  function atualizarRegistro(id, campos) {
+    setAlunos(alunos.map((a) => a.id !== aluno.id ? a : {
+      ...a, registros: (a.registros || []).map((r) => r.id === id ? { ...r, ...campos } : r),
+    }));
   }
 
   function baixar() {
@@ -8242,9 +8253,18 @@ function TelaRegistro({ aluno, alunos, setAlunos, identidade }) {
                       {r.tipo === "medicao" && (
                         <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>{r.area} · {r.metrica}: <b>{r.valor}</b></p>
                       )}
+                      {r.tipo === "sessao" && (
+                        <button onClick={() => setAbertoId(abertoId === r.id ? null : r.id)}
+                          style={{ ...prosa, fontSize: 12, color: C.saibro, fontWeight: 700, cursor: "pointer", border: "none", background: "none", padding: 0, marginTop: 6 }}>
+                          {abertoId === r.id ? "Ocultar ficha da aula" : "Ver ficha da aula"}
+                        </button>
+                      )}
                     </div>
                     <button onClick={() => apaga(r.id)} style={iconeEstilo}>×</button>
                   </div>
+                  {r.tipo === "sessao" && abertoId === r.id && (
+                    <DetalheSessaoRegistro r={r} aoSalvar={(campos) => atualizarRegistro(r.id, campos)} />
+                  )}
                 </div>
               ))}
               <div className="mt-5">
@@ -8257,6 +8277,102 @@ function TelaRegistro({ aluno, alunos, setAlunos, identidade }) {
             </>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+/* "Ver ficha da aula" — o que o Caderno escondia atrás de um resumo de
+   uma linha: os exercícios de fato feitos (com status quando diferente
+   de "feito"), as observações de fechamento e a avaliação por tema
+   (status do mapa de calor). "Complementar / editar" reabre os mesmos
+   campos da Sessão de hoje pra ajustar depois — o treinador às vezes só
+   lembra de um detalhe horas depois, ou quer corrigir um status de tema
+   ao ver o mapa de calor. Edita só esta sessão (reg.id), sem reabrir o
+   fluxo de fechamento inteiro. */
+function DetalheSessaoRegistro({ r, aoSalvar }) {
+  const [editando, setEditando] = useState(false);
+  const [campos, setCampos] = useState({
+    corrigi: r.corrigi || "", ignorei: r.ignorei || "", mudaria: r.mudaria || "",
+    proximoFoco: r.proximoFoco || "", leituraDaAula: r.leituraDaAula || "",
+  });
+  const [statusTemas, setStatusTemas] = useState(() => {
+    const m = {}; (r.temas || []).forEach((t, i) => { m[i] = t.status; }); return m;
+  });
+  const setCampo = (k, v) => setCampos((c) => ({ ...c, [k]: v }));
+  const temasParaChips = (r.temas || []).map((t) => ({ nome: t.nome, conceito: t.conceito }));
+  const exerciciosFeitos = (r.exercicios || []).map((c) => {
+    const ex = TODOS_EXERCICIOS().find((e) => e.c === c);
+    const status = (r.exerciciosStatus || {})[c];
+    return { codigo: c, nome: ex ? ex.n : c, status: status && status !== "feito" ? status : null };
+  });
+  const semObservacoes = !campos.corrigi && !campos.ignorei && !campos.mudaria && !campos.proximoFoco && !campos.leituraDaAula && !(r.temas || []).length;
+
+  function salvar() {
+    const temasAtualizados = (r.temas || []).map((t, i) => ({ ...t, status: statusTemas[i] }));
+    aoSalvar({ ...campos, temas: temasAtualizados });
+    setEditando(false);
+  }
+
+  return (
+    <div className="mt-3 pt-3" style={{ borderTop: "1px solid " + C.linha }}>
+      {exerciciosFeitos.length > 0 && (
+        <div className="mb-3">
+          <Etiqueta>Exercícios da aula</Etiqueta>
+          <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+            {exerciciosFeitos.map((e, i) => (
+              <li key={i} style={{ ...prosa, fontSize: 13, color: C.tinta }}>
+                {e.nome}{e.status && <span style={{ color: C.saibro, fontWeight: 700 }}> · {e.status}</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {r.turma && (
+        <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 8 }}>
+          Sessão em turma: {r.turma}{r.presenca === "ausente" ? " · Ausente" : ""}
+          {r.notaIndividual ? <><br />Nota individual: {r.notaIndividual}</> : null}
+        </p>
+      )}
+      {!editando ? (
+        <>
+          {campos.corrigi && <Linha rotulo="Corrigi" texto={campos.corrigi} />}
+          {campos.ignorei && <Linha rotulo="Deixei passar" texto={campos.ignorei} />}
+          {campos.mudaria && <Linha rotulo="Teria montado diferente" texto={campos.mudaria} />}
+          {campos.proximoFoco && <Linha rotulo="Próximo foco" texto={campos.proximoFoco} />}
+          {campos.leituraDaAula && <Linha rotulo="Leitura da aula" texto={campos.leituraDaAula} />}
+          {(r.temas || []).length > 0 && (
+            <div className="mt-2 mb-2">
+              <Etiqueta>Avaliação por tema</Etiqueta>
+              <div className="flex flex-col gap-1 mt-1">
+                {r.temas.map((t, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span style={{ width: 16, height: 16, borderRadius: 4, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 10, fontWeight: 700, background: corStatusConceito(t.status), color: "#fff" }}>
+                      {CONCEITO_STATUS_GLIFO[t.status]}
+                    </span>
+                    <span style={{ ...prosa, fontSize: 12.5 }}>{t.nome} <span style={{ color: C.grafite }}>({t.conceito})</span></span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {semObservacoes && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Sem observações registradas nesta sessão.</p>}
+          <Botao pequeno variante="vazio" onClick={() => setEditando(true)} style={{ marginTop: 8 }}>Complementar / editar</Botao>
+        </>
+      ) : (
+        <>
+          <Campo rotulo="Corrigi"><textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={campos.corrigi} onChange={(e) => setCampo("corrigi", e.target.value)} /></Campo>
+          <Campo rotulo="Deixei passar"><textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={campos.ignorei} onChange={(e) => setCampo("ignorei", e.target.value)} /></Campo>
+          <Campo rotulo="Teria montado diferente"><textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={campos.mudaria} onChange={(e) => setCampo("mudaria", e.target.value)} /></Campo>
+          <Campo rotulo="Próximo foco"><textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={campos.proximoFoco} onChange={(e) => setCampo("proximoFoco", e.target.value)} /></Campo>
+          <Campo rotulo="Leitura da aula"><textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={campos.leituraDaAula} onChange={(e) => setCampo("leituraDaAula", e.target.value)} /></Campo>
+          <CamposTemas temas={temasParaChips} statusTemas={statusTemas} setStatusTemas={setStatusTemas} podeEditar />
+          <div className="flex gap-2 mt-2">
+            <Botao pequeno variante="saibro" onClick={salvar}>Salvar</Botao>
+            <Botao pequeno variante="vazio" onClick={() => setEditando(false)}>Cancelar</Botao>
+          </div>
+        </>
       )}
     </div>
   );
