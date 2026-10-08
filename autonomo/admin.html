@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin · QuadraLab</title>
+<style>
+  :root{ --papel:#F6F8F7; --tinta:#17251F; --quadra:#103B32; --saibro:#69B32A; --cinza:#5B6B63; --linha:#E2E8E5; }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--papel); color:var(--tinta);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; padding:0 0 60px}
+  .topo{background:var(--quadra); height:7px}
+  .wrap{max-width:760px; margin:0 auto; padding:0 18px}
+  header{padding:24px 0 8px}
+  h1{font-family:Georgia,serif; font-size:22px; margin:8px 0 2px}
+  h2{font-family:Georgia,serif; font-size:17px; margin:30px 0 10px}
+  .sub{color:var(--cinza); font-size:13px}
+  .campo{margin:16px 0}
+  label{display:block; font-size:11.5px; font-weight:700; letter-spacing:.04em;
+    text-transform:uppercase; margin-bottom:6px; color:var(--cinza)}
+  input,select{width:100%; border:1px solid var(--linha); background:#fff; border-radius:6px;
+    padding:11px 12px; font:inherit; font-size:15px; color:var(--tinta)}
+  input:focus,select:focus{outline:none; border-color:var(--saibro)}
+  .bt{border:none; border-radius:6px; padding:12px 18px; font-size:14px; font-weight:700;
+    cursor:pointer; font-family:inherit; background:var(--saibro); color:#fff}
+  .bt[disabled]{opacity:.6}
+  .bt-full{width:100%; padding:14px; font-size:15px; margin-top:8px}
+  .bt-vazio{background:#fff; border:1px solid var(--linha); color:var(--tinta)}
+  .resultado{margin-top:18px; padding:13px 14px; border-radius:6px; font-size:13.5px;
+    white-space:pre-wrap; word-break:break-word; display:none}
+  .ok{background:var(--quadra); color:#fff}
+  .erro{background:#fff; border:1px solid var(--linha); border-left:4px solid #C8102E}
+  .aviso{background:#fff; border:1px solid var(--linha); border-left:4px solid #C9A227;
+    padding:12px 14px; margin:18px 0; font-size:12.5px; color:var(--cinza)}
+  table{width:100%; border-collapse:collapse; margin-top:10px; font-size:13px}
+  th,td{border-bottom:1px solid var(--linha); padding:8px 6px; text-align:left; vertical-align:middle}
+  th{font-size:10.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--cinza)}
+  td select, td input{padding:6px 8px; font-size:13px}
+  .linha-conta td{opacity:1}
+  .etiqueta{font-size:11px; font-weight:700; letter-spacing:.03em; text-transform:uppercase}
+  .vencido{color:#C8102E}
+  .carregando{color:var(--cinza); font-size:13px; padding:12px 0}
+  details{margin-top:30px}
+  summary{cursor:pointer; font-family:Georgia,serif; font-size:17px; margin:10px 0}
+  .linha-form{display:flex; align-items:center; gap:8px; margin:16px 0}
+  .linha-form input[type=checkbox]{width:auto}
+  .linha-form label{margin:0; text-transform:none; font-weight:400; font-size:13px; color:var(--tinta)}
+</style>
+</head>
+<body>
+<div class="topo"></div>
+<div class="wrap">
+<header>
+  <div class="sub">QUADRALAB · ADMIN</div>
+  <h1>Painel de contas</h1>
+  <div class="sub">Só para quem administra o sistema — veja todas as contas, os planos e crie academias novas.</div>
+</header>
+
+<div class="aviso">
+  Esta página não fica visível em nenhum menu do app — só quem tem o link chega aqui.
+  Ainda assim, evite deixá-la aberta em aparelho de terceiros.
+</div>
+
+<div class="campo">
+  <label>Segredo de administrador</label>
+  <input type="password" id="segredo" autocomplete="off">
+</div>
+
+<h2>Contas</h2>
+<button class="bt" id="btListar">Carregar contas</button>
+<div id="listaContas"></div>
+
+<details>
+  <summary>Criar nova academia</summary>
+
+  <div class="campo">
+    <label>Identificador da academia (orgId)</label>
+    <input type="text" id="orgId" placeholder="academia-exemplo" autocomplete="off">
+  </div>
+  <div class="campo">
+    <label>Nome da academia</label>
+    <input type="text" id="nomeAcademia" placeholder="Academia Exemplo">
+  </div>
+  <div class="campo">
+    <label>Logo da academia (opcional)</label>
+    <input type="url" id="logoUrl" placeholder="https://.../logo.png — sem isso, o nome vira o logotipo" autocomplete="off">
+  </div>
+  <div class="campo">
+    <label>Plano (opcional — em branco fica sem limite de jogadores)</label>
+    <select id="plano">
+      <option value="">Sem limite (piloto/teste)</option>
+      <option value="gratis">Grátis — até 5 jogadores</option>
+      <option value="essencial">Essencial — até 30 jogadores</option>
+      <option value="premium">Premium — ilimitado</option>
+    </select>
+  </div>
+  <div class="campo">
+    <label>Licença paga até (opcional — renovação manual)</label>
+    <input type="date" id="planoAtivoAte" autocomplete="off">
+  </div>
+  <div class="linha-form">
+    <input type="checkbox" id="mostrarManual">
+    <label>Mostrar a aba "Manual" (documentação do método) pra esta academia</label>
+  </div>
+  <div class="campo">
+    <label>E-mail do treinador</label>
+    <input type="email" id="email" autocomplete="off">
+  </div>
+  <div class="campo">
+    <label>Senha</label>
+    <input type="text" id="senha" placeholder="pelo menos 6 caracteres" autocomplete="off">
+  </div>
+
+  <button class="bt bt-full" id="btCriar">Criar academia</button>
+  <div class="resultado" id="resultadoCriar"></div>
+</details>
+
+</div>
+<script>
+const NOMES_PLANO = { gratis: "Grátis", essencial: "Essencial", premium: "Premium" };
+
+function segredoAtual() {
+  return document.getElementById('segredo').value.trim();
+}
+
+function formatarData(iso) {
+  if (!iso) return "—";
+  try { return new Date(iso).toLocaleDateString('pt-BR'); } catch (e) { return iso; }
+}
+
+async function carregarContas() {
+  const segredo = segredoAtual();
+  const container = document.getElementById('listaContas');
+  if (!segredo) { container.innerHTML = '<p class="sub" style="color:#C8102E">Preencha o segredo de administrador primeiro.</p>'; return; }
+
+  container.innerHTML = '<p class="carregando">Carregando…</p>';
+  try {
+    const r = await fetch('/.netlify/functions/listar-orgs', {
+      headers: { 'x-admin-secret': segredo },
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.erro || ('Erro ' + r.status));
+
+    if (!d.orgs.length) {
+      container.innerHTML = '<p class="sub">Nenhuma conta encontrada.</p>';
+      return;
+    }
+
+    const hoje = new Date().toISOString().slice(0, 10);
+    let html = '<table><thead><tr><th>Academia</th><th>Jogadores</th><th>Plano</th><th>Válido até</th><th>Eduzz</th><th></th></tr></thead><tbody>';
+    d.orgs.forEach((o) => {
+      const vencido = o.planoAtivoAte && o.planoAtivoAte < hoje;
+      const eduzzTexto = o.eduzzUltimaFatura
+        ? (o.eduzzRevogadoEm ? 'Revogado ' + formatarData(o.eduzzRevogadoEm) : 'Fatura ' + formatarData(o.eduzzAtualizadoEm))
+        : '—';
+      html += '<tr class="linha-conta" data-org="' + o.orgId + '">' +
+        '<td><div style="font-weight:700">' + escaparHTML(o.nome) + '</div><div class="sub">' + escaparHTML(o.orgId) + '</div></td>' +
+        '<td>' + (o.totalJogadores == null ? '—' : o.totalJogadores) + '</td>' +
+        '<td><select class="campo-plano">' +
+          '<option value="">Sem limite</option>' +
+          '<option value="gratis"' + (o.plano === 'gratis' ? ' selected' : '') + '>Grátis</option>' +
+          '<option value="essencial"' + (o.plano === 'essencial' ? ' selected' : '') + '>Essencial</option>' +
+          '<option value="premium"' + (o.plano === 'premium' ? ' selected' : '') + '>Premium</option>' +
+        '</select></td>' +
+        '<td><input type="date" class="campo-validade" value="' + (o.planoAtivoAte || '') + '" style="min-width:130px">' +
+          (vencido ? '<div class="etiqueta vencido">vencido</div>' : '') + '</td>' +
+        '<td class="sub">' + eduzzTexto + '</td>' +
+        '<td><button class="bt bt-vazio btSalvarConta">Salvar</button></td>' +
+        '</tr>';
+    });
+    html += '</tbody></table>';
+    container.innerHTML = html;
+
+    container.querySelectorAll('.btSalvarConta').forEach((bt) => {
+      bt.onclick = async function () {
+        const linha = this.closest('tr');
+        const orgId = linha.dataset.org;
+        const plano = linha.querySelector('.campo-plano').value;
+        const planoAtivoAte = linha.querySelector('.campo-validade').value;
+        bt.disabled = true; bt.textContent = 'Salvando…';
+        try {
+          const r = await fetch('/.netlify/functions/atualizar-org', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', 'x-admin-secret': segredoAtual() },
+            body: JSON.stringify({
+              orgId,
+              plano: plano || undefined,
+              planoAtivoAte: planoAtivoAte || undefined,
+              limparPlanoAtivoAte: !planoAtivoAte,
+            }),
+          });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) throw new Error(d.erro || ('Erro ' + r.status));
+          bt.textContent = '✓ Salvo';
+          setTimeout(() => { bt.textContent = 'Salvar'; bt.disabled = false; }, 1500);
+        } catch (e) {
+          alert(String(e.message || e));
+          bt.disabled = false; bt.textContent = 'Salvar';
+        }
+      };
+    });
+  } catch (e) {
+    container.innerHTML = '<p class="sub" style="color:#C8102E">' + escaparHTML(String(e.message || e)) + '</p>';
+  }
+}
+
+function escaparHTML(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+document.getElementById('btListar').onclick = carregarContas;
+
+document.getElementById('btCriar').onclick = async function () {
+  const bt = this;
+  const el = document.getElementById('resultadoCriar');
+  el.style.display = 'none';
+
+  const segredo = segredoAtual();
+  const orgId = document.getElementById('orgId').value.trim();
+  const nomeAcademia = document.getElementById('nomeAcademia').value.trim();
+  const logoUrl = document.getElementById('logoUrl').value.trim();
+  const plano = document.getElementById('plano').value;
+  const planoAtivoAte = document.getElementById('planoAtivoAte').value;
+  const mostrarManual = document.getElementById('mostrarManual').checked;
+  const email = document.getElementById('email').value.trim();
+  const senha = document.getElementById('senha').value;
+
+  if (!segredo || !orgId || !email || !senha) {
+    el.className = 'resultado erro';
+    el.textContent = 'Preencha segredo, orgId, e-mail e senha.';
+    el.style.display = 'block';
+    return;
+  }
+
+  bt.disabled = true; bt.textContent = 'Criando…';
+  try {
+    const r = await fetch('/.netlify/functions/provisionar-org', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-admin-secret': segredo },
+      body: JSON.stringify({ orgId, nomeAcademia, logoUrl, plano, planoAtivoAte, mostrarManual, email, senha }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.erro || ('Erro ' + r.status));
+    el.className = 'resultado ok';
+    el.textContent = 'Pronto. Academia "' + d.orgId + '" criada para ' + d.email + '.\n\n' + (d.aviso || '');
+    el.style.display = 'block';
+  } catch (e) {
+    el.className = 'resultado erro';
+    el.textContent = String(e.message || e);
+    el.style.display = 'block';
+  }
+  bt.disabled = false; bt.textContent = 'Criar academia';
+};
+</script>
+</body>
+</html>
