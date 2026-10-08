@@ -510,18 +510,24 @@ function construirColunasConceitos(registros) {
    data+ciclo, já que cada membro presente naquele dia carrega a mesma
    cópia. */
 function registrosDaTurma(turma, membros) {
-  const vistos = new Set();
-  const out = [];
+  const porChave = new Map();
   (membros || []).forEach((m) => {
     (m.registros || []).forEach((r) => {
       if (r.turma !== turma.nome) return;
       const chave = r.data + "|" + r.ciclo;
-      if (vistos.has(chave)) return;
-      vistos.add(chave);
-      out.push(r);
+      const existente = porChave.get(chave);
+      /* Um membro ausente carrega .temas vazio pra essa mesma sessão (ver
+         SessaoTurma.salvarSessao) — se o primeiro registro encontrado pra
+         essa chave for o de alguém ausente, a aula toda desapareceria do
+         mapa de calor da turma por acaso de ordem de iteração. Preferimos
+         sempre um registro com temas preenchidos (de um membro presente)
+         sobre um vazio pra mesma data+ciclo. */
+      if (!existente || (!(existente.temas && existente.temas.length) && r.temas && r.temas.length)) {
+        porChave.set(chave, r);
+      }
     });
   });
-  return out;
+  return Array.from(porChave.values());
 }
 
 /* ── planos pagos ──
@@ -11901,11 +11907,13 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
           exercicios: ausente ? [] : cods, exerciciosPersonalizados: [], divergencias: [], ...obs,
           notaIndividual: notaPessoal,
           aulaDoPlano: aulaTurma ? aulaTurma.t : null,
-          // temas/blocoNome são do GRUPO, iguais pra todo membro (presente
-          // ou não) — é a mesma leitura pedagógica da sessão coletiva, não
-          // uma por jogador. Ver TelaSessao.registrar() pro mesmo esquema
-          // do lado individual.
-          temas: temasRegistrados,
+          // temas/blocoNome são do GRUPO, iguais pra todo membro PRESENTE —
+          // mesma leitura pedagógica da sessão coletiva, não uma por
+          // jogador (ver TelaSessao.registrar() pro mesmo esquema do lado
+          // individual). Quem faltou (ausente) fica com temas vazio: sem
+          // isso, o mapa de calor desse jogador mostraria "atingiu" ou
+          // "não atingiu" conceitos de uma aula em que ele nem esteve.
+          temas: ausente ? [] : temasRegistrados,
           blocoNome: aulaTurma ? aulaTurma.bloco : null,
         };
         /* Salvar de novo no mesmo dia pra esta turma substitui o registro
