@@ -537,6 +537,11 @@ const NOMES_PLANO = { gratis: "Plano grátis", essencial: "Plano Essencial", pre
 function limiteDeAlunos(plano) {
   return plano && Object.prototype.hasOwnProperty.call(LIMITES_POR_PLANO, plano) ? LIMITES_POR_PLANO[plano] : null;
 }
+// checkouts reais da Eduzz — ver MAPA_PRODUTO em autonomo/netlify/functions/webhook-eduzz.js
+const LINKS_CHECKOUT_EDUZZ = {
+  essencial: "https://sun.eduzz.com/6W4GYZEOOZ",
+  premium: "https://sun.eduzz.com/DOR8KEP69Y",
+};
 
 const ESTAGIOS = [
   { s: "V", n: "Vermelha" }, { s: "L", n: "Laranja" }, { s: "G", n: "Verde" },
@@ -2901,6 +2906,47 @@ function Botao({ children, onClick, variante = "cheio", pequeno, disabled, style
     saibro: { ...base, background: "#3D7A1A", color: "#fff", borderColor: "#3D7A1A" },
   };
   return <button type={type} onClick={onClick} disabled={disabled} style={{ ...v[variante], ...style }}>{children}</button>;
+}
+
+function abrirCheckoutEduzz(plano) {
+  const url = LINKS_CHECKOUT_EDUZZ[plano];
+  if (url) window.open(url, "_blank", "noopener");
+}
+
+/* Botões de assinatura/renovação — aparecem onde o professor esbarra no
+   limite do plano grátis e no menu "Meu plano". O webhook da Eduzz casa
+   a compra pelo e-mail do comprador: por isso o aviso pra usar o mesmo
+   e-mail do login, senão a Eduzz cria uma conta nova em vez de fazer
+   upgrade da existente. */
+function BotoesAssinatura({ planoAtual, planoVencido, emailAtual, pequeno }) {
+  if (planoVencido && (planoAtual === "essencial" || planoAtual === "premium")) {
+    return (
+      <div className="mt-2">
+        <Botao pequeno={pequeno} onClick={() => abrirCheckoutEduzz(planoAtual)}>Renovar {NOMES_PLANO[planoAtual]}</Botao>
+        {emailAtual && (
+          <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginTop: 6 }}>
+            Use o e-mail <b>{emailAtual}</b> na hora de pagar — é assim que a gente identifica sua conta.
+          </p>
+        )}
+      </div>
+    );
+  }
+  const planosDisponiveis = ["essencial", "premium"].filter((p) => p !== planoAtual);
+  if (!planosDisponiveis.length) return null;
+  return (
+    <div className="mt-2">
+      <div className="flex gap-2 flex-wrap">
+        {planosDisponiveis.map((p) => (
+          <Botao key={p} pequeno={pequeno} onClick={() => abrirCheckoutEduzz(p)}>Assinar {NOMES_PLANO[p]}</Botao>
+        ))}
+      </div>
+      {emailAtual && (
+        <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginTop: 6 }}>
+          Use o e-mail <b>{emailAtual}</b> na hora de pagar — é assim que a gente identifica sua conta.
+        </p>
+      )}
+    </div>
+  );
 }
 
 const entrada = {
@@ -15088,17 +15134,19 @@ function App() {
                   <>
                     <p style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, marginBottom: 4 }}>A licença desta academia venceu em {planoAtivoAte}</p>
                     <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>
-                      Pra voltar a cadastrar jogadores, é só renovar a licença — fale com a gente.
+                      Pra voltar a cadastrar jogadores, é só renovar a licença.
                     </p>
                   </>
                 ) : (
                   <>
                     <p style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{NOMES_PLANO[planoAtual] || "Este plano"} vai até {limitePlano} jogadores</p>
                     <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>
-                      Você já tem {limitePlano}. Pra cadastrar mais, fale com a gente sobre um plano maior.
+                      Você já tem {limitePlano}. Pra cadastrar mais, assine um plano maior.
                     </p>
                   </>
                 )}
+                <BotoesAssinatura planoAtual={planoAtual} planoVencido={planoVencido}
+                  emailAtual={window.mtyAuth.usuario() ? window.mtyAuth.usuario().email : ""} pequeno />
               </div>
             )}
             <div className="mt-4"><Botao onClick={criar} variante="saibro">Novo jogador</Botao></div>
