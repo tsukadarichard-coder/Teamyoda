@@ -132,6 +132,27 @@ async function handleGet(event) {
   const { alunos, idx } = await carregarContexto(org, id, t);
   const aluno = alunos[idx];
 
+  let turmas = [];
+  try {
+    const snapT = await admin.firestore().collection("orgs").doc(org).collection("dados").doc(CHAVE_TURMAS).get();
+    if (snapT.exists) turmas = JSON.parse(snapT.data().value || "[]");
+  } catch (e) { turmas = []; }
+
+  /* Numa turma o planejamento mora na TURMA (turma.plano / turma.regPlano
+     / turma.horarios), não em cada jogador — o app do treinador já
+     funciona assim (TelaPlano usa entidade=turma pra tudo isso). Sem
+     este fallback, o link individual de um jogador de turma nunca via
+     plano nenhum, porque aluno.plano simplesmente não existe pra quem
+     treina em grupo — o link ficava preso em "ainda não há um plano",
+     mesmo com a turma toda tendo um ciclo em andamento. Um aluno com
+     plano individual próprio (fora de turma) não é afetado: só cai no
+     fallback quando aluno.plano está vazio. */
+  const turmaDoAluno = !aluno.plano
+    ? turmas.find((tu) => Array.isArray(tu.membros) && tu.membros.includes(id) && tu.plano)
+    : null;
+  const fontePlano = aluno.plano ? aluno : (turmaDoAluno || aluno);
+  const horariosEfetivos = turmaDoAluno ? (turmaDoAluno.horarios || []) : (aluno.horarios || []);
+
   /* Nunca expõe rascunho pelo link do aluno — só o que o treinador já
      revisou e aprovou. Sem isto, qualquer edição em andamento (inclusive
      um plano recém-colado, ainda por revisar) ficaria visível assim que
@@ -141,23 +162,17 @@ async function handleGet(event) {
      já revisado continua sendo o mais correto a mostrar até uma nova
      aprovação substituir — não há dado novo pra esconder, só uma
      bandeira de revisão pendente que só faz sentido do lado do treinador. */
-  const planoAprovado = !!(aluno.plano && aluno.plano.aprovado);
-  const plano = planoAprovado ? aluno.plano : null;
-  const planoRascunho = !!(aluno.plano && !aluno.plano.aprovado);
-  const reg = planoAprovado ? (aluno.regPlano || {}) : {};
+  const planoAprovado = !!(fontePlano.plano && fontePlano.plano.aprovado);
+  const plano = planoAprovado ? fontePlano.plano : null;
+  const planoRascunho = !!(fontePlano.plano && !fontePlano.plano.aprovado);
+  const reg = planoAprovado ? (fontePlano.regPlano || {}) : {};
   const aulas = listaAulas(plano).map((a) => {
     const r = reg[a.id] || {};
     return { bloco: a.bloco, semana: a.semana, foco: a.foco, titulo: a.t || "", status: r.status || (r.feita ? "feita" : ""), data: r.data || null };
   });
   const emVigor = aulaEmVigor({ plano, regPlano: reg });
   const agora = new Date();
-  const proxima = proximaOcorrencia(aluno.horarios, agora);
-
-  let turmas = [];
-  try {
-    const snapT = await admin.firestore().collection("orgs").doc(org).collection("dados").doc(CHAVE_TURMAS).get();
-    if (snapT.exists) turmas = JSON.parse(snapT.data().value || "[]");
-  } catch (e) { turmas = []; }
+  const proxima = proximaOcorrencia(horariosEfetivos, agora);
 
   let academiaNome = "";
   try {
@@ -190,7 +205,7 @@ async function handleGet(event) {
     totalAulas: aulas.length,
     aulasFeitas: aulas.filter((a) => a.status === "feita").length,
     aulas,
-    horarios: aluno.horarios || [],
+    horarios: horariosEfetivos,
     aulaEmVigor: emVigor ? { titulo: emVigor.t || "", bloco: emVigor.bloco, semana: emVigor.semana } : null,
     proximaAula: proxima ? proxima.toISOString() : null,
     agendaOcupada: agendaOcupada(alunos, turmas),
