@@ -3432,13 +3432,6 @@ function EditorExercicio({ ex, aoSalvar, aoCancelar }) {
           })}
         </div>
       </Campo>
-      <Campo rotulo="Objetivo (resumo)"><input style={entrada} value={dados.o} onChange={(e) => set("o", e.target.value)} /></Campo>
-      <Campo rotulo="Montagem"><textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={dados.m} onChange={(e) => set("m", e.target.value)} /></Campo>
-      <Campo rotulo="Carga"><input style={entrada} value={dados.g} onChange={(e) => set("g", e.target.value)} /></Campo>
-      <Campo rotulo="Regressão"><textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={dados.r} onChange={(e) => set("r", e.target.value)} /></Campo>
-      <Campo rotulo="Progressão"><textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={dados.p} onChange={(e) => set("p", e.target.value)} /></Campo>
-      <Campo rotulo="Corrigir"><textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={dados.x} onChange={(e) => set("x", e.target.value)} /></Campo>
-      <Campo rotulo="Ignorar"><textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={dados.i} onChange={(e) => set("i", e.target.value)} /></Campo>
       <Campo rotulo="Vídeo de demonstração (opcional)" nota="Link do YouTube ou Vimeo.">
         <input style={entrada} value={dados.videoUrl} onChange={(e) => set("videoUrl", e.target.value)} placeholder="https://youtube.com/watch?v=..." />
         <BuscaVideoYouTube consultaInicial={dados.n} />
@@ -3446,6 +3439,13 @@ function EditorExercicio({ ex, aoSalvar, aoCancelar }) {
       <Campo rotulo="Diagrama de quadra (opcional)">
         <QuadraDiagrama diagrama={dados.diagrama} editavel aoMudar={(d) => set("diagrama", d)} />
       </Campo>
+      <Campo rotulo="Objetivo (resumo)"><input style={entrada} value={dados.o} onChange={(e) => set("o", e.target.value)} /></Campo>
+      <Campo rotulo="Montagem"><textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={dados.m} onChange={(e) => set("m", e.target.value)} /></Campo>
+      <Campo rotulo="Carga"><input style={entrada} value={dados.g} onChange={(e) => set("g", e.target.value)} /></Campo>
+      <Campo rotulo="Regressão"><textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={dados.r} onChange={(e) => set("r", e.target.value)} /></Campo>
+      <Campo rotulo="Progressão"><textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={dados.p} onChange={(e) => set("p", e.target.value)} /></Campo>
+      <Campo rotulo="Corrigir"><textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={dados.x} onChange={(e) => set("x", e.target.value)} /></Campo>
+      <Campo rotulo="Ignorar"><textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={dados.i} onChange={(e) => set("i", e.target.value)} /></Campo>
       <label className="flex items-start gap-2 mb-3" style={{ cursor: "pointer" }}>
         <input type="checkbox" checked={salvarNoCatalogo} onChange={(e) => setSalvarNoCatalogo(e.target.checked)} style={{ marginTop: 3, flexShrink: 0 }} />
         <span style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Também salvar na biblioteca da academia (afeta futuras sessões de qualquer jogador). Sem marcar, vale só para esta ocorrência, hoje.</span>
@@ -3464,6 +3464,19 @@ function CartaoExercicio({ e, aoTrocar, aoRemover, aoAtualizar, exerciciosCustom
   const podeEditar = !!(exerciciosCustom && setExerciciosCustom);
   const temVideo = !!e.videoUrl;
   const temDiagrama = !!(e.diagrama && (e.diagrama.pontos || []).length > 0);
+  const cardRef = useRef(null);
+  function rolarParaCartao() {
+    setTimeout(() => cardRef.current && cardRef.current.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+  }
+  function abrirDetalhe() {
+    setAberto(true);
+    rolarParaCartao();
+  }
+  function abrirEdicao() {
+    setEditando(true);
+    setAberto(true);
+    rolarParaCartao();
+  }
   function salvarEdicao(dados, salvarNoCatalogo) {
     const atualizado = { ...e, ...dados, c: e.c, custom: true };
     if (salvarNoCatalogo) salvarEdicaoExercicio(exerciciosCustom, setExerciciosCustom, e, atualizado);
@@ -3473,9 +3486,9 @@ function CartaoExercicio({ e, aoTrocar, aoRemover, aoAtualizar, exerciciosCustom
     setEditando(false);
   }
   return (
-    <div style={{ background: e.feito ? C.papel : C.cal, opacity: e.feito ? 0.6 : 1,
+    <div ref={cardRef} style={{ background: e.feito ? C.papel : C.cal, opacity: e.feito ? 0.6 : 1,
       border: "1px solid " + (proximo ? C.saibro : C.linha), borderWidth: proximo ? 2 : 1,
-      boxShadow: SOMBRA, borderLeft: "3px solid " + (e.feito ? C.grafite : e.v ? C.quadra : C.saibro), borderRadius: 10, padding: "11px 13px", marginBottom: 7 }}>
+      boxShadow: SOMBRA, borderLeft: "3px solid " + (e.feito ? C.grafite : e.v ? C.quadra : C.saibro), borderRadius: 10, padding: "11px 13px", marginBottom: 7, scrollMarginTop: 12 }}>
       {proximo && <div className="mb-1"><Etiqueta cor={C.saibro}>Próximo</Etiqueta></div>}
       <div className="flex items-start justify-between gap-3">
         <button onClick={() => setAberto(!aberto)} aria-expanded={aberto} className="text-left flex-1">
@@ -3508,10 +3521,10 @@ function CartaoExercicio({ e, aoTrocar, aoRemover, aoAtualizar, exerciciosCustom
       </div>
       {(temVideo || temDiagrama || podeEditar) && (
         <div className="flex items-center gap-2 flex-wrap mt-2">
-          {temVideo && <BotaoChip ativo onClick={() => setAberto(true)}>🎥 Vídeo</BotaoChip>}
-          {!temVideo && podeEditar && <BotaoChip onClick={() => { setEditando(true); setAberto(true); }}>+ Vídeo</BotaoChip>}
-          {temDiagrama && <BotaoChip ativo onClick={() => setAberto(true)}>📐 Diagrama</BotaoChip>}
-          {!temDiagrama && podeEditar && <BotaoChip onClick={() => { setEditando(true); setAberto(true); }}>+ Diagrama</BotaoChip>}
+          {temVideo && <BotaoChip ativo onClick={abrirDetalhe}>🎥 Vídeo</BotaoChip>}
+          {!temVideo && podeEditar && <BotaoChip onClick={abrirEdicao}>+ Vídeo</BotaoChip>}
+          {temDiagrama && <BotaoChip ativo onClick={abrirDetalhe}>📐 Diagrama</BotaoChip>}
+          {!temDiagrama && podeEditar && <BotaoChip onClick={abrirEdicao}>+ Diagrama</BotaoChip>}
         </div>
       )}
       {aoMudarDuracao && (
@@ -3526,6 +3539,8 @@ function CartaoExercicio({ e, aoTrocar, aoRemover, aoAtualizar, exerciciosCustom
       {aberto && editando && <EditorExercicio ex={e} aoSalvar={salvarEdicao} aoCancelar={() => setEditando(false)} />}
       {aberto && !editando && (
         <div className="mt-3 pt-3" style={{ borderTop: "1px solid " + C.linha }}>
+          {e.videoUrl && <div className="mb-3"><VideoExercicio url={e.videoUrl} /></div>}
+          {e.diagrama && (e.diagrama.pontos || []).length > 0 && <div className="mb-3"><QuadraDiagrama diagrama={e.diagrama} editavel={false} /></div>}
           {!e.custom && <p style={{ ...prosa, fontSize: 11, color: C.grafite, marginBottom: 6 }}>Código do catálogo: {e.c}</p>}
           {e.m && <Linha rotulo="Montagem" texto={e.m} />}
           {e.r && <Linha rotulo="− Regressão" texto={e.r} />}
@@ -3533,8 +3548,6 @@ function CartaoExercicio({ e, aoTrocar, aoRemover, aoAtualizar, exerciciosCustom
           {e.x && <Linha rotulo="Corrigir" texto={e.x} />}
           {e.i && <Linha rotulo="Ignorar" texto={e.i} destaque />}
           {e.d && <Linha rotulo="Dica" texto={e.d} />}
-          {e.videoUrl && <div className="mt-2 mb-2"><VideoExercicio url={e.videoUrl} /></div>}
-          {e.diagrama && (e.diagrama.pontos || []).length > 0 && <div className="mt-2 mb-2"><QuadraDiagrama diagrama={e.diagrama} editavel={false} /></div>}
           {e.custom && !e.m && !e.r && !e.p && !e.x && !e.i && !e.d && !e.videoUrl && !(e.diagrama && (e.diagrama.pontos || []).length > 0) && (
             <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Sem detalhes preenchidos além do nome.</p>
           )}
@@ -3619,29 +3632,42 @@ function BuscaVideoYouTube({ consultaInicial }) {
    já existentes em sequência (modo "seta"), o suficiente pra desenhar
    um padrão tático sem precisar de uma ferramenta de desenho completa. */
 const CORES_PAPEL_DIAGRAMA = { jogador: "#103B32", treinador: "#A6631E" };
+/* As 4 opções do que marcar na quadra, numa escolha só (em vez de
+   "modo" + "submodo" empilhados, que confundia): cada opção já diz se
+   vai marcar um ponto ou ligar uma seta, e com qual papel/tipo. */
+const OPCOES_DIAGRAMA = [
+  { v: "jogador", modo: "ponto", rotulo: "Jogador", swatch: { cor: CORES_PAPEL_DIAGRAMA.jogador } },
+  { v: "treinador", modo: "ponto", rotulo: "Treinador", swatch: { cor: CORES_PAPEL_DIAGRAMA.treinador } },
+  { v: "bola", modo: "seta", rotulo: "Direção da bola", swatch: { linha: true, cor: C.quadra } },
+  { v: "deslocamento", modo: "seta", rotulo: "Deslocamento", swatch: { linha: true, pontilhado: true, cor: C.grafite } },
+];
 function QuadraDiagrama({ diagrama, editavel, aoMudar }) {
   const pontos = (diagrama && diagrama.pontos) || [];
   const setas = (diagrama && diagrama.setas) || [];
-  const [modo, setModo] = useState("ponto");
-  const [papelPonto, setPapelPonto] = useState("jogador");
-  const [tipoSeta, setTipoSeta] = useState("bola");
+  const [selecao, setSelecao] = useState("jogador");
   const [origemSeta, setOrigemSeta] = useState(null);
   const svgRef = useRef(null);
   const idBase = "diag-" + useId().replace(/[:]/g, "");
+  const opcaoAtual = OPCOES_DIAGRAMA.find((o) => o.v === selecao);
+  const modo = opcaoAtual.modo;
 
+  function escolher(v) {
+    setSelecao(v);
+    setOrigemSeta(null);
+  }
   function aoClicarSvg(ev) {
     if (!editavel || modo !== "ponto") return;
     const rect = svgRef.current.getBoundingClientRect();
     const x = Math.max(0, Math.min(100, Math.round(((ev.clientX - rect.left) / rect.width) * 100)));
     const y = Math.max(0, Math.min(220, Math.round(((ev.clientY - rect.top) / rect.height) * 220)));
-    const mesmoPapel = pontos.filter((p) => (p.papel || "jogador") === papelPonto).length;
-    aoMudar({ pontos: [...pontos, { x, y, rotulo: String(mesmoPapel + 1), papel: papelPonto }], setas });
+    const mesmoPapel = pontos.filter((p) => (p.papel || "jogador") === selecao).length;
+    aoMudar({ pontos: [...pontos, { x, y, rotulo: String(mesmoPapel + 1), papel: selecao }], setas });
   }
   function aoClicarPonto(ev, i) {
     if (!editavel || modo !== "seta") return;
     ev.stopPropagation();
     if (origemSeta === null) { setOrigemSeta(i); return; }
-    if (origemSeta !== i) aoMudar({ pontos, setas: [...setas, [origemSeta, i, tipoSeta]] });
+    if (origemSeta !== i) aoMudar({ pontos, setas: [...setas, [origemSeta, i, selecao]] });
     setOrigemSeta(null);
   }
   function limpar() { aoMudar({ pontos: [], setas: [] }); setOrigemSeta(null); }
@@ -3649,47 +3675,37 @@ function QuadraDiagrama({ diagrama, editavel, aoMudar }) {
     if (setas.length) { aoMudar({ pontos, setas: setas.slice(0, -1) }); return; }
     if (pontos.length) aoMudar({ pontos: pontos.slice(0, -1), setas });
   }
-  function botaoToggle(ativo, onClick, texto, key) {
-    return (
-      <button type="button" key={key} onClick={onClick}
-        style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "5px 10px", borderRadius: 8, cursor: "pointer",
-          border: "1px solid " + (ativo ? C.tinta : C.linha), background: ativo ? C.tinta : "#fff", color: ativo ? C.papel : C.grafite }}>
-        {texto}
-      </button>
-    );
+  function instrucao() {
+    if (modo === "ponto") return "Clique na quadra pra marcar um ponto de " + opcaoAtual.rotulo + ".";
+    if (origemSeta === null) return "Clique em dois pontos já marcados pra ligar com uma seta de " + opcaoAtual.rotulo + ".";
+    return "Agora clique no ponto de destino da seta.";
   }
 
   return (
     <div>
       {editavel && (
         <div className="flex gap-2 flex-wrap items-center mb-2">
-          {botaoToggle(modo === "ponto", () => { setModo("ponto"); setOrigemSeta(null); }, "+ Ponto")}
-          {botaoToggle(modo === "seta", () => setModo("seta"), "→ Seta" + (modo === "seta" && origemSeta !== null ? " (escolha o destino)" : ""))}
-          <button type="button" onClick={desfazer} disabled={!pontos.length}
-            style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "5px 10px", borderRadius: 8, cursor: pontos.length ? "pointer" : "default",
-              border: "1px solid " + C.linha, background: "#fff", color: C.grafite, opacity: pontos.length ? 1 : 0.5 }}>
-            Desfazer
-          </button>
-          <button type="button" onClick={limpar} disabled={!pontos.length}
-            style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "5px 10px", borderRadius: 8, cursor: pontos.length ? "pointer" : "default",
-              border: "1px solid " + C.linha, background: "#fff", color: C.grafite, opacity: pontos.length ? 1 : 0.5 }}>
-            Limpar
-          </button>
+          {OPCOES_DIAGRAMA.map((o) => (
+            <button key={o.v} type="button" onClick={() => escolher(o.v)}
+              style={{ display: "flex", alignItems: "center", gap: 5, fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "6px 10px", borderRadius: 8, cursor: "pointer",
+                border: "1px solid " + (selecao === o.v ? C.tinta : C.linha), background: selecao === o.v ? C.tinta : "#fff", color: selecao === o.v ? C.papel : C.grafite }}>
+              <LegendaSwatch {...o.swatch} />
+              {o.rotulo}
+            </button>
+          ))}
         </div>
       )}
-      {editavel && modo === "ponto" && (
-        <div className="flex gap-2 flex-wrap items-center mb-2">
-          <span style={{ ...prosa, fontSize: 11, color: C.grafite }}>Marcar como:</span>
-          {botaoToggle(papelPonto === "jogador", () => setPapelPonto("jogador"), "● Jogador")}
-          {botaoToggle(papelPonto === "treinador", () => setPapelPonto("treinador"), "● Treinador")}
-        </div>
-      )}
-      {editavel && modo === "seta" && (
-        <div className="flex gap-2 flex-wrap items-center mb-2">
-          <span style={{ ...prosa, fontSize: 11, color: C.grafite }}>Tipo de seta:</span>
-          {botaoToggle(tipoSeta === "bola", () => setTipoSeta("bola"), "— Direção da bola")}
-          {botaoToggle(tipoSeta === "deslocamento", () => setTipoSeta("deslocamento"), "┄ Deslocamento do jogador")}
-        </div>
+      {editavel && (
+        <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginBottom: 8 }}>
+          {instrucao()}{" "}
+          {(pontos.length > 0 || setas.length > 0) && (
+            <>
+              <button type="button" onClick={desfazer} style={{ ...prosa, fontSize: 11.5, fontWeight: 700, color: C.saibro, textDecoration: "underline", cursor: "pointer", border: "none", background: "none", padding: 0 }}>Desfazer</button>
+              {" · "}
+              <button type="button" onClick={limpar} style={{ ...prosa, fontSize: 11.5, fontWeight: 700, color: C.saibro, textDecoration: "underline", cursor: "pointer", border: "none", background: "none", padding: 0 }}>Limpar tudo</button>
+            </>
+          )}
+        </p>
       )}
       <svg ref={svgRef} viewBox="0 0 100 220" onClick={aoClicarSvg}
         style={{ width: "100%", maxWidth: 220, aspectRatio: "100 / 220", background: "#EDE7DD", border: "1px solid " + C.linha,
@@ -3737,22 +3753,20 @@ function QuadraDiagrama({ diagrama, editavel, aoMudar }) {
           <LegendaDiagrama linha pontilhado cor={C.grafite} texto="Deslocamento" />
         </div>
       )}
-      {editavel && (
-        <p style={{ ...prosa, fontSize: 11, color: C.grafite, marginTop: 4, textAlign: "center" }}>
-          Clique na quadra pra marcar posição (escolha Jogador/Treinador acima), ou em "Seta" — escolha o tipo e depois clique em dois pontos pra ligar a trajetória.
-        </p>
-      )}
     </div>
+  );
+}
+function LegendaSwatch({ cor, linha, pontilhado }) {
+  return linha ? (
+    <svg width="16" height="8" aria-hidden="true"><line x1="0" y1="4" x2="16" y2="4" stroke={cor} strokeWidth="2" strokeDasharray={pontilhado ? "3,2" : undefined} /></svg>
+  ) : (
+    <span style={{ width: 9, height: 9, borderRadius: "50%", background: cor, display: "inline-block", flexShrink: 0 }} />
   );
 }
 function LegendaDiagrama({ cor, texto, linha, pontilhado }) {
   return (
     <span className="flex items-center gap-1" style={{ ...prosa, fontSize: 10.5, color: C.grafite }}>
-      {linha ? (
-        <svg width="16" height="8" aria-hidden="true"><line x1="0" y1="4" x2="16" y2="4" stroke={cor} strokeWidth="2" strokeDasharray={pontilhado ? "3,2" : undefined} /></svg>
-      ) : (
-        <span style={{ width: 9, height: 9, borderRadius: "50%", background: cor, display: "inline-block" }} />
-      )}
+      <LegendaSwatch cor={cor} linha={linha} pontilhado={pontilhado} />
       {texto}
     </span>
   );
