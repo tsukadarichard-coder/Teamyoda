@@ -52,7 +52,18 @@ function piorStatusConceito(statuses) {
    treinador). A "leitura da aula" (texto livre do treinador) NUNCA é
    enviada aqui: só o status por conceito e a frase de insight, calculada
    aqui mesmo, como corrigi/ignorei/mudaria também não são enviados — são
-   notas do treinador, não um dado pro jogador ler bruto. */
+   notas do treinador, não um dado pro jogador ler bruto.
+
+   Jogador de TURMA não precisa de um caminho separado aqui: ao fechar uma
+   sessão de grupo, o app do treinador (SessaoTurma.salvarSessao) já copia
+   o MESMO registro (com `.temas`/`.blocoNome` incluídos) pro `.registros`
+   de CADA membro atual, exatamente no mesmo formato de uma aula avulsa
+   individual — é a mesma duplicação que já alimenta `historico`/`regPlano`
+   de cada jogador do grupo. Como esta function só lê `aluno.registros`
+   (abaixo, em handleGet), o mapa de calor de um membro de turma já vem
+   populado sem nenhuma mudança aqui; não existe hoje um "mapa da turma"
+   agregado — cada membro só vê a própria cópia, que é idêntica entre os
+   membros presentes naquele dia. */
 function mapaConceitosDoAluno(registros) {
   const comTemas = (registros || [])
     .filter((r) => Array.isArray(r.temas) && r.temas.length > 0)

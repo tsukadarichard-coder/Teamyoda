@@ -454,6 +454,31 @@ function piorStatusConceito(statuses) {
   return statuses.reduce((pior, s) => (ORDEM_GRAVIDADE_STATUS_CONCEITO[s] < ORDEM_GRAVIDADE_STATUS_CONCEITO[pior] ? s : pior));
 }
 
+/* Monta os "temas" de uma sessão a partir do CONTEÚDO REAL dela — mesma
+   regra pra jogador individual (TelaSessao) e pra turma (SessaoTurma):
+   recebe a lista de exercícios JÁ FILTRADA pro que deve entrar (sem
+   aquecimento, sem personalizados sem família). Até 5 exercícios, cada
+   um já É um tema; com mais que isso, agrupamos por conceito pedagógico
+   (no máximo os 6 de CONCEITOS) pra não estourar o formulário. Extraída
+   pra aqui (compartilhada) em vez de duplicada — turma e jogador usam
+   exatamente a mesma lógica de agrupamento. */
+function temasDeExercicios(exs) {
+  const lista = (exs || []).filter((e) => e && e.f && CONCEITO_POR_FAMILIA[e.f]);
+  if (lista.length === 0) return [];
+  if (lista.length <= 5) {
+    return lista.map((e) => ({
+      nome: e.n,
+      descricao: (e.o && e.o.trim()) || (e.m && e.m.trim() ? (e.m.trim().length > 90 ? e.m.trim().slice(0, 90) + "…" : e.m.trim()) : ""),
+      conceito: CONCEITO_POR_FAMILIA[e.f],
+    }));
+  }
+  const porConceito = {};
+  lista.forEach((e) => { (porConceito[CONCEITO_POR_FAMILIA[e.f]] = porConceito[CONCEITO_POR_FAMILIA[e.f]] || []).push(e); });
+  return CONCEITOS.filter((c) => porConceito[c]).map((c) => ({
+    nome: c, descricao: porConceito[c].map((e) => e.n).join(" · "), conceito: c,
+  }));
+}
+
 /* Monta as colunas do mapa de calor (uma por aula fechada) a partir do
    histórico de registros do aluno. Só entram aulas em que o treinador
    de fato preencheu a leitura por tema ao fechar a sessão (reg.temas não
@@ -472,6 +497,31 @@ function construirColunasConceitos(registros) {
       });
       return { indice: i + 1, data: r.data || null, titulo: r.aulaDoPlano || r.ciclo || "Sessão", blocoNome: r.blocoNome || null, celulas };
     });
+}
+
+/* Turma não acumula `.registros` na própria entidade — ao fechar uma
+   sessão de grupo, SessaoTurma copia o MESMO reg (mesma data, mesmo
+   ciclo, mesmos temas) pro `.registros` de cada membro atual (ver
+   salvarSessao), igual ao Caderno de uma aula avulsa individual. Pra
+   montar a "Evolução por conceito" da turma, não existe uma fonte única:
+   agregamos essas cópias de TODOS os membros atuais (não só o primeiro),
+   porque alguém que entrou no grupo depois de uma sessão antiga não tem
+   essa sessão no próprio histórico — e removemos duplicata por
+   data+ciclo, já que cada membro presente naquele dia carrega a mesma
+   cópia. */
+function registrosDaTurma(turma, membros) {
+  const vistos = new Set();
+  const out = [];
+  (membros || []).forEach((m) => {
+    (m.registros || []).forEach((r) => {
+      if (r.turma !== turma.nome) return;
+      const chave = r.data + "|" + r.ciclo;
+      if (vistos.has(chave)) return;
+      vistos.add(chave);
+      out.push(r);
+    });
+  });
+  return out;
 }
 
 /* ── planos pagos ──
@@ -3217,9 +3267,11 @@ function MapaCalorConceitos({ colunas, compacto }) {
    completo, com TODAS as aulas já fechadas (que têm `.temas`), agrupadas
    por bloco do Plano quando o histórico atravessa mais de um bloco. Sem
    bloco (ciclo avulso, ou plano sem blocos) cai num mapa só, sem
-   subtítulos de grupo. */
-function SecaoEvolucaoConceitos({ aluno }) {
-  const colunas = useMemo(() => construirColunasConceitos(aluno.registros), [aluno.registros]);
+   subtítulos de grupo. Recebe `registros` já resolvido pelo chamador —
+   do jogador (`aluno.registros`) ou agregado da turma via
+   registrosDaTurma — pra não precisar saber aqui se é jogador ou grupo. */
+function SecaoEvolucaoConceitos({ registros }) {
+  const colunas = useMemo(() => construirColunasConceitos(registros), [registros]);
   const grupos = useMemo(() => {
     const vistos = [];
     colunas.forEach((c) => { if (!vistos.includes(c.blocoNome)) vistos.push(c.blocoNome); });
@@ -3243,6 +3295,36 @@ function SecaoEvolucaoConceitos({ aluno }) {
         <MapaCalorConceitos colunas={colunas} />
       )}
     </Secao>
+  );
+}
+
+/* Chips de "Não atingiu / Parcial / Atingiu" por tema, ao fechar uma
+   sessão — compartilhado entre TelaSessao (jogador) e SessaoTurma
+   (grupo): mesmos temas (ver temasDeExercicios), mesma UI. `podeEditar`
+   é opcional (default: sempre habilitado) porque TelaSessao já trava a
+   edição inteira antes de abrir o modal de fechamento — só SessaoTurma,
+   que não tem modal, passa `podeEditar` de verdade. */
+function CamposTemas({ temas, statusTemas, setStatusTemas, podeEditar }) {
+  if (!temas || temas.length === 0) return null;
+  return (
+    <Campo rotulo="Leitura por tema da aula" nota="O que de fato foi atingido hoje, por tema — não por exercício, não uma lista fixa de fundamentos. Alimenta o mapa de calor de conceitos, na aba Plano.">
+      {temas.map((t, i) => (
+        <div key={i} className="mb-3">
+          <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>{t.nome}</div>
+          {t.descricao && <p style={{ ...prosa, fontSize: 12, color: C.grafite, margin: "2px 0 6px" }}>{t.descricao}</p>}
+          <div className="flex gap-1 flex-wrap">
+            {[["nao_atingiu", "Não atingiu"], ["parcial", "Parcial"], ["atingiu", "Atingiu"]].map(([v, r]) => (
+              <button key={v} type="button" disabled={podeEditar === false}
+                onClick={() => setStatusTemas((x) => ({ ...x, [i]: x[i] === v ? undefined : v }))}
+                style={{ fontFamily: ARCH, fontSize: 10.5, fontWeight: 700, padding: "5px 9px", borderRadius: 10, cursor: "pointer",
+                  border: "1px solid " + (statusTemas[i] === v ? corStatusConceito(v) : C.linha),
+                  background: statusTemas[i] === v ? corStatusConceito(v) : C.papel,
+                  color: statusTemas[i] === v ? "#fff" : C.grafite }}>{r}</button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </Campo>
   );
 }
 
@@ -7039,32 +7121,14 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
      arbitrário nele seria inventar um dado que o treinador não deu. */
   function exerciciosParaTemas() {
     if (!plano || plano.chuva) return [];
-    const lista = plano.daAula ? plano.conteudo : plano.filter((b) => b.id !== 1).flatMap((b) => b.exercicios);
-    return lista.filter((e) => e && e.f && CONCEITO_POR_FAMILIA[e.f]);
+    return plano.daAula ? plano.conteudo : plano.filter((b) => b.id !== 1).flatMap((b) => b.exercicios);
   }
   /* Preenchimento por TOQUE não pode ser exercício-por-exercício (complexo
      demais) nem uma lista fixa de "fundamentos" genéricos — tem que ser
      por TEMA DA AULA, ou seja, o que de fato estava planejado pra hoje.
-     Com poucos exercícios (até 5), cada um já É um tema. Com mais que
-     isso, listar um por um estouraria o formulário — agrupamos por
-     conceito pedagógico em vez disso (no máximo os 6 de CONCEITOS). */
-  function montarTemas() {
-    const exs = exerciciosParaTemas();
-    if (exs.length === 0) return [];
-    if (exs.length <= 5) {
-      return exs.map((e) => ({
-        nome: e.n,
-        descricao: (e.o && e.o.trim()) || (e.m && e.m.trim() ? (e.m.trim().length > 90 ? e.m.trim().slice(0, 90) + "…" : e.m.trim()) : ""),
-        conceito: CONCEITO_POR_FAMILIA[e.f],
-      }));
-    }
-    const porConceito = {};
-    exs.forEach((e) => { (porConceito[CONCEITO_POR_FAMILIA[e.f]] = porConceito[CONCEITO_POR_FAMILIA[e.f]] || []).push(e); });
-    return CONCEITOS.filter((c) => porConceito[c]).map((c) => ({
-      nome: c, descricao: porConceito[c].map((e) => e.n).join(" · "), conceito: c,
-    }));
-  }
-  const temas = useMemo(montarTemas, [plano]);
+     Agrupamento por conceito pedagógico em temasDeExercicios, compartilhada
+     com SessaoTurma — ver definição perto de CONCEITO_POR_FAMILIA. */
+  const temas = useMemo(() => temasDeExercicios(exerciciosParaTemas()), [plano]);
 
   const total = plano && !plano.daAula && !plano.chuva ? plano.reduce((s, b) => s + b.minutos, 0) : 1;
   const pctIP = plano && !plano.daAula && !plano.chuva ? Math.round((plano[2].minutos / total) * 100) : 0;
@@ -7397,26 +7461,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
                     </Campo>
                   )}
 
-                  {temas.length > 0 && (
-                    <Campo rotulo="Leitura por tema da aula" nota="O que de fato foi atingido hoje, por tema — não por exercício, não uma lista fixa de fundamentos. Alimenta o mapa de calor de conceitos, na aba Plano.">
-                      {temas.map((t, i) => (
-                        <div key={i} className="mb-3">
-                          <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>{t.nome}</div>
-                          {t.descricao && <p style={{ ...prosa, fontSize: 12, color: C.grafite, margin: "2px 0 6px" }}>{t.descricao}</p>}
-                          <div className="flex gap-1 flex-wrap">
-                            {[["nao_atingiu", "Não atingiu"], ["parcial", "Parcial"], ["atingiu", "Atingiu"]].map(([v, r]) => (
-                              <button key={v} type="button"
-                                onClick={() => setStatusTemas((x) => ({ ...x, [i]: x[i] === v ? undefined : v }))}
-                                style={{ fontFamily: ARCH, fontSize: 10.5, fontWeight: 700, padding: "5px 9px", borderRadius: 10, cursor: "pointer",
-                                  border: "1px solid " + (statusTemas[i] === v ? corStatusConceito(v) : C.linha),
-                                  background: statusTemas[i] === v ? corStatusConceito(v) : C.papel,
-                                  color: statusTemas[i] === v ? "#fff" : C.grafite }}>{r}</button>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </Campo>
-                  )}
+                  <CamposTemas temas={temas} statusTemas={statusTemas} setStatusTemas={setStatusTemas} />
                   <Campo rotulo="Leitura da aula" nota="A impressão geral sobre como a aula foi, além dos temas — fica guardada no histórico do jogador.">
                     <textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={obs.leituraDaAula}
                       onChange={(e) => setObs({ ...obs, leituraDaAula: e.target.value })} />
@@ -10123,11 +10168,12 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
         <>
           <LinhaDeRaciocinio plano={plano} aulas={aulas} status={status} reg={reg} />
 
-          {/* Mapa de calor completo — só faz sentido pra um jogador (cada
-              um tem a própria leitura por tema); uma turma não acumula
-              `.registros` com temas na entidade em si, cada membro tem o
-              dele. Ver SecaoEvolucaoConceitos. */}
-          {!eTurma && <SecaoEvolucaoConceitos aluno={entidade} />}
+          {/* Mapa de calor completo. Jogador: `entidade.registros` direto.
+              Turma não acumula `.registros` na entidade em si — cada
+              sessão de grupo é copiada pro `.registros` de cada membro
+              (ver salvarSessao em SessaoTurma); agregamos essas cópias com
+              registrosDaTurma. */}
+          <SecaoEvolucaoConceitos registros={eTurma ? registrosDaTurma(turma, membros) : entidade.registros} />
 
           {/* Ficavam na aba Fechamento, no meio das ações de fechar o ciclo —
               mas "recomeçar o planejamento" não é um resultado do ciclo, é uma
@@ -11685,10 +11731,15 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
   const [statusGeral, setStatusGeral] = useState("feita");
   const [motivo, setMotivo] = useState("");
   const [nota, setNota] = useState("");
-  const [obs, setObs] = useState({ corrigi: "", ignorei: "", mudaria: "", nota: 3 });
+  const [obs, setObs] = useState({ corrigi: "", ignorei: "", mudaria: "", leituraDaAula: "", nota: 3 });
   const [salvo, setSalvo] = useState(null);
   const [chuvaAberta, setChuvaAberta] = useState(false);
   const [chuvaModeloId, setChuvaModeloId] = useState(null);
+  /* Status por TEMA da sessão de grupo — mesmo mecanismo de TelaSessao
+     (statusTemas), alimentando o mesmo mapa de calor de conceitos. Os
+     temas aqui são do GRUPO, não de cada jogador: todo membro atual
+     recebe a mesma leitura (ver temasGrupo e salvarSessao). */
+  const [statusTemas, setStatusTemas] = useState({});
   /* Presença de cada jogador nesta sessão: undefined (ainda não marcada,
      conta como presente se salvar assim — nunca vira falta sozinho),
      "presente" ou "ausente". "Marcar todos presentes" só preenche o
@@ -11715,6 +11766,17 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
      um continua com o próprio (comportamento de antes da unificação). */
   const aulaTurma = turma.plano ? aulaEmVigor(turma) : null;
   const estagiosTurma = [...new Set(membros.map((m) => m.estagio))];
+
+  /* Mesma regra de TelaSessao.exerciciosParaTemas: só o conteúdo real da
+     sessão entra nos temas, nunca o aquecimento — e só quando a sessão
+     de fato saiu como planejada ("feita"); num dia de chuva o grupo não
+     fez o conteúdo que gerou esse `sessaoTurma` (se algum ainda estiver
+     ali de uma tentativa anterior), então não é leitura confiável dos
+     temas, e numa pendência não houve sessão nenhuma. */
+  const temasGrupo = useMemo(
+    () => (statusGeral === "feita" && sessaoTurma ? temasDeExercicios(sessaoTurma.conteudo) : []),
+    [statusGeral, sessaoTurma]
+  );
 
   /* Monta a sessão de hoje da turma de verdade (com exercícios pra rodar
      em quadra), igual a Sessão de hoje individual já faz — antes disso a
@@ -11798,7 +11860,14 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
       obs.corrigi.trim() && ("Corrigi: " + obs.corrigi.trim()),
       obs.ignorei.trim() && ("Deixei passar: " + obs.ignorei.trim()),
       obs.mudaria.trim() && ("Teria montado diferente: " + obs.mudaria.trim()),
+      obs.leituraDaAula.trim() && ("Leitura da aula: " + obs.leituraDaAula.trim()),
     ].filter(Boolean).join(" · ");
+    /* Só os temas que o treinador de fato avaliou entram no registro —
+       mesma regra de TelaSessao.registrar(). Alimenta o mapa de calor de
+       conceitos da turma (ver registrosDaTurma/construirColunasConceitos). */
+    const temasRegistrados = temasGrupo
+      .map((t, i) => ({ nome: t.nome, conceito: t.conceito, status: statusTemas[i] }))
+      .filter((t) => t.status);
     if (statusGeral === "feita" || statusGeral === "chuva") {
       if (turma.plano && aulaTurma && !aulaTurma.gate) {
         setTurmas(turmas.map((t) => t.id !== turma.id ? t : {
@@ -11832,6 +11901,12 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
           exercicios: ausente ? [] : cods, exerciciosPersonalizados: [], divergencias: [], ...obs,
           notaIndividual: notaPessoal,
           aulaDoPlano: aulaTurma ? aulaTurma.t : null,
+          // temas/blocoNome são do GRUPO, iguais pra todo membro (presente
+          // ou não) — é a mesma leitura pedagógica da sessão coletiva, não
+          // uma por jogador. Ver TelaSessao.registrar() pro mesmo esquema
+          // do lado individual.
+          temas: temasRegistrados,
+          blocoNome: aulaTurma ? aulaTurma.bloco : null,
         };
         /* Salvar de novo no mesmo dia pra esta turma substitui o registro
            anterior em vez de empilhar duplicata — ver seção 6, "impedir
@@ -11856,7 +11931,8 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
     setSalvo(statusGeral);
     setChuvaModeloId(null);
     setSessaoTurma(null);
-    setObs({ corrigi: "", ignorei: "", mudaria: "", nota: 3 });
+    setObs({ corrigi: "", ignorei: "", mudaria: "", leituraDaAula: "", nota: 3 });
+    setStatusTemas({});
     setPresenca({});
     setObsIndividual({});
     setNotaAbertaId(null);
@@ -12144,6 +12220,11 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
           <Campo rotulo="O que eu teria montado diferente" nota="Se a proposta não servia, escreva o que serviria. É isso que corrige as regras.">
             <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, resize: "vertical" }} value={obs.mudaria}
               onChange={(e) => setObs({ ...obs, mudaria: e.target.value })} />
+          </Campo>
+          <CamposTemas temas={temasGrupo} statusTemas={statusTemas} setStatusTemas={setStatusTemas} podeEditar={podeEditar} />
+          <Campo rotulo="Leitura da aula" nota="A impressão geral do grupo na sessão, além dos temas — fica guardada no caderno de cada jogador.">
+            <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, resize: "vertical" }} value={obs.leituraDaAula}
+              onChange={(e) => setObs({ ...obs, leituraDaAula: e.target.value })} />
           </Campo>
           <Campo rotulo="Engajamento geral do grupo na sessão" nota="Nota de 1 a 5 — a presença de cada jogador já é marcada individualmente acima.">
             <Seletor opcoes={[1, 2, 3, 4, 5].map((n) => ({ v: n, r: String(n) }))} valor={obs.nota}
