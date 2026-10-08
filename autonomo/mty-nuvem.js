@@ -70,6 +70,21 @@ const MTY = (function () {
       Math.random().toString(36).slice(2, 7);
   }
 
+  /* Token usado como credencial de acesso (ex.: link do aluno em
+     aluno.html?...&t=) — diferente de id(), que só precisa ser único,
+     este precisa ser IMPOSSÍVEL de adivinhar, porque é a única barreira
+     entre "qualquer um com o link" e os dados e ações daquele jogador
+     (netlify/functions/ver-aluno.js confere só isto). Math.random() não
+     é criptográfico e um sufixo curto seria enumerável; aqui são 24
+     bytes de crypto.getRandomValues, ~192 bits. */
+  function tokenSeguro() {
+    const bytes = new Uint8Array(24);
+    (typeof crypto !== "undefined" && crypto.getRandomValues)
+      ? crypto.getRandomValues(bytes)
+      : bytes.forEach((_, i) => { bytes[i] = Math.floor(Math.random() * 256); });
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  }
+
   /* ── métricas de produto ──
      Carrega o PostHog só se a chave estiver preenchida — sem ela, nada
      é injetado na página. O pacote vem de uma versão exata do CDN (não
@@ -248,5 +263,5 @@ const MTY = (function () {
     tokenId: (forcar) => auth.currentUser ? auth.currentUser.getIdToken(!!forcar) : Promise.resolve(null),
   } : null;
 
-  return { ligado: !!db, grave, leia, lista, faixa, apelido, id, organizacao, auth: authApi, evento };
+  return { ligado: !!db, grave, leia, lista, faixa, apelido, id, tokenSeguro, organizacao, auth: authApi, evento };
 })();
