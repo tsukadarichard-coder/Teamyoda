@@ -11268,22 +11268,120 @@ const CAPTURAS_DEMONSTRACAO = [
     texto: "Use suas observações para orientar as próximas aulas." },
 ];
 
+/* Dados reais dos planos — mesma fonte usada no banner de limite e no
+   menu "Meu plano" dentro do app (PRECOS_PLANO/LIMITES_POR_PLANO), pra
+   nunca mostrar um preço ou limite diferente do que o app realmente
+   aplica. Os recursos são OS MESMOS nos três planos — a plataforma não
+   trava nenhuma funcionalidade por plano hoje, só o número de alunos —
+   por isso a lista de recursos aparece uma vez só, abaixo dos cards,
+   em vez de repetida (e potencialmente divergente) em cada um. */
+const PLANOS_PUBLICOS = [
+  { id: "gratis", nome: "Gratuito", preco: "R$ 0", periodo: "", beneficio: "Até 5 alunos", botao: "Começar grátis" },
+  { id: "essencial", nome: "Essencial", preco: "R$ 29,90", periodo: "/mês", beneficio: "Até 30 alunos", botao: "Escolher Essencial" },
+  { id: "premium", nome: "Premium", preco: "R$ 59,90", periodo: "/mês", beneficio: "Alunos ilimitados", botao: "Escolher Premium" },
+];
+const RECURSOS_INCLUSOS_TODOS_PLANOS = [
+  "Ficha e avaliação técnica/tática de cada jogador",
+  "Planejamento de ciclo com apoio de IA",
+  "Agenda, turmas e catálogo de exercícios",
+  "Registro de aula e relatórios de ciclo",
+];
+
 const FAQ_QUADRALAB = [
   { p: "Para quem é o QuadraLab?",
     r: "Para o professor de tênis autônomo — quem dá aulas particulares e organiza sozinho a própria agenda, as fichas dos alunos e o planejamento das aulas." },
+  { p: "O que está incluído no plano gratuito?",
+    r: "Todos os recursos da plataforma — ficha, planejamento com apoio de IA, agenda, turmas, catálogo de exercícios e relatórios — para até 5 alunos, sem prazo para experimentar." },
+  { p: "Qual é a diferença entre os planos?",
+    r: "Nenhum recurso muda de um plano para outro — a única diferença é quantos alunos você pode cadastrar: até 5 no gratuito, até 30 no Essencial e ilimitado no Premium. \"Alunos ilimitados\" não significa uso ilimitado de IA ou de qualquer outro recurso." },
   { p: "Como começo a usar?",
     r: "Crie sua conta gratuita, cadastre até 5 jogadores e preencha a ficha de cada um. A partir da ficha, a plataforma já ajuda a montar o primeiro planejamento." },
   { p: "Posso editar os exercícios e o planejamento?",
     r: "Sim. Você pode trocar, adicionar ou remover exercícios da sessão e ajustar o planejamento quando quiser — nada fica travado." },
   { p: "Como funciona o apoio da IA?",
-    r: "A IA sugere um planejamento com base na ficha e no histórico do jogador. A sugestão sempre chega como rascunho: você revisa e só vira plano ativo depois da sua aprovação." },
+    r: "A IA sugere um planejamento com base na ficha e no histórico do jogador. A sugestão sempre chega como rascunho: você revisa e só vira plano ativo depois da sua aprovação. O apoio da IA está disponível nos três planos, sem limite adicional definido hoje." },
+  { p: "Como funcionam os 7 dias de teste?",
+    r: "Essencial e Premium têm 7 dias grátis configurados no checkout antes da primeira cobrança. A cobrança é mensal e recorrente a partir do fim do teste, e você gerencia ou cancela a assinatura diretamente na área de compras da Eduzz (nossa processadora de pagamento) a qualquer momento." },
+  { p: "Preciso cadastrar cartão?",
+    r: "O pagamento é processado pela Eduzz, que pode pedir um método de pagamento já no início do teste conforme as regras dela para assinaturas recorrentes — confirme as condições exatas na tela de checkout antes de assinar." },
+  { p: "Posso mudar de plano?",
+    r: "Sim, a qualquer momento pelo menu \"Meu plano\" dentro da plataforma — tanto para subir de plano quanto para voltar ao gratuito." },
+  { p: "Como cancelo minha assinatura?",
+    r: "Pela área de compras da Eduzz, onde a cobrança recorrente foi criada. O acesso ao plano pago continua até o fim do período já pago; depois disso a conta volta para o plano gratuito." },
+  { p: "O que acontece com meus alunos e registros ao mudar para um plano menor?",
+    r: "Nada é apagado. Se o número de alunos já cadastrados passar do limite do novo plano, você só fica impedido de cadastrar um aluno novo até encaixar no limite ou fazer upgrade de novo — os alunos e o histórico que já existem continuam intactos." },
   { p: "Posso acessar pelo celular e pelo computador?",
     r: "Sim, a plataforma funciona no navegador dos dois — celular, tablet e computador — sem diferença de funcionalidade." },
   { p: "Preciso instalar alguma coisa?",
     r: "Não. Funciona direto no navegador. Se quiser, dá pra adicionar um atalho na tela de início do celular, mas isso é só conveniência — não é obrigatório pra usar." },
-  { p: "Quais são as condições de acesso?",
-    r: "O plano gratuito cobre até 5 jogadores, sem prazo para experimentar. Pra mais jogadores, o Essencial libera até 30 (R$ 29,90/mês) e o Premium libera ilimitado (R$ 59,90/mês)." },
 ];
+
+/* Guarda a escolha de plano feita na página pública (antes de haver
+   conta) pra reaplicar depois de cadastro/login — ver efeito em App()
+   que lê esta chave assim que a org termina de carregar. sessionStorage
+   (não localStorage) porque só precisa sobreviver à navegação até
+   cadastro-individual.html e de volta, não a sessões futuras. */
+const CHAVE_PLANO_ESCOLHIDO = "quadralab:planoEscolhido";
+function guardarPlanoEscolhido(plano) {
+  try { sessionStorage.setItem(CHAVE_PLANO_ESCOLHIDO, plano); } catch (e) {}
+}
+
+function CardPlanoPublico({ plano, aoEscolher, aoEntrar }) {
+  const destacar = plano.id === "essencial";
+  return (
+    <div className="qlab-plano-cartao" style={destacar ? { borderColor: C.saibro, borderWidth: 2 } : undefined}>
+      <p className="qlab-plano-nome">{plano.nome}</p>
+      <p className="qlab-plano-preco">{plano.preco}<span>{plano.periodo}</span></p>
+      <p className="qlab-plano-beneficio">{plano.beneficio}</p>
+      <button type="button" className={"qlab-btn " + (destacar ? "qlab-btn-primario" : "qlab-btn-entrar") + " qlab-plano-botao"}
+        onClick={() => aoEscolher(plano.id)}>
+        {plano.botao}
+      </button>
+      {plano.id !== "gratis" && (
+        <button type="button" className="qlab-plano-login" onClick={() => aoEntrar(plano.id)}>
+          Já tem conta? Entrar e assinar
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SecaoPlanos({ irParaCadastro, abrirLogin }) {
+  function escolher(planoId) {
+    guardarPlanoEscolhido(planoId);
+    irParaCadastro();
+  }
+  function entrarComPlano(planoId) {
+    guardarPlanoEscolhido(planoId);
+    abrirLogin();
+  }
+  return (
+    <section className="qlab-secao" id="qlab-planos">
+      <div className="qlab-secao-cabecalho">
+        <h2>Escolha o plano para sua rotina de treinador</h2>
+        <p className="qlab-secao-sub">Comece gratuitamente com até 5 alunos e amplie conforme sua necessidade.</p>
+      </div>
+      <div className="qlab-planos-grade">
+        {PLANOS_PUBLICOS.map((p) => (
+          <CardPlanoPublico key={p.id} plano={p} aoEscolher={escolher} aoEntrar={entrarComPlano} />
+        ))}
+      </div>
+      <div className="qlab-planos-inclusos">
+        <p className="qlab-planos-inclusos-titulo">Os três planos incluem:</p>
+        <ul>
+          {RECURSOS_INCLUSOS_TODOS_PLANOS.map((r, i) => <li key={i}>{r}</li>)}
+        </ul>
+      </div>
+      <div className="qlab-planos-confianca">
+        <p>
+          <b>Essencial e Premium:</b> 7 dias grátis configurados no checkout antes da primeira cobrança, que é mensal
+          e recorrente. Cancele quando quiser pela área de compras da Eduzz — o acesso pago continua até o fim do
+          período já pago, depois a conta volta para o plano gratuito.
+        </p>
+      </div>
+    </section>
+  );
+}
 
 function FaqItem({ pergunta, resposta }) {
   return (
@@ -11399,6 +11497,8 @@ function TelaVendas({ aoEntrar }) {
         .qlab-hero-sub { font-family: ${SERIF}; font-size: 16.5px; line-height: 1.55; color: #D9E3DE; max-width: 460px; margin: 0 0 26px; }
         .qlab-hero-botoes { display: flex; flex-wrap: wrap; gap: 12px; }
         .qlab-hero-botoes .qlab-btn { padding: 13px 22px; font-size: 15px; }
+        .qlab-hero-apoio { font-family: ${SERIF}; font-size: 13.5px; color: #B9C6C0; margin: 14px 0 0; }
+        .qlab-hero-apoio a { color: #fff; text-decoration: underline; font-weight: 600; }
         .qlab-motivo { position: absolute; right: -60px; bottom: -60px; width: 260px; height: 260px; z-index: 0; pointer-events: none; }
         @media (min-width: 860px) {
           .qlab-hero { padding: 64px 40px 72px; }
@@ -11464,6 +11564,25 @@ function TelaVendas({ aoEntrar }) {
         .qlab-recurso-cartao h3 { font-family: ${ARCH}; font-size: 15px; font-weight: 700; color: ${C.tinta}; margin: 0 0 6px; }
         .qlab-recurso-cartao p { font-family: ${SERIF}; font-size: 13.5px; color: ${C.grafite}; margin: 0; line-height: 1.5; }
 
+        .qlab-planos-grade { display: grid; grid-template-columns: 1fr; gap: 18px; margin-bottom: 28px; }
+        @media (min-width: 760px) { .qlab-planos-grade { grid-template-columns: repeat(3, 1fr); align-items: stretch; } }
+        .qlab-plano-cartao { background: #fff; border: 1px solid ${C.linha}; border-radius: 14px; padding: 22px 20px;
+          display: flex; flex-direction: column; gap: 4px; box-shadow: ${SOMBRA}; }
+        .qlab-plano-nome { font-family: ${ARCH}; font-size: 14px; font-weight: 700; color: ${C.grafite};
+          text-transform: uppercase; letter-spacing: .04em; margin: 0; }
+        .qlab-plano-preco { font-family: ${ARCH}; font-size: 30px; font-weight: 800; color: ${C.tinta}; margin: 6px 0 0; }
+        .qlab-plano-preco span { font-size: 14px; font-weight: 600; color: ${C.grafite}; }
+        .qlab-plano-beneficio { font-family: ${SERIF}; font-size: 14.5px; color: ${C.grafite}; margin: 4px 0 18px; }
+        .qlab-plano-botao { width: 100%; justify-content: center; margin-top: auto; }
+        .qlab-plano-login { background: none; border: none; padding: 8px 0 0; font-family: ${ARCH}; font-size: 12.5px;
+          font-weight: 600; color: ${C.quadra}; text-decoration: underline; cursor: pointer; }
+        .qlab-planos-inclusos { background: #fff; border: 1px solid ${C.linha}; border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; }
+        .qlab-planos-inclusos-titulo { font-family: ${ARCH}; font-size: 14px; font-weight: 700; color: ${C.tinta}; margin: 0 0 8px; }
+        .qlab-planos-inclusos ul { margin: 0; padding-left: 18px; font-family: ${SERIF}; font-size: 13.5px; color: ${C.grafite}; line-height: 1.8; }
+        .qlab-planos-confianca { font-family: ${SERIF}; font-size: 13px; color: ${C.grafite}; line-height: 1.6;
+          background: ${C.papel}; border-left: 3px solid ${C.saibro}; padding: 12px 16px; border-radius: 8px; }
+        .qlab-planos-confianca b { color: ${C.tinta}; }
+
         .qlab-faq-lista { display: flex; flex-direction: column; gap: 10px; }
         .qlab-faq-item { background: #fff; border: 1px solid ${C.linha}; border-radius: 10px; padding: 4px 18px; }
         .qlab-faq-item summary { list-style: none; cursor: pointer; display: flex; align-items: center;
@@ -11495,6 +11614,7 @@ function TelaVendas({ aoEntrar }) {
         <nav className="qlab-nav" aria-label="Seções da página">
           <a href="#qlab-como-funciona" onClick={(e) => { e.preventDefault(); irParaSecao("qlab-como-funciona"); }}>Como funciona</a>
           <a href="#qlab-recursos" onClick={(e) => { e.preventDefault(); irParaSecao("qlab-recursos"); }}>Recursos</a>
+          <a href="#qlab-planos" onClick={(e) => { e.preventDefault(); irParaSecao("qlab-planos"); }}>Planos</a>
           <a href="#qlab-duvidas" onClick={(e) => { e.preventDefault(); irParaSecao("qlab-duvidas"); }}>Dúvidas</a>
         </nav>
         <div className="qlab-header-acoes">
@@ -11512,12 +11632,15 @@ function TelaVendas({ aoEntrar }) {
             <p className="qlab-hero-sub">Organize jogadores, prepare suas aulas e acompanhe cada ciclo em um só lugar.</p>
             <div className="qlab-hero-botoes">
               <button type="button" className="qlab-btn qlab-btn-primario" onClick={irParaCadastro}>
-                Criar minha conta <IconeSeta tam={16} />
+                Começar grátis <IconeSeta tam={16} />
               </button>
               <button type="button" className="qlab-btn qlab-btn-outline-claro" onClick={() => irParaSecao("qlab-demonstracao")}>
                 Ver como funciona
               </button>
             </div>
+            <p className="qlab-hero-apoio">
+              Plano gratuito para até 5 alunos. <a href="#qlab-planos" onClick={(e) => { e.preventDefault(); irParaSecao("qlab-planos"); }}>Ver planos</a>
+            </p>
           </div>
           {ehDesktop && (
             <div className="qlab-hero-login">
@@ -11597,6 +11720,8 @@ function TelaVendas({ aoEntrar }) {
         </div>
       </section>
 
+      <SecaoPlanos irParaCadastro={irParaCadastro} abrirLogin={abrirLogin} />
+
       <section className="qlab-secao" id="qlab-duvidas">
         <div className="qlab-secao-cabecalho">
           <p className="qlab-secao-eyebrow">Perguntas frequentes</p>
@@ -11613,10 +11738,11 @@ function TelaVendas({ aoEntrar }) {
           <h2>Prepare sua próxima aula com o QuadraLab.</h2>
           <div className="qlab-cta-final-acoes">
             <button type="button" className="qlab-btn qlab-btn-primario" onClick={irParaCadastro}>
-              Criar minha conta <IconeSeta tam={16} />
+              Começar grátis <IconeSeta tam={16} />
             </button>
             <button type="button" className="qlab-link-claro" onClick={abrirLogin}>Já tenho conta</button>
           </div>
+          <p className="qlab-hero-apoio">Plano gratuito para até 5 alunos.</p>
         </div>
       </section>
 
@@ -11685,7 +11811,7 @@ function EditorMeuNome({ org, uid, emailAtual, nome, carregado, aoSalvar, aoCanc
    parte, etiqueta de plano, botão de nome, botão de instalar, botão de
    sair) num avatar só — o cabeçalho fica limpo e o nome do usuário para
    de se repetir pela tela (ficha só no painel, não solto no topo). */
-function MenuPerfil({ org, uid, emailAtual, nome, carregado, aoSalvarNome, planoAtual, planoVencido }) {
+function MenuPerfil({ org, uid, emailAtual, nome, carregado, aoSalvarNome, planoAtual, planoVencido, totalAlunos, limitePlano }) {
   const [aberto, setAberto] = useState(false);
   const [editando, setEditando] = useState(false);
   const [planoAberto, setPlanoAberto] = useState(false);
@@ -11741,6 +11867,11 @@ function MenuPerfil({ org, uid, emailAtual, nome, carregado, aoSalvarNome, plano
                 </button>
                 {planoAberto && (
                   <div style={{ padding: "0 14px 12px" }}>
+                    {typeof totalAlunos === "number" && (
+                      <p style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, color: C.tinta, margin: "0 0 4px" }}>
+                        {totalAlunos} de {limitePlano != null ? limitePlano : "∞"} alunos cadastrados
+                      </p>
+                    )}
                     <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>
                       {planoVencido
                         ? "Sua licença venceu — renove pra continuar."
@@ -13949,6 +14080,26 @@ function App() {
     document.title = identidade && identidade.nome ? identidade.nome + " · QuadraLab" : "QuadraLab";
   }, [identidade]);
 
+  /* Reaplica a escolha de plano feita na página pública (SecaoPlanos,
+     antes de haver conta) assim que a org termina de carregar — tanto
+     faz se a pessoa chegou aqui via cadastro novo ou via login numa
+     conta já existente. Só dispara uma vez (isso é controlado pelo
+     próprio sessionStorage.removeItem: na próxima leitura a chave já
+     não existe mais) e nunca fecha automaticamente nenhuma cobrança —
+     só abre o checkout da Eduzz, que mostra plano/valor/condições antes
+     de qualquer confirmação de pagamento. */
+  useEffect(() => {
+    if (verificandoOrg || !orgAtual) return;
+    let planoEscolhido = null;
+    try { planoEscolhido = sessionStorage.getItem(CHAVE_PLANO_ESCOLHIDO); } catch (e) {}
+    if (!planoEscolhido || planoEscolhido === "gratis") {
+      try { sessionStorage.removeItem(CHAVE_PLANO_ESCOLHIDO); } catch (e) {}
+      return;
+    }
+    try { sessionStorage.removeItem(CHAVE_PLANO_ESCOLHIDO); } catch (e) {}
+    if (planoEscolhido !== planoAtual) abrirCheckoutEduzz(planoEscolhido);
+  }, [verificandoOrg, orgAtual, planoAtual]);
+
   /* trava contra gravar dado errado ao trocar de conta/academia na MESMA
      aba (sem recarregar a página) — ex.: sair de uma organização e entrar
      em outra. "carregando" sozinho não bastava: ele só volta a false
@@ -14311,7 +14462,7 @@ function App() {
           {exigeLogin && uidAtual && orgAtual && (
             <MenuPerfil org={orgAtual} uid={uidAtual} emailAtual={window.mtyAuth.usuario() ? window.mtyAuth.usuario().email : ""}
               nome={meuNome} carregado={meuNomeCarregado} aoSalvarNome={setMeuNome}
-              planoAtual={planoAtual} planoVencido={planoVencido} />
+              planoAtual={planoAtual} planoVencido={planoVencido} totalAlunos={alunos.length} limitePlano={limitePlano} />
           )}
           </div>
         </div>

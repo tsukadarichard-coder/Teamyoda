@@ -47,8 +47,18 @@ service cloud.firestore {
     match /orgs/{orgId}/iaJobs/{document=**} {
       allow read, write: if orgDoToken() != null && orgDoToken() == orgId;
     }
+    /* Só LEITURA pro cliente — meta/info guarda plano/planoAtivoAte, que
+       só pode ser alterado pelas functions administrativas (Admin SDK,
+       que ignora estas regras: provisionar-org, atualizar-org, webhook-
+       eduzz). Se o cliente pudesse escrever aqui, bastaria abrir o
+       console do navegador e chamar
+       db.collection("orgs").doc(orgId).collection("meta").doc("info")
+         .set({ plano: "premium" })
+       pra se autoconceder um plano pago sem pagar — o limite de alunos
+       na interface não vale nada se o documento que ele lê pode ser
+       escrito por quem ele mesmo limita. */
     match /orgs/{orgId}/meta/{document=**} {
-      allow read, write: if orgDoToken() != null && orgDoToken() == orgId;
+      allow read: if orgDoToken() != null && orgDoToken() == orgId;
     }
 
     /* Pedido de acesso de um treinador novo — ele ainda não tem orgId

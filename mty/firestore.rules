@@ -47,8 +47,12 @@ service cloud.firestore {
     match /orgs/{orgId}/iaJobs/{document=**} {
       allow read, write: if orgDoToken() != null && orgDoToken() == orgId;
     }
+    /* Só LEITURA pro cliente — meta/info guarda plano/planoAtivoAte, que
+       só pode ser alterado pelas functions administrativas (Admin SDK,
+       que ignora estas regras). Ver autonomo/firestore.rules para o
+       raciocínio completo — mesma estrutura de dados, mesmo risco. */
     match /orgs/{orgId}/meta/{document=**} {
-      allow read, write: if orgDoToken() != null && orgDoToken() == orgId;
+      allow read: if orgDoToken() != null && orgDoToken() == orgId;
     }
 
     /* Pedido de acesso de um treinador novo — ele ainda não tem orgId
