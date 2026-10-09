@@ -3104,18 +3104,27 @@ function rotuloProfessores(professorNome, auxiliarNome) {
 }
 
 /* ── horários fixos semanais, usado tanto por jogador individual quanto por turma ──
-   Uma lista de {dia, hora} — pra suportar 2 a 5 vezes por semana sem
-   modelar nada além disso (sem quadra, sem duração por horário: a
-   duração já vem do cadastro da turma ou é sempre a mesma pro particular). */
-function EditorHorarios({ horarios, setHorarios }) {
+   Uma lista de {dia, hora, quadraId?} — pra suportar 2 a 5 vezes por
+   semana sem modelar nada além disso (duração já vem do cadastro da
+   turma ou é sempre a mesma pro particular). quadraId é opcional e só
+   aparece pra quem já cadastrou quadras (ver TelaQuadras) — sem isso,
+   a aula só diz dia/hora, sem dizer ONDE, e a agenda de quadras não
+   consegue mostrar quem está jogando em cada uma. */
+function EditorHorarios({ horarios, setHorarios, quadras }) {
   const [dia, setDia] = useState(1);
   const [hora, setHora] = useState("17:00");
+  const [quadraId, setQuadraId] = useState("");
+  const quadrasAtivas = (quadras || []).filter((q) => q.ativa !== false);
 
   function adicionar() {
     if (horarios.some((h) => h.dia === dia && h.hora === hora)) return;
-    setHorarios([...horarios, { dia, hora }].sort((a, b) => a.dia - b.dia || a.hora.localeCompare(b.hora)));
+    setHorarios([...horarios, { dia, hora, quadraId: quadraId || "" }].sort((a, b) => a.dia - b.dia || a.hora.localeCompare(b.hora)));
   }
   function remover(i) { setHorarios(horarios.filter((_, k) => k !== i)); }
+  function nomeQuadra(id) {
+    const q = quadrasAtivas.find((x) => x.id === id);
+    return q ? q.nome : "";
+  }
 
   return (
     <div>
@@ -3124,7 +3133,7 @@ function EditorHorarios({ horarios, setHorarios }) {
           {horarios.map((h, i) => (
             <span key={i} className="flex items-center gap-2" style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 600,
               padding: "5px 10px", border: "1px solid " + C.linha, borderRadius: 10, background: C.cal, color: C.grafite }}>
-              {nomeDia(h.dia)} {h.hora}
+              {nomeDia(h.dia)} {h.hora}{h.quadraId && nomeQuadra(h.quadraId) ? " · " + nomeQuadra(h.quadraId) : ""}
               <button onClick={() => remover(i)} style={{ border: "none", background: "none", cursor: "pointer", color: C.saibro, fontWeight: 700, padding: 0 }}>×</button>
             </span>
           ))}
@@ -3133,6 +3142,12 @@ function EditorHorarios({ horarios, setHorarios }) {
       <div className="flex gap-2 items-center flex-wrap">
         <Seletor opcoes={DIAS_SEMANA} valor={dia} aoMudar={setDia} />
         <input type="time" style={{ ...entrada, width: 100 }} value={hora} onChange={(e) => setHora(e.target.value)} />
+        {quadrasAtivas.length > 0 && (
+          <select style={{ ...entrada, width: 140 }} value={quadraId} onChange={(e) => setQuadraId(e.target.value)}>
+            <option value="">Sem quadra definida</option>
+            {quadrasAtivas.map((q) => <option key={q.id} value={q.id}>{q.nome}</option>)}
+          </select>
+        )}
         <Botao pequeno variante="vazio" onClick={adicionar}>+ Adicionar</Botao>
       </div>
     </div>
@@ -5511,7 +5526,7 @@ function sinteseGolpesFicha(f) {
   return partes.join("\n");
 }
 
-function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirEtapaAlvo, aoMudarEditando }) {
+function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirEtapaAlvo, aoMudarEditando, quadras }) {
   const podeEditar = podeEditarAluno(aluno, papelAtual, uidAtual);
   const [f, setF] = useState(aluno);
   /* Jogador sem nome ainda é ficha nova — abre direto pra edição. Uma
@@ -5806,7 +5821,7 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
               </Campo>
             )}
             <Campo rotulo="Horário fixo de treino" nota="Alimenta a Grade de horário e a Agenda semanal.">
-              <EditorHorarios horarios={f.horarios || []} setHorarios={(h) => set("horarios", h)} />
+              <EditorHorarios horarios={f.horarios || []} setHorarios={(h) => set("horarios", h)} quadras={quadras} />
             </Campo>
             <Campo rotulo="Duração da aula" nota="Cada horário acima ocupa esse tempo inteiro na Agenda e na Grade de aulas.">
               <Seletor opcoes={DURACOES_TREINO} valor={f.duracaoPadrao || "1h30"} aoMudar={(v) => set("duracaoPadrao", v)} />
@@ -11849,7 +11864,7 @@ const TIPOS_EVENTO = { clinica: "Clínica", social: "Social", exibicao: "Exibiç
 const STATUS_TORNEIO = { inscricoes: "Inscrições abertas", andamento: "Em andamento", encerrado: "Encerrado" };
 const STATUS_TORNEIO_COR = { inscricoes: C.saibro, andamento: C.tinta, encerrado: C.grafite };
 
-function TelaQuadras({ quadras, setQuadras, reservas, setReservas, orgAtual }) {
+function TelaQuadras({ quadras, setQuadras, reservas, setReservas, orgAtual, alunos, turmas }) {
   const [gerenciando, setGerenciando] = useState(false);
   const [nomeNovaQuadra, setNomeNovaQuadra] = useState("");
   const [dataEscolhida, setDataEscolhida] = useState(() => new Date().toISOString().slice(0, 10));
@@ -11926,12 +11941,30 @@ function TelaQuadras({ quadras, setQuadras, reservas, setReservas, orgAtual }) {
 
   const quadraDoRascunho = rascunho ? quadrasAtivas.find((q) => q.id === rascunho.quadraId) : null;
 
+  /* Aulas (fichas de jogador + turmas) com quadra definida, do dia da
+     semana escolhido — pra aparecerem na MESMA grade das reservas
+     avulsas. É assim que "quem tá em cada quadra" vira uma pergunta
+     respondida numa olhada só, em vez de precisar abrir cada jogador/
+     turma pra descobrir o horário fixo dele. Reaproveita
+     compromissosDaSemana (já usado pela aba Agenda) em vez de montar
+     outra leitura própria de alunos/turmas. */
+  const diaDaSemanaEscolhido = dataEscolhida ? new Date(dataEscolhida + "T00:00:00").getDay() : null;
+  const aulasDoDia = useMemo(() => {
+    if (diaDaSemanaEscolhido === null) return [];
+    return compromissosDaSemana(alunos || [], turmas || []).filter((c) => c.dia === diaDaSemanaEscolhido && c.quadraId);
+  }, [alunos, turmas, diaDaSemanaEscolhido]);
+  function aulaEm(quadraId, hora) {
+    return aulasDoDia.find((c) => c.quadraId === quadraId && c.hora <= hora && hora < c.horaFim);
+  }
+
   return (
     <div>
       <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Quadras</h1>
       <p style={{ ...prosa, color: C.grafite, marginBottom: 18 }}>
-        Agenda de reserva avulsa de quadra ou espaço, de meia em meia hora — separada das turmas e
-        do plano de cada jogador. Qualquer pessoa pode reservar, mesmo sem ser aluno cadastrado.
+        Agenda de reserva avulsa de quadra ou espaço, de meia em meia hora. Qualquer pessoa pode
+        reservar, mesmo sem ser aluno cadastrado. As aulas de jogadores e turmas com quadra definida
+        (em "Dias e horários de treino") também aparecem aqui, em verde, pra ficar fácil ver quem
+        está em cada quadra — defina a quadra na ficha do jogador ou da turma pra habilitar isso.
       </p>
 
       {linkReserva && (
@@ -12032,6 +12065,24 @@ function TelaQuadras({ quadras, setQuadras, reservas, setReservas, orgAtual }) {
                 <tr key={hora}>
                   <td style={{ ...celulaGrade, fontFamily: ARCH, fontSize: 12, fontWeight: 700, color: C.grafite, whiteSpace: "nowrap" }}>{hora}</td>
                   {quadrasAtivas.map((q) => {
+                    const aula = aulaEm(q.id, hora);
+                    if (aula) {
+                      const primeiraFaixa = aula.hora === hora;
+                      return (
+                        <td key={q.id} style={{ ...celulaGrade, minWidth: 140, background: primeiraFaixa ? "#E8F0EA" : "#F1F5F2" }}>
+                          {primeiraFaixa && (
+                            <div>
+                              <div style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700 }}>{aula.titulo}</div>
+                              <div style={{ ...prosa, fontSize: 10.5, color: C.grafite }}>
+                                {aula.professorNome || "sem professor definido"}
+                                {aula.professorAuxiliarNome ? " + " + aula.professorAuxiliarNome : ""}
+                              </div>
+                              <div style={{ ...prosa, fontSize: 10, color: C.grafite }}>{aula.hora}–{aula.horaFim} · aula</div>
+                            </div>
+                          )}
+                        </td>
+                      );
+                    }
                     const r = reservaEm(q.id, hora);
                     if (r) {
                       const primeiraFaixa = r.horaInicio === hora;
@@ -12629,7 +12680,7 @@ function TelaClientes({ quadras, reservas, torneios, eventos }) {
    todo mundo em uma ação (com espaço pra corrigir por pessoa: chuva
    cancela a turma inteira, mas um jogador específico pode ter faltado
    por outro motivo mesmo com o resto treinando). */
-function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual, exerciciosCustom, setExerciciosCustom, identidade }) {
+function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual, exerciciosCustom, setExerciciosCustom, identidade, quadras }) {
   const [abertaId, setAbertaId] = useState(null);
   const [criando, setCriando] = useState(false);
   const [nome, setNome] = useState("");
@@ -12700,7 +12751,7 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual
             </Campo>
           )}
           <Campo rotulo="Dias e horários de treino" nota="Pode ter de 2 a 5 por semana. Alimenta a Grade de horário e a Agenda semanal.">
-            <EditorHorarios horarios={horarios} setHorarios={setHorarios} />
+            <EditorHorarios horarios={horarios} setHorarios={setHorarios} quadras={quadras} />
           </Campo>
           <Campo rotulo="Jogadores (mínimo 2)">
             <div className="flex flex-wrap gap-2">
@@ -13409,13 +13460,13 @@ function compromissosDaSemana(alunos, turmas) {
   const lista = [];
   turmas.forEach((t) => (t.horarios || []).forEach((h) => lista.push({
     tipo: "turma", dia: h.dia, hora: h.hora, horaFim: horaMaisMinutos(h.hora, minutosDaDuracao(t.duracaoPadrao)),
-    titulo: t.nome, detalhe: t.duracaoPadrao,
+    titulo: t.nome, detalhe: t.duracaoPadrao, quadraId: h.quadraId || "",
     professorUid: t.professorUid || "", professorNome: t.professorNome || "",
     professorAuxiliarUid: t.professorAuxiliarUid || "", professorAuxiliarNome: t.professorAuxiliarNome || "",
   })));
   alunos.forEach((a) => (a.horarios || []).forEach((h) => lista.push({
     tipo: "individual", dia: h.dia, hora: h.hora, horaFim: horaMaisMinutos(h.hora, minutosDaDuracao(a.duracaoPadrao)),
-    titulo: a.nome || "Sem nome", detalhe: a.duracaoPadrao || "1h30",
+    titulo: a.nome || "Sem nome", detalhe: a.duracaoPadrao || "1h30", quadraId: h.quadraId || "",
     professorUid: a.professorUid || "", professorNome: a.professorNome || "",
   })));
   return lista.sort((x, y) => x.dia - y.dia || x.hora.localeCompare(y.hora));
@@ -14944,8 +14995,8 @@ function App() {
            irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }} irParaManual={irParaManual} /> :
          aba === "formacao" ? <TelaFormacaoPessoal membros={membrosFormacao} setMembros={setMembrosFormacao} carregando={carregandoFormacao} uidAtual={uidAtual} irParaManual={irParaManual} /> :
          aba === "turmas" ? <TelaTurmas alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade}
-           exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
-         aba === "quadras" && mostraQuadras ? <TelaQuadras quadras={quadras} setQuadras={setQuadras} reservas={reservas} setReservas={setReservas} orgAtual={orgAtual} /> :
+           exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} quadras={quadras} /> :
+         aba === "quadras" && mostraQuadras ? <TelaQuadras quadras={quadras} setQuadras={setQuadras} reservas={reservas} setReservas={setReservas} orgAtual={orgAtual} alunos={alunos} turmas={turmas} /> :
          aba === "grade-aulas" && mostraQuadras ? <TelaGradeAulas alunos={alunos} turmas={turmas} bloqueiosAula={bloqueiosAula} setBloqueiosAula={setBloqueiosAula} orgAtual={orgAtual} /> :
          aba === "torneios" && mostraTorneiosEventos ? <TelaTorneios torneios={torneios} setTorneios={setTorneios} orgAtual={orgAtual} /> :
          aba === "eventos" && mostraTorneiosEventos ? <TelaEventos eventos={eventos} setEventos={setEventos} orgAtual={orgAtual} /> :
@@ -15051,7 +15102,7 @@ function App() {
               );
             })()}
             {subaba === "ficha" ? <TelaFicha aluno={aberto} salvar={salvar} papelAtual={papelAtual} uidAtual={uidAtual}
-                etapaAlvo={etapaFichaAlvo} aoConsumirEtapaAlvo={() => setEtapaFichaAlvo(null)} aoMudarEditando={setEditandoFicha} /> :
+                etapaAlvo={etapaFichaAlvo} aoConsumirEtapaAlvo={() => setEtapaFichaAlvo(null)} aoMudarEditando={setEditandoFicha} quadras={quadras} /> :
              subaba === "plano" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="resumo" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
              subaba === "aulas" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
              subaba === "fechamento" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="fechamento" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
