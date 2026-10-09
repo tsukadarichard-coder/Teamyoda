@@ -11226,8 +11226,9 @@ function MotivoQuadra({ opacidade = 0.14 }) {
 
 /* Cada item abaixo descreve só o que já existe e funciona no app —
    nunca algo planejado ou ainda não pronto. Títulos e textos evitam
-   repetir o que já aparece nas legendas das capturas (CAPTURAS_DEMONSTRACAO,
-   abaixo) e nos recursos complementares (RECURSOS_QUADRALAB) — cada
+   repetir o que já aparece nos títulos das etapas da demonstração
+   (ETAPAS_DEMONSTRACAO, abaixo) e nos recursos complementares
+   (RECURSOS_QUADRALAB) — cada
    lista cobre um ângulo diferente do mesmo fluxo. */
 const PASSOS_COMO_FUNCIONA = [
   { numero: "01", titulo: "Cadastre o jogador",
@@ -11253,19 +11254,36 @@ const RECURSOS_QUADRALAB = [
     texto: "A IA sugere um planejamento com base na ficha — você revisa e aprova antes de usar." },
 ];
 
-/* Exemplo fictício e coerente (Beatriz Lima, conta de demonstração),
-   mostrando os quatro estados que o treinador de verdade vê no dia a
-   dia já resolvidos — ficha avaliada, plano aprovado, sessão pronta pra
-   quadra, aula registrada — não telas vazias, pendentes ou bloqueadas. */
-const CAPTURAS_DEMONSTRACAO = [
-  { src: "assets/demo-ficha.png", titulo: "Conheça cada jogador",
-    texto: "Reúna avaliações e objetivos para orientar o planejamento." },
-  { src: "assets/demo-plano.png", titulo: "Planeje suas próximas aulas",
-    texto: "Organize o ciclo e revise os exercícios antes de começar." },
-  { src: "assets/demo-sessao.png", titulo: "Leve a sessão para a quadra",
-    texto: "Consulte a sequência e os detalhes do treino." },
-  { src: "assets/demo-relatorio.png", titulo: "Registre para dar continuidade",
-    texto: "Use suas observações para orientar as próximas aulas." },
+/* Exemplo fictício e coerente (Beatriz Lima, conta de demonstração) —
+   mesmo jogador nas quatro etapas, com objetivo/datas/estados que não
+   se contradizem entre si. Cada captura é um RECORTE real da interface
+   (não a tela inteira) gerado a partir do mesmo código que roda em
+   produção, mostrando sempre um estado positivo/concluído — nunca um
+   aviso de pendência, formulário vazio ou relatório inteiro. O "destaque"
+   de cada etapa é texto nosso, visualmente separado da captura (nunca
+   sobreposto nela), pra nunca ser confundido com a interface do produto. */
+const ETAPAS_DEMONSTRACAO = [
+  { numero: "01", titulo: "Cada jogador tem um próximo passo.",
+    texto: "Reúna objetivos, avaliações e observações para orientar o planejamento.",
+    img: "assets/demo-jogador.png", razao: 860 / 410,
+    alt: "Recorte da ficha de Beatriz Lima mostrando a avaliação do treinador, nas camadas técnica e tática.",
+    destaque: "O ponto de partida do planejamento." },
+  { numero: "02", titulo: "Transforme suas observações em planejamento.",
+    texto: "Revise a proposta de aulas e ajuste o que faz sentido para o jogador.",
+    img: "assets/demo-planejamento.png", razao: 860 / 852,
+    alt: "Cartão do planejamento de Beatriz Lima: objetivo do ciclo, período de 4 semanas, aprovado e em andamento, com 1 de 2 aulas realizadas.",
+    destaque: "Você revisa e aprova." },
+  { numero: "03", titulo: "Entre em quadra com a sessão preparada.",
+    texto: "Consulte a sequência de exercícios e ajuste a aula conforme sua necessidade.",
+    img: "assets/demo-sessao-compacta.png", razao: 860 / 620,
+    imgAmpliada: "assets/demo-sessao-exercicios.png",
+    alt: "Primeiro exercício da sessão de hoje de Beatriz Lima, com descrição, duração estimada e série — a tela completa mostra mais dois exercícios em sequência.",
+    destaque: "A sequência da aula, à mão." },
+  { numero: "04", titulo: "A aula termina. O acompanhamento continua.",
+    texto: "Registre o que foi trabalhado e consulte suas observações ao preparar os próximos passos.",
+    img: "assets/demo-registro.png", razao: 860 / 360,
+    alt: "Registro de uma sessão concluída de Beatriz Lima, com o ciclo, o total de exercícios e uma observação do treinador.",
+    destaque: "O que aconteceu hoje ajuda a orientar amanhã." },
 ];
 
 /* Dados reais dos planos — mesma fonte usada no banner de limite e no
@@ -11397,20 +11415,44 @@ function FaqItem({ pergunta, resposta }) {
 
 /* Ampliação acessível das capturas: Escape, clique fora e botão fechar
    fecham; o conteúdo clicado por dentro não propaga pro fundo. */
+/* Ampliação acessível das capturas — fecha por botão visível ou Escape,
+   mantém o foco PRESO dentro da janela enquanto aberta (Tab não escapa
+   pro resto da página atrás) e devolve o foco pro botão "Ampliar tela"
+   que abriu, ao fechar (sem isso, quem navega por teclado perderia a
+   posição e teria que recomeçar do topo da página). */
 function LightboxCaptura({ captura, aoFechar }) {
+  const fecharRef = useRef(null);
+  const conteudoRef = useRef(null);
+  const gatilhoRef = useRef(typeof document !== "undefined" ? document.activeElement : null);
+
   useEffect(() => {
-    function aoTeclar(e) { if (e.key === "Escape") aoFechar(); }
+    if (fecharRef.current) fecharRef.current.focus();
+    function aoTeclar(e) {
+      if (e.key === "Escape") { aoFechar(); return; }
+      if (e.key !== "Tab" || !conteudoRef.current) return;
+      const focaveis = conteudoRef.current.querySelectorAll('button, [href], [tabindex]:not([tabindex="-1"])');
+      if (!focaveis.length) return;
+      const primeiro = focaveis[0], ultimo = focaveis[focaveis.length - 1];
+      if (e.shiftKey && document.activeElement === primeiro) { e.preventDefault(); ultimo.focus(); }
+      else if (!e.shiftKey && document.activeElement === ultimo) { e.preventDefault(); primeiro.focus(); }
+    }
     document.addEventListener("keydown", aoTeclar);
-    return () => document.removeEventListener("keydown", aoTeclar);
+    return () => {
+      document.removeEventListener("keydown", aoTeclar);
+      if (gatilhoRef.current && gatilhoRef.current.focus) gatilhoRef.current.focus();
+    };
   }, [aoFechar]);
+
   return (
     <div role="dialog" aria-modal="true" aria-label={captura.titulo} className="qlab-lightbox" onClick={aoFechar}>
-      <button type="button" onClick={aoFechar} aria-label="Fechar" className="qlab-lightbox-fechar">
-        <IconeFechar tam={22} />
-      </button>
-      <div className="qlab-lightbox-conteudo" onClick={(e) => e.stopPropagation()}>
-        <img src={captura.src} alt={captura.titulo} />
-        <p style={{ ...prosa, fontSize: 13.5, color: "#fff", marginTop: 12, textAlign: "center" }}>{captura.texto}</p>
+      <div ref={conteudoRef} style={{ display: "contents" }}>
+        <button type="button" ref={fecharRef} onClick={aoFechar} aria-label="Fechar" className="qlab-lightbox-fechar">
+          <IconeFechar tam={22} />
+        </button>
+        <div className="qlab-lightbox-conteudo" onClick={(e) => e.stopPropagation()}>
+          <img src={captura.src} alt={captura.titulo} style={{ touchAction: "pinch-zoom" }} />
+          <p style={{ ...prosa, fontSize: 13.5, color: "#fff", marginTop: 12, textAlign: "center" }}>{captura.texto}</p>
+        </div>
       </div>
     </div>
   );
@@ -11538,14 +11580,39 @@ function TelaVendas({ aoEntrar }) {
         .qlab-passo h3 { font-family: ${ARCH}; font-size: 16.5px; font-weight: 700; color: ${C.tinta}; margin: 0; }
         .qlab-passo p { font-family: ${SERIF}; font-size: 14px; color: ${C.grafite}; margin: 0; line-height: 1.5; }
 
-        .qlab-capturas { display: grid; grid-template-columns: 1fr; gap: 22px; align-items: start; }
-        @media (min-width: 680px) { .qlab-capturas { grid-template-columns: repeat(2, 1fr); } }
-        .qlab-captura-cartao { background: #fff; border: 1px solid ${C.linha}; border-radius: 14px; overflow: hidden; box-shadow: ${SOMBRA}; }
-        .qlab-captura-botao { display: block; width: 100%; border: none; padding: 0; background: ${C.papel}; cursor: zoom-in; }
-        .qlab-captura-botao img { display: block; width: 100%; height: auto; }
-        .qlab-captura-legenda { padding: 14px 16px 18px; }
-        .qlab-captura-legenda h3 { font-family: ${ARCH}; font-size: 15px; font-weight: 700; color: ${C.tinta}; margin: 0 0 4px; }
-        .qlab-captura-legenda p { font-family: ${SERIF}; font-size: 13.5px; color: ${C.grafite}; margin: 0; line-height: 1.45; }
+        .qlab-captura-botao { display: block; width: 100%; height: 100%; border: none; padding: 0; background: #fff; cursor: zoom-in; }
+        .qlab-captura-botao img { display: block; width: 100%; height: 100%; object-fit: contain; object-position: top center; }
+
+        .qlab-demo-previa { max-width: 420px; margin: 0 auto 44px; border-radius: 16px; overflow: hidden;
+          border: 1px solid ${C.linha}; box-shadow: ${SOMBRA}; background: #fff; }
+        .qlab-demo-previa img { display: block; width: 100%; height: auto; }
+
+        .qlab-demo-etapas { display: flex; flex-direction: column; gap: 40px; max-width: 980px; margin: 0 auto; }
+        .qlab-demo-etapa { display: flex; flex-direction: column; gap: 18px; }
+        @media (min-width: 860px) {
+          .qlab-demo-etapa { flex-direction: row; align-items: center; gap: 48px; }
+          .qlab-demo-etapa-inv { flex-direction: row-reverse; }
+          .qlab-demo-etapa-texto, .qlab-demo-etapa-visual { flex: 1 1 0; min-width: 0; }
+        }
+        .qlab-demo-etapa-numero { display: inline-flex; font-family: ${ARCH}; font-size: 12px; font-weight: 700;
+          color: ${C.saibro}; letter-spacing: .06em; margin-bottom: 8px; }
+        .qlab-demo-etapa-texto h3 { font-family: ${ARCH}; font-weight: 800; font-size: 21px; color: ${C.tinta}; margin: 0 0 8px; line-height: 1.25; }
+        .qlab-demo-etapa-texto p { font-family: ${SERIF}; font-size: 15px; color: ${C.grafite}; margin: 0; line-height: 1.55; }
+        .qlab-demo-etapa-cartao { background: #fff; border: 1px solid ${C.linha}; border-radius: 14px; overflow: hidden;
+          box-shadow: ${SOMBRA}; }
+        .qlab-demo-etapa-destaque { font-family: ${SERIF}; font-style: italic; font-size: 13.5px; color: ${C.grafite};
+          margin: 10px 2px 0; padding-left: 10px; border-left: 2px solid ${C.saibro}; }
+        .qlab-demo-ampliar { display: inline-block; margin: 10px 0 0; background: none; border: none; padding: 0;
+          font-family: ${ARCH}; font-size: 12.5px; font-weight: 700; color: ${C.quadra}; text-decoration: underline; cursor: pointer; }
+        @media (prefers-reduced-motion: reduce) { .qlab-demo-etapa-cartao, .qlab-btn { transition: none !important; } }
+
+        .qlab-demo-cta { max-width: 560px; margin: 52px auto 0; text-align: center; }
+        .qlab-demo-cta h3 { font-family: ${ARCH}; font-weight: 800; font-size: 20px; color: ${C.tinta}; margin: 0 0 8px; }
+        .qlab-demo-cta p { font-family: ${SERIF}; font-size: 14px; color: ${C.grafite}; margin: 0 0 18px; }
+        .qlab-demo-cta-acoes { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 16px; }
+        .qlab-link-escuro { background: none; border: none; padding: 0; font-family: ${ARCH}; font-size: 14px; font-weight: 700;
+          color: ${C.quadra}; text-decoration: underline; cursor: pointer; }
+        .qlab-link-escuro:focus-visible { outline: 2px solid ${C.quadra}; outline-offset: 2px; }
 
         .qlab-lightbox { position: fixed; inset: 0; background: rgba(10,20,16,.88); z-index: 60;
           display: flex; align-items: center; justify-content: center; padding: 24px; cursor: zoom-out; }
@@ -11668,23 +11735,53 @@ function TelaVendas({ aoEntrar }) {
 
       <section className="qlab-secao qlab-secao-alt" id="qlab-demonstracao">
         <div className="qlab-secao-cabecalho">
-          <p className="qlab-secao-eyebrow">Plataforma intuitiva e prática</p>
-          <h2>Veja a plataforma por dentro.</h2>
-          <p className="qlab-secao-sub">Exemplo com dados fictícios.</p>
+          <p className="qlab-secao-eyebrow">Conheça o QuadraLab</p>
+          <h2>Da avaliação à próxima aula, tudo conectado.</h2>
+          <p className="qlab-secao-sub">
+            Conheça cada jogador, prepare o planejamento e registre suas aulas em um só lugar. A IA sugere. Você revisa e decide.
+          </p>
         </div>
-        <div className="qlab-capturas">
-          {CAPTURAS_DEMONSTRACAO.map((c, i) => (
-            <div key={i} className="qlab-captura-cartao">
-              <button type="button" className="qlab-captura-botao" onClick={() => setCapturaAberta(c)}
-                aria-label={"Ampliar captura: " + c.titulo}>
-                <img src={c.src} alt={c.titulo} loading="lazy" />
-              </button>
-              <div className="qlab-captura-legenda">
-                <h3>{c.titulo}</h3>
-                <p>{c.texto}</p>
+
+        <div className="qlab-demo-previa">
+          <img src="assets/demo-planejamento.png" alt="Planejamento aprovado de uma jogadora, com objetivo do ciclo, período de 4 semanas e 1 de 2 aulas já realizadas."
+            width="860" height="852" />
+        </div>
+
+        <div className="qlab-demo-etapas">
+          {ETAPAS_DEMONSTRACAO.map((e, i) => (
+            <div key={i} className={"qlab-demo-etapa" + (i % 2 === 1 ? " qlab-demo-etapa-inv" : "")}>
+              <div className="qlab-demo-etapa-texto">
+                <span className="qlab-demo-etapa-numero">{e.numero}</span>
+                <h3>{e.titulo}</h3>
+                <p>{e.texto}</p>
+              </div>
+              <div className="qlab-demo-etapa-visual">
+                <div className="qlab-demo-etapa-cartao" style={{ aspectRatio: String(e.razao) }}>
+                  <button type="button" className="qlab-captura-botao"
+                    onClick={() => setCapturaAberta({ src: e.imgAmpliada || e.img, titulo: e.titulo, texto: e.destaque })}
+                    aria-label={"Ampliar tela: " + e.titulo}>
+                    <img src={e.img} alt={e.alt} loading="lazy" />
+                  </button>
+                </div>
+                <p className="qlab-demo-etapa-destaque">{e.destaque}</p>
+                <button type="button" className="qlab-demo-ampliar"
+                  onClick={() => setCapturaAberta({ src: e.imgAmpliada || e.img, titulo: e.titulo, texto: e.destaque })}>
+                  Ampliar tela
+                </button>
               </div>
             </div>
           ))}
+        </div>
+
+        <div className="qlab-demo-cta">
+          <h3>Veja como isso funciona com seus próprios alunos.</h3>
+          <p>Comece com o plano gratuito para até 5 alunos.</p>
+          <div className="qlab-demo-cta-acoes">
+            <button type="button" className="qlab-btn qlab-btn-primario" onClick={irParaCadastro}>
+              Começar grátis <IconeSeta tam={16} />
+            </button>
+            <button type="button" className="qlab-link-escuro" onClick={() => irParaSecao("qlab-planos")}>Comparar planos</button>
+          </div>
         </div>
       </section>
 
