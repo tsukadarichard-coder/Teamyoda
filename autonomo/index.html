@@ -5728,7 +5728,9 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
      Calendário) e Prioridades do plano continuam existindo — só ficam
      escondidos por padrão, atrás destes botões. Nada do que já foi
      preenchido se perde ao recolher. */
+  const [mostrarMaisDados, setMostrarMaisDados] = useState(false);
   const [mostrarMaisRotina, setMostrarMaisRotina] = useState(false);
+  const [mostrarAvaliacaoCompleta, setMostrarAvaliacaoCompleta] = useState(false);
   const [mostrarMaisAvaliacao, setMostrarMaisAvaliacao] = useState(false);
   const [guiaFisico, setGuiaFisico] = useState(false);
   const [guiaTatico, setGuiaTatico] = useState(false);
@@ -5904,48 +5906,56 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
       )}
 
       {etapa === 1 && (
-        <Secao titulo="Dados do jogador" nota="Identificação básica — o que não muda de aula pra aula.">
-          <Campo rotulo="Nome"><input style={entrada} value={f.nome} onChange={(e) => set("nome", e.target.value)} placeholder="Nome do jogador" /></Campo>
-          <Campo rotulo="Nascimento"><input type="date" style={entrada} value={f.nascimento} onChange={(e) => set("nascimento", e.target.value)} /></Campo>
-          {f.estagio !== "A" ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Campo rotulo="Altura atual (m)"><input style={entrada} value={f.alturaAtual} onChange={(e) => set("alturaAtual", e.target.value)} placeholder="1,78" /></Campo>
-              <Campo rotulo="Altura projetada (m)" nota="Estimativa de altura adulta, só quando houver uma referência confiável (ex.: avaliação de um profissional, altura dos pais). Deixe em branco se não tiver essa base.">
-                <input style={entrada} value={f.projecaoAltura} onChange={(e) => set("projecaoAltura", e.target.value)} placeholder="1,88" />
-              </Campo>
-            </div>
-          ) : (
+        <>
+          <Secao titulo="Dados do jogador" nota="Identificação básica — o que não muda de aula pra aula.">
+            <Campo rotulo="Nome"><input style={entrada} value={f.nome} onChange={(e) => set("nome", e.target.value)} placeholder="Nome do jogador" /></Campo>
+            <Campo rotulo="Nascimento"><input type="date" style={entrada} value={f.nascimento} onChange={(e) => set("nascimento", e.target.value)} /></Campo>
             <Campo rotulo="Altura atual (m)"><input style={entrada} value={f.alturaAtual} onChange={(e) => set("alturaAtual", e.target.value)} placeholder="1,78" /></Campo>
-          )}
-          <Campo rotulo="Lateralidade" nota={!f.lateralidade ? "Não informado" : null}>
-            <Seletor opcoes={[{ v: "destro", r: "Destro" }, { v: "canhoto", r: "Canhoto" }]} valor={f.lateralidade} aoMudar={(v) => set("lateralidade", v)} />
-          </Campo>
-          <Campo rotulo="Backhand" nota={!f.backhand ? "Não informado" : null}>
-            <Seletor opcoes={[{ v: "duas", r: "Duas mãos" }, { v: "uma", r: "Uma mão" }]} valor={f.backhand} aoMudar={(v) => set("backhand", v)} />
-          </Campo>
-          <Campo rotulo="Composição física"
-            nota={(!f.tipoFisico ? "Não informado. " : "") + "Critério livre do treinador — a metodologia ainda não define leve/médio/forte de forma objetiva. Preencha só se usar isso na prática."}>
-            <Seletor opcoes={[{ v: "leve", r: "Leve" }, { v: "medio", r: "Médio" }, { v: "forte", r: "Forte" }]} valor={f.tipoFisico} aoMudar={(v) => set("tipoFisico", v)} />
-          </Campo>
-          <Campo rotulo="Histórico de atividades na infância" nota={(!f.baseMotora ? "Não informado. " : "") + "Define quanto o bloco de base motora pesa."}>
-            <Seletor opcoes={[{ v: "pobre", r: "Pouca variedade" }, { v: "media", r: "Média" }, { v: "rica", r: "Muitos esportes" }]} valor={f.baseMotora} aoMudar={(v) => set("baseMotora", v)} />
-          </Campo>
-          {f.estagio !== "A" ? (
-            <Campo rotulo="Contexto familiar e do jogador" nota="Convívio, expectativas, suporte, relação com o erro e com o esforço.">
-              <textarea rows={3} style={{ ...entrada, resize: "vertical" }} value={f.contexto} onChange={(e) => set("contexto", e.target.value)} />
-            </Campo>
-          ) : (
-            <>
-              <Campo rotulo="Disposição do aluno adulto" nota="O que motiva, o que desmotiva — não é o objetivo dele (isso vem em Avaliação → Perfil de jogo).">
-                <Seletor opcoes={DISPOSICOES_ADULTO.map((d) => ({ v: d.v, r: d.r }))} valor={f.disposicaoAdulto} aoMudar={(v) => set("disposicaoAdulto", v)} />
+          </Secao>
+
+          <div className="mb-5">
+            <Botao pequeno variante="vazio" onClick={() => setMostrarMaisDados(!mostrarMaisDados)}>
+              {mostrarMaisDados ? "Ocultar mais dados" : "Mostrar mais dados"}
+            </Botao>
+          </div>
+          {mostrarMaisDados && (
+            <Secao titulo="Mais dados">
+              {f.estagio !== "A" && (
+                <Campo rotulo="Altura projetada (m)" nota="Estimativa de altura adulta, só quando houver uma referência confiável (ex.: avaliação de um profissional, altura dos pais). Deixe em branco se não tiver essa base.">
+                  <input style={entrada} value={f.projecaoAltura} onChange={(e) => set("projecaoAltura", e.target.value)} placeholder="1,88" />
+                </Campo>
+              )}
+              <Campo rotulo="Lateralidade" nota={!f.lateralidade ? "Não informado" : null}>
+                <Seletor opcoes={[{ v: "destro", r: "Destro" }, { v: "canhoto", r: "Canhoto" }]} valor={f.lateralidade} aoMudar={(v) => set("lateralidade", v)} />
               </Campo>
-              {f.disposicaoAdulto && <p style={{ ...prosa, color: C.grafite, fontSize: 13, marginTop: -6, marginBottom: 14 }}>{DISPOSICOES_ADULTO.find((d) => d.v === f.disposicaoAdulto).d}</p>}
-              <Campo rotulo="Comportamento em quadra" nota="Humor, comunicação, paciência com o próprio erro.">
-                <textarea rows={3} style={{ ...entrada, resize: "vertical" }} value={f.comportamentoAdulto} onChange={(e) => set("comportamentoAdulto", e.target.value)} />
+              <Campo rotulo="Backhand" nota={!f.backhand ? "Não informado" : null}>
+                <Seletor opcoes={[{ v: "duas", r: "Duas mãos" }, { v: "uma", r: "Uma mão" }]} valor={f.backhand} aoMudar={(v) => set("backhand", v)} />
               </Campo>
-            </>
+              <Campo rotulo="Composição física"
+                nota={(!f.tipoFisico ? "Não informado. " : "") + "Critério livre do treinador — a metodologia ainda não define leve/médio/forte de forma objetiva. Preencha só se usar isso na prática."}>
+                <Seletor opcoes={[{ v: "leve", r: "Leve" }, { v: "medio", r: "Médio" }, { v: "forte", r: "Forte" }]} valor={f.tipoFisico} aoMudar={(v) => set("tipoFisico", v)} />
+              </Campo>
+              <Campo rotulo="Histórico de atividades na infância" nota={(!f.baseMotora ? "Não informado. " : "") + "Define quanto o bloco de base motora pesa."}>
+                <Seletor opcoes={[{ v: "pobre", r: "Pouca variedade" }, { v: "media", r: "Média" }, { v: "rica", r: "Muitos esportes" }]} valor={f.baseMotora} aoMudar={(v) => set("baseMotora", v)} />
+              </Campo>
+              {f.estagio !== "A" ? (
+                <Campo rotulo="Contexto familiar e do jogador" nota="Convívio, expectativas, suporte, relação com o erro e com o esforço.">
+                  <textarea rows={3} style={{ ...entrada, resize: "vertical" }} value={f.contexto} onChange={(e) => set("contexto", e.target.value)} />
+                </Campo>
+              ) : (
+                <>
+                  <Campo rotulo="Disposição do aluno adulto" nota="O que motiva, o que desmotiva — não é o objetivo dele (isso vem em Avaliação → Perfil de jogo).">
+                    <Seletor opcoes={DISPOSICOES_ADULTO.map((d) => ({ v: d.v, r: d.r }))} valor={f.disposicaoAdulto} aoMudar={(v) => set("disposicaoAdulto", v)} />
+                  </Campo>
+                  {f.disposicaoAdulto && <p style={{ ...prosa, color: C.grafite, fontSize: 13, marginTop: -6, marginBottom: 14 }}>{DISPOSICOES_ADULTO.find((d) => d.v === f.disposicaoAdulto).d}</p>}
+                  <Campo rotulo="Comportamento em quadra" nota="Humor, comunicação, paciência com o próprio erro.">
+                    <textarea rows={3} style={{ ...entrada, resize: "vertical" }} value={f.comportamentoAdulto} onChange={(e) => set("comportamentoAdulto", e.target.value)} />
+                  </Campo>
+                </>
+              )}
+            </Secao>
           )}
-        </Secao>
+        </>
       )}
 
       {etapa === 2 && (
@@ -5963,13 +5973,6 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
             <Campo rotulo="Duração da aula" nota="Cada horário acima ocupa esse tempo inteiro na Agenda e na Grade de aulas.">
               <Seletor opcoes={DURACOES_TREINO} valor={f.duracaoPadrao || "1h30"} aoMudar={(v) => set("duracaoPadrao", v)} />
             </Campo>
-            <Campo rotulo="Dias de quadra por semana" nota={!f.diasQuadra ? "Não informado" : null}>
-              <Seletor opcoes={[1, 2, 3, 4, 5, 6, 7].map((d) => ({ v: d, r: d + (d === 1 ? " dia" : " dias") }))} valor={f.diasQuadra} aoMudar={(v) => set("diasQuadra", v)} />
-            </Campo>
-            <Campo rotulo="Tempo treinando" nota="Calibra expectativa: um adulto com 3 meses não lê igual a alguém com 3 anos.">
-              <Seletor opcoes={[{ v: "novo", r: "Menos de 6 meses" }, { v: "intermediario", r: "6 meses a 2 anos" }, { v: "experiente", r: "Mais de 2 anos" }]}
-                valor={f.tempoTreinando} aoMudar={(v) => set("tempoTreinando", v)} />
-            </Campo>
           </Secao>
 
           <div className="mb-5">
@@ -5980,6 +5983,13 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
           {mostrarMaisRotina && (
             <>
               <Secao titulo="Mais rotina">
+                <Campo rotulo="Dias de quadra por semana" nota={!f.diasQuadra ? "Não informado" : null}>
+                  <Seletor opcoes={[1, 2, 3, 4, 5, 6, 7].map((d) => ({ v: d, r: d + (d === 1 ? " dia" : " dias") }))} valor={f.diasQuadra} aoMudar={(v) => set("diasQuadra", v)} />
+                </Campo>
+                <Campo rotulo="Tempo treinando" nota="Calibra expectativa: um adulto com 3 meses não lê igual a alguém com 3 anos.">
+                  <Seletor opcoes={[{ v: "novo", r: "Menos de 6 meses" }, { v: "intermediario", r: "6 meses a 2 anos" }, { v: "experiente", r: "Mais de 2 anos" }]}
+                    valor={f.tempoTreinando} aoMudar={(v) => set("tempoTreinando", v)} />
+                </Campo>
                 <Campo rotulo="Períodos por dia" nota={f.periodos == null ? "Não informado" : null}>
                   <Seletor opcoes={[{ v: 1, r: "Um" }, { v: 2, r: "Dois" }]} valor={f.periodos} aoMudar={(v) => set("periodos", v)} />
                 </Campo>
@@ -6094,6 +6104,18 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
             </Campo>
           </Secao>
 
+          <div className="mb-5">
+            <Botao pequeno variante="vazio" onClick={() => setMostrarAvaliacaoCompleta(!mostrarAvaliacaoCompleta)}>
+              {mostrarAvaliacaoCompleta ? "Ocultar avaliação técnica completa" : "Mostrar avaliação técnica completa"}
+            </Botao>
+            {!mostrarAvaliacaoCompleta && (
+              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 6 }}>
+                Pode ficar pra próxima aula — nada aqui impede salvar a ficha agora.
+              </p>
+            )}
+          </div>
+          {mostrarAvaliacaoCompleta && (
+            <>
           <Secao titulo="Avaliação por golpe" nota="Toque em cada golpe pra avaliar.">
             <AjudaContextual>
               "Erra o backhand" diz pouco. "Erra o backhand quando a bola vem alta e ele está recuando" diz
@@ -6219,6 +6241,8 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
               ))}
             </Campo>
           </Secao>
+            </>
+          )}
 
           <div className="mb-5">
             <Botao pequeno variante="vazio" onClick={() => setMostrarMaisAvaliacao(!mostrarMaisAvaliacao)}>
