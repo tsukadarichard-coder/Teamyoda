@@ -5301,6 +5301,7 @@ function promptPlanoEstruturado(a, semanas, aulasSemana, historico, enfase) {
   const ciclosAnteriores = (historico || []).slice(0, 3).map((h, i) =>
     "── Ciclo " + (historico.length - i) + " · " + new Date(h.data).toLocaleDateString("pt-BR") + " ──\n" + h.texto
   );
+  const resumoScout = resumoScoutPlanejamento(a.registros);
   return [
     "Você é assistente de planejamento da Metodologia MTY, método de tênis do treinador",
     "Richard Tsukada. Monte o planejamento deste jogador.",
@@ -5313,6 +5314,7 @@ function promptPlanoEstruturado(a, semanas, aulasSemana, historico, enfase) {
     "",
     "FICHA DO JOGADOR:",
     relatorioFicha(a),
+    ...(resumoScout ? ["", resumoScout] : []),
     ...(ciclosAnteriores.length ? [
       "",
       "RELATÓRIOS DOS CICLOS ANTERIORES DESTE JOGADOR — o novo plano responde ao que",
@@ -5460,7 +5462,11 @@ function promptPlanoTurma(turma, membros, semanas, aulasSemana, historico, enfas
     indiceParaEstagios(estagios),
     "",
     "FICHAS DOS " + membros.length + " JOGADORES DO GRUPO:",
-    ...membros.flatMap((m, i) => ["", "── Jogador " + (i + 1) + " · " + (m.nome || "sem nome") + " ──", relatorioFicha(m)]),
+    ...membros.flatMap((m, i) => {
+      const resumoScout = resumoScoutPlanejamento(m.registros);
+      return ["", "── Jogador " + (i + 1) + " · " + (m.nome || "sem nome") + " ──", relatorioFicha(m),
+        ...(resumoScout ? ["", resumoScout] : [])];
+    }),
     ...(ciclosAnteriores.length ? [
       "",
       "RELATÓRIOS DOS CICLOS ANTERIORES DESTA TURMA — o novo plano responde ao que ficou em",
@@ -8142,31 +8148,84 @@ const FIM_PONTO = [
    gráfico os jogos com reg.scout (jogos salvos antes dessa métrica
    existir ficam de fora daqui, mas continuam na tabela de comparação
    como "—"). Ordem cronológica (mais antigo primeiro), igual ao tempo. */
-/* Compara o primeiro com o último jogo registrado — é a resposta direta
-   a "teve evolução ou não", sem depender de olhar a inclinação da linha
-   no gráfico. maiorEhMelhor diz se subir é bom (protocolo) ou ruim
-   (erros, ataques perdidos). */
-function tendenciaScout(primeiro, ultimo, maiorEhMelhor) {
-  const delta = ultimo - primeiro;
-  const estavel = delta === 0;
-  const melhorou = maiorEhMelhor ? delta > 0 : delta < 0;
+/* Inclinação por mínimos quadrados de uma série (x = 0..n-1) — a base
+   de "está melhorando ou piorando" usando TODOS os jogos, não só o
+   primeiro e o último (dois jogos isolados podem ser só uma oscilação
+   pontual, sem dizer nada sobre a tendência real). */
+function inclinacaoLinear(valores) {
+  const n = valores.length;
+  if (n < 2) return 0;
+  const somaX = (n - 1) * n / 2;
+  const somaX2 = (n - 1) * n * (2 * n - 1) / 6;
+  const somaY = valores.reduce((s, v) => s + v, 0);
+  const somaXY = valores.reduce((s, v, i) => s + i * v, 0);
+  const denom = n * somaX2 - somaX * somaX;
+  if (denom === 0) return 0;
+  return (n * somaXY - somaX * somaY) / denom;
+}
+
+/* Tendência de verdade — calculada sobre a série inteira (regressão
+   linear simples), não a diferença entre dois jogos isolados. Variação
+   total projetada (inclinação × número de intervalos) menor que 1 ponto
+   percentual conta como estável, pra não exagerar ruído de amostra
+   pequena como se fosse uma tendência real. maiorEhMelhor diz se subir
+   é bom (protocolo) ou ruim (erros, ataques perdidos). */
+function tendenciaScout(valores, maiorEhMelhor) {
+  const n = valores.length;
+  const media = valores.reduce((s, v) => s + v, 0) / n;
+  const inclinacao = inclinacaoLinear(valores);
+  const variacaoTotal = inclinacao * (n - 1);
+  const estavel = Math.abs(variacaoTotal) < 1;
+  const melhorou = maiorEhMelhor ? inclinacao > 0 : inclinacao < 0;
   return {
-    delta,
+    media,
+    variacaoTotal,
+    estavel,
+    melhorou: !estavel && melhorou,
     cor: estavel ? C.grafite : (melhorou ? "#1F6B4A" : "#A6432F"),
-    seta: estavel ? "→" : (delta > 0 ? "▲" : "▼"),
+    seta: estavel ? "→" : (inclinacao > 0 ? "▲" : "▼"),
   };
 }
 
-function CartaoTendencia({ rotulo, primeiro, ultimo, sufixo, maiorEhMelhor }) {
-  const t = tendenciaScout(primeiro, ultimo, maiorEhMelhor);
+/* Resumo factual dos jogos com scout salvo, pra alimentar a montagem do
+   PRÓXIMO plano com dados reais de partida — não só a ficha estática e
+   os relatórios de ciclos anteriores. Usa a média de TODOS os jogos
+   salvos (nunca só o primeiro, o último, ou o mais recente): um único
+   jogo isolado pode ser uma oscilação pontual, não um padrão real. Quem
+   decide o que fazer com isso é a IA/o treinador — aqui só entram
+   números calculados a partir do que foi realmente registrado, nunca
+   um texto interpretativo inventado. */
+function resumoScoutPlanejamento(registros) {
+  const jogos = (registros || []).filter((r) => r.tipo === "jogo" && r.scout);
+  if (jogos.length === 0) return null;
+  const media = (campo) => jogos.reduce((s, r) => s + r.scout[campo], 0) / jogos.length;
+  const tendenciaTxt = (campo, maiorEhMelhor) => {
+    if (jogos.length < 2) return "";
+    const t = tendenciaScout(jogos.map((r) => r.scout[campo]), maiorEhMelhor);
+    return " (" + (t.estavel ? "estável ao longo dos jogos" : (t.melhorou ? "melhorando" : "piorando") + " ao longo dos jogos") + ")";
+  };
+  return [
+    "DADOS DE PARTIDAS REGISTRADAS (SCOUT) — " + plural(jogos.length, "jogo") + " com scout salvo, médias sobre todos eles:",
+    "· Protocolo entre pontos: " + media("pctProtocolo").toFixed(0) + "%" + tendenciaTxt("pctProtocolo", true),
+    "· Erros na bola 1–2 (construção de ponto): " + media("pctErrosCurtos").toFixed(0) + "%" + tendenciaTxt("pctErrosCurtos", false),
+    "· Ataques perdidos, média por jogo: " + media("ataquePerdido").toFixed(1) + tendenciaTxt("ataquePerdido", false),
+    "· Erros por decisão vs. execução, média por jogo: " + media("errosDecisao").toFixed(1) + " / " + media("errosExec").toFixed(1),
+    "Estes são dados de partida real, não da ficha de entrada — use-os pra calibrar prioridade e",
+    "areaFoco dos blocos quando fizerem sentido junto com o resto da ficha, mas nunca invente um",
+    "número que não esteja listado aqui.",
+  ].join("\n");
+}
+
+function CartaoTendencia({ rotulo, valores, sufixo, maiorEhMelhor }) {
+  const t = tendenciaScout(valores, maiorEhMelhor);
   return (
     <div style={{ flex: 1, minWidth: 140, background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "9px 12px" }}>
       <p style={{ ...prosa, fontSize: 11, color: C.grafite }}>{rotulo}</p>
       <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginTop: 2 }}>
-        {primeiro}{sufixo} <span style={{ color: C.grafite, fontWeight: 400 }}>→</span> {ultimo}{sufixo}
+        {t.media.toFixed(1)}{sufixo} <span style={{ ...prosa, fontSize: 10.5, color: C.grafite, fontWeight: 400 }}>média de {valores.length} jogos</span>
       </p>
       <p style={{ ...prosa, fontSize: 11.5, color: t.cor, fontWeight: 600, marginTop: 1 }}>
-        {t.seta} {t.delta > 0 ? "+" : ""}{t.delta}{sufixo} desde o primeiro jogo registrado
+        {t.seta} {t.estavel ? "estável" : (t.variacaoTotal > 0 ? "+" : "") + t.variacaoTotal.toFixed(1) + sufixo + " ao longo da série"}
       </p>
     </div>
   );
@@ -8181,18 +8240,19 @@ function EvolucaoScout({ jogos }) {
     pctErrosCurtos: r.scout.pctErrosCurtos,
   }));
   if (dados.length < 2) return null;
-  const primeiro = comScout[0].scout;
-  const ultimo = comScout[comScout.length - 1].scout;
+  const valoresProtocolo = comScout.map((r) => r.scout.pctProtocolo);
+  const valoresErrosCurtos = comScout.map((r) => r.scout.pctErrosCurtos);
+  const valoresAtaquePerdido = comScout.map((r) => r.scout.ataquePerdido);
   return (
     <div className="mb-5">
       <div className="mb-2"><Etiqueta>Evolução ao longo dos jogos</Etiqueta></div>
       <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 10 }}>
-        Comparação direta entre o primeiro e o último jogo com scout salvo — pra responder, de cara, se o jogador está evoluindo.
+        Tendência calculada sobre todos os {comScout.length} jogos com scout salvo — não só o primeiro e o último.
       </p>
       <div className="flex flex-wrap gap-2 mb-3">
-        <CartaoTendencia rotulo="Protocolo entre pontos" primeiro={primeiro.pctProtocolo} ultimo={ultimo.pctProtocolo} sufixo="%" maiorEhMelhor={true} />
-        <CartaoTendencia rotulo="Erros na bola 1–2" primeiro={primeiro.pctErrosCurtos} ultimo={ultimo.pctErrosCurtos} sufixo="%" maiorEhMelhor={false} />
-        <CartaoTendencia rotulo="Ataques perdidos" primeiro={primeiro.ataquePerdido} ultimo={ultimo.ataquePerdido} sufixo="" maiorEhMelhor={false} />
+        <CartaoTendencia rotulo="Protocolo entre pontos" valores={valoresProtocolo} sufixo="%" maiorEhMelhor={true} />
+        <CartaoTendencia rotulo="Erros na bola 1–2" valores={valoresErrosCurtos} sufixo="%" maiorEhMelhor={false} />
+        <CartaoTendencia rotulo="Ataques perdidos" valores={valoresAtaquePerdido} sufixo="" maiorEhMelhor={false} />
       </div>
       <div style={{ height: 180, marginLeft: -18 }}>
         <ResponsiveContainer width="100%" height="100%">
