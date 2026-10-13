@@ -2133,8 +2133,8 @@ const CATEGORIAS_ADULTO = mesclarComEscadaDoNivel([
     criterios: [
       "Coloca o saque em jogo, mesmo sem consistência",
       "Executa o gesto de direita e de esquerda, mesmo com erro técnico visível",
-      "Ainda não sustenta uma troca de bola básica (2–3 bolas seguidas na mesma direção)",
-      "Movimentação pela quadra é insegura — não recupera a posição depois de bater",
+      "Sustenta uma troca de bola curta, de 2 a 3 toques na mesma direção, ainda que de forma irregular",
+      "Tenta recuperar a posição de espera depois de bater, ainda sem segurança",
     ],
   },
   {
@@ -2143,8 +2143,8 @@ const CATEGORIAS_ADULTO = mesclarComEscadaDoNivel([
     criterios: [
       "Executa saque, direita e esquerda com técnica reconhecível na maioria das tentativas",
       "Sustenta uma troca de bola básica, cruzada ou paralela",
-      "Ainda tem uma lacuna clara: falta um fundamento (um golpe, ou o saque) OU a mobilidade pela quadra",
-      "Só joga bola de brincadeira — ainda não disputa ponto com placar",
+      "Executa com regularidade dois dos três fundamentos (saque, direita, esquerda) ou já tem mobilidade segura pela quadra, mas ainda não os dois juntos",
+      "Joga bola de forma recreativa, sem disputar ponto por ponto com placar",
     ],
   },
   {
@@ -2154,7 +2154,7 @@ const CATEGORIAS_ADULTO = mesclarComEscadaDoNivel([
       "Executa saque, direita, esquerda e um contato básico de rede — todos, mesmo sem refinamento",
       "Sustenta a troca de bola básica sem quebrar o padrão",
       "Movimenta-se e recupera a posição de espera entre as bolas",
-      "Ainda não disputa partidas competitivas — só jogo recreativo (é isso que muda no intermediário)",
+      "Disputa apenas jogo recreativo, sem partidas competitivas com placar",
     ],
   },
   {
@@ -2164,7 +2164,7 @@ const CATEGORIAS_ADULTO = mesclarComEscadaDoNivel([
       "Já disputa partidas competitivas (com placar), não só jogo recreativo",
       "Executa com maestria um ou dois fundamentos (ex.: direita ou saque)",
       "Aplica direção e estratégia com intenção durante o ponto — não só rebate",
-      "Jogo de rede e trabalho de pernas ainda estão claramente atrás do resto do jogo",
+      "Já demonstra jogo de rede e trabalho de pernas em desenvolvimento, mesmo defasados em relação aos demais fundamentos",
     ],
   },
   {
@@ -2174,8 +2174,8 @@ const CATEGORIAS_ADULTO = mesclarComEscadaDoNivel([
       "Executa bem todos os fundamentos de base: saque, devolução, direita, esquerda e rede",
       "Participa de competições",
       "Sustenta um plano de jogo dentro da partida",
-      "A partir daqui a evolução é por refinamento técnico — os pré-requisitos já estão completos",
     ],
+    notaExtra: "A partir daqui a evolução é por refinamento técnico — os pré-requisitos já estão completos.",
   },
 ]);
 
@@ -2185,9 +2185,9 @@ const CATEGORIAS_COMPETICAO = mesclarComEscadaDoNivel([
     foco: "Já tem todos os fundamentos, mas com deficiências técnicas e de movimentação — a entrada na competição.",
     criterios: [
       "Já possui todos os fundamentos (não está mais no processo de aprendê-los)",
-      "Ainda tem deficiências técnicas visíveis em pelo menos um fundamento",
-      "Movimentação pela quadra ainda é uma limitação clara",
-      "Compete, mas sem estratégia consistente",
+      "Executa todos os fundamentos, com nível técnico ainda irregular em pelo menos um deles",
+      "Já se movimenta pela quadra para sustentar os pontos, ainda com limitações claras de deslocamento",
+      "Compete e sustenta pontos, ainda sem aplicar estratégia de forma consistente",
     ],
   },
   {
@@ -2196,8 +2196,8 @@ const CATEGORIAS_COMPETICAO = mesclarComEscadaDoNivel([
     criterios: [
       "Possui todos os fundamentos com menos deficiências técnicas",
       "Já aplica alguma estratégia dentro da partida",
-      "Movimentação pela quadra é melhor, mas ainda não sustenta alta consistência na partida inteira",
-      "Vence pontos com plano, mas ainda perde consistência em momentos de pressão",
+      "Sustenta boa movimentação pela quadra em trechos da partida, ainda sem alta consistência do início ao fim",
+      "Vence pontos aplicando plano de jogo, ainda com queda de consistência em momentos de pressão",
     ],
   },
   {
@@ -2207,8 +2207,8 @@ const CATEGORIAS_COMPETICAO = mesclarComEscadaDoNivel([
       "Aplica uma boa estratégia com plano de jogo definido",
       "Movimentação de quadra muito boa",
       "Sustenta o nível de jogo ao longo da partida inteira",
-      "Ainda não é considerado profissional — teto desta trilha de classificação",
     ],
+    notaExtra: "Ainda não é considerado profissional — teto desta trilha de classificação.",
   },
 ]);
 
@@ -3677,6 +3677,11 @@ function TrilhaClassificacao({ f, set }) {
                 </div>
               );
             })}
+            {cat.notaExtra && (
+              <div className="mt-2" style={{ background: C.papel, borderLeft: "3px solid " + C.linha, padding: "8px 11px" }}>
+                <p style={{ ...prosa, fontSize: 12, fontStyle: "italic", color: C.grafite }}>{cat.notaExtra}</p>
+              </div>
+            )}
             {cat.notaEscada && (
               <div className="mt-2" style={{ background: C.papel, borderLeft: "3px solid " + C.quadra, padding: "8px 11px" }}>
                 <p style={{ ...prosa, fontSize: 12 }}>{cat.notaEscada}</p>
