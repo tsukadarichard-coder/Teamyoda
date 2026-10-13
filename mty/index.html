@@ -7573,10 +7573,11 @@ function DetalhesOpcionaisPersonalizado({ novoPersonalizado, setCampoPersonaliza
 /* ─────────────────────────── scout de partida ─────────────────────────── */
 const PONTOS_TENIS = ["0", "15", "30", "40"];
 
-function placarInicial(formato, sacaPrimeiro) {
+function placarInicial(formato, sacaPrimeiro, semVantagem, superTiebreakDecisivo) {
   return {
     formato, p: [0, 0], g: [0, 0], sets: [], saque: sacaPrimeiro,
     tiebreak: false, fim: false, vencedor: null,
+    semVantagem: !!semVantagem, superTiebreakDecisivo: !!superTiebreakDecisivo,
   };
 }
 
@@ -7585,6 +7586,7 @@ function rotuloPontos(e) {
   const [a, b] = e.p;
   if (a >= 3 && b >= 3) {
     if (a === b) return "40-40";
+    if (e.semVantagem) return "40-40"; // ponto decisivo: nunca chega a existir "AD", o game fecha no próprio ponto
     return a > b ? "AD-40" : "40-AD";
   }
   return `${PONTOS_TENIS[a]}-${PONTOS_TENIS[b]}`;
@@ -7601,6 +7603,16 @@ function gamesParaSet(formato) {
   return formato === "4games" ? 4 : 6;
 }
 
+/* Duas mecânicas reais de pontuação, opcionais e configuráveis — antes
+   só existia a regra clássica (vantagem + games até o fim, sem super
+   tie-break), e isso era dito como limitação. Agora:
+   - semVantagem: ponto decisivo em 40-40 (quem ganha o ponto seguinte
+     fecha o game, sem exigir 2 de diferença) — regra "no-ad".
+   - superTiebreakDecisivo: só se aplica ao "Melhor de 3 sets"; quando
+     o placar de sets fica 1-1, o 3º set inteiro vira um único
+     tie-break de 10 pontos (2 de diferença) em vez de um set normal de
+     games — convenção comum em torneios amadores pra não jogar um 3º
+     set completo. */
 function aplicaPonto(e0, nos) {
   const e = { ...e0, p: [...e0.p], g: [...e0.g], sets: [...e0.sets] };
   if (e.fim) return e;
@@ -7608,6 +7620,9 @@ function aplicaPonto(e0, nos) {
   e.p[i]++;
 
   const alvoGames = gamesParaSet(e.formato);
+  const setDecisivoComSuperTB = e.formato === "3sets" && e.superTiebreakDecisivo && e.sets.length === 2;
+  if (setDecisivoComSuperTB) e.tiebreak = true;
+  const alvoTiebreak = setDecisivoComSuperTB ? 10 : 7;
 
   function fechaGame(quem) {
     e.g[quem]++;
@@ -7617,8 +7632,8 @@ function aplicaPonto(e0, nos) {
     if (e.g[quem] >= alvoGames && e.g[quem] - e.g[o] >= 2) fechaSet(quem);
     else if (e.g[0] === alvoGames && e.g[1] === alvoGames) e.tiebreak = true;
   }
-  function fechaSet(quem) {
-    e.sets.push([e.g[0], e.g[1]]);
+  function fechaSet(quem, pontosTiebreakFinais) {
+    e.sets.push(setDecisivoComSuperTB ? pontosTiebreakFinais : [e.g[0], e.g[1]]);
     e.g = [0, 0];
     e.tiebreak = false;
     const meus = e.sets.filter((s) => s[0] > s[1]).length;
@@ -7631,13 +7646,15 @@ function aplicaPonto(e0, nos) {
   }
 
   if (e.tiebreak) {
-    if (e.p[i] >= 7 && e.p[i] - e.p[j] >= 2) {
+    if (e.p[i] >= alvoTiebreak && e.p[i] - e.p[j] >= 2) {
+      const pontosFinaisTB = [e.p[0], e.p[1]]; // precisa ser lido ANTES de zerar e.p abaixo
       e.g[i]++;
       e.p = [0, 0];
-      fechaSet(i);
+      fechaSet(i, pontosFinaisTB);
     }
-  } else if (e.p[i] >= 4 && e.p[i] - e.p[j] >= 2) {
-    fechaGame(i);
+  } else {
+    const golDoGame = e.semVantagem ? (e.p[i] >= 4 && e.p[i] > e.p[j]) : (e.p[i] >= 4 && e.p[i] - e.p[j] >= 2);
+    if (golDoGame) fechaGame(i);
   }
   return e;
 }
@@ -7756,21 +7773,25 @@ function rotuloFormato(formato) {
 }
 
 /* Resumo honesto das regras REALMENTE implementadas em aplicaPonto() —
-   nunca deduzidas só pelo nome do formato. Vantagem clássica (sem
-   no-ad) e tie-break padrão (7 pontos, 2 de diferença) valem pra
-   qualquer formato; o que muda é só o nº de games por set e quantos
-   sets são necessários. Nenhum formato tem super-tiebreak diferenciado
-   no set decisivo — isso é uma limitação real, dita aqui em vez de
-   simulada. */
-function regrasFormato(formato) {
+   nunca deduzidas só pelo nome do formato, e nunca prometendo uma
+   configuração que o usuário não marcou. semVantagem e
+   superTiebreakDecisivo são opcionais (ver cfg na tela "antes"); sem
+   marcar nenhum dos dois, vale a regra clássica (vantagem no game,
+   sem super tie-break no set decisivo). */
+function regrasFormato(formato, semVantagem, superTiebreakDecisivo) {
   const games = formato === "4games" ? 4 : 6;
-  const linhas = [
-    `Set até ${games} games, com vantagem clássica no game (2 pontos de diferença a partir de 40-40, sem ponto decisivo).`,
-    `Em ${games} a ${games}, o set é decidido por tie-break (7 pontos, 2 de diferença).`,
-  ];
-  if (formato === "3sets") linhas.unshift("Melhor de 3 sets — vence quem fechar 2.");
-  else linhas.unshift("Um set único decide a partida inteira.");
-  linhas.push("Não há super-tiebreak diferenciado em nenhum set — todos seguem a mesma regra de tie-break acima.");
+  const linhas = [];
+  linhas.push(formato === "3sets" ? "Melhor de 3 sets — vence quem fechar 2." : "Um set único decide a partida inteira.");
+  linhas.push(semVantagem
+    ? `Set até ${games} games, com ponto decisivo em 40-40 (sem vantagem — o próximo ponto fecha o game).`
+    : `Set até ${games} games, com vantagem clássica no game (2 pontos de diferença a partir de 40-40, sem ponto decisivo).`);
+  const temSetDecisivo = formato === "3sets" && superTiebreakDecisivo;
+  linhas.push(`Em ${games} a ${games}${temSetDecisivo ? " (1º e 2º set)" : ""}, o set é decidido por tie-break (7 pontos, 2 de diferença).`);
+  if (temSetDecisivo) {
+    linhas.push("O 3º set, quando necessário, vira um único super tie-break de 10 pontos (2 de diferença) — não se jogam games nesse set.");
+  } else if (formato === "3sets") {
+    linhas.push("O 3º set, quando necessário, segue a mesma regra de games e tie-break acima — sem super tie-break.");
+  }
   return linhas;
 }
 
@@ -7778,7 +7799,7 @@ function ChaveRascunho(alunoId) { return "scout-rascunho:" + alunoId; }
 
 function TelaScout({ aluno, alunos, setAlunos }) {
   const [fase, setFase] = useState("antes");
-  const [cfg, setCfg] = useState({ adversario: "", torneio: "", formato: "3sets", saca: "nos" });
+  const [cfg, setCfg] = useState({ adversario: "", torneio: "", formato: "3sets", saca: "nos", semVantagem: false, superTiebreakDecisivo: false });
   const [placar, setPlacar] = useState(null);
   const [pontos, setPontos] = useState([]);
   const [rascunho, setRascunho] = useState(null);
@@ -7821,7 +7842,7 @@ function TelaScout({ aluno, alunos, setAlunos }) {
   }
 
   function comecar() {
-    setPlacar(placarInicial(cfg.formato, cfg.saca));
+    setPlacar(placarInicial(cfg.formato, cfg.saca, cfg.semVantagem, cfg.superTiebreakDecisivo));
     setPontos([]);
     setPilha([]);
     setFase("durante");
@@ -7930,9 +7951,27 @@ function TelaScout({ aluno, alunos, setAlunos }) {
           <Seletor opcoes={[{ v: "nos", r: aluno.nome }, { v: "ele", r: "Adversário" }]}
             valor={cfg.saca} aoMudar={(v) => setCfg({ ...cfg, saca: v })} />
         </Campo>
+        <Campo rotulo="Pontuação">
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => setCfg({ ...cfg, semVantagem: !cfg.semVantagem })}
+              style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 600, padding: "9px 13px", borderRadius: 10, minHeight: 44,
+                cursor: "pointer", border: "1px solid " + (cfg.semVantagem ? C.tinta : C.linha),
+                background: cfg.semVantagem ? C.tinta : C.cal, color: cfg.semVantagem ? C.papel : C.grafite }}>
+              {cfg.semVantagem ? "✓ " : ""}Ponto decisivo em 40-40 (sem vantagem)
+            </button>
+            {cfg.formato === "3sets" && (
+              <button onClick={() => setCfg({ ...cfg, superTiebreakDecisivo: !cfg.superTiebreakDecisivo })}
+                style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 600, padding: "9px 13px", borderRadius: 10, minHeight: 44,
+                  cursor: "pointer", border: "1px solid " + (cfg.superTiebreakDecisivo ? C.tinta : C.linha),
+                  background: cfg.superTiebreakDecisivo ? C.tinta : C.cal, color: cfg.superTiebreakDecisivo ? C.papel : C.grafite }}>
+                {cfg.superTiebreakDecisivo ? "✓ " : ""}Super tie-break (10 pontos) no set decisivo
+              </button>
+            )}
+          </div>
+        </Campo>
         <div className="mb-4" style={{ background: C.cal, borderLeft: "3px solid " + C.linha, padding: "11px 14px" }}>
           <Etiqueta>Regras desta partida</Etiqueta>
-          {regrasFormato(cfg.formato).map((l, i) => (
+          {regrasFormato(cfg.formato, cfg.semVantagem, cfg.superTiebreakDecisivo).map((l, i) => (
             <p key={i} style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: i === 0 ? 6 : 3 }}>{l}</p>
           ))}
         </div>
