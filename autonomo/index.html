@@ -3066,8 +3066,8 @@ function BotoesAssinatura({ planoAtual, planoVencido, emailAtual, pequeno }) {
 }
 
 const entrada = {
-  width: "100%", padding: "9px 11px", border: "1px solid " + C.linha, borderRadius: 10,
-  background: C.cal, fontFamily: SERIF, fontSize: 15, color: C.tinta, boxSizing: "border-box",
+  width: "100%", maxWidth: "100%", padding: "9px 11px", border: "1px solid " + C.linha, borderRadius: 10,
+  background: C.cal, fontFamily: SERIF, fontSize: 16, color: C.tinta, boxSizing: "border-box", minWidth: 0,
 };
 const prosa = { fontFamily: SERIF, fontSize: 16, lineHeight: 1.5, color: C.tinta, margin: 0 };
 
@@ -4317,6 +4317,11 @@ function novoAluno() {
     categoria: "", criteriosClassificacao: {},
     classificacaoSugeridaEm: null,
     agendaExcecoes: {}, agendaAvulsos: [],
+    /* false só pra quem nasce por aqui (jogador novo) — fichas
+       existentes de antes desta propriedade existir vêm undefined, que
+       conta como concluído (ver cadastroConcluido em App/TelaFicha):
+       assim o comportamento de quem já usava a plataforma não muda. */
+    cadastroConcluido: false,
   };
 }
 
@@ -5461,30 +5466,54 @@ function podeEditarTurma(turma, papelAtual, uidAtual) {
 }
 
 const ETAPAS_FICHA = [
-  { n: 1, titulo: "Dados" },
+  { n: 1, titulo: "Dados básicos" },
   { n: 2, titulo: "Rotina" },
   { n: 3, titulo: "Nível" },
   { n: 4, titulo: "Avaliação" },
   { n: 5, titulo: "Revisão" },
 ];
 
-/* "Etapa X de 5" + nome da etapa + barra compacta — progresso de
+/* "Etapa X de 5 · nome" + barra + "Próxima etapa" — progresso de
    PREENCHIMENTO da ficha. Não confundir com TrilhaVisual/CartaoNivel,
    que mostram progresso de EVOLUÇÃO esportiva do jogador: são duas
-   barras diferentes, de duas coisas diferentes. */
-function ProgressoFicha({ etapa }) {
+   barras diferentes, de duas coisas diferentes.
+
+   Cada etapa já concluída (não só a cor do segmento, também um ✓ acima
+   dele — pra não depender só de cor) vira um botão: toca/clica pra
+   voltar direto, sem perder nada do que já foi preenchido (TelaFicha
+   mantém `f` o tempo todo, trocar de etapa só muda o que é exibido).
+   Etapas futuras ficam visíveis mas não clicáveis — continuam exigindo
+   "Continuar" em ordem, pra não pular validação. */
+function ProgressoFicha({ etapa, aoIrPara, refTitulo }) {
   const info = ETAPAS_FICHA[etapa - 1];
+  const proxima = ETAPAS_FICHA[etapa];
   return (
     <div className="mb-5">
-      <div className="flex items-baseline justify-between gap-3 mb-2">
-        <Etiqueta cor={C.grafite}>Etapa {etapa} de {ETAPAS_FICHA.length}</Etiqueta>
-        <h2 style={{ fontFamily: ARCH, fontSize: 19, fontWeight: 700 }}>{info.titulo}</h2>
+      <Etiqueta cor={C.grafite}>Etapa {etapa} de {ETAPAS_FICHA.length}</Etiqueta>
+      <h2 ref={refTitulo} tabIndex={-1} style={{ fontFamily: ARCH, fontSize: 19, fontWeight: 700, marginTop: 2, marginBottom: 10, outline: "none" }}>
+        {info.titulo}
+      </h2>
+      <div className="flex" style={{ gap: 4 }} role="list" aria-label="Etapas do cadastro">
+        {ETAPAS_FICHA.map((e) => {
+          const feita = e.n < etapa;
+          const atual = e.n === etapa;
+          const cor = feita ? C.quadra : atual ? C.saibro : C.linha;
+          return (
+            <button key={e.n} type="button" role="listitem" disabled={!feita}
+              onClick={() => feita && aoIrPara && aoIrPara(e.n)}
+              aria-current={atual ? "step" : undefined}
+              title={e.titulo + (feita ? " — concluída, toque pra voltar" : atual ? " — etapa atual" : " — ainda não disponível")}
+              style={{ flex: 1, minHeight: 44, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3,
+                border: "none", background: "none", padding: "4px 2px", cursor: feita ? "pointer" : "default" }}>
+              <span aria-hidden="true" style={{ fontSize: 10, lineHeight: 1, color: cor, fontWeight: 700 }}>
+                {feita ? "✓" : atual ? "●" : "○"}
+              </span>
+              <span aria-hidden="true" style={{ width: "100%", height: 4, borderRadius: 999, background: cor }} />
+            </button>
+          );
+        })}
       </div>
-      <div className="flex" style={{ gap: 6 }}>
-        {ETAPAS_FICHA.map((e) => (
-          <div key={e.n} style={{ flex: 1, height: 4, borderRadius: 999, background: e.n <= etapa ? C.saibro : C.linha }} />
-        ))}
-      </div>
+      {proxima && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 6 }}>Próxima etapa: {proxima.titulo}</p>}
     </div>
   );
 }
@@ -5671,7 +5700,7 @@ function sinteseGolpesFicha(f) {
   return partes.join("\n");
 }
 
-function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirEtapaAlvo, aoMudarEditando }) {
+function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirEtapaAlvo, aoMudarEditando, aoMudarSujo, aoExporSalvarRascunho, aoSairFicha }) {
   const podeEditar = podeEditarAluno(aluno, papelAtual, uidAtual);
   const [f, setF] = useState(aluno);
   /* Jogador sem nome ainda é ficha nova — abre direto pra edição. Uma
@@ -5708,6 +5737,21 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
   }, [etapaAlvo]);
   const [salvo, setSalvo] = useState(false);
   const [estadoSalvo, setEstadoSalvo] = useState(null); // null | "salvando" | "ok" | "erro"
+  const [retry, setRetry] = useState(null);
+  const [erroNome, setErroNome] = useState(false);
+  const refNome = useRef(null);
+  const refTituloEtapa = useRef(null);
+  /* Reporta alterações não salvas pro componente pai (App), que usa isso
+     pra decidir se precisa confirmar antes de sair da ficha (← Jogadores,
+     menu inferior, trocar de seção) — ver App/tentarNavegar. Comparação
+     por JSON é suficiente aqui: a ficha não é grande a ponto de pesar, e
+     só roda quando `f` ou `aluno` mudam, não a cada render. */
+  useEffect(() => {
+    if (aoMudarSujo) aoMudarSujo(editando && JSON.stringify(f) !== JSON.stringify(aluno));
+  }, [f, aluno, editando]);
+  useEffect(() => {
+    if (aoExporSalvarRascunho) aoExporSalvarRascunho(() => salvarRascunho());
+  });
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
   const objetivosAdultoAtuais = objetivosDoAdulto(f);
   function alternarObjetivoAdulto(v) {
@@ -5749,16 +5793,49 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
   }
   async function salvarRascunho() {
     const { ok } = await persistir();
-    if (ok) setTimeout(() => setEstadoSalvo(null), 3000);
+    if (ok) { setRetry(null); setTimeout(() => setEstadoSalvo(null), 3000); }
+    else setRetry(() => salvarRascunho);
+  }
+  /* "Salvar e sair": salva e volta pra lista de jogadores — a mesma ação
+     que a confirmação de saída oferece quando há alterações pendentes
+     (ver App/aoExporSalvarRascunho + aoSairFicha), só que disparada de
+     dentro do próprio formulário, sem precisar tentar sair primeiro. */
+  async function salvarESair() {
+    const { ok } = await persistir();
+    if (ok) { setRetry(null); if (aoSairFicha) aoSairFicha(); }
+    else setRetry(() => salvarESair);
+  }
+  function focarTituloEtapa() {
+    requestAnimationFrame(() => { if (refTituloEtapa.current) refTituloEtapa.current.focus(); });
   }
   async function avancar() {
+    // etapa 1 exige nome — sem isso o cadastro não tem como aparecer na
+    // lista de jogadores nem ser encontrado depois; o resto da ficha
+    // pode ficar incompleto como rascunho.
+    if (etapa === 1 && !f.nome.trim()) {
+      setErroNome(true);
+      requestAnimationFrame(() => { if (refNome.current) refNome.current.focus(); });
+      return;
+    }
+    setErroNome(false);
     const { ok } = await persistir();
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    if (ok) setEtapa((e) => Math.min(ETAPAS_FICHA.length, e + 1));
+    if (ok) {
+      setRetry(null);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      setEtapa((e) => Math.min(ETAPAS_FICHA.length, e + 1));
+      focarTituloEtapa();
+    } else setRetry(() => avancar);
   }
   function voltar() {
     window.scrollTo({ top: 0, behavior: "smooth" });
     setEtapa((e) => Math.max(1, e - 1));
+    focarTituloEtapa();
+  }
+  function irParaEtapa(n) {
+    if (n >= etapa) return; // só volta pra etapas já passadas — avançar continua exigindo Continuar
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    setEtapa(n);
+    focarTituloEtapa();
   }
 
   /* Toda edição de ficha fica com carimbo de hora — é o que permite ao
@@ -5774,8 +5851,9 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
   async function concluirFicha() {
     const primeiraClassificacao = !aluno.classificacaoSugeridaEm && (f.camadas.tecnico || "").trim().length > 0;
     const agora = new Date().toISOString();
-    const { ok, dados } = await persistir({ fichaAtualizadaEm: agora, ...(primeiraClassificacao ? { classificacaoSugeridaEm: agora } : {}) });
-    if (!ok) return;
+    const { ok, dados } = await persistir({ fichaAtualizadaEm: agora, cadastroConcluido: true, ...(primeiraClassificacao ? { classificacaoSugeridaEm: agora } : {}) });
+    if (!ok) { setRetry(() => concluirFicha); return; }
+    setRetry(null);
     setEditando(false);
     setSalvo(true);
     // a ficha de edição é longa; sem isto o resumo (bem mais curto) troca
@@ -5885,19 +5963,34 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
   const blocoObjetivo = ENTRADA_BLOCOS.find((b) => b.n === "5");
   const blocoAberto = ENTRADA_BLOCOS.find((b) => b.n === "6");
 
+  const temAlteracoes = JSON.stringify(f) !== JSON.stringify(aluno);
   return (
     <div>
-      <div className="flex items-center justify-between gap-3 mb-1">
-        <Etiqueta cor={C.grafite}>{aluno.nome ? "Editando cadastro" : "Novo cadastro"}</Etiqueta>
-        {aluno.nome && (
-          <button onClick={() => setEditando(false)} style={{ ...prosa, fontSize: 12.5, color: C.grafite, background: "none", border: "none", cursor: "pointer", minHeight: 32 }}>
-            Cancelar
+      {aluno.nome && (
+        <div className="flex items-center justify-end gap-3 mb-1">
+          <button onClick={() => setEditando(false)}
+            style={{ ...prosa, fontSize: 12.5, color: temAlteracoes ? "#B3261E" : C.grafite, fontWeight: temAlteracoes ? 700 : 500,
+              background: "none", border: "none", cursor: "pointer", minHeight: 32 }}>
+            {temAlteracoes ? "Descartar alterações" : "Cancelar"}
           </button>
-        )}
-      </div>
-      <ProgressoFicha etapa={etapa} />
+        </div>
+      )}
+      <ProgressoFicha etapa={etapa} aoIrPara={irParaEtapa} refTitulo={refTituloEtapa} />
 
-      {estadoSalvo === "erro" && <Aviso cor="#B3261E">Não deu pra salvar agora — confira sua internet e tente de novo.</Aviso>}
+      {estadoSalvo === "erro" && (
+        <Aviso cor="#B3261E">
+          Não deu pra salvar agora — confira sua internet e tente de novo.
+          {retry && (
+            <>
+              {" "}
+              <button onClick={() => retry()} style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, color: "inherit",
+                background: "none", border: "none", padding: 0, cursor: "pointer", textDecoration: "underline" }}>
+                Tentar novamente
+              </button>
+            </>
+          )}
+        </Aviso>
+      )}
       {estadoSalvo === "ok" && (
         <div className="mb-4 flex items-center gap-1.5">
           <span style={{ color: C.quadra, fontSize: 13 }}>✓</span>
@@ -5907,19 +6000,32 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
 
       {etapa === 1 && (
         <>
-          <Secao titulo="Dados do jogador" nota="Identificação básica — o que não muda de aula pra aula.">
-            <Campo rotulo="Nome"><input style={entrada} value={f.nome} onChange={(e) => set("nome", e.target.value)} placeholder="Nome do jogador" /></Campo>
-            <Campo rotulo="Nascimento"><input type="date" style={entrada} value={f.nascimento} onChange={(e) => set("nascimento", e.target.value)} /></Campo>
-            <Campo rotulo="Altura atual (m)"><input style={entrada} value={f.alturaAtual} onChange={(e) => set("alturaAtual", e.target.value)} placeholder="1,78" /></Campo>
-          </Secao>
-
-          <div className="mb-5">
-            <Botao pequeno variante="vazio" onClick={() => setMostrarMaisDados(!mostrarMaisDados)}>
-              {mostrarMaisDados ? "Ocultar mais dados" : "Mostrar mais dados"}
-            </Botao>
+          <p style={{ ...prosa, color: C.grafite, marginBottom: 14 }}>Informe os dados básicos do jogador.</p>
+          <div className="mb-9">
+            <Campo rotulo="Nome">
+              <input ref={refNome} style={{ ...entrada, ...(erroNome ? { borderColor: "#B3261E" } : {}) }} value={f.nome} placeholder="Nome do jogador"
+                onChange={(e) => { set("nome", e.target.value); if (erroNome && e.target.value.trim()) setErroNome(false); }}
+                aria-invalid={erroNome || undefined} aria-describedby={erroNome ? "erro-nome-jogador" : undefined} />
+              {erroNome && <p id="erro-nome-jogador" style={{ ...prosa, fontSize: 12.5, color: "#B3261E", marginTop: 5 }}>Informe o nome do jogador pra continuar.</p>}
+            </Campo>
+            <Campo rotulo="Nascimento">
+              <input type="date" style={entrada} value={f.nascimento} max={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => set("nascimento", e.target.value)} />
+            </Campo>
+            <Campo rotulo="Altura atual (m)">
+              <input style={entrada} inputMode="decimal" value={f.alturaAtual} onChange={(e) => set("alturaAtual", e.target.value)} placeholder="1,78" />
+            </Campo>
           </div>
+
+          <button type="button" onClick={() => setMostrarMaisDados(!mostrarMaisDados)} aria-expanded={mostrarMaisDados}
+            className="w-full flex items-center justify-between mb-5"
+            style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, color: C.tinta, background: C.cal,
+              border: "1px solid " + C.linha, borderRadius: 10, padding: "11px 14px", minHeight: 44, cursor: "pointer" }}>
+            <span>Dados complementares</span>
+            <span aria-hidden="true" style={{ transition: "transform .15s ease", transform: mostrarMaisDados ? "rotate(180deg)" : "none" }}>⌄</span>
+          </button>
           {mostrarMaisDados && (
-            <Secao titulo="Mais dados">
+            <div className="mb-9">
               {f.estagio !== "A" && (
                 <Campo rotulo="Altura projetada (m)" nota="Estimativa de altura adulta, só quando houver uma referência confiável (ex.: avaliação de um profissional, altura dos pais). Deixe em branco se não tiver essa base.">
                   <input style={entrada} value={f.projecaoAltura} onChange={(e) => set("projecaoAltura", e.target.value)} placeholder="1,88" />
@@ -5953,7 +6059,7 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
                   </Campo>
                 </>
               )}
-            </Secao>
+            </div>
           )}
         </>
       )}
@@ -6304,13 +6410,17 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
 
       <div className="flex items-center gap-2 mt-6" style={{ flexWrap: "wrap" }}>
         {etapa > 1 && <Botao variante="vazio" onClick={voltar} disabled={estadoSalvo === "salvando"}>Voltar</Botao>}
-        <Botao variante="vazio" onClick={salvarRascunho} disabled={estadoSalvo === "salvando"}>
-          {estadoSalvo === "salvando" ? "Salvando…" : "Salvar rascunho"}
+        <Botao variante="vazio" onClick={salvarESair} disabled={estadoSalvo === "salvando"}>
+          {estadoSalvo === "salvando" ? "Salvando…" : "Salvar e sair"}
         </Botao>
         {etapa < ETAPAS_FICHA.length ? (
-          <Botao variante="saibro" onClick={avancar} disabled={estadoSalvo === "salvando"}>Salvar e continuar</Botao>
+          <Botao variante="saibro" onClick={avancar} disabled={estadoSalvo === "salvando"}>
+            {estadoSalvo === "salvando" ? "Salvando…" : "Continuar"}
+          </Botao>
         ) : (
-          <Botao variante="saibro" onClick={concluirFicha} disabled={estadoSalvo === "salvando" || sugerindoAuto}>Concluir ficha</Botao>
+          <Botao variante="saibro" onClick={concluirFicha} disabled={estadoSalvo === "salvando" || sugerindoAuto}>
+            {estadoSalvo === "salvando" ? "Salvando…" : (aluno.cadastroConcluido !== false ? "Concluir ficha" : "Concluir cadastro")}
+          </Botao>
         )}
       </div>
     </div>
@@ -14014,6 +14124,34 @@ function App() {
   const [editandoFicha, setEditandoFicha] = useState(false);
   const [opcoesJogadorAberto, setOpcoesJogadorAberto] = useState(false);
   const [maisSubabaAberto, setMaisSubabaAberto] = useState(false);
+  const [seletorSecaoAberto, setSeletorSecaoAberto] = useState(false);
+  /* Rastreia alterações não salvas na ficha em edição (ver TelaFicha/
+     aoMudarSujo) pra poder interceptar saídas (← Jogadores, menu
+     inferior, trocar de aba) com a confirmação de "Salvar e sair /
+     Continuar preenchendo / Descartar alterações". salvarRascunhoRef
+     guarda a função de salvar rascunho DA FICHA ABERTA NO MOMENTO (ver
+     TelaFicha/aoExporSalvarRascunho) — assim "Salvar e sair" aciona o
+     mesmo salvamento real que o botão "Salvar e sair" de dentro da
+     ficha usa, sem duplicar a lógica de persistência aqui. */
+  const [fichaSuja, setFichaSuja] = useState(false);
+  const salvarRascunhoRef = useRef(null);
+  const [acaoSaidaPendente, setAcaoSaidaPendente] = useState(null); // null | função a rodar após a decisão
+  function tentarNavegar(acao) {
+    if (editandoFicha && fichaSuja) { setAcaoSaidaPendente(() => acao); return; }
+    acao();
+  }
+  function tentarFecharJogador() { tentarNavegar(() => setAbertoId(null)); }
+  async function confirmarSalvarESair() {
+    if (salvarRascunhoRef.current) await salvarRascunhoRef.current();
+    const acao = acaoSaidaPendente;
+    setAcaoSaidaPendente(null);
+    if (acao) acao();
+  }
+  function confirmarDescartar() {
+    const acao = acaoSaidaPendente;
+    setAcaoSaidaPendente(null);
+    if (acao) acao();
+  }
   /* O botão "Mais" muda de rótulo pro nome da aba ativa (ex.: "Sessão de
      hoje") quando uma delas está selecionada — nomes mais longos que
      "Mais" podem passar da largura visível da barra com rolagem
@@ -14381,6 +14519,11 @@ function App() {
         button { transition: transform .06s ease, opacity .06s ease; }
         button:active:not(:disabled) { transform: scale(0.96); opacity: 0.75; }
         input:focus, textarea:focus { border-color: ${C.saibro} !important; box-shadow: 0 0 0 3px ${C.saibro}26; }
+        /* input[type=date] tem largura mínima própria em alguns navegadores
+           (o ícone de calendário + os três campos dd/mm/aaaa não encolhem
+           à vontade) — sem isto ele pode empurrar a caixa pra fora do
+           container em telas estreitas, mesmo com width:100%. */
+        input[type=date] { min-width: 0; }
         .mty-botao:hover:not(:disabled) { transform: translateY(-1px); box-shadow: ${SOMBRA_ALTA}; }
         .mty-navitem:hover { background: ${C.papel} !important; }
         .mty-cartao { transition: box-shadow .15s ease, transform .15s ease; }
@@ -14388,6 +14531,15 @@ function App() {
         .mty-topo-logo { display: none; }
         .mty-bottomnav { display: none; }
         .mty-bottomnav-item:focus-visible { outline-offset: -2px; }
+        /* Navegação interna do jogador (Perfil/Planejamento/Aulas/Resumo do
+           ciclo/Mais): no computador são abas; no celular, uma barra de
+           abas comprimindo 5+ nomes em uma linha fica ilegível, então vira
+           um seletor "Seção: X ⌄" que abre a lista completa por baixo. */
+        .qlab-subnav-jogador-mobile { display: none; }
+        @media (max-width: 760px) {
+          .qlab-subnav-jogador-desktop { display: none !important; }
+          .qlab-subnav-jogador-mobile { display: block !important; }
+        }
         /* Linha rótulo/valor da ficha (Avaliação do treinador, Perfil de
            jogo, exercícios da sessão etc.) — empilhado por padrão (celular),
            sem largura fixa, com quebra natural. Só vira coluna lado a lado
@@ -14614,39 +14766,56 @@ function App() {
            aoAdicionarJogador={() => { criar(); setAba("alunos"); }}
            aoEditarDados={(id, et) => { setAba("alunos"); setAbertoId(id); setSubaba("ficha"); setEtapaFichaAlvo(et); }}
            onboardingDispensado={onboardingDispensado} setOnboardingDispensado={setOnboardingDispensado} /> :
-         aberto ? (
+         aberto ? (() => {
+          /* "Durante a criação de um novo jogador" é o cadastro inteiro,
+             não só a primeira tela com nome vazio: aluno.cadastroConcluido
+             nasce `false` só em quem é criado por este fluxo (ver
+             novoAluno) e vira `true` quando o treinador clica em
+             "Concluir cadastro" (ver TelaFicha/concluirFicha) —
+             independente de haver ou não pendências (ver primeiraEtapaPendente,
+             que continua separada: alimenta só o aviso "Continuar
+             cadastro — etapa X" na lista, não esta navegação). Fichas de
+             antes desta propriedade existir vêm `undefined`, que conta
+             como concluído — comportamento de quem já usava a
+             plataforma não muda. */
+          const cadastroCompleto = aberto.cadastroConcluido !== false;
+          return (
           <div>
             <div className="flex items-center justify-between gap-3 mb-3">
-              <button onClick={() => setAbertoId(null)} style={{ ...prosa, fontSize: 13.5, color: C.grafite, cursor: "pointer", background: "none", border: "none", padding: 0, minHeight: 32 }}>← Todos os jogadores</button>
-              <div style={{ position: "relative" }}>
-                <button onClick={() => setOpcoesJogadorAberto((v) => !v)} aria-label="Opções do jogador" aria-haspopup="true" aria-expanded={opcoesJogadorAberto}
-                  style={{ width: 36, height: 36, border: "1px solid " + C.linha, borderRadius: 10, background: C.cal, color: C.grafite, cursor: "pointer", fontSize: 16, lineHeight: 1 }}>
-                  ⋯
-                </button>
-                {opcoesJogadorAberto && (
-                  <>
-                    <div onClick={() => setOpcoesJogadorAberto(false)} style={{ position: "fixed", inset: 0, zIndex: 29 }} />
-                    <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, background: C.cal, border: "1px solid " + C.linha,
-                      borderRadius: 10, boxShadow: SOMBRA_ALTA, zIndex: 30, minWidth: 190, overflow: "hidden" }}>
-                      <button onClick={() => { setOpcoesJogadorAberto(false); removerAluno(aberto.id); }} className="w-full text-left"
-                        style={{ padding: "11px 14px", border: "none", background: "none", cursor: "pointer", fontFamily: ARCH, fontSize: 13.5, fontWeight: 600, color: "#B3261E", minHeight: 44 }}>
-                        Remover jogador
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
+              <button onClick={() => tentarFecharJogador()} style={{ ...prosa, fontSize: 13.5, color: C.grafite, cursor: "pointer", background: "none", border: "none", padding: 0, minHeight: 32 }}>
+                ← {cadastroCompleto ? "Todos os jogadores" : "Jogadores"}
+              </button>
+              {cadastroCompleto && (
+                <div style={{ position: "relative" }}>
+                  <button onClick={() => setOpcoesJogadorAberto((v) => !v)} aria-label="Opções do jogador" aria-haspopup="true" aria-expanded={opcoesJogadorAberto}
+                    style={{ width: 36, height: 36, border: "1px solid " + C.linha, borderRadius: 10, background: C.cal, color: C.grafite, cursor: "pointer", fontSize: 16, lineHeight: 1 }}>
+                    ⋯
+                  </button>
+                  {opcoesJogadorAberto && (
+                    <>
+                      <div onClick={() => setOpcoesJogadorAberto(false)} style={{ position: "fixed", inset: 0, zIndex: 29 }} />
+                      <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, background: C.cal, border: "1px solid " + C.linha,
+                        borderRadius: 10, boxShadow: SOMBRA_ALTA, zIndex: 30, minWidth: 190, overflow: "hidden" }}>
+                        <button onClick={() => { setOpcoesJogadorAberto(false); removerAluno(aberto.id); }} className="w-full text-left"
+                          style={{ padding: "11px 14px", border: "none", background: "none", cursor: "pointer", fontFamily: ARCH, fontSize: 13.5, fontWeight: 600, color: "#B3261E", minHeight: 44 }}>
+                          Remover jogador
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
             <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, lineHeight: 1.1 }}>{aberto.nome || "Novo jogador"}</h1>
-            {(() => {
+            {!cadastroCompleto && (
+              <p style={{ ...prosa, color: C.grafite, marginTop: 4, marginBottom: 2 }}>Preencha os dados para começar o acompanhamento.</p>
+            )}
+            {cadastroCompleto && (() => {
               /* Durante a edição da própria ficha, estes cartões de resumo
                  (classificação, pedidos, aula em vigor) só duplicariam o que
                  já aparece dentro das etapas — ficam escondidos até fechar
                  a edição, pra priorizar nome, status, etapa e campos. */
               const mostrarResumo = subaba !== "ficha" || !editandoFicha;
-              if (!aberto.nome) {
-                return <div className="mt-2 mb-5"><Etiqueta cor={C.grafite}>Cadastro incompleto</Etiqueta></div>;
-              }
               if (!mostrarResumo) return null;
               return (
                 <>
@@ -14659,55 +14828,98 @@ function App() {
                 </>
               );
             })()}
-            {(() => {
+            {cadastroCompleto && (() => {
+              /* Rótulos revisados pra dizer o que a seção faz, não o nome
+                 interno do dado (Ficha -> Perfil, Plano -> Planejamento);
+                 "Fechamento" virou "Resumo do ciclo" porque também reúne o
+                 encerramento formal do ciclo (ação "Concluir ciclo" dentro
+                 da própria seção, preservada — ver TelaPlano modo=fechamento). */
+              const principais = [{ v: "ficha", r: "Perfil" }, { v: "plano", r: "Planejamento" }, { v: "aulas", r: "Aulas" }, { v: "fechamento", r: "Resumo do ciclo" }];
               const itensMais = [{ v: "periodizacao", r: "Periodização" }, { v: "sessao", r: "Sessão de hoje" }, { v: "scout", r: "Scout" }, { v: "registro", r: "Caderno" }];
+              const todasSecoes = [...principais, ...itensMais];
               const maisAtivo = itensMais.some((t) => t.v === subaba);
+              const secaoAtual = todasSecoes.find((t) => t.v === subaba) || principais[0];
+              function irPara(v) { tentarNavegar(() => { setSubaba(v); setMaisSubabaAberto(false); setSeletorSecaoAberto(false); }); }
               return (
                 <div className="mb-6">
-                  {/* A lista de "Mais" não pode flutuar como popup absoluto aqui:
-                      esta barra de abas tem rolagem horizontal (overflow-x: auto)
-                      pra caber na tela, e isso faz o navegador cortar também
-                      qualquer coisa que vaze verticalmente de dentro dela — o
-                      popup abria (a setinha virava ▲) mas ficava invisível,
-                      cortado pelo próprio contêiner. Por isso a lista aparece
-                      abaixo da barra inteira, fora da área com scroll, igual ao
+                  {/* Computador: abas, como antes. A lista de "Mais" não pode
+                      flutuar como popup absoluto aqui: esta barra de abas tem
+                      rolagem horizontal (overflow-x: auto) pra caber na tela,
+                      e isso faz o navegador cortar também qualquer coisa que
+                      vaze verticalmente de dentro dela — o popup abria (a
+                      setinha virava ▲) mas ficava invisível, cortado pelo
+                      próprio contêiner. Por isso a lista aparece abaixo da
+                      barra inteira, fora da área com scroll, igual ao
                       dropdown do Manual na barra lateral. */}
-                  <div className="flex items-center" style={{ gap: 2, borderBottom: "1px solid " + C.linha, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-                    {[{ v: "ficha", r: "Ficha" }, { v: "plano", r: "Plano" }, { v: "aulas", r: "Aulas" }, { v: "fechamento", r: "Fechamento" }].map((t) => (
-                      <button key={t.v} onClick={() => { setSubaba(t.v); setMaisSubabaAberto(false); }}
-                        style={{ fontFamily: ARCH, fontSize: 13, fontWeight: subaba === t.v ? 700 : 500, padding: "10px 10px", cursor: "pointer", minHeight: 44,
-                          background: "none", border: "none", borderBottom: "2px solid " + (subaba === t.v ? C.saibro : "transparent"),
-                          color: subaba === t.v ? C.tinta : C.grafite, marginBottom: -1, flexShrink: 0, whiteSpace: "nowrap" }}>
-                        {t.r}
-                      </button>
-                    ))}
-                    <button ref={maisBotaoRef} onClick={() => setMaisSubabaAberto((v) => !v)} aria-haspopup="true" aria-expanded={maisSubabaAberto}
-                      style={{ fontFamily: ARCH, fontSize: 13, fontWeight: maisAtivo ? 700 : 500, padding: "10px 12px", cursor: "pointer", minHeight: 44,
-                        background: "none", border: "none", borderBottom: "2px solid " + (maisAtivo ? C.saibro : "transparent"),
-                        color: maisAtivo ? C.tinta : C.grafite, marginBottom: -1, flexShrink: 0, whiteSpace: "nowrap" }}>
-                      {(maisAtivo ? itensMais.find((t) => t.v === subaba).r : "Mais") + (maisSubabaAberto ? " ▲" : " ▼")}
-                    </button>
-                  </div>
-                  {maisSubabaAberto && (
-                    <div className="flex flex-wrap" style={{ gap: 6, padding: "10px 0 0" }}>
-                      {itensMais.map((t) => (
-                        <button key={t.v} onClick={() => { setSubaba(t.v); setMaisSubabaAberto(false); }}
+                  <div className="qlab-subnav-jogador-desktop">
+                    <div className="flex items-center" style={{ gap: 2, borderBottom: "1px solid " + C.linha, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+                      {principais.map((t) => (
+                        <button key={t.v} onClick={() => irPara(t.v)}
                           aria-current={subaba === t.v ? "page" : undefined}
-                          style={{ padding: "8px 14px", borderRadius: 999, cursor: "pointer", minHeight: 36,
-                            border: "1px solid " + (subaba === t.v ? C.saibro : C.linha),
-                            background: subaba === t.v ? C.saibro : C.cal,
-                            fontFamily: ARCH, fontSize: 13, fontWeight: subaba === t.v ? 700 : 500,
-                            color: subaba === t.v ? "#fff" : C.tinta }}>
+                          style={{ fontFamily: ARCH, fontSize: 13, fontWeight: subaba === t.v ? 700 : 500, padding: "10px 10px", cursor: "pointer", minHeight: 44,
+                            background: "none", border: "none", borderBottom: "2px solid " + (subaba === t.v ? C.saibro : "transparent"),
+                            color: subaba === t.v ? C.tinta : C.grafite, marginBottom: -1, flexShrink: 0, whiteSpace: "nowrap" }}>
                           {t.r}
                         </button>
                       ))}
+                      <button ref={maisBotaoRef} onClick={() => setMaisSubabaAberto((v) => !v)} aria-haspopup="true" aria-expanded={maisSubabaAberto}
+                        style={{ fontFamily: ARCH, fontSize: 13, fontWeight: maisAtivo ? 700 : 500, padding: "10px 12px", cursor: "pointer", minHeight: 44,
+                          background: "none", border: "none", borderBottom: "2px solid " + (maisAtivo ? C.saibro : "transparent"),
+                          color: maisAtivo ? C.tinta : C.grafite, marginBottom: -1, flexShrink: 0, whiteSpace: "nowrap" }}>
+                        {(maisAtivo ? itensMais.find((t) => t.v === subaba).r : "Mais") + (maisSubabaAberto ? " ▲" : " ▼")}
+                      </button>
                     </div>
-                  )}
+                    {maisSubabaAberto && (
+                      <div className="flex flex-wrap" style={{ gap: 6, padding: "10px 0 0" }}>
+                        {itensMais.map((t) => (
+                          <button key={t.v} onClick={() => irPara(t.v)}
+                            aria-current={subaba === t.v ? "page" : undefined}
+                            style={{ padding: "8px 14px", borderRadius: 999, cursor: "pointer", minHeight: 36,
+                              border: "1px solid " + (subaba === t.v ? C.saibro : C.linha),
+                              background: subaba === t.v ? C.saibro : C.cal,
+                              fontFamily: ARCH, fontSize: 13, fontWeight: subaba === t.v ? 700 : 500,
+                              color: subaba === t.v ? "#fff" : C.tinta }}>
+                            {t.r}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Celular: seletor único "Seção: X ⌄" — comprimir 8 nomes
+                      numa linha de abas rolante fica ilegível e o dedo erra o
+                      alvo; a lista expandida mostra o nome completo de cada
+                      seção (as que hoje vivem em "Mais" inclusive) e marca a
+                      atual, sem nada escondido atrás de abreviação. */}
+                  <div className="qlab-subnav-jogador-mobile">
+                    <button onClick={() => setSeletorSecaoAberto((v) => !v)} aria-haspopup="true" aria-expanded={seletorSecaoAberto}
+                      className="w-full flex items-center justify-between"
+                      style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, padding: "11px 14px", minHeight: 44,
+                        background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, color: C.tinta, cursor: "pointer" }}>
+                      <span>Seção: {secaoAtual.r}</span>
+                      <span aria-hidden="true">{seletorSecaoAberto ? "▲" : "⌄"}</span>
+                    </button>
+                    {seletorSecaoAberto && (
+                      <div role="listbox" aria-label="Seções do jogador" className="mt-1" style={{ border: "1px solid " + C.linha, borderRadius: 10, overflow: "hidden" }}>
+                        {todasSecoes.map((t) => (
+                          <button key={t.v} role="option" aria-selected={subaba === t.v} onClick={() => irPara(t.v)}
+                            className="w-full text-left"
+                            style={{ display: "block", padding: "12px 14px", minHeight: 44, border: "none", borderBottom: "1px solid " + C.linha,
+                              background: subaba === t.v ? C.saibro + "1a" : C.cal, cursor: "pointer",
+                              fontFamily: ARCH, fontSize: 14, fontWeight: subaba === t.v ? 700 : 500, color: subaba === t.v ? C.saibro : C.tinta }}>
+                            {subaba === t.v ? "✓ " : ""}{t.r}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               );
             })()}
             {subaba === "ficha" ? <TelaFicha aluno={aberto} salvar={salvar} papelAtual={papelAtual} uidAtual={uidAtual}
-                etapaAlvo={etapaFichaAlvo} aoConsumirEtapaAlvo={() => setEtapaFichaAlvo(null)} aoMudarEditando={setEditandoFicha} /> :
+                etapaAlvo={etapaFichaAlvo} aoConsumirEtapaAlvo={() => setEtapaFichaAlvo(null)} aoMudarEditando={setEditandoFicha}
+                aoMudarSujo={setFichaSuja} aoExporSalvarRascunho={(fn) => { salvarRascunhoRef.current = fn; }}
+                aoSairFicha={() => setAbertoId(null)} /> :
              subaba === "plano" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="resumo" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
              subaba === "aulas" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
              subaba === "fechamento" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="fechamento" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
@@ -14717,7 +14929,8 @@ function App() {
              <TelaSessao aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} papelAtual={papelAtual} uidAtual={uidAtual}
                exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} />}
           </div>
-        ) : (
+          );
+        })() : (
           <div>
             <div className="flex items-start justify-between gap-3 mb-1">
               <h1 style={{ fontFamily: ARCH, fontSize: 26, fontWeight: 700 }}>Jogadores</h1>
@@ -14837,7 +15050,7 @@ function App() {
             const ativo = aba === t.v && !maisAberto;
             return (
               <button key={t.v} className="mty-bottomnav-item flex-1 flex flex-col items-center justify-center gap-1"
-                onClick={() => { setAba(t.v); setAbertoId(null); setMaisAberto(false); }}
+                onClick={() => tentarNavegar(() => { setAba(t.v); setAbertoId(null); setMaisAberto(false); })}
                 aria-current={ativo ? "page" : undefined}
                 style={{ border: "none", background: "none", cursor: "pointer", padding: "9px 4px", minHeight: 56,
                   color: ativo ? "#fff" : "rgba(255,255,255,.65)" }}>
@@ -14864,6 +15077,28 @@ function App() {
 
       {maisAberto && (
         <PainelMais aba={aba} setAba={setAba} aoFechar={() => setMaisAberto(false)} />
+      )}
+
+      {acaoSaidaPendente && (
+        <>
+          <div onClick={() => setAcaoSaidaPendente(null)} style={{ position: "fixed", inset: 0, background: "rgba(20,20,20,.45)", zIndex: 60 }} />
+          <div role="alertdialog" aria-modal="true" aria-labelledby="titulo-saida-pendente"
+            style={{ position: "fixed", left: "50%", bottom: 0, transform: "translateX(-50%)", width: "100%", maxWidth: 420,
+              background: C.cal, borderRadius: "16px 16px 0 0", boxShadow: SOMBRA_ALTA, zIndex: 61, padding: "20px 20px calc(20px + env(safe-area-inset-bottom))" }}>
+            <h2 id="titulo-saida-pendente" style={{ fontFamily: ARCH, fontSize: 17, fontWeight: 700, marginBottom: 6 }}>Alterações não salvas</h2>
+            <p style={{ ...prosa, fontSize: 14, color: C.grafite, marginBottom: 16 }}>
+              Você preencheu alguma coisa nessa ficha que ainda não foi salva. O que você quer fazer?
+            </p>
+            <div className="flex flex-col" style={{ gap: 8 }}>
+              <Botao variante="saibro" onClick={confirmarSalvarESair}>Salvar e sair</Botao>
+              <Botao variante="vazio" onClick={() => setAcaoSaidaPendente(null)}>Continuar preenchendo</Botao>
+              <button onClick={confirmarDescartar}
+                style={{ ...prosa, fontSize: 13, fontWeight: 600, color: "#B3261E", background: "none", border: "none", cursor: "pointer", minHeight: 44, textDecoration: "underline" }}>
+                Descartar alterações
+              </button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
