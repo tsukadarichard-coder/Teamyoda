@@ -2239,6 +2239,27 @@ function categoriaPeloNivel(estagio, nivel) {
   return achada ? achada.id : null;
 }
 
+/* A metodologia (ver LegendaNiveis) sempre disse que um critério só é
+   marcado depois de aparecer em três ocasiões distintas, em aulas
+   diferentes — mas até aqui isso era só um texto ao lado de um
+   checkbox de um clique só. Agora o valor guardado em
+   criteriosClassificacao[chave] é um array de datas (uma por
+   observação distinta; a mesma data não conta duas vezes). Fichas
+   salvas ANTES desta mudança guardam `true` nessa chave — nunca
+   convertido ou "preenchido" com datas inventadas, só reconhecido como
+   confirmado sem detalhamento de observações (ver criterioConfirmado). */
+function observacoesCriterio(marcados, chave) {
+  const v = marcados[chave];
+  return Array.isArray(v) ? v : [];
+}
+function criterioLegado(marcados, chave) {
+  return marcados[chave] === true;
+}
+function criterioConfirmado(marcados, chave) {
+  if (criterioLegado(marcados, chave)) return true;
+  return observacoesCriterio(marcados, chave).length >= 3;
+}
+
 /* Onde o jogador está na trilha agora, e o que falta marcar pra avançar
    — mesmo cálculo que TrilhaClassificacao usa pra desenhar o checklist,
    só que como dado puro. É isso que faz a classificação virar limitador
@@ -2251,7 +2272,7 @@ function statusTrilha(f) {
   const semSubdivisao = lista.length === 1 && lista[0].id === f.estagio;
   const atual = semSubdivisao ? lista[0] : (lista.find((c) => c.id === f.categoria) || lista[0]);
   const marcados = f.criteriosClassificacao || {};
-  const pendentes = atual.criterios.filter((_, i) => !marcados[atual.id + ":" + i]);
+  const pendentes = atual.criterios.filter((_, i) => !criterioConfirmado(marcados, atual.id + ":" + i));
   return { atual, pendentes, feitos: atual.criterios.length - pendentes.length, total: atual.criterios.length, completo: pendentes.length === 0 };
 }
 
@@ -2326,7 +2347,7 @@ function TrilhaVisual({ estagio, categoria, criteriosClassificacao }) {
         const passado = i < idxAtual;
         const atual = i === idxAtual;
         const ultimo = i === nodes.length - 1;
-        const feitos = n.criterios ? n.criterios.filter((_, k) => marcados[n.id + ":" + k]).length : 0;
+        const feitos = n.criterios ? n.criterios.filter((_, k) => criterioConfirmado(marcados, n.id + ":" + k)).length : 0;
         const cor = passado ? C.quadra : atual ? C.saibro : C.linha;
         return (
           <div key={n.id} style={{ display: "flex", gap: 12 }}>
@@ -3596,6 +3617,120 @@ function LegendaNiveis({ nivelInicial }) {
   );
 }
 
+/* Uma linha de critério — cuida sozinha do próprio estado de "qual
+   data escolher pra registrar" (cada linha tem seu próprio input,
+   nunca compartilhado). Explica a diferença entre ainda-não-avaliado
+   (cinza, sem marca) e demonstrado (verde, ☑); nunca trata as duas
+   coisas como o mesmo estado "desmarcado" — ver seção 3 do pedido. */
+/* "Entenda este critério" (seção 7 do pedido): explicações curtas SÓ
+   pra termos que já têm definição aprovada em algum outro lugar do
+   projeto — nunca inventadas aqui. Fontes: o cartão do jogador
+   (Protocolo entre pontos, "Minhas regras" — bola que arma/converte) e
+   "A Escada Y1–Y6" / FasesGolpe (padrão de duas bolas, alvo de
+   segurança e de pressão). "Matriz dos três caminhos da devolução" é
+   citada em vários lugares (ex.: critério do Y5) mas o projeto nunca
+   define quais são os três caminhos — fica de fora até o responsável
+   pela metodologia definir, em vez de eu inventar um conteúdo técnico
+   que não existe. As chaves abaixo precisam bater, char a char, com o
+   texto exato do critério correspondente (ver NIVEIS_CRITERIOS). */
+const EXPLICACOES_CRITERIO = {
+  "Executa o padrão de duas bolas: uma que arma, uma que converte":
+    "Construir o ponto em duas bolas com papéis definidos: a que arma cria a situação (joga seguro, sem pressa); a que converte termina o ponto (só existe se a anterior armou). Ver também \"alvo de segurança\" e \"alvo de pressão\".",
+  "Usa alvo de segurança na bola que arma e alvo de pressão na que converte — sem inverter":
+    "Alvo de segurança: cerca de 2 metros para dentro das linhas, com altura confortável sobre a rede — é o alvo da bola que arma. Alvo de pressão: mais perto das linhas, mais rápido ou na rede — é o alvo da bola que converte. Inverter os dois (arriscar na armação) é a origem da maior parte dos erros não forçados em construção de ponto.",
+  "Executa o protocolo entre pontos com consistência":
+    "A sequência Fechei (o ponto anterior acabou quando acabou, gesto sempre igual) → Respirei (respiração baixa e lenta voltando à linha de base) → Decidi (direção e intenção antes do primeiro quique; decidido não se reabre) → Executei (quiques sentidos, não contados).",
+};
+
+function CriterioLinha({ cr, chave, marcados, set, explicacao }) {
+  const [expandido, setExpandido] = useState(false);
+  const [data, setData] = useState(new Date().toISOString().slice(0, 10));
+  const legado = criterioLegado(marcados, chave);
+  const obs = observacoesCriterio(marcados, chave);
+  const confirmado = criterioConfirmado(marcados, chave);
+  const hoje = new Date().toISOString().slice(0, 10);
+
+  function registrar() {
+    if (!data || obs.includes(data)) return;
+    set("criteriosClassificacao", { ...marcados, [chave]: [...obs, data].sort() });
+    setData(hoje);
+  }
+  function removerData(d) {
+    set("criteriosClassificacao", { ...marcados, [chave]: obs.filter((x) => x !== d) });
+  }
+  function desfazerLegado() {
+    const resto = { ...marcados };
+    delete resto[chave];
+    set("criteriosClassificacao", resto);
+  }
+
+  const statusTexto = legado
+    ? "Demonstrado — confirmado antes do detalhamento por data"
+    : confirmado ? `Demonstrado — ${obs.length} de 3 observações`
+    : obs.length > 0 ? `${obs.length} de 3 observações — ainda não demonstrado`
+    : "Ainda não avaliado";
+
+  return (
+    <div style={{ background: confirmado ? "#F4F7F4" : C.papel, border: "1px solid " + C.linha,
+      borderLeft: "3px solid " + (confirmado ? C.quadra : C.linha), padding: "9px 12px", marginBottom: 6 }}>
+      <button type="button" onClick={() => setExpandido(!expandido)} aria-expanded={expandido}
+        className="w-full text-left" style={{ background: "none", border: "none", cursor: "pointer", padding: 0, minHeight: 44 }}>
+        <div className="flex items-start gap-3">
+          <span aria-hidden="true" style={{ fontFamily: ARCH, fontSize: 15, lineHeight: 1.3, color: confirmado ? C.quadra : C.grafite }}>
+            {confirmado ? "☑" : "☐"}
+          </span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ ...prosa, fontSize: 12.5 }}>{cr}</p>
+            <p style={{ ...prosa, fontSize: 11, fontWeight: 700, color: confirmado ? C.quadra : C.grafite, marginTop: 2 }}>
+              {statusTexto}
+            </p>
+          </div>
+          <span aria-hidden="true" style={{ fontSize: 11, color: C.grafite, flexShrink: 0 }}>{expandido ? "▲" : "▼"}</span>
+        </div>
+      </button>
+      {expandido && explicacao && (
+        <div style={{ marginTop: 8, paddingLeft: 27 }}>
+          <AjudaContextual titulo="Entenda este critério">{explicacao}</AjudaContextual>
+        </div>
+      )}
+      {expandido && !legado && (
+        <div className="mt-2" style={{ borderTop: "1px solid " + C.linha, paddingTop: 8, paddingLeft: 27 }}>
+          <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginBottom: 6 }}>
+            Cada observação precisa ser de uma aula diferente — a mesma data não conta duas vezes.
+          </p>
+          {obs.length === 0 && (
+            <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 8 }}>Não observado nas ocasiões avaliadas até agora.</p>
+          )}
+          {obs.map((d) => (
+            <div key={d} className="flex items-center justify-between gap-2 mb-1">
+              <Etiqueta>{new Date(d + "T00:00:00").toLocaleDateString("pt-BR")}</Etiqueta>
+              <button onClick={() => removerData(d)} aria-label={"Remover observação de " + d} style={iconeEstilo}>×</button>
+            </div>
+          ))}
+          {obs.length < 3 && (
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              <input type="date" style={{ ...entrada, maxWidth: 160 }} value={data} max={hoje}
+                onChange={(e) => setData(e.target.value)} />
+              <Botao pequeno variante="saibro" onClick={registrar} disabled={!data || obs.includes(data)}>
+                {obs.includes(data) ? "Esta data já está registrada" : "+ Registrar observação"}
+              </Botao>
+            </div>
+          )}
+        </div>
+      )}
+      {expandido && legado && (
+        <div className="mt-2" style={{ borderTop: "1px solid " + C.linha, paddingTop: 8, paddingLeft: 27 }}>
+          <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginBottom: 6 }}>
+            Confirmado antes de o app guardar a data de cada observação — não há como saber em quais
+            aulas foi observado. A confirmação continua valendo, sem inventar datas.
+          </p>
+          <Botao pequeno variante="vazio" onClick={desfazerLegado}>Desmarcar e reavaliar com observações detalhadas</Botao>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── questionário de classificação, por jogador ──
    Todos os degraus do estágio aparecem de uma vez, em ordem (Y1 pra
    cima) — um questionário, não uma trilha em que cada degrau só
@@ -3604,19 +3739,20 @@ function LegendaNiveis({ nivelInicial }) {
    sobe de degrau em degrau, sem pular nenhum — o último 100% marcado,
    em sequência a partir do primeiro. Marcar um critério de um degrau
    mais adiante não "adianta" nada sozinho: o nível só sobe quando os
-   degraus anteriores também estiverem completos. */
+   degraus anteriores também estiverem completos.
+
+   Em celular, cada degrau vira um grupo expansível (seção 5 do
+   pedido) — só o grupo relevante pra avaliação em andamento abre
+   sozinho; os demais ficam fechados, mas nunca perdem resposta. */
 function TrilhaClassificacao({ f, set }) {
   const lista = categoriasDoEstagio(f.estagio);
+  const [abertos, setAbertos] = useState(null); // null até o 1º render calcular o grupo relevante
+
   if (lista.length === 0) return null;
   const marcados = f.criteriosClassificacao || {};
 
-  function alternar(categoriaId, i) {
-    const chave = categoriaId + ":" + i;
-    set("criteriosClassificacao", { ...marcados, [chave]: !marcados[chave] });
-  }
-
   function completoNaCategoria(cat) {
-    return cat.criterios.every((_, i) => !!marcados[cat.id + ":" + i]);
+    return cat.criterios.every((_, i) => criterioConfirmado(marcados, cat.id + ":" + i));
   }
 
   let nivelAlcancado = null;
@@ -3647,57 +3783,82 @@ function TrilhaClassificacao({ f, set }) {
     if (!!f.nivelAvaliado !== nivelConfirmadoPorCriterios) set("nivelAvaliado", nivelConfirmadoPorCriterios);
   }, [categoriaAtual, nivelFinal, nivelConfirmadoPorCriterios]);
 
+  useEffect(() => {
+    if (abertos === null) setAbertos({ [categoriaAtual]: true });
+    // só na primeira renderização — depois disso quem decide é o toque do treinador
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const grupoAberto = abertos || { [categoriaAtual]: true };
+  function alternarGrupo(id) { setAbertos({ ...grupoAberto, [id]: !grupoAberto[id] }); }
+
   return (
     <div className="mb-5">
       <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 14 }}>
-        Vá marcando, em cada degrau abaixo, os critérios que você já observou do jogador em quadra
-        — em três ocasiões distintas, em aulas diferentes. Vale para todos os degraus de uma vez, na
-        ordem em que aparecem; o resultado, ao final, é calculado sozinho.
+        Registre o que você já observou do jogador em quadra, em três ocasiões distintas, em aulas
+        diferentes. Vale para todos os degraus de uma vez, na ordem em que aparecem; o resultado, ao
+        final, é calculado sozinho.
       </p>
       {lista.map((cat) => {
-        const feitos = cat.criterios.filter((_, i) => !!marcados[cat.id + ":" + i]).length;
+        const feitos = cat.criterios.filter((_, i) => criterioConfirmado(marcados, cat.id + ":" + i)).length;
+        const avaliados = cat.criterios.filter((_, i) => observacoesCriterio(marcados, cat.id + ":" + i).length > 0 || criterioLegado(marcados, cat.id + ":" + i)).length;
         const completo = feitos === cat.criterios.length;
+        const aberto = !!grupoAberto[cat.id];
         return (
-          <div key={cat.id} className="mb-4" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderLeft: "3px solid " + (completo ? C.quadra : C.saibro), padding: "13px 15px" }}>
-            <div className="flex items-baseline justify-between gap-3 flex-wrap mb-1">
-              <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{cat.nome}</span>
-              <Etiqueta cor={completo ? C.quadra : C.grafite}>{feitos} de {cat.criterios.length} critérios</Etiqueta>
-            </div>
-            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>{cat.foco}</p>
-            {cat.criterios.map((cr, i) => {
-              const feito = !!marcados[cat.id + ":" + i];
-              return (
-                <div key={i} onClick={() => alternar(cat.id, i)}
-                  style={{ background: feito ? "#F4F7F4" : C.papel, border: "1px solid " + C.linha,
-                    borderLeft: "3px solid " + (feito ? C.quadra : C.linha), padding: "9px 12px", marginBottom: 6, cursor: "pointer" }}>
-                  <div className="flex items-start gap-3">
-                    <span style={{ fontFamily: ARCH, fontSize: 15, lineHeight: 1.3, color: feito ? C.quadra : C.grafite }}>{feito ? "☑" : "☐"}</span>
-                    <p style={{ ...prosa, fontSize: 12.5 }}>{cr}</p>
-                  </div>
-                </div>
-              );
-            })}
-            {cat.notaExtra && (
-              <div className="mt-2" style={{ background: C.papel, borderLeft: "3px solid " + C.linha, padding: "8px 11px" }}>
-                <p style={{ ...prosa, fontSize: 12, fontStyle: "italic", color: C.grafite }}>{cat.notaExtra}</p>
+          <div key={cat.id} className="mb-4" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderLeft: "3px solid " + (completo ? C.quadra : C.saibro) }}>
+            <button type="button" onClick={() => alternarGrupo(cat.id)} aria-expanded={aberto}
+              className="w-full text-left" style={{ background: "none", border: "none", cursor: "pointer", padding: "13px 15px", minHeight: 44 }}>
+              <div className="flex items-baseline justify-between gap-3 flex-wrap">
+                <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{cat.nome}</span>
+                <span className="flex items-center gap-2">
+                  <Etiqueta cor={C.grafite}>{avaliados} de {cat.criterios.length} itens avaliados</Etiqueta>
+                  {feitos > 0 && <Etiqueta cor={completo ? C.quadra : C.saibro}>{feitos} confirmados</Etiqueta>}
+                  <span aria-hidden="true" style={{ fontSize: 11, color: C.grafite }}>{aberto ? "▲" : "▼"}</span>
+                </span>
               </div>
-            )}
-            {cat.notaEscada && (
-              <div className="mt-2" style={{ background: C.papel, borderLeft: "3px solid " + C.quadra, padding: "8px 11px" }}>
-                <p style={{ ...prosa, fontSize: 12 }}>{cat.notaEscada}</p>
+            </button>
+            {aberto && (
+              <div style={{ padding: "0 15px 13px" }}>
+                <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>{cat.foco}</p>
+                {cat.criterios.map((cr, i) => (
+                  <CriterioLinha key={i} cr={cr} chave={cat.id + ":" + i} marcados={marcados} set={set}
+                    explicacao={EXPLICACOES_CRITERIO[cr]} />
+                ))}
+                {cat.notaExtra && (
+                  <div className="mt-2" style={{ background: C.papel, borderLeft: "3px solid " + C.linha, padding: "8px 11px" }}>
+                    <p style={{ ...prosa, fontSize: 12, fontStyle: "italic", color: C.grafite }}>{cat.notaExtra}</p>
+                  </div>
+                )}
+                {cat.notaEscada && (
+                  <div className="mt-2" style={{ background: C.papel, borderLeft: "3px solid " + C.quadra, padding: "8px 11px" }}>
+                    <p style={{ ...prosa, fontSize: 12 }}>{cat.notaEscada}</p>
+                  </div>
+                )}
               </div>
             )}
           </div>
         );
       })}
       <div style={{ background: C.tinta, padding: "15px 17px" }}>
-        <Etiqueta cor="#fff">Nível do jogador, pelo questionário</Etiqueta>
-        <p style={{ fontFamily: ARCH, fontSize: 26, fontWeight: 700, color: "#fff", marginTop: 4 }}>{nivelFinal}</p>
-        <p style={{ ...prosa, fontSize: 12.5, color: "#D8D3CC", marginTop: 4 }}>
-          {tudoCompleto
-            ? "Todos os degraus deste estágio foram marcados — teto da trilha aqui. A evolução a partir daqui é por refinamento técnico."
-            : "Sobe sozinho conforme os degraus acima forem completados, em ordem — sem pular nenhum."}
-        </p>
+        <Etiqueta cor="#fff">Resultado da classificação</Etiqueta>
+        {nivelConfirmadoPorCriterios ? (
+          <>
+            <p style={{ fontFamily: ARCH, fontSize: 26, fontWeight: 700, color: "#fff", marginTop: 4 }}>{nivelFinal}</p>
+            <p style={{ ...prosa, fontSize: 12.5, color: "#D8D3CC", marginTop: 4 }}>
+              {tudoCompleto
+                ? "Todos os degraus deste estágio foram marcados — teto da trilha aqui. A evolução a partir daqui é por refinamento técnico."
+                : "Sobe sozinho conforme os degraus acima forem completados, em ordem — sem pular nenhum."}
+            </p>
+          </>
+        ) : (
+          <>
+            <p style={{ fontFamily: ARCH, fontSize: 19, fontWeight: 700, color: "#fff", marginTop: 4 }}>Nível ainda não definido</p>
+            <p style={{ ...prosa, fontSize: 12.5, color: "#D8D3CC", marginTop: 4 }}>
+              Nenhum degrau foi completado ainda — o primeiro grupo abaixo está sendo consultado, mas isso
+              não é o mesmo que já ter alcançado aquele nível. Marque os critérios conforme observar o
+              jogador em quadra.
+            </p>
+          </>
+        )}
       </div>
     </div>
   );
@@ -5394,9 +5555,10 @@ function SugestaoClassificacao({ f, set }) {
   const [sugestao, setSugestao] = useState(null);
   const [gerando, setGerando] = useState(false);
   const [erro, setErro] = useState("");
+  const [confirmandoSubstituicao, setConfirmandoSubstituicao] = useState(false);
 
   async function sugerir() {
-    setErro(""); setGerando(true); setSugestao(null);
+    setErro(""); setGerando(true); setSugestao(null); setConfirmandoSubstituicao(false);
     try {
       let t = (await chamarIA(promptClassificacao(f), 700)).trim();
       t = t.replace(/^```(json)?/i, "").replace(/```$/, "").trim();
@@ -5411,44 +5573,69 @@ function SugestaoClassificacao({ f, set }) {
     }
     setGerando(false);
   }
-  function aplicar() {
+  /* A IA lê a ficha inteira, não os critérios observados em quadra —
+     então isto NUNCA é uma avaliação de verdade, só uma hipótese de
+     trabalho. nivelAvaliado:false é o que permite a qualquer lugar que
+     mostra o nível (inclusive o link do aluno) saber que esta
+     classificação ainda não passou pelo checklist de observação em
+     quadra, em vez de tratar um palpite como se fosse confirmado.
+     Nunca toca em criteriosClassificacao — a sugestão não marca nem
+     desmarca nenhuma observação já registrada. */
+  function aplicarDeVez() {
     if (!sugestao) return;
     set("estagio", sugestao.estagio);
     const categoriaId = categoriaPeloNivel(sugestao.estagio, sugestao.nivel);
     if (categoriaId) set("categoria", categoriaId);
     set("nivel", sugestao.nivel);
-    /* A IA lê a ficha inteira, não os critérios observados em quadra —
-       então isto NUNCA é uma avaliação de verdade, só uma hipótese de
-       trabalho. nivelAvaliado:false é o que permite a qualquer lugar
-       que mostra o nível (inclusive o link do aluno) saber que esta
-       classificação ainda não passou pelo checklist de observação em
-       quadra, em vez de tratar um palpite como se fosse confirmado. */
     set("nivelAvaliado", false);
+    setConfirmandoSubstituicao(false);
+  }
+  const nivelJaConfirmado = f.nivelAvaliado !== false && f.nivel;
+  function aplicar() {
+    if (nivelJaConfirmado && !confirmandoSubstituicao) { setConfirmandoSubstituicao(true); return; }
+    aplicarDeVez();
   }
 
   return (
     <div className="mb-4">
-      <Botao pequeno onClick={sugerir} disabled={gerando}>
+      <Botao variante="vazio" onClick={sugerir} disabled={gerando}>
         {gerando ? "Analisando a ficha…" : "Receber sugestão da IA"}
       </Botao>
       {erro && <div className="mt-2"><Aviso>{erro}</Aviso></div>}
       {sugestao && (
         <div className="mt-3" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderLeft: "3px solid " + C.quadra, padding: "12px 14px" }}>
           <div className="flex items-center gap-2 mb-2 flex-wrap">
-            <Etiqueta cor={C.quadra}>Sugestão da IA</Etiqueta>
+            <Etiqueta cor={C.quadra}>Sugestão da IA · pendente de revisão</Etiqueta>
             <Etiqueta>{ESTAGIOS.find((e) => e.s === sugestao.estagio)?.n || sugestao.estagio} · {nomeNivel(sugestao.nivel)}</Etiqueta>
           </div>
+          <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginBottom: 8 }}>
+            Baseada na ficha de entrada completa deste jogador (dados pessoais, rotina, avaliação por
+            golpe) — nunca nos critérios marcados em quadra. Evidências ausentes ou insuficientes já
+            entram na justificativa abaixo, em vez de uma escolha arbitrada.
+          </p>
           <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginBottom: 10 }}>{sugestao.justificativa}</p>
+          {nivelJaConfirmado && confirmandoSubstituicao && (
+            <div className="mb-3" style={{ background: C.papel, borderLeft: "3px solid " + C.saibro, padding: "9px 12px" }}>
+              <p style={{ ...prosa, fontSize: 12.5 }}>
+                Este jogador já tem um nível confirmado pelos critérios ({f.estagio} · {nomeNivel(f.nivel)}).
+                Aplicar a sugestão substitui essa confirmação por um palpite da IA, sem nenhuma observação
+                nova em quadra. Confirma mesmo assim?
+              </p>
+            </div>
+          )}
           <div className="flex gap-2 items-center">
             <Botao pequeno onClick={aplicar}
               disabled={f.estagio === sugestao.estagio && f.nivel === sugestao.nivel}>
-              {f.estagio === sugestao.estagio && f.nivel === sugestao.nivel ? "✓ aplicada" : "Aplicar sugestão"}
+              {f.estagio === sugestao.estagio && f.nivel === sugestao.nivel ? "✓ aplicada"
+                : nivelJaConfirmado && confirmandoSubstituicao ? "Confirmar substituição"
+                : "Aplicar sugestão"}
             </Botao>
-            <Botao pequeno variante="vazio" onClick={() => setSugestao(null)}>Descartar</Botao>
+            <Botao pequeno variante="vazio" onClick={() => { setSugestao(null); setConfirmandoSubstituicao(false); }}>Descartar</Botao>
           </div>
           <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginTop: 8 }}>
             Rascunho da IA. O estágio e o nível continuam editáveis logo acima — o plano de treino é
-            sempre montado a partir do que estiver selecionado ali, não desta sugestão.
+            sempre montado a partir do que estiver selecionado ali, não desta sugestão. Nenhuma
+            observação em "Avaliar pelos critérios" é marcada ou desmarcada por esta sugestão.
           </p>
         </div>
       )}
@@ -6155,20 +6342,28 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
             <Etiqueta cor={C.grafite}>{faseDoEstagio(f.estagio)}</Etiqueta>
           </Secao>
 
-          <Secao titulo="Nível do jogador" nota="Ninguém escolhe o nível direto — ele vem da avaliação em quadra. Peça uma sugestão da IA pra revisar, ou avalie pelos critérios você mesmo.">
+          <Secao titulo="Avaliação do jogador" nota="Registre o que você observa em quadra. A classificação segue os critérios da metodologia, com sua revisão.">
+            <AjudaContextual titulo="Como funciona a avaliação">
+              O aluno nunca é testado — é observado dentro das aulas normais. Um critério só é confirmado
+              depois de aparecer em três ocasiões distintas, em aulas diferentes (a mesma aula não conta
+              duas vezes). Os degraus abaixo são consultados em ordem: o nível só sobe quando o degrau
+              atual estiver com todos os critérios confirmados, sem pular nenhum. Avaliações feitas antes
+              deste detalhamento por data continuam valendo, marcadas como confirmadas sem o registro de
+              quais aulas foram observadas.
+            </AjudaContextual>
             <CartaoNivel f={f} />
             <div className="mt-3 mb-4">
               <TrilhaVisual estagio={f.estagio} categoria={f.categoria} criteriosClassificacao={f.criteriosClassificacao} />
             </div>
 
-            <SugestaoClassificacao f={f} set={set} />
-
             <div className="mb-2">
-              <Botao pequeno variante="vazio" onClick={() => setTrilhaManual(!trilhaManual)}>
+              <Botao onClick={() => setTrilhaManual(!trilhaManual)}>
                 {trilhaManual ? "Ocultar avaliação por critérios" : "Avaliar pelos critérios"}
               </Botao>
             </div>
             {trilhaManual && <TrilhaClassificacao f={f} set={set} />}
+
+            <SugestaoClassificacao f={f} set={set} />
 
             <div className="mt-4">
               <LegendaNiveis nivelInicial={f.nivel} />
