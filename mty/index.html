@@ -4354,6 +4354,7 @@ function novoAluno() {
     inicio: "", semanas: 18, competicoes: [{ nome: "", data: "" }],
     diasQuadra: null, periodos: null, escola: "", musculacao: null,
     historico: [], registros: [], anotacoes: [],
+    estiloTatico: null, adversarios: [],
     professorUid: "", professorNome: "", horarios: [], duracaoPadrao: "1h30",
     categoria: "", criteriosClassificacao: {},
     classificacaoSugeridaEm: null,
@@ -4746,6 +4747,30 @@ function indiceParaEstagios(estagios) {
    físico/mental — onde "foco técnico" tem um sentido concreto: um golpe
    específico que precisa de correção. */
 const AREAS_TECNICAS = ["saque", "devolucao", "fundo", "rede"];
+
+/* Catálogos do "estilo tático" (autoavaliação de como o jogador joga, não
+   diagnóstico técnico do treinador) e do scouting de adversário — reaproveitam
+   as mesmas AREAS (saque/devolução/fundo/rede) em vez de um catálogo de golpes
+   novo, pra ficar simples e já no vocabulário que o treinador conhece. */
+const PADRAO_PONTO = [
+  { v: "ofensivo", r: "Ofensivo", d: "busca abreviar o ponto, ataca assim que tem ângulo" },
+  { v: "construtor", r: "Construtor", d: "sustenta a troca até abrir espaço, não força cedo" },
+  { v: "defensivo", r: "Defensivo", d: "prioriza não errar, devolve a decisão pro adversário" },
+];
+const COMPORTAMENTO_REDE = [
+  { v: "sempre", r: "Sobe sempre que pode" },
+  { v: "convidado", r: "Só quando é convidado (bola curta, troca de pé)" },
+  { v: "evita", r: "Evita a rede" },
+];
+const PERFIL_DEVOLUCAO = [
+  { v: "agressiva", r: "Agressiva — ataca o 2º saque" },
+  { v: "segura", r: "Segura — prioriza colocar em jogo" },
+];
+const PERFIL_PRESSAO = [
+  { v: "mantem", r: "Mantém o padrão" },
+  { v: "acelera", r: "Acelera (arrisca mais)" },
+  { v: "trava", r: "Trava (fica mais conservador)" },
+];
 
 /* Mesma garantia que o programa pronto "Correção Técnica" já fazia só
    para si mesmo (poolPrincipal por área + fallback genérico) — aqui vale
@@ -8085,6 +8110,63 @@ function resumoScoutPlanejamento(registros) {
   ].join("\n");
 }
 
+/* Autoavaliação de ESTILO (como o jogador joga), separada da ficha
+   diagnóstica do treinador (prioridades/armas = o que focar no treino).
+   Alimenta só o plano de jogo (estratégia pra um confronto), nunca o
+   plano de treino — por isso fica fora de relatorioFicha(). */
+function relatorioEstiloTatico(a) {
+  const et = a.estiloTatico;
+  if (!et) return null;
+  const L = ["ESTILO TÁTICO DO JOGADOR (autoavaliação de como ele joga, não diagnóstico técnico):"];
+  if (et.armaPrincipal) L.push("· Arma principal: " + AREAS[et.armaPrincipal].nome);
+  if (et.pontoFraco) L.push("· Ponto mais vulnerável: " + AREAS[et.pontoFraco].nome);
+  if (et.padraoPonto) L.push("· Padrão de ponto: " + ((PADRAO_PONTO.find((p) => p.v === et.padraoPonto) || {}).r || et.padraoPonto));
+  if (et.rede) L.push("· Comportamento na rede: " + ((COMPORTAMENTO_REDE.find((p) => p.v === et.rede) || {}).r || et.rede));
+  if (et.devolucao) L.push("· Devolução: " + ((PERFIL_DEVOLUCAO.find((p) => p.v === et.devolucao) || {}).r || et.devolucao));
+  if (et.pressao) L.push("· Sob pressão: " + ((PERFIL_PRESSAO.find((p) => p.v === et.pressao) || {}).r || et.pressao));
+  if ((et.observacoes || "").trim()) L.push("· Observações: " + et.observacoes.trim());
+  return L.length > 1 ? L.join("\n") : null;
+}
+
+function relatorioAdversario(adv) {
+  const L = ["SCOUTING DO ADVERSÁRIO: " + (adv.nome || "sem nome")];
+  if ((adv.pontosFortes || []).length) L.push("· Pontos fortes dele: " + adv.pontosFortes.map((id) => AREAS[id].nome).join(", "));
+  if ((adv.pontosFracos || []).length) L.push("· Pontos fracos dele: " + adv.pontosFracos.map((id) => AREAS[id].nome).join(", "));
+  if ((adv.observacoes || "").trim()) L.push("· Observações registradas: " + adv.observacoes.trim());
+  return L.join("\n");
+}
+
+/* Plano de JOGO (estratégia pra um confronto específico) — não é plano de
+   TREINO: não usa o catálogo de exercícios nem precisa de validação de
+   código, é texto livre com diretrizes táticas. A regra central do prompt
+   existe pra não deixar a IA inventar compatibilidade que os dados não
+   sustentam — mesma lógica de "nunca invente um número" do scout. */
+function promptPlanoDeJogo(aluno, adversario) {
+  const estilo = relatorioEstiloTatico(aluno);
+  const resumoScout = resumoScoutPlanejamento(aluno.registros);
+  return [
+    "Você é assistente tático da Metodologia MTY, método de tênis do treinador Richard Tsukada.",
+    "Monte um PLANO DE JOGO — estratégia para esta partida específica, não um plano de treino.",
+    "",
+    "PRINCÍPIOS TRAVADOS — obrigatórios:",
+    ...PRINCIPIOS_MTY.map((p, i) => (i + 1) + ". " + p),
+    "",
+    estilo || "ESTILO TÁTICO DO JOGADOR: não preenchido — baseie-se só nos dados de partida abaixo e no scouting do adversário, nunca invente um estilo.",
+    ...(resumoScout ? ["", resumoScout] : []),
+    "",
+    relatorioAdversario(adversario),
+    "",
+    "REGRA CENTRAL: cada diretriz do plano precisa casar um dado MEU (estilo autoavaliado ou dado real",
+    "de partida) com uma fraqueza registrada DO ADVERSÁRIO, ou evitar expor um ponto fraco meu a uma",
+    "força registrada dele. Nunca sugira um padrão que não esteja apoiado em um desses dados. Se faltar",
+    "dado suficiente de um dos dois lados pra alguma diretriz, diga isso explicitamente em vez de inventar.",
+    "",
+    "FORMATO: 3 a 5 diretrizes táticas objetivas e acionáveis pra este confronto, cada uma com uma frase",
+    "dizendo o motivo (qual dado meu e qual dado do adversário sustentam essa diretriz). Nunca estatística",
+    "solta sem virar ação de jogo.",
+  ].join("\n");
+}
+
 function CartaoTendencia({ rotulo, valores, sufixo, maiorEhMelhor }) {
   const t = tendenciaScout(valores, maiorEhMelhor);
   return (
@@ -8192,6 +8274,145 @@ function regrasFormato(formato, semVantagem, superTiebreakDecisivo) {
     linhas.push("O 3º set, quando necessário, segue a mesma regra de games e tie-break acima — sem super tie-break.");
   }
   return linhas;
+}
+
+/* Autoavaliação de estilo tático — separada da ficha (prioridades/armas é
+   diagnóstico do treinador sobre o que focar no treino; isto é "como o
+   jogador já joga de verdade", usado só pelo plano de jogo). */
+function TelaEstiloTatico({ aluno, alunos, setAlunos }) {
+  const et = aluno.estiloTatico || {};
+  function set(k, v) {
+    setAlunos(alunos.map((a) => (a.id === aluno.id ? { ...a, estiloTatico: { ...(a.estiloTatico || {}), [k]: v } } : a)));
+  }
+  const opcoesArea = AREAS_TECNICAS.map((id) => ({ v: id, r: AREAS[id].nome }));
+  return (
+    <div>
+      <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Estilo de jogo</h1>
+      <p style={{ ...prosa, fontSize: 14, color: C.grafite, marginBottom: 16 }}>
+        Como {aluno.nome || "o jogador"} joga de verdade — não é diagnóstico técnico pro treino, é a base que o plano
+        de jogo usa pra casar com o scouting de um adversário (aba Adversários).
+      </p>
+      <Campo rotulo="Arma principal"><Seletor opcoes={opcoesArea} valor={et.armaPrincipal || ""} aoMudar={(v) => set("armaPrincipal", v)} /></Campo>
+      <Campo rotulo="Ponto mais vulnerável"><Seletor opcoes={opcoesArea} valor={et.pontoFraco || ""} aoMudar={(v) => set("pontoFraco", v)} /></Campo>
+      <Campo rotulo="Padrão de ponto"><Seletor opcoes={PADRAO_PONTO.map((p) => ({ v: p.v, r: p.r }))} valor={et.padraoPonto || ""} aoMudar={(v) => set("padraoPonto", v)} /></Campo>
+      <Campo rotulo="Comportamento na rede"><Seletor opcoes={COMPORTAMENTO_REDE} valor={et.rede || ""} aoMudar={(v) => set("rede", v)} /></Campo>
+      <Campo rotulo="Devolução"><Seletor opcoes={PERFIL_DEVOLUCAO} valor={et.devolucao || ""} aoMudar={(v) => set("devolucao", v)} /></Campo>
+      <Campo rotulo="Sob pressão"><Seletor opcoes={PERFIL_PRESSAO} valor={et.pressao || ""} aoMudar={(v) => set("pressao", v)} /></Campo>
+      <Campo rotulo="Observações" nota="Texto livre — qualquer coisa sobre como ele joga que os campos acima não cobrem.">
+        <textarea rows={3} style={{ ...entrada, resize: "vertical" }} value={et.observacoes || ""} onChange={(e) => set("observacoes", e.target.value)} />
+      </Campo>
+    </div>
+  );
+}
+
+/* Um adversário scoutado + o plano de jogo gerado pra ele (texto livre,
+   sem validação de catálogo — não é plano de treino). */
+function CartaoAdversario({ adversario, aluno, aoAtualizar, aoApagar }) {
+  const [editando, setEditando] = useState(!adversario.nome);
+  const [gerando, setGerando] = useState(false);
+  const [erro, setErro] = useState("");
+  const opcoesArea = AREAS_TECNICAS.map((id) => ({ v: id, r: AREAS[id].nome }));
+
+  async function gerarPlano() {
+    setErro(""); setGerando(true);
+    try {
+      const texto = (await chamarIA(promptPlanoDeJogo(aluno, adversario), 2000)).trim();
+      aoAtualizar({ planoJogo: { texto, geradoEm: new Date().toISOString() } });
+    } catch (e) {
+      setErro(String(e.message || e));
+    }
+    setGerando(false);
+  }
+
+  return (
+    <div style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, padding: "12px 14px", marginBottom: 12 }}>
+      {editando ? (
+        <div>
+          <Campo rotulo="Nome do adversário">
+            <input style={entrada} value={adversario.nome || ""} onChange={(e) => aoAtualizar({ nome: e.target.value })} placeholder="Nome" />
+          </Campo>
+          <Campo rotulo="Pontos fortes dele"><SeletorMulti opcoes={opcoesArea} valor={adversario.pontosFortes} aoMudar={(v) => aoAtualizar({ pontosFortes: v })} /></Campo>
+          <Campo rotulo="Pontos fracos dele"><SeletorMulti opcoes={opcoesArea} valor={adversario.pontosFracos} aoMudar={(v) => aoAtualizar({ pontosFracos: v })} /></Campo>
+          <Campo rotulo="Observações" nota="O que você já observou do jogo dele.">
+            <textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={adversario.observacoes || ""} onChange={(e) => aoAtualizar({ observacoes: e.target.value })} />
+          </Campo>
+          <div className="flex gap-2">
+            <Botao pequeno onClick={() => setEditando(false)} disabled={!(adversario.nome || "").trim()}>Pronto</Botao>
+            <Botao pequeno variante="vazio" onClick={aoApagar}>Remover</Botao>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <div className="flex items-start justify-between">
+            <div>
+              <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{adversario.nome}</p>
+              {(adversario.pontosFortes || []).length > 0 && (
+                <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>
+                  Forte: {adversario.pontosFortes.map((id) => AREAS[id].nome).join(", ")}
+                </p>
+              )}
+              {(adversario.pontosFracos || []).length > 0 && (
+                <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>
+                  Fraco: {adversario.pontosFracos.map((id) => AREAS[id].nome).join(", ")}
+                </p>
+              )}
+            </div>
+            <button onClick={() => setEditando(true)} style={{ ...prosa, fontSize: 12.5, fontWeight: 600, color: C.grafite, background: "none", border: "none", cursor: "pointer" }}>
+              Editar
+            </button>
+          </div>
+          <div className="mt-3">
+            <Botao pequeno onClick={gerarPlano} disabled={gerando}>
+              {gerando ? "Gerando…" : adversario.planoJogo ? "Gerar plano de jogo de novo" : "Gerar plano de jogo"}
+            </Botao>
+          </div>
+          {erro && <p style={{ ...prosa, fontSize: 12.5, color: "#B3261E", marginTop: 8 }}>{erro}</p>}
+          {adversario.planoJogo && (
+            <div className="mt-3" style={{ background: C.papel, border: "1px solid " + C.linha, borderRadius: 10, padding: "10px 12px" }}>
+              <Etiqueta cor={C.grafite}>Plano de jogo — gerado em {new Date(adversario.planoJogo.geradoEm).toLocaleDateString("pt-BR")}</Etiqueta>
+              <p style={{ ...prosa, fontSize: 13.5, marginTop: 6, whiteSpace: "pre-wrap" }}>{adversario.planoJogo.texto}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TelaAdversarios({ aluno, alunos, setAlunos }) {
+  const adversarios = aluno.adversarios || [];
+
+  function atualizar(id, patch) {
+    setAlunos(alunos.map((a) => (a.id === aluno.id
+      ? { ...a, adversarios: (a.adversarios || []).map((adv) => (adv.id === id ? { ...adv, ...patch } : adv)) }
+      : a)));
+  }
+  function apagar(id) {
+    setAlunos(alunos.map((a) => (a.id === aluno.id ? { ...a, adversarios: (a.adversarios || []).filter((adv) => adv.id !== id) } : a)));
+  }
+  function adicionar() {
+    const novo = { id: "adv" + Date.now(), nome: "", pontosFortes: [], pontosFracos: [], observacoes: "", planoJogo: null };
+    setAlunos(alunos.map((a) => (a.id === aluno.id ? { ...a, adversarios: [...(a.adversarios || []), novo] } : a)));
+  }
+
+  return (
+    <div>
+      <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Adversários</h1>
+      <p style={{ ...prosa, fontSize: 14, color: C.grafite, marginBottom: 16 }}>
+        Registre o que você sabe do próximo adversário e gere um plano de jogo que casa o estilo de{" "}
+        {aluno.nome || "jogador"} com as fraquezas dele.
+      </p>
+      <div className="mb-4"><Botao variante="saibro" onClick={adicionar}>+ Novo adversário</Botao></div>
+      {adversarios.length === 0 ? (
+        <p style={{ ...prosa, fontSize: 13.5, color: C.grafite }}>Nenhum adversário scoutado ainda.</p>
+      ) : (
+        adversarios.map((adv) => (
+          <CartaoAdversario key={adv.id} adversario={adv} aluno={aluno}
+            aoAtualizar={(patch) => atualizar(adv.id, patch)} aoApagar={() => apagar(adv.id)} />
+        ))
+      )}
+    </div>
+  );
 }
 
 function ChaveRascunho(alunoId) { return "scout-rascunho:" + alunoId; }
@@ -15826,7 +16047,7 @@ function App() {
                  "Fechamento" virou "Resumo do ciclo" porque também reúne o
                  encerramento formal do ciclo. */
               const principais = [{ v: "ficha", r: "Perfil" }, { v: "plano", r: "Planejamento" }, { v: "aulas", r: "Aulas" }, { v: "fechamento", r: "Resumo do ciclo" }];
-              const itensMais = [{ v: "periodizacao", r: "Periodização" }, { v: "sessao", r: "Sessão de hoje" }, { v: "scout", r: "Análise de partida" }, { v: "registro", r: "Caderno" }];
+              const itensMais = [{ v: "periodizacao", r: "Periodização" }, { v: "sessao", r: "Sessão de hoje" }, { v: "scout", r: "Análise de partida" }, { v: "registro", r: "Caderno" }, { v: "estilo", r: "Estilo de jogo" }, { v: "adversarios", r: "Adversários" }];
               const todasSecoes = [...principais, ...itensMais];
               const maisAtivo = itensMais.some((t) => t.v === subaba);
               const secaoAtual = todasSecoes.find((t) => t.v === subaba) || principais[0];
@@ -15925,6 +16146,8 @@ function App() {
              subaba === "periodizacao" ? <TelaPeriodizacao aluno={aberto} aoCriarPeriodo={() => { setEtapaFichaAlvo(2); setSubaba("ficha"); }} /> :
              subaba === "scout" ? <TelaScout aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
              subaba === "registro" ? <TelaRegistro aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade} /> :
+             subaba === "estilo" ? <TelaEstiloTatico aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
+             subaba === "adversarios" ? <TelaAdversarios aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
              <TelaSessao aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} papelAtual={papelAtual} uidAtual={uidAtual}
                exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} />}
           </div>
