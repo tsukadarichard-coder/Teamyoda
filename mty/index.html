@@ -8307,12 +8307,13 @@ function TelaEstiloTatico({ aluno, alunos, setAlunos }) {
 
 /* Um adversário scoutado + o plano de jogo gerado pra ele (texto livre,
    sem validação de catálogo — não é plano de treino). */
-function CartaoAdversario({ adversario, aluno, planoAtual, aoAtualizar, aoApagar }) {
+/* Ao contrário do QuadraLab, o plano de jogo por IA não é gateado por plano
+   aqui no Team Yoda — fica liberado pra qualquer um na academia. */
+function CartaoAdversario({ adversario, aluno, aoAtualizar, aoApagar }) {
   const [editando, setEditando] = useState(!adversario.nome);
   const [gerando, setGerando] = useState(false);
   const [erro, setErro] = useState("");
   const opcoesArea = AREAS_TECNICAS.map((id) => ({ v: id, r: AREAS[id].nome }));
-  const temPremium = planoAtual === "premium";
 
   async function gerarPlano() {
     setErro(""); setGerando(true);
@@ -8362,23 +8363,11 @@ function CartaoAdversario({ adversario, aluno, planoAtual, aoAtualizar, aoApagar
               Editar
             </button>
           </div>
-          {temPremium ? (
-            <div className="mt-3">
-              <Botao pequeno onClick={gerarPlano} disabled={gerando}>
-                {gerando ? "Gerando…" : adversario.planoJogo ? "Gerar plano de jogo de novo" : "Gerar plano de jogo"}
-              </Botao>
-            </div>
-          ) : (
-            /* Scouting do adversário fica livre em qualquer plano — só a geração do
-               plano de jogo por IA é exclusiva do Premium. Os dados que o treinador
-               já registrou aqui nunca somem por falta de upgrade. */
-            <div className="mt-3" style={{ background: C.papel, border: "1px solid " + C.linha, borderRadius: 10, padding: "10px 12px" }}>
-              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>
-                Gerar o plano de jogo por IA é exclusivo do {NOMES_PLANO.premium}.
-              </p>
-              <div className="mt-2"><Botao pequeno onClick={() => abrirCheckoutEduzz("premium")}>Conhecer o {NOMES_PLANO.premium}</Botao></div>
-            </div>
-          )}
+          <div className="mt-3">
+            <Botao pequeno onClick={gerarPlano} disabled={gerando}>
+              {gerando ? "Gerando…" : adversario.planoJogo ? "Gerar plano de jogo de novo" : "Gerar plano de jogo"}
+            </Botao>
+          </div>
           {erro && <p style={{ ...prosa, fontSize: 12.5, color: "#B3261E", marginTop: 8 }}>{erro}</p>}
           {adversario.planoJogo && (
             <div className="mt-3" style={{ background: C.papel, border: "1px solid " + C.linha, borderRadius: 10, padding: "10px 12px" }}>
@@ -8392,7 +8381,7 @@ function CartaoAdversario({ adversario, aluno, planoAtual, aoAtualizar, aoApagar
   );
 }
 
-function TelaAdversarios({ aluno, alunos, setAlunos, planoAtual }) {
+function TelaAdversarios({ aluno, alunos, setAlunos }) {
   const adversarios = aluno.adversarios || [];
 
   function atualizar(id, patch) {
@@ -8420,7 +8409,7 @@ function TelaAdversarios({ aluno, alunos, setAlunos, planoAtual }) {
         <p style={{ ...prosa, fontSize: 13.5, color: C.grafite }}>Nenhum adversário scoutado ainda.</p>
       ) : (
         adversarios.map((adv) => (
-          <CartaoAdversario key={adv.id} adversario={adv} aluno={aluno} planoAtual={planoAtual}
+          <CartaoAdversario key={adv.id} adversario={adv} aluno={aluno}
             aoAtualizar={(patch) => atualizar(adv.id, patch)} aoApagar={() => apagar(adv.id)} />
         ))
       )}
@@ -16160,7 +16149,7 @@ function App() {
              subaba === "scout" ? <TelaScout aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
              subaba === "registro" ? <TelaRegistro aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade} /> :
              subaba === "estilo" ? <TelaEstiloTatico aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
-             subaba === "adversarios" ? <TelaAdversarios aluno={aberto} alunos={alunos} setAlunos={setAlunos} planoAtual={planoAtual} /> :
+             subaba === "adversarios" ? <TelaAdversarios aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
              <TelaSessao aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} papelAtual={papelAtual} uidAtual={uidAtual}
                exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} />}
           </div>
