@@ -7655,6 +7655,36 @@ const FIM_PONTO = [
    gráfico os jogos com reg.scout (jogos salvos antes dessa métrica
    existir ficam de fora daqui, mas continuam na tabela de comparação
    como "—"). Ordem cronológica (mais antigo primeiro), igual ao tempo. */
+/* Compara o primeiro com o último jogo registrado — é a resposta direta
+   a "teve evolução ou não", sem depender de olhar a inclinação da linha
+   no gráfico. maiorEhMelhor diz se subir é bom (protocolo) ou ruim
+   (erros, ataques perdidos). */
+function tendenciaScout(primeiro, ultimo, maiorEhMelhor) {
+  const delta = ultimo - primeiro;
+  const estavel = delta === 0;
+  const melhorou = maiorEhMelhor ? delta > 0 : delta < 0;
+  return {
+    delta,
+    cor: estavel ? C.grafite : (melhorou ? "#1F6B4A" : "#A6432F"),
+    seta: estavel ? "→" : (delta > 0 ? "▲" : "▼"),
+  };
+}
+
+function CartaoTendencia({ rotulo, primeiro, ultimo, sufixo, maiorEhMelhor }) {
+  const t = tendenciaScout(primeiro, ultimo, maiorEhMelhor);
+  return (
+    <div style={{ flex: 1, minWidth: 140, background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "9px 12px" }}>
+      <p style={{ ...prosa, fontSize: 11, color: C.grafite }}>{rotulo}</p>
+      <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginTop: 2 }}>
+        {primeiro}{sufixo} <span style={{ color: C.grafite, fontWeight: 400 }}>→</span> {ultimo}{sufixo}
+      </p>
+      <p style={{ ...prosa, fontSize: 11.5, color: t.cor, fontWeight: 600, marginTop: 1 }}>
+        {t.seta} {t.delta > 0 ? "+" : ""}{t.delta}{sufixo} desde o primeiro jogo registrado
+      </p>
+    </div>
+  );
+}
+
 function EvolucaoScout({ jogos }) {
   const comScout = jogos.filter((r) => r.scout);
   const dados = comScout.map((r, i) => ({
@@ -7664,9 +7694,19 @@ function EvolucaoScout({ jogos }) {
     pctErrosCurtos: r.scout.pctErrosCurtos,
   }));
   if (dados.length < 2) return null;
+  const primeiro = comScout[0].scout;
+  const ultimo = comScout[comScout.length - 1].scout;
   return (
     <div className="mb-5">
       <div className="mb-2"><Etiqueta>Evolução ao longo dos jogos</Etiqueta></div>
+      <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 10 }}>
+        Comparação direta entre o primeiro e o último jogo com scout salvo — pra responder, de cara, se o jogador está evoluindo.
+      </p>
+      <div className="flex flex-wrap gap-2 mb-3">
+        <CartaoTendencia rotulo="Protocolo entre pontos" primeiro={primeiro.pctProtocolo} ultimo={ultimo.pctProtocolo} sufixo="%" maiorEhMelhor={true} />
+        <CartaoTendencia rotulo="Erros na bola 1–2" primeiro={primeiro.pctErrosCurtos} ultimo={ultimo.pctErrosCurtos} sufixo="%" maiorEhMelhor={false} />
+        <CartaoTendencia rotulo="Ataques perdidos" primeiro={primeiro.ataquePerdido} ultimo={ultimo.ataquePerdido} sufixo="" maiorEhMelhor={false} />
+      </div>
       <div style={{ height: 180, marginLeft: -18 }}>
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={dados}>
