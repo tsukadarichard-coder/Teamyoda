@@ -14452,6 +14452,328 @@ function proximaAulaDaTurma(turma) {
   return { dia: prox.dia, hora: prox.hora, diaLabel: hoje ? "Hoje" : amanha ? "Amanhã" : nomeDia(prox.dia) };
 }
 
+/* ── OCORRÊNCIAS DE AULA ──────────────────────────────────────────────
+   Cada encontro de verdade, numa DATA específica, com status e presença
+   próprios — diferente de `horarios` (grade semanal recorrente, sem
+   data) e de `regPlano` (progresso no plano de treino, numerado por
+   aula do plano, não por data de calendário). As três coisas convivem:
+   `horarios` diz QUANDO a turma/jogador treina toda semana; uma
+   ocorrência é UMA dessas datas específicas; `regPlano` continua
+   controlando só o conteúdo/progresso do plano de treino.
+
+   Guardadas em orgs/{org}/dados/mty:ocorrencias:v1, mesmo padrão de
+   array-blob dos outros dados (quadras, reservas, bloqueios). */
+const TIPOS_OCORRENCIA = [
+  { v: "regular", r: "Aula regular" },
+  { v: "experimental", r: "Aula experimental" },
+  { v: "reposicao", r: "Reposição" },
+  { v: "locacao", r: "Locação" },
+  { v: "bloqueio", r: "Bloqueio" },
+];
+function rotuloTipoOcorrencia(v) { return (TIPOS_OCORRENCIA.find((t) => t.v === v) || {}).r || v; }
+function chaveRecorrencia(origemTipo, origemId, dia, hora) { return origemTipo + ":" + origemId + ":" + dia + ":" + hora; }
+function novaOcorrencia(base) {
+  const agora = new Date().toISOString();
+  return {
+    id: "oc" + Date.now() + Math.random().toString(36).slice(2, 7),
+    origemTipo: "avulsa", origemId: null, recorrenciaChave: null,
+    data: "", horaInicio: "", horaFim: "", quadraId: "",
+    professorUid: "", professorNome: "", professorAuxiliarUid: "", professorAuxiliarNome: "",
+    substitutoUid: "", substitutoNome: "",
+    tipo: "regular", status: "agendada",
+    duracaoEfetivaMin: null, motivoCancelamento: "", observacoes: "",
+    presencas: {},
+    criadoEm: agora, atualizadoEm: agora,
+    ...base,
+  };
+}
+function dataISO(d) { return d.toISOString().slice(0, 10); }
+function diaDaSemanaISO(iso) { return new Date(iso + "T00:00:00").getDay(); }
+function listaDatasEntre(inicioISO, fimISO) {
+  const out = [];
+  let d = new Date(inicioISO + "T00:00:00");
+  const fim = new Date(fimISO + "T00:00:00");
+  while (d <= fim) { out.push(dataISO(d)); d = new Date(d.getTime() + 86400000); }
+  return out;
+}
+
+/* Gera só as ocorrências que ainda faltam pro intervalo [inicioISO,
+   fimISO], a partir dos `horarios` fixos de alunos e turmas —
+   idempotente: nunca recria uma ocorrência que já existe pra
+   (recorrenciaChave, data), não importa o status atual (mesmo cancelada
+   ou realizada continua contando como "já existe", pra mudança na
+   recorrência não trazer de volta uma aula que o treinador já tratou).
+   Datas de feriado/bloqueio da unidade não geram ocorrência nenhuma. */
+function gerarOcorrenciasFaltantes(ocorrenciasExistentes, alunos, turmas, inicioISO, fimISO, feriados) {
+  const feriadosSet = new Set((feriados || []).map((f) => (typeof f === "string" ? f : f.data)));
+  const existentesPorChaveData = new Set(ocorrenciasExistentes.map((o) => o.recorrenciaChave + "|" + o.data));
+  const datas = listaDatasEntre(inicioISO, fimISO);
+  const novas = [];
+  function processar(origemTipo, origemId, horarios, duracaoPadrao, professorUid, professorNome, professorAuxiliarUid, professorAuxiliarNome) {
+    (horarios || []).forEach((h) => {
+      datas.forEach((data) => {
+        if (diaDaSemanaISO(data) !== h.dia) return;
+        if (feriadosSet.has(data)) return;
+        const chave = chaveRecorrencia(origemTipo, origemId, h.dia, h.hora);
+        if (existentesPorChaveData.has(chave + "|" + data)) return;
+        novas.push(novaOcorrencia({
+          origemTipo, origemId, recorrenciaChave: chave, data,
+          horaInicio: h.hora, horaFim: horaMaisMinutos(h.hora, minutosDaDuracao(duracaoPadrao)),
+          quadraId: h.quadraId || "", tipo: "regular",
+          professorUid: professorUid || "", professorNome: professorNome || "",
+          professorAuxiliarUid: professorAuxiliarUid || "", professorAuxiliarNome: professorAuxiliarNome || "",
+        }));
+        existentesPorChaveData.add(chave + "|" + data); // evita duplicar dentro da própria passada
+      });
+    });
+  }
+  turmas.forEach((t) => processar("turma", t.id, t.horarios, t.duracaoPadrao, t.professorUid, t.professorNome, t.professorAuxiliarUid, t.professorAuxiliarNome));
+  alunos.forEach((a) => processar("individual", a.id, a.horarios, a.duracaoPadrao, a.professorUid, a.professorNome, "", ""));
+  return novas;
+}
+
+/* Jogadores de uma ocorrência — individual é só ele mesmo; turma é cada
+   membro, tratado individualmente (pedido: "tratar individualmente os
+   alunos de aulas em grupo", tanto pra presença quanto pra conflito). */
+function alunosDaOcorrencia(oc, turmas) {
+  if (oc.origemTipo === "individual") return oc.origemId ? [oc.origemId] : [];
+  if (oc.origemTipo === "turma") {
+    const t = turmas.find((x) => x.id === oc.origemId);
+    return t ? t.membros || [] : [];
+  }
+  return [];
+}
+
+/* Conflito de recurso (quadra, professor, aluno) entre uma ocorrência
+   candidata e as já existentes — ignora canceladas (liberam o horário) e
+   a própria candidata quando já tem id (edição em vez de criação). Dois
+   professores na MESMA ocorrência (titular + auxiliar) não são conflito
+   entre si — só contam como conflito quando aparecem em ocorrências
+   DIFERENTES na mesma faixa de horário. */
+function conflitosDeOcorrencia(ocorrencias, candidata, turmas) {
+  const alunosCandidata = new Set(alunosDaOcorrencia(candidata, turmas));
+  const profsCandidata = [candidata.professorUid, candidata.professorAuxiliarUid, candidata.substitutoUid].filter(Boolean);
+  const conflitos = [];
+  ocorrencias.forEach((o) => {
+    if (candidata.id && o.id === candidata.id) return;
+    if (o.status === "cancelada") return;
+    if (o.data !== candidata.data) return;
+    if (!(o.horaInicio < candidata.horaFim && o.horaFim > candidata.horaInicio)) return;
+    if (candidata.quadraId && o.quadraId === candidata.quadraId) conflitos.push({ tipo: "quadra", ocorrencia: o });
+    const profsO = [o.professorUid, o.professorAuxiliarUid, o.substitutoUid].filter(Boolean);
+    if (profsO.some((p) => profsCandidata.includes(p))) conflitos.push({ tipo: "professor", ocorrencia: o });
+    const alunosO = alunosDaOcorrencia(o, turmas);
+    if (alunosO.some((id) => alunosCandidata.has(id))) conflitos.push({ tipo: "aluno", ocorrencia: o });
+  });
+  return conflitos;
+}
+
+/* Nome + identificação de quem está sendo acompanhado numa ocorrência —
+   "Turma X (6 jogadores)" ou o nome do jogador individual. */
+function tituloOcorrencia(oc, alunos, turmas) {
+  if (oc.origemTipo === "turma") {
+    const t = turmas.find((x) => x.id === oc.origemId);
+    return t ? t.nome + " (" + plural((t.membros || []).length, "jogador", "jogadores") + ")" : "Turma removida";
+  }
+  if (oc.origemTipo === "individual") {
+    const a = alunos.find((x) => x.id === oc.origemId);
+    return a ? a.nome || "Sem nome" : "Jogador removido";
+  }
+  return rotuloTipoOcorrencia(oc.tipo);
+}
+
+/* Cartão de uma ocorrência em "Aulas de hoje" — lista fechada (horário,
+   quadra, título, status); expande pra chamada e registro. Presença é
+   independente do status da aula (pedido: "uma turma pode ter aula
+   realizada mesmo com alunos ausentes; uma aula cancelada por chuva não
+   deve marcar todos como faltantes" — por isso cancelar não mexe em
+   `presencas`, e confirmar presença não muda `status`). */
+function CartaoOcorrencia({ ocorrencia: oc, alunos, turmas, quadras, aberta, aoAbrir, aoAtualizar }) {
+  const [professores, setProfessores] = useState([]);
+  const [cancelando, setCancelando] = useState(false);
+  const [motivo, setMotivo] = useState(oc.motivoCancelamento || "");
+  const [duracaoEfetiva, setDuracaoEfetiva] = useState(oc.duracaoEfetivaMin || "");
+
+  useEffect(() => { if (aberta && professores.length === 0) listaProfessores().then(setProfessores); }, [aberta]);
+
+  const membros = alunosDaOcorrencia(oc, turmas).map((id) => alunos.find((a) => a.id === id)).filter(Boolean);
+  const quadra = (quadras || []).find((q) => q.id === oc.quadraId);
+  const hoje = new Date().toISOString().slice(0, 10);
+  const pendente = oc.status === "agendada" && oc.data < hoje;
+  const duracaoPrevista = (() => {
+    const [h1, m1] = oc.horaInicio.split(":").map(Number);
+    const [h2, m2] = oc.horaFim.split(":").map(Number);
+    return (h2 * 60 + m2) - (h1 * 60 + m1);
+  })();
+
+  function marcarPresenca(alunoId, valor) {
+    aoAtualizar({ presencas: { ...oc.presencas, [alunoId]: oc.presencas[alunoId] === valor ? null : valor } });
+  }
+  function confirmarRealizada() {
+    aoAtualizar({ status: "realizada", duracaoEfetivaMin: Number(duracaoEfetiva) || duracaoPrevista, motivoCancelamento: "" });
+  }
+  function confirmarCancelamento() {
+    if (!motivo.trim()) return;
+    aoAtualizar({ status: "cancelada", motivoCancelamento: motivo.trim() });
+    setCancelando(false);
+  }
+  function escolherSubstituto(uid) {
+    const p = professores.find((x) => x.uid === uid);
+    aoAtualizar({ substitutoUid: uid, substitutoNome: p ? p.nome : "" });
+  }
+
+  const corStatus = oc.status === "realizada" ? C.quadra : oc.status === "cancelada" ? "#A6432F" : pendente ? "#B8860B" : C.grafite;
+  const rotuloStatus = oc.status === "realizada" ? "Realizada" : oc.status === "cancelada" ? "Cancelada" : pendente ? "Registro pendente" : "Agendada";
+
+  return (
+    <div style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, padding: "12px 14px", marginBottom: 10 }}>
+      <button onClick={aoAbrir} className="w-full text-left" style={{ border: "none", background: "none", cursor: "pointer", padding: 0 }}>
+        <div className="flex items-center justify-between">
+          <div>
+            <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{oc.horaInicio}–{oc.horaFim} · {tituloOcorrencia(oc, alunos, turmas)}</p>
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>
+              {quadra ? quadra.nome : "Sem quadra definida"}{oc.professorNome ? " · prof. " + oc.professorNome : ""}
+              {oc.tipo !== "regular" ? " · " + rotuloTipoOcorrencia(oc.tipo) : ""}
+            </p>
+          </div>
+          <span style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, color: corStatus, border: "1px solid " + corStatus, borderRadius: 999, padding: "3px 9px", whiteSpace: "nowrap" }}>
+            {rotuloStatus}
+          </span>
+        </div>
+      </button>
+
+      {aberta && (
+        <div className="mt-3" style={{ borderTop: "1px solid " + C.linha, paddingTop: 12 }}>
+          {membros.length > 0 && (
+            <div className="mb-3">
+              <Etiqueta>Chamada</Etiqueta>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {membros.map((al) => {
+                  const p = oc.presencas[al.id];
+                  return (
+                    <div key={al.id} className="flex items-center gap-1" style={{ border: "1px solid " + C.linha, borderRadius: 10, padding: "4px 8px" }}>
+                      <span style={{ ...prosa, fontSize: 12.5 }}>{al.nome || "Sem nome"}</span>
+                      <button onClick={() => marcarPresenca(al.id, "presente")}
+                        style={{ border: "none", background: "none", cursor: "pointer", fontSize: 13, color: p === "presente" ? C.quadra : C.linha }}>✓</button>
+                      <button onClick={() => marcarPresenca(al.id, "falta")}
+                        style={{ border: "none", background: "none", cursor: "pointer", fontSize: 13, color: p === "falta" ? "#A6432F" : C.linha }}>✕</button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {oc.status !== "cancelada" && (
+            <div className="flex gap-2 items-center flex-wrap mb-2">
+              {oc.status !== "realizada" && (
+                <>
+                  <input type="number" min="0" style={{ ...entrada, width: 90 }} placeholder={String(duracaoPrevista)}
+                    value={duracaoEfetiva} onChange={(e) => setDuracaoEfetiva(e.target.value)} />
+                  <Botao pequeno onClick={confirmarRealizada}>Confirmar realizada</Botao>
+                </>
+              )}
+              {!cancelando ? (
+                <Botao pequeno variante="vazio" onClick={() => setCancelando(true)}>Cancelar aula</Botao>
+              ) : (
+                <>
+                  <input style={{ ...entrada, width: 200 }} placeholder="motivo · ex: chuva" value={motivo} onChange={(e) => setMotivo(e.target.value)} />
+                  <Botao pequeno onClick={confirmarCancelamento} disabled={!motivo.trim()}>Confirmar cancelamento</Botao>
+                </>
+              )}
+            </div>
+          )}
+          {oc.status === "realizada" && (
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 8 }}>
+              Duração efetiva registrada: {oc.duracaoEfetivaMin} min.
+            </p>
+          )}
+          {oc.status === "cancelada" && (
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 8 }}>Motivo: {oc.motivoCancelamento}</p>
+          )}
+
+          <Campo rotulo="Professor substituto / auxiliar nesta aula" nota="Deixe em branco se foi o professor titular mesmo.">
+            <select style={entrada} value={oc.substitutoUid} onChange={(e) => escolherSubstituto(e.target.value)}>
+              <option value="">Sem substituto</option>
+              {professores.filter((p) => p.uid !== oc.professorUid).map((p) => <option key={p.uid} value={p.uid}>{p.nome}</option>)}
+            </select>
+          </Campo>
+
+          <Campo rotulo="Observações">
+            <textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={oc.observacoes}
+              onChange={(e) => aoAtualizar({ observacoes: e.target.value })} />
+          </Campo>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* "Aulas de hoje" — prioridade mobile do pedido: lista do dia do
+   professor logado (coordenador vê de todo mundo), com chamada inline.
+   Garante que as ocorrências do dia existam (gera a partir de `horarios`
+   se ainda não tiverem sido geradas) e também varre os últimos 14 dias
+   pra levantar "registro pendente" (aula que já passou e ninguém
+   preencheu — nunca vira "realizada" sozinha). */
+function TelaAulasHoje({ alunos, turmas, quadras, ocorrencias, setOcorrencias, uidAtual, papelAtual }) {
+  const hoje = new Date().toISOString().slice(0, 10);
+  const geradasRef = useRef(false);
+  useEffect(() => {
+    if (geradasRef.current) return;
+    geradasRef.current = true;
+    const inicio = dataISO(new Date(Date.now() - 14 * 86400000));
+    const novas = gerarOcorrenciasFaltantes(ocorrencias, alunos, turmas, inicio, hoje, []);
+    if (novas.length) setOcorrencias([...ocorrencias, ...novas]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const [abertaId, setAbertaId] = useState(null);
+  function atualizar(id, patch) {
+    setOcorrencias(ocorrencias.map((o) => (o.id === id ? { ...o, ...patch, atualizadoEm: new Date().toISOString() } : o)));
+  }
+  function minhas(lista) {
+    return papelAtual === "coordenador" ? lista
+      : lista.filter((o) => o.professorUid === uidAtual || o.professorAuxiliarUid === uidAtual || o.substitutoUid === uidAtual);
+  }
+  const deHoje = minhas(ocorrencias.filter((o) => o.data === hoje)).sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
+  const pendentes = minhas(ocorrencias.filter((o) => o.status === "agendada" && o.data < hoje))
+    .sort((a, b) => b.data.localeCompare(a.data) || a.horaInicio.localeCompare(b.horaInicio));
+
+  return (
+    <div>
+      <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Aulas de hoje</h1>
+      <p style={{ ...prosa, fontSize: 14, color: C.grafite, marginBottom: 16 }}>
+        {new Date(hoje + "T00:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}
+      </p>
+
+      {deHoje.length === 0 ? (
+        <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginBottom: 20 }}>Nenhuma aula sua hoje.</p>
+      ) : (
+        <div className="mb-6">
+          {deHoje.map((o) => (
+            <CartaoOcorrencia key={o.id} ocorrencia={o} alunos={alunos} turmas={turmas} quadras={quadras}
+              aberta={abertaId === o.id} aoAbrir={() => setAbertaId(abertaId === o.id ? null : o.id)}
+              aoAtualizar={(patch) => atualizar(o.id, patch)} />
+          ))}
+        </div>
+      )}
+
+      {pendentes.length > 0 && (
+        <div>
+          <Etiqueta cor={C.grafite}>Registro pendente — aulas passadas sem preenchimento</Etiqueta>
+          <div className="mt-2">
+            {pendentes.map((o) => (
+              <CartaoOcorrencia key={o.id} ocorrencia={o} alunos={alunos} turmas={turmas} quadras={quadras}
+                aberta={abertaId === o.id} aoAbrir={() => setAbertaId(abertaId === o.id ? null : o.id)}
+                aoAtualizar={(patch) => atualizar(o.id, patch)} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* Um plano "precisa de revisão" quando a ficha de quem ele atende mudou
    depois que ele foi gerado — mesmo sinal que o aviso dentro de TelaPlano
    (fichaMudouDepoisDoPlano), só agregado aqui pra aparecer no Dashboard
@@ -15222,7 +15544,7 @@ function TelaAgenda({ alunos, turmas, uidAtual, exigeLogin }) {
 }
 const celulaGrade = { border: "1px solid " + C.linha, padding: "8px 10px", verticalAlign: "top" };
 
-const NAV_PRINCIPAL = [{ v: "dashboard", r: "Dashboard" }, { v: "alunos", r: "Jogadores" }, { v: "turmas", r: "Turmas" }, { v: "agenda", r: "Agenda" }, { v: "casos", r: "Casos" }];
+const NAV_PRINCIPAL = [{ v: "dashboard", r: "Dashboard" }, { v: "aulas-hoje", r: "Aulas de hoje" }, { v: "alunos", r: "Jogadores" }, { v: "turmas", r: "Turmas" }, { v: "agenda", r: "Agenda" }, { v: "casos", r: "Casos" }];
 const NAV_MANUAL = [{ v: "catalogo", r: "Catálogo" }, { v: "tecnica", r: "Técnica" }, { v: "taticas", r: "Táticas" },
   { v: "conducao", r: "Condução" }, { v: "publicos", r: "Públicos" }, { v: "aulas", r: "Aulas" }, { v: "metodo", r: "Como decide" }];
 
@@ -15240,6 +15562,8 @@ function App() {
   const [carregandoEventos, setCarregandoEventos] = useState(true);
   const [bloqueiosAula, setBloqueiosAula] = useState([]);
   const [carregandoBloqueiosAula, setCarregandoBloqueiosAula] = useState(true);
+  const [ocorrencias, setOcorrencias] = useState([]);
+  const [carregandoOcorrencias, setCarregandoOcorrencias] = useState(true);
   const [exerciciosCustom, setExerciciosCustom] = useState([]);
   const [carregandoCustom, setCarregandoCustom] = useState(true);
   /* Formação da equipe, no App (não em TelaEquipe): tanto a aba "Formação"
@@ -15486,6 +15810,7 @@ function App() {
     setCarregandoTorneios(true);
     setCarregandoEventos(true);
     setCarregandoBloqueiosAula(true);
+    setCarregandoOcorrencias(true);
     leia("mty:alunos:v2", []).then((a) => { setAlunos(a); prontoRef.current.alunos = true; setCarregando(false); });
     leia("mty:turmas:v1", [], true).then((t) => { setTurmas(t); prontoRef.current.turmas = true; setCarregandoTurmas(false); });
     leia("mty:exerciciosCustom:v1", [], true).then((ex) => { setExerciciosCustom(ex); setCatalogoCustom(ex); prontoRef.current.exerciciosCustom = true; setCarregandoCustom(false); });
@@ -15495,6 +15820,7 @@ function App() {
     leia("mty:torneios:v1", [], true).then((t) => { setTorneios(t); prontoRef.current.torneios = true; setCarregandoTorneios(false); });
     leia("mty:eventos:v1", [], true).then((e) => { setEventos(e); prontoRef.current.eventos = true; setCarregandoEventos(false); });
     leia("mty:bloqueiosAula:v1", [], true).then((b) => { setBloqueiosAula(b); prontoRef.current.bloqueiosAula = true; setCarregandoBloqueiosAula(false); });
+    leia("mty:ocorrencias:v1", [], true).then((o) => { setOcorrencias(o); prontoRef.current.ocorrencias = true; setCarregandoOcorrencias(false); });
     leia("mty:onboardingDispensado", false, true).then((v) => { setOnboardingDispensado(v); prontoRef.current.onboarding = true; });
 }, [autenticado, orgAtual]);
   useEffect(() => { if (autenticado && !carregando && prontoRef.current.alunos) grave("mty:alunos:v2", alunos); }, [alunos, carregando, autenticado]);
@@ -15504,6 +15830,7 @@ function App() {
   useEffect(() => { if (autenticado && !carregandoTorneios && prontoRef.current.torneios) grave("mty:torneios:v1", torneios, true); }, [torneios, carregandoTorneios, autenticado]);
   useEffect(() => { if (autenticado && !carregandoEventos && prontoRef.current.eventos) grave("mty:eventos:v1", eventos, true); }, [eventos, carregandoEventos, autenticado]);
   useEffect(() => { if (autenticado && !carregandoBloqueiosAula && prontoRef.current.bloqueiosAula) grave("mty:bloqueiosAula:v1", bloqueiosAula, true); }, [bloqueiosAula, carregandoBloqueiosAula, autenticado]);
+  useEffect(() => { if (autenticado && !carregandoOcorrencias && prontoRef.current.ocorrencias) grave("mty:ocorrencias:v1", ocorrencias, true); }, [ocorrencias, carregandoOcorrencias, autenticado]);
   useEffect(() => { if (autenticado && !carregandoFormacao && prontoRef.current.formacao) grave("mty:formacao:v1", membrosFormacao, true); }, [membrosFormacao, carregandoFormacao, autenticado]);
   useEffect(() => { if (autenticado && prontoRef.current.onboarding) grave("mty:onboardingDispensado", onboardingDispensado, true); }, [onboardingDispensado, autenticado]);
   // sincronizado durante o render (não num useEffect): TelaCatalogo e as
@@ -15974,6 +16301,7 @@ function App() {
          aba === "eventos" && mostraTorneiosEventos ? <TelaEventos eventos={eventos} setEventos={setEventos} orgAtual={orgAtual} /> :
          aba === "clientes" && (mostraQuadras || mostraTorneiosEventos) ? <TelaClientes quadras={quadras} reservas={reservas} torneios={torneios} eventos={eventos} /> :
          aba === "agenda" ? <TelaAgenda alunos={alunos} turmas={turmas} uidAtual={uidAtual} exigeLogin={exigeLogin} /> :
+         aba === "aulas-hoje" ? <TelaAulasHoje alunos={alunos} turmas={turmas} quadras={quadras} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} uidAtual={uidAtual} papelAtual={papelAtual} /> :
          aba === "dashboard" ? <TelaDashboard alunos={alunos} turmas={turmas} papelAtual={papelAtual} uidAtual={uidAtual} exigeLogin={exigeLogin} usoIA={usoIA} identidade={identidade}
            irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }}
            aoAbrirSessao={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("sessao"); }}
