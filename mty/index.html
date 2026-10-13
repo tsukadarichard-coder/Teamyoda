@@ -4357,6 +4357,11 @@ function novoAluno() {
     professorUid: "", professorNome: "", horarios: [], duracaoPadrao: "1h30",
     categoria: "", criteriosClassificacao: {},
     classificacaoSugeridaEm: null,
+    /* false só pra quem nasce por aqui (jogador novo) — fichas
+       existentes de antes desta propriedade existir vêm undefined, que
+       conta como concluído (ver cadastroConcluido em App/TelaFicha):
+       assim o comportamento de quem já usava a plataforma não muda. */
+    cadastroConcluido: false,
   };
 }
 
@@ -5650,6 +5655,21 @@ function CartaoNivel({ f, aoAbrirAvaliacao }) {
    distinção que dá o estado Não avaliado/Parcial/Preenchido do golpe. */
 function estadoCampoFicha(v) { return v === NS || (v && v.trim()) ? "respondido" : "vazio"; }
 
+/* Mesmos critérios de pendências do resumo da etapa 5 (Revisão), só que
+   aplicados direto no cadastro salvo — usado pela lista de Jogadores pra
+   saber em que etapa retomar um rascunho, sem precisar abrir a ficha. */
+function primeiraEtapaPendente(a) {
+  if (!a.nome || !a.nascimento || !a.lateralidade || !a.backhand) return 1;
+  if ((a.horarios || []).length === 0) return 2;
+  const st = statusTrilha(a);
+  if (st && st.feitos === 0) return 3;
+  const entrada = a.entrada || {};
+  const golpesPendentes = GOLPES_ENTRADA.some((g) =>
+    estadoCampoFicha(entrada["g_" + g + "_ok"]) === "vazio" && estadoCampoFicha(entrada["g_" + g + "_falha"]) === "vazio");
+  if (golpesPendentes || !a.perfilCorpo || !a.perfilTemperamento) return 4;
+  return null;
+}
+
 function formatarDataHoraCurta(iso) {
   if (!iso) return "";
   const d = new Date(iso);
@@ -5886,7 +5906,7 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
   async function concluirFicha() {
     const primeiraClassificacao = !aluno.classificacaoSugeridaEm && (f.camadas.tecnico || "").trim().length > 0;
     const agora = new Date().toISOString();
-    const { ok, dados } = await persistir({ fichaAtualizadaEm: agora, ...(primeiraClassificacao ? { classificacaoSugeridaEm: agora } : {}) });
+    const { ok, dados } = await persistir({ fichaAtualizadaEm: agora, cadastroConcluido: true, ...(primeiraClassificacao ? { classificacaoSugeridaEm: agora } : {}) });
     if (!ok) { setRetry(() => concluirFicha); return; }
     setRetry(null);
     setEditando(false);
@@ -6472,7 +6492,7 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
           </Botao>
         ) : (
           <Botao variante="saibro" onClick={concluirFicha} disabled={estadoSalvo === "salvando" || sugerindoAuto}>
-            {estadoSalvo === "salvando" ? "Salvando…" : "Concluir ficha"}
+            {estadoSalvo === "salvando" ? "Salvando…" : (aluno.cadastroConcluido !== false ? "Concluir ficha" : "Concluir cadastro")}
           </Botao>
         )}
       </div>
@@ -14990,6 +15010,15 @@ function App() {
   const [onboardingDispensado, setOnboardingDispensado] = useState(false);
   const [opcoesJogadorAberto, setOpcoesJogadorAberto] = useState(false);
   const [maisSubabaAberto, setMaisSubabaAberto] = useState(false);
+  const [seletorSecaoAberto, setSeletorSecaoAberto] = useState(false);
+  /* As seções escondidas atrás de "Mais" podem passar da largura visível
+     da barra com rolagem horizontal, e o navegador não rola sozinho pra
+     revelar o botão. Esse efeito rola a barra até o próprio botão sempre
+     que a aba ativa muda, pra ele nunca ficar cortado na borda da tela. */
+  const maisBotaoRef = useRef(null);
+  useEffect(() => {
+    if (maisBotaoRef.current) maisBotaoRef.current.scrollIntoView({ behavior: "smooth", inline: "end", block: "nearest" });
+  }, [subaba]);
   const [manualAberto, setManualAberto] = useState(false);
   const manualRef = useRef(null);
   const manualAbriuEm = useRef(0);
@@ -15352,7 +15381,14 @@ function App() {
         button:active:not(:disabled) { transform: scale(0.96); opacity: 0.75; }
         .mty-sidebar { transition: transform .2s ease; }
         .mty-hamburger { display: none; }
+        /* Navegação interna do jogador (Perfil/Planejamento/Aulas/Resumo do
+           ciclo/Mais): no computador são abas; no celular, uma barra de
+           abas comprimindo 5+ nomes em uma linha fica ilegível, então vira
+           um seletor "Seção: X ⌄" que abre a lista completa por baixo. */
+        .qlab-subnav-jogador-mobile { display: none; }
         @media (max-width: 760px) {
+          .qlab-subnav-jogador-desktop { display: none !important; }
+          .qlab-subnav-jogador-mobile { display: block !important; }
           /* Em pé no celular, os 252px fixos da barra não sobram do lado
              do conteúdo — ela vira uma gaveta escondida fora da tela à
              esquerda por padrão, e desliza por cima de tudo (nunca
@@ -15662,39 +15698,56 @@ function App() {
            aoAdicionarJogador={() => { criar(); setAba("alunos"); }}
            aoEditarDados={(id, et) => { setAba("alunos"); setAbertoId(id); setSubaba("ficha"); setEtapaFichaAlvo(et); }}
            onboardingDispensado={onboardingDispensado} setOnboardingDispensado={setOnboardingDispensado} /> :
-         aberto ? (
+         aberto ? (() => {
+          /* "Durante a criação de um novo jogador" é o cadastro inteiro,
+             não só a primeira tela com nome vazio: aluno.cadastroConcluido
+             nasce `false` só em quem é criado por este fluxo (ver
+             novoAluno) e vira `true` quando o treinador clica em
+             "Concluir cadastro" (ver TelaFicha/concluirFicha) —
+             independente de haver ou não pendências (ver primeiraEtapaPendente,
+             que continua separada: alimenta só o aviso "Continuar
+             cadastro — etapa X" na lista, não esta navegação). Fichas de
+             antes desta propriedade existir vêm `undefined`, que conta
+             como concluído — comportamento de quem já usava a
+             plataforma não muda. */
+          const cadastroCompleto = aberto.cadastroConcluido !== false;
+          return (
           <div>
             <div className="flex items-center justify-between gap-3 mb-3">
-              <button onClick={() => tentarNavegar(() => setAbertoId(null))} style={{ ...prosa, fontSize: 13.5, color: C.grafite, cursor: "pointer", background: "none", border: "none", padding: 0, minHeight: 32 }}>← Todos os jogadores</button>
-              <div style={{ position: "relative" }}>
-                <button onClick={() => setOpcoesJogadorAberto((v) => !v)} aria-label="Opções do jogador" aria-haspopup="true" aria-expanded={opcoesJogadorAberto}
-                  style={{ width: 36, height: 36, border: "1px solid " + C.linha, borderRadius: 10, background: C.cal, color: C.grafite, cursor: "pointer", fontSize: 16, lineHeight: 1 }}>
-                  ⋯
-                </button>
-                {opcoesJogadorAberto && (
-                  <>
-                    <div onClick={() => setOpcoesJogadorAberto(false)} style={{ position: "fixed", inset: 0, zIndex: 29 }} />
-                    <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, background: C.cal, border: "1px solid " + C.linha,
-                      borderRadius: 10, boxShadow: SOMBRA_ALTA, zIndex: 30, minWidth: 190, overflow: "hidden" }}>
-                      <button onClick={() => { setOpcoesJogadorAberto(false); removerAluno(aberto.id); }} className="w-full text-left"
-                        style={{ padding: "11px 14px", border: "none", background: "none", cursor: "pointer", fontFamily: ARCH, fontSize: 13.5, fontWeight: 600, color: "#B3261E", minHeight: 44 }}>
-                        Remover jogador
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
+              <button onClick={() => tentarNavegar(() => setAbertoId(null))} style={{ ...prosa, fontSize: 13.5, color: C.grafite, cursor: "pointer", background: "none", border: "none", padding: 0, minHeight: 32 }}>
+                ← {cadastroCompleto ? "Todos os jogadores" : "Jogadores"}
+              </button>
+              {cadastroCompleto && (
+                <div style={{ position: "relative" }}>
+                  <button onClick={() => setOpcoesJogadorAberto((v) => !v)} aria-label="Opções do jogador" aria-haspopup="true" aria-expanded={opcoesJogadorAberto}
+                    style={{ width: 36, height: 36, border: "1px solid " + C.linha, borderRadius: 10, background: C.cal, color: C.grafite, cursor: "pointer", fontSize: 16, lineHeight: 1 }}>
+                    ⋯
+                  </button>
+                  {opcoesJogadorAberto && (
+                    <>
+                      <div onClick={() => setOpcoesJogadorAberto(false)} style={{ position: "fixed", inset: 0, zIndex: 29 }} />
+                      <div style={{ position: "absolute", top: "100%", right: 0, marginTop: 4, background: C.cal, border: "1px solid " + C.linha,
+                        borderRadius: 10, boxShadow: SOMBRA_ALTA, zIndex: 30, minWidth: 190, overflow: "hidden" }}>
+                        <button onClick={() => { setOpcoesJogadorAberto(false); removerAluno(aberto.id); }} className="w-full text-left"
+                          style={{ padding: "11px 14px", border: "none", background: "none", cursor: "pointer", fontFamily: ARCH, fontSize: 13.5, fontWeight: 600, color: "#B3261E", minHeight: 44 }}>
+                          Remover jogador
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
             <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, lineHeight: 1.1 }}>{aberto.nome || "Novo jogador"}</h1>
-            {(() => {
+            {!cadastroCompleto && (
+              <p style={{ ...prosa, color: C.grafite, marginTop: 4, marginBottom: 2 }}>Preencha os dados para começar o acompanhamento.</p>
+            )}
+            {cadastroCompleto && (() => {
               /* Durante a edição da própria ficha, estes cartões de resumo
                  (classificação, pedidos, aula em vigor) só duplicariam o que
                  já aparece dentro das etapas — ficam escondidos até fechar
                  a edição, pra priorizar nome, status, etapa e campos. */
               const mostrarResumo = subaba !== "ficha" || !editandoFicha;
-              if (!aberto.nome) {
-                return <div className="mt-2 mb-5"><Etiqueta cor={C.grafite}>Cadastro incompleto</Etiqueta></div>;
-              }
               if (!mostrarResumo) return null;
               return (
                 <>
@@ -15707,9 +15760,17 @@ function App() {
                 </>
               );
             })()}
-            {(() => {
+            {cadastroCompleto && (() => {
+              /* Rótulos revisados pra dizer o que a seção faz, não o nome
+                 interno do dado (Ficha -> Perfil, Plano -> Planejamento);
+                 "Fechamento" virou "Resumo do ciclo" porque também reúne o
+                 encerramento formal do ciclo. */
+              const principais = [{ v: "ficha", r: "Perfil" }, { v: "plano", r: "Planejamento" }, { v: "aulas", r: "Aulas" }, { v: "fechamento", r: "Resumo do ciclo" }];
               const itensMais = [{ v: "periodizacao", r: "Periodização" }, { v: "sessao", r: "Sessão de hoje" }, { v: "scout", r: "Análise de partida" }, { v: "registro", r: "Caderno" }];
+              const todasSecoes = [...principais, ...itensMais];
               const maisAtivo = itensMais.some((t) => t.v === subaba);
+              const secaoAtual = todasSecoes.find((t) => t.v === subaba) || principais[0];
+              function irPara(v) { tentarNavegar(() => { setSubaba(v); setMaisSubabaAberto(false); setSeletorSecaoAberto(false); }); }
               return (
                 <div className="mb-6">
                   {/* Identificação compacta do jogador: some atrás do h1 no
@@ -15720,45 +15781,77 @@ function App() {
                   <div style={{ position: "sticky", top: 96, zIndex: 4, background: C.papel, padding: "4px 0" }}>
                     <Etiqueta cor={C.grafite}>{aberto.nome}</Etiqueta>
                   </div>
-                  {/* A lista de "Mais" não pode flutuar como popup absoluto aqui:
-                      esta barra de abas tem rolagem horizontal (overflow-x: auto)
-                      pra caber na tela, e isso faz o navegador cortar também
-                      qualquer coisa que vaze verticalmente de dentro dela — o
-                      popup abria (a setinha virava ▲) mas ficava invisível,
-                      cortado pelo próprio contêiner. Por isso a lista aparece
-                      abaixo da barra inteira, fora da área com scroll, igual ao
+                  {/* Computador: abas, como antes. A lista de "Mais" não pode
+                      flutuar como popup absoluto aqui: esta barra de abas tem
+                      rolagem horizontal (overflow-x: auto) pra caber na tela,
+                      e isso faz o navegador cortar também qualquer coisa que
+                      vaze verticalmente de dentro dela — o popup abria (a
+                      setinha virava ▲) mas ficava invisível, cortado pelo
+                      próprio contêiner. Por isso a lista aparece abaixo da
+                      barra inteira, fora da área com scroll, igual ao
                       dropdown do Manual na barra lateral. */}
-                  <div className="flex items-center" style={{ gap: 2, borderBottom: "1px solid " + C.linha, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-                    {[{ v: "ficha", r: "Ficha" }, { v: "plano", r: "Plano" }, { v: "aulas", r: "Aulas" }, { v: "fechamento", r: "Fechamento" }].map((t) => (
-                      <button key={t.v} onClick={() => tentarNavegar(() => { setSubaba(t.v); setMaisSubabaAberto(false); })}
-                        style={{ fontFamily: ARCH, fontSize: 13, fontWeight: subaba === t.v ? 700 : 500, padding: "10px 10px", cursor: "pointer", minHeight: 44,
-                          background: "none", border: "none", borderBottom: "2px solid " + (subaba === t.v ? C.saibro : "transparent"),
-                          color: subaba === t.v ? C.tinta : C.grafite, marginBottom: -1, flexShrink: 0, whiteSpace: "nowrap" }}>
-                        {t.r}
-                      </button>
-                    ))}
-                    <button onClick={() => setMaisSubabaAberto((v) => !v)} aria-haspopup="true" aria-expanded={maisSubabaAberto}
-                      style={{ fontFamily: ARCH, fontSize: 13, fontWeight: maisAtivo ? 700 : 500, padding: "10px 12px", cursor: "pointer", minHeight: 44,
-                        background: "none", border: "none", borderBottom: "2px solid " + (maisAtivo ? C.saibro : "transparent"),
-                        color: maisAtivo ? C.tinta : C.grafite, marginBottom: -1, flexShrink: 0, whiteSpace: "nowrap" }}>
-                      {(maisAtivo ? itensMais.find((t) => t.v === subaba).r : "Mais") + (maisSubabaAberto ? " ▲" : " ▼")}
-                    </button>
-                  </div>
-                  {maisSubabaAberto && (
-                    <div className="flex flex-wrap" style={{ gap: 6, padding: "10px 0 0" }}>
-                      {itensMais.map((t) => (
-                        <button key={t.v} onClick={() => tentarNavegar(() => { setSubaba(t.v); setMaisSubabaAberto(false); })}
+                  <div className="qlab-subnav-jogador-desktop">
+                    <div className="flex items-center" style={{ gap: 2, borderBottom: "1px solid " + C.linha, overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+                      {principais.map((t) => (
+                        <button key={t.v} onClick={() => irPara(t.v)}
                           aria-current={subaba === t.v ? "page" : undefined}
-                          style={{ padding: "8px 14px", borderRadius: 999, cursor: "pointer", minHeight: 36,
-                            border: "1px solid " + (subaba === t.v ? C.saibro : C.linha),
-                            background: subaba === t.v ? C.saibro : C.cal,
-                            fontFamily: ARCH, fontSize: 13, fontWeight: subaba === t.v ? 700 : 500,
-                            color: subaba === t.v ? "#fff" : C.tinta }}>
+                          style={{ fontFamily: ARCH, fontSize: 13, fontWeight: subaba === t.v ? 700 : 500, padding: "10px 10px", cursor: "pointer", minHeight: 44,
+                            background: "none", border: "none", borderBottom: "2px solid " + (subaba === t.v ? C.saibro : "transparent"),
+                            color: subaba === t.v ? C.tinta : C.grafite, marginBottom: -1, flexShrink: 0, whiteSpace: "nowrap" }}>
+                          {t.r}
+                        </button>
+                      ))}
+                      <button ref={maisBotaoRef} onClick={() => setMaisSubabaAberto((v) => !v)} aria-haspopup="true" aria-expanded={maisSubabaAberto}
+                        style={{ fontFamily: ARCH, fontSize: 13, fontWeight: maisAtivo ? 700 : 500, padding: "10px 12px", cursor: "pointer", minHeight: 44,
+                          background: "none", border: "none", borderBottom: "2px solid " + (maisAtivo ? C.saibro : "transparent"),
+                          color: maisAtivo ? C.tinta : C.grafite, marginBottom: -1, flexShrink: 0, whiteSpace: "nowrap" }}>
+                        {(maisAtivo ? itensMais.find((t) => t.v === subaba).r : "Mais") + (maisSubabaAberto ? " ▲" : " ▼")}
+                      </button>
+                    </div>
+                    {maisSubabaAberto && (
+                      <div className="flex flex-wrap" style={{ gap: 6, padding: "10px 0 0" }}>
+                        {itensMais.map((t) => (
+                          <button key={t.v} onClick={() => irPara(t.v)}
+                            aria-current={subaba === t.v ? "page" : undefined}
+                            style={{ padding: "8px 14px", borderRadius: 999, cursor: "pointer", minHeight: 36,
+                              border: "1px solid " + (subaba === t.v ? C.saibro : C.linha),
+                              background: subaba === t.v ? C.saibro : C.cal,
+                              fontFamily: ARCH, fontSize: 13, fontWeight: subaba === t.v ? 700 : 500,
+                              color: subaba === t.v ? "#fff" : C.tinta }}>
                           {t.r}
                         </button>
                       ))}
                     </div>
                   )}
+                  </div>
+
+                  {/* Celular: seletor único "Seção: X ⌄" — comprimir 8 nomes
+                      numa linha de abas rolante fica ilegível e o dedo erra o
+                      alvo; a lista expandida mostra o nome completo de cada
+                      seção (as que hoje vivem em "Mais" inclusive) e marca a
+                      atual, sem nada escondido atrás de abreviação. */}
+                  <div className="qlab-subnav-jogador-mobile">
+                    <button onClick={() => setSeletorSecaoAberto((v) => !v)} aria-haspopup="true" aria-expanded={seletorSecaoAberto}
+                      className="w-full flex items-center justify-between"
+                      style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, padding: "11px 14px", minHeight: 44,
+                        background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, color: C.tinta, cursor: "pointer" }}>
+                      <span>Seção: {secaoAtual.r}</span>
+                      <span aria-hidden="true">{seletorSecaoAberto ? "▲" : "⌄"}</span>
+                    </button>
+                    {seletorSecaoAberto && (
+                      <div role="listbox" aria-label="Seções do jogador" className="mt-1" style={{ border: "1px solid " + C.linha, borderRadius: 10, overflow: "hidden" }}>
+                        {todasSecoes.map((t) => (
+                          <button key={t.v} role="option" aria-selected={subaba === t.v} onClick={() => irPara(t.v)}
+                            className="w-full text-left"
+                            style={{ display: "block", padding: "12px 14px", minHeight: 44, border: "none", borderBottom: "1px solid " + C.linha,
+                              background: subaba === t.v ? C.saibro + "1a" : C.cal, cursor: "pointer",
+                              fontFamily: ARCH, fontSize: 14, fontWeight: subaba === t.v ? 700 : 500, color: subaba === t.v ? C.saibro : C.tinta }}>
+                            {subaba === t.v ? "✓ " : ""}{t.r}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               );
             })()}
@@ -15775,7 +15868,8 @@ function App() {
              <TelaSessao aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} papelAtual={papelAtual} uidAtual={uidAtual}
                exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} />}
           </div>
-        ) : (
+          );
+        })() : (
           <div>
             <p style={{ ...prosa, color: C.grafite, marginBottom: 14 }}>
               Cada jogador guarda a ficha das quatro camadas, o calendário e o histórico de sessões.
@@ -15829,19 +15923,29 @@ function App() {
                           {tipoAberto && (
                             <div style={{ padding: "10px 12px 2px" }}>
                               {listaTipo.map((a) => {
+                                const incompleto = !a.nome;
+                                const etapaPendente = incompleto ? primeiraEtapaPendente(a) : null;
                                 const emVigor = a.plano ? aulaEmVigor(a) : null;
                                 const regEmVigor = emVigor ? (a.regPlano || {})[emVigor.id] || {} : null;
                                 const repetindo = regEmVigor && (regEmVigor.status === "falta" || regEmVigor.status === "cancelada");
                                 return (
-                                  <button key={a.id} onClick={() => { setAbertoId(a.id); setSubaba("ficha"); }}
+                                  <button key={a.id} onClick={() => { setAbertoId(a.id); setSubaba("ficha"); if (incompleto && etapaPendente) setEtapaFichaAlvo(etapaPendente); }}
                                     className="w-full text-left flex items-center justify-between gap-3"
                                     style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "13px 15px", marginBottom: 8 }}>
                                     <div>
-                                      <div style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{a.nome || "Sem nome"}</div>
-                                      <div className="mt-1">
-                                        <Etiqueta>{a.nivel} · Estágio {a.estagio} · {a.inicio ? `início ${a.inicio}` : "sem calendário"}</Etiqueta>
+                                      <div style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, color: incompleto ? C.grafite : C.tinta, fontStyle: incompleto ? "italic" : "normal" }}>
+                                        {incompleto ? "Jogador sem nome" : a.nome}
                                       </div>
-                                      {emVigor && (
+                                      {incompleto ? (
+                                        <p style={{ ...prosa, fontSize: 13, color: C.saibro, fontWeight: 600, marginTop: 2 }}>
+                                          Continuar cadastro{etapaPendente ? " — " + ETAPAS_FICHA[etapaPendente - 1].titulo : ""}
+                                        </p>
+                                      ) : (
+                                        <div className="mt-1">
+                                          <Etiqueta>{a.nivel} · Estágio {a.estagio} · {a.inicio ? `início ${a.inicio}` : "sem calendário"}</Etiqueta>
+                                        </div>
+                                      )}
+                                      {emVigor && !incompleto && (
                                         <p style={{ ...prosa, fontSize: 12.5, color: C.saibro, marginTop: 4 }}>
                                           {repetindo ? "Repetindo: " : "Em vigor: "}{emVigor.t}
                                         </p>
