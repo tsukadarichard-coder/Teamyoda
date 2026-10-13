@@ -2989,8 +2989,8 @@ function BotoesAssinatura({ planoAtual, planoVencido, emailAtual, pequeno }) {
 }
 
 const entrada = {
-  width: "100%", padding: "9px 11px", border: "1px solid " + C.linha, borderRadius: 10,
-  background: C.cal, fontFamily: SERIF, fontSize: 15, color: C.tinta,
+  width: "100%", maxWidth: "100%", padding: "9px 11px", border: "1px solid " + C.linha, borderRadius: 10,
+  background: C.cal, fontFamily: SERIF, fontSize: 16, color: C.tinta, boxSizing: "border-box", minWidth: 0,
 };
 const prosa = { fontFamily: SERIF, fontSize: 14.5, lineHeight: 1.55, color: C.tinta, margin: 0 };
 
@@ -4341,18 +4341,18 @@ function FasesGolpe({ golpe, avaliacao, aoMudar }) {
 
 function novoAluno() {
   return {
-    id: "a" + Date.now(), nome: "", nascimento: "", lateralidade: "destro", backhand: "duas",
-    alturaAtual: "", projecaoAltura: "", tipoFisico: "medio", baseMotora: "media",
+    id: "a" + Date.now(), nome: "", nascimento: "", lateralidade: "", backhand: "",
+    alturaAtual: "", projecaoAltura: "", tipoFisico: "", baseMotora: "",
     contexto: "", estagio: "C", nivel: "Y5", perfilCorpo: "", perfilTemperamento: "",
     objetivosAdulto: [], disposicaoAdulto: "", comportamentoAdulto: "",
-    tempoTreinando: "", dificuldadeConsistencia: false,
+    tempoTreinando: "", dificuldadeConsistencia: null,
     entrada: {}, plano: null, regPlano: {}, avaliacaoTecnica: {},
     objetivoFinal: "", marcos: [{ ano: "", marco: "", precisa: "" }],
     camadas: { tecnico: "", fisico: "", tatico: "", mental: "" },
     prioridades: ["saque", "devolucao", "fundo", "rede"],
     armas: ["fundo"],
     inicio: "", semanas: 18, competicoes: [{ nome: "", data: "" }],
-    diasQuadra: 5, periodos: 2, escola: "noite", musculacao: 3,
+    diasQuadra: null, periodos: null, escola: "", musculacao: null,
     historico: [], registros: [], anotacoes: [],
     professorUid: "", professorNome: "", horarios: [], duracaoPadrao: "1h30",
     categoria: "", criteriosClassificacao: {},
@@ -4608,12 +4608,12 @@ function relatorioFicha(a) {
   L.push("");
   L.push("0 · CONTEXTO");
   L.push("Nascimento: " + (a.nascimento || "—") + " · Estágio: " + a.estagio + " · Nível: " + a.nivel);
-  L.push("Lateralidade: " + a.lateralidade + " · Backhand: " + a.backhand);
+  L.push("Lateralidade: " + (a.lateralidade || "não informado") + " · Backhand: " + (a.backhand || "não informado"));
   L.push("Altura atual/projeção: " + (a.alturaAtual || "—") + " / " + (a.projecaoAltura || "—"));
-  L.push("Tipo físico: " + a.tipoFisico + " · Base motora: " + a.baseMotora);
-  L.push("Rotina de treino: " + (a.diasQuadra || "—") + " dias de quadra por semana, " +
-    (a.periodos >= 2 ? "dois turnos por dia (dobrado — típico de competição)" : "um turno por dia") +
-    " · musculação " + (a.musculacao || 0) + "x/semana · escola: " + a.escola);
+  L.push("Tipo físico: " + (a.tipoFisico || "não informado") + " · Base motora: " + (a.baseMotora || "não informado"));
+  L.push("Rotina de treino: " + (a.diasQuadra ? a.diasQuadra + " dia" + (a.diasQuadra === 1 ? "" : "s") + " de quadra por semana" : "dias de quadra por semana não informados") + ", " +
+    (a.periodos == null ? "turnos por dia não informados" : a.periodos >= 2 ? "dois turnos por dia (dobrado — típico de competição)" : "um turno por dia") +
+    " · musculação " + (a.musculacao == null ? "não informada" : a.musculacao + "x/semana") + " · escola: " + (a.escola || "não informado"));
   const TEMPO_TREINANDO_R = { novo: "menos de 6 meses", intermediario: "6 meses a 2 anos", experiente: "mais de 2 anos" };
   L.push("Tempo treinando: " + (TEMPO_TREINANDO_R[a.tempoTreinando] || "[não definido]"));
   /* Adulto não usa contexto familiar — o que importa ali não é a criação
@@ -6054,10 +6054,11 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
               {erroNome && <p id="erro-nome-jogador" style={{ ...prosa, fontSize: 12.5, color: "#B3261E", marginTop: 5 }}>Informe o nome do jogador pra continuar.</p>}
             </Campo>
             <Campo rotulo="Nascimento">
-              <input type="date" style={entrada} value={f.nascimento} onChange={(e) => set("nascimento", e.target.value)} />
+              <input type="date" style={entrada} value={f.nascimento} max={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => set("nascimento", e.target.value)} />
             </Campo>
             <Campo rotulo="Altura atual (m)">
-              <input style={entrada} value={f.alturaAtual} onChange={(e) => set("alturaAtual", e.target.value)} placeholder="1,78" />
+              <input style={entrada} inputMode="decimal" value={f.alturaAtual} onChange={(e) => set("alturaAtual", e.target.value)} placeholder="1,78" />
             </Campo>
           </div>
 
