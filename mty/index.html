@@ -7751,6 +7751,31 @@ function ComparacaoJogos({ jogos }) {
   );
 }
 
+function rotuloFormato(formato) {
+  return { "3sets": "Melhor de 3 sets", "1set": "Set único", "4games": "Set a 4 games" }[formato] || formato;
+}
+
+/* Resumo honesto das regras REALMENTE implementadas em aplicaPonto() —
+   nunca deduzidas só pelo nome do formato. Vantagem clássica (sem
+   no-ad) e tie-break padrão (7 pontos, 2 de diferença) valem pra
+   qualquer formato; o que muda é só o nº de games por set e quantos
+   sets são necessários. Nenhum formato tem super-tiebreak diferenciado
+   no set decisivo — isso é uma limitação real, dita aqui em vez de
+   simulada. */
+function regrasFormato(formato) {
+  const games = formato === "4games" ? 4 : 6;
+  const linhas = [
+    `Set até ${games} games, com vantagem clássica no game (2 pontos de diferença a partir de 40-40, sem ponto decisivo).`,
+    `Em ${games} a ${games}, o set é decidido por tie-break (7 pontos, 2 de diferença).`,
+  ];
+  if (formato === "3sets") linhas.unshift("Melhor de 3 sets — vence quem fechar 2.");
+  else linhas.unshift("Um set único decide a partida inteira.");
+  linhas.push("Não há super-tiebreak diferenciado em nenhum set — todos seguem a mesma regra de tie-break acima.");
+  return linhas;
+}
+
+function ChaveRascunho(alunoId) { return "scout-rascunho:" + alunoId; }
+
 function TelaScout({ aluno, alunos, setAlunos }) {
   const [fase, setFase] = useState("antes");
   const [cfg, setCfg] = useState({ adversario: "", torneio: "", formato: "3sets", saca: "nos" });
@@ -7758,6 +7783,42 @@ function TelaScout({ aluno, alunos, setAlunos }) {
   const [pontos, setPontos] = useState([]);
   const [rascunho, setRascunho] = useState(null);
   const [pilha, setPilha] = useState([]);
+  const [mostrarAjuda, setMostrarAjuda] = useState(false);
+  const [rascunhoSalvo, setRascunhoSalvo] = useState(null);
+  const [estadoRascunho, setEstadoRascunho] = useState(null); // null | "salvo" | "erro"
+  const [confirmadoEm, setConfirmadoEm] = useState(0);
+  const processandoRef = useRef(false);
+
+  useEffect(() => {
+    try {
+      const bruto = localStorage.getItem(ChaveRascunho(aluno.id));
+      if (bruto) setRascunhoSalvo(JSON.parse(bruto));
+    } catch { /* localStorage indisponível (modo privado, por ex.) — segue sem retomada */ }
+  }, [aluno.id]);
+
+  useEffect(() => {
+    if (fase !== "durante" && fase !== "depois") return;
+    try {
+      localStorage.setItem(ChaveRascunho(aluno.id), JSON.stringify({ cfg, placar, pontos, pilha, fase }));
+      setEstadoRascunho("salvo");
+    } catch { setEstadoRascunho("erro"); }
+  }, [fase, cfg, placar, pontos, pilha, aluno.id]);
+
+  function limparRascunhoSalvo() {
+    try { localStorage.removeItem(ChaveRascunho(aluno.id)); } catch { /* nada a fazer se não existir */ }
+    setRascunhoSalvo(null);
+    setEstadoRascunho(null);
+  }
+
+  function continuarRascunho() {
+    if (!rascunhoSalvo) return;
+    setCfg(rascunhoSalvo.cfg);
+    setPlacar(rascunhoSalvo.placar);
+    setPontos(rascunhoSalvo.pontos);
+    setPilha(rascunhoSalvo.pilha || []);
+    setFase(rascunhoSalvo.fase);
+    setRascunhoSalvo(null);
+  }
 
   function comecar() {
     setPlacar(placarInicial(cfg.formato, cfg.saca));
@@ -7766,20 +7827,32 @@ function TelaScout({ aluno, alunos, setAlunos }) {
     setFase("durante");
   }
 
-  function escolheFim(op) {
-    setRascunho({
-      fim: op.v, nos: op.nos, saque: null, bola: null, causa: null,
-      protocolo: false, rede: false, ataquePerdido: false,
-      adverso: ehAdverso(placar), sacador: placar.saque,
-    });
-  }
-
   function confirma(bola) {
+    if (processandoRef.current) return;
+    processandoRef.current = true;
     const p = { ...rascunho, bola, n: pontos.length + 1, placarAntes: rotuloPontos(placar) };
     setPilha([...pilha, { placar, pontos }]);
     setPontos([...pontos, p]);
     setPlacar(aplicaPonto(placar, p.nos));
     setRascunho(null);
+    setConfirmadoEm(Date.now());
+    setTimeout(() => { processandoRef.current = false; }, 350);
+    setTimeout(() => setConfirmadoEm(0), 900);
+  }
+
+  function duplaFalta() {
+    if (processandoRef.current) return;
+    processandoRef.current = true;
+    const adverso = ehAdverso(placar);
+    setPilha([...pilha, { placar, pontos }]);
+    const p = { fim: "erro_nos", nos: false, saque: "df", bola: "1-2", causa: "execucao",
+      protocolo: false, rede: false, ataquePerdido: false, adverso, sacador: "nos",
+      n: pontos.length + 1, placarAntes: rotuloPontos(placar) };
+    setPontos([...pontos, p]);
+    setPlacar(aplicaPonto(placar, false));
+    setConfirmadoEm(Date.now());
+    setTimeout(() => { processandoRef.current = false; }, 350);
+    setTimeout(() => setConfirmadoEm(0), 900);
   }
 
   function desfazer() {
@@ -7794,33 +7867,76 @@ function TelaScout({ aluno, alunos, setAlunos }) {
   const setsTexto = placar
     ? [...placar.sets.map((x) => `${x[0]}-${x[1]}`), `${placar.g[0]}-${placar.g[1]}`].join("  ")
     : "";
+  const confirmacaoVisivel = confirmadoEm !== 0;
 
   /* ── antes ── */
   if (fase === "antes") {
     const partidasAnteriores = (aluno.registros || []).filter((r) => r.tipo === "jogo");
     return (
       <div>
-        <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Scout</h1>
-        <p style={{ ...prosa, fontSize: 14, color: C.grafite, marginBottom: 16 }}>Registre a partida ponto a ponto, direto da quadra.</p>
-        <Aviso cor={C.quadra}>
-          Dois toques por ponto: como terminou e em que bola. O placar se calcula sozinho, para que
-          o jogo sob placar adverso possa ser lido depois.
-        </Aviso>
-        <Campo rotulo="Adversário">
+        <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, marginBottom: 2 }}>Análise de partida</h1>
+        <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 4 }}>Scout</p>
+        <p style={{ ...prosa, fontSize: 14, color: C.grafite, marginBottom: 16 }}>Acompanhe o placar e registre como cada ponto terminou.</p>
+
+        {rascunhoSalvo && (
+          <div style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "13px 15px", marginBottom: 16 }}>
+            <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>Partida em andamento encontrada</p>
+            <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginTop: 4 }}>
+              Salva neste aparelho, {rascunhoSalvo.pontos.length} pontos coletados.
+            </p>
+            <div className="flex gap-2 mt-3">
+              <Botao pequeno variante="saibro" onClick={continuarRascunho}>Continuar partida em andamento</Botao>
+              <Botao pequeno variante="vazio" onClick={limparRascunhoSalvo}>Descartar</Botao>
+            </div>
+          </div>
+        )}
+
+        <div className="mb-4">
+          <button onClick={() => setMostrarAjuda(!mostrarAjuda)} style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, color: C.saibro, cursor: "pointer", border: "none", background: "none", padding: 0 }}>
+            {mostrarAjuda ? "Ocultar" : "Como registrar os pontos"}
+          </button>
+          {mostrarAjuda && (
+            <div className="mt-2" style={{ background: C.cal, borderLeft: "3px solid " + C.quadra, padding: "12px 14px" }}>
+              <p style={{ ...prosa, fontSize: 13 }}>
+                No caminho mais simples, são 2 toques por ponto: <b>1)</b> como terminou (winner seu, erro
+                do adversário, erro seu ou winner do adversário); <b>2)</b> em que bola da troca (1–2, 3–4
+                ou 5+). O placar se calcula sozinho a partir disso.
+              </p>
+              <p style={{ ...prosa, fontSize: 13, marginTop: 8 }}>
+                Se o ponto for erro seu, aparece mais um toque pra marcar a causa (decisão ou execução)
+                antes do toque final. No seu saque, dá pra marcar opcionalmente 1º/2º saque dentro, ou
+                registrar dupla falta direto — nesse caso o ponto fecha sozinho, sem toque de bola.
+                Protocolo, subida à rede e ataque perdido também são opcionais, nunca obrigatórios pra
+                fechar o ponto.
+              </p>
+            </div>
+          )}
+        </div>
+
+        <Campo rotulo="Jogador acompanhado">
+          <p style={{ ...prosa, fontSize: 14.5, fontWeight: 700 }}>{aluno.nome}</p>
+        </Campo>
+        <Campo rotulo="Adversário (opcional)">
           <input style={entrada} value={cfg.adversario} onChange={(e) => setCfg({ ...cfg, adversario: e.target.value })} />
         </Campo>
-        <Campo rotulo="Torneio">
+        <Campo rotulo="Torneio (opcional)">
           <input style={entrada} value={cfg.torneio} onChange={(e) => setCfg({ ...cfg, torneio: e.target.value })} placeholder="Torneio ou jogo-treino" />
         </Campo>
         <Campo rotulo="Formato">
-          <Seletor opcoes={[{ v: "3sets", r: "Melhor de 3" }, { v: "1set", r: "Set único" }, { v: "4games", r: "Set a 4 games" }]}
+          <Seletor opcoes={[{ v: "3sets", r: "Melhor de 3 sets" }, { v: "1set", r: "Set único" }, { v: "4games", r: "Set a 4 games" }]}
             valor={cfg.formato} aoMudar={(v) => setCfg({ ...cfg, formato: v })} />
         </Campo>
         <Campo rotulo="Quem saca primeiro">
-          <Seletor opcoes={[{ v: "nos", r: "Meu jogador" }, { v: "ele", r: "Adversário" }]}
+          <Seletor opcoes={[{ v: "nos", r: aluno.nome }, { v: "ele", r: "Adversário" }]}
             valor={cfg.saca} aoMudar={(v) => setCfg({ ...cfg, saca: v })} />
         </Campo>
-        <Botao onClick={comecar} variante="saibro">Começar a coleta</Botao>
+        <div className="mb-4" style={{ background: C.cal, borderLeft: "3px solid " + C.linha, padding: "11px 14px" }}>
+          <Etiqueta>Regras desta partida</Etiqueta>
+          {regrasFormato(cfg.formato).map((l, i) => (
+            <p key={i} style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: i === 0 ? 6 : 3 }}>{l}</p>
+          ))}
+        </div>
+        <Botao onClick={comecar} variante="saibro">Iniciar acompanhamento</Botao>
 
         {partidasAnteriores.length > 0 && (
           <div className="mt-6">
@@ -7830,7 +7946,7 @@ function TelaScout({ aluno, alunos, setAlunos }) {
             {[...partidasAnteriores].reverse().slice(0, 5).map((r) => (
               <div key={r.id} style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10,
                 borderLeft: "3px solid " + C.saibro, padding: "10px 13px", marginBottom: 7 }}>
-                <Etiqueta>{r.data}</Etiqueta>
+                <Etiqueta>{new Date(r.data).toLocaleDateString("pt-BR")}{r.concluida === false ? " · Interrompida" : ""}</Etiqueta>
                 <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>{r.torneio} · {r.adversario} · {r.resultado}</p>
                 <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>Protocolo entre pontos: {r.protocolo}%</p>
               </div>
@@ -7844,7 +7960,8 @@ function TelaScout({ aluno, alunos, setAlunos }) {
   /* ── relatório ── */
   if (fase === "depois")
     return <Relatorio aluno={aluno} alunos={alunos} setAlunos={setAlunos} cfg={cfg}
-      pontos={pontos} placar={placar} aoSair={() => { setFase("antes"); setPontos([]); }} />;
+      pontos={pontos} placar={placar} aoConcluir={limparRascunhoSalvo}
+      aoSair={() => { limparRascunhoSalvo(); setFase("antes"); setPontos([]); }} />;
 
   /* ── durante ── */
   const nossoSaque = placar.saque === "nos";
@@ -7857,7 +7974,7 @@ function TelaScout({ aluno, alunos, setAlunos }) {
           <div className="flex items-center justify-between">
             <div>
               <div style={{ fontFamily: ARCH, fontSize: 10, letterSpacing: "0.14em", opacity: 0.7 }}>
-                {nossoSaque ? "SAQUE DO MEU JOGADOR" : "SAQUE DO ADVERSÁRIO"}
+                {nossoSaque ? ("SAQUE DE " + aluno.nome.toUpperCase()) : "SAQUE DO ADVERSÁRIO"}
               </div>
               <div style={{ fontFamily: ARCH, fontSize: 30, fontWeight: 700, lineHeight: 1.1 }}>
                 {rotuloPontos(placar)}
@@ -7868,13 +7985,22 @@ function TelaScout({ aluno, alunos, setAlunos }) {
               <div style={{ fontFamily: ARCH, fontSize: 17, fontWeight: 600 }}>{setsTexto}</div>
             </div>
           </div>
-          {adverso && (
-            <div className="mt-2" style={{ fontFamily: ARCH, fontSize: 11, fontWeight: 700, color: "#FF8DA1" }}>
-              PLACAR ADVERSO — este ponto entra na comparação
+          <div className="flex items-center justify-between mt-2">
+            {adverso ? (
+              <div style={{ fontFamily: ARCH, fontSize: 11, fontWeight: 700, color: "#FF8DA1" }}>
+                PLACAR ADVERSO — este ponto entra na comparação
+              </div>
+            ) : <span />}
+            <div style={{ fontFamily: ARCH, fontSize: 10, color: "#D8D3CC" }}>
+              {estadoRascunho === "salvo" ? "Salvo neste aparelho" : estadoRascunho === "erro" ? "Não foi possível salvar neste aparelho" : ""}
             </div>
-          )}
+          </div>
         </div>
       </div>
+
+      {confirmacaoVisivel && (
+        <div className="mt-2 mb-2" style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, color: C.quadra }}>✓ Ponto registrado</div>
+      )}
 
       {placar.fim && (
         <Aviso>
@@ -7891,17 +8017,8 @@ function TelaScout({ aluno, alunos, setAlunos }) {
           <div className="flex gap-2">
             {[["1", "1º dentro"], ["2", "2º dentro"], ["df", "Dupla falta"]].map(([v, r]) => (
               <button key={v}
-                onClick={() => {
-                  if (v === "df") {
-                    setPilha([...pilha, { placar, pontos }]);
-                    const p = { fim: "erro_nos", nos: false, saque: "df", bola: "1-2", causa: "execucao",
-                      protocolo: false, rede: false, ataquePerdido: false, adverso, sacador: "nos",
-                      n: pontos.length + 1, placarAntes: rotuloPontos(placar) };
-                    setPontos([...pontos, p]);
-                    setPlacar(aplicaPonto(placar, false));
-                  } else setRascunho({ saquePre: v });
-                }}
-                style={{ flex: 1, fontFamily: ARCH, fontSize: 13, fontWeight: 600, padding: "12px 6px",
+                onClick={() => { if (v === "df") duplaFalta(); else setRascunho({ saquePre: v }); }}
+                style={{ flex: 1, minHeight: 44, fontFamily: ARCH, fontSize: 13, fontWeight: 600, padding: "12px 6px",
                   border: "1px solid " + (v === "df" ? C.saibro : C.linha), borderRadius: 10,
                   background: C.cal, color: v === "df" ? C.saibro : C.tinta, cursor: "pointer" }}>
                 {r}
@@ -7920,7 +8037,7 @@ function TelaScout({ aluno, alunos, setAlunos }) {
                 onClick={() => setRascunho({ ...(rascunho || {}), ...{
                   fim: op.v, nos: op.nos, saque: rascunho?.saquePre || null, bola: null, causa: null,
                   protocolo: false, rede: false, ataquePerdido: false, adverso, sacador: placar.saque } })}
-                style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, padding: "20px 8px",
+                style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, padding: "20px 8px", minHeight: 44,
                   border: "1px solid " + op.cor, borderRadius: 10, background: C.cal, color: op.cor, cursor: "pointer" }}>
                 {op.r}
               </button>
@@ -7945,7 +8062,7 @@ function TelaScout({ aluno, alunos, setAlunos }) {
           <div className="flex flex-wrap gap-2 mb-4">
             {[["protocolo", "Protocolo antes do ponto"], ["rede", "Subiu à rede"], ["ataquePerdido", "Demanda de ataque não convertida"]].map(([k, r]) => (
               <button key={k} onClick={() => setRascunho({ ...rascunho, [k]: !rascunho[k] })}
-                style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 600, padding: "7px 11px", borderRadius: 10,
+                style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 600, padding: "7px 11px", borderRadius: 10, minHeight: 44,
                   cursor: "pointer", border: "1px solid " + (rascunho[k] ? C.tinta : C.linha),
                   background: rascunho[k] ? C.tinta : C.cal, color: rascunho[k] ? C.papel : C.grafite }}>
                 {rascunho[k] ? "✓ " : ""}{r}
@@ -7957,7 +8074,7 @@ function TelaScout({ aluno, alunos, setAlunos }) {
           <div className="grid grid-cols-3 gap-2">
             {["1-2", "3-4", "5+"].map((b) => (
               <button key={b} onClick={() => confirma(b)}
-                style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, padding: "18px 6px", borderRadius: 10,
+                style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, padding: "18px 6px", minHeight: 44, borderRadius: 10,
                   cursor: "pointer", border: "1px solid " + C.tinta, background: C.tinta, color: C.papel }}>
                 {b}
               </button>
@@ -8149,10 +8266,11 @@ function DetalheJogoRegistro({ r, aluno, alunos, setAlunos }) {
   );
 }
 
-function Relatorio({ aluno, alunos, setAlunos, cfg, pontos, placar, aoSair }) {
+function Relatorio({ aluno, alunos, setAlunos, cfg, pontos, placar, aoSair, aoConcluir }) {
   const r = useMemo(() => resume(pontos), [pontos]);
   const sinais = useMemo(() => leitura(r), [r]);
   const [salvo, setSalvo] = useState(false);
+  const concluida = !!(placar && placar.fim);
 
   function salvar() {
     const reg = {
@@ -8161,10 +8279,12 @@ function Relatorio({ aluno, alunos, setAlunos, cfg, pontos, placar, aoSair }) {
       plano: "", protocolo: r.pctProtocolo, erros12: r.pctErrosCurtos,
       revelou: sinais.map((s) => s[1]).join(" "),
       resultado: placar ? [...placar.sets.map((x) => `${x[0]}-${x[1]}`)].join(" ") || "não concluído" : "—",
+      concluida,
       scout: { ...r, pontos },
     };
     setAlunos(alunos.map((a) => a.id === aluno.id ? { ...a, registros: [...(a.registros || []), reg] } : a));
     setSalvo(true);
+    if (aoConcluir) aoConcluir();
   }
 
   if (!pontos.length)
@@ -8172,7 +8292,8 @@ function Relatorio({ aluno, alunos, setAlunos, cfg, pontos, placar, aoSair }) {
 
   return (
     <div>
-      <ResumoScout r={r} sinais={sinais} aluno={aluno} alunos={alunos} setAlunos={setAlunos} />
+      <Etiqueta cor={concluida ? C.quadra : "#C9A227"}>{concluida ? "Partida concluída" : "Acompanhamento interrompido — sem vencedor atribuído"}</Etiqueta>
+      <div className="mt-3"><ResumoScout r={r} sinais={sinais} aluno={aluno} alunos={alunos} setAlunos={setAlunos} /></div>
 
       <Aviso>
         Um jogo é uma amostra. Três jogos na mesma direção são um sinal; um jogo isolado é ruído. O
@@ -8368,14 +8489,66 @@ function PainelAnotacoes({ aluno, setAlunos, alunos }) {
   );
 }
 
+/* Nomes amigáveis pros tipos de registro — "semana" é a planilha F-03 de
+   coleta RETROSPECTIVA (o professor registra como foi a semana que já
+   passou, dia a dia: erros, protocolo, bola da atenção), não um
+   planejamento prospectivo. O rótulo evita a ambiguidade do antigo
+   "+ Semana", que sugeria planejar a semana que vem. */
+function rotuloTipoRegistro(tipo) {
+  return { sessao: "Sessão", jogo: "Jogo", semana: "Registro semanal", medicao: "Medição", anotacao: "Anotação" }[tipo] || tipo;
+}
+
+const OPCOES_NOVO_REGISTRO = [
+  { v: "anotacao", titulo: "Anotação", desc: "Observações livres do treinador sobre o jogador." },
+  { v: "jogo", titulo: "Jogo", desc: "Resultado e observações de uma partida." },
+  { v: "medicao", titulo: "Medição", desc: "Valores e avaliações acompanhados pela plataforma." },
+  { v: "semana", titulo: "Registro semanal", desc: "Planilha de como foi a semana que passou: erros, protocolo e observações, dia a dia." },
+];
+
+/* Painel de escolha do tipo de registro a criar — fecha por botão
+   visível, clique fora ou Escape (teclado), igual ao padrão já usado em
+   PainelMais/LightboxCaptura no resto do app. */
+function PainelNovoRegistro({ aoEscolher, aoFechar }) {
+  useEffect(() => {
+    function aoTeclar(e) { if (e.key === "Escape") aoFechar(); }
+    document.addEventListener("keydown", aoTeclar);
+    return () => document.removeEventListener("keydown", aoTeclar);
+  }, [aoFechar]);
+  return (
+    <>
+      <div onClick={aoFechar} style={{ position: "fixed", inset: 0, background: "rgba(16,30,25,.4)", zIndex: 39 }} />
+      <div role="dialog" aria-modal="true" aria-label="Novo registro"
+        style={{ position: "fixed", left: 0, right: 0, bottom: 0, background: C.cal, zIndex: 40,
+          borderRadius: "16px 16px 0 0", boxShadow: SOMBRA_ALTA, paddingBottom: "env(safe-area-inset-bottom)" }}>
+        <div className="flex items-center justify-between" style={{ padding: "14px 18px", borderBottom: "1px solid " + C.linha }}>
+          <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>Novo registro</span>
+          <button onClick={aoFechar} aria-label="Fechar" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", fontSize: 20, color: C.grafite }}>×</button>
+        </div>
+        <div style={{ padding: "8px 10px 16px" }}>
+          {OPCOES_NOVO_REGISTRO.map((o) => (
+            <button key={o.v} onClick={() => aoEscolher(o.v)} className="w-full text-left"
+              style={{ display: "block", padding: "12px 12px", border: "none", cursor: "pointer", borderRadius: 10, minHeight: 44, background: "none" }}>
+              <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, color: C.tinta }}>{o.titulo}</span>
+              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>{o.desc}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
 function TelaRegistro({ aluno, alunos, setAlunos, identidade }) {
-  const [modo, setModo] = useState("historico");
+  const [filtro, setFiltro] = useState("todos");
+  const [criando, setCriando] = useState(null); // null | "anotacao" | "jogo" | "semana" | "medicao"
+  const [painelAberto, setPainelAberto] = useState(false);
   const [abertoId, setAbertoId] = useState(null);
   const regs = aluno.registros || [];
+  const anotacoes = aluno.anotacoes || [];
 
   function adiciona(reg) {
     setAlunos(alunos.map((a) => a.id === aluno.id ? { ...a, registros: [...(a.registros || []), reg] } : a));
-    setModo("historico");
+    setCriando(null);
   }
   function apaga(id) {
     setAlunos(alunos.map((a) => a.id === aluno.id ? { ...a, registros: a.registros.filter((r) => r.id !== id) } : a));
@@ -8390,28 +8563,50 @@ function TelaRegistro({ aluno, alunos, setAlunos, identidade }) {
       ...a, registros: (a.registros || []).map((r) => r.id === id ? { ...r, ...campos } : r),
     }));
   }
-
   function baixar() {
     exportarCadernoPDF(aluno, identidade);
   }
+  function escolherNovoRegistro(tipo) {
+    setPainelAberto(false);
+    if (tipo === "anotacao") { setFiltro("anotacao"); return; }
+    setFiltro(tipo);
+    setCriando(tipo);
+  }
+
+  /* Uma única linha do tempo, consulta separada de criação (seção 2 do
+     pedido): registros estruturados (jogo/semana/medição/sessão) e
+     anotações livres vêm de arrays diferentes no dado, mas aparecem
+     juntos aqui — nunca ocultos por não caber num dos filtros. */
+  const itens = [...regs, ...anotacoes.map((a) => ({ ...a, tipo: "anotacao" }))]
+    .sort((a, b) => (a.data < b.data ? 1 : a.data > b.data ? -1 : 0));
+  const vazioTotal = itens.length === 0;
+  const itensFiltrados = filtro === "todos" ? itens : itens.filter((i) => i.tipo === filtro);
+  const vazioFiltro = !vazioTotal && filtro !== "anotacao" && itensFiltrados.length === 0;
+  const rotuloNovo = { jogo: "+ Novo jogo", semana: "+ Novo registro semanal", medicao: "+ Nova medição" }[filtro];
 
   return (
     <div>
-      <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Caderno</h1>
-      <p style={{ ...prosa, fontSize: 14, color: C.grafite, marginBottom: 16 }}>Anotações, jogos, planilhas e medições deste jogador.</p>
+      {painelAberto && <PainelNovoRegistro aoEscolher={escolherNovoRegistro} aoFechar={() => setPainelAberto(false)} />}
+
+      <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Caderno do jogador</h1>
+      <p style={{ ...prosa, fontSize: 14, color: C.grafite, marginBottom: 16 }}>
+        Consulte e registre observações, jogos e medições para acompanhar o jogador.
+      </p>
+
+      <div className="mb-4">
+        <Botao variante="saibro" onClick={() => setPainelAberto(true)}>+ Novo registro</Botao>
+      </div>
       <div className="flex flex-wrap gap-2 mb-6">
         <Seletor
           opcoes={[
-            { v: "historico", r: "Histórico" },
-            { v: "anotacoes", r: "Anotações" },
-            { v: "jogo", r: "+ Jogo" },
-            { v: "semana", r: "+ Semana" },
-            { v: "medicao", r: "+ Medição" },
+            { v: "todos", r: "Todos" },
+            { v: "anotacao", r: "Anotações" },
+            { v: "jogo", r: "Jogos" },
+            { v: "semana", r: "Semanas" },
+            { v: "medicao", r: "Medições" },
           ]}
-          valor={modo} aoMudar={setModo} />
+          valor={filtro} aoMudar={(v) => { setCriando(null); setFiltro(v); }} />
       </div>
-
-      {modo === "anotacoes" && <PainelAnotacoes aluno={aluno} alunos={alunos} setAlunos={setAlunos} />}
 
       {(aluno.jogosRelatados || []).length > 0 && (
         <div className="mb-6">
@@ -8425,79 +8620,108 @@ function TelaRegistro({ aluno, alunos, setAlunos, identidade }) {
         </div>
       )}
 
-      {modo === "jogo" && <FormJogo aoSalvar={adiciona} />}
-      {modo === "semana" && <FormSemana aoSalvar={adiciona} />}
-      {modo === "medicao" && <FormMedicao aluno={aluno} aoSalvar={adiciona} />}
+      {criando && (
+        <div className="mb-3">
+          <button onClick={() => setCriando(null)} style={{ ...prosa, fontSize: 13, color: C.grafite, fontWeight: 600, cursor: "pointer", border: "none", background: "none", padding: 0 }}>
+            Cancelar
+          </button>
+        </div>
+      )}
+      {criando === "jogo" && <FormJogo aoSalvar={adiciona} />}
+      {criando === "semana" && <FormSemana aoSalvar={adiciona} />}
+      {criando === "medicao" && <FormMedicao aluno={aluno} aoSalvar={adiciona} />}
 
-      {modo === "historico" && (
+      {!criando && filtro === "anotacao" && <PainelAnotacoes aluno={aluno} alunos={alunos} setAlunos={setAlunos} />}
+
+      {!criando && filtro !== "anotacao" && (
         <div>
-          {regs.length === 0 ? (
-            <Aviso cor={C.quadra}>
-              Nada registrado ainda. O caderno é o que faz o plano melhorar: cada sessão fechada,
-              cada jogo e cada medição vira material para rever as regras.
-            </Aviso>
+          {vazioTotal ? (
+            <div style={{ background: C.cal, borderLeft: "3px solid " + C.quadra, padding: "15px 17px" }}>
+              <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>Comece o histórico deste jogador</p>
+              <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>
+                Registre uma observação, um jogo ou uma medição para consultar nas próximas aulas.
+              </p>
+              <div className="mt-3"><Botao pequeno variante="saibro" onClick={() => setPainelAberto(true)}>+ Novo registro</Botao></div>
+            </div>
+          ) : vazioFiltro ? (
+            <div style={{ background: C.cal, borderLeft: "3px solid " + C.linha, padding: "15px 17px" }}>
+              <p style={{ ...prosa, fontSize: 13.5 }}>Nenhum registro deste tipo.</p>
+              <div className="flex flex-wrap gap-2 mt-3">
+                <Botao pequeno variante="vazio" onClick={() => setFiltro("todos")}>Ver todos</Botao>
+                {rotuloNovo && <Botao pequeno onClick={() => setCriando(filtro)}>{rotuloNovo}</Botao>}
+              </div>
+            </div>
           ) : (
             <>
-              <div className="mb-4"><Etiqueta>{regs.length} registros</Etiqueta></div>
-              {[...regs].reverse().map((r) => (
-                <div key={r.id} style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderLeft: "3px solid " + (r.tipo === "jogo" ? C.saibro : C.quadra), padding: "11px 13px", marginBottom: 8 }}>
-                  <div className="flex justify-between items-start gap-3">
-                    <div className="flex-1">
-                      <Etiqueta>{r.data} · {r.tipo}</Etiqueta>
-                      {r.tipo === "sessao" && (
-                        <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>
-                          Ciclo {r.ciclo} · {r.exercicios.length} exercícios
-                          {r.divergencias?.length ? ` · ${r.divergencias.length} divergências` : ""}
-                          {(r.exerciciosPersonalizados || []).length > 0 && (
-                            <><br /><span style={{ color: C.grafite }}>
-                              {r.exerciciosPersonalizados.length === 1 ? "Exercício do treinador: " : "Exercícios do treinador: "}
-                              {r.exerciciosPersonalizados.join(" · ")}
-                            </span></>
-                          )}
-                          {r.mudaria ? <><br /><span style={{ color: C.saibro }}>Teria montado diferente: {r.mudaria}</span></> : null}
-                        </p>
-                      )}
-                      {r.tipo === "jogo" && (
-                        <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>
-                          {r.torneio} · {r.adversario} · {r.resultado}
-                          <br />Protocolo executado em {r.protocolo}% dos pontos
-                          {r.revelou ? <><br /><span style={{ color: C.grafite }}>{r.revelou}</span></> : null}
-                        </p>
-                      )}
-                      {r.tipo === "jogo" && r.scout && (
-                        <button onClick={() => setAbertoId(abertoId === r.id ? null : r.id)}
-                          style={{ ...prosa, fontSize: 12, color: C.saibro, fontWeight: 700, cursor: "pointer", border: "none", background: "none", padding: 0, marginTop: 6 }}>
-                          {abertoId === r.id ? "Ocultar scout completo" : "Ver scout completo"}
-                        </button>
-                      )}
-                      {r.tipo === "semana" && (
-                        <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>Planilha da semana preenchida</p>
-                      )}
-                      {r.tipo === "medicao" && (
-                        <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>{r.area} · {r.metrica}: <b>{r.valor}</b></p>
-                      )}
-                      {r.tipo === "sessao" && (
-                        <button onClick={() => setAbertoId(abertoId === r.id ? null : r.id)}
-                          style={{ ...prosa, fontSize: 12, color: C.saibro, fontWeight: 700, cursor: "pointer", border: "none", background: "none", padding: 0, marginTop: 6 }}>
-                          {abertoId === r.id ? "Ocultar ficha da aula" : "Ver ficha da aula"}
-                        </button>
-                      )}
+              <div className="mb-4"><Etiqueta>{itensFiltrados.length} registros</Etiqueta></div>
+              {itensFiltrados.map((r) => (
+                r.tipo === "anotacao" ? (
+                  <button key={r.id} onClick={() => setFiltro("anotacao")} className="w-full text-left"
+                    style={{ display: "block", background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderLeft: "3px solid " + C.grafite, padding: "11px 13px", marginBottom: 8, cursor: "pointer" }}>
+                    <Etiqueta>{new Date(r.data).toLocaleDateString("pt-BR")} · {rotuloTipoRegistro(r.tipo)}</Etiqueta>
+                    <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginTop: 4 }}>{r.titulo}</div>
+                    <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.texto}</p>
+                  </button>
+                ) : (
+                  <div key={r.id} style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderLeft: "3px solid " + (r.tipo === "jogo" ? C.saibro : C.quadra), padding: "11px 13px", marginBottom: 8 }}>
+                    <div className="flex justify-between items-start gap-3">
+                      <div className="flex-1">
+                        <Etiqueta>{new Date(r.data).toLocaleDateString("pt-BR")} · {rotuloTipoRegistro(r.tipo)}</Etiqueta>
+                        {r.tipo === "sessao" && (
+                          <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>
+                            Ciclo {r.ciclo} · {r.exercicios.length} exercícios
+                            {r.divergencias?.length ? ` · ${r.divergencias.length} divergências` : ""}
+                            {(r.exerciciosPersonalizados || []).length > 0 && (
+                              <><br /><span style={{ color: C.grafite }}>
+                                {r.exerciciosPersonalizados.length === 1 ? "Exercício do treinador: " : "Exercícios do treinador: "}
+                                {r.exerciciosPersonalizados.join(" · ")}
+                              </span></>
+                            )}
+                            {r.mudaria ? <><br /><span style={{ color: C.saibro }}>Teria montado diferente: {r.mudaria}</span></> : null}
+                          </p>
+                        )}
+                        {r.tipo === "jogo" && (
+                          <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>
+                            {r.torneio} · {r.adversario} · {r.resultado}
+                            {r.concluida === false ? <span style={{ color: "#C9A227" }}> · Interrompida</span> : null}
+                            <br />Protocolo executado em {r.protocolo}% dos pontos
+                            {r.revelou ? <><br /><span style={{ color: C.grafite }}>{r.revelou}</span></> : null}
+                          </p>
+                        )}
+                        {r.tipo === "jogo" && r.scout && (
+                          <button onClick={() => setAbertoId(abertoId === r.id ? null : r.id)}
+                            style={{ ...prosa, fontSize: 12, color: C.saibro, fontWeight: 700, cursor: "pointer", border: "none", background: "none", padding: 0, marginTop: 6 }}>
+                            {abertoId === r.id ? "Ocultar análise completa" : "Ver análise completa"}
+                          </button>
+                        )}
+                        {r.tipo === "semana" && (
+                          <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>Planilha da semana preenchida</p>
+                        )}
+                        {r.tipo === "medicao" && (
+                          <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>{r.area} · {r.metrica}: <b>{r.valor}</b></p>
+                        )}
+                        {r.tipo === "sessao" && (
+                          <button onClick={() => setAbertoId(abertoId === r.id ? null : r.id)}
+                            style={{ ...prosa, fontSize: 12, color: C.saibro, fontWeight: 700, cursor: "pointer", border: "none", background: "none", padding: 0, marginTop: 6 }}>
+                            {abertoId === r.id ? "Ocultar ficha da aula" : "Ver ficha da aula"}
+                          </button>
+                        )}
+                      </div>
+                      <button onClick={() => apaga(r.id)} aria-label="Excluir registro" style={iconeEstilo}>×</button>
                     </div>
-                    <button onClick={() => apaga(r.id)} style={iconeEstilo}>×</button>
+                    {r.tipo === "sessao" && abertoId === r.id && (
+                      <DetalheSessaoRegistro r={r} aoSalvar={(campos) => atualizarRegistro(r.id, campos)} />
+                    )}
+                    {r.tipo === "jogo" && abertoId === r.id && (
+                      <DetalheJogoRegistro r={r} aluno={aluno} alunos={alunos} setAlunos={setAlunos} />
+                    )}
                   </div>
-                  {r.tipo === "sessao" && abertoId === r.id && (
-                    <DetalheSessaoRegistro r={r} aoSalvar={(campos) => atualizarRegistro(r.id, campos)} />
-                  )}
-                  {r.tipo === "jogo" && abertoId === r.id && (
-                    <DetalheJogoRegistro r={r} aluno={aluno} alunos={alunos} setAlunos={setAlunos} />
-                  )}
-                </div>
+                )
               ))}
               <div className="mt-5">
                 <Botao onClick={baixar} variante="saibro">Exportar caderno em PDF</Botao>
                 <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 10 }}>
-                  Este arquivo é o que sustenta a revisão do método. Junte alguns meses e traga o
-                  conjunto — é lendo o acumulado que dá para ver quais regras erram sempre.
+                  Arquivo com todos os registros deste jogador, organizados por data.
                 </p>
               </div>
             </>
@@ -15100,10 +15324,18 @@ function App() {
               );
             })()}
             {(() => {
-              const itensMais = [{ v: "periodizacao", r: "Periodização" }, { v: "sessao", r: "Sessão de hoje" }, { v: "scout", r: "Scout" }, { v: "registro", r: "Caderno" }];
+              const itensMais = [{ v: "periodizacao", r: "Periodização" }, { v: "sessao", r: "Sessão de hoje" }, { v: "scout", r: "Análise de partida" }, { v: "registro", r: "Caderno" }];
               const maisAtivo = itensMais.some((t) => t.v === subaba);
               return (
                 <div className="mb-6">
+                  {/* Identificação compacta do jogador: some atrás do h1 no
+                     topo, mas gruda (sticky) junto da navegação assim que o
+                     h1 rola pra fora da tela — sem repetir cartões ou texto
+                     grande, só o nome, pra nunca perder de vista QUEM está
+                     sendo acompanhado numa tela comprida. */}
+                  <div style={{ position: "sticky", top: 96, zIndex: 4, background: C.papel, padding: "4px 0" }}>
+                    <Etiqueta cor={C.grafite}>{aberto.nome}</Etiqueta>
+                  </div>
                   {/* A lista de "Mais" não pode flutuar como popup absoluto aqui:
                       esta barra de abas tem rolagem horizontal (overflow-x: auto)
                       pra caber na tela, e isso faz o navegador cortar também
