@@ -16438,7 +16438,7 @@ function TelaDashboard({ alunos, turmas, ocorrencias, papelAtual, uidAtual, exig
    verdade, navegável), não mais um template abstrato que repete sempre
    igual. Isso corrige de raiz a razão de "Agenda não bate com Quadras":
    eram dois cálculos diferentes de quem está ocupado quando. */
-function TelaAgenda({ alunos, turmas, ocorrencias, setOcorrencias, uidAtual, exigeLogin }) {
+function TelaAgenda({ alunos, turmas, ocorrencias, setOcorrencias, quadras, setQuadras, reservas, setReservas, bloqueiosAula, orgAtual, mostraQuadras, uidAtual, exigeLogin }) {
   const [modo, setModo] = useState("grade");
   const [verTodos, setVerTodos] = useState(false);
   const hojeISO = dataISO(new Date());
@@ -16489,13 +16489,15 @@ function TelaAgenda({ alunos, turmas, ocorrencias, setOcorrencias, uidAtual, exi
       )}
 
       <div className="flex items-center justify-between gap-3 flex-wrap mb-5">
-        <div className="flex gap-2 items-center flex-wrap">
-          <Botao pequeno variante="vazio" onClick={() => setSemanaBase(somaDiasISO(semanaBase, -7))}>← Semana anterior</Botao>
-          <Botao pequeno variante="vazio" onClick={() => setSemanaBase(inicioSemanaISO(hojeISO))}>Hoje</Botao>
-          <Botao pequeno variante="vazio" onClick={() => setSemanaBase(somaDiasISO(semanaBase, 7))}>Semana seguinte →</Botao>
-        </div>
+        {modo !== "quadra" && (
+          <div className="flex gap-2 items-center flex-wrap">
+            <Botao pequeno variante="vazio" onClick={() => setSemanaBase(somaDiasISO(semanaBase, -7))}>← Semana anterior</Botao>
+            <Botao pequeno variante="vazio" onClick={() => setSemanaBase(inicioSemanaISO(hojeISO))}>Hoje</Botao>
+            <Botao pequeno variante="vazio" onClick={() => setSemanaBase(somaDiasISO(semanaBase, 7))}>Semana seguinte →</Botao>
+          </div>
+        )}
         <div className="flex gap-2">
-          {[{ v: "grade", r: "Grade" }, { v: "semana", r: "Semana" }].map((t) => (
+          {[{ v: "grade", r: "Grade" }, { v: "semana", r: "Semana" }, ...(mostraQuadras ? [{ v: "quadra", r: "Por quadra" }] : [])].map((t) => (
             <button key={t.v} onClick={() => setModo(t.v)}
               style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, padding: "6px 11px", borderRadius: 10, cursor: "pointer",
                 border: "1px solid " + (modo === t.v ? C.tinta : C.linha),
@@ -16504,7 +16506,7 @@ function TelaAgenda({ alunos, turmas, ocorrencias, setOcorrencias, uidAtual, exi
             </button>
           ))}
         </div>
-        {exigeLogin && uidAtual && (
+        {modo !== "quadra" && exigeLogin && uidAtual && (
           <div className="flex gap-2">
             {[{ v: false, r: "Meus horários" }, { v: true, r: "Toda a academia" }].map((t) => (
               <button key={String(t.v)} onClick={() => setVerTodos(t.v)}
@@ -16518,7 +16520,11 @@ function TelaAgenda({ alunos, turmas, ocorrencias, setOcorrencias, uidAtual, exi
         )}
       </div>
 
-      {compromissos.length === 0 ? (
+      {modo === "quadra" && mostraQuadras ? (
+        <TelaQuadras quadras={quadras} setQuadras={setQuadras} reservas={reservas} setReservas={setReservas}
+          bloqueiosAula={bloqueiosAula} orgAtual={orgAtual} alunos={alunos} turmas={turmas}
+          ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} />
+      ) : compromissos.length === 0 ? (
         <p style={{ ...prosa, color: C.grafite }}>
           Nenhum compromisso nesta semana. Horários fixos entram em "Horário fixo de treino" na ficha do jogador,
           ou em "Dias e horários de treino" ao criar uma turma.
@@ -17437,7 +17443,9 @@ function App() {
          aba === "torneios" && mostraTorneiosEventos ? <TelaTorneios torneios={torneios} setTorneios={setTorneios} orgAtual={orgAtual} /> :
          aba === "eventos" && mostraTorneiosEventos ? <TelaEventos eventos={eventos} setEventos={setEventos} orgAtual={orgAtual} /> :
          aba === "clientes" && (mostraQuadras || mostraTorneiosEventos) ? <TelaClientes quadras={quadras} reservas={reservas} torneios={torneios} eventos={eventos} /> :
-         aba === "agenda" ? <TelaAgenda alunos={alunos} turmas={turmas} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} uidAtual={uidAtual} exigeLogin={exigeLogin} /> :
+         aba === "agenda" ? <TelaAgenda alunos={alunos} turmas={turmas} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias}
+           quadras={quadras} setQuadras={setQuadras} reservas={reservas} setReservas={setReservas} bloqueiosAula={bloqueiosAula}
+           orgAtual={orgAtual} mostraQuadras={mostraQuadras} uidAtual={uidAtual} exigeLogin={exigeLogin} /> :
          aba === "aulas-hoje" ? <TelaAulasHoje alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} reservas={reservas} bloqueiosAula={bloqueiosAula} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} regrasReposicao={regrasReposicao} uidAtual={uidAtual} papelAtual={papelAtual} /> :
          aba === "reposicoes" ? <TelaReposicoes alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} reservas={reservas} bloqueiosAula={bloqueiosAula} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias}
            regrasReposicao={regrasReposicao} setRegrasReposicao={setRegrasReposicao} papelAtual={papelAtual} /> :
