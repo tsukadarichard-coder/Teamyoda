@@ -13867,6 +13867,11 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
   const [obsIndividual, setObsIndividual] = useState({});
   const [notaAbertaId, setNotaAbertaId] = useState(null);
   const [sessaoTurma, setSessaoTurma] = useState(() => (rascunhoTurma ? rascunhoTurma.sessaoTurma : null)); // { aquecimento, conteudo } | null — a sessão de hoje da turma, com exercícios de verdade pra rodar em quadra
+  /* Mesmo checklist "Atividades realizadas" (Feito/Parcial/Não feito)
+     por exercício que a sessão individual (TelaSessao) já tinha — a
+     sessão de turma registrava a aula inteira como "feita" sem
+     distinguir o que de fato rodou em quadra, diferente da individual. */
+  const [statusExercicios, setStatusExercicios] = useState({});
 
   const rascunhoTurmaPrimeiraRef = useRef(true);
   useEffect(() => {
@@ -13894,6 +13899,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
     () => (statusGeral === "feita" && sessaoTurma ? temasDeExercicios(sessaoTurma.conteudo) : []),
     [statusGeral, sessaoTurma]
   );
+  const todosExerciciosTurmaAtuais = sessaoTurma ? [...sessaoTurma.aquecimento, ...sessaoTurma.conteudo] : [];
 
   /* Monta a sessão de hoje da turma de verdade (com exercícios pra rodar
      em quadra), igual a Sessão de hoje individual já faz — antes disso a
@@ -13999,6 +14005,8 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
          de anotação (corrigi/ignorei/mudaria/presença), preenchidos uma
          vez pelo treinador e copiados pra cada jogador do grupo. */
       const cods = sessaoTurma ? [...sessaoTurma.aquecimento, ...sessaoTurma.conteudo].map((e) => e.c) : [];
+      const exerciciosStatus = {};
+      todosExerciciosTurmaAtuais.forEach((e) => { exerciciosStatus[e.c] = statusExercicios[e.c] || "feito"; });
       const ciclo = modeloChuva ? ("Dia de chuva · " + modeloChuva.nome)
         : aulaTurma ? (turma.nome + " · " + aulaTurma.bloco + " · semana " + aulaTurma.semana + " · " + aulaTurma.t)
         : turma.nome;
@@ -14015,7 +14023,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
         const reg = {
           id: "r" + Date.now() + "-" + a.id, tipo: "sessao", data: hoje, ciclo, turma: turma.nome,
           duracao: turma.duracaoPadrao, presenca: ausente ? "ausente" : "presente",
-          exercicios: ausente ? [] : cods, exerciciosPersonalizados: [], divergencias: [], ...obs,
+          exercicios: ausente ? [] : cods, exerciciosStatus: ausente ? {} : exerciciosStatus, exerciciosPersonalizados: [], divergencias: [], ...obs,
           notaIndividual: notaPessoal,
           aulaDoPlano: aulaTurma ? aulaTurma.t : null,
           // temas/blocoNome são do GRUPO, iguais pra todo membro PRESENTE —
@@ -14056,6 +14064,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
     setSessaoTurma(null);
     setObs({ corrigi: "", ignorei: "", mudaria: "", leituraDaAula: "", nota: 3 });
     setStatusTemas({});
+    setStatusExercicios({});
     setPresenca({});
     setObsIndividual({});
     setNotaAbertaId(null);
@@ -14337,6 +14346,26 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
       {(statusGeral === "feita" || statusGeral === "chuva") && (
         <div className="mt-6" style={{ background: C.cal, border: "1px solid " + C.linha, padding: 15 }}>
           <div className="mb-3"><Etiqueta cor={C.saibro}>Fechamento da sessão — vai pro caderno de cada jogador do grupo</Etiqueta></div>
+          {todosExerciciosTurmaAtuais.length > 0 && (
+            <Campo rotulo="Atividades realizadas" nota="Indique o que não foi feito ou só parcialmente — o resto conta como feito.">
+              {todosExerciciosTurmaAtuais.map((e) => {
+                const st = statusExercicios[e.c] || "feito";
+                return (
+                  <div key={e.c} className="flex items-center justify-between gap-2 flex-wrap mb-2">
+                    <span style={{ ...prosa, fontSize: 13 }}>{e.n}</span>
+                    <div className="flex gap-1 flex-wrap">
+                      {[["feito", "Feito"], ["parcial", "Parcial"], ["nao_feito", "Não feito"]].map(([v, r]) => (
+                        <button key={v} disabled={!podeRegistrarSessaoTurma} onClick={() => setStatusExercicios((x) => ({ ...x, [e.c]: v }))}
+                          style={{ fontFamily: ARCH, fontSize: 10.5, fontWeight: 700, padding: "5px 9px", borderRadius: 10, cursor: "pointer",
+                            border: "1px solid " + (st === v ? C.tinta : C.linha),
+                            background: st === v ? C.tinta : C.papel, color: st === v ? C.papel : C.grafite }}>{r}</button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </Campo>
+          )}
           <Campo rotulo="O que corrigi hoje">
             <textarea rows={2} disabled={!podeRegistrarSessaoTurma} style={{ ...entrada, resize: "vertical" }} value={obs.corrigi}
               onChange={(e) => setObs({ ...obs, corrigi: e.target.value })} placeholder="Em que camada estava a causa" />
