@@ -14759,6 +14759,17 @@ const TIPOS_OCORRENCIA = [
   { v: "bloqueio", r: "Bloqueio" },
 ];
 function rotuloTipoOcorrencia(v) { return (TIPOS_OCORRENCIA.find((t) => t.v === v) || {}).r || v; }
+
+/* Cor por CATEGORIA de compromisso (pedido: aula=verde, locação=azul,
+   reposição=roxo, bloqueio=cinza) — fixa, igual nas duas academias,
+   porque é um código de tipo, não a identidade visual da academia (essa
+   continua vindo de C.*, que já muda por orgId). Nunca é o único jeito
+   de diferenciar (sempre some junto com o texto da etiqueta). */
+const CATEGORIA_TIPO_OCORRENCIA = { regular: "aula", experimental: "aula", reposicao: "reposicao", locacao: "locacao", bloqueio: "bloqueio" };
+const COR_CATEGORIA_TIPO = { aula: "#2E7D32", reposicao: "#6A3FA0", locacao: "#1565C0", bloqueio: "#6B6B6B" };
+const ROTULO_CATEGORIA_TIPO = { aula: "Aula", reposicao: "Reposição", locacao: "Locação", bloqueio: "Bloqueio" };
+function categoriaOcorrencia(tipo) { return CATEGORIA_TIPO_OCORRENCIA[tipo] || "aula"; }
+function corCategoriaOcorrencia(tipo) { return COR_CATEGORIA_TIPO[categoriaOcorrencia(tipo)]; }
 function chaveRecorrencia(origemTipo, origemId, dia, hora) { return origemTipo + ":" + origemId + ":" + dia + ":" + hora; }
 function novaOcorrencia(base) {
   const agora = new Date().toISOString();
@@ -14777,6 +14788,13 @@ function novaOcorrencia(base) {
 }
 function dataISO(d) { return d.toISOString().slice(0, 10); }
 function diaDaSemanaISO(iso) { return new Date(iso + "T00:00:00").getDay(); }
+function somaDiasISO(iso, n) { return dataISO(new Date(new Date(iso + "T00:00:00").getTime() + n * 86400000)); }
+/* Segunda-feira da semana que contém `iso` — base da visão "Semana" da
+   Agenda (DIAS_SEMANA já está na mesma ordem: seg..dom). */
+function inicioSemanaISO(iso) {
+  const dia = diaDaSemanaISO(iso);
+  return somaDiasISO(iso, dia === 0 ? -6 : -(dia - 1));
+}
 function listaDatasEntre(inicioISO, fimISO) {
   const out = [];
   let d = new Date(inicioISO + "T00:00:00");
@@ -16413,35 +16431,69 @@ function TelaDashboard({ alunos, turmas, ocorrencias, papelAtual, uidAtual, exig
   );
 }
 
-function TelaAgenda({ alunos, turmas, ocorrencias, uidAtual, exigeLogin }) {
+/* Agenda — pedido de unificação: antes lia direto de aluno.horarios/
+   turma.horarios (compromissosDaSemana, um caminho paralelo ao motor de
+   ocorrências que Quadras/Aulas de hoje/Reposições já usam). Agora lê as
+   MESMAS ocorrências — a semana mostrada é uma semana real (com datas de
+   verdade, navegável), não mais um template abstrato que repete sempre
+   igual. Isso corrige de raiz a razão de "Agenda não bate com Quadras":
+   eram dois cálculos diferentes de quem está ocupado quando. */
+function TelaAgenda({ alunos, turmas, ocorrencias, setOcorrencias, uidAtual, exigeLogin }) {
   const [modo, setModo] = useState("grade");
   const [verTodos, setVerTodos] = useState(false);
+  const hojeISO = dataISO(new Date());
+  const [semanaBase, setSemanaBase] = useState(() => inicioSemanaISO(hojeISO));
+  const fimSemana = somaDiasISO(semanaBase, 6);
 
-  const todos = useMemo(() => compromissosDaSemana(alunos, turmas), [alunos, turmas]);
+  useEffect(() => {
+    if (!setOcorrencias) return;
+    const novas = gerarOcorrenciasFaltantes(ocorrencias, alunos || [], turmas || [], semanaBase, fimSemana, []);
+    if (novas.length) setOcorrencias([...ocorrencias, ...novas]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [semanaBase]);
+
+  const todos = useMemo(() => (ocorrencias || [])
+    .filter((o) => o.data >= semanaBase && o.data <= fimSemana && o.tipo !== "locacao" && o.tipo !== "bloqueio")
+    .map((o) => ({
+      id: o.id, dia: diaDaSemanaISO(o.data), data: o.data, hora: o.horaInicio, horaFim: o.horaFim,
+      titulo: tituloOcorrencia(o, alunos || [], turmas || []), detalhe: rotuloTipoOcorrencia(o.tipo),
+      categoria: categoriaOcorrencia(o.tipo),
+      professorUid: o.professorUid, professorNome: o.professorNome,
+      professorAuxiliarUid: o.professorAuxiliarUid, professorAuxiliarNome: o.professorAuxiliarNome,
+      cancelada: o.status === "cancelada", semQuadra: !o.quadraId,
+    }))
+    .sort((x, y) => x.data.localeCompare(y.data) || x.hora.localeCompare(y.hora)), [ocorrencias, semanaBase, fimSemana, alunos, turmas]);
+
   const compromissos = (!exigeLogin || verTodos || !uidAtual)
     ? todos
     : todos.filter((c) => !c.professorUid || c.professorUid === uidAtual || c.professorAuxiliarUid === uidAtual);
 
   const horas = [...new Set(compromissos.flatMap((c) => faixasDeMeiaHora(c.hora, c.horaFim)))].sort();
+  const semQuadraNaSemana = compromissos.filter((c) => c.semQuadra && !c.cancelada).length;
 
-  /* Esta grade é o template semanal fixo (sempre repete) — não dá pra
-     cancelar a recorrência inteira por aqui. Mas quando a aula de HOJE
-     foi cancelada (em "Aulas de hoje"), a grade continua mostrando o
-     horário normalmente por engano. Olhamos a ocorrência de hoje (se já
-     existir) só pra avisar com uma etiqueta, sem remover a aula da
-     grade — na próxima semana ela volta a acontecer normalmente. */
-  const diaHoje = new Date().getDay();
-  const hojeISO = dataISO(new Date());
-  function canceladaHoje(c) { return statusHojeDoCompromisso(ocorrencias, c, diaHoje, hojeISO) === "cancelada"; }
+  function rotuloData(iso) {
+    const [, m, d] = iso.split("-");
+    return d + "/" + m;
+  }
 
   return (
     <div>
       <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Agenda</h1>
-      <p style={{ ...prosa, color: C.grafite, marginBottom: 14 }}>
-        Vem dos horários fixos cadastrados na ficha de cada jogador e em cada turma.
+      <p style={{ ...prosa, color: C.grafite, marginBottom: 4 }}>
+        {rotuloData(semanaBase)}–{rotuloData(fimSemana)} · mesmos compromissos de Quadras, Aulas de hoje e Reposições.
       </p>
+      {semQuadraNaSemana > 0 && (
+        <p style={{ ...prosa, fontSize: 12.5, color: "#B8860B", marginBottom: 10 }}>
+          {plural(semQuadraNaSemana, "aula")} sem quadra definida nesta semana — resolva em "Aulas de hoje" ou nos detalhes de cada aula.
+        </p>
+      )}
 
       <div className="flex items-center justify-between gap-3 flex-wrap mb-5">
+        <div className="flex gap-2 items-center flex-wrap">
+          <Botao pequeno variante="vazio" onClick={() => setSemanaBase(somaDiasISO(semanaBase, -7))}>← Semana anterior</Botao>
+          <Botao pequeno variante="vazio" onClick={() => setSemanaBase(inicioSemanaISO(hojeISO))}>Hoje</Botao>
+          <Botao pequeno variante="vazio" onClick={() => setSemanaBase(somaDiasISO(semanaBase, 7))}>Semana seguinte →</Botao>
+        </div>
         <div className="flex gap-2">
           {[{ v: "grade", r: "Grade" }, { v: "semana", r: "Semana" }].map((t) => (
             <button key={t.v} onClick={() => setModo(t.v)}
@@ -16468,7 +16520,7 @@ function TelaAgenda({ alunos, turmas, ocorrencias, uidAtual, exigeLogin }) {
 
       {compromissos.length === 0 ? (
         <p style={{ ...prosa, color: C.grafite }}>
-          Nenhum horário fixo cadastrado ainda. Adicione em "Horário fixo de treino" na ficha do jogador,
+          Nenhum compromisso nesta semana. Horários fixos entram em "Horário fixo de treino" na ficha do jogador,
           ou em "Dias e horários de treino" ao criar uma turma.
         </p>
       ) : modo === "grade" ? (
@@ -16478,7 +16530,9 @@ function TelaAgenda({ alunos, turmas, ocorrencias, uidAtual, exigeLogin }) {
               <tr>
                 <th style={{ ...celulaGrade, background: C.papel }}></th>
                 {DIAS_SEMANA.map((d) => (
-                  <th key={d.v} style={{ ...celulaGrade, fontFamily: ARCH, fontSize: 12, fontWeight: 700, textAlign: "left" }}>{d.r}</th>
+                  <th key={d.v} style={{ ...celulaGrade, fontFamily: ARCH, fontSize: 12, fontWeight: 700, textAlign: "left" }}>
+                    {d.r} {rotuloData(somaDiasISO(semanaBase, d.v === 0 ? 6 : d.v - 1))}
+                  </th>
                 ))}
               </tr>
             </thead>
@@ -16491,14 +16545,15 @@ function TelaAgenda({ alunos, turmas, ocorrencias, uidAtual, exigeLogin }) {
                     return (
                       <td key={d.v} style={{ ...celulaGrade, minWidth: 110 }}>
                         {aqui.map((c, i) => (
-                          <div key={i} className="mb-1" style={{ fontSize: 11.5, lineHeight: 1.3, opacity: canceladaHoje(c) ? 0.55 : 1 }}>
+                          <div key={i} className="mb-1" style={{ fontSize: 11.5, lineHeight: 1.3, opacity: c.cancelada ? 0.55 : 1,
+                            borderLeft: "3px solid " + corCategoriaOcorrencia(c.categoria === "aula" ? "regular" : c.categoria), paddingLeft: 4 }}>
                             {c.hora === hora ? (
                               <>
-                                <div style={{ fontWeight: 700 }}>{c.titulo}{canceladaHoje(c) ? " · cancelada hoje" : ""}</div>
+                                <div style={{ fontWeight: 700 }}>{c.titulo}{c.cancelada ? " · cancelada" : ""}</div>
                                 <div style={{ color: C.grafite }}>{c.professorNome || "sem professor"}{c.professorAuxiliarNome ? " + " + c.professorAuxiliarNome : ""}</div>
                               </>
                             ) : (
-                              <div style={{ color: C.grafite, fontStyle: "italic" }}>↕ {c.titulo}{canceladaHoje(c) ? " · cancelada hoje" : ""}</div>
+                              <div style={{ color: C.grafite, fontStyle: "italic" }}>↕ {c.titulo}{c.cancelada ? " · cancelada" : ""}</div>
                             )}
                           </div>
                         ))}
@@ -16516,15 +16571,19 @@ function TelaAgenda({ alunos, turmas, ocorrencias, uidAtual, exigeLogin }) {
           if (doDia.length === 0) return null;
           return (
             <div key={d.v} className="mb-5">
-              <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.08em", color: C.grafite }}>{d.r}</div>
+              <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.08em", color: C.grafite }}>
+                {d.r} · {rotuloData(somaDiasISO(semanaBase, d.v === 0 ? 6 : d.v - 1))}
+              </div>
               {doDia.map((c, i) => (
-                <div key={i} style={{ background: C.cal, border: "1px solid " + C.linha, padding: "10px 13px", marginBottom: 6, opacity: canceladaHoje(c) ? 0.55 : 1 }}>
+                <div key={i} style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + corCategoriaOcorrencia(c.categoria === "aula" ? "regular" : c.categoria),
+                  padding: "10px 13px", marginBottom: 6, opacity: c.cancelada ? 0.55 : 1 }}>
                   <div className="flex items-center justify-between gap-3">
                     <div style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{c.hora}–{c.horaFim} · {c.titulo}</div>
-                    {canceladaHoje(c) ? <Etiqueta cor={C.saibro}>cancelada hoje</Etiqueta> : <Etiqueta>{c.detalhe}</Etiqueta>}
+                    {c.cancelada ? <Etiqueta cor={C.saibro}>cancelada</Etiqueta> : <Etiqueta>{c.detalhe}</Etiqueta>}
                   </div>
                   <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>
                     {c.professorNome || "sem professor definido"}{c.professorAuxiliarNome ? " · aux. " + c.professorAuxiliarNome : ""}
+                    {c.semQuadra && !c.cancelada ? " · sem quadra definida" : ""}
                   </p>
                 </div>
               ))}
@@ -17378,7 +17437,7 @@ function App() {
          aba === "torneios" && mostraTorneiosEventos ? <TelaTorneios torneios={torneios} setTorneios={setTorneios} orgAtual={orgAtual} /> :
          aba === "eventos" && mostraTorneiosEventos ? <TelaEventos eventos={eventos} setEventos={setEventos} orgAtual={orgAtual} /> :
          aba === "clientes" && (mostraQuadras || mostraTorneiosEventos) ? <TelaClientes quadras={quadras} reservas={reservas} torneios={torneios} eventos={eventos} /> :
-         aba === "agenda" ? <TelaAgenda alunos={alunos} turmas={turmas} ocorrencias={ocorrencias} uidAtual={uidAtual} exigeLogin={exigeLogin} /> :
+         aba === "agenda" ? <TelaAgenda alunos={alunos} turmas={turmas} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} uidAtual={uidAtual} exigeLogin={exigeLogin} /> :
          aba === "aulas-hoje" ? <TelaAulasHoje alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} reservas={reservas} bloqueiosAula={bloqueiosAula} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} regrasReposicao={regrasReposicao} uidAtual={uidAtual} papelAtual={papelAtual} /> :
          aba === "reposicoes" ? <TelaReposicoes alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} reservas={reservas} bloqueiosAula={bloqueiosAula} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias}
            regrasReposicao={regrasReposicao} setRegrasReposicao={setRegrasReposicao} papelAtual={papelAtual} /> :
