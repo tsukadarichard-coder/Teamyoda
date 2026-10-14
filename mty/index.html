@@ -12901,33 +12901,22 @@ const TIPOS_EVENTO = { clinica: "Clínica", social: "Social", exibicao: "Exibiç
 const STATUS_TORNEIO = { inscricoes: "Inscrições abertas", andamento: "Em andamento", encerrado: "Encerrado" };
 const STATUS_TORNEIO_COR = { inscricoes: C.saibro, andamento: C.tinta, encerrado: C.grafite };
 
-function TelaQuadras({ quadras, setQuadras, reservas, setReservas, bloqueiosAula, orgAtual, alunos, turmas, ocorrencias, setOcorrencias }) {
-  const [gerenciando, setGerenciando] = useState(false);
+/* "Quadras" (chegue aqui pelo menu "Academia" ou por "Mais opções" de
+   dentro da Agenda — é a mesma tela, sem duplicar nada) agora é só
+   CADASTRO e CONFIGURAÇÃO dos espaços (nome, piso, cobertura,
+   iluminação, faixas de preço) e o link público de reserva. A ocupação
+   real do dia — grade por quadra, reservar, cancelar, ver detalhe —
+   mora dentro da Agenda, em "Por quadra" (ver GradeColunas/TelaAgenda):
+   pedido explícito foi "Gerenciar quadras deve cuidar do cadastro e da
+   configuração dos espaços, sem manter outra agenda editável
+   independente" — antes esta tela tinha sua própria data, sua própria
+   grade e seu próprio form de reserva, uma SEGUNDA agenda desconectada
+   da Agenda principal. */
+function TelaQuadras({ quadras, setQuadras, orgAtual }) {
   const [nomeNovaQuadra, setNomeNovaQuadra] = useState("");
-  const [dataEscolhida, setDataEscolhida] = useState(() => new Date().toISOString().slice(0, 10));
-  const [rascunho, setRascunho] = useState(null); // null = nenhum form de reserva aberto
-  const [erro, setErro] = useState("");
   const [linkCopiado, setLinkCopiado] = useState(false);
-  // "grade" (todas as quadras lado a lado) ou "lista" (uma lista só, mais
-  // legível no celular) — pedido explícito de oferecer as duas visões.
-  const [modoVisao, setModoVisao] = useState("grade");
-  const [filtroQuadraId, setFiltroQuadraId] = useState("");
-  const [filtroTipo, setFiltroTipo] = useState("");
-  const [detalheAberto, setDetalheAberto] = useState(null);
-
-  function mudarData(deltaDias) {
-    const d = new Date(dataEscolhida + "T00:00:00");
-    d.setDate(d.getDate() + deltaDias);
-    setDataEscolhida(dataISO(d));
-    setRascunho(null);
-  }
-  function nomeQuadra(id) {
-    const q = quadras.find((x) => x.id === id);
-    return q ? q.nome : "";
-  }
 
   const quadrasAtivas = quadras.filter((q) => q.ativa !== false);
-  const quadrasExibidas = filtroQuadraId ? quadrasAtivas.filter((q) => q.id === filtroQuadraId) : quadrasAtivas;
   const linkReserva = orgAtual ? location.origin + "/reservar.html?org=" + encodeURIComponent(orgAtual) : "";
 
   async function copiarLink() {
@@ -12963,119 +12952,12 @@ function TelaQuadras({ quadras, setQuadras, reservas, setReservas, bloqueiosAula
       : q)));
   }
 
-  function reservaEm(quadraId, hora) {
-    return reservas.find((r) => r.quadraId === quadraId && r.data === dataEscolhida && r.horaInicio <= hora && r.horaFim > hora);
-  }
-  function abrirFormNaFaixa(quadraId, hora) {
-    setErro("");
-    const fim = FAIXAS_MEIA_HORA[FAIXAS_MEIA_HORA.indexOf(hora) + 1] || hora;
-    setRascunho({ ...novaReserva(), quadraId, data: dataEscolhida, horaInicio: hora, horaFim: fim });
-  }
-  function confirmarReserva() {
-    const r = rascunho;
-    if (!r.data || !r.horaInicio || !r.horaFim || !r.nomeContato.trim() || !r.telefoneContato.trim()) {
-      setErro("Preencha data, horário de início e fim, nome e telefone de contato.");
-      return;
-    }
-    if (r.horaFim <= r.horaInicio) {
-      setErro("O horário de fim precisa ser depois do horário de início.");
-      return;
-    }
-    const disponibilidade = disponibilidadeDaQuadra({
-      quadraId: r.quadraId, data: r.data, horaInicio: r.horaInicio, horaFim: r.horaFim,
-      ocorrencias, reservas, bloqueiosAula, turmas,
-    });
-    if (!disponibilidade.livre) {
-      setErro(disponibilidade.motivo);
-      return;
-    }
-    setReservas([...reservas, { ...r, nomeContato: r.nomeContato.trim(), telefoneContato: r.telefoneContato.trim() }]);
-    setRascunho(null);
-    setErro("");
-  }
-  function removerReserva(id) {
-    if (!confirm("Cancelar esta reserva?")) return;
-    setReservas(reservas.filter((r) => r.id !== id));
-  }
-
-  const quadraDoRascunho = rascunho ? quadrasAtivas.find((q) => q.id === rascunho.quadraId) : null;
-
-  /* Ocupação REAL da quadra no dia escolhido — não mais a grade semanal
-     fixa, e sim as mesmas ocorrências que "Aulas de hoje" e "Reposições"
-     usam (pedido: "Agenda, Quadras e Grade de aulas devem consultar os
-     mesmos registros de ocupação"). Isso corrige duas lacunas que a
-     grade semanal fixa tinha: uma aula cancelada hoje libera a quadra
-     aqui também, e uma reposição avulsa (sem horário fixo) agora aparece
-     — antes ela só existia em "Reposições", e dava pra reservar a
-     mesma quadra por cima sem perceber. Garante que as ocorrências do
-     dia escolhido existam antes de ler (mesma geração lazy e idempotente
-     de "Aulas de hoje"). */
-  useEffect(() => {
-    if (!dataEscolhida || !setOcorrencias) return;
-    const novas = gerarOcorrenciasFaltantes(ocorrencias, alunos || [], turmas || [], dataEscolhida, dataEscolhida, []);
-    if (novas.length) setOcorrencias([...ocorrencias, ...novas]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dataEscolhida]);
-  const aulasDoDia = useMemo(() => {
-    if (!dataEscolhida) return [];
-    return (ocorrencias || [])
-      .filter((o) => o.data === dataEscolhida && o.status !== "cancelada" && o.quadraId)
-      .map((o) => ({
-        quadraId: o.quadraId, hora: o.horaInicio, horaFim: o.horaFim, tipo: o.tipo,
-        titulo: tituloOcorrencia(o, alunos || [], turmas || []) + (o.tipo === "reposicao" ? " (reposição)" : ""),
-        professorNome: o.professorNome, professorAuxiliarNome: o.professorAuxiliarNome,
-      }));
-  }, [ocorrencias, dataEscolhida, alunos, turmas]);
-  const reservasDoDia = useMemo(() => (reservas || []).filter((r) => r.data === dataEscolhida), [reservas, dataEscolhida]);
-  /* Filtro "por tipo de ocupação" só aparece quando há mais de um tipo
-     pra filtrar nesse dia — pedido "quando houver", sem poluir a tela em
-     dias com só um tipo de compromisso. */
-  const tiposPresentesHoje = useMemo(() => {
-    const s = new Set();
-    aulasDoDia.forEach((a) => s.add(a.tipo === "reposicao" ? "reposicao" : "aula"));
-    if (reservasDoDia.length > 0) s.add("reserva");
-    return s;
-  }, [aulasDoDia, reservasDoDia]);
-  function passaNosFiltros(quadraId, tipo) {
-    if (filtroQuadraId && quadraId !== filtroQuadraId) return false;
-    if (filtroTipo && filtroTipo !== tipo) return false;
-    return true;
-  }
-  function aulaEm(quadraId, hora) {
-    // O filtro por tipo (seção "Lista do dia") não vale aqui: esconder
-    // uma aula/reposição/reserva da grade por tipo faria o horário
-    // aparecer como "livre" por engano — a grade só filtra por quadra
-    // (coluna removida de verdade, sem fingir disponibilidade de outra).
-    return aulasDoDia.find((c) => c.quadraId === quadraId && c.hora <= hora && hora < c.horaFim);
-  }
-  /* "Lista do dia": tudo que ocupa alguma quadra hoje, numa lista só
-     ordenada por horário — mais fácil de ler no celular que a grade
-     inteira, principalmente com poucas ocupações no dia. */
-  const itensListaDia = useMemo(() => {
-    const itens = [];
-    aulasDoDia.forEach((a) => {
-      const tipo = a.tipo === "reposicao" ? "reposicao" : "aula";
-      if (!passaNosFiltros(a.quadraId, tipo)) return;
-      itens.push({ tipo, quadraId: a.quadraId, hora: a.hora, horaFim: a.horaFim, titulo: a.titulo,
-        professorNome: a.professorNome, professorAuxiliarNome: a.professorAuxiliarNome });
-    });
-    reservasDoDia.forEach((r) => {
-      if (!passaNosFiltros(r.quadraId, "reserva")) return;
-      itens.push({ tipo: "reserva", quadraId: r.quadraId, hora: r.horaInicio, horaFim: r.horaFim, titulo: r.nomeContato, reserva: r });
-    });
-    return itens.sort((x, y) => x.hora.localeCompare(y.hora) || nomeQuadra(x.quadraId).localeCompare(nomeQuadra(y.quadraId)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aulasDoDia, reservasDoDia, filtroQuadraId, filtroTipo, quadras]);
-  const ROTULO_TIPO_OCUPACAO = { aula: "aula", reposicao: "reposição", reserva: "reserva" };
-
   return (
     <div>
-      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Quadras</h1>
+      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Gerenciar quadras</h1>
       <p style={{ ...prosa, color: C.grafite, marginBottom: 18 }}>
-        Agenda de reserva avulsa de quadra ou espaço, de meia em meia hora. Qualquer pessoa pode
-        reservar, mesmo sem ser aluno cadastrado. As aulas de jogadores e turmas com quadra definida
-        (em "Dias e horários de treino") também aparecem aqui, em verde, pra ficar fácil ver quem
-        está em cada quadra — defina a quadra na ficha do jogador ou da turma pra habilitar isso.
+        Cadastro e configuração dos espaços. A ocupação do dia, a grade por quadra e as reservas
+        ficam na Agenda, em "Por quadra".
       </p>
 
       {linkReserva && (
@@ -13089,276 +12971,59 @@ function TelaQuadras({ quadras, setQuadras, reservas, setReservas, bloqueiosAula
             <input id="mty-link-reserva" readOnly value={linkReserva} style={{ ...entrada, fontSize: 12, flex: 1 }}
               onFocus={(e) => e.target.select()} />
             <Botao pequeno variante="vazio" onClick={copiarLink}>{linkCopiado ? "✓ copiado" : "Copiar"}</Botao>
+            <a href={linkReserva} target="_blank" rel="noreferrer"><Botao pequeno variante="vazio">Ver página pública</Botao></a>
           </div>
         </div>
       )}
 
-      <div className="mb-6" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "12px 15px" }}>
-        <button onClick={() => setGerenciando(!gerenciando)} className="w-full flex items-center justify-between gap-3" style={{ cursor: "pointer" }}>
-          <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>Gerenciar quadras ({quadrasAtivas.length})</span>
-          <Etiqueta>{gerenciando ? "fechar" : "abrir"}</Etiqueta>
-        </button>
-        {gerenciando && (
-          <div className="mt-3">
-            {quadrasAtivas.length === 0 && (
-              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>Nenhuma quadra cadastrada ainda.</p>
-            )}
-            {quadrasAtivas.map((q) => (
-              <div key={q.id} className="mb-2" style={{ background: C.papel, border: "1px solid " + C.linha, padding: "8px 11px" }}>
-                <div className="flex items-center justify-between gap-3">
-                  <span style={{ ...prosa, fontSize: 13 }}>{q.nome}</span>
-                  <button onClick={() => removerQuadra(q.id)} title="Remover quadra" style={iconeEstilo}>×</button>
-                </div>
-                <div className="mt-2 flex gap-2 flex-wrap items-center">
-                  <input style={{ ...entrada, width: 130, fontSize: 12 }} placeholder="piso (ex: saibro)" value={q.piso || ""}
-                    onChange={(e) => atualizarQuadra(q.id, { piso: e.target.value })} />
-                  <select style={{ ...entrada, width: 120, fontSize: 12 }} value={q.cobertura || ""}
-                    onChange={(e) => atualizarQuadra(q.id, { cobertura: e.target.value })}>
-                    <option value="">Cobertura</option>
-                    <option value="coberta">Coberta</option>
-                    <option value="descoberta">Descoberta</option>
-                  </select>
-                  <label className="flex items-center gap-1.5" style={{ ...prosa, fontSize: 12, cursor: "pointer" }}>
-                    <input type="checkbox" checked={!!q.iluminacao} onChange={(e) => atualizarQuadra(q.id, { iluminacao: e.target.checked })} />
-                    Iluminação
-                  </label>
-                </div>
-                <div className="mt-2">
-                  <div style={{ ...prosa, fontSize: 10.5, color: C.grafite, marginBottom: 4 }}>
-                    Preço por horário (opcional — sem faixa cadastrada, o horário some como "livre", sem preço)
-                  </div>
-                  {(q.faixasPreco || []).map((f) => (
-                    <div key={f.id} className="flex gap-2 items-center mb-1 flex-wrap">
-                      <input type="time" style={{ ...entrada, width: 92, fontSize: 12 }} value={f.inicio}
-                        onChange={(e) => atualizarFaixaPreco(q.id, f.id, { inicio: e.target.value })} />
-                      <span style={{ fontSize: 11, color: C.grafite }}>até</span>
-                      <input type="time" style={{ ...entrada, width: 92, fontSize: 12 }} value={f.fim}
-                        onChange={(e) => atualizarFaixaPreco(q.id, f.id, { fim: e.target.value })} />
-                      <input type="number" step="0.01" min="0" placeholder="valor" style={{ ...entrada, width: 82, fontSize: 12 }} value={f.preco}
-                        onChange={(e) => atualizarFaixaPreco(q.id, f.id, { preco: e.target.value })} />
-                      <button onClick={() => removerFaixaPreco(q.id, f.id)} title="Remover faixa" style={iconeEstilo}>×</button>
-                    </div>
-                  ))}
-                  <Botao pequeno variante="vazio" onClick={() => adicionarFaixaPreco(q.id)}>+ faixa de preço</Botao>
-                </div>
+      {quadrasAtivas.length === 0 && (
+        <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>Nenhuma quadra cadastrada ainda.</p>
+      )}
+      {quadrasAtivas.map((q) => (
+        <div key={q.id} className="mb-2" style={{ background: C.papel, border: "1px solid " + C.linha, padding: "8px 11px" }}>
+          <div className="flex items-center justify-between gap-3">
+            <span style={{ ...prosa, fontSize: 13 }}>{q.nome}</span>
+            <button onClick={() => removerQuadra(q.id)} title="Remover quadra" style={iconeEstilo}>×</button>
+          </div>
+          <div className="mt-2 flex gap-2 flex-wrap items-center">
+            <input style={{ ...entrada, width: 130, fontSize: 12 }} placeholder="piso (ex: saibro)" value={q.piso || ""}
+              onChange={(e) => atualizarQuadra(q.id, { piso: e.target.value })} />
+            <select style={{ ...entrada, width: 120, fontSize: 12 }} value={q.cobertura || ""}
+              onChange={(e) => atualizarQuadra(q.id, { cobertura: e.target.value })}>
+              <option value="">Cobertura</option>
+              <option value="coberta">Coberta</option>
+              <option value="descoberta">Descoberta</option>
+            </select>
+            <label className="flex items-center gap-1.5" style={{ ...prosa, fontSize: 12, cursor: "pointer" }}>
+              <input type="checkbox" checked={!!q.iluminacao} onChange={(e) => atualizarQuadra(q.id, { iluminacao: e.target.checked })} />
+              Iluminação
+            </label>
+          </div>
+          <div className="mt-2">
+            <div style={{ ...prosa, fontSize: 10.5, color: C.grafite, marginBottom: 4 }}>
+              Preço por horário (opcional — sem faixa cadastrada, o horário some como "livre", sem preço)
+            </div>
+            {(q.faixasPreco || []).map((f) => (
+              <div key={f.id} className="flex gap-2 items-center mb-1 flex-wrap">
+                <input type="time" style={{ ...entrada, width: 92, fontSize: 12 }} value={f.inicio}
+                  onChange={(e) => atualizarFaixaPreco(q.id, f.id, { inicio: e.target.value })} />
+                <span style={{ fontSize: 11, color: C.grafite }}>até</span>
+                <input type="time" style={{ ...entrada, width: 92, fontSize: 12 }} value={f.fim}
+                  onChange={(e) => atualizarFaixaPreco(q.id, f.id, { fim: e.target.value })} />
+                <input type="number" step="0.01" min="0" placeholder="valor" style={{ ...entrada, width: 82, fontSize: 12 }} value={f.preco}
+                  onChange={(e) => atualizarFaixaPreco(q.id, f.id, { preco: e.target.value })} />
+                <button onClick={() => removerFaixaPreco(q.id, f.id)} title="Remover faixa" style={iconeEstilo}>×</button>
               </div>
             ))}
-            <div className="flex gap-2 mt-3 flex-wrap items-center">
-              <input style={{ ...entrada, flex: 1, minWidth: 180 }} value={nomeNovaQuadra} onChange={(e) => setNomeNovaQuadra(e.target.value)}
-                placeholder="ex: Quadra 1 · saibro" onKeyDown={(e) => e.key === "Enter" && adicionarQuadra()} />
-              <Botao pequeno onClick={adicionarQuadra} disabled={!nomeNovaQuadra.trim()}>Adicionar quadra</Botao>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="flex items-center gap-2 mb-2 flex-wrap">
-        <Botao pequeno variante="vazio" onClick={() => mudarData(-1)}>Anterior</Botao>
-        <Botao pequeno variante="vazio" onClick={() => setDataEscolhida(dataISO(new Date()))}>Hoje</Botao>
-        <Botao pequeno variante="vazio" onClick={() => mudarData(1)}>Próximo</Botao>
-        <input type="date" style={{ ...entrada, maxWidth: 170 }} value={dataEscolhida}
-          onChange={(e) => { setDataEscolhida(e.target.value); setRascunho(null); }} />
-      </div>
-      <div className="mb-4"><Etiqueta>{formatarDataLonga(dataEscolhida)}</Etiqueta></div>
-
-      <div className="flex items-center gap-2 mb-4 flex-wrap">
-        {[{ v: "grade", r: "Grade de quadras" }, { v: "lista", r: "Lista do dia" }].map((t) => (
-          <button key={t.v} onClick={() => setModoVisao(t.v)}
-            style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, padding: "6px 11px", borderRadius: 10, cursor: "pointer",
-              border: "1px solid " + (modoVisao === t.v ? C.tinta : C.linha),
-              background: modoVisao === t.v ? C.tinta : C.papel, color: modoVisao === t.v ? C.papel : C.grafite }}>
-            {t.r}
-          </button>
-        ))}
-      </div>
-
-      {(quadrasAtivas.length > 1 || (modoVisao === "lista" && tiposPresentesHoje.size > 1)) && (
-        <div className="flex gap-2 mb-4 flex-wrap items-end">
-          {quadrasAtivas.length > 1 && (
-            <Campo rotulo="Filtrar por quadra">
-              <select style={{ ...entrada, width: 180 }} value={filtroQuadraId} onChange={(e) => setFiltroQuadraId(e.target.value)}>
-                <option value="">Todas as quadras</option>
-                {quadrasAtivas.map((q) => <option key={q.id} value={q.id}>{q.nome}</option>)}
-              </select>
-            </Campo>
-          )}
-          {modoVisao === "lista" && tiposPresentesHoje.size > 1 && (
-            <Campo rotulo="Filtrar por tipo">
-              <select style={{ ...entrada, width: 160 }} value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)}>
-                <option value="">Todos os tipos</option>
-                {[...tiposPresentesHoje].map((t) => <option key={t} value={t}>{ROTULO_TIPO_OCUPACAO[t]}</option>)}
-              </select>
-            </Campo>
-          )}
-        </div>
-      )}
-
-      {quadrasAtivas.length === 0 ? (
-        <p style={{ ...prosa, color: C.grafite }}>Cadastre uma quadra acima pra começar a receber reservas.</p>
-      ) : modoVisao === "lista" ? (
-        itensListaDia.length === 0 ? (
-          <p style={{ ...prosa, color: C.grafite }}>Nenhuma aula, reposição ou reserva nesse dia (com os filtros atuais).</p>
-        ) : (
-          <div>
-            {itensListaDia.map((item, i) => (
-              <button key={i} onClick={() => setDetalheAberto(item)} className="w-full text-left flex items-center justify-between gap-3"
-                style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "10px 13px", marginBottom: 7, cursor: "pointer", minHeight: 44 }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{item.hora}–{item.horaFim} · {nomeQuadra(item.quadraId)}</div>
-                  <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>{item.titulo} · {ROTULO_TIPO_OCUPACAO[item.tipo]}</p>
-                </div>
-                <Etiqueta cor={item.tipo === "reserva" ? C.saibro : C.quadra}>{ROTULO_TIPO_OCUPACAO[item.tipo]}</Etiqueta>
-              </button>
-            ))}
-          </div>
-        )
-      ) : (
-        <div style={{ overflow: "auto", maxHeight: "70vh", border: "1px solid " + C.linha }}>
-          <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 90 + quadrasExibidas.length * 150 }}>
-            <thead>
-              <tr>
-                <th style={{ ...celulaGrade, background: C.papel, position: "sticky", left: 0, top: 0, zIndex: 3 }}></th>
-                {quadrasExibidas.map((q) => (
-                  <th key={q.id} style={{ ...celulaGrade, fontFamily: ARCH, fontSize: 12, fontWeight: 700, textAlign: "left",
-                    background: C.papel, position: "sticky", top: 0, zIndex: 2 }}>{q.nome}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {FAIXAS_MEIA_HORA.slice(0, -1).map((hora) => (
-                <tr key={hora}>
-                  <td style={{ ...celulaGrade, fontFamily: ARCH, fontSize: 12, fontWeight: 700, color: C.grafite, whiteSpace: "nowrap",
-                    background: C.papel, position: "sticky", left: 0, zIndex: 1 }}>{hora}</td>
-                  {quadrasExibidas.map((q) => {
-                    const aula = aulaEm(q.id, hora);
-                    if (aula) {
-                      const primeiraFaixa = aula.hora === hora;
-                      const tipoAula = aula.tipo === "reposicao" ? "reposicao" : "aula";
-                      return (
-                        <td key={q.id} style={{ ...celulaGrade, minWidth: 140, padding: 0, background: primeiraFaixa ? "#E8F0EA" : "#F1F5F2" }}>
-                          {primeiraFaixa && (
-                            <button onClick={() => setDetalheAberto({ tipo: tipoAula, quadraId: q.id, hora: aula.hora, horaFim: aula.horaFim,
-                              titulo: aula.titulo, professorNome: aula.professorNome, professorAuxiliarNome: aula.professorAuxiliarNome })}
-                              style={{ width: "100%", textAlign: "left", border: "none", background: "transparent", cursor: "pointer", padding: "6px 10px" }}>
-                              <div style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700 }}>{aula.titulo}</div>
-                              <div style={{ ...prosa, fontSize: 10.5, color: C.grafite }}>
-                                {aula.professorNome || "sem professor definido"}
-                                {aula.professorAuxiliarNome ? " + " + aula.professorAuxiliarNome : ""}
-                              </div>
-                              <div style={{ ...prosa, fontSize: 10, color: C.grafite }}>{aula.hora}–{aula.horaFim} · {ROTULO_TIPO_OCUPACAO[tipoAula]}</div>
-                            </button>
-                          )}
-                        </td>
-                      );
-                    }
-                    const r = reservaEm(q.id, hora);
-                    if (r) {
-                      const primeiraFaixa = r.horaInicio === hora;
-                      return (
-                        <td key={q.id} style={{ ...celulaGrade, minWidth: 140, padding: 0, background: primeiraFaixa ? C.cal : "#EFEAE4" }}>
-                          {primeiraFaixa && (
-                            <div className="flex items-center justify-between gap-2" style={{ padding: "6px 10px" }}>
-                              <button onClick={() => setDetalheAberto({ tipo: "reserva", quadraId: q.id, hora: r.horaInicio, horaFim: r.horaFim,
-                                titulo: r.nomeContato, reserva: r })}
-                                style={{ flex: 1, textAlign: "left", border: "none", background: "transparent", cursor: "pointer", padding: 0, minWidth: 0 }}>
-                                <div style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700 }}>{r.nomeContato}</div>
-                                <div style={{ ...prosa, fontSize: 10.5, color: C.grafite }}>
-                                  {r.horaInicio}–{r.horaFim} · reserva{r.origem === "cliente" ? " · pelo cliente" : ""}
-                                </div>
-                              </button>
-                              <button onClick={() => removerReserva(r.id)} title="Cancelar reserva"
-                                style={{ ...iconeEstilo, width: 20, height: 20, fontSize: 12, flexShrink: 0 }}>×</button>
-                            </div>
-                          )}
-                        </td>
-                      );
-                    }
-                    const preco = precoNaHora(q, hora);
-                    return (
-                      <td key={q.id} style={{ ...celulaGrade, minWidth: 140, padding: 0 }}>
-                        <button onClick={() => abrirFormNaFaixa(q.id, hora)}
-                          style={{ width: "100%", height: "100%", minHeight: 32, border: "none", background: "transparent",
-                            cursor: "pointer", fontFamily: ARCH, fontSize: 11, fontWeight: 700, color: preco != null ? C.quadra : C.grafite }}>
-                          {preco != null ? formatarPreco(preco) : "livre"}
-                        </button>
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {detalheAberto && (
-        <>
-          <div onClick={() => setDetalheAberto(null)} style={{ position: "fixed", inset: 0, background: "rgba(16,30,25,.4)", zIndex: 39 }} />
-          <div role="dialog" aria-modal="true" aria-label="Detalhes da ocupação"
-            style={{ position: "fixed", left: 0, right: 0, bottom: 0, background: C.cal, zIndex: 40,
-              borderRadius: "16px 16px 0 0", boxShadow: SOMBRA_ALTA, paddingBottom: "env(safe-area-inset-bottom)" }}>
-            <div className="flex items-center justify-between" style={{ padding: "14px 18px", borderBottom: "1px solid " + C.linha }}>
-              <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{ROTULO_TIPO_OCUPACAO[detalheAberto.tipo]}</span>
-              <button onClick={() => setDetalheAberto(null)} aria-label="Fechar" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", fontSize: 20, color: C.grafite }}>×</button>
-            </div>
-            <div style={{ padding: "12px 18px 20px" }}>
-              <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{detalheAberto.titulo}</p>
-              <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginBottom: 2 }}>
-                {nomeQuadra(detalheAberto.quadraId)} · {detalheAberto.hora}–{detalheAberto.horaFim}
-              </p>
-              {detalheAberto.tipo !== "reserva" ? (
-                <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>
-                  {detalheAberto.professorNome || "sem professor definido"}
-                  {detalheAberto.professorAuxiliarNome ? " + " + detalheAberto.professorAuxiliarNome : ""}
-                </p>
-              ) : (
-                <>
-                  <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>
-                    {detalheAberto.reserva.telefoneContato}{detalheAberto.reserva.origem === "cliente" ? " · reservado pelo cliente" : " · reservado pela academia"}
-                  </p>
-                  {detalheAberto.reserva.observacao && (
-                    <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginTop: 4 }}>{detalheAberto.reserva.observacao}</p>
-                  )}
-                  <div className="mt-3">
-                    <Botao pequeno variante="vazio" onClick={() => { removerReserva(detalheAberto.reserva.id); setDetalheAberto(null); }}>Cancelar reserva</Botao>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </>
-      )}
-
-      {rascunho && (
-        <div className="mt-5" style={{ background: C.papel, border: "1px solid " + C.linha, padding: "14px 16px" }}>
-          <div style={{ fontFamily: ARCH, fontWeight: 700, fontSize: 13, marginBottom: 8 }}>
-            Nova reserva{quadraDoRascunho ? " · " + quadraDoRascunho.nome : ""}
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            <Campo rotulo="Data"><input type="date" style={entrada} value={rascunho.data}
-              onChange={(e) => setRascunho({ ...rascunho, data: e.target.value })} /></Campo>
-            <Campo rotulo="Início"><input type="time" style={entrada} value={rascunho.horaInicio}
-              onChange={(e) => setRascunho({ ...rascunho, horaInicio: e.target.value })} /></Campo>
-            <Campo rotulo="Fim"><input type="time" style={entrada} value={rascunho.horaFim}
-              onChange={(e) => setRascunho({ ...rascunho, horaFim: e.target.value })} /></Campo>
-          </div>
-          <Campo rotulo="Nome de quem reserva">
-            <input style={entrada} value={rascunho.nomeContato} onChange={(e) => setRascunho({ ...rascunho, nomeContato: e.target.value })} />
-          </Campo>
-          <Campo rotulo="Telefone (com WhatsApp, se possível)">
-            <input style={entrada} value={rascunho.telefoneContato} onChange={(e) => setRascunho({ ...rascunho, telefoneContato: e.target.value })}
-              placeholder="(11) 90000-0000" />
-          </Campo>
-          <Campo rotulo="Observação" nota="Opcional">
-            <input style={entrada} value={rascunho.observacao} onChange={(e) => setRascunho({ ...rascunho, observacao: e.target.value })} />
-          </Campo>
-          {erro && <div className="mb-2"><Aviso>{erro}</Aviso></div>}
-          <div className="flex gap-2">
-            <Botao pequeno onClick={confirmarReserva}>Confirmar reserva</Botao>
-            <Botao pequeno variante="vazio" onClick={() => { setRascunho(null); setErro(""); }}>Cancelar</Botao>
+            <Botao pequeno variante="vazio" onClick={() => adicionarFaixaPreco(q.id)}>+ faixa de preço</Botao>
           </div>
         </div>
-      )}
+      ))}
+      <div className="flex gap-2 mt-3 flex-wrap items-center">
+        <input style={{ ...entrada, flex: 1, minWidth: 180 }} value={nomeNovaQuadra} onChange={(e) => setNomeNovaQuadra(e.target.value)}
+          placeholder="ex: Quadra 1 · saibro" onKeyDown={(e) => e.key === "Enter" && adicionarQuadra()} />
+        <Botao pequeno onClick={adicionarQuadra} disabled={!nomeNovaQuadra.trim()}>Adicionar quadra</Botao>
+      </div>
     </div>
   );
 }
@@ -15240,22 +14905,58 @@ function CartaoOcorrencia({ ocorrencia: oc, alunos, setAlunos, turmas, quadras, 
    se ainda não tiverem sido geradas) e também varre os últimos 14 dias
    pra levantar "registro pendente" (aula que já passou e ninguém
    preencheu — nunca vira "realizada" sozinha). */
+/* Aplica um patch (ex.: { quadraId }) numa ocorrência — escopo "unica" só
+   nela; "futuras" nela e em todas as próximas da mesma série (mesma
+   recorrenciaChave, ainda "agendada", data >= a desta), e também no
+   horário-modelo (aluno/turma), pra gerações futuras AINDA NÃO
+   materializadas por gerarOcorrenciasFaltantes já saírem corretas desde
+   o início. Nunca toca em ocorrências já realizadas/canceladas —
+   preserva histórico (pedido da seção de recorrências/alterações). */
+function aplicarPatchComEscopo({ ocorrencias, setOcorrencias, alunos, setAlunos, turmas, setTurmas, oc, patch, escopo }) {
+  const agora = new Date().toISOString();
+  if (escopo === "futuras" && oc.recorrenciaChave) {
+    setOcorrencias(ocorrencias.map((o) => (
+      o.recorrenciaChave === oc.recorrenciaChave && o.status === "agendada" && o.data >= oc.data
+    ) ? { ...o, ...patch, atualizadoEm: agora } : o));
+    if ("quadraId" in patch) {
+      const dia = diaDaSemanaISO(oc.data);
+      if (oc.origemTipo === "turma" && setTurmas) {
+        setTurmas(turmas.map((t) => (t.id !== oc.origemId ? t : { ...t, horarios: (t.horarios || []).map((h) => (h.dia === dia && h.hora === oc.horaInicio) ? { ...h, quadraId: patch.quadraId } : h) })));
+      } else if (oc.origemTipo === "individual" && setAlunos) {
+        setAlunos(alunos.map((a) => (a.id !== oc.origemId ? a : { ...a, horarios: (a.horarios || []).map((h) => (h.dia === dia && h.hora === oc.horaInicio) ? { ...h, quadraId: patch.quadraId } : h) })));
+      }
+    }
+  } else {
+    setOcorrencias(ocorrencias.map((o) => (o.id === oc.id ? { ...o, ...patch, atualizadoEm: agora } : o)));
+  }
+}
+
 /* Linha de pendência "sem quadra definida" — oferece só as quadras
    livres no intervalo exato da aula (conflito com outra ocorrência ou
    com reserva de locação já bloqueia a opção na lista; nunca atribui
    por suposição). Guarda contra duplo toque com uma ref própria, já que
    o estado de "atribuindo" é assíncrono e dois toques rápidos passariam
-   pelo mesmo valor de estado antes do React re-renderizar. */
+   pelo mesmo valor de estado antes do React re-renderizar. Quando a
+   aula faz parte de uma série recorrente, pergunta o alcance ("somente
+   esta aula" vs. "esta e as próximas") antes de confirmar — pedido
+   explícito da seção de recorrências. */
 function LinhaPendenciaQuadra({ oc, alunos, turmas, quadras, ocorrencias, reservas, bloqueiosAula, aoDefinir }) {
   const [abrindo, setAbrindo] = useState(false);
+  const [quadraEscolhida, setQuadraEscolhida] = useState(null);
   const atribuindoRef = useRef(false);
   const livres = useMemo(() => quadrasLivresParaOcorrencia(quadras, ocorrencias, reservas, turmas, oc, bloqueiosAula),
     [quadras, ocorrencias, reservas, turmas, oc, bloqueiosAula]);
-  function definir(quadraId) {
+  const ehRecorrente = !!oc.recorrenciaChave;
+  function escolherQuadra(quadraId) {
+    if (!ehRecorrente) { confirmarComEscopo(quadraId, "unica"); return; }
+    setQuadraEscolhida(quadraId);
+  }
+  function confirmarComEscopo(quadraId, escopo) {
     if (atribuindoRef.current) return;
     atribuindoRef.current = true;
-    aoDefinir(quadraId);
+    aoDefinir(quadraId, escopo);
     setAbrindo(false);
+    setQuadraEscolhida(null);
     setTimeout(() => { atribuindoRef.current = false; }, 500);
   }
   return (
@@ -15265,15 +14966,15 @@ function LinhaPendenciaQuadra({ oc, alunos, turmas, quadras, ocorrencias, reserv
           <p style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{oc.horaInicio}–{oc.horaFim} · {tituloOcorrencia(oc, alunos, turmas)}</p>
           <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>{oc.professorNome || "sem professor definido"}</p>
         </div>
-        <Botao pequeno variante="vazio" onClick={() => setAbrindo((v) => !v)}>{abrindo ? "Fechar" : "Definir quadra"}</Botao>
+        <Botao pequeno variante="vazio" onClick={() => { setAbrindo((v) => !v); setQuadraEscolhida(null); }}>{abrindo ? "Fechar" : "Definir quadra"}</Botao>
       </div>
-      {abrindo && (
+      {abrindo && !quadraEscolhida && (
         <div className="mt-2 flex flex-wrap gap-2">
           {livres.length === 0 ? (
-            <p style={{ ...prosa, fontSize: 12, color: C.grafite }}>Nenhuma quadra livre nesse horário — verifique a Agenda de quadras.</p>
+            <p style={{ ...prosa, fontSize: 12, color: C.grafite }}>Nenhuma quadra livre nesse horário — verifique a Agenda → Por quadra.</p>
           ) : (
             livres.map((q) => (
-              <button key={q.id} onClick={() => definir(q.id)}
+              <button key={q.id} onClick={() => escolherQuadra(q.id)}
                 style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, padding: "6px 11px", borderRadius: 10, cursor: "pointer",
                   border: "1px solid " + C.linha, background: C.papel, color: C.tinta }}>
                 {q.nome}
@@ -15282,11 +14983,22 @@ function LinhaPendenciaQuadra({ oc, alunos, turmas, quadras, ocorrencias, reserv
           )}
         </div>
       )}
+      {quadraEscolhida && (
+        <div className="mt-2" style={{ background: C.papel, border: "1px solid " + C.linha, borderRadius: 8, padding: "8px 10px" }}>
+          <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 6 }}>
+            Essa aula faz parte de uma série recorrente. Aplicar esta quadra em:
+          </p>
+          <div className="flex gap-2 flex-wrap">
+            <Botao pequeno variante="vazio" onClick={() => confirmarComEscopo(quadraEscolhida, "unica")}>Somente esta aula</Botao>
+            <Botao pequeno onClick={() => confirmarComEscopo(quadraEscolhida, "futuras")}>Esta e as próximas</Botao>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function TelaAulasHoje({ alunos, setAlunos, turmas, quadras, reservas, bloqueiosAula, ocorrencias, setOcorrencias, regrasReposicao, uidAtual, papelAtual }) {
+function TelaAulasHoje({ alunos, setAlunos, turmas, setTurmas, quadras, reservas, bloqueiosAula, ocorrencias, setOcorrencias, regrasReposicao, uidAtual, papelAtual }) {
   const hoje = new Date().toISOString().slice(0, 10);
   const geradasRef = useRef(false);
   useEffect(() => {
@@ -15299,8 +15011,12 @@ function TelaAulasHoje({ alunos, setAlunos, turmas, quadras, reservas, bloqueios
   }, []);
 
   const [abertaId, setAbertaId] = useState(null);
-  function atualizar(id, patch) {
+  function atualizar(id, patch, escopo) {
     const ocAntiga = ocorrencias.find((o) => o.id === id);
+    if (escopo) {
+      aplicarPatchComEscopo({ ocorrencias, setOcorrencias, alunos, setAlunos, turmas, setTurmas, oc: ocAntiga, patch, escopo });
+      return;
+    }
     const ocNova = { ...ocAntiga, ...patch, atualizadoEm: new Date().toISOString() };
     setOcorrencias(ocorrencias.map((o) => (o.id === id ? ocNova : o)));
     if (setAlunos) setAlunos(aplicarEfeitoCreditoNaOcorrencia(alunos, ocAntiga, ocNova, regrasReposicao));
@@ -15343,7 +15059,7 @@ function TelaAulasHoje({ alunos, setAlunos, turmas, quadras, reservas, bloqueios
           <div className="mt-2">
             {semQuadra.map((o) => (
               <LinhaPendenciaQuadra key={o.id} oc={o} alunos={alunos} turmas={turmas} quadras={quadras} ocorrencias={ocorrencias} reservas={reservas} bloqueiosAula={bloqueiosAula}
-                aoDefinir={(quadraId) => atualizar(o.id, { quadraId })} />
+                aoDefinir={(quadraId, escopo) => atualizar(o.id, { quadraId }, escopo)} />
             ))}
           </div>
         </div>
@@ -15786,106 +15502,221 @@ function planosParaRevisar(alunos, turmas) {
   return lista;
 }
 
-/* ── grade de ocupação de horários de aula ──
-   Mesma fonte que a Agenda (horário fixo de jogador + turma), só que sem
-   nome de ninguém — só "ocupado" ou "livre" por dia/hora, pra servir de
-   referência de onde dá pra encaixar uma locação sem bater com uma aula
-   já marcada. bloqueiosAula é um extra que a própria academia marca à
-   mão (ex: manutenção, horário reservado por outro motivo) sem precisar
-   ter um aluno ou turma cadastrado pra isso. */
-function chaveGradeAula(dia, hora) { return dia + "-" + hora; }
-function novoBloqueioAula() {
-  return { id: "bloqueio-" + Date.now(), dia: 1, hora: "17:00", motivo: "" };
+/* ── Horários recorrentes: gestão real das SÉRIES recorrentes ──
+   Antes esta tela só mostrava uma grade anônima "livre/ocupado" (nem
+   consultava o motor de ocorrências, nem dizia de quem era cada
+   horário) — agora lista as séries de verdade: aulas (vindas dos
+   horários fixos de jogadores/turmas) e bloqueios da própria academia,
+   cada uma com tipo, quem, dias, horário, professor, quadra (ou "quadra
+   pendente") e as ações de editar/ver próximas ocorrências/encerrar.
+   Continua sendo responsabilidade dela mostrar as séries — quem decide
+   quem está em cada quadra NUM DIA ESPECÍFICO é sempre a Agenda → "Por
+   quadra" (disponibilidadeDaQuadra), nunca esta grade genérica. */
+function diasTexto(dias) {
+  const nomes = dias.slice().sort().map(nomeDia);
+  return nomes.length <= 2 ? nomes.join(" e ") : nomes.slice(0, -1).join(", ") + " e " + nomes[nomes.length - 1];
 }
-function gradeAulasDetalhe(alunos, turmas, bloqueiosAula) {
-  const mapa = {};
-  compromissosDaSemana(alunos, turmas).forEach((c) => {
-    faixasDeMeiaHora(c.hora, c.horaFim).forEach((hora) => {
-      mapa[chaveGradeAula(c.dia, hora)] = { ocupado: true, bloqueio: null };
+/* Cada entrada de aluno.horarios/turma.horarios é UM dia da semana — uma
+   turma "terças e quintas às 10h" vira duas entradas com o mesmo
+   hora+quadraId. Agrupa de volta numa única série pra exibição (pedido:
+   "Terças e quintas · 10h–11h30", não duas linhas iguais). */
+function agruparHorariosEntidades(alunos, turmas) {
+  const series = [];
+  function agrupar(entidade, tipo, profAuxNome) {
+    const porGrupo = {};
+    (entidade.horarios || []).forEach((h) => {
+      const chave = h.hora + "|" + (h.quadraId || "");
+      (porGrupo[chave] = porGrupo[chave] || []).push(h.dia);
     });
-  });
-  bloqueiosAula.forEach((b) => {
-    mapa[chaveGradeAula(b.dia, b.hora)] = { ocupado: true, bloqueio: b };
-  });
-  return mapa;
-}
-const HORARIOS_GRADE_AULA = FAIXAS_MEIA_HORA.slice(0, -1);
-
-function TelaGradeAulas({ alunos, turmas, bloqueiosAula, setBloqueiosAula, orgAtual }) {
-  const [diaSelecionado, setDiaSelecionado] = useState(() => new Date().getDay());
-  const [motivoNovo, setMotivoNovo] = useState("");
-  const [horaEmEdicao, setHoraEmEdicao] = useState(null);
-
-  const detalhe = useMemo(() => gradeAulasDetalhe(alunos, turmas, bloqueiosAula), [alunos, turmas, bloqueiosAula]);
-  const linkApp = orgAtual ? location.origin + "/cliente.html?org=" + encodeURIComponent(orgAtual) : "";
-
-  function adicionarBloqueio(hora) {
-    setBloqueiosAula([...bloqueiosAula, { ...novoBloqueioAula(), dia: diaSelecionado, hora, motivo: motivoNovo.trim() }]);
-    setMotivoNovo(""); setHoraEmEdicao(null);
+    Object.keys(porGrupo).forEach((chave) => {
+      const [hora, quadraId] = chave.split("|");
+      series.push({
+        id: tipo + ":" + entidade.id + ":" + chave, tipo, origemId: entidade.id,
+        nome: entidade.nome || (tipo === "turma" ? "Turma sem nome" : "Sem nome"),
+        dias: porGrupo[chave].slice().sort((a, b) => a - b), horaInicio: hora,
+        horaFim: horaMaisMinutos(hora, minutosDaDuracao(entidade.duracaoPadrao)),
+        professorNome: entidade.professorNome || "", professorAuxiliarNome: profAuxNome || "",
+        quadraId: quadraId || "",
+      });
+    });
   }
-  function removerBloqueio(id) { setBloqueiosAula(bloqueiosAula.filter((b) => b.id !== id)); }
+  turmas.forEach((t) => agrupar(t, "turma", t.professorAuxiliarNome));
+  alunos.forEach((a) => agrupar(a, "individual", ""));
+  return series.sort((x, y) => x.horaInicio.localeCompare(y.horaInicio) || x.nome.localeCompare(y.nome));
+}
+/* Bloqueios são gravados um por meia-hora (novoBloqueioAula) — agrupa os
+   consecutivos do mesmo dia e motivo numa única série contínua pra
+   exibição e edição (ex.: 3 bloqueios de 17h/17h30/18h virem "17h–18h30"). */
+function agruparBloqueiosEmSeries(bloqueiosAula) {
+  const porDia = {};
+  (bloqueiosAula || []).forEach((b) => { (porDia[b.dia] = porDia[b.dia] || []).push(b); });
+  const series = [];
+  Object.keys(porDia).forEach((diaStr) => {
+    const dia = Number(diaStr);
+    const ordenados = [...porDia[dia]].sort((a, b) => a.hora.localeCompare(b.hora));
+    let atual = null;
+    ordenados.forEach((b) => {
+      if (atual && atual.motivo === (b.motivo || "") && atual.horaFim === b.hora) {
+        atual.horaFim = horaMaisMinutos(b.hora, 30);
+        atual.ids.push(b.id);
+      } else {
+        if (atual) series.push(atual);
+        atual = { id: "bloqueio:" + dia + ":" + b.hora, tipo: "bloqueio", dias: [dia], horaInicio: b.hora,
+          horaFim: horaMaisMinutos(b.hora, 30), motivo: b.motivo || "", ids: [b.id] };
+      }
+    });
+    if (atual) series.push(atual);
+  });
+  return series.sort((x, y) => x.horaInicio.localeCompare(y.horaInicio));
+}
+/* Próximas N datas de calendário em que a série realmente vai ocorrer —
+   só pra visualizar o alcance, não gera nem materializa nada (quem faz
+   isso é gerarOcorrenciasFaltantes, quando a Agenda/Quadras precisam). */
+function proximasDatasDaSerie(dias, n) {
+  const diasSet = new Set(dias);
+  const out = [];
+  let d = new Date();
+  for (let tentativas = 0; out.length < n && tentativas < 60; tentativas++) {
+    if (diasSet.has(d.getDay())) out.push(dataISO(d));
+    d = new Date(d.getTime() + 86400000);
+  }
+  return out;
+}
+
+function TelaGradeAulas({ alunos, setAlunos, turmas, setTurmas, quadras, bloqueiosAula, setBloqueiosAula, ocorrencias, setOcorrencias, orgAtual, irParaFicha }) {
+  const [novoAberto, setNovoAberto] = useState(false);
+  const [novoDia, setNovoDia] = useState(1);
+  const [novaHoraInicio, setNovaHoraInicio] = useState("17:00");
+  const [novaHoraFim, setNovaHoraFim] = useState("18:00");
+  const [novoMotivo, setNovoMotivo] = useState("");
+  const [proximasAbertaId, setProximasAbertaId] = useState(null);
+  const [editandoId, setEditandoId] = useState(null);
+
+  const seriesAula = useMemo(() => agruparHorariosEntidades(alunos, turmas), [alunos, turmas]);
+  const seriesBloqueio = useMemo(() => agruparBloqueiosEmSeries(bloqueiosAula), [bloqueiosAula]);
+  const linkApp = orgAtual ? location.origin + "/cliente.html?org=" + encodeURIComponent(orgAtual) : "";
+  function nomeQuadraPor(id) { return (quadras || []).find((q) => q.id === id)?.nome || ""; }
+
+  function cancelarFuturasDaSerie(tipo, origemId, dias, horaInicio) {
+    if (!setOcorrencias) return;
+    const hoje = dataISO(new Date());
+    const chaves = new Set(dias.map((d) => chaveRecorrencia(tipo, origemId, d, horaInicio)));
+    setOcorrencias(ocorrencias.map((o) => (
+      chaves.has(o.recorrenciaChave) && o.status === "agendada" && o.data >= hoje
+    ) ? { ...o, status: "cancelada", motivoCancelamento: "Recorrência encerrada em Horários recorrentes.", atualizadoEm: new Date().toISOString() } : o));
+  }
+  function encerrarSerieAula(serie) {
+    if (!confirm('Encerrar "' + serie.nome + '" (' + diasTexto(serie.dias) + " · " + serie.horaInicio + ")? Aulas já realizadas e o histórico continuam guardados; as próximas datas ainda não preenchidas são canceladas.")) return;
+    const filtro = (h) => !(serie.dias.includes(h.dia) && h.hora === serie.horaInicio && (h.quadraId || "") === serie.quadraId);
+    if (serie.tipo === "turma") setTurmas(turmas.map((t) => (t.id === serie.origemId ? { ...t, horarios: (t.horarios || []).filter(filtro) } : t)));
+    else setAlunos(alunos.map((a) => (a.id === serie.origemId ? { ...a, horarios: (a.horarios || []).filter(filtro) } : a)));
+    cancelarFuturasDaSerie(serie.tipo, serie.origemId, serie.dias, serie.horaInicio);
+  }
+  function encerrarSerieBloqueio(serie) {
+    if (!confirm("Remover este bloqueio recorrente (" + diasTexto(serie.dias) + " · " + serie.horaInicio + "–" + serie.horaFim + ")?")) return;
+    setBloqueiosAula(bloqueiosAula.filter((b) => !serie.ids.includes(b.id)));
+  }
+  function criarBloqueio() {
+    if (novaHoraFim <= novaHoraInicio) return;
+    const novos = faixasDeMeiaHora(novaHoraInicio, novaHoraFim).map((hora) => ({ ...novoBloqueioAula(), dia: novoDia, hora, motivo: novoMotivo.trim() }));
+    setBloqueiosAula([...bloqueiosAula, ...novos]);
+    setNovoAberto(false); setNovoMotivo(""); setNovaHoraInicio("17:00"); setNovaHoraFim("18:00");
+  }
+
+  const todasSeries = [...seriesAula, ...seriesBloqueio].sort((x, y) => x.horaInicio.localeCompare(y.horaInicio));
 
   return (
     <div>
       <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Horários recorrentes</h1>
       <p style={{ ...prosa, color: C.grafite, marginBottom: 16 }}>
-        Mostra só o que já está ocupado por aula (sem identificar quem) e o que está livre —
-        pra saber onde dá pra encaixar uma locação sem bater com um horário fixo. Vem dos horários
-        cadastrados em Jogadores e Turmas; o que a academia bloquear aqui também aparece pro cliente.
+        As séries que se repetem toda semana — aulas fixas de jogadores e turmas, e bloqueios da
+        própria academia. A disponibilidade de uma data específica é sempre consultada na Agenda →
+        "Por quadra", nunca aqui.
       </p>
 
+      <div className="mb-4">
+        <Botao pequeno onClick={() => setNovoAberto(!novoAberto)}>{novoAberto ? "Fechar" : "+ Novo bloqueio recorrente"}</Botao>
+      </div>
+      {novoAberto && (
+        <div className="mb-5" style={{ background: C.papel, border: "1px solid " + C.linha, padding: "12px 14px" }}>
+          <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginBottom: 8 }}>
+            Uma aula fixa de jogador ou turma é cadastrada na ficha dele, ou pelo "+ Agendar" da
+            Agenda — aqui só se cria o bloqueio que a própria academia reserva (manutenção, uso
+            interno etc.), que vale pra todas as quadras ao mesmo tempo.
+          </p>
+          <Campo rotulo="Dia da semana">
+            <Seletor opcoes={DIAS_SEMANA.map((d) => ({ v: d.v, r: d.r }))} valor={novoDia} aoMudar={setNovoDia} />
+          </Campo>
+          <div className="flex gap-2">
+            <Campo rotulo="Início"><input type="time" style={entrada} value={novaHoraInicio} onChange={(e) => setNovaHoraInicio(e.target.value)} /></Campo>
+            <Campo rotulo="Término"><input type="time" style={entrada} value={novaHoraFim} onChange={(e) => setNovaHoraFim(e.target.value)} /></Campo>
+          </div>
+          <Campo rotulo="Motivo" nota="Opcional — só a academia vê.">
+            <input style={entrada} value={novoMotivo} onChange={(e) => setNovoMotivo(e.target.value)} placeholder="ex: manutenção da quadra" />
+          </Campo>
+          {novaHoraFim <= novaHoraInicio && <Aviso>O término precisa ser depois do início.</Aviso>}
+          <Botao pequeno onClick={criarBloqueio} disabled={novaHoraFim <= novaHoraInicio}>Criar bloqueio</Botao>
+        </div>
+      )}
+
+      {todasSeries.length === 0 ? (
+        <p style={{ ...prosa, color: C.grafite }}>Nenhuma série recorrente cadastrada ainda.</p>
+      ) : (
+        todasSeries.map((serie) => (
+          <div key={serie.id} style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + corCategoriaOcorrencia(serie.tipo === "bloqueio" ? "bloqueio" : "regular"),
+            borderRadius: 8, padding: "11px 14px", marginBottom: 8 }}>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <Etiqueta cor={corCategoriaOcorrencia(serie.tipo === "bloqueio" ? "bloqueio" : "regular")}>
+                  {serie.tipo === "bloqueio" ? "Bloqueio" : serie.tipo === "turma" ? "Aula de turma" : "Aula individual"}
+                </Etiqueta>
+                <p style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700, marginTop: 4 }}>
+                  {serie.tipo === "bloqueio" ? (serie.motivo || "Bloqueio sem motivo informado") : serie.nome}
+                </p>
+                <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>
+                  {diasTexto(serie.dias)} · {serie.horaInicio}–{serie.horaFim}
+                </p>
+                {serie.tipo !== "bloqueio" && (
+                  <p style={{ ...prosa, fontSize: 12, color: C.grafite }}>
+                    {serie.professorNome || "sem professor definido"}{serie.professorAuxiliarNome ? " · aux. " + serie.professorAuxiliarNome : ""}
+                    {" · "}{serie.quadraId ? nomeQuadraPor(serie.quadraId) : "Quadra pendente"}
+                  </p>
+                )}
+                <p style={{ ...prosa, fontSize: 11, color: C.grafite, marginTop: 2 }}>
+                  Vigência: sem data de término definida · Situação: Em vigor
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 flex-wrap mt-2">
+              {serie.tipo !== "bloqueio" && irParaFicha && serie.tipo === "individual" && (
+                <Botao pequeno variante="vazio" onClick={() => irParaFicha(serie.origemId)}>Editar na ficha</Botao>
+              )}
+              <Botao pequeno variante="vazio" onClick={() => setProximasAbertaId(proximasAbertaId === serie.id ? null : serie.id)}>
+                {proximasAbertaId === serie.id ? "Ocultar próximas ocorrências" : "Ver próximas ocorrências"}
+              </Botao>
+              <Botao pequeno variante="vazio" onClick={() => (serie.tipo === "bloqueio" ? encerrarSerieBloqueio(serie) : encerrarSerieAula(serie))}>
+                Encerrar recorrência
+              </Botao>
+            </div>
+            {proximasAbertaId === serie.id && (
+              <div className="mt-2 flex gap-2 flex-wrap">
+                {proximasDatasDaSerie(serie.dias, 6).map((d) => (
+                  <Etiqueta key={d} cor={C.grafite}>{formatarDataLonga(d).split(",")[0]} · {new Date(d + "T00:00:00").toLocaleDateString("pt-BR")}</Etiqueta>
+                ))}
+              </div>
+            )}
+          </div>
+        ))
+      )}
+
       {linkApp && (
-        <div className="mb-6" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "12px 15px" }}>
+        <div className="mt-6" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "12px 15px" }}>
           <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 6 }}>
-            O cliente vê esta mesma grade (sem os bloqueios internos identificados) na aba "Aulas" do app.
+            O cliente vê a ocupação (sem identificar quem) na aba "Aulas" do app dele.
           </p>
           <input readOnly value={linkApp} style={{ ...entrada, fontSize: 12 }} onFocus={(e) => e.target.select()} />
         </div>
       )}
-
-      <div className="flex gap-2 flex-wrap mb-4">
-        {DIAS_SEMANA.map((d) => (
-          <button key={d.v} onClick={() => { setDiaSelecionado(d.v); setHoraEmEdicao(null); }}
-            style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, padding: "6px 11px", borderRadius: 10, cursor: "pointer",
-              border: "1px solid " + (diaSelecionado === d.v ? C.tinta : C.linha),
-              background: diaSelecionado === d.v ? C.tinta : C.papel, color: diaSelecionado === d.v ? C.papel : C.grafite }}>
-            {d.r}
-          </button>
-        ))}
-      </div>
-
-      {HORARIOS_GRADE_AULA.map((hora) => {
-        const chave = chaveGradeAula(diaSelecionado, hora);
-        const info = detalhe[chave];
-        return (
-          <div key={hora} style={{ background: C.cal, border: "1px solid " + C.linha, padding: "9px 13px", marginBottom: 6 }}>
-            <div className="flex items-center justify-between gap-3">
-              <span style={{ ...prosa, fontSize: 13.5, fontWeight: 700 }}>{hora}</span>
-              {!info ? (
-                <button onClick={() => setHoraEmEdicao(horaEmEdicao === hora ? null : hora)}
-                  style={{ fontFamily: ARCH, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase",
-                    color: C.quadra, cursor: "pointer", border: "none", background: "none" }}>
-                  livre {horaEmEdicao === hora ? "· fechar" : "· bloquear"}
-                </button>
-              ) : info.bloqueio ? (
-                <div className="flex items-center gap-2">
-                  <Etiqueta cor={C.saibro}>{info.bloqueio.motivo ? "bloqueado · " + info.bloqueio.motivo : "bloqueado"}</Etiqueta>
-                  <button onClick={() => removerBloqueio(info.bloqueio.id)} title="Remover bloqueio" style={iconeEstilo}>×</button>
-                </div>
-              ) : (
-                <Etiqueta cor={C.grafite}>ocupado</Etiqueta>
-              )}
-            </div>
-            {!info && horaEmEdicao === hora && (
-              <div className="flex gap-2 mt-2 flex-wrap items-center">
-                <input style={{ ...entrada, flex: 1, minWidth: 140 }} value={motivoNovo} onChange={(e) => setMotivoNovo(e.target.value)}
-                  placeholder="Motivo (opcional, só a academia vê)" />
-                <Botao pequeno onClick={() => adicionarBloqueio(hora)}>Bloquear</Botao>
-              </div>
-            )}
-          </div>
-        );
-      })}
     </div>
   );
 }
@@ -16452,20 +16283,35 @@ function TelaDashboard({ alunos, turmas, ocorrencias, papelAtual, uidAtual, exig
    forma de produzir a mesma coisa, exatamente o que a unificação quer
    evitar. Por isso, ao escolher um desses dois tipos, o modal fecha e
    leva direto pra tela certa, em vez de reimplementar o fluxo. */
-function ModalAgendar({ aberto, aoFechar, dataInicial, alunos, setAlunos, turmas, setTurmas, quadras, reservas, setReservas, bloqueiosAula, ocorrencias, setOcorrencias, aoIrParaReposicoes, aoIrParaRecorrentes }) {
+function ModalAgendar({ aberto, aoFechar, dataInicial, horaInicial, quadraIdInicial, alunos, setAlunos, turmas, setTurmas, quadras, reservas, setReservas, bloqueiosAula, ocorrencias, setOcorrencias, aoIrParaReposicoes, aoIrParaRecorrentes }) {
   const [tipo, setTipo] = useState(null); // null | "individual" | "turma" | "locacao"
   const [alunoId, setAlunoId] = useState("");
   const [turmaId, setTurmaId] = useState("");
   const [data, setData] = useState(dataInicial || dataISO(new Date()));
-  const [horaInicio, setHoraInicio] = useState("");
+  const [horaInicio, setHoraInicio] = useState(horaInicial || "");
   const [horaFim, setHoraFim] = useState("");
-  const [quadraId, setQuadraId] = useState("");
+  const [quadraId, setQuadraId] = useState(quadraIdInicial || "");
   const [repeticao, setRepeticao] = useState("unica"); // "unica" | "semanal" (só pra aula)
   const [nomeContato, setNomeContato] = useState("");
   const [telefoneContato, setTelefoneContato] = useState("");
   const [observacao, setObservacao] = useState("");
   const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
+
+  /* Clicar num dia/horário/quadra específico da Agenda (em vez do botão
+     genérico "+ Agendar") precisa pré-preencher SÓ o contexto conhecido
+     (pedido da seção 7) — como o componente fica sempre montado (só
+     alterna `aberto`), um useState inicial não bastaria pra refletir um
+     contexto diferente em cada abertura; por isso o reset roda de novo
+     a cada transição pra aberto. */
+  useEffect(() => {
+    if (aberto) {
+      setData(dataInicial || dataISO(new Date()));
+      setHoraInicio(horaInicial || "");
+      setQuadraId(quadraIdInicial || "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aberto, dataInicial, horaInicial, quadraIdInicial]);
 
   if (!aberto) return null;
 
@@ -16636,184 +16482,421 @@ function ModalAgendar({ aberto, aoFechar, dataInicial, alunos, setAlunos, turmas
   );
 }
 
-function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, ocorrencias, setOcorrencias, quadras, setQuadras, reservas, setReservas, bloqueiosAula, setBloqueiosAula, orgAtual, mostraQuadras, uidAtual, exigeLogin, setAba }) {
-  const [modo, setModo] = useState("grade");
-  const [verTodos, setVerTodos] = useState(false);
-  const [agendarAberto, setAgendarAberto] = useState(false);
+const AGENDA_SLOT_H = 26;
+function minutosDeHora(h) { const [hh, mm] = h.split(":").map(Number); return hh * 60 + mm; }
+/* Blocos concorrentes (mesma coluna, horários que se cruzam) ficam lado
+   a lado em vez de um escondido atrás do outro — pedido explícito de
+   não esconder sobreposições reais só pra acomodar o desenho. */
+function agruparBlocosConcorrentes(blocos) {
+  const ordenados = [...blocos].sort((a, b) => minutosDeHora(a.horaInicio) - minutosDeHora(b.horaInicio));
+  const clusters = [];
+  let atual = [];
+  let fimAtual = -1;
+  ordenados.forEach((b) => {
+    if (atual.length && minutosDeHora(b.horaInicio) >= fimAtual) { clusters.push(atual); atual = []; fimAtual = -1; }
+    atual.push(b);
+    fimAtual = Math.max(fimAtual, minutosDeHora(b.horaFim));
+  });
+  if (atual.length) clusters.push(atual);
+  const saida = [];
+  clusters.forEach((cluster) => cluster.forEach((b, i) => saida.push({ ...b, colIndex: i, colTotal: cluster.length })));
+  return saida;
+}
+/* Grade genérica de colunas × meia-hora — a MESMA grade por trás das 3
+   visualizações da Agenda (Dia = 1 coluna, Semana = 7 colunas, Por
+   quadra = N colunas), pra garantir que compartilhem de verdade o
+   comportamento visual. Cada compromisso é um bloco ÚNICO, com a altura
+   do intervalo completo — nada de repetir o nome a cada meia hora nem
+   de célula vazia fingindo disponibilidade dentro de uma aula em
+   andamento (pedido da seção 5). */
+function GradeColunas({ colunas, horasEixo, aoClicarSlotVazio, aoClicarBloco }) {
+  const origemMin = minutosDeHora(horasEixo[0]);
+  function posicao(horaInicio, horaFim) {
+    const top = ((minutosDeHora(horaInicio) - origemMin) / 30) * AGENDA_SLOT_H;
+    const altura = Math.max(((minutosDeHora(horaFim) - minutosDeHora(horaInicio)) / 30) * AGENDA_SLOT_H - 2, AGENDA_SLOT_H - 2);
+    return { top, altura };
+  }
+  return (
+    <div style={{ display: "flex", border: "1px solid " + C.linha, overflowX: "auto", background: C.papel }}>
+      <div style={{ width: 46, flexShrink: 0 }}>
+        <div style={{ height: 44, borderBottom: "1px solid " + C.linha }} />
+        {horasEixo.map((h) => (
+          <div key={h} style={{ height: AGENDA_SLOT_H, fontSize: 10, fontFamily: ARCH, color: C.grafite, borderBottom: "1px solid #F0EEE9", paddingTop: 1, textAlign: "right", paddingRight: 4 }}>
+            {h.endsWith(":00") ? h : ""}
+          </div>
+        ))}
+      </div>
+      {colunas.map((col) => (
+        <div key={col.key} style={{ flex: 1, minWidth: 118, borderLeft: "1px solid " + C.linha }}>
+          <div style={{ height: 44, padding: "4px 6px", borderBottom: "1px solid " + C.linha, overflow: "hidden" }}>
+            <div style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{col.titulo}</div>
+            {col.subtitulo && <div style={{ fontSize: 9.5, color: C.grafite, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{col.subtitulo}</div>}
+          </div>
+          <div style={{ position: "relative", height: horasEixo.length * AGENDA_SLOT_H }}>
+            {horasEixo.map((h, i) => (
+              <div key={h} onClick={() => aoClicarSlotVazio && aoClicarSlotVazio(col.key, h)}
+                style={{ position: "absolute", top: i * AGENDA_SLOT_H, left: 0, right: 0, height: AGENDA_SLOT_H,
+                  borderBottom: "1px solid #F0EEE9", cursor: aoClicarSlotVazio ? "pointer" : "default" }} />
+            ))}
+            {agruparBlocosConcorrentes(col.blocos).map((b) => {
+              const { top, altura } = posicao(b.horaInicio, b.horaFim);
+              const largura = 100 / b.colTotal;
+              return (
+                <button key={b.id} onClick={(e) => { e.stopPropagation(); aoClicarBloco(b); }}
+                  style={{ position: "absolute", top, height: altura, left: (b.colIndex * largura) + "%", width: largura + "%",
+                    background: "#fff", border: "1px solid " + C.linha, borderLeft: "3px solid " + b.cor, borderRadius: 4,
+                    padding: "2px 5px", overflow: "hidden", textAlign: "left", cursor: "pointer", opacity: b.cancelada ? 0.55 : 1, zIndex: 2 }}>
+                  <div style={{ fontFamily: ARCH, fontSize: 10, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {b.horaInicio}–{b.horaFim}
+                  </div>
+                  <div style={{ fontSize: 10, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {b.titulo}{b.cancelada ? " · cancelada" : ""}
+                  </div>
+                  {b.linha2 && <div style={{ fontSize: 9, color: C.grafite, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{b.linha2}</div>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+/* Unifica ocorrências (aula/reposição), reservas (locação) e bloqueios
+   recorrentes materializados no período — a MESMA fonte de dados nas 3
+   visualizações da Agenda, não só no botão "+ Agendar" (pedido: "as
+   visualizações precisam compartilhar contexto, dados e ações"). */
+function construirBlocosPeriodo({ inicioISO, fimISO, alunos, turmas, ocorrencias, reservas, bloqueiosAula }) {
+  const blocos = [];
+  (ocorrencias || []).forEach((o) => {
+    if (o.data < inicioISO || o.data > fimISO) return;
+    if (o.tipo === "locacao" || o.tipo === "bloqueio") return;
+    blocos.push({
+      id: "oc:" + o.id, kind: "ocorrencia", data: o.data, horaInicio: o.horaInicio, horaFim: o.horaFim,
+      categoria: categoriaOcorrencia(o.tipo), cor: corCategoriaOcorrencia(o.tipo),
+      titulo: tituloOcorrencia(o, alunos || [], turmas || []) + (o.tipo === "reposicao" ? " (reposição)" : ""),
+      linha2: (o.professorNome || "sem professor") + (o.quadraId ? "" : " · quadra pendente"),
+      cancelada: o.status === "cancelada", quadraId: o.quadraId || "", semQuadra: !o.quadraId,
+      professorUid: o.professorUid, professorAuxiliarUid: o.professorAuxiliarUid,
+      ocorrencia: o,
+    });
+  });
+  (reservas || []).forEach((r) => {
+    if (r.data < inicioISO || r.data > fimISO) return;
+    blocos.push({
+      id: "res:" + r.id, kind: "reserva", data: r.data, horaInicio: r.horaInicio, horaFim: r.horaFim,
+      categoria: "locacao", cor: corCategoriaOcorrencia("locacao"), titulo: r.nomeContato,
+      linha2: "Locação" + (r.origem === "cliente" ? " · pelo cliente" : ""),
+      cancelada: false, quadraId: r.quadraId, semQuadra: false, reserva: r,
+    });
+  });
+  listaDatasEntre(inicioISO, fimISO).forEach((data) => {
+    const dia = diaDaSemanaISO(data);
+    agruparBloqueiosEmSeries((bloqueiosAula || []).filter((b) => b.dia === dia)).forEach((serie) => {
+      blocos.push({
+        id: "bloq:" + serie.id + ":" + data, kind: "bloqueio", data, horaInicio: serie.horaInicio, horaFim: serie.horaFim,
+        categoria: "bloqueio", cor: corCategoriaOcorrencia("bloqueio"), titulo: serie.motivo || "Bloqueio",
+        linha2: "Todas as quadras", cancelada: false, quadraId: "", semQuadra: false, serie,
+      });
+    });
+  });
+  return blocos;
+}
+
+function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, ocorrencias, setOcorrencias, quadras, reservas, setReservas, bloqueiosAula, orgAtual, mostraQuadras, uidAtual, exigeLogin, regrasReposicao, setAba, dataAlvo, visualizacaoAlvo, aoConsumirAlvo, irParaSessaoAluno }) {
   const hojeISO = dataISO(new Date());
-  const [semanaBase, setSemanaBase] = useState(() => inicioSemanaISO(hojeISO));
-  const fimSemana = somaDiasISO(semanaBase, 6);
+  // Celular abre em "Dia" (lista cabe numa tela sem rolagem horizontal);
+  // computador abre em "Semana" — pedido explícito da seção 1.
+  const [visualizacao, setVisualizacao] = useState(() => (typeof window !== "undefined" && window.innerWidth < 640 ? "dia" : "semana"));
+  const [dataRef, setDataRef] = useState(hojeISO);
+  const [verTodos, setVerTodos] = useState(false);
+  const [filtroQuadraId, setFiltroQuadraId] = useState("");
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
+  const [agendarAberto, setAgendarAberto] = useState(false);
+  const [agendarContexto, setAgendarContexto] = useState(null); // { data, hora, quadraId } | null
+  const [detalheAberto, setDetalheAberto] = useState(null);
+  const [pendenciaAberta, setPendenciaAberta] = useState(false);
+  const [maisOpcoesAberto, setMaisOpcoesAberto] = useState(false);
 
   useEffect(() => {
+    if (dataAlvo) {
+      setDataRef(dataAlvo);
+      if (visualizacaoAlvo) setVisualizacao(visualizacaoAlvo);
+      if (aoConsumirAlvo) aoConsumirAlvo();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const diaSemanaBase = useMemo(() => inicioSemanaISO(dataRef), [dataRef]);
+  const fimSemanaRef = somaDiasISO(diaSemanaBase, 6);
+  const inicioRange = visualizacao === "semana" ? diaSemanaBase : dataRef;
+  const fimRange = visualizacao === "semana" ? fimSemanaRef : dataRef;
+
+  // Sempre gera pra semana inteira (cobre as 3 visualizações sem
+  // precisar regenerar ao trocar — mesmo compromisso, mesma consulta).
+  useEffect(() => {
     if (!setOcorrencias) return;
-    const novas = gerarOcorrenciasFaltantes(ocorrencias, alunos || [], turmas || [], semanaBase, fimSemana, []);
+    const novas = gerarOcorrenciasFaltantes(ocorrencias, alunos || [], turmas || [], diaSemanaBase, fimSemanaRef, []);
     if (novas.length) setOcorrencias([...ocorrencias, ...novas]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [semanaBase]);
+  }, [diaSemanaBase, fimSemanaRef]);
 
-  const todos = useMemo(() => (ocorrencias || [])
-    .filter((o) => o.data >= semanaBase && o.data <= fimSemana && o.tipo !== "locacao" && o.tipo !== "bloqueio")
-    .map((o) => ({
-      id: o.id, dia: diaDaSemanaISO(o.data), data: o.data, hora: o.horaInicio, horaFim: o.horaFim,
-      titulo: tituloOcorrencia(o, alunos || [], turmas || []), detalhe: rotuloTipoOcorrencia(o.tipo),
-      categoria: categoriaOcorrencia(o.tipo),
-      professorUid: o.professorUid, professorNome: o.professorNome,
-      professorAuxiliarUid: o.professorAuxiliarUid, professorAuxiliarNome: o.professorAuxiliarNome,
-      cancelada: o.status === "cancelada", semQuadra: !o.quadraId,
-    }))
-    .sort((x, y) => x.data.localeCompare(y.data) || x.hora.localeCompare(y.hora)), [ocorrencias, semanaBase, fimSemana, alunos, turmas]);
+  const quadrasAtivas = (quadras || []).filter((q) => q.ativa !== false);
 
-  const compromissos = (!exigeLogin || verTodos || !uidAtual)
-    ? todos
-    : todos.filter((c) => !c.professorUid || c.professorUid === uidAtual || c.professorAuxiliarUid === uidAtual);
+  const compromissos = useMemo(() => {
+    let base = construirBlocosPeriodo({ inicioISO: inicioRange, fimISO: fimRange, alunos, turmas, ocorrencias, reservas, bloqueiosAula });
+    if (exigeLogin && uidAtual && !verTodos) {
+      base = base.filter((b) => (b.categoria !== "aula" && b.categoria !== "reposicao")
+        || !b.professorUid || b.professorUid === uidAtual || b.professorAuxiliarUid === uidAtual);
+    }
+    return base;
+  }, [inicioRange, fimRange, alunos, turmas, ocorrencias, reservas, bloqueiosAula, exigeLogin, uidAtual, verTodos]);
 
-  const horas = [...new Set(compromissos.flatMap((c) => faixasDeMeiaHora(c.hora, c.horaFim)))].sort();
-  const semQuadraNaSemana = compromissos.filter((c) => c.semQuadra && !c.cancelada).length;
+  const semQuadraNoPeriodo = compromissos.filter((b) => b.semQuadra && !b.cancelada);
 
-  function rotuloData(iso) {
-    const [, m, d] = iso.split("-");
-    return d + "/" + m;
+  function rotuloData(iso) { const [, m, d] = iso.split("-"); return d + "/" + m; }
+  function dataDoDiaNaSemana(diaV) { return somaDiasISO(diaSemanaBase, diaV === 0 ? 6 : diaV - 1); }
+  function irAnterior() { setDataRef(somaDiasISO(dataRef, visualizacao === "semana" ? -7 : -1)); }
+  function irProximo() { setDataRef(somaDiasISO(dataRef, visualizacao === "semana" ? 7 : 1)); }
+  function irHoje() { setDataRef(hojeISO); } // nunca altera filtros — só a data
+
+  function atualizarOcorrencia(id, patch, escopo) {
+    const ocAntiga = ocorrencias.find((o) => o.id === id);
+    if (!ocAntiga) return;
+    if (escopo) { aplicarPatchComEscopo({ ocorrencias, setOcorrencias, alunos, setAlunos, turmas, setTurmas, oc: ocAntiga, patch, escopo }); return; }
+    const ocNova = { ...ocAntiga, ...patch, atualizadoEm: new Date().toISOString() };
+    setOcorrencias(ocorrencias.map((o) => (o.id === id ? ocNova : o)));
+    if (setAlunos) setAlunos(aplicarEfeitoCreditoNaOcorrencia(alunos, ocAntiga, ocNova, regrasReposicao));
   }
+  function cancelarReserva(id) {
+    if (!confirm("Cancelar esta reserva?")) return;
+    setReservas(reservas.filter((r) => r.id !== id));
+  }
+  function nomeQuadraPorId(id) { return quadrasAtivas.find((q) => q.id === id)?.nome || ""; }
+
+  function abrirAgendarGenerico() { setAgendarContexto(null); setAgendarAberto(true); }
+  function aoClicarSlotVazio(colKey, hora) {
+    let data = dataRef, quadraId = "";
+    if (visualizacao === "semana") data = dataDoDiaNaSemana(colKey);
+    else if (visualizacao === "quadra") quadraId = colKey;
+    setAgendarContexto({ data, hora, quadraId });
+    setAgendarAberto(true);
+  }
+
+  const quadrasExibidas = filtroQuadraId ? quadrasAtivas.filter((q) => q.id === filtroQuadraId) : quadrasAtivas;
+  const colunas = visualizacao === "dia"
+    ? [{ key: dataRef, titulo: nomeDia(diaDaSemanaISO(dataRef)) + " " + rotuloData(dataRef), blocos: compromissos.filter((b) => b.data === dataRef) }]
+    : visualizacao === "semana"
+    ? DIAS_SEMANA.map((d) => ({ key: d.v, titulo: d.r + " " + rotuloData(dataDoDiaNaSemana(d.v)), blocos: compromissos.filter((b) => b.data === dataDoDiaNaSemana(d.v)) }))
+    // "Por quadra" é a visão de DISPONIBILIDADE real — uma aula cancelada
+    // libera a quadra de volta (não pode parecer ocupada, pedido da
+    // seção 5); Dia/Semana continuam mostrando a cancelada (com "·
+    // cancelada"), porque ali o pedido é preservar o histórico visível.
+    : quadrasExibidas.map((q) => ({ key: q.id, titulo: q.nome, blocos: compromissos.filter((b) => b.quadraId === q.id && !b.cancelada) }));
+
+  const linkReserva = orgAtual ? location.origin + "/reservar.html?org=" + encodeURIComponent(orgAtual) : "";
+  const [linkCopiado, setLinkCopiado] = useState(false);
+  async function copiarLinkReserva() {
+    try { await navigator.clipboard.writeText(linkReserva); } catch {}
+    setLinkCopiado(true);
+    setTimeout(() => setLinkCopiado(false), 2000);
+  }
+
+  const ocorrenciaDoDetalhe = detalheAberto && detalheAberto.kind === "ocorrencia"
+    ? (ocorrencias.find((o) => o.id === detalheAberto.ocorrencia.id) || detalheAberto.ocorrencia) : null;
+
+  const temFiltroAtivo = verTodos || !!filtroQuadraId;
 
   return (
     <div>
-      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Agenda</h1>
-      <p style={{ ...prosa, color: C.grafite, marginBottom: 4 }}>
-        {rotuloData(semanaBase)}–{rotuloData(fimSemana)} · mesmos compromissos de Quadras, Aulas de hoje e Reposições.
-      </p>
-      {semQuadraNaSemana > 0 && (
-        <p style={{ ...prosa, fontSize: 12.5, color: "#B8860B", marginBottom: 10 }}>
-          {plural(semQuadraNaSemana, "aula")} sem quadra definida nesta semana — resolva em "Aulas de hoje" ou nos detalhes de cada aula.
-        </p>
-      )}
-
-      <div className="mb-4">
-        <Botao variante="saibro" onClick={() => setAgendarAberto(true)}>+ Agendar</Botao>
+      <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
+        <div>
+          <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Agenda</h1>
+          <p style={{ ...prosa, color: C.grafite }}>
+            {visualizacao === "semana" ? rotuloData(diaSemanaBase) + "–" + rotuloData(fimSemanaRef)
+              : formatarDataLonga(dataRef)}
+          </p>
+        </div>
+        <Botao variante="saibro" onClick={abrirAgendarGenerico}>+ Agendar</Botao>
       </div>
 
-      <div className="flex items-center justify-between gap-3 flex-wrap mb-5">
-        {(modo !== "quadra" && modo !== "recorrentes") && (
-          <div className="flex gap-2 items-center flex-wrap">
-            <Botao pequeno variante="vazio" onClick={() => setSemanaBase(somaDiasISO(semanaBase, -7))}>← Semana anterior</Botao>
-            <Botao pequeno variante="vazio" onClick={() => setSemanaBase(inicioSemanaISO(hojeISO))}>Hoje</Botao>
-            <Botao pequeno variante="vazio" onClick={() => setSemanaBase(somaDiasISO(semanaBase, 7))}>Semana seguinte →</Botao>
-          </div>
-        )}
-        <div className="flex gap-2">
-          {[{ v: "grade", r: "Grade" }, { v: "semana", r: "Semana" },
-            ...(mostraQuadras ? [{ v: "quadra", r: "Por quadra" }, { v: "recorrentes", r: "Horários recorrentes" }] : [])].map((t) => (
-            <button key={t.v} onClick={() => setModo(t.v)}
+      {semQuadraNoPeriodo.length > 0 && (
+        <div className="flex items-center justify-between gap-3 flex-wrap mb-3" style={{ background: "#FBF3E1", border: "1px solid #E8D2A0", borderRadius: 8, padding: "8px 12px" }}>
+          <p style={{ ...prosa, fontSize: 12.5, color: "#8A6A1E" }}>
+            {plural(semQuadraNoPeriodo.length, "aula")} sem quadra {visualizacao === "semana" ? "nesta semana" : "nesta data"}
+            {exigeLogin && uidAtual && !verTodos ? " (seus horários)" : ""}
+          </p>
+          <Botao pequeno onClick={() => setPendenciaAberta((v) => !v)}>{pendenciaAberta ? "Fechar" : "Resolver"}</Botao>
+        </div>
+      )}
+      {pendenciaAberta && (
+        <div className="mb-4">
+          {semQuadraNoPeriodo.map((b) => (
+            <LinhaPendenciaQuadra key={b.id} oc={b.ocorrencia} alunos={alunos} turmas={turmas} quadras={quadras} ocorrencias={ocorrencias} reservas={reservas} bloqueiosAula={bloqueiosAula}
+              aoDefinir={(quadraId, escopo) => atualizarOcorrencia(b.ocorrencia.id, { quadraId }, escopo)} />
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-center justify-between gap-2 flex-wrap mb-3">
+        <div className="flex gap-2 items-center flex-wrap">
+          <Botao pequeno variante="vazio" onClick={irAnterior}>← Anterior</Botao>
+          <Botao pequeno variante="vazio" onClick={irHoje}>Hoje</Botao>
+          <Botao pequeno variante="vazio" onClick={irProximo}>Próximo →</Botao>
+        </div>
+        <div className="flex gap-2 items-center flex-wrap">
+          {[{ v: "dia", r: "Dia" }, { v: "semana", r: "Semana" }, ...(mostraQuadras ? [{ v: "quadra", r: "Por quadra" }] : [])].map((t) => (
+            <button key={t.v} onClick={() => setVisualizacao(t.v)}
               style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, padding: "6px 11px", borderRadius: 10, cursor: "pointer",
-                border: "1px solid " + (modo === t.v ? C.tinta : C.linha),
-                background: modo === t.v ? C.tinta : C.papel, color: modo === t.v ? C.papel : C.grafite }}>
+                border: "1px solid " + (visualizacao === t.v ? C.tinta : C.linha),
+                background: visualizacao === t.v ? C.tinta : C.papel, color: visualizacao === t.v ? C.papel : C.grafite }}>
               {t.r}
             </button>
           ))}
+          {mostraQuadras && (
+            <div style={{ position: "relative" }}>
+              <Botao pequeno variante="vazio" onClick={() => setMaisOpcoesAberto((v) => !v)}>Mais opções</Botao>
+              {maisOpcoesAberto && (
+                <>
+                  <div onClick={() => setMaisOpcoesAberto(false)} style={{ position: "fixed", inset: 0, zIndex: 19 }} />
+                  <div style={{ position: "absolute", right: 0, top: "100%", marginTop: 4, background: C.papel, border: "1px solid " + C.linha,
+                    borderRadius: 8, boxShadow: SOMBRA_ALTA, zIndex: 20, minWidth: 220, padding: 6 }}>
+                    {linkReserva && (
+                      <button onClick={copiarLinkReserva} className="w-full text-left" style={{ ...prosa, fontSize: 12.5, padding: "8px 10px", border: "none", background: "none", cursor: "pointer", borderRadius: 6 }}>
+                        {linkCopiado ? "✓ Link copiado" : "Copiar link de reservas"}
+                      </button>
+                    )}
+                    {linkReserva && (
+                      <a href={linkReserva} target="_blank" rel="noreferrer" className="w-full text-left" style={{ ...prosa, fontSize: 12.5, padding: "8px 10px", display: "block", borderRadius: 6, color: C.tinta }}>
+                        Ver página pública
+                      </a>
+                    )}
+                    <button onClick={() => { setMaisOpcoesAberto(false); setAba && setAba("quadras"); }} className="w-full text-left" style={{ ...prosa, fontSize: 12.5, padding: "8px 10px", border: "none", background: "none", cursor: "pointer", borderRadius: 6 }}>
+                      Gerenciar quadras
+                    </button>
+                    <button onClick={() => { setMaisOpcoesAberto(false); setAba && setAba("grade-aulas"); }} className="w-full text-left" style={{ ...prosa, fontSize: 12.5, padding: "8px 10px", border: "none", background: "none", cursor: "pointer", borderRadius: 6 }}>
+                      Horários recorrentes
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
-        {(modo !== "quadra" && modo !== "recorrentes") && exigeLogin && uidAtual && (
-          <div className="flex gap-2">
-            {[{ v: false, r: "Meus horários" }, { v: true, r: "Toda a academia" }].map((t) => (
-              <button key={String(t.v)} onClick={() => setVerTodos(t.v)}
-                style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, padding: "6px 11px", borderRadius: 10, cursor: "pointer",
-                  border: "1px solid " + (verTodos === t.v ? C.saibro : C.linha),
-                  background: verTodos === t.v ? C.saibro : C.papel, color: verTodos === t.v ? "#fff" : C.grafite }}>
-                {t.r}
-              </button>
-            ))}
+      </div>
+
+      <div className="mb-4">
+        <button onClick={() => setFiltrosAbertos((v) => !v)} style={{ ...prosa, fontSize: 11.5, color: C.grafite, border: "none", background: "none", cursor: "pointer", padding: 0 }}>
+          Filtros{temFiltroAtivo ? " · " + (verTodos ? "toda a academia" : "") + (verTodos && filtroQuadraId ? " · " : "") + (filtroQuadraId ? nomeQuadraPorId(filtroQuadraId) : "") : ""} {filtrosAbertos ? "▲" : "▼"}
+        </button>
+        {filtrosAbertos && (
+          <div className="flex gap-2 flex-wrap mt-2">
+            {exigeLogin && uidAtual && (
+              <div className="flex gap-2">
+                {[{ v: false, r: "Meus horários" }, { v: true, r: "Toda a academia" }].map((t) => (
+                  <button key={String(t.v)} onClick={() => setVerTodos(t.v)}
+                    style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, padding: "6px 11px", borderRadius: 10, cursor: "pointer",
+                      border: "1px solid " + (verTodos === t.v ? C.saibro : C.linha),
+                      background: verTodos === t.v ? C.saibro : C.papel, color: verTodos === t.v ? "#fff" : C.grafite }}>
+                    {t.r}
+                  </button>
+                ))}
+              </div>
+            )}
+            {visualizacao === "quadra" && quadrasAtivas.length > 1 && (
+              <select style={{ ...entrada, width: 180 }} value={filtroQuadraId} onChange={(e) => setFiltroQuadraId(e.target.value)}>
+                <option value="">Todas as quadras</option>
+                {quadrasAtivas.map((q) => <option key={q.id} value={q.id}>{q.nome}</option>)}
+              </select>
+            )}
           </div>
         )}
       </div>
 
-      {modo === "quadra" && mostraQuadras ? (
-        <TelaQuadras quadras={quadras} setQuadras={setQuadras} reservas={reservas} setReservas={setReservas}
-          bloqueiosAula={bloqueiosAula} orgAtual={orgAtual} alunos={alunos} turmas={turmas}
-          ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} />
-      ) : modo === "recorrentes" && mostraQuadras ? (
-        <TelaGradeAulas alunos={alunos} turmas={turmas} bloqueiosAula={bloqueiosAula} setBloqueiosAula={setBloqueiosAula} orgAtual={orgAtual} />
-      ) : compromissos.length === 0 ? (
-        <p style={{ ...prosa, color: C.grafite }}>
-          Nenhum compromisso nesta semana. Horários fixos entram em "Horário fixo de treino" na ficha do jogador,
-          ou em "Dias e horários de treino" ao criar uma turma.
-        </p>
-      ) : modo === "grade" ? (
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 640 }}>
-            <thead>
-              <tr>
-                <th style={{ ...celulaGrade, background: C.papel }}></th>
-                {DIAS_SEMANA.map((d) => (
-                  <th key={d.v} style={{ ...celulaGrade, fontFamily: ARCH, fontSize: 12, fontWeight: 700, textAlign: "left" }}>
-                    {d.r} {rotuloData(somaDiasISO(semanaBase, d.v === 0 ? 6 : d.v - 1))}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {horas.map((hora) => (
-                <tr key={hora}>
-                  <td style={{ ...celulaGrade, fontFamily: ARCH, fontSize: 12, fontWeight: 700, color: C.grafite, whiteSpace: "nowrap" }}>{hora}</td>
-                  {DIAS_SEMANA.map((d) => {
-                    const aqui = compromissos.filter((c) => c.dia === d.v && c.hora <= hora && hora < c.horaFim);
-                    return (
-                      <td key={d.v} style={{ ...celulaGrade, minWidth: 110 }}>
-                        {aqui.map((c, i) => (
-                          <div key={i} className="mb-1" style={{ fontSize: 11.5, lineHeight: 1.3, opacity: c.cancelada ? 0.55 : 1,
-                            borderLeft: "3px solid " + corCategoriaOcorrencia(c.categoria === "aula" ? "regular" : c.categoria), paddingLeft: 4 }}>
-                            {c.hora === hora ? (
-                              <>
-                                <div style={{ fontWeight: 700 }}>{c.titulo}{c.cancelada ? " · cancelada" : ""}</div>
-                                <div style={{ color: C.grafite }}>{c.professorNome || "sem professor"}{c.professorAuxiliarNome ? " + " + c.professorAuxiliarNome : ""}</div>
-                              </>
-                            ) : (
-                              <div style={{ color: C.grafite, fontStyle: "italic" }}>↕ {c.titulo}{c.cancelada ? " · cancelada" : ""}</div>
-                            )}
-                          </div>
-                        ))}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {visualizacao === "quadra" && quadrasAtivas.length === 0 ? (
+        <p style={{ ...prosa, color: C.grafite }}>Nenhuma quadra cadastrada ainda — cadastre em "Mais opções → Gerenciar quadras".</p>
       ) : (
-        DIAS_SEMANA.map((d) => {
-          const doDia = compromissos.filter((c) => c.dia === d.v);
-          if (doDia.length === 0) return null;
-          return (
-            <div key={d.v} className="mb-5">
-              <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.08em", color: C.grafite }}>
-                {d.r} · {rotuloData(somaDiasISO(semanaBase, d.v === 0 ? 6 : d.v - 1))}
-              </div>
-              {doDia.map((c, i) => (
-                <div key={i} style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + corCategoriaOcorrencia(c.categoria === "aula" ? "regular" : c.categoria),
-                  padding: "10px 13px", marginBottom: 6, opacity: c.cancelada ? 0.55 : 1 }}>
-                  <div className="flex items-center justify-between gap-3">
-                    <div style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{c.hora}–{c.horaFim} · {c.titulo}</div>
-                    {c.cancelada ? <Etiqueta cor={C.saibro}>cancelada</Etiqueta> : <Etiqueta>{c.detalhe}</Etiqueta>}
-                  </div>
-                  <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>
-                    {c.professorNome || "sem professor definido"}{c.professorAuxiliarNome ? " · aux. " + c.professorAuxiliarNome : ""}
-                    {c.semQuadra && !c.cancelada ? " · sem quadra definida" : ""}
-                  </p>
-                </div>
-              ))}
-            </div>
-          );
-        })
+        <GradeColunas colunas={colunas} horasEixo={FAIXAS_MEIA_HORA.slice(0, -1)} aoClicarSlotVazio={aoClicarSlotVazio} aoClicarBloco={setDetalheAberto} />
       )}
 
-      <ModalAgendar aberto={agendarAberto} aoFechar={() => setAgendarAberto(false)} dataInicial={hojeISO}
+      <div className="flex gap-3 flex-wrap mt-3">
+        {["aula", "locacao", "reposicao", "bloqueio"].map((cat) => (
+          <span key={cat} className="flex items-center gap-1.5" style={{ ...prosa, fontSize: 11, color: C.grafite }}>
+            <span style={{ width: 10, height: 10, borderRadius: 3, background: COR_CATEGORIA_TIPO[cat], display: "inline-block" }} />
+            {ROTULO_CATEGORIA_TIPO[cat]}
+          </span>
+        ))}
+      </div>
+
+      {detalheAberto && (
+        <>
+          <div onClick={() => setDetalheAberto(null)} style={{ position: "fixed", inset: 0, background: "rgba(16,30,25,.4)", zIndex: 39 }} />
+          <div role="dialog" aria-modal="true" aria-label="Detalhes do compromisso"
+            style={{ position: "fixed", left: 0, right: 0, bottom: 0, background: C.cal, zIndex: 40,
+              borderRadius: "16px 16px 0 0", boxShadow: SOMBRA_ALTA, maxHeight: "85vh", overflowY: "auto", paddingBottom: "env(safe-area-inset-bottom)" }}>
+            <div className="flex items-center justify-between" style={{ padding: "14px 18px", borderBottom: "1px solid " + C.linha }}>
+              <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{ROTULO_CATEGORIA_TIPO[detalheAberto.categoria]}</span>
+              <button onClick={() => setDetalheAberto(null)} aria-label="Fechar" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", fontSize: 20, color: C.grafite }}>×</button>
+            </div>
+            <div style={{ padding: "12px 18px 20px" }}>
+              {detalheAberto.kind === "ocorrencia" ? (
+                <>
+                  <CartaoOcorrencia ocorrencia={ocorrenciaDoDetalhe} alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} regras={regrasReposicao}
+                    conflitos={conflitosDeOcorrencia(ocorrencias, ocorrenciaDoDetalhe, turmas)}
+                    aberta={true} aoAbrir={() => {}} aoAtualizar={(patch) => atualizarOcorrencia(ocorrenciaDoDetalhe.id, patch)} />
+                  {!ocorrenciaDoDetalhe.quadraId && ocorrenciaDoDetalhe.status !== "cancelada" && (
+                    <div className="mt-3">
+                      <LinhaPendenciaQuadra oc={ocorrenciaDoDetalhe} alunos={alunos} turmas={turmas} quadras={quadras} ocorrencias={ocorrencias} reservas={reservas} bloqueiosAula={bloqueiosAula}
+                        aoDefinir={(quadraId, escopo) => atualizarOcorrencia(ocorrenciaDoDetalhe.id, { quadraId }, escopo)} />
+                    </div>
+                  )}
+                  <div className="flex gap-2 mt-3 flex-wrap">
+                    {ocorrenciaDoDetalhe.origemTipo === "individual" && irParaSessaoAluno && (
+                      <Botao pequeno variante="vazio" onClick={() => { setDetalheAberto(null); irParaSessaoAluno(ocorrenciaDoDetalhe.origemId); }}>Abrir sessão de treino</Botao>
+                    )}
+                    {ocorrenciaDoDetalhe.origemTipo === "turma" && setAba && (
+                      <Botao pequeno variante="vazio" onClick={() => { setDetalheAberto(null); setAba("turmas"); }}>Ver turma</Botao>
+                    )}
+                  </div>
+                </>
+              ) : detalheAberto.kind === "reserva" ? (
+                <>
+                  <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{detalheAberto.reserva.nomeContato}</p>
+                  <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginBottom: 2 }}>
+                    {nomeQuadraPorId(detalheAberto.quadraId)} · {detalheAberto.horaInicio}–{detalheAberto.horaFim}
+                  </p>
+                  <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>
+                    {detalheAberto.reserva.telefoneContato}{detalheAberto.reserva.origem === "cliente" ? " · reservado pelo cliente" : " · reservado pela academia"}
+                  </p>
+                  {detalheAberto.reserva.observacao && <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginTop: 4 }}>{detalheAberto.reserva.observacao}</p>}
+                  <div className="mt-3">
+                    <Botao pequeno variante="vazio" onClick={() => { cancelarReserva(detalheAberto.reserva.id); setDetalheAberto(null); }}>Cancelar reserva</Botao>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{detalheAberto.titulo}</p>
+                  <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>{detalheAberto.horaInicio}–{detalheAberto.horaFim} · todas as quadras</p>
+                  <div className="mt-3">
+                    <Botao pequeno variante="vazio" onClick={() => { setDetalheAberto(null); setAba && setAba("grade-aulas"); }}>Gerenciar em Horários recorrentes</Botao>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+
+      <ModalAgendar aberto={agendarAberto} aoFechar={() => setAgendarAberto(false)}
+        dataInicial={agendarContexto?.data || dataRef} horaInicial={agendarContexto?.hora} quadraIdInicial={agendarContexto?.quadraId}
         alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas}
         quadras={quadras} reservas={reservas} setReservas={setReservas} bloqueiosAula={bloqueiosAula}
         ocorrencias={ocorrencias} setOcorrencias={setOcorrencias}
         aoIrParaReposicoes={() => setAba && setAba("reposicoes")}
-        aoIrParaRecorrentes={() => setModo("recorrentes")} />
+        aoIrParaRecorrentes={() => setAba && setAba("grade-aulas")} />
     </div>
   );
 }
-const celulaGrade = { border: "1px solid " + C.linha, padding: "8px 10px", verticalAlign: "top" };
 
 const NAV_DIA_A_DIA = [{ v: "dashboard", r: "Início" }, { v: "aulas-hoje", r: "Aulas de hoje" }, { v: "agenda", r: "Agenda" }, { v: "reposicoes", r: "Reposições" }];
 const NAV_ALUNOS_TURMAS = [{ v: "alunos", r: "Jogadores" }, { v: "turmas", r: "Turmas" }];
@@ -16855,6 +16938,12 @@ function App() {
      etapa Nível da ficha (ver TelaFicha/etapaAlvo) — nulo o resto do
      tempo, sem afetar a navegação normal entre as abas do jogador. */
   const [etapaFichaAlvo, setEtapaFichaAlvo] = useState(null);
+  /* Mesmo padrão de etapaFichaAlvo, pra abrir a Agenda já numa data e
+     visualização específicas (ex.: aviso de nova reserva → Agenda →
+     "Por quadra" naquele dia) sem precisar de uma segunda tela própria
+     só pra mostrar aquele detalhe. */
+  const [agendaDataAlvo, setAgendaDataAlvo] = useState(null);
+  const [agendaVisualizacaoAlvo, setAgendaVisualizacaoAlvo] = useState(null);
   /* Enquanto a ficha está em edição, não precisamos esconder nada aqui
      (mty mostra o cabeçalho de qualquer forma) — guardado só pra passar
      pra TelaFicha, que usa isto pra avisar o pai quando entra/sai do
@@ -17178,7 +17267,9 @@ function App() {
   const inscricoesEventoNovasVisiveis = papelAtual === "coordenador" ? avisos.inscricoesEventoNovas : [];
   function verReserva(r) {
     setReservas(reservas.map((x) => (x.id === r.id ? { ...x, vistoPeloStaff: true } : x)));
-    setAba("quadras");
+    setAgendaDataAlvo(r.data);
+    setAgendaVisualizacaoAlvo("quadra");
+    setAba("agenda");
     setAvisosAberto(false);
   }
   function verInscricaoTorneio(i) {
@@ -17651,15 +17742,18 @@ function App() {
          aba === "formacao" ? <TelaFormacaoPessoal membros={membrosFormacao} setMembros={setMembrosFormacao} carregando={carregandoFormacao} uidAtual={uidAtual} irParaManual={irParaManual} /> :
          aba === "turmas" ? <TelaTurmas alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade}
            exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} quadras={quadras} /> :
-         aba === "quadras" && mostraQuadras ? <TelaQuadras quadras={quadras} setQuadras={setQuadras} reservas={reservas} setReservas={setReservas} bloqueiosAula={bloqueiosAula} orgAtual={orgAtual} alunos={alunos} turmas={turmas} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} /> :
-         aba === "grade-aulas" && mostraQuadras ? <TelaGradeAulas alunos={alunos} turmas={turmas} bloqueiosAula={bloqueiosAula} setBloqueiosAula={setBloqueiosAula} orgAtual={orgAtual} /> :
+         aba === "quadras" && mostraQuadras ? <TelaQuadras quadras={quadras} setQuadras={setQuadras} orgAtual={orgAtual} /> :
+         aba === "grade-aulas" && mostraQuadras ? <TelaGradeAulas alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} quadras={quadras} bloqueiosAula={bloqueiosAula} setBloqueiosAula={setBloqueiosAula} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} orgAtual={orgAtual}
+           irParaFicha={(id) => { setAba("alunos"); setAbertoId(id); setEtapaFichaAlvo(2); }} /> :
          aba === "torneios" && mostraTorneiosEventos ? <TelaTorneios torneios={torneios} setTorneios={setTorneios} orgAtual={orgAtual} /> :
          aba === "eventos" && mostraTorneiosEventos ? <TelaEventos eventos={eventos} setEventos={setEventos} orgAtual={orgAtual} /> :
          aba === "clientes" && (mostraQuadras || mostraTorneiosEventos) ? <TelaClientes quadras={quadras} reservas={reservas} torneios={torneios} eventos={eventos} /> :
          aba === "agenda" ? <TelaAgenda alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias}
-           quadras={quadras} setQuadras={setQuadras} reservas={reservas} setReservas={setReservas} bloqueiosAula={bloqueiosAula} setBloqueiosAula={setBloqueiosAula}
-           orgAtual={orgAtual} mostraQuadras={mostraQuadras} uidAtual={uidAtual} exigeLogin={exigeLogin} setAba={setAba} /> :
-         aba === "aulas-hoje" ? <TelaAulasHoje alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} reservas={reservas} bloqueiosAula={bloqueiosAula} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} regrasReposicao={regrasReposicao} uidAtual={uidAtual} papelAtual={papelAtual} /> :
+           quadras={quadras} reservas={reservas} setReservas={setReservas} bloqueiosAula={bloqueiosAula}
+           orgAtual={orgAtual} mostraQuadras={mostraQuadras} uidAtual={uidAtual} exigeLogin={exigeLogin} regrasReposicao={regrasReposicao} setAba={setAba}
+           dataAlvo={agendaDataAlvo} visualizacaoAlvo={agendaVisualizacaoAlvo} aoConsumirAlvo={() => { setAgendaDataAlvo(null); setAgendaVisualizacaoAlvo(null); }}
+           irParaSessaoAluno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("sessao"); }} /> :
+         aba === "aulas-hoje" ? <TelaAulasHoje alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} quadras={quadras} reservas={reservas} bloqueiosAula={bloqueiosAula} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} regrasReposicao={regrasReposicao} uidAtual={uidAtual} papelAtual={papelAtual} /> :
          aba === "reposicoes" ? <TelaReposicoes alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} reservas={reservas} bloqueiosAula={bloqueiosAula} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias}
            regrasReposicao={regrasReposicao} setRegrasReposicao={setRegrasReposicao} papelAtual={papelAtual} /> :
          aba === "relatorio" ? <TelaRelatorioProfessores ocorrencias={ocorrencias} alunos={alunos} turmas={turmas} papelAtual={papelAtual} uidAtual={uidAtual} /> :
