@@ -7074,6 +7074,21 @@ function garanteBrincadeira(exerciciosAtuais, evitar, estagio) {
 
 function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual, exerciciosCustom, setExerciciosCustom }) {
   const podeEditar = podeEditarAluno(aluno, papelAtual, uidAtual);
+  /* Encerrar a aula de hoje é diferente de editar o plano do jogador —
+     qualquer professor logado pode ter que substituir outro de última
+     hora, e travar "Finalizar e registrar aula" pra só o titular
+     deixava a substituição sem solução real (pedido explícito: "qq
+     professor possa encerrar qq aula ... colocar seu nome como
+     substituto"). O resto da tela (gerar plano, editar exercícios etc.)
+     continua seguindo `podeEditar` normalmente. */
+  const podeRegistrarAula = papelAtual === "coordenador" || !!uidAtual;
+  const [professoresSessao, setProfessoresSessao] = useState([]);
+  useEffect(() => {
+    if (aluno.professorUid && aluno.professorUid !== uidAtual) listaProfessores().then(setProfessoresSessao);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aluno.id]);
+  const souSubstituto = !!aluno.professorUid && aluno.professorUid !== uidAtual && papelAtual !== "coordenador";
+  const meuNomeSessao = professoresSessao.find((p) => p.uid === uidAtual)?.nome || "";
   const exigeLogin = typeof window !== "undefined" && !!window.mtyAuth;
   const hoje = new Date().toISOString().slice(0, 10);
   /* A sessão gerada some se ficar só na memória do navegador — celular
@@ -7436,6 +7451,10 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
       // no dia de chuva (não existe bloco de Plano pra agrupar ali); é o
       // que permite ao mapa de calor do Plano agrupar colunas por bloco.
       blocoNome: aulaAtual ? aulaAtual.bloco : null,
+      // Quem de fato deu/registrou esta aula — só preenchido quando é
+      // diferente do professor titular do jogador (substituição).
+      substitutoUid: souSubstituto ? uidAtual : "",
+      substitutoNome: souSubstituto ? meuNomeSessao : "",
     };
     const alunosAtualizados = alunos.map((a) => {
       if (a.id !== aluno.id) return a;
@@ -7813,7 +7832,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
               zIndex: 27, background: C.papel, borderTop: "1px solid " + C.linha, padding: "10px 16px",
               boxShadow: "0 -2px 10px rgba(16,59,50,.08)" }}>
               <div style={{ maxWidth: 760, margin: "0 auto" }}>
-                <Botao onClick={() => setFechando(true)} disabled={!podeEditar}>Finalizar e registrar aula</Botao>
+                <Botao onClick={() => setFechando(true)} disabled={!podeRegistrarAula}>Finalizar e registrar aula</Botao>
               </div>
             </div>
           )}
@@ -7829,6 +7848,13 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
                   <button onClick={() => !salvandoRegistro && setFechando(false)} aria-label="Fechar" style={{ width: 36, height: 36, border: "none", background: "none", cursor: "pointer", fontSize: 20, color: C.grafite }}>×</button>
                 </div>
                 <div style={{ overflowY: "auto", padding: "16px 18px", paddingBottom: "calc(16px + env(safe-area-inset-bottom))" }}>
+
+                  {souSubstituto && (
+                    <Aviso cor={C.saibro}>
+                      Este jogador é do professor {aluno.professorNome || "titular"} — como você está
+                      registrando no lugar dele, o registro guarda {meuNomeSessao ? "\"" + meuNomeSessao + "\"" : "você"} como substituto.
+                    </Aviso>
+                  )}
 
                   {todosExerciciosAtuais.length > 0 && (
                     <Campo rotulo="Atividades realizadas" nota="Indique o que não foi feito ou só parcialmente — o resto conta como feito.">
@@ -13793,6 +13819,21 @@ function TelaScoutTurma({ membros, alunos, setAlunos }) {
 
 function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, aoRemover, papelAtual, uidAtual, exerciciosCustom, setExerciciosCustom, identidade }) {
   const podeEditar = podeEditarTurma(turma, papelAtual, uidAtual);
+  /* Registrar a sessão de hoje (presença, notas, "Salvar sessão") é
+     diferente de editar a turma em si (plano, "Remover turma") —
+     qualquer professor logado pode estar substituindo o titular, e
+     travar isso pra só quem é "dono" da turma deixava a substituição
+     sem solução (pedido explícito: "qq professor possa encerrar qq
+     aula ... colocar seu nome como substituto"). `podeEditar` continua
+     valendo pra "Remover turma" e pro resto do Plano. */
+  const podeRegistrarSessaoTurma = papelAtual === "coordenador" || !!uidAtual;
+  const [professoresSessaoTurma, setProfessoresSessaoTurma] = useState([]);
+  useEffect(() => {
+    if (!podeEditar) listaProfessores().then(setProfessoresSessaoTurma);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turma.id]);
+  const souSubstitutoTurma = !podeEditar;
+  const meuNomeSessaoTurma = professoresSessaoTurma.find((p) => p.uid === uidAtual)?.nome || "";
   const membros = turma.membros.map((id) => alunos.find((a) => a.id === id)).filter(Boolean);
   const hoje = new Date().toISOString().slice(0, 10);
   /* Mesma trava de perda que a sessão individual: a sessão de turma
@@ -13985,6 +14026,10 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
           // "não atingiu" conceitos de uma aula em que ele nem esteve.
           temas: ausente ? [] : temasRegistrados,
           blocoNome: aulaTurma ? aulaTurma.bloco : null,
+          // Quem de fato deu/registrou esta sessão — só preenchido quando
+          // é diferente do professor titular/auxiliar da turma.
+          substitutoUid: souSubstitutoTurma ? uidAtual : "",
+          substitutoNome: souSubstitutoTurma ? meuNomeSessaoTurma : "",
         };
         /* Salvar de novo no mesmo dia pra esta turma substitui o registro
            anterior em vez de empilhar duplicata — ver seção 6, "impedir
@@ -14058,8 +14103,13 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
         <TelaScoutTurma membros={membros} alunos={alunos} setAlunos={setAlunos} />
       ) : (
       <>
-      {!podeEditar && (
-        <div className="mb-5"><Aviso>Esta turma é de outro treinador — a sessão fica travada pra edição. Só o professor responsável, o auxiliar ou o coordenador podem registrá-la.</Aviso></div>
+      {souSubstitutoTurma && (
+        <div className="mb-5">
+          <Aviso>
+            Esta turma é de outro treinador — você está registrando no lugar dele, então o registro
+            guarda {meuNomeSessaoTurma ? "\"" + meuNomeSessaoTurma + "\"" : "você"} como substituto.
+          </Aviso>
+        </div>
       )}
       {pendenciasAbertas.length > 0 && (
         <div className="mb-5">
@@ -14070,7 +14120,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
             <div key={p.id} style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.saibro, padding: "10px 13px", marginTop: 8 }}>
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>{p.data}{p.motivo ? " · " + p.motivo : ""}</div>
-                <Botao pequeno variante="vazio" disabled={!podeEditar} onClick={() => marcarResolvida(p.id)}>Marcar como resolvida</Botao>
+                <Botao pequeno variante="vazio" disabled={!podeRegistrarSessaoTurma} onClick={() => marcarResolvida(p.id)}>Marcar como resolvida</Botao>
               </div>
               {p.nota && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>{p.nota}</p>}
             </div>
@@ -14142,7 +14192,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
         <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: 15 }}>
           <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
             <Etiqueta>Presença</Etiqueta>
-            <Botao pequeno variante="vazio" disabled={!podeEditar}
+            <Botao pequeno variante="vazio" disabled={!podeRegistrarSessaoTurma}
               onClick={() => setPresenca(Object.fromEntries(membros.map((m) => [m.id, "presente"])))}>
               Marcar todos presentes
             </Botao>
@@ -14155,13 +14205,13 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 600 }}>{m.nome || "Sem nome"}</span>
                   <div className="flex gap-1">
-                    <button type="button" disabled={!podeEditar} onClick={() => setPresenca((p) => ({ ...p, [m.id]: "presente" }))}
+                    <button type="button" disabled={!podeRegistrarSessaoTurma} onClick={() => setPresenca((p) => ({ ...p, [m.id]: "presente" }))}
                       style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "5px 10px", borderRadius: 10, cursor: "pointer",
                         border: "1px solid " + (st === "presente" ? C.quadra : C.linha),
                         background: st === "presente" ? C.quadra : C.papel, color: st === "presente" ? "#fff" : C.grafite }}>
                       Presente
                     </button>
-                    <button type="button" disabled={!podeEditar} onClick={() => setPresenca((p) => ({ ...p, [m.id]: "ausente" }))}
+                    <button type="button" disabled={!podeRegistrarSessaoTurma} onClick={() => setPresenca((p) => ({ ...p, [m.id]: "ausente" }))}
                       style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "5px 10px", borderRadius: 10, cursor: "pointer",
                         border: "1px solid " + (st === "ausente" ? "#8A2E2E" : C.linha),
                         background: st === "ausente" ? "#8A2E2E" : C.papel, color: st === "ausente" ? "#fff" : C.grafite }}>
@@ -14177,7 +14227,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
                   {notaAberta ? "Ocultar nota individual" : (obsIndividual[m.id] ? "Editar nota individual" : "+ nota individual")}
                 </button>
                 {notaAberta && (
-                  <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, resize: "vertical", fontSize: 12.5, marginTop: 6 }}
+                  <textarea rows={2} disabled={!podeRegistrarSessaoTurma} style={{ ...entrada, resize: "vertical", fontSize: 12.5, marginTop: 6 }}
                     value={obsIndividual[m.id] || ""} onChange={(e) => setObsIndividual((o) => ({ ...o, [m.id]: e.target.value }))}
                     placeholder="Observação só deste jogador nesta sessão." />
                 )}
@@ -14288,20 +14338,20 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
         <div className="mt-6" style={{ background: C.cal, border: "1px solid " + C.linha, padding: 15 }}>
           <div className="mb-3"><Etiqueta cor={C.saibro}>Fechamento da sessão — vai pro caderno de cada jogador do grupo</Etiqueta></div>
           <Campo rotulo="O que corrigi hoje">
-            <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, resize: "vertical" }} value={obs.corrigi}
+            <textarea rows={2} disabled={!podeRegistrarSessaoTurma} style={{ ...entrada, resize: "vertical" }} value={obs.corrigi}
               onChange={(e) => setObs({ ...obs, corrigi: e.target.value })} placeholder="Em que camada estava a causa" />
           </Campo>
           <Campo rotulo="O que vi e deixei passar" nota="O campo mais valioso do registro: o que você escolheu ignorar hoje, e por quê.">
-            <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, resize: "vertical" }} value={obs.ignorei}
+            <textarea rows={2} disabled={!podeRegistrarSessaoTurma} style={{ ...entrada, resize: "vertical" }} value={obs.ignorei}
               onChange={(e) => setObs({ ...obs, ignorei: e.target.value })} />
           </Campo>
           <Campo rotulo="O que eu teria montado diferente" nota="Se a proposta não servia, escreva o que serviria. É isso que corrige as regras.">
-            <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, resize: "vertical" }} value={obs.mudaria}
+            <textarea rows={2} disabled={!podeRegistrarSessaoTurma} style={{ ...entrada, resize: "vertical" }} value={obs.mudaria}
               onChange={(e) => setObs({ ...obs, mudaria: e.target.value })} />
           </Campo>
-          <CamposTemas temas={temasGrupo} statusTemas={statusTemas} setStatusTemas={setStatusTemas} podeEditar={podeEditar} />
+          <CamposTemas temas={temasGrupo} statusTemas={statusTemas} setStatusTemas={setStatusTemas} podeEditar={podeRegistrarSessaoTurma} />
           <Campo rotulo="Leitura da aula" nota="A impressão geral do grupo na sessão, além dos temas — fica guardada no caderno de cada jogador.">
-            <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, resize: "vertical" }} value={obs.leituraDaAula}
+            <textarea rows={2} disabled={!podeRegistrarSessaoTurma} style={{ ...entrada, resize: "vertical" }} value={obs.leituraDaAula}
               onChange={(e) => setObs({ ...obs, leituraDaAula: e.target.value })} />
           </Campo>
           <Campo rotulo="Engajamento geral do grupo na sessão" nota="Nota de 1 a 5 — a presença de cada jogador já é marcada individualmente acima.">
@@ -14312,7 +14362,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
       )}
 
       <div className="flex gap-2 items-center mt-4 flex-wrap">
-        <Botao onClick={salvarSessao} disabled={!podeEditar || (statusGeral === "chuva" && !chuvaModeloId)}>Salvar sessão</Botao>
+        <Botao onClick={salvarSessao} disabled={!podeRegistrarSessaoTurma || (statusGeral === "chuva" && !chuvaModeloId)}>Salvar sessão</Botao>
         <Botao variante="vazio" disabled={!podeEditar} onClick={aoRemover}>Remover turma</Botao>
         {salvo === "feita" && <Etiqueta cor={C.quadra}>{turma.plano ? "✓ sessão registrada no plano da turma" : "✓ sessão registrada em cada jogador"}</Etiqueta>}
         {salvo === "chuva" && <Etiqueta cor={C.quadra}>✓ dia de chuva registrado como sessão realizada</Etiqueta>}
@@ -15011,6 +15061,15 @@ function TelaAulasHoje({ alunos, setAlunos, turmas, setTurmas, quadras, reservas
   }, []);
 
   const [abertaId, setAbertaId] = useState(null);
+  /* Qualquer professor pode acabar precisando substituir outro — "só
+     minhas aulas" era uma parede real: sem "Toda a academia", um
+     professor nem CONSEGUIA abrir a aula de um colega pra se marcar
+     como substituto e encerrar ela (pedido explícito: "qq professor
+     possa encerrar qq aula ... colocar seu nome como substituto").
+     Continua escondida por padrão (pra não poluir o dia a dia de quem
+     só quer ver o que é seu), mas agora é uma escolha de QUALQUER
+     professor, não só do coordenador. */
+  const [verTodasAulas, setVerTodasAulas] = useState(false);
   function atualizar(id, patch, escopo) {
     const ocAntiga = ocorrencias.find((o) => o.id === id);
     if (escopo) {
@@ -15022,7 +15081,7 @@ function TelaAulasHoje({ alunos, setAlunos, turmas, setTurmas, quadras, reservas
     if (setAlunos) setAlunos(aplicarEfeitoCreditoNaOcorrencia(alunos, ocAntiga, ocNova, regrasReposicao));
   }
   function minhas(lista) {
-    return papelAtual === "coordenador" ? lista
+    return (papelAtual === "coordenador" || verTodasAulas) ? lista
       : lista.filter((o) => o.professorUid === uidAtual || o.professorAuxiliarUid === uidAtual || o.substitutoUid === uidAtual);
   }
   const deHoje = minhas(ocorrencias.filter((o) => o.data === hoje)).sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
@@ -15049,9 +15108,25 @@ function TelaAulasHoje({ alunos, setAlunos, turmas, setTurmas, quadras, reservas
       <p style={{ ...prosa, fontSize: 14, color: C.grafite, marginBottom: 4 }}>
         {new Date(hoje + "T00:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}
       </p>
-      <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 16 }}>
-        {papelAtual === "coordenador" ? "Mostrando as aulas de toda a academia." : "Mostrando só as suas aulas."}
-      </p>
+      {papelAtual === "coordenador" ? (
+        <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 16 }}>Mostrando as aulas de toda a academia.</p>
+      ) : (
+        <div className="flex items-center gap-2 mb-4 flex-wrap">
+          {[{ v: false, r: "Minhas aulas" }, { v: true, r: "Toda a academia" }].map((t) => (
+            <button key={String(t.v)} onClick={() => setVerTodasAulas(t.v)}
+              style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, padding: "6px 11px", borderRadius: 10, cursor: "pointer",
+                border: "1px solid " + (verTodasAulas === t.v ? C.saibro : C.linha),
+                background: verTodasAulas === t.v ? C.saibro : C.papel, color: verTodasAulas === t.v ? "#fff" : C.grafite }}>
+              {t.r}
+            </button>
+          ))}
+          {verTodasAulas && (
+            <span style={{ ...prosa, fontSize: 11.5, color: C.grafite }}>
+              Pra substituir um colega: abra a aula dele e escolha seu nome em "Professor substituto".
+            </span>
+          )}
+        </div>
+      )}
 
       {semQuadra.length > 0 && (
         <div className="mb-6">
