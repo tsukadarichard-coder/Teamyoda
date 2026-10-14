@@ -12896,7 +12896,7 @@ const TIPOS_EVENTO = { clinica: "Clínica", social: "Social", exibicao: "Exibiç
 const STATUS_TORNEIO = { inscricoes: "Inscrições abertas", andamento: "Em andamento", encerrado: "Encerrado" };
 const STATUS_TORNEIO_COR = { inscricoes: C.saibro, andamento: C.tinta, encerrado: C.grafite };
 
-function TelaQuadras({ quadras, setQuadras, reservas, setReservas, orgAtual, alunos, turmas, ocorrencias, setOcorrencias }) {
+function TelaQuadras({ quadras, setQuadras, reservas, setReservas, bloqueiosAula, orgAtual, alunos, turmas, ocorrencias, setOcorrencias }) {
   const [gerenciando, setGerenciando] = useState(false);
   const [nomeNovaQuadra, setNomeNovaQuadra] = useState("");
   const [dataEscolhida, setDataEscolhida] = useState(() => new Date().toISOString().slice(0, 10));
@@ -12976,12 +12976,12 @@ function TelaQuadras({ quadras, setQuadras, reservas, setReservas, orgAtual, alu
       setErro("O horário de fim precisa ser depois do horário de início.");
       return;
     }
-    if (reservas.some((existente) => reservasSeSobrepoem(existente, r))) {
-      setErro("Já existe uma reserva nesta quadra que se sobrepõe a este horário.");
-      return;
-    }
-    if (aulasDoDia.some((c) => c.quadraId === r.quadraId && c.hora < r.horaFim && c.horaFim > r.horaInicio)) {
-      setErro("Essa quadra já tem uma aula ou reposição agendada nesse horário.");
+    const disponibilidade = disponibilidadeDaQuadra({
+      quadraId: r.quadraId, data: r.data, horaInicio: r.horaInicio, horaFim: r.horaFim,
+      ocorrencias, reservas, bloqueiosAula, turmas,
+    });
+    if (!disponibilidade.livre) {
+      setErro(disponibilidade.motivo);
       return;
     }
     setReservas([...reservas, { ...r, nomeContato: r.nomeContato.trim(), telefoneContato: r.telefoneContato.trim() }]);
@@ -14856,19 +14856,50 @@ function conflitosDeOcorrencia(ocorrencias, candidata, turmas) {
   return conflitos;
 }
 
+/* Disponibilidade de UMA quadra num intervalo — fonte única, usada por
+   quadrasLivresParaOcorrencia (listar livres), TelaReposicoes.agendar e
+   TelaQuadras.confirmarReserva, que antes reimplementavam cada uma sua
+   própria versão desta mesma pergunta ("essa quadra está livre nesse
+   horário?"), de formas ligeiramente diferentes entre si. Confere, nesta
+   ordem, contra: outras ocorrências (aula/reposição, via
+   conflitosDeOcorrencia — ignora canceladas e a própria candidata em
+   edição), reservas de locação (reservasSeSobrepoem), e bloqueios
+   recorrentes de Grade de aulas/Horários recorrentes (bloqueiosAula —
+   por dia da semana + meia-hora, sem quadra específica: um bloqueio vale
+   pra todas as quadras nesse horário, igual já valia antes desta função
+   existir). Devolve { livre, motivo } — motivo pronto pra mostrar ao
+   usuário quando não está livre. */
+function disponibilidadeDaQuadra({ quadraId, data, horaInicio, horaFim, ocorrencias, reservas, bloqueiosAula, turmas, ignorarOcorrenciaId }) {
+  const candidata = { id: ignorarOcorrenciaId || undefined, data, horaInicio, horaFim, quadraId };
+  const conflitoOcorrencia = conflitosDeOcorrencia(ocorrencias || [], candidata, turmas || []).find((c) => c.tipo === "quadra");
+  if (conflitoOcorrencia) {
+    return { livre: false, motivo: "Essa quadra já tem uma aula ou reposição agendada nesse horário.", ocorrencia: conflitoOcorrencia.ocorrencia };
+  }
+  const reservaConflitante = (reservas || []).find((r) => reservasSeSobrepoem(r, candidata));
+  if (reservaConflitante) {
+    return { livre: false, motivo: "Já existe uma reserva (locação) nesta quadra que se sobrepõe a este horário.", reserva: reservaConflitante };
+  }
+  if (data && (bloqueiosAula || []).length) {
+    const diaSemana = new Date(data + "T00:00:00").getDay();
+    const slotsOcupados = new Set(faixasDeMeiaHora(horaInicio, horaFim));
+    const bloqueioConflitante = bloqueiosAula.find((b) => b.dia === diaSemana && slotsOcupados.has(b.hora));
+    if (bloqueioConflitante) {
+      return { livre: false, motivo: "Esse horário está bloqueado pra locação (" + (bloqueioConflitante.motivo || "bloqueio da academia") + ").", bloqueio: bloqueioConflitante };
+    }
+  }
+  return { livre: true, motivo: null };
+}
+
 /* Quadras livres pro intervalo exato de uma ocorrência — usada ao
    definir a quadra de uma aula pendente (nunca escolhida por suposição,
-   só oferecida como opção). Verifica sobreposição com outras ocorrências
-   (aula ou reposição) E com reservas de locação, nos mesmos moldes do
-   que TelaQuadras já usa pra bloquear o agendamento avulso. */
-function quadrasLivresParaOcorrencia(quadras, ocorrencias, reservas, turmas, candidata) {
-  return (quadras || []).filter((q) => q.ativa !== false).filter((q) => {
-    const testada = { ...candidata, quadraId: q.id };
-    const temConflitoOcorrencia = conflitosDeOcorrencia(ocorrencias, testada, turmas).some((c) => c.tipo === "quadra");
-    if (temConflitoOcorrencia) return false;
-    const temConflitoReserva = (reservas || []).some((r) => reservasSeSobrepoem(r, testada));
-    return !temConflitoReserva;
-  });
+   só oferecida como opção). */
+function quadrasLivresParaOcorrencia(quadras, ocorrencias, reservas, turmas, candidata, bloqueiosAula) {
+  return (quadras || []).filter((q) => q.ativa !== false).filter((q) =>
+    disponibilidadeDaQuadra({
+      quadraId: q.id, data: candidata.data, horaInicio: candidata.horaInicio, horaFim: candidata.horaFim,
+      ocorrencias, reservas, bloqueiosAula, turmas, ignorarOcorrenciaId: candidata.id,
+    }).livre
+  );
 }
 
 /* ── REPOSIÇÕES ───────────────────────────────────────────────────────
@@ -15192,11 +15223,11 @@ function CartaoOcorrencia({ ocorrencia: oc, alunos, setAlunos, turmas, quadras, 
    por suposição). Guarda contra duplo toque com uma ref própria, já que
    o estado de "atribuindo" é assíncrono e dois toques rápidos passariam
    pelo mesmo valor de estado antes do React re-renderizar. */
-function LinhaPendenciaQuadra({ oc, alunos, turmas, quadras, ocorrencias, reservas, aoDefinir }) {
+function LinhaPendenciaQuadra({ oc, alunos, turmas, quadras, ocorrencias, reservas, bloqueiosAula, aoDefinir }) {
   const [abrindo, setAbrindo] = useState(false);
   const atribuindoRef = useRef(false);
-  const livres = useMemo(() => quadrasLivresParaOcorrencia(quadras, ocorrencias, reservas, turmas, oc),
-    [quadras, ocorrencias, reservas, turmas, oc]);
+  const livres = useMemo(() => quadrasLivresParaOcorrencia(quadras, ocorrencias, reservas, turmas, oc, bloqueiosAula),
+    [quadras, ocorrencias, reservas, turmas, oc, bloqueiosAula]);
   function definir(quadraId) {
     if (atribuindoRef.current) return;
     atribuindoRef.current = true;
@@ -15232,7 +15263,7 @@ function LinhaPendenciaQuadra({ oc, alunos, turmas, quadras, ocorrencias, reserv
   );
 }
 
-function TelaAulasHoje({ alunos, setAlunos, turmas, quadras, reservas, ocorrencias, setOcorrencias, regrasReposicao, uidAtual, papelAtual }) {
+function TelaAulasHoje({ alunos, setAlunos, turmas, quadras, reservas, bloqueiosAula, ocorrencias, setOcorrencias, regrasReposicao, uidAtual, papelAtual }) {
   const hoje = new Date().toISOString().slice(0, 10);
   const geradasRef = useRef(false);
   useEffect(() => {
@@ -15288,7 +15319,7 @@ function TelaAulasHoje({ alunos, setAlunos, turmas, quadras, reservas, ocorrenci
           <Etiqueta cor={C.saibro}>Aulas aguardando definição de quadra ({semQuadra.length})</Etiqueta>
           <div className="mt-2">
             {semQuadra.map((o) => (
-              <LinhaPendenciaQuadra key={o.id} oc={o} alunos={alunos} turmas={turmas} quadras={quadras} ocorrencias={ocorrencias} reservas={reservas}
+              <LinhaPendenciaQuadra key={o.id} oc={o} alunos={alunos} turmas={turmas} quadras={quadras} ocorrencias={ocorrencias} reservas={reservas} bloqueiosAula={bloqueiosAula}
                 aoDefinir={(quadraId) => atualizar(o.id, { quadraId })} />
             ))}
           </div>
@@ -15454,7 +15485,7 @@ function LinhaCredito({ credito, aluno, professores, turmas, ocorrencias, aoApro
    ao agendar (impede uso duplicado) e consumir ao concluir. Agendar passa
    pelo mesmo conflitosDeOcorrencia() usado em "Aulas de hoje" — não
    oferece hora que já colida com quadra/professor/aluno. */
-function TelaReposicoes({ alunos, setAlunos, turmas, quadras, reservas, ocorrencias, setOcorrencias, regrasReposicao, setRegrasReposicao, papelAtual }) {
+function TelaReposicoes({ alunos, setAlunos, turmas, quadras, reservas, bloqueiosAula, ocorrencias, setOcorrencias, regrasReposicao, setRegrasReposicao, papelAtual }) {
   const [professores, setProfessores] = useState([]);
   const [mostrarRegras, setMostrarRegras] = useState(false);
   useEffect(() => { listaProfessores().then(setProfessores); }, []);
@@ -15485,10 +15516,11 @@ function TelaReposicoes({ alunos, setAlunos, turmas, quadras, reservas, ocorrenc
       professorUid: professorUid || "", professorNome: prof ? prof.nome : "",
       tipo: "reposicao", status: "agendada",
     });
-    const conflitos = conflitosDeOcorrencia(ocorrencias, candidata, turmas);
-    if (conflitos.length) return { erro: "Esse horário já está ocupado (conflito de " + conflitos[0].tipo + ") — escolha outro." };
-    if (candidata.quadraId && (reservas || []).some((r) => reservasSeSobrepoem(r, candidata))) {
-      return { erro: "Essa quadra já está reservada (locação) nesse horário — escolha outro." };
+    const conflitosProfessorOuAluno = conflitosDeOcorrencia(ocorrencias, candidata, turmas).filter((c) => c.tipo !== "quadra");
+    if (conflitosProfessorOuAluno.length) return { erro: "Esse horário já está ocupado (conflito de " + conflitosProfessorOuAluno[0].tipo + ") — escolha outro." };
+    if (candidata.quadraId) {
+      const disponibilidade = disponibilidadeDaQuadra({ quadraId: candidata.quadraId, data, horaInicio, horaFim, ocorrencias, reservas, bloqueiosAula, turmas });
+      if (!disponibilidade.livre) return { erro: disponibilidade.motivo + " Escolha outro horário." };
     }
     setOcorrencias([...ocorrencias, candidata]);
     atualizarCreditoDoAluno(aluno.id, credito.id, { ...moverCredito(credito, "reservado", "reposição agendada"), ocorrenciaReposicaoId: candidata.id });
@@ -17341,14 +17373,14 @@ function App() {
          aba === "formacao" ? <TelaFormacaoPessoal membros={membrosFormacao} setMembros={setMembrosFormacao} carregando={carregandoFormacao} uidAtual={uidAtual} irParaManual={irParaManual} /> :
          aba === "turmas" ? <TelaTurmas alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade}
            exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} quadras={quadras} /> :
-         aba === "quadras" && mostraQuadras ? <TelaQuadras quadras={quadras} setQuadras={setQuadras} reservas={reservas} setReservas={setReservas} orgAtual={orgAtual} alunos={alunos} turmas={turmas} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} /> :
+         aba === "quadras" && mostraQuadras ? <TelaQuadras quadras={quadras} setQuadras={setQuadras} reservas={reservas} setReservas={setReservas} bloqueiosAula={bloqueiosAula} orgAtual={orgAtual} alunos={alunos} turmas={turmas} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} /> :
          aba === "grade-aulas" && mostraQuadras ? <TelaGradeAulas alunos={alunos} turmas={turmas} bloqueiosAula={bloqueiosAula} setBloqueiosAula={setBloqueiosAula} orgAtual={orgAtual} /> :
          aba === "torneios" && mostraTorneiosEventos ? <TelaTorneios torneios={torneios} setTorneios={setTorneios} orgAtual={orgAtual} /> :
          aba === "eventos" && mostraTorneiosEventos ? <TelaEventos eventos={eventos} setEventos={setEventos} orgAtual={orgAtual} /> :
          aba === "clientes" && (mostraQuadras || mostraTorneiosEventos) ? <TelaClientes quadras={quadras} reservas={reservas} torneios={torneios} eventos={eventos} /> :
          aba === "agenda" ? <TelaAgenda alunos={alunos} turmas={turmas} ocorrencias={ocorrencias} uidAtual={uidAtual} exigeLogin={exigeLogin} /> :
-         aba === "aulas-hoje" ? <TelaAulasHoje alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} reservas={reservas} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} regrasReposicao={regrasReposicao} uidAtual={uidAtual} papelAtual={papelAtual} /> :
-         aba === "reposicoes" ? <TelaReposicoes alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} reservas={reservas} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias}
+         aba === "aulas-hoje" ? <TelaAulasHoje alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} reservas={reservas} bloqueiosAula={bloqueiosAula} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} regrasReposicao={regrasReposicao} uidAtual={uidAtual} papelAtual={papelAtual} /> :
+         aba === "reposicoes" ? <TelaReposicoes alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} reservas={reservas} bloqueiosAula={bloqueiosAula} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias}
            regrasReposicao={regrasReposicao} setRegrasReposicao={setRegrasReposicao} papelAtual={papelAtual} /> :
          aba === "relatorio" ? <TelaRelatorioProfessores ocorrencias={ocorrencias} alunos={alunos} turmas={turmas} papelAtual={papelAtual} uidAtual={uidAtual} /> :
          aba === "dashboard" ? <TelaDashboard alunos={alunos} turmas={turmas} ocorrencias={ocorrencias} papelAtual={papelAtual} uidAtual={uidAtual} exigeLogin={exigeLogin} usoIA={usoIA} identidade={identidade}
