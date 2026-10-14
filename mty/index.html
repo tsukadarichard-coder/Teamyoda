@@ -17006,9 +17006,29 @@ function App() {
      apagaria o que a outra tinha acabado de escrever. */
   const [membrosFormacao, setMembrosFormacao] = useState([]);
   const [carregandoFormacao, setCarregandoFormacao] = useState(true);
-  const [abertoId, setAbertoId] = useState(null);
-  const [aba, setAba] = useState("dashboard");
-  const [subaba, setSubaba] = useState("ficha");
+  /* No Android (Chrome ou instalado como app), trocar de app e voltar pode
+     descartar o processo da aba em segundo plano por pressão de memória —
+     ao voltar, o navegador recarrega a página do zero (login do Firebase
+     continua valendo, mas todo useState volta ao valor inicial). Sem
+     persistir pelo menos ONDE o treinador estava, isso parecia "a tela
+     voltou pro começo" mesmo sem deslogar. sessionStorage sobrevive a
+     esse recarregamento (mesma aba) e some só quando a aba é fechada de
+     verdade — por isso é usado aqui, e não localStorage (que vazaria o
+     estado de navegação de uma conta pra outra no mesmo aparelho). */
+  function lerNavPersistida(chave, padrao) {
+    try { return sessionStorage.getItem("mty:nav:" + chave) || padrao; } catch { return padrao; }
+  }
+  const [abertoId, setAbertoId] = useState(() => lerNavPersistida("abertoId", null));
+  const [aba, setAba] = useState(() => lerNavPersistida("aba", "dashboard"));
+  const [subaba, setSubaba] = useState(() => lerNavPersistida("subaba", "ficha"));
+  useEffect(() => {
+    try {
+      if (abertoId) sessionStorage.setItem("mty:nav:abertoId", abertoId);
+      else sessionStorage.removeItem("mty:nav:abertoId");
+    } catch { /* sessionStorage indisponível (modo privado, por ex.) */ }
+  }, [abertoId]);
+  useEffect(() => { try { sessionStorage.setItem("mty:nav:aba", aba); } catch {} }, [aba]);
+  useEffect(() => { try { sessionStorage.setItem("mty:nav:subaba", subaba); } catch {} }, [subaba]);
   /* "Ver critérios e evolução" no cabeçalho do jogador manda direto pra
      etapa Nível da ficha (ver TelaFicha/etapaAlvo) — nulo o resto do
      tempo, sem afetar a navegação normal entre as abas do jogador. */
