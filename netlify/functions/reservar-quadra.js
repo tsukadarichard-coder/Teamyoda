@@ -21,9 +21,37 @@ class ErroPublico extends Error {
 const CHAVE_QUADRAS = "mty:quadras:v1";
 const CHAVE_RESERVAS = "mty:reservas:v1";
 const CHAVE_OCORRENCIAS = "mty:ocorrencias:v1";
+const CHAVE_BLOQUEIOS = "mty:bloqueiosAula:v1";
 const LIMITE_NOME = 80;
 const LIMITE_TELEFONE = 30;
 const LIMITE_OBS = 300;
+
+/* Bloqueio manual da academia (Agenda → Horários recorrentes) é por dia
+   da semana + meia-hora, sem quadra específica — vale pra todas ao mesmo
+   tempo, igual já vale no uso interno (ver disponibilidadeDaQuadra no
+   app). Antes a reserva pública só olhava reservas e aulas; um horário
+   bloqueado aparecia como "livre" aqui, e dava pra reservar por cima. */
+function diaDaSemana(dataISO) { return new Date(dataISO + "T00:00:00").getDay(); }
+function maisMeiaHora(hora) {
+  let [h, m] = hora.split(":").map(Number);
+  m += 30; if (m >= 60) { m -= 60; h += 1; }
+  return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
+}
+function faixasDeMeiaHora(inicio, fim) {
+  const slots = [];
+  let [h, m] = inicio.split(":").map(Number);
+  const [hf, mf] = fim.split(":").map(Number);
+  while (h < hf || (h === hf && m < mf)) {
+    slots.push(String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0"));
+    m += 30; if (m >= 60) { m -= 60; h += 1; }
+  }
+  return slots;
+}
+function bloqueiaHorario(bloqueios, data, horaInicio, horaFim) {
+  const dia = diaDaSemana(data);
+  const slots = new Set(faixasDeMeiaHora(horaInicio, horaFim));
+  return (bloqueios || []).some((b) => b.dia === dia && slots.has(b.hora));
+}
 
 exports.handler = async function (event) {
   try {
@@ -84,6 +112,10 @@ async function handleGet(event) {
   const ocupados = reservas.filter((r) => r.data === data).map((r) => ({ quadraId: r.quadraId, horaInicio: r.horaInicio, horaFim: r.horaFim }));
   ocupados.push(...(await ocupacaoDasAulas(db, org, data)));
 
+  const snapBloqueios = await db.collection("orgs").doc(org).collection("dados").doc(CHAVE_BLOQUEIOS).get();
+  const bloqueios = (snapBloqueios.exists ? JSON.parse(snapBloqueios.data().value || "[]") : []).filter((b) => b.dia === diaDaSemana(data));
+  bloqueios.forEach((b) => quadras.forEach((qd) => ocupados.push({ quadraId: qd.id, horaInicio: b.hora, horaFim: maisMeiaHora(b.hora) })));
+
   return resposta(200, {
     academia: info.nome || org,
     quadras: quadras.map((qd) => ({
@@ -128,9 +160,10 @@ async function handlePost(event) {
 
   const refReservas = db.collection("orgs").doc(org).collection("dados").doc(CHAVE_RESERVAS);
   const refOcorrencias = db.collection("orgs").doc(org).collection("dados").doc(CHAVE_OCORRENCIAS);
+  const refBloqueios = db.collection("orgs").doc(org).collection("dados").doc(CHAVE_BLOQUEIOS);
   try {
     await db.runTransaction(async (tx) => {
-      const [snap, snapOc] = await Promise.all([tx.get(refReservas), tx.get(refOcorrencias)]);
+      const [snap, snapOc, snapBloq] = await Promise.all([tx.get(refReservas), tx.get(refOcorrencias), tx.get(refBloqueios)]);
       const reservas = snap.exists ? JSON.parse(snap.data().value || "[]") : [];
       if (reservas.some((r) => reservasSeSobrepoem(r, novaReserva))) {
         throw new ErroPublico(409, "Esse horário acabou de ser reservado por outra pessoa — escolha outro.");
@@ -144,6 +177,10 @@ async function handlePost(event) {
         o.horaInicio < novaReserva.horaFim && o.horaFim > novaReserva.horaInicio);
       if (temAulaNoHorario) {
         throw new ErroPublico(409, "Essa quadra já tem aula nesse horário — escolha outro.");
+      }
+      const bloqueios = snapBloq.exists ? JSON.parse(snapBloq.data().value || "[]") : [];
+      if (bloqueiaHorario(bloqueios, novaReserva.data, novaReserva.horaInicio, novaReserva.horaFim)) {
+        throw new ErroPublico(409, "Esse horário está bloqueado pela academia — escolha outro.");
       }
       tx.set(refReservas, { value: JSON.stringify([...reservas, novaReserva]), atualizado: Date.now() });
     });
