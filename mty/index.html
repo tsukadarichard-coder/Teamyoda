@@ -2879,10 +2879,14 @@ async function chamarIA(prompt, maxTokens, aoProgredir) {
   }
 
   const ref = db.collection("orgs").doc(org).collection("iaJobs").doc(jobId);
-  /* 4 min de paciência: a function em segundo plano tem até 15, e um
-     plano que demora mais que o normal ainda é um plano — desistir cedo
-     joga fora um pedido que já foi pago e que provavelmente chegaria. */
-  const limite = Date.now() + 240000;
+  /* A function em segundo plano agora transmite a resposta por streaming
+     (evita ficar com a conexão muda por minutos, que era o motivo real de
+     "demora muito ou não gera") e se interrompe sozinha em 13min caso a
+     geração trave. Esperar só 4min aqui jogava fora planos grandes
+     (turma/individual, 16-32 mil tokens) que estavam gerando normalmente
+     e só demoravam mais — por isso o cliente espera até 14min, cobrindo
+     os 13min do servidor com uma margem pequena. */
+  const limite = Date.now() + 14 * 60 * 1000;
   etapa("A IA está montando");
   while (Date.now() < limite) {
     await new Promise((resolver) => setTimeout(resolver, 2500));
@@ -2893,7 +2897,7 @@ async function chamarIA(prompt, maxTokens, aoProgredir) {
       if (d.status === "erro") { ref.delete().catch(() => {}); throw new Error(d.erro || "Falha ao gerar."); }
     }
   }
-  throw new Error("Passou de quatro minutos sem resposta da IA. O pedido pode ainda estar rodando no servidor — espere um pouco e tente de novo.");
+  throw new Error("Passou de 14 minutos sem resposta da IA. O pedido pode ainda estar rodando no servidor — espere um pouco e tente de novo.");
 }
 
 /* ─────────────────────────── peças ─────────────────────────── */
