@@ -12795,7 +12795,7 @@ const TIPOS_EVENTO = { clinica: "Clínica", social: "Social", exibicao: "Exibiç
 const STATUS_TORNEIO = { inscricoes: "Inscrições abertas", andamento: "Em andamento", encerrado: "Encerrado" };
 const STATUS_TORNEIO_COR = { inscricoes: C.saibro, andamento: C.tinta, encerrado: C.grafite };
 
-function TelaQuadras({ quadras, setQuadras, reservas, setReservas, orgAtual, alunos, turmas }) {
+function TelaQuadras({ quadras, setQuadras, reservas, setReservas, orgAtual, alunos, turmas, ocorrencias, setOcorrencias }) {
   const [gerenciando, setGerenciando] = useState(false);
   const [nomeNovaQuadra, setNomeNovaQuadra] = useState("");
   const [dataEscolhida, setDataEscolhida] = useState(() => new Date().toISOString().slice(0, 10));
@@ -12861,6 +12861,10 @@ function TelaQuadras({ quadras, setQuadras, reservas, setReservas, orgAtual, alu
       setErro("Já existe uma reserva nesta quadra que se sobrepõe a este horário.");
       return;
     }
+    if (aulasDoDia.some((c) => c.quadraId === r.quadraId && c.hora < r.horaFim && c.horaFim > r.horaInicio)) {
+      setErro("Essa quadra já tem uma aula ou reposição agendada nesse horário.");
+      return;
+    }
     setReservas([...reservas, { ...r, nomeContato: r.nomeContato.trim(), telefoneContato: r.telefoneContato.trim() }]);
     setRascunho(null);
     setErro("");
@@ -12872,18 +12876,32 @@ function TelaQuadras({ quadras, setQuadras, reservas, setReservas, orgAtual, alu
 
   const quadraDoRascunho = rascunho ? quadrasAtivas.find((q) => q.id === rascunho.quadraId) : null;
 
-  /* Aulas (fichas de jogador + turmas) com quadra definida, do dia da
-     semana escolhido — pra aparecerem na MESMA grade das reservas
-     avulsas. É assim que "quem tá em cada quadra" vira uma pergunta
-     respondida numa olhada só, em vez de precisar abrir cada jogador/
-     turma pra descobrir o horário fixo dele. Reaproveita
-     compromissosDaSemana (já usado pela aba Agenda) em vez de montar
-     outra leitura própria de alunos/turmas. */
-  const diaDaSemanaEscolhido = dataEscolhida ? new Date(dataEscolhida + "T00:00:00").getDay() : null;
+  /* Ocupação REAL da quadra no dia escolhido — não mais a grade semanal
+     fixa, e sim as mesmas ocorrências que "Aulas de hoje" e "Reposições"
+     usam (pedido: "Agenda, Quadras e Grade de aulas devem consultar os
+     mesmos registros de ocupação"). Isso corrige duas lacunas que a
+     grade semanal fixa tinha: uma aula cancelada hoje libera a quadra
+     aqui também, e uma reposição avulsa (sem horário fixo) agora aparece
+     — antes ela só existia em "Reposições", e dava pra reservar a
+     mesma quadra por cima sem perceber. Garante que as ocorrências do
+     dia escolhido existam antes de ler (mesma geração lazy e idempotente
+     de "Aulas de hoje"). */
+  useEffect(() => {
+    if (!dataEscolhida || !setOcorrencias) return;
+    const novas = gerarOcorrenciasFaltantes(ocorrencias, alunos || [], turmas || [], dataEscolhida, dataEscolhida, []);
+    if (novas.length) setOcorrencias([...ocorrencias, ...novas]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataEscolhida]);
   const aulasDoDia = useMemo(() => {
-    if (diaDaSemanaEscolhido === null) return [];
-    return compromissosDaSemana(alunos || [], turmas || []).filter((c) => c.dia === diaDaSemanaEscolhido && c.quadraId);
-  }, [alunos, turmas, diaDaSemanaEscolhido]);
+    if (!dataEscolhida) return [];
+    return (ocorrencias || [])
+      .filter((o) => o.data === dataEscolhida && o.status !== "cancelada" && o.quadraId)
+      .map((o) => ({
+        quadraId: o.quadraId, hora: o.horaInicio, horaFim: o.horaFim,
+        titulo: tituloOcorrencia(o, alunos || [], turmas || []) + (o.tipo === "reposicao" ? " (reposição)" : ""),
+        professorNome: o.professorNome, professorAuxiliarNome: o.professorAuxiliarNome,
+      }));
+  }, [ocorrencias, dataEscolhida, alunos, turmas]);
   function aulaEm(quadraId, hora) {
     return aulasDoDia.find((c) => c.quadraId === quadraId && c.hora <= hora && hora < c.horaFim);
   }
@@ -15061,7 +15079,7 @@ function LinhaCredito({ credito, aluno, professores, turmas, ocorrencias, aoApro
    ao agendar (impede uso duplicado) e consumir ao concluir. Agendar passa
    pelo mesmo conflitosDeOcorrencia() usado em "Aulas de hoje" — não
    oferece hora que já colida com quadra/professor/aluno. */
-function TelaReposicoes({ alunos, setAlunos, turmas, quadras, ocorrencias, setOcorrencias, regrasReposicao, setRegrasReposicao, papelAtual }) {
+function TelaReposicoes({ alunos, setAlunos, turmas, quadras, reservas, ocorrencias, setOcorrencias, regrasReposicao, setRegrasReposicao, papelAtual }) {
   const [professores, setProfessores] = useState([]);
   const [mostrarRegras, setMostrarRegras] = useState(false);
   useEffect(() => { listaProfessores().then(setProfessores); }, []);
@@ -15094,6 +15112,9 @@ function TelaReposicoes({ alunos, setAlunos, turmas, quadras, ocorrencias, setOc
     });
     const conflitos = conflitosDeOcorrencia(ocorrencias, candidata, turmas);
     if (conflitos.length) return { erro: "Esse horário já está ocupado (conflito de " + conflitos[0].tipo + ") — escolha outro." };
+    if (candidata.quadraId && (reservas || []).some((r) => reservasSeSobrepoem(r, candidata))) {
+      return { erro: "Essa quadra já está reservada (locação) nesse horário — escolha outro." };
+    }
     setOcorrencias([...ocorrencias, candidata]);
     atualizarCreditoDoAluno(aluno.id, credito.id, { ...moverCredito(credito, "reservado", "reposição agendada"), ocorrenciaReposicaoId: candidata.id });
     return { ok: true };
@@ -16777,14 +16798,14 @@ function App() {
          aba === "formacao" ? <TelaFormacaoPessoal membros={membrosFormacao} setMembros={setMembrosFormacao} carregando={carregandoFormacao} uidAtual={uidAtual} irParaManual={irParaManual} /> :
          aba === "turmas" ? <TelaTurmas alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade}
            exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} quadras={quadras} /> :
-         aba === "quadras" && mostraQuadras ? <TelaQuadras quadras={quadras} setQuadras={setQuadras} reservas={reservas} setReservas={setReservas} orgAtual={orgAtual} alunos={alunos} turmas={turmas} /> :
+         aba === "quadras" && mostraQuadras ? <TelaQuadras quadras={quadras} setQuadras={setQuadras} reservas={reservas} setReservas={setReservas} orgAtual={orgAtual} alunos={alunos} turmas={turmas} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} /> :
          aba === "grade-aulas" && mostraQuadras ? <TelaGradeAulas alunos={alunos} turmas={turmas} bloqueiosAula={bloqueiosAula} setBloqueiosAula={setBloqueiosAula} orgAtual={orgAtual} /> :
          aba === "torneios" && mostraTorneiosEventos ? <TelaTorneios torneios={torneios} setTorneios={setTorneios} orgAtual={orgAtual} /> :
          aba === "eventos" && mostraTorneiosEventos ? <TelaEventos eventos={eventos} setEventos={setEventos} orgAtual={orgAtual} /> :
          aba === "clientes" && (mostraQuadras || mostraTorneiosEventos) ? <TelaClientes quadras={quadras} reservas={reservas} torneios={torneios} eventos={eventos} /> :
          aba === "agenda" ? <TelaAgenda alunos={alunos} turmas={turmas} uidAtual={uidAtual} exigeLogin={exigeLogin} /> :
          aba === "aulas-hoje" ? <TelaAulasHoje alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} regrasReposicao={regrasReposicao} uidAtual={uidAtual} papelAtual={papelAtual} /> :
-         aba === "reposicoes" ? <TelaReposicoes alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias}
+         aba === "reposicoes" ? <TelaReposicoes alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} reservas={reservas} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias}
            regrasReposicao={regrasReposicao} setRegrasReposicao={setRegrasReposicao} papelAtual={papelAtual} /> :
          aba === "relatorio" ? <TelaRelatorioProfessores ocorrencias={ocorrencias} alunos={alunos} turmas={turmas} papelAtual={papelAtual} uidAtual={uidAtual} /> :
          aba === "dashboard" ? <TelaDashboard alunos={alunos} turmas={turmas} papelAtual={papelAtual} uidAtual={uidAtual} exigeLogin={exigeLogin} usoIA={usoIA} identidade={identidade}
