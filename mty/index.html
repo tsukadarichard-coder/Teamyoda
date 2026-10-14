@@ -2856,7 +2856,7 @@ async function grave(chave, valor, compartilhado = false) {
    pra responder, então essa roda em segundo plano (até 15 min) e escreve
    o resultado em orgs/{orgId}/iaJobs/{jobId} — o app fica consultando
    até aparecer, em vez de esperar a resposta direto na mesma chamada. */
-async function chamarIA(prompt, maxTokens, aoProgredir) {
+async function iniciarJobIA(prompt, maxTokens, aoProgredir) {
   const etapa = (t) => { if (aoProgredir) aoProgredir(t); };
   etapa("Conferindo a conta");
   if (!window.mtyAuth || !window.mtyAuth.usuario()) {
@@ -2877,10 +2877,27 @@ async function chamarIA(prompt, maxTokens, aoProgredir) {
     const d = await r.json().catch(() => ({}));
     throw new Error(d.erro || ("Erro " + r.status));
   }
+  return { jobId, org };
+}
 
+/* Consulta única (sem esperar) — usada tanto por aguardarJobIA (que fica
+   repetindo até sair ou dar erro) quanto pelo relógio do App que confere
+   gerações disparadas em segundo plano (ver gerarComIA em TelaPlano),
+   mesmo com o treinador em outra tela. */
+async function consultarJobIA(jobId, org) {
   const ref = db.collection("orgs").doc(org).collection("iaJobs").doc(jobId);
-  /* A function em segundo plano agora transmite a resposta por streaming
-     (evita ficar com a conexão muda por minutos, que era o motivo real de
+  const snap = await ref.get();
+  if (!snap.exists) return null; // ainda rodando
+  const d = snap.data();
+  if (d.status === "pronto") { ref.delete().catch(() => {}); return { status: "pronto", texto: d.texto || "" }; }
+  if (d.status === "erro") { ref.delete().catch(() => {}); return { status: "erro", erro: d.erro || "Falha ao gerar." }; }
+  return null;
+}
+
+async function aguardarJobIA(jobId, org, aoProgredir) {
+  const etapa = (t) => { if (aoProgredir) aoProgredir(t); };
+  /* A function em segundo plano transmite a resposta por streaming (evita
+     ficar com a conexão muda por minutos, que era o motivo real de
      "demora muito ou não gera") e se interrompe sozinha em 13min caso a
      geração trave. Esperar só 4min aqui jogava fora planos grandes
      (turma/individual, 16-32 mil tokens) que estavam gerando normalmente
@@ -2890,14 +2907,53 @@ async function chamarIA(prompt, maxTokens, aoProgredir) {
   etapa("A IA está montando");
   while (Date.now() < limite) {
     await new Promise((resolver) => setTimeout(resolver, 2500));
-    const snap = await ref.get();
-    if (snap.exists) {
-      const d = snap.data();
-      if (d.status === "pronto") { etapa("Lendo o que voltou"); ref.delete().catch(() => {}); return d.texto || ""; }
-      if (d.status === "erro") { ref.delete().catch(() => {}); throw new Error(d.erro || "Falha ao gerar."); }
-    }
+    const r = await consultarJobIA(jobId, org);
+    if (r && r.status === "pronto") { etapa("Lendo o que voltou"); return r.texto; }
+    if (r && r.status === "erro") throw new Error(r.erro);
   }
   throw new Error("Passou de 14 minutos sem resposta da IA. O pedido pode ainda estar rodando no servidor — espere um pouco e tente de novo.");
+}
+
+async function chamarIA(prompt, maxTokens, aoProgredir) {
+  const { jobId, org } = await iniciarJobIA(prompt, maxTokens, aoProgredir);
+  return aguardarJobIA(jobId, org, aoProgredir);
+}
+
+/* Transforma o texto bruto devolvido pela IA (que às vezes vem com crases
+   de bloco de código em volta) no objeto de plano validado — usada tanto
+   na espera bloqueante (gerarJogadaComIA) quanto na resolução de uma
+   geração que terminou em segundo plano (ver resolverGeracaoPendente). */
+function processarRespostaPlanoIA(textoBruto, estagiosAlvo) {
+  let t = (textoBruto || "").trim();
+  t = t.replace(/^```(json)?/i, "").replace(/```$/, "").trim();
+  const i = t.indexOf("{");
+  if (i > 0) t = t.slice(i);
+  let json;
+  try {
+    json = JSON.parse(t);
+  } catch (e) {
+    throw new Error("A IA devolveu um texto que não é um JSON válido (" + (e.message || e) + "). Tente gerar de novo.");
+  }
+  const alvo = validarPlanoJSON(json, estagiosAlvo);
+  alvo.geradoEm = new Date().toISOString();
+  return alvo;
+}
+
+/* Confere se uma geração de plano disparada em segundo plano (campo
+   geracaoPlano do aluno/turma) já terminou — chamada pelo relógio do App,
+   que roda independente de qual tela está aberta. Devolve null enquanto
+   ainda está rodando (nada muda), ou o novo valor de geracaoPlano quando
+   terminar (pronto ou erro). */
+async function resolverGeracaoPendente(org, geracaoPlano) {
+  const r = await consultarJobIA(geracaoPlano.jobId, org);
+  if (!r) return null;
+  if (r.status === "erro") return { status: "erro", erro: r.erro, iniciadoEm: geracaoPlano.iniciadoEm };
+  try {
+    const alvo = processarRespostaPlanoIA(r.texto, geracaoPlano.estagiosAlvo);
+    return { status: "pronto", planoCandidato: alvo, iniciadoEm: geracaoPlano.iniciadoEm };
+  } catch (e) {
+    return { status: "erro", erro: String(e.message || e), iniciadoEm: geracaoPlano.iniciadoEm };
+  }
 }
 
 /* ─────────────────────────── peças ─────────────────────────── */
@@ -10290,9 +10346,14 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
      resposta atrasada da primeira voltaria a valer. */
   const geracaoAtual = useRef(0);
 
+  /* Montar um plano (16-32 mil tokens) pode levar vários minutos mesmo
+     gerando normalmente — travar a tela esperando isso era o treinador
+     ficar preso ali sem poder fazer mais nada. Agora só dispara o job e
+     grava "gerando" no próprio aluno/turma; o relógio do App (ver
+     resolverGeracoesPendentes) confere em segundo plano, mesmo que o
+     treinador já tenha saído desta tela, e o resultado aparece aqui (e
+     no sino de avisos) assim que estiver pronto. */
   async function gerarComIA() {
-    const minhaGeracao = ++geracaoAtual.current;
-    const aindaVale = () => geracaoAtual.current === minhaGeracao;
     setErro(""); setGerando(true); setEtapaIA("Preparando o pedido");
     try {
       const prompt = eTurma
@@ -10305,26 +10366,13 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
          limite"). 32000 é o teto que a function já aceita; pedir mais
          não custa mais caro sozinho — a Anthropic cobra pelo que é
          gerado de verdade, não pelo teto pedido. */
-      let t = (await chamarIA(prompt, eTurma ? 32000 : 16000, (et) => { if (aindaVale()) setEtapaIA(et); })).trim();
-      if (!aindaVale()) return;
-      setEtapaIA("Conferindo o plano que voltou");
-      t = t.replace(/^```(json)?/i, "").replace(/```$/, "").trim();
-      const i = t.indexOf("{");
-      if (i > 0) t = t.slice(i);
-      let json;
-      try {
-        json = JSON.parse(t);
-      } catch (e) {
-        throw new Error("A IA devolveu um texto que não é um JSON válido (" + (e.message || e) + "). Tente gerar de novo.");
-      }
       const estagiosAlvo = eTurma ? membros.map((m) => m.estagio) : [aluno.estagio];
-      const alvo = valida(json, estagiosAlvo);
-      alvo.geradoEm = new Date().toISOString();
-      setPlanoCandidato(alvo);
+      const { jobId } = await iniciarJobIA(prompt, eTurma ? 32000 : 16000, setEtapaIA);
+      atualiza({ geracaoPlano: { status: "gerando", jobId, iniciadoEm: new Date().toISOString(), estagiosAlvo } });
     } catch (e) {
-      if (aindaVale()) setErro(String(e.message || e));
+      setErro(String(e.message || e));
     } finally {
-      if (aindaVale()) { setGerando(false); setEtapaIA(""); }
+      setGerando(false); setEtapaIA("");
     }
   }
 
@@ -10360,8 +10408,23 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
      escrita; em caso de falha, o cartão continua ali, com o plano
      candidato intacto, pra tentar de novo sem perder nada. */
   async function usarPlanoCandidato() {
-    const ok = await salvarComEstado({ plano: planoCandidato, regPlano: {} });
+    const ok = await salvarComEstado({ plano: planoCandidato, regPlano: {}, geracaoPlano: null });
     if (ok) setPlanoCandidato(null);
+  }
+
+  /* Uma geração disparada em segundo plano some da tela quando o
+     treinador sai (ver gerarComIA) — ao voltar, se o relógio do App já
+     tiver resolvido o job, hidrata o cartão de revisão a partir do que
+     ficou gravado no próprio aluno/turma, em vez de depender do estado
+     local (que se perdeu quando a tela desmontou). */
+  useEffect(() => {
+    if (entidade.geracaoPlano && entidade.geracaoPlano.status === "pronto" && !planoCandidato) {
+      setPlanoCandidato(entidade.geracaoPlano.planoCandidato);
+    }
+  }, [entidade.geracaoPlano]);
+
+  function limparGeracaoPlano() {
+    atualiza({ geracaoPlano: null });
   }
 
   /* Programas prontos não dependem de IA nem de rede — monta na hora,
@@ -10754,6 +10817,25 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
         {!podeEditar && (
           <Aviso>{eTurma ? "Esta turma" : "Este jogador"} é de outro treinador — a montagem do plano fica travada. Só o professor responsável ou o coordenador podem gerar ou colar um plano.</Aviso>
         )}
+        {/* O status de uma geração em segundo plano fica aqui, acima da escolha de modo —
+            modoCriacao reseta pra null a cada vez que esta tela monta (ver useState acima),
+            então se o aviso ficasse só dentro do bloco "ficha" ele sumiria sempre que o
+            treinador saísse e voltasse enquanto o plano ainda estivesse gerando. */}
+        {!planoCandidato && entidade.geracaoPlano && entidade.geracaoPlano.status === "gerando" && (
+          <Aviso cor={C.quadra}>
+            Gerando o plano em segundo plano, desde {new Date(entidade.geracaoPlano.iniciadoEm).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}.
+            Pode sair desta tela e continuar usando a plataforma — avisamos aqui e no sino de avisos assim que estiver pronto.
+          </Aviso>
+        )}
+        {!planoCandidato && entidade.geracaoPlano && entidade.geracaoPlano.status === "erro" && (
+          <Aviso>
+            Não foi possível gerar o plano: {entidade.geracaoPlano.erro}{" "}
+            <button type="button" onClick={limparGeracaoPlano}
+              style={{ border: "none", background: "none", color: C.saibro, cursor: "pointer", padding: 0, fontFamily: "inherit", fontSize: "inherit", fontWeight: 700 }}>
+              Tentar de novo
+            </button>
+          </Aviso>
+        )}
         {!planoCandidato && (
           <Aviso cor={C.quadra}>
             {eTurma ? "Esta turma ainda não tem um planejamento. Escolha uma opção abaixo para começar."
@@ -10792,7 +10874,10 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
               <Botao variante="saibro" onClick={usarPlanoCandidato} disabled={estadoSalvo === "salvando"}>
                 {estadoSalvo === "salvando" ? "Salvando…" : "Usar este plano"}
               </Botao>
-              <Botao variante="vazio" disabled={estadoSalvo === "salvando"} onClick={() => setPlanoCandidato(null)}>Descartar e tentar de novo</Botao>
+              <Botao variante="vazio" disabled={estadoSalvo === "salvando"}
+                onClick={() => { setPlanoCandidato(null); if (entidade.geracaoPlano) limparGeracaoPlano(); }}>
+                Descartar e tentar de novo
+              </Botao>
             </div>
             {estadoSalvo === "erro" && (
               <p style={{ ...prosa, fontSize: 12.5, color: "#8A2E2E", marginTop: 9 }}>
@@ -11009,11 +11094,13 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
           )}
           {erro && <Aviso>{erro}</Aviso>}
           <div className="flex gap-2 flex-wrap items-center">
-            <Botao onClick={gerarComIA} variante="saibro" disabled={gerando || !podeEditar}>
-              {gerando ? "Montando o plano…" : "Gerar planejamento"}
+            <Botao onClick={gerarComIA} variante="saibro"
+              disabled={gerando || !podeEditar || (entidade.geracaoPlano && entidade.geracaoPlano.status === "gerando")}>
+              {gerando ? "Enviando o pedido…"
+                : (entidade.geracaoPlano && entidade.geracaoPlano.status === "gerando") ? "Gerando em segundo plano…"
+                : "Gerar planejamento"}
             </Botao>
           </div>
-          {gerando && <BarraProgresso segundos={segundosIA} etapa={etapaIA} estimativa={eTurma ? 80 : 60} aoCancelar={pararDeEsperar} />}
         </Secao>}
 
         {!planoCandidato && modoCriacao === "importar" && (
@@ -15803,7 +15890,21 @@ function avisosDoProfessor(alunos, turmas, reservas, torneios, eventos, uidAtual
   (eventos || []).forEach((e) => (e.convidados || []).filter((c) => c.origem === "cliente" && !c.vistoPeloStaff).forEach((c) =>
     inscricoesEventoNovas.push({ eventoId: e.id, eventoNome: e.nome, ...c })));
 
-  return { lembretes, pendencias, pedidosAlunos, reservasNovas, inscricoesTorneioNovas, inscricoesEventoNovas };
+  /* Plano de IA gerado em segundo plano (ver gerarComIA em TelaPlano e o
+     relógio em App) — some do sino assim que o treinador abre o cartão de
+     revisão e usa ou descarta o plano (geracaoPlano volta a null), então
+     não precisa de controle de "visto" separado como lembrete/pendência. */
+  const planosGerados = [];
+  alunos.filter((a) => meu(a.professorUid)).forEach((a) => {
+    if (a.geracaoPlano && (a.geracaoPlano.status === "pronto" || a.geracaoPlano.status === "erro"))
+      planosGerados.push({ tipo: "individual", entidadeId: a.id, nome: a.nome || "Sem nome", status: a.geracaoPlano.status, erro: a.geracaoPlano.erro });
+  });
+  turmas.filter(minhaTurma).forEach((t) => {
+    if (t.geracaoPlano && (t.geracaoPlano.status === "pronto" || t.geracaoPlano.status === "erro"))
+      planosGerados.push({ tipo: "turma", entidadeId: t.id, nome: t.nome || "Turma sem nome", status: t.geracaoPlano.status, erro: t.geracaoPlano.erro });
+  });
+
+  return { lembretes, pendencias, pedidosAlunos, reservasNovas, inscricoesTorneioNovas, inscricoesEventoNovas, planosGerados };
 }
 
 /* ── dashboard ──
@@ -16700,6 +16801,40 @@ function App() {
   useEffect(() => { if (autenticado && !carregandoRegrasReposicao && prontoRef.current.regrasReposicao) grave("mty:regrasReposicao:v1", regrasReposicao, true); }, [regrasReposicao, carregandoRegrasReposicao, autenticado]);
   useEffect(() => { if (autenticado && !carregandoFormacao && prontoRef.current.formacao) grave("mty:formacao:v1", membrosFormacao, true); }, [membrosFormacao, carregandoFormacao, autenticado]);
   useEffect(() => { if (autenticado && prontoRef.current.onboarding) grave("mty:onboardingDispensado", onboardingDispensado, true); }, [onboardingDispensado, autenticado]);
+
+  /* Plano gerado por IA agora dispara em segundo plano e libera a tela na
+     hora (ver gerarComIA em TelaPlano) — este relógio é quem detecta
+     quando o job termina e escreve o resultado de volta no jogador/turma,
+     rodando sempre que a conta está logada, não só com a tela de Plano
+     aberta. Sem isso, um treinador que saísse da tela enquanto gerava
+     nunca veria o resultado aparecer em lugar nenhum. */
+  const alunosRef = useRef(alunos);
+  const turmasRef = useRef(turmas);
+  useEffect(() => { alunosRef.current = alunos; }, [alunos]);
+  useEffect(() => { turmasRef.current = turmas; }, [turmas]);
+  useEffect(() => {
+    if (!autenticado) return;
+    let cancelado = false;
+    async function verificarGeracoesPendentes() {
+      const pendentesAlunos = alunosRef.current.filter((a) => a.geracaoPlano && a.geracaoPlano.status === "gerando");
+      const pendentesTurmas = turmasRef.current.filter((t) => t.geracaoPlano && t.geracaoPlano.status === "gerando");
+      if (pendentesAlunos.length === 0 && pendentesTurmas.length === 0) return;
+      const org = await organizacao();
+      if (!org || cancelado) return;
+      for (const a of pendentesAlunos) {
+        const resultado = await resolverGeracaoPendente(org, a.geracaoPlano);
+        if (resultado && !cancelado) setAlunos((prev) => prev.map((x) => (x.id === a.id ? { ...x, geracaoPlano: resultado } : x)));
+      }
+      for (const t of pendentesTurmas) {
+        const resultado = await resolverGeracaoPendente(org, t.geracaoPlano);
+        if (resultado && !cancelado) setTurmas((prev) => prev.map((x) => (x.id === t.id ? { ...x, geracaoPlano: resultado } : x)));
+      }
+    }
+    verificarGeracoesPendentes();
+    const relogio = setInterval(verificarGeracoesPendentes, 15000);
+    return () => { cancelado = true; clearInterval(relogio); };
+  }, [autenticado]);
+
   // sincronizado durante o render (não num useEffect): TelaCatalogo e as
   // funções de geração leem TODOS_EXERCICIOS() no mesmo render em que
   // exerciciosCustom muda — um efeito rodaria tarde demais pra isso e o
@@ -16755,8 +16890,14 @@ function App() {
     setAba("eventos");
     setAvisosAberto(false);
   }
+  function verPlanoGerado(item) {
+    if (item.tipo === "individual") { setAba("alunos"); setAbertoId(item.entidadeId); setSubaba("plano"); }
+    else setAba("turmas");
+    setAvisosAberto(false);
+  }
   const totalAvisos = lembretesVisiveis.length + pendenciasVisiveis.length + pedidosAlunosVisiveis.length +
-    reservasNovasVisiveis.length + inscricoesTorneioNovasVisiveis.length + inscricoesEventoNovasVisiveis.length + pedidosPendentesCount;
+    reservasNovasVisiveis.length + inscricoesTorneioNovasVisiveis.length + inscricoesEventoNovasVisiveis.length +
+    pedidosPendentesCount + avisos.planosGerados.length;
   function abrirAvisos() {
     if (!avisosAberto && papelAtual === "coordenador") contarPedidosPendentes().then(setPedidosPendentesCount);
     setAvisosAberto(!avisosAberto);
@@ -17109,6 +17250,21 @@ function App() {
                                 <p style={{ ...prosa, fontSize: 12.5 }}>
                                   <b>{i.nomeContato}</b> se inscreveu em {i.eventoNome}
                                   {i.status === "espera" ? " · lista de espera" : ""}
+                                </p>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {avisos.planosGerados.length > 0 && (
+                          <div className="mb-3">
+                            <Etiqueta cor={C.saibro}>Planos gerados</Etiqueta>
+                            {avisos.planosGerados.map((item, i) => (
+                              <button key={i} onClick={() => verPlanoGerado(item)}
+                                className="w-full text-left" style={{ display: "block", padding: "6px 0", border: "none", background: "none", cursor: "pointer" }}>
+                                <p style={{ ...prosa, fontSize: 12.5 }}>
+                                  {item.status === "pronto"
+                                    ? <>Plano de <b>{item.nome}</b> ficou pronto — toque para revisar</>
+                                    : <>Não foi possível gerar o plano de <b>{item.nome}</b></>}
                                 </p>
                               </button>
                             ))}
