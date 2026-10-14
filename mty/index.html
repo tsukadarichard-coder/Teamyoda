@@ -15312,6 +15312,23 @@ function TelaReposicoes({ alunos, setAlunos, turmas, quadras, reservas, ocorrenc
    substituições e participação como auxiliar, com acesso aos registros
    que compõem os totais e exportação em CSV pra conferência manual — SEM
    nenhum cálculo financeiro, de propósito. */
+/* Período de uma semana/mês civil — usado pelos atalhos de filtro, nunca
+   pelo cálculo do relatório em si (que só olha inicioISO/fimISO, sem
+   saber de onde vieram). */
+function periodoSemanaAtual() {
+  const hoje = new Date();
+  const diaSemana = hoje.getDay();
+  const seg = new Date(hoje); seg.setDate(hoje.getDate() - ((diaSemana + 6) % 7));
+  const dom = new Date(seg); dom.setDate(seg.getDate() + 6);
+  return { inicio: dataISO(seg), fim: dataISO(dom) };
+}
+function periodoMes(deslocamento) {
+  const hoje = new Date();
+  const primeiro = new Date(hoje.getFullYear(), hoje.getMonth() + deslocamento, 1);
+  const ultimo = new Date(hoje.getFullYear(), hoje.getMonth() + deslocamento + 1, 0);
+  return { inicio: dataISO(primeiro), fim: dataISO(ultimo) };
+}
+
 function TelaRelatorioProfessores({ ocorrencias, alunos, turmas, papelAtual, uidAtual, nomeAtual }) {
   const [professores, setProfessores] = useState([]);
   useEffect(() => { listaProfessores().then(setProfessores); }, []);
@@ -15321,78 +15338,123 @@ function TelaRelatorioProfessores({ ocorrencias, alunos, turmas, papelAtual, uid
   const [inicio, setInicio] = useState(dataISO(new Date(Date.now() - 30 * 86400000)));
   const [fim, setFim] = useState(hoje);
   const [verRegistros, setVerRegistros] = useState(false);
+  // null = filtros ainda não aplicados (nunca clicou em "Ver relatório").
+  // Depois disso, sempre um objeto — mesmo resultado vazio é um resultado.
+  const [consulta, setConsulta] = useState(null);
+  const [erro, setErro] = useState("");
 
   const alvo = professorUid ? professores.find((p) => p.uid === professorUid) : null;
-  const relatorio = professorUid ? relatorioProfessor(ocorrencias, professorUid, inicio, fim) : null;
+
+  function verRelatorio(novoInicio, novoFim) {
+    const i = novoInicio || inicio, f = novoFim || fim;
+    setErro("");
+    if (!professorUid) { setErro("Escolha um professor antes de ver o relatório."); setConsulta(null); return; }
+    if (f < i) { setErro("A data final não pode ser anterior à inicial."); setConsulta(null); return; }
+    setConsulta({ relatorio: relatorioProfessor(ocorrencias, professorUid, i, f), inicio: i, fim: f });
+  }
+  function aplicarAtalho(periodo) {
+    setInicio(periodo.inicio); setFim(periodo.fim);
+    verRelatorio(periodo.inicio, periodo.fim);
+  }
 
   function exportarCSV() {
-    if (!relatorio) return;
+    if (!consulta) return;
     const nome = alvo ? alvo.nome : "professor";
-    baixarCSV("relatorio-" + nome.replace(/\s+/g, "-").toLowerCase() + "-" + inicio + "-a-" + fim + ".csv",
-      csvRelatorioProfessor(relatorio, nome, alunos, turmas));
+    baixarCSV("relatorio-" + nome.replace(/\s+/g, "-").toLowerCase() + "-" + consulta.inicio + "-a-" + consulta.fim + ".csv",
+      csvRelatorioProfessor(consulta.relatorio, nome, alunos, turmas));
   }
+
+  const relatorio = consulta ? consulta.relatorio : null;
 
   return (
     <div>
-      <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Relatório</h1>
+      <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Relatório de aulas</h1>
       <p style={{ ...prosa, fontSize: 14, color: C.grafite, marginBottom: 16 }}>
-        Aulas previstas, realizadas, canceladas e pendentes por professor — sem valores, só pra conferência e pagamento manual.
+        Confira as aulas previstas, realizadas, canceladas e aguardando registro no período — sem valores, só pra conferência e pagamento manual.
       </p>
 
-      <div className="flex gap-2 items-center flex-wrap mb-5">
+      <div className="mty-filtros-relatorio" style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 10 }}>
         {papelAtual === "coordenador" && (
-          <select style={{ ...entrada, width: 200 }} value={professorUid} onChange={(e) => setProfessorUid(e.target.value)}>
-            <option value="">Escolha o professor…</option>
-            {professores.map((p) => <option key={p.uid} value={p.uid}>{p.nome}</option>)}
-          </select>
+          <Campo rotulo="Professor">
+            <select style={{ ...entrada, width: 200 }} value={professorUid} onChange={(e) => { setProfessorUid(e.target.value); setConsulta(null); setErro(""); }}>
+              <option value="">Escolha o professor…</option>
+              {professores.map((p) => <option key={p.uid} value={p.uid}>{p.nome}</option>)}
+            </select>
+          </Campo>
         )}
-        <input type="date" style={{ ...entrada, width: 140 }} value={inicio} onChange={(e) => setInicio(e.target.value)} />
-        <span style={{ ...prosa, fontSize: 13, color: C.grafite }}>até</span>
-        <input type="date" style={{ ...entrada, width: 140 }} value={fim} onChange={(e) => setFim(e.target.value)} />
+        <Campo rotulo="Data inicial">
+          <input type="date" style={{ ...entrada, width: 160 }} value={inicio} onChange={(e) => setInicio(e.target.value)} />
+        </Campo>
+        <Campo rotulo="Data final">
+          <input type="date" style={{ ...entrada, width: 160 }} value={fim} onChange={(e) => setFim(e.target.value)} />
+        </Campo>
+        <Botao pequeno onClick={() => verRelatorio()}>Ver relatório</Botao>
       </div>
 
-      {!relatorio ? (
-        <p style={{ ...prosa, fontSize: 13.5, color: C.grafite }}>Escolha um professor pra ver o relatório.</p>
-      ) : (
+      <div className="flex gap-2 flex-wrap mb-5">
+        <Botao pequeno variante="vazio" onClick={() => aplicarAtalho(periodoSemanaAtual())}>Esta semana</Botao>
+        <Botao pequeno variante="vazio" onClick={() => aplicarAtalho(periodoMes(0))}>Este mês</Botao>
+        <Botao pequeno variante="vazio" onClick={() => aplicarAtalho(periodoMes(-1))}>Mês anterior</Botao>
+      </div>
+
+      {erro && <p style={{ ...prosa, fontSize: 13.5, color: "#8A2E2E", marginBottom: 16 }}>{erro}</p>}
+
+      {!consulta && !erro ? (
+        <p style={{ ...prosa, fontSize: 13.5, color: C.grafite }}>Escolha o professor e o período, depois toque em "Ver relatório".</p>
+      ) : relatorio && (
         <div>
+          <div className="flex flex-wrap gap-2 mb-2">
+            <TileRelatorio rotulo="Total previsto no período" valor={relatorio.todas.length} />
+          </div>
+          <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 8 }}>Dividido em:</p>
           <div className="flex flex-wrap gap-2 mb-5">
-            <TileRelatorio rotulo="Previstas" valor={relatorio.previstas.length} />
             <TileRelatorio rotulo="Realizadas" valor={relatorio.realizadas.length} />
             <TileRelatorio rotulo="Canceladas" valor={relatorio.canceladas.length} />
-            <TileRelatorio rotulo="Registro pendente" valor={relatorio.pendentes.length} />
-            <TileRelatorio rotulo="Duração trabalhada" valor={relatorio.minutosTrabalhados + " min"} />
+            <TileRelatorio rotulo="Futuras agendadas" valor={relatorio.previstas.length} />
+            <TileRelatorio rotulo="Passadas aguardando registro" valor={relatorio.pendentes.length} />
+          </div>
+          <div className="flex flex-wrap gap-2 mb-5">
+            <TileRelatorio rotulo="Duração efetivamente registrada" valor={relatorio.minutosTrabalhados + " min"} />
             <TileRelatorio rotulo="Reposições realizadas" valor={relatorio.reposicoesRealizadas.length} />
             <TileRelatorio rotulo="Substituições" valor={relatorio.substituicoes.length} />
             <TileRelatorio rotulo="Como auxiliar" valor={relatorio.comoAuxiliar.length} />
           </div>
 
-          <div className="flex gap-2 mb-4">
-            <Botao pequeno onClick={exportarCSV}>Exportar CSV</Botao>
-            <Botao pequeno variante="vazio" onClick={() => setVerRegistros(!verRegistros)}>
-              {verRegistros ? "Ocultar registros" : "Ver registros que compõem os totais"}
-            </Botao>
-          </div>
+          {relatorio.todas.length === 0 ? (
+            <p style={{ ...prosa, fontSize: 13.5, color: C.grafite }}>Nenhuma aula encontrada nesse período.</p>
+          ) : (
+            <>
+              <div className="flex gap-2 mb-4">
+                <Botao pequeno onClick={exportarCSV}>Exportar CSV</Botao>
+                <Botao pequeno variante="vazio" onClick={() => setVerRegistros(!verRegistros)}>
+                  {verRegistros ? "Ocultar registros" : "Ver registros que compõem os totais"}
+                </Botao>
+              </div>
 
-          {verRegistros && (
-            <div>
-              {relatorio.todas.length === 0 ? (
-                <p style={{ ...prosa, fontSize: 13.5, color: C.grafite }}>Nenhum registro no período.</p>
-              ) : (
-                [...relatorio.todas].sort((a, b) => a.data.localeCompare(b.data) || a.horaInicio.localeCompare(b.horaInicio)).map((o) => (
-                  <div key={o.id} style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "8px 12px", marginBottom: 6 }}>
-                    <p style={{ ...prosa, fontSize: 13 }}>
-                      {formatarDataLonga(o.data)} · {o.horaInicio}–{o.horaFim} · {tituloOcorrencia(o, alunos, turmas)} · {rotuloTipoOcorrencia(o.tipo)}
-                      {" · "}{o.status === "realizada" ? "Realizada (" + (o.duracaoEfetivaMin || 0) + " min)" : o.status === "cancelada" ? "Cancelada" : "Agendada"}
-                    </p>
-                  </div>
-                ))
+              {verRegistros && (
+                <div>
+                  {[...relatorio.todas].sort((a, b) => a.data.localeCompare(b.data) || a.horaInicio.localeCompare(b.horaInicio)).map((o) => (
+                    <div key={o.id} style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "8px 12px", marginBottom: 6 }}>
+                      <p style={{ ...prosa, fontSize: 13 }}>
+                        {formatarDataLonga(o.data)} · {o.horaInicio}–{o.horaFim} · {tituloOcorrencia(o, alunos, turmas)} · {rotuloTipoOcorrencia(o.tipo)}
+                        {" · "}{o.status === "realizada" ? "Realizada — duração prevista " + duracaoPrevistaMin(o) + " min, registrada " + (o.duracaoEfetivaMin || 0) + " min"
+                          : o.status === "cancelada" ? "Cancelada" : "Agendada — duração prevista " + duracaoPrevistaMin(o) + " min"}
+                      </p>
+                    </div>
+                  ))}
+                </div>
               )}
-            </div>
+            </>
           )}
         </div>
       )}
     </div>
   );
+}
+function duracaoPrevistaMin(o) {
+  const [h1, m1] = o.horaInicio.split(":").map(Number);
+  const [h2, m2] = o.horaFim.split(":").map(Number);
+  return (h2 * 60 + m2) - (h1 * 60 + m1);
 }
 function TileRelatorio({ rotulo, valor }) {
   return (
@@ -15845,7 +15907,7 @@ function TelaDashboard({ alunos, turmas, ocorrencias, papelAtual, uidAtual, exig
   turmasVistas.forEach((t) => (t.pendencias || []).forEach((p) => { if (!p.resolvida) pendenciasAbertas++; }));
   const porProfessor = verTodos ? aulasPorProfessor(alunosVistos) : [];
   const primeiroNome = (meuNome || "").trim().split(" ")[0];
-  const saudacao = primeiroNome ? "Olá, " + primeiroNome : "Dashboard";
+  const saudacao = primeiroNome ? "Olá, " + primeiroNome : "Início";
 
   const prox = proximoCompromisso(alunosVistos, turmasVistas, ocorrencias);
   function aoVerAula() {
@@ -16185,7 +16247,9 @@ function TelaAgenda({ alunos, turmas, ocorrencias, uidAtual, exigeLogin }) {
 }
 const celulaGrade = { border: "1px solid " + C.linha, padding: "8px 10px", verticalAlign: "top" };
 
-const NAV_PRINCIPAL = [{ v: "dashboard", r: "Dashboard" }, { v: "aulas-hoje", r: "Aulas de hoje" }, { v: "reposicoes", r: "Reposições" }, { v: "relatorio", r: "Relatório" }, { v: "alunos", r: "Jogadores" }, { v: "turmas", r: "Turmas" }, { v: "agenda", r: "Agenda" }, { v: "casos", r: "Casos" }];
+const NAV_DIA_A_DIA = [{ v: "dashboard", r: "Início" }, { v: "aulas-hoje", r: "Aulas de hoje" }, { v: "agenda", r: "Agenda" }, { v: "reposicoes", r: "Reposições" }];
+const NAV_ALUNOS_TURMAS = [{ v: "alunos", r: "Jogadores" }, { v: "turmas", r: "Turmas" }];
+const NAV_CONTEUDO = [{ v: "casos", r: "Casos" }];
 const NAV_MANUAL = [{ v: "catalogo", r: "Catálogo" }, { v: "tecnica", r: "Técnica" }, { v: "taticas", r: "Táticas" },
   { v: "conducao", r: "Condução" }, { v: "publicos", r: "Públicos" }, { v: "aulas", r: "Aulas" }, { v: "metodo", r: "Como decide" }];
 
@@ -16354,7 +16418,7 @@ function App() {
   /* Menu lateral: cada grupo abre/fecha independente, mas começa todo
      aberto — assim quem já usa o app continua vendo tudo de cara, sem
      precisar clicar em nada antes de navegar. */
-  const [gruposAbertos, setGruposAbertos] = useState({ trabalho: true, academia: true, equipe: true });
+  const [gruposAbertos, setGruposAbertos] = useState({ "dia-a-dia": true, "alunos-turmas": true, academia: true, equipe: true, conteudo: true });
   function alternarGrupo(id) {
     setGruposAbertos((atual) => ({ ...atual, [id]: !atual[id] }));
   }
@@ -16574,23 +16638,33 @@ function App() {
      nasceram como um pedido só ("torneios e eventos"), então não faz
      sentido ligar uma sem a outra por enquanto. */
   const mostraTorneiosEventos = papelAtual === "coordenador" && (orgAtual === "team-yoda" || orgAtual === "39-ranch" || (!!identidade && identidade.mostrarTorneiosEventos === true));
-  /* Menu lateral, por segmento: "Meu trabalho" é o dia a dia de qualquer
-     treinador; "Academia" é gestão (Quadras, Torneios, Eventos — cada
-     recurso opcional) e só aparece pro coordenador — os demais
-     treinadores nem veem a aba; "Equipe" é só do coordenador. Um grupo
-     sem nenhum item (ex.: Academia numa academia sem nada disso) some. */
+  /* Menu lateral, por segmento (pedido: agrupar o que já existia, sem
+     remover nenhum destino): "Dia a dia" é a rotina diária de qualquer
+     treinador; "Alunos e turmas" é cadastro; "Academia" é gestão
+     (Quadras, Torneios, Eventos — cada recurso opcional) e só aparece
+     pro coordenador — os demais treinadores nem veem a aba;
+     "Coordenação" (Equipe + Relatórios) é só do coordenador; "Conteúdo"
+     é material de apoio (Casos + Formação). Um grupo sem nenhum item
+     (ex.: Academia numa academia sem nada disso) some. */
   const gruposNav = [
-    { id: "trabalho", label: "Meu trabalho", itens: [
-      ...NAV_PRINCIPAL,
-      ...(exigeLogin && uidAtual ? [{ v: "formacao", r: "Formação" }] : []),
-    ] },
+    { id: "dia-a-dia", label: "Dia a dia", itens: NAV_DIA_A_DIA },
+    { id: "alunos-turmas", label: "Alunos e turmas", itens: NAV_ALUNOS_TURMAS },
     { id: "academia", label: "Academia", itens: [
       ...(mostraQuadras ? [{ v: "quadras", r: "Quadras" }, { v: "grade-aulas", r: "Grade de aulas" }] : []),
-      ...(mostraTorneiosEventos ? [{ v: "torneios", r: "Torneios" }, { v: "eventos", r: "Eventos" }] : []),
       ...(mostraQuadras || mostraTorneiosEventos ? [{ v: "clientes", r: "Clientes" }] : []),
+      ...(mostraTorneiosEventos ? [{ v: "torneios", r: "Torneios" }, { v: "eventos", r: "Eventos" }] : []),
     ] },
-    { id: "equipe", label: "Coordenação", badge: "coordenador", itens: [
+    { id: "equipe", label: "Coordenação", itens: [
       ...(papelAtual === "coordenador" ? [{ v: "equipe", r: "Equipe" }] : []),
+      // Relatórios mora aqui no menu, mas continua liberado pro professor
+      // ver o próprio (TelaRelatorioProfessores já restringe por dentro) —
+      // o pedido foi "professores continuam acessando os próprios
+      // relatórios quando autorizado", não escondê-los daqui.
+      { v: "relatorio", r: "Relatórios" },
+    ] },
+    { id: "conteudo", label: "Conteúdo", itens: [
+      ...NAV_CONTEUDO,
+      ...(exigeLogin && uidAtual ? [{ v: "formacao", r: "Formação" }] : []),
     ] },
   ].filter((g) => g.itens.length > 0);
   function criar() {
@@ -16652,6 +16726,7 @@ function App() {
           .mty-sidebar { transform: translateX(-100%); }
           .mty-sidebar.aberta { transform: translateX(0); box-shadow: 4px 0 18px rgba(0,0,0,.18); }
           .mty-hamburger { display: inline-flex !important; }
+          .mty-fechar-menu-mobile { display: inline-flex !important; }
           .mty-topbar, .mty-main { margin-left: 0 !important; }
           /* O sino de avisos fica entre outros botões (plano, nome, sair)
              numa fileira que quebra linha no celular — o dropdown, ancorado
@@ -16667,6 +16742,11 @@ function App() {
             width: auto !important;
             max-width: none !important;
           }
+          /* Filtros do Relatório de aulas: lado a lado no computador não
+             cabe no celular sem cortar ou encolher os campos — em coluna,
+             cada campo ocupa a largura toda da tela. */
+          .mty-filtros-relatorio { flex-direction: column; align-items: stretch !important; }
+          .mty-filtros-relatorio select, .mty-filtros-relatorio input[type="date"] { width: 100% !important; }
         }
         /* Linha rótulo/valor da ficha (Avaliação do treinador, Perfil de
            jogo, exercícios da sessão etc.) — empilhado por padrão (celular),
@@ -16695,9 +16775,16 @@ function App() {
       <header className={"mty-sidebar" + (menuMobileAberto ? " aberta" : "")} style={{ position: "fixed", left: 0, top: 0, bottom: 0, width: 252, overflowY: "auto",
         background: C.cal, borderRight: "1px solid " + C.linha, zIndex: 30 }}>
         <div style={{ height: 4, background: C.saibro }} />
-        <div style={{ padding: "18px 18px 14px" }}>
-          <Marca identidade={identidade} altura={26} />
-          <div className="mt-2"><Etiqueta>Ficha, periodização e sessão · 315 exercícios</Etiqueta></div>
+        <div style={{ padding: "18px 18px 14px" }} className="flex items-start justify-between gap-2">
+          <div>
+            <Marca identidade={identidade} altura={26} />
+            <div className="mt-2"><Etiqueta>Ficha, periodização e sessão · 315 exercícios</Etiqueta></div>
+          </div>
+          <button type="button" className="mty-fechar-menu-mobile" onClick={() => setMenuMobileAberto(false)} aria-label="Fechar menu"
+            style={{ display: "none", fontSize: 18, lineHeight: 1, cursor: "pointer", padding: "4px 9px", border: "1px solid " + C.linha,
+              borderRadius: 10, background: C.papel, color: C.grafite, flexShrink: 0 }}>
+            ×
+          </button>
         </div>
         <nav style={{ display: "block", padding: "4px 10px 18px" }}>
           {gruposNav.map((g) => (
