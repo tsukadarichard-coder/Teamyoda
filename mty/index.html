@@ -14641,6 +14641,60 @@ function aplicarEfeitoCreditoNaOcorrencia(alunos, ocAntiga, ocNova, regras) {
     : a));
 }
 
+/* ── RELATÓRIO DO PROFESSOR (sem financeiro) ──────────────────────────
+   Por professor + período: previstas/realizadas/canceladas/pendentes,
+   duração efetivamente trabalhada, reposições realizadas, substituições
+   feitas e participação como auxiliar — tudo contado por OCORRÊNCIA
+   (uma aula de 90min é uma aula e 90min, nunca "3 blocos de 30min"), e
+   cada ocorrência entra uma única vez na lista de um professor mesmo
+   que ele apareça em mais de um papel nela (titular/auxiliar/substituto
+   — o filtro abaixo é um OR, não soma vezes). */
+function ocorrenciasDoProfessor(ocorrencias, professorUid, inicioISO, fimISO) {
+  return ocorrencias.filter((o) =>
+    o.data >= inicioISO && o.data <= fimISO &&
+    (o.professorUid === professorUid || o.professorAuxiliarUid === professorUid || o.substitutoUid === professorUid));
+}
+function relatorioProfessor(ocorrencias, professorUid, inicioISO, fimISO) {
+  const hoje = new Date().toISOString().slice(0, 10);
+  const minhas = ocorrenciasDoProfessor(ocorrencias, professorUid, inicioISO, fimISO);
+  const realizadas = minhas.filter((o) => o.status === "realizada");
+  const canceladas = minhas.filter((o) => o.status === "cancelada");
+  const pendentes = minhas.filter((o) => o.status === "agendada" && o.data < hoje);
+  const previstas = minhas.filter((o) => o.status === "agendada" && o.data >= hoje);
+  const minutosTrabalhados = realizadas.reduce((s, o) => s + (o.duracaoEfetivaMin || 0), 0);
+  const reposicoesRealizadas = realizadas.filter((o) => o.tipo === "reposicao");
+  const substituicoes = minhas.filter((o) => o.substitutoUid === professorUid && o.status === "realizada");
+  const comoAuxiliar = minhas.filter((o) => o.professorAuxiliarUid === professorUid);
+  return {
+    professorUid, inicioISO, fimISO,
+    todas: minhas, realizadas, canceladas, pendentes, previstas,
+    minutosTrabalhados, reposicoesRealizadas, substituicoes, comoAuxiliar,
+  };
+}
+function csvRelatorioProfessor(relatorio, nomeProfessor, alunos, turmas) {
+  const linhas = [["Data", "Horário", "Turma/Jogador", "Tipo", "Status", "Duração efetiva (min)", "Papel", "Observações"]];
+  relatorio.todas.sort((a, b) => a.data.localeCompare(b.data) || a.horaInicio.localeCompare(b.horaInicio)).forEach((o) => {
+    const papel = o.professorUid === relatorio.professorUid ? "Titular"
+      : o.professorAuxiliarUid === relatorio.professorUid ? "Auxiliar"
+      : o.substitutoUid === relatorio.professorUid ? "Substituto" : "";
+    linhas.push([
+      o.data, o.horaInicio + "–" + o.horaFim, tituloOcorrencia(o, alunos, turmas), rotuloTipoOcorrencia(o.tipo),
+      o.status === "realizada" ? "Realizada" : o.status === "cancelada" ? "Cancelada" : "Agendada",
+      o.status === "realizada" ? String(o.duracaoEfetivaMin || 0) : "", papel, o.observacoes || "",
+    ]);
+  });
+  function escapar(v) { const s = String(v == null ? "" : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+  return linhas.map((l) => l.map(escapar).join(",")).join("\n");
+}
+function baixarCSV(nomeArquivo, conteudo) {
+  const blob = new Blob(["﻿" + conteudo], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = nomeArquivo;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 /* Nome + identificação de quem está sendo acompanhado numa ocorrência —
    "Turma X (6 jogadores)" ou o nome do jogador individual. */
 function tituloOcorrencia(oc, alunos, turmas) {
@@ -15097,6 +15151,102 @@ function TelaReposicoes({ alunos, setAlunos, turmas, quadras, ocorrencias, setOc
           );
         })
       )}
+    </div>
+  );
+}
+
+/* Tela "Relatório" — pedido 7: filtro por professor e período, previstas/
+   realizadas/canceladas/pendentes, duração trabalhada, reposições,
+   substituições e participação como auxiliar, com acesso aos registros
+   que compõem os totais e exportação em CSV pra conferência manual — SEM
+   nenhum cálculo financeiro, de propósito. */
+function TelaRelatorioProfessores({ ocorrencias, alunos, turmas, papelAtual, uidAtual, nomeAtual }) {
+  const [professores, setProfessores] = useState([]);
+  useEffect(() => { listaProfessores().then(setProfessores); }, []);
+
+  const hoje = new Date().toISOString().slice(0, 10);
+  const [professorUid, setProfessorUid] = useState(papelAtual === "coordenador" ? "" : uidAtual);
+  const [inicio, setInicio] = useState(dataISO(new Date(Date.now() - 30 * 86400000)));
+  const [fim, setFim] = useState(hoje);
+  const [verRegistros, setVerRegistros] = useState(false);
+
+  const alvo = professorUid ? professores.find((p) => p.uid === professorUid) : null;
+  const relatorio = professorUid ? relatorioProfessor(ocorrencias, professorUid, inicio, fim) : null;
+
+  function exportarCSV() {
+    if (!relatorio) return;
+    const nome = alvo ? alvo.nome : "professor";
+    baixarCSV("relatorio-" + nome.replace(/\s+/g, "-").toLowerCase() + "-" + inicio + "-a-" + fim + ".csv",
+      csvRelatorioProfessor(relatorio, nome, alunos, turmas));
+  }
+
+  return (
+    <div>
+      <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Relatório</h1>
+      <p style={{ ...prosa, fontSize: 14, color: C.grafite, marginBottom: 16 }}>
+        Aulas previstas, realizadas, canceladas e pendentes por professor — sem valores, só pra conferência e pagamento manual.
+      </p>
+
+      <div className="flex gap-2 items-center flex-wrap mb-5">
+        {papelAtual === "coordenador" && (
+          <select style={{ ...entrada, width: 200 }} value={professorUid} onChange={(e) => setProfessorUid(e.target.value)}>
+            <option value="">Escolha o professor…</option>
+            {professores.map((p) => <option key={p.uid} value={p.uid}>{p.nome}</option>)}
+          </select>
+        )}
+        <input type="date" style={{ ...entrada, width: 140 }} value={inicio} onChange={(e) => setInicio(e.target.value)} />
+        <span style={{ ...prosa, fontSize: 13, color: C.grafite }}>até</span>
+        <input type="date" style={{ ...entrada, width: 140 }} value={fim} onChange={(e) => setFim(e.target.value)} />
+      </div>
+
+      {!relatorio ? (
+        <p style={{ ...prosa, fontSize: 13.5, color: C.grafite }}>Escolha um professor pra ver o relatório.</p>
+      ) : (
+        <div>
+          <div className="flex flex-wrap gap-2 mb-5">
+            <TileRelatorio rotulo="Previstas" valor={relatorio.previstas.length} />
+            <TileRelatorio rotulo="Realizadas" valor={relatorio.realizadas.length} />
+            <TileRelatorio rotulo="Canceladas" valor={relatorio.canceladas.length} />
+            <TileRelatorio rotulo="Registro pendente" valor={relatorio.pendentes.length} />
+            <TileRelatorio rotulo="Duração trabalhada" valor={relatorio.minutosTrabalhados + " min"} />
+            <TileRelatorio rotulo="Reposições realizadas" valor={relatorio.reposicoesRealizadas.length} />
+            <TileRelatorio rotulo="Substituições" valor={relatorio.substituicoes.length} />
+            <TileRelatorio rotulo="Como auxiliar" valor={relatorio.comoAuxiliar.length} />
+          </div>
+
+          <div className="flex gap-2 mb-4">
+            <Botao pequeno onClick={exportarCSV}>Exportar CSV</Botao>
+            <Botao pequeno variante="vazio" onClick={() => setVerRegistros(!verRegistros)}>
+              {verRegistros ? "Ocultar registros" : "Ver registros que compõem os totais"}
+            </Botao>
+          </div>
+
+          {verRegistros && (
+            <div>
+              {relatorio.todas.length === 0 ? (
+                <p style={{ ...prosa, fontSize: 13.5, color: C.grafite }}>Nenhum registro no período.</p>
+              ) : (
+                [...relatorio.todas].sort((a, b) => a.data.localeCompare(b.data) || a.horaInicio.localeCompare(b.horaInicio)).map((o) => (
+                  <div key={o.id} style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "8px 12px", marginBottom: 6 }}>
+                    <p style={{ ...prosa, fontSize: 13 }}>
+                      {formatarDataLonga(o.data)} · {o.horaInicio}–{o.horaFim} · {tituloOcorrencia(o, alunos, turmas)} · {rotuloTipoOcorrencia(o.tipo)}
+                      {" · "}{o.status === "realizada" ? "Realizada (" + (o.duracaoEfetivaMin || 0) + " min)" : o.status === "cancelada" ? "Cancelada" : "Agendada"}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+function TileRelatorio({ rotulo, valor }) {
+  return (
+    <div style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "9px 13px", minWidth: 120 }}>
+      <p style={{ ...prosa, fontSize: 11.5, color: C.grafite }}>{rotulo}</p>
+      <p style={{ fontFamily: ARCH, fontSize: 18, fontWeight: 700 }}>{valor}</p>
     </div>
   );
 }
@@ -15871,7 +16021,7 @@ function TelaAgenda({ alunos, turmas, uidAtual, exigeLogin }) {
 }
 const celulaGrade = { border: "1px solid " + C.linha, padding: "8px 10px", verticalAlign: "top" };
 
-const NAV_PRINCIPAL = [{ v: "dashboard", r: "Dashboard" }, { v: "aulas-hoje", r: "Aulas de hoje" }, { v: "reposicoes", r: "Reposições" }, { v: "alunos", r: "Jogadores" }, { v: "turmas", r: "Turmas" }, { v: "agenda", r: "Agenda" }, { v: "casos", r: "Casos" }];
+const NAV_PRINCIPAL = [{ v: "dashboard", r: "Dashboard" }, { v: "aulas-hoje", r: "Aulas de hoje" }, { v: "reposicoes", r: "Reposições" }, { v: "relatorio", r: "Relatório" }, { v: "alunos", r: "Jogadores" }, { v: "turmas", r: "Turmas" }, { v: "agenda", r: "Agenda" }, { v: "casos", r: "Casos" }];
 const NAV_MANUAL = [{ v: "catalogo", r: "Catálogo" }, { v: "tecnica", r: "Técnica" }, { v: "taticas", r: "Táticas" },
   { v: "conducao", r: "Condução" }, { v: "publicos", r: "Públicos" }, { v: "aulas", r: "Aulas" }, { v: "metodo", r: "Como decide" }];
 
@@ -16636,6 +16786,7 @@ function App() {
          aba === "aulas-hoje" ? <TelaAulasHoje alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} regrasReposicao={regrasReposicao} uidAtual={uidAtual} papelAtual={papelAtual} /> :
          aba === "reposicoes" ? <TelaReposicoes alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias}
            regrasReposicao={regrasReposicao} setRegrasReposicao={setRegrasReposicao} papelAtual={papelAtual} /> :
+         aba === "relatorio" ? <TelaRelatorioProfessores ocorrencias={ocorrencias} alunos={alunos} turmas={turmas} papelAtual={papelAtual} uidAtual={uidAtual} /> :
          aba === "dashboard" ? <TelaDashboard alunos={alunos} turmas={turmas} papelAtual={papelAtual} uidAtual={uidAtual} exigeLogin={exigeLogin} usoIA={usoIA} identidade={identidade}
            irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }}
            aoAbrirSessao={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("sessao"); }}
