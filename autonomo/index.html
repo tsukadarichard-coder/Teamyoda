@@ -13177,6 +13177,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
      aparece, em vez de escondido atrás de um link dentro da Sessão. */
   const [subaba, setSubaba] = useState(turma.plano ? "sessao" : "plano");
   const [statusGeral, setStatusGeral] = useState("feita");
+  const [fechando, setFechando] = useState(false);
   const [motivo, setMotivo] = useState("");
   const [nota, setNota] = useState("");
   const [obs, setObs] = useState({ corrigi: "", ignorei: "", mudaria: "", leituraDaAula: "", nota: 3 });
@@ -13392,6 +13393,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
     setObs({ corrigi: "", ignorei: "", mudaria: "", leituraDaAula: "", nota: 3 });
     setStatusTemas({});
     setStatusExercicios({});
+    setFechando(false);
     setPresenca({});
     setObsIndividual({});
     setNotaAbertaId(null);
@@ -13666,59 +13668,75 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
       )}
 
       {(statusGeral === "feita" || statusGeral === "chuva") && (
-        <div className="mt-6" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, padding: 15 }}>
-          <div className="mb-3"><Etiqueta cor={C.saibro}>Fechamento da sessão — vai pro caderno de cada jogador do grupo</Etiqueta></div>
-          {todosExerciciosTurmaAtuais.length > 0 && (
-            <Campo rotulo="Atividades realizadas" nota="Indique o que não foi feito ou só parcialmente — o resto conta como feito.">
-              {todosExerciciosTurmaAtuais.map((e) => {
-                const st = statusExercicios[e.c] || "feito";
-                return (
-                  <div key={e.c} className="flex items-center justify-between gap-2 flex-wrap mb-2">
-                    <span style={{ ...prosa, fontSize: 13 }}>{e.n}</span>
-                    <div className="flex gap-1 flex-wrap">
-                      {[["feito", "Feito"], ["parcial", "Parcial"], ["nao_feito", "Não feito"]].map(([v, r]) => (
-                        <button key={v} disabled={!podeEditar} onClick={() => setStatusExercicios((x) => ({ ...x, [e.c]: v }))}
-                          style={{ fontFamily: ARCH, fontSize: 10.5, fontWeight: 700, padding: "5px 9px", borderRadius: 10, cursor: "pointer",
-                            border: "1px solid " + (st === v ? C.tinta : C.linha),
-                            background: st === v ? C.tinta : C.papel, color: st === v ? C.papel : C.grafite }}>{r}</button>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </Campo>
-          )}
-          <Campo rotulo="O que corrigi hoje">
-            <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, resize: "vertical" }} value={obs.corrigi}
-              onChange={(e) => setObs({ ...obs, corrigi: e.target.value })} placeholder="Em que camada estava a causa" />
-          </Campo>
-          <Campo rotulo="O que vi e deixei passar" nota="O campo mais valioso do registro: o que você escolheu ignorar hoje, e por quê.">
-            <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, resize: "vertical" }} value={obs.ignorei}
-              onChange={(e) => setObs({ ...obs, ignorei: e.target.value })} />
-          </Campo>
-          <Campo rotulo="O que eu teria montado diferente" nota="Se a proposta não servia, escreva o que serviria. É isso que corrige as regras.">
-            <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, resize: "vertical" }} value={obs.mudaria}
-              onChange={(e) => setObs({ ...obs, mudaria: e.target.value })} />
-          </Campo>
-          <CamposTemas temas={temasGrupo} statusTemas={statusTemas} setStatusTemas={setStatusTemas} podeEditar={podeEditar} />
-          <Campo rotulo="Leitura da aula" nota="A impressão geral do grupo na sessão, além dos temas — fica guardada no caderno de cada jogador.">
-            <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, resize: "vertical" }} value={obs.leituraDaAula}
-              onChange={(e) => setObs({ ...obs, leituraDaAula: e.target.value })} />
-          </Campo>
-          <Campo rotulo="Engajamento geral do grupo na sessão" nota="Nota de 1 a 5 — a presença de cada jogador já é marcada individualmente acima.">
-            <Seletor opcoes={[1, 2, 3, 4, 5].map((n) => ({ v: n, r: String(n) }))} valor={obs.nota}
-              aoMudar={(v) => setObs({ ...obs, nota: v })} />
-          </Campo>
+        <div className="mt-6">
+          <Botao onClick={() => setFechando(true)} disabled={!podeEditar || (statusGeral === "chuva" && !chuvaModeloId)}>Finalizar e registrar aula</Botao>
         </div>
       )}
 
       <div className="flex gap-2 items-center mt-4 flex-wrap">
-        <Botao onClick={salvarSessao} disabled={!podeEditar || (statusGeral === "chuva" && !chuvaModeloId)}>Salvar sessão</Botao>
         <Botao variante="vazio" disabled={!podeEditar} onClick={aoRemover}>Remover turma</Botao>
         {salvo === "feita" && <Etiqueta cor={C.quadra}>{turma.plano ? "✓ sessão registrada no plano da turma" : "✓ sessão registrada em cada jogador"}</Etiqueta>}
         {salvo === "chuva" && <Etiqueta cor={C.quadra}>✓ dia de chuva registrado como sessão realizada</Etiqueta>}
         {salvo === "pendencia" && <Etiqueta cor={C.saibro}>✓ pendência do grupo registrada</Etiqueta>}
       </div>
+
+      {fechando && (
+        <>
+          <div onClick={() => setFechando(false)} style={{ position: "fixed", inset: 0, background: "rgba(16,30,25,.4)", zIndex: 39 }} />
+          <div role="dialog" aria-modal="true" aria-label="Finalizar e registrar aula"
+            style={{ position: "fixed", left: 0, right: 0, bottom: 0, background: C.cal, zIndex: 40,
+              borderRadius: "16px 16px 0 0", boxShadow: SOMBRA_ALTA, maxHeight: "88vh", display: "flex", flexDirection: "column" }}>
+            <div className="flex items-center justify-between" style={{ padding: "14px 18px", borderBottom: "1px solid " + C.linha }}>
+              <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>Finalizar e registrar aula</span>
+              <button onClick={() => setFechando(false)} aria-label="Fechar" style={{ width: 36, height: 36, border: "none", background: "none", cursor: "pointer", fontSize: 20, color: C.grafite }}>×</button>
+            </div>
+            <div style={{ overflowY: "auto", padding: "16px 18px", paddingBottom: "calc(16px + env(safe-area-inset-bottom))" }}>
+              {todosExerciciosTurmaAtuais.length > 0 && (
+                <Campo rotulo="Atividades realizadas" nota="Indique o que não foi feito ou só parcialmente — o resto conta como feito.">
+                  {todosExerciciosTurmaAtuais.map((e) => {
+                    const st = statusExercicios[e.c] || "feito";
+                    return (
+                      <div key={e.c} className="flex items-center justify-between gap-2 flex-wrap mb-2">
+                        <span style={{ ...prosa, fontSize: 13 }}>{e.n}</span>
+                        <div className="flex gap-1 flex-wrap">
+                          {[["feito", "Feito"], ["parcial", "Parcial"], ["nao_feito", "Não feito"]].map(([v, r]) => (
+                            <button key={v} disabled={!podeEditar} onClick={() => setStatusExercicios((x) => ({ ...x, [e.c]: v }))}
+                              style={{ fontFamily: ARCH, fontSize: 10.5, fontWeight: 700, padding: "5px 9px", borderRadius: 10, cursor: "pointer",
+                                border: "1px solid " + (st === v ? C.tinta : C.linha),
+                                background: st === v ? C.tinta : C.papel, color: st === v ? C.papel : C.grafite }}>{r}</button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </Campo>
+              )}
+              <Campo rotulo="O que corrigi hoje">
+                <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, resize: "vertical" }} value={obs.corrigi}
+                  onChange={(e) => setObs({ ...obs, corrigi: e.target.value })} placeholder="Em que camada estava a causa" />
+              </Campo>
+              <Campo rotulo="O que vi e deixei passar" nota="O campo mais valioso do registro: o que você escolheu ignorar hoje, e por quê.">
+                <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, resize: "vertical" }} value={obs.ignorei}
+                  onChange={(e) => setObs({ ...obs, ignorei: e.target.value })} />
+              </Campo>
+              <Campo rotulo="O que eu teria montado diferente" nota="Se a proposta não servia, escreva o que serviria. É isso que corrige as regras.">
+                <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, resize: "vertical" }} value={obs.mudaria}
+                  onChange={(e) => setObs({ ...obs, mudaria: e.target.value })} />
+              </Campo>
+              <CamposTemas temas={temasGrupo} statusTemas={statusTemas} setStatusTemas={setStatusTemas} podeEditar={podeEditar} />
+              <Campo rotulo="Leitura da aula" nota="A impressão geral do grupo na sessão, além dos temas — fica guardada no caderno de cada jogador.">
+                <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, resize: "vertical" }} value={obs.leituraDaAula}
+                  onChange={(e) => setObs({ ...obs, leituraDaAula: e.target.value })} />
+              </Campo>
+              <Campo rotulo="Engajamento geral do grupo na sessão" nota="Nota de 1 a 5 — a presença de cada jogador já é marcada individualmente acima.">
+                <Seletor opcoes={[1, 2, 3, 4, 5].map((n) => ({ v: n, r: String(n) }))} valor={obs.nota}
+                  aoMudar={(v) => setObs({ ...obs, nota: v })} />
+              </Campo>
+              <Botao onClick={salvarSessao} disabled={!podeEditar || (statusGeral === "chuva" && !chuvaModeloId)}>Salvar sessão</Botao>
+            </div>
+          </div>
+        </>
+      )}
       </>
       )}
     </div>
