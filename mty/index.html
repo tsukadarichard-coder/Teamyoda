@@ -7558,7 +7558,10 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
       {plano && (
         <div className="mt-7">
           <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
-            <Etiqueta cor={C.quadra}>{exigeLogin ? "Rascunho salvo — sincronizando com a nuvem" : "Rascunho salvo neste aparelho"}</Etiqueta>
+            <Etiqueta cor={estadoSalvo === "erro" ? "#8A2E2E" : C.quadra}>
+              {estadoSalvo === "salvando" ? "Salvando…" : estadoSalvo === "erro" ? "Não foi possível salvar — tentar novamente"
+                : exigeLogin ? "Rascunho salvo na nuvem" : "Rascunho salvo neste aparelho"}
+            </Etiqueta>
             {podeEditar && (
               <button onClick={() => {
                 if (confirm("Isso substitui apenas o rascunho desta sessão ainda não salva, com um novo sorteio — nenhuma aula já registrada é afetada. Gerar uma versão nova agora?")) descartarRascunho();
