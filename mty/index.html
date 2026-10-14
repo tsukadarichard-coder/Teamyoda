@@ -4355,6 +4355,7 @@ function novoAluno() {
     diasQuadra: null, periodos: null, escola: "", musculacao: null,
     historico: [], registros: [], anotacoes: [],
     estiloTatico: null, adversarios: [],
+    creditosReposicao: [],
     professorUid: "", professorNome: "", horarios: [], duracaoPadrao: "1h30",
     categoria: "", criteriosClassificacao: {},
     classificacaoSugeridaEm: null,
@@ -14568,6 +14569,78 @@ function conflitosDeOcorrencia(ocorrencias, candidata, turmas) {
   return conflitos;
 }
 
+/* ── REPOSIÇÕES ───────────────────────────────────────────────────────
+   Crédito de reposição: nasce SEMPRE de uma ação manual do treinador
+   (nunca automática ao cancelar — pedido explícito: "se as regras ainda
+   não estiverem definidas, permitir aprovação manual e evitar concessão
+   automática de créditos"), fica preso ao aluno e à ocorrência de
+   origem, e passa por estados: pendente_aprovacao → disponivel →
+   reservado → utilizado (ou vencido/cancelado no caminho). Cada
+   mudança de estado grava uma linha em `movimentacoes`, pro "registrar a
+   movimentação" do pedido.
+
+   Regras por unidade (motivos elegíveis, exigência de aprovação,
+   validade, se o crédito volta ao cancelar a reposição) ficam em
+   orgs/{org}/dados/mty:regrasReposicao:v1 — um documento só, não por
+   aluno; Team Yoda e 39 Ranch podem configurar diferente. */
+function regrasReposicaoPadrao() {
+  return { motivosElegiveis: [], exigeAprovacao: true, validadeDias: null, restricoes: "", reverterCreditoAoCancelar: true };
+}
+function novoCreditoReposicao({ alunoId, origemOcorrenciaId, motivo, regras }) {
+  const agora = new Date().toISOString();
+  const precisaAprovacao = !!(regras && regras.exigeAprovacao);
+  const validadeDias = regras && regras.validadeDias ? Number(regras.validadeDias) : null;
+  return {
+    id: "cred" + Date.now() + Math.random().toString(36).slice(2, 7),
+    alunoId, origemOcorrenciaId, motivo: motivo || "",
+    status: precisaAprovacao ? "pendente_aprovacao" : "disponivel",
+    validoAte: validadeDias ? dataISO(new Date(Date.now() + validadeDias * 86400000)) : null,
+    ocorrenciaReposicaoId: null,
+    criadoEm: agora,
+    movimentacoes: [{ em: agora, tipo: "criado", obs: motivo || "" }],
+  };
+}
+/* Status "de verdade" de um crédito — `disponivel` guardado vira
+   `vencido` na leitura quando passou da validade, sem precisar de uma
+   varredura em segundo plano pra manter o dado sempre correto na hora
+   de mostrar/usar (só persiste a transição se alguém mexer no crédito). */
+function statusEfetivoCredito(credito, hojeISO) {
+  if (credito.status === "disponivel" && credito.validoAte && credito.validoAte < hojeISO) return "vencido";
+  return credito.status;
+}
+function moverCredito(credito, novoStatus, obs) {
+  return { ...credito, status: novoStatus, movimentacoes: [...credito.movimentacoes, { em: new Date().toISOString(), tipo: novoStatus, obs: obs || "" }] };
+}
+const ROTULOS_STATUS_CREDITO = {
+  pendente_aprovacao: "Aguardando aprovação", disponivel: "Disponível", reservado: "Reservado",
+  utilizado: "Utilizado", vencido: "Vencido", cancelado: "Cancelado",
+};
+/* Efeito automático sobre o crédito quando a OCORRÊNCIA de reposição que
+   ele reservou muda de status — "ao concluir a reposição, consumir [o
+   crédito]; em caso de cancelamento, aplicar a regra configurada e
+   registrar a movimentação". Só reage a transição de verdade (ocAntiga
+   diferente de ocNova), nunca à mesma atualização duas vezes. */
+function aplicarEfeitoCreditoNaOcorrencia(alunos, ocAntiga, ocNova, regras) {
+  if (ocNova.tipo !== "reposicao") return alunos;
+  const aluno = alunos.find((a) => a.id === ocNova.origemId);
+  if (!aluno) return alunos;
+  const credito = (aluno.creditosReposicao || []).find((c) => c.ocorrenciaReposicaoId === ocNova.id);
+  if (!credito) return alunos;
+  let novoCredito = null;
+  if (ocNova.status === "realizada" && ocAntiga.status !== "realizada") {
+    novoCredito = moverCredito(credito, "utilizado", "reposição realizada");
+  } else if (ocNova.status === "cancelada" && ocAntiga.status !== "cancelada") {
+    novoCredito = (regras && regras.reverterCreditoAoCancelar === false)
+      ? moverCredito(credito, "cancelado", "reposição cancelada — regra da unidade não reverte o crédito")
+      : { ...moverCredito(credito, "disponivel", "reposição cancelada — crédito revertido"), ocorrenciaReposicaoId: null };
+  } else {
+    return alunos;
+  }
+  return alunos.map((a) => (a.id === aluno.id
+    ? { ...a, creditosReposicao: a.creditosReposicao.map((c) => (c.id === credito.id ? novoCredito : c)) }
+    : a));
+}
+
 /* Nome + identificação de quem está sendo acompanhado numa ocorrência —
    "Turma X (6 jogadores)" ou o nome do jogador individual. */
 function tituloOcorrencia(oc, alunos, turmas) {
@@ -14588,7 +14661,7 @@ function tituloOcorrencia(oc, alunos, turmas) {
    realizada mesmo com alunos ausentes; uma aula cancelada por chuva não
    deve marcar todos como faltantes" — por isso cancelar não mexe em
    `presencas`, e confirmar presença não muda `status`). */
-function CartaoOcorrencia({ ocorrencia: oc, alunos, turmas, quadras, aberta, aoAbrir, aoAtualizar }) {
+function CartaoOcorrencia({ ocorrencia: oc, alunos, setAlunos, turmas, quadras, regras, aberta, aoAbrir, aoAtualizar }) {
   const [professores, setProfessores] = useState([]);
   const [cancelando, setCancelando] = useState(false);
   const [motivo, setMotivo] = useState(oc.motivoCancelamento || "");
@@ -14620,6 +14693,14 @@ function CartaoOcorrencia({ ocorrencia: oc, alunos, turmas, quadras, aberta, aoA
   function escolherSubstituto(uid) {
     const p = professores.find((x) => x.uid === uid);
     aoAtualizar({ substitutoUid: uid, substitutoNome: p ? p.nome : "" });
+  }
+  function jaTemCredito(alunoId) {
+    const al = alunos.find((a) => a.id === alunoId);
+    return !!(al && (al.creditosReposicao || []).some((c) => c.origemOcorrenciaId === oc.id));
+  }
+  function concederCredito(alunoId) {
+    const credito = novoCreditoReposicao({ alunoId, origemOcorrenciaId: oc.id, motivo: oc.motivoCancelamento, regras });
+    setAlunos(alunos.map((a) => (a.id === alunoId ? { ...a, creditosReposicao: [...(a.creditosReposicao || []), credito] } : a)));
   }
 
   const corStatus = oc.status === "realizada" ? C.quadra : oc.status === "cancelada" ? "#A6432F" : pendente ? "#B8860B" : C.grafite;
@@ -14689,7 +14770,27 @@ function CartaoOcorrencia({ ocorrencia: oc, alunos, turmas, quadras, aberta, aoA
             </p>
           )}
           {oc.status === "cancelada" && (
-            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 8 }}>Motivo: {oc.motivoCancelamento}</p>
+            <div className="mb-3">
+              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 6 }}>Motivo: {oc.motivoCancelamento}</p>
+              {(oc.tipo === "regular" || oc.tipo === "experimental") && membros.length > 0 && setAlunos && (
+                <div>
+                  <Etiqueta cor={C.grafite}>Conceder crédito de reposição</Etiqueta>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {membros.map((al) => (
+                      jaTemCredito(al.id) ? (
+                        <span key={al.id} style={{ ...prosa, fontSize: 12, color: C.quadra, border: "1px solid " + C.quadra, borderRadius: 10, padding: "4px 9px" }}>
+                          ✓ {al.nome || "Sem nome"} — crédito concedido
+                        </span>
+                      ) : (
+                        <Botao key={al.id} pequeno variante="vazio" onClick={() => concederCredito(al.id)}>
+                          {al.nome || "Sem nome"}
+                        </Botao>
+                      )
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
 
           <Campo rotulo="Professor substituto / auxiliar nesta aula" nota="Deixe em branco se foi o professor titular mesmo.">
@@ -14715,7 +14816,7 @@ function CartaoOcorrencia({ ocorrencia: oc, alunos, turmas, quadras, aberta, aoA
    se ainda não tiverem sido geradas) e também varre os últimos 14 dias
    pra levantar "registro pendente" (aula que já passou e ninguém
    preencheu — nunca vira "realizada" sozinha). */
-function TelaAulasHoje({ alunos, turmas, quadras, ocorrencias, setOcorrencias, uidAtual, papelAtual }) {
+function TelaAulasHoje({ alunos, setAlunos, turmas, quadras, ocorrencias, setOcorrencias, regrasReposicao, uidAtual, papelAtual }) {
   const hoje = new Date().toISOString().slice(0, 10);
   const geradasRef = useRef(false);
   useEffect(() => {
@@ -14729,7 +14830,10 @@ function TelaAulasHoje({ alunos, turmas, quadras, ocorrencias, setOcorrencias, u
 
   const [abertaId, setAbertaId] = useState(null);
   function atualizar(id, patch) {
-    setOcorrencias(ocorrencias.map((o) => (o.id === id ? { ...o, ...patch, atualizadoEm: new Date().toISOString() } : o)));
+    const ocAntiga = ocorrencias.find((o) => o.id === id);
+    const ocNova = { ...ocAntiga, ...patch, atualizadoEm: new Date().toISOString() };
+    setOcorrencias(ocorrencias.map((o) => (o.id === id ? ocNova : o)));
+    if (setAlunos) setAlunos(aplicarEfeitoCreditoNaOcorrencia(alunos, ocAntiga, ocNova, regrasReposicao));
   }
   function minhas(lista) {
     return papelAtual === "coordenador" ? lista
@@ -14751,7 +14855,7 @@ function TelaAulasHoje({ alunos, turmas, quadras, ocorrencias, setOcorrencias, u
       ) : (
         <div className="mb-6">
           {deHoje.map((o) => (
-            <CartaoOcorrencia key={o.id} ocorrencia={o} alunos={alunos} turmas={turmas} quadras={quadras}
+            <CartaoOcorrencia key={o.id} ocorrencia={o} alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} regras={regrasReposicao}
               aberta={abertaId === o.id} aoAbrir={() => setAbertaId(abertaId === o.id ? null : o.id)}
               aoAtualizar={(patch) => atualizar(o.id, patch)} />
           ))}
@@ -14763,12 +14867,235 @@ function TelaAulasHoje({ alunos, turmas, quadras, ocorrencias, setOcorrencias, u
           <Etiqueta cor={C.grafite}>Registro pendente — aulas passadas sem preenchimento</Etiqueta>
           <div className="mt-2">
             {pendentes.map((o) => (
-              <CartaoOcorrencia key={o.id} ocorrencia={o} alunos={alunos} turmas={turmas} quadras={quadras}
+              <CartaoOcorrencia key={o.id} ocorrencia={o} alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} regras={regrasReposicao}
                 aberta={abertaId === o.id} aoAbrir={() => setAbertaId(abertaId === o.id ? null : o.id)}
                 aoAtualizar={(patch) => atualizar(o.id, patch)} />
             ))}
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+/* Configuração das regras de reposição, por unidade — motivos elegíveis,
+   exigência de aprovação, validade e se o crédito volta ao cancelar.
+   Só coordenador edita. Sem isso configurado, o padrão já é seguro
+   (exige aprovação, sem validade fixa, crédito sempre volta). */
+function FormRegrasReposicao({ regras, setRegras }) {
+  const [motivoNovo, setMotivoNovo] = useState("");
+  function adicionarMotivo() {
+    if (!motivoNovo.trim()) return;
+    setRegras({ ...regras, motivosElegiveis: [...regras.motivosElegiveis, motivoNovo.trim()] });
+    setMotivoNovo("");
+  }
+  function removerMotivo(i) {
+    setRegras({ ...regras, motivosElegiveis: regras.motivosElegiveis.filter((_, k) => k !== i) });
+  }
+  return (
+    <div className="mb-6" style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "12px 14px" }}>
+      <Etiqueta>Regras de reposição desta unidade</Etiqueta>
+      <div className="mt-2">
+        <Campo rotulo="Motivos elegíveis (só texto de apoio — a concessão continua sempre manual)">
+          {regras.motivosElegiveis.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-2">
+              {regras.motivosElegiveis.map((m, i) => (
+                <span key={i} className="flex items-center gap-1" style={{ fontFamily: ARCH, fontSize: 12, padding: "4px 9px", border: "1px solid " + C.linha, borderRadius: 10, background: C.papel }}>
+                  {m}<button onClick={() => removerMotivo(i)} style={{ border: "none", background: "none", cursor: "pointer", color: C.saibro, fontWeight: 700 }}>×</button>
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-2">
+            <input style={entrada} placeholder="ex: atestado médico" value={motivoNovo} onChange={(e) => setMotivoNovo(e.target.value)} />
+            <Botao pequeno variante="vazio" onClick={adicionarMotivo}>+ Adicionar</Botao>
+          </div>
+        </Campo>
+        <Campo rotulo="Aprovação do coordenador">
+          <Seletor opcoes={[{ v: true, r: "Crédito nasce pendente de aprovação" }, { v: false, r: "Crédito nasce disponível direto" }]}
+            valor={regras.exigeAprovacao} aoMudar={(v) => setRegras({ ...regras, exigeAprovacao: v })} />
+        </Campo>
+        <Campo rotulo="Validade do crédito (dias, opcional)">
+          <input type="number" min="0" style={{ ...entrada, width: 120 }} value={regras.validadeDias || ""}
+            onChange={(e) => setRegras({ ...regras, validadeDias: e.target.value ? Number(e.target.value) : null })} placeholder="sem validade" />
+        </Campo>
+        <Campo rotulo="Ao cancelar a reposição já agendada">
+          <Seletor opcoes={[{ v: true, r: "Crédito volta a disponível" }, { v: false, r: "Crédito é cancelado (não volta)" }]}
+            valor={regras.reverterCreditoAoCancelar} aoMudar={(v) => setRegras({ ...regras, reverterCreditoAoCancelar: v })} />
+        </Campo>
+        <Campo rotulo="Restrições de agendamento (texto livre)" nota="Ex.: só nos horários de nível igual ou abaixo do original.">
+          <textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={regras.restricoes}
+            onChange={(e) => setRegras({ ...regras, restricoes: e.target.value })} />
+        </Campo>
+      </div>
+    </div>
+  );
+}
+
+/* Uma linha de crédito de reposição — mostra o aluno, origem, validade e
+   a ação disponível pro status atual (aprovar / agendar / cancelar). */
+function LinhaCredito({ credito, aluno, professores, turmas, ocorrencias, aoAprovar, aoAgendar, aoCancelarAgendamento }) {
+  const [agendando, setAgendando] = useState(false);
+  const [data, setData] = useState("");
+  const [horaInicio, setHoraInicio] = useState("17:00");
+  const [quadraId, setQuadraId] = useState("");
+  const [professorUid, setProfessorUid] = useState(aluno.professorUid || "");
+  const [erro, setErro] = useState("");
+  const hoje = new Date().toISOString().slice(0, 10);
+  const statusEfetivo = statusEfetivoCredito(credito, hoje);
+
+  function confirmarAgendamento() {
+    if (!data || !horaInicio) { setErro("Escolha data e horário."); return; }
+    const resultado = aoAgendar(credito, { data, horaInicio, quadraId, professorUid });
+    if (resultado && resultado.erro) { setErro(resultado.erro); return; }
+    setAgendando(false); setErro("");
+  }
+
+  const ocorrenciaLigada = credito.ocorrenciaReposicaoId ? ocorrencias.find((o) => o.id === credito.ocorrenciaReposicaoId) : null;
+  const corStatus = statusEfetivo === "disponivel" ? C.quadra : statusEfetivo === "vencido" || statusEfetivo === "cancelado" ? "#A6432F" : C.grafite;
+
+  return (
+    <div style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, padding: "10px 13px", marginBottom: 8 }}>
+      <div className="flex items-center justify-between">
+        <div>
+          <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{aluno.nome || "Sem nome"}</p>
+          <p style={{ ...prosa, fontSize: 12, color: C.grafite }}>
+            {credito.motivo || "sem motivo registrado"}{credito.validoAte ? " · válido até " + formatarDataLonga(credito.validoAte) : ""}
+          </p>
+          {ocorrenciaLigada && (
+            <p style={{ ...prosa, fontSize: 12, color: C.grafite }}>
+              Agendado: {formatarDataLonga(ocorrenciaLigada.data)} às {ocorrenciaLigada.horaInicio}
+            </p>
+          )}
+        </div>
+        <span style={{ fontFamily: ARCH, fontSize: 11, fontWeight: 700, color: corStatus, border: "1px solid " + corStatus, borderRadius: 999, padding: "3px 8px", whiteSpace: "nowrap" }}>
+          {ROTULOS_STATUS_CREDITO[statusEfetivo] || statusEfetivo}
+        </span>
+      </div>
+
+      {statusEfetivo === "pendente_aprovacao" && (
+        <div className="mt-2"><Botao pequeno onClick={() => aoAprovar(credito)}>Aprovar crédito</Botao></div>
+      )}
+
+      {statusEfetivo === "disponivel" && !agendando && (
+        <div className="mt-2"><Botao pequeno onClick={() => setAgendando(true)}>Agendar reposição</Botao></div>
+      )}
+      {statusEfetivo === "disponivel" && agendando && (
+        <div className="mt-2 flex gap-2 items-center flex-wrap">
+          <input type="date" style={{ ...entrada, width: 140 }} value={data} onChange={(e) => setData(e.target.value)} />
+          <input type="time" style={{ ...entrada, width: 100 }} value={horaInicio} onChange={(e) => setHoraInicio(e.target.value)} />
+          <select style={{ ...entrada, width: 140 }} value={professorUid} onChange={(e) => setProfessorUid(e.target.value)}>
+            <option value="">Professor…</option>
+            {professores.map((p) => <option key={p.uid} value={p.uid}>{p.nome}</option>)}
+          </select>
+          <Botao pequeno onClick={confirmarAgendamento}>Confirmar</Botao>
+          <Botao pequeno variante="vazio" onClick={() => setAgendando(false)}>Cancelar</Botao>
+          {erro && <p style={{ ...prosa, fontSize: 12, color: "#A6432F", width: "100%" }}>{erro}</p>}
+        </div>
+      )}
+
+      {statusEfetivo === "reservado" && (
+        <div className="mt-2"><Botao pequeno variante="vazio" onClick={() => aoCancelarAgendamento(credito)}>Cancelar reposição agendada</Botao></div>
+      )}
+    </div>
+  );
+}
+
+/* Tela "Reposições" — pedido 6: configurar regras por unidade, nunca
+   conceder crédito automaticamente, mostrar créditos em cada estado
+   (disponível/reservado/utilizado/vencido/cancelado), reservar o crédito
+   ao agendar (impede uso duplicado) e consumir ao concluir. Agendar passa
+   pelo mesmo conflitosDeOcorrencia() usado em "Aulas de hoje" — não
+   oferece hora que já colida com quadra/professor/aluno. */
+function TelaReposicoes({ alunos, setAlunos, turmas, quadras, ocorrencias, setOcorrencias, regrasReposicao, setRegrasReposicao, papelAtual }) {
+  const [professores, setProfessores] = useState([]);
+  const [mostrarRegras, setMostrarRegras] = useState(false);
+  useEffect(() => { listaProfessores().then(setProfessores); }, []);
+
+  const hoje = new Date().toISOString().slice(0, 10);
+  const todosCreditos = [];
+  alunos.forEach((a) => (a.creditosReposicao || []).forEach((c) => todosCreditos.push({ credito: c, aluno: a })));
+  const contagens = { pendente_aprovacao: 0, disponivel: 0, reservado: 0, utilizado: 0, vencido: 0, cancelado: 0 };
+  todosCreditos.forEach(({ credito }) => { contagens[statusEfetivoCredito(credito, hoje)]++; });
+
+  function atualizarCreditoDoAluno(alunoId, creditoId, novoCredito) {
+    setAlunos(alunos.map((a) => (a.id === alunoId
+      ? { ...a, creditosReposicao: a.creditosReposicao.map((c) => (c.id === creditoId ? novoCredito : c)) }
+      : a)));
+  }
+  function aprovar(credito) {
+    const { aluno } = todosCreditos.find((x) => x.credito.id === credito.id);
+    atualizarCreditoDoAluno(aluno.id, credito.id, moverCredito(credito, "disponivel", "aprovado pelo coordenador"));
+  }
+  function agendar(credito, { data, horaInicio, quadraId, professorUid }) {
+    const { aluno } = todosCreditos.find((x) => x.credito.id === credito.id);
+    const duracaoMin = minutosDaDuracao(aluno.duracaoPadrao || "1h30");
+    const horaFim = horaMaisMinutos(horaInicio, duracaoMin);
+    const prof = professores.find((p) => p.uid === professorUid);
+    const candidata = novaOcorrencia({
+      origemTipo: "individual", origemId: aluno.id, recorrenciaChave: null,
+      data, horaInicio, horaFim, quadraId: quadraId || "",
+      professorUid: professorUid || "", professorNome: prof ? prof.nome : "",
+      tipo: "reposicao", status: "agendada",
+    });
+    const conflitos = conflitosDeOcorrencia(ocorrencias, candidata, turmas);
+    if (conflitos.length) return { erro: "Esse horário já está ocupado (conflito de " + conflitos[0].tipo + ") — escolha outro." };
+    setOcorrencias([...ocorrencias, candidata]);
+    atualizarCreditoDoAluno(aluno.id, credito.id, { ...moverCredito(credito, "reservado", "reposição agendada"), ocorrenciaReposicaoId: candidata.id });
+    return { ok: true };
+  }
+  function cancelarAgendamento(credito) {
+    const oc = ocorrencias.find((o) => o.id === credito.ocorrenciaReposicaoId);
+    if (!oc) return;
+    const ocNova = { ...oc, status: "cancelada", motivoCancelamento: "Reposição desmarcada pelo treinador", atualizadoEm: new Date().toISOString() };
+    setOcorrencias(ocorrencias.map((o) => (o.id === oc.id ? ocNova : o)));
+    setAlunos(aplicarEfeitoCreditoNaOcorrencia(alunos, oc, ocNova, regrasReposicao));
+  }
+
+  const ordemStatus = ["pendente_aprovacao", "disponivel", "reservado", "utilizado", "vencido", "cancelado"];
+
+  return (
+    <div>
+      <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Reposições</h1>
+      <p style={{ ...prosa, fontSize: 14, color: C.grafite, marginBottom: 16 }}>
+        Créditos de reposição nascem sempre de uma concessão manual — veja "Conceder crédito de reposição" ao cancelar uma aula em "Aulas de hoje".
+      </p>
+
+      <div className="flex flex-wrap gap-2 mb-4">
+        {ordemStatus.map((s) => (
+          <span key={s} style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 600, padding: "6px 11px", border: "1px solid " + C.linha, borderRadius: 10, background: C.cal }}>
+            {ROTULOS_STATUS_CREDITO[s]}: {contagens[s]}
+          </span>
+        ))}
+      </div>
+
+      {papelAtual === "coordenador" && (
+        <div className="mb-4">
+          <Botao pequeno variante="vazio" onClick={() => setMostrarRegras(!mostrarRegras)}>
+            {mostrarRegras ? "Ocultar regras da unidade" : "Configurar regras da unidade"}
+          </Botao>
+          {mostrarRegras && <div className="mt-3"><FormRegrasReposicao regras={regrasReposicao} setRegras={setRegrasReposicao} /></div>}
+        </div>
+      )}
+
+      {todosCreditos.length === 0 ? (
+        <p style={{ ...prosa, fontSize: 13.5, color: C.grafite }}>Nenhum crédito de reposição concedido ainda.</p>
+      ) : (
+        ordemStatus.map((s) => {
+          const doStatus = todosCreditos.filter((x) => statusEfetivoCredito(x.credito, hoje) === s);
+          if (doStatus.length === 0) return null;
+          return (
+            <div key={s} className="mb-5">
+              <Etiqueta cor={C.grafite}>{ROTULOS_STATUS_CREDITO[s]} ({doStatus.length})</Etiqueta>
+              <div className="mt-2">
+                {doStatus.map(({ credito, aluno }) => (
+                  <LinhaCredito key={credito.id} credito={credito} aluno={aluno} professores={professores} turmas={turmas} ocorrencias={ocorrencias}
+                    aoAprovar={aprovar} aoAgendar={agendar} aoCancelarAgendamento={cancelarAgendamento} />
+                ))}
+              </div>
+            </div>
+          );
+        })
       )}
     </div>
   );
@@ -15544,7 +15871,7 @@ function TelaAgenda({ alunos, turmas, uidAtual, exigeLogin }) {
 }
 const celulaGrade = { border: "1px solid " + C.linha, padding: "8px 10px", verticalAlign: "top" };
 
-const NAV_PRINCIPAL = [{ v: "dashboard", r: "Dashboard" }, { v: "aulas-hoje", r: "Aulas de hoje" }, { v: "alunos", r: "Jogadores" }, { v: "turmas", r: "Turmas" }, { v: "agenda", r: "Agenda" }, { v: "casos", r: "Casos" }];
+const NAV_PRINCIPAL = [{ v: "dashboard", r: "Dashboard" }, { v: "aulas-hoje", r: "Aulas de hoje" }, { v: "reposicoes", r: "Reposições" }, { v: "alunos", r: "Jogadores" }, { v: "turmas", r: "Turmas" }, { v: "agenda", r: "Agenda" }, { v: "casos", r: "Casos" }];
 const NAV_MANUAL = [{ v: "catalogo", r: "Catálogo" }, { v: "tecnica", r: "Técnica" }, { v: "taticas", r: "Táticas" },
   { v: "conducao", r: "Condução" }, { v: "publicos", r: "Públicos" }, { v: "aulas", r: "Aulas" }, { v: "metodo", r: "Como decide" }];
 
@@ -15564,6 +15891,8 @@ function App() {
   const [carregandoBloqueiosAula, setCarregandoBloqueiosAula] = useState(true);
   const [ocorrencias, setOcorrencias] = useState([]);
   const [carregandoOcorrencias, setCarregandoOcorrencias] = useState(true);
+  const [regrasReposicao, setRegrasReposicao] = useState(regrasReposicaoPadrao());
+  const [carregandoRegrasReposicao, setCarregandoRegrasReposicao] = useState(true);
   const [exerciciosCustom, setExerciciosCustom] = useState([]);
   const [carregandoCustom, setCarregandoCustom] = useState(true);
   /* Formação da equipe, no App (não em TelaEquipe): tanto a aba "Formação"
@@ -15811,6 +16140,7 @@ function App() {
     setCarregandoEventos(true);
     setCarregandoBloqueiosAula(true);
     setCarregandoOcorrencias(true);
+    setCarregandoRegrasReposicao(true);
     leia("mty:alunos:v2", []).then((a) => { setAlunos(a); prontoRef.current.alunos = true; setCarregando(false); });
     leia("mty:turmas:v1", [], true).then((t) => { setTurmas(t); prontoRef.current.turmas = true; setCarregandoTurmas(false); });
     leia("mty:exerciciosCustom:v1", [], true).then((ex) => { setExerciciosCustom(ex); setCatalogoCustom(ex); prontoRef.current.exerciciosCustom = true; setCarregandoCustom(false); });
@@ -15821,6 +16151,7 @@ function App() {
     leia("mty:eventos:v1", [], true).then((e) => { setEventos(e); prontoRef.current.eventos = true; setCarregandoEventos(false); });
     leia("mty:bloqueiosAula:v1", [], true).then((b) => { setBloqueiosAula(b); prontoRef.current.bloqueiosAula = true; setCarregandoBloqueiosAula(false); });
     leia("mty:ocorrencias:v1", [], true).then((o) => { setOcorrencias(o); prontoRef.current.ocorrencias = true; setCarregandoOcorrencias(false); });
+    leia("mty:regrasReposicao:v1", regrasReposicaoPadrao(), true).then((r) => { setRegrasReposicao(r); prontoRef.current.regrasReposicao = true; setCarregandoRegrasReposicao(false); });
     leia("mty:onboardingDispensado", false, true).then((v) => { setOnboardingDispensado(v); prontoRef.current.onboarding = true; });
 }, [autenticado, orgAtual]);
   useEffect(() => { if (autenticado && !carregando && prontoRef.current.alunos) grave("mty:alunos:v2", alunos); }, [alunos, carregando, autenticado]);
@@ -15831,6 +16162,7 @@ function App() {
   useEffect(() => { if (autenticado && !carregandoEventos && prontoRef.current.eventos) grave("mty:eventos:v1", eventos, true); }, [eventos, carregandoEventos, autenticado]);
   useEffect(() => { if (autenticado && !carregandoBloqueiosAula && prontoRef.current.bloqueiosAula) grave("mty:bloqueiosAula:v1", bloqueiosAula, true); }, [bloqueiosAula, carregandoBloqueiosAula, autenticado]);
   useEffect(() => { if (autenticado && !carregandoOcorrencias && prontoRef.current.ocorrencias) grave("mty:ocorrencias:v1", ocorrencias, true); }, [ocorrencias, carregandoOcorrencias, autenticado]);
+  useEffect(() => { if (autenticado && !carregandoRegrasReposicao && prontoRef.current.regrasReposicao) grave("mty:regrasReposicao:v1", regrasReposicao, true); }, [regrasReposicao, carregandoRegrasReposicao, autenticado]);
   useEffect(() => { if (autenticado && !carregandoFormacao && prontoRef.current.formacao) grave("mty:formacao:v1", membrosFormacao, true); }, [membrosFormacao, carregandoFormacao, autenticado]);
   useEffect(() => { if (autenticado && prontoRef.current.onboarding) grave("mty:onboardingDispensado", onboardingDispensado, true); }, [onboardingDispensado, autenticado]);
   // sincronizado durante o render (não num useEffect): TelaCatalogo e as
@@ -16301,7 +16633,9 @@ function App() {
          aba === "eventos" && mostraTorneiosEventos ? <TelaEventos eventos={eventos} setEventos={setEventos} orgAtual={orgAtual} /> :
          aba === "clientes" && (mostraQuadras || mostraTorneiosEventos) ? <TelaClientes quadras={quadras} reservas={reservas} torneios={torneios} eventos={eventos} /> :
          aba === "agenda" ? <TelaAgenda alunos={alunos} turmas={turmas} uidAtual={uidAtual} exigeLogin={exigeLogin} /> :
-         aba === "aulas-hoje" ? <TelaAulasHoje alunos={alunos} turmas={turmas} quadras={quadras} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} uidAtual={uidAtual} papelAtual={papelAtual} /> :
+         aba === "aulas-hoje" ? <TelaAulasHoje alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} regrasReposicao={regrasReposicao} uidAtual={uidAtual} papelAtual={papelAtual} /> :
+         aba === "reposicoes" ? <TelaReposicoes alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias}
+           regrasReposicao={regrasReposicao} setRegrasReposicao={setRegrasReposicao} papelAtual={papelAtual} /> :
          aba === "dashboard" ? <TelaDashboard alunos={alunos} turmas={turmas} papelAtual={papelAtual} uidAtual={uidAtual} exigeLogin={exigeLogin} usoIA={usoIA} identidade={identidade}
            irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }}
            aoAbrirSessao={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("sessao"); }}
