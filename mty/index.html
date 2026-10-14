@@ -12812,8 +12812,26 @@ function TelaQuadras({ quadras, setQuadras, reservas, setReservas, orgAtual, alu
   const [rascunho, setRascunho] = useState(null); // null = nenhum form de reserva aberto
   const [erro, setErro] = useState("");
   const [linkCopiado, setLinkCopiado] = useState(false);
+  // "grade" (todas as quadras lado a lado) ou "lista" (uma lista só, mais
+  // legível no celular) — pedido explícito de oferecer as duas visões.
+  const [modoVisao, setModoVisao] = useState("grade");
+  const [filtroQuadraId, setFiltroQuadraId] = useState("");
+  const [filtroTipo, setFiltroTipo] = useState("");
+  const [detalheAberto, setDetalheAberto] = useState(null);
+
+  function mudarData(deltaDias) {
+    const d = new Date(dataEscolhida + "T00:00:00");
+    d.setDate(d.getDate() + deltaDias);
+    setDataEscolhida(dataISO(d));
+    setRascunho(null);
+  }
+  function nomeQuadra(id) {
+    const q = quadras.find((x) => x.id === id);
+    return q ? q.nome : "";
+  }
 
   const quadrasAtivas = quadras.filter((q) => q.ativa !== false);
+  const quadrasExibidas = filtroQuadraId ? quadrasAtivas.filter((q) => q.id === filtroQuadraId) : quadrasAtivas;
   const linkReserva = orgAtual ? location.origin + "/reservar.html?org=" + encodeURIComponent(orgAtual) : "";
 
   async function copiarLink() {
@@ -12907,14 +12925,52 @@ function TelaQuadras({ quadras, setQuadras, reservas, setReservas, orgAtual, alu
     return (ocorrencias || [])
       .filter((o) => o.data === dataEscolhida && o.status !== "cancelada" && o.quadraId)
       .map((o) => ({
-        quadraId: o.quadraId, hora: o.horaInicio, horaFim: o.horaFim,
+        quadraId: o.quadraId, hora: o.horaInicio, horaFim: o.horaFim, tipo: o.tipo,
         titulo: tituloOcorrencia(o, alunos || [], turmas || []) + (o.tipo === "reposicao" ? " (reposição)" : ""),
         professorNome: o.professorNome, professorAuxiliarNome: o.professorAuxiliarNome,
       }));
   }, [ocorrencias, dataEscolhida, alunos, turmas]);
+  const reservasDoDia = useMemo(() => (reservas || []).filter((r) => r.data === dataEscolhida), [reservas, dataEscolhida]);
+  /* Filtro "por tipo de ocupação" só aparece quando há mais de um tipo
+     pra filtrar nesse dia — pedido "quando houver", sem poluir a tela em
+     dias com só um tipo de compromisso. */
+  const tiposPresentesHoje = useMemo(() => {
+    const s = new Set();
+    aulasDoDia.forEach((a) => s.add(a.tipo === "reposicao" ? "reposicao" : "aula"));
+    if (reservasDoDia.length > 0) s.add("reserva");
+    return s;
+  }, [aulasDoDia, reservasDoDia]);
+  function passaNosFiltros(quadraId, tipo) {
+    if (filtroQuadraId && quadraId !== filtroQuadraId) return false;
+    if (filtroTipo && filtroTipo !== tipo) return false;
+    return true;
+  }
   function aulaEm(quadraId, hora) {
+    // O filtro por tipo (seção "Lista do dia") não vale aqui: esconder
+    // uma aula/reposição/reserva da grade por tipo faria o horário
+    // aparecer como "livre" por engano — a grade só filtra por quadra
+    // (coluna removida de verdade, sem fingir disponibilidade de outra).
     return aulasDoDia.find((c) => c.quadraId === quadraId && c.hora <= hora && hora < c.horaFim);
   }
+  /* "Lista do dia": tudo que ocupa alguma quadra hoje, numa lista só
+     ordenada por horário — mais fácil de ler no celular que a grade
+     inteira, principalmente com poucas ocupações no dia. */
+  const itensListaDia = useMemo(() => {
+    const itens = [];
+    aulasDoDia.forEach((a) => {
+      const tipo = a.tipo === "reposicao" ? "reposicao" : "aula";
+      if (!passaNosFiltros(a.quadraId, tipo)) return;
+      itens.push({ tipo, quadraId: a.quadraId, hora: a.hora, horaFim: a.horaFim, titulo: a.titulo,
+        professorNome: a.professorNome, professorAuxiliarNome: a.professorAuxiliarNome });
+    });
+    reservasDoDia.forEach((r) => {
+      if (!passaNosFiltros(r.quadraId, "reserva")) return;
+      itens.push({ tipo: "reserva", quadraId: r.quadraId, hora: r.horaInicio, horaFim: r.horaFim, titulo: r.nomeContato, reserva: r });
+    });
+    return itens.sort((x, y) => x.hora.localeCompare(y.hora) || nomeQuadra(x.quadraId).localeCompare(nomeQuadra(y.quadraId)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aulasDoDia, reservasDoDia, filtroQuadraId, filtroTipo, quadras]);
+  const ROTULO_TIPO_OCUPACAO = { aula: "aula", reposicao: "reposição", reserva: "reserva" };
 
   return (
     <div>
@@ -13000,44 +13056,101 @@ function TelaQuadras({ quadras, setQuadras, reservas, setReservas, orgAtual, alu
         )}
       </div>
 
-      <Campo rotulo="Ver agenda do dia">
-        <input type="date" style={{ ...entrada, maxWidth: 220 }} value={dataEscolhida}
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <Botao pequeno variante="vazio" onClick={() => mudarData(-1)}>Anterior</Botao>
+        <Botao pequeno variante="vazio" onClick={() => setDataEscolhida(dataISO(new Date()))}>Hoje</Botao>
+        <Botao pequeno variante="vazio" onClick={() => mudarData(1)}>Próximo</Botao>
+        <input type="date" style={{ ...entrada, maxWidth: 170 }} value={dataEscolhida}
           onChange={(e) => { setDataEscolhida(e.target.value); setRascunho(null); }} />
-      </Campo>
-      <div className="mb-5"><Etiqueta>{formatarDataLonga(dataEscolhida)}</Etiqueta></div>
+      </div>
+      <div className="mb-4"><Etiqueta>{formatarDataLonga(dataEscolhida)}</Etiqueta></div>
+
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        {[{ v: "grade", r: "Grade de quadras" }, { v: "lista", r: "Lista do dia" }].map((t) => (
+          <button key={t.v} onClick={() => setModoVisao(t.v)}
+            style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, padding: "6px 11px", borderRadius: 10, cursor: "pointer",
+              border: "1px solid " + (modoVisao === t.v ? C.tinta : C.linha),
+              background: modoVisao === t.v ? C.tinta : C.papel, color: modoVisao === t.v ? C.papel : C.grafite }}>
+            {t.r}
+          </button>
+        ))}
+      </div>
+
+      {(quadrasAtivas.length > 1 || (modoVisao === "lista" && tiposPresentesHoje.size > 1)) && (
+        <div className="flex gap-2 mb-4 flex-wrap items-end">
+          {quadrasAtivas.length > 1 && (
+            <Campo rotulo="Filtrar por quadra">
+              <select style={{ ...entrada, width: 180 }} value={filtroQuadraId} onChange={(e) => setFiltroQuadraId(e.target.value)}>
+                <option value="">Todas as quadras</option>
+                {quadrasAtivas.map((q) => <option key={q.id} value={q.id}>{q.nome}</option>)}
+              </select>
+            </Campo>
+          )}
+          {modoVisao === "lista" && tiposPresentesHoje.size > 1 && (
+            <Campo rotulo="Filtrar por tipo">
+              <select style={{ ...entrada, width: 160 }} value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)}>
+                <option value="">Todos os tipos</option>
+                {[...tiposPresentesHoje].map((t) => <option key={t} value={t}>{ROTULO_TIPO_OCUPACAO[t]}</option>)}
+              </select>
+            </Campo>
+          )}
+        </div>
+      )}
 
       {quadrasAtivas.length === 0 ? (
         <p style={{ ...prosa, color: C.grafite }}>Cadastre uma quadra acima pra começar a receber reservas.</p>
+      ) : modoVisao === "lista" ? (
+        itensListaDia.length === 0 ? (
+          <p style={{ ...prosa, color: C.grafite }}>Nenhuma aula, reposição ou reserva nesse dia (com os filtros atuais).</p>
+        ) : (
+          <div>
+            {itensListaDia.map((item, i) => (
+              <button key={i} onClick={() => setDetalheAberto(item)} className="w-full text-left flex items-center justify-between gap-3"
+                style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "10px 13px", marginBottom: 7, cursor: "pointer", minHeight: 44 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{item.hora}–{item.horaFim} · {nomeQuadra(item.quadraId)}</div>
+                  <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>{item.titulo} · {ROTULO_TIPO_OCUPACAO[item.tipo]}</p>
+                </div>
+                <Etiqueta cor={item.tipo === "reserva" ? C.saibro : C.quadra}>{ROTULO_TIPO_OCUPACAO[item.tipo]}</Etiqueta>
+              </button>
+            ))}
+          </div>
+        )
       ) : (
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 90 + quadrasAtivas.length * 150 }}>
+        <div style={{ overflow: "auto", maxHeight: "70vh", border: "1px solid " + C.linha }}>
+          <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 90 + quadrasExibidas.length * 150 }}>
             <thead>
               <tr>
-                <th style={{ ...celulaGrade, background: C.papel }}></th>
-                {quadrasAtivas.map((q) => (
-                  <th key={q.id} style={{ ...celulaGrade, fontFamily: ARCH, fontSize: 12, fontWeight: 700, textAlign: "left" }}>{q.nome}</th>
+                <th style={{ ...celulaGrade, background: C.papel, position: "sticky", left: 0, top: 0, zIndex: 3 }}></th>
+                {quadrasExibidas.map((q) => (
+                  <th key={q.id} style={{ ...celulaGrade, fontFamily: ARCH, fontSize: 12, fontWeight: 700, textAlign: "left",
+                    background: C.papel, position: "sticky", top: 0, zIndex: 2 }}>{q.nome}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {FAIXAS_MEIA_HORA.slice(0, -1).map((hora) => (
                 <tr key={hora}>
-                  <td style={{ ...celulaGrade, fontFamily: ARCH, fontSize: 12, fontWeight: 700, color: C.grafite, whiteSpace: "nowrap" }}>{hora}</td>
-                  {quadrasAtivas.map((q) => {
+                  <td style={{ ...celulaGrade, fontFamily: ARCH, fontSize: 12, fontWeight: 700, color: C.grafite, whiteSpace: "nowrap",
+                    background: C.papel, position: "sticky", left: 0, zIndex: 1 }}>{hora}</td>
+                  {quadrasExibidas.map((q) => {
                     const aula = aulaEm(q.id, hora);
                     if (aula) {
                       const primeiraFaixa = aula.hora === hora;
+                      const tipoAula = aula.tipo === "reposicao" ? "reposicao" : "aula";
                       return (
-                        <td key={q.id} style={{ ...celulaGrade, minWidth: 140, background: primeiraFaixa ? "#E8F0EA" : "#F1F5F2" }}>
+                        <td key={q.id} style={{ ...celulaGrade, minWidth: 140, padding: 0, background: primeiraFaixa ? "#E8F0EA" : "#F1F5F2" }}>
                           {primeiraFaixa && (
-                            <div>
+                            <button onClick={() => setDetalheAberto({ tipo: tipoAula, quadraId: q.id, hora: aula.hora, horaFim: aula.horaFim,
+                              titulo: aula.titulo, professorNome: aula.professorNome, professorAuxiliarNome: aula.professorAuxiliarNome })}
+                              style={{ width: "100%", textAlign: "left", border: "none", background: "transparent", cursor: "pointer", padding: "6px 10px" }}>
                               <div style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700 }}>{aula.titulo}</div>
                               <div style={{ ...prosa, fontSize: 10.5, color: C.grafite }}>
                                 {aula.professorNome || "sem professor definido"}
                                 {aula.professorAuxiliarNome ? " + " + aula.professorAuxiliarNome : ""}
                               </div>
-                              <div style={{ ...prosa, fontSize: 10, color: C.grafite }}>{aula.hora}–{aula.horaFim} · aula</div>
-                            </div>
+                              <div style={{ ...prosa, fontSize: 10, color: C.grafite }}>{aula.hora}–{aula.horaFim} · {ROTULO_TIPO_OCUPACAO[tipoAula]}</div>
+                            </button>
                           )}
                         </td>
                       );
@@ -13046,15 +13159,17 @@ function TelaQuadras({ quadras, setQuadras, reservas, setReservas, orgAtual, alu
                     if (r) {
                       const primeiraFaixa = r.horaInicio === hora;
                       return (
-                        <td key={q.id} style={{ ...celulaGrade, minWidth: 140, background: primeiraFaixa ? C.cal : "#EFEAE4" }}>
+                        <td key={q.id} style={{ ...celulaGrade, minWidth: 140, padding: 0, background: primeiraFaixa ? C.cal : "#EFEAE4" }}>
                           {primeiraFaixa && (
-                            <div className="flex items-center justify-between gap-2">
-                              <div>
+                            <div className="flex items-center justify-between gap-2" style={{ padding: "6px 10px" }}>
+                              <button onClick={() => setDetalheAberto({ tipo: "reserva", quadraId: q.id, hora: r.horaInicio, horaFim: r.horaFim,
+                                titulo: r.nomeContato, reserva: r })}
+                                style={{ flex: 1, textAlign: "left", border: "none", background: "transparent", cursor: "pointer", padding: 0, minWidth: 0 }}>
                                 <div style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700 }}>{r.nomeContato}</div>
                                 <div style={{ ...prosa, fontSize: 10.5, color: C.grafite }}>
-                                  {r.horaInicio}–{r.horaFim}{r.origem === "cliente" ? " · reservado pelo cliente" : ""}
+                                  {r.horaInicio}–{r.horaFim} · reserva{r.origem === "cliente" ? " · pelo cliente" : ""}
                                 </div>
-                              </div>
+                              </button>
                               <button onClick={() => removerReserva(r.id)} title="Cancelar reserva"
                                 style={{ ...iconeEstilo, width: 20, height: 20, fontSize: 12, flexShrink: 0 }}>×</button>
                             </div>
@@ -13067,7 +13182,7 @@ function TelaQuadras({ quadras, setQuadras, reservas, setReservas, orgAtual, alu
                       <td key={q.id} style={{ ...celulaGrade, minWidth: 140, padding: 0 }}>
                         <button onClick={() => abrirFormNaFaixa(q.id, hora)}
                           style={{ width: "100%", height: "100%", minHeight: 32, border: "none", background: "transparent",
-                            cursor: "pointer", fontFamily: ARCH, fontSize: 11, color: preco != null ? C.quadra : C.linha }}>
+                            cursor: "pointer", fontFamily: ARCH, fontSize: 11, fontWeight: 700, color: preco != null ? C.quadra : C.grafite }}>
                           {preco != null ? formatarPreco(preco) : "livre"}
                         </button>
                       </td>
@@ -13078,6 +13193,44 @@ function TelaQuadras({ quadras, setQuadras, reservas, setReservas, orgAtual, alu
             </tbody>
           </table>
         </div>
+      )}
+
+      {detalheAberto && (
+        <>
+          <div onClick={() => setDetalheAberto(null)} style={{ position: "fixed", inset: 0, background: "rgba(16,30,25,.4)", zIndex: 39 }} />
+          <div role="dialog" aria-modal="true" aria-label="Detalhes da ocupação"
+            style={{ position: "fixed", left: 0, right: 0, bottom: 0, background: C.cal, zIndex: 40,
+              borderRadius: "16px 16px 0 0", boxShadow: SOMBRA_ALTA, paddingBottom: "env(safe-area-inset-bottom)" }}>
+            <div className="flex items-center justify-between" style={{ padding: "14px 18px", borderBottom: "1px solid " + C.linha }}>
+              <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{ROTULO_TIPO_OCUPACAO[detalheAberto.tipo]}</span>
+              <button onClick={() => setDetalheAberto(null)} aria-label="Fechar" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", fontSize: 20, color: C.grafite }}>×</button>
+            </div>
+            <div style={{ padding: "12px 18px 20px" }}>
+              <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{detalheAberto.titulo}</p>
+              <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginBottom: 2 }}>
+                {nomeQuadra(detalheAberto.quadraId)} · {detalheAberto.hora}–{detalheAberto.horaFim}
+              </p>
+              {detalheAberto.tipo !== "reserva" ? (
+                <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>
+                  {detalheAberto.professorNome || "sem professor definido"}
+                  {detalheAberto.professorAuxiliarNome ? " + " + detalheAberto.professorAuxiliarNome : ""}
+                </p>
+              ) : (
+                <>
+                  <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>
+                    {detalheAberto.reserva.telefoneContato}{detalheAberto.reserva.origem === "cliente" ? " · reservado pelo cliente" : " · reservado pela academia"}
+                  </p>
+                  {detalheAberto.reserva.observacao && (
+                    <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginTop: 4 }}>{detalheAberto.reserva.observacao}</p>
+                  )}
+                  <div className="mt-3">
+                    <Botao pequeno variante="vazio" onClick={() => { removerReserva(detalheAberto.reserva.id); setDetalheAberto(null); }}>Cancelar reserva</Botao>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </>
       )}
 
       {rascunho && (
