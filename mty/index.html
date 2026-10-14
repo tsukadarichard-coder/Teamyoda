@@ -2229,15 +2229,20 @@ function categoriaPeloNivel(estagio, nivel) {
   return achada ? achada.id : null;
 }
 
-/* A metodologia (ver LegendaNiveis) sempre disse que um critério só é
-   marcado depois de aparecer em três ocasiões distintas, em aulas
-   diferentes — mas até aqui isso era só um texto ao lado de um
-   checkbox de um clique só. Agora o valor guardado em
-   criteriosClassificacao[chave] é um array de datas (uma por
-   observação distinta; a mesma data não conta duas vezes). Fichas
-   salvas ANTES desta mudança guardam `true` nessa chave — nunca
-   convertido ou "preenchido" com datas inventadas, só reconhecido como
-   confirmado sem detalhamento de observações (ver criterioConfirmado). */
+/* A metodologia (ver LegendaNiveis) fala em três ocasiões observadas —
+   mas exigir que fossem três DIAS diferentes (pedido de uma fase
+   anterior) travava o treinador na prática: muitas vezes ele avalia o
+   jogador inteiro numa única sessão e já sabe, naquele dia, pra qual
+   nível pular — exigir esperar três dias distintos só atrasava a ficha
+   sem ganho real (quem decide quantas observações valem é o
+   treinador, não o aplicativo). A data continua sendo registrada (pra
+   saber quando cada observação foi feita), mas o mesmo dia agora pode
+   ser usado mais de uma vez — o valor guardado em
+   criteriosClassificacao[chave] é um array de datas, sem exigir que
+   sejam distintas entre si. Fichas salvas ANTES desta mudança guardam
+   `true` nessa chave — nunca convertido ou "preenchido" com datas
+   inventadas, só reconhecido como confirmado sem detalhamento de
+   observações (ver criterioConfirmado). */
 function observacoesCriterio(marcados, chave) {
   const v = marcados[chave];
   return Array.isArray(v) ? v : [];
@@ -3557,7 +3562,7 @@ function LegendaNiveis({ nivelInicial }) {
         <div className="mt-3">
           <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 10 }}>
             O aluno nunca é testado — é observado dentro das aulas normais. Um critério só é marcado depois de
-            aparecer em três ocasiões distintas, em aulas diferentes.
+            aparecer em três ocasiões — o treinador decide quantas valem no mesmo dia.
           </p>
           <div className="flex gap-1 flex-wrap mb-3">
             {NIVEIS_CRITERIOS.map((c) => (
@@ -3612,12 +3617,12 @@ function CriterioLinha({ cr, chave, marcados, set, explicacao }) {
   const hoje = new Date().toISOString().slice(0, 10);
 
   function registrar() {
-    if (!data || obs.includes(data)) return;
+    if (!data) return;
     set("criteriosClassificacao", { ...marcados, [chave]: [...obs, data].sort() });
     setData(hoje);
   }
-  function removerData(d) {
-    set("criteriosClassificacao", { ...marcados, [chave]: obs.filter((x) => x !== d) });
+  function removerObservacao(indice) {
+    set("criteriosClassificacao", { ...marcados, [chave]: obs.filter((_, i) => i !== indice) });
   }
   function desfazerLegado() {
     const resto = { ...marcados };
@@ -3657,23 +3662,23 @@ function CriterioLinha({ cr, chave, marcados, set, explicacao }) {
       {expandido && !legado && (
         <div className="mt-2" style={{ borderTop: "1px solid " + C.linha, paddingTop: 8, paddingLeft: 27 }}>
           <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginBottom: 6 }}>
-            Cada observação precisa ser de uma aula diferente — a mesma data não conta duas vezes.
+            Registre quantas observações achar válidas — pode ser tudo no mesmo dia, se foi assim que você avaliou.
           </p>
           {obs.length === 0 && (
             <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 8 }}>Não observado nas ocasiões avaliadas até agora.</p>
           )}
-          {obs.map((d) => (
-            <div key={d} className="flex items-center justify-between gap-2 mb-1">
+          {obs.map((d, i) => (
+            <div key={i} className="flex items-center justify-between gap-2 mb-1">
               <Etiqueta>{new Date(d + "T00:00:00").toLocaleDateString("pt-BR")}</Etiqueta>
-              <button onClick={() => removerData(d)} aria-label={"Remover observação de " + d} style={iconeEstilo}>×</button>
+              <button onClick={() => removerObservacao(i)} aria-label={"Remover observação de " + d} style={iconeEstilo}>×</button>
             </div>
           ))}
           {obs.length < 3 && (
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               <input type="date" style={{ ...entrada, maxWidth: 160 }} value={data} max={hoje}
                 onChange={(e) => setData(e.target.value)} />
-              <Botao pequeno variante="saibro" onClick={registrar} disabled={!data || obs.includes(data)}>
-                {obs.includes(data) ? "Esta data já está registrada" : "+ Registrar observação"}
+              <Botao pequeno variante="saibro" onClick={registrar} disabled={!data}>
+                + Registrar observação
               </Botao>
             </div>
           )}
@@ -3755,9 +3760,9 @@ function TrilhaClassificacao({ f, set }) {
   return (
     <div className="mb-5">
       <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 14 }}>
-        Registre o que você já observou do jogador em quadra, em três ocasiões distintas, em aulas
-        diferentes. Vale para todos os degraus de uma vez, na ordem em que aparecem; o resultado, ao
-        final, é calculado sozinho.
+        Registre o que você já observou do jogador em quadra, em três ocasiões — pode ser tudo na
+        mesma aula, se foi assim que você avaliou. Vale para todos os degraus de uma vez, na ordem em
+        que aparecem; o resultado, ao final, é calculado sozinho.
       </p>
       {lista.map((cat) => {
         const feitos = cat.criterios.filter((_, i) => criterioConfirmado(marcados, cat.id + ":" + i)).length;
@@ -6317,11 +6322,11 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
           <Secao titulo="Avaliação do jogador" nota="Registre o que você observa em quadra. A classificação segue os critérios da metodologia, com sua revisão.">
             <AjudaContextual titulo="Como funciona a avaliação">
               O aluno nunca é testado — é observado dentro das aulas normais. Um critério só é confirmado
-              depois de aparecer em três ocasiões distintas, em aulas diferentes (a mesma aula não conta
-              duas vezes). Os degraus abaixo são consultados em ordem: o nível só sobe quando o degrau
-              atual estiver com todos os critérios confirmados, sem pular nenhum. Avaliações feitas antes
-              deste detalhamento por data continuam valendo, marcadas como confirmadas sem o registro de
-              quais aulas foram observadas.
+              depois de aparecer em três ocasiões — você decide quantas valem no mesmo dia, inclusive
+              as três de uma vez, se foi assim que avaliou. Os degraus abaixo são consultados em ordem:
+              o nível só sobe quando o degrau atual estiver com todos os critérios confirmados, sem
+              pular nenhum. Avaliações feitas antes deste detalhamento por data continuam valendo,
+              marcadas como confirmadas sem o registro de quais aulas foram observadas.
             </AjudaContextual>
             <CartaoNivel f={f} />
             <div className="mt-3 mb-4">
