@@ -16438,9 +16438,203 @@ function TelaDashboard({ alunos, turmas, ocorrencias, papelAtual, uidAtual, exig
    verdade, navegável), não mais um template abstrato que repete sempre
    igual. Isso corrige de raiz a razão de "Agenda não bate com Quadras":
    eram dois cálculos diferentes de quem está ocupado quando. */
-function TelaAgenda({ alunos, turmas, ocorrencias, setOcorrencias, quadras, setQuadras, reservas, setReservas, bloqueiosAula, setBloqueiosAula, orgAtual, mostraQuadras, uidAtual, exigeLogin }) {
+/* "+ Agendar" — fluxo único pedido na seção 5: um só botão, campos
+   condicionais por tipo. Reposição e bloqueio não ganham um formulário
+   próprio aqui — reposição precisa partir de um crédito já existente
+   (regra que já vale em Reposições, nunca inventa o direito), e
+   bloqueio recorrente por horário já tem seu próprio mecanismo em
+   "Horários recorrentes"; duplicar os dois aqui criaria uma segunda
+   forma de produzir a mesma coisa, exatamente o que a unificação quer
+   evitar. Por isso, ao escolher um desses dois tipos, o modal fecha e
+   leva direto pra tela certa, em vez de reimplementar o fluxo. */
+function ModalAgendar({ aberto, aoFechar, dataInicial, alunos, setAlunos, turmas, setTurmas, quadras, reservas, setReservas, bloqueiosAula, ocorrencias, setOcorrencias, aoIrParaReposicoes, aoIrParaRecorrentes }) {
+  const [tipo, setTipo] = useState(null); // null | "individual" | "turma" | "locacao"
+  const [alunoId, setAlunoId] = useState("");
+  const [turmaId, setTurmaId] = useState("");
+  const [data, setData] = useState(dataInicial || dataISO(new Date()));
+  const [horaInicio, setHoraInicio] = useState("");
+  const [horaFim, setHoraFim] = useState("");
+  const [quadraId, setQuadraId] = useState("");
+  const [repeticao, setRepeticao] = useState("unica"); // "unica" | "semanal" (só pra aula)
+  const [nomeContato, setNomeContato] = useState("");
+  const [telefoneContato, setTelefoneContato] = useState("");
+  const [observacao, setObservacao] = useState("");
+  const [erro, setErro] = useState("");
+  const [enviando, setEnviando] = useState(false);
+
+  if (!aberto) return null;
+
+  function fecharTudo() {
+    setTipo(null); setAlunoId(""); setTurmaId(""); setHoraInicio(""); setHoraFim(""); setQuadraId("");
+    setRepeticao("unica"); setNomeContato(""); setTelefoneContato(""); setObservacao(""); setErro(""); setEnviando(false);
+    aoFechar();
+  }
+
+  function escolherTipo(t) {
+    if (t === "reposicao") { fecharTudo(); aoIrParaReposicoes(); return; }
+    if (t === "bloqueio") { fecharTudo(); aoIrParaRecorrentes(); return; }
+    setTipo(t);
+    setErro("");
+    if (t === "individual" || t === "turma") {
+      const entidade = t === "individual" ? alunos.find((a) => a.id === alunoId) : turmas.find((x) => x.id === turmaId);
+      if (entidade && horaInicio) setHoraFim(horaMaisMinutos(horaInicio, minutosDaDuracao(entidade.duracaoPadrao)));
+    }
+  }
+
+  function aoMudarEntidadeOuHora(novaHoraInicio) {
+    setHoraInicio(novaHoraInicio);
+    const entidade = tipo === "individual" ? alunos.find((a) => a.id === alunoId) : turmas.find((x) => x.id === turmaId);
+    if (entidade && novaHoraInicio) setHoraFim(horaMaisMinutos(novaHoraInicio, minutosDaDuracao(entidade.duracaoPadrao)));
+  }
+
+  async function confirmar() {
+    setErro("");
+    if (tipo === "individual" && !alunoId) return setErro("Escolha o jogador.");
+    if (tipo === "turma" && !turmaId) return setErro("Escolha a turma.");
+    if (tipo === "locacao" && (!nomeContato.trim() || !telefoneContato.trim())) return setErro("Preencha nome e telefone de contato.");
+    if (tipo === "locacao" && !quadraId) return setErro("Escolha a quadra.");
+    if (!data || !horaInicio || !horaFim) return setErro("Preencha data, início e término.");
+    if (horaFim <= horaInicio) return setErro("O término precisa ser depois do início.");
+
+    setEnviando(true);
+    try {
+      if (tipo === "locacao") {
+        const candidata = { quadraId, data, horaInicio, horaFim };
+        const disp = disponibilidadeDaQuadra({ ...candidata, ocorrencias, reservas, bloqueiosAula, turmas });
+        if (!disp.livre) { setErro(disp.motivo); return; }
+        setReservas([...reservas, { ...novaReserva(), quadraId, data, horaInicio, horaFim, nomeContato: nomeContato.trim(), telefoneContato: telefoneContato.trim(), observacao: observacao.trim() }]);
+        fecharTudo();
+        return;
+      }
+
+      // aula individual ou de turma
+      const origemTipo = tipo === "turma" ? "turma" : "individual";
+      const entidade = tipo === "turma" ? turmas.find((x) => x.id === turmaId) : alunos.find((a) => a.id === alunoId);
+      if (!entidade) { setErro("Não encontrei o cadastro escolhido."); return; }
+
+      if (repeticao === "semanal") {
+        const dia = diaDaSemanaISO(data);
+        const novoHorario = { dia, hora: horaInicio, quadraId: quadraId || "" };
+        const candidataValidacao = novaOcorrencia({
+          origemTipo, origemId: entidade.id, recorrenciaChave: null, data, horaInicio, horaFim, quadraId: quadraId || "",
+          professorUid: entidade.professorUid || "", professorAuxiliarUid: entidade.professorAuxiliarUid || "",
+        });
+        const conflitos = conflitosDeOcorrencia(ocorrencias, candidataValidacao, turmas);
+        if (conflitos.length) { setErro("Conflito de " + conflitos[0].tipo + " na primeira data desta recorrência — escolha outro horário."); return; }
+        if (quadraId) {
+          const disp = disponibilidadeDaQuadra({ quadraId, data, horaInicio, horaFim, ocorrencias, reservas, bloqueiosAula, turmas });
+          if (!disp.livre) { setErro(disp.motivo + " (validamos só a primeira data; semanas futuras podem precisar de checagem manual)"); return; }
+        }
+        if (tipo === "turma") setTurmas(turmas.map((t) => (t.id === entidade.id ? { ...t, horarios: [...(t.horarios || []), novoHorario] } : t)));
+        else setAlunos(alunos.map((a) => (a.id === entidade.id ? { ...a, horarios: [...(a.horarios || []), novoHorario] } : a)));
+      } else {
+        const candidata = novaOcorrencia({
+          origemTipo, origemId: entidade.id, recorrenciaChave: null, data, horaInicio, horaFim, quadraId: quadraId || "",
+          professorUid: entidade.professorUid || "", professorNome: entidade.professorNome || "",
+          professorAuxiliarUid: entidade.professorAuxiliarUid || "", professorAuxiliarNome: entidade.professorAuxiliarNome || "",
+          tipo: "regular", status: "agendada", observacoes: observacao.trim(),
+        });
+        const conflitos = conflitosDeOcorrencia(ocorrencias, candidata, turmas);
+        if (conflitos.length) { setErro("Conflito de " + conflitos[0].tipo + " nesse horário — escolha outro."); return; }
+        if (quadraId) {
+          const disp = disponibilidadeDaQuadra({ quadraId, data, horaInicio, horaFim, ocorrencias, reservas, bloqueiosAula, turmas });
+          if (!disp.livre) { setErro(disp.motivo); return; }
+        }
+        setOcorrencias([...ocorrencias, candidata]);
+      }
+      fecharTudo();
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <>
+      <div onClick={fecharTudo} style={{ position: "fixed", inset: 0, background: "rgba(16,30,25,.4)", zIndex: 49 }} />
+      <div role="dialog" aria-modal="true" aria-label="Agendar"
+        style={{ position: "fixed", left: 0, right: 0, bottom: 0, background: C.cal, zIndex: 50,
+          borderRadius: "16px 16px 0 0", boxShadow: SOMBRA_ALTA, paddingBottom: "env(safe-area-inset-bottom)",
+          maxHeight: "88vh", overflowY: "auto" }}>
+        <div className="flex items-center justify-between" style={{ padding: "14px 18px", borderBottom: "1px solid " + C.linha }}>
+          <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>Agendar</span>
+          <button onClick={fecharTudo} aria-label="Fechar" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", fontSize: 20, color: C.grafite }}>×</button>
+        </div>
+        <div style={{ padding: 18 }}>
+          {!tipo ? (
+            <div className="flex flex-col gap-2">
+              {[{ v: "individual", r: "Aula individual" }, { v: "turma", r: "Aula de turma" },
+                { v: "locacao", r: "Locação" }, { v: "reposicao", r: "Reposição" }, { v: "bloqueio", r: "Bloqueio" }].map((t) => (
+                <button key={t.v} onClick={() => escolherTipo(t.v)}
+                  style={{ textAlign: "left", padding: "13px 14px", borderRadius: 10, cursor: "pointer",
+                    border: "1px solid " + C.linha, background: "#fff", fontFamily: ARCH, fontSize: 14, fontWeight: 700, color: C.tinta }}>
+                  {t.r}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div>
+              {(tipo === "individual" || tipo === "turma") && (
+                <Campo rotulo={tipo === "individual" ? "Jogador" : "Turma"}>
+                  <select style={entrada} value={tipo === "individual" ? alunoId : turmaId}
+                    onChange={(e) => { if (tipo === "individual") setAlunoId(e.target.value); else setTurmaId(e.target.value); }}>
+                    <option value="">Escolha…</option>
+                    {(tipo === "individual" ? alunos : turmas).map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
+                  </select>
+                </Campo>
+              )}
+              {tipo === "locacao" && (
+                <>
+                  <Campo rotulo="Cliente ou responsável">
+                    <input style={entrada} value={nomeContato} onChange={(e) => setNomeContato(e.target.value)} />
+                  </Campo>
+                  <Campo rotulo="Telefone de contato">
+                    <input style={entrada} value={telefoneContato} onChange={(e) => setTelefoneContato(e.target.value)} />
+                  </Campo>
+                </>
+              )}
+              <div className="grid grid-cols-3 gap-2">
+                <Campo rotulo="Data">
+                  <input type="date" style={entrada} value={data} onChange={(e) => setData(e.target.value)} />
+                </Campo>
+                <Campo rotulo="Início">
+                  <input type="time" style={entrada} value={horaInicio} onChange={(e) => aoMudarEntidadeOuHora(e.target.value)} />
+                </Campo>
+                <Campo rotulo="Término">
+                  <input type="time" style={entrada} value={horaFim} onChange={(e) => setHoraFim(e.target.value)} />
+                </Campo>
+              </div>
+              <Campo rotulo={tipo === "locacao" ? "Quadra" : "Quadra (opcional)"}>
+                <select style={entrada} value={quadraId} onChange={(e) => setQuadraId(e.target.value)}>
+                  <option value="">{tipo === "locacao" ? "Escolha…" : "Sem quadra definida"}</option>
+                  {(quadras || []).filter((q) => q.ativa !== false).map((q) => <option key={q.id} value={q.id}>{q.nome}</option>)}
+                </select>
+              </Campo>
+              {(tipo === "individual" || tipo === "turma") && (
+                <Campo rotulo="Repetição">
+                  <Seletor opcoes={[{ v: "unica", r: "Somente nesta data" }, { v: "semanal", r: "Repetir semanalmente" }]}
+                    valor={repeticao} aoMudar={setRepeticao} />
+                </Campo>
+              )}
+              <Campo rotulo="Observação (opcional)">
+                <textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={observacao} onChange={(e) => setObservacao(e.target.value)} />
+              </Campo>
+              {erro && <Aviso>{erro}</Aviso>}
+              <div className="flex gap-2 mt-2">
+                <Botao variante="vazio" onClick={() => setTipo(null)} disabled={enviando}>← Trocar tipo</Botao>
+                <Botao onClick={confirmar} disabled={enviando}>{enviando ? "Agendando…" : "Agendar"}</Botao>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, ocorrencias, setOcorrencias, quadras, setQuadras, reservas, setReservas, bloqueiosAula, setBloqueiosAula, orgAtual, mostraQuadras, uidAtual, exigeLogin, setAba }) {
   const [modo, setModo] = useState("grade");
   const [verTodos, setVerTodos] = useState(false);
+  const [agendarAberto, setAgendarAberto] = useState(false);
   const hojeISO = dataISO(new Date());
   const [semanaBase, setSemanaBase] = useState(() => inicioSemanaISO(hojeISO));
   const fimSemana = somaDiasISO(semanaBase, 6);
@@ -16487,6 +16681,10 @@ function TelaAgenda({ alunos, turmas, ocorrencias, setOcorrencias, quadras, setQ
           {plural(semQuadraNaSemana, "aula")} sem quadra definida nesta semana — resolva em "Aulas de hoje" ou nos detalhes de cada aula.
         </p>
       )}
+
+      <div className="mb-4">
+        <Botao variante="saibro" onClick={() => setAgendarAberto(true)}>+ Agendar</Botao>
+      </div>
 
       <div className="flex items-center justify-between gap-3 flex-wrap mb-5">
         {(modo !== "quadra" && modo !== "recorrentes") && (
@@ -16600,6 +16798,13 @@ function TelaAgenda({ alunos, turmas, ocorrencias, setOcorrencias, quadras, setQ
           );
         })
       )}
+
+      <ModalAgendar aberto={agendarAberto} aoFechar={() => setAgendarAberto(false)} dataInicial={hojeISO}
+        alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas}
+        quadras={quadras} reservas={reservas} setReservas={setReservas} bloqueiosAula={bloqueiosAula}
+        ocorrencias={ocorrencias} setOcorrencias={setOcorrencias}
+        aoIrParaReposicoes={() => setAba && setAba("reposicoes")}
+        aoIrParaRecorrentes={() => setModo("recorrentes")} />
     </div>
   );
 }
@@ -17446,9 +17651,9 @@ function App() {
          aba === "torneios" && mostraTorneiosEventos ? <TelaTorneios torneios={torneios} setTorneios={setTorneios} orgAtual={orgAtual} /> :
          aba === "eventos" && mostraTorneiosEventos ? <TelaEventos eventos={eventos} setEventos={setEventos} orgAtual={orgAtual} /> :
          aba === "clientes" && (mostraQuadras || mostraTorneiosEventos) ? <TelaClientes quadras={quadras} reservas={reservas} torneios={torneios} eventos={eventos} /> :
-         aba === "agenda" ? <TelaAgenda alunos={alunos} turmas={turmas} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias}
+         aba === "agenda" ? <TelaAgenda alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias}
            quadras={quadras} setQuadras={setQuadras} reservas={reservas} setReservas={setReservas} bloqueiosAula={bloqueiosAula} setBloqueiosAula={setBloqueiosAula}
-           orgAtual={orgAtual} mostraQuadras={mostraQuadras} uidAtual={uidAtual} exigeLogin={exigeLogin} /> :
+           orgAtual={orgAtual} mostraQuadras={mostraQuadras} uidAtual={uidAtual} exigeLogin={exigeLogin} setAba={setAba} /> :
          aba === "aulas-hoje" ? <TelaAulasHoje alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} reservas={reservas} bloqueiosAula={bloqueiosAula} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} regrasReposicao={regrasReposicao} uidAtual={uidAtual} papelAtual={papelAtual} /> :
          aba === "reposicoes" ? <TelaReposicoes alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} reservas={reservas} bloqueiosAula={bloqueiosAula} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias}
            regrasReposicao={regrasReposicao} setRegrasReposicao={setRegrasReposicao} papelAtual={papelAtual} /> :
