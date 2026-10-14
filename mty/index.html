@@ -2928,7 +2928,7 @@ async function chamarIA(prompt, maxTokens, aoProgredir) {
    de bloco de código em volta) no objeto de plano validado — usada tanto
    na espera bloqueante (gerarJogadaComIA) quanto na resolução de uma
    geração que terminou em segundo plano (ver resolverGeracaoPendente). */
-function processarRespostaPlanoIA(textoBruto, estagiosAlvo) {
+function processarRespostaPlanoIA(textoBruto, estagiosAlvo, golpesProblema) {
   let t = (textoBruto || "").trim();
   t = t.replace(/^```(json)?/i, "").replace(/```$/, "").trim();
   const i = t.indexOf("{");
@@ -2939,7 +2939,7 @@ function processarRespostaPlanoIA(textoBruto, estagiosAlvo) {
   } catch (e) {
     throw new Error("A IA devolveu um texto que não é um JSON válido (" + (e.message || e) + "). Tente gerar de novo.");
   }
-  const alvo = validarPlanoJSON(json, estagiosAlvo);
+  const alvo = validarPlanoJSON(json, estagiosAlvo, golpesProblema);
   alvo.geradoEm = new Date().toISOString();
   return alvo;
 }
@@ -2954,7 +2954,7 @@ async function resolverGeracaoPendente(org, geracaoPlano) {
   if (!r) return null;
   if (r.status === "erro") return { status: "erro", erro: r.erro, iniciadoEm: geracaoPlano.iniciadoEm };
   try {
-    const alvo = processarRespostaPlanoIA(r.texto, geracaoPlano.estagiosAlvo);
+    const alvo = processarRespostaPlanoIA(r.texto, geracaoPlano.estagiosAlvo, geracaoPlano.golpesProblema);
     return { status: "pronto", planoCandidato: alvo, iniciadoEm: geracaoPlano.iniciadoEm };
   } catch (e) {
     return { status: "erro", erro: String(e.message || e), iniciadoEm: geracaoPlano.iniciadoEm };
@@ -4267,7 +4267,7 @@ const FASES_GOLPE = [
 const NIVEIS_FASE = [
   { v: "consolidada", r: "Consolidada" },
   { v: "andamento", r: "Em andamento" },
-  { v: "atrasada", r: "Atrasada" },
+  { v: "atrasada", r: "A trabalhar" },
 ];
 
 /* Campos da ficha de entrada. A ordem segue o protocolo: técnico, físico,
@@ -4788,7 +4788,7 @@ const PRINCIPIOS_MTY = [
   "Trilho é a progressão de ensino: fechado, semiaberto, aberto com regra. Padrão novo nunca entra direto no ponto livre.",
   "Um estímulo dura três treinos; a rotação é parcial ao fim do mesociclo.",
   "Campos marcados [não sei] ou [em branco] viram item de observação para a próxima aula. Nunca preencher por suposição.",
-  "Quando a ficha traz avaliação por fase de um golpe (modelo das seis fases: preparação, posicionamento e apoio, aceleração, contato, terminação, recuperação), fases marcadas 'atrasada' são prioridade de correção nos primeiros blocos; fases 'em andamento' entram como reforço; nenhuma fase avaliada não é o mesmo que fase sem problema.",
+  "Quando a ficha traz avaliação por fase de um golpe (modelo das seis fases: preparação, posicionamento e apoio, aceleração, contato, terminação, recuperação), fases marcadas 'a trabalhar' são prioridade de correção nos primeiros blocos; fases 'em andamento' entram como reforço; nenhuma fase avaliada não é o mesmo que fase sem problema.",
 ];
 
 /* Índice de exercícios montado a partir do catálogo do próprio app,
@@ -4845,6 +4845,20 @@ const PERFIL_PRESSAO = [
   { v: "trava", r: "Trava (fica mais conservador)" },
 ];
 
+/* Golpes (Forehand/Backhand — os dois que têm o modelo de 6 fases na
+   avaliação técnica) com alguma fase marcada "A trabalhar" — o sinal de
+   que ESSE golpe específico precisa de correção isolada (treinador
+   lançando bola, só FH ou só BH), não só do trabalho genérico de fundo
+   ou rede que a área já cobre. Sem isso, um jogador com problema claro
+   de backhand podia receber qualquer exercício técnico da área (às
+   vezes só de forehand) e a correção nunca chegava a acontecer. */
+function golpesComProblema(a) {
+  const av = (a && a.avaliacaoTecnica) || {};
+  return ["Forehand", "Backhand"].filter((g) =>
+    FASES_GOLPE.some((fase) => ((av[g] || {})[fase.k] || {}).nivel === "atrasada"));
+}
+const BUSCA_GOLPE = { Forehand: /\bFH\b/i, Backhand: /\bBH\b/i };
+
 /* Mesma garantia que o programa pronto "Correção Técnica" já fazia só
    para si mesmo (poolPrincipal por área + fallback genérico) — aqui vale
    pra QUALQUER plano (IA, colado, ou outro programa pronto) que tenha um
@@ -4852,14 +4866,21 @@ const PERFIL_PRESSAO = [
    de leitura/tática que a IA (ou o texto colado) escolheu, sem nenhum
    drill de correção pontual do próprio golpe — exatamente o que define
    um bloco técnico. Não sorteia de novo a cada aula: só completa o que
-   já está montado, uma vez, se faltar. */
-function garantirCorrecaoTecnica(blocos, estagiosAlvo) {
+   já está montado, uma vez, se faltar.
+   golpesProblema (opcional) prioriza o LADO certo (FH ou só BH) nas
+   áreas onde isso existe — fundo e rede: saque e devolução são golpes
+   próprios, não "lados" de fundo/rede, então a preferência por golpe
+   só entra aqui. */
+function garantirCorrecaoTecnica(blocos, estagiosAlvo, golpesProblema) {
   if (!estagiosAlvo || !estagiosAlvo.length) return;
   const temEstagio = (e) => e.e.some((s) => estagiosAlvo.includes(s));
+  const golpesDaArea = (areaFoco) => (areaFoco === "fundo" || areaFoco === "rede")
+    ? (golpesProblema || []).filter((g) => BUSCA_GOLPE[g]) : [];
   (blocos || []).forEach((b) => {
     if (!AREAS_TECNICAS.includes(b.areaFoco)) return;
     const area = AREAS[b.areaFoco];
     if (!area) return;
+    const golpesDoBloco = golpesDaArea(b.areaFoco);
     (b.semanasLista || []).forEach((sem) => (sem.aulas || []).forEach((au) => {
       au.ex = au.ex || [];
       const jaTemCorrecao = au.ex.some((c) => {
@@ -4867,10 +4888,15 @@ function garantirCorrecaoTecnica(blocos, estagiosAlvo) {
         return ex && (ex.f === "FB" || ex.f === "DC");
       });
       if (jaTemCorrecao) return;
+      const poolGolpe = golpesDoBloco.length
+        ? exerciciosParaSorteio().filter((e) => temEstagio(e) && (e.f === "FB" || e.f === "DC") &&
+            area.busca.test(e.n + " " + e.m) && golpesDoBloco.some((g) => BUSCA_GOLPE[g].test(e.n)))
+        : [];
       const poolEspecifico = exerciciosParaSorteio().filter((e) =>
         temEstagio(e) && (e.f === "FB" || e.f === "DC") && area.busca.test(e.n + " " + e.m));
       const poolGenerico = exerciciosParaSorteio().filter((e) => temEstagio(e) && (e.f === "FB" || e.f === "DC"));
-      const [escolhido] = sorteia(poolEspecifico.length ? poolEspecifico : poolGenerico, new Set(), 1);
+      const pool = poolGolpe.length ? poolGolpe : poolEspecifico.length ? poolEspecifico : poolGenerico;
+      const [escolhido] = sorteia(pool, new Set(), 1);
       if (escolhido) au.ex.push(escolhido.c);
     }));
   });
@@ -4880,8 +4906,9 @@ function garantirCorrecaoTecnica(blocos, estagiosAlvo) {
    plano individual e o plano de turma, já que a forma do JSON é a mesma.
    estagiosAlvo é opcional: só quem chama sabendo o(s) estágio(s) do
    jogador/turma consegue acionar a garantia de correção técnica acima;
-   sem ele, a validação segue igual a sempre. */
-function validarPlanoJSON(alvo, estagiosAlvo) {
+   sem ele, a validação segue igual a sempre. golpesProblema é igualmente
+   opcional (só existe pra um jogador individual, nunca pra turma). */
+function validarPlanoJSON(alvo, estagiosAlvo, golpesProblema) {
   if (!alvo.blocos || !alvo.blocos.length) throw new Error("Não encontrei os blocos do plano.");
   const ruins = [];
   alvo.blocos.forEach((b) => (b.semanasLista || []).forEach((sem) =>
@@ -4892,7 +4919,7 @@ function validarPlanoJSON(alvo, estagiosAlvo) {
     throw new Error("Códigos que não existem no catálogo: " + [...new Set(ruins)].join(", "));
   const raizes = (alvo.cadeia || []).filter((c) => c.raiz).length;
   if (raizes > 1) throw new Error("O plano marcou " + raizes + " camadas como origem. Só pode haver uma.");
-  garantirCorrecaoTecnica(alvo.blocos, estagiosAlvo);
+  garantirCorrecaoTecnica(alvo.blocos, estagiosAlvo, golpesProblema);
   return alvo;
 }
 
@@ -5000,6 +5027,12 @@ function gerarPlanoDePrograma(programaId, alvo, opcoes) {
      QUALQUER um dos estágios do alvo. */
   const estagiosAlvo = alvo.estagios || [alvo.estagio];
   const temEstagio = (e) => e.e.some((s) => estagiosAlvo.includes(s));
+  /* Só existe pra um jogador individual (alvo.estagios é a turma-proxy,
+     sem avaliacaoTecnica) — golpesComProblema devolve [] nesse caso,
+     sem efeito nenhum no sorteio abaixo. */
+  const golpesProblema = golpesComProblema(alvo);
+  const golpesDoPrograma = (areaFoco === "fundo" || areaFoco === "rede")
+    ? golpesProblema.filter((g) => BUSCA_GOLPE[g]) : [];
   const NUM_AULAS = 4;
 
   const textoComplementos = prog.categoria === "duplas"
@@ -5018,8 +5051,12 @@ function gerarPlanoDePrograma(programaId, alvo, opcoes) {
        realmente decidir qual exercício entra — por busca de texto
        (area.busca), não só pela família genérica FB/DC. Sem isso,
        trocar de área não mudava nada na aula. */
+    const poolGolpe = golpesDoPrograma.length
+      ? exerciciosParaSorteio().filter((e) => temEstagio(e) && prog.nucleoFamilias.includes(e.f) &&
+          area.busca.test(e.n + " " + e.m) && golpesDoPrograma.some((g) => BUSCA_GOLPE[g].test(e.n)))
+      : [];
     const poolPrincipal = exerciciosParaSorteio().filter((e) => temEstagio(e) && prog.nucleoFamilias.includes(e.f) && area.busca.test(e.n + " " + e.m));
-    const [principal] = sorteia(poolPrincipal.length ? poolPrincipal
+    const [principal] = sorteia(poolGolpe.length ? poolGolpe : poolPrincipal.length ? poolPrincipal
       : exerciciosParaSorteio().filter((e) => temEstagio(e) && prog.nucleoFamilias.includes(e.f)), new Set(), 1);
     const poolFechamento = exerciciosParaSorteio().filter((e) => temEstagio(e) && e.f === "DC" && area.busca.test(e.n + " " + e.m));
     const [fechamento] = sorteia(poolFechamento.length ? poolFechamento
@@ -5105,7 +5142,7 @@ function gerarPlanoDePrograma(programaId, alvo, opcoes) {
       semanasLista: aulas.map((au, i) => ({ n: i + 1, foco: prog.nome, carga: "moderada", aulas: [au] })),
     }],
     observacao: [],
-  }, estagiosAlvo);
+  }, estagiosAlvo, golpesProblema);
 }
 
 /* Prompt da IA que cria os 3 exercícios (pernas/intensidade/técnica) e
@@ -5338,9 +5375,29 @@ function promptPlanoEstruturado(a, semanas, aulasSemana, historico, enfase) {
     "  competição) isso vale mesmo em semanas de pico ou afinação: a maioria dos pontos no ATP Tour",
     "  se decide nos quatro primeiros golpes do ponto, então saque e devolução nunca saem do plano,",
     "  só mudam de peso.",
+    ...regrasGolpeComProblema(a),
     ...regrasAdulto(a),
     ...regrasConsistencia(a),
   ].join("\n");
+}
+
+/* A ficha já lista, golpe a golpe, onde o treinador marcou uma fase como
+   "A trabalhar" — mas sem uma regra explícita a IA às vezes resolvia isso
+   com exercício de fundo ou rede qualquer, sem isolar o lado quebrado
+   (forehand OU backhand), que é o que de fato corrige: o treinador
+   lançando bola e corrigindo só aquele golpe. golpesComProblema() faz a
+   mesma leitura que valida o plano depois (garantirCorrecaoTecnica), só
+   que aqui vira instrução de texto pra IA já montar certo de primeira. */
+function regrasGolpeComProblema(a) {
+  const golpes = golpesComProblema(a);
+  if (!golpes.length) return [];
+  return [
+    "· A ficha marca " + golpes.join(" e ") + " com fase \"A trabalhar\" na avaliação técnica — inclua, em",
+    "  algum bloco de fundo ou rede, pelo menos uma aula com exercício ISOLADO desse golpe específico",
+    "  (famílias FB ou DC, com \"FH\" ou \"BH\" no título — ex.: \"FH Cruzado Profundo\", \"Voleio BH -",
+    "  Bloqueio\"), não um exercício genérico de fundo que mistura os dois lados: é o treinador",
+    "  lançando bola e corrigindo só aquele golpe que resolve o que a ficha reportou.",
+  ];
 }
 
 /* Pedido de plano pra uma TURMA inteira — uma única aula em grupo, não
@@ -5488,9 +5545,30 @@ function promptPlanoTurma(turma, membros, semanas, aulasSemana, historico, enfas
     "· se os estágios do grupo forem muito diferentes entre si, diga isso em observacao com",
     "  urgente:true — pode ser sinal de que a turma deveria ser dividida em vez de forçar um",
     "  plano só.",
+    ...regrasGolpeComProblemaTurma(membros),
     ...regrasAdultosTurma(membros),
     ...regrasCompeticaoTurma(membros),
   ].join("\n");
+}
+
+/* Mesma ideia de regrasGolpeComProblema, agregada por membro — a turma
+   treina em grupo, então não dá pra garantir estruturalmente (como
+   garantirCorrecaoTecnica faz no plano individual) que CADA jogador com
+   golpe quebrado receba a correção isolada dele numa aula coletiva; mas
+   a IA pode montar a parte ESPECÍFICA/estações da aula sabendo quem
+   precisa de qual correção, em vez de nunca saber disso. */
+function regrasGolpeComProblemaTurma(membros) {
+  const porJogador = membros
+    .map((m) => ({ nome: m.nome || "sem nome", golpes: golpesComProblema(m) }))
+    .filter((x) => x.golpes.length);
+  if (!porJogador.length) return [];
+  return [
+    "· Jogador(es) com golpe marcado \"A trabalhar\" na avaliação técnica: " +
+      porJogador.map((x) => x.nome + " (" + x.golpes.join(" e ") + ")").join("; ") + ". Garanta que a",
+    "  parte ESPECÍFICA (ou estação) de algum bloco de fundo/rede isole esse golpe só pra ele(s) —",
+    "  exercício de família FB/DC com \"FH\" ou \"BH\" no título conforme o golpe de cada um — em vez",
+    "  de um exercício de fundo genérico que não corrige lado nenhum.",
+  ];
 }
 
 function promptClassificacao(a) {
@@ -10398,8 +10476,9 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
          não custa mais caro sozinho — a Anthropic cobra pelo que é
          gerado de verdade, não pelo teto pedido. */
       const estagiosAlvo = eTurma ? membros.map((m) => m.estagio) : [aluno.estagio];
+      const golpesProblema = eTurma ? [] : golpesComProblema(aluno);
       const { jobId } = await iniciarJobIA(prompt, eTurma ? 32000 : 16000, setEtapaIA);
-      atualiza({ geracaoPlano: { status: "gerando", jobId, iniciadoEm: new Date().toISOString(), estagiosAlvo } });
+      atualiza({ geracaoPlano: { status: "gerando", jobId, iniciadoEm: new Date().toISOString(), estagiosAlvo, golpesProblema } });
     } catch (e) {
       setErro(String(e.message || e));
     } finally {
@@ -10423,7 +10502,8 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
       if (i > 0) t = t.slice(i);
       const p = JSON.parse(t);
       const estagiosAlvo = eTurma ? membros.map((m) => m.estagio) : [aluno.estagio];
-      const alvo = valida(p.plano || p, estagiosAlvo);
+      const golpesProblema = eTurma ? [] : golpesComProblema(aluno);
+      const alvo = valida(p.plano || p, estagiosAlvo, golpesProblema);
       alvo.geradoEm = new Date().toISOString();
       setPlanoCandidato(alvo);
       setColando(false); setTexto("");
