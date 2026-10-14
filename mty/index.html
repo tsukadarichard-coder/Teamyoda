@@ -29,7 +29,7 @@
 
 <style>
   html, body { margin: 0; padding: 0; background: #F6F8F7; }
-  #mty-faixa { font-family: Inter, system-ui, sans-serif; font-size: 12px; padding: 6px 14px;
+  #mty-faixa { font-family: Inter, system-ui, sans-serif; font-size: 11px; padding: 3px 14px;
     text-align: center; color: #fff; }
 </style>
 </head>
@@ -238,6 +238,11 @@ const storageLocal = {
 
 window.storage = db ? storageFirestore : storageLocal;
 
+/* Nome de exibição por academia — o claim orgId é um slug interno
+   (ex.: "team-yoda"), nunca o nome que a equipe reconhece. Sem entrada
+   no mapa, mostra o slug mesmo (nunca escondido), só sem tentar
+   adivinhar um nome bonito que poderia estar errado. */
+const NOMES_ACADEMIA = { "team-yoda": "Team Yoda", "39-ranch": "39 Ranch Tennis Club" };
 async function atualizaFaixa() {
   const faixa = document.getElementById("mty-faixa");
   if (!faixa) return;
@@ -251,13 +256,15 @@ async function atualizaFaixa() {
     faixa.style.background = "#C25A22";
     return;
   }
+  faixa.textContent = "Verificando academia…";
+  faixa.style.background = "#6B6461";
   const org = await organizacao();
   if (!org) {
     faixa.textContent = "Conta sem academia vinculada — fale com o administrador.";
     faixa.style.background = "#8A2E2E";
     return;
   }
-  faixa.textContent = "Academia conectada — dados sincronizados (org: " + org + ")";
+  faixa.textContent = (NOMES_ACADEMIA[org] || org) + " · Sincronizado";
   faixa.style.background = "#2E4739";
 }
 atualizaFaixa();
@@ -14605,6 +14612,21 @@ function conflitosDeOcorrencia(ocorrencias, candidata, turmas) {
   return conflitos;
 }
 
+/* Quadras livres pro intervalo exato de uma ocorrência — usada ao
+   definir a quadra de uma aula pendente (nunca escolhida por suposição,
+   só oferecida como opção). Verifica sobreposição com outras ocorrências
+   (aula ou reposição) E com reservas de locação, nos mesmos moldes do
+   que TelaQuadras já usa pra bloquear o agendamento avulso. */
+function quadrasLivresParaOcorrencia(quadras, ocorrencias, reservas, turmas, candidata) {
+  return (quadras || []).filter((q) => q.ativa !== false).filter((q) => {
+    const testada = { ...candidata, quadraId: q.id };
+    const temConflitoOcorrencia = conflitosDeOcorrencia(ocorrencias, testada, turmas).some((c) => c.tipo === "quadra");
+    if (temConflitoOcorrencia) return false;
+    const temConflitoReserva = (reservas || []).some((r) => reservasSeSobrepoem(r, testada));
+    return !temConflitoReserva;
+  });
+}
+
 /* ── REPOSIÇÕES ───────────────────────────────────────────────────────
    Crédito de reposição: nasce SEMPRE de uma ação manual do treinador
    (nunca automática ao cancelar — pedido explícito: "se as regras ainda
@@ -14751,7 +14773,7 @@ function tituloOcorrencia(oc, alunos, turmas) {
    realizada mesmo com alunos ausentes; uma aula cancelada por chuva não
    deve marcar todos como faltantes" — por isso cancelar não mexe em
    `presencas`, e confirmar presença não muda `status`). */
-function CartaoOcorrencia({ ocorrencia: oc, alunos, setAlunos, turmas, quadras, regras, aberta, aoAbrir, aoAtualizar }) {
+function CartaoOcorrencia({ ocorrencia: oc, alunos, setAlunos, turmas, quadras, regras, conflitos, aberta, aoAbrir, aoAtualizar }) {
   const [professores, setProfessores] = useState([]);
   const [cancelando, setCancelando] = useState(false);
   const [motivo, setMotivo] = useState(oc.motivoCancelamento || "");
@@ -14812,6 +14834,20 @@ function CartaoOcorrencia({ ocorrencia: oc, alunos, setAlunos, turmas, quadras, 
           </span>
         </div>
       </button>
+      {/* Sinaliza, nunca mescla — duas aulas com mesmo horário e professor
+         podem ser uma coincidência de cadastro (dois jogadores
+         independentes) ou um erro real; quem decide é quem vê o aviso,
+         não o sistema por suposição. */}
+      {(conflitos || []).length > 0 && (
+        <div className="mt-2" style={{ background: "#FBEFE6", border: "1px solid #C25A22", borderRadius: 8, padding: "6px 10px" }}>
+          {conflitos.map((c, i) => (
+            <p key={i} style={{ ...prosa, fontSize: 11.5, color: "#8A3B14" }}>
+              ⚠ Conflito de {c.tipo === "quadra" ? "quadra" : c.tipo === "professor" ? "professor" : "jogador"} com{" "}
+              {tituloOcorrencia(c.ocorrencia, alunos, turmas)} ({c.ocorrencia.horaInicio}–{c.ocorrencia.horaFim})
+            </p>
+          ))}
+        </div>
+      )}
 
       {aberta && (
         <div className="mt-3" style={{ borderTop: "1px solid " + C.linha, paddingTop: 12 }}>
@@ -14906,7 +14942,53 @@ function CartaoOcorrencia({ ocorrencia: oc, alunos, setAlunos, turmas, quadras, 
    se ainda não tiverem sido geradas) e também varre os últimos 14 dias
    pra levantar "registro pendente" (aula que já passou e ninguém
    preencheu — nunca vira "realizada" sozinha). */
-function TelaAulasHoje({ alunos, setAlunos, turmas, quadras, ocorrencias, setOcorrencias, regrasReposicao, uidAtual, papelAtual }) {
+/* Linha de pendência "sem quadra definida" — oferece só as quadras
+   livres no intervalo exato da aula (conflito com outra ocorrência ou
+   com reserva de locação já bloqueia a opção na lista; nunca atribui
+   por suposição). Guarda contra duplo toque com uma ref própria, já que
+   o estado de "atribuindo" é assíncrono e dois toques rápidos passariam
+   pelo mesmo valor de estado antes do React re-renderizar. */
+function LinhaPendenciaQuadra({ oc, alunos, turmas, quadras, ocorrencias, reservas, aoDefinir }) {
+  const [abrindo, setAbrindo] = useState(false);
+  const atribuindoRef = useRef(false);
+  const livres = useMemo(() => quadrasLivresParaOcorrencia(quadras, ocorrencias, reservas, turmas, oc),
+    [quadras, ocorrencias, reservas, turmas, oc]);
+  function definir(quadraId) {
+    if (atribuindoRef.current) return;
+    atribuindoRef.current = true;
+    aoDefinir(quadraId);
+    setAbrindo(false);
+    setTimeout(() => { atribuindoRef.current = false; }, 500);
+  }
+  return (
+    <div style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "10px 13px", marginBottom: 8 }}>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{oc.horaInicio}–{oc.horaFim} · {tituloOcorrencia(oc, alunos, turmas)}</p>
+          <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>{oc.professorNome || "sem professor definido"}</p>
+        </div>
+        <Botao pequeno variante="vazio" onClick={() => setAbrindo((v) => !v)}>{abrindo ? "Fechar" : "Definir quadra"}</Botao>
+      </div>
+      {abrindo && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {livres.length === 0 ? (
+            <p style={{ ...prosa, fontSize: 12, color: C.grafite }}>Nenhuma quadra livre nesse horário — verifique a Agenda de quadras.</p>
+          ) : (
+            livres.map((q) => (
+              <button key={q.id} onClick={() => definir(q.id)}
+                style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, padding: "6px 11px", borderRadius: 10, cursor: "pointer",
+                  border: "1px solid " + C.linha, background: C.papel, color: C.tinta }}>
+                {q.nome}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TelaAulasHoje({ alunos, setAlunos, turmas, quadras, reservas, ocorrencias, setOcorrencias, regrasReposicao, uidAtual, papelAtual }) {
   const hoje = new Date().toISOString().slice(0, 10);
   const geradasRef = useRef(false);
   useEffect(() => {
@@ -14932,13 +15014,42 @@ function TelaAulasHoje({ alunos, setAlunos, turmas, quadras, ocorrencias, setOco
   const deHoje = minhas(ocorrencias.filter((o) => o.data === hoje)).sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
   const pendentes = minhas(ocorrencias.filter((o) => o.status === "agendada" && o.data < hoje))
     .sort((a, b) => b.data.localeCompare(a.data) || a.horaInicio.localeCompare(b.horaInicio));
+  /* "Sem quadra" não é defeito por si só — dá pra cadastrar um jogador
+     ou turma de propósito sem quadra fixa (ver "Sem quadra definida" em
+     Dias e horários de treino). Por isso isto é uma PENDÊNCIA pra
+     revisar, não um erro a corrigir sozinho nem uma quadra a atribuir
+     por suposição. */
+  const semQuadra = deHoje.filter((o) => !o.quadraId && o.status !== "cancelada");
+  /* Mesma checagem de conflito usada ao agendar reposição ou reservar
+     quadra, aplicada aqui só pra AVISAR — nunca mescla dois registros
+     por terem horário e professor iguais; quem decide se é a mesma
+     sessão ou um erro de cadastro é o treinador, olhando o aviso. */
+  function conflitosDoCartao(o) {
+    if (o.status === "cancelada") return [];
+    return conflitosDeOcorrencia(ocorrencias, o, turmas);
+  }
 
   return (
     <div>
       <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Aulas de hoje</h1>
-      <p style={{ ...prosa, fontSize: 14, color: C.grafite, marginBottom: 16 }}>
+      <p style={{ ...prosa, fontSize: 14, color: C.grafite, marginBottom: 4 }}>
         {new Date(hoje + "T00:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}
       </p>
+      <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 16 }}>
+        {papelAtual === "coordenador" ? "Mostrando as aulas de toda a academia." : "Mostrando só as suas aulas."}
+      </p>
+
+      {semQuadra.length > 0 && (
+        <div className="mb-6">
+          <Etiqueta cor={C.saibro}>Aulas aguardando definição de quadra ({semQuadra.length})</Etiqueta>
+          <div className="mt-2">
+            {semQuadra.map((o) => (
+              <LinhaPendenciaQuadra key={o.id} oc={o} alunos={alunos} turmas={turmas} quadras={quadras} ocorrencias={ocorrencias} reservas={reservas}
+                aoDefinir={(quadraId) => atualizar(o.id, { quadraId })} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {deHoje.length === 0 ? (
         <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginBottom: 20 }}>Nenhuma aula sua hoje.</p>
@@ -14946,6 +15057,7 @@ function TelaAulasHoje({ alunos, setAlunos, turmas, quadras, ocorrencias, setOco
         <div className="mb-6">
           {deHoje.map((o) => (
             <CartaoOcorrencia key={o.id} ocorrencia={o} alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} regras={regrasReposicao}
+              conflitos={conflitosDoCartao(o)}
               aberta={abertaId === o.id} aoAbrir={() => setAbertaId(abertaId === o.id ? null : o.id)}
               aoAtualizar={(patch) => atualizar(o.id, patch)} />
           ))}
@@ -14958,6 +15070,7 @@ function TelaAulasHoje({ alunos, setAlunos, turmas, quadras, ocorrencias, setOco
           <div className="mt-2">
             {pendentes.map((o) => (
               <CartaoOcorrencia key={o.id} ocorrencia={o} alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} regras={regrasReposicao}
+                conflitos={conflitosDoCartao(o)}
                 aberta={abertaId === o.id} aoAbrir={() => setAbertaId(abertaId === o.id ? null : o.id)}
                 aoAtualizar={(patch) => atualizar(o.id, patch)} />
             ))}
@@ -16834,7 +16947,7 @@ function App() {
          aba === "eventos" && mostraTorneiosEventos ? <TelaEventos eventos={eventos} setEventos={setEventos} orgAtual={orgAtual} /> :
          aba === "clientes" && (mostraQuadras || mostraTorneiosEventos) ? <TelaClientes quadras={quadras} reservas={reservas} torneios={torneios} eventos={eventos} /> :
          aba === "agenda" ? <TelaAgenda alunos={alunos} turmas={turmas} ocorrencias={ocorrencias} uidAtual={uidAtual} exigeLogin={exigeLogin} /> :
-         aba === "aulas-hoje" ? <TelaAulasHoje alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} regrasReposicao={regrasReposicao} uidAtual={uidAtual} papelAtual={papelAtual} /> :
+         aba === "aulas-hoje" ? <TelaAulasHoje alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} reservas={reservas} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} regrasReposicao={regrasReposicao} uidAtual={uidAtual} papelAtual={papelAtual} /> :
          aba === "reposicoes" ? <TelaReposicoes alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} reservas={reservas} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias}
            regrasReposicao={regrasReposicao} setRegrasReposicao={setRegrasReposicao} papelAtual={papelAtual} /> :
          aba === "relatorio" ? <TelaRelatorioProfessores ocorrencias={ocorrencias} alunos={alunos} turmas={turmas} papelAtual={papelAtual} uidAtual={uidAtual} /> :

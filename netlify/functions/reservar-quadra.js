@@ -20,6 +20,7 @@ class ErroPublico extends Error {
 
 const CHAVE_QUADRAS = "mty:quadras:v1";
 const CHAVE_RESERVAS = "mty:reservas:v1";
+const CHAVE_OCORRENCIAS = "mty:ocorrencias:v1";
 const LIMITE_NOME = 80;
 const LIMITE_TELEFONE = 30;
 const LIMITE_OBS = 300;
@@ -54,6 +55,20 @@ function reservasSeSobrepoem(a, b) {
   return a.quadraId === b.quadraId && a.data === b.data && a.horaInicio < b.horaFim && a.horaFim > b.horaInicio;
 }
 
+/* Aulas e reposições com quadra definida bloqueiam a reserva pública do
+   mesmo jeito que uma reserva já feita — a página pública precisa
+   consultar a MESMA fonte de ocupação que a agenda interna usa (TelaQuadras),
+   nunca só as próprias reservas de locação. Ocorrência cancelada libera
+   o horário; sem quadra definida não bloqueia nada aqui (fica pendência
+   interna, não indisponibilidade pública). */
+async function ocupacaoDasAulas(db, org, data) {
+  const snap = await db.collection("orgs").doc(org).collection("dados").doc(CHAVE_OCORRENCIAS).get();
+  const ocorrencias = snap.exists ? JSON.parse(snap.data().value || "[]") : [];
+  return ocorrencias
+    .filter((o) => o.data === data && o.status !== "cancelada" && o.quadraId)
+    .map((o) => ({ quadraId: o.quadraId, horaInicio: o.horaInicio, horaFim: o.horaFim }));
+}
+
 async function handleGet(event) {
   const q = event.queryStringParameters || {};
   const { org, data } = q;
@@ -67,6 +82,7 @@ async function handleGet(event) {
   const snapReservas = await db.collection("orgs").doc(org).collection("dados").doc(CHAVE_RESERVAS).get();
   const reservas = snapReservas.exists ? JSON.parse(snapReservas.data().value || "[]") : [];
   const ocupados = reservas.filter((r) => r.data === data).map((r) => ({ quadraId: r.quadraId, horaInicio: r.horaInicio, horaFim: r.horaFim }));
+  ocupados.push(...(await ocupacaoDasAulas(db, org, data)));
 
   return resposta(200, {
     academia: info.nome || org,
@@ -111,12 +127,23 @@ async function handlePost(event) {
   };
 
   const refReservas = db.collection("orgs").doc(org).collection("dados").doc(CHAVE_RESERVAS);
+  const refOcorrencias = db.collection("orgs").doc(org).collection("dados").doc(CHAVE_OCORRENCIAS);
   try {
     await db.runTransaction(async (tx) => {
-      const snap = await tx.get(refReservas);
+      const [snap, snapOc] = await Promise.all([tx.get(refReservas), tx.get(refOcorrencias)]);
       const reservas = snap.exists ? JSON.parse(snap.data().value || "[]") : [];
       if (reservas.some((r) => reservasSeSobrepoem(r, novaReserva))) {
         throw new ErroPublico(409, "Esse horário acabou de ser reservado por outra pessoa — escolha outro.");
+      }
+      // Mesma fonte de ocupação que a agenda interna usa: uma aula ou
+      // reposição com quadra definida bloqueia a reserva pública, do
+      // jeito que TelaQuadras já bloqueia o lado interno.
+      const ocorrencias = snapOc.exists ? JSON.parse(snapOc.data().value || "[]") : [];
+      const temAulaNoHorario = ocorrencias.some((o) =>
+        o.data === novaReserva.data && o.quadraId === novaReserva.quadraId && o.status !== "cancelada" &&
+        o.horaInicio < novaReserva.horaFim && o.horaFim > novaReserva.horaInicio);
+      if (temAulaNoHorario) {
+        throw new ErroPublico(409, "Essa quadra já tem aula nesse horário — escolha outro.");
       }
       tx.set(refReservas, { value: JSON.stringify([...reservas, novaReserva]), atualizado: Date.now() });
     });
