@@ -14963,7 +14963,14 @@ function CartaoOcorrencia({ ocorrencia: oc, alunos, setAlunos, turmas, quadras, 
       <button onClick={aoAbrir} className="w-full text-left" style={{ border: "none", background: "none", cursor: "pointer", padding: 0 }}>
         <div className="flex items-center justify-between">
           <div>
-            <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{oc.horaInicio}–{oc.horaFim} · {tituloOcorrencia(oc, alunos, turmas)}</p>
+            <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>
+              {/* "Registro pendente" mistura aulas de vários dias diferentes
+                 na mesma lista — sem a data aqui, não dava pra saber QUAL
+                 dia cada cartão era, só a hora. Omitida quando é hoje (já
+                 fica claro pelo cabeçalho da tela, sem redundância). */}
+              {oc.data !== hoje ? new Date(oc.data + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) + " · " : ""}
+              {oc.horaInicio}–{oc.horaFim} · {tituloOcorrencia(oc, alunos, turmas)}
+            </p>
             <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>
               {quadra ? quadra.nome : "Sem quadra definida"}{oc.professorNome ? " · prof. " + oc.professorNome : ""}
               {oc.tipo !== "regular" ? " · " + rotuloTipoOcorrencia(oc.tipo) : ""}
