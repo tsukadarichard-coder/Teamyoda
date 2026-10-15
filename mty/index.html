@@ -13659,8 +13659,17 @@ function TelaClientes({ quadras, reservas, torneios, eventos }) {
    todo mundo em uma ação (com espaço pra corrigir por pessoa: chuva
    cancela a turma inteira, mas um jogador específico pode ter faltado
    por outro motivo mesmo com o resto treinando). */
-function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual, exerciciosCustom, setExerciciosCustom, identidade, quadras }) {
+function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual, exerciciosCustom, setExerciciosCustom, identidade, quadras, turmaAbertaAlvo, aoConsumirTurmaAlvo }) {
   const [abertaId, setAbertaId] = useState(null);
+  /* Mesmo padrão de dataAlvo na Agenda: quando alguém pede pra abrir a
+     sessão desta turma a partir de outra tela (Agenda, Aulas de hoje),
+     a turma abre direto na sessão — não cai só na lista. */
+  useEffect(() => {
+    if (turmaAbertaAlvo && turmas.some((t) => t.id === turmaAbertaAlvo)) {
+      setAbertaId(turmaAbertaAlvo);
+      if (aoConsumirTurmaAlvo) aoConsumirTurmaAlvo();
+    }
+  }, [turmaAbertaAlvo, turmas]);
   const [criando, setCriando] = useState(false);
   const [nome, setNome] = useState("");
   const [membrosSel, setMembrosSel] = useState([]);
@@ -14913,7 +14922,7 @@ function tituloOcorrencia(oc, alunos, turmas) {
    realizada mesmo com alunos ausentes; uma aula cancelada por chuva não
    deve marcar todos como faltantes" — por isso cancelar não mexe em
    `presencas`, e confirmar presença não muda `status`). */
-function CartaoOcorrencia({ ocorrencia: oc, alunos, setAlunos, turmas, quadras, regras, conflitos, aberta, aoAbrir, aoAtualizar }) {
+function CartaoOcorrencia({ ocorrencia: oc, alunos, setAlunos, turmas, quadras, regras, conflitos, aberta, aoAbrir, aoAtualizar, aoAbrirAula }) {
   const [professores, setProfessores] = useState([]);
   const [cancelando, setCancelando] = useState(false);
   const [motivo, setMotivo] = useState(oc.motivoCancelamento || "");
@@ -14922,6 +14931,14 @@ function CartaoOcorrencia({ ocorrencia: oc, alunos, setAlunos, turmas, quadras, 
   useEffect(() => { if (aberta && professores.length === 0) listaProfessores().then(setProfessores); }, [aberta]);
 
   const membros = alunosDaOcorrencia(oc, turmas).map((id) => alunos.find((a) => a.id === id)).filter(Boolean);
+  /* A ponte entre as duas telas que hoje não se falam: o Planejamento
+     (plano/regPlano, por data nenhuma) e a Agenda (ocorrência, com data
+     e horário). Mostrando aqui qual aula do plano está em vigor pro
+     mesmo jogador/turma desta ocorrência, quem abre pela Agenda vê a
+     MESMA aula que veria abrindo pela ficha/turma — não inventa um
+     vínculo persistido, só expõe o que aulaEmVigor já calcula. */
+  const entidadeDoPlano = oc.origemTipo === "turma" ? (turmas || []).find((t) => t.id === oc.origemId) : membros[0];
+  const aulaPlano = entidadeDoPlano && entidadeDoPlano.plano ? aulaEmVigor(entidadeDoPlano) : null;
   const quadra = (quadras || []).find((q) => q.id === oc.quadraId);
   const hoje = new Date().toISOString().slice(0, 10);
   const pendente = oc.status === "agendada" && oc.data < hoje;
@@ -14998,6 +15015,18 @@ function CartaoOcorrencia({ ocorrencia: oc, alunos, setAlunos, turmas, quadras, 
 
       {aberta && (
         <div className="mt-3" style={{ borderTop: "1px solid " + C.linha, paddingTop: 12 }}>
+          {entidadeDoPlano && entidadeDoPlano.plano && (
+            <div className="mb-3 flex items-center justify-between gap-2 flex-wrap" style={{ background: C.papel, border: "1px solid " + C.linha, borderRadius: 8, padding: "8px 10px" }}>
+              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>
+                {aulaPlano
+                  ? (aulaPlano.gate
+                      ? "Aguardando confirmação do critério de saída do bloco \"" + aulaPlano.bloco + "\"."
+                      : "Aula do planejamento: " + aulaPlano.bloco + " · semana " + aulaPlano.semana + " · " + aulaPlano.t + ".")
+                  : "Planejamento sem aulas em aberto."}
+              </p>
+              {aoAbrirAula && <Botao pequeno variante="vazio" onClick={() => aoAbrirAula(oc)}>Abrir aula</Botao>}
+            </div>
+          )}
           {membros.length > 0 && (
             <div className="mb-3">
               <Etiqueta>Chamada</Etiqueta>
@@ -15182,7 +15211,7 @@ function LinhaPendenciaQuadra({ oc, alunos, turmas, quadras, ocorrencias, reserv
   );
 }
 
-function TelaAulasHoje({ alunos, setAlunos, turmas, setTurmas, quadras, reservas, bloqueiosAula, ocorrencias, setOcorrencias, regrasReposicao, uidAtual, papelAtual }) {
+function TelaAulasHoje({ alunos, setAlunos, turmas, setTurmas, quadras, reservas, bloqueiosAula, ocorrencias, setOcorrencias, regrasReposicao, uidAtual, papelAtual, irParaSessaoAluno, irParaSessaoTurma }) {
   const hoje = new Date().toISOString().slice(0, 10);
   const geradasRef = useRef(false);
   useEffect(() => {
@@ -15235,6 +15264,13 @@ function TelaAulasHoje({ alunos, setAlunos, turmas, setTurmas, quadras, reservas
     if (o.status === "cancelada") return [];
     return conflitosDeOcorrencia(ocorrencias, o, turmas);
   }
+  /* Mesma ação de "Abrir aula" da Agenda — daqui também precisa levar
+     pra tela real de preparo/condução/registro, não só pro toggle de
+     presença/status que este cartão já faz inline. */
+  function abrirAula(o) {
+    if (o.origemTipo === "individual" && irParaSessaoAluno) irParaSessaoAluno(o.origemId);
+    else if (o.origemTipo === "turma" && irParaSessaoTurma) irParaSessaoTurma(o.origemId);
+  }
 
   return (
     <div>
@@ -15282,7 +15318,7 @@ function TelaAulasHoje({ alunos, setAlunos, turmas, setTurmas, quadras, reservas
             <CartaoOcorrencia key={o.id} ocorrencia={o} alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} regras={regrasReposicao}
               conflitos={conflitosDoCartao(o)}
               aberta={abertaId === o.id} aoAbrir={() => setAbertaId(abertaId === o.id ? null : o.id)}
-              aoAtualizar={(patch) => atualizar(o.id, patch)} />
+              aoAtualizar={(patch) => atualizar(o.id, patch)} aoAbrirAula={abrirAula} />
           ))}
         </div>
       )}
@@ -15295,7 +15331,7 @@ function TelaAulasHoje({ alunos, setAlunos, turmas, setTurmas, quadras, reservas
               <CartaoOcorrencia key={o.id} ocorrencia={o} alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} regras={regrasReposicao}
                 conflitos={conflitosDoCartao(o)}
                 aberta={abertaId === o.id} aoAbrir={() => setAbertaId(abertaId === o.id ? null : o.id)}
-                aoAtualizar={(patch) => atualizar(o.id, patch)} />
+                aoAtualizar={(patch) => atualizar(o.id, patch)} aoAbrirAula={abrirAula} />
             ))}
           </div>
         </div>
@@ -16812,7 +16848,7 @@ function construirBlocosPeriodo({ inicioISO, fimISO, alunos, turmas, ocorrencias
   return blocos;
 }
 
-function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, ocorrencias, setOcorrencias, quadras, reservas, setReservas, bloqueiosAula, orgAtual, mostraQuadras, uidAtual, exigeLogin, regrasReposicao, setAba, dataAlvo, visualizacaoAlvo, aoConsumirAlvo, irParaSessaoAluno }) {
+function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, ocorrencias, setOcorrencias, quadras, reservas, setReservas, bloqueiosAula, orgAtual, mostraQuadras, uidAtual, exigeLogin, regrasReposicao, setAba, dataAlvo, visualizacaoAlvo, aoConsumirAlvo, irParaSessaoAluno, irParaSessaoTurma }) {
   const hojeISO = dataISO(new Date());
   // Celular abre em "Dia" (lista cabe numa tela sem rolagem horizontal);
   // computador abre em "Semana" — pedido explícito da seção 1.
@@ -17060,11 +17096,14 @@ function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, ocorrencias, setOcor
                     </div>
                   )}
                   <div className="flex gap-2 mt-3 flex-wrap">
+                    {/* "Abrir aula" leva pra MESMA tela de preparo/condução/registro
+                       que a ficha do jogador ou a turma abririam — a aula vista
+                       aqui na Agenda é a mesma aula, não uma cópia dela. */}
                     {ocorrenciaDoDetalhe.origemTipo === "individual" && irParaSessaoAluno && (
-                      <Botao pequeno variante="vazio" onClick={() => { setDetalheAberto(null); irParaSessaoAluno(ocorrenciaDoDetalhe.origemId); }}>Abrir sessão de treino</Botao>
+                      <Botao pequeno variante="vazio" onClick={() => { setDetalheAberto(null); irParaSessaoAluno(ocorrenciaDoDetalhe.origemId); }}>Abrir aula</Botao>
                     )}
-                    {ocorrenciaDoDetalhe.origemTipo === "turma" && setAba && (
-                      <Botao pequeno variante="vazio" onClick={() => { setDetalheAberto(null); setAba("turmas"); }}>Ver turma</Botao>
+                    {ocorrenciaDoDetalhe.origemTipo === "turma" && irParaSessaoTurma && (
+                      <Botao pequeno variante="vazio" onClick={() => { setDetalheAberto(null); irParaSessaoTurma(ocorrenciaDoDetalhe.origemId); }}>Abrir aula</Botao>
                     )}
                   </div>
                 </>
@@ -17173,6 +17212,12 @@ function App() {
      só pra mostrar aquele detalhe. */
   const [agendaDataAlvo, setAgendaDataAlvo] = useState(null);
   const [agendaVisualizacaoAlvo, setAgendaVisualizacaoAlvo] = useState(null);
+  /* Mesma ideia, pra abrir direto a sessão de UMA turma específica a
+     partir da Agenda/Aulas de hoje — "abrir aula" tem que levar pra
+     aula de verdade (Preparar/Conduzir/Registrar), não só pra lista de
+     turmas. Sem isto, Agenda e Turmas eram dois pontos de entrada que
+     nunca se encontravam na mesma tela. */
+  const [turmaAbertaAlvo, setTurmaAbertaAlvo] = useState(null);
   /* Enquanto a ficha está em edição, não precisamos esconder nada aqui
      (mty mostra o cabeçalho de qualquer forma) — guardado só pra passar
      pra TelaFicha, que usa isto pra avisar o pai quando entra/sai do
@@ -17970,7 +18015,8 @@ function App() {
            irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }} irParaManual={irParaManual} /> :
          aba === "formacao" ? <TelaFormacaoPessoal membros={membrosFormacao} setMembros={setMembrosFormacao} carregando={carregandoFormacao} uidAtual={uidAtual} irParaManual={irParaManual} /> :
          aba === "turmas" ? <TelaTurmas alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade}
-           exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} quadras={quadras} /> :
+           exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} quadras={quadras}
+           turmaAbertaAlvo={turmaAbertaAlvo} aoConsumirTurmaAlvo={() => setTurmaAbertaAlvo(null)} /> :
          aba === "quadras" && mostraQuadras ? <TelaQuadras quadras={quadras} setQuadras={setQuadras} orgAtual={orgAtual} /> :
          aba === "grade-aulas" && mostraQuadras ? <TelaGradeAulas alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} quadras={quadras} bloqueiosAula={bloqueiosAula} setBloqueiosAula={setBloqueiosAula} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} orgAtual={orgAtual}
            irParaFicha={(id) => { setAba("alunos"); setAbertoId(id); setEtapaFichaAlvo(2); }} /> :
@@ -17981,8 +18027,11 @@ function App() {
            quadras={quadras} reservas={reservas} setReservas={setReservas} bloqueiosAula={bloqueiosAula}
            orgAtual={orgAtual} mostraQuadras={mostraQuadras} uidAtual={uidAtual} exigeLogin={exigeLogin} regrasReposicao={regrasReposicao} setAba={setAba}
            dataAlvo={agendaDataAlvo} visualizacaoAlvo={agendaVisualizacaoAlvo} aoConsumirAlvo={() => { setAgendaDataAlvo(null); setAgendaVisualizacaoAlvo(null); }}
-           irParaSessaoAluno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("sessao"); }} /> :
-         aba === "aulas-hoje" ? <TelaAulasHoje alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} quadras={quadras} reservas={reservas} bloqueiosAula={bloqueiosAula} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} regrasReposicao={regrasReposicao} uidAtual={uidAtual} papelAtual={papelAtual} /> :
+           irParaSessaoAluno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("sessao"); }}
+           irParaSessaoTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} /> :
+         aba === "aulas-hoje" ? <TelaAulasHoje alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} quadras={quadras} reservas={reservas} bloqueiosAula={bloqueiosAula} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} regrasReposicao={regrasReposicao} uidAtual={uidAtual} papelAtual={papelAtual}
+           irParaSessaoAluno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("sessao"); }}
+           irParaSessaoTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} /> :
          aba === "reposicoes" ? <TelaReposicoes alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} reservas={reservas} bloqueiosAula={bloqueiosAula} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias}
            regrasReposicao={regrasReposicao} setRegrasReposicao={setRegrasReposicao} papelAtual={papelAtual} /> :
          aba === "relatorio" ? <TelaRelatorioProfessores ocorrencias={ocorrencias} alunos={alunos} turmas={turmas} papelAtual={papelAtual} uidAtual={uidAtual} /> :
