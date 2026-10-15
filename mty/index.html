@@ -9387,11 +9387,21 @@ function PainelNovoRegistro({ aoEscolher, aoFechar }) {
   );
 }
 
-function TelaRegistro({ aluno, alunos, setAlunos, identidade }) {
+function TelaRegistro({ aluno, alunos, setAlunos, identidade, abrirRegistroId, aoConsumirAbrirRegistro }) {
   const [filtro, setFiltro] = useState("todos");
   const [criando, setCriando] = useState(null); // null | "anotacao" | "jogo" | "semana" | "medicao"
   const [painelAberto, setPainelAberto] = useState(false);
   const [abertoId, setAbertoId] = useState(null);
+  /* Chegando aqui direto do cartão de uma aula (aba Aulas do Plano) —
+     abre a ficha já expandida, sem exigir que o treinador ache o
+     registro na lista de novo. Só abre pra leitura; nada é alterado só
+     por chegar aqui (ver DetalheSessaoRegistro). */
+  useEffect(() => {
+    if (!abrirRegistroId) return;
+    setFiltro("todos");
+    setAbertoId(abrirRegistroId);
+    if (aoConsumirAbrirRegistro) aoConsumirAbrirRegistro();
+  }, [abrirRegistroId]);
   const regs = aluno.registros || [];
   const anotacoes = aluno.anotacoes || [];
 
@@ -10197,7 +10207,7 @@ function HistoricoRelatorios({ historico, abrirHist, setAbrirHist, removerDoHist
    campos de registro. Extraído pra ser reaproveitado tanto pelas aulas
    programadas quanto pelas aulas de reforço (ver reforcarBloco em
    TelaPlano), que têm o mesmo checklist mas nascem de forma diferente. */
-function CardAulaChecklist({ id, indice, titulo, descricao, selo, qtdExercicios, status, defineStatus, reg, campo, chuvaAberta, setChuvaAberta, podeEditar = true, papelAtual }) {
+function CardAulaChecklist({ id, indice, titulo, descricao, selo, qtdExercicios, status, defineStatus, reg, campo, chuvaAberta, setChuvaAberta, podeEditar = true, papelAtual, registroId, aoAbrirFicha }) {
   const d = reg[id] || {};
   const st = status(id);
   const corStatus = { feita: C.quadra, falta: "#8A2E2E", cancelada: C.saibro }[st] || C.linha;
@@ -10270,6 +10280,18 @@ function CardAulaChecklist({ id, indice, titulo, descricao, selo, qtdExercicios,
           <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, flex: 1, minWidth: 210, fontSize: 12.5, resize: "vertical" }}
             placeholder="o que apareceu · o que não apareceu" value={d.obs || ""}
             onChange={(e) => campo(id, "obs", e.target.value)} />
+        </div>
+      )}
+      {st === "feita" && registroId && aoAbrirFicha && (
+        <div style={{ padding: "0 14px 12px 14px" }}>
+          {/* Consultar o que de fato aconteceu na quadra (exercícios,
+             presença, observações) sem precisar caçar no Caderno — e sem
+             reabrir ou sobrescrever nada da Sessão de hoje; a ficha do
+             Caderno já é só leitura por padrão. */}
+          <button onClick={() => aoAbrirFicha(registroId)}
+            style={{ ...prosa, fontSize: 12, color: C.saibro, fontWeight: 700, cursor: "pointer", border: "none", background: "none", padding: 0 }}>
+            Ver ficha completa desta aula (Caderno) →
+          </button>
         </div>
       )}
       {(st === "falta" || st === "cancelada") && (
@@ -10371,7 +10393,7 @@ function ResumoAulasPlano({ aulas, status }) {
   );
 }
 
-function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas, modo = "resumo", papelAtual, uidAtual, identidade, setSubaba, aoAcessarFicha, exerciciosCustom, setExerciciosCustom, ocorrencias }) {
+function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas, modo = "resumo", papelAtual, uidAtual, identidade, setSubaba, aoAcessarFicha, exerciciosCustom, setExerciciosCustom, ocorrencias, aoAbrirFicha }) {
   const eTurma = !!turma;
   const entidade = eTurma ? turma : aluno;
   const podeEditar = eTurma ? podeEditarTurma(turma, papelAtual, uidAtual) : podeEditarAluno(aluno, papelAtual, uidAtual);
@@ -11554,7 +11576,23 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
             const aulasDaSemana = (sem.aulas || []).map((au, ai) => {
               const idx = aulas.findIndex((x) => x.semana === sem.n && x.t === au.t && (x.ex || []).join() === (au.ex || []).join());
               const id = idx >= 0 ? aulas[idx].id : "A?" + si + ai;
-              return { au, ai, id };
+              /* Mesmo texto de `ciclo` que TelaSessao.registrar() grava no
+                 registro — é por aí que uma aula do Plano (sem data
+                 própria) encontra a ficha correspondente no Caderno
+                 (que tem data/exercícios/observações de verdade). Só
+                 pra jogador individual: turma não acumula `.registros`
+                 na entidade em si (ver registrosDaTurma). */
+              const cicloTexto = (b.titulo || b.nome) + " · semana " + sem.n + " · " + au.t;
+              const registroId = !eTurma && aluno
+                ? (() => {
+                    const candidatos = (aluno.registros || []).filter((r) => r.tipo === "sessao" && r.ciclo === cicloTexto);
+                    if (!candidatos.length) return null;
+                    const dataAula = (reg[id] || {}).data;
+                    const porData = dataAula && candidatos.find((r) => r.data === dataAula);
+                    return (porData || candidatos[candidatos.length - 1]).id;
+                  })()
+                : null;
+              return { au, ai, id, registroId };
             }).filter((item) => aulaPassaFiltro(item.id));
             if (!aulasDaSemana.length) return null;
             return (
@@ -11564,10 +11602,11 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                 <span style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, flex: 1 }}>{sem.foco}</span>
                 {sem.carga && <Etiqueta>{sem.carga}</Etiqueta>}
               </div>
-              {aulasDaSemana.map(({ au, ai, id }) => (
+              {aulasDaSemana.map(({ au, ai, id, registroId }) => (
                 <CardAulaChecklist key={ai} id={id} indice={ai + 1} titulo={au.t} descricao={au.d} selo={au.selo} qtdExercicios={(au.ex || []).length}
                   status={status} defineStatus={defineStatus} reg={reg} campo={campo}
-                  chuvaAberta={chuvaAberta} setChuvaAberta={setChuvaAberta} podeEditar={podeEditar} papelAtual={papelAtual} />
+                  chuvaAberta={chuvaAberta} setChuvaAberta={setChuvaAberta} podeEditar={podeEditar} papelAtual={papelAtual}
+                  registroId={registroId} aoAbrirFicha={aoAbrirFicha} />
               ))}
             </div>
             );
@@ -17300,6 +17339,12 @@ function App() {
      turmas. Sem isto, Agenda e Turmas eram dois pontos de entrada que
      nunca se encontravam na mesma tela. */
   const [turmaAbertaAlvo, setTurmaAbertaAlvo] = useState(null);
+  /* Mesmo padrão, pra abrir direto a ficha de uma aula JÁ realizada no
+     Caderno, a partir do cartão dela na aba Aulas — consultar o que
+     aconteceu numa aula passada sem precisar ir caçar no Caderno, e sem
+     reabrir/alterar nada da Sessão de hoje (ver DetalheSessaoRegistro,
+     que já é só leitura por padrão). */
+  const [registroAbertoAlvo, setRegistroAbertoAlvo] = useState(null);
   /* Enquanto a ficha está em edição, não precisamos esconder nada aqui
      (mty mostra o cabeçalho de qualquer forma) — guardado só pra passar
      pra TelaFicha, que usa isto pra avisar o pai quando entra/sai do
@@ -18286,11 +18331,13 @@ function App() {
                 aoMudarSujo={setFichaSuja} aoExporSalvarRascunho={(fn) => { salvarRascunhoRef.current = fn; }}
                 aoSairFicha={() => setAbertoId(null)} /> :
              subaba === "plano" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="resumo" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} ocorrencias={ocorrencias} /> :
-             subaba === "aulas" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} ocorrencias={ocorrencias} /> :
+             subaba === "aulas" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} ocorrencias={ocorrencias}
+               aoAbrirFicha={(id) => { setRegistroAbertoAlvo(id); setSubaba("registro"); }} /> :
              subaba === "fechamento" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="fechamento" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} ocorrencias={ocorrencias} /> :
              subaba === "periodizacao" ? <TelaPeriodizacao aluno={aberto} aoCriarPeriodo={() => { setEtapaFichaAlvo(2); setSubaba("ficha"); }} /> :
              subaba === "scout" ? <TelaScout aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
-             subaba === "registro" ? <TelaRegistro aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade} /> :
+             subaba === "registro" ? <TelaRegistro aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade}
+               abrirRegistroId={registroAbertoAlvo} aoConsumirAbrirRegistro={() => setRegistroAbertoAlvo(null)} /> :
              subaba === "estilo" ? <TelaEstiloTatico aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
              subaba === "adversarios" ? <TelaAdversarios aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
              <TelaSessao aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} papelAtual={papelAtual} uidAtual={uidAtual}
