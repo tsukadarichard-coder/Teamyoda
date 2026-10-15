@@ -10363,7 +10363,7 @@ function ResumoAulasPlano({ aulas, status }) {
   );
 }
 
-function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas, modo = "resumo", papelAtual, uidAtual, identidade, setSubaba, aoAcessarFicha, exerciciosCustom, setExerciciosCustom }) {
+function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas, modo = "resumo", papelAtual, uidAtual, identidade, setSubaba, aoAcessarFicha, exerciciosCustom, setExerciciosCustom, ocorrencias }) {
   const eTurma = !!turma;
   const entidade = eTurma ? turma : aluno;
   const podeEditar = eTurma ? podeEditarTurma(turma, papelAtual, uidAtual) : podeEditarAluno(aluno, papelAtual, uidAtual);
@@ -11337,6 +11337,19 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
   const proximaAulaBruta = aulaEmVigor(entidade);
   const proximaAula = proximaAulaBruta && !proximaAulaBruta.gate ? proximaAulaBruta : null;
   const proximaAulaGate = proximaAulaBruta && proximaAulaBruta.gate ? proximaAulaBruta : null;
+  /* A mesma ponte da Agenda (ver CartaoOcorrencia), no sentido contrário:
+     aqui no Plano, a próxima aula só tem data/horário/quadra quando já
+     existe uma ocorrência agendada pra este jogador/turma — senão é "a
+     agendar" de verdade (pedido explícito: não tratar toda aula futura
+     como pendência, e distinguir planejada-sem-data de já-agendada). */
+  const proximaOcorrencia = (() => {
+    if (!proximaAula || !ocorrencias) return null;
+    const hojeOc = new Date().toISOString().slice(0, 10);
+    return ocorrencias
+      .filter((o) => o.origemTipo === (eTurma ? "turma" : "individual") && o.origemId === entidade.id
+        && o.status !== "cancelada" && o.data >= hojeOc)
+      .sort((a, b) => a.data.localeCompare(b.data) || a.horaInicio.localeCompare(b.horaInicio))[0] || null;
+  })();
 
   return (
     <div>
@@ -11378,7 +11391,15 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
           <Etiqueta cor={C.saibro}>Próxima aula</Etiqueta>
           <p style={{ ...prosa, fontSize: 14, fontWeight: 700, marginTop: 4 }}>{proximaAula.t}</p>
           <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>{proximaAula.bloco} · semana {proximaAula.semana}</p>
-          {setSubaba && <div className="mt-2"><Botao pequeno variante="vazio" onClick={() => setSubaba("sessao")}>Abrir sessão de hoje</Botao></div>}
+          {ocorrencias && (
+            <p style={{ ...prosa, fontSize: 12, color: proximaOcorrencia ? C.grafite : "#B8860B", marginTop: 4 }}>
+              {proximaOcorrencia
+                ? new Date(proximaOcorrencia.data + "T00:00:00").toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" })
+                  + " · " + proximaOcorrencia.horaInicio + "–" + proximaOcorrencia.horaFim
+                : "A agendar — ainda não há horário marcado na Agenda pra esta aula."}
+            </p>
+          )}
+          {setSubaba && <div className="mt-2"><Botao pequeno variante="vazio" onClick={() => setSubaba("sessao")}>Abrir aula</Botao></div>}
         </div>
       )}
       {proximaAulaGate && (
@@ -13659,7 +13680,7 @@ function TelaClientes({ quadras, reservas, torneios, eventos }) {
    todo mundo em uma ação (com espaço pra corrigir por pessoa: chuva
    cancela a turma inteira, mas um jogador específico pode ter faltado
    por outro motivo mesmo com o resto treinando). */
-function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual, exerciciosCustom, setExerciciosCustom, identidade, quadras, turmaAbertaAlvo, aoConsumirTurmaAlvo }) {
+function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual, exerciciosCustom, setExerciciosCustom, identidade, quadras, ocorrencias, turmaAbertaAlvo, aoConsumirTurmaAlvo }) {
   const [abertaId, setAbertaId] = useState(null);
   /* Mesmo padrão de dataAlvo na Agenda: quando alguém pede pra abrir a
      sessão desta turma a partir de outra tela (Agenda, Aulas de hoje),
@@ -13685,7 +13706,7 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual
   if (aberta) {
     return (
       <SessaoTurma turma={aberta} alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas}
-        papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade}
+        papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} ocorrencias={ocorrencias}
         exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom}
         aoFechar={() => setAbertaId(null)}
         aoRemover={() => { setTurmas(turmas.filter((t) => t.id !== aberta.id)); setAbertaId(null); }} />
@@ -13906,7 +13927,7 @@ function TelaScoutTurma({ membros, alunos, setAlunos }) {
   );
 }
 
-function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, aoRemover, papelAtual, uidAtual, exerciciosCustom, setExerciciosCustom, identidade }) {
+function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, aoRemover, papelAtual, uidAtual, exerciciosCustom, setExerciciosCustom, identidade, ocorrencias }) {
   const podeEditar = podeEditarTurma(turma, papelAtual, uidAtual);
   /* Registrar a sessão de hoje (presença, notas, "Salvar sessão") é
      diferente de editar a turma em si (plano, "Remover turma") —
@@ -14194,11 +14215,11 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
       </div>
 
       {subaba === "plano" ? (
-        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="resumo" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} />
+        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="resumo" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} ocorrencias={ocorrencias} />
       ) : subaba === "aulas" ? (
-        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} setSubaba={setSubaba} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} />
+        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} setSubaba={setSubaba} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} ocorrencias={ocorrencias} />
       ) : subaba === "fechamento" ? (
-        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} setSubaba={setSubaba} modo="fechamento" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} />
+        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} setSubaba={setSubaba} modo="fechamento" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} ocorrencias={ocorrencias} />
       ) : subaba === "scout" ? (
         <TelaScoutTurma membros={membros} alunos={alunos} setAlunos={setAlunos} />
       ) : (
@@ -18015,7 +18036,7 @@ function App() {
            irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }} irParaManual={irParaManual} /> :
          aba === "formacao" ? <TelaFormacaoPessoal membros={membrosFormacao} setMembros={setMembrosFormacao} carregando={carregandoFormacao} uidAtual={uidAtual} irParaManual={irParaManual} /> :
          aba === "turmas" ? <TelaTurmas alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade}
-           exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} quadras={quadras}
+           exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} quadras={quadras} ocorrencias={ocorrencias}
            turmaAbertaAlvo={turmaAbertaAlvo} aoConsumirTurmaAlvo={() => setTurmaAbertaAlvo(null)} /> :
          aba === "quadras" && mostraQuadras ? <TelaQuadras quadras={quadras} setQuadras={setQuadras} orgAtual={orgAtual} /> :
          aba === "grade-aulas" && mostraQuadras ? <TelaGradeAulas alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} quadras={quadras} bloqueiosAula={bloqueiosAula} setBloqueiosAula={setBloqueiosAula} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} orgAtual={orgAtual}
@@ -18203,9 +18224,9 @@ function App() {
                 etapaAlvo={etapaFichaAlvo} aoConsumirEtapaAlvo={() => setEtapaFichaAlvo(null)} aoMudarEditando={setEditandoFicha} quadras={quadras}
                 aoMudarSujo={setFichaSuja} aoExporSalvarRascunho={(fn) => { salvarRascunhoRef.current = fn; }}
                 aoSairFicha={() => setAbertoId(null)} /> :
-             subaba === "plano" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="resumo" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
-             subaba === "aulas" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
-             subaba === "fechamento" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="fechamento" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
+             subaba === "plano" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="resumo" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} ocorrencias={ocorrencias} /> :
+             subaba === "aulas" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} ocorrencias={ocorrencias} /> :
+             subaba === "fechamento" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="fechamento" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} ocorrencias={ocorrencias} /> :
              subaba === "periodizacao" ? <TelaPeriodizacao aluno={aberto} aoCriarPeriodo={() => { setEtapaFichaAlvo(2); setSubaba("ficha"); }} /> :
              subaba === "scout" ? <TelaScout aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
              subaba === "registro" ? <TelaRegistro aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade} /> :
