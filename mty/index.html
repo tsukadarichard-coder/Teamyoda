@@ -7689,6 +7689,13 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
         <div className="mb-5"><Aviso>Este jogador é de outro treinador — só ele (ou o coordenador) pode registrar a sessão dele.</Aviso></div>
       )}
 
+      {/* Os três momentos da mesma aula (pedido explícito: compartilham os
+         mesmos dados, nenhum força o próximo) — Preparar monta a sessão
+         antes de ir pra quadra; Conduzir é o que se consulta durante a
+         aula; Registrar fecha e grava o resultado. */}
+      {!plano && (
+        <div className="mb-3"><Etiqueta cor={C.saibro}>Preparar</Etiqueta></div>
+      )}
       {!aulaAtual && (
         <>
           <Campo rotulo="Ciclo ativo hoje" nota="O caderno do treinador manda decidir isto antes de entrar na quadra.">
@@ -7726,6 +7733,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
 
       {plano && (
         <div className="mt-7">
+          <div className="mb-3"><Etiqueta cor={C.saibro}>Conduzir</Etiqueta></div>
           <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
             <Etiqueta cor={estadoSalvo === "erro" ? "#8A2E2E" : C.quadra}>
               {estadoSalvo === "salvando" ? "Salvando…" : estadoSalvo === "erro" ? "Não foi possível salvar — tentar novamente"
@@ -10405,6 +10413,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
   const [menuAcoes, setMenuAcoes] = useState(false);
   const [gerenciarAberto, setGerenciarAberto] = useState(false);
   const [criteriosAbertos, setCriteriosAbertos] = useState(false);
+  const [filtroAulas, setFiltroAulas] = useState("todas");
   const [aprovando, setAprovando] = useState(false);
   /* Estado real de salvamento — só vira "salvo" depois que grave() confirma
      a escrita, nunca otimista. "Salvo na nuvem" só é dito com conta na
@@ -11350,6 +11359,16 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
         && o.status !== "cancelada" && o.data >= hojeOc)
       .sort((a, b) => a.data.localeCompare(b.data) || a.horaInicio.localeCompare(b.horaInicio))[0] || null;
   })();
+  /* "Sem registro" (filtro da lista de aulas, abaixo): a aula em vigor já
+     passou da data marcada na Agenda e ninguém registrou nada — mesmo
+     conceito de "Registro pendente" de Aulas de hoje, só que visto do
+     lado do Plano. Nunca marca sozinha como realizada/falta — só sinaliza. */
+  const aulaEmVigorSemRegistro = (() => {
+    if (!proximaAula || !ocorrencias) return false;
+    const hojeOc = new Date().toISOString().slice(0, 10);
+    return ocorrencias.some((o) => o.origemTipo === (eTurma ? "turma" : "individual") && o.origemId === entidade.id
+      && o.status === "agendada" && o.data < hojeOc);
+  })();
 
   return (
     <div>
@@ -11487,7 +11506,40 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
         <VisaoGeralBlocos plano={plano} aulas={aulas} status={status} reg={reg} entidade={entidade} eTurma={eTurma} membros={membros} />
       )}
 
-      {modo === "aulas" && plano.blocos.map((b, bi) => (
+      {/* Filtros da lista — sem isto, uma aula futura qualquer e uma aula
+         que já devia ter sido dada apareciam misturadas, do mesmo jeito.
+         "Sem registro" só existe pra aula EM VIGOR, por enquanto (é a
+         única com data conhecida via Agenda — ver aulaEmVigorSemRegistro
+         acima); as demais aulas futuras não têm data própria, então
+         contam só como "Próximas". */}
+      {modo === "aulas" && (
+        <div className="flex gap-2 flex-wrap mb-4">
+          {[
+            { v: "todas", r: "Todas" },
+            { v: "proximas", r: "Próximas" },
+            { v: "sem_registro", r: "Sem registro" + (aulaEmVigorSemRegistro ? " (1)" : "") },
+            { v: "realizadas", r: "Realizadas" },
+          ].map((f) => (
+            <button key={f.v} onClick={() => setFiltroAulas(f.v)}
+              style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "6px 11px", borderRadius: 10, cursor: "pointer",
+                border: "1px solid " + (filtroAulas === f.v ? C.saibro : C.linha),
+                background: filtroAulas === f.v ? C.saibro : C.papel, color: filtroAulas === f.v ? "#fff" : C.grafite }}>
+              {f.r}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {modo === "aulas" && plano.blocos.map((b, bi) => {
+        function aulaPassaFiltro(id) {
+          if (filtroAulas === "todas") return true;
+          if (filtroAulas === "sem_registro") return aulaEmVigorSemRegistro && proximaAula && proximaAula.id === id;
+          const st = status(id);
+          if (filtroAulas === "realizadas") return st === "feita";
+          if (filtroAulas === "proximas") return st !== "feita";
+          return true;
+        }
+        return (
         <div key={bi} className="mb-7">
           <div style={{ background: C.tinta, color: C.papel, padding: "12px 15px" }}>
             <div style={{ fontFamily: ARCH, fontSize: 10, fontWeight: 700, letterSpacing: ".12em", color: C.saibro }}>
@@ -11498,25 +11550,29 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
           {b.alvo && <p style={{ ...prosa, fontSize: 13, color: C.grafite, background: C.cal,
             border: "1px solid " + C.linha, borderTop: "none", padding: "11px 15px", margin: 0 }}>{b.alvo}</p>}
 
-          {(b.semanasLista || []).map((sem, si) => (
+          {(b.semanasLista || []).map((sem, si) => {
+            const aulasDaSemana = (sem.aulas || []).map((au, ai) => {
+              const idx = aulas.findIndex((x) => x.semana === sem.n && x.t === au.t && (x.ex || []).join() === (au.ex || []).join());
+              const id = idx >= 0 ? aulas[idx].id : "A?" + si + ai;
+              return { au, ai, id };
+            }).filter((item) => aulaPassaFiltro(item.id));
+            if (!aulasDaSemana.length) return null;
+            return (
             <div key={si} style={{ border: "1px solid " + C.linha, borderTop: "none", background: C.cal }}>
               <div className="flex items-center gap-3 flex-wrap" style={{ padding: "9px 14px", background: C.papel, borderBottom: "1px solid " + C.linha }}>
                 <Etiqueta cor={C.tinta}>Semana {sem.n}</Etiqueta>
                 <span style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, flex: 1 }}>{sem.foco}</span>
                 {sem.carga && <Etiqueta>{sem.carga}</Etiqueta>}
               </div>
-              {(sem.aulas || []).map((au, ai) => {
-                const idx = aulas.findIndex((x) => x.semana === sem.n && x.t === au.t && (x.ex || []).join() === (au.ex || []).join());
-                const id = idx >= 0 ? aulas[idx].id : "A?" + si + ai;
-                return (
-                  <CardAulaChecklist key={ai} id={id} indice={ai + 1} titulo={au.t} descricao={au.d} selo={au.selo} qtdExercicios={(au.ex || []).length}
-                    status={status} defineStatus={defineStatus} reg={reg} campo={campo}
-                    chuvaAberta={chuvaAberta} setChuvaAberta={setChuvaAberta} podeEditar={podeEditar} papelAtual={papelAtual} />
-                );
-              })}
+              {aulasDaSemana.map(({ au, ai, id }) => (
+                <CardAulaChecklist key={ai} id={id} indice={ai + 1} titulo={au.t} descricao={au.d} selo={au.selo} qtdExercicios={(au.ex || []).length}
+                  status={status} defineStatus={defineStatus} reg={reg} campo={campo}
+                  chuvaAberta={chuvaAberta} setChuvaAberta={setChuvaAberta} podeEditar={podeEditar} papelAtual={papelAtual} />
+              ))}
             </div>
-          ))}
-          {(() => {
+            );
+          })}
+          {filtroAulas === "todas" && (() => {
             const nomeBloco = b.titulo || b.nome;
             const reforcos = ((reg.__blocos || {})[nomeBloco] || {}).reforcos || [];
             if (!reforcos.length) return null;
@@ -11616,7 +11672,8 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
             );
           })()}
         </div>
-      ))}
+        );
+      })}
 
       {modo === "fechamento" && (() => {
         const F = reg.__fech || {};
@@ -14377,9 +14434,13 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
               <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>{aulaTurma.d}</p>
             </div>
             {!sessaoTurma ? (
-              <div className="mb-5"><Botao onClick={gerarSessaoTurma} variante="saibro">Gerar sessão de hoje</Botao></div>
+              <div className="mb-5">
+                <div className="mb-3"><Etiqueta cor={C.saibro}>Preparar</Etiqueta></div>
+                <Botao onClick={gerarSessaoTurma} variante="saibro">Gerar sessão de hoje</Botao>
+              </div>
             ) : (
               <div className="mb-5">
+                <div className="mb-3"><Etiqueta cor={C.saibro}>Conduzir</Etiqueta></div>
                 <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
                   <Etiqueta cor={C.quadra}>✓ Sessão salva — continua aqui mesmo se fechar o app ou trocar de aparelho</Etiqueta>
                   {podeEditar && (
