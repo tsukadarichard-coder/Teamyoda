@@ -7643,7 +7643,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
       <div className="mb-5">
         <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, fontWeight: 700 }}>{aluno.nome || "Jogador"}</p>
         <h1 style={{ fontFamily: ARCH, fontSize: 21, fontWeight: 700, marginTop: 2 }}>
-          {aulaAtual ? aulaAtual.t : gateAtivo ? "Bloco aguardando confirmação" : plano && plano.chuva ? "Dia de chuva" : plano ? "Sessão avulsa" : "Sessão de hoje"}
+          {aulaAtual ? aulaAtual.t : gateAtivo ? "Bloco aguardando confirmação" : plano && plano.chuva ? "Dia de chuva" : plano ? "Sessão avulsa" : "Sessão"}
         </h1>
         <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>
           {aulaAtual ? aulaAtual.bloco + " · semana " + aulaAtual.semana : gateAtivo ? aulaEmVigorBruta.bloco : "Consulta rápida pra usar na quadra"}
@@ -10207,7 +10207,7 @@ function HistoricoRelatorios({ historico, abrirHist, setAbrirHist, removerDoHist
    campos de registro. Extraído pra ser reaproveitado tanto pelas aulas
    programadas quanto pelas aulas de reforço (ver reforcarBloco em
    TelaPlano), que têm o mesmo checklist mas nascem de forma diferente. */
-function CardAulaChecklist({ id, indice, titulo, descricao, selo, qtdExercicios, status, defineStatus, reg, campo, chuvaAberta, setChuvaAberta, podeEditar = true, papelAtual, registroId, aoAbrirFicha }) {
+function CardAulaChecklist({ id, indice, titulo, descricao, selo, qtdExercicios, status, defineStatus, reg, campo, chuvaAberta, setChuvaAberta, podeEditar = true, papelAtual, registroId, aoAbrirFicha, ehAtual, aoAbrirAula }) {
   const d = reg[id] || {};
   const st = status(id);
   const corStatus = { feita: C.quadra, falta: "#8A2E2E", cancelada: C.saibro }[st] || C.linha;
@@ -10240,9 +10240,19 @@ function CardAulaChecklist({ id, indice, titulo, descricao, selo, qtdExercicios,
           <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700,
             color: st === "feita" ? C.quadra : C.tinta }}>{indice} · {titulo}</div>
           {descricao && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2, whiteSpace: "pre-line" }}>{descricao}</p>}
-          {!!qtdExercicios && (
+          {/* "Na Sessão de hoje" era uma promessa vaga — essa aula pode nem
+             ser hoje. Quando é a aula em vigor, isto já é um link real pra
+             abrir de verdade; as outras (ainda não alcançadas na sequência)
+             não têm o que abrir ainda, então dizem isso em vez de apontar
+             pra um lugar que não existe. */}
+          {!!qtdExercicios && ehAtual && aoAbrirAula ? (
+            <button onClick={aoAbrirAula}
+              style={{ ...prosa, fontSize: 12, color: C.saibro, fontWeight: 700, cursor: "pointer", border: "none", background: "none", padding: 0, marginTop: 2, display: "block" }}>
+              {qtdExercicios} {qtdExercicios === 1 ? "exercício" : "exercícios"} — abrir aula →
+            </button>
+          ) : !!qtdExercicios && (
             <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>
-              {qtdExercicios} {qtdExercicios === 1 ? "exercício" : "exercícios"} — detalhes e trocas na Sessão de hoje
+              {qtdExercicios} {qtdExercicios === 1 ? "exercício" : "exercícios"} previstos — definidos ao chegar a vez desta aula
             </p>
           )}
           {/* Espaço dissertativo do treinador — fica registrado ANTES da
@@ -10270,16 +10280,31 @@ function CardAulaChecklist({ id, indice, titulo, descricao, selo, qtdExercicios,
           )}
         </div>
       </div>
+      {/* Cada campo tinha só um placeholder críptico ("dor · min / bolas",
+         "o que apareceu · o que não apareceu") sem rótulo visível — dava
+         pra confundir com um exame clínico ou nem entender o que preencher.
+         São os mesmos três campos de sempre (data/dor/obs, sem mudar o
+         dado salvo nem inventar escala nova), só com rótulo e exemplo
+         explícitos. */}
       {st === "feita" && (
-        <div className="flex gap-2 flex-wrap" style={{ padding: "0 14px 12px 14px" }}>
-          <input type="date" disabled={!podeEditar} style={{ ...entrada, width: 150, fontSize: 12.5, padding: "6px 9px" }}
-            value={d.data || ""} onChange={(e) => campo(id, "data", e.target.value)} />
-          <input disabled={!podeEditar} style={{ ...entrada, width: 165, fontSize: 12.5, padding: "6px 9px", borderColor: C.saibro }}
-            placeholder="dor · min / bolas" value={d.dor || ""}
-            onChange={(e) => campo(id, "dor", e.target.value)} />
-          <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, flex: 1, minWidth: 210, fontSize: 12.5, resize: "vertical" }}
-            placeholder="o que apareceu · o que não apareceu" value={d.obs || ""}
-            onChange={(e) => campo(id, "obs", e.target.value)} />
+        <div className="flex gap-2 flex-wrap items-start" style={{ padding: "0 14px 12px 14px" }}>
+          <div style={{ width: 150 }}>
+            <label style={{ ...prosa, fontSize: 11, color: C.grafite, fontWeight: 700, display: "block", marginBottom: 4 }} htmlFor={"data-aula-" + id}>Data</label>
+            <input id={"data-aula-" + id} type="date" disabled={!podeEditar} style={{ ...entrada, width: "100%", fontSize: 12.5, padding: "6px 9px" }}
+              value={d.data || ""} onChange={(e) => campo(id, "data", e.target.value)} />
+          </div>
+          <div style={{ width: 190 }}>
+            <label style={{ ...prosa, fontSize: 11, color: C.grafite, fontWeight: 700, display: "block", marginBottom: 4 }} htmlFor={"dor-aula-" + id}>Dor ou incômodo relatado (opcional)</label>
+            <input id={"dor-aula-" + id} disabled={!podeEditar} style={{ ...entrada, width: "100%", fontSize: 12.5, padding: "6px 9px", borderColor: C.saibro }}
+              placeholder="ex: dor no ombro nos últimos 10 min" value={d.dor || ""}
+              onChange={(e) => campo(id, "dor", e.target.value)} />
+          </div>
+          <div style={{ flex: 1, minWidth: 210 }}>
+            <label style={{ ...prosa, fontSize: 11, color: C.grafite, fontWeight: 700, display: "block", marginBottom: 4 }} htmlFor={"obs-aula-" + id}>Observações da aula</label>
+            <textarea id={"obs-aula-" + id} rows={2} disabled={!podeEditar} style={{ ...entrada, width: "100%", resize: "vertical", fontSize: 12.5 }}
+              placeholder="o que apareceu, o que não apareceu, qualquer coisa relevante" value={d.obs || ""}
+              onChange={(e) => campo(id, "obs", e.target.value)} />
+          </div>
         </div>
       )}
       {st === "feita" && registroId && aoAbrirFicha && (
@@ -11592,7 +11617,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                     return (porData || candidatos[candidatos.length - 1]).id;
                   })()
                 : null;
-              return { au, ai, id, registroId };
+              return { au, ai, id, registroId, ehAtual: !!proximaAula && proximaAula.id === id };
             }).filter((item) => aulaPassaFiltro(item.id));
             if (!aulasDaSemana.length) return null;
             return (
@@ -11602,11 +11627,12 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                 <span style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, flex: 1 }}>{sem.foco}</span>
                 {sem.carga && <Etiqueta>{sem.carga}</Etiqueta>}
               </div>
-              {aulasDaSemana.map(({ au, ai, id, registroId }) => (
+              {aulasDaSemana.map(({ au, ai, id, registroId, ehAtual }) => (
                 <CardAulaChecklist key={ai} id={id} indice={ai + 1} titulo={au.t} descricao={au.d} selo={au.selo} qtdExercicios={(au.ex || []).length}
                   status={status} defineStatus={defineStatus} reg={reg} campo={campo}
                   chuvaAberta={chuvaAberta} setChuvaAberta={setChuvaAberta} podeEditar={podeEditar} papelAtual={papelAtual}
-                  registroId={registroId} aoAbrirFicha={aoAbrirFicha} />
+                  registroId={registroId} aoAbrirFicha={aoAbrirFicha}
+                  ehAtual={ehAtual} aoAbrirAula={() => setSubaba && setSubaba("sessao")} />
               ))}
             </div>
             );
@@ -14346,7 +14372,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
       )}
 
       <div style={{ background: C.cal, border: "1px solid " + C.linha, padding: 15, marginBottom: 18 }}>
-        <Campo rotulo="Sessão de hoje">
+        <Campo rotulo="Status da aula">
           <div className="flex gap-1 flex-wrap">
             {[["feita", "Realizada"], ["chuva", "🌧️ Foi dia de chuva"], ["pendencia", "Pendência do grupo"]].map(([v, r]) => (
               <button key={v} onClick={() => { setStatusGeral(v); if (v !== "chuva") setChuvaModeloId(null); }}
