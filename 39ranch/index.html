@@ -311,25 +311,42 @@
   body.tem-flutuante footer { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
 
   /* ── rodapé ── */
-  footer { background: var(--preto); color: #D8D1C3; padding: 44px 0 calc(28px + env(safe-area-inset-bottom)); }
-  .rodape-topo { display: flex; flex-direction: column; gap: 32px; padding-bottom: 28px; border-bottom: 1px solid rgba(255,255,255,.1); }
-  @media (min-width: 768px) { .rodape-topo { flex-direction: row; justify-content: space-between; } }
-  .rodape-marca img { height: 72px; width: auto; margin-bottom: 12px; }
-  .rodape-marca p { font-size: 14px; color: #B4AB98; max-width: 280px; margin: 0; line-height: 1.6; }
-  .rodape-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 24px 48px; }
-  .rodape-nav h2 {
-    font-family: var(--sans); font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
-    color: #B4AB98; margin: 0 0 6px;
+  footer { background: var(--preto); color: #D8D1C3; padding: 28px 0 calc(20px + env(safe-area-inset-bottom)); }
+  .rodape-grade { display: grid; gap: 16px; padding-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,.12); }
+  @media (min-width: 768px) {
+    .rodape-grade { grid-template-columns: minmax(0, 1fr) auto auto; gap: 48px; align-items: start; }
+    .rodape-grade .rodape-nav ul { grid-template-columns: repeat(2, max-content); column-gap: 32px; }
   }
-  .rodape-nav ul { list-style: none; margin: 0; padding: 0; }
-  .rodape-nav a { display: flex; align-items: center; min-height: 40px; color: #EDE6D6; text-decoration: none; font-size: 15px; }
-  .rodape-nav a:hover { text-decoration: underline; }
-  .powered-by { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; padding: 24px 0 14px; }
-  .powered-by span { font-size: 12px; color: #B4AB98; letter-spacing: .06em; text-transform: uppercase; }
-  .powered-by .marcas { display: flex; align-items: center; gap: 20px; }
-  .powered-by img { height: 24px; width: auto; }
-  .powered-by img.quadralab { height: 28px; }
-  .copyright { font-size: 13px; color: #9A917F; margin: 6px 0 0; }
+  .rodape-marca { display: flex; align-items: center; gap: 16px; }
+  .rodape-marca picture { flex-shrink: 0; }
+  .rodape-marca img { height: 64px; width: auto; }
+  .rodape-marca p { font-size: 15px; color: #C9C0AE; max-width: 260px; margin: 0; line-height: 1.5; }
+  @media (min-width: 768px) { .rodape-marca { flex-direction: column; align-items: flex-start; gap: 10px; } }
+  .rodape-titulo {
+    font-family: var(--sans); font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+    color: #B4AB98; margin: 0 0 4px;
+  }
+  .rodape-nav ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); column-gap: 16px; }
+  .rodape-nav a, .rodape-legal a {
+    display: inline-flex; align-items: center; min-height: 44px; color: #EDE6D6; text-decoration: none; font-size: 15px;
+  }
+  .rodape-nav a:hover, .rodape-legal a:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .rodape-novidades { display: flex; flex-direction: column; align-items: flex-start; }
+  .rodape-novidades a {
+    display: inline-flex; align-items: center; gap: 6px; min-height: 44px; color: var(--dourado);
+    font-size: 15px; font-weight: 600; text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 1px;
+  }
+  .rodape-novidades a:hover { color: #E0BE6E; }
+  .parceiros { padding: 16px 0; border-bottom: 1px solid rgba(255,255,255,.12); }
+  .parceiros .rodape-titulo { margin-bottom: 8px; }
+  .parceiros ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 12px; }
+  /* Os dois logos oficiais são para fundo claro: base clara discreta, arquivos inteiros, sem filtros. */
+  .parceiros li { background: #FAF6EC; border-radius: 8px; padding: 8px 14px; display: flex; align-items: center; height: 52px; }
+  .parceiros img { width: auto; flex-shrink: 0; }
+  .parceiros .yoda { height: 36px; }
+  .parceiros .quadralab { height: 28px; }
+  .rodape-legal { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 24px; padding-top: 6px; }
+  .copyright { font-size: 13.5px; color: #ABA290; margin: 0; line-height: 1.5; }
 
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -619,7 +636,7 @@
 
 <footer>
   <div class="wrap">
-    <div class="rodape-topo">
+    <div class="rodape-grade">
       <div class="rodape-marca">
         <picture>
           <source srcset="assets/logo-39-ranch-180.webp" type="image/webp">
@@ -627,41 +644,42 @@
         </picture>
         <p>Duas quadras de saibro, natureza e boa mesa.</p>
       </div>
-      <nav class="rodape-nav" aria-label="Rodapé">
-        <div>
-          <h2>Navegação</h2>
-          <ul>
-            <li><a href="#clube">O clube</a></li>
-            <li><a href="#aulas">Aulas</a></li>
-            <li><a href="#experiencia">Experiência</a></li>
-            <li data-requer="localizacao" hidden><a href="#localizacao">Localização</a></li>
-            <li><a href="#duvidas">Dúvidas</a></li>
-          </ul>
-        </div>
-        <div>
-          <h2>Contato</h2>
-          <ul>
-            <li><a href="#interesse">Deixar meu contato</a></li>
-            <li data-requer="whatsapp" hidden><a data-whatsapp href="#" target="_blank" rel="noopener">WhatsApp<span class="sr"> (abre em nova aba)</span></a></li>
-            <li><a href="privacidade.html">Política de Privacidade</a></li>
-          </ul>
-        </div>
+      <nav class="rodape-nav" aria-labelledby="rodape-nav-titulo">
+        <h2 class="rodape-titulo" id="rodape-nav-titulo">Navegação</h2>
+        <ul>
+          <li><a href="#clube">O clube</a></li>
+          <li><a href="#aulas">Aulas</a></li>
+          <li><a href="#experiencia">Experiência</a></li>
+          <li><a href="#duvidas">Dúvidas</a></li>
+          <li data-requer="localizacao" hidden><a href="#localizacao">Localização</a></li>
+        </ul>
       </nav>
-    </div>
-    <div class="powered-by">
-      <span>powered by</span>
-      <div class="marcas">
-        <picture>
-          <source srcset="assets/logo-team-yoda-48.webp" type="image/webp">
-          <img src="assets/logo-team-yoda-48.png" width="61" height="24" loading="lazy" decoding="async" alt="Team Yoda">
-        </picture>
-        <picture>
-          <source srcset="assets/logo-quadralab-56.webp" type="image/webp">
-          <img class="quadralab" src="assets/logo-quadralab-56.png" width="30" height="28" loading="lazy" decoding="async" alt="QuadraLab">
-        </picture>
+      <div class="rodape-novidades">
+        <a href="#interesse">Quero saber da inauguração <span aria-hidden="true">→</span></a>
+        <a data-requer="whatsapp" data-whatsapp href="#" target="_blank" rel="noopener" hidden>WhatsApp<span class="sr"> (abre em nova aba)</span></a>
       </div>
     </div>
-    <p class="copyright">© <span id="anoAtual"></span> 39 Ranch Tennis Club. Todos os direitos reservados.</p>
+    <div class="parceiros">
+      <p class="rodape-titulo" id="parceiros-titulo">Powered by</p>
+      <ul aria-labelledby="parceiros-titulo">
+        <li>
+          <picture>
+            <source srcset="assets/logo-team-yoda-rodape.webp" type="image/webp">
+            <img class="yoda" src="assets/logo-team-yoda-rodape.png" width="91" height="36" loading="lazy" decoding="async" alt="Team Yoda">
+          </picture>
+        </li>
+        <li>
+          <picture>
+            <source srcset="assets/logo-quadralab-rodape.webp" type="image/webp">
+            <img class="quadralab" src="assets/logo-quadralab-rodape.png" width="117" height="28" loading="lazy" decoding="async" alt="QuadraLab">
+          </picture>
+        </li>
+      </ul>
+    </div>
+    <div class="rodape-legal">
+      <a href="privacidade.html">Política de Privacidade</a>
+      <p class="copyright">© <span id="anoAtual"></span> 39 Ranch Tennis Club. Todos os direitos reservados.</p>
+    </div>
   </div>
 </footer>
 
