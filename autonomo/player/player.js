@@ -71,7 +71,11 @@
   ];
 
   var app = document.getElementById("app");
-  var btSair = document.getElementById("btSair");
+  var lateral = document.getElementById("lateral");
+  var navInf = document.getElementById("navInf");
+  var painelMais = document.getElementById("painelMais");
+  var painelFundo = document.getElementById("painelFundo");
+  var btMais = document.getElementById("btMais");
   var auth = null;
   var estado = { dados: null, ficha: null };
 
@@ -188,51 +192,136 @@
     });
   }
 
+  function planosProntos() { return (estado.dados.planos || []).filter(function (p) { return p.status === "pronto"; }); }
+  function planejamentosProntos() { return (estado.dados.planejamentos || []).filter(function (x) { return x.status === "pronto"; }); }
+
+  function listaPlanosHtml() {
+    var d = estado.dados;
+    var planos = d.planos.filter(function (p) { return p.status === "pronto" || p.status === "gerando"; });
+    if (!planos.length) return "";
+    return '<div class="cartao"><h2 style="margin-bottom:6px">Seus planos táticos</h2>' + planos.map(function (p) {
+      var nome = p.status === "gerando" ? "Plano em preparação…" : esc(p.plano.titulo);
+      return '<a class="item-plano" href="#/' + (p.status === "gerando" ? "gerando/" : "plano/") + esc(p.id) + '"><span><strong>' + nome + "</strong><br>" +
+        '<span class="data">' + dataBR(p.criadoEm) + (p.adversarioNome ? " · contra " + esc(p.adversarioNome) : "") + "</span></span>" +
+        '<span class="seta" aria-hidden="true">›</span></a>';
+    }).join("") + "</div>";
+  }
+  function cartaoGerarHtml() {
+    var d = estado.dados, planos = planosProntos();
+    if (!d.fichaCompleta) return "";
+    if (d.podeGerar) {
+      return '<div class="cartao"><h2>' + (planos.length ? "Gerar novo plano" : "Gerar meu plano tático") + "</h2>" +
+        '<p class="nota" style="margin-top:6px">' + (d.full ? "Acesso completo de teste: você pode gerar quantos planos quiser." : d.gratisRestantes ? "Seu primeiro plano é grátis." : "Você tem " + d.creditos + " crédito(s) para novos planos.") +
+        " Antes, confira se a ficha continua igual ao seu jogo de hoje.</p>" +
+        '<div class="acoes"><button class="btn btn-primario" id="btGerar" type="button">Gerar plano com a ficha atual</button>' +
+        '<a class="btn btn-secundario" href="#/ficha/1">Revisar ficha</a></div></div>';
+    }
+    return '<div class="cartao"><h2>Novos planos</h2>' +
+      '<p class="nota" style="margin-top:6px">Você já usou o seu plano grátis. A compra de novos planos, por exemplo contra outro adversário, chega em breve aqui no app.</p>' +
+      '<div class="acoes"><a class="btn btn-secundario" href="#/ficha/1">Atualizar minha ficha</a></div></div>';
+  }
+  function ligarGerar() {
+    var btGerar = document.getElementById("btGerar");
+    if (btGerar) btGerar.addEventListener("click", function () { gerarPlano(btGerar); });
+  }
+
+  /* Início — mesmo desenho do app do treinador: saudação, "Primeiros passos",
+     botão principal grande, próximo treino e quatro números. */
   function telaInicio() {
     var d = estado.dados;
     var primeiroNome = (d.perfil.nome || "").split(" ")[0];
-    var planos = d.planos.filter(function (p) { return p.status === "pronto" || p.status === "gerando"; });
-    var html = '<div class="pilha"><div><h1>Olá' + (primeiroNome ? ", " + esc(primeiroNome) : "") + ".</h1>";
+    var prontos = planosProntos();
+    var ultimo = prontos[0];
+    var escolheu = prontos.some(function (p) { return (p.escolhidas || []).length > 0; });
+    var passos = [
+      { t: "Preencher a ficha tática", feito: d.fichaCompleta, href: "#/ficha/1" },
+      { t: "Gerar o plano tático", feito: prontos.length > 0, href: "#/planos" },
+      { t: "Escolher as jogadas que quer treinar", feito: escolheu, href: ultimo ? "#/plano/" + esc(ultimo.id) : "#/planos" },
+    ];
+    var atual = passos.findIndex(function (x) { return !x.feito; });
+    var html = "<h1>Olá" + (primeiroNome ? ", " + esc(primeiroNome) : "") + "</h1>" +
+      '<p class="sub">' + (atual === -1 ? "Seu plano está pronto. Hora de treinar." : "Vamos montar o seu plano de jogo?") + "</p>";
+    if (atual !== -1) {
+      html += '<div class="cartao" style="margin-top:18px"><p class="olho">Primeiros passos</p><h2>Vamos montar o seu plano tático?</h2>' +
+        '<ol class="passos">' + passos.map(function (x, n) {
+          var cls = x.feito ? "feito" : n === atual ? "atual" : "";
+          return '<li class="' + cls + '"><span class="num" aria-hidden="true">' + (x.feito ? "✓" : n + 1) + "</span>" +
+            (n === atual ? '<a href="' + x.href + '">' + esc(x.t) + "</a>" : "<span>" + esc(x.t) + "</span>") + "</li>";
+        }).join("") + "</ol></div>";
+      var acaoGrande = atual === 0 ? '<a class="btn btn-primario btn-grande" href="#/ficha/1">' + (d.ficha ? "Continuar ficha" : "Preencher minha ficha") + "</a>"
+        : atual === 1 ? (d.podeGerar ? '<button class="btn btn-primario btn-grande" id="btGerar" type="button">Gerar meu plano tático</button>' : '<a class="btn btn-primario btn-grande" href="#/planos">Ver planos</a>')
+        : '<a class="btn btn-primario btn-grande" href="#/plano/' + esc(ultimo.id) + '">Escolher jogadas</a>';
+      html += acaoGrande;
+    } else if (estado.dados.recursos && estado.dados.recursos.planejamento) {
+      html += (ultimo ? '<a class="btn btn-primario btn-grande" href="#/planejar/' + esc(ultimo.id) + '">Montar planejamento</a>' : "");
+    }
+    html += '<div id="proximoTreino"></div>';
+    var marcadas = prontos.reduce(function (n, p) { return n + (p.escolhidas || []).length; }, 0);
+    html += '<div class="grade-numeros">' +
+      '<div class="numero"><strong>' + prontos.length + '</strong><span>Planos táticos</span><small>já gerados</small></div>' +
+      '<div class="numero"><strong>' + marcadas + '</strong><span>Jogadas</span><small>marcadas para treinar</small></div>' +
+      '<div class="numero"><strong>' + planejamentosProntos().length + '</strong><span>Planejamentos</span><small>por semanas</small></div>' +
+      '<div class="numero"><strong>' + (d.full ? "∞" : (d.gratisRestantes + d.creditos)) + '</strong><span>Planos para gerar</span><small>' + (d.full ? "acesso completo de teste" : d.gratisRestantes ? "plano grátis disponível" : "créditos") + "</small></div></div>" +
+      '<p class="nota" style="text-align:center;margin-top:18px">Conectado como ' + esc(d.perfil.email) + (d.full ? " · acesso completo de teste" : "") + "</p>";
+    tela(html);
+    ligarGerar();
+    carregarProximoTreino();
+  }
+
+  /* "Próximo treino": a primeira sessão de hoje em diante do planejamento mais recente. */
+  async function carregarProximoTreino() {
+    var ultimo = planejamentosProntos()[0];
+    var alvo = document.getElementById("proximoTreino");
+    if (!ultimo || !alvo) return;
+    try {
+      var pj = (await api("player-dados?planejamento=" + encodeURIComponent(ultimo.id))).planejamento;
+      if (!pj.planejamento || !document.getElementById("proximoTreino")) return;
+      var hoje = hojeISO(), proxima = null, ultima = null;
+      pj.planejamento.semanas.forEach(function (w) { w.sessoes.forEach(function (x) { ultima = x; if (!proxima && x.data >= hoje) proxima = x; }); });
+      var x = proxima || ultima;
+      if (!x) return;
+      document.getElementById("proximoTreino").innerHTML = '<div class="cartao proximo-treino" style="margin-top:14px"><p class="olho">' + (proxima ? "Próximo treino" : "Último treino do ciclo") + "</p>" +
+        "<h3>" + esc(x.titulo) + '</h3><p class="quando">' + esc(x.diaNome) + ", " + esc(dataCurta(x.data)) + " · " + esc((pj.params || {}).minutos) + ' min</p>' +
+        '<div class="acoes"><a class="btn btn-secundario" href="#/planejamento/' + esc(ultimo.id) + '">Abrir planejamento</a></div></div>';
+    } catch (e) { /* sem rede: o cartão simplesmente não aparece */ }
+  }
+
+  function telaPlanos() {
+    var d = estado.dados;
+    var html = "<h1>Planos táticos</h1>" +
+      '<p class="sub">' + (planosProntos().length ? "Seus planos ficam guardados aqui." : d.fichaCompleta ? "Gere o seu primeiro plano tático." : "Comece pela ficha tática.") + "</p>";
     if (!d.fichaCompleta) {
-      html += '<p class="sub">Comece pela sua ficha tática: são 4 etapas rápidas, quase tudo de tocar e escolher.</p></div>' +
-        '<div class="cartao"><h2>Sua ficha tática</h2><p class="nota" style="margin-top:6px">Nível, golpe forte, ponto fraco, como você constrói os pontos e, se quiser, um adversário específico.</p>' +
+      html += '<div class="cartao" style="margin-top:18px"><h2>Sua ficha tática</h2><p class="nota" style="margin-top:6px">São 4 etapas rápidas, quase tudo de tocar e escolher.</p>' +
         '<div class="acoes"><a class="btn btn-primario" href="#/ficha/1">' + (d.ficha ? "Continuar ficha" : "Preencher minha ficha") + "</a></div></div>";
     } else {
-      html += '<p class="sub">' + (planos.length ? "Seus planos táticos ficam guardados aqui." : "Sua ficha está pronta. Gere o seu plano tático.") + "</p></div>";
-      if (planos.length) {
-        html += '<div class="cartao"><h2 style="margin-bottom:6px">Seus planos</h2>' + planos.map(function (p) {
-          var nome = p.status === "gerando" ? "Plano em preparação…" : esc(p.plano.titulo);
-          return '<a class="item-plano" href="#/' + (p.status === "gerando" ? "gerando/" : "plano/") + esc(p.id) + '"><span><strong>' + nome + "</strong><br>" +
-            '<span class="data">' + dataBR(p.criadoEm) + (p.adversarioNome ? " · contra " + esc(p.adversarioNome) : "") + "</span></span>" +
-            '<span class="seta" aria-hidden="true">›</span></a>';
-        }).join("") + "</div>";
-      }
-      var planej = (d.planejamentos || []).filter(function (x) { return x.status === "pronto"; });
-      if (planej.length) {
-        html += '<div class="cartao"><h2 style="margin-bottom:6px">Seus planejamentos</h2>' + planej.map(function (x) {
-          var plano = (d.planos || []).filter(function (p) { return p.id === x.baseadoEm; })[0];
+      html += '<div class="pilha" style="margin-top:18px">' + listaPlanosHtml() + cartaoGerarHtml() + "</div>";
+    }
+    tela(html);
+    ligarGerar();
+  }
+
+  function telaTreino() {
+    var d = estado.dados, r = d.recursos || {}, ultimo = planosProntos()[0];
+    var html = "<h1>Treino</h1>";
+    if (!r.planejamento) {
+      var msg = "Olá, Richard! Quero saber sobre o Plano 1 (planejamento por semanas) do QuadraLab Player.";
+      html += '<p class="sub">Transforme as jogadas do seu plano em treinos.</p>' +
+        '<div class="cartao bloqueado" style="margin-top:18px"><p class="olho">Plano 1</p><h2>Planejamento por semanas</h2>' +
+        '<p class="nota" style="margin-top:6px">Semanas de trabalho com os dias e a duração que cabem na sua rotina, e os drills de cada sessão.</p>' +
+        '<div class="acoes"><a class="btn btn-secundario" href="https://wa.me/' + WHATSAPP_CONSULTORIA + "?text=" + encodeURIComponent(msg) + '" target="_blank" rel="noopener">Quero o Plano 1<span class="sr"> (abre o WhatsApp)</span></a></div></div>';
+    } else {
+      var lista = planejamentosProntos();
+      html += '<p class="sub">' + (lista.length ? "Seus planejamentos por semanas." : "Monte as semanas de treino a partir do seu plano tático.") + "</p>";
+      if (lista.length) {
+        html += '<div class="cartao" style="margin-top:18px"><h2 style="margin-bottom:6px">Seus planejamentos</h2>' + lista.map(function (x) {
           return '<a class="item-plano" href="#/planejamento/' + esc(x.id) + '"><span><strong>' + esc(x.titulo || "Planejamento") + '</strong><br><span class="data">' +
             dataBR(x.criadoEm) + (x.params ? " · " + x.params.semanas + " semanas · " + x.params.dias.length + "x por semana" : "") + '</span></span><span class="seta" aria-hidden="true">›</span></a>';
         }).join("") + "</div>";
       }
-      html += '<div class="cartao">';
-      if (d.podeGerar) {
-        html += "<h2>" + (planos.length ? "Gerar novo plano" : "Gerar meu plano tático") + "</h2>" +
-          '<p class="nota" style="margin-top:6px">' + (d.full ? "Acesso completo de teste: você pode gerar quantos planos quiser." : d.gratisRestantes ? "Seu primeiro plano é grátis." : "Você tem " + d.creditos + " crédito(s) para novos planos.") +
-          " Antes, confira se a ficha continua igual ao seu jogo de hoje.</p>" +
-          '<div class="acoes"><button class="btn btn-primario" id="btGerar" type="button">Gerar plano com a ficha atual</button>' +
-          '<a class="btn btn-secundario" href="#/ficha/1">Revisar ficha</a></div>';
-      } else {
-        html += "<h2>Novos planos</h2>" +
-          '<p class="nota" style="margin-top:6px">Você já usou o seu plano grátis. A compra de novos planos, por exemplo contra outro adversário, chega em breve aqui no app.</p>' +
-          '<div class="acoes"><a class="btn btn-secundario" href="#/ficha/1">Atualizar minha ficha</a></div>';
-      }
-      html += "</div>";
+      html += ultimo ? '<a class="btn btn-primario btn-grande" href="#/planejar/' + esc(ultimo.id) + '">Montar ' + (lista.length ? "outro " : "") + "planejamento</a>"
+        : '<div class="cartao" style="margin-top:18px"><p class="nota">Gere um plano tático antes de montar o planejamento.</p><div class="acoes"><a class="btn btn-primario" href="#/planos">Ir para os planos</a></div></div>';
     }
-    html += '<p class="nota" style="text-align:center">Conectado como ' + esc(d.perfil.email) + (d.full ? " · acesso completo de teste" : "") + "</p></div>";
     tela(html);
-    var btGerar = document.getElementById("btGerar");
-    if (btGerar) btGerar.addEventListener("click", function () { gerarPlano(btGerar); });
   }
 
   async function gerarPlano(bt) {
@@ -519,7 +608,7 @@
 
   function telaPlanejar(planoId) {
     var plano = (estado.dados.planos || []).filter(function (x) { return x.id === planoId && x.status === "pronto"; })[0];
-    if (!plano || !(estado.dados.recursos || {}).planejamento) { ir("#/inicio"); return; }
+    if (!plano || !(estado.dados.recursos || {}).planejamento) { ir("#/treino"); return; }
     var marcadas = (plano.escolhidas || []).length;
     var f = estado.formPlanej = estado.formPlanej || { semanas: "4", dias: ["ter", "qui", "sab"], minutos: "60", apoio: "", inicio: proximaSegunda() };
     tela(
@@ -625,12 +714,12 @@
     var pj;
     try { pj = (await api("player-dados?planejamento=" + encodeURIComponent(id))).planejamento; }
     catch (e) { telaErroPlano(e.message); return; }
-    if (pj.status !== "pronto" || !pj.planejamento) { ir("#/inicio"); return; }
+    if (pj.status !== "pronto" || !pj.planejamento) { ir("#/treino"); return; }
     var pl = pj.planejamento, pa = pj.params || {};
     var plano = (estado.dados.planos || []).filter(function (x) { return x.id === pj.baseadoEm; })[0];
     var jogadas = plano && plano.plano ? plano.plano.jogadas || [] : [];
     tela(
-      '<p style="margin-bottom:12px"><a class="btn btn-texto" href="#/inicio">‹ Início</a></p>' +
+      '<p style="margin-bottom:12px"><a class="btn btn-texto" href="#/treino">‹ Treino</a></p>' +
       '<p class="olho">Planejamento · ' + (pa.semanas || "") + " semanas</p><h1>" + esc(pl.titulo) + "</h1>" +
       '<p style="margin-top:10px"><span class="tag">' + (pa.dias || []).map(function (d) { return ABREV_DIA[d]; }).join(", ") + " · " + esc(pa.minutos) + " min · começa em " + esc(dataExtensa(pa.inicio)) + "</span></p>" +
       '<p class="sub" style="color:var(--tinta)">' + esc(pl.resumo) + "</p>" +
@@ -649,11 +738,11 @@
 
   function telaPlano(id) {
     var p = (estado.dados.planos || []).filter(function (x) { return x.id === id; })[0];
-    if (!p || p.status !== "pronto") { ir("#/inicio"); return; }
+    if (!p || p.status !== "pronto") { ir("#/planos"); return; }
     var pl = p.plano;
     var msgWpp = "Olá, Richard! Gerei meu plano tático no QuadraLab Player e quero saber sobre a consultoria.";
     tela(
-      '<p style="margin-bottom:12px"><a class="btn btn-texto" href="#/inicio">‹ Meus planos</a></p>' +
+      '<p style="margin-bottom:12px"><a class="btn btn-texto" href="#/planos">‹ Meus planos</a></p>' +
       '<p class="olho">Plano tático · ' + dataBR(p.criadoEm) + "</p>" +
       "<h1>" + esc(pl.titulo) + "</h1>" +
       (p.adversarioNome ? '<p style="margin-top:10px"><span class="tag">Contra ' + esc(p.adversarioNome) + "</span></p>" : "") +
@@ -692,12 +781,62 @@
     });
   }
 
+  /* ── casca do app: menu lateral (computador) e menu inferior (celular) ── */
+  var NAV_DA_ROTA = { ficha: "mais", plano: "planos", planos: "planos", planejar: "planos", gerando: "planos", treino: "treino", planejamento: "treino", gerandoPlanej: "treino" };
+  function atualizarCasca(logado, rota) {
+    document.body.classList.toggle("logado", logado);
+    lateral.hidden = !logado;
+    navInf.hidden = !logado;
+    var ativo = NAV_DA_ROTA[rota] || "inicio";
+    document.querySelectorAll("[data-nav]").forEach(function (el) {
+      if (el.getAttribute("data-nav") === ativo && logado) el.setAttribute("aria-current", "page"); else el.removeAttribute("aria-current");
+    });
+    if (!logado) fecharMais(false);
+    var conta = document.getElementById("painelConta");
+    if (conta && estado.dados) conta.textContent = "Conectado como " + estado.dados.perfil.email + (estado.dados.full ? " · acesso completo de teste" : "");
+    var msg = "Olá, Richard! Preciso de ajuda com o QuadraLab Player.";
+    document.querySelectorAll("[data-wpp]").forEach(function (a) { a.href = "https://wa.me/" + WHATSAPP_CONSULTORIA + "?text=" + encodeURIComponent(msg); });
+  }
+  function abrirMais() {
+    painelMais.hidden = false; painelFundo.hidden = false;
+    btMais.setAttribute("aria-expanded", "true");
+    document.getElementById("btFecharMais").focus();
+  }
+  function fecharMais(devolverFoco) {
+    if (painelMais.hidden) return;
+    painelMais.hidden = true; painelFundo.hidden = true;
+    btMais.setAttribute("aria-expanded", "false");
+    if (devolverFoco) btMais.focus();
+  }
+  btMais.addEventListener("click", function () { painelMais.hidden ? abrirMais() : fecharMais(true); });
+  document.getElementById("btFecharMais").addEventListener("click", function () { fecharMais(true); });
+  painelFundo.addEventListener("click", function () { fecharMais(true); });
+  painelMais.addEventListener("click", function (ev) { if (ev.target.closest("a")) fecharMais(false); });
+  document.addEventListener("keydown", function (ev) {
+    if (painelMais.hidden) return;
+    if (ev.key === "Escape") { fecharMais(true); return; }
+    if (ev.key === "Tab") {
+      var itens = [].slice.call(painelMais.querySelectorAll("button, a")).filter(function (x) { return !x.hidden; });
+      var i = itens.indexOf(document.activeElement);
+      if (ev.shiftKey && i <= 0) { ev.preventDefault(); itens[itens.length - 1].focus(); }
+      else if (!ev.shiftKey && i === itens.length - 1) { ev.preventDefault(); itens[0].focus(); }
+    }
+  });
+  document.addEventListener("click", async function (ev) {
+    var b = ev.target.closest("[data-acao='sair']");
+    if (!b) return;
+    fecharMais(false);
+    await auth.signOut();
+    estado.dados = null;
+    ir("#/entrar");
+  });
+
   /* ── rotas ── */
   async function rotear() {
     var logado = auth && auth.currentUser;
-    btSair.hidden = !logado;
     var h = location.hash.replace(/^#\/?/, "");
     var partes = h.split("/");
+    atualizarCasca(!!logado, partes[0]);
     if (!logado) { telaEntrar(partes[0] === "entrar" ? "entrar" : "criar"); return; }
     if (!estado.dados) {
       tela('<p class="carregando">Carregando seus dados…</p>');
@@ -714,6 +853,8 @@
     else if (partes[0] === "planejar" && partes[1]) telaPlanejar(partes[1]);
     else if (partes[0] === "gerandoPlanej" && partes[1]) telaGerandoPlanej(partes[1]);
     else if (partes[0] === "planejamento" && partes[1]) telaPlanejamento(partes[1]);
+    else if (partes[0] === "planos") telaPlanos();
+    else if (partes[0] === "treino") telaTreino();
     else telaInicio();
   }
 
@@ -725,11 +866,6 @@
   firebase.initializeApp(FIREBASE);
   auth = firebase.auth();
   auth.languageCode = "pt";
-  btSair.addEventListener("click", async function () {
-    await auth.signOut();
-    estado.dados = null;
-    ir("#/entrar");
-  });
   window.addEventListener("hashchange", rotear);
   auth.onAuthStateChanged(function (u) {
     if (!u) estado.dados = null;

@@ -1,16 +1,22 @@
 /* QuadraLab Player — mesma identidade do QuadraLab (verde-quadra, verde
    da marca só em detalhes: sobre branco ele não tem contraste para texto). */
 :root {
+  /* mesma paleta e elevação do app do treinador (QuadraLab) */
   --tinta: #17251F;
   --papel: #F6F8F7;
   --cal: #FFFFFF;
   --marca: #69B32A;
   --marca-texto: #3D7A16;   /* verde da marca escurecido para texto (≥ 4,5:1) */
-  --grafite: #4F5E57;
-  --linha: #DCE4E0;
+  --grafite: #5B6B63;
+  --linha: #E2E8E5;
   --quadra: #103B32;
   --erro: #A3261E;
-  --raio: 12px;
+  --raio: 14px;
+  --sombra: 0 1px 2px rgba(16,59,50,.04), 0 1px 3px rgba(16,59,50,.05);
+  --sombra-alta: 0 2px 6px rgba(16,59,50,.07), 0 6px 16px rgba(16,59,50,.08);
+  --h-topo: 56px;
+  --h-navinf: 56px;
+  --w-lateral: 252px;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -20,38 +26,90 @@ body {
   font: 16px/1.55 Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased; overflow-x: hidden;
 }
-.wrap { max-width: 640px; margin: 0 auto; padding: 0 20px; }
 h1, h2, h3 { margin: 0; line-height: 1.2; text-wrap: balance; }
-h1 { font-size: clamp(26px, 7vw, 32px); font-weight: 800; letter-spacing: -.01em; }
-h2 { font-size: 20px; font-weight: 700; }
+h1 { font-size: clamp(26px, 7vw, 30px); font-weight: 800; letter-spacing: -.01em; }
+h2 { font-size: 19px; font-weight: 700; }
 h3 { font-size: 17px; font-weight: 700; }
 p { margin: 0; }
 a { color: var(--quadra); }
-:focus-visible { outline: 3px solid var(--marca); outline-offset: 2px; border-radius: 6px; }
-main:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--marca); outline-offset: 2px; border-radius: 6px; }
+.principal:focus { outline: none; }
 
 .pular { position: absolute; left: 12px; top: -60px; z-index: 50; background: var(--quadra); color: #fff; padding: 10px 14px; border-radius: 8px; font-weight: 700; text-decoration: none; }
 .pular:focus { top: 10px; }
 
-/* ── topo e rodapé ──
-   O logo oficial do QuadraLab Player é verde-escuro + verde sobre fundo
-   transparente: pede fundo claro, então o topo é branco. */
-.topo { background: #fff; border-bottom: 1px solid var(--linha); padding-top: env(safe-area-inset-top); }
-.topo-in { display: flex; align-items: center; justify-content: space-between; min-height: 64px; gap: 12px; }
-.marca { display: flex; align-items: center; min-height: 44px; padding: 4px 0; }
-.marca img { height: 35px; width: auto; max-width: 100%; }
-.btn-sair { background: none; border: 1.5px solid var(--quadra); color: var(--quadra); border-radius: 10px; min-height: 44px; padding: 0 16px; font: 600 15px Inter, system-ui, sans-serif; cursor: pointer; }
-.rodape { padding: 28px 20px calc(28px + env(safe-area-inset-bottom)); color: var(--grafite); font-size: 13.5px; text-align: center; }
-
-main.wrap { padding-top: 24px; padding-bottom: 24px; min-height: 60vh; }
+/* ── estrutura (igual ao app do treinador) ──
+   Celular: barra branca no topo + menu inferior verde-escuro.
+   Computador (≥ 761px): menu lateral branco de 252px; a barra do topo some. */
+.topo { position: sticky; top: 0; z-index: 9; background: var(--cal); border-bottom: 1px solid var(--linha); padding-top: env(safe-area-inset-top); margin-left: 0; }
+.topo-in { display: flex; align-items: center; height: var(--h-topo); padding: 0 16px; }
+.marca { display: flex; align-items: center; min-height: 44px; }
+.marca img { height: 34px; width: auto; max-width: 100%; }
+.principal { max-width: 760px; margin: 0 auto; padding: 24px 20px; min-height: calc(100vh - var(--h-topo) - 90px); }
 .carregando { color: var(--grafite); padding: 40px 0; text-align: center; }
+.rodape { max-width: 760px; margin: 0 auto; padding: 8px 20px 28px; color: var(--grafite); font-size: 13.5px; text-align: center; }
+
+.lateral { display: none; }
+.navinf { position: fixed; left: 0; right: 0; bottom: 0; z-index: 28; background: var(--quadra); padding-bottom: env(safe-area-inset-bottom); }
+.navinf-in { display: flex; max-width: 760px; margin: 0 auto; }
+.navinf-item {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  min-height: var(--h-navinf); padding: 8px 4px; border: none; background: none; cursor: pointer;
+  color: rgba(255,255,255,.72); text-decoration: none; font: 600 11px Inter, system-ui, sans-serif;
+}
+.navinf-item[aria-current="page"] { color: #fff; }
+.navinf-item:focus-visible { outline: 2px solid #fff; outline-offset: -4px; }
+body.logado .principal { padding-bottom: calc(var(--h-navinf) + 24px + env(safe-area-inset-bottom)); }
+body.logado .rodape { padding-bottom: calc(var(--h-navinf) + 20px + env(safe-area-inset-bottom)); }
+
+@media (min-width: 761px) {
+  .navinf { display: none; }
+  body.logado .lateral {
+    display: block; position: fixed; left: 0; top: 0; bottom: 0; width: var(--w-lateral); overflow-y: auto;
+    background: var(--cal); border-right: 1px solid var(--linha); z-index: 30;
+  }
+  body.logado .topo, body.logado .principal, body.logado .rodape { margin-left: var(--w-lateral); max-width: none; }
+  body.logado .topo { display: none; }
+  body.logado .principal { padding: 28px 32px 40px; }
+  body.logado .principal > * { max-width: 760px; }
+  body.logado .rodape { padding: 8px 32px 28px; text-align: left; }
+  .lateral-faixa { height: 4px; background: var(--quadra); }
+  .lateral-logo { display: block; padding: 18px 18px 14px; }
+  .lateral-logo img { height: 40px; width: auto; max-width: 100%; }
+  .lateral-nav { display: flex; flex-direction: column; gap: 1px; padding: 4px 10px 18px; }
+  .nav-item {
+    display: block; width: 100%; text-align: left; padding: 9px 10px; border: none; border-radius: 10px; background: transparent;
+    font: 600 13.5px Inter, system-ui, sans-serif; color: var(--grafite); text-decoration: none; cursor: pointer;
+  }
+  .nav-item:hover { background: var(--papel); }
+  .nav-item[aria-current="page"] { background: var(--marca); color: #fff; }
+  .nav-item[aria-current="page"]:hover { background: var(--marca); }
+  .nav-grupo { margin: 14px 8px 4px; font: 600 12.5px Inter, system-ui, sans-serif; color: var(--grafite); }
+  .lateral-ajuda { padding: 8px 18px 16px; font: 600 12.5px Inter, system-ui, sans-serif; }
+  .lateral-ajuda a { color: var(--grafite); }
+}
+
+/* painel "Mais" (celular) */
+.painel-fundo { position: fixed; inset: 0; z-index: 40; background: rgba(16,59,50,.45); }
+.painel-mais {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 41; background: var(--cal); border-radius: 18px 18px 0 0;
+  padding: 14px 18px calc(18px + env(safe-area-inset-bottom)); box-shadow: var(--sombra-alta); max-width: 760px; margin: 0 auto;
+}
+.painel-mais-topo { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.painel-fechar { width: 44px; height: 44px; border: none; background: none; font-size: 28px; line-height: 1; color: var(--grafite); cursor: pointer; border-radius: 12px; }
+.painel-item {
+  display: flex; align-items: center; width: 100%; min-height: 52px; padding: 0 4px; border: none; background: none; text-align: left;
+  border-top: 1px solid var(--linha); font: 600 16px Inter, system-ui, sans-serif; color: var(--tinta); text-decoration: none; cursor: pointer;
+}
+.painel-sair { color: var(--erro); }
+@media (min-width: 761px) { .painel-mais, .painel-fundo { display: none !important; } }
 
 /* ── blocos ── */
-.cartao { background: var(--cal); border: 1px solid var(--linha); border-radius: var(--raio); padding: 20px 18px; }
+.cartao { background: var(--cal); border: 1px solid var(--linha); border-radius: var(--raio); padding: 20px 18px; box-shadow: var(--sombra); }
 .cartao + .cartao { margin-top: 14px; }
 .pilha > * + * { margin-top: 14px; }
 .sub { color: var(--grafite); font-size: 16px; margin-top: 8px; }
-.olho { font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--marca-texto); margin-bottom: 8px; }
+.olho { font-size: 13.5px; font-weight: 600; color: var(--marca-texto); margin-bottom: 6px; }
 .nota { font-size: 14px; color: var(--grafite); }
 .aviso { background: #FDF0EE; border: 1px solid #EBC3BD; color: #7A231C; border-radius: 10px; padding: 12px 14px; font-size: 15px; }
 .aviso-info { background: #EEF6E8; border: 1px solid #CBE3B8; color: #234A12; border-radius: 10px; padding: 12px 14px; font-size: 15px; }
@@ -59,13 +117,16 @@ main.wrap { padding-top: 24px; padding-bottom: 24px; min-height: 60vh; }
 /* ── botões ── */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  min-height: 52px; padding: 12px 22px; border-radius: 999px; border: none; cursor: pointer;
-  font: 700 16px/1.2 Inter, system-ui, sans-serif; text-decoration: none; text-align: center;
+  min-height: 48px; padding: 11px 20px; border-radius: 10px; border: 1px solid var(--tinta); cursor: pointer;
+  font: 600 15px/1.2 Inter, system-ui, sans-serif; text-decoration: none; text-align: center;
+  box-shadow: var(--sombra); transition: transform .1s ease, box-shadow .15s ease, opacity .15s ease;
 }
-.btn-primario { background: var(--quadra); color: #fff; }
-.btn-primario:hover { background: #0B2C25; }
-.btn-secundario { background: var(--cal); color: var(--quadra); box-shadow: inset 0 0 0 1.5px var(--quadra); }
-.btn-texto { background: none; color: var(--quadra); text-decoration: underline; text-underline-offset: 4px; padding: 10px 4px; min-height: 44px; border-radius: 6px; }
+.btn:hover:not([disabled]) { box-shadow: var(--sombra-alta); }
+.btn:active:not([disabled]) { transform: scale(.98); }
+.btn-primario { background: var(--quadra); color: #fff; border-color: var(--quadra); }
+.btn-primario:hover { background: var(--quadra); }
+.btn-secundario { background: transparent; color: var(--tinta); box-shadow: none; }
+.btn-texto { background: none; border: none; box-shadow: none; color: var(--quadra); text-decoration: underline; text-underline-offset: 4px; padding: 10px 4px; min-height: 44px; border-radius: 6px; }
 .btn[disabled] { opacity: .6; cursor: progress; }
 .largo { width: 100%; }
 .acoes { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
@@ -147,7 +208,7 @@ fieldset .nota { margin-bottom: 10px; }
 .sequencia li + li { margin-top: 6px; }
 .sequencia li::before { content: counter(s); position: absolute; left: 10px; top: 8px; width: 24px; height: 24px; border-radius: 99px; background: var(--quadra); color: #fff; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
 .drills { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--linha); }
-.drills h4 { margin: 0 0 8px; font-size: 14px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--marca-texto); }
+.drills h4 { margin: 0 0 8px; font-size: 14px; font-weight: 600; color: var(--marca-texto); }
 .drill { border: 1px solid var(--linha); border-radius: 10px; background: var(--papel); }
 .drill + .drill { margin-top: 8px; }
 .drill summary { list-style: none; cursor: pointer; padding: 12px 40px 12px 14px; position: relative; min-height: 52px; }
@@ -159,7 +220,7 @@ fieldset .nota { margin-bottom: 10px; }
 .drill-meta { display: block; font-size: 13px; color: var(--grafite); margin-top: 1px; }
 .drill-motivo { display: block; font-size: 14.5px; margin-top: 6px; }
 .drill-det { margin: 0; padding: 0 14px 14px; font-size: 14.5px; }
-.drill-det dt { font-weight: 700; font-size: 13px; letter-spacing: .03em; text-transform: uppercase; color: var(--grafite); margin-top: 10px; }
+.drill-det dt { font-weight: 600; font-size: 13px; color: var(--grafite); margin-top: 10px; }
 .drill-det dd { margin: 2px 0 0; }
 /* ── planejamento ── */
 .opcoes.dias { grid-template-columns: repeat(4, 1fr); }
@@ -171,11 +232,11 @@ fieldset .nota { margin-bottom: 10px; }
 .semana > summary::-webkit-details-marker { display: none; }
 .semana > summary::after { content: "+"; position: absolute; right: 16px; top: 12px; font-size: 24px; line-height: 1; color: var(--quadra); }
 .semana[open] > summary::after { content: "–"; }
-.semana-n { display: block; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--marca-texto); }
+.semana-n { display: block; font-size: 13.5px; font-weight: 600; color: var(--marca-texto); }
 .semana-foco { display: block; font-weight: 700; font-size: 17px; margin-top: 2px; }
 .semana-carga { display: block; font-size: 14px; color: var(--grafite); margin-top: 2px; }
 .sessao { margin: 0 12px 12px; padding: 14px; background: var(--papel); border: 1px solid var(--linha); border-radius: 10px; }
-.sessao-dia { margin: 0 0 2px; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--marca-texto); }
+.sessao-dia { margin: 0 0 2px; font-size: 13.5px; font-weight: 600; color: var(--marca-texto); }
 .sessao-jogadas { margin: 8px 0 0; font-size: 14.5px; }
 .itens-sessao { list-style: none; margin: 12px 0 0; padding: 0; }
 .itens-sessao > li + li { margin-top: 8px; }
@@ -204,3 +265,22 @@ fieldset .nota { margin-bottom: 10px; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 
 .sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* ── início (igual ao do app do treinador) ── */
+.passos { list-style: none; margin: 14px 0 0; padding: 0; }
+.passos li { display: flex; align-items: center; gap: 14px; min-height: 44px; font-size: 16px; color: var(--grafite); position: relative; }
+.passos li + li { margin-top: 10px; }
+.passos .num { flex: 0 0 34px; width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--linha); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; background: var(--cal); color: var(--grafite); }
+.passos li.atual { color: var(--tinta); font-weight: 600; }
+.passos li.atual .num { background: var(--marca); border-color: var(--marca); color: #fff; }
+.passos li.feito .num { background: var(--quadra); border-color: var(--quadra); color: #fff; }
+.passos li.feito { color: var(--grafite); }
+.passos a { color: inherit; }
+.grade-numeros { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+.numero { background: var(--cal); border: 1px solid var(--linha); border-radius: var(--raio); padding: 16px 14px; box-shadow: var(--sombra); }
+.numero strong { display: block; font-size: 28px; line-height: 1.1; font-weight: 800; color: var(--quadra); }
+.numero span { display: block; margin-top: 4px; font-weight: 600; font-size: 14.5px; }
+.numero small { display: block; font-size: 13px; color: var(--grafite); margin-top: 1px; }
+.btn-grande { width: 100%; min-height: 52px; border-radius: 14px; font-size: 16px; margin-top: 14px; }
+.proximo-treino h3 { margin-top: 4px; }
+.proximo-treino .quando { margin-top: 2px; color: var(--grafite); font-size: 15px; }

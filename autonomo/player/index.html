@@ -16,25 +16,77 @@
 </head>
 <body>
 <a class="pular" href="#app">Pular para o conteúdo</a>
-<header class="topo">
-  <div class="wrap topo-in">
+
+<!-- Menu lateral (computador) — mesmo desenho do app do treinador -->
+<aside class="lateral" id="lateral" hidden>
+  <div class="lateral-faixa"></div>
+  <a class="lateral-logo" href="#/inicio" aria-label="QuadraLab Player — início">
+    <picture>
+      <source srcset="../assets/logo-quadralab-player-v2-120.webp 518w, ../assets/logo-quadralab-player-v2-240.webp 1035w" sizes="172px" type="image/webp">
+      <img src="../assets/logo-quadralab-player-v2-120.png" srcset="../assets/logo-quadralab-player-v2-120.png 518w, ../assets/logo-quadralab-player-v2-240.png 1035w" sizes="172px" width="172" height="40" alt="QuadraLab Player">
+    </picture>
+  </a>
+  <nav class="lateral-nav" aria-label="Navegação principal">
+    <a class="nav-item" data-nav="inicio" href="#/inicio">Início</a>
+    <a class="nav-item" data-nav="planos" href="#/planos">Planos táticos</a>
+    <a class="nav-item" data-nav="treino" href="#/treino">Treino</a>
+    <p class="nav-grupo">Conta</p>
+    <a class="nav-item" data-nav="mais" href="#/ficha/1">Minha ficha</a>
+    <button type="button" class="nav-item nav-botao" data-acao="sair">Sair</button>
+  </nav>
+  <p class="lateral-ajuda"><a data-wpp href="#" target="_blank" rel="noopener">Ajuda<span class="sr"> (abre o WhatsApp)</span></a></p>
+</aside>
+
+<header class="topo" id="topo">
+  <div class="topo-in">
     <a href="#/inicio" class="marca" aria-label="QuadraLab Player — início">
       <picture>
-        <source srcset="../assets/logo-quadralab-player-120.webp 518w, ../assets/logo-quadralab-player-240.webp 1036w" sizes="150px" type="image/webp">
-        <img src="../assets/logo-quadralab-player-120.png" srcset="../assets/logo-quadralab-player-120.png 518w, ../assets/logo-quadralab-player-240.png 1036w" sizes="150px" width="150" height="35" alt="QuadraLab Player">
+        <source srcset="../assets/logo-quadralab-player-v2-120.webp 518w, ../assets/logo-quadralab-player-v2-240.webp 1035w" sizes="150px" type="image/webp">
+        <img src="../assets/logo-quadralab-player-v2-120.png" srcset="../assets/logo-quadralab-player-v2-120.png 518w, ../assets/logo-quadralab-player-v2-240.png 1035w" sizes="150px" width="150" height="35" alt="QuadraLab Player">
       </picture>
     </a>
-    <button type="button" class="btn-sair" id="btSair" hidden>Sair</button>
   </div>
 </header>
 
-<main id="app" class="wrap" tabindex="-1" aria-live="polite">
+<main id="app" class="principal" tabindex="-1" aria-live="polite">
   <p class="carregando">Carregando…</p>
 </main>
 
-<footer class="rodape wrap">
+<footer class="rodape">
   <p>Tecnologia <strong>QuadraLab</strong> · Metodologia MTY, de Richard Tsukada</p>
 </footer>
+
+<!-- Menu inferior (celular) -->
+<nav class="navinf" id="navInf" aria-label="Navegação principal" hidden>
+  <div class="navinf-in">
+    <a class="navinf-item" data-nav="inicio" href="#/inicio">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9a1 1 0 0 0 1 1H9a1 1 0 0 0 1-1v-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v4a1 1 0 0 0 1 1h2.5a1 1 0 0 0 1-1v-9"/></svg>
+      <span>Início</span>
+    </a>
+    <a class="navinf-item" data-nav="planos" href="#/planos">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M12 5v14M3.5 12h17"/><circle cx="16.5" cy="8.5" r="1.2"/></svg>
+      <span>Planos</span>
+    </a>
+    <a class="navinf-item" data-nav="treino" href="#/treino">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+      <span>Treino</span>
+    </a>
+    <button type="button" class="navinf-item" data-nav="mais" id="btMais" aria-haspopup="dialog" aria-expanded="false" aria-controls="painelMais">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="5" cy="12" r=".6"/><circle cx="12" cy="12" r=".6"/><circle cx="19" cy="12" r=".6"/></svg>
+      <span>Mais</span>
+    </button>
+  </div>
+</nav>
+
+<!-- Painel "Mais" (celular): sobe de baixo, só com o que não cabe no menu -->
+<div class="painel-fundo" id="painelFundo" hidden></div>
+<div class="painel-mais" id="painelMais" role="dialog" aria-modal="true" aria-labelledby="painelMaisTitulo" hidden>
+  <div class="painel-mais-topo"><h2 id="painelMaisTitulo">Mais</h2><button type="button" class="painel-fechar" id="btFecharMais" aria-label="Fechar">×</button></div>
+  <p class="nota" id="painelConta"></p>
+  <a class="painel-item" href="#/ficha/1">Minha ficha tática</a>
+  <a class="painel-item" data-wpp href="#" target="_blank" rel="noopener">Falar com o Richard<span class="sr"> (abre o WhatsApp)</span></a>
+  <button type="button" class="painel-item painel-sair" data-acao="sair">Sair</button>
+</div>
 
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-auth-compat.js"></script>
