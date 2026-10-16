@@ -133,6 +133,20 @@ const CAMPOS_OBRIGATORIOS = ["nivel", "mao", "backhand", "piso", "armaPrincipal"
 const LIMITE_TEXTO = 500;
 
 function texto(v, limite) { return String(v == null ? "" : v).trim().slice(0, limite || LIMITE_TEXTO); }
+const MAX_COMPLEMENTOS = 12;
+/* Respostas do jogador às perguntas ("lacunas") dos planos: pergunta + resposta, sem repetir a pergunta. */
+function limparComplementos(lista) {
+  if (!Array.isArray(lista)) return [];
+  const vistos = new Set(), saida = [];
+  for (const c of lista) {
+    const pergunta = texto(c && c.pergunta, 300).replace(/\s+/g, " ");
+    const resposta = texto(c && c.resposta, 500).replace(/\s+/g, " ");
+    if (!pergunta || !resposta || vistos.has(pergunta)) continue;
+    vistos.add(pergunta); saida.push({ pergunta, resposta });
+    if (saida.length === MAX_COMPLEMENTOS) break;
+  }
+  return saida;
+}
 function opcao(lista, v) { return Object.prototype.hasOwnProperty.call(lista, v) ? v : ""; }
 function multi(lista, v) {
   return Array.isArray(v) ? [...new Set(v.filter((x) => Object.prototype.hasOwnProperty.call(lista, x)))] : [];
@@ -194,6 +208,10 @@ function linhasFicha(ficha) {
     "· " + OPCOES.pressao[ficha.pressao],
   ];
   if (ficha.observacoes) L.push("· Observações do jogador (texto livre dele): " + ficha.observacoes);
+  if (Array.isArray(ficha.complementos) && ficha.complementos.length) {
+    L.push("· INFORMAÇÕES COMPLEMENTARES (o jogador respondeu a perguntas de planos anteriores; algumas podem se referir a um adversário específico — use só o que fizer sentido para este plano):");
+    for (const c of ficha.complementos) L.push("  - Pergunta: " + c.pergunta + " | Resposta dele: " + c.resposta);
+  }
   return L.join("\n");
 }
 
@@ -268,7 +286,8 @@ function promptPlano(ficha) {
     "· jogadas: de 3 a 4. Cada uma com titulo, quando (em que situação do jogo usar), sequencia (lista de 2 a 4 passos curtos),",
     "  porque (qual dado da ficha sustenta a jogada), fundamentos (lista de 4 a 6 objetos com categoria, nome e foco) e drills",
     "  (lista de objetos com codigo e motivo).",
-    "· lacunas: de 0 a 3 informações que deixariam o plano melhor (lista vazia se não houver).",
+    "· lacunas: de 0 a 3 PERGUNTAS curtas, dirigidas ao jogador (\"você\"), que ele possa responder em uma ou duas frases e que deixariam o plano melhor",
+    "  (por exemplo \"Como é o seu segundo saque: costuma entrar? com que efeito?\"). Não pergunte o que já está na ficha ou nas informações complementares. Lista vazia se não houver.",
   ].join("\n");
 }
 
@@ -387,6 +406,6 @@ function finalizarPlano(plano, nivel) {
 
 module.exports = {
   admin, app, ErroPublico, resposta, usuarioDoPedido, refJogador,
-  PLANOS_GRATIS, planoFull, NIVEIS_PLANO, nivelDoJogador, recursosDoNivel, PRINCIPIOS_JOGO, linhasFicha, resumoDrill, AREAS, OPCOES, OPCOES_ADVERSARIO,
+  PLANOS_GRATIS, planoFull, NIVEIS_PLANO, nivelDoJogador, recursosDoNivel, PRINCIPIOS_JOGO, linhasFicha, limparComplementos, resumoDrill, AREAS, OPCOES, OPCOES_ADVERSARIO,
   normalizarFicha, fichaCompleta, adversarioUtil, promptPlano, SCHEMA_PLANO, planoValido, finalizarPlano,
 };

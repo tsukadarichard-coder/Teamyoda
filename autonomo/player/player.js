@@ -873,6 +873,35 @@
     });
   }
 
+  /* perguntas do plano ("lacunas"): o jogador responde aqui e as respostas entram nos próximos planos e planejamentos */
+  function lacunasHtml(lacunas) {
+    if (!lacunas || !lacunas.length) return "";
+    var salvas = {};
+    (estado.dados.complementos || []).forEach(function (c) { salvas[c.pergunta] = c.resposta; });
+    return '<form class="cartao lacunas" id="fLacunas" style="margin-top:16px" novalidate><h3>Para um plano mais preciso</h3>' +
+      '<p class="nota" style="margin:4px 0 12px">Responda o que souber, em uma ou duas frases. As respostas ficam salvas e entram no próximo plano e no planejamento.</p>' +
+      lacunas.map(function (l, i) {
+        return '<label class="lacuna"><span>' + esc(l) + '</span><textarea rows="2" maxlength="500" data-pergunta="' + i + '" placeholder="Sua resposta (opcional)">' + esc(salvas[l] || "") + "</textarea></label>";
+      }).join("") +
+      '<div class="acoes"><button type="submit" class="btn btn-secundario" id="btLacunas">Salvar respostas</button><span class="nota" id="msgLacunas" role="status"></span></div></form>';
+  }
+  function ligarLacunas(lacunas) {
+    var f = document.getElementById("fLacunas");
+    if (!f) return;
+    f.addEventListener("submit", async function (ev) {
+      ev.preventDefault();
+      var bt = document.getElementById("btLacunas"), msg = document.getElementById("msgLacunas");
+      var itens = [].map.call(f.querySelectorAll("textarea"), function (t) { return { pergunta: lacunas[parseInt(t.getAttribute("data-pergunta"), 10)], resposta: t.value }; });
+      ocupado(bt, true, "Salvando…");
+      try {
+        var r = await api("player-dados", { metodo: "POST", corpo: { acao: "salvarComplementos", complementos: itens } });
+        estado.dados.complementos = r.complementos;
+        msg.textContent = "Respostas salvas. Elas entram no próximo plano e no planejamento.";
+      } catch (e) { msg.textContent = e.message; }
+      ocupado(bt, false);
+    });
+  }
+
   function telaPlano(id) {
     var p = (estado.dados.planos || []).filter(function (x) { return x.id === id; })[0];
     if (!p || p.status !== "pronto") { ir("#/planos"); return; }
@@ -889,8 +918,7 @@
         return "<li><h3>" + esc(d.titulo) + '</h3><p class="acao">' + esc(d.acao) + '</p><p class="porque"><b>Por quê:</b> ' + esc(d.porque) + "</p></li>";
       }).join("") + "</ol>" +
       resumoJogadasHtml(id, pl.jogadas) +
-      (pl.lacunas && pl.lacunas.length ? '<div class="cartao" style="margin-top:16px"><h3>Para um plano mais preciso</h3><ul class="lista-simples">' +
-        pl.lacunas.map(function (l) { return "<li>" + esc(l) + "</li>"; }).join("") + "</ul></div>" : "") +
+      lacunasHtml(pl.lacunas) +
       blocoPlanejamento(id) +
       blocoOutroPlano() +
       '<p class="nota" style="margin-top:16px">Plano gerado por inteligência artificial a partir da sua autoavaliação, seguindo a Metodologia MTY. Ele não substitui a avaliação de um treinador vendo você jogar.</p>' +
@@ -899,6 +927,7 @@
         '<a class="btn largo" href="https://wa.me/' + WHATSAPP_CONSULTORIA + "?text=" + encodeURIComponent(msgWpp) + '" target="_blank" rel="noopener">Falar sobre a consultoria<span class="sr"> (abre o WhatsApp)</span></a></div>'
     );
 
+    ligarLacunas(pl.lacunas);
     var bt2 = document.getElementById("btGerar2");
     if (bt2) bt2.addEventListener("click", function () { gerarPlano(bt2); });
   }

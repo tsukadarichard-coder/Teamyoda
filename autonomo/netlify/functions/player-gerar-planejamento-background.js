@@ -10,7 +10,7 @@
 const Anthropic = require("@anthropic-ai/sdk");
 const {
   ErroPublico, usuarioDoPedido, refJogador, nivelDoJogador, recursosDoNivel,
-  normalizarFicha, fichaCompleta,
+  normalizarFicha, limparComplementos, fichaCompleta,
 } = require("./_player");
 const {
   ErroParametros, normalizarParametros, promptPlanejamento, SCHEMA_PLANEJAMENTO, planejamentoValido, finalizarPlanejamento,
@@ -60,6 +60,7 @@ exports.handler = async function (event) {
       return await recusar("O planejamento por semanas faz parte do Plano 1. Fale com a gente para liberar.");
     }
     ficha = normalizarFicha(dadosJ.ficha);
+    ficha.complementos = limparComplementos(dadosJ.complementos);
     if (!fichaCompleta(ficha)) return await recusar("Complete a ficha antes de montar o planejamento.");
     if (!sPlano.exists || sPlano.data().status !== "pronto") return await recusar("Gere um plano tático antes de montar o planejamento.");
     planoTatico = sPlano.data().plano;

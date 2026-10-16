@@ -12,7 +12,7 @@
 const Anthropic = require("@anthropic-ai/sdk");
 const {
   admin, ErroPublico, usuarioDoPedido, refJogador,
-  PLANOS_GRATIS, planoFull, normalizarFicha, fichaCompleta, adversarioUtil,
+  PLANOS_GRATIS, planoFull, normalizarFicha, limparComplementos, fichaCompleta, adversarioUtil,
   promptPlano, SCHEMA_PLANO, planoValido, finalizarPlano,
 } = require("./_player");
 
@@ -49,6 +49,7 @@ exports.handler = async function (event) {
       if (sP.exists) return null; // mesmo pedido de novo: já tratado
       const dados = sJ.exists ? sJ.data() : {};
       const ficha = normalizarFicha(dados.ficha);
+      ficha.complementos = limparComplementos(dados.complementos);
       const agora = new Date().toISOString();
       if (!fichaCompleta(ficha)) {
         t.set(refP, { status: "erro", erro: "Complete a ficha antes de gerar o plano.", criadoEm: agora });

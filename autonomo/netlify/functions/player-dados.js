@@ -9,7 +9,7 @@
    Sempre pelo uid do token: um jogador nunca alcança dados de outro. */
 const {
   ErroPublico, resposta, usuarioDoPedido, refJogador,
-  PLANOS_GRATIS, planoFull, nivelDoJogador, recursosDoNivel, normalizarFicha, fichaCompleta,
+  PLANOS_GRATIS, planoFull, nivelDoJogador, recursosDoNivel, normalizarFicha, limparComplementos, fichaCompleta,
 } = require("./_player");
 
 const ID_VALIDO = /^[A-Za-z0-9_-]{8,40}$/;
@@ -90,7 +90,7 @@ exports.handler = async function (event) {
       return resposta(200, {
         nivelPlano, recursos: recursosDoNivel(nivelPlano), planejamentos,
         perfil: { nome: dados.nome || "", email: usuario.email || dados.email || "" },
-        ficha,
+        ficha, complementos: limparComplementos(dados.complementos),
         fichaCompleta: !!ficha && fichaCompleta(ficha),
         planos,
         ...cotas(dados, usuario.email),
@@ -112,6 +112,21 @@ exports.handler = async function (event) {
         const escolhidas = [...new Set(bruto.filter((n) => Number.isInteger(n) && n >= 0 && n < total))].sort((a, b) => a - b);
         await refPlano.update({ escolhidas });
         return resposta(200, { ok: true, escolhidas });
+      }
+      if (body.acao === "salvarComplementos") {
+        /* respostas do jogador às perguntas do plano: entram nos próximos planos e planejamentos */
+        const atuais = limparComplementos(((await ref.get()).data() || {}).complementos);
+        const porPergunta = new Map(atuais.map((c) => [c.pergunta, c.resposta]));
+        for (const c of Array.isArray(body.complementos) ? body.complementos.slice(0, 20) : []) {
+          const pergunta = String((c && c.pergunta) || "").replace(/\s+/g, " ").trim().slice(0, 300);
+          const resposta = String((c && c.resposta) || "").replace(/\s+/g, " ").trim().slice(0, 500);
+          if (!pergunta) continue;
+          porPergunta.delete(pergunta); // regravar move para o fim: as mais recentes ficam
+          if (resposta) porPergunta.set(pergunta, resposta);
+        }
+        const complementos = limparComplementos([...porPergunta].map(([pergunta, resposta]) => ({ pergunta, resposta })).slice(-12));
+        await ref.set({ complementos }, { merge: true });
+        return resposta(200, { ok: true, complementos });
       }
       if (body.acao === "registrarSessao") {
         /* Treino do dia (Plano 2): o servidor confere o direito ao recurso e

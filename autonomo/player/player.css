@@ -311,3 +311,8 @@ fieldset .nota { margin-bottom: 10px; }
 .campo-plano select { display: block; width: 100%; margin-top: 4px; min-height: 44px; padding: 8px 10px; border: 1.5px solid var(--linha); border-radius: 10px; font: inherit; background: var(--cal); }
 .sessao-fund { margin: 8px 0 0; font-size: 14.5px; }
 .jogada .escolher { margin-top: 14px; }
+
+/* respostas às perguntas do plano */
+.lacuna { display: block; margin-top: 12px; font-size: 15px; font-weight: 600; }
+.lacuna textarea { display: block; width: 100%; margin-top: 6px; padding: 10px; border: 1.5px solid var(--linha); border-radius: 10px; font: inherit; font-weight: 400; resize: vertical; background: var(--cal); }
+.lacunas .acoes { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
