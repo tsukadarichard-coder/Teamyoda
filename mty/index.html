@@ -4519,6 +4519,24 @@ function aulaEmVigor(aluno) {
   return null;
 }
 
+/* Um rascunho de sessão (individual ou de turma) vale enquanto for da
+   MESMA aula em vigor — não enquanto for do MESMO DIA. Expirar por data
+   escondia de propósito um rascunho de ontem nunca registrado (pra não
+   bloquear o sorteio de uma aula nova), mas também apagava um rascunho
+   preparado de propósito com antecedência pra outro professor conduzir
+   depois (pedido explícito: um treinador monta e ajusta a sessão de um
+   aluno/turma que vai ser dado por outro, e quem for dar a aula precisa
+   ver exatamente o que foi preparado, não um sorteio novo). Com `aulaId`
+   soube-se qual aula era — se o plano já avançou (a aula em vigor mudou),
+   o rascunho antigo não vale mais sozinho, sem depender da data. Sem
+   aula em vigor (ciclo avulso), não há identidade de aula pra comparar,
+   então mantém a regra antiga (só vale no mesmo dia). */
+function rascunhoAindaValido(rascunho, aulaId, hoje) {
+  if (!rascunho) return false;
+  if (aulaId) return rascunho.aulaId === aulaId;
+  return !rascunho.aulaId && rascunho.criadoEm === hoje;
+}
+
 /* Pedido de reposição que o próprio aluno faz pelo link público (aluno.html)
    — o horário preferido é só uma sugestão dele; aprovar aqui apenas
    registra a decisão, não move nada sozinho na agenda. Quem combina o
@@ -7169,15 +7187,23 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
   const meuNomeSessao = professoresSessao.find((p) => p.uid === uidAtual)?.nome || "";
   const exigeLogin = typeof window !== "undefined" && !!window.mtyAuth;
   const hoje = new Date().toISOString().slice(0, 10);
+  /* Precisa vir antes do rascunho abaixo — ver rascunhoAindaValido. É o
+     mesmo cálculo que antes só aparecia depois (aulaEmVigorBruta/
+     aulaAtual, mais abaixo); só foi adiantado, não duplicado. */
+  const aulaEmVigorBrutaAoAbrir = aluno.plano ? aulaEmVigor(aluno) : null;
+  const aulaAtualAoAbrir = aulaEmVigorBrutaAoAbrir && !aulaEmVigorBrutaAoAbrir.gate ? aulaEmVigorBrutaAoAbrir : null;
   /* A sessão gerada some se ficar só na memória do navegador — celular
      hiberna, aba fecha, e lá se vai o que já tinha sido montado (e
      qualquer edição feita nele) sem nunca ter sido registrado de
      verdade. rascunhoSessao grava esse estado no PRÓPRIO aluno (mesmo
      mecanismo de qualquer outro dado dele), então ele sobrevive a
-     fechar o app e aparece pra qualquer um que abrir esse jogador,
-     em qualquer aparelho. Expira no fim do dia — um rascunho de ontem
-     não deve ressurgir escondendo o botão de gerar sessão hoje. */
-  const rascunho = aluno.rascunhoSessao && aluno.rascunhoSessao.criadoEm === hoje ? aluno.rascunhoSessao : null;
+     fechar o app e aparece pra qualquer um que abrir esse jogador, em
+     qualquer aparelho — inclusive outro treinador substituindo o
+     titular, que precisa ver exatamente a sessão que foi preparada pra
+     ele, não um sorteio novo (pedido explícito). Vale enquanto for da
+     mesma aula em vigor, não só no mesmo dia — ver rascunhoAindaValido. */
+  const rascunho = rascunhoAindaValido(aluno.rascunhoSessao, aulaAtualAoAbrir ? aulaAtualAoAbrir.id : null, hoje)
+    ? aluno.rascunhoSessao : null;
   const [cicloAtivo, setCiclo] = useState(0);
   const [duracao, setDuracao] = useState(90);
   const [plano, setPlano] = useState(() => (rascunho ? rascunho.plano : null));
@@ -7226,7 +7252,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
   useEffect(() => {
     if (rascunhoPrimeiraRef.current) { rascunhoPrimeiraRef.current = false; return; }
     setAlunos((prev) => prev.map((a) => (a.id !== aluno.id ? a : {
-      ...a, rascunhoSessao: plano ? { plano, personalizados, divergencias, criadoEm: hoje } : null,
+      ...a, rascunhoSessao: plano ? { plano, personalizados, divergencias, criadoEm: hoje, aulaId: aulaAtual ? aulaAtual.id : null } : null,
     })));
   }, [plano, personalizados, divergencias]);
   function descartarRascunho() {
@@ -7268,12 +7294,12 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
      uma — é isso que fecha o ciclo "o que falta → monto o treino →
      marco como feito", sem o treinador precisar ir a outra aba achar
      qual aula é essa. Sem plano (ou plano concluído), a sessão continua
-     funcionando solta, do jeito que sempre funcionou. */
-  const aulaEmVigorBruta = aluno.plano ? aulaEmVigor(aluno) : null;
-  /* Um bloco aguardando confirmação do critério de saída não é uma aula
-     de verdade pra montar sessão — trata como se não houvesse aula em
-     vigor (cai no ciclo avulso), com um aviso acima explicando o motivo. */
-  const aulaAtual = aulaEmVigorBruta && !aulaEmVigorBruta.gate ? aulaEmVigorBruta : null;
+     funcionando solta, do jeito que sempre funcionou.
+     (Mesmo cálculo de aulaEmVigorBrutaAoAbrir/aulaAtualAoAbrir, lá no
+     topo — precisava existir antes do rascunho, então foi feito uma vez
+     só e reaproveitado aqui, em vez de recalculado.) */
+  const aulaEmVigorBruta = aulaEmVigorBrutaAoAbrir;
+  const aulaAtual = aulaAtualAoAbrir;
 
   const pesoBase = aluno.baseMotora === "pobre" ? 0.2 : aluno.baseMotora === "rica" ? 0.1 : 0.15;
 
@@ -10575,7 +10601,13 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
      escrita; em caso de falha, o cartão continua ali, com o plano
      candidato intacto, pra tentar de novo sem perder nada. */
   async function usarPlanoCandidato() {
-    const ok = await salvarComEstado({ plano: planoCandidato, regPlano: {}, geracaoPlano: null });
+    /* Um plano novo recomeça a numeração das aulas (A01, A02...) do zero —
+       um rascunho de sessão deixado de uma geração anterior, guardado pelo
+       mesmo id, passaria a apontar pra uma aula de conteúdo totalmente
+       diferente. Zera o rascunho junto, pra não ressurgir com exercícios
+       de um plano que não existe mais (ver rascunhoAindaValido). */
+    const ok = await salvarComEstado({ plano: planoCandidato, regPlano: {}, geracaoPlano: null,
+      ...(eTurma ? { rascunhoSessaoTurma: null } : { rascunhoSessao: null }) });
     if (ok) setPlanoCandidato(null);
   }
 
@@ -13828,7 +13860,7 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual
   if (aberta) {
     return (
       <SessaoTurma turma={aberta} alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas}
-        papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} ocorrencias={ocorrencias}
+        papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} ocorrencias={ocorrencias} quadras={quadras}
         exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom}
         aoFechar={() => setAbertaId(null)}
         aoRemover={() => { setTurmas(turmas.filter((t) => t.id !== aberta.id)); setAbertaId(null); }} />
@@ -13963,6 +13995,87 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual
   );
 }
 
+/* Editar a turma inteira depois de criada — nome, duração padrão, dias e
+   horários de treino, professor responsável e auxiliar. Mesma permissão de
+   GerenciarMembrosTurma (podeEditar): responsável, auxiliar ou coordenador. */
+function EditarTurma({ turma, setTurmas, podeEditar, quadras }) {
+  const [aberto, setAberto] = useState(false);
+  const [nome, setNome] = useState(turma.nome);
+  const [duracao, setDuracao] = useState(turma.duracaoPadrao);
+  const [professorUid, setProfessorUid] = useState(turma.professorUid || "");
+  const [auxiliarUid, setAuxiliarUid] = useState(turma.professorAuxiliarUid || "");
+  const [horarios, setHorarios] = useState(turma.horarios || []);
+  const [professores, setProfessores] = useState([]);
+  const [salvo, setSalvo] = useState(false);
+  useEffect(() => { listaProfessores().then(setProfessores); }, []);
+
+  function abrir() {
+    setNome(turma.nome);
+    setDuracao(turma.duracaoPadrao);
+    setProfessorUid(turma.professorUid || "");
+    setAuxiliarUid(turma.professorAuxiliarUid || "");
+    setHorarios(turma.horarios || []);
+    setSalvo(false);
+    setAberto(true);
+  }
+
+  function salvar() {
+    if (!nome.trim()) return;
+    const prof = professores.find((p) => p.uid === professorUid);
+    const aux = professores.find((p) => p.uid === auxiliarUid);
+    setTurmas((atual) => atual.map((t) => t.id !== turma.id ? t : {
+      ...t, nome: nome.trim(), duracaoPadrao: duracao,
+      professorUid, professorNome: prof ? prof.nome : "",
+      professorAuxiliarUid: auxiliarUid, professorAuxiliarNome: aux ? aux.nome : "",
+      horarios,
+    }));
+    setSalvo(true);
+    setAberto(false);
+  }
+
+  return (
+    <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "12px 15px" }}>
+      <button onClick={() => (aberto ? setAberto(false) : abrir())} className="w-full flex items-center justify-between gap-3" style={{ cursor: "pointer" }}>
+        <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>Editar turma</span>
+        <Etiqueta>{aberto ? "fechar" : "abrir"}</Etiqueta>
+      </button>
+      {!aberto && salvo && <p style={{ ...prosa, fontSize: 12, color: C.quadra, marginTop: 6 }}>Alterações salvas.</p>}
+      {aberto && !podeEditar && (
+        <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 8 }}>Só o professor responsável, o auxiliar ou o coordenador podem editar esta turma.</p>
+      )}
+      {aberto && podeEditar && (
+        <div className="mt-3">
+          <Campo rotulo="Nome da turma">
+            <input style={entrada} value={nome} onChange={(e) => setNome(e.target.value)} placeholder="ex: Terça 17h" />
+          </Campo>
+          <Campo rotulo="Duração padrão">
+            <Seletor opcoes={DURACOES_TREINO} valor={duracao} aoMudar={setDuracao} />
+          </Campo>
+          {professores.length > 0 && (
+            <Campo rotulo="Professor responsável">
+              <Seletor opcoes={[{ v: "", r: "A definir" }, ...professores.map((p) => ({ v: p.uid, r: p.nome }))]}
+                valor={professorUid} aoMudar={(v) => { setProfessorUid(v); if (v === auxiliarUid) setAuxiliarUid(""); }} />
+            </Campo>
+          )}
+          {professores.length > 1 && (
+            <Campo rotulo="Professor auxiliar" nota="Opcional — o segundo professor da turma entra sempre como auxiliar, nunca como responsável.">
+              <Seletor opcoes={[{ v: "", r: "Nenhum" }, ...professores.filter((p) => p.uid !== professorUid).map((p) => ({ v: p.uid, r: p.nome }))]}
+                valor={auxiliarUid} aoMudar={setAuxiliarUid} />
+            </Campo>
+          )}
+          <Campo rotulo="Dias e horários de treino" nota="Pode ter de 2 a 5 por semana. Alimenta a Grade de horário e a Agenda semanal.">
+            <EditorHorarios horarios={horarios} setHorarios={setHorarios} quadras={quadras} />
+          </Campo>
+          <div className="flex gap-2">
+            <Botao pequeno onClick={salvar} disabled={!nome.trim()}>Salvar alterações</Botao>
+            <Botao pequeno variante="vazio" onClick={() => setAberto(false)}>Cancelar</Botao>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* Editar quem está na turma depois de criada — adicionar um jogador novo
    ou tirar alguém sem precisar excluir a turma inteira. O jogador removido
    só sai da turma; o cadastro dele continua intacto. */
@@ -14049,7 +14162,7 @@ function TelaScoutTurma({ membros, alunos, setAlunos }) {
   );
 }
 
-function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, aoRemover, papelAtual, uidAtual, exerciciosCustom, setExerciciosCustom, identidade, ocorrencias }) {
+function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, aoRemover, papelAtual, uidAtual, exerciciosCustom, setExerciciosCustom, identidade, ocorrencias, quadras }) {
   const podeEditar = podeEditarTurma(turma, papelAtual, uidAtual);
   /* Registrar a sessão de hoje (presença, notas, "Salvar sessão") é
      diferente de editar a turma em si (plano, "Remover turma") —
@@ -14068,11 +14181,17 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
   const meuNomeSessaoTurma = professoresSessaoTurma.find((p) => p.uid === uidAtual)?.nome || "";
   const membros = turma.membros.map((id) => alunos.find((a) => a.id === id)).filter(Boolean);
   const hoje = new Date().toISOString().slice(0, 10);
+  /* Precisa vir antes do rascunho abaixo — ver rascunhoAindaValido. */
+  const aulaTurmaAoAbrir = turma.plano ? aulaEmVigor(turma) : null;
   /* Mesma trava de perda que a sessão individual: a sessão de turma
      gerada some se o celular hibernar antes de registrar — ver
      rascunhoSessao em TelaSessao. Aqui o rascunho mora na PRÓPRIA
-     turma, visível pra qualquer treinador que abrir essa turma. */
-  const rascunhoTurma = turma.rascunhoSessaoTurma && turma.rascunhoSessaoTurma.criadoEm === hoje ? turma.rascunhoSessaoTurma : null;
+     turma, visível pra qualquer treinador que abrir essa turma —
+     inclusive um substituto que precisa ver exatamente a sessão que
+     foi preparada pra ele. Vale enquanto for da mesma aula em vigor da
+     turma, não só no mesmo dia — ver rascunhoAindaValido. */
+  const rascunhoTurma = rascunhoAindaValido(turma.rascunhoSessaoTurma, aulaTurmaAoAbrir ? aulaTurmaAoAbrir.id : null, hoje)
+    ? turma.rascunhoSessaoTurma : null;
   /* Sem plano ainda, a aba Sessão só mostra "esta turma não tem plano" —
      abre direto em Plano pra "gerar os treinos" ser a primeira coisa que
      aparece, em vez de escondido atrás de um link dentro da Sessão. */
@@ -14110,7 +14229,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
   useEffect(() => {
     if (rascunhoTurmaPrimeiraRef.current) { rascunhoTurmaPrimeiraRef.current = false; return; }
     setTurmas((prev) => prev.map((t) => (t.id !== turma.id ? t : {
-      ...t, rascunhoSessaoTurma: sessaoTurma ? { sessaoTurma, criadoEm: hoje } : null,
+      ...t, rascunhoSessaoTurma: sessaoTurma ? { sessaoTurma, criadoEm: hoje, aulaId: aulaTurmaAoAbrir ? aulaTurmaAoAbrir.id : null } : null,
     })));
   }, [sessaoTurma]);
 
@@ -14118,8 +14237,10 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
   const pendenciasAbertas = pendencias.filter((p) => !p.resolvida);
   /* Com plano de turma, o grupo segue UM cronograma — a aula em vigor é
      a da turma, não a de cada jogador. Sem plano de turma ainda, cada
-     um continua com o próprio (comportamento de antes da unificação). */
-  const aulaTurma = turma.plano ? aulaEmVigor(turma) : null;
+     um continua com o próprio (comportamento de antes da unificação).
+     (Mesmo cálculo de aulaTurmaAoAbrir, lá no topo — reaproveitado, não
+     recalculado.) */
+  const aulaTurma = aulaTurmaAoAbrir;
   const estagiosTurma = [...new Set(membros.map((m) => m.estagio))];
 
   /* Mesma regra de TelaSessao.exerciciosParaTemas: só o conteúdo real da
@@ -14324,6 +14445,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
         </p>
       )}
 
+      <EditarTurma turma={turma} setTurmas={setTurmas} podeEditar={podeEditar} quadras={quadras} />
       <GerenciarMembrosTurma turma={turma} alunos={alunos} setTurmas={setTurmas} podeEditar={podeEditar} />
 
       <div className="flex flex-wrap gap-5 mb-6" style={{ borderBottom: "1px solid " + C.linha }}>
