@@ -115,7 +115,8 @@ fieldset .nota { margin-bottom: 10px; }
 
 /* ── plano ── */
 .tag { display: inline-block; background: #EEF6E8; color: #234A12; border-radius: 99px; padding: 3px 10px; font-size: 13.5px; font-weight: 600; }
-.diretrizes { list-style: none; padding: 0; margin: 18px 0 0; counter-reset: d; }
+.secao { margin-top: 26px; }
+.diretrizes { list-style: none; padding: 0; margin: 12px 0 0; counter-reset: d; }
 .diretrizes li { counter-increment: d; background: var(--cal); border: 1px solid var(--linha); border-radius: var(--raio); padding: 16px 16px 16px 58px; position: relative; }
 .diretrizes li + li { margin-top: 12px; }
 .diretrizes li::before {
@@ -125,6 +126,32 @@ fieldset .nota { margin-bottom: 10px; }
 .diretrizes .acao { margin-top: 6px; }
 .diretrizes .porque { margin-top: 8px; font-size: 14.5px; color: var(--grafite); }
 .diretrizes .porque b { color: var(--tinta); }
+/* ── jogadas e drills ── */
+.jogadas { margin-top: 30px; }
+.jogada { background: var(--cal); border: 1px solid var(--linha); border-radius: var(--raio); padding: 18px 16px; margin-top: 14px; }
+.jogada .olho { margin-bottom: 4px; }
+.jogada .quando { margin-top: 8px; font-size: 15.5px; }
+.jogada .porque { margin-top: 10px; font-size: 14.5px; color: var(--grafite); }
+.jogada .porque b, .jogada .quando b { color: var(--tinta); }
+.sequencia { list-style: none; margin: 12px 0 0; padding: 0; counter-reset: s; }
+.sequencia li { counter-increment: s; position: relative; padding: 8px 12px 8px 44px; background: #EEF6E8; border-radius: 10px; font-size: 15.5px; font-weight: 500; }
+.sequencia li + li { margin-top: 6px; }
+.sequencia li::before { content: counter(s); position: absolute; left: 10px; top: 8px; width: 24px; height: 24px; border-radius: 99px; background: var(--quadra); color: #fff; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.drills { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--linha); }
+.drills h4 { margin: 0 0 8px; font-size: 14px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--marca-texto); }
+.drill { border: 1px solid var(--linha); border-radius: 10px; background: var(--papel); }
+.drill + .drill { margin-top: 8px; }
+.drill summary { list-style: none; cursor: pointer; padding: 12px 40px 12px 14px; position: relative; min-height: 52px; }
+.drill summary::-webkit-details-marker { display: none; }
+.drill summary::after { content: "+"; position: absolute; right: 14px; top: 10px; font-size: 22px; line-height: 1; color: var(--quadra); }
+.drill[open] summary::after { content: "–"; }
+.drill summary:focus-visible { outline-offset: -3px; }
+.drill-nome { display: block; font-weight: 700; font-size: 16px; }
+.drill-meta { display: block; font-size: 13px; color: var(--grafite); margin-top: 1px; }
+.drill-motivo { display: block; font-size: 14.5px; margin-top: 6px; }
+.drill-det { margin: 0; padding: 0 14px 14px; font-size: 14.5px; }
+.drill-det dt { font-weight: 700; font-size: 13px; letter-spacing: .03em; text-transform: uppercase; color: var(--grafite); margin-top: 10px; }
+.drill-det dd { margin: 2px 0 0; }
 .lista-simples { margin: 8px 0 0; padding-left: 20px; }
 .lista-simples li + li { margin-top: 4px; }
 .consultoria { background: var(--quadra); color: #fff; border-radius: var(--raio); padding: 22px 18px; margin-top: 20px; }

@@ -11,6 +11,7 @@
    recebe valores conhecidos (mais os textos livres, com tamanho
    limitado), e o app não consegue gravar campo que não existe. */
 const { admin, app } = require("./_firebase-admin");
+const { FAMILIAS, PORCODIGO, drillsDoNivel } = require("./_player-catalogo");
 
 class ErroPublico extends Error {
   constructor(status, mensagem) { super(mensagem); this.status = status; }
@@ -168,15 +169,21 @@ function linhasAdversario(a) {
   return L.join("\n");
 }
 
+function resumoDrill(d) {
+  const obj = (d.o || d.m || "").replace(/\s+/g, " ").trim();
+  return d.c + " | " + d.n + " | " + (FAMILIAS[d.f] || d.f) + " | " + (obj.length > 130 ? obj.slice(0, 127) + "..." : obj);
+}
+
 function promptPlano(ficha) {
   const comAdversario = adversarioUtil(ficha);
+  const drills = drillsDoNivel(ficha.nivel);
   return [
     "Você é o assistente tático da Metodologia MTY, método de tênis do treinador Richard Tsukada,",
     "dentro do QuadraLab Player. Escreva em português do Brasil, falando direto com o jogador (\"você\").",
     comAdversario
       ? "Monte um PLANO TÁTICO para o jogador enfrentar o adversário descrito abaixo."
       : "Monte o PLANO TÁTICO GERAL do jogador: como ele deve construir os pontos a partir do jogo que tem hoje.",
-    "Isto é estratégia de jogo, não plano de treino: não prescreva exercícios nem rotina de treinos.",
+    "O plano tem duas partes: as DIRETRIZES (estratégia) e as JOGADAS (sequências de bolas concretas) com DRILLS para treiná-las.",
     "",
     "PRINCÍPIOS TRAVADOS — obrigatórios:",
     ...PRINCIPIOS_JOGO.map((p, i) => (i + 1) + ". " + p),
@@ -184,18 +191,34 @@ function promptPlano(ficha) {
     linhasFicha(ficha),
     ...(comAdversario ? ["", linhasAdversario(ficha.adversario)] : []),
     "",
-    "REGRA CENTRAL: cada diretriz precisa se apoiar em dados reais da ficha acima" +
+    "REGRA CENTRAL: cada diretriz e cada jogada precisa se apoiar em dados reais da ficha acima" +
       (comAdversario
         ? " — casar um ponto do jogo do jogador com uma fraqueza registrada do adversário, ou evitar expor um ponto fraco do jogador a uma força registrada dele."
         : " — usar o golpe forte, proteger o ponto vulnerável, ou ajustar o padrão de ponto, a rede, a devolução e a reação sob pressão que ele descreveu."),
     "Nunca invente dado que não esteja na ficha. Se faltar informação para algo importante, registre em \"lacunas\" em vez de supor.",
-    "Adapte a linguagem e a ambição ao nível informado: para iniciante, diretrizes simples e poucas variáveis.",
+    "Adapte a linguagem e a ambição ao nível informado: para iniciante, diretrizes e jogadas simples e poucas variáveis.",
+    "",
+    "JOGADAS: de 3 a 4 opções de jogada que o jogador pode usar em quadra para executar o plano. Cada jogada é uma",
+    "sequência curta de bolas (2 a 4 passos, na ordem em que acontecem — por exemplo saque, 1ª bola depois do saque,",
+    "finalização), com o momento certo de usá-la. Respeite a mão, o backhand e o piso informados. Jogadas diferentes",
+    "entre si (não repita a mesma ideia com outro nome).",
+    "",
+    "DRILLS: para cada jogada, de 1 a 3 drills do CATÁLOGO abaixo que treinem o que ela exige (o golpe, o padrão ou a decisão).",
+    "· Use SOMENTE drills do catálogo, copiando o código exato (a primeira coluna). Nunca invente drill nem código.",
+    "· Ordene do mais controlado ao mais livre: padrão novo não entra direto no ponto livre.",
+    "· Em \"motivo\", uma frase dizendo qual parte da jogada aquele drill treina.",
+    "· Se nenhum drill do catálogo servir a uma jogada, deixe a lista de drills dela vazia, sem forçar um que não serve.",
+    "",
+    "CATÁLOGO DE DRILLS (código | nome | tipo | objetivo):",
+    ...drills.map(resumoDrill),
     "",
     "FORMATO DA RESPOSTA:",
     "· titulo: curto (até 60 caracteres).",
     "· resumo: 2 ou 3 frases com a ideia central do plano.",
     "· diretrizes: de 3 a 5. Cada uma com titulo (curto), acao (o que fazer em quadra, concreto e acionável)",
     "  e porque (qual dado da ficha sustenta essa diretriz, citando-o).",
+    "· jogadas: de 3 a 4. Cada uma com titulo, quando (em que situação do jogo usar), sequencia (lista de 2 a 4 passos curtos),",
+    "  porque (qual dado da ficha sustenta a jogada) e drills (lista de objetos com codigo e motivo).",
     "· lacunas: de 0 a 3 informações que deixariam o plano melhor (lista vazia se não houver).",
   ].join("\n");
 }
@@ -218,9 +241,32 @@ const SCHEMA_PLANO = {
         additionalProperties: false,
       },
     },
+    jogadas: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          titulo: { type: "string" },
+          quando: { type: "string" },
+          sequencia: { type: "array", items: { type: "string" } },
+          porque: { type: "string" },
+          drills: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: { codigo: { type: "string" }, motivo: { type: "string" } },
+              required: ["codigo", "motivo"],
+              additionalProperties: false,
+            },
+          },
+        },
+        required: ["titulo", "quando", "sequencia", "porque", "drills"],
+        additionalProperties: false,
+      },
+    },
     lacunas: { type: "array", items: { type: "string" } },
   },
-  required: ["titulo", "resumo", "diretrizes", "lacunas"],
+  required: ["titulo", "resumo", "diretrizes", "jogadas", "lacunas"],
   additionalProperties: false,
 };
 
@@ -229,11 +275,47 @@ function planoValido(p) {
   return !!p && typeof p.titulo === "string" && typeof p.resumo === "string" &&
     Array.isArray(p.diretrizes) && p.diretrizes.length >= 1 &&
     p.diretrizes.every((d) => d && typeof d.titulo === "string" && typeof d.acao === "string" && typeof d.porque === "string") &&
+    Array.isArray(p.jogadas) && p.jogadas.length >= 1 &&
+    p.jogadas.every((j) => j && typeof j.titulo === "string" && typeof j.quando === "string" && typeof j.porque === "string" &&
+      Array.isArray(j.sequencia) && Array.isArray(j.drills)) &&
     Array.isArray(p.lacunas);
+}
+
+/* Troca cada código de drill pelo drill real do catálogo (com montagem, carga,
+   regressão, progressão...) e descarta o que a IA citou fora da lista do
+   nível do jogador: um código que não existe nunca chega ao jogador. O plano
+   guarda uma cópia dos dados do drill, então mudar o catálogo depois não
+   altera planos já entregues. */
+function finalizarPlano(plano, nivel) {
+  const permitidos = new Set(drillsDoNivel(nivel).map((d) => d.c));
+  plano.diretrizes = plano.diretrizes.slice(0, 5);
+  plano.lacunas = plano.lacunas.slice(0, 3);
+  plano.jogadas = plano.jogadas.slice(0, 4).map((j) => {
+    const vistos = new Set();
+    const drills = [];
+    for (const r of j.drills) {
+      const codigo = String((r && r.codigo) || "").trim().toUpperCase();
+      if (!permitidos.has(codigo) || vistos.has(codigo)) continue;
+      vistos.add(codigo);
+      const d = PORCODIGO[codigo];
+      drills.push({
+        codigo, nome: d.n, tipo: FAMILIAS[d.f] || d.f,
+        motivo: String((r && r.motivo) || "").trim(),
+        objetivo: d.o || "", montagem: d.m || "", carga: d.g || "",
+        regressao: d.r || "", progressao: d.p || "", corrigir: d.x || "", ignorar: d.i || "",
+      });
+      if (drills.length === 3) break;
+    }
+    return {
+      titulo: j.titulo, quando: j.quando, porque: j.porque,
+      sequencia: j.sequencia.map((x) => String(x)).slice(0, 4), drills,
+    };
+  });
+  return plano;
 }
 
 module.exports = {
   admin, app, ErroPublico, resposta, usuarioDoPedido, refJogador,
   PLANOS_GRATIS, AREAS, OPCOES, OPCOES_ADVERSARIO,
-  normalizarFicha, fichaCompleta, adversarioUtil, promptPlano, SCHEMA_PLANO, planoValido,
+  normalizarFicha, fichaCompleta, adversarioUtil, promptPlano, SCHEMA_PLANO, planoValido, finalizarPlano,
 };

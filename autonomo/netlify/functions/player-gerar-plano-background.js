@@ -13,7 +13,7 @@ const Anthropic = require("@anthropic-ai/sdk");
 const {
   admin, ErroPublico, usuarioDoPedido, refJogador,
   PLANOS_GRATIS, normalizarFicha, fichaCompleta, adversarioUtil,
-  promptPlano, SCHEMA_PLANO, planoValido,
+  promptPlano, SCHEMA_PLANO, planoValido, finalizarPlano,
 } = require("./_player");
 
 const ID_VALIDO = /^[A-Za-z0-9_-]{8,40}$/;
@@ -120,8 +120,7 @@ exports.handler = async function (event) {
       await falhar("O plano saiu num formato inesperado. Tente gerar de novo.");
       return { statusCode: 202, body: "" };
     }
-    plano.diretrizes = plano.diretrizes.slice(0, 5);
-    plano.lacunas = plano.lacunas.slice(0, 3);
+    finalizarPlano(plano, reserva.ficha.nivel);
     await refP.update({
       status: "pronto",
       plano,

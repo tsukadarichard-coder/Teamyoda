@@ -407,6 +407,33 @@
       '<div class="acoes"><a class="btn btn-primario" href="#/inicio">Voltar ao início</a></div></div>');
   }
 
+  function linhaDrill(rotulo, texto) {
+    return texto ? "<dt>" + rotulo + "</dt><dd>" + esc(texto) + "</dd>" : "";
+  }
+  function drillHtml(d) {
+    return '<details class="drill"><summary><span class="drill-nome">' + esc(d.nome) + "</span>" +
+      '<span class="drill-meta">' + esc(d.tipo) + " · " + esc(d.codigo) + "</span>" +
+      (d.motivo ? '<span class="drill-motivo">' + esc(d.motivo) + "</span>" : "") + "</summary>" +
+      '<dl class="drill-det">' + linhaDrill("Objetivo", d.objetivo) + linhaDrill("Montagem", d.montagem) + linhaDrill("Carga", d.carga) +
+      linhaDrill("Para facilitar", d.regressao) + linhaDrill("Para evoluir", d.progressao) + linhaDrill("Corrigir", d.corrigir) +
+      linhaDrill("Ignorar", d.ignorar) + "</dl></details>";
+  }
+  function jogadasHtml(jogadas) {
+    if (!jogadas || !jogadas.length) return "";
+    return '<section class="jogadas" aria-labelledby="t-jogadas"><h2 id="t-jogadas">Jogadas para colocar o plano em prática</h2>' +
+      '<p class="nota" style="margin-top:6px">Sequências de bolas que você pode usar em quadra, cada uma com drills para treiná-la.</p>' +
+      jogadas.map(function (j, n) {
+        return '<article class="jogada"><p class="olho">Jogada ' + (n + 1) + "</p><h3>" + esc(j.titulo) + "</h3>" +
+          '<p class="quando"><b>Quando usar:</b> ' + esc(j.quando) + "</p>" +
+          '<ol class="sequencia" aria-label="Sequência de bolas">' + (j.sequencia || []).map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ol>" +
+          '<p class="porque"><b>Por quê:</b> ' + esc(j.porque) + "</p>" +
+          '<div class="drills"><h4>Drills para treinar esta jogada</h4>' +
+          ((j.drills || []).length ? j.drills.map(drillHtml).join("") : '<p class="nota">Nenhum drill do catálogo cobre esta jogada com precisão. Um treinador pode indicar um na consultoria.</p>') +
+          "</div></article>";
+      }).join("") +
+      '<p class="nota" style="margin-top:12px">Drills do catálogo da Metodologia MTY, escritos para treinar com parceiro ou treinador. Ajuste a carga ao seu nível.</p></section>';
+  }
+
   function telaPlano(id) {
     var p = (estado.dados.planos || []).filter(function (x) { return x.id === id; })[0];
     if (!p || p.status !== "pronto") { ir("#/inicio"); return; }
@@ -418,9 +445,11 @@
       "<h1>" + esc(pl.titulo) + "</h1>" +
       (p.adversarioNome ? '<p style="margin-top:10px"><span class="tag">Contra ' + esc(p.adversarioNome) + "</span></p>" : "") +
       '<p class="sub" style="color:var(--tinta)">' + esc(pl.resumo) + "</p>" +
-      '<ol class="diretrizes">' + pl.diretrizes.map(function (d) {
+      '<h2 class="secao" id="t-estrategia">Estratégia</h2>' +
+      '<ol class="diretrizes" aria-labelledby="t-estrategia">' + pl.diretrizes.map(function (d) {
         return "<li><h3>" + esc(d.titulo) + '</h3><p class="acao">' + esc(d.acao) + '</p><p class="porque"><b>Por quê:</b> ' + esc(d.porque) + "</p></li>";
       }).join("") + "</ol>" +
+      jogadasHtml(pl.jogadas) +
       (pl.lacunas && pl.lacunas.length ? '<div class="cartao" style="margin-top:16px"><h3>Para um plano mais preciso</h3><ul class="lista-simples">' +
         pl.lacunas.map(function (l) { return "<li>" + esc(l) + "</li>"; }).join("") + "</ul></div>" : "") +
       '<p class="nota" style="margin-top:16px">Plano gerado por inteligência artificial a partir da sua autoavaliação, seguindo a Metodologia MTY. Ele não substitui a avaliação de um treinador vendo você jogar.</p>' +
