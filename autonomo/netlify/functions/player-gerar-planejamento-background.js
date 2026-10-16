@@ -8,8 +8,9 @@
    de chamar a IA — o app esconder o botão não protege nada. O mesmo id de
    planejamento nunca gera duas vezes. */
 const Anthropic = require("@anthropic-ai/sdk");
+const ASS = require("./_player-assinaturas");
 const {
-  ErroPublico, usuarioDoPedido, refJogador, nivelDoJogador, recursosDoNivel,
+  admin, ErroPublico, usuarioDoPedido, refJogador, nivelDoJogador, recursosDoNivel,
   normalizarFicha, complementosParaFicha, fichaCompleta,
 } = require("./_player");
 const {
@@ -42,10 +43,10 @@ exports.handler = async function (event) {
   const refPlan = refJ.collection("planejamentos").doc(idPlanejamento);
   const agora = () => new Date().toISOString();
 
-  async function recusar(mensagem) {
+  async function recusar(mensagem, extras) {
     try {
       const s = await refPlan.get();
-      if (!s.exists) await refPlan.set({ status: "erro", erro: mensagem, baseadoEm: idPlano, criadoEm: agora() });
+      if (!s.exists) await refPlan.set({ status: "erro", erro: mensagem, baseadoEm: idPlano, criadoEm: agora(), ...(extras || {}) });
     } catch (e) { console.error("player-gerar-planejamento: falha ao registrar recusa", e); }
     return { statusCode: 202, body: "" };
   }
@@ -57,7 +58,11 @@ exports.handler = async function (event) {
     if (sPlan.exists) return { statusCode: 202, body: "" }; // mesmo pedido de novo: já tratado
     dadosJ = sJ.exists ? sJ.data() : {};
     if (!recursosDoNivel(nivelDoJogador(dadosJ, usuario.email)).planejamento) {
-      return await recusar("O programa de treino faz parte do Plano 1. Fale com a gente para liberar.");
+      return await recusar("O programa de treino faz parte de uma assinatura. Veja as opções em Minha assinatura.");
+    }
+    const ass = dadosJ.assinatura;
+    if (ASS.assinaturaVigente(ass) && Number.isInteger((ass.limites || {}).programasPorPeriodo) && ((ass.uso || {}).programas || 0) >= ass.limites.programasPorPeriodo) {
+      return await recusar("Você atingiu o limite de programas de treino do período da sua assinatura.", { semCota: true, motivoCota: "limite_periodo", renovaEm: ass.ativoAte });
     }
     ficha = normalizarFicha(dadosJ.ficha);
     ficha.complementos = complementosParaFicha(dadosJ.complementos, ficha);
@@ -77,9 +82,35 @@ exports.handler = async function (event) {
     return { statusCode: 202, body: "" };
   }
 
-  await refPlan.set({ status: "gerando", baseadoEm: idPlano, params, criadoEm: agora() });
+  /* reserva (transação): o mesmo pedido nunca conta duas vezes; o uso do período só sobe com assinatura vigente */
+  let contouUso = false;
+  try {
+    const reservou = await admin.firestore().runTransaction(async (t) => {
+      const [sJ, sPl] = await Promise.all([t.get(refJ), t.get(refPlan)]);
+      if (sPl.exists) return false;
+      const d = sJ.exists ? sJ.data() : {};
+      t.set(refPlan, { status: "gerando", baseadoEm: idPlano, params, criadoEm: agora() });
+      if (ASS.assinaturaVigente(d.assinatura) && !require("./_player").planoFull(usuario.email)) {
+        t.set(refJ, { assinatura: { uso: { programas: (((d.assinatura || {}).uso || {}).programas || 0) + 1 } } }, { merge: true });
+        contouUso = true;
+      }
+      return true;
+    });
+    if (!reservou) return { statusCode: 202, body: "" };
+  } catch (e) {
+    console.error("player-gerar-planejamento: falha na reserva", e);
+    return { statusCode: 202, body: "" };
+  }
 
   async function falhar(mensagem) {
+    if (contouUso) {
+      try {
+        await admin.firestore().runTransaction(async (t) => {
+          const d = (await t.get(refJ)).data() || {};
+          t.set(refJ, { assinatura: { uso: { programas: Math.max(0, (((d.assinatura || {}).uso || {}).programas || 0) - 1) } } }, { merge: true });
+        });
+      } catch (e) { console.error("player-gerar-planejamento: falha ao devolver uso", e); }
+    }
     await refPlan.update({ status: "erro", erro: mensagem, finalizadoEm: agora() });
   }
   if (!process.env.ANTHROPIC_API_KEY) {

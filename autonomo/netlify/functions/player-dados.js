@@ -8,9 +8,11 @@
 
    Sempre pelo uid do token: um jogador nunca alcança dados de outro. */
 const {
-  ErroPublico, resposta, usuarioDoPedido, refJogador,
+  admin, ErroPublico, resposta, usuarioDoPedido, refJogador, resumoAssinatura, fonteDeEstrategia,
   PLANOS_GRATIS, planoFull, nivelDoJogador, recursosDoNivel, normalizarFicha, limparComplementos, GRUPOS_PERGUNTA, fichaCompleta,
 } = require("./_player");
+
+const { aplicarPendentes } = require("./_player-faturas");
 
 const ID_VALIDO = /^[A-Za-z0-9_-]{8,40}$/;
 const STATUS_SESSAO = ["em_andamento", "feito", "parcial", "nao_feito"];
@@ -24,6 +26,7 @@ function publicoPlano(id, p) {
     adversarioNome: p.adversarioNome || null,
     plano: p.status === "pronto" ? p.plano : null,
     erro: p.status === "erro" ? p.erro : null,
+    ...(p.status === "erro" && p.semCota ? { semCota: true, motivoCota: p.motivoCota || null, renovaEm: p.renovaEm || null } : {}),
     escolhidas: Array.isArray(p.escolhidas) ? p.escolhidas : [],
   };
 }
@@ -32,6 +35,7 @@ function publicoPlanejamento(id, p, completo) {
   const base = {
     id, status: p.status, criadoEm: p.criadoEm, baseadoEm: p.baseadoEm || null, params: p.params || null,
     erro: p.status === "erro" ? p.erro : null,
+    ...(p.status === "erro" && p.semCota ? { semCota: true, motivoCota: p.motivoCota || null, renovaEm: p.renovaEm || null } : {}),
   };
   if (p.status === "pronto" && p.planejamento) {
     if (completo) { base.planejamento = p.planejamento; base.registros = p.registros || {}; }
@@ -52,10 +56,14 @@ function publicoPlanejamento(id, p, completo) {
 }
 
 function cotas(dados, email) {
-  if (planoFull(email)) return { full: true, gratisRestantes: 0, creditos: 0, podeGerar: true };
+  const c = fonteDeEstrategia(dados, email);
+  if (c.fonte === "full") return { full: true, gratisRestantes: 0, creditos: 0, podeGerar: true, fonteCota: "full" };
   const gratisRestantes = Math.max(0, PLANOS_GRATIS - (dados.planosGratisUsados || 0));
   const creditos = Math.max(0, dados.creditosPlano || 0);
-  return { full: false, gratisRestantes, creditos, podeGerar: gratisRestantes + creditos > 0 };
+  return {
+    full: false, gratisRestantes, creditos, podeGerar: !!c.fonte, fonteCota: c.fonte || null,
+    ...(c.fonte ? {} : { semCotaMotivo: c.motivo, ...(c.renovaEm ? { renovaEm: c.renovaEm } : {}) }),
+  };
 }
 
 exports.handler = async function (event) {
@@ -89,7 +97,14 @@ exports.handler = async function (event) {
         });
         snap = await ref.get();
       }
-      const dados = snap.data();
+      let dados = snap.data();
+      /* quem pagou a assinatura antes de criar a conta recebe o acesso ao entrar com o e-mail da compra */
+      if (!dados.assinatura && usuario.email) {
+        try {
+          await aplicarPendentes(admin.firestore(), usuario.uid, usuario.email);
+          dados = (await ref.get()).data() || dados;
+        } catch (e) { console.error("player-dados: falha ao aplicar assinatura pendente", e); }
+      }
       const planosSnap = await ref.collection("planos").orderBy("criadoEm", "desc").limit(20).get();
       const planos = [];
       planosSnap.forEach((d) => planos.push(publicoPlano(d.id, d.data())));
@@ -98,9 +113,11 @@ exports.handler = async function (event) {
       planejSnap.forEach((d) => planejamentos.push(publicoPlanejamento(d.id, d.data(), false)));
       const nivelPlano = nivelDoJogador(dados, usuario.email);
       const ficha = dados.ficha || null;
+      const assinatura = resumoAssinatura(dados, usuario.email);
       return resposta(200, {
         nivelPlano, recursos: recursosDoNivel(nivelPlano), planejamentos,
-        perfil: { nome: dados.nome || "", email: usuario.email || dados.email || "" },
+        assinatura, fichaAtualizadaEm: dados.fichaAtualizadaEm || null,
+        perfil: { nome: dados.nome || "", email: usuario.email || dados.email || "", foto: dados.foto || "" },
         ficha, complementos: limparComplementos(dados.complementos),
         fichaCompleta: !!ficha && fichaCompleta(ficha),
         planos,
@@ -123,6 +140,21 @@ exports.handler = async function (event) {
         const escolhidas = [...new Set(bruto.filter((n) => Number.isInteger(n) && n >= 0 && n < total))].sort((a, b) => a - b);
         await refPlano.update({ escolhidas });
         return resposta(200, { ok: true, escolhidas });
+      }
+      if (body.acao === "salvarConta") {
+        /* dados da CONTA (nome e foto opcional); o perfil esportivo é a ficha */
+        const nome = String(body.nome || "").replace(/\s+/g, " ").trim().slice(0, 80);
+        if (!nome) throw new ErroPublico(400, "Informe seu nome.");
+        const atualiza = { nome };
+        if (body.foto === "") atualiza.foto = "";
+        else if (body.foto != null) {
+          const foto = String(body.foto);
+          if (!/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(foto) || foto.length > 60000) throw new ErroPublico(400, "A foto precisa ser uma imagem JPEG pequena. Tente outra foto.");
+          atualiza.foto = foto;
+        }
+        await ref.set(atualiza, { merge: true });
+        try { await admin.auth().updateUser(usuario.uid, { displayName: nome }); } catch (e) { console.error("player-dados: nome não atualizado no login", e); }
+        return resposta(200, { ok: true, perfil: { nome, email: usuario.email || "", foto: atualiza.foto !== undefined ? atualiza.foto : ((await ref.get()).data() || {}).foto || "" } });
       }
       if (body.acao === "salvarComplementos") {
         /* respostas do jogador às perguntas do plano: entram nos próximos planos e programas de treino */
@@ -149,7 +181,7 @@ exports.handler = async function (event) {
            não protege nada. */
         const dadosJ = (await ref.get()).data() || {};
         if (!recursosDoNivel(nivelDoJogador(dadosJ, usuario.email)).treinoDia) {
-          throw new ErroPublico(403, "O registro do treino do dia faz parte do Plano 2.");
+          throw new ErroPublico(403, "O registro de treinos faz parte de uma assinatura. Veja as opções em Minha assinatura.");
         }
         const idPlanej = String(body.planejamentoId || "");
         const idSessao = String(body.sessaoId || "");

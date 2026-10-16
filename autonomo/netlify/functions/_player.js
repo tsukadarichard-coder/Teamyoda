@@ -12,6 +12,7 @@
    limitado), e o app não consegue gravar campo que não existe. */
 const { admin, app } = require("./_firebase-admin");
 const { FAMILIAS, PORCODIGO, drillsDoNivel } = require("./_player-catalogo");
+const ASS = require("./_player-assinaturas");
 
 class ErroPublico extends Error {
   constructor(status, mensagem) { super(mensagem); this.status = status; }
@@ -66,10 +67,14 @@ function planoFull(email) {
    functions de pagamento, fase 2). Contas com acesso completo de teste
    veem tudo. O app só esconde/mostra; quem barra de verdade é o servidor. */
 const NIVEIS_PLANO = ["gratis", "p1", "p2", "p3"];
-function nivelDoJogador(dados, email) {
+/* O nível vem, em ordem: do acesso completo de teste; da assinatura vigente (gravada pelo webhook da
+   Eduzz, com data de término); do campo planoPago (liberação manual, sem data). Vale o maior. */
+function nivelDoJogador(dados, email, hoje) {
   if (planoFull(email)) return "p3";
-  const n = String((dados && dados.planoPago) || "gratis");
-  return NIVEIS_PLANO.includes(n) ? n : "gratis";
+  const idx = (n) => Math.max(0, NIVEIS_PLANO.indexOf(String(n || "gratis")));
+  let i = idx(dados && dados.planoPago);
+  if (dados && ASS.assinaturaVigente(dados.assinatura, hoje)) i = Math.max(i, idx(dados.assinatura.nivel));
+  return NIVEIS_PLANO[i];
 }
 function recursosDoNivel(nivel) {
   const i = NIVEIS_PLANO.indexOf(nivel);
@@ -79,6 +84,59 @@ function recursosDoNivel(nivel) {
 /* Quantos planos o jogador pode gerar de graça. Os seguintes dependem
    de crédito (creditosPlano), que só as functions de pagamento somam. */
 const PLANOS_GRATIS = 1;
+
+/* ── assinatura e consumo, como o jogador vê ── */
+function resumoAssinatura(dados, email, hoje) {
+  hoje = hoje || ASS.hojeISO();
+  dados = dados || {};
+  const nivel = nivelDoJogador(dados, email, hoje);
+  const base = { nivel, recursos: recursosDoNivel(nivel), podeAssinar: !planoFull(email) };
+  const creditos = Math.max(0, dados.creditosPlano || 0);
+  if (planoFull(email)) {
+    return { ...base, estado: "teste", rotulo: ASS.ROTULO_ESTADO.teste, nome: "Acesso completo de teste", origem: "teste", periodicidade: null, valorCentavos: null, acessoAte: null, cobrancaAutomatica: null,
+      uso: { estrategias: { usadas: null, limite: null }, programas: { usadas: null, limite: null } }, creditos: 0 };
+  }
+  const ass = dados.assinatura || null;
+  if (ass && ass.status) {
+    let estado = ASS.ESTADOS.includes(ass.status) ? ass.status : "ativa";
+    if (estado !== "encerrada" && !(ass.ativoAte && ass.ativoAte >= hoje)) estado = "encerrada";
+    const lim = ass.limites || {};
+    const uso = ass.uso || {};
+    return { ...base, estado, rotulo: ASS.ROTULO_ESTADO[estado], nome: ass.nome || "Assinatura", origem: "eduzz", periodicidade: ass.periodicidade || null,
+      valorCentavos: Number.isInteger(ass.precoCentavos) ? ass.precoCentavos : null, acessoAte: ass.ativoAte || null, periodoInicio: ass.periodoInicio || null,
+      cobrancaAutomatica: ass.cobrancaAutomatica === true, produtoId: ass.produtoId || null,
+      uso: {
+        estrategias: { usadas: uso.estrategias || 0, limite: Number.isInteger(lim.estrategiasPorPeriodo) ? lim.estrategiasPorPeriodo : null },
+        programas: { usadas: uso.programas || 0, limite: Number.isInteger(lim.programasPorPeriodo) ? lim.programasPorPeriodo : null },
+      },
+      renovaLimitesEm: ass.ativoAte || null, creditos };
+  }
+  if (nivel !== "gratis") {
+    return { ...base, estado: "ativa", rotulo: ASS.ROTULO_ESTADO.ativa, nome: "Acesso liberado manualmente", origem: "manual", periodicidade: null, valorCentavos: null, acessoAte: null, cobrancaAutomatica: null,
+      uso: { estrategias: { usadas: dados.planosGratisUsados || 0, limite: PLANOS_GRATIS }, programas: { usadas: null, limite: null } }, creditos };
+  }
+  return { ...base, estado: "gratuito", rotulo: ASS.ROTULO_ESTADO.gratuito, nome: "Gratuito", origem: "gratuito", periodicidade: null, valorCentavos: null, acessoAte: null, cobrancaAutomatica: null,
+    uso: { estrategias: { usadas: Math.min(dados.planosGratisUsados || 0, PLANOS_GRATIS), limite: PLANOS_GRATIS }, programas: { usadas: null, limite: null } }, creditos };
+}
+
+/* De onde sai a cota de uma nova estratégia: acesso completo → assinatura vigente (respeitando o limite do
+   período, se configurado) → estratégia grátis → crédito. Sem cota: motivo e, se houver, quando renova. */
+function fonteDeEstrategia(dados, email, hoje) {
+  hoje = hoje || ASS.hojeISO();
+  dados = dados || {};
+  if (planoFull(email)) return { fonte: "full" };
+  const ass = dados.assinatura;
+  let limiteAtingido = null;
+  if (ASS.assinaturaVigente(ass, hoje)) {
+    const lim = (ass.limites || {}).estrategiasPorPeriodo;
+    const usadas = (ass.uso || {}).estrategias || 0;
+    if (!Number.isInteger(lim) || usadas < lim) return { fonte: "assinatura" };
+    limiteAtingido = { motivo: "limite_periodo", renovaEm: ass.ativoAte };
+  }
+  if ((dados.planosGratisUsados || 0) < PLANOS_GRATIS) return { fonte: "gratis" };
+  if ((dados.creditosPlano || 0) > 0) return { fonte: "credito" };
+  return { fonte: null, ...(limiteAtingido || { motivo: "sem_cota" }) };
+}
 
 /* ── opções da ficha (valor gravado → texto mostrado/enviado à IA) ── */
 const AREAS = {
@@ -443,6 +501,6 @@ function finalizarPlano(plano, nivel, comAdversario) {
 
 module.exports = {
   admin, app, ErroPublico, resposta, usuarioDoPedido, refJogador,
-  PLANOS_GRATIS, planoFull, NIVEIS_PLANO, nivelDoJogador, recursosDoNivel, PRINCIPIOS_JOGO, linhasFicha, limparComplementos, complementosParaFicha, GRUPOS_PERGUNTA, resumoDrill, AREAS, OPCOES, OPCOES_ADVERSARIO,
+  PLANOS_GRATIS, planoFull, NIVEIS_PLANO, nivelDoJogador, recursosDoNivel, resumoAssinatura, fonteDeEstrategia, PRINCIPIOS_JOGO, linhasFicha, limparComplementos, complementosParaFicha, GRUPOS_PERGUNTA, resumoDrill, AREAS, OPCOES, OPCOES_ADVERSARIO,
   normalizarFicha, fichaCompleta, adversarioUtil, promptPlano, SCHEMA_PLANO, planoValido, finalizarPlano,
 };

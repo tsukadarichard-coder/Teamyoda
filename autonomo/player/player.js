@@ -96,10 +96,10 @@
     app.focus({ preventScroll: true });
   }
   /* aviso rápido sobre a última ação; só é mostrado depois de o servidor confirmar (ou para dizer que falhou) */
-  var toastTempo = null;
+  var toastTempo = null, toastEm = 0;
   function toast(texto, desfazer, erro) {
     var t = document.getElementById("toast");
-    clearTimeout(toastTempo);
+    clearTimeout(toastTempo); toastEm = Date.now();
     t.className = "toast" + (erro ? " erro" : "");
     t.innerHTML = "<span></span>" + (desfazer ? '<button type="button" class="toast-desfazer">Desfazer</button>' : "");
     t.firstChild.textContent = texto;
@@ -331,22 +331,24 @@
       return '<a class="item-estrategia" href="#/gerando/' + esc(p.id) + '"><span class="ie-corpo"><strong class="ie-titulo">Estratégia em preparação…</strong>' +
         '<span class="ie-meta">' + esc(dataBR(p.criadoEm)) + '</span></span><span class="seta" aria-hidden="true">›</span></a>';
     }
-    return '<a class="item-estrategia" href="#/estrategia/' + esc(p.id) + '" title="' + esc(p.plano.titulo) + '"><span class="ie-corpo"><strong class="ie-titulo">' + esc(tituloCurto(p.plano.titulo)) + "</strong>" +
+    return '<a class="item-estrategia" href="#/estrategia/' + esc(p.id) + '" title="' + esc(p.plano.titulo) + '"><span class="ie-corpo"><strong class="ie-titulo">' + esc(p.plano.titulo) + "</strong>" +
       '<span class="ie-meta"><span class="tag' + (p.adversarioNome ? " tag-adv" : "") + '">' + tipoEstrategia(p) + "</span>" +
       (p.adversarioNome ? " <strong>" + esc(p.adversarioNome) + "</strong> ·" : "") + " " + esc(dataBR(p.criadoEm)) + '</span></span><span class="seta" aria-hidden="true">›</span></a>';
   }
-  function textoCota() {
-    var d = estado.dados;
-    if (d.full) return "Acesso completo de teste: sem limite de estratégias.";
-    if (d.gratisRestantes) return "Sua primeira estratégia é grátis.";
-    if (d.creditos) return "Você tem " + d.creditos + (d.creditos === 1 ? " crédito" : " créditos") + " para novas estratégias.";
-    return "Você já usou a sua estratégia grátis. A compra de novas estratégias chega em breve aqui no app.";
-  }
+  function textoCota() { return avisoCota(); }
   function ligarGerar() {
     app.querySelectorAll("[data-gerar]").forEach(function (b) { b.addEventListener("click", function () { gerarPlano(b); }); });
   }
 
-  /* ══ Início ════════════════════════════════════════════════════════ */
+  /* ══ Início ════════════════════════════════════════════════════════
+     O foco é o próximo treino. Nada de oferta de assinatura aqui: o acesso fica no avatar e em Minha assinatura. */
+  function esteiraHtml() {
+    return '<section class="cartao compacto como-funciona" aria-labelledby="t-como"><h2 id="t-como">Como funciona</h2><ol>' +
+      "<li><strong>Estratégia</strong><span>Como jogar com as suas características e contra cada adversário.</span></li>" +
+      "<li><strong>Jogadas</strong><span>Sequências práticas para aplicar a estratégia.</span></li>" +
+      "<li><strong>Treinos</strong><span>A prática das jogadas, organizada em semanas e registrada por você.</span></li></ol>" +
+      '<p class="nota" style="margin-top:8px">Seu acesso: <strong>' + esc(assinaturaDoJogador().nome) + '</strong> · <a href="#/assinatura">Minha assinatura</a></p></section>';
+  }
   function telaInicio() {
     var d = estado.dados;
     var primeiroNome = (d.perfil.nome || "").split(" ")[0];
@@ -354,46 +356,54 @@
     var gerando = (d.planos || []).filter(function (p) { return p.status === "gerando"; })[0];
     var programas = planejamentosProntos();
     var sel = escolherProximoTreino();
-    var html = "<h1>Olá" + (primeiroNome ? ", " + esc(primeiroNome) : "") + "</h1>", destaque = "", sub = "";
+    var html = '<h1 class="saudacao">Olá' + (primeiroNome ? ", " + esc(primeiroNome) : "") + "</h1>", destaque = "", sub = "", explicar = false;
 
     if (!d.fichaCompleta) {
+      explicar = true;
       sub = "Vamos começar pelo seu perfil.";
       destaque = '<div class="cartao destaque"><p class="olho">Primeiro passo</p><h2>Conte como você joga</h2><p class="nota" style="margin-top:6px">São 4 etapas rápidas, quase tudo de tocar e escolher. Seu progresso fica salvo.</p>' +
-        '<a class="btn btn-primario btn-grande" href="#/ficha/1">' + (d.ficha && Object.keys(d.ficha).some(function (k) { return d.ficha[k] && k !== "adversario"; }) ? "Continuar meu perfil" : "Completar meu perfil") + "</a></div>";
+        '<a class="btn btn-primario btn-grande" href="#/ficha/1">' + (d.ficha && Object.keys(d.ficha).some(function (k) { return d.ficha[k] && k !== "adversario"; }) || perfilRascunhado() ? "Continuar meu perfil" : "Completar meu perfil") + "</a></div>";
     } else if (!estrategia) {
+      explicar = true;
       sub = "Seu perfil está completo.";
       destaque = '<div class="cartao destaque"><p class="olho">Próximo passo</p><h2>Crie a sua estratégia</h2><p class="nota" style="margin-top:6px">Com o seu perfil, montamos como jogar: as prioridades e as jogadas para aplicar.</p>' +
         (gerando ? '<a class="btn btn-primario btn-grande" href="#/gerando/' + esc(gerando.id) + '">Acompanhar minha estratégia</a>'
-          : d.podeGerar ? '<button class="btn btn-primario btn-grande" data-gerar type="button">Criar minha estratégia</button>'
-          : '<a class="btn btn-primario btn-grande" href="#/estrategia">Ver estratégias</a><p class="nota" style="margin-top:10px">' + esc(textoCota()) + "</p>") + "</div>";
+          : d.podeGerar ? '<button class="btn btn-primario btn-grande" data-gerar type="button">Criar minha estratégia</button><p class="nota" style="margin-top:8px">' + esc(avisoCota()) + "</p>"
+          : '<a class="btn btn-primario btn-grande" href="#/estrategia">Ver estratégias</a><p class="nota" style="margin-top:10px">' + esc(avisoCota()) + "</p>") + "</div>";
     } else if (!programas.length) {
+      explicar = true;
       sub = "Sua estratégia está pronta. Falta organizar a prática.";
       destaque = '<div class="cartao destaque"><p class="olho">Próximo passo</p><h2>Organize seus treinos</h2><p class="nota" style="margin-top:6px">Escolha as jogadas que quer praticar e monte um programa de treino nos dias que cabem na sua rotina.</p>' +
         '<a class="btn btn-primario btn-grande" href="' + (recursos().planejamento ? "#/planejar/" + esc(estrategia.id) : "#/treinos") + '">Organizar meus treinos</a></div>';
     } else if (sel) {
-      sub = sel.tipo === "andamento" ? "Você começou um treino. Falta terminar." : sel.tipo === "hoje" ? "Hoje tem treino." : "Seu programa de treino está em dia.";
+      sub = sel.tipo === "andamento" ? "Você começou um treino. Falta terminar."
+        : sel.tipo === "hoje" ? "Hoje tem treino."
+        : sel.tipo === "pendente" ? "Há treinos pendentes no seu programa."
+        : sel.atrasados > 0 ? "Você tem " + sel.atrasados + (sel.atrasados === 1 ? " treino pendente." : " treinos pendentes.") : "Seu próximo treino está agendado.";
       destaque = cartaoTreinoHtml(sel);
     } else {
-      sub = "Você concluiu o seu programa de treino.";
+      sub = "Você concluiu os treinos agendados.";
       destaque = '<div class="cartao destaque"><p class="olho">Programa concluído</p><h2>Hora de organizar os próximos treinos</h2><p class="nota" style="margin-top:6px">Veja como foi em Treinos ou monte um novo programa.</p>' +
         '<a class="btn btn-primario btn-grande" href="#/planejar/' + esc(estrategia.id) + '">Organizar novos treinos</a><p style="margin-top:8px"><a class="btn btn-texto" href="#/treinos">Ver histórico</a></p></div>';
     }
-    html += (sub ? '<p class="sub">' + esc(sub) + "</p>" : "") + '<div style="margin-top:16px">' + destaque + "</div>";
+    html += (sub ? '<p class="sub">' + esc(sub) + "</p>" : "") + '<div style="margin-top:14px">' + destaque + "</div>";
+    if (explicar) html += '<div style="margin-top:14px">' + esteiraHtml() + "</div>";
 
     /* "Qual é minha estratégia, quais jogadas vou praticar e qual é meu próximo treino?" */
     if (estrategia) {
       var marcadas = (estrategia.escolhidas || []).length;
       var pjAtivo = programaAtivo() || programas[0];
       var prog = pjAtivo ? andamentoPrograma(pjAtivo) : null;
+      var tituloEst = estrategia.plano.titulo, tituloProg = pjAtivo ? pjAtivo.titulo : "";
       html += '<div class="indicadores">' +
-        '<a class="indicador" href="#/estrategia/' + esc(estrategia.id) + '"><span class="ind-rotulo">Sua estratégia</span><strong>' + esc(nomeEstrategia(estrategia)) + '</strong><span class="ind-nota">' + tipoEstrategia(estrategia) + (estrategia.adversarioNome ? " · " + esc(estrategia.adversarioNome) : "") + "</span></a>" +
-        '<a class="indicador" href="#/jogadas/' + esc(estrategia.id) + '"><span class="ind-rotulo">Jogadas para praticar</span><strong>' + (marcadas ? marcadas + (marcadas === 1 ? " selecionada" : " selecionadas") : "Nenhuma selecionada") + '</strong><span class="ind-nota">' + ((estrategia.plano.jogadas || []).length) + " disponíveis</span></a>" +
-        '<a class="indicador" href="#/treinos"><span class="ind-rotulo">Treinos</span><strong>' + (prog ? prog.concluidos + " de " + prog.total + " feitos" : "Sem programa") + '</strong><span class="ind-nota">' + (prog ? esc(tituloCurto(pjAtivo.titulo, 34)) : "Organize seus treinos") + "</span></a></div>";
+        '<a class="indicador" href="#/estrategia/' + esc(estrategia.id) + '" title="' + esc(tituloEst) + '"><span class="ind-rotulo">Sua estratégia</span><strong class="clamp2">' + esc(tituloEst) + '</strong><span class="ind-nota">' + tipoEstrategia(estrategia) + (estrategia.adversarioNome ? " · " + esc(estrategia.adversarioNome) : "") + "</span></a>" +
+        '<a class="indicador" href="#/jogadas/' + esc(estrategia.id) + '"><span class="ind-rotulo">Jogadas para praticar</span><strong>' + (marcadas ? marcadas + (marcadas === 1 ? " selecionada" : " selecionadas") : "Escolher jogadas") + '</strong><span class="ind-nota">' + ((estrategia.plano.jogadas || []).length) + " disponíveis</span></a>" +
+        '<a class="indicador" href="' + (prog ? "#/treinos" : recursos().planejamento ? "#/planejar/" + esc(estrategia.id) : "#/treinos") + '"' + (tituloProg ? ' title="' + esc(tituloProg) + '"' : "") + '><span class="ind-rotulo">Treinos</span><strong>' + (prog ? (podeRegistrar() ? prog.concluidos + " de " + prog.total + " treinos concluídos" : prog.total + " treinos previstos") : "Sem programa") + '</strong><span class="ind-nota clamp2">' + (prog ? esc(tituloProg) : "Organizar meus treinos") + "</span></a></div>";
     }
-    html += '<p class="nota rodape-inicio">Conectado como ' + esc(d.perfil.email) + (d.full ? " · acesso completo de teste" : "") + "</p>";
     tela(html);
     ligarGerar();
   }
+  function perfilRascunhado() { try { return !!localStorage.getItem(chaveRascunho()); } catch (e) { return false; } }
 
   /* ══ Estratégia ════════════════════════════════════════════════════ */
   function telaEstrategias() {
@@ -410,7 +420,7 @@
         html += '<button class="btn ' + (lista.length ? "btn-secundario" : "btn-primario btn-grande") + ' largo" data-gerar type="button" style="margin-top:14px">' + (lista.length ? "Criar nova estratégia" : "Criar minha estratégia") + "</button>" +
           '<p class="nota" style="margin-top:8px">' + esc(textoCota()) + " A nova estratégia usa o seu perfil atual, " + (lista.length ? "e a anterior continua salva. " : "") + '<a href="#/ficha/1">Revisar perfil</a></p>';
       } else {
-        html += '<p class="nota" style="margin-top:14px">' + esc(textoCota()) + ' <a href="#/ficha/1">Atualizar perfil</a></p>';
+        html += '<div style="margin-top:14px">' + limiteAtingidoHtml(d.semCotaMotivo, d.renovaEm) + "</div>";
       }
     }
     tela(html);
@@ -463,8 +473,8 @@
         '<details class="det"><summary>Criar outra estratégia</summary>' + blocoOutraEstrategia() + "</details>" +
       "</div>" +
       '<div class="consultoria"><p class="olho">Consultoria</p><h2>Quer a estratégia validada por um treinador?</h2>' +
-        "<p>O Richard Tsukada pode revisar a sua estratégia, analisar um vídeo do seu jogo ou conversar com você ao vivo.</p>" +
-        '<a class="btn largo" href="https://wa.me/' + WHATSAPP_CONSULTORIA + "?text=" + encodeURIComponent(msgWpp) + '" target="_blank" rel="noopener">Falar sobre a consultoria<span class="sr"> (abre o WhatsApp)</span></a></div>'
+        "<p>O Richard Tsukada pode revisar a sua estratégia, analisar um vídeo do seu jogo ou conversar com você ao vivo. São serviços contratados à parte da assinatura.</p>" +
+        '<a class="btn largo" href="#/consultorias">Ver consultorias</a></div>'
     );
     ligarGerar();
   }
@@ -474,7 +484,7 @@
       return '<p class="nota" style="margin:8px 0 0">' + esc(textoCota()) + " A nova estratégia usa o seu perfil atual e as informações que você respondeu; a atual continua salva. Se o seu jogo mudou, ou é contra outro adversário, revise o perfil antes.</p>" +
         '<div class="acoes"><button class="btn btn-primario" data-gerar type="button">Criar nova estratégia com o perfil atual</button><a class="btn btn-secundario" href="#/ficha/1">Revisar perfil e criar</a></div>';
     }
-    return '<p class="nota" style="margin:8px 0 0">' + esc(textoCota()) + "</p>";
+    return '<div style="margin-top:8px">' + limiteAtingidoHtml(d.semCotaMotivo, d.renovaEm) + "</div>";
   }
 
   /* ── completar informações: uma pergunta por etapa ── */
@@ -636,16 +646,17 @@
         "</div>";
     }
     var ultima = n === ETAPAS.length;
-    var podeGerar = estado.dados.podeGerar;
+    var editando = !!estado.editandoPerfil && estado.dados.fichaCompleta;
+    var podeGerar = estado.dados.podeGerar && !editando;
     tela(
       '<div class="progresso"><div class="barra" role="progressbar" aria-valuemin="1" aria-valuemax="' + ETAPAS.length + '" aria-valuenow="' + n + '" aria-label="Etapa ' + n + " de " + ETAPAS.length + '"><i style="width:' + (n / ETAPAS.length * 100) + '%"></i></div><span>Etapa ' + n + " de " + ETAPAS.length + "</span></div>" +
-      '<p class="olho">Meu perfil</p><h1 style="margin-bottom:18px">' + esc(ETAPAS[n - 1].titulo) + "</h1>" +
+      '<p class="olho">' + (editando ? "Editando o meu perfil de jogador" : "Meu perfil") + '</p><h1 style="margin-bottom:18px">' + esc(ETAPAS[n - 1].titulo) + "</h1>" +
       '<form id="fFicha" novalidate>' + corpo +
         '<div class="aviso" id="aviso" role="alert" hidden></div>' +
         '<p class="nota rascunho-nota" id="rascunhoNota">Suas respostas ficam salvas neste aparelho enquanto você preenche.</p>' +
         '<div class="acoes lado">' +
-          '<button class="btn btn-primario" id="btAvancar" type="submit">' + (ultima ? (podeGerar ? "Salvar e criar minha estratégia" : "Salvar perfil") : "Continuar") + "</button>" +
-          '<button class="btn btn-secundario" id="btVoltar" type="button">' + (n === 1 ? "Voltar ao início" : "Voltar") + "</button>" +
+          '<button class="btn btn-primario" id="btAvancar" type="submit">' + (ultima ? (editando ? "Salvar perfil" : podeGerar ? "Salvar e criar minha estratégia" : "Salvar perfil") : "Continuar") + "</button>" +
+          '<button class="btn btn-secundario" id="btVoltar" type="button">' + (n === 1 ? (editando ? "Cancelar edição" : "Voltar ao início") : "Voltar") + "</button>" +
         "</div>" +
       "</form>"
     );
@@ -693,6 +704,7 @@
 
     document.getElementById("btVoltar").addEventListener("click", function () {
       rascunhar();
+      if (n === 1 && editando) { estado.editandoPerfil = false; estado.ficha = JSON.parse(JSON.stringify(estado.dados.ficha)); estado.ficha.adversario = estado.ficha.adversario || {}; ir("#/jogador"); return; }
       ir(n === 1 ? "#/inicio" : "#/ficha/" + (n - 1));
     });
     form.addEventListener("submit", async function (ev) {
@@ -719,6 +731,7 @@
           ir("#/ficha/" + (etapa + 1));
           return;
         }
+        if (editando) { estado.editandoPerfil = false; estado.dados.fichaAtualizadaEm = new Date().toISOString(); ir("#/jogador"); toast("Perfil de jogador salvo. Suas estratégias e programas continuam como estão."); return; }
         if (estado.dados.podeGerar) { ocupado(bt, false); await gerarPlano(bt); }
         else ir("#/inicio");
       } catch (e) {
@@ -742,7 +755,7 @@
         var r = await api("player-dados?plano=" + encodeURIComponent(id));
         var p = r.plano;
         if (p.status === "pronto") { await carregarDados(); aplicarRascunho(); ir("#/estrategia/" + id); return; }
-        if (p.status === "erro") { await carregarDados(); telaErroPlano(p.erro); return; }
+        if (p.status === "erro") { await carregarDados(); telaErroPlano(p.erro, p); return; }
       } catch (e) { /* ainda não existe ou rede oscilou: tenta de novo */ }
       if (Date.now() - inicio > 4 * 60 * 1000) {
         telaErroPlano("A estratégia está demorando mais que o normal. Volte ao início em alguns minutos: ela aparece na sua lista quando ficar pronta.");
@@ -752,7 +765,11 @@
     }
     consulta = setTimeout(verificar, 2500);
   }
-  function telaErroPlano(msg) {
+  function telaErroPlano(msg, extra) {
+    if (extra && extra.semCota) {
+      tela('<h1>Limite atingido</h1><div style="margin-top:14px">' + limiteAtingidoHtml(extra.motivoCota, extra.renovaEm, { recurso: /programa/i.test(msg) ? "programas de treino" : "estratégias" }) + '</div><div class="acoes"><a class="btn btn-texto" href="#/inicio">Voltar ao início</a></div>');
+      return;
+    }
     tela('<div class="pilha"><h1>Não deu certo desta vez</h1><div class="aviso">' + esc(msg) + "</div>" +
       '<div class="acoes"><a class="btn btn-primario" href="#/inicio">Voltar ao início</a></div></div>');
   }
@@ -907,7 +924,7 @@
     var a = andamentoPrograma(pj), pa = pj.params || {}, origem = estrategiaDeOrigem(pj);
     var pct = a.total ? Math.round(a.concluidos / a.total * 100) : 0;
     return '<a class="item-programa' + (ativo ? " ativo" : "") + '" href="#/programa/' + esc(pj.id) + '" title="' + esc(pj.titulo) + '"><span class="ip-corpo">' +
-      '<strong class="ip-titulo">' + esc(tituloCurto(pj.titulo, 44)) + "</strong>" +
+      '<strong class="ip-titulo">' + esc(pj.titulo) + "</strong>" +
       '<span class="ip-linha">' + esc(periodoPrograma(pj)) + (pa.semanas ? " · " + pa.semanas + " semanas" : "") + (pa.dias ? " · " + pa.dias.length + "x por semana" : "") + "</span>" +
       (podeRegistrar() ? '<span class="prog" role="img" aria-label="' + a.concluidos + " de " + a.total + ' treinos concluídos"><span class="prog-barra"><i style="width:' + pct + '%"></i></span><span class="prog-txt">' + a.concluidos + " de " + a.total + " concluídos</span></span>"
         : '<span class="ip-linha">' + a.total + " treinos previstos</span>") +
@@ -930,10 +947,9 @@
     var d = estado.dados, r = recursos(), ultimo = planosProntos()[0];
     var html = "<h1>Treinos</h1><p class=\"sub\">Organize e registre a prática das suas jogadas.</p>";
     if (!r.planejamento) {
-      var msg = "Olá, Richard! Quero saber sobre o Plano 1 (programa de treino) do QuadraLab Player.";
-      html += '<div class="cartao bloqueado" style="margin-top:18px"><p class="olho">Plano 1</p><h2>Programa de treino</h2>' +
-        '<p class="nota" style="margin-top:6px">Semanas de treino com os dias e a duração que cabem na sua rotina, e os exercícios de cada treino.</p>' +
-        '<div class="acoes"><a class="btn btn-secundario" href="https://wa.me/' + WHATSAPP_CONSULTORIA + "?text=" + encodeURIComponent(msg) + '" target="_blank" rel="noopener">Quero o Plano 1<span class="sr"> (abre o WhatsApp)</span></a></div></div>';
+      html += '<div class="cartao bloqueado" style="margin-top:18px"><p class="olho">Incluído em assinaturas</p><h2>Programa de treino</h2>' +
+        '<p class="nota" style="margin-top:6px">Semanas de treino com os dias e a duração que cabem na sua rotina, e os exercícios de cada treino. Faz parte de uma assinatura.</p>' +
+        '<div class="acoes"><a class="btn btn-primario" href="#/assinaturas">Conhecer assinaturas</a><a class="btn btn-secundario" href="#/assinatura">Minha assinatura</a></div></div>';
       tela(html); return;
     }
     var programas = planejamentosProntos(), sel = escolherProximoTreino(), ativo = programaAtivo();
@@ -974,6 +990,12 @@
     return p[2] + "/" + p[1] + "/" + p[0];
   }
 
+  /* aviso perto da ação: quantos programas já foram usados no período, se a assinatura tiver limite configurado */
+  function notaUsoPrograma() {
+    var a = assinaturaDoJogador(), p = (a.uso || {}).programas || {};
+    if (a.origem !== "eduzz" || p.limite == null) return "";
+    return '<p class="nota nota-uso" style="margin-top:6px">' + esc(p.usadas + " de " + p.limite + (p.limite === 1 ? " programa de treino utilizado" : " programas de treino utilizados") + " neste período.") + "</p>";
+  }
   function telaPlanejar(planoId) {
     var plano = planoPorId(planoId);
     if (!plano || plano.status !== "pronto" || !recursos().planejamento) { ir("#/treinos"); return; }
@@ -982,7 +1004,7 @@
     tela(
       '<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/estrategia/' + esc(planoId) + '">‹ Voltar à estratégia</a></p>' +
       "<h1>Programa de treino</h1>" +
-      '<p class="sub">Conte como é a sua rotina e o programa se encaixa nela.</p>' +
+      '<p class="sub">Conte como é a sua rotina e o programa se encaixa nela.</p>' + notaUsoPrograma() +
       '<div class="cartao compacto jogadas-do-programa" style="margin-top:14px"><p class="olho">Jogadas deste programa</p>' +
         (marcadas.length ? "<p>" + marcadas.map(esc).join(" · ") + '</p><p class="nota" style="margin-top:4px"><a href="#/jogadas/' + esc(planoId) + '">Alterar jogadas</a></p>'
           : '<p class="nota">Você não adicionou jogadas: o programa distribui todas as da estratégia. <a href="#/jogadas/' + esc(planoId) + '">Escolher jogadas</a></p>') + "</div>" +
@@ -1056,7 +1078,7 @@
         var r = await api("player-dados?planejamento=" + encodeURIComponent(id));
         var pj = r.planejamento;
         if (pj.status === "pronto") { await carregarDados(); aplicarRascunho(); estado.formPlanej = null; ir("#/programa/" + id); return; }
-        if (pj.status === "erro") { await carregarDados(); telaErroPlano(pj.erro); return; }
+        if (pj.status === "erro") { await carregarDados(); telaErroPlano(pj.erro, pj); return; }
       } catch (e) { /* ainda não existe ou a rede oscilou */ }
       if (Date.now() - inicio > 5 * 60 * 1000) {
         telaErroPlano("O programa de treino está demorando mais que o normal. Volte ao início em alguns minutos: ele aparece na sua lista quando ficar pronto.");
@@ -1148,8 +1170,8 @@
           '<label class="reg-obs">Observações<textarea id="obsTreino" maxlength="600" rows="3" placeholder="O que funcionou, o que errou, dor, cansaço…">' + esc(obs) + "</textarea></label>" +
           '<div class="acoes"><button type="button" class="btn btn-primario" id="btConcluir">' + (final ? "Atualizar registro" : "Salvar treino") + '</button><span class="nota reg-msg" id="msgTreino" role="status">' + (reg.em && final ? "Salvo em " + dataBR(reg.em) : "") + "</span></div>" +
           '<div id="aposTreino"></div></div>'
-        : '<div class="cartao bloqueado" style="margin-top:18px"><p class="olho">Plano 2</p><h2>Registre o que você treinou</h2><p class="nota" style="margin-top:6px">Marcar blocos, anotar observações e acompanhar o progresso fazem parte do Plano 2.</p>' +
-          '<div class="acoes"><a class="btn btn-secundario" href="https://wa.me/' + WHATSAPP_CONSULTORIA + "?text=" + encodeURIComponent("Olá, Richard! Quero saber sobre o Plano 2 (registro de treinos) do QuadraLab Player.") + '" target="_blank" rel="noopener">Quero o Plano 2<span class="sr"> (abre o WhatsApp)</span></a></div></div>')
+        : '<div class="cartao bloqueado" style="margin-top:18px"><p class="olho">Incluído em assinaturas</p><h2>Registre o que você treinou</h2><p class="nota" style="margin-top:6px">Marcar blocos, anotar observações e acompanhar o progresso fazem parte de uma assinatura.</p>' +
+          '<div class="acoes"><a class="btn btn-primario" href="#/assinaturas">Conhecer assinaturas</a></div></div>')
     );
     if (!registrar) return;
 
@@ -1218,58 +1240,484 @@
   }
   var ROTULO_STATUS = { feito: "Feito", parcial: "Parcial", nao_feito: "Não feito" };
 
-  /* ══ casca do app: menu lateral (computador) e menu inferior (celular) ══ */
+  /* ══ casca do app: menu lateral (computador), menu inferior (celular) e conta ══ */
   var NAV_DA_ROTA = {
-    ficha: "mais", estrategia: "estrategia", plano: "estrategia", planos: "estrategia", completar: "estrategia", gerando: "estrategia",
+    ficha: "jogador", jogador: "jogador", conta: "conta", assinatura: "assinatura", assinaturas: "assinatura", consultorias: "consultorias", ajuda: "ajuda",
+    estrategia: "estrategia", plano: "estrategia", planos: "estrategia", completar: "estrategia", gerando: "estrategia",
     jogadas: "jogadas", planejar: "treinos", treinos: "treinos", treino: "treinos", programa: "treinos", planejamento: "treinos", gerandoPlanej: "treinos",
   };
+  var NAV_MAIS = { conta: 1, jogador: 1, ficha: 1, assinatura: 1, consultorias: 1, ajuda: 1 };
   function atualizarCasca(logado, rota) {
     document.body.classList.toggle("logado", logado);
     lateral.hidden = !logado;
     navInf.hidden = !logado;
+    document.querySelectorAll(".js-abrir-conta").forEach(function (b) { b.hidden = !logado; });
     var ativo = NAV_DA_ROTA[rota] || "inicio";
     document.querySelectorAll("[data-nav]").forEach(function (el) {
-      if (el.getAttribute("data-nav") === ativo && logado) el.setAttribute("aria-current", "page"); else el.removeAttribute("aria-current");
+      var vale = el.id === "btMais" ? !!NAV_MAIS[rota] : el.getAttribute("data-nav") === ativo;
+      if (vale && logado) el.setAttribute("aria-current", "page"); else el.removeAttribute("aria-current");
     });
-    if (!logado) fecharMais(false);
-    var conta = document.getElementById("painelConta");
-    if (conta && estado.dados) conta.textContent = "Conectado como " + estado.dados.perfil.email + (estado.dados.full ? " · acesso completo de teste" : "");
-    var msg = "Olá, Richard! Preciso de ajuda com o QuadraLab Player.";
-    document.querySelectorAll("[data-wpp]").forEach(function (a) { a.href = "https://wa.me/" + WHATSAPP_CONSULTORIA + "?text=" + encodeURIComponent(msg); });
+    if (!logado) fecharPainel(false);
+    atualizarConta();
   }
-  function abrirMais() {
-    painelMais.hidden = false; painelFundo.hidden = false;
-    btMais.setAttribute("aria-expanded", "true");
-    document.getElementById("btFecharMais").focus();
+  document.addEventListener("click", async function (ev) {
+    var b = ev.target.closest("[data-acao='sair']");
+    if (!b) return;
+    fecharPainel(false);
+    await auth.signOut();
+    estado.dados = null; estado.fluxo = null; estado.assin = null; estado.editandoPerfil = false;
+    ir("#/entrar");
+  });
+
+
+  /* ══ conta, assinatura e suporte ═══════════════════════════════════
+     Tudo o que é comercial vem do servidor (player-assinatura): produtos, preços, limites e a situação da
+     assinatura. O app só mostra — nenhuma liberação nasce de botão, endereço de retorno ou estado do navegador. */
+  var PERIODO_TXT = { mensal: "mês", trimestral: "trimestre", semestral: "semestre", anual: "ano" };
+  var NIVEL_ORDEM = { gratis: 0, p1: 1, p2: 2, p3: 3 };
+
+  function reais(centavos) { return (centavos / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
+  function dataISO(iso) { return iso ? dataExtensa(String(iso).slice(0, 10)) : ""; }
+  function cobrancaTexto(p) {
+    if (!p || !p.precoCentavos) return "";
+    if (p.periodicidade === "mensal") return reais(p.precoCentavos) + " por mês";
+    return "Cobrança de " + reais(p.precoCentavos) + " a cada " + (PERIODO_TXT[p.periodicidade] || "período");
   }
-  function fecharMais(devolverFoco) {
-    if (painelMais.hidden) return;
-    painelMais.hidden = true; painelFundo.hidden = true;
-    btMais.setAttribute("aria-expanded", "false");
-    if (devolverFoco) btMais.focus();
+  function suporteUrl(mensagem) {
+    return "https://wa.me/" + WHATSAPP_CONSULTORIA + "?text=" + encodeURIComponent(mensagem || "Olá, Richard! Preciso de ajuda com o QuadraLab Player.");
   }
-  btMais.addEventListener("click", function () { painelMais.hidden ? abrirMais() : fecharMais(true); });
-  document.getElementById("btFecharMais").addEventListener("click", function () { fecharMais(true); });
-  painelFundo.addEventListener("click", function () { fecharMais(true); });
-  painelMais.addEventListener("click", function (ev) { if (ev.target.closest("a")) fecharMais(false); });
+  function assinaturaDoJogador() { return (estado.dados && estado.dados.assinatura) || { estado: "gratuito", rotulo: "Gratuito", nome: "Gratuito", recursos: {}, uso: {} }; }
+
+  var SIMBOLO_ESTADO = { gratuito: "", teste: "◇ ", ativa: "✓ ", pagamento_pendente: "◔ ", problema_pagamento: "! ", cancelamento_programado: "◐ ", encerrada: "– " };
+  function selloAssinatura(a) {
+    return '<span class="sello-ass s-ass-' + esc(a.estado) + '">' + (SIMBOLO_ESTADO[a.estado] || "") + esc(a.rotulo) + "</span>";
+  }
+
+  /* cache da área comercial; a consulta falha de forma clara quando a conexão cai */
+  async function carregarAssinatura(forcar) {
+    if (!forcar && estado.assin && Date.now() - estado.assin.carregadoEm < 60000) return estado.assin;
+    var r = await api("player-assinatura");
+    r.carregadoEm = Date.now();
+    estado.assin = r;
+    if (estado.dados) estado.dados.assinatura = r.assinatura;
+    aplicarLinks();
+    atualizarConta();
+    return r;
+  }
+  function aplicarLinks() {
+    var links = (estado.assin && estado.assin.links) || {};
+    document.querySelectorAll("[data-link]").forEach(function (a) {
+      var u = links[a.getAttribute("data-link")];
+      a.hidden = !u; if (u) a.href = u;
+    });
+  }
+  function marcadorCheckout() {
+    try { return JSON.parse(localStorage.getItem("ql-checkout:" + auth.currentUser.uid) || "null"); } catch (e) { return null; }
+  }
+  function marcarCheckout(produtoId) {
+    try { localStorage.setItem("ql-checkout:" + auth.currentUser.uid, JSON.stringify({ em: Date.now(), produtoId: produtoId })); } catch (e) { /* sem armazenamento */ }
+  }
+  function limparCheckout() { try { localStorage.removeItem("ql-checkout:" + auth.currentUser.uid); } catch (e) { /* idem */ } }
+
+  /* ── avatar e painel de conta ── */
+  function iniciais(nome) {
+    var p = String(nome || "").trim().split(/\s+/).filter(Boolean);
+    if (!p.length) return "?";
+    return (p[0][0] + (p.length > 1 ? p[p.length - 1][0] : "")).toUpperCase();
+  }
+  function avatarConteudo() {
+    var perfil = (estado.dados && estado.dados.perfil) || {};
+    return perfil.foto ? '<img src="' + esc(perfil.foto) + '" alt="">' : esc(iniciais(perfil.nome || perfil.email));
+  }
+  function atualizarConta() {
+    if (!estado.dados) return;
+    var perfil = estado.dados.perfil, a = assinaturaDoJogador();
+    document.querySelectorAll("[data-avatar]").forEach(function (el) { el.innerHTML = avatarConteudo(); });
+    document.querySelectorAll("[data-conta-nome]").forEach(function (el) { el.textContent = perfil.nome || "Minha conta"; el.title = perfil.nome || ""; });
+    var rotuloAss = a.nome === a.rotulo ? a.rotulo : a.nome + " · " + a.rotulo;
+    document.querySelectorAll("[data-conta-ass]").forEach(function (el) { el.textContent = rotuloAss; });
+    var em = document.getElementById("perfilEmail"); if (em) { em.textContent = perfil.email; em.title = perfil.email; }
+    var as = document.getElementById("perfilAss"); if (as) as.innerHTML = (a.nome === a.rotulo ? "" : '<span class="pc-ass-nome">' + esc(a.nome) + "</span> ") + selloAssinatura(a);
+    var amp = document.getElementById("lnkAmpliar");
+    if (amp) {
+      var maior = estado.assin && (estado.assin.catalogo || []).some(function (p) { return (NIVEL_ORDEM[p.nivel] || 0) > (NIVEL_ORDEM[a.nivel] || 0); });
+      var mostrar = a.estado === "gratuito" || a.estado === "encerrada" || (a.estado === "ativa" && a.origem === "eduzz" && maior);
+      amp.hidden = !mostrar || a.estado === "teste";
+      amp.textContent = a.estado === "ativa" ? "Ampliar acesso" : "Conhecer assinaturas";
+    }
+  }
+
+  var painelAberto = null, gatilhoPainel = null;
+  function abrirPainel(el, gatilho) {
+    fecharPainel(false);
+    painelAberto = el; gatilhoPainel = gatilho || null;
+    el.hidden = false; painelFundo.hidden = false;
+    document.documentElement.classList.add("sem-rolagem");
+    document.querySelectorAll(".js-abrir-conta, #btMais").forEach(function (b) { b.setAttribute("aria-expanded", String(b === gatilho)); });
+    var alvo = el.querySelector(".painel-fechar") || el.querySelector("a, button");
+    if (alvo) alvo.focus();
+  }
+  function fecharPainel(devolverFoco) {
+    if (!painelAberto) return;
+    painelAberto.hidden = true; painelFundo.hidden = true;
+    document.documentElement.classList.remove("sem-rolagem");
+    document.querySelectorAll(".js-abrir-conta, #btMais").forEach(function (b) { b.setAttribute("aria-expanded", "false"); });
+    var g = gatilhoPainel; painelAberto = null; gatilhoPainel = null;
+    if (devolverFoco && g && !g.hidden) g.focus();
+  }
+  var painelPerfil = document.getElementById("painelPerfil");
+  document.querySelectorAll(".js-abrir-conta").forEach(function (b) {
+    b.addEventListener("click", function () {
+      if (painelAberto === painelPerfil) { fecharPainel(true); return; }
+      atualizarConta();
+      abrirPainel(painelPerfil, b);
+      carregarAssinatura().catch(function () { /* o painel continua com o que já tem */ });
+    });
+  });
+  document.getElementById("btFecharConta").addEventListener("click", function () { fecharPainel(true); });
+  btMais.addEventListener("click", function () { painelAberto === painelMais ? fecharPainel(true) : abrirPainel(painelMais, btMais); });
+  document.getElementById("btFecharMais").addEventListener("click", function () { fecharPainel(true); });
+  painelFundo.addEventListener("click", function () { fecharPainel(true); });
+  [painelPerfil, painelMais].forEach(function (p) { p.addEventListener("click", function (ev) { if (ev.target.closest("a")) fecharPainel(false); }); });
   document.addEventListener("keydown", function (ev) {
-    if (painelMais.hidden) return;
-    if (ev.key === "Escape") { fecharMais(true); return; }
+    if (!painelAberto) return;
+    if (ev.key === "Escape") { ev.preventDefault(); fecharPainel(true); return; }
     if (ev.key === "Tab") {
-      var itens = [].slice.call(painelMais.querySelectorAll("button, a")).filter(function (x) { return !x.hidden; });
+      var itens = [].slice.call(painelAberto.querySelectorAll("button, a[href]")).filter(function (x) { return !x.hidden && x.offsetParent !== null; });
       var i = itens.indexOf(document.activeElement);
+      if (!itens.length) return;
       if (ev.shiftKey && i <= 0) { ev.preventDefault(); itens[itens.length - 1].focus(); }
       else if (!ev.shiftKey && i === itens.length - 1) { ev.preventDefault(); itens[0].focus(); }
     }
   });
-  document.addEventListener("click", async function (ev) {
-    var b = ev.target.closest("[data-acao='sair']");
-    if (!b) return;
-    fecharMais(false);
-    await auth.signOut();
-    estado.dados = null; estado.fluxo = null;
-    ir("#/entrar");
-  });
+
+  /* ── avisos de consumo, perto da ação ── */
+  function dataCurtaISO(iso) { return iso ? dataCurta(String(iso).slice(0, 10)) : ""; }
+  function linhaUso(rotuloPlural, rotuloSingular, u, periodo) {
+    if (!u || u.usadas == null) return "";
+    if (u.limite != null) return u.usadas + " de " + u.limite + " " + (u.limite === 1 ? rotuloSingular : rotuloPlural) + (periodo ? " utilizadas neste período" : " utilizada");
+    return u.usadas + " " + (u.usadas === 1 ? rotuloSingular : rotuloPlural) + " neste período · sem limite definido";
+  }
+  /* mensagem curta sobre estratégias para os botões de criar */
+  function avisoCota() {
+    var d = estado.dados, a = assinaturaDoJogador(), e = (a.uso || {}).estrategias || {};
+    if (d.full || a.estado === "teste") return "Acesso de teste: sem limite definido.";
+    if (a.origem === "eduzz" && (a.estado === "ativa" || a.estado === "cancelamento_programado")) {
+      return e.limite != null ? e.usadas + " de " + e.limite + " estratégias utilizadas neste período." : "Sem limite de estratégias definido para a sua assinatura.";
+    }
+    if (d.gratisRestantes) return "Sua primeira estratégia é grátis (0 de 1 utilizada).";
+    if (d.creditos) return "Você tem " + d.creditos + (d.creditos === 1 ? " crédito" : " créditos") + " para novas estratégias.";
+    return "Estratégia grátis: 1 de 1 utilizada.";
+  }
+  /* quando a cota acabou: o que aconteceu, quando renova e o caminho para ampliar — sem apagar nada */
+  function limiteAtingidoHtml(motivo, renovaEm, o) {
+    o = o || {};
+    var periodo = motivo === "limite_periodo";
+    return '<div class="cartao limite-atingido" role="status"><p class="olho">' + (periodo ? "Limite do período atingido" : "Estratégia grátis utilizada") + "</p>" +
+      "<p>" + (periodo ? "Você usou todas as " + (o.recurso || "estratégias") + " previstas no período da sua assinatura." + (renovaEm ? " Os limites voltam a partir do próximo pagamento confirmado; o acesso atual vai até " + esc(dataISO(renovaEm)) + "." : "")
+        : "Você já usou a estratégia grátis. Para criar outra, é preciso uma assinatura.") + "</p>" +
+      '<p class="nota" style="margin-top:6px">Seu perfil, suas estratégias e o que você já preencheu continuam salvos.</p>' +
+      '<div class="acoes"><a class="btn btn-primario" href="#/assinaturas">Comparar assinaturas</a><a class="btn btn-secundario" href="#/assinatura">Minha assinatura</a></div></div>';
+  }
+
+  /* ── Meu perfil (conta) ── */
+  function lerFoto(arquivo) {
+    return new Promise(function (resolve, reject) {
+      if (!arquivo || !/^image\//.test(arquivo.type)) { reject(new Error("Escolha uma imagem.")); return; }
+      var leitor = new FileReader();
+      leitor.onerror = function () { reject(new Error("Não foi possível ler a imagem.")); };
+      leitor.onload = function () {
+        var img = new Image();
+        img.onerror = function () { reject(new Error("Não foi possível abrir essa imagem.")); };
+        img.onload = function () {
+          var t = 192, c = document.createElement("canvas"); c.width = t; c.height = t;
+          var lado = Math.min(img.width, img.height), sx = (img.width - lado) / 2, sy = (img.height - lado) / 2;
+          c.getContext("2d").drawImage(img, sx, sy, lado, lado, 0, 0, t, t);
+          var url = c.toDataURL("image/jpeg", 0.82);
+          if (url.length > 55000) { reject(new Error("A foto ficou grande demais. Tente outra.")); return; }
+          resolve(url);
+        };
+        img.src = leitor.result;
+      };
+      leitor.readAsDataURL(arquivo);
+    });
+  }
+  function telaConta() {
+    var d = estado.dados, perfil = d.perfil;
+    tela(
+      '<h1>Meu perfil</h1><p class="sub">Seus dados de acesso. As informações esportivas ficam em <a href="#/jogador">Meu perfil de jogador</a>.</p>' +
+      '<div class="cartao conta-cartao" style="margin-top:16px"><div class="conta-foto"><span class="avatar avatar-grande" data-avatar id="avatarConta"></span>' +
+        '<div class="conta-foto-acoes"><label class="btn btn-secundario btn-pequeno" for="arqFoto">' + (perfil.foto ? "Trocar foto" : "Adicionar foto") + '</label><input type="file" id="arqFoto" accept="image/*" class="sr">' +
+        (perfil.foto ? '<button type="button" class="btn btn-texto" id="btRemoverFoto">Remover foto</button>' : "") +
+        '<p class="nota">Opcional. Sem foto, usamos as suas iniciais.</p></div></div>' +
+      '<form id="fConta" novalidate style="margin-top:14px">' +
+        '<div class="campo"><label for="contaNome">Nome</label><input id="contaNome" maxlength="80" autocomplete="name" value="' + esc(perfil.nome) + '"></div>' +
+        '<div class="campo"><label for="contaEmail">E-mail</label><input id="contaEmail" type="email" value="' + esc(perfil.email) + '" readonly aria-describedby="notaEmail"><p class="nota" id="notaEmail" style="margin-top:6px">É o e-mail do seu acesso. Para trocá-lo, <a href="' + suporteUrl("Olá, Richard! Quero trocar o e-mail da minha conta no QuadraLab Player.") + '" target="_blank" rel="noopener">fale com o suporte<span class="sr"> (abre o WhatsApp)</span></a>.</p></div>' +
+        '<div class="aviso" id="avisoConta" role="alert" hidden></div>' +
+        '<button class="btn btn-primario" id="btSalvarConta" type="submit">Salvar alterações</button></form></div>' +
+      '<div class="cartao" style="margin-top:14px"><h2>Segurança</h2><p class="nota" style="margin-top:6px">O acesso é por e-mail e senha. Para criar uma nova senha, enviamos um link para o seu e-mail.</p>' +
+        '<div class="acoes"><button type="button" class="btn btn-secundario" id="btSenha">Enviar link para alterar a senha</button></div><p class="nota" id="msgSenha" role="status" style="margin-top:8px"></p></div>'
+    );
+    atualizarConta();
+    var aviso = document.getElementById("avisoConta");
+    async function salvar(extras, bt, textoOcupado) {
+      var nome = document.getElementById("contaNome").value.trim();
+      if (!nome) { aviso.textContent = "Informe seu nome."; aviso.hidden = false; return false; }
+      aviso.hidden = true;
+      if (bt) ocupado(bt, true, textoOcupado || "Salvando…");
+      try {
+        var corpo = { acao: "salvarConta", nome: nome };
+        if (extras && extras.foto !== undefined) corpo.foto = extras.foto;
+        var r = await api("player-dados", { metodo: "POST", corpo: corpo });
+        estado.dados.perfil = Object.assign({}, estado.dados.perfil, r.perfil);
+        atualizarConta();
+        return true;
+      } catch (e) {
+        aviso.textContent = e.message + " Suas alterações continuam na tela: tente de novo."; aviso.hidden = false; return false;
+      } finally { if (bt) ocupado(bt, false); }
+    }
+    document.getElementById("fConta").addEventListener("submit", async function (ev) {
+      ev.preventDefault();
+      if (await salvar(null, document.getElementById("btSalvarConta"))) toast("Dados da conta salvos.");
+    });
+    document.getElementById("arqFoto").addEventListener("change", async function (ev) {
+      var arq = ev.target.files[0]; if (!arq) return;
+      try {
+        var url = await lerFoto(arq);
+        if (await salvar({ foto: url })) { toast("Foto atualizada."); telaConta(); }
+      } catch (e) { aviso.textContent = e.message; aviso.hidden = false; }
+    });
+    var rem = document.getElementById("btRemoverFoto");
+    if (rem) rem.addEventListener("click", async function () { if (await salvar({ foto: "" }, rem)) { toast("Foto removida."); telaConta(); } });
+    document.getElementById("btSenha").addEventListener("click", async function () {
+      var bt = this, msg = document.getElementById("msgSenha");
+      ocupado(bt, true, "Enviando…");
+      try { await auth.sendPasswordResetEmail(estado.dados.perfil.email); msg.textContent = "Enviamos um link para " + estado.dados.perfil.email + ". Abra o e-mail para criar a nova senha."; }
+      catch (e) { msg.textContent = /network/.test((e && e.code) || "") ? "Sem conexão. Tente de novo." : "Não foi possível enviar agora. Tente de novo em instantes."; }
+      ocupado(bt, false);
+    });
+  }
+
+  /* ── Meu perfil de jogador (a mesma ficha que alimenta estratégias e treinos) ── */
+  function rotuloOp(lista, valor) {
+    var m = (lista || []).filter(function (o) { return o[0] === valor; })[0];
+    return m ? m[1] : "";
+  }
+  function linhaPerfil(rotulo, valor) { return '<div class="rp-linha"><dt>' + esc(rotulo) + "</dt><dd>" + (valor ? esc(valor) : '<span class="nota">Não informado</span>') + "</dd></div>"; }
+  function secaoPerfil(titulo, etapa, linhas) {
+    return '<section class="cartao rp-secao"><div class="rp-topo"><h2>' + esc(titulo) + '</h2><a class="btn btn-texto btn-editar" href="#/ficha/' + etapa + '" data-editar>Editar<span class="sr"> ' + esc(titulo) + "</span></a></div><dl>" + linhas + "</dl></section>";
+  }
+  function telaJogador() {
+    var d = estado.dados, f = d.ficha || {}, a = f.adversario || {};
+    estado.editandoPerfil = false;
+    if (d.ficha) { estado.ficha = JSON.parse(JSON.stringify(d.ficha)); estado.ficha.adversario = estado.ficha.adversario || {}; }
+    var html = "<h1>Meu perfil de jogador</h1><p class=\"sub\">O seu jogo, como alimenta as estratégias e os treinos.</p>";
+    if (!d.fichaCompleta) {
+      tela(html + '<div class="cartao destaque" style="margin-top:16px"><h2>Complete o seu perfil</h2><p class="nota" style="margin-top:6px">São 4 etapas rápidas. Suas respostas ficam salvas.</p><a class="btn btn-primario btn-grande" href="#/ficha/1">Continuar meu perfil</a></div>');
+      return;
+    }
+    var primeiraEstrategia = planosProntos()[0];
+    var mudou = d.fichaAtualizadaEm && primeiraEstrategia && String(d.fichaAtualizadaEm) > String(primeiraEstrategia.criadoEm);
+    var funcoes = (f.armaPrincipal ? rotuloOp(AREAS, f.armaPrincipal) : "");
+    html += '<p class="nota" style="margin-top:8px">Ao editar, as suas estratégias e programas de treino continuam como estão.</p>' +
+      secaoPerfil("Sobre você", 1, linhaPerfil("Nível", rotuloOp(OP.nivel, f.nivel)) + linhaPerfil("Mão dominante", rotuloOp(OP.mao, f.mao)) + linhaPerfil("Backhand", rotuloOp(OP.backhand, f.backhand)) + linhaPerfil("Piso", rotuloOp(OP.piso, f.piso))) +
+      secaoPerfil("Seu jogo", 2, linhaPerfil("Golpe mais forte", funcoes) + linhaPerfil("Ponto mais vulnerável", rotuloOp(AREAS, f.pontoFraco)) + linhaPerfil("Como constrói o ponto", rotuloOp(OP.padraoPonto, f.padraoPonto))) +
+      secaoPerfil("Em quadra", 3, linhaPerfil("Rede", rotuloOp(OP.rede, f.rede)) + linhaPerfil("Devolução", rotuloOp(OP.devolucao, f.devolucao)) + linhaPerfil("Sob pressão", rotuloOp(OP.pressao, f.pressao)) + linhaPerfil("Observações", f.observacoes)) +
+      secaoPerfil("Adversário", 4, a.ativo
+        ? linhaPerfil("Nome", a.nome) + linhaPerfil("Estilo", rotuloOp(OP.advEstilo, a.estilo)) + linhaPerfil("Mão", rotuloOp(OP.advMao, a.mao)) + linhaPerfil("Pontos fortes", (a.pontosFortes || []).map(function (k) { return rotuloOp(AREAS, k); }).join(", ")) + linhaPerfil("Pontos fracos", (a.pontosFracos || []).map(function (k) { return rotuloOp(AREAS, k); }).join(", ")) + linhaPerfil("Observações", a.observacoes)
+        : '<div class="rp-linha"><dd class="nota">Sem adversário específico. A estratégia é geral para o seu jogo.</dd></div>');
+    var comps = d.complementos || [];
+    if (comps.length) {
+      html += '<details class="det"><summary>Respostas às perguntas das estratégias (' + comps.length + ')</summary><dl class="rp-comps">' + comps.map(function (c) {
+        return "<div><dt>" + esc(c.pergunta) + (c.contexto ? ' <span class="nota">(' + esc(c.contexto) + ")</span>" : "") + "</dt><dd>" + esc(c.resposta) + "</dd></div>";
+      }).join("") + "</dl></details>";
+    }
+    if (mudou) {
+      html += '<div class="cartao compacto atualizar-estrategia" style="margin-top:14px"><p class="olho">Seu perfil mudou</p><p>Você atualizou o perfil depois da sua última estratégia. Nada foi alterado nas estratégias nem nos programas existentes.</p>' +
+        (d.podeGerar ? '<button class="btn btn-secundario" data-gerar type="button" style="margin-top:10px">Criar nova estratégia com o perfil atualizado</button><p class="nota" style="margin-top:6px">' + esc(avisoCota()) + "</p>"
+          : '<p class="nota" style="margin-top:6px">' + esc(avisoCota()) + ' <a href="#/assinaturas">Comparar assinaturas</a></p>') + "</div>";
+    }
+    tela(html);
+    ligarGerar();
+    app.querySelectorAll("[data-editar]").forEach(function (a) { a.addEventListener("click", function () { estado.editandoPerfil = true; }); });
+  }
+
+  /* ── Minha assinatura ── */
+  function recursosIncluidosHtml(a) {
+    var r = a.recursos || {};
+    var itens = [
+      ["Criar estratégias e ver as jogadas", true],
+      ["Programa de treino", !!r.planejamento],
+      ["Registro de treinos (marcar blocos e anotar observações)", !!r.treinoDia],
+    ];
+    return '<ul class="recursos">' + itens.map(function (i) {
+      return '<li class="' + (i[1] ? "incluido" : "nao-incluido") + '"><span class="rec-marca" aria-hidden="true">' + (i[1] ? "✓" : "–") + "</span><span>" + esc(i[0]) + '<span class="sr">' + (i[1] ? " — incluído" : " — não incluído") + "</span></span></li>";
+    }).join("") + "</ul>";
+  }
+  function barraUso(u) {
+    if (!u || u.limite == null || u.usadas == null) return "";
+    var pct = Math.min(100, Math.round(u.usadas / u.limite * 100));
+    return '<span class="prog-barra uso-barra" aria-hidden="true"><i style="width:' + pct + '%"></i></span>';
+  }
+  function usoHtml(a) {
+    var e = (a.uso || {}).estrategias || {}, p = (a.uso || {}).programas || {}, r = a.recursos || {};
+    var criadas = planosProntos().length, programas = planejamentosProntos().length, linhas = "";
+    if (a.origem === "eduzz") {
+      linhas += '<li><strong>Estratégias</strong><span>' + esc(linhaUso("estratégias", "estratégia", e, true)) + "</span>" + barraUso(e) + "</li>" +
+        '<li><strong>Programas de treino</strong><span>' + esc(r.planejamento ? linhaUso("programas", "programa", p, true) : "Não incluído nesta assinatura") + "</span>" + (r.planejamento ? barraUso(p) : "") + "</li>";
+    } else if (a.origem === "gratuito") {
+      linhas += '<li><strong>Estratégias</strong><span>' + esc(e.usadas + " de " + e.limite + " estratégia grátis utilizada") + (a.creditos ? " · " + a.creditos + (a.creditos === 1 ? " crédito disponível" : " créditos disponíveis") : "") + "</span>" + barraUso(e) + "</li>" +
+        '<li><strong>Programas de treino</strong><span>Não incluído no acesso gratuito</span></li>';
+    } else {
+      linhas += '<li><strong>Estratégias</strong><span>' + criadas + (criadas === 1 ? " criada" : " criadas") + ' · sem limite definido neste acesso</span></li>' +
+        '<li><strong>Programas de treino</strong><span>' + programas + (programas === 1 ? " criado" : " criados") + (r.planejamento ? ' · sem limite definido neste acesso' : " · não incluído") + "</span></li>";
+    }
+    var renova = a.origem === "eduzz" && (e.limite != null || p.limite != null) && a.acessoAte
+      ? '<p class="nota" style="margin-top:8px">Período atual: ' + esc(dataISO(a.periodoInicio)) + " a " + esc(dataISO(a.acessoAte)) + ". Os limites voltam ao início quando o próximo pagamento for confirmado.</p>" : "";
+    return '<ul class="uso-lista">' + linhas + "</ul>" + renova;
+  }
+  function textoAcesso(a) {
+    if (a.estado === "teste") return "Acesso de teste, sem cobrança e sem data de término definida.";
+    if (a.estado === "gratuito") return "Sem cobrança. Você tem a primeira estratégia grátis.";
+    if (a.origem === "manual") return "Acesso liberado pela equipe, sem cobrança automática nem data de término definida.";
+    if (a.estado === "encerrada") return a.acessoAte ? "Seu acesso terminou em " + dataISO(a.acessoAte) + ". Suas estratégias e treinos continuam salvos." : "Seu acesso foi encerrado. Suas estratégias e treinos continuam salvos.";
+    if (a.estado === "cancelamento_programado") return "Seu acesso continua até " + dataISO(a.acessoAte) + " e não será renovado.";
+    if (a.estado === "pagamento_pendente") return "Estamos aguardando a confirmação do pagamento. O acesso atual vai até " + dataISO(a.acessoAte) + ".";
+    if (a.estado === "problema_pagamento") return "Houve um problema no pagamento. O acesso atual vai até " + dataISO(a.acessoAte) + ": regularize para não perder o acesso.";
+    return a.cobrancaAutomatica ? "Acesso confirmado até " + dataISO(a.acessoAte) + ". A renovação é automática: a próxima cobrança segue o seu meio de pagamento." : "Acesso confirmado até " + dataISO(a.acessoAte) + ".";
+  }
+  function acoesAssinaturaHtml(a, assin) {
+    var links = assin.links || {}, mais = (assin.catalogo || []).some(function (p) { return (NIVEL_ORDEM[p.nivel] || 0) > (NIVEL_ORDEM[a.nivel] || 0); });
+    var h = '<div class="acoes">';
+    h += '<a class="btn btn-primario" href="#/assinaturas">' + (a.estado === "gratuito" || a.estado === "encerrada" ? "Conhecer assinaturas" : "Comparar assinaturas") + "</a>";
+    if (a.estado === "ativa" && a.origem === "eduzz" && mais) h += '<a class="btn btn-secundario" href="#/assinaturas">Ampliar acesso</a>';
+    if (a.origem === "eduzz" && a.estado !== "encerrada" && a.cobrancaAutomatica === false && a.produtoId) {
+      var prod = (assin.catalogo || []).filter(function (p) { return p.id === a.produtoId; })[0];
+      if (prod) h += '<a class="btn btn-secundario" href="' + esc(prod.checkoutUrl) + '" target="_blank" rel="noopener" data-checkout="' + esc(prod.id) + '">Renovar acesso<span class="sr"> (abre o pagamento em nova aba)</span></a>';
+    }
+    if (a.origem === "eduzz") {
+      h += '<a class="btn btn-secundario" href="' + esc(links.gerenciarPagamento || suporteUrl("Olá, Richard! Preciso gerenciar o pagamento da minha assinatura do QuadraLab Player.")) + '" target="_blank" rel="noopener">Gerenciar pagamento<span class="sr"> (abre em nova aba)</span></a>';
+      if (links.historicoPagamentos) h += '<a class="btn btn-secundario" href="' + esc(links.historicoPagamentos) + '" target="_blank" rel="noopener">Histórico de pagamentos<span class="sr"> (abre em nova aba)</span></a>';
+      if (a.estado === "ativa" || a.estado === "problema_pagamento" || a.estado === "pagamento_pendente") h += '<a class="btn btn-texto" href="' + esc(links.gerenciarPagamento || suporteUrl("Olá, Richard! Quero cancelar a minha assinatura do QuadraLab Player.")) + '" target="_blank" rel="noopener">Gerenciar cancelamento<span class="sr"> (abre em nova aba)</span></a>';
+    }
+    return h + "</div>";
+  }
+  async function telaAssinatura() {
+    tela('<p class="carregando">Carregando sua assinatura…</p>', true);
+    var assin;
+    try { assin = await carregarAssinatura(true); }
+    catch (e) {
+      tela('<h1>Minha assinatura</h1><div class="aviso" role="alert" style="margin-top:14px">' + esc(e.message) + '</div><div class="acoes"><button class="btn btn-primario" id="btTentarAss" type="button">Tentar de novo</button></div>');
+      document.getElementById("btTentarAss").addEventListener("click", telaAssinatura);
+      return;
+    }
+    var a = assin.assinatura, marc = marcadorCheckout();
+    if (marc && a.estado === "ativa" && a.origem === "eduzz") limparCheckout();
+    var aguardando = marc && Date.now() - marc.em < 3 * 3600 * 1000 && !(a.estado === "ativa" && a.origem === "eduzz");
+    tela(
+      "<h1>Minha assinatura</h1>" +
+      (aguardando ? '<div class="aviso-info aguardando" role="status" style="margin-top:14px"><strong>Aguardando a confirmação do pagamento.</strong> Pode levar alguns minutos depois de pagar. Seu acesso muda aqui quando a confirmação chegar — você não precisa fazer nada.' +
+        '<div class="acoes" style="margin-top:8px"><button type="button" class="btn btn-secundario" id="btVerificar">Verificar agora</button><button type="button" class="btn btn-texto" id="btNaoPaguei">Não concluí o pagamento</button></div></div>' : "") +
+      '<div class="cartao ass-cartao" style="margin-top:14px"><p class="olho">Sua assinatura</p><div class="ass-topo"><h2>' + esc(a.nome) + "</h2>" + selloAssinatura(a) + "</div>" +
+        (a.estado === "ativa" || a.estado === "cancelamento_programado" || a.estado === "pagamento_pendente" || a.estado === "problema_pagamento"
+          ? '<dl class="ass-dados">' + (a.periodicidade ? "<div><dt>Periodicidade</dt><dd>" + esc({ mensal: "Mensal", trimestral: "Trimestral", semestral: "Semestral", anual: "Anual" }[a.periodicidade] || a.periodicidade) + "</dd></div>" : "") +
+            (a.valorCentavos ? "<div><dt>Valor</dt><dd>" + esc(cobrancaTexto({ precoCentavos: a.valorCentavos, periodicidade: a.periodicidade })) + "</dd></div>" : "") + "</dl>" : "") +
+        '<p class="ass-texto">' + esc(textoAcesso(a)) + "</p></div>" +
+      '<h2 class="secao" id="t-rec">Recursos incluídos</h2><div class="cartao" aria-labelledby="t-rec" style="margin-top:8px">' + recursosIncluidosHtml(a) + "</div>" +
+      '<h2 class="secao" id="t-uso">Consumo</h2><div class="cartao" aria-labelledby="t-uso" style="margin-top:8px">' + usoHtml(a) + "</div>" +
+      acoesAssinaturaHtml(a, assin) +
+      '<p class="nota" style="margin-top:14px">As <a href="#/consultorias">consultorias</a> são serviços separados e não fazem parte da assinatura.</p>'
+    );
+    var ver = document.getElementById("btVerificar");
+    if (ver) {
+      ver.addEventListener("click", function () { telaAssinatura(); });
+      document.getElementById("btNaoPaguei").addEventListener("click", function () { limparCheckout(); telaAssinatura(); });
+      clearTimeout(estado.pollAss);
+      estado.pollAss = setTimeout(function () { if (location.hash === "#/assinatura") telaAssinatura(); }, 20000);
+    }
+    app.querySelectorAll("[data-checkout]").forEach(function (l) { l.addEventListener("click", function () { marcarCheckout(l.getAttribute("data-checkout")); }); });
+  }
+
+  /* ── comparar assinaturas ── */
+  function recursosDoProduto(p) {
+    var n = NIVEL_ORDEM[p.nivel] || 0;
+    return [["Criar estratégias e ver as jogadas", true], ["Programa de treino", n >= 1], ["Registro de treinos", n >= 2]];
+  }
+  function limitesTexto(p) {
+    var l = p.limites || {}, t = [];
+    if (Number.isInteger(l.estrategiasPorPeriodo)) t.push(l.estrategiasPorPeriodo + (l.estrategiasPorPeriodo === 1 ? " estratégia" : " estratégias") + " por período");
+    if (Number.isInteger(l.programasPorPeriodo)) t.push(l.programasPorPeriodo + (l.programasPorPeriodo === 1 ? " programa de treino" : " programas de treino") + " por período");
+    return t;
+  }
+  async function telaAssinaturas() {
+    tela('<p class="carregando">Carregando as assinaturas…</p>', true);
+    var assin;
+    try { assin = await carregarAssinatura(true); }
+    catch (e) {
+      tela('<h1>Assinaturas</h1><div class="aviso" role="alert" style="margin-top:14px">' + esc(e.message) + '</div><div class="acoes"><button class="btn btn-primario" id="btTentarAss" type="button">Tentar de novo</button></div>');
+      document.getElementById("btTentarAss").addEventListener("click", telaAssinaturas);
+      return;
+    }
+    var a = assin.assinatura, cat = assin.catalogo || [];
+    var topo = '<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/assinatura">‹ Minha assinatura</a></p><h1>Assinaturas</h1>' +
+      '<p class="sub">Você está com: ' + (a.nome === a.rotulo ? "" : "<strong>" + esc(a.nome) + "</strong> ") + selloAssinatura(a) + "</p>";
+    if (!cat.length) {
+      tela(topo + '<div class="cartao" style="margin-top:16px"><h2>As assinaturas ainda não estão disponíveis aqui</h2><p class="nota" style="margin-top:6px">Ainda não há assinaturas abertas para contratação pelo app. Se quiser saber como ampliar o seu acesso, fale com a gente.</p>' +
+        '<a class="btn btn-primario btn-grande" href="' + esc(suporteUrl("Olá, Richard! Quero saber como ampliar o meu acesso ao QuadraLab Player.")) + '" target="_blank" rel="noopener">Falar com a gente<span class="sr"> (abre o WhatsApp)</span></a></div>' +
+        '<p class="nota" style="margin-top:14px">As <a href="#/consultorias">consultorias</a> (revisão de estratégia, análise de vídeo e consultoria ao vivo) são serviços separados.</p>');
+      return;
+    }
+    tela(topo + '<div class="comparar">' + cat.map(function (p) {
+      var atual = a.origem === "eduzz" && a.produtoId === p.id && a.estado !== "encerrada";
+      var lim = limitesTexto(p);
+      return '<article class="cartao produto' + (p.destaque ? " destaque-produto" : "") + (atual ? " atual" : "") + '"><div class="prod-topo"><h2>' + esc(p.nome) + "</h2>" + (atual ? '<span class="sello-ass s-ass-ativa">✓ Sua assinatura atual</span>' : "") + "</div>" +
+        (p.paraQuem ? '<p class="nota">' + esc(p.paraQuem) + "</p>" : "") +
+        '<p class="prod-preco"><strong>' + esc(reais(p.precoCentavos)) + '</strong> <span>' + (p.periodicidade === "mensal" ? "por mês" : "a cada " + esc(PERIODO_TXT[p.periodicidade])) + "</span></p>" +
+        '<p class="nota">' + (p.periodicidade === "mensal" ? "" : esc(cobrancaTexto(p)) + " — esse é o valor total de cada cobrança. ") + (p.cobrancaAutomatica ? "Renovação automática." : "Sem renovação automática.") + "</p>" +
+        '<ul class="recursos">' + recursosDoProduto(p).map(function (i) { return '<li class="' + (i[1] ? "incluido" : "nao-incluido") + '"><span class="rec-marca" aria-hidden="true">' + (i[1] ? "✓" : "–") + "</span><span>" + esc(i[0]) + '<span class="sr">' + (i[1] ? " — incluído" : " — não incluído") + "</span></span></li>"; }).join("") + "</ul>" +
+        (lim.length ? '<p class="nota"><strong>Limites:</strong> ' + esc(lim.join(" · ")) + "</p>" : "") +
+        (p.beneficios.length ? '<ul class="beneficios">' + p.beneficios.map(function (b) { return "<li>" + esc(b) + "</li>"; }).join("") + "</ul>" : "") +
+        (atual ? '<button class="btn btn-secundario largo" type="button" disabled aria-disabled="true">Sua assinatura atual</button>'
+          : '<a class="btn btn-primario largo" href="' + esc(p.checkoutUrl) + '" target="_blank" rel="noopener" data-checkout="' + esc(p.id) + '">' + (a.origem === "eduzz" && a.estado !== "encerrada" ? "Contratar esta assinatura" : "Assinar") + '<span class="sr"> ' + esc(p.nome) + " (abre o pagamento em nova aba)</span></a>") +
+        "</article>";
+    }).join("") + "</div>" +
+      '<p class="nota" style="margin-top:14px">O pagamento é feito na Eduzz. O seu acesso só muda aqui depois que o pagamento for confirmado' + (a.origem === "eduzz" && a.estado !== "encerrada" ? "; a troca de assinatura também é confirmada pela Eduzz" : "") + '. As <a href="#/consultorias">consultorias</a> são serviços separados.</p>');
+    app.querySelectorAll("[data-checkout]").forEach(function (l) { l.addEventListener("click", function () { marcarCheckout(l.getAttribute("data-checkout")); }); });
+  }
+
+  /* ── consultorias: três serviços independentes da assinatura ── */
+  async function telaConsultorias() {
+    tela('<p class="carregando">Carregando…</p>', true);
+    var lista;
+    try { lista = (await carregarAssinatura(false)).consultorias; }
+    catch (e) {
+      tela('<h1>Consultorias</h1><div class="aviso" role="alert" style="margin-top:14px">' + esc(e.message) + '</div><div class="acoes"><button class="btn btn-primario" id="btTentarAss" type="button">Tentar de novo</button></div>');
+      document.getElementById("btTentarAss").addEventListener("click", telaConsultorias);
+      return;
+    }
+    tela(
+      '<h1>Consultorias</h1><p class="sub">Atendimento do Richard Tsukada, contratado à parte. Não fazem parte da assinatura da plataforma.</p>' +
+      lista.map(function (c) {
+        return '<article class="cartao consultoria-card"><h2>' + esc(c.nome) + "</h2><p>" + esc(c.descricao) + '</p><a class="btn btn-primario" href="' + esc(c.url) + '" target="_blank" rel="noopener">' + (c.canal === "whatsapp" ? "Falar sobre " + esc(c.nome.toLowerCase()) : "Contratar " + esc(c.nome.toLowerCase())) + '<span class="sr"> (abre em nova aba)</span></a></article>';
+      }).join("") +
+      '<p class="nota" style="margin-top:14px">Valores e prazos são combinados no contato.</p>'
+    );
+  }
+
+  /* ── ajuda e suporte ── */
+  function telaAjuda() {
+    var links = (estado.assin && estado.assin.links) || {};
+    tela(
+      '<h1>Ajuda e suporte</h1><p class="sub">Fale com a gente por aqui.</p>' +
+      '<div class="cartao" style="margin-top:16px"><h2>Falar com o suporte</h2><p class="nota" style="margin-top:6px">Dúvidas sobre o app, a sua conta, pagamentos ou a sua assinatura. Respondemos pelo WhatsApp.</p>' +
+        '<a class="btn btn-primario btn-grande" href="' + esc(suporteUrl()) + '" target="_blank" rel="noopener">Abrir o WhatsApp<span class="sr"> (abre em nova aba)</span></a></div>' +
+      '<div class="cartao" style="margin-top:14px"><h2>Pagamentos e assinatura</h2><ul class="lista-links"><li><a href="#/assinatura">Minha assinatura</a></li><li><a href="#/assinaturas">Comparar assinaturas</a></li><li><a href="' + esc(links.gerenciarPagamento || suporteUrl("Olá, Richard! Preciso gerenciar o pagamento da minha assinatura do QuadraLab Player.")) + '" target="_blank" rel="noopener">Gerenciar pagamento<span class="sr"> (abre em nova aba)</span></a></li></ul></div>' +
+      (links.termos || links.privacidade ? '<div class="cartao" style="margin-top:14px"><h2>Documentos</h2><ul class="lista-links">' +
+        (links.termos ? '<li><a href="' + esc(links.termos) + '" target="_blank" rel="noopener">Termos de uso<span class="sr"> (abre em nova aba)</span></a></li>' : "") +
+        (links.privacidade ? '<li><a href="' + esc(links.privacidade) + '" target="_blank" rel="noopener">Política de privacidade<span class="sr"> (abre em nova aba)</span></a></li>' : "") + "</ul></div>" : "")
+    );
+    if (!estado.assin) carregarAssinatura(false).then(function () { if (location.hash === "#/ajuda") telaAjuda(); }).catch(function () { /* sem os links opcionais */ });
+  }
 
   /* ── teclado aberto (celular): o menu inferior sai da frente e o campo fica visível ── */
   document.addEventListener("focusin", function (ev) {
@@ -1298,13 +1746,13 @@
   async function rotear() {
     var logado = auth && auth.currentUser;
     var h = location.hash.replace(/^#\/?/, "");
-    var partes = h.split("/");
+    var partes = h.split("?")[0].split("/"); // o que vier depois de "?" (ex.: retorno do pagamento) nunca muda nada: só o servidor libera acesso
     atualizarCasca(!!logado, partes[0]);
-    var t = document.getElementById("toast"); if (t) t.hidden = true;
+    var t = document.getElementById("toast"); if (t && Date.now() - toastEm > 1200) t.hidden = true; // um aviso criado junto com a navegação (ex.: "perfil salvo") continua visível
     if (!logado) { telaEntrar(partes[0] === "entrar" ? "entrar" : "criar"); return; }
     if (!estado.dados) {
       tela('<p class="carregando">Carregando seus dados…</p>', true);
-      try { await carregarDados(); aplicarRascunho(); }
+      try { await carregarDados(); aplicarRascunho(); carregarAssinatura(false).catch(function () { /* o resto do app funciona sem a área comercial */ }); }
       catch (e) {
         tela('<div class="pilha"><div class="aviso">' + esc(e.message) + '</div><div class="acoes"><button class="btn btn-primario" id="btTentar" type="button">Tentar de novo</button></div></div>');
         document.getElementById("btTentar").addEventListener("click", rotear);
@@ -1324,6 +1772,12 @@
     else if (r === "planejamento" && partes[1]) { if (partes[2]) telaTreino(partes[1], partes[2]); else telaPrograma(partes[1]); }
     else if (r === "treino" && partes[1] && partes[2]) telaTreino(partes[1], partes[2]);
     else if (r === "treinos" || r === "treino") telaTreinos();
+    else if (r === "conta") telaConta();
+    else if (r === "jogador") telaJogador();
+    else if (r === "assinatura") telaAssinatura();
+    else if (r === "assinaturas") telaAssinaturas();
+    else if (r === "consultorias") telaConsultorias();
+    else if (r === "ajuda") telaAjuda();
     else telaInicio();
   }
 

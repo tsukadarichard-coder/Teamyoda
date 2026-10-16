@@ -12,14 +12,23 @@
 const Anthropic = require("@anthropic-ai/sdk");
 const {
   admin, ErroPublico, usuarioDoPedido, refJogador,
-  PLANOS_GRATIS, planoFull, normalizarFicha, complementosParaFicha, fichaCompleta, adversarioUtil,
+  PLANOS_GRATIS, fonteDeEstrategia, normalizarFicha, complementosParaFicha, fichaCompleta, adversarioUtil,
   promptPlano, SCHEMA_PLANO, planoValido, finalizarPlano,
 } = require("./_player");
 
 const ID_VALIDO = /^[A-Za-z0-9_-]{8,40}$/;
 
+/* A cota volta para quem a gastou — na mesma conta de onde saiu (grátis, crédito ou uso do período da assinatura). */
 async function devolverCota(refJ, fonte) {
   if (fonte === "full") return; // acesso completo não consome cota
+  if (fonte === "assinatura") {
+    await admin.firestore().runTransaction(async (t) => {
+      const d = (await t.get(refJ)).data() || {};
+      const usadas = Math.max(0, (((d.assinatura || {}).uso || {}).estrategias || 0) - 1);
+      t.set(refJ, { assinatura: { uso: { estrategias: usadas } } }, { merge: true });
+    });
+    return;
+  }
   const campo = fonte === "gratis" ? "planosGratisUsados" : "creditosPlano";
   const delta = fonte === "gratis" ? -1 : 1;
   await refJ.update({ [campo]: admin.firestore.FieldValue.increment(delta) });
@@ -55,16 +64,19 @@ exports.handler = async function (event) {
         t.set(refP, { status: "erro", erro: "Complete o seu perfil antes de criar a estratégia.", criadoEm: agora });
         return null;
       }
-      let fonte = null;
-      if (planoFull(usuario.email)) fonte = "full";
-      else if ((dados.planosGratisUsados || 0) < PLANOS_GRATIS) fonte = "gratis";
-      else if ((dados.creditosPlano || 0) > 0) fonte = "credito";
+      const cota = fonteDeEstrategia(dados, usuario.email);
+      const fonte = cota.fonte;
       if (!fonte) {
-        t.set(refP, { status: "erro", erro: "Você já usou a sua estratégia grátis.", semCota: true, criadoEm: agora });
+        const limitePeriodo = cota.motivo === "limite_periodo";
+        t.set(refP, {
+          status: "erro", semCota: true, criadoEm: agora, motivoCota: cota.motivo, ...(cota.renovaEm ? { renovaEm: cota.renovaEm } : {}),
+          erro: limitePeriodo ? "Você atingiu o limite de estratégias do período da sua assinatura." : "Você já usou a sua estratégia grátis.",
+        });
         return null;
       }
       if (fonte === "gratis") t.set(refJ, { planosGratisUsados: (dados.planosGratisUsados || 0) + 1 }, { merge: true });
       else if (fonte === "credito") t.set(refJ, { creditosPlano: dados.creditosPlano - 1 }, { merge: true });
+      else if (fonte === "assinatura") t.set(refJ, { assinatura: { uso: { estrategias: (((dados.assinatura || {}).uso || {}).estrategias || 0) + 1 } } }, { merge: true });
       const comAdversario = adversarioUtil(ficha);
       t.set(refP, {
         status: "gerando", criadoEm: agora, fonte, fichaUsada: ficha,
