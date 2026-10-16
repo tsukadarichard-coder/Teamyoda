@@ -38,15 +38,23 @@ function refJogador(uid) {
   return admin.firestore().collection("jogadores").doc(uid);
 }
 
-/* Contas com acesso completo (sem limite de planos), para teste. Lista de
-   e-mails separados por vírgula na variável PLAYER_EMAILS_FULL do Netlify
-   — fora do código de propósito, para liberar ou tirar alguém sem publicar.
+/* Contas com acesso completo (sem limite de planos), para teste. Duas fontes:
+   · EMAILS_FULL_SHA256 abaixo — SHA-256 do e-mail em minúsculas, para o
+     endereço não ficar legível no repositório (público). Para incluir
+     alguém: printf '%s' 'email@exemplo.com' | sha256sum
+   · PLAYER_EMAILS_FULL no Netlify — e-mails separados por vírgula, se a
+     variável estiver configurada (só vale a partir do próximo deploy).
    Vale só para a conta que já existe com esse e-mail (o login do Firebase
-   não deixa criar outra com o mesmo e-mail). Mudar a variável só vale a partir
-   do próximo deploy. Exemplo: PLAYER_EMAILS_FULL=voce@exemplo.com,outra@exemplo.com */
+   não deixa criar outra com o mesmo e-mail). */
+const EMAILS_FULL_SHA256 = [
+  "e1126d15075fac96f732a472a63da5782ad3ba8d3f727da3bec8902fa37f679f", // conta de teste do Richard
+];
 function planoFull(email) {
+  const e = String(email || "").trim().toLowerCase();
+  if (!e) return false;
   const lista = String(process.env.PLAYER_EMAILS_FULL || "").toLowerCase().split(",").map((x) => x.trim()).filter(Boolean);
-  return !!email && lista.includes(String(email).trim().toLowerCase());
+  if (lista.includes(e)) return true;
+  return EMAILS_FULL_SHA256.includes(require("crypto").createHash("sha256").update(e).digest("hex"));
 }
 
 /* Quantos planos o jogador pode gerar de graça. Os seguintes dependem
