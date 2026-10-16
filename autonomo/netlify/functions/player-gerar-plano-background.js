@@ -12,13 +12,14 @@
 const Anthropic = require("@anthropic-ai/sdk");
 const {
   admin, ErroPublico, usuarioDoPedido, refJogador,
-  PLANOS_GRATIS, normalizarFicha, fichaCompleta, adversarioUtil,
+  PLANOS_GRATIS, planoFull, normalizarFicha, fichaCompleta, adversarioUtil,
   promptPlano, SCHEMA_PLANO, planoValido, finalizarPlano,
 } = require("./_player");
 
 const ID_VALIDO = /^[A-Za-z0-9_-]{8,40}$/;
 
 async function devolverCota(refJ, fonte) {
+  if (fonte === "full") return; // acesso completo não consome cota
   const campo = fonte === "gratis" ? "planosGratisUsados" : "creditosPlano";
   const delta = fonte === "gratis" ? -1 : 1;
   await refJ.update({ [campo]: admin.firestore.FieldValue.increment(delta) });
@@ -54,14 +55,15 @@ exports.handler = async function (event) {
         return null;
       }
       let fonte = null;
-      if ((dados.planosGratisUsados || 0) < PLANOS_GRATIS) fonte = "gratis";
+      if (planoFull(usuario.email)) fonte = "full";
+      else if ((dados.planosGratisUsados || 0) < PLANOS_GRATIS) fonte = "gratis";
       else if ((dados.creditosPlano || 0) > 0) fonte = "credito";
       if (!fonte) {
         t.set(refP, { status: "erro", erro: "Você já usou o seu plano grátis.", semCota: true, criadoEm: agora });
         return null;
       }
       if (fonte === "gratis") t.set(refJ, { planosGratisUsados: (dados.planosGratisUsados || 0) + 1 }, { merge: true });
-      else t.set(refJ, { creditosPlano: dados.creditosPlano - 1 }, { merge: true });
+      else if (fonte === "credito") t.set(refJ, { creditosPlano: dados.creditosPlano - 1 }, { merge: true });
       const comAdversario = adversarioUtil(ficha);
       t.set(refP, {
         status: "gerando", criadoEm: agora, fonte, fichaUsada: ficha,

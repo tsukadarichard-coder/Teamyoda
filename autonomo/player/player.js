@@ -210,7 +210,7 @@
       html += '<div class="cartao">';
       if (d.podeGerar) {
         html += "<h2>" + (planos.length ? "Gerar novo plano" : "Gerar meu plano tático") + "</h2>" +
-          '<p class="nota" style="margin-top:6px">' + (d.gratisRestantes ? "Seu primeiro plano é grátis." : "Você tem " + d.creditos + " crédito(s) para novos planos.") +
+          '<p class="nota" style="margin-top:6px">' + (d.full ? "Acesso completo de teste: você pode gerar quantos planos quiser." : d.gratisRestantes ? "Seu primeiro plano é grátis." : "Você tem " + d.creditos + " crédito(s) para novos planos.") +
           " Antes, confira se a ficha continua igual ao seu jogo de hoje.</p>" +
           '<div class="acoes"><button class="btn btn-primario" id="btGerar" type="button">Gerar plano com a ficha atual</button>' +
           '<a class="btn btn-secundario" href="#/ficha/1">Revisar ficha</a></div>';

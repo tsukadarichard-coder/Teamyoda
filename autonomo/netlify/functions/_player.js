@@ -38,6 +38,16 @@ function refJogador(uid) {
   return admin.firestore().collection("jogadores").doc(uid);
 }
 
+/* Contas com acesso completo (sem limite de planos), para teste. Lista de
+   e-mails separados por vírgula na variável PLAYER_EMAILS_FULL do Netlify
+   — fora do código de propósito, para liberar ou tirar alguém sem publicar.
+   Vale só para a conta que já existe com esse e-mail (o login do Firebase
+   não deixa criar outra com o mesmo e-mail). */
+function planoFull(email) {
+  const lista = String(process.env.PLAYER_EMAILS_FULL || "").toLowerCase().split(",").map((x) => x.trim()).filter(Boolean);
+  return !!email && lista.includes(String(email).trim().toLowerCase());
+}
+
 /* Quantos planos o jogador pode gerar de graça. Os seguintes dependem
    de crédito (creditosPlano), que só as functions de pagamento somam. */
 const PLANOS_GRATIS = 1;
@@ -316,6 +326,6 @@ function finalizarPlano(plano, nivel) {
 
 module.exports = {
   admin, app, ErroPublico, resposta, usuarioDoPedido, refJogador,
-  PLANOS_GRATIS, AREAS, OPCOES, OPCOES_ADVERSARIO,
+  PLANOS_GRATIS, planoFull, AREAS, OPCOES, OPCOES_ADVERSARIO,
   normalizarFicha, fichaCompleta, adversarioUtil, promptPlano, SCHEMA_PLANO, planoValido, finalizarPlano,
 };

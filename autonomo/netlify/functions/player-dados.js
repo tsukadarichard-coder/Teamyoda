@@ -7,7 +7,7 @@
    Sempre pelo uid do token: um jogador nunca alcança dados de outro. */
 const {
   ErroPublico, resposta, usuarioDoPedido, refJogador,
-  PLANOS_GRATIS, normalizarFicha, fichaCompleta,
+  PLANOS_GRATIS, planoFull, normalizarFicha, fichaCompleta,
 } = require("./_player");
 
 function publicoPlano(id, p) {
@@ -22,10 +22,11 @@ function publicoPlano(id, p) {
   };
 }
 
-function cotas(dados) {
+function cotas(dados, email) {
+  if (planoFull(email)) return { full: true, gratisRestantes: 0, creditos: 0, podeGerar: true };
   const gratisRestantes = Math.max(0, PLANOS_GRATIS - (dados.planosGratisUsados || 0));
   const creditos = Math.max(0, dados.creditosPlano || 0);
-  return { gratisRestantes, creditos, podeGerar: gratisRestantes + creditos > 0 };
+  return { full: false, gratisRestantes, creditos, podeGerar: gratisRestantes + creditos > 0 };
 }
 
 exports.handler = async function (event) {
@@ -62,7 +63,7 @@ exports.handler = async function (event) {
         ficha,
         fichaCompleta: !!ficha && fichaCompleta(ficha),
         planos,
-        ...cotas(dados),
+        ...cotas(dados, usuario.email),
       });
     }
 
