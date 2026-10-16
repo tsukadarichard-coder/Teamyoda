@@ -51,7 +51,7 @@
       '<p class="lp-olho">Tênis com estratégia</p>' +
       '<h1 id="lp-h1">Seu jogo começa com uma <span>estratégia.</span></h1>' +
       '<p class="lp-sub">Transforme suas características, estratégias e jogadas em um plano de treinamento inteligente para evoluir dentro de quadra.</p>' +
-      '<div class="lp-botoes"><a class="lp-btn lp-btn-lima" href="#/criar">Começar agora</a><button type="button" class="lp-btn lp-btn-claro" data-lp="como">Conhecer a plataforma</button></div>' +
+      '<div class="lp-botoes"><a class="lp-btn lp-btn-branco" href="#/criar">Começar agora</a><button type="button" class="lp-btn lp-btn-claro" data-lp="como">Conhecer a plataforma</button></div>' +
       '<p class="lp-nota">A primeira estratégia é grátis.</p></div>' +
       '<div class="lp-hero-fone">' + fone("inicio", { grande: true, topo: true }) + "</div></div></section>";
   }
@@ -76,7 +76,7 @@
   function final() {
     return '<section class="lp-final" aria-labelledby="lp-h2-fim"><div class="lp-cont lp-final-in"><h2 id="lp-h2-fim">Pare de apenas jogar. Comece a jogar com um plano.</h2>' +
       "<p>Conheça uma nova maneira de organizar sua estratégia, desenvolver suas jogadas e transformar cada treino em uma oportunidade de evolução.</p>" +
-      '<a class="lp-btn lp-btn-lima lp-btn-grande" href="#/criar">Começar no QuadraLab Player</a></div></section>';
+      '<a class="lp-btn lp-btn-branco lp-btn-grande" href="#/criar">Começar no QuadraLab Player</a></div></section>';
   }
   function rodape(links) {
     var extra = (links && links.termos ? '<a href="' + esc(links.termos) + '" target="_blank" rel="noopener">Termos de uso</a>' : "") + (links && links.privacidade ? '<a href="' + esc(links.privacidade) + '" target="_blank" rel="noopener">Política de privacidade</a>' : "");
