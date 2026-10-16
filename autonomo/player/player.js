@@ -1685,23 +1685,302 @@
     app.querySelectorAll("[data-checkout]").forEach(function (l) { l.addEventListener("click", function () { marcarCheckout(l.getAttribute("data-checkout")); }); });
   }
 
-  /* ── consultorias: três serviços independentes da assinatura ── */
-  async function telaConsultorias() {
+  /* ── consultorias: serviços individuais do Richard, contratados à parte da assinatura ──
+     Textos, preços, prazos e limites vêm do servidor (_player-assinaturas.js): cartão, detalhes, solicitação
+     e mensagem usam sempre a mesma fonte. Não há checkout nem agenda integrados: a solicitação sai montada
+     para o contato real e pagamento e horário são confirmados lá. Nada aqui finge pedido registrado. */
+  function reaisInteiro(centavos) {
+    return (centavos / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0, maximumFractionDigits: 2 }).replace(/\u00a0/g, " ");
+  }
+  function consulLista() { return (estado.assin && estado.assin.consultorias) || []; }
+  function consulPorId(id) { return consulLista().filter(function (c) { return c.id === id; })[0] || null; }
+  function precoConsulHtml(c) {
+    return '<strong class="consul-preco">' + esc(reaisInteiro(c.precoCentavos)) + '</strong> <span class="consul-unidade">' + esc(c.unidadePreco) + " · pagamento único</span>";
+  }
+  function cartaoConsulHtml(c) {
+    return '<article class="consul-card' + (c.selo ? " consul-destaque" : "") + '" aria-labelledby="cn-' + esc(c.id) + '">' +
+      (c.selo ? '<p class="consul-selo">' + esc(c.selo) + "</p>" : "") +
+      '<h2 id="cn-' + esc(c.id) + '">' + esc(c.nome) + "</h2>" +
+      '<p class="consul-desc">' + esc(c.descricao) + "</p>" +
+      '<p class="consul-para"><strong>Indicado para:</strong> ' + esc(c.indicadoPara) + "</p>" +
+      (c.regra ? '<p class="consul-regra">' + esc(c.regra) + "</p>" : "") +
+      (c.escopoPreco ? '<p class="nota">' + esc(c.escopoPreco) + "</p>" : "") +
+      '<ul class="consul-entregas" aria-label="Principais entregas">' + c.principais.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>" +
+      '<dl class="consul-fatos"><div><dt>Preço de lançamento</dt><dd>' + precoConsulHtml(c) + "</dd></div>" +
+        "<div><dt>Prazo ou duração</dt><dd>" + esc(c.prazoCurto) + "</dd></div></dl>" +
+      '<a class="btn btn-primario largo" href="#/consultorias/' + esc(c.id) + '/solicitar">' + esc(c.botao) + '</a>' +
+      '<p style="text-align:center"><a class="btn btn-texto" href="#/consultorias/' + esc(c.id) + '">Ver detalhes<span class="sr"> de ' + esc(c.nome) + "</span></a></p></article>";
+  }
+  function condicoesConsulHtml() {
+    var pol = (estado.assin && estado.assin.politicas) || {}, itens = [];
+    if (pol.pagamento) itens.push("<li><strong>Pagamento:</strong> " + esc(pol.pagamento) + "</li>");
+    if (pol.remarcacao) itens.push("<li><strong>Remarcação:</strong> " + esc(pol.remarcacao) + "</li>");
+    if (pol.cancelamento) itens.push("<li><strong>Cancelamento:</strong> " + esc(pol.cancelamento) + "</li>");
+    return '<section class="cartao consul-condicoes" aria-labelledby="t-cond"><h2 id="t-cond">Condições</h2><ul class="lista-simples">' +
+      "<li>Todos os preços são por contratação, sem renovação automática. Os valores são os de lançamento.</li>" +
+      (itens.length ? itens.join("") : "<li>Pagamento, remarcação e cancelamento: as condições são informadas no atendimento, antes de qualquer cobrança.</li>") +
+      "<li>Serviços individuais, sem suporte contínuo além do que está descrito em cada um. Não prometem resultado esportivo.</li></ul></section>";
+  }
+  async function carregarConsultorias(voltarPara) {
     tela('<p class="carregando">Carregando…</p>', true);
-    var lista;
-    try { lista = (await carregarAssinatura(false)).consultorias; }
+    try { await carregarAssinatura(false); return true; }
     catch (e) {
       tela('<h1>Consultorias</h1><div class="aviso" role="alert" style="margin-top:14px">' + esc(e.message) + '</div><div class="acoes"><button class="btn btn-primario" id="btTentarAss" type="button">Tentar de novo</button></div>');
-      document.getElementById("btTentarAss").addEventListener("click", telaConsultorias);
-      return;
+      document.getElementById("btTentarAss").addEventListener("click", function () { voltarPara(); });
+      return false;
     }
+  }
+
+  async function telaConsultorias() {
+    if (!(await carregarConsultorias(telaConsultorias))) return;
+    var lista = consulLista(), tres = lista.filter(function (c) { return c.tipo !== "completa"; }), completa = lista.filter(function (c) { return c.tipo === "completa"; })[0];
+    function porTipo(t) { return lista.filter(function (c) { return c.tipo === t; })[0]; }
+    var escolha = [
+      ["Já tenho uma estratégia e quero ajustá-la.", porTipo("revisao")],
+      ["Quero entender os padrões que se repetem nas minhas partidas.", porTipo("analise")],
+      ["Quero conversar sobre dúvidas e definir próximos passos.", porTipo("ao-vivo")],
+      ["Quero a análise das partidas e uma conversa para aplicar as orientações.", completa],
+    ];
     tela(
-      '<h1>Consultorias</h1><p class="sub">Atendimento do Richard Tsukada, contratado à parte. Não fazem parte da assinatura da plataforma.</p>' +
-      lista.map(function (c) {
-        return '<article class="cartao consultoria-card"><h2>' + esc(c.nome) + "</h2><p>" + esc(c.descricao) + '</p><a class="btn btn-primario" href="' + esc(c.url) + '" target="_blank" rel="noopener">' + (c.canal === "whatsapp" ? "Falar sobre " + esc(c.nome.toLowerCase()) : "Contratar " + esc(c.nome.toLowerCase())) + '<span class="sr"> (abre em nova aba)</span></a></article>';
-      }).join("") +
-      '<p class="nota" style="margin-top:14px">Valores e prazos são combinados no contato.</p>'
+      '<h1 class="consul-titulo">Um olhar profissional sobre o seu jogo</h1>' +
+      '<p class="sub">Escolha o atendimento com Richard Tsukada mais adequado ao seu momento no tênis</p>' +
+      '<p class="consul-aviso" role="note"><strong>Serviços individuais contratados à parte.</strong> Não estão incluídos na assinatura do QuadraLab Player.</p>' +
+      '<div class="consul-lista">' + tres.map(cartaoConsulHtml).join("") + "</div>" +
+      (completa ? '<div class="consul-lista consul-lista-destaque">' + cartaoConsulHtml(completa) + "</div>" : "") +
+      '<section class="cartao consul-escolha" aria-labelledby="t-esc"><h2 id="t-esc">Qual atendimento faz sentido para você?</h2><ul>' +
+        escolha.filter(function (e) { return e[1]; }).map(function (e) {
+          return '<li><a href="#/consultorias/' + esc(e[1].id) + '"><span>' + esc(e[0]) + '</span><strong>' + esc(e[1].nome) + ' ›</strong></a></li>';
+        }).join("") + "</ul></section>" +
+      condicoesConsulHtml()
     );
+  }
+
+  /* ── detalhes de um serviço ── */
+  async function telaConsultoriaDetalhe(id) {
+    if (!(await carregarConsultorias(function () { telaConsultoriaDetalhe(id); }))) return;
+    var c = consulPorId(id);
+    if (!c) { ir("#/consultorias"); return; }
+    function lista(titulo, itens, classe) {
+      return itens && itens.length ? '<section class="consul-bloco ' + (classe || "") + '"><h2>' + esc(titulo) + '</h2><ul class="consul-lista-itens">' + itens.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul></section>" : "";
+    }
+    var analise = c.tipo === "analise" || c.tipo === "completa";
+    tela(
+      '<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/consultorias">‹ Consultorias</a></p>' +
+      (c.selo ? '<p class="consul-selo">' + esc(c.selo) + "</p>" : "") +
+      '<h1 class="consul-titulo">' + esc(c.nome) + "</h1>" +
+      '<p class="sub">' + esc(c.descricao) + "</p>" +
+      '<p class="consul-aviso" role="note"><strong>Serviço individual contratado à parte.</strong> Não está incluído na assinatura do QuadraLab Player.</p>' +
+      '<div class="cartao consul-resumo"><dl class="consul-fatos"><div><dt>Preço de lançamento</dt><dd>' + precoConsulHtml(c) + "</dd></div><div><dt>Prazo ou duração</dt><dd>" + esc(c.prazo) + "</dd></div></dl>" +
+        '<a class="btn btn-primario largo" href="#/consultorias/' + esc(c.id) + '/solicitar">' + esc(c.botao) + "</a></div>" +
+      '<section class="consul-bloco"><h2>Indicado para</h2><p>' + esc(c.indicadoPara) + "</p></section>" +
+      (c.regra ? '<p class="consul-regra">' + esc(c.regra) + "</p>" : "") +
+      lista("O que está incluído", c.inclui, "inclui") +
+      lista("O que não está incluído", c.naoInclui, "nao-inclui") +
+      (c.aviso ? '<p class="consul-regra">' + esc(c.aviso) + "</p>" : "") +
+      (analise ? lista("Material necessário", c.material || (consulPorId("analise-completa") || {}).material, "material") +
+        '<section class="consul-bloco"><h2>Limite do preço publicado</h2><p>' + esc((consulPorId("analise-completa") || c).escopoPreco) + "</p><p>" + esc((consulPorId("analise-completa") || c).acimaDoLimite) + "</p></section>" : "") +
+      '<section class="consul-bloco"><h2>Como funciona a contratação</h2><ol class="consul-passos">' +
+        "<li>Você preenche a solicitação, com os seus dados e o que o serviço precisa.</li>" +
+        "<li>A mensagem sai montada para o WhatsApp do Richard, e você a envia.</li>" +
+        (analise ? "<li>Richard confirma se as gravações estão completas e utilizáveis. O prazo só começa depois dessa confirmação.</li>" : "<li>Richard confirma o escopo" + (c.tipo === "ao-vivo" ? " e o horário da videochamada" : "") + ".</li>") +
+        "<li>Pagamento e condições são combinados no atendimento, antes de qualquer cobrança.</li></ol></section>" +
+      condicoesConsulHtml() +
+      '<a class="btn btn-primario btn-grande" href="#/consultorias/' + esc(c.id) + '/solicitar">' + esc(c.botao) + "</a>"
+    );
+  }
+
+  /* ── solicitação: dados necessários, resumo e mensagem para o contato ── */
+  var SUPERFICIES = [["saibro", "Saibro"], ["rapida", "Quadra rápida"], ["grama", "Grama"], ["outra", "Outra"]];
+  function chavePedido(id) { return "ql-pedido:" + (auth.currentUser ? auth.currentUser.uid : "") + ":" + id; }
+  function lerPedido(id) { try { return JSON.parse(localStorage.getItem(chavePedido(id)) || "null") || {}; } catch (e) { return {}; } }
+  function salvarPedido(id, p) { try { localStorage.setItem(chavePedido(id), JSON.stringify(p)); } catch (e) { /* sem armazenamento: segue sem rascunho */ } }
+  function minutosDe(h, m) { return Math.max(0, (parseInt(h, 10) || 0) * 60 + (parseInt(m, 10) || 0)); }
+  function duracaoTxt(min) { var h = Math.floor(min / 60), m = min % 60; return h + " h" + (m ? " " + (m < 10 ? "0" : "") + m + " min" : ""); }
+  function resumoPerfilTxt() {
+    var f = estado.dados.ficha || {};
+    if (!estado.dados.fichaCompleta) return "";
+    return [rotuloOp(OP.nivel, f.nivel), rotuloOp(OP.mao, f.mao), rotuloOp(OP.backhand, f.backhand), "piso: " + rotuloOp(OP.piso, f.piso),
+      "golpe mais forte: " + rotuloOp(AREAS, f.armaPrincipal), "ponto mais vulnerável: " + rotuloOp(AREAS, f.pontoFraco), rotuloOp(OP.padraoPonto, f.padraoPonto)].join(" · ");
+  }
+  function avaliarMaterial(c, ped) {
+    var partes = (ped.partidas || []), n = c.partidas || 3, faltas = [], total = 0;
+    for (var i = 0; i < n; i++) {
+      var x = partes[i] || {}, min = minutosDe(x.h, x.m); total += min;
+      var ok = /^https:\/\/\S+$/.test(String(x.link || "").trim()) && min > 0 && x.data && x.superficie && String(x.placar || "").trim() && String(x.jogador || "").trim() && x.completa;
+      if (!ok) faltas.push("partida " + (i + 1));
+    }
+    var limite = (c.limiteHoras || 6) * 60;
+    return { total: total, faltas: faltas, acima: total > limite, limite: limite, completo: !faltas.length };
+  }
+  function modoSolicitacao(c, ped) {
+    if (c.tipo !== "analise" && c.tipo !== "completa") return { rotulo: c.botao, tipo: "pronto" };
+    var m = avaliarMaterial(c, ped);
+    if (m.acima) return { rotulo: "Solicitar avaliação e orçamento", tipo: "orcamento", m: m };
+    if (!m.completo) return { rotulo: "Solicitar avaliação do material", tipo: "avaliacao", m: m };
+    return { rotulo: c.botao, tipo: "pronto", m: m };
+  }
+  function mensagemPedido(c, ped) {
+    var perfil = estado.dados.perfil, L = [];
+    L.push("Olá, Richard! Quero solicitar: " + c.nome + " (preço de lançamento " + reaisInteiro(c.precoCentavos) + ", " + c.unidadePreco + ", pagamento único).");
+    L.push("Nome: " + perfil.nome); L.push("E-mail da conta: " + perfil.email);
+    var rp = resumoPerfilTxt(); if (rp) L.push("Perfil de jogador: " + rp);
+    if (c.tipo === "revisao") {
+      var est = planoPorId(ped.estrategiaId);
+      L.push("Estratégia para revisar: " + (est && est.plano ? est.plano.titulo + (est.adversarioNome ? " (contra " + est.adversarioNome + ")" : "") : "outra estratégia, que envio no atendimento"));
+      if (String(ped.ajustes || "").trim()) L.push("O que quero ajustar: " + String(ped.ajustes).trim());
+    }
+    if (String(ped.objetivos || "").trim()) L.push("Objetivos e dificuldades: " + String(ped.objetivos).trim());
+    if (String(ped.duvidas || "").trim()) L.push("Perguntas para a conversa: " + String(ped.duvidas).trim());
+    if (c.tipo === "analise" || c.tipo === "completa") {
+      var modo = modoSolicitacao(c, ped), m = modo.m;
+      L.push("Partidas (" + (c.partidas || 3) + " completas):");
+      for (var i = 0; i < (c.partidas || 3); i++) {
+        var x = (ped.partidas || [])[i] || {};
+        L.push((i + 1) + ") " + (String(x.link || "").trim() || "[link não informado]") + " | duração: " + duracaoTxt(minutosDe(x.h, x.m)) + " | data: " + (x.data ? dataExtensa(x.data) : "—") +
+          " | superfície: " + (rotuloOp(SUPERFICIES, x.superficie) || "—") + " | placar: " + (String(x.placar || "").trim() || "—") + " | jogador analisado: " + (String(x.jogador || "").trim() || "—") +
+          " | " + (x.completa ? "partida completa" : "não confirmada como completa"));
+      }
+      L.push("Soma das gravações: " + duracaoTxt(m.total) + " (o preço cobre até " + (c.limiteHoras || 6) + " h).");
+      L.push(modo.tipo === "orcamento" ? "SITUAÇÃO: acima de " + (c.limiteHoras || 6) + " h — peço a avaliação do volume e o orçamento antes de qualquer pagamento. Entendo que as três partidas continuam sendo analisadas por inteiro."
+        : modo.tipo === "avaliacao" ? "SITUAÇÃO: material incompleto (" + m.faltas.join(", ") + ") — peço a avaliação do material."
+        : "SITUAÇÃO: material informado como completo, dentro do limite.");
+      L.push("Confirmo que os vídeos são meus ou que tenho autorização para compartilhá-los. Os links permitem a visualização e não incluem senhas.");
+    }
+    if (c.tipo === "ao-vivo" || c.tipo === "completa") L.push("Disponibilidade para a videochamada: " + (String(ped.disponibilidade || "").trim() || "[a combinar]") + " (horário a confirmar no contato).");
+    L.push("Entendi o que está incluído, os limites e o prazo, e que pagamento e confirmação serão concluídos no atendimento.");
+    return L.join("\n");
+  }
+  function campoTexto(id, rotulo, valor, o) {
+    o = o || {};
+    return '<div class="campo"><label for="' + id + '">' + esc(rotulo) + (o.opcional ? ' <span class="nota">(opcional)</span>' : "") + "</label>" +
+      '<textarea id="' + id + '" rows="' + (o.linhas || 3) + '" maxlength="800"' + (o.ajuda ? ' aria-describedby="' + id + 'A"' : "") + ">" + esc(valor || "") + "</textarea>" +
+      (o.ajuda ? '<p class="nota" id="' + id + 'A" style="margin-top:4px">' + esc(o.ajuda) + "</p>" : "") + '<p class="erro-campo" id="' + id + 'E" hidden></p></div>';
+  }
+  function partidaHtml(i, x) {
+    x = x || {};
+    return '<fieldset class="partida" id="part' + i + '"><legend>Partida ' + (i + 1) + "</legend>" +
+      '<div class="campo"><label for="pl' + i + '">Link da gravação</label><input id="pl' + i + '" type="url" inputmode="url" autocomplete="off" placeholder="https://…" value="' + esc(x.link || "") + '"></div>' +
+      '<div class="duracao"><div class="campo"><label for="ph' + i + '">Duração (horas)</label><input id="ph' + i + '" type="number" inputmode="numeric" min="0" max="12" value="' + esc(x.h == null ? "" : x.h) + '"></div>' +
+        '<div class="campo"><label for="pm' + i + '">e minutos</label><input id="pm' + i + '" type="number" inputmode="numeric" min="0" max="59" value="' + esc(x.m == null ? "" : x.m) + '"></div></div>' +
+      '<div class="campo"><label for="pd' + i + '">Data da partida</label><input id="pd' + i + '" type="date" value="' + esc(x.data || "") + '"></div>' +
+      '<div class="campo"><label for="ps' + i + '">Superfície</label><select id="ps' + i + '"><option value="">Escolha</option>' + SUPERFICIES.map(function (o) { return '<option value="' + o[0] + '"' + (x.superficie === o[0] ? " selected" : "") + ">" + o[1] + "</option>"; }).join("") + "</select></div>" +
+      '<div class="campo"><label for="pp' + i + '">Placar</label><input id="pp' + i + '" maxlength="60" placeholder="Ex.: 6/4 3/6 7/5" value="' + esc(x.placar || "") + '"></div>' +
+      '<div class="campo"><label for="pj' + i + '">Quem é o jogador analisado</label><input id="pj' + i + '" maxlength="80" placeholder="Ex.: camisa azul, lado mais próximo da câmera" value="' + esc(x.jogador || "") + '"></div>' +
+      '<label class="alternar"><input type="checkbox" id="pc' + i + '"' + (x.completa ? " checked" : "") + "><span>Esta é a partida completa, do primeiro ao último ponto.</span></label></fieldset>";
+  }
+
+  async function telaSolicitacao(id) {
+    if (!(await carregarConsultorias(function () { telaSolicitacao(id); }))) return;
+    var c = consulPorId(id);
+    if (!c) { ir("#/consultorias"); return; }
+    var d = estado.dados, perfil = d.perfil, ped = lerPedido(id), analise = c.tipo === "analise" || c.tipo === "completa";
+    ped.partidas = ped.partidas || [];
+    var estrategias = planosProntos();
+    var html =
+      '<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/consultorias/' + esc(id) + '">‹ ' + esc(c.nome) + "</a></p>" +
+      '<h1 class="consul-titulo">Solicitar: ' + esc(c.nome) + "</h1>" +
+      '<p class="consul-aviso" role="note"><strong>Serviço individual contratado à parte.</strong> Não está incluído na assinatura do QuadraLab Player.</p>' +
+      '<section class="cartao consul-resumo" aria-labelledby="t-res"><h2 id="t-res">Resumo da oferta</h2><dl class="consul-fatos"><div><dt>Preço de lançamento</dt><dd>' + precoConsulHtml(c) + "</dd></div><div><dt>Prazo ou duração</dt><dd>" + esc(c.prazo) + "</dd></div></dl>" +
+        '<details class="det"><summary>Entregas e limites</summary><ul class="consul-lista-itens">' + c.inclui.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>" +
+        '<p class="nota" style="margin-top:8px"><strong>Não inclui:</strong> ' + esc(c.naoInclui.join(" ")) + "</p>" + (c.aviso ? '<p class="nota" style="margin-top:6px">' + esc(c.aviso) + "</p>" : "") +
+        (analise ? '<p class="nota" style="margin-top:6px">' + esc(c.regra || (consulPorId("analise-completa") || {}).regra) + " " + esc((consulPorId("analise-completa") || c).escopoPreco) + "</p>" : "") + "</details></section>" +
+      '<section class="cartao consul-proximo" aria-labelledby="t-prox"><h2 id="t-prox">Próxima etapa</h2><p>Você revisa os dados abaixo e a mensagem sai montada para o WhatsApp do Richard. ' +
+        (analise ? "Ele confirma se as gravações estão completas e utilizáveis; o prazo só começa depois dessa confirmação. " : "") +
+        (c.tipo === "ao-vivo" || c.tipo === "completa" ? "O horário da videochamada é confirmado no contato. " : "") +
+        '<strong>O pagamento e a confirmação são concluídos no atendimento, antes de qualquer cobrança.</strong> A solicitação só é considerada recebida quando você enviar a mensagem.</p></section>' +
+      '<section class="cartao" aria-labelledby="t-meus"><h2 id="t-meus">Seus dados</h2><dl class="rp-lista"><div class="rp-linha"><dt>Nome</dt><dd>' + esc(perfil.nome) + '</dd></div><div class="rp-linha"><dt>E-mail da conta</dt><dd>' + esc(perfil.email) + "</dd></div>" +
+        '<div class="rp-linha"><dt>Perfil de jogador</dt><dd>' + (resumoPerfilTxt() ? esc(resumoPerfilTxt()) : '<span class="nota">Perfil ainda incompleto</span>') + "</dd></div></dl>" +
+        '<p class="nota" style="margin-top:8px">Revise antes de enviar: <a href="#/conta">Meu perfil</a> · <a href="#/jogador">Meu perfil de jogador</a>. O que você preencheu aqui fica salvo neste aparelho.</p></section>' +
+      '<form id="fPedido" class="consul-form" novalidate><div id="blocoRevisao"></div><div id="blocoForm">';
+    if (c.tipo === "revisao") {
+      html += '<fieldset id="g-tem"><legend>Você já possui uma estratégia para revisar?</legend><div class="opcoes duas"><label class="opcao"><input type="radio" name="tem" value="sim"' + (ped.tem === "sim" ? " checked" : "") + "><span>Sim</span></label>" +
+        '<label class="opcao"><input type="radio" name="tem" value="nao"' + (ped.tem === "nao" ? " checked" : "") + "><span>Não</span></label></div></fieldset>";
+    }
+    html += '<div id="blocoCampos">';
+    if (c.tipo === "revisao") {
+      html += '<div class="campo"><label for="estrat">Qual estratégia será revisada?</label><select id="estrat">' +
+        estrategias.map(function (e) { return '<option value="' + esc(e.id) + '"' + (ped.estrategiaId === e.id ? " selected" : "") + ">" + esc(tituloCurto(e.plano.titulo, 50)) + " · " + esc(dataBR(e.criadoEm)) + "</option>"; }).join("") +
+        '<option value="fora"' + (ped.estrategiaId === "fora" ? " selected" : "") + ">Outra estratégia (envio no atendimento)</option></select></div>" +
+        campoTexto("ajustes", "O que você gostaria de ajustar?", ped.ajustes, { opcional: true });
+    }
+    if (c.tipo !== "ao-vivo") html += campoTexto("objetivos", "Seus objetivos e dificuldades percebidas", ped.objetivos, { ajuda: "O que você quer melhorar no seu jogo e o que mais atrapalha hoje." });
+    if (c.tipo === "ao-vivo") html += campoTexto("duvidas", "Perguntas e dúvidas para a conversa", ped.duvidas, { ajuda: "Richard lê antes da videochamada." }) + campoTexto("objetivos", "Seus objetivos e dificuldades", ped.objetivos, { opcional: true });
+    if (c.tipo === "completa") html += campoTexto("duvidas", "Perguntas para a conversa", ped.duvidas, { opcional: true });
+    if (analise) {
+      html += '<section class="consul-material" aria-labelledby="t-mat"><h2 id="t-mat">As três partidas completas</h2>' +
+        '<p class="consul-regra">A análise exige três partidas completas. Não aceitamos melhores momentos nem pequenos recortes. Preferencialmente contra adversários diferentes.</p>' +
+        '<ul class="lista-simples nota"><li>Envie vídeos seus ou que você tenha autorização para compartilhar.</li><li>Deixe o link com acesso de visualização para quem tem o link. <strong>Nunca envie senhas</strong> de contas de armazenamento.</li><li>A gravação precisa permitir acompanhar o jogador e a dinâmica dos pontos.</li></ul>' +
+        [0, 1, 2].map(function (i) { return partidaHtml(i, ped.partidas[i]); }).join("") +
+        '<div class="consul-total" id="totalMaterial" role="status" aria-live="polite"></div>' +
+        '<label class="alternar"><input type="checkbox" id="autoriza"' + (ped.autoriza ? " checked" : "") + "><span>Confirmo que os vídeos são meus ou que tenho autorização para compartilhá-los.</span></label><p class=\"erro-campo\" id=\"autorizaE\" hidden></p></section>";
+    }
+    if (c.tipo === "ao-vivo" || c.tipo === "completa") html += campoTexto("disponibilidade", "Dias e horários que costumam funcionar para você", ped.disponibilidade, { opcional: true, ajuda: "Não há agenda online: o horário é confirmado no contato." });
+    html += '<label class="alternar" style="margin-top:12px"><input type="checkbox" id="aceite"' + (ped.aceite ? " checked" : "") + "><span>Entendi o que está incluído, os limites e o prazo, e que pagamento e confirmação serão concluídos no atendimento.</span></label><p class=\"erro-campo\" id=\"aceiteE\" hidden></p>" +
+      '<div class="aviso" id="avisoPedido" role="alert" hidden></div>' +
+      '<div class="acoes"><button class="btn btn-primario btn-grande" id="btPedido" type="submit">' + esc(c.botao) + "</button></div>" +
+      '<p class="nota" style="margin-top:8px">Ao tocar, o WhatsApp abre com a mensagem pronta. Nada é enviado ou cobrado até você enviar a mensagem.</p></div></div></form>' +
+      '<div id="aposPedido"></div>';
+    tela(html);
+
+    var form = document.getElementById("fPedido"), alvoRev = document.getElementById("blocoRevisao");
+    function ler() {
+      var q = function (i) { var e = document.getElementById(i); return e ? e.value : ""; };
+      var n = function (i) { var e = document.getElementById(i); return e ? !!e.checked : false; };
+      ped.objetivos = q("objetivos"); ped.duvidas = q("duvidas"); ped.disponibilidade = q("disponibilidade"); ped.ajustes = q("ajustes"); ped.aceite = n("aceite");
+      if (c.tipo === "revisao") { var m = form.querySelector('input[name="tem"]:checked'); ped.tem = m ? m.value : ""; ped.estrategiaId = q("estrat"); }
+      if (analise) {
+        ped.autoriza = n("autoriza"); ped.partidas = [0, 1, 2].map(function (i) { return { link: q("pl" + i), h: q("ph" + i), m: q("pm" + i), data: q("pd" + i), superficie: q("ps" + i), placar: q("pp" + i), jogador: q("pj" + i), completa: n("pc" + i) }; });
+      }
+    }
+    function atualizar() {
+      ler(); salvarPedido(id, ped);
+      var bt = document.getElementById("btPedido");
+      if (c.tipo === "revisao") {
+        var sem = ped.tem === "nao";
+        document.getElementById("blocoCampos").hidden = ped.tem !== "sim";
+        alvoRev.innerHTML = sem ? '<div class="cartao consul-alternativas" role="status"><h2>Esta revisão parte de uma estratégia que você já tem</h2><p>A revisão ajusta uma estratégia existente: lê a sua ficha e os seus objetivos, revisa essa estratégia, define três prioridades e explica em áudio. Ela não faz diagnóstico completo, avaliação de partidas em vídeo nem videochamada. Sem uma estratégia para revisar, estes atendimentos fazem mais sentido:</p>' +
+          '<ul><li><a href="#/consultorias/consultoria-ao-vivo">Consultoria ao vivo</a> — conversar sobre dúvidas e definir próximos passos.</li><li><a href="#/consultorias/analise-completa">Análise completa do jogador</a> — entender os padrões a partir de três partidas completas.</li>' +
+          (estrategias.length ? "" : '<li><a href="#/estrategia">Criar a minha estratégia</a> no app e depois voltar para a revisão.</li>') + "</ul></div>" : "";
+        if (ped.tem === "sim" && !estrategias.length && ped.estrategiaId !== "fora") { var sel = document.getElementById("estrat"); sel.value = "fora"; ped.estrategiaId = "fora"; }
+        bt.disabled = ped.tem !== "sim";
+      }
+      if (analise) {
+        var modo = modoSolicitacao(c, ped), m = modo.m, alvo = document.getElementById("totalMaterial");
+        alvo.className = "consul-total t-" + modo.tipo;
+        alvo.innerHTML = "<strong>Soma das gravações: " + esc(duracaoTxt(m.total)) + "</strong> · o preço cobre até " + (c.limiteHoras || 6) + " h." +
+          (modo.tipo === "orcamento" ? " <span>Acima do limite: o pedido vai para avaliação do volume e orçamento <b>antes do pagamento</b>. As três partidas continuam sendo analisadas por inteiro, sem corte automático, e nada é cobrado a mais sem que você veja o valor e aceite.</span>"
+            : modo.tipo === "avaliacao" ? " <span>Faltam informações em: " + esc(m.faltas.join(", ")) + ". Você pode enviar assim: o material será encaminhado para avaliação e o prazo só começa depois que Richard confirmar que está completo e utilizável.</span>"
+            : " <span>Material informado como completo. Richard ainda confirma a qualidade das gravações antes de o prazo começar.</span>");
+        bt.textContent = modo.rotulo;
+      }
+    }
+    function erro(idCampo, msg) { var e = document.getElementById(idCampo + "E"); if (e) { e.textContent = msg; e.hidden = false; } }
+    function limparErros() { form.querySelectorAll(".erro-campo").forEach(function (e) { if (e.id.slice(-1) === "E") e.hidden = true; }); document.getElementById("avisoPedido").hidden = true; }
+    form.addEventListener("input", atualizar); form.addEventListener("change", atualizar);
+    atualizar();
+    form.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      ler(); limparErros();
+      var primeiro = null;
+      function exigir(cond, idc, msg) { if (!cond) { erro(idc, msg); if (!primeiro) primeiro = idc; } }
+      if (c.tipo === "revisao" && ped.tem !== "sim") { var av = document.getElementById("avisoPedido"); av.textContent = "Responda se você já possui uma estratégia para revisar."; av.hidden = false; return; }
+      if (c.tipo !== "ao-vivo") exigir(String(ped.objetivos || "").trim().length >= 10, "objetivos", "Conte em poucas palavras os seus objetivos e dificuldades.");
+      if (c.tipo === "ao-vivo") exigir(String(ped.duvidas || "").trim().length >= 10, "duvidas", "Escreva ao menos uma pergunta ou dúvida para a conversa.");
+      if (analise) exigir(ped.autoriza, "autoriza", "Confirme que os vídeos são seus ou que você tem autorização para compartilhá-los.");
+      exigir(ped.aceite, "aceite", "Confirme que entendeu o que está incluído e como a contratação é concluída.");
+      if (primeiro) { var el = document.getElementById(primeiro + "E"); if (el) el.scrollIntoView({ block: "center" }); var campo = document.getElementById(primeiro); if (campo) campo.focus({ preventScroll: true }); return; }
+      var msg = mensagemPedido(c, ped), url = "https://wa.me/" + (estado.assin.contatoWhatsapp || WHATSAPP_CONSULTORIA) + "?text=" + encodeURIComponent(msg);
+      window.open(url, "_blank", "noopener");
+      document.getElementById("aposPedido").innerHTML = '<section class="cartao consul-enviada" role="status" aria-live="polite"><h2>Mensagem pronta para enviar</h2><p>Abrimos o WhatsApp com a sua solicitação. <strong>Ela só é considerada recebida quando você enviar a mensagem.</strong> Depois, Richard responde' +
+        (analise ? ", confirma se o material está completo e utilizável" : "") + " e combina pagamento e condições" + (c.tipo === "ao-vivo" || c.tipo === "completa" ? " e o horário" : "") + '.</p>' +
+        '<div class="acoes"><a class="btn btn-primario" href="' + esc(url) + '" target="_blank" rel="noopener" id="lnkWpp">Abrir o WhatsApp de novo<span class="sr"> (abre em nova aba)</span></a><button type="button" class="btn btn-secundario" id="btCopiar">Copiar a mensagem</button></div><p class="nota" id="msgCopia" role="status" style="margin-top:6px"></p></section>';
+      document.getElementById("btCopiar").addEventListener("click", async function () {
+        var m = document.getElementById("msgCopia");
+        try { await navigator.clipboard.writeText(msg); m.textContent = "Mensagem copiada."; }
+        catch (e) { var t = document.createElement("textarea"); t.value = msg; t.className = "sr"; document.body.appendChild(t); t.select(); try { document.execCommand("copy"); m.textContent = "Mensagem copiada."; } catch (e2) { m.textContent = "Não foi possível copiar. Use o botão do WhatsApp."; } t.remove(); }
+      });
+      document.getElementById("aposPedido").scrollIntoView({ block: "center" });
+    });
   }
 
   /* ── ajuda e suporte ── */
@@ -1776,7 +2055,7 @@
     else if (r === "jogador") telaJogador();
     else if (r === "assinatura") telaAssinatura();
     else if (r === "assinaturas") telaAssinaturas();
-    else if (r === "consultorias") telaConsultorias();
+    else if (r === "consultorias") { if (partes[1] && partes[2] === "solicitar") telaSolicitacao(partes[1]); else if (partes[1]) telaConsultoriaDetalhe(partes[1]); else telaConsultorias(); }
     else if (r === "ajuda") telaAjuda();
     else telaInicio();
   }

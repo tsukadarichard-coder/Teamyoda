@@ -34,27 +34,127 @@
    ou pelo estado do navegador. */
 const CATALOGO = [];
 
-/* Consultorias: serviços independentes da assinatura. Enquanto não
-   houver checkout próprio (eduzzUrl), o contato é o WhatsApp real. */
+/* ── Consultorias: serviços individuais do Richard Tsukada ──
+   Contratados à parte, por contratação, sem renovação automática, e NÃO incluídos na assinatura da plataforma.
+   Esta é a única fonte dos textos, preços, prazos e limites: o app só desenha o que está aqui, então cartão,
+   detalhes, solicitação e mensagem de contato nunca divergem.
+
+   Preços: o app mostra só o preço de LANÇAMENTO (precoCentavos). precoRegularPrevistoCentavos fica guardado para
+   avaliação futura: nunca é mostrado, riscado ou comparado, e nada muda sozinho — trocar de preço é editar
+   precoCentavos aqui, de propósito.
+
+   Condições (pagamento, remarcação, cancelamento): escreva em POLITICAS quando forem definidas; enquanto
+   estiverem null o app diz apenas que serão informadas no atendimento, antes de qualquer cobrança.
+
+   Contato: o WhatsApp real abaixo. Ainda não há checkout nem agenda integrados — a solicitação sai montada para
+   esse contato e pagamento e horário são confirmados lá. */
 const WHATSAPP = "5511941773228";
+
+const POLITICAS = {
+  pagamento: null,    // ex.: "Pix ou cartão, combinado no atendimento."
+  remarcacao: null,   // ex.: "Remarcação até 24 h antes do horário."
+  cancelamento: null, // ex.: "…"
+};
+
+const LIMITE_HORAS_ANALISE = 6;
+const PARTIDAS_ANALISE = 3;
 const CONSULTORIAS = [
   {
-    id: "revisao-estrategia", nome: "Revisão de estratégia",
-    descricao: "O Richard Tsukada revisa a estratégia gerada para o seu jogo e indica ajustes.",
-    mensagem: "Olá, Richard! Quero contratar a revisão de estratégia do QuadraLab Player.",
-    eduzzUrl: null,
+    id: "revisao-estrategia", tipo: "revisao",
+    nome: "Revisão de estratégia",
+    descricao: "Ajuste seu plano de jogo com orientações de Richard a partir da sua ficha, dos seus objetivos e da estratégia atual.",
+    indicadoPara: "Jogadores que já possuem uma estratégia estruturada ou que já passaram por uma análise e precisam de ajustes pontuais.",
+    principais: ["Revisão de uma estratégia existente", "Três prioridades definidas", "Explicação em áudio de até cinco minutos"],
+    inclui: [
+      "Leitura da ficha e dos objetivos.",
+      "Revisão de uma estratégia existente.",
+      "Ajustes no plano de jogo.",
+      "Definição de três prioridades.",
+      "Explicação em áudio de até cinco minutos.",
+      "Uma rodada de esclarecimentos por mensagem, enviada em até sete dias após a entrega.",
+    ],
+    naoInclui: ["Avaliação de partidas em vídeo.", "Diagnóstico completo do jogador.", "Videochamada.", "Acompanhamento contínuo."],
+    prazo: "Até três dias úteis após o recebimento completo das informações.",
+    prazoCurto: "Até 3 dias úteis após o recebimento completo das informações",
+    unidadePreco: "por revisão",
+    precoCentavos: 14900, precoRegularPrevistoCentavos: 19900,
+    botao: "Solicitar revisão",
   },
   {
-    id: "analise-video", nome: "Análise de vídeo",
-    descricao: "Você envia um vídeo do seu jogo e recebe a análise do Richard.",
-    mensagem: "Olá, Richard! Quero contratar a análise de vídeo do QuadraLab Player.",
-    eduzzUrl: null,
+    id: "analise-completa", tipo: "analise",
+    nome: "Análise completa do jogador",
+    descricao: "Richard assiste a três partidas completas para identificar padrões do seu jogo e transformar essa observação em prioridades práticas de evolução.",
+    indicadoPara: "Jogadores que querem entender os padrões que se repetem nas suas partidas.",
+    regra: "A análise exige três partidas completas. Não é feita com apenas 15 minutos, melhores momentos ou pequenos recortes.",
+    principais: ["Observação integral de três partidas completas", "Vídeo comentado e relatório objetivo", "Plano de ação com prioridades de treino"],
+    material: [
+      "Três partidas completas.",
+      "Preferencialmente contra adversários diferentes.",
+      "Ficha com objetivos e dificuldades percebidas.",
+      "Informações sobre cada partida: data, superfície, placar e identificação do jogador analisado.",
+      "Gravação que permita acompanhar o jogador e a dinâmica dos pontos.",
+    ],
+    escopoPreco: "O preço publicado cobre até seis horas de gravação somadas entre as três partidas.",
+    acimaDoLimite: "Se a soma passar de seis horas, o pedido é encaminhado para avaliação do volume e orçamento antes do pagamento. As três partidas continuam sendo analisadas por inteiro: o material não é cortado automaticamente e nada é cobrado a mais sem que você veja o valor e aceite.",
+    inclui: [
+      "Observação integral das três partidas.",
+      "Identificação de padrões recorrentes.",
+      "Avaliação das decisões e da construção dos pontos.",
+      "Observação do posicionamento e das transições.",
+      "Identificação de pontos fortes e vulnerabilidades.",
+      "Devolutiva em vídeo comentado com trechos selecionados.",
+      "Relatório objetivo com as principais conclusões.",
+      "Plano de ação com prioridades e orientações para os próximos treinos.",
+      "Uma rodada de esclarecimentos por mensagem, enviada em até sete dias após a entrega.",
+    ],
+    naoInclui: ["Videochamada, salvo contratação do pacote correspondente.", "Acompanhamento contínuo.", "Nova análise de partidas enviadas posteriormente."],
+    prazo: "De sete a dez dias úteis após a confirmação de que todo o material está completo e utilizável.",
+    prazoCurto: "7 a 10 dias úteis após a confirmação de que o material está completo",
+    unidadePreco: "por análise (até 6 horas de gravação)",
+    precoCentavos: 119000, precoRegularPrevistoCentavos: 149000,
+    botao: "Solicitar análise completa",
   },
   {
-    id: "consultoria-ao-vivo", nome: "Consultoria ao vivo",
-    descricao: "Uma conversa ao vivo com o Richard sobre o seu jogo.",
-    mensagem: "Olá, Richard! Quero contratar a consultoria ao vivo do QuadraLab Player.",
-    eduzzUrl: null,
+    id: "consultoria-ao-vivo", tipo: "ao-vivo",
+    nome: "Consultoria ao vivo",
+    descricao: "Uma conversa individual com Richard para discutir suas dificuldades, esclarecer decisões e definir os próximos passos para o seu jogo.",
+    indicadoPara: "Jogadores que querem conversar sobre dúvidas e definir próximos passos.",
+    principais: ["Videochamada de 50 minutos", "Orientações personalizadas", "Resumo com plano de ação"],
+    inclui: [
+      "Videochamada de 50 minutos.",
+      "Leitura prévia da ficha e das perguntas enviadas.",
+      "Discussão dos objetivos e dificuldades.",
+      "Orientações personalizadas.",
+      "Resumo com plano de ação.",
+    ],
+    naoInclui: ["Assistir previamente a três partidas ou realizar uma análise completa em vídeo."],
+    aviso: "A sessão não inclui assistir previamente a três partidas nem realizar uma análise completa em vídeo. As orientações se baseiam nas informações fornecidas e, quando houver, em uma análise já contratada.",
+    prazo: "Videochamada de 50 minutos, em horário confirmado no contato.",
+    prazoCurto: "Videochamada de 50 minutos",
+    unidadePreco: "por sessão",
+    precoCentavos: 29900, precoRegularPrevistoCentavos: 34900,
+    botao: "Solicitar agendamento", // sem agenda integrada; com agenda real, trocar para "Agendar consultoria"
+  },
+  {
+    id: "analise-mais-consultoria", tipo: "completa",
+    nome: "Análise completa + consultoria",
+    selo: "Experiência completa",
+    descricao: "Entenda os padrões do seu jogo e converse com Richard sobre como aplicar as prioridades identificadas.",
+    indicadoPara: "Jogadores que querem a análise das partidas e uma conversa para aplicar as orientações.",
+    principais: ["Todas as entregas da análise completa", "Videochamada de 50 minutos após a entrega", "Alinhamento das prioridades de treino"],
+    inclui: [
+      "Todas as entregas da Análise completa do jogador.",
+      "Videochamada de 50 minutos após a entrega da análise.",
+      "Discussão dos resultados e alinhamento das prioridades de treino.",
+    ],
+    naoInclui: ["Acompanhamento contínuo.", "Nova análise de partidas enviadas posteriormente."],
+    prazo: "Análise: de sete a dez dias úteis após a confirmação de que todo o material está completo e utilizável. Videochamada de 50 minutos depois da entrega.",
+    escopoPreco: "O preço publicado cobre até seis horas de gravação somadas entre as três partidas.",
+    acimaDoLimite: "Se a soma passar de seis horas, o pedido é encaminhado para avaliação do volume e orçamento antes do pagamento. As três partidas continuam sendo analisadas por inteiro: o material não é cortado automaticamente e nada é cobrado a mais sem que você veja o valor e aceite.",
+    prazoCurto: "Análise em 7 a 10 dias úteis após a confirmação do material; depois, videochamada de 50 minutos",
+    unidadePreco: "pelo atendimento completo (até 6 horas de gravação)",
+    precoCentavos: 149000, precoRegularPrevistoCentavos: 179000,
+    botao: "Solicitar atendimento completo",
   },
 ];
 
@@ -90,12 +190,17 @@ function catalogoPublico(catalogo) {
     limites: p.limites || null, destaque: !!p.destaque,
   }));
 }
+/* O que o app recebe: só o preço de lançamento e as regras publicadas. O preço regular previsto nunca sai do servidor. */
 function consultoriasPublicas() {
-  return CONSULTORIAS.map((c) => ({
-    id: c.id, nome: c.nome, descricao: c.descricao,
-    url: c.eduzzUrl || ("https://wa.me/" + WHATSAPP + "?text=" + encodeURIComponent(c.mensagem)),
-    canal: c.eduzzUrl ? "checkout" : "whatsapp",
-  }));
+  return CONSULTORIAS.map((c) => {
+    const { precoRegularPrevistoCentavos, ...publico } = c; // eslint-disable-line no-unused-vars
+    return { ...publico, ...(c.tipo === "analise" || c.tipo === "completa" ? { partidas: PARTIDAS_ANALISE, limiteHoras: LIMITE_HORAS_ANALISE } : {}) };
+  });
+}
+function politicasPublicas() {
+  const p = {};
+  for (const k of Object.keys(POLITICAS)) if (POLITICAS[k]) p[k] = String(POLITICAS[k]);
+  return p;
 }
 function linksPublicos() {
   const l = {};
@@ -125,7 +230,7 @@ function assinaturaVigente(ass, hoje) {
 }
 
 module.exports = {
-  CATALOGO, CONSULTORIAS, LINKS, WHATSAPP, NIVEIS, PERIODICIDADES, ESTADOS, ROTULO_ESTADO,
+  CATALOGO, CONSULTORIAS, POLITICAS, LINKS, WHATSAPP, LIMITE_HORAS_ANALISE, PARTIDAS_ANALISE, politicasPublicas, NIVEIS, PERIODICIDADES, ESTADOS, ROTULO_ESTADO,
   produtoCompleto, produtoPorEduzz, produtoPorId, catalogoPublico, consultoriasPublicas, linksPublicos,
   hojeISO, somarDias, assinaturaVigente,
 };

@@ -576,3 +576,54 @@ html.sem-rolagem, html.sem-rolagem body { overflow: hidden; }
 .indicador .ind-nota.clamp2 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; }
 .ie-titulo, .ip-titulo { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .item-estrategia[title], .item-programa[title] { cursor: pointer; }
+
+/* ════ consultorias ════ */
+.consul-titulo { font-size: clamp(25px, 6.6vw, 30px); line-height: 1.15; }
+.consul-aviso { margin: 14px 0 0; padding: 12px 14px; border: 1px solid var(--saibro-borda); border-left: 4px solid var(--saibro); border-radius: 10px; background: var(--saibro-fundo); color: #5E2E0B; font-size: 14.5px; }
+.consul-lista { display: grid; grid-template-columns: 1fr; gap: 16px; margin-top: 18px; }
+.consul-lista-destaque { margin-top: 18px; }
+.consul-card { display: flex; flex-direction: column; gap: 10px; padding: 20px 18px; background: var(--cal); border: 1px solid var(--linha); border-radius: var(--raio); box-shadow: var(--sombra); }
+.consul-card h2 { font-size: 21px; line-height: 1.2; overflow-wrap: anywhere; }
+.consul-destaque { border: 2px solid var(--saibro); background: linear-gradient(180deg, var(--saibro-fundo), var(--cal) 34%); box-shadow: var(--sombra-alta); }
+.consul-selo { align-self: flex-start; margin: 0; padding: 3px 12px; border-radius: 99px; background: var(--saibro-texto); color: #fff; font-size: 13px; font-weight: 700; letter-spacing: .01em; }
+.consul-desc { font-size: 15.5px; }
+.consul-para { font-size: 14.5px; color: var(--grafite); }
+.consul-para strong { color: var(--tinta); }
+.consul-regra { margin: 0; padding: 10px 12px; border-radius: 10px; background: #F1F7EC; border: 1px solid #CBE3B8; color: #1F4710; font-size: 14.5px; font-weight: 600; }
+.consul-entregas { list-style: none; margin: 0; padding: 0; }
+.consul-entregas li { position: relative; padding: 4px 0 4px 26px; font-size: 15px; }
+.consul-entregas li::before { content: "✓"; position: absolute; left: 0; top: 4px; width: 18px; height: 18px; border-radius: 50%; background: var(--saibro); color: #fff; font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+.consul-fatos { margin: 4px 0 0; display: grid; gap: 0; }
+.consul-fatos > div { padding: 10px 0; border-top: 1px solid var(--linha); }
+.consul-fatos dt { font-size: 12.5px; font-weight: 600; color: var(--grafite); }
+.consul-fatos dd { margin: 2px 0 0; font-size: 15px; }
+.consul-preco { font-size: 28px; line-height: 1.1; color: var(--tinta); }
+.consul-unidade { font-size: 13.5px; color: var(--grafite); }
+.consul-card .btn-texto { min-height: 44px; }
+.consul-escolha, .consul-condicoes, .consul-resumo, .consul-proximo { margin-top: 18px; }
+.consul-escolha ul { list-style: none; margin: 10px 0 0; padding: 0; }
+.consul-escolha li + li { border-top: 1px solid var(--linha); }
+.consul-escolha a { display: flex; flex-direction: column; gap: 2px; padding: 12px 0; min-height: 56px; text-decoration: none; color: inherit; }
+.consul-escolha a strong { color: var(--saibro-texto); font-size: 14.5px; }
+.consul-bloco { margin-top: 20px; }
+.consul-bloco h2 { font-size: 18px; margin-bottom: 8px; }
+.consul-lista-itens { margin: 0; padding-left: 20px; }
+.consul-lista-itens li + li { margin-top: 4px; }
+.consul-bloco.nao-inclui .consul-lista-itens { color: var(--grafite); }
+.consul-passos { margin: 0; padding-left: 22px; }
+.consul-passos li + li { margin-top: 6px; }
+.consul-form { margin-top: 18px; }
+.consul-form .campo select, .campo select { width: 100%; min-height: 52px; padding: 10px 12px; border: 1.5px solid #C5D1CB; border-radius: 10px; background: var(--cal); font: 16px Inter, system-ui, sans-serif; color: var(--tinta); }
+.partida { margin: 14px 0 0; padding: 14px; border: 1px solid var(--linha); border-radius: 12px; background: #FBFCFB; }
+.partida legend { padding: 0 6px; font-weight: 700; }
+.duracao { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.consul-total { margin-top: 14px; padding: 12px 14px; border-radius: 10px; border: 1.5px solid var(--linha); background: var(--cal); font-size: 14.5px; }
+.consul-total strong { display: block; font-size: 15.5px; }
+.consul-total.t-orcamento { border-color: var(--saibro); background: var(--saibro-fundo); }
+.consul-total.t-avaliacao { border-color: #B7791F; background: #FFF8E6; }
+.consul-total.t-pronto { border-color: var(--marca-texto); background: #F3F9EE; }
+.consul-alternativas { margin-top: 14px; border-left: 4px solid var(--saibro); }
+.consul-alternativas ul { margin: 8px 0 0; padding-left: 20px; }
+.consul-enviada { margin-top: 18px; border-left: 4px solid var(--marca-texto); }
+.rp-lista { margin: 8px 0 0; }
+@media (min-width: 900px) { .consul-lista { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); } }
