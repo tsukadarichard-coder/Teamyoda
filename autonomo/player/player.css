@@ -284,3 +284,17 @@ fieldset .nota { margin-bottom: 10px; }
 .btn-grande { width: 100%; min-height: 52px; border-radius: 14px; font-size: 16px; margin-top: 14px; }
 .proximo-treino h3 { margin-top: 4px; }
 .proximo-treino .quando { margin-top: 2px; color: var(--grafite); font-size: 15px; }
+
+/* treino do dia: registro de cada sessão */
+.resumo-treinos { margin: 14px 0 0; font-size: 15px; color: var(--grafite); }
+.registro { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--linha); }
+.registro-t { margin: 0 0 8px; font-weight: 700; font-size: 15px; }
+.reg-opcoes { display: flex; gap: 8px; flex-wrap: wrap; }
+.reg-op { flex: 1 1 90px; min-height: 44px; border-radius: 10px; border: 1.5px solid var(--linha); background: var(--cal); color: var(--tinta); font: inherit; font-weight: 600; cursor: pointer; }
+.reg-op[aria-pressed="true"].reg-feito { background: #E4F3D6; border-color: var(--marca-texto); color: #234A12; }
+.reg-op[aria-pressed="true"].reg-parcial { background: #FFF1CF; border-color: #B7791F; color: #6B4A0B; }
+.reg-op[aria-pressed="true"].reg-nao_feito { background: #F3E1DC; border-color: #A33A27; color: #7A2616; }
+.reg-obs { display: block; margin-top: 10px; font-size: 14px; font-weight: 600; }
+.reg-obs textarea { display: block; width: 100%; margin-top: 4px; padding: 10px; border: 1.5px solid var(--linha); border-radius: 10px; font: inherit; font-weight: 400; resize: vertical; background: var(--cal); }
+.registro .acoes { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+.treino-dia { border-left: 4px solid var(--marca); }

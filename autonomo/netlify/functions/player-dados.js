@@ -13,6 +13,7 @@ const {
 } = require("./_player");
 
 const ID_VALIDO = /^[A-Za-z0-9_-]{8,40}$/;
+const STATUS_SESSAO = ["feito", "parcial", "nao_feito"];
 
 function publicoPlano(id, p) {
   return {
@@ -33,7 +34,7 @@ function publicoPlanejamento(id, p, completo) {
     erro: p.status === "erro" ? p.erro : null,
   };
   if (p.status === "pronto" && p.planejamento) {
-    if (completo) base.planejamento = p.planejamento;
+    if (completo) { base.planejamento = p.planejamento; base.registros = p.registros || {}; }
     else base.titulo = p.planejamento.titulo;
   }
   return base;
@@ -111,6 +112,29 @@ exports.handler = async function (event) {
         const escolhidas = [...new Set(bruto.filter((n) => Number.isInteger(n) && n >= 0 && n < total))].sort((a, b) => a - b);
         await refPlano.update({ escolhidas });
         return resposta(200, { ok: true, escolhidas });
+      }
+      if (body.acao === "registrarSessao") {
+        /* Treino do dia (Plano 2): o servidor confere o direito ao recurso e
+           que a sessão existe naquele planejamento — o app esconder o botão
+           não protege nada. */
+        const dadosJ = (await ref.get()).data() || {};
+        if (!recursosDoNivel(nivelDoJogador(dadosJ, usuario.email)).treinoDia) {
+          throw new ErroPublico(403, "O registro do treino do dia faz parte do Plano 2.");
+        }
+        const idPlanej = String(body.planejamentoId || "");
+        const idSessao = String(body.sessaoId || "");
+        if (!ID_VALIDO.test(idPlanej) || !/^s\d{1,2}-\d{1,2}$/.test(idSessao)) throw new ErroPublico(400, "Sessão inválida.");
+        if (!STATUS_SESSAO.includes(body.status)) throw new ErroPublico(400, "Status inválido.");
+        const refPlanej = ref.collection("planejamentos").doc(idPlanej);
+        const sPlanej = await refPlanej.get();
+        const pj = sPlanej.exists ? sPlanej.data() : null;
+        if (!pj || pj.status !== "pronto" || !pj.planejamento) throw new ErroPublico(404, "Planejamento não encontrado.");
+        const existe = (pj.planejamento.semanas || []).some((w) => (w.sessoes || []).some((x) => x.id === idSessao));
+        if (!existe) throw new ErroPublico(404, "Sessão não encontrada.");
+        const obs = String(body.obs || "").replace(/\s+/g, " ").trim().slice(0, 600);
+        const registro = { status: body.status, obs, em: new Date().toISOString() };
+        await refPlanej.set({ registros: { [idSessao]: registro } }, { merge: true });
+        return resposta(200, { ok: true, registro });
       }
       if (body.acao !== "salvarFicha") throw new ErroPublico(400, "Ação desconhecida.");
       const ficha = normalizarFicha(body.ficha);

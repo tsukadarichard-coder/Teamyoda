@@ -320,8 +320,30 @@
       }
       html += ultimo ? '<a class="btn btn-primario btn-grande" href="#/planejar/' + esc(ultimo.id) + '">Montar ' + (lista.length ? "outro " : "") + "planejamento</a>"
         : '<div class="cartao" style="margin-top:18px"><p class="nota">Gere um plano tático antes de montar o planejamento.</p><div class="acoes"><a class="btn btn-primario" href="#/planos">Ir para os planos</a></div></div>';
+      if (r.treinoDia && lista.length) html = html.replace('<p class="sub">', '<div id="treinoDia"></div><p class="sub">');
     }
     tela(html);
+    if (r.planejamento && r.treinoDia && planejamentosProntos().length) carregarTreinoDoDia(planejamentosProntos()[0].id);
+  }
+
+  /* "Treino do dia": a sessão de hoje, ou a próxima ainda sem registro */
+  async function carregarTreinoDoDia(planejId) {
+    var alvo = document.getElementById("treinoDia");
+    if (!alvo) return;
+    try {
+      var pj = (await api("player-dados?planejamento=" + encodeURIComponent(planejId))).planejamento;
+      if (!pj.planejamento || !document.getElementById("treinoDia")) return;
+      var hoje = hojeISO(), regs = pj.registros || {}, todas = [];
+      pj.planejamento.semanas.forEach(function (w) { w.sessoes.forEach(function (x) { todas.push(x); }); });
+      var pendentes = todas.filter(function (x) { return !regs[x.id]; });
+      var prox = pendentes.filter(function (x) { return x.data === hoje; })[0] ||
+        pendentes.filter(function (x) { return x.data > hoje; })[0] || pendentes[0];
+      if (!prox) { alvo.innerHTML = '<div class="cartao" style="margin:18px 0"><p class="olho">Treino do dia</p><h2>Planejamento concluído</h2><p class="nota">Você registrou todos os treinos. Veja como foi e monte um novo planejamento.</p></div>'; return; }
+      var rotulo = prox.data === hoje ? "Hoje" : (prox.data < hoje ? "Atrasado" : "Próximo treino");
+      alvo.innerHTML = '<div class="cartao treino-dia" style="margin:18px 0"><p class="olho">Treino do dia · ' + rotulo + "</p><h2>" + esc(prox.titulo) + "</h2>" +
+        '<p class="nota" style="margin-top:4px">' + esc(prox.diaNome) + ", " + esc(dataCurta(prox.data)) + " · " + (prox.itens || []).length + " blocos</p>" +
+        '<div class="acoes"><a class="btn btn-primario" href="#/planejamento/' + esc(planejId) + "/" + esc(prox.id) + '">Abrir e registrar</a></div></div>';
+    } catch (e) { alvo.innerHTML = ""; }
   }
 
   async function gerarPlano(bt) {
@@ -709,31 +731,87 @@
       linhaDrill("Para facilitar", it.regressao) + linhaDrill("Para evoluir", it.progressao) + linhaDrill("Corrigir", it.corrigir) + linhaDrill("Ignorar", it.ignorar) + "</dl></details></li>";
   }
 
-  async function telaPlanejamento(id) {
+  var ROTULO_STATUS = { feito: "Feito", parcial: "Parcial", nao_feito: "Não feito" };
+  function registroHtml(x, reg) {
+    reg = reg || {};
+    return '<div class="registro" data-sessao="' + esc(x.id) + '"><p class="registro-t">Como foi este treino?</p>' +
+      '<div class="reg-opcoes" role="group" aria-label="Como foi o treino de ' + esc(x.diaNome) + '">' +
+      ["feito", "parcial", "nao_feito"].map(function (st) {
+        return '<button type="button" class="reg-op reg-' + st + '" data-st="' + st + '" aria-pressed="' + (reg.status === st) + '">' + ROTULO_STATUS[st] + "</button>";
+      }).join("") + "</div>" +
+      '<label class="reg-obs">Observações<textarea maxlength="600" rows="3" placeholder="O que funcionou, o que errou, dor, cansaço…">' + esc(reg.obs || "") + "</textarea></label>" +
+      '<div class="acoes"><button type="button" class="btn btn-secundario reg-salvar">Salvar</button><span class="nota reg-msg" role="status">' +
+      (reg.em ? "Salvo em " + dataBR(reg.em) : "") + "</span></div></div>";
+  }
+  function resumoRegistros(pl, registros) {
+    var total = 0, feitas = 0, parciais = 0;
+    pl.semanas.forEach(function (w) { w.sessoes.forEach(function (x) {
+      total++; var r = registros[x.id];
+      if (r && r.status === "feito") feitas++; else if (r && r.status === "parcial") parciais++;
+    }); });
+    return '<p class="resumo-treinos"><strong>' + feitas + " de " + total + "</strong> treinos feitos" + (parciais ? " · " + parciais + " parcial" + (parciais > 1 ? "is" : "") : "") + "</p>";
+  }
+
+  async function telaPlanejamento(id, foco) {
     tela('<p class="carregando">Carregando…</p>');
     var pj;
     try { pj = (await api("player-dados?planejamento=" + encodeURIComponent(id))).planejamento; }
     catch (e) { telaErroPlano(e.message); return; }
     if (pj.status !== "pronto" || !pj.planejamento) { ir("#/treino"); return; }
-    var pl = pj.planejamento, pa = pj.params || {};
+    var pl = pj.planejamento, pa = pj.params || {}; estado.planejAtual = pl;
     var plano = (estado.dados.planos || []).filter(function (x) { return x.id === pj.baseadoEm; })[0];
     var jogadas = plano && plano.plano ? plano.plano.jogadas || [] : [];
+    var treinoDia = !!(estado.dados.recursos || {}).treinoDia, registros = pj.registros || {};
     tela(
       '<p style="margin-bottom:12px"><a class="btn btn-texto" href="#/treino">‹ Treino</a></p>' +
       '<p class="olho">Planejamento · ' + (pa.semanas || "") + " semanas</p><h1>" + esc(pl.titulo) + "</h1>" +
       '<p style="margin-top:10px"><span class="tag">' + (pa.dias || []).map(function (d) { return ABREV_DIA[d]; }).join(", ") + " · " + esc(pa.minutos) + " min · começa em " + esc(dataExtensa(pa.inicio)) + "</span></p>" +
       '<p class="sub" style="color:var(--tinta)">' + esc(pl.resumo) + "</p>" +
+      (treinoDia ? resumoRegistros(pl, registros) : "") +
       pl.semanas.map(function (w, wi) {
-        return '<details class="semana"' + (wi === 0 ? " open" : "") + '><summary><span class="semana-n">Semana ' + w.n + '</span><span class="semana-foco">' + esc(w.foco) + '</span><span class="semana-carga">Carga: ' + esc(w.carga) + "</span></summary>" +
+        var temFoco = foco && w.sessoes.some(function (x) { return x.id === foco; });
+        return '<details class="semana"' + ((foco ? temFoco : wi === 0) ? " open" : "") + '><summary><span class="semana-n">Semana ' + w.n + '</span><span class="semana-foco">' + esc(w.foco) + '</span><span class="semana-carga">Carga: ' + esc(w.carga) + "</span></summary>" +
           w.sessoes.map(function (x) {
             return '<article class="sessao" id="' + esc(x.id) + '"><p class="sessao-dia">' + esc(x.diaNome) + ", " + esc(dataCurta(x.data)) + "</p><h3>" + esc(x.titulo) + "</h3>" +
               '<p class="nota" style="margin-top:2px">' + esc(x.objetivo) + "</p>" +
               ((x.jogadas || []).length ? '<p class="sessao-jogadas"><b>Jogadas:</b> ' + x.jogadas.map(function (n) { return esc(jogadas[n] ? jogadas[n].titulo : "Jogada " + (n + 1)); }).join(" · ") + "</p>" : "") +
-              '<ul class="itens-sessao">' + x.itens.map(itemSessaoHtml).join("") + "</ul></article>";
+              '<ul class="itens-sessao">' + x.itens.map(itemSessaoHtml).join("") + "</ul>" +
+              (treinoDia ? registroHtml(x, registros[x.id]) : "") + "</article>";
           }).join("") + "</details>";
       }).join("") +
       '<p class="nota" style="margin-top:16px">Drills do catálogo da Metodologia MTY, escritos para treinar com parceiro ou treinador. Ajuste a carga ao seu nível.</p>'
     );
+    if (treinoDia) ligarRegistros(id, registros);
+    if (foco) { var alvo = document.getElementById(foco); if (alvo) alvo.scrollIntoView({ block: "start" }); }
+  }
+
+  /* marcar Feito / Parcial / Não feito e guardar observações de cada treino */
+  function ligarRegistros(planejId, registros) {
+    app.querySelectorAll(".registro").forEach(function (bloco) {
+      var sessaoId = bloco.getAttribute("data-sessao");
+      var atual = (registros[sessaoId] || {}).status || null;
+      var msg = bloco.querySelector(".reg-msg");
+      bloco.querySelectorAll(".reg-op").forEach(function (bt) {
+        bt.addEventListener("click", function () {
+          atual = bt.getAttribute("data-st");
+          bloco.querySelectorAll(".reg-op").forEach(function (o) { o.setAttribute("aria-pressed", String(o === bt)); });
+          msg.textContent = "";
+        });
+      });
+      var salvar = bloco.querySelector(".reg-salvar");
+      salvar.addEventListener("click", async function () {
+        if (!atual) { msg.textContent = "Escolha Feito, Parcial ou Não feito."; return; }
+        ocupado(salvar, true, "Salvando…");
+        try {
+          var r = await api("player-dados", { metodo: "POST", corpo: { acao: "registrarSessao", planejamentoId: planejId, sessaoId: sessaoId, status: atual, obs: bloco.querySelector("textarea").value } });
+          registros[sessaoId] = r.registro;
+          msg.textContent = "Salvo.";
+          var topo = app.querySelector(".resumo-treinos");
+          if (topo && estado.planejAtual) topo.outerHTML = resumoRegistros(estado.planejAtual, registros);
+        } catch (e) { msg.textContent = e.message; }
+        ocupado(salvar, false);
+      });
+    });
   }
 
   function telaPlano(id) {
@@ -852,7 +930,7 @@
     else if (partes[0] === "plano" && partes[1]) telaPlano(partes[1]);
     else if (partes[0] === "planejar" && partes[1]) telaPlanejar(partes[1]);
     else if (partes[0] === "gerandoPlanej" && partes[1]) telaGerandoPlanej(partes[1]);
-    else if (partes[0] === "planejamento" && partes[1]) telaPlanejamento(partes[1]);
+    else if (partes[0] === "planejamento" && partes[1]) telaPlanejamento(partes[1], partes[2]);
     else if (partes[0] === "planos") telaPlanos();
     else if (partes[0] === "treino") telaTreino();
     else telaInicio();
