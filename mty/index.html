@@ -13860,7 +13860,7 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual
   if (aberta) {
     return (
       <SessaoTurma turma={aberta} alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas}
-        papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} ocorrencias={ocorrencias}
+        papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} ocorrencias={ocorrencias} quadras={quadras}
         exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom}
         aoFechar={() => setAbertaId(null)}
         aoRemover={() => { setTurmas(turmas.filter((t) => t.id !== aberta.id)); setAbertaId(null); }} />
@@ -13995,6 +13995,87 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual
   );
 }
 
+/* Editar a turma inteira depois de criada — nome, duração padrão, dias e
+   horários de treino, professor responsável e auxiliar. Mesma permissão de
+   GerenciarMembrosTurma (podeEditar): responsável, auxiliar ou coordenador. */
+function EditarTurma({ turma, setTurmas, podeEditar, quadras }) {
+  const [aberto, setAberto] = useState(false);
+  const [nome, setNome] = useState(turma.nome);
+  const [duracao, setDuracao] = useState(turma.duracaoPadrao);
+  const [professorUid, setProfessorUid] = useState(turma.professorUid || "");
+  const [auxiliarUid, setAuxiliarUid] = useState(turma.professorAuxiliarUid || "");
+  const [horarios, setHorarios] = useState(turma.horarios || []);
+  const [professores, setProfessores] = useState([]);
+  const [salvo, setSalvo] = useState(false);
+  useEffect(() => { listaProfessores().then(setProfessores); }, []);
+
+  function abrir() {
+    setNome(turma.nome);
+    setDuracao(turma.duracaoPadrao);
+    setProfessorUid(turma.professorUid || "");
+    setAuxiliarUid(turma.professorAuxiliarUid || "");
+    setHorarios(turma.horarios || []);
+    setSalvo(false);
+    setAberto(true);
+  }
+
+  function salvar() {
+    if (!nome.trim()) return;
+    const prof = professores.find((p) => p.uid === professorUid);
+    const aux = professores.find((p) => p.uid === auxiliarUid);
+    setTurmas((atual) => atual.map((t) => t.id !== turma.id ? t : {
+      ...t, nome: nome.trim(), duracaoPadrao: duracao,
+      professorUid, professorNome: prof ? prof.nome : "",
+      professorAuxiliarUid: auxiliarUid, professorAuxiliarNome: aux ? aux.nome : "",
+      horarios,
+    }));
+    setSalvo(true);
+    setAberto(false);
+  }
+
+  return (
+    <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "12px 15px" }}>
+      <button onClick={() => (aberto ? setAberto(false) : abrir())} className="w-full flex items-center justify-between gap-3" style={{ cursor: "pointer" }}>
+        <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>Editar turma</span>
+        <Etiqueta>{aberto ? "fechar" : "abrir"}</Etiqueta>
+      </button>
+      {!aberto && salvo && <p style={{ ...prosa, fontSize: 12, color: C.quadra, marginTop: 6 }}>Alterações salvas.</p>}
+      {aberto && !podeEditar && (
+        <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 8 }}>Só o professor responsável, o auxiliar ou o coordenador podem editar esta turma.</p>
+      )}
+      {aberto && podeEditar && (
+        <div className="mt-3">
+          <Campo rotulo="Nome da turma">
+            <input style={entrada} value={nome} onChange={(e) => setNome(e.target.value)} placeholder="ex: Terça 17h" />
+          </Campo>
+          <Campo rotulo="Duração padrão">
+            <Seletor opcoes={DURACOES_TREINO} valor={duracao} aoMudar={setDuracao} />
+          </Campo>
+          {professores.length > 0 && (
+            <Campo rotulo="Professor responsável">
+              <Seletor opcoes={[{ v: "", r: "A definir" }, ...professores.map((p) => ({ v: p.uid, r: p.nome }))]}
+                valor={professorUid} aoMudar={(v) => { setProfessorUid(v); if (v === auxiliarUid) setAuxiliarUid(""); }} />
+            </Campo>
+          )}
+          {professores.length > 1 && (
+            <Campo rotulo="Professor auxiliar" nota="Opcional — o segundo professor da turma entra sempre como auxiliar, nunca como responsável.">
+              <Seletor opcoes={[{ v: "", r: "Nenhum" }, ...professores.filter((p) => p.uid !== professorUid).map((p) => ({ v: p.uid, r: p.nome }))]}
+                valor={auxiliarUid} aoMudar={setAuxiliarUid} />
+            </Campo>
+          )}
+          <Campo rotulo="Dias e horários de treino" nota="Pode ter de 2 a 5 por semana. Alimenta a Grade de horário e a Agenda semanal.">
+            <EditorHorarios horarios={horarios} setHorarios={setHorarios} quadras={quadras} />
+          </Campo>
+          <div className="flex gap-2">
+            <Botao pequeno onClick={salvar} disabled={!nome.trim()}>Salvar alterações</Botao>
+            <Botao pequeno variante="vazio" onClick={() => setAberto(false)}>Cancelar</Botao>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* Editar quem está na turma depois de criada — adicionar um jogador novo
    ou tirar alguém sem precisar excluir a turma inteira. O jogador removido
    só sai da turma; o cadastro dele continua intacto. */
@@ -14081,7 +14162,7 @@ function TelaScoutTurma({ membros, alunos, setAlunos }) {
   );
 }
 
-function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, aoRemover, papelAtual, uidAtual, exerciciosCustom, setExerciciosCustom, identidade, ocorrencias }) {
+function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, aoRemover, papelAtual, uidAtual, exerciciosCustom, setExerciciosCustom, identidade, ocorrencias, quadras }) {
   const podeEditar = podeEditarTurma(turma, papelAtual, uidAtual);
   /* Registrar a sessão de hoje (presença, notas, "Salvar sessão") é
      diferente de editar a turma em si (plano, "Remover turma") —
@@ -14364,6 +14445,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
         </p>
       )}
 
+      <EditarTurma turma={turma} setTurmas={setTurmas} podeEditar={podeEditar} quadras={quadras} />
       <GerenciarMembrosTurma turma={turma} alunos={alunos} setTurmas={setTurmas} podeEditar={podeEditar} />
 
       <div className="flex flex-wrap gap-5 mb-6" style={{ borderBottom: "1px solid " + C.linha }}>
