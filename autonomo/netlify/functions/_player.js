@@ -1,0 +1,239 @@
+/* QuadraLab Player — peças compartilhadas pelas functions do app do
+   jogador (player-conta, player-dados, player-gerar-plano-background).
+
+   Tudo do jogador mora em jogadores/{uid} no Firestore do QuadraLab, e
+   só é lido/escrito por estas functions (Admin SDK) — nunca direto do
+   navegador. Por isso não existe regra nova no firestore.rules: sem
+   regra que libere jogadores/**, o cliente não alcança esses dados, e
+   uma conta de jogador (sem claim orgId) também não alcança orgs/**.
+
+   As opções da ficha são validadas aqui contra listas fechadas: a IA só
+   recebe valores conhecidos (mais os textos livres, com tamanho
+   limitado), e o app não consegue gravar campo que não existe. */
+const { admin, app } = require("./_firebase-admin");
+
+class ErroPublico extends Error {
+  constructor(status, mensagem) { super(mensagem); this.status = status; }
+}
+
+function resposta(statusCode, corpo) {
+  return { statusCode, headers: { "content-type": "application/json" }, body: JSON.stringify(corpo) };
+}
+
+/* Login obrigatório: devolve o token decodificado ou lança 401. */
+async function usuarioDoPedido(event) {
+  const cab = event.headers.authorization || event.headers.Authorization || "";
+  const idToken = cab.startsWith("Bearer ") ? cab.slice(7) : null;
+  if (!idToken) throw new ErroPublico(401, "Entre na sua conta para continuar.");
+  app();
+  try {
+    return await admin.auth().verifyIdToken(idToken);
+  } catch (e) {
+    throw new ErroPublico(401, "Sua sessão expirou. Entre de novo.");
+  }
+}
+
+function refJogador(uid) {
+  return admin.firestore().collection("jogadores").doc(uid);
+}
+
+/* Quantos planos o jogador pode gerar de graça. Os seguintes dependem
+   de crédito (creditosPlano), que só as functions de pagamento somam. */
+const PLANOS_GRATIS = 1;
+
+/* ── opções da ficha (valor gravado → texto mostrado/enviado à IA) ── */
+const AREAS = {
+  saque: "Saque",
+  devolucao: "Devolução",
+  direita: "Direita (forehand)",
+  esquerda: "Esquerda (backhand)",
+  rede: "Jogo de rede (voleio e smash)",
+};
+const OPCOES = {
+  nivel: {
+    iniciante: "Iniciante — joga há pouco tempo",
+    intermediario: "Intermediário — sustenta trocas e joga partidas",
+    avancado: "Avançado — tem golpes consistentes e variados",
+    competidor: "Competidor — joga torneios com frequência",
+  },
+  mao: { destro: "Destro", canhoto: "Canhoto" },
+  backhand: { uma: "Esquerda com uma mão", duas: "Esquerda com duas mãos" },
+  piso: { saibro: "Saibro", rapida: "Quadra rápida (dura)", ambos: "Os dois" },
+  armaPrincipal: AREAS,
+  pontoFraco: AREAS,
+  padraoPonto: {
+    ofensivo: "Ofensivo — busca abreviar o ponto e ataca assim que tem ângulo",
+    construtor: "Construtor — sustenta a troca até abrir espaço, sem forçar cedo",
+    defensivo: "Defensivo — prioriza não errar e devolve a decisão para o adversário",
+  },
+  rede: {
+    sempre: "Sobe à rede sempre que pode",
+    convidado: "Só vai à rede quando é convidado (bola curta)",
+    evita: "Evita a rede",
+  },
+  devolucao: {
+    agressiva: "Devolução agressiva — ataca o segundo saque",
+    segura: "Devolução segura — prioriza colocar a bola em jogo",
+  },
+  pressao: {
+    mantem: "Sob pressão, mantém o padrão de jogo",
+    acelera: "Sob pressão, acelera e arrisca mais",
+    trava: "Sob pressão, trava e fica mais conservador",
+  },
+};
+const OPCOES_ADVERSARIO = {
+  estilo: {
+    ofensivo: "Ofensivo — ataca cedo",
+    construtor: "Construtor — sustenta a troca",
+    defensivo: "Defensivo — devolve tudo e espera o erro",
+    naoSei: "Não sei",
+  },
+  mao: { destro: "Destro", canhoto: "Canhoto", naoSei: "Não sei" },
+};
+const CAMPOS_OBRIGATORIOS = ["nivel", "mao", "backhand", "piso", "armaPrincipal", "pontoFraco", "padraoPonto", "rede", "devolucao", "pressao"];
+const LIMITE_TEXTO = 500;
+
+function texto(v, limite) { return String(v == null ? "" : v).trim().slice(0, limite || LIMITE_TEXTO); }
+function opcao(lista, v) { return Object.prototype.hasOwnProperty.call(lista, v) ? v : ""; }
+function multi(lista, v) {
+  return Array.isArray(v) ? [...new Set(v.filter((x) => Object.prototype.hasOwnProperty.call(lista, x)))] : [];
+}
+
+/* Limpa a ficha vinda do app: só campos conhecidos, só valores válidos. */
+function normalizarFicha(f) {
+  f = f || {};
+  const ficha = {};
+  for (const campo of Object.keys(OPCOES)) ficha[campo] = opcao(OPCOES[campo], f[campo]);
+  ficha.observacoes = texto(f.observacoes);
+  const a = f.adversario || {};
+  ficha.adversario = {
+    ativo: a.ativo === true,
+    nome: texto(a.nome, 60),
+    estilo: opcao(OPCOES_ADVERSARIO.estilo, a.estilo),
+    mao: opcao(OPCOES_ADVERSARIO.mao, a.mao),
+    pontosFortes: multi(AREAS, a.pontosFortes),
+    pontosFracos: multi(AREAS, a.pontosFracos),
+    observacoes: texto(a.observacoes),
+  };
+  return ficha;
+}
+
+function fichaCompleta(ficha) {
+  return CAMPOS_OBRIGATORIOS.every((c) => !!ficha[c]);
+}
+function adversarioUtil(ficha) {
+  const a = ficha.adversario || {};
+  return a.ativo && (a.pontosFortes.length > 0 || a.pontosFracos.length > 0 || !!a.observacoes);
+}
+
+/* ── pedido à IA ──
+   Só os princípios da Metodologia MTY que valem para estratégia de jogo
+   (os de periodização de treino ficam de fora — isto não é plano de
+   treino). A regra central é a mesma do plano de jogo do app do
+   treinador: nenhuma diretriz sem dado da ficha que a sustente. */
+const PRINCIPIOS_JOGO = [
+  "Três objetivos do jogo, nesta ordem: ganhar a quadra, produzir ângulo, diminuir o tempo.",
+  "NUNCA sugerir esperar o adversário errar. Não existe estilo de jogo baseado em esperar o erro do outro.",
+  "NUNCA pedir mais efeito na bola de ataque para ela cair dentro. Isso converte ataque em bola de controle.",
+  "Velocidade da bola no ar é o motor; consistência e acerto são consequência de pernas e decisão.",
+  "Saque, devolução e jogo de rede são obrigatoriedades, não estilos opcionais. Cerca de 65-70% dos pontos terminam em até 4 golpes — saque e devolução decidem o ponto cedo e nenhum plano pode tratá-los como secundários.",
+  "Trajetória se define pela função da bola: paralela no ataque busca margem; cruzada para abrir pede mais efeito.",
+  "Defesa tem duas formas que coexistem: bola alta para ganhar tempo, e cruzada acelerada. Ambas válidas.",
+];
+
+function linhasFicha(ficha) {
+  const L = [
+    "FICHA DO JOGADOR (autoavaliação — é como ele se vê, não um diagnóstico feito por treinador):",
+    "· Nível: " + OPCOES.nivel[ficha.nivel],
+    "· Mão: " + OPCOES.mao[ficha.mao] + "; " + OPCOES.backhand[ficha.backhand],
+    "· Piso onde mais joga: " + OPCOES.piso[ficha.piso],
+    "· Golpe mais forte: " + AREAS[ficha.armaPrincipal],
+    "· Ponto mais vulnerável: " + AREAS[ficha.pontoFraco],
+    "· Padrão de ponto: " + OPCOES.padraoPonto[ficha.padraoPonto],
+    "· Rede: " + OPCOES.rede[ficha.rede],
+    "· " + OPCOES.devolucao[ficha.devolucao],
+    "· " + OPCOES.pressao[ficha.pressao],
+  ];
+  if (ficha.observacoes) L.push("· Observações do jogador (texto livre dele): " + ficha.observacoes);
+  return L.join("\n");
+}
+
+function linhasAdversario(a) {
+  const L = ["ADVERSÁRIO (descrito pelo próprio jogador): " + (a.nome || "sem nome")];
+  if (a.estilo) L.push("· Estilo: " + OPCOES_ADVERSARIO.estilo[a.estilo]);
+  if (a.mao) L.push("· Mão: " + OPCOES_ADVERSARIO.mao[a.mao]);
+  if (a.pontosFortes.length) L.push("· Pontos fortes dele: " + a.pontosFortes.map((x) => AREAS[x]).join(", "));
+  if (a.pontosFracos.length) L.push("· Pontos fracos dele: " + a.pontosFracos.map((x) => AREAS[x]).join(", "));
+  if (a.observacoes) L.push("· Observações sobre ele: " + a.observacoes);
+  return L.join("\n");
+}
+
+function promptPlano(ficha) {
+  const comAdversario = adversarioUtil(ficha);
+  return [
+    "Você é o assistente tático da Metodologia MTY, método de tênis do treinador Richard Tsukada,",
+    "dentro do QuadraLab Player. Escreva em português do Brasil, falando direto com o jogador (\"você\").",
+    comAdversario
+      ? "Monte um PLANO TÁTICO para o jogador enfrentar o adversário descrito abaixo."
+      : "Monte o PLANO TÁTICO GERAL do jogador: como ele deve construir os pontos a partir do jogo que tem hoje.",
+    "Isto é estratégia de jogo, não plano de treino: não prescreva exercícios nem rotina de treinos.",
+    "",
+    "PRINCÍPIOS TRAVADOS — obrigatórios:",
+    ...PRINCIPIOS_JOGO.map((p, i) => (i + 1) + ". " + p),
+    "",
+    linhasFicha(ficha),
+    ...(comAdversario ? ["", linhasAdversario(ficha.adversario)] : []),
+    "",
+    "REGRA CENTRAL: cada diretriz precisa se apoiar em dados reais da ficha acima" +
+      (comAdversario
+        ? " — casar um ponto do jogo do jogador com uma fraqueza registrada do adversário, ou evitar expor um ponto fraco do jogador a uma força registrada dele."
+        : " — usar o golpe forte, proteger o ponto vulnerável, ou ajustar o padrão de ponto, a rede, a devolução e a reação sob pressão que ele descreveu."),
+    "Nunca invente dado que não esteja na ficha. Se faltar informação para algo importante, registre em \"lacunas\" em vez de supor.",
+    "Adapte a linguagem e a ambição ao nível informado: para iniciante, diretrizes simples e poucas variáveis.",
+    "",
+    "FORMATO DA RESPOSTA:",
+    "· titulo: curto (até 60 caracteres).",
+    "· resumo: 2 ou 3 frases com a ideia central do plano.",
+    "· diretrizes: de 3 a 5. Cada uma com titulo (curto), acao (o que fazer em quadra, concreto e acionável)",
+    "  e porque (qual dado da ficha sustenta essa diretriz, citando-o).",
+    "· lacunas: de 0 a 3 informações que deixariam o plano melhor (lista vazia se não houver).",
+  ].join("\n");
+}
+
+const SCHEMA_PLANO = {
+  type: "object",
+  properties: {
+    titulo: { type: "string" },
+    resumo: { type: "string" },
+    diretrizes: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          titulo: { type: "string" },
+          acao: { type: "string" },
+          porque: { type: "string" },
+        },
+        required: ["titulo", "acao", "porque"],
+        additionalProperties: false,
+      },
+    },
+    lacunas: { type: "array", items: { type: "string" } },
+  },
+  required: ["titulo", "resumo", "diretrizes", "lacunas"],
+  additionalProperties: false,
+};
+
+/* Confere o JSON devolvido pela IA antes de mostrar ao jogador. */
+function planoValido(p) {
+  return !!p && typeof p.titulo === "string" && typeof p.resumo === "string" &&
+    Array.isArray(p.diretrizes) && p.diretrizes.length >= 1 &&
+    p.diretrizes.every((d) => d && typeof d.titulo === "string" && typeof d.acao === "string" && typeof d.porque === "string") &&
+    Array.isArray(p.lacunas);
+}
+
+module.exports = {
+  admin, app, ErroPublico, resposta, usuarioDoPedido, refJogador,
+  PLANOS_GRATIS, AREAS, OPCOES, OPCOES_ADVERSARIO,
+  normalizarFicha, fichaCompleta, adversarioUtil, promptPlano, SCHEMA_PLANO, planoValido,
+};

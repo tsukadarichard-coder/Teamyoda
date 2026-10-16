@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>QuadraLab Player | Seu plano tático de tênis</title>
+<meta name="description" content="Preencha uma ficha rápida sobre o seu jogo e receba um plano tático de tênis com a tecnologia QuadraLab. O primeiro plano é grátis.">
+<meta name="theme-color" content="#103B32">
+<link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="../assets/favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="../assets/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="player.css">
+</head>
+<body>
+<a class="pular" href="#app">Pular para o conteúdo</a>
+<header class="topo">
+  <div class="wrap topo-in">
+    <a href="#/inicio" class="marca" aria-label="QuadraLab Player — início">
+      <img src="../assets/logo-quadralab-mark.png" width="32" height="30" alt="">
+      <span>QuadraLab <strong>Player</strong></span>
+    </a>
+    <button type="button" class="btn-sair" id="btSair" hidden>Sair</button>
+  </div>
+</header>
+
+<main id="app" class="wrap" tabindex="-1" aria-live="polite">
+  <p class="carregando">Carregando…</p>
+</main>
+
+<footer class="rodape wrap">
+  <p>Tecnologia <strong>QuadraLab</strong> · Metodologia MTY, de Richard Tsukada</p>
+</footer>
+
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-auth-compat.js"></script>
+<script src="player.js"></script>
+</body>
+</html>

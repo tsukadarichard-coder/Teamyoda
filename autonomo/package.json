@@ -2,6 +2,7 @@
   "name": "mty-coach",
   "private": true,
   "dependencies": {
+    "@anthropic-ai/sdk": "0.131.0",
     "firebase-admin": "^12.7.0"
   }
 }
