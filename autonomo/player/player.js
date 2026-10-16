@@ -90,6 +90,7 @@
      em qualquer outra navegação a tela começa no topo. `provisoria` = "Carregando…" (não consome a restauração). */
   function tela(html, provisoria) {
     app.innerHTML = html;
+    document.body.classList.remove("teclado"); // o campo que estava em foco pode ter sumido com a tela anterior
     var y = 0;
     if (!provisoria && voltando) { y = posicoes[location.hash] || 0; voltando = false; }
     window.scrollTo(0, y);
@@ -1998,18 +1999,25 @@
     if (!estado.assin) carregarAssinatura(false).then(function () { if (location.hash === "#/ajuda") telaAjuda(); }).catch(function () { /* sem os links opcionais */ });
   }
 
-  /* ── teclado aberto (celular): o menu inferior sai da frente e o campo fica visível ── */
+  /* ── teclado aberto (celular): o menu inferior sai da frente do campo ──
+     Só vale se há campo de TEXTO em foco E a área visível encolheu de verdade (visualViewport): foco preso em campo de arquivo,
+     data ou seleção — ou um campo que sumiu da tela ao redesenhar — nunca deixa o menu escondido. */
+  function campoDeTexto(el) {
+    return !!el && /^(INPUT|TEXTAREA)$/.test(el.tagName) && !/^(radio|checkbox|file|button|submit|reset|range|color|date|time|datetime-local|month|week)$/.test(el.type || "");
+  }
+  function recalcularTeclado() {
+    var vv = window.visualViewport, aberto = campoDeTexto(document.activeElement) && document.body.contains(document.activeElement) &&
+      !!vv && vv.height < window.screen.height * 0.75;
+    document.body.classList.toggle("teclado", aberto);
+  }
   document.addEventListener("focusin", function (ev) {
-    if (!/^(INPUT|TEXTAREA|SELECT)$/.test(ev.target.tagName) || /^(radio|checkbox)$/.test(ev.target.type)) return;
-    document.body.classList.add("teclado");
-    setTimeout(function () { try { ev.target.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (e) { /* navegador antigo */ } }, 250);
+    recalcularTeclado();
+    if (!campoDeTexto(ev.target) && ev.target.tagName !== "SELECT") return;
+    setTimeout(function () { recalcularTeclado(); try { ev.target.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (e) { /* navegador antigo */ } }, 300);
   });
-  document.addEventListener("focusout", function () {
-    setTimeout(function () {
-      var a = document.activeElement;
-      if (!a || !/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) || /^(radio|checkbox)$/.test(a.type)) document.body.classList.remove("teclado");
-    }, 50);
-  });
+  document.addEventListener("focusout", function () { setTimeout(recalcularTeclado, 80); });
+  ["touchstart", "click", "pageshow", "visibilitychange", "orientationchange"].forEach(function (nome) { window.addEventListener(nome, function () { setTimeout(recalcularTeclado, 120); }, { passive: true }); });
+  if (window.visualViewport) window.visualViewport.addEventListener("resize", recalcularTeclado);
 
   /* ── navegação: início da seção ao trocar pelo menu; posição restaurada ao voltar ── */
   var posAtual = 0;
@@ -2027,6 +2035,7 @@
     var h = location.hash.replace(/^#\/?/, "");
     var partes = h.split("?")[0].split("/"); // o que vier depois de "?" (ex.: retorno do pagamento) nunca muda nada: só o servidor libera acesso
     atualizarCasca(!!logado, partes[0]);
+    document.body.classList.remove("teclado");
     var t = document.getElementById("toast"); if (t && Date.now() - toastEm > 1200) t.hidden = true; // um aviso criado junto com a navegação (ex.: "perfil salvo") continua visível
     if (!logado) { telaEntrar(partes[0] === "entrar" ? "entrar" : "criar"); return; }
     if (!estado.dados) {
