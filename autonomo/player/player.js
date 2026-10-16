@@ -538,23 +538,81 @@
       linhaDrill("Para facilitar", d.regressao) + linhaDrill("Para evoluir", d.progressao) + linhaDrill("Corrigir", d.corrigir) +
       linhaDrill("Ignorar", d.ignorar) + "</dl></details>";
   }
+  function fundamentosHtml(j) {
+    var f = j.fundamentos || [];
+    if (!f.length) return '<p class="nota" style="margin-top:10px">Este plano foi gerado antes dos fundamentos. Gere um novo plano para ver o que trabalhar em cada jogada.</p>';
+    return '<div class="fundamentos"><h4>O que trabalhar nesta jogada</h4><ul>' + f.map(function (x) {
+      return '<li><span class="cat">' + esc(x.categoria) + "</span><span><strong>" + esc(x.nome) + '</strong><br><span class="nota">' + esc(x.foco) + "</span></span></li>";
+    }).join("") + "</ul></div>";
+  }
   function jogadasHtml(jogadas, escolhidas) {
     if (!jogadas || !jogadas.length) return "";
-    return '<section class="jogadas" aria-labelledby="t-jogadas"><h2 id="t-jogadas">Jogadas para colocar o plano em prática</h2>' +
-      '<p class="nota" style="margin-top:6px">Sequências de bolas que você pode usar em quadra. <strong>Marque as que quer treinar: pode escolher mais de uma.</strong></p>' +
+    return '<section class="jogadas" aria-label="Jogadas">' +
       jogadas.map(function (j, n) {
-        var marcada = escolhidas.indexOf(n) >= 0;
+        var marcada = escolhidas.indexOf(n) >= 0, nd = (j.drills || []).length;
         return '<article class="jogada' + (marcada ? " escolhida" : "") + '" data-jogada="' + n + '"><p class="olho">Jogada ' + (n + 1) + "</p><h3>" + esc(j.titulo) + "</h3>" +
-          '<label class="escolher"><input type="checkbox" value="' + n + '"' + (marcada ? " checked" : "") + "><span>Quero treinar esta jogada</span></label>" +
           '<p class="quando"><b>Quando usar:</b> ' + esc(j.quando) + "</p>" +
           '<ol class="sequencia" aria-label="Sequência de bolas">' + (j.sequencia || []).map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ol>" +
           '<p class="porque"><b>Por quê:</b> ' + esc(j.porque) + "</p>" +
-          '<div class="drills"><h4>Drills para treinar esta jogada</h4>' +
-          ((j.drills || []).length ? j.drills.map(function (d) { return drillHtml(d); }).join("") : '<p class="nota">Nenhum drill do catálogo cobre esta jogada com precisão. Um treinador pode indicar um na consultoria.</p>') +
-          "</div></article>";
+          fundamentosHtml(j) +
+          '<div class="drills"><h4>Treino sugerido <span class="opcional">(opcional)</span></h4>' +
+          (nd ? j.drills.map(function (d) { return drillHtml(d); }).join("") : '<p class="nota">Nenhum drill do catálogo cobre esta jogada com precisão. Um treinador pode indicar um na consultoria.</p>') +
+          "</div>" +
+          '<label class="escolher"><input type="checkbox" value="' + n + '"' + (marcada ? " checked" : "") + "><span>Incluir esta jogada no meu treino</span></label>" +
+          "</article>";
       }).join("") +
       '<div id="treino" class="treino" aria-live="polite">' + treinoHtml(jogadas, escolhidas) + "</div>" +
       '<p class="nota" style="margin-top:12px">Drills do catálogo da Metodologia MTY, escritos para treinar com parceiro ou treinador. Ajuste a carga ao seu nível.</p></section>';
+  }
+
+  /* resumo das jogadas dentro do plano tático: o detalhe fica na aba Jogadas */
+  function resumoJogadasHtml(planoId, jogadas) {
+    if (!jogadas || !jogadas.length) return "";
+    return '<h2 class="secao" id="t-jogadas">Jogadas do seu plano</h2><div class="cartao" aria-labelledby="t-jogadas"><ul class="lista-simples" style="margin-top:0">' +
+      jogadas.map(function (j) { return "<li><strong>" + esc(j.titulo) + "</strong></li>"; }).join("") + "</ul>" +
+      '<p class="nota" style="margin-top:8px">Veja como executar cada uma, quais fundamentos trabalhar e o treino sugerido.</p>' +
+      '<div class="acoes"><a class="btn btn-primario" href="#/jogadas/' + esc(planoId) + '">Ver jogadas e fundamentos</a></div></div>';
+  }
+
+  /* marcar jogadas para o treino: atualiza a tela na hora e grava em segundo plano */
+  function ligarEscolhas(p, pl) {
+    var caixas = app.querySelectorAll(".escolher input");
+    caixas.forEach(function (cx) {
+      cx.addEventListener("change", async function () {
+        var escolhidas = [].filter.call(caixas, function (c) { return c.checked; }).map(function (c) { return parseInt(c.value, 10); });
+        p.escolhidas = escolhidas;
+        cx.closest(".jogada").classList.toggle("escolhida", cx.checked);
+        document.getElementById("treino").innerHTML = treinoHtml(pl.jogadas, escolhidas);
+        try { await api("player-dados", { metodo: "POST", corpo: { acao: "escolherJogadas", planoId: p.id, escolhidas: escolhidas } }); }
+        catch (e) {
+          document.getElementById("treino").insertAdjacentHTML("beforeend", '<p class="aviso" role="alert" style="margin-top:10px">Não foi possível salvar sua escolha agora. Ela vale nesta tela, mas pode não estar salva.</p>');
+        }
+      });
+    });
+  }
+
+  function telaJogadas(id) {
+    var lista = planosProntos();
+    if (!lista.length) {
+      tela('<h1>Jogadas</h1><p class="sub">As jogadas do seu jogo aparecem aqui quando você gerar o plano tático.</p><div class="acoes" style="margin-top:18px"><a class="btn btn-primario" href="#/planos">Ir para os planos</a></div>');
+      return;
+    }
+    var p = lista.filter(function (x) { return x.id === id; })[0] || lista[0];
+    var pl = p.plano;
+    var seletor = lista.length > 1
+      ? '<label class="campo-plano">Plano<select id="selPlanoJog">' + lista.map(function (x) {
+          return '<option value="' + esc(x.id) + '"' + (x.id === p.id ? " selected" : "") + ">" + esc(x.plano.titulo) + " · " + dataBR(x.criadoEm) + "</option>";
+        }).join("") + "</select></label>" : "";
+    tela(
+      '<p class="olho">Seu jogo</p><h1>Suas jogadas</h1>' +
+      '<p class="sub">As jogadas que você pode usar na partida, com os fundamentos de cada uma. O treino é só uma sugestão: faça se quiser.</p>' +
+      seletor +
+      '<p class="nota" style="margin:8px 0 14px">Do plano <a href="#/plano/' + esc(p.id) + '"><strong>' + esc(pl.titulo) + "</strong></a></p>" +
+      jogadasHtml(pl.jogadas, p.escolhidas || [])
+    );
+    ligarEscolhas(p, pl);
+    var sel = document.getElementById("selPlanoJog");
+    if (sel) sel.addEventListener("change", function () { location.hash = "#/jogadas/" + sel.value; });
   }
 
   /* "Seu treino": os drills das jogadas marcadas, juntos e sem repetir —
@@ -774,6 +832,7 @@
           w.sessoes.map(function (x) {
             return '<article class="sessao" id="' + esc(x.id) + '"><p class="sessao-dia">' + esc(x.diaNome) + ", " + esc(dataCurta(x.data)) + "</p><h3>" + esc(x.titulo) + "</h3>" +
               '<p class="nota" style="margin-top:2px">' + esc(x.objetivo) + "</p>" +
+              ((x.fundamentos || []).length ? '<p class="sessao-fund"><b>Fundamentos:</b> ' + x.fundamentos.map(esc).join(" · ") + "</p>" : "") +
               ((x.jogadas || []).length ? '<p class="sessao-jogadas"><b>Jogadas:</b> ' + x.jogadas.map(function (n) { return esc(jogadas[n] ? jogadas[n].titulo : "Jogada " + (n + 1)); }).join(" · ") + "</p>" : "") +
               '<ul class="itens-sessao">' + x.itens.map(itemSessaoHtml).join("") + "</ul>" +
               (treinoDia ? registroHtml(x, registros[x.id]) : "") + "</article>";
@@ -829,7 +888,7 @@
       '<ol class="diretrizes" aria-labelledby="t-estrategia">' + pl.diretrizes.map(function (d) {
         return "<li><h3>" + esc(d.titulo) + '</h3><p class="acao">' + esc(d.acao) + '</p><p class="porque"><b>Por quê:</b> ' + esc(d.porque) + "</p></li>";
       }).join("") + "</ol>" +
-      jogadasHtml(pl.jogadas, p.escolhidas || []) +
+      resumoJogadasHtml(id, pl.jogadas) +
       (pl.lacunas && pl.lacunas.length ? '<div class="cartao" style="margin-top:16px"><h3>Para um plano mais preciso</h3><ul class="lista-simples">' +
         pl.lacunas.map(function (l) { return "<li>" + esc(l) + "</li>"; }).join("") + "</ul></div>" : "") +
       blocoPlanejamento(id) +
@@ -842,25 +901,10 @@
 
     var bt2 = document.getElementById("btGerar2");
     if (bt2) bt2.addEventListener("click", function () { gerarPlano(bt2); });
-
-    /* escolha de jogadas: atualiza a tela na hora e grava em segundo plano */
-    var caixas = app.querySelectorAll(".escolher input");
-    caixas.forEach(function (cx) {
-      cx.addEventListener("change", async function () {
-        var escolhidas = [].filter.call(caixas, function (c) { return c.checked; }).map(function (c) { return parseInt(c.value, 10); });
-        p.escolhidas = escolhidas;
-        cx.closest(".jogada").classList.toggle("escolhida", cx.checked);
-        document.getElementById("treino").innerHTML = treinoHtml(pl.jogadas, escolhidas);
-        try { await api("player-dados", { metodo: "POST", corpo: { acao: "escolherJogadas", planoId: id, escolhidas: escolhidas } }); }
-        catch (e) {
-          document.getElementById("treino").insertAdjacentHTML("beforeend", '<p class="aviso" role="alert" style="margin-top:10px">Não foi possível salvar sua escolha agora. Ela vale nesta tela, mas pode não estar salva.</p>');
-        }
-      });
-    });
   }
 
   /* ── casca do app: menu lateral (computador) e menu inferior (celular) ── */
-  var NAV_DA_ROTA = { ficha: "mais", plano: "planos", planos: "planos", planejar: "planos", gerando: "planos", treino: "treino", planejamento: "treino", gerandoPlanej: "treino" };
+  var NAV_DA_ROTA = { ficha: "mais", plano: "planos", planos: "planos", planejar: "planos", gerando: "planos", jogadas: "jogadas", treino: "treino", planejamento: "treino", gerandoPlanej: "treino" };
   function atualizarCasca(logado, rota) {
     document.body.classList.toggle("logado", logado);
     lateral.hidden = !logado;
@@ -931,6 +975,7 @@
     else if (partes[0] === "planejar" && partes[1]) telaPlanejar(partes[1]);
     else if (partes[0] === "gerandoPlanej" && partes[1]) telaGerandoPlanej(partes[1]);
     else if (partes[0] === "planejamento" && partes[1]) telaPlanejamento(partes[1], partes[2]);
+    else if (partes[0] === "jogadas") telaJogadas(partes[1]);
     else if (partes[0] === "planos") telaPlanos();
     else if (partes[0] === "treino") telaTreino();
     else telaInicio();

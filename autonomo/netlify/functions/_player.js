@@ -241,6 +241,16 @@ function promptPlano(ficha) {
     "finalização), com o momento certo de usá-la. Respeite a mão, o backhand e o piso informados. Jogadas diferentes",
     "entre si (não repita a mesma ideia com outro nome).",
     "",
+    "FUNDAMENTOS: para cada jogada, destrinche o que o jogador precisa dominar para executá-la — de 4 a 6 fundamentos, concretos,",
+    "na ordem em que aparecem na jogada. Cubra: (a) o golpe técnico de CADA bola da sequência, com a variação exata (por exemplo,",
+    "\"saque slice aberto\", e não só \"saque\"); (b) as transições entre as bolas: recuperação depois do golpe, movimento de pernas para",
+    "sair da posição e chegar à próxima bola, equilíbrio e base na hora de bater; (c) o posicionamento; (d) a decisão (quando escolher",
+    "essa bola) e, se a ficha indicar, o controle sob pressão. Exemplo: jogada \"saque aberto + 1ª bola no lado oposto\" → saque slice",
+    "aberto; recuperação depois do saque; movimento de pernas para fugir da bola e voltar ao centro; equilíbrio na 1ª bola; leitura",
+    "da devolução para decidir o lado oposto. Cada fundamento tem categoria (Golpe, Movimento, Equilíbrio, Posicionamento, Decisão ou",
+    "Mental), nome curto e foco (uma frase dizendo o que trabalhar e o que observar). Sem repetir o mesmo fundamento em duas jogadas",
+    "sem necessidade e sem inventar dado da ficha.",
+    "",
     "DRILLS: para cada jogada, de 1 a 3 drills do CATÁLOGO abaixo que treinem o que ela exige (o golpe, o padrão ou a decisão).",
     "· Use SOMENTE drills do catálogo, copiando o código exato (a primeira coluna). Nunca invente drill nem código.",
     "· Ordene do mais controlado ao mais livre: padrão novo não entra direto no ponto livre.",
@@ -256,10 +266,13 @@ function promptPlano(ficha) {
     "· diretrizes: de 3 a 5. Cada uma com titulo (curto), acao (o que fazer em quadra, concreto e acionável)",
     "  e porque (qual dado da ficha sustenta essa diretriz, citando-o).",
     "· jogadas: de 3 a 4. Cada uma com titulo, quando (em que situação do jogo usar), sequencia (lista de 2 a 4 passos curtos),",
-    "  porque (qual dado da ficha sustenta a jogada) e drills (lista de objetos com codigo e motivo).",
+    "  porque (qual dado da ficha sustenta a jogada), fundamentos (lista de 4 a 6 objetos com categoria, nome e foco) e drills",
+    "  (lista de objetos com codigo e motivo).",
     "· lacunas: de 0 a 3 informações que deixariam o plano melhor (lista vazia se não houver).",
   ].join("\n");
 }
+
+const CATEGORIAS_FUNDAMENTO = ["Golpe", "Movimento", "Equilíbrio", "Posicionamento", "Decisão", "Mental"];
 
 const SCHEMA_PLANO = {
   type: "object",
@@ -288,6 +301,19 @@ const SCHEMA_PLANO = {
           quando: { type: "string" },
           sequencia: { type: "array", items: { type: "string" } },
           porque: { type: "string" },
+          fundamentos: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                categoria: { type: "string", enum: CATEGORIAS_FUNDAMENTO },
+                nome: { type: "string" },
+                foco: { type: "string" },
+              },
+              required: ["categoria", "nome", "foco"],
+              additionalProperties: false,
+            },
+          },
           drills: {
             type: "array",
             items: {
@@ -298,7 +324,7 @@ const SCHEMA_PLANO = {
             },
           },
         },
-        required: ["titulo", "quando", "sequencia", "porque", "drills"],
+        required: ["titulo", "quando", "sequencia", "porque", "fundamentos", "drills"],
         additionalProperties: false,
       },
     },
@@ -315,7 +341,9 @@ function planoValido(p) {
     p.diretrizes.every((d) => d && typeof d.titulo === "string" && typeof d.acao === "string" && typeof d.porque === "string") &&
     Array.isArray(p.jogadas) && p.jogadas.length >= 1 &&
     p.jogadas.every((j) => j && typeof j.titulo === "string" && typeof j.quando === "string" && typeof j.porque === "string" &&
-      Array.isArray(j.sequencia) && Array.isArray(j.drills)) &&
+      Array.isArray(j.sequencia) && Array.isArray(j.drills) &&
+      Array.isArray(j.fundamentos) && j.fundamentos.length >= 1 &&
+      j.fundamentos.every((f) => f && typeof f.nome === "string" && typeof f.foco === "string")) &&
     Array.isArray(p.lacunas);
 }
 
@@ -346,7 +374,12 @@ function finalizarPlano(plano, nivel) {
     }
     return {
       titulo: j.titulo, quando: j.quando, porque: j.porque,
-      sequencia: j.sequencia.map((x) => String(x)).slice(0, 4), drills,
+      sequencia: j.sequencia.map((x) => String(x)).slice(0, 4),
+      fundamentos: j.fundamentos.slice(0, 6).map((f) => ({
+        categoria: CATEGORIAS_FUNDAMENTO.includes(f.categoria) ? f.categoria : "Golpe",
+        nome: String(f.nome).trim(), foco: String(f.foco).trim(),
+      })).filter((f) => f.nome),
+      drills,
     };
   });
   return plano;

@@ -298,3 +298,16 @@ fieldset .nota { margin-bottom: 10px; }
 .reg-obs textarea { display: block; width: 100%; margin-top: 4px; padding: 10px; border: 1.5px solid var(--linha); border-radius: 10px; font: inherit; font-weight: 400; resize: vertical; background: var(--cal); }
 .registro .acoes { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
 .treino-dia { border-left: 4px solid var(--marca); }
+
+/* jogadas: fundamentos e treino sugerido */
+.fundamentos { margin-top: 12px; padding: 12px; background: #F1F7EC; border-radius: 10px; }
+.fundamentos h4 { margin: 0 0 8px; font-size: 15px; }
+.fundamentos ul { list-style: none; margin: 0; padding: 0; }
+.fundamentos li { display: flex; gap: 10px; align-items: flex-start; }
+.fundamentos li + li { margin-top: 10px; }
+.fundamentos .cat { flex: 0 0 auto; min-width: 92px; text-align: center; padding: 2px 8px; border-radius: 99px; background: var(--cal); border: 1px solid var(--linha); font-size: 12.5px; font-weight: 700; color: #234A12; }
+.opcional { font-weight: 500; color: var(--grafite); font-size: 14px; }
+.campo-plano { display: block; margin-top: 14px; font-size: 14px; font-weight: 600; }
+.campo-plano select { display: block; width: 100%; margin-top: 4px; min-height: 44px; padding: 8px 10px; border: 1.5px solid var(--linha); border-radius: 10px; font: inherit; background: var(--cal); }
+.sessao-fund { margin: 8px 0 0; font-size: 14.5px; }
+.jogada .escolher { margin-top: 14px; }

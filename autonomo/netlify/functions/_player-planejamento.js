@@ -71,7 +71,8 @@ function promptPlanejamento(ficha, planoTatico, escolhidas, params) {
     "PLANO TÁTICO DO JOGADOR: " + planoTatico.titulo,
     planoTatico.resumo,
     escolhidas.length ? "JOGADAS QUE ELE ESCOLHEU TREINAR (use estas; o número entre colchetes é o índice):" : "JOGADAS DO PLANO (ele não marcou nenhuma: distribua todas; o número entre colchetes é o índice):",
-    ...foco.map((x) => "[" + x.i + "] " + x.j.titulo + " — sequência: " + x.j.sequencia.join(" > ") + " — por quê: " + x.j.porque),
+    ...foco.map((x) => "[" + x.i + "] " + x.j.titulo + " — sequência: " + x.j.sequencia.join(" > ") + " — por quê: " + x.j.porque +
+      ((x.j.fundamentos || []).length ? "\n    fundamentos: " + x.j.fundamentos.map((f) => f.categoria + ": " + f.nome + " (" + f.foco + ")").join(" | ") : "")),
     "",
     "PARÂMETROS DO PLANEJAMENTO:",
     "· " + params.semanas + " semanas.",
@@ -82,6 +83,9 @@ function promptPlanejamento(ficha, planoTatico, escolhidas, params) {
     "REGRAS:",
     "· Toda sessão tem: um aquecimento (item livre), de 1 a 3 drills do catálogo, e fecha com uma aplicação (um drill de jogo aplicado ou um item livre de pontos jogados).",
     "· Cada sessão treina pelo menos uma das jogadas acima (campo jogadas, com os índices) e, ao longo do planejamento, todas elas aparecem.",
+    "· FUNDAMENTOS: o planejamento tem de trabalhar os fundamentos de cada jogada (golpe, movimento de pernas, recuperação, equilíbrio, decisão), e não só repetir o golpe.",
+    "  Em cada sessão, liste em fundamentos (2 a 4 frases curtas) o que ela trabalha e, na nota de cada drill, diga qual fundamento ele treina",
+    "  (por exemplo \"foco: recuperação depois do saque\"). Ao longo das semanas, todos os fundamentos das jogadas aparecem.",
     "· Progressão semana a semana: comece com drills mais controlados, evolua para semiabertos e aplicação com regra; a última semana consolida e é mais leve.",
     "· TODA semana tem pelo menos um drill de saque ou início de ponto (tipos Power drills · saque e Início do ponto) e pelo menos um de devolução: saque e devolução nunca saem do plano.",
     "· Use SOMENTE drills do CATÁLOGO abaixo, copiando o código exato. Nunca invente drill nem código. Para " + APOIOS[params.apoio].toLowerCase() + ", prefira drills que essa forma de treino sustenta.",
@@ -96,7 +100,7 @@ function promptPlanejamento(ficha, planoTatico, escolhidas, params) {
     "· titulo (até 60 caracteres) e resumo (2 frases com a lógica do ciclo).",
     "· semanas: exatamente " + params.semanas + " itens, na ordem das semanas. Cada um com foco (o tema da semana, curto), carga (leve, moderada ou alta, com uma frase)",
     "  e sessoes: exatamente " + params.dias.length + " itens, na ordem dos dias acima.",
-    "· Cada sessão: titulo, objetivo (uma frase), jogadas (índices das jogadas treinadas) e itens.",
+    "· Cada sessão: titulo, objetivo (uma frase), jogadas (índices das jogadas treinadas), fundamentos (lista de 2 a 4 frases curtas) e itens.",
     "· Cada item: tipo (\"drill\" ou \"livre\"), codigo (código do catálogo para drill; vazio para livre), titulo (só para livre; vazio para drill),",
     "  minutos (inteiro) e nota (uma frase com o foco daquele item, ou vazio).",
   ].join("\n");
@@ -122,6 +126,7 @@ const SCHEMA_PLANEJAMENTO = {
                 titulo: { type: "string" },
                 objetivo: { type: "string" },
                 jogadas: { type: "array", items: { type: "integer" } },
+                fundamentos: { type: "array", items: { type: "string" } },
                 itens: {
                   type: "array",
                   items: {
@@ -138,7 +143,7 @@ const SCHEMA_PLANEJAMENTO = {
                   },
                 },
               },
-              required: ["titulo", "objetivo", "jogadas", "itens"],
+              required: ["titulo", "objetivo", "jogadas", "fundamentos", "itens"],
               additionalProperties: false,
             },
           },
@@ -197,6 +202,7 @@ function finalizarPlanejamento(pl, params, nivel, totalJogadas) {
         id: "s" + (wi + 1) + "-" + (si + 1),
         dia, diaNome: DIAS[dia], data: dataDaSessao(params.inicio, wi + 1, dia),
         titulo: String(x.titulo).trim(), objetivo: String(x.objetivo).trim(),
+        fundamentos: (Array.isArray(x.fundamentos) ? x.fundamentos : []).map((f) => String(f).trim()).filter(Boolean).slice(0, 4),
         jogadas: [...new Set(x.jogadas.filter((n) => Number.isInteger(n) && n >= 0 && n < totalJogadas))].sort((a, b) => a - b),
         itens,
       };
