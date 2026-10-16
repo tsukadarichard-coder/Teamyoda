@@ -42,7 +42,8 @@ function refJogador(uid) {
    e-mails separados por vírgula na variável PLAYER_EMAILS_FULL do Netlify
    — fora do código de propósito, para liberar ou tirar alguém sem publicar.
    Vale só para a conta que já existe com esse e-mail (o login do Firebase
-   não deixa criar outra com o mesmo e-mail). */
+   não deixa criar outra com o mesmo e-mail). Mudar a variável só vale a partir
+   do próximo deploy. Exemplo: PLAYER_EMAILS_FULL=voce@exemplo.com,outra@exemplo.com */
 function planoFull(email) {
   const lista = String(process.env.PLAYER_EMAILS_FULL || "").toLowerCase().split(",").map((x) => x.trim()).filter(Boolean);
   return !!email && lista.includes(String(email).trim().toLowerCase());
