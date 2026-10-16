@@ -56,6 +56,28 @@ const EVENTOS_APROVADO = ["myeduzz.invoice_paid"];
 const EVENTOS_REVOGAR = ["myeduzz.invoice_canceled", "myeduzz.invoice_refunded", "myeduzz.invoice_chargeback"];
 
 const { admin, app } = require("./_firebase-admin");
+const ASS = require("./_player-assinaturas");
+const { aplicarEventoFatura } = require("./_player-faturas");
+
+/* ── QuadraLab Player ──
+   Os produtos do Player são outros produtos da Eduzz, listados em
+   _player-assinaturas.js (CATALOGO) — a assinatura do QuadraLab para
+   treinadores (MAPA_PRODUTO acima) NÃO inclui o Player e vice-versa.
+   Um evento de produto do Player nunca cria nem altera organização de
+   treinador: vai só para jogadores/{uid}.assinatura.
+
+   Eventos adicionais (hoje vazios, porque o formato real ainda não foi
+   confirmado contra um payload da Eduzz): quando forem confirmados,
+   preencha os nomes abaixo e o app passa a mostrar "Pagamento pendente",
+   "Problema no pagamento" e "Cancelamento programado".
+   · pendente: fatura criada/aguardando pagamento
+   · problema: pagamento recusado/atrasado
+   · cancelamentoProgramado: cliente cancelou a renovação; acesso vai até o fim do período pago */
+const EVENTOS_PLAYER_STATUS = {
+  pagamento_pendente: [],
+  problema_pagamento: [],
+  cancelamento_programado: [],
+};
 
 function apelido(nome) {
   return String(nome || "treinador")
@@ -126,7 +148,12 @@ exports.handler = async function (event) {
       return resposta(200, { ok: true, jaProcessado: true });
     }
 
-    if (ev.aprovado) {
+    const produtoPlayer = ASS.produtoPorEduzz(ev.produtoCod);
+    const ehDoPlayer = !!produtoPlayer || (!ev.aprovado && ((await db.collection("jogadoresFaturas").doc(ev.faturaId).get()).exists ||
+      (await db.collection("jogadoresAssinaturasPendentes").doc(ev.faturaId).get()).exists));
+    if (ehDoPlayer) {
+      await processarPlayer(db, ev, produtoPlayer, corpo.sentDate);
+    } else if (ev.aprovado) {
       await liberarAcesso(db, ev);
     } else if (ev.revogar) {
       await revogarAcesso(db, ev);
@@ -143,6 +170,35 @@ exports.handler = async function (event) {
     return resposta(500, { erro: String(e.message || e) });
   }
 };
+
+/* ── Player: assinatura por fatura ──
+   Cada fatura tem um estado ("paga" ou "revogada") e o instante do último evento aplicado. Um evento mais
+   antigo que o já aplicado é ignorado — assim eventos repetidos, atrasados ou fora de ordem (reembolso
+   chegando antes do pagamento, por exemplo) deixam o mesmo resultado final. Empate: a revogação vence. */
+async function processarPlayer(db, ev, produto, sentDate) {
+  const instante = Date.parse(sentDate) || Date.now();
+  const statusExtra = Object.keys(EVENTOS_PLAYER_STATUS).find((k) => EVENTOS_PLAYER_STATUS[k].includes(ev.eventoBruto)) || null;
+  if (!ev.aprovado && !ev.revogar && !statusExtra) return;
+
+  let usuario = null;
+  try { usuario = await admin.auth().getUserByEmail(ev.email); }
+  catch (e) { if (e.code !== "auth/user-not-found") throw e; }
+
+  if (!usuario) {
+    /* pagou antes de criar a conta: guarda, e o acesso é aplicado quando entrar com este e-mail */
+    const refPend = db.collection("jogadoresAssinaturasPendentes").doc(ev.faturaId);
+    const atual = await refPend.get();
+    if (atual.exists && atual.data().instante >= instante) return;
+    if (ev.aprovado && produto) {
+      await refPend.set({ email: ev.email, faturaId: ev.faturaId, produtoId: produto.id, instante, estado: "paga", recebidoEm: new Date().toISOString() });
+    } else if (ev.revogar && atual.exists) {
+      await refPend.set({ estado: "revogada", instante }, { merge: true }); // reembolso antes de a pessoa criar a conta: nunca será aplicado
+    }
+    return;
+  }
+
+  await aplicarEventoFatura(db, { uid: usuario.uid, email: ev.email, faturaId: ev.faturaId, aprovado: ev.aprovado, revogar: ev.revogar, statusExtra, eventoBruto: ev.eventoBruto }, produto, instante);
+}
 
 async function liberarAcesso(db, ev) {
   const infoProduto = MAPA_PRODUTO[ev.produtoCod] || null;

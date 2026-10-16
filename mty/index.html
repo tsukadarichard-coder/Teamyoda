@@ -18254,10 +18254,12 @@ function App() {
               <button onClick={() => tentarNavegar(() => setAbertoId(null))} style={{ ...prosa, fontSize: 13.5, color: C.grafite, cursor: "pointer", background: "none", border: "none", padding: 0, minHeight: 32 }}>
                 ← {cadastroCompleto ? "Todos os jogadores" : "Jogadores"}
               </button>
-              {cadastroCompleto && (
-                <div style={{ position: "relative" }}>
+              {/* Sempre disponível, inclusive no cadastro ainda não concluído:
+                  quem sai pelo "Salvar e sair" no meio do cadastro precisa
+                  conseguir remover o jogador também. */}
+              <div style={{ position: "relative" }}>
                   <button onClick={() => setOpcoesJogadorAberto((v) => !v)} aria-label="Opções do jogador" aria-haspopup="true" aria-expanded={opcoesJogadorAberto}
-                    style={{ width: 36, height: 36, border: "1px solid " + C.linha, borderRadius: 10, background: C.cal, color: C.grafite, cursor: "pointer", fontSize: 16, lineHeight: 1 }}>
+                    style={{ width: 44, height: 44, border: "1px solid " + C.linha, borderRadius: 10, background: C.cal, color: C.grafite, cursor: "pointer", fontSize: 16, lineHeight: 1 }}>
                     ⋯
                   </button>
                   {opcoesJogadorAberto && (
@@ -18272,8 +18274,7 @@ function App() {
                       </div>
                     </>
                   )}
-                </div>
-              )}
+              </div>
             </div>
             <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, lineHeight: 1.1 }}>{aberto.nome || "Novo jogador"}</h1>
             {!cadastroCompleto && (
