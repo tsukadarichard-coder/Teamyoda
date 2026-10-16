@@ -33,13 +33,14 @@ main:focus { outline: none; }
 .pular { position: absolute; left: 12px; top: -60px; z-index: 50; background: var(--quadra); color: #fff; padding: 10px 14px; border-radius: 8px; font-weight: 700; text-decoration: none; }
 .pular:focus { top: 10px; }
 
-/* ── topo e rodapé ── */
-.topo { background: var(--quadra); color: #fff; padding-top: env(safe-area-inset-top); }
-.topo-in { display: flex; align-items: center; justify-content: space-between; min-height: 60px; }
-.marca { display: flex; align-items: center; gap: 10px; color: #fff; text-decoration: none; font-size: 17px; font-weight: 500; min-height: 44px; }
-.marca img { background: #fff; border-radius: 8px; padding: 3px; width: 34px; height: 34px; object-fit: contain; }
-.marca strong { font-weight: 800; color: #A8DB7D; }
-.btn-sair { background: none; border: 1px solid rgba(255,255,255,.35); color: #fff; border-radius: 10px; min-height: 44px; padding: 0 16px; font: 600 15px Inter, system-ui, sans-serif; cursor: pointer; }
+/* ── topo e rodapé ──
+   O logo oficial do QuadraLab Player é verde-escuro + verde sobre fundo
+   transparente: pede fundo claro, então o topo é branco. */
+.topo { background: #fff; border-bottom: 1px solid var(--linha); padding-top: env(safe-area-inset-top); }
+.topo-in { display: flex; align-items: center; justify-content: space-between; min-height: 64px; gap: 12px; }
+.marca { display: flex; align-items: center; min-height: 44px; padding: 4px 0; }
+.marca img { height: 35px; width: auto; max-width: 100%; }
+.btn-sair { background: none; border: 1.5px solid var(--quadra); color: var(--quadra); border-radius: 10px; min-height: 44px; padding: 0 16px; font: 600 15px Inter, system-ui, sans-serif; cursor: pointer; }
 .rodape { padding: 28px 20px calc(28px + env(safe-area-inset-bottom)); color: var(--grafite); font-size: 13.5px; text-align: center; }
 
 main.wrap { padding-top: 24px; padding-bottom: 24px; min-height: 60vh; }
