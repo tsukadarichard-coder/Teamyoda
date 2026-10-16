@@ -133,6 +133,15 @@ fieldset .nota { margin-bottom: 10px; }
 .jogada .quando { margin-top: 8px; font-size: 15.5px; }
 .jogada .porque { margin-top: 10px; font-size: 14.5px; color: var(--grafite); }
 .jogada .porque b, .jogada .quando b { color: var(--tinta); }
+.escolher { display: flex; align-items: center; gap: 12px; min-height: 52px; margin-top: 12px; padding: 10px 14px; border: 1.5px solid #C5D1CB; border-radius: 10px; background: var(--cal); font-weight: 600; cursor: pointer; }
+.escolher input { width: 24px; height: 24px; margin: 0; accent-color: var(--quadra); flex-shrink: 0; cursor: pointer; }
+.escolher:has(input:focus-visible) { outline: 3px solid var(--marca); outline-offset: 2px; }
+.jogada.escolhida { border-color: var(--quadra); box-shadow: inset 0 0 0 1px var(--quadra); }
+.jogada.escolhida .escolher { background: #EEF6E8; border-color: var(--quadra); }
+.treino { margin-top: 22px; padding: 18px 16px; background: #EEF6E8; border: 1px solid #CBE3B8; border-radius: var(--raio); }
+.treino .drill { background: var(--cal); }
+.treino .drills h4 { display: none; }
+.drill-uso { display: block; font-size: 13.5px; font-weight: 600; color: var(--marca-texto); margin-top: 3px; }
 .sequencia { list-style: none; margin: 12px 0 0; padding: 0; counter-reset: s; }
 .sequencia li { counter-increment: s; position: relative; padding: 8px 12px 8px 44px; background: #EEF6E8; border-radius: 10px; font-size: 15.5px; font-weight: 500; }
 .sequencia li + li { margin-top: 6px; }

@@ -3,12 +3,15 @@
    GET                      → perfil, ficha, planos e quantos planos ainda pode gerar
    GET ?plano={id}          → só aquele plano (o app consulta enquanto ele é gerado)
    POST { acao: "salvarFicha", ficha } → grava a ficha (validada em _player.js)
+   POST { acao: "escolherJogadas", planoId, escolhidas } → grava quais jogadas do plano o jogador quer treinar
 
    Sempre pelo uid do token: um jogador nunca alcança dados de outro. */
 const {
   ErroPublico, resposta, usuarioDoPedido, refJogador,
   PLANOS_GRATIS, planoFull, normalizarFicha, fichaCompleta,
 } = require("./_player");
+
+const ID_VALIDO = /^[A-Za-z0-9_-]{8,40}$/;
 
 function publicoPlano(id, p) {
   return {
@@ -19,6 +22,7 @@ function publicoPlano(id, p) {
     adversarioNome: p.adversarioNome || null,
     plano: p.status === "pronto" ? p.plano : null,
     erro: p.status === "erro" ? p.erro : null,
+    escolhidas: Array.isArray(p.escolhidas) ? p.escolhidas : [],
   };
 }
 
@@ -59,7 +63,7 @@ exports.handler = async function (event) {
       planosSnap.forEach((d) => planos.push(publicoPlano(d.id, d.data())));
       const ficha = dados.ficha || null;
       return resposta(200, {
-        perfil: { nome: dados.nome || "", email: dados.email || usuario.email || "" },
+        perfil: { nome: dados.nome || "", email: usuario.email || dados.email || "" },
         ficha,
         fichaCompleta: !!ficha && fichaCompleta(ficha),
         planos,
@@ -71,6 +75,18 @@ exports.handler = async function (event) {
       let body;
       try { body = JSON.parse(event.body || "{}"); }
       catch (e) { throw new ErroPublico(400, "Corpo da requisição inválido."); }
+      if (body.acao === "escolherJogadas") {
+        const idPlano = String(body.planoId || "");
+        if (!ID_VALIDO.test(idPlano)) throw new ErroPublico(400, "Plano inválido.");
+        const refPlano = ref.collection("planos").doc(idPlano);
+        const sPlano = await refPlano.get();
+        if (!sPlano.exists || sPlano.data().status !== "pronto") throw new ErroPublico(404, "Plano não encontrado.");
+        const total = ((sPlano.data().plano || {}).jogadas || []).length;
+        const bruto = Array.isArray(body.escolhidas) ? body.escolhidas : [];
+        const escolhidas = [...new Set(bruto.filter((n) => Number.isInteger(n) && n >= 0 && n < total))].sort((a, b) => a - b);
+        await refPlano.update({ escolhidas });
+        return resposta(200, { ok: true, escolhidas });
+      }
       if (body.acao !== "salvarFicha") throw new ErroPublico(400, "Ação desconhecida.");
       const ficha = normalizarFicha(body.ficha);
       await ref.set({ ficha, fichaAtualizadaEm: new Date().toISOString() }, { merge: true });

@@ -221,7 +221,7 @@
       }
       html += "</div>";
     }
-    html += "</div>";
+    html += '<p class="nota" style="text-align:center">Conectado como ' + esc(d.perfil.email) + (d.full ? " · acesso completo de teste" : "") + "</p></div>";
     tela(html);
     var btGerar = document.getElementById("btGerar");
     if (btGerar) btGerar.addEventListener("click", function () { gerarPlano(btGerar); });
@@ -410,28 +410,65 @@
   function linhaDrill(rotulo, texto) {
     return texto ? "<dt>" + rotulo + "</dt><dd>" + esc(texto) + "</dd>" : "";
   }
-  function drillHtml(d) {
+  function drillHtml(d, usadoEm) {
     return '<details class="drill"><summary><span class="drill-nome">' + esc(d.nome) + "</span>" +
       '<span class="drill-meta">' + esc(d.tipo) + " · " + esc(d.codigo) + "</span>" +
+      (usadoEm ? '<span class="drill-uso">Treina: ' + esc(usadoEm) + "</span>" : "") +
       (d.motivo ? '<span class="drill-motivo">' + esc(d.motivo) + "</span>" : "") + "</summary>" +
       '<dl class="drill-det">' + linhaDrill("Objetivo", d.objetivo) + linhaDrill("Montagem", d.montagem) + linhaDrill("Carga", d.carga) +
       linhaDrill("Para facilitar", d.regressao) + linhaDrill("Para evoluir", d.progressao) + linhaDrill("Corrigir", d.corrigir) +
       linhaDrill("Ignorar", d.ignorar) + "</dl></details>";
   }
-  function jogadasHtml(jogadas) {
+  function jogadasHtml(jogadas, escolhidas) {
     if (!jogadas || !jogadas.length) return "";
     return '<section class="jogadas" aria-labelledby="t-jogadas"><h2 id="t-jogadas">Jogadas para colocar o plano em prática</h2>' +
-      '<p class="nota" style="margin-top:6px">Sequências de bolas que você pode usar em quadra, cada uma com drills para treiná-la.</p>' +
+      '<p class="nota" style="margin-top:6px">Sequências de bolas que você pode usar em quadra. <strong>Marque as que quer treinar: pode escolher mais de uma.</strong></p>' +
       jogadas.map(function (j, n) {
-        return '<article class="jogada"><p class="olho">Jogada ' + (n + 1) + "</p><h3>" + esc(j.titulo) + "</h3>" +
+        var marcada = escolhidas.indexOf(n) >= 0;
+        return '<article class="jogada' + (marcada ? " escolhida" : "") + '" data-jogada="' + n + '"><p class="olho">Jogada ' + (n + 1) + "</p><h3>" + esc(j.titulo) + "</h3>" +
+          '<label class="escolher"><input type="checkbox" value="' + n + '"' + (marcada ? " checked" : "") + "><span>Quero treinar esta jogada</span></label>" +
           '<p class="quando"><b>Quando usar:</b> ' + esc(j.quando) + "</p>" +
           '<ol class="sequencia" aria-label="Sequência de bolas">' + (j.sequencia || []).map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ol>" +
           '<p class="porque"><b>Por quê:</b> ' + esc(j.porque) + "</p>" +
           '<div class="drills"><h4>Drills para treinar esta jogada</h4>' +
-          ((j.drills || []).length ? j.drills.map(drillHtml).join("") : '<p class="nota">Nenhum drill do catálogo cobre esta jogada com precisão. Um treinador pode indicar um na consultoria.</p>') +
+          ((j.drills || []).length ? j.drills.map(function (d) { return drillHtml(d); }).join("") : '<p class="nota">Nenhum drill do catálogo cobre esta jogada com precisão. Um treinador pode indicar um na consultoria.</p>') +
           "</div></article>";
       }).join("") +
+      '<div id="treino" class="treino" aria-live="polite">' + treinoHtml(jogadas, escolhidas) + "</div>" +
       '<p class="nota" style="margin-top:12px">Drills do catálogo da Metodologia MTY, escritos para treinar com parceiro ou treinador. Ajuste a carga ao seu nível.</p></section>';
+  }
+
+  /* "Seu treino": os drills das jogadas marcadas, juntos e sem repetir —
+     um drill que serve a duas jogadas aparece uma vez, dizendo quais. */
+  function treinoHtml(jogadas, escolhidas) {
+    if (!escolhidas.length) {
+      return '<p class="nota treino-vazio">Marque as jogadas que quer treinar e o seu treino aparece aqui, com os drills reunidos e sem repetição.</p>';
+    }
+    var porCodigo = {}, ordem = [];
+    escolhidas.forEach(function (n) {
+      ((jogadas[n] || {}).drills || []).forEach(function (d) {
+        if (!porCodigo[d.codigo]) { porCodigo[d.codigo] = { d: d, usos: [] }; ordem.push(d.codigo); }
+        porCodigo[d.codigo].usos.push("Jogada " + (n + 1));
+      });
+    });
+    return "<h3>Seu treino</h3>" +
+      '<p class="nota" style="margin:4px 0 10px">' + escolhidas.length + (escolhidas.length === 1 ? " jogada escolhida: " : " jogadas escolhidas: ") +
+      escolhidas.map(function (n) { return esc(jogadas[n].titulo); }).join(" · ") + "</p>" +
+      (ordem.length
+        ? '<div class="drills" style="border:none;margin:0;padding:0">' + ordem.map(function (c) { return drillHtml(porCodigo[c].d, porCodigo[c].usos.join(", ")); }).join("") + "</div>"
+        : '<p class="nota">As jogadas escolhidas não têm drills do catálogo. Um treinador pode indicar na consultoria.</p>');
+  }
+
+  function blocoOutroPlano() {
+    var d = estado.dados;
+    if (d.podeGerar) {
+      return '<div class="cartao" style="margin-top:20px"><h2>Gerar outro plano</h2>' +
+        '<p class="nota" style="margin-top:6px">' + (d.full ? "Acesso completo de teste: sem limite de planos. " : d.gratisRestantes ? "Seu primeiro plano é grátis. " : "Você tem " + d.creditos + " crédito(s). ") +
+        "O novo plano usa a sua ficha atual. Se o seu jogo mudou, ou você quer um plano contra outro adversário, revise a ficha antes.</p>" +
+        '<div class="acoes"><button class="btn btn-primario" id="btGerar2" type="button">Gerar outro plano com a ficha atual</button>' +
+        '<a class="btn btn-secundario" href="#/ficha/1">Revisar ficha e gerar</a></div></div>';
+    }
+    return '<div class="cartao" style="margin-top:20px"><h2>Novos planos</h2><p class="nota" style="margin-top:6px">Você já usou o seu plano grátis. A compra de novos planos chega em breve aqui no app.</p></div>';
   }
 
   function telaPlano(id) {
@@ -449,14 +486,33 @@
       '<ol class="diretrizes" aria-labelledby="t-estrategia">' + pl.diretrizes.map(function (d) {
         return "<li><h3>" + esc(d.titulo) + '</h3><p class="acao">' + esc(d.acao) + '</p><p class="porque"><b>Por quê:</b> ' + esc(d.porque) + "</p></li>";
       }).join("") + "</ol>" +
-      jogadasHtml(pl.jogadas) +
+      jogadasHtml(pl.jogadas, p.escolhidas || []) +
       (pl.lacunas && pl.lacunas.length ? '<div class="cartao" style="margin-top:16px"><h3>Para um plano mais preciso</h3><ul class="lista-simples">' +
         pl.lacunas.map(function (l) { return "<li>" + esc(l) + "</li>"; }).join("") + "</ul></div>" : "") +
+      blocoOutroPlano() +
       '<p class="nota" style="margin-top:16px">Plano gerado por inteligência artificial a partir da sua autoavaliação, seguindo a Metodologia MTY. Ele não substitui a avaliação de um treinador vendo você jogar.</p>' +
       '<div class="consultoria"><p class="olho">Consultoria</p><h2>Quer um plano validado por um treinador?</h2>' +
         "<p>O Richard Tsukada pode revisar o seu plano, analisar um vídeo do seu jogo ou conversar com você ao vivo.</p>" +
         '<a class="btn largo" href="https://wa.me/' + WHATSAPP_CONSULTORIA + "?text=" + encodeURIComponent(msgWpp) + '" target="_blank" rel="noopener">Falar sobre a consultoria<span class="sr"> (abre o WhatsApp)</span></a></div>'
     );
+
+    var bt2 = document.getElementById("btGerar2");
+    if (bt2) bt2.addEventListener("click", function () { gerarPlano(bt2); });
+
+    /* escolha de jogadas: atualiza a tela na hora e grava em segundo plano */
+    var caixas = app.querySelectorAll(".escolher input");
+    caixas.forEach(function (cx) {
+      cx.addEventListener("change", async function () {
+        var escolhidas = [].filter.call(caixas, function (c) { return c.checked; }).map(function (c) { return parseInt(c.value, 10); });
+        p.escolhidas = escolhidas;
+        cx.closest(".jogada").classList.toggle("escolhida", cx.checked);
+        document.getElementById("treino").innerHTML = treinoHtml(pl.jogadas, escolhidas);
+        try { await api("player-dados", { metodo: "POST", corpo: { acao: "escolherJogadas", planoId: id, escolhidas: escolhidas } }); }
+        catch (e) {
+          document.getElementById("treino").insertAdjacentHTML("beforeend", '<p class="aviso" role="alert" style="margin-top:10px">Não foi possível salvar sua escolha agora. Ela vale nesta tela, mas pode não estar salva.</p>');
+        }
+      });
+    });
   }
 
   /* ── rotas ── */
