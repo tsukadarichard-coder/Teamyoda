@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>QuadraLab Player | Seu plano tático de tênis</title>
-<meta name="description" content="Preencha uma ficha rápida sobre o seu jogo e receba um plano tático de tênis com a tecnologia QuadraLab. O primeiro plano é grátis.">
+<title>QuadraLab Player | Sua estratégia de jogo no tênis</title>
+<meta name="description" content="Responda um perfil rápido sobre o seu jogo e receba uma estratégia de tênis com a tecnologia QuadraLab. A primeira estratégia é grátis.">
 <meta name="theme-color" content="#FFFFFF">
 <link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="../assets/favicon-16.png">
@@ -28,11 +28,11 @@
   </a>
   <nav class="lateral-nav" aria-label="Navegação principal">
     <a class="nav-item" data-nav="inicio" href="#/inicio">Início</a>
-    <a class="nav-item" data-nav="planos" href="#/planos">Planos táticos</a>
+    <a class="nav-item" data-nav="estrategia" href="#/estrategia">Estratégia</a>
     <a class="nav-item" data-nav="jogadas" href="#/jogadas">Jogadas</a>
-    <a class="nav-item" data-nav="treino" href="#/treino">Treino</a>
+    <a class="nav-item" data-nav="treinos" href="#/treinos">Treinos</a>
     <p class="nav-grupo">Conta</p>
-    <a class="nav-item" data-nav="mais" href="#/ficha/1">Minha ficha</a>
+    <a class="nav-item" data-nav="mais" href="#/ficha/1">Meu perfil</a>
     <button type="button" class="nav-item nav-botao" data-acao="sair">Sair</button>
   </nav>
   <p class="lateral-ajuda"><a data-wpp href="#" target="_blank" rel="noopener">Ajuda<span class="sr"> (abre o WhatsApp)</span></a></p>
@@ -64,17 +64,17 @@
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9a1 1 0 0 0 1 1H9a1 1 0 0 0 1-1v-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v4a1 1 0 0 0 1 1h2.5a1 1 0 0 0 1-1v-9"/></svg>
       <span>Início</span>
     </a>
-    <a class="navinf-item" data-nav="planos" href="#/planos">
+    <a class="navinf-item" data-nav="estrategia" href="#/estrategia">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M12 5v14M3.5 12h17"/><circle cx="16.5" cy="8.5" r="1.2"/></svg>
-      <span>Planos</span>
+      <span>Estratégia</span>
     </a>
     <a class="navinf-item" data-nav="jogadas" href="#/jogadas">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M8 18h5a3 3 0 0 0 0-6h-2a3 3 0 0 1 0-6h5"/></svg>
       <span>Jogadas</span>
     </a>
-    <a class="navinf-item" data-nav="treino" href="#/treino">
+    <a class="navinf-item" data-nav="treinos" href="#/treinos">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
-      <span>Treino</span>
+      <span>Treinos</span>
     </a>
     <button type="button" class="navinf-item" data-nav="mais" id="btMais" aria-haspopup="dialog" aria-expanded="false" aria-controls="painelMais">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="5" cy="12" r=".6"/><circle cx="12" cy="12" r=".6"/><circle cx="19" cy="12" r=".6"/></svg>
@@ -88,10 +88,12 @@
 <div class="painel-mais" id="painelMais" role="dialog" aria-modal="true" aria-labelledby="painelMaisTitulo" hidden>
   <div class="painel-mais-topo"><h2 id="painelMaisTitulo">Mais</h2><button type="button" class="painel-fechar" id="btFecharMais" aria-label="Fechar">×</button></div>
   <p class="nota" id="painelConta"></p>
-  <a class="painel-item" href="#/ficha/1">Minha ficha tática</a>
+  <a class="painel-item" href="#/ficha/1">Meu perfil</a>
   <a class="painel-item" data-wpp href="#" target="_blank" rel="noopener">Falar com o Richard<span class="sr"> (abre o WhatsApp)</span></a>
   <button type="button" class="painel-item painel-sair" data-acao="sair">Sair</button>
 </div>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-auth-compat.js"></script>

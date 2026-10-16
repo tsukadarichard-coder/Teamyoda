@@ -32,8 +32,9 @@ exports.handler = async function (event) {
       planejs.forEach((d) => {
         const p = d.data(); if (p.status !== "pronto") return; pj++;
         Object.values(p.registros || {}).forEach((r) => {
+          if (!["feito", "parcial", "nao_feito"].includes(r.status)) return; // em andamento ainda não é treino registrado
           regs++;
-          if (r.status === "feito") m.treinosFeitos++; else if (r.status === "parcial") m.treinosParciais++; else m.treinosNaoFeitos++;
+          if (r.status === "feito") m.treinosFeitos++; else if (r.status === "parcial") m.treinosParciais++; else if (r.status === "nao_feito") m.treinosNaoFeitos++;
           if (r.em) dias.add(String(r.em).slice(0, 10));
         });
       });

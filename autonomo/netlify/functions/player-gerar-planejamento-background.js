@@ -10,7 +10,7 @@
 const Anthropic = require("@anthropic-ai/sdk");
 const {
   ErroPublico, usuarioDoPedido, refJogador, nivelDoJogador, recursosDoNivel,
-  normalizarFicha, limparComplementos, fichaCompleta,
+  normalizarFicha, complementosParaFicha, fichaCompleta,
 } = require("./_player");
 const {
   ErroParametros, normalizarParametros, promptPlanejamento, SCHEMA_PLANEJAMENTO, planejamentoValido, finalizarPlanejamento,
@@ -57,12 +57,12 @@ exports.handler = async function (event) {
     if (sPlan.exists) return { statusCode: 202, body: "" }; // mesmo pedido de novo: já tratado
     dadosJ = sJ.exists ? sJ.data() : {};
     if (!recursosDoNivel(nivelDoJogador(dadosJ, usuario.email)).planejamento) {
-      return await recusar("O planejamento por semanas faz parte do Plano 1. Fale com a gente para liberar.");
+      return await recusar("O programa de treino faz parte do Plano 1. Fale com a gente para liberar.");
     }
     ficha = normalizarFicha(dadosJ.ficha);
-    ficha.complementos = limparComplementos(dadosJ.complementos);
-    if (!fichaCompleta(ficha)) return await recusar("Complete a ficha antes de montar o planejamento.");
-    if (!sPlano.exists || sPlano.data().status !== "pronto") return await recusar("Gere um plano tático antes de montar o planejamento.");
+    ficha.complementos = complementosParaFicha(dadosJ.complementos, ficha);
+    if (!fichaCompleta(ficha)) return await recusar("Complete o seu perfil antes de organizar os treinos.");
+    if (!sPlano.exists || sPlano.data().status !== "pronto") return await recusar("Crie uma estratégia antes de organizar os treinos.");
     planoTatico = sPlano.data().plano;
     escolhidas = Array.isArray(sPlano.data().escolhidas) ? sPlano.data().escolhidas : [];
     try { params = normalizarParametros(corpo.params, hojeNoBrasil()); }
@@ -71,7 +71,7 @@ exports.handler = async function (event) {
     const recentes = await refJ.collection("planejamentos").orderBy("criadoEm", "desc").limit(LIMITE_POR_DIA + 1).get();
     const corte = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
     let n = 0; recentes.forEach((d) => { if ((d.data().criadoEm || "") > corte && d.data().status !== "erro") n++; });
-    if (n >= LIMITE_POR_DIA) return await recusar("Você já montou vários planejamentos hoje. Tente de novo amanhã.");
+    if (n >= LIMITE_POR_DIA) return await recusar("Você já montou vários programas de treino hoje. Tente de novo amanhã.");
   } catch (e) {
     console.error("player-gerar-planejamento: falha na checagem", e);
     return { statusCode: 202, body: "" };
@@ -98,14 +98,14 @@ exports.handler = async function (event) {
       output_config: { effort: "medium", format: { type: "json_schema", schema: SCHEMA_PLANEJAMENTO } },
       messages: [{ role: "user", content: promptPlanejamento(ficha, planoTatico, escolhidas, params) }],
     });
-    if (r.stop_reason === "refusal") { await falhar("Não foi possível montar o planejamento com esta ficha. Tente de novo."); return { statusCode: 202, body: "" }; }
-    if (r.stop_reason === "max_tokens") { await falhar("O planejamento saiu incompleto. Tente com menos semanas ou menos dias por semana."); return { statusCode: 202, body: "" }; }
+    if (r.stop_reason === "refusal") { await falhar("Não foi possível montar o programa de treino com este perfil. Tente de novo."); return { statusCode: 202, body: "" }; }
+    if (r.stop_reason === "max_tokens") { await falhar("O programa de treino saiu incompleto. Tente com menos semanas ou menos dias por semana."); return { statusCode: 202, body: "" }; }
     const texto = r.content.filter((b) => b.type === "text").map((b) => b.text).join("");
     let bruto = null;
     try { bruto = JSON.parse(texto); } catch (e) { bruto = null; }
     if (!planejamentoValido(bruto, params)) {
       console.error("player-gerar-planejamento: resposta fora do formato", texto.slice(0, 500));
-      await falhar("O planejamento saiu num formato inesperado. Tente gerar de novo.");
+      await falhar("O programa de treino saiu num formato inesperado. Tente gerar de novo.");
       return { statusCode: 202, body: "" };
     }
     const planejamento = finalizarPlanejamento(bruto, params, ficha.nivel, (planoTatico.jogadas || []).length);
@@ -117,7 +117,7 @@ exports.handler = async function (event) {
     });
   } catch (e) {
     console.error("player-gerar-planejamento: falha na IA", e);
-    await falhar("Não foi possível montar o planejamento agora. Tente de novo em instantes.");
+    await falhar("Não foi possível montar o programa de treino agora. Tente de novo em instantes.");
   }
   return { statusCode: 202, body: "" };
 };

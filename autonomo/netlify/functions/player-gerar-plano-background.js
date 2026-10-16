@@ -12,7 +12,7 @@
 const Anthropic = require("@anthropic-ai/sdk");
 const {
   admin, ErroPublico, usuarioDoPedido, refJogador,
-  PLANOS_GRATIS, planoFull, normalizarFicha, limparComplementos, fichaCompleta, adversarioUtil,
+  PLANOS_GRATIS, planoFull, normalizarFicha, complementosParaFicha, fichaCompleta, adversarioUtil,
   promptPlano, SCHEMA_PLANO, planoValido, finalizarPlano,
 } = require("./_player");
 
@@ -49,10 +49,10 @@ exports.handler = async function (event) {
       if (sP.exists) return null; // mesmo pedido de novo: já tratado
       const dados = sJ.exists ? sJ.data() : {};
       const ficha = normalizarFicha(dados.ficha);
-      ficha.complementos = limparComplementos(dados.complementos);
+      ficha.complementos = complementosParaFicha(dados.complementos, ficha);
       const agora = new Date().toISOString();
       if (!fichaCompleta(ficha)) {
-        t.set(refP, { status: "erro", erro: "Complete a ficha antes de gerar o plano.", criadoEm: agora });
+        t.set(refP, { status: "erro", erro: "Complete o seu perfil antes de criar a estratégia.", criadoEm: agora });
         return null;
       }
       let fonte = null;
@@ -60,7 +60,7 @@ exports.handler = async function (event) {
       else if ((dados.planosGratisUsados || 0) < PLANOS_GRATIS) fonte = "gratis";
       else if ((dados.creditosPlano || 0) > 0) fonte = "credito";
       if (!fonte) {
-        t.set(refP, { status: "erro", erro: "Você já usou o seu plano grátis.", semCota: true, criadoEm: agora });
+        t.set(refP, { status: "erro", erro: "Você já usou a sua estratégia grátis.", semCota: true, criadoEm: agora });
         return null;
       }
       if (fonte === "gratis") t.set(refJ, { planosGratisUsados: (dados.planosGratisUsados || 0) + 1 }, { merge: true });
@@ -85,7 +85,7 @@ exports.handler = async function (event) {
 
   if (!process.env.ANTHROPIC_API_KEY) {
     console.error("player-gerar-plano: ANTHROPIC_API_KEY não configurada");
-    await falhar("O gerador de planos está indisponível no momento. Tente de novo mais tarde.");
+    await falhar("O gerador de estratégias está indisponível no momento. Tente de novo mais tarde.");
     return { statusCode: 202, body: "" };
   }
 
@@ -108,11 +108,11 @@ exports.handler = async function (event) {
     });
 
     if (r.stop_reason === "refusal") {
-      await falhar("Não foi possível gerar o plano com esta ficha. Revise as observações e tente de novo.");
+      await falhar("Não foi possível criar a estratégia com este perfil. Revise as observações e tente de novo.");
       return { statusCode: 202, body: "" };
     }
     if (r.stop_reason === "max_tokens") {
-      await falhar("O plano saiu incompleto. Tente gerar de novo.");
+      await falhar("A estratégia saiu incompleta. Tente criar de novo.");
       return { statusCode: 202, body: "" };
     }
     const texto = r.content.filter((b) => b.type === "text").map((b) => b.text).join("");
@@ -120,10 +120,10 @@ exports.handler = async function (event) {
     try { plano = JSON.parse(texto); } catch (e) { plano = null; }
     if (!planoValido(plano)) {
       console.error("player-gerar-plano: resposta fora do formato", texto.slice(0, 500));
-      await falhar("O plano saiu num formato inesperado. Tente gerar de novo.");
+      await falhar("A estratégia saiu num formato inesperado. Tente criar de novo.");
       return { statusCode: 202, body: "" };
     }
-    finalizarPlano(plano, reserva.ficha.nivel);
+    finalizarPlano(plano, reserva.ficha.nivel, adversarioUtil(reserva.ficha));
     await refP.update({
       status: "pronto",
       plano,
@@ -133,7 +133,7 @@ exports.handler = async function (event) {
     });
   } catch (e) {
     console.error("player-gerar-plano: falha na IA", e);
-    await falhar("Não foi possível gerar o plano agora. Sua cota foi mantida — tente de novo em instantes.");
+    await falhar("Não foi possível criar a estratégia agora. Sua cota foi mantida — tente de novo em instantes.");
   }
 
   return { statusCode: 202, body: "" };

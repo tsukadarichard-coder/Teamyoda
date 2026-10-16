@@ -133,19 +133,31 @@ const CAMPOS_OBRIGATORIOS = ["nivel", "mao", "backhand", "piso", "armaPrincipal"
 const LIMITE_TEXTO = 500;
 
 function texto(v, limite) { return String(v == null ? "" : v).trim().slice(0, limite || LIMITE_TEXTO); }
-const MAX_COMPLEMENTOS = 12;
-/* Respostas do jogador às perguntas ("lacunas") dos planos: pergunta + resposta, sem repetir a pergunta. */
+const MAX_COMPLEMENTOS = 16;
+const GRUPOS_PERGUNTA = ["jogador", "adversario", "partida"];
+/* Respostas do jogador às perguntas dos planos. Cada resposta guarda de que assunto é (grupo) e,
+   para adversário e partida, a quem se refere (contexto = nome do adversário; vazio = "meu jogo"):
+   assim uma resposta sobre o João não vira característica do jogador nem vai para outro adversário. */
 function limparComplementos(lista) {
   if (!Array.isArray(lista)) return [];
   const vistos = new Set(), saida = [];
   for (const c of lista) {
     const pergunta = texto(c && c.pergunta, 300).replace(/\s+/g, " ");
     const resposta = texto(c && c.resposta, 500).replace(/\s+/g, " ");
-    if (!pergunta || !resposta || vistos.has(pergunta)) continue;
-    vistos.add(pergunta); saida.push({ pergunta, resposta });
+    const grupo = GRUPOS_PERGUNTA.includes(c && c.grupo) ? c.grupo : "jogador";
+    const contexto = grupo === "jogador" ? "" : texto(c && c.contexto, 60).replace(/\s+/g, " ");
+    const chave = pergunta + "|" + contexto;
+    if (!pergunta || !resposta || vistos.has(chave)) continue;
+    vistos.add(chave); saida.push({ pergunta, resposta, grupo, contexto });
     if (saida.length === MAX_COMPLEMENTOS) break;
   }
   return saida;
+}
+/* Só entram no pedido as respostas que valem para ESTE plano: as do jogador sempre; as do adversário e da partida
+   só se o plano é contra o mesmo adversário (ou, sem adversário, se foram dadas em "meu jogo"). */
+function complementosParaFicha(lista, ficha) {
+  const adv = ficha && ficha.adversario && ficha.adversario.ativo ? String(ficha.adversario.nome || "").trim().toLowerCase() : "";
+  return limparComplementos(lista).filter((c) => c.grupo === "jogador" || String(c.contexto || "").toLowerCase() === adv);
 }
 function opcao(lista, v) { return Object.prototype.hasOwnProperty.call(lista, v) ? v : ""; }
 function multi(lista, v) {
@@ -209,8 +221,10 @@ function linhasFicha(ficha) {
   ];
   if (ficha.observacoes) L.push("· Observações do jogador (texto livre dele): " + ficha.observacoes);
   if (Array.isArray(ficha.complementos) && ficha.complementos.length) {
-    L.push("· INFORMAÇÕES COMPLEMENTARES (o jogador respondeu a perguntas de planos anteriores; algumas podem se referir a um adversário específico — use só o que fizer sentido para este plano):");
-    for (const c of ficha.complementos) L.push("  - Pergunta: " + c.pergunta + " | Resposta dele: " + c.resposta);
+    L.push("· INFORMAÇÕES COMPLEMENTARES (o jogador respondeu a perguntas de planos anteriores).");
+    L.push("  Resposta \"Não sei\" significa que ele NÃO SABE: não presuma nenhuma característica a partir dela e não volte a perguntar.");
+    const ROTULO = { jogador: "sobre o jogador", adversario: "sobre o adversário", partida: "sobre as condições da partida" };
+    for (const c of ficha.complementos) L.push("  - (" + (ROTULO[c.grupo] || ROTULO.jogador) + ") " + c.pergunta + " | Resposta dele: " + c.resposta);
   }
   return L.join("\n");
 }
@@ -251,7 +265,7 @@ function promptPlano(ficha) {
       (comAdversario
         ? " — casar um ponto do jogo do jogador com uma fraqueza registrada do adversário, ou evitar expor um ponto fraco do jogador a uma força registrada dele."
         : " — usar o golpe forte, proteger o ponto vulnerável, ou ajustar o padrão de ponto, a rede, a devolução e a reação sob pressão que ele descreveu."),
-    "Nunca invente dado que não esteja na ficha. Se faltar informação para algo importante, registre em \"lacunas\" em vez de supor.",
+    "Nunca invente dado que não esteja na ficha. Se faltar informação para algo importante, registre em \"lacunas\" (como pergunta) em vez de supor.",
     "Adapte a linguagem e a ambição ao nível informado: para iniciante, diretrizes e jogadas simples e poucas variáveis.",
     "",
     "JOGADAS: de 3 a 4 opções de jogada que o jogador pode usar em quadra para executar o plano. Cada jogada é uma",
@@ -286,8 +300,13 @@ function promptPlano(ficha) {
     "· jogadas: de 3 a 4. Cada uma com titulo, quando (em que situação do jogo usar), sequencia (lista de 2 a 4 passos curtos),",
     "  porque (qual dado da ficha sustenta a jogada), fundamentos (lista de 4 a 6 objetos com categoria, nome e foco) e drills",
     "  (lista de objetos com codigo e motivo).",
-    "· lacunas: de 0 a 3 PERGUNTAS curtas, dirigidas ao jogador (\"você\"), que ele possa responder em uma ou duas frases e que deixariam o plano melhor",
-    "  (por exemplo \"Como é o seu segundo saque: costuma entrar? com que efeito?\"). Não pergunte o que já está na ficha ou nas informações complementares. Lista vazia se não houver.",
+    "· lacunas: de 0 a 4 PERGUNTAS que deixariam o plano melhor, cada uma com: pergunta (curta, dirigida ao jogador, em linguagem de quem joga",
+    "  por prazer — por exemplo \"Como costuma ser o seu segundo saque?\"), grupo (\"jogador\" para o jogo dele, \"adversario\" para o adversário,",
+    "  \"partida\" para as condições daquele jogo, como piso, horário, calor), opcoes (de 2 a 4 respostas curtas e fáceis de escolher, por exemplo",
+    "  \"Entra quase sempre\" / \"Entra pouco\" / \"Erro muito\"; lista vazia só se não houver resposta fechada razoável) e porque (uma frase dizendo para",
+    "  que a resposta serve ao plano, sem culpar o jogador por não ter informado). Regras: nunca exija medida técnica que um amador não tem",
+    "  (velocidade do saque, percentuais); não pergunte o que já está na ficha ou nas informações complementares; não inclua a opção \"Não sei\"",
+    "  (o app já oferece); sem adversário na ficha, não faça perguntas do grupo \"adversario\". Lista vazia se não houver.",
   ].join("\n");
 }
 
@@ -347,7 +366,20 @@ const SCHEMA_PLANO = {
         additionalProperties: false,
       },
     },
-    lacunas: { type: "array", items: { type: "string" } },
+    lacunas: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          pergunta: { type: "string" },
+          grupo: { type: "string", enum: GRUPOS_PERGUNTA },
+          opcoes: { type: "array", items: { type: "string" } },
+          porque: { type: "string" },
+        },
+        required: ["pergunta", "grupo", "opcoes", "porque"],
+        additionalProperties: false,
+      },
+    },
   },
   required: ["titulo", "resumo", "diretrizes", "jogadas", "lacunas"],
   additionalProperties: false,
@@ -363,7 +395,7 @@ function planoValido(p) {
       Array.isArray(j.sequencia) && Array.isArray(j.drills) &&
       Array.isArray(j.fundamentos) && j.fundamentos.length >= 1 &&
       j.fundamentos.every((f) => f && typeof f.nome === "string" && typeof f.foco === "string")) &&
-    Array.isArray(p.lacunas);
+    Array.isArray(p.lacunas) && p.lacunas.every((l) => l && typeof l.pergunta === "string" && Array.isArray(l.opcoes));
 }
 
 /* Troca cada código de drill pelo drill real do catálogo (com montagem, carga,
@@ -371,10 +403,15 @@ function planoValido(p) {
    nível do jogador: um código que não existe nunca chega ao jogador. O plano
    guarda uma cópia dos dados do drill, então mudar o catálogo depois não
    altera planos já entregues. */
-function finalizarPlano(plano, nivel) {
+function finalizarPlano(plano, nivel, comAdversario) {
   const permitidos = new Set(drillsDoNivel(nivel).map((d) => d.c));
   plano.diretrizes = plano.diretrizes.slice(0, 5);
-  plano.lacunas = plano.lacunas.slice(0, 3);
+  plano.lacunas = plano.lacunas.map((l) => ({
+    pergunta: String(l.pergunta).trim().slice(0, 300),
+    grupo: GRUPOS_PERGUNTA.includes(l.grupo) ? l.grupo : "jogador",
+    opcoes: [...new Set(l.opcoes.map((o) => String(o).trim().slice(0, 60)).filter((o) => o && !/^n[ãa]o sei$/i.test(o)))].slice(0, 4),
+    porque: String(l.porque || "").trim().slice(0, 240),
+  })).filter((l) => l.pergunta && (comAdversario || l.grupo !== "adversario")).slice(0, 4);
   plano.jogadas = plano.jogadas.slice(0, 4).map((j) => {
     const vistos = new Set();
     const drills = [];
@@ -406,6 +443,6 @@ function finalizarPlano(plano, nivel) {
 
 module.exports = {
   admin, app, ErroPublico, resposta, usuarioDoPedido, refJogador,
-  PLANOS_GRATIS, planoFull, NIVEIS_PLANO, nivelDoJogador, recursosDoNivel, PRINCIPIOS_JOGO, linhasFicha, limparComplementos, resumoDrill, AREAS, OPCOES, OPCOES_ADVERSARIO,
+  PLANOS_GRATIS, planoFull, NIVEIS_PLANO, nivelDoJogador, recursosDoNivel, PRINCIPIOS_JOGO, linhasFicha, limparComplementos, complementosParaFicha, GRUPOS_PERGUNTA, resumoDrill, AREAS, OPCOES, OPCOES_ADVERSARIO,
   normalizarFicha, fichaCompleta, adversarioUtil, promptPlano, SCHEMA_PLANO, planoValido, finalizarPlano,
 };

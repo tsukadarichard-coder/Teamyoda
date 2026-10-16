@@ -9,11 +9,11 @@
    Sempre pelo uid do token: um jogador nunca alcança dados de outro. */
 const {
   ErroPublico, resposta, usuarioDoPedido, refJogador,
-  PLANOS_GRATIS, planoFull, nivelDoJogador, recursosDoNivel, normalizarFicha, limparComplementos, fichaCompleta,
+  PLANOS_GRATIS, planoFull, nivelDoJogador, recursosDoNivel, normalizarFicha, limparComplementos, GRUPOS_PERGUNTA, fichaCompleta,
 } = require("./_player");
 
 const ID_VALIDO = /^[A-Za-z0-9_-]{8,40}$/;
-const STATUS_SESSAO = ["feito", "parcial", "nao_feito"];
+const STATUS_SESSAO = ["em_andamento", "feito", "parcial", "nao_feito"];
 
 function publicoPlano(id, p) {
   return {
@@ -35,7 +35,18 @@ function publicoPlanejamento(id, p, completo) {
   };
   if (p.status === "pronto" && p.planejamento) {
     if (completo) { base.planejamento = p.planejamento; base.registros = p.registros || {}; }
-    else base.titulo = p.planejamento.titulo;
+    else {
+      /* a lista já traz cada treino com a sua situação: Início e Treinos escolhem o próximo treino com a mesma regra, sem outra consulta */
+      const regs = p.registros || {};
+      base.titulo = p.planejamento.titulo;
+      base.sessoes = [];
+      for (const w of p.planejamento.semanas || []) {
+        for (const x of w.sessoes || []) {
+          const r = regs[x.id];
+          base.sessoes.push({ id: x.id, semana: w.n, data: x.data, titulo: x.titulo, status: r ? r.status : "pendente", blocos: (x.itens || []).length });
+        }
+      }
+    }
   }
   return base;
 }
@@ -114,17 +125,21 @@ exports.handler = async function (event) {
         return resposta(200, { ok: true, escolhidas });
       }
       if (body.acao === "salvarComplementos") {
-        /* respostas do jogador às perguntas do plano: entram nos próximos planos e planejamentos */
+        /* respostas do jogador às perguntas do plano: entram nos próximos planos e programas de treino */
         const atuais = limparComplementos(((await ref.get()).data() || {}).complementos);
-        const porPergunta = new Map(atuais.map((c) => [c.pergunta, c.resposta]));
+        const chaveDe = (c) => c.pergunta + "|" + c.contexto;
+        const porChave = new Map(atuais.map((c) => [chaveDe(c), c]));
         for (const c of Array.isArray(body.complementos) ? body.complementos.slice(0, 20) : []) {
           const pergunta = String((c && c.pergunta) || "").replace(/\s+/g, " ").trim().slice(0, 300);
           const resposta = String((c && c.resposta) || "").replace(/\s+/g, " ").trim().slice(0, 500);
+          const grupo = GRUPOS_PERGUNTA.includes(c && c.grupo) ? c.grupo : "jogador";
+          const contexto = grupo === "jogador" ? "" : String((c && c.contexto) || "").replace(/\s+/g, " ").trim().slice(0, 60);
           if (!pergunta) continue;
-          porPergunta.delete(pergunta); // regravar move para o fim: as mais recentes ficam
-          if (resposta) porPergunta.set(pergunta, resposta);
+          const chave = pergunta + "|" + contexto;
+          porChave.delete(chave); // regravar move para o fim: as mais recentes ficam
+          if (resposta) porChave.set(chave, { pergunta, resposta, grupo, contexto });
         }
-        const complementos = limparComplementos([...porPergunta].map(([pergunta, resposta]) => ({ pergunta, resposta })).slice(-12));
+        const complementos = limparComplementos([...porChave.values()].slice(-16));
         await ref.set({ complementos }, { merge: true });
         return resposta(200, { ok: true, complementos });
       }
@@ -147,7 +162,12 @@ exports.handler = async function (event) {
         const existe = (pj.planejamento.semanas || []).some((w) => (w.sessoes || []).some((x) => x.id === idSessao));
         if (!existe) throw new ErroPublico(404, "Sessão não encontrada.");
         const obs = String(body.obs || "").replace(/\s+/g, " ").trim().slice(0, 600);
-        const registro = { status: body.status, obs, em: new Date().toISOString() };
+        const sessaoPlan = pj.planejamento.semanas.flatMap((w) => w.sessoes).find((x) => x.id === idSessao);
+        const nBlocos = (sessaoPlan.itens || []).length;
+        const blocos = [...new Set((Array.isArray(body.blocos) ? body.blocos : []).filter((n) => Number.isInteger(n) && n >= 0 && n < nBlocos))].sort((a, b) => a - b);
+        const anterior = (pj.registros || {})[idSessao] || {};
+        const agora = new Date().toISOString();
+        const registro = { status: body.status, obs, blocos, em: agora, iniciadoEm: anterior.iniciadoEm || agora };
         await refPlanej.set({ registros: { [idSessao]: registro } }, { merge: true });
         return resposta(200, { ok: true, registro });
       }
