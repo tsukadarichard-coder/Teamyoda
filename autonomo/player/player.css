@@ -161,6 +161,27 @@ fieldset .nota { margin-bottom: 10px; }
 .drill-det { margin: 0; padding: 0 14px 14px; font-size: 14.5px; }
 .drill-det dt { font-weight: 700; font-size: 13px; letter-spacing: .03em; text-transform: uppercase; color: var(--grafite); margin-top: 10px; }
 .drill-det dd { margin: 2px 0 0; }
+/* ── planejamento ── */
+.opcoes.dias { grid-template-columns: repeat(4, 1fr); }
+@media (min-width: 420px) { .opcoes.dias { grid-template-columns: repeat(7, 1fr); } }
+.opcoes.dias .opcao span { align-items: center; text-align: center; padding: 10px 4px; font-size: 15px; }
+.bloqueado { background: #FAFBFA; border-style: dashed; }
+.semana { background: var(--cal); border: 1px solid var(--linha); border-radius: var(--raio); margin-top: 12px; }
+.semana > summary { list-style: none; cursor: pointer; padding: 14px 44px 14px 16px; position: relative; min-height: 56px; }
+.semana > summary::-webkit-details-marker { display: none; }
+.semana > summary::after { content: "+"; position: absolute; right: 16px; top: 12px; font-size: 24px; line-height: 1; color: var(--quadra); }
+.semana[open] > summary::after { content: "–"; }
+.semana-n { display: block; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--marca-texto); }
+.semana-foco { display: block; font-weight: 700; font-size: 17px; margin-top: 2px; }
+.semana-carga { display: block; font-size: 14px; color: var(--grafite); margin-top: 2px; }
+.sessao { margin: 0 12px 12px; padding: 14px; background: var(--papel); border: 1px solid var(--linha); border-radius: 10px; }
+.sessao-dia { margin: 0 0 2px; font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--marca-texto); }
+.sessao-jogadas { margin: 8px 0 0; font-size: 14.5px; }
+.itens-sessao { list-style: none; margin: 12px 0 0; padding: 0; }
+.itens-sessao > li + li { margin-top: 8px; }
+.item-livre { display: flex; gap: 12px; align-items: baseline; padding: 4px 2px; }
+.item-livre .min { flex: 0 0 56px; font-size: 14px; font-weight: 700; color: var(--grafite); }
+.item-drill .drill { background: var(--cal); }
 .lista-simples { margin: 8px 0 0; padding-left: 20px; }
 .lista-simples li + li { margin-top: 4px; }
 .consultoria { background: var(--quadra); color: #fff; border-radius: var(--raio); padding: 22px 18px; margin-top: 20px; }

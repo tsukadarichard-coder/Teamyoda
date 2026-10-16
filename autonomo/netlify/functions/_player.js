@@ -57,6 +57,25 @@ function planoFull(email) {
   return EMAILS_FULL_SHA256.includes(require("crypto").createHash("sha256").update(e).digest("hex"));
 }
 
+/* ── planos pagos (degraus) ──
+   gratis → p1 → p2 → p3, cada um incluindo o anterior:
+     p1  planejamento por semanas, com periodicidade
+     p2  + treino do dia, com marcação e observações
+     p3  + ajuste do planejamento por IA e consultoria
+   O nível de quem pagou fica em jogadores/{uid}.planoPago (gravado pelas
+   functions de pagamento, fase 2). Contas com acesso completo de teste
+   veem tudo. O app só esconde/mostra; quem barra de verdade é o servidor. */
+const NIVEIS_PLANO = ["gratis", "p1", "p2", "p3"];
+function nivelDoJogador(dados, email) {
+  if (planoFull(email)) return "p3";
+  const n = String((dados && dados.planoPago) || "gratis");
+  return NIVEIS_PLANO.includes(n) ? n : "gratis";
+}
+function recursosDoNivel(nivel) {
+  const i = NIVEIS_PLANO.indexOf(nivel);
+  return { planejamento: i >= 1, treinoDia: i >= 2, ajusteIA: i >= 3 };
+}
+
 /* Quantos planos o jogador pode gerar de graça. Os seguintes dependem
    de crédito (creditosPlano), que só as functions de pagamento somam. */
 const PLANOS_GRATIS = 1;
@@ -335,6 +354,6 @@ function finalizarPlano(plano, nivel) {
 
 module.exports = {
   admin, app, ErroPublico, resposta, usuarioDoPedido, refJogador,
-  PLANOS_GRATIS, planoFull, AREAS, OPCOES, OPCOES_ADVERSARIO,
+  PLANOS_GRATIS, planoFull, NIVEIS_PLANO, nivelDoJogador, recursosDoNivel, PRINCIPIOS_JOGO, linhasFicha, resumoDrill, AREAS, OPCOES, OPCOES_ADVERSARIO,
   normalizarFicha, fichaCompleta, adversarioUtil, promptPlano, SCHEMA_PLANO, planoValido, finalizarPlano,
 };

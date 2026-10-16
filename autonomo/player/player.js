@@ -207,6 +207,14 @@
             '<span class="seta" aria-hidden="true">›</span></a>';
         }).join("") + "</div>";
       }
+      var planej = (d.planejamentos || []).filter(function (x) { return x.status === "pronto"; });
+      if (planej.length) {
+        html += '<div class="cartao"><h2 style="margin-bottom:6px">Seus planejamentos</h2>' + planej.map(function (x) {
+          var plano = (d.planos || []).filter(function (p) { return p.id === x.baseadoEm; })[0];
+          return '<a class="item-plano" href="#/planejamento/' + esc(x.id) + '"><span><strong>' + esc(x.titulo || "Planejamento") + '</strong><br><span class="data">' +
+            dataBR(x.criadoEm) + (x.params ? " · " + x.params.semanas + " semanas · " + x.params.dias.length + "x por semana" : "") + '</span></span><span class="seta" aria-hidden="true">›</span></a>';
+        }).join("") + "</div>";
+      }
       html += '<div class="cartao">';
       if (d.podeGerar) {
         html += "<h2>" + (planos.length ? "Gerar novo plano" : "Gerar meu plano tático") + "</h2>" +
@@ -471,6 +479,174 @@
     return '<div class="cartao" style="margin-top:20px"><h2>Novos planos</h2><p class="nota" style="margin-top:6px">Você já usou o seu plano grátis. A compra de novos planos chega em breve aqui no app.</p></div>';
   }
 
+  /* ── planejamento por semanas (Plano 1) ── */
+  var DIAS_SEMANA = [["seg", "Seg"], ["ter", "Ter"], ["qua", "Qua"], ["qui", "Qui"], ["sex", "Sex"], ["sab", "Sáb"], ["dom", "Dom"]];
+  var NOME_DIA = { seg: "Segunda", ter: "Terça", qua: "Quarta", qui: "Quinta", sex: "Sexta", sab: "Sábado", dom: "Domingo" };
+  var ABREV_DIA = { seg: "Seg", ter: "Ter", qua: "Qua", qui: "Qui", sex: "Sex", sab: "Sáb", dom: "Dom" };
+
+  function hojeISO() {
+    var d = new Date();
+    return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2);
+  }
+  function proximaSegunda() {
+    var d = new Date(); d.setHours(12, 0, 0, 0);
+    d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7));
+    return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2);
+  }
+  function dataCurta(iso) {
+    var p = String(iso).split("-");
+    return p[2] + "/" + p[1];
+  }
+  function dataExtensa(iso) {
+    var p = String(iso).split("-");
+    return p[2] + "/" + p[1] + "/" + p[0];
+  }
+
+  function blocoPlanejamento(planoId) {
+    var r = estado.dados.recursos || {};
+    if (!r.planejamento) {
+      var msg = "Olá, Richard! Quero saber sobre o Plano 1 (planejamento por semanas) do QuadraLab Player.";
+      return '<div class="cartao bloqueado" style="margin-top:20px"><p class="olho">Plano 1</p><h2>Planejamento por semanas</h2>' +
+        '<p class="nota" style="margin-top:6px">Transforme as jogadas em treinos: semanas de trabalho, com os dias e a duração que cabem na sua rotina, e os drills de cada sessão.</p>' +
+        '<div class="acoes"><a class="btn btn-secundario" href="https://wa.me/' + WHATSAPP_CONSULTORIA + "?text=" + encodeURIComponent(msg) + '" target="_blank" rel="noopener">Quero o Plano 1<span class="sr"> (abre o WhatsApp)</span></a></div></div>';
+    }
+    var existente = (estado.dados.planejamentos || []).filter(function (x) { return x.baseadoEm === planoId && x.status === "pronto"; })[0];
+    return '<div class="cartao" style="margin-top:20px"><p class="olho">Plano 1</p><h2>Planejamento por semanas</h2>' +
+      '<p class="nota" style="margin-top:6px">Monte as semanas de treino a partir deste plano, com os seus dias e a sua duração.</p>' +
+      '<div class="acoes">' + (existente ? '<a class="btn btn-primario" href="#/planejamento/' + esc(existente.id) + '">Ver meu planejamento</a>' : "") +
+      '<a class="btn ' + (existente ? "btn-secundario" : "btn-primario") + '" href="#/planejar/' + esc(planoId) + '">' + (existente ? "Montar outro planejamento" : "Montar meu planejamento") + "</a></div></div>";
+  }
+
+  function telaPlanejar(planoId) {
+    var plano = (estado.dados.planos || []).filter(function (x) { return x.id === planoId && x.status === "pronto"; })[0];
+    if (!plano || !(estado.dados.recursos || {}).planejamento) { ir("#/inicio"); return; }
+    var marcadas = (plano.escolhidas || []).length;
+    var f = estado.formPlanej = estado.formPlanej || { semanas: "4", dias: ["ter", "qui", "sab"], minutos: "60", apoio: "", inicio: proximaSegunda() };
+    tela(
+      '<p style="margin-bottom:12px"><a class="btn btn-texto" href="#/plano/' + esc(planoId) + '">‹ Voltar ao plano</a></p>' +
+      "<h1>Montar planejamento</h1>" +
+      '<p class="sub">Conte como é a sua rotina e o planejamento se encaixa nela. ' +
+      (marcadas ? "Ele vai treinar as " + marcadas + (marcadas === 1 ? " jogada que você marcou" : " jogadas que você marcou") + " no plano."
+                : "Você não marcou jogadas neste plano, então o planejamento distribui todas elas.") + "</p>" +
+      '<form id="fPlanej" novalidate style="margin-top:20px">' +
+        '<fieldset id="g-semanas"><legend>Quantas semanas?</legend>' + opcoesPlanej("semanas", [["4", "4 semanas"], ["8", "8 semanas"]], f.semanas, "radio") + "</fieldset>" +
+        '<fieldset id="g-dias"><legend>Em quais dias você treina?</legend><p class="nota">Escolha de 1 a 5 dias. O planejamento terá uma sessão em cada um.</p>' +
+          opcoesPlanej("dias", DIAS_SEMANA, f.dias, "checkbox", true) + '<p class="erro-campo" hidden></p></fieldset>' +
+        '<fieldset id="g-minutos"><legend>Quanto tempo tem por sessão?</legend>' + opcoesPlanej("minutos", [["45", "45 min"], ["60", "60 min"], ["90", "90 min"]], f.minutos, "radio") + "</fieldset>" +
+        '<fieldset id="g-apoio"><legend>Com quem você treina?</legend>' + opcoesPlanej("apoio", [["parceiro", "Com um parceiro de jogo"], ["treinador", "Com treinador ou alimentador de bolas"]], f.apoio, "radio") + '<p class="erro-campo" hidden>Escolha uma opção.</p></fieldset>' +
+        '<div class="campo"><label for="inicio">Quando começa?</label><input id="inicio" type="date" min="' + hojeISO() + '" value="' + esc(f.inicio) + '"></div>' +
+        '<div class="aviso" id="aviso" role="alert" hidden></div>' +
+        '<div class="acoes"><button class="btn btn-primario" id="btPlanej" type="submit">Gerar planejamento</button></div>' +
+      "</form>"
+    );
+    var form = document.getElementById("fPlanej");
+    function ler() {
+      f.semanas = (form.querySelector('input[name="semanas"]:checked') || {}).value || "";
+      f.dias = [].map.call(form.querySelectorAll('input[name="dias"]:checked'), function (x) { return x.value; });
+      f.minutos = (form.querySelector('input[name="minutos"]:checked') || {}).value || "";
+      f.apoio = (form.querySelector('input[name="apoio"]:checked') || {}).value || "";
+      f.inicio = document.getElementById("inicio").value;
+    }
+    form.addEventListener("change", function () {
+      ler();
+      /* no máximo 5 dias: os demais ficam desabilitados enquanto houver 5 marcados */
+      form.querySelectorAll('input[name="dias"]').forEach(function (x) { x.disabled = !x.checked && f.dias.length >= 5; });
+      form.querySelectorAll(".erro-campo").forEach(function (e) { e.hidden = true; });
+    });
+    form.dispatchEvent(new Event("change"));
+    form.addEventListener("submit", async function (ev) {
+      ev.preventDefault();
+      var bt = document.getElementById("btPlanej");
+      if (bt.disabled) return;
+      ler();
+      var av = document.getElementById("aviso");
+      var erroDias = form.querySelector("#g-dias .erro-campo"), erroApoio = form.querySelector("#g-apoio .erro-campo");
+      if (!f.dias.length) { erroDias.textContent = "Escolha pelo menos um dia."; erroDias.hidden = false; erroDias.scrollIntoView({ block: "center" }); return; }
+      if (!f.apoio) { erroApoio.hidden = false; erroApoio.scrollIntoView({ block: "center" }); return; }
+      if (!f.inicio) { av.textContent = "Escolha a data de início."; av.hidden = false; return; }
+      ocupado(bt, true, "Enviando…");
+      var id = novoId();
+      try {
+        var r = await fetch("/.netlify/functions/player-gerar-planejamento-background", {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: "Bearer " + (await auth.currentUser.getIdToken()) },
+          body: JSON.stringify({ planejamentoId: id, planoId: planoId, params: { semanas: Number(f.semanas), dias: f.dias, minutos: Number(f.minutos), apoio: f.apoio, inicio: f.inicio } }),
+        });
+        if (r.status !== 202 && !r.ok) throw new Error();
+        ir("#/gerandoPlanej/" + id);
+      } catch (e) {
+        av.textContent = "Não foi possível pedir o planejamento agora. Suas escolhas continuam aqui: verifique a conexão e tente de novo.";
+        av.hidden = false; ocupado(bt, false);
+      }
+    });
+  }
+  function opcoesPlanej(nome, lista, valor, tipo, compacto) {
+    return '<div class="opcoes' + (compacto ? " dias" : lista.length <= 3 && lista.every(function (o) { return o[1].length < 16; }) ? " duas" : "") + '">' + lista.map(function (o) {
+      var marcado = tipo === "radio" ? valor === o[0] : (valor || []).indexOf(o[0]) >= 0;
+      return '<label class="opcao"><input type="' + tipo + '" name="' + nome + '" value="' + o[0] + '"' + (marcado ? " checked" : "") + "><span>" + esc(o[1]) + "</span></label>";
+    }).join("") + "</div>";
+  }
+
+  function telaGerandoPlanej(id) {
+    tela('<div class="gerando"><div class="bola" aria-hidden="true"></div><h1>Montando seu planejamento…</h1>' +
+      '<p class="sub">Costuma levar de 1 a 2 minutos. Pode deixar esta tela aberta.</p></div>');
+    var inicio = Date.now();
+    clearTimeout(consulta);
+    async function verificar() {
+      if (location.hash !== "#/gerandoPlanej/" + id) return;
+      try {
+        var r = await api("player-dados?planejamento=" + encodeURIComponent(id));
+        var pj = r.planejamento;
+        if (pj.status === "pronto") { await carregarDados(); estado.formPlanej = null; ir("#/planejamento/" + id); return; }
+        if (pj.status === "erro") { await carregarDados(); telaErroPlano(pj.erro); return; }
+      } catch (e) { /* ainda não existe ou a rede oscilou */ }
+      if (Date.now() - inicio > 5 * 60 * 1000) {
+        telaErroPlano("O planejamento está demorando mais que o normal. Volte ao início em alguns minutos: ele aparece na sua lista quando ficar pronto.");
+        return;
+      }
+      consulta = setTimeout(verificar, 3000);
+    }
+    consulta = setTimeout(verificar, 3000);
+  }
+
+  function itemSessaoHtml(it) {
+    if (it.tipo === "livre") {
+      return '<li class="item-livre"><span class="min">' + esc(it.minutos) + ' min</span><span><strong>' + esc(it.titulo) + "</strong>" + (it.nota ? '<br><span class="nota">' + esc(it.nota) + "</span>" : "") + "</span></li>";
+    }
+    return '<li class="item-drill"><details class="drill"><summary><span class="drill-nome">' + esc(it.nome) + "</span>" +
+      '<span class="drill-meta">' + esc(it.minutos) + " min · " + esc(it.tipoDrill) + " · " + esc(it.codigo) + "</span>" +
+      (it.nota ? '<span class="drill-motivo">' + esc(it.nota) + "</span>" : "") + "</summary>" +
+      '<dl class="drill-det">' + linhaDrill("Objetivo", it.objetivo) + linhaDrill("Montagem", it.montagem) + linhaDrill("Carga", it.carga) +
+      linhaDrill("Para facilitar", it.regressao) + linhaDrill("Para evoluir", it.progressao) + linhaDrill("Corrigir", it.corrigir) + linhaDrill("Ignorar", it.ignorar) + "</dl></details></li>";
+  }
+
+  async function telaPlanejamento(id) {
+    tela('<p class="carregando">Carregando…</p>');
+    var pj;
+    try { pj = (await api("player-dados?planejamento=" + encodeURIComponent(id))).planejamento; }
+    catch (e) { telaErroPlano(e.message); return; }
+    if (pj.status !== "pronto" || !pj.planejamento) { ir("#/inicio"); return; }
+    var pl = pj.planejamento, pa = pj.params || {};
+    var plano = (estado.dados.planos || []).filter(function (x) { return x.id === pj.baseadoEm; })[0];
+    var jogadas = plano && plano.plano ? plano.plano.jogadas || [] : [];
+    tela(
+      '<p style="margin-bottom:12px"><a class="btn btn-texto" href="#/inicio">‹ Início</a></p>' +
+      '<p class="olho">Planejamento · ' + (pa.semanas || "") + " semanas</p><h1>" + esc(pl.titulo) + "</h1>" +
+      '<p style="margin-top:10px"><span class="tag">' + (pa.dias || []).map(function (d) { return ABREV_DIA[d]; }).join(", ") + " · " + esc(pa.minutos) + " min · começa em " + esc(dataExtensa(pa.inicio)) + "</span></p>" +
+      '<p class="sub" style="color:var(--tinta)">' + esc(pl.resumo) + "</p>" +
+      pl.semanas.map(function (w, wi) {
+        return '<details class="semana"' + (wi === 0 ? " open" : "") + '><summary><span class="semana-n">Semana ' + w.n + '</span><span class="semana-foco">' + esc(w.foco) + '</span><span class="semana-carga">Carga: ' + esc(w.carga) + "</span></summary>" +
+          w.sessoes.map(function (x) {
+            return '<article class="sessao" id="' + esc(x.id) + '"><p class="sessao-dia">' + esc(x.diaNome) + ", " + esc(dataCurta(x.data)) + "</p><h3>" + esc(x.titulo) + "</h3>" +
+              '<p class="nota" style="margin-top:2px">' + esc(x.objetivo) + "</p>" +
+              ((x.jogadas || []).length ? '<p class="sessao-jogadas"><b>Jogadas:</b> ' + x.jogadas.map(function (n) { return esc(jogadas[n] ? jogadas[n].titulo : "Jogada " + (n + 1)); }).join(" · ") + "</p>" : "") +
+              '<ul class="itens-sessao">' + x.itens.map(itemSessaoHtml).join("") + "</ul></article>";
+          }).join("") + "</details>";
+      }).join("") +
+      '<p class="nota" style="margin-top:16px">Drills do catálogo da Metodologia MTY, escritos para treinar com parceiro ou treinador. Ajuste a carga ao seu nível.</p>'
+    );
+  }
+
   function telaPlano(id) {
     var p = (estado.dados.planos || []).filter(function (x) { return x.id === id; })[0];
     if (!p || p.status !== "pronto") { ir("#/inicio"); return; }
@@ -489,6 +665,7 @@
       jogadasHtml(pl.jogadas, p.escolhidas || []) +
       (pl.lacunas && pl.lacunas.length ? '<div class="cartao" style="margin-top:16px"><h3>Para um plano mais preciso</h3><ul class="lista-simples">' +
         pl.lacunas.map(function (l) { return "<li>" + esc(l) + "</li>"; }).join("") + "</ul></div>" : "") +
+      blocoPlanejamento(id) +
       blocoOutroPlano() +
       '<p class="nota" style="margin-top:16px">Plano gerado por inteligência artificial a partir da sua autoavaliação, seguindo a Metodologia MTY. Ele não substitui a avaliação de um treinador vendo você jogar.</p>' +
       '<div class="consultoria"><p class="olho">Consultoria</p><h2>Quer um plano validado por um treinador?</h2>' +
@@ -534,6 +711,9 @@
     if (partes[0] === "ficha") telaFicha(partes[1]);
     else if (partes[0] === "gerando" && partes[1]) telaGerando(partes[1]);
     else if (partes[0] === "plano" && partes[1]) telaPlano(partes[1]);
+    else if (partes[0] === "planejar" && partes[1]) telaPlanejar(partes[1]);
+    else if (partes[0] === "gerandoPlanej" && partes[1]) telaGerandoPlanej(partes[1]);
+    else if (partes[0] === "planejamento" && partes[1]) telaPlanejamento(partes[1]);
     else telaInicio();
   }
 
