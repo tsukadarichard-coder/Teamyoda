@@ -1,0 +1,142 @@
+/* QuadraLab Player — página pública de apresentação.
+   Cores tiradas do logotipo oficial (medidas nos pixels do arquivo): verde-escuro #012A1F, verde-lima #57B907 e
+   laranja-terra #C65825. #063B2E é o verde de apoio (superfícies sobre o verde-escuro). Só vale para a página
+   pública: o app por dentro mantém a sua própria interface. */
+:root {
+  --lp-verde: #012A1F;
+  --lp-verde2: #063B2E;
+  --lp-lima: #57B907;
+  --lp-laranja: #C65825;
+  --lp-laranja-escuro: #B14C1D;  /* texto branco sobre laranja com contraste adequado */
+  --lp-laranja-claro: #F2A06A;   /* texto laranja sobre o verde-escuro */
+  --lp-papel: #F5F7F6;
+  --lp-linha: #E1E8E4;
+  --lp-grafite: #54645C;
+}
+body.landing { background: #fff; }
+body.landing .topo, body.landing .rodape, body.landing .navinf, body.landing .lateral { display: none !important; }
+body.landing .principal { max-width: none; margin: 0; padding: 0; min-height: 0; }
+
+.lp-cont { width: 100%; max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+.lp-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* botões */
+.lp-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 52px; padding: 12px 26px; border-radius: 12px; border: 2px solid transparent; font: 700 16px/1.2 Inter, system-ui, sans-serif; text-decoration: none; text-align: center; cursor: pointer; transition: transform .12s ease, box-shadow .15s ease, background .15s ease; }
+.lp-btn:hover { transform: translateY(-1px); }
+.lp-btn:active { transform: scale(.98); }
+.lp-btn:focus-visible { outline: 3px solid var(--lp-laranja-claro); outline-offset: 3px; }
+.lp-btn-lima { background: var(--lp-lima); color: var(--lp-verde); box-shadow: 0 6px 18px -8px rgba(87,185,7,.8); }
+.lp-btn-lima:hover { background: #63C90C; }
+.lp-btn-claro { background: transparent; color: #fff; border-color: rgba(255,255,255,.55); }
+.lp-btn-claro:hover { background: rgba(255,255,255,.1); }
+.lp-btn-verde { background: var(--lp-verde); color: #fff; }
+.lp-btn-verde:hover { background: var(--lp-verde2); }
+.lp-btn-linha { min-height: 44px; padding: 8px 20px; border-color: var(--lp-verde); color: var(--lp-verde); background: #fff; }
+.lp-btn-linha:hover { background: var(--lp-papel); }
+.lp-btn-grande { min-height: 58px; padding: 14px 34px; font-size: 17px; }
+.lp-btn-cheio { width: 100%; }
+.lp-link { background: none; border: none; padding: 8px 4px; font: inherit; font-weight: 700; color: inherit; text-decoration: underline; cursor: pointer; }
+
+/* cabeçalho (a logo precisa de fundo claro) */
+.lp-topo { position: sticky; top: 0; z-index: 20; background: rgba(255,255,255,.96); border-bottom: 1px solid var(--lp-linha); padding-top: env(safe-area-inset-top); backdrop-filter: saturate(1.4) blur(8px); }
+.lp-topo-in { display: flex; align-items: center; justify-content: space-between; min-height: 64px; gap: 12px; }
+.lp-marca { display: flex; align-items: center; min-height: 44px; }
+.lp-marca img { height: 35px; width: auto; max-width: 100%; }
+
+/* hero */
+.lp-hero { background: radial-gradient(1000px 520px at 85% 12%, rgba(87,185,7,.16), transparent 60%), linear-gradient(165deg, var(--lp-verde) 0%, var(--lp-verde2) 100%); color: #fff; }
+.lp-hero-in { display: grid; grid-template-columns: 1fr; gap: 34px; padding-top: 38px; padding-bottom: 54px; }
+.lp-olho { display: inline-block; margin: 0 0 14px; padding: 5px 12px; border-radius: 99px; background: var(--lp-laranja-escuro); color: #fff; font-size: 13px; font-weight: 700; letter-spacing: .02em; }
+.lp-hero h1 { font-size: clamp(34px, 9.4vw, 54px); line-height: 1.06; font-weight: 800; letter-spacing: -.02em; text-wrap: balance; color: #fff; }
+.lp-hero h1 span { color: var(--lp-lima); }
+.lp-sub { margin-top: 16px; font-size: clamp(17px, 4.4vw, 19px); line-height: 1.5; color: #D5E4DD; max-width: 34em; }
+.lp-botoes { display: flex; flex-direction: column; gap: 12px; margin-top: 26px; }
+.lp-nota { margin-top: 14px; font-size: 14.5px; color: #B9CEC4; }
+.lp-hero-fone { display: flex; justify-content: center; }
+
+/* mockup de smartphone, discreto, com a proporção da captura preservada */
+.lp-fone { width: min(100%, 262px); margin: 0 auto; padding: 9px; border-radius: 42px; background: #0A1511; box-shadow: 0 30px 60px -24px rgba(0,0,0,.55), inset 0 0 0 1.5px #22332C; }
+.lp-fone-grande { width: min(100%, 282px); }
+.lp-fone-tela { position: relative; border-radius: 33px; overflow: hidden; background: #fff; line-height: 0; }
+.lp-fone img { display: block; width: 100%; height: auto; }
+
+/* seções */
+.lp-secao { padding: 56px 0; }
+.lp-h2 { font-size: clamp(27px, 7vw, 40px); line-height: 1.12; font-weight: 800; letter-spacing: -.015em; color: var(--lp-verde); text-wrap: balance; }
+
+.lp-como { background: #fff; }
+.lp-como .lp-h2 { text-align: center; max-width: 16em; margin: 0 auto; }
+.lp-passos { list-style: none; margin: 38px 0 0; padding: 0; display: grid; gap: 52px; }
+.lp-passo { display: grid; grid-template-columns: 1fr; gap: 24px; align-items: center; }
+.lp-passo-txt h3 { font-size: clamp(22px, 5.6vw, 28px); line-height: 1.18; font-weight: 800; color: var(--lp-verde); }
+.lp-n { color: var(--lp-laranja); }
+.lp-passo-txt p { margin-top: 10px; font-size: 17px; line-height: 1.55; color: var(--lp-grafite); max-width: 30em; }
+.lp-passo-fone { display: flex; justify-content: center; padding: 18px; border-radius: 28px; background: linear-gradient(180deg, var(--lp-papel), #fff); }
+
+.lp-evolucao { background: var(--lp-papel); }
+.lp-evolucao .lp-h2 { text-align: center; }
+.lp-beneficios { list-style: none; margin: 30px auto 0; padding: 0; max-width: 820px; display: grid; gap: 0; }
+.lp-beneficios li { position: relative; padding: 16px 0 16px 40px; border-bottom: 1px solid var(--lp-linha); display: flex; flex-direction: column; gap: 2px; }
+.lp-beneficios li:last-child { border-bottom: none; }
+.lp-beneficios li::before { content: "✓"; position: absolute; left: 0; top: 18px; width: 26px; height: 26px; border-radius: 50%; background: var(--lp-lima); color: var(--lp-verde); font-size: 14px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+.lp-beneficios strong { font-size: 18px; color: var(--lp-verde); }
+.lp-beneficios span { font-size: 15.5px; color: var(--lp-grafite); }
+
+/* consultorias */
+.lp-consul { background: linear-gradient(180deg, var(--lp-verde) 0%, var(--lp-verde2) 100%); color: #fff; }
+.lp-consul .lp-h2 { color: #fff; text-align: center; }
+.lp-sub-escuro { margin-top: 10px; text-align: center; font-size: 17px; color: #D5E4DD; }
+.lp-aviso { margin: 20px auto 0; max-width: 760px; padding: 12px 16px; border-left: 4px solid var(--lp-laranja); border-radius: 10px; background: rgba(255,255,255,.09); font-size: 15px; color: #fff; }
+.lp-consul-lista { display: grid; grid-template-columns: 1fr; gap: 18px; margin-top: 28px; }
+.lp-carregando { text-align: center; color: #D5E4DD; padding: 24px 0; }
+.lp-consul-card { display: flex; flex-direction: column; gap: 10px; padding: 24px 20px; border-radius: 18px; background: #fff; color: var(--lp-verde); box-shadow: 0 18px 40px -22px rgba(0,0,0,.6); }
+.lp-consul-card h3 { font-size: 22px; line-height: 1.2; font-weight: 800; overflow-wrap: anywhere; }
+.lp-consul-desc { font-size: 15.5px; line-height: 1.5; color: #24352E; }
+.lp-consul-para { font-size: 14.5px; color: var(--lp-grafite); }
+.lp-consul-para strong { color: var(--lp-verde); }
+.lp-consul-regra { margin: 0; padding: 10px 12px; border-radius: 10px; background: #F1F7EC; border: 1px solid #CBE3B8; color: #1F4710; font-size: 14.5px; font-weight: 600; }
+.lp-consul-entregas { list-style: none; margin: 0; padding: 0; }
+.lp-consul-entregas li { position: relative; padding: 4px 0 4px 26px; font-size: 15px; }
+.lp-consul-entregas li::before { content: "✓"; position: absolute; left: 0; top: 5px; width: 18px; height: 18px; border-radius: 50%; background: var(--lp-lima); color: var(--lp-verde); font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+.lp-rotulo { display: block; font-size: 12.5px; font-weight: 600; color: var(--lp-grafite); }
+.lp-consul-preco { margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--lp-linha); }
+.lp-consul-preco strong { font-size: 30px; line-height: 1.1; color: var(--lp-verde); }
+.lp-un { font-size: 13.5px; color: var(--lp-grafite); }
+.lp-consul-prazo { font-size: 14.5px; }
+.lp-consul-card .lp-btn { margin-top: 6px; }
+.lp-ver { text-align: center; }
+.lp-ver a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 10px; color: var(--lp-verde); font-weight: 700; text-underline-offset: 4px; }
+.lp-consul-destaque { border: 3px solid var(--lp-lima); position: relative; }
+.lp-selo { align-self: flex-start; margin: 0; padding: 4px 14px; border-radius: 99px; background: var(--lp-laranja-escuro); color: #fff; font-size: 13px; font-weight: 700; letter-spacing: .02em; }
+.lp-nota-escura { margin: 22px auto 0; max-width: 760px; text-align: center; font-size: 14.5px; color: #C5D8CF; }
+
+/* chamada final */
+.lp-final { background: radial-gradient(900px 400px at 15% 0%, rgba(87,185,7,.16), transparent 60%), var(--lp-verde); color: #fff; text-align: center; padding: 64px 0 70px; }
+.lp-final-in { max-width: 760px; }
+.lp-final h2 { font-size: clamp(28px, 7.6vw, 44px); line-height: 1.12; font-weight: 800; letter-spacing: -.015em; text-wrap: balance; }
+.lp-final p { margin: 16px auto 28px; font-size: 18px; line-height: 1.5; color: #D5E4DD; max-width: 34em; }
+
+.lp-rodape { background: var(--lp-papel); padding: 26px 0 calc(26px + env(safe-area-inset-bottom)); font-size: 14px; color: var(--lp-grafite); text-align: center; }
+.lp-rodape nav { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px 22px; margin-top: 8px; }
+.lp-rodape a { display: inline-flex; align-items: center; min-height: 44px; color: var(--lp-verde); font-weight: 600; }
+
+@media (min-width: 700px) {
+  .lp-botoes { flex-direction: row; }
+  .lp-consul-lista { grid-template-columns: 1fr 1fr; }
+  .lp-consul-destaque { grid-column: 1 / -1; }
+  .lp-consul-destaque { padding: 28px 28px; }
+}
+@media (min-width: 900px) {
+  .lp-secao { padding: 84px 0; }
+  .lp-hero-in { grid-template-columns: 1.08fr .92fr; gap: 60px; align-items: center; padding-top: 70px; padding-bottom: 84px; }
+  .lp-hero-fone { justify-content: flex-end; }
+  .lp-fone { width: 300px; }
+  .lp-fone-grande { width: 340px; }
+  .lp-passo { grid-template-columns: 1fr 1fr; gap: 64px; }
+  .lp-passo-inv .lp-passo-fone { order: -1; }
+  .lp-passos { gap: 84px; }
+  .lp-beneficios { grid-template-columns: 1fr 1fr; column-gap: 56px; }
+  .lp-beneficios li:nth-last-child(2) { border-bottom: none; }
+  .lp-final { padding: 96px 0 104px; }
+}
+@media (prefers-reduced-motion: reduce) { .lp-btn { transition: none; } }

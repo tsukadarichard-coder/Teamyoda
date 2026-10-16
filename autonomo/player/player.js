@@ -2037,6 +2037,10 @@
     atualizarCasca(!!logado, partes[0]);
     document.body.classList.remove("teclado");
     var t = document.getElementById("toast"); if (t && Date.now() - toastEm > 1200) t.hidden = true; // um aviso criado junto com a navegação (ex.: "perfil salvo") continua visível
+    /* visitante sem rota: página pública de apresentação; #/entrar e #/criar (e qualquer link direto) seguem para o cadastro/entrada */
+    var visitanteNaHome = !logado && !partes[0] && window.QL_LANDING;
+    document.body.classList.toggle("landing", !!visitanteNaHome);
+    if (visitanteNaHome) { tela(window.QL_LANDING.html()); window.QL_LANDING.ligar(app); return; }
     if (!logado) { telaEntrar(partes[0] === "entrar" ? "entrar" : "criar"); return; }
     if (!estado.dados) {
       tela('<p class="carregando">Carregando seus dados…</p>', true);
