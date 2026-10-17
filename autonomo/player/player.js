@@ -144,66 +144,127 @@
   }
 
   /* ── telas ── */
+  /* ── cadastro, entrada e recuperação de senha ──
+     Um formulário por vez (#/criar, #/entrar, #/recuperar). A conta continua sendo criada por player-conta e a entrada
+     por Firebase Auth: nada de sucesso simulado. Os benefícios do plano gratuito vêm da mesma fonte da página de planos
+     (player-publico); se não carregarem, o bloco simplesmente não aparece. Quando o visitante chegou por um link para uma
+     área específica (a rota não é de acesso), a troca entre cadastro e entrada não mexe no endereço: o destino é preservado. */
+  var gratisPublico = null; // { itens, links } depois de carregado
+  function carregarGratisPublico() {
+    if (gratisPublico) return Promise.resolve(gratisPublico);
+    return fetch("/.netlify/functions/player-publico").then(function (r) { if (!r.ok) throw new Error(); return r.json(); }).then(function (d) {
+      var free = (d.planos || []).filter(function (p) { return p.id === "free"; })[0];
+      gratisPublico = { itens: free ? free.itens : [], links: d.links || {} };
+      return gratisPublico;
+    });
+  }
+  var ROTAS_ACESSO = { entrar: 1, criar: 1, recuperar: 1 };
+  function irAcesso(modo) {
+    var atual = location.hash.replace(/^#\/?/, "").split("?")[0].split("/")[0];
+    if (ROTAS_ACESSO[atual]) ir("#/" + modo); else telaEntrar(modo);
+  }
+  var emailAcesso = "";
   function telaEntrar(modo) {
-    modo = modo || "criar";
-    var criar = modo === "criar";
+    modo = ROTAS_ACESSO[modo] ? modo : "criar";
+    var criar = modo === "criar", recuperar = modo === "recuperar";
+    document.body.classList.add("acesso");
+    var titulo = criar ? "Crie sua conta grátis" : recuperar ? "Recuperar senha" : "Bem-vindo de volta";
+    var sub = criar ? "Comece com seu plano de jogo inicial e evolua no seu ritmo." : recuperar ? "Informe seu e-mail para receber as instruções de recuperação." : "Entre para continuar seu planejamento.";
+    function campo(id, rotulo, extra) {
+      return '<div class="ac-campo"><label for="' + id + '">' + rotulo + "</label>" + extra + '<p class="ac-erro" id="erro-' + id + '" role="alert" hidden></p></div>';
+    }
     tela(
-      '<div class="pilha">' +
-        '<div><p class="olho">Estratégia de jogo para o tênis</p>' +
-        "<h1>Descubra como jogar melhor com o jogo que você já tem.</h1>" +
-        '<p class="sub">Responda um perfil rápido sobre o seu jogo e receba uma estratégia com a Metodologia MTY e a tecnologia QuadraLab. <strong>A primeira estratégia é grátis.</strong></p></div>' +
-        '<div class="cartao">' +
-          '<div class="abas" role="tablist" aria-label="Acesso">' +
-            '<button type="button" role="tab" aria-selected="' + criar + '" data-modo="criar">Criar conta</button>' +
-            '<button type="button" role="tab" aria-selected="' + !criar + '" data-modo="entrar">Entrar</button>' +
-          "</div>" +
-          '<form id="fAcesso" novalidate>' +
-            '<div class="aviso" id="aviso" role="alert" hidden></div>' +
-            (criar ? '<div class="campo"><label for="nome">Nome</label><input id="nome" autocomplete="name" maxlength="80" required></div>' : "") +
-            '<div class="campo"><label for="email">E-mail</label><input id="email" type="email" inputmode="email" autocomplete="email" required></div>' +
-            '<div class="campo"><label for="senha">Senha</label><input id="senha" type="password" autocomplete="' + (criar ? "new-password" : "current-password") + '" minlength="8" required>' +
-              (criar ? '<p class="nota" style="margin-top:6px">Pelo menos 8 caracteres.</p>' : "") + "</div>" +
-            '<button class="btn btn-primario largo" id="btAcesso" type="submit">' + (criar ? "Criar conta e começar" : "Entrar") + "</button>" +
-            (criar ? "" : '<p style="text-align:center;margin-top:8px"><button type="button" class="btn btn-texto" id="btEsqueci">Esqueci minha senha</button></p>') +
-          "</form>" +
-        "</div>" +
+      '<div class="ac-pagina">' +
+        "<h1>" + titulo + "</h1>" +
+        '<p class="ac-sub">' + sub + "</p>" +
+        (criar ? '<div class="ac-gratis"><p><strong>Acesso gratuito</strong> <span>Sem cartão de crédito.</span></p><ul id="acBeneficios" hidden></ul></div>' : "") +
+        '<form id="fAcesso" class="ac-form" novalidate>' +
+          '<p class="ac-aviso" id="aviso" role="alert" hidden></p>' +
+          (criar ? campo("nome", "Nome", '<input id="nome" name="name" autocomplete="name" maxlength="80" aria-describedby="erro-nome" required>') : "") +
+          campo("email", "E-mail", '<input id="email" name="email" type="email" inputmode="email" autocomplete="' + (criar ? "email" : "username") + '" autocapitalize="none" spellcheck="false" aria-describedby="erro-email" required>') +
+          (recuperar ? "" : campo("senha", "Senha",
+            '<div class="ac-senha"><input id="senha" name="password" type="password" autocomplete="' + (criar ? "new-password" : "current-password") + '" aria-describedby="' + (criar ? "dica-senha " : "") + 'erro-senha" required>' +
+            '<button type="button" class="ac-ver" id="btVer" aria-pressed="false" aria-controls="senha">Mostrar<span class="sr"> senha</span></button></div>' +
+            (criar ? '<p class="ac-dica" id="dica-senha">Mínimo de 8 caracteres.</p>' : ""))) +
+          '<button class="ac-botao" id="btAcesso" type="submit">' + (criar ? "Criar minha conta grátis" : recuperar ? "Enviar instruções" : "Entrar") + "</button>" +
+          (modo === "entrar" ? '<p class="ac-links"><a href="#/recuperar" data-ir="recuperar">Esqueci minha senha</a></p>' : "") +
+        "</form>" +
+        '<p class="ac-troca">' + (criar ? 'Já tem conta? <a href="#/entrar" data-ir="entrar">Entrar</a>' : recuperar ? '<a href="#/entrar" data-ir="entrar">Voltar para entrar</a>' : 'Ainda não tem conta? <a href="#/criar" data-ir="criar">Criar conta grátis</a>') + "</p>" +
+        (criar ? '<p class="ac-nota">Você pode ampliar seu plano dentro da plataforma quando precisar.</p><p class="ac-nota" id="acLegal" hidden></p>' : "") +
       "</div>"
     );
-    app.querySelectorAll("[data-modo]").forEach(function (b) {
-      b.addEventListener("click", function () { telaEntrar(b.dataset.modo); });
+    var emailEl = document.getElementById("email"); emailEl.value = emailAcesso;
+    emailEl.addEventListener("input", function () { emailAcesso = emailEl.value; });
+    app.querySelectorAll("[data-ir]").forEach(function (a) {
+      a.addEventListener("click", function (ev) { ev.preventDefault(); irAcesso(a.getAttribute("data-ir")); });
     });
+    var ver = document.getElementById("btVer");
+    if (ver) ver.addEventListener("click", function () {
+      var s = document.getElementById("senha"), mostrar = s.type === "password";
+      s.type = mostrar ? "text" : "password";
+      ver.setAttribute("aria-pressed", String(mostrar));
+      ver.firstChild.textContent = mostrar ? "Ocultar" : "Mostrar";
+    });
+    if (criar) carregarGratisPublico().then(function (g) {
+      var ul = document.getElementById("acBeneficios"), legal = document.getElementById("acLegal");
+      if (ul && g.itens.length) { ul.innerHTML = g.itens.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join(""); ul.hidden = false; }
+      if (legal && (g.links.termos || g.links.privacidade)) {
+        legal.innerHTML = "Ao criar a conta, você concorda com " + (g.links.termos ? '<a href="' + esc(g.links.termos) + '" target="_blank" rel="noopener">os Termos de Uso</a>' : "") + (g.links.termos && g.links.privacidade ? " e " : "") + (g.links.privacidade ? '<a href="' + esc(g.links.privacidade) + '" target="_blank" rel="noopener">a Política de Privacidade</a>' : "") + ".";
+        legal.hidden = false;
+      }
+    }).catch(function () { /* sem a lista, o bloco mostra só o essencial: nada é inventado */ });
+
     var aviso = document.getElementById("aviso");
-    function avisar(t, info) { aviso.textContent = t; aviso.className = info ? "aviso-info" : "aviso"; aviso.hidden = false; }
-    var btEsq = document.getElementById("btEsqueci");
-    if (btEsq) btEsq.addEventListener("click", async function () {
-      var email = document.getElementById("email").value.trim();
-      if (!email) { avisar("Digite seu e-mail acima e toque de novo em \"Esqueci minha senha\"."); return; }
-      try { await auth.sendPasswordResetEmail(email); } catch (e) { /* não revela se o e-mail existe */ }
-      avisar("Se houver uma conta com esse e-mail, você vai receber um link para criar uma nova senha.", true);
-    });
+    function limpar() {
+      aviso.hidden = true;
+      app.querySelectorAll(".ac-erro").forEach(function (p) { p.hidden = true; p.textContent = ""; });
+      app.querySelectorAll("[aria-invalid]").forEach(function (i) { i.removeAttribute("aria-invalid"); });
+    }
+    function erroCampo(id, texto) {
+      var p = document.getElementById("erro-" + id), i = document.getElementById(id);
+      p.textContent = texto; p.hidden = false; if (i) i.setAttribute("aria-invalid", "true");
+    }
+    function mensagemFirebase(e) {
+      var cod = e && e.code || "";
+      return /invalid-credential|wrong-password|user-not-found|invalid-login/.test(cod) ? "E-mail ou senha incorretos."
+        : /too-many-requests/.test(cod) ? "Muitas tentativas. Aguarde alguns minutos e tente de novo."
+        : /network/.test(cod) ? "Sem conexão. Verifique sua internet e tente de novo."
+        : (e && e.message) || "Não foi possível continuar agora.";
+    }
     document.getElementById("fAcesso").addEventListener("submit", async function (ev) {
       ev.preventDefault();
       var bt = document.getElementById("btAcesso");
-      if (bt.disabled) return;
-      aviso.hidden = true;
+      if (bt.disabled) return; // bloqueia envio duplicado
+      limpar();
       var email = document.getElementById("email").value.trim();
-      var senha = document.getElementById("senha").value;
+      var senha = recuperar ? "" : document.getElementById("senha").value;
       var nome = criar ? document.getElementById("nome").value.trim() : "";
-      if ((criar && !nome) || !email || senha.length < (criar ? 8 : 1)) {
-        avisar(criar ? "Preencha nome, e-mail e uma senha com pelo menos 8 caracteres." : "Preencha e-mail e senha.");
-        return;
-      }
-      ocupado(bt, true, criar ? "Criando sua conta…" : "Entrando…");
+      var primeiro = null;
+      function inv(id, t) { erroCampo(id, t); if (!primeiro) primeiro = id; }
+      if (criar && !nome) inv("nome", "Informe seu nome.");
+      if (!email) inv("email", "Informe seu e-mail."); else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) inv("email", "Informe um e-mail válido.");
+      if (!recuperar) { if (!senha) inv("senha", "Informe sua senha."); else if (criar && senha.length < 8) inv("senha", "A senha precisa ter pelo menos 8 caracteres."); }
+      if (primeiro) { document.getElementById(primeiro).focus(); return; }
+      ocupado(bt, true, criar ? "Criando sua conta..." : recuperar ? "Enviando..." : "Entrando...");
       try {
+        if (recuperar) {
+          try { await auth.sendPasswordResetEmail(email); } catch (e) { if (/network/.test((e && e.code) || "")) throw e; /* não revela se o e-mail existe */ }
+          aviso.textContent = "Se houver uma conta com esse e-mail, você vai receber as instruções para criar uma nova senha.";
+          aviso.className = "ac-aviso ac-aviso-info"; aviso.hidden = false;
+          ocupado(bt, false);
+          return;
+        }
         if (criar) await api("player-conta", { metodo: "POST", corpo: { nome: nome, email: email, senha: senha } });
         await auth.signInWithEmailAndPassword(email, senha);
-        /* onAuthStateChanged segue daqui */
+        /* onAuthStateChanged segue daqui: perfil do jogador e área adequada */
       } catch (e) {
-        var cod = e && e.code || "";
-        avisar(/invalid-credential|wrong-password|user-not-found|invalid-login/.test(cod)
-          ? "E-mail ou senha incorretos."
-          : /too-many-requests/.test(cod) ? "Muitas tentativas. Aguarde alguns minutos e tente de novo."
-          : (e.message || "Não foi possível continuar agora."));
+        var msg = mensagemFirebase(e);
+        if (criar && /e-mail já tem uma conta|já tem uma conta/i.test(msg)) erroCampo("email", msg);
+        else if (criar && /e-mail válido/i.test(msg)) erroCampo("email", msg);
+        else if (criar && /pelo menos 8/.test(msg)) erroCampo("senha", msg);
+        else if (criar && /seu nome/i.test(msg)) erroCampo("nome", msg);
+        else if (modo === "entrar" && msg === "E-mail ou senha incorretos.") erroCampo("senha", msg);
+        else { aviso.textContent = msg; aviso.className = "ac-aviso"; aviso.hidden = false; }
         ocupado(bt, false);
       }
     });
@@ -2193,13 +2254,13 @@
     var h = location.hash.replace(/^#\/?/, "");
     var partes = h.split("?")[0].split("/"); // o que vier depois de "?" (ex.: retorno do pagamento) nunca muda nada: só o servidor libera acesso
     atualizarCasca(!!logado, partes[0]);
-    document.body.classList.remove("teclado");
+    document.body.classList.remove("teclado", "acesso");
     var t = document.getElementById("toast"); if (t && Date.now() - toastEm > 1200) t.hidden = true; // um aviso criado junto com a navegação (ex.: "perfil salvo") continua visível
     /* visitante sem rota: página pública de apresentação; #/entrar e #/criar (e qualquer link direto) seguem para o cadastro/entrada */
     var visitanteNaHome = !logado && !partes[0] && window.QL_LANDING;
     document.body.classList.toggle("landing", !!visitanteNaHome);
     if (visitanteNaHome) { tela(window.QL_LANDING.html()); window.QL_LANDING.ligar(app); return; }
-    if (!logado) { telaEntrar(partes[0] === "entrar" ? "entrar" : "criar"); return; }
+    if (!logado) { telaEntrar(ROTAS_ACESSO[partes[0]] ? partes[0] : "criar"); return; }
     if (!estado.dados) {
       tela('<p class="carregando">Carregando seus dados…</p>', true);
       try { await carregarDados(); aplicarRascunho(); carregarAssinatura(false).catch(function () { /* o resto do app funciona sem a área comercial */ }); }
@@ -2252,7 +2313,7 @@
   auth.onAuthStateChanged(function (u) {
     if (!u) estado.dados = null;
     var h = location.hash;
-    if (u && (!h || h === "#/entrar" || h === "#/")) { location.hash = "#/inicio"; return; }
+    if (u && (!h || h === "#/entrar" || h === "#/criar" || h === "#/recuperar" || h === "#/")) { location.hash = "#/inicio"; return; }
     pilha = [location.hash];
     rotear();
   });
