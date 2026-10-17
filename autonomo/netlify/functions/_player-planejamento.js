@@ -51,7 +51,7 @@ function dataDaSessao(inicio, semanaN, dia) {
   return new Date(janela.getTime() + deslocamento * 86400000).toISOString().slice(0, 10);
 }
 
-function promptPlanejamento(ficha, planoTatico, escolhidas, params) {
+function promptPlanejamento(ficha, planoTatico, escolhidas, params, historico) {
   const jogadas = (planoTatico.jogadas || []).map((j, i) => ({ j, i }));
   const foco = escolhidas.length ? jogadas.filter((x) => escolhidas.includes(x.i)) : jogadas;
   const drills = drillsDoNivel(ficha.nivel);
@@ -73,6 +73,8 @@ function promptPlanejamento(ficha, planoTatico, escolhidas, params) {
     escolhidas.length ? "JOGADAS QUE ELE ESCOLHEU TREINAR (use estas; o número entre colchetes é o índice):" : "JOGADAS DO PLANO (ele não marcou nenhuma: distribua todas; o número entre colchetes é o índice):",
     ...foco.map((x) => "[" + x.i + "] " + x.j.titulo + " — sequência: " + x.j.sequencia.join(" > ") + " — por quê: " + x.j.porque +
       ((x.j.fundamentos || []).length ? "\n    fundamentos: " + x.j.fundamentos.map((f) => f.categoria + ": " + f.nome + " (" + f.foco + ")").join(" | ") : "")),
+    "",
+    ...(historico && historico.texto ? ["HISTÓRICO REGISTRADO PELO JOGADOR:", historico.texto, "", require("./_player-evolucao").INSTRUCOES_HISTORICO_PROGRAMA] : []),
     "",
     "PARÂMETROS DO PLANEJAMENTO:",
     "· " + params.semanas + " semanas.",

@@ -150,13 +150,9 @@ exports.handler = async function (event) {
   /* Evolução Inteligente: histórico registrado pelo jogador, no volume do plano dele (falha aqui não impede o plano) */
   let historico = null;
   try {
-    const [sJ, sPart, sPl, sPj] = await Promise.all([
-      refJ.get(), refJ.collection("partidas").orderBy("data", "desc").limit(100).get(),
-      refJ.collection("planos").orderBy("criadoEm", "desc").limit(20).get(), refJ.collection("planejamentos").orderBy("criadoEm", "desc").limit(5).get(),
-    ]);
-    const lista = (snap) => { const a = []; snap.forEach((d) => a.push({ id: d.id, ...d.data() })); return a; };
+    const sJ = await refJ.get();
     const planoCtx = COTAS.planoIdDoNivel(nivelDoJogador(sJ.exists ? sJ.data() : {}, usuario.email), planoFull(usuario.email));
-    historico = EVO.montarHistorico({ partidas: lista(sPart), planos: lista(sPl).filter((p) => p.id !== planoId), planejamentos: lista(sPj), planoId: planoCtx });
+    historico = await EVO.carregarHistorico(refJ, planoCtx, planoId);
   } catch (e) { console.error("player-gerar-plano: falha ao montar o histórico", e); }
 
   try {

@@ -122,6 +122,12 @@ exports.handler = async function (event) {
     }
     await refPlan.update({ status: "erro", erro: mensagem, finalizadoEm: agora() });
   }
+  /* histórico do jogador (volume do plano) para ajustar a ênfase do programa; falha aqui não impede a geração */
+  let historico = null;
+  try {
+    const planoCtx = COTAS.planoIdDoNivel(nivelDoJogador(dadosJ, usuario.email, hojeNoBrasil()), planoFull(usuario.email));
+    historico = await require("./_player-evolucao").carregarHistorico(refJ, planoCtx, null);
+  } catch (e) { console.error("player-gerar-planejamento: falha ao montar o histórico", e); }
   if (!process.env.ANTHROPIC_API_KEY) {
     console.error("player-gerar-planejamento: ANTHROPIC_API_KEY não configurada");
     await falhar("O gerador está indisponível no momento. Tente de novo mais tarde.");
@@ -136,7 +142,7 @@ exports.handler = async function (event) {
       betas: ["server-side-fallback-2026-07-01"],
       fallbacks: "default",
       output_config: { effort: "medium", format: { type: "json_schema", schema: SCHEMA_PLANEJAMENTO } },
-      messages: [{ role: "user", content: promptPlanejamento(ficha, planoTatico, escolhidas, params) }],
+      messages: [{ role: "user", content: promptPlanejamento(ficha, planoTatico, escolhidas, params, historico) }],
     });
     if (r.stop_reason === "refusal") { await falhar("Não foi possível montar o programa de treino com este perfil. Tente de novo."); return { statusCode: 202, body: "" }; }
     if (r.stop_reason === "max_tokens") { await falhar("O programa de treino saiu incompleto. Tente com menos semanas ou menos dias por semana."); return { statusCode: 202, body: "" }; }

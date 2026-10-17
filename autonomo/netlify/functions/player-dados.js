@@ -127,7 +127,7 @@ exports.handler = async function (event) {
       const planejSnap = await ref.collection("planejamentos").orderBy("criadoEm", "desc").limit(20).get();
       const planejamentos = [];
       planejSnap.forEach((d) => planejamentos.push(publicoPlanejamento(d.id, d.data(), false)));
-      const partSnap = await ref.collection("partidas").orderBy("data", "desc").limit(100).get();
+      const partSnap = await ref.collection("partidas").orderBy("data", "desc").limit(300).get();
       const partidas = []; partSnap.forEach((d) => partidas.push({ id: d.id, ...d.data() }));
       const nivelPlano = nivelDoJogador(dados, usuario.email);
       const ficha = dados.ficha || null;
@@ -135,7 +135,8 @@ exports.handler = async function (event) {
       return resposta(200, {
         nivelPlano, recursos: COTAS.modeloAtivo() ? { ...recursosDoNivel(nivelPlano), planejamento: true, treinoDia: true } : recursosDoNivel(nivelPlano), planejamentos,
         adversariosCadastrados: Object.values(dados.adversarios || {}).map((a) => a.nome).filter(Boolean),
-        partidas, resumoPartidas: PART.resumoPartidas(partidas), janelaIA: require("./_player-evolucao").janelaDoPlano(COTAS.planoIdDoNivel(nivelPlano, planoFull(usuario.email))), opcoesPartida: { tipos: PART.TIPOS, superficies: PART.SUPERFICIES, resultados: PART.RESULTADOS, execucao: PART.EXECUCAO, aspectos: PART.ASPECTOS },
+        partidas, resumoPartidas: PART.resumoPartidas(partidas), relatorios: COTAS.modeloAtivo() ? ({ free: "basico", start: "mensal", pro: "periodo", performance: "avancado", full: "avancado" })[COTAS.planoIdDoNivel(nivelPlano, planoFull(usuario.email))] || "basico" : "avancado",
+        janelaIA: require("./_player-evolucao").janelaDoPlano(COTAS.planoIdDoNivel(nivelPlano, planoFull(usuario.email))), opcoesPartida: { tipos: PART.TIPOS, superficies: PART.SUPERFICIES, resultados: PART.RESULTADOS, execucao: PART.EXECUCAO, aspectos: PART.ASPECTOS },
         assinatura, fichaAtualizadaEm: dados.fichaAtualizadaEm || null,
         perfil: { nome: dados.nome || "", email: usuario.email || dados.email || "", foto: dados.foto || "" },
         ficha, complementos: limparComplementos(dados.complementos),

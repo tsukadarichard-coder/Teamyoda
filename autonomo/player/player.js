@@ -1558,9 +1558,40 @@
         '<button class="btn btn-primario" id="btSalvarConta" type="submit">Salvar alterações</button></form></div>' +
       '<div class="cartao" style="margin-top:14px"><h2>Segurança</h2><p class="nota" style="margin-top:6px">O acesso é por e-mail e senha. Para criar uma nova senha, enviamos um link para o seu e-mail.</p>' +
         '<div class="acoes"><button type="button" class="btn btn-secundario" id="btSenha">Enviar link para alterar a senha</button></div><p class="nota" id="msgSenha" role="status" style="margin-top:8px"></p></div>'
+      + '<div class="cartao" style="margin-top:14px"><h2>Privacidade e dados</h2><p class="nota" style="margin-top:6px">Você pode baixar uma cópia dos seus dados (perfil, estratégias, programas e partidas) ou excluir a sua conta. Você também corrige e exclui cada partida na própria tela de Partidas.</p>' +
+        '<div class="acoes"><button type="button" class="btn btn-secundario" id="btBaixarDados">Baixar meus dados</button></div>' +
+        '<details class="det" style="margin-top:10px"><summary>Excluir minha conta</summary><div style="margin-top:10px"><p class="nota">Isso apaga o seu perfil, as estratégias, os programas e as partidas e não pode ser desfeito. Registros de pagamento ficam guardados pela Eduzz. Se houver assinatura vigente, cancele-a antes.</p>' +
+        '<div class="campo" style="margin-top:10px"><label for="excConfirma">Digite o e-mail da conta para confirmar</label><input id="excConfirma" type="email" autocomplete="off" inputmode="email"></div>' +
+        '<div class="aviso" id="avisoExcluir" role="alert" hidden></div><div class="acoes"><button type="button" class="btn btn-secundario" id="btExcluirConta">Excluir minha conta definitivamente</button></div></div></details></div>'
     );
     atualizarConta();
     var aviso = document.getElementById("avisoConta");
+    document.getElementById("btBaixarDados").addEventListener("click", async function () {
+      var bt = this; ocupado(bt, true, "Preparando…");
+      try {
+        var r = await fetch("/.netlify/functions/player-privacidade", { headers: { authorization: "Bearer " + (await auth.currentUser.getIdToken()) } });
+        if (!r.ok) throw new Error((await r.json().catch(function () { return {}; })).erro || "Não foi possível baixar agora.");
+        var blob = await r.blob(), a = document.createElement("a");
+        a.href = URL.createObjectURL(blob); a.download = "meus-dados-quadralab-player.json"; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+        toast("Seus dados foram baixados.");
+      } catch (e) { toast(e.message, null, true); }
+      finally { ocupado(bt, false); }
+    });
+    document.getElementById("btExcluirConta").addEventListener("click", async function () {
+      var bt = this, av = document.getElementById("avisoExcluir"); av.hidden = true;
+      var conf = document.getElementById("excConfirma").value.trim();
+      if (!conf) { av.textContent = "Digite o e-mail da conta para confirmar."; av.hidden = false; return; }
+      if (!window.confirm("Excluir a conta e todos os dados do QuadraLab Player? Isso não pode ser desfeito.")) return;
+      ocupado(bt, true, "Excluindo…");
+      try {
+        var r = await api("player-privacidade", { metodo: "POST", corpo: { acao: "excluirConta", confirmar: conf } });
+        estado.dados = null; estado.assin = null;
+        try { await auth.signOut(); } catch (e) { /* a conta pode já não existir */ }
+        location.hash = ""; rotear();
+        toast(r.contaRemovida ? "Sua conta foi excluída." : "Seus dados do Player foram excluídos.");
+      } catch (e) { av.textContent = e.message; av.hidden = false; ocupado(bt, false); }
+    });
     async function salvar(extras, bt, textoOcupado) {
       var nome = document.getElementById("contaNome").value.trim();
       if (!nome) { aviso.textContent = "Informe seu nome."; aviso.hidden = false; return false; }
@@ -2169,6 +2200,58 @@
       '<p class="nota" style="margin-top:6px">' + (n ? n + (n === 1 ? " partida registrada" : " partidas registradas") + " · " + r.vitorias + (r.vitorias === 1 ? " vitória" : " vitórias") + "." : "Registre o resultado e como a estratégia funcionou. Leva um minuto e ajuda nos próximos planos.") + "</p>" +
       '<div class="acoes"><a class="btn btn-secundario" href="#/partidas/nova">Registrar partida</a>' + (n ? '<a class="btn btn-texto" href="#/partidas">Ver partidas</a>' : "") + "</div></div>";
   }
+
+  /* ── relatórios de evolução (calculados no aparelho só com o que o jogador registrou) ──
+     Nível por plano (servidor): basico = resumo; mensal = por mês; periodo = escolha do período e comparação com o
+     período anterior; avancado = + por estratégia, superfície, tipo e dificuldades recorrentes. São contagens dos
+     registros, sem conclusão sobre causa. */
+  function estatPartidas(lista) {
+    var n = lista.length, v = lista.filter(function (p) { return p.resultado === "vitoria"; }).length;
+    var ex = lista.filter(function (p) { return p.execucao; });
+    return { n: n, v: v, d: n - v, exec: ex.length ? ex.reduce(function (s, p) { return s + p.execucao; }, 0) / ex.length : null };
+  }
+  function topAspectos(lista, campo, max) {
+    var m = {}, asp = opPartida().aspectos;
+    lista.forEach(function (p) { (p[campo] || []).forEach(function (k) { m[k] = (m[k] || 0) + 1; }); });
+    return Object.keys(m).sort(function (a, b) { return m[b] - m[a]; }).slice(0, max).map(function (k) { return (asp[k] || k) + " (" + m[k] + "x)"; });
+  }
+  function fmtExec(x) { return x == null ? "—" : String(Math.round(x * 10) / 10).replace(".", ",") + "/5"; }
+  function linhaEstat(e) { return e.n + (e.n === 1 ? " partida" : " partidas") + " · " + e.v + "V " + e.d + "D · execução " + fmtExec(e.exec); }
+  function relatoriosHtml(lista, nivel, dias) {
+    if (!lista.length || nivel === "basico") return "";
+    var html = '<h2 class="secao" id="t-rel">Evolução</h2><div class="cartao" aria-labelledby="t-rel" style="margin-top:8px"><p class="nota">Contagens do que você registrou; não indicam, sozinhas, a causa de uma melhora ou piora.</p>';
+    if (nivel === "mensal") {
+      var meses = {};
+      lista.forEach(function (p) { var m = String(p.data).slice(0, 7); (meses[m] = meses[m] || []).push(p); });
+      html += Object.keys(meses).sort().reverse().slice(0, 6).map(function (m) {
+        var e = estatPartidas(meses[m]), dif = topAspectos(meses[m], "dificuldades", 2);
+        return '<div class="rel-linha"><strong>' + esc(m.slice(5) + "/" + m.slice(0, 4)) + "</strong><span>" + esc(linhaEstat(e)) + (dif.length ? "<br>Dificuldades mais citadas: " + esc(dif.join(", ").toLowerCase()) : "") + "</span></div>";
+      }).join("");
+    } else {
+      var hoje = hojeISOLocal(), corte = function (n) { var d = new Date(); d.setDate(d.getDate() - n); return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); };
+      var atual = dias ? lista.filter(function (p) { return p.data > corte(dias); }) : lista;
+      var ant = dias ? lista.filter(function (p) { return p.data <= corte(dias) && p.data > corte(dias * 2); }) : [];
+      var ea = estatPartidas(atual), eb = estatPartidas(ant);
+      html += '<div class="rel-periodos" role="group" aria-label="Período">' + [[30, "30 dias"], [90, "90 dias"], [180, "6 meses"], [0, "Tudo"]].map(function (x) {
+        return '<button type="button" class="btn ' + ((dias || 0) === x[0] ? "btn-primario" : "btn-secundario") + '" data-rel="' + x[0] + '">' + x[1] + "</button>";
+      }).join("") + "</div>" +
+        '<div class="rel-linha"><strong>Período</strong><span>' + esc(linhaEstat(ea)) + "</span></div>" +
+        (dias ? '<div class="rel-linha"><strong>Anterior</strong><span>' + esc(eb.n ? linhaEstat(eb) : "Sem partidas registradas no período anterior.") + "</span></div>" : "");
+      if (nivel === "avancado") {
+        var porPlano = {}; atual.forEach(function (p) { if (p.planoId) (porPlano[p.planoId] = porPlano[p.planoId] || { t: p.planoTitulo || "Estratégia", l: [] }).l.push(p); });
+        var ks = Object.keys(porPlano);
+        if (ks.length) html += '<h3 style="margin-top:14px">Por estratégia utilizada</h3>' + ks.map(function (k) { return '<div class="rel-linha"><strong>' + esc(tituloCurto(porPlano[k].t)) + "</strong><span>" + esc(linhaEstat(estatPartidas(porPlano[k].l))) + "</span></div>"; }).join("");
+        var op = opPartida();
+        [["superficie", "Por superfície", op.superficies], ["tipo", "Por tipo de partida", op.tipos]].forEach(function (g) {
+          var m = {}; atual.forEach(function (p) { if (p[g[0]]) (m[p[g[0]]] = m[p[g[0]]] || []).push(p); });
+          var kk = Object.keys(m); if (kk.length > 1 || (kk.length === 1 && g[0] === "superficie")) html += '<h3 style="margin-top:14px">' + g[1] + "</h3>" + kk.map(function (k) { return '<div class="rel-linha"><strong>' + esc(g[2][k] || k) + "</strong><span>" + esc(linhaEstat(estatPartidas(m[k]))) + "</span></div>"; }).join("");
+        });
+        var dif = topAspectos(atual, "dificuldades", 5);
+        if (dif.length) html += '<h3 style="margin-top:14px">Dificuldades recorrentes</h3><p class="nota">' + esc(dif.join(", ")) + ".</p>";
+      }
+    }
+    return html + "</div>";
+  }
   function telaPartidas() {
     var lista = partidasLista(), r = estado.dados.resumoPartidas || {}, op = opPartida();
     var html = "<h1>Partidas</h1><p class=\"sub\">Registre como foram os seus jogos. São informações preenchidas por você.</p>" +
@@ -2180,12 +2263,20 @@
       html += '<div class="cartao" style="margin-top:18px"><p class="olho">Resumo do que você registrou</p><p><strong>' + r.total + (r.total === 1 ? " partida" : " partidas") + "</strong> · " + r.vitorias + (r.vitorias === 1 ? " vitória" : " vitórias") + " · " + r.derrotas + (r.derrotas === 1 ? " derrota" : " derrotas") + "</p>" +
         (r.execucaoMedia != null ? '<p class="nota" style="margin-top:6px">Execução média da estratégia: ' + String(r.execucaoMedia).replace(".", ",") + " de 5.</p>" : "") +
         ((r.dificuldadesFrequentes || []).length ? '<p class="nota" style="margin-top:6px">Dificuldades que mais aparecem: ' + esc(r.dificuldadesFrequentes.map(function (x) { return x.nome.toLowerCase(); }).join(", ")) + ".</p>" : "") + "</div>" +
+        '<div id="relatorios">' + relatoriosHtml(lista, estado.dados.relatorios, relDias) + "</div>" +
         '<div class="cartao lista-estrategias" style="margin-top:14px">' + lista.map(function (p) {
           return '<a class="item-estrategia" href="#/partidas/' + esc(p.id) + '"><span class="tag' + (p.resultado === "vitoria" ? "" : " tag-adv") + '">' + esc(op.resultados[p.resultado] || "") + "</span> <strong>" + esc(p.adversario || "Sem adversário informado") + "</strong>" +
             '<span class="nota" style="display:block">' + esc(dataCurta(p.data)) + " · " + esc(op.tipos[p.tipo] || "") + (p.placar ? " · " + esc(p.placar) : "") + (p.planoTitulo ? " · " + esc(tituloCurto(p.planoTitulo)) : "") + "</span></a>";
         }).join("") + "</div>";
     }
     tela(html);
+    app.addEventListener("click", ligarRel);
+  }
+  var relDias = 90;
+  function ligarRel(ev) {
+    var b = ev.target.closest("[data-rel]"); if (!b) return;
+    relDias = parseInt(b.getAttribute("data-rel"), 10) || 0;
+    var alvo = document.getElementById("relatorios"); if (alvo) alvo.innerHTML = relatoriosHtml(partidasLista(), estado.dados.relatorios, relDias);
   }
   function opcoesChips(nome, tipo, mapa, marcados, duas) {
     return '<div class="opcoes' + (duas === false ? "" : " duas") + '">' + Object.keys(mapa).map(function (k) {
