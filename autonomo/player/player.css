@@ -676,3 +676,19 @@ html.sem-rolagem, html.sem-rolagem body { overflow: hidden; }
 .des-estado { margin-top: 10px; font-size: 15px; }
 .navinf-item.aberto { color: #fff; }
 .navinf-item.aberto::before { content: ""; position: absolute; top: 0; left: 22%; right: 22%; height: 3px; border-radius: 0 0 3px 3px; background: var(--saibro-claro); opacity: .6; }
+
+/* ── Competição: papel e vínculos ── */
+.comp-logo { margin: 0 0 6px; line-height: 0; }
+.comp-logo img { height: auto; max-width: 100%; }
+.comp-papel { display: flex; gap: 12px; align-items: flex-start; padding: 12px; margin-top: 10px; border: 1.5px solid var(--linha); border-radius: 12px; background: #fff; cursor: pointer; }
+.comp-papel:has(input:checked) { border-color: #B14C1D; background: #FFF6F0; }
+.comp-papel input { margin-top: 4px; accent-color: #B14C1D; }
+.comp-lista { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 10px; }
+.comp-vinc { border: 1px solid var(--linha); border-radius: 12px; padding: 12px; background: #fff; overflow-wrap: anywhere; }
+.comp-vinc .acoes { margin-top: 8px; }
+.comp-codigo { margin: 10px 0 4px; font-size: 26px; font-weight: 800; letter-spacing: .22em; color: #B14C1D; font-variant-numeric: tabular-nums; user-select: all; }
+.comp-area { display: flex; gap: 8px; align-items: flex-start; padding: 6px 0; font-size: 15px; }
+.comp-area input { margin-top: 3px; accent-color: #B14C1D; }
+.comp-perfil { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 10px 0 0; }
+.comp-perfil dt { color: var(--suave, #5b6b62); font-size: 14px; }
+.comp-perfil dd { margin: 0; font-weight: 600; }

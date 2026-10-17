@@ -26,6 +26,11 @@ exports.handler = async function (event) {
         const snap = await ref.collection(c).get();
         saida[c] = []; snap.forEach((d) => saida[c].push({ id: d.id, ...d.data() }));
       }
+      saida.vinculos = [];
+      for (const campo of ["atletaUid", "pessoaUid"]) {
+        const snap = await admin.firestore().collection("vinculos").where(campo, "==", usuario.uid).get();
+        snap.forEach((d) => { const { codigo, ...resto } = d.data(); saida.vinculos.push({ id: d.id, ...resto }); });
+      }
       return {
         statusCode: 200,
         headers: { "content-type": "application/json; charset=utf-8", "content-disposition": 'attachment; filename="meus-dados-quadralab-player.json"', "cache-control": "no-store" },
@@ -47,6 +52,10 @@ exports.handler = async function (event) {
         const docs = await ref.collection(c).listDocuments();
         for (const d of docs) await d.delete();
       }
+      /* vínculos da Competição: os do atleta saem junto com ele; os de quem era a pessoa vinculada ficam encerrados */
+      const vinc = admin.firestore().collection("vinculos");
+      for (const d of (await vinc.where("atletaUid", "==", usuario.uid).get()).docs) await d.ref.delete();
+      for (const d of (await vinc.where("pessoaUid", "==", usuario.uid).get()).docs) await d.ref.update({ status: "revogado", encerradoEm: new Date().toISOString(), encerradoPor: usuario.uid, pessoaEmail: null, pessoaNome: null });
       await ref.delete();
       const soJogador = usuario.tipo === "jogador" && !usuario.orgId;
       if (soJogador) await admin.auth().deleteUser(usuario.uid);
