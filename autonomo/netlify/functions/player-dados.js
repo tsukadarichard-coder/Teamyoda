@@ -56,6 +56,7 @@ function publicoPlanejamento(id, p, completo) {
 }
 
 const COTAS = require("./_player-cotas");
+const PART = require("./_player-partidas");
 
 function hojeNoBrasil() { return new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10); }
 
@@ -125,11 +126,15 @@ exports.handler = async function (event) {
       const planejSnap = await ref.collection("planejamentos").orderBy("criadoEm", "desc").limit(20).get();
       const planejamentos = [];
       planejSnap.forEach((d) => planejamentos.push(publicoPlanejamento(d.id, d.data(), false)));
+      const partSnap = await ref.collection("partidas").orderBy("data", "desc").limit(100).get();
+      const partidas = []; partSnap.forEach((d) => partidas.push({ id: d.id, ...d.data() }));
       const nivelPlano = nivelDoJogador(dados, usuario.email);
       const ficha = dados.ficha || null;
       const assinatura = resumoAssinatura(dados, usuario.email);
       return resposta(200, {
-        nivelPlano, recursos: recursosDoNivel(nivelPlano), planejamentos,
+        nivelPlano, recursos: COTAS.modeloAtivo() ? { ...recursosDoNivel(nivelPlano), planejamento: true, treinoDia: true } : recursosDoNivel(nivelPlano), planejamentos,
+        adversariosCadastrados: Object.values(dados.adversarios || {}).map((a) => a.nome).filter(Boolean),
+        partidas, resumoPartidas: PART.resumoPartidas(partidas), opcoesPartida: { tipos: PART.TIPOS, superficies: PART.SUPERFICIES, resultados: PART.RESULTADOS, execucao: PART.EXECUCAO, aspectos: PART.ASPECTOS },
         assinatura, fichaAtualizadaEm: dados.fichaAtualizadaEm || null,
         perfil: { nome: dados.nome || "", email: usuario.email || dados.email || "", foto: dados.foto || "" },
         ficha, complementos: limparComplementos(dados.complementos),
@@ -216,6 +221,36 @@ exports.handler = async function (event) {
         const registro = { status: body.status, obs, blocos, em: agora, iniciadoEm: anterior.iniciadoEm || agora };
         await refPlanej.set({ registros: { [idSessao]: registro } }, { merge: true });
         return resposta(200, { ok: true, registro });
+      }
+      if (body.acao === "salvarPartida") {
+        /* Registro pós-jogo preenchido pelo jogador. Criar ou corrigir (mesmo id); não consome nenhuma cota de geração. */
+        const idPartida = String(body.id || "");
+        if (!/^[A-Za-z0-9_-]{8,40}$/.test(idPartida)) throw new ErroPublico(400, "Registro inválido.");
+        let p;
+        try { p = PART.normalizarPartida(body, hojeNoBrasil()); } catch (e) { throw new ErroPublico(400, e.message); }
+        if (p.planoId) {
+          const sPl = await ref.collection("planos").doc(p.planoId).get();
+          if (!sPl.exists) p.planoId = null; // só se relaciona a estratégia da própria conta
+          else p.planoTitulo = ((sPl.data().plano || {}).titulo || "").slice(0, 120);
+        }
+        const refPart = ref.collection("partidas").doc(idPartida);
+        const sPart = await refPart.get();
+        const agora = new Date().toISOString();
+        if (!sPart.exists) {
+          const todas = await ref.collection("partidas").get(); let n = 0; todas.forEach(() => n++);
+          if (n >= PART.LIMITE_PARTIDAS) throw new ErroPublico(409, "Você chegou ao limite de registros de partidas. Exclua os mais antigos para continuar.");
+        }
+        const registro = { ...p, origem: "informado_pelo_jogador", criadoEm: sPart.exists ? sPart.data().criadoEm : agora, atualizadoEm: agora };
+        await refPart.set(registro);
+        return resposta(200, { ok: true, partida: { id: idPartida, ...registro } });
+      }
+      if (body.acao === "excluirPartida") {
+        const idPartida = String(body.id || "");
+        if (!/^[A-Za-z0-9_-]{8,40}$/.test(idPartida)) throw new ErroPublico(400, "Registro inválido.");
+        const refPart = ref.collection("partidas").doc(idPartida);
+        if (!(await refPart.get()).exists) throw new ErroPublico(404, "Registro não encontrado.");
+        await refPart.delete();
+        return resposta(200, { ok: true });
       }
       if (body.acao === "arquivarPrograma") {
         /* Arquivar não apaga nada: o programa continua na lista e no histórico, só deixa de contar como ativo.

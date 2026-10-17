@@ -401,6 +401,7 @@
         '<a class="indicador" href="#/jogadas/' + esc(estrategia.id) + '"><span class="ind-rotulo">Jogadas para praticar</span><strong>' + (marcadas ? marcadas + (marcadas === 1 ? " selecionada" : " selecionadas") : "Escolher jogadas") + '</strong><span class="ind-nota">' + ((estrategia.plano.jogadas || []).length) + " disponíveis</span></a>" +
         '<a class="indicador" href="' + (prog ? "#/treinos" : recursos().planejamento ? "#/planejar/" + esc(estrategia.id) : "#/treinos") + '"' + (tituloProg ? ' title="' + esc(tituloProg) + '"' : "") + '><span class="ind-rotulo">Treinos</span><strong>' + (prog ? (podeRegistrar() ? prog.concluidos + " de " + prog.total + " treinos concluídos" : prog.total + " treinos previstos") : "Sem programa") + '</strong><span class="ind-nota clamp2">' + (prog ? esc(tituloProg) : "Organizar meus treinos") + "</span></a></div>";
     }
+    if (estrategia) html += cartaoPartidasInicio();
     tela(html);
     ligarGerar();
   }
@@ -466,6 +467,7 @@
       '<a class="btn btn-primario btn-grande" href="#/jogadas/' + esc(id) + '">Ver jogadas</a>' +
       '<div style="margin-top:14px">' + cartaoPersonalizarHtml(p) + "</div>" +
       '<div style="margin-top:14px">' + treinos + "</div>" +
+      '<p style="margin-top:6px"><a class="btn btn-texto" href="#/partidas/nova?plano=' + esc(id) + '">Registrar uma partida com esta estratégia</a></p>' +
       '<div class="detalhes-grupo">' +
         '<details class="det"><summary>Todas as diretrizes (' + (pl.diretrizes || []).length + ')</summary><ol class="diretrizes">' + (pl.diretrizes || []).map(function (x) {
           return "<li><h3>" + esc(x.titulo) + '</h3><p class="acao">' + esc(x.acao) + '</p><p class="porque"><b>Por quê:</b> ' + esc(x.porque) + "</p></li>";
@@ -1253,7 +1255,7 @@
     estrategia: "estrategia", plano: "estrategia", planos: "estrategia", completar: "estrategia", gerando: "estrategia",
     jogadas: "jogadas", planejar: "treinos", treinos: "treinos", treino: "treinos", programa: "treinos", planejamento: "treinos", gerandoPlanej: "treinos",
   };
-  var NAV_MAIS = { conta: 1, jogador: 1, ficha: 1, assinatura: 1, consultorias: 1, ajuda: 1 };
+  var NAV_MAIS = { partidas: 1, conta: 1, jogador: 1, ficha: 1, assinatura: 1, consultorias: 1, ajuda: 1 };
   function atualizarCasca(logado, rota) {
     document.body.classList.toggle("logado", logado);
     lateral.hidden = !logado;
@@ -2060,6 +2062,100 @@
   });
 
   /* ══ rotas ═════════════════════════════════════════════════════════ */
+
+  /* ══ Partidas ══════════════════════════════════════════════════════
+     Avaliação pós-jogo, preenchida pelo jogador no celular: o essencial vem primeiro (data, resultado, placar,
+     estratégia, execução) e o detalhe é opcional. O app nunca diz que "viu" a partida: são as informações que
+     o jogador registrou. Corrigir e excluir sempre disponíveis. */
+  function dataCurta(iso) { var p = String(iso || "").split("-"); return p.length === 3 ? p[2] + "/" + p[1] + "/" + p[0] : ""; }
+  function hojeISOLocal() { var d = new Date(); return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); }
+  function partidasLista() { return estado.dados.partidas || []; }
+  function opPartida() { return estado.dados.opcoesPartida || { tipos: {}, superficies: {}, resultados: {}, execucao: {}, aspectos: {} }; }
+  function cartaoPartidasInicio() {
+    var n = partidasLista().length, r = estado.dados.resumoPartidas || {};
+    return '<div class="cartao" style="margin-top:14px"><p class="olho">Partidas</p><h2>' + (n ? "Suas partidas" : "Como foi o seu último jogo?") + "</h2>" +
+      '<p class="nota" style="margin-top:6px">' + (n ? n + (n === 1 ? " partida registrada" : " partidas registradas") + " · " + r.vitorias + (r.vitorias === 1 ? " vitória" : " vitórias") + "." : "Registre o resultado e como a estratégia funcionou. Leva um minuto e ajuda nos próximos planos.") + "</p>" +
+      '<div class="acoes"><a class="btn btn-secundario" href="#/partidas/nova">Registrar partida</a>' + (n ? '<a class="btn btn-texto" href="#/partidas">Ver partidas</a>' : "") + "</div></div>";
+  }
+  function telaPartidas() {
+    var lista = partidasLista(), r = estado.dados.resumoPartidas || {}, op = opPartida();
+    var html = "<h1>Partidas</h1><p class=\"sub\">Registre como foram os seus jogos. São informações preenchidas por você.</p>" +
+      '<a class="btn btn-primario btn-grande" href="#/partidas/nova">Registrar partida</a>';
+    if (!lista.length) {
+      html += '<div class="cartao" style="margin-top:18px"><h2>Nenhuma partida registrada ainda</h2><p class="nota" style="margin-top:6px">Depois de jogar, registre o resultado, se a estratégia funcionou e o que foi mais difícil. Com o tempo, isso mostra a sua evolução.</p></div>';
+    } else {
+      html += '<div class="cartao" style="margin-top:18px"><p class="olho">Resumo do que você registrou</p><p><strong>' + r.total + (r.total === 1 ? " partida" : " partidas") + "</strong> · " + r.vitorias + (r.vitorias === 1 ? " vitória" : " vitórias") + " · " + r.derrotas + (r.derrotas === 1 ? " derrota" : " derrotas") + "</p>" +
+        (r.execucaoMedia != null ? '<p class="nota" style="margin-top:6px">Execução média da estratégia: ' + String(r.execucaoMedia).replace(".", ",") + " de 5.</p>" : "") +
+        ((r.dificuldadesFrequentes || []).length ? '<p class="nota" style="margin-top:6px">Dificuldades que mais aparecem: ' + esc(r.dificuldadesFrequentes.map(function (x) { return x.nome.toLowerCase(); }).join(", ")) + ".</p>" : "") + "</div>" +
+        '<div class="cartao lista-estrategias" style="margin-top:14px">' + lista.map(function (p) {
+          return '<a class="item-estrategia" href="#/partidas/' + esc(p.id) + '"><span class="tag' + (p.resultado === "vitoria" ? "" : " tag-adv") + '">' + esc(op.resultados[p.resultado] || "") + "</span> <strong>" + esc(p.adversario || "Sem adversário informado") + "</strong>" +
+            '<span class="nota" style="display:block">' + esc(dataCurta(p.data)) + " · " + esc(op.tipos[p.tipo] || "") + (p.placar ? " · " + esc(p.placar) : "") + (p.planoTitulo ? " · " + esc(tituloCurto(p.planoTitulo)) : "") + "</span></a>";
+        }).join("") + "</div>";
+    }
+    tela(html);
+  }
+  function opcoesChips(nome, tipo, mapa, marcados, duas) {
+    return '<div class="opcoes' + (duas === false ? "" : " duas") + '">' + Object.keys(mapa).map(function (k) {
+      return '<label class="opcao"><input type="' + tipo + '" name="' + nome + '" value="' + esc(k) + '"' + (marcados.indexOf(k) >= 0 ? " checked" : "") + "><span>" + esc(mapa[k]) + "</span></label>";
+    }).join("") + "</div>";
+  }
+  function telaPartidaForm(id) {
+    var op = opPartida(), ed = id ? partidasLista().filter(function (x) { return x.id === id; })[0] : null;
+    if (id && !ed) { ir("#/partidas"); return; }
+    var q = (location.hash.split("?")[1] || "").match(/(?:^|&)plano=([^&]+)/);
+    var planoSel = ed ? ed.planoId : q ? decodeURIComponent(q[1]) : "";
+    var p = ed || { data: hojeISOLocal(), tipo: "treino", funcionou: [], naoFuncionou: [], dificuldades: [], positivos: [] };
+    var planos = planosProntos();
+    var conhecidos = (estado.dados.adversariosCadastrados || []).concat((estado.ficha && estado.ficha.adversario && estado.ficha.adversario.nome) ? [estado.ficha.adversario.nome] : []);
+    var vistos = {}; conhecidos = conhecidos.filter(function (n) { var k = String(n).toLowerCase(); if (!n || vistos[k]) return false; vistos[k] = 1; return true; });
+    var escala = '<div class="escala">' + [1, 2, 3, 4, 5].map(function (n) {
+      return '<label class="opcao"><input type="radio" name="execucao" value="' + n + '"' + (p.execucao === n ? " checked" : "") + "><span>" + n + "<small>" + esc(op.execucao[n] || "") + "</small></span></label>";
+    }).join("") + "</div>";
+    function grupo(campo, titulo) { return '<fieldset class="chips-aspecto"><legend>' + titulo + "</legend>" + opcoesChips(campo, "checkbox", op.aspectos, p[campo] || []) + "</fieldset>"; }
+    tela('<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/partidas">‹ Partidas</a></p><h1>' + (ed ? "Corrigir partida" : "Registrar partida") + "</h1>" +
+      '<p class="sub">Responda o que lembrar. Só a data e o resultado são necessários.</p>' +
+      '<form id="formPartida" novalidate>' +
+      '<div class="campo"><label for="pData">Data da partida</label><input id="pData" type="date" max="' + hojeISOLocal() + '" value="' + esc(p.data) + '" required></div>' +
+      '<fieldset><legend>Resultado</legend>' + opcoesChips("resultado", "radio", op.resultados, p.resultado ? [p.resultado] : []) + "</fieldset>" +
+      '<div class="campo"><label for="pPlacar">Placar <span class="nota">(opcional)</span></label><input id="pPlacar" maxlength="40" placeholder="Ex.: 6-4 3-6 7-5" value="' + esc(p.placar || "") + '"></div>' +
+      '<div class="campo"><label for="pAdv">Adversário <span class="nota">(opcional)</span></label><input id="pAdv" maxlength="60" list="listaAdv" autocomplete="off" value="' + esc(p.adversario || "") + '"><datalist id="listaAdv">' + conhecidos.map(function (n) { return '<option value="' + esc(n) + '">'; }).join("") + "</datalist></div>" +
+      '<fieldset><legend>Tipo de partida</legend>' + opcoesChips("tipo", "radio", op.tipos, [p.tipo]) + "</fieldset>" +
+      '<fieldset><legend>Superfície <span class="nota">(opcional)</span></legend>' + opcoesChips("superficie", "radio", op.superficies, p.superficie ? [p.superficie] : []) + "</fieldset>" +
+      (planos.length ? '<div class="campo"><label for="pPlano">Estratégia utilizada <span class="nota">(opcional)</span></label><select id="pPlano"><option value="">Nenhuma em especial</option>' + planos.map(function (x) {
+        return '<option value="' + esc(x.id) + '"' + (x.id === planoSel ? " selected" : "") + ">" + esc(tipoEstrategia(x) + (x.adversarioNome ? " — " + x.adversarioNome : "") + " · " + tituloCurto(x.plano.titulo)) + "</option>";
+      }).join("") + "</select></div>" +
+        '<fieldset><legend>Quanto você conseguiu executar a estratégia? <span class="nota">(opcional)</span></legend>' + escala + "</fieldset>" : "") +
+      '<details class="det" style="margin-bottom:16px"' + (ed && (ed.funcionou.length || ed.naoFuncionou.length || ed.dificuldades.length || ed.positivos.length || ed.obs) ? " open" : "") + '><summary>Avaliação detalhada (opcional)</summary><div style="margin-top:12px">' +
+        grupo("funcionou", "O que funcionou") + grupo("naoFuncionou", "O que não funcionou") + grupo("dificuldades", "Principais dificuldades") + grupo("positivos", "Pontos positivos") +
+        '<div class="campo"><label for="pObs">Observações adicionais</label><textarea id="pObs" maxlength="500">' + esc(p.obs || "") + "</textarea></div></div></details>" +
+      '<div id="pErro" class="aviso" role="alert" hidden></div>' +
+      '<button class="btn btn-primario btn-grande" type="submit" id="btSalvarPartida">' + (ed ? "Salvar correção" : "Salvar partida") + "</button>" +
+      (ed ? '<button class="btn btn-texto largo" type="button" id="btExcluirPartida" style="margin-top:10px">Excluir este registro</button>' : "") + "</form>");
+    var form = document.getElementById("formPartida");
+    function marcados(nome) { return Array.prototype.map.call(form.querySelectorAll('input[name="' + nome + '"]:checked'), function (i) { return i.value; }); }
+    function unico(nome) { var m = marcados(nome); return m.length ? m[0] : ""; }
+    form.addEventListener("submit", async function (ev) {
+      ev.preventDefault();
+      var erro = document.getElementById("pErro"), bt = document.getElementById("btSalvarPartida");
+      var corpo = { acao: "salvarPartida", id: ed ? ed.id : novoId(), data: document.getElementById("pData").value, resultado: unico("resultado"), tipo: unico("tipo") || "treino", superficie: unico("superficie") || null,
+        placar: document.getElementById("pPlacar").value, adversario: document.getElementById("pAdv").value, planoId: document.getElementById("pPlano") ? document.getElementById("pPlano").value || null : null,
+        execucao: unico("execucao") ? parseInt(unico("execucao"), 10) : null, obs: document.getElementById("pObs").value };
+      ["funcionou", "naoFuncionou", "dificuldades", "positivos"].forEach(function (c) { corpo[c] = marcados(c); });
+      if (!corpo.data) { erro.textContent = "Informe a data da partida."; erro.hidden = false; return; }
+      if (!corpo.resultado) { erro.textContent = "Informe se foi vitória ou derrota."; erro.hidden = false; return; }
+      erro.hidden = true; ocupado(bt, true, "Salvando…");
+      try { await api("player-dados", { metodo: "POST", corpo: corpo }); await carregarDados(); toast(ed ? "Registro corrigido" : "Partida registrada"); ir("#/partidas"); }
+      catch (e) { ocupado(bt, false); erro.textContent = e.message; erro.hidden = false; }
+    });
+    var ex = document.getElementById("btExcluirPartida");
+    if (ex) ex.addEventListener("click", async function () {
+      if (!window.confirm("Excluir este registro de partida? Isso não pode ser desfeito.")) return;
+      ocupado(ex, true, "Excluindo…");
+      try { await api("player-dados", { metodo: "POST", corpo: { acao: "excluirPartida", id: ed.id } }); await carregarDados(); toast("Registro excluído"); ir("#/partidas"); }
+      catch (e) { ocupado(ex, false); toast(e.message, null, true); }
+    });
+  }
+
   async function rotear() {
     var logado = auth && auth.currentUser;
     var h = location.hash.replace(/^#\/?/, "");
@@ -2094,6 +2190,7 @@
     else if (r === "planejamento" && partes[1]) { if (partes[2]) telaTreino(partes[1], partes[2]); else telaPrograma(partes[1]); }
     else if (r === "treino" && partes[1] && partes[2]) telaTreino(partes[1], partes[2]);
     else if (r === "treinos" || r === "treino") telaTreinos();
+    else if (r === "partidas") { if (partes[1] === "nova") telaPartidaForm(null); else if (partes[1]) telaPartidaForm(partes[1]); else telaPartidas(); }
     else if (r === "conta") telaConta();
     else if (r === "jogador") telaJogador();
     else if (r === "assinatura") telaAssinatura();

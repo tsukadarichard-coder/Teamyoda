@@ -627,3 +627,11 @@ html.sem-rolagem, html.sem-rolagem body { overflow: hidden; }
 .consul-enviada { margin-top: 18px; border-left: 4px solid var(--marca-texto); }
 .rp-lista { margin: 8px 0 0; }
 @media (min-width: 900px) { .consul-lista { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); } }
+
+/* partidas: escala de execução 1–5 */
+.escala { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.escala .opcao span { align-items: center; text-align: center; min-height: 60px; padding: 8px 2px; font-size: 18px; }
+.escala .opcao small { font-size: 11.5px; line-height: 1.15; }
+#pPlano { width: 100%; min-height: 48px; padding: 10px 12px; font: inherit; border: 1.5px solid #C5D1CB; border-radius: 10px; background: var(--cal); }
+.campo input[type=date] { min-height: 48px; }
+.chips-aspecto .opcao span { min-height: 44px; padding: 6px 10px; font-size: 14.5px; }
