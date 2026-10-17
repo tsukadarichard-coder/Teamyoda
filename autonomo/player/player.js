@@ -424,6 +424,7 @@
       '<p class="treino-meta">' + esc(dataTreino(s.data)) + (min ? " · " + esc(min) + " min" : "") + " " + chipSituacao(s) + "</p>" +
       '<p class="nota" style="margin-top:6px">Programa: ' + esc(tituloCurto(pj.titulo, 40)) + "</p>" +
       botaoTreino(sel) +
+      '<a class="btn btn-secundario largo" style="margin-top:8px" href="' + hrefAquecimento("treino/" + sel.programa.id + "/" + sel.sessao.id) + '">Abrir aquecimento</a>' +
       (sel.atrasados > 0 ? '<p class="nota" style="margin-top:10px">Você tem mais ' + sel.atrasados + (sel.atrasados === 1 ? " treino pendente" : " treinos pendentes") + ' · <a href="#/treinos">ver em Treinos</a></p>' : "") +
       "</div>";
   }
@@ -506,7 +507,7 @@
       destaque = '<div class="cartao destaque"><p class="olho">Programa concluído</p><h2>Hora de organizar os próximos treinos</h2><p class="nota" style="margin-top:6px">Veja como foi em Treinos ou monte um novo programa.</p>' +
         '<a class="btn btn-primario btn-grande" href="#/planejar/' + esc(estrategia.id) + '">Organizar novos treinos</a><p style="margin-top:8px"><a class="btn btn-texto" href="#/treinos">Ver histórico</a></p></div>';
     }
-    html += (sub ? '<p class="sub">' + esc(sub) + "</p>" : "") + '<div style="margin-top:14px">' + destaque + "</div>";
+    html += (sub ? '<p class="sub">' + esc(sub) + "</p>" : "") + '<div style="margin-top:14px">' + destaque + "</div>" + preparacaoInicioHtml();
     if (explicar) html += '<div style="margin-top:14px">' + esteiraHtml() + "</div>";
 
     /* "Qual é minha estratégia, quais jogadas vou praticar e qual é meu próximo treino?" */
@@ -520,7 +521,7 @@
         '<a class="indicador" href="#/jogadas/' + esc(estrategia.id) + '"><span class="ind-rotulo">Jogadas para praticar</span><strong>' + (marcadas ? marcadas + (marcadas === 1 ? " selecionada" : " selecionadas") : "Escolher jogadas") + '</strong><span class="ind-nota">' + ((estrategia.plano.jogadas || []).length) + " disponíveis</span></a>" +
         '<a class="indicador" href="' + (prog ? "#/treinos" : recursos().planejamento ? "#/planejar/" + esc(estrategia.id) : "#/treinos") + '"' + (tituloProg ? ' title="' + esc(tituloProg) + '"' : "") + '><span class="ind-rotulo">Treinos</span><strong>' + (prog ? (podeRegistrar() ? prog.concluidos + " de " + prog.total + " treinos concluídos" : prog.total + " treinos previstos") : "Sem programa") + '</strong><span class="ind-nota clamp2">' + (prog ? esc(tituloProg) : "Organizar meus treinos") + "</span></a></div>";
     }
-    if (estrategia) html += cartaoDesafioInicio() + cartaoPartidasInicio();
+    if (estrategia) html += cartaoPartidasInicio();
     tela(html);
     ligarGerar();
   }
@@ -1107,7 +1108,7 @@
 
   function telaTreinos() {
     var d = estado.dados, r = recursos(), ultimo = planosProntos()[0];
-    var html = "<h1>Treinos</h1><p class=\"sub\">Organize e registre a prática das suas jogadas.</p>";
+    var html = "<h1>Treinos</h1><p class=\"sub\">Organize e registre a prática das suas jogadas.</p>" + cartoesPreparacaoHtml("treinos", false);
     if (!r.planejamento) {
       html += '<div class="cartao bloqueado" style="margin-top:18px"><p class="olho">Incluído em assinaturas</p><h2>Programa de treino</h2>' +
         '<p class="nota" style="margin-top:6px">Semanas de treino com os dias e a duração que cabem na sua rotina, e os exercícios de cada treino. Faz parte de uma assinatura.</p>' +
@@ -1322,6 +1323,7 @@
       ((x.jogadas || []).length ? '<p class="sessao-jogadas"><b>Jogadas:</b> ' + x.jogadas.map(function (n) { return esc(jogadas[n] ? jogadas[n].titulo : "Jogada " + (n + 1)); }).join(" · ") + "</p>" : "") +
       ((x.fundamentos || []).length ? '<p class="sessao-fund"><b>Fundamentos:</b> ' + x.fundamentos.map(esc).join(" · ") + "</p>" : "") +
       (registrar && statusAtual === "pendente" ? '<button class="btn btn-primario btn-grande" id="btIniciar" type="button">Começar treino</button>' : "") +
+      '<a class="btn btn-secundario largo" style="margin-top:8px" href="' + hrefAquecimento("treino/" + pjId + "/" + sessaoId) + '">Abrir aquecimento</a>' +
       '<h2 class="secao" id="t-blocos">Blocos do treino</h2>' +
       '<ol class="blocos" aria-labelledby="t-blocos">' + x.itens.map(function (it, i) { return blocoTreinoHtml(it, i, feitos.indexOf(i) >= 0, registrar); }).join("") + "</ol>" +
       (registrar
@@ -1404,21 +1406,30 @@
 
   /* ══ casca do app: menu lateral (computador), menu inferior (celular) e conta ══ */
   var NAV_DA_ROTA = {
+    aquecimento: "aquecimento", desafio: "desafios", desafios: "desafios", partidas: "partidas",
     ficha: "jogador", jogador: "jogador", conta: "conta", assinatura: "assinatura", assinaturas: "assinatura", consultorias: "consultorias", ajuda: "ajuda",
     estrategia: "estrategia", plano: "estrategia", planos: "estrategia", completar: "estrategia", gerando: "estrategia",
     jogadas: "jogadas", planejar: "treinos", treinos: "treinos", treino: "treinos", programa: "treinos", planejamento: "treinos", gerandoPlanej: "treinos",
   };
-  var NAV_MAIS = { aquecimento: 1, desafio: 1, partidas: 1, conta: 1, jogador: 1, ficha: 1, assinatura: 1, consultorias: 1, ajuda: 1 };
+  var NAV_MAIS = { partidas: 1, conta: 1, jogador: 1, ficha: 1, assinatura: 1, consultorias: 1, ajuda: 1 };
+  var BARRA_SECAO = { aquecimento: "treinos", desafio: "treinos", desafios: "treinos" }; // páginas que pertencem à seção Treinos
+  var ultimaCasca = { logado: false, rota: "" };
   function atualizarCasca(logado, rota) {
+    ultimaCasca = { logado: logado, rota: rota };
     document.body.classList.toggle("logado", logado);
     lateral.hidden = !logado;
     navInf.hidden = !logado;
     document.querySelectorAll(".js-abrir-conta").forEach(function (b) { b.hidden = !logado; });
-    var ativo = NAV_DA_ROTA[rota] || "inicio";
+    var pagina = NAV_DA_ROTA[rota] || "inicio";                                   // item específico (barra lateral)
+    var secao = NAV_MAIS[rota] ? "mais" : (BARRA_SECAO[rota] || NAV_DA_ROTA[rota] || "inicio"); // um só item da barra inferior
+    var maisAberto = painelAberto === painelMais;
     document.querySelectorAll("[data-nav]").forEach(function (el) {
-      var vale = el.id === "btMais" ? !!NAV_MAIS[rota] : el.getAttribute("data-nav") === ativo;
+      var naBarra = !!el.closest(".navinf");
+      var vale = naBarra ? el.getAttribute("data-nav") === secao : el.getAttribute("data-nav") === pagina;
+      if (naBarra && maisAberto) vale = false; // com o painel Mais aberto, nenhuma página fica como atual
       if (vale && logado) el.setAttribute("aria-current", "page"); else el.removeAttribute("aria-current");
     });
+    btMais.classList.toggle("aberto", maisAberto && logado);
     if (!logado) fecharPainel(false);
     atualizarConta();
   }
@@ -1516,6 +1527,7 @@
     el.hidden = false; painelFundo.hidden = false;
     document.documentElement.classList.add("sem-rolagem");
     document.querySelectorAll(".js-abrir-conta, #btMais").forEach(function (b) { b.setAttribute("aria-expanded", String(b === gatilho)); });
+    atualizarCasca(ultimaCasca.logado, ultimaCasca.rota);
     var alvo = el.querySelector(".painel-fechar") || el.querySelector("a, button");
     if (alvo) alvo.focus();
   }
@@ -1525,6 +1537,7 @@
     document.documentElement.classList.remove("sem-rolagem");
     document.querySelectorAll(".js-abrir-conta, #btMais").forEach(function (b) { b.setAttribute("aria-expanded", "false"); });
     var g = gatilhoPainel; painelAberto = null; gatilhoPainel = null;
+    if (ultimaCasca.logado) atualizarCasca(ultimaCasca.logado, ultimaCasca.rota);
     if (devolverFoco && g && !g.hidden) g.focus();
   }
   var painelPerfil = document.getElementById("painelPerfil");
@@ -2452,12 +2465,6 @@
     return p && p.status === "pronto" ? { dz: dz, plano: p } : null;
   }
   function diasFeitos(dz) { return [1, 2, 3, 4, 5, 6, 7].map(function (n) { return !!((dz.dias || {})[n] || {}).feito; }); }
-  function cartaoDesafioInicio() {
-    var a = desafioAtual(), feitos = a ? diasFeitos(a.dz).filter(Boolean).length : 0;
-    return '<div class="cartao" style="margin-top:14px"><p class="olho">Desafio de 7 dias</p><h2>' + (a ? (feitos === 7 ? "Desafio concluído" : "Dia " + (feitos + 1) + " do desafio") : "Coloque a sua estratégia em prática") + "</h2>" +
-      '<p class="nota" style="margin-top:6px">' + (a ? feitos + " de 7 dias feitos." : "Sete práticas curtas, montadas a partir da sua própria estratégia. Sem custo extra.") + "</p>" +
-      '<div class="acoes"><a class="btn btn-secundario" href="#/desafio">' + (a ? "Continuar" : "Conhecer o desafio") + "</a></div></div>";
-  }
   function telaDesafio() {
     var prontos = planosProntos(), a = desafioAtual();
     var html = '<h1>Desafio de 7 dias</h1><p class="sub">Sete práticas curtas, montadas a partir da sua estratégia: entender o plano, ensaiar as jogadas, treiná-las e levá-las a um jogo.</p>';
@@ -2518,17 +2525,85 @@
   }
 
 
-  /* ══ Aquecimento ═══════════════════════════════════════════════════
-     Porta de entrada para os apps de preparação: o físico (Ativação pré-jogo), o mental (7 Dias de Presença) e o
-     Desafio de 7 dias, que é tático. Os dois primeiros abrem em tela própria, sem login nem cota. */
-  function telaAquecimento() {
-    function cartao(rotulo, titulo, texto, href, botao) {
-      return '<div class="cartao" style="margin-top:14px"><p class="olho">' + rotulo + "</p><h2>" + titulo + '</h2><p class="nota" style="margin-top:6px">' + texto + '</p><div class="acoes"><a class="btn btn-secundario" href="' + href + '">' + botao + "</a></div></div>";
+  /* ══ Preparação: Aquecimento e Desafios ════════════════════════════
+     Aquecimento (físico) e Desafios (tático e mental) fazem parte da seção Treinos. Todos os atalhos (Treinos, Início,
+     próximo treino e menu Mais) levam às MESMAS telas e usam o MESMO progresso: o do desafio tático vem da conta
+     (estado.dados.desafio) e o do 7 Dias de Presença é o que a própria página grava neste aparelho
+     (localStorage, mesma chave dela). Nada de progresso inventado. */
+  var CHAVE_PRESENCA = "presenca7dias.v1";
+  function presencaEstado() {
+    var r = { feitos: 0, total: 7, prox: 1, concluido: false };
+    try {
+      var o = JSON.parse(localStorage.getItem(CHAVE_PRESENCA) || "null");
+      if (o && Array.isArray(o.feitos) && o.feitos.length === 7) {
+        r.feitos = o.feitos.filter(Boolean).length; r.concluido = r.feitos === 7;
+        var i = o.feitos.indexOf(false); r.prox = i < 0 ? 7 : i + 1;
+      }
+    } catch (e) { /* sem armazenamento: aparece como não iniciado */ }
+    return r;
+  }
+  function desafiosLista() {
+    var a = desafioAtual(), tat;
+    if (!planosProntos().length) tat = { estado: "semEstrategia" };
+    else if (!a) tat = { estado: "naoIniciado" };
+    else {
+      var f = diasFeitos(a.dz), n = f.filter(Boolean).length, i = f.indexOf(false);
+      tat = { estado: n === 7 ? "concluido" : n > 0 ? "andamento" : "naoIniciado", feitos: n, prox: i < 0 ? 7 : i + 1, proxTitulo: i < 0 ? "" : diasDesafio(a.plano.plano, a.plano.id)[i].titulo };
     }
-    tela("<h1>Aquecimento</h1><p class=\"sub\">Prepare o corpo, a cabeça e o jogo.</p>" +
-      cartao("Físico", "Ativação pré-jogo", "18 minutos de trabalho, sem bola, com cronômetro, avisos sonoros e voz. Para chegar pronto à primeira bola.", "ativacao/", "Abrir a ativação") +
-      cartao("Mental", "7 Dias de Presença", "Uma semana de práticas de poucos minutos para reaprender a estar onde você está. O progresso fica salvo neste aparelho.", "presenca/", "Abrir os 7 dias") +
-      cartao("Tático", "Desafio de 7 dias", "Sete práticas montadas a partir da sua própria estratégia: prioridades, jogadas e exercícios.", "#/desafio", "Ver o desafio"));
+    tat.id = "tatico"; tat.nome = "Desafio de 7 dias"; tat.categoria = "Tático"; tat.total = 7;
+    tat.desc = "Práticas baseadas na sua estratégia, com prioridades, jogadas e exercícios."; tat.href = "#/desafio";
+    var p = presencaEstado();
+    var men = { id: "mental", nome: "7 Dias de Presença", categoria: "Mental", total: 7, feitos: p.feitos, prox: p.prox, href: "presenca/", local: true,
+      desc: "Práticas curtas para desenvolver presença e atenção.", estado: p.concluido ? "concluido" : p.feitos > 0 ? "andamento" : "naoIniciado" };
+    return [tat, men];
+  }
+  function barraPrep(feitos, total) {
+    return '<span class="prep-barra" role="progressbar" aria-valuemin="0" aria-valuemax="' + total + '" aria-valuenow="' + feitos + '" aria-label="' + feitos + " de " + total + ' etapas concluídas"><i style="width:' + Math.round(feitos / total * 100) + '%"></i></span>';
+  }
+  function origemValida(de) { return /^[A-Za-z0-9_\-\/]{1,120}$/.test(de || "") ? de : ""; }
+  function origemDaUrl() { var m = (location.hash.split("?")[1] || "").match(/(?:^|&)de=([^&]+)/); return m ? origemValida(decodeURIComponent(m[1])) : ""; }
+  function hrefAquecimento(de) { return "#/aquecimento" + (de ? "?de=" + encodeURIComponent(de) : ""); }
+  /* dois cartões compactos lado a lado (ou empilhados quando falta espaço); ctx = de onde o jogador veio */
+  function cartoesPreparacaoHtml(ctx, dinamico) {
+    var lista = dinamico ? desafiosLista().filter(function (x) { return x.estado === "andamento"; }) : [], d = lista[0];
+    var cDes = d
+      ? '<h3>' + esc(d.nome) + '</h3><p class="prep-desc">' + d.feitos + " de " + d.total + " etapas concluídas</p>" + barraPrep(d.feitos, d.total) +
+        '<p class="prep-info">' + esc(d.categoria) + (lista.length > 1 ? " · mais 1 em andamento" : "") + '</p><a class="btn btn-laranja" href="' + d.href + '">Continuar</a>'
+      : '<h3>Desafios</h3><p class="prep-desc">Pratique com um objetivo.</p><p class="prep-info">Tático e mental</p><a class="btn btn-laranja" href="#/desafios">Ver desafios</a>';
+    return '<div class="prep-grid"><section class="prep-card" aria-label="Aquecimento"><h3>Aquecimento</h3><p class="prep-desc">18 min para preparar o corpo.</p>' +
+      '<p class="prep-info">Sem bola · Orientação por voz</p><a class="btn btn-laranja" href="' + hrefAquecimento(ctx) + '">Abrir aquecimento</a></section>' +
+      '<section class="prep-card" aria-label="Desafios">' + cDes + "</section></div>";
+  }
+  function telaAquecimento() {
+    var de = origemDaUrl();
+    var voltar = de ? '<a class="btn btn-texto" href="#/' + esc(de) + '">‹ Voltar</a>' : '<a class="btn btn-texto" href="#/treinos">‹ Treinos</a>';
+    tela('<p style="margin-bottom:8px">' + voltar + '</p><h1>Aquecimento</h1><p class="sub">Prepare o corpo antes de jogar. É opcional: você escolhe quando usar.</p>' +
+      '<div class="cartao" style="margin-top:14px"><p class="olho">Físico · Ativação pré-jogo</p><h2>18 minutos, sem bola</h2>' +
+      '<ul class="beneficios" style="margin-top:8px"><li>22 exercícios em 5 etapas, da corrida progressiva à respiração final.</li><li>Cronômetro, avisos sonoros e orientação por voz, que você liga ou desliga antes de começar.</li><li>Duração total de cerca de 28 minutos com as instruções, ou 20 se você pular a instrução dos exercícios que já conhece.</li></ul>' +
+      '<a class="btn btn-laranja btn-grande" href="ativacao/' + (de ? "?de=" + encodeURIComponent(de) : "") + '">Abrir aquecimento</a>' +
+      '<p class="nota" style="margin-top:8px">O cronômetro, o som e a voz só começam quando você tocar em Começar. Abrir o aquecimento não marca nenhum treino como iniciado.</p></div>');
+  }
+  function resumoDesafioHtml(d, completo) {
+    var estadoTxt, botao;
+    if (d.estado === "semEstrategia") {
+      return '<article class="cartao des-card" aria-label="' + esc(d.nome) + '"><p class="olho">' + esc(d.categoria) + "</p><h2>" + esc(d.nome) + '</h2><p class="nota" style="margin-top:6px">' + esc(d.desc) + "</p>" +
+        '<p class="nota" style="margin-top:8px">Este desafio parte da sua estratégia. Crie a sua para poder começar.</p><a class="btn btn-laranja" href="#/estrategia">Criar minha estratégia</a></article>';
+    }
+    if (d.estado === "concluido") { estadoTxt = "Concluído"; botao = "Rever atividades"; }
+    else if (d.estado === "andamento") { estadoTxt = d.feitos + " de " + d.total + " etapas concluídas" + (d.prox ? " · próxima: etapa " + d.prox + (d.proxTitulo ? " (" + d.proxTitulo + ")" : "") : ""); botao = "Continuar"; }
+    else { estadoTxt = d.total + " etapas"; botao = "Começar"; }
+    return '<article class="cartao des-card" aria-label="' + esc(d.nome) + '"><p class="olho">' + esc(d.categoria) + "</p><h2>" + esc(d.nome) + '</h2><p class="nota" style="margin-top:6px">' + esc(d.desc) + "</p>" +
+      '<p class="des-estado"><strong>' + esc(estadoTxt) + "</strong></p>" + (d.estado !== "naoIniciado" ? barraPrep(d.feitos, d.total) : "") +
+      (d.local ? '<p class="nota" style="margin-top:6px">Seu progresso fica salvo neste aparelho.</p>' : "") +
+      '<a class="btn btn-laranja" href="' + d.href + '">' + botao + "</a></article>";
+  }
+  function telaDesafios() {
+    tela('<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/treinos">‹ Treinos</a></p><h1>Desafios</h1><p class="sub">Pratique com um objetivo. Você faz no seu ritmo.</p>' +
+      desafiosLista().map(function (d) { return resumoDesafioHtml(d); }).join(""));
+  }
+  /* seção da página Início */
+  function preparacaoInicioHtml() {
+    return '<h2 class="secao" id="t-prep">Prepare-se para jogar</h2>' + cartoesPreparacaoHtml("inicio", true);
   }
   async function rotear() {
     var logado = auth && auth.currentUser;
@@ -2565,6 +2640,7 @@
     else if (r === "treino" && partes[1] && partes[2]) telaTreino(partes[1], partes[2]);
     else if (r === "treinos" || r === "treino") telaTreinos();
     else if (r === "aquecimento") telaAquecimento();
+    else if (r === "desafios") telaDesafios();
     else if (r === "desafio") { if (partes[1]) telaDesafioDia(partes[1]); else telaDesafio(); }
     else if (r === "partidas") { if (partes[1] === "nova") telaPartidaForm(null); else if (partes[1]) telaPartidaForm(partes[1]); else telaPartidas(); }
     else if (r === "conta") telaConta();

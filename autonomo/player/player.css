@@ -659,3 +659,20 @@ html.sem-rolagem, html.sem-rolagem body { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) { .voz-bt.voz-ativo::before { animation: none; } }
 .voz-estado { font-size: 14px; }
 .voz-aviso { font-size: 12.5px; margin-top: 4px; }
+
+/* acessos de preparação (Aquecimento e Desafios) */
+.btn-laranja { background: #B14C1D; color: #fff; border-color: #B14C1D; min-height: 44px; font-weight: 700; }
+.btn-laranja:hover { background: #9E4218; border-color: #9E4218; }
+.btn-laranja:focus-visible { outline: 3px solid var(--saibro); outline-offset: 2px; }
+.prep-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); gap: 10px; margin: 14px 0 6px; }
+.prep-card { display: flex; flex-direction: column; gap: 4px; padding: 14px; border-radius: 14px; background: #fff; border: 1px solid var(--linha); border-top: 4px solid #B14C1D; box-shadow: var(--sombra); min-width: 0; }
+.prep-card h3 { font-size: 17px; line-height: 1.2; font-weight: 800; color: var(--tinta); overflow-wrap: anywhere; }
+.prep-desc { font-size: 14.5px; line-height: 1.4; color: var(--tinta); }
+.prep-info { font-size: 13px; line-height: 1.35; color: var(--grafite); margin-bottom: 8px; }
+.prep-card .btn { margin-top: auto; width: 100%; text-align: center; white-space: normal; padding: 10px 12px; }
+.prep-barra { display: block; height: 8px; border-radius: 99px; background: #E6ECE9; overflow: hidden; margin: 6px 0 2px; }
+.prep-barra i { display: block; height: 100%; background: #B14C1D; border-radius: 99px; }
+.des-card .btn { margin-top: 12px; }
+.des-estado { margin-top: 10px; font-size: 15px; }
+.navinf-item.aberto { color: #fff; }
+.navinf-item.aberto::before { content: ""; position: absolute; top: 0; left: 22%; right: 22%; height: 3px; border-radius: 0 0 3px 3px; background: var(--saibro-claro); opacity: .6; }

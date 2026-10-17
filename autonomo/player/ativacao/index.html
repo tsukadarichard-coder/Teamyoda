@@ -676,5 +676,15 @@ document.addEventListener("touchmove", e => {
   if (!e.target.closest(".tela")) e.preventDefault();
 }, {passive:false});
 </script>
+<script>
+/* voltar: ao treino de origem (?de=treino/..., validado) ou à área Aquecimento do Player */
+(function(){
+  var m=location.search.match(/[?&]de=([^&]+)/), de=m?decodeURIComponent(m[1]):"";
+  if(!/^[A-Za-z0-9_\-\/]{1,120}$/.test(de)) return;
+  document.querySelectorAll('a[href="../#/aquecimento"]').forEach(function(a){
+    a.href="../#/"+de; a.textContent=a.textContent.indexOf("Voltar")===0?"Voltar":"‹ Voltar";
+  });
+})();
+</script>
 </body>
 </html>
