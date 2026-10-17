@@ -131,7 +131,26 @@ function partidaCompartilhada(id, p) {
   return { id, data: p.data, tipo: p.tipo, resultado: p.resultado, placar: p.placar || "", adversario: p.adversario || "", execucao: p.execucao || null, torneioId: p.torneioId || null, rodada: p.rodada || "" };
 }
 
+/* ── devolutiva do treinador ── */
+const TIPOS_DEVOLUTIVA = ["geral", "torneio", "partida"];
+const MAX_DEVOLUTIVAS = 300;
+function normalizarDevolutiva(b) {
+  b = b || {};
+  if (!TIPOS_DEVOLUTIVA.includes(b.tipo)) return { ok: false, erro: "Escolha a que a devolutiva se refere." };
+  const refId = b.tipo === "geral" ? null : String(b.refId || "");
+  if (b.tipo !== "geral" && !ID.test(refId)) return { ok: false, erro: "Escolha o torneio ou a partida." };
+  const destaques = txt(b.destaques, 600), melhorar = txt(b.melhorar, 600), foco = txt(b.foco, 200);
+  if (!destaques && !melhorar && !foco) return { ok: false, erro: "Escreva pelo menos um ponto: o que foi bem, o que melhorar ou o foco de treino." };
+  return { ok: true, dados: { tipo: b.tipo, refId, destaques, melhorar, foco } };
+}
+
+/* ── "Levar para o treino": um foco por origem e aspecto, sem duplicar ── */
+const STATUS_FOCO = ["aberto", "treinando", "resolvido"];
+const MAX_FOCOS = 200;
+function idFoco(origem, id, aspecto) { return origem + "_" + id + (aspecto ? "_" + aspecto : ""); }
+
 module.exports = {
+  TIPOS_DEVOLUTIVA, MAX_DEVOLUTIVAS, normalizarDevolutiva, STATUS_FOCO, MAX_FOCOS, idFoco,
   normalizarPreparo, normalizarDiario, partidaCompartilhada, MAX_PREPAROS, MAX_DIARIO,
   ESTADOS, ORIGENS, SUPERFICIES, MAX_TORNEIOS, MAX_TEXTO_COLADO, MAX_EXTRACOES_DIA, ROTULO_ESTADO,
   dataValida, urlValida, normalizarTorneio, fase, diasAte, publicoTorneio, publicoCompartilhado, ordenar, SCHEMA_EXTRACAO, promptExtracao, normalizarExtracao,

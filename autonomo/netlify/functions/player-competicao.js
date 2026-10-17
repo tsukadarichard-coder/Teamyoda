@@ -102,8 +102,20 @@ exports.handler = async function (event) {
       const sub = async (nome) => { const l = []; (await refJogador(v.atletaUid).collection(nome).get()).forEach((d) => l.push({ id: d.id, ...d.data() })); return l; };
       if (areas.includes("estrategias")) out.dados.preparos = (await sub("preparos")).sort((x, y) => String(y.data || y.criadoEm).localeCompare(String(x.data || x.criadoEm)));
       if (areas.includes("partidas")) { const TOR = require("./_player-torneios"); out.dados.partidas = (await sub("partidas")).map((p) => TOR.partidaCompartilhada(p.id, p)).sort((x, y) => y.data.localeCompare(x.data)); }
+      if (areas.includes("treinos")) out.dados.focos = (await sub("focos")).sort((x, y) => String(y.criadoEm).localeCompare(String(x.criadoEm)));
+      /* devolutivas: o treinador vê as que escreveu; o responsável de um menor lê todas */
+      const todasDev = await sub("devolutivas");
+      if (v.tipo === "treinador") out.devolutivas = todasDev.filter((d) => d.autorUid === uid);
+      else if (v.tipo === "responsavel" && C.ehMenor(comp(aj).nascimento, hoje)) out.devolutivas = todasDev;
+      if (v.tipo === "treinador") {
+        /* o que dá para comentar: só os torneios e partidas que o vínculo compartilha */
+        out.referencias = {
+          torneios: areas.includes("temporada") ? (out.dados.torneios || []).map((t) => ({ id: t.id, rotulo: t.nome })) : [],
+          partidas: areas.includes("partidas") ? (out.dados.partidas || []).map((p) => ({ id: p.id, rotulo: (p.adversario ? "Contra " + p.adversario : "Partida") + " · " + p.data })) : [],
+        };
+      }
       if (areas.includes("diario")) out.dados.diario = (await sub("diario")).sort((x, y) => String(y.data).localeCompare(String(x.data)));
-      out.emBreve = areas.filter((a) => a === "treinos");
+      out.emBreve = [];
       return resposta(200, out);
     }
 
@@ -174,6 +186,37 @@ exports.handler = async function (event) {
       if (v.tipo !== c.papel) throw new ErroPublico(409, "Este código é para " + (v.tipo === "responsavel" ? "um responsável" : "um treinador") + ". Seu papel é " + (c.papel === "responsavel" ? "responsável" : "treinador") + ".");
       await doc.ref.update({ status: "aguardando", pessoaUid: uid, pessoaNome: jog.nome || usuario.name || "Pessoa", pessoaEmail: usuario.email || null, aceitoEm: agoraISO(), historico: evento(v, uid, "código usado, aguardando aprovação") });
       return resposta(200, { ok: true, atleta: v.atletaNome || "Atleta" });
+    }
+
+    if (body.acao === "devolutiva" || body.acao === "excluirDevolutiva") {
+      const { v } = await carregarVinculo(body.id);
+      if (v.tipo !== "treinador" || v.pessoaUid !== uid || v.status !== "ativo") throw new ErroPublico(403, "Só o treinador com vínculo ativo escreve devolutivas.");
+      const dev = refJogador(v.atletaUid).collection("devolutivas");
+      if (body.acao === "excluirDevolutiva") {
+        if (!ID_VALIDO.test(String(body.devolutivaId || ""))) throw new ErroPublico(400, "Devolutiva inválida.");
+        const d = await dev.doc(body.devolutivaId).get();
+        if (!d.exists || d.data().autorUid !== uid) throw new ErroPublico(404, "Devolutiva não encontrada.");
+        await dev.doc(body.devolutivaId).delete();
+        return resposta(200, { ok: true });
+      }
+      const TOR = require("./_player-torneios"), r = TOR.normalizarDevolutiva(body);
+      if (!r.ok) throw new ErroPublico(400, r.erro);
+      const areas = C.areasValidas(v.areas);
+      let rotulo = "Geral";
+      if (r.dados.tipo === "torneio") {
+        if (!areas.includes("temporada")) throw new ErroPublico(403, "O atleta não compartilhou a temporada com você.");
+        const s0 = await refJogador(v.atletaUid).collection("torneios").doc(r.dados.refId).get();
+        if (!s0.exists) throw new ErroPublico(404, "Torneio não encontrado.");
+        rotulo = s0.data().nome;
+      } else if (r.dados.tipo === "partida") {
+        if (!areas.includes("partidas")) throw new ErroPublico(403, "O atleta não compartilhou as partidas com você.");
+        const s0 = await refJogador(v.atletaUid).collection("partidas").doc(r.dados.refId).get();
+        if (!s0.exists) throw new ErroPublico(404, "Partida não encontrada.");
+        rotulo = (s0.data().adversario ? "Contra " + s0.data().adversario : "Partida") + " · " + s0.data().data;
+      }
+      if ((await dev.get()).docs.length >= TOR.MAX_DEVOLUTIVAS) throw new ErroPublico(409, "Limite de devolutivas deste atleta atingido.");
+      const n = await dev.add({ ...r.dados, refRotulo: rotulo, autorUid: uid, autorNome: jog.nome || usuario.name || "Treinador", vinculoId: body.id, criadoEm: agoraISO() });
+      return resposta(200, { ok: true, id: n.id });
     }
 
     if (body.acao === "decidir") {

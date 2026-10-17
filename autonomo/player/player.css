@@ -707,3 +707,11 @@ html.sem-rolagem, html.sem-rolagem body { overflow: hidden; }
 .comp-prior li { margin: 2px 0; }
 .comp-lembrete { border-left: 4px solid #B14C1D; margin-top: 12px; }
 .comp-lembrete ul { margin: 6px 0 10px; padding-left: 18px; }
+
+.comp-dev { margin-top: 12px; }
+.comp-dev-bloco { margin-top: 10px; font-size: 15px; line-height: 1.5; }
+.comp-dev-bloco strong { display: block; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--grafite); margin-bottom: 2px; }
+.comp-dev-foco { padding: 10px 12px; border-radius: 12px; background: var(--saibro-fundo); }
+.comp-seg { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.comp-seg-bt { min-height: 40px; padding: 6px 14px; border-radius: 999px; border: 1.5px solid var(--linha); background: #fff; font: 600 14px Inter, system-ui, sans-serif; color: var(--tinta); cursor: pointer; }
+.comp-seg-bt[aria-pressed="true"] { background: var(--quadra); border-color: var(--quadra); color: #fff; }

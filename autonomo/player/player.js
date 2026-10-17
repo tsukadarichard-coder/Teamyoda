@@ -1416,11 +1416,11 @@
   /* Competição é um app à parte (quadralab.com.br/competicao/), com as mesmas contas e o mesmo servidor. O mesmo código atende os dois:
      window.QL_MODO = "competicao" liga a navegação e a tela inicial próprias; no Player, as rotas da Competição apontam para lá. */
   var MODO_COMP = window.QL_MODO === "competicao";
-  var ROTAS_COMP = { competicao: 1, temporada: 1, preparo: 1, diario: 1 };
-  var ROTAS_APP_COMP = { "": 1, inicio: 1, competicao: 1, temporada: 1, preparo: 1, diario: 1, partidas: 1, aquecimento: 1, desafios: 1, desafio: 1, conta: 1, ajuda: 1 };
+  var ROTAS_COMP = { competicao: 1, temporada: 1, preparo: 1, diario: 1, devolutivas: 1, focos: 1 };
+  var ROTAS_APP_COMP = { "": 1, inicio: 1, competicao: 1, temporada: 1, preparo: 1, diario: 1, devolutivas: 1, focos: 1, partidas: 1, aquecimento: 1, desafios: 1, desafio: 1, conta: 1, ajuda: 1 };
   var PLAYER_BASE = MODO_COMP ? "/player/" : "";
   if (MODO_COMP) {
-    NAV_DA_ROTA = { "": "inicio", inicio: "inicio", competicao: "inicio", temporada: "temporada", preparo: "temporada", aquecimento: "aquecimento", desafios: "desafios", desafio: "desafios", partidas: "partidas", diario: "diario", conta: "conta", ajuda: "ajuda" };
+    NAV_DA_ROTA = { "": "inicio", inicio: "inicio", competicao: "inicio", temporada: "temporada", preparo: "temporada", aquecimento: "aquecimento", desafios: "desafios", desafio: "desafios", partidas: "partidas", diario: "diario", devolutivas: "inicio", focos: "inicio", conta: "conta", ajuda: "ajuda" };
     NAV_MAIS = { conta: 1, ajuda: 1 }; BARRA_SECAO = { aquecimento: "temporada", desafio: "temporada", desafios: "temporada" };
   }
   var ultimaCasca = { logado: false, rota: "" };
@@ -2399,7 +2399,14 @@
         '<div class="campo"><label for="pObs">Observações adicionais</label><textarea id="pObs" maxlength="500">' + esc(p.obs || "") + "</textarea>" + botaoVoz("pObs") + "</div></div></details>" +
       '<div id="pErro" class="aviso" role="alert" hidden></div>' +
       '<button class="btn btn-primario btn-grande" type="submit" id="btSalvarPartida">' + (ed ? "Salvar correção" : "Salvar partida") + "</button>" +
+      (ed && MODO_COMP && (ed.dificuldades || []).length ? '<button class="btn btn-laranja largo" type="button" id="btLevarTreino" style="margin-top:12px">Levar as dificuldades para o treino</button>' : "") +
       (ed ? '<button class="btn btn-texto largo" type="button" id="btExcluirPartida" style="margin-top:10px">Excluir este registro</button>' : "") + "</form>");
+    var blv = document.getElementById("btLevarTreino");
+    if (blv) blv.addEventListener("click", async function () {
+      ocupado(blv, true, "Levando…");
+      try { var x = await api("player-torneios", { metodo: "POST", corpo: { acao: "levarParaTreino", partidaId: ed.id } }); toast(x.novos ? "Foco adicionado ao seu treino." : "Esses focos já estão no seu treino."); ir("#/focos"); }
+      catch (e) { toast(e.message, null, true); ocupado(blv, false); }
+    });
     var form = document.getElementById("formPartida");
     var qt = (location.hash.split("?")[1] || "").match(/(?:^|&)torneio=([^&]+)/), torneioSel = ed ? ed.torneioId || "" : qt ? decodeURIComponent(qt[1]) : "", rodadaSel = ed ? ed.rodada || "" : "";
     if (MODO_COMP && !estado.semTemporada) api("player-torneios").then(function (rt) {
@@ -2673,7 +2680,8 @@
     var s;
     try { s = await api("player-competicao"); }
     catch (e) { tela('<div class="aviso">' + esc(e.message) + '</div><div class="acoes"><a class="btn btn-secundario" href="#/inicio">Voltar</a></div>'); return; }
-    var comp = s.competicao, topo = '<p class="comp-logo">' + logoCompeticao(190) + "</p>", html;
+    var comp = s.competicao, topo = MODO_COMP ? "" : '<p class="comp-logo">' + logoCompeticao(190) + "</p>", html;
+    var primeiro = ((estado.dados && estado.dados.perfil && estado.dados.perfil.nome) || "").split(" ")[0];
     if (!comp.ativo) {
       tela(topo + '<h1>Competição</h1><p class="sub">Para quem joga torneios: o atleta, quem o acompanha de perto e o treinador no mesmo lugar, com cada pessoa vendo só o que o atleta permitir.</p>' +
         '<form id="fPapel" class="cartao" style="margin-top:16px" novalidate><h2>Qual é o seu papel?</h2>' +
@@ -2697,10 +2705,12 @@
       });
       return;
     }
-    html = topo + "<h1>Competição</h1>" + '<p class="sub">Seu papel: <strong>' + ROTULO_PAPEL[comp.papel] + "</strong>" + (comp.papel === "atleta" && comp.menor ? " · atleta menor de idade" : "") + ".</p>";
+    html = topo + "<h1>" + (MODO_COMP && primeiro ? "Olá, " + esc(primeiro) : "Competição") + "</h1>" + '<p class="sub">Seu papel: <strong>' + ROTULO_PAPEL[comp.papel] + "</strong>" + (comp.papel === "atleta" && comp.menor ? " · atleta menor de idade" : "") + ".</p>";
     if (comp.papel === "atleta") {
       var ativosResp = s.meus.filter(function (v) { return v.tipo === "responsavel" && v.status === "ativo"; }).length;
-      html += '<div id="hubProximo"></div><div class="cartao" style="margin-top:14px"><h2>Temporada</h2><p class="nota" style="margin-top:6px">Seus torneios, datas e prazos num só lugar.</p><div class="acoes"><a class="btn btn-laranja" href="#/temporada">Abrir a temporada</a><a class="btn btn-secundario" href="#/diario">Diário</a></div></div>';
+      html += '<div id="hubProximo"></div><div class="cartao" style="margin-top:14px"><h2>Temporada</h2><p class="nota" style="margin-top:6px">Seus torneios, datas e prazos num só lugar.</p><div class="acoes"><a class="btn btn-laranja" href="#/temporada">Abrir a temporada</a><a class="btn btn-secundario" href="#/diario">Diário</a></div></div>' +
+        '<div class="cartao" style="margin-top:14px"><h2>Evolução</h2><p class="nota" style="margin-top:6px">Devolutivas do treinador e o que levar do jogo para o treino.</p><div class="acoes"><a class="btn btn-secundario" href="#/devolutivas">Devolutivas</a><a class="btn btn-secundario" href="#/focos">Foco de treino</a></div></div>' +
+        '<div class="cartao" style="margin-top:14px"><h2>Consultoria de competição</h2><p class="nota" style="margin-top:6px">Análise da sua temporada e de partidas com um treinador da Metodologia MTY.</p><div class="acoes"><a class="btn btn-secundario" href="/player/#/consultorias">Ver consultorias</a></div></div>';
       html += '<div class="cartao" style="margin-top:14px"><h2>Quem acompanha você</h2>' +
         (comp.menor && !ativosResp ? '<p class="nota" style="margin-top:6px">Como você é menor de idade, comece convidando o seu responsável. Só depois dele vinculado é possível convidar um treinador.</p>' : '<p class="nota" style="margin-top:6px">Você decide quem vê o quê, e pode encerrar qualquer vínculo quando quiser. O diário pessoal só é compartilhado se você marcar.</p>') +
         (s.meus.length ? '<ul class="comp-lista">' + s.meus.map(function (v) { return vinculoMeuHtml(v, comp); }).join("") + "</ul>" : '<p class="nota" style="margin-top:8px">Ninguém vinculado ainda.</p>') +
@@ -2727,7 +2737,7 @@
       lembretesTemporada();
       api("player-torneios").then(function (rt) {
         var prox = rt.torneios.filter(function (t) { return t.fase !== "passado" && t.estado !== "desistiu"; })[0], box = document.getElementById("hubProximo");
-        if (prox && box) box.innerHTML = '<h2 class="secao">Próximo torneio</h2>' + cartaoTorneioHtml(prox);
+        if (prox && box) box.innerHTML = heroTorneioHtml(prox);
       }).catch(function () { /* o resto da tela funciona sem a lista */ });
     }
     app.querySelectorAll("[data-copiar]").forEach(function (b) {
@@ -2779,9 +2789,19 @@
     if (d < 0) return '<p class="nota"><strong>Prazo de inscrição passou</strong> (' + dataCurta(t.prazoInscricao) + "). Confira no site oficial.</p>";
     return '<p class="nota"><strong>Inscrição até ' + dataCurta(t.prazoInscricao) + "</strong> · " + (d === 0 ? "termina hoje" : d === 1 ? "falta 1 dia" : "faltam " + d + " dias") + ".</p>";
   }
+  var MESES_CURTOS = ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"];
   function cartaoTorneioHtml(t) {
-    return '<a class="cartao comp-torneio fase-' + t.fase + '" href="#/temporada/' + t.id + '"><p class="olho">' + esc(rotuloEstadoTorneio(t.estado)) + " · " + esc(quandoTorneio(t)) + "</p><h2>" + esc(t.nome) + "</h2>" +
-      '<p class="nota">' + esc(periodoTorneio(t)) + (t.cidade ? " · " + esc(t.cidade) : "") + (t.categoria ? " · " + esc(t.categoria) : "") + "</p>" + prazoTorneioHtml(t) + "</a>";
+    var dia = String(t.inicio || "").slice(8, 10), mes = MESES_CURTOS[parseInt(String(t.inicio || "").slice(5, 7), 10) - 1] || "";
+    return '<a class="cartao comp-torneio fase-' + t.fase + '" href="#/temporada/' + t.id + '"><div class="comp-data" aria-hidden="true"><b>' + esc(dia) + "</b><span>" + esc(mes) + '</span></div><div class="comp-info"><p class="olho">' + esc(rotuloEstadoTorneio(t.estado)) + " · " + esc(quandoTorneio(t)) + "</p><h2>" + esc(t.nome) + "</h2>" +
+      '<p class="nota">' + esc(periodoTorneio(t)) + (t.cidade ? " · " + esc(t.cidade) : "") + (t.categoria ? " · " + esc(t.categoria) : "") + "</p>" + prazoTorneioHtml(t) + "</div></a>";
+  }
+  /* o cartão de destaque do início: a contagem regressiva é o protagonista */
+  function heroTorneioHtml(t) {
+    var andamento = t.fase === "andamento", n = t.diasParaInicio, num = andamento ? "Agora" : n === 0 ? "Hoje" : String(n), un = andamento || n === 0 ? "" : n === 1 ? "dia" : "dias";
+    return '<section class="comp-hero" aria-label="Próximo torneio"><span class="comp-kicker">' + (andamento ? "Torneio em andamento" : "Próximo torneio") + '</span><div class="comp-count"><span class="comp-num">' + esc(num) + "</span>" + (un ? '<span class="comp-un">' + un + "</span>" : "") + "</div>" +
+      "<h2>" + esc(t.nome) + "</h2><p>" + esc(periodoTorneio(t)) + (t.cidade ? " · " + esc(t.cidade) : "") + (t.categoria ? " · " + esc(t.categoria) : "") + '</p><div class="comp-chips"><span class="comp-chip lima">' + esc(rotuloEstadoTorneio(t.estado)) + "</span>" +
+      (t.superficie ? '<span class="comp-chip">' + esc((PISOS.filter(function (p) { return p[0] === t.superficie; })[0] || ["", t.superficie])[1]) + "</span>" : "") + "</div>" +
+      '<a class="btn btn-laranja" href="#/preparo/' + t.id + '/novo">Preparar partida</a><a class="btn comp-ghost" href="#/temporada/' + t.id + '">Abrir torneio</a></section>';
   }
   async function telaTemporada() {
     tela('<p class="carregando">Carregando…</p>', true);
@@ -3024,6 +3044,61 @@
       } catch (e) { av.textContent = e.message; av.hidden = false; ocupado(bt, false); }
     });
   }
+
+  /* ══ Competição: devolutivas do treinador e focos de treino ══ */
+  var STATUS_FOCO_ROT = { aberto: "A trabalhar", treinando: "Em treino", resolvido: "Resolvido" };
+  function devolutivaHtml(d, acoes) {
+    return '<article class="cartao comp-dev"><p class="olho">' + esc(d.refRotulo || "Geral") + " · " + dataCurta(String(d.criadoEm).slice(0, 10)) + "</p><h2>" + esc(d.autorNome || "Treinador") + "</h2>" +
+      (d.destaques ? '<p class="comp-dev-bloco"><strong>O que foi bem</strong>' + esc(d.destaques) + "</p>" : "") +
+      (d.melhorar ? '<p class="comp-dev-bloco"><strong>O que melhorar</strong>' + esc(d.melhorar) + "</p>" : "") +
+      (d.foco ? '<p class="comp-dev-bloco comp-dev-foco"><strong>Foco de treino</strong>' + esc(d.foco) + "</p>" : "") + (acoes || "") + "</article>";
+  }
+  async function telaDevolutivas() {
+    tela('<p class="carregando">Carregando…</p>', true);
+    var r;
+    try { r = await api("player-torneios"); }
+    catch (e) { tela('<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/inicio">‹ Início</a></p><div class="aviso">' + esc(e.message) + "</div>"); return; }
+    tela('<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/inicio">‹ Início</a></p><h1>Devolutivas</h1><p class="sub">O que o seu treinador observou nos seus torneios e partidas.</p>' +
+      (r.devolutivas.length ? r.devolutivas.map(function (d) {
+        return devolutivaHtml(d, d.foco ? '<div class="acoes"><button type="button" class="btn btn-laranja btn-pequeno" data-levar="' + d.id + '">Levar para o treino</button></div>' : "");
+      }).join("") : '<div class="cartao" style="margin-top:14px"><h2>Nenhuma devolutiva ainda</h2><p class="nota" style="margin-top:6px">Quando um treinador vinculado a você escrever uma devolutiva, ela aparece aqui. Convide o seu treinador em <a href="#/inicio">Início</a>.</p></div>'));
+    app.querySelectorAll("[data-levar]").forEach(function (b) {
+      b.addEventListener("click", async function () {
+        ocupado(b, true, "Levando…");
+        try { var x = await api("player-torneios", { metodo: "POST", corpo: { acao: "levarParaTreino", devolutivaId: b.getAttribute("data-levar") } }); toast(x.novos ? "Foco adicionado ao seu treino." : "Esse foco já está no seu treino."); ir("#/focos"); }
+        catch (e) { toast(e.message, null, true); ocupado(b, false); }
+      });
+    });
+  }
+  async function telaFocos() {
+    tela('<p class="carregando">Carregando…</p>', true);
+    var r;
+    try { r = await api("player-torneios"); }
+    catch (e) { tela('<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/inicio">‹ Início</a></p><div class="aviso">' + esc(e.message) + "</div>"); return; }
+    var ordem = ["aberto", "treinando", "resolvido"];
+    tela('<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/inicio">‹ Início</a></p><h1>Foco de treino</h1><p class="sub">O que levar do jogo para a quadra de treino.</p>' +
+      (r.focos.length ? ordem.map(function (st) {
+        var itens = r.focos.filter(function (f) { return f.status === st; });
+        if (!itens.length) return "";
+        return '<h2 class="secao">' + STATUS_FOCO_ROT[st] + " · " + itens.length + '</h2><div class="comp-torneios">' + itens.map(function (f) {
+          return '<div class="cartao comp-foco"><p class="olho">' + esc(f.origemRotulo || "") + "</p><h2>" + esc(f.texto) + "</h2>" +
+            '<div class="comp-seg" role="group" aria-label="Situação do foco">' + ordem.map(function (s2) { return '<button type="button" class="comp-seg-bt" data-foco="' + f.id + '" data-st="' + s2 + '" aria-pressed="' + (s2 === f.status) + '">' + STATUS_FOCO_ROT[s2] + "</button>"; }).join("") + "</div>" +
+            '<div class="acoes"><a class="btn btn-secundario btn-pequeno" href="/player/#/jogadas">Jogadas e exercícios</a><a class="btn btn-secundario btn-pequeno" href="#/desafios">Desafios</a><button type="button" class="btn btn-texto" data-excluir-foco="' + f.id + '">Excluir</button></div></div>';
+        }).join("") + "</div>";
+      }).join("") : '<div class="cartao" style="margin-top:14px"><h2>Nenhum foco ainda</h2><p class="nota" style="margin-top:6px">Depois de uma partida, abra o registro e toque em “Levar para o treino”, ou use o foco sugerido numa <a href="#/devolutivas">devolutiva</a>.</p></div>') +
+      '<p class="nota" style="margin-top:14px">Seu treinador vê estes focos se você compartilhar “Treinos” no vínculo.</p>');
+    app.querySelectorAll("[data-foco]").forEach(function (b) {
+      b.addEventListener("click", async function () {
+        try { await api("player-torneios", { metodo: "POST", corpo: { acao: "atualizarFoco", id: b.getAttribute("data-foco"), status: b.getAttribute("data-st") } }); telaFocos(); } catch (e) { toast(e.message, null, true); }
+      });
+    });
+    app.querySelectorAll("[data-excluir-foco]").forEach(function (b) {
+      b.addEventListener("click", async function () {
+        if (!window.confirm("Excluir este foco?")) return;
+        try { await api("player-torneios", { metodo: "POST", corpo: { acao: "excluirFoco", id: b.getAttribute("data-excluir-foco") } }); telaFocos(); } catch (e) { toast(e.message, null, true); }
+      });
+    });
+  }
   async function telaVinculo(id) {
     tela('<p class="carregando">Carregando…</p>', true);
     var r;
@@ -3036,7 +3111,27 @@
       (r.dados.preparos ? '<div class="cartao" style="margin-top:14px"><h2>Estratégia por partida</h2>' + (r.dados.preparos.length ? '<div class="comp-torneios">' + r.dados.preparos.map(function (p) { return '<div class="comp-vinc"><p class="olho">' + esc(p.rodada || "Partida") + (p.data ? " · " + dataCurta(p.data) : "") + "</p><p><strong>" + (p.adversario ? "Contra " + esc(p.adversario) : "Preparação") + "</strong></p>" + (p.prioridades && p.prioridades.length ? '<ol class="comp-prior">' + p.prioridades.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ol>" : "") + (p.padrao ? '<p class="nota">Padrão: ' + esc(p.padrao) + "</p>" : "") + (p.hipoteses ? '<p class="nota">Expectativa: ' + esc(p.hipoteses) + "</p>" : "") + "</div>"; }).join("") + "</div>" : '<p class="nota" style="margin-top:6px">Nenhuma preparação ainda.</p>') + "</div>" : "") +
       (r.dados.partidas ? '<div class="cartao" style="margin-top:14px"><h2>Partidas</h2>' + (r.dados.partidas.length ? '<div class="comp-torneios">' + r.dados.partidas.map(function (p) { return '<div class="comp-vinc"><p class="olho">' + (p.resultado === "vitoria" ? "Vitória" : "Derrota") + (p.rodada ? " · " + esc(p.rodada) : "") + " · " + dataCurta(p.data) + "</p><p><strong>" + (p.adversario ? "Contra " + esc(p.adversario) : "Partida") + '</strong></p><p class="nota">' + esc(p.placar) + "</p></div>"; }).join("") + "</div>" : '<p class="nota" style="margin-top:6px">Nenhuma partida registrada.</p>') + "</div>" : "") +
       (r.dados.diario ? '<div class="cartao" style="margin-top:14px"><h2>Diário</h2>' + (r.dados.diario.length ? '<div class="comp-torneios">' + r.dados.diario.map(function (d) { return '<div class="comp-vinc"><p class="olho">' + dataCurta(d.data) + "</p><p>" + esc(d.texto) + "</p></div>"; }).join("") + "</div>" : '<p class="nota" style="margin-top:6px">Sem registros.</p>') + "</div>" : "") +
+      (r.dados.focos ? '<div class="cartao" style="margin-top:14px"><h2>Foco de treino</h2>' + (r.dados.focos.length ? '<ul class="comp-lista">' + r.dados.focos.map(function (f) { return '<li class="comp-vinc"><p><strong>' + esc(f.texto) + '</strong></p><p class="nota">' + esc(STATUS_FOCO_ROT[f.status] || f.status) + " · " + esc(f.origemRotulo || "") + "</p></li>"; }).join("") + "</ul>" : '<p class="nota" style="margin-top:6px">Nenhum foco ainda.</p>') + "</div>" : "") +
+      (r.referencias ? '<div class="cartao" style="margin-top:14px"><h2>Escrever devolutiva</h2><form id="fDev" novalidate style="margin-top:8px"><div class="campo"><label for="devRef">Sobre</label><select id="devRef"><option value="geral:">Geral</option>' +
+        r.referencias.torneios.map(function (t) { return '<option value="torneio:' + t.id + '">Torneio: ' + esc(t.rotulo) + "</option>"; }).join("") + r.referencias.partidas.map(function (p) { return '<option value="partida:' + p.id + '">Partida: ' + esc(p.rotulo) + "</option>"; }).join("") + "</select></div>" +
+        '<div class="campo"><label for="devBem">O que foi bem</label><textarea id="devBem" rows="3" maxlength="600"></textarea></div><div class="campo"><label for="devMelhor">O que melhorar</label><textarea id="devMelhor" rows="3" maxlength="600"></textarea></div>' +
+        '<div class="campo"><label for="devFoco">Foco de treino sugerido (opcional)</label><input id="devFoco" maxlength="200" placeholder="Ex.: primeiro saque em 65%"></div><div class="aviso" id="avisoDev" role="alert" hidden></div><button class="btn btn-primario" type="submit">Enviar devolutiva</button></form></div>' : "") +
+      (r.devolutivas && r.devolutivas.length ? '<h2 class="secao">' + (r.referencias ? "Suas devolutivas" : "Devolutivas do treinador") + "</h2>" + r.devolutivas.map(function (d) { return devolutivaHtml(d, r.referencias ? '<div class="acoes"><button type="button" class="btn btn-texto" data-exdev="' + d.id + '">Excluir</button></div>' : ""); }).join("") : "") +
       (r.emBreve && r.emBreve.length ? '<p class="nota" style="margin-top:14px">Compartilhado e ainda sem conteúdo nesta etapa: ' + esc(rotuloAreas(r.emBreve)) + ". Essas áreas aparecem aqui quando chegarem as próximas etapas.</p>" : ""));
+    var fd = document.getElementById("fDev");
+    if (fd) fd.addEventListener("submit", async function (ev) {
+      ev.preventDefault();
+      var av = document.getElementById("avisoDev"); av.hidden = true;
+      var ref = document.getElementById("devRef").value.split(":"), bt = fd.querySelector("button[type=submit]"); ocupado(bt, true, "Enviando…");
+      try { await api("player-competicao", { metodo: "POST", corpo: { acao: "devolutiva", id: id, tipo: ref[0], refId: ref[1] || null, destaques: document.getElementById("devBem").value, melhorar: document.getElementById("devMelhor").value, foco: document.getElementById("devFoco").value } }); toast("Devolutiva enviada."); telaVinculo(id); }
+      catch (e) { av.textContent = e.message; av.hidden = false; ocupado(bt, false); }
+    });
+    app.querySelectorAll("[data-exdev]").forEach(function (b) {
+      b.addEventListener("click", async function () {
+        if (!window.confirm("Excluir esta devolutiva?")) return;
+        try { await api("player-competicao", { metodo: "POST", corpo: { acao: "excluirDevolutiva", id: id, devolutivaId: b.getAttribute("data-exdev") } }); telaVinculo(id); } catch (e) { toast(e.message, null, true); }
+      });
+    });
   }
   async function rotear() {
     var logado = auth && auth.currentUser;
@@ -3048,9 +3143,10 @@
     /* visitante sem rota: página pública de apresentação; #/entrar e #/criar (e qualquer link direto) seguem para o cadastro/entrada */
     if (!MODO_COMP && ROTAS_COMP[partes[0]]) { location.replace("/competicao/" + location.hash); return; }
     if (MODO_COMP && logado && !ROTAS_APP_COMP[partes[0]]) { location.replace("/player/" + location.hash); return; }
-    var visitanteNaHome = !MODO_COMP && !logado && !partes[0] && window.QL_LANDING;
+    var LAND = MODO_COMP ? window.QL_COMP_LANDING : window.QL_LANDING;
+    var visitanteNaHome = !logado && !partes[0] && LAND;
     document.body.classList.toggle("landing", !!visitanteNaHome);
-    if (visitanteNaHome) { tela(window.QL_LANDING.html()); window.QL_LANDING.ligar(app); return; }
+    if (visitanteNaHome) { tela(LAND.html()); LAND.ligar(app); return; }
     if (!logado) { telaEntrar(ROTAS_ACESSO[partes[0]] ? partes[0] : "criar"); return; }
     if (!estado.dados) {
       tela('<p class="carregando">Carregando seus dados…</p>', true);
@@ -3081,6 +3177,8 @@
     else if (r === "temporada") { if (partes[1] === "novo" || partes[2] === "editar") telaTorneioForm(partes[1]); else if (partes[1]) telaTorneio(partes[1]); else telaTemporada(); }
     else if (r === "preparo" && partes[1] && partes[2]) telaPreparo(partes[1], partes[2]);
     else if (r === "diario") telaDiario();
+    else if (r === "devolutivas") telaDevolutivas();
+    else if (r === "focos") telaFocos();
     else if (r === "competicao" || (MODO_COMP && (r === "inicio" || r === ""))) { if (partes[1] === "vinculo" && partes[2]) telaVinculo(partes[2]); else telaCompeticao(); }
     else if (r === "conta") telaConta();
     else if (r === "jogador") telaJogador();

@@ -243,5 +243,56 @@ async function get(uid, qs) { const r = await handler({ httpMethod: "GET", heade
   const np = PARTT.normalizarPartida({ data: hojeD, resultado: "vitoria", torneioId: "abcdefghij12", rodada: "  Final  " }, hojeD);
   assert.strictEqual(np.torneioId, "abcdefghij12"); assert.strictEqual(np.rodada, "Final");
 
+  /* ── devolutiva do treinador e "levar para o treino" ── */
+  await post("adulto", { acao: "areas", id: idT, areas: ["perfil", "temporada", "partidas", "treinos"] });
+  const t3b = await postT("adulto", { acao: "salvar", nome: "Copa Devolutiva", inicio: mais(9) });
+  col("jogadores/adulto/partidas").partida0001 = { data: hojeD, tipo: "treino", resultado: "vitoria", dificuldades: [] };
+  col("jogadores/adulto/partidas").partida0002 = { data: hojeD, tipo: "competicao", resultado: "derrota", placar: "4-6 4-6", adversario: "Caio", torneioId: t3b.id, rodada: "Final", dificuldades: ["saque", "devolucao", "inexistente"], obs: "segredo2" };
+  assert.strictEqual((await post("resp", { acao: "devolutiva", id: idT, tipo: "geral", destaques: "x" })).s, 403, "só o treinador do vínculo escreve");
+  assert.strictEqual((await post("trein", { acao: "devolutiva", id: idT, tipo: "geral" })).s, 400, "devolutiva vazia");
+  assert.strictEqual((await post("trein", { acao: "devolutiva", id: idT, tipo: "partida", refId: "naoexiste12", destaques: "x" })).s, 404);
+  const dv = await post("trein", { acao: "devolutiva", id: idT, tipo: "partida", refId: "partida0002", destaques: "Boa agressividade.", melhorar: "Primeiro saque.", foco: "Primeiro saque em 65%" });
+  assert.strictEqual(dv.s, 200);
+  const dvT = await post("trein", { acao: "devolutiva", id: idT, tipo: "torneio", refId: t3b.id, destaques: "Evolução clara no torneio." });
+  assert.strictEqual(dvT.s, 200);
+  await post("adulto", { acao: "areas", id: idT, areas: ["perfil", "treinos"] });
+  assert.strictEqual((await post("trein", { acao: "devolutiva", id: idT, tipo: "partida", refId: "partida0002", destaques: "x" })).s, 403, "sem a área partidas não comenta partida");
+  const meus = await getT("adulto");
+  assert.strictEqual(meus.devolutivas.length, 2); assert.ok(meus.devolutivas.some((d) => d.autorNome === "Treinador" && d.refRotulo === "Contra Caio · " + hojeD));
+  assert.strictEqual((await getT("menor")).devolutivas.length, 0, "devolutiva é do atleta");
+  /* levar para o treino: um foco por aspecto, sem duplicar */
+  assert.strictEqual((await postT("adulto", { acao: "levarParaTreino", partidaId: "partida0001" })).s, 409, "partida sem dificuldades");
+  const lv = await postT("adulto", { acao: "levarParaTreino", partidaId: "partida0002" });
+  assert.strictEqual(lv.s, 200); assert.strictEqual(lv.novos, 2);
+  const lv2 = await postT("adulto", { acao: "levarParaTreino", partidaId: "partida0002" });
+  assert.strictEqual(lv2.novos, 0, "repetir não duplica");
+  const idDev = meus.devolutivas.filter((d) => d.foco)[0].id;
+  assert.strictEqual((await postT("adulto", { acao: "levarParaTreino", devolutivaId: idDev })).novos, 1);
+  assert.strictEqual((await postT("adulto", { acao: "levarParaTreino", devolutivaId: meus.devolutivas.filter((d) => !d.foco)[0].id })).s, 409);
+  let focos = (await getT("adulto")).focos;
+  assert.strictEqual(focos.length, 3); assert.ok(focos.every((f) => f.status === "aberto"));
+  const fSaque = focos.filter((f) => f.aspecto === "saque")[0];
+  assert.strictEqual((await postT("adulto", { acao: "atualizarFoco", id: fSaque.id, status: "treinando" })).s, 200);
+  assert.strictEqual((await postT("adulto", { acao: "atualizarFoco", id: fSaque.id, status: "invalido" })).s, 400);
+  await postT("adulto", { acao: "levarParaTreino", partidaId: "partida0002" });
+  assert.strictEqual((await getT("adulto")).focos.filter((f) => f.id === fSaque.id)[0].status, "treinando", "repetir não desfaz o andamento");
+  assert.strictEqual((await postT("menor", { acao: "atualizarFoco", id: fSaque.id, status: "resolvido" })).s, 404, "foco é do dono");
+  /* o treinador vê os focos (área treinos) e só as devolutivas que escreveu */
+  const vt3 = await get("trein", { ver: idT });
+  assert.strictEqual(vt3.dados.focos.length, 3); assert.strictEqual(vt3.devolutivas.length, 2);
+  assert.ok(!JSON.stringify(vt3).includes("segredo2"));
+  col("jogadores/adulto/devolutivas").outradevolut1 = { autorUid: "outro", autorNome: "Outro", tipo: "geral", destaques: "de outro treinador", criadoEm: "2026-01-01" };
+  assert.ok(!(await get("trein", { ver: idT })).devolutivas.some((d) => d.id === "outradevolut1"), "treinador não vê devolutiva de outro treinador");
+  assert.strictEqual((await post("trein", { acao: "excluirDevolutiva", id: idT, devolutivaId: "outradevolut1" })).s, 404, "só apaga a própria");
+  assert.strictEqual((await post("trein", { acao: "excluirDevolutiva", id: idT, devolutivaId: dvT.id })).s, 200);
+  /* responsável de atleta menor lê todas as devolutivas */
+  const crm = await post("menor", { acao: "convidar", tipo: "responsavel" });
+  await post("resp", { acao: "aceitarCodigo", codigo: crm.codigo });
+  const idRm = (await get("menor")).meus.filter((x) => x.status === "aguardando")[0].id;
+  await post("menor", { acao: "decidir", id: idRm, aprovar: true });
+  col("jogadores/menor/devolutivas").dm1 = { autorUid: "xx", autorNome: "Coach", tipo: "geral", destaques: "ok", criadoEm: "2026-01-01" };
+  assert.strictEqual((await get("resp", { ver: idRm })).devolutivas.length, 1);
+  assert.strictEqual(col("jogadores/adulto/focos") && Object.keys(col("jogadores/adulto/focos")).length, 3);
+
   console.log("check-competicao: ok");
 })().catch((e) => { console.error(e); process.exit(1); });

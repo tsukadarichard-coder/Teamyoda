@@ -10,6 +10,7 @@
 const Anthropic = require("@anthropic-ai/sdk");
 const { ErroPublico, resposta, usuarioDoPedido, refJogador } = require("./_player");
 const T = require("./_player-torneios");
+const PART = require("./_player-partidas");
 
 const hojeNoBrasil = () => new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
 const ID_VALIDO = /^[A-Za-z0-9]{10,40}$/;
@@ -30,7 +31,12 @@ exports.handler = async function (event) {
       (await ref.collection("diario").get()).forEach((d) => diario.push({ id: d.id, ...d.data() }));
       preparos.sort((a, b) => String(b.data || b.criadoEm).localeCompare(String(a.data || a.criadoEm)));
       diario.sort((a, b) => String(b.data).localeCompare(String(a.data)) || String(b.criadoEm).localeCompare(String(a.criadoEm)));
-      return resposta(200, { torneios: T.ordenar(lista), estados: T.ROTULO_ESTADO, preparos, diario });
+      const focos = [], devolutivas = [];
+      (await ref.collection("focos").get()).forEach((d) => focos.push({ id: d.id, ...d.data() }));
+      (await ref.collection("devolutivas").get()).forEach((d) => devolutivas.push({ id: d.id, ...d.data() }));
+      focos.sort((a, b) => String(b.criadoEm).localeCompare(String(a.criadoEm)));
+      devolutivas.sort((a, b) => String(b.criadoEm).localeCompare(String(a.criadoEm)));
+      return resposta(200, { torneios: T.ordenar(lista), estados: T.ROTULO_ESTADO, preparos, diario, focos, devolutivas, aspectos: PART.ASPECTOS });
     }
     if (event.httpMethod !== "POST") return resposta(405, { erro: "Método não permitido." });
     let body;
@@ -90,6 +96,51 @@ exports.handler = async function (event) {
       const d = ref.collection("preparos").doc(body.id);
       if (!(await d.get()).exists) throw new ErroPublico(404, "Preparação não encontrada.");
       await d.delete();
+      return resposta(200, { ok: true });
+    }
+
+    if (body.acao === "levarParaTreino") {
+      /* uma dificuldade de partida ou o foco sugerido numa devolutiva vira um foco de treino; repetir não duplica nem desfaz o andamento */
+      const cf = ref.collection("focos"), agora = new Date().toISOString(), criar = [];
+      if (body.partidaId) {
+        if (!ID_VALIDO.test(String(body.partidaId))) throw new ErroPublico(400, "Partida inválida.");
+        const sp = await ref.collection("partidas").doc(body.partidaId).get();
+        if (!sp.exists) throw new ErroPublico(404, "Partida não encontrada.");
+        const p = sp.data(), rot = (p.adversario ? "Contra " + p.adversario : "Partida") + " · " + p.data;
+        const asp = (p.dificuldades || []).filter((a) => PART.ASPECTOS[a]);
+        if (!asp.length) throw new ErroPublico(409, "Esta partida não tem dificuldades registradas. Edite o registro e marque o que foi difícil.");
+        for (const a of asp) criar.push({ id: T.idFoco("partida", body.partidaId, a), dados: { origem: "partida", origemId: body.partidaId, origemRotulo: rot, aspecto: a, texto: PART.ASPECTOS[a] } });
+      } else if (body.devolutivaId) {
+        if (!ID_VALIDO.test(String(body.devolutivaId))) throw new ErroPublico(400, "Devolutiva inválida.");
+        const sd = await ref.collection("devolutivas").doc(body.devolutivaId).get();
+        if (!sd.exists) throw new ErroPublico(404, "Devolutiva não encontrada.");
+        const d = sd.data();
+        if (!d.foco) throw new ErroPublico(409, "Esta devolutiva não sugere um foco de treino.");
+        criar.push({ id: T.idFoco("devolutiva", body.devolutivaId), dados: { origem: "devolutiva", origemId: body.devolutivaId, origemRotulo: "Devolutiva de " + (d.autorNome || "treinador"), aspecto: null, texto: d.foco } });
+      } else throw new ErroPublico(400, "Escolha a partida ou a devolutiva.");
+      let novos = 0;
+      for (const c of criar) {
+        const rf = cf.doc(c.id);
+        if ((await rf.get()).exists) continue;
+        if ((await cf.get()).docs.length >= T.MAX_FOCOS) throw new ErroPublico(409, "Você tem focos demais em aberto. Resolva ou exclua alguns.");
+        await rf.set({ ...c.dados, status: "aberto", criadoEm: agora }); novos++;
+      }
+      return resposta(200, { ok: true, novos, total: criar.length });
+    }
+    if (body.acao === "atualizarFoco") {
+      const id = String(body.id || "");
+      if (!/^[A-Za-z0-9_-]{8,200}$/.test(id) || !T.STATUS_FOCO.includes(body.status)) throw new ErroPublico(400, "Foco inválido.");
+      const rf = ref.collection("focos").doc(id);
+      if (!(await rf.get()).exists) throw new ErroPublico(404, "Foco não encontrado.");
+      await rf.update({ status: body.status, atualizadoEm: new Date().toISOString() });
+      return resposta(200, { ok: true });
+    }
+    if (body.acao === "excluirFoco") {
+      const id = String(body.id || "");
+      if (!/^[A-Za-z0-9_-]{8,200}$/.test(id)) throw new ErroPublico(400, "Foco inválido.");
+      const rf = ref.collection("focos").doc(id);
+      if (!(await rf.get()).exists) throw new ErroPublico(404, "Foco não encontrado.");
+      await rf.delete();
       return resposta(200, { ok: true });
     }
 
