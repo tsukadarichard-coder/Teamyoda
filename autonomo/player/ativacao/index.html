@@ -3,109 +3,113 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-<meta name="theme-color" content="#141210">
+<meta name="theme-color" content="#F6F8F7">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="mobile-web-app-capable" content="yes">
 <title>Ativação pré-jogo · MTY</title>
-<link rel="manifest" href='data:application/manifest+json,{"name":"Ativa%C3%A7%C3%A3o pr%C3%A9-jogo MTY","short_name":"Ativa%C3%A7%C3%A3o","display":"standalone","background_color":"%23141210","theme_color":"%23141210","orientation":"portrait"}'>
+<link rel="manifest" href='data:application/manifest+json,{"name":"Ativa%C3%A7%C3%A3o pr%C3%A9-jogo MTY","short_name":"Ativa%C3%A7%C3%A3o","display":"standalone","background_color":"%23F6F8F7","theme_color":"%23F6F8F7","orientation":"portrait"}'>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700&family=Source+Serif+4:opsz,wght@8..60,600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-:root{--papel:#F5F2F0;--tinta:#141210;--saibro:#C8102E;--quadra:#2E4739;
-  --grafite:#6B6461;--linha:#D8D1CB;--branco:#fff;--ocre:#C9A227;--alerta:#8A2B15;
-  --arch:"Archivo",system-ui,sans-serif;--serif:"Source Serif 4",Georgia,serif}
+:root{--papel:#F6F8F7;--cal:#FFFFFF;--tinta:#17251F;--verde:#012A1F;--quadra:#103B32;
+  --acao:#B14C1D;--acao-escuro:#9E4218;--acao-texto:#A8480F;--acao-fundo:#FFF4EC;--acao-borda:#F0CDB5;
+  --grafite:#5B6B63;--linha:#E2E8E5;--linha-forte:#C9D3CD;
+  --arch:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;
   -webkit-user-select:none;user-select:none}
 html,body{height:100%;overflow:hidden}
-body{background:var(--tinta);color:var(--papel);font-family:var(--arch);
+body{background:var(--papel);color:var(--tinta);font-family:var(--arch);font-size:16px;line-height:1.5;
   -webkit-font-smoothing:antialiased;display:flex;flex-direction:column}
 button{font-family:inherit;border:none;background:none;color:inherit;cursor:pointer}
+button:focus-visible,a:focus-visible{outline:3px solid var(--acao);outline-offset:2px}
 
 /* ── telas ── */
 .tela{display:none;flex:1;flex-direction:column;overflow-y:auto;
-  padding:calc(env(safe-area-inset-top) + 14px) 18px calc(env(safe-area-inset-bottom) + 18px)}
+  padding:calc(env(safe-area-inset-top) + 12px) 22px calc(env(safe-area-inset-bottom) + 20px)}
 .tela.on{display:flex}
 #t-exec{overflow:hidden}
 
+/* cabeçalho com o logotipo do Player */
+.cab{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+.cab img{height:30px;width:auto;display:block}
+.cab a{display:inline-flex;align-items:center;min-height:44px;font-size:14.5px;font-weight:700;color:var(--acao-texto);text-decoration:none}
+
 /* ── início ── */
-.marca{font-size:10px;font-weight:700;letter-spacing:2.6px;color:#8B8179;margin-bottom:auto}
-.tit{font-family:var(--serif);font-size:44px;font-weight:600;line-height:1.02;margin-bottom:10px}
-.sub{font-size:14px;color:#C9C2BA;line-height:1.6;margin-bottom:26px;max-width:34ch}
-.bt{width:100%;padding:18px;border-radius:6px;font-size:17px;font-weight:700;
-  background:var(--saibro);color:#fff}
-.bt.sec{background:transparent;border:1px solid #3A3532;color:#C9C2BA;font-size:14px;padding:14px}
-.opt{display:flex;align-items:center;gap:12px;padding:14px 0;border-top:1px solid #2A2724}
+.marca{font-size:12px;font-weight:700;letter-spacing:.12em;color:var(--grafite);margin-bottom:6px;text-transform:uppercase}
+.tit{font-size:clamp(30px,8.6vw,36px);font-weight:800;line-height:1.1;letter-spacing:-.015em;color:var(--verde);margin-bottom:10px}
+.sub{font-size:17px;color:var(--grafite);line-height:1.5;margin-bottom:20px;max-width:34ch}
+.bt{width:100%;min-height:52px;padding:14px;border-radius:12px;font-size:17px;font-weight:700;
+  background:var(--acao);color:#fff;box-shadow:0 6px 18px -8px rgba(177,76,29,.8)}
+.bt:active{background:var(--acao-escuro)}
+.bt.sec{background:#fff;border:1.5px solid var(--linha-forte);color:var(--acao-texto);font-size:15.5px;box-shadow:none}
+.opt{display:flex;align-items:center;gap:12px;padding:14px 0;border-top:1px solid var(--linha)}
 .opt .lab{flex:1}
-.opt .lab b{display:block;font-size:14px;font-weight:700}
-.opt .lab span{font-size:11.5px;color:#8B8179;line-height:1.45;display:block;margin-top:2px}
-.sw{width:48px;height:28px;border-radius:14px;background:#3A3532;position:relative;flex:0 0 auto;
+.opt .lab b{display:block;font-size:16px;font-weight:700;color:var(--verde)}
+.opt .lab span{font-size:13.5px;color:var(--grafite);line-height:1.45;display:block;margin-top:2px}
+.sw{width:52px;height:32px;border-radius:16px;background:var(--linha-forte);position:relative;flex:0 0 auto;
   transition:background .15s}
-.sw::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;
-  background:#8B8179;transition:transform .15s,background .15s}
-.sw.on{background:var(--quadra)}
-.sw.on::after{transform:translateX(20px);background:#fff}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;
+  background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .15s}
+.sw.on{background:var(--acao)}
+.sw.on::after{transform:translateX(20px)}
 
 /* ── execução ── */
 .topo{display:flex;align-items:center;gap:12px;margin-bottom:8px}
-.etapa{font-size:11px;font-weight:700;letter-spacing:1.6px;color:var(--saibro);flex:1}
-.sair{font-size:12px;color:#8B8179;padding:6px 10px}
-.barra{height:4px;background:#2A2724;border-radius:2px;overflow:hidden;margin-bottom:22px}
-.barra i{display:block;height:100%;background:var(--saibro);width:0;transition:width .3s linear}
-.nome{font-family:var(--serif);font-size:31px;font-weight:600;line-height:1.1;margin-bottom:14px}
-.desc{font-size:15px;color:#C9C2BA;line-height:1.55;margin-bottom:auto}
-.crono{font-family:var(--serif);font-size:88px;font-weight:600;line-height:1;text-align:center;
+.etapa{font-size:12px;font-weight:700;letter-spacing:.1em;color:var(--acao-texto);flex:1}
+.sair{font-size:14.5px;font-weight:600;color:var(--grafite);padding:10px 12px;min-height:44px}
+.barra{height:6px;background:var(--linha);border-radius:3px;overflow:hidden;margin-bottom:20px}
+.barra i{display:block;height:100%;background:var(--acao);width:0;transition:width .3s linear}
+.nome{font-size:26px;font-weight:800;line-height:1.15;letter-spacing:-.01em;color:var(--verde);margin-bottom:12px}
+.desc{font-size:16px;color:var(--grafite);line-height:1.55;margin-bottom:auto}
+.crono{font-size:88px;font-weight:800;line-height:1;text-align:center;color:var(--verde);
   font-variant-numeric:tabular-nums;margin:8px 0 2px}
-.crono.alerta{color:var(--saibro)}
-.prox{font-size:12.5px;color:#8B8179;text-align:center;margin-bottom:20px;min-height:18px}
+.crono.alerta{color:var(--acao)}
+.prox{font-size:14px;color:var(--grafite);text-align:center;margin-bottom:18px;min-height:20px}
 .ctrl{display:flex;gap:10px}
-.ctrl button{flex:1;padding:16px;border-radius:6px;font-size:15px;font-weight:700;
-  background:#221F1D;border:1px solid #3A3532;color:#C9C2BA}
-.ctrl button.pri{background:var(--saibro);border-color:var(--saibro);color:#fff;flex:2}
+.ctrl button{flex:1;min-height:52px;padding:14px;border-radius:12px;font-size:16px;font-weight:700;
+  background:#fff;border:1.5px solid var(--linha-forte);color:var(--verde)}
+.ctrl button.pri{background:var(--acao);border-color:var(--acao);color:#fff;flex:2}
 
 /* ── fim ── */
-.fimt{font-family:var(--serif);font-size:38px;font-weight:600;line-height:1.05;margin-bottom:12px}
-.fims{font-size:15px;color:#C9C2BA;line-height:1.6;margin-bottom:auto}
+.fimt{font-size:clamp(30px,8.6vw,36px);font-weight:800;line-height:1.1;letter-spacing:-.015em;color:var(--verde);margin-bottom:12px}
+.fims{font-size:17px;color:var(--grafite);line-height:1.55;margin-bottom:20px}
 
-.aviso{background:#221F1D;border-left:3px solid var(--ocre);padding:12px 14px;border-radius:0 4px 4px 0;
-  font-size:12.5px;line-height:1.55;color:#C9C2BA;margin-bottom:16px}
-.aviso b{color:var(--ocre);display:block;font-size:10px;font-weight:700;letter-spacing:1.2px;
+.aviso{background:var(--acao-fundo);border:1px solid var(--acao-borda);border-left:4px solid var(--acao);padding:12px 14px;border-radius:10px;
+  font-size:14.5px;line-height:1.55;color:#5C2A0E;margin-bottom:16px}
+.aviso b{color:var(--acao-texto);display:block;font-size:12px;font-weight:700;letter-spacing:.1em;
   margin-bottom:4px}
 .lista{margin-bottom:auto}
-.li{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid #2A2724;align-items:baseline}
-.li .n{font-size:11px;font-weight:700;color:var(--saibro);width:16px;flex:0 0 auto}
-.li .t{flex:1;font-size:14px}
-.li .t span{display:block;font-size:11.5px;color:#8B8179;margin-top:2px}
-.li .d{font-size:12px;color:#8B8179;font-weight:700}
 .como{margin-bottom:4px}
-.passo-li{display:flex;gap:12px;padding:9px 0;align-items:baseline}
-.passo-li .n{width:18px;flex:0 0 auto;font-size:11px;font-weight:700;color:var(--saibro)}
-.passo-li .t{flex:1;font-size:16px;line-height:1.5;color:#E8E3DE}
-.erro{background:#2A1A18;border-left:3px solid var(--alerta);padding:13px 15px;
-  border-radius:0 4px 4px 0;margin-top:12px}
-.erro b{display:block;font-size:9.5px;font-weight:700;letter-spacing:1.2px;color:#FF8DA1;
+.passo-li{display:flex;gap:12px;padding:8px 0;align-items:baseline}
+.passo-li .n{width:22px;height:22px;border-radius:50%;background:var(--acao);color:#fff;flex:0 0 auto;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;transform:translateY(-1px)}
+.passo-li .t{flex:1;font-size:17px;line-height:1.5;color:var(--tinta)}
+.erro{background:#fff;border:1px solid var(--linha);border-left:4px solid var(--acao);padding:12px 14px;
+  border-radius:10px;margin-top:12px}
+.erro b{display:block;font-size:11.5px;font-weight:700;letter-spacing:.1em;color:var(--acao-texto);
   margin-bottom:3px}
-.erro span{font-size:14px;line-height:1.5;color:#E8B9C0}
-.mini{display:flex;align-items:baseline;gap:10px;padding:10px 0;border-bottom:1px solid #2A2724}
-.mini .t{flex:1;font-size:13.5px}
-.mini .t span{display:block;font-size:11px;color:#8B8179;margin-top:1px}
-.mini .d{font-size:11.5px;color:#8B8179;font-weight:700}
+.erro span{font-size:15.5px;line-height:1.5;color:var(--tinta)}
+.mini{display:flex;align-items:baseline;gap:10px;padding:11px 0;border-bottom:1px solid var(--linha)}
+.mini .t{flex:1;font-size:15.5px;font-weight:600;color:var(--verde)}
+.mini .t span{display:block;font-size:13.5px;font-weight:400;color:var(--grafite);margin-top:1px}
+.mini .d{font-size:13.5px;color:var(--grafite);font-weight:700}
 .rolagem{overflow-y:auto;flex:1 1 0;min-height:0;margin-bottom:10px;-webkit-overflow-scrolling:touch}
 .cabex{display:flex;align-items:baseline;gap:10px;margin-bottom:2px}
-.cabex .num{font-size:11px;font-weight:700;color:#8B8179}
+.cabex .num{font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--grafite)}
 
-
-.crono.prep{color:#8FBF9F;font-size:64px}
+.crono.prep{color:var(--grafite);font-size:64px}
 .ctrl button.verde{background:var(--quadra);border-color:var(--quadra);color:#fff}
-.descanso{font-size:16px;line-height:1.6;color:#9FC4AC;padding:14px 0}
+.descanso{font-size:17px;line-height:1.6;color:var(--grafite);padding:14px 0}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
 <!-- ═══ INÍCIO ═══ -->
 <div class="tela on" id="t-inicio">
-  <div class="marca">METODOLOGIA MTY · TEAM YODA TENNIS PRO</div>
-  <div class="tit">Ativação<br>pré-jogo</div>
+  <div class="cab"><img src="../../assets/logo-quadralab-player-v2-120.png" alt="QuadraLab Player" width="130" height="30"><a href="../#/aquecimento">‹ Aquecimento</a></div>
+  <div class="marca">Aquecimento físico · Metodologia MTY</div>
+  <div class="tit">Ativação pré-jogo</div>
   <div class="sub">18 minutos, sem bola. Para chegar pronto na primeira bola do primeiro game.</div>
 
   <div class="opt">
@@ -118,18 +122,18 @@ button{font-family:inherit;border:none;background:none;color:inherit;cursor:poin
       <span>Três bipes antes de cada troca, e um sinal na virada.</span></div>
     <div class="sw on" id="sw-som"></div>
   </div>
-  <div class="opt" style="border-bottom:1px solid #2A2724">
+  <div class="opt" style="border-bottom:1px solid #E2E8E5">
     <div class="lab"><b>Voz</b>
       <span>Lê a instrução inteira na preparação: os passos e o erro a evitar.</span></div>
     <div class="sw on" id="sw-voz"></div>
   </div>
-  <div style="font-size:12.5px;color:#8B8179;padding:12px 0 2px">
-    Duração total: <b id="dur" style="color:#C9C2BA">—</b>
+  <div style="font-size:14px;color:#5B6B63;padding:12px 0 2px">
+    Duração total: <b id="dur" style="color:#012A1F">—</b>
     <span style="display:block;margin-top:3px">18 min de trabalho, 8 de instrução e 2 de descanso.
     O botão verde pula a instrução quando você já souber o exercício — aí fica em torno de 20.</span>
   </div>
 
-  <div class="aviso" style="margin-top:18px">
+  <div class="aviso" style="margin-top:16px">
     <b>OS SONS, DE OLHOS FECHADOS</b>
     Toque agudo e longo: começa o esforço. Dois graves descendo: pode parar. Um médio curto:
     vem outra instrução. Toque duplo rápido: mais uma repetição. Três toques espaçados só
@@ -171,7 +175,8 @@ button{font-family:inherit;border:none;background:none;color:inherit;cursor:poin
 
 <!-- ═══ FIM ═══ -->
 <div class="tela" id="t-fim">
-  <div class="marca">18 MINUTOS · CONCLUÍDO</div>
+  <div class="cab"><img src="../../assets/logo-quadralab-player-v2-120.png" alt="QuadraLab Player" width="130" height="30"><a href="../#/aquecimento">Voltar ao Aquecimento</a></div>
+  <div class="marca">18 minutos · concluído</div>
   <div class="fimt">Pronto<br>para entrar</div>
   <div class="fims">Mantenha os pés se mexendo até entrar em quadra. Parar de vez desfaz
     metade do trabalho.</div>
@@ -188,7 +193,7 @@ button{font-family:inherit;border:none;background:none;color:inherit;cursor:poin
    ═══════════════════════════════════════════════════════════════ */
 
 const PROTOCOLO = [
-{etapa:"1 · ELEVAR", cor:"#2E4739", passos:[
+{etapa:"1 · ELEVAR", cor:"#103B32", passos:[
  {nome:"Corrida progressiva", prep:0, seg:90,
   como:["Marque dez passos entre dois pontos — pode ser a lateral da quadra.",
         "Vá e volte sem parar, começando bem devagar.",
@@ -220,7 +225,7 @@ const PROTOCOLO = [
         "Ritmo rápido, contato curto com o chão."],
   erro:"Levar o joelho à frente. O movimento é só do calcanhar."},
 ]},
-{etapa:"2 · SOLTAR", cor:"#2E4739", passos:[
+{etapa:"2 · SOLTAR", cor:"#103B32", passos:[
  {nome:"Joelho ao peito", prep:0, seg:40,
   como:["Caminhando, puxe um joelho até o peito com as duas mãos.",
         "Segure meio segundo e solte. Não é alongamento — é um toque.",
@@ -252,7 +257,7 @@ const PROTOCOLO = [
         "Os pés ficam no lugar; só o quadril se move."],
   erro:"Mexer os ombros junto. De cima, só o quadril."},
 ]},
-{etapa:"3 · ACORDAR", cor:"#2E4739", passos:[
+{etapa:"3 · ACORDAR", cor:"#103B32", passos:[
  {nome:"Agachamento", prep:0, seg:40,
   como:["Pés na largura dos ombros, braços à frente para equilibrar.",
         "Desça empurrando o quadril para trás, como se fosse sentar numa cadeira.",
@@ -285,7 +290,7 @@ const PROTOCOLO = [
         "Dez repetições, cada uma inteira."],
   erro:"Fazer rápido. Lento e completo é o que prepara o ombro."},
 ]},
-{etapa:"4 · ACELERAR", cor:"#C8102E", passos:[
+{etapa:"4 · ACELERAR", cor:"#B14C1D", passos:[
  {nome:"Split step", prep:0, seg:60, desc:20,
   como:["Salte alguns centímetros e caia com os dois pés ao mesmo tempo.",
         "Caia leve, joelhos moles, já pronto para sair.",
@@ -304,7 +309,7 @@ const PROTOCOLO = [
         "Um bipe avisa cada repetição."],
   erro:"Frear com um pé só ou arrastando. A freada é com os dois."},
 ]},
-{etapa:"5 · CHEGAR QUIETO", cor:"#2E4739", passos:[
+{etapa:"5 · CHEGAR QUIETO", cor:"#103B32", passos:[
  {nome:"Três respirações", prep:0, seg:60,
   como:["Em pé, parado, ombros soltos.",
         "Encha o pulmão em quatro segundos, sentindo a barriga expandir.",
@@ -496,8 +501,8 @@ function desenha(){
   const eTrab = f.tipo === "trabalho";
 
   $("ex-etapa").textContent = eTrab ? ex.etapa : (ROT[f.tipo] + " · " + ex.etapa);
-  $("ex-etapa").style.color = f.tipo === "descanso" ? "#8FBF9F"
-      : (ex.etapa.indexOf("ACELERAR") >= 0 ? "#C8102E" : "#8FBF9F");
+  $("ex-etapa").style.color = f.tipo === "descanso" ? "#5B6B63"
+      : (ex.etapa.indexOf("ACELERAR") >= 0 ? "#B14C1D" : "#103B32");
   $("ex-num").textContent = "EXERCÍCIO " + (f.iEx+1) + " DE " + PASSOS.length;
   $("ex-nome").textContent = ex.nome;
 
@@ -660,7 +665,7 @@ $("lista").innerHTML = PROTOCOLO.map(g =>
   g.passos.map(p =>
     '<div class="mini">' +
     '<div class="t">' + p.nome + '<span>' + p.como[0] + '</span></div>' +
-    '<div class="d">' + p.seg + 's' + (p.desc ? ' <span style="color:#5E8B6E">+' + p.desc + 's</span>' : '') + '</div></div>'
+    '<div class="d">' + p.seg + 's' + (p.desc ? ' <span style="color:#5B6B63">+' + p.desc + 's</span>' : '') + '</div></div>'
   ).join("")
 ).join("");
 
