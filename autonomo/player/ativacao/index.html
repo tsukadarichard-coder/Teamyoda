@@ -1,0 +1,675 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#141210">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Ativação pré-jogo · MTY</title>
+<link rel="manifest" href='data:application/manifest+json,{"name":"Ativa%C3%A7%C3%A3o pr%C3%A9-jogo MTY","short_name":"Ativa%C3%A7%C3%A3o","display":"standalone","background_color":"%23141210","theme_color":"%23141210","orientation":"portrait"}'>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700&family=Source+Serif+4:opsz,wght@8..60,600&display=swap" rel="stylesheet">
+<style>
+:root{--papel:#F5F2F0;--tinta:#141210;--saibro:#C8102E;--quadra:#2E4739;
+  --grafite:#6B6461;--linha:#D8D1CB;--branco:#fff;--ocre:#C9A227;--alerta:#8A2B15;
+  --arch:"Archivo",system-ui,sans-serif;--serif:"Source Serif 4",Georgia,serif}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;
+  -webkit-user-select:none;user-select:none}
+html,body{height:100%;overflow:hidden}
+body{background:var(--tinta);color:var(--papel);font-family:var(--arch);
+  -webkit-font-smoothing:antialiased;display:flex;flex-direction:column}
+button{font-family:inherit;border:none;background:none;color:inherit;cursor:pointer}
+
+/* ── telas ── */
+.tela{display:none;flex:1;flex-direction:column;overflow-y:auto;
+  padding:calc(env(safe-area-inset-top) + 14px) 18px calc(env(safe-area-inset-bottom) + 18px)}
+.tela.on{display:flex}
+#t-exec{overflow:hidden}
+
+/* ── início ── */
+.marca{font-size:10px;font-weight:700;letter-spacing:2.6px;color:#8B8179;margin-bottom:auto}
+.tit{font-family:var(--serif);font-size:44px;font-weight:600;line-height:1.02;margin-bottom:10px}
+.sub{font-size:14px;color:#C9C2BA;line-height:1.6;margin-bottom:26px;max-width:34ch}
+.bt{width:100%;padding:18px;border-radius:6px;font-size:17px;font-weight:700;
+  background:var(--saibro);color:#fff}
+.bt.sec{background:transparent;border:1px solid #3A3532;color:#C9C2BA;font-size:14px;padding:14px}
+.opt{display:flex;align-items:center;gap:12px;padding:14px 0;border-top:1px solid #2A2724}
+.opt .lab{flex:1}
+.opt .lab b{display:block;font-size:14px;font-weight:700}
+.opt .lab span{font-size:11.5px;color:#8B8179;line-height:1.45;display:block;margin-top:2px}
+.sw{width:48px;height:28px;border-radius:14px;background:#3A3532;position:relative;flex:0 0 auto;
+  transition:background .15s}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;
+  background:#8B8179;transition:transform .15s,background .15s}
+.sw.on{background:var(--quadra)}
+.sw.on::after{transform:translateX(20px);background:#fff}
+
+/* ── execução ── */
+.topo{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.etapa{font-size:11px;font-weight:700;letter-spacing:1.6px;color:var(--saibro);flex:1}
+.sair{font-size:12px;color:#8B8179;padding:6px 10px}
+.barra{height:4px;background:#2A2724;border-radius:2px;overflow:hidden;margin-bottom:22px}
+.barra i{display:block;height:100%;background:var(--saibro);width:0;transition:width .3s linear}
+.nome{font-family:var(--serif);font-size:31px;font-weight:600;line-height:1.1;margin-bottom:14px}
+.desc{font-size:15px;color:#C9C2BA;line-height:1.55;margin-bottom:auto}
+.crono{font-family:var(--serif);font-size:88px;font-weight:600;line-height:1;text-align:center;
+  font-variant-numeric:tabular-nums;margin:8px 0 2px}
+.crono.alerta{color:var(--saibro)}
+.prox{font-size:12.5px;color:#8B8179;text-align:center;margin-bottom:20px;min-height:18px}
+.ctrl{display:flex;gap:10px}
+.ctrl button{flex:1;padding:16px;border-radius:6px;font-size:15px;font-weight:700;
+  background:#221F1D;border:1px solid #3A3532;color:#C9C2BA}
+.ctrl button.pri{background:var(--saibro);border-color:var(--saibro);color:#fff;flex:2}
+
+/* ── fim ── */
+.fimt{font-family:var(--serif);font-size:38px;font-weight:600;line-height:1.05;margin-bottom:12px}
+.fims{font-size:15px;color:#C9C2BA;line-height:1.6;margin-bottom:auto}
+
+.aviso{background:#221F1D;border-left:3px solid var(--ocre);padding:12px 14px;border-radius:0 4px 4px 0;
+  font-size:12.5px;line-height:1.55;color:#C9C2BA;margin-bottom:16px}
+.aviso b{color:var(--ocre);display:block;font-size:10px;font-weight:700;letter-spacing:1.2px;
+  margin-bottom:4px}
+.lista{margin-bottom:auto}
+.li{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid #2A2724;align-items:baseline}
+.li .n{font-size:11px;font-weight:700;color:var(--saibro);width:16px;flex:0 0 auto}
+.li .t{flex:1;font-size:14px}
+.li .t span{display:block;font-size:11.5px;color:#8B8179;margin-top:2px}
+.li .d{font-size:12px;color:#8B8179;font-weight:700}
+.como{margin-bottom:4px}
+.passo-li{display:flex;gap:12px;padding:9px 0;align-items:baseline}
+.passo-li .n{width:18px;flex:0 0 auto;font-size:11px;font-weight:700;color:var(--saibro)}
+.passo-li .t{flex:1;font-size:16px;line-height:1.5;color:#E8E3DE}
+.erro{background:#2A1A18;border-left:3px solid var(--alerta);padding:13px 15px;
+  border-radius:0 4px 4px 0;margin-top:12px}
+.erro b{display:block;font-size:9.5px;font-weight:700;letter-spacing:1.2px;color:#FF8DA1;
+  margin-bottom:3px}
+.erro span{font-size:14px;line-height:1.5;color:#E8B9C0}
+.mini{display:flex;align-items:baseline;gap:10px;padding:10px 0;border-bottom:1px solid #2A2724}
+.mini .t{flex:1;font-size:13.5px}
+.mini .t span{display:block;font-size:11px;color:#8B8179;margin-top:1px}
+.mini .d{font-size:11.5px;color:#8B8179;font-weight:700}
+.rolagem{overflow-y:auto;flex:1 1 0;min-height:0;margin-bottom:10px;-webkit-overflow-scrolling:touch}
+.cabex{display:flex;align-items:baseline;gap:10px;margin-bottom:2px}
+.cabex .num{font-size:11px;font-weight:700;color:#8B8179}
+
+
+.crono.prep{color:#8FBF9F;font-size:64px}
+.ctrl button.verde{background:var(--quadra);border-color:var(--quadra);color:#fff}
+.descanso{font-size:16px;line-height:1.6;color:#9FC4AC;padding:14px 0}
+</style>
+</head>
+<body>
+<!-- ═══ INÍCIO ═══ -->
+<div class="tela on" id="t-inicio">
+  <div class="marca">METODOLOGIA MTY · TEAM YODA TENNIS PRO</div>
+  <div class="tit">Ativação<br>pré-jogo</div>
+  <div class="sub">18 minutos, sem bola. Para chegar pronto na primeira bola do primeiro game.</div>
+
+  <div class="opt">
+    <div class="lab"><b>Manter a tela acesa</b>
+      <span>O modo mais confiável. A tela não apaga durante a sessão.</span></div>
+    <div class="sw on" id="sw-tela"></div>
+  </div>
+  <div class="opt">
+    <div class="lab"><b>Som nos avisos</b>
+      <span>Três bipes antes de cada troca, e um sinal na virada.</span></div>
+    <div class="sw on" id="sw-som"></div>
+  </div>
+  <div class="opt" style="border-bottom:1px solid #2A2724">
+    <div class="lab"><b>Voz</b>
+      <span>Lê a instrução inteira na preparação: os passos e o erro a evitar.</span></div>
+    <div class="sw on" id="sw-voz"></div>
+  </div>
+  <div style="font-size:12.5px;color:#8B8179;padding:12px 0 2px">
+    Duração total: <b id="dur" style="color:#C9C2BA">—</b>
+    <span style="display:block;margin-top:3px">18 min de trabalho, 8 de instrução e 2 de descanso.
+    O botão verde pula a instrução quando você já souber o exercício — aí fica em torno de 20.</span>
+  </div>
+
+  <div class="aviso" style="margin-top:18px">
+    <b>OS SONS, DE OLHOS FECHADOS</b>
+    Toque agudo e longo: começa o esforço. Dois graves descendo: pode parar. Um médio curto:
+    vem outra instrução. Toque duplo rápido: mais uma repetição. Três toques espaçados só
+    antes de sprint e freada.
+  </div>
+  <button class="bt" id="bt-comecar">Começar</button>
+  <button class="bt sec" id="bt-ver" style="margin-top:10px">Ver o protocolo</button>
+</div>
+
+<!-- ═══ PROTOCOLO ═══ -->
+<div class="tela" id="t-lista">
+  <div class="topo"><div class="etapa">O PROTOCOLO</div>
+    <button class="sair" id="bt-voltar">voltar</button></div>
+  <div class="lista" id="lista"></div>
+  <div class="aviso"><b>A REGRA</b>
+    Forte não é longo nem cansativo. Se terminar ofegante, o aquecimento virou treino e vai
+    custar o primeiro set.</div>
+  <button class="bt" id="bt-comecar2">Começar</button>
+</div>
+
+<!-- ═══ EXECUÇÃO ═══ -->
+<div class="tela" id="t-exec">
+  <div class="topo"><div class="etapa" id="ex-etapa">—</div>
+    <button class="sair" id="bt-sair">sair</button></div>
+  <div class="barra"><i id="ex-barra"></i></div>
+  <div class="rolagem">
+    <div class="cabex"><span class="num" id="ex-num"></span></div>
+    <div class="nome" id="ex-nome">—</div>
+    <div class="como" id="ex-como"></div>
+    <div class="erro"><b>O ERRO MAIS COMUM</b><span id="ex-erro"></span></div>
+  </div>
+  <div class="crono" id="ex-crono">0:00</div>
+  <div class="prox" id="ex-prox"></div>
+  <div class="ctrl">
+    <button id="bt-pausa" class="pri">Pausar</button>
+    <button id="bt-pular">Pular</button>
+  </div>
+</div>
+
+<!-- ═══ FIM ═══ -->
+<div class="tela" id="t-fim">
+  <div class="marca">18 MINUTOS · CONCLUÍDO</div>
+  <div class="fimt">Pronto<br>para entrar</div>
+  <div class="fims">Mantenha os pés se mexendo até entrar em quadra. Parar de vez desfaz
+    metade do trabalho.</div>
+  <div class="aviso"><b>A ÚLTIMA COISA</b>
+    Uma frase para si mesmo sobre a primeira bola que vai jogar. Não sobre ganhar — sobre
+    a primeira bola.</div>
+  <button class="bt" id="bt-denovo">Fazer de novo</button>
+</div>
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   Ativação pré-jogo · MTY
+   O problema: com a tela bloqueada o navegador congela o JS.
+   A solução tem três camadas — ver comentários em SOM e TELA.
+   ═══════════════════════════════════════════════════════════════ */
+
+const PROTOCOLO = [
+{etapa:"1 · ELEVAR", cor:"#2E4739", passos:[
+ {nome:"Corrida progressiva", prep:0, seg:90,
+  como:["Marque dez passos entre dois pontos — pode ser a lateral da quadra.",
+        "Vá e volte sem parar, começando bem devagar.",
+        "A cada ida, acelere um pouco. Termine em dois terços da sua velocidade máxima."],
+  erro:"Começar rápido. O objetivo é subir a temperatura, não correr."},
+ {nome:"Lateral cruzando à frente", prep:0, seg:30,
+  como:["Fique de lado para a direção em que vai andar.",
+        "Cruze uma perna à frente da outra, depois abra.",
+        "Vá dez passos para um lado e volte para o outro."],
+  erro:"Pular em vez de cruzar. Os pés ficam perto do chão."},
+ {nome:"Lateral cruzando atrás", prep:0, seg:30,
+  como:["Mesma coisa, mas agora a perna cruza por trás.",
+        "É desconfortável nas primeiras vezes — é normal.",
+        "Dez passos para cada lado."],
+  erro:"Girar o quadril. O tronco continua apontado para a frente."},
+ {nome:"Corrida de costas", prep:0, seg:30,
+  como:["Corra de costas, devagar, olhando por cima do ombro.",
+        "Passos curtos, sem esticar a perna para trás.",
+        "Dez passos e volta de frente."],
+  erro:"Passo longo. De costas, o passo curto é o que protege o joelho."},
+ {nome:"Joelhos altos", prep:0, seg:30,
+  como:["Corra no lugar ou avançando devagar.",
+        "Suba o joelho até a altura do quadril.",
+        "Os braços acompanham, como na corrida."],
+  erro:"Inclinar o tronco para trás. O tronco fica ereto."},
+ {nome:"Calcanhar no glúteo", prep:0, seg:30,
+  como:["Corra no lugar tocando o calcanhar no glúteo.",
+        "O joelho aponta para baixo, não para a frente.",
+        "Ritmo rápido, contato curto com o chão."],
+  erro:"Levar o joelho à frente. O movimento é só do calcanhar."},
+]},
+{etapa:"2 · SOLTAR", cor:"#2E4739", passos:[
+ {nome:"Joelho ao peito", prep:0, seg:40,
+  como:["Caminhando, puxe um joelho até o peito com as duas mãos.",
+        "Segure meio segundo e solte. Não é alongamento — é um toque.",
+        "Alterne as pernas. Oito de cada lado."],
+  erro:"Segurar dez segundos. Antes de jogo, alongamento parado tira potência."},
+ {nome:"Tornozelo ao glúteo", prep:0, seg:40,
+  como:["Caminhando, puxe o tornozelo até o glúteo com a mão do mesmo lado.",
+        "O joelho aponta para baixo e o quadril fica à frente.",
+        "Meio segundo cada. Oito de cada lado."],
+  erro:"Deixar o joelho ir para trás e arquear a lombar."},
+ {nome:"Chute frontal", prep:0, seg:40,
+  como:["Caminhando, chute a perna estendida para a frente, na altura do quadril.",
+        "A mão do lado oposto vai encontrar o pé.",
+        "Sem forçar a altura. Oito de cada lado."],
+  erro:"Buscar altura máxima. A amplitude cresce sozinha nas repetições."},
+ {nome:"Afundo com rotação", prep:0, seg:60,
+  como:["Dê um passo grande à frente e desça até o joelho de trás quase tocar o chão.",
+        "Nessa posição, gire o tronco para o lado da perna da frente.",
+        "Volte, troque a perna. Seis de cada lado."],
+  erro:"O joelho da frente passar da ponta do pé. Dê o passo mais longo."},
+ {nome:"Círculos de ombro", prep:0, seg:30,
+  como:["Braços estendidos ao lado do corpo.",
+        "Dez círculos grandes para a frente, dez para trás.",
+        "Devagar, com amplitude completa."],
+  erro:"Círculo pequeno e rápido. O objeto é a amplitude."},
+ {nome:"Círculos de quadril", prep:0, seg:30,
+  como:["Mãos na cintura, pés na largura dos ombros.",
+        "Dez círculos com o quadril para cada lado.",
+        "Os pés ficam no lugar; só o quadril se move."],
+  erro:"Mexer os ombros junto. De cima, só o quadril."},
+]},
+{etapa:"3 · ACORDAR", cor:"#2E4739", passos:[
+ {nome:"Agachamento", prep:0, seg:40,
+  como:["Pés na largura dos ombros, braços à frente para equilibrar.",
+        "Desça empurrando o quadril para trás, como se fosse sentar numa cadeira.",
+        "Desça até a coxa ficar paralela ao chão, se conseguir. Dez repetições."],
+  erro:"O calcanhar sair do chão. Se sair, desça menos."},
+ {nome:"Afundo alternado", prep:0, seg:40,
+  como:["Passo grande à frente, joelho de trás descendo em direção ao chão.",
+        "Tronco ereto, sem inclinar.",
+        "Volte e troque a perna. Cinco de cada lado."],
+  erro:"Passo curto, que joga o joelho da frente para além do pé."},
+ {nome:"Elevação de panturrilha", prep:0, seg:40,
+  como:["Em pé, suba nas pontas dos pés o máximo que conseguir.",
+        "Suba rápido, desça devagar contando até dois.",
+        "Quinze repetições."],
+  erro:"Descer rápido. A descida lenta é metade do exercício."},
+ {nome:"Ponte de glúteo", prep:0, seg:40,
+  como:["Deitado de costas, joelhos dobrados e pés no chão.",
+        "Empurre o quadril para cima até o corpo ficar em linha reta do joelho ao ombro.",
+        "Segure um segundo no alto. Dez repetições.",
+        "Se não houver onde deitar, faça dez saltos curtos no lugar."],
+  erro:"Arquear a lombar no alto. Aperte o glúteo, não a coluna."},
+ {nome:"Rotação de ombro", prep:0, seg:40,
+  como:["Cotovelo colado ao corpo, dobrado a noventa graus.",
+        "Gire o antebraço para fora, depois para dentro, devagar.",
+        "Vinte de cada lado. Se tiver elástico, use."],
+  erro:"Afastar o cotovelo do corpo. Ele fica colado o tempo todo."},
+ {nome:"Saque imaginário", prep:0, seg:40,
+  como:["Faça o gesto completo do saque, sem raquete e sem bola.",
+        "Devagar: lançamento, arco, extensão, finalização.",
+        "Dez repetições, cada uma inteira."],
+  erro:"Fazer rápido. Lento e completo é o que prepara o ombro."},
+]},
+{etapa:"4 · ACELERAR", cor:"#C8102E", passos:[
+ {nome:"Split step", prep:0, seg:60, desc:20,
+  como:["Salte alguns centímetros e caia com os dois pés ao mesmo tempo.",
+        "Caia leve, joelhos moles, já pronto para sair.",
+        "Assim que cair, dê dois passos para um lado. Quinze repetições."],
+  erro:"Pausar entre cair e sair. As duas coisas são uma só."},
+ {nome:"Sprints de 5 metros", prep:0, seg:120, desc:45, avisos:[15,45,75,105],
+  como:["Marque cinco metros. Comece na posição de espera, joelhos flexionados.",
+        "Saia em velocidade máxima e pare depois da marca.",
+        "Volte andando, sem pressa. São seis partidas ao todo.",
+        "Um bipe avisa cada nova partida."],
+  erro:"Encurtar o descanso. Trinta segundos andando entre uma e outra, sempre."},
+ {nome:"Freada e volta", prep:0, seg:120, desc:40, avisos:[20,40,60,80,100],
+  como:["Cinco metros à frente em velocidade.",
+        "Freie com os dois pés ao mesmo tempo, joelhos dobrados.",
+        "Volte de costas até o ponto de partida. Seis repetições.",
+        "Um bipe avisa cada repetição."],
+  erro:"Frear com um pé só ou arrastando. A freada é com os dois."},
+]},
+{etapa:"5 · CHEGAR QUIETO", cor:"#2E4739", passos:[
+ {nome:"Três respirações", prep:0, seg:60,
+  como:["Em pé, parado, ombros soltos.",
+        "Encha o pulmão em quatro segundos, sentindo a barriga expandir.",
+        "Solte em seis segundos, devagar.",
+        "Depois da terceira, diga para si mesmo uma frase sobre a primeira bola que vai jogar."],
+  erro:"Respirar com o peito. A barriga é que expande, não os ombros."},
+]},
+];
+
+/* ═══ FASES ═══
+   Cada exercício vira até três fases: preparar (ler a instrução), trabalhar,
+   e descansar quando houver. O relógio e os sons operam sobre esta lista. */
+const PASSOS = [];
+PROTOCOLO.forEach(g => g.passos.forEach(p => PASSOS.push({...p, etapa:g.etapa, cor:g.cor})));
+
+/* a preparação dura o que a deixa falada leva, mais três segundos de respiro.
+   2,3 palavras por segundo é a leitura lenta da síntese em português. */
+/* a preparação lê a instrução inteira — nome, passos e o erro a evitar */
+function textoPrep(p){
+  return p.nome + ". " + p.como.join(" ") + " Cuidado: " + p.erro;
+}
+function tempoPrep(p){
+  const pal = textoPrep(p).split(/\s+/).length;
+  return Math.max(8, Math.ceil(pal/2.3 + 3));
+}
+let FASES = [];
+let TOTAL = FASES.reduce((a,f)=>a+f.seg, 0);
+const TRAB = PASSOS.reduce((a,p)=>a+p.seg, 0);
+
+function montaFases(){
+  FASES = [];
+  PASSOS.forEach((p, i) => {
+    FASES.push({tipo:"prep", seg:tempoPrep(p), ex:p, iEx:i});
+    FASES.push({tipo:"trabalho", seg:p.seg, ex:p, iEx:i, avisos:p.avisos});
+    if (p.desc) FASES.push({tipo:"descanso", seg:p.desc, ex:p, iEx:i});
+  });
+  TOTAL = FASES.reduce((a,f)=>a+f.seg, 0);
+  const el = document.getElementById("dur");
+  if (el) el.textContent = Math.round(TOTAL/60) + " minutos";
+}
+
+const $ = id => document.getElementById(id);
+const opt = { tela:true, som:true, voz:true };
+
+/* ═══ SOM ═══
+   Camada 1: os bipes são agendados de uma vez na linha do tempo do AudioContext,
+   no momento em que a sessão começa. Isso é o que faz o som sobreviver ao
+   congelamento do JS — a agenda vive no motor de áudio, não no JS.
+   Camada 2: um oscilador mudo em loop mantém o contexto vivo e impede o
+   navegador de suspender a página. */
+let AC = null, keepAlive = null, agendados = [];
+
+function iniciaAudio(){
+  if (AC) return;
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  AC = new Ctx();
+  const g = AC.createGain(); g.gain.value = 0.0001;
+  const o = AC.createOscillator(); o.frequency.value = 40;
+  o.connect(g); g.connect(AC.destination); o.start();
+  keepAlive = o;
+}
+function bipe(quando, freq, dur, vol){
+  if (!AC || !opt.som) return;
+  const o = AC.createOscillator(), g = AC.createGain();
+  o.frequency.value = freq; o.type = "sine";
+  g.gain.setValueAtTime(0, quando);
+  g.gain.linearRampToValueAtTime(vol, quando + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, quando + dur);
+  o.connect(g); g.connect(AC.destination);
+  o.start(quando); o.stop(quando + dur + 0.05);
+  agendados.push(o);
+}
+function limpaAgenda(){
+  agendados.forEach(o => { try{ o.stop(); }catch(e){} });
+  agendados = [];
+}
+/* ═══ GRAMÁTICA DOS SONS ═══
+   Cinco sinais, cada um com um significado só. Distinguem-se por altura E por
+   padrão — nunca só por altura, porque de longe e ofegante a altura se perde.
+
+     ATENÇÃO   três toques médios, espaçados de 1s   só antes do trabalho
+     VAI       um toque agudo e longo                 começa o esforço
+     PARA      dois toques graves, descendo           acabou o esforço
+     PRÓXIMO   um toque médio curto                   vem outra instrução
+     REPETIÇÃO um toque duplo rápido                  mais uma dentro do exercício
+     FIM       três notas subindo                     acabou tudo                     */
+const SOM = {
+  proximo:   {f:494,  d:0.15, v:0.24},                                  /* grave e discreto */
+  para:      [{f:622, d:0.16, v:0.42}, {f:392, d:0.34, v:0.42}],        /* queda larga */
+  atencao:   {f:784,  d:0.10, v:0.32},                                  /* médio, seco */
+  repeticao: [{f:988, d:0.05, v:0.38}, {f:988, d:0.05, v:0.38}],        /* duplo, curtíssimo */
+  vai:       {f:1568, d:0.40, v:0.55},                                  /* agudo e longo */
+};
+function toca(t, e){ bipe(t, e.f, e.d, e.v); }
+
+/* agenda TODOS os sons a partir de um ponto, de uma vez */
+function agendaTudo(t0, iFase, restante){
+  limpaAgenda();
+  if (!AC) return;
+  let t = t0 + restante;
+  for (let i = iFase; i < FASES.length; i++){
+    const f = FASES[i];
+    const dur = (i === iFase) ? restante : f.seg;
+    const ini = t - dur;
+    const prox = FASES[i+1];
+
+    /* repetições dentro do exercício: toque duplo, curto */
+    (f.avisos||[]).forEach(sg => {
+      const q = ini + sg;
+      if (q > t0 && q < t - 4){ toca(q, SOM.repeticao[0]); toca(q+0.12, SOM.repeticao[1]); }
+    });
+
+    /* a contagem é proporcional à exigência do que vem:
+       três toques só antes de esforço máximo, um toque nos demais. */
+    if (prox && prox.tipo === "trabalho"){
+      const maximo = prox.ex.etapa.indexOf("ACELERAR") >= 0;
+      const n = maximo ? 3 : 1;
+      for (let k = n; k >= 1; k--) if (t - k > t0) toca(t - k, SOM.atencao);
+    }
+
+    /* a virada */
+    if (!prox){
+      bipe(t, 523, 0.45, 0.45); bipe(t+0.26, 659, 0.45, 0.45); bipe(t+0.52, 784, 0.75, 0.45);
+    } else if (prox.tipo === "trabalho"){
+      toca(t, SOM.vai);
+    } else if (prox.tipo === "descanso"){
+      toca(t, SOM.para[0]); toca(t + 0.20, SOM.para[1]);
+    } else {
+      toca(t, SOM.proximo);
+    }
+    t += prox ? prox.seg : 0;
+  }
+}
+function falar(txt){
+  if (!opt.voz || !("speechSynthesis" in window)) return;
+  try{
+    const u = new SpeechSynthesisUtterance(txt);
+    u.lang = "pt-BR"; u.rate = 1.02; u.volume = 1;
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
+  }catch(e){}
+}
+/* na preparação a voz lê nome e passos; o erro entra no começo do trabalho,
+   para não estourar o tempo de leitura */
+function lerInstrucao(ex){
+  if (!opt.voz) return;
+  falar(textoPrep(ex));
+}
+
+/* ═══ TELA ═══ */
+let lock = null;
+async function pedeTela(){
+  if (!opt.tela || !("wakeLock" in navigator)) return;
+  try{ lock = await navigator.wakeLock.request("screen"); }catch(e){}
+}
+async function soltaTela(){
+  try{ if (lock){ await lock.release(); lock = null; } }catch(e){}
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible"){
+    if (rodando && !pausado) pedeTela();
+    if (AC && AC.state === "suspended") AC.resume();
+    desenha();
+  }
+});
+
+/* ═══ RELÓGIO ═══ */
+let iAtual = 0, fimEm = 0, restaPausa = 0;
+let rodando = false, pausado = false, tick = null;
+
+function restante(){
+  if (pausado) return restaPausa;
+  return Math.max(0, (fimEm - Date.now())/1000);
+}
+function mmss(s){
+  s = Math.ceil(s);
+  return Math.floor(s/60) + ":" + String(s%60).padStart(2,"0");
+}
+function decorrido(){
+  let a = 0;
+  for (let i=0;i<iAtual;i++) a += FASES[i].seg;
+  return a + (FASES[iAtual].seg - restante());
+}
+
+const ROT = {prep:"PREPARAR", trabalho:"", descanso:"DESCANSO"};
+
+function desenha(){
+  if (!rodando) return;
+  const f = FASES[iAtual], ex = f.ex, r = restante();
+  const eTrab = f.tipo === "trabalho";
+
+  $("ex-etapa").textContent = eTrab ? ex.etapa : (ROT[f.tipo] + " · " + ex.etapa);
+  $("ex-etapa").style.color = f.tipo === "descanso" ? "#8FBF9F"
+      : (ex.etapa.indexOf("ACELERAR") >= 0 ? "#C8102E" : "#8FBF9F");
+  $("ex-num").textContent = "EXERCÍCIO " + (f.iEx+1) + " DE " + PASSOS.length;
+  $("ex-nome").textContent = ex.nome;
+
+  if ($("ex-como").dataset.k !== String(iAtual)){
+    $("ex-como").dataset.k = String(iAtual);
+    if (f.tipo === "descanso"){
+      $("ex-como").innerHTML = '<div class="descanso">Ande, solte os braços, respire.<br>' +
+        'O descanso é parte do exercício — encurtar muda o que ele treina.</div>';
+      $("ex-erro").parentNode.style.display = "none";
+    } else {
+      $("ex-como").innerHTML = ex.como.map((t,k) =>
+        '<div class="passo-li"><div class="n">' + (k+1) + '</div><div class="t">' + t + '</div></div>'
+      ).join("");
+      $("ex-erro").textContent = ex.erro;
+      $("ex-erro").parentNode.style.display = "";
+    }
+  }
+  $("ex-crono").textContent = mmss(r);
+  $("ex-crono").classList.toggle("alerta", r <= 3.5 && r > 0);
+  $("ex-crono").classList.toggle("prep", f.tipo !== "trabalho");
+
+  const prox = FASES[iAtual+1];
+  $("ex-prox").textContent = prox
+    ? (prox.tipo === "trabalho" ? "começa: " + prox.ex.nome
+       : prox.tipo === "descanso" ? "depois · descanso de " + prox.seg + "s"
+       : "a seguir · " + prox.ex.nome)
+    : "última etapa";
+  $("ex-barra").style.width = Math.min(100, decorrido()/TOTAL*100) + "%";
+
+  /* o botão principal muda de função conforme a fase */
+  $("bt-pausa").textContent = pausado ? "Continuar"
+      : (f.tipo === "prep" ? "Começar agora" : "Pausar");
+  $("bt-pausa").classList.toggle("verde", !pausado && f.tipo === "prep");
+}
+
+function entraFase(){
+  const f = FASES[iAtual];
+  fimEm = Date.now() + f.seg*1000;
+  if (f.tipo === "prep")      lerInstrucao(f.ex);
+  else if (f.tipo === "trabalho")  falar("Começar.");
+  else                        falar("Descanso.");
+  midia(); desenha();
+}
+function avanca(){
+  iAtual++;
+  if (iAtual >= FASES.length){ termina(); return; }
+  entraFase();
+}
+function laco(){
+  if (!rodando || pausado) return;
+  if (restante() <= 0) avanca(); else desenha();
+}
+function comeca(){
+  iniciaAudio();
+  if (AC && AC.state === "suspended") AC.resume();
+  iAtual = 0; rodando = true; pausado = false;
+  entraFase();
+  agendaTudo(AC ? AC.currentTime : 0, 0, FASES[0].seg);
+  pedeTela(); mostra("t-exec");
+  clearInterval(tick); tick = setInterval(laco, 200);
+}
+/* na preparação, o botão principal pula direto para o trabalho */
+function acaoPrincipal(){
+  if (!rodando) return;
+  const f = FASES[iAtual];
+  if (!pausado && f.tipo === "prep"){ pulaFase(); return; }
+  pausa();
+}
+function pausa(){
+  if (!rodando) return;
+  if (!pausado){
+    restaPausa = restante(); pausado = true;
+    limpaAgenda(); soltaTela();
+  } else {
+    pausado = false;
+    fimEm = Date.now() + restaPausa*1000;
+    if (AC && AC.state === "suspended") AC.resume();
+    agendaTudo(AC ? AC.currentTime : 0, iAtual, restaPausa);
+    pedeTela();
+  }
+  midia(); desenha();
+}
+function pulaFase(){
+  if (!rodando) return;
+  avanca();
+  if (rodando && AC) agendaTudo(AC.currentTime, iAtual, FASES[iAtual].seg);
+}
+/* pular o exercício inteiro, não só a fase */
+function pulaExercicio(){
+  if (!rodando) return;
+  const atual = FASES[iAtual].iEx;
+  while (iAtual < FASES.length && FASES[iAtual].iEx === atual) iAtual++;
+  if (iAtual >= FASES.length){ termina(); return; }
+  entraFase();
+  if (AC) agendaTudo(AC.currentTime, iAtual, FASES[iAtual].seg);
+}
+function termina(){
+  rodando = false; clearInterval(tick);
+  soltaTela(); limpaAgenda();
+  falar("Aquecimento concluído. Mantenha os pés se mexendo.");
+  mostra("t-fim");
+}
+function sai(){
+  rodando = false; pausado = false; clearInterval(tick);
+  limpaAgenda(); soltaTela();
+  try{ speechSynthesis.cancel(); }catch(e){}
+  mostra("t-inicio");
+}
+
+/* ═══ TELA DE BLOQUEIO ═══
+   Media Session põe o nome da etapa na tela de bloqueio e nos fones,
+   e liga os botões físicos de play/pause. */
+function midia(){
+  if (!("mediaSession" in navigator)) return;
+  try{
+    const f = FASES[iAtual];
+    const rot = f ? (f.tipo==="prep" ? "Preparar · " : f.tipo==="descanso" ? "Descanso · " : "") : "";
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: f ? rot + f.ex.nome : "Ativação pré-jogo",
+      artist: f ? f.ex.etapa : "Metodologia MTY",
+      album: "Ativação pré-jogo · MTY"
+    });
+    navigator.mediaSession.playbackState = pausado ? "paused" : "playing";
+    navigator.mediaSession.setActionHandler("play", () => { if (pausado) pausa(); });
+    navigator.mediaSession.setActionHandler("pause", () => { if (!pausado) pausa(); });
+    navigator.mediaSession.setActionHandler("nexttrack", pulaExercicio);
+  }catch(e){}
+}
+
+/* ═══ NAVEGAÇÃO ═══ */
+function mostra(id){
+  document.querySelectorAll(".tela").forEach(t => t.classList.remove("on"));
+  $(id).classList.add("on");
+}
+["sw-tela","sw-som","sw-voz"].forEach(id => {
+  $(id).onclick = () => {
+    const k = id.split("-")[1];
+    opt[k] = !opt[k];
+    $(id).classList.toggle("on", opt[k]);
+    if (k === "tela"){ opt.tela ? pedeTela() : soltaTela(); }
+    if (k === "som" && opt.som && rodando && !pausado && AC)
+      agendaTudo(AC.currentTime, iAtual, restante());
+    if (k === "voz" && !opt.voz){ try{ speechSynthesis.cancel(); }catch(e){} }
+    if (k === "som" && !opt.som) limpaAgenda();
+  };
+});
+$("bt-comecar").onclick  = comeca;
+$("bt-comecar2").onclick = comeca;
+$("bt-denovo").onclick   = comeca;
+$("bt-ver").onclick      = () => mostra("t-lista");
+$("bt-voltar").onclick   = () => mostra("t-inicio");
+$("bt-sair").onclick     = sai;
+$("bt-pausa").onclick    = acaoPrincipal;
+$("bt-pular").onclick    = pulaExercicio;
+
+/* lista do protocolo */
+$("lista").innerHTML = PROTOCOLO.map(g =>
+  '<div style="font-size:10.5px;font-weight:700;letter-spacing:1.4px;color:' + g.cor +
+  ';margin:18px 0 2px">' + g.etapa + '</div>' +
+  g.passos.map(p =>
+    '<div class="mini">' +
+    '<div class="t">' + p.nome + '<span>' + p.como[0] + '</span></div>' +
+    '<div class="d">' + p.seg + 's' + (p.desc ? ' <span style="color:#5E8B6E">+' + p.desc + 's</span>' : '') + '</div></div>'
+  ).join("")
+).join("");
+
+montaFases();
+
+/* impede que a página role ao arrastar */
+document.addEventListener("touchmove", e => {
+  if (!e.target.closest(".tela")) e.preventDefault();
+}, {passive:false});
+</script>
+</body>
+</html>

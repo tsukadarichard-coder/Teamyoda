@@ -1347,7 +1347,7 @@
     estrategia: "estrategia", plano: "estrategia", planos: "estrategia", completar: "estrategia", gerando: "estrategia",
     jogadas: "jogadas", planejar: "treinos", treinos: "treinos", treino: "treinos", programa: "treinos", planejamento: "treinos", gerandoPlanej: "treinos",
   };
-  var NAV_MAIS = { desafio: 1, partidas: 1, conta: 1, jogador: 1, ficha: 1, assinatura: 1, consultorias: 1, ajuda: 1 };
+  var NAV_MAIS = { aquecimento: 1, desafio: 1, partidas: 1, conta: 1, jogador: 1, ficha: 1, assinatura: 1, consultorias: 1, ajuda: 1 };
   function atualizarCasca(logado, rota) {
     document.body.classList.toggle("logado", logado);
     lateral.hidden = !logado;
@@ -2456,6 +2456,19 @@
     });
   }
 
+
+  /* ══ Aquecimento ═══════════════════════════════════════════════════
+     Porta de entrada para os apps de preparação: o físico (Ativação pré-jogo), o mental (7 Dias de Presença) e o
+     Desafio de 7 dias, que é tático. Os dois primeiros abrem em tela própria, sem login nem cota. */
+  function telaAquecimento() {
+    function cartao(rotulo, titulo, texto, href, botao) {
+      return '<div class="cartao" style="margin-top:14px"><p class="olho">' + rotulo + "</p><h2>" + titulo + '</h2><p class="nota" style="margin-top:6px">' + texto + '</p><div class="acoes"><a class="btn btn-secundario" href="' + href + '">' + botao + "</a></div></div>";
+    }
+    tela("<h1>Aquecimento</h1><p class=\"sub\">Prepare o corpo, a cabeça e o jogo.</p>" +
+      cartao("Físico", "Ativação pré-jogo", "18 minutos de trabalho, sem bola, com cronômetro, avisos sonoros e voz. Para chegar pronto à primeira bola.", "ativacao/", "Abrir a ativação") +
+      cartao("Mental", "7 Dias de Presença", "Uma semana de práticas de poucos minutos para reaprender a estar onde você está. O progresso fica salvo neste aparelho.", "presenca/", "Abrir os 7 dias") +
+      cartao("Tático", "Desafio de 7 dias", "Sete práticas montadas a partir da sua própria estratégia: prioridades, jogadas e exercícios.", "#/desafio", "Ver o desafio"));
+  }
   async function rotear() {
     var logado = auth && auth.currentUser;
     var h = location.hash.replace(/^#\/?/, "");
@@ -2490,6 +2503,7 @@
     else if (r === "planejamento" && partes[1]) { if (partes[2]) telaTreino(partes[1], partes[2]); else telaPrograma(partes[1]); }
     else if (r === "treino" && partes[1] && partes[2]) telaTreino(partes[1], partes[2]);
     else if (r === "treinos" || r === "treino") telaTreinos();
+    else if (r === "aquecimento") telaAquecimento();
     else if (r === "desafio") { if (partes[1]) telaDesafioDia(partes[1]); else telaDesafio(); }
     else if (r === "partidas") { if (partes[1] === "nova") telaPartidaForm(null); else if (partes[1]) telaPartidaForm(partes[1]); else telaPartidas(); }
     else if (r === "conta") telaConta();
