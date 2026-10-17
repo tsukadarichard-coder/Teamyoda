@@ -28,6 +28,7 @@ function publicoPlano(id, p) {
     erro: p.status === "erro" ? p.erro : null,
     ...(p.status === "erro" && p.semCota ? { semCota: true, motivoCota: p.motivoCota || null, renovaEm: p.renovaEm || null } : {}),
     escolhidas: Array.isArray(p.escolhidas) ? p.escolhidas : [],
+    ...(p.status === "pronto" && p.plano && p.plano.evolucao ? { fundamentacao: p.fundamentacao || null, decisoes: p.decisoes || {} } : {}),
   };
 }
 
@@ -134,7 +135,7 @@ exports.handler = async function (event) {
       return resposta(200, {
         nivelPlano, recursos: COTAS.modeloAtivo() ? { ...recursosDoNivel(nivelPlano), planejamento: true, treinoDia: true } : recursosDoNivel(nivelPlano), planejamentos,
         adversariosCadastrados: Object.values(dados.adversarios || {}).map((a) => a.nome).filter(Boolean),
-        partidas, resumoPartidas: PART.resumoPartidas(partidas), opcoesPartida: { tipos: PART.TIPOS, superficies: PART.SUPERFICIES, resultados: PART.RESULTADOS, execucao: PART.EXECUCAO, aspectos: PART.ASPECTOS },
+        partidas, resumoPartidas: PART.resumoPartidas(partidas), janelaIA: require("./_player-evolucao").janelaDoPlano(COTAS.planoIdDoNivel(nivelPlano, planoFull(usuario.email))), opcoesPartida: { tipos: PART.TIPOS, superficies: PART.SUPERFICIES, resultados: PART.RESULTADOS, execucao: PART.EXECUCAO, aspectos: PART.ASPECTOS },
         assinatura, fichaAtualizadaEm: dados.fichaAtualizadaEm || null,
         perfil: { nome: dados.nome || "", email: usuario.email || dados.email || "", foto: dados.foto || "" },
         ficha, complementos: limparComplementos(dados.complementos),
@@ -221,6 +222,19 @@ exports.handler = async function (event) {
         const registro = { status: body.status, obs, blocos, em: agora, iniciadoEm: anterior.iniciadoEm || agora };
         await refPlanej.set({ registros: { [idSessao]: registro } }, { merge: true });
         return resposta(200, { ok: true, registro });
+      }
+      if (body.acao === "decidirSugestao") {
+        /* O jogador aceita ou rejeita (ou desfaz) uma sugestão da Evolução Inteligente. Só grava a decisão: a estratégia
+           em si nunca é alterada automaticamente. */
+        const idPl = String(body.planoId || ""), idSug = String(body.sugestaoId || "");
+        if (!/^[A-Za-z0-9_-]{8,40}$/.test(idPl) || !/^s[1-3]$/.test(idSug)) throw new ErroPublico(400, "Sugestão inválida.");
+        if (!["aceita", "rejeitada", "pendente"].includes(body.decisao)) throw new ErroPublico(400, "Decisão inválida.");
+        const refPl = ref.collection("planos").doc(idPl);
+        const sPl = await refPl.get();
+        const dp = sPl.exists ? sPl.data() : null;
+        if (!dp || dp.status !== "pronto" || !((dp.plano || {}).evolucao || {}).sugestoes || !dp.plano.evolucao.sugestoes.some((x) => x.id === idSug)) throw new ErroPublico(404, "Sugestão não encontrada.");
+        await refPl.set({ decisoes: { [idSug]: body.decisao } }, { merge: true });
+        return resposta(200, { ok: true, decisao: body.decisao });
       }
       if (body.acao === "salvarPartida") {
         /* Registro pós-jogo preenchido pelo jogador. Criar ou corrigir (mesmo id); não consome nenhuma cota de geração. */

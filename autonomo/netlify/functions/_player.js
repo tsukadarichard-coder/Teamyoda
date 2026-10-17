@@ -13,6 +13,7 @@
 const { admin, app } = require("./_firebase-admin");
 const { FAMILIAS, PORCODIGO, drillsDoNivel } = require("./_player-catalogo");
 const ASS = require("./_player-assinaturas");
+const EVO = require("./_player-evolucao");
 
 class ErroPublico extends Error {
   constructor(status, mensagem) { super(mensagem); this.status = status; }
@@ -302,7 +303,7 @@ function resumoDrill(d) {
   return d.c + " | " + d.n + " | " + (FAMILIAS[d.f] || d.f) + " | " + (obj.length > 130 ? obj.slice(0, 127) + "..." : obj);
 }
 
-function promptPlano(ficha) {
+function promptPlano(ficha, historico) {
   const comAdversario = adversarioUtil(ficha);
   const drills = drillsDoNivel(ficha.nivel);
   return [
@@ -324,6 +325,9 @@ function promptPlano(ficha) {
         ? " — casar um ponto do jogo do jogador com uma fraqueza registrada do adversário, ou evitar expor um ponto fraco do jogador a uma força registrada dele."
         : " — usar o golpe forte, proteger o ponto vulnerável, ou ajustar o padrão de ponto, a rede, a devolução e a reação sob pressão que ele descreveu."),
     "Nunca invente dado que não esteja na ficha. Se faltar informação para algo importante, registre em \"lacunas\" (como pergunta) em vez de supor.",
+    "",
+    ...(historico && historico.texto ? ["HISTÓRICO REGISTRADO PELO JOGADOR:", historico.texto, "", EVO.INSTRUCOES_HISTORICO] : [EVO.INSTRUCAO_SEM_HISTORICO]),
+    "",
     "Adapte a linguagem e a ambição ao nível informado: para iniciante, diretrizes e jogadas simples e poucas variáveis.",
     "",
     "JOGADAS: de 3 a 4 opções de jogada que o jogador pode usar em quadra para executar o plano. Cada jogada é uma",
@@ -424,6 +428,16 @@ const SCHEMA_PLANO = {
         additionalProperties: false,
       },
     },
+    evolucao: {
+      type: "object",
+      properties: {
+        usou: { type: "array", items: { type: "string" } },
+        hipoteses: { type: "array", items: { type: "object", properties: { texto: { type: "string" }, base: { type: "string" } }, required: ["texto", "base"], additionalProperties: false } },
+        sugestoes: { type: "array", items: { type: "object", properties: { titulo: { type: "string" }, ajuste: { type: "string" }, motivo: { type: "string" } }, required: ["titulo", "ajuste", "motivo"], additionalProperties: false } },
+      },
+      required: ["usou", "hipoteses", "sugestoes"],
+      additionalProperties: false,
+    },
     lacunas: {
       type: "array",
       items: {
@@ -439,7 +453,7 @@ const SCHEMA_PLANO = {
       },
     },
   },
-  required: ["titulo", "resumo", "diretrizes", "jogadas", "lacunas"],
+  required: ["titulo", "resumo", "diretrizes", "jogadas", "lacunas", "evolucao"],
   additionalProperties: false,
 };
 
@@ -461,8 +475,9 @@ function planoValido(p) {
    nível do jogador: um código que não existe nunca chega ao jogador. O plano
    guarda uma cópia dos dados do drill, então mudar o catálogo depois não
    altera planos já entregues. */
-function finalizarPlano(plano, nivel, comAdversario) {
+function finalizarPlano(plano, nivel, comAdversario, temHistorico) {
   const permitidos = new Set(drillsDoNivel(nivel).map((d) => d.c));
+  plano.evolucao = EVO.normalizarEvolucao(plano.evolucao, !!temHistorico);
   plano.diretrizes = plano.diretrizes.slice(0, 5);
   plano.lacunas = plano.lacunas.map((l) => ({
     pergunta: String(l.pergunta).trim().slice(0, 300),

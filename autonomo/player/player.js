@@ -465,6 +465,7 @@
         return "<li><strong>" + esc(x.titulo) + '</strong><span class="clamp2">' + esc(x.acao) + "</span></li>";
       }).join("") + "</ol>" : "") +
       '<a class="btn btn-primario btn-grande" href="#/jogadas/' + esc(id) + '">Ver jogadas</a>' +
+      evolucaoHtml(p) +
       '<div style="margin-top:14px">' + cartaoPersonalizarHtml(p) + "</div>" +
       '<div style="margin-top:14px">' + treinos + "</div>" +
       '<p style="margin-top:6px"><a class="btn btn-texto" href="#/partidas/nova?plano=' + esc(id) + '">Registrar uma partida com esta estratégia</a></p>' +
@@ -480,6 +481,36 @@
         '<a class="btn largo" href="#/consultorias">Ver consultorias</a></div>'
     );
     ligarGerar();
+    app.querySelectorAll("[data-sug]").forEach(function (bt) {
+      bt.addEventListener("click", async function () {
+        var y = window.scrollY, partes = bt.getAttribute("data-sug").split(":");
+        ocupado(bt, true, "Salvando…");
+        try {
+          await api("player-dados", { metodo: "POST", corpo: { acao: "decidirSugestao", planoId: id, sugestaoId: partes[0], decisao: partes[1] } });
+          p.decisoes = p.decisoes || {}; p.decisoes[partes[0]] = partes[1];
+          telaEstrategia(id); window.scrollTo(0, y);
+        } catch (e) { ocupado(bt, false); toast(e.message, null, true); }
+      });
+    });
+  }
+  /* Evolução Inteligente: o que os registros do jogador sugerem. São hipóteses com os motivos; o jogador aceita ou rejeita
+     e a estratégia nunca muda sozinha. */
+  function evolucaoHtml(p) {
+    var ev = p.plano && p.plano.evolucao;
+    if (!ev || (!(ev.hipoteses || []).length && !(ev.sugestoes || []).length)) return "";
+    var f = p.fundamentacao || {}, dec = p.decisoes || {};
+    var base = f.consideradas ? "Considerou " + f.consideradas + (f.consideradas === 1 ? " partida registrada" : " partidas registradas") + (f.totalRegistradas > f.consideradas ? " de " + f.totalRegistradas + " (as mais recentes, no volume do seu plano)" : "") + "." : "";
+    return '<div class="cartao evolucao" style="margin-top:14px"><p class="olho">Evolução Inteligente</p><h2>O que os seus registros sugerem</h2>' +
+      '<p class="nota" style="margin-top:6px">' + esc(base) + " São hipóteses baseadas no que você informou, não um diagnóstico. Sua estratégia não é alterada automaticamente.</p>" +
+      ((ev.usou || []).length ? '<details class="det"><summary>Informações usadas</summary><ul class="beneficios">' + ev.usou.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul></details>" : "") +
+      ((ev.hipoteses || []).length ? '<ul class="beneficios" style="margin-top:10px">' + ev.hipoteses.map(function (h) { return "<li>" + esc(h.texto) + (h.base ? ' <span class="nota">(' + esc(h.base) + ")</span>" : "") + "</li>"; }).join("") + "</ul>" : "") +
+      (ev.sugestoes || []).map(function (sg) {
+        var d = dec[sg.id];
+        return '<div class="sugestao" style="margin-top:12px;padding-top:12px;border-top:1px solid #DDE6E1"><strong>' + esc(sg.titulo) + "</strong><p>" + esc(sg.ajuste) + '</p><p class="nota">Por quê: ' + esc(sg.motivo) + "</p>" +
+          (d === "aceita" || d === "rejeitada"
+            ? '<p class="nota" style="margin-top:6px"><strong>' + (d === "aceita" ? "Você aceitou esta sugestão." : "Você rejeitou esta sugestão.") + '</strong> <button type="button" class="btn btn-texto" data-sug="' + esc(sg.id) + ':pendente">Desfazer</button></p>'
+            : '<div class="acoes"><button type="button" class="btn btn-secundario" data-sug="' + esc(sg.id) + ':aceita">Aceitar</button><button type="button" class="btn btn-texto" data-sug="' + esc(sg.id) + ':rejeitada">Rejeitar</button></div>') + "</div>";
+      }).join("") + "</div>";
   }
   function blocoOutraEstrategia() {
     var d = estado.dados;
@@ -2080,7 +2111,8 @@
   function telaPartidas() {
     var lista = partidasLista(), r = estado.dados.resumoPartidas || {}, op = opPartida();
     var html = "<h1>Partidas</h1><p class=\"sub\">Registre como foram os seus jogos. São informações preenchidas por você.</p>" +
-      '<a class="btn btn-primario btn-grande" href="#/partidas/nova">Registrar partida</a>';
+      '<a class="btn btn-primario btn-grande" href="#/partidas/nova">Registrar partida</a>' +
+      '<p class="nota" style="margin-top:10px">Ao criar um novo plano, o QuadraLab considera ' + (estado.dados.janelaIA == null || estado.dados.janelaIA >= 100 ? "o seu histórico completo disponível" : "as " + estado.dados.janelaIA + " partidas mais recentes do seu plano") + ". Você decide o que aceitar.</p>";
     if (!lista.length) {
       html += '<div class="cartao" style="margin-top:18px"><h2>Nenhuma partida registrada ainda</h2><p class="nota" style="margin-top:6px">Depois de jogar, registre o resultado, se a estratégia funcionou e o que foi mais difícil. Com o tempo, isso mostra a sua evolução.</p></div>';
     } else {

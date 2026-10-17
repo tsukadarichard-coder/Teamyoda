@@ -16,6 +16,7 @@ const {
   promptPlano, SCHEMA_PLANO, planoValido, finalizarPlano, nivelDoJogador, planoFull,
 } = require("./_player");
 const COTAS = require("./_player-cotas");
+const EVO = require("./_player-evolucao");
 
 const ID_VALIDO = /^[A-Za-z0-9_-]{8,40}$/;
 
@@ -146,6 +147,18 @@ exports.handler = async function (event) {
      Saída estruturada (json_schema) para o app sempre receber o mesmo
      formato; fallbacks "default" refaz o pedido em outro modelo se o
      principal recusar por engano um texto de tática de tênis. */
+  /* Evolução Inteligente: histórico registrado pelo jogador, no volume do plano dele (falha aqui não impede o plano) */
+  let historico = null;
+  try {
+    const [sJ, sPart, sPl, sPj] = await Promise.all([
+      refJ.get(), refJ.collection("partidas").orderBy("data", "desc").limit(100).get(),
+      refJ.collection("planos").orderBy("criadoEm", "desc").limit(20).get(), refJ.collection("planejamentos").orderBy("criadoEm", "desc").limit(5).get(),
+    ]);
+    const lista = (snap) => { const a = []; snap.forEach((d) => a.push({ id: d.id, ...d.data() })); return a; };
+    const planoCtx = COTAS.planoIdDoNivel(nivelDoJogador(sJ.exists ? sJ.data() : {}, usuario.email), planoFull(usuario.email));
+    historico = EVO.montarHistorico({ partidas: lista(sPart), planos: lista(sPl).filter((p) => p.id !== planoId), planejamentos: lista(sPj), planoId: planoCtx });
+  } catch (e) { console.error("player-gerar-plano: falha ao montar o histórico", e); }
+
   try {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const r = await client.beta.messages.create({
@@ -157,7 +170,7 @@ exports.handler = async function (event) {
         effort: "medium",
         format: { type: "json_schema", schema: SCHEMA_PLANO },
       },
-      messages: [{ role: "user", content: promptPlano(reserva.ficha) }],
+      messages: [{ role: "user", content: promptPlano(reserva.ficha, historico) }],
     });
 
     if (r.stop_reason === "refusal") {
@@ -176,10 +189,11 @@ exports.handler = async function (event) {
       await falhar("A estratégia saiu num formato inesperado. Tente criar de novo.");
       return { statusCode: 202, body: "" };
     }
-    finalizarPlano(plano, reserva.ficha.nivel, adversarioUtil(reserva.ficha));
+    finalizarPlano(plano, reserva.ficha.nivel, adversarioUtil(reserva.ficha), !!historico);
     await refP.update({
       status: "pronto",
       plano,
+      fundamentacao: historico ? historico.fundamentacao : null,
       modelo: r.model || null,
       uso: { entrada: (r.usage && r.usage.input_tokens) || 0, saida: (r.usage && r.usage.output_tokens) || 0 },
       finalizadoEm: new Date().toISOString(),
