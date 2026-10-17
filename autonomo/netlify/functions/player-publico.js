@@ -13,6 +13,8 @@ exports.handler = async function (event) {
     headers: { "content-type": "application/json", "cache-control": "public, max-age=300" },
     body: JSON.stringify({
       consultorias: ASS.consultoriasPublicas(),
+      planos: ASS.planosPlayerPublicos(),
+      linhasComparacao: ASS.linhasComparacaoPublicas(),
       politicas: ASS.politicasPublicas(),
       links: { termos: links.termos || null, privacidade: links.privacidade || null },
     }),

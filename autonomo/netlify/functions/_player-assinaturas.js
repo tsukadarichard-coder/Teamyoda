@@ -225,6 +225,42 @@ const ROTULO_ESTADO = {
 };
 
 /* A assinatura gravada vale como acesso enquanto não vencer. */
+/* ── Planos QuadraLab Player (apresentação) ──
+   Estrutura comercial dos quatro planos, usada pela página pública e pela tela de assinaturas. É só APRESENTAÇÃO:
+   não libera acesso nem cobra. O acesso pago continua vindo do webhook da Eduzz e dos produtos de CATALOGO, e os
+   limites abaixo ainda não são aplicados pelo servidor (isso é a etapa de controle de utilização, que só entra com
+   aprovação). Enquanto um plano pago não tiver produto em CATALOGO, ele aparece como "Assinatura em breve".
+   Valores em centavos. Jogadas e sessões de treino não têm limite em nenhum plano. */
+const PLANOS_PLAYER = [
+  { id: "free", nome: "Player Free", precoCentavos: 0, para: "Para começar, sem cartão de crédito.",
+    limites: { planosJogo: "1 (inicial)", estrategiasAdversario: "—", adversarios: "—", programasAtivos: "1", contextoIA: "Perfil e registros básicos", registroPartidas: "Sim" },
+    itens: ["Perfil completo do jogador", "1 plano de jogo inicial", "1 programa de treinamento ativo", "Acesso completo às jogadas", "Registro de resultados de partidas", "Histórico básico de evolução"] },
+  { id: "start", nome: "Player Start", precoCentavos: 1990, para: "Para jogar com mais regularidade.",
+    limites: { planosJogo: "2 por mês", estrategiasAdversario: "2 por mês", adversarios: "3", programasAtivos: "2", contextoIA: "Últimos 5 resultados", registroPartidas: "Sim" },
+    itens: ["2 novos planos de jogo por mês", "2 estratégias contra adversários por mês", "Até 3 adversários cadastrados", "Até 2 programas ativos", "IA considera os últimos 5 resultados", "Relatório mensal de evolução", "Histórico de planejamentos"] },
+  { id: "pro", nome: "Player Pro", precoCentavos: 3990, destaque: true, para: "Para quem quer evoluir com método.",
+    limites: { planosJogo: "5 por mês", estrategiasAdversario: "5 por mês", adversarios: "10", programasAtivos: "5", contextoIA: "Últimos 20 resultados", registroPartidas: "Sim" },
+    itens: ["5 novos planos de jogo por mês", "5 estratégias contra adversários por mês", "Até 10 adversários cadastrados", "Até 5 programas ativos", "IA considera os últimos 20 resultados", "Relatórios de evolução por período", "Comparação entre estratégias anteriores e resultados"] },
+  { id: "performance", nome: "Player Performance", precoCentavos: 6990, para: "Para competir com acompanhamento detalhado.",
+    limites: { planosJogo: "10 por mês", estrategiasAdversario: "12 por mês", adversarios: "30", programasAtivos: "10", contextoIA: "Histórico completo disponível", registroPartidas: "Ilimitado" },
+    itens: ["10 novos planos de jogo por mês", "12 estratégias contra adversários por mês", "Até 30 adversários cadastrados", "Até 10 programas ativos", "Registro ilimitado de resultados", "IA considera o histórico completo disponível", "Relatórios comparativos avançados", "Análise de padrões de desempenho", "Recomendações com base na evolução registrada"] },
+];
+/* Linhas da tabela comparativa, na ordem exibida (chave dentro de limites). Os três primeiros itens do pedido
+   (jogadas, histórico e relatório) são texto fixo por plano. */
+const LINHAS_COMPARACAO = [
+  ["planosJogo", "Novos planos de jogo"], ["estrategiasAdversario", "Estratégias contra adversários"], ["adversarios", "Adversários cadastrados"],
+  ["programasAtivos", "Programas de treinamento ativos"], ["contextoIA", "Histórico considerado pela IA"], ["registroPartidas", "Registro de partidas"],
+];
+const RELATORIOS = { free: "Histórico básico", start: "Relatório mensal", pro: "Relatórios por período", performance: "Comparativos e padrões" };
+function planosPlayerPublicos() {
+  return PLANOS_PLAYER.map((p) => ({
+    id: p.id, nome: p.nome, precoCentavos: p.precoCentavos, destaque: !!p.destaque, para: p.para, itens: p.itens.slice(),
+    disponivel: p.precoCentavos === 0, // plano pago só vira contratável quando for ligado a um produto da Eduzz (aprovação futura)
+    comparacao: LINHAS_COMPARACAO.map(([k]) => p.limites[k]).concat([RELATORIOS[p.id]]),
+  }));
+}
+function linhasComparacaoPublicas() { return LINHAS_COMPARACAO.map((l) => l[1]).concat(["Relatórios de evolução"]); }
+
 function assinaturaVigente(ass, hoje) {
   return !!(ass && ass.ativoAte && ass.ativoAte >= (hoje || hojeISO()) && ass.status !== "encerrada");
 }
@@ -232,5 +268,5 @@ function assinaturaVigente(ass, hoje) {
 module.exports = {
   CATALOGO, CONSULTORIAS, POLITICAS, LINKS, WHATSAPP, LIMITE_HORAS_ANALISE, PARTIDAS_ANALISE, politicasPublicas, NIVEIS, PERIODICIDADES, ESTADOS, ROTULO_ESTADO,
   produtoCompleto, produtoPorEduzz, produtoPorId, catalogoPublico, consultoriasPublicas, linksPublicos,
-  hojeISO, somarDias, assinaturaVigente,
+  hojeISO, somarDias, assinaturaVigente, PLANOS_PLAYER, planosPlayerPublicos, linhasComparacaoPublicas,
 };

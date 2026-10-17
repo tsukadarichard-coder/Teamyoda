@@ -9,7 +9,7 @@
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; });
   }
-  function reais(c) { return (c / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0, maximumFractionDigits: 2 }).replace(/ /g, " "); }
+  function reais(c) { return (c / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: c % 100 ? 2 : 0, maximumFractionDigits: 2 }).replace(/ /g, " "); }
 
   /* capturas reais da plataforma (já sem a barra de status do iPhone), em duas larguras */
   var TELAS = {
@@ -50,10 +50,10 @@
     return '<section class="lp-hero" aria-labelledby="lp-h1"><div class="lp-cont lp-hero-in"><div class="lp-hero-txt">' +
       '<p class="lp-olho">Tênis com estratégia</p>' +
       '<h1 id="lp-h1">Seu jogo começa com uma <span>estratégia.</span></h1>' +
-      '<p class="lp-gratis-hero">Cadastro gratuito. Comece a desenvolver seu jogo agora.</p>' +
+      '<p class="lp-gratis-hero">Comece gratuitamente. Evolua no seu ritmo.</p>' +
       '<p class="lp-sub">Transforme suas características, estratégias e jogadas em um plano de treinamento inteligente para evoluir dentro de quadra.</p>' +
       '<div class="lp-botoes"><a class="lp-btn lp-btn-branco" href="#/criar">Criar minha conta grátis</a><button type="button" class="lp-btn lp-btn-claro" data-lp="como">Conhecer a plataforma</button></div>' +
-      '<ul class="lp-inclui" aria-label="Incluído no cadastro gratuito"><li>Perfil de jogador</li><li>Primeira estratégia, com jogadas</li><li>Sem cobrança para começar</li></ul></div>' +
+      '<ul class="lp-inclui" aria-label="Incluído no cadastro gratuito"><li>Sem cartão de crédito</li><li>Plano de jogo inicial</li><li>Jogadas liberadas</li></ul></div>' +
       '<div class="lp-hero-fone">' + fone("inicio", { grande: true, topo: true }) + "</div></div></section>";
   }
   function comoFunciona() {
@@ -63,15 +63,20 @@
           '<div class="lp-passo-fone">' + fone(p.tela) + "</div></li>";
       }).join("") + "</ol></div></section>";
   }
-  var GRATIS = [
-    ["Conta e perfil de jogador", "Cadastro sem cobrança. Conte uma vez como você joga e o perfil fica salvo."],
-    ["Sua primeira estratégia", "Uma estratégia personalizada, para o seu próprio jogo ou contra um adversário específico."],
-    ["Jogadas e fundamentos", "Sequências de golpes, quando usar cada uma e o que treinar. Você escolhe o que praticar."],
-  ];
-  function gratis() {
-    return '<section class="lp-secao lp-gratis" id="lp-gratis" aria-labelledby="lp-h2-gratis"><div class="lp-cont"><h2 id="lp-h2-gratis" class="lp-h2">O que você pode fazer gratuitamente?</h2>' +
-      '<ul class="lp-gratis-lista">' + GRATIS.map(function (g, i) { return '<li class="lp-gratis-card"><span class="lp-gratis-n" aria-hidden="true">' + (i + 1) + "</span><strong>" + esc(g[0]) + "</strong><span>" + esc(g[1]) + "</span></li>"; }).join("") + "</ul>" +
-      '<p class="lp-gratis-limite"><strong>Limite do plano gratuito:</strong> uma estratégia. Estratégias adicionais e os programas de treino fazem parte dos planos pagos.</p></div></section>';
+  function inteligente() {
+    return '<section class="lp-secao lp-intel" id="lp-evolucao-inteligente" aria-labelledby="lp-h2-intel"><div class="lp-cont"><h2 id="lp-h2-intel" class="lp-h2">Evolução Inteligente QuadraLab</h2>' +
+      '<p class="lp-intel-sub">Quanto mais você joga, mais informações o QuadraLab utiliza para ajudar a planejar seus próximos desafios.</p>' +
+      '<ol class="lp-intel-passos"><li><strong>Você registra</strong><span>Resultados e avaliações dos seus jogos, preenchidos por você.</span></li>' +
+      '<li><strong>O QuadraLab considera</strong><span>Seu perfil, os planos anteriores e os seus registros, conforme o seu plano.</span></li>' +
+      '<li><strong>Você decide</strong><span>As sugestões chegam como hipóteses, com os motivos. Você aceita ou rejeita; nada muda sozinho.</span></li></ol>' +
+      '<p class="lp-intel-nota">Baseada nas informações que você preenche, sem promessa de melhora de desempenho. O registro de partidas e a Evolução Inteligente estão sendo liberados em etapas.</p></div></section>';
+  }
+  function planos() {
+    return '<section class="lp-secao lp-planos" id="lp-planos" aria-labelledby="lp-h2-planos"><div class="lp-cont"><h2 id="lp-h2-planos" class="lp-h2">Escolha como evoluir</h2>' +
+      '<p class="lp-sub-claro">Comece de graça, sem cartão de crédito. Mude de plano quando fizer sentido; seus registros ficam com você.</p>' +
+      '<div class="lp-planos-lista" id="lpPlanos" aria-live="polite"><p class="lp-carregando-claro">Carregando os planos…</p></div>' +
+      '<div class="lp-tabela-wrap" id="lpTabela" hidden></div>' +
+      '<p class="lp-planos-nota">Jogadas e sessões de treino não têm limite em nenhum plano. Os planos pagos estarão disponíveis em breve.</p></div></section>';
   }
   function diferenca() {
     return '<section class="lp-secao lp-dif" aria-labelledby="lp-h2-dif"><div class="lp-cont"><h2 id="lp-h2-dif" class="lp-h2">Plataforma e consultorias são coisas diferentes</h2>' +
@@ -100,7 +105,7 @@
     return '<footer class="lp-rodape"><div class="lp-cont"><p>Tecnologia <strong>QuadraLab</strong> · Metodologia MTY, de Richard Tsukada</p><nav aria-label="Rodapé"><a href="#/entrar">Entrar</a>' + extra + "</nav></div></footer>";
   }
 
-  function html() { return cabecalho() + "<main>" + hero() + comoFunciona() + gratis() + evolucao() + diferenca() + consultorias() + final() + "</main>" + rodape(null); }
+  function html() { return cabecalho() + "<main>" + hero() + comoFunciona() + evolucao() + inteligente() + planos() + diferenca() + consultorias() + final() + "</main>" + rodape(null); }
 
   function cartaoConsulta(c) {
     var destaque = !!c.selo;
@@ -119,19 +124,41 @@
   /* ordem comercial: do preço mais acessível ao de maior valor, com o atendimento completo em destaque no fim */
   function ordenar(lista) { return lista.slice().sort(function (a, b) { return a.precoCentavos - b.precoCentavos; }); }
 
+  function cartaoPlano(p) {
+    var gratis = p.precoCentavos === 0;
+    return '<article class="lp-plano' + (p.destaque ? " lp-plano-destaque" : "") + (gratis ? " lp-plano-free" : "") + '" aria-labelledby="pl-' + esc(p.id) + '">' +
+      (gratis ? '<p class="lp-selo lp-selo-claro">Comece aqui</p>' : p.destaque ? '<p class="lp-selo">Recomendado</p>' : "") +
+      '<h3 id="pl-' + esc(p.id) + '">' + esc(p.nome) + "</h3><p class=\"lp-plano-para\">" + esc(p.para) + "</p>" +
+      '<p class="lp-plano-preco"><strong>' + (gratis ? "R$ 0" : esc(reais(p.precoCentavos))) + '</strong> <span>' + (gratis ? "para sempre" : "por mês") + "</span></p>" +
+      '<ul class="lp-plano-itens">' + p.itens.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>" +
+      (p.disponivel ? '<a class="lp-btn lp-btn-lima lp-btn-cheio" href="#/criar">Criar minha conta grátis</a>'
+        : '<button type="button" class="lp-btn lp-btn-linha lp-btn-cheio" disabled aria-disabled="true">Assinatura em breve</button>') + "</article>";
+  }
+  function tabelaPlanos(planos, linhas) {
+    return '<h3 class="lp-tabela-titulo">Compare os planos</h3><div class="lp-tabela-rolagem" tabindex="0" role="region" aria-label="Comparação entre os planos"><table class="lp-tabela"><thead><tr><th scope="col"><span class="lp-sr">Recurso</span></th>' +
+      planos.map(function (p) { return '<th scope="col"' + (p.destaque ? ' class="lp-col-destaque"' : "") + ">" + esc(p.nome.replace("Player ", "")) + "</th>"; }).join("") + "</tr></thead><tbody>" +
+      linhas.map(function (l, i) { return '<tr><th scope="row">' + esc(l) + "</th>" + planos.map(function (p) { return "<td" + (p.destaque ? ' class="lp-col-destaque"' : "") + ">" + esc(p.comparacao[i]) + "</td>"; }).join("") + "</tr>"; }).join("") +
+      '<tr><th scope="row">Jogadas</th>' + planos.map(function (p) { return "<td" + (p.destaque ? ' class="lp-col-destaque"' : "") + ">Acesso completo</td>"; }).join("") + "</tr></tbody></table></div>";
+  }
   async function carregarConsultorias() {
-    var alvo = document.getElementById("lpConsultorias");
+    var alvo = document.getElementById("lpConsultorias"), alvoPlanos = document.getElementById("lpPlanos");
     if (!alvo) return;
     try {
       var r = await fetch("/.netlify/functions/player-publico");
       if (!r.ok) throw new Error();
       var dados = await r.json();
       if (!document.getElementById("lpConsultorias")) return;
+      if (alvoPlanos && dados.planos && dados.planos.length) {
+        alvoPlanos.innerHTML = dados.planos.map(cartaoPlano).join("");
+        var tb = document.getElementById("lpTabela"); tb.innerHTML = tabelaPlanos(dados.planos, dados.linhasComparacao || []); tb.hidden = false;
+      }
       alvo.innerHTML = ordenar(dados.consultorias || []).map(cartaoConsulta).join("");
       document.getElementById("lpNotaConsul").hidden = false;
       var rod = document.querySelector(".lp-rodape");
       if (rod) rod.outerHTML = rodape(dados.links);
     } catch (e) {
+      if (alvoPlanos && !alvoPlanos.querySelector(".lp-plano")) alvoPlanos.innerHTML = '<p class="lp-carregando-claro">Não foi possível carregar os planos agora. <button type="button" class="lp-link" id="lpTentarPlanos">Tentar de novo</button></p>';
+      var tp = document.getElementById("lpTentarPlanos"); if (tp) tp.addEventListener("click", carregarConsultorias);
       alvo.innerHTML = '<p class="lp-carregando">Não foi possível carregar as consultorias agora. <button type="button" class="lp-link" id="lpTentar">Tentar de novo</button></p>';
       var t = document.getElementById("lpTentar"); if (t) t.addEventListener("click", carregarConsultorias);
     }

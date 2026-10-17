@@ -22,6 +22,8 @@ exports.handler = async function (event) {
       assinatura: resumoAssinatura(dados, usuario.email),
       catalogo: ASS.catalogoPublico(),
       consultorias: ASS.consultoriasPublicas(),
+      planos: ASS.planosPlayerPublicos(),
+      linhasComparacao: ASS.linhasComparacaoPublicas(),
       politicas: ASS.politicasPublicas(),
       contatoWhatsapp: ASS.WHATSAPP,
       links: ASS.linksPublicos(),

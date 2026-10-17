@@ -1662,8 +1662,19 @@
     var a = assin.assinatura, cat = assin.catalogo || [];
     var topo = '<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/assinatura">‹ Minha assinatura</a></p><h1>Assinaturas</h1>' +
       '<p class="sub">Você está com: ' + (a.nome === a.rotulo ? "" : "<strong>" + esc(a.nome) + "</strong> ") + selloAssinatura(a) + "</p>";
+    var planosQL = assin.planos || [];
+    function planosHtml() {
+      return '<div class="comparar" style="margin-top:16px">' + planosQL.map(function (p) {
+        var gratis = p.precoCentavos === 0, atual = gratis && a.estado === "gratuito";
+        return '<article class="cartao produto' + (p.destaque ? " destaque-produto" : "") + (atual ? " atual" : "") + '"><div class="prod-topo"><h2>' + esc(p.nome) + "</h2>" + (atual ? '<span class="sello-assinatura">Seu plano</span>' : p.destaque ? '<span class="sello-assinatura">Recomendado</span>' : "") + "</div>" +
+          '<p class="nota">' + esc(p.para) + '</p><p class="prod-preco"><strong>' + (gratis ? "R$ 0" : esc(reais(p.precoCentavos))) + "</strong> <span>" + (gratis ? "para sempre" : "por mês") + "</span></p>" +
+          '<ul class="beneficios">' + p.itens.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>" +
+          (gratis ? '<button class="btn btn-secundario largo" type="button" disabled aria-disabled="true">' + (atual ? "Seu plano atual" : "Plano gratuito") + "</button>"
+            : '<button class="btn btn-secundario largo" type="button" disabled aria-disabled="true">Assinatura em breve</button>') + "</article>";
+      }).join("") + '</div><p class="nota" style="margin-top:12px">Jogadas e sessões de treino não têm limite em nenhum plano. Quando você mudar de plano, seus registros continuam com você.</p>';
+    }
     if (!cat.length) {
-      tela(topo + '<div class="cartao" style="margin-top:16px"><h2>As assinaturas ainda não estão disponíveis aqui</h2><p class="nota" style="margin-top:6px">Ainda não há assinaturas abertas para contratação pelo app. Se quiser saber como ampliar o seu acesso, fale com a gente.</p>' +
+      tela(topo + (planosQL.length ? planosHtml() : "") + '<div class="cartao" style="margin-top:16px"><h2>As assinaturas ainda não estão disponíveis aqui</h2><p class="nota" style="margin-top:6px">Ainda não há assinaturas abertas para contratação pelo app. Se quiser saber como ampliar o seu acesso, fale com a gente.</p>' +
         '<a class="btn btn-primario btn-grande" href="' + esc(suporteUrl("Olá, Richard! Quero saber como ampliar o meu acesso ao QuadraLab Player.")) + '" target="_blank" rel="noopener">Falar com a gente<span class="sr"> (abre o WhatsApp)</span></a></div>' +
         '<p class="nota" style="margin-top:14px">As <a href="#/consultorias">consultorias</a> (revisão de estratégia, análise de vídeo e consultoria ao vivo) são serviços separados.</p>');
       return;
@@ -1691,7 +1702,7 @@
      e mensagem usam sempre a mesma fonte. Não há checkout nem agenda integrados: a solicitação sai montada
      para o contato real e pagamento e horário são confirmados lá. Nada aqui finge pedido registrado. */
   function reaisInteiro(centavos) {
-    return (centavos / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0, maximumFractionDigits: 2 }).replace(/\u00a0/g, " ");
+    return (centavos / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: centavos % 100 ? 2 : 0, maximumFractionDigits: 2 }).replace(/\u00a0/g, " ");
   }
   function consulLista() { return (estado.assin && estado.assin.consultorias) || []; }
   function consulPorId(id) { return consulLista().filter(function (c) { return c.id === id; })[0] || null; }
