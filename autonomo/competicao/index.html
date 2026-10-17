@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>QuadraLab Competição | Sua temporada de torneios</title>
+<meta name="description" content="Temporada, preparação por partida e diário para quem joga torneios, com treinador e responsável vendo só o que o atleta permitir.">
+<meta name="theme-color" content="#FFFFFF">
+<meta name="robots" content="noindex">
+<meta property="og:type" content="website">
+<meta property="og:title" content="QuadraLab Competição">
+<meta property="og:description" content="Sua temporada de torneios, a preparação de cada partida e o acompanhamento do treinador.">
+<link rel="icon" type="image/png" sizes="32x32" href="../assets/player-favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="../assets/player-favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="../assets/player-apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-title" content="QuadraLab Competição">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../player/player.css">
+<link rel="stylesheet" href="../player/landing.css">
+</head>
+<body>
+<a class="pular" href="#app">Pular para o conteúdo</a>
+
+<!-- Menu lateral (computador) — mesmo desenho do app do treinador -->
+<aside class="lateral" id="lateral" hidden>
+  <div class="lateral-faixa"></div>
+  <a class="lateral-logo" href="#/inicio" aria-label="QuadraLab Competição — início">
+    <picture>
+      <source srcset="../assets/logo-quadralab-player-competicao-120.webp 518w, ../assets/logo-quadralab-player-competicao-240.webp 1035w" sizes="172px" type="image/webp">
+      <img src="../assets/logo-quadralab-player-competicao-120.png" srcset="../assets/logo-quadralab-player-competicao-120.png 518w, ../assets/logo-quadralab-player-competicao-240.png 1035w" sizes="172px" width="172" height="49" alt="QuadraLab Player Competição">
+    </picture>
+  </a>
+  <button type="button" class="lateral-conta js-abrir-conta" aria-haspopup="dialog" aria-expanded="false" aria-controls="painelPerfil" aria-label="Abrir minha conta" hidden>
+    <span class="avatar avatar-lat" data-avatar aria-hidden="true"></span>
+    <span class="lc-txt"><strong data-conta-nome></strong><span data-conta-ass></span></span>
+  </button>
+  <nav class="lateral-nav" aria-label="Navegação principal">
+    <a class="nav-item" data-nav="inicio" href="#/inicio">Início</a>
+    <a class="nav-item" data-nav="temporada" href="#/temporada">Temporada</a>
+    <a class="nav-item" data-nav="partidas" href="#/partidas">Partidas</a>
+    <a class="nav-item" data-nav="diario" href="#/diario">Diário</a>
+    <a class="nav-item" data-nav="aquecimento" href="#/aquecimento">Aquecimento</a>
+    <a class="nav-item" data-nav="desafios" href="#/desafios">Desafios</a>
+    <p class="nav-grupo">Conta</p>
+    <a class="nav-item" data-nav="conta" href="#/conta">Meu perfil</a>
+    <a class="nav-item" data-nav="ajuda" href="#/ajuda">Ajuda e suporte</a>
+    <a class="nav-item" href="/player/">QuadraLab Player<span class="sr"> (outro app)</span></a>
+    <button type="button" class="nav-item nav-botao" data-acao="sair">Sair</button>
+  </nav>
+</aside>
+
+<header class="topo" id="topo">
+  <div class="topo-in">
+    <a href="#/inicio" class="marca" aria-label="QuadraLab Competição — início">
+      <picture>
+        <source srcset="../assets/logo-quadralab-player-competicao-120.webp 518w, ../assets/logo-quadralab-player-competicao-240.webp 1035w" sizes="150px" type="image/webp">
+        <img src="../assets/logo-quadralab-player-competicao-120.png" srcset="../assets/logo-quadralab-player-competicao-120.png 518w, ../assets/logo-quadralab-player-competicao-240.png 1035w" sizes="150px" width="150" height="42" alt="QuadraLab Player Competição">
+      </picture>
+    </a>
+    <button type="button" class="avatar js-abrir-conta" id="btConta" aria-haspopup="dialog" aria-expanded="false" aria-controls="painelPerfil" aria-label="Abrir minha conta" hidden><span data-avatar aria-hidden="true"></span></button>
+  </div>
+</header>
+
+<main id="app" class="principal" tabindex="-1" aria-live="polite">
+  <p class="carregando">Carregando…</p>
+</main>
+
+<footer class="rodape">
+  <p>Tecnologia <strong>QuadraLab</strong> · Metodologia MTY, de Richard Tsukada</p>
+</footer>
+
+<!-- Menu inferior (celular) -->
+<nav class="navinf" id="navInf" aria-label="Navegação principal" hidden>
+  <div class="navinf-in">
+    <a class="navinf-item" data-nav="inicio" href="#/inicio">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9a1 1 0 0 0 1 1H9a1 1 0 0 0 1-1v-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v4a1 1 0 0 0 1 1h2.5a1 1 0 0 0 1-1v-9"/></svg>
+      <span>Início</span>
+    </a>
+    <a class="navinf-item" data-nav="temporada" href="#/temporada">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+      <span>Temporada</span>
+    </a>
+    <a class="navinf-item" data-nav="partidas" href="#/partidas">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M5 8c4 1 10 1 14 0M5 16c4-1 10-1 14 0"/></svg>
+      <span>Partidas</span>
+    </a>
+    <a class="navinf-item" data-nav="diario" href="#/diario">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>
+      <span>Diário</span>
+    </a>
+    <button type="button" class="navinf-item" data-nav="mais" id="btMais" aria-haspopup="dialog" aria-expanded="false" aria-controls="painelMais">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="5" cy="12" r=".6"/><circle cx="12" cy="12" r=".6"/><circle cx="19" cy="12" r=".6"/></svg>
+      <span>Mais</span>
+    </button>
+  </div>
+</nav>
+
+<!-- Painéis (celular: sobem de baixo; computador: o de conta abre ao lado do menu) -->
+<div class="painel-fundo" id="painelFundo" hidden></div>
+
+<!-- Painel "Mais" (celular): o que não cabe no menu inferior -->
+<div class="painel-mais" id="painelMais" role="dialog" aria-modal="true" aria-labelledby="painelMaisTitulo" hidden>
+  <div class="painel-mais-topo"><h2 id="painelMaisTitulo">Mais</h2><button type="button" class="painel-fechar" id="btFecharMais" aria-label="Fechar">×</button></div>
+  <a class="painel-item" href="#/aquecimento">Aquecimento</a>
+  <a class="painel-item" href="#/desafios">Desafios</a>
+  <a class="painel-item" href="#/conta">Meu perfil</a>
+  <a class="painel-item" href="#/ajuda">Ajuda e suporte</a>
+  <a class="painel-item" href="/player/">QuadraLab Player<span class="sr"> (outro app)</span></a>
+  <a class="painel-item" data-link="termos" href="#" target="_blank" rel="noopener" hidden>Termos de uso<span class="sr"> (abre em nova aba)</span></a>
+  <a class="painel-item" data-link="privacidade" href="#" target="_blank" rel="noopener" hidden>Política de privacidade<span class="sr"> (abre em nova aba)</span></a>
+  <button type="button" class="painel-item painel-sair" data-acao="sair">Sair</button>
+</div>
+
+<!-- Painel da conta (avatar) -->
+<div class="painel-conta" id="painelPerfil" role="dialog" aria-modal="true" aria-labelledby="perfilNome" hidden>
+  <div class="pc-topo">
+    <span class="avatar avatar-grande" data-avatar aria-hidden="true"></span>
+    <div class="pc-id"><strong id="perfilNome" data-conta-nome></strong><span class="pc-email" id="perfilEmail"></span><span class="pc-ass" id="perfilAss"></span></div>
+    <button type="button" class="painel-fechar" id="btFecharConta" aria-label="Fechar">×</button>
+  </div>
+  <div class="pc-grupo" role="group" aria-label="Conta">
+    <a class="painel-item" href="#/conta">Meu perfil</a>
+    <a class="painel-item" href="/player/">QuadraLab Player<span class="sr"> (outro app)</span></a>
+  </div>
+  <div class="pc-grupo" role="group" aria-label="Suporte">
+    <a class="painel-item" href="#/ajuda">Ajuda e suporte</a>
+  </div>
+  <div class="pc-grupo">
+    <button type="button" class="painel-item painel-sair" data-acao="sair">Sair</button>
+  </div>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-auth-compat.js"></script>
+<script>window.QL_MODO = "competicao";</script>
+<script src="../player/player.js"></script>
+</body>
+</html>
