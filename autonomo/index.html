@@ -9141,6 +9141,46 @@ function MomentoDoJogo({ pontos, cfg }) {
   );
 }
 
+/* Resumo em texto para o treinador mandar ao atleta e à família (WhatsApp, e-mail). Não cria link público nem guarda nada fora do
+   aparelho: é só um texto montado agora, com os números do que foi coletado, que o treinador revisa antes de enviar. */
+function textoResumoScout(r, sinais, pontos, cfg, meta) {
+  const L = [];
+  L.push("Scout da partida" + (meta && meta.adversario && meta.adversario !== "—" ? " contra " + meta.adversario : "") + (meta && meta.torneio && meta.torneio !== "jogo-treino" ? " · " + meta.torneio : ""));
+  if (meta && meta.resultado && meta.resultado !== "—") L.push("Resultado: " + meta.resultado);
+  L.push(`Pontos coletados: ${r.n} · ganhos ${r.ganhos} (${r.pctGanhos}%)`);
+  const serie = serieMomento(pontos || [], cfg);
+  if (serie.length >= JANELA_MOMENTO) {
+    const sq = sequenciasMomento(serie);
+    if (sq.melhor.tam >= 3) L.push(`Maior sequência a favor: ${sq.melhor.tam} pontos seguidos (${sq.melhor.ini} a ${sq.melhor.fim}).`);
+    if (sq.pior.tam >= 3) L.push(`Maior sequência contra: ${sq.pior.tam} pontos seguidos (${sq.pior.ini} a ${sq.pior.fim}).`);
+  }
+  L.push(`Onde o ponto se decidiu: ${r.pctCurtos}% em 1–2 bolas, ${r.pctMedios}% em 3–4, ${r.pctLongos}% em 5 ou mais.`);
+  L.push(`Erros do jogador: ${r.errosNos} (${r.errosDecisao} por decisão, ${r.errosExec} por execução). Protocolo entre pontos: ${r.pctProtocolo}%.`);
+  if (sinais && sinais.length) { L.push("", "O que o jogo aponta:"); sinais.forEach((s) => L.push("• " + s[1])); }
+  L.push("", "Um jogo é uma amostra: o que vale é o padrão que se repete.");
+  return L.join("\n");
+}
+function BotaoCompartilharResumo({ texto }) {
+  const [aviso, setAviso] = useState("");
+  async function compartilhar() {
+    try {
+      if (navigator.share) { await navigator.share({ text: texto }); setAviso(""); return; }
+      await navigator.clipboard.writeText(texto);
+      setAviso("Resumo copiado. Cole na conversa e revise antes de enviar.");
+    } catch (e) {
+      if (e && e.name === "AbortError") return;
+      setAviso("Não foi possível compartilhar neste aparelho. Selecione e copie o texto abaixo.");
+    }
+  }
+  return (
+    <div className="mt-3">
+      <Botao variante="vazio" onClick={compartilhar}>Compartilhar resumo (texto)</Botao>
+      {aviso && <p role="status" style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 6 }}>{aviso}</p>}
+      {aviso.startsWith("Não foi") && <textarea readOnly rows={8} style={{ ...entrada, marginTop: 6 }} value={texto} onFocus={(e) => e.target.select()} />}
+    </div>
+  );
+}
+
 /* Leitura/tabelas do scout — isolado pra ser usado tanto no fluxo de
    coleta ao vivo (Relatorio, abaixo) quanto na revisão de um jogo já
    salvo no Caderno (DetalheJogoRegistro): antes só existia no fluxo ao
@@ -9241,6 +9281,7 @@ function DetalheJogoRegistro({ r, aluno, alunos, setAlunos }) {
   return (
     <div className="mt-3 pt-3" style={{ borderTop: "1px solid " + C.linha }}>
       <ResumoScout r={r.scout} sinais={sinais} aluno={aluno} alunos={alunos} setAlunos={setAlunos} pontos={r.scout.pontos} cfg={r.scout.cfg} />
+      <BotaoCompartilharResumo texto={textoResumoScout(r.scout, sinais, r.scout.pontos, r.scout.cfg, { adversario: r.adversario, torneio: r.torneio, resultado: r.resultado })} />
     </div>
   );
 }
@@ -9279,7 +9320,9 @@ function Relatorio({ aluno, alunos, setAlunos, cfg, pontos, placar, aoSair, aoCo
         resultado não muda a rota do plano — quem muda a rota é o padrão que se repete.
       </Aviso>
 
-      <div className="flex gap-2 flex-wrap">
+      <BotaoCompartilharResumo texto={textoResumoScout(r, sinais, pontos, cfg, { adversario: cfg.adversario, torneio: cfg.torneio, resultado: placar ? placar.sets.map((x) => `${x[0]}-${x[1]}`).join(" ") : "" })} />
+
+      <div className="flex gap-2 flex-wrap mt-3">
         {!salvo ? <Botao onClick={salvar} variante="saibro">Salvar no caderno</Botao>
           : <Etiqueta cor={C.quadra}>✓ Salvo no caderno do jogador</Etiqueta>}
         <Botao variante="vazio" onClick={aoSair}>Novo jogo</Botao>
