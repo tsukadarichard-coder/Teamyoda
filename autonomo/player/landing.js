@@ -50,9 +50,10 @@
     return '<section class="lp-hero" aria-labelledby="lp-h1"><div class="lp-cont lp-hero-in"><div class="lp-hero-txt">' +
       '<p class="lp-olho">Tênis com estratégia</p>' +
       '<h1 id="lp-h1">Seu jogo começa com uma <span>estratégia.</span></h1>' +
+      '<p class="lp-gratis-hero">Cadastro gratuito. Comece a desenvolver seu jogo agora.</p>' +
       '<p class="lp-sub">Transforme suas características, estratégias e jogadas em um plano de treinamento inteligente para evoluir dentro de quadra.</p>' +
-      '<div class="lp-botoes"><a class="lp-btn lp-btn-branco" href="#/criar">Começar agora</a><button type="button" class="lp-btn lp-btn-claro" data-lp="como">Conhecer a plataforma</button></div>' +
-      '<p class="lp-nota">A primeira estratégia é grátis.</p></div>' +
+      '<div class="lp-botoes"><a class="lp-btn lp-btn-branco" href="#/criar">Criar minha conta grátis</a><button type="button" class="lp-btn lp-btn-claro" data-lp="como">Conhecer a plataforma</button></div>' +
+      '<ul class="lp-inclui" aria-label="Incluído no cadastro gratuito"><li>Perfil de jogador</li><li>Primeira estratégia, com jogadas</li><li>Sem cobrança para começar</li></ul></div>' +
       '<div class="lp-hero-fone">' + fone("inicio", { grande: true, topo: true }) + "</div></div></section>";
   }
   function comoFunciona() {
@@ -61,6 +62,22 @@
         return '<li class="lp-passo' + (i % 2 ? " lp-passo-inv" : "") + '"><div class="lp-passo-txt"><h3><span class="lp-n">' + p.n + "</span> — " + esc(p.titulo) + "</h3><p>" + esc(p.texto) + "</p></div>" +
           '<div class="lp-passo-fone">' + fone(p.tela) + "</div></li>";
       }).join("") + "</ol></div></section>";
+  }
+  var GRATIS = [
+    ["Conta e perfil de jogador", "Cadastro sem cobrança. Conte uma vez como você joga e o perfil fica salvo."],
+    ["Sua primeira estratégia", "Uma estratégia personalizada, para o seu próprio jogo ou contra um adversário específico."],
+    ["Jogadas e fundamentos", "Sequências de golpes, quando usar cada uma e o que treinar. Você escolhe o que praticar."],
+  ];
+  function gratis() {
+    return '<section class="lp-secao lp-gratis" id="lp-gratis" aria-labelledby="lp-h2-gratis"><div class="lp-cont"><h2 id="lp-h2-gratis" class="lp-h2">O que você pode fazer gratuitamente?</h2>' +
+      '<ul class="lp-gratis-lista">' + GRATIS.map(function (g, i) { return '<li class="lp-gratis-card"><span class="lp-gratis-n" aria-hidden="true">' + (i + 1) + "</span><strong>" + esc(g[0]) + "</strong><span>" + esc(g[1]) + "</span></li>"; }).join("") + "</ul>" +
+      '<p class="lp-gratis-limite"><strong>Limite do plano gratuito:</strong> uma estratégia. Estratégias adicionais e os programas de treino fazem parte dos planos pagos.</p></div></section>';
+  }
+  function diferenca() {
+    return '<section class="lp-secao lp-dif" aria-labelledby="lp-h2-dif"><div class="lp-cont"><h2 id="lp-h2-dif" class="lp-h2">Plataforma e consultorias são coisas diferentes</h2>' +
+      '<ul class="lp-dif-lista"><li><strong>O cadastro é gratuito</strong><span>Crie sua conta e use os recursos gratuitos sem pagar nada.</span></li>' +
+      '<li><strong>Recursos adicionais, conforme o plano</strong><span>Além do que é gratuito, há recursos que dependem do plano.</span></li>' +
+      '<li><strong>Consultorias são opcionais</strong><span>Atendimento individual, contratado separadamente. Você não precisa de consultoria para usar o QuadraLab Player.</span></li></ul></div></section>';
   }
   function evolucao() {
     return '<section class="lp-secao lp-evolucao" aria-labelledby="lp-h2-evo"><div class="lp-cont"><h2 id="lp-h2-evo" class="lp-h2">Sua evolução em um só lugar</h2>' +
@@ -83,7 +100,7 @@
     return '<footer class="lp-rodape"><div class="lp-cont"><p>Tecnologia <strong>QuadraLab</strong> · Metodologia MTY, de Richard Tsukada</p><nav aria-label="Rodapé"><a href="#/entrar">Entrar</a>' + extra + "</nav></div></footer>";
   }
 
-  function html() { return cabecalho() + "<main>" + hero() + comoFunciona() + evolucao() + consultorias() + final() + "</main>" + rodape(null); }
+  function html() { return cabecalho() + "<main>" + hero() + comoFunciona() + gratis() + evolucao() + diferenca() + consultorias() + final() + "</main>" + rodape(null); }
 
   function cartaoConsulta(c) {
     var destaque = !!c.selo;

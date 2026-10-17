@@ -142,3 +142,21 @@ body.landing .principal { max-width: none; margin: 0; padding: 0; min-height: 0;
   .lp-final { padding: 96px 0 104px; }
 }
 @media (prefers-reduced-motion: reduce) { .lp-btn { transition: none; } }
+
+/* plano gratuito: destaque no hero, cartões de benefícios e esclarecimento antes das consultorias */
+.lp-gratis-hero { margin: 14px 0 0; padding: 4px 0 4px 14px; border-left: 4px solid var(--lp-verde); font-size: clamp(18px, 4.8vw, 22px); line-height: 1.3; font-weight: 700; color: #fff; max-width: 28em; text-wrap: balance; }
+.lp-inclui { list-style: none; margin: 18px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.lp-inclui li { padding: 7px 14px; border-radius: 99px; background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.4); font-size: 14.5px; font-weight: 600; color: #fff; }
+.lp-gratis { background: var(--lp-papel); }
+.lp-gratis-lista { list-style: none; margin: 26px 0 0; padding: 0; display: grid; grid-template-columns: 1fr; gap: 14px; }
+.lp-gratis-card { display: flex; flex-direction: column; gap: 6px; padding: 20px 20px 22px; border-radius: 18px; background: #fff; border: 1px solid var(--lp-linha); box-shadow: 0 10px 28px -20px rgba(1,42,31,.5); }
+.lp-gratis-n { width: 32px; height: 32px; border-radius: 50%; background: var(--lp-laranja-escuro); color: #fff; font-weight: 800; font-size: 15px; display: flex; align-items: center; justify-content: center; margin-bottom: 4px; }
+.lp-gratis-card strong { font-size: 19px; line-height: 1.2; color: var(--lp-verde); }
+.lp-gratis-card span:last-child { font-size: 15.5px; line-height: 1.5; color: var(--lp-grafite); }
+.lp-gratis-limite { margin: 18px auto 0; max-width: 760px; padding: 14px 16px; border-radius: 12px; background: #FFF4EC; border: 1px solid #F0CDB5; font-size: 15px; line-height: 1.5; color: #5C2A0E; }
+.lp-dif { background: #fff; }
+.lp-dif-lista { list-style: none; margin: 22px 0 0; padding: 0; display: grid; grid-template-columns: 1fr; gap: 12px; }
+.lp-dif-lista li { display: flex; flex-direction: column; gap: 4px; padding: 16px 18px; border-radius: 14px; background: var(--lp-papel); border-left: 4px solid var(--lp-laranja); }
+.lp-dif-lista strong { font-size: 17px; color: var(--lp-verde); }
+.lp-dif-lista span { font-size: 15.5px; line-height: 1.5; color: var(--lp-grafite); }
+@media (min-width: 900px) { .lp-gratis-lista, .lp-dif-lista { grid-template-columns: repeat(3, 1fr); } }
