@@ -274,6 +274,7 @@ exports.handler = async function (event) {
           if (!sPl.exists) p.planoId = null; // só se relaciona a estratégia da própria conta
           else p.planoTitulo = ((sPl.data().plano || {}).titulo || "").slice(0, 120);
         }
+        if (p.torneioId && !(await ref.collection("torneios").doc(p.torneioId).get()).exists) { p.torneioId = null; p.rodada = ""; } // só torneio da própria conta
         const refPart = ref.collection("partidas").doc(idPartida);
         const sPart = await refPart.get();
         const agora = new Date().toISOString();

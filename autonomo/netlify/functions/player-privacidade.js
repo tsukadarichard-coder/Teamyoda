@@ -12,7 +12,7 @@
 const { admin, ErroPublico, resposta, usuarioDoPedido, refJogador } = require("./_player");
 const ASS = require("./_player-assinaturas");
 
-const SUBCOLECOES = ["planos", "planejamentos", "partidas", "torneios"];
+const SUBCOLECOES = ["planos", "planejamentos", "partidas", "torneios", "preparos", "diario"];
 
 exports.handler = async function (event) {
   try {

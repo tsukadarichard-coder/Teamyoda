@@ -105,7 +105,34 @@ function normalizarExtracao(b, hoje) {
   return { nome, inicio, fim, prazoInscricao: prazo, cidade: txt(b.cidade, 80), local: txt(b.local, 100), categoria: txt(b.categoria, 40), superficie: sup, circuito: txt(b.circuito, 60), origem: "colado" };
 }
 
+/* ── preparação da partida e diário de competição ── */
+const ID = /^[A-Za-z0-9_-]{8,40}$/;
+const MAX_PREPAROS = 300, MAX_DIARIO = 500;
+function normalizarPreparo(b, hoje) {
+  b = b || {};
+  if (!ID.test(String(b.torneioId || ""))) return { ok: false, erro: "Torneio inválido." };
+  if (b.data && !dataValida(b.data)) return { ok: false, erro: "A data da partida é inválida." };
+  const prioridades = (Array.isArray(b.prioridades) ? b.prioridades : []).map((x) => txt(x, 120)).filter(Boolean).slice(0, 3);
+  const d = { torneioId: String(b.torneioId), rodada: txt(b.rodada, 30), adversario: txt(b.adversario, 60), data: b.data || "", prioridades,
+    padrao: txt(b.padrao, 200), hipoteses: txt(b.hipoteses, 400), planoId: ID.test(String(b.planoId || "")) ? String(b.planoId) : null };
+  if (!d.adversario && !d.rodada && !prioridades.length && !d.padrao && !d.hipoteses && !d.planoId) return { ok: false, erro: "Preencha pelo menos um campo da preparação." };
+  return { ok: true, dados: d };
+}
+function normalizarDiario(b, hoje) {
+  b = b || {};
+  if (!dataValida(b.data) || b.data > hoje) return { ok: false, erro: "Informe a data do registro (não pode ser futura)." };
+  const texto = String(b.texto == null ? "" : b.texto).replace(/[ \t]+/g, " ").trim().slice(0, 1000);
+  if (!texto) return { ok: false, erro: "Escreva o que quer registrar." };
+  const humor = Number.isInteger(b.humor) && b.humor >= 1 && b.humor <= 5 ? b.humor : null;
+  return { ok: true, dados: { data: b.data, texto, humor, torneioId: ID.test(String(b.torneioId || "")) ? String(b.torneioId) : null } };
+}
+/* partida como o treinador vê: sem texto livre */
+function partidaCompartilhada(id, p) {
+  return { id, data: p.data, tipo: p.tipo, resultado: p.resultado, placar: p.placar || "", adversario: p.adversario || "", execucao: p.execucao || null, torneioId: p.torneioId || null, rodada: p.rodada || "" };
+}
+
 module.exports = {
+  normalizarPreparo, normalizarDiario, partidaCompartilhada, MAX_PREPAROS, MAX_DIARIO,
   ESTADOS, ORIGENS, SUPERFICIES, MAX_TORNEIOS, MAX_TEXTO_COLADO, MAX_EXTRACOES_DIA, ROTULO_ESTADO,
   dataValida, urlValida, normalizarTorneio, fase, diasAte, publicoTorneio, publicoCompartilhado, ordenar, SCHEMA_EXTRACAO, promptExtracao, normalizarExtracao,
 };

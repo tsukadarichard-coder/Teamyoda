@@ -25,7 +25,12 @@ exports.handler = async function (event) {
     if (event.httpMethod === "GET") {
       const snap = await col.get(), lista = [];
       snap.forEach((d) => lista.push(T.publicoTorneio(d.id, d.data(), hoje)));
-      return resposta(200, { torneios: T.ordenar(lista), estados: T.ROTULO_ESTADO });
+      const preparos = [], diario = [];
+      (await ref.collection("preparos").get()).forEach((d) => preparos.push({ id: d.id, ...d.data() }));
+      (await ref.collection("diario").get()).forEach((d) => diario.push({ id: d.id, ...d.data() }));
+      preparos.sort((a, b) => String(b.data || b.criadoEm).localeCompare(String(a.data || a.criadoEm)));
+      diario.sort((a, b) => String(b.data).localeCompare(String(a.data)) || String(b.criadoEm).localeCompare(String(a.criadoEm)));
+      return resposta(200, { torneios: T.ordenar(lista), estados: T.ROTULO_ESTADO, preparos, diario });
     }
     if (event.httpMethod !== "POST") return resposta(405, { erro: "Método não permitido." });
     let body;
@@ -52,6 +57,62 @@ exports.handler = async function (event) {
       if (!ID_VALIDO.test(String(body.id || ""))) throw new ErroPublico(400, "Torneio inválido.");
       const d = col.doc(body.id);
       if (!(await d.get()).exists) throw new ErroPublico(404, "Torneio não encontrado.");
+      /* o que era do torneio não fica órfão: a preparação sai junto; partidas e diário continuam, só sem o vínculo */
+      for (const x of (await ref.collection("preparos").where("torneioId", "==", body.id).get()).docs) await x.ref.delete();
+      for (const x of (await ref.collection("partidas").where("torneioId", "==", body.id).get()).docs) await x.ref.update({ torneioId: null, rodada: "" });
+      for (const x of (await ref.collection("diario").where("torneioId", "==", body.id).get()).docs) await x.ref.update({ torneioId: null });
+      await d.delete();
+      return resposta(200, { ok: true });
+    }
+
+    if (body.acao === "salvarPreparo") {
+      const v = T.normalizarPreparo(body, hoje);
+      if (!v.ok) throw new ErroPublico(400, v.erro);
+      if (!(await col.doc(v.dados.torneioId).get()).exists) throw new ErroPublico(404, "Torneio não encontrado.");
+      if (v.dados.planoId) {
+        const sp = await ref.collection("planos").doc(v.dados.planoId).get();
+        if (!sp.exists) v.dados.planoId = null; else v.dados.planoTitulo = String(((sp.data().plano || {}).titulo) || "").slice(0, 120);
+      }
+      const cp = ref.collection("preparos"), agora = new Date().toISOString();
+      if (body.id) {
+        if (!ID_VALIDO.test(String(body.id))) throw new ErroPublico(400, "Preparação inválida.");
+        const s0 = await cp.doc(body.id).get();
+        if (!s0.exists) throw new ErroPublico(404, "Preparação não encontrada.");
+        await cp.doc(body.id).set({ ...v.dados, criadoEm: s0.data().criadoEm, atualizadoEm: agora });
+        return resposta(200, { ok: true, id: body.id });
+      }
+      if ((await cp.get()).docs.length >= T.MAX_PREPAROS) throw new ErroPublico(409, "Limite de preparações atingido. Exclua as mais antigas.");
+      const n = await cp.add({ ...v.dados, criadoEm: agora });
+      return resposta(200, { ok: true, id: n.id });
+    }
+    if (body.acao === "excluirPreparo") {
+      if (!ID_VALIDO.test(String(body.id || ""))) throw new ErroPublico(400, "Preparação inválida.");
+      const d = ref.collection("preparos").doc(body.id);
+      if (!(await d.get()).exists) throw new ErroPublico(404, "Preparação não encontrada.");
+      await d.delete();
+      return resposta(200, { ok: true });
+    }
+
+    if (body.acao === "salvarDiario") {
+      const v = T.normalizarDiario(body, hoje);
+      if (!v.ok) throw new ErroPublico(400, v.erro);
+      if (v.dados.torneioId && !(await col.doc(v.dados.torneioId).get()).exists) v.dados.torneioId = null;
+      const cd = ref.collection("diario"), agora = new Date().toISOString();
+      if (body.id) {
+        if (!ID_VALIDO.test(String(body.id))) throw new ErroPublico(400, "Registro inválido.");
+        const s0 = await cd.doc(body.id).get();
+        if (!s0.exists) throw new ErroPublico(404, "Registro não encontrado.");
+        await cd.doc(body.id).set({ ...v.dados, criadoEm: s0.data().criadoEm, atualizadoEm: agora });
+        return resposta(200, { ok: true, id: body.id });
+      }
+      if ((await cd.get()).docs.length >= T.MAX_DIARIO) throw new ErroPublico(409, "Limite de registros do diário atingido. Exclua os mais antigos.");
+      const n = await cd.add({ ...v.dados, criadoEm: agora });
+      return resposta(200, { ok: true, id: n.id });
+    }
+    if (body.acao === "excluirDiario") {
+      if (!ID_VALIDO.test(String(body.id || ""))) throw new ErroPublico(400, "Registro inválido.");
+      const d = ref.collection("diario").doc(body.id);
+      if (!(await d.get()).exists) throw new ErroPublico(404, "Registro não encontrado.");
       await d.delete();
       return resposta(200, { ok: true });
     }

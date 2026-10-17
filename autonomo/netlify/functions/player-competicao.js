@@ -98,7 +98,12 @@ exports.handler = async function (event) {
         snap.forEach((d) => lista.push(TOR.publicoCompartilhado(d.id, d.data(), hoje)));
         out.dados.torneios = TOR.ordenar(lista);
       }
-      out.emBreve = areas.filter((a) => a !== "perfil" && a !== "temporada");
+      /* estrategias = preparação por partida; partidas sem os textos livres; diário só se o atleta marcou */
+      const sub = async (nome) => { const l = []; (await refJogador(v.atletaUid).collection(nome).get()).forEach((d) => l.push({ id: d.id, ...d.data() })); return l; };
+      if (areas.includes("estrategias")) out.dados.preparos = (await sub("preparos")).sort((x, y) => String(y.data || y.criadoEm).localeCompare(String(x.data || x.criadoEm)));
+      if (areas.includes("partidas")) { const TOR = require("./_player-torneios"); out.dados.partidas = (await sub("partidas")).map((p) => TOR.partidaCompartilhada(p.id, p)).sort((x, y) => y.data.localeCompare(x.data)); }
+      if (areas.includes("diario")) out.dados.diario = (await sub("diario")).sort((x, y) => String(y.data).localeCompare(String(x.data)));
+      out.emBreve = areas.filter((a) => a === "treinos");
       return resposta(200, out);
     }
 

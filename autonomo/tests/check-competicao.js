@@ -107,7 +107,7 @@ async function get(uid, qs) { const r = await handler({ httpMethod: "GET", heade
   /* responsável ativo vê só o perfil; diário marcado mas ainda sem dados nesta fatia */
   col("jogadores").menor.ficha = { nivel: "intermediario", relato: "segredo", observacoes: "x" };
   const ver = await get("resp", { ver: idResp });
-  assert.strictEqual(ver.s, 200); assert.deepStrictEqual(ver.dados.perfil, [{ campo: "nivel", rotulo: "Nível", valor: "Intermediário" }]); assert.deepStrictEqual(ver.emBreve, ["diario"]);
+  assert.strictEqual(ver.s, 200); assert.deepStrictEqual(ver.dados.perfil, [{ campo: "nivel", rotulo: "Nível", valor: "Intermediário" }]); assert.deepStrictEqual(ver.emBreve, []); assert.deepStrictEqual(ver.dados.diario, [], "diário marcado e ainda vazio");
   assert.strictEqual((await get("intruso", { ver: idResp })).s, 404, "terceiros não leem");
   assert.strictEqual((await get("trein", { ver: idResp })).s, 404);
 
@@ -208,6 +208,40 @@ async function get(uid, qs) { const r = await handler({ httpMethod: "GET", heade
   assert.strictEqual((await postT("adulto", { acao: "extrair", texto: "texto qualquer sem torneio nenhum aqui dentro" })).s, 429);
   assert.strictEqual((await postT("adulto", { acao: "excluir", id: t2.id })).s, 200);
   assert.strictEqual((await postT("adulto", { acao: "excluir", id: t2.id })).s, 404);
+
+  /* ── preparação, diário e partidas do torneio ── */
+  const hojeD = hojeBR;
+  assert.strictEqual((await postT("adulto", { acao: "salvarPreparo", torneioId: t1.id })).s, 400, "preparo vazio");
+  assert.strictEqual((await postT("adulto", { acao: "salvarPreparo", torneioId: "naoexiste123", adversario: "X" })).s, 404);
+  const pr = await postT("adulto", { acao: "salvarPreparo", torneioId: t1.id, rodada: "Oitavas", adversario: "João", prioridades: ["Saque no T", " ", "Devolução funda", "Rede", "quarta ignorada"], padrao: "Direita inside-out", hipoteses: "Joga muito cruzado", planoId: "planoinexistente1" });
+  assert.strictEqual(pr.s, 200);
+  const salvoPr = col("jogadores/adulto/preparos")[pr.id];
+  assert.deepStrictEqual(salvoPr.prioridades, ["Saque no T", "Devolução funda", "Rede"]); assert.strictEqual(salvoPr.planoId, null, "estratégia de outra conta/inexistente é descartada");
+  assert.strictEqual((await postT("menor", { acao: "salvarPreparo", id: pr.id, torneioId: t1.id, adversario: "Y" })).s, 404, "não edita preparo de outro");
+  const di = await postT("adulto", { acao: "salvarDiario", data: hojeD, texto: "Dormi mal, mas joguei solto.", humor: 4, torneioId: t1.id });
+  assert.strictEqual(di.s, 200);
+  assert.strictEqual((await postT("adulto", { acao: "salvarDiario", data: mais(3), texto: "futuro" })).s, 400);
+  assert.strictEqual((await postT("adulto", { acao: "salvarDiario", data: hojeD, texto: "  " })).s, 400);
+  const all = await getT("adulto");
+  assert.strictEqual(all.preparos.length, 1); assert.strictEqual(all.diario.length, 1);
+  assert.strictEqual((await getT("menor")).diario.length, 0, "diário é do dono");
+  /* o treinador só vê preparo/partida/diário conforme as áreas marcadas */
+  col("jogadores/adulto/partidas").pa1 = { data: hojeD, tipo: "competicao", resultado: "vitoria", placar: "6-4 6-3", adversario: "João", torneioId: t1.id, rodada: "Oitavas", obs: "segredo", funcionouTexto: "segredo" };
+  await post("adulto", { acao: "areas", id: idT, areas: ["perfil", "estrategias", "partidas"] });
+  const v3 = await get("trein", { ver: idT });
+  assert.strictEqual(v3.dados.preparos.length, 1); assert.strictEqual(v3.dados.partidas.length, 1);
+  assert.ok(!JSON.stringify(v3).includes("segredo"), "texto livre da partida não sai");
+  assert.ok(!("diario" in v3.dados), "diário continua privado sem marcação");
+  await post("adulto", { acao: "areas", id: idT, areas: ["perfil", "diario"] });
+  assert.strictEqual((await get("trein", { ver: idT })).dados.diario.length, 1);
+  /* excluir o torneio leva a preparação e solta partida e diário */
+  assert.strictEqual((await postT("adulto", { acao: "excluir", id: t1.id })).s, 200);
+  assert.strictEqual(Object.keys(col("jogadores/adulto/preparos")).length, 0);
+  assert.strictEqual(col("jogadores/adulto/partidas").pa1.torneioId, null);
+  assert.strictEqual(col("jogadores/adulto/diario")[di.id].torneioId, null);
+  const PARTT = require(fx + "_player-partidas.js");
+  const np = PARTT.normalizarPartida({ data: hojeD, resultado: "vitoria", torneioId: "abcdefghij12", rodada: "  Final  " }, hojeD);
+  assert.strictEqual(np.torneioId, "abcdefghij12"); assert.strictEqual(np.rodada, "Final");
 
   console.log("check-competicao: ok");
 })().catch((e) => { console.error(e); process.exit(1); });

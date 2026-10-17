@@ -43,6 +43,8 @@ function normalizarPartida(b, hoje) {
     adversario: texto(b.adversario, 60),
     placar: texto(b.placar, 40),
     planoId: ID_VALIDO.test(String(b.planoId || "")) ? String(b.planoId) : null, // dono conferido pela function
+    torneioId: ID_VALIDO.test(String(b.torneioId || "")) ? String(b.torneioId) : null, // idem: a function confere que o torneio é do jogador
+    rodada: texto(b.rodada, 30),
     execucao,
     obs: texto(b.obs, 500),
     funcionouTexto: texto(b.funcionouTexto, 300),
