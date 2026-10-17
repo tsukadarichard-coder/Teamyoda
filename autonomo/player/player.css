@@ -641,3 +641,11 @@ html.sem-rolagem, html.sem-rolagem body { overflow: hidden; }
 .rel-linha span { color: var(--grafite); }
 .rel-periodos { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
 .rel-periodos .btn { min-height: 44px; padding: 8px 14px; }
+
+.dc-bloco { margin-top: 12px; padding: 14px 16px; border-radius: 12px; background: #fff; border: 1px solid var(--linha); }
+.dc-bloco p { margin-top: 4px; }
+.dc-seq { margin: 8px 0 0 20px; padding: 0; display: grid; gap: 8px; }
+.dc-drill { margin-top: 8px; display: grid; gap: 4px; }
+.dc-drill dt { font-weight: 700; font-size: 14px; color: var(--grafite); margin-top: 6px; }
+.dc-drill dd { margin: 0; }
+.dc-travado { opacity: .55; }

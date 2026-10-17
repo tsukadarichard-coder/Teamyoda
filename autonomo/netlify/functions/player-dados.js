@@ -135,6 +135,7 @@ exports.handler = async function (event) {
       return resposta(200, {
         nivelPlano, recursos: COTAS.modeloAtivo() ? { ...recursosDoNivel(nivelPlano), planejamento: true, treinoDia: true } : recursosDoNivel(nivelPlano), planejamentos,
         adversariosCadastrados: Object.values(dados.adversarios || {}).map((a) => a.nome).filter(Boolean),
+        desafio: dados.desafio || null,
         partidas, resumoPartidas: PART.resumoPartidas(partidas), relatorios: COTAS.modeloAtivo() ? ({ free: "basico", start: "mensal", pro: "periodo", performance: "avancado", full: "avancado" })[COTAS.planoIdDoNivel(nivelPlano, planoFull(usuario.email))] || "basico" : "avancado",
         janelaIA: require("./_player-evolucao").janelaDoPlano(COTAS.planoIdDoNivel(nivelPlano, planoFull(usuario.email))), opcoesPartida: { tipos: PART.TIPOS, superficies: PART.SUPERFICIES, resultados: PART.RESULTADOS, execucao: PART.EXECUCAO, aspectos: PART.ASPECTOS },
         assinatura, fichaAtualizadaEm: dados.fichaAtualizadaEm || null,
@@ -223,6 +224,31 @@ exports.handler = async function (event) {
         const registro = { status: body.status, obs, blocos, em: agora, iniciadoEm: anterior.iniciadoEm || agora };
         await refPlanej.set({ registros: { [idSessao]: registro } }, { merge: true });
         return resposta(200, { ok: true, registro });
+      }
+      if (body.acao === "desafioIniciar" || body.acao === "desafioDia") {
+        /* Desafio de 7 dias: sequência de práticas montada no aparelho a partir da estratégia do próprio jogador (sem IA, sem cota).
+           Aqui só se guarda o andamento: qual estratégia, que dia foi feito e a anotação opcional. Os dias seguem em ordem. */
+        const refJ = ref;
+        const dJ = (await refJ.get()).data() || {};
+        if (body.acao === "desafioIniciar") {
+          const idPl = String(body.planoId || "");
+          if (!/^[A-Za-z0-9_-]{8,40}$/.test(idPl)) throw new ErroPublico(400, "Estratégia inválida.");
+          const sPl = await refJ.collection("planos").doc(idPl).get();
+          if (!sPl.exists || sPl.data().status !== "pronto") throw new ErroPublico(404, "Estratégia não encontrada.");
+          if (dJ.desafio && dJ.desafio.planoId === idPl && !body.reiniciar) return resposta(200, { ok: true, desafio: dJ.desafio });
+          const desafio = { planoId: idPl, iniciadoEm: new Date().toISOString(), dias: {} };
+          await refJ.update({ desafio });
+          return resposta(200, { ok: true, desafio });
+        }
+        const dia = Number(body.dia);
+        if (!Number.isInteger(dia) || dia < 1 || dia > 7) throw new ErroPublico(400, "Dia inválido.");
+        if (!dJ.desafio) throw new ErroPublico(409, "Comece o desafio antes.");
+        const dias = dJ.desafio.dias || {};
+        if (dia > 1 && !(dias[String(dia - 1)] || {}).feito && !(dias[String(dia)] || {}).feito) throw new ErroPublico(409, "Faça os dias em ordem: conclua o dia " + (dia - 1) + " primeiro.");
+        const nota = String(body.nota == null ? "" : body.nota).replace(/[ \t]+/g, " ").trim().slice(0, 500);
+        const registro = { feito: body.feito !== false, nota, em: new Date().toISOString() };
+        await refJ.set({ desafio: { dias: { [String(dia)]: registro } } }, { merge: true });
+        return resposta(200, { ok: true, dia, registro });
       }
       if (body.acao === "decidirSugestao") {
         /* O jogador aceita ou rejeita (ou desfaz) uma sugestão da Evolução Inteligente. Só grava a decisão: a estratégia

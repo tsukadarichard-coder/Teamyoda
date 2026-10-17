@@ -462,7 +462,7 @@
         '<a class="indicador" href="#/jogadas/' + esc(estrategia.id) + '"><span class="ind-rotulo">Jogadas para praticar</span><strong>' + (marcadas ? marcadas + (marcadas === 1 ? " selecionada" : " selecionadas") : "Escolher jogadas") + '</strong><span class="ind-nota">' + ((estrategia.plano.jogadas || []).length) + " disponíveis</span></a>" +
         '<a class="indicador" href="' + (prog ? "#/treinos" : recursos().planejamento ? "#/planejar/" + esc(estrategia.id) : "#/treinos") + '"' + (tituloProg ? ' title="' + esc(tituloProg) + '"' : "") + '><span class="ind-rotulo">Treinos</span><strong>' + (prog ? (podeRegistrar() ? prog.concluidos + " de " + prog.total + " treinos concluídos" : prog.total + " treinos previstos") : "Sem programa") + '</strong><span class="ind-nota clamp2">' + (prog ? esc(tituloProg) : "Organizar meus treinos") + "</span></a></div>";
     }
-    if (estrategia) html += cartaoPartidasInicio();
+    if (estrategia) html += cartaoDesafioInicio() + cartaoPartidasInicio();
     tela(html);
     ligarGerar();
   }
@@ -1347,7 +1347,7 @@
     estrategia: "estrategia", plano: "estrategia", planos: "estrategia", completar: "estrategia", gerando: "estrategia",
     jogadas: "jogadas", planejar: "treinos", treinos: "treinos", treino: "treinos", programa: "treinos", planejamento: "treinos", gerandoPlanej: "treinos",
   };
-  var NAV_MAIS = { partidas: 1, conta: 1, jogador: 1, ficha: 1, assinatura: 1, consultorias: 1, ajuda: 1 };
+  var NAV_MAIS = { desafio: 1, partidas: 1, conta: 1, jogador: 1, ficha: 1, assinatura: 1, consultorias: 1, ajuda: 1 };
   function atualizarCasca(logado, rota) {
     document.body.classList.toggle("logado", logado);
     lateral.hidden = !logado;
@@ -2340,6 +2340,122 @@
     });
   }
 
+
+  /* ══ Desafio de 7 dias ═════════════════════════════════════════════
+     Sete práticas curtas montadas, no aparelho, a partir da estratégia do próprio jogador (diretrizes, jogadas,
+     fundamentos e drills que a estratégia já traz): nada é gerado por IA nem gasta cota, e nada é inventado.
+     O servidor só guarda o andamento (que dia foi feito e a anotação opcional). Vale para todos os planos. */
+  function listaUl(itens) { return '<ul class="beneficios">' + itens.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>"; }
+  function blocoDc(rotulo, html) { return '<div class="dc-bloco"><p class="olho">' + esc(rotulo) + "</p>" + html + "</div>"; }
+  function drillHtml(dr) {
+    var l = [["Objetivo", dr.objetivo], ["Como montar", dr.montagem], ["Carga", dr.carga], ["Se estiver difícil", dr.regressao], ["Quando estiver fácil", dr.progressao], ["Corrigir", dr.corrigir]].filter(function (x) { return x[1]; });
+    return "<p><strong>" + esc(dr.nome) + "</strong></p>" + (l.length ? '<dl class="dc-drill">' + l.map(function (x) { return "<dt>" + x[0] + "</dt><dd>" + esc(x[1]) + "</dd>"; }).join("") + "</dl>" : "");
+  }
+  function diasDesafio(plano, planoId) {
+    var dir = plano.diretrizes || [], jog = plano.jogadas || [];
+    var vazia = { titulo: "Sua jogada", quando: "", porque: "", sequencia: [], fundamentos: [], drills: [] };
+    if (!jog.length) jog = [vazia];
+    var j1 = jog[0], j2 = jog[1] || jog[0], doisJ = !!jog[1];
+    function seq(j) { return '<ol class="dc-seq">' + (j.sequencia || []).map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ol>"; }
+    function fundam(j, n) { var f = (j.fundamentos || []).slice(0, n); return f.length ? listaUl(f.map(function (x) { return x.nome + " — " + x.foco; })) : ""; }
+    function naCabeca(j, pergunta) {
+      return { blocos: [blocoDc("A sequência", seq(j)), blocoDc("Quando usar", "<p>" + esc(j.quando) + "</p>"), blocoDc("Por que esta jogada", "<p>" + esc(j.porque) + "</p>")],
+        tarefa: "Repasse a sequência três vezes, em voz baixa, imaginando cada bola e onde você estará depois dela.", pergunta: pergunta };
+    }
+    function naQuadra(j, idx) {
+      var dr = (j.drills || [])[idx] || (j.drills || [])[0];
+      return { blocos: dr ? [blocoDc("Exercício da sua estratégia", drillHtml(dr)), blocoDc("Fundamentos desta jogada", fundam(j, 3) || "<p>—</p>")]
+        : [blocoDc("O que treinar", fundam(j, 4) || "<p>Treine a sequência em ritmo tranquilo, sem pressão.</p>")],
+        tarefa: dr ? "Faça o exercício com a carga indicada e mantenha a atenção nos fundamentos listados." : "Treine a sequência cerca de 10 vezes, em ritmo tranquilo, com atenção ao primeiro fundamento.",
+        pergunta: "Qual bola da sequência foi mais difícil de executar? O que você ajustou?" };
+    }
+    var d1 = { titulo: "Seu plano em poucas palavras", tempo: "cerca de 5 min",
+      blocos: [blocoDc("Suas prioridades", '<ol class="dc-seq">' + dir.slice(0, 3).map(function (x) { return "<li><strong>" + esc(x.titulo) + "</strong><br>" + esc(x.acao) + '<br><span class="nota">Por quê: ' + esc(x.porque) + "</span></li>"; }).join("") + "</ol>")],
+      tarefa: "Escolha a prioridade que mais importa para o seu próximo jogo e diga-a com as suas palavras.", pergunta: "Qual é a sua prioridade número 1 e por quê?" };
+    var d2 = naCabeca(j1, "Em que momento de um jogo você usaria esta jogada?"); d2.titulo = "A jogada na cabeça: " + j1.titulo; d2.tempo = "cerca de 5 min";
+    var d3 = naQuadra(j1, 0); d3.titulo = "A jogada na quadra: " + j1.titulo; d3.tempo = "10 a 15 min";
+    var d4 = naCabeca(j2, "Que sinal na quadra diz que é hora de usar esta jogada?"); d4.titulo = (doisJ ? "A segunda jogada na cabeça: " : "A mesma jogada, em outra situação: ") + j2.titulo; d4.tempo = "cerca de 5 min";
+    var d5 = naQuadra(j2, doisJ ? 0 : 1); d5.titulo = (doisJ ? "A segunda jogada na quadra: " : "Mais uma prática: ") + j2.titulo; d5.tempo = "10 a 15 min";
+    var d6 = { titulo: "Decidir na hora", tempo: "cerca de 5 min",
+      blocos: [blocoDc("Quando usar cada jogada", listaUl(jog.slice(0, 4).map(function (x) { return x.titulo + ": " + x.quando; })))],
+      tarefa: "Em um treino ou jogo hoje — ou lembrando de uma partida —, identifique três momentos em que cada jogada seria a escolha certa.", pergunta: "O que você percebe na quadra que indica a hora de usar cada jogada?" };
+    var d7 = { titulo: "Jogo com plano", tempo: "um treino-jogo", partida: planoId,
+      blocos: [blocoDc("Para levar à quadra", listaUl(dir.slice(0, 2).map(function (x) { return x.titulo + ": " + x.acao; }).concat(jog.slice(0, 2).map(function (x) { return "Jogada: " + x.titulo; }))))],
+      tarefa: "Jogue um set ou um treino-jogo com a intenção de usar as suas jogadas. Depois, registre a partida.", pergunta: "O que funcionou e o que você levaria para a próxima semana?" };
+    return [d1, d2, d3, d4, d5, d6, d7];
+  }
+  function desafioAtual() {
+    var dz = estado.dados.desafio;
+    if (!dz) return null;
+    var p = planoPorId(dz.planoId);
+    return p && p.status === "pronto" ? { dz: dz, plano: p } : null;
+  }
+  function diasFeitos(dz) { return [1, 2, 3, 4, 5, 6, 7].map(function (n) { return !!((dz.dias || {})[n] || {}).feito; }); }
+  function cartaoDesafioInicio() {
+    var a = desafioAtual(), feitos = a ? diasFeitos(a.dz).filter(Boolean).length : 0;
+    return '<div class="cartao" style="margin-top:14px"><p class="olho">Desafio de 7 dias</p><h2>' + (a ? (feitos === 7 ? "Desafio concluído" : "Dia " + (feitos + 1) + " do desafio") : "Coloque a sua estratégia em prática") + "</h2>" +
+      '<p class="nota" style="margin-top:6px">' + (a ? feitos + " de 7 dias feitos." : "Sete práticas curtas, montadas a partir da sua própria estratégia. Sem custo extra.") + "</p>" +
+      '<div class="acoes"><a class="btn btn-secundario" href="#/desafio">' + (a ? "Continuar" : "Conhecer o desafio") + "</a></div></div>";
+  }
+  function telaDesafio() {
+    var prontos = planosProntos(), a = desafioAtual();
+    var html = '<h1>Desafio de 7 dias</h1><p class="sub">Sete práticas curtas, montadas a partir da sua estratégia: entender o plano, ensaiar as jogadas, treiná-las e levá-las a um jogo.</p>';
+    if (!prontos.length) { tela(html + '<div class="cartao" style="margin-top:18px"><h2>O desafio usa a sua estratégia</h2><p class="nota" style="margin-top:6px">Crie a sua estratégia primeiro. As práticas dos sete dias saem das prioridades e das jogadas dela.</p><a class="btn btn-primario btn-grande" href="#/estrategia">Ir para estratégias</a></div>'); return; }
+    if (!a) {
+      var p = prontos[0];
+      tela(html + '<div class="cartao" style="margin-top:18px"><p class="olho">Sua estratégia</p><h2>' + esc(p.plano.titulo) + '</h2><p class="nota" style="margin-top:6px">O desafio é gratuito, não usa inteligência artificial e não gasta suas gerações. Você faz um dia por vez, em ordem, no seu ritmo, e anota o que perceber.</p>' +
+        '<button class="btn btn-primario btn-grande" id="btIniciarDesafio" type="button">Começar o desafio</button></div>');
+      document.getElementById("btIniciarDesafio").addEventListener("click", async function () {
+        var bt = this; ocupado(bt, true, "Preparando…");
+        try { await api("player-dados", { metodo: "POST", corpo: { acao: "desafioIniciar", planoId: p.id } }); await carregarDados(); ir("#/desafio/1"); }
+        catch (e) { ocupado(bt, false); toast(e.message, null, true); }
+      });
+      return;
+    }
+    var dias = diasDesafio(a.plano.plano, a.plano.id), feitos = diasFeitos(a.dz), qtd = feitos.filter(Boolean).length, prox = feitos.indexOf(false);
+    html += '<div class="cartao" style="margin-top:18px"><p class="olho">Sua estratégia</p><p><strong>' + esc(a.plano.plano.titulo) + '</strong></p><p class="nota">' + qtd + " de 7 dias feitos.</p>" +
+      '<span class="prog-barra uso-barra" aria-hidden="true"><i style="width:' + Math.round(qtd / 7 * 100) + '%"></i></span></div>' +
+      '<div class="cartao lista-estrategias" style="margin-top:14px">' + dias.map(function (d, i) {
+        var liberado = i === 0 || feitos[i - 1] || feitos[i];
+        return (liberado ? '<a class="item-estrategia" href="#/desafio/' + (i + 1) + '">' : '<div class="item-estrategia dc-travado" aria-disabled="true">') +
+          '<strong>' + (feitos[i] ? "✓ " : "") + "Dia " + (i + 1) + " · " + esc(d.titulo) + '</strong><span class="nota" style="display:block">' + (feitos[i] ? "concluído" : liberado ? esc(d.tempo) + (i === prox ? " · próximo" : "") : "disponível depois do dia " + i) + "</span>" + (liberado ? "</a>" : "</div>");
+      }).join("") + "</div>";
+    if (qtd === 7) {
+      var notas = [1, 2, 3, 4, 5, 6, 7].filter(function (n) { return ((a.dz.dias || {})[n] || {}).nota; });
+      html += '<div class="cartao" style="margin-top:14px"><h2>Desafio concluído</h2><p class="nota" style="margin-top:6px">Você praticou a sua estratégia por sete dias. Registre como foi nas suas partidas para os próximos planos considerarem.</p>' +
+        (notas.length ? '<details class="det"><summary>O que você anotou</summary>' + notas.map(function (n) { return '<p style="margin-top:8px"><strong>Dia ' + n + ":</strong> " + esc(a.dz.dias[n].nota) + "</p>"; }).join("") + "</details>" : "") +
+        '<div class="acoes"><a class="btn btn-primario" href="#/partidas/nova?plano=' + esc(a.plano.id) + '">Registrar partida</a><button class="btn btn-texto" id="btRefazer" type="button">Refazer o desafio</button></div></div>';
+    }
+    tela(html);
+    var rf = document.getElementById("btRefazer");
+    if (rf) rf.addEventListener("click", async function () {
+      if (!window.confirm("Refazer o desafio apaga o andamento e as anotações atuais. Continuar?")) return;
+      ocupado(rf, true, "Reiniciando…");
+      try { await api("player-dados", { metodo: "POST", corpo: { acao: "desafioIniciar", planoId: (planosProntos()[0] || a.plano).id, reiniciar: true } }); await carregarDados(); ir("#/desafio/1"); }
+      catch (e) { ocupado(rf, false); toast(e.message, null, true); }
+    });
+  }
+  function telaDesafioDia(n) {
+    var a = desafioAtual(); n = parseInt(n, 10);
+    if (!a || !(n >= 1 && n <= 7)) { ir("#/desafio"); return; }
+    var feitos = diasFeitos(a.dz);
+    if (n > 1 && !feitos[n - 2] && !feitos[n - 1]) { ir("#/desafio"); return; }
+    var d = diasDesafio(a.plano.plano, a.plano.id)[n - 1], reg = (a.dz.dias || {})[n] || {};
+    tela('<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/desafio">‹ Desafio de 7 dias</a></p>' +
+      '<p class="olho">Dia ' + n + " de 7 · " + esc(d.tempo) + "</p><h1>" + esc(d.titulo) + "</h1>" + d.blocos.join("") +
+      '<div class="cartao objetivo" style="margin-top:14px"><p class="olho">A prática de hoje</p><p>' + esc(d.tarefa) + "</p></div>" +
+      (d.partida ? '<a class="btn btn-secundario largo" style="margin-top:10px" href="#/partidas/nova?plano=' + esc(d.partida) + '">Registrar partida</a>' : "") +
+      '<div class="campo" style="margin-top:16px"><label for="dcNota">' + esc(d.pergunta) + ' <span class="nota">(opcional)</span></label><textarea id="dcNota" maxlength="500">' + esc(reg.nota || "") + "</textarea></div>" +
+      '<div class="aviso" id="dcErro" role="alert" hidden></div><button class="btn btn-primario btn-grande" id="btDiaFeito" type="button">' + (reg.feito ? "Salvar anotação" : "Marcar dia como feito") + "</button>");
+    document.getElementById("btDiaFeito").addEventListener("click", async function () {
+      var bt = this; ocupado(bt, true, "Salvando…");
+      try {
+        await api("player-dados", { metodo: "POST", corpo: { acao: "desafioDia", dia: n, nota: document.getElementById("dcNota").value } });
+        await carregarDados(); toast(n === 7 ? "Desafio concluído" : "Dia " + n + " feito"); ir("#/desafio");
+      } catch (e) { ocupado(bt, false); var er = document.getElementById("dcErro"); er.textContent = e.message; er.hidden = false; }
+    });
+  }
+
   async function rotear() {
     var logado = auth && auth.currentUser;
     var h = location.hash.replace(/^#\/?/, "");
@@ -2374,6 +2490,7 @@
     else if (r === "planejamento" && partes[1]) { if (partes[2]) telaTreino(partes[1], partes[2]); else telaPrograma(partes[1]); }
     else if (r === "treino" && partes[1] && partes[2]) telaTreino(partes[1], partes[2]);
     else if (r === "treinos" || r === "treino") telaTreinos();
+    else if (r === "desafio") { if (partes[1]) telaDesafioDia(partes[1]); else telaDesafio(); }
     else if (r === "partidas") { if (partes[1] === "nova") telaPartidaForm(null); else if (partes[1]) telaPartidaForm(partes[1]); else telaPartidas(); }
     else if (r === "conta") telaConta();
     else if (r === "jogador") telaJogador();
