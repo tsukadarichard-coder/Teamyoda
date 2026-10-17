@@ -649,3 +649,13 @@ html.sem-rolagem, html.sem-rolagem body { overflow: hidden; }
 .dc-drill dt { font-weight: 700; font-size: 14px; color: var(--grafite); margin-top: 6px; }
 .dc-drill dd { margin: 0; }
 .dc-travado { opacity: .55; }
+
+/* ditado por voz */
+.voz { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.voz-bt { min-height: 44px; padding: 8px 18px; }
+.voz-bt.voz-ativo { background: var(--saibro-texto); border-color: var(--saibro-texto); color: #fff; }
+.voz-bt.voz-ativo::before { content: ""; display: inline-block; width: 9px; height: 9px; margin-right: 8px; border-radius: 50%; background: #fff; animation: vozPulsa 1.1s ease-in-out infinite; }
+@keyframes vozPulsa { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .voz-bt.voz-ativo::before { animation: none; } }
+.voz-estado { font-size: 14px; }
+.voz-aviso { font-size: 12.5px; margin-top: 4px; }

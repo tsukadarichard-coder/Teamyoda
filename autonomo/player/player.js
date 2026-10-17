@@ -89,12 +89,70 @@
   /* Troca o conteúdo. Ao voltar de um detalhe a posição de rolagem anterior é restaurada;
      em qualquer outra navegação a tela começa no topo. `provisoria` = "Carregando…" (não consome a restauração). */
   function tela(html, provisoria) {
+    pararVoz();
     app.innerHTML = html;
+    ligarVoz();
     document.body.classList.remove("teclado"); // o campo que estava em foco pode ter sumido com a tela anterior
     var y = 0;
     if (!provisoria && voltando) { y = posicoes[location.hash] || 0; voltando = false; }
     window.scrollTo(0, y);
     app.focus({ preventScroll: true });
+  }
+
+  /* ── ditado por voz ──
+     Botão de microfone ao lado de campos de texto, com o reconhecimento de voz do próprio navegador (Safari no iPhone,
+     Chrome no Android): o áudio não passa pelo QuadraLab nem é guardado; o que entra no campo é só texto, que o jogador
+     revisa e salva. Sem suporte no navegador, o botão não aparece. */
+  var vozAtiva = null;
+  function ditadoDisponivel() { return !!(window.SpeechRecognition || window.webkitSpeechRecognition); }
+  function botaoVoz(idCampo) {
+    if (!ditadoDisponivel()) return "";
+    return '<div class="voz"><button type="button" class="btn btn-secundario voz-bt" data-voz="' + idCampo + '" aria-pressed="false">Falar</button>' +
+      '<span class="nota voz-estado" id="voz-estado-' + idCampo + '" role="status" aria-live="polite"></span></div>' +
+      '<p class="nota voz-aviso">Ditado pelo reconhecimento de voz do seu navegador (Apple ou Google, conforme o aparelho). O QuadraLab não guarda o áudio. Revise o texto antes de salvar.</p>';
+  }
+  function pararVoz() { if (vozAtiva) { try { vozAtiva.rec.stop(); } catch (e) { /* já parado */ } vozAtiva = null; } }
+  function ligarVoz() {
+    app.querySelectorAll("[data-voz]").forEach(function (bt) {
+      bt.addEventListener("click", function () {
+        var idc = bt.getAttribute("data-voz"), campo = document.getElementById(idc), estadoEl = document.getElementById("voz-estado-" + idc);
+        if (!campo) return;
+        if (vozAtiva && vozAtiva.bt === bt) { pararVoz(); return; }
+        pararVoz();
+        var SR = window.SpeechRecognition || window.webkitSpeechRecognition, rec = new SR();
+        rec.lang = "pt-BR"; rec.continuous = true; rec.interimResults = true;
+        var base = campo.value, finais = "", max = campo.maxLength > 0 ? campo.maxLength : 1500;
+        function pintar(interino) {
+          var junto = base + (base && !/\s$/.test(base) ? " " : "") + finais + (interino ? interino : "");
+          campo.value = junto.slice(0, max);
+          campo.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+        rec.onstart = function () { bt.textContent = "Parar"; bt.setAttribute("aria-pressed", "true"); bt.classList.add("voz-ativo"); estadoEl.textContent = "Ouvindo…"; };
+        rec.onresult = function (ev) {
+          var interino = "";
+          for (var i = ev.resultIndex; i < ev.results.length; i++) {
+            var t = ev.results[i][0].transcript;
+            if (ev.results[i].isFinal) finais += t.replace(/^\s+/, "") + " "; else interino += t;
+          }
+          pintar(interino);
+        };
+        rec.onerror = function (ev) {
+          var c = ev && ev.error;
+          estadoEl.textContent = c === "not-allowed" || c === "service-not-allowed" ? "Permita o uso do microfone nas configurações do navegador."
+            : c === "no-speech" ? "Não ouvi nada. Tente de novo."
+            : c === "audio-capture" ? "Não encontrei um microfone."
+            : c === "network" ? "Sem conexão para o reconhecimento de voz."
+            : c === "aborted" ? "" : "Não foi possível ouvir agora.";
+        };
+        rec.onend = function () {
+          if (vozAtiva && vozAtiva.rec === rec) vozAtiva = null;
+          bt.textContent = "Falar"; bt.setAttribute("aria-pressed", "false"); bt.classList.remove("voz-ativo");
+          if (estadoEl.textContent === "Ouvindo…") estadoEl.textContent = campo.value !== base ? "Revise o texto antes de salvar." : "";
+        };
+        vozAtiva = { rec: rec, bt: bt };
+        try { rec.start(); } catch (e) { vozAtiva = null; estadoEl.textContent = "Não foi possível iniciar agora."; }
+      });
+    });
   }
   /* aviso rápido sobre a última ação; só é mostrado depois de o servidor confirmar (ou para dizer que falhou) */
   var toastTempo = null, toastEm = 0;
@@ -608,7 +666,7 @@
         '<div class="opcoes">' + opcoes.map(function (o) {
           return '<label class="opcao"><input type="radio" name="resp" value="' + esc(o) + '"' + (escolha === o ? " checked" : "") + "><span>" + esc(o) + "</span></label>";
         }).join("") + "</div></fieldset>" +
-        '<div class="campo"><label for="detalhe">' + (l.opcoes.length ? "Quer explicar melhor? <span class=\"nota\">(opcional)</span>" : "Sua resposta") + '</label><textarea id="detalhe" maxlength="400" rows="2">' + esc(detalhe) + "</textarea></div>" +
+        '<div class="campo"><label for="detalhe">' + (l.opcoes.length ? "Quer explicar melhor? <span class=\"nota\">(opcional)</span>" : "Sua resposta") + '</label><textarea id="detalhe" maxlength="400" rows="2">' + esc(detalhe) + "</textarea>" + botaoVoz("detalhe") + "</div>" +
         '<div class="aviso" id="aviso" role="alert" hidden></div>' +
         '<div class="acoes lado"><button class="btn btn-primario" id="btContinuar" type="submit">' + (n === itens.length ? "Salvar e terminar" : "Salvar e continuar") + "</button>" +
         '<button class="btn btn-secundario" id="btVoltarP" type="button">' + (n === 1 ? "Voltar à estratégia" : "Voltar") + "</button></div>" +
@@ -727,7 +785,10 @@
       corpo = grupo("rede", "E a rede?", OP.rede) + grupo("devolucao", "Sua devolução de saque é…", OP.devolucao) +
         grupo("pressao", "Em momentos de pressão (placar apertado), você…", OP.pressao) +
         '<div class="campo"><label for="obs">Algo mais sobre o seu jogo? <span class="nota">(opcional)</span></label>' +
-        '<textarea id="obs" maxlength="500" placeholder="Ex.: erro muito a esquerda em bola alta">' + esc(f.observacoes) + "</textarea></div>";
+        '<textarea id="obs" maxlength="500" placeholder="Ex.: erro muito a esquerda em bola alta">' + esc(f.observacoes) + "</textarea>" + botaoVoz("obs") + "</div>" +
+        '<div class="campo"><label for="relato">Conte, do seu jeito, como você joga <span class="nota">(opcional)</span></label>' +
+        '<p class="nota" style="margin-bottom:6px">Pode escrever ou falar: seus pontos fortes, o que te incomoda, como costuma jogar os pontos. Quanto mais específico, mais a estratégia conversa com o seu jogo.</p>' +
+        '<textarea id="relato" maxlength="1500" placeholder="Ex.: costumo atacar com a direita, mas erro quando a bola vem alta no meu backhand…">' + esc(f.relato) + "</textarea>" + botaoVoz("relato") + "</div>";
     } else {
       corpo = '<p class="nota" style="margin-bottom:14px">Se você tem um adversário que enfrenta com frequência, descreva-o e a estratégia será montada para esse confronto. Sem adversário, a estratégia é geral para o seu jogo.</p>' +
         '<label class="alternar"><input type="checkbox" id="advAtivo"' + (a.ativo ? " checked" : "") + "><span>Quero uma estratégia contra um adversário específico</span></label>" +
@@ -737,7 +798,7 @@
           grupo("advFortes", "Pontos fortes dele", AREAS, "Marque quantos quiser.", "checkbox") +
           grupo("advFracos", "Pontos fracos dele", AREAS, "Marque quantos quiser.", "checkbox") +
           '<div class="campo"><label for="advObs">O que mais você já percebeu no jogo dele? <span class="nota">(opcional)</span></label>' +
-          '<textarea id="advObs" maxlength="500">' + esc(a.observacoes) + "</textarea></div>" +
+          '<textarea id="advObs" maxlength="500">' + esc(a.observacoes) + "</textarea>" + botaoVoz("advObs") + "</div>" +
         "</div>";
     }
     var ultima = n === ETAPAS.length;
@@ -763,7 +824,7 @@
         f[c] = m ? m.value : "";
       });
       if (n === 2 && f.pontoFraco && f.pontoFraco === f.armaPrincipal) f.pontoFraco = "";
-      if (n === 3) f.observacoes = document.getElementById("obs").value.trim();
+      if (n === 3) { f.observacoes = document.getElementById("obs").value.trim(); f.relato = document.getElementById("relato").value.trim(); }
       if (n === 4) {
         a.ativo = document.getElementById("advAtivo").checked;
         a.nome = document.getElementById("advNome").value.trim();
@@ -2311,7 +2372,7 @@
         '<fieldset><legend>Quanto você conseguiu executar a estratégia? <span class="nota">(opcional)</span></legend>' + escala + "</fieldset>" : "") +
       '<details class="det" style="margin-bottom:16px"' + (ed && (ed.funcionou.length || ed.naoFuncionou.length || ed.dificuldades.length || ed.positivos.length || ed.obs) ? " open" : "") + '><summary>Avaliação detalhada (opcional)</summary><div style="margin-top:12px">' +
         grupo("funcionou", "O que funcionou") + grupo("naoFuncionou", "O que não funcionou") + grupo("dificuldades", "Principais dificuldades") + grupo("positivos", "Pontos positivos") +
-        '<div class="campo"><label for="pObs">Observações adicionais</label><textarea id="pObs" maxlength="500">' + esc(p.obs || "") + "</textarea></div></div></details>" +
+        '<div class="campo"><label for="pObs">Observações adicionais</label><textarea id="pObs" maxlength="500">' + esc(p.obs || "") + "</textarea>" + botaoVoz("pObs") + "</div></div></details>" +
       '<div id="pErro" class="aviso" role="alert" hidden></div>' +
       '<button class="btn btn-primario btn-grande" type="submit" id="btSalvarPartida">' + (ed ? "Salvar correção" : "Salvar partida") + "</button>" +
       (ed ? '<button class="btn btn-texto largo" type="button" id="btExcluirPartida" style="margin-top:10px">Excluir este registro</button>' : "") + "</form>");
@@ -2445,7 +2506,7 @@
       '<p class="olho">Dia ' + n + " de 7 · " + esc(d.tempo) + "</p><h1>" + esc(d.titulo) + "</h1>" + d.blocos.join("") +
       '<div class="cartao objetivo" style="margin-top:14px"><p class="olho">A prática de hoje</p><p>' + esc(d.tarefa) + "</p></div>" +
       (d.partida ? '<a class="btn btn-secundario largo" style="margin-top:10px" href="#/partidas/nova?plano=' + esc(d.partida) + '">Registrar partida</a>' : "") +
-      '<div class="campo" style="margin-top:16px"><label for="dcNota">' + esc(d.pergunta) + ' <span class="nota">(opcional)</span></label><textarea id="dcNota" maxlength="500">' + esc(reg.nota || "") + "</textarea></div>" +
+      '<div class="campo" style="margin-top:16px"><label for="dcNota">' + esc(d.pergunta) + ' <span class="nota">(opcional)</span></label><textarea id="dcNota" maxlength="500">' + esc(reg.nota || "") + "</textarea>" + botaoVoz("dcNota") + "</div>" +
       '<div class="aviso" id="dcErro" role="alert" hidden></div><button class="btn btn-primario btn-grande" id="btDiaFeito" type="button">' + (reg.feito ? "Salvar anotação" : "Marcar dia como feito") + "</button>");
     document.getElementById("btDiaFeito").addEventListener("click", async function () {
       var bt = this; ocupado(bt, true, "Salvando…");
