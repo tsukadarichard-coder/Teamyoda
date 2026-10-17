@@ -9,8 +9,9 @@
    planejamento nunca gera duas vezes. */
 const Anthropic = require("@anthropic-ai/sdk");
 const ASS = require("./_player-assinaturas");
+const COTAS = require("./_player-cotas");
 const {
-  admin, ErroPublico, usuarioDoPedido, refJogador, nivelDoJogador, recursosDoNivel,
+  admin, planoFull, ErroPublico, usuarioDoPedido, refJogador, nivelDoJogador, recursosDoNivel,
   normalizarFicha, complementosParaFicha, fichaCompleta,
 } = require("./_player");
 const {
@@ -57,11 +58,19 @@ exports.handler = async function (event) {
     const [sJ, sPlano, sPlan] = await Promise.all([refJ.get(), refPlano.get(), refPlan.get()]);
     if (sPlan.exists) return { statusCode: 202, body: "" }; // mesmo pedido de novo: já tratado
     dadosJ = sJ.exists ? sJ.data() : {};
-    if (!recursosDoNivel(nivelDoJogador(dadosJ, usuario.email)).planejamento) {
+    const modelo = COTAS.modeloAtivo();
+    if (!modelo && !recursosDoNivel(nivelDoJogador(dadosJ, usuario.email)).planejamento) {
       return await recusar("O programa de treino faz parte de uma assinatura. Veja as opções em Minha assinatura.");
     }
     const ass = dadosJ.assinatura;
-    if (ASS.assinaturaVigente(ass) && Number.isInteger((ass.limites || {}).programasPorPeriodo) && ((ass.uso || {}).programas || 0) >= ass.limites.programasPorPeriodo) {
+    if (modelo) {
+      /* modelo novo: limite de programas ATIVOS por plano (todos os planos têm programa; jogadas e sessões não têm limite) */
+      const todos = await refJ.collection("planejamentos").get();
+      const lista = []; todos.forEach((d) => lista.push(d.data()));
+      const planoId = COTAS.planoIdDoNivel(nivelDoJogador(dadosJ, usuario.email, hojeNoBrasil()), planoFull(usuario.email));
+      const av = COTAS.avaliarPrograma(planoId, COTAS.contarProgramasAtivos(lista, hojeNoBrasil()));
+      if (!av.ok) return await recusar(av.mensagem, { semCota: true, motivoCota: "limite_programas_ativos" });
+    } else if (ASS.assinaturaVigente(ass) && Number.isInteger((ass.limites || {}).programasPorPeriodo) && ((ass.uso || {}).programas || 0) >= ass.limites.programasPorPeriodo) {
       return await recusar("Você atingiu o limite de programas de treino do período da sua assinatura.", { semCota: true, motivoCota: "limite_periodo", renovaEm: ass.ativoAte });
     }
     ficha = normalizarFicha(dadosJ.ficha);
@@ -90,7 +99,7 @@ exports.handler = async function (event) {
       if (sPl.exists) return false;
       const d = sJ.exists ? sJ.data() : {};
       t.set(refPlan, { status: "gerando", baseadoEm: idPlano, params, criadoEm: agora() });
-      if (ASS.assinaturaVigente(d.assinatura) && !require("./_player").planoFull(usuario.email)) {
+      if (!COTAS.modeloAtivo() && ASS.assinaturaVigente(d.assinatura) && !require("./_player").planoFull(usuario.email)) {
         t.set(refJ, { assinatura: { uso: { programas: (((d.assinatura || {}).uso || {}).programas || 0) + 1 } } }, { merge: true });
         contouUso = true;
       }

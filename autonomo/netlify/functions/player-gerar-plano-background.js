@@ -13,14 +13,27 @@ const Anthropic = require("@anthropic-ai/sdk");
 const {
   admin, ErroPublico, usuarioDoPedido, refJogador,
   PLANOS_GRATIS, fonteDeEstrategia, normalizarFicha, complementosParaFicha, fichaCompleta, adversarioUtil,
-  promptPlano, SCHEMA_PLANO, planoValido, finalizarPlano,
+  promptPlano, SCHEMA_PLANO, planoValido, finalizarPlano, nivelDoJogador, planoFull,
 } = require("./_player");
+const COTAS = require("./_player-cotas");
 
 const ID_VALIDO = /^[A-Za-z0-9_-]{8,40}$/;
 
 /* A cota volta para quem a gastou — na mesma conta de onde saiu (grátis, crédito ou uso do período da assinatura). */
-async function devolverCota(refJ, fonte) {
+async function devolverCota(refJ, fonte, modelo) {
   if (fonte === "full") return; // acesso completo não consome cota
+  if (modelo) {
+    await admin.firestore().runTransaction(async (t) => {
+      const d = (await t.get(refJ)).data() || {};
+      if (modelo.fonte === "credito") t.set(refJ, { creditosPlano: (d.creditosPlano || 0) + 1 }, { merge: true });
+      else { const volta = COTAS.devolverReserva(d, modelo); if (volta) t.set(refJ, volta, { merge: true }); }
+      if (modelo.novoAdversario && d.adversarios && d.adversarios[modelo.slug]) {
+        const mapa = { ...d.adversarios }; delete mapa[modelo.slug];
+        t.update(refJ, { adversarios: mapa });
+      }
+    });
+    return;
+  }
   if (fonte === "assinatura") {
     await admin.firestore().runTransaction(async (t) => {
       const d = (await t.get(refJ)).data() || {};
@@ -64,6 +77,34 @@ exports.handler = async function (event) {
         t.set(refP, { status: "erro", erro: "Complete o seu perfil antes de criar a estratégia.", criadoEm: agora });
         return null;
       }
+      /* modelo novo de planos (chave PLAYER_MODELO_PLANOS): cota por plano de jogo / estratégia contra adversário */
+      let modelo = null;
+      const comAdv = adversarioUtil(ficha);
+      if (COTAS.modeloAtivo()) {
+        const hoje = new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
+        const planoId = COTAS.planoIdDoNivel(nivelDoJogador(dados, usuario.email, hoje), planoFull(usuario.email));
+        const tipo = comAdv ? "estrategiasAdversario" : "planosJogo";
+        const av = COTAS.avaliarGeracao(dados, { planoId, tipo, hoje });
+        const recusa = (msg, extra) => t.set(refP, { status: "erro", semCota: true, criadoEm: agora, erro: msg, ...extra });
+        if (!av.fonte) { recusa(av.mensagem, { motivoCota: av.motivo, ...(av.renovaEm ? { renovaEm: av.renovaEm } : {}) }); return null; }
+        let reg = null;
+        if (comAdv) {
+          /* geração por crédito avulso (paga à parte) não esbarra no limite de adversários do plano */
+          reg = COTAS.registrarAdversario(dados, ficha.adversario.nome || "Adversário", av.fonte === "credito" ? "full" : planoId, agora);
+          if (!reg.ok) { recusa(reg.mensagem, { motivoCota: reg.motivo }); return null; }
+        }
+        modelo = { fonte: av.fonte, planoId, tipo, ciclo: av.ciclo || "vitalicio", novoAdversario: !!(reg && reg.novo), slug: reg ? reg.slug : null };
+        let upd = {};
+        if (av.fonte === "modelo") upd = COTAS.reservarCota(dados, modelo);
+        else if (av.fonte === "credito") upd = { creditosPlano: dados.creditosPlano - 1 };
+        if (reg && reg.novo) upd.adversarios = reg.mapa;
+        if (Object.keys(upd).length) t.set(refJ, upd, { merge: true });
+        t.set(refP, {
+          status: "gerando", criadoEm: agora, fonte: av.fonte, fichaUsada: ficha, cotaModelo: modelo,
+          adversarioNome: comAdv ? (ficha.adversario.nome || "Adversário") : null,
+        });
+        return { ficha, fonte: av.fonte, modelo };
+      }
       const cota = fonteDeEstrategia(dados, usuario.email);
       const fonte = cota.fonte;
       if (!fonte) {
@@ -91,7 +132,7 @@ exports.handler = async function (event) {
   if (!reserva) return { statusCode: 202, body: "" };
 
   async function falhar(mensagem) {
-    try { await devolverCota(refJ, reserva.fonte); } catch (e) { console.error("player-gerar-plano: falha ao devolver cota", e); }
+    try { await devolverCota(refJ, reserva.fonte, reserva.modelo); } catch (e) { console.error("player-gerar-plano: falha ao devolver cota", e); }
     await refP.update({ status: "erro", erro: mensagem, finalizadoEm: new Date().toISOString() });
   }
 

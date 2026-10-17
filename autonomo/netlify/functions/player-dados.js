@@ -33,7 +33,7 @@ function publicoPlano(id, p) {
 
 function publicoPlanejamento(id, p, completo) {
   const base = {
-    id, status: p.status, criadoEm: p.criadoEm, baseadoEm: p.baseadoEm || null, params: p.params || null,
+    id, status: p.status, criadoEm: p.criadoEm, baseadoEm: p.baseadoEm || null, params: p.params || null, arquivado: !!p.arquivado,
     erro: p.status === "erro" ? p.erro : null,
     ...(p.status === "erro" && p.semCota ? { semCota: true, motivoCota: p.motivoCota || null, renovaEm: p.renovaEm || null } : {}),
   };
@@ -55,11 +55,25 @@ function publicoPlanejamento(id, p, completo) {
   return base;
 }
 
+const COTAS = require("./_player-cotas");
+
+function hojeNoBrasil() { return new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10); }
+
 function cotas(dados, email) {
   const c = fonteDeEstrategia(dados, email);
   if (c.fonte === "full") return { full: true, gratisRestantes: 0, creditos: 0, podeGerar: true, fonteCota: "full" };
   const gratisRestantes = Math.max(0, PLANOS_GRATIS - (dados.planosGratisUsados || 0));
   const creditos = Math.max(0, dados.creditosPlano || 0);
+  if (COTAS.modeloAtivo()) {
+    const hoje = hojeNoBrasil();
+    const planoId = COTAS.planoIdDoNivel(nivelDoJogador(dados, email, hoje), false);
+    const j = COTAS.avaliarGeracao(dados, { planoId, tipo: "planosJogo", hoje }), a = COTAS.avaliarGeracao(dados, { planoId, tipo: "estrategiasAdversario", hoje });
+    const motivo = j.fonte ? null : j;
+    return {
+      full: false, modelo: true, gratisRestantes, creditos, podeGerar: !!(j.fonte || a.fonte), podePlanoJogo: !!j.fonte, podeAdversario: !!a.fonte, fonteCota: j.fonte || a.fonte || null,
+      ...(motivo ? { semCotaMotivo: motivo.motivo, ...(motivo.renovaEm ? { renovaEm: motivo.renovaEm } : {}) } : {}),
+    };
+  }
   return {
     full: false, gratisRestantes, creditos, podeGerar: !!c.fonte, fonteCota: c.fonte || null,
     ...(c.fonte ? {} : { semCotaMotivo: c.motivo, ...(c.renovaEm ? { renovaEm: c.renovaEm } : {}) }),
@@ -180,7 +194,7 @@ exports.handler = async function (event) {
            que a sessão existe naquele planejamento — o app esconder o botão
            não protege nada. */
         const dadosJ = (await ref.get()).data() || {};
-        if (!recursosDoNivel(nivelDoJogador(dadosJ, usuario.email)).treinoDia) {
+        if (!COTAS.modeloAtivo() && !recursosDoNivel(nivelDoJogador(dadosJ, usuario.email)).treinoDia) {
           throw new ErroPublico(403, "O registro de treinos faz parte de uma assinatura. Veja as opções em Minha assinatura.");
         }
         const idPlanej = String(body.planejamentoId || "");
@@ -202,6 +216,26 @@ exports.handler = async function (event) {
         const registro = { status: body.status, obs, blocos, em: agora, iniciadoEm: anterior.iniciadoEm || agora };
         await refPlanej.set({ registros: { [idSessao]: registro } }, { merge: true });
         return resposta(200, { ok: true, registro });
+      }
+      if (body.acao === "arquivarPrograma") {
+        /* Arquivar não apaga nada: o programa continua na lista e no histórico, só deixa de contar como ativo.
+           Desarquivar respeita o limite de programas ativos do plano. */
+        const idPlanej = String(body.planejamentoId || "");
+        if (!ID_VALIDO.test(idPlanej)) throw new ErroPublico(400, "Programa inválido.");
+        const arquivar = body.arquivado !== false;
+        const refPlanej = ref.collection("planejamentos").doc(idPlanej);
+        const sP = await refPlanej.get();
+        if (!sP.exists) throw new ErroPublico(404, "Programa não encontrado.");
+        if (!arquivar && COTAS.modeloAtivo()) {
+          const dadosJ = (await ref.get()).data() || {};
+          const todos = await ref.collection("planejamentos").get();
+          const lista = []; todos.forEach((d) => { if (d.id !== idPlanej) lista.push(d.data()); });
+          const planoId = COTAS.planoIdDoNivel(nivelDoJogador(dadosJ, usuario.email, hojeNoBrasil()), planoFull(usuario.email));
+          const av = COTAS.avaliarPrograma(planoId, COTAS.contarProgramasAtivos(lista, hojeNoBrasil()));
+          if (!av.ok && COTAS.programaAtivo({ ...sP.data(), arquivado: false }, hojeNoBrasil())) throw new ErroPublico(409, av.mensagem);
+        }
+        await refPlanej.set({ arquivado: arquivar }, { merge: true });
+        return resposta(200, { ok: true, arquivado: arquivar });
       }
       if (body.acao !== "salvarFicha") throw new ErroPublico(400, "Ação desconhecida.");
       const ficha = normalizarFicha(body.ficha);

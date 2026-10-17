@@ -767,6 +767,12 @@
     consulta = setTimeout(verificar, 2500);
   }
   function telaErroPlano(msg, extra) {
+    if (extra && extra.semCota && /^(limite_modelo|plano_sem_recurso|limite_adversarios|limite_programas_ativos)$/.test(extra.motivoCota || "")) {
+      tela('<h1>Limite do seu plano</h1><div class="cartao limite-atingido" role="status" style="margin-top:14px"><p>' + esc(msg) + "</p>" +
+        '<p class="nota" style="margin-top:6px">Seu perfil, suas estratégias, seus programas e seus registros continuam salvos e disponíveis para consulta.</p>' +
+        '<div class="acoes"><a class="btn btn-primario" href="#/assinaturas">Ampliar o plano</a><a class="btn btn-secundario" href="#/assinatura">Minha assinatura</a></div></div><div class="acoes"><a class="btn btn-texto" href="#/inicio">Voltar ao início</a></div>');
+      return;
+    }
     if (extra && extra.semCota) {
       tela('<h1>Limite atingido</h1><div style="margin-top:14px">' + limiteAtingidoHtml(extra.motivoCota, extra.renovaEm, { recurso: /programa/i.test(msg) ? "programas de treino" : "estratégias" }) + '</div><div class="acoes"><a class="btn btn-texto" href="#/inicio">Voltar ao início</a></div>');
       return;
@@ -1546,6 +1552,7 @@
   /* ── Minha assinatura ── */
   function recursosIncluidosHtml(a) {
     var r = a.recursos || {};
+    if (estado.assin && estado.assin.usoPlanos && estado.assin.usoPlanos.ativo) r = { planejamento: true, treinoDia: true }; // modelo novo: todos os planos têm programa e registro de treinos
     var itens = [
       ["Criar estratégias e ver as jogadas", true],
       ["Programa de treino", !!r.planejamento],
@@ -1559,6 +1566,18 @@
     if (!u || u.limite == null || u.usadas == null) return "";
     var pct = Math.min(100, Math.round(u.usadas / u.limite * 100));
     return '<span class="prog-barra uso-barra" aria-hidden="true"><i style="width:' + pct + '%"></i></span>';
+  }
+  /* modelo novo de planos (só quando o servidor está com os limites em vigor): ciclo, gerações, adversários e programas ativos */
+  function usoPlanosHtml(u) {
+    function lim(x, unid) { return x.limite == null ? x.usadas + " " + unid + " · sem limite" : x.usadas + " de " + x.limite + " " + unid; }
+    function linha(rot, x, unid) { return "<li><strong>" + rot + "</strong><span>" + esc(lim(x, unid)) + "</span>" + barraUso(x) + "</li>"; }
+    var per = u.periodo === "vitalicio" ? "uso total do plano gratuito" : "neste ciclo" + (u.renovaEm ? ", renova em " + dataISO(u.renovaEm) : "");
+    return '<p class="nota">' + esc(u.plano.nome) + " — " + esc(per) + '.</p><ul class="uso-lista">' +
+      linha("Planos de jogo", u.planosJogo, "utilizados") + linha("Estratégias contra adversários", u.estrategiasAdversario, "utilizadas") +
+      linha("Adversários cadastrados", u.adversarios, "cadastrados") + linha("Programas de treinamento ativos", u.programasAtivos, "ativos") + "</ul>" +
+      (u.creditos ? '<p class="nota">Você também tem ' + u.creditos + (u.creditos === 1 ? " geração avulsa disponível." : " gerações avulsas disponíveis.") + "</p>" : "") +
+      '<p class="nota">As jogadas e as sessões de treino não têm limite. Seus registros anteriores ficam sempre disponíveis para consulta.</p>' +
+      '<div class="acoes"><a class="btn btn-primario" href="#/assinaturas">Ampliar o plano</a></div>';
   }
   function usoHtml(a) {
     var e = (a.uso || {}).estrategias || {}, p = (a.uso || {}).programas || {}, r = a.recursos || {};
@@ -1579,7 +1598,7 @@
   }
   function textoAcesso(a) {
     if (a.estado === "teste") return "Acesso de teste, sem cobrança e sem data de término definida.";
-    if (a.estado === "gratuito") return "Sem cobrança. Você tem a primeira estratégia grátis.";
+    if (a.estado === "gratuito") return estado.assin && estado.assin.usoPlanos && estado.assin.usoPlanos.ativo ? "Sem cobrança, para sempre. Seus registros ficam salvos mesmo quando você atinge um limite." : "Sem cobrança. Você tem a primeira estratégia grátis.";
     if (a.origem === "manual") return "Acesso liberado pela equipe, sem cobrança automática nem data de término definida.";
     if (a.estado === "encerrada") return a.acessoAte ? "Seu acesso terminou em " + dataISO(a.acessoAte) + ". Suas estratégias e treinos continuam salvos." : "Seu acesso foi encerrado. Suas estratégias e treinos continuam salvos.";
     if (a.estado === "cancelamento_programado") return "Seu acesso continua até " + dataISO(a.acessoAte) + " e não será renovado.";
@@ -1625,7 +1644,7 @@
             (a.valorCentavos ? "<div><dt>Valor</dt><dd>" + esc(cobrancaTexto({ precoCentavos: a.valorCentavos, periodicidade: a.periodicidade })) + "</dd></div>" : "") + "</dl>" : "") +
         '<p class="ass-texto">' + esc(textoAcesso(a)) + "</p></div>" +
       '<h2 class="secao" id="t-rec">Recursos incluídos</h2><div class="cartao" aria-labelledby="t-rec" style="margin-top:8px">' + recursosIncluidosHtml(a) + "</div>" +
-      '<h2 class="secao" id="t-uso">Consumo</h2><div class="cartao" aria-labelledby="t-uso" style="margin-top:8px">' + usoHtml(a) + "</div>" +
+      '<h2 class="secao" id="t-uso">Consumo</h2><div class="cartao" aria-labelledby="t-uso" style="margin-top:8px">' + (assin.usoPlanos && assin.usoPlanos.ativo ? usoPlanosHtml(assin.usoPlanos) : usoHtml(a)) + "</div>" +
       acoesAssinaturaHtml(a, assin) +
       '<p class="nota" style="margin-top:14px">As <a href="#/consultorias">consultorias</a> são serviços separados e não fazem parte da assinatura.</p>'
     );
