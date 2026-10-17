@@ -93,7 +93,12 @@ exports.handler = async function (event) {
       const areas = C.areasValidas(v.areas), out = { atleta: { nome: aj.nome || v.atletaNome || "Atleta" }, areas, dados: {} };
       if (areas.includes("perfil")) out.dados.perfil = C.perfilCompartilhavel(aj.ficha, OPCOES);
       /* estratégias, partidas, treinos e diário entram nas próximas fatias; hoje só o que existe é entregue */
-      out.emBreve = areas.filter((a) => a !== "perfil");
+      if (areas.includes("temporada")) {
+        const TOR = require("./_player-torneios"), snap = await refJogador(v.atletaUid).collection("torneios").get(), lista = [];
+        snap.forEach((d) => lista.push(TOR.publicoCompartilhado(d.id, d.data(), hoje)));
+        out.dados.torneios = TOR.ordenar(lista);
+      }
+      out.emBreve = areas.filter((a) => a !== "perfil" && a !== "temporada");
       return resposta(200, out);
     }
 

@@ -14,9 +14,9 @@ const crypto = require("crypto");
 
 const PAPEIS = ["atleta", "responsavel", "treinador"];
 const TIPOS = ["responsavel", "treinador"];
-const AREAS = ["perfil", "estrategias", "partidas", "treinos", "diario"];
-const AREAS_PADRAO = ["perfil", "estrategias", "partidas", "treinos"]; // o diário é privado por padrão
-const ROTULO_AREA = { perfil: "Perfil de jogador", estrategias: "Estratégias", partidas: "Partidas", treinos: "Treinos", diario: "Diário pessoal" };
+const AREAS = ["perfil", "temporada", "estrategias", "partidas", "treinos", "diario"];
+const AREAS_PADRAO = ["perfil", "temporada", "estrategias", "partidas", "treinos"]; // o diário é privado por padrão
+const ROTULO_AREA = { perfil: "Perfil de jogador", temporada: "Temporada e torneios", estrategias: "Estratégias", partidas: "Partidas", treinos: "Treinos", diario: "Diário pessoal" };
 const VALIDADE_CONVITE_DIAS = 7;
 const MAX_CONVITES_ABERTOS = 5;
 const MAX_TENTATIVAS_DIA = 10;

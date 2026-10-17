@@ -54,10 +54,21 @@ const fake = {
   refJogador: (uid) => docRef("jogadores", uid), OPCOES: { nivel: { intermediario: "Intermediário — sustenta trocas" } },
 };
 require.cache[require.resolve(fx + "_player.js")] = { id: "x", filename: "x", loaded: true, exports: fake };
+/* Anthropic simulado: devolve o que a variável respostaIA mandar */
+let respostaIA = null, chamadasIA = 0;
+const SDK = path.join(__dirname, "fake-sdk.js");
+require.cache[SDK] = { id: SDK, filename: SDK, loaded: true, exports: class { constructor() {} get messages() { return { create: async () => { chamadasIA++; if (respostaIA instanceof Error) throw respostaIA; return { content: [{ type: "text", text: JSON.stringify(respostaIA) }] }; } }; } } };
+const Module = require("module"), resolverOriginal = Module._resolveFilename;
+Module._resolveFilename = function (req, ...r) { return req === "@anthropic-ai/sdk" ? SDK : resolverOriginal.call(this, req, ...r); };
+process.env.ANTHROPIC_API_KEY = "teste";
 const handler = require(fx + "player-competicao.js").handler;
+const handlerT = require(fx + "player-torneios.js").handler;
+const TT = require(fx + "_player-torneios.js");
 
 function pessoa(uid, nome) { tokens[uid] = { uid, email: uid + "@t.com", name: nome }; col("jogadores")[uid] = { nome, email: uid + "@t.com" }; }
 async function post(uid, corpo) { const r = await handler({ httpMethod: "POST", headers: { authorization: uid }, body: JSON.stringify(corpo) }); return { s: r.statusCode, ...JSON.parse(r.body) }; }
+async function postT(uid, corpo) { const r = await handlerT({ httpMethod: "POST", headers: { authorization: uid }, body: JSON.stringify(corpo) }); return { s: r.statusCode, ...JSON.parse(r.body) }; }
+async function getT(uid) { const r = await handlerT({ httpMethod: "GET", headers: { authorization: uid } }); return { s: r.statusCode, ...JSON.parse(r.body) }; }
 async function get(uid, qs) { const r = await handler({ httpMethod: "GET", headers: { authorization: uid }, queryStringParameters: qs }); return { s: r.statusCode, ...JSON.parse(r.body) }; }
 
 (async () => {
@@ -148,6 +159,55 @@ async function get(uid, qs) { const r = await handler({ httpMethod: "GET", heade
   pessoa("forca", "Força"); await post("forca", { acao: "ativar", papel: "treinador" });
   for (let i = 0; i < 10; i++) assert.strictEqual((await post("forca", { acao: "aceitarCodigo", codigo: "AAAAAAAA" })).s, 404);
   assert.strictEqual((await post("forca", { acao: "aceitarCodigo", codigo: "AAAAAAAA" })).s, 429);
+
+  /* ── torneios ── */
+  const hojeBR = new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
+  const mais = (n) => TT.diasAte(hojeBR, hojeBR) === 0 && new Date(Date.parse(hojeBR + "T12:00:00Z") + n * 86400000).toISOString().slice(0, 10);
+  assert.strictEqual((await getT("resp")).s, 403, "só atleta tem temporada");
+  assert.strictEqual((await postT("adulto", { acao: "salvar", nome: "", inicio: mais(10) })).s, 400);
+  assert.strictEqual((await postT("adulto", { acao: "salvar", nome: "X", inicio: "2026-13-40" })).s, 400);
+  assert.strictEqual((await postT("adulto", { acao: "salvar", nome: "X", inicio: mais(10), fim: mais(5) })).s, 400);
+  assert.strictEqual((await postT("adulto", { acao: "salvar", nome: "X", inicio: mais(10), urlOrigem: "javascript:alert(1)" })).s, 400);
+  const t1 = await postT("adulto", { acao: "salvar", nome: "Copa Teste", inicio: mais(20), fim: mais(25), cidade: "Itajaí", superficie: "saibro", urlOrigem: "https://exemplo.org/t/1", observacao: "privado", origem: "link" });
+  assert.strictEqual(t1.s, 200);
+  const t2 = await postT("adulto", { acao: "salvar", nome: "Aberto Passado", inicio: mais(-30), fim: mais(-28), estado: "encerrado" });
+  assert.strictEqual(t2.s, 200);
+  const lista = await getT("adulto");
+  assert.deepStrictEqual(lista.torneios.map((t) => t.nome), ["Copa Teste", "Aberto Passado"]);
+  assert.strictEqual(lista.torneios[0].fase, "proximo"); assert.strictEqual(lista.torneios[1].fase, "passado");
+  assert.ok(col("jogadores/adulto/torneios")[t1.id].coletadoEm, "origem por link guarda a data da coleta");
+  assert.strictEqual((await postT("adulto", { acao: "salvar", id: t1.id, nome: "Copa Teste II", inicio: mais(20), estado: "inscrito" })).s, 200);
+  assert.strictEqual((await getT("adulto")).torneios[0].estado, "inscrito");
+  assert.strictEqual((await postT("menor", { acao: "salvar", id: t1.id, nome: "Invasão", inicio: mais(20) })).s, 404, "não edita o torneio de outro atleta");
+  assert.strictEqual(col("jogadores/adulto/torneios")[t1.id].nome, "Copa Teste II");
+  /* treinador vê o calendário sem a observação, só com a área marcada */
+  const cT = await post("adulto", { acao: "convidar", tipo: "treinador", areas: ["perfil", "temporada"] });
+  await post("trein", { acao: "aceitarCodigo", codigo: cT.codigo });
+  const idT = (await get("adulto")).meus.filter((x) => x.codigo === cT.codigo || x.status === "aguardando")[0].id;
+  await post("adulto", { acao: "decidir", id: idT, aprovar: true });
+  const vt = await get("trein", { ver: idT });
+  assert.strictEqual(vt.dados.torneios.length, 2); assert.ok(!("observacao" in vt.dados.torneios[0]));
+  assert.deepStrictEqual(vt.emBreve, []);
+  await post("adulto", { acao: "areas", id: idT, areas: ["perfil"] });
+  assert.ok(!("torneios" in (await get("trein", { ver: idT })).dados), "sem a área, sem torneios");
+  /* extração: proposta validada, nada salvo, limite diário, erro e texto sem torneio */
+  const antes = Object.keys(col("jogadores/adulto/torneios")).length;
+  respostaIA = { encontrado: true, nome: "ADK Juniors Cup", inicio: mais(40), fim: mais(45), cidade: "Itajaí", local: "", categoria: "G2 Sub-16", superficie: "saibro", circuito: "COSAT", prazoInscricao: mais(50) };
+  const ex = await postT("adulto", { acao: "extrair", texto: "Confirmação de inscrição no torneio ADK Juniors Cup, Itajaí, categoria G2 Sub-16." });
+  assert.strictEqual(ex.s, 200); assert.strictEqual(ex.proposta.nome, "ADK Juniors Cup"); assert.strictEqual(ex.proposta.prazoInscricao, "", "prazo depois do início é descartado");
+  assert.strictEqual(ex.proposta.origem, "colado");
+  assert.strictEqual(Object.keys(col("jogadores/adulto/torneios")).length, antes, "extrair não salva");
+  respostaIA = { encontrado: false, nome: "", inicio: "", fim: "", cidade: "", local: "", categoria: "", superficie: "", circuito: "", prazoInscricao: "" };
+  assert.strictEqual((await postT("adulto", { acao: "extrair", texto: "texto qualquer sem torneio nenhum aqui dentro" })).s, 422);
+  respostaIA = new Error("falhou");
+  assert.strictEqual((await postT("adulto", { acao: "extrair", texto: "texto qualquer sem torneio nenhum aqui dentro" })).s, 502);
+  assert.strictEqual((await postT("adulto", { acao: "extrair", texto: "curto" })).s, 400);
+  assert.strictEqual((await postT("adulto", { acao: "extrair", texto: "x".repeat(6001) })).s, 400);
+  respostaIA = { encontrado: false };
+  for (let i = 0; i < 10; i++) await postT("adulto", { acao: "extrair", texto: "texto qualquer sem torneio nenhum aqui dentro" });
+  assert.strictEqual((await postT("adulto", { acao: "extrair", texto: "texto qualquer sem torneio nenhum aqui dentro" })).s, 429);
+  assert.strictEqual((await postT("adulto", { acao: "excluir", id: t2.id })).s, 200);
+  assert.strictEqual((await postT("adulto", { acao: "excluir", id: t2.id })).s, 404);
 
   console.log("check-competicao: ok");
 })().catch((e) => { console.error(e); process.exit(1); });

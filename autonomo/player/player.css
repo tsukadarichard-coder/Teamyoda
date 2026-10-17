@@ -692,3 +692,13 @@ html.sem-rolagem, html.sem-rolagem body { overflow: hidden; }
 .comp-perfil { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 10px 0 0; }
 .comp-perfil dt { color: var(--suave, #5b6b62); font-size: 14px; }
 .comp-perfil dd { margin: 0; font-weight: 600; }
+
+.comp-torneios { display: grid; gap: 10px; margin-top: 10px; }
+.comp-torneio { display: block; text-decoration: none; color: inherit; margin: 0; border-left: 4px solid #B14C1D; }
+.comp-torneio h2 { margin: 2px 0 4px; }
+.comp-torneio.fase-passado { border-left-color: var(--linha); opacity: .85; }
+.comp-torneio.fase-andamento { border-left-color: #2f7d4f; }
+.comp-duas { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 380px) { .comp-duas { grid-template-columns: 1fr; } }
+.comp-duas > .campo { min-width: 0; }
+.comp-duas input { min-width: 0; max-width: 100%; }

@@ -1407,11 +1407,11 @@
   /* ══ casca do app: menu lateral (computador), menu inferior (celular) e conta ══ */
   var NAV_DA_ROTA = {
     aquecimento: "aquecimento", desafio: "desafios", desafios: "desafios", partidas: "partidas",
-    competicao: "competicao", ficha: "jogador", jogador: "jogador", conta: "conta", assinatura: "assinatura", assinaturas: "assinatura", consultorias: "consultorias", ajuda: "ajuda",
+    temporada: "temporada", competicao: "competicao", ficha: "jogador", jogador: "jogador", conta: "conta", assinatura: "assinatura", assinaturas: "assinatura", consultorias: "consultorias", ajuda: "ajuda",
     estrategia: "estrategia", plano: "estrategia", planos: "estrategia", completar: "estrategia", gerando: "estrategia",
     jogadas: "jogadas", planejar: "treinos", treinos: "treinos", treino: "treinos", programa: "treinos", planejamento: "treinos", gerandoPlanej: "treinos",
   };
-  var NAV_MAIS = { competicao: 1, partidas: 1, conta: 1, jogador: 1, ficha: 1, assinatura: 1, consultorias: 1, ajuda: 1 };
+  var NAV_MAIS = { temporada: 1, competicao: 1, partidas: 1, conta: 1, jogador: 1, ficha: 1, assinatura: 1, consultorias: 1, ajuda: 1 };
   var BARRA_SECAO = { aquecimento: "treinos", desafio: "treinos", desafios: "treinos" }; // páginas que pertencem à seção Treinos
   var ultimaCasca = { logado: false, rota: "" };
   function atualizarCasca(logado, rota) {
@@ -2609,7 +2609,7 @@
      Tudo vem de player-competicao. O papel e cada permissão são conferidos no servidor; aqui só se mostra e se pede. */
   var ROTULO_PAPEL = { atleta: "Atleta", responsavel: "Responsável", treinador: "Treinador" };
   var ROTULO_VINC = { convite: "Convite aberto", aguardando: "Aguardando aprovação", ativo: "Ativo", revogado: "Encerrado", recusado: "Recusado", cancelado: "Cancelado", expirado: "Convite vencido" };
-  var AREAS_COMP = [["perfil", "Perfil de jogador"], ["estrategias", "Estratégias"], ["partidas", "Partidas"], ["treinos", "Treinos"], ["diario", "Diário pessoal (privado, só se você marcar)"]];
+  var AREAS_COMP = [["perfil", "Perfil de jogador"], ["temporada", "Temporada e torneios"], ["estrategias", "Estratégias"], ["partidas", "Partidas"], ["treinos", "Treinos"], ["diario", "Diário pessoal (privado, só se você marcar)"]];
   function logoCompeticao(largura) {
     return '<picture><source srcset="../assets/logo-quadralab-player-competicao-120.webp 518w, ../assets/logo-quadralab-player-competicao-240.webp 1035w" sizes="' + largura + 'px" type="image/webp">' +
       '<img src="../assets/logo-quadralab-player-competicao-120.png" srcset="../assets/logo-quadralab-player-competicao-120.png 518w, ../assets/logo-quadralab-player-competicao-240.png 1035w" sizes="' + largura + 'px" width="' + largura + '" height="' + Math.round(largura * 0.282) + '" alt="QuadraLab Player Competição"></picture>';
@@ -2682,6 +2682,7 @@
     html = topo + "<h1>Competição</h1>" + '<p class="sub">Seu papel: <strong>' + ROTULO_PAPEL[comp.papel] + "</strong>" + (comp.papel === "atleta" && comp.menor ? " · atleta menor de idade" : "") + ".</p>";
     if (comp.papel === "atleta") {
       var ativosResp = s.meus.filter(function (v) { return v.tipo === "responsavel" && v.status === "ativo"; }).length;
+      html += '<div class="cartao" style="margin-top:14px"><h2>Temporada</h2><p class="nota" style="margin-top:6px">Seus torneios, datas e prazos num só lugar.</p><div class="acoes"><a class="btn btn-laranja" href="#/temporada">Abrir a temporada</a></div></div>';
       html += '<div class="cartao" style="margin-top:14px"><h2>Quem acompanha você</h2>' +
         (comp.menor && !ativosResp ? '<p class="nota" style="margin-top:6px">Como você é menor de idade, comece convidando o seu responsável. Só depois dele vinculado é possível convidar um treinador.</p>' : '<p class="nota" style="margin-top:6px">Você decide quem vê o quê, e pode encerrar qualquer vínculo quando quiser. O diário pessoal só é compartilhado se você marcar.</p>') +
         (s.meus.length ? '<ul class="comp-lista">' + s.meus.map(function (v) { return vinculoMeuHtml(v, comp); }).join("") + "</ul>" : '<p class="nota" style="margin-top:8px">Ninguém vinculado ainda.</p>') +
@@ -2734,6 +2735,108 @@
       catch (e) { av.textContent = e.message; av.hidden = false; ocupado(bt, false); }
     });
   }
+  /* ══ Competição: temporada e Meu torneio ══
+     O atleta cadastra os torneios (à mão, com o link ou colando a confirmação de inscrição). Nada é lido de sites de federação:
+     a origem fica registrada e a tela pede para confirmar no site oficial. */
+  var PISOS = [["", "Não sei"], ["saibro", "Saibro"], ["rapida", "Quadra rápida"], ["grama", "Grama"], ["indoor", "Indoor"]];
+  var ESTADOS_TORNEIO = [["planejado", "Planejado"], ["inscrito", "Inscrito"], ["jogando", "Em andamento"], ["encerrado", "Encerrado"], ["desistiu", "Desistiu"]];
+  function dataCurta(iso) { var p = String(iso || "").split("-"); return p.length === 3 ? p[2] + "/" + p[1] + "/" + p[0] : ""; }
+  function periodoTorneio(t) { return t.fim && t.fim !== t.inicio ? dataCurta(t.inicio) + " a " + dataCurta(t.fim) : dataCurta(t.inicio); }
+  function quandoTorneio(t) {
+    if (t.fase === "andamento") return "Acontecendo agora";
+    if (t.fase === "passado") return "Já aconteceu";
+    return t.diasParaInicio === 0 ? "Começa hoje" : t.diasParaInicio === 1 ? "Começa amanhã" : "Começa em " + t.diasParaInicio + " dias";
+  }
+  function rotuloEstadoTorneio(e) { return (ESTADOS_TORNEIO.filter(function (x) { return x[0] === e; })[0] || [e, e])[1]; }
+  function prazoTorneioHtml(t) {
+    if (!t.prazoInscricao || t.fase !== "proximo" || t.estado !== "planejado") return "";
+    var d = t.diasParaPrazo;
+    if (d < 0) return '<p class="nota"><strong>Prazo de inscrição passou</strong> (' + dataCurta(t.prazoInscricao) + "). Confira no site oficial.</p>";
+    return '<p class="nota"><strong>Inscrição até ' + dataCurta(t.prazoInscricao) + "</strong> · " + (d === 0 ? "termina hoje" : d === 1 ? "falta 1 dia" : "faltam " + d + " dias") + ".</p>";
+  }
+  function cartaoTorneioHtml(t) {
+    return '<a class="cartao comp-torneio fase-' + t.fase + '" href="#/temporada/' + t.id + '"><p class="olho">' + esc(rotuloEstadoTorneio(t.estado)) + " · " + esc(quandoTorneio(t)) + "</p><h2>" + esc(t.nome) + "</h2>" +
+      '<p class="nota">' + esc(periodoTorneio(t)) + (t.cidade ? " · " + esc(t.cidade) : "") + (t.categoria ? " · " + esc(t.categoria) : "") + "</p>" + prazoTorneioHtml(t) + "</a>";
+  }
+  async function telaTemporada() {
+    tela('<p class="carregando">Carregando…</p>', true);
+    var r;
+    try { r = await api("player-torneios"); }
+    catch (e) {
+      tela('<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/competicao">‹ Competição</a></p><div class="aviso">' + esc(e.message) + '</div><div class="acoes"><a class="btn btn-primario" href="#/competicao">Ativar a Competição</a></div>'); return;
+    }
+    var lista = r.torneios, prox = lista.filter(function (t) { return t.fase !== "passado"; }), pass = lista.filter(function (t) { return t.fase === "passado"; });
+    tela('<p class="comp-logo">' + logoCompeticao(150) + '</p><h1>Temporada</h1><p class="sub">Os torneios que você vai jogar, com datas e prazos.</p>' +
+      '<div class="acoes"><a class="btn btn-laranja btn-grande" href="#/temporada/novo">Adicionar torneio</a></div>' +
+      (prox.length ? '<h2 class="secao">Próximos</h2><div class="comp-torneios">' + prox.map(cartaoTorneioHtml).join("") + "</div>"
+        : '<div class="cartao" style="margin-top:14px"><h2>Nenhum torneio à vista</h2><p class="nota" style="margin-top:6px">Adicione o próximo torneio: cole a confirmação de inscrição, informe o link oficial ou preencha à mão.</p></div>') +
+      (pass.length ? '<h2 class="secao">Anteriores</h2><div class="comp-torneios">' + pass.map(cartaoTorneioHtml).join("") + "</div>" : "") +
+      '<p class="nota" style="margin-top:14px">Os dados são os que você cadastra. Sempre confirme datas, categorias e prazos no site oficial do torneio.</p>');
+  }
+  function campoTorneio(id, rotulo, valor, tipo, extra) {
+    return '<div class="campo"><label for="' + id + '">' + rotulo + '</label><input id="' + id + '" type="' + (tipo || "text") + '" value="' + esc(valor || "") + '"' + (extra || "") + "></div>";
+  }
+  async function telaTorneioForm(id) {
+    var t = null, novo = id === "novo";
+    if (!novo) {
+      tela('<p class="carregando">Carregando…</p>', true);
+      try { t = (await api("player-torneios")).torneios.filter(function (x) { return x.id === id; })[0]; }
+      catch (e) { tela('<div class="aviso">' + esc(e.message) + '</div><div class="acoes"><a class="btn btn-secundario" href="#/temporada">Voltar</a></div>'); return; }
+      if (!t) { tela('<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/temporada">‹ Temporada</a></p><div class="aviso">Torneio não encontrado.</div>'); return; }
+    } else t = { estado: "planejado", origem: "manual" };
+    tela('<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/temporada">‹ Temporada</a></p><h1>' + (novo ? "Novo torneio" : esc(t.nome)) + "</h1>" +
+      (novo ? "" : '<p class="sub">' + esc(quandoTorneio(t)) + " · " + esc(periodoTorneio(t)) + "</p>" + prazoTorneioHtml(t)) +
+      (novo ? '<div class="cartao" style="margin-top:14px"><h2>Colar a confirmação de inscrição</h2><p class="nota" style="margin-top:6px">Cole o texto do e-mail de confirmação ou da página do torneio. Eu preencho os campos abaixo e você confere antes de salvar. Não copio nomes de atletas nem dados pessoais.</p>' +
+        '<div class="campo"><label for="tcTexto" class="sr">Texto da inscrição</label><textarea id="tcTexto" rows="4" maxlength="6000" placeholder="Cole aqui o texto"></textarea></div><div class="aviso" id="avisoLer" role="alert" hidden></div>' +
+        '<button type="button" class="btn btn-secundario" id="btLer">Preencher com o texto</button></div>' : "") +
+      '<form id="fTorneio" class="cartao" style="margin-top:14px" novalidate><h2>Dados do torneio</h2>' +
+      campoTorneio("tNome", "Nome do torneio", t.nome, "text", ' maxlength="100" required') +
+      '<div class="comp-duas">' + campoTorneio("tInicio", "Início", t.inicio, "date", " required") + campoTorneio("tFim", "Término", t.fim, "date") + "</div>" +
+      campoTorneio("tPrazo", "Prazo de inscrição (opcional)", t.prazoInscricao, "date") +
+      '<div class="comp-duas">' + campoTorneio("tCidade", "Cidade", t.cidade, "text", ' maxlength="80"') + campoTorneio("tLocal", "Clube ou local", t.local, "text", ' maxlength="100"') + "</div>" +
+      '<div class="comp-duas">' + campoTorneio("tCategoria", "Categoria", t.categoria, "text", ' maxlength="40" placeholder="Ex.: Sub-16"') + campoTorneio("tCircuito", "Circuito", t.circuito, "text", ' maxlength="60" placeholder="Ex.: COSAT"') + "</div>" +
+      '<div class="campo"><label for="tPiso">Piso</label><select id="tPiso">' + PISOS.map(function (p) { return '<option value="' + p[0] + '"' + (p[0] === (t.superficie || "") ? " selected" : "") + ">" + p[1] + "</option>"; }).join("") + "</select></div>" +
+      '<div class="campo"><label for="tEstado">Minha situação</label><select id="tEstado">' + ESTADOS_TORNEIO.map(function (p) { return '<option value="' + p[0] + '"' + (p[0] === t.estado ? " selected" : "") + ">" + p[1] + "</option>"; }).join("") + "</select></div>" +
+      campoTorneio("tUrl", "Link oficial do torneio (opcional)", t.urlOrigem, "url", ' maxlength="300" placeholder="https://" inputmode="url"') +
+      '<p class="nota" style="margin:-4px 0 10px">Guardamos o link para você voltar à fonte. Confirme sempre as datas e o prazo no site oficial.' + (t.coletadoEm ? " Cadastrado a partir de " + (t.origem === "colado" ? "texto colado" : "link") + " em " + dataCurta(String(t.coletadoEm).slice(0, 10)) + "." : "") + "</p>" +
+      '<div class="campo"><label for="tObs">Anotações pessoais (só você vê)</label><textarea id="tObs" rows="3" maxlength="500">' + esc(t.observacao || "") + "</textarea></div>" +
+      '<div class="aviso" id="avisoT" role="alert" hidden></div><button class="btn btn-primario btn-grande" type="submit">' + (novo ? "Salvar torneio" : "Salvar alterações") + "</button></form>" +
+      (t.urlOrigem ? '<p style="margin-top:10px"><a class="btn btn-secundario" href="' + esc(t.urlOrigem) + '" target="_blank" rel="noopener noreferrer">Abrir o site oficial<span class="sr"> (abre em nova aba)</span></a></p>' : "") +
+      (novo ? "" : '<div class="acoes"><button type="button" class="btn btn-texto" id="btExcluirT">Excluir este torneio</button></div>'));
+    var origem = t.origem || "manual";
+    function v(i) { return document.getElementById(i).value.trim(); }
+    var bl = document.getElementById("btLer");
+    if (bl) bl.addEventListener("click", async function () {
+      var av = document.getElementById("avisoLer"); av.hidden = true;
+      var texto = document.getElementById("tcTexto").value;
+      if (texto.trim().length < 20) { av.textContent = "Cole o texto da inscrição ou da página do torneio."; av.hidden = false; return; }
+      ocupado(bl, true, "Lendo…");
+      try {
+        var r = (await api("player-torneios", { metodo: "POST", corpo: { acao: "extrair", texto: texto } })).proposta;
+        [["tNome", "nome"], ["tInicio", "inicio"], ["tFim", "fim"], ["tPrazo", "prazoInscricao"], ["tCidade", "cidade"], ["tLocal", "local"], ["tCategoria", "categoria"], ["tCircuito", "circuito"], ["tPiso", "superficie"]].forEach(function (m) { if (r[m[1]]) document.getElementById(m[0]).value = r[m[1]]; });
+        origem = "colado"; toast("Confira os campos abaixo antes de salvar.");
+        document.getElementById("fTorneio").scrollIntoView({ behavior: "smooth", block: "start" });
+      } catch (e) { av.textContent = e.message; av.hidden = false; }
+      ocupado(bl, false);
+    });
+    document.getElementById("fTorneio").addEventListener("submit", async function (ev) {
+      ev.preventDefault();
+      var av = document.getElementById("avisoT"); av.hidden = true;
+      var bt = this.querySelector("button[type=submit]"); ocupado(bt, true, "Salvando…");
+      var corpo = { acao: "salvar", id: novo ? undefined : id, nome: v("tNome"), inicio: v("tInicio"), fim: v("tFim"), prazoInscricao: v("tPrazo"), cidade: v("tCidade"), local: v("tLocal"),
+        categoria: v("tCategoria"), circuito: v("tCircuito"), superficie: v("tPiso"), estado: v("tEstado"), urlOrigem: v("tUrl"), observacao: v("tObs"),
+        origem: origem === "manual" && v("tUrl") ? "link" : origem };
+      try { await api("player-torneios", { metodo: "POST", corpo: corpo }); toast(novo ? "Torneio salvo." : "Alterações salvas."); ir("#/temporada"); }
+      catch (e) { av.textContent = e.message; av.hidden = false; ocupado(bt, false); }
+    });
+    var be = document.getElementById("btExcluirT");
+    if (be) be.addEventListener("click", async function () {
+      if (!window.confirm("Excluir este torneio da sua temporada?")) return;
+      ocupado(be, true, "Excluindo…");
+      try { await api("player-torneios", { metodo: "POST", corpo: { acao: "excluir", id: id } }); toast("Torneio excluído."); ir("#/temporada"); }
+      catch (e) { toast(e.message, null, true); ocupado(be, false); }
+    });
+  }
   async function telaVinculo(id) {
     tela('<p class="carregando">Carregando…</p>', true);
     var r;
@@ -2742,6 +2845,7 @@
     var perfil = r.dados.perfil;
     tela('<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/competicao">‹ Competição</a></p><h1>' + esc(r.atleta.nome) + '</h1><p class="sub">Você vê só o que o atleta compartilhou: ' + esc(rotuloAreas(r.areas)) + ".</p>" +
       (perfil ? '<div class="cartao" style="margin-top:14px"><h2>Perfil de jogador</h2>' + (perfil.length ? '<dl class="comp-perfil">' + perfil.map(function (p) { return "<dt>" + esc(p.rotulo) + "</dt><dd>" + esc(p.valor) + "</dd>"; }).join("") + "</dl>" : '<p class="nota" style="margin-top:6px">O atleta ainda não preencheu o perfil.</p>') + "</div>" : "") +
+      (r.dados.torneios ? '<div class="cartao" style="margin-top:14px"><h2>Temporada e torneios</h2>' + (r.dados.torneios.length ? '<div class="comp-torneios">' + r.dados.torneios.map(function (t) { return '<div class="comp-vinc"><p class="olho">' + esc(rotuloEstadoTorneio(t.estado)) + " · " + esc(quandoTorneio(t)) + "</p><p><strong>" + esc(t.nome) + '</strong></p><p class="nota">' + esc(periodoTorneio(t)) + (t.cidade ? " · " + esc(t.cidade) : "") + (t.categoria ? " · " + esc(t.categoria) : "") + "</p>" + prazoTorneioHtml(t) + "</div>"; }).join("") + "</div>" : '<p class="nota" style="margin-top:6px">Nenhum torneio cadastrado ainda.</p>') + "</div>" : "") +
       (r.emBreve && r.emBreve.length ? '<p class="nota" style="margin-top:14px">Compartilhado e ainda sem conteúdo nesta etapa: ' + esc(rotuloAreas(r.emBreve)) + ". Essas áreas aparecem aqui quando chegarem as próximas etapas.</p>" : ""));
   }
   async function rotear() {
@@ -2782,6 +2886,7 @@
     else if (r === "desafios") telaDesafios();
     else if (r === "desafio") { if (partes[1]) telaDesafioDia(partes[1]); else telaDesafio(); }
     else if (r === "partidas") { if (partes[1] === "nova") telaPartidaForm(null); else if (partes[1]) telaPartidaForm(partes[1]); else telaPartidas(); }
+    else if (r === "temporada") { if (partes[1]) telaTorneioForm(partes[1]); else telaTemporada(); }
     else if (r === "competicao") { if (partes[1] === "vinculo" && partes[2]) telaVinculo(partes[2]); else telaCompeticao(); }
     else if (r === "conta") telaConta();
     else if (r === "jogador") telaJogador();
