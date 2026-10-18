@@ -10,7 +10,7 @@ function colRef(p, f = []) {
   const docs = () => ids().map((k) => ({ id: k.split("/").pop(), data: () => J(store[k]) }));
   return { doc: (id) => docRef(p + "/" + id), where: (c, o, v) => colRef(p, f.concat([[c, v]])), async listDocuments() { return ids().map((k) => docRef(k)); }, async get() { const d = docs(); return { docs: d, size: d.length, forEach: (fn) => d.forEach(fn) }; } };
 }
-const admin = { firestore: () => ({ collection: (n) => colRef(n), collectionGroup: (n) => ({ async get() { const d = Object.keys(store).filter((k) => { const s = k.split("/"); return s.length % 2 === 0 && s[s.length - 2] === n; }).map((k) => ({ id: k.split("/").pop(), data: () => J(store[k]) })); return { docs: d, size: d.length, forEach: (fn) => d.forEach(fn) }; } }) }) };
+const admin = { firestore: () => ({ collection: (n) => colRef(n), collectionGroup: (n) => ({ async get() { const d = Object.keys(store).filter((k) => { const s = k.split("/"); return s.length % 2 === 0 && s[s.length - 2] === n; }).map((k) => ({ id: k.split("/").pop(), ref: { path: k }, data: () => J(store[k]) })); return { docs: d, size: d.length, forEach: (fn) => d.forEach(fn) }; } }) }) };
 require.cache[require.resolve(fx + "_firebase-admin.js")] = { id: "y", filename: "y", loaded: true, exports: { admin, app: () => {} } };
 process.env.ADMIN_SECRET = "segredo"; process.env.ANTHROPIC_API_KEY = "VALOR-SECRETO-XYZ"; process.env.FIREBASE_SERVICE_ACCOUNT = "{\"private_key\":\"NUNCA-VAZAR\"}";
 delete process.env.WEBHOOK_EDUZZ_SECRET; delete process.env.INTERESSE_WEBHOOK_URL;
@@ -93,6 +93,34 @@ const ano = +hoje.slice(0, 4);
   assert.ok(fi.porProduto.some((p) => p.produto === "player" && p.receita === 12000) && fi.despesasPorCategoria[0].valorCentavos === 5000);
   assert.ok(fi.movimentos.some((m) => m.automatico) && fi.movimentos.some((m) => !m.automatico), "automáticos e manuais juntos");
   assert.ok(fi.aReceberCentavos > 0);
+
+  /* ── análise: funis, atividade, uso, IA, planos, site ── */
+  const iso = (n) => mais(n) + "T10:00:00.000Z";
+  store["jogadores/u4"].ficha = { nivel: "x" }; // ficha parcial: só conta como "com ficha" na regra simples do teste
+  store["jogadores/u5"] = { nome: "Nova Sem Ficha", email: "n@x.com", criadoEm: iso(-10) };
+  store["jogadores/u6"] = { nome: "Assinante", email: "s@x.com", criadoEm: iso(-30), assinatura: { status: "ativa", ativoAte: mais(5) } };
+  store["jogadores/u6/planos/pa1"] = { status: "pronto", criadoEm: iso(-20) }; store["jogadores/u6/planos/pa2"] = { status: "pronto", criadoEm: iso(-2) };
+  store["jogadores/u6/planejamentos/pl1"] = { status: "pronto", criadoEm: iso(-15), registros: { a: { status: "feito", em: iso(-14) }, b: { status: "feito", em: iso(-3) }, c: { status: "em_andamento", em: iso(-1) } } };
+  store["jogadores/u5/planos/pe1"] = { status: "erro", semCota: true, criadoEm: iso(-1) };
+  store["jogadores/u4/planos/pe2"] = { status: "erro", erro: "falhou", criadoEm: iso(-2) }; store["jogadores/u4/planos/pe3"] = { status: "erro", erro: "falhou", criadoEm: iso(-3) }; store["jogadores/u4/planos/pe4"] = { status: "erro", erro: "falhou", criadoEm: iso(-4) };
+  store["jogadores/u4/planos/pg1"] = { status: "gerando", criadoEm: new Date(Date.now() - 3600000).toISOString() };
+  store["jogadores/u1/torneios/tf1"] = { nome: "Copa", inicio: mais(20), fim: mais(23), prioridade: "A", criadoEm: iso(-5) };
+  store["jogadores/u1/compPlanejamentos/cp1"] = { status: "sugestao", criadoEm: iso(-1) };
+  store["interessesCompeticao/i2"] = { nome: "Ana", servico: "revisao", faixa: "13-14", categoria: "regional", status: "contatado", criadoEm: iso(-5), atualizadoEm: iso(-4) };
+  const an = await G({ secao: "analise" }); assert.strictEqual(an.s, 200);
+  assert.ok(an.funilPlayer[0].n >= 3 && an.funilPlayer.every((p) => p.pctContas === null || (p.pctContas >= 0 && p.pctContas <= 100)), "funil do Player: percentuais sobre as contas");
+  assert.ok(an.funilPlayer.every((p) => p.pctAnterior === null || p.pctAnterior <= 100), "percentual do passo anterior nunca passa de 100");
+  assert.strictEqual(an.funilPlayer.find((p) => p.rotulo === "Plano de jogo criado").n, 1, "só u6 tem plano pronto entre as contas do Player");
+  assert.strictEqual(an.funilPlayer.find((p) => p.rotulo === "Registrou em outra semana").n, 1, "u6 registrou treino com mais de 7 dias de diferença");
+  assert.strictEqual(an.funilPlayer.find((p) => p.rotulo === "Assinante").n, 1);
+  assert.strictEqual(an.funilCompeticao.find((p) => p.rotulo === "Torneio cadastrado").n, 1); assert.strictEqual(an.funilCompeticao.find((p) => p.rotulo === "Planejamento gerado").n, 1);
+  assert.ok(an.atividade.ativos30 >= 3 && an.atividade.ativos7 >= 1 && an.atividade.serie.length === 8);
+  const planosUso = an.uso.find((u) => u.rotulo.startsWith("Planos de jogo")); assert.strictEqual(planosUso.total, 7); assert.strictEqual(planosUso.ult7, 6);
+  const iaP = an.ia[0]; assert.strictEqual(iaP.semCota, 1); assert.strictEqual(iaP.erro, 3); assert.strictEqual(iaP.travados, 1); assert.strictEqual(iaP.contasSemCota, 1); assert.ok(iaP.taxaErroPct >= 10);
+  assert.ok(an.planos.assinantes >= 1 && an.planos.assinantes === an.planos.porStatus.ativa, "assinantes = contas com assinatura ativa"); assert.ok(an.planos.vencemEm7 >= 1); assert.strictEqual(an.competicao.comTorneioFuturo, 1); assert.strictEqual(an.competicao.torneios30, 1);
+  assert.strictEqual(an.site.medianaHorasAteContato, 24); assert.ok(an.site.porServico.length >= 1);
+  assert.ok(an.atencao.some((a) => /sem a ficha completa/.test(a.texto)) && an.atencao.some((a) => /parada\(s\)/.test(a.texto)) && an.atencao.some((a) => /bateram no limite/.test(a.texto)) && an.atencao.some((a) => /Planos de jogo com erro/.test(a.texto)), "pontos de atenção");
+  assert.ok(!an.raw.includes("Nova Sem Ficha") && !an.raw.includes("n@x.com") && !an.raw.includes("ana@exemplo.com") && !an.raw.includes("SEGREDO DO DIÁRIO"), "análise: só contagens, sem nome, e-mail ou conteúdo");
   assert.strictEqual((await G({ secao: "nada" })).s, 400);
   console.log("check-admin-painel: ok");
 })().catch((e) => { console.error(e); process.exit(1); });

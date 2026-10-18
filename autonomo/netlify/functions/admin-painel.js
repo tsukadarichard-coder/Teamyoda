@@ -6,6 +6,7 @@
    GET ?secao=usuarios&q=&papel=&pagina= → contas do Player/Competição (sem conteúdo pessoal)
    GET ?secao=usuario&uid=              → uma conta: papel, assinatura, vínculos, pedidos e contagens (nunca o conteúdo de diário, partidas ou planos)
    GET ?secao=academias                 → academias do app do treinador (plano, validade, jogadores, pedidos de acesso pendentes)
+   GET ?secao=analise                   → funis (Player e Competição), atividade, uso dos recursos, qualidade da IA, planos, site e pontos de atenção (só contagens)
    GET ?secao=entradas&tipo=&dias=       → quem entrou e o que chegou (contas, vínculos, pedidos, contatos, academias), com série semanal
    GET ?secao=eduzz                     → relatório do webhook da Eduzz: eventos, faturas, pendências, academias (sem valores)
    GET ?secao=financeiro&mes=           → receitas confirmadas + lançamentos manuais, despesas, resultado por mês e por produto
@@ -333,6 +334,114 @@ async function financeiro(db, hoje, q) {
   };
 }
 
+/* ── Análise: funis, atividade, uso dos recursos, qualidade da IA, planos e site (só contagens; nada de nome, e-mail ou conteúdo) ── */
+const LIMITE_GRUPO = 20000;
+async function lerGrupo(db, nome, trunc) {
+  const o = [];
+  try { const s = await db.collectionGroup(nome).get(); s.forEach((d) => { if (o.length >= LIMITE_GRUPO) { trunc.add(nome); return; } const p = d.ref && d.ref.path ? d.ref.path.split("/") : []; o.push({ uid: p[0] === "jogadores" ? p[1] : null, id: d.id, ...d.data() }); }); }
+  catch (e) { trunc.add(nome + " (não lido)"); }
+  return o.filter((x) => x.uid);
+}
+const quando = (x) => String(x.criadoEm || x.em || x.atualizadoEm || x.data || "");
+const pct = (a, b) => (b ? Math.round((a / b) * 100) : null);
+const mediana = (l) => { if (!l.length) return null; const s = l.slice().sort((a, b) => a - b), m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2); };
+
+async function analise(db, hoje) {
+  const trunc = new Set(), agora = Date.now();
+  const jogadores = await ler(db.collection("jogadores"), LIMITE_CONTAS);
+  if (jogadores.length >= LIMITE_CONTAS) trunc.add("jogadores");
+  const G = {}; for (const g of ["planos", "planejamentos", "partidas", "preparos", "diario", "torneios", "scouts", "devolutivas", "focos", "compPlanejamentos", "compExecucoes"]) G[g] = await lerGrupo(db, g, trunc);
+  const vinculos = await ler(db.collection("vinculos")), acs = await ler(db.collection("acompanhamentos")), interesses = await ler(db.collection("interessesCompeticao"));
+  let fichaCompleta = (f) => !!(f && Object.keys(f).length); try { fichaCompleta = require("./_player").fichaCompleta; } catch (e) { /* mantém a regra simples */ }
+  const d7 = addDias(hoje, -7), d30 = addDias(hoje, -30), d14 = addDias(hoje, -14), d3 = addDias(hoje, -3);
+  const papelDe = (j) => (j.competicao && j.competicao.papel) || "";
+  const comPapel = (p) => jogadores.filter((j) => papelDe(j) === p);
+  const uidsDe = (lista, f) => new Set(lista.filter(f || (() => true)).map((x) => x.uid));
+
+  /* atividade: pares (conta, dia) de qualquer registro feito pela conta */
+  const dias = new Map(); // uid → Set de dias
+  const marca = (uid, iso) => { const d = dia(iso); if (!d || d > hoje) return; if (!dias.has(uid)) dias.set(uid, new Set()); dias.get(uid).add(d); };
+  for (const g of Object.keys(G)) G[g].forEach((x) => { marca(x.uid, quando(x)); if (g === "planejamentos") Object.values(x.registros || {}).forEach((r) => r && marca(x.uid, r.em)); });
+  const ativosDesde = (desde) => { let n = 0; dias.forEach((set) => { for (const d of set) if (d >= desde) { n++; break; } }); return n; };
+  const sem = semanas(hoje, 8), serieAtivos = sem.map((ini) => { const fim = addDias(ini, 6); let n = 0; dias.forEach((set) => { for (const d of set) if (d >= ini && d <= fim) { n++; break; } }); return { semana: ini, n }; });
+  const antigas = jogadores.filter((j) => j.criadoEm && dia(j.criadoEm) <= d14), voltaram = antigas.filter((j) => { const s = dias.get(j.id); if (!s) return false; for (const d of s) if (d >= d14) return true; return false; });
+
+  /* funil do Player: contas sem papel da Competição */
+  const pl = jogadores.filter((j) => !papelDe(j)), plIds = new Set(pl.map((j) => j.id));
+  const comPlano = uidsDe(G.planos, (p) => p.status === "pronto"), comPlanej = uidsDe(G.planejamentos, (p) => p.status === "pronto");
+  const treinoReg = new Set(), semanasTreino = new Map();
+  G.planejamentos.filter((p) => p.status === "pronto").forEach((p) => Object.values(p.registros || {}).forEach((r) => { if (r && ["feito", "parcial", "nao_feito"].includes(r.status)) { treinoReg.add(p.uid); if (r.em) { if (!semanasTreino.has(p.uid)) semanasTreino.set(p.uid, new Set()); semanasTreino.get(p.uid).add(dia(r.em)); } } }));
+  let voltouOutraSemana = 0; semanasTreino.forEach((set) => { const o = [...set].sort(); if (o.length > 1 && diasEntre(o[0], o[o.length - 1]) >= 7) voltouOutraSemana++; });
+  const pagante = (j) => (j.assinatura && j.assinatura.status === "ativa") || (j.planoPago && j.planoPago !== "gratis");
+  const passosP = [["Contas do Player", pl.length], ["Ficha completa", pl.filter((j) => fichaCompleta(j.ficha || {})).length], ["Plano de jogo criado", pl.filter((j) => comPlano.has(j.id)).length], ["Planejamento semanal criado", pl.filter((j) => comPlanej.has(j.id)).length], ["Treino registrado", pl.filter((j) => treinoReg.has(j.id)).length], ["Registrou em outra semana", pl.filter((j) => semanasTreino.has(j.id) && (() => { const o = [...semanasTreino.get(j.id)].sort(); return o.length > 1 && diasEntre(o[0], o[o.length - 1]) >= 7; })()).length], ["Assinante", pl.filter(pagante).length]];
+  const funilPlayer = passosP.map((p, i) => ({ rotulo: p[0], n: p[1], pctAnterior: i && p[1] <= passosP[i - 1][1] ? pct(p[1], passosP[i - 1][1]) : null, pctContas: pct(p[1], passosP[0][1]) }));
+
+  /* funil da Competição: atletas */
+  const atletas = comPapel("atleta"), atIds = new Set(atletas.map((j) => j.id));
+  const vincAtivo = new Set(vinculos.filter((v) => v.status === "ativo").map((v) => v.atletaUid));
+  const comAcomp = new Set(acs.filter((a) => a.estado !== "cancelado").map((a) => a.atletaUid));
+  const passosC = [["Atletas", atletas.length], ["Torneio cadastrado", atletas.filter((j) => uidsDe(G.torneios).has(j.id)).length], ["Preparação criada", atletas.filter((j) => uidsDe(G.preparos).has(j.id)).length], ["Partida registrada", atletas.filter((j) => uidsDe(G.partidas).has(j.id)).length], ["Planejamento gerado", atletas.filter((j) => uidsDe(G.compPlanejamentos).has(j.id)).length], ["Treinador ou responsável vinculado", atletas.filter((j) => vincAtivo.has(j.id)).length], ["Acompanhamento solicitado", atletas.filter((j) => comAcomp.has(j.id)).length]];
+  const sT = uidsDe(G.torneios), sPr = uidsDe(G.preparos), sPa = uidsDe(G.partidas), sCp = uidsDe(G.compPlanejamentos);
+  const funilComp = passosC.map((p, i) => ({ rotulo: p[0], n: p[1], pctAnterior: i && p[1] <= passosC[i - 1][1] ? pct(p[1], passosC[i - 1][1]) : null, pctContas: pct(p[1], passosC[0][1]) }));
+
+  /* uso por recurso */
+  const R = [["Planos de jogo (estratégias)", "planos"], ["Planejamentos semanais do Player", "planejamentos"], ["Partidas registradas", "partidas"], ["Preparações por partida", "preparos"], ["Registros de diário", "diario"], ["Torneios cadastrados", "torneios"], ["Scouts importados", "scouts"], ["Devolutivas do treinador", "devolutivas"], ["Focos de treino", "focos"], ["Versões de planejamento (Competição)", "compPlanejamentos"], ["Treinos executados (Competição)", "compExecucoes"]];
+  const uso = R.map(([rot, g]) => { const l = G[g]; return { rotulo: rot, total: l.length, ult7: l.filter((x) => dia(quando(x)) >= d7).length, ult30: l.filter((x) => dia(quando(x)) >= d30).length, contas30: new Set(l.filter((x) => dia(quando(x)) >= d30).map((x) => x.uid)).size }; });
+
+  /* qualidade da IA e limites (planos de jogo e planejamentos do Player, últimos 30 dias) */
+  const ia = ["planos", "planejamentos"].map((g) => {
+    const l = G[g].filter((x) => dia(quando(x)) >= d30), st = {}; l.forEach((x) => { st[x.status || "?"] = (st[x.status || "?"] || 0) + 1; });
+    const travados = G[g].filter((x) => x.status === "gerando" && x.criadoEm && agora - Date.parse(x.criadoEm) > 30 * 60000).length;
+    const semCota = l.filter((x) => x.semCota); const ex = l.length - semCota.length;
+    return { rotulo: g === "planos" ? "Planos de jogo" : "Planejamentos do Player", total30: l.length, pronto: st.pronto || 0, erro: (st.erro || 0) - semCota.length, semCota: semCota.length, contasSemCota: new Set(semCota.map((x) => x.uid)).size, gerando: st.gerando || 0, travados, taxaErroPct: pct(Math.max(0, (st.erro || 0) - semCota.length), ex) };
+  });
+
+  /* planos e assinaturas do Player */
+  const assinStatus = {}; jogadores.forEach((j) => { const s = (j.assinatura && j.assinatura.status) || "sem"; assinStatus[s] = (assinStatus[s] || 0) + 1; });
+  const vence7 = jogadores.filter((j) => j.assinatura && j.assinatura.status === "ativa" && j.assinatura.ativoAte && j.assinatura.ativoAte >= hoje && j.assinatura.ativoAte <= addDias(hoje, 7)).length;
+  let faturas = []; try { faturas = await ler(db.collection("jogadoresFaturas")); } catch (e) { /* sem faturas */ }
+  const planosAss = { assinantes: jogadores.filter(pagante).length, contas: jogadores.length, conversaoPct: pct(jogadores.filter(pagante).length, jogadores.length), porStatus: assinStatus, vencemEm7: vence7, faturasPagas: faturas.filter((f) => f.estado === "paga").length, faturasRevogadas: faturas.filter((f) => f.estado && f.estado !== "paga").length };
+
+  /* Competição */
+  const menores = atletas.filter((j) => C.ehMenor(j.competicao.nascimento, hoje)), respAtivos = new Set(vinculos.filter((v) => v.status === "ativo" && v.tipo === "responsavel").map((v) => v.atletaUid)), treiAtivos = new Set(vinculos.filter((v) => v.status === "ativo" && v.tipo === "treinador").map((v) => v.atletaUid));
+  const futuros = G.torneios.filter((t) => t.inicio && t.inicio >= hoje), futurosPor = new Set(futuros.map((t) => t.uid));
+  const planStatus = {}; G.compPlanejamentos.forEach((p) => { planStatus[p.status] = (planStatus[p.status] || 0) + 1; });
+  const competicao = {
+    atletas: atletas.length, menores: menores.length, adultos: atletas.length - menores.length, responsaveis: comPapel("responsavel").length, treinadores: comPapel("treinador").length,
+    comTreinador: atletas.filter((j) => treiAtivos.has(j.id)).length, comResponsavel: atletas.filter((j) => respAtivos.has(j.id)).length, menoresSemResponsavel: menores.filter((j) => !respAtivos.has(j.id)).length,
+    comTorneioFuturo: atletas.filter((j) => futurosPor.has(j.id)).length, torneios30: futuros.filter((t) => t.inicio <= addDias(hoje, 30)).length, torneios60: futuros.filter((t) => t.inicio <= addDias(hoje, 60)).length,
+    planejamentoPorStatus: planStatus, vinculosPorEstado: vinculos.reduce((m, v) => { const k = v.tipo + ":" + v.status; m[k] = (m[k] || 0) + 1; return m; }, {}),
+    prioridadeTorneios: G.torneios.reduce((m, t) => { const k = t.prioridade || "sem"; m[k] = (m[k] || 0) + 1; return m; }, {}),
+  };
+
+  /* site: contatos */
+  const cont = (campo) => Object.entries(interesses.reduce((m, i) => { const k = i[campo] || "—"; m[k] = (m[k] || 0) + 1; return m; }, {})).map(([k, n]) => ({ k, n })).sort((a, b) => b.n - a.n);
+  const horas = interesses.filter((i) => i.status === "contatado" && i.criadoEm && i.atualizadoEm).map((i) => Math.max(0, Math.round((Date.parse(i.atualizadoEm) - Date.parse(i.criadoEm)) / 3600000)));
+  const site = { total: interesses.length, ult30: interesses.filter((i) => dia(i.criadoEm) >= d30).length, porServico: cont("servico"), porFaixa: cont("faixa"), porCategoria: cont("categoria"), porStatus: cont("status"), medianaHorasAteContato: mediana(horas), contatados: horas.length };
+
+  /* academias (app do treinador) */
+  const acad = { total: 0, vencidas: 0, alunos: 0, porPlano: {} };
+  try { for (const o of await db.collection("orgs").listDocuments()) { const s = await o.collection("meta").doc("info").get(), i = s.exists ? s.data() : {}; acad.total++; if (i.planoAtivoAte && i.planoAtivoAte < hoje) acad.vencidas++; acad.porPlano[i.plano || "sem"] = (acad.porPlano[i.plano || "sem"] || 0) + 1; try { const dd = await o.collection("dados").doc("mty:alunos:v2").get(); if (dd.exists) { const l = JSON.parse(dd.data().value || "[]"); if (Array.isArray(l)) acad.alunos += l.length; } } catch (e) { /* sem alunos */ } } } catch (e) { /* sem academias */ }
+
+  /* pontos de atenção */
+  const aten = [];
+  const semFicha = pl.filter((j) => j.criadoEm && dia(j.criadoEm) <= d3 && !fichaCompleta(j.ficha || {})).length;
+  if (semFicha) aten.push({ nivel: "medio", texto: semFicha + " conta(s) do Player criadas há 3 dias ou mais ainda sem a ficha completa: o primeiro passo não foi concluído.", secao: "usuarios" });
+  const iaP = ia[0]; if (iaP.taxaErroPct >= 10 && iaP.erro >= 3) aten.push({ nivel: "alto", texto: "Planos de jogo com erro: " + iaP.taxaErroPct + "% nos últimos 30 dias (" + iaP.erro + " de " + (iaP.total30 - iaP.semCota) + ").", secao: "analise" });
+  const travados = ia[0].travados + ia[1].travados; if (travados) aten.push({ nivel: "alto", texto: travados + " geração(ões) da IA parada(s) em “gerando” há mais de 30 minutos.", secao: "analise" });
+  const semCotaContas = new Set([...G.planos, ...G.planejamentos].filter((x) => x.semCota && dia(quando(x)) >= d30).map((x) => x.uid)).size;
+  if (semCotaContas) aten.push({ nivel: "baixo", texto: semCotaContas + " conta(s) bateram no limite do plano nos últimos 30 dias: possível oportunidade de assinatura.", secao: "analise" });
+  if (competicao.menoresSemResponsavel) aten.push({ nivel: "medio", texto: competicao.menoresSemResponsavel + " atleta(s) menor(es) de idade sem responsável vinculado.", secao: "usuarios" });
+  const parados = vinculos.filter((v) => v.status === "aguardando" && v.aceitoEm && dia(v.aceitoEm) <= d3).length; if (parados) aten.push({ nivel: "medio", texto: parados + " vínculo(s) aguardando aprovação há 3 dias ou mais.", secao: "usuarios" });
+  const semTorneio = atletas.filter((j) => j.criadoEm && dia(j.criadoEm) <= d14 && !sT.has(j.id)).length; if (semTorneio) aten.push({ nivel: "baixo", texto: semTorneio + " atleta(s) com conta há 14 dias ou mais sem nenhum torneio cadastrado.", secao: "usuarios" });
+
+  return {
+    geradoEm: new Date().toISOString(), truncado: [...trunc],
+    atividade: { ativos7: ativosDesde(d7), ativos30: ativosDesde(d30), contas: jogadores.length, novas30: jogadores.filter((j) => dia(j.criadoEm) >= d30).length, retornoPct: pct(voltaram.length, antigas.length), antigas: antigas.length, serie: serieAtivos },
+    funilPlayer, funilCompeticao: funilComp, uso, ia, planos: planosAss, competicao, site, academias: acad, atencao: aten,
+  };
+}
+
 function sistema() {
   const e = process.env, def = (k) => !!String(e[k] || "").trim();
   const itens = [
@@ -371,6 +480,7 @@ exports.handler = async function (event) {
       case "usuarios": return resposta(200, await usuarios(db, q, hoje));
       case "usuario": { const u = await usuario(db, q.uid, hoje); return u ? resposta(200, u) : resposta(404, { erro: "Conta não encontrada." }); }
       case "academias": return resposta(200, await academias(db, hoje));
+      case "analise": return resposta(200, await analise(db, hoje));
       case "entradas": return resposta(200, await entradas(db, q, hoje));
       case "eduzz": return resposta(200, await eduzz(db, hoje));
       case "financeiro": return resposta(200, await financeiro(db, hoje, q));
