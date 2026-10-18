@@ -1476,12 +1476,12 @@
      window.QL_MODO = "competicao" liga a navegação e a tela inicial próprias; no Player, as rotas da Competição apontam para lá. */
   var MODO_COMP = window.QL_MODO === "competicao";
   var ROTAS_COMP = { competicao: 1, temporada: 1, preparo: 1, diario: 1, devolutivas: 1, focos: 1, scouts: 1, "ao-vivo": 1, pedidos: 1, acompanhamento: 1, recomendacoes: 1, treinos: 1 };
-  var ROTAS_APP_COMP = { "": 1, inicio: 1, competicao: 1, temporada: 1, planejamento: 1, acompanhamento: 1, preparo: 1, diario: 1, devolutivas: 1, focos: 1, scouts: 1, "ao-vivo": 1, pedidos: 1, recomendacoes: 1, treinos: 1, consultorias: 1, partidas: 1, aquecimento: 1, desafios: 1, pensamentos: 1, conta: 1, ajuda: 1 };
+  var ROTAS_APP_COMP = { "": 1, inicio: 1, competicao: 1, temporada: 1, planejamento: 1, acompanhamento: 1, preparo: 1, diario: 1, devolutivas: 1, focos: 1, scouts: 1, "ao-vivo": 1, pedidos: 1, recomendacoes: 1, treinos: 1, consultorias: 1, partidas: 1, aquecimento: 1, desafios: 1, pensamentos: 1, ritual: 1, conta: 1, ajuda: 1 };
   var PLAYER_BASE = "";
   var MARCA_APP = MODO_COMP ? "QuadraLab Competição" : "QuadraLab Player";
   if (MODO_COMP) {
-    NAV_DA_ROTA = { "": "inicio", inicio: "inicio", competicao: "inicio", temporada: "temporada", planejamento: "planejamento", acompanhamento: "acompanhamento", preparo: "temporada", aquecimento: "aquecimento", desafios: "desafios", desafio: "desafios", pensamentos: "pensamentos", partidas: "partidas", diario: "diario", devolutivas: "inicio", focos: "inicio", scouts: "inicio", pedidos: "pedidos", recomendacoes: "recomendacoes", treinos: "treinos", consultorias: "consultorias", conta: "conta", ajuda: "ajuda" };
-    NAV_MAIS = { conta: 1, ajuda: 1, consultorias: 1, pensamentos: 1 }; BARRA_SECAO = { aquecimento: "temporada", desafio: "temporada", desafios: "temporada", planejamento: "temporada" };
+    NAV_DA_ROTA = { "": "inicio", inicio: "inicio", competicao: "inicio", temporada: "temporada", planejamento: "planejamento", acompanhamento: "acompanhamento", preparo: "temporada", aquecimento: "aquecimento", desafios: "desafios", desafio: "desafios", pensamentos: "pensamentos", ritual: "ritual", partidas: "partidas", diario: "diario", devolutivas: "inicio", focos: "inicio", scouts: "inicio", pedidos: "pedidos", recomendacoes: "recomendacoes", treinos: "treinos", consultorias: "consultorias", conta: "conta", ajuda: "ajuda" };
+    NAV_MAIS = { conta: 1, ajuda: 1, consultorias: 1, pensamentos: 1, ritual: 1 }; BARRA_SECAO = { aquecimento: "temporada", desafio: "temporada", desafios: "temporada", planejamento: "temporada" };
   }
   var ultimaCasca = { logado: false, rota: "" };
   function atualizarCasca(logado, rota) {
@@ -2740,7 +2740,7 @@
         (itens.length ? '<ul class="pens-lista" aria-label="Pensamentos no papel">' + papeis() + "</ul>" : '<p class="nota" style="margin-top:12px">Nenhum pensamento no papel ainda.</p>') + "</section>" +
         '<div class="acoes"><button type="button" class="btn btn-laranja btn-grande" id="pensSoltar"' + (itens.length ? "" : " disabled") + ">Soltar tudo e entrar em quadra</button></div>" +
         '<p class="nota" style="margin-top:12px">Saindo desta tela, os pensamentos também se vão. Não existe cópia.</p>' +
-        '<div class="cartao" style="margin-top:14px"><h2>Quer o ritual completo?</h2><p class="nota" style="margin-top:6px">Dez minutos guiados com respiração, intenção e ativação, antes de entrar em quadra.</p><div class="acoes"><a class="btn btn-secundario" href="ritual.html">Fazer o ritual pré-jogo</a></div></div>');
+        '<div class="cartao" style="margin-top:14px"><h2>Quer o ritual completo?</h2><p class="nota" style="margin-top:6px">Dez minutos guiados com respiração, intenção e ativação, antes de entrar em quadra.</p><div class="acoes"><a class="btn btn-secundario" href="#/ritual">Fazer o ritual pré-jogo</a></div></div>');
       var txt = document.getElementById("pensTxt");
       function adicionar() { var t = txt.value.trim(); if (!t) return; itens.push(t.slice(0, 200)); desenhar(); document.getElementById("pensTxt").focus(); }
       document.getElementById("pensAdd").addEventListener("click", adicionar);
@@ -2764,6 +2764,141 @@
       }, curto ? 200 : 2600);
     }
     desenhar();
+  }
+  /* Ritual pré-jogo: cinco passos guiados (corpo, respiração 4-6, soltar, intenção, ativar), com som, vibração e tela acesa.
+     Nada é salvo: a intenção só existe na memória desta tela. */
+  function telaRitual() {
+    var P = [
+      { id: 1, curto: "Chegar", nome: "Chegar ao corpo", min: 2, seg: 120, tipo: "timer", por: "Antes da cabeça, o corpo. Você está tirando a mente do modo pensamento e trazendo para o modo corpo, que é onde o tênis acontece.", como: "Sente-se com os dois pés apoiados no chão. Percorra o corpo com a atenção: pés, pernas, quadril, tronco, ombros, mãos, rosto. Onde encontrar tensão desnecessária, como ombros subidos ou mandíbula travada, solte na expiração." },
+      { id: 2, curto: "Acalmar", nome: "Acalmar o sistema", min: 3, seg: 180, tipo: "resp46", por: "A ansiedade pré-jogo é normal. A ideia não é eliminá-la, é não deixá-la conduzir. A respiração é o controle mais direto que você tem.", como: "Inspire em 4 tempos, expire em 6, mais longo. Se a cabeça for para o resultado, para o adversário ou para o ranking, volte para a contagem. A expiração longa é o freio natural do corpo." },
+      { id: 3, curto: "Soltar", nome: "Soltar o que não é deste jogo", min: 2, seg: 120, tipo: "timer", link: true, por: "O jogo passado, a expectativa dos outros, o que aconteceu na semana. Nada disso entra em quadra com você.", como: "Traga à mente o que está pesando: uma derrota recente, uma cobrança, um medo. Reconheça: “isso está aqui”. A cada expiração, imagine deixando cada uma dessas coisas do lado de fora. Tudo passa, inclusive o que passou." },
+      { id: 4, curto: "Definir", nome: "Definir a intenção", min: 2, seg: 120, tipo: "intencao", por: "Não uma meta de resultado, mas uma intenção de processo: algo que depende só de você e que você controla por inteiro.", como: "Uma só. Se você tem três intenções, não tem nenhuma. Esta partida acontece uma vez só, e você escolhe como quer jogá-la." },
+      { id: 5, curto: "Ativar", nome: "Ativar e entrar", min: 1, seg: 60, tipo: "ativar", por: "Sair do estado calmo para o estado de jogo: desperto, solto, pronto. Calma não é lentidão.", como: "Três respirações ativas, em tempos iguais. Sacuda os braços e as pernas, role os ombros. Sinta o corpo acordar. Ao levantar, lembre da sua intenção, só dela. Entre solto, confiando no treino, sem forçar." }
+    ];
+    var SUG = ["jogar cada ponto até o fim", "respirar entre os pontos", "manter os pés se movendo", "soltar o braço no saque", "olhar a bola até o contato", "rotina completa antes de cada saque"], CURTO = [2, 4, 5];
+    var seq = [], idx = 0, intencao = "", tint = null, rodando = false, tmos = [], wl = null, AC = null, somLigado = true, audioOk = false;
+    try { somLigado = localStorage.getItem("ql_ritual_som") !== "off"; } catch (e) { /* sem armazenamento: som ligado */ }
+    function $(id) { return document.getElementById(id); }
+    function fmt(n) { return Math.floor(n / 60) + ":" + ("0" + (n % 60)).slice(-2); }
+    function atual() { return P.filter(function (x) { return x.id === seq[idx]; })[0]; }
+    function limpar() { if (tint) { clearInterval(tint); tint = null; } tmos.forEach(clearTimeout); tmos = []; rodando = false; if (wl) { try { wl.release(); } catch (e) { /* já liberado */ } wl = null; } }
+    function agendar(fn, ms) { tmos.push(setTimeout(fn, ms)); }
+    function sair() { limpar(); window.removeEventListener("hashchange", sair); document.removeEventListener("visibilitychange", voltou); if (AC) { try { AC.close(); } catch (e) { /* ok */ } AC = null; } }
+    function voltou() { if (!document.hidden) { destravar(); if (rodando) acordar(); } }
+    window.addEventListener("hashchange", sair); document.addEventListener("visibilitychange", voltou);
+    function criarAC() { if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { AC = null; } } return AC; }
+    function destravar() {
+      var c = criarAC(); if (!c) return;
+      if (c.state === "suspended") c.resume().catch(function () { /* sem gesto ainda */ });
+      if (!audioOk) { try { var b = c.createBuffer(1, 1, 22050), src = c.createBufferSource(); src.buffer = b; src.connect(c.destination); src.start(0); audioOk = true; } catch (e) { /* ok */ } }
+    }
+    function tom(f, d, v) {
+      if (!somLigado) return; var c = criarAC(); if (!c) return;
+      if (c.state === "suspended") c.resume().catch(function () { /* ok */ });
+      try { var o = c.createOscillator(), g = c.createGain(), t = c.currentTime; o.type = "sine"; o.frequency.value = f; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v || 0.2, t + 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t + (d || 0.6)); o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + (d || 0.6) + 0.05); } catch (e) { /* ok */ }
+    }
+    function vib(pad) { if (!somLigado) return; try { if (navigator.vibrate) navigator.vibrate(pad); } catch (e) { /* ok */ } }
+    var S = {
+      inspira: function () { tom(528, 0.45, 0.2); vib(40); }, expira: function () { tom(396, 0.55, 0.17); vib(28); }, metade: function () { tom(440, 0.5, 0.16); vib(60); }, passo: function () { tom(660, 0.35, 0.18); vib(35); },
+      fim: function () { tom(528, 0.7, 0.22); agendar(function () { tom(660, 0.7, 0.2); }, 420); agendar(function () { tom(792, 1, 0.18); }, 840); vib([90, 110, 90, 110, 200]); }
+    };
+    function acordar() { try { if ("wakeLock" in navigator && !wl) navigator.wakeLock.request("screen").then(function (l) { wl = l; l.addEventListener("release", function () { wl = null; }); }).catch(function () { wl = null; }); } catch (e) { wl = null; } }
+    function botaoSom() { return '<button type="button" class="btn btn-texto btn-pequeno rit-som" id="ritSom" aria-pressed="' + somLigado + '">' + (somLigado ? "Som ligado" : "Som desligado") + "</button>"; }
+    function ligarSom() { var b = $("ritSom"); if (b) b.addEventListener("click", function () { somLigado = !somLigado; try { localStorage.setItem("ql_ritual_som", somLigado ? "on" : "off"); } catch (e) { /* ok */ } b.textContent = somLigado ? "Som ligado" : "Som desligado"; b.setAttribute("aria-pressed", String(somLigado)); if (somLigado) { destravar(); agendar(S.passo, 80); } }); }
+
+    function intro() {
+      limpar();
+      tela('<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/pensamentos">‹ Pensamentos antes do jogo</a></p><h1>Ritual pré-jogo</h1>' +
+        '<p class="sub">Dez minutos para entrar em quadra presente, solto e com uma intenção clara. A partida não começa no primeiro saque: começa em como você chega até ele.</p>' +
+        '<div class="cartao rit-dados"><div><b>10 min</b><span>no total</span></div><div><b>5</b><span>passos</span></div><div><b>1</b><span>intenção</span></div></div>' +
+        '<div class="acoes"><button type="button" class="btn btn-laranja btn-grande" id="ritCompleto">Ritual completo · 10 min</button><button type="button" class="btn btn-secundario btn-grande" id="ritCurto">Versão curta · 3 min</button></div>' +
+        '<div class="acoes">' + botaoSom() + '<button type="button" class="btn btn-texto btn-pequeno" id="ritTestar">Testar o som</button></div>' +
+        '<p class="nota" id="ritNota" style="margin-top:12px">Faça depois do aquecimento físico, o mais perto possível da entrada em quadra. Os cronômetros avisam por som e vibração, então dá para fechar os olhos. A tela fica acesa durante os exercícios. Nada do que você escreve aqui é guardado.</p>');
+      ligarSom();
+      $("ritCompleto").addEventListener("click", function () { comecar([1, 2, 3, 4, 5]); });
+      $("ritCurto").addEventListener("click", function () { comecar(CURTO); });
+      $("ritTestar").addEventListener("click", function () {
+        destravar(); if (!somLigado) { $("ritNota").textContent = "O som está desligado. Toque em “Som desligado” para ativar."; return; }
+        S.fim(); var ios = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        agendar(function () { $("ritNota").textContent = ios ? "Ouviu três tons? Se não, verifique a chavinha lateral do iPhone: no modo silencioso o navegador não emite som. O iPhone também não vibra pelo navegador." : "Ouviu três tons? Se não, verifique o volume do aparelho e se a aba não está silenciada."; }, 1400);
+      });
+    }
+    function comecar(lista) { seq = lista; idx = 0; intencao = ""; destravar(); passo(); }
+    function passo() {
+      limpar(); var p = atual();
+      var mapa = seq.map(function (id, i) { var q = P.filter(function (x) { return x.id === id; })[0]; return '<div class="rit-mp' + (i < idx ? " ok" : i === idx ? " atual" : "") + '"><i></i><span>' + esc(q.curto) + "</span></div>"; }).join("");
+      var miolo = "";
+      if (p.tipo === "timer") miolo = '<div class="rit-timer"><div class="rit-num" id="ritNum">' + fmt(p.seg) + '</div><div class="rit-lbl" id="ritLbl">toque em começar</div></div>';
+      else if (p.tipo === "resp46" || p.tipo === "ativar") miolo = '<div class="rit-resp"><div class="rit-anel"><div class="rit-circ" id="ritCirc"></div></div><div class="rit-txt" id="ritTxt" aria-live="polite">pronto?</div><div class="rit-lbl" id="ritCont"></div></div>';
+      else miolo = '<div id="ritInt"><div class="campo"><label for="ritIn">A sua intenção</label><input id="ritIn" maxlength="80" autocomplete="off" value="' + esc(intencao) + '" placeholder="Escreva uma intenção de processo"></div>' +
+        '<p class="olho" style="margin-top:6px">Ou escolha uma</p><div class="sf-chips">' + SUG.map(function (t) { return '<button type="button" class="btn btn-secundario btn-pequeno" data-sug="' + esc(t) + '">' + esc(t) + "</button>"; }).join("") + "</div></div>" +
+        '<div class="rit-repita" id="ritRep" hidden><div class="rit-frase" id="ritFrase"></div><div class="rit-lbl" id="ritCnt" aria-live="polite"></div></div>';
+      var rot = { timer: "Começar", resp46: "Guiar a respiração", intencao: "Repetir três vezes", ativar: "Ativar" }[p.tipo];
+      tela('<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/ritual" id="ritVoltar">‹ Ritual pré-jogo</a></p><div class="rit-mapa">' + mapa + "</div>" +
+        '<p class="olho">Passo ' + (idx + 1) + " de " + seq.length + " · " + p.min + ' min</p><h1 style="margin-top:4px">' + esc(p.nome) + '</h1><p class="sub">' + esc(p.por) + "</p>" +
+        '<div class="cartao rit-como"><p>' + esc(p.como) + "</p>" + (p.link ? '<p style="margin-top:10px"><a href="#/pensamentos" target="_blank" rel="noopener">Escrever e soltar os pensamentos</a></p>' : "") + "</div>" + miolo +
+        '<div class="acoes"><button type="button" class="btn btn-laranja btn-grande" id="ritAcao">' + rot + '</button><button type="button" class="btn btn-texto" id="ritPula">' + (idx === seq.length - 1 ? "Pular e entrar" : "Pular este passo") + "</button></div>" + '<div class="acoes">' + botaoSom() + "</div>");
+      ligarSom();
+      $("ritVoltar").addEventListener("click", function (e) { e.preventDefault(); intro(); });
+      $("ritAcao").addEventListener("click", function () { destravar(); if (p.tipo === "timer") rodarTimer(p.seg); else if (p.tipo === "resp46") resp46(p.seg); else if (p.tipo === "intencao") repetir(); else ativar(); });
+      $("ritPula").addEventListener("click", function () { if (p.tipo === "intencao") { var v = $("ritIn").value.trim(); if (v) intencao = v; } avancar(); });
+      app.querySelectorAll("[data-sug]").forEach(function (b) { b.addEventListener("click", function () { $("ritIn").value = b.getAttribute("data-sug"); }); });
+    }
+    function travar() { var b = $("ritAcao"); b.disabled = true; b.style.opacity = ".45"; }
+    function avancar() {
+      limpar();
+      if (idx < seq.length - 1) { idx++; passo(); return; }
+      tela('<div class="rit-fim" role="status"><h1>Entre.</h1><p class="sub">Você já fez o trabalho. Agora é jogar.</p><div class="cartao rit-int"><p class="olho">Sua intenção</p><p class="rit-frase">' + esc(intencao || "—") + "</p></div>" +
+        '<div class="cartao"><p class="olho">Durante o jogo</p><ul class="rit-sanshin"><li><b>Respirar</b> uma respiração funda. Sai do automático.</li><li><b>Resetar</b> o ponto que passou já era. Deixe ir.</li><li><b>Decidir</b> uma intenção simples para o próximo ponto.</li></ul></div>' +
+        '<p class="nota">Este ritual não garante vitória. Garante que você entre inteiro, e isso é o que você controla.</p><div class="acoes" style="justify-content:center"><a class="btn btn-laranja btn-grande" href="#/inicio">Voltar ao app</a><button type="button" class="btn btn-secundario" id="ritRefazer">Refazer</button></div></div>');
+      $("ritRefazer").addEventListener("click", function () { intencao = ""; intro(); });
+    }
+    function rodarTimer(seg) {
+      if (rodando) return; rodando = true; acordar(); travar();
+      var fim = Date.now() + seg * 1000, metade = Math.floor(seg / 2), ult = seg, jaM = false, ja10 = false;
+      $("ritLbl").textContent = "em andamento"; S.passo();
+      function tick() {
+        var rest = Math.max(0, Math.round((fim - Date.now()) / 1000));
+        if (rest !== ult) { ult = rest; $("ritNum").textContent = fmt(rest); }
+        if (!jaM && rest <= metade && rest > 0) { jaM = true; S.metade(); $("ritLbl").textContent = "metade"; }
+        if (!ja10 && rest <= 10 && rest > 0) { ja10 = true; $("ritLbl").textContent = "últimos 10 segundos"; }
+        if (rest <= 0) { clearInterval(tint); tint = null; $("ritNum").textContent = "0:00"; $("ritLbl").textContent = "concluído"; S.fim(); agendar(avancar, 1600); }
+      }
+      tint = setInterval(tick, 250); tick();
+    }
+    function resp46(total) {
+      if (rodando) return; rodando = true; acordar(); travar();
+      var c = $("ritCirc"), t = $("ritTxt"), k = $("ritCont"), CICLO = 10000, INSP = 4000, inicio = Date.now() + 900, fim = inicio + total * 1000, fase = null, cic = 0;
+      t.textContent = "vamos";
+      tint = setInterval(function () {
+        var agora = Date.now(); if (agora < inicio) return;
+        if (agora >= fim) { clearInterval(tint); tint = null; t.textContent = "pronto"; k.textContent = ""; c.style.transition = "transform 1s ease"; c.style.transform = "scale(1)"; S.fim(); agendar(avancar, 1500); return; }
+        var dec = agora - inicio, ciclo = Math.floor(dec / CICLO) + 1, f = dec % CICLO < INSP ? "in" : "out";
+        if (f !== fase || ciclo !== cic) {
+          fase = f; cic = ciclo;
+          if (f === "in") { t.textContent = "inspire"; k.textContent = "4 tempos · ciclo " + ciclo; S.inspira(); c.style.transition = "transform 4s cubic-bezier(.4,0,.5,1)"; c.style.transform = "scale(2.3)"; }
+          else { t.textContent = "expire devagar"; k.textContent = "6 tempos"; S.expira(); c.style.transition = "transform 6s cubic-bezier(.4,0,.5,1)"; c.style.transform = "scale(1)"; }
+        }
+      }, 200);
+    }
+    function ativar() {
+      if (rodando) return; rodando = true; acordar(); travar();
+      var c = $("ritCirc"), t = $("ritTxt"), k = $("ritCont"), i = 0;
+      function um() {
+        if (i >= 3) { t.textContent = "agora é jogar"; k.textContent = ""; c.style.transition = "transform .8s ease"; c.style.transform = "scale(1)"; S.fim(); agendar(avancar, 1700); return; }
+        i++; t.textContent = "inspire"; k.textContent = i + " de 3"; S.inspira(); c.style.transition = "transform 3s ease-in-out"; c.style.transform = "scale(2.1)";
+        agendar(function () { t.textContent = "expire"; S.expira(); c.style.transition = "transform 3s ease-in-out"; c.style.transform = "scale(1)"; agendar(um, 3000); }, 3000);
+      }
+      t.textContent = "mais ativo agora"; agendar(um, 800);
+    }
+    function repetir() {
+      var v = $("ritIn").value.trim(); if (!v) { $("ritIn").focus(); return; }
+      intencao = v; $("ritInt").hidden = true; $("ritRep").hidden = false; $("ritFrase").textContent = "“" + v + "”"; travar();
+      var i = 0;
+      function um() { if (i >= 3) { $("ritCnt").textContent = "definida"; S.fim(); agendar(avancar, 1500); return; } i++; $("ritCnt").textContent = i + " de 3"; S.passo(); agendar(um, 2200); }
+      $("ritCnt").textContent = "repita mentalmente"; agendar(um, 900);
+    }
+    intro();
   }
   function telaAquecimento() {
     var de = origemDaUrl();
@@ -4527,6 +4662,7 @@
     else if (r === "treino" && partes[1] && partes[2]) telaTreino(partes[1], partes[2]);
     else if (r === "treinos" || r === "treino") telaTreinos();
     else if (MODO_COMP && r === "pensamentos") telaPensamentos();
+    else if (MODO_COMP && r === "ritual") telaRitual();
     else if (r === "aquecimento") telaAquecimento();
     else if (r === "desafios") telaDesafios();
     else if (r === "desafio") { if (partes[1]) telaDesafioDia(partes[1]); else telaDesafio(); }

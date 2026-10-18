@@ -98,6 +98,16 @@ window.firebase={initializeApp:function(){},auth:function(){return a}};})();`;
   await pg.screenshot({ path: path.join(saida, "pensamentos-limpo.png") });
   const guardado = await pg.evaluate(() => JSON.stringify([localStorage, sessionStorage]) + document.cookie);
   assert.ok(!guardado.includes("segredo-muito-especifico-123") && !JSON.stringify(store).includes("segredo-muito-especifico-123"), "nada guardado no aparelho nem no servidor");
+  /* Ritual pré-jogo dentro do app: versão curta, intenção só em memória */
+  await pg.goto(base + "/competicao/#/ritual", { waitUntil: "networkidle" }); await pg.waitForSelector("#ritCurto");
+  await pg.click("#ritCurto"); await pg.waitForSelector("#ritAcao");
+  assert.ok((await pg.textContent("h1")).includes("Acalmar"), "versão curta começa em Acalmar");
+  await pg.click("#ritPula"); await pg.waitForSelector("#ritIn"); await pg.fill("#ritIn", "olhar a bola até o contato"); await pg.screenshot({ path: path.join(saida, "ritual-intencao.png") });
+  await pg.click("#ritPula"); await pg.waitForFunction(() => /Ativar/.test(document.querySelector("h1").textContent));
+  await pg.click("#ritPula"); await pg.waitForSelector(".rit-fim");
+  assert.ok((await pg.textContent(".rit-int")).includes("olhar a bola até o contato"), "a intenção aparece no fim");
+  await pg.screenshot({ path: path.join(saida, "ritual-fim.png") });
+  assert.ok(!(await pg.evaluate(() => JSON.stringify([localStorage, sessionStorage]))).includes("olhar a bola"), "a intenção não é guardada");
   /* aba Recomendações: campo aberto para recomendar o que quiser */
   await pg.goto(base + "/competicao/#/recomendacoes", { waitUntil: "networkidle" }); await pg.waitForSelector(".rec-form textarea");
   assert.ok((await pg.textContent("body")).includes("Recomende o que quiser ao seu atleta"));
