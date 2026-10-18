@@ -8735,6 +8735,77 @@ function TelaAdversarios({ aluno, alunos, setAlunos }) {
 
 function ChaveRascunho(alunoId) { return "scout-rascunho:" + alunoId; }
 
+/* Scout ao vivo para a família: o resumo público (mesmo recorte do link comum) é reenviado a cada ponto marcado, e a página dos pais
+   se atualiza sozinha. O token nasce no servidor; revogar apaga o documento e a página passa a responder "encerrado". */
+async function chamarAoVivo(corpo) {
+  if (!window.mtyAuth || !window.mtyAuth.usuario()) throw Object.assign(new Error("Entre com sua conta da academia para compartilhar ao vivo."), { status: 401 });
+  const token = await window.mtyAuth.tokenId();
+  const r = await fetch("/.netlify/functions/scout-ao-vivo", {
+    method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + token }, body: JSON.stringify(corpo),
+  });
+  const c = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(c.erro || ("Erro " + r.status)), { status: r.status });
+  return c;
+}
+function resumoAoVivo(aluno, cfg, pontos, placar) {
+  const r = resume(pontos);
+  const sets = placar.sets.map((x) => x[0] + "-" + x[1]);
+  if (!placar.fim && (placar.g[0] || placar.g[1])) sets.push(placar.g[0] + "-" + placar.g[1]);
+  return montarResumoPublico({
+    data: new Date().toISOString().slice(0, 10), torneio: cfg.torneio || "", resultado: sets.join(" "), concluida: !!placar.fim,
+    scout: { ...r, pontos, cfg: { formato: cfg.formato, saca: cfg.saca, semVantagem: !!cfg.semVantagem, superTiebreakDecisivo: !!cfg.superTiebreakDecisivo } },
+  }, aluno);
+}
+function CartaoAoVivo({ aluno, cfg, pontos, placar, aoVivo, setAoVivo, estado, setEstado }) {
+  const [aviso, setAviso] = useState("");
+  const [ocupado, setOcupado] = useState(false);
+  const url = aoVivo ? location.origin + "/scout/?l=" + aoVivo.token : "";
+  async function iniciar() {
+    setOcupado(true); setAviso("");
+    try {
+      const c = await chamarAoVivo({ acao: "iniciar", resumo: resumoAoVivo(aluno, cfg, pontos, placar) });
+      setAoVivo({ token: c.token, expiraEm: c.expiraEm }); setEstado("ok");
+    } catch (e) { setAviso(e.message || "Não foi possível iniciar agora."); }
+    setOcupado(false);
+  }
+  async function parar() {
+    if (!confirm("Encerrar o acompanhamento ao vivo? A página da família deixa de abrir.")) return;
+    setOcupado(true);
+    try { await chamarAoVivo({ acao: "revogar", token: aoVivo.token }); } catch (e) { if (e.status !== 404) { setAviso(e.message || "Não foi possível encerrar agora."); setOcupado(false); return; } }
+    setAoVivo(null); setEstado(""); setOcupado(false); setAviso("Acompanhamento encerrado.");
+  }
+  async function copiar() {
+    try { await navigator.clipboard.writeText(url); setAviso("Link copiado. Cole na conversa com a família."); }
+    catch { setAviso("Não foi possível copiar. Selecione o link e copie manualmente."); }
+  }
+  return (
+    <div className="mt-3 mb-3" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "12px 14px" }}>
+      <Etiqueta>Acompanhamento ao vivo da família</Etiqueta>
+      {!aoVivo ? (
+        <>
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 6 }}>
+            Gera um link que se atualiza sozinho a cada ponto marcado. Aparecem só o primeiro nome do atleta, placar, momento do jogo, mapa e números; nunca o nome do adversário nem anotações. Vale 12 horas e até 2 horas depois do fim da partida.
+          </p>
+          <div className="mt-2"><Botao variante="vazio" pequeno onClick={iniciar} disabled={ocupado}>{ocupado ? "Gerando…" : "Gerar link ao vivo"}</Botao></div>
+        </>
+      ) : (
+        <>
+          <p style={{ ...prosa, fontSize: 12.5, color: estado === "erro" ? C.saibro : C.grafite, marginTop: 6 }}>
+            {estado === "erro" ? "Sem conexão com o link: tentando de novo. Os pontos continuam salvos neste aparelho." : estado === "enviando" ? "Atualizando a página da família…" : placar.fim ? "Partida encerrada: a família vê o resultado final." : "Ao vivo: a família vê cada ponto assim que você marca."}
+          </p>
+          <input readOnly value={url} onFocus={(e) => e.target.select()} aria-label="Link ao vivo para a família"
+            style={{ width: "100%", marginTop: 6, padding: "8px 10px", border: "1px solid " + C.linha, background: "#fff", fontSize: 12.5 }} />
+          <div className="flex gap-2 mt-2">
+            <Botao variante="vazio" pequeno onClick={copiar}>Copiar link</Botao>
+            <Botao variante="vazio" pequeno onClick={parar} disabled={ocupado}>Encerrar</Botao>
+          </div>
+        </>
+      )}
+      {aviso && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 6 }} role="status">{aviso}</p>}
+    </div>
+  );
+}
+
 function TelaScout({ aluno, alunos, setAlunos }) {
   const [fase, setFase] = useState("antes");
   const [cfg, setCfg] = useState({ adversario: "", torneio: "", formato: "3sets", saca: "nos", semVantagem: false, superTiebreakDecisivo: false });
@@ -8747,6 +8818,28 @@ function TelaScout({ aluno, alunos, setAlunos }) {
   const [estadoRascunho, setEstadoRascunho] = useState(null); // null | "salvo" | "erro"
   const [confirmadoEm, setConfirmadoEm] = useState(0);
   const processandoRef = useRef(false);
+  const [aoVivo, setAoVivo] = useState(null); // { token, expiraEm } quando o link ao vivo está aberto
+  const [aoVivoEstado, setAoVivoEstado] = useState(""); // "" | "enviando" | "ok" | "erro"
+  const [aoVivoTentativa, setAoVivoTentativa] = useState(0);
+
+  /* Reenvia o resumo 1,2 s depois do último ponto (agrupa toques seguidos). Em erro de rede tenta de novo em 6 s. */
+  useEffect(() => {
+    if (!aoVivo || !placar) return undefined;
+    let vivo = true;
+    const t = setTimeout(async () => {
+      try {
+        setAoVivoEstado("enviando");
+        await chamarAoVivo({ acao: "atualizar", token: aoVivo.token, resumo: resumoAoVivo(aluno, cfg, pontos, placar), fim: !!placar.fim || fase === "depois" });
+        if (vivo) setAoVivoEstado("ok");
+      } catch (e) {
+        if (!vivo) return;
+        if (e.status === 404 || e.status === 410) { setAoVivo(null); setAoVivoEstado(""); return; }
+        setAoVivoEstado("erro");
+        setTimeout(() => { if (vivo) setAoVivoTentativa((n) => n + 1); }, 6000);
+      }
+    }, 1200);
+    return () => { vivo = false; clearTimeout(t); };
+  }, [aoVivo && aoVivo.token, pontos, placar, fase, aoVivoTentativa]);
 
   useEffect(() => {
     try {
@@ -8758,10 +8851,10 @@ function TelaScout({ aluno, alunos, setAlunos }) {
   useEffect(() => {
     if (fase !== "durante" && fase !== "depois") return;
     try {
-      localStorage.setItem(ChaveRascunho(aluno.id), JSON.stringify({ cfg, placar, pontos, pilha, fase }));
+      localStorage.setItem(ChaveRascunho(aluno.id), JSON.stringify({ cfg, placar, pontos, pilha, fase, aoVivo }));
       setEstadoRascunho("salvo");
     } catch { setEstadoRascunho("erro"); }
-  }, [fase, cfg, placar, pontos, pilha, aluno.id]);
+  }, [fase, cfg, placar, pontos, pilha, aoVivo, aluno.id]);
 
   function limparRascunhoSalvo() {
     try { localStorage.removeItem(ChaveRascunho(aluno.id)); } catch { /* nada a fazer se não existir */ }
@@ -8776,6 +8869,7 @@ function TelaScout({ aluno, alunos, setAlunos }) {
     setPontos(rascunhoSalvo.pontos);
     setPilha(rascunhoSalvo.pilha || []);
     setFase(rascunhoSalvo.fase);
+    if (rascunhoSalvo.aoVivo && Date.parse(rascunhoSalvo.aoVivo.expiraEm) > Date.now()) setAoVivo(rascunhoSalvo.aoVivo);
     setRascunhoSalvo(null);
   }
 
@@ -8783,6 +8877,7 @@ function TelaScout({ aluno, alunos, setAlunos }) {
     setPlacar(placarInicial(cfg.formato, cfg.saca, cfg.semVantagem, cfg.superTiebreakDecisivo));
     setPontos([]);
     setPilha([]);
+    setAoVivo(null); setAoVivoEstado("");
     setFase("durante");
   }
 
@@ -8978,6 +9073,8 @@ function TelaScout({ aluno, alunos, setAlunos }) {
       {confirmacaoVisivel && (
         <div className="mt-2 mb-2" style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, color: C.quadra }}>✓ Ponto registrado</div>
       )}
+
+      {window.mtyAuth && <CartaoAoVivo aluno={aluno} cfg={cfg} pontos={pontos} placar={placar} aoVivo={aoVivo} setAoVivo={setAoVivo} estado={aoVivoEstado} setEstado={setAoVivoEstado} />}
 
       {placar.fim && (
         <Aviso>
@@ -9208,11 +9305,19 @@ function MomentoDoJogo({ pontos, cfg }) {
           ))}
         </div>
       )}
-      <div role="img" aria-label={"Gráfico do momento do jogo. " + resumoTexto} style={{ height: 200, marginLeft: -14 }}>
+      <div role="img" aria-label={"Gráfico do momento do jogo. " + resumoTexto} style={{ height: 230, marginLeft: -14 }}>
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={visivel} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-            <CartesianGrid vertical={false} stroke={C.linha} />
-            <XAxis dataKey="n" tick={{ fontSize: 9, fontFamily: ARCH, fill: C.grafite }} tickLine={false} minTickGap={24} />
+            <defs>
+              <linearGradient id="momPos" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={azul} stopOpacity={0.45} /><stop offset="1" stopColor={azul} stopOpacity={0.03} /></linearGradient>
+              <linearGradient id="momNeg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={vermelho} stopOpacity={0.03} /><stop offset="1" stopColor={vermelho} stopOpacity={0.42} /></linearGradient>
+            </defs>
+            <CartesianGrid vertical={false} stroke={C.linha} strokeDasharray="2 4" />
+            {seq.melhor.tam >= 4 && <ReferenceArea x1={seq.melhor.ini} x2={seq.melhor.fim} fill={azul} fillOpacity={0.08} stroke="none"
+              label={{ value: seq.melhor.tam + " seguidos", position: "insideTop", fontSize: 10, fontWeight: 700, fontFamily: ARCH, fill: azul }} />}
+            {seq.pior.tam >= 4 && <ReferenceArea x1={seq.pior.ini} x2={seq.pior.fim} fill={vermelho} fillOpacity={0.08} stroke="none"
+              label={{ value: seq.pior.tam + " seguidos", position: "insideBottom", fontSize: 10, fontWeight: 700, fontFamily: ARCH, fill: vermelho }} />}
+            <XAxis dataKey="n" tick={{ fontSize: 9, fontFamily: ARCH, fill: C.grafite }} tickLine={false} axisLine={false} minTickGap={24} />
             <YAxis domain={[-JANELA_MOMENTO, JANELA_MOMENTO]} ticks={[-JANELA_MOMENTO, 0, JANELA_MOMENTO]} tick={{ fontSize: 9, fontFamily: ARCH, fill: C.grafite }} width={32}
               tickFormatter={(v) => (v > 0 ? "+" + v : v)} />
             <ReferenceLine y={0} stroke={C.grafite} />
@@ -9232,8 +9337,8 @@ function MomentoDoJogo({ pontos, cfg }) {
                   </div>
                 );
               }} />
-            <Area type="monotone" dataKey="pos" stroke={azul} strokeWidth={2} fill={azul} fillOpacity={0.22} isAnimationActive={false} dot={false} />
-            <Area type="monotone" dataKey="neg" stroke={vermelho} strokeWidth={2} fill={vermelho} fillOpacity={0.2} isAnimationActive={false} dot={false} />
+            <Area type="monotone" dataKey="pos" stroke={azul} strokeWidth={2.6} fill="url(#momPos)" isAnimationActive={false} dot={false} activeDot={{ r: 5, strokeWidth: 2, stroke: azul, fill: "#fff" }} />
+            <Area type="monotone" dataKey="neg" stroke={vermelho} strokeWidth={2.6} fill="url(#momNeg)" isAnimationActive={false} dot={false} activeDot={{ r: 5, strokeWidth: 2, stroke: vermelho, fill: "#fff" }} />
           </ComposedChart>
         </ResponsiveContainer>
       </div>

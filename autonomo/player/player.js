@@ -3121,22 +3121,77 @@
     });
     return { melhor: melhor, pior: pior };
   }
-  function scMomentoSvg(lista, inicios) {
-    var W = 600, H = 220, pl = 34, pr = 10, pt = 12, pb = 24, n = lista.length, J = SC_JANELA;
+  /* ── gráfico do momento do jogo ──
+     Curva suave do saldo dos últimos 6 pontos, com preenchimento em degradê acima (a favor) e abaixo (contra) da linha de zero,
+     faixas nas maiores sequências, divisões por set e um cursor que acompanha o dedo ou o mouse. Só usa os pontos coletados. */
+  var MOM_J = 6, momUid = 0;
+  function momSuave(pts) {
+    var d = "M" + pts[0][0].toFixed(1) + " " + pts[0][1].toFixed(1);
+    for (var i = 0; i < pts.length - 1; i++) {
+      var p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+      d += " C" + (p1[0] + (p2[0] - p0[0]) / 6).toFixed(1) + " " + (p1[1] + (p2[1] - p0[1]) / 6).toFixed(1) + " " + (p2[0] - (p3[0] - p1[0]) / 6).toFixed(1) + " " + (p2[1] - (p3[1] - p1[1]) / 6).toFixed(1) + " " + p2[0].toFixed(1) + " " + p2[1].toFixed(1);
+    }
+    return d;
+  }
+  function momentoGrafico(alvo, lista, inicios, opt) {
+    opt = opt || {};
+    var W = 600, H = 250, pl = 30, pr = 14, pt = 28, pb = 26, J = MOM_J, n = lista.length, id = "mg" + (++momUid);
+    var POS = opt.pos || "#0F7A4A", NEG = opt.neg || "#D23B3B", nome = String(opt.nome || "o atleta").replace(/[&<>"']/g, function (c) { return "&#" + c.charCodeAt(0) + ";"; });
     function x(i) { return pl + (n <= 1 ? 0 : (i / (n - 1)) * (W - pl - pr)); }
     function y(m) { return pt + (J - m) / (2 * J) * (H - pt - pb); }
-    var o = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Gráfico do momento do jogo, ponto a ponto" class="sc-grafico">';
-    [-J, 0, J].forEach(function (v) { o += '<line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + y(v) + '" y2="' + y(v) + '" stroke="' + (v === 0 ? "#5A6373" : "#E4DFD3") + '" stroke-width="' + (v === 0 ? 1.5 : 1) + '"/><text x="' + (pl - 6) + '" y="' + (y(v) + 4) + '" text-anchor="end" font-size="11" fill="#5A6373">' + (v > 0 ? "+" + v : v) + "</text>"; });
-    function area(cor, pos) {
-      var d = "M" + x(0) + " " + y(0);
-      lista.forEach(function (p, i) { d += " L" + x(i) + " " + y(pos ? Math.max(p.mom, 0) : Math.min(p.mom, 0)); });
-      return '<path d="' + d + " L" + x(n - 1) + " " + y(0) + ' Z" fill="' + cor + '" fill-opacity="0.22" stroke="' + cor + '" stroke-width="2" stroke-linejoin="round"/>';
-    }
-    o += area("#002418", true) + area("#C8102E", false);
-    inicios.forEach(function (it) { if (it.i > 0 && it.i < n) o += '<line x1="' + x(it.i) + '" x2="' + x(it.i) + '" y1="' + pt + '" y2="' + (H - pb) + '" stroke="#5A6373" stroke-dasharray="4 3"/><text x="' + (x(it.i) + 4) + '" y="' + (pt + 10) + '" font-size="11" fill="#5A6373">Set ' + (it.set + 1) + "</text>"; });
+    var y0 = y(0), pts = lista.map(function (p, i) { return [x(i), y(p.mom)]; }), linha = momSuave(pts);
+    var area = linha + " L" + x(n - 1).toFixed(1) + " " + y0.toFixed(1) + " L" + x(0).toFixed(1) + " " + y0.toFixed(1) + " Z";
+    var larg = W - pl - pr, ultimo = lista[n - 1], corUlt = ultimo.mom >= 0 ? POS : NEG;
+    var o = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Gráfico do momento do jogo, ponto a ponto" style="display:block;width:100%;height:auto;touch-action:pan-y">' +
+      "<defs>" +
+      '<linearGradient id="' + id + 'p" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + POS + '" stop-opacity=".45"/><stop offset="1" stop-color="' + POS + '" stop-opacity=".03"/></linearGradient>' +
+      '<linearGradient id="' + id + 'n" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + NEG + '" stop-opacity=".03"/><stop offset="1" stop-color="' + NEG + '" stop-opacity=".42"/></linearGradient>' +
+      '<clipPath id="' + id + 'c"><rect x="' + pl + '" y="' + pt + '" width="' + larg + '" height="' + (y0 - pt) + '"/></clipPath>' +
+      '<clipPath id="' + id + 'b"><rect x="' + pl + '" y="' + y0 + '" width="' + larg + '" height="' + (H - pb - y0) + '"/></clipPath></defs>';
+    [-J / 2, J / 2].forEach(function (v) { o += '<line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + y(v) + '" y2="' + y(v) + '" stroke="#E3E8E5" stroke-dasharray="2 4"/>'; });
+    /* faixas das maiores sequências */
+    var bandas = [], at = null, mel = { tam: 0 }, pio = { tam: 0 };
+    lista.forEach(function (p, i) {
+      if (at && at.nos === p.nos) at.tam++; else at = { nos: p.nos, tam: 1, ini: i };
+      at.fim = i;
+      var alvoSeq = p.nos ? mel : pio;
+      if (at.tam > alvoSeq.tam) { alvoSeq.tam = at.tam; alvoSeq.ini = at.ini; alvoSeq.fim = at.fim; }
+    });
+    [[mel, POS, "a favor"], [pio, NEG, "contra"]].forEach(function (b) {
+      var s = b[0]; if (s.tam < 4) return;
+      var xa = x(s.ini), xb = x(s.fim), cx = (xa + xb) / 2, rot = s.tam + " seguidos", lw = rot.length * 5.6 + 14;
+      o += '<rect x="' + xa.toFixed(1) + '" y="' + pt + '" width="' + Math.max(xb - xa, 3).toFixed(1) + '" height="' + (H - pt - pb) + '" fill="' + b[1] + '" fill-opacity=".07"/>' +
+        '<rect x="' + (cx - lw / 2).toFixed(1) + '" y="' + (pt - 22) + '" width="' + lw.toFixed(1) + '" height="17" rx="8.5" fill="#fff" stroke="' + b[1] + '" stroke-opacity=".5"/>' +
+        '<text x="' + cx.toFixed(1) + '" y="' + (pt - 10) + '" text-anchor="middle" font-size="10" font-weight="700" fill="' + b[1] + '">' + rot + "</text>";
+    });
+    o += '<path d="' + area + '" fill="url(#' + id + 'p)" clip-path="url(#' + id + 'c)"/><path d="' + area + '" fill="url(#' + id + 'n)" clip-path="url(#' + id + 'b)"/>' +
+      '<line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + y0 + '" y2="' + y0 + '" stroke="#5B6B63" stroke-opacity=".55" stroke-width="1.2"/>' +
+      '<path d="' + linha + '" fill="none" stroke="' + POS + '" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" clip-path="url(#' + id + 'c)"/>' +
+      '<path d="' + linha + '" fill="none" stroke="' + NEG + '" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" clip-path="url(#' + id + 'b)"/>';
+    [[J, "+" + J], [0, "0"], [-J, "−" + J]].forEach(function (v) { o += '<text x="' + (pl - 7) + '" y="' + (y(v[0]) + 3.5) + '" text-anchor="end" font-size="10" fill="#7A8580">' + v[1] + "</text>"; });
+    (inicios || []).forEach(function (it) {
+      if (it.i <= 0 || it.i >= n) return;
+      o += '<line x1="' + x(it.i).toFixed(1) + '" x2="' + x(it.i).toFixed(1) + '" y1="' + pt + '" y2="' + (H - pb) + '" stroke="#9AA6A0" stroke-dasharray="3 3"/><text x="' + (x(it.i) + 5).toFixed(1) + '" y="' + (H - pb - 6) + '" font-size="9.5" font-weight="700" letter-spacing=".08em" fill="#7A8580">SET ' + (it.set + 1) + "</text>";
+    });
     var passo = Math.max(1, Math.ceil(n / 6));
-    for (var i = 0; i < n; i += passo) o += '<text x="' + x(i) + '" y="' + (H - 6) + '" text-anchor="middle" font-size="11" fill="#5A6373">' + lista[i].n + "</text>";
-    return o + "</svg>";
+    for (var k = 0; k < n; k += passo) o += '<text x="' + x(k).toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle" font-size="10" fill="#7A8580">' + lista[k].n + "</text>";
+    o += (opt.aoVivo ? '<circle cx="' + x(n - 1).toFixed(1) + '" cy="' + y(ultimo.mom).toFixed(1) + '" r="5" fill="' + corUlt + '" fill-opacity=".35"><animate attributeName="r" values="5;11;5" dur="1.6s" repeatCount="indefinite"/><animate attributeName="fill-opacity" values=".4;0;.4" dur="1.6s" repeatCount="indefinite"/></circle>' : "") +
+      '<circle cx="' + x(n - 1).toFixed(1) + '" cy="' + y(ultimo.mom).toFixed(1) + '" r="4.2" fill="#fff" stroke="' + corUlt + '" stroke-width="2.4"/>' +
+      '<line class="mg-cur" y1="' + pt + '" y2="' + (H - pb) + '" stroke="#17251F" stroke-opacity=".5" style="display:none"/><circle class="mg-dot" r="4.8" fill="#fff" stroke="#17251F" stroke-width="2" style="display:none"/></svg>';
+    alvo.innerHTML = '<div style="position:relative">' + o + '<div class="mg-tip" hidden style="position:absolute;top:0;pointer-events:none;background:#fff;border:1px solid #DDE5E0;border-radius:10px;padding:6px 10px;font:12px/1.35 system-ui,sans-serif;color:#17251F;box-shadow:0 8px 22px rgba(0,0,0,.14);white-space:nowrap;z-index:2"></div></div>';
+    var svg = alvo.querySelector("svg"), tip = alvo.querySelector(".mg-tip"), cur = svg.querySelector(".mg-cur"), dot = svg.querySelector(".mg-dot");
+    function mover(ev) {
+      var r = svg.getBoundingClientRect(), vx = (ev.clientX - r.left) / r.width * W;
+      var i = Math.max(0, Math.min(n - 1, Math.round((vx - pl) / larg * (n - 1)))), p = lista[i];
+      cur.setAttribute("x1", x(i)); cur.setAttribute("x2", x(i)); cur.style.display = "";
+      dot.setAttribute("cx", x(i)); dot.setAttribute("cy", y(p.mom)); dot.style.display = "";
+      tip.innerHTML = "<b>Ponto " + p.n + (inicios && inicios.length ? " · Set " + (p.set + 1) : "") + "</b><br>" + (p.nos ? "Ponto de " + nome : "Ponto do adversário") + "<br>Momento: " + (p.mom > 0 ? "+" : p.mom < 0 ? "−" : "") + Math.abs(p.mom);
+      tip.hidden = false;
+      var px = x(i) / W * r.width, tw = tip.offsetWidth;
+      tip.style.left = Math.max(0, Math.min(r.width - tw, px - tw / 2)) + "px";
+    }
+    function sair() { cur.style.display = "none"; dot.style.display = "none"; tip.hidden = true; }
+    svg.addEventListener("pointermove", mover); svg.addEventListener("pointerdown", mover); svg.addEventListener("pointerleave", sair); svg.addEventListener("pointercancel", sair);
   }
   function scMapaHtml(z, atleta) {
     var total = 0; Object.keys(z || {}).forEach(function (k) { total += z[k].n; });
@@ -3257,7 +3312,7 @@
         if (abas) Array.prototype.forEach.call(abas.children, function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-v") === v)); });
         var lista = v === "todo" ? serie : serie.filter(function (x) { return String(x.set) === v; }), inicios = [];
         if (v === "todo") sets.slice(1).forEach(function (st) { for (var i = 0; i < serie.length; i++) if (serie[i].set === st) { inicios.push({ i: i, set: st }); break; } });
-        area.innerHTML = scMomentoSvg(lista, inicios);
+        momentoGrafico(area, lista, inicios, { pos: "#1242CC", neg: "#D23B3B", nome: rs.atleta });
         var sq = scSequencias(lista);
         resumoEl.textContent = "Do ponto " + lista[0].n + " ao " + lista[lista.length - 1].n + ": " + (sq.melhor.tam >= 3 ? "maior sequência a favor, " + sq.melhor.tam + " pontos seguidos (" + sq.melhor.ini + " a " + sq.melhor.fim + "). " : "sem sequência a favor de 3 pontos ou mais. ") +
           (sq.pior.tam >= 3 ? "Maior sequência contra, " + sq.pior.tam + " pontos seguidos (" + sq.pior.ini + " a " + sq.pior.fim + ")." : "Sem sequência contra de 3 pontos ou mais.");

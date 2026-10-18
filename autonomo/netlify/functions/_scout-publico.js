@@ -21,6 +21,7 @@ function limpar(p) {
   const zonas = {};
   for (const z of ZONAS) if (p.zonas && p.zonas[z]) zonas[z] = ob(p.zonas[z], ["n", "ganhos"]);
   return {
+    aoVivo: !!p.aoVivo, atualizadoEm: txt(p.atualizadoEm, 30),
     atleta: txt(p.atleta, 40), data: txt(p.data, 10), torneio: txt(p.torneio, 80), resultado: txt(p.resultado, 40), concluida: !!p.concluida,
     n: num(p.n), ganhos: num(p.ganhos), pctGanhos: num(p.pctGanhos),
     bolas: ob(p.bolas, ["pctCurtos", "pctMedios", "pctLongos", "pctAte4"]),
