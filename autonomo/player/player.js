@@ -1476,12 +1476,12 @@
      window.QL_MODO = "competicao" liga a navegação e a tela inicial próprias; no Player, as rotas da Competição apontam para lá. */
   var MODO_COMP = window.QL_MODO === "competicao";
   var ROTAS_COMP = { competicao: 1, temporada: 1, preparo: 1, diario: 1, devolutivas: 1, focos: 1, scouts: 1, "ao-vivo": 1, pedidos: 1, acompanhamento: 1, recomendacoes: 1, treinos: 1 };
-  var ROTAS_APP_COMP = { "": 1, inicio: 1, competicao: 1, temporada: 1, planejamento: 1, acompanhamento: 1, preparo: 1, diario: 1, devolutivas: 1, focos: 1, scouts: 1, "ao-vivo": 1, pedidos: 1, recomendacoes: 1, treinos: 1, consultorias: 1, partidas: 1, aquecimento: 1, desafios: 1, conta: 1, ajuda: 1 };
+  var ROTAS_APP_COMP = { "": 1, inicio: 1, competicao: 1, temporada: 1, planejamento: 1, acompanhamento: 1, preparo: 1, diario: 1, devolutivas: 1, focos: 1, scouts: 1, "ao-vivo": 1, pedidos: 1, recomendacoes: 1, treinos: 1, consultorias: 1, partidas: 1, aquecimento: 1, desafios: 1, pensamentos: 1, conta: 1, ajuda: 1 };
   var PLAYER_BASE = "";
   var MARCA_APP = MODO_COMP ? "QuadraLab Competição" : "QuadraLab Player";
   if (MODO_COMP) {
-    NAV_DA_ROTA = { "": "inicio", inicio: "inicio", competicao: "inicio", temporada: "temporada", planejamento: "planejamento", acompanhamento: "acompanhamento", preparo: "temporada", aquecimento: "aquecimento", desafios: "desafios", desafio: "desafios", partidas: "partidas", diario: "diario", devolutivas: "inicio", focos: "inicio", scouts: "inicio", pedidos: "pedidos", recomendacoes: "recomendacoes", treinos: "treinos", consultorias: "consultorias", conta: "conta", ajuda: "ajuda" };
-    NAV_MAIS = { conta: 1, ajuda: 1, consultorias: 1 }; BARRA_SECAO = { aquecimento: "temporada", desafio: "temporada", desafios: "temporada", planejamento: "temporada" };
+    NAV_DA_ROTA = { "": "inicio", inicio: "inicio", competicao: "inicio", temporada: "temporada", planejamento: "planejamento", acompanhamento: "acompanhamento", preparo: "temporada", aquecimento: "aquecimento", desafios: "desafios", desafio: "desafios", pensamentos: "pensamentos", partidas: "partidas", diario: "diario", devolutivas: "inicio", focos: "inicio", scouts: "inicio", pedidos: "pedidos", recomendacoes: "recomendacoes", treinos: "treinos", consultorias: "consultorias", conta: "conta", ajuda: "ajuda" };
+    NAV_MAIS = { conta: 1, ajuda: 1, consultorias: 1, pensamentos: 1 }; BARRA_SECAO = { aquecimento: "temporada", desafio: "temporada", desafios: "temporada", planejamento: "temporada" };
   }
   var ultimaCasca = { logado: false, rota: "" };
   function atualizarCasca(logado, rota) {
@@ -2721,6 +2721,48 @@
     return '<div class="prep-grid"><section class="prep-card" aria-label="Aquecimento"><h3>Aquecimento</h3><p class="prep-desc">18 min para preparar o corpo.</p>' +
       '<p class="prep-info">Sem bola · Orientação por voz</p><a class="btn btn-laranja" href="' + hrefAquecimento(ctx) + '">Abrir aquecimento</a></section>' +
       '<section class="prep-card" aria-label="Desafios">' + cDes + "</section></div>";
+  }
+  /* Pensamentos antes do jogo: o atleta escreve o que o atrapalharia e, antes de entrar em quadra, solta tudo.
+     Nada é salvo em lugar nenhum (nem no aparelho, nem no servidor): os pensamentos só existem nesta tela e somem ao soltar ou ao sair. */
+  function telaPensamentos() {
+    var itens = [], soltando = false;
+    var SUGESTOES = ["E se eu errar?", "O resultado", "O adversário", "O que vão pensar", "Dor ou cansaço", "O ranking"];
+    function sair() { itens = []; window.removeEventListener("hashchange", sair); }
+    window.addEventListener("hashchange", sair);
+    function papeis() { return itens.map(function (t, i) { return '<li class="pens-papel" style="--i:' + i + '"><span>' + esc(t) + '</span><button type="button" class="pens-x" data-rm="' + i + '" aria-label="Tirar este pensamento do papel">×</button></li>'; }).join(""); }
+    function desenhar() {
+      tela('<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/inicio">‹ Início</a></p><h1>Pensamentos antes do jogo</h1>' +
+        '<p class="sub">Escreva o que está na sua cabeça e atrapalharia. Antes de entrar em quadra, você solta tudo. Nada fica guardado: nem aqui, nem com o seu treinador.</p>' +
+        '<section class="cartao pens-bloco" aria-labelledby="pensT"><h2 id="pensT">O que está pesando?</h2>' +
+        '<div class="pens-sug" role="group" aria-label="Ideias para começar">' + SUGESTOES.map(function (t) { return '<button type="button" class="btn btn-secundario btn-pequeno" data-sug="' + esc(t) + '">' + esc(t) + "</button>"; }).join("") + "</div>" +
+        '<div class="campo"><label for="pensTxt">Um pensamento por vez</label><textarea id="pensTxt" rows="2" maxlength="200" autocomplete="off" spellcheck="false" placeholder="Escreva e coloque no papel"></textarea></div>' +
+        '<div class="acoes"><button type="button" class="btn btn-secundario" id="pensAdd">Colocar no papel</button></div>' +
+        (itens.length ? '<ul class="pens-lista" aria-label="Pensamentos no papel">' + papeis() + "</ul>" : '<p class="nota" style="margin-top:12px">Nenhum pensamento no papel ainda.</p>') + "</section>" +
+        '<div class="acoes"><button type="button" class="btn btn-laranja btn-grande" id="pensSoltar"' + (itens.length ? "" : " disabled") + ">Soltar tudo e entrar em quadra</button></div>" +
+        '<p class="nota" style="margin-top:12px">Saindo desta tela, os pensamentos também se vão. Não existe cópia.</p>');
+      var txt = document.getElementById("pensTxt");
+      function adicionar() { var t = txt.value.trim(); if (!t) return; itens.push(t.slice(0, 200)); desenhar(); document.getElementById("pensTxt").focus(); }
+      document.getElementById("pensAdd").addEventListener("click", adicionar);
+      txt.addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); adicionar(); } });
+      app.querySelectorAll("[data-sug]").forEach(function (b) { b.addEventListener("click", function () { txt.value = b.getAttribute("data-sug") + ": "; txt.focus(); }); });
+      app.querySelectorAll("[data-rm]").forEach(function (b) { b.addEventListener("click", function () { itens.splice(+b.getAttribute("data-rm"), 1); desenhar(); }); });
+      document.getElementById("pensSoltar").addEventListener("click", soltar);
+    }
+    function soltar() {
+      if (soltando || !itens.length) return;
+      soltando = true;
+      var lista = app.querySelector(".pens-lista"), txt = document.getElementById("pensTxt");
+      if (txt) { txt.value = ""; txt.disabled = true; }
+      if (lista) lista.classList.add("pens-soltando");
+      var curto = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      setTimeout(function () {
+        itens = [];
+        window.removeEventListener("hashchange", sair);
+        tela('<div class="pens-limpo" role="status"><div class="pens-respira" aria-hidden="true"></div><h1>Cabeça limpa</h1><p class="sub">Tudo o que pesava foi solto e apagado. Não ficou nada guardado.</p>' +
+          '<p class="pens-frase">Respire fundo. Agora é só o próximo ponto.</p><div class="acoes" style="justify-content:center"><a class="btn btn-laranja btn-grande" href="#/inicio">Entrar em quadra</a></div></div>');
+      }, curto ? 200 : 2600);
+    }
+    desenhar();
   }
   function telaAquecimento() {
     var de = origemDaUrl();
@@ -4483,6 +4525,7 @@
     else if (r === "planejamento" && partes[1]) { if (partes[2]) telaTreino(partes[1], partes[2]); else telaPrograma(partes[1]); }
     else if (r === "treino" && partes[1] && partes[2]) telaTreino(partes[1], partes[2]);
     else if (r === "treinos" || r === "treino") telaTreinos();
+    else if (MODO_COMP && r === "pensamentos") telaPensamentos();
     else if (r === "aquecimento") telaAquecimento();
     else if (r === "desafios") telaDesafios();
     else if (r === "desafio") { if (partes[1]) telaDesafioDia(partes[1]); else telaDesafio(); }

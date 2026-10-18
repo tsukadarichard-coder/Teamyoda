@@ -274,3 +274,22 @@ body.comp .voz-aviso p { margin: 4px 0 0; }
 /* recomendação livre do treinador */
 .rec-form textarea{min-height:120px}
 .comp-dev-texto{white-space:pre-wrap}
+
+/* Pensamentos antes do jogo: escrever, soltar e apagar */
+.pens-sug { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
+.pens-lista { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; }
+.pens-papel { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; background: #FBF8F1; border: 1px solid #E6DFCE; border-radius: 4px 14px 4px 14px; padding: 10px 12px; box-shadow: 0 1px 0 rgba(0,0,0,.04); transform: rotate(calc((var(--i) - 1) * .5deg)); }
+.pens-papel span { overflow-wrap: anywhere; }
+.pens-x { flex: none; min-width: 32px; min-height: 32px; border: 0; background: transparent; font-size: 20px; line-height: 1; color: #6B6A63; cursor: pointer; }
+.pens-limpo { text-align: center; padding: 28px 8px; }
+.pens-frase { font-size: 18px; font-weight: 600; margin: 14px 0 20px; }
+.pens-respira { width: 96px; height: 96px; margin: 0 auto 18px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #E9F2EE, #9CC5B6); }
+@media (prefers-reduced-motion: no-preference) {
+  .pens-soltando .pens-papel { animation: pens-sobe 2.4s ease-in forwards; animation-delay: calc(var(--i) * .18s); }
+  .pens-respira { animation: pens-respira 8s ease-in-out infinite; }
+  .pens-limpo { animation: pens-entra 1.2s ease-out both; }
+}
+@keyframes pens-sobe { 0% { opacity: 1; filter: blur(0); transform: translateY(0) rotate(0); } 40% { opacity: .8; filter: blur(1px); } 100% { opacity: 0; filter: blur(8px); transform: translateY(-70px) scale(.92) rotate(-3deg); } }
+@keyframes pens-respira { 0%, 100% { transform: scale(.78); opacity: .8; } 50% { transform: scale(1.12); opacity: 1; } }
+@keyframes pens-entra { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .pens-soltando .pens-papel { opacity: 0; } }

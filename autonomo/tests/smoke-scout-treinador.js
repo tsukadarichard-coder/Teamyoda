@@ -87,6 +87,17 @@ window.firebase={initializeApp:function(){},auth:function(){return a}};})();`;
     assert.deepStrictEqual(pub.detalhe.decisoes.boa, { n: 1, g: 1 }, "decisão do ponto chegou");
     assert.deepStrictEqual(pub.detalhe.games[0], { j: 1, n: 1, g: 1, boa: 1, disc: 0, ruim: 0 }, "game a game chegou"); }
   await pg.screenshot({ path: path.join(saida, "scout-treinador-marcando.png") });
+  /* Pensamentos antes do jogo: escreve, solta, e nada fica guardado em lugar nenhum */
+  await pg.goto(base + "/competicao/#/pensamentos", { waitUntil: "networkidle" }); await pg.waitForSelector("#pensTxt");
+  assert.ok(await pg.isDisabled("#pensSoltar"), "sem pensamentos, o botão de soltar fica desligado");
+  await pg.fill("#pensTxt", "segredo-muito-especifico-123"); await pg.click("#pensAdd");
+  await pg.waitForSelector(".pens-papel"); assert.ok((await pg.textContent(".pens-lista")).includes("segredo-muito-especifico-123"));
+  await pg.screenshot({ path: path.join(saida, "pensamentos-papel.png") });
+  await pg.click("#pensSoltar"); await pg.waitForSelector(".pens-limpo", { timeout: 6000 });
+  const corpo = await pg.textContent("body"); assert.ok(corpo.includes("Cabeça limpa") && !corpo.includes("segredo-muito-especifico-123"), "o pensamento foi apagado da tela");
+  await pg.screenshot({ path: path.join(saida, "pensamentos-limpo.png") });
+  const guardado = await pg.evaluate(() => JSON.stringify([localStorage, sessionStorage]) + document.cookie);
+  assert.ok(!guardado.includes("segredo-muito-especifico-123") && !JSON.stringify(store).includes("segredo-muito-especifico-123"), "nada guardado no aparelho nem no servidor");
   /* aba Recomendações: campo aberto para recomendar o que quiser */
   await pg.goto(base + "/competicao/#/recomendacoes", { waitUntil: "networkidle" }); await pg.waitForSelector(".rec-form textarea");
   assert.ok((await pg.textContent("body")).includes("Recomende o que quiser ao seu atleta"));
