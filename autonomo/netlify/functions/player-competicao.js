@@ -202,7 +202,7 @@ exports.handler = async function (event) {
       const doc = q.docs[0], v = doc.data();
       if (v.status !== "convite" || C.conviteVencido(v, hoje)) await falha();
       if (v.atletaUid === uid) throw new ErroPublico(400, "Você não pode se vincular a você mesmo.");
-      if (v.tipo !== c.papel) throw new ErroPublico(409, "Este código é para " + (v.tipo === "responsavel" ? "um responsável" : "um treinador") + ". Seu papel é " + (c.papel === "responsavel" ? "responsável" : "treinador") + ".");
+      if (v.tipo !== c.papel) throw new ErroPublico(409, "Este código é para " + (v.tipo === "responsavel" ? "um responsável" : "um treinador") + ", e o seu papel nesta conta é " + (c.papel === "responsavel" ? "responsável" : "treinador") + ". Peça ao atleta um código de " + (c.papel === "responsavel" ? "responsável" : "treinador") + " (em Início, “Convidar alguém”).");
       const jaTem = await db().collection("vinculos").where("atletaUid", "==", v.atletaUid).where("pessoaUid", "==", uid).get();
       if (jaTem.docs.some((d) => d.data().tipo === v.tipo && ["aguardando", "ativo"].includes(d.data().status))) throw new ErroPublico(409, "Você já está vinculado a este atleta" + (v.tipo === "responsavel" ? " como responsável" : " como treinador") + " ou aguardando aprovação.");
       await doc.ref.update({ status: "aguardando", pessoaUid: uid, pessoaNome: jog.nome || usuario.name || "Pessoa", pessoaEmail: usuario.email || null, aceitoEm: agoraISO(), historico: evento(v, uid, "código usado, aguardando aprovação") });
