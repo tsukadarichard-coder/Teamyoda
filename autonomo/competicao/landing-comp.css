@@ -12,6 +12,7 @@ body.comp.landing { background: var(--papel); }
 .cl-btn.argila { background: var(--cl-azul); border-color: var(--cl-azul); color: #fff; }
 .cl-btn.lima { background: var(--cl-lima); border-color: var(--cl-lima); color: var(--cl-tinta); }
 .cl-btn.escuro { background: var(--cl-tinta); border-color: var(--cl-tinta); color: #fff; }
+.cl-btn.contorno { background: transparent; border-color: rgba(255,255,255,.8); color: #fff; }
 .cl-btn.borda { background: #fff; border-color: #C9D3CD; color: var(--cl-tinta); }
 .cl-cta { display: flex; flex-direction: column; gap: 12px; margin-top: 22px; }
 .cl-cta .cl-btn { width: 100%; }
@@ -209,3 +210,9 @@ body.comp.landing { background: var(--papel); }
 .cl-ampl-leg { font-size: 13px; color: rgba(255,255,255,.9); text-align: center; max-width: 440px; }
 .cl-ampl-fechar { align-self: flex-end; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+/* comece grátis */
+.cl-passos3 { list-style: none; margin: 22px 0 0; padding: 0; display: grid; grid-template-columns: 1fr; gap: 12px; }
+@media (min-width: 760px) { .cl-passos3 { grid-template-columns: repeat(3, 1fr); } }
+.cl-passos3 .cl-card { flex: none; }
+.cl-passos3 .cl-card b { display: inline-flex; width: 36px; height: 36px; border-radius: 50%; background: var(--cl-azul); color: #fff; align-items: center; justify-content: center; font-size: 18px; }

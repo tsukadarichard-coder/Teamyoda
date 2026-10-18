@@ -16,6 +16,7 @@
     { id: "analise_consultoria", nome: "Análise completa + consultoria", preco: "R$ 1.490", para: "Para aprofundar a análise e conversar sobre os resultados.", itens: ["Todas as entregas da análise completa.", "Videochamada de 50 minutos."], botao: "Solicitar análise e consultoria" }
   ];
   var FAQ = [
+    ["O cadastro é grátis?", "Sim. Criar a conta e usar a plataforma (temporada, planejamento, partidas, diário e vínculos com treinador e responsável) não tem custo. O Acompanhamento MTY e as consultorias são contratações opcionais, à parte."],
     ["Os encontros são presenciais?", "Não. Todos os encontros do programa são realizados por videochamada."],
     ["Quantos encontros estão incluídos?", "Quatro: uma avaliação inicial de até 60 minutos e três encontros mensais de 50 minutos."],
     ["Quanto tempo dura?", "O ciclo inicial dura três meses. Uma continuidade pode ser combinada após avaliação e novo aceite."],
@@ -69,18 +70,27 @@
 
   function cabecalho() {
     return '<div class="cl-barra"><div class="cl-cont"><header class="cl-nav"><a class="cl-logo" href="#/" data-ir="topo" aria-label="QuadraLab Competição — início da página"><img src="../assets/logo-quadralab-competicao-v3-120.png" srcset="../assets/logo-quadralab-competicao-v3-120.png 518w, ../assets/logo-quadralab-competicao-v3-240.png 1035w" sizes="170px" width="170" height="41" alt="QuadraLab Competição"></a>' +
-      '<nav class="cl-links" id="clMenu" aria-label="Seções da página"><a href="#/" data-ir="cl-demo">Como funciona</a><a href="#/" data-ir="cl-profissional">Acompanhamento</a><a href="#/" data-ir="cl-consultorias">Consultorias</a><a href="#/" data-ir="cl-faq">Perguntas</a></nav>' +
-      '<span class="cl-acoes"><a class="cl-entrar" href="#/entrar">Entrar</a>' + ir("cl-acompanhamento", "Conhecer o acompanhamento", "lima") + "</span>" +
+      '<nav class="cl-links" id="clMenu" aria-label="Seções da página"><a href="#/" data-ir="cl-demo">Como funciona</a><a href="#/" data-ir="cl-comecar">Comece grátis</a><a href="#/" data-ir="cl-profissional">Acompanhamento</a><a href="#/" data-ir="cl-consultorias">Consultorias</a><a href="#/" data-ir="cl-faq">Perguntas</a></nav>' +
+      '<span class="cl-acoes"><a class="cl-entrar" href="#/entrar">Entrar</a><a class="cl-btn lima" href="#/criar">Criar conta grátis</a></span>' +
       '<button type="button" class="cl-menu-bt" id="clMenuBt" aria-expanded="false" aria-controls="clMenu">Menu</button></header></div></div>';
   }
   function abertura() {
     return cabecalho() + '<div class="cl-topo" id="topo"><div class="cl-cont"><div class="cl-hero"><div class="cl-hero-txt"><span class="comp-kicker">Para jogadores juvenis de competição</span>' +
       "<h1>Saiba o que treinar entre um torneio e outro.</h1>" +
-      '<p class="cl-sub">Organize seu calendário, defina prioridades e acompanhe seu desenvolvimento. Conte também com a orientação remota de Richard Tsukada.</p>' +
-      '<div class="cl-cta">' + ir("cl-acompanhamento", "Conhecer o acompanhamento", "lima") + '<a class="cl-link-sec" href="#/" data-ir="cl-demo">Ver a plataforma por dentro</a></div>' +
-      '<p class="cl-fatos">Acompanhamento 100% on-line · Ciclo inicial de 3 meses</p>' +
-      '<p class="cl-aparte">O acompanhamento profissional é uma contratação específica, à parte do acesso à plataforma.</p></div>' +
+      '<p class="cl-sub">Organize seu calendário, defina prioridades e acompanhe seu desenvolvimento. Crie sua conta grátis e comece pelos seus próximos torneios.</p>' +
+      '<div class="cl-cta"><a class="cl-btn lima" href="#/criar">Criar conta grátis</a><a class="cl-link-sec" href="#/" data-ir="cl-demo">Ver a plataforma por dentro</a></div>' +
+      '<p class="cl-fatos">Cadastro grátis · Para o atleta, o responsável e o treinador</p>' +
+      '<p class="cl-aparte">A orientação profissional de Richard Tsukada é opcional e contratada à parte: veja mais abaixo.</p></div>' +
       '<div class="cl-hero-foto">' + fone({ arq: "demo-hero", alt: "Tela inicial do aplicativo, com a contagem para o próximo torneio, o próximo compromisso e o planejamento da semana, com o objetivo e o treino de hoje.", tag: "Exemplo de planejamento" }, true, true) + "</div></div></div></div>";
+  }
+  function comecar() {
+    return '<section class="cl-sec" id="cl-comecar" tabindex="-1"><div class="cl-cont"><span class="comp-kicker azul">Comece grátis</span><h2>Em poucos minutos você já organiza a temporada.</h2>' +
+      '<ol class="cl-passos3">' + [
+        ["Crie a conta grátis", "Escolha o papel de atleta e informe a data de nascimento."],
+        ["Cadastre seus torneios", "O app mostra a contagem, as datas e o que preparar antes de cada um."],
+        ["Convide quem acompanha (opcional)", "Pai, mãe e treinador entram por um código que você gera, com a própria conta, e só veem o que você marcar."]
+      ].map(function (x, i) { return '<li class="cl-card"><b>' + (i + 1) + "</b><h3>" + x[0] + "</h3><p>" + x[1] + "</p></li>"; }).join("") + "</ol>" +
+      '<div class="cl-cta"><a class="cl-btn argila" href="#/criar">Criar conta grátis</a><a class="cl-btn borda" href="#/entrar">Já tenho conta</a></div></div></section>';
   }
   function demonstracao() {
     return '<section class="cl-sec cl-claro" id="cl-demo" tabindex="-1"><div class="cl-cont"><span class="comp-kicker azul">A plataforma por dentro</span><h2>Veja como isso funciona na sua rotina.</h2>' +
@@ -94,13 +104,13 @@
   function profissional() {
     var foto = MIDIA.foto ? '<figure class="cl-pro-foto"><img src="' + MIDIA.foto.src + '" width="' + MIDIA.foto.w + '" height="' + MIDIA.foto.h + '" alt="' + MIDIA.foto.alt + '" loading="lazy" decoding="async"></figure>' : "";
     var video = MIDIA.video ? '<div class="cl-video" id="clVideo" data-src="' + MIDIA.video.src + '" data-poster="' + (MIDIA.video.poster || "") + '" data-legendas="' + (MIDIA.video.legendas || "") + '"><button type="button" class="cl-btn borda" id="clVideoBt">Assistir à apresentação' + (MIDIA.video.duracao ? " (" + MIDIA.video.duracao + ")" : "") + "</button></div>" : "";
-    return '<section class="cl-sec" id="cl-profissional" tabindex="-1"><div class="cl-cont"><div class="cl-pro' + (foto ? " com-foto" : "") + '"><div class="cl-pro-txt"><span class="comp-kicker azul">Acompanhamento MTY, com Richard Tsukada</span><h2>Seu desenvolvimento acompanhado de perto, mesmo à distância.</h2>' +
+    return '<section class="cl-sec" id="cl-profissional" tabindex="-1"><div class="cl-cont"><div class="cl-pro' + (foto ? " com-foto" : "") + '"><div class="cl-pro-txt"><span class="comp-kicker azul">Opcional: orientação profissional</span><h2>Seu desenvolvimento acompanhado de perto, mesmo à distância.</h2>' +
       '<p class="cl-lead">No Acompanhamento MTY, Richard Tsukada revisa seus registros, organiza prioridades e ajusta o planejamento conforme sua rotina e seu calendário.</p>' + video +
       '<p class="cl-nota">Richard Tsukada é o autor da Metodologia MTY, base do QuadraLab. Quando houver treinador presencial, o trabalho é feito em conjunto com ele, mediante autorização.</p></div>' + foto +
       '<ol class="cl-entregas">' + ENTREGAS.map(function (e, i) { return '<li><b>' + (i + 1) + "</b><div><h3>" + e[0] + "</h3><p>" + e[1] + "</p></div></li>"; }).join("") + "</ol></div>" +
-      '<div class="cl-duas cl-vs"><article class="cl-oferta"><p class="olho-cl">Na plataforma</p><h3>Organize calendário, estratégias, treinos e registros em um só lugar.</h3>' +
-      '<div class="cl-cta"><a class="cl-btn escuro" href="#/criar">Criar minha conta</a><a class="cl-btn borda" href="#/entrar">Já tenho conta</a></div></article>' +
-      '<article class="cl-oferta destaque"><p class="olho-cl">Com o Acompanhamento MTY</p><h3>Receba planejamento e revisão profissional para orientar as próximas prioridades.</h3>' +
+      '<div class="cl-duas cl-vs"><article class="cl-oferta"><p class="olho-cl">Na plataforma · grátis</p><h3>Organize calendário, estratégias, treinos e registros em um só lugar.</h3>' +
+      '<div class="cl-cta"><a class="cl-btn escuro" href="#/criar">Criar conta grátis</a><a class="cl-btn borda" href="#/entrar">Já tenho conta</a></div></article>' +
+      '<article class="cl-oferta destaque"><p class="olho-cl">Com o Acompanhamento MTY · contratação à parte</p><h3>Receba planejamento e revisão profissional para orientar as próximas prioridades.</h3>' +
       '<div class="cl-cta">' + ir("cl-acompanhamento", "Ver o que está incluído", "argila") + "</div></article></div>" +
       '<p class="cl-nota forte">As funcionalidades necessárias ao acompanhamento estão incluídas durante o ciclo contratado. As revisões pessoais de Richard fazem parte do Acompanhamento MTY, contratado à parte.</p></div></section>';
   }
@@ -130,8 +140,8 @@
       FAQ.map(function (f) { return "<details><summary>" + f[0] + "</summary><p>" + f[1] + "</p></details>"; }).join("") + "</div></div></section>";
   }
   function chamadaFinal() {
-    return '<section class="cl-fim"><div class="cl-cont"><h2>Dê continuidade ao que cada torneio ensina.</h2><p>Organize a preparação e conte com acompanhamento remoto para revisar prioridades ao longo da temporada.</p>' +
-      '<div class="cl-cta centro">' + pedir("acompanhamento", "Solicitar acompanhamento", "lima") + '<a class="cl-link-sec" href="#/" data-ir="cl-demo">Ver a plataforma por dentro</a></div></div></section>';
+    return '<section class="cl-fim"><div class="cl-cont"><h2>Comece pela sua temporada. É grátis.</h2><p>Crie a conta, cadastre seus torneios e, se quiser orientação profissional, solicite o acompanhamento depois.</p>' +
+      '<div class="cl-cta centro"><a class="cl-btn lima" href="#/criar">Criar conta grátis</a>' + pedir("acompanhamento", "Solicitar acompanhamento", "contorno") + "</div></div></section>";
   }
   function formulario() {
     return '<div class="cl-cont"><section class="cl-sec" id="cl-contato" tabindex="-1"><span class="comp-kicker azul">Formulário de interesse</span><h2>Conte um pouco sobre o atleta.</h2>' +
@@ -154,7 +164,7 @@
   }
 
   window.QL_COMP_LANDING = {
-    html: function () { return (abertura() + demonstracao() + profissional() + oferta() + consultorias() + perguntas() + chamadaFinal() + formulario() + rodape()).replace(/R\$ (\d)/g, function (m, d) { return "R$\u00a0" + d; }); },
+    html: function () { return (abertura() + demonstracao() + comecar() + profissional() + oferta() + consultorias() + perguntas() + chamadaFinal() + formulario() + rodape()).replace(/R\$ (\d)/g, function (m, d) { return "R$\u00a0" + d; }); },
     ligar: function (raiz) {
       var reduz = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       function rolar(id) {
