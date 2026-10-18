@@ -43,9 +43,10 @@ function normalizarTorneio(c, hoje) {
   if (!ESTADOS.includes(estado)) return { ok: false, erro: "Situação inválida." };
   const origem = ORIGENS.includes(c.origem) ? c.origem : "manual";
   const superficie = SUPERFICIES.includes(c.superficie) ? c.superficie : "";
+  const prioridade = ["A", "B", "C"].includes(c.prioridade) ? c.prioridade : "";
   return { ok: true, dados: {
     nome, inicio: c.inicio, fim, prazoInscricao: c.prazoInscricao || "", cidade: txt(c.cidade, 80), local: txt(c.local, 100),
-    categoria: txt(c.categoria, 40), superficie, circuito: txt(c.circuito, 60), urlOrigem: url, estado, origem, observacao: txt(c.observacao, 500),
+    categoria: txt(c.categoria, 40), superficie, prioridade, circuito: txt(c.circuito, 60), urlOrigem: url, estado, origem, observacao: txt(c.observacao, 500),
   } };
 }
 
@@ -128,7 +129,7 @@ function normalizarDiario(b, hoje) {
 }
 /* partida como o treinador vê: sem texto livre */
 function partidaCompartilhada(id, p) {
-  return { id, data: p.data, tipo: p.tipo, resultado: p.resultado, placar: p.placar || "", adversario: p.adversario || "", execucao: p.execucao || null, torneioId: p.torneioId || null, rodada: p.rodada || "" };
+  return { id, data: p.data, tipo: p.tipo, resultado: p.resultado, placar: p.placar || "", adversario: p.adversario || "", execucao: p.execucao || null, torneioId: p.torneioId || null, rodada: p.rodada || "", preparoId: p.preparoId || null };
 }
 
 /* ── devolutiva do treinador ── */

@@ -119,7 +119,14 @@ exports.handler = async function (event) {
           partidas: areas.includes("partidas") ? (out.dados.partidas || []).map((p) => ({ id: p.id, rotulo: (p.adversario ? "Contra " + p.adversario : "Partida") + " · " + p.data })) : [],
         };
       }
-      if (areas.includes("diario")) out.dados.diario = (await sub("diario")).sort((x, y) => String(y.data).localeCompare(String(x.data)));
+      /* diário: todo ele só se o atleta marcou a área; senão, apenas os registros que ele compartilhou com ESTE vínculo, um a um */
+      {
+        const todos = (await sub("diario")).sort((x, y) => String(y.data).localeCompare(String(x.data)));
+        const proprios = todos.filter((r) => Array.isArray(r.compartilhadoCom) && r.compartilhadoCom.includes(ver));
+        const lista = areas.includes("diario") ? todos : proprios;
+        if (lista.length || areas.includes("diario")) out.dados.diario = lista.map(({ compartilhadoCom, ...r }) => r);
+        out.diarioPorRegistro = !areas.includes("diario");
+      }
       out.emBreve = [];
       return resposta(200, out);
     }

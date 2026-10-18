@@ -11,6 +11,8 @@ const Anthropic = require("@anthropic-ai/sdk");
 const { ErroPublico, resposta, usuarioDoPedido, refJogador } = require("./_player");
 const T = require("./_player-torneios");
 const PART = require("./_player-partidas");
+/* mudou o calendário: se há plano aprovado, nasce uma proposta de ajuste (nunca uma troca automática) */
+const propor = (uid) => require("./comp-planejamento").proporAjusteSeNecessario(uid);
 
 const hojeNoBrasil = () => new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
 const ID_VALIDO = /^[A-Za-z0-9]{10,40}$/;
@@ -51,11 +53,13 @@ exports.handler = async function (event) {
         if (!s.exists) throw new ErroPublico(404, "Torneio não encontrado.");
         const antigo = s.data();
         await col.doc(body.id).set({ ...v.dados, origem: antigo.origem || v.dados.origem, coletadoEm: antigo.coletadoEm || null, criadoEm: antigo.criadoEm, atualizadoEm: new Date().toISOString() });
+        await propor(usuario.uid);
         return resposta(200, { ok: true, id: body.id });
       }
       if ((await col.get()).docs.length >= T.MAX_TORNEIOS) throw new ErroPublico(409, "Você chegou ao limite de " + T.MAX_TORNEIOS + " torneios cadastrados. Exclua os mais antigos.");
       const agora = new Date().toISOString();
       const novo = await col.add({ ...v.dados, coletadoEm: v.dados.origem === "manual" ? null : agora, criadoEm: agora });
+      await propor(usuario.uid);
       return resposta(200, { ok: true, id: novo.id });
     }
 
@@ -68,6 +72,7 @@ exports.handler = async function (event) {
       for (const x of (await ref.collection("partidas").where("torneioId", "==", body.id).get()).docs) await x.ref.update({ torneioId: null, rodada: "" });
       for (const x of (await ref.collection("diario").where("torneioId", "==", body.id).get()).docs) await x.ref.update({ torneioId: null });
       await d.delete();
+      await propor(usuario.uid);
       return resposta(200, { ok: true });
     }
 
@@ -153,12 +158,28 @@ exports.handler = async function (event) {
         if (!ID_VALIDO.test(String(body.id))) throw new ErroPublico(400, "Registro inválido.");
         const s0 = await cd.doc(body.id).get();
         if (!s0.exists) throw new ErroPublico(404, "Registro não encontrado.");
-        await cd.doc(body.id).set({ ...v.dados, criadoEm: s0.data().criadoEm, atualizadoEm: agora });
+        await cd.doc(body.id).set({ ...v.dados, compartilhadoCom: s0.data().compartilhadoCom || [], criadoEm: s0.data().criadoEm, atualizadoEm: agora });
         return resposta(200, { ok: true, id: body.id });
       }
       if ((await cd.get()).docs.length >= T.MAX_DIARIO) throw new ErroPublico(409, "Limite de registros do diário atingido. Exclua os mais antigos.");
       const n = await cd.add({ ...v.dados, criadoEm: agora });
       return resposta(200, { ok: true, id: n.id });
+    }
+    if (body.acao === "compartilharDiario") {
+      /* o diário é privado por padrão: cada registro só chega a quem o atleta escolher, e só a vínculos ativos dele */
+      if (!ID_VALIDO.test(String(body.id || ""))) throw new ErroPublico(400, "Registro inválido.");
+      const d = ref.collection("diario").doc(body.id);
+      if (!(await d.get()).exists) throw new ErroPublico(404, "Registro não encontrado.");
+      const pedidos = [...new Set((Array.isArray(body.vinculoIds) ? body.vinculoIds : []).map(String))].slice(0, 10);
+      const validos = [];
+      for (const vid of pedidos) {
+        if (!ID_VALIDO.test(vid)) throw new ErroPublico(400, "Vínculo inválido.");
+        const sv = await require("./_player").admin.firestore().collection("vinculos").doc(vid).get();
+        if (!sv.exists || sv.data().atletaUid !== usuario.uid || sv.data().status !== "ativo") throw new ErroPublico(400, "Só é possível compartilhar com vínculos ativos seus.");
+        validos.push(vid);
+      }
+      await d.update({ compartilhadoCom: validos });
+      return resposta(200, { ok: true, compartilhadoCom: validos });
     }
     if (body.acao === "excluirDiario") {
       if (!ID_VALIDO.test(String(body.id || ""))) throw new ErroPublico(400, "Registro inválido.");

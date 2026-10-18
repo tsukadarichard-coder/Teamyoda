@@ -275,6 +275,12 @@ exports.handler = async function (event) {
           else p.planoTitulo = ((sPl.data().plano || {}).titulo || "").slice(0, 120);
         }
         if (p.torneioId && !(await ref.collection("torneios").doc(p.torneioId).get()).exists) { p.torneioId = null; p.rodada = ""; } // só torneio da própria conta
+        /* a estratégia (preparação) usada nesta partida: da própria conta, do mesmo torneio e ligada a uma só partida */
+        if (p.preparoId) {
+          const sPrep = await ref.collection("preparos").doc(p.preparoId).get();
+          if (!sPrep.exists || !p.torneioId || sPrep.data().torneioId !== p.torneioId) p.preparoId = null;
+          else if (sPrep.data().partidaId && sPrep.data().partidaId !== idPartida) throw new ErroPublico(409, "Esta preparação já está ligada a outra partida. Escolha outra ou deixe sem preparação.");
+        }
         const refPart = ref.collection("partidas").doc(idPartida);
         const sPart = await refPart.get();
         const agora = new Date().toISOString();
@@ -284,6 +290,8 @@ exports.handler = async function (event) {
         }
         const registro = { ...p, origem: "informado_pelo_jogador", criadoEm: sPart.exists ? sPart.data().criadoEm : agora, atualizadoEm: agora };
         await refPart.set(registro);
+        for (const d of (await ref.collection("preparos").where("partidaId", "==", idPartida).get()).docs) if (d.id !== p.preparoId) await d.ref.update({ partidaId: null });
+        if (p.preparoId) await ref.collection("preparos").doc(p.preparoId).update({ partidaId: idPartida });
         return resposta(200, { ok: true, partida: { id: idPartida, ...registro } });
       }
       if (body.acao === "excluirPartida") {
@@ -292,6 +300,7 @@ exports.handler = async function (event) {
         const refPart = ref.collection("partidas").doc(idPartida);
         if (!(await refPart.get()).exists) throw new ErroPublico(404, "Registro não encontrado.");
         await refPart.delete();
+        for (const d of (await ref.collection("preparos").where("partidaId", "==", idPartida).get()).docs) await d.ref.update({ partidaId: null });
         return resposta(200, { ok: true });
       }
       if (body.acao === "arquivarPrograma") {

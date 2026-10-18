@@ -12,7 +12,7 @@
 const { admin, ErroPublico, resposta, usuarioDoPedido, refJogador } = require("./_player");
 const ASS = require("./_player-assinaturas");
 
-const SUBCOLECOES = ["planos", "planejamentos", "partidas", "torneios", "preparos", "diario", "focos", "devolutivas", "scouts"];
+const SUBCOLECOES = ["planos", "planejamentos", "partidas", "torneios", "preparos", "diario", "focos", "devolutivas", "scouts", "compPlanejamentos", "compCompromissos", "compExecucoes"];
 
 exports.handler = async function (event) {
   try {
@@ -31,6 +31,15 @@ exports.handler = async function (event) {
       for (const campo of ["atletaUid", "pagadorUid"]) {
         const snap = await admin.firestore().collection("pedidosConsultoria").where(campo, "==", usuario.uid).get();
         snap.forEach((d) => { if (!saida.pedidosConsultoria.some((x) => x.id === d.id)) saida.pedidosConsultoria.push({ id: d.id, ...d.data() }); });
+      }
+      saida.acompanhamentos = [];
+      for (const campo of ["atletaUid", "pagadorUid", "profissionalUid"]) {
+        const snap = await admin.firestore().collection("acompanhamentos").where(campo, "==", usuario.uid).get();
+        for (const d of snap.docs) {
+          if (saida.acompanhamentos.some((x) => x.id === d.id)) continue;
+          const duv = []; (await d.ref.collection("duvidas").get()).forEach((q) => duv.push({ id: q.id, ...q.data() }));
+          saida.acompanhamentos.push({ id: d.id, ...d.data(), duvidas: duv });
+        }
       }
       saida.vinculos = [];
       for (const campo of ["atletaUid", "pessoaUid"]) {
@@ -69,6 +78,22 @@ exports.handler = async function (event) {
             await d.ref.set({ consultoriaId: x.consultoriaId, precoCentavos: x.precoCentavos, estado: x.estado, faturaId: x.faturaId || null, pagoEm: x.pagoEm || null, criadoEm: x.criadoEm, anonimizadoEm: new Date().toISOString() });
           } else await d.ref.delete();
         }
+      }
+      /* Acompanhamento MTY: o que nunca teve pagamento confirmado é apagado; o que teve fica só como registro financeiro (valores, estados e datas),
+         sem a síntese, os encontros, as dúvidas e os nomes. Se quem sai é o profissional, o acompanhamento segue sem o nome dele. */
+      const acs = admin.firestore().collection("acompanhamentos"), vistosA = new Set();
+      for (const campo of ["atletaUid", "pagadorUid"]) {
+        for (const d of (await acs.where(campo, "==", usuario.uid).get()).docs) {
+          if (vistosA.has(d.id)) continue; vistosA.add(d.id);
+          const x = d.data();
+          for (const q of await d.ref.collection("duvidas").listDocuments()) await q.delete();
+          if ((x.parcelas || []).some((p) => p.estado === "pago")) {
+            await d.ref.set({ produto: x.produto, parcelas: (x.parcelas || []).map((p) => ({ n: p.n, valorCentavos: p.valorCentavos, estado: p.estado, pagoEm: p.pagoEm || null })), estado: x.estado, criadoEm: x.criadoEm, anonimizadoEm: new Date().toISOString() });
+          } else await d.ref.delete();
+        }
+      }
+      for (const d of (await acs.where("profissionalUid", "==", usuario.uid).get()).docs) {
+        if (!vistosA.has(d.id)) await d.ref.update({ profissionalUid: null, profissional: { uid: null, nome: "Profissional removido", vinculoId: null } });
       }
       /* vínculos da Competição: os do atleta saem junto com ele; os de quem era a pessoa vinculada ficam encerrados */
       const vinc = admin.firestore().collection("vinculos");

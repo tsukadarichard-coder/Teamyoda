@@ -42,6 +42,9 @@ a { color: var(--argila); }
   <div class="linha"><label for="filtro" style="margin:0">Mostrar</label><select id="filtro" style="width:auto"></select><button class="sec" id="btAtualizar" type="button">Atualizar</button><button class="sec" id="btSair" type="button">Sair</button></div>
   <div id="semPedido"></div>
   <div id="lista"></div>
+  <h1 style="margin-top:34px">Acompanhamento MTY</h1>
+  <p class="nota">Contratações do programa de 3 meses: confirme à mão cada pagamento recebido (3 de R$ 790) e inicie o ciclo com o treinador vinculado ao atleta. O aplicativo não cobra nada.</p>
+  <div id="acomp"></div>
 </div>
 </main>
 <script>
@@ -71,6 +74,57 @@ a { color: var(--argila); }
   async function carregar() {
     dados = await chamar(null, f.value ? "?estado=" + encodeURIComponent(f.value) : "");
     desenhar();
+    acompDados = await chamarAc(null);
+    desenharAc();
+  }
+  var acompDados = { acompanhamentos: [] };
+  async function chamarAc(corpo) {
+    var r = await fetch("/.netlify/functions/admin-acompanhamentos", { method: corpo ? "POST" : "GET", headers: { "x-admin-secret": segredo, "content-type": "application/json" }, body: corpo ? JSON.stringify(corpo) : undefined });
+    var j = await r.json().catch(function () { return {}; });
+    if (!r.ok) throw new Error(j.erro || "Erro " + r.status);
+    return j;
+  }
+  function desenharAc() {
+    var l = document.getElementById("acomp"); l.textContent = "";
+    if (!acompDados.acompanhamentos.length) { l.appendChild(el("p", { cls: "nota", texto: "Nenhum acompanhamento solicitado." })); return; }
+    acompDados.acompanhamentos.forEach(function (a) {
+      var c = el("div", { cls: "cartao" });
+      c.appendChild(el("div", { cls: "linha" }, [el("span", { cls: "chip " + (a.estado === "ativo" || a.estado === "encerrado" ? "ok" : a.estado.indexOf("aguardando") === 0 ? "espera" : ""), texto: a.rotulo })]));
+      c.appendChild(el("h2", { texto: (a.atletaNome || "Atleta") + (a.menor ? " (menor de idade)" : "") }));
+      c.appendChild(el("p", { cls: "nota", texto: "Pagador: " + (a.pagadorNome || "—") + (a.pagadorEmail ? " <" + a.pagadorEmail + ">" : "") + " · solicitado em " + dt(a.criadoEm) + (a.articulacao ? " · autorizou articular com o treinador presencial" : "") }));
+      if (a.profissional) c.appendChild(el("p", { cls: "nota", texto: "Profissional: " + a.profissional.nome + " · ciclo de " + a.inicio + " a " + a.fim }));
+      c.appendChild(el("h3", { texto: "Pagamentos" }));
+      (a.parcelas || []).forEach(function (p) {
+        var b = el("button", { type: "button", cls: "sec", texto: p.estado === "pago" ? "Desfazer" : "Confirmar recebimento" });
+        b.addEventListener("click", async function () {
+          var pagar = p.estado !== "pago";
+          if (pagar && !confirm("Confirmar que você RECEBEU o pagamento " + p.n + " de " + reais(p.valorCentavos) + "?")) return;
+          try { await chamarAc({ acao: "pagamento", id: a.id, n: p.n, estado: pagar ? "pago" : "pendente", confirmo: pagar ? true : undefined }); await carregar(); } catch (e) { alert(e.message); }
+        });
+        c.appendChild(el("div", { cls: "bloco" }, [el("div", { texto: "Pagamento " + p.n + " · " + reais(p.valorCentavos) + " · " + (p.estado === "pago" ? "pago em " + dt(p.pagoEm) : "pendente") }), el("div", { cls: "linha" }, [b])]));
+      });
+      if (a.estado === "aguardando_inicio") {
+        c.appendChild(el("h3", { texto: "Iniciar o ciclo" }));
+        var sel = el("select", {}, [el("option", { value: "", texto: "Escolher o profissional…" })]);
+        (a.profissionaisPossiveis || []).forEach(function (v) { sel.appendChild(el("option", { value: v.vinculoId, texto: v.nome + (v.email ? " <" + v.email + ">" : "") + (v.planejamento ? "" : " (falta o atleta compartilhar “Meu planejamento”)") })); });
+        if (!(a.profissionaisPossiveis || []).length) c.appendChild(el("p", { cls: "nota", texto: "O atleta ainda não tem treinador vinculado. Peça para gerar um convite de treinador na Competição e para o profissional usar o código." }));
+        var di = el("input", { type: "date" }); di.value = new Date().toISOString().slice(0, 10);
+        var go = el("button", { type: "button", texto: "Iniciar ciclo" });
+        go.addEventListener("click", async function () { if (!sel.value) { alert("Escolha o profissional."); return; } try { await chamarAc({ acao: "iniciar", id: a.id, vinculoId: sel.value, inicio: di.value }); await carregar(); } catch (e) { alert(e.message); } });
+        c.appendChild(sel); c.appendChild(di); c.appendChild(el("div", { cls: "linha" }, [go]));
+      }
+      if (a.encontros && a.encontros.length) {
+        c.appendChild(el("h3", { texto: "Encontros" }));
+        a.encontros.forEach(function (e) { c.appendChild(el("div", { cls: "bloco", texto: e.rotulo + " · " + e.duracaoMin + " min · " + ({ a_agendar: "a agendar", agendado: "agendado " + (e.data || "") + " " + (e.hora || ""), realizado: "realizado", cancelado: "cancelado" }[e.estado] || e.estado) })); });
+      }
+      if (["encerrado", "cancelado"].indexOf(a.estado) < 0) {
+        var nota = el("input", { type: "text", placeholder: "Nota interna (opcional)", maxlength: "500" });
+        var cancel = el("button", { type: "button", cls: "sec", texto: "Cancelar acompanhamento" });
+        cancel.addEventListener("click", async function () { if (!confirm("Cancelar este acompanhamento? Reembolsos, se houver, são tratados fora do aplicativo.")) return; try { await chamarAc({ acao: "cancelar", id: a.id, nota: nota.value }); await carregar(); } catch (e) { alert(e.message); } });
+        c.appendChild(nota); c.appendChild(el("div", { cls: "linha" }, [cancel]));
+      }
+      l.appendChild(c);
+    });
   }
   function secao(titulo, itens, fmt) {
     if (!itens || !itens.length) return null;

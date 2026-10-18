@@ -233,8 +233,20 @@ async function get(uid, qs) { const r = await handler({ httpMethod: "GET", heade
   assert.strictEqual(v3.dados.preparos.length, 1); assert.strictEqual(v3.dados.partidas.length, 1);
   assert.ok(!JSON.stringify(v3).includes("segredo"), "texto livre da partida não sai");
   assert.ok(!("diario" in v3.dados), "diário continua privado sem marcação");
+  /* diário por registro: sem a área marcada, só o que o atleta compartilhou com este vínculo, um a um */
+  const di2 = await postT("adulto", { acao: "salvarDiario", data: hojeD, texto: "segundo registro, privado", humor: 3 });
+  assert.strictEqual((await postT("adulto", { acao: "compartilharDiario", id: di.id, vinculoIds: ["vinculoQueNaoExiste"] })).s, 400, "só vínculo ativo do próprio atleta");
+  assert.strictEqual((await postT("menor", { acao: "compartilharDiario", id: di.id, vinculoIds: [idT] })).s, 404, "outro atleta não alcança o registro");
+  assert.strictEqual((await postT("adulto", { acao: "compartilharDiario", id: di.id, vinculoIds: [idT] })).s, 200);
+  let v4 = await get("trein", { ver: idT });
+  assert.strictEqual(v4.dados.diario.length, 1); assert.strictEqual(v4.dados.diario[0].id, di.id); assert.ok(!JSON.stringify(v4).includes("segundo registro"), "o outro registro continua privado"); assert.strictEqual(v4.diarioPorRegistro, true);
+  assert.ok(!JSON.stringify(v4).includes("compartilhadoCom"));
+  await postT("adulto", { acao: "salvarDiario", id: di.id, data: hojeD, texto: "editado", humor: 4 });
+  assert.strictEqual((await get("trein", { ver: idT })).dados.diario.length, 1, "editar não revoga o compartilhamento");
+  assert.strictEqual((await postT("adulto", { acao: "compartilharDiario", id: di.id, vinculoIds: [] })).s, 200);
+  assert.ok(!(await get("trein", { ver: idT })).dados.diario, "revogado: nada do diário");
   await post("adulto", { acao: "areas", id: idT, areas: ["perfil", "diario"] });
-  assert.strictEqual((await get("trein", { ver: idT })).dados.diario.length, 1);
+  assert.strictEqual((await get("trein", { ver: idT })).dados.diario.length, 2, "com a área marcada vê todo o diário");
   /* excluir o torneio leva a preparação e solta partida e diário */
   assert.strictEqual((await postT("adulto", { acao: "excluir", id: t1.id })).s, 200);
   assert.strictEqual(Object.keys(col("jogadores/adulto/preparos")).length, 0);
