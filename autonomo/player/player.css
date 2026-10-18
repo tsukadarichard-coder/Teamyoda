@@ -678,8 +678,6 @@ html.sem-rolagem, html.sem-rolagem body { overflow: hidden; }
 .navinf-item.aberto::before { content: ""; position: absolute; top: 0; left: 22%; right: 22%; height: 3px; border-radius: 0 0 3px 3px; background: var(--saibro-claro); opacity: .6; }
 
 /* ── Competição: papel e vínculos ── */
-.comp-logo { margin: 0 0 6px; line-height: 0; }
-.comp-logo img { height: auto; max-width: 100%; }
 .comp-papel { display: flex; gap: 12px; align-items: flex-start; padding: 12px; margin-top: 10px; border: 1.5px solid var(--linha); border-radius: 12px; background: #fff; cursor: pointer; }
 .comp-papel:has(input:checked) { border-color: #B14C1D; background: #FFF6F0; }
 .comp-papel input { margin-top: 4px; accent-color: #B14C1D; }

@@ -2635,10 +2635,6 @@
   var ROTULO_PAPEL = { atleta: "Atleta", responsavel: "Responsável", treinador: "Treinador" };
   var ROTULO_VINC = { convite: "Convite aberto", aguardando: "Aguardando aprovação", ativo: "Ativo", revogado: "Encerrado", recusado: "Recusado", cancelado: "Cancelado", expirado: "Convite vencido" };
   var AREAS_COMP = [["perfil", "Perfil de jogador"], ["temporada", "Temporada e torneios"], ["estrategias", "Estratégia por partida"], ["partidas", "Partidas"], ["treinos", "Treinos"], ["diario", "Diário pessoal (privado, só se você marcar)"]];
-  function logoCompeticao(largura) {
-    return '<picture><source srcset="../assets/logo-quadralab-player-competicao-120.webp 518w, ../assets/logo-quadralab-player-competicao-240.webp 1035w" sizes="' + largura + 'px" type="image/webp">' +
-      '<img src="../assets/logo-quadralab-player-competicao-120.png" srcset="../assets/logo-quadralab-player-competicao-120.png 518w, ../assets/logo-quadralab-player-competicao-240.png 1035w" sizes="' + largura + 'px" width="' + largura + '" height="' + Math.round(largura * 0.282) + '" alt="QuadraLab Player Competição"></picture>';
-  }
   function areasMarcadas(sel, id) {
     return AREAS_COMP.map(function (a) {
       var marcado = sel ? sel.indexOf(a[0]) >= 0 : a[0] !== "diario";
@@ -2680,7 +2676,7 @@
     var s;
     try { s = await api("player-competicao"); }
     catch (e) { tela('<div class="aviso">' + esc(e.message) + '</div><div class="acoes"><a class="btn btn-secundario" href="#/inicio">Voltar</a></div>'); return; }
-    var comp = s.competicao, topo = MODO_COMP ? "" : '<p class="comp-logo">' + logoCompeticao(190) + "</p>", html;
+    var comp = s.competicao, topo = "", html;
     var primeiro = ((estado.dados && estado.dados.perfil && estado.dados.perfil.nome) || "").split(" ")[0];
     if (!comp.ativo) {
       tela(topo + '<h1>Competição</h1><p class="sub">Para quem joga torneios: o atleta, quem o acompanha de perto e o treinador no mesmo lugar, com cada pessoa vendo só o que o atleta permitir.</p>' +
@@ -2811,7 +2807,7 @@
       tela('<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/competicao">‹ Início</a></p><div class="aviso">' + esc(e.message) + '</div><div class="acoes"><a class="btn btn-primario" href="#/competicao">Ativar a Competição</a></div>'); return;
     }
     var lista = r.torneios, prox = lista.filter(function (t) { return t.fase !== "passado"; }), pass = lista.filter(function (t) { return t.fase === "passado"; });
-    tela('<p class="comp-logo">' + logoCompeticao(150) + '</p><h1>Temporada</h1><p class="sub">Os torneios que você vai jogar, com datas e prazos.</p>' +
+    tela('<h1>Temporada</h1><p class="sub">Os torneios que você vai jogar, com datas e prazos.</p>' +
       '<div class="acoes"><a class="btn btn-laranja btn-grande" href="#/temporada/novo">Adicionar torneio</a></div>' +
       (prox.length ? '<div class="acoes"><button type="button" class="btn btn-secundario" id="btIcs">Exportar para o calendário do celular</button></div>' : "") +
       (prox.length ? '<h2 class="secao">Próximos</h2><div class="comp-torneios">' + prox.map(cartaoTorneioHtml).join("") + "</div>"
