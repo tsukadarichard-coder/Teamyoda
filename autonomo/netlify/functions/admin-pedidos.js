@@ -7,22 +7,17 @@
    POST { acao: "vincularPagamento", faturaId, pedidoId }  → casa à mão um pagamento da Eduzz que não achou o pedido
 
    Transições permitidas em CONS.TRANSICOES_CONSULTOR. "pago" feito à mão exige confirmoPagamento: true (fica registrado como manual). */
-const crypto = require("crypto");
 const { admin, app } = require("./_firebase-admin");
 const CONS = require("./_player-consultorias");
+const A = require("./_admin-auth");
 
 function resposta(statusCode, corpo) {
   return { statusCode, headers: { "content-type": "application/json", "cache-control": "no-store" }, body: JSON.stringify(corpo) };
 }
-function segredoOk(event) {
-  const rec = String(event.headers["x-admin-secret"] || event.headers["X-Admin-Secret"] || ""), esp = String(process.env.ADMIN_SECRET || "");
-  const a = Buffer.from(rec), b = Buffer.from(esp);
-  return esp.length > 0 && a.length === b.length && crypto.timingSafeEqual(a, b);
-}
 const agora = () => new Date().toISOString();
 
 exports.handler = async function (event) {
-  if (!segredoOk(event)) return resposta(401, { erro: "Segredo de administrador ausente ou incorreto." });
+  if (!(await A.autorizar(event))) return resposta(401, { erro: "Segredo de administrador ausente ou incorreto." });
   try {
     app();
     const db = admin.firestore();

@@ -9,23 +9,18 @@
    POST { acao: "nota", id, nota }
 
    O primeiro pagamento confirmado libera o início do ciclo. Nada é cobrado pelo aplicativo: aqui só se registra o que o consultor recebeu. */
-const crypto = require("crypto");
 const { admin, app } = require("./_firebase-admin");
 const A = require("./_comp-acompanhamento");
 const C = require("./_player-competicao");
+const AUTH = require("./_admin-auth");
 
 function resposta(statusCode, corpo) { return { statusCode, headers: { "content-type": "application/json", "cache-control": "no-store" }, body: JSON.stringify(corpo) }; }
-function segredoOk(event) {
-  const rec = String(event.headers["x-admin-secret"] || event.headers["X-Admin-Secret"] || ""), esp = String(process.env.ADMIN_SECRET || "");
-  const a = Buffer.from(rec), b = Buffer.from(esp);
-  return esp.length > 0 && a.length === b.length && crypto.timingSafeEqual(a, b);
-}
 const agora = () => new Date().toISOString();
 const hoje = () => new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
 const limpo = (o) => JSON.parse(JSON.stringify(o));
 
 exports.handler = async function (event) {
-  if (!segredoOk(event)) return resposta(401, { erro: "Segredo de administrador ausente ou incorreto." });
+  if (!(await AUTH.autorizar(event))) return resposta(401, { erro: "Segredo de administrador ausente ou incorreto." });
   try {
     app();
     const db = admin.firestore(), col = db.collection("acompanhamentos");

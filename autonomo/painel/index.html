@@ -23,7 +23,8 @@
     <p class="nota">Acesso restrito. O segredo fica só nesta página e é conferido no servidor.</p>
     <label for="segredo">Segredo de administrador</label>
     <input id="segredo" type="password" autocomplete="off" required>
-    <label class="check"><input type="checkbox" id="manter"> Manter nesta aba até fechá-la</label>
+    <label class="check"><input type="checkbox" id="manter" checked> Manter conectado neste aparelho por 30 dias</label>
+    <p class="nota">O segredo não fica guardado: o servidor cria uma sessão protegida só para este aparelho. Em aparelho de outra pessoa, desmarque.</p>
     <div class="aviso erro" id="erroEntrada" role="alert" hidden></div>
     <button class="bt azul" type="submit" id="btEntrar">Entrar</button>
   </form>

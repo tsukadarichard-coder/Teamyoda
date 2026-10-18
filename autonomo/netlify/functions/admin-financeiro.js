@@ -9,17 +9,13 @@
 const crypto = require("crypto");
 const { admin, app } = require("./_firebase-admin");
 const F = require("./_admin-financeiro");
+const A = require("./_admin-auth");
 
 function resposta(statusCode, corpo) { return { statusCode, headers: { "content-type": "application/json", "cache-control": "no-store" }, body: JSON.stringify(corpo) }; }
-function segredoOk(event) {
-  const rec = String((event.headers && (event.headers["x-admin-secret"] || event.headers["X-Admin-Secret"])) || ""), esp = String(process.env.ADMIN_SECRET || "");
-  const a = Buffer.from(rec), b = Buffer.from(esp);
-  return esp.length > 0 && a.length === b.length && crypto.timingSafeEqual(a, b);
-}
 const listas = () => ({ produtos: F.PRODUTOS, categoriasReceita: F.CATEGORIAS_RECEITA, categoriasDespesa: F.CATEGORIAS_DESPESA });
 
 exports.handler = async function (event) {
-  if (!segredoOk(event)) return resposta(401, { erro: "Segredo de administrador ausente ou incorreto." });
+  if (!(await A.autorizar(event))) return resposta(401, { erro: "Segredo de administrador ausente ou incorreto." });
   try {
     app();
     const col = admin.firestore().collection("financeiroLancamentos");

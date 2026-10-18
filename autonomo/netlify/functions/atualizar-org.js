@@ -4,14 +4,14 @@
    mexe em login/senha, só no documento orgs/{orgId}/meta/info.
    Protegida pelo mesmo segredo (x-admin-secret). */
 const { admin, app } = require("./_firebase-admin");
+const A = require("./_admin-auth");
 
 exports.handler = async function (event) {
   if (event.httpMethod !== "POST") {
     return resposta(405, { erro: "Método não permitido." });
   }
 
-  const segredo = event.headers["x-admin-secret"] || event.headers["X-Admin-Secret"];
-  if (!segredo || segredo !== process.env.ADMIN_SECRET) {
+  if (!(await A.autorizar(event))) {
     return resposta(401, { erro: "Segredo de administrador ausente ou incorreto." });
   }
 

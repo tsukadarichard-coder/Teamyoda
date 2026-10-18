@@ -13,7 +13,7 @@
 
    As ações (mudar estado, confirmar pagamento, iniciar ciclo, atualizar plano) continuam nas functions admin-* de cada área.
    Segredo: cabeçalho x-admin-secret. Tentativas erradas são limitadas por conexão. */
-const crypto = require("crypto");
+const A = require("./_admin-auth");
 const { admin, app } = require("./_firebase-admin");
 const CONS = require("./_player-consultorias");
 const ASS = require("./_player-assinaturas");
@@ -21,11 +21,6 @@ const AC = require("./_comp-acompanhamento");
 const C = require("./_player-competicao");
 
 function resposta(statusCode, corpo) { return { statusCode, headers: { "content-type": "application/json", "cache-control": "no-store" }, body: JSON.stringify(corpo) }; }
-function segredoOk(event) {
-  const rec = String((event.headers && (event.headers["x-admin-secret"] || event.headers["X-Admin-Secret"])) || ""), esp = String(process.env.ADMIN_SECRET || "");
-  const a = Buffer.from(rec), b = Buffer.from(esp);
-  return esp.length > 0 && a.length === b.length && crypto.timingSafeEqual(a, b);
-}
 const LIMITE_CONTAS = 6000;
 const dia = (iso) => String(iso || "").slice(0, 10);
 const addDias = (iso, n) => { const d = new Date(iso + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
@@ -361,15 +356,8 @@ function sistema() {
 exports.handler = async function (event) {
   if (event.httpMethod !== "GET") return resposta(405, { erro: "Método não permitido." });
   const q = event.queryStringParameters || {};
-  if (!segredoOk(event)) {
-    try {
-      app();
-      const ip = String((event.headers && (event.headers["x-nf-client-connection-ip"] || event.headers["x-forwarded-for"])) || "sem-ip").split(",")[0].trim();
-      const h = crypto.createHash("sha256").update(ip + "|adm").digest("hex").slice(0, 24), janela = new Date().toISOString().slice(0, 13), ref = admin.firestore().collection("adminTentativas").doc(h), s = await ref.get();
-      const n = (s.exists && s.data().janela === janela ? s.data().n : 0) + 1;
-      await ref.set({ janela, n });
-      if (n > 15) return resposta(429, { erro: "Muitas tentativas. Aguarde uma hora." });
-    } catch (e) { /* sem banco: só recusa */ }
+  if (!(await A.autorizar(event))) {
+    if (A.enviouCredencial(event) && (await A.tentativaErrada(event))) return resposta(429, { erro: "Muitas tentativas. Aguarde uma hora." });
     return resposta(401, { erro: "Segredo de administrador ausente ou incorreto." });
   }
   try {

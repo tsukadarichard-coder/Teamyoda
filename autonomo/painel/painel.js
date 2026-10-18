@@ -19,7 +19,7 @@
   async function chamar(nome, op) {
     op = op || {};
     var r;
-    try { r = await fetch("/.netlify/functions/" + nome + (op.qs || ""), { method: op.corpo ? "POST" : "GET", headers: { "x-admin-secret": segredo, "content-type": "application/json" }, body: op.corpo ? JSON.stringify(op.corpo) : undefined }); }
+    try { r = await fetch("/.netlify/functions/" + nome + (op.qs || ""), { method: op.corpo ? "POST" : "GET", headers: Object.assign({ "x-painel": "1", "content-type": "application/json" }, segredo ? { "x-admin-secret": segredo } : {}), body: op.corpo ? JSON.stringify(op.corpo) : undefined }); }
     catch (e) { throw new Error("Sem conexão. Verifique a internet e tente de novo."); }
     var j = await r.json().catch(function () { return {}; });
     if (r.status === 401 && $("#app").hidden === false) { sair("Sessão recusada pelo servidor. Entre de novo."); throw new Error(j.erro || "Não autorizado."); }
@@ -37,17 +37,24 @@
   function invalidar() { cache = {}; }
 
   /* ── entrada e saída ── */
-  function sair(msg) {
-    segredo = ""; cache = {}; try { sessionStorage.removeItem("ql-painel"); } catch (e) { /* sem armazenamento */ }
+  /* Entrada: o segredo é digitado uma vez. Com "Manter conectado", o servidor grava um cookie de sessão (HttpOnly, 30 dias, só deste aparelho):
+     o segredo não fica guardado em lugar nenhum e o JavaScript da página não consegue ler o cookie. Sem a opção, o segredo vive só na memória da aba. */
+  function sair(msg, semAviso) {
+    segredo = ""; cache = {};
+    if (!semAviso) fetch("/.netlify/functions/admin-sessao", { method: "POST", headers: { "x-painel": "1", "content-type": "application/json" }, body: JSON.stringify({ acao: "sair" }) }).catch(function () { /* sem conexão: o cookie vence sozinho */ });
     $("#app").hidden = true; $("#entrada").hidden = false; $("#segredo").value = "";
     var er = $("#erroEntrada"); if (msg) { er.textContent = msg; er.hidden = false; } else er.hidden = true;
   }
+  function mostrarApp() { $("#entrada").hidden = true; $("#app").hidden = false; rotear(); }
   async function entrar(valor, manter) {
-    segredo = valor;
-    await chamar("admin-painel", { qs: "?secao=ping" });
-    if (manter) { try { sessionStorage.setItem("ql-painel", valor); } catch (e) { /* sem armazenamento */ } }
-    $("#entrada").hidden = true; $("#app").hidden = false;
-    rotear();
+    if (manter) {
+      var r = await fetch("/.netlify/functions/admin-sessao", { method: "POST", headers: { "x-painel": "1", "x-admin-secret": valor, "content-type": "application/json" }, body: JSON.stringify({ acao: "entrar" }) }).catch(function () { throw new Error("Sem conexão. Verifique a internet e tente de novo."); });
+      var j = await r.json().catch(function () { return {}; });
+      if (!r.ok) throw new Error(j.erro || "Erro " + r.status);
+      segredo = ""; // a sessão passa a ser o cookie
+      await chamar("admin-painel", { qs: "?secao=ping" });
+    } else { segredo = valor; await chamar("admin-painel", { qs: "?secao=ping" }); }
+    mostrarApp();
   }
   $("#fEntrar").addEventListener("submit", async function (ev) {
     ev.preventDefault();
@@ -55,12 +62,14 @@
     var v = $("#segredo").value.trim(); if (!v) { er.textContent = "Informe o segredo de administrador."; er.hidden = false; return; }
     var bt = $("#btEntrar"); bt.disabled = true; bt.textContent = "Entrando…";
     try { await entrar(v, $("#manter").checked); } catch (e) { segredo = ""; er.textContent = e.message; er.hidden = false; }
+    $("#segredo").value = "";
     bt.disabled = false; bt.textContent = "Entrar";
   });
   $("#btSair").addEventListener("click", function () { sair(); });
   $("#btAtualizar").addEventListener("click", function () { invalidar(); rotear(true); });
   $("#btMenu").addEventListener("click", function () { var m = $("#menu"), a = m.classList.toggle("aberto"); this.setAttribute("aria-expanded", String(a)); });
-  try { var guardado = sessionStorage.getItem("ql-painel"); if (guardado) entrar(guardado, true).catch(function () { sair(); }); } catch (e) { /* sem armazenamento */ }
+  /* já conectado neste aparelho? (cookie de sessão válido) entra sem pedir o segredo; a sessão é renovada sozinha */
+  fetch("/.netlify/functions/admin-sessao", { headers: { "x-painel": "1" } }).then(function (r) { if (r.ok) { segredo = ""; mostrarApp(); } }).catch(function () { /* sem conexão: fica na tela de entrada */ });
 
   /* ── dica (tooltip) dos gráficos ── */
   var dica = $("#dica");
@@ -439,6 +448,8 @@
     function linha(ok, opcional, rot, det) { return '<div class="status-sis"><span class="estado ' + (ok ? "ok" : opcional ? "neutro" : "espera") + ' marco">' + (ok ? "OK" : opcional ? "Opcional" : "Pendente") + '</span><div><strong>' + esc(rot) + '</strong><p class="nota">' + esc(det) + "</p></div></div>"; }
     c.innerHTML = cabeca("Sistema e configuração", "Conferência do que precisa estar configurado para tudo funcionar. Só mostra “definido” ou “não definido”, nunca os valores.") +
       '<div class="grade duas"><section class="cartao"><h2>Variáveis do Netlify</h2>' + d.itens.map(function (i) { return linha(i.ok, i.opcional, i.rotulo, i.efeito); }).join("") + '</section><section class="cartao"><h2>Pagamentos e políticas</h2>' + d.comerciais.map(function (i) { return linha(i.ok, false, i.rotulo, i.detalhe); }).join("") + "</section></div>" +
+      '<section class="secao"><h2>Sessões neste painel</h2><p class="nota">Quem entra com “Manter conectado” fica conectado por 30 dias no aparelho. Se perder um celular ou computador, encerre todas as sessões e, se achar necessário, troque o ADMIN_SECRET no Netlify (isso também derruba tudo).</p><div class="acoes"><button type="button" class="bt claro" id="btSairTodos">Sair de todos os aparelhos</button></div></section>' +
       '<section class="secao"><h2>Atalhos</h2><div class="acoes"><a class="bt claro" href="' + esc(d.links.netlifyQuadralab) + '" target="_blank" rel="noopener noreferrer">Netlify · quadralab</a><a class="bt claro" href="' + esc(d.links.netlifyTeamYoda) + '" target="_blank" rel="noopener noreferrer">Netlify · teamyoda</a><a class="bt claro" href="https://wa.me/' + esc(d.whatsapp) + '" target="_blank" rel="noopener noreferrer">WhatsApp de suporte</a></div></section>';
+    var bst = $("#btSairTodos"); if (bst) bst.onclick = async function () { if (!window.confirm("Encerrar todas as sessões? Você e qualquer outro aparelho precisarão digitar o segredo de novo.")) return; bst.disabled = true; try { await chamar("admin-sessao", { corpo: { acao: "sairTodos" } }); sair("Todas as sessões foram encerradas. Entre de novo com o segredo.", true); } catch (e) { toast(e.message, true); bst.disabled = false; } };
   };
 })();
