@@ -139,8 +139,25 @@ async function resumo(db, hoje) {
   /* sem pedido (Eduzz) */
   let semPedido = 0; try { semPedido = (await ler(db.collection("consultoriasPagamentosSemPedido"))).length; } catch (e) { /* nada */ }
 
+  /* Olhar do treinador: fila paga, atrasos, pagamentos sem pedido e pendência de configuração */
+  let olhar = { abertos: 0, atrasados: 0, entregues: 0, aguardandoPagamento: 0, semPedido: 0, checkoutPendente: false };
+  try {
+    const OL = require("./_player-olhar"), hojeOl = OL.hojeSP();
+    (await ler(db.collection("olharPedidos"))).forEach((p) => {
+      if (p.estado === "recebido" || p.estado === "em_analise") { olhar.abertos++; if (p.prazoEm && p.prazoEm < hojeOl) olhar.atrasados++; }
+      else if (p.estado === "devolutiva_disponivel") olhar.entregues++;
+      else if (p.estado === "aguardando_pagamento") olhar.aguardandoPagamento++;
+    });
+    olhar.semPedido = (await ler(db.collection("olharPagamentosSemPedido"))).length;
+    olhar.checkoutPendente = (await ler(db.collection("olharPendencias"))).length > 0;
+  } catch (e) { erros.push("olhar"); }
+
   /* precisa de você */
   const pend = [];
+  if (olhar.atrasados) pend.push({ nivel: "alto", titulo: "Olhar do treinador: devolutivas com prazo vencido", n: olhar.atrasados, secao: "olhar", filtro: "" });
+  if (olhar.abertos - olhar.atrasados > 0) pend.push({ nivel: "medio", titulo: "Olhar do treinador: devolutivas para gravar", n: olhar.abertos - olhar.atrasados, secao: "olhar", filtro: "" });
+  if (olhar.semPedido) pend.push({ nivel: "alto", titulo: "Olhar do treinador: pagamentos da Eduzz sem pedido", n: olhar.semPedido, secao: "olhar", filtro: "" });
+  if (olhar.checkoutPendente) pend.push({ nivel: "alto", titulo: "Olhar do treinador: alguém tentou pagar e o checkout da Eduzz não está configurado", n: 1, secao: "olhar", filtro: "" });
   const velhos = aReceber.filter((p) => diasEntre(dia(p.criadoEm), hoje) >= 3);
   if (velhos.length) pend.push({ nivel: "alto", titulo: "Consultorias aguardando pagamento há 3 dias ou mais", n: velhos.length, secao: "consultorias", filtro: "aguardando_pagamento" });
   const semEntrega = pedidos.filter((p) => ["pago", "em_andamento"].includes(p.estado) && diasEntre(dia(p.pagoEm || p.criadoEm), hoje) >= 5);
@@ -173,7 +190,7 @@ async function resumo(db, hoje) {
   parcelas.filter((p) => p.estado === "pago" && p.pagoEm).forEach((p) => { const i = meses.indexOf(mesDe(p.pagoEm)); if (i >= 0) recMes[i].acompanhamento += p.valorCentavos || 0; });
   const financeiro = { confirmadoCentavos: consultorias.receitaConfirmadaCentavos + acomp.recebidoCentavos, aReceberCentavos: consultorias.aReceberCentavos + acomp.aReceberCentavos, porMes: recMes, nota: "Valores confirmados à mão no painel (consultorias e parcelas) pelo preço de cada serviço. Assinaturas do Player vêm da Eduzz e não entram nesta soma." };
 
-  return { geradoEm: agora, hoje, player, competicao, consultorias, acompanhamentos: acomp, contatos, academias, scoutsAoVivo: aoVivo, financeiro, precisaDeVoce: pend, atividade: ativ.slice(0, 18), erros };
+  return { geradoEm: agora, hoje, player, competicao, olhar, consultorias, acompanhamentos: acomp, contatos, academias, scoutsAoVivo: aoVivo, financeiro, precisaDeVoce: pend, atividade: ativ.slice(0, 18), erros };
 }
 
 async function pagamentos(db, hoje) {
@@ -450,11 +467,14 @@ function sistema() {
     { chave: "ANTHROPIC_API_KEY", rotulo: "Chave da IA (Anthropic)", ok: def("ANTHROPIC_API_KEY"), efeito: "Planos de jogo, leitura de inscrição de torneio e relatórios com IA." },
     { chave: "WEBHOOK_EDUZZ_SECRET", rotulo: "Segredo do webhook da Eduzz", ok: def("WEBHOOK_EDUZZ_SECRET"), efeito: "Sem ele os pagamentos da Eduzz não são reconhecidos." },
     { chave: "INTERESSE_WEBHOOK_URL", rotulo: "Aviso de novo contato (opcional)", ok: def("INTERESSE_WEBHOOK_URL"), opcional: true, efeito: "Avisa em Slack ou similar quando chega um contato da página de vendas. Sem ele, os contatos só aparecem aqui." },
+    { chave: "FIREBASE_STORAGE_BUCKET", rotulo: "Armazenamento das devolutivas (opcional)", ok: def("FIREBASE_STORAGE_BUCKET"), opcional: true, efeito: "Nome do bucket do Firebase Storage onde ficam, em privado, os áudios e vídeos do Olhar do treinador. Sem ele o painel tenta <projeto>.firebasestorage.app e <projeto>.appspot.com." },
+    { chave: "OLHAR_WEBHOOK_URL", rotulo: "Aviso de novo pedido do Olhar do treinador (opcional)", ok: def("OLHAR_WEBHOOK_URL"), opcional: true, efeito: "Avisa em Slack ou similar quando um pedido é pago. Sem ele, os pedidos só aparecem no painel." },
     { chave: "PLAYER_EMAILS_FULL", rotulo: "Contas com acesso completo ao Player (teste)", ok: def("PLAYER_EMAILS_FULL"), opcional: true, efeito: "Lista de e-mails liberados manualmente." },
     { chave: "PLAYER_MODELO_PLANOS", rotulo: "Modelo de planos do Player", ok: def("PLAYER_MODELO_PLANOS"), opcional: true, efeito: "Liga o controle de limites por plano, quando decidido." },
   ];
   const comerciais = [
     { rotulo: "Produtos do Player na Eduzz", ok: ASS.CATALOGO.filter(ASS.produtoCompleto).length > 0, detalhe: ASS.CATALOGO.filter(ASS.produtoCompleto).length + " completo(s)" },
+    { rotulo: "Checkout do Olhar do treinador (R$ 47,90, pagamento único)", ok: !!require("./_player-olhar").checkoutOlhar(), detalhe: require("./_player-olhar").checkoutOlhar() ? "Produto da Eduzz ligado" : "Sem productId e link da Eduzz em _player-olhar.js: o app não cobra e avisa que o pagamento está indisponível" },
     { rotulo: "Checkout das consultorias avulsas", ok: Object.keys(CONS.CHECKOUT_CONSULTORIA).some((k) => CONS.checkoutDe(k)), detalhe: Object.keys(CONS.CHECKOUT_CONSULTORIA).filter((k) => CONS.checkoutDe(k)).length + " de " + Object.keys(CONS.CHECKOUT_CONSULTORIA).length + " com link; os demais são combinados no WhatsApp" },
     { rotulo: "Acompanhamento MTY na Eduzz (3 parcelas)", ok: false, detalhe: "Ainda combinado no WhatsApp; cada pagamento é confirmado à mão neste painel" },
     { rotulo: "Políticas de pagamento, remarcação e cancelamento", ok: !!(ASS.POLITICAS && (ASS.POLITICAS.pagamento || ASS.POLITICAS.remarcacao || ASS.POLITICAS.cancelamento)), detalhe: "Textos ainda não definidos aparecem como “informados no atendimento”" },

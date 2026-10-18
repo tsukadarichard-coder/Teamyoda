@@ -4,6 +4,7 @@
    links de termos e privacidade, quando existirem. É a mesma fonte do app (_player-assinaturas.js), então a página
    pública e o app nunca divergem. Nada de conta, sessão ou dado pessoal. */
 const ASS = require("./_player-assinaturas");
+const OLHAR = require("./_player-olhar");
 
 exports.handler = async function (event) {
   if (event.httpMethod !== "GET") return { statusCode: 405, body: "" };
@@ -12,6 +13,7 @@ exports.handler = async function (event) {
     statusCode: 200,
     headers: { "content-type": "application/json", "cache-control": "public, max-age=300" },
     body: JSON.stringify({
+      olhar: OLHAR.produtoPublico(),
       consultorias: ASS.consultoriasPublicas(),
       planos: ASS.planosPlayerPublicos(),
       linhasComparacao: ASS.linhasComparacaoPublicas(),

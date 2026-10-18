@@ -58,6 +58,7 @@ const EVENTOS_REVOGAR = ["myeduzz.invoice_canceled", "myeduzz.invoice_refunded",
 const { admin, app } = require("./_firebase-admin");
 const ASS = require("./_player-assinaturas");
 const { aplicarEventoFatura } = require("./_player-faturas");
+const OLHAR = require("./_player-olhar");
 const CONSULTORIAS = require("./_player-consultorias");
 
 /* ── QuadraLab Player ──
@@ -147,6 +148,12 @@ exports.handler = async function (event) {
     const refEvento = db.collection("webhooksEduzzProcessados").doc(chaveEvento);
     if ((await refEvento.get()).exists) {
       return resposta(200, { ok: true, jaProcessado: true });
+    }
+
+    /* "Olhar do treinador" (produto avulso do Player, pagamento único): pedidos próprios, sem tocar em assinaturas */
+    if (await OLHAR.processarEventoOlhar(db, ev)) {
+      await refEvento.set({ evento: ev.eventoBruto, email: ev.email, processadoEm: new Date().toISOString(), tipo: "olhar" });
+      return resposta(200, { ok: true });
     }
 
     /* pedidos de consultoria da Competição (produtos próprios, vazios até serem configurados): tratados à parte e sem tocar em assinaturas */
