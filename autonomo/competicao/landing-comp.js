@@ -47,17 +47,18 @@
   function opcoes(l, sel) { return l.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === sel ? " selected" : "") + ">" + o[1] + "</option>"; }).join(""); }
 
   function cabecalho() {
-    return '<header class="cl-nav"><a class="cl-logo" href="#/" data-ir="topo" aria-label="QuadraLab Competição — início da página"><img src="../assets/logo-quadralab-competicao-v3-120.png" srcset="../assets/logo-quadralab-competicao-v3-120.png 518w, ../assets/logo-quadralab-competicao-v3-240.png 1035w" sizes="140px" width="140" height="34" alt="QuadraLab Competição"></a>' +
-      '<nav class="cl-links" aria-label="Seções da página"><a href="#/" data-ir="cl-como">Como funciona</a><a href="#/" data-ir="cl-planejamento">Planejamento</a><a href="#/" data-ir="cl-acompanhamento">Acompanhamento</a><a href="#/" data-ir="cl-consultorias">Consultorias</a></nav>' +
-      '<span class="cl-acoes"><a class="cl-entrar" href="#/entrar">Entrar</a>' + ir("cl-acompanhamento", "Conhecer o acompanhamento", "lima cl-curto") + "</span></header>";
+    return '<div class="cl-barra"><div class="cl-cont"><header class="cl-nav"><a class="cl-logo" href="#/" data-ir="topo" aria-label="QuadraLab Competição — início da página"><img src="../assets/logo-quadralab-competicao-v3-120.png" srcset="../assets/logo-quadralab-competicao-v3-120.png 518w, ../assets/logo-quadralab-competicao-v3-240.png 1035w" sizes="170px" width="170" height="41" alt="QuadraLab Competição"></a>' +
+      '<nav class="cl-links" id="clMenu" aria-label="Seções da página"><a href="#/" data-ir="cl-como">Como funciona</a><a href="#/" data-ir="cl-planejamento">Planejamento</a><a href="#/" data-ir="cl-acompanhamento">Acompanhamento</a><a href="#/" data-ir="cl-consultorias">Consultorias</a></nav>' +
+      '<span class="cl-acoes"><a class="cl-entrar" href="#/entrar">Entrar</a>' + ir("cl-acompanhamento", "Conhecer o acompanhamento", "lima") + "</span>" +
+      '<button type="button" class="cl-menu-bt" id="clMenuBt" aria-expanded="false" aria-controls="clMenu">Menu</button></header></div></div>';
   }
   function abertura() {
-    return '<div class="cl-topo" id="topo"><div class="cl-cont">' + cabecalho() +
-      '<div class="cl-hero"><div class="cl-hero-txt"><span class="comp-kicker">PARA JOGADORES JUVENIS DE COMPETIÇÃO</span>' +
+    return cabecalho() + '<div class="cl-topo" id="topo"><div class="cl-cont">' +
+      '<div class="cl-hero"><div class="cl-hero-txt"><span class="comp-kicker">Para jogadores juvenis de competição</span>' +
       "<h1>Seu próximo torneio faz parte de um <em>plano maior.</em></h1>" +
-      '<p class="cl-sub">Conecte calendário, estratégia e treinos. Com o acompanhamento remoto de Richard Tsukada, organize a preparação e acompanhe o desenvolvimento do atleta, mesmo quando o treinador não está na viagem.</p>' +
-      '<div class="cl-cta">' + ir("cl-acompanhamento", "Conhecer o acompanhamento", "argila") + ir("cl-ofertas", "Explorar a plataforma", "contorno") + "</div>" +
-      '<ul class="cl-fatos"><li>100% on-line</li><li>Ciclo inicial de 3 meses</li><li>Atleta, família e treinador conectados</li></ul></div>' +
+      '<p class="cl-sub">Conecte calendário, estratégia e treinos com acompanhamento remoto de Richard Tsukada — em casa ou durante as viagens.</p>' +
+      '<div class="cl-cta">' + ir("cl-acompanhamento", "Conhecer o acompanhamento", "lima") + ir("cl-ofertas", "Explorar a plataforma", "contorno") + "</div>" +
+      '<p class="cl-fatos">100% on-line · Ciclo inicial de 3 meses</p></div>' +
       '<div class="cl-hero-foto">' + img("exemplo-temporada", "Tela de exemplo do planejamento da temporada, com blocos de preparação, competição e recuperação ao redor de dois torneios de exemplo.", 390, 406, true) + "</div></div></div></div>";
   }
   function familia() {
@@ -171,7 +172,14 @@
         el.scrollIntoView({ behavior: reduz ? "auto" : "smooth", block: "start" });
         if (el.hasAttribute("tabindex")) el.focus({ preventScroll: true });
       }
-      raiz.querySelectorAll("[data-ir]").forEach(function (a) { a.addEventListener("click", function (ev) { ev.preventDefault(); rolar(a.getAttribute("data-ir")); }); });
+      var menu = raiz.querySelector("#clMenu"), menuBt = raiz.querySelector("#clMenuBt");
+      function menuAbrir(abrir, foco) { if (!menu || !menuBt) return; menu.classList.toggle("aberto", abrir); menuBt.setAttribute("aria-expanded", String(abrir)); menuBt.textContent = abrir ? "Fechar" : "Menu"; if (!abrir && foco) menuBt.focus(); }
+      if (menuBt) {
+        menuBt.addEventListener("click", function () { menuAbrir(menuBt.getAttribute("aria-expanded") !== "true"); });
+        document.addEventListener("keydown", function (ev) { if (ev.key === "Escape" && menuBt.getAttribute("aria-expanded") === "true") menuAbrir(false, true); });
+        window.addEventListener("resize", function () { if (window.innerWidth >= 900) menuAbrir(false); });
+      }
+      raiz.querySelectorAll("[data-ir]").forEach(function (a) { a.addEventListener("click", function (ev) { ev.preventDefault(); menuAbrir(false); rolar(a.getAttribute("data-ir")); }); });
       raiz.querySelectorAll("[data-servico]").forEach(function (a) {
         a.addEventListener("click", function (ev) {
           ev.preventDefault();
