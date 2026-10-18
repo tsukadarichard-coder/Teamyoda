@@ -578,6 +578,7 @@
     tela(html);
     ligarGerar();
     if (estrategia) preencherOlharInicio();
+    anexarCartaoInstalar();
   }
   function perfilRascunhado() { try { return !!localStorage.getItem(chaveRascunho()); } catch (e) { return false; } }
 
@@ -2287,10 +2288,50 @@
   }
 
   /* ── ajuda e suporte ── */
+  /* ══ Atalho na tela de início (celular) ou na área de trabalho (computador) ══
+     O app é instalável (manifest). Aqui só se ensina o caminho de cada aparelho; no Chrome do Android e no computador, quando o navegador
+     oferece a instalação, o botão "Instalar agora" faz isso direto. Nada aparece para quem já abriu o app pelo atalho. */
+  var eventoInstalar = null;
+  window.addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); eventoInstalar = e; Array.prototype.forEach.call(document.querySelectorAll("[data-instalar-agora]"), function (b) { b.hidden = false; }); });
+  window.addEventListener("appinstalled", function () { eventoInstalar = null; try { localStorage.setItem("ql-instalar-dispensado", "1"); } catch (e) { /* sem armazenamento */ } });
+  function jaInstalado() { return (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || window.navigator.standalone === true; }
+  function plataformaDoAparelho() {
+    var ua = navigator.userAgent || "";
+    if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return "ios";
+    return /Android/.test(ua) ? "android" : "computador";
+  }
+  function instalarAppHtml() {
+    var p = plataformaDoAparelho();
+    function passos(l) { return '<ol class="consul-passos" style="margin-top:8px">' + l.map(function (x) { return "<li>" + x + "</li>"; }).join("") + "</ol>"; }
+    function bloco(id, titulo, l) { return '<details class="det"' + (p === id ? " open" : "") + "><summary>" + titulo + "</summary>" + passos(l) + "</details>"; }
+    return '<div class="cartao" id="instalarApp" style="margin-top:16px"><h2>Atalho na tela de início</h2><p class="nota" style="margin-top:6px">Instale o ' + esc(MARCA_APP) + ' como um app: ele ganha um ícone, abre em tela cheia e fica a um toque, sem digitar o endereço.</p>' +
+      '<div class="acoes"><button type="button" class="btn btn-primario" data-instalar-agora hidden>Instalar agora</button></div>' +
+      '<div class="detalhes-grupo">' +
+        bloco("ios", "iPhone e iPad (Safari)", ["Abra esta página no <strong>Safari</strong>. Dentro do Instagram, do WhatsApp ou de outro navegador interno não aparece a opção: use “Abrir no Safari”.", "Toque no botão <strong>Compartilhar</strong> (um quadrado com uma seta para cima), na barra de baixo. No iPad, ele fica no alto.", "Role as opções e toque em <strong>Adicionar à Tela de Início</strong>.", "Confira o nome e toque em <strong>Adicionar</strong>. O ícone aparece na tela de início: abra o app por ele."]) +
+        bloco("android", "Android (Chrome)", ["Abra esta página no <strong>Chrome</strong>.", "Toque no menu com <strong>três pontinhos</strong>, no canto de cima.", "Toque em <strong>Instalar app</strong> (em alguns aparelhos, <strong>Adicionar à tela inicial</strong>).", "Confirme em <strong>Instalar</strong>. O ícone aparece na tela inicial e na lista de apps."]) +
+        bloco("computador", "Computador (Chrome ou Edge)", ["Abra esta página no <strong>Chrome</strong> ou no <strong>Edge</strong>.", "Na barra de endereços, à direita, clique no ícone de <strong>instalar</strong> (um monitor com uma seta). Se ele não aparecer, abra o menu dos três pontinhos e procure <strong>Instalar</strong> ou <strong>Salvar e compartilhar</strong>, depois <strong>Instalar página como app</strong> (no Edge: <strong>Aplicativos</strong>, depois <strong>Instalar este site como um aplicativo</strong>).", "Confirme em <strong>Instalar</strong>. O atalho aparece na área de trabalho ou no menu de aplicativos. No Mac com Safari: menu <strong>Arquivo</strong>, <strong>Adicionar ao Dock</strong>."]) +
+      '</div><p class="nota" style="margin-top:10px">Os nomes dos menus mudam um pouco conforme a versão do navegador. Se não achar, <a href="' + esc(suporteUrl("Olá! Preciso de ajuda para colocar o " + MARCA_APP + " na tela de início.")) + '" target="_blank" rel="noopener">fale com o suporte<span class="sr"> (abre em nova aba)</span></a>.</p></div>';
+  }
+  function ligarInstalar() {
+    Array.prototype.forEach.call(app.querySelectorAll("[data-instalar-agora]"), function (b) {
+      b.hidden = !eventoInstalar;
+      b.addEventListener("click", async function () { if (!eventoInstalar) return; try { eventoInstalar.prompt(); await eventoInstalar.userChoice; } catch (e) { /* o navegador recusou: as instruções continuam valendo */ } eventoInstalar = null; b.hidden = true; });
+    });
+  }
+  /* aviso discreto no fim do Início, uma vez: some com "Agora não" e nunca aparece dentro do app já instalado */
+  function anexarCartaoInstalar() {
+    var dispensado = false; try { dispensado = localStorage.getItem("ql-instalar-dispensado") === "1"; } catch (e) { dispensado = false; }
+    if (jaInstalado() || dispensado || document.getElementById("cartaoInstalar")) return;
+    var d = document.createElement("section"); d.id = "cartaoInstalar"; d.className = "cartao"; d.style.marginTop = "14px";
+    d.innerHTML = '<h2>Deixe o app na sua tela de início</h2><p class="nota" style="margin-top:6px">Um ícone para abrir o ' + esc(MARCA_APP) + ' com um toque, em tela cheia.</p><div class="acoes"><a class="btn btn-secundario" href="#/ajuda">Ver como fazer</a><button type="button" class="btn btn-texto" id="btInstalarDepois">Agora não</button></div>';
+    app.appendChild(d);
+    document.getElementById("btInstalarDepois").addEventListener("click", function () { try { localStorage.setItem("ql-instalar-dispensado", "1"); } catch (e) { /* sem armazenamento */ } d.remove(); });
+  }
+
   function telaAjuda() {
     var links = (estado.assin && estado.assin.links) || {};
     tela(
-      '<h1>Ajuda e suporte</h1><p class="sub">Fale com a gente por aqui.</p>' +
+      '<h1>Ajuda e suporte</h1><p class="sub">Fale com a gente por aqui.</p>' + instalarAppHtml() +
       '<div class="cartao" style="margin-top:16px"><h2>Falar com o suporte</h2><p class="nota" style="margin-top:6px">Dúvidas sobre o app, a sua conta, pagamentos ou a sua assinatura. Respondemos pelo WhatsApp.</p>' +
         '<a class="btn btn-primario btn-grande" href="' + esc(suporteUrl()) + '" target="_blank" rel="noopener">Abrir o WhatsApp<span class="sr"> (abre em nova aba)</span></a></div>' +
       '<div class="cartao" style="margin-top:14px"><h2>Pagamentos e assinatura</h2><ul class="lista-links"><li><a href="#/assinatura">Minha assinatura</a></li><li><a href="#/assinaturas">Comparar assinaturas</a></li><li><a href="' + esc(links.gerenciarPagamento || suporteUrl("Olá, Richard! Preciso gerenciar o pagamento da minha assinatura do QuadraLab Player.")) + '" target="_blank" rel="noopener">Gerenciar pagamento<span class="sr"> (abre em nova aba)</span></a></li></ul></div>' +
@@ -2298,6 +2339,7 @@
         (links.termos ? '<li><a href="' + esc(links.termos) + '" target="_blank" rel="noopener">Termos de uso<span class="sr"> (abre em nova aba)</span></a></li>' : "") +
         (links.privacidade ? '<li><a href="' + esc(links.privacidade) + '" target="_blank" rel="noopener">Política de privacidade<span class="sr"> (abre em nova aba)</span></a></li>' : "") + "</ul></div>" : "")
     );
+    ligarInstalar();
     if (!estado.assin) carregarAssinatura(false).then(function () { if (location.hash === "#/ajuda") telaAjuda(); }).catch(function () { /* sem os links opcionais */ });
   }
 
@@ -3157,6 +3199,7 @@
       }).catch(function () { /* o resto da tela funciona sem a lista */ });
     }
     if (window.QL_COMP_HUB) window.QL_COMP_HUB(comp, s);
+    anexarCartaoInstalar();
     app.querySelectorAll("[data-copiar]").forEach(function (b) {
       b.addEventListener("click", function () { var c = b.getAttribute("data-copiar"); (navigator.clipboard ? navigator.clipboard.writeText(c) : Promise.reject()).then(function () { toast("Código copiado."); }, function () { toast("Copie manualmente: " + c); }); });
     });
@@ -4010,11 +4053,12 @@
     });
   }
   function telaAjudaComp() {
-    tela('<h1>Ajuda e suporte</h1><p class="sub">Fale com a gente por aqui.</p>' +
+    tela('<h1>Ajuda e suporte</h1><p class="sub">Fale com a gente por aqui.</p>' + instalarAppHtml() +
       '<div class="cartao" style="margin-top:16px"><h2>Falar com o suporte</h2><p class="nota" style="margin-top:6px">Dúvidas sobre o app, a sua conta, a temporada ou os seus pedidos de consultoria. Respondemos pelo WhatsApp.</p>' +
       '<a class="btn btn-primario btn-grande" href="' + esc(suporteUrl("Olá, Richard! Preciso de ajuda com o QuadraLab Competição.")) + '" target="_blank" rel="noopener">Abrir o WhatsApp<span class="sr"> (abre em nova aba)</span></a></div>' +
       '<div class="cartao" style="margin-top:14px"><h2>Quem vê os seus dados</h2><p class="nota" style="margin-top:6px">Treinador e responsável só veem o que você marcar em cada vínculo, e qualquer lado pode encerrar o vínculo quando quiser. Para atletas menores de idade, o responsável aprova o treinador e confirma as consultorias. O diário é privado, a menos que você o compartilhe.</p></div>' +
       '<div class="cartao" style="margin-top:14px"><h2>Seus dados</h2><p class="nota" style="margin-top:6px">Em <a href="#/conta">Meu perfil</a> você baixa uma cópia dos seus dados ou exclui a conta.</p></div>');
+    ligarInstalar();
   }
   /* quem diz o quê: relato do atleta, observação do treinador, estatística registrada e sugestão automática nunca se misturam */
   var ORIGENS = { relato: ["Relato do atleta", "o-relato"], treinador: ["Observação do treinador", "o-treinador"], estatistica: ["Estatística registrada", "o-estat"], sugestao: ["Sugestão automática", "o-sug"] };

@@ -90,6 +90,16 @@ window.firebase={initializeApp:function(){},auth:function(){return a}};})();`;
   const rec = Object.keys(store).filter((k) => /^jogadores\/at1\/devolutivas\//.test(k)).map((k) => store[k])[0];
   assert.ok(rec && rec.tipo === "recomendacao" && rec.refRotulo === "Recomendação · Rotina antes do saque" && rec.recomendacao.startsWith("Leia sobre rotina"), "recomendação gravada para o atleta");
   assert.ok((await pg.textContent("body")).includes("Enviadas por você"));
+  /* atalho na tela de início: aviso discreto no Início, instruções em Ajuda e suporte */
+  await pg.goto(base + "/competicao/#/inicio", { waitUntil: "networkidle" }); await pg.waitForSelector("#cartaoInstalar", { timeout: 8000 });
+  assert.ok((await pg.textContent("#cartaoInstalar")).includes("Deixe o app na sua tela de início"));
+  await pg.click('#cartaoInstalar a[href="#/ajuda"]'); await pg.waitForSelector("#instalarApp");
+  const ti = await pg.textContent("#instalarApp");
+  for (const x of ["Atalho na tela de início", "iPhone e iPad (Safari)", "Adicionar à Tela de Início", "Android (Chrome)", "Instalar app", "Computador (Chrome ou Edge)", "Adicionar ao Dock"]) assert.ok(ti.includes(x), "instruções: " + x);
+  await pg.screenshot({ path: path.join(saida, "atalho-instrucoes.png"), fullPage: false });
+  await pg.goto(base + "/competicao/#/inicio", { waitUntil: "networkidle" }); await pg.waitForSelector("#cartaoInstalar"); await pg.click("#btInstalarDepois");
+  await pg.goto(base + "/competicao/#/ajuda"); await pg.goto(base + "/competicao/#/inicio", { waitUntil: "networkidle" }); await pg.waitForTimeout(600);
+  assert.strictEqual(await pg.locator("#cartaoInstalar").count(), 0, "depois de dispensar, não volta");
   assert.deepStrictEqual(erros, [], JSON.stringify(erros));
   await browser.close(); servidor.close();
   console.log("smoke-scout-treinador: ok");
