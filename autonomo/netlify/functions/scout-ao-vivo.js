@@ -21,16 +21,16 @@ const APOS_FIM_MS = 2 * 3600 * 1000; // depois do fim da partida o link ainda va
 const MAX_ATIVOS = 3;
 const TOKEN = /^[a-f0-9]{32}$/;
 
-/* vínculos de treinador ativos com a área "partidas" para esta conta: pelo uid ou, se o e-mail é verificado, pelo e-mail usado no convite */
+/* vínculos ativos (de treinador; ou também de responsável, na conta sem academia) com a área "partidas" para esta conta: pelo uid ou, se o e-mail é verificado, pelo e-mail usado no convite */
 async function vinculosDoTreinador(db, claims, tipo) {
-  tipo = tipo || "treinador";
+  const tipos = [].concat(tipo || "treinador");
   const achados = new Map();
   const col = db.collection("vinculos");
   const consultas = [col.where("pessoaUid", "==", claims.uid).get()];
   if (claims.email && claims.email_verified) consultas.push(col.where("pessoaEmail", "==", String(claims.email).toLowerCase()).get());
   for (const snap of await Promise.all(consultas)) snap.forEach((d) => {
     const v = d.data();
-    if (v.tipo === tipo && v.status === "ativo" && Array.isArray(v.areas) && v.areas.includes("partidas") && v.atletaUid) achados.set(d.id, v);
+    if (tipos.includes(v.tipo) && v.status === "ativo" && Array.isArray(v.areas) && v.areas.includes("partidas") && v.atletaUid) achados.set(d.id, v);
   });
   return achados;
 }
@@ -85,7 +85,7 @@ exports.handler = async function (event) {
       let ligacao = {};
       if (familia && !body.vinculoId) return resposta(403, { erro: "Esta conta ainda não está ligada a uma academia." });
       if (body.vinculoId) {
-        const v = (await vinculosDoTreinador(admin.firestore(), claims, familia ? "responsavel" : "treinador")).get(String(body.vinculoId));
+        const v = (await vinculosDoTreinador(admin.firestore(), claims, familia ? ["responsavel", "treinador"] : "treinador")).get(String(body.vinculoId));
         if (!v) return resposta(403, { erro: "Este atleta não está vinculado a você com acesso às partidas." });
         ligacao = { atletaUid: v.atletaUid, vinculoId: String(body.vinculoId) };
       }
@@ -103,7 +103,7 @@ exports.handler = async function (event) {
 
     if (body.acao === "revogar") { await ref.delete(); return resposta(200, { ok: true }); }
     if (body.acao === "atualizar") {
-      if (familia && !(await vinculosDoTreinador(admin.firestore(), claims, "responsavel")).has(d.vinculoId)) return resposta(403, { erro: "Seu vínculo com este atleta não está mais ativo." });
+      if (familia && !(await vinculosDoTreinador(admin.firestore(), claims, ["responsavel", "treinador"])).has(d.vinculoId)) return resposta(403, { erro: "Seu vínculo com este atleta não está mais ativo." });
       if (!(Date.parse(d.expiraEm) > Date.now())) return resposta(410, { erro: "Este link ao vivo venceu. Inicie outro." });
       const fim = body.fim === true;
       const expiraEm = fim ? new Date(Math.min(Date.parse(d.expiraEm), Date.now() + APOS_FIM_MS)).toISOString() : d.expiraEm;
