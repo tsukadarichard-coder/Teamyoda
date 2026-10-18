@@ -287,6 +287,7 @@
       '<div class="ac-pagina">' +
         "<h1>" + titulo + "</h1>" +
         '<p class="ac-sub">' + sub + "</p>" +
+        (/^#\/olhar/.test(location.hash) && !recuperar ? '<div class="ac-gratis"><p><strong>Você está a um passo do Olhar do treinador.</strong> <span>Entre ou crie a conta grátis: depois você escolhe a estratégia e envia a dúvida. Nada é cobrado antes de você revisar o pedido.</span></p></div>' : "") +
         (criar ? '<div class="ac-gratis"><p><strong>Acesso gratuito</strong> <span>Sem cartão de crédito.</span></p><ul id="acBeneficios" hidden></ul></div>' : "") +
         '<form id="fAcesso" class="ac-form" novalidate>' +
           '<p class="ac-aviso" id="aviso" role="alert" hidden></p>' +
@@ -559,7 +560,7 @@
       destaque = '<div class="cartao destaque"><p class="olho">Programa concluído</p><h2>Hora de organizar os próximos treinos</h2><p class="nota" style="margin-top:6px">Veja como foi em Treinos ou monte um novo programa.</p>' +
         '<a class="btn btn-primario btn-grande" href="#/planejar/' + esc(estrategia.id) + '">Organizar novos treinos</a><p style="margin-top:8px"><a class="btn btn-texto" href="#/treinos">Ver histórico</a></p></div>';
     }
-    html += (sub ? '<p class="sub">' + esc(sub) + "</p>" : "") + '<div style="margin-top:14px">' + destaque + "</div>" + preparacaoInicioHtml();
+    html += (sub ? '<p class="sub">' + esc(sub) + "</p>" : "") + '<div style="margin-top:14px">' + destaque + "</div>" + (estrategia ? '<div id="olharInicio" style="margin-top:14px"></div>' : "") + preparacaoInicioHtml();
     if (explicar) html += '<div style="margin-top:14px">' + esteiraHtml() + "</div>";
 
     /* "Qual é minha estratégia, quais jogadas vou praticar e qual é meu próximo treino?" */
@@ -576,6 +577,7 @@
     if (estrategia) html += cartaoPartidasInicio();
     tela(html);
     ligarGerar();
+    if (estrategia) preencherOlharInicio();
   }
   function perfilRascunhado() { try { return !!localStorage.getItem(chaveRascunho()); } catch (e) { return false; } }
 
@@ -648,11 +650,13 @@
         '<details class="det"><summary>Sobre esta estratégia</summary><p class="nota" style="margin-top:8px">Gerada em ' + esc(dataBR(p.criadoEm)) + " com inteligência artificial, a partir da sua autoavaliação e seguindo a Metodologia MTY. Ela não substitui a avaliação de um treinador vendo você jogar.</p></details>" +
         '<details class="det"><summary>Criar outra estratégia</summary>' + blocoOutraEstrategia() + "</details>" +
       "</div>" +
+      cartaoOlharEstrategiaHtml(id) +
       '<div class="consultoria"><p class="olho">Consultoria</p><h2>Quer a estratégia validada por um treinador?</h2>' +
         "<p>O Richard Tsukada pode revisar a sua estratégia, analisar um vídeo do seu jogo ou conversar com você ao vivo. São serviços contratados à parte da assinatura.</p>" +
         '<a class="btn largo" href="#/consultorias">Ver consultorias</a></div>'
     );
     ligarGerar();
+    preencherPrecoOlhar("olharEstPreco");
     app.querySelectorAll("[data-sug]").forEach(function (bt) {
       bt.addEventListener("click", async function () {
         var y = window.scrollY, partes = bt.getAttribute("data-sug").split(":");
@@ -1459,11 +1463,11 @@
   /* ══ casca do app: menu lateral (computador), menu inferior (celular) e conta ══ */
   var NAV_DA_ROTA = {
     aquecimento: "aquecimento", "ao-vivo": "ao-vivo", pedidos: "pedidos", acompanhamento: "acompanhamento", desafio: "desafios", desafios: "desafios", partidas: "partidas",
-    preparo: "temporada", diario: "competicao", temporada: "temporada", competicao: "competicao", ficha: "jogador", jogador: "jogador", conta: "conta", assinatura: "assinatura", assinaturas: "assinatura", consultorias: "consultorias", ajuda: "ajuda",
+    preparo: "temporada", diario: "competicao", temporada: "temporada", competicao: "competicao", ficha: "jogador", jogador: "jogador", conta: "conta", assinatura: "assinatura", assinaturas: "assinatura", consultorias: "consultorias", olhar: "consultorias", atendimentos: "atendimentos", ajuda: "ajuda",
     estrategia: "estrategia", plano: "estrategia", planos: "estrategia", completar: "estrategia", gerando: "estrategia",
     jogadas: "jogadas", planejar: "treinos", treinos: "treinos", treino: "treinos", programa: "treinos", planejamento: "treinos", gerandoPlanej: "treinos",
   };
-  var NAV_MAIS = { preparo: 1, diario: 1, temporada: 1, competicao: 1, partidas: 1, conta: 1, jogador: 1, ficha: 1, assinatura: 1, consultorias: 1, ajuda: 1 };
+  var NAV_MAIS = { preparo: 1, diario: 1, temporada: 1, competicao: 1, partidas: 1, conta: 1, jogador: 1, ficha: 1, assinatura: 1, consultorias: 1, olhar: 1, atendimentos: 1, ajuda: 1 };
   var BARRA_SECAO = { aquecimento: "treinos", desafio: "treinos", desafios: "treinos" }; // páginas que pertencem à seção Treinos
   /* Competição é um app à parte (quadralab.com.br/competicao/), com as mesmas contas e o mesmo servidor. O mesmo código atende os dois:
      window.QL_MODO = "competicao" liga a navegação e a tela inicial próprias; no Player, as rotas da Competição apontam para lá. */
@@ -1503,7 +1507,7 @@
     if (!b) return;
     fecharPainel(false);
     await auth.signOut();
-    estado.dados = null; estado.fluxo = null; estado.assin = null; estado.editandoPerfil = false;
+    estado.dados = null; estado.fluxo = null; estado.assin = null; estado.olhar = null; estado.editandoPerfil = false;
     try { localStorage.removeItem("ql-comp-papel"); } catch (e) { /* sem armazenamento */ }
     vigia.sig = ""; vigia.ultimo = null; marcarBadge(0);
     ir("#/entrar");
@@ -2030,6 +2034,7 @@
 
   async function telaConsultorias() {
     if (!(await carregarConsultorias(telaConsultorias))) return;
+    var olhar = null; try { olhar = await carregarOlhar(false); } catch (e) { olhar = null; }
     var lista = consulLista(), tres = lista.filter(function (c) { return c.tipo !== "completa"; }), completa = lista.filter(function (c) { return c.tipo === "completa"; })[0];
     function porTipo(t) { return lista.filter(function (c) { return c.tipo === t; })[0]; }
     var escolha = [
@@ -2042,12 +2047,13 @@
       '<h1 class="consul-titulo">Um olhar profissional sobre o seu jogo</h1>' +
       '<p class="sub">Escolha o atendimento com Richard Tsukada mais adequado ao seu momento no tênis</p>' +
       '<p class="consul-aviso" role="note"><strong>Serviços individuais contratados à parte.</strong> Não estão incluídos na assinatura do QuadraLab Player.</p>' +
-      '<div class="consul-lista">' + tres.map(cartaoConsulHtml).join("") + "</div>" +
+      '<div class="consul-lista">' + (olhar ? cartaoOlharConsulHtml(olhar) : "") + tres.map(cartaoConsulHtml).join("") + "</div>" +
       (completa ? '<div class="consul-lista consul-lista-destaque">' + cartaoConsulHtml(completa) + "</div>" : "") +
       '<section class="cartao consul-escolha" aria-labelledby="t-esc"><h2 id="t-esc">Qual atendimento faz sentido para você?</h2><ul>' +
+        (olhar ? '<li><a href="#/olhar"><span>Tenho uma dúvida específica sobre a minha estratégia.</span><strong>Olhar do treinador</strong></a></li>' : "") +
         escolha.filter(function (e) { return e[1]; }).map(function (e) {
           return '<li><a href="#/consultorias/' + esc(e[1].id) + '"><span>' + esc(e[0]) + '</span><strong>' + esc(e[1].nome) + ' ›</strong></a></li>';
-        }).join("") + "</ul></section>" +
+        }).join("") + "</ul></section>" + (olhar ? diferencasServicosHtml(olhar) : "") +
       condicoesConsulHtml()
     );
   }
@@ -4019,6 +4025,315 @@
       });
     });
   }
+  /* ══ Olhar do treinador: uma dúvida sobre a estratégia, respondida por Richard em áudio ou vídeo ══
+     Preço, prazo e limites vêm do servidor (player-olhar): cartões, formulário, revisão e checkout leem da mesma fonte, e o valor
+     nunca é enviado pelo navegador. Aqui só se desenha, se guarda o rascunho (neste aparelho) e se leva ao pagamento; "pago" só o servidor sabe. */
+  var OLHAR_NAO_INCLUI = "Contempla uma dúvida sobre uma estratégia. Não inclui análise de partidas em vídeo, revisão completa do plano ou encontro ao vivo.";
+  var OLHAR_FAQ = [
+    ["Preciso assinar um plano pago?", "Não. Você precisa de uma conta e de uma estratégia cadastrada. O atendimento é comprado separadamente."],
+    ["Posso enviar qualquer dúvida?", "Envie uma dúvida principal relacionada à estratégia selecionada. O atendimento é focado nesse ponto."],
+    ["Posso enviar uma gravação da minha partida?", "Este produto não inclui análise de partidas em vídeo. Para isso, consulte a Análise completa do jogador."],
+    ["Vou conversar ao vivo com Richard?", "Não. Você recebe uma devolutiva individual gravada. Para conversar por videochamada, escolha a Consultoria ao vivo."],
+    ["Recebo áudio ou vídeo?", "Richard escolhe o formato mais adequado para explicar sua orientação. A entrega tem de 3 a 5 minutos."],
+    ["Quando recebo?", "Em até 3 dias úteis após a confirmação do pagamento e o envio completo da solicitação. A data prevista aparece no pedido."],
+    ["O atendimento revisa toda a estratégia?", "Ele aprofunda a dúvida enviada. Para revisar o plano completo, escolha a Revisão de estratégia."],
+    ["Onde encontro a resposta?", "Na área Meus atendimentos, dentro da sua conta."],
+    ["Posso comprar novamente?", "Sim. Cada contratação corresponde a uma dúvida e uma devolutiva."],
+  ];
+  function olharFaqHtml() {
+    return '<section class="cartao" aria-labelledby="t-faq-olhar"><h2 id="t-faq-olhar">Perguntas frequentes</h2><div class="detalhes-grupo">' + OLHAR_FAQ.map(function (q) {
+      return '<details class="det"><summary>' + esc(q[0]) + "</summary><p class=\"nota\" style=\"margin-top:8px\">" + esc(q[1]) + "</p></details>";
+    }).join("") + "</div></section>";
+  }
+  function olharChave() { return "ql-olhar-rasc:" + (auth.currentUser ? auth.currentUser.uid : ""); }
+  function lerOlharRasc() { try { return JSON.parse(localStorage.getItem(olharChave()) || "null") || {}; } catch (e) { return {}; } }
+  function salvarOlharRasc(r) { try { localStorage.setItem(olharChave(), JSON.stringify({ estrategiaId: r.estrategiaId || "", duvida: r.duvida || "", contexto: r.contexto || "", pedidoId: r.pedidoId || "" })); } catch (e) { /* sem armazenamento: segue sem rascunho */ } }
+  function limparOlharRasc() { try { localStorage.removeItem(olharChave()); } catch (e) { /* nada */ } }
+  async function carregarOlhar(forcar) {
+    if (!forcar && estado.olhar && Date.now() - estado.olhar.em < 5000) return estado.olhar;
+    var r = await api("player-olhar");
+    r.em = Date.now(); estado.olhar = r;
+    return r;
+  }
+  function olharPreco(o) { return reaisInteiro(o.produto.precoCentavos); }
+  function olharDataLonga(iso) { var p = String(iso || "").slice(0, 10).split("-"); return p.length === 3 ? p[2] + "/" + p[1] + "/" + p[0] : ""; }
+  function olharVoltar(rota, rotulo) { return '<p style="margin-bottom:8px"><a class="btn btn-texto" href="' + rota + '">' + esc(rotulo) + "</a></p>"; }
+  function olharResumo(texto, max) { texto = String(texto || "").replace(/\s+/g, " ").trim(); return texto.length > max ? texto.slice(0, max - 1) + "…" : texto; }
+  function olharPedidoAtivo(o) { return (o.pedidos || []).filter(function (p) { return p.estado === "aguardando_pagamento" || p.estado === "recebido" || p.estado === "em_analise"; })[0] || null; }
+  function olharPedidoNovo(o) { return (o.pedidos || []).filter(function (p) { return p.nova; })[0] || null; }
+  function olharFalha(e, destino) {
+    tela('<div class="aviso" role="alert">' + esc(e.message) + '</div><div class="acoes"><button class="btn btn-primario" id="btOlharTentar" type="button">Tentar de novo</button><a class="btn btn-texto" href="#/consultorias">Voltar às consultorias</a></div>');
+    document.getElementById("btOlharTentar").addEventListener("click", function () { destino(); });
+  }
+
+  /* cartão curto, dentro da tela da estratégia: o preço entra assim que o servidor responde */
+  function cartaoOlharEstrategiaHtml(planoId) {
+    return '<section class="cartao olhar-chamada" id="olharEstrategia" aria-labelledby="t-olhar-est"><p class="olho">Orientação individual</p><h2 id="t-olhar-est">Quer meu olhar sobre esta estratégia?</h2>' +
+      '<p class="nota" style="margin-top:6px">Envie uma dúvida e receba uma orientação individual gravada.</p><p class="olhar-preco-linha" id="olharEstPreco" hidden></p>' +
+      '<div class="acoes"><a class="btn btn-primario" href="#/olhar/pedir/' + esc(planoId) + '">Enviar minha dúvida</a><a class="btn btn-texto" href="#/olhar">Como funciona</a></div></section>';
+  }
+  function preencherPrecoOlhar(idEl) {
+    carregarOlhar(false).then(function (o) {
+      var el = document.getElementById(idEl); if (!el) return;
+      el.textContent = olharPreco(o) + " · Pagamento único"; el.hidden = false;
+    }).catch(function () { /* sem o preço, o cartão continua levando à página do produto */ });
+  }
+
+  /* chamada compacta na página inicial: pedido em andamento e devolutiva nova passam na frente */
+  function preencherOlharInicio() {
+    carregarOlhar(false).then(function (o) {
+      var el = document.getElementById("olharInicio"); if (!el) return;
+      var nova = olharPedidoNovo(o), ativo = olharPedidoAtivo(o);
+      if (nova) {
+        el.innerHTML = '<section class="cartao olhar-chamada olhar-nova" aria-labelledby="t-olhar-ini"><p class="olho">Olhar do treinador</p><h2 id="t-olhar-ini">Sua orientação chegou</h2><p class="nota" style="margin-top:6px">Richard respondeu a sua dúvida sobre “' + esc(olharResumo(nova.estrategia && nova.estrategia.titulo, 60)) + '”.</p><div class="acoes"><a class="btn btn-primario" href="#/olhar/pedido/' + esc(nova.id) + '">Ouvir minha devolutiva</a></div></section>';
+      } else if (ativo) {
+        el.innerHTML = '<section class="cartao olhar-chamada" aria-labelledby="t-olhar-ini"><p class="olho">Olhar do treinador</p><h2 id="t-olhar-ini">' + (ativo.estado === "aguardando_pagamento" ? "Seu pedido espera o pagamento" : "Seu pedido está com o Richard") + '</h2><p class="nota" style="margin-top:6px">' + esc(ativo.rotulo) + (ativo.prazoTexto ? " · devolutiva prevista até " + esc(ativo.prazoTexto) : "") + '.</p><div class="acoes"><a class="btn btn-primario" href="#/olhar/pedido/' + esc(ativo.id) + '">Acompanhar meu pedido</a></div></section>';
+      } else if ((o.estrategias || []).length) {
+        el.innerHTML = '<section class="cartao olhar-chamada" aria-labelledby="t-olhar-ini"><p class="olho">Orientação individual</p><h2 id="t-olhar-ini">Uma dúvida sobre sua estratégia?</h2><p class="nota" style="margin-top:6px">Receba uma orientação individual de Richard Tsukada por ' + esc(olharPreco(o)) + '. Pagamento único, sem assinatura.</p><div class="acoes"><a class="btn btn-secundario" href="#/olhar">Conhecer o olhar do treinador</a></div></section>';
+      }
+    }).catch(function () { /* a página inicial funciona sem a chamada */ });
+  }
+
+  /* cartão do produto na área de consultorias (primeiro da lista) */
+  function cartaoOlharConsulHtml(o) {
+    var p = o.produto;
+    return '<article class="consul-card" aria-labelledby="cn-olhar"><p class="olho">Orientação individual · entrada</p><h2 id="cn-olhar">' + esc(p.nome) + "</h2>" +
+      '<p class="consul-desc">' + esc(p.descricaoCurta) + "</p>" +
+      '<ul class="consul-entregas" aria-label="Principais entregas"><li>Devolutiva individual em áudio ou vídeo</li><li>Duração de 3 a 5 minutos</li><li>Um ajuste prioritário para aplicar</li><li>Entrega em até ' + p.prazoDiasUteis + " dias úteis</li></ul>" +
+      '<dl class="consul-fatos"><div><dt>Valor</dt><dd><strong class="consul-preco">' + esc(olharPreco(o)) + '</strong> <span class="consul-unidade">' + esc(p.condicao) + "</span></dd></div><div><dt>Prazo</dt><dd>Até " + p.prazoDiasUteis + " dias úteis</dd></div></dl>" +
+      '<a class="btn btn-primario largo" href="#/olhar/pedir">Quero o olhar do treinador</a><p style="text-align:center"><a class="btn btn-texto" href="#/olhar">Ver detalhes<span class="sr"> do Olhar do treinador</span></a></p></article>';
+  }
+  /* como escolher entre os serviços: o escopo de cada um, lado a lado */
+  function diferencasServicosHtml(o) {
+    var cat = {}; consulLista().forEach(function (c) { cat[c.id] = c; });
+    function preco(id) { return cat[id] ? reaisInteiro(cat[id].precoCentavos) : ""; }
+    var itens = [
+      ["Olhar do treinador", olharPreco(o), "Uma dúvida específica, com devolutiva gravada de 3 a 5 minutos."],
+      ["Revisão de estratégia", preco("revisao-estrategia"), "Revisão de um plano existente, ajustes e três prioridades. Entrega em até 3 dias úteis. Não inclui análise de partidas."],
+      ["Consultoria ao vivo", preco("consultoria-ao-vivo"), "Videochamada individual de 50 minutos, leitura prévia da ficha e resumo com plano de ação. Não inclui análise prévia de partidas."],
+      ["Análise completa do jogador", preco("analise-completa"), "Análise de três partidas completas, totalizando até seis horas de gravação. Devolutiva em vídeo, relatório e plano de ação. Prazo de 7 a 10 dias úteis após validação do material. Acima de seis horas: orçamento personalizado."],
+      ["Análise completa + consultoria", preco("analise-mais-consultoria"), "Todas as entregas da análise completa e uma videochamada de 50 minutos."],
+    ];
+    return '<section class="cartao consul-escolha" aria-labelledby="t-dif"><h2 id="t-dif">Qual atendimento faz sentido para você?</h2><dl class="olhar-dif">' + itens.map(function (i) {
+      return "<div><dt>" + esc(i[0]) + (i[1] ? " — " + esc(i[1]) : "") + "</dt><dd>" + esc(i[2]) + "</dd></div>";
+    }).join("") + '</dl><p class="nota" style="margin-top:10px">Serviços avulsos, com pagamento por contratação, separados da assinatura da plataforma.</p></section>';
+  }
+
+  /* página do produto */
+  async function telaOlhar() {
+    tela('<p class="carregando">Carregando…</p>', true);
+    var o; try { o = await carregarOlhar(true); } catch (e) { olharFalha(e, telaOlhar); return; }
+    var p = o.produto, ativo = olharPedidoAtivo(o), nova = olharPedidoNovo(o);
+    tela(olharVoltar("#/consultorias", "Voltar para consultorias") +
+      '<p class="olho">Orientação individual</p><h1 class="consul-titulo">' + esc(p.nome) + '</h1><p class="sub">' + esc(p.descricaoCurta) + "</p>" +
+      (nova ? '<div class="aviso" role="status"><strong>Sua orientação chegou.</strong> <a href="#/olhar/pedido/' + esc(nova.id) + '">Ouvir minha devolutiva</a></div>' : ativo ? '<div class="aviso" role="status">Você tem um pedido em andamento. <a href="#/olhar/pedido/' + esc(ativo.id) + '">Acompanhar meu pedido</a></div>' : "") +
+      '<div class="cartao consul-resumo"><dl class="consul-fatos"><div><dt>Valor</dt><dd><strong class="consul-preco">' + esc(olharPreco(o)) + '</strong> <span class="consul-unidade">Pagamento único. Sem assinatura.</span></dd></div><div><dt>Prazo</dt><dd>Até ' + p.prazoDiasUteis + " dias úteis após a confirmação do pagamento e o envio completo da solicitação</dd></div></dl>" +
+        '<a class="btn btn-primario largo" href="#/olhar/pedir">Quero o olhar do treinador</a></div>' +
+      '<section class="consul-bloco inclui"><h2>O que você recebe</h2><ul class="consul-lista-itens"><li>Uma devolutiva pessoal de Richard Tsukada, em áudio ou vídeo de 3 a 5 minutos, sobre a sua dúvida principal.</li><li>Leitura da ficha e da estratégia vinculadas ao pedido.</li><li>Comentário sobre a dúvida apresentada.</li><li>Um ajuste prioritário.</li><li>Uma orientação prática para testar no próximo treino ou jogo.</li></ul><p class="nota" style="margin-top:8px">Richard escolhe o formato, áudio ou vídeo, conforme a necessidade da explicação. A resposta é gravada por ele pessoalmente.</p></section>' +
+      '<section class="consul-bloco nao-inclui"><h2>O que não está incluído</h2><ul class="consul-lista-itens"><li>Revisão completa da estratégia.</li><li>Análise de gravações de partidas.</li><li>Videochamada.</li><li>Conversa contínua ou atendimento ilimitado.</li><li>Planejamento completo de treinamento.</li><li>Garantia de resultados esportivos.</li></ul></section>' +
+      '<section class="consul-bloco"><h2>Como funciona</h2><ol class="consul-passos"><li><strong>Escolha sua estratégia.</strong> Selecione o plano que você quer comentar.</li><li><strong>Envie sua dúvida.</strong> Conte o que acontece no seu jogo e o que gostaria de entender.</li><li><strong>Receba minha orientação.</strong> Acesse sua devolutiva gravada na plataforma em até ' + p.prazoDiasUteis + " dias úteis após a confirmação do pedido.</li></ol>" +
+        '<p class="nota" style="margin-top:8px">A compra não exige assinatura paga da plataforma. Você precisa de uma conta e de uma estratégia cadastrada. No plano gratuito você cria ' + p.estrategiasGratis + (p.estrategiasGratis === 1 ? " estratégia" : " estratégias") + ', e ela já permite pedir o olhar do treinador. Novas estratégias seguem os limites do seu plano e não estão incluídas neste valor.</p></section>' +
+      '<p class="consul-regra">' + esc(OLHAR_NAO_INCLUI) + "</p>" +
+      olharFaqHtml() +
+      '<a class="btn btn-primario btn-grande" href="#/olhar/pedir">Quero o olhar do treinador</a>' +
+      '<p class="nota" style="margin-top:10px">Quer revisar o plano completo? <a href="#/consultorias/revisao-estrategia">Conheça a Revisão de estratégia</a>.</p>');
+  }
+
+  /* solicitação: estratégia, dúvida e detalhe, com rascunho neste aparelho */
+  async function telaOlharForm(planoIdUrl) {
+    tela('<p class="carregando">Carregando…</p>', true);
+    var o; try { o = await carregarOlhar(true); } catch (e) { olharFalha(e, function () { telaOlharForm(planoIdUrl); }); return; }
+    var p = o.produto, rasc = lerOlharRasc(), ests = o.estrategias || [];
+    if (planoIdUrl && ests.some(function (e) { return e.id === planoIdUrl; })) { rasc.estrategiaId = planoIdUrl; }
+    if (!ests.some(function (e) { return e.id === rasc.estrategiaId; })) rasc.estrategiaId = ests[0] ? ests[0].id : "";
+    if (!ests.length) {
+      tela(olharVoltar("#/olhar", "Voltar para o olhar do treinador") + '<h1 class="consul-titulo">Receba o olhar do treinador</h1>' +
+        '<div class="cartao"><h2>Primeiro, uma estratégia</h2><p class="nota" style="margin-top:6px">O olhar do treinador comenta uma estratégia sua. Você ainda não tem uma pronta. ' + esc(avisoCota()) + '</p>' +
+        '<div class="acoes"><a class="btn btn-primario" href="#/estrategia">' + (estado.dados && estado.dados.fichaCompleta ? "Ir para as estratégias" : "Completar meu perfil e criar a estratégia") + '</a></div></div>' +
+        '<p class="nota" style="margin-top:12px">Nada é cobrado antes de você preencher e revisar a solicitação.</p>');
+      return;
+    }
+    var ativoMesmo = (o.pedidos || []).filter(function (x) { return x.estado === "aguardando_pagamento" && x.estrategia && x.estrategia.id === rasc.estrategiaId; })[0];
+    tela(olharVoltar("#/olhar", "Voltar para o olhar do treinador") +
+      '<h1 class="consul-titulo">Receba o olhar do treinador</h1>' +
+      '<p class="sub">Escolha uma estratégia e envie uma dúvida principal. Richard vai comentar esse ponto e indicar um ajuste para você testar.</p>' +
+      '<p class="olhar-resumo-topo"><strong>' + esc(olharPreco(o)) + "</strong> · Áudio ou vídeo de 3 a 5 minutos</p>" +
+      (ativoMesmo ? '<div class="aviso" role="status">Você já tem um pedido aguardando pagamento para esta estratégia. Se continuar, ele será atualizado, sem criar outro.</div>' : "") +
+      '<form id="fOlhar" class="consul-form" novalidate>' +
+        '<div class="campo"><label for="olEst">Qual estratégia você quer comentar?</label><select id="olEst">' + ests.map(function (e) { return '<option value="' + esc(e.id) + '"' + (e.id === rasc.estrategiaId ? " selected" : "") + ">" + esc(olharResumo(e.titulo, 60)) + "</option>"; }).join("") + '</select><div class="olhar-previa" id="olPrevia" aria-live="polite"></div><p class="erro-campo" id="olEstE" hidden></p></div>' +
+        '<div class="campo"><label for="olDuvida">Qual é sua principal dúvida?</label><textarea id="olDuvida" rows="6" maxlength="' + p.duvida.max + '" aria-describedby="olDuvidaA olDuvidaC" placeholder="Ex.: Minha estratégia sugere atacar a segunda bola, mas tenho medo de errar e acabo apenas devolvendo. Como posso começar a aplicar essa orientação?">' + esc(rasc.duvida || "") + '</textarea>' +
+          '<p class="nota" id="olDuvidaA" style="margin-top:4px">Escolha um ponto para aprofundar. Conte o que acontece e o que você gostaria de entender.</p><p class="olhar-contador" id="olDuvidaC" aria-live="polite"></p><p class="erro-campo" id="olDuvidaE" hidden></p></div>' +
+        '<div class="campo"><label for="olCtx">Tem algum detalhe importante? <span class="nota">(opcional)</span></label><textarea id="olCtx" rows="3" maxlength="' + p.contexto.max + '" aria-describedby="olCtxA olCtxC">' + esc(rasc.contexto || "") + "</textarea>" +
+          '<p class="nota" id="olCtxA" style="margin-top:4px">Conte quando essa dificuldade aparece ou o que você já tentou fazer.</p><p class="olhar-contador" id="olCtxC" aria-live="polite"></p><p class="erro-campo" id="olCtxE" hidden></p></div>' +
+        '<section class="cartao olhar-delimita" aria-label="Delimitação do atendimento"><p class="olho">Você recebe</p><p>Uma orientação individual gravada sobre a dúvida enviada, com um ajuste prioritário e uma sugestão para aplicar.</p>' +
+          '<p class="olho" style="margin-top:10px">Este atendimento não inclui</p><p>Revisão completa do plano, análise de partidas em vídeo, encontro ao vivo ou acompanhamento contínuo.</p>' +
+          '<p style="margin-top:8px"><a href="#/consultorias/revisao-estrategia">Quero revisar meu plano completo</a></p></section>' +
+        '<div class="acoes"><button class="btn btn-primario btn-grande" type="submit">Revisar pedido</button></div>' +
+        '<p class="nota" style="margin-top:8px">Nada é cobrado agora. Você revisa tudo antes de seguir para o pagamento. O que você escreve fica salvo neste aparelho.</p></form>' +
+      olharFaqHtml());
+    var f = document.getElementById("fOlhar");
+    function ler() { rasc.estrategiaId = document.getElementById("olEst").value; rasc.duvida = document.getElementById("olDuvida").value; rasc.contexto = document.getElementById("olCtx").value; }
+    function atualizar() {
+      ler(); salvarOlharRasc(rasc);
+      var e = ests.filter(function (x) { return x.id === rasc.estrategiaId; })[0];
+      document.getElementById("olPrevia").innerHTML = e ? "<strong>" + esc(e.titulo) + '</strong><span class="nota"> · criada em ' + esc(dataBR(e.criadoEm)) + "</span>" + (e.objetivo ? '<p class="nota">Objetivo: ' + esc(olharResumo(e.objetivo, 160)) + "</p>" : "") : "";
+      var nd = rasc.duvida.trim().length, nc = rasc.contexto.trim().length;
+      var cd = document.getElementById("olDuvidaC"); cd.textContent = nd + " de " + p.duvida.max + " caracteres" + (nd < p.duvida.min ? " (mínimo " + p.duvida.min + ")" : ""); cd.className = "olhar-contador" + (nd > 0 && nd < p.duvida.min ? " falta" : "");
+      document.getElementById("olCtxC").textContent = nc + " de " + p.contexto.max + " caracteres";
+    }
+    f.addEventListener("input", atualizar); f.addEventListener("change", atualizar); atualizar();
+    f.addEventListener("submit", function (ev) {
+      ev.preventDefault(); ler(); salvarOlharRasc(rasc);
+      f.querySelectorAll(".erro-campo").forEach(function (x) { x.hidden = true; });
+      var n = rasc.duvida.trim().length, primeiro = null;
+      function erro(id, msg) { var el = document.getElementById(id); el.textContent = msg; el.hidden = false; if (!primeiro) primeiro = id; }
+      if (!rasc.estrategiaId) erro("olEstE", "Escolha a estratégia que você quer comentar.");
+      if (n < p.duvida.min) erro("olDuvidaE", "Descreva sua dúvida com pelo menos " + p.duvida.min + " caracteres. Hoje são " + n + ".");
+      if (n > p.duvida.max) erro("olDuvidaE", "A dúvida pode ter até " + p.duvida.max + " caracteres.");
+      if (rasc.contexto.trim().length > p.contexto.max) erro("olCtxE", "O detalhe pode ter até " + p.contexto.max + " caracteres.");
+      if (primeiro) { var el2 = document.getElementById(primeiro); el2.scrollIntoView({ block: "center" }); return; }
+      ir("#/olhar/revisar");
+    });
+  }
+
+  /* revisão antes do pagamento */
+  async function telaOlharRevisar() {
+    tela('<p class="carregando">Carregando…</p>', true);
+    var o; try { o = await carregarOlhar(true); } catch (e) { olharFalha(e, telaOlharRevisar); return; }
+    var p = o.produto, rasc = lerOlharRasc(), est = (o.estrategias || []).filter(function (x) { return x.id === rasc.estrategiaId; })[0];
+    if (!est || String(rasc.duvida || "").trim().length < p.duvida.min) { ir("#/olhar/pedir"); return; }
+    tela(olharVoltar("#/olhar/pedir", "Voltar e editar") +
+      '<h1 class="consul-titulo">Revise seu pedido</h1><p class="sub">Confira antes de seguir para o pagamento.</p>' +
+      '<section class="cartao" aria-labelledby="t-rev"><h2 id="t-rev">Seu pedido</h2><dl class="rp-lista">' +
+        '<div class="rp-linha"><dt>Estratégia</dt><dd>' + esc(est.titulo) + ' <span class="nota">· ' + esc(dataBR(est.criadoEm)) + "</span></dd></div>" +
+        '<div class="rp-linha"><dt>Dúvida principal</dt><dd class="olhar-texto">' + esc(rasc.duvida.trim()) + "</dd></div>" +
+        (String(rasc.contexto || "").trim() ? '<div class="rp-linha"><dt>Detalhe adicional</dt><dd class="olhar-texto">' + esc(rasc.contexto.trim()) + "</dd></div>" : "") +
+        '<div class="rp-linha"><dt>Entrega</dt><dd>Devolutiva em áudio ou vídeo de 3 a 5 minutos</dd></div>' +
+        '<div class="rp-linha"><dt>Prazo</dt><dd>Até ' + p.prazoDiasUteis + " dias úteis após a confirmação do pagamento</dd></div>" +
+        '<div class="rp-linha"><dt>Valor total</dt><dd><strong>' + esc(olharPreco(o)) + "</strong></dd></div>" +
+        '<div class="rp-linha"><dt>Pagamento</dt><dd>Único, sem recorrência</dd></div></dl>' +
+        '<p class="acoes"><a class="btn btn-secundario" href="#/olhar/pedir">Editar</a></p></section>' +
+      '<form id="fRevisao" novalidate><label class="alternar" style="margin-top:12px"><input type="checkbox" id="olAceite"><span>Entendi que este atendimento contempla uma dúvida e uma devolutiva gravada, sem encontro ao vivo ou análise de partidas em vídeo.</span></label>' +
+        '<p class="erro-campo" id="olAceiteE" hidden>Confirme que entendeu o que o atendimento contempla para continuar.</p><div class="aviso" id="olAviso" role="alert" hidden></div>' +
+        '<div class="acoes"><button class="btn btn-primario btn-grande" id="btOlharPagar" type="submit">Continuar para pagamento · ' + esc(olharPreco(o)) + '</button></div>' +
+        '<p class="nota" style="margin-top:8px">Você segue para a página de pagamento da Eduzz. Use o mesmo e-mail da sua conta (' + esc(o.email) + ") para o pagamento ser reconhecido sozinho.</p></form>");
+    var f = document.getElementById("fRevisao"), bt = document.getElementById("btOlharPagar"), enviando = false;
+    f.addEventListener("submit", async function (ev) {
+      ev.preventDefault();
+      if (enviando) return;
+      var aviso = document.getElementById("olAviso"); aviso.hidden = true;
+      document.getElementById("olAceiteE").hidden = document.getElementById("olAceite").checked;
+      if (!document.getElementById("olAceite").checked) return;
+      enviando = true; ocupado(bt, true, "Preparando o pagamento…");
+      var id = null;
+      try {
+        var c = await api("player-olhar", { metodo: "POST", corpo: { acao: "criar", estrategiaId: rasc.estrategiaId, duvida: rasc.duvida, contexto: rasc.contexto, aceite: true } });
+        id = c.id; rasc.pedidoId = id; salvarOlharRasc(rasc); estado.olhar = null;
+        var pg = await api("player-olhar", { metodo: "POST", corpo: { acao: "pagar", id: id } });
+        window.location.assign(pg.checkoutUrl);
+      } catch (e) {
+        enviando = false; ocupado(bt, false);
+        aviso.innerHTML = esc(e.message) + (id ? ' Seu pedido ficou salvo em <a href="#/atendimentos">Meus atendimentos</a>.' : ""); aviso.hidden = false; aviso.scrollIntoView({ block: "center" });
+      }
+    });
+  }
+
+  /* um pedido: pagamento, acompanhamento e entrega */
+  var olharTimer = null;
+  function pararOlharTimer() { clearTimeout(olharTimer); olharTimer = null; }
+  async function telaOlharPedido(id) {
+    pararOlharTimer();
+    tela('<p class="carregando">Carregando…</p>', true);
+    var r, o;
+    try { r = await api("player-olhar?id=" + encodeURIComponent(id)); o = await carregarOlhar(false); }
+    catch (e) { tela(olharVoltar("#/atendimentos", "Voltar para meus atendimentos") + '<div class="aviso" role="alert">' + esc(e.message) + "</div>"); return; }
+    var p = r.pedido, preco = olharPreco(o), h = olharVoltar("#/atendimentos", "Voltar para meus atendimentos");
+    var fatos = '<dl class="rp-lista"><div class="rp-linha"><dt>Pedido</dt><dd>' + esc(p.numero || "") + '</dd></div><div class="rp-linha"><dt>Estratégia</dt><dd>' + esc(p.estrategia ? p.estrategia.titulo : "") + "</dd></div>" +
+      '<div class="rp-linha"><dt>Dúvida</dt><dd class="olhar-texto">' + esc(p.duvida) + "</dd></div>" +
+      (p.confirmadoEm ? '<div class="rp-linha"><dt>Confirmado em</dt><dd>' + esc(olharDataLonga(p.confirmadoEm)) + "</dd></div>" : "") +
+      (p.pagamento.estado === "aprovado" ? '<div class="rp-linha"><dt>Valor pago</dt><dd>' + esc(reaisInteiro(p.precoCentavos)) + "</dd></div>" : "") +
+      (p.prazoTexto && (p.estado === "recebido" || p.estado === "em_analise") ? '<div class="rp-linha"><dt>Devolutiva prevista até</dt><dd><strong>' + esc(p.prazoTexto) + "</strong></dd></div>" : "") + "</dl>";
+    if (p.estado === "aguardando_pagamento") {
+      var falhou = p.pagamento.estado === "falhou", iniciou = p.pagamento.iniciado;
+      tela(h + '<h1 class="consul-titulo">' + (falhou ? "O pagamento não foi concluído" : iniciou ? "Aguardando a confirmação do pagamento" : "Falta o pagamento") + "</h1>" +
+        '<p class="sub">' + (falhou ? "Seu pedido continua salvo. Você pode tentar o pagamento de novo, sem preencher nada outra vez." : iniciou ? "Assim que o pagamento for confirmado, o pedido vai para o Richard e esta tela se atualiza. Pix e cartão costumam confirmar em poucos minutos; boleto pode levar mais." : "Seu pedido está salvo. Falta concluir o pagamento para ele seguir para o Richard.") + "</p>" +
+        '<div class="cartao">' + fatos + '<div class="aviso" id="olAviso" role="alert" hidden></div><div class="acoes"><button class="btn btn-primario" id="btOlharPagar" type="button">' + (falhou ? "Tentar o pagamento de novo" : "Ir para o pagamento") + " · " + esc(preco) + '</button><button class="btn btn-secundario" id="btOlharAtualizar" type="button">Atualizar situação</button></div>' +
+        '<p class="acoes"><a class="btn btn-texto" href="#/olhar/pedir" id="lkOlharEditar">Editar o pedido</a><button class="btn btn-texto" id="btOlharCancelar" type="button">Cancelar pedido</button></p></div>' +
+        '<p class="nota" style="margin-top:10px">Use o mesmo e-mail da sua conta (' + esc(o.email) + ") no pagamento. Se pagou e o pedido não avançar, fale com o <a href=\"" + esc(suporteUrl("Olá! Paguei o Olhar do treinador (pedido " + (p.numero || "") + ") e o pedido não avançou.")) + '" target="_blank" rel="noopener">suporte</a>.</p>');
+      document.getElementById("lkOlharEditar").addEventListener("click", function () { salvarOlharRasc({ estrategiaId: p.estrategia ? p.estrategia.id : "", duvida: p.duvida, contexto: p.contexto, pedidoId: p.id }); });
+      document.getElementById("btOlharAtualizar").addEventListener("click", function () { estado.olhar = null; telaOlharPedido(id); });
+      var bt = document.getElementById("btOlharPagar"), cx = false;
+      bt.addEventListener("click", async function () {
+        if (cx) return; cx = true; ocupado(bt, true, "Abrindo o pagamento…");
+        try { var pg = await api("player-olhar", { metodo: "POST", corpo: { acao: "pagar", id: id } }); window.location.assign(pg.checkoutUrl); }
+        catch (e) { cx = false; ocupado(bt, false); var av = document.getElementById("olAviso"); av.textContent = e.message; av.hidden = false; }
+      });
+      document.getElementById("btOlharCancelar").addEventListener("click", async function () {
+        if (!window.confirm("Cancelar este pedido? Nada foi cobrado.")) return;
+        try { await api("player-olhar", { metodo: "POST", corpo: { acao: "cancelar", id: id } }); estado.olhar = null; limparOlharRasc(); toast("Pedido cancelado."); ir("#/atendimentos"); } catch (e) { toast(e.message, null, true); }
+      });
+      if (iniciou && !falhou) { var tent = 0; (function sondar() { olharTimer = setTimeout(async function () {
+        if (location.hash.indexOf("#/olhar/pedido/" + id) !== 0 || ++tent > 40) return;
+        try { var x = await api("player-olhar?id=" + encodeURIComponent(id)); if (x.pedido.estado !== "aguardando_pagamento" || x.pedido.pagamento.estado === "falhou") { estado.olhar = null; telaOlharPedido(id); return; } } catch (e) { /* tenta de novo */ }
+        sondar();
+      }, 8000); })(); }
+      return;
+    }
+    if (p.estado === "recebido" || p.estado === "em_analise") {
+      limparOlharRasc();
+      tela(h + '<h1 class="consul-titulo">' + (p.estado === "recebido" ? "Pedido recebido" : "Seu pedido está em análise") + '</h1><p class="sub">Sua dúvida foi enviada para Richard. Você poderá acompanhar a entrega por aqui.</p>' +
+        '<div class="cartao"><p><span class="tag">' + esc(p.rotulo) + "</span></p>" + fatos + '<div class="acoes"><a class="btn btn-primario" href="#/atendimentos">Acompanhar meu pedido</a></div></div>' +
+        '<p class="nota" style="margin-top:10px">A devolutiva aparece nesta tela e em Meus atendimentos. Você não precisa de assinatura ativa para consultá-la.</p>');
+      return;
+    }
+    if (p.estado === "devolutiva_disponivel" && p.devolutiva) {
+      var d = p.devolutiva;
+      tela(h + '<p class="olho">' + esc(d.autor) + " · " + esc(olharDataLonga(d.publicadaEm)) + '</p><h1 class="consul-titulo">Seu olhar do treinador chegou</h1>' +
+        '<section class="cartao olhar-player" aria-labelledby="t-play"><h2 id="t-play">' + (d.tipo === "video" ? "Vídeo de " : "Áudio de ") + esc(d.autor) + '</h2><div id="olMidia"><button class="btn btn-primario" id="btOlharAbrir" type="button">' + (d.tipo === "video" ? "Abrir o vídeo" : "Abrir o áudio") + '</button></div><p class="nota" id="olMidiaNota" style="margin-top:8px">Toque para carregar. Nada toca sozinho.' + (d.duracaoSeg ? " Duração: " + Math.floor(d.duracaoSeg / 60) + " min " + (d.duracaoSeg % 60) + " s." : "") + "</p></section>" +
+        (d.resumo ? '<section class="cartao"><h2>Resumo de Richard</h2><p class="olhar-texto">' + esc(d.resumo) + "</p></section>" : "") +
+        '<section class="cartao"><h2>Sua dúvida</h2><p class="olhar-texto">' + esc(p.duvida) + '</p><p class="nota" style="margin-top:6px">Estratégia: ' + (p.estrategia ? '<a href="#/estrategia/' + esc(p.estrategia.id) + '">' + esc(p.estrategia.titulo) + "</a>" : "") + " · pedido " + esc(p.numero || "") + "</p></section>" +
+        '<p class="nota" style="margin-top:10px">Problema para abrir o arquivo? <a href="' + esc(suporteUrl("Olá! Não consegui abrir a devolutiva do Olhar do treinador (pedido " + (p.numero || "") + ").")) + '" target="_blank" rel="noopener">Fale com o suporte</a>. Esta orientação fica guardada em Meus atendimentos.</p>');
+      var bAbrir = document.getElementById("btOlharAbrir");
+      async function abrirMidia() {
+        ocupado(bAbrir, true, "Carregando…");
+        try {
+          var a = await api("player-olhar?id=" + encodeURIComponent(id) + "&arquivo=1"), el = document.createElement(a.tipo === "video" ? "video" : "audio");
+          el.controls = true; el.preload = "metadata"; el.setAttribute("playsinline", ""); el.src = a.url; el.className = "olhar-midia";
+          el.addEventListener("error", function () { document.getElementById("olMidiaNota").innerHTML = 'Não foi possível tocar o arquivo. <button type="button" class="btn btn-texto" id="btOlharRecarregar">Carregar de novo</button>'; document.getElementById("btOlharRecarregar").addEventListener("click", abrirMidia); });
+          var alvo = document.getElementById("olMidia"); alvo.textContent = ""; alvo.appendChild(el);
+          estado.olhar = null;
+        } catch (e) { ocupado(bAbrir, false); document.getElementById("olMidiaNota").textContent = e.message; }
+      }
+      bAbrir.addEventListener("click", abrirMidia);
+      return;
+    }
+    tela(h + '<h1 class="consul-titulo">' + esc(p.rotulo) + '</h1><div class="cartao">' + fatos + "</div>" +
+      (p.estado === "reembolsado" ? '<p class="nota" style="margin-top:10px">O pagamento deste pedido foi estornado pela Eduzz. Em caso de dúvida, fale com o <a href="' + esc(suporteUrl("Olá! Dúvida sobre o reembolso do pedido " + (p.numero || "") + ".")) + '" target="_blank" rel="noopener">suporte</a>.</p>' : ""));
+  }
+
+  /* Meus atendimentos: pedidos e devolutivas */
+  async function telaAtendimentos() {
+    pararOlharTimer();
+    tela('<p class="carregando">Carregando…</p>', true);
+    var o; try { o = await carregarOlhar(true); } catch (e) { olharFalha(e, telaAtendimentos); return; }
+    var rasc = lerOlharRasc(), temRasc = String(rasc.duvida || "").trim().length > 0 && !rasc.pedidoId;
+    var botao = function (p) {
+      if (p.estado === "devolutiva_disponivel") return '<a class="btn btn-primario btn-pequeno" href="#/olhar/pedido/' + esc(p.id) + '">' + (p.nova ? "Ouvir minha devolutiva" : "Ver devolutiva") + "</a>";
+      if (p.estado === "aguardando_pagamento") return '<a class="btn btn-primario btn-pequeno" href="#/olhar/pedido/' + esc(p.id) + '">' + (p.pagamento.estado === "falhou" ? "Tentar o pagamento de novo" : "Continuar o pagamento") + "</a>";
+      return '<a class="btn btn-secundario btn-pequeno" href="#/olhar/pedido/' + esc(p.id) + '">Acompanhar</a>';
+    };
+    var itens = [];
+    if (temRasc) itens.push('<li class="olhar-item"><p class="olho">' + esc(o.produto.nome) + '</p><p class="olhar-texto">' + esc(olharResumo(rasc.duvida, 110)) + '</p><p><span class="tag">Rascunho</span></p><div class="acoes"><a class="btn btn-secundario btn-pequeno" href="#/olhar/pedir">Continuar o rascunho</a></div></li>');
+    (o.pedidos || []).forEach(function (p) {
+      itens.push('<li class="olhar-item"><p class="olho">' + esc(p.produto) + " · " + esc(olharDataLonga(p.criadoEm)) + (p.numero ? " · " + esc(p.numero) : "") + '</p><p class="olhar-texto">' + esc(olharResumo(p.duvida, 110)) + '</p><p><span class="tag' + (p.nova ? " tag-adv" : "") + '">' + esc(p.nova ? "Orientação disponível" : p.rotulo) + "</span>" +
+        (p.estado === "aguardando_pagamento" && p.pagamento.estado === "falhou" ? ' <span class="nota">' + esc(p.pagamento.rotulo) + "</span>" : "") + (p.prazoTexto && (p.estado === "recebido" || p.estado === "em_analise") ? ' <span class="nota">· até ' + esc(p.prazoTexto) + "</span>" : "") + "</p>" +
+        '<div class="acoes">' + botao(p) + "</div></li>");
+    });
+    tela('<h1>Meus atendimentos</h1><p class="sub">Pedidos do Olhar do treinador e as orientações que você recebeu.</p>' +
+      (itens.length ? '<ul class="olhar-lista">' + itens.join("") + "</ul>" : '<div class="cartao" style="margin-top:14px"><h2>Você ainda não tem atendimentos</h2><p class="nota" style="margin-top:6px">Quando você pedir um olhar do treinador, o acompanhamento e a devolutiva ficam aqui.</p><div class="acoes"><a class="btn btn-primario" href="#/olhar">Conhecer o olhar do treinador</a></div></div>') +
+      '<p class="nota" style="margin-top:12px">Outros serviços, como a revisão de estratégia e a análise completa, são combinados pelo WhatsApp. Veja em <a href="#/consultorias">Consultorias</a>.</p>');
+  }
+
   async function rotear() {
     var logado = auth && auth.currentUser;
     var h = location.hash.replace(/^#\/?/, "");
@@ -4072,6 +4387,8 @@
     else if (r === "focos") telaFocos();
     else if (r === "scouts") telaScouts(partes[1]);
     else if (r === "ao-vivo") telaAoVivo(partes[1]);
+    else if (!MODO_COMP && r === "olhar") { if (partes[1] === "pedir") telaOlharForm(partes[2]); else if (partes[1] === "revisar") telaOlharRevisar(); else if (partes[1] === "pedido" && partes[2]) telaOlharPedido(partes[2]); else telaOlhar(); }
+    else if (!MODO_COMP && r === "atendimentos") telaAtendimentos();
     else if (MODO_COMP && r === "recomendacoes") telaRecomendacoes();
     else if (MODO_COMP && r === "treinos") telaTreinosSugeridos();
     else if (r === "competicao" || (MODO_COMP && (r === "inicio" || r === ""))) { if (partes[1] === "vinculo" && partes[2]) { if (partes[3] === "scout" && partes[4]) telaScoutVinculo(partes[2], partes[4]); else if (partes[3] === "marcar") telaScoutFamilia(partes[2]); else telaVinculo(partes[2]); } else telaCompeticao(); }

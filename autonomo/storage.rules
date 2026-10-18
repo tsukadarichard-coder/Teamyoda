@@ -1,0 +1,11 @@
+/* Regras do Firebase Storage do QuadraLab: NENHUM acesso direto do navegador.
+   As devolutivas do "Olhar do treinador" ficam em olhar/{pedido}/… e só são lidas e gravadas pelas functions (Admin SDK) ou por URL assinada curta,
+   gerada depois de o servidor conferir quem pede. Publique estas regras no Firebase (console → Storage → Regras, ou firebase deploy --only storage). */
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -29,6 +29,7 @@ const PRODUTO = {
   duvida: { min: 30, max: 800 },
   contexto: { max: 400 },
   maxPendentes: 3,
+  estrategiasGratis: 1, // mesmo valor de PLANOS_GRATIS em _player.js (conferido por tests/check-olhar.js)
 };
 
 /* produto da Eduzz: preencha quando o produto de R$ 47,90 (pagamento único) for criado no painel da Eduzz */
@@ -61,7 +62,7 @@ function produtoPublico() {
   return {
     id: PRODUTO.id, nome: PRODUTO.nome, descricaoCurta: PRODUTO.descricaoCurta, precoCentavos: PRODUTO.precoCentavos, moeda: PRODUTO.moeda,
     condicao: PRODUTO.condicao, prazoDiasUteis: PRODUTO.prazoDiasUteis, duracaoMinSeg: PRODUTO.duracaoMinSeg, duracaoMaxSeg: PRODUTO.duracaoMaxSeg,
-    duvida: PRODUTO.duvida, contexto: PRODUTO.contexto, pagamentoDisponivel: !!checkoutOlhar(),
+    duvida: PRODUTO.duvida, contexto: PRODUTO.contexto, estrategiasGratis: PRODUTO.estrategiasGratis, pagamentoDisponivel: !!checkoutOlhar(),
   };
 }
 

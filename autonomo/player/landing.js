@@ -63,6 +63,37 @@
           '<div class="lp-passo-fone">' + fone(p.tela) + "</div></li>";
       }).join("") + "</ol></div></section>";
   }
+  /* Olhar do treinador (R$ 47,90, pagamento único): preço, prazo e limites vêm do servidor; aqui só texto e ligação com o app */
+  var OLHAR_FAQ = [
+    ["Preciso assinar um plano pago?", "Não. Você precisa de uma conta e de uma estratégia cadastrada. O atendimento é comprado separadamente."],
+    ["Posso enviar qualquer dúvida?", "Envie uma dúvida principal relacionada à estratégia selecionada. O atendimento é focado nesse ponto."],
+    ["Posso enviar uma gravação da minha partida?", "Este produto não inclui análise de partidas em vídeo. Para isso, consulte a Análise completa do jogador."],
+    ["Vou conversar ao vivo com Richard?", "Não. Você recebe uma devolutiva individual gravada. Para conversar por videochamada, escolha a Consultoria ao vivo."],
+    ["Recebo áudio ou vídeo?", "Richard escolhe o formato mais adequado para explicar sua orientação. A entrega tem de 3 a 5 minutos."],
+    ["Quando recebo?", "Em até 3 dias úteis após a confirmação do pagamento e o envio completo da solicitação. A data prevista aparece no pedido."],
+    ["O atendimento revisa toda a estratégia?", "Ele aprofunda a dúvida enviada. Para revisar o plano completo, escolha a Revisão de estratégia."],
+    ["Onde encontro a resposta?", "Na área Meus atendimentos, dentro da sua conta."],
+    ["Posso comprar novamente?", "Sim. Cada contratação corresponde a uma dúvida e uma devolutiva."]
+  ];
+  function chamadaOlhar() {
+    return '<section class="lp-olhar-chamada" aria-labelledby="lp-h2-olhar-ch"><div class="lp-cont lp-olhar-chamada-in"><div><h2 id="lp-h2-olhar-ch">Quer um olhar profissional sobre sua estratégia?</h2>' +
+      '<p id="lpOlharChamadaTxt">Receba uma orientação individual de Richard Tsukada.</p></div><button type="button" class="lp-btn lp-btn-lima" data-lp="olhar">Conhecer o olhar do treinador</button></div></section>';
+  }
+  function olharSecao() {
+    return '<section class="lp-secao lp-olhar" id="lp-olhar" aria-labelledby="lp-h2-olhar"><div class="lp-cont"><div class="lp-olhar-grade"><div>' +
+      '<p class="lp-olhar-id">Orientação individual</p><h2 id="lp-h2-olhar" class="lp-h2">Uma dúvida sobre seu jogo? Receba meu olhar.</h2>' +
+      '<p class="lp-olhar-desc">Envie sua estratégia e conte sua principal dúvida. Richard Tsukada vai revisar esse ponto e enviar uma orientação gravada para você testar em quadra.</p>' +
+      '<ul class="lp-olhar-itens"><li>Devolutiva individual em áudio ou vídeo</li><li>Duração de 3 a 5 minutos</li><li>Um ajuste prioritário para aplicar</li><li>Entrega em até <span data-lp-prazo>3</span> dias úteis</li></ul></div>' +
+      '<div class="lp-olhar-compra"><p class="lp-olhar-preco"><strong id="lpOlharPreco" aria-live="polite">&nbsp;</strong></p><p class="lp-olhar-cond">Pagamento único. Sem assinatura.</p>' +
+      '<a class="lp-btn lp-btn-lima lp-btn-cheio lp-btn-grande" href="#/olhar/pedir">Quero o olhar do treinador</a>' +
+      '<p class="lp-olhar-escopo">Contempla uma dúvida sobre uma estratégia. Não inclui análise de partidas em vídeo, revisão completa do plano ou encontro ao vivo.</p></div></div>' +
+      '<div class="lp-olhar-como"><h3>Como funciona</h3><ol>' +
+      '<li><b>1</b><div><strong>Escolha sua estratégia</strong><span>Selecione o plano que você quer comentar.</span></div></li>' +
+      '<li><b>2</b><div><strong>Envie sua dúvida</strong><span>Conte o que acontece no seu jogo e o que gostaria de entender.</span></div></li>' +
+      '<li><b>3</b><div><strong>Receba minha orientação</strong><span>Acesse sua devolutiva gravada na plataforma em até 3 dias úteis após a confirmação do pedido.</span></div></li></ol>' +
+      '<p class="lp-olhar-nota">A compra não exige assinatura paga da plataforma. Você precisa de uma conta e de uma estratégia cadastrada para enviar o pedido. <span data-lp-gratis>No plano gratuito você cria 1 estratégia, e ela já permite pedir o olhar do treinador.</span> Novas estratégias seguem os limites do seu plano e não estão incluídas no valor do atendimento.</p></div>' +
+      '<div class="lp-olhar-faq"><h3>Perguntas frequentes</h3>' + OLHAR_FAQ.map(function (q) { return "<details><summary>" + esc(q[0]) + "</summary><p>" + esc(q[1]) + "</p></details>"; }).join("") + "</div></div></section>";
+  }
   function inteligente() {
     return '<section class="lp-secao lp-intel" id="lp-evolucao-inteligente" aria-labelledby="lp-h2-intel"><div class="lp-cont"><h2 id="lp-h2-intel" class="lp-h2">Evolução Inteligente QuadraLab</h2>' +
       '<p class="lp-intel-sub">Quanto mais você joga, mais informações o QuadraLab utiliza para ajudar a planejar seus próximos desafios.</p>' +
@@ -105,7 +136,7 @@
     return '<footer class="lp-rodape"><div class="lp-cont"><p>Tecnologia <strong>QuadraLab</strong> · Metodologia MTY, de Richard Tsukada</p><nav aria-label="Rodapé"><a href="#/entrar">Entrar</a>' + extra + "</nav></div></footer>";
   }
 
-  function html() { return cabecalho() + "<main>" + hero() + comoFunciona() + evolucao() + inteligente() + planos() + diferenca() + consultorias() + final() + "</main>" + rodape(null); }
+  function html() { return cabecalho() + "<main>" + hero() + comoFunciona() + chamadaOlhar() + evolucao() + inteligente() + planos() + diferenca() + olharSecao() + consultorias() + final() + "</main>" + rodape(null); }
 
   function cartaoConsulta(c) {
     var destaque = !!c.selo;
@@ -124,6 +155,26 @@
   /* ordem comercial: do preço mais acessível ao de maior valor, com o atendimento completo em destaque no fim */
   function ordenar(lista) { return lista.slice().sort(function (a, b) { return a.precoCentavos - b.precoCentavos; }); }
 
+  function cartaoOlhar(o) {
+    return '<article class="lp-consul-card" aria-labelledby="lc-olhar"><p class="lp-selo lp-selo-claro">Para começar</p><h3 id="lc-olhar">' + esc(o.nome) + "</h3>" +
+      '<p class="lp-consul-desc">' + esc(o.descricaoCurta) + "</p>" +
+      '<ul class="lp-consul-entregas" aria-label="Principais entregas"><li>Devolutiva individual em áudio ou vídeo</li><li>Duração de 3 a 5 minutos</li><li>Um ajuste prioritário para aplicar</li><li>Entrega em até ' + o.prazoDiasUteis + " dias úteis</li></ul>" +
+      '<p class="lp-consul-preco"><span class="lp-rotulo">Valor</span><strong>' + esc(reais(o.precoCentavos)) + '</strong> <span class="lp-un">' + esc(o.condicao) + "</span></p>" +
+      '<p class="lp-consul-prazo"><span class="lp-rotulo">Prazo</span>Até ' + o.prazoDiasUteis + " dias úteis</p>" +
+      '<a class="lp-btn lp-btn-lima lp-btn-cheio" href="#/olhar/pedir">Quero o olhar do treinador</a><p class="lp-ver"><a href="#/olhar">Ver detalhes<span class="lp-sr"> do Olhar do treinador</span></a></p></article>';
+  }
+  function comoEscolher(dados) {
+    var o = dados.olhar, c = {}; (dados.consultorias || []).forEach(function (x) { c[x.id] = x; });
+    function pr(id) { return c[id] ? " — " + reais(c[id].precoCentavos) : ""; }
+    var linhas = [
+      ["Olhar do treinador" + (o ? " — " + reais(o.precoCentavos) : ""), "Uma dúvida específica, com devolutiva gravada de 3 a 5 minutos."],
+      ["Revisão de estratégia" + pr("revisao-estrategia"), "Revisão de um plano existente, ajustes e três prioridades. Entrega em até 3 dias úteis. Não inclui análise de partidas."],
+      ["Consultoria ao vivo" + pr("consultoria-ao-vivo"), "Videochamada individual de 50 minutos, leitura prévia da ficha e resumo com plano de ação. Não inclui análise prévia de partidas."],
+      ["Análise completa do jogador" + pr("analise-completa"), "Análise de três partidas completas, totalizando até seis horas de gravação. Devolutiva em vídeo, relatório e plano de ação. Prazo de 7 a 10 dias úteis após validação do material. Acima de seis horas: orçamento personalizado."],
+      ["Análise completa + consultoria" + pr("analise-mais-consultoria"), "Todas as entregas da análise completa e uma videochamada de 50 minutos."]
+    ];
+    return '<div class="lp-como-escolher"><h3>Qual atendimento faz sentido para você?</h3><dl>' + linhas.map(function (l) { return "<div><dt>" + esc(l[0]) + "</dt><dd>" + esc(l[1]) + "</dd></div>"; }).join("") + '</dl><p>Serviços avulsos, com pagamento por contratação, separados da assinatura da plataforma.</p></div>';
+  }
   function cartaoPlano(p) {
     var gratis = p.precoCentavos === 0;
     return '<article class="lp-plano' + (p.destaque ? " lp-plano-destaque" : "") + (gratis ? " lp-plano-free" : "") + '" aria-labelledby="pl-' + esc(p.id) + '">' +
@@ -152,7 +203,12 @@
         alvoPlanos.innerHTML = dados.planos.map(cartaoPlano).join("");
         var tb = document.getElementById("lpTabela"); tb.innerHTML = tabelaPlanos(dados.planos, dados.linhasComparacao || []); tb.hidden = false;
       }
-      alvo.innerHTML = ordenar(dados.consultorias || []).map(cartaoConsulta).join("");
+      alvo.innerHTML = (dados.olhar ? cartaoOlhar(dados.olhar) : "") + ordenar(dados.consultorias || []).map(cartaoConsulta).join("") + comoEscolher(dados);
+      if (dados.olhar) {
+        var pr = document.getElementById("lpOlharPreco"); if (pr) pr.textContent = reais(dados.olhar.precoCentavos);
+        var ch = document.getElementById("lpOlharChamadaTxt"); if (ch) ch.textContent = "Receba uma orientação individual de Richard Tsukada por " + reais(dados.olhar.precoCentavos) + ".";
+        Array.prototype.forEach.call(document.querySelectorAll("[data-lp-prazo]"), function (e) { e.textContent = dados.olhar.prazoDiasUteis; });
+      }
       document.getElementById("lpNotaConsul").hidden = false;
       var rod = document.querySelector(".lp-rodape");
       if (rod) rod.outerHTML = rodape(dados.links);
@@ -172,6 +228,7 @@
       if (!a) return;
       ev.preventDefault(); // rolagem dentro da página: não mexe no endereço (que é a rota do app)
       if (a.getAttribute("data-lp") === "como") { var s = document.getElementById("lp-como"); if (s) s.scrollIntoView({ behavior: "smooth", block: "start" }); }
+      else if (a.getAttribute("data-lp") === "olhar") { var o = document.getElementById("lp-olhar"); if (o) o.scrollIntoView({ behavior: "smooth", block: "start" }); }
       else window.scrollTo({ top: 0, behavior: "smooth" });
     };
     raiz.addEventListener("click", ouvinte);

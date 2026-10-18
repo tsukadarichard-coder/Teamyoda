@@ -49,6 +49,7 @@ const DUVIDA = "Minha estratégia sugere atacar a segunda bola, mas tenho medo d
 
 /* ── preço, textos e prazo ── */
 assert.strictEqual(O.PRODUTO.precoCentavos, 4790); assert.strictEqual(O.produtoPublico().precoCentavos, 4790); assert.strictEqual(O.PRODUTO.moeda, "BRL");
+assert.strictEqual(O.PRODUTO.estrategiasGratis, +/const PLANOS_GRATIS = (\d+)/.exec(require("fs").readFileSync(path.join(fx, "_player.js"), "utf8"))[1], "limite gratuito igual ao do servidor");
 assert.strictEqual(O.PRODUTO.modalidade, "pagamento_unico"); assert.strictEqual(O.PRODUTO.condicao, "Pagamento único · Sem assinatura");
 assert.strictEqual(O.produtoPublico().pagamentoDisponivel, false, "sem checkout configurado");
 assert.strictEqual(O.pascoa(2026), "2026-04-05");

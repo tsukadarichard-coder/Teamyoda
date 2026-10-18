@@ -246,6 +246,106 @@
     try { await chamar("admin-pedidos", { corpo: corpo }); toast("Pedido atualizado."); invalidar(); rotear(true); } catch (e) { toast(e.message, true); b.disabled = false; }
   }
 
+  /* ══ Olhar do treinador ══
+     Fila dos pedidos pagos, ficha e estratégia copiadas na contratação, envio do áudio/vídeo ao armazenamento privado e publicação.
+     Nada é publicado sozinho: só o botão "Publicar devolutiva", com confirmação, libera a resposta ao jogador. */
+  var EST_OL = [["", "Todos"], ["recebido", "Recebidos"], ["em_analise", "Em análise"], ["devolutiva_disponivel", "Entregues"], ["reembolsado", "Reembolsados"]];
+  var CLASSE_OL = { recebido: "info", em_analise: "info", devolutiva_disponivel: "ok", reembolsado: "neutro" };
+  function prazoOl(x) {
+    if (x.estado !== "recebido" && x.estado !== "em_analise") return "";
+    if (x.atrasado) return '<span class="idade atraso">Prazo vencido em ' + esc(dt(x.prazoEm)) + "</span>";
+    return '<span class="idade">Prazo ' + esc(dt(x.prazoEm)) + (x.diasParaPrazo != null ? " (" + (x.diasParaPrazo === 0 ? "hoje" : "em " + x.diasParaPrazo + " d") + ")" : "") + "</span>";
+  }
+  TELAS.olhar = async function (h, forcar) {
+    if (h.q.id) return telaOlharDetalhe(h.q.id);
+    var d = await carregar("olhar", "admin-olhar", "", forcar), c = $("#conteudo"), est = h.q.estado || "", todos = d.fila;
+    var lista = todos.filter(function (x) { return (!est || x.estado === est) && (!h.q.q || (x.nome + " " + x.email + " " + x.numero).toLowerCase().indexOf(h.q.q.toLowerCase()) >= 0); });
+    var avisos = "";
+    if (d.pendencias.length) avisos += '<div class="aviso atencao" role="alert">Alguém tentou pagar, mas o produto ainda não tem checkout da Eduzz configurado em <code>_player-olhar.js</code> (productId e link). O app avisou o jogador que o pagamento está indisponível.</div>';
+    if (d.pagamentosSemPedido.length) avisos += '<section class="secao"><h2>Pagamentos da Eduzz sem pedido</h2><p class="nota">O e-mail do pagador não bateu com nenhum pedido aguardando pagamento. Vincule ao pedido certo.</p>' + d.pagamentosSemPedido.map(function (x) {
+      return '<div class="item"><p>' + esc(x.email) + " · fatura " + esc(x.faturaId) + " · " + esc(dthora(x.recebidoEm)) + '</p><p class="meta">' + esc(x.motivo) + '</p><div class="acoes"><select data-sp-ol="' + esc(x.id) + '" aria-label="Pedido para vincular"><option value="">Vincular ao pedido…</option>' + d.aguardandoPagamento.map(function (p) { return '<option value="' + esc(p.id) + '">' + esc(p.numero + " · " + p.email) + "</option>"; }).join("") + '</select><button class="bt azul" type="button" data-vincular-ol="' + esc(x.id) + '">Vincular</button></div></div>';
+    }).join("") + "</section>";
+    c.innerHTML = cabeca("Olhar do treinador", "Devolutivas gravadas de 3 a 5 minutos, " + reais(d.produto.precoCentavos) + " por pedido (pagamento único). Prazo de " + d.produto.prazoDiasUteis + " dias úteis após a confirmação.", '<div class="acoes" style="margin:0"><button class="bt claro" type="button" id="btPrepArm">Preparar armazenamento</button></div>') + avisos +
+      '<div class="filtros">' + chips(EST_OL, est, function (e) { return e ? todos.filter(function (x) { return x.estado === e; }).length : todos.length; }) + barraBusca(h.q, null, false) + "</div>" +
+      '<p class="nota">' + n(lista.length) + " de " + n(todos.length) + " pedido(s) pagos. Aguardando pagamento: " + n(d.aguardandoPagamento.length) + ".</p>" +
+      (lista.length ? lista.map(function (x) {
+        return '<article class="item"><div class="item-topo"><span class="estado ' + (CLASSE_OL[x.estado] || "neutro") + '">' + esc(x.rotulo) + "</span>" + prazoOl(x) + '</div><h3><a href="#/olhar?id=' + esc(x.id) + '">' + esc(x.nome) + " · " + esc(x.numero) + "</a></h3>" +
+          '<p class="meta">' + esc(x.estrategia) + " · confirmado em " + esc(dt(x.confirmadoEm)) + " · " + esc(x.pagamentoRotulo) + (x.temRascunho ? " · tem rascunho" : "") + "</p><p>" + esc(x.duvida) + '</p><div class="acoes"><a class="bt azul" href="#/olhar?id=' + esc(x.id) + '">Abrir pedido</a></div></article>';
+      }).join("") : '<div class="cartao" style="margin-top:12px"><p>Nenhum pedido neste filtro.</p></div>');
+    ligarFiltros("olhar", h.q);
+    $("#btPrepArm").onclick = async function () {
+      if (!window.confirm("Liberar o envio de arquivos do navegador para o armazenamento privado (CORS do bucket)? É feito uma vez.")) return;
+      try { var r = await chamar("admin-olhar", { corpo: { acao: "prepararArmazenamento" } }); toast("Armazenamento preparado (" + r.bucket + ")."); } catch (e) { toast(e.message, true); }
+    };
+    $$("[data-vincular-ol]").forEach(function (b) { b.onclick = async function () { var sel = $('[data-sp-ol="' + b.getAttribute("data-vincular-ol") + '"]'); if (!sel.value) { toast("Escolha o pedido.", true); return; } try { await chamar("admin-olhar", { corpo: { acao: "vincularPagamento", faturaId: b.getAttribute("data-vincular-ol"), pedidoId: sel.value } }); toast("Pagamento vinculado."); invalidar(); rotear(true); } catch (e) { toast(e.message, true); } }; });
+  };
+  function tipoPorExtensao(f) {
+    if (f.type) return f.type.toLowerCase();
+    var e = String(f.name || "").split(".").pop().toLowerCase();
+    return ({ mp3: "audio/mpeg", m4a: "audio/mp4", aac: "audio/aac", webm: "audio/webm", mp4: "video/mp4" })[e] || "";
+  }
+  function medirDuracao(f, tipo) {
+    return new Promise(function (ok, err) {
+      var el = document.createElement(tipo.indexOf("video/") === 0 ? "video" : "audio"), url = URL.createObjectURL(f);
+      el.preload = "metadata";
+      el.onloadedmetadata = function () {
+        if (el.duration === Infinity) { el.currentTime = 1e101; el.ontimeupdate = function () { el.ontimeupdate = null; URL.revokeObjectURL(url); ok(el.duration); }; return; }
+        URL.revokeObjectURL(url); ok(el.duration);
+      };
+      el.onerror = function () { URL.revokeObjectURL(url); err(new Error("Não foi possível ler este arquivo. Use MP3, M4A, AAC, WebM ou MP4.")); };
+      el.src = url;
+    });
+  }
+  function duracaoTxt(s) { return Math.floor(s / 60) + " min " + (s % 60) + " s"; }
+  async function telaOlharDetalhe(id) {
+    var d = await chamar("admin-olhar", { qs: "?id=" + encodeURIComponent(id) }), c = $("#conteudo"), s = d.snapshot, ficha = (s && s.ficha) || {}, est = s && s.estrategia && s.estrategia.plano;
+    var fichaHtml = Object.keys(ficha).filter(function (k) { return k !== "adversario" && typeof ficha[k] === "string" && ficha[k]; }).map(function (k) { return "<div><dt>" + esc(k) + "</dt><dd>" + esc(ficha[k]) + "</dd></div>"; }).join("");
+    var estHtml = est ? '<div class="bloco"><strong>' + esc(est.titulo || "") + "</strong>\n" + esc(est.resumo || "") + "</div>" + (est.diretrizes || []).map(function (x) { return '<div class="bloco"><strong>' + esc(x.titulo) + "</strong>\n" + esc(x.acao) + (x.porque ? "\nPor quê: " + esc(x.porque) : "") + "</div>"; }).join("") : '<p class="nota">A estratégia não pôde ser copiada na contratação' + (d.estrategiaPrevia ? " (prévia: " + esc(d.estrategiaPrevia.titulo) + ")" : "") + ".</p>";
+    var aberto = d.estado === "recebido" || d.estado === "em_analise", r = d.rascunho || {}, pub = d.devolutiva;
+    function midia(m) { return m && m.url ? (m.tipo === "video" ? '<video controls preload="metadata" playsinline src="' + esc(m.url) + '" style="width:100%;max-height:60vh"></video>' : '<audio controls preload="metadata" src="' + esc(m.url) + '" style="width:100%"></audio>') : (m && m.erroArquivo ? '<p class="nota">' + esc(m.erroArquivo) + "</p>" : ""); }
+    var fora = r.duracaoSeg && (r.duracaoSeg < d.padrao.minSeg || r.duracaoSeg > d.padrao.maxSeg);
+    c.innerHTML = '<p><a href="#/olhar">Voltar para a fila</a></p>' + cabeca("Pedido " + d.numero, d.nome + " · " + d.email) +
+      '<section class="secao"><p><span class="estado ' + (CLASSE_OL[d.estado] || "neutro") + '">' + esc(d.rotulo) + "</span> " + prazoOl(d) + '</p><p class="meta">' + esc(d.pagamentoRotulo) + " · confirmado em " + esc(dt(d.confirmadoEm)) + " · prazo " + esc(dt(d.prazoEm)) + '</p>' +
+      '<p class="rot">Dúvida principal</p><div class="bloco">' + esc(d.duvida) + "</div>" + (d.contexto ? '<p class="rot">Detalhe adicional</p><div class="bloco">' + esc(d.contexto) + "</div>" : "") + "</section>" +
+      '<section class="secao"><h2>Estratégia (copiada na contratação)</h2>' + estHtml + "</section>" +
+      '<section class="secao"><h2>Ficha do jogador (copiada na contratação)</h2>' + (fichaHtml ? '<dl class="ficha-dl">' + fichaHtml + "</dl>" : '<p class="nota">Sem ficha copiada.</p>') + "</section>" +
+      (aberto ? '<section class="secao" id="areaDev"><h2>Devolutiva</h2><p class="nota">Áudio ou vídeo de 3 a 5 minutos. Formatos: ' + esc(d.limites.formatos) + ". Limites: áudio " + d.limites.audioMaxMB + " MB, vídeo " + d.limites.videoMaxMB + " MB. Arquivo privado: só o dono do pedido o abre, por link curto.</p>" +
+        (d.estado === "recebido" ? '<div class="acoes"><button class="bt claro" type="button" id="btIniciarOl">Iniciar análise</button></div>' : "") +
+        '<div class="campo"><label for="arqDev">Anexar áudio ou vídeo</label><input id="arqDev" type="file" accept=".mp3,.m4a,.aac,.webm,.mp4,audio/*,video/mp4,video/webm"></div><p class="nota" id="envioEstado" role="status"></p>' +
+        (r.tipo ? '<div class="bloco"><strong>Arquivo anexado:</strong> ' + esc(r.tipo) + " · " + esc((r.tamanho / 1048576).toFixed(1)) + " MB · duração " + esc(duracaoTxt(r.duracaoSeg || 0)) + (fora ? '</div><div class="aviso atencao">A duração está fora da proposta de 3 a 5 minutos. Você pode publicar assim mesmo, com confirmação.' : "") + "</div>" + midia(r) : '<p class="nota">Nenhum arquivo anexado ainda.</p>') +
+        '<div class="campo"><label for="resumoDev">Resumo escrito (opcional)</label><textarea id="resumoDev" rows="3" maxlength="1200">' + esc(r.resumo || "") + '</textarea></div>' +
+        '<div class="acoes"><button class="bt claro" type="button" id="btSalvarOl">Salvar rascunho</button>' + (r.tipo ? '<button class="bt claro" type="button" id="btRemoverOl">Remover arquivo</button>' : "") + '<button class="bt azul" type="button" id="btPublicarOl"' + (r.tipo ? "" : " disabled") + ">Publicar devolutiva</button></div></section>" : "") +
+      (pub ? '<section class="secao"><h2>Devolutiva publicada</h2><p class="meta">Publicada em ' + esc(dthora(pub.publicadaEm)) + " · " + (pub.vista ? "o jogador já abriu" : "o jogador ainda não abriu") + " · " + esc(duracaoTxt(pub.duracaoSeg || 0)) + "</p>" + midia(pub) + (pub.resumo ? '<div class="bloco">' + esc(pub.resumo) + "</div>" : "") + "</section>" : "") +
+      '<section class="secao"><h2>Histórico</h2>' + (d.historico || []).map(function (x) { return '<div class="bloco">' + esc(dthora(x.em) + " · " + x.por + " · " + x.acao) + "</div>"; }).join("") + "</section>";
+    function recarregar() { invalidar(); telaOlharDetalhe(id); }
+    var bi = $("#btIniciarOl"); if (bi) bi.onclick = async function () { try { await chamar("admin-olhar", { corpo: { acao: "iniciar", id: id } }); recarregar(); } catch (e) { toast(e.message, true); } };
+    var salvar = async function () { await chamar("admin-olhar", { corpo: { acao: "salvarRascunho", id: id, resumo: $("#resumoDev").value } }); };
+    var bs = $("#btSalvarOl"); if (bs) bs.onclick = async function () { try { await salvar(); toast("Rascunho salvo."); } catch (e) { toast(e.message, true); } };
+    var br = $("#btRemoverOl"); if (br) br.onclick = async function () { if (!window.confirm("Remover o arquivo do rascunho?")) return; try { await chamar("admin-olhar", { corpo: { acao: "removerArquivo", id: id } }); recarregar(); } catch (e) { toast(e.message, true); } };
+    var inp = $("#arqDev");
+    if (inp) inp.onchange = async function () {
+      var f = inp.files[0], st = $("#envioEstado"); if (!f) return;
+      try {
+        var tipo = tipoPorExtensao(f); if (!tipo) throw new Error("Formato não reconhecido.");
+        st.textContent = "Lendo o arquivo…"; var dur = Math.round(await medirDuracao(f, tipo));
+        st.textContent = "Preparando o envio…"; var env = await chamar("admin-olhar", { corpo: { acao: "urlEnvio", id: id, contentType: tipo, tamanho: f.size } });
+        st.textContent = "Enviando (" + (f.size / 1048576).toFixed(1) + " MB)…";
+        var resp = await fetch(env.url, { method: "PUT", headers: env.cabecalhos, body: f });
+        if (!resp.ok) throw new Error("O envio ao armazenamento falhou (" + resp.status + "). Se for a primeira vez, use “Preparar armazenamento”.");
+        st.textContent = "Conferindo o arquivo…"; var reg = await chamar("admin-olhar", { corpo: { acao: "registrarArquivo", id: id, caminho: env.caminho, duracaoSeg: dur } });
+        toast(reg.foraDoPadrao ? "Arquivo anexado, fora da proposta de 3 a 5 minutos." : "Arquivo anexado."); recarregar();
+      } catch (e) { st.textContent = e.message; toast(e.message, true); }
+    };
+    var bp = $("#btPublicarOl"); if (bp) bp.onclick = async function () {
+      if (!window.confirm("Publicar a devolutiva para " + d.nome + "? Ela passa a aparecer na conta do jogador.")) return;
+      var corpo = { acao: "publicar", id: id, confirmo: true };
+      if (fora && !window.confirm("O arquivo tem " + duracaoTxt(r.duracaoSeg) + ", fora da proposta de 3 a 5 minutos. Publicar assim mesmo?")) return;
+      if (fora) corpo.confirmoForaDoPadrao = true;
+      bp.disabled = true;
+      try { await salvar(); await chamar("admin-olhar", { corpo: corpo }); toast("Devolutiva publicada."); recarregar(); } catch (e) { toast(e.message, true); bp.disabled = false; }
+    };
+  }
+
   /* ══ Acompanhamento MTY ══ */
   var EST_AC = [["", "Todos"], ["aguardando_responsavel", "Aguardando o responsável"], ["aguardando_pagamento", "Aguardando pagamento"], ["aguardando_inicio", "Aguardando início"], ["ativo", "Em andamento"], ["encerrado", "Encerrado"], ["cancelado", "Cancelado"]];
   var CLASSE_AC = { aguardando_responsavel: "espera", aguardando_pagamento: "espera", aguardando_inicio: "info", ativo: "ok", encerrado: "neutro", cancelado: "neutro" };

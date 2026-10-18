@@ -735,3 +735,27 @@ html.sem-rolagem, html.sem-rolagem body { overflow: hidden; }
 .comp-estado { font-weight: 700; padding: 2px 9px; border-radius: 999px; background: #ECE8DE; color: var(--grafite); }
 .comp-estado.ok { background: #E3F3EA; color: #1F6B4A; }
 .comp-estado.espera { background: #FFF1CC; color: #6B4700; }
+
+/* ── Olhar do treinador ── */
+.olhar-chamada { border-left: 4px solid var(--saibro); }
+.olhar-chamada .olho { color: var(--saibro-texto); }
+.olhar-nova { background: linear-gradient(180deg, var(--saibro-fundo), var(--cal) 60%); border-color: var(--saibro); }
+.olhar-preco-linha { margin: 8px 0 0; font-weight: 700; color: var(--quadra); }
+.olhar-resumo-topo { margin: 10px 0 0; padding: 10px 14px; border-radius: 10px; background: var(--saibro-fundo); color: #5E2E0B; font-size: 15px; }
+.olhar-previa { margin-top: 8px; padding: 10px 12px; border: 1px solid var(--linha); border-radius: 10px; background: var(--cal); font-size: 14.5px; }
+.olhar-previa p { margin: 4px 0 0; }
+.olhar-contador { margin: 4px 0 0; font-size: 13.5px; color: var(--grafite); text-align: right; }
+.olhar-contador.falta { color: var(--saibro-texto); font-weight: 600; }
+.olhar-delimita { margin-top: 14px; background: #F1F7EC; border-color: #CBE3B8; }
+.olhar-delimita .olho { color: var(--quadra); }
+.olhar-texto { white-space: pre-wrap; overflow-wrap: anywhere; }
+.olhar-player { margin-top: 14px; }
+.olhar-midia { display: block; width: 100%; max-width: 100%; margin-top: 8px; border-radius: 10px; }
+video.olhar-midia { background: #000; max-height: 70vh; }
+.olhar-lista { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 12px; }
+.olhar-item { padding: 16px; background: var(--cal); border: 1px solid var(--linha); border-radius: var(--raio); box-shadow: var(--sombra); }
+.olhar-item p { margin: 4px 0 0; }
+.olhar-dif { margin: 10px 0 0; }
+.olhar-dif > div { padding: 10px 0; border-top: 1px solid var(--linha); }
+.olhar-dif dt { font-weight: 700; }
+.olhar-dif dd { margin: 4px 0 0; color: var(--grafite); font-size: 14.5px; }
