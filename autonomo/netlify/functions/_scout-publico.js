@@ -26,7 +26,7 @@ function limpar(p) {
     atleta: txt(p.atleta, 40), data: txt(p.data, 10), torneio: txt(p.torneio, 80), resultado: txt(p.resultado, 40), concluida: !!p.concluida,
     n: num(p.n), ganhos: num(p.ganhos), pctGanhos: num(p.pctGanhos),
     bolas: ob(p.bolas, ["pctCurtos", "pctMedios", "pctLongos", "pctAte4"]),
-    numeros: ob(p.numeros, ["errosNos", "errosDecisao", "errosExec", "df", "pctProtocolo", "rede", "redeGanha", "ataquePerdido", "pctAdversos"]),
+    numeros: ob(p.numeros, ["errosNos", "errosDecisao", "errosExec", "df", "pctProtocolo", "rede", "redeGanha", "ataquePerdido", "pctAdversos", "pctPrimeiro", "aces", "acesAdv", "dfAdv", "pctPrimeiroAdv", "pctSacD", "nSacD", "pctSacE", "nSacE", "pctDevD", "nDevD", "pctDevE", "nDevE", "nAtaque", "pctAtaque", "nContra", "pctContra", "nDefesa", "pctDefesa"]),
     zonas,
     /* cada ponto: [ganhou o atleta (0/1), set, contagem depois do ponto ("30-15", "Game 3-2", "Set 6-4"), como terminou]; os dois últimos são opcionais (links antigos não têm) */
     serie: (Array.isArray(p.serie) ? p.serie : []).slice(0, 600).map((x) => {

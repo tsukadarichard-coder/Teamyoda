@@ -3584,7 +3584,14 @@
       '</div><p class="nota">' + b.pctAte4 + "% dos pontos terminaram em até quatro bolas. Cerca de 70% dos pontos do circuito terminam em até quatro bolas.</p></div>";
   }
   function scNumerosHtml(r) {
-    var nm = r.numeros, l = [["Pontos coletados", r.n], ["Pontos ganhos", r.ganhos + " · " + r.pctGanhos + "%"], ["Erros de " + r.atleta, nm.errosNos + " (" + nm.errosDecisao + " por decisão, " + nm.errosExec + " por execução)"], ["Duplas faltas", nm.df], ["Protocolo entre pontos", nm.pctProtocolo + "%"], ["Subidas à rede", nm.rede + " · " + nm.redeGanha + " convertidas"], ["Demandas de ataque perdidas", nm.ataquePerdido]];
+    var nm = r.numeros, l = [["Pontos coletados", r.n], ["Pontos ganhos", r.ganhos + " · " + r.pctGanhos + "%"], ["Erros de " + r.atleta, nm.errosNos + " (" + nm.errosDecisao + " por decisão, " + nm.errosExec + " por execução)"], ["Duplas faltas", nm.df]];
+    if (nm.aces || nm.acesAdv || nm.dfAdv || nm.pctPrimeiroAdv) l.push(["Aces", r.atleta + " " + (nm.aces || 0) + " · adversário " + (nm.acesAdv || 0)], ["Saque do adversário", (nm.pctPrimeiroAdv ? nm.pctPrimeiroAdv + "% de 1º saque dentro · " : "") + (nm.dfAdv || 0) + " duplas faltas"]);
+    if (nm.nSacD || nm.nSacE) l.push(["Pontos ganhos no saque de " + r.atleta, "igualdade " + (nm.nSacD ? nm.pctSacD + "% (" + nm.nSacD + ")" : "—") + " · vantagem " + (nm.nSacE ? nm.pctSacE + "% (" + nm.nSacE + ")" : "—")]);
+    if (nm.nDevD || nm.nDevE) l.push(["Pontos ganhos no saque do adversário", "igualdade " + (nm.nDevD ? nm.pctDevD + "% (" + nm.nDevD + ")" : "—") + " · vantagem " + (nm.nDevE ? nm.pctDevE + "% (" + nm.nDevE + ")" : "—")]);
+    if (nm.nAtaque || nm.nContra || nm.nDefesa) l.push(["Ataque", nm.nAtaque + (nm.nAtaque ? " · " + nm.pctAtaque + "% ganhos" : "")], ["Contra-ataque", nm.nContra + (nm.nContra ? " · " + nm.pctContra + "% ganhos" : "")], ["Defesa", nm.nDefesa + (nm.nDefesa ? " · " + nm.pctDefesa + "% ganhos" : "")]);
+    if (nm.pctProtocolo) l.push(["Protocolo entre pontos", nm.pctProtocolo + "%"]);
+    l.push(["Subidas à rede", nm.rede + " · " + nm.redeGanha + " convertidas"]);
+    if (nm.ataquePerdido) l.push(["Demandas de ataque perdidas", nm.ataquePerdido]);
     return '<h2 class="secao">O jogo em números</h2><div class="cartao"><dl class="comp-perfil">' + l.map(function (x) { return "<dt>" + esc(x[0]) + "</dt><dd>" + esc(x[1]) + "</dd>"; }).join("") + "</dl></div>";
   }
   function scMetricas() {
@@ -3593,8 +3600,11 @@
       ["O jogo", "Pontos coletados", function (r) { return r.n; }, null, ""], ["", "Pontos ganhos", function (r) { return r.pctGanhos; }, true, "%"],
       ["Onde o ponto se decidiu", "Em 1–2 bolas", function (r) { return r.bolas.pctCurtos; }, null, "%"], ["", "Em 3–4 bolas", function (r) { return r.bolas.pctMedios; }, null, "%"], ["", "Em 5 bolas ou mais", function (r) { return r.bolas.pctLongos; }, null, "%"],
       ["Erros e hábitos", "Erros", function (r) { return r.numeros.errosNos; }, false, ""], ["", "— por decisão", function (r) { return r.numeros.errosDecisao; }, false, ""], ["", "— por execução", function (r) { return r.numeros.errosExec; }, false, ""],
-      ["", "Duplas faltas", function (r) { return r.numeros.df; }, false, ""], ["", "Protocolo entre pontos", function (r) { return r.numeros.pctProtocolo; }, true, "%"],
-      ["", "Subidas convertidas", function (r) { return r.numeros.rede ? Math.round(r.numeros.redeGanha / r.numeros.rede * 100) : null; }, true, "%"], ["", "Demandas de ataque perdidas", function (r) { return r.numeros.ataquePerdido; }, false, ""],
+      ["", "Duplas faltas", function (r) { return r.numeros.df; }, false, ""], ["", "Aces", function (r) { return r.numeros.aces != null ? r.numeros.aces : null; }, true, ""], ["", "1º saque do adversário dentro", function (r) { return r.numeros.pctPrimeiroAdv || null; }, null, "%"],
+      ["", "Ganhos no saque · igualdade", function (r) { return r.numeros.nSacD ? r.numeros.pctSacD : null; }, true, "%"], ["", "Ganhos no saque · vantagem", function (r) { return r.numeros.nSacE ? r.numeros.pctSacE : null; }, true, "%"],
+      ["", "Ganhos em ataque", function (r) { return r.numeros.nAtaque ? r.numeros.pctAtaque : null; }, true, "%"], ["", "Ganhos em contra-ataque", function (r) { return r.numeros.nContra ? r.numeros.pctContra : null; }, true, "%"], ["", "Ganhos em defesa", function (r) { return r.numeros.nDefesa ? r.numeros.pctDefesa : null; }, true, "%"],
+      ["", "Protocolo entre pontos (jogos antigos)", function (r) { return r.numeros.pctProtocolo || null; }, true, "%"],
+      ["", "Subidas convertidas", function (r) { return r.numeros.rede ? Math.round(r.numeros.redeGanha / r.numeros.rede * 100) : null; }, true, "%"], ["", "Demandas de ataque perdidas", function (r) { return r.numeros.ataquePerdido || null; }, false, ""],
       ["", "Ganhos em placar adverso", function (r) { return r.numeros.pctAdversos || null; }, true, "%"],
       ["Momento do jogo", "Maior sequência a favor", function (r) { return seq(r, "melhor"); }, true, ""], ["", "Maior sequência contra", function (r) { return seq(r, "pior"); }, false, ""]
     ];
@@ -3627,7 +3637,7 @@
     return '<h2 class="secao">Sua leitura × o scout do treinador</h2><div class="cartao"><p class="nota">Lado a lado, sem conclusão automática: o que você registrou na partida e o que o treinador mediu.</p>' +
       '<div class="comp-duas" style="margin-top:10px"><div><p class="olho">Você registrou</p><p>' + (partida.resultado === "vitoria" ? "Vitória" : "Derrota") + (partida.placar ? " · " + esc(partida.placar) : "") + "</p>" +
       (partida.execucao ? "<p>Execução da estratégia: " + partida.execucao + " de 5</p>" : "") + (dif.length ? "<p>Dificuldades: " + esc(dif.join(", ")) + "</p>" : "<p class=\"nota\">Sem dificuldades marcadas.</p>") + "</div>" +
-      '<div><p class="olho">Scout do treinador</p><p>' + esc(r.resultado || "") + " · " + r.pctGanhos + "% dos pontos</p><p>Erros: " + nm.errosNos + " (" + nm.errosDecisao + " por decisão, " + nm.errosExec + " por execução)</p><p>Protocolo entre pontos: " + nm.pctProtocolo + "%</p></div></div></div>";
+      '<div><p class="olho">Scout do treinador</p><p>' + esc(r.resultado || "") + " · " + r.pctGanhos + "% dos pontos</p><p>Erros: " + nm.errosNos + " (" + nm.errosDecisao + " por decisão, " + nm.errosExec + " por execução)</p>" + (nm.aces || nm.acesAdv ? "<p>Aces: " + (nm.aces || 0) + " · adversário " + (nm.acesAdv || 0) + "</p>" : "") + "</div></div></div>";
   }
   /* partes do scout reaproveitadas pela tela do atleta, pela do responsável/treinador e pelo jogo ao vivo */
   function scSets(serie) { var sets = []; serie.forEach(function (x) { if (sets.indexOf(x.set) < 0) sets.push(x.set); }); return sets; }

@@ -300,7 +300,11 @@ footer { margin-top: 22px; font-size: 13px; color: var(--grafite); text-align: c
     g.appendChild(duelo);
     g.appendChild(cartao(nm.errosNos, "Erros de " + p.atleta, nm.errosDecisao + " por decisão · " + nm.errosExec + " por execução", nm.errosNos > 0 && nm.errosNos >= p.n * 0.25));
     g.appendChild(cartao(nm.df, "Duplas faltas", "", nm.df >= 3));
-    g.appendChild(cartao(nm.pctProtocolo + "%", "Protocolo entre pontos", "pontos com a rotina feita"));
+    if (nm.aces || nm.acesAdv || nm.dfAdv || nm.pctPrimeiroAdv) g.appendChild(cartao(nm.aces + " · " + nm.acesAdv, "Aces (" + p.atleta + " · adversário)", "adversário: " + nm.dfAdv + " duplas faltas" + (nm.pctPrimeiroAdv ? " · " + nm.pctPrimeiroAdv + "% de 1º saque dentro" : "")));
+    if (nm.nSacD || nm.nSacE) g.appendChild(cartao((nm.nSacD ? nm.pctSacD + "%" : "—") + " · " + (nm.nSacE ? nm.pctSacE + "%" : "—"), "Pontos ganhos no saque de " + p.atleta, "lado da igualdade (" + nm.nSacD + ") · lado da vantagem (" + nm.nSacE + ")"));
+    if (nm.nDevD || nm.nDevE) g.appendChild(cartao((nm.nDevD ? nm.pctDevD + "%" : "—") + " · " + (nm.nDevE ? nm.pctDevE + "%" : "—"), "Pontos ganhos no saque do adversário", "lado da igualdade (" + nm.nDevD + ") · lado da vantagem (" + nm.nDevE + ")"));
+    if (nm.nAtaque || nm.nContra || nm.nDefesa) g.appendChild(cartao(nm.nAtaque + " · " + nm.nContra + " · " + nm.nDefesa, "Ataque · contra-ataque · defesa", (nm.nAtaque ? nm.pctAtaque + "%" : "—") + " · " + (nm.nContra ? nm.pctContra + "%" : "—") + " · " + (nm.nDefesa ? nm.pctDefesa + "%" : "—") + " dos pontos ganhos"));
+    if (nm.pctProtocolo) g.appendChild(cartao(nm.pctProtocolo + "%", "Protocolo entre pontos", "pontos com a rotina feita"));
     g.appendChild(cartao(nm.redeGanha + "/" + nm.rede, "Subidas à rede", nm.rede ? "convertidas" : "nenhuma subida registrada"));
     return el("section", {}, [el("h2", { texto: "O jogo em números" }), el("p", { cls: "nota", texto: p.n + " pontos coletados até agora." }), g]);
   }
