@@ -2739,7 +2739,8 @@
         '<div class="acoes"><button type="button" class="btn btn-secundario" id="pensAdd">Colocar no papel</button></div>' +
         (itens.length ? '<ul class="pens-lista" aria-label="Pensamentos no papel">' + papeis() + "</ul>" : '<p class="nota" style="margin-top:12px">Nenhum pensamento no papel ainda.</p>') + "</section>" +
         '<div class="acoes"><button type="button" class="btn btn-laranja btn-grande" id="pensSoltar"' + (itens.length ? "" : " disabled") + ">Soltar tudo e entrar em quadra</button></div>" +
-        '<p class="nota" style="margin-top:12px">Saindo desta tela, os pensamentos também se vão. Não existe cópia.</p>');
+        '<p class="nota" style="margin-top:12px">Saindo desta tela, os pensamentos também se vão. Não existe cópia.</p>' +
+        '<div class="cartao" style="margin-top:14px"><h2>Quer o ritual completo?</h2><p class="nota" style="margin-top:6px">Dez minutos guiados com respiração, intenção e ativação, antes de entrar em quadra.</p><div class="acoes"><a class="btn btn-secundario" href="ritual.html">Fazer o ritual pré-jogo</a></div></div>');
       var txt = document.getElementById("pensTxt");
       function adicionar() { var t = txt.value.trim(); if (!t) return; itens.push(t.slice(0, 200)); desenhar(); document.getElementById("pensTxt").focus(); }
       document.getElementById("pensAdd").addEventListener("click", adicionar);

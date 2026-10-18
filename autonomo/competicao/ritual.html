@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#16191A">
+<meta name="robots" content="noindex, nofollow">
+<title>Ritual pré-jogo · QuadraLab Competição</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+:root{--bg:#16191A;--bg2:#1D2122;--bg3:#232829;--linha:rgba(255,255,255,.10);
+--txt:#F2F4F3;--txt2:#A8B2AE;--txt3:#6B7671;--sinal:#9FE870;--alerta:#E8A87C;}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{background:var(--bg);min-height:100vh;font-family:Inter,-apple-system,sans-serif;
+color:var(--txt);display:flex;justify-content:center;overflow-x:hidden;}
+.grade{position:fixed;inset:0;pointer-events:none;z-index:0;
+background-image:linear-gradient(rgba(255,255,255,.022) 1px,transparent 1px),
+linear-gradient(90deg,rgba(255,255,255,.022) 1px,transparent 1px);background-size:64px 64px;}
+.app{width:100%;max-width:520px;min-height:100vh;padding:34px 24px 42px;
+display:flex;flex-direction:column;position:relative;z-index:1;}
+.tela{display:none;flex:1;flex-direction:column;animation:e .35s ease;}
+.tela.on{display:flex;}
+@keyframes e{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@media (prefers-reduced-motion:reduce){.tela{animation:none}}
+a{color:inherit}
+h1{font-weight:700;font-size:50px;line-height:1.0;letter-spacing:-.04em;}
+h1 span{color:var(--txt3);}
+.lead{font-size:16px;line-height:1.62;color:var(--txt2);font-weight:400;}
+.eyebrow{font-weight:600;font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--sinal);}
+.meta{font-weight:500;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--txt3);}
+.nota{font-size:12.5px;line-height:1.58;color:var(--txt3);margin-top:18px;}
+.nota a{color:var(--txt2)}
+.btn{width:100%;padding:19px;border:none;background:var(--sinal);color:var(--bg);font-family:Inter;font-weight:600;font-size:15px;letter-spacing:.06em;cursor:pointer;border-radius:3px;}
+.btn:active{background:#8ED45F;}
+.btn-out{display:block;text-align:center;text-decoration:none;width:100%;padding:19px;background:transparent;color:var(--txt2);border:1px solid var(--linha);font-family:Inter;font-weight:500;font-size:15px;letter-spacing:.04em;cursor:pointer;border-radius:3px;}
+.btn-min{background:none;border:none;color:var(--txt3);font-size:13px;padding:14px;width:100%;cursor:pointer;font-family:Inter;letter-spacing:.04em;}
+.acoes{margin-top:auto;padding-top:24px;}
+.acoes .btn,.acoes .btn-out{margin-bottom:10px;}
+.som{position:fixed;top:0;right:0;z-index:20;padding:26px 24px;}
+.som button{background:none;border:1px solid var(--linha);border-radius:3px;padding:9px 13px;color:var(--txt3);font-family:Inter;font-size:11px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;display:flex;align-items:center;gap:7px;}
+.som button.on{color:var(--sinal);border-color:rgba(159,232,112,.4);}
+.som .pt{width:6px;height:6px;border-radius:50%;background:currentColor;}
+#t0{justify-content:center;}
+.voltar{display:inline-block;margin-bottom:auto;color:var(--txt3);font-size:13px;letter-spacing:.04em;text-decoration:none;padding:6px 0}
+.dados{display:flex;border-top:1px solid var(--linha);margin-top:30px;}
+.dado{flex:1;padding:20px 0 0;border-right:1px solid var(--linha);}
+.dado:last-child{border-right:none;padding-left:18px;}
+.dado:first-child{padding-right:18px;}
+.dado:nth-child(2){padding:20px 18px 0;}
+.dv{font-weight:600;font-size:26px;letter-spacing:-.03em;line-height:1;}
+.dl{font-size:12px;color:var(--txt3);margin-top:7px;}
+.mapa{display:flex;gap:6px;margin:26px 0 8px;}
+.mp{flex:1;text-align:center;}
+.mp .b{height:3px;background:rgba(255,255,255,.1);border-radius:2px;margin-bottom:9px;transition:.4s;}
+.mp.ok .b{background:var(--sinal);}
+.mp.atual .b{background:var(--sinal);opacity:.45;}
+.mp .n{font-size:11px;font-weight:500;color:var(--txt3);letter-spacing:.04em;}
+.mp.atual .n,.mp.ok .n{color:var(--txt2);}
+.p-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:22px;padding-right:100px;}
+.p-kanji{font-size:22px;color:var(--sinal);opacity:.8;letter-spacing:.08em;}
+.p-nome{font-weight:700;font-size:38px;line-height:1.06;letter-spacing:-.035em;margin-bottom:16px;}
+.p-por{font-size:16px;line-height:1.6;color:var(--txt2);margin-bottom:20px;}
+.p-como{font-size:15.5px;line-height:1.65;color:var(--txt2);padding:18px;background:var(--bg2);border-left:2px solid var(--sinal);border-radius:0 3px 3px 0;}
+.p-link{display:none;margin-top:12px;font-size:14px;color:var(--sinal);text-decoration:none;letter-spacing:.02em}
+.tbox{text-align:center;margin:34px 0;}
+.tnum{font-weight:300;font-size:82px;letter-spacing:-.05em;line-height:1;font-variant-numeric:tabular-nums;}
+.tlbl{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--txt3);margin-top:14px;}
+.rwrap{width:200px;height:200px;margin:0 auto 20px;position:relative;display:flex;align-items:center;justify-content:center;}
+.ranel{position:absolute;width:196px;height:196px;border-radius:50%;border:1px solid rgba(159,232,112,.18);}
+.rcirc{width:66px;height:66px;border-radius:50%;background:var(--sinal);opacity:.9;}
+.rtxt{font-weight:600;font-size:23px;letter-spacing:-.02em;min-height:30px;text-align:center;}
+.rcont{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--txt3);margin-top:9px;text-align:center;}
+.campo{width:100%;padding:17px;background:var(--bg2);border:1px solid var(--linha);color:var(--txt);font-family:Inter;font-size:16px;border-radius:3px;margin:18px 0 12px;}
+.campo:focus{outline:none;border-color:var(--sinal);}
+.campo::placeholder{color:var(--txt3);}
+.sug{width:100%;text-align:left;background:transparent;border:1px solid var(--linha);padding:13px 15px;margin-bottom:8px;color:var(--txt2);font-family:Inter;font-size:14px;cursor:pointer;border-radius:3px;}
+.sug:active{background:var(--sinal);color:var(--bg);}
+.repita{text-align:center;margin:26px 0;}
+.repita .frase{font-weight:600;font-size:24px;line-height:1.3;letter-spacing:-.02em;margin-bottom:18px;}
+.repita .cnt{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--sinal);}
+#tfim{justify-content:center;text-align:center;padding-top:60px;}
+.fim-t{font-weight:700;font-size:42px;letter-spacing:-.04em;margin-bottom:16px;}
+.cx-int{border:1px solid var(--sinal);padding:28px 22px;margin:30px 0;}
+.cx-int .l{font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--sinal);margin-bottom:13px;}
+.cx-int .o{font-weight:600;font-size:24px;line-height:1.3;letter-spacing:-.02em;}
+.sanshin{background:var(--bg2);border:1px solid var(--linha);padding:22px;margin-top:8px;text-align:left;border-radius:3px;}
+.sanshin .l{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--txt3);margin-bottom:14px;}
+.sanshin .li{display:flex;gap:12px;margin-bottom:11px;font-size:14.5px;line-height:1.5;color:var(--txt2);}
+.sanshin .li:last-child{margin-bottom:0;}
+.sanshin .li b{color:var(--sinal);font-weight:600;flex-shrink:0;width:74px;font-size:13px;letter-spacing:.06em;}
+.rodape{margin-top:auto;padding-top:32px;display:flex;justify-content:space-between;align-items:flex-end;}
+.rodape .tg{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--txt3);}
+</style>
+</head>
+<body>
+<div class="grade"></div>
+<div class="som"><button id="btSom" class="on"><span class="pt"></span><span id="somTxt">som</span></button></div>
+<div class="app">
+
+<!-- ABERTURA -->
+<div class="tela on" id="t0">
+  <a class="voltar" href="./#/pensamentos">‹ Voltar ao app</a>
+  <div class="eyebrow" style="margin-bottom:18px;">protocolo zanshin</div>
+  <h1>Ritual<br><span>pré-jogo.</span></h1>
+  <p class="lead" style="margin-top:20px;">Dez minutos para entrar em quadra presente, solto e com uma intenção clara.</p>
+  <p class="lead" style="color:var(--txt3);margin-top:12px;">A partida não começa no primeiro saque. Começa em como você chega até ele.</p>
+  <div class="dados">
+    <div class="dado"><div class="dv">10min</div><div class="dl">no total</div></div>
+    <div class="dado"><div class="dv">5</div><div class="dl">passos</div></div>
+    <div class="dado"><div class="dv">1</div><div class="dl">intenção</div></div>
+  </div>
+  <div class="acoes">
+    <button class="btn" id="btCompleto">Ritual completo · 10 min</button>
+    <button class="btn-out" id="btCurto" style="background:none;cursor:pointer">Versão curta · 3 min</button>
+  </div>
+  <button class="btn-min" id="btTestar" style="margin-top:4px;">testar o som</button>
+  <p class="nota" id="notaSom">Depois do aquecimento físico, o mais perto possível da entrada. Os cronômetros avisam por som e vibração — você pode fechar os olhos. A tela fica acesa durante os exercícios. Nada do que você escreve aqui é guardado.</p>
+</div>
+
+<!-- PASSO -->
+<div class="tela" id="tp">
+  <div class="mapa" id="mapa"></div>
+  <div class="p-top">
+    <div class="meta" id="pMeta"></div>
+    <div class="p-kanji" id="pKanji"></div>
+  </div>
+  <div class="p-nome" id="pNome"></div>
+  <div class="p-por" id="pPor"></div>
+  <div class="p-como" id="pComo"></div>
+  <a class="p-link" id="pLink" href="./#/pensamentos" target="_blank" rel="noopener">Escrever e soltar os pensamentos →</a>
+
+  <div class="tbox" id="boxTimer" style="display:none;">
+    <div class="tnum" id="tnum">2:00</div>
+    <div class="tlbl" id="tlbl">toque em começar</div>
+  </div>
+
+  <div class="tbox" id="boxResp" style="display:none;">
+    <div class="rwrap"><div class="ranel"></div><div class="rcirc" id="rcirc"></div></div>
+    <div class="rtxt" id="rtxt">pronto?</div>
+    <div class="rcont" id="rcont"></div>
+  </div>
+
+  <div id="boxInt" style="display:none;">
+    <input class="campo" id="intIn" placeholder="escreva a sua intenção" maxlength="80" autocomplete="off">
+    <div class="meta" style="margin:14px 0 10px;">ou escolha uma</div>
+    <div id="sugs"></div>
+    <div class="repita" id="repBox" style="display:none;">
+      <div class="frase" id="repFrase"></div>
+      <div class="cnt" id="repCnt"></div>
+    </div>
+  </div>
+
+  <div class="acoes">
+    <button class="btn" id="btAcao">Começar</button>
+    <button class="btn-out" id="btPula" style="background:none;cursor:pointer">Pular este passo</button>
+  </div>
+</div>
+
+<!-- FINAL -->
+<div class="tela" id="tfim">
+  <div class="fim-t">Entre.</div>
+  <p class="lead">Você já fez o trabalho. Agora é jogar.</p>
+  <div class="cx-int">
+    <div class="l">sua intenção</div>
+    <div class="o" id="fInt"></div>
+  </div>
+  <div class="sanshin">
+    <div class="l">durante o jogo · sanshin</div>
+    <div class="li"><b>RESPIRAR</b><span>uma respiração funda. Sai do automático.</span></div>
+    <div class="li"><b>RESETAR</b><span>o ponto que passou já era. Deixe ir.</span></div>
+    <div class="li"><b>DECIDIR</b><span>uma intenção simples para o próximo ponto.</span></div>
+  </div>
+  <p class="nota" style="margin-top:22px;">Este ritual não garante vitória. Garante que você entre inteiro — e isso é o que você controla.</p>
+  <div class="acoes"><button class="btn-out" id="btRefazer" style="background:none;cursor:pointer">Refazer</button><a class="btn-out" href="./#/inicio">Voltar ao app</a></div>
+  <div class="rodape"><div class="tg">quadralab · competição</div></div>
+</div>
+
+</div>
+<script>
+/* ===== SINAIS: áudio robusto + vibração ===== */
+let AC=null, somLigado=true, audioOk=false;
+try{ somLigado = localStorage.getItem('ql_ritual_som')!=='off'; }catch(e){}
+
+function criarAC(){
+  if(AC) return AC;
+  try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ AC=null; }
+  return AC;
+}
+/* desbloqueio: exige gesto do usuário + buffer silencioso (requisito do Safari/iOS) */
+function destravar(){
+  const ctx = criarAC();
+  if(!ctx) return;
+  if(ctx.state === 'suspended'){ ctx.resume().catch(()=>{}); }
+  if(!audioOk){
+    try{
+      const b = ctx.createBuffer(1, 1, 22050);
+      const src = ctx.createBufferSource();
+      src.buffer = b; src.connect(ctx.destination);
+      src.start(0);
+      audioOk = true;
+    }catch(e){}
+  }
+}
+function tom(f,d,v){
+  if(!somLigado) return;
+  const ctx = criarAC();
+  if(!ctx) return;
+  if(ctx.state === 'suspended'){ ctx.resume().catch(()=>{}); }
+  try{
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type='sine'; o.frequency.value=f;
+    const t=ctx.currentTime;
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(v||.20, t+.05);
+    g.gain.exponentialRampToValueAtTime(.0001, t+(d||.6));
+    o.connect(g); g.connect(ctx.destination);
+    o.start(t); o.stop(t+(d||.6)+.05);
+  }catch(e){}
+}
+function vib(p){ if(!somLigado)return; try{ if(navigator.vibrate) navigator.vibrate(p); }catch(e){} }
+
+const S={
+ inspira:()=>{tom(528,.45,.20);vib(40);},
+ expira: ()=>{tom(396,.55,.17);vib(28);},
+ metade: ()=>{tom(440,.5,.16); vib(60);},
+ passo:  ()=>{tom(660,.35,.18);vib(35);},
+ fim:    ()=>{tom(528,.7,.22);setTimeout(()=>tom(660,.7,.20),420);
+              setTimeout(()=>tom(792,1,.18),840);vib([90,110,90,110,200]);}
+};
+
+function atualizaSom(){
+  const b=document.getElementById('btSom');
+  if(somLigado){b.classList.add('on');document.getElementById('somTxt').textContent='som';}
+  else{b.classList.remove('on');document.getElementById('somTxt').textContent='mudo';}
+}
+document.getElementById('btSom').onclick=()=>{
+  somLigado=!somLigado;
+  try{localStorage.setItem('ql_ritual_som',somLigado?'on':'off');}catch(e){}
+  atualizaSom();
+  if(somLigado){ destravar(); setTimeout(()=>{S.passo();},80); }
+};
+atualizaSom();
+['touchstart','touchend','click','pointerdown'].forEach(ev=>{
+  document.addEventListener(ev, destravar, {passive:true});
+});
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) destravar(); });
+
+/* ===== WAKE LOCK: impede a tela de apagar durante os exercícios ===== */
+let wl=null;
+async function manterAcordado(){
+  try{ if('wakeLock' in navigator && !wl){ wl = await navigator.wakeLock.request('screen');
+    wl.addEventListener('release', ()=>{ wl=null; }); } }catch(e){ wl=null; }
+}
+async function liberarTela(){ try{ if(wl){ await wl.release(); wl=null; } }catch(e){} }
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && rodando) manterAcordado(); });
+
+/* ===== OS CINCO PASSOS ===== */
+const P=[
+ {id:1,curto:'Chegar',nome:'Chegar ao corpo',min:2,seg:120,kanji:'',tipo:'timer',
+  por:'Antes da cabeça, o corpo. Você está tirando a mente do modo pensamento e trazendo para o modo corpo — que é onde o tênis acontece.',
+  como:'Sente-se, os dois pés apoiados no chão. Percorra o corpo com a atenção: pés, pernas, quadril, tronco, ombros, mãos, rosto. Onde encontrar tensão desnecessária — ombros subidos, mandíbula travada — solte na expiração.'},
+ {id:2,curto:'Acalmar',nome:'Acalmar o sistema',min:3,seg:180,kanji:'',tipo:'resp46',
+  por:'A ansiedade pré-jogo é normal — não é para eliminá-la, é para não deixá-la conduzir. A respiração é o controle mais direto que você tem.',
+  como:'Inspire em 4 tempos, expire em 6 — mais longo. Se a cabeça for para o resultado, para o adversário, para o ranking, volte para a contagem. A expiração longa é o freio natural do corpo.'},
+ {id:3,curto:'Soltar',nome:'Soltar o que não é deste jogo',min:2,seg:120,kanji:'無常',tipo:'timer',link:true,
+  por:'O jogo passado, a expectativa dos outros, o que aconteceu na semana. Nada disso entra em quadra com você.',
+  como:'Traga à mente o que está pesando — uma derrota recente, uma cobrança, um medo. Reconheça: “isso está aqui”. E, a cada expiração, imagine deixando cada uma dessas coisas do lado de fora. Mujō: tudo passa, inclusive o que passou.'},
+ {id:4,curto:'Definir',nome:'Definir a intenção',min:2,seg:120,kanji:'一期一会',tipo:'intencao',
+  por:'Não uma meta de resultado, mas uma intenção de processo — algo que depende só de você e que você controla por inteiro.',
+  como:'Uma só. Se você tem três intenções, não tem nenhuma. Ichigo Ichie: esta partida acontece uma vez só, e você escolhe como quer jogá-la.'},
+ {id:5,curto:'Ativar',nome:'Ativar e entrar',min:1,seg:60,kanji:'無為自然',tipo:'ativar',
+  por:'Sair do estado calmo para o estado de jogo — desperto, solto, pronto. Calma não é lentidão.',
+  como:'Três respirações ativas, em tempos iguais. Sacuda os braços e as pernas, role os ombros. Sinta o corpo acordar. Ao levantar, lembre da sua intenção — só dela. Entre Mui Shizen: solto, confiando no treino, sem forçar.'}
+];
+const SUG=['jogar cada ponto até o fim','respirar entre os pontos','manter os pés se movendo','soltar o braço no saque','olhar a bola até o contato','rotina completa antes de cada saque'];
+const CURTO=[2,4,5];
+
+let seq=[], idx=0, intencao='', tint=null, rodando=false;
+const $=i=>document.getElementById(i);
+const ir=id=>{document.querySelectorAll('.tela').forEach(t=>t.classList.remove('on'));$(id).classList.add('on');window.scrollTo(0,0);};
+const fmt=s=>Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+const atual=()=>P.find(p=>p.id===seq[idx]);
+
+function iniciar(lista){ seq=lista; idx=0; intencao=''; destravar(); render(); }
+
+function render(){
+  const p=atual();
+  const M=$('mapa'); M.innerHTML='';
+  seq.forEach((id,i)=>{
+    const pp=P.find(x=>x.id===id);
+    const d=document.createElement('div');
+    d.className='mp'+(i<idx?' ok':'')+(i===idx?' atual':'');
+    d.innerHTML='<div class="b"></div><div class="n">'+pp.curto+'</div>';
+    M.appendChild(d);
+  });
+  $('pMeta').textContent='passo '+(idx+1)+' de '+seq.length+' · '+p.min+' min';
+  $('pKanji').textContent=p.kanji;
+  $('pNome').textContent=p.nome;
+  $('pPor').textContent=p.por;
+  $('pComo').textContent=p.como;
+  $('pLink').style.display=p.link?'inline-block':'none';
+
+  $('boxTimer').style.display='none';
+  $('boxResp').style.display='none';
+  $('boxInt').style.display='none';
+  $('repBox').style.display='none';
+  $('btAcao').disabled=false; $('btAcao').style.opacity='1';
+  $('btPula').textContent = idx===seq.length-1?'Pular e entrar':'Pular este passo';
+
+  if(p.tipo==='timer'){ $('boxTimer').style.display='block';
+    $('tnum').textContent=fmt(p.seg); $('tlbl').textContent='toque em começar';
+    $('btAcao').textContent='Começar'; }
+  else if(p.tipo==='resp46'){ $('boxResp').style.display='block';
+    $('rtxt').textContent='pronto?'; $('rcont').textContent='';
+    $('rcirc').style.transition='none'; $('rcirc').style.transform='scale(1)';
+    $('btAcao').textContent='Guiar a respiração'; }
+  else if(p.tipo==='intencao'){ $('boxInt').style.display='block';
+    $('boxInt').querySelectorAll('.campo,.sug,.meta').forEach(e=>e.style.display='');
+    $('intIn').value=intencao;
+    const SU=$('sugs'); SU.innerHTML='';
+    SUG.forEach(s=>{const b=document.createElement('button');b.className='sug';b.textContent=s;
+      b.onclick=()=>{$('intIn').value=s;};SU.appendChild(b);});
+    $('btAcao').textContent='Repetir três vezes'; }
+  else if(p.tipo==='ativar'){ $('boxResp').style.display='block';
+    $('rtxt').textContent='pronto?'; $('rcont').textContent='';
+    $('rcirc').style.transition='none'; $('rcirc').style.transform='scale(1)';
+    $('btAcao').textContent='Ativar'; }
+  ir('tp');
+}
+
+function avancar(){
+  pararTudo();
+  if(idx < seq.length-1){ idx++; render(); }
+  else { $('fInt').textContent = intencao || '—'; ir('tfim'); }
+}
+function pararTudo(){ if(tint){clearInterval(tint);tint=null;} rodando=false; liberarTela(); }
+
+/* timer simples — baseado no relógio real, sobrevive a tela apagada */
+function rodarTimer(seg){
+  if(rodando)return; rodando=true;
+  manterAcordado();
+  const fim = Date.now() + seg*1000;
+  const metade = Math.floor(seg/2);
+  let ultimoMostrado = seg, jaMetade=false, ja10=false;
+  $('tlbl').textContent='em andamento';
+  $('btAcao').disabled=true; $('btAcao').style.opacity='.45';
+  S.passo();
+  const tick=()=>{
+    const rest = Math.max(0, Math.round((fim - Date.now())/1000));
+    if(rest !== ultimoMostrado){ ultimoMostrado = rest; $('tnum').textContent=fmt(rest); }
+    if(!jaMetade && rest<=metade && rest>0){ jaMetade=true; S.metade(); $('tlbl').textContent='metade'; }
+    if(!ja10 && rest<=10 && rest>0){ ja10=true; $('tlbl').textContent='últimos 10 segundos'; }
+    if(rest<=0){ pararTudo(); $('tnum').textContent='0:00'; $('tlbl').textContent='concluído';
+      S.fim(); setTimeout(avancar,1600); }
+  };
+  tint=setInterval(tick,250);
+  tick();
+}
+
+/* respiração 4-6 — fases calculadas pelo relógio, resistente a congelamento */
+function resp46(total){
+  if(rodando)return; rodando=true;
+  manterAcordado();
+  $('btAcao').disabled=true; $('btAcao').style.opacity='.45';
+  const c=$('rcirc'),t=$('rtxt'),k=$('rcont');
+  const CICLO=10000, INSP=4000;
+  const inicio = Date.now()+900, fim = inicio + total*1000;
+  let faseAtual=null, cicloAtual=0;
+  t.textContent='vamos';
+  const tick=()=>{
+    const agora=Date.now();
+    if(agora < inicio) return;
+    if(agora >= fim){
+      pararTudo(); t.textContent='pronto'; k.textContent='';
+      c.style.transition='transform 1s ease'; c.style.transform='scale(1)';
+      S.fim(); setTimeout(avancar,1500); return;
+    }
+    const decorrido = agora - inicio;
+    const ciclo = Math.floor(decorrido/CICLO)+1;
+    const dentro = decorrido % CICLO;
+    const fase = dentro < INSP ? 'in' : 'out';
+    if(fase!==faseAtual || ciclo!==cicloAtual){
+      faseAtual=fase; cicloAtual=ciclo;
+      if(fase==='in'){
+        t.textContent='inspire'; k.textContent='4 tempos · ciclo '+ciclo; S.inspira();
+        c.style.transition='transform 4s cubic-bezier(.4,0,.5,1)'; c.style.transform='scale(2.3)';
+      } else {
+        t.textContent='expire devagar'; k.textContent='6 tempos'; S.expira();
+        c.style.transition='transform 6s cubic-bezier(.4,0,.5,1)'; c.style.transform='scale(1)';
+      }
+    }
+  };
+  tint=setInterval(tick,200);
+}
+
+/* ativação: 3 respirações em tempos iguais */
+function ativar(){
+  if(rodando)return; rodando=true;
+  manterAcordado();
+  $('btAcao').disabled=true; $('btAcao').style.opacity='.45';
+  const c=$('rcirc'),t=$('rtxt'),k=$('rcont'); let i=0;
+  const um=()=>{
+    if(i>=3){ t.textContent='agora é jogar'; k.textContent='';
+      c.style.transition='transform .8s ease'; c.style.transform='scale(1)';
+      pararTudo(); S.fim(); setTimeout(avancar,1700); return; }
+    i++; t.textContent='inspire'; k.textContent=i+' de 3'; S.inspira();
+    c.style.transition='transform 3s ease-in-out'; c.style.transform='scale(2.1)';
+    setTimeout(()=>{
+      if(!rodando)return;
+      t.textContent='expire'; S.expira();
+      c.style.transition='transform 3s ease-in-out'; c.style.transform='scale(1)';
+      setTimeout(um,3000);
+    },3000);
+  };
+  t.textContent='mais ativo agora'; setTimeout(um,800);
+}
+
+/* repetir a intenção 3x (fica só na memória desta página) */
+function repetirIntencao(){
+  const v=$('intIn').value.trim();
+  if(!v){ $('intIn').focus(); return; }
+  intencao=v;
+  $('boxInt').querySelectorAll('.campo,.sug,.meta').forEach(e=>e.style.display='none');
+  $('repBox').style.display='block';
+  $('repFrase').textContent='“'+v+'”';
+  $('btAcao').disabled=true; $('btAcao').style.opacity='.45';
+  let i=0;
+  const um=()=>{
+    if(i>=3){ $('repCnt').textContent='definida'; S.fim(); setTimeout(avancar,1500); return; }
+    i++; $('repCnt').textContent=i+' de 3'; S.passo();
+    setTimeout(um,2200);
+  };
+  $('repCnt').textContent='repita mentalmente'; setTimeout(um,900);
+}
+
+$('btAcao').onclick=()=>{
+  const p=atual();
+  destravar();
+  if(p.tipo==='timer') rodarTimer(p.seg);
+  else if(p.tipo==='resp46') resp46(p.seg);
+  else if(p.tipo==='intencao') repetirIntencao();
+  else if(p.tipo==='ativar') ativar();
+};
+$('btPula').onclick=()=>{
+  const p=atual();
+  if(p.tipo==='intencao'){ const v=$('intIn').value.trim(); if(v) intencao=v; }
+  avancar();
+};
+$('btCompleto').onclick=()=>iniciar([1,2,3,4,5]);
+$('btCurto').onclick=()=>iniciar(CURTO);
+$('btRefazer').onclick=()=>{ intencao=''; ir('t0'); };
+$('btTestar').onclick=()=>{
+  destravar();
+  if(!somLigado){ $('notaSom').textContent='O som está desligado. Toque em “mudo” no topo para ativar.'; return; }
+  S.fim();
+  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  setTimeout(()=>{
+    $('notaSom').textContent = ios
+      ? 'Ouviu três tons? Se não, verifique a chavinha lateral do iPhone — no modo silencioso o navegador não emite som. O celular também não vibra pelo navegador no iOS.'
+      : 'Ouviu três tons? Se não, verifique o volume do aparelho e se a aba não está silenciada.';
+  }, 1400);
+};
+</script>
+</body>
+</html>
