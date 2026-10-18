@@ -18,7 +18,7 @@
         '<section class="cl-sec"><div class="cl-priv"><div><span class="comp-kicker">Privacidade em primeiro lugar</span><h2>Cada pessoa vê só o que você permitir</h2>' +
         '<p>Treinador e responsável entram por um código que o atleta gera. Para atletas menores de idade, o responsável aprova o treinador. Qualquer lado pode encerrar o vínculo a qualquer momento.</p></div>' +
         '<div class="cl-perm"><div>Temporada e torneios<span class="cl-tag">Compartilhado</span></div><div>Estratégia por partida<span class="cl-tag">Compartilhado</span></div><div>Diário pessoal<span class="cl-tag priv">Privado</span></div></div></div></section>' +
-        '<section class="cl-fim"><h2>Monte a sua temporada</h2><p>Use a mesma conta do QuadraLab Player. Leva menos de um minuto para começar.</p><p><a class="cl-btn escuro" href="#/criar">Criar minha conta</a></p></section>' +
+        '<section class="cl-fim"><h2>Monte a sua temporada</h2><p>Leva menos de um minuto para começar.</p><p><a class="cl-btn escuro" href="#/criar">Criar minha conta</a></p></section>' +
         '<footer class="cl-rodape"><span>Tecnologia <strong>QuadraLab</strong> · Metodologia MTY, de Richard Tsukada</span><span>Os dados de torneios são cadastrados pelo atleta. Confirme sempre no site oficial.</span></footer></div>';
     },
     ligar: function () {}

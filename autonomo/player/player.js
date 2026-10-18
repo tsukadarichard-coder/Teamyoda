@@ -1417,8 +1417,9 @@
      window.QL_MODO = "competicao" liga a navegação e a tela inicial próprias; no Player, as rotas da Competição apontam para lá. */
   var MODO_COMP = window.QL_MODO === "competicao";
   var ROTAS_COMP = { competicao: 1, temporada: 1, preparo: 1, diario: 1, devolutivas: 1, focos: 1, scouts: 1, pedidos: 1 };
-  var ROTAS_APP_COMP = { "": 1, inicio: 1, competicao: 1, temporada: 1, preparo: 1, diario: 1, devolutivas: 1, focos: 1, scouts: 1, pedidos: 1, consultorias: 1, partidas: 1, aquecimento: 1, desafios: 1, desafio: 1, conta: 1, ajuda: 1 };
-  var PLAYER_BASE = MODO_COMP ? "/player/" : "";
+  var ROTAS_APP_COMP = { "": 1, inicio: 1, competicao: 1, temporada: 1, preparo: 1, diario: 1, devolutivas: 1, focos: 1, scouts: 1, pedidos: 1, consultorias: 1, partidas: 1, aquecimento: 1, desafios: 1, conta: 1, ajuda: 1 };
+  var PLAYER_BASE = "";
+  var MARCA_APP = MODO_COMP ? "QuadraLab Competição" : "QuadraLab Player";
   if (MODO_COMP) {
     NAV_DA_ROTA = { "": "inicio", inicio: "inicio", competicao: "inicio", temporada: "temporada", preparo: "temporada", aquecimento: "aquecimento", desafios: "desafios", desafio: "desafios", partidas: "partidas", diario: "diario", devolutivas: "inicio", focos: "inicio", scouts: "inicio", pedidos: "inicio", consultorias: "inicio", conta: "conta", ajuda: "ajuda" };
     NAV_MAIS = { conta: 1, ajuda: 1 }; BARRA_SECAO = { aquecimento: "temporada", desafio: "temporada", desafios: "temporada" };
@@ -1630,7 +1631,7 @@
   function telaConta() {
     var d = estado.dados, perfil = d.perfil;
     tela(
-      '<h1>Meu perfil</h1><p class="sub">Seus dados de acesso. As informações esportivas ficam em <a href="#/jogador">Meu perfil de jogador</a>.</p>' +
+      '<h1>Meu perfil</h1><p class="sub">Seus dados de acesso.' + (MODO_COMP ? "" : ' As informações esportivas ficam em <a href="#/jogador">Meu perfil de jogador</a>.') + '</p>' +
       '<div class="cartao conta-cartao" style="margin-top:16px"><div class="conta-foto"><span class="avatar avatar-grande" data-avatar id="avatarConta"></span>' +
         '<div class="conta-foto-acoes"><label class="btn btn-secundario btn-pequeno" for="arqFoto">' + (perfil.foto ? "Trocar foto" : "Adicionar foto") + '</label><input type="file" id="arqFoto" accept="image/*" class="sr">' +
         (perfil.foto ? '<button type="button" class="btn btn-texto" id="btRemoverFoto">Remover foto</button>' : "") +
@@ -1666,14 +1667,14 @@
       var bt = this, av = document.getElementById("avisoExcluir"); av.hidden = true;
       var conf = document.getElementById("excConfirma").value.trim();
       if (!conf) { av.textContent = "Digite o e-mail da conta para confirmar."; av.hidden = false; return; }
-      if (!window.confirm("Excluir a conta e todos os dados do QuadraLab Player? Isso não pode ser desfeito.")) return;
+      if (!window.confirm("Excluir a conta e todos os dados do " + MARCA_APP + "? Isso não pode ser desfeito.")) return;
       ocupado(bt, true, "Excluindo…");
       try {
         var r = await api("player-privacidade", { metodo: "POST", corpo: { acao: "excluirConta", confirmar: conf } });
         estado.dados = null; estado.assin = null;
         try { await auth.signOut(); } catch (e) { /* a conta pode já não existir */ }
         location.hash = ""; rotear();
-        toast(r.contaRemovida ? "Sua conta foi excluída." : "Seus dados do Player foram excluídos.");
+        toast(r.contaRemovida ? "Sua conta foi excluída." : "Seus dados do " + (MODO_COMP ? "Competição" : "Player") + " foram excluídos.");
       } catch (e) { av.textContent = e.message; av.hidden = false; ocupado(bt, false); }
     });
     async function salvar(extras, bt, textoOcupado) {
@@ -2373,7 +2374,7 @@
     var q = (location.hash.split("?")[1] || "").match(/(?:^|&)plano=([^&]+)/);
     var planoSel = ed ? ed.planoId : q ? decodeURIComponent(q[1]) : "";
     var p = ed || { data: hojeISOLocal(), tipo: "treino", funcionou: [], naoFuncionou: [], dificuldades: [], positivos: [] };
-    var planos = planosProntos();
+    var planos = MODO_COMP ? [] : planosProntos();
     var conhecidos = (estado.dados.adversariosCadastrados || []).concat((estado.ficha && estado.ficha.adversario && estado.ficha.adversario.nome) ? [estado.ficha.adversario.nome] : []);
     var vistos = {}; conhecidos = conhecidos.filter(function (n) { var k = String(n).toLowerCase(); if (!n || vistos[k]) return false; vistos[k] = 1; return true; });
     var escala = '<div class="escala">' + [1, 2, 3, 4, 5].map(function (n) {
@@ -2555,7 +2556,7 @@
      próximo treino e menu Mais) levam às MESMAS telas e usam o MESMO progresso: o do desafio tático vem da conta
      (estado.dados.desafio) e o do 7 Dias de Presença é o que a própria página grava neste aparelho
      (localStorage, mesma chave dela). Nada de progresso inventado. */
-  var CHAVE_PRESENCA = "presenca7dias.v1";
+  var CHAVE_PRESENCA = MODO_COMP ? "comp-presenca7dias.v1" : "presenca7dias.v1";
   function presencaEstado() {
     var r = { feitos: 0, total: 7, prox: 1, concluido: false };
     try {
@@ -2580,7 +2581,7 @@
     var p = presencaEstado();
     var men = { id: "mental", nome: "7 Dias de Presença", categoria: "Mental", total: 7, feitos: p.feitos, prox: p.prox, href: PLAYER_BASE + "presenca/", local: true,
       desc: "Práticas curtas para desenvolver presença e atenção.", estado: p.concluido ? "concluido" : p.feitos > 0 ? "andamento" : "naoIniciado" };
-    return [tat, men];
+    return MODO_COMP ? [men] : [tat, men];
   }
   function barraPrep(feitos, total) {
     return '<span class="prep-barra" role="progressbar" aria-valuemin="0" aria-valuemax="' + total + '" aria-valuenow="' + feitos + '" aria-label="' + feitos + " de " + total + ' etapas concluídas"><i style="width:' + Math.round(feitos / total * 100) + '%"></i></span>';
@@ -2594,7 +2595,7 @@
     var cDes = d
       ? '<h3>' + esc(d.nome) + '</h3><p class="prep-desc">' + d.feitos + " de " + d.total + " etapas concluídas</p>" + barraPrep(d.feitos, d.total) +
         '<p class="prep-info">' + esc(d.categoria) + (lista.length > 1 ? " · mais 1 em andamento" : "") + '</p><a class="btn btn-laranja" href="' + d.href + '">Continuar</a>'
-      : '<h3>Desafios</h3><p class="prep-desc">Pratique com um objetivo.</p><p class="prep-info">Tático e mental</p><a class="btn btn-laranja" href="#/desafios">Ver desafios</a>';
+      : '<h3>Desafios</h3><p class="prep-desc">Pratique com um objetivo.</p><p class="prep-info">' + (MODO_COMP ? "Mental" : "Tático e mental") + '</p><a class="btn btn-laranja" href="#/desafios">Ver desafios</a>';
     return '<div class="prep-grid"><section class="prep-card" aria-label="Aquecimento"><h3>Aquecimento</h3><p class="prep-desc">18 min para preparar o corpo.</p>' +
       '<p class="prep-info">Sem bola · Orientação por voz</p><a class="btn btn-laranja" href="' + hrefAquecimento(ctx) + '">Abrir aquecimento</a></section>' +
       '<section class="prep-card" aria-label="Desafios">' + cDes + "</section></div>";
@@ -2962,7 +2963,7 @@
     if (!t) { tela('<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/temporada">‹ Temporada</a></p><div class="aviso">Torneio não encontrado.</div>'); return; }
     var novo = id === "novo", p = novo ? { prioridades: [], data: t.inicio } : r.preparos.filter(function (x) { return x.id === id; })[0];
     if (!p) { ir("#/temporada/" + torneioId); return; }
-    var planos = planosProntos();
+    var planos = MODO_COMP ? [] : planosProntos();
     tela('<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/temporada/' + torneioId + '">‹ ' + esc(t.nome) + "</a></p><h1>Preparar partida</h1>" +
       '<p class="sub">Defina o que importa nesta partida. Poucas prioridades valem mais que muitas.</p>' +
       '<form id="fPrep" class="cartao" style="margin-top:14px" novalidate>' +
@@ -2973,7 +2974,7 @@
       '<div class="campo"><label for="pHip">O que eu espero do adversário</label><textarea id="pHip" rows="3" maxlength="400">' + esc(p.hipoteses || "") + "</textarea>" + botaoVoz("pHip") + '<p class="nota">São hipóteses suas, não fatos: ajuste depois da partida.</p></div>' +
       (planos.length ? '<div class="campo"><label for="pPlano">Estratégia de apoio (opcional)</label><select id="pPlano"><option value="">Nenhuma em especial</option>' + planos.map(function (x) {
         return '<option value="' + esc(x.id) + '"' + (x.id === p.planoId ? " selected" : "") + ">" + esc(tipoEstrategia(x) + (x.adversarioNome ? " — " + x.adversarioNome : "") + " · " + tituloCurto(x.plano.titulo)) + "</option>";
-      }).join("") + "</select></div>" : '<p class="nota" style="margin-bottom:10px">Crie uma <a href="#/estrategia">estratégia</a> para poder usá-la como apoio na partida.</p>') +
+      }).join("") + "</select></div>" : '') +
       '<div class="aviso" id="avisoP" role="alert" hidden></div><button class="btn btn-primario btn-grande" type="submit">' + (novo ? "Salvar preparação" : "Salvar alterações") + "</button></form>" +
       '<h2 class="secao">Antes de entrar na quadra</h2>' + cartoesPreparacaoHtml("preparo/" + torneioId + "/" + id, false) +
       (novo ? "" : '<div class="acoes"><a class="btn btn-secundario" href="#/partidas/nova?torneio=' + torneioId + '">Registrar a partida</a><button type="button" class="btn btn-texto" id="btExcluirPrep">Excluir esta preparação</button></div>'));
@@ -3079,7 +3080,7 @@
         return '<h2 class="secao">' + STATUS_FOCO_ROT[st] + " · " + itens.length + '</h2><div class="comp-torneios">' + itens.map(function (f) {
           return '<div class="cartao comp-foco"><p class="olho">' + esc(f.origemRotulo || "") + "</p><h2>" + esc(f.texto) + "</h2>" +
             '<div class="comp-seg" role="group" aria-label="Situação do foco">' + ordem.map(function (s2) { return '<button type="button" class="comp-seg-bt" data-foco="' + f.id + '" data-st="' + s2 + '" aria-pressed="' + (s2 === f.status) + '">' + STATUS_FOCO_ROT[s2] + "</button>"; }).join("") + "</div>" +
-            '<div class="acoes"><a class="btn btn-secundario btn-pequeno" href="/player/#/jogadas">Jogadas e exercícios</a><a class="btn btn-secundario btn-pequeno" href="#/desafios">Desafios</a><button type="button" class="btn btn-texto" data-excluir-foco="' + f.id + '">Excluir</button></div></div>';
+            '<div class="acoes"><a class="btn btn-secundario btn-pequeno" href="#/desafios">Desafios</a><button type="button" class="btn btn-texto" data-excluir-foco="' + f.id + '">Excluir</button></div></div>';
         }).join("") + "</div>";
       }).join("") : '<div class="cartao" style="margin-top:14px"><h2>Nenhum foco ainda</h2><p class="nota" style="margin-top:6px">Depois de uma partida, abra o registro e toque em “Levar para o treino”, ou use o foco sugerido numa <a href="#/devolutivas">devolutiva</a>.</p></div>') +
       '<p class="nota" style="margin-top:14px">Seu treinador vê estes focos se você compartilhar “Treinos” no vínculo.</p>');
@@ -3382,6 +3383,13 @@
       } catch (e) { av.textContent = e.message; av.hidden = false; ocupado(bt, false); }
     });
   }
+  function telaAjudaComp() {
+    tela('<h1>Ajuda e suporte</h1><p class="sub">Fale com a gente por aqui.</p>' +
+      '<div class="cartao" style="margin-top:16px"><h2>Falar com o suporte</h2><p class="nota" style="margin-top:6px">Dúvidas sobre o app, a sua conta, a temporada ou os seus pedidos de consultoria. Respondemos pelo WhatsApp.</p>' +
+      '<a class="btn btn-primario btn-grande" href="' + esc(suporteUrl("Olá, Richard! Preciso de ajuda com o QuadraLab Competição.")) + '" target="_blank" rel="noopener">Abrir o WhatsApp<span class="sr"> (abre em nova aba)</span></a></div>' +
+      '<div class="cartao" style="margin-top:14px"><h2>Quem vê os seus dados</h2><p class="nota" style="margin-top:6px">Treinador e responsável só veem o que você marcar em cada vínculo, e qualquer lado pode encerrar o vínculo quando quiser. Para atletas menores de idade, o responsável aprova o treinador e confirma as consultorias. O diário é privado, a menos que você o compartilhe.</p></div>' +
+      '<div class="cartao" style="margin-top:14px"><h2>Seus dados</h2><p class="nota" style="margin-top:6px">Em <a href="#/conta">Meu perfil</a> você baixa uma cópia dos seus dados ou exclui a conta.</p></div>');
+  }
   async function telaVinculo(id) {
     tela('<p class="carregando">Carregando…</p>', true);
     var r;
@@ -3425,8 +3433,9 @@
     document.body.classList.remove("teclado", "acesso");
     var t = document.getElementById("toast"); if (t && Date.now() - toastEm > 1200) t.hidden = true; // um aviso criado junto com a navegação (ex.: "perfil salvo") continua visível
     /* visitante sem rota: página pública de apresentação; #/entrar e #/criar (e qualquer link direto) seguem para o cadastro/entrada */
-    if (!MODO_COMP && ROTAS_COMP[partes[0]]) { location.replace("/competicao/" + location.hash); return; }
-    if (MODO_COMP && logado && !ROTAS_APP_COMP[partes[0]]) { location.replace("/player/" + location.hash); return; }
+    /* produtos distintos: cada app só conhece as próprias rotas; uma rota do outro cai na tela inicial, sem redirecionar para lá */
+    if (!MODO_COMP && ROTAS_COMP[partes[0]]) partes = [""];
+    if (MODO_COMP && logado && !ROTAS_APP_COMP[partes[0]]) partes = [""];
     var LAND = MODO_COMP ? window.QL_COMP_LANDING : window.QL_LANDING;
     var visitanteNaHome = !logado && !partes[0] && LAND;
     document.body.classList.toggle("landing", !!visitanteNaHome);
@@ -3434,7 +3443,7 @@
     if (!logado) { telaEntrar(ROTAS_ACESSO[partes[0]] ? partes[0] : "criar"); return; }
     if (!estado.dados) {
       tela('<p class="carregando">Carregando seus dados…</p>', true);
-      try { await carregarDados(); aplicarRascunho(); carregarAssinatura(false).catch(function () { /* o resto do app funciona sem a área comercial */ }); }
+      try { await carregarDados(); aplicarRascunho(); (MODO_COMP ? Promise.resolve() : carregarAssinatura(false)).catch(function () { /* o resto do app funciona sem a área comercial */ }); }
       catch (e) {
         tela('<div class="pilha"><div class="aviso">' + esc(e.message) + '</div><div class="acoes"><button class="btn btn-primario" id="btTentar" type="button">Tentar de novo</button></div></div>');
         document.getElementById("btTentar").addEventListener("click", rotear);
@@ -3459,6 +3468,7 @@
     else if (r === "desafio") { if (partes[1]) telaDesafioDia(partes[1]); else telaDesafio(); }
     else if (r === "partidas") { if (partes[1] === "nova") telaPartidaForm(null); else if (partes[1]) telaPartidaForm(partes[1]); else telaPartidas(); }
     else if (MODO_COMP && r === "consultorias") telaConsultoriasComp(partes[1], partes[2]);
+    else if (MODO_COMP && r === "ajuda") telaAjudaComp();
     else if (r === "pedidos") telaPedidos();
     else if (r === "temporada") { if (partes[1] === "novo" || partes[2] === "editar") telaTorneioForm(partes[1]); else if (partes[1]) telaTorneio(partes[1]); else telaTemporada(); }
     else if (r === "preparo" && partes[1] && partes[2]) telaPreparo(partes[1], partes[2]);

@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>7 Dias de Presença</title>
+<meta name="theme-color" content="#F6F8F7">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="7 Dias">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --tinta:#17251F; --tinta-media:#5B6B63; --verde:#012A1F; --verde-fundo:#103B32;
+  --ouro:#A8480F; --ouro-vivo:#C2561E; --ouro-claro:#F7A66B;
+  --acao:#B14C1D; --acao-escuro:#9E4218;
+  --papel:#F6F8F7; --papel-2:#FFFFFF; --borda:#E2E8E5;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--papel);color:var(--tinta);
+  font-family:Inter,-apple-system,system-ui,'Segoe UI',sans-serif;
+  font-size:18px;line-height:1.62;-webkit-font-smoothing:antialiased}
+.palco{max-width:660px;margin:0 auto;padding:38px 22px 76px;min-height:100dvh}
+.tela{display:none}
+.tela.on{display:block;animation:sobe .42s ease both}
+@keyframes sobe{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+h1{font-family:Inter,system-ui,sans-serif;font-weight:800;letter-spacing:-.015em;
+  font-size:clamp(30px,8.4vw,40px);line-height:1.1;color:var(--verde);margin-bottom:18px}
+h1 .fina{display:block;font-weight:800;color:var(--ouro)}
+.selo{font-size:12px;font-weight:700;letter-spacing:.26em;text-transform:uppercase;color:var(--ouro);margin-bottom:22px}
+p.intro{font-size:18.5px;color:var(--tinta-media);margin-bottom:14px;max-width:54ch}
+.regras{border-left:4px solid var(--acao);padding-left:16px;margin:22px 0;font-size:16.5px;color:var(--tinta-media)}
+.regras b{color:var(--verde)}
+
+/* ---- TRILHA ---- */
+.trilha{margin:26px 0 8px;position:relative}
+.trilha-linha{position:absolute;left:26px;top:14px;bottom:14px;width:2px;background:var(--borda)}
+.trilha-feito{position:absolute;left:26px;top:14px;width:2px;background:var(--acao);transition:height .6s ease}
+.passo{display:flex;align-items:center;gap:16px;padding:7px 0;position:relative;z-index:2}
+.passo-btn{appearance:none;background:none;border:none;font-family:inherit;cursor:pointer;
+  display:flex;align-items:center;gap:16px;width:100%;text-align:left;padding:4px 0}
+.bolha{width:54px;height:54px;flex:none;border-radius:50%;background:var(--papel-2);
+  border:2px solid var(--borda);display:flex;align-items:center;justify-content:center;
+  font-family:Inter,system-ui,sans-serif;font-size:22px;font-weight:600;color:var(--tinta-media);
+  transition:border-color .2s,background .2s,color .2s}
+.passo.feito .bolha{background:var(--acao);border-color:var(--acao);color:#fff}
+.passo.atual .bolha{border-color:var(--ouro-vivo);border-width:3px;color:var(--verde);box-shadow:0 0 0 5px rgba(198,88,37,.16)}
+.passo.travado .bolha{opacity:.45}
+.passo-txt{flex:1}
+.passo-nome{font-size:17.5px;font-weight:600;color:var(--tinta)}
+.passo.travado .passo-nome{color:var(--tinta-media);font-weight:400}
+.passo-meta{font-size:14.5px;color:var(--tinta-media)}
+.passo.feito .passo-meta{color:var(--ouro)}
+.passo-btn:focus-visible{outline:3px solid var(--acao);outline-offset:3px;border-radius:8px}
+
+.link-discreto{background:none;border:none;font-family:inherit;font-size:15.5px;color:var(--tinta-media);
+  cursor:pointer;border-bottom:1px solid var(--borda);padding:3px 0;margin-top:16px}
+.link-discreto:hover{color:var(--verde);border-color:var(--verde)}
+
+/* ---- IMERSÃO ---- */
+.imersao{background:var(--verde-fundo);color:#F2F6F4;border-radius:14px;padding:30px 26px;margin-bottom:16px}
+.imersao .dia-tag{font-size:11.5px;font-weight:700;letter-spacing:.24em;text-transform:uppercase;color:var(--ouro-claro);margin-bottom:14px}
+.imersao h2{font-family:Inter,system-ui,sans-serif;font-weight:800;font-size:clamp(25px,6.4vw,32px);
+  line-height:1.2;color:#fff;margin-bottom:16px}
+.imersao p{font-size:17.5px;line-height:1.72;color:rgba(242,246,244,.95);margin-bottom:13px}
+.imersao p:last-child{margin-bottom:0}
+.imersao .destaque{font-family:Inter,system-ui,sans-serif;font-weight:600;font-size:19px;
+  color:var(--ouro-claro);line-height:1.5;margin:18px 0;padding-left:16px;border-left:2px solid var(--ouro-vivo)}
+.imersao .origem{font-size:15.5px;color:rgba(242,246,244,.78);border-top:1px solid rgba(242,246,244,.2);
+  padding-top:14px;margin-top:18px}
+
+.topo-dia{display:flex;align-items:baseline;gap:14px;margin-bottom:6px}
+.topo-dia .num{font-family:Inter,system-ui,sans-serif;font-size:50px;color:var(--ouro);line-height:.9}
+.topo-dia h2{font-family:Inter,system-ui,sans-serif;font-weight:800;font-size:clamp(25px,5.8vw,34px);color:var(--verde)}
+.tempo{display:inline-block;background:var(--verde-fundo);color:#fff;font-size:13px;font-weight:600;
+  padding:4px 12px;border-radius:14px;margin-bottom:18px}
+.pratica{background:var(--papel-2);border:1px solid var(--borda);border-left:4px solid var(--acao);border-radius:14px;padding:22px;margin-bottom:14px;box-shadow:0 10px 28px -20px rgba(1,42,31,.45)}
+.pratica .rot{font-size:11.5px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--ouro);margin-bottom:10px}
+.pratica p{font-size:18.5px;line-height:1.68;color:var(--tinta)}
+.pratica b{color:var(--verde)}
+.painel{background:var(--papel-2);border:1.5px solid var(--borda);border-radius:12px;padding:20px 22px;margin-bottom:14px}
+.painel h3{font-size:12px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--ouro);margin-bottom:10px}
+.painel p{font-size:17.5px;color:var(--tinta)}
+
+.reflexao-box{background:var(--papel-2);border:1.5px solid var(--borda);border-radius:12px;padding:20px 22px;margin-bottom:14px}
+.reflexao-box h3{font-size:12px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--ouro);margin-bottom:8px}
+.reflexao-box .pergunta{font-family:Inter,system-ui,sans-serif;font-weight:600;font-size:18px;
+  color:var(--verde);line-height:1.45;margin-bottom:14px}
+textarea{width:100%;min-height:110px;border:1.5px solid var(--borda);border-radius:9px;padding:13px 15px;
+  font-family:inherit;font-size:17px;line-height:1.6;color:var(--tinta);background:var(--papel);resize:vertical}
+textarea:focus{outline:none;border-color:var(--acao);box-shadow:0 0 0 3px rgba(198,88,37,.3)}
+.salvo-aviso{font-size:14.5px;color:var(--verde);margin-top:8px;opacity:0;transition:opacity .3s}
+.salvo-aviso.on{opacity:1}
+
+.acoes{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px}
+.acao{appearance:none;background:var(--acao);color:#fff;border:2px solid var(--acao);border-radius:12px;
+  font-family:inherit;font-size:16.5px;font-weight:700;padding:14px 24px;min-height:52px;cursor:pointer}
+.acao:hover{background:var(--acao-escuro);border-color:var(--acao-escuro)}
+.acao.linha{background:#fff;color:var(--ouro);border-color:var(--acao)}
+.acao.linha:hover{background:#FFF4EC}
+.acao:focus-visible{outline:3px solid var(--acao);outline-offset:3px}
+
+/* ---- REVELAÇÃO ---- */
+.rev-card{background:var(--papel-2);border:1.5px solid var(--borda);border-radius:14px;
+  padding:22px 24px;margin-bottom:14px;position:relative}
+.rev-card .k{font-family:Inter,system-ui,sans-serif;font-size:30px;color:var(--ouro);
+  line-height:1;margin-bottom:8px;display:block}
+.rev-card .dia-ref{font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--tinta-media);margin-bottom:6px}
+.rev-card h4{font-family:Inter,system-ui,sans-serif;font-size:22px;font-weight:800;color:var(--verde);margin-bottom:8px}
+.rev-card p{font-size:17px;color:var(--tinta-media);line-height:1.65}
+.diario-item{background:var(--papel-2);border-left:4px solid var(--acao);border-radius:0 8px 8px 0;
+  padding:14px 18px;margin-bottom:11px}
+.diario-item .di-dia{font-size:12.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ouro);margin-bottom:4px}
+.diario-item p{font-size:17px;color:var(--tinta);line-height:1.6}
+.diario-vazio{font-size:16.5px;color:var(--tinta-media);font-style:italic}
+.oferta{border:2px solid var(--acao);border-radius:14px;padding:26px 24px;margin-top:20px;text-align:center}
+.oferta h3{font-family:Inter,system-ui,sans-serif;font-weight:800;font-size:23px;color:var(--verde);margin-bottom:8px}
+.oferta p{font-size:17px;color:var(--tinta-media)}
+.nota{font-size:15px;color:var(--tinta-media);border-top:1px solid var(--borda);padding-top:18px;margin-top:24px}
+
+
+.cab{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:22px}
+.cab img{height:30px;width:auto;display:block}
+.cab a{display:inline-flex;align-items:center;min-height:44px;font-size:14.5px;font-weight:700;color:var(--ouro);text-decoration:none}
+.cab a:focus-visible{outline:3px solid var(--acao);outline-offset:2px;border-radius:6px}
+@media (max-width:400px){.palco{padding:30px 16px 64px}.bolha{width:48px;height:48px;font-size:20px}
+  .trilha-linha,.trilha-feito{left:23px}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="palco">
+
+  <!-- HOME -->
+  <section class="tela on" id="tHome">
+    <div class="cab"><img src="../../assets/logo-quadralab-player-competicao-120.png" alt="QuadraLab Competição" width="130" height="37"><a href="../#/desafios">‹ Desafios</a></div>
+    <div class="selo">Aquecimento mental</div>
+    <h1>7 Dias<span class="fina">de Presença</span></h1>
+    <p class="intro" id="boasVindas">Uma semana para reaprender a estar onde você está — práticas de poucos minutos que cabem em qualquer rotina.</p>
+    <div class="regras">
+      <b>Três combinados:</b> faça na ordem, porque cada dia prepara o seguinte · se falhar um dia, siga de onde parou, sem recomeçar · não espere sentir algo espetacular — os efeitos são sutis e cumulativos.
+    </div>
+    <div class="trilha" id="trilha"></div>
+    <button class="link-discreto" id="btnPular">Quero ir direto a outro dia</button><br>
+    <button class="link-discreto" id="btnVerRevela" style="display:none">Rever o que eu pratiquei</button>
+    <button class="link-discreto" id="btnZerar" style="margin-left:14px">Recomeçar do zero</button>
+  </section>
+
+  <!-- IMERSÃO -->
+  <section class="tela" id="tImersao">
+    <div class="imersao">
+      <div class="dia-tag" id="iTag"></div>
+      <h2 id="iTitulo"></h2>
+      <div id="iCorpo"></div>
+      <div class="origem" id="iOrigem"></div>
+    </div>
+    <div class="acoes">
+      <button class="acao" id="btnIrPratica">Ver a prática de hoje</button>
+      <button class="acao linha" id="btnImersaoVoltar">Voltar</button>
+    </div>
+  </section>
+
+  <!-- DIA -->
+  <section class="tela" id="tDia">
+    <div class="topo-dia"><span class="num" id="dNum"></span><h2 id="dTitulo"></h2></div>
+    <span class="tempo" id="dTempo"></span>
+    <div class="pratica"><div class="rot">A prática de hoje</div><p id="dPratica"></p></div>
+    <div class="painel"><h3>Por que isso funciona</h3><p id="dPorque"></p></div>
+    <div class="reflexao-box">
+      <h3>Ao fim do dia</h3>
+      <div class="pergunta" id="dPergunta"></div>
+      <textarea id="dResposta" placeholder="Escreva aqui, mesmo que poucas palavras. No dia 7 você relê tudo."></textarea>
+      <div class="salvo-aviso" id="salvoAviso">Salvo neste aparelho.</div>
+    </div>
+    <div class="acoes">
+      <button class="acao" id="btnFeito">Marcar dia como feito</button>
+      <button class="acao linha" id="btnRelerImersao">Reler a introdução</button>
+      <button class="acao linha" id="btnVoltarHome">Voltar à trilha</button>
+    </div>
+  </section>
+
+  <!-- REVELAÇÃO -->
+  <section class="tela" id="tRevela">
+    <div class="selo">Sétimo dia</div>
+    <h1 style="font-size:clamp(28px,6.4vw,42px)">O que você<span class="fina">estava praticando</span></h1>
+    <p class="intro">Durante sete dias você praticou sem saber o nome do que fazia. Agora pode saber.</p>
+    <p class="intro">Nada aqui foi invenção minha. Cada dia desta semana cultivou um princípio com séculos — alguns com milênios — de tradição contemplativa oriental, hoje confirmados pela ciência da atenção. Você não aprendeu sobre eles. Você os viveu.</p>
+
+    <div class="rev-card">
+      <span class="k">改善</span>
+      <div class="dia-ref">Dia 1 · o primeiro respiro</div>
+      <h4>Kaizen</h4>
+      <p>Aquilo que você entendeu sobre começar pequeno tem nome japonês e uma história industrial: é o princípio da melhoria contínua por passos mínimos. Três respirações pareciam pouco demais para importar. Eram exatamente o tamanho certo.</p>
+    </div>
+
+    <div class="rev-card">
+      <span class="k">残心</span>
+      <div class="dia-ref">Dia 2 · a arte de voltar</div>
+      <h4>Zanshin</h4>
+      <p>A descoberta de que presença não é nunca se distrair, mas saber voltar — isso vem das artes marciais japonesas. Zanshin: a mente que permanece. É o coração de tudo, e dá nome ao método inteiro.</p>
+    </div>
+
+    <div class="rev-card">
+      <span class="k">無常</span>
+      <div class="dia-ref">Dia 3 · deixar passar</div>
+      <h4>Mujō</h4>
+      <p>Ver os pensamentos chegarem e seguirem, sem segurá-los, é a prática budista da impermanência — anicca, em páli. Tem cerca de dois mil e quinhentos anos. Você a praticou numa terça-feira comum.</p>
+    </div>
+
+    <div class="rev-card">
+      <span class="k">無為自然</span>
+      <div class="dia-ref">Dia 4 · parar de forçar</div>
+      <h4>Mui Shizen</h4>
+      <p>O paradoxo que você sentiu no corpo — que tentar relaxar impede o relaxamento — é o Wu Wei taoísta, a ação sem esforço, descrita no Tao Te Ching há mais de dois milênios.</p>
+    </div>
+
+    <div class="rev-card">
+      <span class="k">一期一会</span>
+      <div class="dia-ref">Dia 5 · o momento único</div>
+      <h4>Ichigo Ichie</h4>
+      <p>Viver aquele gesto comum como irrepetível vem da cerimônia japonesa do chá: um encontro, uma oportunidade. Cada momento acontece uma única vez, e é isso que o torna precioso.</p>
+    </div>
+
+    <h2 style="font-family:Inter,system-ui,sans-serif;font-weight:600;font-size:26px;color:var(--verde);margin:30px 0 14px">Os sete dias que você escreveu</h2>
+    <div id="diario"></div>
+
+    <div class="oferta">
+      <h3>Sete dias foram a porta</h3>
+      <p>Estes cinco princípios formam uma mandala — e cada um tem uma profundidade que uma semana não alcança: aplicações no trabalho, nas relações, no sono, na ansiedade. Se quiser percorrer esse caminho, ele existe.</p>
+    </div>
+    <p class="nota">E mesmo que você não siga adiante: escolha uma prática destas sete e mantenha. Uma só. O que se planta com constância cresce sozinho.</p>
+    <div class="acoes"><button class="acao linha" id="btnRevelaVoltar">Voltar à trilha</button></div>
+  </section>
+
+</div>
+
+<script>
+const DIAS = [
+ { t:'O primeiro respiro', tempo:'2 minutos',
+   iTitulo:'Por que se começa pequeno',
+   iCorpo:[
+     'Quase todo mundo que decide cuidar da própria mente começa grande. Meia hora de meditação, uma rotina inteira, um antes-e-depois. E quase todo mundo abandona na primeira semana — não por falta de vontade, mas porque construiu algo que a vida real não sustenta.',
+     'Existe uma tradição de pensamento que propõe o contrário, e que soa quase decepcionante de tão simples: comece com o menor gesto possível. Tão pequeno que seja constrangedor falhar. Tão pequeno que você o faça no pior dia da sua semana, doente, atrasado, exausto.',
+     'A lógica não é motivacional, é estrutural. O que é grande depende de condições favoráveis — tempo, energia, disposição. O que é mínimo sobrevive a qualquer condição. E o que sobrevive, repete. E o que repete, transforma. A constância é a variável que importa; o tamanho é quase irrelevante.'
+   ],
+   destaque:'O que é pouco, você mantém. O que se mantém, transforma.',
+   origem:'Este princípio atravessa várias tradições contemplativas orientais e foi formalizado no Japão do século XX. Você vai conhecer o nome dele no sétimo dia.',
+   pratica:'Três vezes hoje — ao acordar, antes do almoço e ao fim da tarde — pare o que estiver fazendo e faça <b>três respirações conscientes</b>. Só isso. Sinta o ar entrar, sinta o ar sair. Depois, siga com o seu dia.',
+   porque:'Três respirações não mudam sua fisiologia de forma permanente. O que elas fazem é outra coisa: instalam a capacidade de interromper o automático. Você está treinando o gesto de parar — e é esse gesto, repetido, que abre espaço para todo o resto.',
+   pergunta:'Em qual das três pausas foi mais difícil parar? O que estava acontecendo naquele momento?' },
+
+ { t:'A arte de voltar', tempo:'3 minutos',
+   iTitulo:'O maior mal-entendido sobre presença',
+   iCorpo:[
+     'Quase todo mundo que tenta meditar desiste com a mesma frase: "minha cabeça não para". E interpreta isso como fracasso — como se existissem pessoas com mentes silenciosas e ela não fosse uma delas.',
+     'Essas pessoas não existem. Nenhuma tradição contemplativa séria jamais prometeu uma mente que não se distrai. A distração não é o obstáculo do caminho; é o material com que se trabalha.',
+     'Nas artes marciais japonesas há um conceito para o estado de atenção que permanece depois do golpe — quando o movimento terminou, mas a presença continua inteira. O ponto crucial é que essa atenção não é contínua por natureza. Ela se perde e é recuperada, se perde e é recuperada. O domínio não está em nunca perder. Está na qualidade e na rapidez do retorno.',
+     'Isso muda o que você está treinando. Cada vez que sua mente foge e você percebe e volta, você completou uma repetição do exercício. Quem se distrai vinte vezes e volta vinte vezes treinou mais do que quem se distraiu três.'
+   ],
+   destaque:'Não é a mente que nunca se distrai. É a mente que sabe voltar.',
+   origem:'Este conceito vem do budo, o caminho marcial japonês, onde nomeia um estado de atenção que permanece. É o coração do método que você está praticando.',
+   pratica:'Escolha uma atividade que você já faz todo dia — tomar café, caminhar, tomar banho. Durante ela, mantenha a atenção no que está fazendo. Sua mente vai fugir. <b>Quando perceber, volte.</b> Sem se irritar. Quantas vezes for preciso.',
+   porque:'A irritação com a distração é mais prejudicial que a distração. Ela adiciona uma segunda camada de agitação sobre a primeira. Voltar com gentileza treina duas coisas ao mesmo tempo: a atenção e a relação que você tem com as suas próprias falhas.',
+   pergunta:'Quantas vezes você percebeu que tinha ido embora? E como foi o momento de voltar — irritado ou tranquilo?' },
+
+ { t:'Deixar passar', tempo:'3 minutos',
+   iTitulo:'Por que ruminar não resolve',
+   iCorpo:[
+     'Diante de um pensamento incômodo, fazemos uma de duas coisas: tentamos resolvê-lo pensando mais nele, ou tentamos empurrá-lo para longe. As duas falham, e falham pelo mesmo motivo — ambas são formas de segurar.',
+     'Ruminar dá a sensação de estar trabalhando no problema. Mas repassar uma conversa pela décima vez não produz solução nova; produz apenas um sulco mais fundo. E reprimir exige atenção constante àquilo que se quer evitar, o que mantém o pensamento vivo por outro caminho.',
+     'Há uma terceira posição, central numa das tradições contemplativas mais antigas do mundo: observar sem se agarrar. Ela parte de uma constatação simples e radical — tudo o que surge, passa. Pensamentos, emoções, estados, dores. Nada permanece por si só. O que permanece é aquilo que seguramos.',
+     'Isso não é resignação nem indiferença. É reconhecer que a natureza das coisas já é passar, e parar de trabalhar contra isso.'
+   ],
+   destaque:'Tudo o que chega, passa — se você não segurar.',
+   origem:'A impermanência é um dos pilares do pensamento budista, formulado há cerca de dois mil e quinhentos anos. Você vai saber o nome dela no sétimo dia.',
+   pratica:'Hoje, quando um pensamento incômodo aparecer — uma preocupação, uma irritação, uma lembrança ruim — não brigue com ele nem o alimente. <b>Apenas note que ele chegou, e deixe-o seguir</b>, como uma nuvem atravessando o céu. Repita a cada vez que voltar.',
+   porque:'Nomear e observar o pensamento cria uma distância mínima mas decisiva: você deixa de ser o pensamento e passa a ser quem o observa. Dessa posição, ele perde a força de comando — continua existindo, mas não dita mais o que você sente.',
+   pergunta:'Qual pensamento voltou mais vezes hoje? O que aconteceu quando você não lutou com ele?' },
+
+ { t:'Parar de forçar', tempo:'4 minutos',
+   iTitulo:'O paradoxo do esforço',
+   iCorpo:[
+     'Tente relaxar. Agora, com vontade. Force o relaxamento. Você já percebeu o problema: tentar é esforço, e esforço é o oposto de relaxar. Quanto mais empenho você coloca, mais longe fica.',
+     'Esse paradoxo aparece em quase tudo que importa. O sono não vem para quem se esforça para dormir. A naturalidade não chega para quem tenta parecer natural. A criatividade foge de quem a persegue.',
+     'Uma tradição chinesa antiga construiu toda uma filosofia em torno disso: existe uma forma de agir que não é forçar. Não é passividade nem preguiça — é ação alinhada com a natureza das coisas, sem atrito desnecessário. A água não força seu caminho pela pedra; ela contorna, e no fim atravessa a montanha.',
+     'Aplicado ao corpo, isso é bem concreto. Você passa o dia segurando tensões que não precisa segurar — ombros erguidos, mandíbula travada, testa franzida. Ninguém pediu isso. É segurar por hábito. E soltar não é fazer algo novo: é parar de fazer algo que você já estava fazendo sem perceber.'
+   ],
+   destaque:'O relaxamento não é o que você alcança. É o que sobra quando você solta.',
+   origem:'Esta é a ideia central de uma das principais tradições filosóficas chinesas, formulada há mais de dois mil anos. O nome vem no sétimo dia.',
+   pratica:'Três vezes hoje, faça uma varredura pelo corpo e encontre onde você está segurando tensão sem precisar — ombros subidos, mandíbula travada, testa franzida, mãos apertadas. <b>Solte, na expiração.</b> Não force o relaxamento: apenas pare de segurar.',
+   porque:'A tensão crônica é invisível justamente por ser constante — você só percebe quando solta. E ela alimenta um ciclo: corpo tenso sinaliza ameaça ao cérebro, que responde com mais alerta, que gera mais tensão. Soltar interrompe esse ciclo pelo lado do corpo, que é o mais acessível.',
+   pergunta:'Onde no seu corpo mora a tensão? Quantas vezes você estava apertado sem motivo?' },
+
+ { t:'O momento único', tempo:'5 minutos',
+   iTitulo:'O que se perde na repetição',
+   iCorpo:[
+     'Você já tomou milhares de cafés. Já fez o mesmo trajeto centenas de vezes. Já abraçou as mesmas pessoas incontáveis vezes. E é exatamente por isso que quase não sentiu nenhuma dessas vezes.',
+     'A mente economiza energia tratando o repetido como já conhecido. É eficiente — e é o que faz semanas inteiras desaparecerem da memória sem deixar rastro. Não porque nada aconteceu, mas porque nada foi registrado.',
+     'A cerimônia japonesa do chá parte de uma percepção contrária. Cada encontro é único e irrepetível, ainda que as pessoas sejam as mesmas e o ritual seja idêntico. Aquela luz, aquele estado de espírito, aquele instante da vida de cada um — não voltarão. O anfitrião prepara cada cerimônia como se fosse a única, porque é.',
+     'Isso não exige mudar nada do que você faz. Exige apenas parar de tratar o que se repete como se fosse o mesmo. O café de hoje não é o café de ontem. Você não é quem era ontem.'
+   ],
+   destaque:'Este momento acontece uma vez só. É isso que o torna precioso.',
+   origem:'Este princípio vem da tradição japonesa da cerimônia do chá, com séculos de história. Seu nome, no sétimo dia.',
+   pratica:'Escolha uma coisa comum que você faz todo dia — o café da manhã, o banho, o caminho de volta. Hoje, <b>viva-a por inteiro</b>: sem celular, sem pensar no próximo compromisso. Sinta as cores, o cheiro, a temperatura, o sabor. Como se fosse a primeira e a última vez.',
+   porque:'A atenção plena a um gesto comum produz um efeito curioso: o tempo parece se alargar. Dias vividos no automático encolhem na memória; dias com momentos de presença ficam maiores. Você não ganha horas — ganha densidade nas que já tem.',
+   pergunta:'Como foi viver esse momento por inteiro? Notou algo que nunca tinha notado antes?' },
+
+ { t:'Ouvir de verdade', tempo:'5 minutos',
+   iTitulo:'A presença mais difícil',
+   iCorpo:[
+     'Estar presente sozinho é uma coisa. Estar presente diante de outra pessoa é bem mais difícil — e quase ninguém percebe o quanto falha nisso.',
+     'Numa conversa, sua mente costuma estar ocupada com uma tarefa paralela: preparar a resposta. Você ouve as primeiras frases, identifica o assunto, e a partir daí está montando o que vai dizer. A pessoa continua falando; você já saiu.',
+     'Há também o hábito de ouvir para responder no lugar de ouvir para compreender. Comparamos com nossa própria experiência, corrigimos, oferecemos solução — tudo isso desvia a atenção de quem fala para nós mesmos.',
+     'Todas as tradições contemplativas que trabalham a atenção acabam chegando ao encontro com o outro, porque é ali que a presença encontra sua prova mais dura e seu efeito mais visível. Ser realmente ouvido é raro o bastante para que as pessoas percebam imediatamente quando acontece.'
+   ],
+   destaque:'Ouvir sem preparar a resposta é um dos gestos mais generosos que existem.',
+   origem:'A escuta atenta atravessa todas as tradições contemplativas — do zen japonês às práticas de compaixão budistas.',
+   pratica:'Em uma conversa hoje, <b>ouça sem preparar a resposta</b>. Sem olhar a tela. Deixe a pessoa terminar de verdade antes de falar. Repare no rosto dela, no tom de voz, no que ela diz sem palavras.',
+   porque:'Quando você para de preparar a resposta, duas coisas acontecem: você escuta o que a pessoa realmente disse, e ela sente isso. A qualidade da conversa muda dos dois lados — e é a mesma habilidade do dia 2, agora com um estímulo muito mais forte puxando você para fora.',
+   pergunta:'Como a pessoa reagiu ao ser realmente ouvida? E como foi, para você, resistir à vontade de responder?' },
+
+ { t:'O olhar de volta', tempo:'5 minutos',
+   iTitulo:'O erro que desfaz tudo',
+   iCorpo:[
+     'Ao fim de uma experiência como esta, surge quase sempre o mesmo impulso: fazer tudo. Manter as sete práticas, montar uma rotina completa, aproveitar o embalo.',
+     'É esse impulso que costuma desfazer o que foi construído. Sete práticas simultâneas não cabem numa vida real; a rotina rui em duas semanas, e com ela vai também a que teria funcionado sozinha.',
+     'O que transforma não é a variedade — é a repetição. Uma prática mantida por um ano produz mudanças que sete praticadas por sete dias não produzem. Isso nos devolve exatamente ao princípio do primeiro dia, e fecha o círculo desta semana.',
+     'Então hoje o exercício é de escolha e de renúncia. Escolher uma. Deixar as outras seis irem, sabendo que continuam disponíveis quando você quiser.'
+   ],
+   destaque:'Uma prática mantida vale mais que sete experimentadas.',
+   origem:'Hoje o círculo se fecha: você volta ao princípio do primeiro dia. Depois desta prática, você vai descobrir o que praticou nesta semana.',
+   pratica:'Releia os seis dias anteriores — inclusive o que você escreveu. Depois, escolha <b>uma única prática</b>, a que mais te serviu, e comprometa-se a mantê-la. Não duas, não todas. Uma. E faça-a hoje, agora, com atenção total.',
+   porque:'A escolha exige renúncia, e a renúncia é o que dá força ao que fica. Ao dizer não a seis práticas, você transforma a sétima de "mais uma coisa boa" em compromisso real — e compromisso é o que sobrevive aos dias ruins.',
+   pergunta:'O que mudou em você nestes sete dias? E qual prática você escolheu levar adiante?' }
+];
+
+/* ---------- Estado com persistência ---------- */
+const CHAVE = 'comp-presenca7dias.v1';
+let estado = { feitos:[false,false,false,false,false,false,false], notas:['','','','','','',''], revelou:false };
+
+function carregar(){
+  try{
+    const bruto = localStorage.getItem(CHAVE);
+    if(bruto){
+      const o = JSON.parse(bruto);
+      if(Array.isArray(o.feitos) && o.feitos.length===7) estado.feitos = o.feitos;
+      if(Array.isArray(o.notas) && o.notas.length===7) estado.notas = o.notas;
+      estado.revelou = !!o.revelou;
+    }
+  }catch(e){ /* sem persistência: segue em memória */ }
+}
+function salvar(){
+  try{ localStorage.setItem(CHAVE, JSON.stringify(estado)); }
+  catch(e){ /* sem persistência: segue em memória */ }
+}
+carregar();
+
+let diaAtual = 0;
+const $ = id=>document.getElementById(id);
+function trocar(el){['tHome','tImersao','tDia','tRevela'].forEach(t=>$(t).classList.remove('on'));el.classList.add('on');window.scrollTo({top:0})}
+
+function proximoDia(){
+  const i = estado.feitos.indexOf(false);
+  return i === -1 ? 6 : i;
+}
+function liberado(i){
+  if(i===0) return true;
+  return estado.feitos[i-1] || estado.feitos[i];
+}
+
+function montarTrilha(){
+  const wrap = $('trilha');
+  const prox = proximoDia();
+  const feitosQtd = estado.feitos.filter(Boolean).length;
+
+  let html = '<div class="trilha-linha"></div><div class="trilha-feito" style="height:'
+    + (feitosQtd===0 ? 0 : Math.min(feitosQtd,7)/7*100) + '%"></div>';
+
+  DIAS.forEach((d,i)=>{
+    const feito = estado.feitos[i];
+    const atual = !feito && i===prox;
+    const travado = !liberado(i);
+    const cls = 'passo' + (feito?' feito':'') + (atual?' atual':'') + (travado?' travado':'');
+    const meta = feito ? 'concluído' : (travado ? 'disponível depois do dia '+i : d.tempo);
+    html += '<div class="'+cls+'"><button class="passo-btn" data-i="'+i+'">'
+      + '<span class="bolha">'+(feito?'✓':(i+1))+'</span>'
+      + '<span class="passo-txt"><span class="passo-nome">'+d.t+'</span>'
+      + '<span class="passo-meta"> · '+meta+'</span></span></button></div>';
+  });
+  wrap.innerHTML = html;
+  wrap.querySelectorAll('.passo-btn').forEach(b=>{
+    b.onclick = ()=>{
+      const i = +b.dataset.i;
+      if(!liberado(i)){ irPara(prox); return; }
+      irPara(i);
+    };
+  });
+
+  const nome = feitosQtd===0 ? null : (feitosQtd===7 ? 'fim' : prox+1);
+  const bv = $('boasVindas');
+  if(feitosQtd===7){
+    bv.textContent = 'Você concluiu os sete dias. A trilha continua aqui para reler e repetir quando quiser.';
+  } else if(feitosQtd>0){
+    bv.textContent = 'Bem-vindo de volta. Você está no dia ' + (prox+1) + ' — ' + DIAS[prox].t.toLowerCase() + '.';
+  } else {
+    bv.textContent = 'Uma semana para reaprender a estar onde você está — práticas de poucos minutos que cabem em qualquer rotina.';
+  }
+  $('btnVerRevela').style.display = estado.revelou ? 'inline-block' : 'none';
+}
+
+function irPara(i){
+  diaAtual = i;
+  const d = DIAS[i];
+  $('iTag').textContent = 'Dia ' + (i+1) + ' · antes de praticar';
+  $('iTitulo').textContent = d.iTitulo;
+  let corpo = d.iCorpo.map(p=>'<p>'+p+'</p>').join('');
+  corpo += '<div class="destaque">'+d.destaque+'</div>';
+  $('iCorpo').innerHTML = corpo;
+  $('iOrigem').textContent = d.origem;
+  trocar($('tImersao'));
+}
+
+function abrirPratica(){
+  const i = diaAtual, d = DIAS[i];
+  $('dNum').textContent = i+1;
+  $('dTitulo').textContent = d.t;
+  $('dTempo').textContent = d.tempo;
+  $('dPratica').innerHTML = d.pratica;
+  $('dPorque').textContent = d.porque;
+  $('dPergunta').textContent = d.pergunta;
+  $('dResposta').value = estado.notas[i] || '';
+  $('salvoAviso').classList.remove('on');
+  $('btnFeito').textContent = estado.feitos[i] ? 'Dia concluído ✓' : 'Marcar dia como feito';
+  trocar($('tDia'));
+}
+
+let timerSalvar = null;
+$('dResposta').addEventListener('input', ()=>{
+  estado.notas[diaAtual] = $('dResposta').value;
+  clearTimeout(timerSalvar);
+  timerSalvar = setTimeout(()=>{
+    salvar();
+    $('salvoAviso').classList.add('on');
+    setTimeout(()=>$('salvoAviso').classList.remove('on'), 2200);
+  }, 700);
+});
+
+function montarDiario(){
+  const wrap = $('diario');
+  const temAlgo = estado.notas.some(n=>n && n.trim());
+  if(!temAlgo){
+    wrap.innerHTML = '<p class="diario-vazio">Você não escreveu reflexões nesta semana. Tudo bem — a prática valeu do mesmo jeito. Se refizer o desafio, experimente escrever: reler os próprios sete dias costuma surpreender.</p>';
+    return;
+  }
+  wrap.innerHTML = estado.notas.map((n,i)=>{
+    if(!n || !n.trim()) return '';
+    return '<div class="diario-item"><div class="di-dia">Dia '+(i+1)+' · '+DIAS[i].t+'</div><p>'+
+      n.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\n/g,'<br>')+'</p></div>';
+  }).join('');
+}
+
+$('btnIrPratica').onclick = abrirPratica;
+$('btnImersaoVoltar').onclick = ()=>{ montarTrilha(); trocar($('tHome')); };
+$('btnRelerImersao').onclick = ()=> irPara(diaAtual);
+$('btnVoltarHome').onclick = ()=>{ montarTrilha(); trocar($('tHome')); };
+$('btnFeito').onclick = ()=>{
+  estado.feitos[diaAtual] = true;
+  estado.notas[diaAtual] = $('dResposta').value;
+  if(diaAtual===6){ estado.revelou = true; }
+  salvar();
+  if(diaAtual===6){ montarDiario(); trocar($('tRevela')); }
+  else { montarTrilha(); trocar($('tHome')); }
+};
+$('btnRevelaVoltar').onclick = ()=>{ montarTrilha(); trocar($('tHome')); };
+$('btnVerRevela').onclick = ()=>{ montarDiario(); trocar($('tRevela')); };
+$('btnPular').onclick = ()=>{
+  const n = prompt('Ir para qual dia? (1 a 7)');
+  const i = parseInt(n,10);
+  if(i>=1 && i<=7) irPara(i-1);
+};
+$('btnZerar').onclick = ()=>{
+  if(confirm('Isso apaga o progresso e as reflexões que você escreveu. Continuar?')){
+    estado = { feitos:[false,false,false,false,false,false,false], notas:['','','','','','',''], revelou:false };
+    salvar(); montarTrilha(); trocar($('tHome'));
+  }
+};
+
+montarTrilha();
+</script>
+</body>
+</html>
