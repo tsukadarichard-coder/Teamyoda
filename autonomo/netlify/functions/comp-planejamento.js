@@ -147,6 +147,7 @@ exports.handler = async function (event) {
         atleta: { nome: aj.nome || v.atletaNome || "Atleta" }, hoje, podeEditar: v.tipo === "treinador", tipo: v.tipo,
         vigente: vig ? P.publicoVersao(vig.id, vig) : null, versoes: todas.map((x) => P.publicoVersao(x.id, x)), execucoes: exec,
         semana: semanaAtual(vig, hoje),
+        focos: C.areasValidas(v.areas).includes("treinos") ? (await listar(refJogador(v.atletaUid), "focos")).filter((f) => f.status !== "resolvido").map((f) => ({ id: f.id, texto: f.texto, origemRotulo: f.origemRotulo || "", status: f.status })) : [],
       });
     }
 
@@ -162,7 +163,8 @@ exports.handler = async function (event) {
       const execucoes = (await listar(ref, "compExecucoes")).sort((a, b) => String(b.data).localeCompare(String(a.data)) || String(b.criadoEm).localeCompare(String(a.criadoEm))).slice(0, 80);
       const mudou = !!(vig && vig.status === "aprovado" && vig.base && vig.base.hash !== hash);
       return resposta(200, {
-        hoje, menor: C.ehMenor(comp.nascimento, hoje), temTreinador: cx.trein.length > 0, treinadores: cx.trein.map((t) => ({ id: t.id, nome: t.nome })),
+        hoje, menor: C.ehMenor(comp.nascimento, hoje), responsaveis: (await db().collection("vinculos").where("atletaUid", "==", uid).where("tipo", "==", "responsavel").where("status", "==", "ativo").get()).docs.length,
+        focos: cx.focos.map((f) => ({ id: f.id, texto: f.texto, origemRotulo: f.origemRotulo || "" })), temTreinador: cx.trein.length > 0, treinadores: cx.trein.map((t) => ({ id: t.id, nome: t.nome })),
         treinadoresSemArea: (await treinadoresAtivos(uid)).filter((t) => !t.areas.includes("planejamento")).map((t) => ({ id: t.id, nome: t.nome })),
         torneios: cx.torneios.filter((t) => t.fase !== "passado" && t.estado !== "desistiu").map((t) => ({ id: t.id, nome: t.nome, inicio: t.inicio, fim: t.fim, prioridade: t.prioridade || "", cidade: t.cidade || "", estado: t.estado })),
         compromissos: cx.compromissos, rotina: cx.rotina,

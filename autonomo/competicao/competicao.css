@@ -52,8 +52,6 @@ body.comp .painel-mais, body.comp .painel-conta { border-radius: 24px 24px 0 0; 
 
 /* cartão do próximo torneio: o número é o protagonista */
 .comp-hero { position: relative; overflow: hidden; margin-top: 16px; padding: 24px 22px 22px; border-radius: 28px; background: var(--tinta); color: #fff; }
-.comp-hero::after { content: ""; position: absolute; right: -50px; top: -30px; width: 260px; height: 200px; opacity: .09;
-  background: linear-gradient(#fff,#fff) 130px 20px/2px 160px no-repeat, linear-gradient(#fff,#fff) 30px 100px/200px 2px no-repeat, linear-gradient(#fff,#fff) 30px 60px/200px 2px no-repeat, linear-gradient(#fff,#fff) 30px 140px/200px 2px no-repeat, linear-gradient(#fff,#fff) 30px 20px/200px 2px no-repeat, linear-gradient(#fff,#fff) 30px 180px/200px 2px no-repeat, linear-gradient(#fff,#fff) 30px 20px/2px 160px no-repeat, linear-gradient(#fff,#fff) 228px 20px/2px 160px no-repeat; }
 .comp-hero > * { position: relative; z-index: 1; }
 .comp-kicker { font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--marca); }
 .comp-count { display: flex; align-items: flex-end; gap: 10px; margin-top: 6px; }
@@ -113,7 +111,6 @@ body.comp.landing { background: var(--papel); }
 .cl-hero p.cl-sub { margin-top: 22px; max-width: 520px; font-size: 18px; line-height: 1.5; color: rgba(255,255,255,.78); }
 .cl-cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
 .cl-hero .comp-hero { flex: 0 1 340px; min-width: 280px; margin: 0 auto; background: #fff; color: var(--tinta); box-shadow: 0 30px 80px rgba(0,0,0,.45); }
-.cl-hero .comp-hero::after { display: none; }
 .cl-mini { background: var(--tinta); border-radius: 22px; padding: 18px; color: #fff; }
 .cl-mini .comp-num { font-size: 88px; }
 .cl-mini h2 { font-size: 19px; margin-top: 10px; color: #fff; }
@@ -155,3 +152,84 @@ body.comp .comp-codigo { color: var(--saibro); }
 body.comp .btn-laranja { color: #fff; }
 body.comp .lateral-faixa { background: var(--marca); }
 body.comp .avatar { border-color: var(--marca); }
+
+
+/* ══ Meu planejamento, Acompanhamento MTY e ajustes de uso no celular ══ */
+/* a barra inferior nunca cobre o fim da página */
+@media (max-width: 760px) { body.comp.logado .principal { padding-bottom: calc(96px + env(safe-area-inset-bottom)); } }
+body.comp .rodape { padding-bottom: 8px; }
+
+/* campos lado a lado só quando cabem; no celular empilham (data + torneio, rodada + data...) */
+body.comp .comp-duas { grid-template-columns: 1fr; gap: 0; }
+@media (min-width: 560px) { body.comp .comp-duas { grid-template-columns: 1fr 1fr; gap: 12px; } }
+body.comp .campo input, body.comp .campo select, body.comp .campo textarea { width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; }
+body.comp input[type="date"], body.comp input[type="time"] { min-height: 48px; -webkit-appearance: none; appearance: none; background: #fff; }
+
+/* botões: mesma altura, alinhamento e estados */
+body.comp .btn { min-height: 48px; display: inline-flex; align-items: center; justify-content: center; text-align: center; line-height: 1.2; padding-top: 10px; padding-bottom: 10px; }
+body.comp .btn-pequeno { min-height: 44px; }
+body.comp .btn-texto { min-height: 44px; justify-content: flex-start; }
+body.comp .acoes .btn { width: 100%; }
+body.comp .acoes .btn-texto { width: auto; align-self: flex-start; }
+body.comp .btn[disabled], body.comp .btn[aria-disabled="true"] { opacity: .55; cursor: not-allowed; box-shadow: none; }
+body.comp .btn:focus-visible, body.comp .comp-seg-bt:focus-visible { outline: 3px solid var(--saibro); outline-offset: 2px; }
+@media (min-width: 560px) { body.comp .acoes.lado .btn, body.comp .acoes.fila .btn { width: auto; } body.comp .acoes.fila { flex-direction: row; flex-wrap: wrap; } }
+
+/* avaliação (1 a 5): todos os botões com a mesma dimensão, mesmo com rótulos de tamanhos diferentes */
+body.comp .escala { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; align-items: stretch; }
+body.comp .escala .opcao { display: flex; }
+body.comp .escala .opcao span { width: 100%; height: 76px; min-height: 76px; justify-content: center; padding: 6px 2px; box-sizing: border-box; font-size: 20px; line-height: 1.1; }
+body.comp .escala .opcao small { font-size: 11px; line-height: 1.15; min-height: 26px; display: flex; align-items: flex-start; justify-content: center; text-align: center; margin-top: 4px; overflow-wrap: anywhere; }
+body.comp .voz-det { margin-top: 2px; }
+body.comp .voz-det summary { font-size: 13px; color: var(--grafite); cursor: pointer; padding: 4px 0; min-height: 32px; }
+body.comp .voz-aviso p { margin: 4px 0 0; }
+
+/* barra de abas (uma ativa por vez) */
+.comp-abas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; margin-top: 16px; background: #E6ECE8; border-radius: 16px; }
+.comp-abas button { min-height: 48px; border: 0; border-radius: 12px; background: transparent; color: var(--tinta); font: 600 14px "DM Sans", system-ui, sans-serif; cursor: pointer; padding: 6px 4px; line-height: 1.2; }
+.comp-abas button[aria-selected="true"] { background: #fff; color: var(--saibro-texto); font-weight: 700; box-shadow: 0 1px 3px rgba(0,36,24,.18); }
+.comp-abas button:focus-visible { outline: 3px solid var(--saibro); outline-offset: 2px; }
+
+/* situação de cada versão do planejamento: texto sempre presente, cor só reforça */
+.pl-st { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 700; border: 1px solid transparent; }
+.pl-st.sugestao { background: #E7EDFB; color: #0E35A8; border-color: #C5D3F5; }
+.pl-st.em_revisao { background: #FFF1CC; color: #6B4700; border-color: #F0DC9B; }
+.pl-st.aprovado { background: #E3F3EA; color: #14502F; border-color: #BFE0CC; }
+.pl-st.substituido { background: #ECEFED; color: #4B5650; border-color: #D5DBD8; }
+.comp-origem { display: inline-block; margin-left: 6px; padding: 2px 8px; border-radius: 999px; font: 700 11px "DM Sans", system-ui, sans-serif; letter-spacing: .02em; vertical-align: middle; border: 1px solid transparent; }
+.comp-origem.o-relato { background: #FFF1CC; color: #6B4700; border-color: #F0DC9B; }
+.comp-origem.o-treinador { background: #E3F3EA; color: #14502F; border-color: #BFE0CC; }
+.comp-origem.o-estat { background: #E7EDFB; color: #0E35A8; border-color: #C5D3F5; }
+.comp-origem.o-sug { background: #ECEFED; color: #4B5650; border-color: #D5DBD8; }
+.comp-alerta { border: 1.5px solid var(--saibro); background: #F5F8FF; margin-top: 14px; }
+
+/* blocos da temporada */
+.pl-bloco { display: grid; grid-template-columns: 6px 1fr; gap: 12px; padding: 12px 14px; margin-top: 8px; background: #fff; border: 1px solid var(--linha); border-radius: 16px; }
+.pl-bloco i { border-radius: 4px; background: var(--saibro); }
+.pl-bloco.competicao i { background: var(--tinta); }
+.pl-bloco.recuperacao i { background: var(--marca); }
+.pl-bloco h3 { font-size: 16px; margin: 0; }
+.pl-aviso { margin-top: 12px; padding: 12px 14px; border-radius: 14px; background: #FFF8E1; border: 1px solid #F0DC9B; color: #5C3F00; font-size: 14.5px; line-height: 1.45; }
+.pl-aviso.info { background: #E7EDFB; border-color: #C5D3F5; color: #0E35A8; }
+.pl-aviso.ok { background: #E3F3EA; border-color: #BFE0CC; color: #14502F; }
+.pl-dia { margin-top: 10px; padding: 12px 14px; background: #fff; border: 1px solid var(--linha); border-radius: 16px; }
+.pl-dia.hoje { border-color: var(--saibro); box-shadow: 0 0 0 1px var(--saibro) inset; }
+.pl-dia h3 { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--grafite); margin: 0 0 6px; }
+.pl-ativ { padding: 8px 0; border-top: 1px solid #EEF2EF; }
+.pl-ativ:first-of-type { border-top: 0; }
+.pl-ativ p { margin: 0; }
+.pl-mud { margin: 8px 0 0; padding: 0; list-style: none; }
+.pl-mud li { padding: 8px 12px; margin-top: 6px; border-radius: 12px; background: #F6F8F7; font-size: 14.5px; border-left: 4px solid #C9D3CD; }
+.pl-mud li.adicionado { border-left-color: var(--marca-texto); }
+.pl-mud li.removido { border-left-color: #B3261E; }
+.pl-mud li.alterado { border-left-color: var(--saibro); }
+.pl-form .campo { margin-top: 10px; }
+.pl-linha-ativ { display: grid; grid-template-columns: 1fr; gap: 6px; padding: 10px; margin-top: 8px; background: #F6F8F7; border-radius: 12px; }
+@media (min-width: 560px) { .pl-linha-ativ { grid-template-columns: 120px 1fr 90px auto; align-items: end; } }
+.pl-hist { list-style: none; padding: 0; margin: 8px 0 0; }
+.pl-hist li { padding: 8px 0; border-top: 1px solid #EEF2EF; font-size: 14.5px; }
+.ac-lista { list-style: none; padding: 0; margin: 8px 0 0; }
+.ac-lista li { padding: 10px 0; border-top: 1px solid #EEF2EF; }
+.ac-lista li:first-child { border-top: 0; }
+.ac-preco { font-family: var(--disp); font-size: 42px; font-weight: 800; line-height: 1; color: var(--tinta); }
+.ac-preco small { font: 600 15px "DM Sans", system-ui, sans-serif; color: var(--grafite); margin-left: 6px; }

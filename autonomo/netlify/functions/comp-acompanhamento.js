@@ -32,8 +32,10 @@ async function responsaveisAtivos(atletaUid) {
 }
 
 /* tudo o que o painel do ciclo mostra, calculado dos registros reais */
-async function detalhes(id, a, visao, hoje) {
+async function detalhes(id, a, visao, hoje, uid) {
   const base = A.publicoAcompanhamento(id, a, visao);
+  base.souPagador = a.pagadorUid === uid; base.souAtleta = a.atletaUid === uid;
+  if (visao === "profissional" && a.profissional) base.vinculoId = a.profissional.vinculoId || null;
   if (!["ativo", "encerrado"].includes(a.estado)) return base;
   const ref = refJogador(a.atletaUid);
   const ciclo = A.cicloDe(a.inicio);
@@ -89,11 +91,11 @@ exports.handler = async function (event) {
       if (q.id) {
         const a = vistos.get(q.id);
         if (!a) throw new ErroPublico(404, "Acompanhamento não encontrado.");
-        return resposta(200, { acompanhamento: await detalhes(q.id, a, visao, hoje), papel: comp.papel });
+        return resposta(200, { acompanhamento: await detalhes(q.id, a, visao, hoje, uid), papel: comp.papel });
       }
       const lista = [...vistos.entries()].sort((x, y) => String(y[1].criadoEm).localeCompare(String(x[1].criadoEm)));
       const saida = { papel: comp.papel, hoje, produto: A.PRODUTO, contato: "https://wa.me/" + A.WHATSAPP, acompanhamentos: [] };
-      for (const [id, a] of lista) saida.acompanhamentos.push(await detalhes(id, a, visao, hoje));
+      for (const [id, a] of lista) saida.acompanhamentos.push(await detalhes(id, a, visao, hoje, uid));
       if (comp.papel === "atleta") {
         saida.menor = C.ehMenor(comp.nascimento, hoje);
         saida.responsaveis = (await responsaveisAtivos(uid)).length;

@@ -104,6 +104,7 @@ exports.handler = async function (event) {
           devolutivas: (await ls("devolutivas")).map((d) => ({ id: d.id, refRotulo: d.refRotulo || "Geral", autorNome: d.autorNome || "", criadoEm: d.criadoEm })).sort((a, b) => String(b.criadoEm).localeCompare(String(a.criadoEm))).slice(0, 20),
         };
         saida.menor = C.ehMenor(comp.nascimento, hoje);
+        saida.responsaveis = (await responsaveisAtivos(uid)).length;
       }
       return resposta(200, saida);
     }

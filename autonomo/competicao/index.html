@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>QuadraLab Competição | Sua temporada de torneios</title>
-<meta name="description" content="Temporada, preparação por partida e diário para quem joga torneios, com treinador e responsável vendo só o que o atleta permitir.">
+<meta name="description" content="Temporada, planejamento, preparação por partida e diário para quem joga torneios, com treinador e responsável vendo só o que o atleta permitir.">
 <meta name="theme-color" content="#002418">
 <meta name="robots" content="noindex">
 <meta property="og:type" content="website">
@@ -39,6 +39,7 @@
   <nav class="lateral-nav" aria-label="Navegação principal">
     <a class="nav-item" data-nav="inicio" href="#/inicio">Início</a>
     <a class="nav-item" data-nav="temporada" href="#/temporada">Temporada</a>
+    <a class="nav-item" data-nav="planejamento" href="#/planejamento">Meu planejamento</a>
     <a class="nav-item" data-nav="partidas" href="#/partidas">Partidas</a>
     <a class="nav-item" data-nav="diario" href="#/diario">Diário</a>
     <a class="nav-item" data-nav="aquecimento" href="#/aquecimento">Aquecimento</a>
@@ -100,10 +101,12 @@
 <!-- Painel "Mais" (celular): o que não cabe no menu inferior -->
 <div class="painel-mais" id="painelMais" role="dialog" aria-modal="true" aria-labelledby="painelMaisTitulo" hidden>
   <div class="painel-mais-topo"><h2 id="painelMaisTitulo">Mais</h2><button type="button" class="painel-fechar" id="btFecharMais" aria-label="Fechar">×</button></div>
+  <a class="painel-item" href="#/planejamento">Meu planejamento</a>
+  <a class="painel-item" href="#/acompanhamento">Acompanhamento MTY</a>
   <a class="painel-item" href="#/devolutivas">Devolutivas</a>
   <a class="painel-item" href="#/focos">Foco de treino</a>
   <a class="painel-item" href="#/scouts">Scouts do treinador</a>
-  <a class="painel-item" href="#/consultorias">Consultorias</a>
+  <a class="painel-item" href="#/consultorias">Consultorias avulsas</a>
   <a class="painel-item" href="#/pedidos">Meus pedidos</a>
   <a class="painel-item" href="#/aquecimento">Aquecimento</a>
   <a class="painel-item" href="#/desafios">Desafios</a>
@@ -123,7 +126,9 @@
   </div>
   <div class="pc-grupo" role="group" aria-label="Conta">
     <a class="painel-item" href="#/conta">Meu perfil</a>
-    </div>
+    <a class="painel-item" href="#/acompanhamento">Acompanhamento MTY</a>
+    <a class="painel-item" href="#/pedidos">Contratações e pedidos</a>
+  </div>
   <div class="pc-grupo" role="group" aria-label="Suporte">
     <a class="painel-item" href="#/ajuda">Ajuda e suporte</a>
   </div>
@@ -139,5 +144,7 @@
 <script>window.QL_MODO = "competicao";</script>
 <script src="landing-comp.js"></script>
 <script src="../player/player.js"></script>
+<script src="comp-plano.js"></script>
+<script src="comp-acomp.js"></script>
 </body>
 </html>

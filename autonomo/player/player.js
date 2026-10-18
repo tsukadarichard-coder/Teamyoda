@@ -90,6 +90,8 @@
      em qualquer outra navegação a tela começa no topo. `provisoria` = "Carregando…" (não consome a restauração). */
   function tela(html, provisoria) {
     pararVoz();
+    /* Competição: botões sem setas — o "‹" do link de voltar vira texto */
+    if (MODO_COMP) html = html.replace(/>‹ Voltar([^<]*)</g, ">Voltar$1<").replace(/>‹ ([^<]+)</g, ">Voltar para $1<");
     app.innerHTML = html;
     ligarVoz();
     document.body.classList.remove("teclado"); // o campo que estava em foco pode ter sumido com a tela anterior
@@ -109,7 +111,7 @@
     if (!ditadoDisponivel()) return "";
     return '<div class="voz"><button type="button" class="btn btn-secundario voz-bt" data-voz="' + idCampo + '" aria-pressed="false">Falar</button>' +
       '<span class="nota voz-estado" id="voz-estado-' + idCampo + '" role="status" aria-live="polite"></span></div>' +
-      '<p class="nota voz-aviso">Ditado pelo reconhecimento de voz do seu navegador (Apple ou Google, conforme o aparelho). O QuadraLab não guarda o áudio. Revise o texto antes de salvar.</p>';
+      '<div class="voz-aviso"><p class="nota">Ditado pelo navegador. O áudio não é guardado.</p><details class="voz-det"><summary>Como funciona</summary><p class="nota">O texto vem do reconhecimento de voz do seu navegador (Apple ou Google, conforme o aparelho). O QuadraLab não guarda o áudio: só o texto, que você revisa antes de salvar.</p></details></div>';
   }
   function pararVoz() { if (vozAtiva) { try { vozAtiva.rec.stop(); } catch (e) { /* já parado */ } vozAtiva = null; } }
   function ligarVoz() {
@@ -1416,13 +1418,13 @@
   /* Competição é um app à parte (quadralab.com.br/competicao/), com as mesmas contas e o mesmo servidor. O mesmo código atende os dois:
      window.QL_MODO = "competicao" liga a navegação e a tela inicial próprias; no Player, as rotas da Competição apontam para lá. */
   var MODO_COMP = window.QL_MODO === "competicao";
-  var ROTAS_COMP = { competicao: 1, temporada: 1, preparo: 1, diario: 1, devolutivas: 1, focos: 1, scouts: 1, pedidos: 1 };
-  var ROTAS_APP_COMP = { "": 1, inicio: 1, competicao: 1, temporada: 1, preparo: 1, diario: 1, devolutivas: 1, focos: 1, scouts: 1, pedidos: 1, consultorias: 1, partidas: 1, aquecimento: 1, desafios: 1, conta: 1, ajuda: 1 };
+  var ROTAS_COMP = { competicao: 1, temporada: 1, preparo: 1, diario: 1, devolutivas: 1, focos: 1, scouts: 1, pedidos: 1, acompanhamento: 1 };
+  var ROTAS_APP_COMP = { "": 1, inicio: 1, competicao: 1, temporada: 1, planejamento: 1, acompanhamento: 1, preparo: 1, diario: 1, devolutivas: 1, focos: 1, scouts: 1, pedidos: 1, consultorias: 1, partidas: 1, aquecimento: 1, desafios: 1, conta: 1, ajuda: 1 };
   var PLAYER_BASE = "";
   var MARCA_APP = MODO_COMP ? "QuadraLab Competição" : "QuadraLab Player";
   if (MODO_COMP) {
-    NAV_DA_ROTA = { "": "inicio", inicio: "inicio", competicao: "inicio", temporada: "temporada", preparo: "temporada", aquecimento: "aquecimento", desafios: "desafios", desafio: "desafios", partidas: "partidas", diario: "diario", devolutivas: "inicio", focos: "inicio", scouts: "inicio", pedidos: "inicio", consultorias: "inicio", conta: "conta", ajuda: "ajuda" };
-    NAV_MAIS = { conta: 1, ajuda: 1 }; BARRA_SECAO = { aquecimento: "temporada", desafio: "temporada", desafios: "temporada" };
+    NAV_DA_ROTA = { "": "inicio", inicio: "inicio", competicao: "inicio", temporada: "temporada", planejamento: "planejamento", acompanhamento: "inicio", preparo: "temporada", aquecimento: "aquecimento", desafios: "desafios", desafio: "desafios", partidas: "partidas", diario: "diario", devolutivas: "inicio", focos: "inicio", scouts: "inicio", pedidos: "inicio", consultorias: "inicio", conta: "conta", ajuda: "ajuda" };
+    NAV_MAIS = { conta: 1, ajuda: 1 }; BARRA_SECAO = { aquecimento: "temporada", desafio: "temporada", desafios: "temporada", planejamento: "temporada" };
   }
   var ultimaCasca = { logado: false, rota: "" };
   function atualizarCasca(logado, rota) {
@@ -1947,7 +1949,7 @@
       (c.regra ? '<p class="consul-regra">' + esc(c.regra) + "</p>" : "") +
       (c.escopoPreco ? '<p class="nota">' + esc(c.escopoPreco) + "</p>" : "") +
       '<ul class="consul-entregas" aria-label="Principais entregas">' + c.principais.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>" +
-      '<dl class="consul-fatos"><div><dt>Preço de lançamento</dt><dd>' + precoConsulHtml(c) + "</dd></div>" +
+      '<dl class="consul-fatos"><div><dt>Valor</dt><dd>' + precoConsulHtml(c) + "</dd></div>" +
         "<div><dt>Prazo ou duração</dt><dd>" + esc(c.prazoCurto) + "</dd></div></dl>" +
       '<a class="btn btn-primario largo" href="#/consultorias/' + esc(c.id) + '/solicitar">' + esc(c.botao) + '</a>' +
       '<p style="text-align:center"><a class="btn btn-texto" href="#/consultorias/' + esc(c.id) + '">Ver detalhes<span class="sr"> de ' + esc(c.nome) + "</span></a></p></article>";
@@ -1958,7 +1960,7 @@
     if (pol.remarcacao) itens.push("<li><strong>Remarcação:</strong> " + esc(pol.remarcacao) + "</li>");
     if (pol.cancelamento) itens.push("<li><strong>Cancelamento:</strong> " + esc(pol.cancelamento) + "</li>");
     return '<section class="cartao consul-condicoes" aria-labelledby="t-cond"><h2 id="t-cond">Condições</h2><ul class="lista-simples">' +
-      "<li>Todos os preços são por contratação, sem renovação automática. Os valores são os de lançamento.</li>" +
+      "<li>Todos os valores são por contratação, sem renovação automática.</li>" +
       (itens.length ? itens.join("") : "<li>Pagamento, remarcação e cancelamento: as condições são informadas no atendimento, antes de qualquer cobrança.</li>") +
       "<li>Serviços individuais, sem suporte contínuo além do que está descrito em cada um. Não prometem resultado esportivo.</li></ul></section>";
   }
@@ -2011,7 +2013,7 @@
       '<h1 class="consul-titulo">' + esc(c.nome) + "</h1>" +
       '<p class="sub">' + esc(c.descricao) + "</p>" +
       '<p class="consul-aviso" role="note"><strong>Serviço individual contratado à parte.</strong> Não está incluído na assinatura do QuadraLab Player.</p>' +
-      '<div class="cartao consul-resumo"><dl class="consul-fatos"><div><dt>Preço de lançamento</dt><dd>' + precoConsulHtml(c) + "</dd></div><div><dt>Prazo ou duração</dt><dd>" + esc(c.prazo) + "</dd></div></dl>" +
+      '<div class="cartao consul-resumo"><dl class="consul-fatos"><div><dt>Valor</dt><dd>' + precoConsulHtml(c) + "</dd></div><div><dt>Prazo ou duração</dt><dd>" + esc(c.prazo) + "</dd></div></dl>" +
         '<a class="btn btn-primario largo" href="#/consultorias/' + esc(c.id) + '/solicitar">' + esc(c.botao) + "</a></div>" +
       '<section class="consul-bloco"><h2>Indicado para</h2><p>' + esc(c.indicadoPara) + "</p></section>" +
       (c.regra ? '<p class="consul-regra">' + esc(c.regra) + "</p>" : "") +
@@ -2062,7 +2064,7 @@
   }
   function mensagemPedido(c, ped) {
     var perfil = estado.dados.perfil, L = [];
-    L.push("Olá, Richard! Quero solicitar: " + c.nome + " (preço de lançamento " + reaisInteiro(c.precoCentavos) + ", " + c.unidadePreco + ", pagamento único).");
+    L.push("Olá, Richard! Quero solicitar: " + c.nome + " (valor " + reaisInteiro(c.precoCentavos) + ", " + c.unidadePreco + ", pagamento único).");
     L.push("Nome: " + perfil.nome); L.push("E-mail da conta: " + perfil.email);
     var rp = resumoPerfilTxt(); if (rp) L.push("Perfil de jogador: " + rp);
     if (c.tipo === "revisao") {
@@ -2121,7 +2123,7 @@
       '<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/consultorias/' + esc(id) + '">‹ ' + esc(c.nome) + "</a></p>" +
       '<h1 class="consul-titulo">Solicitar: ' + esc(c.nome) + "</h1>" +
       '<p class="consul-aviso" role="note"><strong>Serviço individual contratado à parte.</strong> Não está incluído na assinatura do QuadraLab Player.</p>' +
-      '<section class="cartao consul-resumo" aria-labelledby="t-res"><h2 id="t-res">Resumo da oferta</h2><dl class="consul-fatos"><div><dt>Preço de lançamento</dt><dd>' + precoConsulHtml(c) + "</dd></div><div><dt>Prazo ou duração</dt><dd>" + esc(c.prazo) + "</dd></div></dl>" +
+      '<section class="cartao consul-resumo" aria-labelledby="t-res"><h2 id="t-res">Resumo da oferta</h2><dl class="consul-fatos"><div><dt>Valor</dt><dd>' + precoConsulHtml(c) + "</dd></div><div><dt>Prazo ou duração</dt><dd>" + esc(c.prazo) + "</dd></div></dl>" +
         '<details class="det"><summary>Entregas e limites</summary><ul class="consul-lista-itens">' + c.inclui.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>" +
         '<p class="nota" style="margin-top:8px"><strong>Não inclui:</strong> ' + esc(c.naoInclui.join(" ")) + "</p>" + (c.aviso ? '<p class="nota" style="margin-top:6px">' + esc(c.aviso) + "</p>" : "") +
         (analise ? '<p class="nota" style="margin-top:6px">' + esc(c.regra || (consulPorId("analise-completa") || {}).regra) + " " + esc((consulPorId("analise-completa") || c).escopoPreco) + "</p>" : "") + "</details></section>" +
@@ -2301,7 +2303,7 @@
     return Object.keys(m).sort(function (a, b) { return m[b] - m[a]; }).slice(0, max).map(function (k) { return (asp[k] || k) + " (" + m[k] + "x)"; });
   }
   function fmtExec(x) { return x == null ? "—" : String(Math.round(x * 10) / 10).replace(".", ",") + "/5"; }
-  function linhaEstat(e) { return e.n + (e.n === 1 ? " partida" : " partidas") + " · " + e.v + "V " + e.d + "D · execução " + fmtExec(e.exec); }
+  function linhaEstat(e) { return e.n + (e.n === 1 ? " partida" : " partidas") + " · " + e.v + "V " + e.d + "D" + (e.exec == null ? "" : " · sua avaliação da execução " + fmtExec(e.exec)); }
   function relatoriosHtml(lista, nivel, dias) {
     if (!lista.length || nivel === "basico") return "";
     var html = '<h2 class="secao" id="t-rel">Evolução</h2><div class="cartao" aria-labelledby="t-rel" style="margin-top:8px"><p class="nota">Contagens do que você registrou; não indicam, sozinhas, a causa de uma melhora ou piora.</p>';
@@ -2310,7 +2312,7 @@
       lista.forEach(function (p) { var m = String(p.data).slice(0, 7); (meses[m] = meses[m] || []).push(p); });
       html += Object.keys(meses).sort().reverse().slice(0, 6).map(function (m) {
         var e = estatPartidas(meses[m]), dif = topAspectos(meses[m], "dificuldades", 2);
-        return '<div class="rel-linha"><strong>' + esc(m.slice(5) + "/" + m.slice(0, 4)) + "</strong><span>" + esc(linhaEstat(e)) + (dif.length ? "<br>Dificuldades mais citadas: " + esc(dif.join(", ").toLowerCase()) : "") + "</span></div>";
+        return '<div class="rel-linha"><strong>' + esc(m.slice(5) + "/" + m.slice(0, 4)) + "</strong><span>" + esc(linhaEstat(e)) + (dif.length ? "<br>" + (meses[m].length === 1 ? "Dificuldades relatadas nesta partida: " : "Dificuldades mais citadas: ") + esc(dif.join(", ").toLowerCase()) : "") + "</span></div>";
       }).join("");
     } else {
       var hoje = hojeISOLocal(), corte = function (n) { var d = new Date(); d.setDate(d.getDate() - n); return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); };
@@ -2332,7 +2334,7 @@
           var kk = Object.keys(m); if (kk.length > 1 || (kk.length === 1 && g[0] === "superficie")) html += '<h3 style="margin-top:14px">' + g[1] + "</h3>" + kk.map(function (k) { return '<div class="rel-linha"><strong>' + esc(g[2][k] || k) + "</strong><span>" + esc(linhaEstat(estatPartidas(m[k]))) + "</span></div>"; }).join("");
         });
         var dif = topAspectos(atual, "dificuldades", 5);
-        if (dif.length) html += '<h3 style="margin-top:14px">Dificuldades recorrentes</h3><p class="nota">' + esc(dif.join(", ")) + ".</p>";
+        if (dif.length) html += '<h3 style="margin-top:14px">' + (atual.length === 1 ? "Dificuldades relatadas nesta partida" : "Dificuldades recorrentes") + '</h3><p class="nota">' + esc(dif.join(", ")) + ".</p>";
       }
     }
     return html + "</div>";
@@ -2346,8 +2348,8 @@
       html += '<div class="cartao" style="margin-top:18px"><h2>Nenhuma partida registrada ainda</h2><p class="nota" style="margin-top:6px">Depois de jogar, registre o resultado, se a estratégia funcionou e o que foi mais difícil. Com o tempo, isso mostra a sua evolução.</p></div>';
     } else {
       html += '<div class="cartao" style="margin-top:18px"><p class="olho">Resumo do que você registrou</p><p><strong>' + r.total + (r.total === 1 ? " partida" : " partidas") + "</strong> · " + r.vitorias + (r.vitorias === 1 ? " vitória" : " vitórias") + " · " + r.derrotas + (r.derrotas === 1 ? " derrota" : " derrotas") + "</p>" +
-        (r.execucaoMedia != null ? '<p class="nota" style="margin-top:6px">Execução média da estratégia: ' + String(r.execucaoMedia).replace(".", ",") + " de 5.</p>" : "") +
-        ((r.dificuldadesFrequentes || []).length ? '<p class="nota" style="margin-top:6px">Dificuldades que mais aparecem: ' + esc(r.dificuldadesFrequentes.map(function (x) { return x.nome.toLowerCase(); }).join(", ")) + ".</p>" : "") + "</div>" +
+        (r.execucaoMedia != null ? '<p class="nota" style="margin-top:6px">Sua avaliação da execução da estratégia' + (r.total === 1 ? "" : " (média)") + ": " + String(r.execucaoMedia).replace(".", ",") + " de 5.</p>" : "") +
+        ((r.dificuldadesFrequentes || []).length ? '<p class="nota" style="margin-top:6px">' + (r.total === 1 ? "Dificuldades relatadas nesta partida: " : "Dificuldades que mais aparecem: ") + esc(r.dificuldadesFrequentes.map(function (x) { return x.nome.toLowerCase(); }).join(", ")) + ".</p>" : "") + "</div>" +
         '<div id="relatorios">' + relatoriosHtml(lista, estado.dados.relatorios, relDias) + "</div>" +
         '<div class="cartao lista-estrategias" style="margin-top:14px">' + lista.map(function (p) {
           return '<a class="item-estrategia" href="#/partidas/' + esc(p.id) + '"><span class="tag' + (p.resultado === "vitoria" ? "" : " tag-adv") + '">' + esc(op.resultados[p.resultado] || "") + "</span> <strong>" + esc(p.adversario || "Sem adversário informado") + "</strong>" +
@@ -2394,7 +2396,7 @@
       (planos.length ? '<div class="campo"><label for="pPlano">Estratégia utilizada <span class="nota">(opcional)</span></label><select id="pPlano"><option value="">Nenhuma em especial</option>' + planos.map(function (x) {
         return '<option value="' + esc(x.id) + '"' + (x.id === planoSel ? " selected" : "") + ">" + esc(tipoEstrategia(x) + (x.adversarioNome ? " — " + x.adversarioNome : "") + " · " + tituloCurto(x.plano.titulo)) + "</option>";
       }).join("") + "</select></div>" +
-        '<fieldset><legend>Quanto você conseguiu executar a estratégia? <span class="nota">(opcional)</span></legend>' + escala + "</fieldset>" : "") +
+        '<fieldset><legend>Sua avaliação: quanto você conseguiu executar a estratégia? <span class="nota">(opcional)</span></legend>' + escala + "</fieldset>" : "") +
       '<details class="det" style="margin-bottom:16px"' + (ed && (ed.funcionou.length || ed.naoFuncionou.length || ed.dificuldades.length || ed.positivos.length || ed.obs) ? " open" : "") + '><summary>Avaliação detalhada (opcional)</summary><div style="margin-top:12px">' +
         grupo("funcionou", "O que funcionou") + grupo("naoFuncionou", "O que não funcionou") + grupo("dificuldades", "Principais dificuldades") + grupo("positivos", "Pontos positivos") +
         '<div class="campo"><label for="pObs">Observações adicionais</label><textarea id="pObs" maxlength="500">' + esc(p.obs || "") + "</textarea>" + botaoVoz("pObs") + "</div></div></details>" +
@@ -2412,8 +2414,16 @@
     var qt = (location.hash.split("?")[1] || "").match(/(?:^|&)torneio=([^&]+)/), torneioSel = ed ? ed.torneioId || "" : qt ? decodeURIComponent(qt[1]) : "", rodadaSel = ed ? ed.rodada || "" : "";
     if (MODO_COMP && !estado.semTemporada) api("player-torneios").then(function (rt) {
       var box = document.getElementById("pTorneioBox"); if (!box || !rt.torneios.length) return;
-      box.innerHTML = '<div class="campo"><label for="pTorneio">Torneio <span class="nota">(opcional)</span></label><select id="pTorneio"><option value="">Nenhum</option>' + rt.torneios.map(function (t) { return '<option value="' + t.id + '"' + (t.id === torneioSel ? " selected" : "") + ">" + esc(t.nome) + "</option>"; }).join("") + "</select></div>" +
-        '<div class="campo"><label for="pRodadaP">Rodada <span class="nota">(opcional)</span></label><input id="pRodadaP" maxlength="30" placeholder="Ex.: Oitavas" value="' + esc(rodadaSel) + '"></div>';
+      box.innerHTML = '<div class="campo"><label for="pTorneio">Torneio <span class="nota">(opcional)</span></label><select id="pTorneio"><option value="">Sem torneio vinculado</option>' + rt.torneios.map(function (t) { return '<option value="' + t.id + '"' + (t.id === torneioSel ? " selected" : "") + ">" + esc(t.nome) + "</option>"; }).join("") + "</select></div>" +
+        '<div class="campo"><label for="pRodadaP">Rodada <span class="nota">(opcional)</span></label><input id="pRodadaP" maxlength="30" placeholder="Ex.: Oitavas" value="' + esc(rodadaSel) + '"></div>' +
+        '<div class="campo"><label for="pPrepSel">Estratégia usada nesta partida <span class="nota">(opcional)</span></label><select id="pPrepSel"></select><p class="nota">Cada preparação fica ligada a uma única partida. Um torneio pode ter várias.</p></div>';
+      function preencherPreps() {
+        var tid = document.getElementById("pTorneio").value, sl = document.getElementById("pPrepSel");
+        var lista = rt.preparos.filter(function (x) { return x.torneioId === tid && (!x.partidaId || (ed && x.partidaId === ed.id)); });
+        sl.innerHTML = '<option value="">Sem estratégia vinculada</option>' + lista.map(function (x) { return '<option value="' + x.id + '"' + (ed && ed.preparoId === x.id ? " selected" : "") + ">" + esc((x.rodada || "Partida") + (x.adversario ? " · contra " + x.adversario : "") + (x.data ? " · " + dataCurta(x.data) : "")) + "</option>"; }).join("");
+        sl.disabled = !tid;
+      }
+      document.getElementById("pTorneio").addEventListener("change", preencherPreps); preencherPreps();
     }).catch(function () { estado.semTemporada = true; });
     function marcados(nome) { return Array.prototype.map.call(form.querySelectorAll('input[name="' + nome + '"]:checked'), function (i) { return i.value; }); }
     function unico(nome) { var m = marcados(nome); return m.length ? m[0] : ""; }
@@ -2423,7 +2433,8 @@
       var corpo = { acao: "salvarPartida", id: ed ? ed.id : novoId(), data: document.getElementById("pData").value, resultado: unico("resultado"), tipo: unico("tipo") || "treino", superficie: unico("superficie") || null,
         placar: document.getElementById("pPlacar").value, adversario: document.getElementById("pAdv").value, planoId: document.getElementById("pPlano") ? document.getElementById("pPlano").value || null : null,
         execucao: unico("execucao") ? parseInt(unico("execucao"), 10) : null, obs: document.getElementById("pObs").value,
-        torneioId: (document.getElementById("pTorneio") ? document.getElementById("pTorneio").value : torneioSel) || null, rodada: document.getElementById("pRodadaP") ? document.getElementById("pRodadaP").value : rodadaSel };
+        torneioId: (document.getElementById("pTorneio") ? document.getElementById("pTorneio").value : torneioSel) || null, rodada: document.getElementById("pRodadaP") ? document.getElementById("pRodadaP").value : rodadaSel,
+        preparoId: document.getElementById("pPrepSel") ? document.getElementById("pPrepSel").value || null : (ed ? ed.preparoId || null : null) };
       ["funcionou", "naoFuncionou", "dificuldades", "positivos"].forEach(function (c) { corpo[c] = marcados(c); });
       if (!corpo.data) { erro.textContent = "Informe a data da partida."; erro.hidden = false; return; }
       if (!corpo.resultado) { erro.textContent = "Informe se foi vitória ou derrota."; erro.hidden = false; return; }
@@ -2635,7 +2646,7 @@
      Tudo vem de player-competicao. O papel e cada permissão são conferidos no servidor; aqui só se mostra e se pede. */
   var ROTULO_PAPEL = { atleta: "Atleta", responsavel: "Responsável", treinador: "Treinador" };
   var ROTULO_VINC = { convite: "Convite aberto", aguardando: "Aguardando aprovação", ativo: "Ativo", revogado: "Encerrado", recusado: "Recusado", cancelado: "Cancelado", expirado: "Convite vencido" };
-  var AREAS_COMP = [["perfil", "Perfil de jogador"], ["temporada", "Temporada e torneios"], ["estrategias", "Estratégia por partida"], ["partidas", "Partidas"], ["treinos", "Treinos"], ["diario", "Diário pessoal (privado, só se você marcar)"]];
+  var AREAS_COMP = [["perfil", "Perfil de jogador"], ["temporada", "Temporada e torneios"], ["planejamento", "Meu planejamento (compromissos, rotina e registros de treino)"], ["estrategias", "Estratégia por partida"], ["partidas", "Partidas"], ["treinos", "Treinos"], ["diario", "Diário pessoal (privado, só se você marcar)"]];
   function areasMarcadas(sel, id) {
     return AREAS_COMP.map(function (a) {
       var marcado = sel ? sel.indexOf(a[0]) >= 0 : a[0] !== "diario";
@@ -2705,14 +2716,23 @@
     html = topo + "<h1>" + (MODO_COMP && primeiro ? "Olá, " + esc(primeiro) : "Competição") + "</h1>" + '<p class="sub">Seu papel: <strong>' + ROTULO_PAPEL[comp.papel] + "</strong>" + (comp.papel === "atleta" && comp.menor ? " · atleta menor de idade" : "") + ".</p>";
     if (comp.papel === "atleta") {
       var ativosResp = s.meus.filter(function (v) { return v.tipo === "responsavel" && v.status === "ativo"; }).length;
-      html += '<div id="hubProximo"></div><div class="cartao" style="margin-top:14px"><h2>Temporada</h2><p class="nota" style="margin-top:6px">Seus torneios, datas e prazos num só lugar.</p><div class="acoes"><a class="btn btn-laranja" href="#/temporada">Abrir a temporada</a><a class="btn btn-secundario" href="#/diario">Diário</a></div></div>' +
+      var semResp = !!comp.menor && !ativosResp, respPendente = s.meus.some(function (v) { return v.tipo === "responsavel" && (v.status === "convite" || v.status === "aguardando"); });
+      html += (semResp ? '<section class="cartao comp-alerta" aria-labelledby="t-vr"><p class="olho">Primeiro passo</p><h2 id="t-vr">Vincular responsável</h2><p class="nota" style="margin-top:6px">' +
+          (respPendente ? "Seu convite ao responsável está em aberto: veja o código em “Quem acompanha você”, mais abaixo. " : "") +
+          'Como você é menor de idade, o responsável precisa estar vinculado antes de convidar o treinador ou contratar qualquer serviço.</p>' +
+          (respPendente ? '<div class="acoes"><a class="btn btn-primario btn-grande" href="#quemAcompanha" id="lkVincResp">Ver o código do convite</a></div>' : '<div class="acoes"><button type="button" class="btn btn-primario btn-grande" id="btVincResp">Gerar código para o responsável</button></div>') + "</section>" : "") +
+        '<div id="hubProximo"></div><section class="cartao comp-plano-hub" id="hubPlano" aria-labelledby="t-mp"><p class="olho">Temporada, semanas e rotina</p><h2 id="t-mp">Meu planejamento</h2><p class="nota" style="margin-top:6px">Organize sua preparação de acordo com seus objetivos, sua rotina e seus próximos torneios.</p>' +
+        '<div id="hubPlanoDados"></div><div class="acoes"><a class="btn btn-laranja btn-grande" href="#/planejamento">Abrir meu planejamento</a></div></section>' +
+        '<div id="hubPre"></div><div id="hubDes"></div><div id="hubDev"></div><div id="hubAcomp"></div>' +
+        '<div class="cartao" style="margin-top:14px"><h2>Temporada</h2><p class="nota" style="margin-top:6px">Seus torneios, datas e prazos num só lugar.</p><div class="acoes"><a class="btn btn-secundario" href="#/temporada">Abrir a temporada</a><a class="btn btn-secundario" href="#/diario">Diário</a></div></div>' +
         '<div class="cartao" style="margin-top:14px"><h2>Evolução</h2><p class="nota" style="margin-top:6px">Devolutivas do treinador e o que levar do jogo para o treino.</p><div class="acoes"><a class="btn btn-secundario" href="#/devolutivas">Devolutivas</a><a class="btn btn-secundario" href="#/focos">Foco de treino</a><a class="btn btn-secundario" href="#/scouts">Scouts do treinador</a></div></div>' +
-        '<div class="cartao" style="margin-top:14px"><h2>Consultorias</h2><p class="nota" style="margin-top:6px">Análise da sua temporada e das suas partidas com um consultor da Metodologia MTY.</p><div class="acoes"><a class="btn btn-laranja" href="#/consultorias">Ver consultorias</a><a class="btn btn-secundario" href="#/pedidos">Meus pedidos</a></div></div>';
-      html += '<div class="cartao" style="margin-top:14px"><h2>Quem acompanha você</h2>' +
-        (comp.menor && !ativosResp ? '<p class="nota" style="margin-top:6px">Como você é menor de idade, comece convidando o seu responsável. Só depois dele vinculado é possível convidar um treinador.</p>' : '<p class="nota" style="margin-top:6px">Você decide quem vê o quê, e pode encerrar qualquer vínculo quando quiser. O diário pessoal só é compartilhado se você marcar.</p>') +
+        '<div class="cartao" style="margin-top:14px"><h2>Consultorias avulsas</h2><p class="nota" style="margin-top:6px">Orientação pontual da Metodologia MTY, contratada por serviço e separada do Acompanhamento MTY.</p><div class="acoes"><a class="btn btn-secundario" href="#/consultorias">Ver consultorias</a><a class="btn btn-secundario" href="#/pedidos">Meus pedidos</a></div></div>';
+      html += '<div class="cartao" id="quemAcompanha" style="margin-top:14px"><h2>Quem acompanha você</h2>' +
+        (semResp ? '<p class="nota" style="margin-top:6px">O primeiro vínculo é o do responsável. Depois dele ativo, você pode convidar o treinador, e o responsável aprova.</p>' : '<p class="nota" style="margin-top:6px">Você decide quem vê o quê, e pode encerrar qualquer vínculo quando quiser. O diário pessoal só é compartilhado se você marcar, registro por registro.</p>') +
         (s.meus.length ? '<ul class="comp-lista">' + s.meus.map(function (v) { return vinculoMeuHtml(v, comp); }).join("") + "</ul>" : '<p class="nota" style="margin-top:8px">Ninguém vinculado ainda.</p>') +
-        '<details class="det" style="margin-top:10px"' + (s.meus.length ? "" : " open") + '><summary>Convidar alguém</summary><form id="fConvite" style="margin-top:10px" novalidate>' +
-        '<div class="campo"><label for="tipoConv">Quem você quer convidar?</label><select id="tipoConv"><option value="responsavel">Responsável</option><option value="treinador">Treinador</option></select></div>' +
+        '<details class="det" id="detConvite" style="margin-top:10px"' + (s.meus.length ? "" : " open") + '><summary>Convidar alguém</summary><form id="fConvite" style="margin-top:10px" novalidate>' +
+        '<div class="campo"><label for="tipoConv">Quem você quer convidar?</label><select id="tipoConv"><option value="responsavel">Responsável</option>' + (semResp ? "" : '<option value="treinador">Treinador</option>') + '</select></div>' +
+        (semResp ? '<p class="nota">O convite ao treinador só fica disponível depois que o responsável estiver vinculado.</p>' : "") +
         '<p class="olho" style="margin-top:6px">O que essa pessoa pode ver</p>' + areasMarcadas(null, "ar-novo") +
         '<div class="aviso" id="avisoConv" role="alert" hidden></div><button class="btn btn-primario" type="submit">Gerar código de convite</button></form></details></div>';
     } else {
@@ -2728,15 +2748,34 @@
         }).join("") + "</ul></div>";
       }
     }
-    html += '<p class="nota" style="margin-top:14px">Próximas etapas da Competição: devolutiva do treinador, “levar para o treino” e consultorias.</p>';
     tela(html);
     if (comp.papel === "atleta") {
       lembretesTemporada();
+      var bvr = document.getElementById("btVincResp");
+      if (bvr) bvr.addEventListener("click", function () { acaoComp({ acao: "convidar", tipo: "responsavel" }, bvr, "Código gerado. Passe-o para o seu responsável."); });
+      var lvr = document.getElementById("lkVincResp");
+      if (lvr) lvr.addEventListener("click", function (ev) { ev.preventDefault(); var q = document.getElementById("quemAcompanha"); if (q) q.scrollIntoView({ behavior: "smooth", block: "start" }); });
       api("player-torneios").then(function (rt) {
         var prox = rt.torneios.filter(function (t) { return t.fase !== "passado" && t.estado !== "desistiu"; })[0], box = document.getElementById("hubProximo");
         if (prox && box) box.innerHTML = heroTorneioHtml(prox);
+        /* preparação pré-jogo: aparece quando o próximo torneio está perto ou em andamento */
+        var pre = document.getElementById("hubPre");
+        if (pre && prox && (prox.fase === "andamento" || prox.diasParaInicio <= 10)) {
+          var preps = rt.preparos.filter(function (x) { return x.torneioId === prox.id; }), pp = preps.filter(function (x) { return !x.partidaId; })[0] || preps[0];
+          pre.innerHTML = '<section class="cartao" style="margin-top:14px" aria-labelledby="t-pre"><p class="olho">Preparação pré-jogo</p><h2 id="t-pre">' + esc(prox.nome) + "</h2>" +
+            (pp ? (pp.adversario || pp.rodada ? '<p class="nota" style="margin-top:4px">' + esc([pp.rodada, pp.adversario ? "contra " + pp.adversario : ""].filter(Boolean).join(" · ")) + "</p>" : "") + (pp.prioridades && pp.prioridades.length ? '<ol class="comp-prior">' + pp.prioridades.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ol>" : "") +
+              '<div class="acoes"><a class="btn btn-secundario" href="#/preparo/' + prox.id + "/" + pp.id + '">Abrir a preparação</a><a class="btn btn-secundario" href="#/aquecimento?de=inicio">Aquecimento</a></div>'
+              : '<p class="nota" style="margin-top:4px">Ainda sem estratégia para as partidas deste torneio. Defina até 3 prioridades antes de entrar em quadra.</p><div class="acoes"><a class="btn btn-laranja" href="#/preparo/' + prox.id + '/novo">Preparar partida</a></div>') + "</section>";
+        }
+        var des = document.getElementById("hubDes"), dl = desafiosLista().filter(function (x) { return x.estado === "andamento"; })[0];
+        if (des && dl) des.innerHTML = '<section class="cartao" style="margin-top:14px" aria-labelledby="t-des"><p class="olho">Desafio em andamento</p><h2 id="t-des">' + esc(dl.nome) + '</h2><p class="nota" style="margin-top:4px">' + dl.feitos + " de " + dl.total + " etapas concluídas</p>" + barraPrep(dl.feitos, dl.total) + '<div class="acoes"><a class="btn btn-secundario" href="' + dl.href + '">Continuar</a></div></section>';
+        var dv = document.getElementById("hubDev"), d0 = (rt.devolutivas || [])[0];
+        if (dv && d0) dv.innerHTML = '<section class="cartao" style="margin-top:14px" aria-labelledby="t-dev"><p class="olho">Devolutiva do treinador · ' + esc(dataCurta(String(d0.criadoEm).slice(0, 10))) + '</p><h2 id="t-dev">' + esc(d0.autorNome || "Treinador") + "</h2>" +
+          '<p class="nota" style="margin-top:4px">' + esc(d0.refRotulo || "Geral") + "</p>" + (d0.foco ? '<p class="comp-dev-bloco comp-dev-foco"><strong>Foco de treino</strong>' + esc(d0.foco) + "</p>" : d0.melhorar ? '<p class="comp-dev-bloco"><strong>O que melhorar</strong>' + esc(d0.melhorar) + "</p>" : "") +
+          '<div class="acoes"><a class="btn btn-secundario" href="#/devolutivas">Ver devolutivas' + (rt.devolutivas.length > 1 ? " (" + rt.devolutivas.length + ")" : "") + "</a></div></section>";
       }).catch(function () { /* o resto da tela funciona sem a lista */ });
     }
+    if (window.QL_COMP_HUB) window.QL_COMP_HUB(comp, s);
     app.querySelectorAll("[data-copiar]").forEach(function (b) {
       b.addEventListener("click", function () { var c = b.getAttribute("data-copiar"); (navigator.clipboard ? navigator.clipboard.writeText(c) : Promise.reject()).then(function () { toast("Código copiado."); }, function () { toast("Copie manualmente: " + c); }); });
     });
@@ -2790,7 +2829,7 @@
   function cartaoTorneioHtml(t) {
     var dia = String(t.inicio || "").slice(8, 10), mes = MESES_CURTOS[parseInt(String(t.inicio || "").slice(5, 7), 10) - 1] || "";
     return '<a class="cartao comp-torneio fase-' + t.fase + '" href="#/temporada/' + t.id + '"><div class="comp-data" aria-hidden="true"><b>' + esc(dia) + "</b><span>" + esc(mes) + '</span></div><div class="comp-info"><p class="olho">' + esc(rotuloEstadoTorneio(t.estado)) + " · " + esc(quandoTorneio(t)) + "</p><h2>" + esc(t.nome) + "</h2>" +
-      '<p class="nota">' + esc(periodoTorneio(t)) + (t.cidade ? " · " + esc(t.cidade) : "") + (t.categoria ? " · " + esc(t.categoria) : "") + "</p>" + prazoTorneioHtml(t) + "</div></a>";
+      '<p class="nota">' + esc(periodoTorneio(t)) + (t.cidade ? " · " + esc(t.cidade) : "") + (t.categoria ? " · " + esc(t.categoria) : "") + (t.prioridade ? " · Prioridade " + esc(t.prioridade) : "") + "</p>" + prazoTorneioHtml(t) + "</div></a>";
   }
   /* o cartão de destaque do início: a contagem regressiva é o protagonista */
   function heroTorneioHtml(t) {
@@ -2846,6 +2885,7 @@
       '<div class="comp-duas">' + campoTorneio("tCidade", "Cidade", t.cidade, "text", ' maxlength="80"') + campoTorneio("tLocal", "Clube ou local", t.local, "text", ' maxlength="100"') + "</div>" +
       '<div class="comp-duas">' + campoTorneio("tCategoria", "Categoria", t.categoria, "text", ' maxlength="40" placeholder="Ex.: Sub-16"') + campoTorneio("tCircuito", "Circuito", t.circuito, "text", ' maxlength="60" placeholder="Ex.: COSAT"') + "</div>" +
       '<div class="campo"><label for="tPiso">Piso</label><select id="tPiso">' + PISOS.map(function (p) { return '<option value="' + p[0] + '"' + (p[0] === (t.superficie || "") ? " selected" : "") + ">" + p[1] + "</option>"; }).join("") + "</select></div>" +
+      '<div class="campo"><label for="tPrior">Prioridade na temporada</label><select id="tPrior"><option value="">Definir depois</option>' + [["A", "A · Principal"], ["B", "B · Importante"], ["C", "C · Preparatório"]].map(function (p) { return '<option value="' + p[0] + '"' + (p[0] === (t.prioridade || "") ? " selected" : "") + ">" + p[1] + "</option>"; }).join("") + '</select><p class="nota">Ajuda a organizar preparação e recuperação no Meu planejamento. A prioridade sozinha não define a carga de treino.</p></div>' +
       '<div class="campo"><label for="tEstado">Minha situação</label><select id="tEstado">' + ESTADOS_TORNEIO.map(function (p) { return '<option value="' + p[0] + '"' + (p[0] === t.estado ? " selected" : "") + ">" + p[1] + "</option>"; }).join("") + "</select></div>" +
       campoTorneio("tUrl", "Link oficial do torneio (opcional)", t.urlOrigem, "url", ' maxlength="300" placeholder="https://" inputmode="url"') +
       '<p class="nota" style="margin:-4px 0 10px">Guardamos o link para você voltar à fonte. Confirme sempre as datas e o prazo no site oficial.' + (t.coletadoEm ? " Cadastrado a partir de " + (t.origem === "colado" ? "texto colado" : "link") + " em " + dataCurta(String(t.coletadoEm).slice(0, 10)) + "." : "") + "</p>" +
@@ -2873,7 +2913,7 @@
       var av = document.getElementById("avisoT"); av.hidden = true;
       var bt = this.querySelector("button[type=submit]"); ocupado(bt, true, "Salvando…");
       var corpo = { acao: "salvar", id: novo ? undefined : id, nome: v("tNome"), inicio: v("tInicio"), fim: v("tFim"), prazoInscricao: v("tPrazo"), cidade: v("tCidade"), local: v("tLocal"),
-        categoria: v("tCategoria"), circuito: v("tCircuito"), superficie: v("tPiso"), estado: v("tEstado"), urlOrigem: v("tUrl"), observacao: v("tObs"),
+        categoria: v("tCategoria"), circuito: v("tCircuito"), superficie: v("tPiso"), prioridade: v("tPrior"), estado: v("tEstado"), urlOrigem: v("tUrl"), observacao: v("tObs"),
         origem: origem === "manual" && v("tUrl") ? "link" : origem };
       try { var rs = await api("player-torneios", { metodo: "POST", corpo: corpo }); toast(novo ? "Torneio salvo." : "Alterações salvas."); ir("#/temporada/" + (rs.id || id)); }
       catch (e) { av.textContent = e.message; av.hidden = false; ocupado(bt, false); }
@@ -2944,7 +2984,7 @@
       '<h2 class="secao">Preparação</h2>' + cartoesPreparacaoHtml("temporada/" + id, false) +
       (preps.length ? '<div class="comp-torneios">' + preps.map(function (p) {
         return '<a class="cartao comp-torneio" href="#/preparo/' + id + "/" + p.id + '"><p class="olho">' + esc(p.rodada || "Partida") + (p.data ? " · " + dataCurta(p.data) : "") + "</p><h2>" + (p.adversario ? "Contra " + esc(p.adversario) : "Preparação") + "</h2>" +
-          (p.prioridades && p.prioridades.length ? '<ol class="comp-prior">' + p.prioridades.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ol>" : "") + "</a>";
+          (p.prioridades && p.prioridades.length ? '<ol class="comp-prior">' + p.prioridades.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ol>" : "") + '<p class="nota">' + (p.partidaId ? "Ligada a uma partida registrada" : "Ainda sem partida registrada") + "</p></a>";
       }).join("") + "</div>" : '<p class="nota" style="margin-top:10px">Ainda sem preparação para este torneio. Antes de cada partida, defina até 3 prioridades.</p>') +
       '<h2 class="secao">Partidas</h2>' + (jogos.length ? '<div class="comp-torneios">' + jogos.map(function (p) {
         return '<a class="cartao comp-torneio" href="#/partidas/' + p.id + '"><p class="olho">' + (p.resultado === "vitoria" ? "Vitória" : "Derrota") + (p.rodada ? " · " + esc(p.rodada) : "") + " · " + dataCurta(p.data) + "</p><h2>" + (p.adversario ? "Contra " + esc(p.adversario) : "Partida") + '</h2><p class="nota">' + esc(p.placar || "") + "</p></a>";
@@ -3000,20 +3040,29 @@
   async function telaDiario() {
     tela('<p class="carregando">Carregando…</p>', true);
     var r;
-    try { r = await api("player-torneios"); }
+    var vincs = [];
+    try { r = await api("player-torneios"); vincs = (await api("player-competicao").catch(function () { return { meus: [] }; })).meus.filter(function (v) { return v.status === "ativo"; }); }
     catch (e) { tela('<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/competicao">‹ Início</a></p><div class="aviso">' + esc(e.message) + "</div>"); return; }
     var q = (location.hash.split("?")[1] || "").match(/(?:^|&)torneio=([^&]+)/), sel = q ? decodeURIComponent(q[1]) : "", nomes = {};
     r.torneios.forEach(function (t) { nomes[t.id] = t.nome; });
     var HUMOR = ["", "Muito mal", "Mal", "Neutro", "Bem", "Muito bem"];
-    tela('<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/competicao">‹ Início</a></p><h1>Diário de competição</h1><p class="sub">Registre como você se sentiu e o que aprendeu. É privado: treinador e responsável só leem se você marcar o diário no vínculo.</p>' +
+    tela('<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/competicao">‹ Início</a></p><h1>Diário de competição</h1><p class="sub">Registre como você se sentiu e o que aprendeu. É privado por padrão: você escolhe, registro por registro, quem pode ler.</p>' +
       '<form id="fDiario" class="cartao" style="margin-top:14px" novalidate><h2 id="tDiario">Novo registro</h2>' +
       '<div class="comp-duas">' + campoTorneio("dData", "Data", hojeISOLocal(), "date", ' max="' + hojeISOLocal() + '"') +
-      '<div class="campo"><label for="dTorneio">Torneio</label><select id="dTorneio"><option value="">Nenhum</option>' + r.torneios.map(function (t) { return '<option value="' + t.id + '"' + (t.id === sel ? " selected" : "") + ">" + esc(t.nome) + "</option>"; }).join("") + "</select></div></div>" +
+      '<div class="campo"><label for="dTorneio">Torneio</label><select id="dTorneio"><option value="">Sem torneio vinculado</option>' + r.torneios.map(function (t) { return '<option value="' + t.id + '"' + (t.id === sel ? " selected" : "") + ">" + esc(t.nome) + "</option>"; }).join("") + "</select></div></div>" +
       '<div class="campo"><label for="dTexto">O que você quer registrar?</label><textarea id="dTexto" rows="4" maxlength="1000"></textarea>' + botaoVoz("dTexto") + "</div>" +
-      '<fieldset><legend>Como você se sentiu? <span class="nota">(opcional)</span></legend><div class="escala">' + [1, 2, 3, 4, 5].map(function (n) { return '<label class="opcao"><input type="radio" name="humor" value="' + n + '"><span>' + n + "<small>" + HUMOR[n] + "</small></span></label>"; }).join("") + "</div></fieldset>" +
+      '<fieldset><legend>Sua avaliação: como você se sentiu? <span class="nota">(opcional)</span></legend><div class="escala">' + [1, 2, 3, 4, 5].map(function (n) { return '<label class="opcao"><input type="radio" name="humor" value="' + n + '"><span>' + n + "<small>" + HUMOR[n] + "</small></span></label>"; }).join("") + "</div></fieldset>" +
       '<div class="aviso" id="avisoD" role="alert" hidden></div><button class="btn btn-primario" type="submit" id="btSalvarD">Salvar registro</button><button class="btn btn-texto" type="button" id="btCancelarD" hidden>Cancelar edição</button></form>' +
       (r.diario.length ? '<h2 class="secao">Registros</h2><div class="comp-torneios">' + r.diario.map(function (d) {
-        return '<div class="comp-vinc"><p class="olho">' + dataCurta(d.data) + (d.torneioId && nomes[d.torneioId] ? " · " + esc(nomes[d.torneioId]) : "") + (d.humor ? " · " + HUMOR[d.humor] : "") + "</p><p>" + esc(d.texto) + '</p><div class="acoes"><button type="button" class="btn btn-secundario btn-pequeno" data-ed="' + d.id + '">Editar</button><button type="button" class="btn btn-texto" data-ex="' + d.id + '">Excluir</button></div></div>';
+        var com = d.compartilhadoCom || [], todos = vincs.filter(function (v) { return (v.areas || []).indexOf("diario") >= 0; });
+        var quem = vincs.filter(function (v) { return com.indexOf(v.id) >= 0 || (v.areas || []).indexOf("diario") >= 0; }).map(function (v) { return v.pessoa ? v.pessoa.nome : (v.tipo === "treinador" ? "treinador" : "responsável"); });
+        return '<div class="comp-vinc"><p class="olho">' + dataCurta(d.data) + (d.torneioId && nomes[d.torneioId] ? " · " + esc(nomes[d.torneioId]) : "") + (d.humor ? " · " + HUMOR[d.humor] : "") + "</p><p>" + esc(d.texto) + "</p>" +
+          '<p class="nota"><span class="comp-estado ' + (quem.length ? "ok" : "") + '">' + (quem.length ? "Compartilhado com " + esc(quem.join(", ")) : "Privado") + "</span></p>" +
+          '<details class="det"><summary>Quem pode ler este registro</summary><div style="margin-top:8px">' + (vincs.length ? vincs.map(function (v) {
+            var porArea = (v.areas || []).indexOf("diario") >= 0;
+            return '<label class="comp-area"><input type="checkbox" name="sh-' + d.id + '" value="' + v.id + '"' + (com.indexOf(v.id) >= 0 || porArea ? " checked" : "") + (porArea ? " disabled" : "") + "> " + esc((v.tipo === "treinador" ? "Treinador" : "Responsável") + ": " + (v.pessoa ? v.pessoa.nome : "")) + (porArea ? " (todo o diário, pelo vínculo)" : "") + "</label>";
+          }).join("") + '<button type="button" class="btn btn-secundario btn-pequeno" data-shdiario="' + d.id + '">Salvar</button>' + (todos.length ? '<p class="nota">Para parar de compartilhar todo o diário, desmarque “Diário pessoal” no vínculo, em <a href="#/inicio">Início</a>.</p>' : "") : '<p class="nota">Nenhuma pessoa vinculada ainda. O registro continua privado.</p>') + "</div></details>" +
+          '<div class="acoes"><button type="button" class="btn btn-secundario btn-pequeno" data-ed="' + d.id + '">Editar</button><button type="button" class="btn btn-texto" data-ex="' + d.id + '">Excluir</button></div></div>';
       }).join("") + "</div>" : '<p class="nota" style="margin-top:14px">Nenhum registro ainda.</p>'));
     var editando = null, f = document.getElementById("fDiario");
     function marcarHumor(n) { Array.prototype.forEach.call(f.querySelectorAll('input[name="humor"]'), function (i) { i.checked = String(n) === i.value; }); }
@@ -3025,6 +3074,14 @@
       });
     });
     document.getElementById("btCancelarD").addEventListener("click", function () { telaDiario(); });
+    app.querySelectorAll("[data-shdiario]").forEach(function (b) {
+      b.addEventListener("click", async function () {
+        var id = b.getAttribute("data-shdiario"), ids = Array.prototype.map.call(app.querySelectorAll('input[name="sh-' + id + '"]:checked:not(:disabled)'), function (i) { return i.value; });
+        ocupado(b, true, "Salvando…");
+        try { await api("player-torneios", { metodo: "POST", corpo: { acao: "compartilharDiario", id: id, vinculoIds: ids } }); toast(ids.length ? "Registro compartilhado." : "Registro privado."); telaDiario(); }
+        catch (e) { toast(e.message, null, true); ocupado(b, false); }
+      });
+    });
     app.querySelectorAll("[data-ex]").forEach(function (b) {
       b.addEventListener("click", async function () {
         if (!window.confirm("Excluir este registro do diário?")) return;
@@ -3303,7 +3360,7 @@
         scMapaHtml(rs.zonas, rs.atleta) + scBolasHtml(rs) + scNumerosHtml(rs) +
         '<h2 class="secao">O que este jogo aponta</h2><div class="cartao">' + (rs.sinais.length ? rs.sinais.map(function (x) { return '<p class="comp-dev-bloco">' + esc(x) + "</p>"; }).join("") : "<p>Nada fora do esperado nos indicadores coletados.</p>") + '<p class="nota" style="margin-top:8px">Leitura automática pelas regras do método: ponto de partida para a conversa com o treinador, não conclusão.</p></div>' +
         (partida ? scAtletaVsTreinadorHtml(sc, partida) : "") +
-        '<h2 class="secao">Ligar a um torneio e a uma partida</h2><div class="cartao"><div class="campo"><label for="scTorneio">Torneio</label><select id="scTorneio"><option value="">Nenhum</option>' + t.torneios.map(function (x) { return '<option value="' + x.id + '"' + (x.id === sc.torneioId ? " selected" : "") + ">" + esc(x.nome) + "</option>"; }).join("") + "</select></div>" +
+        '<h2 class="secao">Ligar a um torneio e a uma partida</h2><div class="cartao"><div class="campo"><label for="scTorneio">Torneio</label><select id="scTorneio"><option value="">Sem torneio vinculado</option>' + t.torneios.map(function (x) { return '<option value="' + x.id + '"' + (x.id === sc.torneioId ? " selected" : "") + ">" + esc(x.nome) + "</option>"; }).join("") + "</select></div>" +
         '<div class="campo"><label for="scPartida">Partida registrada por você</label><select id="scPartida"><option value="">Nenhuma</option>' + partidasLista().map(function (x) { return '<option value="' + x.id + '"' + (x.id === sc.partidaId ? " selected" : "") + ">" + esc(dataCurta(x.data) + (x.adversario ? " · contra " + x.adversario : "")) + "</option>"; }).join("") + '</select></div><button type="button" class="btn btn-secundario" id="btLigarSc">Salvar ligação</button></div>' +
         '<div class="acoes"><button type="button" class="btn btn-texto" id="btExcluirSc">Excluir este scout da minha conta</button></div>');
       var abas = document.getElementById("scAbas"), area = document.getElementById("scGrafico"), resumoEl = document.getElementById("scResumo");
@@ -3387,7 +3444,7 @@
     var pol = r.politicas || {};
     var politicasHtml = '<p class="nota" style="margin-top:12px">' + (pol.pagamento || pol.remarcacao || pol.cancelamento ? [pol.pagamento, pol.remarcacao, pol.cancelamento].filter(Boolean).map(esc).join(" ") : "Pagamento, remarcação e cancelamento são informados antes de qualquer cobrança.") + "</p>";
     if (!id) {
-      tela('<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/inicio">‹ Início</a></p><h1>Consultorias</h1><p class="sub">Orientação individual para a sua preparação de competição, com o consultor da Metodologia MTY.</p>' +
+      tela('<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/inicio">‹ Início</a></p><h1>Consultorias avulsas</h1><p class="sub">Orientação individual para a sua preparação de competição, com o consultor da Metodologia MTY. Cada serviço é contratado uma vez, sem recorrência, e é separado do <a href="#/acompanhamento">Acompanhamento MTY</a>, o programa remoto de 3 meses.</p>' +
         '<div class="acoes"><a class="btn btn-secundario" href="#/pedidos">Meus pedidos' + (abertos ? " · " + abertos + " em aberto" : "") + "</a></div>" +
         r.catalogo.map(function (c) {
           return '<article class="cartao" style="margin-top:14px"><p class="olho">' + esc(c.unidadePreco) + "</p><h2>" + esc(c.nome) + '</h2><p class="nota" style="margin-top:6px">' + esc(c.descricao) + '</p><p style="margin-top:10px"><strong>' + reais(c.precoCentavos) + "</strong> · " + esc(c.prazoCurto) + "</p>" + listaHtml(c.principais) +
@@ -3403,10 +3460,10 @@
         (c.indicadoPara ? '<p class="olho" style="margin-top:12px">Indicado para</p><p>' + esc(c.indicadoPara) + "</p>" : "") + (c.regra ? '<p class="aviso-info" style="margin-top:10px">' + esc(c.regra) + "</p>" : "") +
         '<p class="olho" style="margin-top:12px">O que inclui</p>' + listaHtml(c.inclui) + (c.naoInclui && c.naoInclui.length ? '<p class="olho" style="margin-top:12px">O que não inclui</p>' + listaHtml(c.naoInclui) : "") +
         (c.material ? '<p class="olho" style="margin-top:12px">Material necessário</p>' + listaHtml(c.material) : "") + (c.escopoPreco ? '<p class="nota" style="margin-top:8px">' + esc(c.escopoPreco) + "</p>" : "") + (c.acimaDoLimite ? '<p class="nota">' + esc(c.acimaDoLimite) + "</p>" : "") + (c.aviso ? '<p class="nota">' + esc(c.aviso) + "</p>" : "") + politicasHtml +
-        (r.papel === "atleta" ? '<div class="acoes"><a class="btn btn-laranja btn-grande" href="#/consultorias/' + c.id + '/contratar">' + esc(c.botao || "Contratar") + "</a></div>" : '<p class="nota" style="margin-top:12px">O pedido é montado pelo atleta. Você confirma e paga em “Meus pedidos”.</p>') + "</div>");
+        (r.papel === "atleta" && r.menor && !r.responsaveis ? '<div class="comp-alerta cartao"><p class="olho">Primeiro passo</p><p class="nota">Como você é menor de idade, o responsável precisa estar vinculado antes de contratar. Ele confirma e paga o pedido.</p><div class="acoes"><a class="btn btn-primario btn-grande" href="#/inicio">Vincular responsável</a></div></div>' : r.papel === "atleta" ? '<div class="acoes"><a class="btn btn-laranja btn-grande" href="#/consultorias/' + c.id + '/contratar">' + esc(c.botao || "Contratar") + "</a></div>" : '<p class="nota" style="margin-top:12px">O pedido é montado pelo atleta. Você confirma e paga em “Meus pedidos”.</p>') + "</div>");
       return;
     }
-    if (r.papel !== "atleta") { ir("#/consultorias/" + id); return; }
+    if (r.papel !== "atleta" || (r.menor && !r.responsaveis)) { ir("#/consultorias/" + id); return; }
     var o = r.opcoes;
     function caixas(nome, lista, rot) {
       return lista.length ? lista.map(function (x) { return '<label class="comp-area"><input type="checkbox" name="' + nome + '" value="' + x.id + '"> ' + esc(rot(x)) + "</label>"; }).join("") : '<p class="nota">Nada cadastrado ainda.</p>';
@@ -3415,7 +3472,7 @@
       '<p class="sub">Escolha o que o consultor pode ver. Só o que você marcar é enviado, e vale apenas para este pedido.</p>' +
       (r.menor ? '<div class="aviso-info" style="margin-top:12px">Como você é menor de idade, o seu responsável vinculado precisa confirmar o pedido e faz o pagamento.</div>' : "") +
       '<form id="fPedido" class="cartao" style="margin-top:14px" novalidate>' +
-      '<div class="campo"><label for="pdTorneio">Torneio de referência (opcional)</label><select id="pdTorneio"><option value="">Nenhum</option>' + o.torneios.map(function (t) { return '<option value="' + t.id + '">' + esc(t.nome) + "</option>"; }).join("") + "</select></div>" +
+      '<div class="campo"><label for="pdTorneio">Torneio de referência (opcional)</label><select id="pdTorneio"><option value="">Sem torneio vinculado</option>' + o.torneios.map(function (t) { return '<option value="' + t.id + '">' + esc(t.nome) + "</option>"; }).join("") + "</select></div>" +
       '<fieldset><legend>Partidas que o consultor pode ver (até 6)</legend>' + caixas("pdPartida", o.partidas, function (p) { return dataCurta(p.data) + (p.adversario ? " · contra " + p.adversario : "") + " · " + (p.resultado === "vitoria" ? "vitória" : "derrota") + (p.placar ? " " + p.placar : ""); }) + "</fieldset>" +
       '<fieldset><legend>Scouts do treinador (até 3)</legend>' + caixas("pdScout", o.scouts, function (x) { return x.rotulo + " · " + dataCurta(x.data); }) + "</fieldset>" +
       '<fieldset><legend>Devolutivas (até 5)</legend>' + caixas("pdDev", o.devolutivas, function (d) { return (d.refRotulo || "Geral") + " · " + (d.autorNome || "treinador"); }) + "</fieldset>" +
@@ -3445,6 +3502,9 @@
       '<div class="cartao" style="margin-top:14px"><h2>Quem vê os seus dados</h2><p class="nota" style="margin-top:6px">Treinador e responsável só veem o que você marcar em cada vínculo, e qualquer lado pode encerrar o vínculo quando quiser. Para atletas menores de idade, o responsável aprova o treinador e confirma as consultorias. O diário é privado, a menos que você o compartilhe.</p></div>' +
       '<div class="cartao" style="margin-top:14px"><h2>Seus dados</h2><p class="nota" style="margin-top:6px">Em <a href="#/conta">Meu perfil</a> você baixa uma cópia dos seus dados ou exclui a conta.</p></div>');
   }
+  /* quem diz o quê: relato do atleta, observação do treinador, estatística registrada e sugestão automática nunca se misturam */
+  var ORIGENS = { relato: ["Relato do atleta", "o-relato"], treinador: ["Observação do treinador", "o-treinador"], estatistica: ["Estatística registrada", "o-estat"], sugestao: ["Sugestão automática", "o-sug"] };
+  function origemTag(k) { return ' <span class="comp-origem ' + ORIGENS[k][1] + '">' + ORIGENS[k][0] + "</span>"; }
   async function telaVinculo(id) {
     tela('<p class="carregando">Carregando…</p>', true);
     var r;
@@ -3452,18 +3512,19 @@
     catch (e) { tela('<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/competicao">‹ Início</a></p><div class="aviso">' + esc(e.message) + "</div>"); return; }
     var perfil = r.dados.perfil;
     tela('<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/competicao">‹ Início</a></p><h1>' + esc(r.atleta.nome) + '</h1><p class="sub">Você vê só o que o atleta compartilhou: ' + esc(rotuloAreas(r.areas)) + ".</p>" +
+      ((r.areas.indexOf("planejamento") >= 0 || r.referencias) ? '<div class="acoes">' + (r.areas.indexOf("planejamento") >= 0 ? '<a class="btn btn-laranja" href="#/planejamento/atleta/' + id + '">' + (r.referencias ? "Planejamento e registros do atleta" : "Ver o planejamento do atleta") + "</a>" : (r.referencias ? '<p class="nota">O atleta ainda não compartilhou “Meu planejamento” com você. Peça para ele marcar essa área no vínculo.</p>' : "")) + (r.referencias ? '<a class="btn btn-secundario" href="#/acompanhamento">Acompanhamento MTY</a>' : "") + "</div>" : "") +
       (perfil ? '<div class="cartao" style="margin-top:14px"><h2>Perfil de jogador</h2>' + (perfil.length ? '<dl class="comp-perfil">' + perfil.map(function (p) { return "<dt>" + esc(p.rotulo) + "</dt><dd>" + esc(p.valor) + "</dd>"; }).join("") + "</dl>" : '<p class="nota" style="margin-top:6px">O atleta ainda não preencheu o perfil.</p>') + "</div>" : "") +
       (r.dados.torneios ? '<div class="cartao" style="margin-top:14px"><h2>Temporada e torneios</h2>' + (r.dados.torneios.length ? '<div class="comp-torneios">' + r.dados.torneios.map(function (t) { return '<div class="comp-vinc"><p class="olho">' + esc(rotuloEstadoTorneio(t.estado)) + " · " + esc(quandoTorneio(t)) + "</p><p><strong>" + esc(t.nome) + '</strong></p><p class="nota">' + esc(periodoTorneio(t)) + (t.cidade ? " · " + esc(t.cidade) : "") + (t.categoria ? " · " + esc(t.categoria) : "") + "</p>" + prazoTorneioHtml(t) + "</div>"; }).join("") + "</div>" : '<p class="nota" style="margin-top:6px">Nenhum torneio cadastrado ainda.</p>') + "</div>" : "") +
-      (r.dados.preparos ? '<div class="cartao" style="margin-top:14px"><h2>Estratégia por partida</h2>' + (r.dados.preparos.length ? '<div class="comp-torneios">' + r.dados.preparos.map(function (p) { return '<div class="comp-vinc"><p class="olho">' + esc(p.rodada || "Partida") + (p.data ? " · " + dataCurta(p.data) : "") + "</p><p><strong>" + (p.adversario ? "Contra " + esc(p.adversario) : "Preparação") + "</strong></p>" + (p.prioridades && p.prioridades.length ? '<ol class="comp-prior">' + p.prioridades.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ol>" : "") + (p.padrao ? '<p class="nota">Padrão: ' + esc(p.padrao) + "</p>" : "") + (p.hipoteses ? '<p class="nota">Expectativa: ' + esc(p.hipoteses) + "</p>" : "") + "</div>"; }).join("") + "</div>" : '<p class="nota" style="margin-top:6px">Nenhuma preparação ainda.</p>') + "</div>" : "") +
-      (r.dados.partidas ? '<div class="cartao" style="margin-top:14px"><h2>Partidas</h2>' + (r.dados.partidas.length ? '<div class="comp-torneios">' + r.dados.partidas.map(function (p) { return '<div class="comp-vinc"><p class="olho">' + (p.resultado === "vitoria" ? "Vitória" : "Derrota") + (p.rodada ? " · " + esc(p.rodada) : "") + " · " + dataCurta(p.data) + "</p><p><strong>" + (p.adversario ? "Contra " + esc(p.adversario) : "Partida") + '</strong></p><p class="nota">' + esc(p.placar) + "</p></div>"; }).join("") + "</div>" : '<p class="nota" style="margin-top:6px">Nenhuma partida registrada.</p>') + "</div>" : "") +
-      (r.dados.scouts ? '<div class="cartao" style="margin-top:14px"><h2>Scouts do treinador</h2>' + (r.dados.scouts.length ? '<div class="comp-torneios">' + r.dados.scouts.map(function (x) { return '<div class="comp-vinc"><p class="olho">' + esc(dataCurta(x.data)) + "</p><p><strong>" + esc(x.rotulo) + '</strong></p><p class="nota">' + x.resumo.pctGanhos + "% dos pontos ganhos · erros " + x.resumo.numeros.errosNos + " · protocolo " + x.resumo.numeros.pctProtocolo + "%</p></div>"; }).join("") + "</div>" : '<p class="nota" style="margin-top:6px">Nenhum scout importado.</p>') + "</div>" : "") +
-      (r.dados.diario ? '<div class="cartao" style="margin-top:14px"><h2>Diário</h2>' + (r.dados.diario.length ? '<div class="comp-torneios">' + r.dados.diario.map(function (d) { return '<div class="comp-vinc"><p class="olho">' + dataCurta(d.data) + "</p><p>" + esc(d.texto) + "</p></div>"; }).join("") + "</div>" : '<p class="nota" style="margin-top:6px">Sem registros.</p>') + "</div>" : "") +
-      (r.dados.focos ? '<div class="cartao" style="margin-top:14px"><h2>Foco de treino</h2>' + (r.dados.focos.length ? '<ul class="comp-lista">' + r.dados.focos.map(function (f) { return '<li class="comp-vinc"><p><strong>' + esc(f.texto) + '</strong></p><p class="nota">' + esc(STATUS_FOCO_ROT[f.status] || f.status) + " · " + esc(f.origemRotulo || "") + "</p></li>"; }).join("") + "</ul>" : '<p class="nota" style="margin-top:6px">Nenhum foco ainda.</p>') + "</div>" : "") +
+      (r.dados.preparos ? '<div class="cartao" style="margin-top:14px"><h2>Estratégia por partida' + origemTag("relato") + '</h2>' + (r.dados.preparos.length ? '<div class="comp-torneios">' + r.dados.preparos.map(function (p) { return '<div class="comp-vinc"><p class="olho">' + esc(p.rodada || "Partida") + (p.data ? " · " + dataCurta(p.data) : "") + "</p><p><strong>" + (p.adversario ? "Contra " + esc(p.adversario) : "Preparação") + "</strong></p>" + (p.prioridades && p.prioridades.length ? '<ol class="comp-prior">' + p.prioridades.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ol>" : "") + (p.padrao ? '<p class="nota">Padrão: ' + esc(p.padrao) + "</p>" : "") + (p.hipoteses ? '<p class="nota">Expectativa: ' + esc(p.hipoteses) + "</p>" : "") + "</div>"; }).join("") + "</div>" : '<p class="nota" style="margin-top:6px">Nenhuma preparação ainda.</p>') + "</div>" : "") +
+      (r.dados.partidas ? '<div class="cartao" style="margin-top:14px"><h2>Partidas' + origemTag("relato") + '</h2><p class="nota" style="margin-top:4px">Resultado e avaliação como o atleta registrou. Não é análise de vídeo.</p>' + (r.dados.partidas.length ? '<div class="comp-torneios">' + r.dados.partidas.map(function (p) { return '<div class="comp-vinc"><p class="olho">' + (p.resultado === "vitoria" ? "Vitória" : "Derrota") + (p.rodada ? " · " + esc(p.rodada) : "") + " · " + dataCurta(p.data) + "</p><p><strong>" + (p.adversario ? "Contra " + esc(p.adversario) : "Partida") + '</strong></p><p class="nota">' + esc(p.placar) + "</p></div>"; }).join("") + "</div>" : '<p class="nota" style="margin-top:6px">Nenhuma partida registrada.</p>') + "</div>" : "") +
+      (r.dados.scouts ? '<div class="cartao" style="margin-top:14px"><h2>Scouts do treinador' + origemTag("estatistica") + '</h2>' + (r.dados.scouts.length ? '<div class="comp-torneios">' + r.dados.scouts.map(function (x) { return '<div class="comp-vinc"><p class="olho">' + esc(dataCurta(x.data)) + "</p><p><strong>" + esc(x.rotulo) + '</strong></p><p class="nota">' + x.resumo.pctGanhos + "% dos pontos ganhos · erros " + x.resumo.numeros.errosNos + " · protocolo " + x.resumo.numeros.pctProtocolo + "%</p></div>"; }).join("") + "</div>" : '<p class="nota" style="margin-top:6px">Nenhum scout importado.</p>') + "</div>" : "") +
+      (r.dados.diario ? '<div class="cartao" style="margin-top:14px"><h2>Diário' + origemTag("relato") + '</h2>' + (r.diarioPorRegistro ? '<p class="nota" style="margin-top:4px">O atleta compartilhou só estes registros, um a um.</p>' : "") + (r.dados.diario.length ? '<div class="comp-torneios">' + r.dados.diario.map(function (d) { return '<div class="comp-vinc"><p class="olho">' + dataCurta(d.data) + "</p><p>" + esc(d.texto) + "</p></div>"; }).join("") + "</div>" : '<p class="nota" style="margin-top:6px">Sem registros.</p>') + "</div>" : "") +
+      (r.dados.focos ? '<div class="cartao" style="margin-top:14px"><h2>Foco de treino' + origemTag("relato") + '</h2>' + (r.dados.focos.length ? '<ul class="comp-lista">' + r.dados.focos.map(function (f) { return '<li class="comp-vinc"><p><strong>' + esc(f.texto) + '</strong></p><p class="nota">' + esc(STATUS_FOCO_ROT[f.status] || f.status) + " · " + esc(f.origemRotulo || "") + "</p></li>"; }).join("") + "</ul>" : '<p class="nota" style="margin-top:6px">Nenhum foco ainda.</p>') + "</div>" : "") +
       (r.referencias ? '<div class="cartao" style="margin-top:14px"><h2>Escrever devolutiva</h2><form id="fDev" novalidate style="margin-top:8px"><div class="campo"><label for="devRef">Sobre</label><select id="devRef"><option value="geral:">Geral</option>' +
         r.referencias.torneios.map(function (t) { return '<option value="torneio:' + t.id + '">Torneio: ' + esc(t.rotulo) + "</option>"; }).join("") + r.referencias.partidas.map(function (p) { return '<option value="partida:' + p.id + '">Partida: ' + esc(p.rotulo) + "</option>"; }).join("") + "</select></div>" +
         '<div class="campo"><label for="devBem">O que foi bem</label><textarea id="devBem" rows="3" maxlength="600"></textarea></div><div class="campo"><label for="devMelhor">O que melhorar</label><textarea id="devMelhor" rows="3" maxlength="600"></textarea></div>' +
         '<div class="campo"><label for="devFoco">Foco de treino sugerido (opcional)</label><input id="devFoco" maxlength="200" placeholder="Ex.: primeiro saque em 65%"></div><div class="aviso" id="avisoDev" role="alert" hidden></div><button class="btn btn-primario" type="submit">Enviar devolutiva</button></form></div>' : "") +
-      (r.devolutivas && r.devolutivas.length ? '<h2 class="secao">' + (r.referencias ? "Suas devolutivas" : "Devolutivas do treinador") + "</h2>" + r.devolutivas.map(function (d) { return devolutivaHtml(d, r.referencias ? '<div class="acoes"><button type="button" class="btn btn-texto" data-exdev="' + d.id + '">Excluir</button></div>' : ""); }).join("") : "") +
+      (r.devolutivas && r.devolutivas.length ? '<h2 class="secao">' + (r.referencias ? "Suas devolutivas" : "Devolutivas do treinador") + origemTag("treinador") + "</h2>" + r.devolutivas.map(function (d) { return devolutivaHtml(d, r.referencias ? '<div class="acoes"><button type="button" class="btn btn-texto" data-exdev="' + d.id + '">Excluir</button></div>' : ""); }).join("") : "") +
       (r.emBreve && r.emBreve.length ? '<p class="nota" style="margin-top:14px">Compartilhado e ainda sem conteúdo nesta etapa: ' + esc(rotuloAreas(r.emBreve)) + ". Essas áreas aparecem aqui quando chegarem as próximas etapas.</p>" : ""));
     var fd = document.getElementById("fDev");
     if (fd) fd.addEventListener("submit", async function (ev) {
@@ -3506,6 +3567,7 @@
       }
     }
     var r = partes[0];
+    if (MODO_COMP && COMP_TELAS[r]) { COMP_TELAS[r].apply(null, partes.slice(1)); return; }
     if (r === "ficha") telaFicha(partes[1]);
     else if (r === "gerando" && partes[1]) telaGerando(partes[1]);
     else if ((r === "estrategia" || r === "plano") && partes[1]) telaEstrategia(partes[1]);
@@ -3540,6 +3602,14 @@
     else if (r === "ajuda") telaAjuda();
     else telaInicio();
   }
+
+  /* Competição: as telas de planejamento e acompanhamento moram em competicao/comp-plano.js e usam estas utilidades */
+  var COMP_TELAS = {};
+  window.QL_APP = {
+    tela: tela, api: api, esc: esc, ir: ir, toast: toast, ocupado: ocupado, reais: reais, dataCurta: dataCurta, dataISO: dataISO, hojeISOLocal: hojeISOLocal, botaoVoz: botaoVoz,
+    periodoTorneio: periodoTorneio, quandoTorneio: quandoTorneio, rotuloEstadoTorneio: rotuloEstadoTorneio, rotuloAreas: rotuloAreas, areasComp: function () { return AREAS_COMP; },
+    registrar: function (rota, fn) { COMP_TELAS[rota] = fn; }, atualizarHome: function () { return telaCompeticao(); },
+  };
 
   /* ── início ── */
   if (typeof firebase === "undefined") {
