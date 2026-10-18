@@ -67,6 +67,8 @@
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-auth-compat.js"></script>
 <script src="mty-nuvem.js"></script>
+<script src="scout/graficos.js"></script>
+<link rel="stylesheet" href="scout/graficos.css">
 <script crossorigin src="https://unpkg.com/@babel/standalone@7.29.9/babel.min.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
 
@@ -9778,8 +9780,16 @@ function ResumoScout({ r, sinais, aluno, alunos, setAlunos, pontos, cfg }) {
     setAlunos(alunos.map((a) => a.id === aluno.id ? { ...a, prioridades: nova } : a));
   }
 
+  const graficos = (() => {
+    try {
+      if (!window.QLScoutGraficos || !(r.n > 0)) return "";
+      const rp = montarResumoPublico({ scout: { ...r, pontos, cfg }, data: "", resultado: "" }, aluno);
+      return QLScoutGraficos.painelGeral(rp) + QLScoutGraficos.secoes(rp);
+    } catch (e) { return ""; }
+  })();
   return (
     <>
+      {graficos ? <div className="qg-app" dangerouslySetInnerHTML={{ __html: graficos }} /> : null}
       <MomentoDoJogo pontos={pontos} cfg={cfg} />
       <MapaDaQuadra pontos={pontos} />
       <Secao titulo="Onde o ponto se decidiu" nota="Cerca de 70% dos pontos do circuito terminam em até quatro bolas. É contra essa referência que se lê o jogo.">
@@ -9830,7 +9840,6 @@ function ResumoScout({ r, sinais, aluno, alunos, setAlunos, pontos, cfg }) {
         ]} larguras={["58%", "42%"]} />
       </Secao>
 
-      <DetalheScout det={r.detalhe || resume(pontos || []).detalhe} />
 
       <Secao titulo="O que este jogo aponta" nota="Leitura automática pelas regras do método. É ponto de partida para a sua conversa com o atleta, não conclusão.">
         {sinais.length === 0 ? (

@@ -25,6 +25,7 @@ for (const formato of ["3sets", "1set", "4games"]) for (const saca of ["nos", "e
   assert.deepStrictEqual(r, ref.resume(pontos)); assert.deepStrictEqual(M.leitura(r), ref.leitura(r));
   const reg = { data: "2026-10-18", torneio: "X", resultado: "6-4", concluida: true, scout: { ...r, pontos, cfg } };
   assert.deepStrictEqual(M.montarResumoPublico(reg, { nome: "Ana Souza" }), ref.montarResumoPublico(reg, { nome: "Ana Souza" }));
+  { const rp = M.montarResumoPublico({ scout: { ...r, pontos, cfg }, data: "", resultado: "" }, { nome: "Ana Souza" }), G = require(path.join(dir, "scout/graficos.js")); assert.ok(G.painelGeral(rp).includes("qg-donut") && G.secoes(rp).includes("Como os pontos terminaram"), "gráficos do relatório do treinador"); }
   assert.ok(e.fim || pontos.length === 260, "a partida termina pelas regras");
 }
 console.log("check-scout-motor: ok");
