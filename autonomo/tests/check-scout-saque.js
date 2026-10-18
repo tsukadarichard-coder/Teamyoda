@@ -60,7 +60,9 @@ const lado = Array.from({ length: 8 }, (_, i) => P({ lado: "D", nos: true })).co
 assert.ok(leitura(resume(lado)).some((s) => /igualdade/.test(s[1])), "sinal de diferença entre os lados do saque");
 console.log("check-scout-saque: ok");
 /* o resumo público leva os números novos e o servidor os conserva */
-const { limpar } = require("../netlify/functions/_scout-publico.js");
+const fx = path.join(__dirname, "../netlify/functions/");
+require.cache[require.resolve(fx + "_firebase-admin.js")] = { id: "y", filename: "y", loaded: true, exports: { admin: {}, app: () => {} } };
+const { limpar } = require(fx + "_scout-publico.js");
 const pub = limpar({ numeros: { aces: 2, acesAdv: 1, dfAdv: 3, pctPrimeiroAdv: 61, pctSacD: 70, nSacD: 10, pctSacE: 50, nSacE: 8, nAtaque: 4, pctAtaque: 75, segredo: 9 } });
 assert.strictEqual(pub.numeros.aces, 2); assert.strictEqual(pub.numeros.pctSacE, 50); assert.strictEqual(pub.numeros.pctAtaque, 75); assert.ok(!("segredo" in pub.numeros));
 console.log("check-scout-saque (público): ok");
