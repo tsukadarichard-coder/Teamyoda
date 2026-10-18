@@ -39,12 +39,15 @@
   </button>
   <nav class="lateral-nav" aria-label="Navegação principal">
     <a class="nav-item" data-nav="inicio" href="#/inicio">Início</a>
-    <a class="nav-item" data-nav="temporada" href="#/temporada">Temporada</a>
-    <a class="nav-item" data-nav="planejamento" href="#/planejamento">Meu planejamento</a>
-    <a class="nav-item" data-nav="partidas" href="#/partidas">Partidas</a>
-    <a class="nav-item" data-nav="diario" href="#/diario">Diário</a>
-    <a class="nav-item" data-nav="aquecimento" href="#/aquecimento">Aquecimento</a>
-    <a class="nav-item" data-nav="desafios" href="#/desafios">Desafios</a>
+    <a class="nav-item" data-nav="temporada" data-papeis="atleta" href="#/temporada">Temporada</a>
+    <a class="nav-item" data-nav="planejamento" data-papeis="atleta" href="#/planejamento">Meu planejamento</a>
+    <a class="nav-item" data-nav="partidas" data-papeis="atleta" href="#/partidas">Partidas</a>
+    <a class="nav-item" data-nav="diario" data-papeis="atleta" href="#/diario">Diário</a>
+    <a class="nav-item" data-nav="ao-vivo" href="#/ao-vivo">Jogo ao vivo</a>
+    <a class="nav-item" data-nav="pedidos" data-papeis="responsavel" href="#/pedidos">Pedidos e pagamentos</a>
+    <a class="nav-item" data-nav="acompanhamento" data-papeis="responsavel" href="#/acompanhamento">Acompanhamento MTY</a>
+    <a class="nav-item" data-nav="aquecimento" data-papeis="atleta" href="#/aquecimento">Aquecimento</a>
+    <a class="nav-item" data-nav="desafios" data-papeis="atleta" href="#/desafios">Desafios</a>
     <p class="nav-grupo">Conta</p>
     <a class="nav-item" data-nav="conta" href="#/conta">Meu perfil</a>
     <a class="nav-item" data-nav="ajuda" href="#/ajuda">Ajuda e suporte</a>
@@ -77,17 +80,25 @@
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9a1 1 0 0 0 1 1H9a1 1 0 0 0 1-1v-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v4a1 1 0 0 0 1 1h2.5a1 1 0 0 0 1-1v-9"/></svg>
       <span>Início</span>
     </a>
-    <a class="navinf-item" data-nav="temporada" href="#/temporada">
+    <a class="navinf-item" data-nav="temporada" data-papeis="atleta" href="#/temporada">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
       <span>Temporada</span>
     </a>
-    <a class="navinf-item" data-nav="partidas" href="#/partidas">
+    <a class="navinf-item" data-nav="partidas" data-papeis="atleta" href="#/partidas">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M5 8c4 1 10 1 14 0M5 16c4-1 10-1 14 0"/></svg>
       <span>Partidas</span>
     </a>
-    <a class="navinf-item" data-nav="diario" href="#/diario">
+    <a class="navinf-item" data-nav="diario" data-papeis="atleta" href="#/diario">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>
       <span>Diário</span>
+    </a>
+    <a class="navinf-item" data-nav="ao-vivo" data-papeis="responsavel treinador" href="#/ao-vivo">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4"/></svg>
+      <span>Ao vivo</span>
+    </a>
+    <a class="navinf-item" data-nav="pedidos" data-papeis="responsavel" href="#/pedidos">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>
+      <span>Pedidos</span>
     </a>
     <button type="button" class="navinf-item" data-nav="mais" id="btMais" aria-haspopup="dialog" aria-expanded="false" aria-controls="painelMais">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="5" cy="12" r=".6"/><circle cx="12" cy="12" r=".6"/><circle cx="19" cy="12" r=".6"/></svg>
@@ -102,15 +113,17 @@
 <!-- Painel "Mais" (celular): o que não cabe no menu inferior -->
 <div class="painel-mais" id="painelMais" role="dialog" aria-modal="true" aria-labelledby="painelMaisTitulo" hidden>
   <div class="painel-mais-topo"><h2 id="painelMaisTitulo">Mais</h2><button type="button" class="painel-fechar" id="btFecharMais" aria-label="Fechar">×</button></div>
-  <a class="painel-item" href="#/planejamento">Meu planejamento</a>
-  <a class="painel-item" href="#/acompanhamento">Acompanhamento MTY</a>
-  <a class="painel-item" href="#/devolutivas">Devolutivas</a>
-  <a class="painel-item" href="#/focos">Foco de treino</a>
-  <a class="painel-item" href="#/scouts">Scouts do treinador</a>
-  <a class="painel-item" href="#/consultorias">Consultorias avulsas</a>
-  <a class="painel-item" href="#/pedidos">Meus pedidos</a>
-  <a class="painel-item" href="#/aquecimento">Aquecimento</a>
-  <a class="painel-item" href="#/desafios">Desafios</a>
+  <a class="painel-item" data-papeis="treinador responsavel" href="#/ao-vivo">Jogo ao vivo</a>
+  <a class="painel-item" data-papeis="atleta" href="#/ao-vivo">Jogo ao vivo</a>
+  <a class="painel-item" data-papeis="atleta" href="#/planejamento">Meu planejamento</a>
+  <a class="painel-item" data-papeis="atleta responsavel" href="#/acompanhamento">Acompanhamento MTY</a>
+  <a class="painel-item" data-papeis="atleta" href="#/devolutivas">Devolutivas</a>
+  <a class="painel-item" data-papeis="atleta" href="#/focos">Foco de treino</a>
+  <a class="painel-item" data-papeis="atleta" href="#/scouts">Scouts do treinador</a>
+  <a class="painel-item" data-papeis="atleta responsavel" href="#/consultorias">Consultorias avulsas</a>
+  <a class="painel-item" data-papeis="atleta responsavel" href="#/pedidos">Meus pedidos</a>
+  <a class="painel-item" data-papeis="atleta" href="#/aquecimento">Aquecimento</a>
+  <a class="painel-item" data-papeis="atleta" href="#/desafios">Desafios</a>
   <a class="painel-item" href="#/conta">Meu perfil</a>
   <a class="painel-item" href="#/ajuda">Ajuda e suporte</a>
   <a class="painel-item" data-link="termos" href="#" target="_blank" rel="noopener" hidden>Termos de uso<span class="sr"> (abre em nova aba)</span></a>

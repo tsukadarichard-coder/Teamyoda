@@ -224,3 +224,19 @@ body.comp .voz-aviso p { margin: 4px 0 0; }
 .sc-log li .q.v { color: #2E8B57; } .sc-log li .q.c { color: #C8102E; }
 .sc-log li small { display: block; color: var(--grafite); font-size: 12.5px; }
 .sc-log li.marco { background: #EEF3FF; border-radius: 8px; border-bottom: 0; margin: 4px 0; font-weight: 800; }
+
+/* menu por papel e aviso de pendência no Início */
+[data-papeis][hidden] { display: none !important; }
+.navinf-item[data-badge], .nav-item[data-badge] { position: relative; }
+.navinf-item[data-badge]::after { content: attr(data-badge); position: absolute; top: 4px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #C8102E; color: #fff; font: 700 11px/18px "DM Sans", system-ui, sans-serif; text-align: center; }
+.nav-item[data-badge]::after { content: attr(data-badge); margin-left: 8px; display: inline-block; min-width: 20px; padding: 0 6px; border-radius: 10px; background: #C8102E; color: #fff; font: 700 12px/20px "DM Sans", system-ui, sans-serif; text-align: center; }
+
+/* cartão do atleta no Início do responsável e do treinador */
+.atleta-card { border-left: 6px solid var(--saibro); }
+.atleta-card h2 { margin-top: 2px; }
+.ac-bloco { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--linha); }
+.ac-bloco:first-of-type { border-top: 0; padding-top: 0; }
+.ac-bloco .beneficios { margin-top: 6px; }
+.chips-atalho { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
+.chips-atalho a { min-height: 40px; padding: 8px 14px; border-radius: 999px; border: 1.5px solid #C9D3CD; background: #fff; color: var(--tinta); font-weight: 600; font-size: 14.5px; text-decoration: none; display: inline-flex; align-items: center; }
+#detCodigo > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; gap: 8px; }
