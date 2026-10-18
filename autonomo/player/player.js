@@ -88,12 +88,61 @@
   function ir(rota) { if (location.hash === rota) rotear(); else location.hash = rota; }
   /* Troca o conteúdo. Ao voltar de um detalhe a posição de rolagem anterior é restaurada;
      em qualquer outra navegação a tela começa no topo. `provisoria` = "Carregando…" (não consome a restauração). */
+  /* ── vídeo da partida: abre o player do próprio YouTube, Vimeo ou Google Drive dentro da página, só quando a pessoa toca em "Assistir aqui".
+     O aplicativo guarda apenas o endereço; o vídeo continua na plataforma de origem. Outros endereços abrem em nova aba. ── */
+  function embedDeVideo(url) {
+    var u; try { u = new URL(String(url || "")); } catch (e) { return null; }
+    if (u.protocol !== "https:") return null;
+    var h = u.hostname.replace(/^www\./, "").replace(/^m\./, ""), id = "", m;
+    function segundos(t) { if (!t) return 0; var r = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s?)?$/.exec(t); return r ? (+r[1] || 0) * 3600 + (+r[2] || 0) * 60 + (+r[3] || 0) : 0; }
+    if (h === "youtu.be") id = u.pathname.slice(1).split("/")[0];
+    else if (h === "youtube.com" || h === "music.youtube.com") { id = u.searchParams.get("v") || ((m = /^\/(?:embed|shorts|live|v)\/([^/?]+)/.exec(u.pathname)) ? m[1] : ""); }
+    if (id) {
+      if (!/^[A-Za-z0-9_-]{11}$/.test(id)) return null;
+      var ini = segundos(u.searchParams.get("t") || u.searchParams.get("start") || "");
+      return { provedor: "YouTube", src: "https://www.youtube-nocookie.com/embed/" + id + "?rel=0&playsinline=1" + (ini ? "&start=" + ini : "") };
+    }
+    if (h === "vimeo.com" || h === "player.vimeo.com") {
+      m = /^\/(?:video\/)?(\d{6,12})(?:\/([0-9a-f]{6,20}))?/.exec(u.pathname);
+      if (m) return { provedor: "Vimeo", src: "https://player.vimeo.com/video/" + m[1] + (m[2] || u.searchParams.get("h") ? "?h=" + (m[2] || u.searchParams.get("h")) : "") };
+    }
+    if (h === "drive.google.com") {
+      m = /^\/file\/d\/([A-Za-z0-9_-]{10,80})/.exec(u.pathname);
+      if (m) return { provedor: "Google Drive", src: "https://drive.google.com/file/d/" + m[1] + "/preview" };
+    }
+    return null;
+  }
+  function videoHtml(url, rotulo) {
+    if (!url) return "";
+    var e = embedDeVideo(url), seguro = esc(url);
+    return '<div class="video-bloco"' + (e ? ' data-video-src="' + esc(e.src) + '" data-video-titulo="' + esc(rotulo || "Vídeo da partida") + '"' : "") + '><div class="acoes">' +
+      (e ? '<button type="button" class="btn btn-primario btn-pequeno" data-video-abrir>Assistir aqui</button>' : "") +
+      '<a class="btn btn-secundario btn-pequeno" href="' + seguro + '" target="_blank" rel="noopener noreferrer nofollow">Abrir em nova aba<span class="sr"> (abre em nova aba)</span></a></div>' +
+      (e ? '<p class="nota" style="margin-top:6px">O vídeo é reproduzido pelo ' + esc(e.provedor) + ', que pode registrar a visualização. Nada é carregado antes de você tocar em “Assistir aqui”.</p>' : '<p class="nota" style="margin-top:6px">Este endereço abre no site de origem.</p>') + '<div class="video-quadro" hidden></div></div>';
+  }
+  function ligarVideos() {
+    Array.prototype.forEach.call(app.querySelectorAll("[data-video-src]"), function (bloco) {
+      var bt = bloco.querySelector("[data-video-abrir]"), quadro = bloco.querySelector(".video-quadro");
+      if (!bt || !quadro || bt.getAttribute("data-ligado")) return;
+      bt.setAttribute("data-ligado", "1");
+      bt.addEventListener("click", function () {
+        if (!quadro.hidden) { quadro.textContent = ""; quadro.hidden = true; bt.textContent = "Assistir aqui"; return; }
+        var f = document.createElement("iframe");
+        f.src = bloco.getAttribute("data-video-src"); f.title = bloco.getAttribute("data-video-titulo");
+        f.setAttribute("allow", "fullscreen; picture-in-picture; encrypted-media"); f.setAttribute("allowfullscreen", ""); f.setAttribute("referrerpolicy", "strict-origin-when-cross-origin");
+        f.setAttribute("sandbox", "allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox"); f.loading = "lazy";
+        quadro.textContent = ""; quadro.appendChild(f); quadro.hidden = false; bt.textContent = "Fechar vídeo";
+      });
+    });
+  }
+
   function tela(html, provisoria) {
     pararVoz();
     /* Competição: botões sem setas — o "‹" do link de voltar vira texto */
     if (MODO_COMP) html = html.replace(/>‹ Voltar([^<]*)</g, ">Voltar$1<").replace(/>‹ ([^<]+)</g, ">Voltar para $1<");
     app.innerHTML = html;
     ligarVoz();
+    ligarVideos();
     document.body.classList.remove("teclado"); // o campo que estava em foco pode ter sumido com a tela anterior
     var y = 0;
     if (!provisoria && voltando) { y = posicoes[location.hash] || 0; voltando = false; }
@@ -2353,7 +2402,7 @@
         '<div id="relatorios">' + relatoriosHtml(lista, estado.dados.relatorios, relDias) + "</div>" +
         '<div class="cartao lista-estrategias" style="margin-top:14px">' + lista.map(function (p) {
           return '<a class="item-estrategia" href="#/partidas/' + esc(p.id) + '"><span class="tag' + (p.resultado === "vitoria" ? "" : " tag-adv") + '">' + esc(op.resultados[p.resultado] || "") + "</span> <strong>" + esc(p.adversario || "Sem adversário informado") + "</strong>" +
-            '<span class="nota" style="display:block">' + esc(dataCurta(p.data)) + " · " + esc(op.tipos[p.tipo] || "") + (p.placar ? " · " + esc(p.placar) : "") + (p.videoLink ? " · com vídeo" : "") + (p.planoTitulo ? " · " + esc(tituloCurto(p.planoTitulo)) : "") + "</span></a>";
+            '<span class="nota" style="display:block">' + esc(dataCurta(p.data)) + " · " + esc(op.tipos[p.tipo] || "") + (p.placar ? " · " + esc(p.placar) : "") + (MODO_COMP && p.videoLink ? " · com vídeo" : "") + (p.planoTitulo ? " · " + esc(tituloCurto(p.planoTitulo)) : "") + "</span></a>";
         }).join("") + "</div>";
     }
     tela(html);
@@ -2400,7 +2449,7 @@
       '<details class="det" style="margin-bottom:16px"' + (ed && (ed.funcionou.length || ed.naoFuncionou.length || ed.dificuldades.length || ed.positivos.length || ed.obs) ? " open" : "") + '><summary>Avaliação detalhada (opcional)</summary><div style="margin-top:12px">' +
         grupo("funcionou", "O que funcionou") + grupo("naoFuncionou", "O que não funcionou") + grupo("dificuldades", "Principais dificuldades") + grupo("positivos", "Pontos positivos") +
         '<div class="campo"><label for="pObs">Observações adicionais</label><textarea id="pObs" maxlength="500">' + esc(p.obs || "") + "</textarea>" + botaoVoz("pObs") + "</div></div></details>" +
-        '<div class="campo"><label for="pVideo">Link do vídeo <span class="nota">(opcional)</span></label><input id="pVideo" type="url" inputmode="url" maxlength="300" autocomplete="off" placeholder="https://" value="' + esc(p.videoLink || "") + '"><p class="nota" style="margin-top:6px">Cole o link de um vídeo da partida (por exemplo, YouTube “não listado” ou Google Drive com acesso liberado). O aplicativo guarda só o endereço, não o vídeo. Treinadores e responsáveis que você autorizou a ver suas partidas verão o link. Prefira um link que só quem o recebe consegue abrir.</p></div>' +
+        (MODO_COMP ? '<div class="campo"><label for="pVideo">Link do vídeo <span class="nota">(opcional)</span></label><input id="pVideo" type="url" inputmode="url" maxlength="300" autocomplete="off" placeholder="https://" value="' + esc(p.videoLink || "") + '"><p class="nota" style="margin-top:6px">Cole o link de um vídeo da partida (por exemplo, YouTube “não listado” ou Google Drive com acesso liberado). O aplicativo guarda só o endereço, não o vídeo. Treinadores e responsáveis que você autorizou a ver suas partidas verão o link. Prefira um link que só quem o recebe consegue abrir.</p>' + videoHtml(p.videoLink, "Vídeo desta partida") + '</div>' : "") +
       '<div id="pErro" class="aviso" role="alert" hidden></div>' +
       '<button class="btn btn-primario btn-grande" type="submit" id="btSalvarPartida">' + (ed ? "Salvar correção" : "Salvar partida") + "</button>" +
       (ed && MODO_COMP && (ed.dificuldades || []).length ? '<button class="btn btn-laranja largo" type="button" id="btLevarTreino" style="margin-top:12px">Levar as dificuldades para o treino</button>' : "") +
@@ -2433,7 +2482,7 @@
       var erro = document.getElementById("pErro"), bt = document.getElementById("btSalvarPartida");
       var corpo = { acao: "salvarPartida", id: ed ? ed.id : novoId(), data: document.getElementById("pData").value, resultado: unico("resultado"), tipo: unico("tipo") || "treino", superficie: unico("superficie") || null,
         placar: document.getElementById("pPlacar").value, adversario: document.getElementById("pAdv").value, planoId: document.getElementById("pPlano") ? document.getElementById("pPlano").value || null : null,
-        execucao: unico("execucao") ? parseInt(unico("execucao"), 10) : null, obs: document.getElementById("pObs").value, videoLink: document.getElementById("pVideo").value,
+        execucao: unico("execucao") ? parseInt(unico("execucao"), 10) : null, obs: document.getElementById("pObs").value, videoLink: document.getElementById("pVideo") ? document.getElementById("pVideo").value : (ed ? ed.videoLink || "" : ""),
         torneioId: (document.getElementById("pTorneio") ? document.getElementById("pTorneio").value : torneioSel) || null, rodada: document.getElementById("pRodadaP") ? document.getElementById("pRodadaP").value : rodadaSel,
         preparoId: document.getElementById("pPrepSel") ? document.getElementById("pPrepSel").value || null : (ed ? ed.preparoId || null : null) };
       ["funcionou", "naoFuncionou", "dificuldades", "positivos"].forEach(function (c) { corpo[c] = marcados(c); });
@@ -3523,7 +3572,7 @@
       (perfil ? '<div class="cartao" style="margin-top:14px"><h2>Perfil de jogador</h2>' + (perfil.length ? '<dl class="comp-perfil">' + perfil.map(function (p) { return "<dt>" + esc(p.rotulo) + "</dt><dd>" + esc(p.valor) + "</dd>"; }).join("") + "</dl>" : '<p class="nota" style="margin-top:6px">O atleta ainda não preencheu o perfil.</p>') + "</div>" : "") +
       (r.dados.torneios ? '<div class="cartao" style="margin-top:14px"><h2>Temporada e torneios</h2>' + (r.dados.torneios.length ? '<div class="comp-torneios">' + r.dados.torneios.map(function (t) { return '<div class="comp-vinc"><p class="olho">' + esc(rotuloEstadoTorneio(t.estado)) + " · " + esc(quandoTorneio(t)) + "</p><p><strong>" + esc(t.nome) + '</strong></p><p class="nota">' + esc(periodoTorneio(t)) + (t.cidade ? " · " + esc(t.cidade) : "") + (t.categoria ? " · " + esc(t.categoria) : "") + "</p>" + prazoTorneioHtml(t) + "</div>"; }).join("") + "</div>" : '<p class="nota" style="margin-top:6px">Nenhum torneio cadastrado ainda.</p>') + "</div>" : "") +
       (r.dados.preparos ? '<div class="cartao" style="margin-top:14px"><h2>Estratégia por partida' + origemTag("relato") + '</h2>' + (r.dados.preparos.length ? '<div class="comp-torneios">' + r.dados.preparos.map(function (p) { return '<div class="comp-vinc"><p class="olho">' + esc(p.rodada || "Partida") + (p.data ? " · " + dataCurta(p.data) : "") + "</p><p><strong>" + (p.adversario ? "Contra " + esc(p.adversario) : "Preparação") + "</strong></p>" + (p.prioridades && p.prioridades.length ? '<ol class="comp-prior">' + p.prioridades.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ol>" : "") + (p.padrao ? '<p class="nota">Padrão: ' + esc(p.padrao) + "</p>" : "") + (p.hipoteses ? '<p class="nota">Expectativa: ' + esc(p.hipoteses) + "</p>" : "") + "</div>"; }).join("") + "</div>" : '<p class="nota" style="margin-top:6px">Nenhuma preparação ainda.</p>') + "</div>" : "") +
-      (r.dados.partidas ? '<div class="cartao" style="margin-top:14px"><h2>Partidas' + origemTag("relato") + '</h2><p class="nota" style="margin-top:4px">Resultado e avaliação como o atleta registrou. Não é análise de vídeo.</p>' + (r.dados.partidas.length ? '<div class="comp-torneios">' + r.dados.partidas.map(function (p) { return '<div class="comp-vinc"><p class="olho">' + (p.resultado === "vitoria" ? "Vitória" : "Derrota") + (p.rodada ? " · " + esc(p.rodada) : "") + " · " + dataCurta(p.data) + "</p><p><strong>" + (p.adversario ? "Contra " + esc(p.adversario) : "Partida") + '</strong></p><p class="nota">' + esc(p.placar) + "</p>" + (p.video ? '<div class="acoes"><a class="btn btn-secundario btn-pequeno" href="' + esc(p.video) + '" target="_blank" rel="noopener noreferrer nofollow">Abrir vídeo<span class="sr"> (abre em nova aba)</span></a></div>' : "") + "</div>"; }).join("") + "</div>" : '<p class="nota" style="margin-top:6px">Nenhuma partida registrada.</p>') + "</div>" : "") +
+      (r.dados.partidas ? '<div class="cartao" style="margin-top:14px"><h2>Partidas' + origemTag("relato") + '</h2><p class="nota" style="margin-top:4px">Resultado e avaliação como o atleta registrou. Não é análise de vídeo.</p>' + (r.dados.partidas.length ? '<div class="comp-torneios">' + r.dados.partidas.map(function (p) { return '<div class="comp-vinc"><p class="olho">' + (p.resultado === "vitoria" ? "Vitória" : "Derrota") + (p.rodada ? " · " + esc(p.rodada) : "") + " · " + dataCurta(p.data) + "</p><p><strong>" + (p.adversario ? "Contra " + esc(p.adversario) : "Partida") + '</strong></p><p class="nota">' + esc(p.placar) + "</p>" + videoHtml(p.video, "Vídeo da partida" + (p.adversario ? " contra " + p.adversario : "")) + "</div>"; }).join("") + "</div>" : '<p class="nota" style="margin-top:6px">Nenhuma partida registrada.</p>') + "</div>" : "") +
       (r.dados.scouts ? '<div class="cartao" style="margin-top:14px"><h2>Scouts do treinador' + origemTag("estatistica") + '</h2>' + (r.dados.scouts.length ? '<div class="comp-torneios">' + r.dados.scouts.map(function (x) { return '<div class="comp-vinc"><p class="olho">' + esc(dataCurta(x.data)) + "</p><p><strong>" + esc(x.rotulo) + '</strong></p><p class="nota">' + x.resumo.pctGanhos + "% dos pontos ganhos · erros " + x.resumo.numeros.errosNos + " · protocolo " + x.resumo.numeros.pctProtocolo + "%</p></div>"; }).join("") + "</div>" : '<p class="nota" style="margin-top:6px">Nenhum scout importado.</p>') + "</div>" : "") +
       (r.dados.diario ? '<div class="cartao" style="margin-top:14px"><h2>Diário' + origemTag("relato") + '</h2>' + (r.diarioPorRegistro ? '<p class="nota" style="margin-top:4px">O atleta compartilhou só estes registros, um a um.</p>' : "") + (r.dados.diario.length ? '<div class="comp-torneios">' + r.dados.diario.map(function (d) { return '<div class="comp-vinc"><p class="olho">' + dataCurta(d.data) + "</p><p>" + esc(d.texto) + "</p></div>"; }).join("") + "</div>" : '<p class="nota" style="margin-top:6px">Sem registros.</p>') + "</div>" : "") +
       (r.dados.focos ? '<div class="cartao" style="margin-top:14px"><h2>Foco de treino' + origemTag("relato") + '</h2>' + (r.dados.focos.length ? '<ul class="comp-lista">' + r.dados.focos.map(function (f) { return '<li class="comp-vinc"><p><strong>' + esc(f.texto) + '</strong></p><p class="nota">' + esc(STATUS_FOCO_ROT[f.status] || f.status) + " · " + esc(f.origemRotulo || "") + "</p></li>"; }).join("") + "</ul>" : '<p class="nota" style="margin-top:6px">Nenhum foco ainda.</p>') + "</div>" : "") +
