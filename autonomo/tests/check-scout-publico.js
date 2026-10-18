@@ -38,3 +38,14 @@ const chama = async (q) => { const r = await handler({ httpMethod: "GET", queryS
   assert.strictEqual((await handler({ httpMethod: "POST", queryStringParameters: base })).statusCode, 405);
   console.log("check-scout-publico: ok");
 })().catch((e) => { console.error(e); process.exit(1); });
+
+/* contagem ponto a ponto: o terceiro e o quarto item são opcionais e saneados */
+{
+  const { limpar } = require("../netlify/functions/_scout-publico");
+  const r = limpar({ serie: [[1, 0, "30-15", "winner_nos"], [0, 0, "<b>Game 1-0 muito longo demais</b>", "invalido"], [1, 1]] });
+  assert.deepStrictEqual(r.serie[0], [1, 0, "30-15", "winner_nos"]);
+  assert.strictEqual(r.serie[1][2].length, 14, "contagem limitada");
+  assert.strictEqual(r.serie[1][3], "", "fim fora da lista é descartado");
+  assert.deepStrictEqual(r.serie[2], [1, 1], "link antigo continua com dois itens");
+  console.log("contagem ponto a ponto ok");
+}

@@ -38,6 +38,21 @@ td:last-child, th:last-child { text-align: right; }
 .sinal { border-left: 4px solid var(--saibro); padding: 2px 0 2px 12px; margin: 12px 0; }
 .aviso { margin-top: 14px; padding: 12px 14px; border-radius: 12px; background: #EEF6E8; border: 1px solid #CBE3B8; color: #234A12; font-size: 14.5px; }
 footer { margin-top: 22px; font-size: 13px; color: var(--grafite); text-align: center; }
+.agora { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 10px 0 4px; }
+.agora .gr { font: 800 44px/1 system-ui, sans-serif; letter-spacing: -.02em; color: var(--verde); }
+.agora .gl { font-size: 12.5px; color: var(--grafite); font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.pts { display: flex; gap: 4px; flex-wrap: wrap; margin: 6px 0 2px; }
+.pts i { width: 14px; height: 14px; border-radius: 50%; background: var(--contra); }
+.pts i.v { background: var(--verde); }
+.log { list-style: none; margin: 10px 0 0; padding: 0; }
+.log li { display: grid; grid-template-columns: 34px 1fr auto; gap: 8px; align-items: center; padding: 8px 4px; border-bottom: 1px solid var(--linha); font-size: 14.5px; }
+.log li .n { color: var(--grafite); font-size: 12.5px; font-weight: 700; }
+.log li .q { font-weight: 800; font-variant-numeric: tabular-nums; }
+.log li .q.v { color: var(--verde); } .log li .q.c { color: var(--contra); }
+.log li small { display: block; color: var(--grafite); font-size: 12.5px; }
+.log li.marco { background: #F1F6F3; border-radius: 8px; border-bottom: 0; margin: 4px 0; font-weight: 800; }
+.vermais { margin-top: 10px; font: 700 13px system-ui, sans-serif; padding: 9px 14px; border-radius: 10px; border: 1.5px solid var(--linha); background: #fff; color: var(--tinta); cursor: pointer; min-height: 40px; }
+.espera { text-align: center; color: var(--grafite); padding: 22px 8px; }
 .erro { margin: 40px 0; text-align: center; }
 .selo { margin-top: 10px; font-size: 13px; font-weight: 700; opacity: .92; display: flex; align-items: center; gap: 8px; }
 .selo.vivo i { width: 9px; height: 9px; border-radius: 50%; background: #ff5a5a; box-shadow: 0 0 0 0 rgba(255,90,90,.7); animation: pulso 1.6s infinite; }
@@ -188,6 +203,42 @@ footer { margin-top: 22px; font-size: 13px; color: var(--grafite); text-align: c
     return box;
   }
   var ROT_ZONA = { "D-REDE": "Direita · rede", "D-APR": "Direita · aproximação", "D-FUNDO": "Direita · fundo", "E-REDE": "Esquerda · rede", "E-APR": "Esquerda · aproximação", "E-FUNDO": "Esquerda · fundo" };
+  
+  var verTodos = false;
+  /* contagem ponto a ponto: o mais recente em cima, com a pontuação depois de cada ponto, os games e os sets */
+  function secaoContagem(p) {
+    var serie = p.serie || [], box = el("section"), FIM_ROT = { winner_nos: "Winner de " + p.atleta, erro_dele: "Erro do adversário", erro_nos: "Erro de " + p.atleta, winner_dele: "Winner do adversário" };
+    function montar() {
+      box.textContent = "";
+      box.appendChild(el("h2", { texto: "Contagem ponto a ponto" }));
+      if (!serie.length) { box.appendChild(el("p", { cls: "espera", texto: "Aguardando o primeiro ponto…" })); return; }
+      var ult = serie[serie.length - 1], tem = ult.length > 2 && ult[2];
+      if (tem) {
+        var atual = /^(Game|Set)/.test(ult[2]) ? "0-0" : ult[2];
+        box.appendChild(el("div", { cls: "agora" }, [el("div", {}, [el("div", { cls: "gl", texto: p.concluida ? "Último ponto" : "Pontos do game" }), el("div", { cls: "gr", texto: p.concluida ? ult[2] : atual })]), el("div", { cls: "gl", style: "text-align:right", texto: "Games e sets: " + (p.resultado && p.resultado !== "—" ? p.resultado : "—") })]));
+      }
+      var dots = el("div", { cls: "pts", role: "img", "aria-label": "Últimos pontos: verde ganhos por " + p.atleta + ", vermelho ganhos pelo adversário" });
+      serie.slice(-12).forEach(function (x) { dots.appendChild(el("i", { cls: x[0] ? "v" : "" })); });
+      box.appendChild(dots);
+      box.appendChild(el("p", { cls: "nota", texto: "Cada ponto, do mais recente para o mais antigo. A pontuação mostrada é a de depois do ponto." }));
+      var lista = el("ol", { cls: "log" }), ini = verTodos ? 0 : Math.max(0, serie.length - 30);
+      for (var i = serie.length - 1; i >= ini; i--) {
+        var x = serie[i], marco = /^(Game|Set)/.test(x[2] || "");
+        var q = el("span", { cls: "q " + (x[0] ? "v" : "c"), texto: x[2] || "" });
+        var quem = x[0] ? "Ponto de " + p.atleta : "Ponto do adversário";
+        var li = el("li", { cls: marco ? "marco" : "" }, [el("span", { cls: "n", texto: "#" + (i + 1) }), el("span", {}, [document.createTextNode(quem), FIM_ROT[x[3]] ? el("small", { texto: FIM_ROT[x[3]] }) : null]), q]);
+        lista.appendChild(li);
+      }
+      box.appendChild(lista);
+      if (serie.length > 30) {
+        var b = el("button", { type: "button", cls: "vermais", texto: verTodos ? "Mostrar só os 30 mais recentes" : "Mostrar todos os " + serie.length + " pontos" });
+        b.addEventListener("click", function () { verTodos = !verTodos; montar(); });
+        box.appendChild(b);
+      }
+    }
+    montar();
+    return box;
+  }
   function secaoMapa(p) {
     var z = p.zonas || {}, total = 0;
     Object.keys(z).forEach(function (k) { total += z[k].n; });
@@ -244,7 +295,7 @@ footer { margin-top: 22px; font-size: 13px; color: var(--grafite); text-align: c
     document.getElementById("meta").textContent = [dataBR(p.data), p.torneio, p.concluida || p.aoVivo ? "" : "Acompanhamento interrompido"].filter(Boolean).join(" · ");
     if (p.resultado && p.resultado !== "—") { var pl = document.getElementById("placar"); pl.textContent = p.resultado; pl.hidden = false; }
     cont.textContent = "";
-    [secaoMomento(p), secaoMapa(p), secaoBolas(p), secaoNumeros(p), secaoSinais(p)].forEach(function (x) { if (x) cont.appendChild(x); });
+    [secaoContagem(p), secaoMomento(p), p.n > 0 ? secaoNumeros(p) : null, p.n > 0 ? secaoBolas(p) : null, secaoMapa(p), p.n > 0 ? secaoSinais(p) : null].forEach(function (x) { if (x) cont.appendChild(x); });
     cont.appendChild(el("p", { cls: "aviso", texto: "Um jogo é uma amostra. Três jogos na mesma direção são um sinal; um jogo isolado é ruído. O que importa é o padrão que se repete." }));
     cont.appendChild(el("footer", { texto: token ? "Compartilhado pelo treinador no QuadraLab. Esta página se atualiza sozinha enquanto a partida acontece; o link expira em algumas horas e pode ser desativado pelo treinador." : "Compartilhado pelo treinador no QuadraLab. Este link vale até " + dataBR(ate) + " e pode ser desativado pelo treinador a qualquer momento." }));
     if (token) { window.scrollTo(0, sy); return; }
@@ -284,7 +335,8 @@ footer { margin-top: 22px; font-size: 13px; color: var(--grafite); text-align: c
         })
         .catch(function (e) {
           if (e.status === 404 || e.status === 410) { clearTimeout(timer); erro("Este acompanhamento foi encerrado pelo treinador ou expirou."); return; }
-          falhas++; selo("Reconectando…", false);
+          falhas++; selo("Reconectando… (" + (e.status ? "erro " + e.status : "sem conexão") + ")", false);
+          if (!versao) { document.getElementById("titulo").textContent = "Conectando ao jogo…"; cont.textContent = ""; cont.appendChild(el("p", { cls: "espera", texto: "Ainda não consegui abrir o acompanhamento" + (e.status ? " (erro " + e.status + (e.message ? ": " + e.message : "") + ")" : "; verifique a internet") + ". Vou tentar de novo automaticamente." })); }
           timer = setTimeout(buscar, Math.min(30000, 4000 * falhas));
         });
     };

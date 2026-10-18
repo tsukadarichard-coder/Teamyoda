@@ -13,6 +13,7 @@ function iguais(a, b) {
 }
 const hojeISO = () => new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
 const txt = (v, n) => String(v == null ? "" : v).slice(0, n);
+const FINS = ["winner_nos", "erro_dele", "erro_nos", "winner_dele"];
 const num = (v) => (Number.isFinite(+v) ? Math.round(+v * 10) / 10 : 0);
 
 function limpar(p) {
@@ -27,7 +28,12 @@ function limpar(p) {
     bolas: ob(p.bolas, ["pctCurtos", "pctMedios", "pctLongos", "pctAte4"]),
     numeros: ob(p.numeros, ["errosNos", "errosDecisao", "errosExec", "df", "pctProtocolo", "rede", "redeGanha", "ataquePerdido", "pctAdversos"]),
     zonas,
-    serie: (Array.isArray(p.serie) ? p.serie : []).slice(0, 600).map((x) => [x && x[0] ? 1 : 0, Math.max(0, Math.min(4, Math.floor(+(x && x[1]) || 0)))]),
+    /* cada ponto: [ganhou o atleta (0/1), set, contagem depois do ponto ("30-15", "Game 3-2", "Set 6-4"), como terminou]; os dois últimos são opcionais (links antigos não têm) */
+    serie: (Array.isArray(p.serie) ? p.serie : []).slice(0, 600).map((x) => {
+      const r = [x && x[0] ? 1 : 0, Math.max(0, Math.min(4, Math.floor(+(x && x[1]) || 0)))];
+      if (x && (x[2] != null || x[3] != null)) r.push(txt(x[2], 14), FINS.indexOf(x[3]) >= 0 ? x[3] : "");
+      return r;
+    }),
     sinais: (Array.isArray(p.sinais) ? p.sinais : []).slice(0, 12).map((s) => txt(s, 500)),
   };
 }
