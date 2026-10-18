@@ -69,6 +69,30 @@ const ano = +hoje.slice(0, 4);
   const ac = await G({ secao: "academias" }); assert.strictEqual(ac.academias[0].alunos, 3); assert.strictEqual(ac.academias[0].pendentes, 1); assert.strictEqual(ac.academias[0].equipe, 1); assert.strictEqual(ac.academias[0].vencida, true);
   const sis = await G({ secao: "sistema" }); assert.strictEqual(sis.s, 200); assert.ok(!sis.raw.includes("VALOR-SECRETO-XYZ") && !sis.raw.includes("NUNCA-VAZAR"), "configuração nunca devolve valores");
   assert.strictEqual(sis.itens.find((i) => i.chave === "ANTHROPIC_API_KEY").ok, true); assert.strictEqual(sis.itens.find((i) => i.chave === "WEBHOOK_EDUZZ_SECRET").ok, false);
+  store["webhooksEduzzProcessados/f9|myeduzz.invoice_paid"] = { evento: "myeduzz.invoice_paid", email: "ana@exemplo.com", processadoEm: hoje + "T10:00:00.000Z" };
+  store["webhooksEduzzProcessados/f9|myeduzz.invoice_refunded"] = { evento: "myeduzz.invoice_refunded", email: "ana@exemplo.com", processadoEm: hoje + "T11:00:00.000Z" };
+  store["webhooksEduzzProcessados/c9|myeduzz.invoice_paid"] = { evento: "myeduzz.invoice_paid", email: "x@y.com", processadoEm: mais(-40) + "T11:00:00.000Z", tipo: "consultoria" };
+  store["financeiroLancamentos/l1aaaaaa"] = { tipo: "despesa", data: hoje, valorCentavos: 5000, categoria: "ferramentas", produto: "geral", descricao: "Hospedagem" };
+  store["financeiroLancamentos/l2aaaaaa"] = { tipo: "receita", data: hoje, valorCentavos: 12000, categoria: "eduzz", produto: "player", descricao: "Vendas Eduzz do mês" };
+
+  const en = await G({ secao: "entradas", dias: "365" }); assert.strictEqual(en.s, 200);
+  assert.ok(en.eventos.some((e) => e.tipo === "conta" && /Ana Souza/.test(e.texto)) && en.eventos.some((e) => e.tipo === "vinculo") && en.eventos.some((e) => e.tipo === "pedido") && en.eventos.some((e) => e.tipo === "academia"), "linha do tempo reúne contas, vínculos, pedidos e academias");
+  assert.strictEqual(en.resumo.hoje, 1); assert.strictEqual(en.resumo.total, 4); assert.ok(en.serieContas.length === 12);
+  assert.ok(!en.raw.includes("ana@exemplo.com") && !en.raw.includes("SEGREDO DO DIÁRIO"), "entradas: e-mail mascarado e sem conteúdo pessoal");
+  assert.ok((await G({ secao: "entradas", dias: "90", tipo: "pedido" })).eventos.every((e) => e.tipo === "pedido"), "filtro por tipo");
+  assert.strictEqual((await G({ secao: "entradas", dias: "1" })).eventos.some((e) => e.tipo === "conta" && /Só Player/.test(e.texto)), false, "janela de dias");
+
+  const ez = await G({ secao: "eduzz" }); assert.strictEqual(ez.s, 200);
+  assert.strictEqual(ez.total, 3); assert.strictEqual(ez.ultimos30, 2); assert.ok(ez.porEvento.some((e) => e.rotulo === "Reembolso" && e.n === 1));
+  assert.strictEqual(ez.porMes[ez.porMes.length - 1].pago, 1); assert.strictEqual(ez.porMes[ez.porMes.length - 1].reembolso, 1);
+  assert.strictEqual(ez.semPedido.length, 1); assert.ok(ez.academias.length >= 0 && /não traz valores/.test(ez.avisoValores)); assert.ok(!ez.raw.includes("ana@exemplo.com"), "eduzz: e-mail mascarado");
+
+  const fi = await G({ secao: "financeiro" }); assert.strictEqual(fi.s, 200);
+  assert.strictEqual(fi.linhas.length, 12); assert.strictEqual(fi.mesAtual.despesa, 5000);
+  assert.ok(fi.mesAtual.receita >= 12000, "receita manual entra"); assert.strictEqual(fi.mesAtual.resultado, fi.mesAtual.receita - 5000);
+  assert.ok(fi.porProduto.some((p) => p.produto === "player" && p.receita === 12000) && fi.despesasPorCategoria[0].valorCentavos === 5000);
+  assert.ok(fi.movimentos.some((m) => m.automatico) && fi.movimentos.some((m) => !m.automatico), "automáticos e manuais juntos");
+  assert.ok(fi.aReceberCentavos > 0);
   assert.strictEqual((await G({ secao: "nada" })).s, 400);
   console.log("check-admin-painel: ok");
 })().catch((e) => { console.error(e); process.exit(1); });

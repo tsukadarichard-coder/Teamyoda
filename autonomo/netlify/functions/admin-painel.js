@@ -6,6 +6,9 @@
    GET ?secao=usuarios&q=&papel=&pagina= → contas do Player/Competição (sem conteúdo pessoal)
    GET ?secao=usuario&uid=              → uma conta: papel, assinatura, vínculos, pedidos e contagens (nunca o conteúdo de diário, partidas ou planos)
    GET ?secao=academias                 → academias do app do treinador (plano, validade, jogadores, pedidos de acesso pendentes)
+   GET ?secao=entradas&tipo=&dias=       → quem entrou e o que chegou (contas, vínculos, pedidos, contatos, academias), com série semanal
+   GET ?secao=eduzz                     → relatório do webhook da Eduzz: eventos, faturas, pendências, academias (sem valores)
+   GET ?secao=financeiro&mes=           → receitas confirmadas + lançamentos manuais, despesas, resultado por mês e por produto
    GET ?secao=sistema                   → conferência de configuração (só "definido / não definido", nunca os valores)
 
    As ações (mudar estado, confirmar pagamento, iniciar ciclo, atualizar plano) continuam nas functions admin-* de cada área.
@@ -238,6 +241,103 @@ async function academias(db, hoje) {
   return { academias: lista };
 }
 
+/* ── Entradas: quem entrou e o que chegou, em ordem de data ── */
+async function entradas(db, q, hoje) {
+  const { jogadores, pedidos, acs, interesses, vinculos } = await dadosGerais(db, hoje);
+  const ev = [];
+  const papelDe = (j) => (j.competicao && j.competicao.papel) || "";
+  const ROT_PAPEL = { atleta: "atleta", responsavel: "responsável", treinador: "treinador" };
+  jogadores.forEach((j) => { const p = papelDe(j), data = j.criadoEm || (j.competicao && j.competicao.ativadoEm); if (data) ev.push({ em: data, tipo: "conta", rotulo: "Nova conta", texto: (j.nome || "Sem nome") + " · " + (p ? "Competição (" + ROT_PAPEL[p] + ")" : "Player"), detalhe: mascara(j.email), secao: "usuarios", uid: j.id }); });
+  vinculos.forEach((v) => { if (v.criadoEm) ev.push({ em: v.criadoEm, tipo: "vinculo", rotulo: "Vínculo", texto: (v.atletaNome || "Atleta") + " ↔ " + (v.pessoaNome || v.pessoaEmail || "pessoa") + " (" + (v.tipo || "") + ")", detalhe: v.status || "", secao: "usuarios", uid: v.atletaUid }); });
+  pedidos.forEach((p) => { if (p.criadoEm) ev.push({ em: p.criadoEm, tipo: "pedido", rotulo: "Pedido", texto: (p.nome || "Consultoria") + " · " + (p.atletaNome || "atleta"), detalhe: p.estado || "", secao: "consultorias" }); });
+  acs.forEach((a) => { if (a.criadoEm) ev.push({ em: a.criadoEm, tipo: "acompanhamento", rotulo: "Acompanhamento", texto: "Solicitação de " + (a.atletaNome || "atleta"), detalhe: a.estado || "", secao: "acompanhamentos" }); });
+  interesses.forEach((i) => { if (i.criadoEm) ev.push({ em: i.criadoEm, tipo: "contato", rotulo: "Contato", texto: (i.nome || "Sem nome") + " · " + (i.servico || ""), detalhe: i.status || "novo", secao: "contatos" }); });
+  try {
+    for (const o of await db.collection("orgs").listDocuments()) {
+      const s = await o.collection("meta").doc("info").get(), i = s.exists ? s.data() : {};
+      if (i.criadoEm) ev.push({ em: i.criadoEm, tipo: "academia", rotulo: "Academia", texto: (i.nome || o.id) + " entrou no app do treinador", detalhe: i.plano || "", secao: "academias" });
+    }
+  } catch (e) { /* sem academias */ }
+  ev.sort((a, b) => String(b.em).localeCompare(String(a.em)));
+  const tipo = String(q.tipo || ""), dias = Math.min(365, Math.max(1, parseInt(q.dias, 10) || 30)), desde = addDias(hoje, -dias);
+  const contagem = {}; ev.filter((e) => dia(e.em) >= desde).forEach((e) => { contagem[e.tipo] = (contagem[e.tipo] || 0) + 1; });
+  const lista = ev.filter((e) => dia(e.em) >= desde && (!tipo || e.tipo === tipo));
+  const novas = jogadores.filter((j) => j.criadoEm || (j.competicao && j.competicao.ativadoEm));
+  const sem = semanas(hoje, 12), serie = sem.map((s) => ({ semana: s, player: 0, atleta: 0, responsavel: 0, treinador: 0 }));
+  novas.forEach((j) => { const d = dia(j.criadoEm || j.competicao.ativadoEm), i = sem.length - 1 - Math.floor(diasEntre(d, addDias(segundaDe(hoje), 6)) / 7); if (i >= 0 && i < sem.length) serie[i][papelDe(j) || "player"]++; });
+  return { dias, tipo, total: lista.length, contagem, resumo: { hoje: novas.filter((j) => dia(j.criadoEm || j.competicao.ativadoEm) === hoje).length, dias7: novas.filter((j) => dia(j.criadoEm || j.competicao.ativadoEm) >= addDias(hoje, -7)).length, dias30: novas.filter((j) => dia(j.criadoEm || j.competicao.ativadoEm) >= addDias(hoje, -30)).length, total: jogadores.length }, serieContas: serie, eventos: lista.slice(0, 300), truncado: lista.length > 300 };
+}
+
+/* ── Eduzz: o que o webhook recebeu e o que isso virou (sem valores: a Eduzz não os envia ao sistema) ── */
+const ROT_EDUZZ = { "myeduzz.invoice_paid": "Pagamento aprovado", "myeduzz.invoice_canceled": "Cancelamento", "myeduzz.invoice_refunded": "Reembolso", "myeduzz.invoice_chargeback": "Chargeback" };
+const GRUPO_EDUZZ = (e) => (/paid/.test(e) ? "pago" : /refund|chargeback/.test(e) ? "reembolso" : /cancel/.test(e) ? "cancelado" : "outro");
+async function eduzz(db, hoje) {
+  const eventos = [];
+  try { (await db.collectionGroup("webhooksEduzzProcessados").get()).forEach((d) => { const x = d.data() || {}; eventos.push({ id: d.id, evento: x.evento || String(d.id).split("|")[1] || "", email: mascara(x.email), em: x.processadoEm || null, tipo: x.tipo === "consultoria" ? "Consultoria" : "" }); }); }
+  catch (e) { /* sem leitura */ }
+  eventos.sort((a, b) => String(b.em).localeCompare(String(a.em)));
+  const meses = ultimosMeses(hoje, 6), porMes = meses.map((m) => ({ mes: m, pago: 0, reembolso: 0, cancelado: 0, outro: 0 })), porEvento = {};
+  eventos.forEach((e) => { porEvento[e.evento] = (porEvento[e.evento] || 0) + 1; const i = meses.indexOf(mesDe(e.em)); if (i >= 0) porMes[i][GRUPO_EDUZZ(e.evento)]++; });
+  const faturas = await ler(db.collection("jogadoresFaturas")), pend = await ler(db.collection("jogadoresAssinaturasPendentes")), semPedido = await ler(db.collection("consultoriasPagamentosSemPedido"));
+  const estFaturas = {}; faturas.forEach((f) => { estFaturas[f.estado || "?"] = (estFaturas[f.estado || "?"] || 0) + 1; });
+  const orgs = []; for (const o of await db.collection("orgs").listDocuments()) { const s = await o.collection("meta").doc("info").get(), i = s.exists ? s.data() : {}; if (i.eduzzUltimaFatura || i.eduzzAtualizadoEm || i.eduzzRevogadoEm) orgs.push({ orgId: o.id, nome: i.nome || o.id, plano: i.plano || null, ativoAte: i.planoAtivoAte || null, atualizadoEm: i.eduzzAtualizadoEm || null, revogadoEm: i.eduzzRevogadoEm || null, vencida: !!(i.planoAtivoAte && i.planoAtivoAte < hoje) }); }
+  const e7 = eventos.filter((e) => dia(e.em) >= addDias(hoje, -7)).length, e30 = eventos.filter((e) => dia(e.em) >= addDias(hoje, -30)).length;
+  return {
+    total: eventos.length, ultimos7: e7, ultimos30: e30, ultimoEvento: eventos[0] ? eventos[0].em : null,
+    porEvento: Object.keys(porEvento).map((k) => ({ evento: k, rotulo: ROT_EDUZZ[k] || k, n: porEvento[k] })).sort((a, b) => b.n - a.n), porMes,
+    eventos: eventos.slice(0, 200).map((e) => ({ ...e, rotulo: ROT_EDUZZ[e.evento] || e.evento })),
+    faturasPlayer: { total: faturas.length, porEstado: estFaturas }, aguardandoConta: pend.length, semPedido: semPedido.map((s) => ({ id: s.id, consultoriaId: s.consultoriaId, faturaId: s.faturaId, recebidoEm: s.recebidoEm, motivo: s.motivo })), academias: orgs,
+    webhookConfigurado: !!String(process.env.WEBHOOK_EDUZZ_SECRET || "").trim(),
+    avisoValores: "O webhook da Eduzz não traz valores para o sistema. Os valores deste painel vêm dos preços de cada serviço e dos lançamentos que você digita em Financeiro; nenhum número da Eduzz é inventado aqui.",
+  };
+}
+
+/* ── Financeiro: automático (pedidos e parcelas confirmados) + lançamentos manuais ── */
+async function financeiro(db, hoje, q) {
+  const F = require("./_admin-financeiro");
+  const meses = ultimosMeses(hoje, 12), idx = {}; meses.forEach((m, i) => { idx[m] = i; });
+  const linhas = meses.map((m) => ({ mes: m, receitaAuto: 0, receitaManual: 0, despesa: 0 }));
+  const porProduto = {}, porCategoria = {}, movimentos = [];
+  const prod = (k) => (porProduto[k] = porProduto[k] || { produto: k, rotulo: F.PRODUTOS[k] || k, receita: 0, despesa: 0 });
+  const pedidos = await ler(db.collection("pedidosConsultoria")), acs = await ler(db.collection("acompanhamentos"));
+  let aReceber = 0, reembolsado = 0;
+  const entra = (origem, produto, nome, data, valor, estado) => {
+    const i = idx[mesDe(data)];
+    if (i >= 0 && i != null) linhas[i].receitaAuto += valor;
+    prod(produto).receita += valor; movimentos.push({ id: null, origem, tipo: "receita", data: dia(data), valorCentavos: valor, produto, categoria: "", descricao: nome, automatico: true, estado });
+  };
+  pedidos.forEach((p) => {
+    const v = p.precoCentavos || 0;
+    if (["pago", "em_andamento", "entregue"].includes(p.estado)) entra("Consultoria", "consultoria", (p.nome || "Consultoria") + " · " + (p.atletaNome || ""), p.pagoEm || p.criadoEm, v, p.estado);
+    else if (p.estado === "reembolsado") reembolsado += v;
+    else if (p.estado === "aguardando_pagamento") aReceber += v;
+  });
+  acs.forEach((a) => (a.parcelas || []).forEach((p) => {
+    if (p.estado === "pago" && p.pagoEm) entra("Acompanhamento MTY", "acompanhamento", "Pagamento " + p.n + " · " + (a.atletaNome || ""), p.pagoEm, p.valorCentavos || 0, "pago");
+    else if (["aguardando_pagamento", "aguardando_inicio", "ativo"].includes(a.estado)) aReceber += p.valorCentavos || 0;
+  }));
+  const lanc = await ler(db.collection("financeiroLancamentos"));
+  lanc.forEach((l) => {
+    const i = idx[mesDe(l.data)], v = l.valorCentavos || 0;
+    if (l.tipo === "receita") { if (i != null) linhas[i].receitaManual += v; prod(l.produto || "geral").receita += v; }
+    else { if (i != null) linhas[i].despesa += v; prod(l.produto || "geral").despesa += v; const c = F.CATEGORIAS_DESPESA[l.categoria] || l.categoria; porCategoria[c] = (porCategoria[c] || 0) + v; }
+    movimentos.push({ id: l.id, origem: "Manual", tipo: l.tipo, data: l.data, valorCentavos: v, produto: l.produto || "geral", categoria: (F.categoriasDe(l.tipo)[l.categoria]) || l.categoria || "", descricao: l.descricao || "", automatico: false });
+  });
+  movimentos.sort((a, b) => String(b.data).localeCompare(String(a.data)));
+  const mesAtual = linhas[linhas.length - 1], tot = linhas.reduce((s, l) => ({ receita: s.receita + l.receitaAuto + l.receitaManual, despesa: s.despesa + l.despesa }), { receita: 0, despesa: 0 });
+  const mes = String(q.mes || "");
+  return {
+    linhas: linhas.map((l) => ({ ...l, receita: l.receitaAuto + l.receitaManual, resultado: l.receitaAuto + l.receitaManual - l.despesa })),
+    mesAtual: { mes: mesAtual.mes, receita: mesAtual.receitaAuto + mesAtual.receitaManual, despesa: mesAtual.despesa, resultado: mesAtual.receitaAuto + mesAtual.receitaManual - mesAtual.despesa },
+    totais: { receita: tot.receita, despesa: tot.despesa, resultado: tot.receita - tot.despesa }, aReceberCentavos: aReceber, reembolsadoCentavos: reembolsado,
+    porProduto: Object.keys(porProduto).map((k) => ({ ...porProduto[k], resultado: porProduto[k].receita - porProduto[k].despesa })).sort((a, b) => b.receita - a.receita),
+    despesasPorCategoria: Object.keys(porCategoria).map((k) => ({ categoria: k, valorCentavos: porCategoria[k] })).sort((a, b) => b.valorCentavos - a.valorCentavos),
+    movimentos: (/^\d{4}-\d{2}$/.test(mes) ? movimentos.filter((m) => mesDe(m.data) === mes) : movimentos).slice(0, 500),
+    listas: { produtos: F.PRODUTOS, categoriasReceita: F.CATEGORIAS_RECEITA, categoriasDespesa: F.CATEGORIAS_DESPESA },
+    nota: "Receitas automáticas: consultorias e parcelas do Acompanhamento confirmadas no painel, pelo preço do serviço. Vendas da Eduzz entram só se você as lançar. Despesas são sempre lançadas por você.",
+  };
+}
+
 function sistema() {
   const e = process.env, def = (k) => !!String(e[k] || "").trim();
   const itens = [
@@ -283,6 +383,9 @@ exports.handler = async function (event) {
       case "usuarios": return resposta(200, await usuarios(db, q, hoje));
       case "usuario": { const u = await usuario(db, q.uid, hoje); return u ? resposta(200, u) : resposta(404, { erro: "Conta não encontrada." }); }
       case "academias": return resposta(200, await academias(db, hoje));
+      case "entradas": return resposta(200, await entradas(db, q, hoje));
+      case "eduzz": return resposta(200, await eduzz(db, hoje));
+      case "financeiro": return resposta(200, await financeiro(db, hoje, q));
       default: return resposta(400, { erro: "Seção desconhecida." });
     }
   } catch (e) {

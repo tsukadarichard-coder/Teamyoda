@@ -112,7 +112,7 @@
     dados.forEach(function (d, i) {
       var h = area * (d.n / max), x = pl + w * i + (w - bw) / 2, y = pt + area - h;
       s += '<rect class="barra" x="' + x + '" y="' + (d.n ? y : pt + area - 1) + '" width="' + bw + '" height="' + (d.n ? Math.max(h, 2) : 1) + '" rx="4" fill="' + COR.azul + '" data-dica="' + esc(d.rot + ": " + fmt(d.n)) + '"/>';
-      s += '<text x="' + (x + bw / 2) + '" y="' + (H - 8) + '" text-anchor="middle">' + esc(d.eixo) + "</text>";
+      if (!(dados.length > 8 && String(d.eixo).length > 3 && (dados.length - 1 - i) % 2)) s += '<text x="' + (x + bw / 2) + '" y="' + (H - 8) + '" text-anchor="middle">' + esc(d.eixo) + "</text>";
     });
     s += "</svg>";
     return '<figure class="graf" style="margin:0"><h3>' + esc(titulo) + '</h3><p class="nota">' + esc(nota) + "</p>" + s + tabelaAlt(["Período", titulo], dados.map(function (d) { return [d.rot, fmt(d.n)]; })) + "</figure>";
@@ -126,7 +126,7 @@
       if (d.b) s += '<rect class="barra" x="' + x + '" y="' + yb + '" width="' + bw + '" height="' + Math.max(hb, 2) + '" rx="4" fill="' + COR.verde + '" data-dica="' + esc(tip) + '"/>';
       if (d.a) s += '<rect class="barra" x="' + x + '" y="' + ya + '" width="' + bw + '" height="' + Math.max(ha, 2) + '" rx="4" fill="' + COR.azul + '" data-dica="' + esc(tip) + '"/>';
       if (!d.a && !d.b) s += '<rect x="' + x + '" y="' + (pt + area - 1) + '" width="' + bw + '" height="1" fill="#C9D3CD" data-dica="' + esc(d.rot + ": " + fmt(0)) + '"/>';
-      s += '<text x="' + (x + bw / 2) + '" y="' + (H - 8) + '" text-anchor="middle">' + esc(d.eixo) + "</text>";
+      if (!(dados.length > 8 && String(d.eixo).length > 3 && (dados.length - 1 - i) % 2)) s += '<text x="' + (x + bw / 2) + '" y="' + (H - 8) + '" text-anchor="middle">' + esc(d.eixo) + "</text>";
     });
     s += "</svg>";
     return '<figure class="graf" style="margin:0"><h3>' + esc(titulo) + '</h3><p class="nota">' + esc(nota) + '</p><div class="legenda"><span><i style="background:' + COR.azul + '"></i>' + esc(legenda[0]) + '</span><span><i style="background:' + COR.verde + '"></i>' + esc(legenda[1]) + "</span></div>" + s +
@@ -298,6 +298,94 @@
       '<section class="secao"><h2>Faturas da Eduzz (Player)</h2>' + (d.faturas.length ? '<div class="tabela-rolagem"><table><thead><tr><th>Atualizada</th><th>Fatura</th><th>Situação</th><th>Produto</th><th>E-mail</th></tr></thead><tbody>' + d.faturas.map(function (x) { return "<tr><td>" + esc(dthora(x.atualizadoEm)) + "</td><td>" + esc(x.id) + '</td><td><span class="estado ' + (x.estado === "paga" ? "ok" : "neutro") + '">' + esc(x.estado) + "</span></td><td>" + esc(x.produtoId || "—") + "</td><td>" + esc(x.email) + "</td></tr>"; }).join("") + "</tbody></table></div>" : '<p class="nota">Nenhuma fatura recebida pelo webhook da Eduzz.</p>') + '<p class="nota" style="margin-top:8px">' + n(d.webhooksProcessados == null ? 0 : d.webhooksProcessados) + " evento(s) da Eduzz processados · " + (d.pendentes.length) + " pagamento(s) de quem ainda não criou conta.</p></section>";
     $("#btCsv").onclick = function () { baixarCsv("recebimentos", ["data", "origem", "item", "atleta", "valor (R$)", "situação", "confirmado por"], rec.map(function (x) { return [x.em, x.origem, x.nome, x.atleta, (x.valorCentavos / 100).toFixed(2).replace(".", ","), x.estado, x.por || ""]; })); };
     $$("tr[data-uid]").forEach(function (tr) { tr.onclick = function () { irPara("usuarios", {}, tr.getAttribute("data-uid")); }; });
+  };
+
+  /* ══ Entradas — quem entrou e o que chegou ══ */
+  var TIPOS_ENT = [["", "Tudo"], ["conta", "Contas"], ["vinculo", "Vínculos"], ["pedido", "Pedidos"], ["acompanhamento", "Acompanhamento"], ["contato", "Contatos"], ["academia", "Academias"]];
+  var CLASSE_ENT = { conta: "ok", vinculo: "info", pedido: "info", acompanhamento: "info", contato: "espera", academia: "neutro" };
+  function mesRot(m) { return MESES[+m.slice(5, 7) - 1] + "/" + m.slice(2, 4); }
+  TELAS.entradas = async function (h, forcar) {
+    var q = h.q, dias = q.dias || "30", tipo = q.tipo || "", c = $("#conteudo");
+    var d = await carregar("entradas", "admin-painel", "?secao=entradas&dias=" + encodeURIComponent(dias) + "&tipo=" + encodeURIComponent(tipo), forcar);
+    var cont = d.contagem, totalJanela = Object.keys(cont).reduce(function (s, k) { return s + cont[k]; }, 0);
+    var busca = (q.q || "").toLowerCase(), lista = d.eventos.filter(function (e) { return !busca || (e.texto + " " + e.detalhe + " " + e.rotulo).toLowerCase().indexOf(busca) >= 0; });
+    function link(secao, extra) { var nq = Object.assign({}, q, extra || {}); return nq; }
+    c.innerHTML = cabeca("Entradas", "Quem entrou e o que chegou: contas novas, vínculos, pedidos, contatos e academias, do mais recente ao mais antigo.", '<button class="bt claro" id="btCsv">Exportar (CSV)</button>') +
+      '<div class="kpis">' + kpi(n(d.resumo.hoje), "contas novas hoje", true) + kpi(n(d.resumo.dias7), "contas nos últimos 7 dias") + kpi(n(d.resumo.dias30), "contas nos últimos 30 dias") + kpi(n(d.resumo.total), "contas no total") + "</div>" +
+      '<section class="secao">' + graficoBarras("Contas novas por semana", "Player e Competição juntos, últimas 12 semanas", d.serieContas.map(function (s) { return { n: s.player + s.atleta + s.responsavel + s.treinador, rot: "Semana de " + dt(s.semana), eixo: semanaRot(s.semana) }; }), n, "Contas novas por semana") +
+      tabelaAlt(["Semana", "Só Player", "Atletas", "Responsáveis", "Treinadores"], d.serieContas.map(function (s) { return [dt(s.semana), s.player, s.atleta, s.responsavel, s.treinador]; })) + "</section>" +
+      '<div class="filtros"><div class="chips" role="group" aria-label="Período">' + [["7", "7 dias"], ["30", "30 dias"], ["90", "90 dias"], ["365", "1 ano"]].map(function (p) { return '<button type="button" class="chip" data-per="' + p[0] + '" aria-pressed="' + (p[0] === dias) + '">' + p[1] + "</button>"; }).join("") + "</div>" +
+      chips(TIPOS_ENT, tipo, function (t) { return t ? cont[t] || 0 : totalJanela; }) + barraBusca(q, null, false) + "</div>" +
+      '<p class="nota">' + n(lista.length) + " registro(s) nos últimos " + esc(dias) + " dias" + (d.truncado ? " (mostrando os 300 mais recentes)" : "") + ".</p>" +
+      (lista.length ? '<div class="tabela-rolagem"><table><thead><tr><th>Quando</th><th>O quê</th><th>Detalhe</th><th>Situação</th><th></th></tr></thead><tbody>' + lista.map(function (e) {
+        return "<tr><td>" + esc(dthora(e.em)) + '</td><td><span class="estado ' + (CLASSE_ENT[e.tipo] || "neutro") + '">' + esc(e.rotulo) + "</span></td><td>" + esc(e.texto) + "</td><td>" + esc(e.detalhe || "—") + '</td><td>' + (e.uid ? '<a href="#/usuarios/' + esc(e.uid) + '">Abrir conta</a>' : '<a href="#/' + esc(e.secao) + '">Abrir</a>') + "</td></tr>";
+      }).join("") + "</tbody></table></div>" : '<div class="cartao" style="margin-top:12px"><p>Nada neste período e filtro.</p></div>');
+    $$("[data-chip]").forEach(function (b) { b.addEventListener("click", function () { irPara("entradas", link("", { tipo: b.getAttribute("data-chip") })); }); });
+    $("#fBusca").addEventListener("submit", function (ev) { ev.preventDefault(); irPara("entradas", link("", { q: $("#busca").value.trim() })); });
+    $$("[data-per]").forEach(function (b) { b.addEventListener("click", function () { irPara("entradas", link("", { dias: b.getAttribute("data-per") })); }); });
+    $("#btCsv").onclick = function () { baixarCsv("entradas", ["quando", "tipo", "o quê", "detalhe", "situação"], lista.map(function (e) { return [e.em, e.rotulo, e.texto, e.detalhe || "", e.secao]; })); };
+  };
+  /* ══ Eduzz — relatório do webhook ══ */
+  TELAS.eduzz = async function (h, forcar) {
+    var d = await carregar("eduzz", "admin-painel", "?secao=eduzz", forcar), c = $("#conteudo");
+    var fat = d.faturasPlayer.porEstado, cls = { pago: "ok", reembolso: "espera", cancelado: "neutro", outro: "neutro" };
+    c.innerHTML = cabeca("Eduzz", "O que a Eduzz avisou ao sistema e o que isso virou: acessos liberados, revogados e pagamentos sem pedido.", '<button class="bt claro" id="btCsv">Exportar eventos (CSV)</button>') +
+      (d.webhookConfigurado ? "" : '<div class="aviso atencao">O segredo do webhook da Eduzz não está definido no servidor. Sem ele nenhum pagamento é reconhecido. <a href="#/sistema">Ver configuração</a>.</div>') +
+      '<div class="aviso" style="margin-top:12px">' + esc(d.avisoValores) + ' <a href="#/financeiro">Abrir Financeiro</a>.</div>' +
+      '<div class="kpis" style="margin-top:12px">' + kpi(n(d.total), "eventos processados", true) + kpi(n(d.ultimos7), "nos últimos 7 dias") + kpi(n(d.ultimos30), "nos últimos 30 dias") + kpi(n(d.semPedido.length), "pagamentos sem pedido") + kpi(n(d.aguardandoConta), "pagos sem conta criada") + kpi(d.ultimoEvento ? dt(d.ultimoEvento) : "—", "último evento") + "</div>" +
+      '<section class="secao">' + graficoEmpilhado("Eventos por mês", "Aprovações e, ao lado, cancelamentos, reembolsos e chargebacks", d.porMes.map(function (m) { return { a: m.pago, b: m.reembolso + m.cancelado, rot: mesRot(m.mes), eixo: MESES[+m.mes.slice(5, 7) - 1] }; }), n, ["Pagamentos aprovados", "Cancelamentos e reembolsos"], "Eventos da Eduzz por mês") + "</section>" +
+      '<section class="secao"><h2>Por tipo de evento</h2>' + (d.porEvento.length ? '<div class="tabela-rolagem"><table><thead><tr><th>Evento</th><th class="num">Quantidade</th></tr></thead><tbody>' + d.porEvento.map(function (e) { return "<tr><td>" + esc(e.rotulo) + '</td><td class="num">' + n(e.n) + "</td></tr>"; }).join("") + "</tbody></table></div>" : '<p class="nota">Nenhum evento recebido ainda.</p>') + "</section>" +
+      '<section class="secao"><h2>Faturas do Player</h2><p class="nota">' + n(d.faturasPlayer.total) + " fatura(s): " + (Object.keys(fat).length ? Object.keys(fat).map(function (k) { return n(fat[k]) + " " + esc(k); }).join(" · ") : "nenhuma") + ".</p></section>" +
+      '<section class="secao"><h2>Pagamentos sem pedido</h2>' + (d.semPedido.length ? '<div class="tabela-rolagem"><table><thead><tr><th>Recebido</th><th>Fatura</th><th>Consultoria</th><th>Motivo</th></tr></thead><tbody>' + d.semPedido.map(function (s) { return "<tr><td>" + esc(dthora(s.recebidoEm)) + "</td><td>" + esc(s.faturaId || s.id) + "</td><td>" + esc(s.consultoriaId || "—") + "</td><td>" + esc(s.motivo || "—") + "</td></tr>"; }).join("") + '</tbody></table></div><p class="nota" style="margin-top:8px"><a href="#/consultorias">Vincular em Consultorias</a></p>' : '<p class="nota">Nenhum. Todo pagamento reconhecido tem pedido.</p>') + "</section>" +
+      '<section class="secao"><h2>Academias liberadas pela Eduzz</h2>' + (d.academias.length ? '<div class="tabela-rolagem"><table><thead><tr><th>Academia</th><th>Plano</th><th>Válido até</th><th>Última atualização</th><th>Situação</th></tr></thead><tbody>' + d.academias.map(function (o) { return "<tr><td>" + esc(o.nome) + "</td><td>" + esc(o.plano || "—") + "</td><td>" + esc(dt(o.ativoAte)) + '</td><td>' + esc(dthora(o.atualizadoEm)) + '</td><td><span class="estado ' + (o.revogadoEm ? "neutro" : o.vencida ? "espera" : "ok") + '">' + (o.revogadoEm ? "Acesso revogado" : o.vencida ? "Vencida" : "Ativa") + "</span></td></tr>"; }).join("") + "</tbody></table></div>" : '<p class="nota">Nenhuma academia liberada pela Eduzz até agora.</p>') + "</section>" +
+      '<section class="secao"><h2>Eventos recentes</h2>' + (d.eventos.length ? '<div class="tabela-rolagem"><table><thead><tr><th>Processado</th><th>Evento</th><th>E-mail</th><th>Origem</th></tr></thead><tbody>' + d.eventos.map(function (e) { return "<tr><td>" + esc(dthora(e.em)) + '</td><td><span class="estado ' + (cls[/paid/.test(e.evento) ? "pago" : /refund|chargeback/.test(e.evento) ? "reembolso" : /cancel/.test(e.evento) ? "cancelado" : "outro"] || "neutro") + '">' + esc(e.rotulo) + "</span></td><td>" + esc(e.email || "—") + "</td><td>" + esc(e.tipo || "Geral") + "</td></tr>"; }).join("") + "</tbody></table></div>" : '<p class="nota">Nenhum evento ainda.</p>') + "</section>";
+    $("#btCsv").onclick = function () { baixarCsv("eduzz-eventos", ["processado em", "evento", "e-mail", "origem"], d.eventos.map(function (e) { return [e.em, e.rotulo, e.email, e.tipo || "Geral"]; })); };
+  };
+
+  /* ══ Financeiro ══ */
+  function decimal(c) { return (c / 100).toFixed(2).replace(".", ","); }
+  function sel(id, mapa, atual) { return '<select id="' + id + '">' + Object.keys(mapa).map(function (k) { return '<option value="' + esc(k) + '"' + (k === atual ? " selected" : "") + ">" + esc(mapa[k]) + "</option>"; }).join("") + "</select>"; }
+  TELAS.financeiro = async function (h, forcar) {
+    var q = h.q, mes = /^\d{4}-\d{2}$/.test(q.mes || "") ? q.mes : "", c = $("#conteudo");
+    var d = await carregar("financeiro", "admin-painel", "?secao=financeiro" + (mes ? "&mes=" + mes : ""), forcar), L = d.listas, editar = null;
+    if (q.editar) editar = d.movimentos.filter(function (m) { return m.id === q.editar; })[0] || null;
+    var ma = d.mesAtual, base = "R$";
+    function formLanc() {
+      var e = editar || { tipo: "despesa", data: hojeISO(), categoria: "ferramentas", produto: "geral", descricao: "", valorCentavos: 0 };
+      return '<form id="fLanc" class="cartao form-lanc" novalidate><h2>' + (editar ? "Editar lançamento" : "Novo lançamento") + '</h2><p class="nota">Registre o que o sistema não vê sozinho: vendas da Eduzz, Pix, taxas, ferramentas, anúncios, impostos. Isso não cobra nem reembolsa ninguém.</p><div class="form-grade">' +
+        '<div><label for="lTipo">Tipo</label><select id="lTipo"><option value="receita"' + (e.tipo === "receita" ? " selected" : "") + '>Receita (entrou)</option><option value="despesa"' + (e.tipo === "despesa" ? " selected" : "") + ">Despesa (saiu)</option></select></div>" +
+        '<div><label for="lData">Data</label><input id="lData" type="date" value="' + esc(e.data) + '" required></div>' +
+        '<div><label for="lValor">Valor (R$)</label><input id="lValor" inputmode="decimal" placeholder="149,90" value="' + (e.valorCentavos ? decimal(e.valorCentavos) : "") + '" autocomplete="off" required></div>' +
+        '<div><label for="lCat">Categoria</label><select id="lCat"></select></div>' +
+        '<div><label for="lProd">Produto</label>' + sel("lProd", L.produtos, e.produto) + "</div>" +
+        '<div class="largo"><label for="lDesc">Descrição</label><input id="lDesc" maxlength="200" value="' + esc(e.descricao) + '" placeholder="Ex.: vendas Eduzz da semana, hospedagem, anúncio" autocomplete="off" required></div></div>' +
+        '<div class="aviso erro" id="lErro" role="alert" hidden></div><div class="acoes"><button class="bt azul" type="submit">' + (editar ? "Salvar alterações" : "Adicionar lançamento") + "</button>" + (editar ? '<button class="bt claro" type="button" id="lCancelar">Cancelar</button>' : "") + "</div></form>";
+    }
+    var movs = d.movimentos;
+    c.innerHTML = cabeca("Financeiro", "Receitas, despesas e resultado por mês e por produto. Soma o que o painel já confirmou com o que você lança à mão.", '<button class="bt claro" id="btCsv">Exportar (CSV)</button>') +
+      '<div class="kpis">' + kpi(reais(ma.receita), "receita em " + mesRot(ma.mes), true) + kpi(reais(ma.despesa), "despesas em " + mesRot(ma.mes)) + kpi(reais(ma.resultado), "resultado em " + mesRot(ma.mes)) + kpi(reais(d.aReceberCentavos), "a receber (pedidos e parcelas)") + kpi(reais(d.totais.resultado), "resultado em 12 meses") + "</div>" +
+      '<p class="nota" style="margin-top:8px">' + esc(d.nota) + (d.reembolsadoCentavos ? " Reembolsos de consultorias já marcados: " + esc(reais(d.reembolsadoCentavos)) + " (fora das receitas)." : "") + "</p>" +
+      '<section class="secao">' + graficoEmpilhado("Receita por mês", "Confirmada no painel (consultorias e parcelas) e lançada por você", d.linhas.map(function (l) { return { a: l.receitaAuto, b: l.receitaManual, rot: mesRot(l.mes), eixo: MESES[+l.mes.slice(5, 7) - 1] }; }), reais, ["Confirmada no painel", "Lançada por você"], "Receita por mês") + "</section>" +
+      '<section class="secao">' + graficoBarras("Despesas por mês", "Somente o que você lançou", d.linhas.map(function (l) { return { n: l.despesa, rot: mesRot(l.mes), eixo: MESES[+l.mes.slice(5, 7) - 1] }; }), reais, "Despesas por mês") + "</section>" +
+      '<section class="secao"><h2>Resultado por mês</h2><div class="tabela-rolagem"><table><thead><tr><th>Mês</th><th class="num">Receita confirmada</th><th class="num">Receita lançada</th><th class="num">Despesas</th><th class="num">Resultado</th></tr></thead><tbody>' + d.linhas.slice().reverse().map(function (l) { return '<tr class="link" data-mes="' + esc(l.mes) + '"><td>' + esc(mesRot(l.mes)) + '</td><td class="num">' + esc(reais(l.receitaAuto)) + '</td><td class="num">' + esc(reais(l.receitaManual)) + '</td><td class="num">' + esc(reais(l.despesa)) + '</td><td class="num"><b>' + esc(reais(l.resultado)) + "</b>" + (l.resultado < 0 ? ' <span class="estado espera">negativo</span>' : "") + "</td></tr>"; }).join("") + '</tbody></table></div><p class="nota" style="margin-top:6px">Toque num mês para ver só os movimentos dele.</p></section>' +
+      '<section class="secao"><h2>Por produto (12 meses)</h2><div class="tabela-rolagem"><table><thead><tr><th>Produto</th><th class="num">Receita</th><th class="num">Despesas</th><th class="num">Resultado</th></tr></thead><tbody>' + (d.porProduto.length ? d.porProduto.map(function (p) { return "<tr><td>" + esc(p.rotulo) + '</td><td class="num">' + esc(reais(p.receita)) + '</td><td class="num">' + esc(reais(p.despesa)) + '</td><td class="num"><b>' + esc(reais(p.resultado)) + "</b></td></tr>"; }).join("") : '<tr><td colspan="4">Sem movimentos ainda.</td></tr>') + "</tbody></table></div></section>" +
+      (d.despesasPorCategoria.length ? '<section class="secao"><h2>Despesas por categoria</h2><div class="tabela-rolagem"><table><tbody>' + d.despesasPorCategoria.map(function (x) { return "<tr><td>" + esc(x.categoria) + '</td><td class="num">' + esc(reais(x.valorCentavos)) + "</td></tr>"; }).join("") + "</tbody></table></div></section>" : "") +
+      '<section class="secao">' + formLanc() + "</section>" +
+      '<section class="secao"><h2>Movimentos' + (mes ? " de " + esc(mesRot(mes)) : "") + "</h2>" + (mes ? '<p class="nota"><a href="#/financeiro">Ver todos os meses</a></p>' : "") + (movs.length ? '<div class="tabela-rolagem"><table><thead><tr><th>Data</th><th>Tipo</th><th>Origem</th><th>Descrição</th><th>Produto</th><th class="num">Valor</th><th></th></tr></thead><tbody>' + movs.map(function (m) { return "<tr><td>" + esc(dt(m.data)) + '</td><td><span class="estado ' + (m.tipo === "receita" ? "ok" : "espera") + '">' + (m.tipo === "receita" ? "Receita" : "Despesa") + "</span></td><td>" + esc(m.automatico ? m.origem : "Lançado por você") + "</td><td>" + esc(m.descricao) + (m.categoria ? '<br><span class="nota">' + esc(m.categoria) + "</span>" : "") + "</td><td>" + esc(L.produtos[m.produto] || m.produto) + '</td><td class="num">' + (m.tipo === "despesa" ? "−" : "") + esc(reais(m.valorCentavos)) + "</td><td>" + (m.id ? '<button class="bt claro pequeno" data-ed="' + esc(m.id) + '">Editar</button> <button class="bt claro pequeno" data-ex="' + esc(m.id) + '">Excluir</button>' : "") + "</td></tr>"; }).join("") + "</tbody></table></div>" : '<p class="nota">Nenhum movimento' + (mes ? " neste mês" : " ainda") + ".</p>") + "</section>";
+    function cats() { var t = $("#lTipo").value, mapa = t === "receita" ? L.categoriasReceita : L.categoriasDespesa, atual = editar && editar.tipo === t ? Object.keys(mapa).filter(function (k) { return mapa[k] === editar.categoria; })[0] : ""; $("#lCat").innerHTML = Object.keys(mapa).map(function (k) { return '<option value="' + esc(k) + '"' + (k === atual ? " selected" : "") + ">" + esc(mapa[k]) + "</option>"; }).join(""); }
+    cats(); $("#lTipo").addEventListener("change", cats);
+    $("#fLanc").addEventListener("submit", async function (ev) {
+      ev.preventDefault(); var er = $("#lErro"); er.hidden = true;
+      var corpo = { acao: editar ? "editar" : "criar", id: editar ? editar.id : undefined, tipo: $("#lTipo").value, data: $("#lData").value, valor: $("#lValor").value, categoria: $("#lCat").value, produto: $("#lProd").value, descricao: $("#lDesc").value };
+      var bt = ev.target.querySelector("button[type=submit]"); bt.disabled = true;
+      try { await chamar("admin-financeiro", { corpo: corpo }); toast(editar ? "Lançamento atualizado." : "Lançamento adicionado."); invalidar(); irPara("financeiro", mes ? { mes: mes } : {}); }
+      catch (e) { er.textContent = e.message; er.hidden = false; bt.disabled = false; }
+    });
+    var cn = $("#lCancelar"); if (cn) cn.onclick = function () { irPara("financeiro", mes ? { mes: mes } : {}); };
+    $$("[data-ed]").forEach(function (b) { b.onclick = function () { irPara("financeiro", { mes: mes, editar: b.getAttribute("data-ed") }); }; });
+    $$("[data-ex]").forEach(function (b) { b.onclick = async function () { if (!window.confirm("Excluir este lançamento? Isso não afeta pedidos nem pagamentos.")) return; b.disabled = true; try { await chamar("admin-financeiro", { corpo: { acao: "excluir", id: b.getAttribute("data-ex") } }); toast("Lançamento excluído."); invalidar(); rotear(true); } catch (e) { toast(e.message, true); b.disabled = false; } }; });
+    $$("tr[data-mes]").forEach(function (tr) { tr.onclick = function () { irPara("financeiro", { mes: tr.getAttribute("data-mes") }); }; });
+    $("#btCsv").onclick = function () { baixarCsv("financeiro", ["data", "tipo", "origem", "descrição", "categoria", "produto", "valor (R$)"], movs.map(function (m) { return [m.data, m.tipo, m.automatico ? m.origem : "Lançado", m.descricao, m.categoria, L.produtos[m.produto] || m.produto, (m.tipo === "despesa" ? "-" : "") + decimal(m.valorCentavos)]; })); };
   };
 
   /* ══ Contas Player e Competição ══ */
