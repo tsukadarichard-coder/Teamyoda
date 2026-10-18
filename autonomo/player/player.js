@@ -2900,29 +2900,35 @@
       }).join("") : '<div class="cartao" style="margin-top:14px"><h2>Nenhum atleta vinculado</h2><p class="nota" style="margin-top:6px">Use o código de convite do atleta em <a href="#/inicio">Início</a>.</p></div>'));
   }
 
-  /* ══ Competição: o responsável marca o jogo (scout simples) quando o treinador não está ══ */
+  /* ══ Competição: o responsável marca o jogo (mesmo scout do treinador) quando o treinador não vai ══
+     Usa player/scout-motor.js, gerado do scout do treinador: mesmo placar, mesmo saque/lado/ace, mesmos números. */
   async function telaScoutFamilia(vid) {
     pararAoVivo();
-    var chave = "ql-scout-fam:" + vid, st, r;
+    var M = window.QLScoutMotor, chave = "ql-scout-fam2:" + vid, st, r;
     var voltar = '<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/competicao/vinculo/' + esc(vid) + '">‹ Atleta</a></p>';
+    if (!M) { tela(voltar + '<div class="aviso">Não foi possível carregar o scout. Recarregue a página.</div>'); return; }
     tela('<p class="carregando">Carregando…</p>', true);
     try { r = await api("player-competicao?ver=" + encodeURIComponent(vid)); } catch (e) { tela(voltar + '<div class="aviso">' + esc(e.message) + "</div>"); return; }
     if (r.referencias || r.areas.indexOf("partidas") < 0) { tela(voltar + '<div class="aviso">Marcar o jogo está disponível para o responsável com a área “Partidas” liberada pelo atleta.</div>'); return; }
     try { st = JSON.parse(localStorage.getItem(chave) || "null"); } catch (e) { st = null; }
-    if (!st || typeof st !== "object" || !Array.isArray(st.serie)) st = { serie: [], torneio: "", resultado: "", token: null, fim: false };
-    var primeiro = String(r.atleta.nome || "Atleta").split(" ")[0], tmr = null, enviando = false, erro = false;
+    var CFG0 = { torneio: "", formato: "3sets", saca: "nos", semVantagem: false, superTiebreakDecisivo: false };
+    if (!st || typeof st !== "object" || !Array.isArray(st.pontos) || !st.cfg) st = { cfg: CFG0, pontos: [], token: null, fim: false, iniciado: false };
+    var atleta = r.atleta.nome || "Atleta", primeiro = String(atleta).split(" ")[0], rasc = null, tmr = null, enviando = false, erro = false;
     function salvar() { try { localStorage.setItem(chave, JSON.stringify(st)); } catch (e) { /* sem armazenamento */ } }
-    function resumo() {
-      var n = st.serie.length, g = st.serie.filter(function (x) { return x[0]; }).length;
-      return { atleta: primeiro, data: new Date().toISOString().slice(0, 10), torneio: st.torneio, resultado: st.resultado, concluida: !!st.fim, n: n, ganhos: g, pctGanhos: n ? Math.round(g * 1000 / n) / 10 : 0,
-        numeros: { errosNos: st.serie.filter(function (x) { return x[3] === "erro_nos"; }).length }, serie: st.serie, sinais: [] };
+    function placarAtual() { var c = st.cfg, e = M.placarInicial(c.formato, c.saca, c.semVantagem, c.superTiebreakDecisivo); st.pontos.forEach(function (p) { e = M.aplicaPonto(e, p.nos); }); return e; }
+    function resumo(placar) {
+      var c = st.cfg, rr = M.resume(st.pontos), sets = placar.sets.map(function (x) { return x[0] + "-" + x[1]; });
+      if (!placar.fim && (placar.g[0] || placar.g[1])) sets.push(placar.g[0] + "-" + placar.g[1]);
+      return M.montarResumoPublico({ data: new Date().toISOString().slice(0, 10), torneio: c.torneio || "", resultado: sets.join(" "), concluida: !!(placar.fim || st.fim),
+        scout: Object.assign({}, rr, { pontos: st.pontos, cfg: { formato: c.formato, saca: c.saca, semVantagem: !!c.semVantagem, superTiebreakDecisivo: !!c.superTiebreakDecisivo } }) }, { nome: atleta });
     }
     async function enviar() {
       if (enviando) { tmr = setTimeout(enviar, 700); return; }
       enviando = true;
       try {
-        if (!st.token) { var c = await api("scout-ao-vivo", { metodo: "POST", corpo: { acao: "iniciar", vinculoId: vid, resumo: resumo() } }); st.token = c.token; }
-        else await api("scout-ao-vivo", { metodo: "POST", corpo: { acao: "atualizar", token: st.token, resumo: resumo(), fim: !!st.fim } });
+        var pl = placarAtual(), fim = !!(pl.fim || st.fim);
+        if (!st.token) { var c = await api("scout-ao-vivo", { metodo: "POST", corpo: { acao: "iniciar", vinculoId: vid, resumo: resumo(pl) } }); st.token = c.token; if (fim) await api("scout-ao-vivo", { metodo: "POST", corpo: { acao: "atualizar", token: st.token, resumo: resumo(pl), fim: true } }); }
+        else await api("scout-ao-vivo", { metodo: "POST", corpo: { acao: "atualizar", token: st.token, resumo: resumo(pl), fim: fim } });
         erro = false; salvar();
       } catch (e) { erro = e.message || true; }
       enviando = false; estadoEnvio();
@@ -2930,30 +2936,77 @@
     function agendar() { clearTimeout(tmr); salvar(); estadoEnvio(); tmr = setTimeout(enviar, 600); }
     function estadoEnvio() {
       var el = document.getElementById("sfEnvio"); if (!el) return;
-      el.className = "nota" + (erro ? " sf-erro" : ""); el.textContent = erro ? "Não foi possível enviar agora (" + (typeof erro === "string" ? erro : "sem conexão") + "). Os pontos estão salvos neste aparelho; toque em “Enviar agora”." : st.fim ? "Partida encerrada. O resultado fica visível por mais 2 horas." : st.token ? "Ao vivo: o atleta, os responsáveis e o treinador veem cada ponto." : "Marque o primeiro ponto para abrir o jogo ao vivo.";
+      var fim = st.fim || (st.iniciado && placarAtual().fim);
+      el.className = "nota" + (erro ? " sf-erro" : ""); el.textContent = erro ? "Não foi possível enviar agora (" + (typeof erro === "string" ? erro : "sem conexão") + "). Os pontos estão salvos neste aparelho; toque em “Enviar agora”." : fim ? "Partida encerrada. O resultado fica visível por mais 2 horas." : st.token ? "Ao vivo: o atleta, os responsáveis e o treinador veem cada ponto." : "Marque o primeiro ponto para abrir o jogo ao vivo.";
     }
+    function botao(rot, cls, attrs) { return '<button type="button" class="btn ' + cls + '" ' + attrs + ">" + rot + "</button>"; }
+    function seg(nome, valor, ops) { return '<div class="comp-seg" role="group">' + ops.map(function (o) { return '<button type="button" class="comp-seg-bt" data-cfg="' + nome + '" data-v="' + o[0] + '" aria-pressed="' + (String(valor) === String(o[0])) + '">' + o[1] + "</button>"; }).join("") + "</div>"; }
+    var FIM_ROT = [["winner_nos", "Winner de " + primeiro, true], ["erro_dele", "Erro do adversário", true], ["erro_nos", "Erro de " + primeiro, false], ["winner_dele", "Winner do adversário", false]];
+
+    function telaConfig() {
+      var c = st.cfg;
+      tela(voltar + "<h1>Marcar o jogo de " + esc(primeiro) + '</h1><p class="sub">O mesmo scout do treinador, para quando ele não pôde ir. Aparece ao vivo no app do atleta, dos responsáveis e do treinador vinculado.</p>' +
+        '<section class="cartao"><div class="campo"><label for="sfTorneio">Torneio (opcional)</label><input id="sfTorneio" maxlength="80" value="' + esc(c.torneio) + '" placeholder="Torneio ou jogo-treino"></div>' +
+        '<p class="olho">Formato</p>' + seg("formato", c.formato, [["3sets", "Melhor de 3 sets"], ["1set", "Set único"], ["4games", "Set a 4 games"]]) +
+        '<p class="olho" style="margin-top:12px">Quem saca primeiro</p>' + seg("saca", c.saca, [["nos", esc(primeiro)], ["ele", "Adversário"]]) +
+        '<p class="olho" style="margin-top:12px">Pontuação</p><div class="acoes">' + botao((c.semVantagem ? "✓ " : "") + "Ponto decisivo em 40-40 (sem vantagem)", "btn-secundario btn-pequeno", 'data-tog="semVantagem" aria-pressed="' + !!c.semVantagem + '"') +
+        (c.formato === "3sets" ? botao((c.superTiebreakDecisivo ? "✓ " : "") + "Super tie-break (10 pontos) no set decisivo", "btn-secundario btn-pequeno", 'data-tog="superTiebreakDecisivo" aria-pressed="' + !!c.superTiebreakDecisivo + '"') : "") + "</div>" +
+        '<div class="acoes" style="margin-top:14px"><button type="button" class="btn btn-primario btn-grande" id="sfIniciar">Iniciar acompanhamento</button></div></section>' +
+        '<p class="nota" style="margin-top:12px">O nome do adversário e anotações nunca são enviados. Só o primeiro nome do atleta, o placar e os números.</p>');
+      document.getElementById("sfTorneio").addEventListener("input", function (e) { st.cfg.torneio = e.target.value.slice(0, 80); salvar(); });
+      Array.prototype.forEach.call(app.querySelectorAll("[data-cfg]"), function (b) { b.addEventListener("click", function () { st.cfg[b.getAttribute("data-cfg")] = b.getAttribute("data-v"); if (st.cfg.formato !== "3sets") st.cfg.superTiebreakDecisivo = false; salvar(); telaConfig(); }); });
+      Array.prototype.forEach.call(app.querySelectorAll("[data-tog]"), function (b) { b.addEventListener("click", function () { var k = b.getAttribute("data-tog"); st.cfg[k] = !st.cfg[k]; salvar(); telaConfig(); }); });
+      document.getElementById("sfIniciar").addEventListener("click", function () { st.iniciado = true; st.pontos = []; st.token = null; st.fim = false; salvar(); rasc = null; desenhar(); });
+    }
+
+    function adicionar(p) {
+      var pl = placarAtual(); p.n = st.pontos.length + 1; p.placarAntes = M.rotuloPontos(pl); st.pontos.push(p); rasc = null; desenhar(); agendar();
+    }
+    function saqueDireto(tipo) {
+      var pl = placarAtual(), sacador = M.quemSaca(pl), meu = sacador === "nos", nos = tipo === "ace" ? meu : !meu;
+      adicionar({ fim: tipo === "ace" ? (meu ? "winner_nos" : "winner_dele") : (meu ? "erro_nos" : "erro_dele"), nos: nos, saque: tipo, bola: "1-2", causa: tipo === "df" && meu ? "execucao" : null, rede: false, situacao: null, adverso: M.ehAdverso(pl), sacador: sacador, lado: M.ladoDoSaque(pl) });
+    }
+
     function desenhar() {
-      var n = st.serie.length, g = st.serie.filter(function (x) { return x[0]; }).length;
-      var bt = function (cod, rot, cls) { return '<button type="button" class="btn ' + cls + ' sf-bt" data-p="' + cod + '"' + (st.fim ? " disabled" : "") + ">" + rot + "</button>"; };
-      tela(voltar + "<h1>Marcar o jogo de " + esc(primeiro) + '</h1><p class="sub">Para quando o treinador não pôde ir: toque em cada ponto. Aparece ao vivo no app do atleta, dos responsáveis e do treinador vinculado.</p>' +
-        '<section class="cartao sf-placar" aria-live="polite"><p class="olho">Pontos marcados</p><p class="sf-n"><strong>' + n + "</strong> · " + esc(primeiro) + " ganhou <strong>" + g + "</strong>" + (n ? " (" + Math.round(g * 100 / n) + "%)" : "") + "</p></section>" +
-        '<section class="cartao" style="margin-top:12px"><p class="olho">Quem ganhou o ponto?</p><div class="sf-grade">' +
-        bt("winner_nos", esc(primeiro) + "<br><small>fez o ponto (winner)</small>", "btn-primario") + bt("erro_dele", esc(primeiro) + "<br><small>ponto por erro do adversário</small>", "btn-primario") +
-        bt("winner_dele", "Adversário<br><small>fez o ponto (winner)</small>", "btn-secundario") + bt("erro_nos", "Adversário<br><small>ponto por erro de " + esc(primeiro) + "</small>", "btn-secundario") +
-        '</div><div class="acoes"><button type="button" class="btn btn-texto" id="sfDesfazer"' + (n && !st.fim ? "" : " disabled") + '>Desfazer o último</button></div></section>' +
-        '<section class="cartao" style="margin-top:12px"><div class="campo"><label for="sfPlacar">Placar (você digita)</label><input id="sfPlacar" maxlength="40" placeholder="Ex.: 6-4 3-2" value="' + esc(st.resultado) + '"></div><div class="campo"><label for="sfTorneio">Torneio (opcional)</label><input id="sfTorneio" maxlength="80" value="' + esc(st.torneio) + '"></div>' +
-        '<p id="sfEnvio" class="nota"></p><div class="acoes"><button type="button" class="btn btn-secundario" id="sfEnviar">Enviar agora</button>' + (st.fim ? '<button type="button" class="btn btn-secundario" id="sfNovo">Novo jogo</button>' : '<button type="button" class="btn btn-laranja" id="sfFim">Encerrar partida</button>') + "</div></section>" +
-        '<p class="nota" style="margin-top:12px">É uma marcação simples de pontos. A análise completa (mapa da quadra, momentos do jogo) continua sendo a do treinador. O nome do adversário e anotações nunca são enviados.</p>');
-      Array.prototype.forEach.call(app.querySelectorAll(".sf-bt"), function (b) { b.addEventListener("click", function () { var f = b.getAttribute("data-p"); st.serie.push([f === "winner_nos" || f === "erro_dele" ? 1 : 0, 0, "", f]); desenhar(); agendar(); }); });
-      document.getElementById("sfDesfazer").addEventListener("click", function () { st.serie.pop(); desenhar(); agendar(); });
-      document.getElementById("sfPlacar").addEventListener("input", function (e) { st.resultado = e.target.value.slice(0, 40); agendar(); });
-      document.getElementById("sfTorneio").addEventListener("input", function (e) { st.torneio = e.target.value.slice(0, 80); agendar(); });
+      var pl = placarAtual(), fimJogo = !!(pl.fim || st.fim), sacador = M.quemSaca(pl), meu = sacador === "nos", adv = M.ehAdverso(pl), n = st.pontos.length;
+      var sets = pl.sets.map(function (x) { return x[0] + "-" + x[1]; }).concat([pl.g[0] + "-" + pl.g[1]]).join("  ");
+      var h = voltar + '<section class="sf-cab"><div><p class="sf-cab-l">' + esc((meu ? "SAQUE DE " + primeiro : "SAQUE DO ADVERSÁRIO").toUpperCase()) + " · " + esc(M.ROTULO_LADO[M.ladoDoSaque(pl)].toUpperCase()) + '</p><p class="sf-cab-n">' + esc(M.rotuloPontos(pl)) + '</p></div><div class="sf-cab-d"><p class="sf-cab-l">SETS</p><p class="sf-cab-s">' + esc(sets) + "</p></div></section>" +
+        (adv && !fimJogo ? '<p class="sf-adverso">PLACAR ADVERSO — este ponto entra na comparação</p>' : "") + (pl.fim ? '<div class="aviso">Partida encerrada: ' + esc(primeiro) + (pl.vencedor === "nos" ? " venceu" : " perdeu") + ".</div>" : "");
+      if (!fimJogo) {
+        if (!rasc) {
+          h += '<section class="cartao"><p class="olho">' + (meu ? "Saque (opcional)" : "Saque do adversário (opcional)") + '</p><div class="sf-grade4">' + [["1", "1º dentro"], ["2", "2º dentro"], ["ace", meu ? "Ace" : "Ace dele"], ["df", meu ? "Dupla falta" : "Dupla falta dele"]].map(function (x) { return botao(x[1], "btn-secundario sf-pq", 'data-saq="' + x[0] + '"'); }).join("") + "</div></section>";
+        }
+        if (!rasc || !rasc.fim) {
+          h += '<section class="cartao" style="margin-top:12px"><p class="olho">Como o ponto terminou</p><div class="sf-grade">' + FIM_ROT.map(function (o) { return botao(esc(o[1]), o[2] ? "btn-primario sf-bt" : "btn-secundario sf-bt", 'data-fim="' + o[0] + '"'); }).join("") + "</div></section>";
+        } else {
+          h += '<section class="cartao sf-rasc"><p class="olho">' + esc(FIM_ROT.filter(function (o) { return o[0] === rasc.fim; })[0][1]) + "</p>" +
+            (rasc.fim === "erro_nos" ? '<p class="olho" style="margin-top:8px">A causa</p>' + seg("causa", rasc.causa || "", [["decisao", "Decisão"], ["execucao", "Execução"]]) : "") +
+            '<p class="olho" style="margin-top:10px">Como foi o ponto (opcional)</p><div class="sf-chips">' + M.SITUACOES.map(function (x) { return botao((rasc.situacao === x[0] ? "✓ " : "") + x[1], "btn-secundario btn-pequeno", 'data-sit="' + x[0] + '" aria-pressed="' + (rasc.situacao === x[0]) + '"'); }).join("") + botao((rasc.rede ? "✓ " : "") + "Subiu à rede", "btn-secundario btn-pequeno", 'data-rede="1" aria-pressed="' + !!rasc.rede + '"') + "</div>" +
+            '<p class="olho" style="margin-top:10px">Onde foi o último golpe de ' + esc(primeiro) + ' (opcional)</p><div class="sf-grade3">' + M.ZONAS.map(function (z) { return botao((rasc.zona === z[0] ? "✓ " : "") + z[1], "btn-secundario btn-pequeno", 'data-zona="' + z[0] + '" aria-pressed="' + (rasc.zona === z[0]) + '"'); }).join("") + "</div>" +
+            '<p class="olho" style="margin-top:10px">Em que bola o ponto terminou</p><div class="sf-grade3">' + ["1-2", "3-4", "5+"].map(function (b) { return botao(b, "btn-primario sf-bt", 'data-bola="' + b + '"'); }).join("") + "</div></section>";
+        }
+      }
+      var gan = st.pontos.filter(function (p) { return p.nos; }).length;
+      h += '<section class="cartao" style="margin-top:12px"><p class="sf-n"><strong>' + n + "</strong> pontos · " + esc(primeiro) + " ganhou <strong>" + gan + "</strong>" + (n ? " (" + Math.round(gan * 100 / n) + "%)" : "") + '</p><p id="sfEnvio" class="nota"></p>' +
+        '<div class="acoes"><button type="button" class="btn btn-texto" id="sfDesfazer"' + (n || rasc ? "" : " disabled") + '>Desfazer</button><button type="button" class="btn btn-secundario" id="sfEnviar">Enviar agora</button>' +
+        (fimJogo ? '<button type="button" class="btn btn-secundario" id="sfNovo">Novo jogo</button>' : '<button type="button" class="btn btn-laranja" id="sfFim">Encerrar partida</button>') + "</div></section>" +
+        '<p class="nota" style="margin-top:12px">O nome do adversário e anotações nunca são enviados. A análise completa continua sendo a do treinador.</p>';
+      tela(h);
+      var q = function (sel, f) { Array.prototype.forEach.call(app.querySelectorAll(sel), f); };
+      q("[data-saq]", function (b) { b.addEventListener("click", function () { var v = b.getAttribute("data-saq"); if (v === "df" || v === "ace") saqueDireto(v); else { rasc = { saquePre: v }; desenhar(); } }); });
+      q("[data-fim]", function (b) { b.addEventListener("click", function () { var f = FIM_ROT.filter(function (o) { return o[0] === b.getAttribute("data-fim"); })[0], p = placarAtual(); rasc = Object.assign({}, rasc || {}, { fim: f[0], nos: f[2], saque: (rasc && rasc.saquePre) || null, bola: null, causa: null, rede: false, situacao: null, adverso: M.ehAdverso(p), sacador: M.quemSaca(p), lado: M.ladoDoSaque(p) }); desenhar(); }); });
+      q("[data-cfg=causa]", function (b) { b.addEventListener("click", function () { rasc.causa = b.getAttribute("data-v"); desenhar(); }); });
+      q("[data-sit]", function (b) { b.addEventListener("click", function () { var v = b.getAttribute("data-sit"); rasc.situacao = rasc.situacao === v ? null : v; desenhar(); }); });
+      q("[data-rede]", function (b) { b.addEventListener("click", function () { rasc.rede = !rasc.rede; desenhar(); }); });
+      q("[data-zona]", function (b) { b.addEventListener("click", function () { var v = b.getAttribute("data-zona"); rasc.zona = rasc.zona === v ? null : v; desenhar(); }); });
+      q("[data-bola]", function (b) { b.addEventListener("click", function () { var p = Object.assign({}, rasc); delete p.saquePre; p.bola = b.getAttribute("data-bola"); adicionar(p); }); });
+      document.getElementById("sfDesfazer").addEventListener("click", function () { if (rasc) { rasc = null; desenhar(); return; } if (st.pontos.length) { st.pontos.pop(); st.fim = false; desenhar(); agendar(); } });
       document.getElementById("sfEnviar").addEventListener("click", function () { clearTimeout(tmr); enviar(); });
-      var fim = document.getElementById("sfFim"); if (fim) fim.addEventListener("click", function () { if (!window.confirm("Encerrar a partida? O resultado final fica visível por mais 2 horas.")) return; st.fim = true; desenhar(); clearTimeout(tmr); enviar(); });
-      var novo = document.getElementById("sfNovo"); if (novo) novo.addEventListener("click", function () { st = { serie: [], torneio: "", resultado: "", token: null, fim: false }; salvar(); desenhar(); });
+      var fim = document.getElementById("sfFim"); if (fim) fim.addEventListener("click", function () { if (!window.confirm("Encerrar a partida? O resultado final fica visível por mais 2 horas.")) return; st.fim = true; rasc = null; desenhar(); clearTimeout(tmr); enviar(); });
+      var novo = document.getElementById("sfNovo"); if (novo) novo.addEventListener("click", function () { st = { cfg: Object.assign({}, st.cfg), pontos: [], token: null, fim: false, iniciado: false }; salvar(); telaConfig(); });
       estadoEnvio();
     }
-    desenhar();
+    if (st.iniciado) desenhar(); else telaConfig();
   }
 
   async function telaCompeticao() {

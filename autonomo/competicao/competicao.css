@@ -256,3 +256,17 @@ body.comp .voz-aviso p { margin: 4px 0 0; }
 .sf-bt small{font-weight:400;opacity:.85}
 .sf-n{font-size:1.1rem;margin-top:4px}
 .sf-erro{color:#b3361f}
+
+/* responsável marca o jogo: cabeçalho e grades do scout completo */
+.sf-cab{display:flex;justify-content:space-between;gap:12px;background:#103B32;color:#f5f1ea;padding:12px 15px;border-radius:10px;position:sticky;top:8px;z-index:3}
+.sf-cab p{margin:0}
+.sf-cab-l{font-size:10px;letter-spacing:.14em;opacity:.75}
+.sf-cab-n{font-size:30px;font-weight:700;line-height:1.1}
+.sf-cab-s{font-size:17px;font-weight:600}
+.sf-cab-d{text-align:right}
+.sf-adverso{font-size:11px;font-weight:700;color:#b3361f;margin:8px 2px}
+.sf-grade4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px}
+.sf-grade3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:6px}
+.sf-pq{min-height:44px;padding:10px 4px;font-size:12px;white-space:normal}
+.sf-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.sf-rasc{margin-top:12px;border-left:3px solid #d6452d}
