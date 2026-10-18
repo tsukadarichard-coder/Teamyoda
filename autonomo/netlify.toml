@@ -17,6 +17,12 @@
     Cache-Control = "public, max-age=300, must-revalidate"
 
 [[headers]]
+  for = "/painel/manifest.json"
+  [headers.values]
+    Content-Type = "application/manifest+json; charset=utf-8"
+    Cache-Control = "public, max-age=300, must-revalidate"
+
+[[headers]]
   for = "/competicao/manifest.json"
   [headers.values]
     Content-Type = "application/manifest+json; charset=utf-8"

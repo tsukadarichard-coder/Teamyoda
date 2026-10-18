@@ -5,9 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <meta name="referrer" content="no-referrer">
-<meta name="theme-color" content="#002418">
+<meta name="theme-color" content="#FFFFFF">
 <title>Painel QuadraLab</title>
-<link rel="icon" type="image/png" sizes="32x32" href="../assets/competicao-favicon-32.png">
+<link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="../assets/favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="../assets/apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Painel">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -18,7 +25,7 @@
 
 <section id="entrada" class="entrada" aria-labelledby="t-entrada">
   <form id="fEntrar" class="entrada-caixa" novalidate>
-    <p class="marca-texto">QuadraLab</p>
+    <img class="logo-entrada" src="../assets/logo-quadralab-painel-190.png" srcset="../assets/logo-quadralab-painel-190.png 1x, ../assets/logo-quadralab-painel-380.png 2x" width="190" height="46" alt="QuadraLab">
     <h1 id="t-entrada">Painel do administrador</h1>
     <p class="nota">Acesso restrito. O segredo fica só nesta página e é conferido no servidor.</p>
     <label for="segredo">Segredo de administrador</label>
@@ -33,7 +40,7 @@
 <div id="app" hidden>
   <header class="topo">
     <button type="button" class="bt-menu" id="btMenu" aria-expanded="false" aria-controls="menu">Menu</button>
-    <p class="marca-texto">QuadraLab <span>Painel</span></p>
+    <span class="marca-topo"><img class="logo-topo" src="../assets/logo-quadralab-painel-190.png" srcset="../assets/logo-quadralab-painel-190.png 1x, ../assets/logo-quadralab-painel-380.png 2x" width="130" height="31" alt="QuadraLab"><span class="marca-painel">Painel</span></span>
     <span class="topo-fim"><span class="nota" id="atualizadoEm"></span><button type="button" class="bt claro" id="btAtualizar">Atualizar</button><button type="button" class="bt claro" id="btSair">Sair</button></span>
   </header>
   <div class="corpo">
