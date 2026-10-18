@@ -2712,16 +2712,27 @@
   }
   var ROTULO_PARENT = { pai: "Pai", mae: "Mãe", outro: "Outro responsável" };
   function rotuloVinc(v) { return v.tipo === "treinador" ? "Treinador" : "Responsável" + (v.parentesco && v.parentesco !== "outro" ? " (" + ROTULO_PARENT[v.parentesco] + ")" : ""); }
+  function statusVinc(v, comp) {
+    if (v.status === "convite") return "Convite aberto: aguardando a pessoa usar o código";
+    if (v.status === "aguardando") return "A pessoa usou o código: aguardando aprovação";
+    return ROTULO_VINC[v.status] || v.status;
+  }
+  function mensagemConvite(v) {
+    var papel = v.tipo === "treinador" ? "treinador" : "responsável";
+    return "Oi! Convidei você para acompanhar a minha preparação no QuadraLab Competição, como " + papel + ".\n\n1) Crie a sua conta grátis como " + papel + ": https://quadralab.com.br/competicao/#/criar\n2) Em Início, digite o código: " + v.codigo + "\n3) Eu aprovo o pedido por aqui.\n\nO código vale até " + dataISO(v.expiraEm) + ".";
+  }
   function vinculoMeuHtml(v, comp) {
-    var quem = v.pessoa ? esc(v.pessoa.nome) + (v.pessoa.email ? ' <span class="nota">(' + esc(v.pessoa.email) + ")</span>" : "") : "Ainda sem ninguém";
-    var h = '<li class="comp-vinc"><p><strong>' + esc(rotuloVinc(v)) + "</strong> · " + quem + '</p><p class="nota">' + esc(ROTULO_VINC[v.status] || v.status) + " · Compartilha: " + esc(rotuloAreas(v.areas)) + "</p>";
+    var quem = v.pessoa ? esc(v.pessoa.nome) + (v.pessoa.email ? ' <span class="nota">(' + esc(v.pessoa.email) + ")</span>" : "") : "";
+    var h = '<li class="comp-vinc' + (v.status === "convite" ? " convite-aberto" : "") + '"><p><strong>' + (v.status === "convite" ? "Convite para " : "") + esc(rotuloVinc(v)) + "</strong>" + (quem ? " · " + quem : "") + '</p><p class="nota">' + esc(statusVinc(v, comp)) + " · Compartilha: " + esc(rotuloAreas(v.areas)) + "</p>";
     if (v.status === "convite") {
-      h += '<p class="comp-codigo" aria-label="Código do convite">' + esc(v.codigo) + '</p><p class="nota">Passe este código para a pessoa. Vale até ' + esc(dataISO(v.expiraEm)) + ".</p>" +
-        '<div class="acoes"><button type="button" class="btn btn-secundario btn-pequeno" data-copiar="' + esc(v.codigo) + '">Copiar código</button><button type="button" class="btn btn-texto" data-rev="' + v.id + '">Cancelar convite</button></div>';
+      var papel = v.tipo === "treinador" ? "treinador" : "responsável";
+      h += '<p class="olho" style="margin-top:8px">Código de convite</p><p class="comp-codigo" aria-label="Código do convite">' + esc(v.codigo) + '</p><p class="nota">Vale até ' + esc(dataISO(v.expiraEm)) + ". Só pode ser usado uma vez, por uma pessoa.</p>" +
+        '<div class="acoes"><a class="btn btn-primario" href="https://wa.me/?text=' + encodeURIComponent(mensagemConvite(v)) + '" target="_blank" rel="noopener noreferrer">Enviar pelo WhatsApp<span class="sr"> (abre em nova aba)</span></a><button type="button" class="btn btn-secundario" data-copiar="' + esc(v.codigo) + '">Copiar código</button><button type="button" class="btn btn-texto" data-rev="' + v.id + '">Cancelar convite</button></div>' +
+        '<details class="det" style="margin-top:8px"><summary>O que a pessoa precisa fazer</summary><ol class="beneficios" style="margin-top:8px"><li>Criar a conta grátis em quadralab.com.br/competicao, escolhendo o papel de <strong>' + papel + '</strong>.</li><li>Em Início, digitar o código <strong>' + esc(v.codigo) + '</strong> e tocar em “Usar código”.</li><li>Esperar a sua aprovação. Você a vê aqui, em “Quem acompanha você”.</li></ol></details>';
     } else if (v.status === "aguardando") {
       var soResp = (v.tipo === "treinador" && comp.menor) || (v.tipo === "responsavel" && comp.menor && comp.ativosResp > 0);
-      h += soResp ? '<p class="nota">Como você é menor de idade, quem aprova ' + (v.tipo === "treinador" ? "o treinador" : "mais um responsável") + " é um responsável que já está vinculado.</p>"
-        : '<div class="acoes"><button type="button" class="btn btn-primario btn-pequeno" data-dec="' + v.id + '" data-ap="1">Aprovar</button><button type="button" class="btn btn-secundario btn-pequeno" data-dec="' + v.id + '" data-ap="0">Recusar</button></div>';
+      h += soResp ? '<p class="nota"><strong>Falta a aprovação:</strong> como você é menor de idade, ' + (v.tipo === "treinador" ? "quem aprova o treinador" : "quem aprova mais um responsável") + " é um responsável que já está vinculado. Avise-o para abrir o app dele.</p>"
+        : '<p class="nota"><strong>Confira se é a pessoa certa</strong> e toque em Aprovar. Só depois disso ela passa a ver o que você marcou.</p><div class="acoes"><button type="button" class="btn btn-primario btn-pequeno" data-dec="' + v.id + '" data-ap="1">Aprovar</button><button type="button" class="btn btn-secundario btn-pequeno" data-dec="' + v.id + '" data-ap="0">Recusar</button></div>';
       h += '<div class="acoes"><button type="button" class="btn btn-texto" data-rev="' + v.id + '">Cancelar pedido</button></div>';
     } else if (v.status === "ativo") {
       h += '<details class="det"><summary>O que é compartilhado</summary><div style="margin-top:8px">' + areasMarcadas(v.areas, "ar-" + v.id) + '<button type="button" class="btn btn-secundario btn-pequeno" data-areas="' + v.id + '">Salvar</button></div></details>' +
@@ -2780,20 +2791,22 @@
         '<div class="cartao" style="margin-top:14px"><h2>Evolução</h2><p class="nota" style="margin-top:6px">Devolutivas do treinador e o que levar do jogo para o treino.</p><div class="acoes"><a class="btn btn-secundario" href="#/devolutivas">Devolutivas</a><a class="btn btn-secundario" href="#/focos">Foco de treino</a><a class="btn btn-secundario" href="#/scouts">Scouts do treinador</a></div></div>' +
         '<div class="cartao" style="margin-top:14px"><h2>Consultorias avulsas</h2><p class="nota" style="margin-top:6px">Orientação pontual da Metodologia MTY, contratada por serviço e separada do Acompanhamento MTY.</p><div class="acoes"><a class="btn btn-secundario" href="#/consultorias">Ver consultorias</a><a class="btn btn-secundario" href="#/pedidos">Meus pedidos</a></div></div>';
       html += '<div class="cartao" id="quemAcompanha" style="margin-top:14px"><h2>Quem acompanha você</h2>' +
-        (semResp ? '<p class="nota" style="margin-top:6px">O primeiro vínculo é o do responsável. Depois dele ativo, você pode convidar o treinador, e o responsável aprova.</p>' : '<p class="nota" style="margin-top:6px">Você decide quem vê o quê, e pode encerrar qualquer vínculo quando quiser. O diário pessoal só é compartilhado se você marcar, registro por registro.' + (ativosResp === 1 && comp.menor ? " Para vincular o outro responsável (pai ou mãe), gere um novo código em “Convidar alguém”." : "") + '</p>') +
-        (s.meus.length ? '<ul class="comp-lista">' + s.meus.map(function (v) { return vinculoMeuHtml(v, comp); }).join("") + "</ul>" : '<p class="nota" style="margin-top:8px">Ninguém vinculado ainda.</p>') +
-        '<details class="det" style="margin-top:10px"><summary>Como funciona o convite</summary><ol class="beneficios" style="margin-top:8px"><li>Escolha Responsável ou Treinador e marque o que a pessoa pode ver.</li><li>Gere o código (8 caracteres, vale 7 dias) e envie para ela.</li><li>Ela cria a conta como responsável ou treinador e digita o código em Início.</li><li>Você aprova o pedido' + (comp.menor ? "; o treinador de um menor de idade é aprovado pelo responsável" : "") + '.</li><li>Para o Acompanhamento MTY, marque “Meu planejamento” no convite do treinador.</li></ol></details>' +
-        '<details class="det" id="detConvite" style="margin-top:10px"' + (s.meus.length ? "" : " open") + '><summary>Convidar alguém</summary><form id="fConvite" style="margin-top:10px" novalidate>' +
-        '<div class="campo"><label for="tipoConv">Quem você quer convidar?</label><select id="tipoConv"><option value="responsavel">Responsável</option>' + (semResp ? '<option value="treinador" disabled>Treinador (disponível depois que o responsável estiver vinculado)</option>' : '<option value="treinador">Treinador</option>') + '</select></div>' +
-        '<div class="campo" id="campoParent"><label for="parentConv">Quem é o responsável?</label><select id="parentConv"><option value="mae">Mãe</option><option value="pai">Pai</option><option value="outro">Outro responsável</option></select><p class="nota" style="margin-top:6px">Pai e mãe podem ser vinculados, cada um com o seu código. Cada responsável usa o próprio código na própria conta.</p></div>' +
-        (semResp ? '<p class="nota"><strong>Para convidar o treinador:</strong> primeiro o responsável usa o código dele, em outra conta, e você aprova o pedido. Só então a opção “Treinador” é liberada aqui. Esse código de responsável não serve para o treinador.</p>' : "") +
-        '<p class="olho" style="margin-top:6px">O que essa pessoa pode ver</p>' + areasMarcadas(null, "ar-novo") +
-        '<div class="aviso" id="avisoConv" role="alert" hidden></div><button class="btn btn-primario" type="submit">Gerar código de convite</button></form></details></div>';
+        (semResp ? '<p class="nota" style="margin-top:6px"><strong>Primeiro passo:</strong> convide o pai, a mãe ou outro responsável. Depois que ele estiver vinculado, você poderá convidar o treinador.</p>' : '<p class="nota" style="margin-top:6px">Você decide quem vê o quê e pode encerrar qualquer vínculo quando quiser. O diário pessoal só é compartilhado se você marcar, registro por registro.' + (ativosResp === 1 && comp.menor ? " Para vincular o outro responsável (pai ou mãe), convide-o abaixo." : "") + "</p>") +
+        '<h3 style="margin-top:14px">Como convidar alguém</h3><ol class="convite-passos"><li><span>1</span><div>Escolha <strong>quem convidar</strong> e marque o que a pessoa poderá ver.</div></li><li><span>2</span><div>Toque em <strong>Gerar código</strong>. O código tem 8 letras e números e vale 7 dias.</div></li><li><span>3</span><div><strong>Envie o código</strong> pelo WhatsApp. A pessoa cria a conta grátis no papel certo e digita o código em Início.</div></li><li><span>4</span><div><strong>Aprove o pedido</strong> aqui' + (comp.menor ? " (o treinador de um menor de idade é aprovado por um responsável)" : "") + ".</div></li></ol>" +
+        '<h3 style="margin-top:14px">Pessoas e convites</h3>' + (s.meus.length ? '<ul class="comp-lista">' + s.meus.map(function (v) { return vinculoMeuHtml(v, comp); }).join("") + "</ul>" : '<p class="nota" style="margin-top:6px">Ninguém vinculado ainda.</p>') +
+        '<h3 id="tituloConvidar" style="margin-top:16px">Convidar alguém</h3><p class="nota" style="margin-top:4px">Quem você quer convidar?</p>' +
+        '<div class="convite-botoes" role="group" aria-label="Quem você quer convidar"><button type="button" class="btn btn-secundario btn-conv" data-conv="mae">Mãe</button><button type="button" class="btn btn-secundario btn-conv" data-conv="pai">Pai</button><button type="button" class="btn btn-secundario btn-conv" data-conv="outro">Outro responsável</button>' +
+        '<button type="button" class="btn btn-secundario btn-conv" data-conv="treinador"' + (semResp ? " disabled" : "") + ">Treinador</button></div>" +
+        (semResp ? '<p class="nota" style="margin-top:8px"><strong>Treinador:</strong> fica liberado depois que o responsável usar o código dele (em outra conta) e você aprovar o pedido. O código de responsável não serve para o treinador.</p>' : '<p class="nota" style="margin-top:8px">Pai e mãe podem ser vinculados, cada um com o seu código e a sua conta. Para o Acompanhamento MTY, o convite do treinador deve ter “Meu planejamento” marcado.</p>') +
+        '<form id="fConvite" style="margin-top:12px" hidden novalidate><input type="hidden" id="tipoConv" value="responsavel"><input type="hidden" id="parentConv" value="mae">' +
+        '<p class="olho" id="convPara">Convite</p><p class="nota" style="margin:4px 0 8px">Marque o que essa pessoa poderá ver. Você pode mudar isso depois.</p>' + areasMarcadas(null, "ar-novo") +
+        '<div class="aviso" id="avisoConv" role="alert" hidden></div><div class="acoes"><button class="btn btn-primario" type="submit" id="btGerarConvite">Gerar código</button><button class="btn btn-texto" type="button" id="btCancelarConvite">Cancelar</button></div></form></div>';
     } else {
       var ativos = s.comigo.filter(function (v) { return v.status === "ativo"; });
       html += '<div class="cartao" style="margin-top:14px"><h2>Atletas que você acompanha</h2>' +
-        (s.comigo.length ? '<ul class="comp-lista">' + s.comigo.map(vinculoComigoHtml).join("") + "</ul>" : '<p class="nota" style="margin-top:6px">Nenhum atleta ainda. O atleta gera um código de convite na conta dele e passa para você.</p>') +
-        '<form id="fCodigo" style="margin-top:12px" novalidate><div class="campo"><label for="codigo">Código de convite</label><input id="codigo" maxlength="12" autocomplete="off" autocapitalize="characters" placeholder="Ex.: K7MQ4XD2"></div>' +
+        (s.comigo.length ? '<ul class="comp-lista">' + s.comigo.map(vinculoComigoHtml).join("") + "</ul>" : '<p class="nota" style="margin-top:6px">Nenhum atleta ainda.</p>') +
+        '<h3 style="margin-top:14px">Entrar na equipe de um atleta</h3><ol class="convite-passos"><li><span>1</span><div>Peça ao <strong>atleta</strong> (ou ao responsável dele) o <strong>código de convite</strong>. Ele o gera em Início, em “Quem acompanha você”.</div></li><li><span>2</span><div><strong>Digite o código</strong> abaixo e toque em “Usar código”.</div></li><li><span>3</span><div>O atleta' + (comp.papel === "treinador" ? " (ou um responsável dele, se for menor)" : "") + " <strong>aprova o pedido</strong>. Depois disso o atleta aparece nesta lista.</div></li></ol>" +
+        '<form id="fCodigo" style="margin-top:12px" novalidate><div class="campo"><label for="codigo">Código de convite (8 letras e números)</label><input id="codigo" maxlength="12" autocomplete="off" autocapitalize="characters" placeholder="Ex.: K7MQ4XD2"><p class="nota" style="margin-top:6px">Cada código vale para o papel em que ele foi gerado: o seu papel nesta conta é <strong>' + ROTULO_PAPEL[comp.papel].toLowerCase() + "</strong>.</p></div>" +
         '<div class="aviso" id="avisoCod" role="alert" hidden></div><button class="btn btn-primario" type="submit">Usar código</button></form></div>';
       if (s.paraDecidir && s.paraDecidir.length) {
         html += '<div class="cartao" style="margin-top:14px"><h2>Pedidos aguardando a sua aprovação</h2><ul class="comp-lista">' + s.paraDecidir.map(function (v) {
@@ -2843,14 +2856,24 @@
       var id = b.getAttribute("data-areas");
       b.addEventListener("click", function () { acaoComp({ acao: "areas", id: id, areas: lerAreas("ar-" + id) }, b, "Áreas atualizadas."); });
     });
-    var tc = document.getElementById("tipoConv"), cp = document.getElementById("campoParent");
-    if (tc && cp) { var ajustaParent = function () { cp.hidden = tc.value !== "responsavel"; }; tc.addEventListener("change", ajustaParent); ajustaParent(); }
     var fc = document.getElementById("fConvite");
+    var ROT_CONV = { mae: "a mãe (responsável)", pai: "o pai (responsável)", outro: "outro responsável", treinador: "o treinador" };
+    app.querySelectorAll("[data-conv]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var k = b.getAttribute("data-conv");
+        app.querySelectorAll("[data-conv]").forEach(function (x) { x.setAttribute("aria-pressed", String(x === b)); });
+        document.getElementById("tipoConv").value = k === "treinador" ? "treinador" : "responsavel"; document.getElementById("parentConv").value = k === "treinador" ? "outro" : k;
+        document.getElementById("convPara").textContent = "Convite para " + ROT_CONV[k];
+        document.getElementById("btGerarConvite").textContent = "Gerar código para " + ROT_CONV[k].replace(" (responsável)", "");
+        fc.hidden = false; fc.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+    });
+    var bcc = document.getElementById("btCancelarConvite"); if (bcc) bcc.addEventListener("click", function () { fc.hidden = true; app.querySelectorAll("[data-conv]").forEach(function (x) { x.setAttribute("aria-pressed", "false"); }); });
     if (fc) fc.addEventListener("submit", async function (ev) {
       ev.preventDefault();
       var av = document.getElementById("avisoConv"); av.hidden = true;
       var bt = fc.querySelector("button[type=submit]"); ocupado(bt, true, "Gerando…");
-      try { await api("player-competicao", { metodo: "POST", corpo: { acao: "convidar", tipo: document.getElementById("tipoConv").value, parentesco: document.getElementById("parentConv").value, areas: lerAreas("ar-novo") } }); await telaCompeticao(); }
+      try { await api("player-competicao", { metodo: "POST", corpo: { acao: "convidar", tipo: document.getElementById("tipoConv").value, parentesco: document.getElementById("parentConv").value, areas: lerAreas("ar-novo") } }); await telaCompeticao(); toast("Código gerado. Envie-o para a pessoa pelo WhatsApp."); var novo = app.querySelector(".convite-aberto"); if (novo) novo.scrollIntoView({ behavior: "smooth", block: "center" }); }
       catch (e) { av.textContent = e.message; av.hidden = false; ocupado(bt, false); }
     });
     var fk = document.getElementById("fCodigo");
@@ -2858,7 +2881,7 @@
       ev.preventDefault();
       var av = document.getElementById("avisoCod"); av.hidden = true;
       var bt = fk.querySelector("button[type=submit]"); ocupado(bt, true, "Verificando…");
-      try { var r = await api("player-competicao", { metodo: "POST", corpo: { acao: "aceitarCodigo", codigo: document.getElementById("codigo").value } }); toast("Pedido enviado a " + r.atleta + ". Falta a aprovação."); await telaCompeticao(); }
+      try { var r = await api("player-competicao", { metodo: "POST", corpo: { acao: "aceitarCodigo", codigo: document.getElementById("codigo").value } }); toast("Pedido enviado a " + r.atleta + ". Assim que ele aprovar, o atleta aparece aqui."); await telaCompeticao(); }
       catch (e) { av.textContent = e.message; av.hidden = false; ocupado(bt, false); }
     });
   }
