@@ -5,7 +5,8 @@
    de aprovado. Estados: convite → aguardando → ativo; qualquer ponto → revogado/recusado/cancelado; convite vencido = expirado.
 
    Quem aprova:
-   · responsável: o atleta (se for menor, o único responsável possível vem de um convite dele; a aprovação é dele);
+   · responsável: o atleta aprova o primeiro; pai e mãe (até MAX_RESPONSAVEIS) podem ser vinculados, cada um com o próprio convite. Se o atleta é
+     menor e já tem um responsável ativo, um novo responsável só entra com a aprovação de um responsável já ativo (o menor sozinho não basta);
    · treinador de atleta adulto: o atleta;
    · treinador de atleta menor: um responsável com vínculo ativo — o atleta menor sozinho não basta.
    Revogar vale para os dois lados a qualquer momento. Se um menor fica sem responsável ativo, os vínculos de treinador dele são encerrados.
@@ -17,6 +18,8 @@ const TIPOS = ["responsavel", "treinador"];
 const AREAS = ["perfil", "temporada", "planejamento", "estrategias", "partidas", "treinos", "diario"];
 const AREAS_PADRAO = ["perfil", "temporada", "planejamento", "estrategias", "partidas", "treinos"]; // o diário é privado por padrão
 const ROTULO_AREA = { perfil: "Perfil de jogador", temporada: "Temporada e torneios", planejamento: "Meu planejamento (compromissos, rotina e registros de treino)", estrategias: "Estratégias", partidas: "Partidas", treinos: "Treinos", diario: "Diário pessoal" };
+const PARENTESCOS = { pai: "Pai", mae: "Mãe", outro: "Outro responsável" };
+const MAX_RESPONSAVEIS = 4; // vínculos de responsável em aberto ou ativos por atleta (pai, mãe e mais dois, se necessário)
 const VALIDADE_CONVITE_DIAS = 7;
 const MAX_CONVITES_ABERTOS = 5;
 const MAX_TENTATIVAS_DIA = 10;
@@ -63,11 +66,15 @@ function podeDecidir(v, uid, atletaMenor, responsaveisAtivosUids) {
   if (v.tipo === "treinador" && atletaMenor) {
     return responsaveisAtivosUids.includes(uid) ? { ok: true } : { ok: false, motivo: "Para um atleta menor de idade, quem aprova o treinador é o responsável." };
   }
+  if (v.tipo === "responsavel" && atletaMenor && responsaveisAtivosUids.length) {
+    return responsaveisAtivosUids.includes(uid) && uid !== v.pessoaUid ? { ok: true } : { ok: false, motivo: "Para um atleta menor de idade, um novo responsável é aprovado por um responsável que já está vinculado." };
+  }
   return uid === v.atletaUid ? { ok: true } : { ok: false, motivo: "Só o atleta pode aprovar este vínculo." };
 }
 
 /* quem pode editar as áreas ou revogar? atleta, a própria pessoa (só revogar) e, para menor, o responsável ativo (editar/revogar) */
 function podeEditarAreas(v, uid, atletaMenor, responsaveisAtivosUids) {
+  if (v.tipo === "responsavel") return uid === v.atletaUid; // um responsável não mexe no vínculo do outro (pai/mãe)
   return uid === v.atletaUid || (atletaMenor && responsaveisAtivosUids.includes(uid));
 }
 function podeRevogar(v, uid, atletaMenor, responsaveisAtivosUids) {
@@ -93,7 +100,7 @@ function perfilCompartilhavel(ficha, opcoes) {
 /* versão que o navegador recebe: nunca o código de convites de outras pessoas nem e-mails além do necessário */
 function publicoVinculo(id, v, ladoAtleta) {
   return {
-    id, tipo: v.tipo, status: v.status, areas: v.areas || [], criadoEm: v.criadoEm, expiraEm: v.expiraEm || null,
+    id, tipo: v.tipo, parentesco: v.tipo === "responsavel" && PARENTESCOS[v.parentesco] ? v.parentesco : null, status: v.status, areas: v.areas || [], criadoEm: v.criadoEm, expiraEm: v.expiraEm || null,
     atleta: { nome: v.atletaNome || "Atleta" },
     pessoa: v.pessoaUid ? { nome: v.pessoaNome || "Pessoa", email: ladoAtleta ? v.pessoaEmail || null : null } : null,
     ...(ladoAtleta && v.status === "convite" ? { codigo: v.codigo } : {}),
@@ -101,7 +108,7 @@ function publicoVinculo(id, v, ladoAtleta) {
 }
 
 module.exports = {
-  PAPEIS, TIPOS, AREAS, AREAS_PADRAO, ROTULO_AREA, VALIDADE_CONVITE_DIAS, MAX_CONVITES_ABERTOS, MAX_TENTATIVAS_DIA,
+  PAPEIS, TIPOS, AREAS, AREAS_PADRAO, ROTULO_AREA, VALIDADE_CONVITE_DIAS, PARENTESCOS, MAX_RESPONSAVEIS, MAX_CONVITES_ABERTOS, MAX_TENTATIVAS_DIA,
   gerarCodigo, normalizarCodigo, idadeEm, ehMenor, areasValidas, somarDias, conviteVencido,
   podeDecidir, podeEditarAreas, podeRevogar, perfilCompartilhavel, publicoVinculo,
 };

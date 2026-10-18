@@ -69,7 +69,7 @@ async function estadoCompleto(uid) {
     for (const l of saida.comigo.filter((x) => x.tipo === "responsavel" && x.status === "ativo")) {
       const { v } = await carregarVinculo(l.id);
       const pend = await db().collection("vinculos").where("atletaUid", "==", v.atletaUid).where("status", "==", "aguardando").get();
-      pend.forEach((s) => { if (s.data().tipo === "treinador") saida.paraDecidir.push(C.publicoVinculo(s.id, s.data(), true)); });
+      pend.forEach((s) => { if (s.id !== l.id && (s.data().tipo === "treinador" || s.data().tipo === "responsavel")) saida.paraDecidir.push(C.publicoVinculo(s.id, s.data(), true)); });
     }
   }
   const ordem = (a, b) => String(b.criadoEm).localeCompare(String(a.criadoEm));
@@ -162,7 +162,14 @@ exports.handler = async function (event) {
       if (body.tipo === "treinador" && menor && !(await responsaveisAtivos(uid)).length) {
         throw new ErroPublico(409, "Como atleta menor de idade, vincule primeiro um responsável. Ele aprova o treinador.");
       }
-      const abertos = (await db().collection("vinculos").where("atletaUid", "==", uid).where("status", "==", "convite").get()).docs.filter((d) => !C.conviteVencido(d.data(), hoje));
+      const todos = (await db().collection("vinculos").where("atletaUid", "==", uid).get()).docs.map((d) => d.data()).filter((x) => ["convite", "aguardando", "ativo"].includes(x.status) && !C.conviteVencido(x, hoje));
+      let parentesco = null;
+      if (body.tipo === "responsavel") {
+        parentesco = body.parentesco === undefined || body.parentesco === "" ? "outro" : String(body.parentesco);
+        if (!C.PARENTESCOS[parentesco]) throw new ErroPublico(400, "Escolha pai, mãe ou outro responsável.");
+        if (todos.filter((x) => x.tipo === "responsavel").length >= C.MAX_RESPONSAVEIS) throw new ErroPublico(409, "Você já tem " + C.MAX_RESPONSAVEIS + " responsáveis vinculados ou convidados. Encerre um vínculo para convidar outro.");
+      }
+      const abertos = todos.filter((x) => x.status === "convite");
       if (abertos.length >= C.MAX_CONVITES_ABERTOS) throw new ErroPublico(409, "Você já tem " + C.MAX_CONVITES_ABERTOS + " convites abertos. Cancele um ou espere vencer.");
       const areas = body.areas === undefined ? C.AREAS_PADRAO.slice() : C.areasValidas(body.areas);
       if (!areas.length) throw new ErroPublico(400, "Escolha pelo menos uma área para compartilhar.");
@@ -174,7 +181,7 @@ exports.handler = async function (event) {
       }
       if (!codigo) throw new ErroPublico(500, "Não foi possível gerar o código agora. Tente de novo.");
       const v = {
-        atletaUid: uid, atletaNome: jog.nome || usuario.name || "Atleta", tipo: body.tipo, status: "convite", areas, codigo,
+        atletaUid: uid, atletaNome: jog.nome || usuario.name || "Atleta", tipo: body.tipo, ...(parentesco ? { parentesco } : {}), status: "convite", areas, codigo,
         criadoEm: agoraISO(), expiraEm: C.somarDias(hoje, C.VALIDADE_CONVITE_DIAS), pessoaUid: null, historico: [],
       };
       v.historico = evento(v, uid, "convite criado");
@@ -196,6 +203,8 @@ exports.handler = async function (event) {
       if (v.status !== "convite" || C.conviteVencido(v, hoje)) await falha();
       if (v.atletaUid === uid) throw new ErroPublico(400, "Você não pode se vincular a você mesmo.");
       if (v.tipo !== c.papel) throw new ErroPublico(409, "Este código é para " + (v.tipo === "responsavel" ? "um responsável" : "um treinador") + ". Seu papel é " + (c.papel === "responsavel" ? "responsável" : "treinador") + ".");
+      const jaTem = await db().collection("vinculos").where("atletaUid", "==", v.atletaUid).where("pessoaUid", "==", uid).get();
+      if (jaTem.docs.some((d) => d.data().tipo === v.tipo && ["aguardando", "ativo"].includes(d.data().status))) throw new ErroPublico(409, "Você já está vinculado a este atleta" + (v.tipo === "responsavel" ? " como responsável" : " como treinador") + " ou aguardando aprovação.");
       await doc.ref.update({ status: "aguardando", pessoaUid: uid, pessoaNome: jog.nome || usuario.name || "Pessoa", pessoaEmail: usuario.email || null, aceitoEm: agoraISO(), historico: evento(v, uid, "código usado, aguardando aprovação") });
       return resposta(200, { ok: true, atleta: v.atletaNome || "Atleta" });
     }

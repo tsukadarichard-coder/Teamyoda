@@ -298,13 +298,37 @@ async function get(uid, qs) { const r = await handler({ httpMethod: "GET", heade
   assert.ok(!(await get("trein", { ver: idT })).devolutivas.some((d) => d.id === "outradevolut1"), "treinador não vê devolutiva de outro treinador");
   assert.strictEqual((await post("trein", { acao: "excluirDevolutiva", id: idT, devolutivaId: "outradevolut1" })).s, 404, "só apaga a própria");
   assert.strictEqual((await post("trein", { acao: "excluirDevolutiva", id: idT, devolutivaId: dvT.id })).s, 200);
-  /* responsável de atleta menor lê todas as devolutivas */
-  const crm = await post("menor", { acao: "convidar", tipo: "responsavel" });
-  await post("resp", { acao: "aceitarCodigo", codigo: crm.codigo });
-  const idRm = (await get("menor")).meus.filter((x) => x.status === "aguardando")[0].id;
-  await post("menor", { acao: "decidir", id: idRm, aprovar: true });
+  /* pai e mãe: sem responsável ativo o atleta aprova o primeiro (a mãe); o segundo (o pai) só entra com a aprovação dela */
+  const cMae = await post("menor", { acao: "convidar", tipo: "responsavel", parentesco: "mae" }); assert.strictEqual(cMae.s, 200);
+  assert.strictEqual((await post("resp", { acao: "aceitarCodigo", codigo: cMae.codigo })).s, 200);
+  const idMae = (await get("menor")).meus.filter((x) => x.status === "aguardando")[0].id;
+  assert.strictEqual((await post("menor", { acao: "decidir", id: idMae, aprovar: true })).s, 200, "primeiro responsável: o atleta aprova");
+  pessoa("pai", "Pai"); assert.strictEqual((await post("pai", { acao: "ativar", papel: "responsavel" })).s, 200);
+  assert.strictEqual((await post("menor", { acao: "convidar", tipo: "responsavel", parentesco: "tio-avo" })).s, 400, "parentesco desconhecido");
+  const crm = await post("menor", { acao: "convidar", tipo: "responsavel", parentesco: "pai" });
+  assert.strictEqual(crm.s, 200);
+  assert.strictEqual((await post("pai", { acao: "aceitarCodigo", codigo: crm.codigo })).s, 200);
+  const meus1 = (await get("menor")).meus, vPai = meus1.filter((x) => x.status === "aguardando")[0], idRm = vPai.id;
+  assert.strictEqual(vPai.parentesco, "pai");
+  assert.strictEqual((await post("menor", { acao: "decidir", id: idRm, aprovar: true })).s, 403, "menor sozinho não aprova o 2º responsável");
+  assert.strictEqual((await post("pai", { acao: "decidir", id: idRm, aprovar: true })).s, 403, "o próprio convidado não se aprova");
+  const paraDec = (await get("resp")).paraDecidir; assert.ok(paraDec.some((x) => x.id === idRm && x.tipo === "responsavel" && x.parentesco === "pai"), "a mãe vê o pedido do pai para decidir");
+  assert.strictEqual((await post("resp", { acao: "decidir", id: idRm, aprovar: true })).s, 200, "a mãe aprova o pai");
+  assert.strictEqual((await get("pai", { ver: idRm })).s, 200, "o pai passa a ver o atleta");
+  /* um responsável não mexe no vínculo do outro; o atleta e a própria pessoa mexem */
+  assert.strictEqual((await post("resp", { acao: "revogar", id: idRm })).s, 403, "a mãe não encerra o vínculo do pai");
+  assert.strictEqual((await post("resp", { acao: "areas", id: idRm, areas: ["perfil"] })).s, 403);
+  /* o mesmo responsável não usa dois códigos para o mesmo atleta */
+  const dup = await post("menor", { acao: "convidar", tipo: "responsavel", parentesco: "outro" }); assert.strictEqual((await post("pai", { acao: "aceitarCodigo", codigo: dup.codigo })).s, 409);
+  /* limite de responsáveis por atleta */
+  assert.strictEqual((await post("menor", { acao: "convidar", tipo: "responsavel" })).s, 200);
+  assert.strictEqual((await post("menor", { acao: "convidar", tipo: "responsavel" })).s, 409, "o quarto vínculo já passa do limite (mãe, pai, convite do duplicado e mais um)");
+  const nResp = (await get("menor")).meus.filter((x) => x.tipo === "responsavel" && ["convite", "aguardando", "ativo"].includes(x.status)).length; assert.ok(nResp <= 4, "no máximo 4 responsáveis");
+  /* encerrar um dos dois não derruba os treinadores: ainda há um responsável ativo */
+  assert.strictEqual((await post("pai", { acao: "revogar", id: idRm })).s, 200, "o pai pode sair");
+  assert.strictEqual((await get("resp", { ver: idMae })).s, 200, "a mãe continua vinculada");
   col("jogadores/menor/devolutivas").dm1 = { autorUid: "xx", autorNome: "Coach", tipo: "geral", destaques: "ok", criadoEm: "2026-01-01" };
-  assert.strictEqual((await get("resp", { ver: idRm })).devolutivas.length, 1);
+  assert.strictEqual((await get("resp", { ver: idMae })).devolutivas.length, 1);
   assert.strictEqual(col("jogadores/adulto/focos") && Object.keys(col("jogadores/adulto/focos")).length, 3);
 
   console.log("check-competicao: ok");

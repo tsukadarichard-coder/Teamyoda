@@ -2660,15 +2660,17 @@
     try { await api("player-competicao", { metodo: "POST", corpo: corpo }); if (ok) toast(ok); await telaCompeticao(); }
     catch (e) { toast(e.message, null, true); if (btn) ocupado(btn, false); }
   }
+  var ROTULO_PARENT = { pai: "Pai", mae: "Mãe", outro: "Outro responsável" };
+  function rotuloVinc(v) { return v.tipo === "treinador" ? "Treinador" : "Responsável" + (v.parentesco && v.parentesco !== "outro" ? " (" + ROTULO_PARENT[v.parentesco] + ")" : ""); }
   function vinculoMeuHtml(v, comp) {
     var quem = v.pessoa ? esc(v.pessoa.nome) + (v.pessoa.email ? ' <span class="nota">(' + esc(v.pessoa.email) + ")</span>" : "") : "Ainda sem ninguém";
-    var h = '<li class="comp-vinc"><p><strong>' + (v.tipo === "treinador" ? "Treinador" : "Responsável") + "</strong> · " + quem + '</p><p class="nota">' + esc(ROTULO_VINC[v.status] || v.status) + " · Compartilha: " + esc(rotuloAreas(v.areas)) + "</p>";
+    var h = '<li class="comp-vinc"><p><strong>' + esc(rotuloVinc(v)) + "</strong> · " + quem + '</p><p class="nota">' + esc(ROTULO_VINC[v.status] || v.status) + " · Compartilha: " + esc(rotuloAreas(v.areas)) + "</p>";
     if (v.status === "convite") {
       h += '<p class="comp-codigo" aria-label="Código do convite">' + esc(v.codigo) + '</p><p class="nota">Passe este código para a pessoa. Vale até ' + esc(dataISO(v.expiraEm)) + ".</p>" +
         '<div class="acoes"><button type="button" class="btn btn-secundario btn-pequeno" data-copiar="' + esc(v.codigo) + '">Copiar código</button><button type="button" class="btn btn-texto" data-rev="' + v.id + '">Cancelar convite</button></div>';
     } else if (v.status === "aguardando") {
-      var soResp = v.tipo === "treinador" && comp.menor;
-      h += soResp ? '<p class="nota">Como você é menor de idade, quem aprova o treinador é o seu responsável.</p>'
+      var soResp = (v.tipo === "treinador" && comp.menor) || (v.tipo === "responsavel" && comp.menor && comp.ativosResp > 0);
+      h += soResp ? '<p class="nota">Como você é menor de idade, quem aprova ' + (v.tipo === "treinador" ? "o treinador" : "mais um responsável") + " é um responsável que já está vinculado.</p>"
         : '<div class="acoes"><button type="button" class="btn btn-primario btn-pequeno" data-dec="' + v.id + '" data-ap="1">Aprovar</button><button type="button" class="btn btn-secundario btn-pequeno" data-dec="' + v.id + '" data-ap="0">Recusar</button></div>';
       h += '<div class="acoes"><button type="button" class="btn btn-texto" data-rev="' + v.id + '">Cancelar pedido</button></div>';
     } else if (v.status === "ativo") {
@@ -2678,9 +2680,9 @@
     return h + "</li>";
   }
   function vinculoComigoHtml(v) {
-    var h = '<li class="comp-vinc"><p><strong>' + esc(v.atleta.nome) + "</strong> · " + (v.tipo === "treinador" ? "como treinador" : "como responsável") + '</p><p class="nota">' + esc(ROTULO_VINC[v.status] || v.status) + (v.status === "ativo" ? " · Você vê: " + esc(rotuloAreas(v.areas)) : "") + "</p>";
+    var h = '<li class="comp-vinc"><p><strong>' + esc(v.atleta.nome) + "</strong> · " + (v.tipo === "treinador" ? "como treinador" : "como " + (v.parentesco && v.parentesco !== "outro" ? ROTULO_PARENT[v.parentesco].toLowerCase() + " (responsável)" : "responsável")) + '</p><p class="nota">' + esc(ROTULO_VINC[v.status] || v.status) + (v.status === "ativo" ? " · Você vê: " + esc(rotuloAreas(v.areas)) : "") + "</p>";
     if (v.status === "ativo") h += '<div class="acoes"><a class="btn btn-primario btn-pequeno" href="#/competicao/vinculo/' + v.id + '">Ver atleta</a><button type="button" class="btn btn-texto" data-rev="' + v.id + '">Encerrar vínculo</button></div>';
-    else if (v.status === "aguardando") h += '<p class="nota">O atleta' + (v.tipo === "treinador" ? " (ou o responsável dele, se for menor)" : "") + " precisa aprovar.</p>" + '<div class="acoes"><button type="button" class="btn btn-texto" data-rev="' + v.id + '">Cancelar pedido</button></div>';
+    else if (v.status === "aguardando") h += '<p class="nota">O atleta' + (v.tipo === "treinador" ? " (ou o responsável dele, se for menor)" : " (ou um responsável já vinculado, se ele for menor)") + " precisa aprovar.</p>" + '<div class="acoes"><button type="button" class="btn btn-texto" data-rev="' + v.id + '">Cancelar pedido</button></div>';
     return h + "</li>";
   }
   async function telaCompeticao() {
@@ -2716,11 +2718,11 @@
     html = topo + "<h1>" + (MODO_COMP && primeiro ? "Olá, " + esc(primeiro) : "Competição") + "</h1>" + '<p class="sub">Seu papel: <strong>' + ROTULO_PAPEL[comp.papel] + "</strong>" + (comp.papel === "atleta" && comp.menor ? " · atleta menor de idade" : "") + ".</p>";
     if (comp.papel === "atleta") {
       var ativosResp = s.meus.filter(function (v) { return v.tipo === "responsavel" && v.status === "ativo"; }).length;
-      var semResp = !!comp.menor && !ativosResp, respPendente = s.meus.some(function (v) { return v.tipo === "responsavel" && (v.status === "convite" || v.status === "aguardando"); });
+      comp.ativosResp = ativosResp; var semResp = !!comp.menor && !ativosResp, respPendente = s.meus.some(function (v) { return v.tipo === "responsavel" && (v.status === "convite" || v.status === "aguardando"); });
       html += (semResp ? '<section class="cartao comp-alerta" aria-labelledby="t-vr"><p class="olho">Primeiro passo</p><h2 id="t-vr">Vincular responsável</h2><p class="nota" style="margin-top:6px">' +
           (respPendente ? "Seu convite ao responsável está em aberto: veja o código em “Quem acompanha você”, mais abaixo. " : "") +
-          'Como você é menor de idade, o responsável precisa estar vinculado antes de convidar o treinador ou contratar qualquer serviço.</p>' +
-          (respPendente ? '<div class="acoes"><a class="btn btn-primario btn-grande" href="#quemAcompanha" id="lkVincResp">Ver o código do convite</a></div>' : '<div class="acoes"><button type="button" class="btn btn-primario btn-grande" id="btVincResp">Gerar código para o responsável</button></div>') + "</section>" : "") +
+          'Como você é menor de idade, um responsável (pai, mãe ou outro) precisa estar vinculado antes de convidar o treinador ou contratar qualquer serviço. Depois você pode vincular também o outro responsável.</p>' +
+          (respPendente ? '<div class="acoes"><a class="btn btn-primario btn-grande" href="#quemAcompanha" id="lkVincResp">Ver o código do convite</a></div>' : '<div class="acoes"><button type="button" class="btn btn-primario btn-grande" id="btVincResp">Gerar código para o pai ou a mãe</button></div>') + "</section>" : "") +
         '<div id="hubProximo"></div><section class="cartao comp-plano-hub" id="hubPlano" aria-labelledby="t-mp"><p class="olho">Temporada, semanas e rotina</p><h2 id="t-mp">Meu planejamento</h2><p class="nota" style="margin-top:6px">Organize sua preparação de acordo com seus objetivos, sua rotina e seus próximos torneios.</p>' +
         '<div id="hubPlanoDados"></div><div class="acoes"><a class="btn btn-laranja btn-grande" href="#/planejamento">Abrir meu planejamento</a></div></section>' +
         '<div id="hubPre"></div><div id="hubDes"></div><div id="hubDev"></div><div id="hubAcomp"></div>' +
@@ -2728,11 +2730,12 @@
         '<div class="cartao" style="margin-top:14px"><h2>Evolução</h2><p class="nota" style="margin-top:6px">Devolutivas do treinador e o que levar do jogo para o treino.</p><div class="acoes"><a class="btn btn-secundario" href="#/devolutivas">Devolutivas</a><a class="btn btn-secundario" href="#/focos">Foco de treino</a><a class="btn btn-secundario" href="#/scouts">Scouts do treinador</a></div></div>' +
         '<div class="cartao" style="margin-top:14px"><h2>Consultorias avulsas</h2><p class="nota" style="margin-top:6px">Orientação pontual da Metodologia MTY, contratada por serviço e separada do Acompanhamento MTY.</p><div class="acoes"><a class="btn btn-secundario" href="#/consultorias">Ver consultorias</a><a class="btn btn-secundario" href="#/pedidos">Meus pedidos</a></div></div>';
       html += '<div class="cartao" id="quemAcompanha" style="margin-top:14px"><h2>Quem acompanha você</h2>' +
-        (semResp ? '<p class="nota" style="margin-top:6px">O primeiro vínculo é o do responsável. Depois dele ativo, você pode convidar o treinador, e o responsável aprova.</p>' : '<p class="nota" style="margin-top:6px">Você decide quem vê o quê, e pode encerrar qualquer vínculo quando quiser. O diário pessoal só é compartilhado se você marcar, registro por registro.</p>') +
+        (semResp ? '<p class="nota" style="margin-top:6px">O primeiro vínculo é o do responsável. Depois dele ativo, você pode convidar o treinador, e o responsável aprova.</p>' : '<p class="nota" style="margin-top:6px">Você decide quem vê o quê, e pode encerrar qualquer vínculo quando quiser. O diário pessoal só é compartilhado se você marcar, registro por registro.' + (ativosResp === 1 && comp.menor ? " Para vincular o outro responsável (pai ou mãe), gere um novo código em “Convidar alguém”." : "") + '</p>') +
         (s.meus.length ? '<ul class="comp-lista">' + s.meus.map(function (v) { return vinculoMeuHtml(v, comp); }).join("") + "</ul>" : '<p class="nota" style="margin-top:8px">Ninguém vinculado ainda.</p>') +
         '<details class="det" style="margin-top:10px"><summary>Como funciona o convite</summary><ol class="beneficios" style="margin-top:8px"><li>Escolha Responsável ou Treinador e marque o que a pessoa pode ver.</li><li>Gere o código (8 caracteres, vale 7 dias) e envie para ela.</li><li>Ela cria a conta como responsável ou treinador e digita o código em Início.</li><li>Você aprova o pedido' + (comp.menor ? "; o treinador de um menor de idade é aprovado pelo responsável" : "") + '.</li><li>Para o Acompanhamento MTY, marque “Meu planejamento” no convite do treinador.</li></ol></details>' +
         '<details class="det" id="detConvite" style="margin-top:10px"' + (s.meus.length ? "" : " open") + '><summary>Convidar alguém</summary><form id="fConvite" style="margin-top:10px" novalidate>' +
         '<div class="campo"><label for="tipoConv">Quem você quer convidar?</label><select id="tipoConv"><option value="responsavel">Responsável</option>' + (semResp ? "" : '<option value="treinador">Treinador</option>') + '</select></div>' +
+        '<div class="campo" id="campoParent"><label for="parentConv">Quem é o responsável?</label><select id="parentConv"><option value="mae">Mãe</option><option value="pai">Pai</option><option value="outro">Outro responsável</option></select><p class="nota" style="margin-top:6px">Pai e mãe podem ser vinculados, cada um com o seu código. Cada responsável usa o próprio código na própria conta.</p></div>' +
         (semResp ? '<p class="nota">O convite ao treinador só fica disponível depois que o responsável estiver vinculado.</p>' : "") +
         '<p class="olho" style="margin-top:6px">O que essa pessoa pode ver</p>' + areasMarcadas(null, "ar-novo") +
         '<div class="aviso" id="avisoConv" role="alert" hidden></div><button class="btn btn-primario" type="submit">Gerar código de convite</button></form></details></div>';
@@ -2743,8 +2746,8 @@
         '<form id="fCodigo" style="margin-top:12px" novalidate><div class="campo"><label for="codigo">Código de convite</label><input id="codigo" maxlength="12" autocomplete="off" autocapitalize="characters" placeholder="Ex.: K7MQ4XD2"></div>' +
         '<div class="aviso" id="avisoCod" role="alert" hidden></div><button class="btn btn-primario" type="submit">Usar código</button></form></div>';
       if (s.paraDecidir && s.paraDecidir.length) {
-        html += '<div class="cartao" style="margin-top:14px"><h2>Treinadores aguardando a sua aprovação</h2><ul class="comp-lista">' + s.paraDecidir.map(function (v) {
-          return '<li class="comp-vinc"><p><strong>' + esc(v.pessoa ? v.pessoa.nome : "Treinador") + "</strong> quer acompanhar <strong>" + esc(v.atleta.nome) + '</strong></p><p class="nota">Compartilharia: ' + esc(rotuloAreas(v.areas)) + '</p>' +
+        html += '<div class="cartao" style="margin-top:14px"><h2>Pedidos aguardando a sua aprovação</h2><ul class="comp-lista">' + s.paraDecidir.map(function (v) {
+          return '<li class="comp-vinc"><p><strong>' + esc(v.pessoa ? v.pessoa.nome : "Pessoa") + (v.pessoa && v.pessoa.email ? ' <span class="nota">(' + esc(v.pessoa.email) + ")</span>" : "") + "</strong> quer acompanhar <strong>" + esc(v.atleta.nome) + "</strong> como " + (v.tipo === "treinador" ? "treinador" : "responsável" + (v.parentesco && v.parentesco !== "outro" ? " (" + ROTULO_PARENT[v.parentesco].toLowerCase() + ")" : "")) + '</p><p class="nota">Compartilharia: ' + esc(rotuloAreas(v.areas)) + '</p>' +
             '<div class="acoes"><button type="button" class="btn btn-primario btn-pequeno" data-dec="' + v.id + '" data-ap="1">Aprovar</button><button type="button" class="btn btn-secundario btn-pequeno" data-dec="' + v.id + '" data-ap="0">Recusar</button></div></li>';
         }).join("") + "</ul></div>";
       }
@@ -2753,7 +2756,7 @@
     if (comp.papel === "atleta") {
       lembretesTemporada();
       var bvr = document.getElementById("btVincResp");
-      if (bvr) bvr.addEventListener("click", function () { acaoComp({ acao: "convidar", tipo: "responsavel" }, bvr, "Código gerado. Passe-o para o seu responsável."); });
+      if (bvr) bvr.addEventListener("click", function () { acaoComp({ acao: "convidar", tipo: "responsavel", parentesco: "outro" }, bvr, "Código gerado. Passe-o para o seu responsável."); });
       var lvr = document.getElementById("lkVincResp");
       if (lvr) lvr.addEventListener("click", function (ev) { ev.preventDefault(); var q = document.getElementById("quemAcompanha"); if (q) q.scrollIntoView({ behavior: "smooth", block: "start" }); });
       api("player-torneios").then(function (rt) {
@@ -2790,12 +2793,14 @@
       var id = b.getAttribute("data-areas");
       b.addEventListener("click", function () { acaoComp({ acao: "areas", id: id, areas: lerAreas("ar-" + id) }, b, "Áreas atualizadas."); });
     });
+    var tc = document.getElementById("tipoConv"), cp = document.getElementById("campoParent");
+    if (tc && cp) { var ajustaParent = function () { cp.hidden = tc.value !== "responsavel"; }; tc.addEventListener("change", ajustaParent); ajustaParent(); }
     var fc = document.getElementById("fConvite");
     if (fc) fc.addEventListener("submit", async function (ev) {
       ev.preventDefault();
       var av = document.getElementById("avisoConv"); av.hidden = true;
       var bt = fc.querySelector("button[type=submit]"); ocupado(bt, true, "Gerando…");
-      try { await api("player-competicao", { metodo: "POST", corpo: { acao: "convidar", tipo: document.getElementById("tipoConv").value, areas: lerAreas("ar-novo") } }); await telaCompeticao(); }
+      try { await api("player-competicao", { metodo: "POST", corpo: { acao: "convidar", tipo: document.getElementById("tipoConv").value, parentesco: document.getElementById("parentConv").value, areas: lerAreas("ar-novo") } }); await telaCompeticao(); }
       catch (e) { av.textContent = e.message; av.hidden = false; ocupado(bt, false); }
     });
     var fk = document.getElementById("fCodigo");

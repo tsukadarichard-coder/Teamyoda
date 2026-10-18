@@ -38,7 +38,7 @@
     ["O responsável participa?", "Participa da avaliação inicial e pode acompanhar as informações autorizadas. O diário pessoal mantém controles próprios de privacidade."],
     ["Há orientação durante os jogos?", "O programa não inclui atendimento ao vivo durante partidas ou disponibilidade permanente em torneios."],
     ["A plataforma gera o planejamento sozinha?", "Ela pode organizar informações e oferecer sugestões. O planejamento profissional do acompanhamento passa por revisão humana."],
-    ["Como o atleta conecta o responsável e o treinador?", "Gerando um código de convite em Início, em “Quem acompanha você”. A pessoa usa o código na própria conta e o vínculo só vale depois de aprovado. Para atleta menor de idade, o responsável é vinculado primeiro e aprova o treinador."],
+    ["Como o atleta conecta o responsável e o treinador?", "Gerando um código de convite em Início, em “Quem acompanha você”. A pessoa usa o código na própria conta e o vínculo só vale depois de aprovado. Pai e mãe podem ser vinculados, cada um com o seu código. Para atleta menor de idade, um responsável é vinculado primeiro e aprova o treinador."],
     ["Há garantia de resultados?", "Não. O programa oferece organização, planejamento e acompanhamento. O desenvolvimento depende de diversos fatores."]
   ];
   var FAIXAS = [["", "Escolher"], ["ate10", "Até 10 anos"], ["11-12", "11 e 12 anos"], ["13-14", "13 e 14 anos"], ["15-16", "15 e 16 anos"], ["17-18", "17 e 18 anos"], ["adulto", "Acima de 18 anos"]];
@@ -71,7 +71,7 @@
         ["Alinhar atleta, família e treinador", "Cada pessoa vê só o que o atleta permitir."],
         ["Dar continuidade", "Uma linha entre competir e treinar, semana após semana."]
       ].map(function (c, i) { return '<div class="cl-card"><b>0' + (i + 1) + "</b><h3>" + c[0] + "</h3><p>" + c[1] + "</p></div>"; }).join("") + "</div>" +
-      '<p class="cl-nota">Treinador e responsável entram por um código que o atleta gera. Para atletas menores de idade, o responsável aprova o treinador. Qualquer lado pode encerrar o vínculo a qualquer momento, e o diário pessoal é privado por padrão.</p></section>';
+      '<p class="cl-nota">Treinador e responsável entram por um código que o atleta gera. Pai e mãe podem ser vinculados, cada um com o seu código e a sua conta. Para atletas menores de idade, o responsável aprova o treinador. Qualquer lado pode encerrar o vínculo a qualquer momento, e o diário pessoal é privado por padrão.</p></section>';
   }
   function vinculos() {
     var passos = [
