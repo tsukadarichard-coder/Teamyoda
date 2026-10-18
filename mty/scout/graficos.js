@@ -169,10 +169,57 @@
     return secao("devolucao", "Devolução de saque", "Erros na primeira bola depois do saque do outro lado e a qualidade das devoluções que entraram.", corpo, tab);
   }
 
+  /* decisões do jogador, ponto a ponto, e game a game */
+  var COR_DEC = { boa: "#1F7A66", disc: "#B9C3BE", ruim: "#A23B72" }, ROT_DEC = { boa: "Boa", disc: "Discutível", ruim: "Ruim" };
+  function decisoes(p) {
+    var d = (p.detalhe || {}).decisoes; if (!d) return "";
+    var ks = ["boa", "disc", "ruim"], total = ks.reduce(function (t, k) { return t + n0(d[k] && d[k].n); }, 0); if (!total) return "";
+    var partes = ks.map(function (k) { return { v: n0(d[k].n), cor: COR_DEC[k] }; });
+    return secao("decisoes", "Decisões de " + p.atleta, "A avaliação do treinador em " + plural(total, "ponto", "pontos") + ", e quanto " + p.atleta + " ganhou depois de cada tipo de decisão.",
+      linhaEmpilhada("Decisões marcadas", "", partes, total, total, total + "", ks.map(function (k) { return plural(n0(d[k].n), ROT_DEC[k].toLowerCase(), ROT_DEC[k].toLowerCase()); }).join(", ")) +
+      '<div class="qg-grupo" style="margin-top:10px">' + ks.filter(function (k) { return n0(d[k].n); }).map(function (k) { return linhaPct(ROT_DEC[k], plural(n0(d[k].n), "ponto", "pontos") + " · " + pct(d[k].n, total) + "% das decisões", pct(d[k].g, d[k].n), COR_DEC[k]); }).join("") + "</div>" +
+      legenda(ks.map(function (k) { return [ROT_DEC[k], COR_DEC[k]]; })) + '<p class="qg-nota" style="margin-top:8px">A barra de cada tipo mostra o percentual de pontos ganhos depois dessa decisão.</p>',
+      tabela(["Decisão", "Pontos", "Ganhos"], ks.map(function (k) { return [ROT_DEC[k], d[k].n, pct(d[k].g, d[k].n) + "%"]; })));
+  }
+  function games(p) {
+    var g = (p.detalhe || {}).games; if (!g || !g.length) return "";
+    var mj = (p.mental || {}).jogo || {}, max = Math.max.apply(null, g.map(function (x) { return n0(x.n); }));
+    var linhas = g.map(function (x) {
+      var dec = [n0(x.boa) ? plural(n0(x.boa), "decisão boa", "decisões boas") : "", n0(x.disc) ? plural(n0(x.disc), "discutível", "discutíveis") : "", n0(x.ruim) ? plural(n0(x.ruim), "decisão ruim", "decisões ruins") : ""].filter(Boolean).join(" · ");
+      var det = [dec, mj[x.j] ? "mental " + mj[x.j] + "/5" : ""].filter(Boolean).join(" · ");
+      return linhaEmpilhada("Game " + x.j, det, [{ v: n0(x.g), cor: GANHO }, { v: Math.max(0, n0(x.n) - n0(x.g)), cor: PERDA }], n0(x.n), max, n0(x.g) + " de " + n0(x.n),
+        "Game " + x.j + ": " + n0(x.g) + " de " + n0(x.n) + " pontos ganhos por " + p.atleta);
+    });
+    return secao("games", "Game a game", "Cada linha é um game: quantos pontos " + p.atleta + " ganhou, as decisões marcadas e o mental naquele momento.", '<div class="qg-grupo">' + linhas.join("") + "</div>" +
+      legenda([["Pontos de " + p.atleta, GANHO], ["Pontos do adversário", PERDA]]),
+      tabela(["Game", "Pontos", "Ganhos", "Decisões boas", "Discutíveis", "Ruins", "Mental"], g.map(function (x) { return [x.j, x.n, x.g, x.boa, x.disc, x.ruim, mj[x.j] ? mj[x.j] + "/5" : "—"]; })));
+  }
+
+  /* avaliação mental: antes e depois do jogo (1 a 5) e game a game */
+  var ESC_MENTAL = [["conf", "Confiança"], ["foco", "Foco"], ["energia", "Energia"], ["calma", "Controle emocional"]];
+  function mental(p) {
+    var m = p.mental || {}, a = m.antes || {}, d = m.depois || {}, mj = m.jogo || {};
+    var itens = ESC_MENTAL.filter(function (e) { return n0(a[e[0]]) || n0(d[e[0]]); }), gj = Object.keys(mj).map(Number).sort(function (x, y) { return x - y; }).filter(function (k) { return n0(mj[k]); });
+    if (!itens.length && !gj.length) return "";
+    var h = "", tab = [];
+    if (itens.length) {
+      h += '<div class="qg-grupo">' + itens.map(function (e) {
+        var va = n0(a[e[0]]), vd = n0(d[e[0]]);
+        tab.push([e[1], va ? va + "/5" : "—", vd ? vd + "/5" : "—"]);
+        return '<div class="qg-lin"><div class="qg-rot">' + esc(e[1]) + '</div><div class="qg-trilho qg-duplo" role="img" aria-label="' + esc(e[1] + ": antes " + (va || "sem registro") + ", depois " + (vd || "sem registro")) + '">' +
+          '<div class="qg-barra" style="width:' + va * 20 + "%;background:" + GANHO_CLARO + '"></div><div class="qg-barra" style="width:' + vd * 20 + "%;background:" + GANHO + '"></div></div><div class="qg-val">' + (va || "–") + " → " + (vd || "–") + "</div></div>";
+      }).join("") + "</div>" + legenda([["Antes do jogo", GANHO_CLARO], ["Depois do jogo", GANHO]]);
+    }
+    if (gj.length) {
+      h += '<p class="qg-sub">Mental durante o jogo, game a game</p><div class="qg-grupo">' + gj.map(function (k) { tab.push(["Game " + k, mj[k] + "/5", ""]); return linha("Game " + k, "", mj[k] * 20, GANHO, mj[k] + "/5"); }).join("") + "</div>";
+    }
+    return secao("mental", "Avaliação mental", "Como " + p.atleta + " se sentiu, de 1 (muito baixo) a 5 (muito alto), na avaliação do treinador.", h, tabela(["Item", "Antes / game", "Depois"], tab));
+  }
+
   /* o conjunto: cada função devolve "" quando não há dado marcado */
-  function secoes(p) { return [comoTerminaram(p), saque(p), lado(p), situacoes(p), golpes(p), direcao(p), devolucao(p)].join(""); }
+  function secoes(p) { return [comoTerminaram(p), games(p), decisoes(p), mental(p), saque(p), lado(p), situacoes(p), golpes(p), direcao(p), devolucao(p)].join(""); }
   function topo(p) { return ficha(p) + painelGeral(p) + observacao(p); }
 
-  var api = { topo: topo, secoes: secoes, painelGeral: painelGeral, observacao: observacao, comoTerminaram: comoTerminaram, saque: saque, lado: lado, situacoes: situacoes, golpes: golpes, direcao: direcao, devolucao: devolucao, CORES: { ganho: GANHO, ganhoClaro: GANHO_CLARO, perda: PERDA, perdaClaro: PERDA_CLARO, neutro: NEUTRO } };
+  var api = { topo: topo, secoes: secoes, painelGeral: painelGeral, observacao: observacao, games: games, decisoes: decisoes, mental: mental, comoTerminaram: comoTerminaram, saque: saque, lado: lado, situacoes: situacoes, golpes: golpes, direcao: direcao, devolucao: devolucao, CORES: { ganho: GANHO, ganhoClaro: GANHO_CLARO, perda: PERDA, perdaClaro: PERDA_CLARO, neutro: NEUTRO } };
   if (typeof module !== "undefined" && module.exports) module.exports = api; else raiz.QLScoutGraficos = api;
 })(typeof window !== "undefined" ? window : this);

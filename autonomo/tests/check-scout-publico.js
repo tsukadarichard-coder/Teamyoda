@@ -59,3 +59,16 @@ const chama = async (q) => { const r = await handler({ httpMethod: "GET", queryS
   assert.strictEqual(limpar({ nivelAdversario: "<script>" }).nivelAdversario, "", "nível fora da lista é descartado");
   console.log("qualidade da devolução e nível ok");
 }
+
+/* mental, decisões e games */
+{
+  const { limpar } = require("../netlify/functions/_scout-publico");
+  const r = limpar({ mental: { antes: { conf: 4, foco: 9, x: 3 }, depois: { calma: "2" }, jogo: { 1: 5, 2: 0, 99: 3, abc: 2 } },
+    detalhe: { decisoes: { boa: { n: 2, g: 1 }, tosca: { n: 5 } }, games: [{ j: 1, n: 4, g: 2, boa: 1, disc: 0, ruim: 1, extra: 7 }] } });
+  assert.deepStrictEqual(r.mental.antes, { conf: 4, foco: 0, energia: 0, calma: 0 });
+  assert.strictEqual(r.mental.depois.calma, 2);
+  assert.deepStrictEqual(r.mental.jogo, { 1: 5 });
+  assert.deepStrictEqual(r.detalhe.decisoes.boa, { n: 2, g: 1 }); assert.ok(!r.detalhe.decisoes.tosca);
+  assert.deepStrictEqual(r.detalhe.games[0], { j: 1, n: 4, g: 2, boa: 1, disc: 0, ruim: 1 });
+  console.log("mental, decisões e games ok");
+}

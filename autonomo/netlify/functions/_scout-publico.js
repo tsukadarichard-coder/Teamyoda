@@ -19,6 +19,8 @@ const num = (v) => (Number.isFinite(+v) ? Math.round(+v * 10) / 10 : 0);
 const GOLPES = ["forehand", "backhand", "voleio", "smash", "drop", "lob", "devolucao"], DIRECOES = ["cruzado", "paralelo"], DIRECOES_SAQUE = ["aberto", "fechado", "corpo"], SITUACOES = ["ataque", "contra", "defesa", "neutra", "construcao"];
 /* detalhe do scout (golpes, direção, direção do saque, situação, devolução): só números, só as chaves conhecidas */
 const QUALIDADES_DEVOLUCAO = ["boa", "regular", "fraca"];
+const ESCALAS_MENTAIS = ["conf", "foco", "energia", "calma"];
+const DECISOES = ["boa", "disc", "ruim"];
 const NIVEIS_ADVERSARIO = ["iniciante", "intermediario", "avancado", "competitivo", "elite"];
 
 function limparDetalhe(d) {
@@ -34,7 +36,18 @@ function limparDetalhe(d) {
     situacoes: mapa(d.situacoes, SITUACOES, ["n", "g"]),
     devolucao: { nos: { ...ob(dv.nos, ["n", "e"]), q: mapa(dv.nos && dv.nos.q, QUALIDADES_DEVOLUCAO, ["n", "g"]) }, ele: ob(dv.ele, ["n", "e"]) },
     corrida: ob(d.corrida, ["n", "g"]),
+    decisoes: mapa(d.decisoes, DECISOES, ["n", "g"]),
+    games: (Array.isArray(d.games) ? d.games : []).slice(0, 60).map((x) => ob(x, ["j", "n", "g", "boa", "disc", "ruim"])),
   };
+}
+
+function limparMental(m) {
+  m = m || {};
+  const v = (x) => { x = Math.round(+x); return x >= 1 && x <= 5 ? x : 0; };
+  const bloco = (o) => { const r = {}; for (const k of ESCALAS_MENTAIS) r[k] = v(o && o[k]); return r; };
+  const jogo = {};
+  Object.keys(m.jogo || {}).slice(0, 60).forEach((g) => { const n = Math.round(+g); if (n >= 1 && n <= 60 && v(m.jogo[g])) jogo[n] = v(m.jogo[g]); });
+  return { antes: bloco(m.antes), depois: bloco(m.depois), jogo };
 }
 
 function limpar(p) {
@@ -48,7 +61,7 @@ function limpar(p) {
     n: num(p.n), ganhos: num(p.ganhos), pctGanhos: num(p.pctGanhos),
     bolas: ob(p.bolas, ["pctCurtos", "pctMedios", "pctLongos", "pctAte4"]),
     numeros: ob(p.numeros, ["errosNos", "errosDecisao", "errosExec", "df", "pctProtocolo", "rede", "redeGanha", "ataquePerdido", "pctAdversos", "pctPrimeiro", "aces", "acesAdv", "dfAdv", "pctPrimeiroAdv", "pctSacD", "nSacD", "pctSacE", "nSacE", "pctDevD", "nDevD", "pctDevE", "nDevE", "nAtaque", "pctAtaque", "nContra", "pctContra", "nDefesa", "pctDefesa"]),
-    zonas, detalhe: limparDetalhe(p.detalhe), observacaoFinal: txt(p.observacaoFinal, 1200), nivelAdversario: NIVEIS_ADVERSARIO.indexOf(p.nivelAdversario) >= 0 ? p.nivelAdversario : "",
+    zonas, detalhe: limparDetalhe(p.detalhe), observacaoFinal: txt(p.observacaoFinal, 1200), nivelAdversario: NIVEIS_ADVERSARIO.indexOf(p.nivelAdversario) >= 0 ? p.nivelAdversario : "", mental: limparMental(p.mental),
     /* cada ponto: [ganhou o atleta (0/1), set, contagem depois do ponto ("30-15", "Game 3-2", "Set 6-4"), como terminou]; os dois últimos são opcionais (links antigos não têm) */
     serie: (Array.isArray(p.serie) ? p.serie : []).slice(0, 600).map((x) => {
       const r = [x && x[0] ? 1 : 0, Math.max(0, Math.min(4, Math.floor(+(x && x[1]) || 0)))];

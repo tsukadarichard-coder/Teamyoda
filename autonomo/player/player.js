@@ -2992,13 +2992,14 @@
     try { st = JSON.parse(localStorage.getItem(chave) || "null"); } catch (e) { st = null; }
     var CFG0 = { torneio: "", formato: "3sets", saca: "nos", semVantagem: false, superTiebreakDecisivo: false };
     if (!st || typeof st !== "object" || !Array.isArray(st.pontos) || !st.cfg) st = { cfg: CFG0, pontos: [], token: null, fim: false, iniciado: false };
+    if (!st.mental) st.mental = { antes: {}, jogo: {}, depois: {} };
     var atleta = r.atleta.nome || "Atleta", primeiro = String(atleta).split(" ")[0], rasc = null, tmr = null, enviando = false, erro = false, dirS = null;
     function salvar() { try { localStorage.setItem(chave, JSON.stringify(st)); } catch (e) { /* sem armazenamento */ } }
     function placarAtual() { var c = st.cfg, e = M.placarInicial(c.formato, c.saca, c.semVantagem, c.superTiebreakDecisivo); st.pontos.forEach(function (p) { e = M.aplicaPonto(e, p.nos); }); return e; }
     function resumo(placar) {
       var c = st.cfg, rr = M.resume(st.pontos), sets = placar.sets.map(function (x) { return x[0] + "-" + x[1]; });
       if (!placar.fim && (placar.g[0] || placar.g[1])) sets.push(placar.g[0] + "-" + placar.g[1]);
-      return M.montarResumoPublico({ data: new Date().toISOString().slice(0, 10), torneio: c.torneio || "", resultado: sets.join(" "), concluida: !!(placar.fim || st.fim), observacaoFinal: st.observacaoFinal || "", nivelAdversario: st.nivelAdversario || "",
+      return M.montarResumoPublico({ data: new Date().toISOString().slice(0, 10), torneio: c.torneio || "", resultado: sets.join(" "), concluida: !!(placar.fim || st.fim), observacaoFinal: st.observacaoFinal || "", nivelAdversario: st.nivelAdversario || "", mental: st.mental,
         scout: Object.assign({}, rr, { pontos: st.pontos, cfg: { formato: c.formato, saca: c.saca, semVantagem: !!c.semVantagem, superTiebreakDecisivo: !!c.superTiebreakDecisivo } }) }, { nome: atleta });
     }
     async function enviar() {
@@ -3022,6 +3023,13 @@
     function seg(nome, valor, ops) { return '<div class="comp-seg" role="group">' + ops.map(function (o) { return '<button type="button" class="comp-seg-bt" data-cfg="' + nome + '" data-v="' + o[0] + '" aria-pressed="' + (String(valor) === String(o[0])) + '">' + o[1] + "</button>"; }).join("") + "</div>"; }
     var FIM_ROT = [["winner_nos", "Winner de " + primeiro, true], ["erro_dele", "Erro do adversário", true], ["erro_nos", "Erro de " + primeiro, false], ["winner_dele", "Winner do adversário", false]];
 
+    function escalaHtml(grupo, chave, rotulo, valor) {
+      return '<p class="olho" style="margin-top:10px">' + esc(rotulo) + '</p><div class="sf-chips" role="group" aria-label="' + esc(rotulo) + '">' + [1, 2, 3, 4, 5].map(function (v) { return botao((valor === v ? "✓ " : "") + v, "btn-secundario btn-pequeno", 'data-ment="' + grupo + '" data-mk="' + chave + '" data-mv="' + v + '" aria-pressed="' + (valor === v) + '"'); }).join("") + "</div>";
+    }
+    function mentalCartaoHtml(grupo, titulo, nota) {
+      var vals = st.mental[grupo] || {};
+      return '<section class="cartao" style="margin-top:12px"><p class="olho">' + esc(titulo) + '</p><p class="nota">' + esc(nota) + "</p>" + M.ESCALAS_MENTAIS.map(function (e) { return escalaHtml(grupo, e[0], e[1], vals[e[0]] || 0); }).join("") + "</section>";
+    }
     function telaConfig() {
       var c = st.cfg;
       tela(voltar + "<h1>Marcar o jogo de " + esc(primeiro) + '</h1><p class="sub">' + (souTreinador ? "Marque os pontos do jogo. Aparece ao vivo no app do atleta e dos responsáveis." : "O mesmo scout do treinador, para quando ele não pôde ir. Aparece ao vivo no app do atleta, dos responsáveis e do treinador vinculado.") + '</p>' +
@@ -3030,16 +3038,18 @@
         '<p class="olho" style="margin-top:12px">Quem saca primeiro</p>' + seg("saca", c.saca, [["nos", esc(primeiro)], ["ele", "Adversário"]]) +
         '<p class="olho" style="margin-top:12px">Pontuação</p><div class="acoes">' + botao((c.semVantagem ? "✓ " : "") + "Ponto decisivo em 40-40 (sem vantagem)", "btn-secundario btn-pequeno", 'data-tog="semVantagem" aria-pressed="' + !!c.semVantagem + '"') +
         (c.formato === "3sets" ? botao((c.superTiebreakDecisivo ? "✓ " : "") + "Super tie-break (10 pontos) no set decisivo", "btn-secundario btn-pequeno", 'data-tog="superTiebreakDecisivo" aria-pressed="' + !!c.superTiebreakDecisivo + '"') : "") + "</div>" +
+        mentalCartaoHtml("antes", "Avaliação mental antes do jogo", "Como o atleta chega, de 1 (muito baixo) a 5 (muito alto). Opcional.") +
         '<div class="acoes" style="margin-top:14px"><button type="button" class="btn btn-primario btn-grande" id="sfIniciar">Iniciar acompanhamento</button></div></section>' +
         '<p class="nota" style="margin-top:12px">O nome do adversário e anotações nunca são enviados. Só o primeiro nome do atleta, o placar e os números.</p>');
       document.getElementById("sfTorneio").addEventListener("input", function (e) { st.cfg.torneio = e.target.value.slice(0, 80); salvar(); });
       Array.prototype.forEach.call(app.querySelectorAll("[data-cfg]"), function (b) { b.addEventListener("click", function () { st.cfg[b.getAttribute("data-cfg")] = b.getAttribute("data-v"); if (st.cfg.formato !== "3sets") st.cfg.superTiebreakDecisivo = false; salvar(); telaConfig(); }); });
+      Array.prototype.forEach.call(app.querySelectorAll("[data-ment]"), function (b) { b.addEventListener("click", function () { var g = b.getAttribute("data-ment"), k = b.getAttribute("data-mk"), v = +b.getAttribute("data-mv"); st.mental[g][k] = st.mental[g][k] === v ? 0 : v; salvar(); telaConfig(); }); });
       Array.prototype.forEach.call(app.querySelectorAll("[data-tog]"), function (b) { b.addEventListener("click", function () { var k = b.getAttribute("data-tog"); st.cfg[k] = !st.cfg[k]; salvar(); telaConfig(); }); });
       document.getElementById("sfIniciar").addEventListener("click", function () { st.iniciado = true; st.pontos = []; st.token = null; st.fim = false; salvar(); rasc = null; desenhar(); });
     }
 
     function adicionar(p) {
-      var pl = placarAtual(); p.n = st.pontos.length + 1; p.placarAntes = M.rotuloPontos(pl); st.pontos.push(p); rasc = null; dirS = null; desenhar(); agendar();
+      var pl = placarAtual(); p.n = st.pontos.length + 1; p.placarAntes = M.rotuloPontos(pl); p.jogo = M.numeroDoGame(pl); st.pontos.push(p); rasc = null; dirS = null; desenhar(); agendar();
     }
     function saqueDireto(tipo) {
       var pl = placarAtual(), sacador = M.quemSaca(pl), meu = sacador === "nos", nos = tipo === "ace" ? meu : !meu;
@@ -3053,6 +3063,7 @@
         (adv && !fimJogo ? '<p class="sf-adverso">PLACAR ADVERSO — este ponto entra na comparação</p>' : "") + (pl.fim ? '<div class="aviso">Partida encerrada: ' + esc(primeiro) + (pl.vencedor === "nos" ? " venceu" : " perdeu") + ".</div>" : "");
       if (!fimJogo) {
         if (!rasc) {
+          h += '<section class="cartao"><p class="olho">Mental no game ' + M.numeroDoGame(pl) + ' (opcional)</p><div class="sf-chips" role="group" aria-label="Mental no game">' + [1, 2, 3, 4, 5].map(function (v) { var at = (st.mental.jogo || {})[M.numeroDoGame(pl)] || 0; return botao((at === v ? "✓ " : "") + v, "btn-secundario btn-pequeno", 'data-mjogo="' + v + '" aria-pressed="' + (at === v) + '"'); }).join("") + "</div></section>";
           h += '<section class="cartao"><p class="olho">' + (meu ? "Saque (opcional)" : "Saque do adversário (opcional)") + '</p><div class="sf-chips" role="group" aria-label="Direção do saque">' + M.DIRECOES_SAQUE.map(function (x) { return botao((dirS === x[0] ? "✓ " : "") + x[1], "btn-secundario btn-pequeno", 'data-dsq="' + x[0] + '" aria-pressed="' + (dirS === x[0]) + '"'); }).join("") + '<span class="nota">direção do saque</span></div><div class="sf-grade4" style="margin-top:8px">' + [["1", "1º dentro"], ["2", "2º dentro"], ["ace", meu ? "Ace" : "Ace dele"], ["df", meu ? "Dupla falta" : "Dupla falta dele"]].map(function (x) { return botao(x[1], "btn-secundario sf-pq", 'data-saq="' + x[0] + '"'); }).join("") + "</div></section>";
         }
         if (!rasc || !rasc.fim) {
@@ -3061,6 +3072,7 @@
           h += '<section class="cartao sf-rasc"><p class="olho">' + esc(FIM_ROT.filter(function (o) { return o[0] === rasc.fim; })[0][1]) + "</p>" +
             (rasc.fim === "erro_nos" ? '<p class="olho" style="margin-top:8px">A causa</p>' + seg("causa", rasc.causa || "", [["decisao", "Decisão"], ["execucao", "Execução"]]) : "") +
             '<p class="olho" style="margin-top:10px">Como foi o ponto (opcional)</p><div class="sf-chips">' + M.SITUACOES.map(function (x) { return botao((rasc.situacao === x[0] ? "✓ " : "") + x[1], "btn-secundario btn-pequeno", 'data-sit="' + x[0] + '" aria-pressed="' + (rasc.situacao === x[0]) + '"'); }).join("") + botao((rasc.rede ? "✓ " : "") + "Subiu à rede", "btn-secundario btn-pequeno", 'data-rede="1" aria-pressed="' + !!rasc.rede + '"') + "</div>" +
+            '<p class="olho" style="margin-top:10px">Decisão de ' + esc(primeiro) + ' neste ponto (opcional)</p><div class="sf-chips">' + M.DECISOES.map(function (x) { return botao((rasc.dec === x[0] ? "✓ " : "") + x[1], "btn-secundario btn-pequeno", 'data-dec="' + x[0] + '" aria-pressed="' + (rasc.dec === x[0]) + '"'); }).join("") + "</div>" +
             (rasc.sacador === "ele" && rasc.saque !== "df" && rasc.saque !== "ace" ? '<p class="olho" style="margin-top:10px">Qualidade da devolução de ' + esc(primeiro) + ' (opcional)</p><div class="sf-chips">' + M.QUALIDADES_DEVOLUCAO.map(function (x) { return botao((rasc.qualDev === x[0] ? "✓ " : "") + x[1], "btn-secundario btn-pequeno", 'data-qdev="' + x[0] + '" aria-pressed="' + (rasc.qualDev === x[0]) + '"'); }).join("") + "</div>" : "") +
             '<p class="olho" style="margin-top:10px">Qual foi o último golpe de ' + esc(primeiro) + ' (opcional)</p><div class="sf-chips">' + M.GOLPES.map(function (x) { return botao((rasc.golpe === x[0] ? "✓ " : "") + x[1], "btn-secundario btn-pequeno", 'data-golpe="' + x[0] + '" aria-pressed="' + (rasc.golpe === x[0]) + '"'); }).join("") + "</div>" +
             '<div class="sf-chips" style="margin-top:8px">' + botao((rasc.corrida ? "✓ " : "") + "Na corrida", "btn-secundario btn-pequeno", 'data-corrida="1" aria-pressed="' + !!rasc.corrida + '"') + M.DIRECOES.map(function (x) { return botao((rasc.direcao === x[0] ? "✓ " : "") + x[1], "btn-secundario btn-pequeno", 'data-direcao="' + x[0] + '" aria-pressed="' + (rasc.direcao === x[0]) + '"'); }).join("") + "</div>" +
@@ -3069,7 +3081,7 @@
         }
       }
       var gan = st.pontos.filter(function (p) { return p.nos; }).length;
-      h += '<section class="cartao" style="margin-top:12px"><p class="sf-n"><strong>' + n + "</strong> pontos · " + esc(primeiro) + " ganhou <strong>" + gan + "</strong>" + (n ? " (" + Math.round(gan * 100 / n) + "%)" : "") + '</p><div class="campo" style="margin-top:12px"><label for="sfNivel">Nível do adversário <span class="nota">(opcional, no fim da partida)</span></label><select id="sfNivel"><option value="">Não informar</option>' + M.NIVEIS_ADVERSARIO.map(function (x) { return '<option value="' + x[0] + '"' + (st.nivelAdversario === x[0] ? " selected" : "") + ">" + esc(x[1]) + "</option>"; }).join("") + '</select></div><div class="campo" style="margin-top:12px"><label for="sfObs">Observação final <span class="nota">(opcional)</span></label><textarea id="sfObs" rows="3" maxlength="1200" placeholder="Um recado sobre o jogo. Aparece na página de quem acompanha.">' + esc(st.observacaoFinal || "") + '</textarea></div><p id="sfEnvio" class="nota"></p>' +
+      h += '<section class="cartao" style="margin-top:12px"><p class="sf-n"><strong>' + n + "</strong> pontos · " + esc(primeiro) + " ganhou <strong>" + gan + "</strong>" + (n ? " (" + Math.round(gan * 100 / n) + "%)" : "") + '</p>' + mentalCartaoHtml("depois", "Avaliação mental depois do jogo", "Como o atleta termina, de 1 a 5. Opcional.") + '<div class="campo" style="margin-top:12px"><label for="sfNivel">Nível do adversário <span class="nota">(opcional, no fim da partida)</span></label><select id="sfNivel"><option value="">Não informar</option>' + M.NIVEIS_ADVERSARIO.map(function (x) { return '<option value="' + x[0] + '"' + (st.nivelAdversario === x[0] ? " selected" : "") + ">" + esc(x[1]) + "</option>"; }).join("") + '</select></div><div class="campo" style="margin-top:12px"><label for="sfObs">Observação final <span class="nota">(opcional)</span></label><textarea id="sfObs" rows="3" maxlength="1200" placeholder="Um recado sobre o jogo. Aparece na página de quem acompanha.">' + esc(st.observacaoFinal || "") + '</textarea></div><p id="sfEnvio" class="nota"></p>' +
         '<div class="acoes"><button type="button" class="btn btn-texto" id="sfDesfazer"' + (n || rasc ? "" : " disabled") + '>Desfazer</button><button type="button" class="btn btn-secundario" id="sfEnviar">Enviar agora</button>' +
         (fimJogo ? '<button type="button" class="btn btn-secundario" id="sfNovo">Novo jogo</button>' : '<button type="button" class="btn btn-laranja" id="sfFim">Encerrar partida</button>') + "</div></section>" +
         '<p class="nota" style="margin-top:12px">O nome do adversário e anotações nunca são enviados. A análise completa continua sendo a do treinador.</p>';
@@ -3077,11 +3089,14 @@
       var q = function (sel, f) { Array.prototype.forEach.call(app.querySelectorAll(sel), f); };
       q("[data-dsq]", function (b) { b.addEventListener("click", function () { var v = b.getAttribute("data-dsq"); dirS = dirS === v ? null : v; desenhar(); }); });
       q("[data-saq]", function (b) { b.addEventListener("click", function () { var v = b.getAttribute("data-saq"); if (v === "df" || v === "ace") saqueDireto(v); else { rasc = { saquePre: v }; desenhar(); } }); });
-      q("[data-fim]", function (b) { b.addEventListener("click", function () { var f = FIM_ROT.filter(function (o) { return o[0] === b.getAttribute("data-fim"); })[0], p = placarAtual(); rasc = Object.assign({}, rasc || {}, { fim: f[0], nos: f[2], saque: (rasc && rasc.saquePre) || null, bola: null, causa: null, rede: false, situacao: null, golpe: null, corrida: false, direcao: null, qualDev: null, dirSaque: dirS, adverso: M.ehAdverso(p), sacador: M.quemSaca(p), lado: M.ladoDoSaque(p) }); desenhar(); }); });
+      q("[data-fim]", function (b) { b.addEventListener("click", function () { var f = FIM_ROT.filter(function (o) { return o[0] === b.getAttribute("data-fim"); })[0], p = placarAtual(); rasc = Object.assign({}, rasc || {}, { fim: f[0], nos: f[2], saque: (rasc && rasc.saquePre) || null, bola: null, causa: null, rede: false, situacao: null, golpe: null, corrida: false, direcao: null, qualDev: null, dec: null, dirSaque: dirS, adverso: M.ehAdverso(p), sacador: M.quemSaca(p), lado: M.ladoDoSaque(p) }); desenhar(); }); });
       q("[data-cfg=causa]", function (b) { b.addEventListener("click", function () { rasc.causa = b.getAttribute("data-v"); desenhar(); }); });
       q("[data-sit]", function (b) { b.addEventListener("click", function () { var v = b.getAttribute("data-sit"); rasc.situacao = rasc.situacao === v ? null : v; desenhar(); }); });
       q("[data-golpe]", function (b) { b.addEventListener("click", function () { var v = b.getAttribute("data-golpe"); rasc.golpe = rasc.golpe === v ? null : v; desenhar(); }); });
       q("[data-corrida]", function (b) { b.addEventListener("click", function () { rasc.corrida = !rasc.corrida; desenhar(); }); });
+      q("[data-dec]", function (b) { b.addEventListener("click", function () { var v = b.getAttribute("data-dec"); rasc.dec = rasc.dec === v ? null : v; desenhar(); }); });
+      q("[data-ment]", function (b) { b.addEventListener("click", function () { var g = b.getAttribute("data-ment"), k = b.getAttribute("data-mk"), v = +b.getAttribute("data-mv"); st.mental[g][k] = st.mental[g][k] === v ? 0 : v; desenhar(); agendar(); }); });
+      q("[data-mjogo]", function (b) { b.addEventListener("click", function () { var g = M.numeroDoGame(placarAtual()), v = +b.getAttribute("data-mjogo"); st.mental.jogo[g] = st.mental.jogo[g] === v ? 0 : v; desenhar(); agendar(); }); });
       q("[data-qdev]", function (b) { b.addEventListener("click", function () { var v = b.getAttribute("data-qdev"); rasc.qualDev = rasc.qualDev === v ? null : v; desenhar(); }); });
       q("[data-direcao]", function (b) { b.addEventListener("click", function () { var v = b.getAttribute("data-direcao"); rasc.direcao = rasc.direcao === v ? null : v; desenhar(); }); });
       q("[data-rede]", function (b) { b.addEventListener("click", function () { rasc.rede = !rasc.rede; desenhar(); }); });
@@ -3092,7 +3107,7 @@
       document.getElementById("sfDesfazer").addEventListener("click", function () { if (rasc) { rasc = null; desenhar(); return; } if (st.pontos.length) { st.pontos.pop(); st.fim = false; desenhar(); agendar(); } });
       document.getElementById("sfEnviar").addEventListener("click", function () { clearTimeout(tmr); enviar(); });
       var fim = document.getElementById("sfFim"); if (fim) fim.addEventListener("click", function () { if (!window.confirm("Encerrar a partida? O resultado final fica visível por mais 2 horas.")) return; st.fim = true; rasc = null; desenhar(); clearTimeout(tmr); enviar(); });
-      var novo = document.getElementById("sfNovo"); if (novo) novo.addEventListener("click", function () { st = { cfg: Object.assign({}, st.cfg), pontos: [], token: null, fim: false, iniciado: false }; salvar(); telaConfig(); });
+      var novo = document.getElementById("sfNovo"); if (novo) novo.addEventListener("click", function () { st = { cfg: Object.assign({}, st.cfg), pontos: [], token: null, fim: false, iniciado: false, mental: { antes: {}, jogo: {}, depois: {} } }; salvar(); telaConfig(); });
       estadoEnvio();
     }
     if (st.iniciado) desenhar(); else telaConfig();

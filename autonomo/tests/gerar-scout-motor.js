@@ -19,7 +19,7 @@ const saida = `/* Motor do scout (placar, saque, lado da quadra, estatísticas e
 "use strict";
 ${corpo}
 
-var motor = { placarInicial: placarInicial, aplicaPonto: aplicaPonto, rotuloPontos: rotuloPontos, ehAdverso: ehAdverso, quemSaca: quemSaca, ladoDoSaque: ladoDoSaque, ROTULO_LADO: ROTULO_LADO, SITUACOES: SITUACOES, GOLPES: GOLPES, DIRECOES: DIRECOES, DIRECOES_SAQUE: DIRECOES_SAQUE, QUALIDADES_DEVOLUCAO: QUALIDADES_DEVOLUCAO, NIVEIS_ADVERSARIO: NIVEIS_ADVERSARIO, erroDeDevolucao: erroDeDevolucao, erroDeDevolucaoDele: erroDeDevolucaoDele, ZONAS: ZONAS, resume: resume, leitura: leitura, montarResumoPublico: montarResumoPublico, serieMomento: serieMomento, contagemDosPontos: contagemDosPontos, zonasDe: zonasDe };
+var motor = { placarInicial: placarInicial, aplicaPonto: aplicaPonto, rotuloPontos: rotuloPontos, ehAdverso: ehAdverso, quemSaca: quemSaca, ladoDoSaque: ladoDoSaque, ROTULO_LADO: ROTULO_LADO, SITUACOES: SITUACOES, GOLPES: GOLPES, DIRECOES: DIRECOES, DIRECOES_SAQUE: DIRECOES_SAQUE, QUALIDADES_DEVOLUCAO: QUALIDADES_DEVOLUCAO, NIVEIS_ADVERSARIO: NIVEIS_ADVERSARIO, ESCALAS_MENTAIS: ESCALAS_MENTAIS, DECISOES: DECISOES, numeroDoGame: numeroDoGame, mentalLimpo: mentalLimpo, erroDeDevolucao: erroDeDevolucao, erroDeDevolucaoDele: erroDeDevolucaoDele, ZONAS: ZONAS, resume: resume, leitura: leitura, montarResumoPublico: montarResumoPublico, serieMomento: serieMomento, contagemDosPontos: contagemDosPontos, zonasDe: zonasDe };
 if (typeof module !== "undefined" && module.exports) module.exports = motor; else raiz.QLScoutMotor = motor;
 })(typeof window !== "undefined" ? window : this);
 `;

@@ -73,12 +73,19 @@ window.firebase={initializeApp:function(){},auth:function(){return a}};})();`;
   await pg.screenshot({ path: path.join(saida, "scout-treinador-ao-vivo.png") });
   await pg.click('a[href$="/marcar"]'); await pg.waitForSelector("#sfIniciar");
   assert.ok((await pg.textContent("body")).includes("Marque os pontos do jogo"), "texto próprio do treinador");
+  await pg.click('[data-ment="antes"][data-mk="conf"][data-mv="4"]');
   await pg.click("#sfIniciar"); await pg.waitForSelector(".sf-cab");
-  await pg.click('[data-fim="winner_nos"]'); await pg.waitForSelector('[data-bola="1-2"]'); await pg.click('[data-bola="1-2"]');
+  await pg.click('[data-mjogo="3"]');
+  await pg.click('[data-fim="winner_nos"]'); await pg.waitForSelector('[data-bola="1-2"]'); await pg.click('[data-dec="boa"]'); await pg.click('[data-bola="1-2"]');
   await pg.waitForFunction(() => /1 pontos/.test(document.body.innerText) || /\b1\b.*pontos/.test(document.body.innerText));
   await pg.waitForTimeout(1500);
   const vivo = Object.keys(store).filter((k) => /^scoutsAoVivo\//.test(k));
   assert.strictEqual(vivo.length, 1, "o jogo foi aberto ao vivo"); assert.strictEqual(store[vivo[0]].atletaUid, "at1", "ligado ao atleta pelo vínculo");
+  { const pub = JSON.parse(store[vivo[0]].publico);
+    assert.strictEqual(pub.mental.antes.conf, 4, "mental antes chegou ao resumo ao vivo");
+    assert.strictEqual(pub.mental.jogo[1], 3, "mental do game chegou");
+    assert.deepStrictEqual(pub.detalhe.decisoes.boa, { n: 1, g: 1 }, "decisão do ponto chegou");
+    assert.deepStrictEqual(pub.detalhe.games[0], { j: 1, n: 1, g: 1, boa: 1, disc: 0, ruim: 0 }, "game a game chegou"); }
   await pg.screenshot({ path: path.join(saida, "scout-treinador-marcando.png") });
   /* aba Recomendações: campo aberto para recomendar o que quiser */
   await pg.goto(base + "/competicao/#/recomendacoes", { waitUntil: "networkidle" }); await pg.waitForSelector(".rec-form textarea");

@@ -109,6 +109,17 @@ const DIRECOES_SAQUE = [["aberto", "Aberto"], ["fechado", "Fechado"], ["corpo", 
 /* qualidade da devolução do jogador (opcional, no ponto em que o adversário saca) e nível do adversário (no fim da partida) */
 const QUALIDADES_DEVOLUCAO = [["boa", "Boa"], ["regular", "Regular"], ["fraca", "Fraca"]];
 const NIVEIS_ADVERSARIO = [["iniciante", "Iniciante"], ["intermediario", "Intermediário"], ["avancado", "Avançado"], ["competitivo", "Competitivo"], ["elite", "Elite / profissional"]];
+/* avaliação mental (1 a 5) antes, durante (por game) e depois do jogo; decisão do jogador em cada ponto (opcional); game de cada ponto */
+const ESCALAS_MENTAIS = [["conf", "Confiança"], ["foco", "Foco"], ["energia", "Energia"], ["calma", "Controle emocional"]];
+const DECISOES = [["boa", "Boa"], ["disc", "Discutível"], ["ruim", "Ruim"]];
+function numeroDoGame(pl) { return pl.sets.reduce((t, x) => t + x[0] + x[1], 0) + pl.g[0] + pl.g[1] + 1; }
+function mentalLimpo(m) {
+  const v = (x) => { x = Math.round(+x); return x >= 1 && x <= 5 ? x : 0; };
+  const bloco = (o) => Object.fromEntries(ESCALAS_MENTAIS.map(([k]) => [k, v(o && o[k])]));
+  const jogo = {};
+  Object.keys((m && m.jogo) || {}).slice(0, 60).forEach((g) => { const n = Math.round(+g); if (n >= 1 && n <= 60 && v(m.jogo[g])) jogo[n] = v(m.jogo[g]); });
+  return { antes: bloco(m && m.antes), depois: bloco(m && m.depois), jogo };
+}
 /* erro de devolução de saque: o jogador errou ao devolver o saque do adversário (golpe marcado como devolução ou, sem golpe marcado, ponto de 1–2 bolas) */
 function erroDeDevolucao(p) { return p.fim === "erro_nos" && p.sacador === "ele" && p.saque !== "df" && (p.golpe === "devolucao" || (!p.golpe && p.bola === "1-2")); }
 /* e o inverso: o adversário errou a devolução do saque do jogador */
@@ -158,6 +169,11 @@ function resume(pontos) {
     situacoes: Object.fromEntries(SITUACOES.map(([k]) => { const l = pontos.filter((p) => p.situacao === k); return [k, { n: l.length, g: ganhosDe(l) }]; })),
     devolucao: { nos: { n: devNos.length, e: devNos.filter(erroDeDevolucao).length, q: Object.fromEntries(QUALIDADES_DEVOLUCAO.map(([k]) => { const l = devNos.filter((p) => p.qualDev === k); return [k, { n: l.length, g: ganhosDe(l) }]; })) }, ele: { n: devEle.length, e: devEle.filter(erroDeDevolucaoDele).length } },
     corrida: { n: conta((p) => p.corrida), g: conta((p) => p.corrida && p.nos) },
+    decisoes: Object.fromEntries(DECISOES.map(([k]) => { const l = pontos.filter((p) => p.dec === k); return [k, { n: l.length, g: ganhosDe(l) }]; })),
+    games: [...new Set(pontos.filter((p) => p.jogo).map((p) => p.jogo))].sort((a, b) => a - b).map((j) => {
+      const l = pontos.filter((p) => p.jogo === j), d = (k) => l.filter((p) => p.dec === k).length;
+      return { j, n: l.length, g: ganhosDe(l), boa: d("boa"), disc: d("disc"), ruim: d("ruim") };
+    }),
   };
 
   const protocolo = conta((p) => p.protocolo);
@@ -269,11 +285,11 @@ function montarResumoPublico(reg, aluno) {
       pctSacD: sc.nSacD ? sc.pctSacD : 0, nSacD: sc.nSacD, pctSacE: sc.nSacE ? sc.pctSacE : 0, nSacE: sc.nSacE, pctDevD: sc.nDevD ? sc.pctDevD : 0, nDevD: sc.nDevD, pctDevE: sc.nDevE ? sc.pctDevE : 0, nDevE: sc.nDevE,
       nAtaque: sc.nAtaque, pctAtaque: sc.pctAtaque, nContra: sc.nContra, pctContra: sc.pctContra, nDefesa: sc.nDefesa, pctDefesa: sc.pctDefesa },
     detalhe: sc.detalhe || resume(sc.pontos || []).detalhe, observacaoFinal: String(reg.observacaoFinal || "").trim().slice(0, 1200),
-    nivelAdversario: NIVEIS_ADVERSARIO.some((x) => x[0] === reg.nivelAdversario) ? reg.nivelAdversario : "",
+    nivelAdversario: NIVEIS_ADVERSARIO.some((x) => x[0] === reg.nivelAdversario) ? reg.nivelAdversario : "", mental: mentalLimpo(reg.mental),
     zonas: zonasDe(sc.pontos), serie: serie.map((x, i) => [x.nos ? 1 : 0, x.set, contagem[i][0], contagem[i][1]]), sinais: sinais.map((s) => s[1]),
   };
 }
 
-var motor = { placarInicial: placarInicial, aplicaPonto: aplicaPonto, rotuloPontos: rotuloPontos, ehAdverso: ehAdverso, quemSaca: quemSaca, ladoDoSaque: ladoDoSaque, ROTULO_LADO: ROTULO_LADO, SITUACOES: SITUACOES, GOLPES: GOLPES, DIRECOES: DIRECOES, DIRECOES_SAQUE: DIRECOES_SAQUE, QUALIDADES_DEVOLUCAO: QUALIDADES_DEVOLUCAO, NIVEIS_ADVERSARIO: NIVEIS_ADVERSARIO, erroDeDevolucao: erroDeDevolucao, erroDeDevolucaoDele: erroDeDevolucaoDele, ZONAS: ZONAS, resume: resume, leitura: leitura, montarResumoPublico: montarResumoPublico, serieMomento: serieMomento, contagemDosPontos: contagemDosPontos, zonasDe: zonasDe };
+var motor = { placarInicial: placarInicial, aplicaPonto: aplicaPonto, rotuloPontos: rotuloPontos, ehAdverso: ehAdverso, quemSaca: quemSaca, ladoDoSaque: ladoDoSaque, ROTULO_LADO: ROTULO_LADO, SITUACOES: SITUACOES, GOLPES: GOLPES, DIRECOES: DIRECOES, DIRECOES_SAQUE: DIRECOES_SAQUE, QUALIDADES_DEVOLUCAO: QUALIDADES_DEVOLUCAO, NIVEIS_ADVERSARIO: NIVEIS_ADVERSARIO, ESCALAS_MENTAIS: ESCALAS_MENTAIS, DECISOES: DECISOES, numeroDoGame: numeroDoGame, mentalLimpo: mentalLimpo, erroDeDevolucao: erroDeDevolucao, erroDeDevolucaoDele: erroDeDevolucaoDele, ZONAS: ZONAS, resume: resume, leitura: leitura, montarResumoPublico: montarResumoPublico, serieMomento: serieMomento, contagemDosPontos: contagemDosPontos, zonasDe: zonasDe };
 if (typeof module !== "undefined" && module.exports) module.exports = motor; else raiz.QLScoutMotor = motor;
 })(typeof window !== "undefined" ? window : this);

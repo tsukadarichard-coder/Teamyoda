@@ -8263,6 +8263,17 @@ const DIRECOES_SAQUE = [["aberto", "Aberto"], ["fechado", "Fechado"], ["corpo", 
 /* qualidade da devolução do jogador (opcional, no ponto em que o adversário saca) e nível do adversário (no fim da partida) */
 const QUALIDADES_DEVOLUCAO = [["boa", "Boa"], ["regular", "Regular"], ["fraca", "Fraca"]];
 const NIVEIS_ADVERSARIO = [["iniciante", "Iniciante"], ["intermediario", "Intermediário"], ["avancado", "Avançado"], ["competitivo", "Competitivo"], ["elite", "Elite / profissional"]];
+/* avaliação mental (1 a 5) antes, durante (por game) e depois do jogo; decisão do jogador em cada ponto (opcional); game de cada ponto */
+const ESCALAS_MENTAIS = [["conf", "Confiança"], ["foco", "Foco"], ["energia", "Energia"], ["calma", "Controle emocional"]];
+const DECISOES = [["boa", "Boa"], ["disc", "Discutível"], ["ruim", "Ruim"]];
+function numeroDoGame(pl) { return pl.sets.reduce((t, x) => t + x[0] + x[1], 0) + pl.g[0] + pl.g[1] + 1; }
+function mentalLimpo(m) {
+  const v = (x) => { x = Math.round(+x); return x >= 1 && x <= 5 ? x : 0; };
+  const bloco = (o) => Object.fromEntries(ESCALAS_MENTAIS.map(([k]) => [k, v(o && o[k])]));
+  const jogo = {};
+  Object.keys((m && m.jogo) || {}).slice(0, 60).forEach((g) => { const n = Math.round(+g); if (n >= 1 && n <= 60 && v(m.jogo[g])) jogo[n] = v(m.jogo[g]); });
+  return { antes: bloco(m && m.antes), depois: bloco(m && m.depois), jogo };
+}
 /* erro de devolução de saque: o jogador errou ao devolver o saque do adversário (golpe marcado como devolução ou, sem golpe marcado, ponto de 1–2 bolas) */
 function erroDeDevolucao(p) { return p.fim === "erro_nos" && p.sacador === "ele" && p.saque !== "df" && (p.golpe === "devolucao" || (!p.golpe && p.bola === "1-2")); }
 /* e o inverso: o adversário errou a devolução do saque do jogador */
@@ -8783,12 +8794,12 @@ async function chamarAoVivo(corpo) {
   if (!r.ok) throw Object.assign(new Error(c.erro || ("Erro " + r.status)), { status: r.status });
   return c;
 }
-function resumoAoVivo(aluno, cfg, pontos, placar) {
+function resumoAoVivo(aluno, cfg, pontos, placar, mental) {
   const r = resume(pontos);
   const sets = placar.sets.map((x) => x[0] + "-" + x[1]);
   if (!placar.fim && (placar.g[0] || placar.g[1])) sets.push(placar.g[0] + "-" + placar.g[1]);
   return montarResumoPublico({
-    data: new Date().toISOString().slice(0, 10), torneio: cfg.torneio || "", resultado: sets.join(" "), concluida: !!placar.fim,
+    data: new Date().toISOString().slice(0, 10), torneio: cfg.torneio || "", resultado: sets.join(" "), concluida: !!placar.fim, mental,
     scout: { ...r, pontos, cfg: { formato: cfg.formato, saca: cfg.saca, semVantagem: !!cfg.semVantagem, superTiebreakDecisivo: !!cfg.superTiebreakDecisivo } },
   }, aluno);
 }
@@ -8807,7 +8818,7 @@ function CartaoAoVivo({ aluno, cfg, pontos, placar, aoVivo, setAoVivo, estado, s
   async function iniciar() {
     setOcupado(true); setAviso("");
     try {
-      const c = await chamarAoVivo({ acao: "iniciar", vinculoId: vinculoId || undefined, resumo: resumoAoVivo(aluno, cfg, pontos, placar) });
+      const c = await chamarAoVivo({ acao: "iniciar", vinculoId: vinculoId || undefined, resumo: resumoAoVivo(aluno, cfg, pontos, placar, mental) });
       setAoVivo({ token: c.token, expiraEm: c.expiraEm }); setEstado("ok");
     } catch (e) { setAviso(e.message || "Não foi possível iniciar agora."); }
     setOcupado(false);
@@ -8862,6 +8873,7 @@ function CartaoAoVivo({ aluno, cfg, pontos, placar, aoVivo, setAoVivo, estado, s
 
 function TelaScout({ aluno, alunos, setAlunos }) {
   const [fase, setFase] = useState("antes");
+  const [mental, setMental] = useState({ antes: {}, jogo: {}, depois: {} });
   const [cfg, setCfg] = useState({ adversario: "", torneio: "", formato: "3sets", saca: "nos", semVantagem: false, superTiebreakDecisivo: false });
   const [placar, setPlacar] = useState(null);
   const [pontos, setPontos] = useState([]);
@@ -8884,7 +8896,7 @@ function TelaScout({ aluno, alunos, setAlunos }) {
     const t = setTimeout(async () => {
       try {
         setAoVivoEstado("enviando");
-        await chamarAoVivo({ acao: "atualizar", token: aoVivo.token, resumo: resumoAoVivo(aluno, cfg, pontos, placar), fim: !!placar.fim || fase === "depois" });
+        await chamarAoVivo({ acao: "atualizar", token: aoVivo.token, resumo: resumoAoVivo(aluno, cfg, pontos, placar, mental), fim: !!placar.fim || fase === "depois" });
         if (vivo) setAoVivoEstado("ok");
       } catch (e) {
         if (!vivo) return;
@@ -8894,7 +8906,7 @@ function TelaScout({ aluno, alunos, setAlunos }) {
       }
     }, 1200);
     return () => { vivo = false; clearTimeout(t); };
-  }, [aoVivo && aoVivo.token, pontos, placar, fase, aoVivoTentativa]);
+  }, [aoVivo && aoVivo.token, pontos, placar, mental, fase, aoVivoTentativa]);
 
   useEffect(() => {
     try {
@@ -8906,10 +8918,10 @@ function TelaScout({ aluno, alunos, setAlunos }) {
   useEffect(() => {
     if (fase !== "durante" && fase !== "depois") return;
     try {
-      localStorage.setItem(ChaveRascunho(aluno.id), JSON.stringify({ cfg, placar, pontos, pilha, fase, aoVivo }));
+      localStorage.setItem(ChaveRascunho(aluno.id), JSON.stringify({ cfg, placar, pontos, pilha, fase, aoVivo, mental }));
       setEstadoRascunho("salvo");
     } catch { setEstadoRascunho("erro"); }
-  }, [fase, cfg, placar, pontos, pilha, aoVivo, aluno.id]);
+  }, [fase, cfg, placar, pontos, pilha, aoVivo, mental, aluno.id]);
 
   function limparRascunhoSalvo() {
     try { localStorage.removeItem(ChaveRascunho(aluno.id)); } catch { /* nada a fazer se não existir */ }
@@ -8924,6 +8936,7 @@ function TelaScout({ aluno, alunos, setAlunos }) {
     setPontos(rascunhoSalvo.pontos);
     setPilha(rascunhoSalvo.pilha || []);
     setFase(rascunhoSalvo.fase);
+    setMental(rascunhoSalvo.mental || { antes: {}, jogo: {}, depois: {} });
     if (rascunhoSalvo.aoVivo && Date.parse(rascunhoSalvo.aoVivo.expiraEm) > Date.now()) setAoVivo(rascunhoSalvo.aoVivo);
     setRascunhoSalvo(null);
   }
@@ -8939,7 +8952,7 @@ function TelaScout({ aluno, alunos, setAlunos }) {
   function confirma(bola) {
     if (processandoRef.current) return;
     processandoRef.current = true;
-    const p = { ...rascunho, bola, n: pontos.length + 1, placarAntes: rotuloPontos(placar) };
+    const p = { ...rascunho, bola, n: pontos.length + 1, placarAntes: rotuloPontos(placar), jogo: numeroDoGame(placar) };
     setPilha([...pilha, { placar, pontos }]);
     setPontos([...pontos, p]);
     setPlacar(aplicaPonto(placar, p.nos));
@@ -8958,7 +8971,7 @@ function TelaScout({ aluno, alunos, setAlunos }) {
     setPilha([...pilha, { placar, pontos }]);
     const p = { fim: tipo === "ace" ? (meu ? "winner_nos" : "winner_dele") : (meu ? "erro_nos" : "erro_dele"), nos, saque: tipo, bola: "1-2", causa: tipo === "df" && meu ? "execucao" : null,
       rede: false, situacao: null, adverso: ehAdverso(placar), sacador, lado: ladoDoSaque(placar), dirSaque: tipo === "ace" ? dirSaque : null,
-      n: pontos.length + 1, placarAntes: rotuloPontos(placar) };
+      n: pontos.length + 1, placarAntes: rotuloPontos(placar), jogo: numeroDoGame(placar) };
     setDirSaque(null);
     setPontos([...pontos, p]);
     setPlacar(aplicaPonto(placar, nos));
@@ -9068,6 +9081,8 @@ function TelaScout({ aluno, alunos, setAlunos }) {
             <p key={i} style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: i === 0 ? 6 : 3 }}>{l}</p>
           ))}
         </div>
+        <CartaoMental titulo="Avaliação mental antes do jogo" nota="Como o jogador chega, de 1 (muito baixo) a 5 (muito alto). Opcional."
+          valores={mental.antes} aoMudar={(k, v) => setMental({ ...mental, antes: { ...mental.antes, [k]: v } })} />
         <Botao onClick={comecar} variante="saibro">Iniciar acompanhamento</Botao>
 
         {partidasAnteriores.length > 0 && (
@@ -9092,8 +9107,8 @@ function TelaScout({ aluno, alunos, setAlunos }) {
   /* ── relatório ── */
   if (fase === "depois")
     return <Relatorio aluno={aluno} alunos={alunos} setAlunos={setAlunos} cfg={cfg}
-      pontos={pontos} placar={placar} aoConcluir={limparRascunhoSalvo}
-      aoSair={() => { limparRascunhoSalvo(); setFase("antes"); setPontos([]); }} />;
+      pontos={pontos} placar={placar} aoConcluir={limparRascunhoSalvo} mental={mental} setMental={setMental}
+      aoSair={() => { limparRascunhoSalvo(); setFase("antes"); setPontos([]); setMental({ antes: {}, jogo: {}, depois: {} }); }} />;
 
   /* ── durante ── */
   const sacadorAtual = quemSaca(placar), nossoSaque = sacadorAtual === "nos", ladoAtual = ladoDoSaque(placar);
@@ -9175,6 +9190,14 @@ function TelaScout({ aluno, alunos, setAlunos }) {
         </div>
       )}
 
+      {!rascunho && placar && (
+        <div className="mb-3" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "10px 12px" }}>
+          <Etiqueta>Mental no game {numeroDoGame(placar)} (opcional)</Etiqueta>
+          <EscalaMental rotulo="Como o jogador está agora" valor={(mental.jogo || {})[numeroDoGame(placar)] || 0}
+            aoMudar={(v) => setMental({ ...mental, jogo: { ...(mental.jogo || {}), [numeroDoGame(placar)]: v } })} />
+        </div>
+      )}
+
       {!rascunho?.fim && (
         <div>
           <div className="mb-2"><Etiqueta>Como o ponto terminou</Etiqueta></div>
@@ -9183,7 +9206,7 @@ function TelaScout({ aluno, alunos, setAlunos }) {
               <button key={op.v}
                 onClick={() => setRascunho({ ...(rascunho || {}), ...{
                   fim: op.v, nos: op.nos, saque: rascunho?.saquePre || null, bola: null, causa: null,
-                  rede: false, situacao: null, golpe: null, corrida: false, direcao: null, qualDev: null, dirSaque: dirSaque || null, adverso, sacador: quemSaca(placar), lado: ladoDoSaque(placar) } })}
+                  rede: false, situacao: null, golpe: null, corrida: false, direcao: null, qualDev: null, dec: null, dirSaque: dirSaque || null, adverso, sacador: quemSaca(placar), lado: ladoDoSaque(placar) } })}
                 style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, padding: "20px 8px", minHeight: 44,
                   border: "1px solid " + op.cor, borderRadius: 10, background: C.cal, color: op.cor, cursor: "pointer" }}>
                 {op.r}
@@ -9223,6 +9246,18 @@ function TelaScout({ aluno, alunos, setAlunos }) {
                 background: rascunho.rede ? C.tinta : C.cal, color: rascunho.rede ? C.papel : C.grafite }}>
               {rascunho.rede ? "✓ " : ""}Subiu à rede
             </button>
+          </div>
+
+          <div className="mb-2"><Etiqueta>Decisão do jogador neste ponto (opcional)</Etiqueta></div>
+          <div className="flex flex-wrap gap-2 mb-4">
+            {DECISOES.map(([k, r]) => (
+              <button key={k} type="button" aria-pressed={rascunho.dec === k}
+                onClick={() => setRascunho({ ...rascunho, dec: rascunho.dec === k ? null : k })}
+                style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 600, padding: "7px 11px", borderRadius: 10, minHeight: 44, cursor: "pointer",
+                  border: "1px solid " + (rascunho.dec === k ? C.tinta : C.linha), background: rascunho.dec === k ? C.tinta : C.cal, color: rascunho.dec === k ? C.papel : C.grafite }}>
+                {rascunho.dec === k ? "✓ " : ""}{r}
+              </button>
+            ))}
           </div>
 
           {rascunho.sacador === "ele" && rascunho.saque !== "df" && rascunho.saque !== "ace" && (
@@ -9349,6 +9384,11 @@ function resume(pontos) {
     situacoes: Object.fromEntries(SITUACOES.map(([k]) => { const l = pontos.filter((p) => p.situacao === k); return [k, { n: l.length, g: ganhosDe(l) }]; })),
     devolucao: { nos: { n: devNos.length, e: devNos.filter(erroDeDevolucao).length, q: Object.fromEntries(QUALIDADES_DEVOLUCAO.map(([k]) => { const l = devNos.filter((p) => p.qualDev === k); return [k, { n: l.length, g: ganhosDe(l) }]; })) }, ele: { n: devEle.length, e: devEle.filter(erroDeDevolucaoDele).length } },
     corrida: { n: conta((p) => p.corrida), g: conta((p) => p.corrida && p.nos) },
+    decisoes: Object.fromEntries(DECISOES.map(([k]) => { const l = pontos.filter((p) => p.dec === k); return [k, { n: l.length, g: ganhosDe(l) }]; })),
+    games: [...new Set(pontos.filter((p) => p.jogo).map((p) => p.jogo))].sort((a, b) => a - b).map((j) => {
+      const l = pontos.filter((p) => p.jogo === j), d = (k) => l.filter((p) => p.dec === k).length;
+      return { j, n: l.length, g: ganhosDe(l), boa: d("boa"), disc: d("disc"), ruim: d("ruim") };
+    }),
   };
 
   const protocolo = conta((p) => p.protocolo);
@@ -9648,7 +9688,7 @@ function montarResumoPublico(reg, aluno) {
       pctSacD: sc.nSacD ? sc.pctSacD : 0, nSacD: sc.nSacD, pctSacE: sc.nSacE ? sc.pctSacE : 0, nSacE: sc.nSacE, pctDevD: sc.nDevD ? sc.pctDevD : 0, nDevD: sc.nDevD, pctDevE: sc.nDevE ? sc.pctDevE : 0, nDevE: sc.nDevE,
       nAtaque: sc.nAtaque, pctAtaque: sc.pctAtaque, nContra: sc.nContra, pctContra: sc.pctContra, nDefesa: sc.nDefesa, pctDefesa: sc.pctDefesa },
     detalhe: sc.detalhe || resume(sc.pontos || []).detalhe, observacaoFinal: String(reg.observacaoFinal || "").trim().slice(0, 1200),
-    nivelAdversario: NIVEIS_ADVERSARIO.some((x) => x[0] === reg.nivelAdversario) ? reg.nivelAdversario : "",
+    nivelAdversario: NIVEIS_ADVERSARIO.some((x) => x[0] === reg.nivelAdversario) ? reg.nivelAdversario : "", mental: mentalLimpo(reg.mental),
     zonas: zonasDe(sc.pontos), serie: serie.map((x, i) => [x.nos ? 1 : 0, x.set, contagem[i][0], contagem[i][1]]), sinais: sinais.map((s) => s[1]),
   };
 }
@@ -9682,6 +9722,31 @@ function ObservacaoFinalRegistro({ r, aluno, alunos, setAlunos }) {
   );
 }
 
+function EscalaMental({ rotulo, valor, aoMudar }) {
+  return (
+    <div className="mt-2">
+      <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 4 }}>{rotulo}</p>
+      <div className="flex gap-2" role="group" aria-label={rotulo}>
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button key={n} type="button" aria-pressed={valor === n} onClick={() => aoMudar(valor === n ? 0 : n)}
+            style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, minWidth: 44, minHeight: 44, borderRadius: 10, cursor: "pointer",
+              border: "1px solid " + (valor === n ? C.tinta : C.linha), background: valor === n ? C.tinta : C.cal, color: valor === n ? C.papel : C.grafite }}>
+            {n}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+function CartaoMental({ titulo, nota, valores, aoMudar }) {
+  return (
+    <div className="mb-4" style={{ background: C.cal, borderLeft: "3px solid " + C.linha, padding: "11px 14px" }}>
+      <Etiqueta>{titulo}</Etiqueta>
+      <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>{nota}</p>
+      {ESCALAS_MENTAIS.map(([k, r]) => <EscalaMental key={k} rotulo={r} valor={(valores || {})[k] || 0} aoMudar={(v) => aoMudar(k, v)} />)}
+    </div>
+  );
+}
 function LinkFamilia({ reg, aluno, alunos, setAlunos }) {
   const [url, setUrl] = useState("");
   const [aviso, setAviso] = useState("");
@@ -9786,7 +9851,7 @@ function DetalheScout({ det }) {
   );
 }
 
-function ResumoScout({ r, sinais, aluno, alunos, setAlunos, pontos, cfg }) {
+function ResumoScout({ r, sinais, aluno, alunos, setAlunos, pontos, cfg, mental }) {
   const dados = [
     { faixa: "1–2 bolas", valor: r.pctCurtos },
     { faixa: "3–4 bolas", valor: r.pctMedios },
@@ -9802,7 +9867,7 @@ function ResumoScout({ r, sinais, aluno, alunos, setAlunos, pontos, cfg }) {
   const graficos = (() => {
     try {
       if (!window.QLScoutGraficos || !(r.n > 0)) return "";
-      const rp = montarResumoPublico({ scout: { ...r, pontos, cfg }, data: "", resultado: "" }, aluno);
+      const rp = montarResumoPublico({ scout: { ...r, pontos, cfg }, data: "", resultado: "", mental }, aluno);
       return QLScoutGraficos.painelGeral(rp) + QLScoutGraficos.secoes(rp);
     } catch (e) { return ""; }
   })();
@@ -9902,7 +9967,7 @@ function DetalheJogoRegistro({ r, aluno, alunos, setAlunos }) {
   const sinais = leitura(r.scout);
   return (
     <div className="mt-3 pt-3" style={{ borderTop: "1px solid " + C.linha }}>
-      <ResumoScout r={r.scout} sinais={sinais} aluno={aluno} alunos={alunos} setAlunos={setAlunos} pontos={r.scout.pontos} cfg={r.scout.cfg} />
+      <ResumoScout r={r.scout} sinais={sinais} aluno={aluno} alunos={alunos} setAlunos={setAlunos} pontos={r.scout.pontos} cfg={r.scout.cfg} mental={r.mental} />
       <BotaoCompartilharResumo texto={textoResumoScout(r.scout, sinais, r.scout.pontos, r.scout.cfg, { adversario: r.adversario, torneio: r.torneio, resultado: r.resultado })} />
       <ObservacaoFinalRegistro r={r} aluno={aluno} alunos={alunos} setAlunos={setAlunos} />
       <LinkFamilia reg={r} aluno={aluno} alunos={alunos} setAlunos={setAlunos} />
@@ -9910,7 +9975,7 @@ function DetalheJogoRegistro({ r, aluno, alunos, setAlunos }) {
   );
 }
 
-function Relatorio({ aluno, alunos, setAlunos, cfg, pontos, placar, aoSair, aoConcluir }) {
+function Relatorio({ aluno, alunos, setAlunos, cfg, pontos, placar, aoSair, aoConcluir, mental, setMental }) {
   const r = useMemo(() => resume(pontos), [pontos]);
   const sinais = useMemo(() => leitura(r), [r]);
   const [salvo, setSalvo] = useState(false);
@@ -9926,7 +9991,7 @@ function Relatorio({ aluno, alunos, setAlunos, cfg, pontos, placar, aoSair, aoCo
       plano: "", protocolo: r.pctProtocolo, erros12: r.pctErrosCurtos,
       revelou: sinais.map((s) => s[1]).join(" "),
       resultado: placar ? [...placar.sets.map((x) => `${x[0]}-${x[1]}`)].join(" ") || "não concluído" : "—",
-      concluida, observacaoFinal: obsFinal.trim().slice(0, 1200),
+      concluida, observacaoFinal: obsFinal.trim().slice(0, 1200), mental: mentalLimpo(mental),
       scout: { ...r, pontos, cfg: { formato: cfg.formato, saca: cfg.saca, semVantagem: !!cfg.semVantagem, superTiebreakDecisivo: !!cfg.superTiebreakDecisivo } },
     };
     setAlunos(alunos.map((a) => a.id === aluno.id ? { ...a, registros: [...(a.registros || []), reg] } : a));
@@ -9940,7 +10005,7 @@ function Relatorio({ aluno, alunos, setAlunos, cfg, pontos, placar, aoSair, aoCo
   return (
     <div>
       <Etiqueta cor={concluida ? C.quadra : "#C9A227"}>{concluida ? "Partida concluída" : "Acompanhamento interrompido — sem vencedor atribuído"}</Etiqueta>
-      <div className="mt-3"><ResumoScout r={r} sinais={sinais} aluno={aluno} alunos={alunos} setAlunos={setAlunos} pontos={pontos} cfg={cfg} /></div>
+      <div className="mt-3"><ResumoScout r={r} sinais={sinais} aluno={aluno} alunos={alunos} setAlunos={setAlunos} pontos={pontos} cfg={cfg} mental={mental} /></div>
 
       <Aviso>
         Um jogo é uma amostra. Três jogos na mesma direção são um sinal; um jogo isolado é ruído. O
@@ -9951,6 +10016,8 @@ function Relatorio({ aluno, alunos, setAlunos, cfg, pontos, placar, aoSair, aoCo
 
       {!salvo && (
         <div className="mt-3">
+          <CartaoMental titulo="Avaliação mental depois do jogo" nota="Como o jogador termina, de 1 (muito baixo) a 5 (muito alto). Opcional."
+            valores={(mental || {}).depois || {}} aoMudar={(k, v) => setMental({ ...mental, depois: { ...(mental.depois || {}), [k]: v } })} />
           <Campo rotulo="Nível do adversário (opcional)" nota="Preencha ao fim da partida. Aparece no resumo da família e ajuda a ler o resultado.">
             <select value={nivelAdv} onChange={(e) => setNivelAdv(e.target.value)} style={entrada} aria-label="Nível do adversário">
               <option value="">Não informar</option>
