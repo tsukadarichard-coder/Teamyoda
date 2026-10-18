@@ -3,7 +3,7 @@
   window.QL_COMP_LANDING = {
     html: function () {
       return '<div class="cl-topo"><div class="cl-cont">' +
-        '<header class="cl-nav"><span class="comp-wordmark"><b>QuadraLab</b><small>COMPETIÇÃO</small></span>' +
+        '<header class="cl-nav"><span class="cl-logo"><img src="../assets/logo-quadralab-player-competicao-120.png" srcset="../assets/logo-quadralab-player-competicao-120.png 518w, ../assets/logo-quadralab-player-competicao-240.png 1035w" sizes="140px" width="140" height="40" alt="QuadraLab Player Competição"></span>' +
         '<span><a class="cl-entrar" href="#/entrar">Entrar</a> <a class="cl-btn lima" href="#/criar">Criar conta</a></span></header>' +
         '<div class="cl-hero"><div class="cl-hero-txt"><span class="comp-kicker">Para quem joga torneios</span>' +
         '<h1>Cada torneio, <em>preparado.</em></h1>' +
