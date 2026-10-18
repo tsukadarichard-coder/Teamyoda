@@ -8255,6 +8255,9 @@ const SITUACOES = [["ataque", "Ataque"], ["contra", "Contra-ataque"], ["defesa",
 const GOLPES = [["forehand", "Forehand"], ["backhand", "Backhand"], ["voleio", "Voleio"], ["smash", "Smash"], ["drop", "Drop shot"], ["lob", "Lob"], ["devolucao", "Devolução"]];
 const DIRECOES = [["cruzado", "Cruzado"], ["paralelo", "Paralelo"]];
 const DIRECOES_SAQUE = [["aberto", "Aberto"], ["fechado", "Fechado"], ["corpo", "Corpo"]];
+/* qualidade da devolução do jogador (opcional, no ponto em que o adversário saca) e nível do adversário (no fim da partida) */
+const QUALIDADES_DEVOLUCAO = [["boa", "Boa"], ["regular", "Regular"], ["fraca", "Fraca"]];
+const NIVEIS_ADVERSARIO = [["iniciante", "Iniciante"], ["intermediario", "Intermediário"], ["avancado", "Avançado"], ["competitivo", "Competitivo"], ["elite", "Elite / profissional"]];
 /* erro de devolução de saque: o jogador errou ao devolver o saque do adversário (golpe marcado como devolução ou, sem golpe marcado, ponto de 1–2 bolas) */
 function erroDeDevolucao(p) { return p.fim === "erro_nos" && p.sacador === "ele" && p.saque !== "df" && (p.golpe === "devolucao" || (!p.golpe && p.bola === "1-2")); }
 /* e o inverso: o adversário errou a devolução do saque do jogador */
@@ -9186,7 +9189,7 @@ function TelaScout({ aluno, alunos, setAlunos }) {
               <button key={op.v}
                 onClick={() => setRascunho({ ...(rascunho || {}), ...{
                   fim: op.v, nos: op.nos, saque: rascunho?.saquePre || null, bola: null, causa: null,
-                  rede: false, situacao: null, golpe: null, corrida: false, direcao: null, dirSaque: dirSaque || null, adverso, sacador: quemSaca(placar), lado: ladoDoSaque(placar) } })}
+                  rede: false, situacao: null, golpe: null, corrida: false, direcao: null, qualDev: null, dirSaque: dirSaque || null, adverso, sacador: quemSaca(placar), lado: ladoDoSaque(placar) } })}
                 style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, padding: "20px 8px", minHeight: 44,
                   border: "1px solid " + op.cor, borderRadius: 10, background: C.cal, color: op.cor, cursor: "pointer" }}>
                 {op.r}
@@ -9227,6 +9230,22 @@ function TelaScout({ aluno, alunos, setAlunos }) {
               {rascunho.rede ? "✓ " : ""}Subiu à rede
             </button>
           </div>
+
+          {rascunho.sacador === "ele" && rascunho.saque !== "df" && rascunho.saque !== "ace" && (
+            <>
+              <div className="mb-2"><Etiqueta>Qualidade da devolução do jogador (opcional)</Etiqueta></div>
+              <div className="flex flex-wrap gap-2 mb-4">
+                {QUALIDADES_DEVOLUCAO.map(([k, r]) => (
+                  <button key={k} type="button" aria-pressed={rascunho.qualDev === k}
+                    onClick={() => setRascunho({ ...rascunho, qualDev: rascunho.qualDev === k ? null : k })}
+                    style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 600, padding: "7px 11px", borderRadius: 10, minHeight: 44, cursor: "pointer",
+                      border: "1px solid " + (rascunho.qualDev === k ? C.tinta : C.linha), background: rascunho.qualDev === k ? C.tinta : C.cal, color: rascunho.qualDev === k ? C.papel : C.grafite }}>
+                    {rascunho.qualDev === k ? "✓ " : ""}{r}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
 
           <div className="mb-2"><Etiqueta>Qual foi o último golpe do jogador (opcional)</Etiqueta></div>
           <div className="flex flex-wrap gap-2 mb-2">
@@ -9334,7 +9353,7 @@ function resume(pontos) {
     direcao: Object.fromEntries(DIRECOES.map(([k]) => { const l = pontos.filter((p) => p.direcao === k); return [k, { n: l.length, g: ganhosDe(l), c: l.filter((p) => p.corrida).length }]; })),
     saqueDir: Object.fromEntries(["nos", "ele"].map((s) => [s, Object.fromEntries(DIRECOES_SAQUE.map(([k]) => { const l = pontos.filter((p) => p.sacador === s && p.dirSaque === k); return [k, { n: l.length, a: l.filter((p) => p.saque === "ace").length, g: l.filter((p) => (s === "nos" ? p.nos : !p.nos)).length }]; }))])),
     situacoes: Object.fromEntries(SITUACOES.map(([k]) => { const l = pontos.filter((p) => p.situacao === k); return [k, { n: l.length, g: ganhosDe(l) }]; })),
-    devolucao: { nos: { n: devNos.length, e: devNos.filter(erroDeDevolucao).length }, ele: { n: devEle.length, e: devEle.filter(erroDeDevolucaoDele).length } },
+    devolucao: { nos: { n: devNos.length, e: devNos.filter(erroDeDevolucao).length, q: Object.fromEntries(QUALIDADES_DEVOLUCAO.map(([k]) => { const l = devNos.filter((p) => p.qualDev === k); return [k, { n: l.length, g: ganhosDe(l) }]; })) }, ele: { n: devEle.length, e: devEle.filter(erroDeDevolucaoDele).length } },
     corrida: { n: conta((p) => p.corrida), g: conta((p) => p.corrida && p.nos) },
   };
 
@@ -9635,26 +9654,32 @@ function montarResumoPublico(reg, aluno) {
       pctSacD: sc.nSacD ? sc.pctSacD : 0, nSacD: sc.nSacD, pctSacE: sc.nSacE ? sc.pctSacE : 0, nSacE: sc.nSacE, pctDevD: sc.nDevD ? sc.pctDevD : 0, nDevD: sc.nDevD, pctDevE: sc.nDevE ? sc.pctDevE : 0, nDevE: sc.nDevE,
       nAtaque: sc.nAtaque, pctAtaque: sc.pctAtaque, nContra: sc.nContra, pctContra: sc.pctContra, nDefesa: sc.nDefesa, pctDefesa: sc.pctDefesa },
     detalhe: sc.detalhe || resume(sc.pontos || []).detalhe, observacaoFinal: String(reg.observacaoFinal || "").trim().slice(0, 1200),
+    nivelAdversario: NIVEIS_ADVERSARIO.some((x) => x[0] === reg.nivelAdversario) ? reg.nivelAdversario : "",
     zonas: zonasDe(sc.pontos), serie: serie.map((x, i) => [x.nos ? 1 : 0, x.set, contagem[i][0], contagem[i][1]]), sinais: sinais.map((s) => s[1]),
   };
 }
 /* Observação final do treinador sobre o jogo: aparece na página que a família recebe. Se o link já foi gerado, o resumo dele é refeito ao salvar. */
 function ObservacaoFinalRegistro({ r, aluno, alunos, setAlunos }) {
   const [texto, setTexto] = useState(r.observacaoFinal || "");
+  const [nivel, setNivel] = useState(r.nivelAdversario || "");
   const [aviso, setAviso] = useState("");
   function salvar() {
     const nova = texto.trim().slice(0, 1200), hoje = new Date().toISOString().slice(0, 10);
     setAlunos(alunos.map((a) => a.id !== aluno.id ? a : { ...a, registros: (a.registros || []).map((x) => {
       if (x.id !== r.id) return x;
-      const novo = { ...x, observacaoFinal: nova };
+      const novo = { ...x, observacaoFinal: nova, nivelAdversario: nivel };
       if (x.compartilhado && x.compartilhado.token && x.compartilhado.ate >= hoje) novo.compartilhado = { ...x.compartilhado, publico: montarResumoPublico(novo, a) };
       return novo;
     }) }));
-    setAviso(nova ? "Observação salva." + (r.compartilhado && r.compartilhado.token ? " A página da família já foi atualizada." : "") : "Observação removida.");
+    setAviso(nova || nivel ? "Observação salva." + (r.compartilhado && r.compartilhado.token ? " A página da família já foi atualizada." : "") : "Observação removida.");
   }
   return (
     <div className="mt-3" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "13px 15px" }}>
       <Etiqueta>Observação final do treinador</Etiqueta>
+      <select value={nivel} onChange={(e) => setNivel(e.target.value)} aria-label="Nível do adversário" style={{ ...entrada, marginTop: 8 }}>
+        <option value="">Nível do adversário: não informar</option>
+        {NIVEIS_ADVERSARIO.map(([k, r]) => <option key={k} value={k}>Nível do adversário: {r}</option>)}
+      </select>
       <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 6 }}>Um recado seu sobre o jogo. Aparece na página que a família recebe, logo depois do placar.</p>
       <textarea value={texto} onChange={(e) => setTexto(e.target.value)} maxLength={1200} rows={4} aria-label="Observação final do treinador" style={{ ...entrada, marginTop: 8, minHeight: 96 }} />
       <div className="flex gap-2 mt-2 items-center"><Botao pequeno variante="saibro" onClick={salvar}>Salvar observação</Botao><span style={{ ...prosa, fontSize: 12, color: C.grafite }}>{texto.length} de 1200</span></div>
@@ -9896,12 +9921,14 @@ function Relatorio({ aluno, alunos, setAlunos, cfg, pontos, placar, aoSair, aoCo
   const sinais = useMemo(() => leitura(r), [r]);
   const [salvo, setSalvo] = useState(false);
   const [obsFinal, setObsFinal] = useState("");
+  const [nivelAdv, setNivelAdv] = useState("");
+  const [torneioFinal, setTorneioFinal] = useState(cfg.torneio || "");
   const concluida = !!(placar && placar.fim);
 
   function salvar() {
     const reg = {
       id: "r" + Date.now(), tipo: "jogo", data: new Date().toISOString().slice(0, 10),
-      torneio: cfg.torneio || "jogo-treino", adversario: cfg.adversario || "—",
+      torneio: torneioFinal.trim().slice(0, 80) || "jogo-treino", adversario: cfg.adversario || "—", nivelAdversario: nivelAdv,
       plano: "", protocolo: r.pctProtocolo, erros12: r.pctErrosCurtos,
       revelou: sinais.map((s) => s[1]).join(" "),
       resultado: placar ? [...placar.sets.map((x) => `${x[0]}-${x[1]}`)].join(" ") || "não concluído" : "—",
@@ -9930,6 +9957,15 @@ function Relatorio({ aluno, alunos, setAlunos, cfg, pontos, placar, aoSair, aoCo
 
       {!salvo && (
         <div className="mt-3">
+          <Campo rotulo="Nível do adversário (opcional)" nota="Preencha ao fim da partida. Aparece no resumo da família e ajuda a ler o resultado.">
+            <select value={nivelAdv} onChange={(e) => setNivelAdv(e.target.value)} style={entrada} aria-label="Nível do adversário">
+              <option value="">Não informar</option>
+              {NIVEIS_ADVERSARIO.map(([k, r]) => <option key={k} value={k}>{r}</option>)}
+            </select>
+          </Campo>
+          <Campo rotulo="Torneio (opcional)" nota="Confirme ou corrija o torneio deste jogo. Deixe vazio para jogo-treino.">
+            <input style={entrada} value={torneioFinal} onChange={(e) => setTorneioFinal(e.target.value)} maxLength={80} placeholder="Torneio ou jogo-treino" />
+          </Campo>
           <Campo rotulo="Observação final do treinador (opcional)" nota="Aparece na página que a família recebe, se você gerar o link depois de salvar.">
             <textarea value={obsFinal} onChange={(e) => setObsFinal(e.target.value)} maxLength={1200} rows={4} style={{ ...entrada, minHeight: 96 }} />
           </Campo>

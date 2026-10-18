@@ -49,3 +49,13 @@ const chama = async (q) => { const r = await handler({ httpMethod: "GET", queryS
   assert.deepStrictEqual(r.serie[2], [1, 1], "link antigo continua com dois itens");
   console.log("contagem ponto a ponto ok");
 }
+
+/* qualidade da devolução e nível do adversário: só valores da lista e números */
+{
+  const { limpar } = require("../netlify/functions/_scout-publico");
+  const r = limpar({ nivelAdversario: "avancado", detalhe: { devolucao: { nos: { n: 5, e: 1, q: { boa: { n: 2, g: 1, x: 9 }, estranha: { n: 7 } } }, ele: { n: 3, e: 0 } } } });
+  assert.strictEqual(r.nivelAdversario, "avancado");
+  assert.deepStrictEqual(r.detalhe.devolucao.nos.q, { boa: { n: 2, g: 1 }, regular: { n: 0, g: 0 }, fraca: { n: 0, g: 0 } });
+  assert.strictEqual(limpar({ nivelAdversario: "<script>" }).nivelAdversario, "", "nível fora da lista é descartado");
+  console.log("qualidade da devolução e nível ok");
+}

@@ -55,6 +55,15 @@
       (tiles.length ? '<div class="qg-tiles">' + tiles.join("") + "</div>" : "") + "</div></section>";
   }
 
+  var ROT_NIVEL = { iniciante: "Iniciante", intermediario: "Intermediário", avancado: "Avançado", competitivo: "Competitivo", elite: "Elite / profissional" };
+  /* ficha do jogo: torneio e nível do adversário (preenchido no fim da partida) */
+  function ficha(p) {
+    var it = [];
+    if (p.torneio) it.push(["Torneio", p.torneio]);
+    if (ROT_NIVEL[p.nivelAdversario]) it.push(["Nível do adversário", ROT_NIVEL[p.nivelAdversario]]);
+    if (!it.length) return "";
+    return '<section class="qg-sec qg-ficha" id="qg-ficha">' + it.map(function (x) { return "<div><small>" + esc(x[0]) + "</small><b>" + esc(x[1]) + "</b></div>"; }).join("") + "</section>";
+  }
   function observacao(p) {
     var t = String(p.observacaoFinal || "").trim();
     if (!t) return "";
@@ -143,17 +152,26 @@
     return secao("direcao", "Direção e bolas na corrida", "Pontos ganhos por " + p.atleta + " conforme a direção do último golpe e as bolas jogadas em deslocamento.", '<div class="qg-grupo">' + h + "</div>", tabela(["", "Pontos", "Ganhos"], tab));
   }
 
+  var ROT_QUAL = { boa: "Boa", regular: "Regular", fraca: "Fraca" };
   function devolucao(p) {
     var d = (p.detalhe || {}).devolucao; if (!d || (!n0(d.nos.n) && !n0(d.ele.n))) return "";
-    var a = n0(d.nos.e), b = n0(d.ele.e);
-    return secao("devolucao", "Erros de devolução de saque", "Erros na primeira bola depois do saque do outro lado.",
-      '<div class="qg-tiles qg-tiles2">' + tile(a + " de " + n0(d.nos.n), "Erros de devolução de " + p.atleta, n0(d.nos.n) ? pct(a, d.nos.n) + "% dos pontos no saque do adversário" : "") +
-      tile(b + " de " + n0(d.ele.n), "Erros de devolução do adversário", n0(d.ele.n) ? pct(b, d.ele.n) + "% dos pontos no saque de " + p.atleta : "") + "</div>");
+    var a = n0(d.nos.e), b = n0(d.ele.e), q = d.nos.q || {};
+    var ks = ["boa", "regular", "fraca"].filter(function (k) { return q[k] && n0(q[k].n); });
+    var tot = ks.reduce(function (t, k) { return t + n0(q[k].n); }, 0);
+    var corpo = '<div class="qg-tiles qg-tiles2">' + tile(a + " de " + n0(d.nos.n), "Erros de devolução de " + p.atleta, n0(d.nos.n) ? pct(a, d.nos.n) + "% dos pontos no saque do adversário" : "") +
+      tile(b + " de " + n0(d.ele.n), "Erros de devolução do adversário", n0(d.ele.n) ? pct(b, d.ele.n) + "% dos pontos no saque de " + p.atleta : "") + "</div>";
+    var tab = "";
+    if (ks.length) {
+      corpo += '<p class="qg-sub">Qualidade da devolução de ' + esc(p.atleta) + " e pontos ganhos em cada tipo (" + plural(tot, "devolução marcada", "devoluções marcadas") + ")</p>" +
+        '<div class="qg-grupo">' + ks.map(function (k) { return linhaPct(ROT_QUAL[k], plural(n0(q[k].n), "ponto", "pontos") + " · " + pct(q[k].n, tot) + "% das devoluções", pct(q[k].g, q[k].n), GANHO); }).join("") + "</div>";
+      tab = tabela(["Qualidade", "Pontos", "Ganhos"], ks.map(function (k) { return [ROT_QUAL[k], q[k].n, pct(q[k].g, q[k].n) + "%"]; }));
+    }
+    return secao("devolucao", "Devolução de saque", "Erros na primeira bola depois do saque do outro lado e a qualidade das devoluções que entraram.", corpo, tab);
   }
 
   /* o conjunto: cada função devolve "" quando não há dado marcado */
   function secoes(p) { return [comoTerminaram(p), saque(p), lado(p), situacoes(p), golpes(p), direcao(p), devolucao(p)].join(""); }
-  function topo(p) { return painelGeral(p) + observacao(p); }
+  function topo(p) { return ficha(p) + painelGeral(p) + observacao(p); }
 
   var api = { topo: topo, secoes: secoes, painelGeral: painelGeral, observacao: observacao, comoTerminaram: comoTerminaram, saque: saque, lado: lado, situacoes: situacoes, golpes: golpes, direcao: direcao, devolucao: devolucao, CORES: { ganho: GANHO, ganhoClaro: GANHO_CLARO, perda: PERDA, perdaClaro: PERDA_CLARO, neutro: NEUTRO } };
   if (typeof module !== "undefined" && module.exports) module.exports = api; else raiz.QLScoutGraficos = api;

@@ -106,6 +106,9 @@ const SITUACOES = [["ataque", "Ataque"], ["contra", "Contra-ataque"], ["defesa",
 const GOLPES = [["forehand", "Forehand"], ["backhand", "Backhand"], ["voleio", "Voleio"], ["smash", "Smash"], ["drop", "Drop shot"], ["lob", "Lob"], ["devolucao", "Devolução"]];
 const DIRECOES = [["cruzado", "Cruzado"], ["paralelo", "Paralelo"]];
 const DIRECOES_SAQUE = [["aberto", "Aberto"], ["fechado", "Fechado"], ["corpo", "Corpo"]];
+/* qualidade da devolução do jogador (opcional, no ponto em que o adversário saca) e nível do adversário (no fim da partida) */
+const QUALIDADES_DEVOLUCAO = [["boa", "Boa"], ["regular", "Regular"], ["fraca", "Fraca"]];
+const NIVEIS_ADVERSARIO = [["iniciante", "Iniciante"], ["intermediario", "Intermediário"], ["avancado", "Avançado"], ["competitivo", "Competitivo"], ["elite", "Elite / profissional"]];
 /* erro de devolução de saque: o jogador errou ao devolver o saque do adversário (golpe marcado como devolução ou, sem golpe marcado, ponto de 1–2 bolas) */
 function erroDeDevolucao(p) { return p.fim === "erro_nos" && p.sacador === "ele" && p.saque !== "df" && (p.golpe === "devolucao" || (!p.golpe && p.bola === "1-2")); }
 /* e o inverso: o adversário errou a devolução do saque do jogador */
@@ -153,7 +156,7 @@ function resume(pontos) {
     direcao: Object.fromEntries(DIRECOES.map(([k]) => { const l = pontos.filter((p) => p.direcao === k); return [k, { n: l.length, g: ganhosDe(l), c: l.filter((p) => p.corrida).length }]; })),
     saqueDir: Object.fromEntries(["nos", "ele"].map((s) => [s, Object.fromEntries(DIRECOES_SAQUE.map(([k]) => { const l = pontos.filter((p) => p.sacador === s && p.dirSaque === k); return [k, { n: l.length, a: l.filter((p) => p.saque === "ace").length, g: l.filter((p) => (s === "nos" ? p.nos : !p.nos)).length }]; }))])),
     situacoes: Object.fromEntries(SITUACOES.map(([k]) => { const l = pontos.filter((p) => p.situacao === k); return [k, { n: l.length, g: ganhosDe(l) }]; })),
-    devolucao: { nos: { n: devNos.length, e: devNos.filter(erroDeDevolucao).length }, ele: { n: devEle.length, e: devEle.filter(erroDeDevolucaoDele).length } },
+    devolucao: { nos: { n: devNos.length, e: devNos.filter(erroDeDevolucao).length, q: Object.fromEntries(QUALIDADES_DEVOLUCAO.map(([k]) => { const l = devNos.filter((p) => p.qualDev === k); return [k, { n: l.length, g: ganhosDe(l) }]; })) }, ele: { n: devEle.length, e: devEle.filter(erroDeDevolucaoDele).length } },
     corrida: { n: conta((p) => p.corrida), g: conta((p) => p.corrida && p.nos) },
   };
 
@@ -266,10 +269,11 @@ function montarResumoPublico(reg, aluno) {
       pctSacD: sc.nSacD ? sc.pctSacD : 0, nSacD: sc.nSacD, pctSacE: sc.nSacE ? sc.pctSacE : 0, nSacE: sc.nSacE, pctDevD: sc.nDevD ? sc.pctDevD : 0, nDevD: sc.nDevD, pctDevE: sc.nDevE ? sc.pctDevE : 0, nDevE: sc.nDevE,
       nAtaque: sc.nAtaque, pctAtaque: sc.pctAtaque, nContra: sc.nContra, pctContra: sc.pctContra, nDefesa: sc.nDefesa, pctDefesa: sc.pctDefesa },
     detalhe: sc.detalhe || resume(sc.pontos || []).detalhe, observacaoFinal: String(reg.observacaoFinal || "").trim().slice(0, 1200),
+    nivelAdversario: NIVEIS_ADVERSARIO.some((x) => x[0] === reg.nivelAdversario) ? reg.nivelAdversario : "",
     zonas: zonasDe(sc.pontos), serie: serie.map((x, i) => [x.nos ? 1 : 0, x.set, contagem[i][0], contagem[i][1]]), sinais: sinais.map((s) => s[1]),
   };
 }
 
-var motor = { placarInicial: placarInicial, aplicaPonto: aplicaPonto, rotuloPontos: rotuloPontos, ehAdverso: ehAdverso, quemSaca: quemSaca, ladoDoSaque: ladoDoSaque, ROTULO_LADO: ROTULO_LADO, SITUACOES: SITUACOES, GOLPES: GOLPES, DIRECOES: DIRECOES, DIRECOES_SAQUE: DIRECOES_SAQUE, erroDeDevolucao: erroDeDevolucao, erroDeDevolucaoDele: erroDeDevolucaoDele, ZONAS: ZONAS, resume: resume, leitura: leitura, montarResumoPublico: montarResumoPublico, serieMomento: serieMomento, contagemDosPontos: contagemDosPontos, zonasDe: zonasDe };
+var motor = { placarInicial: placarInicial, aplicaPonto: aplicaPonto, rotuloPontos: rotuloPontos, ehAdverso: ehAdverso, quemSaca: quemSaca, ladoDoSaque: ladoDoSaque, ROTULO_LADO: ROTULO_LADO, SITUACOES: SITUACOES, GOLPES: GOLPES, DIRECOES: DIRECOES, DIRECOES_SAQUE: DIRECOES_SAQUE, QUALIDADES_DEVOLUCAO: QUALIDADES_DEVOLUCAO, NIVEIS_ADVERSARIO: NIVEIS_ADVERSARIO, erroDeDevolucao: erroDeDevolucao, erroDeDevolucaoDele: erroDeDevolucaoDele, ZONAS: ZONAS, resume: resume, leitura: leitura, montarResumoPublico: montarResumoPublico, serieMomento: serieMomento, contagemDosPontos: contagemDosPontos, zonasDe: zonasDe };
 if (typeof module !== "undefined" && module.exports) module.exports = motor; else raiz.QLScoutMotor = motor;
 })(typeof window !== "undefined" ? window : this);
