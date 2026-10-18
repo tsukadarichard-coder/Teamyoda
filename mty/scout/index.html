@@ -7,6 +7,7 @@
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#103B32">
 <title>Scout da partida · QuadraLab</title>
+<link rel="stylesheet" href="graficos.css">
 <style>
 :root { --tinta: #17251F; --papel: #F6F8F7; --verde: #103B32; --grafite: #5B6B63; --linha: #E2E8E5; --contra: #C8102E; --saibro: #B14C1D; }
 * { box-sizing: border-box; }
@@ -42,13 +43,13 @@ footer { margin-top: 22px; font-size: 13px; color: var(--grafite); text-align: c
 .agora .gr { font: 800 44px/1 system-ui, sans-serif; letter-spacing: -.02em; color: var(--verde); }
 .agora .gl { font-size: 12.5px; color: var(--grafite); font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
 .pts { display: flex; gap: 4px; flex-wrap: wrap; margin: 6px 0 2px; }
-.pts i { width: 14px; height: 14px; border-radius: 50%; background: var(--contra); }
-.pts i.v { background: var(--verde); }
+.pts i { width: 14px; height: 14px; border-radius: 50%; background: #C65825; }
+.pts i.v { background: #0F5E8C; }
 .log { list-style: none; margin: 10px 0 0; padding: 0; }
 .log li { display: grid; grid-template-columns: 34px 1fr auto; gap: 8px; align-items: center; padding: 8px 4px; border-bottom: 1px solid var(--linha); font-size: 14.5px; }
 .log li .n { color: var(--grafite); font-size: 12.5px; font-weight: 700; }
 .log li .q { font-weight: 800; font-variant-numeric: tabular-nums; }
-.log li .q.v { color: var(--verde); } .log li .q.c { color: var(--contra); }
+.log li .q.v { color: #0F5E8C; } .log li .q.c { color: #C65825; }
 .log li small { display: block; color: var(--grafite); font-size: 12.5px; }
 .log li.marco { background: #F1F6F3; border-radius: 8px; border-bottom: 0; margin: 4px 0; font-weight: 800; }
 .vermais { margin-top: 10px; font: 700 13px system-ui, sans-serif; padding: 9px 14px; border-radius: 10px; border: 1.5px solid var(--linha); background: #fff; color: var(--tinta); cursor: pointer; min-height: 40px; }
@@ -63,10 +64,11 @@ footer { margin-top: 22px; font-size: 13px; color: var(--grafite); text-align: c
 <body>
 <header><div class="in"><div class="marca">QuadraLab · Scout da partida</div><h1 id="titulo">Carregando…</h1><div class="meta" id="meta"></div><div class="placar" id="placar" hidden></div></div></header>
 <main id="conteudo" aria-live="polite"></main>
+<script src="graficos.js"></script>
 <script>
 (function () {
   var cont = document.getElementById("conteudo");
-  var abaAtual = "todo", JANELA = 6, VERDE = "#103B32", CONTRA = "#C8102E";
+  var abaAtual = "todo", JANELA = 6, VERDE = "#0F5E8C", CONTRA = "#C65825";
   function el(tag, props, filhos) {
     var e = document.createElement(tag);
     Object.keys(props || {}).forEach(function (k) { if (k === "texto") e.textContent = props[k]; else if (k === "cls") e.className = props[k]; else e.setAttribute(k, props[k]); });
@@ -295,7 +297,8 @@ footer { margin-top: 22px; font-size: 13px; color: var(--grafite); text-align: c
     document.getElementById("meta").textContent = [dataBR(p.data), p.torneio, p.concluida || p.aoVivo ? "" : "Acompanhamento interrompido"].filter(Boolean).join(" · ");
     if (p.resultado && p.resultado !== "—") { var pl = document.getElementById("placar"); pl.textContent = p.resultado; pl.hidden = false; }
     cont.textContent = "";
-    [secaoContagem(p), secaoMomento(p), p.n > 0 ? secaoNumeros(p) : null, p.n > 0 ? secaoBolas(p) : null, secaoMapa(p), p.n > 0 ? secaoSinais(p) : null].forEach(function (x) { if (x) cont.appendChild(x); });
+    var gr = el("div", {}); if (p.n > 0 && window.QLScoutGraficos) gr.innerHTML = QLScoutGraficos.topo(p) + QLScoutGraficos.secoes(p);
+    [p.n > 0 ? gr : null, secaoMomento(p), p.n > 0 ? secaoNumeros(p) : null, p.n > 0 ? secaoBolas(p) : null, secaoMapa(p), p.n > 0 ? secaoSinais(p) : null].forEach(function (x) { if (x) cont.appendChild(x); });
     cont.appendChild(el("p", { cls: "aviso", texto: "Um jogo é uma amostra. Três jogos na mesma direção são um sinal; um jogo isolado é ruído. O que importa é o padrão que se repete." }));
     cont.appendChild(el("footer", { texto: token ? "Compartilhado pelo treinador no QuadraLab. Esta página se atualiza sozinha enquanto a partida acontece; o link expira em algumas horas e pode ser desativado pelo treinador." : "Compartilhado pelo treinador no QuadraLab. Este link vale até " + dataBR(ate) + " e pode ser desativado pelo treinador a qualquer momento." }));
     if (token) { window.scrollTo(0, sy); return; }
