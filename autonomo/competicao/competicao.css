@@ -236,12 +236,13 @@ body.comp .voz-aviso p { margin: 4px 0 0; }
 .cl-nav { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; padding: 18px 0 0; }
 .cl-logo { order: 1; }
 .cl-acoes { order: 2; margin-left: auto; display: flex; align-items: center; gap: 6px; }
-.cl-links { order: 3; width: 100%; display: flex; gap: 4px; overflow-x: auto; padding: 2px 0 4px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.cl-links { order: 3; width: 100%; display: flex; flex-wrap: wrap; gap: 0 4px; padding: 0; }
 .cl-links::-webkit-scrollbar { display: none; }
 .cl-links a { flex: 0 0 auto; color: rgba(255,255,255,.86); text-decoration: none; font-weight: 600; font-size: 14.5px; padding: 10px 12px; min-height: 44px; display: inline-flex; align-items: center; border-radius: 12px; }
 .cl-links a:hover { background: rgba(255,255,255,.1); color: #fff; }
 .cl-nav a.cl-entrar { color: #fff; font-weight: 600; text-decoration: none; padding: 10px 12px; min-height: 44px; display: inline-flex; align-items: center; }
 .cl-btn.cl-curto { min-height: 44px; padding: 8px 14px; font-size: 14px; white-space: normal; text-align: center; line-height: 1.15; max-width: 150px; }
+@media (max-width: 899px) { .cl-acoes .cl-btn { display: none; } .cl-links a { padding: 8px 10px; min-height: 40px; font-size: 14px; } }
 @media (min-width: 900px) {
   .cl-links { order: 2; width: auto; flex: 1; justify-content: center; overflow: visible; }
   .cl-acoes { order: 3; margin-left: 0; }
