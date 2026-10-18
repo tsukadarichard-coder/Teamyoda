@@ -9,7 +9,7 @@ const M = require(path.join(dir, "player/scout-motor.js"));
 /* o motor extraído do index.html (referência) */
 const src = fs.readFileSync(path.join(dir, "index.html"), "utf8");
 const t = (i, f, inc) => { const a = src.indexOf(i), b = src.indexOf(f, a + i.length); return src.slice(a, b + (inc ? f.length : 0)); };
-const ref = new Function([t("const PONTOS_TENIS", "const FIM_PONTO"), t("function resume(pontos)", "function leitura(r)"), t("function leitura(r)", "\n}\n", true), t("const JANELA_MOMENTO", "function sequenciasMomento"), t("const ZONAS = [", "function MapaDaQuadra"), t("function contagemDosPontos", "function LinkFamilia")].join("\n") + "; return { placarInicial, aplicaPonto, resume, leitura, montarResumoPublico };")();
+const ref = new Function([t("const PONTOS_TENIS", "const FIM_PONTO"), t("function resume(pontos)", "function leitura(r)"), t("function leitura(r)", "\n}\n", true), t("const JANELA_MOMENTO", "function sequenciasMomento"), t("const ZONAS = [", "function MapaDaQuadra"), t("function contagemDosPontos", "/* Observação final do treinador")].join("\n") + "; return { placarInicial, aplicaPonto, resume, leitura, montarResumoPublico };")();
 
 let seed = 7; const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
 const FINS = [["winner_nos", true], ["erro_dele", true], ["erro_nos", false], ["winner_dele", false]];

@@ -9,7 +9,7 @@ const partes = [
   trecho('function leitura(r)', '\n}\n', true),
   trecho('const JANELA_MOMENTO', 'function sequenciasMomento'),
   trecho('const ZONAS = [', 'function MapaDaQuadra'),
-  trecho('function contagemDosPontos', 'function LinkFamilia'),
+  trecho('function contagemDosPontos', '/* Observação final do treinador'),
 ];
 const corpo = partes.map((p) => p.trim()).join("\n\n");
 const saida = `/* Motor do scout (placar, saque, lado da quadra, estatísticas e resumo público).
@@ -19,7 +19,7 @@ const saida = `/* Motor do scout (placar, saque, lado da quadra, estatísticas e
 "use strict";
 ${corpo}
 
-var motor = { placarInicial: placarInicial, aplicaPonto: aplicaPonto, rotuloPontos: rotuloPontos, ehAdverso: ehAdverso, quemSaca: quemSaca, ladoDoSaque: ladoDoSaque, ROTULO_LADO: ROTULO_LADO, SITUACOES: SITUACOES, ZONAS: ZONAS, resume: resume, leitura: leitura, montarResumoPublico: montarResumoPublico, serieMomento: serieMomento, contagemDosPontos: contagemDosPontos, zonasDe: zonasDe };
+var motor = { placarInicial: placarInicial, aplicaPonto: aplicaPonto, rotuloPontos: rotuloPontos, ehAdverso: ehAdverso, quemSaca: quemSaca, ladoDoSaque: ladoDoSaque, ROTULO_LADO: ROTULO_LADO, SITUACOES: SITUACOES, GOLPES: GOLPES, DIRECOES: DIRECOES, DIRECOES_SAQUE: DIRECOES_SAQUE, erroDeDevolucao: erroDeDevolucao, erroDeDevolucaoDele: erroDeDevolucaoDele, ZONAS: ZONAS, resume: resume, leitura: leitura, montarResumoPublico: montarResumoPublico, serieMomento: serieMomento, contagemDosPontos: contagemDosPontos, zonasDe: zonasDe };
 if (typeof module !== "undefined" && module.exports) module.exports = motor; else raiz.QLScoutMotor = motor;
 })(typeof window !== "undefined" ? window : this);
 `;

@@ -1,0 +1,42 @@
+/* Gráficos do resumo do scout (scout/graficos.js). Azul = ponto do atleta, laranja = ponto do adversário. */
+.qg-sec { background: #fff; border: 1px solid #E2E8E5; border-radius: 16px; padding: 16px; margin: 14px 0; box-shadow: 0 1px 2px rgba(16,59,50,.05); }
+.qg-sec h2 { margin: 0 0 4px; font-size: 17px; letter-spacing: -.01em; }
+.qg-sec h3 { margin: 0 0 8px; font-size: 14px; }
+.qg-nota, .qg-sub { margin: 0 0 12px; font-size: 13px; color: #5B6B63; }
+.qg-sub { margin: 12px 0 6px; font-weight: 600; }
+.qg-topo { background: linear-gradient(160deg, #F1F7FB, #fff 70%); }
+.qg-geral { display: grid; gap: 14px; }
+.qg-geral-d { display: flex; align-items: center; gap: 14px; }
+.qg-geral-d p { margin: 0; font-size: 14px; color: #5B6B63; }
+.qg-geral-d strong { display: block; font-size: 18px; color: #17251F; }
+.qg-donut { width: 112px; height: 112px; flex: none; }
+.qg-tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.qg-tiles2 { margin-top: 4px; }
+.qg-tile { background: #F6F8F7; border-radius: 12px; padding: 10px 12px; }
+.qg-tile b { display: block; font: 800 24px/1.1 system-ui, sans-serif; color: #17251F; font-variant-numeric: tabular-nums; }
+.qg-tile span { display: block; font-size: 13px; color: #17251F; margin-top: 2px; }
+.qg-tile small { display: block; font-size: 12px; color: #5B6B63; margin-top: 2px; }
+.qg-grupo { display: grid; gap: 10px; }
+.qg-lin { display: grid; grid-template-columns: minmax(90px, 36%) 1fr auto; gap: 8px; align-items: center; }
+.qg-rot { font-size: 13px; line-height: 1.25; }
+.qg-rot small { display: block; color: #5B6B63; font-size: 11.5px; }
+.qg-trilho { height: 14px; background: #EDF1EF; border-radius: 7px; overflow: hidden; }
+.qg-barra { height: 100%; border-radius: 0 7px 7px 0; }
+.qg-pilha { display: flex; gap: 2px; height: 100%; }
+.qg-pilha b { display: block; min-width: 2px; }
+.qg-pilha b:first-child { border-radius: 0; }
+.qg-val { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; min-width: 44px; }
+.qg-leg { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 12px 0 0; font-size: 12px; color: #5B6B63; }
+.qg-leg i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.qg-duas { display: grid; gap: 16px; }
+.qg-col { border-top: 3px solid #E2E8E5; padding-top: 10px; }
+.qg-mini { display: flex; gap: 14px; font-size: 13px; color: #5B6B63; margin-top: 8px; }
+.qg-mini b { color: #17251F; font-size: 16px; }
+.qg-obs { border-left: 4px solid #0F5E8C; }
+.qg-obs blockquote { margin: 8px 0 0; font-size: 15px; line-height: 1.6; white-space: pre-wrap; color: #17251F; }
+.qg-tab { margin-top: 12px; font-size: 13px; }
+.qg-tab summary { cursor: pointer; color: #0F5E8C; font-weight: 600; }
+.qg-tab-rolar { overflow-x: auto; margin-top: 8px; }
+.qg-tab table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+.qg-tab th, .qg-tab td { text-align: left; padding: 5px 8px; border-bottom: 1px solid #E2E8E5; }
+@media (min-width: 560px) { .qg-tiles { grid-template-columns: repeat(4, 1fr); } .qg-tiles2 { grid-template-columns: repeat(2, 1fr); } .qg-duas { grid-template-columns: 1fr 1fr; } .qg-geral { grid-template-columns: auto 1fr; align-items: center; } }

@@ -16,6 +16,24 @@ const txt = (v, n) => String(v == null ? "" : v).slice(0, n);
 const FINS = ["winner_nos", "erro_dele", "erro_nos", "winner_dele"];
 const num = (v) => (Number.isFinite(+v) ? Math.round(+v * 10) / 10 : 0);
 
+const GOLPES = ["forehand", "backhand", "voleio", "smash", "drop", "lob", "devolucao"], DIRECOES = ["cruzado", "paralelo"], DIRECOES_SAQUE = ["aberto", "fechado", "corpo"], SITUACOES = ["ataque", "contra", "defesa", "neutra", "construcao"];
+/* detalhe do scout (golpes, direção, direção do saque, situação, devolução): só números, só as chaves conhecidas */
+function limparDetalhe(d) {
+  d = d || {};
+  const ob = (src, chaves) => { const r = {}; for (const k of chaves) r[k] = num(src && src[k]); return r; };
+  const mapa = (src, lista, campos) => { const r = {}; for (const k of lista) r[k] = ob(src && src[k], campos); return r; };
+  const sq = d.saqueDir || {}, dv = d.devolucao || {};
+  return {
+    fins: ob(d.fins, ["winner_nos", "erro_dele", "erro_nos", "winner_dele"]),
+    golpes: mapa(d.golpes, GOLPES, ["n", "w", "e", "g", "c"]),
+    direcao: mapa(d.direcao, DIRECOES, ["n", "g", "c"]),
+    saqueDir: { nos: mapa(sq.nos, DIRECOES_SAQUE, ["n", "a", "g"]), ele: mapa(sq.ele, DIRECOES_SAQUE, ["n", "a", "g"]) },
+    situacoes: mapa(d.situacoes, SITUACOES, ["n", "g"]),
+    devolucao: { nos: ob(dv.nos, ["n", "e"]), ele: ob(dv.ele, ["n", "e"]) },
+    corrida: ob(d.corrida, ["n", "g"]),
+  };
+}
+
 function limpar(p) {
   p = p || {};
   const ob = (o, chaves) => { const r = {}; for (const k of chaves) r[k] = num(o && o[k]); return r; };
@@ -27,7 +45,7 @@ function limpar(p) {
     n: num(p.n), ganhos: num(p.ganhos), pctGanhos: num(p.pctGanhos),
     bolas: ob(p.bolas, ["pctCurtos", "pctMedios", "pctLongos", "pctAte4"]),
     numeros: ob(p.numeros, ["errosNos", "errosDecisao", "errosExec", "df", "pctProtocolo", "rede", "redeGanha", "ataquePerdido", "pctAdversos", "pctPrimeiro", "aces", "acesAdv", "dfAdv", "pctPrimeiroAdv", "pctSacD", "nSacD", "pctSacE", "nSacE", "pctDevD", "nDevD", "pctDevE", "nDevE", "nAtaque", "pctAtaque", "nContra", "pctContra", "nDefesa", "pctDefesa"]),
-    zonas,
+    zonas, detalhe: limparDetalhe(p.detalhe), observacaoFinal: txt(p.observacaoFinal, 1200),
     /* cada ponto: [ganhou o atleta (0/1), set, contagem depois do ponto ("30-15", "Game 3-2", "Set 6-4"), como terminou]; os dois últimos são opcionais (links antigos não têm) */
     serie: (Array.isArray(p.serie) ? p.serie : []).slice(0, 600).map((x) => {
       const r = [x && x[0] ? 1 : 0, Math.max(0, Math.min(4, Math.floor(+(x && x[1]) || 0)))];

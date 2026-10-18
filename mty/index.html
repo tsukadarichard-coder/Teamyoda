@@ -8253,7 +8253,15 @@ function quemSaca(e) {
 /* Lado da quadra de onde sai o saque, calculado pelo placar: soma de pontos par = lado da igualdade (direito); ímpar = lado da vantagem (esquerdo). Vale também no tie-break. */
 function ladoDoSaque(e) { return (e.p[0] + e.p[1]) % 2 === 0 ? "D" : "E"; }
 const ROTULO_LADO = { D: "lado da igualdade (direito)", E: "lado da vantagem (esquerdo)" };
-const SITUACOES = [["ataque", "Ataque"], ["contra", "Contra-ataque"], ["defesa", "Defesa"]];
+const SITUACOES = [["ataque", "Ataque"], ["contra", "Contra-ataque"], ["defesa", "Defesa"], ["neutra", "Neutra"], ["construcao", "Construção"]];
+/* último golpe do jogador no ponto (opcional), com a marca "na corrida" e a direção; direção do saque de quem saca */
+const GOLPES = [["forehand", "Forehand"], ["backhand", "Backhand"], ["voleio", "Voleio"], ["smash", "Smash"], ["drop", "Drop shot"], ["lob", "Lob"], ["devolucao", "Devolução"]];
+const DIRECOES = [["cruzado", "Cruzado"], ["paralelo", "Paralelo"]];
+const DIRECOES_SAQUE = [["aberto", "Aberto"], ["fechado", "Fechado"], ["corpo", "Corpo"]];
+/* erro de devolução de saque: o jogador errou ao devolver o saque do adversário (golpe marcado como devolução ou, sem golpe marcado, ponto de 1–2 bolas) */
+function erroDeDevolucao(p) { return p.fim === "erro_nos" && p.sacador === "ele" && p.saque !== "df" && (p.golpe === "devolucao" || (!p.golpe && p.bola === "1-2")); }
+/* e o inverso: o adversário errou a devolução do saque do jogador */
+function erroDeDevolucaoDele(p) { return p.fim === "erro_dele" && p.sacador === "nos" && p.saque !== "df" && p.bola === "1-2"; }
 
 const FIM_PONTO = [
   { v: "winner_nos", r: "Winner meu", nos: true, cor: "#2E4739" },
@@ -8853,6 +8861,7 @@ function TelaScout({ aluno, alunos, setAlunos }) {
   const [placar, setPlacar] = useState(null);
   const [pontos, setPontos] = useState([]);
   const [rascunho, setRascunho] = useState(null);
+  const [dirSaque, setDirSaque] = useState(null);
   const [pilha, setPilha] = useState([]);
   const [mostrarAjuda, setMostrarAjuda] = useState(false);
   const [rascunhoSalvo, setRascunhoSalvo] = useState(null);
@@ -8929,7 +8938,7 @@ function TelaScout({ aluno, alunos, setAlunos }) {
     setPilha([...pilha, { placar, pontos }]);
     setPontos([...pontos, p]);
     setPlacar(aplicaPonto(placar, p.nos));
-    setRascunho(null);
+    setRascunho(null); setDirSaque(null);
     setConfirmadoEm(Date.now());
     setTimeout(() => { processandoRef.current = false; }, 350);
     setTimeout(() => setConfirmadoEm(0), 900);
@@ -8943,8 +8952,9 @@ function TelaScout({ aluno, alunos, setAlunos }) {
     const nos = tipo === "ace" ? meu : !meu;
     setPilha([...pilha, { placar, pontos }]);
     const p = { fim: tipo === "ace" ? (meu ? "winner_nos" : "winner_dele") : (meu ? "erro_nos" : "erro_dele"), nos, saque: tipo, bola: "1-2", causa: tipo === "df" && meu ? "execucao" : null,
-      rede: false, situacao: null, adverso: ehAdverso(placar), sacador, lado: ladoDoSaque(placar),
+      rede: false, situacao: null, adverso: ehAdverso(placar), sacador, lado: ladoDoSaque(placar), dirSaque: tipo === "ace" ? dirSaque : null,
       n: pontos.length + 1, placarAntes: rotuloPontos(placar) };
+    setDirSaque(null);
     setPontos([...pontos, p]);
     setPlacar(aplicaPonto(placar, nos));
     setConfirmadoEm(Date.now());
@@ -9003,8 +9013,10 @@ function TelaScout({ aluno, alunos, setAlunos }) {
                 Se o ponto for erro seu, aparece mais um toque pra marcar a causa (decisão ou execução)
                 antes do toque final. No saque de quem estiver sacando (seu jogador ou o adversário) dá pra marcar
                 opcionalmente 1º/2º saque dentro, ace ou dupla falta — ace e dupla falta fecham o ponto sozinhos.
-                O lado da quadra do saque (igualdade ou vantagem) é calculado pelo placar. Ataque, contra-ataque,
-                defesa e subida à rede também são opcionais, nunca obrigatórios pra fechar o ponto.
+                O lado da quadra do saque (igualdade ou vantagem) é calculado pelo placar, e a direção do saque
+                (aberto, fechado ou corpo) é escolhida antes de tocar no saque. Situação do ponto (ataque, contra-ataque, defesa, neutra ou
+                construção), tipo do último golpe (forehand, backhand, voleio, smash, drop shot, lob, devolução), na corrida, direção
+                (cruzado ou paralelo) e subida à rede também são opcionais, nunca obrigatórios pra fechar o ponto.
               </p>
             </div>
           )}
@@ -9131,6 +9143,16 @@ function TelaScout({ aluno, alunos, setAlunos }) {
       {!rascunho && (
         <div className="mb-4">
           <div className="mb-2"><Etiqueta>{nossoSaque ? "Saque (opcional)" : "Saque do adversário (opcional)"}</Etiqueta></div>
+          <div className="flex flex-wrap gap-2 mb-2" role="group" aria-label="Direção do saque">
+            {DIRECOES_SAQUE.map(([k, r]) => (
+              <button key={k} type="button" aria-pressed={dirSaque === k} onClick={() => setDirSaque(dirSaque === k ? null : k)}
+                style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 600, padding: "7px 12px", borderRadius: 10, minHeight: 44, cursor: "pointer",
+                  border: "1px solid " + (dirSaque === k ? C.tinta : C.linha), background: dirSaque === k ? C.tinta : C.cal, color: dirSaque === k ? C.papel : C.grafite }}>
+                {dirSaque === k ? "✓ " : ""}{r}
+              </button>
+            ))}
+            <span style={{ ...prosa, fontSize: 12, color: C.grafite, alignSelf: "center" }}>direção do saque</span>
+          </div>
           <div className="grid grid-cols-4 gap-2">
             {[["1", "1º dentro"], ["2", "2º dentro"], ["ace", nossoSaque ? "Ace" : "Ace dele"], ["df", nossoSaque ? "Dupla falta" : "Dupla falta dele"]].map(([v, r]) => {
               const cor = v === "df" ? C.saibro : v === "ace" ? C.quadra : C.tinta;
@@ -9156,7 +9178,7 @@ function TelaScout({ aluno, alunos, setAlunos }) {
               <button key={op.v}
                 onClick={() => setRascunho({ ...(rascunho || {}), ...{
                   fim: op.v, nos: op.nos, saque: rascunho?.saquePre || null, bola: null, causa: null,
-                  rede: false, situacao: null, adverso, sacador: quemSaca(placar), lado: ladoDoSaque(placar) } })}
+                  rede: false, situacao: null, golpe: null, corrida: false, direcao: null, dirSaque: dirSaque || null, adverso, sacador: quemSaca(placar), lado: ladoDoSaque(placar) } })}
                 style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, padding: "20px 8px", minHeight: 44,
                   border: "1px solid " + op.cor, borderRadius: 10, background: C.cal, color: op.cor, cursor: "pointer" }}>
                 {op.r}
@@ -9198,7 +9220,34 @@ function TelaScout({ aluno, alunos, setAlunos }) {
             </button>
           </div>
 
-          <div className="mb-2"><Etiqueta>Onde foi o seu último golpe (opcional)</Etiqueta></div>
+          <div className="mb-2"><Etiqueta>Qual foi o último golpe do jogador (opcional)</Etiqueta></div>
+          <div className="flex flex-wrap gap-2 mb-2">
+            {GOLPES.map(([k, r]) => (
+              <button key={k} type="button" aria-pressed={rascunho.golpe === k}
+                onClick={() => setRascunho({ ...rascunho, golpe: rascunho.golpe === k ? null : k })}
+                style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 600, padding: "7px 11px", borderRadius: 10, minHeight: 44, cursor: "pointer",
+                  border: "1px solid " + (rascunho.golpe === k ? C.tinta : C.linha), background: rascunho.golpe === k ? C.tinta : C.cal, color: rascunho.golpe === k ? C.papel : C.grafite }}>
+                {rascunho.golpe === k ? "✓ " : ""}{r}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-2 mb-4">
+            <button type="button" aria-pressed={!!rascunho.corrida} onClick={() => setRascunho({ ...rascunho, corrida: !rascunho.corrida })}
+              style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 600, padding: "7px 11px", borderRadius: 10, minHeight: 44, cursor: "pointer",
+                border: "1px solid " + (rascunho.corrida ? C.tinta : C.linha), background: rascunho.corrida ? C.tinta : C.cal, color: rascunho.corrida ? C.papel : C.grafite }}>
+              {rascunho.corrida ? "✓ " : ""}Na corrida
+            </button>
+            {DIRECOES.map(([k, r]) => (
+              <button key={k} type="button" aria-pressed={rascunho.direcao === k}
+                onClick={() => setRascunho({ ...rascunho, direcao: rascunho.direcao === k ? null : k })}
+                style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 600, padding: "7px 11px", borderRadius: 10, minHeight: 44, cursor: "pointer",
+                  border: "1px solid " + (rascunho.direcao === k ? C.tinta : C.linha), background: rascunho.direcao === k ? C.tinta : C.cal, color: rascunho.direcao === k ? C.papel : C.grafite }}>
+                {rascunho.direcao === k ? "✓ " : ""}{r}
+              </button>
+            ))}
+          </div>
+
+          <div className="mb-2"><Etiqueta>Onde foi o seu último golpe na quadra (opcional)</Etiqueta></div>
           <div className="grid grid-cols-3 gap-2 mb-4">
             {ZONAS.map(([cod, rot]) => (
               <button key={cod} type="button" aria-pressed={rascunho.zona === cod}
@@ -9269,6 +9318,17 @@ function resume(pontos) {
   const doLado = (lista, l) => lista.filter((p) => p.lado === l);
   const sacD = doLado(meusSaques, "D"), sacE = doLado(meusSaques, "E"), devD = doLado(saquesDele, "D"), devE = doLado(saquesDele, "E");
   const sit = (k) => pontos.filter((p) => p.situacao === k);
+  const ganhosDe = (l) => l.filter((p) => p.nos).length;
+  const devNos = pontos.filter((p) => p.sacador === "ele"), devEle = pontos.filter((p) => p.sacador === "nos");
+  const detalhe = {
+    fins: { winner_nos: conta((p) => p.fim === "winner_nos"), erro_dele: conta((p) => p.fim === "erro_dele"), erro_nos: conta((p) => p.fim === "erro_nos"), winner_dele: conta((p) => p.fim === "winner_dele") },
+    golpes: Object.fromEntries(GOLPES.map(([k]) => { const l = pontos.filter((p) => p.golpe === k); return [k, { n: l.length, w: l.filter((p) => p.fim === "winner_nos").length, e: l.filter((p) => p.fim === "erro_nos").length, g: ganhosDe(l), c: l.filter((p) => p.corrida).length }]; })),
+    direcao: Object.fromEntries(DIRECOES.map(([k]) => { const l = pontos.filter((p) => p.direcao === k); return [k, { n: l.length, g: ganhosDe(l), c: l.filter((p) => p.corrida).length }]; })),
+    saqueDir: Object.fromEntries(["nos", "ele"].map((s) => [s, Object.fromEntries(DIRECOES_SAQUE.map(([k]) => { const l = pontos.filter((p) => p.sacador === s && p.dirSaque === k); return [k, { n: l.length, a: l.filter((p) => p.saque === "ace").length, g: l.filter((p) => (s === "nos" ? p.nos : !p.nos)).length }]; }))])),
+    situacoes: Object.fromEntries(SITUACOES.map(([k]) => { const l = pontos.filter((p) => p.situacao === k); return [k, { n: l.length, g: ganhosDe(l) }]; })),
+    devolucao: { nos: { n: devNos.length, e: devNos.filter(erroDeDevolucao).length }, ele: { n: devEle.length, e: devEle.filter(erroDeDevolucaoDele).length } },
+    corrida: { n: conta((p) => p.corrida), g: conta((p) => p.corrida && p.nos) },
+  };
 
   const protocolo = conta((p) => p.protocolo);
   const rede = conta((p) => p.rede);
@@ -9293,6 +9353,8 @@ function resume(pontos) {
     nSacD: sacD.length, pctSacD: pctDe(sacD), nSacE: sacE.length, pctSacE: pctDe(sacE),
     nDevD: devD.length, pctDevD: pctDe(devD), nDevE: devE.length, pctDevE: pctDe(devE),
     nAtaque: sit("ataque").length, pctAtaque: pctDe(sit("ataque")), nContra: sit("contra").length, pctContra: pctDe(sit("contra")), nDefesa: sit("defesa").length, pctDefesa: pctDe(sit("defesa")),
+    detalhe, errosDevolucao: detalhe.devolucao.nos.e, errosDevolucaoDele: detalhe.devolucao.ele.e,
+    pctErrosDevolucao: detalhe.devolucao.nos.n ? Math.round((detalhe.devolucao.nos.e / detalhe.devolucao.nos.n) * 100) : 0,
     adversos: adversos.length, adversosGanhos,
     pctAdversos: adversos.length ? Math.round((adversosGanhos / adversos.length) * 100) : 0,
   };
@@ -9310,6 +9372,8 @@ function leitura(r) {
     sinais.push(["saque", `No saque, o jogador ganha ${r.pctSacD}% dos pontos pelo lado da igualdade (${r.nSacD}) e ${r.pctSacE}% pelo lado da vantagem (${r.nSacE}). A diferença está num lado só: vale olhar a direção e o plano de saque desse lado.`]);
   if (r.nDevD >= 6 && r.nDevE >= 6 && Math.abs(r.pctDevD - r.pctDevE) >= 20)
     sinais.push(["devolucao", `Contra o saque do adversário, o jogador ganha ${r.pctDevD}% pelo lado da igualdade (${r.nDevD}) e ${r.pctDevE}% pelo lado da vantagem (${r.nDevE}). Um dos lados da devolução está custando pontos.`]);
+  if (r.detalhe && r.detalhe.devolucao.nos.n >= 8 && r.errosDevolucao >= 3 && r.pctErrosDevolucao >= 25)
+    sinais.push(["devolucao", `Erros de devolução de saque: ${r.errosDevolucao} em ${r.detalhe.devolucao.nos.n} pontos no saque do adversário (${r.pctErrosDevolucao}%). O ponto está sendo perdido na primeira bola em jogo: vale olhar a posição de espera, o split step e o alvo da devolução.`]);
   if (r.errosDecisao > r.errosExec && r.errosNos >= 5)
     sinais.push(["fundo", `Mais erros de decisão (${r.errosDecisao}) que de execução (${r.errosExec}). O recurso existe; o padrão de decisão é que não está treinado.`]);
   if (r.errosExec > r.errosDecisao * 2 && r.errosNos >= 5)
@@ -9562,9 +9626,35 @@ function montarResumoPublico(reg, aluno) {
       pctPrimeiro: sc.pctPrimeiro, aces: sc.aces, acesAdv: sc.acesAdv, dfAdv: sc.dfAdv, pctPrimeiroAdv: sc.pctPrimeiroAdv,
       pctSacD: sc.nSacD ? sc.pctSacD : 0, nSacD: sc.nSacD, pctSacE: sc.nSacE ? sc.pctSacE : 0, nSacE: sc.nSacE, pctDevD: sc.nDevD ? sc.pctDevD : 0, nDevD: sc.nDevD, pctDevE: sc.nDevE ? sc.pctDevE : 0, nDevE: sc.nDevE,
       nAtaque: sc.nAtaque, pctAtaque: sc.pctAtaque, nContra: sc.nContra, pctContra: sc.pctContra, nDefesa: sc.nDefesa, pctDefesa: sc.pctDefesa },
+    detalhe: sc.detalhe || resume(sc.pontos || []).detalhe, observacaoFinal: String(reg.observacaoFinal || "").trim().slice(0, 1200),
     zonas: zonasDe(sc.pontos), serie: serie.map((x, i) => [x.nos ? 1 : 0, x.set, contagem[i][0], contagem[i][1]]), sinais: sinais.map((s) => s[1]),
   };
 }
+/* Observação final do treinador sobre o jogo: aparece na página que a família recebe. Se o link já foi gerado, o resumo dele é refeito ao salvar. */
+function ObservacaoFinalRegistro({ r, aluno, alunos, setAlunos }) {
+  const [texto, setTexto] = useState(r.observacaoFinal || "");
+  const [aviso, setAviso] = useState("");
+  function salvar() {
+    const nova = texto.trim().slice(0, 1200), hoje = new Date().toISOString().slice(0, 10);
+    setAlunos(alunos.map((a) => a.id !== aluno.id ? a : { ...a, registros: (a.registros || []).map((x) => {
+      if (x.id !== r.id) return x;
+      const novo = { ...x, observacaoFinal: nova };
+      if (x.compartilhado && x.compartilhado.token && x.compartilhado.ate >= hoje) novo.compartilhado = { ...x.compartilhado, publico: montarResumoPublico(novo, a) };
+      return novo;
+    }) }));
+    setAviso(nova ? "Observação salva." + (r.compartilhado && r.compartilhado.token ? " A página da família já foi atualizada." : "") : "Observação removida.");
+  }
+  return (
+    <div className="mt-3" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "13px 15px" }}>
+      <Etiqueta>Observação final do treinador</Etiqueta>
+      <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 6 }}>Um recado seu sobre o jogo. Aparece na página que a família recebe, logo depois do placar.</p>
+      <textarea value={texto} onChange={(e) => setTexto(e.target.value)} maxLength={1200} rows={4} aria-label="Observação final do treinador" style={{ ...entrada, marginTop: 8, minHeight: 96 }} />
+      <div className="flex gap-2 mt-2 items-center"><Botao pequeno variante="saibro" onClick={salvar}>Salvar observação</Botao><span style={{ ...prosa, fontSize: 12, color: C.grafite }}>{texto.length} de 1200</span></div>
+      {aviso && <p role="status" style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 6 }}>{aviso}</p>}
+    </div>
+  );
+}
+
 function LinkFamilia({ reg, aluno, alunos, setAlunos }) {
   const [url, setUrl] = useState("");
   const [aviso, setAviso] = useState("");
@@ -9632,6 +9722,43 @@ function LinkFamilia({ reg, aluno, alunos, setAlunos }) {
    vivo, então depois de fechar o relatório os dados ficavam salvos no
    registro (reg.scout) mas sem nenhuma tela que mostrasse de novo —
    na prática, "perdidos" pra quem quisesse rever ou comparar jogos. */
+/* golpes, direção, direção do saque, tipo de ponto e devolução, em tabelas. Só aparece o que foi marcado. */
+function DetalheScout({ det }) {
+  if (!det) return null;
+  const pct = (g, n) => (n ? Math.round((g / n) * 100) + "%" : "—");
+  const golpes = GOLPES.filter(([k]) => det.golpes[k].n);
+  const direcoes = DIRECOES.filter(([k]) => det.direcao[k].n);
+  const sacNos = DIRECOES_SAQUE.filter(([k]) => det.saqueDir.nos[k].n), sacEle = DIRECOES_SAQUE.filter(([k]) => det.saqueDir.ele[k].n);
+  const sits = SITUACOES.filter(([k]) => det.situacoes[k].n);
+  return (
+    <>
+      {golpes.length > 0 && (
+        <Secao titulo="Último golpe do ponto" nota="O golpe com que o jogador terminou, ou errou, o ponto. “Na corrida” conta as bolas jogadas em deslocamento.">
+          <Tabela cabecalho={["Golpe", "Pontos", "Winners", "Erros", "Na corrida"]} linhas={golpes.map(([k, r]) => [r, det.golpes[k].n, det.golpes[k].w, det.golpes[k].e, det.golpes[k].c])} />
+        </Secao>
+      )}
+      {(direcoes.length > 0 || det.corrida.n > 0) && (
+        <Secao titulo="Direção e bolas na corrida">
+          <Tabela cabecalho={["", "Pontos", "Ganhos"]} linhas={[...direcoes.map(([k, r]) => [r, det.direcao[k].n, pct(det.direcao[k].g, det.direcao[k].n)]), ...(det.corrida.n ? [["Na corrida (todos os golpes)", det.corrida.n, pct(det.corrida.g, det.corrida.n)]] : [])]} />
+        </Secao>
+      )}
+      {(sacNos.length > 0 || sacEle.length > 0) && (
+        <Secao titulo="Direção do saque" nota="Pontos ganhos por quem sacou, por direção.">
+          <Tabela cabecalho={["Saque", "Marcados", "Aces", "Ganhos"]} linhas={[
+            ...sacNos.map(([k, r]) => ["Do jogador · " + r, det.saqueDir.nos[k].n, det.saqueDir.nos[k].a, pct(det.saqueDir.nos[k].g, det.saqueDir.nos[k].n)]),
+            ...sacEle.map(([k, r]) => ["Do adversário · " + r, det.saqueDir.ele[k].n, det.saqueDir.ele[k].a, pct(det.saqueDir.ele[k].g, det.saqueDir.ele[k].n)]),
+          ]} />
+        </Secao>
+      )}
+      {sits.length > 0 && (
+        <Secao titulo="Situação do ponto">
+          <Tabela cabecalho={["Situação", "Pontos", "Ganhos"]} linhas={sits.map(([k, r]) => [r, det.situacoes[k].n, pct(det.situacoes[k].g, det.situacoes[k].n)])} />
+        </Secao>
+      )}
+    </>
+  );
+}
+
 function ResumoScout({ r, sinais, aluno, alunos, setAlunos, pontos, cfg }) {
   const dados = [
     { faixa: "1–2 bolas", valor: r.pctCurtos },
@@ -9687,11 +9814,17 @@ function ResumoScout({ r, sinais, aluno, alunos, setAlunos, pontos, cfg }) {
           ["Contra-ataque", r.nContra ? `${r.pctContra}% ganhos · ${r.nContra} pontos` : "—"],
           ["Defesa", r.nDefesa ? `${r.pctDefesa}% ganhos · ${r.nDefesa} pontos` : "—"],
           ...(r.pctProtocolo ? [["Protocolo entre pontos", r.pctProtocolo + "%"]] : []),
+          ...(r.detalhe && (r.detalhe.devolucao.nos.n || r.detalhe.devolucao.ele.n) ? [
+            ["Erros de devolução do jogador", `${r.errosDevolucao} em ${r.detalhe.devolucao.nos.n} pontos no saque dele · ${r.pctErrosDevolucao}%`],
+            ["Erros de devolução do adversário", `${r.errosDevolucaoDele} em ${r.detalhe.devolucao.ele.n} pontos no saque do jogador`],
+          ] : []),
           ["Subidas à rede", `${r.rede} · ${r.redeGanha} convertidas`],
           ...(r.ataquePerdido ? [["Demandas de ataque perdidas", r.ataquePerdido]] : []),
           ["Pontos em placar adverso", `${r.adversos} · ${r.pctAdversos}% ganhos`],
         ]} larguras={["58%", "42%"]} />
       </Secao>
+
+      <DetalheScout det={r.detalhe || resume(pontos || []).detalhe} />
 
       <Secao titulo="O que este jogo aponta" nota="Leitura automática pelas regras do método. É ponto de partida para a sua conversa com o atleta, não conclusão.">
         {sinais.length === 0 ? (
@@ -9737,6 +9870,7 @@ function DetalheJogoRegistro({ r, aluno, alunos, setAlunos }) {
     <div className="mt-3 pt-3" style={{ borderTop: "1px solid " + C.linha }}>
       <ResumoScout r={r.scout} sinais={sinais} aluno={aluno} alunos={alunos} setAlunos={setAlunos} pontos={r.scout.pontos} cfg={r.scout.cfg} />
       <BotaoCompartilharResumo texto={textoResumoScout(r.scout, sinais, r.scout.pontos, r.scout.cfg, { adversario: r.adversario, torneio: r.torneio, resultado: r.resultado })} />
+      <ObservacaoFinalRegistro r={r} aluno={aluno} alunos={alunos} setAlunos={setAlunos} />
       <LinkFamilia reg={r} aluno={aluno} alunos={alunos} setAlunos={setAlunos} />
     </div>
   );
@@ -9746,6 +9880,7 @@ function Relatorio({ aluno, alunos, setAlunos, cfg, pontos, placar, aoSair, aoCo
   const r = useMemo(() => resume(pontos), [pontos]);
   const sinais = useMemo(() => leitura(r), [r]);
   const [salvo, setSalvo] = useState(false);
+  const [obsFinal, setObsFinal] = useState("");
   const concluida = !!(placar && placar.fim);
 
   function salvar() {
@@ -9755,7 +9890,7 @@ function Relatorio({ aluno, alunos, setAlunos, cfg, pontos, placar, aoSair, aoCo
       plano: "", protocolo: r.pctProtocolo, erros12: r.pctErrosCurtos,
       revelou: sinais.map((s) => s[1]).join(" "),
       resultado: placar ? [...placar.sets.map((x) => `${x[0]}-${x[1]}`)].join(" ") || "não concluído" : "—",
-      concluida,
+      concluida, observacaoFinal: obsFinal.trim().slice(0, 1200),
       scout: { ...r, pontos, cfg: { formato: cfg.formato, saca: cfg.saca, semVantagem: !!cfg.semVantagem, superTiebreakDecisivo: !!cfg.superTiebreakDecisivo } },
     };
     setAlunos(alunos.map((a) => a.id === aluno.id ? { ...a, registros: [...(a.registros || []), reg] } : a));
@@ -9778,6 +9913,13 @@ function Relatorio({ aluno, alunos, setAlunos, cfg, pontos, placar, aoSair, aoCo
 
       <BotaoCompartilharResumo texto={textoResumoScout(r, sinais, pontos, cfg, { adversario: cfg.adversario, torneio: cfg.torneio, resultado: placar ? placar.sets.map((x) => `${x[0]}-${x[1]}`).join(" ") : "" })} />
 
+      {!salvo && (
+        <div className="mt-3">
+          <Campo rotulo="Observação final do treinador (opcional)" nota="Aparece na página que a família recebe, se você gerar o link depois de salvar.">
+            <textarea value={obsFinal} onChange={(e) => setObsFinal(e.target.value)} maxLength={1200} rows={4} style={{ ...entrada, minHeight: 96 }} />
+          </Campo>
+        </div>
+      )}
       <div className="flex gap-2 flex-wrap mt-3">
         {!salvo ? <Botao onClick={salvar} variante="saibro">Salvar no caderno</Botao>
           : <Etiqueta cor={C.quadra}>✓ Salvo no caderno do jogador</Etiqueta>}

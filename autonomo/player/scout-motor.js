@@ -101,7 +101,15 @@ function quemSaca(e) {
 /* Lado da quadra de onde sai o saque, calculado pelo placar: soma de pontos par = lado da igualdade (direito); ímpar = lado da vantagem (esquerdo). Vale também no tie-break. */
 function ladoDoSaque(e) { return (e.p[0] + e.p[1]) % 2 === 0 ? "D" : "E"; }
 const ROTULO_LADO = { D: "lado da igualdade (direito)", E: "lado da vantagem (esquerdo)" };
-const SITUACOES = [["ataque", "Ataque"], ["contra", "Contra-ataque"], ["defesa", "Defesa"]];
+const SITUACOES = [["ataque", "Ataque"], ["contra", "Contra-ataque"], ["defesa", "Defesa"], ["neutra", "Neutra"], ["construcao", "Construção"]];
+/* último golpe do jogador no ponto (opcional), com a marca "na corrida" e a direção; direção do saque de quem saca */
+const GOLPES = [["forehand", "Forehand"], ["backhand", "Backhand"], ["voleio", "Voleio"], ["smash", "Smash"], ["drop", "Drop shot"], ["lob", "Lob"], ["devolucao", "Devolução"]];
+const DIRECOES = [["cruzado", "Cruzado"], ["paralelo", "Paralelo"]];
+const DIRECOES_SAQUE = [["aberto", "Aberto"], ["fechado", "Fechado"], ["corpo", "Corpo"]];
+/* erro de devolução de saque: o jogador errou ao devolver o saque do adversário (golpe marcado como devolução ou, sem golpe marcado, ponto de 1–2 bolas) */
+function erroDeDevolucao(p) { return p.fim === "erro_nos" && p.sacador === "ele" && p.saque !== "df" && (p.golpe === "devolucao" || (!p.golpe && p.bola === "1-2")); }
+/* e o inverso: o adversário errou a devolução do saque do jogador */
+function erroDeDevolucaoDele(p) { return p.fim === "erro_dele" && p.sacador === "nos" && p.saque !== "df" && p.bola === "1-2"; }
 
 function resume(pontos) {
   const n = pontos.length || 1;
@@ -137,6 +145,17 @@ function resume(pontos) {
   const doLado = (lista, l) => lista.filter((p) => p.lado === l);
   const sacD = doLado(meusSaques, "D"), sacE = doLado(meusSaques, "E"), devD = doLado(saquesDele, "D"), devE = doLado(saquesDele, "E");
   const sit = (k) => pontos.filter((p) => p.situacao === k);
+  const ganhosDe = (l) => l.filter((p) => p.nos).length;
+  const devNos = pontos.filter((p) => p.sacador === "ele"), devEle = pontos.filter((p) => p.sacador === "nos");
+  const detalhe = {
+    fins: { winner_nos: conta((p) => p.fim === "winner_nos"), erro_dele: conta((p) => p.fim === "erro_dele"), erro_nos: conta((p) => p.fim === "erro_nos"), winner_dele: conta((p) => p.fim === "winner_dele") },
+    golpes: Object.fromEntries(GOLPES.map(([k]) => { const l = pontos.filter((p) => p.golpe === k); return [k, { n: l.length, w: l.filter((p) => p.fim === "winner_nos").length, e: l.filter((p) => p.fim === "erro_nos").length, g: ganhosDe(l), c: l.filter((p) => p.corrida).length }]; })),
+    direcao: Object.fromEntries(DIRECOES.map(([k]) => { const l = pontos.filter((p) => p.direcao === k); return [k, { n: l.length, g: ganhosDe(l), c: l.filter((p) => p.corrida).length }]; })),
+    saqueDir: Object.fromEntries(["nos", "ele"].map((s) => [s, Object.fromEntries(DIRECOES_SAQUE.map(([k]) => { const l = pontos.filter((p) => p.sacador === s && p.dirSaque === k); return [k, { n: l.length, a: l.filter((p) => p.saque === "ace").length, g: l.filter((p) => (s === "nos" ? p.nos : !p.nos)).length }]; }))])),
+    situacoes: Object.fromEntries(SITUACOES.map(([k]) => { const l = pontos.filter((p) => p.situacao === k); return [k, { n: l.length, g: ganhosDe(l) }]; })),
+    devolucao: { nos: { n: devNos.length, e: devNos.filter(erroDeDevolucao).length }, ele: { n: devEle.length, e: devEle.filter(erroDeDevolucaoDele).length } },
+    corrida: { n: conta((p) => p.corrida), g: conta((p) => p.corrida && p.nos) },
+  };
 
   const protocolo = conta((p) => p.protocolo);
   const rede = conta((p) => p.rede);
@@ -161,6 +180,8 @@ function resume(pontos) {
     nSacD: sacD.length, pctSacD: pctDe(sacD), nSacE: sacE.length, pctSacE: pctDe(sacE),
     nDevD: devD.length, pctDevD: pctDe(devD), nDevE: devE.length, pctDevE: pctDe(devE),
     nAtaque: sit("ataque").length, pctAtaque: pctDe(sit("ataque")), nContra: sit("contra").length, pctContra: pctDe(sit("contra")), nDefesa: sit("defesa").length, pctDefesa: pctDe(sit("defesa")),
+    detalhe, errosDevolucao: detalhe.devolucao.nos.e, errosDevolucaoDele: detalhe.devolucao.ele.e,
+    pctErrosDevolucao: detalhe.devolucao.nos.n ? Math.round((detalhe.devolucao.nos.e / detalhe.devolucao.nos.n) * 100) : 0,
     adversos: adversos.length, adversosGanhos,
     pctAdversos: adversos.length ? Math.round((adversosGanhos / adversos.length) * 100) : 0,
   };
@@ -178,6 +199,8 @@ function leitura(r) {
     sinais.push(["saque", `No saque, o jogador ganha ${r.pctSacD}% dos pontos pelo lado da igualdade (${r.nSacD}) e ${r.pctSacE}% pelo lado da vantagem (${r.nSacE}). A diferença está num lado só: vale olhar a direção e o plano de saque desse lado.`]);
   if (r.nDevD >= 6 && r.nDevE >= 6 && Math.abs(r.pctDevD - r.pctDevE) >= 20)
     sinais.push(["devolucao", `Contra o saque do adversário, o jogador ganha ${r.pctDevD}% pelo lado da igualdade (${r.nDevD}) e ${r.pctDevE}% pelo lado da vantagem (${r.nDevE}). Um dos lados da devolução está custando pontos.`]);
+  if (r.detalhe && r.detalhe.devolucao.nos.n >= 8 && r.errosDevolucao >= 3 && r.pctErrosDevolucao >= 25)
+    sinais.push(["devolucao", `Erros de devolução de saque: ${r.errosDevolucao} em ${r.detalhe.devolucao.nos.n} pontos no saque do adversário (${r.pctErrosDevolucao}%). O ponto está sendo perdido na primeira bola em jogo: vale olhar a posição de espera, o split step e o alvo da devolução.`]);
   if (r.errosDecisao > r.errosExec && r.errosNos >= 5)
     sinais.push(["fundo", `Mais erros de decisão (${r.errosDecisao}) que de execução (${r.errosExec}). O recurso existe; o padrão de decisão é que não está treinado.`]);
   if (r.errosExec > r.errosDecisao * 2 && r.errosNos >= 5)
@@ -242,10 +265,11 @@ function montarResumoPublico(reg, aluno) {
       pctPrimeiro: sc.pctPrimeiro, aces: sc.aces, acesAdv: sc.acesAdv, dfAdv: sc.dfAdv, pctPrimeiroAdv: sc.pctPrimeiroAdv,
       pctSacD: sc.nSacD ? sc.pctSacD : 0, nSacD: sc.nSacD, pctSacE: sc.nSacE ? sc.pctSacE : 0, nSacE: sc.nSacE, pctDevD: sc.nDevD ? sc.pctDevD : 0, nDevD: sc.nDevD, pctDevE: sc.nDevE ? sc.pctDevE : 0, nDevE: sc.nDevE,
       nAtaque: sc.nAtaque, pctAtaque: sc.pctAtaque, nContra: sc.nContra, pctContra: sc.pctContra, nDefesa: sc.nDefesa, pctDefesa: sc.pctDefesa },
+    detalhe: sc.detalhe || resume(sc.pontos || []).detalhe, observacaoFinal: String(reg.observacaoFinal || "").trim().slice(0, 1200),
     zonas: zonasDe(sc.pontos), serie: serie.map((x, i) => [x.nos ? 1 : 0, x.set, contagem[i][0], contagem[i][1]]), sinais: sinais.map((s) => s[1]),
   };
 }
 
-var motor = { placarInicial: placarInicial, aplicaPonto: aplicaPonto, rotuloPontos: rotuloPontos, ehAdverso: ehAdverso, quemSaca: quemSaca, ladoDoSaque: ladoDoSaque, ROTULO_LADO: ROTULO_LADO, SITUACOES: SITUACOES, ZONAS: ZONAS, resume: resume, leitura: leitura, montarResumoPublico: montarResumoPublico, serieMomento: serieMomento, contagemDosPontos: contagemDosPontos, zonasDe: zonasDe };
+var motor = { placarInicial: placarInicial, aplicaPonto: aplicaPonto, rotuloPontos: rotuloPontos, ehAdverso: ehAdverso, quemSaca: quemSaca, ladoDoSaque: ladoDoSaque, ROTULO_LADO: ROTULO_LADO, SITUACOES: SITUACOES, GOLPES: GOLPES, DIRECOES: DIRECOES, DIRECOES_SAQUE: DIRECOES_SAQUE, erroDeDevolucao: erroDeDevolucao, erroDeDevolucaoDele: erroDeDevolucaoDele, ZONAS: ZONAS, resume: resume, leitura: leitura, montarResumoPublico: montarResumoPublico, serieMomento: serieMomento, contagemDosPontos: contagemDosPontos, zonasDe: zonasDe };
 if (typeof module !== "undefined" && module.exports) module.exports = motor; else raiz.QLScoutMotor = motor;
 })(typeof window !== "undefined" ? window : this);

@@ -2992,13 +2992,13 @@
     try { st = JSON.parse(localStorage.getItem(chave) || "null"); } catch (e) { st = null; }
     var CFG0 = { torneio: "", formato: "3sets", saca: "nos", semVantagem: false, superTiebreakDecisivo: false };
     if (!st || typeof st !== "object" || !Array.isArray(st.pontos) || !st.cfg) st = { cfg: CFG0, pontos: [], token: null, fim: false, iniciado: false };
-    var atleta = r.atleta.nome || "Atleta", primeiro = String(atleta).split(" ")[0], rasc = null, tmr = null, enviando = false, erro = false;
+    var atleta = r.atleta.nome || "Atleta", primeiro = String(atleta).split(" ")[0], rasc = null, tmr = null, enviando = false, erro = false, dirS = null;
     function salvar() { try { localStorage.setItem(chave, JSON.stringify(st)); } catch (e) { /* sem armazenamento */ } }
     function placarAtual() { var c = st.cfg, e = M.placarInicial(c.formato, c.saca, c.semVantagem, c.superTiebreakDecisivo); st.pontos.forEach(function (p) { e = M.aplicaPonto(e, p.nos); }); return e; }
     function resumo(placar) {
       var c = st.cfg, rr = M.resume(st.pontos), sets = placar.sets.map(function (x) { return x[0] + "-" + x[1]; });
       if (!placar.fim && (placar.g[0] || placar.g[1])) sets.push(placar.g[0] + "-" + placar.g[1]);
-      return M.montarResumoPublico({ data: new Date().toISOString().slice(0, 10), torneio: c.torneio || "", resultado: sets.join(" "), concluida: !!(placar.fim || st.fim),
+      return M.montarResumoPublico({ data: new Date().toISOString().slice(0, 10), torneio: c.torneio || "", resultado: sets.join(" "), concluida: !!(placar.fim || st.fim), observacaoFinal: st.observacaoFinal || "",
         scout: Object.assign({}, rr, { pontos: st.pontos, cfg: { formato: c.formato, saca: c.saca, semVantagem: !!c.semVantagem, superTiebreakDecisivo: !!c.superTiebreakDecisivo } }) }, { nome: atleta });
     }
     async function enviar() {
@@ -3039,11 +3039,11 @@
     }
 
     function adicionar(p) {
-      var pl = placarAtual(); p.n = st.pontos.length + 1; p.placarAntes = M.rotuloPontos(pl); st.pontos.push(p); rasc = null; desenhar(); agendar();
+      var pl = placarAtual(); p.n = st.pontos.length + 1; p.placarAntes = M.rotuloPontos(pl); st.pontos.push(p); rasc = null; dirS = null; desenhar(); agendar();
     }
     function saqueDireto(tipo) {
       var pl = placarAtual(), sacador = M.quemSaca(pl), meu = sacador === "nos", nos = tipo === "ace" ? meu : !meu;
-      adicionar({ fim: tipo === "ace" ? (meu ? "winner_nos" : "winner_dele") : (meu ? "erro_nos" : "erro_dele"), nos: nos, saque: tipo, bola: "1-2", causa: tipo === "df" && meu ? "execucao" : null, rede: false, situacao: null, adverso: M.ehAdverso(pl), sacador: sacador, lado: M.ladoDoSaque(pl) });
+      adicionar({ fim: tipo === "ace" ? (meu ? "winner_nos" : "winner_dele") : (meu ? "erro_nos" : "erro_dele"), nos: nos, saque: tipo, bola: "1-2", causa: tipo === "df" && meu ? "execucao" : null, rede: false, situacao: null, dirSaque: tipo === "ace" ? dirS : null, adverso: M.ehAdverso(pl), sacador: sacador, lado: M.ladoDoSaque(pl) });
     }
 
     function desenhar() {
@@ -3053,7 +3053,7 @@
         (adv && !fimJogo ? '<p class="sf-adverso">PLACAR ADVERSO — este ponto entra na comparação</p>' : "") + (pl.fim ? '<div class="aviso">Partida encerrada: ' + esc(primeiro) + (pl.vencedor === "nos" ? " venceu" : " perdeu") + ".</div>" : "");
       if (!fimJogo) {
         if (!rasc) {
-          h += '<section class="cartao"><p class="olho">' + (meu ? "Saque (opcional)" : "Saque do adversário (opcional)") + '</p><div class="sf-grade4">' + [["1", "1º dentro"], ["2", "2º dentro"], ["ace", meu ? "Ace" : "Ace dele"], ["df", meu ? "Dupla falta" : "Dupla falta dele"]].map(function (x) { return botao(x[1], "btn-secundario sf-pq", 'data-saq="' + x[0] + '"'); }).join("") + "</div></section>";
+          h += '<section class="cartao"><p class="olho">' + (meu ? "Saque (opcional)" : "Saque do adversário (opcional)") + '</p><div class="sf-chips" role="group" aria-label="Direção do saque">' + M.DIRECOES_SAQUE.map(function (x) { return botao((dirS === x[0] ? "✓ " : "") + x[1], "btn-secundario btn-pequeno", 'data-dsq="' + x[0] + '" aria-pressed="' + (dirS === x[0]) + '"'); }).join("") + '<span class="nota">direção do saque</span></div><div class="sf-grade4" style="margin-top:8px">' + [["1", "1º dentro"], ["2", "2º dentro"], ["ace", meu ? "Ace" : "Ace dele"], ["df", meu ? "Dupla falta" : "Dupla falta dele"]].map(function (x) { return botao(x[1], "btn-secundario sf-pq", 'data-saq="' + x[0] + '"'); }).join("") + "</div></section>";
         }
         if (!rasc || !rasc.fim) {
           h += '<section class="cartao" style="margin-top:12px"><p class="olho">Como o ponto terminou</p><div class="sf-grade">' + FIM_ROT.map(function (o) { return botao(esc(o[1]), o[2] ? "btn-primario sf-bt" : "btn-secundario sf-bt", 'data-fim="' + o[0] + '"'); }).join("") + "</div></section>";
@@ -3061,24 +3061,31 @@
           h += '<section class="cartao sf-rasc"><p class="olho">' + esc(FIM_ROT.filter(function (o) { return o[0] === rasc.fim; })[0][1]) + "</p>" +
             (rasc.fim === "erro_nos" ? '<p class="olho" style="margin-top:8px">A causa</p>' + seg("causa", rasc.causa || "", [["decisao", "Decisão"], ["execucao", "Execução"]]) : "") +
             '<p class="olho" style="margin-top:10px">Como foi o ponto (opcional)</p><div class="sf-chips">' + M.SITUACOES.map(function (x) { return botao((rasc.situacao === x[0] ? "✓ " : "") + x[1], "btn-secundario btn-pequeno", 'data-sit="' + x[0] + '" aria-pressed="' + (rasc.situacao === x[0]) + '"'); }).join("") + botao((rasc.rede ? "✓ " : "") + "Subiu à rede", "btn-secundario btn-pequeno", 'data-rede="1" aria-pressed="' + !!rasc.rede + '"') + "</div>" +
+            '<p class="olho" style="margin-top:10px">Qual foi o último golpe de ' + esc(primeiro) + ' (opcional)</p><div class="sf-chips">' + M.GOLPES.map(function (x) { return botao((rasc.golpe === x[0] ? "✓ " : "") + x[1], "btn-secundario btn-pequeno", 'data-golpe="' + x[0] + '" aria-pressed="' + (rasc.golpe === x[0]) + '"'); }).join("") + "</div>" +
+            '<div class="sf-chips" style="margin-top:8px">' + botao((rasc.corrida ? "✓ " : "") + "Na corrida", "btn-secundario btn-pequeno", 'data-corrida="1" aria-pressed="' + !!rasc.corrida + '"') + M.DIRECOES.map(function (x) { return botao((rasc.direcao === x[0] ? "✓ " : "") + x[1], "btn-secundario btn-pequeno", 'data-direcao="' + x[0] + '" aria-pressed="' + (rasc.direcao === x[0]) + '"'); }).join("") + "</div>" +
             '<p class="olho" style="margin-top:10px">Onde foi o último golpe de ' + esc(primeiro) + ' (opcional)</p><div class="sf-grade3">' + M.ZONAS.map(function (z) { return botao((rasc.zona === z[0] ? "✓ " : "") + z[1], "btn-secundario btn-pequeno", 'data-zona="' + z[0] + '" aria-pressed="' + (rasc.zona === z[0]) + '"'); }).join("") + "</div>" +
             '<p class="olho" style="margin-top:10px">Em que bola o ponto terminou</p><div class="sf-grade3">' + ["1-2", "3-4", "5+"].map(function (b) { return botao(b, "btn-primario sf-bt", 'data-bola="' + b + '"'); }).join("") + "</div></section>";
         }
       }
       var gan = st.pontos.filter(function (p) { return p.nos; }).length;
-      h += '<section class="cartao" style="margin-top:12px"><p class="sf-n"><strong>' + n + "</strong> pontos · " + esc(primeiro) + " ganhou <strong>" + gan + "</strong>" + (n ? " (" + Math.round(gan * 100 / n) + "%)" : "") + '</p><p id="sfEnvio" class="nota"></p>' +
+      h += '<section class="cartao" style="margin-top:12px"><p class="sf-n"><strong>' + n + "</strong> pontos · " + esc(primeiro) + " ganhou <strong>" + gan + "</strong>" + (n ? " (" + Math.round(gan * 100 / n) + "%)" : "") + '</p><div class="campo" style="margin-top:12px"><label for="sfObs">Observação final <span class="nota">(opcional)</span></label><textarea id="sfObs" rows="3" maxlength="1200" placeholder="Um recado sobre o jogo. Aparece na página de quem acompanha.">' + esc(st.observacaoFinal || "") + '</textarea></div><p id="sfEnvio" class="nota"></p>' +
         '<div class="acoes"><button type="button" class="btn btn-texto" id="sfDesfazer"' + (n || rasc ? "" : " disabled") + '>Desfazer</button><button type="button" class="btn btn-secundario" id="sfEnviar">Enviar agora</button>' +
         (fimJogo ? '<button type="button" class="btn btn-secundario" id="sfNovo">Novo jogo</button>' : '<button type="button" class="btn btn-laranja" id="sfFim">Encerrar partida</button>') + "</div></section>" +
         '<p class="nota" style="margin-top:12px">O nome do adversário e anotações nunca são enviados. A análise completa continua sendo a do treinador.</p>';
       tela(h);
       var q = function (sel, f) { Array.prototype.forEach.call(app.querySelectorAll(sel), f); };
+      q("[data-dsq]", function (b) { b.addEventListener("click", function () { var v = b.getAttribute("data-dsq"); dirS = dirS === v ? null : v; desenhar(); }); });
       q("[data-saq]", function (b) { b.addEventListener("click", function () { var v = b.getAttribute("data-saq"); if (v === "df" || v === "ace") saqueDireto(v); else { rasc = { saquePre: v }; desenhar(); } }); });
-      q("[data-fim]", function (b) { b.addEventListener("click", function () { var f = FIM_ROT.filter(function (o) { return o[0] === b.getAttribute("data-fim"); })[0], p = placarAtual(); rasc = Object.assign({}, rasc || {}, { fim: f[0], nos: f[2], saque: (rasc && rasc.saquePre) || null, bola: null, causa: null, rede: false, situacao: null, adverso: M.ehAdverso(p), sacador: M.quemSaca(p), lado: M.ladoDoSaque(p) }); desenhar(); }); });
+      q("[data-fim]", function (b) { b.addEventListener("click", function () { var f = FIM_ROT.filter(function (o) { return o[0] === b.getAttribute("data-fim"); })[0], p = placarAtual(); rasc = Object.assign({}, rasc || {}, { fim: f[0], nos: f[2], saque: (rasc && rasc.saquePre) || null, bola: null, causa: null, rede: false, situacao: null, golpe: null, corrida: false, direcao: null, dirSaque: dirS, adverso: M.ehAdverso(p), sacador: M.quemSaca(p), lado: M.ladoDoSaque(p) }); desenhar(); }); });
       q("[data-cfg=causa]", function (b) { b.addEventListener("click", function () { rasc.causa = b.getAttribute("data-v"); desenhar(); }); });
       q("[data-sit]", function (b) { b.addEventListener("click", function () { var v = b.getAttribute("data-sit"); rasc.situacao = rasc.situacao === v ? null : v; desenhar(); }); });
+      q("[data-golpe]", function (b) { b.addEventListener("click", function () { var v = b.getAttribute("data-golpe"); rasc.golpe = rasc.golpe === v ? null : v; desenhar(); }); });
+      q("[data-corrida]", function (b) { b.addEventListener("click", function () { rasc.corrida = !rasc.corrida; desenhar(); }); });
+      q("[data-direcao]", function (b) { b.addEventListener("click", function () { var v = b.getAttribute("data-direcao"); rasc.direcao = rasc.direcao === v ? null : v; desenhar(); }); });
       q("[data-rede]", function (b) { b.addEventListener("click", function () { rasc.rede = !rasc.rede; desenhar(); }); });
       q("[data-zona]", function (b) { b.addEventListener("click", function () { var v = b.getAttribute("data-zona"); rasc.zona = rasc.zona === v ? null : v; desenhar(); }); });
       q("[data-bola]", function (b) { b.addEventListener("click", function () { var p = Object.assign({}, rasc); delete p.saquePre; p.bola = b.getAttribute("data-bola"); adicionar(p); }); });
+      document.getElementById("sfObs").addEventListener("input", function (e) { st.observacaoFinal = e.target.value.slice(0, 1200); agendar(); });
       document.getElementById("sfDesfazer").addEventListener("click", function () { if (rasc) { rasc = null; desenhar(); return; } if (st.pontos.length) { st.pontos.pop(); st.fim = false; desenhar(); agendar(); } });
       document.getElementById("sfEnviar").addEventListener("click", function () { clearTimeout(tmr); enviar(); });
       var fim = document.getElementById("sfFim"); if (fim) fim.addEventListener("click", function () { if (!window.confirm("Encerrar a partida? O resultado final fica visível por mais 2 horas.")) return; st.fim = true; rasc = null; desenhar(); clearTimeout(tmr); enviar(); });
@@ -3820,9 +3827,10 @@
   function scCabecalhoHtml(rs, ao) {
     return '<p class="sub">' + esc([rs.data ? dataCurta(rs.data) : "", rs.torneio].filter(Boolean).join(" · ")) + "</p>" + (rs.resultado && rs.resultado !== "—" ? '<p class="sc-placar">' + esc(rs.resultado) + "</p>" : "");
   }
+  function scGraficosHtml(rs) { return rs.n > 0 && window.QLScoutGraficos ? '<div class="qg-app">' + QLScoutGraficos.topo(rs) + QLScoutGraficos.secoes(rs) + "</div>" : ""; }
   function scVistaCompletaHtml(rs) {
     var tem = rs.serie && rs.serie.length && rs.serie.some(function (x) { return x.length > 2 && x[2]; });
-    return (tem || (rs.serie && rs.serie.length) ? scContagemHtml(rs) : "") + scMomentoHtml(rs) + (rs.n > 0 ? scNumerosHtml(rs) + scBolasHtml(rs) : "") + scMapaHtml(rs.zonas, rs.atleta) + (rs.n > 0 ? scSinaisHtml(rs) : "");
+    return (tem || (rs.serie && rs.serie.length) ? scContagemHtml(rs) : "") + scGraficosHtml(rs) + scMomentoHtml(rs) + (rs.n > 0 ? scNumerosHtml(rs) + scBolasHtml(rs) : "") + scMapaHtml(rs.zonas, rs.atleta) + (rs.n > 0 ? scSinaisHtml(rs) : "");
   }
   async function telaAoVivo(token) {
     pararAoVivo();
@@ -3932,7 +3940,7 @@
       var rs = sc.resumo, serie = scSerie(rs.serie), sets = [], partida = sc.partidaId ? partidasLista().filter(function (x) { return x.id === sc.partidaId; })[0] : null;
       serie.forEach(function (x) { if (sets.indexOf(x.set) < 0) sets.push(x.set); });
       tela(voltar + "<h1>" + esc(sc.rotulo) + '</h1><p class="sub">' + esc(dataCurta(rs.data)) + " · link ativo até " + esc(dataCurta(sc.ate)) + "</p>" +
-        scMomentoHtml(rs) +
+        scGraficosHtml(rs) + scMomentoHtml(rs) +
         scMapaHtml(rs.zonas, rs.atleta) + scBolasHtml(rs) + scNumerosHtml(rs) +
         '<h2 class="secao">O que este jogo aponta</h2><div class="cartao">' + (rs.sinais.length ? rs.sinais.map(function (x) { return '<p class="comp-dev-bloco">' + esc(x) + "</p>"; }).join("") : "<p>Nada fora do esperado nos indicadores coletados.</p>") + '<p class="nota" style="margin-top:8px">Leitura automática pelas regras do método: ponto de partida para a conversa com o treinador, não conclusão.</p></div>' +
         (partida ? scAtletaVsTreinadorHtml(sc, partida) : "") +
