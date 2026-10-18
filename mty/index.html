@@ -8945,6 +8945,18 @@ function TelaScout({ aluno, alunos, setAlunos }) {
             ))}
           </div>
 
+          <div className="mb-2"><Etiqueta>Onde foi o seu último golpe (opcional)</Etiqueta></div>
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            {ZONAS.map(([cod, rot]) => (
+              <button key={cod} type="button" aria-pressed={rascunho.zona === cod}
+                onClick={() => setRascunho({ ...rascunho, zona: rascunho.zona === cod ? null : cod })}
+                style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 600, padding: "10px 4px", minHeight: 44, borderRadius: 10, cursor: "pointer",
+                  border: "1px solid " + (rascunho.zona === cod ? C.tinta : C.linha), background: rascunho.zona === cod ? C.tinta : C.cal, color: rascunho.zona === cod ? C.papel : C.grafite }}>
+                {rot}
+              </button>
+            ))}
+          </div>
+
           <div className="mb-2"><Etiqueta>Em que bola o ponto terminou</Etiqueta></div>
           <div className="grid grid-cols-3 gap-2">
             {["1-2", "3-4", "5+"].map((b) => (
@@ -9148,6 +9160,12 @@ function textoResumoScout(r, sinais, pontos, cfg, meta) {
     if (sq.melhor.tam >= 3) L.push(`Maior sequência a favor: ${sq.melhor.tam} pontos seguidos (${sq.melhor.ini} a ${sq.melhor.fim}).`);
     if (sq.pior.tam >= 3) L.push(`Maior sequência contra: ${sq.pior.tam} pontos seguidos (${sq.pior.ini} a ${sq.pior.fim}).`);
   }
+  const zs = Object.entries(zonasDe(pontos)).map(([k, v]) => ({ k, n: v.n, saldo: v.ganhos - (v.n - v.ganhos) })).filter((x) => x.n >= 3);
+  if (zs.length >= 2) {
+    const nomeZ = (k) => ({ D: "direita", E: "esquerda" })[k[0]] + " " + ({ REDE: "na rede", APR: "na aproximação", FUNDO: "no fundo" })[k.split("-")[1]];
+    const ordenadas = zs.slice().sort((a, b) => b.saldo - a.saldo), mz = ordenadas[0], pz = ordenadas[ordenadas.length - 1];
+    if (mz.k !== pz.k) L.push(`Mapa da quadra: melhor saldo na ${nomeZ(mz.k)} (${mz.saldo > 0 ? "+" : ""}${mz.saldo}), pior na ${nomeZ(pz.k)} (${pz.saldo > 0 ? "+" : ""}${pz.saldo}).`);
+  }
   L.push(`Onde o ponto se decidiu: ${r.pctCurtos}% em 1–2 bolas, ${r.pctMedios}% em 3–4, ${r.pctLongos}% em 5 ou mais.`);
   L.push(`Erros do jogador: ${r.errosNos} (${r.errosDecisao} por decisão, ${r.errosExec} por execução). Protocolo entre pontos: ${r.pctProtocolo}%.`);
   if (sinais && sinais.length) { L.push("", "O que o jogo aponta:"); sinais.forEach((s) => L.push("• " + s[1])); }
@@ -9175,6 +9193,140 @@ function BotaoCompartilharResumo({ texto }) {
   );
 }
 
+/* Zona do último golpe do meu jogador (opcional): lado (direita/esquerda) × posição (rede/aproximação/fundo). Quem marca escolhe no
+   fim do ponto; sem marcar, o ponto só não entra no mapa. Nada é estimado. */
+const ZONAS = [
+  ["D-REDE", "Dir · rede"], ["D-APR", "Dir · aprox."], ["D-FUNDO", "Dir · fundo"],
+  ["E-REDE", "Esq · rede"], ["E-APR", "Esq · aprox."], ["E-FUNDO", "Esq · fundo"],
+];
+function zonasDe(pontos) {
+  const z = {};
+  (pontos || []).forEach((p) => {
+    if (!p.zona || !ZONAS.some((x) => x[0] === p.zona)) return;
+    z[p.zona] = z[p.zona] || { n: 0, ganhos: 0 };
+    z[p.zona].n++;
+    if (p.nos) z[p.zona].ganhos++;
+  });
+  return z;
+}
+function MapaDaQuadra({ pontos }) {
+  const z = useMemo(() => zonasDe(pontos), [pontos]);
+  const total = Object.values(z).reduce((s, x) => s + x.n, 0);
+  if (total < 5) return null;
+  const linhas = [["D", "Direita"], ["E", "Esquerda"]], cols = [["REDE", "Rede"], ["APR", "Aproximação"], ["FUNDO", "Fundo"]];
+  const lista = Object.entries(z).map(([k, v]) => ({ k, ...v, saldo: v.ganhos - (v.n - v.ganhos) })).filter((x) => x.n >= 3);
+  const rot = (k) => ({ D: "Direita", E: "Esquerda" })[k[0]] + " · " + ({ REDE: "rede", APR: "aproximação", FUNDO: "fundo" })[k.split("-")[1]];
+  const melhor = lista.slice().sort((a, b) => b.saldo - a.saldo)[0], pior = lista.slice().sort((a, b) => a.saldo - b.saldo)[0];
+  return (
+    <Secao titulo="Mapa da quadra" nota={`Onde foi o último golpe do meu jogador em cada ponto marcado (${total} de ${(pontos || []).length}). O saldo é pontos ganhos menos pontos perdidos naquela zona.`}>
+      <div style={{ display: "grid", gridTemplateColumns: "64px repeat(3, 1fr)", gap: 6 }}>
+        <div />
+        {cols.map(([k, r]) => <div key={k} style={{ fontFamily: ARCH, fontSize: 11, fontWeight: 700, color: C.grafite, textAlign: "center" }}>{r}</div>)}
+        {linhas.map(([l, rl]) => (
+          <React.Fragment key={l}>
+            <div style={{ fontFamily: ARCH, fontSize: 11, fontWeight: 700, color: C.grafite, display: "flex", alignItems: "center" }}>{rl}</div>
+            {cols.map(([k]) => {
+              const d = z[l + "-" + k];
+              const saldo = d ? d.ganhos - (d.n - d.ganhos) : 0;
+              return (
+                <div key={k} style={{ border: "1px solid " + C.linha, minHeight: 62, padding: "8px 4px", textAlign: "center", display: "flex", flexDirection: "column", justifyContent: "center",
+                  background: !d ? C.papel : saldo > 0 ? "#E3F3EA" : saldo < 0 ? "#FBE6E4" : C.papel }}>
+                  {d ? (<>
+                    <span style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 800, color: saldo > 0 ? "#1F6B4A" : saldo < 0 ? "#A6432F" : C.grafite }}>{saldo > 0 ? "+" : ""}{saldo}</span>
+                    <span style={{ fontFamily: ARCH, fontSize: 11, color: C.grafite }}>{d.n} {d.n === 1 ? "ponto" : "pontos"}</span>
+                  </>) : <span style={{ fontFamily: ARCH, fontSize: 11, color: C.grafite }}>—</span>}
+                </div>
+              );
+            })}
+          </React.Fragment>
+        ))}
+      </div>
+      {melhor && pior && melhor.k !== pior.k && (
+        <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginTop: 10 }}>
+          Melhor saldo: {rot(melhor.k)} ({melhor.saldo > 0 ? "+" : ""}{melhor.saldo} em {melhor.n} pontos). Pior saldo: {rot(pior.k)} ({pior.saldo > 0 ? "+" : ""}{pior.saldo} em {pior.n} pontos). Só zonas com 3 pontos ou mais entram nesta leitura.
+        </p>
+      )}
+    </Secao>
+  );
+}
+
+/* Link da família: o treinador publica um RESUMO desta partida (primeiro nome do atleta, placar, números, mapa, momento e leituras) em
+   uma página sem login. Nunca vai o nome do adversário, o nome completo, as anotações ou o caderno. O link tem validade de 30 dias,
+   um token aleatório próprio da partida e pode ser revogado: apagar reg.compartilhado faz a function responder "link inválido". */
+const DIAS_LINK_FAMILIA = 30;
+function montarResumoPublico(reg, aluno) {
+  const sc = reg.scout, serie = serieMomento(sc.pontos || [], sc.cfg), sinais = leitura(sc);
+  return {
+    atleta: String(aluno.nome || "Atleta").trim().split(/\s+/)[0].slice(0, 40),
+    data: reg.data, torneio: reg.torneio && reg.torneio !== "jogo-treino" ? String(reg.torneio).slice(0, 80) : "",
+    resultado: reg.resultado || "", concluida: !!reg.concluida,
+    n: sc.n, ganhos: sc.ganhos, pctGanhos: sc.pctGanhos,
+    bolas: { pctCurtos: sc.pctCurtos, pctMedios: sc.pctMedios, pctLongos: sc.pctLongos, pctAte4: sc.pctAte4 },
+    numeros: { errosNos: sc.errosNos, errosDecisao: sc.errosDecisao, errosExec: sc.errosExec, df: sc.df, pctProtocolo: sc.pctProtocolo, rede: sc.rede, redeGanha: sc.redeGanha, ataquePerdido: sc.ataquePerdido, pctAdversos: sc.pctAdversos },
+    zonas: zonasDe(sc.pontos), serie: serie.map((x) => [x.nos ? 1 : 0, x.set]), sinais: sinais.map((s) => s[1]),
+  };
+}
+function LinkFamilia({ reg, aluno, alunos, setAlunos }) {
+  const [url, setUrl] = useState("");
+  const [aviso, setAviso] = useState("");
+  const [gerando, setGerando] = useState(false);
+  const comp = reg.compartilhado;
+  const hoje = new Date().toISOString().slice(0, 10);
+  const ativo = !!(comp && comp.token && comp.ate >= hoje);
+  const token = ativo ? comp.token : "";
+  useEffect(() => {
+    let vivo = true;
+    if (!token) { setUrl(""); return undefined; }
+    organizacao().then((org) => {
+      if (vivo) setUrl(location.origin + "/scout/?org=" + encodeURIComponent(org || "") + "&id=" + encodeURIComponent(aluno.id) + "&j=" + encodeURIComponent(reg.id) + "&t=" + encodeURIComponent(token));
+    });
+    return () => { vivo = false; };
+  }, [token, aluno.id, reg.id]);
+  function gravar(valor) {
+    setAlunos(alunos.map((a) => a.id === aluno.id ? { ...a, registros: (a.registros || []).map((x) => x.id === reg.id ? { ...x, compartilhado: valor } : x) } : a));
+  }
+  function gerar() {
+    setGerando(true);
+    const ate = new Date(Date.now() + DIAS_LINK_FAMILIA * 86400000).toISOString().slice(0, 10);
+    gravar({ token: MTY.tokenSeguro(), criadoEm: new Date().toISOString(), ate, publico: montarResumoPublico(reg, aluno) });
+    setGerando(false);
+    setAviso("");
+  }
+  function revogar() {
+    if (!confirm("Desativar este link? Quem já o recebeu (inclusive salvo ou enviado por mensagem) deixa de conseguir abrir.")) return;
+    gravar(null);
+    setAviso("Link desativado.");
+  }
+  async function copiar() {
+    try { await navigator.clipboard.writeText(url); setAviso("Link copiado. Cole na conversa com a família."); }
+    catch { setAviso("Não foi possível copiar. Selecione o link e copie manualmente."); }
+  }
+  return (
+    <div className="mt-3 mb-2" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "13px 15px" }}>
+      <Etiqueta>Link para a família</Etiqueta>
+      {!ativo ? (
+        <>
+          <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginTop: 6 }}>
+            Gera uma página sem login com o resumo desta partida: primeiro nome do atleta, placar, momento do jogo, mapa da quadra, números e leituras. Não aparecem o nome do adversário, as anotações nem o caderno. O link vale {DIAS_LINK_FAMILIA} dias e você pode desativá-lo quando quiser.
+          </p>
+          {comp && comp.ate < hoje && <p style={{ ...prosa, fontSize: 12.5, color: C.saibro, marginTop: 6 }}>O link anterior venceu em {comp.ate.split("-").reverse().join("/")}.</p>}
+          <div className="mt-3"><Botao pequeno variante="saibro" onClick={gerar} disabled={gerando}>Gerar link para a família</Botao></div>
+        </>
+      ) : (
+        <>
+          <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginTop: 6 }}>Quem tiver este link vê o resumo até {comp.ate.split("-").reverse().join("/")}. Envie só a quem deve receber. O resumo foi montado em {new Date(comp.criadoEm).toLocaleDateString("pt-BR")}; para atualizar, desative e gere de novo.</p>
+          <input readOnly value={url} onFocus={(e) => e.target.select()} aria-label="Link para a família" style={{ ...entrada, marginTop: 8 }} />
+          <div className="flex gap-2 mt-3 flex-wrap">
+            <Botao pequeno variante="saibro" onClick={copiar} disabled={!url}>Copiar link</Botao>
+            <Botao pequeno variante="vazio" onClick={revogar}>Desativar link</Botao>
+          </div>
+        </>
+      )}
+      {aviso && <p role="status" style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 8 }}>{aviso}</p>}
+    </div>
+  );
+}
+
 /* Leitura/tabelas do scout — isolado pra ser usado tanto no fluxo de
    coleta ao vivo (Relatorio, abaixo) quanto na revisão de um jogo já
    salvo no Caderno (DetalheJogoRegistro): antes só existia no fluxo ao
@@ -9197,6 +9349,7 @@ function ResumoScout({ r, sinais, aluno, alunos, setAlunos, pontos, cfg }) {
   return (
     <>
       <MomentoDoJogo pontos={pontos} cfg={cfg} />
+      <MapaDaQuadra pontos={pontos} />
       <Secao titulo="Onde o ponto se decidiu" nota="Cerca de 70% dos pontos do circuito terminam em até quatro bolas. É contra essa referência que se lê o jogo.">
         <div className="flex mb-3" style={{ height: 40 }}>
           {dados.map((d, i) => (
@@ -9276,6 +9429,7 @@ function DetalheJogoRegistro({ r, aluno, alunos, setAlunos }) {
     <div className="mt-3 pt-3" style={{ borderTop: "1px solid " + C.linha }}>
       <ResumoScout r={r.scout} sinais={sinais} aluno={aluno} alunos={alunos} setAlunos={setAlunos} pontos={r.scout.pontos} cfg={r.scout.cfg} />
       <BotaoCompartilharResumo texto={textoResumoScout(r.scout, sinais, r.scout.pontos, r.scout.cfg, { adversario: r.adversario, torneio: r.torneio, resultado: r.resultado })} />
+      <LinkFamilia reg={r} aluno={aluno} alunos={alunos} setAlunos={setAlunos} />
     </div>
   );
 }

@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#103B32">
+<title>Scout da partida · QuadraLab</title>
+<style>
+:root { --tinta: #17251F; --papel: #F6F8F7; --verde: #103B32; --grafite: #5B6B63; --linha: #E2E8E5; --contra: #C8102E; --saibro: #B14C1D; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--papel); color: var(--tinta); font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+main { max-width: 640px; margin: 0 auto; padding: 0 16px 48px; }
+header { background: var(--verde); color: #fff; padding: 22px 16px 26px; }
+header .in { max-width: 640px; margin: 0 auto; }
+.marca { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; opacity: .8; font-weight: 700; }
+h1 { margin: 8px 0 0; font-size: 26px; line-height: 1.15; }
+.meta { margin-top: 6px; opacity: .85; font-size: 14px; }
+.placar { margin-top: 14px; display: inline-block; padding: 6px 14px; border-radius: 999px; background: #fff; color: var(--verde); font-weight: 800; font-size: 18px; }
+section { background: #fff; border: 1px solid var(--linha); border-radius: 14px; padding: 16px; margin-top: 14px; }
+h2 { margin: 0 0 4px; font-size: 18px; }
+.nota { color: var(--grafite); font-size: 14px; }
+.abas { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+.abas button { font: 700 13px system-ui, sans-serif; padding: 8px 14px; min-height: 40px; border-radius: 10px; border: 1.5px solid var(--linha); background: #fff; color: var(--tinta); cursor: pointer; }
+.abas button[aria-pressed="true"] { background: var(--verde); border-color: var(--verde); color: #fff; }
+svg { display: block; width: 100%; height: auto; }
+.leg { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; font-weight: 700; margin-top: 4px; }
+.barra { display: flex; height: 38px; border-radius: 8px; overflow: hidden; margin: 10px 0; }
+.barra div { display: flex; align-items: center; justify-content: center; color: #fff; font-size: 12px; font-weight: 800; }
+table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 14.5px; }
+th, td { text-align: left; padding: 8px 4px; border-bottom: 1px solid var(--linha); }
+td:last-child, th:last-child { text-align: right; }
+.mapa { display: grid; grid-template-columns: 70px repeat(3, 1fr); gap: 6px; margin-top: 10px; font-size: 12px; }
+.mapa .c { border-radius: 10px; padding: 10px 6px; text-align: center; min-height: 64px; display: flex; flex-direction: column; justify-content: center; border: 1px solid var(--linha); }
+.mapa .h { font-weight: 700; color: var(--grafite); display: flex; align-items: center; justify-content: center; text-align: center; }
+.mapa b { font-size: 16px; }
+.sinal { border-left: 4px solid var(--saibro); padding: 2px 0 2px 12px; margin: 12px 0; }
+.aviso { margin-top: 14px; padding: 12px 14px; border-radius: 12px; background: #EEF6E8; border: 1px solid #CBE3B8; color: #234A12; font-size: 14.5px; }
+footer { margin-top: 22px; font-size: 13px; color: var(--grafite); text-align: center; }
+.erro { margin: 40px 0; text-align: center; }
+</style>
+</head>
+<body>
+<header><div class="in"><div class="marca">QuadraLab · Scout da partida</div><h1 id="titulo">Carregando…</h1><div class="meta" id="meta"></div><div class="placar" id="placar" hidden></div></div></header>
+<main id="conteudo" aria-live="polite"></main>
+<script>
+(function () {
+  var cont = document.getElementById("conteudo");
+  var JANELA = 6, VERDE = "#103B32", CONTRA = "#C8102E";
+  function el(tag, props, filhos) {
+    var e = document.createElement(tag);
+    Object.keys(props || {}).forEach(function (k) { if (k === "texto") e.textContent = props[k]; else if (k === "cls") e.className = props[k]; else e.setAttribute(k, props[k]); });
+    (filhos || []).forEach(function (f) { if (f) e.appendChild(f); });
+    return e;
+  }
+  function dataBR(s) { var p = String(s || "").split("-"); return p.length === 3 ? p[2] + "/" + p[1] + "/" + p[0] : ""; }
+  function erro(msg) {
+    document.getElementById("titulo").textContent = "Link indisponível";
+    cont.textContent = "";
+    cont.appendChild(el("p", { cls: "erro", texto: msg }));
+  }
+
+  var q = new URLSearchParams(location.search);
+  if (!q.get("org") || !q.get("id") || !q.get("j") || !q.get("t")) { erro("Link incompleto. Peça um novo ao seu treinador."); return; }
+  fetch("/.netlify/functions/scout-publico?" + new URLSearchParams({ org: q.get("org"), id: q.get("id"), j: q.get("j"), t: q.get("t") }).toString(), { referrerPolicy: "no-referrer" })
+    .then(function (r) { return r.json().then(function (c) { if (!r.ok) throw new Error(c.erro || "Link inválido."); return c; }); })
+    .then(function (c) { desenhar(c.publico, c.ate); })
+    .catch(function (e) { erro(e.message || "Não foi possível abrir agora."); });
+
+  function serieMomento(serie) {
+    var saldo = 0;
+    return serie.map(function (x, i) {
+      var nos = !!x[0];
+      saldo += nos ? 1 : -1;
+      var mom = 0, ini = Math.max(0, i - JANELA + 1);
+      for (var k = ini; k <= i; k++) mom += serie[k][0] ? 1 : -1;
+      return { n: i + 1, nos: nos, mom: mom, set: x[1] };
+    });
+  }
+  function sequencias(lista) {
+    var melhor = { tam: 0, ini: 0, fim: 0 }, pior = { tam: 0, ini: 0, fim: 0 }, at = null;
+    lista.forEach(function (x) {
+      if (at && at.nos === x.nos) at.tam++; else at = { nos: x.nos, tam: 1, ini: x.n };
+      at.fim = x.n;
+      var alvo = x.nos ? melhor : pior;
+      if (at.tam > alvo.tam) { alvo.tam = at.tam; alvo.ini = at.ini; alvo.fim = at.fim; }
+    });
+    return { melhor: melhor, pior: pior };
+  }
+  var NS = "http://www.w3.org/2000/svg";
+  function s(tag, attrs) { var e = document.createElementNS(NS, tag); Object.keys(attrs || {}).forEach(function (k) { e.setAttribute(k, attrs[k]); }); return e; }
+  function grafico(lista, inicios) {
+    var W = 600, H = 220, pl = 34, pr = 10, pt = 12, pb = 24, n = lista.length;
+    var x = function (i) { return pl + (n <= 1 ? 0 : (i / (n - 1)) * (W - pl - pr)); };
+    var y = function (m) { return pt + (JANELA - m) / (2 * JANELA) * (H - pt - pb); };
+    var svg = s("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Gráfico do momento do jogo, ponto a ponto" });
+    [-JANELA, 0, JANELA].forEach(function (v) {
+      svg.appendChild(s("line", { x1: pl, x2: W - pr, y1: y(v), y2: y(v), stroke: v === 0 ? "#5B6B63" : "#E2E8E5", "stroke-width": v === 0 ? 1.5 : 1 }));
+      var t = s("text", { x: pl - 6, y: y(v) + 4, "text-anchor": "end", "font-size": 11, fill: "#5B6B63" }); t.textContent = v > 0 ? "+" + v : String(v); svg.appendChild(t);
+    });
+    function area(cor, positivo) {
+      var d = "M" + x(0) + " " + y(0);
+      lista.forEach(function (p, i) { var m = positivo ? Math.max(p.mom, 0) : Math.min(p.mom, 0); d += " L" + x(i) + " " + y(m); });
+      d += " L" + x(n - 1) + " " + y(0) + " Z";
+      svg.appendChild(s("path", { d: d, fill: cor, "fill-opacity": 0.22, stroke: cor, "stroke-width": 2, "stroke-linejoin": "round" }));
+    }
+    area(VERDE, true); area(CONTRA, false);
+    inicios.forEach(function (it) {
+      var i = it.i; if (i <= 0 || i >= n) return;
+      svg.appendChild(s("line", { x1: x(i), x2: x(i), y1: pt, y2: H - pb, stroke: "#5B6B63", "stroke-dasharray": "4 3" }));
+      var t = s("text", { x: x(i) + 4, y: pt + 10, "font-size": 11, fill: "#5B6B63" }); t.textContent = "Set " + (it.set + 1); svg.appendChild(t);
+    });
+    var passo = Math.max(1, Math.ceil(n / 6));
+    for (var i = 0; i < n; i += passo) { var t = s("text", { x: x(i), y: H - 6, "text-anchor": "middle", "font-size": 11, fill: "#5B6B63" }); t.textContent = String(lista[i].n); svg.appendChild(t); }
+    return svg;
+  }
+
+  function secaoMomento(p) {
+    var todos = serieMomento(p.serie);
+    if (todos.length < JANELA) return null;
+    var sets = []; todos.forEach(function (x) { if (sets.indexOf(x.set) < 0) sets.push(x.set); });
+    var box = el("section", {}, [el("h2", { texto: "Momento do jogo" }), el("p", { cls: "nota", texto: "A linha é o saldo dos últimos " + JANELA + " pontos. Acima de zero, o jogo estava a favor de " + p.atleta + "; abaixo, a favor do adversário." })]);
+    var abas = el("div", { cls: "abas", role: "group", "aria-label": "Escolher a parte do jogo" });
+    var area = el("div"), resumo = el("p", { cls: "nota" });
+    function mostrar(v) {
+      Array.prototype.forEach.call(abas.children, function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-v") === v)); });
+      var lista = v === "todo" ? todos : todos.filter(function (x) { return String(x.set) === v; });
+      var inicios = []; if (v === "todo") sets.slice(1).forEach(function (st) { for (var i = 0; i < todos.length; i++) if (todos[i].set === st) { inicios.push({ i: i, set: st }); break; } });
+      area.textContent = ""; area.appendChild(grafico(lista, inicios));
+      var sq = sequencias(lista);
+      resumo.textContent = "Do ponto " + lista[0].n + " ao " + lista[lista.length - 1].n + ": " +
+        (sq.melhor.tam >= 3 ? "maior sequência a favor, " + sq.melhor.tam + " pontos seguidos (" + sq.melhor.ini + " a " + sq.melhor.fim + "). " : "sem sequência a favor de 3 pontos ou mais. ") +
+        (sq.pior.tam >= 3 ? "Maior sequência contra, " + sq.pior.tam + " pontos seguidos (" + sq.pior.ini + " a " + sq.pior.fim + ")." : "Sem sequência contra de 3 pontos ou mais.");
+    }
+    if (sets.length > 1) {
+      [["todo", "Jogo todo"]].concat(sets.map(function (st) { return [String(st), "Set " + (st + 1)]; })).forEach(function (a) {
+        var b = el("button", { type: "button", "data-v": a[0], "aria-pressed": "false", texto: a[1] }); b.addEventListener("click", function () { mostrar(a[0]); }); abas.appendChild(b);
+      });
+      box.appendChild(abas);
+    }
+    box.appendChild(area);
+    box.appendChild(el("div", { cls: "leg" }, [el("span", { texto: "▬ A favor de " + p.atleta, style: "color:" + VERDE }), el("span", { texto: "▬ A favor do adversário", style: "color:" + CONTRA })]));
+    box.appendChild(resumo);
+    mostrar("todo");
+    return box;
+  }
+  var ROT_ZONA = { "D-REDE": "Direita · rede", "D-APR": "Direita · aproximação", "D-FUNDO": "Direita · fundo", "E-REDE": "Esquerda · rede", "E-APR": "Esquerda · aproximação", "E-FUNDO": "Esquerda · fundo" };
+  function secaoMapa(p) {
+    var z = p.zonas || {}, total = 0;
+    Object.keys(z).forEach(function (k) { total += z[k].n; });
+    if (total < 5) return null;
+    var box = el("section", {}, [el("h2", { texto: "Mapa da quadra" }), el("p", { cls: "nota", texto: "Onde foi o último golpe de " + p.atleta + " em cada ponto marcado (" + total + " de " + p.n + "). O saldo é pontos ganhos menos pontos perdidos naquela zona." })]);
+    var g = el("div", { cls: "mapa" });
+    g.appendChild(el("div"));
+    ["Rede", "Aproximação", "Fundo"].forEach(function (c) { g.appendChild(el("div", { cls: "h", texto: c })); });
+    [["D", "Direita"], ["E", "Esquerda"]].forEach(function (lado) {
+      g.appendChild(el("div", { cls: "h", texto: lado[1] }));
+      ["REDE", "APR", "FUNDO"].forEach(function (pos) {
+        var d = z[lado[0] + "-" + pos], c = el("div", { cls: "c" });
+        if (!d || !d.n) { c.appendChild(el("span", { cls: "nota", texto: "—" })); }
+        else {
+          var saldo = d.ganhos - (d.n - d.ganhos);
+          c.style.background = saldo > 0 ? "#E3F3EA" : saldo < 0 ? "#FBE6E4" : "#F6F8F7";
+          c.appendChild(el("b", { texto: (saldo > 0 ? "+" : "") + saldo, style: "color:" + (saldo > 0 ? "#1F6B4A" : saldo < 0 ? "#A6432F" : "#5B6B63") }));
+          c.appendChild(el("span", { texto: d.n + (d.n === 1 ? " ponto" : " pontos") }));
+        }
+        g.appendChild(c);
+      });
+    });
+    box.appendChild(g);
+    return box;
+  }
+  function secaoBolas(p) {
+    var b = p.bolas, cores = ["#B14C1D", "#103B32", "#5B6B63"];
+    var box = el("section", {}, [el("h2", { texto: "Onde o ponto se decidiu" }), el("p", { cls: "nota", texto: "Cerca de 70% dos pontos do circuito terminam em até quatro bolas." })]);
+    var barra = el("div", { cls: "barra", role: "img", "aria-label": "Pontos por duração: " + b.pctCurtos + "% em 1–2 bolas, " + b.pctMedios + "% em 3–4, " + b.pctLongos + "% em 5 ou mais" });
+    [["1–2 bolas", b.pctCurtos], ["3–4 bolas", b.pctMedios], ["5+ bolas", b.pctLongos]].forEach(function (x, i) { var d = el("div", { texto: x[1] + "%" }); d.style.width = Math.max(x[1], 4) + "%"; d.style.background = cores[i]; barra.appendChild(d); });
+    box.appendChild(barra);
+    box.appendChild(el("p", { cls: "nota", texto: b.pctAte4 + "% dos pontos terminaram em até quatro bolas." + (b.pctAte4 >= 65 ? " Em linha com o circuito." : " Abaixo do circuito: o jogo foi para a troca longa.") }));
+    return box;
+  }
+  function secaoNumeros(p) {
+    var nm = p.numeros, linhas = [["Pontos coletados", p.n], ["Pontos ganhos", p.ganhos + " · " + p.pctGanhos + "%"], ["Erros de " + p.atleta, nm.errosNos + " (" + nm.errosDecisao + " por decisão, " + nm.errosExec + " por execução)"], ["Duplas faltas", nm.df], ["Protocolo entre pontos", nm.pctProtocolo + "%"], ["Subidas à rede", nm.rede + " · " + nm.redeGanha + " convertidas"]];
+    var t = el("table"), tb = el("tbody");
+    linhas.forEach(function (l) { tb.appendChild(el("tr", {}, [el("td", { texto: l[0] }), el("td", { texto: String(l[1]) })])); });
+    t.appendChild(tb);
+    return el("section", {}, [el("h2", { texto: "O jogo em números" }), t]);
+  }
+  function secaoSinais(p) {
+    var box = el("section", {}, [el("h2", { texto: "O que este jogo aponta" }), el("p", { cls: "nota", texto: "Leitura automática pelas regras do método. É ponto de partida para a conversa com o treinador, não conclusão." })]);
+    if (!p.sinais.length) box.appendChild(el("p", { texto: "Nada fora do esperado nos indicadores coletados." }));
+    p.sinais.forEach(function (t) { box.appendChild(el("div", { cls: "sinal", texto: t })); });
+    return box;
+  }
+
+  function desenhar(p, ate) {
+    document.title = "Scout da partida · " + p.atleta;
+    document.getElementById("titulo").textContent = "Partida de " + p.atleta;
+    document.getElementById("meta").textContent = [dataBR(p.data), p.torneio, p.concluida ? "" : "Acompanhamento interrompido"].filter(Boolean).join(" · ");
+    if (p.resultado && p.resultado !== "—") { var pl = document.getElementById("placar"); pl.textContent = p.resultado; pl.hidden = false; }
+    cont.textContent = "";
+    [secaoMomento(p), secaoMapa(p), secaoBolas(p), secaoNumeros(p), secaoSinais(p)].forEach(function (x) { if (x) cont.appendChild(x); });
+    cont.appendChild(el("p", { cls: "aviso", texto: "Um jogo é uma amostra. Três jogos na mesma direção são um sinal; um jogo isolado é ruído. O que importa é o padrão que se repete." }));
+    cont.appendChild(el("footer", { texto: "Compartilhado pelo treinador no QuadraLab. Este link vale até " + dataBR(ate) + " e pode ser desativado pelo treinador a qualquer momento." }));
+  }
+})();
+</script>
+</body>
+</html>
