@@ -6,21 +6,9 @@
 (function () {
   var WHATS = "https://wa.me/5511941773228?text=" + encodeURIComponent("Olá, Richard! Vi a página do QuadraLab Competição e quero conversar.");
   function ul(itens, cls) { return '<ul class="' + (cls || "cl-lista") + '">' + itens.map(function (x) { return "<li>" + x + "</li>"; }).join("") + "</ul>"; }
-  function img(nome, alt, w, h, cedo) {
-    return '<figure class="cl-foto"><img src="img/' + nome + '.webp" width="' + w + '" height="' + h + '" alt="' + alt + '"' + (cedo ? "" : ' loading="lazy"') + ' decoding="async"><figcaption>Exemplo ilustrativo: captura do aplicativo com dados de demonstração.</figcaption></figure>';
-  }
   function ir(alvo, rotulo, cls) { return '<a class="cl-btn ' + cls + '" href="#/" data-ir="' + alvo + '">' + rotulo + "</a>"; }
   function pedir(servico, rotulo, cls) { return '<a class="cl-btn ' + (cls || "escuro") + '" href="#/" data-servico="' + servico + '">' + rotulo + "</a>"; }
 
-  var INCLUI = [
-    ["Avaliação inicial", "Uma videochamada de até 60 minutos com atleta e responsável para conhecer objetivos, rotina, histórico e calendário."],
-    ["Três encontros mensais", "Uma videochamada de 50 minutos em cada mês do programa, adicional à avaliação inicial."],
-    ["Planejamento individualizado", "Organização técnica e tática do ciclo, com prioridades e ajustes conforme a rotina e os torneios."],
-    ["Revisão semanal", "Uma revisão por semana dos registros enviados, com devolutiva por texto ou áudio."],
-    ["Canal de dúvidas", "Atendimento pela plataforma, com resposta em até dois dias úteis."],
-    ["Fechamento do ciclo", "Síntese do trabalho e definição das próximas prioridades no último encontro mensal."],
-    ["Acesso à plataforma", "Funcionalidades necessárias ao acompanhamento incluídas durante os três meses, sem assinatura adicional obrigatória para essas entregas."]
-  ];
   var CONSULT = [
     { id: "revisao", nome: "Revisão de estratégia", preco: "R$ 149", para: "Para quem já tem um plano e quer revisar suas prioridades.", itens: ["Revisão de um plano existente.", "Ajustes e três prioridades.", "Entrega em até três dias úteis.", "Não inclui análise de partidas."], botao: "Solicitar revisão" },
     { id: "ao_vivo", nome: "Consultoria ao vivo", preco: "R$ 299", para: "Para discutir o momento do jogador e definir próximos passos.", itens: ["Videochamada individual de 50 minutos.", "Leitura prévia da ficha.", "Resumo com plano de ação.", "Não inclui análise prévia de partidas."], botao: "Solicitar consultoria" },
@@ -31,6 +19,7 @@
     ["Os encontros são presenciais?", "Não. Todos os encontros do programa são realizados por videochamada."],
     ["Quantos encontros estão incluídos?", "Quatro: uma avaliação inicial de até 60 minutos e três encontros mensais de 50 minutos."],
     ["Quanto tempo dura?", "O ciclo inicial dura três meses. Uma continuidade pode ser combinada após avaliação e novo aceite."],
+    ["O acompanhamento está incluído em qualquer acesso à plataforma?", "Não. O Acompanhamento MTY é uma contratação específica. Usar a plataforma, por si só, não inclui revisões pessoais de Richard."],
     ["Quanto custa?", "Três pagamentos de R$ 790, totalizando R$ 2.370 pelo ciclo."],
     ["Preciso pagar a plataforma separadamente?", "As funcionalidades necessárias ao acompanhamento estão incluídas durante o ciclo."],
     ["O programa inclui análise completa de partidas?", "Não. A análise integral de partidas em vídeo é um serviço adicional."],
@@ -38,7 +27,7 @@
     ["O responsável participa?", "Participa da avaliação inicial e pode acompanhar as informações autorizadas. O diário pessoal mantém controles próprios de privacidade."],
     ["Há orientação durante os jogos?", "O programa não inclui atendimento ao vivo durante partidas ou disponibilidade permanente em torneios."],
     ["A plataforma gera o planejamento sozinha?", "Ela pode organizar informações e oferecer sugestões. O planejamento profissional do acompanhamento passa por revisão humana."],
-    ["Como o atleta conecta o responsável e o treinador?", "Gerando um código de convite em Início, em “Quem acompanha você”. A pessoa usa o código na própria conta e o vínculo só vale depois de aprovado. Pai e mãe podem ser vinculados, cada um com o seu código. Para atleta menor de idade, um responsável é vinculado primeiro e aprova o treinador."],
+    ["Como o atleta conecta o responsável e o treinador?", "Em Início, em “Quem acompanha você”, o atleta gera um código de convite (8 caracteres, válido por 7 dias) e marca o que a pessoa pode ver. Pai e mãe podem ser vinculados, cada um com o seu código e a sua conta. A pessoa digita o código na própria conta e o vínculo só vale depois de aprovado: pelo atleta ou, se for menor de idade, por um responsável já vinculado. Para o Acompanhamento MTY, o atleta marca “Meu planejamento” no convite do treinador. Qualquer lado pode encerrar o vínculo a qualquer momento, e o diário pessoal é privado por padrão."],
     ["Há garantia de resultados?", "Não. O programa oferece organização, planejamento e acompanhamento. O desenvolvimento depende de diversos fatores."]
   ];
   var FAIXAS = [["", "Escolher"], ["ate10", "Até 10 anos"], ["11-12", "11 e 12 anos"], ["13-14", "13 e 14 anos"], ["15-16", "15 e 16 anos"], ["17-18", "17 e 18 anos"], ["adulto", "Acima de 18 anos"]];
@@ -46,103 +35,106 @@
   var SERVICOS = [["acompanhamento", "Acompanhamento MTY"], ["revisao", "Revisão de estratégia"], ["ao_vivo", "Consultoria ao vivo"], ["analise", "Análise completa do jogador"], ["analise_consultoria", "Análise completa + consultoria"], ["nao_sei", "Ainda não sei"]];
   function opcoes(l, sel) { return l.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === sel ? " selected" : "") + ">" + o[1] + "</option>"; }).join(""); }
 
+  /* Mídia opcional: só aparece quando houver arquivo real, autorizado e legendado. Preencha e publique os arquivos em competicao/img/.
+     foto:  { src: "img/richard-tsukada.webp", alt: "Richard Tsukada orientando um atleta", w: 800, h: 1000 }
+     video: { src: "img/apresentacao.mp4", poster: "img/apresentacao.jpg", legendas: "img/apresentacao-pt.vtt", duracao: "40 s" } */
+  var MIDIA = { foto: null, video: null };
+
+  var DEMOS = [
+    { id: "temporada", aba: "Minha temporada", texto: "Organize torneios e períodos de preparação.", arq: "demo-temporada", alt: "Tela Temporada do aplicativo, com os próximos torneios, as datas e a prioridade de cada um.", tag: "Exemplo de temporada" },
+    { id: "semana", aba: "Minha semana", texto: "Tenha clareza sobre o foco dos próximos treinos.", arq: "demo-semana", alt: "Tela Meu planejamento do aplicativo, com as semanas, os focos técnicos e táticos e as atividades previstas.", tag: "Exemplo de semana" },
+    { id: "partida", aba: "Depois da partida", texto: "Registre aprendizados para orientar a próxima etapa.", arq: "demo-partida", alt: "Tela de registro de partida do aplicativo, com o que funcionou, as principais dificuldades e o botão para levar as dificuldades para o treino.", tag: "Exemplo de registro" }
+  ];
+  var ENTREGAS = [
+    ["Planejamento técnico e tático individualizado", "Prioridades organizadas a partir do seu calendário e da sua rotina."],
+    ["Revisão semanal dos registros", "Uma revisão por semana do que você registrou, com devolutiva por texto ou áudio."],
+    ["Encontros por videochamada", "Uma avaliação inicial de até 60 minutos e três encontros mensais de 50 minutos."]
+  ];
+  var OFERTA_ITENS = [
+    "Avaliação inicial por videochamada de até 60 minutos.",
+    "Três encontros mensais de 50 minutos.",
+    "Quatro encontros remotos no total.",
+    "Planejamento técnico e tático.",
+    "Uma revisão semanal dos registros enviados.",
+    "Devolutivas por texto ou áudio.",
+    "Canal de dúvidas com resposta em até dois dias úteis.",
+    "Acesso às funcionalidades necessárias durante o ciclo."
+  ];
+
+  function fone(d, cedo, grande) {
+    return '<figure class="cl-fone-fig"><div class="cl-fone"><button type="button" class="cl-fone-tela" data-ampliar="' + d.arq + '" data-alt="' + d.alt.replace(/"/g, "&quot;") + '" data-tag="' + d.tag + '" aria-label="Ampliar a captura: ' + d.alt.replace(/"/g, "&quot;") + '">' +
+      '<img src="img/' + d.arq + '.webp" width="390" height="844" alt="' + d.alt.replace(/"/g, "&quot;") + '"' + (cedo ? "" : ' loading="lazy"') + ' decoding="async"></button></div>' +
+      '<figcaption><span class="cl-tag-ex">' + d.tag + '</span>' + (grande ? '<span class="cl-leg">Seu calendário transformado em prioridades para treinar.</span>' : "") + '<span class="cl-leg-p">Toque na tela para ampliar. Captura do aplicativo com dados de demonstração.</span></figcaption></figure>';
+  }
+
   function cabecalho() {
     return '<div class="cl-barra"><div class="cl-cont"><header class="cl-nav"><a class="cl-logo" href="#/" data-ir="topo" aria-label="QuadraLab Competição — início da página"><img src="../assets/logo-quadralab-competicao-v3-120.png" srcset="../assets/logo-quadralab-competicao-v3-120.png 518w, ../assets/logo-quadralab-competicao-v3-240.png 1035w" sizes="170px" width="170" height="41" alt="QuadraLab Competição"></a>' +
-      '<nav class="cl-links" id="clMenu" aria-label="Seções da página"><a href="#/" data-ir="cl-como">Como funciona</a><a href="#/" data-ir="cl-planejamento">Planejamento</a><a href="#/" data-ir="cl-acompanhamento">Acompanhamento</a><a href="#/" data-ir="cl-consultorias">Consultorias</a></nav>' +
+      '<nav class="cl-links" id="clMenu" aria-label="Seções da página"><a href="#/" data-ir="cl-demo">Como funciona</a><a href="#/" data-ir="cl-profissional">Acompanhamento</a><a href="#/" data-ir="cl-consultorias">Consultorias</a><a href="#/" data-ir="cl-faq">Perguntas</a></nav>' +
       '<span class="cl-acoes"><a class="cl-entrar" href="#/entrar">Entrar</a>' + ir("cl-acompanhamento", "Conhecer o acompanhamento", "lima") + "</span>" +
       '<button type="button" class="cl-menu-bt" id="clMenuBt" aria-expanded="false" aria-controls="clMenu">Menu</button></header></div></div>';
   }
   function abertura() {
-    return cabecalho() + '<div class="cl-topo" id="topo"><div class="cl-cont">' +
-      '<div class="cl-hero"><div class="cl-hero-txt"><span class="comp-kicker">Para jogadores juvenis de competição</span>' +
-      "<h1>Seu próximo torneio faz parte de um <em>plano maior.</em></h1>" +
-      '<p class="cl-sub">Conecte calendário, estratégia e treinos com acompanhamento remoto de Richard Tsukada — em casa ou durante as viagens.</p>' +
-      '<div class="cl-cta">' + ir("cl-acompanhamento", "Conhecer o acompanhamento", "lima") + ir("cl-ofertas", "Explorar a plataforma", "contorno") + "</div>" +
-      '<p class="cl-fatos">100% on-line · Ciclo inicial de 3 meses</p></div>' +
-      '<div class="cl-hero-foto">' + img("exemplo-temporada", "Tela de exemplo do planejamento da temporada, com blocos de preparação, competição e recuperação ao redor de dois torneios de exemplo.", 390, 406, true) + "</div></div></div></div>";
+    return cabecalho() + '<div class="cl-topo" id="topo"><div class="cl-cont"><div class="cl-hero"><div class="cl-hero-txt"><span class="comp-kicker">Para jogadores juvenis de competição</span>' +
+      "<h1>Saiba o que treinar entre um torneio e outro.</h1>" +
+      '<p class="cl-sub">Organize seu calendário, defina prioridades e acompanhe seu desenvolvimento. Conte também com a orientação remota de Richard Tsukada.</p>' +
+      '<div class="cl-cta">' + ir("cl-acompanhamento", "Conhecer o acompanhamento", "lima") + '<a class="cl-link-sec" href="#/" data-ir="cl-demo">Ver a plataforma por dentro</a></div>' +
+      '<p class="cl-fatos">Acompanhamento 100% on-line · Ciclo inicial de 3 meses</p>' +
+      '<p class="cl-aparte">O acompanhamento profissional é uma contratação específica, à parte do acesso à plataforma.</p></div>' +
+      '<div class="cl-hero-foto">' + fone({ arq: "demo-hero", alt: "Tela inicial do aplicativo, com a contagem para o próximo torneio, o próximo compromisso e o planejamento da semana, com o objetivo e o treino de hoje.", tag: "Exemplo de planejamento" }, true, true) + "</div></div></div></div>";
   }
-  function familia() {
-    return '<div class="cl-cont"><section class="cl-sec" id="cl-como" tabindex="-1"><span class="comp-kicker azul">Como funciona</span><h2>O torneio termina. O aprendizado continua.</h2>' +
-      '<p class="cl-lead">Entre viagens, escola, treinos e competições, cada partida traz informações importantes. O QuadraLab Competição ajuda a organizar esses registros e transformá-los em prioridades para a próxima etapa.</p>' +
-      '<div class="cl-cards cl-cinco">' + [
-        ["Saber o que trabalhar", "Antes do próximo torneio, as prioridades ficam claras e à vista."],
-        ["Registrar cada partida", "O que funcionou, o que foi difícil e o que levar para o treino."],
-        ["Receber orientação à distância", "Revisão de um profissional, mesmo quando o treinador não está na viagem."],
-        ["Alinhar atleta, família e treinador", "Cada pessoa vê só o que o atleta permitir."],
-        ["Dar continuidade", "Uma linha entre competir e treinar, semana após semana."]
-      ].map(function (c, i) { return '<div class="cl-card"><b>0' + (i + 1) + "</b><h3>" + c[0] + "</h3><p>" + c[1] + "</p></div>"; }).join("") + "</div>" +
-      '<p class="cl-nota">Treinador e responsável entram por um código que o atleta gera. Pai e mãe podem ser vinculados, cada um com o seu código e a sua conta. Para atletas menores de idade, o responsável aprova o treinador. Qualquer lado pode encerrar o vínculo a qualquer momento, e o diário pessoal é privado por padrão.</p></section>';
+  function demonstracao() {
+    return '<section class="cl-sec cl-claro" id="cl-demo" tabindex="-1"><div class="cl-cont"><span class="comp-kicker azul">A plataforma por dentro</span><h2>Veja como isso funciona na sua rotina.</h2>' +
+      '<div class="cl-demo"><div class="cl-abas" role="tablist" aria-label="Telas da plataforma">' + DEMOS.map(function (d, i) {
+        return '<button type="button" role="tab" class="cl-aba" id="clAba-' + d.id + '" aria-controls="clPainel-' + d.id + '" aria-selected="' + (i === 0) + '" tabindex="' + (i === 0 ? "0" : "-1") + '"><b>' + d.aba + '</b><span>' + d.texto + "</span></button>";
+      }).join("") + '</div><div class="cl-paineis">' + DEMOS.map(function (d, i) {
+        return '<div role="tabpanel" class="cl-painel" id="clPainel-' + d.id + '" aria-labelledby="clAba-' + d.id + '"' + (i ? " hidden" : "") + '><p class="cl-demo-d">' + d.texto + "</p>" + fone(d, false, false) + "</div>";
+      }).join("") + "</div></div>" +
+      '<p class="cl-nota">As sugestões do planejamento são geradas por regras, a partir do calendário, da rotina e dos registros do atleta. Elas precisam de revisão: no acompanhamento, quem revisa é o profissional. Não substituem orientação de saúde ou de preparação física.</p></div></section>';
   }
-  function vinculos() {
-    var passos = [
-      ["Crie a conta e informe o nascimento", "O atleta cria a conta como atleta. A data de nascimento define se há responsável nas aprovações."],
-      ["Gere um código de convite", "Em Início, em “Quem acompanha você”, escolha Responsável ou Treinador e marque o que essa pessoa pode ver. O código tem 8 caracteres e vale 7 dias."],
-      ["Envie o código", "Passe o código para a pessoa, por mensagem. Ela cria a própria conta como responsável ou treinador e digita o código em Início."],
-      ["Aprove o vínculo", "O pedido aparece para aprovação. Para o treinador de um atleta menor de idade, quem aprova é o responsável."],
-      ["Cada um vê só o que foi marcado", "O atleta pode mudar as áreas compartilhadas ou encerrar o vínculo quando quiser, e a pessoa vinculada também pode encerrar."]
-    ];
-    return '<section class="cl-sec" id="cl-vinculos" tabindex="-1"><span class="comp-kicker azul">Responsável e treinador</span><h2>Como o atleta conecta cada pessoa.</h2>' +
-      '<p class="cl-lead">A conexão começa sempre pelo atleta, com um código. Ninguém entra por conta própria e ninguém vê nada sem aprovação.</p>' +
-      '<ol class="cl-passos">' + passos.map(function (s, i) { return '<li class="cl-card"><b>' + (i + 1) + "</b><h3>" + s[0] + "</h3><p>" + s[1] + "</p></li>"; }).join("") + "</ol>" +
-      '<div class="cl-duas"><article class="cl-oferta"><p class="olho-cl">Atleta menor de idade</p><h3>O responsável vem primeiro.</h3><p>Antes de convidar o treinador, o atleta vincula o responsável. Depois, o treinador só é aprovado por ele. O responsável também confirma pedidos de consultoria e do Acompanhamento MTY e responde pelo pagamento.</p></article>' +
-      '<article class="cl-oferta"><p class="olho-cl">Para o Acompanhamento MTY</p><h3>O profissional precisa estar vinculado.</h3><p>No convite do treinador, o atleta marca a área “Meu planejamento”: é ela que permite revisar e aprovar o planejamento. O diário pessoal continua privado e só é compartilhado registro por registro.</p></article></div></section>';
-  }
-  function ofertas() {
-    return '<section class="cl-sec" id="cl-ofertas" tabindex="-1"><span class="comp-kicker azul">Duas ofertas complementares</span><h2>A plataforma organiza. O profissional orienta.</h2>' +
-      '<div class="cl-duas"><article class="cl-oferta"><p class="olho-cl">Plataforma QuadraLab Competição</p><h3>Organização para sua jornada competitiva.</h3>' +
-      ul(["Calendário e temporada.", "Estratégias por partida.", "Registros de jogos e treinos.", "Preparação e desafios.", "Diário pessoal.", "Histórico de desenvolvimento.", "Sugestões de planejamento, geradas por regras para o atleta e o treinador revisarem."]) +
+  function profissional() {
+    var foto = MIDIA.foto ? '<figure class="cl-pro-foto"><img src="' + MIDIA.foto.src + '" width="' + MIDIA.foto.w + '" height="' + MIDIA.foto.h + '" alt="' + MIDIA.foto.alt + '" loading="lazy" decoding="async"></figure>' : "";
+    var video = MIDIA.video ? '<div class="cl-video" id="clVideo" data-src="' + MIDIA.video.src + '" data-poster="' + (MIDIA.video.poster || "") + '" data-legendas="' + (MIDIA.video.legendas || "") + '"><button type="button" class="cl-btn borda" id="clVideoBt">Assistir à apresentação' + (MIDIA.video.duracao ? " (" + MIDIA.video.duracao + ")" : "") + "</button></div>" : "";
+    return '<section class="cl-sec" id="cl-profissional" tabindex="-1"><div class="cl-cont"><div class="cl-pro' + (foto ? " com-foto" : "") + '"><div class="cl-pro-txt"><span class="comp-kicker azul">Acompanhamento MTY, com Richard Tsukada</span><h2>Seu desenvolvimento acompanhado de perto, mesmo à distância.</h2>' +
+      '<p class="cl-lead">No Acompanhamento MTY, Richard Tsukada revisa seus registros, organiza prioridades e ajusta o planejamento conforme sua rotina e seu calendário.</p>' + video +
+      '<p class="cl-nota">Richard Tsukada é o autor da Metodologia MTY, base do QuadraLab. Quando houver treinador presencial, o trabalho é feito em conjunto com ele, mediante autorização.</p></div>' + foto +
+      '<ol class="cl-entregas">' + ENTREGAS.map(function (e, i) { return '<li><b>' + (i + 1) + "</b><div><h3>" + e[0] + "</h3><p>" + e[1] + "</p></div></li>"; }).join("") + "</ol></div>" +
+      '<div class="cl-duas cl-vs"><article class="cl-oferta"><p class="olho-cl">Na plataforma</p><h3>Organize calendário, estratégias, treinos e registros em um só lugar.</h3>' +
       '<div class="cl-cta"><a class="cl-btn escuro" href="#/criar">Criar minha conta</a><a class="cl-btn borda" href="#/entrar">Já tenho conta</a></div></article>' +
-      '<article class="cl-oferta destaque"><p class="olho-cl">Acompanhamento MTY</p><h3>Planejamento e revisão com um profissional.</h3>' +
-      ul(["Avaliação inicial.", "Planejamento técnico e tático individualizado.", "Revisões semanais.", "Encontros mensais por videochamada.", "Ajustes conforme calendário e registros."]) +
-      '<div class="cl-cta">' + ir("cl-acompanhamento", "Conhecer o acompanhamento", "argila") + "</div></article></div>" +
-      '<p class="cl-nota forte">A plataforma organiza as informações. No acompanhamento, Richard revisa o contexto do atleta e orienta as próximas prioridades.</p></section>';
+      '<article class="cl-oferta destaque"><p class="olho-cl">Com o Acompanhamento MTY</p><h3>Receba planejamento e revisão profissional para orientar as próximas prioridades.</h3>' +
+      '<div class="cl-cta">' + ir("cl-acompanhamento", "Ver o que está incluído", "argila") + "</div></article></div>" +
+      '<p class="cl-nota forte">As funcionalidades necessárias ao acompanhamento estão incluídas durante o ciclo contratado. As revisões pessoais de Richard fazem parte do Acompanhamento MTY, contratado à parte.</p></div></section>';
   }
-  function planejamento() {
-    return '<section class="cl-sec" id="cl-planejamento" tabindex="-1"><span class="comp-kicker azul">Planejamento conectado ao calendário</span><h2>Uma visão da temporada. Um objetivo para esta semana.</h2>' +
-      '<div class="cl-cards cl-tres"><div class="cl-card"><p class="olho-cl">Temporada</p><h3>Torneios, viagens, escola e blocos de preparação</h3><p>Organizados em conjunto, com as prioridades de cada competição.</p></div>' +
-      '<div class="cl-card"><p class="olho-cl">Próximas semanas</p><h3>Prioridades de desenvolvimento</h3><p>Alinhadas aos compromissos do atleta.</p></div>' +
-      '<div class="cl-card"><p class="olho-cl">Esta semana</p><h3>Objetivos e atividades claros</h3><p>Para orientar a prática, com registro do que foi feito.</p></div></div>' +
-      '<div class="cl-fotos">' + img("exemplo-semanas", "Tela de exemplo das próximas semanas, com objetivo, focos e atividades previstas por semana.", 390, 693) + '<div class="cl-fotos-txt"><p class="cl-lead">As sugestões consideram o calendário, a rotina e os registros do atleta. No acompanhamento, o planejamento é revisado pelo profissional responsável.</p>' +
-      ul(["Cada versão tem autor, data e histórico.", "Uma versão aprovada só muda quando o treinador aprova outra: mudanças no calendário geram uma proposta de ajuste.", "Mostra o que foi considerado e o que faltou informar."]) +
-      '<p class="cl-nota">É uma organização de prioridades técnicas e táticas. Não determina sozinha a periodização ideal e não substitui orientação de saúde ou de preparação física.</p></div></div></section>';
-  }
-  function acompanhamento() {
-    return '<section class="cl-acomp" id="cl-acompanhamento" tabindex="-1"><div class="cl-cont"><span class="comp-kicker">100% on-line</span><h2>Acompanhamento MTY</h2>' +
-      '<p class="cl-lead claro">Três meses de planejamento, orientação e revisão para dar continuidade ao desenvolvimento do atleta.</p>' +
-      '<div class="cl-preco"><p class="cl-preco-n">3 pagamentos de R$ 790</p><p class="cl-preco-t">Investimento total do programa: <strong>R$ 2.370</strong></p>' +
-      '<p class="cl-preco-nota">Programa inicial de 3 meses, sem renovação automática. A forma de pagamento é combinada no contato.</p></div>' +
-      '<div class="cl-inclui">' + INCLUI.map(function (x) { return '<div class="cl-item"><h3>' + x[0] + "</h3><p>" + x[1] + "</p></div>"; }).join("") + "</div>" +
-      '<p class="cl-destaque">São quatro encontros remotos no total: uma avaliação inicial e três encontros mensais.</p>' +
-      '<div class="cl-acomp-fim"><div>' + pedir("acompanhamento", "Quero solicitar o acompanhamento", "lima") + '<p class="cl-apoio">Envie seu interesse para alinharmos objetivos, disponibilidade e início do programa.</p></div>' +
-      img("exemplo-acompanhamento", "Tela de exemplo do painel do acompanhamento, com o profissional responsável, o próximo encontro remoto e as prioridades da semana.", 390, 666) + "</div></div></section>";
-  }
-  function meses() {
-    return '<div class="cl-cont"><section class="cl-sec" id="cl-meses"><span class="comp-kicker azul">Como os três meses funcionam</span><h2>Um ciclo, três momentos.</h2><div class="cl-cards cl-tres">' + [
-      ["Mês 1", "Conhecer e organizar", "Avaliação inicial, definição das prioridades e organização do planejamento. Primeiro encontro mensal de revisão."],
-      ["Mês 2", "Acompanhar e ajustar", "Revisão dos registros, ajustes na preparação e segundo encontro mensal."],
-      ["Mês 3", "Consolidar e reavaliar", "Revisão do ciclo, síntese dos aprendizados e terceiro encontro mensal para definir os próximos passos."]
-    ].map(function (m) { return '<div class="cl-card"><p class="olho-cl">' + m[0] + "</p><h3>" + m[1] + "</h3><p>" + m[2] + "</p></div>"; }).join("") + "</div>" +
-      '<p class="cl-nota">A organização de cada mês depende do calendário individual do atleta. O programa pode continuar por um novo ciclo, mediante avaliação e novo aceite.</p></section>' +
-      '<section class="cl-sec" id="cl-escopo"><span class="comp-kicker azul">Escopo do acompanhamento</span><div class="cl-duas"><article class="cl-oferta"><h3>Como funciona à distância</h3><p>Todos os encontros são realizados por videochamada. O atleta executa os treinos no local habitual. Quando houver treinador presencial, o planejamento pode ser alinhado com ele mediante autorização.</p></article>' +
-      '<article class="cl-oferta"><h3>O que é contratado separadamente</h3><p>Análise integral de partidas em vídeo, acompanhamento presencial, viagens e orientação ao vivo durante competições não estão incluídos.</p></article></div></section></div>';
+  function oferta() {
+    return '<section class="cl-sec" id="cl-acompanhamento" tabindex="-1"><div class="cl-cont"><div class="cl-card-oferta"><span class="comp-kicker azul">Acompanhamento 100% on-line</span><h2>Acompanhamento MTY</h2>' +
+      '<p class="cl-lead">Três meses para organizar a preparação, acompanhar os registros e revisar as próximas prioridades.</p>' +
+      '<div class="cl-preco"><p class="cl-preco-n">3 pagamentos de R$ 790</p><p class="cl-preco-t">Total do programa: <strong>R$ 2.370</strong></p></div>' +
+      '<h3 class="cl-sub-t">O que está incluído</h3>' + ul(OFERTA_ITENS, "cl-checks") +
+      '<p class="cl-destaque">Todos os encontros são on-line. Os treinos são realizados no local habitual do atleta.</p>' +
+      '<p class="cl-nota">Análise integral de partidas em vídeo, viagens e orientação ao vivo durante jogos são serviços separados.</p>' +
+      '<div class="cl-oferta-fim">' + pedir("acompanhamento", "Solicitar acompanhamento", "argila") + '<p class="cl-apoio">Você envia seu interesse e conversamos sobre objetivos, disponibilidade e início. Enviar o formulário não contrata nem cobra nada. Programa inicial de 3 meses, sem renovação automática: a renovação só acontece mediante novo aceite. A forma de pagamento é combinada no contato.</p></div></div>' +
+      '<div class="cl-meses"><h3>Como os três meses funcionam</h3><div class="cl-cards cl-tres">' + [
+        ["Mês 1", "Conhecer e organizar", "Avaliação inicial, definição das prioridades e organização do planejamento. Primeiro encontro mensal de revisão."],
+        ["Mês 2", "Acompanhar e ajustar", "Revisão dos registros, ajustes na preparação e segundo encontro mensal."],
+        ["Mês 3", "Consolidar e reavaliar", "Revisão do ciclo, síntese dos aprendizados e terceiro encontro mensal para definir os próximos passos."]
+      ].map(function (m) { return '<div class="cl-card"><p class="olho-cl">' + m[0] + "</p><h3>" + m[1] + "</h3><p>" + m[2] + "</p></div>"; }).join("") + "</div></div></div></section>";
   }
   function consultorias() {
-    return '<div class="cl-cont"><section class="cl-sec" id="cl-consultorias" tabindex="-1"><span class="comp-kicker azul">Consultorias avulsas</span><h2>Precisa de uma orientação pontual?</h2><p class="cl-lead">Escolha um atendimento específico, sem contratar o acompanhamento de três meses.</p>' +
+    return '<section class="cl-sec cl-claro" id="cl-consultorias" tabindex="-1"><div class="cl-cont"><span class="comp-kicker azul">Consultorias avulsas</span><h2>Uma orientação pontual para o seu momento.</h2><p class="cl-lead">Escolha um atendimento específico, sem contratar o acompanhamento de três meses.</p>' +
       '<div class="cl-consul">' + CONSULT.map(function (c) {
         return '<article class="cl-card cl-consul-card"><h3>' + c.nome + '</h3><p class="cl-valor">' + c.preco + '</p><p class="cl-para">' + c.para + "</p>" + ul(c.itens) + pedir(c.id, c.botao, "escuro") + "</article>";
       }).join("") + "</div>" +
-      '<p class="cl-nota">Valores de lançamento. Valores por contratação, sem recorrência. Serviços avulsos separados do acompanhamento e da assinatura da plataforma.</p></section>';
-  }
-  function profissional() {
-    return '<section class="cl-sec" id="cl-profissional"><span class="comp-kicker azul">O profissional</span><h2>Acompanhamento com Richard Tsukada</h2><div class="cl-duas"><div><p class="cl-lead">Richard Tsukada é o treinador por trás da Metodologia MTY, base do QuadraLab. No acompanhamento, ele revisa o contexto do atleta (calendário, registros e objetivos) e orienta as próximas prioridades em linguagem simples, para o atleta e para a família.</p></div>' +
-      '<div><p>Na prática, a Metodologia MTY organiza o desenvolvimento em poucas prioridades por vez, ligadas ao que acontece nas partidas, para que o treino de cada semana tenha um objetivo claro.</p><p class="cl-nota">Quando houver treinador presencial, o trabalho é feito em conjunto com ele, mediante autorização.</p></div></div></section>';
+      '<p class="cl-nota">Valores de lançamento. Valores por contratação, sem recorrência. Serviços avulsos separados do acompanhamento e da assinatura da plataforma.</p></div></section>';
   }
   function perguntas() {
-    return '<section class="cl-sec" id="cl-faq"><span class="comp-kicker azul">Perguntas frequentes</span><h2>O que as famílias mais perguntam.</h2><div class="cl-faq">' +
-      FAQ.map(function (f) { return "<details><summary>" + f[0] + "</summary><p>" + f[1] + "</p></details>"; }).join("") + "</div></section>";
+    return '<section class="cl-sec" id="cl-faq" tabindex="-1"><div class="cl-cont"><span class="comp-kicker azul">Perguntas frequentes</span><h2>O que as famílias mais perguntam.</h2><div class="cl-faq">' +
+      FAQ.map(function (f) { return "<details><summary>" + f[0] + "</summary><p>" + f[1] + "</p></details>"; }).join("") + "</div></div></section>";
+  }
+  function chamadaFinal() {
+    return '<section class="cl-fim"><div class="cl-cont"><h2>Dê continuidade ao que cada torneio ensina.</h2><p>Organize a preparação e conte com acompanhamento remoto para revisar prioridades ao longo da temporada.</p>' +
+      '<div class="cl-cta centro">' + pedir("acompanhamento", "Solicitar acompanhamento", "lima") + '<a class="cl-link-sec" href="#/" data-ir="cl-demo">Ver a plataforma por dentro</a></div></div></section>';
   }
   function formulario() {
-    return '<section class="cl-sec" id="cl-contato" tabindex="-1"><span class="comp-kicker azul">Formulário de interesse</span><h2>Conte um pouco sobre o atleta.</h2>' +
+    return '<div class="cl-cont"><section class="cl-sec" id="cl-contato" tabindex="-1"><span class="comp-kicker azul">Formulário de interesse</span><h2>Conte um pouco sobre o atleta.</h2>' +
       '<p class="cl-lead">Pedimos só o necessário para o primeiro contato. É uma solicitação de contato: não contrata nada, não gera cobrança e não reserva vaga.</p>' +
       '<form id="clForm" class="cl-form" novalidate><div class="cl-hp" aria-hidden="true"><label>Não preencha este campo<input type="text" name="site" tabindex="-1" autocomplete="off"></label></div>' +
       '<div class="cl-campo"><label for="clNome">Nome do responsável ou contratante</label><input id="clNome" name="nome" autocomplete="name" maxlength="80" required></div>' +
@@ -157,14 +149,12 @@
       '<p class="cl-alt">Prefere conversar agora? <a href="' + WHATS + '" target="_blank" rel="noopener">Falar pelo WhatsApp<span class="sr"> (abre em nova aba)</span></a></p></form>' +
       '<div class="cl-ok" id="clOkBox" role="status" hidden><h3>Solicitação recebida.</h3><p>Entraremos em contato pelo e-mail ou telefone informado. Nada foi contratado nem cobrado: o próximo passo é a nossa conversa.</p></div></section></div>';
   }
-  function encerramento() {
-    return '<section class="cl-fim"><div class="cl-cont"><h2>Dê continuidade ao que cada torneio ensina.</h2><p>Organize a preparação e conte com acompanhamento remoto para revisar prioridades ao longo da temporada.</p>' +
-      '<p class="cl-cta centro">' + pedir("acompanhamento", "Solicitar acompanhamento", "argila") + ir("cl-ofertas", "Explorar a plataforma", "borda") + "</p></div></section>" +
-      '<div class="cl-cont"><footer class="cl-rodape"><span>Tecnologia <strong>QuadraLab</strong> · Metodologia MTY, de Richard Tsukada</span><span>Os dados de torneios são cadastrados pelo atleta. Confirme sempre no site oficial. Sem garantia de resultados.</span></footer></div>';
+  function rodape() {
+    return '<div class="cl-cont"><footer class="cl-rodape"><span>Tecnologia <strong>QuadraLab</strong> · Metodologia MTY, de Richard Tsukada</span><span>Os dados de torneios são cadastrados pelo atleta. Confirme sempre no site oficial. Sem garantia de resultados.</span></footer></div>';
   }
 
   window.QL_COMP_LANDING = {
-    html: function () { return (abertura() + familia() + vinculos() + ofertas() + planejamento() + '</div>' + acompanhamento() + meses() + consultorias() + profissional() + perguntas() + formulario() + encerramento()).replace(/R\$ (\d)/g, function (m, d) { return "R$\u00a0" + d; }); },
+    html: function () { return (abertura() + demonstracao() + profissional() + oferta() + consultorias() + perguntas() + chamadaFinal() + formulario() + rodape()).replace(/R\$ (\d)/g, function (m, d) { return "R$\u00a0" + d; }); },
     ligar: function (raiz) {
       var reduz = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       function rolar(id) {
@@ -179,6 +169,51 @@
         document.addEventListener("keydown", function (ev) { if (ev.key === "Escape" && menuBt.getAttribute("aria-expanded") === "true") menuAbrir(false, true); });
         window.addEventListener("resize", function () { if (window.innerWidth >= 900) menuAbrir(false); });
       }
+      /* demonstração: abas com escolha do visitante (sem rotação automática) */
+      var abas = Array.prototype.slice.call(raiz.querySelectorAll(".cl-aba"));
+      function escolherAba(alvo, foco) {
+        abas.forEach(function (a) {
+          var sel = a === alvo; a.setAttribute("aria-selected", String(sel)); a.tabIndex = sel ? 0 : -1;
+          var pn = document.getElementById(a.getAttribute("aria-controls")); if (pn) pn.hidden = !sel;
+        });
+        if (foco) alvo.focus();
+      }
+      abas.forEach(function (a, i) {
+        a.addEventListener("click", function () { escolherAba(a, false); });
+        a.addEventListener("keydown", function (ev) {
+          var k = ev.key, n = abas.length, j = k === "ArrowRight" || k === "ArrowDown" ? (i + 1) % n : k === "ArrowLeft" || k === "ArrowUp" ? (i + n - 1) % n : k === "Home" ? 0 : k === "End" ? n - 1 : -1;
+          if (j >= 0) { ev.preventDefault(); escolherAba(abas[j], true); }
+        });
+      });
+      /* ampliar a captura: diálogo com botão Fechar, Esc, clique fora e foco devolvido */
+      var ampl = null;
+      function fecharAmpl() { if (!ampl) return; var voltar = ampl.voltar; ampl.el.remove(); document.documentElement.classList.remove("cl-sem-rolagem"); document.removeEventListener("keydown", ampl.tecla, true); ampl = null; if (voltar && voltar.focus) voltar.focus(); }
+      function abrirAmpl(bt) {
+        var el = document.createElement("div"); el.className = "cl-ampl"; el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true"); el.setAttribute("aria-label", "Captura ampliada");
+        var cx = document.createElement("div"); cx.className = "cl-ampl-cx";
+        var fe = document.createElement("button"); fe.type = "button"; fe.className = "cl-btn lima cl-ampl-fechar"; fe.textContent = "Fechar";
+        var im = document.createElement("img"); im.src = "img/" + bt.getAttribute("data-ampliar") + ".webp"; im.alt = bt.getAttribute("data-alt") || ""; im.width = 390; im.height = 844;
+        var lg = document.createElement("p"); lg.className = "cl-ampl-leg"; lg.textContent = (bt.getAttribute("data-tag") || "Exemplo") + " · captura do aplicativo com dados de demonstração.";
+        cx.appendChild(fe); cx.appendChild(im); cx.appendChild(lg); el.appendChild(cx); document.body.appendChild(el); document.documentElement.classList.add("cl-sem-rolagem");
+        var tecla = function (ev) {
+          if (ev.key === "Escape") { ev.preventDefault(); fecharAmpl(); }
+          else if (ev.key === "Tab") { ev.preventDefault(); fe.focus(); }
+        };
+        document.addEventListener("keydown", tecla, true);
+        el.addEventListener("click", function (ev) { if (ev.target === el || ev.target === cx) fecharAmpl(); });
+        fe.addEventListener("click", fecharAmpl);
+        ampl = { el: el, tecla: tecla, voltar: bt }; fe.focus();
+      }
+      raiz.querySelectorAll("[data-ampliar]").forEach(function (bt) { bt.addEventListener("click", function () { abrirAmpl(bt); }); });
+      /* vídeo de apresentação: só existe quando MIDIA.video estiver preenchida; nada é baixado antes do toque e não há reprodução automática */
+      var vb = document.getElementById("clVideoBt");
+      if (vb) vb.addEventListener("click", function () {
+        var box = document.getElementById("clVideo"), v = document.createElement("video");
+        v.controls = true; v.preload = "none"; v.setAttribute("playsinline", ""); if (box.getAttribute("data-poster")) v.poster = box.getAttribute("data-poster");
+        var so = document.createElement("source"); so.src = box.getAttribute("data-src"); v.appendChild(so);
+        if (box.getAttribute("data-legendas")) { var tr = document.createElement("track"); tr.kind = "captions"; tr.srclang = "pt-BR"; tr.label = "Português"; tr.src = box.getAttribute("data-legendas"); tr.default = true; v.appendChild(tr); }
+        box.textContent = ""; box.appendChild(v); v.focus();
+      });
       raiz.querySelectorAll("[data-ir]").forEach(function (a) { a.addEventListener("click", function (ev) { ev.preventDefault(); menuAbrir(false); rolar(a.getAttribute("data-ir")); }); });
       raiz.querySelectorAll("[data-servico]").forEach(function (a) {
         a.addEventListener("click", function (ev) {
