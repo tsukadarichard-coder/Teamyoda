@@ -264,6 +264,13 @@ async function get(uid, qs) { const r = await handler({ httpMethod: "GET", heade
   assert.strictEqual((await post("resp", { acao: "devolutiva", id: idT, tipo: "geral", destaques: "x" })).s, 403, "só o treinador do vínculo escreve");
   assert.strictEqual((await post("trein", { acao: "devolutiva", id: idT, tipo: "geral" })).s, 400, "devolutiva vazia");
   assert.strictEqual((await post("trein", { acao: "devolutiva", id: idT, tipo: "partida", refId: "naoexiste12", destaques: "x" })).s, 404);
+  /* recomendação livre: texto aberto, sem ligar a torneio ou partida; só o treinador do vínculo escreve */
+  assert.strictEqual((await post("trein", { acao: "devolutiva", id: idT, tipo: "recomendacao", recomendacao: "x" })).s, 400, "recomendação vazia");
+  assert.strictEqual((await post("resp", { acao: "devolutiva", id: idT, tipo: "recomendacao", recomendacao: "Leia sobre rotina entre pontos." })).s, 403);
+  const rec = await post("trein", { acao: "devolutiva", id: idT, tipo: "recomendacao", assunto: "Rotina", recomendacao: "Leia sobre rotina entre pontos e teste no próximo treino.", foco: "respirar antes do saque" });
+  assert.strictEqual(rec.s, 200); const dRec = Object.keys(dados).filter((k) => /devolutivas$/.test(k)).map((k) => dados[k][rec.id]).filter(Boolean)[0];
+  assert.strictEqual(dRec.tipo, "recomendacao"); assert.strictEqual(dRec.refRotulo, "Recomendação · Rotina"); assert.strictEqual(dRec.refId, null); assert.ok(dRec.recomendacao.startsWith("Leia sobre")); assert.strictEqual(dRec.autorUid, "trein");
+  assert.strictEqual((await post("trein", { acao: "excluirDevolutiva", id: idT, devolutivaId: rec.id })).s, 200);
   const dv = await post("trein", { acao: "devolutiva", id: idT, tipo: "partida", refId: "partida0002", destaques: "Boa agressividade.", melhorar: "Primeiro saque.", foco: "Primeiro saque em 65%" });
   assert.strictEqual(dv.s, 200);
   const dvT = await post("trein", { acao: "devolutiva", id: idT, tipo: "torneio", refId: t3b.id, destaques: "Evolução clara no torneio." });

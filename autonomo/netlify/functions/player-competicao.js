@@ -244,7 +244,7 @@ exports.handler = async function (event) {
       const TOR = require("./_player-torneios"), r = TOR.normalizarDevolutiva(body);
       if (!r.ok) throw new ErroPublico(400, r.erro);
       const areas = C.areasValidas(v.areas);
-      let rotulo = "Geral";
+      let rotulo = r.dados.tipo === "recomendacao" ? (r.dados.assunto ? "Recomendação · " + r.dados.assunto : "Recomendação") : "Geral";
       if (r.dados.tipo === "torneio") {
         if (!areas.includes("temporada")) throw new ErroPublico(403, "O atleta não compartilhou a temporada com você.");
         const s0 = await refJogador(v.atletaUid).collection("torneios").doc(r.dados.refId).get();

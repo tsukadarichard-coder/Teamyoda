@@ -2881,14 +2881,36 @@
     var vs, rs;
     try { vs = await vinculosAtivosTreinador(); rs = await Promise.all(vs.map(function (v) { return api("player-competicao?ver=" + encodeURIComponent(v.id)).catch(function () { return null; }); })); }
     catch (e) { tela(VOLTAR_INICIO + '<div class="aviso">' + esc(e.message) + "</div>"); return; }
-    tela(VOLTAR_INICIO + '<h1>Recomendações</h1><p class="sub">O que você observou em cada atleta e o que ele deve levar para o treino. Só o atleta (e o responsável, se for menor) lê.</p>' +
+    function antigas(r) { return (r.devolutivas || []).filter(function (d) { return d.tipo === "recomendacao"; }).slice(0, 3); }
+    tela(VOLTAR_INICIO + '<h1>Recomendações</h1><p class="sub">Recomende o que quiser ao seu atleta: um treino, uma leitura, um vídeo, um hábito, um ajuste. Só o atleta (e o responsável, se for menor) lê.</p>' +
       (vs.length ? vs.map(function (v, i) {
         var r = rs[i]; if (!r) return '<section class="cartao"><h2>' + esc(v.atleta.nome) + '</h2><p class="nota">Não foi possível carregar agora.</p></section>';
-        var devs = r.devolutivas || [], d0 = devs[0];
-        return '<section class="cartao"><p class="olho">' + devs.length + (devs.length === 1 ? " recomendação enviada" : " recomendações enviadas") + '</p><h2>' + esc(r.atleta.nome) + "</h2>" +
-          (d0 ? '<p class="nota">Última em ' + esc(dataCurta(String(d0.criadoEm).slice(0, 10))) + (d0.refRotulo ? " · " + esc(d0.refRotulo) : "") + "</p>" + (d0.foco ? '<p class="comp-dev-bloco comp-dev-foco"><strong>Foco sugerido</strong>' + esc(d0.foco) + "</p>" : d0.melhorar ? '<p class="comp-dev-bloco"><strong>O que melhorar</strong>' + esc(d0.melhorar) + "</p>" : "") : '<p class="nota">Você ainda não escreveu nenhuma recomendação para este atleta.</p>') +
-          (r.referencias ? '<div class="acoes"><a class="btn btn-primario" href="#/competicao/vinculo/' + esc(v.id) + '" data-escrever="' + esc(v.id) + '">Escrever recomendação</a></div>' : '<p class="nota">O atleta não liberou torneios nem partidas: ainda não dá para comentar um jogo específico.</p>') + "</section>";
-      }).join("") : '<div class="cartao" style="margin-top:14px"><h2>Nenhum atleta vinculado</h2><p class="nota" style="margin-top:6px">Use o código de convite do atleta em <a href="#/inicio">Início</a>. Quando ele aprovar, as recomendações ficam aqui.</p></div>'));
+        var ant = antigas(r);
+        return '<section class="cartao rec-card" data-rec="' + esc(v.id) + '"><h2>' + esc(r.atleta.nome) + "</h2>" +
+          '<form class="rec-form" novalidate><div class="campo"><label for="recAss-' + esc(v.id) + '">Assunto <span class="nota">(opcional)</span></label><input id="recAss-' + esc(v.id) + '" maxlength="80" placeholder="Ex.: Rotina antes do saque"></div>' +
+          '<div class="campo"><label for="recTxt-' + esc(v.id) + '">Recomendação</label><textarea id="recTxt-' + esc(v.id) + '" rows="5" maxlength="2000" placeholder="Escreva livremente o que você recomenda."></textarea><p class="nota rec-cont" style="margin-top:4px">0 de 2000 caracteres</p></div>' +
+          '<div class="campo"><label for="recFoco-' + esc(v.id) + '">Foco de treino sugerido <span class="nota">(opcional)</span></label><input id="recFoco-' + esc(v.id) + '" maxlength="200" placeholder="Ex.: primeiro saque em 65%"></div>' +
+          '<div class="aviso rec-aviso" role="alert" hidden></div><div class="acoes"><button class="btn btn-primario" type="submit">Enviar recomendação</button></div></form>' +
+          (ant.length ? '<p class="olho" style="margin-top:14px">Enviadas por você</p>' + ant.map(function (d) {
+            return '<div class="comp-dev-bloco"><span class="nota">' + esc(dataCurta(String(d.criadoEm).slice(0, 10))) + (d.assunto ? " · " + esc(d.assunto) : "") + '</span><span style="display:block;white-space:pre-wrap">' + esc(olharResumo(d.recomendacao || d.melhorar || d.destaques || d.foco, 220)) + '</span><button type="button" class="btn btn-texto" data-exrec="' + esc(d.id) + '">Excluir</button></div>';
+          }).join("") : "") +
+          (r.referencias ? '<p class="nota" style="margin-top:12px">Quer comentar um torneio ou uma partida específica? <a href="#/competicao/vinculo/' + esc(v.id) + '">Escrever devolutiva do jogo</a>.</p>' : "") + "</section>";
+      }).join("") : '<div class="cartao" style="margin-top:14px"><h2>Nenhum atleta vinculado</h2><p class="nota" style="margin-top:6px">Use o código de convite do atleta em <a href="#/inicio">Início</a>. Quando ele aprovar, você recomenda daqui.</p></div>'));
+    Array.prototype.forEach.call(app.querySelectorAll(".rec-card"), function (cx) {
+      var id = cx.getAttribute("data-rec"), f = cx.querySelector(".rec-form"), txt = f.querySelector("textarea"), cont = f.querySelector(".rec-cont"), av = f.querySelector(".rec-aviso"), bt = f.querySelector("button[type=submit]");
+      txt.addEventListener("input", function () { cont.textContent = txt.value.length + " de 2000 caracteres"; av.hidden = true; });
+      f.addEventListener("submit", async function (ev) {
+        ev.preventDefault(); av.hidden = true;
+        if (txt.value.trim().length < 5) { av.textContent = "Escreva a recomendação."; av.hidden = false; txt.focus(); return; }
+        ocupado(bt, true, "Enviando…");
+        try { await api("player-competicao", { metodo: "POST", corpo: { acao: "devolutiva", id: id, tipo: "recomendacao", assunto: f.querySelector("input").value, recomendacao: txt.value, foco: f.querySelectorAll("input")[1].value } }); toast("Recomendação enviada."); telaRecomendacoes(); }
+        catch (e) { ocupado(bt, false); av.textContent = e.message; av.hidden = false; }
+      });
+      Array.prototype.forEach.call(cx.querySelectorAll("[data-exrec]"), function (b) { b.addEventListener("click", async function () {
+        if (!window.confirm("Excluir esta recomendação?")) return;
+        try { await api("player-competicao", { metodo: "POST", corpo: { acao: "excluirDevolutiva", id: id, devolutivaId: b.getAttribute("data-exrec") } }); telaRecomendacoes(); } catch (e) { toast(e.message, null, true); }
+      }); });
+    });
   }
   async function telaTreinosSugeridos() {
     tela('<p class="carregando">Carregando…</p>', true);
@@ -3130,7 +3152,7 @@
         if (des && dl) des.innerHTML = '<section class="cartao" style="margin-top:14px" aria-labelledby="t-des"><p class="olho">Desafio em andamento</p><h2 id="t-des">' + esc(dl.nome) + '</h2><p class="nota" style="margin-top:4px">' + dl.feitos + " de " + dl.total + " etapas concluídas</p>" + barraPrep(dl.feitos, dl.total) + '<div class="acoes"><a class="btn btn-secundario" href="' + dl.href + '">Continuar</a></div></section>';
         var dv = document.getElementById("hubDev"), d0 = (rt.devolutivas || [])[0];
         if (dv && d0) dv.innerHTML = '<section class="cartao" style="margin-top:14px" aria-labelledby="t-dev"><p class="olho">Devolutiva do treinador · ' + esc(dataCurta(String(d0.criadoEm).slice(0, 10))) + '</p><h2 id="t-dev">' + esc(d0.autorNome || "Treinador") + "</h2>" +
-          '<p class="nota" style="margin-top:4px">' + esc(d0.refRotulo || "Geral") + "</p>" + (d0.foco ? '<p class="comp-dev-bloco comp-dev-foco"><strong>Foco de treino</strong>' + esc(d0.foco) + "</p>" : d0.melhorar ? '<p class="comp-dev-bloco"><strong>O que melhorar</strong>' + esc(d0.melhorar) + "</p>" : "") +
+          '<p class="nota" style="margin-top:4px">' + esc(d0.refRotulo || "Geral") + "</p>" + (d0.recomendacao ? '<p class="comp-dev-bloco comp-dev-texto">' + esc(olharResumo(d0.recomendacao, 260)) + "</p>" + (d0.foco ? '<p class="comp-dev-bloco comp-dev-foco"><strong>Foco de treino</strong>' + esc(d0.foco) + "</p>" : "") : d0.foco ? '<p class="comp-dev-bloco comp-dev-foco"><strong>Foco de treino</strong>' + esc(d0.foco) + "</p>" : d0.melhorar ? '<p class="comp-dev-bloco"><strong>O que melhorar</strong>' + esc(d0.melhorar) + "</p>" : "") +
           '<div class="acoes"><a class="btn btn-secundario" href="#/devolutivas">Ver devolutivas' + (rt.devolutivas.length > 1 ? " (" + rt.devolutivas.length + ")" : "") + "</a></div></section>";
       }).catch(function () { /* o resto da tela funciona sem a lista */ });
     }
@@ -3476,6 +3498,7 @@
     return '<article class="cartao comp-dev"><p class="olho">' + esc(d.refRotulo || "Geral") + " · " + dataCurta(String(d.criadoEm).slice(0, 10)) + "</p><h2>" + esc(d.autorNome || "Treinador") + "</h2>" +
       (d.destaques ? '<p class="comp-dev-bloco"><strong>O que foi bem</strong>' + esc(d.destaques) + "</p>" : "") +
       (d.melhorar ? '<p class="comp-dev-bloco"><strong>O que melhorar</strong>' + esc(d.melhorar) + "</p>" : "") +
+      (d.recomendacao ? '<p class="comp-dev-bloco comp-dev-texto">' + esc(d.recomendacao) + "</p>" : "") +
       (d.foco ? '<p class="comp-dev-bloco comp-dev-foco"><strong>Foco de treino</strong>' + esc(d.foco) + "</p>" : "") + (acoes || "") + "</article>";
   }
   async function telaDevolutivas() {

@@ -270,3 +270,7 @@ body.comp .voz-aviso p { margin: 4px 0 0; }
 .sf-pq{min-height:44px;padding:10px 4px;font-size:12px;white-space:normal}
 .sf-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
 .sf-rasc{margin-top:12px;border-left:3px solid #d6452d}
+
+/* recomendação livre do treinador */
+.rec-form textarea{min-height:120px}
+.comp-dev-texto{white-space:pre-wrap}

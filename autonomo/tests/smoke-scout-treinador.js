@@ -80,6 +80,16 @@ window.firebase={initializeApp:function(){},auth:function(){return a}};})();`;
   const vivo = Object.keys(store).filter((k) => /^scoutsAoVivo\//.test(k));
   assert.strictEqual(vivo.length, 1, "o jogo foi aberto ao vivo"); assert.strictEqual(store[vivo[0]].atletaUid, "at1", "ligado ao atleta pelo vínculo");
   await pg.screenshot({ path: path.join(saida, "scout-treinador-marcando.png") });
+  /* aba Recomendações: campo aberto para recomendar o que quiser */
+  await pg.goto(base + "/competicao/#/recomendacoes", { waitUntil: "networkidle" }); await pg.waitForSelector(".rec-form textarea");
+  assert.ok((await pg.textContent("body")).includes("Recomende o que quiser ao seu atleta"));
+  await pg.click(".rec-form button[type=submit]"); assert.ok(await pg.isVisible(".rec-aviso"), "recomendação vazia não envia");
+  await pg.fill(".rec-form input", "Rotina antes do saque"); await pg.fill(".rec-form textarea", "Leia sobre rotina entre pontos e teste no próximo treino: respirar, escolher o alvo, sacar.");
+  await pg.screenshot({ path: path.join(saida, "recomendacoes-treinador.png") });
+  await pg.click(".rec-form button[type=submit]"); await pg.waitForSelector("[data-exrec]");
+  const rec = Object.keys(store).filter((k) => /^jogadores\/at1\/devolutivas\//.test(k)).map((k) => store[k])[0];
+  assert.ok(rec && rec.tipo === "recomendacao" && rec.refRotulo === "Recomendação · Rotina antes do saque" && rec.recomendacao.startsWith("Leia sobre rotina"), "recomendação gravada para o atleta");
+  assert.ok((await pg.textContent("body")).includes("Enviadas por você"));
   assert.deepStrictEqual(erros, [], JSON.stringify(erros));
   await browser.close(); servidor.close();
   console.log("smoke-scout-treinador: ok");

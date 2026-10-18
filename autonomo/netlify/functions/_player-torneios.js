@@ -133,11 +133,17 @@ function partidaCompartilhada(id, p) {
 }
 
 /* ── devolutiva do treinador ── */
-const TIPOS_DEVOLUTIVA = ["geral", "torneio", "partida"];
+const TIPOS_DEVOLUTIVA = ["geral", "torneio", "partida", "recomendacao"];
 const MAX_DEVOLUTIVAS = 300;
 function normalizarDevolutiva(b) {
   b = b || {};
   if (!TIPOS_DEVOLUTIVA.includes(b.tipo)) return { ok: false, erro: "Escolha a que a devolutiva se refere." };
+  /* recomendação em texto livre: o treinador recomenda o que quiser (leitura, vídeo, treino, hábito…), sem ligar a um torneio ou partida */
+  if (b.tipo === "recomendacao") {
+    const recomendacao = txt(b.recomendacao, 2000), assunto = txt(b.assunto, 80), foco = txt(b.foco, 200);
+    if (recomendacao.length < 5) return { ok: false, erro: "Escreva a recomendação." };
+    return { ok: true, dados: { tipo: "recomendacao", refId: null, destaques: "", melhorar: "", foco, recomendacao, assunto } };
+  }
   const refId = b.tipo === "geral" ? null : String(b.refId || "");
   if (b.tipo !== "geral" && !ID.test(refId)) return { ok: false, erro: "Escolha o torneio ou a partida." };
   const destaques = txt(b.destaques, 600), melhorar = txt(b.melhorar, 600), foco = txt(b.foco, 200);
