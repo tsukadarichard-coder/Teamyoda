@@ -730,3 +730,8 @@ html.sem-rolagem, html.sem-rolagem body { overflow: hidden; }
 .sc-tabela th small { display: block; font-weight: 400; }
 .sc-tabela td.pos { background: #E3F3EA; color: #1F6B4A; font-weight: 700; } .sc-tabela td.neg { background: #FBE6E4; color: #A6432F; font-weight: 700; }
 .sc-grupo { background: var(--papel); color: var(--saibro-texto); font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; text-align: left !important; }
+
+.comp-pedido { margin-top: 14px; }
+.comp-estado { font-weight: 700; padding: 2px 9px; border-radius: 999px; background: #ECE8DE; color: var(--grafite); }
+.comp-estado.ok { background: #E3F3EA; color: #1F6B4A; }
+.comp-estado.espera { background: #FFF1CC; color: #6B4700; }

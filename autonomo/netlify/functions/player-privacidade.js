@@ -27,6 +27,11 @@ exports.handler = async function (event) {
         /* a origem dos scouts importados (token do link do treinador) é segredo do servidor: nunca sai, nem no download dos dados */
         saida[c] = []; snap.forEach((d) => { const { fonte, hash, ...resto } = d.data(); saida[c].push({ id: d.id, ...(c === "scouts" ? resto : d.data()) }); });
       }
+      saida.pedidosConsultoria = [];
+      for (const campo of ["atletaUid", "pagadorUid"]) {
+        const snap = await admin.firestore().collection("pedidosConsultoria").where(campo, "==", usuario.uid).get();
+        snap.forEach((d) => { if (!saida.pedidosConsultoria.some((x) => x.id === d.id)) saida.pedidosConsultoria.push({ id: d.id, ...d.data() }); });
+      }
       saida.vinculos = [];
       for (const campo of ["atletaUid", "pessoaUid"]) {
         const snap = await admin.firestore().collection("vinculos").where(campo, "==", usuario.uid).get();
@@ -52,6 +57,18 @@ exports.handler = async function (event) {
       for (const c of SUBCOLECOES) {
         const docs = await ref.collection(c).listDocuments();
         for (const d of docs) await d.delete();
+      }
+      /* pedidos de consultoria: o que nunca foi pago é apagado; o que já foi pago fica só como registro financeiro (valor, estado, fatura, datas),
+         sem o que o atleta compartilhou, sem a entrega e sem nomes: obrigação de retenção, como as faturas */
+      const ped = admin.firestore().collection("pedidosConsultoria"), vistos = new Set();
+      for (const campo of ["atletaUid", "pagadorUid"]) {
+        for (const d of (await ped.where(campo, "==", usuario.uid).get()).docs) {
+          if (vistos.has(d.id)) continue; vistos.add(d.id);
+          const x = d.data();
+          if (["pago", "em_andamento", "entregue", "reembolsado"].includes(x.estado)) {
+            await d.ref.set({ consultoriaId: x.consultoriaId, precoCentavos: x.precoCentavos, estado: x.estado, faturaId: x.faturaId || null, pagoEm: x.pagoEm || null, criadoEm: x.criadoEm, anonimizadoEm: new Date().toISOString() });
+          } else await d.ref.delete();
+        }
       }
       /* vínculos da Competição: os do atleta saem junto com ele; os de quem era a pessoa vinculada ficam encerrados */
       const vinc = admin.firestore().collection("vinculos");

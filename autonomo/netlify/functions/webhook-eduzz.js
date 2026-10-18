@@ -58,6 +58,7 @@ const EVENTOS_REVOGAR = ["myeduzz.invoice_canceled", "myeduzz.invoice_refunded",
 const { admin, app } = require("./_firebase-admin");
 const ASS = require("./_player-assinaturas");
 const { aplicarEventoFatura } = require("./_player-faturas");
+const CONSULTORIAS = require("./_player-consultorias");
 
 /* ── QuadraLab Player ──
    Os produtos do Player são outros produtos da Eduzz, listados em
@@ -146,6 +147,12 @@ exports.handler = async function (event) {
     const refEvento = db.collection("webhooksEduzzProcessados").doc(chaveEvento);
     if ((await refEvento.get()).exists) {
       return resposta(200, { ok: true, jaProcessado: true });
+    }
+
+    /* pedidos de consultoria da Competição (produtos próprios, vazios até serem configurados): tratados à parte e sem tocar em assinaturas */
+    if (await CONSULTORIAS.processarEventoConsultoria(db, ev)) {
+      await refEvento.set({ evento: ev.eventoBruto, email: ev.email, processadoEm: new Date().toISOString(), tipo: "consultoria" });
+      return resposta(200, { ok: true });
     }
 
     const produtoPlayer = ASS.produtoPorEduzz(ev.produtoCod);

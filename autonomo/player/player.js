@@ -1416,11 +1416,11 @@
   /* Competição é um app à parte (quadralab.com.br/competicao/), com as mesmas contas e o mesmo servidor. O mesmo código atende os dois:
      window.QL_MODO = "competicao" liga a navegação e a tela inicial próprias; no Player, as rotas da Competição apontam para lá. */
   var MODO_COMP = window.QL_MODO === "competicao";
-  var ROTAS_COMP = { competicao: 1, temporada: 1, preparo: 1, diario: 1, devolutivas: 1, focos: 1, scouts: 1 };
-  var ROTAS_APP_COMP = { "": 1, inicio: 1, competicao: 1, temporada: 1, preparo: 1, diario: 1, devolutivas: 1, focos: 1, scouts: 1, partidas: 1, aquecimento: 1, desafios: 1, desafio: 1, conta: 1, ajuda: 1 };
+  var ROTAS_COMP = { competicao: 1, temporada: 1, preparo: 1, diario: 1, devolutivas: 1, focos: 1, scouts: 1, pedidos: 1 };
+  var ROTAS_APP_COMP = { "": 1, inicio: 1, competicao: 1, temporada: 1, preparo: 1, diario: 1, devolutivas: 1, focos: 1, scouts: 1, pedidos: 1, consultorias: 1, partidas: 1, aquecimento: 1, desafios: 1, desafio: 1, conta: 1, ajuda: 1 };
   var PLAYER_BASE = MODO_COMP ? "/player/" : "";
   if (MODO_COMP) {
-    NAV_DA_ROTA = { "": "inicio", inicio: "inicio", competicao: "inicio", temporada: "temporada", preparo: "temporada", aquecimento: "aquecimento", desafios: "desafios", desafio: "desafios", partidas: "partidas", diario: "diario", devolutivas: "inicio", focos: "inicio", scouts: "inicio", conta: "conta", ajuda: "ajuda" };
+    NAV_DA_ROTA = { "": "inicio", inicio: "inicio", competicao: "inicio", temporada: "temporada", preparo: "temporada", aquecimento: "aquecimento", desafios: "desafios", desafio: "desafios", partidas: "partidas", diario: "diario", devolutivas: "inicio", focos: "inicio", scouts: "inicio", pedidos: "inicio", consultorias: "inicio", conta: "conta", ajuda: "ajuda" };
     NAV_MAIS = { conta: 1, ajuda: 1 }; BARRA_SECAO = { aquecimento: "temporada", desafio: "temporada", desafios: "temporada" };
   }
   var ultimaCasca = { logado: false, rota: "" };
@@ -2706,7 +2706,7 @@
       var ativosResp = s.meus.filter(function (v) { return v.tipo === "responsavel" && v.status === "ativo"; }).length;
       html += '<div id="hubProximo"></div><div class="cartao" style="margin-top:14px"><h2>Temporada</h2><p class="nota" style="margin-top:6px">Seus torneios, datas e prazos num só lugar.</p><div class="acoes"><a class="btn btn-laranja" href="#/temporada">Abrir a temporada</a><a class="btn btn-secundario" href="#/diario">Diário</a></div></div>' +
         '<div class="cartao" style="margin-top:14px"><h2>Evolução</h2><p class="nota" style="margin-top:6px">Devolutivas do treinador e o que levar do jogo para o treino.</p><div class="acoes"><a class="btn btn-secundario" href="#/devolutivas">Devolutivas</a><a class="btn btn-secundario" href="#/focos">Foco de treino</a><a class="btn btn-secundario" href="#/scouts">Scouts do treinador</a></div></div>' +
-        '<div class="cartao" style="margin-top:14px"><h2>Consultoria de competição</h2><p class="nota" style="margin-top:6px">Análise da sua temporada e de partidas com um treinador da Metodologia MTY.</p><div class="acoes"><a class="btn btn-secundario" href="/player/#/consultorias">Ver consultorias</a></div></div>';
+        '<div class="cartao" style="margin-top:14px"><h2>Consultorias</h2><p class="nota" style="margin-top:6px">Análise da sua temporada e das suas partidas com um consultor da Metodologia MTY.</p><div class="acoes"><a class="btn btn-laranja" href="#/consultorias">Ver consultorias</a><a class="btn btn-secundario" href="#/pedidos">Meus pedidos</a></div></div>';
       html += '<div class="cartao" style="margin-top:14px"><h2>Quem acompanha você</h2>' +
         (comp.menor && !ativosResp ? '<p class="nota" style="margin-top:6px">Como você é menor de idade, comece convidando o seu responsável. Só depois dele vinculado é possível convidar um treinador.</p>' : '<p class="nota" style="margin-top:6px">Você decide quem vê o quê, e pode encerrar qualquer vínculo quando quiser. O diário pessoal só é compartilhado se você marcar.</p>') +
         (s.meus.length ? '<ul class="comp-lista">' + s.meus.map(function (v) { return vinculoMeuHtml(v, comp); }).join("") + "</ul>" : '<p class="nota" style="margin-top:8px">Ninguém vinculado ainda.</p>') +
@@ -3273,6 +3273,115 @@
       try { await api("player-scouts", { metodo: "POST", corpo: { acao: "excluir", id: id } }); toast("Scout excluído."); ir("#/scouts"); } catch (e) { toast(e.message, null, true); }
     });
   }
+
+  /* ══ Competição: consultorias contratadas dentro do app ══
+     O atleta escolhe a consultoria e o que compartilhar; atleta menor de idade tem o pedido confirmado e pago pelo responsável vinculado.
+     O pagamento nunca é marcado aqui: vem da Eduzz ou da confirmação do consultor. Sem checkout configurado, o pagamento é combinado no WhatsApp. */
+  var ROT_ESTADO_PEDIDO_CLASSE = { aguardando_responsavel: "espera", aguardando_pagamento: "espera", pago: "ok", em_andamento: "ok", entregue: "ok", cancelado: "fim", reembolsado: "fim" };
+  function listaHtml(itens) { return itens && itens.length ? '<ul class="beneficios">' + itens.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>" : ""; }
+  function pedidoHtml(p) {
+    var h = '<article class="cartao comp-pedido"><p class="olho"><span class="comp-estado ' + (ROT_ESTADO_PEDIDO_CLASSE[p.estado] || "") + '">' + esc(p.rotulo) + "</span> · " + esc(dataCurta(String(p.criadoEm).slice(0, 10))) + "</p><h2>" + esc(p.nome) + '</h2><p class="nota">' + reais(p.precoCentavos) + (p.euSouAtleta ? "" : " · atleta: " + esc(p.atletaNome)) + "</p>";
+    if (p.contexto) {
+      var c = p.contexto, partes = [];
+      if (c.torneio) partes.push("torneio " + c.torneio); if (c.partidas) partes.push(c.partidas + (c.partidas === 1 ? " partida" : " partidas")); if (c.scouts) partes.push(c.scouts + (c.scouts === 1 ? " scout" : " scouts"));
+      if (c.devolutivas) partes.push(c.devolutivas + (c.devolutivas === 1 ? " devolutiva" : " devolutivas")); if (c.perfil) partes.push("perfil");
+      h += '<p class="nota">Compartilhado com o consultor: ' + (partes.length ? esc(partes.join(", ")) : "nada além do seu pedido") + ".</p>" + (c.observacao ? '<p class="nota">Sua mensagem: ' + esc(c.observacao) + "</p>" : "");
+    }
+    if (p.estado === "aguardando_responsavel") {
+      h += p.euSouAtleta ? '<p class="nota">O seu responsável precisa confirmar este pedido no app dele. Quem confirma também faz o pagamento.</p>' : '<div class="acoes"><button type="button" class="btn btn-laranja" data-confirmar="' + p.id + '">Confirmar o pedido e autorizar o compartilhamento</button></div>';
+    }
+    if (p.estado === "aguardando_pagamento") {
+      h += p.pagadorEhVoce ? '<div class="acoes"><button type="button" class="btn btn-laranja" data-pagar="' + p.id + '">' + (p.checkout ? "Pagar" : "Combinar o pagamento") + "</button></div>" +
+        (p.checkout ? '<p class="nota">Use na compra o mesmo e-mail da sua conta, para o pagamento ser reconhecido sozinho.</p>' : '<p class="nota">O pagamento é combinado direto com o consultor. Depois que ele confirmar, o pedido passa para “Pago”.</p>') : '<p class="nota">Quem confirmou o pedido faz o pagamento.</p>';
+    }
+    if (p.estado === "pago" || p.estado === "em_andamento") h += '<p class="nota">O consultor já está com o seu pedido. A entrega aparece aqui.</p>';
+    if (p.entrega) h += '<div class="comp-dev-bloco comp-dev-foco"><strong>Entrega do consultor</strong>' + esc(p.entrega.texto) + (p.entrega.link ? '<br><a href="' + esc(p.entrega.link) + '" target="_blank" rel="noopener noreferrer">Abrir material<span class="sr"> (abre em nova aba)</span></a>' : "") + "</div>";
+    if (p.estado === "aguardando_responsavel" || p.estado === "aguardando_pagamento") h += '<div class="acoes"><button type="button" class="btn btn-texto" data-cancelar-ped="' + p.id + '">Cancelar pedido</button></div>';
+    return h + "</article>";
+  }
+  async function telaPedidos() {
+    tela('<p class="carregando">Carregando…</p>', true);
+    var r;
+    try { r = await api("player-consultorias"); }
+    catch (e) { tela('<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/consultorias">‹ Consultorias</a></p><div class="aviso">' + esc(e.message) + "</div>"); return; }
+    tela('<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/consultorias">‹ Consultorias</a></p><h1>Meus pedidos</h1><p class="sub">Acompanhe cada consultoria: pedido, pagamento e entrega.</p>' +
+      (r.pedidos.length ? r.pedidos.map(pedidoHtml).join("") : '<div class="cartao" style="margin-top:14px"><h2>Nenhum pedido ainda</h2><p class="nota" style="margin-top:6px">Veja as <a href="#/consultorias">consultorias</a> e peça a que fizer sentido para a sua temporada.</p></div>'));
+    function agir(corpo, ok, btn) {
+      ocupado(btn, true);
+      return api("player-consultorias", { metodo: "POST", corpo: corpo }).then(function (x) { if (ok) ok(x); }).catch(function (e) { toast(e.message, null, true); ocupado(btn, false); });
+    }
+    app.querySelectorAll("[data-confirmar]").forEach(function (b) { b.addEventListener("click", function () {
+      if (!window.confirm("Confirmar este pedido? Você autoriza o compartilhamento dos dados escolhidos pelo atleta com o consultor e passa a ser quem paga.")) return;
+      agir({ acao: "confirmar", id: b.getAttribute("data-confirmar") }, function () { toast("Pedido confirmado."); telaPedidos(); }, b); }); });
+    app.querySelectorAll("[data-cancelar-ped]").forEach(function (b) { b.addEventListener("click", function () {
+      if (!window.confirm("Cancelar este pedido?")) return;
+      agir({ acao: "cancelar", id: b.getAttribute("data-cancelar-ped") }, function () { toast("Pedido cancelado."); telaPedidos(); }, b); }); });
+    app.querySelectorAll("[data-pagar]").forEach(function (b) { b.addEventListener("click", function () {
+      agir({ acao: "pagar", id: b.getAttribute("data-pagar") }, function (x) {
+        if (x.checkoutUrl) { toast(x.aviso || "Abrindo o pagamento."); window.location.href = x.checkoutUrl; }
+        else if (x.contato) { window.open(x.contato, "_blank", "noopener"); toast("Combine o pagamento no WhatsApp. Depois da confirmação, o pedido passa para Pago."); ocupado(b, false); }
+      }, b); }); });
+  }
+  async function telaConsultoriasComp(id, acao) {
+    tela('<p class="carregando">Carregando…</p>', true);
+    var r;
+    try { r = await api("player-consultorias"); }
+    catch (e) { tela('<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/inicio">‹ Início</a></p><div class="aviso">' + esc(e.message) + '</div><div class="acoes"><a class="btn btn-secundario" href="#/inicio">Voltar</a></div>'); return; }
+    var abertos = r.pedidos.filter(function (p) { return ["aguardando_responsavel", "aguardando_pagamento"].indexOf(p.estado) >= 0; }).length;
+    var pol = r.politicas || {};
+    var politicasHtml = '<p class="nota" style="margin-top:12px">' + (pol.pagamento || pol.remarcacao || pol.cancelamento ? [pol.pagamento, pol.remarcacao, pol.cancelamento].filter(Boolean).map(esc).join(" ") : "Pagamento, remarcação e cancelamento são informados antes de qualquer cobrança.") + "</p>";
+    if (!id) {
+      tela('<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/inicio">‹ Início</a></p><h1>Consultorias</h1><p class="sub">Orientação individual para a sua preparação de competição, com o consultor da Metodologia MTY.</p>' +
+        '<div class="acoes"><a class="btn btn-secundario" href="#/pedidos">Meus pedidos' + (abertos ? " · " + abertos + " em aberto" : "") + "</a></div>" +
+        r.catalogo.map(function (c) {
+          return '<article class="cartao" style="margin-top:14px"><p class="olho">' + esc(c.unidadePreco) + "</p><h2>" + esc(c.nome) + '</h2><p class="nota" style="margin-top:6px">' + esc(c.descricao) + '</p><p style="margin-top:10px"><strong>' + reais(c.precoCentavos) + "</strong> · " + esc(c.prazoCurto) + "</p>" + listaHtml(c.principais) +
+            '<div class="acoes"><a class="btn btn-laranja" href="#/consultorias/' + c.id + '">Ver detalhes</a></div></article>';
+        }).join("") + politicasHtml);
+      return;
+    }
+    var c = r.catalogo.filter(function (x) { return x.id === id; })[0];
+    if (!c) { ir("#/consultorias"); return; }
+    if (acao !== "contratar") {
+      tela('<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/consultorias">‹ Consultorias</a></p><h1>' + esc(c.nome) + '</h1><p class="sub">' + esc(c.descricao) + "</p>" +
+        '<div class="cartao" style="margin-top:14px"><p style="font-size:22px;font-weight:700">' + reais(c.precoCentavos) + '</p><p class="nota">' + esc(c.unidadePreco) + " · " + esc(c.prazo) + "</p>" +
+        (c.indicadoPara ? '<p class="olho" style="margin-top:12px">Indicado para</p><p>' + esc(c.indicadoPara) + "</p>" : "") + (c.regra ? '<p class="aviso-info" style="margin-top:10px">' + esc(c.regra) + "</p>" : "") +
+        '<p class="olho" style="margin-top:12px">O que inclui</p>' + listaHtml(c.inclui) + (c.naoInclui && c.naoInclui.length ? '<p class="olho" style="margin-top:12px">O que não inclui</p>' + listaHtml(c.naoInclui) : "") +
+        (c.material ? '<p class="olho" style="margin-top:12px">Material necessário</p>' + listaHtml(c.material) : "") + (c.escopoPreco ? '<p class="nota" style="margin-top:8px">' + esc(c.escopoPreco) + "</p>" : "") + (c.acimaDoLimite ? '<p class="nota">' + esc(c.acimaDoLimite) + "</p>" : "") + (c.aviso ? '<p class="nota">' + esc(c.aviso) + "</p>" : "") + politicasHtml +
+        (r.papel === "atleta" ? '<div class="acoes"><a class="btn btn-laranja btn-grande" href="#/consultorias/' + c.id + '/contratar">' + esc(c.botao || "Contratar") + "</a></div>" : '<p class="nota" style="margin-top:12px">O pedido é montado pelo atleta. Você confirma e paga em “Meus pedidos”.</p>') + "</div>");
+      return;
+    }
+    if (r.papel !== "atleta") { ir("#/consultorias/" + id); return; }
+    var o = r.opcoes;
+    function caixas(nome, lista, rot) {
+      return lista.length ? lista.map(function (x) { return '<label class="comp-area"><input type="checkbox" name="' + nome + '" value="' + x.id + '"> ' + esc(rot(x)) + "</label>"; }).join("") : '<p class="nota">Nada cadastrado ainda.</p>';
+    }
+    tela('<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/consultorias/' + c.id + '">‹ ' + esc(c.nome) + "</a></p><h1>Pedir " + esc(c.nome.toLowerCase()) + "</h1>" +
+      '<p class="sub">Escolha o que o consultor pode ver. Só o que você marcar é enviado, e vale apenas para este pedido.</p>' +
+      (r.menor ? '<div class="aviso-info" style="margin-top:12px">Como você é menor de idade, o seu responsável vinculado precisa confirmar o pedido e faz o pagamento.</div>' : "") +
+      '<form id="fPedido" class="cartao" style="margin-top:14px" novalidate>' +
+      '<div class="campo"><label for="pdTorneio">Torneio de referência (opcional)</label><select id="pdTorneio"><option value="">Nenhum</option>' + o.torneios.map(function (t) { return '<option value="' + t.id + '">' + esc(t.nome) + "</option>"; }).join("") + "</select></div>" +
+      '<fieldset><legend>Partidas que o consultor pode ver (até 6)</legend>' + caixas("pdPartida", o.partidas, function (p) { return dataCurta(p.data) + (p.adversario ? " · contra " + p.adversario : "") + " · " + (p.resultado === "vitoria" ? "vitória" : "derrota") + (p.placar ? " " + p.placar : ""); }) + "</fieldset>" +
+      '<fieldset><legend>Scouts do treinador (até 3)</legend>' + caixas("pdScout", o.scouts, function (x) { return x.rotulo + " · " + dataCurta(x.data); }) + "</fieldset>" +
+      '<fieldset><legend>Devolutivas (até 5)</legend>' + caixas("pdDev", o.devolutivas, function (d) { return (d.refRotulo || "Geral") + " · " + (d.autorNome || "treinador"); }) + "</fieldset>" +
+      '<label class="comp-area"><input type="checkbox" id="pdPerfil"> Incluir o meu perfil de jogador (só as respostas de escolha, sem textos livres)</label>' +
+      '<div class="campo" style="margin-top:12px"><label for="pdObs">O que você quer resolver? (opcional)</label><textarea id="pdObs" rows="4" maxlength="800" placeholder="Ex.: chego nas oitavas e travo no segundo set"></textarea></div>' +
+      (c.id !== "revisao-estrategia" && c.id !== "consultoria-ao-vivo" ? '<p class="olho">Links dos vídeos (https://, até 3)</p>' + [0, 1, 2].map(function (i) { return '<div class="campo"><label for="pdLink' + i + '" class="sr">Link do vídeo ' + (i + 1) + '</label><input id="pdLink' + i + '" type="url" inputmode="url" placeholder="https://" maxlength="300"></div>'; }).join("") : "") +
+      '<div class="cartao" style="background:var(--papel)"><p><strong>' + esc(c.nome) + "</strong> · " + reais(c.precoCentavos) + '</p><p class="nota">' + esc(c.unidadePreco) + "</p></div>" +
+      '<label class="comp-area" style="margin-top:12px"><input type="checkbox" id="pdAutorizo"> Autorizo compartilhar com o consultor os dados marcados acima, apenas para esta consultoria.' + (r.menor ? " (O responsável confirma depois.)" : "") + "</label>" +
+      politicasHtml + '<div class="aviso" id="avisoPd" role="alert" hidden></div><button class="btn btn-laranja btn-grande" type="submit">Enviar pedido</button></form>');
+    document.getElementById("fPedido").addEventListener("submit", async function (ev) {
+      ev.preventDefault();
+      var av = document.getElementById("avisoPd"); av.hidden = true;
+      function marcados(n) { return Array.prototype.map.call(app.querySelectorAll('input[name="' + n + '"]:checked'), function (i) { return i.value; }); }
+      if (!document.getElementById("pdAutorizo").checked) { av.textContent = "Marque a autorização para enviar o pedido."; av.hidden = false; return; }
+      var links = [0, 1, 2].map(function (i) { var e = document.getElementById("pdLink" + i); return e ? e.value.trim() : ""; }).filter(Boolean);
+      var bt = this.querySelector("button[type=submit]"); ocupado(bt, true, "Enviando…");
+      try {
+        var x = await api("player-consultorias", { metodo: "POST", corpo: { acao: "criar", consultoriaId: c.id, torneioId: document.getElementById("pdTorneio").value || null, partidaIds: marcados("pdPartida"), scoutIds: marcados("pdScout"), devolutivaIds: marcados("pdDev"), incluirPerfil: document.getElementById("pdPerfil").checked, observacao: document.getElementById("pdObs").value, links: links, autorizo: true } });
+        toast(x.estado === "aguardando_responsavel" ? "Pedido enviado. Falta o seu responsável confirmar." : "Pedido enviado. Agora é só combinar o pagamento."); ir("#/pedidos");
+      } catch (e) { av.textContent = e.message; av.hidden = false; ocupado(bt, false); }
+    });
+  }
   async function telaVinculo(id) {
     tela('<p class="carregando">Carregando…</p>', true);
     var r;
@@ -3349,6 +3458,8 @@
     else if (r === "desafios") telaDesafios();
     else if (r === "desafio") { if (partes[1]) telaDesafioDia(partes[1]); else telaDesafio(); }
     else if (r === "partidas") { if (partes[1] === "nova") telaPartidaForm(null); else if (partes[1]) telaPartidaForm(partes[1]); else telaPartidas(); }
+    else if (MODO_COMP && r === "consultorias") telaConsultoriasComp(partes[1], partes[2]);
+    else if (r === "pedidos") telaPedidos();
     else if (r === "temporada") { if (partes[1] === "novo" || partes[2] === "editar") telaTorneioForm(partes[1]); else if (partes[1]) telaTorneio(partes[1]); else telaTemporada(); }
     else if (r === "preparo" && partes[1] && partes[2]) telaPreparo(partes[1], partes[2]);
     else if (r === "diario") telaDiario();
