@@ -759,3 +759,11 @@ video.olhar-midia { background: #000; max-height: 70vh; }
 .olhar-dif > div { padding: 10px 0; border-top: 1px solid var(--linha); }
 .olhar-dif dt { font-weight: 700; }
 .olhar-dif dd { margin: 4px 0 0; color: var(--grafite); font-size: 14.5px; }
+
+/* painel "Mais" em grupos e abas de planos e serviços */
+.painel-grupo-titulo { margin: 14px 4px 2px; font: 700 12.5px Inter, system-ui, sans-serif; letter-spacing: .04em; text-transform: uppercase; color: var(--grafite); }
+.painel-grupo-titulo:first-of-type { margin-top: 6px; }
+.painel-mais { max-height: 86vh; overflow-y: auto; }
+.abas-planos { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; padding: 0; list-style: none; }
+.abas-planos a { display: inline-flex; align-items: center; min-height: 44px; padding: 8px 14px; border: 1.5px solid var(--linha); border-radius: 99px; background: var(--cal); color: var(--tinta); font-weight: 600; font-size: 15px; text-decoration: none; }
+.abas-planos a[aria-current="page"] { background: var(--quadra); border-color: var(--quadra); color: #fff; }

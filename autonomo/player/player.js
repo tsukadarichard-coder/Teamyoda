@@ -515,13 +515,13 @@
   }
 
   /* ══ Início ════════════════════════════════════════════════════════
-     O foco é o próximo treino. Nada de oferta de assinatura aqui: o acesso fica no avatar e em Minha assinatura. */
+     O foco é o próximo treino. Nada de oferta de assinatura aqui: o acesso fica no avatar e em Plano e assinatura. */
   function esteiraHtml() {
     return '<section class="cartao compacto como-funciona" aria-labelledby="t-como"><h2 id="t-como">Como funciona</h2><ol>' +
       "<li><strong>Estratégia</strong><span>Como jogar com as suas características e contra cada adversário.</span></li>" +
       "<li><strong>Jogadas</strong><span>Sequências práticas para aplicar a estratégia.</span></li>" +
       "<li><strong>Treinos</strong><span>A prática das jogadas, organizada em semanas e registrada por você.</span></li></ol>" +
-      '<p class="nota" style="margin-top:8px">Seu acesso: <strong>' + esc(assinaturaDoJogador().nome) + '</strong> · <a href="#/assinatura">Minha assinatura</a></p></section>';
+      '<p class="nota" style="margin-top:8px">Seu acesso: <strong>' + esc(assinaturaDoJogador().nome) + '</strong> · <a href="#/assinatura">Plano e assinatura</a></p></section>';
   }
   function telaInicio() {
     var d = estado.dados;
@@ -575,6 +575,8 @@
         '<a class="indicador" href="' + (prog ? "#/treinos" : recursos().planejamento ? "#/planejar/" + esc(estrategia.id) : "#/treinos") + '"' + (tituloProg ? ' title="' + esc(tituloProg) + '"' : "") + '><span class="ind-rotulo">Treinos</span><strong>' + (prog ? (podeRegistrar() ? prog.concluidos + " de " + prog.total + " treinos concluídos" : prog.total + " treinos previstos") : "Sem programa") + '</strong><span class="ind-nota clamp2">' + (prog ? esc(tituloProg) : "Organizar meus treinos") + "</span></a></div>";
     }
     if (estrategia) html += cartaoPartidasInicio();
+    html += '<section class="cartao compacto" style="margin-top:14px" aria-labelledby="t-plano-ini"><h2 id="t-plano-ini">Seu plano</h2><p class="nota" style="margin-top:6px"><strong>' + esc(assinaturaDoJogador().nome) + '</strong> · veja o que o seu plano inclui, compare os planos ou contrate um atendimento com o Richard.</p>' +
+      '<div class="acoes"><a class="btn btn-secundario" href="#/assinatura">Plano e assinatura</a><a class="btn btn-secundario" href="#/consultorias">Consultorias</a></div></section>';
     tela(html);
     ligarGerar();
     if (estrategia) preencherOlharInicio();
@@ -983,7 +985,7 @@
     if (extra && extra.semCota && /^(limite_modelo|plano_sem_recurso|limite_adversarios|limite_programas_ativos)$/.test(extra.motivoCota || "")) {
       tela('<h1>Limite do seu plano</h1><div class="cartao limite-atingido" role="status" style="margin-top:14px"><p>' + esc(msg) + "</p>" +
         '<p class="nota" style="margin-top:6px">Seu perfil, suas estratégias, seus programas e seus registros continuam salvos e disponíveis para consulta.</p>' +
-        '<div class="acoes"><a class="btn btn-primario" href="#/assinaturas">Ampliar o plano</a><a class="btn btn-secundario" href="#/assinatura">Minha assinatura</a></div></div><div class="acoes"><a class="btn btn-texto" href="#/inicio">Voltar ao início</a></div>');
+        '<div class="acoes"><a class="btn btn-primario" href="#/assinaturas">Ampliar o plano</a><a class="btn btn-secundario" href="#/assinatura">Plano e assinatura</a></div></div><div class="acoes"><a class="btn btn-texto" href="#/inicio">Voltar ao início</a></div>');
       return;
     }
     if (extra && extra.semCota) {
@@ -1169,7 +1171,7 @@
     if (!r.planejamento) {
       html += '<div class="cartao bloqueado" style="margin-top:18px"><p class="olho">Incluído em assinaturas</p><h2>Programa de treino</h2>' +
         '<p class="nota" style="margin-top:6px">Semanas de treino com os dias e a duração que cabem na sua rotina, e os exercícios de cada treino. Faz parte de uma assinatura.</p>' +
-        '<div class="acoes"><a class="btn btn-primario" href="#/assinaturas">Conhecer assinaturas</a><a class="btn btn-secundario" href="#/assinatura">Minha assinatura</a></div></div>';
+        '<div class="acoes"><a class="btn btn-primario" href="#/assinaturas">Comparar planos</a><a class="btn btn-secundario" href="#/assinatura">Plano e assinatura</a></div></div>';
       tela(html); return;
     }
     var programas = planejamentosProntos(), sel = escolherProximoTreino(), ativo = programaAtivo();
@@ -1392,7 +1394,7 @@
           '<div class="acoes"><button type="button" class="btn btn-primario" id="btConcluir">' + (final ? "Atualizar registro" : "Salvar treino") + '</button><span class="nota reg-msg" id="msgTreino" role="status">' + (reg.em && final ? "Salvo em " + dataBR(reg.em) : "") + "</span></div>" +
           '<div id="aposTreino"></div></div>'
         : '<div class="cartao bloqueado" style="margin-top:18px"><p class="olho">Incluído em assinaturas</p><h2>Registre o que você treinou</h2><p class="nota" style="margin-top:6px">Marcar blocos, anotar observações e acompanhar o progresso fazem parte de uma assinatura.</p>' +
-          '<div class="acoes"><a class="btn btn-primario" href="#/assinaturas">Conhecer assinaturas</a></div></div>')
+          '<div class="acoes"><a class="btn btn-primario" href="#/assinaturas">Comparar planos</a></div></div>')
     );
     if (!registrar) return;
 
@@ -1478,8 +1480,8 @@
   var PLAYER_BASE = "";
   var MARCA_APP = MODO_COMP ? "QuadraLab Competição" : "QuadraLab Player";
   if (MODO_COMP) {
-    NAV_DA_ROTA = { "": "inicio", inicio: "inicio", competicao: "inicio", temporada: "temporada", planejamento: "planejamento", acompanhamento: "inicio", preparo: "temporada", aquecimento: "aquecimento", desafios: "desafios", desafio: "desafios", partidas: "partidas", diario: "diario", devolutivas: "inicio", focos: "inicio", scouts: "inicio", pedidos: "inicio", recomendacoes: "recomendacoes", treinos: "treinos", consultorias: "inicio", conta: "conta", ajuda: "ajuda" };
-    NAV_MAIS = { conta: 1, ajuda: 1 }; BARRA_SECAO = { aquecimento: "temporada", desafio: "temporada", desafios: "temporada", planejamento: "temporada" };
+    NAV_DA_ROTA = { "": "inicio", inicio: "inicio", competicao: "inicio", temporada: "temporada", planejamento: "planejamento", acompanhamento: "acompanhamento", preparo: "temporada", aquecimento: "aquecimento", desafios: "desafios", desafio: "desafios", partidas: "partidas", diario: "diario", devolutivas: "inicio", focos: "inicio", scouts: "inicio", pedidos: "pedidos", recomendacoes: "recomendacoes", treinos: "treinos", consultorias: "consultorias", conta: "conta", ajuda: "ajuda" };
+    NAV_MAIS = { conta: 1, ajuda: 1, consultorias: 1 }; BARRA_SECAO = { aquecimento: "temporada", desafio: "temporada", desafios: "temporada", planejamento: "temporada" };
   }
   var ultimaCasca = { logado: false, rota: "" };
   function atualizarCasca(logado, rota) {
@@ -1588,7 +1590,7 @@
       var maior = estado.assin && (estado.assin.catalogo || []).some(function (p) { return (NIVEL_ORDEM[p.nivel] || 0) > (NIVEL_ORDEM[a.nivel] || 0); });
       var mostrar = a.estado === "gratuito" || a.estado === "encerrada" || (a.estado === "ativa" && a.origem === "eduzz" && maior);
       amp.hidden = !mostrar || a.estado === "teste";
-      amp.textContent = a.estado === "ativa" ? "Ampliar acesso" : "Conhecer assinaturas";
+      amp.textContent = a.estado === "ativa" ? "Ampliar acesso" : "Comparar planos";
     }
   }
 
@@ -1664,7 +1666,7 @@
       "<p>" + (periodo ? "Você usou todas as " + (o.recurso || "estratégias") + " previstas no período da sua assinatura." + (renovaEm ? " Os limites voltam a partir do próximo pagamento confirmado; o acesso atual vai até " + esc(dataISO(renovaEm)) + "." : "")
         : "Você já usou a estratégia grátis. Para criar outra, é preciso uma assinatura.") + "</p>" +
       '<p class="nota" style="margin-top:6px">Seu perfil, suas estratégias e o que você já preencheu continuam salvos.</p>' +
-      '<div class="acoes"><a class="btn btn-primario" href="#/assinaturas">Comparar assinaturas</a><a class="btn btn-secundario" href="#/assinatura">Minha assinatura</a></div></div>';
+      '<div class="acoes"><a class="btn btn-primario" href="#/assinaturas">Comparar assinaturas</a><a class="btn btn-secundario" href="#/assinatura">Plano e assinatura</a></div></div>';
   }
 
   /* ── Meu perfil (conta) ── */
@@ -1820,7 +1822,13 @@
     app.querySelectorAll("[data-editar]").forEach(function (a) { a.addEventListener("click", function () { estado.editandoPerfil = true; }); });
   }
 
-  /* ── Minha assinatura ── */
+  /* ── Planos e serviços: as quatro páginas ligadas por uma barra de abas, para ninguém se perder entre elas ── */
+  function abasPlanosHtml(atual) {
+    var abas = [["assinatura", "Meu plano", "#/assinatura"], ["assinaturas", "Comparar planos", "#/assinaturas"], ["consultorias", "Consultorias e olhar do treinador", "#/consultorias"], ["atendimentos", "Meus atendimentos", "#/atendimentos"]];
+    return '<nav aria-label="Planos e serviços"><ul class="abas-planos">' + abas.map(function (a) { return '<li><a href="' + a[2] + '"' + (a[0] === atual ? ' aria-current="page"' : "") + ">" + a[1] + "</a></li>"; }).join("") + "</ul></nav>";
+  }
+
+  /* ── Plano e assinatura ── */
   function recursosIncluidosHtml(a) {
     var r = a.recursos || {};
     if (estado.assin && estado.assin.usoPlanos && estado.assin.usoPlanos.ativo) r = { planejamento: true, treinoDia: true }; // modelo novo: todos os planos têm programa e registro de treinos
@@ -1880,7 +1888,7 @@
   function acoesAssinaturaHtml(a, assin) {
     var links = assin.links || {}, mais = (assin.catalogo || []).some(function (p) { return (NIVEL_ORDEM[p.nivel] || 0) > (NIVEL_ORDEM[a.nivel] || 0); });
     var h = '<div class="acoes">';
-    h += '<a class="btn btn-primario" href="#/assinaturas">' + (a.estado === "gratuito" || a.estado === "encerrada" ? "Conhecer assinaturas" : "Comparar assinaturas") + "</a>";
+    h += '<a class="btn btn-primario" href="#/assinaturas">' + (a.estado === "gratuito" || a.estado === "encerrada" ? "Comparar planos" : "Comparar assinaturas") + "</a>";
     if (a.estado === "ativa" && a.origem === "eduzz" && mais) h += '<a class="btn btn-secundario" href="#/assinaturas">Ampliar acesso</a>';
     if (a.origem === "eduzz" && a.estado !== "encerrada" && a.cobrancaAutomatica === false && a.produtoId) {
       var prod = (assin.catalogo || []).filter(function (p) { return p.id === a.produtoId; })[0];
@@ -1898,7 +1906,7 @@
     var assin;
     try { assin = await carregarAssinatura(true); }
     catch (e) {
-      tela('<h1>Minha assinatura</h1><div class="aviso" role="alert" style="margin-top:14px">' + esc(e.message) + '</div><div class="acoes"><button class="btn btn-primario" id="btTentarAss" type="button">Tentar de novo</button></div>');
+      tela('<h1>Plano e assinatura</h1><div class="aviso" role="alert" style="margin-top:14px">' + esc(e.message) + '</div><div class="acoes"><button class="btn btn-primario" id="btTentarAss" type="button">Tentar de novo</button></div>');
       document.getElementById("btTentarAss").addEventListener("click", telaAssinatura);
       return;
     }
@@ -1906,7 +1914,7 @@
     if (marc && a.estado === "ativa" && a.origem === "eduzz") limparCheckout();
     var aguardando = marc && Date.now() - marc.em < 3 * 3600 * 1000 && !(a.estado === "ativa" && a.origem === "eduzz");
     tela(
-      "<h1>Minha assinatura</h1>" +
+      abasPlanosHtml("assinatura") + "<h1>Plano e assinatura</h1>" +
       (aguardando ? '<div class="aviso-info aguardando" role="status" style="margin-top:14px"><strong>Aguardando a confirmação do pagamento.</strong> Pode levar alguns minutos depois de pagar. Seu acesso muda aqui quando a confirmação chegar — você não precisa fazer nada.' +
         '<div class="acoes" style="margin-top:8px"><button type="button" class="btn btn-secundario" id="btVerificar">Verificar agora</button><button type="button" class="btn btn-texto" id="btNaoPaguei">Não concluí o pagamento</button></div></div>' : "") +
       '<div class="cartao ass-cartao" style="margin-top:14px"><p class="olho">Sua assinatura</p><div class="ass-topo"><h2>' + esc(a.nome) + "</h2>" + selloAssinatura(a) + "</div>" +
@@ -1950,7 +1958,7 @@
       return;
     }
     var a = assin.assinatura, cat = assin.catalogo || [];
-    var topo = '<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/assinatura">‹ Minha assinatura</a></p><h1>Assinaturas</h1>' +
+    var topo = abasPlanosHtml("assinaturas") + '<h1>Comparar planos</h1>' +
       '<p class="sub">Você está com: ' + (a.nome === a.rotulo ? "" : "<strong>" + esc(a.nome) + "</strong> ") + selloAssinatura(a) + "</p>";
     var planosQL = assin.planos || [];
     function planosHtml() {
@@ -2045,7 +2053,7 @@
       ["Quero a análise das partidas e uma conversa para aplicar as orientações.", completa],
     ];
     tela(
-      '<h1 class="consul-titulo">Um olhar profissional sobre o seu jogo</h1>' +
+      abasPlanosHtml("consultorias") + '<h1 class="consul-titulo">Um olhar profissional sobre o seu jogo</h1>' +
       '<p class="sub">Escolha o atendimento com Richard Tsukada mais adequado ao seu momento no tênis</p>' +
       '<p class="consul-aviso" role="note"><strong>Serviços individuais contratados à parte.</strong> Não estão incluídos na assinatura do QuadraLab Player.</p>' +
       '<div class="consul-lista">' + (olhar ? cartaoOlharConsulHtml(olhar) : "") + tres.map(cartaoConsulHtml).join("") + "</div>" +
@@ -2334,7 +2342,7 @@
       '<h1>Ajuda e suporte</h1><p class="sub">Fale com a gente por aqui.</p>' + instalarAppHtml() +
       '<div class="cartao" style="margin-top:16px"><h2>Falar com o suporte</h2><p class="nota" style="margin-top:6px">Dúvidas sobre o app, a sua conta, pagamentos ou a sua assinatura. Respondemos pelo WhatsApp.</p>' +
         '<a class="btn btn-primario btn-grande" href="' + esc(suporteUrl()) + '" target="_blank" rel="noopener">Abrir o WhatsApp<span class="sr"> (abre em nova aba)</span></a></div>' +
-      '<div class="cartao" style="margin-top:14px"><h2>Pagamentos e assinatura</h2><ul class="lista-links"><li><a href="#/assinatura">Minha assinatura</a></li><li><a href="#/assinaturas">Comparar assinaturas</a></li><li><a href="' + esc(links.gerenciarPagamento || suporteUrl("Olá, Richard! Preciso gerenciar o pagamento da minha assinatura do QuadraLab Player.")) + '" target="_blank" rel="noopener">Gerenciar pagamento<span class="sr"> (abre em nova aba)</span></a></li></ul></div>' +
+      '<div class="cartao" style="margin-top:14px"><h2>Pagamentos e assinatura</h2><ul class="lista-links"><li><a href="#/assinatura">Plano e assinatura</a></li><li><a href="#/assinaturas">Comparar assinaturas</a></li><li><a href="' + esc(links.gerenciarPagamento || suporteUrl("Olá, Richard! Preciso gerenciar o pagamento da minha assinatura do QuadraLab Player.")) + '" target="_blank" rel="noopener">Gerenciar pagamento<span class="sr"> (abre em nova aba)</span></a></li></ul></div>' +
       (links.termos || links.privacidade ? '<div class="cartao" style="margin-top:14px"><h2>Documentos</h2><ul class="lista-links">' +
         (links.termos ? '<li><a href="' + esc(links.termos) + '" target="_blank" rel="noopener">Termos de uso<span class="sr"> (abre em nova aba)</span></a></li>' : "") +
         (links.privacidade ? '<li><a href="' + esc(links.privacidade) + '" target="_blank" rel="noopener">Política de privacidade<span class="sr"> (abre em nova aba)</span></a></li>' : "") + "</ul></div>" : "")
@@ -4405,7 +4413,7 @@
         (p.estado === "aguardando_pagamento" && p.pagamento.estado === "falhou" ? ' <span class="nota">' + esc(p.pagamento.rotulo) + "</span>" : "") + (p.prazoTexto && (p.estado === "recebido" || p.estado === "em_analise") ? ' <span class="nota">· até ' + esc(p.prazoTexto) + "</span>" : "") + "</p>" +
         '<div class="acoes">' + botao(p) + "</div></li>");
     });
-    tela('<h1>Meus atendimentos</h1><p class="sub">Pedidos do Olhar do treinador e as orientações que você recebeu.</p>' +
+    tela(abasPlanosHtml("atendimentos") + '<h1>Meus atendimentos</h1><p class="sub">Pedidos do Olhar do treinador e as orientações que você recebeu.</p>' +
       (itens.length ? '<ul class="olhar-lista">' + itens.join("") + "</ul>" : '<div class="cartao" style="margin-top:14px"><h2>Você ainda não tem atendimentos</h2><p class="nota" style="margin-top:6px">Quando você pedir um olhar do treinador, o acompanhamento e a devolutiva ficam aqui.</p><div class="acoes"><a class="btn btn-primario" href="#/olhar">Conhecer o olhar do treinador</a></div></div>') +
       '<p class="nota" style="margin-top:12px">Outros serviços, como a revisão de estratégia e a análise completa, são combinados pelo WhatsApp. Veja em <a href="#/consultorias">Consultorias</a>.</p>');
   }
