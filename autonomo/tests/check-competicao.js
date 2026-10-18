@@ -54,6 +54,7 @@ const fake = {
   refJogador: (uid) => docRef("jogadores", uid), OPCOES: { nivel: { intermediario: "Intermediário — sustenta trocas" } },
 };
 require.cache[require.resolve(fx + "_player.js")] = { id: "x", filename: "x", loaded: true, exports: fake };
+require.cache[require.resolve(fx + "_firebase-admin.js")] = { id: "y", filename: "y", loaded: true, exports: { admin: fake.admin, app: () => {} } };
 /* Anthropic simulado: devolve o que a variável respostaIA mandar */
 let respostaIA = null, chamadasIA = 0;
 const SDK = path.join(__dirname, "fake-sdk.js");

@@ -203,6 +203,11 @@ footer { margin-top: 22px; font-size: 13px; color: var(--grafite); text-align: c
     [secaoMomento(p), secaoMapa(p), secaoBolas(p), secaoNumeros(p), secaoSinais(p)].forEach(function (x) { if (x) cont.appendChild(x); });
     cont.appendChild(el("p", { cls: "aviso", texto: "Um jogo é uma amostra. Três jogos na mesma direção são um sinal; um jogo isolado é ruído. O que importa é o padrão que se repete." }));
     cont.appendChild(el("footer", { texto: "Compartilhado pelo treinador no QuadraLab. Este link vale até " + dataBR(ate) + " e pode ser desativado pelo treinador a qualquer momento." }));
+    var imp = el("p", { cls: "nota", style: "text-align:center;margin-top:10px" });
+    imp.appendChild(document.createTextNode("Você é o atleta? Guarde este scout na sua conta em "));
+    var a = el("a", { href: "https://quadralab.com.br/competicao/#/scouts", target: "_blank", rel: "noopener noreferrer", texto: "QuadraLab Competição · Scouts do treinador" });
+    imp.appendChild(a); imp.appendChild(document.createTextNode(" colando o endereço desta página."));
+    cont.appendChild(imp);
   }
 })();
 </script>

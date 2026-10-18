@@ -101,6 +101,11 @@ exports.handler = async function (event) {
       /* estrategias = preparação por partida; partidas sem os textos livres; diário só se o atleta marcou */
       const sub = async (nome) => { const l = []; (await refJogador(v.atletaUid).collection(nome).get()).forEach((d) => l.push({ id: d.id, ...d.data() })); return l; };
       if (areas.includes("estrategias")) out.dados.preparos = (await sub("preparos")).sort((x, y) => String(y.data || y.criadoEm).localeCompare(String(x.data || x.criadoEm)));
+      if (areas.includes("partidas")) {
+        /* scouts do treinador que o atleta importou: reconferidos agora, então um link desativado deixa de aparecer aqui também */
+        const SC = require("./player-scouts");
+        out.dados.scouts = (await SC.scoutsVigentes(refJogador(v.atletaUid))).filter((x) => x.estado === "ativo").map((x) => ({ id: x.id, data: x.data, rotulo: x.rotulo, partidaId: x.partidaId, torneioId: x.torneioId, resumo: x.resumo }));
+      }
       if (areas.includes("partidas")) { const TOR = require("./_player-torneios"); out.dados.partidas = (await sub("partidas")).map((p) => TOR.partidaCompartilhada(p.id, p)).sort((x, y) => y.data.localeCompare(x.data)); }
       if (areas.includes("treinos")) out.dados.focos = (await sub("focos")).sort((x, y) => String(y.criadoEm).localeCompare(String(x.criadoEm)));
       /* devolutivas: o treinador vê as que escreveu; o responsável de um menor lê todas */

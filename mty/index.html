@@ -9409,7 +9409,7 @@ function LinkFamilia({ reg, aluno, alunos, setAlunos }) {
       {!ativo ? (
         <>
           <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginTop: 6 }}>
-            Gera uma página sem login com o resumo desta partida: primeiro nome do atleta, placar, momento do jogo, mapa da quadra, números e leituras. Não aparecem o nome do adversário, as anotações nem o caderno. O link vale {DIAS_LINK_FAMILIA} dias e você pode desativá-lo quando quiser.
+            Gera uma página sem login com o resumo desta partida: primeiro nome do atleta, placar, momento do jogo, mapa da quadra, números e leituras. Não aparecem o nome do adversário, as anotações nem o caderno. O link vale {DIAS_LINK_FAMILIA} dias e você pode desativá-lo quando quiser. Se o atleta importar o link no QuadraLab Competição, ele também passa a ver o resumo na própria conta, e o conteúdo some de lá quando você desativa o link.
           </p>
           {comp && comp.ate < hoje && <p style={{ ...prosa, fontSize: 12.5, color: C.saibro, marginTop: 6 }}>O link anterior venceu em {comp.ate.split("-").reverse().join("/")}.</p>}
           <div className="mt-3"><Botao pequeno variante="saibro" onClick={gerar} disabled={gerando}>Gerar link para a família</Botao></div>

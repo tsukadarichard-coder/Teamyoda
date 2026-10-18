@@ -713,3 +713,20 @@ html.sem-rolagem, html.sem-rolagem body { overflow: hidden; }
 .comp-seg { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
 .comp-seg-bt { min-height: 40px; padding: 6px 14px; border-radius: 999px; border: 1.5px solid var(--linha); background: #fff; font: 600 14px Inter, system-ui, sans-serif; color: var(--tinta); cursor: pointer; }
 .comp-seg-bt[aria-pressed="true"] { background: var(--quadra); border-color: var(--quadra); color: #fff; }
+
+.sc-grafico { display: block; width: 100%; height: auto; }
+.sc-barra { display: flex; height: 38px; border-radius: 10px; overflow: hidden; margin: 10px 0; }
+.sc-barra span { display: flex; align-items: center; justify-content: center; color: #fff; font-size: 12px; font-weight: 800; }
+.sc-mapa { display: grid; grid-template-columns: 70px repeat(3, 1fr); gap: 6px; margin-top: 10px; font-size: 12px; }
+.sc-mapa b { display: flex; align-items: center; justify-content: center; text-align: center; color: var(--grafite); font-size: 11.5px; }
+.sc-cel { border: 1px solid var(--linha); border-radius: 12px; padding: 10px 4px; min-height: 62px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; background: var(--papel); color: var(--grafite); }
+.sc-cel strong { font-size: 16px; color: var(--grafite); }
+.sc-cel.pos { background: #E3F3EA; } .sc-cel.pos strong { color: #1F6B4A; }
+.sc-cel.neg { background: #FBE6E4; } .sc-cel.neg strong { color: #A6432F; }
+.sc-tabela { overflow-x: auto; border: 1px solid var(--linha); border-radius: 14px; background: #fff; }
+.sc-tabela table { border-collapse: separate; border-spacing: 0; min-width: 100%; font-size: 12.5px; }
+.sc-tabela th, .sc-tabela td { padding: 7px 8px; border-bottom: 1px solid var(--linha); text-align: center; white-space: nowrap; }
+.sc-tabela th[scope="row"], .sc-tabela thead th:first-child { text-align: left; position: sticky; left: 0; background: #fff; white-space: normal; min-width: 150px; max-width: 170px; border-right: 1px solid var(--linha); }
+.sc-tabela th small { display: block; font-weight: 400; }
+.sc-tabela td.pos { background: #E3F3EA; color: #1F6B4A; font-weight: 700; } .sc-tabela td.neg { background: #FBE6E4; color: #A6432F; font-weight: 700; }
+.sc-grupo { background: var(--papel); color: var(--saibro-texto); font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; text-align: left !important; }

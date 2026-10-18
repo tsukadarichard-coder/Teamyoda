@@ -12,7 +12,7 @@
 const { admin, ErroPublico, resposta, usuarioDoPedido, refJogador } = require("./_player");
 const ASS = require("./_player-assinaturas");
 
-const SUBCOLECOES = ["planos", "planejamentos", "partidas", "torneios", "preparos", "diario", "focos", "devolutivas"];
+const SUBCOLECOES = ["planos", "planejamentos", "partidas", "torneios", "preparos", "diario", "focos", "devolutivas", "scouts"];
 
 exports.handler = async function (event) {
   try {
@@ -24,7 +24,8 @@ exports.handler = async function (event) {
       const saida = { exportadoEm: new Date().toISOString(), conta: { email: usuario.email || null }, jogador: sJ.exists ? sJ.data() : null };
       for (const c of SUBCOLECOES) {
         const snap = await ref.collection(c).get();
-        saida[c] = []; snap.forEach((d) => saida[c].push({ id: d.id, ...d.data() }));
+        /* a origem dos scouts importados (token do link do treinador) é segredo do servidor: nunca sai, nem no download dos dados */
+        saida[c] = []; snap.forEach((d) => { const { fonte, hash, ...resto } = d.data(); saida[c].push({ id: d.id, ...(c === "scouts" ? resto : d.data()) }); });
       }
       saida.vinculos = [];
       for (const campo of ["atletaUid", "pessoaUid"]) {
