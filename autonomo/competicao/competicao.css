@@ -1,14 +1,14 @@
-/* QuadraLab Competição — identidade própria: noite, argila e bola.
+/* QuadraLab Competição — identidade própria, com as cores do logo: verde-escuro, azul da quadra e verde-limão.
    Carregado depois de player.css e landing.css; só vale com <body class="comp">, então o Player não muda.
-   Tokens: noite #0F1B2D · papel #F4F1EA · argila #C94A1F (texto branco passa 4,9:1) · bola #D6F04A (só sobre a noite). */
+   Tokens: verde-escuro #002418 · papel #F2F5F3 · azul #1242CC (texto branco passa 7:1) · lima #66C000 (destaque sobre o verde-escuro). */
 body.comp {
-  --tinta: #0F1B2D; --papel: #F4F1EA; --cal: #FFFFFF; --grafite: #5A6373; --linha: #E4DFD3;
-  --quadra: #0F1B2D; --marca: #D6F04A; --marca-texto: #1F7A4D;
-  --saibro: #C94A1F; --saibro-texto: #B8431D; --saibro-claro: #D6F04A; --saibro-fundo: #FBE9E1;
+  --tinta: #002418; --papel: #F2F5F3; --cal: #FFFFFF; --grafite: #5A6373; --linha: #DDE5E0;
+  --quadra: #002418; --marca: #66C000; --marca-texto: #1F7A4D;
+  --saibro: #1242CC; --saibro-texto: #0E35A8; --saibro-claro: #66C000; --saibro-fundo: #E7EDFB;
   --raio: 20px; --sombra: none; --sombra-alta: 0 10px 30px rgba(15,27,45,.12);
   /* a tela de entrada e a de apresentação reaproveitam as variáveis --lp-* */
-  --lp-verde: #0F1B2D; --lp-verde2: #1B2A41; --lp-lima: #D6F04A; --lp-laranja: #C94A1F; --lp-laranja-escuro: #C94A1F; --lp-laranja-claro: #E8714A;
-  --lp-papel: #F4F1EA; --lp-linha: #E4DFD3; --lp-grafite: #5A6373;
+  --lp-verde: #002418; --lp-verde2: #0A3A2A; --lp-lima: #66C000; --lp-laranja: #1242CC; --lp-laranja-escuro: #1242CC; --lp-laranja-claro: #7FA0F5;
+  --lp-papel: #F2F5F3; --lp-linha: #DDE5E0; --lp-grafite: #5A6373;
   --disp: "Barlow Condensed", "Arial Narrow", sans-serif;
   background: var(--papel); font-family: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
@@ -18,13 +18,13 @@ body.comp .btn, body.comp .campo input, body.comp .campo textarea, body.comp .ca
 body.comp .btn { border-radius: 14px; }
 body.comp .btn-primario { background: var(--tinta); border-color: var(--tinta); color: #fff; }
 body.comp .btn-laranja { background: var(--saibro); border-color: var(--saibro); }
-body.comp .btn-laranja:hover { background: #B8431D; border-color: #B8431D; }
-body.comp .btn-secundario { border-color: #D4CEC0; background: #fff; }
+body.comp .btn-laranja:hover { background: #0E35A8; border-color: #0E35A8; }
+body.comp .btn-secundario { border-color: #C9D3CD; background: #fff; }
 body.comp .cartao { border-radius: 22px; }
 body.comp .cartao.destaque { border-left-width: 1px; }
 body.comp .olho { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; color: var(--saibro-texto); }
 body.comp .secao { font-family: var(--disp); font-size: 20px; letter-spacing: .14em; text-transform: uppercase; font-weight: 700; color: var(--grafite); margin-top: 28px; }
-body.comp .campo input, body.comp .campo textarea, body.comp .campo-plano select, body.comp .campo select { border-radius: 14px; border-color: #D4CEC0; }
+body.comp .campo input, body.comp .campo textarea, body.comp .campo-plano select, body.comp .campo select { border-radius: 14px; border-color: #C9D3CD; }
 body.comp .campo input:focus, body.comp .campo textarea:focus { border-color: var(--tinta); box-shadow: 0 0 0 3px rgba(201,74,31,.28); }
 body.comp :focus-visible { outline-color: var(--saibro); }
 body.comp .aviso-info { background: #E3F3EA; border-color: #BFE0CC; color: #14502F; }
@@ -146,3 +146,12 @@ body.comp .marca, body.comp .lateral-logo { text-decoration: none; }
 .cl-nav > span:last-child { display: flex; align-items: center; gap: 8px; }
 .cl-nav .cl-btn { min-height: 44px; padding: 8px 20px; }
 .cl-nav > span:last-child, .cl-btn { flex-shrink: 0; }
+
+/* o que o Player pinta em laranja fixo passa para o azul do logo */
+body.comp .prep-card { border-top-color: var(--saibro); }
+body.comp .comp-papel input, body.comp .comp-area input { accent-color: var(--saibro); }
+body.comp .comp-torneio { border-left-color: var(--linha); }
+body.comp .comp-codigo { color: var(--saibro); }
+body.comp .btn-laranja { color: #fff; }
+body.comp .lateral-faixa { background: var(--marca); }
+body.comp .avatar { border-color: var(--marca); }

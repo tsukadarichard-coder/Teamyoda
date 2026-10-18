@@ -3132,7 +3132,7 @@
       lista.forEach(function (p, i) { d += " L" + x(i) + " " + y(pos ? Math.max(p.mom, 0) : Math.min(p.mom, 0)); });
       return '<path d="' + d + " L" + x(n - 1) + " " + y(0) + ' Z" fill="' + cor + '" fill-opacity="0.22" stroke="' + cor + '" stroke-width="2" stroke-linejoin="round"/>';
     }
-    o += area("#0F1B2D", true) + area("#C8102E", false);
+    o += area("#002418", true) + area("#C8102E", false);
     inicios.forEach(function (it) { if (it.i > 0 && it.i < n) o += '<line x1="' + x(it.i) + '" x2="' + x(it.i) + '" y1="' + pt + '" y2="' + (H - pb) + '" stroke="#5A6373" stroke-dasharray="4 3"/><text x="' + (x(it.i) + 4) + '" y="' + (pt + 10) + '" font-size="11" fill="#5A6373">Set ' + (it.set + 1) + "</text>"; });
     var passo = Math.max(1, Math.ceil(n / 6));
     for (var i = 0; i < n; i += passo) o += '<text x="' + x(i) + '" y="' + (H - 6) + '" text-anchor="middle" font-size="11" fill="#5A6373">' + lista[i].n + "</text>";
@@ -3155,7 +3155,7 @@
     return h + "</div></div>";
   }
   function scBolasHtml(r) {
-    var b = r.bolas, cores = ["#C94A1F", "#0F1B2D", "#5A6373"];
+    var b = r.bolas, cores = ["#1242CC", "#002418", "#5A6373"];
     return '<h2 class="secao">Onde o ponto se decidiu</h2><div class="cartao"><div class="sc-barra" role="img" aria-label="Pontos por duração: ' + b.pctCurtos + "% em 1–2 bolas, " + b.pctMedios + "% em 3–4, " + b.pctLongos + '% em 5 ou mais">' +
       [["1–2 bolas", b.pctCurtos], ["3–4 bolas", b.pctMedios], ["5+ bolas", b.pctLongos]].map(function (x, i) { return '<span style="width:' + Math.max(x[1], 4) + "%;background:" + cores[i] + '">' + x[1] + "%</span>"; }).join("") +
       '</div><p class="nota">' + b.pctAte4 + "% dos pontos terminaram em até quatro bolas. Cerca de 70% dos pontos do circuito terminam em até quatro bolas.</p></div>";
@@ -3443,7 +3443,7 @@
     if (!logado) { telaEntrar(ROTAS_ACESSO[partes[0]] ? partes[0] : "criar"); return; }
     if (!estado.dados) {
       tela('<p class="carregando">Carregando seus dados…</p>', true);
-      try { await carregarDados(); aplicarRascunho(); (MODO_COMP ? Promise.resolve() : carregarAssinatura(false)).catch(function () { /* o resto do app funciona sem a área comercial */ }); }
+      try { await carregarDados(); aplicarRascunho(); atualizarConta(); (MODO_COMP ? Promise.resolve() : carregarAssinatura(false)).catch(function () { /* o resto do app funciona sem a área comercial */ }); }
       catch (e) {
         tela('<div class="pilha"><div class="aviso">' + esc(e.message) + '</div><div class="acoes"><button class="btn btn-primario" id="btTentar" type="button">Tentar de novo</button></div></div>');
         document.getElementById("btTentar").addEventListener("click", rotear);

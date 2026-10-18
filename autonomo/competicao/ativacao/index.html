@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-<meta name="theme-color" content="#F6F8F7">
+<meta name="theme-color" content="#F2F5F3">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="mobile-web-app-capable" content="yes">
@@ -13,9 +13,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-:root{--papel:#F6F8F7;--cal:#FFFFFF;--tinta:#17251F;--verde:#012A1F;--quadra:#103B32;
-  --acao:#B14C1D;--acao-escuro:#9E4218;--acao-texto:#A8480F;--acao-fundo:#FFF4EC;--acao-borda:#F0CDB5;
-  --grafite:#5B6B63;--linha:#E2E8E5;--linha-forte:#C9D3CD;
+:root{--papel:#F2F5F3;--cal:#FFFFFF;--tinta:#002418;--verde:#002418;--quadra:#002418;
+  --acao:#1242CC;--acao-escuro:#0E35A8;--acao-texto:#0E35A8;--acao-fundo:#E7EDFB;--acao-borda:#BCCBF2;
+  --grafite:#5B6B63;--linha:#DDE5E0;--linha-forte:#C9D3CD;
   --arch:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;
   -webkit-user-select:none;user-select:none}
@@ -77,7 +77,7 @@ button:focus-visible,a:focus-visible{outline:3px solid var(--acao);outline-offse
 .fims{font-size:17px;color:var(--grafite);line-height:1.55;margin-bottom:20px}
 
 .aviso{background:var(--acao-fundo);border:1px solid var(--acao-borda);border-left:4px solid var(--acao);padding:12px 14px;border-radius:10px;
-  font-size:14.5px;line-height:1.55;color:#5C2A0E;margin-bottom:16px}
+  font-size:14.5px;line-height:1.55;color:#0A2570;margin-bottom:16px}
 .aviso b{color:var(--acao-texto);display:block;font-size:12px;font-weight:700;letter-spacing:.1em;
   margin-bottom:4px}
 .lista{margin-bottom:auto}
@@ -107,7 +107,7 @@ button:focus-visible,a:focus-visible{outline:3px solid var(--acao);outline-offse
 <body>
 <!-- ═══ INÍCIO ═══ -->
 <div class="tela on" id="t-inicio">
-  <div class="cab"><img src="../../assets/logo-quadralab-player-competicao-120.png" alt="QuadraLab Competição" width="130" height="37"><a href="../#/aquecimento">‹ Aquecimento</a></div>
+  <div class="cab"><img src="../../assets/logo-quadralab-competicao-v3-120.png" alt="QuadraLab Competição" width="130" height="31"><a href="../#/aquecimento">‹ Aquecimento</a></div>
   <div class="marca">Aquecimento físico · Metodologia MTY</div>
   <div class="tit">Ativação pré-jogo</div>
   <div class="sub">18 minutos, sem bola. Para chegar pronto na primeira bola do primeiro game.</div>
@@ -122,13 +122,13 @@ button:focus-visible,a:focus-visible{outline:3px solid var(--acao);outline-offse
       <span>Três bipes antes de cada troca, e um sinal na virada.</span></div>
     <div class="sw on" id="sw-som"></div>
   </div>
-  <div class="opt" style="border-bottom:1px solid #E2E8E5">
+  <div class="opt" style="border-bottom:1px solid #DDE5E0">
     <div class="lab"><b>Voz</b>
       <span>Lê a instrução inteira na preparação: os passos e o erro a evitar.</span></div>
     <div class="sw on" id="sw-voz"></div>
   </div>
   <div style="font-size:14px;color:#5B6B63;padding:12px 0 2px">
-    Duração total: <b id="dur" style="color:#012A1F">—</b>
+    Duração total: <b id="dur" style="color:#002418">—</b>
     <span style="display:block;margin-top:3px">18 min de trabalho, 8 de instrução e 2 de descanso.
     O botão verde pula a instrução quando você já souber o exercício — aí fica em torno de 20.</span>
   </div>
@@ -175,7 +175,7 @@ button:focus-visible,a:focus-visible{outline:3px solid var(--acao);outline-offse
 
 <!-- ═══ FIM ═══ -->
 <div class="tela" id="t-fim">
-  <div class="cab"><img src="../../assets/logo-quadralab-player-competicao-120.png" alt="QuadraLab Competição" width="130" height="37"><a href="../#/aquecimento">Voltar ao Aquecimento</a></div>
+  <div class="cab"><img src="../../assets/logo-quadralab-competicao-v3-120.png" alt="QuadraLab Competição" width="130" height="31"><a href="../#/aquecimento">Voltar ao Aquecimento</a></div>
   <div class="marca">18 minutos · concluído</div>
   <div class="fimt">Pronto<br>para entrar</div>
   <div class="fims">Mantenha os pés se mexendo até entrar em quadra. Parar de vez desfaz
@@ -193,7 +193,7 @@ button:focus-visible,a:focus-visible{outline:3px solid var(--acao);outline-offse
    ═══════════════════════════════════════════════════════════════ */
 
 const PROTOCOLO = [
-{etapa:"1 · ELEVAR", cor:"#103B32", passos:[
+{etapa:"1 · ELEVAR", cor:"#002418", passos:[
  {nome:"Corrida progressiva", prep:0, seg:90,
   como:["Marque dez passos entre dois pontos — pode ser a lateral da quadra.",
         "Vá e volte sem parar, começando bem devagar.",
@@ -225,7 +225,7 @@ const PROTOCOLO = [
         "Ritmo rápido, contato curto com o chão."],
   erro:"Levar o joelho à frente. O movimento é só do calcanhar."},
 ]},
-{etapa:"2 · SOLTAR", cor:"#103B32", passos:[
+{etapa:"2 · SOLTAR", cor:"#002418", passos:[
  {nome:"Joelho ao peito", prep:0, seg:40,
   como:["Caminhando, puxe um joelho até o peito com as duas mãos.",
         "Segure meio segundo e solte. Não é alongamento — é um toque.",
@@ -257,7 +257,7 @@ const PROTOCOLO = [
         "Os pés ficam no lugar; só o quadril se move."],
   erro:"Mexer os ombros junto. De cima, só o quadril."},
 ]},
-{etapa:"3 · ACORDAR", cor:"#103B32", passos:[
+{etapa:"3 · ACORDAR", cor:"#002418", passos:[
  {nome:"Agachamento", prep:0, seg:40,
   como:["Pés na largura dos ombros, braços à frente para equilibrar.",
         "Desça empurrando o quadril para trás, como se fosse sentar numa cadeira.",
@@ -290,7 +290,7 @@ const PROTOCOLO = [
         "Dez repetições, cada uma inteira."],
   erro:"Fazer rápido. Lento e completo é o que prepara o ombro."},
 ]},
-{etapa:"4 · ACELERAR", cor:"#B14C1D", passos:[
+{etapa:"4 · ACELERAR", cor:"#1242CC", passos:[
  {nome:"Split step", prep:0, seg:60, desc:20,
   como:["Salte alguns centímetros e caia com os dois pés ao mesmo tempo.",
         "Caia leve, joelhos moles, já pronto para sair.",
@@ -309,7 +309,7 @@ const PROTOCOLO = [
         "Um bipe avisa cada repetição."],
   erro:"Frear com um pé só ou arrastando. A freada é com os dois."},
 ]},
-{etapa:"5 · CHEGAR QUIETO", cor:"#103B32", passos:[
+{etapa:"5 · CHEGAR QUIETO", cor:"#002418", passos:[
  {nome:"Três respirações", prep:0, seg:60,
   como:["Em pé, parado, ombros soltos.",
         "Encha o pulmão em quatro segundos, sentindo a barriga expandir.",
@@ -502,7 +502,7 @@ function desenha(){
 
   $("ex-etapa").textContent = eTrab ? ex.etapa : (ROT[f.tipo] + " · " + ex.etapa);
   $("ex-etapa").style.color = f.tipo === "descanso" ? "#5B6B63"
-      : (ex.etapa.indexOf("ACELERAR") >= 0 ? "#B14C1D" : "#103B32");
+      : (ex.etapa.indexOf("ACELERAR") >= 0 ? "#1242CC" : "#002418");
   $("ex-num").textContent = "EXERCÍCIO " + (f.iEx+1) + " DE " + PASSOS.length;
   $("ex-nome").textContent = ex.nome;
 
