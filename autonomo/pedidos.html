@@ -45,6 +45,9 @@ a { color: var(--argila); }
   <h1 style="margin-top:34px">Acompanhamento MTY</h1>
   <p class="nota">Contratações do programa de 3 meses: confirme à mão cada pagamento recebido (3 de R$ 790) e inicie o ciclo com o treinador vinculado ao atleta. O aplicativo não cobra nada.</p>
   <div id="acomp"></div>
+  <h1 style="margin-top:34px">Contatos da página de vendas</h1>
+  <p class="nota">Solicitações de contato do formulário do QuadraLab Competição. Nada foi contratado nem cobrado.</p>
+  <div id="interesses"></div>
 </div>
 </main>
 <script>
@@ -76,6 +79,34 @@ a { color: var(--argila); }
     desenhar();
     acompDados = await chamarAc(null);
     desenharAc();
+    var ri = await fetch("/.netlify/functions/admin-interesses", { headers: { "x-admin-secret": segredo } });
+    interesses = ri.ok ? (await ri.json()).contatos : [];
+    desenharInt();
+  }
+  var interesses = [];
+  function desenharInt() {
+    var l = document.getElementById("interesses"); l.textContent = "";
+    if (!interesses.length) { l.appendChild(el("p", { cls: "nota", texto: "Nenhum contato recebido." })); return; }
+    interesses.forEach(function (c) {
+      var card = el("div", { cls: "cartao" });
+      card.appendChild(el("div", { cls: "linha" }, [el("span", { cls: "chip " + (c.status === "contatado" ? "ok" : c.status === "novo" ? "espera" : ""), texto: c.status === "novo" ? "Novo" : c.status === "contatado" ? "Contatado" : "Arquivado" })]));
+      card.appendChild(el("h2", { texto: c.nome + " · " + c.rotuloServico }));
+      card.appendChild(el("p", { cls: "nota", texto: c.email + " · " + c.telefone + " · " + dt(c.criadoEm) }));
+      card.appendChild(el("div", { cls: "bloco", texto: "Atleta: " + c.rotuloFaixa + " · " + c.rotuloCategoria + "\nObjetivo: " + c.objetivo + (c.nota ? "\nNota: " + c.nota : "") }));
+      var wa = el("a", { href: "https://wa.me/55" + String(c.telefone).replace(/^55/, ""), target: "_blank", rel: "noopener noreferrer", texto: "Abrir no WhatsApp" });
+      var linha = el("div", { cls: "linha" }, [wa]);
+      [["contatado", "Marcar como contatado"], ["arquivado", "Arquivar"], ["novo", "Voltar para novo"]].forEach(function (s) {
+        if (s[0] === c.status) return;
+        var b = el("button", { type: "button", cls: "sec", texto: s[1] });
+        b.addEventListener("click", async function () {
+          var nota = s[0] === "arquivado" ? "" : (window.prompt("Nota interna (opcional)", c.nota || "") || "");
+          var r = await fetch("/.netlify/functions/admin-interesses", { method: "POST", headers: { "x-admin-secret": segredo, "content-type": "application/json" }, body: JSON.stringify({ acao: "status", id: c.id, status: s[0], nota: nota }) });
+          if (r.ok) await carregar(); else alert("Não foi possível atualizar.");
+        });
+        linha.appendChild(b);
+      });
+      card.appendChild(linha); l.appendChild(card);
+    });
   }
   var acompDados = { acompanhamentos: [] };
   async function chamarAc(corpo) {
