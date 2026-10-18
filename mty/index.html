@@ -8441,24 +8441,126 @@ function EvolucaoScout({ jogos }) {
   );
 }
 
-/* Tabela com todos os jogos lado a lado — o pedido original era "todos
-   os dados para comparação futura", e um gráfico sozinho não entrega
-   isso (só dá pra ver 2 métricas de cada vez). Jogos sem reg.scout
-   (salvos antes dessa métrica existir) aparecem com "—" nas colunas
-   que dependem dela. */
-function ComparacaoJogos({ jogos }) {
-  const linhas = [...jogos].reverse().map((r) => [
-    new Date(r.data).toLocaleDateString("pt-BR"),
-    r.adversario || "—",
-    r.scout ? r.scout.pctProtocolo + "%" : "—",
-    r.scout ? r.scout.pctErrosCurtos + "%" : "—",
-    r.scout ? `${r.scout.errosDecisao}/${r.scout.errosExec}` : "—",
-    r.scout ? r.scout.ataquePerdido : "—",
-  ]);
+/* Todos os dados coletados no scout, jogo a jogo. Cada linha é uma medida registrada (ou calculada direto dos pontos coletados) e cada coluna é um jogo
+   salvo, do mais antigo ao mais recente, para a evolução ler da esquerda para a direita. Para as medidas em que "melhor" tem sentido, o melhor jogo da
+   linha fica em verde e o pior em vermelho, e a coluna Tendência usa a inclinação de TODOS os jogos (tendenciaScout), não só o primeiro e o último.
+   Medida que o jogo não tem (por exemplo zona, em jogos anteriores à marcação de zona) aparece como "—" e fica fora da média e da tendência. */
+const ROTULO_ZONA_COMP = { "D-REDE": "Direita · rede", "D-APR": "Direita · aproximação", "D-FUNDO": "Direita · fundo", "E-REDE": "Esquerda · rede", "E-APR": "Esquerda · aproximação", "E-FUNDO": "Esquerda · fundo" };
+function seqDoJogo(s, tipo) {
+  if (!s.pontos || s.pontos.length < JANELA_MOMENTO) return null;
+  return sequenciasMomento(serieMomento(s.pontos, s.cfg))[tipo].tam;
+}
+const METRICAS_SCOUT = [
+  { grupo: "O jogo", k: "n", rot: "Pontos coletados", get: (s) => s.n, melhor: null },
+  { k: "pctGanhos", rot: "Pontos ganhos", suf: "%", get: (s) => s.pctGanhos, melhor: true },
+  { grupo: "Onde o ponto se decidiu", k: "pctCurtos", rot: "Em 1–2 bolas", suf: "%", get: (s) => s.pctCurtos, melhor: null },
+  { k: "pctMedios", rot: "Em 3–4 bolas", suf: "%", get: (s) => s.pctMedios, melhor: null },
+  { k: "pctLongos", rot: "Em 5 bolas ou mais", suf: "%", get: (s) => s.pctLongos, melhor: null },
+  { k: "pctAte4", rot: "Em até 4 bolas", suf: "%", get: (s) => s.pctAte4, melhor: null },
+  { grupo: "Erros do meu jogador", k: "errosNos", rot: "Erros", get: (s) => s.errosNos, melhor: false },
+  { k: "errosDecisao", rot: "— por decisão", get: (s) => s.errosDecisao, melhor: false },
+  { k: "errosExec", rot: "— por execução", get: (s) => s.errosExec, melhor: false },
+  { k: "pctErrosCurtos", rot: "Erros na bola 1–2 (% dos erros)", suf: "%", get: (s) => s.pctErrosCurtos, melhor: false },
+  { grupo: "Saque", k: "pctPrimeiro", rot: "1º saque dentro", suf: "%", get: (s) => (s.pctPrimeiro ? s.pctPrimeiro : null), melhor: true },
+  { k: "df", rot: "Duplas faltas", get: (s) => s.df, melhor: false },
+  { k: "dfAdverso", rot: "Duplas faltas em placar adverso", get: (s) => s.dfAdverso, melhor: false },
+  { grupo: "Hábitos e decisões", k: "pctProtocolo", rot: "Protocolo entre pontos", suf: "%", get: (s) => s.pctProtocolo, melhor: true },
+  { k: "rede", rot: "Subidas à rede", get: (s) => s.rede, melhor: null },
+  { k: "redeConv", rot: "Subidas convertidas", suf: "%", get: (s) => (s.rede ? Math.round((s.redeGanha / s.rede) * 100) : null), melhor: true },
+  { k: "ataquePerdido", rot: "Demandas de ataque perdidas", get: (s) => s.ataquePerdido, melhor: false },
+  { grupo: "Sob pressão", k: "adversos", rot: "Pontos em placar adverso", get: (s) => s.adversos, melhor: null },
+  { k: "pctAdversos", rot: "Ganhos em placar adverso", suf: "%", get: (s) => (s.adversos ? s.pctAdversos : null), melhor: true },
+  { grupo: "Momento do jogo", k: "seqFavor", rot: "Maior sequência a favor (pontos)", get: (s) => seqDoJogo(s, "melhor"), melhor: true },
+  { k: "seqContra", rot: "Maior sequência contra (pontos)", get: (s) => seqDoJogo(s, "pior"), melhor: false },
+  ...Object.entries(ROTULO_ZONA_COMP).map(([cod, rot], i) => ({
+    grupo: i === 0 ? "Mapa da quadra (saldo de pontos por zona)" : undefined, k: "zona-" + cod, rot, melhor: true,
+    get: (s) => { const z = zonasDe(s.pontos)[cod]; return z ? z.ganhos - (z.n - z.ganhos) : null; },
+  })),
+];
+function valorMetrica(m, s) { const v = m.get(s); return typeof v === "number" && Number.isFinite(v) ? v : null; }
+function ComparacaoScoutCompleta({ jogos }) {
+  const comScout = useMemo(() => jogos.filter((r) => r.scout).slice().sort((a, b) => String(a.data).localeCompare(String(b.data))), [jogos]);
+  const [metricaGrafico, setMetricaGrafico] = useState("pctGanhos");
+  if (comScout.length < 2) return null;
+  const semScout = jogos.length - comScout.length;
+  const colunas = comScout.map((r, i) => ({ r, rotulo: "J" + (i + 1), data: new Date(r.data).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) }));
+  const linhas = METRICAS_SCOUT.map((m) => ({ m, valores: comScout.map((r) => valorMetrica(m, r.scout)) })).filter((l) => l.valores.some((v) => v !== null));
+  const mGraf = METRICAS_SCOUT.find((m) => m.k === metricaGrafico) || METRICAS_SCOUT[1];
+  const dadosGrafico = comScout.map((r, i) => ({ rotulo: "J" + (i + 1), data: new Date(r.data).toLocaleDateString("pt-BR"), adversario: r.adversario || "—", valor: valorMetrica(mGraf, r.scout) }));
+  const tendGraf = (() => { const v = dadosGrafico.map((d) => d.valor).filter((x) => x !== null); return v.length >= 2 ? tendenciaScout(v, mGraf.melhor === null ? true : mGraf.melhor) : null; })();
+  const sufG = mGraf.suf || "";
+  const celula = { padding: "7px 8px", borderBottom: "1px solid " + C.linha, fontFamily: ARCH, fontSize: 12.5, textAlign: "center", whiteSpace: "nowrap" };
+  const primeira = { ...celula, textAlign: "left", position: "sticky", left: 0, background: C.cal, fontWeight: 600, whiteSpace: "normal", minWidth: 150, maxWidth: 170, zIndex: 1, borderRight: "1px solid " + C.linha };
   return (
     <div className="mb-5">
-      <div className="mb-2"><Etiqueta>Comparar jogos · {jogos.length}</Etiqueta></div>
-      <Tabela cabecalho={["Data", "Adversário", "Protocolo", "Erros 1–2", "Decisão/Execução", "Ataques perdidos"]} linhas={linhas} />
+      <div className="mb-2"><Etiqueta>Comparar todos os dados · {comScout.length} jogos</Etiqueta></div>
+      <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 8 }}>
+        Cada coluna é um jogo salvo (J1 é o mais antigo). Em verde o melhor jogo da linha, em vermelho o pior, quando "melhor" tem sentido. Medida que o jogo não registrou aparece como "—" e fica fora da média e da tendência.
+        {semScout > 0 ? ` ${semScout} ${semScout === 1 ? "jogo" : "jogos"} sem scout salvo ${semScout === 1 ? "fica" : "ficam"} de fora.` : ""}
+      </p>
+      <div style={{ overflowX: "auto", border: "1px solid " + C.linha, background: C.cal }} tabIndex={0} role="region" aria-label="Tabela de comparação do scout, jogo a jogo">
+        <table style={{ borderCollapse: "separate", borderSpacing: 0, minWidth: "100%" }}>
+          <thead>
+            <tr>
+              <th style={{ ...primeira, fontSize: 11, color: C.grafite }}>Medida</th>
+              {colunas.map((c) => (
+                <th key={c.r.id} style={{ ...celula, fontSize: 11, color: C.grafite, fontWeight: 700 }} title={(c.r.adversario || "") + " · " + new Date(c.r.data).toLocaleDateString("pt-BR")}>
+                  {c.rotulo}<div style={{ fontWeight: 400 }}>{c.data}</div>
+                </th>
+              ))}
+              <th style={{ ...celula, fontSize: 11, color: C.grafite }}>Média</th>
+              <th style={{ ...celula, fontSize: 11, color: C.grafite }}>Tendência</th>
+            </tr>
+          </thead>
+          <tbody>
+            {linhas.map(({ m, valores }) => {
+              const ok = valores.filter((v) => v !== null);
+              const max = Math.max(...ok), min = Math.min(...ok), diferem = ok.length >= 2 && max !== min;
+              const t = ok.length >= 2 && m.melhor !== null ? tendenciaScout(ok, m.melhor) : null;
+              const media = ok.length ? ok.reduce((s, v) => s + v, 0) / ok.length : null;
+              const fmt = (v) => (Number.isInteger(v) ? v : v.toFixed(1)) + (m.suf || "");
+              return (
+                <React.Fragment key={m.k}>
+                  {m.grupo && (
+                    <tr><td colSpan={colunas.length + 3} style={{ padding: "9px 8px 4px", fontFamily: ARCH, fontSize: 10.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.saibro, background: C.papel }}>{m.grupo}</td></tr>
+                  )}
+                  <tr>
+                    <td style={primeira}>{m.rot}</td>
+                    {valores.map((v, i) => {
+                      const bom = diferem && v !== null && m.melhor !== null && v === (m.melhor ? max : min);
+                      const ruim = diferem && v !== null && m.melhor !== null && v === (m.melhor ? min : max);
+                      return <td key={i} style={{ ...celula, background: bom ? "#E3F3EA" : ruim ? "#FBE6E4" : "transparent", color: bom ? "#1F6B4A" : ruim ? "#A6432F" : C.tinta, fontWeight: bom || ruim ? 700 : 400 }}>{v === null ? "—" : fmt(v)}</td>;
+                    })}
+                    <td style={{ ...celula, color: C.grafite }}>{media === null ? "—" : fmt(Math.round(media * 10) / 10)}</td>
+                    <td style={{ ...celula, color: t ? t.cor : C.grafite, fontWeight: 600 }}>{t ? t.seta + " " + (t.estavel ? "estável" : (t.variacaoTotal > 0 ? "+" : "") + t.variacaoTotal.toFixed(1)) : "—"}</td>
+                  </tr>
+                </React.Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="mt-4">
+        <label htmlFor="metricaGrafico" style={{ display: "block", fontFamily: ARCH, fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Ver uma medida ao longo dos jogos</label>
+        <select id="metricaGrafico" value={metricaGrafico} onChange={(e) => setMetricaGrafico(e.target.value)} style={{ ...entrada, marginBottom: 8 }}>
+          {linhas.map(({ m }) => <option key={m.k} value={m.k}>{(m.grupo ? m.grupo + " · " : "") + m.rot}</option>)}
+        </select>
+        <div role="img" aria-label={"Gráfico de " + mGraf.rot + " ao longo dos jogos"} style={{ height: 190, marginLeft: -14 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={dadosGrafico} margin={{ top: 8, right: 10, left: 0, bottom: 0 }}>
+              <CartesianGrid vertical={false} stroke={C.linha} />
+              <XAxis dataKey="rotulo" tick={{ fontSize: 10, fontFamily: ARCH, fill: C.grafite }} interval={0} />
+              <YAxis tick={{ fontSize: 10, fontFamily: ARCH, fill: C.grafite }} width={36} unit={sufG} />
+              <Tooltip contentStyle={{ fontFamily: ARCH, fontSize: 12, borderRadius: 10, border: "1px solid " + C.linha }}
+                labelFormatter={(l, p) => l + (p && p[0] ? " · " + p[0].payload.data + " · " + p[0].payload.adversario : "")}
+                formatter={(v) => [v + sufG, mGraf.rot]} />
+              <Line type="monotone" dataKey="valor" stroke={C.quadra} strokeWidth={2} dot={{ r: 3 }} connectNulls isAnimationActive={false} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+        {tendGraf && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>{mGraf.rot}: média {tendGraf.media.toFixed(1)}{sufG}; {tendGraf.estavel ? "estável ao longo dos jogos" : (tendGraf.variacaoTotal > 0 ? "subiu " : "caiu ") + Math.abs(tendGraf.variacaoTotal).toFixed(1) + sufG + " ao longo da série"}.</p>}
+      </div>
     </div>
   );
 }
@@ -8816,7 +8918,7 @@ function TelaScout({ aluno, alunos, setAlunos }) {
         {partidasAnteriores.length > 0 && (
           <div className="mt-6">
             <EvolucaoScout jogos={partidasAnteriores} />
-            <ComparacaoJogos jogos={partidasAnteriores} />
+            <ComparacaoScoutCompleta jogos={partidasAnteriores} />
             <h2 style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginBottom: 8 }}>Partidas registradas</h2>
             {[...partidasAnteriores].reverse().slice(0, 5).map((r) => (
               <div key={r.id} style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10,
