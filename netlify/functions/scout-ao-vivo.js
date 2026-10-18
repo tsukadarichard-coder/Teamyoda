@@ -24,6 +24,9 @@ function resposta(statusCode, corpo, publico) {
   return { statusCode, headers: { "content-type": "application/json", "cache-control": "no-store", "x-robots-tag": "noindex", "referrer-policy": "no-referrer" }, body: JSON.stringify(corpo) };
 }
 const agora = () => new Date().toISOString();
+/* O Firestore não aceita arrays dentro de arrays (a série de pontos é uma lista de listas), então o resumo é guardado como texto JSON. */
+const guardar = (resumo, aoVivo) => JSON.stringify({ ...limpar(resumo), aoVivo, atualizadoEm: agora() });
+const ler = (d) => { try { return JSON.parse(d.publico); } catch (e) { return limpar({}); } };
 
 exports.handler = async function (event) {
   try {
@@ -38,8 +41,8 @@ exports.handler = async function (event) {
       if (!snap.exists) return invalido();
       const d = snap.data();
       if (!(Date.parse(d.expiraEm) > Date.now())) return invalido();
-      if (String(q.v || "") === String(d.versao)) return resposta(200, { semMudanca: true, versao: d.versao, aoVivo: !!d.publico.aoVivo });
-      return resposta(200, { versao: d.versao, publico: limpar(d.publico), expiraEm: d.expiraEm });
+      if (String(q.v || "") === String(d.versao)) return resposta(200, { semMudanca: true, versao: d.versao, aoVivo: !!ler(d).aoVivo });
+      return resposta(200, { versao: d.versao, publico: limpar(ler(d)), expiraEm: d.expiraEm });
     }
     if (event.httpMethod !== "POST") return resposta(405, { erro: "Método não permitido." });
 
@@ -57,7 +60,7 @@ exports.handler = async function (event) {
       const ativos = (await col.where("orgId", "==", claims.orgId).get()).docs.filter((d) => Date.parse(d.data().expiraEm) > Date.now());
       if (ativos.length >= MAX_ATIVOS) return resposta(409, { erro: "Sua academia já tem " + MAX_ATIVOS + " links ao vivo abertos. Encerre um antes de abrir outro." });
       const token = crypto.randomBytes(16).toString("hex"), expiraEm = new Date(Date.now() + VALIDADE_MS).toISOString();
-      await col.doc(token).set({ orgId: claims.orgId, uid: claims.uid, criadoEm: agora(), expiraEm, versao: 1, publico: { ...limpar(body.resumo), aoVivo: true, atualizadoEm: agora() } });
+      await col.doc(token).set({ orgId: claims.orgId, uid: claims.uid, criadoEm: agora(), expiraEm, versao: 1, publico: guardar(body.resumo, true) });
       return resposta(200, { ok: true, token, expiraEm });
     }
 
@@ -73,7 +76,7 @@ exports.handler = async function (event) {
       if (!(Date.parse(d.expiraEm) > Date.now())) return resposta(410, { erro: "Este link ao vivo venceu. Inicie outro." });
       const fim = body.fim === true;
       const expiraEm = fim ? new Date(Math.min(Date.parse(d.expiraEm), Date.now() + APOS_FIM_MS)).toISOString() : d.expiraEm;
-      await ref.update({ versao: d.versao + 1, expiraEm, publico: { ...limpar(body.resumo), aoVivo: !fim, atualizadoEm: agora() } });
+      await ref.update({ versao: d.versao + 1, expiraEm, publico: guardar(body.resumo, !fim) });
       return resposta(200, { ok: true, versao: d.versao + 1 });
     }
     return resposta(400, { erro: "Ação desconhecida." });
