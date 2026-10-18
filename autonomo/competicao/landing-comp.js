@@ -28,6 +28,8 @@
     ["O responsável participa?", "Participa da avaliação inicial e pode acompanhar as informações autorizadas. O diário pessoal mantém controles próprios de privacidade."],
     ["Há orientação durante os jogos?", "O programa não inclui atendimento ao vivo durante partidas ou disponibilidade permanente em torneios."],
     ["A plataforma gera o planejamento sozinha?", "Ela pode organizar informações e oferecer sugestões. O planejamento profissional do acompanhamento passa por revisão humana."],
+    ["Menor de idade: por que o responsável vem antes do treinador?", "Para atletas com menos de 18 anos, o primeiro vínculo é sempre o de um responsável. Depois que ele estiver ativo, o treinador pode ser convidado e quem aprova o treinador é o responsável. Pai e mãe podem ser vinculados, cada um com a própria conta."],
+    ["O responsável pode fazer o scout do jogo?", "Sim. Quando o treinador não pode ir ao jogo, o pai ou a mãe vinculado (com a área “Partidas” liberada) marca os pontos pelo celular, dentro do app, e o jogo aparece ao vivo para o atleta e para o treinador vinculado. É uma marcação simples de pontos, sem a análise completa que o treinador faz no scout dele."],
     ["Como o atleta conecta o responsável e o treinador?", "Em Início, em “Quem acompanha você”, o atleta gera um código de convite (8 caracteres, válido por 7 dias) e marca o que a pessoa pode ver. Pai e mãe podem ser vinculados, cada um com o seu código e a sua conta. A pessoa digita o código na própria conta e o vínculo só vale depois de aprovado: pelo atleta ou, se for menor de idade, por um responsável já vinculado. Para o Acompanhamento MTY, o atleta marca “Meu planejamento” no convite do treinador. Qualquer lado pode encerrar o vínculo a qualquer momento, e o diário pessoal é privado por padrão."],
     ["Há garantia de resultados?", "Não. O programa oferece organização, planejamento e acompanhamento. O desenvolvimento depende de diversos fatores."]
   ];
@@ -88,7 +90,7 @@
       '<ol class="cl-passos3">' + [
         ["Crie a conta grátis", "Escolha o papel de atleta e informe a data de nascimento."],
         ["Cadastre seus torneios", "O app mostra a contagem, as datas e o que preparar antes de cada um."],
-        ["Convide quem acompanha (opcional)", "Pai, mãe e treinador entram por um código que você gera, com a própria conta, e só veem o que você marcar."]
+        ["Monte a equipe: responsável primeiro", "Se o atleta é menor de 18 anos, convide primeiro o pai, a mãe ou outro responsável; só depois dele vinculado o treinador pode entrar. Cada um usa um código que o atleta gera, com a própria conta, e só vê o que for marcado."]
       ].map(function (x, i) { return '<li class="cl-card"><b>' + (i + 1) + "</b><h3>" + x[0] + "</h3><p>" + x[1] + "</p></li>"; }).join("") + "</ol>" +
       '<div class="cl-cta"><a class="cl-btn argila" href="#/criar">Criar conta grátis</a><a class="cl-btn borda" href="#/entrar">Já tenho conta</a></div></div></section>';
   }

@@ -245,3 +245,14 @@ body.comp .voz-aviso p { margin: 4px 0 0; }
 .ponto-vivo{display:inline-block;width:9px;height:9px;border-radius:50%;background:#d6452d;margin-right:4px;vertical-align:middle;animation:pvivo 1.4s ease-in-out infinite}
 @keyframes pvivo{50%{opacity:.35}}
 @media (prefers-reduced-motion:reduce){.ponto-vivo{animation:none}}
+
+/* equipe do atleta menor: responsável antes do treinador */
+.equipe-passos .convite-passos li.feito span{background:#2f7d4f;color:#fff}
+.equipe-passos .convite-passos li.travado{opacity:.6}
+
+/* responsável marca o jogo */
+.sf-grade{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.sf-bt{min-height:78px;line-height:1.25;text-align:center;white-space:normal}
+.sf-bt small{font-weight:400;opacity:.85}
+.sf-n{font-size:1.1rem;margin-top:4px}
+.sf-erro{color:#b3361f}
