@@ -43,6 +43,8 @@
     <a class="nav-item" data-nav="planejamento" data-papeis="atleta" href="#/planejamento">Meu planejamento</a>
     <a class="nav-item" data-nav="partidas" data-papeis="atleta" href="#/partidas">Partidas</a>
     <a class="nav-item" data-nav="diario" data-papeis="atleta" href="#/diario">Diário</a>
+    <a class="nav-item" data-nav="recomendacoes" data-papeis="treinador" href="#/recomendacoes">Recomendações</a>
+    <a class="nav-item" data-nav="treinos" data-papeis="treinador" href="#/treinos">Treinos sugeridos</a>
     <a class="nav-item" data-nav="ao-vivo" href="#/ao-vivo">Jogo ao vivo</a>
     <a class="nav-item" data-nav="pedidos" data-papeis="responsavel" href="#/pedidos">Pedidos e pagamentos</a>
     <a class="nav-item" data-nav="acompanhamento" data-papeis="responsavel" href="#/acompanhamento">Acompanhamento MTY</a>
@@ -92,6 +94,14 @@
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>
       <span>Diário</span>
     </a>
+    <a class="navinf-item" data-nav="recomendacoes" data-papeis="treinador" href="#/recomendacoes">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5h14v10H9l-4 4z"/><path d="M9 9h6M9 12h4"/></svg>
+      <span>Recomend.</span>
+    </a>
+    <a class="navinf-item" data-nav="treinos" data-papeis="treinador" href="#/treinos">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/><path d="m17 16 2 2 3-4"/></svg>
+      <span>Treinos</span>
+    </a>
     <a class="navinf-item" data-nav="ao-vivo" data-papeis="responsavel treinador" href="#/ao-vivo">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4"/></svg>
       <span>Ao vivo</span>
@@ -113,6 +123,8 @@
 <!-- Painel "Mais" (celular): o que não cabe no menu inferior -->
 <div class="painel-mais" id="painelMais" role="dialog" aria-modal="true" aria-labelledby="painelMaisTitulo" hidden>
   <div class="painel-mais-topo"><h2 id="painelMaisTitulo">Mais</h2><button type="button" class="painel-fechar" id="btFecharMais" aria-label="Fechar">×</button></div>
+  <a class="painel-item" data-papeis="treinador" href="#/recomendacoes">Recomendações</a>
+  <a class="painel-item" data-papeis="treinador" href="#/treinos">Treinos sugeridos</a>
   <a class="painel-item" data-papeis="treinador responsavel" href="#/ao-vivo">Jogo ao vivo</a>
   <a class="painel-item" data-papeis="atleta" href="#/ao-vivo">Jogo ao vivo</a>
   <a class="painel-item" data-papeis="atleta" href="#/planejamento">Meu planejamento</a>

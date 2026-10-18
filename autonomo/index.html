@@ -8765,11 +8765,19 @@ function resumoAoVivo(aluno, cfg, pontos, placar) {
 function CartaoAoVivo({ aluno, cfg, pontos, placar, aoVivo, setAoVivo, estado, setEstado }) {
   const [aviso, setAviso] = useState("");
   const [ocupado, setOcupado] = useState(false);
+  const [atletas, setAtletas] = useState([]);
+  const [vinculoId, setVinculoId] = useState("");
   const url = aoVivo ? location.origin + "/scout/?l=" + aoVivo.token : "";
+  /* atletas do QuadraLab Competição que me vincularam como treinador: ligar o jogo a um deles faz o jogo aparecer sozinho no app dele e dos responsáveis */
+  useEffect(() => {
+    let vivo = true;
+    chamarAoVivo({ acao: "atletas" }).then((c) => { if (vivo) setAtletas(c.atletas || []); }).catch(() => {});
+    return () => { vivo = false; };
+  }, []);
   async function iniciar() {
     setOcupado(true); setAviso("");
     try {
-      const c = await chamarAoVivo({ acao: "iniciar", resumo: resumoAoVivo(aluno, cfg, pontos, placar) });
+      const c = await chamarAoVivo({ acao: "iniciar", vinculoId: vinculoId || undefined, resumo: resumoAoVivo(aluno, cfg, pontos, placar) });
       setAoVivo({ token: c.token, expiraEm: c.expiraEm }); setEstado("ok");
     } catch (e) { setAviso(e.message || "Não foi possível iniciar agora."); }
     setOcupado(false);
@@ -8792,6 +8800,16 @@ function CartaoAoVivo({ aluno, cfg, pontos, placar, aoVivo, setAoVivo, estado, s
           <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 6 }}>
             Gera um link que se atualiza sozinho a cada ponto marcado. Aparecem só o primeiro nome do atleta, placar, momento do jogo, mapa e números; nunca o nome do adversário nem anotações. Vale 12 horas e até 2 horas depois do fim da partida.
           </p>
+          {atletas.length > 0 && (
+            <div className="mt-2">
+              <label style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Atleta do app Competição (o jogo aparece sozinho no app dele e dos responsáveis)
+                <select value={vinculoId} onChange={(e) => setVinculoId(e.target.value)} style={{ display: "block", marginTop: 4, padding: "6px 8px", maxWidth: "100%" }}>
+                  <option value="">Só gerar o link (sem ligar a um atleta)</option>
+                  {atletas.map((x) => <option key={x.vinculoId} value={x.vinculoId}>{x.nome}</option>)}
+                </select>
+              </label>
+            </div>
+          )}
           <div className="mt-2"><Botao variante="vazio" pequeno onClick={iniciar} disabled={ocupado}>{ocupado ? "Gerando…" : "Gerar link ao vivo"}</Botao></div>
         </>
       ) : (

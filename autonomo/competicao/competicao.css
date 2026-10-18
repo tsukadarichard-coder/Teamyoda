@@ -240,3 +240,8 @@ body.comp .voz-aviso p { margin: 4px 0 0; }
 .chips-atalho { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
 .chips-atalho a { min-height: 40px; padding: 8px 14px; border-radius: 999px; border: 1.5px solid #C9D3CD; background: #fff; color: var(--tinta); font-weight: 600; font-size: 14.5px; text-decoration: none; display: inline-flex; align-items: center; }
 #detCodigo > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; gap: 8px; }
+
+/* ao vivo ligado ao atleta */
+.ponto-vivo{display:inline-block;width:9px;height:9px;border-radius:50%;background:#d6452d;margin-right:4px;vertical-align:middle;animation:pvivo 1.4s ease-in-out infinite}
+@keyframes pvivo{50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){.ponto-vivo{animation:none}}

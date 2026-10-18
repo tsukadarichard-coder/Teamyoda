@@ -34,10 +34,10 @@ function colRef(nome, filtros = [], lim) {
   return {
     doc: (id) => docRef(nome, id),
     async add(v) { const id = "doc" + String(++seq).padStart(12, "0"); col(nome)[id] = JSON.parse(JSON.stringify(v)); return docRef(nome, id); },
-    where(c, op, v) { return colRef(nome, filtros.concat([[c, v]]), lim); },
+    where(c, op, v) { return colRef(nome, filtros.concat([[c, v, op]]), lim); },
     limit(n) { return colRef(nome, filtros, n); },
     async get() {
-      let ids = Object.keys(col(nome)).filter((id) => filtros.every(([c, v]) => col(nome)[id][c] === v));
+      let ids = Object.keys(col(nome)).filter((id) => filtros.every(([c, v, op]) => (op === "in" ? v.includes(col(nome)[id][c]) : col(nome)[id][c] === v)));
       if (lim) ids = ids.slice(0, lim);
       const docs = ids.map((id) => ({ id, ref: docRef(nome, id), data: () => JSON.parse(JSON.stringify(col(nome)[id])) }));
       return { empty: !docs.length, docs, forEach: (f) => docs.forEach(f) };
@@ -330,6 +330,22 @@ async function get(uid, qs) { const r = await handler({ httpMethod: "GET", heade
   col("jogadores/menor/devolutivas").dm1 = { autorUid: "xx", autorNome: "Coach", tipo: "geral", destaques: "ok", criadoEm: "2026-01-01" };
   assert.strictEqual((await get("resp", { ver: idMae })).devolutivas.length, 1);
   assert.strictEqual(col("jogadores/adulto/focos") && Object.keys(col("jogadores/adulto/focos")).length, 3);
+
+  /* jogo ao vivo ligado ao atleta: aparece para o próprio atleta e para quem o acompanha com a área "partidas" */
+  const futuro = new Date(Date.now() + 3600000).toISOString(), pub = (r) => JSON.stringify({ aoVivo: true, resultado: r, torneio: "Copa", atleta: "Atleta" });
+  col("vinculos").avz1 = { tipo: "responsavel", status: "ativo", pessoaUid: "resp", atletaUid: "menor", atletaNome: "Atleta Menor", areas: ["partidas"] };
+  col("vinculos").avz2 = { tipo: "treinador", status: "ativo", pessoaUid: "trein", atletaUid: "menor", atletaNome: "Atleta Menor", areas: ["diario"] };
+  col("scoutsAoVivo").t1 = { atletaUid: "menor", expiraEm: futuro, criadoEm: "2026-10-18T10:00:00Z", publico: pub("6-4 1-0") };
+  col("scoutsAoVivo").t2 = { atletaUid: "menor", expiraEm: new Date(Date.now() - 1000).toISOString(), criadoEm: "x", publico: pub("velho") };
+  col("scoutsAoVivo").t3 = { atletaUid: "adulto", expiraEm: futuro, criadoEm: "x", publico: pub("outro") };
+  const tk = (u) => get(u, { aoVivo: "1" });
+  assert.deepStrictEqual((await tk("menor")).jogos.map((j) => j.token), ["t1"], "o atleta vê o próprio jogo (vencido e de outros não)");
+  const rj = await tk("resp"); assert.deepStrictEqual(rj.jogos.map((j) => j.token), ["t1"]); assert.strictEqual(rj.jogos[0].atleta, "Atleta Menor"); assert.strictEqual(rj.jogos[0].resultado, "6-4 1-0");
+  assert.deepStrictEqual((await tk("trein")).jogos, [], "treinador sem a área partidas não vê");
+  col("vinculos").avz2.areas = ["partidas"]; assert.deepStrictEqual((await tk("trein")).jogos.map((j) => j.token), ["t1"]);
+  col("vinculos").avz2.status = "revogado"; assert.deepStrictEqual((await tk("trein")).jogos, [], "vínculo encerrado não vê");
+  assert.deepStrictEqual((await tk("intruso")).jogos, [], "estranho não vê");
+  assert.ok(!JSON.stringify(await tk("resp")).includes("publico"), "só o recorte mínimo");
 
   console.log("check-competicao: ok");
 })().catch((e) => { console.error(e); process.exit(1); });

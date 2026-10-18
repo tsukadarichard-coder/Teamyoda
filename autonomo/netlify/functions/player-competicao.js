@@ -1,6 +1,7 @@
 /* QuadraLab Player Competição — papéis e vínculos (atleta, responsável, treinador).
 
    GET                         → meu papel, os vínculos que eu criei como atleta e os vínculos em que sou a pessoa vinculada
+   GET ?aoVivo=1               → jogos ao vivo ligados a mim (atleta) ou aos atletas que acompanho (responsável/treinador com a área "partidas")
    GET ?ver={vinculoId}        → o que o vínculo ativo me deixa ver do atleta (só as áreas marcadas)
    POST { acao: "ativar", papel, nascimento? }   → escolhe o papel (atleta exige data de nascimento)
    POST { acao: "convidar", tipo, areas }        → atleta gera um código de convite (responsavel | treinador)
@@ -52,6 +53,25 @@ async function encerrarTreinadoresSeMenorSemResponsavel(atletaUid, quem) {
   }
 }
 
+/* jogos ao vivo (scoutsAoVivo) ligados a mim ou aos atletas que acompanho; devolve só o necessário para abrir dentro do app */
+async function jogosAoVivo(uid) {
+  const nomes = new Map();
+  nomes.set(uid, "Você");
+  const s = await db().collection("vinculos").where("pessoaUid", "==", uid).where("status", "==", "ativo").get();
+  s.forEach((d) => { const v = d.data(); if ((v.tipo === "responsavel" || v.tipo === "treinador") && Array.isArray(v.areas) && v.areas.includes("partidas") && v.atletaUid) nomes.set(v.atletaUid, v.atletaNome || "Atleta"); });
+  const ids = [...nomes.keys()], jogos = [];
+  for (let i = 0; i < ids.length; i += 10) {
+    const snap = await db().collection("scoutsAoVivo").where("atletaUid", "in", ids.slice(i, i + 10)).get();
+    snap.forEach((d) => {
+      const x = d.data();
+      if (!(Date.parse(x.expiraEm) > Date.now())) return;
+      let p = {}; try { p = JSON.parse(x.publico); } catch (e) { /* resumo ilegível */ }
+      jogos.push({ token: d.id, atleta: nomes.get(x.atletaUid), aoVivo: !!p.aoVivo, resultado: String(p.resultado || "").slice(0, 40), torneio: String(p.torneio || "").slice(0, 80), atualizadoEm: x.criadoEm });
+    });
+  }
+  return jogos.sort((a, b) => Number(b.aoVivo) - Number(a.aoVivo));
+}
+
 async function estadoCompleto(uid) {
   const d = await dadosJogador(uid), c = comp(d), hoje = hojeNoBrasil();
   const saida = { competicao: { ativo: !!c.papel, papel: c.papel || null, menor: c.papel === "atleta" ? C.ehMenor(c.nascimento, hoje) : null, idade: c.papel === "atleta" ? C.idadeEm(c.nascimento, hoje) : null }, meus: [], comigo: [] };
@@ -85,6 +105,7 @@ exports.handler = async function (event) {
 
     if (event.httpMethod === "GET") {
       const ver = event.queryStringParameters && event.queryStringParameters.ver;
+      if (event.queryStringParameters && event.queryStringParameters.aoVivo) return resposta(200, { jogos: await jogosAoVivo(uid) });
       if (!ver) return resposta(200, await estadoCompleto(uid));
       const { v } = await carregarVinculo(ver);
       /* a pessoa vinculada, e só com vínculo ativo; qualquer outro caso é "não encontrado" para não revelar que existe */
