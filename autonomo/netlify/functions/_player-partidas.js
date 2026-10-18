@@ -28,6 +28,16 @@ function dataValida(s) {
   return Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== s ? null : s;
 }
 
+/* link de vídeo da partida (YouTube não listado, Drive etc.): só o endereço é guardado, nunca o vídeo. Só https, sem usuário/senha, até 300 caracteres. */
+function linkVideo(v) {
+  const s = String(v == null ? "" : v).trim();
+  if (!s) return "";
+  if (s.length > 300) throw new Error("O link do vídeo é longo demais (máximo de 300 caracteres).");
+  let u; try { u = new URL(s); } catch (e) { throw new Error("O link do vídeo não parece um endereço válido. Cole o link completo, começando com https://."); }
+  if (u.protocol !== "https:" || u.username || u.password || !u.hostname.includes(".")) throw new Error("O link do vídeo precisa começar com https:// e não pode ter usuário ou senha.");
+  return u.toString();
+}
+
 /* Valida e normaliza. Lança Error com mensagem para o jogador quando falta algo essencial. */
 function normalizarPartida(b, hoje) {
   b = b || {};
@@ -48,6 +58,7 @@ function normalizarPartida(b, hoje) {
     preparoId: ID_VALIDO.test(String(b.preparoId || "")) ? String(b.preparoId) : null, // a function confere que a preparação é do jogador e do mesmo torneio
     execucao,
     obs: texto(b.obs, 500),
+    videoLink: linkVideo(b.videoLink),
     funcionouTexto: texto(b.funcionouTexto, 300),
     naoFuncionouTexto: texto(b.naoFuncionouTexto, 300),
   };
@@ -71,4 +82,4 @@ function resumoPartidas(lista) {
   };
 }
 
-module.exports = { TIPOS, SUPERFICIES, RESULTADOS, EXECUCAO, ASPECTOS, CAMPOS_ASPECTO, LIMITE_PARTIDAS, normalizarPartida, resumoPartidas };
+module.exports = { TIPOS, SUPERFICIES, RESULTADOS, EXECUCAO, ASPECTOS, CAMPOS_ASPECTO, LIMITE_PARTIDAS, normalizarPartida, linkVideo, resumoPartidas };

@@ -129,7 +129,7 @@ function normalizarDiario(b, hoje) {
 }
 /* partida como o treinador vê: sem texto livre */
 function partidaCompartilhada(id, p) {
-  return { id, data: p.data, tipo: p.tipo, resultado: p.resultado, placar: p.placar || "", adversario: p.adversario || "", execucao: p.execucao || null, torneioId: p.torneioId || null, rodada: p.rodada || "", preparoId: p.preparoId || null };
+  return { id, data: p.data, tipo: p.tipo, resultado: p.resultado, placar: p.placar || "", adversario: p.adversario || "", execucao: p.execucao || null, torneioId: p.torneioId || null, rodada: p.rodada || "", preparoId: p.preparoId || null, video: p.videoLink || "" };
 }
 
 /* ── devolutiva do treinador ── */
