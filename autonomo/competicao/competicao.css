@@ -364,3 +364,9 @@ body.comp.landing { scroll-padding-top: 12px; }
 .cl-card .cl-valor { font-size: 44px; line-height: 1; color: var(--tinta); margin-top: 10px; }
 .cl-card .cl-para { margin-top: 10px; font-size: 15.5px; }
 .cl-preco-n { font-size: clamp(30px, 8vw, 56px); overflow-wrap: normal; }
+
+.cl-passos { list-style: none; margin: 24px 0 0; padding: 0; display: grid; grid-template-columns: 1fr; gap: 12px; counter-reset: p; }
+@media (min-width: 700px) { .cl-passos { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 1100px) { .cl-passos { grid-template-columns: repeat(5, 1fr); } }
+.cl-passos .cl-card { flex: none; margin: 0; }
+.cl-passos .cl-card h3 { font-size: 18px; }

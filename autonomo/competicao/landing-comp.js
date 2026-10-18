@@ -38,6 +38,7 @@
     ["O responsável participa?", "Participa da avaliação inicial e pode acompanhar as informações autorizadas. O diário pessoal mantém controles próprios de privacidade."],
     ["Há orientação durante os jogos?", "O programa não inclui atendimento ao vivo durante partidas ou disponibilidade permanente em torneios."],
     ["A plataforma gera o planejamento sozinha?", "Ela pode organizar informações e oferecer sugestões. O planejamento profissional do acompanhamento passa por revisão humana."],
+    ["Como o atleta conecta o responsável e o treinador?", "Gerando um código de convite em Início, em “Quem acompanha você”. A pessoa usa o código na própria conta e o vínculo só vale depois de aprovado. Para atleta menor de idade, o responsável é vinculado primeiro e aprova o treinador."],
     ["Há garantia de resultados?", "Não. O programa oferece organização, planejamento e acompanhamento. O desenvolvimento depende de diversos fatores."]
   ];
   var FAIXAS = [["", "Escolher"], ["ate10", "Até 10 anos"], ["11-12", "11 e 12 anos"], ["13-14", "13 e 14 anos"], ["15-16", "15 e 16 anos"], ["17-18", "17 e 18 anos"], ["adulto", "Acima de 18 anos"]];
@@ -70,6 +71,20 @@
         ["Dar continuidade", "Uma linha entre competir e treinar, semana após semana."]
       ].map(function (c, i) { return '<div class="cl-card"><b>0' + (i + 1) + "</b><h3>" + c[0] + "</h3><p>" + c[1] + "</p></div>"; }).join("") + "</div>" +
       '<p class="cl-nota">Treinador e responsável entram por um código que o atleta gera. Para atletas menores de idade, o responsável aprova o treinador. Qualquer lado pode encerrar o vínculo a qualquer momento, e o diário pessoal é privado por padrão.</p></section>';
+  }
+  function vinculos() {
+    var passos = [
+      ["Crie a conta e informe o nascimento", "O atleta cria a conta como atleta. A data de nascimento define se há responsável nas aprovações."],
+      ["Gere um código de convite", "Em Início, em “Quem acompanha você”, escolha Responsável ou Treinador e marque o que essa pessoa pode ver. O código tem 8 caracteres e vale 7 dias."],
+      ["Envie o código", "Passe o código para a pessoa, por mensagem. Ela cria a própria conta como responsável ou treinador e digita o código em Início."],
+      ["Aprove o vínculo", "O pedido aparece para aprovação. Para o treinador de um atleta menor de idade, quem aprova é o responsável."],
+      ["Cada um vê só o que foi marcado", "O atleta pode mudar as áreas compartilhadas ou encerrar o vínculo quando quiser, e a pessoa vinculada também pode encerrar."]
+    ];
+    return '<section class="cl-sec" id="cl-vinculos" tabindex="-1"><span class="comp-kicker azul">Responsável e treinador</span><h2>Como o atleta conecta cada pessoa.</h2>' +
+      '<p class="cl-lead">A conexão começa sempre pelo atleta, com um código. Ninguém entra por conta própria e ninguém vê nada sem aprovação.</p>' +
+      '<ol class="cl-passos">' + passos.map(function (s, i) { return '<li class="cl-card"><b>' + (i + 1) + "</b><h3>" + s[0] + "</h3><p>" + s[1] + "</p></li>"; }).join("") + "</ol>" +
+      '<div class="cl-duas"><article class="cl-oferta"><p class="olho-cl">Atleta menor de idade</p><h3>O responsável vem primeiro.</h3><p>Antes de convidar o treinador, o atleta vincula o responsável. Depois, o treinador só é aprovado por ele. O responsável também confirma pedidos de consultoria e do Acompanhamento MTY e responde pelo pagamento.</p></article>' +
+      '<article class="cl-oferta"><p class="olho-cl">Para o Acompanhamento MTY</p><h3>O profissional precisa estar vinculado.</h3><p>No convite do treinador, o atleta marca a área “Meu planejamento”: é ela que permite revisar e aprovar o planejamento. O diário pessoal continua privado e só é compartilhado registro por registro.</p></article></div></section>';
   }
   function ofertas() {
     return '<section class="cl-sec" id="cl-ofertas" tabindex="-1"><span class="comp-kicker azul">Duas ofertas complementares</span><h2>A plataforma organiza. O profissional orienta.</h2>' +
@@ -148,7 +163,7 @@
   }
 
   window.QL_COMP_LANDING = {
-    html: function () { return (abertura() + familia() + ofertas() + planejamento() + '</div>' + acompanhamento() + meses() + consultorias() + profissional() + perguntas() + formulario() + encerramento()).replace(/R\$ (\d)/g, function (m, d) { return "R$\u00a0" + d; }); },
+    html: function () { return (abertura() + familia() + vinculos() + ofertas() + planejamento() + '</div>' + acompanhamento() + meses() + consultorias() + profissional() + perguntas() + formulario() + encerramento()).replace(/R\$ (\d)/g, function (m, d) { return "R$\u00a0" + d; }); },
     ligar: function (raiz) {
       var reduz = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       function rolar(id) {
