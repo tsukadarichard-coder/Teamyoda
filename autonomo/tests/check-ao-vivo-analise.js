@@ -16,4 +16,15 @@ const html = A.painel(erros.concat([pt(true, { dec: "boa", jogo: 2 })]), { atlet
 assert(!html.includes("Ana <b>") && !/undefined|NaN/.test(html), "escape e valores");
 assert(A.painel([], {}).includes("primeiro ponto"), "vazio");
 assert(A.faixaAlerta(perdendo, "Ana").includes("Atenção"), "faixa do alerta");
+/* comparação com os jogos anteriores (scout completo e resumo público achatado) */
+const ant = [{ n: 80, pctGanhos: 60, pctPrimeiro: 65, errosNos: 8, df: 2, pctAdversos: 55, pctErrosCurtos: 30, nAtaque: 10, pctAtaque: 70 }, { n: 70, pctGanhos: 56, pctPrimeiro: 61, errosNos: 7, df: 3, nSacD: 5, pctSacD: 60 }];
+const b = A.baseline(ant);
+assert.strictEqual(b.jogos, 2); assert.strictEqual(b.pctGanhos, 58); assert.strictEqual(b.pctPrimeiro, 63); assert.strictEqual(b.erros100, 10.1 === b.erros100 ? 10.1 : b.erros100);
+const mal = Array.from({ length: 12 }, (_, i) => pt(i < 3, { saque: i % 3 === 0 ? "2" : "1", jogo: 1 }));
+const dif = A.diferencas(mal, b); assert(dif.some((d) => d.k === "pctGanhos" && d.d < 0 && !d.bom), "ganhos abaixo da média");
+assert(A.alertas(mal, "Ana", b).some((a) => /Abaixo da própria média/.test(a.texto)), "alerta comparativo");
+const pn = A.painel(mal, { atleta: "Ana", anteriores: ant });
+assert(pn.includes("Comparado com os jogos anteriores") && pn.includes("qa-comp") && pn.includes("Média de 2 jogos anteriores"), "tabela comparativa");
+assert(!A.painel(mal, { atleta: "Ana" }).includes("Comparado com"), "sem jogos anteriores não mostra a tabela");
+assert(!/undefined|NaN/.test(pn), "valores");
 console.log("check-ao-vivo-analise: ok");

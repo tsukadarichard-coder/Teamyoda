@@ -16,8 +16,43 @@
     return { n: n, nos: lado };
   }
 
+  /* ───────── comparação com os jogos anteriores ───────── */
+  var COMP = [["pctGanhos", "Pontos ganhos", "%", true], ["pctPrimeiro", "1º saque dentro", "%", true], ["erros100", "Erros por 100 pontos", "", false], ["df100", "Duplas faltas por 100 pontos", "", false],
+    ["pctAdversos", "Ganhos em placar adverso", "%", true], ["pctErrosCurtos", "Erros nas bolas 1–2 (% dos erros)", "%", false], ["pctDev", "Ganhos no saque do adversário", "%", true],
+    ["pctAtaque", "Ganhos em ataque", "%", true], ["pctContra", "Ganhos em contra-ataque", "%", true], ["pctDefesa", "Ganhos em defesa", "%", true]];
+  function num(v) { return typeof v === "number" && isFinite(v) ? v : null; }
+  /* medidas do jogo em andamento, a partir dos pontos; null quando ainda não há amostra */
+  function atuais(pontos) {
+    var n = pontos.length, meus = pontos.filter(function (p) { return p.sacador === "nos"; }), com1 = meus.filter(function (p) { return p.saque; }), p1 = com1.filter(function (p) { return p.saque === "1" || p.saque === "ace"; }).length;
+    var erros = pontos.filter(function (p) { return p.fim === "erro_nos"; }), curtos = erros.filter(function (p) { return p.bola === "1-2"; }).length, adv = pontos.filter(function (p) { return p.adverso; }), dev = pontos.filter(function (p) { return p.sacador === "ele"; });
+    function sit(k) { var l = pontos.filter(function (p) { return p.situacao === k; }); return l.length >= 3 ? pct(ganhos(l), l.length) : null; }
+    return { n: n, pctGanhos: n >= 5 ? pct(ganhos(pontos), n) : null, pctPrimeiro: com1.length >= 5 ? pct(p1, com1.length) : null, erros100: n >= 8 ? Math.round(erros.length * 1000 / n) / 10 : null,
+      df100: n >= 8 ? Math.round(meus.filter(function (p) { return p.saque === "df"; }).length * 1000 / n) / 10 : null, pctAdversos: adv.length >= 4 ? pct(ganhos(adv), adv.length) : null,
+      pctErrosCurtos: erros.length >= 3 ? pct(curtos, erros.length) : null, pctDev: dev.length >= 6 ? pct(ganhos(dev), dev.length) : null, pctAtaque: sit("ataque"), pctContra: sit("contra"), pctDefesa: sit("defesa") };
+  }
+  /* média dos jogos anteriores; aceita o scout completo do treinador ou o resumo público já achatado (numeros + bolas no mesmo nível) */
+  function baseline(lista) {
+    var acc = {}, cont = {};
+    (lista || []).forEach(function (s) {
+      if (!s) return; var n = num(s.n) || 0;
+      var dev = (num(s.nDevD) || 0) + (num(s.nDevE) || 0), v = {
+        pctGanhos: num(s.pctGanhos), pctPrimeiro: s.pctPrimeiro ? num(s.pctPrimeiro) : null, erros100: n >= 8 && num(s.errosNos) != null ? s.errosNos * 100 / n : null, df100: n >= 8 && num(s.df) != null ? s.df * 100 / n : null,
+        pctAdversos: s.pctAdversos ? num(s.pctAdversos) : null, pctErrosCurtos: num(s.pctErrosCurtos), pctDev: dev >= 6 ? ((s.nDevD || 0) * (s.pctDevD || 0) + (s.nDevE || 0) * (s.pctDevE || 0)) / dev : null,
+        pctAtaque: s.nAtaque ? num(s.pctAtaque) : null, pctContra: s.nContra ? num(s.pctContra) : null, pctDefesa: s.nDefesa ? num(s.pctDefesa) : null };
+      Object.keys(v).forEach(function (k) { if (v[k] !== null) { acc[k] = (acc[k] || 0) + v[k]; cont[k] = (cont[k] || 0) + 1; } });
+    });
+    var out = { jogos: (lista || []).filter(Boolean).length }; Object.keys(acc).forEach(function (k) { out[k] = Math.round(acc[k] / cont[k] * 10) / 10; }); return out;
+  }
+  function diferencas(pontos, ant) {
+    if (!ant || !ant.jogos) return [];
+    var a = atuais(pontos), out = [];
+    COMP.forEach(function (c) { var k = c[0], agora = a[k], base = ant[k]; if (agora === null || base === undefined) return; var d = Math.round((agora - base) * 10) / 10, bom = c[3] ? d > 0 : d < 0; out.push({ k: k, rot: c[1], suf: c[2], agora: agora, base: base, d: d, relevante: Math.abs(d) >= (c[2] === "%" ? 8 : 2), bom: bom }); });
+    return out;
+  }
+  function fnum(v) { return (Math.round(v * 10) / 10).toString().replace(".", ","); }
+
   /* alertas, do mais urgente ao menos: { nivel: "atencao" | "ok", texto } */
-  function alertas(pontos, atleta) {
+  function alertas(pontos, atleta, anteriores) {
     var A = esc(atleta || "o jogador"), out = [], n = pontos.length;
     if (n < 4) return out;
     var seq = sequencia(pontos), ult10 = pontos.slice(-10), g10 = ganhos(ult10);
@@ -45,6 +80,10 @@
     }
     var decs = pontos.filter(function (p) { return p.dec; }).slice(-8), ruins = decs.filter(function (p) { return p.dec === "ruim"; }).length;
     if (decs.length >= 5 && ruins >= 3) out.push({ p: 2, nivel: "atencao", texto: ruins + " das últimas " + decs.length + " decisões avaliadas foram ruins. Converse sobre a escolha de jogada." });
+    diferencas(pontos, anteriores).filter(function (d) { return d.relevante; }).sort(function (x, y) { return Math.abs(y.d) - Math.abs(x.d); }).slice(0, 2).forEach(function (d) {
+      var txt = d.rot + ": " + fnum(d.agora) + d.suf + " hoje contra " + fnum(d.base) + d.suf + " de média nos " + anteriores.jogos + (anteriores.jogos === 1 ? " jogo anterior." : " jogos anteriores.");
+      out.push(d.bom ? { p: 8, nivel: "ok", texto: "Acima da própria média. " + txt } : { p: 3, nivel: "atencao", texto: "Abaixo da própria média. " + txt });
+    });
     var aten = out.filter(function (a) { return a.nivel === "atencao"; }).sort(function (a, b) { return a.p - b.p; }), ok = out.filter(function (a) { return a.nivel === "ok"; });
     return aten.concat(ok);
   }
@@ -89,21 +128,30 @@
     return '<div class="qa-nums">' + t(pct(g, n) + "%", "pontos ganhos") + t(c1 ? pct(p1, c1) + "%" : "—", "1º saque dentro") + t(w, "winners") + t(er.length, "erros (" + dec + " de decisão)") + t(df, "duplas faltas") + "</div>";
   }
 
+  function comparativo(pontos, ant) {
+    var dif = diferencas(pontos, ant); if (!dif.length) return "";
+    return '<h3>Comparado com os jogos anteriores</h3><p class="qa-sub">Média de ' + ant.jogos + (ant.jogos === 1 ? " jogo anterior" : " jogos anteriores") + " contra o jogo de hoje até aqui. Poucos pontos oscilam muito: leia como tendência.</p>" +
+      '<table class="qa-comp"><thead><tr><th></th><th>Hoje</th><th>Média</th><th>Diferença</th></tr></thead><tbody>' + dif.map(function (d) {
+        var cor = Math.abs(d.d) < (d.suf === "%" ? 3 : 0.5) ? GRAFITE : d.bom ? AZUL : LARANJA;
+        return "<tr><td>" + esc(d.rot) + "</td><td>" + fnum(d.agora) + d.suf + "</td><td>" + fnum(d.base) + d.suf + '</td><td style="color:' + cor + ';font-weight:700">' + (d.d > 0 ? "▲ +" : d.d < 0 ? "▼ −" : "→ ") + fnum(Math.abs(d.d)) + (d.suf === "%" ? " p.p." : "") + "</td></tr>";
+      }).join("") + "</tbody></table>";
+  }
   function painel(pontos, o) {
     o = o || {}; pontos = pontos || [];
     if (!pontos.length) return '<div class="qa"><p class="qa-vazio">A análise aparece a partir do primeiro ponto marcado.</p></div>';
-    var al = alertas(pontos, o.atleta), seq = sequencia(pontos), h = '<div class="qa">';
+    var ant = o.anteriores && o.anteriores.jogos ? o.anteriores : baseline(o.anteriores || []), al = alertas(pontos, o.atleta, ant), seq = sequencia(pontos), h = '<div class="qa">';
     h += '<h3>Agora</h3>' + numeros(pontos);
     h += '<h3>O que a partida pede</h3>' + (al.length ? '<ul class="qa-al">' + al.map(function (a) { return '<li class="' + a.nivel + '">' + a.texto + "</li>"; }).join("") + "</ul>" : '<p class="qa-vazio">' + (pontos.length < 4 ? "Poucos pontos ainda. Os alertas começam a aparecer a partir do 4º ponto." : "Nada fora do esperado até aqui.") + "</p>");
     h += '<h3>Ponto a ponto</h3><p class="qa-sub">Saldo de pontos (ganhos menos perdidos)' + (seq.n >= 3 ? " · sequência atual: " + seq.n + (seq.nos ? " ganhos" : " perdidos") : "") + "</p>" + saldo(pontos) + faixa(pontos) + '<p class="qa-leg"><span><i style="background:' + AZUL + '"></i>ponto do atleta</span><span><i style="background:' + LARANJA + '"></i>ponto do adversário</span><span>★ winner · × erro</span></p>';
+    h += comparativo(pontos, ant);
     var gm = games(pontos, o.mental); if (gm) h += '<h3>Game a game</h3><p class="qa-sub">Pontos ganhos e perdidos em cada game</p>' + gm;
     return h + "</div>";
   }
   /* uma linha com o alerta mais urgente, para ficar sempre visível sob o placar */
-  function faixaAlerta(pontos, atleta) {
-    var al = alertas(pontos || [], atleta); if (!al.length) return "";
+  function faixaAlerta(pontos, atleta, anteriores) {
+    var ant = anteriores && anteriores.jogos ? anteriores : baseline(anteriores || []), al = alertas(pontos || [], atleta, ant); if (!al.length) return "";
     return '<div class="qa-topo ' + al[0].nivel + '" role="status"><b>' + (al[0].nivel === "atencao" ? "Atenção" : "Bom sinal") + "</b> " + al[0].texto + "</div>";
   }
-  var api = { alertas: alertas, painel: painel, faixaAlerta: faixaAlerta, sequencia: sequencia };
+  var api = { baseline: baseline, diferencas: diferencas, alertas: alertas, painel: painel, faixaAlerta: faixaAlerta, sequencia: sequencia };
   if (typeof module !== "undefined" && module.exports) module.exports = api; else raiz.QLAoVivo = api;
 })(typeof window !== "undefined" ? window : this);

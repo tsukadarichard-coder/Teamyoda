@@ -27,3 +27,7 @@
 .qa-topo { margin: 10px 0; padding: 9px 12px; border-radius: 10px; font-size: 13.5px; line-height: 1.4; border-left: 4px solid #C65825; background: #FBF1EB; color: #17251F; }
 .qa-topo.ok { border-left-color: #0F5E8C; background: #EAF2F8; }
 .qa-topo b { text-transform: uppercase; font-size: 11px; letter-spacing: .08em; margin-right: 4px; }
+.qa-comp { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.qa-comp th, .qa-comp td { padding: 5px 6px; border-bottom: 1px solid #E2E8E5; text-align: right; }
+.qa-comp th:first-child, .qa-comp td:first-child { text-align: left; }
+.qa-comp th { font-size: 11px; color: #5B6B63; font-weight: 600; }
