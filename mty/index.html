@@ -26,6 +26,7 @@
 <link rel="stylesheet" href="scout/ao-vivo.css">
 <script src="scout/relatorio-jogos.js"></script>
 <script src="scout/movimento-motor.js"></script>
+<script src="scout/evidencias.js"></script>
 <script src="scout/movimento.js"></script>
 <script src="scout/video-segmentador.js"></script>
 <script src="scout/video-jogo.js"></script>
@@ -5363,6 +5364,7 @@ function promptPlanoEstruturado(a, semanas, aulasSemana, historico, enfase) {
     "FICHA DO JOGADOR:",
     relatorioFicha(a),
     ...(resumoScout ? ["", resumoScout] : []),
+    ...(evidenciasParaPrompt(a) ? ["", evidenciasParaPrompt(a)] : []),
     ...(ciclosAnteriores.length ? [
       "",
       "RELATÓRIOS DOS CICLOS ANTERIORES DESTE JOGADOR — o novo plano responde ao que",
@@ -5533,7 +5535,8 @@ function promptPlanoTurma(turma, membros, semanas, aulasSemana, historico, enfas
     ...membros.flatMap((m, i) => {
       const resumoScout = resumoScoutPlanejamento(m.registros);
       return ["", "── Jogador " + (i + 1) + " · " + (m.nome || "sem nome") + " ──", relatorioFicha(m),
-        ...(resumoScout ? ["", resumoScout] : [])];
+        ...(resumoScout ? ["", resumoScout] : []),
+        ...(evidenciasParaPrompt(m) ? ["", evidenciasParaPrompt(m)] : [])];
     }),
     ...(ciclosAnteriores.length ? [
       "",
@@ -8361,6 +8364,9 @@ function tendenciaScout(valores, maiorEhMelhor) {
    decide o que fazer com isso é a IA/o treinador — aqui só entram
    números calculados a partir do que foi realmente registrado, nunca
    um texto interpretativo inventado. */
+function evidenciasParaPrompt(aluno) {
+  try { return (typeof window !== "undefined" && window.QLEvidencias && window.QLEvidencias.textoParaPrompt(aluno)) || ""; } catch (e) { return ""; }
+}
 function resumoScoutPlanejamento(registros) {
   const jogos = (registros || []).filter((r) => r.tipo === "jogo" && r.scout && !r.origemCompeticao); /* jogos vindos do Competição não têm todas as medidas (ex.: erros na bola 1–2) */
   if (jogos.length === 0) return null;
@@ -11357,6 +11363,138 @@ function VisaoGeralBlocos({ plano, aulas, status, reg, entidade, eTurma, membros
   );
 }
 
+/* Planejamento que melhora com os dados: o módulo scout/evidencias.js lê as análises de vídeo e os jogos com scout do jogador, aponta o que se repete
+   e propõe ajustes. Nada muda sozinho: o treinador aceita, recusa ou deixa para depois, e o que foi decidido entra no diário e no gerador de plano. */
+function exerciciosParaRevisao(aluno) {
+  return (areaId, n) => {
+    const a = AREAS[areaId];
+    if (!a) return [];
+    const base = exerciciosParaSorteio().filter((e) => a.familias.includes(e.f) && e.e.includes(aluno.estagio));
+    const chave = base.filter((e) => a.busca.test(e.n + " " + e.m));
+    return chave.concat(base.filter((e) => !chave.includes(e))).slice(0, n).map((e) => e.c);
+  };
+}
+function propostasNovasDoAluno(aluno) {
+  const QE = typeof window !== "undefined" && window.QLEvidencias;
+  if (!QE || !aluno) return [];
+  let vig = null;
+  try { vig = aulaEmVigor(aluno); } catch (e) { vig = null; }
+  return QE.novasPropostas(aluno, { agora: new Date().toISOString(), blocoAtual: vig && vig.bloco, exercicios: exerciciosParaRevisao(aluno) });
+}
+function CartaoRevisoesPlano({ alunos, irPara }) {
+  const lista = useMemo(() => {
+    const QE = typeof window !== "undefined" && window.QLEvidencias;
+    if (!QE || !irPara) return [];
+    return (alunos || []).filter((a) => a && a.nome).map((a) => ({ a, n: QE.pendentes(a).length + propostasNovasDoAluno(a).length })).filter((x) => x.n > 0);
+  }, [alunos]);
+  if (!lista.length) return null;
+  return (
+    <div className="mb-5" style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "12px 14px" }}>
+      <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>Revisão sugerida do plano</p>
+      <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, margin: "2px 0 8px" }}>Os vídeos e os jogos mostraram padrões que pedem um ajuste. Você decide o que entra.</p>
+      {lista.slice(0, 6).map(({ a, n }) => (
+        <button key={a.id} onClick={() => irPara(a.id)} className="w-full text-left"
+          style={{ display: "block", background: C.papel, border: "1px solid " + C.linha, borderRadius: 10, padding: "9px 12px", marginBottom: 6, cursor: "pointer", minHeight: 44 }}>
+          <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{a.nome}</span>
+          <span style={{ ...prosa, fontSize: 12, color: C.grafite, display: "block" }}>{n} {n === 1 ? "sugestão" : "sugestões"} de ajuste</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+function RevisaoPlano({ aluno, setAlunos, podeEditar }) {
+  const QE = typeof window !== "undefined" && window.QLEvidencias;
+  const [verDiario, setVerDiario] = useState(false);
+  const [verEvid, setVerEvid] = useState(false);
+  const chaveDados = (aluno.movimentos || []).length + "|" + (aluno.registros || []).length + "|" + (aluno.revisoesPlano || []).length;
+  useEffect(() => {
+    if (!QE || !podeEditar || !setAlunos) return;
+    const novas = propostasNovasDoAluno(aluno);
+    if (!novas.length) return;
+    setAlunos((lista) => lista.map((x) => {
+      if (x.id !== aluno.id) return x;
+      const agora = new Date().toISOString();
+      const livres = novas.filter((p) => !QE.bloqueada(x.revisoesPlano, p.chave, agora));
+      return livres.length ? { ...x, revisoesPlano: ((x.revisoesPlano || []).concat(livres)).slice(-60) } : x;
+    }));
+  }, [aluno.id, chaveDados]);
+  if (!QE) return null;
+  const achados = QE.achados(aluno);
+  const pend = QE.pendentes(aluno);
+  const decididas = (aluno.revisoesPlano || []).filter((r) => r.status !== "pendente").slice().reverse();
+  const efeitos = QE.efeitos(aluno);
+  const nomeEx = (c) => { const e = TODOS_EXERCICIOS().find((x) => x.c === c); return e ? e.n : c; };
+  const cor = { alta: C.saibro, media: C.grafite, baixa: C.linha };
+  function decidir(r, status) {
+    const agora = new Date().toISOString();
+    setAlunos((lista) => lista.map((x) => {
+      if (x.id !== aluno.id) return x;
+      let revisoes = QE.decidir(x.revisoesPlano, r.id, status, agora), regPlano = x.regPlano;
+      const a = r.acao || {};
+      if (status === "aceita" && a.tipo === "reforco" && x.plano && a.bloco && (a.ex || []).length && x.plano.blocos.some((b) => (b.titulo || b.nome) === a.bloco)) {
+        const rp = x.regPlano || {}, blocos = rp.__blocos || {}, info = blocos[a.bloco] || {};
+        regPlano = { ...rp, __blocos: { ...blocos, [a.bloco]: { ...info, reforcos: (info.reforcos || []).concat([{ ex: a.ex, origem: "revisao", revisaoId: r.id }]) } } };
+        revisoes = revisoes.map((v) => (v.id === r.id ? { ...v, aplicada: true } : v));
+      }
+      return { ...x, revisoesPlano: revisoes, regPlano };
+    }));
+  }
+  const rotuloStatus = { aceita: "Aceita", recusada: "Recusada", adiada: "Adiada" };
+  const rotuloEstado = { aguardando: "Aguardando medição", funcionou: "Funcionou", sem_melhora: "Sem melhora ainda" };
+  const miniBtn = { ...prosa, fontSize: 12.5, fontWeight: 700, border: "1px solid " + C.linha, background: C.cal, borderRadius: 8, padding: "8px 12px", cursor: "pointer", minHeight: 40 };
+  if (!achados.length && !pend.length && !decididas.length) return null;
+  return (
+    <div className="mb-7" data-revisao-plano>
+      <p style={{ fontFamily: ARCH, fontSize: 11, letterSpacing: 1.2, textTransform: "uppercase", color: C.saibro, fontWeight: 700 }}>Tecnologia QuadraLab</p>
+      <h3 style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, margin: "2px 0 4px" }}>Revisão do plano com os dados do jogador</h3>
+      <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>Só entra o que se repete em mais de uma medição. O plano não muda sozinho: você decide cada ajuste.</p>
+      {pend.length === 0 && <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginBottom: 10 }}>Nenhuma sugestão pendente agora.</p>}
+      {pend.map((r) => (
+        <div key={r.id} data-sugestao style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + (cor[r.forca] || C.linha), borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
+          <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{r.titulo}</p>
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, margin: "3px 0 6px" }}>{r.motivo}</p>
+          {r.acao && r.acao.tipo === "reforco" && (r.acao.ex || []).length > 0 && (
+            <p style={{ ...prosa, fontSize: 13, marginBottom: 6 }}>{podeEditar && aluno.plano && r.acao.bloco ? "Entra como aula de reforço no bloco “" + r.acao.bloco + "”: " : "Exercícios sugeridos: "}{r.acao.ex.map(nomeEx).join(" · ")}</p>
+          )}
+          {r.acao && r.acao.texto && <p style={{ ...prosa, fontSize: 13, marginBottom: 6 }}>{r.acao.texto}</p>}
+          {(r.dicas || []).length > 0 && <ul style={{ ...prosa, fontSize: 12.5, color: C.grafite, paddingLeft: 18, marginBottom: 6 }}>{r.dicas.map((d, i) => <li key={i}>{d}</li>)}</ul>}
+          {podeEditar ? (
+            <div className="flex flex-wrap gap-2 mt-1">
+              <button onClick={() => decidir(r, "aceita")} style={{ ...miniBtn, background: C.saibro, color: "#fff", borderColor: C.saibro }}>{r.tipo === "reforco" && aluno.plano && r.acao.bloco ? "Aceitar e incluir" : "Aceitar"}</button>
+              <button onClick={() => decidir(r, "adiada")} style={miniBtn}>Depois</button>
+              <button onClick={() => decidir(r, "recusada")} style={miniBtn}>Recusar</button>
+            </div>
+          ) : <p style={{ ...prosa, fontSize: 12, color: C.grafite }}>Só o professor responsável decide os ajustes.</p>}
+        </div>
+      ))}
+      {achados.length > 0 && (
+        <div style={{ marginTop: 6 }}>
+          <button onClick={() => setVerEvid((v) => !v)} style={{ ...prosa, fontSize: 12.5, fontWeight: 700, color: C.saibro, border: "none", background: "none", cursor: "pointer", padding: 0 }}>{verEvid ? "Ocultar evidências" : "Ver as " + achados.length + " evidências usadas"}</button>
+          {verEvid && achados.map((a) => (
+            <div key={a.id} style={{ borderBottom: "1px solid " + C.linha, padding: "8px 0" }}>
+              <p style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>{a.titulo}</p>
+              <p style={{ ...prosa, fontSize: 12, color: C.grafite }}>{a.fonte === "biomecanica" ? "Vídeo" : a.fonte === "scout" ? "Scout" : "Cruzamento"} · {a.tipo === "tecnico" ? "técnico" : a.tipo === "tatico" ? "tático" : a.tipo === "mental" ? "mental" : "físico/mental"} · confiança {a.forca === "alta" ? "alta" : a.forca === "media" ? "média" : "baixa"}</p>
+              <p style={{ ...prosa, fontSize: 12.5 }}>{a.texto}</p>
+            </div>
+          ))}
+        </div>
+      )}
+      {decididas.length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          <button onClick={() => setVerDiario((v) => !v)} style={{ ...prosa, fontSize: 12.5, fontWeight: 700, color: C.saibro, border: "none", background: "none", cursor: "pointer", padding: 0 }}>{verDiario ? "Ocultar diário de ajustes" : "Diário de ajustes (" + decididas.length + ")"}</button>
+          {verDiario && decididas.map((r) => (
+            <div key={r.id} style={{ borderBottom: "1px solid " + C.linha, padding: "8px 0" }}>
+              <p style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>{r.titulo}</p>
+              <p style={{ ...prosa, fontSize: 12, color: C.grafite }}>{rotuloStatus[r.status] || r.status} em {new Date(r.decididoEm || r.criadoEm).toLocaleDateString("pt-BR")}{r.aplicada ? " · incluída no plano" : ""}</p>
+              {efeitos[r.id] && <p style={{ ...prosa, fontSize: 12.5 }}><b>{rotuloEstado[efeitos[r.id].estado]}:</b> {efeitos[r.id].texto}</p>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LinhaDeRaciocinio({ plano, aulas, status, reg }) {
   const porBloco = calcularProgressoBlocos(plano, aulas, status, reg);
   const cadeia = plano.cadeia || [];
@@ -12953,6 +13091,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
 
       {modo === "resumo" && (
         <>
+          {!eTurma && <RevisaoPlano aluno={aluno} setAlunos={setAlunos} podeEditar={podeEditar} />}
           <LinhaDeRaciocinio plano={plano} aulas={aulas} status={status} reg={reg} />
 
           {/* Mapa de calor completo. Jogador: `entidade.registros` direto.
@@ -17999,6 +18138,7 @@ function TelaDashboard({ aoAbrirScout, alunos, turmas, ocorrencias, papelAtual, 
       )}
       <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>{saudacao}</h1>
       <CartaoPartidasEmAndamento alunos={alunos} aoAbrirScout={aoAbrirScout} />
+      <CartaoRevisoesPlano alunos={alunosVistos} irPara={irPara} />
       <p style={{ ...prosa, color: C.grafite, marginBottom: 14 }}>
         {verTodos ? "A academia inteira, de uma vez." : "Só o que é seu — mais quem ainda não tem professor definido."}
       </p>

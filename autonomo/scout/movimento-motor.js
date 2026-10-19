@@ -397,5 +397,5 @@
     return q;
   }
 
-  return { P: P, FASES: FASES, REGRAS: REGRAS, ang: ang, segmentar: segmentar, medidas: medidas, nomesFases: nomesFases, checklist: checklist, conclusao: conclusao, resumir: resumir, comparar: comparar, anteriorDe: anteriorDe, serie: serie, cota: cota, LIMITES_PLANO: LIMITES_PLANO, ordenar: ordenar, sintetico: sintetico, suavizar: suavizar };
+  return { P: P, FASES: FASES, REGRAS: REGRAS, ang: ang, segmentar: segmentar, medidas: medidas, nomesFases: nomesFases, checklist: checklist, conclusao: conclusao, INTERV: INTERV, resumir: resumir, comparar: comparar, anteriorDe: anteriorDe, serie: serie, cota: cota, LIMITES_PLANO: LIMITES_PLANO, ordenar: ordenar, sintetico: sintetico, suavizar: suavizar };
 });
