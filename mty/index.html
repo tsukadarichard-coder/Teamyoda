@@ -7710,6 +7710,11 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
             Confirmar critério de saída na aba Aulas →
           </button>
         )}
+        {plano && !plano.chuva && todosExerciciosAtuais.length > 0 && (
+          <EnviarParaRelogio aluno={aluno} titulo={aulaAtual ? ((aulaAtual.t || "Aula de hoje") + (aulaAtual.bloco ? " · " + aulaAtual.bloco : "")) : "Aula de hoje"}
+            secoes={(plano.daAula ? [{ t: "Aquecimento", itens: plano.aquecimento }, { t: "Conteúdo", itens: plano.conteudo }] : plano.map((b) => ({ t: b.nome || b.titulo || "Bloco", itens: b.exercicios })))
+              .map((s) => ({ t: s.t, itens: s.itens.map((e) => ({ n: e.n, min: minDe(e), d: (String(e.m || "").match(/^[^.!?]*[.!?]?/) || [""])[0].trim().slice(0, 150) })) }))} />
+        )}
         <div className="flex items-center gap-3 flex-wrap mt-2">
           {plano && todosExerciciosAtuais.length > 0 && (
             <Etiqueta cor={duracaoEstourou ? C.saibro : C.grafite}>
@@ -11387,6 +11392,66 @@ function propostasNovasDoAluno(aluno, todos) {
   let restantes = null;
   if (aluno.plano) { try { restantes = listaAulas(aluno.plano, aluno.regPlano).filter((a) => statusAula(aluno.regPlano, a.id) !== "feita").length; } catch (e) { restantes = null; } }
   return QE.novasPropostas(aluno, { agora: new Date().toISOString(), blocoAtual: vig && vig.bloco, aulasRestantes: restantes, exercicios: exerciciosParaRevisao(aluno), aprendizado: todos && todos.length > 1 ? QE.aprendizado(todos) : undefined });
+}
+/* Aula no relógio: publica a lista da sessão de hoje num link simples; o app Atalhos do iPhone/Apple Watch abre o link e mostra os exercícios no pulso.
+   Reenviar atualiza o mesmo link. O link leva só o primeiro nome do jogador e os exercícios da aula. */
+async function chamarRelogio(corpo) {
+  if (!window.mtyAuth || !window.mtyAuth.usuario()) throw new Error("Entre com sua conta da academia para enviar a aula ao relógio.");
+  const token = await window.mtyAuth.tokenId();
+  const r = await fetch("/.netlify/functions/sessao-relogio", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + token }, body: JSON.stringify(corpo) });
+  const c = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(c.erro || ("Erro " + r.status));
+  return c;
+}
+function EnviarParaRelogio({ aluno, titulo, secoes }) {
+  const [estado, setEstado] = useState("");
+  const [token, setToken] = useState(() => { try { return localStorage.getItem("ql-relogio:" + aluno.id) || ""; } catch (e) { return ""; } });
+  const [erro, setErro] = useState("");
+  const [passos, setPassos] = useState(false);
+  if (typeof window === "undefined" || !window.mtyAuth) return null;
+  const link = token ? window.location.origin + "/.netlify/functions/sessao-relogio?t=" + token : "";
+  async function enviar() {
+    setEstado("enviando"); setErro("");
+    try {
+      const r = await chamarRelogio({ acao: "publicar", alunoId: aluno.id, nome: aluno.nome, titulo, secoes });
+      setToken(r.token); try { localStorage.setItem("ql-relogio:" + aluno.id, r.token); } catch (e) { /* sem armazenamento */ }
+      setEstado("ok"); setPassos(true);
+    } catch (e) { setErro(e.message); setEstado(""); }
+  }
+  async function revogar() {
+    try { await chamarRelogio({ acao: "revogar", alunoId: aluno.id }); } catch (e) { /* segue: o link local sai de qualquer jeito */ }
+    setToken(""); setEstado(""); try { localStorage.removeItem("ql-relogio:" + aluno.id); } catch (e) { /* sem armazenamento */ }
+  }
+  const mini = { fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, border: "1px solid " + C.linha, background: C.cal, borderRadius: 8, padding: "8px 12px", cursor: "pointer", minHeight: 40 };
+  return (
+    <div className="mt-3 mb-2" data-relogio style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "10px 14px" }}>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>Aula no relógio</span>
+        <button onClick={enviar} disabled={estado === "enviando"} style={{ ...mini, background: C.saibro, color: "#fff", borderColor: C.saibro }}>{estado === "enviando" ? "Enviando…" : token ? "Atualizar no relógio" : "Enviar para o relógio"}</button>
+      </div>
+      {erro && <p role="alert" style={{ ...prosa, fontSize: 12.5, color: "#A33", marginTop: 6 }}>{erro}</p>}
+      {link && (
+        <div style={{ marginTop: 8 }}>
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>{estado === "ok" ? "Aula enviada. " : ""}O link abaixo sempre mostra a última aula enviada para {String(aluno.nome || "").split(" ")[0] || "este jogador"}.</p>
+          <p data-link-relogio style={{ ...prosa, fontSize: 12, wordBreak: "break-all", margin: "6px 0" }}>{link}</p>
+          <div className="flex flex-wrap gap-2">
+            <button style={mini} onClick={() => { try { navigator.clipboard.writeText(link); setEstado("copiado"); } catch (e) { /* sem área de transferência */ } }}>{estado === "copiado" ? "Link copiado" : "Copiar link"}</button>
+            <button style={mini} onClick={() => setPassos((v) => !v)}>{passos ? "Ocultar passos" : "Como colocar no relógio"}</button>
+            <button style={mini} onClick={revogar}>Apagar link</button>
+          </div>
+          {passos && (
+            <ol style={{ ...prosa, fontSize: 12.5, paddingLeft: 18, marginTop: 8 }}>
+              <li>No iPhone, abra o app <b>Atalhos</b> e toque em <b>+</b> para criar um atalho.</li>
+              <li>Adicione a ação <b>Obter conteúdo do URL</b> e cole o link acima.</li>
+              <li>Adicione a ação <b>Mostrar resultado</b>. Dê o nome “Aula de hoje” ao atalho.</li>
+              <li>Toque em <b>ⓘ</b> no atalho e ative <b>Mostrar no Apple Watch</b>.</li>
+              <li>No relógio, abra <b>Atalhos</b> e toque em “Aula de hoje”. Depois de editar a aula, toque em “Atualizar no relógio” aqui e abra o atalho de novo.</li>
+            </ol>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 /* Atletas da academia no QuadraLab Player: o treinador tem um código fixo (o atleta digita no Player e o vínculo nasce ativo) e pode pedir o vínculo pelo e-mail do atleta (ele aprova no app). */
 function CartaoVinculoAcademia() {
