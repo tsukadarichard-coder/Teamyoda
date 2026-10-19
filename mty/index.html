@@ -96,11 +96,12 @@ if (auth) {
     } catch (e) { orgIdCache = null; }
   });
 }
-async function organizacao() {
+/* forcar: ignora o que está guardado e renova o token no servidor — para a conta que foi aprovada/alterada com o app já aberto. */
+async function organizacao(forcar) {
   if (!auth || !auth.currentUser) return null;
-  if (orgIdCache) return orgIdCache;
+  if (orgIdCache && !forcar) return orgIdCache;
   try {
-    const tok = await auth.currentUser.getIdTokenResult();
+    const tok = await auth.currentUser.getIdTokenResult(!!forcar);
     orgIdCache = (tok.claims && tok.claims.orgId) || null;
     return orgIdCache;
   } catch (e) { return null; }
@@ -2880,20 +2881,29 @@ async function iniciarJobIA(prompt, maxTokens, aoProgredir) {
   if (!window.mtyAuth || !window.mtyAuth.usuario()) {
     throw new Error("Entre com sua conta da academia para gerar com IA.");
   }
-  const org = await organizacao();
-  if (!org) throw new Error("Sua conta ainda não está ligada a uma academia.");
+  /* conta aprovada ou alterada com o app aberto: a permissão da academia só chega com um token novo — renova antes de desistir */
+  let org = await organizacao();
+  if (!org) org = await organizacao(true);
+  if (!org) throw new Error("Sua conta ainda não está ligada a uma academia. Peça ao coordenador para confirmar seu acesso e, depois, saia e entre de novo.");
 
   const jobId = MTY.id("job");
-  const token = await window.mtyAuth.tokenId();
   etapa("Enviando o pedido");
-  const r = await fetch("/.netlify/functions/gerar-ia-background", {
-    method: "POST",
-    headers: { "content-type": "application/json", authorization: "Bearer " + token },
-    body: JSON.stringify({ prompt, maxTokens, jobId }),
-  });
+  const enviar = async (renovar) => {
+    const token = await window.mtyAuth.tokenId(renovar);
+    return fetch("/.netlify/functions/gerar-ia-background", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: "Bearer " + token },
+      body: JSON.stringify({ prompt, maxTokens, jobId }),
+    });
+  };
+  let r = await enviar(false);
+  if (r.status === 401) r = await enviar(true); /* sessão vencida: renova e tenta uma vez de novo, sem o treinador precisar sair e entrar */
   if (!r.ok && r.status !== 202) {
-    const d = await r.json().catch(() => ({}));
-    throw new Error(d.erro || ("Erro " + r.status));
+    const texto = await r.text().catch(() => "");
+    let d = {}; try { d = JSON.parse(texto); } catch { /* a function responde texto simples nesses casos */ }
+    if (r.status === 401) throw new Error("Sua sessão expirou. Saia e entre de novo na conta e tente gerar outra vez.");
+    if (r.status === 403) throw new Error(d.erro || texto || "Esta conta ainda não está ligada a uma academia. Peça ao coordenador para confirmar seu acesso e entre de novo.");
+    throw new Error(d.erro || texto || ("Erro " + r.status));
   }
   return { jobId, org };
 }
