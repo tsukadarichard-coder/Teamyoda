@@ -2784,8 +2784,11 @@ function agrupaFases(linha) {
   return g;
 }
 
+/* Jogador sem prioridades (cadastro incompleto ou importado) ou com área desconhecida: usa as quatro áreas padrão, para a sessão sempre poder ser gerada. */
+const PRIORIDADES_PADRAO = ["saque", "devolucao", "fundo", "rede"];
 function montaCiclos(prioridades, estagio) {
-  return prioridades.slice(0, 4).map((areaId, i) => {
+  const validas = (Array.isArray(prioridades) ? prioridades : []).filter((id) => AREAS[id]);
+  return (validas.length ? validas : PRIORIDADES_PADRAO).slice(0, 4).map((areaId, i) => {
     const a = AREAS[areaId];
     const chave = exerciciosParaSorteio().filter(
       (e) => a.familias.includes(e.f) && e.e.includes(estagio) && a.busca.test(e.n + " " + e.m)
@@ -4822,7 +4825,7 @@ function relatorioFicha(a) {
     const objs = objetivosDoAdulto(a).map((v) => OBJETIVOS_ADULTO.find((o) => o.v === v)).filter(Boolean);
     L.push("Objetivo (adulto): " + (objs.length ? objs.map((o) => o.r + " — " + o.d).join(" · ") : "[não definido]"));
   }
-  L.push("Prioridades: " + a.prioridades.map((p, i) => (i + 1) + ") " + AREAS[p].nome).join(" · "));
+  L.push("Prioridades: " + (a.prioridades || []).map((p, i) => (i + 1) + ") " + AREAS[p].nome).join(" · "));
   L.push("Arma(s) do jogador: " + (armasDoJogador(a).map((id) => AREAS[id].nome).join(" · ") || "[não definida]"));
   if ((a.objetivoFinal || "").trim()) L.push("Objetivo final: " + a.objetivoFinal.trim());
   if ((a.pedidosConteudoAprovados || []).length) {
@@ -6886,7 +6889,7 @@ function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual, podeEditar = true,
       <Secao titulo="Prioridades de desenvolvimento"
         nota="As duas primeiras recebem mais volume de treino no ciclo — não é a ordem da aula.">
         <ol style={{ ...prosa, listStyleType: "decimal", paddingLeft: 20, margin: 0 }}>
-          {a.prioridades.map((p) => <li key={p} style={{ marginBottom: 4 }}>{AREAS[p].nome}</li>)}
+          {(a.prioridades || []).map((p) => <li key={p} style={{ marginBottom: 4 }}>{AREAS[p].nome}</li>)}
         </ol>
       </Secao>
 
@@ -7345,7 +7348,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
   function gerar() {
     setDivergencias([]);
     if (aulaAtual) {
-      const evitar = new Set(aluno.historico.slice(-2).flat());
+      const evitar = new Set((aluno.historico || []).slice(-2).flat());
       const aquecimento = sorteia(exerciciosAquecimento().filter((e) => e.e.includes(aluno.estagio)), evitar, 2);
       /* !e.semBola aqui também — não só no sorteio: uma aula do Plano
          gerada ANTES desta regra (ou colada à mão) pode ter um código
@@ -7367,7 +7370,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
       setPlano({ daAula: true, aquecimento, conteudo });
       return;
     }
-    const evitar = new Set(aluno.historico.slice(-2).flat());
+    const evitar = new Set((aluno.historico || []).slice(-2).flat());
     const f3 = fatiaInicio(aluno.nivel);
     const areaCiclo = AREAS[ciclos[cicloAtivo].areaId];
     const pesos = [pesoBase, 0.2, f3, 0.2, Math.max(0.1, 1 - (pesoBase + 0.4 + f3))];
@@ -7584,7 +7587,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
     };
     const alunosAtualizados = alunos.map((a) => {
       if (a.id !== aluno.id) return a;
-      const atualizado = { ...a, historico: [...a.historico, cods], registros: [...(a.registros || []), reg], rascunhoSessao: null };
+      const atualizado = { ...a, historico: [...(a.historico || []), cods], registros: [...(a.registros || []), reg], rascunhoSessao: null };
       if (aulaAtual) {
         const anterior = (a.regPlano || {})[aulaAtual.id] || {};
         const d = { ...anterior, status: statusAulaPlano, data: hoje };
@@ -10290,7 +10293,7 @@ function ResumoScout({ r, sinais, aluno, alunos, setAlunos, pontos, cfg, mental 
 
   function reordenar() {
     const areas = [...new Set(sinais.map((s) => s[0]))];
-    const nova = [...areas, ...aluno.prioridades.filter((p) => !areas.includes(p))];
+    const nova = [...areas, ...(aluno.prioridades || []).filter((p) => !areas.includes(p))];
     setAlunos(alunos.map((a) => a.id === aluno.id ? { ...a, prioridades: nova } : a));
   }
 
