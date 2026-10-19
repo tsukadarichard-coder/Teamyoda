@@ -3239,6 +3239,7 @@
       var sets = pl.sets.map(function (x) { return x[0] + "-" + x[1]; }).concat([pl.g[0] + "-" + pl.g[1]]).join("  ");
       var h = voltar + '<section class="sf-cab"><div><p class="sf-cab-l">' + esc((meu ? "SAQUE DE " + primeiro : "SAQUE DO ADVERSÁRIO").toUpperCase()) + " · " + esc(M.ROTULO_LADO[M.ladoDoSaque(pl)].toUpperCase()) + '</p><p class="sf-cab-n">' + esc(M.rotuloPontos(pl)) + '</p></div><div class="sf-cab-d"><p class="sf-cab-l">SETS</p><p class="sf-cab-s">' + esc(sets) + "</p></div></section>" +
         (adv && !fimJogo ? '<p class="sf-adverso">PLACAR ADVERSO — este ponto entra na comparação</p>' : "") + (pl.fim ? '<div class="aviso">Partida encerrada: ' + esc(primeiro) + (pl.vencedor === "nos" ? " venceu" : " perdeu") + ".</div>" : "");
+      if (!fimJogo && window.QLAoVivo) h += window.QLAoVivo.faixaAlerta(st.pontos, primeiro);
       if (!fimJogo) {
         if (!rasc) {
           h += '<section class="cartao"><p class="olho">Mental no game ' + M.numeroDoGame(pl) + ' (opcional)</p><div class="sf-chips" role="group" aria-label="Mental no game">' + [1, 2, 3, 4, 5].map(function (v) { var at = (st.mental.jogo || {})[M.numeroDoGame(pl)] || 0; return botao((at === v ? "✓ " : "") + v, "btn-secundario btn-pequeno", 'data-mjogo="' + v + '" aria-pressed="' + (at === v) + '"'); }).join("") + "</div></section>";
@@ -3259,6 +3260,7 @@
         }
       }
       var gan = st.pontos.filter(function (p) { return p.nos; }).length;
+      if (window.QLAoVivo) h += '<details class="cartao sf-analise" style="margin-top:12px"' + (st.analiseAberta ? " open" : "") + '><summary><strong>Análise ao vivo</strong> · ' + n + (n === 1 ? " ponto" : " pontos") + "</summary>" + window.QLAoVivo.painel(st.pontos, { atleta: primeiro, mental: st.mental }) + "</details>";
       h += '<section class="cartao" style="margin-top:12px"><p class="sf-n"><strong>' + n + "</strong> pontos · " + esc(primeiro) + " ganhou <strong>" + gan + "</strong>" + (n ? " (" + Math.round(gan * 100 / n) + "%)" : "") + '</p>' + mentalCartaoHtml("depois", "Avaliação mental depois do jogo", "Como o atleta termina, de 1 a 5. Opcional.") + '<div class="campo" style="margin-top:12px"><label for="sfNivel">Nível do adversário <span class="nota">(opcional, no fim da partida)</span></label><select id="sfNivel"><option value="">Não informar</option>' + M.NIVEIS_ADVERSARIO.map(function (x) { return '<option value="' + x[0] + '"' + (st.nivelAdversario === x[0] ? " selected" : "") + ">" + esc(x[1]) + "</option>"; }).join("") + '</select></div><div class="campo" style="margin-top:12px"><label for="sfObs">Observação final <span class="nota">(opcional)</span></label><textarea id="sfObs" rows="3" maxlength="1200" placeholder="Um recado sobre o jogo. Aparece na página de quem acompanha.">' + esc(st.observacaoFinal || "") + '</textarea></div><p id="sfEnvio" class="nota"></p>' +
         '<div class="acoes"><button type="button" class="btn btn-texto" id="sfDesfazer"' + (n || rasc ? "" : " disabled") + '>Desfazer</button><button type="button" class="btn btn-secundario" id="sfEnviar">Enviar agora</button>' +
         (fimJogo ? '<button type="button" class="btn btn-secundario" id="sfNovo">Novo jogo</button>' : '<button type="button" class="btn btn-laranja" id="sfFim">Encerrar partida</button>') + "</div></section>" +
@@ -3272,6 +3274,7 @@
       q("[data-sit]", function (b) { b.addEventListener("click", function () { var v = b.getAttribute("data-sit"); rasc.situacao = rasc.situacao === v ? null : v; desenhar(); }); });
       q("[data-golpe]", function (b) { b.addEventListener("click", function () { var v = b.getAttribute("data-golpe"); rasc.golpe = rasc.golpe === v ? null : v; desenhar(); }); });
       q("[data-corrida]", function (b) { b.addEventListener("click", function () { rasc.corrida = !rasc.corrida; desenhar(); }); });
+      q(".sf-analise", function (d) { d.addEventListener("toggle", function () { st.analiseAberta = d.open; }); });
       q("[data-dec]", function (b) { b.addEventListener("click", function () { var v = b.getAttribute("data-dec"); rasc.dec = rasc.dec === v ? null : v; desenhar(); }); });
       q("[data-ment]", function (b) { b.addEventListener("click", function () { var g = b.getAttribute("data-ment"), k = b.getAttribute("data-mk"), v = +b.getAttribute("data-mv"); st.mental[g][k] = st.mental[g][k] === v ? 0 : v; desenhar(); agendar(); }); });
       q("[data-mjogo]", function (b) { b.addEventListener("click", function () { var g = M.numeroDoGame(placarAtual()), v = +b.getAttribute("data-mjogo"); st.mental.jogo[g] = st.mental.jogo[g] === v ? 0 : v; desenhar(); agendar(); }); });

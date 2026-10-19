@@ -22,6 +22,8 @@
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-auth-compat.js"></script>
 <script src="mty-nuvem.js"></script>
 <script src="scout/graficos.js"></script>
+<script src="scout/ao-vivo.js"></script>
+<link rel="stylesheet" href="scout/ao-vivo.css">
 <script src="scout/relatorio-jogos.js"></script>
 <link rel="stylesheet" href="scout/graficos.css">
 <script crossorigin src="https://unpkg.com/@babel/standalone@7.29.9/babel.min.js"></script>
@@ -9153,8 +9155,19 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
         </div>
       </div>
 
+      {window.QLAoVivo && pontos.length >= 4 && (
+        <div dangerouslySetInnerHTML={{ __html: window.QLAoVivo.faixaAlerta(pontos, String(aluno.nome || "").trim().split(/\s+/)[0]) }} />
+      )}
+
       {confirmacaoVisivel && (
         <div className="mt-2 mb-2" style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, color: C.quadra }}>✓ Ponto registrado</div>
+      )}
+
+      {window.QLAoVivo && (
+        <details className="mb-4" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "10px 14px" }}>
+          <summary style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, cursor: "pointer", minHeight: 32 }}>Análise ao vivo · {pontos.length} {pontos.length === 1 ? "ponto" : "pontos"}</summary>
+          <div style={{ marginTop: 8 }} dangerouslySetInnerHTML={{ __html: window.QLAoVivo.painel(pontos, { atleta: String(aluno.nome || "").trim().split(/\s+/)[0], mental }) }} />
+        </details>
       )}
 
       {window.mtyAuth && <CartaoAoVivo aluno={aluno} cfg={cfg} pontos={pontos} placar={placar} mental={mental} aoVivo={aoVivo} setAoVivo={setAoVivo} estado={aoVivoEstado} setEstado={setAoVivoEstado} />}

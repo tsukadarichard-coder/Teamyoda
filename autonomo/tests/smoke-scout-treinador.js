@@ -81,6 +81,12 @@ window.firebase={initializeApp:function(){},auth:function(){return a}};})();`;
   await pg.waitForTimeout(1500);
   const vivo = Object.keys(store).filter((k) => /^scoutsAoVivo\//.test(k));
   assert.strictEqual(vivo.length, 1, "o jogo foi aberto ao vivo"); assert.strictEqual(store[vivo[0]].atletaUid, "at1", "ligado ao atleta pelo vínculo");
+  for (let k = 0; k < 4; k++) { await pg.click('[data-fim="winner_nos"]'); await pg.waitForSelector('[data-bola="1-2"]'); await pg.click('[data-bola="1-2"]'); await pg.waitForTimeout(450); }
+  await pg.waitForSelector(".qa-topo", { timeout: 4000 });
+  assert.ok((await pg.textContent(".qa-topo")).includes("seguidos"), "alerta de sequência em tempo real");
+  await pg.click(".sf-analise summary"); await pg.waitForSelector(".sf-analise .qa-svg");
+  const painel = await pg.textContent(".sf-analise"); assert.ok(painel.includes("Ponto a ponto") && painel.includes("Game a game"), "painel com ponto a ponto e game a game");
+  await pg.screenshot({ path: path.join(saida, "analise-ao-vivo.png"), fullPage: true });
   { const pub = JSON.parse(store[vivo[0]].publico);
     assert.strictEqual(pub.mental.antes.conf, 4, "mental antes chegou ao resumo ao vivo");
     assert.strictEqual(pub.mental.jogo[1], 3, "mental do game chegou");

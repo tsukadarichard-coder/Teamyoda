@@ -321,3 +321,5 @@ body.comp .voz-aviso p { margin: 4px 0 0; }
 .rit-sanshin b { display: inline-block; min-width: 76px; color: var(--marca-texto); text-transform: uppercase; font-size: 12.5px; letter-spacing: .06em; }
 .rit-som { margin-top: 4px; }
 @media (prefers-reduced-motion: reduce) { .rit-circ { transition: none !important; } }
+.sf-analise summary { cursor: pointer; min-height: 32px; }
+.sf-analise .qa { margin-top: 8px; }

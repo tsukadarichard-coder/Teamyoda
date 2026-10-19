@@ -1,0 +1,29 @@
+/* Análise em tempo real do scout (scout/ao-vivo.js). Azul = ponto do atleta, laranja = ponto do adversário. */
+.qa { font-family: inherit; color: #17251F; }
+.qa h3 { margin: 16px 0 6px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: #5B6B63; }
+.qa h3:first-child { margin-top: 2px; }
+.qa-sub { margin: 0 0 6px; font-size: 12px; color: #5B6B63; }
+.qa-vazio { margin: 4px 0; font-size: 13px; color: #5B6B63; }
+.qa-nums { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 8px; }
+.qa-n { background: #F6F8F7; border-radius: 10px; padding: 8px 10px; }
+.qa-n b { display: block; font-size: 20px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.qa-n span { font-size: 11.5px; color: #5B6B63; }
+.qa-al { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.qa-al li { padding: 9px 11px; border-radius: 10px; font-size: 13.5px; line-height: 1.4; border-left: 4px solid #C65825; background: #FBF1EB; }
+.qa-al li.ok { border-left-color: #0F5E8C; background: #EAF2F8; }
+.qa-svg { width: 100%; height: auto; display: block; }
+.qa-faixa { display: flex; gap: 3px; margin-top: 6px; }
+.qa-faixa i { flex: 1; min-width: 0; height: 20px; border-radius: 4px; color: #fff; font: 700 11px/20px system-ui, sans-serif; text-align: center; font-style: normal; }
+.qa-leg { display: flex; flex-wrap: wrap; gap: 3px 12px; margin: 6px 0 0; font-size: 11px; color: #5B6B63; }
+.qa-leg i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; }
+.qa-games { display: grid; gap: 8px; }
+.qa-game { display: grid; grid-template-columns: 34px 1fr auto; gap: 6px 8px; align-items: center; }
+.qa-game small { grid-column: 2 / 4; margin-top: -4px; font-size: 11px; color: #5B6B63; }
+.qa-g { font-size: 12px; font-weight: 700; color: #5B6B63; }
+.qa-game.atual .qa-g { color: #17251F; }
+.qa-barra { display: flex; gap: 2px; height: 18px; border-radius: 5px; overflow: hidden; }
+.qa-barra b { display: flex; align-items: center; justify-content: center; color: #fff; font-size: 10.5px; min-width: 2px; }
+.qa-v { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.qa-topo { margin: 10px 0; padding: 9px 12px; border-radius: 10px; font-size: 13.5px; line-height: 1.4; border-left: 4px solid #C65825; background: #FBF1EB; color: #17251F; }
+.qa-topo.ok { border-left-color: #0F5E8C; background: #EAF2F8; }
+.qa-topo b { text-transform: uppercase; font-size: 11px; letter-spacing: .08em; margin-right: 4px; }
