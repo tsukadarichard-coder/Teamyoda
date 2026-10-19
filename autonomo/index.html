@@ -9172,6 +9172,8 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
   const [rascunhoSalvo, setRascunhoSalvo] = useState(null);
   const [estadoRascunho, setEstadoRascunho] = useState(null); // null | "salvo" | "erro"
   const [confirmadoEm, setConfirmadoEm] = useState(0);
+  const [modoRapido, setModoRapido] = useState(() => { try { return localStorage.getItem("ql-scout-modo") !== "completo"; } catch { return true; } }); /* marcação rápida: resultado + bola; os detalhes ficam para depois */
+  const [detalhes, setDetalhes] = useState(false);
   const concluidoRef = useRef(false); /* depois de salvar ou descartar, o rascunho não é regravado */
   const ultimoRascunhoRef = useRef(null);
   const [retomandoId, setRetomandoId] = useState(null); /* partida salva que foi reaberta: é substituída quando você salvar de novo */
@@ -9245,6 +9247,17 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
   }, [fase, cfg, placar, pontos, mental, aoVivo && aoVivo.token, aluno.id]);
   useEffect(() => () => { gravarRascunhoNuvem(); }, []);
 
+  /* mantém a tela acesa durante a partida (o celular não apaga entre um ponto e outro) */
+  useEffect(() => {
+    if (fase !== "durante" || !(navigator && navigator.wakeLock)) return undefined;
+    let trava = null, ativo = true;
+    const pedir = () => navigator.wakeLock.request("screen").then((t) => { if (ativo) trava = t; else t.release(); }).catch(() => { /* sem permissão: segue normal */ });
+    pedir();
+    const volta = () => { if (document.visibilityState === "visible") pedir(); };
+    document.addEventListener("visibilitychange", volta);
+    return () => { ativo = false; document.removeEventListener("visibilitychange", volta); if (trava) trava.release().catch(() => {}); };
+  }, [fase]);
+
   function limparRascunhoSalvo() {
     concluidoRef.current = true;
     ultimoRascunhoRef.current = null;
@@ -9304,9 +9317,22 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
     setFase("durante");
   }
 
+  function vibrar() { try { if (navigator.vibrate) navigator.vibrate(30); } catch { /* aparelho sem vibração */ } }
+  function alternarModo() { const novo = !modoRapido; setModoRapido(novo); setDetalhes(false); try { localStorage.setItem("ql-scout-modo", novo ? "rapido" : "completo"); } catch { /* sem armazenamento */ } }
+  /* reabre o último ponto para completar os detalhes: volta o placar e carrega as escolhas dele no formulário */
+  function editarUltimo() {
+    const ult = pontos[pontos.length - 1], pil = pilha[pilha.length - 1];
+    if (!ult || !pil) return;
+    const { n, placarAntes, jogo, set, bola, ...resto } = ult;
+    setPlacar(pil.placar); setPontos(pil.pontos); setPilha(pilha.slice(0, -1));
+    setRascunho({ ...resto, saquePre: ult.saque === "1" || ult.saque === "2" ? ult.saque : null });
+    setDetalhes(true);
+  }
+
   function confirma(bola) {
     if (processandoRef.current) return;
     processandoRef.current = true;
+    vibrar(); setDetalhes(false);
     const p = { ...rascunho, bola, n: pontos.length + 1, placarAntes: rotuloPontos(placar), jogo: numeroDoGame(placar), set: numeroDoSet(placar) };
     setPilha([...pilha, { placar, pontos }]);
     setPontos([...pontos, p]);
@@ -9321,6 +9347,7 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
   function saqueDireto(tipo) {
     if (processandoRef.current) return;
     processandoRef.current = true;
+    vibrar();
     const sacador = quemSaca(placar), meu = sacador === "nos";
     const nos = tipo === "ace" ? meu : !meu;
     setPilha([...pilha, { placar, pontos }]);
@@ -9336,7 +9363,7 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
   }
 
   function desfazer() {
-    if (rascunho) { setRascunho(null); return; }
+    if (rascunho) { setRascunho(null); setDetalhes(false); return; }
     const ult = pilha[pilha.length - 1];
     if (!ult) return;
     setPlacar(ult.placar);
@@ -9524,29 +9551,6 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
         </div>
       </div>
 
-      {window.QLAoVivo && pontos.length >= 1 && (
-        <div dangerouslySetInnerHTML={{ __html: window.QLAoVivo.momento(pontos, { jogoAtual: numeroDoGame(placar), setAtual: numeroDoSet(placar) }) }} />
-      )}
-      {window.QLAoVivo && pontos.length >= 2 && (
-        <div dangerouslySetInnerHTML={{ __html: window.QLAoVivo.macro(pontos, { jogoAtual: numeroDoGame(placar) }) }} />
-      )}
-      {window.QLAoVivo && pontos.length >= 4 && (
-        <div dangerouslySetInnerHTML={{ __html: window.QLAoVivo.faixaAlerta(pontos, String(aluno.nome || "").trim().split(/\s+/)[0], (aluno.registros || []).filter((r) => r.tipo === "jogo" && r.scout).map((r) => r.scout)) }} />
-      )}
-
-      {confirmacaoVisivel && (
-        <div className="mt-2 mb-2" style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, color: C.quadra }}>✓ Ponto registrado</div>
-      )}
-
-      {window.QLAoVivo && (
-        <details className="mb-4" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "10px 14px" }}>
-          <summary style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, cursor: "pointer", minHeight: 32 }}>Análise ao vivo · {pontos.length} {pontos.length === 1 ? "ponto" : "pontos"}</summary>
-          <div style={{ marginTop: 8 }} dangerouslySetInnerHTML={{ __html: window.QLAoVivo.painel(pontos, { atleta: String(aluno.nome || "").trim().split(/\s+/)[0], mental, semGraficosFixos: true, anteriores: (aluno.registros || []).filter((r) => r.tipo === "jogo" && r.scout).map((r) => r.scout) }) }} />
-        </details>
-      )}
-
-      {window.mtyAuth && <CartaoAoVivo aluno={aluno} cfg={cfg} pontos={pontos} placar={placar} mental={mental} aoVivo={aoVivo} setAoVivo={setAoVivo} estado={aoVivoEstado} setEstado={setAoVivoEstado} />}
-
       {placar.fim && (
         <Aviso>
           Partida encerrada. {pontos.length} pontos coletados.{" "}
@@ -9556,9 +9560,30 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
         </Aviso>
       )}
 
+      {window.QLAoVivo && pontos.length >= 4 && (
+        <div dangerouslySetInnerHTML={{ __html: window.QLAoVivo.faixaAlerta(pontos, String(aluno.nome || "").trim().split(/\s+/)[0], (aluno.registros || []).filter((r) => r.tipo === "jogo" && r.scout).map((r) => r.scout)) }} />
+      )}
+
+      {!rascunho && pontos.length > 0 && (() => {
+        const u = pontos[pontos.length - 1], fimR = (FIM_PONTO.find((o) => o.v === u.fim) || {}).r || "";
+        return (
+          <div className="mb-3 flex items-center justify-between gap-2" role="status" style={{ background: confirmadoEm ? "#E8F3EC" : C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: "10px 12px", transition: "background .3s" }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: ARCH, fontSize: 11, letterSpacing: "0.1em", color: C.grafite }}>PONTO {u.n} REGISTRADO</div>
+              <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>✓ {u.saque === "ace" ? (u.nos ? "Ace" : "Ace dele") : u.saque === "df" ? (u.nos ? "Dupla falta" : "Dupla falta dele") : fimR} · bola {u.bola}</div>
+            </div>
+            <div className="flex gap-2 flex-shrink-0">
+              <button type="button" onClick={desfazer} style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, minHeight: 44, padding: "8px 12px", borderRadius: 10, cursor: "pointer", border: "1px solid " + C.saibro, background: C.papel, color: C.saibro }}>Corrigir</button>
+              <button type="button" onClick={editarUltimo} style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, minHeight: 44, padding: "8px 12px", borderRadius: 10, cursor: "pointer", border: "1px solid " + C.linha, background: C.papel, color: C.grafite }}>Detalhes</button>
+            </div>
+          </div>
+        );
+      })()}
+
       {!rascunho && (
         <div className="mb-4">
           <div className="mb-2"><Etiqueta>{nossoSaque ? "Saque (opcional)" : "Saque do adversário (opcional)"}</Etiqueta></div>
+          {detalhes && (
           <div className="flex flex-wrap gap-2 mb-2" role="group" aria-label="Direção do saque">
             {DIRECOES_SAQUE.map(([k, r]) => (
               <button key={k} type="button" aria-pressed={dirSaque === k} onClick={() => setDirSaque(dirSaque === k ? null : k)}
@@ -9569,6 +9594,7 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
             ))}
             <span style={{ ...prosa, fontSize: 12, color: C.grafite, alignSelf: "center" }}>direção do saque</span>
           </div>
+          )}
           <div className="grid grid-cols-4 gap-2">
             {[["1", "1º dentro"], ["2", "2º dentro"], ["ace", nossoSaque ? "Ace" : "Ace dele"], ["df", nossoSaque ? "Dupla falta" : "Dupla falta dele"]].map(([v, r]) => {
               const cor = v === "df" ? C.saibro : v === "ace" ? C.quadra : C.tinta;
@@ -9586,14 +9612,6 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
         </div>
       )}
 
-      {!rascunho && placar && (
-        <div className="mb-3" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "10px 12px" }}>
-          <Etiqueta>Mental no game {numeroDoGame(placar)} (opcional)</Etiqueta>
-          <EscalaMental rotulo="Como o jogador está agora" valor={(mental.jogo || {})[numeroDoGame(placar)] || 0}
-            aoMudar={(v) => setMental({ ...mental, jogo: { ...(mental.jogo || {}), [numeroDoGame(placar)]: v } })} />
-        </div>
-      )}
-
       {!rascunho?.fim && (
         <div>
           <div className="mb-2"><Etiqueta>Como o ponto terminou</Etiqueta></div>
@@ -9603,7 +9621,7 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
                 onClick={() => setRascunho({ ...(rascunho || {}), ...{
                   fim: op.v, nos: op.nos, saque: rascunho?.saquePre || null, bola: null, causa: null,
                   rede: false, situacao: null, golpe: null, corrida: false, direcao: null, qualDev: null, dec: null, dirSaque: dirSaque || null, adverso, sacador: quemSaca(placar), lado: ladoDoSaque(placar) } })}
-                style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, padding: "20px 8px", minHeight: 44,
+                style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, padding: "26px 8px", minHeight: 76,
                   border: "1px solid " + op.cor, borderRadius: 10, background: C.cal, color: op.cor, cursor: "pointer" }}>
                 {op.r}
               </button>
@@ -9612,7 +9630,39 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
         </div>
       )}
 
-      {rascunho?.fim && (
+      {rascunho?.fim && modoRapido && !detalhes && (
+        <div style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 12, borderLeft: "4px solid " + C.saibro, padding: 14, marginBottom: 12 }}>
+          <div className="flex items-center justify-between mb-3">
+            <Etiqueta cor={C.saibro}>{FIM_PONTO.find((o) => o.v === rascunho.fim).r}</Etiqueta>
+            <button type="button" onClick={() => setRascunho(rascunho.saquePre ? { saquePre: rascunho.saquePre } : null)}
+              style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, color: C.grafite, cursor: "pointer", border: "1px solid " + C.linha, background: C.papel, borderRadius: 10, padding: "8px 14px", minHeight: 44 }}>✕ Trocar</button>
+          </div>
+          {rascunho.fim === "erro_nos" && (
+            <div className="grid grid-cols-2 gap-2 mb-3" role="group" aria-label="Causa do erro (opcional)">
+              {[["decisao", "Decisão"], ["execucao", "Execução"]].map(([k, r]) => (
+                <button key={k} type="button" aria-pressed={rascunho.causa === k} onClick={() => setRascunho({ ...rascunho, causa: rascunho.causa === k ? null : k })}
+                  style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, minHeight: 52, borderRadius: 10, cursor: "pointer",
+                    border: "1px solid " + (rascunho.causa === k ? C.tinta : C.linha), background: rascunho.causa === k ? C.tinta : C.cal, color: rascunho.causa === k ? C.papel : C.grafite }}>
+                  {rascunho.causa === k ? "✓ " : ""}{r}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="mb-2"><Etiqueta>Em que bola o ponto terminou</Etiqueta></div>
+          <div className="grid grid-cols-3 gap-2">
+            {["1-2", "3-4", "5+"].map((b) => (
+              <button key={b} onClick={() => confirma(b)}
+                style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, minHeight: 88, borderRadius: 12, cursor: "pointer", border: "1px solid " + C.tinta, background: C.tinta, color: C.papel }}>
+                {b}
+              </button>
+            ))}
+          </div>
+          <button type="button" onClick={() => setDetalhes(true)}
+            style={{ marginTop: 12, fontFamily: ARCH, fontSize: 13, fontWeight: 700, color: C.saibro, cursor: "pointer", border: "none", background: "none", padding: "8px 0", minHeight: 44 }}>＋ Detalhes do ponto (opcional)</button>
+        </div>
+      )}
+
+      {rascunho?.fim && (!modoRapido || detalhes) && (
         <div style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderLeft: "3px solid " + C.saibro, padding: 15 }}>
           <div className="mb-3">
             <Etiqueta cor={C.saibro}>{FIM_PONTO.find((o) => o.v === rascunho.fim).r}</Etiqueta>
@@ -9724,13 +9774,37 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
         </div>
       )}
 
-      <div className="flex items-center justify-between mt-6">
+      <div className="flex items-center justify-between mt-4 mb-6">
         <Etiqueta>{pontos.length} pontos</Etiqueta>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap justify-end">
+          <Botao pequeno variante="vazio" onClick={alternarModo}>{modoRapido ? "Modo rápido ✓" : "Modo detalhado ✓"}</Botao>
           <Botao pequeno variante="vazio" onClick={desfazer}>Desfazer</Botao>
           <Botao pequeno onClick={() => { if (placar.fim || window.confirm("Encerrar a partida e ver o relatório? Você poderá voltar e continuar de onde parou.")) setFase("depois"); }}>Encerrar e ver relatório</Botao>
         </div>
       </div>
+      {!rascunho && placar && (
+        <div className="mb-3" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "10px 12px" }}>
+          <Etiqueta>Mental no game {numeroDoGame(placar)} (opcional)</Etiqueta>
+          <EscalaMental rotulo="Como o jogador está agora" valor={(mental.jogo || {})[numeroDoGame(placar)] || 0}
+            aoMudar={(v) => setMental({ ...mental, jogo: { ...(mental.jogo || {}), [numeroDoGame(placar)]: v } })} />
+        </div>
+      )}
+
+      {window.QLAoVivo && pontos.length >= 1 && (
+        <div dangerouslySetInnerHTML={{ __html: window.QLAoVivo.momento(pontos, { jogoAtual: numeroDoGame(placar), setAtual: numeroDoSet(placar) }) }} />
+      )}
+      {window.QLAoVivo && pontos.length >= 2 && (
+        <div dangerouslySetInnerHTML={{ __html: window.QLAoVivo.macro(pontos, { jogoAtual: numeroDoGame(placar) }) }} />
+      )}
+      {window.QLAoVivo && (
+        <details className="mb-4" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "10px 14px" }}>
+          <summary style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, cursor: "pointer", minHeight: 32 }}>Análise ao vivo · {pontos.length} {pontos.length === 1 ? "ponto" : "pontos"}</summary>
+          <div style={{ marginTop: 8 }} dangerouslySetInnerHTML={{ __html: window.QLAoVivo.painel(pontos, { atleta: String(aluno.nome || "").trim().split(/\s+/)[0], mental, semGraficosFixos: true, anteriores: (aluno.registros || []).filter((r) => r.tipo === "jogo" && r.scout).map((r) => r.scout) }) }} />
+        </details>
+      )}
+
+      {window.mtyAuth && <CartaoAoVivo aluno={aluno} cfg={cfg} pontos={pontos} placar={placar} mental={mental} aoVivo={aoVivo} setAoVivo={setAoVivo} estado={aoVivoEstado} setEstado={setAoVivoEstado} />}
+
     </div>
   );
 }
