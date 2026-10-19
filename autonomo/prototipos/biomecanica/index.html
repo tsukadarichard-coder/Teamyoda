@@ -25,7 +25,32 @@ input[type=number]{width:70px;font:inherit;padding:6px;border:1px solid var(--bd
 details summary{cursor:pointer;font-weight:600}
 #cbody h3{margin:12px 0 4px;font-size:14px}#cbody ul{margin:4px 0 0 18px;padding:0}#cbody li{margin:2px 0;font-size:14px}.pr{border:1px solid var(--bd);border-left:4px solid var(--at);border-radius:10px;padding:8px 10px;margin:8px 0}.pr b{font-size:14px}.pr .msg{margin:2px 0}
 .fase{cursor:zoom-in}.fase canvas{aspect-ratio:auto}
-@media print{.noprint{display:none!important}body{background:#fff}.card{break-inside:avoid}}
+.rel-cab,.rel-rod{display:none}
+@media print{
+ @page{size:A4;margin:11mm 11mm 13mm}
+ *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+ html,body{background:#fff}body{font-size:11.5px;color:#111}
+ header,.noprint,.aviso,#cfg{display:none!important}
+ main{padding:0;gap:6px;max-width:none;display:block}
+ .rel-cab{display:flex;align-items:center;gap:14px;border-bottom:3px solid var(--az);padding-bottom:8px;margin-bottom:10px}
+ .rel-cab img{height:34px}.rel-t{font-size:18px;font-weight:800;color:var(--az)}.rel-m{font-size:11px;color:#444;margin-top:2px}
+ .rel-rod{display:block;font-size:9.5px;color:#555;border-top:1px solid #ccc;margin-top:12px;padding-top:6px}
+ .card{border:0;border-radius:0;padding:0;margin:0 0 8px;box-shadow:none;background:#fff}
+ h2{font-size:14px!important;color:var(--az);margin:6px 0!important}
+ .kpi div{padding:6px}.kpi b{font-size:18px}
+ .tl{height:34px;margin-top:6px}
+ #res{break-after:page}
+ .fases{grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px!important}
+ .fase{break-inside:avoid;padding:4px;border-radius:6px}
+ .fase canvas{max-height:84mm;width:auto;max-width:100%;margin:0 auto;display:block}
+ .fase b{font-size:11px}.fase span{font-size:10px}
+ #chk{break-after:page}
+ table{font-size:10.5px;table-layout:fixed}tr{break-inside:avoid}thead{display:table-header-group}
+ td,th{padding:5px 4px}
+ .tag{font-size:10px;padding:1px 7px}
+ #cbody .pr{break-inside:avoid;margin:6px 0}#cbody h3{break-after:avoid;font-size:12px}
+ #cbody li,.msg{font-size:10.5px}
+}
 </style></head><body>
 <header><div class="marca"><img src="../../assets/logo-quadralab.png" alt="QuadraLab"><span class="sys">System</span></div>
 <h1>Análise de Movimento em Vídeo</h1>
@@ -37,6 +62,7 @@ details summary{cursor:pointer;font-weight:600}
   <input id="golpe" type="hidden" value="forehand">
   <div class="tabs" id="tabs" style="width:100%"><button data-g="forehand" class="on">Forehand</button><button data-g="backhand">Backhand</button><button data-g="saque">Saque</button></div>
   <label id="empL" hidden>Backhand <select id="emp"><option value="2">Duas mãos</option><option value="1">Uma mão</option></select></label>
+  <label>Atleta <input id="atl" placeholder="Nome (opcional)" style="font:inherit;padding:8px;border:1px solid var(--bd);border-radius:10px;width:150px"></label>
   <label>Mão dominante <select id="dom"><option value="D">Direita</option><option value="E">Esquerda</option></select></label>
   <label>Quadros/s analisados <select id="fps"><option>15</option><option selected>30</option></select></label>
   <button id="go" class="pri" disabled>Analisar</button>
@@ -45,6 +71,7 @@ details summary{cursor:pointer;font-weight:600}
  <p class="msg" id="guia"></p><p class="msg" id="st">Escolha o golpe e envie o vídeo.</p>
  <div class="stage"><video id="v" controls playsinline muted preload="auto"></video><canvas id="cv"></canvas></div>
 </section>
+<div class="rel-cab" id="relcab"><img src="../../assets/logo-quadralab.png" alt="QuadraLab"><div><div class="rel-t" id="relT"></div><div class="rel-m" id="relM"></div></div></div>
 <section class="card" id="res" hidden>
  <h2 style="margin:0 0 8px;font-size:17px">Resultado</h2>
  <div class="kpi" id="kpi"></div>
@@ -71,6 +98,7 @@ details summary{cursor:pointer;font-weight:600}
   <button id="re">Reaplicar</button></div>
  </details>
 </section>
+<div class="rel-rod">QuadraLab System · relatório automático de apoio ao treinador. As medidas vêm de estimativa de pose em vídeo e as faixas de referência são provisórias. Itens "Revisar" dependem de avaliação presencial. Metodologia de referência: TennisBiomec · DNA USP.</div>
 <div class="aviso noprint">QuadraLab System · protótipo de análise de movimento. Metodologia de referência: material "Análise Biomecânica em Vídeo" (TennisBiomec · DNA USP). Antes de qualquer uso fora do âmbito particular, é necessária autorização dos autores.</div>
 </main>
 <script src="motor.js"></script>
@@ -137,6 +165,9 @@ function mostrar(sintetico){
   desenhar(c2,quadros[f.quadro].lm,c2.width,c2.height);
   x.fillStyle="rgba(0,0,0,.55)";x.fillRect(0,0,150,26);x.fillStyle="#fff";x.font="bold 15px system-ui";x.fillText((i+1)+". "+f.nome,8,18)}
   if(meu===tokenFotos&&!sintetico&&v.src)await seek(0)})();
+ var NG={forehand:"Forehand",backhand:"Backhand",saque:"Saque"},nm=NG[golpe()]+(golpe()==="backhand"?($("emp").value==="1"?" (uma mão)":" (duas mãos)"):"");
+ $("relT").textContent="Análise de movimento · "+nm;
+ $("relM").textContent=($("atl").value?"Atleta: "+$("atl").value+" · ":"")+"Mão dominante: "+($("dom").value==="E"?"esquerda":"direita")+" · "+new Date().toLocaleDateString("pt-BR")+(sintetico?" · dados de demonstração":"");
  var co=QLBiomec.conclusao(r);$("conc").hidden=false;$("ctx").textContent=co.texto;
  var ch="";
  if(co.prioridades.length){ch+="<h3>Prioridades de intervenção</h3>";co.prioridades.forEach(function(p,k){ch+='<div class="pr"><b>'+(k+1)+". "+p.nome+'</b> <span class="msg">('+(p.valor==null?"—":Math.round(p.valor*100)/100+p.unidade)+" · ref. "+p.ref+')</span><p class="msg">'+p.porque+"</p>"+(p.exercicios.length?"<ul>"+p.exercicios.map(function(e){return"<li>"+e+"</li>"}).join("")+"</ul>":"")+"</div>"})}
