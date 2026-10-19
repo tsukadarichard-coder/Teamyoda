@@ -29,6 +29,14 @@ var pw = require("playwright"), path = require("path"), a = require("assert");
   a.strictEqual(cores.length, 6);
   a.ok(cores.every(function (c) { return c !== "17,17,17" && c !== "0,0,0"; }), "fotos pretas: " + cores);
   a.ok(new Set(cores).size >= 3, "fotos iguais: " + cores);
+  for (var g of ["backhand", "saque"]) {
+    await p.click('#tabs button[data-g="' + g + '"]'); await p.click("#demo");
+    await p.waitForSelector("#chk:not([hidden])");
+    a.strictEqual(await p.locator(".fase").count(), 6, g);
+    if (g === "saque") a.ok((await p.textContent("#fases")).includes("Lançamento da bola"));
+    if (g === "backhand") a.ok(await p.isVisible("#empL"));
+    a.ok(await p.locator("#cbody .pr, #cbody h3").count() >= 1, g + " conclusão");
+  }
   await p.screenshot({ path: "/tmp/bio.png", fullPage: true });
   await p.goto("file://" + path.resolve(__dirname, "../prototipos/video-scout/index.html"));
   // vídeo sintético com som: usa WAV gerado em memória
