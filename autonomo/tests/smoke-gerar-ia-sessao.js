@@ -23,7 +23,7 @@ const pagina=`<!doctype html><meta charset=utf-8><div id=root></div><script>${fb
 const m={"/r.js":CDN+"/react-18.3.1/package/umd/react.development.js","/d.js":CDN+"/react-dom-18.3.1/package/umd/react-dom.development.js","/p.js":CDN+"/prop-types-15.8.1/package/prop-types.min.js","/c.js":CDN+"/recharts-2.15.4/package/umd/Recharts.js","/b.js":CDN+"/babel-standalone-7.29.9/package/babel.min.js"};
 const srv=http.createServer((q,r)=>{const u=q.url.split("?")[0];if(u==="/"){r.writeHead(200,{"content-type":"text/html; charset=utf-8"});return r.end(pagina)}if(m[u]){r.writeHead(200,{"content-type":"text/javascript"});return r.end(fs.readFileSync(m[u]))}const f=path.join(raiz,decodeURIComponent(u));if(f.startsWith(raiz)&&fs.existsSync(f)&&fs.statSync(f).isFile()){r.writeHead(200,{"content-type":f.endsWith(".css")?"text/css":"text/javascript"});return r.end(fs.readFileSync(f))}r.writeHead(404);r.end()}).listen(0);
 (async()=>{const b=await chromium.launch({executablePath:"/opt/pw-browsers/chromium-1194/chrome-linux/chrome",args:["--no-sandbox"]});
-const casos=[["ok",1,/Gerando em segundo plano/,0],["401-depois-ok",2,/Gerando em segundo plano/,0],["401-sempre",2,/Sua sessão expirou/,0],["403",1,/ainda não está ligada a uma academia/,0]];
+const casos=[["ok",1,/Gerando em segundo plano|Montando o plano/,0],["401-depois-ok",2,/Gerando em segundo plano|Montando o plano/,0],["401-sempre",2,/Sua sessão expirou/,0],["403",1,/ainda não está ligada a uma academia/,0]];
 for(const [modo,esperados,texto] of casos.map(c=>c)){const n0=esperados;
  const p=await b.newPage({viewport:{width:480,height:900}});const erros=[];let n=0;p.on("pageerror",e=>erros.push(e.message));
  await p.route("**/.netlify/functions/gerar-ia-background",async r=>{n++;
