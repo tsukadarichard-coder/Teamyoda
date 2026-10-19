@@ -117,6 +117,7 @@ if (auth) {
   window.mtyAuth = {
     entrar: (email, senha) => auth.signInWithEmailAndPassword(email, senha),
     sair: () => auth.signOut(),
+    recuperarSenha: (email) => auth.sendPasswordResetEmail(email),
     observar: (cb) => auth.onAuthStateChanged(cb),
     usuario: () => auth.currentUser,
     tokenId: (forcar) => auth.currentUser ? auth.currentUser.getIdToken(!!forcar) : Promise.resolve(null),
@@ -13832,9 +13833,27 @@ function TelaLogin({ aoEntrar }) {
   const [senha, setSenha] = useState("");
   const [erro, setErro] = useState("");
   const [ocupado, setOcupado] = useState(false);
+  const [recuperando, setRecuperando] = useState(false);
+  const [avisoRecuperacao, setAvisoRecuperacao] = useState("");
+
+  /* Mesma resposta com ou sem conta: ninguém descobre, por tentativa, quais e-mails têm cadastro. */
+  async function recuperarSenha() {
+    if (!email.trim()) { setErro("Digite seu e-mail acima para recuperar a senha."); return; }
+    setErro(""); setAvisoRecuperacao(""); setRecuperando(true);
+    try {
+      await window.mtyAuth.recuperarSenha(email.trim());
+      setAvisoRecuperacao("Se este e-mail tiver uma conta, enviamos um link de recuperação de senha.");
+    } catch (err) {
+      const c = (err && err.code) || "";
+      if (c === "auth/user-not-found") setAvisoRecuperacao("Se este e-mail tiver uma conta, enviamos um link de recuperação de senha.");
+      else if (c === "auth/invalid-email") setErro("E-mail inválido.");
+      else setErro("Não consegui enviar agora. Verifique a conexão e tente de novo.");
+    }
+    setRecuperando(false);
+  }
 
   async function enviar() {
-    setErro(""); setOcupado(true);
+    setErro(""); setAvisoRecuperacao(""); setOcupado(true);
     try {
       await window.mtyAuth.entrar(email.trim(), senha);
       aoEntrar();
@@ -13868,6 +13887,19 @@ function TelaLogin({ aoEntrar }) {
             style={entrada} value={senha} onChange={(e) => setSenha(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && email && senha) enviar(); }} />
         </Campo>
+
+        <div style={{ textAlign: "right", marginTop: -6, marginBottom: 16 }}>
+          <button type="button" onClick={recuperarSenha} disabled={recuperando}
+            style={{ background: "none", border: "none", padding: "4px 0", cursor: recuperando ? "default" : "pointer",
+              fontFamily: ARCH, fontSize: 12.5, fontWeight: 600, color: C.quadra, textDecoration: "underline", opacity: recuperando ? .6 : 1 }}>
+            {recuperando ? "Enviando…" : "Esqueci minha senha"}
+          </button>
+        </div>
+        {avisoRecuperacao && (
+          <div role="status" style={{ background: C.cal, borderLeft: "3px solid " + C.quadra, padding: "11px 13px", marginBottom: 14 }}>
+            <p style={{ ...prosa, fontSize: 13.5 }}>{avisoRecuperacao}</p>
+          </div>
+        )}
 
         {erro && (
           <div style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "11px 13px", marginBottom: 14 }}>
