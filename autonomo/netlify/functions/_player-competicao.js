@@ -63,6 +63,8 @@ function conviteVencido(v, hoje) { return v.status === "convite" && !!v.expiraEm
 /* quem pode aprovar este vínculo (aguardando)? devolve { ok } ou { ok:false, motivo } */
 function podeDecidir(v, uid, atletaMenor, responsaveisAtivosUids) {
   if (v.status !== "aguardando") return { ok: false, motivo: "Este pedido não está aguardando decisão." };
+  /* treinador da academia do atleta: o termo assinado na matrícula já cobre o menor, então o próprio atleta decide, sem responsável */
+  if (v.tipo === "treinador" && v.origem === "academia" && uid === v.atletaUid) return { ok: true };
   if (v.tipo === "treinador" && atletaMenor) {
     return responsaveisAtivosUids.includes(uid) ? { ok: true } : { ok: false, motivo: "Para um atleta menor de idade, quem aprova o treinador é o responsável." };
   }
@@ -100,7 +102,7 @@ function perfilCompartilhavel(ficha, opcoes) {
 /* versão que o navegador recebe: nunca o código de convites de outras pessoas nem e-mails além do necessário */
 function publicoVinculo(id, v, ladoAtleta) {
   return {
-    id, tipo: v.tipo, parentesco: v.tipo === "responsavel" && PARENTESCOS[v.parentesco] ? v.parentesco : null, status: v.status, areas: v.areas || [], criadoEm: v.criadoEm, expiraEm: v.expiraEm || null,
+    id, tipo: v.tipo, origem: v.origem === "academia" ? "academia" : null, parentesco: v.tipo === "responsavel" && PARENTESCOS[v.parentesco] ? v.parentesco : null, status: v.status, areas: v.areas || [], criadoEm: v.criadoEm, expiraEm: v.expiraEm || null,
     atleta: { nome: v.atletaNome || "Atleta" },
     pessoa: v.pessoaUid ? { nome: v.pessoaNome || "Pessoa", email: ladoAtleta ? v.pessoaEmail || null : null } : null,
     ...(ladoAtleta && v.status === "convite" ? { codigo: v.codigo } : {}),

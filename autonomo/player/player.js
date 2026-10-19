@@ -2953,7 +2953,7 @@
   function rotuloVinc(v) { return v.tipo === "treinador" ? "Treinador" : "Responsável" + (v.parentesco && v.parentesco !== "outro" ? " (" + ROTULO_PARENT[v.parentesco] + ")" : ""); }
   function statusVinc(v, comp) {
     if (v.status === "convite") return "Convite aberto: aguardando a pessoa usar o código";
-    if (v.status === "aguardando") return "A pessoa usou o código: aguardando aprovação";
+    if (v.status === "aguardando") return v.origem === "academia" ? "Pedido do treinador da academia: aguardando a sua aprovação" : "A pessoa usou o código: aguardando aprovação";
     return ROTULO_VINC[v.status] || v.status;
   }
   function mensagemConvite(v) {
@@ -2969,7 +2969,7 @@
         '<div class="acoes"><a class="btn btn-primario" href="https://wa.me/?text=' + encodeURIComponent(mensagemConvite(v)) + '" target="_blank" rel="noopener noreferrer">Enviar pelo WhatsApp<span class="sr"> (abre em nova aba)</span></a><button type="button" class="btn btn-secundario" data-copiar="' + esc(v.codigo) + '">Copiar código</button><button type="button" class="btn btn-texto" data-rev="' + v.id + '">Cancelar convite</button></div>' +
         '<details class="det" style="margin-top:8px"><summary>O que a pessoa precisa fazer</summary><ol class="beneficios" style="margin-top:8px"><li>Criar a conta grátis em quadralab.com.br/competicao, escolhendo o papel de <strong>' + papel + '</strong>.</li><li>Em Início, digitar o código <strong>' + esc(v.codigo) + '</strong> e tocar em “Usar código”.</li><li>Esperar a sua aprovação. Você a vê aqui, em “Quem acompanha você”.</li></ol></details>';
     } else if (v.status === "aguardando") {
-      var soResp = (v.tipo === "treinador" && comp.menor) || (v.tipo === "responsavel" && comp.menor && comp.ativosResp > 0);
+      var soResp = (v.tipo === "treinador" && comp.menor && v.origem !== "academia") || (v.tipo === "responsavel" && comp.menor && comp.ativosResp > 0);
       h += soResp ? '<p class="nota"><strong>Falta a aprovação:</strong> como você é menor de idade, ' + (v.tipo === "treinador" ? "quem aprova o treinador" : "quem aprova mais um responsável") + " é um responsável que já está vinculado. Avise-o para abrir o app dele.</p>"
         : '<p class="nota"><strong>Confira se é a pessoa certa</strong> e toque em Aprovar. Só depois disso ela passa a ver o que você marcou.</p><div class="acoes"><button type="button" class="btn btn-primario btn-pequeno" data-dec="' + v.id + '" data-ap="1">Aprovar</button><button type="button" class="btn btn-secundario btn-pequeno" data-dec="' + v.id + '" data-ap="0">Recusar</button></div>';
       h += '<div class="acoes"><button type="button" class="btn btn-texto" data-rev="' + v.id + '">Cancelar pedido</button></div>';
@@ -3331,6 +3331,8 @@
       var ativosResp = s.meus.filter(function (v) { return v.tipo === "responsavel" && v.status === "ativo"; }).length;
       comp.ativosResp = ativosResp; var semResp = !!comp.menor && !ativosResp, respPendente = s.meus.some(function (v) { return v.tipo === "responsavel" && (v.status === "convite" || v.status === "aguardando"); });
       var temTreinador = s.meus.some(function (v) { return v.tipo === "treinador" && v.status === "ativo"; }), trPendente = s.meus.some(function (v) { return v.tipo === "treinador" && (v.status === "convite" || v.status === "aguardando"); });
+      html += '<section class="cartao" aria-labelledby="t-acad"><p class="olho">Atleta da academia</p><h2 id="t-acad">Tenho o código do meu treinador</h2><p class="nota">Se você treina em uma academia parceira, digite o código que o seu treinador passou. O vínculo é feito na hora, sem precisar de responsável (o termo assinado na matrícula já cobre). Você pode encerrar quando quiser.</p>' +
+        '<form id="fAcademia" novalidate style="margin-top:8px"><label for="codAcademia">Código do treinador</label><input id="codAcademia" type="text" inputmode="text" autocomplete="off" autocapitalize="characters" maxlength="12" placeholder="8 letras e números"><div class="aviso" id="avisoAcademia" role="alert" hidden></div><div class="acoes"><button class="btn btn-primario" type="submit">Vincular ao treinador</button></div></form></section>';
       if (comp.menor && !(ativosResp && temTreinador)) {
         html += '<section class="cartao equipe-passos" aria-labelledby="t-eq"><p class="olho">Monte a sua equipe</p><h2 id="t-eq">Primeiro o responsável, depois o treinador</h2><ol class="convite-passos">' +
           '<li' + (ativosResp ? ' class="feito"' : "") + '><span>' + (ativosResp ? "✓" : "1") + '</span><div><strong>Responsável (pai, mãe ou outro)</strong>: ' + (ativosResp ? "vinculado." : respPendente ? "convite em aberto, falta ele usar o código e você aprovar." : "convide agora. É obrigatório para menores de 18 anos.") + '</div></li>' +
@@ -3447,6 +3449,14 @@
       var av = document.getElementById("avisoConv"); av.hidden = true;
       var bt = fc.querySelector("button[type=submit]"); ocupado(bt, true, "Gerando…");
       try { await api("player-competicao", { metodo: "POST", corpo: { acao: "convidar", tipo: document.getElementById("tipoConv").value, parentesco: document.getElementById("parentConv").value, areas: lerAreas("ar-novo") } }); await telaCompeticao(); toast("Código gerado. Envie-o para a pessoa pelo WhatsApp."); var novo = app.querySelector(".convite-aberto"); if (novo) novo.scrollIntoView({ behavior: "smooth", block: "center" }); }
+      catch (e) { av.textContent = e.message; av.hidden = false; ocupado(bt, false); }
+    });
+    var fa = document.getElementById("fAcademia");
+    if (fa) fa.addEventListener("submit", async function (ev) {
+      ev.preventDefault();
+      var av = document.getElementById("avisoAcademia"); av.hidden = true;
+      var bt = fa.querySelector("button[type=submit]"); ocupado(bt, true, "Vinculando…");
+      try { var r = await api("player-competicao", { metodo: "POST", corpo: { acao: "vincularAcademia", codigo: document.getElementById("codAcademia").value } }); toast("Pronto! Você está vinculado a " + r.treinador + "."); await telaCompeticao(); }
       catch (e) { av.textContent = e.message; av.hidden = false; ocupado(bt, false); }
     });
     var fk = document.getElementById("fCodigo");

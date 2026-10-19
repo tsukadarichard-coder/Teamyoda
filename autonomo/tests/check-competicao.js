@@ -354,5 +354,30 @@ async function get(uid, qs) { const r = await handler({ httpMethod: "GET", heade
   assert.deepStrictEqual((await tk("intruso")).jogos, [], "estranho não vê");
   assert.ok(!JSON.stringify(await tk("resp")).includes("publico"), "só o recorte mínimo");
 
+  /* vínculo da academia: o termo da matrícula cobre o menor — código fixo do treinador ativa direto; pedido do treinador é aprovado pelo próprio atleta */
+  pessoa("menor2", "Atleta Menor 2"); pessoa("treinA", "Treinador Academia"); await post("treinA", { acao: "ativar", papel: "treinador" });
+  assert.strictEqual((await post("menor2", { acao: "ativar", papel: "atleta", nascimento: (ano - 12) + "-03-01" })).s, 200);
+  assert.strictEqual((await post("menor2", { acao: "convidar", tipo: "treinador" })).s, 409, "o convite comum de um menor sem responsável continua bloqueado");
+  col("codigosAcademia").ABCD2345 = { treinadorUid: "treinA", treinadorNome: "Treinador Academia", treinadorEmail: "treinA@t.com", orgId: "orgA" };
+  assert.strictEqual((await post("trein", { acao: "vincularAcademia", codigo: "ABCD2345" })).s, 403, "só atleta usa o código da academia");
+  assert.strictEqual((await post("menor2", { acao: "vincularAcademia", codigo: "ZZZZZZZZ" })).s, 404, "código inexistente");
+  const va = await post("menor2", { acao: "vincularAcademia", codigo: "abcd-2345" });
+  assert.strictEqual(va.s, 200); assert.strictEqual(va.treinador, "Treinador Academia");
+  const vv = col("vinculos")[va.id];
+  assert.ok(vv.status === "ativo" && vv.origem === "academia" && vv.pessoaUid === "treinA" && vv.atletaUid === "menor2" && vv.orgId === "orgA", "vínculo ativo da academia, sem responsável");
+  assert.strictEqual((await post("menor2", { acao: "vincularAcademia", codigo: "ABCD2345" })).s, 409, "não duplica");
+  const meus2 = (await get("menor2")).meus.find((v) => v.id === va.id);
+  assert.strictEqual(meus2.origem, "academia"); assert.ok(!JSON.stringify(meus2).includes("orgA"), "orgId não sai para o navegador");
+  assert.strictEqual((await post("menor2", { acao: "revogar", id: va.id })).s, 200, "o atleta encerra quando quiser");
+  /* pedido do treinador (aguardando): o próprio atleta menor aprova; o responsável de outro atleta não */
+  col("vinculos").pedidoAcademiaA1 = { atletaUid: "menor2", atletaNome: "Atleta Menor 2", tipo: "treinador", origem: "academia", status: "aguardando", areas: ["perfil"], pessoaUid: "treinA", pessoaNome: "Treinador Academia", historico: [], criadoEm: "2026-10-01" };
+  assert.strictEqual((await post("resp", { acao: "decidir", id: "pedidoAcademiaA1", aprovar: true })).s, 403, "estranho não aprova");
+  assert.strictEqual((await post("treinA", { acao: "decidir", id: "pedidoAcademiaA1", aprovar: true })).s, 403, "o treinador não aprova o próprio pedido");
+  assert.strictEqual((await post("menor2", { acao: "decidir", id: "pedidoAcademiaA1", aprovar: true })).s, 200, "menor da academia aprova sem responsável");
+  assert.strictEqual(col("vinculos").pedidoAcademiaA1.status, "ativo");
+  /* pedido comum (sem origem academia) de menor continua exigindo responsável */
+  col("vinculos").pedidoComumB001 = { atletaUid: "menor2", atletaNome: "Atleta Menor 2", tipo: "treinador", status: "aguardando", areas: ["perfil"], pessoaUid: "trein", pessoaNome: "T", historico: [], criadoEm: "2026-10-01" };
+  assert.strictEqual((await post("menor2", { acao: "decidir", id: "pedidoComumB001", aprovar: true })).s, 403, "fluxo comum de menor segue exigindo responsável");
+
   console.log("check-competicao: ok");
 })().catch((e) => { console.error(e); process.exit(1); });

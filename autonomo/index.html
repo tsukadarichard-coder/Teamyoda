@@ -11413,6 +11413,46 @@ function propostasNovasDoAluno(aluno, todos) {
   if (aluno.plano) { try { restantes = listaAulas(aluno.plano, aluno.regPlano).filter((a) => statusAula(aluno.regPlano, a.id) !== "feita").length; } catch (e) { restantes = null; } }
   return QE.novasPropostas(aluno, { agora: new Date().toISOString(), blocoAtual: vig && vig.bloco, aulasRestantes: restantes, exercicios: exerciciosParaRevisao(aluno), aprendizado: todos && todos.length > 1 ? QE.aprendizado(todos) : undefined });
 }
+/* Atletas da academia no QuadraLab Player: o treinador tem um código fixo (o atleta digita no Player e o vínculo nasce ativo) e pode pedir o vínculo pelo e-mail do atleta (ele aprova no app). */
+function CartaoVinculoAcademia() {
+  const [aberto, setAberto] = useState(false);
+  const [codigo, setCodigo] = useState("");
+  const [email, setEmail] = useState("");
+  const [msg, setMsg] = useState(null);
+  const [ocupado, setOcupado] = useState(false);
+  if (typeof window === "undefined" || !window.mtyAuth) return null;
+  async function abrir() {
+    const abrindo = !aberto;
+    setAberto(abrindo);
+    if (abrindo && !codigo) { try { setCodigo((await chamarAoVivo({ acao: "meuCodigo" })).codigo); } catch (e) { setMsg({ erro: true, t: e.message }); } }
+  }
+  async function pedir(ev) {
+    ev.preventDefault(); setOcupado(true); setMsg(null);
+    try { const r = await chamarAoVivo({ acao: "pedirVinculo", email }); setMsg({ t: "Pedido enviado a " + r.atleta + ". Assim que ele aprovar no QuadraLab Player, o atleta aparece no scout ao vivo." }); setEmail(""); }
+    catch (e) { setMsg({ erro: true, t: e.message }); }
+    setOcupado(false);
+  }
+  return (
+    <div className="mb-5" data-vinculo-academia style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "10px 14px" }}>
+      <button onClick={abrir} className="w-full text-left" style={{ background: "none", border: "none", cursor: "pointer", padding: 0, minHeight: 36 }}>
+        <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>Atletas da academia no QuadraLab Player {aberto ? "▾" : "▸"}</span>
+      </button>
+      {aberto && (
+        <div style={{ marginTop: 8 }}>
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Peça ao atleta o código abaixo no Player, em “Tenho o código do meu treinador”. O vínculo é feito na hora, mesmo para menores (o termo da matrícula cobre).</p>
+          <p data-codigo-academia style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, letterSpacing: 3, margin: "8px 0" }}>{codigo || "…"}</p>
+          {codigo && <Botao pequeno variante="vazio" onClick={() => { try { navigator.clipboard.writeText(codigo); setMsg({ t: "Código copiado." }); } catch (e) { /* sem área de transferência */ } }}>Copiar código</Botao>}
+          <form onSubmit={pedir} style={{ marginTop: 12 }}>
+            <label style={{ ...prosa, fontSize: 12.5 }}>Ou peça pelo e-mail do atleta (ele precisa já ter conta de atleta no Player)</label>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@do.atleta" style={{ width: "100%", padding: "10px 12px", border: "1px solid " + C.linha, borderRadius: 8, margin: "6px 0", fontSize: 14 }} />
+            <Botao pequeno variante="saibro" type="submit" disabled={ocupado || !email}>{ocupado ? "Enviando…" : "Pedir vínculo"}</Botao>
+          </form>
+          {msg && <p role="status" style={{ ...prosa, fontSize: 12.5, marginTop: 8, color: msg.erro ? "#A33" : C.tinta }}>{msg.t}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
 function CartaoRevisoesPlano({ alunos, irPara }) {
   const lista = useMemo(() => {
     const QE = typeof window !== "undefined" && window.QLEvidencias;
@@ -11575,9 +11615,11 @@ function RevisaoPlano({ aluno, alunos, setAlunos, podeEditar }) {
 }
 
 /* Janela de novidades do QuadraLab: abre ao entrar até a pessoa marcar "Não mostrar mais". Nova versão da lista (NOVIDADES_VERSAO) volta a aparecer. */
-const NOVIDADES_VERSAO = "2026-10";
+const NOVIDADES_VERSAO = "2026-10b";
 const NOVIDADES = [
   ["Planejamento que melhora com os dados", "Na aba Plano, a Revisão do plano cruza as análises de vídeo e os scouts dos jogos e sugere ajustes. Você aceita, recusa ou deixa para depois; nada muda sozinho, e o diário mostra se o ajuste funcionou."],
+  ["Metas de saída medidas e versões do plano", "O critério de saída do bloco mostra o que o vídeo e o scout já confirmam, o plano guarda as versões de cada ajuste aceito, e os reforços sugeridos passam a atacar o item do vídeo e a priorizar o que funcionou em outros jogadores."],
+  ["Atletas da academia no Player", "No Início, “Atletas da academia” mostra o seu código fixo. O atleta digita no QuadraLab Player e o vínculo é feito na hora (menores também, o termo da matrícula cobre). Você também pode pedir o vínculo pelo e-mail do atleta."],
   ["Marcação rápida no scout", "Marque só o resultado e a bola do ponto durante o jogo e complete os detalhes depois. Mais fácil de usar na quadra."],
   ["Retomar partidas", "Fechou sem querer? As partidas não terminadas aparecem no Início e podem ser retomadas de onde pararam, inclusive o link dos pais."],
   ["Análise de movimento e jogo em vídeo", "Envie o vídeo, acompanhe a evolução golpe a golpe e compare jogos (Tecnologia QuadraLab)."],
@@ -15883,6 +15925,7 @@ function TelaDashboard({ aoAbrirScout, alunos, turmas, uidAtual, exigeLogin, irP
       <h1 style={{ fontFamily: ARCH, fontSize: 26, fontWeight: 700, marginBottom: 4 }}>{saudacao}</h1>
       <CartaoPartidasEmAndamento alunos={alunos} aoAbrirScout={aoAbrirScout} />
       <CartaoRevisoesPlano alunos={alunos} irPara={irPara} />
+      <CartaoVinculoAcademia />
       <p style={{ ...prosa, fontSize: 15, color: C.grafite, marginBottom: onboardingDispensado && !onboardingCompleto ? 4 : 18 }}>
         Vamos preparar sua próxima aula?
       </p>

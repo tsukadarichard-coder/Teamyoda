@@ -6,6 +6,7 @@
    POST { acao: "ativar", papel, nascimento? }   → escolhe o papel (atleta exige data de nascimento)
    POST { acao: "convidar", tipo, areas }        → atleta gera um código de convite (responsavel | treinador)
    POST { acao: "aceitarCodigo", codigo }        → responsável/treinador usa o código; o vínculo fica aguardando aprovação
+   POST { acao: "vincularAcademia", codigo }     → atleta usa o código fixo do treinador da academia; o vínculo nasce ativo (sem responsável, o termo da matrícula cobre)
    POST { acao: "decidir", id, aprovar }         → aprova ou recusa (atleta; responsável quando o atleta é menor e o vínculo é de treinador)
    POST { acao: "areas", id, areas }             → muda as áreas compartilhadas
    POST { acao: "revogar", id }                  → encerra o vínculo (atleta, responsável do menor ou a própria pessoa)
@@ -49,7 +50,7 @@ async function encerrarTreinadoresSeMenorSemResponsavel(atletaUid, quem) {
   const s = await db().collection("vinculos").where("atletaUid", "==", atletaUid).where("tipo", "==", "treinador").get();
   for (const d of s.docs) {
     const v = d.data();
-    if (v.status === "ativo" || v.status === "aguardando") await d.ref.update({ status: "revogado", encerradoEm: agoraISO(), historico: evento(v, quem, "encerrado: atleta menor sem responsável ativo") });
+    if (v.origem !== "academia" && (v.status === "ativo" || v.status === "aguardando")) await d.ref.update({ status: "revogado", encerradoEm: agoraISO(), historico: evento(v, quem, "encerrado: atleta menor sem responsável ativo") });
   }
 }
 
@@ -228,6 +229,26 @@ exports.handler = async function (event) {
       if (jaTem.docs.some((d) => d.data().tipo === v.tipo && ["aguardando", "ativo"].includes(d.data().status))) throw new ErroPublico(409, "Você já está vinculado a este atleta" + (v.tipo === "responsavel" ? " como responsável" : " como treinador") + " ou aguardando aprovação.");
       await doc.ref.update({ status: "aguardando", pessoaUid: uid, pessoaNome: jog.nome || usuario.name || "Pessoa", pessoaEmail: usuario.email || null, aceitoEm: agoraISO(), historico: evento(v, uid, "código usado, aguardando aprovação") });
       return resposta(200, { ok: true, atleta: v.atletaNome || "Atleta" });
+    }
+
+    /* Atleta da academia entra com o código fixo do treinador: o vínculo nasce ativo (o termo da matrícula vale também para menores). O atleta e, se menor, o responsável podem encerrar quando quiserem. */
+    if (body.acao === "vincularAcademia") {
+      if (c.papel !== "atleta") throw new ErroPublico(403, "Só o atleta usa o código do treinador da academia.");
+      const t = c.tentativas && c.tentativas.dia === hoje ? c.tentativas.n || 0 : 0;
+      if (t >= C.MAX_TENTATIVAS_DIA) throw new ErroPublico(429, "Muitas tentativas hoje. Tente de novo amanhã ou peça o código de novo ao treinador.");
+      const cod = C.normalizarCodigo(body.codigo);
+      const falha = async () => { await refJogador(uid).set({ competicao: { tentativas: { dia: hoje, n: t + 1 } } }, { merge: true }); throw new ErroPublico(404, "Código não encontrado. Confira com o seu treinador."); };
+      if (cod.length !== 8) await falha();
+      const cd = await db().collection("codigosAcademia").doc(cod).get();
+      if (!cd.exists || !cd.data().treinadorUid) await falha();
+      const T = cd.data();
+      const jaTem = await db().collection("vinculos").where("atletaUid", "==", uid).where("pessoaUid", "==", T.treinadorUid).get();
+      if (jaTem.docs.some((d) => d.data().tipo === "treinador" && ["aguardando", "ativo"].includes(d.data().status))) throw new ErroPublico(409, "Você já está vinculado a este treinador.");
+      const v = { atletaUid: uid, atletaNome: jog.nome || usuario.name || "Atleta", tipo: "treinador", origem: "academia", orgId: T.orgId || null, status: "ativo", areas: C.AREAS_PADRAO.slice(), codigo: null,
+        criadoEm: agoraISO(), expiraEm: null, pessoaUid: T.treinadorUid, pessoaNome: T.treinadorNome || "Treinador", pessoaEmail: T.treinadorEmail || null, aceitoEm: agoraISO(), decididoEm: agoraISO(), decididoPor: uid, historico: [] };
+      v.historico = evento(v, uid, "vínculo da academia pelo código do treinador (termo assinado na matrícula)");
+      const ref = await db().collection("vinculos").add(v);
+      return resposta(200, { ok: true, id: ref.id, treinador: v.pessoaNome });
     }
 
     if (body.acao === "devolutiva" || body.acao === "excluirDevolutiva") {

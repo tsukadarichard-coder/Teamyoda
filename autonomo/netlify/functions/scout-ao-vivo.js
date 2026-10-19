@@ -2,6 +2,8 @@
 
    POST (treinador, com login da academia; ou responsável vinculado com a área "partidas", sempre com vinculoId)
      { acao: "atletas" }                       → atletas que me vincularam como treinador (vínculo ativo com a área "partidas")
+     { acao: "meuCodigo" }                     → código fixo do treinador (8 caracteres): o atleta da academia o digita no Player e o vínculo nasce ativo
+     { acao: "pedirVinculo", email }           → pede o vínculo a um atleta da academia que já tem conta no Player; ele aprova no app (menor também, sem responsável)
      { acao: "iniciar", resumo, vinculoId? }   → cria o link ao vivo e devolve { token, expiraEm }; com vinculoId (de "atletas") o jogo aparece sozinho no app do atleta, dos responsáveis e do treinador
      { acao: "atualizar", token, resumo, fim? } → troca o resumo publicado pelo mais recente (fim: true marca a partida como encerrada)
      { acao: "revogar", token }                 → apaga o link na hora
@@ -65,6 +67,42 @@ exports.handler = async function (event) {
     if (body.acao === "atletas") {
       const lista = [...(await vinculosDoTreinador(admin.firestore(), claims))].map(([id, v]) => ({ vinculoId: id, nome: String(v.atletaNome || "Atleta").slice(0, 60) }));
       return resposta(200, { ok: true, atletas: lista });
+    }
+    if (body.acao === "meuCodigo" || body.acao === "pedirVinculo") {
+      const db = admin.firestore(), cod = db.collection("codigosAcademia");
+      let nome = String(claims.name || "").trim();
+      if (body.acao === "meuCodigo") {
+        let existente = (await cod.where("treinadorUid", "==", claims.uid).limit(1).get()).docs[0];
+        if (!existente) {
+          const ALF = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+          let codigo = "";
+          for (let i = 0; i < 5 && !codigo; i++) {
+            const b = crypto.randomBytes(8); let c = ""; for (let k = 0; k < 8; k++) c += ALF[b[k] % ALF.length];
+            if (!(await cod.doc(c).get()).exists) codigo = c;
+          }
+          if (!codigo) return resposta(500, { erro: "Não foi possível gerar o código agora. Tente de novo." });
+          await cod.doc(codigo).set({ treinadorUid: claims.uid, treinadorNome: nome || "Treinador", treinadorEmail: claims.email || null, orgId: claims.orgId, criadoEm: agora() });
+          return resposta(200, { ok: true, codigo });
+        }
+        return resposta(200, { ok: true, codigo: existente.id });
+      }
+      const email = String(body.email || "").trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 120) return resposta(400, { erro: "Informe um e-mail válido." });
+      let atleta;
+      try { atleta = await admin.auth().getUserByEmail(email); } catch (e) { atleta = null; }
+      const semConta = { erro: "Esse e-mail ainda não tem conta de atleta no QuadraLab Player. Peça para ele criar a conta e use o seu código (Meu código)." };
+      if (!atleta) return resposta(404, semConta);
+      const jog = await db.collection("jogadores").doc(atleta.uid).get();
+      const comp = (jog.exists && jog.data().competicao) || {};
+      if (comp.papel !== "atleta") return resposta(404, semConta);
+      const vs = await db.collection("vinculos").where("atletaUid", "==", atleta.uid).where("pessoaUid", "==", claims.uid).get();
+      if (vs.docs.some((d) => d.data().tipo === "treinador" && ["aguardando", "ativo"].includes(d.data().status))) return resposta(409, { erro: "Você já está vinculado a este atleta ou o pedido já foi enviado." });
+      const quando = agora();
+      const v = { atletaUid: atleta.uid, atletaNome: (jog.data().nome || atleta.displayName || "Atleta"), tipo: "treinador", origem: "academia", orgId: claims.orgId, status: "aguardando",
+        areas: ["perfil", "temporada", "planejamento", "estrategias", "partidas", "treinos"], codigo: null, criadoEm: quando, expiraEm: null, pessoaUid: claims.uid, pessoaNome: nome || "Treinador", pessoaEmail: claims.email || null, aceitoEm: quando,
+        historico: [{ em: quando, por: claims.uid, acao: "pedido do treinador da academia, aguardando o atleta" }] };
+      await db.collection("vinculos").add(v);
+      return resposta(200, { ok: true, atleta: v.atletaNome });
     }
     if (body.acao === "iniciar") {
       const ativos = (await col.where("orgId", "==", dono).get()).docs.filter((d) => Date.parse(d.data().expiraEm) > Date.now());

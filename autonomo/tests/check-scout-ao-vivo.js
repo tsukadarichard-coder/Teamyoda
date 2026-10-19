@@ -4,9 +4,10 @@ const fx = path.join(__dirname, "../netlify/functions/");
 const store = {}; const J = (v) => JSON.parse(JSON.stringify(v));
 function nested(v, dentroDeArray) { if (Array.isArray(v)) { if (dentroDeArray) throw new Error("Nested arrays are not supported"); v.forEach((x) => nested(x, true)); } else if (v && typeof v === "object") Object.values(v).forEach((x) => nested(x, false)); }
 function docRef(p) { return { async get() { return { exists: store[p] !== undefined, data: () => J(store[p]) }; }, async set(v) { nested(v); store[p] = J(v); }, async update(v) { nested(v); Object.assign(store[p], J(v)); }, async delete() { delete store[p]; } }; }
-function colRef(c, filtros = []) { return { doc: (id) => docRef(c + "/" + id), where: (k, op, v) => colRef(c, filtros.concat([[k, v]])), async get() { const ks = Object.keys(store).filter((k) => k.startsWith(c + "/") && filtros.every(([f, v]) => store[k][f] === v)); const docs = ks.map((k) => ({ id: k.split("/")[1], data: () => J(store[k]) })); return { docs, forEach: (f) => docs.forEach(f) }; } }; }
+function colRef(c, filtros = []) { return { limit: () => colRef(c, filtros), async add(v) { const id = "n" + Object.keys(store).length + "x"; store[c + "/" + id] = J(v); return { id }; }, doc: (id) => docRef(c + "/" + id), where: (k, op, v) => colRef(c, filtros.concat([[k, v]])), async get() { const ks = Object.keys(store).filter((k) => k.startsWith(c + "/") && filtros.every(([f, v]) => store[k][f] === v)); const docs = ks.map((k) => ({ id: k.split("/")[1], data: () => J(store[k]) })); return { docs, forEach: (f) => docs.forEach(f) }; } }; }
 const tokens = { "tok-a": { uid: "u1", orgId: "orgA" }, "tok-e": { uid: "u9", orgId: "orgA", email: "treina@x.com", email_verified: true }, "tok-ne": { uid: "u8", orgId: "orgA", email: "treina@x.com", email_verified: false }, "tok-b": { uid: "u2", orgId: "orgB" }, "tok-sem-org": { uid: "u3" }, "tok-resp": { uid: "r1" }, "tok-resp2": { uid: "r2" }, "tok-treina": { uid: "t1" } };
-const admin = { firestore: () => ({ collection: (n) => colRef(n) }), auth: () => ({ verifyIdToken: async (t) => { if (!tokens[t]) throw new Error("x"); return tokens[t]; } }) };
+const contas = { "ana@x.com": { uid: "atl1", displayName: "Ana" }, "bia@x.com": { uid: "resp9", displayName: "Bia" } };
+const admin = { firestore: () => ({ collection: (n) => colRef(n) }), auth: () => ({ getUserByEmail: async (e) => { if (!contas[e]) throw new Error("nao"); return contas[e]; }, verifyIdToken: async (t) => { if (!tokens[t]) throw new Error("x"); return tokens[t]; } }) };
 require.cache[require.resolve(fx + "_firebase-admin.js")] = { id: "y", filename: "y", loaded: true, exports: { admin, app: () => {} } };
 const { handler } = require(fx + "scout-ao-vivo.js");
 const resumo = (n) => ({ atleta: "Ana", data: "2026-10-18", torneio: "Copa X", resultado: "6-4 2-1", n, ganhos: Math.floor(n / 2), pctGanhos: 50, adversario: "NUNCA", obs: "NUNCA", bolas: { pctCurtos: 60 }, numeros: { errosNos: 3 }, zonas: {}, serie: Array.from({ length: n }, (_, i) => [i % 2, 0]), sinais: ["x"] });
@@ -100,5 +101,21 @@ const GET = async (q) => { const r = await handler({ httpMethod: "GET", headers:
   assert.strictEqual(tr.s, 200); assert.strictEqual(store["scoutsAoVivo/" + tr.token].atletaUid, "at7"); assert.strictEqual(store["scoutsAoVivo/" + tr.token].orgId, "fam:t1");
   assert.strictEqual((await POST("tok-treina", { acao: "atualizar", token: tr.token, resumo: resumo(4) })).s, 200);
   assert.strictEqual((await POST("tok-resp", { acao: "atualizar", token: tr.token, resumo: resumo(4) })).s, 404, "outro não mexe");
+  /* vínculo da academia: código fixo e pedido por e-mail */
+  assert.strictEqual((await POST("tok-sem-org", { acao: "meuCodigo" })).s, 403, "conta sem academia não tem código");
+  const mc = await POST("tok-a", { acao: "meuCodigo" });
+  assert.strictEqual(mc.s, 200); assert.ok(/^[A-Z2-9]{8}$/.test(mc.codigo), "código de 8 caracteres");
+  assert.strictEqual((await POST("tok-a", { acao: "meuCodigo" })).codigo, mc.codigo, "o código é fixo");
+  assert.strictEqual(store["codigosAcademia/" + mc.codigo].orgId, "orgA");
+  assert.notStrictEqual((await POST("tok-b", { acao: "meuCodigo" })).codigo, mc.codigo, "cada treinador tem o seu");
+  assert.strictEqual((await POST("tok-a", { acao: "pedirVinculo", email: "lixo" })).s, 400);
+  assert.strictEqual((await POST("tok-a", { acao: "pedirVinculo", email: "nao@x.com" })).s, 404, "sem conta");
+  store["jogadores/atl1"] = { nome: "Ana Souza", competicao: { papel: "atleta" } }; store["jogadores/resp9"] = { nome: "Bia", competicao: { papel: "responsavel" } };
+  assert.strictEqual((await POST("tok-a", { acao: "pedirVinculo", email: "bia@x.com" })).s, 404, "só atleta");
+  const pv = await POST("tok-a", { acao: "pedirVinculo", email: " ANA@x.com " });
+  assert.strictEqual(pv.s, 200);
+  const vin = Object.keys(store).filter((k) => k.startsWith("vinculos/")).map((k) => store[k]).find((v) => v.atletaUid === "atl1");
+  assert.ok(vin && vin.status === "aguardando" && vin.origem === "academia" && vin.pessoaUid === "u1" && vin.tipo === "treinador", "pedido aguarda o atleta");
+  assert.strictEqual((await POST("tok-a", { acao: "pedirVinculo", email: "ana@x.com" })).s, 409, "não duplica");
   console.log("check-scout-ao-vivo: ok");
 })().catch((e) => { console.error(e); process.exit(1); });
