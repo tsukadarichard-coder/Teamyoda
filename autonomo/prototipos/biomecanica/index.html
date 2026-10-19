@@ -22,6 +22,8 @@ table{width:100%;border-collapse:collapse;font-size:14px}td,th{text-align:left;p
 .kpi{display:flex;gap:10px;flex-wrap:wrap}.kpi div{flex:1;min-width:90px;text-align:center;border-radius:10px;padding:10px;color:#fff}.kpi b{font-size:24px;display:block}
 input[type=number]{width:70px;font:inherit;padding:6px;border:1px solid var(--bd);border-radius:8px}
 details summary{cursor:pointer;font-weight:600}
+#cbody h3{margin:12px 0 4px;font-size:14px}#cbody ul{margin:4px 0 0 18px;padding:0}#cbody li{margin:2px 0;font-size:14px}.pr{border:1px solid var(--bd);border-left:4px solid var(--at);border-radius:10px;padding:8px 10px;margin:8px 0}.pr b{font-size:14px}.pr .msg{margin:2px 0}
+.fase{cursor:zoom-in}.fase canvas{aspect-ratio:auto}
 @media print{.noprint{display:none!important}body{background:#fff}.card{break-inside:avoid}}
 </style></head><body>
 <header><h1>Análise Biomecânica em Vídeo · forehand</h1>
@@ -49,6 +51,11 @@ details summary{cursor:pointer;font-weight:600}
  <table><thead><tr><th>Item</th><th>Medido</th><th>Referência</th><th>Parecer</th></tr></thead><tbody id="tb"></tbody></table>
  <p class="msg">Itens "não avaliável" dependem de mão, face da raquete, vista de cima ou olhar: ficam para o treinador. Pareceres automáticos são apoio, não diagnóstico.</p>
  <div class="row noprint"><button id="pdf">Imprimir / salvar PDF</button><button id="json">Baixar dados (JSON)</button></div>
+</section>
+<section class="card" id="conc" hidden>
+ <h2 style="margin:0 0 8px;font-size:17px">Conclusão e intervenções sugeridas</h2>
+ <p id="ctx" style="margin:0 0 10px"></p><div id="cbody"></div>
+ <p class="msg">Sugestões geradas por regras a partir das medidas deste vídeo. Servem de ponto de partida para o treinador e não substituem avaliação presencial.</p>
 </section>
 <section class="card noprint" id="cfg" hidden>
  <details><summary>Faixas de referência (editáveis)</summary>
@@ -101,20 +108,31 @@ $("go").onclick=async function(){
  $("go").disabled=false};
 $("demo").onclick=function(){quadros=QLBiomec.sintetico(60,$("dom").value);v.removeAttribute("src");msg("Demonstração com dados sintéticos (não é um vídeo real).");mostrar(true)};
 $("re").onclick=function(){if(quadros)mostrar(!v.src)};
+var tokenFotos=0;
+function quadroPronto(){return new Promise(function(r){var ok=false,f=function(){if(!ok){ok=true;r()}};if(v.requestVideoFrameCallback)v.requestVideoFrameCallback(f);setTimeout(f,220)})}
 function mostrar(sintetico){
  var r=QLBiomec.checklist(quadros,$("dom").value,regras());ultimo=r;
  if(r.erro){msg(r.erro);return}
  $("res").hidden=$("chk").hidden=$("cfg").hidden=false;
  var c=r.resumo;$("kpi").innerHTML='<div style="background:var(--ok)"><b>'+c.ok+'</b>OK</div><div style="background:var(--at)"><b>'+c.atencao+'</b>Atenção</div><div style="background:var(--na)"><b>'+c.nao_avaliavel+'</b>Revisar com treinador</div>';
  var tl=$("tl"),tot=quadros[quadros.length-1].t||1;tl.innerHTML=r.fases.map(function(f,i){return'<i style="left:'+(f.t/tot*100)+'%"></i><em style="left:'+(f.t/tot*100)+'%;top:'+(i%2?22:0)+'px">'+(i+1)+'</em>'}).join("");
- var fe=$("fases");fe.innerHTML="";
- r.fases.forEach(function(f,i){var d=document.createElement("div");d.className="fase";var c2=document.createElement("canvas");c2.width=320;c2.height=Math.round(320*(cv.height/cv.width||0.6));
-  var x=c2.getContext("2d");x.fillStyle="#111";x.fillRect(0,0,c2.width,c2.height);
-  var q=quadros[f.quadro];
-  var fim=function(){desenhar(c2,q.lm,c2.width,c2.height);};
-  if(!sintetico&&v.src){seek(f.t).then(function(){x.drawImage(v,0,0,c2.width,c2.height);fim()})}else fim();
+ var fe=$("fases");fe.innerHTML="";var cvs=[];
+ r.fases.forEach(function(f,i){var d=document.createElement("div");d.className="fase";var c2=document.createElement("canvas");c2.width=480;c2.height=Math.round(480*((cv.height&&cv.width)?cv.height/cv.width:0.75));
+  var x=c2.getContext("2d");x.fillStyle="#111";x.fillRect(0,0,c2.width,c2.height);cvs.push(c2);
   d.appendChild(c2);d.insertAdjacentHTML("beforeend","<b>"+(i+1)+". "+f.nome+"</b><span>"+f.t.toFixed(2)+" s</span>");
-  d.onclick=function(){if(v.src)v.currentTime=f.t};fe.appendChild(d)});
+  d.onclick=function(){if(v.src&&!sintetico)v.currentTime=f.t;c2.requestFullscreen&&c2.requestFullscreen().catch(function(){})};fe.appendChild(d)});
+ var meu=++tokenFotos;
+ (async function(){for(var i=0;i<r.fases.length;i++){if(meu!==tokenFotos)return;var f=r.fases[i],c2=cvs[i],x=c2.getContext("2d");
+  if(!sintetico&&v.src){await seek(f.t);await quadroPronto();x.drawImage(v,0,0,c2.width,c2.height)}
+  desenhar(c2,quadros[f.quadro].lm,c2.width,c2.height);
+  x.fillStyle="rgba(0,0,0,.55)";x.fillRect(0,0,150,26);x.fillStyle="#fff";x.font="bold 15px system-ui";x.fillText((i+1)+". "+f.nome,8,18)}
+  if(meu===tokenFotos&&!sintetico&&v.src)await seek(0)})();
+ var co=QLBiomec.conclusao(r);$("conc").hidden=false;$("ctx").textContent=co.texto;
+ var ch="";
+ if(co.prioridades.length){ch+="<h3>Prioridades de intervenção</h3>";co.prioridades.forEach(function(p,k){ch+='<div class="pr"><b>'+(k+1)+". "+p.nome+'</b> <span class="msg">('+(p.valor==null?"—":Math.round(p.valor*100)/100+p.unidade)+" · ref. "+p.ref+')</span><p class="msg">'+p.porque+"</p>"+(p.exercicios.length?"<ul>"+p.exercicios.map(function(e){return"<li>"+e+"</li>"}).join("")+"</ul>":"")+"</div>"})}
+ if(co.fortes.length)ch+="<h3>Pontos fortes</h3><ul>"+co.fortes.map(function(n){return"<li>"+n+"</li>"}).join("")+"</ul>";
+ if(co.revisar.length)ch+="<h3>Para o treinador revisar (não medidos)</h3><ul>"+co.revisar.map(function(n){return"<li>"+n+"</li>"}).join("")+"</ul>";
+ $("cbody").innerHTML=ch;
  var tb=$("tb"),h="",fa=-1;
  r.itens.forEach(function(it){if(it.fase!==fa){fa=it.fase;h+='<tr class="fh"><td colspan="4">'+(fa+1)+". "+QLBiomec.FASES[fa]+"</td></tr>"}
   var val=it.valor==null?"—":(Math.round(it.valor*100)/100)+it.unidade;
@@ -122,6 +140,6 @@ function mostrar(sintetico){
  tb.innerHTML=h}
 $("pdf").onclick=function(){window.print()};
 $("json").onclick=function(){var b=new Blob([JSON.stringify({gerado:new Date().toISOString(),dominante:$("dom").value,resultado:ultimo},null,1)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="biomecanica.json";a.click()};
-window.__demo=$("demo");
+window.__teste={set:function(q){quadros=q;mostrar(false)}};
 })();
 </script></body></html>

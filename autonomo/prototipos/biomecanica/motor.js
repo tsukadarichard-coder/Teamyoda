@@ -132,6 +132,48 @@
     return { fases: s.idx.map(function (i, k) { return { nome: FASES[k], quadro: i, t: quadros[i].t, medidas: M[k] }; }), itens: itens, resumo: cont, direcao: s.dir };
   }
 
+
+  /* Intervenções sugeridas por item em atenção. Apoio ao treinador; não substituem avaliação presencial. */
+  var INTERV = {
+    "Split step antes do golpe": { prio: 7, porque: "Sem o pequeno salto antes do golpe, a saída para a bola fica lenta.",
+      ex: ["Split step na cadência do adversário (cesta ou parceiro), buscando pousar quando ele bate na bola.", "Jogos de reação: bola em direção aleatória após o split."] },
+    "Flexão de joelhos no giro": { prio: 1, porque: function (it) { return it.valor > 100 ? "Base alta: pouca carga nas pernas para gerar potência." : "Flexão excessiva: perde mobilidade e velocidade de saída."; },
+      ex: ["Agachamento com bola de tênis na altura do giro (pausa de 2 s).", "Shadow swing com foco em sentar na base antes de acelerar.", "Bola na cesta pedindo \"base baixa e estável\"."] },
+    "Flexão de tronco no giro": { prio: 2, porque: "Tronco fora da faixa: afeta equilíbrio e a transferência de energia do solo.",
+      ex: ["Giro de tronco com bastão nos ombros, mantendo a coluna alinhada.", "Feedback em vídeo de lado, comparando com a referência.", "Exercício de equilíbrio unipodal na preparação."] },
+    "Antebraço não dominante paralelo": { prio: 3, porque: "Braço não dominante solto reduz equilíbrio e a separação entre quadril e ombro.",
+      ex: ["Manter a mão não dominante na raquete (garganta) até o giro.", "Shadow swing deixando o braço não dominante \"apontando\" para a bola.", "Bola na cesta com a mão não dominante como guia."] },
+    "Extensão dos joelhos até o contato": { prio: 4, porque: "Pouca extensão de pernas: o golpe fica dependente do braço.",
+      ex: ["Saltos curtos (counter movement) com ênfase em empurrar o chão.", "Forehand com drive de pernas, lembrando de \"subir\" no contato.", "Arremesso de medicine ball lateral."] },
+    "Contato à frente do corpo": { prio: 5, porque: "Contato atrasado reduz controle, profundidade e velocidade.",
+      ex: ["Bola na cesta marcando um cone à frente do quadril como ponto de contato.", "Tocar a bola à frente com a mão antes de bater (feeding).", "Antecipar a preparação: raquete atrás já na primeira passada."] },
+    "Altura do contato": { prio: 6, porque: "Altura fora da faixa confortável: exige compensações no tronco.",
+      ex: ["Trabalhar o posicionamento (passo ajustado) para bater na altura entre cintura e ombro.", "Treino com bolas altas e baixas, praticando o ajuste de passadas.", "Pernas ajudam a ajustar a altura, não o braço."] },
+    "Trajetória do seguimento": { prio: 8, porque: "Seguimento curto: o golpe termina cedo e perde fluidez.",
+      ex: ["Finalizar o golpe passando a raquete sobre o ombro oposto.", "Shadow swing em câmera lenta, mantendo a cabeça da raquete acelerando depois do contato."] }
+  };
+
+  function conclusao(r) {
+    if (!r || r.erro) return null;
+    var fortes = [], aten = [], rev = [], i, it, d;
+    for (i = 0; i < r.itens.length; i++) {
+      it = r.itens[i];
+      if (it.status === "ok") fortes.push(it.nome);
+      else if (it.status === "nao_avaliavel") rev.push(it.nome);
+      else {
+        d = INTERV[it.nome] || { prio: 9, porque: it.comentario, ex: [] };
+        aten.push({ nome: it.nome, fase: it.fase, valor: it.valor, unidade: it.unidade, ref: it.ref, prio: d.prio,
+          porque: typeof d.porque === "function" ? d.porque(it) : d.porque, exercicios: d.ex });
+      }
+    }
+    aten.sort(function (a, b) { return a.prio - b.prio; });
+    var total = fortes.length + aten.length;
+    var txt = !total ? "Poucos itens puderam ser medidos nesta vista."
+      : (aten.length ? "Dos " + total + " itens medidos, " + fortes.length + " estão dentro da referência e " + aten.length + " merecem atenção. Prioridade sugerida: " + aten.slice(0, 3).map(function (a) { return a.nome.toLowerCase(); }).join(", ") + "."
+        : "Todos os " + total + " itens medidos estão dentro da referência.");
+    return { texto: txt, fortes: fortes, prioridades: aten, revisar: rev };
+  }
+
   /* Quadros sintéticos de um forehand (para demonstração e testes). */
   function sintetico(n, dom) {
     n = n || 60; var q = [], i;
@@ -156,5 +198,5 @@
     return q;
   }
 
-  return { P: P, FASES: FASES, REGRAS: REGRAS, ang: ang, segmentar: segmentar, medidas: medidas, checklist: checklist, sintetico: sintetico, suavizar: suavizar };
+  return { P: P, FASES: FASES, REGRAS: REGRAS, ang: ang, segmentar: segmentar, medidas: medidas, checklist: checklist, conclusao: conclusao, sintetico: sintetico, suavizar: suavizar };
 });

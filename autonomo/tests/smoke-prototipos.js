@@ -11,6 +11,24 @@ var pw = require("playwright"), path = require("path"), a = require("assert");
   a.ok((await p.textContent("#kpi")).includes("OK"));
   await p.selectOption("#dom", "E"); await p.click("#demo");
   a.strictEqual(await p.locator(".fase").count(), 6);
+  a.ok((await p.textContent("#ctx")).length > 20);
+  a.ok(await p.locator("#cbody .pr").count() >= 1, "intervenções");
+  a.ok((await p.textContent("#cbody")).includes("Pontos fortes"));
+  // modo vídeo real: fotos dos momentos precisam vir do vídeo (cores diferentes por fase)
+  var cores = await p.evaluate(async function () {
+    var c = document.createElement("canvas"); c.width = 160; c.height = 90; var x = c.getContext("2d"), mr = new MediaRecorder(c.captureStream(15), { mimeType: "video/webm" }), ch = [];
+    mr.ondataavailable = function (e) { ch.push(e.data); }; mr.start();
+    for (var i = 0; i < 40; i++) { x.fillStyle = "hsl(" + i * 9 + ",80%,50%)"; x.fillRect(0, 0, 160, 90); await new Promise(function (r) { setTimeout(r, 66); }); }
+    await new Promise(function (r) { mr.onstop = r; mr.stop(); });
+    var v = document.getElementById("v"); v.src = URL.createObjectURL(new Blob(ch, { type: "video/webm" }));
+    await new Promise(function (r) { v.onloadeddata = r; });
+    window.__teste.set(window.QLBiomec.sintetico(40, "E").map(function (q, k) { q.t = k * (v.duration && isFinite(v.duration) ? v.duration / 40 : 0.066); return q; }));
+    await new Promise(function (r) { setTimeout(r, 4000); });
+    return Array.prototype.map.call(document.querySelectorAll(".fase canvas"), function (cc) { var d = cc.getContext("2d").getImageData(5, 250, 1, 1).data; return d[0] + "," + d[1] + "," + d[2]; });
+  });
+  a.strictEqual(cores.length, 6);
+  a.ok(cores.every(function (c) { return c !== "17,17,17" && c !== "0,0,0"; }), "fotos pretas: " + cores);
+  a.ok(new Set(cores).size >= 3, "fotos iguais: " + cores);
   await p.screenshot({ path: "/tmp/bio.png", fullPage: true });
   await p.goto("file://" + path.resolve(__dirname, "../prototipos/video-scout/index.html"));
   // vídeo sintético com som: usa WAV gerado em memória
