@@ -2,110 +2,27 @@
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>QuadraLab System · Jogo em Vídeo → Scout</title>
 <link rel="icon" href="../../assets/favicon-32.png">
+<link rel="stylesheet" href="../../scout/movimento.css">
 <style>
-:root{--bg:#F6F4EF;--card:#fff;--ink:#14202B;--mut:#5C6B78;--az:#0B3B2E;--lar:#C65825;--bd:#E2DED5}
-*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink)}
-header,main{max-width:1000px;margin:auto;padding:0 16px}header{padding-top:18px}h1{font-size:20px;margin:0}header p{margin:4px 0 12px;color:var(--mut);font-size:14px}
-main{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;padding-bottom:60px}.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px}
-.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-button,select,input[type=number],label.btn{font:inherit;border-radius:10px;border:1px solid var(--bd);background:#fff;padding:8px 12px;cursor:pointer}
-input[type=number]{width:70px;cursor:text}button.pri{background:var(--az);color:#fff;border-color:var(--az)}button:disabled{opacity:.5}
-button.a.on{background:var(--az);color:#fff}button.b.on{background:var(--lar);color:#fff}
-.msg{font-size:13px;color:var(--mut)}.aviso{background:#FFF6E5;border:1px solid #F0D9A8;border-radius:10px;padding:10px;font-size:13px}
-.grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:14px}@media(max-width:760px){.grid{grid-template-columns:1fr}}
-video{width:100%;border-radius:10px;background:#000;max-height:60vh}
-.lista{max-height:62vh;overflow:auto;display:grid;gap:8px}
-.pt{border:1px solid var(--bd);border-radius:10px;padding:8px;background:#fff}.pt.sel{border-color:var(--az);box-shadow:0 0 0 2px #0F5E8C33}
-.pt h4{margin:0 0 4px;font-size:14px;display:flex;justify-content:space-between;gap:8px}.sus{color:var(--lar);font-size:12px}
-.chip{display:inline-block;font-size:12px;padding:1px 8px;border-radius:99px;background:#EEF2F5}
-.placar{font-variant-numeric:tabular-nums;font-weight:700}
-.kp{display:flex;gap:10px;flex-wrap:wrap}.kp div{flex:1;min-width:100px;background:#F3F1EA;border-radius:10px;padding:8px;text-align:center}.kp b{display:block;font-size:20px}
+body{margin:0;background:#F6F4EF;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#14202B}
+header,main{max-width:1000px;margin:auto;padding:0 16px}header{padding-top:16px}
+.marca{display:flex;align-items:center;gap:10px;margin-bottom:8px}.marca img{height:38px;display:block}.sys{font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#fff;background:#0B3B2E;padding:4px 9px;border-radius:6px}
+h1{font-size:20px;margin:0}header p{margin:4px 0 0;color:#5C6B78;font-size:14px}main{padding-bottom:60px}
 </style></head><body>
-<header><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><img src="../../assets/logo-quadralab.png" alt="QuadraLab" style="height:38px"><span style="font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#fff;background:#0B3B2E;padding:4px 9px;border-radius:6px">System</span></div><h1>Jogo em Vídeo → Scout · rascunho</h1>
-<p>Protótipo de uso particular. O sistema separa a partida em pontos pelo som das batidas; você revisa e classifica cada clipe. O vídeo fica no seu aparelho.</p></header>
-<main>
-<section class="card">
- <div class="row">
-  <label class="btn">Escolher vídeo da partida<input id="arq" type="file" accept="video/*" hidden></label>
-  <label>Atleta <input id="nA" value="Atleta" style="font:inherit;padding:8px;border:1px solid var(--bd);border-radius:10px;width:130px"></label>
-  <label>Adversário <input id="nB" value="Adversário" style="font:inherit;padding:8px;border:1px solid var(--bd);border-radius:10px;width:130px"></label>
-  <button id="go" class="pri" disabled>Detectar pontos</button>
- </div>
- <div class="row" style="margin-top:10px">
-  <label>Sensibilidade <input id="sens" type="range" min="1" max="10" value="5"></label>
-  <label>Pausa que separa pontos (s) <input id="gap" type="number" value="6" min="2" max="30"></label>
-  <button id="re" disabled>Reprocessar</button>
- </div>
- <p class="msg" id="st">Câmera fixa e perto da quadra captam melhor o som da bola. Vídeos de até ~1 h funcionam; acima disso o navegador pode ficar sem memória.</p>
-</section>
-<section class="card" id="rev" hidden>
- <div class="kp" id="kp"></div>
- <div class="grid" style="margin-top:12px">
-  <div><video id="v" controls playsinline></video>
-   <div class="row" style="margin-top:8px"><button id="ant">◀ Ponto anterior</button><button id="rep">↻ Rever</button><button id="prox">Próximo ▶</button><button id="add">+ Ponto na posição atual</button></div>
-   <p class="msg">Atalhos: ← → trocam de ponto · espaço revê · A / B marcam o vencedor.</p></div>
-  <div><div class="lista" id="lista"></div></div>
- </div>
- <div class="row" style="margin-top:12px"><button id="csv">Baixar CSV</button><button id="json" class="pri">Baixar scout (JSON)</button></div>
-</section>
-<div class="aviso">Rascunho automático: o áudio acerta bem o início e o fim dos pontos e a contagem de batidas; vencedor, tipo de ponto e saque exigem sua confirmação. Aplicar a vídeos de menores exige autorização dos responsáveis.</div>
-</main>
-<script src="segmentador.js"></script>
+<header><div class="marca"><img src="../../assets/logo-quadralab.png" alt="QuadraLab"><span class="sys">System</span></div>
+<h1>Jogo em Vídeo → Scout · rascunho</h1>
+<p>O sistema separa a partida em pontos pelo som das batidas; você revisa e classifica cada clipe. O vídeo fica no seu aparelho. Os jogos salvos ficam neste navegador e cada novo jogo é comparado com os anteriores.</p></header>
+<main><div id="app"></div></main>
+<script src="../../scout/movimento-motor.js"></script>
+<script src="../../scout/video-segmentador.js"></script>
+<script src="../../scout/video-jogo.js"></script>
 <script>
 (function(){
-var $=function(i){return document.getElementById(i)},v=$("v"),pts=[],sel=0,en=null,dur=0,url=null,fim=null,TIPOS=["","Ace","Dupla falta","Winner","Erro forçado","Erro não forçado"];
-function msg(t){$("st").textContent=t}function fmt(t){var m=Math.floor(t/60),s=Math.floor(t%60);return m+":"+(s<10?"0":"")+s}
-$("arq").onchange=function(e){var f=e.target.files[0];if(!f)return;if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(f);v.src=url;window.__arq=f;$("go").disabled=false;msg("Vídeo carregado: "+f.name)};
-async function decodifica(){
- var buf=await window.__arq.arrayBuffer(),ac=new (window.AudioContext||window.webkitAudioContext)(),ab;
- try{ab=await ac.decodeAudioData(buf)}catch(e){throw new Error("não consegui ler o áudio deste vídeo (formato/tamanho). Tente exportar em MP4/H.264.")}
- dur=ab.duration;var x=ab.getChannelData(0);
- // passa-altas simples para destacar o "toc" da bola e reduzir vento/voz
- var y=new Float32Array(x.length),a=0.95,p=0,q=0;for(var i=0;i<x.length;i++){y[i]=a*(y[i-1]||0)+a*(x[i]-(x[i-1]||0))}
- en=QLSegmentador.energia(y,ab.sampleRate,10);ac.close()}
-async function processa(){
- $("go").disabled=true;
- try{ if(!en){msg("Lendo o áudio…");await decodifica()}
-  msg("Detectando batidas…");var h=QLSegmentador.batidas(en,+$("sens").value);
-  var antigos=pts;pts=QLSegmentador.pontos(h,{gap:+$("gap").value,dur:dur}).map(function(p){
-   var o=antigos.filter(function(x){return Math.abs(x.saque-p.saque)<1})[0];p.venc=o?o.venc:"";p.tipo=o?o.tipo:"";p.sacador=o?o.sacador:"";return p});
-  sel=0;render();$("rev").hidden=false;$("re").disabled=false;msg(h.length+" batidas · "+pts.length+" pontos detectados. Revise os clipes.")
- }catch(e){msg("Erro: "+e.message)}
- $("go").disabled=false}
-$("go").onclick=processa;$("re").onclick=processa;
-function tocar(i){if(i<0||i>=pts.length)return;sel=i;var p=pts[i];v.currentTime=p.ini;fim=p.fim;v.play();render(true)}
-v.addEventListener("timeupdate",function(){if(fim!=null&&v.currentTime>=fim){v.pause();fim=null}});
-function render(mantem){
- var pl=QLSegmentador.placar(pts.map(function(p){return p.venc})),nA=$("nA").value,nB=$("nB").value,tot=pts.length,a=0,b=0,rev=0,gs=0;
- pts.forEach(function(p){if(p.venc==="A")a++;if(p.venc==="B")b++;if(p.venc)rev++;gs+=p.golpes});
- $("kp").innerHTML='<div><b>'+tot+'</b>pontos</div><div><b>'+rev+'/'+tot+'</b>classificados</div><div><b>'+a+' × '+b+'</b>pontos '+esc(nA)+' × '+esc(nB)+'</div><div><b>'+(tot?(gs/tot).toFixed(1):0)+'</b>batidas/ponto</div>';
- var L=$("lista");L.innerHTML="";
- pts.forEach(function(p,i){var d=document.createElement("div");d.className="pt"+(i===sel?" sel":"");
-  var s=pl[i];var txt=s?(s.games[0]+"-"+s.games[1]+" · "+s.pontos):"";
-  d.innerHTML='<h4><span>Ponto '+p.n+' · '+fmt(p.ini)+'–'+fmt(p.fim)+'</span><span class="placar">'+txt+'</span></h4>'+
-   '<div class="msg">'+p.golpes+' batidas · '+p.duracao.toFixed(1)+' s'+(p.suspeito?' · <span class="sus">'+p.suspeito+'</span>':'')+'</div>'+
-   '<div class="row" style="margin-top:6px"><button class="a'+(p.venc==="A"?" on":"")+'" data-k="A">'+esc(nA)+'</button><button class="b'+(p.venc==="B"?" on":"")+'" data-k="B">'+esc(nB)+'</button>'+
-   '<select data-k="t">'+TIPOS.map(function(t){return'<option'+(t===p.tipo?" selected":"")+'>'+t+'</option>'}).join("")+'</select>'+
-   '<select data-k="s"><option value="">Saque</option><option value="A"'+(p.sacador==="A"?" selected":"")+'>'+esc(nA)+'</option><option value="B"'+(p.sacador==="B"?" selected":"")+'>'+esc(nB)+'</option></select>'+
-   '<input type="number" data-k="g" value="'+p.golpes+'" min="0" title="golpes"><button data-k="x" title="remover">✕</button></div>';
-  d.onclick=function(e){if(e.target.closest("button,select,input"))return;tocar(i)};
-  d.onchange=function(e){var k=e.target.getAttribute("data-k");if(k==="t")p.tipo=e.target.value;if(k==="s")p.sacador=e.target.value;if(k==="g")p.golpes=+e.target.value||0;render(true)};
-  d.querySelectorAll("button").forEach(function(bt){bt.onclick=function(e){e.stopPropagation();var k=bt.getAttribute("data-k");if(k==="x"){pts.splice(i,1);pts.forEach(function(q,j){q.n=j+1});sel=Math.min(sel,pts.length-1)}else{p.venc=p.venc===k?"":k;if(p.venc&&i<pts.length-1&&!mantemSel)sel=i+1}render(true)}});
-  L.appendChild(d)});
- var cur=L.children[sel];if(cur&&cur.scrollIntoView&&mantem)cur.scrollIntoView({block:"nearest"})}
-var mantemSel=true;
-function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
-$("ant").onclick=function(){tocar(sel-1)};$("prox").onclick=function(){tocar(sel+1)};$("rep").onclick=function(){tocar(sel)};
-$("add").onclick=function(){var t=v.currentTime;pts.push({n:0,ini:Math.max(0,t-2),fim:t+3,saque:t,golpes:0,duracao:0,suspeito:"adicionado manualmente",venc:"",tipo:"",sacador:""});pts.sort(function(a,b){return a.saque-b.saque});pts.forEach(function(q,j){q.n=j+1});render(true)};
-document.addEventListener("keydown",function(e){if(/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)||$("rev").hidden)return;
- if(e.key==="ArrowRight")tocar(sel+1);else if(e.key==="ArrowLeft")tocar(sel-1);else if(e.key===" "){e.preventDefault();tocar(sel)}
- else if(e.key.toLowerCase()==="a"||e.key.toLowerCase()==="b"){var p=pts[sel];if(p){p.venc=e.key.toUpperCase();render(true);if(sel<pts.length-1)tocar(sel+1)}}});
-function baixa(nome,tipo,txt){var a=document.createElement("a");a.href=URL.createObjectURL(new Blob([txt],{type:tipo}));a.download=nome;a.click()}
-$("json").onclick=function(){var pl=QLSegmentador.placar(pts.map(function(p){return p.venc}));
- baixa("scout-video.json","application/json",JSON.stringify({origem:"video",gerado:new Date().toISOString(),atleta:$("nA").value,adversario:$("nB").value,
-  pontos:pts.map(function(p,i){return{n:p.n,inicio:+p.ini.toFixed(2),fim:+p.fim.toFixed(2),saque:+p.saque.toFixed(2),sacador:p.sacador,vencedor:p.venc,tipo:p.tipo,golpes:p.golpes,placar:pl[i]}})},null,1))};
-$("csv").onclick=function(){var pl=QLSegmentador.placar(pts.map(function(p){return p.venc}));
- baixa("scout-video.csv","text/csv","n;inicio;fim;sacador;vencedor;tipo;golpes;games;pontos\n"+pts.map(function(p,i){var s=pl[i]||{games:["",""],pontos:""};return[p.n,p.ini.toFixed(1),p.fim.toFixed(1),p.sacador,p.venc,p.tipo,p.golpes,s.games.join("-"),s.pontos].join(";")}).join("\n"))};
-window.__st=function(){return pts};
+ var CH="ql-proto-jogos-video",hist=[];
+ try{hist=JSON.parse(localStorage.getItem(CH)||"[]")}catch(e){}
+ function grava(){try{localStorage.setItem(CH,JSON.stringify(hist))}catch(e){}}
+ window.__vj=QLVideoJogo.montar(document.getElementById("app"),{historico:hist,
+  aoSalvar:function(reg){hist=hist.filter(function(h){return h.id!==reg.id}).concat([reg]);grava()},
+  aoRemover:function(id){hist=hist.filter(function(h){return h.id!==id});grava()}});
 })();
 </script></body></html>

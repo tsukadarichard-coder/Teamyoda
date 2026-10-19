@@ -115,7 +115,7 @@
     var S = { golpe: "forehand", emp: "2", quadros: null, real: false, resultado: null, fotos: [], regId: null, historico: (opts.historico || []).slice(), cota: opts.cota || null, token: 0 };
     el.classList.add("qlm");
     el.innerHTML =
-      '<div class="qm-row" style="justify-content:space-between"><div>' + badgeHTML(logo) + '</div></div>' +
+      (opts.semMarca ? "" : '<div class="qm-row" style="justify-content:space-between"><div>' + badgeHTML(logo) + '</div></div>') +
       '<div class="qm-card" data-r="ctl">' +
       '<div id="qm-cota-slot"></div>' +
       '<div class="qm-row"><label class="qm-btn">Escolher vídeo<input data-r="arq" type="file" accept="video/*" hidden></label>' +

@@ -27,3 +27,12 @@
 .qlm details summary{cursor:pointer;font-weight:600}
 .qlm .qm-hist button.qm-x{padding:3px 9px;font-size:12px}
 @media(max-width:520px){.qlm .qm-fases{grid-template-columns:repeat(2,1fr)}}
+/* Jogo em vídeo (video-jogo.js) */
+.qlm .vj-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:14px}@media(max-width:760px){.qlm .vj-grid{grid-template-columns:1fr}}
+.qlm .vj-lista{max-height:62vh;overflow:auto;display:grid;gap:8px}
+.qlm .vj-pt{border:1px solid var(--qbd);border-radius:10px;padding:8px;background:#fff}.qlm .vj-pt.sel{border-color:var(--qa);box-shadow:0 0 0 2px #0B3B2E33}
+.qlm .vj-pt h4{margin:0 0 4px;font-size:13.5px;display:flex;justify-content:space-between;gap:8px}.qlm .vj-sus{color:var(--qat);font-size:12px}
+.qlm .vj-pt button.a.on{background:var(--qa);color:#fff;border-color:var(--qa)}.qlm .vj-pt button.b.on{background:var(--qat);color:#fff;border-color:var(--qat)}
+.qlm .vj-plc{font-variant-numeric:tabular-nums;font-weight:700}
+.qlm .qm-kp{display:flex;gap:8px;flex-wrap:wrap}.qlm .qm-kp div{flex:1;min-width:92px;background:#F3F1EA;border-radius:10px;padding:8px;text-align:center;font-size:12px}.qlm .qm-kp b{display:block;font-size:19px}
+.qlm .vj-video{width:100%;border-radius:10px;background:#000;max-height:56vh}

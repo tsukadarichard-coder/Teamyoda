@@ -51,13 +51,20 @@ var pw = require("playwright"), path = require("path"), a = require("assert");
   var seed = 3; for (i = 0; i < n; i++) { seed = (seed * 16807) % 2147483647; buf.writeInt16LE(Math.round((seed / 2147483647 - 0.5) * 600), 44 + i * 2); }
   [3, 4.3, 5.6, 18, 19.2, 20.5, 21.6].forEach(function (t) { var s = Math.round(t * sr); for (var k = 0; k < 400; k++) { var o = 44 + (s + k) * 2; buf.writeInt16LE(Math.max(-32000, Math.min(32000, Math.round(26000 * Math.exp(-k / 80) * (k % 2 ? 1 : -1)))), o); } });
   require("fs").writeFileSync("/tmp/teste.wav", buf);
-  await p.setInputFiles("#arq", "/tmp/teste.wav");
-  await p.click("#go");
-  await p.waitForSelector("#rev:not([hidden])", { timeout: 20000 });
-  a.strictEqual(await p.locator(".pt").count(), 2, await p.textContent("#st"));
-  await p.click(".pt:nth-child(1) button.a"); await p.click(".pt:nth-child(2) button.b");
-  var d = await p.evaluate(function () { return window.__st().map(function (x) { return x.venc + ":" + x.golpes; }); });
+  await p.setInputFiles('[data-r="arq"]', "/tmp/teste.wav");
+  await p.click('[data-r="go"]');
+  await p.waitForSelector('[data-r="rev"]:not([hidden])', { timeout: 20000 });
+  a.strictEqual(await p.locator(".vj-pt").count(), 2, await p.textContent('[data-r="st"]'));
+  await p.click(".vj-pt:nth-child(1) button.a"); await p.click(".vj-pt:nth-child(2) button.b");
+  var d = await p.evaluate(function () { return window.__vj.estado.pts.map(function (x) { return x.venc + ":" + x.golpes; }); });
   a.deepStrictEqual(d, ["A:3", "B:4"]);
+  // salva o 1º jogo; ao salvar o 2º (mesmo arquivo) compara com o anterior
+  await p.click('[data-r="salvar"]'); await p.waitForTimeout(200);
+  a.ok(await p.locator('[data-r="cmpC"]').isHidden(), "1º jogo não compara");
+  await p.evaluate(function () { window.__vj.estado.regId = null; window.__vj.estado.salvo = false; });
+  await p.click('[data-r="salvar"]'); await p.waitForTimeout(200);
+  a.strictEqual(await p.evaluate(function () { return JSON.parse(localStorage.getItem("ql-proto-jogos-video")).length; }), 2);
+  a.ok((await p.textContent('[data-r="evo"]')).includes("Último jogo × anteriores"), "evolução compara o último jogo");
   await p.screenshot({ path: "/tmp/vid.png", fullPage: true });
   a.deepStrictEqual(erros, []);
   await b.close(); console.log("smoke prototipos: ok");

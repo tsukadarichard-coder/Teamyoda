@@ -73,6 +73,8 @@
 <script src="scout/relatorio-jogos.js"></script>
 <script src="scout/movimento-motor.js"></script>
 <script src="scout/movimento.js"></script>
+<script src="scout/video-segmentador.js"></script>
+<script src="scout/video-jogo.js"></script>
 <link rel="stylesheet" href="scout/movimento.css">
 <link rel="stylesheet" href="scout/graficos.css">
 <script crossorigin src="https://unpkg.com/@babel/standalone@7.29.9/babel.min.js"></script>
@@ -9024,23 +9026,40 @@ function SeloTecnologiaQuadraLab({ texto }) {
    Cota por plano (só no app do treinador autônomo): Essencial = quantidade por mês, Premium = ilimitado; sem plano = ilimitado. */
 function TelaMovimento({ aluno, alunos, setAlunos, identidade, planoAtual }) {
   const raiz = useRef(null);
+  const raizVideo = useRef(null);
   const [aba, setAba] = useState("analisar");
   const alunoId = aluno.id;
   const movimentos = aluno.movimentos || [];
   const outros = (alunos || []).filter((a) => a.id !== alunoId).reduce((t, a) => t.concat(a.movimentos || []), []);
   const cotaAtual = window.QLBiomec ? window.QLBiomec.cota("movimento", planoAtual, outros.concat(movimentos)) : null;
+  const jogosVideo = aluno.jogosVideo || [];
+  const outrosVideos = (alunos || []).filter((a) => a.id !== alunoId).reduce((t, a) => t.concat(a.jogosVideo || []), []);
+  const cotaVideo = window.QLBiomec ? window.QLBiomec.cota("video", planoAtual, outrosVideos.concat(jogosVideo)) : null;
 
   useEffect(() => {
     if (!raiz.current || !window.QLMovimento) return undefined;
     const alvo = raiz.current;
     window.QLMovimento.montar(alvo, {
-      atleta: aluno.nome, historico: aluno.movimentos || [], plano: planoAtual,
+      atleta: aluno.nome, historico: aluno.movimentos || [], plano: planoAtual, semMarca: true,
       cota: window.QLBiomec.cota("movimento", planoAtual, outros.concat(aluno.movimentos || [])),
       cotaDe: (hist) => window.QLBiomec.cota("movimento", planoAtual, outros.concat(hist)),
       logo: "assets/logo-quadralab.png", logoAbsoluto: new URL("assets/logo-quadralab.png", window.location.href).href,
       cabecalho: identidade && identidade.nomeAcademia ? identidade.nomeAcademia : "",
       aoSalvar: (reg) => setAlunos((prev) => prev.map((a) => a.id !== alunoId ? a : { ...a, movimentos: [...(a.movimentos || []).filter((m) => m.id !== reg.id), reg].slice(-80) })),
       aoRemover: (id) => setAlunos((prev) => prev.map((a) => a.id !== alunoId ? a : { ...a, movimentos: (a.movimentos || []).filter((m) => m.id !== id) })),
+    });
+    return () => { alvo.innerHTML = ""; };
+  }, [alunoId]);
+
+  useEffect(() => {
+    if (!raizVideo.current || !window.QLVideoJogo) return undefined;
+    const alvo = raizVideo.current;
+    window.QLVideoJogo.montar(alvo, {
+      atleta: aluno.nome, historico: aluno.jogosVideo || [], plano: planoAtual,
+      cota: window.QLBiomec.cota("video", planoAtual, outrosVideos.concat(aluno.jogosVideo || [])),
+      cotaDe: (hist) => window.QLBiomec.cota("video", planoAtual, outrosVideos.concat(hist)),
+      aoSalvar: (reg) => setAlunos((prev) => prev.map((a) => a.id !== alunoId ? a : { ...a, jogosVideo: [...(a.jogosVideo || []).filter((m) => m.id !== reg.id), reg].slice(-60) })),
+      aoRemover: (id) => setAlunos((prev) => prev.map((a) => a.id !== alunoId ? a : { ...a, jogosVideo: (a.jogosVideo || []).filter((m) => m.id !== id) })),
     });
     return () => { alvo.innerHTML = ""; };
   }, [alunoId]);
@@ -9054,26 +9073,33 @@ function TelaMovimento({ aluno, alunos, setAlunos, identidade, planoAtual }) {
       <div className="mb-3 flex items-center justify-between flex-wrap gap-2">
         <div>
           <p style={{ fontFamily: ARCH, fontSize: 17, fontWeight: 800, color: C.tinta }}>Análise de movimento</p>
-          <p style={{ ...prosa, fontSize: 13 }}>Forehand, backhand e saque a partir de vídeo. Cada análise é comparada com a anterior de {String(aluno.nome || "").split(" ")[0] || "o jogador"}.</p>
+          <p style={{ ...prosa, fontSize: 13 }}>Golpes (forehand, backhand, saque) e jogos a partir de vídeo. Cada análise é comparada com a anterior de {String(aluno.nome || "").split(" ")[0] || "o jogador"}.</p>
         </div>
         <SeloTecnologiaQuadraLab />
       </div>
       <div className="flex gap-2 mb-3">
-        {[{ v: "analisar", r: "Analisar vídeo" }, { v: "evolucao", r: "Evolução" }].map((t) => (
+        {[{ v: "analisar", r: "Golpes em vídeo" }, { v: "jogo", r: "Jogo em vídeo" }, { v: "evolucao", r: "Evolução" }].map((t) => (
           <button key={t.v} onClick={() => setAba(t.v)}
             style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, padding: "9px 14px", minHeight: 44, borderRadius: 10, cursor: "pointer",
               border: "1px solid " + (aba === t.v ? C.tinta : C.linha), background: aba === t.v ? C.tinta : C.cal, color: aba === t.v ? C.papel : C.grafite }}>{t.r}</button>
         ))}
       </div>
-      {bloqueado && aba === "analisar" && (
+      {bloqueado && aba !== "evolucao" && (
         <div className="mb-3" style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "11px 14px" }}>
           <p style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700, marginBottom: 4 }}>Análise de movimento nos planos Essencial e Premium</p>
           <p style={{ ...prosa, fontSize: 13 }}>No Essencial você faz uma quantidade de análises por mês; no Premium, análises ilimitadas. As análises que já existirem continuam disponíveis na aba Evolução.</p>
         </div>
       )}
       <div style={{ display: aba === "analisar" ? "block" : "none" }}><div ref={raiz} /></div>
+      <div style={{ display: aba === "jogo" ? "block" : "none" }}><div ref={raizVideo} /></div>
       {aba === "evolucao" && (
-        <div className="qlm" dangerouslySetInnerHTML={{ __html: window.QLMovimento.evolucaoHTML(movimentos) }} />
+        <div className="qlm">
+          <h3 className="qm-h" style={{ marginTop: 4 }}>Movimento: golpes em vídeo</h3>
+          <div dangerouslySetInnerHTML={{ __html: window.QLMovimento.evolucaoHTML(movimentos) }} />
+          <h3 className="qm-h" style={{ marginTop: 18 }}>Jogos em vídeo</h3>
+          <div dangerouslySetInnerHTML={{ __html: window.QLVideoJogo ? window.QLVideoJogo.evolucaoHTML(jogosVideo) : "" }} />
+          <p className="qm-msg" style={{ marginTop: 12 }}>A evolução dos jogos marcados no scout completo está em "Análise de partida".</p>
+        </div>
       )}
     </div>
   );

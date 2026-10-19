@@ -1,4 +1,4 @@
-var S = require("../prototipos/video-scout/segmentador.js"), a = require("assert");
+var S = require("../scout/video-segmentador.js"), a = require("assert");
 var taxa = 8000, dur = 60, x = new Float32Array(taxa * dur), i, seed = 1;
 function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647 - 0.5; }
 for (i = 0; i < x.length; i++) x[i] = rnd() * 0.02;
