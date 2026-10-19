@@ -8799,6 +8799,44 @@ function TelaAdversarios({ aluno, alunos, setAlunos, planoAtual }) {
 }
 
 function ChaveRascunho(alunoId) { return "scout-rascunho:" + alunoId; }
+/* Refaz o placar e a pilha de "desfazer" a partir dos pontos já marcados. A pilha NÃO é guardada no rascunho: ela repete todos os pontos a cada ponto
+   (em jogos longos passava do limite do navegador e o salvamento falhava em silêncio), então é refeita ao continuar. */
+function refazerPlacar(cfg, pontos) {
+  let e = placarInicial(cfg.formato, cfg.saca, cfg.semVantagem, cfg.superTiebreakDecisivo);
+  const pilha = [];
+  pontos.forEach((p, i) => { pilha.push({ placar: e, pontos: pontos.slice(0, i) }); e = aplicaPonto(e, !!p.nos); });
+  return { placar: e, pilha };
+}
+function textoPlacarRascunho(r) {
+  if (!r || !r.placar) return "";
+  const pl = r.placar, partes = (pl.sets || []).map((x) => x[0] + "-" + x[1]);
+  if (!pl.fim) partes.push(pl.g[0] + "-" + pl.g[1] + " (" + rotuloPontos(pl) + ")");
+  return partes.join("  ");
+}
+function dataHoraCurta(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return isNaN(d) ? "" : d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) + " " + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+const interrompidaRetomavel = (r) => r.tipo === "jogo" && r.scout && !r.concluida && (r.scout.pontos || []).length > 0;
+/* Início: partidas que ficaram pela metade (rascunho na nuvem), para continuar de onde pararam. */
+function CartaoPartidasEmAndamento({ alunos, aoAbrirScout }) {
+  const lista = (alunos || []).filter((a) => a.nome && a.scoutRascunho && (a.scoutRascunho.pontos || []).length);
+  if (!lista.length || !aoAbrirScout) return null;
+  return (
+    <div className="mb-5" style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "12px 14px" }}>
+      <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{lista.length === 1 ? "Partida em andamento" : "Partidas em andamento"}</p>
+      <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, margin: "2px 0 8px" }}>Partidas que não foram concluídas. Toque para continuar de onde parou.</p>
+      {lista.map((a) => (
+        <button key={a.id} onClick={() => aoAbrirScout(a.id)} className="w-full text-left"
+          style={{ display: "block", background: C.papel, border: "1px solid " + C.linha, borderRadius: 10, padding: "9px 12px", marginBottom: 6, cursor: "pointer", minHeight: 44 }}>
+          <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{a.nome}</span>
+          <span style={{ ...prosa, fontSize: 12, color: C.grafite, display: "block" }}>{textoPlacarRascunho(a.scoutRascunho)} · {a.scoutRascunho.pontos.length} pontos · salva {dataHoraCurta(a.scoutRascunho.salvoEm)}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
 
 /* Scout ao vivo para a família: o resumo público (mesmo recorte do link comum) é reenviado a cada ponto marcado, e a página dos pais
    se atualiza sozinha. O token nasce no servidor; revogar apaga o documento e a página passa a responder "encerrado". */
@@ -9121,6 +9159,9 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
   const [rascunhoSalvo, setRascunhoSalvo] = useState(null);
   const [estadoRascunho, setEstadoRascunho] = useState(null); // null | "salvo" | "erro"
   const [confirmadoEm, setConfirmadoEm] = useState(0);
+  const concluidoRef = useRef(false); /* depois de salvar ou descartar, o rascunho não é regravado */
+  const ultimoRascunhoRef = useRef(null);
+  const [retomandoId, setRetomandoId] = useState(null); /* partida salva que foi reaberta: é substituída quando você salvar de novo */
   const processandoRef = useRef(false);
   const [aoVivo, setAoVivo] = useState(null); // { token, expiraEm } quando o link ao vivo está aberto
   const [aoVivoEstado, setAoVivoEstado] = useState(""); // "" | "enviando" | "ok" | "erro"
@@ -9145,40 +9186,95 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
     return () => { vivo = false; clearTimeout(t); };
   }, [aoVivo && aoVivo.token, pontos, placar, mental, fase, aoVivoTentativa]);
 
+  /* a partida em andamento vem do aparelho ou da nuvem (a mais recente): assim ela volta em outro aparelho e depois de limpar o navegador */
   useEffect(() => {
+    if (fase !== "antes") return;
+    let local = null;
     try {
       const bruto = localStorage.getItem(ChaveRascunho(aluno.id));
-      if (bruto) setRascunhoSalvo(JSON.parse(bruto));
-    } catch { /* localStorage indisponível (modo privado, por ex.) — segue sem retomada */ }
-  }, [aluno.id]);
+      if (bruto) local = JSON.parse(bruto);
+    } catch { /* localStorage indisponível (modo privado, por ex.) — segue com a nuvem */ }
+    const nuvem = aluno.scoutRascunho && (aluno.scoutRascunho.pontos || []).length ? aluno.scoutRascunho : null;
+    const valido = (r) => r && r.cfg && Array.isArray(r.pontos) && r.pontos.length > 0;
+    const escolhido = valido(local) && valido(nuvem) ? ((local.salvoEm || "") >= (nuvem.salvoEm || "") ? local : nuvem) : (valido(local) ? local : (valido(nuvem) ? nuvem : null));
+    setRascunhoSalvo(escolhido);
+  }, [aluno.id, fase, aluno.scoutRascunho && aluno.scoutRascunho.salvoEm]);
 
   useEffect(() => {
     if (fase !== "durante" && fase !== "depois") return;
+    if (concluidoRef.current) return;
     try {
-      localStorage.setItem(ChaveRascunho(aluno.id), JSON.stringify({ cfg, placar, pontos, pilha, fase, aoVivo, mental }));
+      localStorage.setItem(ChaveRascunho(aluno.id), JSON.stringify({ cfg, placar, pontos, fase, aoVivo, mental, salvoEm: new Date().toISOString() }));
       setEstadoRascunho("salvo");
     } catch { setEstadoRascunho("erro"); }
-  }, [fase, cfg, placar, pontos, pilha, aoVivo, mental, aluno.id]);
+  }, [fase, cfg, placar, pontos, aoVivo, mental, aluno.id]);
+
+  /* cópia na nuvem (no jogador): 5 s depois da última mudança e ao sair da tela, para a partida voltar em qualquer aparelho */
+  function gravarRascunhoNuvem() {
+    const u = ultimoRascunhoRef.current;
+    if (!u || concluidoRef.current) return;
+    setAlunos((prev) => prev.map((a) => a.id !== aluno.id ? a : { ...a, scoutRascunho: { v: 1, salvoEm: new Date().toISOString(), ...u } }));
+  }
+  useEffect(() => {
+    if ((fase !== "durante" && fase !== "depois") || !pontos.length || concluidoRef.current) return undefined;
+    ultimoRascunhoRef.current = { cfg, placar, pontos, fase, mental, aoVivo: aoVivo ? { token: aoVivo.token, expiraEm: aoVivo.expiraEm } : null };
+    const t = setTimeout(gravarRascunhoNuvem, 5000);
+    return () => clearTimeout(t);
+  }, [fase, cfg, placar, pontos, mental, aoVivo && aoVivo.token, aluno.id]);
+  useEffect(() => () => { gravarRascunhoNuvem(); }, []);
 
   function limparRascunhoSalvo() {
+    concluidoRef.current = true;
+    ultimoRascunhoRef.current = null;
     try { localStorage.removeItem(ChaveRascunho(aluno.id)); } catch { /* nada a fazer se não existir */ }
     setRascunhoSalvo(null);
     setEstadoRascunho(null);
+    setAlunos((prev) => prev.map((a) => { if (a.id !== aluno.id || !a.scoutRascunho) return a; const { scoutRascunho, ...resto } = a; return resto; }));
+  }
+
+  /* o link ao vivo da partida: ainda válido volta como está; vencido há pouco tempo é reativado (a mesma página dos pais volta a funcionar) */
+  function retomarLinkAoVivo(av) {
+    if (!av || !av.token) return;
+    if (Date.parse(av.expiraEm) > Date.now()) { setAoVivo(av); return; }
+    chamarAoVivo({ acao: "retomar", token: av.token }).then((c) => { if (c && c.token) setAoVivo({ token: c.token, expiraEm: c.expiraEm }); }).catch(() => { /* sem o link antigo, um novo é criado sozinho */ });
   }
 
   function continuarRascunho() {
     if (!rascunhoSalvo) return;
-    setCfg(rascunhoSalvo.cfg);
-    setPlacar(rascunhoSalvo.placar);
-    setPontos(rascunhoSalvo.pontos);
-    setPilha(rascunhoSalvo.pilha || []);
-    setFase(rascunhoSalvo.fase);
-    setMental(rascunhoSalvo.mental || { antes: {}, jogo: {}, depois: {} });
-    if (rascunhoSalvo.aoVivo && Date.parse(rascunhoSalvo.aoVivo.expiraEm) > Date.now()) setAoVivo(rascunhoSalvo.aoVivo);
+    const r = rascunhoSalvo, refeito = refazerPlacar(r.cfg, r.pontos || []);
+    concluidoRef.current = false; setRetomandoId(null);
+    setCfg(r.cfg);
+    setPlacar(r.placar || refeito.placar);
+    setPontos(r.pontos);
+    setPilha(refeito.pilha);
+    setFase(r.placar && r.placar.fim ? "depois" : "durante"); /* partida que ainda não acabou volta para a marcação, mesmo se foi encerrada sem querer */
+    setMental(r.mental || { antes: {}, jogo: {}, depois: {} });
+    retomarLinkAoVivo(r.aoVivo);
     setRascunhoSalvo(null);
   }
 
+  /* partida interrompida que já foi salva no caderno: reabre para continuar; o registro antigo é substituído quando você salvar de novo */
+  function retomarDoRegistro(reg) {
+    const sc = reg.scout || {}, c = sc.cfg || {}, pts = sc.pontos || [];
+    const novoCfg = { adversario: reg.adversario && reg.adversario !== "—" ? reg.adversario : "", torneio: reg.torneio && reg.torneio !== "jogo-treino" ? reg.torneio : "", formato: c.formato || "3sets", saca: c.saca || "nos", semVantagem: !!c.semVantagem, superTiebreakDecisivo: !!c.superTiebreakDecisivo };
+    const refeito = refazerPlacar(novoCfg, pts);
+    concluidoRef.current = false;
+    setCfg(novoCfg); setPlacar(refeito.placar); setPontos(pts); setPilha(refeito.pilha);
+    setMental(reg.mental ? { antes: reg.mental.antes || {}, jogo: reg.mental.jogo || {}, depois: reg.mental.depois || {} } : { antes: {}, jogo: {}, depois: {} });
+    setAoVivo(null); setAoVivoEstado(""); setRetomandoId(reg.id); setRascunhoSalvo(null);
+    setFase("durante");
+  }
+
+  /* do relatório de volta para a marcação (quando a partida foi encerrada sem querer) */
+  function voltarParaPartida(idSalvo) {
+    concluidoRef.current = false;
+    if (idSalvo) setRetomandoId(idSalvo);
+    setFase("durante");
+  }
+
   function comecar() {
+    if (rascunhoSalvo && !window.confirm("Este jogador já tem uma partida em andamento. Começar uma nova apaga a anterior. Quer começar mesmo assim?")) return;
+    concluidoRef.current = false; setRetomandoId(null);
     setPlacar(placarInicial(cfg.formato, cfg.saca, cfg.semVantagem, cfg.superTiebreakDecisivo));
     setPontos([]);
     setPilha([]);
@@ -9244,12 +9340,26 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
           <div style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "13px 15px", marginBottom: 16 }}>
             <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>Partida em andamento encontrada</p>
             <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginTop: 4 }}>
-              Salva neste aparelho, {rascunhoSalvo.pontos.length} pontos coletados.
+              {rascunhoSalvo.cfg && rascunhoSalvo.cfg.adversario ? "Contra " + rascunhoSalvo.cfg.adversario + " · " : ""}{textoPlacarRascunho(rascunhoSalvo)} · {rascunhoSalvo.pontos.length} pontos coletados
+              {rascunhoSalvo.salvoEm ? " · salva em " + dataHoraCurta(rascunhoSalvo.salvoEm) : ""}. Fica guardada neste aparelho e na nuvem.
             </p>
-            <div className="flex gap-2 mt-3">
+            <div className="flex gap-2 mt-3 flex-wrap">
               <Botao pequeno variante="saibro" onClick={continuarRascunho}>Continuar partida em andamento</Botao>
-              <Botao pequeno variante="vazio" onClick={limparRascunhoSalvo}>Descartar</Botao>
+              <Botao pequeno variante="vazio" onClick={() => { continuarRascunho(); setFase("depois"); }}>Ver relatório e salvar como interrompida</Botao>
+              <Botao pequeno variante="vazio" onClick={() => { if (window.confirm("Descartar esta partida em andamento? Os pontos coletados serão perdidos.")) limparRascunhoSalvo(); }}>Descartar</Botao>
             </div>
+          </div>
+        )}
+        {partidasAnteriores.some(interrompidaRetomavel) && (
+          <div style={{ background: C.cal, borderLeft: "3px solid " + C.linha, padding: "13px 15px", marginBottom: 16 }}>
+            <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>Partidas interrompidas salvas no caderno</p>
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>Encerrou uma partida sem querer? Reabra para continuar de onde parou. Ao salvar de novo, o registro antigo é substituído.</p>
+            {partidasAnteriores.filter(interrompidaRetomavel).slice(-5).reverse().map((r) => (
+              <div key={r.id} className="flex items-center justify-between gap-2 mt-2" style={{ borderTop: "1px solid " + C.linha, paddingTop: 8 }}>
+                <span style={{ ...prosa, fontSize: 13 }}>{String(r.data || "").split("-").reverse().join("/")}{r.adversario && r.adversario !== "—" ? " · contra " + r.adversario : ""} · {r.resultado || "sem sets fechados"} · {r.scout.pontos.length} pontos</span>
+                <Botao pequeno variante="saibro" onClick={() => retomarDoRegistro(r)}>Retomar</Botao>
+              </div>
+            ))}
           </div>
         )}
 
@@ -9354,8 +9464,8 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
   /* ── relatório ── */
   if (fase === "depois")
     return <Relatorio aluno={aluno} alunos={alunos} setAlunos={setAlunos} cfg={cfg}
-      pontos={pontos} placar={placar} aoConcluir={limparRascunhoSalvo} mental={mental} setMental={setMental}
-      aoSair={() => { limparRascunhoSalvo(); setFase("antes"); setPontos([]); setMental({ antes: {}, jogo: {}, depois: {} }); }} />;
+      pontos={pontos} placar={placar} aoConcluir={limparRascunhoSalvo} mental={mental} setMental={setMental} aoRetomar={voltarParaPartida} retomandoId={retomandoId}
+      aoSair={() => { limparRascunhoSalvo(); setRetomandoId(null); setFase("antes"); setPontos([]); setMental({ antes: {}, jogo: {}, depois: {} }); }} />;
 
   /* ── durante ── */
   const sacadorAtual = quemSaca(placar), nossoSaque = sacadorAtual === "nos", ladoAtual = ladoDoSaque(placar);
@@ -9596,7 +9706,7 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
         <Etiqueta>{pontos.length} pontos</Etiqueta>
         <div className="flex gap-2">
           <Botao pequeno variante="vazio" onClick={desfazer}>Desfazer</Botao>
-          <Botao pequeno onClick={() => setFase("depois")}>Encerrar e ver relatório</Botao>
+          <Botao pequeno onClick={() => { if (placar.fim || window.confirm("Encerrar a partida e ver o relatório? Você poderá voltar e continuar de onde parou.")) setFase("depois"); }}>Encerrar e ver relatório</Botao>
         </div>
       </div>
     </div>
@@ -10286,10 +10396,11 @@ function DetalheJogoRegistro({ r, aluno, alunos, setAlunos }) {
   );
 }
 
-function Relatorio({ aluno, alunos, setAlunos, cfg, pontos, placar, aoSair, aoConcluir, mental, setMental }) {
+function Relatorio({ aluno, alunos, setAlunos, cfg, pontos, placar, aoSair, aoConcluir, mental, setMental, aoRetomar, retomandoId }) {
   const r = useMemo(() => resume(pontos), [pontos]);
   const sinais = useMemo(() => leitura(r), [r]);
   const [salvo, setSalvo] = useState(false);
+  const [salvoId, setSalvoId] = useState(null);
   const [obsFinal, setObsFinal] = useState("");
   const [nivelAdv, setNivelAdv] = useState("");
   const [torneioFinal, setTorneioFinal] = useState(cfg.torneio || "");
@@ -10305,8 +10416,8 @@ function Relatorio({ aluno, alunos, setAlunos, cfg, pontos, placar, aoSair, aoCo
       concluida, observacaoFinal: obsFinal.trim().slice(0, 1200), mental: mentalLimpo(mental),
       scout: { ...r, pontos, cfg: { formato: cfg.formato, saca: cfg.saca, semVantagem: !!cfg.semVantagem, superTiebreakDecisivo: !!cfg.superTiebreakDecisivo } },
     };
-    setAlunos(alunos.map((a) => a.id === aluno.id ? { ...a, registros: [...(a.registros || []), reg] } : a));
-    setSalvo(true);
+    setAlunos(alunos.map((a) => a.id === aluno.id ? { ...a, registros: [...(a.registros || []).filter((x) => x.id !== retomandoId), reg] } : a));
+    setSalvo(true); setSalvoId(reg.id);
     if (aoConcluir) aoConcluir();
   }
 
@@ -10316,6 +10427,13 @@ function Relatorio({ aluno, alunos, setAlunos, cfg, pontos, placar, aoSair, aoCo
   return (
     <div>
       <Etiqueta cor={concluida ? C.quadra : "#C9A227"}>{concluida ? "Partida concluída" : "Acompanhamento interrompido — sem vencedor atribuído"}</Etiqueta>
+      {aoRetomar && (
+        <div className="mt-3" style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "11px 14px" }}>
+          <p style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{concluida ? "Marcou algum ponto errado?" : "Encerrou sem querer?"}</p>
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 3 }}>{concluida ? "Volte à marcação para desfazer pontos e corrigir o placar." : "Volte e continue a partida de onde parou: os " + pontos.length + " pontos e o placar continuam aqui."}{salvo ? " Esta partida já foi salva: ao salvar de novo, o registro é substituído." : ""}</p>
+          <div className="mt-2"><Botao pequeno variante="saibro" onClick={() => aoRetomar(salvo ? salvoId : null)}>↩ Voltar à partida e continuar</Botao></div>
+        </div>
+      )}
       <div className="mt-3"><SeloTecnologiaQuadraLab /></div>
       <div className="mt-3"><ResumoScout r={r} sinais={sinais} aluno={aluno} alunos={alunos} setAlunos={setAlunos} pontos={pontos} cfg={cfg} mental={mental} /></div>
       <div className="mt-3"><ComparacaoComAnteriores atual={{ ...r, pontos, cfg }} anteriores={(aluno.registros || []).filter((x) => x.tipo === "jogo" && x.scout)} /></div>
@@ -10348,7 +10466,7 @@ function Relatorio({ aluno, alunos, setAlunos, cfg, pontos, placar, aoSair, aoCo
       <div className="flex gap-2 flex-wrap mt-3">
         {!salvo ? <Botao onClick={salvar} variante="saibro">Salvar no caderno</Botao>
           : <Etiqueta cor={C.quadra}>✓ Salvo no caderno do jogador</Etiqueta>}
-        <Botao variante="vazio" onClick={aoSair}>Novo jogo</Botao>
+        <Botao variante="vazio" onClick={() => { if (salvo || !pontos.length || window.confirm("Esta partida ainda não foi salva. Começar um novo jogo apaga os " + pontos.length + " pontos coletados. Quer apagar mesmo?")) aoSair(); }}>Novo jogo</Botao>
       </div>
     </div>
   );
@@ -15370,7 +15488,7 @@ function CardPrimeirosPassos({ passo1Ok, passo2Ok, passo3Ok, aoPasso1, aoPasso2,
   );
 }
 
-function TelaDashboard({ alunos, turmas, uidAtual, exigeLogin, irPara, aoAbrirSessao, usoIA, identidade, meuNome,
+function TelaDashboard({ aoAbrirScout, alunos, turmas, uidAtual, exigeLogin, irPara, aoAbrirSessao, usoIA, identidade, meuNome,
   aoCriarPlanejamento, aoAbrirTurmas, aoAbrirAgenda, aoAdicionarJogador, aoEditarDados,
   onboardingDispensado, setOnboardingDispensado }) {
   const [escolhendoPlanejamento, setEscolhendoPlanejamento] = useState(false);
@@ -15423,6 +15541,7 @@ function TelaDashboard({ alunos, turmas, uidAtual, exigeLogin, irPara, aoAbrirSe
   return (
     <div>
       <h1 style={{ fontFamily: ARCH, fontSize: 26, fontWeight: 700, marginBottom: 4 }}>{saudacao}</h1>
+      <CartaoPartidasEmAndamento alunos={alunos} aoAbrirScout={aoAbrirScout} />
       <p style={{ ...prosa, fontSize: 15, color: C.grafite, marginBottom: onboardingDispensado && !onboardingCompleto ? 4 : 18 }}>
         Vamos preparar sua próxima aula?
       </p>
@@ -16872,7 +16991,7 @@ function App() {
            aoAbrirPlano={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }}
            aoAbrirSessao={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("sessao"); }}
            aoAbrirTurmas={() => setAba("turmas")} /> :
-         aba === "dashboard" ? <TelaDashboard alunos={alunos} turmas={turmas} uidAtual={uidAtual} exigeLogin={exigeLogin} usoIA={usoIA} identidade={identidade} meuNome={meuNome}
+         aba === "dashboard" ? <TelaDashboard aoAbrirScout={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("scout"); }} alunos={alunos} turmas={turmas} uidAtual={uidAtual} exigeLogin={exigeLogin} usoIA={usoIA} identidade={identidade} meuNome={meuNome}
            irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }}
            aoAbrirSessao={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("sessao"); }}
            aoCriarPlanejamento={() => setAba("alunos")} aoAbrirTurmas={() => setAba("turmas")} aoAbrirAgenda={() => setAba("agenda")}

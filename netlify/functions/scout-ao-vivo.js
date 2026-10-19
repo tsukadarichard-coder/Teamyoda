@@ -18,6 +18,7 @@ const { limpar } = require("./_scout-publico");
 const { vinculosDoTreinador, gravarCopia, idAoVivo } = require("./_scout-copias");
 
 const VALIDADE_MS = 12 * 3600 * 1000;
+const RETOMAR_ATE_MS = 7 * 24 * 3600 * 1000; // um link vencido há até 7 dias pode ser reativado por quem retoma a mesma partida
 const APOS_FIM_MS = 2 * 3600 * 1000; // depois do fim da partida o link ainda vale por 2 horas, para a família ver o resultado final
 const MAX_ATIVOS = 3;
 const TOKEN = /^[a-f0-9]{32}$/;
@@ -60,7 +61,7 @@ exports.handler = async function (event) {
     let body;
     try { body = JSON.parse(event.body || "{}"); } catch (e) { return resposta(400, { erro: "Pedido inválido." }); }
 
-    if (familia && body.acao !== "iniciar" && body.acao !== "atualizar" && body.acao !== "revogar") return resposta(403, { erro: "Esta conta ainda não está ligada a uma academia." });
+    if (familia && body.acao !== "iniciar" && body.acao !== "atualizar" && body.acao !== "revogar" && body.acao !== "retomar") return resposta(403, { erro: "Esta conta ainda não está ligada a uma academia." });
     if (body.acao === "atletas") {
       const lista = [...(await vinculosDoTreinador(admin.firestore(), claims))].map(([id, v]) => ({ vinculoId: id, nome: String(v.atletaNome || "Atleta").slice(0, 60) }));
       return resposta(200, { ok: true, atletas: lista });
@@ -92,6 +93,18 @@ exports.handler = async function (event) {
       /* encerrar um jogo ligado a um atleta com pontos suficientes também guarda a cópia */
       if (d.vinculoId && d.atletaUid) { try { const pub = ler(d); if (pub.n >= 10) await gravarCopia(d.atletaUid, idAoVivo(token), { origem: "ao-vivo", orgId: d.orgId, marcadoPor: d.uid, resumo: pub }); } catch (e) { console.error("scout-ao-vivo copia:", e && e.message); } }
       await ref.delete(); return resposta(200, { ok: true });
+    }
+    /* retomar uma partida: o mesmo link volta a funcionar (a página dos pais é a mesma), se venceu há pouco tempo; depois disso, só um link novo */
+    if (body.acao === "retomar") {
+      if (familia && !(await vinculosDoTreinador(admin.firestore(), claims, ["responsavel", "treinador"])).has(d.vinculoId)) return resposta(403, { erro: "Seu vínculo com este atleta não está mais ativo." });
+      const vence = Date.parse(d.expiraEm);
+      if (vence > Date.now()) return resposta(200, { ok: true, token, expiraEm: d.expiraEm });
+      if (Date.now() - vence > RETOMAR_ATE_MS) return resposta(410, { erro: "Este link venceu há muito tempo. Inicie outro." });
+      const ativos = (await col.where("orgId", "==", dono).get()).docs.filter((x) => x.id !== token && Date.parse(x.data().expiraEm) > Date.now());
+      if (ativos.length >= MAX_ATIVOS) return resposta(409, { erro: "Sua academia já tem " + MAX_ATIVOS + " links ao vivo abertos. Encerre um antes de retomar este." });
+      const expiraEm = new Date(Date.now() + VALIDADE_MS).toISOString();
+      await ref.update({ versao: d.versao + 1, expiraEm });
+      return resposta(200, { ok: true, token, expiraEm });
     }
     if (body.acao === "atualizar") {
       if (familia && !(await vinculosDoTreinador(admin.firestore(), claims, ["responsavel", "treinador"])).has(d.vinculoId)) return resposta(403, { erro: "Seu vínculo com este atleta não está mais ativo." });

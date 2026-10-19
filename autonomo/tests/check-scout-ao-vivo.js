@@ -47,6 +47,15 @@ const GET = async (q) => { const r = await handler({ httpMethod: "GET", headers:
   store["scoutsAoVivo/" + t2.token].expiraEm = new Date(Date.now() - 1000).toISOString();
   assert.strictEqual((await GET({ t: t2.token })).s, 404, "vencido");
   assert.strictEqual((await POST("tok-a", { acao: "atualizar", token: t2.token, resumo: resumo(2) })).s, 410);
+  /* retomar a mesma partida: o link vencido há pouco tempo volta, o de outra academia e o muito antigo não */
+  assert.strictEqual((await POST("tok-b", { acao: "retomar", token: t2.token })).s, 404, "outra academia não retoma");
+  const volta = await POST("tok-a", { acao: "retomar", token: t2.token });
+  assert.strictEqual(volta.s, 200, "retomar link vencido há pouco"); assert.strictEqual(volta.token, t2.token, "volta o mesmo link");
+  assert.strictEqual((await GET({ t: t2.token })).s, 200, "a página dos pais volta a funcionar");
+  assert.strictEqual((await POST("tok-a", { acao: "retomar", token: t2.token })).s, 200, "retomar um link ainda válido devolve o mesmo");
+  store["scoutsAoVivo/" + t2.token].expiraEm = new Date(Date.now() - 8 * 24 * 3600 * 1000).toISOString();
+  assert.strictEqual((await POST("tok-a", { acao: "retomar", token: t2.token })).s, 410, "vencido há mais de 7 dias não volta");
+  store["scoutsAoVivo/" + t2.token].expiraEm = new Date(Date.now() - 1000).toISOString();
   assert.strictEqual((await POST("tok-a", { acao: "iniciar", resumo: resumo(1) })).s, 200, "link vencido não conta no limite");
   assert.strictEqual((await POST("tok-a", { acao: "atualizar", token: "../x", resumo: resumo(2) })).s, 400);
   assert.strictEqual((await handler({ httpMethod: "PUT", headers: {} })).statusCode, 405);
