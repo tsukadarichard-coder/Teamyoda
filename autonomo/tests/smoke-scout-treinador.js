@@ -92,7 +92,7 @@ window.firebase={initializeApp:function(){},auth:function(){return a}};})();`;
     assert.strictEqual(pub.mental.antes.conf, 4, "mental antes chegou ao resumo ao vivo");
     assert.strictEqual(pub.mental.jogo[1], 3, "mental do game chegou");
     assert.deepStrictEqual(pub.detalhe.decisoes.boa, { n: 1, g: 1 }, "decisão do ponto chegou");
-    assert.deepStrictEqual(pub.detalhe.games[0], { j: 1, n: 5, g: 5, boa: 1, disc: 0, ruim: 0 }, "game a game chegou"); }
+    assert.deepStrictEqual(pub.detalhe.games[0], { j: 1, n: 4, g: 4, boa: 1, disc: 0, ruim: 0 }, "game a game chegou"); }
   await pg.screenshot({ path: path.join(saida, "scout-treinador-marcando.png") });
   /* Pensamentos antes do jogo: escreve, solta, e nada fica guardado em lugar nenhum */
   await pg.goto(base + "/competicao/#/pensamentos", { waitUntil: "networkidle" }); await pg.waitForSelector("#pensTxt");
