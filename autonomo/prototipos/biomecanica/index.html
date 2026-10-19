@@ -36,7 +36,7 @@ details summary{cursor:pointer;font-weight:600}
   <button id="demo">Ver demonstração (dados sintéticos)</button>
  </div>
  <p class="msg" id="st">Envie um vídeo de UM forehand (2 a 6 s), câmera fixa na altura da cintura, vista lateral, corpo inteiro no quadro e 60 fps se possível.</p>
- <div class="stage"><video id="v" controls playsinline muted></video><canvas id="cv"></canvas></div>
+ <div class="stage"><video id="v" controls playsinline muted preload="auto"></video><canvas id="cv"></canvas></div>
 </section>
 <section class="card" id="res" hidden>
  <h2 style="margin:0 0 8px;font-size:17px">Resultado</h2>
@@ -80,11 +80,16 @@ async function carregaPose(){
  var fs=await mod.FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
  return mod.PoseLandmarker.createFromOptions(fs,{baseOptions:{modelAssetPath:"https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/latest/pose_landmarker_heavy.task"},runningMode:"VIDEO",numPoses:1});
 }
-function seek(t){return new Promise(function(r){var f=function(){v.removeEventListener("seeked",f);r()};v.addEventListener("seeked",f);v.currentTime=t})}
+function pronto(){return new Promise(function(r){if(v.readyState>=2)return r();var f=function(){v.removeEventListener("loadeddata",f);r()};v.addEventListener("loadeddata",f);v.load();setTimeout(r,8000)})}
+function seek(t){return new Promise(function(r){
+ var feito=false,fim=function(){if(feito)return;feito=true;v.removeEventListener("seeked",fim);clearTimeout(tm);r()},tm=setTimeout(fim,2500);
+ if(Math.abs(v.currentTime-t)<0.001&&v.readyState>=2){feito=true;clearTimeout(tm);return r()}
+ v.addEventListener("seeked",fim);v.currentTime=t})}
+window.__seek=seek;
 $("go").onclick=async function(){
  $("go").disabled=true;
  try{
-  var pose=await carregaPose(),fps=+$("fps").value,dur=v.duration,n=Math.floor(dur*fps),qs=[],ok=0;ajustaCanvas();
+  msg("Preparando o vídeo…");v.pause();await pronto();var pose=await carregaPose(),fps=+$("fps").value,dur=v.duration,n=Math.floor(dur*fps),qs=[],ok=0;ajustaCanvas();
   if(dur>12){msg("Vídeo longo ("+dur.toFixed(1)+" s). Recorte para apenas um golpe (até 12 s).");$("go").disabled=false;return}
   for(var i=0;i<n;i++){var t=i/fps;await seek(t);var r=pose.detectForVideo(v,Math.round(t*1000)+1+i);
    if(r.landmarks&&r.landmarks[0]){ok++;qs.push({t:t,lm:r.landmarks[0].map(function(p){return{x:p.x,y:p.y,z:p.z,v:p.visibility}})});
