@@ -87,7 +87,7 @@ window.firebase={initializeApp:function(){},auth:function(){return a}};})();`;
   await pg.click(".sf-analise summary"); await pg.waitForSelector(".sf-analise .qa-svg");
   const painel = await pg.textContent(".sf-analise"); assert.ok(painel.includes("Ponto a ponto") && painel.includes("Game a game"), "painel com ponto a ponto e game a game");
   await pg.screenshot({ path: path.join(saida, "analise-ao-vivo.png"), fullPage: true });
-  await pg.waitForTimeout(2200);
+  for (let k = 0; k < 20 && JSON.parse(store[vivo[0]].publico).n < 5; k++) await pg.waitForTimeout(400);
   { const pub = JSON.parse(store[vivo[0]].publico);
     assert.strictEqual(pub.mental.antes.conf, 4, "mental antes chegou ao resumo ao vivo");
     assert.strictEqual(pub.mental.jogo[1], 3, "mental do game chegou");
