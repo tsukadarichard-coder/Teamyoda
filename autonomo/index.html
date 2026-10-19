@@ -561,9 +561,12 @@ const LINKS_CHECKOUT_EDUZZ = {
   essencial: "https://sun.eduzz.com/6W4GYZEOOZ",
   premium: "https://sun.eduzz.com/DOR8KEP69Y",
 };
+/* Cotas mensais da Tecnologia QuadraLab (análise de movimento e jogo em vídeo): fonte única em scout/movimento-motor.js. */
+const LIMITE_MOVIMENTO_ESSENCIAL = (window.QLBiomec && window.QLBiomec.LIMITES_PLANO.movimento.essencial) || 5;
+const LIMITE_VIDEO_ESSENCIAL = (window.QLBiomec && window.QLBiomec.LIMITES_PLANO.video.essencial) || 2;
 const PRECOS_PLANO = {
-  essencial: { preco: "R$ 29,90/mês", beneficio: "até 30 jogadores" },
-  premium: { preco: "R$ 59,90/mês", beneficio: "jogadores ilimitados" },
+  essencial: { preco: "R$ 29,90/mês", beneficio: "até 30 jogadores · " + LIMITE_MOVIMENTO_ESSENCIAL + " análises de movimento e " + LIMITE_VIDEO_ESSENCIAL + " jogos em vídeo por mês" },
+  premium: { preco: "R$ 59,90/mês", beneficio: "jogadores, análises de movimento e jogos em vídeo ilimitados" },
 };
 
 const ESTAGIOS = [
@@ -13474,8 +13477,8 @@ const ETAPAS_DEMONSTRACAO = [
    em vez de repetida (e potencialmente divergente) em cada um. */
 const PLANOS_PUBLICOS = [
   { id: "gratis", nome: "Gratuito", preco: "R$ 0", periodo: "", beneficio: "Até 5 alunos", botao: "Começar grátis" },
-  { id: "essencial", nome: "Essencial", preco: "R$ 29,90", periodo: "/mês", beneficio: "Até 30 alunos", botao: "Escolher Essencial" },
-  { id: "premium", nome: "Premium", preco: "R$ 59,90", periodo: "/mês", beneficio: "Alunos ilimitados", botao: "Escolher Premium" },
+  { id: "essencial", nome: "Essencial", preco: "R$ 29,90", periodo: "/mês", beneficio: "Até 30 alunos · " + LIMITE_MOVIMENTO_ESSENCIAL + " análises de movimento e " + LIMITE_VIDEO_ESSENCIAL + " jogos em vídeo por mês", botao: "Escolher Essencial" },
+  { id: "premium", nome: "Premium", preco: "R$ 59,90", periodo: "/mês", beneficio: "Alunos, análises de movimento e jogos em vídeo ilimitados", botao: "Escolher Premium" },
 ];
 const RECURSOS_INCLUSOS_TODOS_PLANOS = [
   "Ficha e avaliação técnica/tática de cada jogador",
@@ -13483,14 +13486,20 @@ const RECURSOS_INCLUSOS_TODOS_PLANOS = [
   "Agenda, turmas e catálogo de exercícios",
   "Registro de aula e relatórios de ciclo",
 ];
+/* Tecnologia QuadraLab: só nos planos Essencial (com cota mensal) e Premium (ilimitado). */
+const RECURSOS_TECNOLOGIA_QUADRALAB = [
+  "Análise de movimento em vídeo (forehand, backhand e saque), com fotos dos momentos, conclusão e sugestões de intervenção",
+  "Jogo em vídeo: separa a partida em pontos para você revisar e classificar",
+  "Comparação automática de cada análise com a anterior, na biomecânica e nos jogos",
+];
 
 const FAQ_QUADRALAB = [
   { p: "Para quem é o QuadraLab?",
     r: "Para o professor de tênis autônomo — quem dá aulas particulares e organiza sozinho a própria agenda, as fichas dos alunos e o planejamento das aulas." },
   { p: "O que está incluído no plano gratuito?",
-    r: "Todos os recursos da plataforma — ficha, planejamento com apoio de IA, agenda, turmas, catálogo de exercícios e relatórios — para até 5 alunos, sem prazo para experimentar." },
+    r: "Os recursos de gestão da plataforma — ficha, planejamento com apoio de IA, agenda, turmas, catálogo de exercícios e relatórios — para até 5 alunos, sem prazo para experimentar. A análise de movimento e o jogo em vídeo (Tecnologia QuadraLab) fazem parte dos planos Essencial e Premium." },
   { p: "Qual é a diferença entre os planos?",
-    r: "Nenhum recurso muda de um plano para outro — a única diferença é quantos alunos você pode cadastrar: até 5 no gratuito, até 30 no Essencial e ilimitado no Premium. \"Alunos ilimitados\" não significa uso ilimitado de IA ou de qualquer outro recurso." },
+    r: "A gestão (ficha, planejamento, agenda, turmas, relatórios) é a mesma nos três planos; o que muda é o número de alunos — até 5 no gratuito, até 30 no Essencial e ilimitado no Premium. A Tecnologia QuadraLab (análise de movimento e jogo em vídeo) entra no Essencial, com " + LIMITE_MOVIMENTO_ESSENCIAL + " análises de movimento e " + LIMITE_VIDEO_ESSENCIAL + " jogos em vídeo por mês, e no Premium, sem limite. \"Ilimitado\" não se aplica ao apoio de IA, que segue sem limite adicional definido hoje." },
   { p: "Como começo a usar?",
     r: "Crie sua conta gratuita, cadastre até 5 jogadores e preencha a ficha de cada um. A partir da ficha, a plataforma já ajuda a montar o primeiro planejamento." },
   { p: "Posso editar os exercícios e o planejamento?",
@@ -13567,6 +13576,7 @@ function SecaoPlanos({ irParaCadastro, abrirLogin }) {
         <p className="qlab-planos-inclusos-titulo">Os três planos incluem:</p>
         <ul>
           {RECURSOS_INCLUSOS_TODOS_PLANOS.map((r, i) => <li key={i}>{r}</li>)}
+          {RECURSOS_TECNOLOGIA_QUADRALAB.map((r, i) => <li key={"t" + i}>{r} <span style={{ color: C.grafite }}>(Essencial e Premium)</span></li>)}
         </ul>
       </div>
       <div className="qlab-planos-confianca">
