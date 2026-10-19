@@ -1,4 +1,4 @@
-var M = require("../../prototipos/biomecanica/motor.js"), a = require("assert");
+var M = require("../prototipos/biomecanica/motor.js"), a = require("assert");
 var q = M.sintetico(60, "D"), r = M.checklist(q, "D");
 a.ok(!r.erro, "sem erro");
 a.strictEqual(r.fases.length, 6);
