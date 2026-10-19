@@ -31,3 +31,7 @@
 .qa-comp th, .qa-comp td { padding: 5px 6px; border-bottom: 1px solid #E2E8E5; text-align: right; }
 .qa-comp th:first-child, .qa-comp td:first-child { text-align: left; }
 .qa-comp th { font-size: 11px; color: #5B6B63; font-weight: 600; }
+.qa-mom { margin: 10px 0 12px; padding: 10px 12px; background: #fff; border: 1px solid #E2E8E5; border-radius: 12px; }
+.qa-mom h3 { margin-top: 0; }
+.qa .qa-mom { border: 0; padding: 0; margin: 0 0 6px; }
+.qa-mom h3 { margin: 0 0 4px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: #5B6B63; }

@@ -3240,6 +3240,7 @@
       var sets = pl.sets.map(function (x) { return x[0] + "-" + x[1]; }).concat([pl.g[0] + "-" + pl.g[1]]).join("  ");
       var h = voltar + '<section class="sf-cab"><div><p class="sf-cab-l">' + esc((meu ? "SAQUE DE " + primeiro : "SAQUE DO ADVERSÁRIO").toUpperCase()) + " · " + esc(M.ROTULO_LADO[M.ladoDoSaque(pl)].toUpperCase()) + '</p><p class="sf-cab-n">' + esc(M.rotuloPontos(pl)) + '</p></div><div class="sf-cab-d"><p class="sf-cab-l">SETS</p><p class="sf-cab-s">' + esc(sets) + "</p></div></section>" +
         (adv && !fimJogo ? '<p class="sf-adverso">PLACAR ADVERSO — este ponto entra na comparação</p>' : "") + (pl.fim ? '<div class="aviso">Partida encerrada: ' + esc(primeiro) + (pl.vencedor === "nos" ? " venceu" : " perdeu") + ".</div>" : "");
+      if (!fimJogo && window.QLAoVivo && st.pontos.length) h += window.QLAoVivo.momento(st.pontos);
       if (!fimJogo && window.QLAoVivo) h += window.QLAoVivo.faixaAlerta(st.pontos, primeiro, anteriores);
       if (!fimJogo) {
         if (!rasc) {

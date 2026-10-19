@@ -12,7 +12,7 @@ assert(A.alertas(dfs, "Ana").some((a) => /duplas faltas/.test(a.texto)), "duplas
 const erros = Array.from({ length: 8 }, (_, i) => pt(false, { causa: "decisao", bola: "1-2", jogo: 1 + (i > 3 ? 1 : 0) }));
 al = A.alertas(erros, "Ana"); assert(al.some((a) => /decisão/.test(a.texto)) && al.some((a) => /duas primeiras bolas/.test(a.texto)), "erros de decisão e na entrada");
 const html = A.painel(erros.concat([pt(true, { dec: "boa", jogo: 2 })]), { atleta: "Ana <b>", mental: { jogo: { 1: 3 } } });
-["Agora", "O que a partida pede", "Ponto a ponto", "Game a game", "G1", "G2", "mental 3/5", "<svg"].forEach((s) => assert(html.includes(s), "falta: " + s));
+["Agora", "O que a partida pede", "Momento do jogo", "Saldo de pontos", "Game a game", "G1", "G2", "mental 3/5", "<svg"].forEach((s) => assert(html.includes(s), "falta: " + s));
 assert(!html.includes("Ana <b>") && !/undefined|NaN/.test(html), "escape e valores");
 assert(A.painel([], {}).includes("primeiro ponto"), "vazio");
 assert(A.faixaAlerta(perdendo, "Ana").includes("Atenção"), "faixa do alerta");
@@ -27,4 +27,10 @@ const pn = A.painel(mal, { atleta: "Ana", anteriores: ant });
 assert(pn.includes("Comparado com os jogos anteriores") && pn.includes("qa-comp") && pn.includes("Média de 2 jogos anteriores"), "tabela comparativa");
 assert(!A.painel(mal, { atleta: "Ana" }).includes("Comparado com"), "sem jogos anteriores não mostra a tabela");
 assert(!/undefined|NaN/.test(pn), "valores");
+/* momento ponto a ponto: média móvel dos últimos 6 pontos */
+const serie = A.momentoSerie([true, true, false, false, false, false, true].map((n) => pt(n)), 6);
+assert.deepStrictEqual(serie.slice(0, 2), [null, null]); assert.strictEqual(serie[2], 67); assert.strictEqual(serie[6], 33, "janela de 6: 2 de 6");
+const mom = A.momento(perdendo, {}); assert(mom.includes("forte contra") && mom.includes("<path") && mom.includes("clipPath"), "gráfico de linha do momento");
+assert(A.momento([pt(true)], {}).includes("a partir do 3º ponto"), "momento com poucos pontos");
+assert(!/undefined|NaN/.test(mom), "valores do momento");
 console.log("check-ao-vivo-analise: ok");

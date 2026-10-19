@@ -103,6 +103,33 @@
     g += '<circle cx="' + x(n).toFixed(1) + '" cy="' + y(v[n]).toFixed(1) + '" r="4" fill="' + (v[n] >= 0 ? AZUL : LARANJA) + '" stroke="#fff" stroke-width="1.5"/><text x="' + (x(n) - 6).toFixed(1) + '" y="' + (y(v[n]) - 7).toFixed(1) + '" text-anchor="end" font-size="10" font-weight="700" fill="#17251F">' + (v[n] > 0 ? "+" : v[n] < 0 ? "−" : "") + Math.abs(v[n]) + "</text>";
     return '<svg viewBox="0 0 ' + W + " " + H + '" class="qa-svg" role="img" aria-label="Saldo de pontos ao longo da partida: ' + (v[n] > 0 ? "+" : v[n] < 0 ? "−" : "") + Math.abs(v[n]) + '">' + g + "</svg>";
   }
+  /* momentum ponto a ponto: % de pontos ganhos nos últimos 6 pontos, a cada ponto marcado; acima de 50% azul, abaixo laranja */
+  var uid = 0;
+  function momentoSerie(pontos, janela) {
+    var v = []; for (var i = 0; i < pontos.length; i++) { var a = Math.max(0, i - janela + 1), l = pontos.slice(a, i + 1); v.push(i >= 2 ? Math.round(ganhos(l) * 100 / l.length) : null); } return v;
+  }
+  function momentoRotulo(v) { return v === null ? "" : v >= 67 ? "forte a favor" : v >= 50 ? "levemente a favor" : v > 33 ? "levemente contra" : "forte contra"; }
+  function momento(pontos, o) {
+    o = o || {}; var J = o.janela || 6, n = pontos.length;
+    if (n < 3) return '<div class="qa-mom"><h3>Momento do jogo</h3><p class="qa-vazio">A linha do momento aparece a partir do 3º ponto marcado.</p></div>';
+    var v = momentoSerie(pontos, J), W = 340, H = 130, L = 30, Rr = 12, T = 10, B = 24, id = "qm" + (++uid);
+    var x = function (i) { return L + (W - L - Rr) * (n === 1 ? 0.5 : i / (n - 1)); }, y = function (val) { return T + (H - T - B) * (1 - val / 100); }, y50 = y(50);
+    var idx = []; v.forEach(function (q, i) { if (q !== null) idx.push(i); });
+    var linha = idx.map(function (i, k) { return (k ? "L" : "M") + x(i).toFixed(1) + " " + y(v[i]).toFixed(1); }).join(" ");
+    var area = linha + " L" + x(idx[idx.length - 1]).toFixed(1) + " " + y50.toFixed(1) + " L" + x(idx[0]).toFixed(1) + " " + y50.toFixed(1) + " Z";
+    var g = '<defs><clipPath id="' + id + 'a"><rect x="0" y="0" width="' + W + '" height="' + y50.toFixed(1) + '"/></clipPath><clipPath id="' + id + 'b"><rect x="0" y="' + y50.toFixed(1) + '" width="' + W + '" height="' + H + '"/></clipPath></defs>';
+    [0, 50, 100].forEach(function (f) { g += '<line x1="' + L + '" x2="' + (W - Rr) + '" y1="' + y(f).toFixed(1) + '" y2="' + y(f).toFixed(1) + '" stroke="' + (f === 50 ? GRAFITE : LINHA) + '"' + (f === 50 ? ' stroke-dasharray="4 3"' : "") + '/><text x="' + (L - 4) + '" y="' + (y(f) + 3).toFixed(1) + '" text-anchor="end" font-size="9" fill="' + GRAFITE + '">' + f + "%</text>"; });
+    var ant = null; pontos.forEach(function (p, i) { if (p.jogo && p.jogo !== ant) { if (ant !== null) g += '<line x1="' + x(i).toFixed(1) + '" x2="' + x(i).toFixed(1) + '" y1="' + T + '" y2="' + (H - B) + '" stroke="' + LINHA + '"/>'; g += '<text x="' + (x(i) + 2).toFixed(1) + '" y="' + (H - 12) + '" font-size="8.5" fill="' + GRAFITE + '">G' + p.jogo + "</text>"; ant = p.jogo; } });
+    g += '<path d="' + area + '" fill="' + AZUL + '" fill-opacity=".18" clip-path="url(#' + id + 'a)"/><path d="' + area + '" fill="' + LARANJA + '" fill-opacity=".2" clip-path="url(#' + id + 'b)"/>';
+    for (var k = 1; k < idx.length; k++) { var i0 = idx[k - 1], i1 = idx[k]; g += '<line x1="' + x(i0).toFixed(1) + '" y1="' + y(v[i0]).toFixed(1) + '" x2="' + x(i1).toFixed(1) + '" y2="' + y(v[i1]).toFixed(1) + '" stroke="' + (v[i1] >= 50 ? AZUL : LARANJA) + '" stroke-width="2.6" stroke-linecap="round"/>'; }
+    pontos.forEach(function (p, i) { g += '<circle cx="' + x(i).toFixed(1) + '" cy="' + (H - 5) + '" r="2.4" fill="' + (p.nos ? AZUL : LARANJA) + '"/>'; });
+    var ult = v[n - 1], cor = ult >= 50 ? AZUL : LARANJA, lx = x(n - 1);
+    g += '<circle cx="' + lx.toFixed(1) + '" cy="' + y(ult).toFixed(1) + '" r="4.2" fill="' + cor + '" stroke="#fff" stroke-width="1.6"/><text x="' + Math.min(lx + 6, W - 2).toFixed(1) + '" y="' + (y(ult) - 7).toFixed(1) + '" text-anchor="' + (lx > W - 40 ? "end" : "start") + '" font-size="10.5" font-weight="700" fill="#17251F">' + ult + "%</text>";
+    var ultimos = pontos.slice(-J), gj = ganhos(ultimos);
+    return '<div class="qa-mom"><h3>Momento do jogo</h3><p class="qa-sub"><b style="color:' + cor + '">' + esc(momentoRotulo(ult)) + "</b> · " + gj + " de " + ultimos.length + " nos últimos pontos · atualiza a cada ponto marcado</p>" +
+      '<svg viewBox="0 0 ' + W + " " + H + '" class="qa-svg" role="img" aria-label="Momento do jogo ponto a ponto: ' + ult + "% dos últimos " + ultimos.length + ' pontos ganhos, ' + esc(momentoRotulo(ult)) + '">' + g + "</svg>" +
+      '<p class="qa-leg"><span><i style="background:' + AZUL + '"></i>ponto do atleta</span><span><i style="background:' + LARANJA + '"></i>ponto do adversário</span><span>linha: % ganhos nos últimos ' + J + " pontos</span></p></div>";
+  }
   /* faixa dos últimos 24 pontos: azul ganhou, laranja perdeu; borda marca erro do atleta */
   function faixa(pontos) {
     var ult = pontos.slice(-24); if (!ult.length) return "";
@@ -142,7 +169,7 @@
     var ant = o.anteriores && o.anteriores.jogos ? o.anteriores : baseline(o.anteriores || []), al = alertas(pontos, o.atleta, ant), seq = sequencia(pontos), h = '<div class="qa">';
     h += '<h3>Agora</h3>' + numeros(pontos);
     h += '<h3>O que a partida pede</h3>' + (al.length ? '<ul class="qa-al">' + al.map(function (a) { return '<li class="' + a.nivel + '">' + a.texto + "</li>"; }).join("") + "</ul>" : '<p class="qa-vazio">' + (pontos.length < 4 ? "Poucos pontos ainda. Os alertas começam a aparecer a partir do 4º ponto." : "Nada fora do esperado até aqui.") + "</p>");
-    h += '<h3>Ponto a ponto</h3><p class="qa-sub">Saldo de pontos (ganhos menos perdidos)' + (seq.n >= 3 ? " · sequência atual: " + seq.n + (seq.nos ? " ganhos" : " perdidos") : "") + "</p>" + saldo(pontos) + faixa(pontos) + '<p class="qa-leg"><span><i style="background:' + AZUL + '"></i>ponto do atleta</span><span><i style="background:' + LARANJA + '"></i>ponto do adversário</span><span>★ winner · × erro</span></p>';
+    h += momento(pontos) + '<h3>Saldo de pontos</h3><p class="qa-sub">Ganhos menos perdidos, ponto a ponto' + (seq.n >= 3 ? " · sequência atual: " + seq.n + (seq.nos ? " ganhos" : " perdidos") : "") + "</p>" + saldo(pontos) + faixa(pontos) + '<p class="qa-leg"><span><i style="background:' + AZUL + '"></i>ponto do atleta</span><span><i style="background:' + LARANJA + '"></i>ponto do adversário</span><span>★ winner · × erro</span></p>';
     h += comparativo(pontos, ant);
     var gm = games(pontos, o.mental); if (gm) h += '<h3>Game a game</h3><p class="qa-sub">Pontos ganhos e perdidos em cada game</p>' + gm;
     return h + "</div>";
@@ -152,6 +179,6 @@
     var ant = anteriores && anteriores.jogos ? anteriores : baseline(anteriores || []), al = alertas(pontos || [], atleta, ant); if (!al.length) return "";
     return '<div class="qa-topo ' + al[0].nivel + '" role="status"><b>' + (al[0].nivel === "atencao" ? "Atenção" : "Bom sinal") + "</b> " + al[0].texto + "</div>";
   }
-  var api = { baseline: baseline, diferencas: diferencas, alertas: alertas, painel: painel, faixaAlerta: faixaAlerta, sequencia: sequencia };
+  var api = { momento: momento, momentoSerie: momentoSerie, baseline: baseline, diferencas: diferencas, alertas: alertas, painel: painel, faixaAlerta: faixaAlerta, sequencia: sequencia };
   if (typeof module !== "undefined" && module.exports) module.exports = api; else raiz.QLAoVivo = api;
 })(typeof window !== "undefined" ? window : this);
