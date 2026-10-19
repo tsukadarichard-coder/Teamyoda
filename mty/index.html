@@ -8804,7 +8804,7 @@ function resumoAoVivo(aluno, cfg, pontos, placar, mental) {
     scout: { ...r, pontos, cfg: { formato: cfg.formato, saca: cfg.saca, semVantagem: !!cfg.semVantagem, superTiebreakDecisivo: !!cfg.superTiebreakDecisivo } },
   }, aluno);
 }
-function CartaoAoVivo({ aluno, cfg, pontos, placar, aoVivo, setAoVivo, estado, setEstado }) {
+function CartaoAoVivo({ aluno, cfg, pontos, placar, mental, aoVivo, setAoVivo, estado, setEstado }) {
   const [aviso, setAviso] = useState("");
   const [ocupado, setOcupado] = useState(false);
   const [atletas, setAtletas] = useState([]);
@@ -9157,7 +9157,7 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
         <div className="mt-2 mb-2" style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, color: C.quadra }}>✓ Ponto registrado</div>
       )}
 
-      {window.mtyAuth && <CartaoAoVivo aluno={aluno} cfg={cfg} pontos={pontos} placar={placar} aoVivo={aoVivo} setAoVivo={setAoVivo} estado={aoVivoEstado} setEstado={setAoVivoEstado} />}
+      {window.mtyAuth && <CartaoAoVivo aluno={aluno} cfg={cfg} pontos={pontos} placar={placar} mental={mental} aoVivo={aoVivo} setAoVivo={setAoVivo} estado={aoVivoEstado} setEstado={setAoVivoEstado} />}
 
       {placar.fim && (
         <Aviso>
