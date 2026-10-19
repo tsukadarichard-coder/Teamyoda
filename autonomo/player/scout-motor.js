@@ -273,12 +273,23 @@ function contagemDosPontos(pontos, cfg) {
     return [rotuloPontos(depois), p.fim || ""];
   });
 }
+/* Placar completo para a página da família: refeito a partir dos pontos marcados (sets fechados, games, pontos do game, quem saca). */
+function placarDoResumo(sc) {
+  const pts = (sc && sc.pontos) || [], cfg = (sc && sc.cfg) || {};
+  if (!cfg.formato) return null;
+  let e = placarInicial(cfg.formato, cfg.saca === "ele" ? "ele" : "nos", !!cfg.semVantagem, !!cfg.superTiebreakDecisivo);
+  pts.forEach((p) => { e = aplicaPonto(e, !!p.nos); });
+  return {
+    sets: e.sets.map((s) => [s[0], s[1]]), games: [e.g[0], e.g[1]], pontos: e.fim ? "" : rotuloPontos(e), tiebreak: !!e.tiebreak,
+    sacador: e.fim ? "" : (quemSaca(e) === "nos" ? "atleta" : "adversario"), fim: !!e.fim, vencedor: e.fim ? (e.vencedor === "nos" ? "atleta" : "adversario") : "",
+  };
+}
 function montarResumoPublico(reg, aluno) {
   const sc = reg.scout, serie = serieMomento(sc.pontos || [], sc.cfg), sinais = leitura(sc), contagem = contagemDosPontos(sc.pontos || [], sc.cfg);
   return {
     atleta: String(aluno.nome || "Atleta").trim().split(/\s+/)[0].slice(0, 40),
     data: reg.data, torneio: reg.torneio && reg.torneio !== "jogo-treino" ? String(reg.torneio).slice(0, 80) : "",
-    resultado: reg.resultado || "", concluida: !!reg.concluida,
+    resultado: reg.resultado || "", concluida: !!reg.concluida, placar: placarDoResumo(sc),
     n: sc.n, ganhos: sc.ganhos, pctGanhos: sc.pctGanhos,
     bolas: { pctCurtos: sc.pctCurtos, pctMedios: sc.pctMedios, pctLongos: sc.pctLongos, pctAte4: sc.pctAte4 },
     numeros: { errosNos: sc.errosNos, errosDecisao: sc.errosDecisao, errosExec: sc.errosExec, df: sc.df, pctProtocolo: sc.pctProtocolo, rede: sc.rede, redeGanha: sc.redeGanha, ataquePerdido: sc.ataquePerdido, pctAdversos: sc.pctAdversos,

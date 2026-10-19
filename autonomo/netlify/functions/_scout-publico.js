@@ -50,6 +50,15 @@ function limparMental(m) {
   return { antes: bloco(m.antes), depois: bloco(m.depois), jogo };
 }
 
+/* Placar completo (sets, games, pontos do game, quem saca): só números e rótulos fixos. O nome do adversário nunca vai. */
+function limparPlacar(x) {
+  if (!x || typeof x !== "object") return null;
+  const n = (v) => { v = Math.round(+v); return v >= 0 && v <= 99 ? v : 0; };
+  const par = (a) => [n(a && a[0]), n(a && a[1])];
+  const lado = (v) => (v === "atleta" || v === "adversario" ? v : "");
+  return { sets: (Array.isArray(x.sets) ? x.sets : []).slice(0, 5).map(par), games: par(x.games), pontos: txt(x.pontos, 8), tiebreak: !!x.tiebreak, sacador: lado(x.sacador), fim: !!x.fim, vencedor: lado(x.vencedor) };
+}
+
 function limpar(p) {
   p = p || {};
   const ob = (o, chaves) => { const r = {}; for (const k of chaves) r[k] = num(o && o[k]); return r; };
@@ -57,7 +66,7 @@ function limpar(p) {
   for (const z of ZONAS) if (p.zonas && p.zonas[z]) zonas[z] = ob(p.zonas[z], ["n", "ganhos"]);
   return {
     aoVivo: !!p.aoVivo, atualizadoEm: txt(p.atualizadoEm, 30),
-    atleta: txt(p.atleta, 40), data: txt(p.data, 10), torneio: txt(p.torneio, 80), resultado: txt(p.resultado, 40), concluida: !!p.concluida,
+    atleta: txt(p.atleta, 40), data: txt(p.data, 10), torneio: txt(p.torneio, 80), resultado: txt(p.resultado, 40), concluida: !!p.concluida, placar: limparPlacar(p.placar),
     n: num(p.n), ganhos: num(p.ganhos), pctGanhos: num(p.pctGanhos),
     bolas: ob(p.bolas, ["pctCurtos", "pctMedios", "pctLongos", "pctAte4"]),
     numeros: ob(p.numeros, ["errosNos", "errosDecisao", "errosExec", "df", "pctProtocolo", "rede", "redeGanha", "ataquePerdido", "pctAdversos", "pctPrimeiro", "aces", "acesAdv", "dfAdv", "pctPrimeiroAdv", "pctSacD", "nSacD", "pctSacE", "nSacE", "pctDevD", "nDevD", "pctDevE", "nDevE", "nAtaque", "pctAtaque", "nContra", "pctContra", "nDefesa", "pctDefesa"]),

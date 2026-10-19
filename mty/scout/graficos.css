@@ -45,3 +45,16 @@
 .qg-ficha b { font-size: 15px; }
 .qg-duplo { height: 18px; display: flex; flex-direction: column; gap: 2px; background: transparent; }
 .qg-duplo .qg-barra { height: 8px; border-radius: 0 4px 4px 0; }
+
+/* Placar da partida (placarAoVivo) */
+.qg-pl{background:#103B32;border-color:#103B32;color:#fff;padding:12px 14px}
+.qg-pl-t{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.qg-pl-t th,.qg-pl-t td{padding:6px 8px;text-align:center;font-size:17px;font-weight:700}
+.qg-pl-t thead th{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;opacity:.75;padding-bottom:2px}
+.qg-pl-t tbody th{text-align:left;font-size:16px;white-space:nowrap}
+.qg-pl-t tr+tr th,.qg-pl-t tr+tr td{border-top:1px solid rgba(255,255,255,.18)}
+.qg-pl-bola{display:inline-block;width:16px;color:#F2C94C;font-size:12px}.qg-pl-off{visibility:hidden}
+.qg-pl-t td{opacity:.8}.qg-pl-t td.qg-pl-v{opacity:1}.qg-pl-t td.qg-pl-g,.qg-pl-t td.qg-pl-p{opacity:1}
+.qg-pl-t td.qg-pl-p{background:rgba(255,255,255,.14);border-radius:6px;min-width:44px;font-size:20px}
+.qg-pl-w th,.qg-pl-w td{color:#F2C94C}
+.qg-pl-nota{margin:8px 0 0;font-size:12.5px;opacity:.85}

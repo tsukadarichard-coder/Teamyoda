@@ -324,7 +324,10 @@ footer { margin-top: 22px; font-size: 13px; color: var(--grafite); text-align: c
     document.title = "Scout da partida · " + p.atleta;
     document.getElementById("titulo").textContent = "Partida de " + p.atleta;
     document.getElementById("meta").textContent = [dataBR(p.data), p.torneio, p.concluida || p.aoVivo ? "" : "Acompanhamento interrompido"].filter(Boolean).join(" · ");
-    if (p.resultado && p.resultado !== "—") { var pl = document.getElementById("placar"); pl.textContent = p.resultado; pl.hidden = false; }
+    var pl = document.getElementById("placar");
+    if (p.placar && window.QLScoutGraficos && !(p.n > 0)) { pl.className = "placar-cx"; pl.innerHTML = QLScoutGraficos.placarAoVivo(p); pl.hidden = false; }
+    else if (p.placar) pl.hidden = true;
+    else if (p.resultado && p.resultado !== "—") { pl.textContent = p.resultado; pl.hidden = false; }
     cont.textContent = "";
     var gr = el("div", {}); if (p.n > 0 && window.QLScoutGraficos) gr.innerHTML = QLScoutGraficos.topo(p) + QLScoutGraficos.secoes(p);
     [secaoContagem(p), p.n > 0 ? gr : null, p.n > 0 ? secaoNumeros(p) : null, secaoMomento(p), p.n > 0 ? secaoBolas(p) : null, secaoMapa(p), p.n > 0 ? secaoSinais(p) : null].forEach(function (x) { if (x) cont.appendChild(x); });

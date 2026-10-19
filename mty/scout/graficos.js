@@ -233,8 +233,25 @@
 
   /* o conjunto: cada função devolve "" quando não há dado marcado */
   function secoes(p) { return [comoTerminaram(p), macroPartida(p), games(p), decisoes(p), mental(p), saque(p), lado(p), situacoes(p), golpes(p), direcao(p), devolucao(p)].join(""); }
-  function topo(p) { return ficha(p) + painelGeral(p) + observacao(p); }
+  /* Placar no estilo do telão: sets fechados, games do set em andamento, pontos do game e quem saca. Nome do adversário nunca vem no resumo público. */
+  function placarAoVivo(p) {
+    var s = p && p.placar;
+    if (!s || typeof s !== "object") return "";
+    var nome = esc(p.atleta || "Atleta"), adv = "Adversário", sets = s.sets || [], g = s.games || [0, 0], pts = String(s.pontos || "").split("-");
+    var h = "<tr><th></th>" + sets.map(function (x, i) { return "<th>Set " + (i + 1) + "</th>"; }).join("") + (s.fim ? "" : "<th>Games</th><th>" + (s.tiebreak ? "Tie-break" : "Game") + "</th>") + "</tr>";
+    function linha(i) {
+      var nm = i === 0 ? nome : adv, saca = (i === 0 ? s.sacador === "atleta" : s.sacador === "adversario");
+      var cel = sets.map(function (x) { return '<td class="' + (x[i] > x[1 - i] ? "qg-pl-v" : "") + '">' + x[i] + "</td>"; }).join("");
+      if (!s.fim) cel += '<td class="qg-pl-g">' + g[i] + '</td><td class="qg-pl-p">' + esc(pts[i] != null ? pts[i] : "") + "</td>";
+      var venc = s.fim && s.vencedor === (i === 0 ? "atleta" : "adversario");
+      return '<tr class="' + (venc ? "qg-pl-w" : "") + '"><th scope="row">' + (saca ? '<span class="qg-pl-bola" title="Está sacando" aria-label="Está sacando">●</span>' : '<span class="qg-pl-bola qg-pl-off"></span>') + nm + "</th>" + cel + "</tr>";
+    }
+    var nota = s.fim ? "Partida encerrada · vitória " + (s.vencedor === "atleta" ? "de " + nome : "do adversário")
+      : (p.aoVivo ? "Ao vivo" + (s.sacador ? " · ● indica quem saca" : "") : (p.concluida ? "Partida encerrada antes do fim · placar até aqui" : "Acompanhamento interrompido · placar até aqui"));
+    return '<section class="qg-sec qg-pl" aria-label="Placar da partida"><table class="qg-pl-t"><thead>' + h + "</thead><tbody>" + linha(0) + linha(1) + '</tbody></table><p class="qg-pl-nota">' + nota + "</p></section>";
+  }
+  function topo(p) { return ficha(p) + placarAoVivo(p) + painelGeral(p) + observacao(p); }
 
-  var api = { topo: topo, secoes: secoes, painelGeral: painelGeral, observacao: observacao, macroPartida: macroPartida, games: games, decisoes: decisoes, mental: mental, comoTerminaram: comoTerminaram, saque: saque, lado: lado, situacoes: situacoes, golpes: golpes, direcao: direcao, devolucao: devolucao, CORES: { ganho: GANHO, ganhoClaro: GANHO_CLARO, perda: PERDA, perdaClaro: PERDA_CLARO, neutro: NEUTRO } };
+  var api = { placarAoVivo: placarAoVivo, topo: topo, secoes: secoes, painelGeral: painelGeral, observacao: observacao, macroPartida: macroPartida, games: games, decisoes: decisoes, mental: mental, comoTerminaram: comoTerminaram, saque: saque, lado: lado, situacoes: situacoes, golpes: golpes, direcao: direcao, devolucao: devolucao, CORES: { ganho: GANHO, ganhoClaro: GANHO_CLARO, perda: PERDA, perdaClaro: PERDA_CLARO, neutro: NEUTRO } };
   if (typeof module !== "undefined" && module.exports) module.exports = api; else raiz.QLScoutGraficos = api;
 })(typeof window !== "undefined" ? window : this);
