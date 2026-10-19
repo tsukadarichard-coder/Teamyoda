@@ -8818,13 +8818,32 @@ function CartaoAoVivo({ aluno, cfg, pontos, placar, mental, aoVivo, setAoVivo, e
   const [ocupado, setOcupado] = useState(false);
   const [atletas, setAtletas] = useState([]);
   const [vinculoId, setVinculoId] = useState("");
+  const [auto, setAuto] = useState(() => { try { return localStorage.getItem("ql-ao-vivo-auto") !== "off"; } catch { return true; } });
+  const tentouRef = useRef(false);
   const url = aoVivo ? location.origin + "/scout/?l=" + aoVivo.token : "";
   /* atletas do QuadraLab Competição que me vincularam como treinador: ligar o jogo a um deles faz o jogo aparecer sozinho no app dele e dos responsáveis */
   useEffect(() => {
     let vivo = true;
-    chamarAoVivo({ acao: "atletas" }).then((c) => { if (vivo) setAtletas(c.atletas || []); }).catch(() => {});
+    chamarAoVivo({ acao: "atletas" }).then((c) => {
+      if (!vivo) return;
+      const lista = c.atletas || []; setAtletas(lista);
+      /* o atleta escolhido da última vez, ou o único com o mesmo nome do jogador, já vem selecionado */
+      const norm = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+      let salvo = ""; try { salvo = localStorage.getItem("ql-ao-vivo-vinculo:" + aluno.id) || ""; } catch { /* sem armazenamento */ }
+      const igual = lista.filter((x) => norm(x.nome) === norm(aluno.nome));
+      const escolhido = lista.some((x) => x.vinculoId === salvo) ? salvo : (igual.length === 1 ? igual[0].vinculoId : "");
+      if (escolhido) setVinculoId(escolhido);
+    }).catch(() => {});
     return () => { vivo = false; };
   }, []);
+  function escolher(id) { setVinculoId(id); try { localStorage.setItem("ql-ao-vivo-vinculo:" + aluno.id, id); } catch { /* sem armazenamento */ } }
+  function ligarAuto(v) { setAuto(v); try { localStorage.setItem("ql-ao-vivo-auto", v ? "on" : "off"); } catch { /* sem armazenamento */ } }
+  /* com um atleta do Competição escolhido, o jogo ao vivo começa sozinho no primeiro ponto marcado: ninguém precisa colar link */
+  useEffect(() => {
+    if (pontos.length === 0) { tentouRef.current = false; return; }
+    if (aoVivo || !auto || !vinculoId || ocupado || tentouRef.current) return;
+    tentouRef.current = true; iniciar();
+  }, [pontos.length, vinculoId, auto, aoVivo]);
   async function iniciar() {
     setOcupado(true); setAviso("");
     try {
@@ -8854,14 +8873,23 @@ function CartaoAoVivo({ aluno, cfg, pontos, placar, mental, aoVivo, setAoVivo, e
           {atletas.length > 0 && (
             <div className="mt-2">
               <label style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Atleta do app Competição (o jogo aparece sozinho no app dele e dos responsáveis)
-                <select value={vinculoId} onChange={(e) => setVinculoId(e.target.value)} style={{ display: "block", marginTop: 4, padding: "6px 8px", maxWidth: "100%" }}>
+                <select value={vinculoId} onChange={(e) => escolher(e.target.value)} style={{ display: "block", marginTop: 4, padding: "6px 8px", maxWidth: "100%" }}>
                   <option value="">Só gerar o link (sem ligar a um atleta)</option>
                   {atletas.map((x) => <option key={x.vinculoId} value={x.vinculoId}>{x.nome}</option>)}
                 </select>
               </label>
+              <label style={{ ...prosa, fontSize: 12.5, color: C.grafite, display: "flex", gap: 8, alignItems: "flex-start", marginTop: 8 }}>
+                <input type="checkbox" checked={auto} onChange={(e) => ligarAuto(e.target.checked)} style={{ marginTop: 3 }} />
+                <span>Começar sozinho no primeiro ponto marcado, quando um atleta estiver escolhido. Ninguém precisa colar link: o jogo aparece no app do atleta e dos responsáveis.</span>
+              </label>
             </div>
           )}
-          <div className="mt-2"><Botao variante="vazio" pequeno onClick={iniciar} disabled={ocupado}>{ocupado ? "Gerando…" : "Gerar link ao vivo"}</Botao></div>
+          {atletas.length === 0 && (
+            <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 6 }}>
+              Para o jogo aparecer sozinho no app do atleta, peça que ele (ou o responsável) vincule você como treinador no QuadraLab Competição, com o código de convite. Sem isso, só dá para enviar o link.
+            </p>
+          )}
+          <div className="mt-2"><Botao variante="vazio" pequeno onClick={iniciar} disabled={ocupado}>{ocupado ? "Gerando…" : vinculoId ? "Começar ao vivo agora" : "Gerar link ao vivo"}</Botao></div>
         </>
       ) : (
         <>
