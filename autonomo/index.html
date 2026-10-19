@@ -8339,7 +8339,7 @@ function tendenciaScout(valores, maiorEhMelhor) {
    números calculados a partir do que foi realmente registrado, nunca
    um texto interpretativo inventado. */
 function resumoScoutPlanejamento(registros) {
-  const jogos = (registros || []).filter((r) => r.tipo === "jogo" && r.scout);
+  const jogos = (registros || []).filter((r) => r.tipo === "jogo" && r.scout && !r.origemCompeticao); /* jogos vindos do Competição não têm todas as medidas (ex.: erros na bola 1–2) */
   if (jogos.length === 0) return null;
   const media = (campo) => jogos.reduce((s, r) => s + r.scout[campo], 0) / jogos.length;
   const tendenciaTxt = (campo, maiorEhMelhor) => {
@@ -8441,7 +8441,7 @@ function EvolucaoScout({ jogos }) {
   }));
   if (dados.length < 2) return null;
   const valoresPrimeiro = comScout.map((r) => r.scout.pctPrimeiro || 0);
-  const valoresErrosCurtos = comScout.map((r) => r.scout.pctErrosCurtos);
+  const valoresErrosCurtos = comScout.map((r) => r.scout.pctErrosCurtos).filter((v) => typeof v === "number" && Number.isFinite(v));
   const valoresAces = comScout.map((r) => r.scout.aces || 0);
   return (
     <div className="mb-5">
@@ -8451,7 +8451,7 @@ function EvolucaoScout({ jogos }) {
       </p>
       <div className="flex flex-wrap gap-2 mb-3">
         <CartaoTendencia rotulo="1º saque dentro" valores={valoresPrimeiro} sufixo="%" maiorEhMelhor={true} />
-        <CartaoTendencia rotulo="Erros na bola 1–2" valores={valoresErrosCurtos} sufixo="%" maiorEhMelhor={false} />
+        {valoresErrosCurtos.length > 0 && <CartaoTendencia rotulo="Erros na bola 1–2" valores={valoresErrosCurtos} sufixo="%" maiorEhMelhor={false} />}
         <CartaoTendencia rotulo="Aces" valores={valoresAces} sufixo="" maiorEhMelhor={true} />
       </div>
       <div style={{ height: 180, marginLeft: -18 }}>
@@ -8804,6 +8804,104 @@ async function chamarAoVivo(corpo) {
   if (!r.ok) throw Object.assign(new Error(c.erro || ("Erro " + r.status)), { status: r.status });
   return c;
 }
+async function chamarIntercambio(corpo) {
+  if (!window.mtyAuth || !window.mtyAuth.usuario()) throw Object.assign(new Error("Entre com sua conta da academia para trocar scouts com o Competição."), { status: 401 });
+  const token = await window.mtyAuth.tokenId();
+  const r = await fetch("/.netlify/functions/scout-intercambio", {
+    method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + token }, body: JSON.stringify(corpo),
+  });
+  const c = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(c.erro || ("Erro " + r.status)), { status: r.status });
+  return c;
+}
+/* Intercâmbio com o QuadraLab Competição: os scouts deste jogador vão para a conta do atleta (que vê na aba Scouts do treinador e compara lá),
+   e os jogos marcados no Competição voltam para o caderno daqui (sem os pontos um a um), para comparar com os de cá. */
+function registroDoCompeticao(j) {
+  const rs = j.resumo || {}, flat = { ...rs, ...(rs.numeros || {}), ...(rs.bolas || {}) };
+  return {
+    id: "cx" + j.id, tipo: "jogo", data: rs.data || j.data || new Date().toISOString().slice(0, 10), torneio: rs.torneio || "jogo-treino", adversario: "—", plano: "",
+    protocolo: flat.pctProtocolo || 0, erros12: 0, revelou: (rs.sinais || []).join(" "), resultado: rs.resultado || "—", concluida: rs.concluida !== false,
+    observacaoFinal: rs.observacaoFinal || "", nivelAdversario: rs.nivelAdversario || "", mental: rs.mental || null, origemCompeticao: true,
+    scout: { ...flat, pontos: [], cfg: {}, detalhe: rs.detalhe || null },
+  };
+}
+function CartaoIntercambio({ aluno, alunos, setAlunos }) {
+  const [atletas, setAtletas] = useState(null);
+  const [vid, setVid] = useState("");
+  const [aviso, setAviso] = useState("");
+  const [ocupado, setOcupado] = useState(false);
+  const proprios = (aluno.registros || []).filter((r) => r.tipo === "jogo" && r.scout && !r.origemCompeticao);
+  const trazidos = (aluno.registros || []).filter((r) => r.origemCompeticao);
+  useEffect(() => {
+    let vivo = true;
+    chamarAoVivo({ acao: "atletas" }).then((c) => {
+      if (!vivo) return;
+      const lista = c.atletas || []; setAtletas(lista);
+      const norm = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+      let salvo = ""; try { salvo = localStorage.getItem("ql-ao-vivo-vinculo:" + aluno.id) || ""; } catch { /* sem armazenamento */ }
+      const igual = lista.filter((x) => norm(x.nome) === norm(aluno.nome));
+      const escolhido = lista.some((x) => x.vinculoId === salvo) ? salvo : (igual.length === 1 ? igual[0].vinculoId : "");
+      if (escolhido) setVid(escolhido);
+    }).catch(() => { if (vivo) setAtletas([]); });
+    return () => { vivo = false; };
+  }, []);
+  function escolher(id) { setVid(id); try { localStorage.setItem("ql-ao-vivo-vinculo:" + aluno.id, id); } catch { /* sem armazenamento */ } }
+  async function enviar() {
+    if (!vid || !proprios.length) return;
+    setOcupado(true); setAviso("");
+    try {
+      let enviados = 0, limite = false;
+      for (let i = 0; i < proprios.length && !limite; i += 15) {
+        const lote = proprios.slice(i, i + 15).map((r) => ({ id: r.id, resumo: montarResumoPublico(r, aluno) }));
+        const c = await chamarIntercambio({ acao: "enviar", vinculoId: vid, jogos: lote });
+        enviados += c.enviados || 0; limite = !!c.limite;
+      }
+      setAviso(enviados + (enviados === 1 ? " scout enviado" : " scouts enviados") + " para o QuadraLab Competição do atleta." + (limite ? " O atleta chegou ao limite de scouts na conta dele; os mais antigos precisam ser excluídos lá." : " Ele vê na aba Scouts do treinador e pode comparar os jogos por lá."));
+    } catch (e) { setAviso(e.message || "Não foi possível enviar agora."); }
+    setOcupado(false);
+  }
+  async function trazer() {
+    if (!vid) return;
+    setOcupado(true); setAviso("");
+    try {
+      const c = await chamarIntercambio({ acao: "jogos", vinculoId: vid });
+      const jaTem = new Set((aluno.registros || []).map((r) => r.id));
+      const novos = (c.jogos || []).filter((j) => !jaTem.has("cx" + j.id)).map(registroDoCompeticao);
+      if (novos.length) setAlunos(alunos.map((a) => a.id !== aluno.id ? a : { ...a, registros: [...(a.registros || []), ...novos] }));
+      setAviso(novos.length ? novos.length + (novos.length === 1 ? " jogo trazido" : " jogos trazidos") + " do Competição. Eles entram na evolução e na comparação, sem os pontos um a um." : (c.jogos || []).length ? "Todos os jogos marcados no Competição já estão aqui." : "Nenhum jogo marcado por você no Competição para este atleta ainda. Eles aparecem aqui depois que a partida termina.");
+    } catch (e) { setAviso(e.message || "Não foi possível trazer agora."); }
+    setOcupado(false);
+  }
+  if (atletas === null) return null;
+  return (
+    <div className="mt-4 mb-4" style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.quadra, padding: "12px 14px" }}>
+      <Etiqueta>Intercâmbio com o QuadraLab Competição</Etiqueta>
+      {atletas.length === 0 ? (
+        <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 6 }}>
+          Para levar os scouts deste jogador ao app Competição dele (e trazer de lá os jogos marcados), peça que ele ou o responsável vincule você como treinador no Competição, com o código de convite, liberando a área Partidas.
+        </p>
+      ) : (
+        <>
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 6 }}>
+            Mande os {proprios.length} {proprios.length === 1 ? "scout" : "scouts"} deste jogador para o app Competição dele e traga de lá os jogos marcados, para comparar os dados dos dois apps. Só vai o resumo (primeiro nome, números, mapa, decisões e mental): nunca o nome do adversário nem anotações.
+          </p>
+          <label style={{ ...prosa, fontSize: 12.5, color: C.grafite, display: "block", marginTop: 8 }}>Atleta no app Competição
+            <select value={vid} onChange={(e) => escolher(e.target.value)} style={{ display: "block", marginTop: 4, padding: "6px 8px", maxWidth: "100%" }}>
+              <option value="">Escolha o atleta</option>
+              {atletas.map((x) => <option key={x.vinculoId} value={x.vinculoId}>{x.nome}</option>)}
+            </select>
+          </label>
+          <div className="flex gap-2 flex-wrap mt-3">
+            <Botao variante="saibro" pequeno onClick={enviar} disabled={ocupado || !vid || !proprios.length}>{ocupado ? "Aguarde…" : "Enviar meus scouts ao Competição"}</Botao>
+            <Botao variante="vazio" pequeno onClick={trazer} disabled={ocupado || !vid}>Trazer os jogos do Competição</Botao>
+          </div>
+          {trazidos.length > 0 && <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 6 }}>{trazidos.length} {trazidos.length === 1 ? "jogo veio" : "jogos vieram"} do Competição para este caderno.</p>}
+        </>
+      )}
+      {aviso && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 6 }} role="status">{aviso}</p>}
+    </div>
+  );
+}
 function resumoAoVivo(aluno, cfg, pontos, placar, mental) {
   const r = resume(pontos);
   const sets = placar.sets.map((x) => x[0] + "-" + x[1]);
@@ -9122,6 +9220,8 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
         <CartaoMental titulo="Avaliação mental antes do jogo" nota="Como o jogador chega, de 1 (muito baixo) a 5 (muito alto). Opcional."
           valores={mental.antes} aoMudar={(k, v) => setMental({ ...mental, antes: { ...mental.antes, [k]: v } })} />
         <Botao onClick={comecar} variante="saibro">Iniciar acompanhamento</Botao>
+
+        {window.mtyAuth && <CartaoIntercambio aluno={aluno} alunos={alunos} setAlunos={setAlunos} />}
 
         {partidasAnteriores.length > 0 && (
           <div className="mt-6">

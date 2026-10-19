@@ -15,25 +15,12 @@
 const crypto = require("crypto");
 const { admin, app } = require("./_firebase-admin");
 const { limpar } = require("./_scout-publico");
+const { vinculosDoTreinador, gravarCopia, idAoVivo } = require("./_scout-copias");
 
 const VALIDADE_MS = 12 * 3600 * 1000;
 const APOS_FIM_MS = 2 * 3600 * 1000; // depois do fim da partida o link ainda vale por 2 horas, para a família ver o resultado final
 const MAX_ATIVOS = 3;
 const TOKEN = /^[a-f0-9]{32}$/;
-
-/* vínculos ativos (de treinador; ou também de responsável, na conta sem academia) com a área "partidas" para esta conta: pelo uid ou, se o e-mail é verificado, pelo e-mail usado no convite */
-async function vinculosDoTreinador(db, claims, tipo) {
-  const tipos = [].concat(tipo || "treinador");
-  const achados = new Map();
-  const col = db.collection("vinculos");
-  const consultas = [col.where("pessoaUid", "==", claims.uid).get()];
-  if (claims.email && claims.email_verified) consultas.push(col.where("pessoaEmail", "==", String(claims.email).toLowerCase()).get());
-  for (const snap of await Promise.all(consultas)) snap.forEach((d) => {
-    const v = d.data();
-    if (tipos.includes(v.tipo) && v.status === "ativo" && Array.isArray(v.areas) && v.areas.includes("partidas") && v.atletaUid) achados.set(d.id, v);
-  });
-  return achados;
-}
 
 function resposta(statusCode, corpo, publico) {
   return { statusCode, headers: { "content-type": "application/json", "cache-control": "no-store", "x-robots-tag": "noindex", "referrer-policy": "no-referrer" }, body: JSON.stringify(corpo) };
@@ -101,13 +88,19 @@ exports.handler = async function (event) {
     if (!snap.exists || snap.data().orgId !== dono) return resposta(404, { erro: "Link não encontrado." });
     const d = snap.data();
 
-    if (body.acao === "revogar") { await ref.delete(); return resposta(200, { ok: true }); }
+    if (body.acao === "revogar") {
+      /* encerrar um jogo ligado a um atleta com pontos suficientes também guarda a cópia */
+      if (d.vinculoId && d.atletaUid) { try { const pub = ler(d); if (pub.n >= 10) await gravarCopia(d.atletaUid, idAoVivo(token), { origem: "ao-vivo", orgId: d.orgId, marcadoPor: d.uid, resumo: pub }); } catch (e) { console.error("scout-ao-vivo copia:", e && e.message); } }
+      await ref.delete(); return resposta(200, { ok: true });
+    }
     if (body.acao === "atualizar") {
       if (familia && !(await vinculosDoTreinador(admin.firestore(), claims, ["responsavel", "treinador"])).has(d.vinculoId)) return resposta(403, { erro: "Seu vínculo com este atleta não está mais ativo." });
       if (!(Date.parse(d.expiraEm) > Date.now())) return resposta(410, { erro: "Este link ao vivo venceu. Inicie outro." });
       const fim = body.fim === true;
       const expiraEm = fim ? new Date(Math.min(Date.parse(d.expiraEm), Date.now() + APOS_FIM_MS)).toISOString() : d.expiraEm;
       await ref.update({ versao: d.versao + 1, expiraEm, publico: guardar(body.resumo, !fim) });
+      /* jogo ligado a um atleta: ao terminar a partida, uma cópia fica na conta dele (o link vence, a cópia não) */
+      if (fim && d.vinculoId && d.atletaUid) { try { await gravarCopia(d.atletaUid, idAoVivo(token), { origem: "ao-vivo", orgId: d.orgId, marcadoPor: d.uid, resumo: body.resumo }); } catch (e) { console.error("scout-ao-vivo copia:", e && e.message); } }
       return resposta(200, { ok: true, versao: d.versao + 1 });
     }
     return resposta(400, { erro: "Ação desconhecida." });

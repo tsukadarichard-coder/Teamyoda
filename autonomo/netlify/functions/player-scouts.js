@@ -13,7 +13,7 @@
    · tentativas inválidas por dia são limitadas, e cada atleta só enxerga os próprios scouts. */
 const crypto = require("crypto");
 const { ErroPublico, resposta, usuarioDoPedido, refJogador } = require("./_player");
-const { lerResumoPublico, ID_CURTO } = require("./_scout-publico");
+const { lerResumoPublico, ID_CURTO, limpar } = require("./_scout-publico");
 
 const MAX_SCOUTS = 100;
 const MAX_FALHAS_DIA = 10;
@@ -33,7 +33,7 @@ const impressao = (ref) => crypto.createHash("sha256").update([ref.org, ref.id, 
 
 /* o que o navegador recebe: nunca "fonte" */
 function publico(id, d, resumo) {
-  const base = { id, importadoEm: d.importadoEm, torneioId: d.torneioId || null, partidaId: d.partidaId || null, data: d.dataJogo || "", rotulo: d.rotulo || "Partida" };
+  const base = { id, importadoEm: d.importadoEm, torneioId: d.torneioId || null, partidaId: d.partidaId || null, data: d.dataJogo || "", rotulo: d.rotulo || "Partida", origem: d.origem || "link" };
   return resumo ? { ...base, estado: "ativo", ate: resumo.ate, resumo: resumo.publico } : { ...base, estado: "encerrado" };
 }
 
@@ -44,7 +44,9 @@ async function scoutsVigentes(refJ, filtro) {
     const d = doc.data();
     if (filtro && !filtro(d)) continue;
     let r = null;
-    try { r = await lerResumoPublico(d.fonte, cache); } catch (e) { r = null; }
+    /* cópia enviada pelo treinador ou guardada de um jogo ao vivo: não depende de link, fica até o atleta excluir */
+    if (d.copia) { try { r = { publico: limpar(JSON.parse(d.copia)), ate: null }; } catch (e) { r = null; } }
+    else { try { r = await lerResumoPublico(d.fonte, cache); } catch (e) { r = null; } }
     saida.push(publico(doc.id, d, r));
   }
   saida.sort((a, b) => String(b.data || b.importadoEm).localeCompare(String(a.data || a.importadoEm)));

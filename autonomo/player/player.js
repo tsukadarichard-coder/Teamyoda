@@ -4182,7 +4182,7 @@
       '<form id="fScout" class="cartao" style="margin-top:14px" novalidate><h2>Importar um scout</h2><p class="nota" style="margin-top:6px">Cole o link que o seu treinador gerou (“Link para a família”). O scout fica na sua conta enquanto o link estiver ativo: se o treinador desativar, o conteúdo deixa de aparecer aqui.</p>' +
       '<div class="campo" style="margin-top:10px"><label for="scLink">Link do scout</label><input id="scLink" type="url" inputmode="url" placeholder="https://…/scout/?…" autocomplete="off"></div><div class="aviso" id="avisoSc" role="alert" hidden></div><button class="btn btn-primario" type="submit">Importar</button></form>' +
       (ativos.length ? relBotaoHtml("btRelScouts", ativos.length) : "") + (r.scouts.length ? '<h2 class="secao">Seus scouts</h2><div class="comp-torneios">' + r.scouts.map(function (x) {
-        return '<a class="cartao comp-torneio" href="#/scouts/' + x.id + '"><p class="olho">' + (x.estado === "ativo" ? "Ativo até " + esc(dataCurta(x.ate)) : "Acesso encerrado") + "</p><h2>" + esc(x.rotulo) + '</h2><p class="nota">' + esc(dataCurta(x.data)) + "</p></a>";
+        return '<a class="cartao comp-torneio" href="#/scouts/' + x.id + '"><p class="olho">' + (x.estado === "ativo" ? (x.ate ? "Ativo até " + esc(dataCurta(x.ate)) : x.origem === "ao-vivo" ? "Jogo marcado ao vivo" : "Enviado pelo treinador") : "Acesso encerrado") + "</p><h2>" + esc(x.rotulo) + '</h2><p class="nota">' + esc(dataCurta(x.data)) + "</p></a>";
       }).join("") + "</div>" : '<p class="nota" style="margin-top:14px">Nenhum scout importado ainda.</p>') + scComparacaoHtml(ativos));
     var btRel = document.getElementById("btRelScouts"); if (btRel) btRel.addEventListener("click", function () { abrirRelatorioScouts(ativos); });
     document.getElementById("fScout").addEventListener("submit", async function (ev) {
@@ -4207,7 +4207,7 @@
     } else {
       var rs = sc.resumo, serie = scSerie(rs.serie), sets = [], partida = sc.partidaId ? partidasLista().filter(function (x) { return x.id === sc.partidaId; })[0] : null;
       serie.forEach(function (x) { if (sets.indexOf(x.set) < 0) sets.push(x.set); });
-      tela(voltar + "<h1>" + esc(sc.rotulo) + '</h1><p class="sub">' + esc(dataCurta(rs.data)) + " · link ativo até " + esc(dataCurta(sc.ate)) + "</p>" +
+      tela(voltar + "<h1>" + esc(sc.rotulo) + '</h1><p class="sub">' + esc(dataCurta(rs.data)) + " · " + (sc.ate ? "link ativo até " + esc(dataCurta(sc.ate)) : "cópia guardada na sua conta") + "</p>" +
         scGraficosHtml(rs) + scMomentoHtml(rs) +
         scMapaHtml(rs.zonas, rs.atleta) + scBolasHtml(rs) + scNumerosHtml(rs) +
         '<h2 class="secao">O que este jogo aponta</h2><div class="cartao">' + (rs.sinais.length ? rs.sinais.map(function (x) { return '<p class="comp-dev-bloco">' + esc(x) + "</p>"; }).join("") : "<p>Nada fora do esperado nos indicadores coletados.</p>") + '<p class="nota" style="margin-top:8px">Leitura automática pelas regras do método: ponto de partida para a conversa com o treinador, não conclusão.</p></div>' +

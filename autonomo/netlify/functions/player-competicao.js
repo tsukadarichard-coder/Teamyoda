@@ -125,7 +125,7 @@ exports.handler = async function (event) {
       if (areas.includes("partidas")) {
         /* scouts do treinador que o atleta importou: reconferidos agora, então um link desativado deixa de aparecer aqui também */
         const SC = require("./player-scouts");
-        out.dados.scouts = (await SC.scoutsVigentes(refJogador(v.atletaUid))).filter((x) => x.estado === "ativo").map((x) => ({ id: x.id, data: x.data, rotulo: x.rotulo, partidaId: x.partidaId, torneioId: x.torneioId, resumo: x.resumo }));
+        out.dados.scouts = (await SC.scoutsVigentes(refJogador(v.atletaUid))).filter((x) => x.estado === "ativo").map((x) => ({ id: x.id, data: x.data, rotulo: x.rotulo, partidaId: x.partidaId, torneioId: x.torneioId, origem: x.origem, resumo: x.resumo }));
       }
       if (areas.includes("partidas")) { const TOR = require("./_player-torneios"); out.dados.partidas = (await sub("partidas")).map((p) => TOR.partidaCompartilhada(p.id, p)).sort((x, y) => y.data.localeCompare(x.data)); }
       if (areas.includes("treinos")) out.dados.focos = (await sub("focos")).sort((x, y) => String(y.criadoEm).localeCompare(String(x.criadoEm)));
