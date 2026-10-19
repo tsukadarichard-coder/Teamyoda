@@ -29,8 +29,9 @@ assert(!A.painel(mal, { atleta: "Ana" }).includes("Comparado com"), "sem jogos a
 assert(!/undefined|NaN/.test(pn), "valores");
 /* momento ponto a ponto: média móvel dos últimos 6 pontos */
 const serie = A.momentoSerie([true, true, false, false, false, false, true].map((n) => pt(n)), 6);
-assert.deepStrictEqual(serie.slice(0, 2), [null, null]); assert.strictEqual(serie[2], 67); assert.strictEqual(serie[6], 33, "janela de 6: 2 de 6");
+assert.strictEqual(serie[0], 100, "começa no primeiro ponto"); assert.strictEqual(serie[1], 100); assert.strictEqual(serie[2], 67); assert.strictEqual(serie[6], 33, "janela de 6: 2 de 6");
 const mom = A.momento(perdendo, {}); assert(mom.includes("forte contra") && mom.includes("<path") && mom.includes("clipPath"), "gráfico de linha do momento");
-assert(A.momento([pt(true)], {}).includes("a partir do 3º ponto"), "momento com poucos pontos");
+const um = A.momento([pt(true)], {}); assert(um.includes("<svg") && um.includes("100%") && um.includes("oscila muito") && !/undefined|NaN/.test(um), "momento já no primeiro ponto");
+assert(A.momento([], {}).includes("primeiro ponto"), "momento sem pontos");
 assert(!/undefined|NaN/.test(mom), "valores do momento");
 console.log("check-ao-vivo-analise: ok");

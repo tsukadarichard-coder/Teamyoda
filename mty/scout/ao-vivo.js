@@ -106,17 +106,17 @@
   /* momentum ponto a ponto: % de pontos ganhos nos últimos 6 pontos, a cada ponto marcado; acima de 50% azul, abaixo laranja */
   var uid = 0;
   function momentoSerie(pontos, janela) {
-    var v = []; for (var i = 0; i < pontos.length; i++) { var a = Math.max(0, i - janela + 1), l = pontos.slice(a, i + 1); v.push(i >= 2 ? Math.round(ganhos(l) * 100 / l.length) : null); } return v;
+    var v = []; for (var i = 0; i < pontos.length; i++) { var a = Math.max(0, i - janela + 1), l = pontos.slice(a, i + 1); v.push(Math.round(ganhos(l) * 100 / l.length)); } return v;
   }
   function momentoRotulo(v) { return v === null ? "" : v >= 67 ? "forte a favor" : v >= 50 ? "levemente a favor" : v > 33 ? "levemente contra" : "forte contra"; }
   function momento(pontos, o) {
     o = o || {}; var J = o.janela || 6, n = pontos.length;
-    if (n < 3) return '<div class="qa-mom"><h3>Momento do jogo</h3><p class="qa-vazio">A linha do momento aparece a partir do 3º ponto marcado.</p></div>';
-    var v = momentoSerie(pontos, J), W = 340, H = 130, L = 30, Rr = 12, T = 10, B = 24, id = "qm" + (++uid);
-    var x = function (i) { return L + (W - L - Rr) * (n === 1 ? 0.5 : i / (n - 1)); }, y = function (val) { return T + (H - T - B) * (1 - val / 100); }, y50 = y(50);
+    if (n < 1) return '<div class="qa-mom"><h3>Momento do jogo</h3><p class="qa-vazio">A linha do momento começa no primeiro ponto marcado.</p></div>';
+    var v = momentoSerie(pontos, J), W = 340, H = 138, L = 30, Rr = 14, T = 20, B = 24, id = "qm" + (++uid);
+    var x = function (i) { return n === 1 ? L + 8 : L + (W - L - Rr) * i / (n - 1); }, y = function (val) { return T + (H - T - B) * (1 - val / 100); }, y50 = y(50);
     var idx = []; v.forEach(function (q, i) { if (q !== null) idx.push(i); });
     var linha = idx.map(function (i, k) { return (k ? "L" : "M") + x(i).toFixed(1) + " " + y(v[i]).toFixed(1); }).join(" ");
-    var area = linha + " L" + x(idx[idx.length - 1]).toFixed(1) + " " + y50.toFixed(1) + " L" + x(idx[0]).toFixed(1) + " " + y50.toFixed(1) + " Z";
+    var area = idx.length > 1 ? linha + " L" + x(idx[idx.length - 1]).toFixed(1) + " " + y50.toFixed(1) + " L" + x(idx[0]).toFixed(1) + " " + y50.toFixed(1) + " Z" : "M0 0";
     var g = '<defs><clipPath id="' + id + 'a"><rect x="0" y="0" width="' + W + '" height="' + y50.toFixed(1) + '"/></clipPath><clipPath id="' + id + 'b"><rect x="0" y="' + y50.toFixed(1) + '" width="' + W + '" height="' + H + '"/></clipPath></defs>';
     [0, 50, 100].forEach(function (f) { g += '<line x1="' + L + '" x2="' + (W - Rr) + '" y1="' + y(f).toFixed(1) + '" y2="' + y(f).toFixed(1) + '" stroke="' + (f === 50 ? GRAFITE : LINHA) + '"' + (f === 50 ? ' stroke-dasharray="4 3"' : "") + '/><text x="' + (L - 4) + '" y="' + (y(f) + 3).toFixed(1) + '" text-anchor="end" font-size="9" fill="' + GRAFITE + '">' + f + "%</text>"; });
     var ant = null; pontos.forEach(function (p, i) { if (p.jogo && p.jogo !== ant) { if (ant !== null) g += '<line x1="' + x(i).toFixed(1) + '" x2="' + x(i).toFixed(1) + '" y1="' + T + '" y2="' + (H - B) + '" stroke="' + LINHA + '"/>'; g += '<text x="' + (x(i) + 2).toFixed(1) + '" y="' + (H - 12) + '" font-size="8.5" fill="' + GRAFITE + '">G' + p.jogo + "</text>"; ant = p.jogo; } });
@@ -128,7 +128,7 @@
     var ultimos = pontos.slice(-J), gj = ganhos(ultimos);
     return '<div class="qa-mom"><h3>Momento do jogo</h3><p class="qa-sub"><b style="color:' + cor + '">' + esc(momentoRotulo(ult)) + "</b> · " + gj + " de " + ultimos.length + " nos últimos pontos · atualiza a cada ponto marcado</p>" +
       '<svg viewBox="0 0 ' + W + " " + H + '" class="qa-svg" role="img" aria-label="Momento do jogo ponto a ponto: ' + ult + "% dos últimos " + ultimos.length + ' pontos ganhos, ' + esc(momentoRotulo(ult)) + '">' + g + "</svg>" +
-      '<p class="qa-leg"><span><i style="background:' + AZUL + '"></i>ponto do atleta</span><span><i style="background:' + LARANJA + '"></i>ponto do adversário</span><span>linha: % ganhos nos últimos ' + J + " pontos</span></p></div>";
+      '<p class="qa-leg"><span><i style="background:' + AZUL + '"></i>ponto do atleta</span><span><i style="background:' + LARANJA + '"></i>ponto do adversário</span><span>linha: % ganhos nos últimos ' + J + " pontos</span></p>" + (n < J ? '<p class="qa-sub">Nos primeiros pontos a linha oscila muito: cada ponto pesa bastante.</p>' : "") + "</div>";
   }
   /* faixa dos últimos 24 pontos: azul ganhou, laranja perdeu; borda marca erro do atleta */
   function faixa(pontos) {
