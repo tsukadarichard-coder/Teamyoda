@@ -72,6 +72,7 @@
 <link rel="stylesheet" href="scout/ao-vivo.css">
 <script src="scout/relatorio-jogos.js"></script>
 <script src="scout/movimento-motor.js"></script>
+<script src="metodo/metodo-proprio.js"></script>
 <script src="scout/evidencias.js"></script>
 <script src="scout/movimento.js"></script>
 <script src="scout/video-segmentador.js"></script>
@@ -4753,7 +4754,7 @@ function objetivosDoAdulto(f) {
   return [];
 }
 
-function relatorioFicha(a) {
+function relatorioFicha(a, semMTY) {
   const e = a.entrada || {};
   const v = (k) => {
     if (e[k] === NS) return "[não sei]";
@@ -4813,6 +4814,7 @@ function relatorioFicha(a) {
   [["tecnico", "Técnico"], ["fisico", "Físico"], ["tatico", "Tático"], ["mental", "Mental"]]
     .forEach(([k, r]) => L.push(r + ": " + ((a.camadas[k] || "").trim() || "[em branco]")));
   L.push("");
+  if (!semMTY) {
   L.push("CLASSIFICAÇÃO NA ESCADA DO MÉTODO (Y1–Y6)");
   const trilha = statusTrilha(a);
   if (trilha) {
@@ -4829,6 +4831,7 @@ function relatorioFicha(a) {
     L.push("Sem trilha de classificação cadastrada para este estágio.");
   }
   L.push("");
+  }
   L.push("PERFIL E PRIORIDADES");
   L.push("Perfil de corpo: " + (a.perfilCorpo || "[não definido]"));
   L.push("Temperamento: " + (a.perfilTemperamento || "[não definido]"));
@@ -4836,8 +4839,10 @@ function relatorioFicha(a) {
     const objs = objetivosDoAdulto(a).map((v) => OBJETIVOS_ADULTO.find((o) => o.v === v)).filter(Boolean);
     L.push("Objetivo (adulto): " + (objs.length ? objs.map((o) => o.r + " — " + o.d).join(" · ") : "[não definido]"));
   }
-  L.push("Prioridades: " + (a.prioridades || []).map((p, i) => (i + 1) + ") " + AREAS[p].nome).join(" · "));
-  L.push("Arma(s) do jogador: " + (armasDoJogador(a).map((id) => AREAS[id].nome).join(" · ") || "[não definida]"));
+  if (!semMTY) {
+    L.push("Prioridades: " + (a.prioridades || []).map((p, i) => (i + 1) + ") " + AREAS[p].nome).join(" · "));
+    L.push("Arma(s) do jogador: " + (armasDoJogador(a).map((id) => AREAS[id].nome).join(" · ") || "[não definida]"));
+  }
   if ((a.objetivoFinal || "").trim()) L.push("Objetivo final: " + a.objetivoFinal.trim());
   if ((a.pedidosConteudoAprovados || []).length) {
     L.push("");
@@ -7360,6 +7365,12 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
      ao redor dele. */
   function gerar() {
     setDivergencias([]);
+    if (aulaAtual && aluno.plano && aluno.plano.metodoProprio) {
+      /* plano do "Meu método": a sessão é exatamente a aula que o treinador definiu, sem aquecimento nem saque/devolução do MTY injetados */
+      const conteudo = (aulaAtual.ex || []).map((c) => TODOS_EXERCICIOS().find((e) => e.c === c)).filter(Boolean);
+      setPlano({ daAula: true, proprio: true, aquecimento: [], conteudo });
+      return;
+    }
     if (aulaAtual) {
       const evitar = new Set((aluno.historico || []).slice(-2).flat());
       const aquecimento = sorteia(exerciciosAquecimento().filter((e) => e.e.includes(aluno.estagio)), evitar, 2);
@@ -7840,7 +7851,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
               <div className="mb-6">
                 <h3 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 9 }}>Aquecimento</h3>
                 {plano.aquecimento.length === 0 ? (
-                  <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Nenhum exercício de base motora encontrado pro estágio deste jogador.</p>
+                  <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>{plano.proprio ? "O plano do seu método não tem aquecimento separado. Adicione abaixo, se quiser." : "Nenhum exercício de base motora encontrado pro estágio deste jogador."}</p>
                 ) : (
                   plano.aquecimento.map((e, i) => (
                     <CartaoExercicio key={e.c + i} e={e} aoTrocar={() => trocar("aquecimento", i)} aoRemover={() => remover("aquecimento", i)}
@@ -11401,7 +11412,7 @@ function exerciciosParaRevisao(aluno) {
     const a = AREAS[areaId];
     if (!a) return [];
     const QE = typeof window !== "undefined" && window.QLEvidencias;
-    const base = exerciciosParaSorteio().filter((e) => a.familias.includes(e.f) && e.e.includes(aluno.estagio));
+    const base = METODO_PROPRIO ? EXERCICIOS_CUSTOM.slice() : exerciciosParaSorteio().filter((e) => a.familias.includes(e.f) && e.e.includes(aluno.estagio));
     const doItem = QE && achado && achado.item ? QE.buscaDoItem(achado.item) : null;
     const item = doItem ? base.filter((e) => doItem.test(e.n + " " + e.m)) : [];
     const chave = base.filter((e) => !item.includes(e) && a.busca.test(e.n + " " + e.m));
@@ -11680,9 +11691,11 @@ function RevisaoPlano({ aluno, alunos, setAlunos, podeEditar }) {
 }
 
 /* Janela de novidades do QuadraLab: abre ao entrar até a pessoa marcar "Não mostrar mais". Nova versão da lista (NOVIDADES_VERSAO) volta a aparecer. */
-const NOVIDADES_VERSAO = "2026-10b";
+const NOVIDADES_VERSAO = "2026-10c";
 const NOVIDADES = [
   ["Planejamento que melhora com os dados", "Na aba Plano, a Revisão do plano cruza as análises de vídeo e os scouts dos jogos e sugere ajustes. Você aceita, recusa ou deixa para depois; nada muda sozinho, e o diário mostra se o ajuste funcionou."],
+  ["Meu método (plano Premium)", "Descreva a sua linha de trabalho (áreas, critérios de saída, princípios e a sua biblioteca de exercícios), ou cole os seus planejamentos e deixe a IA preencher. O gerador de plano passa a seguir só as suas regras."],
+  ["Aula no relógio", "Envie a sessão de hoje para o Apple Watch pelo app Atalhos, direto da Sessão de hoje."],
   ["Metas de saída medidas e versões do plano", "O critério de saída do bloco mostra o que o vídeo e o scout já confirmam, o plano guarda as versões de cada ajuste aceito, e os reforços sugeridos passam a atacar o item do vídeo e a priorizar o que funcionou em outros jogadores."],
   ["Atletas da academia no Player", "No Início, “Atletas da academia” mostra o seu código fixo. O atleta digita no QuadraLab Player e o vínculo é feito na hora (menores também, o termo da matrícula cobre). Você também pode pedir o vínculo pelo e-mail do atleta."],
   ["Marcação rápida no scout", "Marque só o resultado e a bola do ponto durante o jogo e complete os detalhes depois. Mais fácil de usar na quadra."],
@@ -11721,7 +11734,7 @@ function LinhaDeRaciocinio({ plano, aulas, status, reg }) {
   const porBloco = calcularProgressoBlocos(plano, aulas, status, reg);
   const cadeia = plano.cadeia || [];
   const temRaiz = cadeia.some((c) => c.raiz);
-  const semanasFalhas = useMemo(() => semanasSemSaqueDevolucao(aulas), [aulas]);
+  const semanasFalhas = useMemo(() => (plano.metodoProprio ? 0 : semanasSemSaqueDevolucao(aulas)), [aulas, plano]);
 
   return (
     <div className="mb-7">
@@ -12269,8 +12282,10 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
     const aindaVale = () => geracaoAtual.current === minhaGeracao;
     setErro(""); setGerando(true); setEtapaIA("Preparando o pedido");
     try {
+      const usaMeuMetodo = !eTurma && !!METODO_PROPRIO;
       const prompt = eTurma
         ? promptPlanoTurma(turma, membros, semanas, aulasSem, historico, enfase)
+        : usaMeuMetodo ? promptPlanoMeuMetodo(aluno, semanas, aulasSem, historico, enfase)
         : promptPlanoEstruturado(aluno, semanas, aulasSem, historico, enfase);
       /* Plano de turma descreve estações/divisão do grupo por aula, às
          vezes pra vários jogadores de níveis diferentes — sai bem mais
@@ -12295,6 +12310,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
       const golpesProblema = eTurma ? [] : golpesComProblema(aluno);
       const alvo = valida(json, estagiosAlvo, golpesProblema);
       alvo.geradoEm = new Date().toISOString();
+      if (usaMeuMetodo) alvo.metodoProprio = true;
       setPlanoCandidato(alvo);
     } catch (e) {
       if (aindaVale()) setErro(String(e.message || e));
@@ -13658,6 +13674,177 @@ function NovoExercicioAcademia({ aoAdicionar }) {
         <Botao variante="saibro" onClick={adicionar} disabled={!ex.n.trim()}>Adicionar à biblioteca</Botao>
         <Botao variante="vazio" onClick={() => { setEx(VAZIO); setAberto(false); }}>Cancelar</Botao>
       </div>
+    </div>
+  );
+}
+
+/* ── Meu método (plano Premium): o treinador independente descreve o método dele e o gerador de plano passa a seguir só as regras dele. ── */
+let METODO_PROPRIO = null;
+function setMetodoProprio(m) { METODO_PROPRIO = m || null; }
+
+function promptPlanoMeuMetodo(a, semanas, aulasSemana, historico, enfase) {
+  const QM = window.QLMetodo, m = METODO_PROPRIO;
+  const nBlocos = m.estrutura.blocosCiclo, porBloco = Math.ceil(semanas / nBlocos);
+  const ciclosAnteriores = (historico || []).slice(0, 3).map((h, i) =>
+    "── Ciclo " + (historico.length - i) + " · " + new Date(h.data).toLocaleDateString("pt-BR") + " ──\n" + h.texto);
+  const resumoScout = resumoScoutPlanejamento(a.registros);
+  return QM.montarPrompt(m, {
+    ficha: relatorioFicha(a, true), indice: QM.indice(EXERCICIOS_CUSTOM), semanas, nBlocos, porBloco, aulasSemana, enfase: textoEnfase(enfase),
+    extras: [resumoScout, evidenciasParaPrompt(a),
+      ciclosAnteriores.length ? "RELATÓRIOS DOS CICLOS ANTERIORES DESTE JOGADOR — o novo plano responde ao que ficou em aberto, ao que foi atingido e ao que não foi:\n" + ciclosAnteriores.join("\n") : ""],
+  });
+}
+
+function ListaPar({ itens, aoMudar, rotuloNome, dicaNome, dicaCriterio }) {
+  /* as linhas em branco só existem aqui: o método guardado nunca tem item sem nome */
+  const [linhas, setLinhas] = useState(itens);
+  useEffect(() => {
+    if (JSON.stringify(linhas.filter((x) => x.nome.trim())) !== JSON.stringify(itens)) setLinhas(itens);
+  }, [JSON.stringify(itens)]);
+  const emitir = (novas) => { setLinhas(novas); aoMudar(novas.filter((x) => x.nome.trim())); };
+  const set = (i, k, v) => emitir(linhas.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+  return (
+    <div>
+      {linhas.map((x, i) => (
+        <div key={i} style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "10px 12px", marginBottom: 8 }}>
+          <input aria-label={rotuloNome + " " + (i + 1)} style={{ ...entrada, marginBottom: 6 }} value={x.nome} placeholder={dicaNome} onChange={(e) => set(i, "nome", e.target.value)} />
+          <input aria-label={"Critério de " + (x.nome || rotuloNome)} style={entrada} value={x.criterio} placeholder={dicaCriterio} onChange={(e) => set(i, "criterio", e.target.value)} />
+          <button onClick={() => emitir(linhas.filter((_, j) => j !== i))} style={{ ...prosa, fontSize: 12, color: C.grafite, background: "none", border: "none", textDecoration: "underline", cursor: "pointer", padding: "6px 0 0" }}>Remover</button>
+        </div>
+      ))}
+      <Botao pequeno variante="vazio" onClick={() => setLinhas([...linhas, { nome: "", criterio: "" }])}>+ Adicionar {rotuloNome.toLowerCase()}</Botao>
+    </div>
+  );
+}
+function ListaTexto({ itens, aoMudar, rotulo, dica, linhas = 4 }) {
+  const [texto, setTexto] = useState(itens.join("\n"));
+  useEffect(() => { setTexto(itens.join("\n")); }, [itens.join("\n")]);
+  return <textarea aria-label={rotulo} rows={linhas} style={{ ...entrada, resize: "vertical" }} value={texto} placeholder={dica}
+    onChange={(e) => setTexto(e.target.value)} onBlur={() => aoMudar(texto.split("\n").map((s) => s.trim()).filter(Boolean))} />;
+}
+
+function TelaMeuMetodo({ metodo, setMetodo, planoAtual, exerciciosCustom, setExerciciosCustom }) {
+  const QM = typeof window !== "undefined" && window.QLMetodo;
+  const m = QM ? QM.limpar(metodo || QM.vazio()) : null;
+  const [material, setMaterial] = useState("");
+  const [etapa, setEtapa] = useState("");
+  const [msg, setMsg] = useState(null);
+  const [achados, setAchados] = useState([]);
+  const [csv, setCsv] = useState("");
+  const [exTitulo, setExTitulo] = useState("");
+  const [exTexto, setExTexto] = useState("");
+  if (!QM) return <p style={{ ...prosa, fontSize: 13.5 }}>Não foi possível carregar o Meu método. Recarregue a página e tente de novo.</p>;
+  if (planoAtual !== "premium") {
+    return (
+      <div data-metodo-bloqueado>
+        <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Meu método</h1>
+        <div style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "14px 16px", marginTop: 12 }}>
+          <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Disponível no plano Premium</p>
+          <p style={{ ...prosa, fontSize: 13.5 }}>Descreva a sua linha de trabalho (áreas, critérios de saída, princípios e a sua biblioteca de exercícios) ou importe os seus planejamentos. O gerador de plano passa a seguir só as suas regras.</p>
+        </div>
+        <div className="mt-4"><BotoesAssinatura planoAtual={planoAtual} planoVencido={false} /></div>
+      </div>
+    );
+  }
+  const nEx = (exerciciosCustom || []).length;
+  const pront = QM.prontidao(m, nEx);
+  const atualizar = (patch) => setMetodo({ ...m, ...patch, atualizadoEm: new Date().toISOString() });
+  const norm = (s) => String(s).toLowerCase().trim();
+  const unir = (atual, novos, chave) => atual.concat(novos.filter((n) => !atual.some((a) => norm(chave ? a[chave] : a) === norm(chave ? n[chave] : n))));
+  async function preencher() {
+    setMsg(null); setEtapa("Enviando");
+    try {
+      const t = await chamarIA(QM.promptExtracao(material), 8000, (et) => setEtapa(et));
+      const r = QM.lerExtracao(t), x = r.metodo, vazioAntes = !m.areas.length && !m.principios.length;
+      setMetodo({ ...m, nome: m.nome || x.nome, estrutura: vazioAntes ? x.estrutura : m.estrutura, areas: unir(m.areas, x.areas, "nome"), niveis: unir(m.niveis, x.niveis, "nome"),
+        principios: unir(m.principios, x.principios), naoFazer: unir(m.naoFazer, x.naoFazer), exemplos: material.trim() && m.exemplos.length < QM.LIM.exemplos ? [...m.exemplos, { titulo: "Material importado", texto: material }] : m.exemplos, atualizadoEm: new Date().toISOString() });
+      setAchados(r.exercicios);
+      setMsg({ t: "Pronto. Revise os campos abaixo: a IA só preenche o que estava no seu material, e nada é ativado sem você." + (r.exercicios.length ? " Encontrei " + r.exercicios.length + " exercícios." : "") });
+    } catch (e) { setMsg({ erro: true, t: String(e.message || e) }); }
+    setEtapa("");
+  }
+  function adicionarExercicios(itens) {
+    const novos = QM.paraBiblioteca(itens, exerciciosCustom || []);
+    if (novos.length) setExerciciosCustom([...(exerciciosCustom || []), ...novos]);
+    setMsg({ t: novos.length + " exercício(s) adicionado(s) à sua biblioteca" + (itens.length - novos.length ? " (" + (itens.length - novos.length) + " já existiam)." : ".") });
+    return novos.length;
+  }
+  const secao = (t, d, filhos) => (
+    <section className="mb-6">
+      <h2 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{t}</h2>
+      {d && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, margin: "2px 0 8px" }}>{d}</p>}
+      {filhos}
+    </section>
+  );
+  return (
+    <div data-meu-metodo>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700 }}>Meu método</h1>
+        <SeloTecnologiaQuadraLab />
+      </div>
+      <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, margin: "4px 0 14px" }}>Descreva a sua linha de trabalho. Quando estiver ativo, o gerador de plano individual segue só as suas regras e a sua biblioteca. Tudo fica privado na sua conta.</p>
+
+      {msg && <p role={msg.erro ? "alert" : "status"} data-msg-metodo style={{ ...prosa, fontSize: 13, margin: "0 0 14px", color: msg.erro ? "#A33" : C.tinta }}>{msg.t}</p>}
+      <div style={{ background: C.cal, border: "1px solid " + (pront.ok ? C.saibro : C.linha), borderRadius: 10, padding: "12px 14px", marginBottom: 18 }}>
+        <label className="flex items-center gap-2" style={{ cursor: pront.ok ? "pointer" : "default", opacity: pront.ok ? 1 : 0.7 }}>
+          <input type="checkbox" checked={!!m.ativo && pront.ok} disabled={!pront.ok} onChange={(e) => atualizar({ ativo: e.target.checked })} style={{ width: 18, height: 18 }} />
+          <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>Usar o meu método ao gerar planos</span>
+        </label>
+        {!pront.ok && <ul style={{ ...prosa, fontSize: 12.5, color: C.grafite, paddingLeft: 18, marginTop: 6 }}>{pront.faltas.map((f) => <li key={f}>{f}</li>)}</ul>}
+        {pront.ok && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 6 }}>Vale para o plano individual. Planos de turma seguem o padrão do app.</p>}
+      </div>
+
+      {secao("Importar do meu material", "Cole o seu planejamento, a descrição do método ou uma lista de exercícios. A IA preenche os campos com o que estiver escrito; você revisa.",
+        <div>
+          <textarea aria-label="Material do treinador" rows={6} style={{ ...entrada, resize: "vertical" }} value={material} onChange={(e) => setMaterial(e.target.value)} placeholder="Cole aqui o texto do seu planejamento ou do seu método…" />
+          <div className="mt-2"><Botao pequeno variante="saibro" disabled={!!etapa || material.trim().length < 80} onClick={preencher}>{etapa ? etapa + "…" : "Preencher com IA"}</Botao></div>
+          {achados.length > 0 && <div className="mt-2"><Botao pequeno variante="vazio" onClick={() => { adicionarExercicios(achados); setAchados([]); }}>Adicionar os {achados.length} exercícios encontrados à biblioteca</Botao></div>}
+        </div>)}
+
+      {secao("Nome e estrutura", null,
+        <div>
+          <Campo rotulo="Nome do método"><input style={entrada} value={m.nome} onChange={(e) => atualizar({ nome: e.target.value })} placeholder="Ex.: Linha Verde" /></Campo>
+          <div className="grid grid-cols-3 gap-2">
+            {[["semanasCiclo", "Semanas por ciclo", 16], ["aulasSemana", "Aulas por semana", 7], ["blocosCiclo", "Blocos por ciclo", 6]].map(([k, r, mx]) => (
+              <Campo key={k} rotulo={r}><input type="number" min="1" max={mx} style={entrada} value={m.estrutura[k]} onChange={(e) => atualizar({ estrutura: { ...m.estrutura, [k]: e.target.value } })} /></Campo>
+            ))}
+          </div>
+          <Campo rotulo="Observação sobre a estrutura (opcional)"><input style={entrada} value={m.estrutura.observacao} onChange={(e) => atualizar({ estrutura: { ...m.estrutura, observacao: e.target.value } })} placeholder="Ex.: uma semana de recuperação a cada ciclo" /></Campo>
+        </div>)}
+
+      {secao("Áreas de trabalho e critérios de saída", "O que cada bloco trabalha e como você sabe que o jogador pode avançar. Quanto mais observável, melhor (com número, se puder).",
+        <ListaPar itens={m.areas} aoMudar={(areas) => atualizar({ areas })} rotuloNome="Área" dicaNome="Ex.: Saque" dicaCriterio="Ex.: 1º saque dentro ≥ 65% em 4 séries de 20" />)}
+      {secao("Níveis do jogador (opcional)", "Como você classifica o jogador no seu método.",
+        <ListaPar itens={m.niveis} aoMudar={(niveis) => atualizar({ niveis })} rotuloNome="Nível" dicaNome="Ex.: Base" dicaCriterio="Ex.: sustenta rali de 6 bolas" />)}
+      {secao("Princípios do meu método", "Um por linha. São regras que a IA deve seguir em todo plano (mínimo 3).",
+        <ListaTexto itens={m.principios} aoMudar={(principios) => atualizar({ principios })} rotulo="Princípios" dica={"Ex.:\nSempre começo pela leitura do ponto\nNunca trabalho um golpe isolado por mais de 10 minutos"} linhas={6} />)}
+      {secao("O que eu nunca faço", "Um por linha. A IA nunca inclui isso no plano.",
+        <ListaTexto itens={m.naoFazer} aoMudar={(naoFazer) => atualizar({ naoFazer })} rotulo="O que nunca faço" dica="Ex.: Exercícios parados no cesto como parte principal da aula" />)}
+
+      {secao("Planos de exemplo (opcional)", "Até " + QM.LIM.exemplos + ". A IA usa como referência de estrutura e estilo, sem copiar nomes ou datas.",
+        <div>
+          {m.exemplos.map((x, i) => (
+            <div key={i} style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "10px 12px", marginBottom: 8 }}>
+              <input aria-label={"Título do exemplo " + (i + 1)} style={{ ...entrada, marginBottom: 6 }} value={x.titulo} placeholder="Título" onChange={(e) => atualizar({ exemplos: m.exemplos.map((y, j) => (j === i ? { ...y, titulo: e.target.value } : y)) })} />
+              <textarea aria-label={"Texto do exemplo " + (i + 1)} rows={4} style={{ ...entrada, resize: "vertical" }} value={x.texto} onChange={(e) => atualizar({ exemplos: m.exemplos.map((y, j) => (j === i ? { ...y, texto: e.target.value } : y)) })} />
+              <button onClick={() => atualizar({ exemplos: m.exemplos.filter((_, j) => j !== i) })} style={{ ...prosa, fontSize: 12, color: C.grafite, background: "none", border: "none", textDecoration: "underline", cursor: "pointer", padding: "6px 0 0" }}>Remover</button>
+            </div>
+          ))}
+          {m.exemplos.length < QM.LIM.exemplos && (
+            <div>
+              <input aria-label="Título do novo exemplo" style={{ ...entrada, marginBottom: 6 }} value={exTitulo} placeholder="Título (ex.: Ciclo de março)" onChange={(e) => setExTitulo(e.target.value)} />
+              <textarea aria-label="Texto do novo exemplo" rows={4} style={{ ...entrada, resize: "vertical" }} value={exTexto} placeholder="Cole aqui um plano seu como exemplo" onChange={(e) => setExTexto(e.target.value)} />
+              <div className="mt-2"><Botao pequeno variante="vazio" disabled={exTexto.trim().length < 30} onClick={() => { atualizar({ exemplos: [...m.exemplos, { titulo: exTitulo, texto: exTexto }] }); setExTitulo(""); setExTexto(""); }}>Adicionar exemplo</Botao></div>
+            </div>
+          )}
+        </div>)}
+
+      {secao("Minha biblioteca de exercícios", "O gerador usa só os exercícios da sua biblioteca (mínimo 6). Você tem " + nEx + ". Para cadastrar um a um, use o Catálogo de exercícios.",
+        <div>
+          <textarea aria-label="Planilha de exercícios" rows={5} style={{ ...entrada, resize: "vertical" }} value={csv} onChange={(e) => setCsv(e.target.value)}
+            placeholder={"Cole a planilha (Excel ou Google Planilhas), uma linha por exercício:\nNome;Objetivo;Montagem;Carga;Progressão"} />
+          <div className="mt-2"><Botao pequeno variante="saibro" disabled={!csv.trim()} onClick={() => { const itens = QM.exerciciosDeCSV(csv); if (!itens.length) { setMsg({ erro: true, t: "Não encontrei exercícios nessa planilha." }); return; } adicionarExercicios(itens); setCsv(""); }}>Adicionar à biblioteca</Botao></div>
+        </div>)}
     </div>
   );
 }
@@ -16177,7 +16364,7 @@ function IconeCalendario({ tam = 28 }) {
 
 function PainelMais({ aba, setAba, aoFechar }) {
   const itens = [...NAV_PRINCIPAL.filter((t) => !["dashboard", "alunos", "agenda"].includes(t.v)),
-    { v: "catalogo", r: "Catálogo de exercícios" }];
+    { v: "metodo", r: "Meu método" }, { v: "catalogo", r: "Catálogo de exercícios" }];
   return (
     <>
       <div onClick={aoFechar} style={{ position: "fixed", inset: 0, background: "rgba(16,30,25,.4)", zIndex: 39 }} />
@@ -16790,6 +16977,7 @@ function App() {
   const [turmas, setTurmas] = useState([]);
   const [carregandoTurmas, setCarregandoTurmas] = useState(true);
   const [exerciciosCustom, setExerciciosCustom] = useState([]);
+  const [metodo, setMetodo] = useState(null);
   const [carregandoCustom, setCarregandoCustom] = useState(true);
   const [abertoId, setAbertoId] = useState(null);
   const [aba, setAba] = useState("dashboard");
@@ -17071,6 +17259,7 @@ function App() {
     leia("mty:alunos:v2", []).then((a) => { setAlunos(a); prontoRef.current.alunos = true; setCarregando(false); });
     leia("mty:turmas:v1", [], true).then((t) => { setTurmas(t); prontoRef.current.turmas = true; setCarregandoTurmas(false); });
     leia("mty:exerciciosCustom:v1", [], true).then((ex) => { setExerciciosCustom(ex); setCatalogoCustom(ex); prontoRef.current.exerciciosCustom = true; setCarregandoCustom(false); });
+    leia("mty:metodo:v1", null, true).then((mm) => { setMetodo(mm && window.QLMetodo ? window.QLMetodo.limpar(mm) : null); prontoRef.current.metodo = true; });
     leia("mty:onboardingDispensado", false, true).then((v) => { setOnboardingDispensado(v); setOnboardingCarregado(true); });
 }, [autenticado, orgAtual]);
   /* Jogadores recém-criados por "Novo jogador" entram aqui até o primeiro
@@ -17093,6 +17282,11 @@ function App() {
   // exerciciosCustom muda — um efeito rodaria tarde demais pra isso e o
   // exercício recém-cadastrado só apareceria depois de outro re-render.
   setCatalogoCustom(exerciciosCustom);
+  /* o método próprio só vale no plano Premium e depois de ativado pelo treinador */
+  setMetodoProprio(planoAtual === "premium" && metodo && metodo.ativo ? metodo : null);
+  useEffect(() => {
+    if (autenticado && metodo && prontoRef.current.metodo) grave("mty:metodo:v1", metodo, true);
+  }, [metodo, autenticado]);
   useEffect(() => {
     if (autenticado && !carregandoCustom && prontoRef.current.exerciciosCustom) grave("mty:exerciciosCustom:v1", exerciciosCustom, true);
   }, [exerciciosCustom, carregandoCustom, autenticado]);
@@ -17126,7 +17320,7 @@ function App() {
      aparece pra quem for provisionado explicitamente com a opção
      marcada. */
   const gruposNav = [
-    { id: "trabalho", label: "Meu trabalho", itens: [...NAV_PRINCIPAL, { v: "catalogo", r: "Catálogo de exercícios" }] },
+    { id: "trabalho", label: "Meu trabalho", itens: [...NAV_PRINCIPAL, { v: "metodo", r: "Meu método" }, { v: "catalogo", r: "Catálogo de exercícios" }] },
   ].filter((g) => g.itens.length > 0);
   function criar() {
     if (planoVencido || (limitePlano != null && alunos.length >= limitePlano)) {
@@ -17427,6 +17621,7 @@ function App() {
         {carregando ? <p style={{ ...prosa, color: C.grafite }}>Carregando…</p> :
          aba === "ajuda" ? <TelaAjuda /> :
          aba === "catalogo" ? <TelaCatalogo exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
+         aba === "metodo" ? <TelaMeuMetodo metodo={metodo} setMetodo={setMetodo} planoAtual={planoAtual} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
          aba === "taticas" ? <TelaTaticas /> :
          aba === "tecnica" ? <TelaTecnica focoId={focoManualId} /> :
          aba === "casos" ? <TelaCasos /> :
