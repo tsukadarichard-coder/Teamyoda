@@ -67,3 +67,26 @@ ok(E.textoParaPrompt({}) === null, "sem dados -> null");
 // 8. limite de pendentes
 ok(E.novasPropostas({ revisoesPlano: Array.from({ length: 5 }, (_, i) => ({ id: i, status: "pendente", chave: "z" + i })), registros: s.registros }, ctx).length === 0, "teto de pendentes");
 console.log("check-evidencias OK (" + n + " verificações)");
+// metas de saída medidas
+{
+  const E2 = require("../scout/evidencias.js");
+  const j = (d, p) => ({ tipo: "jogo", data: "2026-09-" + d, scout: { n: 50, pctPrimeiro: p, df: 1, errosDecisao: 1, errosExec: 1 } });
+  let r = E2.metaDaArea({ registros: [j("01", 64), j("08", 66)] }, "saque");
+  assert(r.temDados && r.sugereLiberar && r.indicadores[0].atingido, "saque atingido");
+  r = E2.metaDaArea({ registros: [j("01", 50), j("08", 66)] }, "saque");
+  assert(r.temDados && !r.sugereLiberar, "saque abaixo");
+  r = E2.metaDaArea({ registros: [j("01", 64)] }, "saque");
+  assert(!r.temDados && !r.sugereLiberar, "um jogo não basta");
+  r = E2.metaDaArea({ movimentos: [mov("a", "01", "forehand", [["X", "ok", 1]])] }, "fundo");
+  assert(r.sugereLiberar, "fundo pelo vídeo");
+  assert(!E2.metaDaArea({}, "rede").temDados, "área sem medição automática");
+  console.log("metas ok");
+}
+{
+  const E3 = require("../scout/evidencias.js");
+  const base = { registros: [{ tipo: "jogo", data: "2026-09-01", scout: { n: 40, pctPrimeiro: 40 } }, { tipo: "jogo", data: "2026-09-08", scout: { n: 40, pctPrimeiro: 42 } }] };
+  assert(E3.novasPropostas(base, { agora: "2026-09-20T00:00:00Z", aulasRestantes: 2 }).some(p => p.tipo === "horizonte"), "horizonte perto do fim");
+  assert(!E3.novasPropostas(base, { agora: "2026-09-20T00:00:00Z", aulasRestantes: 9 }).some(p => p.tipo === "horizonte"), "sem horizonte no meio do plano");
+  assert(!E3.novasPropostas(base, { agora: "2026-09-20T00:00:00Z" }).some(p => p.tipo === "horizonte"), "sem plano, sem horizonte");
+  console.log("horizonte ok");
+}

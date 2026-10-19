@@ -241,10 +241,42 @@
     return L.join("\n");
   }
 
+  /* ── metas de saída medidas pelos dados ──
+     Para a área em foco do bloco, confere o que o vídeo e o scout já provam. Só indica: quem libera o bloco continua sendo o treinador. */
+  function metaDaArea(aluno, areaId) {
+    var ind = [], jogos = jogosScout(aluno).slice(-2), ultimaPor = {};
+    ordenar(aluno.movimentos).forEach(function (m) { ultimaPor[chaveGrupo(m)] = m; });
+    function video(golpes) {
+      golpes.forEach(function (k) {
+        var m = ultimaPor[k]; if (!m) return;
+        var aten = m.itens.filter(function (i) { return i.s === "atencao"; });
+        ind.push({ id: "video:" + k, fonte: "biomecanica", rotulo: "Vídeo · " + nomeGrupo(m), atingido: aten.length === 0,
+          texto: aten.length ? aten.length + (aten.length === 1 ? " ponto" : " pontos") + " ainda em atenção (" + aten.slice(0, 2).map(function (i) { return i.n; }).join(", ") + ")" : "todos os pontos avaliados dentro da referência" });
+      });
+    }
+    if (areaId === "saque") {
+      var pr = jogos.map(function (r) { return r.scout.pctPrimeiro; }).filter(function (v) { return v > 0; });
+      if (pr.length >= REF.jogosMin) ind.push({ id: "scout:primeiro", fonte: "scout", rotulo: "1º saque dentro (meta ≥ " + REF.primeiroSaqueMin + "%)", atingido: media(pr) >= REF.primeiroSaqueMin, texto: "média de " + arred(media(pr)) + "% nos últimos " + pr.length + " jogos" });
+      video(["saque"]);
+    } else if (areaId === "devolucao") {
+      var dv = jogos.filter(function (r) { return r.scout.nSaqueDele > 0; }).map(function (r) { return r.scout.pctErrosDevolucao || 0; });
+      if (dv.length >= REF.jogosMin) ind.push({ id: "scout:devolucao", fonte: "scout", rotulo: "Erros de devolução (apoio: ≤ " + (REF.devolucaoErrosPct - 5) + "%)", atingido: media(dv) <= REF.devolucaoErrosPct - 5, texto: "média de " + arred(media(dv)) + "% nos últimos " + dv.length + " jogos" });
+    } else if (areaId === "fundo") {
+      video(Object.keys(ultimaPor).filter(function (k) { return k.indexOf("forehand") === 0 || k.indexOf("backhand") === 0; }));
+      var ex = jogos.length >= REF.jogosMin ? jogos.reduce(function (n, r) { return n + (r.scout.errosExec || 0); }, 0) / jogos.length : null;
+      if (ex != null) ind.push({ id: "scout:exec", fonte: "scout", rotulo: "Erros de execução por jogo", atingido: null, texto: "média de " + arred(ex) + " nos últimos " + jogos.length + " jogos (acompanhar a queda)" });
+    } else if (areaId === "mental") {
+      var mm = jogos.map(function (r) { var v = Object.keys((r.mental && r.mental.jogo) || {}).map(function (g) { return +r.mental.jogo[g]; }).filter(function (x) { return x >= 1 && x <= 5; }); return v.length >= 2 ? media(v) : null; }).filter(function (v) { return v != null; });
+      if (mm.length >= REF.jogosMin) ind.push({ id: "scout:mental", fonte: "scout", rotulo: "Mental nos games (apoio: ≥ 3)", atingido: media(mm) >= 3, texto: "média de " + arred(media(mm)) + " (escala de 1 a 5)" });
+    }
+    var medidos = ind.filter(function (i) { return i.atingido !== null; });
+    return { indicadores: ind, sugereLiberar: medidos.length > 0 && medidos.every(function (i) { return i.atingido; }), temDados: ind.length > 0 };
+  }
+
   function decidir(revisoes, id, status, agora) {
     return (revisoes || []).map(function (r) { return r.id === id ? Object.assign({}, r, { status: status, decididoEm: agora || new Date().toISOString() }) : r; });
   }
   function pendentes(aluno) { return (aluno.revisoesPlano || []).filter(function (r) { return r.status === "pendente"; }); }
 
-  return { REF: REF, achados: achados, novasPropostas: novasPropostas, efeitos: efeitos, textoParaPrompt: textoParaPrompt, decidir: decidir, pendentes: pendentes, bloqueada: bloqueada };
+  return { REF: REF, achados: achados, novasPropostas: novasPropostas, efeitos: efeitos, textoParaPrompt: textoParaPrompt, metaDaArea: metaDaArea, decidir: decidir, pendentes: pendentes, bloqueada: bloqueada };
 });

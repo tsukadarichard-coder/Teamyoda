@@ -16,7 +16,7 @@ function Host(){
   plano:{blocos:[{nome:"Bloco 1",titulo:"Bloco 1",areaFoco:"fundo",semanasLista:[{n:1,foco:"Fundo",aulas:[{t:"Aula 1",ex:TODOS_EXERCICIOS().slice(0,3).map(e=>e.c)}]}]}]},
   movimentos:[mov("m1","01",[["Flexão de joelhos","atencao",10]]),mov("m2","10",[["Flexão de joelhos","atencao",12]])]}]);
  window.__alunos=alunos;
- return <div style={{padding:12,maxWidth:520}}><CartaoRevisoesPlano alunos={alunos} irPara={()=>{}} /><TelaPlano aluno={alunos[0]} alunos={alunos} setAlunos={setAlunos} setSubaba={()=>{}} aoAcessarFicha={()=>{}} modo="resumo" papelAtual="coordenador" uidAtual="u1" identidade={null} exerciciosCustom={[]} setExerciciosCustom={()=>{}} ocorrencias={[]} />
+ return <div style={{padding:12,maxWidth:520}}><MetaMedida areaId="saque" aluno={{registros:[{tipo:"jogo",data:"2026-09-01",scout:{n:40,pctPrimeiro:64}},{tipo:"jogo",data:"2026-09-08",scout:{n:40,pctPrimeiro:68}}]}} /><CartaoRevisoesPlano alunos={alunos} irPara={()=>{}} /><TelaPlano aluno={alunos[0]} alunos={alunos} setAlunos={setAlunos} setSubaba={()=>{}} aoAcessarFicha={()=>{}} modo="resumo" papelAtual="coordenador" uidAtual="u1" identidade={null} exerciciosCustom={[]} setExerciciosCustom={()=>{}} ocorrencias={[]} />
  <button id="prompt" onClick={()=>{window.__prompt=promptPlanoEstruturado(alunos[0],4,3,[],{tecnico:50,tatico:50,fisico:50,pontos:50})}}>p</button></div>;}
 ReactDOM.createRoot(document.getElementById("root")).render(<Host />);`;
 const pagina=`<!doctype html><meta charset=utf-8><div id=root></div><script src=/r.js></script><script src=/d.js></script><script src=/p.js></script><script src=/c.js></script><script src=/b.js></script>
@@ -31,6 +31,7 @@ await p.goto("http://localhost:"+srv.address().port+"/");
 await p.waitForSelector("[data-revisao-plano]",{timeout:120000});
 await p.waitForSelector("[data-sugestao]",{timeout:10000});
 let t=await p.evaluate(()=>document.body.innerText);
+assert(/medido pelos dados/i.test(t)&&/Os dados confirmam o critério/.test(t),app+": meta medida");
 assert(/Revisão sugerida do plano/.test(t),app+": cartão do Início");
 assert(/Reforçar/i.test(t)&&/Aceitar/.test(t),app+": sugestão visível");
 await p.getByRole("button",{name:/Aceitar e incluir/}).first().click();await p.waitForTimeout(500);
@@ -38,6 +39,8 @@ const reg=await p.evaluate(()=>window.__alunos[0].regPlano);
 assert(reg&&reg.__blocos["Bloco 1"].reforcos.length===1&&reg.__blocos["Bloco 1"].reforcos[0].ex.length===3,app+": reforço incluído no bloco "+JSON.stringify(reg));
 const rev=await p.evaluate(()=>window.__alunos[0].revisoesPlano);
 assert(rev.some(r=>r.status==="aceita"&&r.aplicada),app+": aceita e aplicada");
+const vs=await p.evaluate(()=>window.__alunos[0].versoesPlano);assert(vs&&vs.length===1&&vs[0].n===2,app+": versão do plano registrada");
+assert(/Versões do plano/.test(await p.evaluate(()=>document.body.innerText)),app+": lista de versões");
 await p.getByRole("button",{name:/Diário de ajustes/}).click();await p.waitForTimeout(200);
 t=await p.evaluate(()=>document.body.innerText);assert(/Aceita em/.test(t)&&/Aguardando/.test(t),app+": diário com efeito pendente");
 const pend=rev.filter(r=>r.status==="pendente");

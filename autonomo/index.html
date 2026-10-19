@@ -11405,7 +11405,9 @@ function propostasNovasDoAluno(aluno) {
   if (!QE || !aluno) return [];
   let vig = null;
   try { vig = aulaEmVigor(aluno); } catch (e) { vig = null; }
-  return QE.novasPropostas(aluno, { agora: new Date().toISOString(), blocoAtual: vig && vig.bloco, exercicios: exerciciosParaRevisao(aluno) });
+  let restantes = null;
+  if (aluno.plano) { try { restantes = listaAulas(aluno.plano, aluno.regPlano).filter((a) => statusAula(aluno.regPlano, a.id) !== "feita").length; } catch (e) { restantes = null; } }
+  return QE.novasPropostas(aluno, { agora: new Date().toISOString(), blocoAtual: vig && vig.bloco, aulasRestantes: restantes, exercicios: exerciciosParaRevisao(aluno) });
 }
 function CartaoRevisoesPlano({ alunos, irPara }) {
   const lista = useMemo(() => {
@@ -11428,10 +11430,39 @@ function CartaoRevisoesPlano({ alunos, irPara }) {
     </div>
   );
 }
+/* Metas de saída medidas pelos dados: mostra o que o vídeo e o scout já confirmam do critério da área em foco. Só informa; quem libera o bloco é o treinador. */
+function MetaMedida({ aluno, areaId }) {
+  const QE = typeof window !== "undefined" && window.QLEvidencias;
+  if (!QE || !aluno || !areaId) return null;
+  const m = QE.metaDaArea(aluno, areaId);
+  if (!m.temDados) return null;
+  return (
+    <div data-meta-medida style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 8, padding: "9px 12px", margin: "8px 0" }}>
+      <p style={{ fontFamily: ARCH, fontSize: 11, letterSpacing: 1.1, textTransform: "uppercase", color: C.saibro, fontWeight: 700 }}>Medido pelos dados</p>
+      {m.indicadores.map((i) => (
+        <p key={i.id} style={{ ...prosa, fontSize: 12.5, marginTop: 3 }}>
+          <b>{i.atingido === true ? "✓ " : i.atingido === false ? "✗ " : "• "}{i.rotulo}:</b> {i.texto}
+        </p>
+      ))}
+      <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 5 }}>{m.sugereLiberar ? "Os dados confirmam o critério. Falta a sua observação em quadra para liberar o bloco." : "Os dados ainda não confirmam o critério por completo."}</p>
+    </div>
+  );
+}
+function AvisoRevisaoTurma({ membros }) {
+  const QE = typeof window !== "undefined" && window.QLEvidencias;
+  const lista = useMemo(() => (QE ? (membros || []).map((m) => ({ m, n: QE.pendentes(m).length + propostasNovasDoAluno(m).length })).filter((x) => x.n > 0) : []), [membros]);
+  if (!lista.length) return null;
+  return (
+    <div className="mb-5" data-revisao-turma><Aviso cor={C.quadra}>
+      Com base nos vídeos e jogos, há sugestões de ajuste de plano para: {lista.map((x) => x.m.nome + " (" + x.n + ")").join(", ")}. Abra o plano individual de cada um para decidir.
+    </Aviso></div>
+  );
+}
 function RevisaoPlano({ aluno, setAlunos, podeEditar }) {
   const QE = typeof window !== "undefined" && window.QLEvidencias;
   const [verDiario, setVerDiario] = useState(false);
   const [verEvid, setVerEvid] = useState(false);
+  const [verVersoes, setVerVersoes] = useState(false);
   const chaveDados = (aluno.movimentos || []).length + "|" + (aluno.registros || []).length + "|" + (aluno.revisoesPlano || []).length;
   useEffect(() => {
     if (!QE || !podeEditar || !setAlunos) return;
@@ -11455,14 +11486,15 @@ function RevisaoPlano({ aluno, setAlunos, podeEditar }) {
     const agora = new Date().toISOString();
     setAlunos((lista) => lista.map((x) => {
       if (x.id !== aluno.id) return x;
-      let revisoes = QE.decidir(x.revisoesPlano, r.id, status, agora), regPlano = x.regPlano;
+      let revisoes = QE.decidir(x.revisoesPlano, r.id, status, agora), regPlano = x.regPlano, versoes = x.versoesPlano;
       const a = r.acao || {};
       if (status === "aceita" && a.tipo === "reforco" && x.plano && a.bloco && (a.ex || []).length && x.plano.blocos.some((b) => (b.titulo || b.nome) === a.bloco)) {
         const rp = x.regPlano || {}, blocos = rp.__blocos || {}, info = blocos[a.bloco] || {};
         regPlano = { ...rp, __blocos: { ...blocos, [a.bloco]: { ...info, reforcos: (info.reforcos || []).concat([{ ex: a.ex, origem: "revisao", revisaoId: r.id }]) } } };
         revisoes = revisoes.map((v) => (v.id === r.id ? { ...v, aplicada: true } : v));
+        versoes = (x.versoesPlano || []).concat([{ n: (x.versoesPlano || []).length + 2, em: agora, motivo: r.titulo, mudanca: "Reforço no bloco “" + a.bloco + "” com " + a.ex.length + " exercícios", revisaoId: r.id }]).slice(-40);
       }
-      return { ...x, revisoesPlano: revisoes, regPlano };
+      return { ...x, revisoesPlano: revisoes, regPlano, versoesPlano: versoes };
     }));
   }
   const rotuloStatus = { aceita: "Aceita", recusada: "Recusada", adiada: "Adiada" };
@@ -11503,6 +11535,23 @@ function RevisaoPlano({ aluno, setAlunos, podeEditar }) {
               <p style={{ ...prosa, fontSize: 12.5 }}>{a.texto}</p>
             </div>
           ))}
+        </div>
+      )}
+      {(aluno.versoesPlano || []).length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          <button onClick={() => setVerVersoes((v) => !v)} style={{ ...prosa, fontSize: 12.5, fontWeight: 700, color: C.saibro, border: "none", background: "none", cursor: "pointer", padding: 0 }}>{verVersoes ? "Ocultar versões do plano" : "Versões do plano (" + ((aluno.versoesPlano || []).length + 1) + ")"}</button>
+          {verVersoes && (
+            <div>
+              {(aluno.versoesPlano || []).slice().reverse().map((v) => (
+                <div key={v.revisaoId} style={{ borderBottom: "1px solid " + C.linha, padding: "8px 0" }}>
+                  <p style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>Versão {v.n} · {new Date(v.em).toLocaleDateString("pt-BR")}</p>
+                  <p style={{ ...prosa, fontSize: 12.5 }}>{v.mudanca}</p>
+                  <p style={{ ...prosa, fontSize: 12, color: C.grafite }}>Motivo: {v.motivo}</p>
+                </div>
+              ))}
+              <div style={{ padding: "8px 0" }}><p style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>Versão 1 · plano original</p></div>
+            </div>
+          )}
         </div>
       )}
       {decididas.length > 0 && (
@@ -12570,6 +12619,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
         {!podeEditar && (
           <Aviso>{eTurma ? "Esta turma" : "Este jogador"} é de outro treinador — a montagem do plano fica travada. Só o professor responsável ou o coordenador podem gerar ou colar um plano.</Aviso>
         )}
+        {!eTurma && <RevisaoPlano aluno={aluno} setAlunos={setAlunos} podeEditar={podeEditar} />}
         {!planoCandidato && (
           <Aviso cor={C.quadra}>
             {eTurma ? "Esta turma ainda não tem um planejamento. Escolha uma opção abaixo para começar."
@@ -13048,6 +13098,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
       {modo === "resumo" && (
         <>
           {!eTurma && <RevisaoPlano aluno={aluno} setAlunos={setAlunos} podeEditar={podeEditar} />}
+          {eTurma && <AvisoRevisaoTurma membros={membros} />}
           <LinhaDeRaciocinio plano={plano} aulas={aulas} status={status} reg={reg} />
 
           {/* Mapa de calor completo. Jogador: `entidade.registros` direto.
@@ -13176,6 +13227,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                     </ul>
                   )}
                   {!saidaTexto && !catalogo && <p style={{ ...prosa, fontSize: 13, marginTop: 4 }}>Avaliado ao fim do bloco.</p>}
+                  {!eTurma && <MetaMedida aluno={aluno} areaId={b.areaFoco} />}
                 </div>
               );
             }
@@ -13195,6 +13247,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                     : "As aulas programadas deste bloco já foram todas dadas. O jogador já demonstra este critério?"}
                 </p>
                 {saidaTexto && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, margin: "4px 0 10px" }}>{saidaTexto}</p>}
+                {!eTurma && <MetaMedida aluno={aluno} areaId={b.areaFoco} />}
                 {catalogo && (
                   <div className="mb-2">
                     {catalogo.itens.map((texto, i) => (
