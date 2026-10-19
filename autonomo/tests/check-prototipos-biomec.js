@@ -1,0 +1,14 @@
+var M = require("../../prototipos/biomecanica/motor.js"), a = require("assert");
+var q = M.sintetico(60, "D"), r = M.checklist(q, "D");
+a.ok(!r.erro, "sem erro");
+a.strictEqual(r.fases.length, 6);
+var ix = r.fases.map(function (f) { return f.quadro; });
+for (var i = 1; i < 6; i++) a.ok(ix[i] >= ix[i - 1], "fases em ordem " + ix);
+a.ok(r.itens.length >= 10);
+a.ok(r.itens.filter(function (i) { return i.status === "nao_avaliavel"; }).length >= 5, "itens não avaliáveis marcados");
+a.ok(r.itens.every(function (i) { return i.status !== "nao_avaliavel" || i.valor === null; }));
+a.strictEqual(r.direcao, 1);
+a.ok(!M.checklist(M.sintetico(60, "E"), "E").erro);
+a.ok(M.checklist(q.slice(0, 5), "D").erro, "vídeo curto");
+a.ok(Math.abs(M.ang({x:0,y:1},{x:0,y:0},{x:1,y:0}) - 90) < 1e-6);
+console.log("biomec: ok", JSON.stringify(r.resumo), ix.join(","));
