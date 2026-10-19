@@ -84,8 +84,9 @@ window.firebase={initializeApp:function(){},auth:function(){return a}};})();`;
   for (let k = 0; k < 4; k++) { await pg.click('[data-fim="winner_nos"]'); await pg.waitForSelector('[data-bola="1-2"]'); await pg.click('[data-bola="1-2"]'); await pg.waitForTimeout(450); }
   await pg.waitForSelector(".qa-topo", { timeout: 4000 });
   assert.ok((await pg.textContent(".qa-topo")).includes("seguidos"), "alerta de sequência em tempo real");
+  assert.ok(await pg.isVisible(".qa-mom svg"), "gráfico de linha do momento sempre visível");
   await pg.click(".sf-analise summary"); await pg.waitForSelector(".sf-analise .qa-svg");
-  const painel = await pg.textContent(".sf-analise"); assert.ok(painel.includes("Ponto a ponto") && painel.includes("Game a game"), "painel com ponto a ponto e game a game");
+  const painel = await pg.textContent(".sf-analise"); assert.ok(painel.includes("Momento do jogo") && painel.includes("Saldo de pontos") && painel.includes("Game a game"), "painel com momento, saldo e game a game");
   await pg.screenshot({ path: path.join(saida, "analise-ao-vivo.png"), fullPage: true });
   for (let k = 0; k < 20 && JSON.parse(store[vivo[0]].publico).n < 5; k++) await pg.waitForTimeout(400);
   { const pub = JSON.parse(store[vivo[0]].publico);
