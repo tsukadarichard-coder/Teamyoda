@@ -3950,6 +3950,72 @@
     });
     return m;
   }
+  /* Relatório dos jogos (scout/relatorio-jogos.js): os scouts do treinador que o atleta importou, com gráficos de evolução e comparações.
+     No Competição só existe o resumo público de cada jogo (sem os pontos), então o relatório usa os números desse resumo e, quando vierem,
+     decisões, game a game e mental. */
+  function scTendenciaRel(v, maior) {
+    var n = v.length, sx = (n - 1) * n / 2, sx2 = (n - 1) * n * (2 * n - 1) / 6, sy = v.reduce(function (a, b) { return a + b; }, 0), sxy = v.reduce(function (a, b, i) { return a + i * b; }, 0), den = n * sx2 - sx * sx, inc = den ? (n * sxy - sx * sy) / den : 0, tot = inc * (n - 1), est = Math.abs(tot) < 1, mel = maior ? inc > 0 : inc < 0;
+    return { media: sy / n, variacaoTotal: tot, estavel: est, melhorou: !est && mel, cor: est ? "#5B6B63" : (mel ? "#1F6B4A" : "#A6432F"), seta: est ? "→" : (inc > 0 ? "▲" : "▼") };
+  }
+  function scMetricasRel() {
+    function seq(s, t) { var se = scSerie(s.serie); return se.length >= SC_JANELA ? scSequencias(se)[t].tam : null; }
+    function m1(grupo, k, rot, suf, melhor, get) { return { grupo: grupo || undefined, k: k, rot: rot, suf: suf, melhor: melhor, get: get }; }
+    var m = [
+      m1("O jogo", "n", "Pontos coletados", "", null, function (s) { return s.n; }),
+      m1("", "pctGanhos", "Pontos ganhos", "%", true, function (s) { return s.pctGanhos; }),
+      m1("Onde o ponto se decidiu", "pctCurtos", "Em 1–2 bolas", "%", null, function (s) { return s.pctCurtos; }),
+      m1("", "pctMedios", "Em 3–4 bolas", "%", null, function (s) { return s.pctMedios; }),
+      m1("", "pctLongos", "Em 5 bolas ou mais", "%", null, function (s) { return s.pctLongos; }),
+      m1("Erros do atleta", "errosNos", "Erros", "", false, function (s) { return s.errosNos; }),
+      m1("", "errosDecisao", "— por decisão", "", false, function (s) { return s.errosDecisao; }),
+      m1("", "errosExec", "— por execução", "", false, function (s) { return s.errosExec; }),
+      m1("Saque", "pctPrimeiro", "1º saque dentro", "%", true, function (s) { return s.pctPrimeiro || null; }),
+      m1("", "df", "Duplas faltas", "", false, function (s) { return s.df; }),
+      m1("", "aces", "Aces do atleta", "", true, function (s) { return s.aces != null ? s.aces : null; }),
+      m1("", "acesAdv", "Aces do adversário", "", false, function (s) { return s.acesAdv != null ? s.acesAdv : null; }),
+      m1("", "dfAdv", "Duplas faltas do adversário", "", null, function (s) { return s.dfAdv != null ? s.dfAdv : null; }),
+      m1("", "pctPrimeiroAdv", "1º saque do adversário dentro", "%", null, function (s) { return s.pctPrimeiroAdv || null; }),
+      m1("Lado da quadra", "pctSacD", "Ganhos no saque do atleta · igualdade", "%", true, function (s) { return s.nSacD ? s.pctSacD : null; }),
+      m1("", "pctSacE", "Ganhos no saque do atleta · vantagem", "%", true, function (s) { return s.nSacE ? s.pctSacE : null; }),
+      m1("", "pctDevD", "Ganhos no saque dele · igualdade", "%", true, function (s) { return s.nDevD ? s.pctDevD : null; }),
+      m1("", "pctDevE", "Ganhos no saque dele · vantagem", "%", true, function (s) { return s.nDevE ? s.pctDevE : null; }),
+      m1("Tipo de ponto", "pctAtaque", "Ganhos em ataque", "%", true, function (s) { return s.nAtaque ? s.pctAtaque : null; }),
+      m1("", "pctContra", "Ganhos em contra-ataque", "%", true, function (s) { return s.nContra ? s.pctContra : null; }),
+      m1("", "pctDefesa", "Ganhos em defesa", "%", true, function (s) { return s.nDefesa ? s.pctDefesa : null; }),
+      m1("Hábitos e decisões", "redeConv", "Subidas à rede convertidas", "%", true, function (s) { return s.rede ? Math.round(s.redeGanha / s.rede * 100) : null; }),
+      m1("", "ataquePerdido", "Demandas de ataque perdidas", "", false, function (s) { return s.ataquePerdido || null; }),
+      m1("Sob pressão", "pctAdversos", "Ganhos em placar adverso", "%", true, function (s) { return s.pctAdversos || null; }),
+      m1("Momento do jogo", "seqFavor", "Maior sequência a favor (pontos)", "", true, function (s) { return seq(s, "melhor"); }),
+      m1("", "seqContra", "Maior sequência contra (pontos)", "", false, function (s) { return seq(s, "pior"); })
+    ];
+    Object.keys(SC_ZONAS).forEach(function (cod, i) { m.push(m1(i === 0 ? "Mapa da quadra (saldo por zona)" : "", "zona-" + cod, SC_ZONAS[cod], "", true, function (s) { var z = (s.zonas || {})[cod]; return z ? z.ganhos - (z.n - z.ganhos) : null; })); });
+    return m;
+  }
+  function abrirRelatorioScouts(ativos) {
+    var lista = ativos.filter(function (x) { return x.resumo; });
+    if (!lista.length) { toast("Sem scouts ativos para o relatório.", null, true); return; }
+    if (!window.QLRelatorioJogos) { toast("Não foi possível carregar o relatório. Recarregue a página.", null, true); return; }
+    var w = window.open("", "_blank");
+    if (!w) { toast("O navegador bloqueou a janela do relatório. Permita pop-ups para este site.", null, true); return; }
+    var jogos = lista.slice().sort(function (a, b) { return String(a.data).localeCompare(String(b.data)); }).map(function (x) {
+      var rs = x.resumo, flat = Object.assign({}, rs, rs.numeros, rs.bolas);
+      return { id: x.id, data: rs.data || x.data, torneio: rs.torneio || "", adversario: "", resultado: rs.resultado || "", concluida: rs.concluida !== false, nivelAdversario: rs.nivelAdversario || "", observacaoFinal: rs.observacaoFinal || "", mental: rs.mental || null, scout: flat };
+    });
+    var html;
+    try {
+      html = window.QLRelatorioJogos.gerar({
+        atleta: jogos[0].scout.atleta || "Atleta", jogos: jogos, metricas: scMetricasRel(), tendencia: scTendenciaRel,
+        leitura: function (s) { return (s.sinais || []).map(function (t) { return ["", t]; }); },
+        detalheDe: function (r) { return r.scout.detalhe || null; }, zonasDe: function (_p, s) { return s.zonas || {}; },
+        cabecalhoHtml: '<div style="border-bottom:3px solid #103B32;padding-bottom:10px;margin-bottom:16px"><div style="font-weight:800;font-size:13px;letter-spacing:.04em;color:#103B32">QUADRALAB · COMPETIÇÃO</div></div>',
+        geradoEm: new Date().toLocaleDateString("pt-BR")
+      });
+    } catch (e) { w.close(); toast("Não foi possível montar o relatório: " + e.message, null, true); return; }
+    w.document.write(html); w.document.close();
+  }
+  function relBotaoHtml(id, n) {
+    return '<div class="cartao" style="margin-top:14px"><h2>Relatório dos jogos</h2><p class="nota" style="margin-top:6px">Reúne ' + (n === 1 ? "o scout ativo" : "os " + n + " scouts ativos") + ' em um documento com gráficos de evolução, comparação de todos os dados, pontos fortes e de atenção e o resumo de cada jogo. Abre pronto para salvar como PDF.</p><div class="acoes"><button type="button" class="btn btn-laranja" id="' + id + '">Exportar relatório dos jogos</button></div></div>';
+  }
   function scComparacaoHtml(ativos) {
     if (ativos.length < 2) return "";
     var jogos = ativos.slice().sort(function (a, b) { return String(a.data).localeCompare(String(b.data)); }), M = scMetricas();
@@ -4110,9 +4176,10 @@
     tela('<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/inicio">‹ Início</a></p><h1>Scouts do treinador</h1><p class="sub">Os scouts de partida que o seu treinador compartilhou com você.</p>' +
       '<form id="fScout" class="cartao" style="margin-top:14px" novalidate><h2>Importar um scout</h2><p class="nota" style="margin-top:6px">Cole o link que o seu treinador gerou (“Link para a família”). O scout fica na sua conta enquanto o link estiver ativo: se o treinador desativar, o conteúdo deixa de aparecer aqui.</p>' +
       '<div class="campo" style="margin-top:10px"><label for="scLink">Link do scout</label><input id="scLink" type="url" inputmode="url" placeholder="https://…/scout/?…" autocomplete="off"></div><div class="aviso" id="avisoSc" role="alert" hidden></div><button class="btn btn-primario" type="submit">Importar</button></form>' +
-      (r.scouts.length ? '<h2 class="secao">Seus scouts</h2><div class="comp-torneios">' + r.scouts.map(function (x) {
+      (ativos.length ? relBotaoHtml("btRelScouts", ativos.length) : "") + (r.scouts.length ? '<h2 class="secao">Seus scouts</h2><div class="comp-torneios">' + r.scouts.map(function (x) {
         return '<a class="cartao comp-torneio" href="#/scouts/' + x.id + '"><p class="olho">' + (x.estado === "ativo" ? "Ativo até " + esc(dataCurta(x.ate)) : "Acesso encerrado") + "</p><h2>" + esc(x.rotulo) + '</h2><p class="nota">' + esc(dataCurta(x.data)) + "</p></a>";
       }).join("") + "</div>" : '<p class="nota" style="margin-top:14px">Nenhum scout importado ainda.</p>') + scComparacaoHtml(ativos));
+    var btRel = document.getElementById("btRelScouts"); if (btRel) btRel.addEventListener("click", function () { abrirRelatorioScouts(ativos); });
     document.getElementById("fScout").addEventListener("submit", async function (ev) {
       ev.preventDefault();
       var av = document.getElementById("avisoSc"); av.hidden = true;
@@ -4288,7 +4355,7 @@
       (r.dados.torneios ? '<div class="cartao" id="v-torneios" style="margin-top:14px"><h2>Temporada e torneios</h2>' + (r.dados.torneios.length ? '<div class="comp-torneios">' + r.dados.torneios.map(function (t) { return '<div class="comp-vinc"><p class="olho">' + esc(rotuloEstadoTorneio(t.estado)) + " · " + esc(quandoTorneio(t)) + "</p><p><strong>" + esc(t.nome) + '</strong></p><p class="nota">' + esc(periodoTorneio(t)) + (t.cidade ? " · " + esc(t.cidade) : "") + (t.categoria ? " · " + esc(t.categoria) : "") + "</p>" + prazoTorneioHtml(t) + "</div>"; }).join("") + "</div>" : '<p class="nota" style="margin-top:6px">Nenhum torneio cadastrado ainda.</p>') + "</div>" : "") +
       (r.dados.preparos ? '<div class="cartao" style="margin-top:14px"><h2>Estratégia por partida' + origemTag("relato") + '</h2>' + (r.dados.preparos.length ? '<div class="comp-torneios">' + r.dados.preparos.map(function (p) { return '<div class="comp-vinc"><p class="olho">' + esc(p.rodada || "Partida") + (p.data ? " · " + dataCurta(p.data) : "") + "</p><p><strong>" + (p.adversario ? "Contra " + esc(p.adversario) : "Preparação") + "</strong></p>" + (p.prioridades && p.prioridades.length ? '<ol class="comp-prior">' + p.prioridades.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ol>" : "") + (p.padrao ? '<p class="nota">Padrão: ' + esc(p.padrao) + "</p>" : "") + (p.hipoteses ? '<p class="nota">Expectativa: ' + esc(p.hipoteses) + "</p>" : "") + "</div>"; }).join("") + "</div>" : '<p class="nota" style="margin-top:6px">Nenhuma preparação ainda.</p>') + "</div>" : "") +
       (r.dados.partidas ? '<div class="cartao" id="v-partidas" style="margin-top:14px"><h2>Partidas' + origemTag("relato") + '</h2><p class="nota" style="margin-top:4px">Resultado e avaliação como o atleta registrou. Não é análise de vídeo.</p>' + (r.dados.partidas.length ? '<div class="comp-torneios">' + r.dados.partidas.map(function (p) { return '<div class="comp-vinc"><p class="olho">' + (p.resultado === "vitoria" ? "Vitória" : "Derrota") + (p.rodada ? " · " + esc(p.rodada) : "") + " · " + dataCurta(p.data) + "</p><p><strong>" + (p.adversario ? "Contra " + esc(p.adversario) : "Partida") + '</strong></p><p class="nota">' + esc(p.placar) + "</p>" + videoHtml(p.video, "Vídeo da partida" + (p.adversario ? " contra " + p.adversario : "")) + "</div>"; }).join("") + "</div>" : '<p class="nota" style="margin-top:6px">Nenhuma partida registrada.</p>') + "</div>" : "") +
-      (r.dados.scouts ? '<div class="cartao" id="v-scouts" style="margin-top:14px"><h2>Scouts do treinador' + origemTag("estatistica") + '</h2>' + (r.dados.scouts.length ? '<div class="comp-torneios">' + r.dados.scouts.map(function (x) { return '<div class="comp-vinc"><p class="olho">' + esc(dataCurta(x.data)) + "</p><p><strong>" + esc(x.rotulo) + '</strong></p><p class="nota">' + x.resumo.pctGanhos + "% dos pontos ganhos · erros " + x.resumo.numeros.errosNos + " · protocolo " + x.resumo.numeros.pctProtocolo + '%</p><div class="acoes"><a class="btn btn-secundario btn-pequeno" href="#/competicao/vinculo/' + esc(id) + "/scout/" + esc(x.id) + '">Ver o jogo completo</a></div></div>'; }).join("") + "</div>" : '<p class="nota" style="margin-top:6px">Nenhum scout importado.</p>') + "</div>" : "") +
+      (r.dados.scouts ? '<div class="cartao" id="v-scouts" style="margin-top:14px"><h2>Scouts do treinador' + origemTag("estatistica") + '</h2>' + (r.dados.scouts.length ? '<div class="acoes"><button type="button" class="btn btn-laranja btn-pequeno" id="btRelVinc">Exportar relatório dos jogos</button></div>' : "") + (r.dados.scouts.length ? '<div class="comp-torneios">' + r.dados.scouts.map(function (x) { return '<div class="comp-vinc"><p class="olho">' + esc(dataCurta(x.data)) + "</p><p><strong>" + esc(x.rotulo) + '</strong></p><p class="nota">' + x.resumo.pctGanhos + "% dos pontos ganhos · erros " + x.resumo.numeros.errosNos + " · protocolo " + x.resumo.numeros.pctProtocolo + '%</p><div class="acoes"><a class="btn btn-secundario btn-pequeno" href="#/competicao/vinculo/' + esc(id) + "/scout/" + esc(x.id) + '">Ver o jogo completo</a></div></div>'; }).join("") + "</div>" : '<p class="nota" style="margin-top:6px">Nenhum scout importado.</p>') + "</div>" : "") +
       (r.dados.diario ? '<div class="cartao" style="margin-top:14px"><h2>Diário' + origemTag("relato") + '</h2>' + (r.diarioPorRegistro ? '<p class="nota" style="margin-top:4px">O atleta compartilhou só estes registros, um a um.</p>' : "") + (r.dados.diario.length ? '<div class="comp-torneios">' + r.dados.diario.map(function (d) { return '<div class="comp-vinc"><p class="olho">' + dataCurta(d.data) + "</p><p>" + esc(d.texto) + "</p></div>"; }).join("") + "</div>" : '<p class="nota" style="margin-top:6px">Sem registros.</p>') + "</div>" : "") +
       (r.dados.focos ? '<div class="cartao" style="margin-top:14px"><h2>Foco de treino' + origemTag("relato") + '</h2>' + (r.dados.focos.length ? '<ul class="comp-lista">' + r.dados.focos.map(function (f) { return '<li class="comp-vinc"><p><strong>' + esc(f.texto) + '</strong></p><p class="nota">' + esc(STATUS_FOCO_ROT[f.status] || f.status) + " · " + esc(f.origemRotulo || "") + "</p></li>"; }).join("") + "</ul>" : '<p class="nota" style="margin-top:6px">Nenhum foco ainda.</p>') + "</div>" : "") +
       (r.referencias ? '<div class="cartao" id="v-devolutiva" style="margin-top:14px"><h2>Escrever devolutiva</h2><form id="fDev" novalidate style="margin-top:8px"><div class="campo"><label for="devRef">Sobre</label><select id="devRef"><option value="geral:">Geral</option>' +
@@ -4298,6 +4365,7 @@
       (r.devolutivas && r.devolutivas.length ? '<h2 class="secao">' + (r.referencias ? "Suas devolutivas" : "Devolutivas do treinador") + origemTag("treinador") + "</h2>" + r.devolutivas.map(function (d) { return devolutivaHtml(d, r.referencias ? '<div class="acoes"><button type="button" class="btn btn-texto" data-exdev="' + d.id + '">Excluir</button></div>' : ""); }).join("") : "") +
       (r.emBreve && r.emBreve.length ? '<p class="nota" style="margin-top:14px">Compartilhado e ainda sem conteúdo nesta etapa: ' + esc(rotuloAreas(r.emBreve)) + ". Essas áreas aparecem aqui quando chegarem as próximas etapas.</p>" : ""));
     Array.prototype.forEach.call(app.querySelectorAll("[data-rolar]"), function (a) { a.addEventListener("click", function (ev) { ev.preventDefault(); var alvo = document.getElementById(a.getAttribute("data-rolar")); if (alvo) alvo.scrollIntoView({ behavior: "smooth", block: "start" }); }); });
+    var btRelV = document.getElementById("btRelVinc"); if (btRelV) btRelV.addEventListener("click", function () { abrirRelatorioScouts(r.dados.scouts); });
     var fd = document.getElementById("fDev");
     if (fd) fd.addEventListener("submit", async function (ev) {
       ev.preventDefault();
