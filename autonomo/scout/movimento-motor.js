@@ -271,6 +271,79 @@
     return { texto: txt, fortes: fortes, prioridades: aten, revisar: rev };
   }
 
+
+  /* ── Histórico, comparação de evolução e cotas por plano ── */
+  var RANK = { ok: 2, atencao: 1, nao_avaliavel: 0 };
+
+  /* Registro compacto guardado no jogador: só medidas e pareceres (sem vídeo nem fotos). */
+  function resumir(r, meta) {
+    meta = meta || {};
+    var co = conclusao(r);
+    return {
+      id: meta.id || ("mv" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
+      criadoEm: meta.criadoEm || new Date().toISOString(),
+      golpe: r.golpe || "forehand", emp: meta.emp || "", dom: meta.dom || "D",
+      itens: r.itens.map(function (i) { return { n: i.nome, s: i.status, v: i.valor == null ? null : Math.round(i.valor * 10) / 10, u: i.unidade || "", r: i.ref || "" }; }),
+      res: { ok: r.resumo.ok, atencao: r.resumo.atencao, nao: r.resumo.nao_avaliavel },
+      texto: co ? co.texto : "", prio: co ? co.prioridades.map(function (p) { return p.nome; }) : [],
+      origem: meta.origem || "video"
+    };
+  }
+
+  function mesmoGolpe(a, b) { return a.golpe === b.golpe && (a.golpe !== "backhand" || String(a.emp) === String(b.emp)); }
+  function ordenar(lista) { return (lista || []).slice().sort(function (a, b) { return a.criadoEm < b.criadoEm ? -1 : 1; }); }
+
+  /* Última análise do mesmo golpe anterior à data do registro (ou a mais recente, se ainda não há data). */
+  function anteriorDe(historico, reg) {
+    var ant = null;
+    ordenar(historico).forEach(function (h) {
+      if (h.id !== reg.id && mesmoGolpe(h, reg) && (!reg.criadoEm || h.criadoEm < reg.criadoEm)) ant = h;
+    });
+    return ant;
+  }
+
+  function comparar(ant, atu) {
+    if (!ant || !atu) return null;
+    var mapa = {}, itens = [], melhor = [], pior = [], igual = 0;
+    ant.itens.forEach(function (i) { mapa[i.n] = i; });
+    atu.itens.forEach(function (i) {
+      var a = mapa[i.n];
+      if (!a) return;
+      var d = (a.v != null && i.v != null) ? Math.round((i.v - a.v) * 10) / 10 : null;
+      var sent = RANK[i.s] > RANK[a.s] ? 1 : (RANK[i.s] < RANK[a.s] ? -1 : 0);
+      if (i.s === "nao_avaliavel" || a.s === "nao_avaliavel") sent = 0;
+      itens.push({ nome: i.n, ant: a, atu: i, delta: d, sentido: sent });
+      if (sent > 0) melhor.push(i.n); else if (sent < 0) pior.push(i.n); else igual++;
+    });
+    var dok = atu.res.ok - ant.res.ok;
+    var txt = !itens.length ? "Sem itens em comum para comparar."
+      : (melhor.length ? "Melhoraram: " + melhor.join(", ") + ". " : "") + (pior.length ? "Pioraram: " + pior.join(", ") + ". " : "")
+        + (!melhor.length && !pior.length ? "Os pareceres se mantiveram iguais à análise anterior. " : "")
+        + "Itens dentro da referência: " + ant.res.ok + " → " + atu.res.ok + (dok > 0 ? " (+" + dok + ")" : dok < 0 ? " (" + dok + ")" : " (igual)") + ".";
+    return { de: ant.criadoEm, para: atu.criadoEm, itens: itens, melhoraram: melhor, pioraram: pior, iguais: igual, deltaOk: dok, texto: txt };
+  }
+
+  /* Série para o gráfico de evolução de um golpe: itens OK/Atenção por análise. */
+  function serie(historico, golpe, emp) {
+    return ordenar(historico).filter(function (h) { return h.golpe === golpe && (golpe !== "backhand" || String(h.emp) === String(emp || h.emp)); })
+      .map(function (h) { return { id: h.id, t: h.criadoEm, ok: h.res.ok, atencao: h.res.atencao, nao: h.res.nao }; });
+  }
+
+  /* Quanto o plano libera. Sem plano (academia antiga/Team Yoda): ilimitado. null = ilimitado. */
+  var LIMITES_PLANO = {
+    movimento: { gratis: 0, essencial: 5, premium: null },
+    video: { gratis: 0, essencial: 2, premium: null }
+  };
+  function mesDe(iso) { return String(iso || "").slice(0, 7); }
+  function cota(recurso, plano, registros, agora) {
+    var tabela = LIMITES_PLANO[recurso] || {};
+    var limite = (plano && Object.prototype.hasOwnProperty.call(tabela, plano)) ? tabela[plano] : null;
+    var mes = mesDe(agora || new Date().toISOString());
+    var usados = (registros || []).filter(function (r) { return mesDe(r.criadoEm) === mes; }).length;
+    return { limite: limite, usados: usados, restantes: limite == null ? null : Math.max(0, limite - usados), liberado: limite == null || usados < limite, bloqueado: limite === 0 };
+  }
+
+
   /* Quadros sintéticos (demonstração e testes). golpe: "forehand" | "backhand" | "saque". */
   function sintetico(n, dom, golpe) {
     if (golpe === "saque") return sinteticoSaque(n, dom);
@@ -324,5 +397,5 @@
     return q;
   }
 
-  return { P: P, FASES: FASES, REGRAS: REGRAS, ang: ang, segmentar: segmentar, medidas: medidas, nomesFases: nomesFases, checklist: checklist, conclusao: conclusao, sintetico: sintetico, suavizar: suavizar };
+  return { P: P, FASES: FASES, REGRAS: REGRAS, ang: ang, segmentar: segmentar, medidas: medidas, nomesFases: nomesFases, checklist: checklist, conclusao: conclusao, resumir: resumir, comparar: comparar, anteriorDe: anteriorDe, serie: serie, cota: cota, LIMITES_PLANO: LIMITES_PLANO, ordenar: ordenar, sintetico: sintetico, suavizar: suavizar };
 });
