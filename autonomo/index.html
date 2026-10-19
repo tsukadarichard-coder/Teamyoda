@@ -11392,28 +11392,32 @@ function CartaoCadeia({ c }) {
 /* Planejamento que melhora com os dados: o módulo scout/evidencias.js lê as análises de vídeo e os jogos com scout do jogador, aponta o que se repete
    e propõe ajustes. Nada muda sozinho: o treinador aceita, recusa ou deixa para depois, e o que foi decidido entra no diário e no gerador de plano. */
 function exerciciosParaRevisao(aluno) {
-  return (areaId, n) => {
+  return (areaId, n, achado) => {
     const a = AREAS[areaId];
     if (!a) return [];
+    const QE = typeof window !== "undefined" && window.QLEvidencias;
     const base = exerciciosParaSorteio().filter((e) => a.familias.includes(e.f) && e.e.includes(aluno.estagio));
-    const chave = base.filter((e) => a.busca.test(e.n + " " + e.m));
-    return chave.concat(base.filter((e) => !chave.includes(e))).slice(0, n).map((e) => e.c);
+    const doItem = QE && achado && achado.item ? QE.buscaDoItem(achado.item) : null;
+    const item = doItem ? base.filter((e) => doItem.test(e.n + " " + e.m)) : [];
+    const chave = base.filter((e) => !item.includes(e) && a.busca.test(e.n + " " + e.m));
+    const resto = base.filter((e) => !item.includes(e) && !chave.includes(e));
+    return item.concat(chave, resto).slice(0, n).map((e) => e.c);
   };
 }
-function propostasNovasDoAluno(aluno) {
+function propostasNovasDoAluno(aluno, todos) {
   const QE = typeof window !== "undefined" && window.QLEvidencias;
   if (!QE || !aluno) return [];
   let vig = null;
   try { vig = aulaEmVigor(aluno); } catch (e) { vig = null; }
   let restantes = null;
   if (aluno.plano) { try { restantes = listaAulas(aluno.plano, aluno.regPlano).filter((a) => statusAula(aluno.regPlano, a.id) !== "feita").length; } catch (e) { restantes = null; } }
-  return QE.novasPropostas(aluno, { agora: new Date().toISOString(), blocoAtual: vig && vig.bloco, aulasRestantes: restantes, exercicios: exerciciosParaRevisao(aluno) });
+  return QE.novasPropostas(aluno, { agora: new Date().toISOString(), blocoAtual: vig && vig.bloco, aulasRestantes: restantes, exercicios: exerciciosParaRevisao(aluno), aprendizado: todos && todos.length > 1 ? QE.aprendizado(todos) : undefined });
 }
 function CartaoRevisoesPlano({ alunos, irPara }) {
   const lista = useMemo(() => {
     const QE = typeof window !== "undefined" && window.QLEvidencias;
     if (!QE || !irPara) return [];
-    return (alunos || []).filter((a) => a && a.nome).map((a) => ({ a, n: QE.pendentes(a).length + propostasNovasDoAluno(a).length })).filter((x) => x.n > 0);
+    return (alunos || []).filter((a) => a && a.nome).map((a) => ({ a, n: QE.pendentes(a).length + propostasNovasDoAluno(a, alunos).length })).filter((x) => x.n > 0);
   }, [alunos]);
   if (!lista.length) return null;
   return (
@@ -11458,7 +11462,7 @@ function AvisoRevisaoTurma({ membros }) {
     </Aviso></div>
   );
 }
-function RevisaoPlano({ aluno, setAlunos, podeEditar }) {
+function RevisaoPlano({ aluno, alunos, setAlunos, podeEditar }) {
   const QE = typeof window !== "undefined" && window.QLEvidencias;
   const [verDiario, setVerDiario] = useState(false);
   const [verEvid, setVerEvid] = useState(false);
@@ -11466,7 +11470,7 @@ function RevisaoPlano({ aluno, setAlunos, podeEditar }) {
   const chaveDados = (aluno.movimentos || []).length + "|" + (aluno.registros || []).length + "|" + (aluno.revisoesPlano || []).length;
   useEffect(() => {
     if (!QE || !podeEditar || !setAlunos) return;
-    const novas = propostasNovasDoAluno(aluno);
+    const novas = propostasNovasDoAluno(aluno, alunos);
     if (!novas.length) return;
     setAlunos((lista) => lista.map((x) => {
       if (x.id !== aluno.id) return x;
@@ -12619,7 +12623,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
         {!podeEditar && (
           <Aviso>{eTurma ? "Esta turma" : "Este jogador"} é de outro treinador — a montagem do plano fica travada. Só o professor responsável ou o coordenador podem gerar ou colar um plano.</Aviso>
         )}
-        {!eTurma && <RevisaoPlano aluno={aluno} setAlunos={setAlunos} podeEditar={podeEditar} />}
+        {!eTurma && <RevisaoPlano aluno={aluno} alunos={alunos} setAlunos={setAlunos} podeEditar={podeEditar} />}
         {!planoCandidato && (
           <Aviso cor={C.quadra}>
             {eTurma ? "Esta turma ainda não tem um planejamento. Escolha uma opção abaixo para começar."
@@ -13097,7 +13101,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
 
       {modo === "resumo" && (
         <>
-          {!eTurma && <RevisaoPlano aluno={aluno} setAlunos={setAlunos} podeEditar={podeEditar} />}
+          {!eTurma && <RevisaoPlano aluno={aluno} alunos={alunos} setAlunos={setAlunos} podeEditar={podeEditar} />}
           {eTurma && <AvisoRevisaoTurma membros={membros} />}
           <LinhaDeRaciocinio plano={plano} aulas={aulas} status={status} reg={reg} />
 

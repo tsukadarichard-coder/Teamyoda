@@ -90,3 +90,21 @@ console.log("check-evidencias OK (" + n + " verificações)");
   assert(!E3.novasPropostas(base, { agora: "2026-09-20T00:00:00Z" }).some(p => p.tipo === "horizonte"), "sem plano, sem horizonte");
   console.log("horizonte ok");
 }
+{
+  const E4 = require("../scout/evidencias.js");
+  const bio = (id, dia, s) => mov(id, dia, "forehand", [["Flexão de joelhos no giro", s, 10]]);
+  // jogador A: reforço com X2 funcionou; jogador B: X3 não funcionou
+  const mk = (ex, status, fim) => ({
+    movimentos: [bio("1", "01", "atencao"), bio("2", "05", "atencao")].concat(fim ? [Object.assign(bio("3", "10", fim), { criadoEm: "2026-10-10T10:00:00Z" })] : []),
+    revisoesPlano: [{ id: "r1", status: "aceita", aplicada: true, decididoEm: "2026-10-01T00:00:00Z", chave: "k", titulo: "t", tipo: "reforco", acao: { tipo: "reforco", ex }, esperado: { fonte: "biomecanica", golpe: "forehand", emp: "", item: "Flexão de joelhos no giro" } }]
+  });
+  const ap = E4.aprendizado([mk(["X2", "X9"], "aceita", "ok"), mk(["X3"], "aceita", "atencao")]);
+  // um só "sem melhora" exige 2 análises novas: aqui há 1, então segue aguardando e não conta
+  assert(ap["Flexão de joelhos no giro"].X2 === 1 && ap["Flexão de joelhos no giro"].X9 === 1 && !ap["Flexão de joelhos no giro"].X3, "aprendizado só conta resultados conclusivos");
+  const novo = { movimentos: [bio("1", "01", "atencao"), bio("2", "10", "atencao")] };
+  const props2 = E4.novasPropostas(novo, { agora: "2026-09-12T00:00:00Z", aprendizado: ap, exercicios: () => ["X1", "X3", "X2", "X9"] }).filter(p => p.tipo === "reforco");
+  assert(props2[0].acao.ex[0] === "X2" || props2[0].acao.ex[0] === "X9", "exercício que funcionou vem primeiro: " + props2[0].acao.ex);
+  assert(E4.buscaDoItem("Split step antes do golpe").test("Treino de split step"), "busca do item");
+  assert(E4.buscaDoItem("Item desconhecido") === null, "item sem mapa");
+  console.log("aprendizado ok");
+}

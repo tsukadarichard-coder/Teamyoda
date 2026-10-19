@@ -117,6 +117,44 @@
   }
 
   /* ── propostas ── */
+  /* Mapa checklist de vídeo → termos do catálogo de exercícios (busca em nome + método). Serve para o reforço sugerido atacar o item, não só a área. */
+  var BUSCA_ITEM = [
+    [/lançamento|lancamento/i, "lançamento|toss|arremesso"],
+    [/flexão de joelhos na armada|extensão de pernas|extensao de pernas/i, "pernas|agach|impuls|salto|armada"],
+    [/cotovelo|extensão do cotovelo|altura do contato \(punho/i, "contato|ponto de impacto|cotovelo"],
+    [/contato à frente|contato a frente/i, "contato|à frente|a frente"],
+    [/altura do contato/i, "altura|bolas altas"],
+    [/duas mãos|braço não dominante|antebraço não dominante/i, "não dominante|nao dominante|duas mãos|backhand"],
+    [/rotação de ombros/i, "rota|giro|ombro"],
+    [/split step/i, "split"],
+    [/flexão de joelhos no giro|extensão dos joelhos|flexão de tronco/i, "base|pernas|joelho|agach|tronco"],
+    [/seguimento/i, "seguimento|finaliza"]
+  ];
+  function buscaDoItem(item) {
+    for (var i = 0; i < BUSCA_ITEM.length; i++) if (BUSCA_ITEM[i][0].test(item || "")) return new RegExp(BUSCA_ITEM[i][1], "i");
+    return null;
+  }
+  /* Aprendizado entre jogadores: ajustes aceitos que funcionaram (ou não) ensinam quais exercícios priorizar para o mesmo item/métrica. Fica só na memória do app. */
+  function chaveAprendizado(r) { var e = r.esperado || {}; return e.item || e.metrica || null; }
+  function aprendizado(alunos) {
+    var pontos = {};
+    (alunos || []).forEach(function (a) {
+      var ef = efeitos(a);
+      (a.revisoesPlano || []).forEach(function (r) {
+        var k = chaveAprendizado(r), res = ef[r.id];
+        if (!k || !res || !r.aplicada || !r.acao || !r.acao.ex) return;
+        var d = res.estado === "funcionou" ? 1 : res.estado === "sem_melhora" ? -1 : 0;
+        if (!d) return;
+        pontos[k] = pontos[k] || {};
+        r.acao.ex.forEach(function (c) { pontos[k][c] = (pontos[k][c] || 0) + d; });
+      });
+    });
+    return pontos;
+  }
+  function escolher(ctx, area, achado, n) {
+    var cand = ctx.exercicios ? ctx.exercicios(area, 12, achado) : [], pts = (ctx.aprendizado || {})[achado.item || achado.metrica] || {};
+    return cand.map(function (c, i) { return { c: c, i: i, p: pts[c] || 0 }; }).sort(function (x, y) { return y.p - x.p || x.i - y.i; }).filter(function (x, i, l) { return x.p > -1 || i < n; }).slice(0, n).map(function (x) { return x.c; });
+  }
   function dicas(achado) {
     var d = B && B.INTERV && B.INTERV[achado.item];
     return d ? d.ex.slice(0, 3) : [];
@@ -137,19 +175,19 @@
     ctx = ctx || {}; var agora = ctx.agora || new Date().toISOString(), rev = aluno.revisoesPlano || [], out = [];
     var pend = rev.filter(function (r) { return r.status === "pendente"; }).length;
     if (pend >= REF.maxPendentes) return out;
-    var ach = achados(aluno), ex = function (area, n) { return ctx.exercicios ? ctx.exercicios(area, n) : []; };
+    var ach = achados(aluno), ex = function (area, n, a) { return escolher(ctx, area, a || {}, n); };
     function tentar(chave, fazer) { if (out.length + pend < REF.maxPendentes && out.length < REF.maxNovas && !bloqueada(rev, chave, agora)) out.push(fazer(chave)); }
     ach.forEach(function (a) {
       if (a.sentido === "problema" && a.fonte === "biomecanica" && a.forca !== "baixa")
         tentar("reforco:" + a.id, function (c) {
           return proposta(a, { chave: c, agora: agora, tipo: "reforco", titulo: "Reforçar " + a.titulo, dicas: dicas(a),
-            acao: { tipo: "reforco", area: a.area, ex: ex(a.area, 3), bloco: ctx.blocoAtual || null },
+            acao: { tipo: "reforco", area: a.area, ex: ex(a.area, 3, a), bloco: ctx.blocoAtual || null },
             esperado: { fonte: "biomecanica", golpe: a.golpe, emp: a.emp, item: a.item, meta: "ok" }, linhaBase: { s: "atencao", v: a.valor == null ? null : a.valor } });
         });
       else if (a.sentido === "problema" && a.fonte === "scout" && (a.area === "saque" || a.area === "devolucao" || a.area === "fundo"))
         tentar("reforco:" + a.id, function (c) {
           return proposta(a, { chave: c, agora: agora, tipo: "reforco", titulo: "Reforçar: " + a.titulo.charAt(0).toLowerCase() + a.titulo.slice(1),
-            acao: { tipo: "reforco", area: a.area, ex: ex(a.area, 3), bloco: ctx.blocoAtual || null },
+            acao: { tipo: "reforco", area: a.area, ex: ex(a.area, 3, a), bloco: ctx.blocoAtual || null },
             esperado: a.metrica ? { fonte: "scout", metrica: a.metrica, meta: a.meta, sentido: a.sentidoMeta || "subir" } : { fonte: "scout", metrica: "errosExec", sentido: "descer" },
             linhaBase: a.metrica ? { valor: a.valor } : null });
         });
@@ -285,5 +323,5 @@
   }
   function pendentes(aluno) { return (aluno.revisoesPlano || []).filter(function (r) { return r.status === "pendente"; }); }
 
-  return { REF: REF, achados: achados, novasPropostas: novasPropostas, efeitos: efeitos, textoParaPrompt: textoParaPrompt, metaDaArea: metaDaArea, decidir: decidir, pendentes: pendentes, bloqueada: bloqueada };
+  return { REF: REF, achados: achados, novasPropostas: novasPropostas, efeitos: efeitos, textoParaPrompt: textoParaPrompt, metaDaArea: metaDaArea, aprendizado: aprendizado, buscaDoItem: buscaDoItem, decidir: decidir, pendentes: pendentes, bloqueada: bloqueada };
 });
