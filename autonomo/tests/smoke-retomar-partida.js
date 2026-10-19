@@ -4,14 +4,16 @@ const assert = require("assert");
 const { abrir, chromium, existe } = require("./_harness-scout.js");
 if (!existe()) { console.log("smoke-retomar-partida: pulado (sem React/Babel locais; defina CDN_DIR)"); process.exit(0); }
 const MIN = 180000;
-async function nova(b, porta, alunosIniciais) {
+async function nova(b, porta, alunosIniciais, sessao) {
   const p = await b.newPage({ viewport: { width: 420, height: 900 } });
   p.setDefaultTimeout(30000); p.erros = []; p.aceitar = true; p.dialogos = [];
   p.on("pageerror", (e) => p.erros.push(e.message));
   p.on("dialog", async (d) => { p.dialogos.push(d.message()); if (p.aceitar) await d.accept(); else await d.dismiss(); });
   if (alunosIniciais) await p.addInitScript((a) => { window.__alunosIniciais = a; }, alunosIniciais);
+  if (sessao) await p.addInitScript((kv) => { Object.keys(kv).forEach((k) => sessionStorage.setItem(k, kv[k])); }, sessao);
   await p.goto("http://localhost:" + porta + "/");
-  await p.waitForFunction(() => document.body.innerText.includes("Análise de partida"), null, { timeout: 120000 });
+  /* pedido do Caderno abre direto na marcação; senão a tela inicial do scout */
+  await p.waitForFunction((direto) => document.body.innerText.includes(direto ? "Encerrar e ver relatório" : "Análise de partida"), !!sessao, { timeout: 120000 });
   return p;
 }
 const marca = async (p, n) => { for (let i = 0; i < n; i++) { await p.getByRole("button", { name: "Winner meu" }).click(); await p.getByRole("button", { name: "1-2", exact: true }).click(); await p.waitForTimeout(450); } };
@@ -88,7 +90,7 @@ const aluno = (p) => p.evaluate(() => JSON.parse(JSON.stringify(window.__alunos[
     const pontos = Array.from({ length: 6 }, (_, i) => ({ fim: "winner_nos", nos: true, saque: null, bola: "1-2", causa: null, rede: false, situacao: null, adverso: false, sacador: "nos", lado: "D", dirSaque: null, n: i + 1, placarAntes: "0-0", jogo: 1, set: 1 }));
     const reg = { id: "r1", tipo: "jogo", data: "2026-10-18", torneio: "jogo-treino", adversario: "Beto", resultado: "não concluído", concluida: false, scout: { n: 6, pontos, cfg: { formato: "3sets", saca: "nos", semVantagem: false, superTiebreakDecisivo: false } } };
     p = await nova(b, porta, [{ id: "a1", nome: "Ana Souza", registros: [reg] }]);
-    t = await texto(p); assert(t.includes("Partidas interrompidas salvas no caderno") && t.includes("contra Beto"), app + ": lista de interrompidas salvas. " + t.slice(0, 300));
+    t = await texto(p); assert(t.includes("Voltar a um jogo salvo") && t.includes("contra Beto"), app + ": lista de interrompidas salvas. " + t.slice(0, 300));
     await p.getByRole("button", { name: "Retomar", exact: true }).click(); await p.waitForTimeout(500);
     assert((await texto(p)).includes("6 pontos"), app + ": retomou a partida salva com 6 pontos");
     await marca(p, 1);
@@ -96,6 +98,26 @@ const aluno = (p) => p.evaluate(() => JSON.parse(JSON.stringify(window.__alunos[
     await p.getByRole("button", { name: "Salvar no caderno" }).click(); await p.waitForTimeout(400);
     const a3 = await aluno(p); assert.strictEqual(a3.registros.length, 1, app + ": substituiu o registro interrompido"); assert.strictEqual(a3.registros[0].scout.pontos.length, 7);
     assert.deepStrictEqual(p.erros, [], app + ": erros de JS (C) " + p.erros.join(" | "));
+    await p.close();
+
+    /* D) jogo concluído e já compartilhado com a família: reabre (também pelo pedido do Caderno), corrige e salva no mesmo registro */
+    const ganho = Array.from({ length: 48 }, (_, i) => ({ fim: "winner_nos", nos: true, saque: null, bola: "1-2", causa: null, rede: false, situacao: null, adverso: false, sacador: "nos", lado: "D", dirSaque: null, n: i + 1, placarAntes: "0-0", jogo: 1, set: 1 }));
+    const concl = { id: "rJ", tipo: "jogo", data: "2026-10-10", torneio: "Interclubes", adversario: "Caio", resultado: "6-0 6-0", concluida: true, observacaoFinal: "Jogo sólido.", nivelAdversario: "igual",
+      compartilhado: { token: "tokenfamilia123", criadoEm: "2026-10-10T10:00:00Z", ate: "2099-01-01", publico: { n: 48 } },
+      scout: { n: 48, pontos: ganho, cfg: { formato: "3sets", saca: "nos", semVantagem: false, superTiebreakDecisivo: false } } };
+    p = await nova(b, porta, [{ id: "a1", nome: "Ana Souza", registros: [concl] }], { "ql-reabrir:a1": "rJ" });
+    t = await texto(p); assert(t.includes("48 pontos") && t.includes("Encerrar e ver relatório"), app + ": o pedido do Caderno abre o jogo concluído na marcação. " + t.slice(0, 200));
+    assert(t.includes("Partida encerrada"), app + ": mostra que a partida estava encerrada");
+    await p.getByRole("button", { name: "Desfazer" }).click(); await p.waitForTimeout(300);
+    assert((await texto(p)).includes("47 pontos"), app + ": desfaz o último ponto de um jogo concluído");
+    await p.getByRole("button", { name: "Encerrar e ver relatório" }).click(); await p.waitForTimeout(500);
+    await p.getByRole("button", { name: "Salvar no caderno" }).click(); await p.waitForTimeout(400);
+    const a4 = await aluno(p); assert.strictEqual(a4.registros.length, 1, app + ": o jogo reaberto não duplica");
+    const r4 = a4.registros[0]; assert.strictEqual(r4.id, "rJ", app + ": mantém o mesmo registro");
+    assert.strictEqual(r4.scout.pontos.length, 47); assert.strictEqual(r4.compartilhado.token, "tokenfamilia123", app + ": o link da família continua o mesmo");
+    assert(r4.compartilhado.publico && r4.compartilhado.publico.placar && r4.compartilhado.publico.n === 47, app + ": o link da família passa a mostrar o jogo atualizado com o placar");
+    assert.strictEqual(r4.observacaoFinal, "Jogo sólido."); assert.strictEqual(r4.nivelAdversario, "igual");
+    assert.deepStrictEqual(p.erros, [], app + ": erros de JS (D) " + p.erros.join(" | "));
     await p.close(); await b.close(); srv.close();
     console.log("smoke-retomar-partida " + app + ": ok");
   }

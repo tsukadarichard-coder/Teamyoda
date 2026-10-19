@@ -8809,7 +8809,7 @@ function dataHoraCurta(iso) {
   const d = new Date(iso);
   return isNaN(d) ? "" : d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) + " " + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
-const interrompidaRetomavel = (r) => r.tipo === "jogo" && r.scout && !r.concluida && (r.scout.pontos || []).length > 0;
+const reabrivel = (r) => r.tipo === "jogo" && r.scout && (r.scout.pontos || []).length > 0; /* jogos vindos do Competição não têm os pontos e não reabrem */
 /* Início: partidas que ficaram pela metade (rascunho na nuvem), para continuar de onde pararam. */
 function CartaoPartidasEmAndamento({ alunos, aoAbrirScout }) {
   const lista = (alunos || []).filter((a) => a.nome && a.scoutRascunho && (a.scoutRascunho.pontos || []).length);
@@ -9180,6 +9180,15 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
   /* a partida em andamento vem do aparelho ou da nuvem (a mais recente): assim ela volta em outro aparelho e depois de limpar o navegador */
   useEffect(() => {
     if (fase !== "antes") return;
+    /* pedido vindo do Caderno ("Reabrir partida"): abre direto na marcação */
+    try {
+      const pedido = sessionStorage.getItem("ql-reabrir:" + aluno.id);
+      if (pedido) {
+        sessionStorage.removeItem("ql-reabrir:" + aluno.id);
+        const reg = (aluno.registros || []).find((x) => x.id === pedido);
+        if (reg && reabrivel(reg)) { retomarDoRegistro(reg); return; }
+      }
+    } catch { /* sem sessionStorage: segue o fluxo normal */ }
     let local = null;
     try {
       const bruto = localStorage.getItem(ChaveRascunho(aluno.id));
@@ -9341,14 +9350,14 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
             </div>
           </div>
         )}
-        {partidasAnteriores.some(interrompidaRetomavel) && (
+        {partidasAnteriores.some(reabrivel) && (
           <div style={{ background: C.cal, borderLeft: "3px solid " + C.linha, padding: "13px 15px", marginBottom: 16 }}>
-            <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>Partidas interrompidas salvas no caderno</p>
-            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>Encerrou uma partida sem querer? Reabra para continuar de onde parou. Ao salvar de novo, o registro antigo é substituído.</p>
-            {partidasAnteriores.filter(interrompidaRetomavel).slice(-5).reverse().map((r) => (
+            <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>Voltar a um jogo salvo</p>
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>Encerrou sem querer, marcou algo errado ou quer continuar um jogo? Reabra com todos os pontos: ao salvar de novo, o registro é atualizado (o link da família continua o mesmo).</p>
+            {partidasAnteriores.filter(reabrivel).slice(-6).reverse().map((r) => (
               <div key={r.id} className="flex items-center justify-between gap-2 mt-2" style={{ borderTop: "1px solid " + C.linha, paddingTop: 8 }}>
-                <span style={{ ...prosa, fontSize: 13 }}>{String(r.data || "").split("-").reverse().join("/")}{r.adversario && r.adversario !== "—" ? " · contra " + r.adversario : ""} · {r.resultado || "sem sets fechados"} · {r.scout.pontos.length} pontos</span>
-                <Botao pequeno variante="saibro" onClick={() => retomarDoRegistro(r)}>Retomar</Botao>
+                <span style={{ ...prosa, fontSize: 13 }}>{String(r.data || "").split("-").reverse().join("/")}{r.adversario && r.adversario !== "—" ? " · contra " + r.adversario : ""} · {r.resultado || "sem sets fechados"} · {r.scout.pontos.length} pontos{r.concluida === false ? " · interrompida" : ""}</span>
+                <Botao pequeno variante="saibro" onClick={() => retomarDoRegistro(r)}>{r.concluida === false ? "Retomar" : "Reabrir"}</Botao>
               </div>
             ))}
           </div>
@@ -10392,14 +10401,15 @@ function Relatorio({ aluno, alunos, setAlunos, cfg, pontos, placar, aoSair, aoCo
   const sinais = useMemo(() => leitura(r), [r]);
   const [salvo, setSalvo] = useState(false);
   const [salvoId, setSalvoId] = useState(null);
-  const [obsFinal, setObsFinal] = useState("");
-  const [nivelAdv, setNivelAdv] = useState("");
+  const original = retomandoId ? (aluno.registros || []).find((x) => x.id === retomandoId) : null; /* jogo reaberto: o registro é atualizado, não duplicado */
+  const [obsFinal, setObsFinal] = useState(original ? original.observacaoFinal || "" : "");
+  const [nivelAdv, setNivelAdv] = useState(original ? original.nivelAdversario || "" : "");
   const [torneioFinal, setTorneioFinal] = useState(cfg.torneio || "");
   const concluida = !!(placar && placar.fim);
 
   function salvar() {
     const reg = {
-      id: "r" + Date.now(), tipo: "jogo", data: new Date().toISOString().slice(0, 10),
+      id: original ? original.id : "r" + Date.now(), tipo: "jogo", data: new Date().toISOString().slice(0, 10),
       torneio: torneioFinal.trim().slice(0, 80) || "jogo-treino", adversario: cfg.adversario || "—", nivelAdversario: nivelAdv,
       plano: "", protocolo: r.pctProtocolo, erros12: r.pctErrosCurtos,
       revelou: sinais.map((s) => s[1]).join(" "),
@@ -10407,7 +10417,12 @@ function Relatorio({ aluno, alunos, setAlunos, cfg, pontos, placar, aoSair, aoCo
       concluida, observacaoFinal: obsFinal.trim().slice(0, 1200), mental: mentalLimpo(mental),
       scout: { ...r, pontos, cfg: { formato: cfg.formato, saca: cfg.saca, semVantagem: !!cfg.semVantagem, superTiebreakDecisivo: !!cfg.superTiebreakDecisivo } },
     };
-    setAlunos(alunos.map((a) => a.id === aluno.id ? { ...a, registros: [...(a.registros || []).filter((x) => x.id !== retomandoId), reg] } : a));
+    /* o link da família da partida reaberta continua o mesmo e passa a mostrar o placar e os números atualizados */
+    if (original && original.compartilhado && original.compartilhado.token) {
+      reg.compartilhado = { ...original.compartilhado };
+      if (original.compartilhado.ate >= new Date().toISOString().slice(0, 10)) reg.compartilhado.publico = montarResumoPublico(reg, aluno);
+    }
+    setAlunos(alunos.map((a) => a.id === aluno.id ? { ...a, registros: (a.registros || []).some((x) => x.id === reg.id) ? a.registros.map((x) => x.id === reg.id ? reg : x) : [...(a.registros || []), reg] } : a));
     setSalvo(true); setSalvoId(reg.id);
     if (aoConcluir) aoConcluir();
   }
@@ -10710,7 +10725,7 @@ function PainelNovoRegistro({ aoEscolher, aoFechar }) {
   );
 }
 
-function TelaRegistro({ aluno, alunos, setAlunos, identidade, abrirRegistroId, aoConsumirAbrirRegistro }) {
+function TelaRegistro({ aluno, alunos, setAlunos, identidade, abrirRegistroId, aoConsumirAbrirRegistro, aoReabrirJogo }) {
   const [filtro, setFiltro] = useState("todos");
   const [criando, setCriando] = useState(null); // null | "anotacao" | "jogo" | "semana" | "medicao"
   const [painelAberto, setPainelAberto] = useState(false);
@@ -10869,6 +10884,12 @@ function TelaRegistro({ aluno, alunos, setAlunos, identidade, abrirRegistroId, a
                             <br />Protocolo executado em {r.protocolo}% dos pontos
                             {r.revelou ? <><br /><span style={{ color: C.grafite }}>{r.revelou}</span></> : null}
                           </p>
+                        )}
+                        {reabrivel(r) && aoReabrirJogo && (
+                          <button onClick={() => aoReabrirJogo(r.id)}
+                            style={{ ...prosa, fontSize: 12, color: C.saibro, fontWeight: 700, cursor: "pointer", border: "none", background: "none", padding: 0, marginTop: 6, marginRight: 14 }}>
+                            {r.concluida === false ? "Retomar partida" : "Reabrir partida"}
+                          </button>
                         )}
                         {r.tipo === "jogo" && r.scout && (
                           <button onClick={() => setAbertoId(abertoId === r.id ? null : r.id)}
@@ -19784,7 +19805,7 @@ function App() {
              subaba === "fechamento" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="fechamento" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} ocorrencias={ocorrencias} /> :
              subaba === "periodizacao" ? <TelaPeriodizacao aluno={aberto} aoCriarPeriodo={() => { setEtapaFichaAlvo(2); setSubaba("ficha"); }} /> :
              subaba === "scout" ? <TelaScout aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade} /> :
-             subaba === "registro" ? <TelaRegistro aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade}
+             subaba === "registro" ? <TelaRegistro aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade} aoReabrirJogo={(id) => { try { sessionStorage.setItem("ql-reabrir:" + aberto.id, id); } catch { /* sem sessionStorage */ } setSubaba("scout"); }}
                abrirRegistroId={registroAbertoAlvo} aoConsumirAbrirRegistro={() => setRegistroAbertoAlvo(null)} /> :
              subaba === "estilo" ? <TelaEstiloTatico aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
              subaba === "movimento" ? <TelaMovimento aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade} planoAtual={null} /> :
