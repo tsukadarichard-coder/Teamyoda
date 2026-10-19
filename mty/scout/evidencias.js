@@ -127,7 +127,7 @@
     [/duas mãos|braço não dominante|antebraço não dominante/i, "não dominante|nao dominante|duas mãos|backhand"],
     [/rotação de ombros/i, "rota|giro|ombro"],
     [/split step/i, "split"],
-    [/flexão de joelhos no giro|extensão dos joelhos|flexão de tronco/i, "base|pernas|joelho|agach|tronco"],
+    [/flexão de joelhos no giro|extensão dos joelhos|flexão de tronco/i, "agach|joelho|pernas|tronco|flex"],
     [/seguimento/i, "seguimento|finaliza"]
   ];
   function buscaDoItem(item) {
