@@ -10080,6 +10080,42 @@ function DetalheScout({ det }) {
   );
 }
 
+/* Ao fechar a análise de um jogo: compara com a média dos jogos anteriores deste jogador e com o último jogo (só jogos com scout salvo). */
+function compararJogoComAnteriores(atual, anteriores) {
+  const jogos = (anteriores || []).filter((r) => r.scout);
+  const linhas = []; let melhoraram = 0, pioraram = 0;
+  METRICAS_SCOUT.forEach((m) => {
+    if (m.k === "n" || String(m.k).indexOf("zona-") === 0) return;
+    const va = valorMetrica(m, atual);
+    const prev = jogos.map((r) => valorMetrica(m, r.scout)).filter((v) => v !== null);
+    if (va === null || !prev.length) return;
+    const media = prev.reduce((s, v) => s + v, 0) / prev.length, ultimo = prev[prev.length - 1], delta = va - media;
+    const limiar = m.suf === "%" ? 2 : 0.5;
+    const sentido = m.melhor === null || Math.abs(delta) < limiar ? 0 : ((delta > 0) === m.melhor ? 1 : -1);
+    if (sentido > 0) melhoraram++; else if (sentido < 0) pioraram++;
+    const suf = m.suf || "", arred = (v) => (Math.round(v * 10) / 10);
+    linhas.push({ rot: m.rot, atual: arred(va) + suf, media: arred(media) + suf, ultimo: arred(ultimo) + suf, sentido, neutro: m.melhor === null });
+  });
+  return { n: jogos.length, linhas, melhoraram, pioraram };
+}
+function ComparacaoComAnteriores({ atual, anteriores }) {
+  const c = compararJogoComAnteriores(atual, anteriores);
+  if (!c.n) {
+    return (
+      <Secao titulo="Evolução em relação aos jogos anteriores" nota="Este é o primeiro jogo com scout salvo deste jogador. A partir do próximo, esta tela compara cada medida com a média dos jogos anteriores e com o último jogo." />
+    );
+  }
+  if (!c.linhas.length) return null;
+  const linhas = c.linhas.map((l) => [l.rot, l.atual, l.media, l.ultimo,
+    <span style={{ color: l.sentido > 0 ? "#1F6B4A" : l.sentido < 0 ? "#A6432F" : C.grafite, fontWeight: 700 }}>{l.sentido > 0 ? "▲ melhor" : l.sentido < 0 ? "▼ pior" : (l.neutro ? "—" : "= igual")}</span>]);
+  return (
+    <Secao titulo="Evolução em relação aos jogos anteriores"
+      nota={"Comparação deste jogo com a média dos " + c.n + (c.n === 1 ? " jogo anterior" : " jogos anteriores") + " e com o último. " + c.melhoraram + (c.melhoraram === 1 ? " medida melhorou" : " medidas melhoraram") + " e " + c.pioraram + (c.pioraram === 1 ? " piorou" : " pioraram") + ". Um jogo é uma amostra: a tendência real aparece ao longo de vários jogos."}>
+      <Tabela cabecalho={["Medida", "Este jogo", "Média anteriores", "Último jogo", "Evolução"]} linhas={linhas} larguras={["34%", "15%", "18%", "16%", "17%"]} />
+    </Secao>
+  );
+}
+
 function ResumoScout({ r, sinais, aluno, alunos, setAlunos, pontos, cfg, mental }) {
   const dados = [
     { faixa: "1–2 bolas", valor: r.pctCurtos },
@@ -10236,6 +10272,7 @@ function Relatorio({ aluno, alunos, setAlunos, cfg, pontos, placar, aoSair, aoCo
       <Etiqueta cor={concluida ? C.quadra : "#C9A227"}>{concluida ? "Partida concluída" : "Acompanhamento interrompido — sem vencedor atribuído"}</Etiqueta>
       <div className="mt-3"><SeloTecnologiaQuadraLab /></div>
       <div className="mt-3"><ResumoScout r={r} sinais={sinais} aluno={aluno} alunos={alunos} setAlunos={setAlunos} pontos={pontos} cfg={cfg} mental={mental} /></div>
+      <div className="mt-3"><ComparacaoComAnteriores atual={{ ...r, pontos, cfg }} anteriores={(aluno.registros || []).filter((x) => x.tipo === "jogo" && x.scout)} /></div>
 
       <Aviso>
         Um jogo é uma amostra. Três jogos na mesma direção são um sinal; um jogo isolado é ruído. O
