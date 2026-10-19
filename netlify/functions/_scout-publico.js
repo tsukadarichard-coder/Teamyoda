@@ -37,7 +37,7 @@ function limparDetalhe(d) {
     devolucao: { nos: { ...ob(dv.nos, ["n", "e"]), q: mapa(dv.nos && dv.nos.q, QUALIDADES_DEVOLUCAO, ["n", "g"]) }, ele: ob(dv.ele, ["n", "e"]) },
     corrida: ob(d.corrida, ["n", "g"]),
     decisoes: mapa(d.decisoes, DECISOES, ["n", "g"]),
-    games: (Array.isArray(d.games) ? d.games : []).slice(0, 60).map((x) => ob(x, ["j", "n", "g", "boa", "disc", "ruim"])),
+    games: (Array.isArray(d.games) ? d.games : []).slice(0, 60).map((x) => ob(x, ["j", "n", "g", "boa", "disc", "ruim", "s", "w"])),
   };
 }
 

@@ -195,6 +195,21 @@
       tabela(["Game", "Pontos", "Ganhos", "Decisões boas", "Discutíveis", "Ruins", "Mental"], g.map(function (x) { return [x.j, x.n, x.g, x.boa, x.disc, x.ruim, mj[x.j] ? mj[x.j] + "/5" : "—"]; })));
   }
 
+  /* partida em macro: reaproveita o gráfico do scout ao vivo (scout/ao-vivo.js) a partir do game a game do resumo */
+  function macroPartida(p) {
+    var AV = raiz.QLAoVivo || (typeof QLAoVivo !== "undefined" ? QLAoVivo : null), gs = (p.detalhe || {}).games; if (!gs || gs.length < 2 || !AV) return "";
+    var pts = [], ult = gs[gs.length - 1];
+    gs.forEach(function (x) {
+      var n = n0(x.n), g = Math.min(n0(x.g), n), seq = []; if (!n) return;
+      for (var i = 0; i < g; i++) seq.push(true); for (var k = 0; k < n - g; k++) seq.push(false);
+      if (g > 0 && g < n) { var f = x.w ? true : false, ix = seq.lastIndexOf(f); if (ix >= 0) { seq.splice(ix, 1); seq.push(f); } }
+      seq.forEach(function (nos) { pts.push({ nos: nos, jogo: n0(x.j), set: n0(x.s) || 1 }); });
+    });
+    if (pts.length < 2) return "";
+    var final = p.concluida || !p.aoVivo, html = AV.macro(pts, { jogoAtual: n0(ult.j) + (final ? 1 : 0), sempre: true });
+    return html ? '<section class="qg-sec" id="qg-macro">' + html + "</section>" : "";
+  }
+
   /* avaliação mental: antes e depois do jogo (1 a 5) e game a game */
   var ESC_MENTAL = [["conf", "Confiança"], ["foco", "Foco"], ["energia", "Energia"], ["calma", "Controle emocional"]];
   function mental(p) {
@@ -217,9 +232,9 @@
   }
 
   /* o conjunto: cada função devolve "" quando não há dado marcado */
-  function secoes(p) { return [comoTerminaram(p), games(p), decisoes(p), mental(p), saque(p), lado(p), situacoes(p), golpes(p), direcao(p), devolucao(p)].join(""); }
+  function secoes(p) { return [comoTerminaram(p), macroPartida(p), games(p), decisoes(p), mental(p), saque(p), lado(p), situacoes(p), golpes(p), direcao(p), devolucao(p)].join(""); }
   function topo(p) { return ficha(p) + painelGeral(p) + observacao(p); }
 
-  var api = { topo: topo, secoes: secoes, painelGeral: painelGeral, observacao: observacao, games: games, decisoes: decisoes, mental: mental, comoTerminaram: comoTerminaram, saque: saque, lado: lado, situacoes: situacoes, golpes: golpes, direcao: direcao, devolucao: devolucao, CORES: { ganho: GANHO, ganhoClaro: GANHO_CLARO, perda: PERDA, perdaClaro: PERDA_CLARO, neutro: NEUTRO } };
+  var api = { topo: topo, secoes: secoes, painelGeral: painelGeral, observacao: observacao, macroPartida: macroPartida, games: games, decisoes: decisoes, mental: mental, comoTerminaram: comoTerminaram, saque: saque, lado: lado, situacoes: situacoes, golpes: golpes, direcao: direcao, devolucao: devolucao, CORES: { ganho: GANHO, ganhoClaro: GANHO_CLARO, perda: PERDA, perdaClaro: PERDA_CLARO, neutro: NEUTRO } };
   if (typeof module !== "undefined" && module.exports) module.exports = api; else raiz.QLScoutGraficos = api;
 })(typeof window !== "undefined" ? window : this);

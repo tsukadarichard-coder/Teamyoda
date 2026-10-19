@@ -86,14 +86,15 @@ window.firebase={initializeApp:function(){},auth:function(){return a}};})();`;
   assert.ok((await pg.textContent(".qa-topo")).includes("seguidos"), "alerta de sequência em tempo real");
   assert.ok(await pg.isVisible(".qa-mom svg"), "gráfico de linha do momento sempre visível");
   await pg.click(".sf-analise summary"); await pg.waitForSelector(".sf-analise .qa-svg");
-  const painel = await pg.textContent(".sf-analise"); assert.ok(painel.includes("Momento do jogo") && painel.includes("Saldo de pontos") && painel.includes("Game a game"), "painel com momento, saldo e game a game");
+  const painel = await pg.textContent(".sf-analise"); assert.ok(painel.includes("Saldo de pontos") && painel.includes("Game a game"), "painel com saldo e game a game");
+  const corpoPg = await pg.textContent("body"); assert.ok(corpoPg.includes("Momento do game 2"), "o momento zerou para o game 2"); assert.ok(corpoPg.includes("Partida em macro") && corpoPg.includes("1 game concluído"), "macro acumula o game 1");
   await pg.screenshot({ path: path.join(saida, "analise-ao-vivo.png"), fullPage: true });
   for (let k = 0; k < 20 && JSON.parse(store[vivo[0]].publico).n < 5; k++) await pg.waitForTimeout(400);
   { const pub = JSON.parse(store[vivo[0]].publico);
     assert.strictEqual(pub.mental.antes.conf, 4, "mental antes chegou ao resumo ao vivo");
     assert.strictEqual(pub.mental.jogo[1], 3, "mental do game chegou");
     assert.deepStrictEqual(pub.detalhe.decisoes.boa, { n: 1, g: 1 }, "decisão do ponto chegou");
-    assert.deepStrictEqual(pub.detalhe.games[0], { j: 1, n: 4, g: 4, boa: 1, disc: 0, ruim: 0 }, "game a game chegou"); }
+    assert.deepStrictEqual(pub.detalhe.games[0], { j: 1, n: 4, g: 4, boa: 1, disc: 0, ruim: 0, s: 1, w: 1 }, "game a game chegou"); }
   await pg.screenshot({ path: path.join(saida, "scout-treinador-marcando.png") });
   /* Pensamentos antes do jogo: escreve, solta, e nada fica guardado em lugar nenhum */
   await pg.goto(base + "/competicao/#/pensamentos", { waitUntil: "networkidle" }); await pg.waitForSelector("#pensTxt");

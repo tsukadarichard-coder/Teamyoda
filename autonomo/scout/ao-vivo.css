@@ -35,3 +35,8 @@
 .qa-mom h3 { margin-top: 0; }
 .qa .qa-mom { border: 0; padding: 0; margin: 0 0 6px; }
 .qa-mom h3 { margin: 0 0 4px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: #5B6B63; }
+.qa-sets { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
+.qa-set { background: #F6F8F7; border-radius: 10px; padding: 6px 10px; min-width: 96px; }
+.qa-set b { display: block; font-size: 13px; }
+.qa-set span { font-size: 12px; font-variant-numeric: tabular-nums; }
+.qa-set small { display: block; color: #5B6B63; font-size: 11px; }

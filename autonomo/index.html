@@ -8265,6 +8265,7 @@ const NIVEIS_ADVERSARIO = [["iniciante", "Iniciante"], ["intermediario", "Interm
 const ESCALAS_MENTAIS = [["conf", "Confiança"], ["foco", "Foco"], ["energia", "Energia"], ["calma", "Controle emocional"]];
 const DECISOES = [["boa", "Boa"], ["disc", "Discutível"], ["ruim", "Ruim"]];
 function numeroDoGame(pl) { return pl.sets.reduce((t, x) => t + x[0] + x[1], 0) + pl.g[0] + pl.g[1] + 1; }
+function numeroDoSet(pl) { return pl.sets.length + 1; }
 function mentalLimpo(m) {
   const v = (x) => { x = Math.round(+x); return x >= 1 && x <= 5 ? x : 0; };
   const bloco = (o) => Object.fromEntries(ESCALAS_MENTAIS.map(([k]) => [k, v(o && o[k])]));
@@ -8961,7 +8962,7 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
   function confirma(bola) {
     if (processandoRef.current) return;
     processandoRef.current = true;
-    const p = { ...rascunho, bola, n: pontos.length + 1, placarAntes: rotuloPontos(placar), jogo: numeroDoGame(placar) };
+    const p = { ...rascunho, bola, n: pontos.length + 1, placarAntes: rotuloPontos(placar), jogo: numeroDoGame(placar), set: numeroDoSet(placar) };
     setPilha([...pilha, { placar, pontos }]);
     setPontos([...pontos, p]);
     setPlacar(aplicaPonto(placar, p.nos));
@@ -8980,7 +8981,7 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
     setPilha([...pilha, { placar, pontos }]);
     const p = { fim: tipo === "ace" ? (meu ? "winner_nos" : "winner_dele") : (meu ? "erro_nos" : "erro_dele"), nos, saque: tipo, bola: "1-2", causa: tipo === "df" && meu ? "execucao" : null,
       rede: false, situacao: null, adverso: ehAdverso(placar), sacador, lado: ladoDoSaque(placar), dirSaque: tipo === "ace" ? dirSaque : null,
-      n: pontos.length + 1, placarAntes: rotuloPontos(placar), jogo: numeroDoGame(placar) };
+      n: pontos.length + 1, placarAntes: rotuloPontos(placar), jogo: numeroDoGame(placar), set: numeroDoSet(placar) };
     setDirSaque(null);
     setPontos([...pontos, p]);
     setPlacar(aplicaPonto(placar, nos));
@@ -9162,7 +9163,10 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
       </div>
 
       {window.QLAoVivo && pontos.length >= 1 && (
-        <div dangerouslySetInnerHTML={{ __html: window.QLAoVivo.momento(pontos) }} />
+        <div dangerouslySetInnerHTML={{ __html: window.QLAoVivo.momento(pontos, { jogoAtual: numeroDoGame(placar), setAtual: numeroDoSet(placar) }) }} />
+      )}
+      {window.QLAoVivo && pontos.length >= 2 && (
+        <div dangerouslySetInnerHTML={{ __html: window.QLAoVivo.macro(pontos, { jogoAtual: numeroDoGame(placar) }) }} />
       )}
       {window.QLAoVivo && pontos.length >= 4 && (
         <div dangerouslySetInnerHTML={{ __html: window.QLAoVivo.faixaAlerta(pontos, String(aluno.nome || "").trim().split(/\s+/)[0], (aluno.registros || []).filter((r) => r.tipo === "jogo" && r.scout).map((r) => r.scout)) }} />
@@ -9175,7 +9179,7 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
       {window.QLAoVivo && (
         <details className="mb-4" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "10px 14px" }}>
           <summary style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, cursor: "pointer", minHeight: 32 }}>Análise ao vivo · {pontos.length} {pontos.length === 1 ? "ponto" : "pontos"}</summary>
-          <div style={{ marginTop: 8 }} dangerouslySetInnerHTML={{ __html: window.QLAoVivo.painel(pontos, { atleta: String(aluno.nome || "").trim().split(/\s+/)[0], mental, anteriores: (aluno.registros || []).filter((r) => r.tipo === "jogo" && r.scout).map((r) => r.scout) }) }} />
+          <div style={{ marginTop: 8 }} dangerouslySetInnerHTML={{ __html: window.QLAoVivo.painel(pontos, { atleta: String(aluno.nome || "").trim().split(/\s+/)[0], mental, semGraficosFixos: true, anteriores: (aluno.registros || []).filter((r) => r.tipo === "jogo" && r.scout).map((r) => r.scout) }) }} />
         </details>
       )}
 
@@ -9417,7 +9421,7 @@ function resume(pontos) {
     decisoes: Object.fromEntries(DECISOES.map(([k]) => { const l = pontos.filter((p) => p.dec === k); return [k, { n: l.length, g: ganhosDe(l) }]; })),
     games: [...new Set(pontos.filter((p) => p.jogo).map((p) => p.jogo))].sort((a, b) => a - b).map((j) => {
       const l = pontos.filter((p) => p.jogo === j), d = (k) => l.filter((p) => p.dec === k).length;
-      return { j, n: l.length, g: ganhosDe(l), boa: d("boa"), disc: d("disc"), ruim: d("ruim") };
+      return { j, n: l.length, g: ganhosDe(l), boa: d("boa"), disc: d("disc"), ruim: d("ruim"), s: l[0].set || 1, w: l[l.length - 1].nos ? 1 : 0 };
     }),
   };
 

@@ -69,6 +69,6 @@ const chama = async (q) => { const r = await handler({ httpMethod: "GET", queryS
   assert.strictEqual(r.mental.depois.calma, 2);
   assert.deepStrictEqual(r.mental.jogo, { 1: 5 });
   assert.deepStrictEqual(r.detalhe.decisoes.boa, { n: 2, g: 1 }); assert.ok(!r.detalhe.decisoes.tosca);
-  assert.deepStrictEqual(r.detalhe.games[0], { j: 1, n: 4, g: 2, boa: 1, disc: 0, ruim: 1 });
+  assert.deepStrictEqual(r.detalhe.games[0], { j: 1, n: 4, g: 2, boa: 1, disc: 0, ruim: 1, s: 0, w: 0 });
   console.log("mental, decisões e games ok");
 }

@@ -113,6 +113,7 @@ const NIVEIS_ADVERSARIO = [["iniciante", "Iniciante"], ["intermediario", "Interm
 const ESCALAS_MENTAIS = [["conf", "Confiança"], ["foco", "Foco"], ["energia", "Energia"], ["calma", "Controle emocional"]];
 const DECISOES = [["boa", "Boa"], ["disc", "Discutível"], ["ruim", "Ruim"]];
 function numeroDoGame(pl) { return pl.sets.reduce((t, x) => t + x[0] + x[1], 0) + pl.g[0] + pl.g[1] + 1; }
+function numeroDoSet(pl) { return pl.sets.length + 1; }
 function mentalLimpo(m) {
   const v = (x) => { x = Math.round(+x); return x >= 1 && x <= 5 ? x : 0; };
   const bloco = (o) => Object.fromEntries(ESCALAS_MENTAIS.map(([k]) => [k, v(o && o[k])]));
@@ -172,7 +173,7 @@ function resume(pontos) {
     decisoes: Object.fromEntries(DECISOES.map(([k]) => { const l = pontos.filter((p) => p.dec === k); return [k, { n: l.length, g: ganhosDe(l) }]; })),
     games: [...new Set(pontos.filter((p) => p.jogo).map((p) => p.jogo))].sort((a, b) => a - b).map((j) => {
       const l = pontos.filter((p) => p.jogo === j), d = (k) => l.filter((p) => p.dec === k).length;
-      return { j, n: l.length, g: ganhosDe(l), boa: d("boa"), disc: d("disc"), ruim: d("ruim") };
+      return { j, n: l.length, g: ganhosDe(l), boa: d("boa"), disc: d("disc"), ruim: d("ruim"), s: l[0].set || 1, w: l[l.length - 1].nos ? 1 : 0 };
     }),
   };
 
@@ -290,6 +291,6 @@ function montarResumoPublico(reg, aluno) {
   };
 }
 
-var motor = { placarInicial: placarInicial, aplicaPonto: aplicaPonto, rotuloPontos: rotuloPontos, ehAdverso: ehAdverso, quemSaca: quemSaca, ladoDoSaque: ladoDoSaque, ROTULO_LADO: ROTULO_LADO, SITUACOES: SITUACOES, GOLPES: GOLPES, DIRECOES: DIRECOES, DIRECOES_SAQUE: DIRECOES_SAQUE, QUALIDADES_DEVOLUCAO: QUALIDADES_DEVOLUCAO, NIVEIS_ADVERSARIO: NIVEIS_ADVERSARIO, ESCALAS_MENTAIS: ESCALAS_MENTAIS, DECISOES: DECISOES, numeroDoGame: numeroDoGame, mentalLimpo: mentalLimpo, erroDeDevolucao: erroDeDevolucao, erroDeDevolucaoDele: erroDeDevolucaoDele, ZONAS: ZONAS, resume: resume, leitura: leitura, montarResumoPublico: montarResumoPublico, serieMomento: serieMomento, contagemDosPontos: contagemDosPontos, zonasDe: zonasDe };
+var motor = { placarInicial: placarInicial, aplicaPonto: aplicaPonto, rotuloPontos: rotuloPontos, ehAdverso: ehAdverso, quemSaca: quemSaca, ladoDoSaque: ladoDoSaque, ROTULO_LADO: ROTULO_LADO, SITUACOES: SITUACOES, GOLPES: GOLPES, DIRECOES: DIRECOES, DIRECOES_SAQUE: DIRECOES_SAQUE, QUALIDADES_DEVOLUCAO: QUALIDADES_DEVOLUCAO, NIVEIS_ADVERSARIO: NIVEIS_ADVERSARIO, ESCALAS_MENTAIS: ESCALAS_MENTAIS, DECISOES: DECISOES, numeroDoGame: numeroDoGame, numeroDoSet: numeroDoSet, mentalLimpo: mentalLimpo, erroDeDevolucao: erroDeDevolucao, erroDeDevolucaoDele: erroDeDevolucaoDele, ZONAS: ZONAS, resume: resume, leitura: leitura, montarResumoPublico: montarResumoPublico, serieMomento: serieMomento, contagemDosPontos: contagemDosPontos, zonasDe: zonasDe };
 if (typeof module !== "undefined" && module.exports) module.exports = motor; else raiz.QLScoutMotor = motor;
 })(typeof window !== "undefined" ? window : this);

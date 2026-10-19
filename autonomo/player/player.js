@@ -3228,7 +3228,7 @@
     }
 
     function adicionar(p) {
-      var pl = placarAtual(); p.n = st.pontos.length + 1; p.placarAntes = M.rotuloPontos(pl); p.jogo = M.numeroDoGame(pl); st.pontos.push(p); rasc = null; dirS = null; desenhar(); agendar();
+      var pl = placarAtual(); p.n = st.pontos.length + 1; p.placarAntes = M.rotuloPontos(pl); p.jogo = M.numeroDoGame(pl); p.set = M.numeroDoSet(pl); st.pontos.push(p); rasc = null; dirS = null; desenhar(); agendar();
     }
     function saqueDireto(tipo) {
       var pl = placarAtual(), sacador = M.quemSaca(pl), meu = sacador === "nos", nos = tipo === "ace" ? meu : !meu;
@@ -3240,7 +3240,7 @@
       var sets = pl.sets.map(function (x) { return x[0] + "-" + x[1]; }).concat([pl.g[0] + "-" + pl.g[1]]).join("  ");
       var h = voltar + '<section class="sf-cab"><div><p class="sf-cab-l">' + esc((meu ? "SAQUE DE " + primeiro : "SAQUE DO ADVERSÁRIO").toUpperCase()) + " · " + esc(M.ROTULO_LADO[M.ladoDoSaque(pl)].toUpperCase()) + '</p><p class="sf-cab-n">' + esc(M.rotuloPontos(pl)) + '</p></div><div class="sf-cab-d"><p class="sf-cab-l">SETS</p><p class="sf-cab-s">' + esc(sets) + "</p></div></section>" +
         (adv && !fimJogo ? '<p class="sf-adverso">PLACAR ADVERSO — este ponto entra na comparação</p>' : "") + (pl.fim ? '<div class="aviso">Partida encerrada: ' + esc(primeiro) + (pl.vencedor === "nos" ? " venceu" : " perdeu") + ".</div>" : "");
-      if (!fimJogo && window.QLAoVivo && st.pontos.length) h += window.QLAoVivo.momento(st.pontos);
+      if (!fimJogo && window.QLAoVivo && st.pontos.length) h += window.QLAoVivo.momento(st.pontos, { jogoAtual: M.numeroDoGame(placarAtual()), setAtual: M.numeroDoSet(placarAtual()) }) + (st.pontos.length >= 2 ? window.QLAoVivo.macro(st.pontos, { jogoAtual: M.numeroDoGame(placarAtual()) }) : "");
       if (!fimJogo && window.QLAoVivo) h += window.QLAoVivo.faixaAlerta(st.pontos, primeiro, anteriores);
       if (!fimJogo) {
         if (!rasc) {
@@ -3262,7 +3262,7 @@
         }
       }
       var gan = st.pontos.filter(function (p) { return p.nos; }).length;
-      if (window.QLAoVivo) h += '<details class="cartao sf-analise" style="margin-top:12px"' + (st.analiseAberta ? " open" : "") + '><summary><strong>Análise ao vivo</strong> · ' + n + (n === 1 ? " ponto" : " pontos") + "</summary>" + window.QLAoVivo.painel(st.pontos, { atleta: primeiro, mental: st.mental, anteriores: anteriores }) + "</details>";
+      if (window.QLAoVivo) h += '<details class="cartao sf-analise" style="margin-top:12px"' + (st.analiseAberta ? " open" : "") + '><summary><strong>Análise ao vivo</strong> · ' + n + (n === 1 ? " ponto" : " pontos") + "</summary>" + window.QLAoVivo.painel(st.pontos, { atleta: primeiro, mental: st.mental, semGraficosFixos: true, anteriores: anteriores }) + "</details>";
       h += '<section class="cartao" style="margin-top:12px"><p class="sf-n"><strong>' + n + "</strong> pontos · " + esc(primeiro) + " ganhou <strong>" + gan + "</strong>" + (n ? " (" + Math.round(gan * 100 / n) + "%)" : "") + '</p>' + mentalCartaoHtml("depois", "Avaliação mental depois do jogo", "Como o atleta termina, de 1 a 5. Opcional.") + '<div class="campo" style="margin-top:12px"><label for="sfNivel">Nível do adversário <span class="nota">(opcional, no fim da partida)</span></label><select id="sfNivel"><option value="">Não informar</option>' + M.NIVEIS_ADVERSARIO.map(function (x) { return '<option value="' + x[0] + '"' + (st.nivelAdversario === x[0] ? " selected" : "") + ">" + esc(x[1]) + "</option>"; }).join("") + '</select></div><div class="campo" style="margin-top:12px"><label for="sfObs">Observação final <span class="nota">(opcional)</span></label><textarea id="sfObs" rows="3" maxlength="1200" placeholder="Um recado sobre o jogo. Aparece na página de quem acompanha.">' + esc(st.observacaoFinal || "") + '</textarea></div><p id="sfEnvio" class="nota"></p>' +
         '<div class="acoes"><button type="button" class="btn btn-texto" id="sfDesfazer"' + (n || rasc ? "" : " disabled") + '>Desfazer</button><button type="button" class="btn btn-secundario" id="sfEnviar">Enviar agora</button>' +
         (fimJogo ? '<button type="button" class="btn btn-secundario" id="sfNovo">Novo jogo</button>' : '<button type="button" class="btn btn-laranja" id="sfFim">Encerrar partida</button>') + "</div></section>" +

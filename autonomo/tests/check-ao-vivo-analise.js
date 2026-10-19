@@ -35,3 +35,25 @@ const um = A.momento([pt(true)], {}); assert(um.includes("<svg") && um.includes(
 assert(A.momento([], {}).includes("primeiro ponto"), "momento sem pontos");
 assert(!/undefined|NaN/.test(mom), "valores do momento");
 console.log("check-ao-vivo-analise: ok");
+
+/* o gráfico do momento zera a cada game; o macro acumula os games e os sets */
+{
+  const jg = (j, set, nosList) => nosList.map((n, i) => pt(n, { jogo: j, set, n: i + 1 }));
+  const partida = [].concat(jg(1, 1, [true, true, false, true, true]), jg(2, 1, [false, false, false, true, false]), jg(3, 1, [true, true, true, true]));
+  const em3 = A.momento(partida, { jogoAtual: 3 });
+  assert(em3.includes("Momento do game 3") && /1 de 4|4 de 4/.test(em3), "momento só do game em andamento");
+  const apos = A.momento(partida, { jogoAtual: 4, setAtual: 1 });
+  assert(apos.includes("Momento do game 4") && apos.includes("Novo game") && !apos.includes("<path"), "momento zera ao terminar o game");
+  const mac = A.macro(partida, { jogoAtual: 4 });
+  ["Partida em macro", "3 games concluídos", "G1", "G2", "G3", "Set 1", "Saldo acumulado"].forEach((x) => assert(mac.includes(x), "macro: " + x));
+  assert(mac.includes("2–1 em games"), "placar do set em games: " + (mac.match(/<b>Set 1<\/b><span>[^<]*/) || [])[0]);
+  const doisSets = A.macro(partida.concat(jg(4, 2, [true, false, true, true]), jg(5, 2, [false, true])), { jogoAtual: 5 });
+  assert(doisSets.includes("Set 2") && (doisSets.match(/qa-set"/g) || []).length === 2, "dois sets");
+  assert(A.macro(jg(1, 1, [true, false]), { jogoAtual: 1 }) === "", "um único game não precisa de macro");
+  assert(!/undefined|NaN/.test(mac), "valores do macro");
+  /* resumo da família: o macro sai do game a game */
+  const G = require("../scout/graficos.js"); global.QLAoVivo = A;
+  const ex = G.macroPartida({ concluida: true, detalhe: { games: [{ j: 1, n: 5, g: 4, s: 1, w: 1 }, { j: 2, n: 5, g: 1, s: 1, w: 0 }, { j: 3, n: 4, g: 4, s: 2, w: 1 }] } });
+  assert(ex.includes("Partida em macro") && ex.includes("Set 2"), "macro no resumo compartilhado");
+  console.log("check-ao-vivo-analise (macro): ok");
+}
