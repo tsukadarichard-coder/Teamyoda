@@ -68,6 +68,7 @@
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-auth-compat.js"></script>
 <script src="mty-nuvem.js"></script>
 <script src="scout/graficos.js"></script>
+<script src="scout/relatorio-jogos.js"></script>
 <link rel="stylesheet" href="scout/graficos.css">
 <script crossorigin src="https://unpkg.com/@babel/standalone@7.29.9/babel.min.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
@@ -8877,7 +8878,7 @@ function CartaoAoVivo({ aluno, cfg, pontos, placar, aoVivo, setAoVivo, estado, s
   );
 }
 
-function TelaScout({ aluno, alunos, setAlunos }) {
+function TelaScout({ aluno, alunos, setAlunos, identidade }) {
   const [fase, setFase] = useState("antes");
   const [mental, setMental] = useState({ antes: {}, jogo: {}, depois: {} });
   const [cfg, setCfg] = useState({ adversario: "", torneio: "", formato: "3sets", saca: "nos", semVantagem: false, superTiebreakDecisivo: false });
@@ -9093,6 +9094,13 @@ function TelaScout({ aluno, alunos, setAlunos }) {
 
         {partidasAnteriores.length > 0 && (
           <div className="mt-6">
+            <div className="mb-4" style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.saibro, padding: "12px 14px" }}>
+              <Etiqueta>Relatório dos jogos</Etiqueta>
+              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, margin: "6px 0 10px" }}>
+                Reúne os {partidasAnteriores.filter((r) => r.scout).length} jogos com scout salvo em um documento com gráficos de evolução, comparação de todos os dados, leitura dos pontos fortes e de atenção e o resumo de cada jogo. Abre pronto para salvar como PDF.
+              </p>
+              <Botao variante="saibro" onClick={() => exportarRelatorioJogos(aluno, identidade)}>Exportar relatório dos jogos</Botao>
+            </div>
             <EvolucaoScout jogos={partidasAnteriores} />
             <ComparacaoScoutCompleta jogos={partidasAnteriores} />
             <h2 style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginBottom: 8 }}>Partidas registradas</h2>
@@ -10054,6 +10062,24 @@ const DIAS_SEM = ["SEG", "TER", "QUA", "QUI", "SEX"];
    (window.open + botão de imprimir) — layout da Metodologia MTY/academia,
    com tabelas HTML de verdade pros blocos de jogos/semanas/medições, nunca
    um arquivo .md cru com sintaxe de pipes. */
+/* Relatório dos jogos coletados: abre um documento com gráficos e comparações (scout/relatorio-jogos.js) pronto para "Salvar como PDF". */
+function exportarRelatorioJogos(aluno, identidade) {
+  const jogos = (aluno.registros || []).filter((r) => r.tipo === "jogo" && r.scout);
+  if (!jogos.length) { alert("Este jogador ainda não tem jogos com scout salvo."); return; }
+  if (!window.QLRelatorioJogos) { alert("Não foi possível carregar o gerador do relatório. Recarregue a página e tente de novo."); return; }
+  const janela = window.open("", "_blank");
+  if (!janela) { alert("O navegador bloqueou a janela de exportação — permita pop-ups pra este site e tente de novo."); return; }
+  let html;
+  try {
+    html = window.QLRelatorioJogos.gerar({
+      atleta: aluno.nome, jogos, metricas: METRICAS_SCOUT, tendencia: tendenciaScout, leitura, zonasDe,
+      detalheDe: (r) => r.scout.detalhe || ((r.scout.pontos || []).length ? resume(r.scout.pontos).detalhe : null),
+      cabecalhoHtml: cabecalhoRelatorioHTML(identidade), geradoEm: new Date().toLocaleDateString("pt-BR"),
+    });
+  } catch (e) { janela.close(); alert("Não foi possível montar o relatório: " + (e && e.message ? e.message : e)); return; }
+  janela.document.write(html);
+  janela.document.close();
+}
 function exportarCadernoPDF(a, identidade) {
   const janela = window.open("", "_blank");
   if (!janela) { alert("O navegador bloqueou a janela de exportação — permita pop-ups pra este site e tente de novo."); return; }
@@ -14078,7 +14104,7 @@ function TelaScoutTurma({ membros, alunos, setAlunos }) {
       <div>
         <button onClick={() => setJogadorId(null)} className="mb-4" style={{ ...prosa, color: C.grafite, cursor: "pointer" }}>← Escolher outro jogador</button>
         <div className="mb-4"><Etiqueta cor={C.saibro}>Scout de {jogador.nome || "sem nome"}</Etiqueta></div>
-        <TelaScout aluno={jogador} alunos={alunos} setAlunos={setAlunos} />
+        <TelaScout aluno={jogador} alunos={alunos} setAlunos={setAlunos} identidade={typeof identidade !== "undefined" ? identidade : undefined} />
       </div>
     );
   }
@@ -16714,7 +16740,7 @@ function App() {
              subaba === "aulas" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
              subaba === "fechamento" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="fechamento" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
              subaba === "periodizacao" ? <TelaPeriodizacao aluno={aberto} aoCriarPeriodo={() => { setEtapaFichaAlvo(2); setSubaba("ficha"); }} /> :
-             subaba === "scout" ? <TelaScout aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
+             subaba === "scout" ? <TelaScout aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade} /> :
              subaba === "registro" ? <TelaRegistro aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade} /> :
              subaba === "estilo" ? <TelaEstiloTatico aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
              subaba === "adversarios" ? <TelaAdversarios aluno={aberto} alunos={alunos} setAlunos={setAlunos} planoAtual={planoAtual} /> :
