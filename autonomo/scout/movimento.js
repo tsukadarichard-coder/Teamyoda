@@ -289,7 +289,7 @@
         S.regId = reg.id;
         S.historico = S.historico.filter(function (h) { return h.id !== reg.id; }).concat([reg]);
         q("salvoMsg").textContent = "Análise salva no histórico do jogador.";
-        Promise.resolve(opts.aoSalvar(reg)).then(function () { if (novo && S.cota && S.cota.limite != null) { S.cota = B.cota(opts.recurso || "movimento", opts.plano, S.historico); atualizaCota(); } }).catch(function () { q("salvoMsg").textContent = "Não foi possível salvar no histórico agora."; });
+        Promise.resolve(opts.aoSalvar(reg)).then(function () { if (novo && S.cota && S.cota.limite != null) { S.cota = opts.cotaDe ? opts.cotaDe(S.historico) : B.cota(opts.recurso || "movimento", opts.plano, S.historico); atualizaCota(); } }).catch(function () { q("salvoMsg").textContent = "Não foi possível salvar no histórico agora."; });
         if (opts.aoMudar) opts.aoMudar(S.historico);
       } else q("salvoMsg").textContent = sintetico ? "Demonstração: nada foi salvo." : "";
       renderHistorico();

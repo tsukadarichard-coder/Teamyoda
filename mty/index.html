@@ -25,6 +25,9 @@
 <script src="scout/ao-vivo.js"></script>
 <link rel="stylesheet" href="scout/ao-vivo.css">
 <script src="scout/relatorio-jogos.js"></script>
+<script src="scout/movimento-motor.js"></script>
+<script src="scout/movimento.js"></script>
+<link rel="stylesheet" href="scout/movimento.css">
 <link rel="stylesheet" href="scout/graficos.css">
 <script crossorigin src="https://unpkg.com/@babel/standalone@7.29.9/babel.min.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
@@ -9001,6 +9004,75 @@ function CartaoAoVivo({ aluno, cfg, pontos, placar, mental, aoVivo, setAoVivo, e
   );
 }
 
+/* Selo "Tecnologia QuadraLab": aparece no scout e na análise de movimento (também no app da Team Yoda). */
+function SeloTecnologiaQuadraLab({ texto }) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 7, border: "1px solid " + C.linha, background: C.cal, borderRadius: 99, padding: "3px 11px 3px 7px" }}>
+      <img src="assets/logo-quadralab.png" alt="QuadraLab" style={{ height: 18, display: "block" }} />
+      <span style={{ fontFamily: ARCH, fontSize: 10, fontWeight: 800, letterSpacing: ".14em", textTransform: "uppercase", color: C.tinta }}>{texto || "Tecnologia"}</span>
+    </span>
+  );
+}
+
+/* Análise de movimento em vídeo (forehand, backhand, saque) com histórico e evolução. A análise roda no aparelho.
+   Cota por plano (só no app do treinador autônomo): Essencial = quantidade por mês, Premium = ilimitado; sem plano = ilimitado. */
+function TelaMovimento({ aluno, alunos, setAlunos, identidade, planoAtual }) {
+  const raiz = useRef(null);
+  const [aba, setAba] = useState("analisar");
+  const alunoId = aluno.id;
+  const movimentos = aluno.movimentos || [];
+  const outros = (alunos || []).filter((a) => a.id !== alunoId).reduce((t, a) => t.concat(a.movimentos || []), []);
+  const cotaAtual = window.QLBiomec ? window.QLBiomec.cota("movimento", planoAtual, outros.concat(movimentos)) : null;
+
+  useEffect(() => {
+    if (!raiz.current || !window.QLMovimento) return undefined;
+    const alvo = raiz.current;
+    window.QLMovimento.montar(alvo, {
+      atleta: aluno.nome, historico: aluno.movimentos || [], plano: planoAtual,
+      cota: window.QLBiomec.cota("movimento", planoAtual, outros.concat(aluno.movimentos || [])),
+      cotaDe: (hist) => window.QLBiomec.cota("movimento", planoAtual, outros.concat(hist)),
+      logo: "assets/logo-quadralab.png", logoAbsoluto: new URL("assets/logo-quadralab.png", window.location.href).href,
+      cabecalho: identidade && identidade.nomeAcademia ? identidade.nomeAcademia : "",
+      aoSalvar: (reg) => setAlunos((prev) => prev.map((a) => a.id !== alunoId ? a : { ...a, movimentos: [...(a.movimentos || []).filter((m) => m.id !== reg.id), reg].slice(-80) })),
+      aoRemover: (id) => setAlunos((prev) => prev.map((a) => a.id !== alunoId ? a : { ...a, movimentos: (a.movimentos || []).filter((m) => m.id !== id) })),
+    });
+    return () => { alvo.innerHTML = ""; };
+  }, [alunoId]);
+
+  if (!window.QLMovimento || !window.QLBiomec) {
+    return <p style={{ ...prosa, fontSize: 13.5 }}>Não foi possível carregar a análise de movimento. Recarregue a página e tente de novo.</p>;
+  }
+  const bloqueado = cotaAtual && cotaAtual.bloqueado;
+  return (
+    <div>
+      <div className="mb-3 flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <p style={{ fontFamily: ARCH, fontSize: 17, fontWeight: 800, color: C.tinta }}>Análise de movimento</p>
+          <p style={{ ...prosa, fontSize: 13 }}>Forehand, backhand e saque a partir de vídeo. Cada análise é comparada com a anterior de {String(aluno.nome || "").split(" ")[0] || "o jogador"}.</p>
+        </div>
+        <SeloTecnologiaQuadraLab />
+      </div>
+      <div className="flex gap-2 mb-3">
+        {[{ v: "analisar", r: "Analisar vídeo" }, { v: "evolucao", r: "Evolução" }].map((t) => (
+          <button key={t.v} onClick={() => setAba(t.v)}
+            style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, padding: "9px 14px", minHeight: 44, borderRadius: 10, cursor: "pointer",
+              border: "1px solid " + (aba === t.v ? C.tinta : C.linha), background: aba === t.v ? C.tinta : C.cal, color: aba === t.v ? C.papel : C.grafite }}>{t.r}</button>
+        ))}
+      </div>
+      {bloqueado && aba === "analisar" && (
+        <div className="mb-3" style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "11px 14px" }}>
+          <p style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700, marginBottom: 4 }}>Análise de movimento nos planos Essencial e Premium</p>
+          <p style={{ ...prosa, fontSize: 13 }}>No Essencial você faz uma quantidade de análises por mês; no Premium, análises ilimitadas. As análises que já existirem continuam disponíveis na aba Evolução.</p>
+        </div>
+      )}
+      <div style={{ display: aba === "analisar" ? "block" : "none" }}><div ref={raiz} /></div>
+      {aba === "evolucao" && (
+        <div className="qlm" dangerouslySetInnerHTML={{ __html: window.QLMovimento.evolucaoHTML(movimentos) }} />
+      )}
+    </div>
+  );
+}
+
 function TelaScout({ aluno, alunos, setAlunos, identidade }) {
   const [fase, setFase] = useState("antes");
   const [mental, setMental] = useState({ antes: {}, jogo: {}, depois: {} });
@@ -9146,6 +9218,7 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
           </div>
         )}
 
+        <div className="mb-3"><SeloTecnologiaQuadraLab /></div>
         <div className="mb-4">
           <button onClick={() => setMostrarAjuda(!mostrarAjuda)} style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, color: C.saibro, cursor: "pointer", border: "none", background: "none", padding: 0 }}>
             {mostrarAjuda ? "Ocultar" : "Como registrar os pontos"}
@@ -10161,6 +10234,7 @@ function Relatorio({ aluno, alunos, setAlunos, cfg, pontos, placar, aoSair, aoCo
   return (
     <div>
       <Etiqueta cor={concluida ? C.quadra : "#C9A227"}>{concluida ? "Partida concluída" : "Acompanhamento interrompido — sem vencedor atribuído"}</Etiqueta>
+      <div className="mt-3"><SeloTecnologiaQuadraLab /></div>
       <div className="mt-3"><ResumoScout r={r} sinais={sinais} aluno={aluno} alunos={alunos} setAlunos={setAlunos} pontos={pontos} cfg={cfg} mental={mental} /></div>
 
       <Aviso>
@@ -19418,7 +19492,7 @@ function App() {
                  critérios e pendências do ciclo — não é só o passo final
                  de encerrar, é onde se acompanha como o jogador está indo. */
               const principais = [{ v: "ficha", r: "Perfil" }, { v: "plano", r: "Planejamento" }, { v: "aulas", r: "Aulas" }, { v: "fechamento", r: "Evolução" }];
-              const itensMais = [{ v: "periodizacao", r: "Periodização" }, { v: "sessao", r: "Sessão de hoje" }, { v: "scout", r: "Análise de partida" }, { v: "registro", r: "Caderno" }, { v: "estilo", r: "Estilo de jogo" }, { v: "adversarios", r: "Adversários" }];
+              const itensMais = [{ v: "periodizacao", r: "Periodização" }, { v: "sessao", r: "Sessão de hoje" }, { v: "scout", r: "Análise de partida" }, { v: "movimento", r: "Análise de movimento" }, { v: "registro", r: "Caderno" }, { v: "estilo", r: "Estilo de jogo" }, { v: "adversarios", r: "Adversários" }];
               const todasSecoes = [...principais, ...itensMais];
               const maisAtivo = itensMais.some((t) => t.v === subaba);
               const secaoAtual = todasSecoes.find((t) => t.v === subaba) || principais[0];
@@ -19520,6 +19594,7 @@ function App() {
              subaba === "registro" ? <TelaRegistro aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade}
                abrirRegistroId={registroAbertoAlvo} aoConsumirAbrirRegistro={() => setRegistroAbertoAlvo(null)} /> :
              subaba === "estilo" ? <TelaEstiloTatico aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
+             subaba === "movimento" ? <TelaMovimento aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade} planoAtual={null} /> :
              subaba === "adversarios" ? <TelaAdversarios aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
              <TelaSessao aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} papelAtual={papelAtual} uidAtual={uidAtual}
                exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} />}

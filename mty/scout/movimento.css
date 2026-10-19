@@ -1,0 +1,29 @@
+/* Análise de movimento (Tecnologia QuadraLab). Tudo dentro de .qlm para não vazar para o app que hospeda. */
+.qlm{--qa:#0B3B2E;--qv:#66AA33;--qok:#2E8B57;--qat:#C65825;--qna:#8A96A0;--qbd:#E2DED5;--qmut:#5C6B78;--qink:#14202B;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--qink);font-size:14px}
+.qlm *{box-sizing:border-box}
+.qlm .qm-marca{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--qbd);background:#fff;border-radius:99px;padding:4px 12px 4px 8px}
+.qlm .qm-marca img{height:20px;display:block}.qlm .qm-marca span{font-size:10.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--qa)}
+.qlm .qm-card{background:#fff;border:1px solid var(--qbd);border-radius:14px;padding:14px;margin-top:12px}
+.qlm .qm-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.qlm button,.qlm select,.qlm input,.qlm label.qm-btn{font:inherit;border-radius:10px;border:1px solid var(--qbd);background:#fff;padding:9px 13px;cursor:pointer;color:var(--qink)}
+.qlm input[type=text]{cursor:text}
+.qlm button.qm-pri{background:var(--qa);color:#fff;border-color:var(--qa)}.qlm button:disabled{opacity:.5;cursor:default}
+.qlm .qm-tabs{display:flex;gap:6px;flex-wrap:wrap;width:100%}.qlm .qm-tabs button{padding:9px 16px;font-weight:600}.qlm .qm-tabs button.on{background:var(--qa);color:#fff;border-color:var(--qa)}
+.qlm .qm-msg{font-size:13px;color:var(--qmut);margin:6px 0}
+.qlm .qm-cota{background:#F1F7EC;border:1px solid #CFE3BE;border-radius:10px;padding:8px 10px;font-size:13px;margin-top:10px}
+.qlm .qm-cota.bloq{background:#FFF6E5;border-color:#F0D9A8}
+.qlm .qm-stage{position:relative;max-width:520px;margin:10px auto 0}.qlm .qm-stage video,.qlm .qm-stage canvas{width:100%;display:block;border-radius:10px;background:#000}.qlm .qm-stage canvas{position:absolute;inset:0;pointer-events:none}
+.qlm .qm-kpi{display:flex;gap:10px;flex-wrap:wrap}.qlm .qm-kpi div{flex:1;min-width:90px;text-align:center;border-radius:10px;padding:10px;color:#fff}.qlm .qm-kpi b{font-size:24px;display:block}
+.qlm .qm-tl{height:42px;position:relative;background:#EEF2F5;border-radius:8px;margin-top:10px}.qlm .qm-tl i{position:absolute;top:0;bottom:0;width:2px;background:var(--qa)}.qlm .qm-tl em{position:absolute;top:-1px;font-size:10px;font-style:normal;color:var(--qmut);transform:translateX(3px)}
+.qlm .qm-fases{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:12px}
+.qlm .qm-fase{border:1px solid var(--qbd);border-radius:10px;padding:8px;background:#fff;cursor:zoom-in}.qlm .qm-fase canvas{width:100%;border-radius:6px;background:#000;display:block}.qlm .qm-fase b{display:block;font-size:13px;margin-top:4px}.qlm .qm-fase span{font-size:12px;color:var(--qmut)}
+.qlm table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed;overflow-wrap:anywhere}.qlm td,.qlm th{text-align:left;padding:7px 5px;border-top:1px solid var(--qbd);vertical-align:top}.qlm th{font-size:11.5px;color:var(--qmut);border-top:0}
+.qlm tr.qm-fh td{background:#F3F1EA;font-weight:700;font-size:12.5px}
+.qlm .qm-tag{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:600;color:#fff}.qlm .qm-tag.ok{background:var(--qok)}.qlm .qm-tag.atencao{background:var(--qat)}.qlm .qm-tag.nao_avaliavel{background:var(--qna)}
+.qlm h3.qm-h{margin:0 0 8px;font-size:16px}.qlm h4{margin:12px 0 4px;font-size:14px}
+.qlm .qm-pr{border:1px solid var(--qbd);border-left:4px solid var(--qat);border-radius:10px;padding:8px 10px;margin:8px 0}.qlm .qm-pr ul,.qlm ul.qm-ul{margin:4px 0 0 18px;padding:0}
+.qlm .qm-cmp-s{font-weight:700}.qlm .qm-up{color:var(--qok)}.qlm .qm-dn{color:var(--qat)}.qlm .qm-eq{color:var(--qmut)}
+.qlm svg.qm-graf{width:100%;height:auto;display:block}
+.qlm details summary{cursor:pointer;font-weight:600}
+.qlm .qm-hist button.qm-x{padding:3px 9px;font-size:12px}
+@media(max-width:520px){.qlm .qm-fases{grid-template-columns:repeat(2,1fr)}}

@@ -212,8 +212,8 @@
 
     return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Relatório dos jogos · ' + esc(atleta) + "</title><style>" + CSS + "</style></head><body>" +
       '<div class="no-print"><button onclick="window.print()">Salvar como PDF / Imprimir</button><button onclick="window.close()">Fechar</button></div>' +
-      (o.cabecalhoHtml || "") + "<h1>Relatório dos jogos</h1>" + '<div class="sub">' + esc(atleta) + " · " + N + (N === 1 ? " jogo com scout salvo" : " jogos com scout salvo") + " · gerado em " + esc(o.geradoEm || "") + "</div>" + h +
-      '<p class="rodape">Um jogo é uma amostra: três jogos na mesma direção são um sinal, um jogo isolado é ruído. Este relatório serve para orientar o trabalho, não para julgar o jogador. Os números vêm dos pontos marcados pelo treinador; medidas que um jogo não registrou ficam de fora das médias e tendências.</p></body></html>';
+      (o.cabecalhoHtml || "") + "<h1>Relatório dos jogos</h1>" + '<div class="sub">' + esc(atleta) + " · " + N + (N === 1 ? " jogo com scout salvo" : " jogos com scout salvo") + " · gerado em " + esc(o.geradoEm || "") + " · Tecnologia QuadraLab</div>" + h +
+      '<p class="rodape">Um jogo é uma amostra: três jogos na mesma direção são um sinal, um jogo isolado é ruído. Este relatório serve para orientar o trabalho, não para julgar o jogador. Os números vêm dos pontos marcados pelo treinador; medidas que um jogo não registrou ficam de fora das médias e tendências. Análise gerada com a Tecnologia QuadraLab.</p></body></html>';
   }
   var api = { gerar: gerar, esc: esc };
   if (typeof module !== "undefined" && module.exports) module.exports = api; else raiz.QLRelatorioJogos = api;
