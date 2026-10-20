@@ -19,6 +19,7 @@ async function nova(b, porta, alunosIniciais, sessao) {
 const marca = async (p, n) => { for (let i = 0; i < n; i++) { await p.getByRole("button", { name: "Winner meu" }).click(); await p.getByRole("button", { name: "1-2", exact: true }).click(); await p.waitForTimeout(450); } };
 const texto = (p) => p.evaluate(() => document.body.innerText);
 const aluno = (p) => p.evaluate(() => JSON.parse(JSON.stringify(window.__alunos[0])));
+async function encerrar(p) { await p.getByRole("button", { name: "Encerrar e ver relatório" }).click(); await p.waitForTimeout(200); const d = p.getByRole("button", { name: "Encerrar de vez e ver o relatório" }); if (await d.count()) await d.click(); await p.waitForTimeout(500); }
 (async () => {
   const apps = process.argv[2] ? [process.argv[2]] : ["autonomo", "mty"];
   for (const app of apps) {
@@ -29,14 +30,15 @@ const aluno = (p) => p.evaluate(() => JSON.parse(JSON.stringify(window.__alunos[
     await p.getByText("Iniciar acompanhamento").click(); await p.waitForTimeout(300);
     await marca(p, 3);
     assert((await texto(p)).includes("3 pontos"), app + ": 3 pontos marcados");
-    await p.getByRole("button", { name: "Encerrar e ver relatório" }).click(); await p.waitForTimeout(500);
-    assert(p.dialogos.some((d) => d.includes("Você poderá voltar")), app + ": pede confirmação ao encerrar");
+    await p.getByRole("button", { name: "Encerrar e ver relatório" }).click(); await p.waitForSelector("[data-encerrar]");
+    assert(await p.getByRole("button", { name: "Voltar à partida" }).count() === 1, app + ": pergunta ao encerrar (encerrar de vez ou voltar)");
+    await p.getByRole("button", { name: "Encerrar de vez e ver o relatório" }).click(); await p.waitForTimeout(500);
     let t = await texto(p);
     assert(t.includes("Encerrou sem querer?") && t.includes("Voltar à partida e continuar"), app + ": relatório oferece voltar. " + t.slice(0, 300));
     await p.getByRole("button", { name: /Voltar à partida e continuar/ }).click(); await p.waitForTimeout(500);
     t = await texto(p); assert(t.includes("3 pontos") && t.includes("Encerrar e ver relatório"), app + ": voltou para a marcação com os 3 pontos");
     await marca(p, 1); assert((await texto(p)).includes("4 pontos"), app + ": continua marcando (4 pontos)");
-    await p.getByRole("button", { name: "Encerrar e ver relatório" }).click(); await p.waitForTimeout(500);
+    await encerrar(p);
     p.aceitar = false; p.dialogos = [];
     await p.getByRole("button", { name: "Novo jogo" }).click(); await p.waitForTimeout(300);
     assert(p.dialogos.some((d) => d.includes("ainda não foi salva")), app + ": Novo jogo pede confirmação antes de apagar");
@@ -49,7 +51,7 @@ const aluno = (p) => p.evaluate(() => JSON.parse(JSON.stringify(window.__alunos[
     await p.getByRole("button", { name: /Voltar à partida e continuar/ }).click(); await p.waitForTimeout(500);
     assert((await texto(p)).includes("4 pontos"), app + ": retomou a partida já salva");
     await marca(p, 1);
-    await p.getByRole("button", { name: "Encerrar e ver relatório" }).click(); await p.waitForTimeout(400);
+    await encerrar(p);
     await p.getByRole("button", { name: "Salvar no caderno" }).click(); await p.waitForTimeout(400);
     const a2 = await aluno(p); assert.strictEqual(a2.registros.length, 1, app + ": o registro antigo foi substituído, não duplicado"); assert.strictEqual(a2.registros[0].scout.pontos.length, 5);
     assert.deepStrictEqual(p.erros, [], app + ": erros de JS " + p.erros.join(" | "));
@@ -94,7 +96,7 @@ const aluno = (p) => p.evaluate(() => JSON.parse(JSON.stringify(window.__alunos[
     await p.getByRole("button", { name: "Retomar", exact: true }).click(); await p.waitForTimeout(500);
     assert((await texto(p)).includes("6 pontos"), app + ": retomou a partida salva com 6 pontos");
     await marca(p, 1);
-    await p.getByRole("button", { name: "Encerrar e ver relatório" }).click(); await p.waitForTimeout(400);
+    await encerrar(p);
     await p.getByRole("button", { name: "Salvar no caderno" }).click(); await p.waitForTimeout(400);
     const a3 = await aluno(p); assert.strictEqual(a3.registros.length, 1, app + ": substituiu o registro interrompido"); assert.strictEqual(a3.registros[0].scout.pontos.length, 7);
     assert.deepStrictEqual(p.erros, [], app + ": erros de JS (C) " + p.erros.join(" | "));
@@ -110,7 +112,7 @@ const aluno = (p) => p.evaluate(() => JSON.parse(JSON.stringify(window.__alunos[
     assert(t.includes("Partida encerrada"), app + ": mostra que a partida estava encerrada");
     await p.getByRole("button", { name: "Desfazer" }).click(); await p.waitForTimeout(300);
     assert((await texto(p)).includes("47 pontos"), app + ": desfaz o último ponto de um jogo concluído");
-    await p.getByRole("button", { name: "Encerrar e ver relatório" }).click(); await p.waitForTimeout(500);
+    await encerrar(p);
     await p.getByRole("button", { name: "Salvar no caderno" }).click(); await p.waitForTimeout(400);
     const a4 = await aluno(p); assert.strictEqual(a4.registros.length, 1, app + ": o jogo reaberto não duplica");
     const r4 = a4.registros[0]; assert.strictEqual(r4.id, "rJ", app + ": mantém o mesmo registro");

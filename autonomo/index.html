@@ -9178,6 +9178,7 @@ function TelaMovimento({ aluno, alunos, setAlunos, identidade, planoAtual }) {
 
 function TelaScout({ aluno, alunos, setAlunos, identidade }) {
   const [fase, setFase] = useState("antes");
+  const [confirmandoFim, setConfirmandoFim] = useState(false);
   const [mental, setMental] = useState({ antes: {}, jogo: {}, depois: {} });
   const [cfg, setCfg] = useState({ adversario: "", torneio: "", formato: "3sets", saca: "nos", semVantagem: false, superTiebreakDecisivo: false });
   const [placar, setPlacar] = useState(null);
@@ -9529,7 +9530,7 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
 
   /* ── relatório ── */
   if (fase === "depois")
-    return <Relatorio aluno={aluno} alunos={alunos} setAlunos={setAlunos} cfg={cfg}
+    return <Relatorio identidade={identidade} aluno={aluno} alunos={alunos} setAlunos={setAlunos} cfg={cfg}
       pontos={pontos} placar={placar} aoConcluir={limparRascunhoSalvo} mental={mental} setMental={setMental} aoRetomar={voltarParaPartida} retomandoId={retomandoId}
       aoSair={() => { limparRascunhoSalvo(); setRetomandoId(null); setFase("antes"); setPontos([]); setMental({ antes: {}, jogo: {}, depois: {} }); }} />;
 
@@ -9567,6 +9568,20 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
           </div>
         </div>
       </div>
+
+      {confirmandoFim && (
+        <div role="dialog" aria-modal="true" aria-label="Encerrar a partida" data-encerrar style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", alignItems: "flex-end", justifyContent: "center", padding: 12 }}>
+          <div onClick={() => setConfirmandoFim(false)} style={{ position: "absolute", inset: 0, background: "rgba(16,30,25,.5)" }} />
+          <div style={{ position: "relative", background: C.cal, borderRadius: 16, width: "100%", maxWidth: 440, padding: "20px 18px 16px", boxShadow: "0 12px 40px rgba(0,0,0,.25)" }}>
+            <p style={{ fontFamily: ARCH, fontSize: 17, fontWeight: 700 }}>Encerrar a partida?</p>
+            <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, margin: "6px 0 14px" }}>A partida ainda não terminou no placar ({rotuloPontos(placar)}, sets {setsTexto}). Você tem {pontos.length} pontos marcados.</p>
+            <div className="flex flex-col gap-2">
+              <Botao variante="saibro" onClick={() => { setConfirmandoFim(false); setFase("depois"); }}>Encerrar de vez e ver o relatório</Botao>
+              <Botao variante="vazio" onClick={() => setConfirmandoFim(false)}>Voltar à partida</Botao>
+            </div>
+          </div>
+        </div>
+      )}
 
       {placar.fim && (
         <Aviso>
@@ -9796,7 +9811,7 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
         <div className="flex gap-2 flex-wrap justify-end">
           <Botao pequeno variante="vazio" onClick={alternarModo}>{modoRapido ? "Modo rápido ✓" : "Modo detalhado ✓"}</Botao>
           <Botao pequeno variante="vazio" onClick={desfazer}>Desfazer</Botao>
-          <Botao pequeno onClick={() => { if (placar.fim || window.confirm("Encerrar a partida e ver o relatório? Você poderá voltar e continuar de onde parou.")) setFase("depois"); }}>Encerrar e ver relatório</Botao>
+          <Botao pequeno onClick={() => { if (placar.fim) setFase("depois"); else setConfirmandoFim(true); }}>Encerrar e ver relatório</Botao>
         </div>
       </div>
       {!rascunho && placar && (
@@ -10509,7 +10524,7 @@ function DetalheJogoRegistro({ r, aluno, alunos, setAlunos }) {
   );
 }
 
-function Relatorio({ aluno, alunos, setAlunos, cfg, pontos, placar, aoSair, aoConcluir, mental, setMental, aoRetomar, retomandoId }) {
+function Relatorio({ identidade, aluno, alunos, setAlunos, cfg, pontos, placar, aoSair, aoConcluir, mental, setMental, aoRetomar, retomandoId }) {
   const r = useMemo(() => resume(pontos), [pontos]);
   const sinais = useMemo(() => leitura(r), [r]);
   const [salvo, setSalvo] = useState(false);
@@ -10520,9 +10535,10 @@ function Relatorio({ aluno, alunos, setAlunos, cfg, pontos, placar, aoSair, aoCo
   const [torneioFinal, setTorneioFinal] = useState(cfg.torneio || "");
   const concluida = !!(placar && placar.fim);
 
-  function salvar() {
-    const reg = {
-      id: original ? original.id : "r" + Date.now(), tipo: "jogo", data: new Date().toISOString().slice(0, 10),
+  const idRascunho = useMemo(() => "r" + Date.now(), []);
+  function montarRegistro() {
+    return {
+      id: original ? original.id : idRascunho, tipo: "jogo", data: new Date().toISOString().slice(0, 10),
       torneio: torneioFinal.trim().slice(0, 80) || "jogo-treino", adversario: cfg.adversario || "—", nivelAdversario: nivelAdv,
       plano: "", protocolo: r.pctProtocolo, erros12: r.pctErrosCurtos,
       revelou: sinais.map((s) => s[1]).join(" "),
@@ -10530,6 +10546,16 @@ function Relatorio({ aluno, alunos, setAlunos, cfg, pontos, placar, aoSair, aoCo
       concluida, observacaoFinal: obsFinal.trim().slice(0, 1200), mental: mentalLimpo(mental),
       scout: { ...r, pontos, cfg: { formato: cfg.formato, saca: cfg.saca, semVantagem: !!cfg.semVantagem, superTiebreakDecisivo: !!cfg.superTiebreakDecisivo } },
     };
+  }
+  /* Relatório em PDF direto da partida: só este jogo, ou este jogo com a evolução dos anteriores. Abre o documento pronto para "Salvar como PDF". */
+  function gerarPDF(comAnteriores) {
+    const atual = montarRegistro();
+    const anteriores = comAnteriores ? (aluno.registros || []).filter((x) => x.tipo === "jogo" && x.scout && x.id !== atual.id).slice(-5) : [];
+    exportarRelatorioJogos(aluno, identidade, [...anteriores, atual]);
+  }
+  const temAnteriores = (aluno.registros || []).some((x) => x.tipo === "jogo" && x.scout && !(original && x.id === original.id));
+  function salvar() {
+    const reg = montarRegistro();
     /* o link da família da partida reaberta continua o mesmo e passa a mostrar o placar e os números atualizados */
     if (original && original.compartilhado && original.compartilhado.token) {
       reg.compartilhado = { ...original.compartilhado };
@@ -10554,6 +10580,14 @@ function Relatorio({ aluno, alunos, setAlunos, cfg, pontos, placar, aoSair, aoCo
         </div>
       )}
       <div className="mt-3"><SeloTecnologiaQuadraLab /></div>
+      <div className="mt-3" data-pdf-partida style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "11px 14px" }}>
+        <p style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>Relatório em PDF</p>
+        <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, margin: "3px 0 8px" }}>Abre o relatório com gráficos e leituras, pronto para salvar como PDF. No celular, use Compartilhar ou Imprimir e escolha “Salvar como PDF”.</p>
+        <div className="flex gap-2 flex-wrap">
+          <Botao pequeno variante="saibro" onClick={() => gerarPDF(false)}>Relatório desta partida (PDF)</Botao>
+          {temAnteriores && <Botao pequeno variante="vazio" onClick={() => gerarPDF(true)}>Com a evolução dos jogos anteriores</Botao>}
+        </div>
+      </div>
       <div className="mt-3"><ResumoScout r={r} sinais={sinais} aluno={aluno} alunos={alunos} setAlunos={setAlunos} pontos={pontos} cfg={cfg} mental={mental} /></div>
       <div className="mt-3"><ComparacaoComAnteriores atual={{ ...r, pontos, cfg }} anteriores={(aluno.registros || []).filter((x) => x.tipo === "jogo" && x.scout)} /></div>
 
@@ -10599,8 +10633,8 @@ const DIAS_SEM = ["SEG", "TER", "QUA", "QUI", "SEX"];
    com tabelas HTML de verdade pros blocos de jogos/semanas/medições, nunca
    um arquivo .md cru com sintaxe de pipes. */
 /* Relatório dos jogos coletados: abre um documento com gráficos e comparações (scout/relatorio-jogos.js) pronto para "Salvar como PDF". */
-function exportarRelatorioJogos(aluno, identidade) {
-  const jogos = (aluno.registros || []).filter((r) => r.tipo === "jogo" && r.scout);
+function exportarRelatorioJogos(aluno, identidade, jogosEscolhidos) {
+  const jogos = jogosEscolhidos || (aluno.registros || []).filter((r) => r.tipo === "jogo" && r.scout);
   if (!jogos.length) { alert("Este jogador ainda não tem jogos com scout salvo."); return; }
   if (!window.QLRelatorioJogos) { alert("Não foi possível carregar o gerador do relatório. Recarregue a página e tente de novo."); return; }
   const janela = window.open("", "_blank");
