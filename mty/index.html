@@ -21,6 +21,7 @@
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-auth-compat.js"></script>
 <script src="mty-nuvem.js"></script>
+<script src="sync-listas.js"></script>
 <script src="scout/graficos.js"></script>
 <script src="scout/ao-vivo.js"></script>
 <link rel="stylesheet" href="scout/ao-vivo.css">
@@ -248,6 +249,56 @@ const storageLocal = {
     } catch (e) { return null; }
   },
 };
+
+/* ── junção das listas da academia (alunos, turmas) ──
+   Todos os professores gravam a MESMA lista inteira. Antes, quem gravava por último apagava o que os
+   outros tinham registrado, e cada um só via o que fez no próprio aparelho. Agora cada gravação lê a
+   nuvem, junta (sync-listas.js) e grava o resultado; e a tela ouve a nuvem e recebe o que os outros fazem. */
+const SINC = { listas: new Set(["mty:alunos:v2", "mty:turmas:v1"]), base: {}, aoMudar: {}, local: {}, pronto: {} };
+if (db && window.MTYSync) {
+  const getOrig = storageFirestore.get, setOrig = storageFirestore.set;
+  const lerLista = (v) => { try { const l = JSON.parse(v); return Array.isArray(l) ? l : null; } catch { return null; } };
+  storageFirestore.get = async (key, c) => {
+    const r = await getOrig(key, c);
+    if (r && SINC.listas.has(key)) { const l = lerLista(r.value); if (l) SINC.base[key] = l; }
+    return r;
+  };
+  storageFirestore.set = async (key, value, c) => {
+    const local = SINC.listas.has(key) ? lerLista(value) : null;
+    if (!local) return setOrig(key, value, c);
+    const org = await organizacao();
+    if (!org) return null;
+    try {
+      const ref = db.collection("orgs").doc(org).collection("dados").doc(key);
+      let juntada = local, nuvemIgual = false;
+      await db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        const nuvem = snap.exists ? (lerLista(snap.data().value) || []) : [];
+        juntada = window.MTYSync.mesclar(SINC.base[key] || [], local, nuvem);
+        nuvemIgual = snap.exists && JSON.stringify(nuvem) === JSON.stringify(juntada);
+        if (!nuvemIgual) tx.set(ref, { value: JSON.stringify(juntada), atualizado: Date.now() });
+      });
+      SINC.base[key] = juntada;
+      /* a nuvem tinha coisas de outros professores: a tela passa a mostrá-las */
+      if (JSON.stringify(juntada) !== JSON.stringify(local) && SINC.aoMudar[key]) SINC.aoMudar[key](juntada);
+      return { key, value: JSON.stringify(juntada), shared: true };
+    } catch (e) { console.error("Firestore set (junção):", e); return null; }
+  };
+  /* ouve a nuvem: o que outro professor registrar aparece aqui sem sair e entrar */
+  storageFirestore.observar = async (key) => {
+    const org = await organizacao();
+    if (!org || !SINC.listas.has(key)) return () => {};
+    return db.collection("orgs").doc(org).collection("dados").doc(key).onSnapshot((snap) => {
+      if (!snap.exists || snap.metadata.hasPendingWrites || !SINC.pronto[key] || !SINC.pronto[key]()) return;
+      const nuvem = lerLista(snap.data().value);
+      if (!nuvem || JSON.stringify(nuvem) === JSON.stringify(SINC.base[key])) return;
+      const local = SINC.local[key] ? SINC.local[key]() : nuvem;
+      const juntada = window.MTYSync.mesclar(SINC.base[key] || [], local, nuvem);
+      SINC.base[key] = nuvem;
+      if (SINC.aoMudar[key] && JSON.stringify(juntada) !== JSON.stringify(local)) SINC.aoMudar[key](juntada);
+    }, (e) => console.error("Firestore observar:", e));
+  };
+}
 
 window.storage = db ? storageFirestore : storageLocal;
 
@@ -19611,6 +19662,19 @@ function App() {
   const turmasRef = useRef(turmas);
   useEffect(() => { alunosRef.current = alunos; }, [alunos]);
   useEffect(() => { turmasRef.current = turmas; }, [turmas]);
+  /* recebe, ao vivo, o que os outros professores registram (sessões, observações, alunos novos) */
+  useEffect(() => {
+    if (!autenticado || (exigeLogin && !orgAtual) || !window.storage.observar) return undefined;
+    SINC.aoMudar["mty:alunos:v2"] = (l) => setAlunos(l);
+    SINC.local["mty:alunos:v2"] = () => alunosRef.current;
+    SINC.pronto["mty:alunos:v2"] = () => !!prontoRef.current.alunos;
+    SINC.aoMudar["mty:turmas:v1"] = (l) => setTurmas(l);
+    SINC.local["mty:turmas:v1"] = () => turmasRef.current;
+    SINC.pronto["mty:turmas:v1"] = () => !!prontoRef.current.turmas;
+    let encerrado = false; const desfazer = [];
+    ["mty:alunos:v2", "mty:turmas:v1"].forEach((k) => window.storage.observar(k).then((f) => { if (encerrado) f(); else desfazer.push(f); }));
+    return () => { encerrado = true; desfazer.forEach((f) => f()); };
+  }, [autenticado, orgAtual]);
   useEffect(() => {
     if (!autenticado) return;
     let cancelado = false;
