@@ -48,7 +48,7 @@
   /* painel do topo: donut dos pontos ganhos e os números que mais importam */
   function painelGeral(p) {
     var nm = p.numeros || {}, det = p.detalhe || {}, f = det.fins || {}, tiles = [];
-    if (f.winner_nos != null && (f.winner_nos || f.erro_nos)) { tiles.push(tile(n0(f.winner_nos), "Winners de " + p.atleta)); tiles.push(tile(n0(f.erro_nos), "Erros de " + p.atleta, n0(nm.errosDecisao) + " decisão · " + n0(nm.errosExec) + " execução")); }
+    if (f.winner_nos != null && (f.winner_nos || f.erro_nos)) { tiles.push(tile(n0(f.winner_nos), "Winners de " + p.atleta)); tiles.push(tile(n0(f.erro_nos), "Erros de " + p.atleta, n0(nm.errosDecisao) + " decisão · " + n0(nm.errosExec) + " execução" + (n0(f.erro_nos) - n0(nm.errosDecisao) - n0(nm.errosExec) > 0 ? " · " + (n0(f.erro_nos) - n0(nm.errosDecisao) - n0(nm.errosExec)) + " sem classificação" : ""))); }
     if (n0(nm.pctPrimeiro)) tiles.push(tile(n0(nm.pctPrimeiro) + "%", "1º saque dentro"));
     if (n0(nm.aces) || n0(nm.acesAdv)) tiles.push(tile(n0(nm.aces), "Aces de " + p.atleta, "adversário: " + n0(nm.acesAdv)));
     return '<section class="qg-sec qg-topo" id="qg-geral"><div class="qg-geral"><div class="qg-geral-d">' + donut(n0(p.pctGanhos), GANHO) + '<p><strong>' + n0(p.ganhos) + " de " + n0(p.n) + "</strong> pontos ganhos por " + esc(p.atleta) + "</p></div>" +

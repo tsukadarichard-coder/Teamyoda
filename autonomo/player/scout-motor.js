@@ -190,10 +190,10 @@ function resume(pontos) {
     pctCurtos: pct(curtos), pctMedios: pct(medios), pctLongos: pct(longos),
     pctAte4: pct(curtos + medios),
     ganhos, pctGanhos: pct(ganhos),
-    errosNos: errosNos.length, errosDecisao, errosExec, errosCurtos,
+    errosNos: errosNos.length, errosDecisao, errosExec, errosSemCausa: errosNos.length - errosDecisao - errosExec, errosCurtos,
     pctErrosCurtos: errosNos.length ? Math.round((errosCurtos / errosNos.length) * 100) : 0,
     df: df.length, dfAdverso, razaoDF: Number(razaoDF.toFixed(1)),
-    pctPrimeiro: Math.round((primeiros / comSaqueMarcado) * 100),
+    pctPrimeiro: Math.round((primeiros / comSaqueMarcado) * 100), primeirosDentro: primeiros, saquesMarcados: meusSaques.filter((p) => p.saque === "1" || p.saque === "2" || p.saque === "df").length,
     pctProtocolo: pct(protocolo), rede, redeGanha, ataquePerdido,
     aces, acesAdv, dfAdv, nSaqueDele: saquesDele.length,
     pctPrimeiroAdv: comSaqueDele ? Math.round((saquesDele.filter((p) => p.saque === "1").length / comSaqueDele) * 100) : 0,
@@ -222,9 +222,9 @@ function leitura(r) {
   if (r.detalhe && r.detalhe.devolucao.nos.n >= 8 && r.errosDevolucao >= 3 && r.pctErrosDevolucao >= 25)
     sinais.push(["devolucao", `Erros de devolução de saque: ${r.errosDevolucao} em ${r.detalhe.devolucao.nos.n} pontos no saque do adversário (${r.pctErrosDevolucao}%). O ponto está sendo perdido na primeira bola em jogo: vale olhar a posição de espera, o split step e o alvo da devolução.`]);
   if (r.errosDecisao > r.errosExec && r.errosNos >= 5)
-    sinais.push(["fundo", `Mais erros de decisão (${r.errosDecisao}) que de execução (${r.errosExec}). O recurso existe; o padrão de decisão é que não está treinado.`]);
+    sinais.push(["fundo", `Entre os ${r.errosDecisao + r.errosExec} erros classificados, ${r.errosDecisao} são de decisão e ${r.errosExec} de execução.${r.errosSemCausa > 0 ? ` Há ${r.errosSemCausa} sem classificação.` : ""}`]);
   if (r.errosExec > r.errosDecisao * 2 && r.errosNos >= 5)
-    sinais.push(["fundo", `Os erros são de execução (${r.errosExec} contra ${r.errosDecisao} de decisão). A decisão está certa — corrige-se apoio e ponto de contato, nunca a jogada.`]);
+    sinais.push(["fundo", `Entre os ${r.errosDecisao + r.errosExec} erros classificados, ${r.errosExec} são de execução e ${r.errosDecisao} de decisão.${r.errosSemCausa > 0 ? ` Há ${r.errosSemCausa} sem classificação.` : ""}`]);
   if (r.pctProtocolo > 0 && r.pctProtocolo < 70)
     sinais.push(["mental", `Protocolo presente em ${r.pctProtocolo}% dos pontos. Abaixo de 80% o intervalo de 20 segundos está sendo desperdiçado.`]);
   if (r.ataquePerdido >= 4)

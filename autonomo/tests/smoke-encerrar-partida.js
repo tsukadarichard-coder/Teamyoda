@@ -29,7 +29,7 @@ if (!existe()) { console.log("smoke-encerrar-partida: pulado (sem React/Babel lo
     await p.waitForSelector("[data-pdf-partida]");
     await p.getByRole("button", { name: "Relatório da partida (PDF)" }).click(); await p.waitForTimeout(500);
     let docs = await p.evaluate(() => window.__docs);
-    assert.strictEqual(docs.length, 1, app + ": abriu o documento"); assert(/Salvar como PDF/.test(docs[0]) && /Relatório da partida/.test(docs[0]) && !/Em relação aos jogos anteriores/.test(docs[0]), app + ": relatório da partida sem comparação, pronto para salvar como PDF");
+    assert.strictEqual(docs.length, 1, app + ": abriu o documento"); assert(/Salvar como PDF/.test(docs[0]) && /Relatório (parcial da|da) partida/.test(docs[0]) && !/Em relação aos jogos anteriores/.test(docs[0]), app + ": relatório da partida sem comparação, pronto para salvar como PDF");
     assert(/logo-quadralab-relatorio\.png/.test(docs[0]) && !/Team Yoda|Metodologia MTY/.test(docs[0]), app + ": logo do QuadraLab (não da academia)");
     await p.getByRole("button", { name: "Com comparação aos jogos anteriores" }).click(); await p.waitForTimeout(500);
     docs = await p.evaluate(() => window.__docs); assert(/Em relação aos jogos anteriores/.test(docs[1]) && /Média dos 1 jogo anterior/.test(docs[1]), app + ": com comparação inclui o jogo anterior");
@@ -41,7 +41,7 @@ if (!existe()) { console.log("smoke-encerrar-partida: pulado (sem React/Babel lo
     await p.reload(); await p.waitForFunction(() => document.body.innerText.includes("Análise de partida"), null, { timeout: 120000 });
     const antes = await p.evaluate(() => JSON.stringify(window.__alunos[0].registros));
     await p.getByRole("button", { name: "Relatório da partida (PDF)" }).first().click(); await p.waitForTimeout(400);
-    let d2 = await p.evaluate(() => window.__docs); assert(d2.length === 1 && /Relatório da partida/.test(d2[0]) && /Ana/.test(d2[0]), app + ": relatório de jogo já salvo");
+    let d2 = await p.evaluate(() => window.__docs); assert(d2.length === 1 && /Relatório (parcial da|da) partida/.test(d2[0]) && /Ana/.test(d2[0]), app + ": relatório de jogo já salvo");
     await p.getByRole("button", { name: "Com comparação" }).first().click(); await p.waitForTimeout(400);
     assert.strictEqual(await p.evaluate(() => JSON.stringify(window.__alunos[0].registros)), antes, app + ": gerar o relatório não altera nenhum registro");
     assert.deepStrictEqual(erros, [], app + ": erros de JS " + erros.join(" | "));

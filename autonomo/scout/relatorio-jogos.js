@@ -264,36 +264,58 @@
     function fmt(v, suf) { return v === null ? "—" : r1(v) + (suf || ""); }
     var ctx = [r.torneio && r.torneio !== "jogo-treino" ? r.torneio : "Jogo-treino", r.adversario && r.adversario !== "—" ? "contra " + r.adversario : "", NIVEL[r.nivelAdversario] ? "adversário " + NIVEL[r.nivelAdversario].toLowerCase() : "", dataBR(r.data)].filter(Boolean);
     var concl = r.concluida !== false && !!(r.concluida || /\d-\d/.test(String(r.resultado || "")) && r.resultado !== "não concluído");
-    var res = r.resultado && r.resultado !== "—" && r.resultado !== "não concluído" ? r.resultado : "", parcialTxt = "";
-    /* placar refeito a partir dos pontos (o app envia em o.placarFinal): mostra também o set que ficou em andamento */
+    var res = r.resultado && r.resultado !== "—" && r.resultado !== "não concluído" ? r.resultado : "", parcialHtml = "";
+    /* placar refeito a partir dos pontos (o app envia em o.placarFinal): sets concluídos, set em andamento e game em andamento */
     var pf = o.placarFinal;
     if (pf && pf.sets) {
-      res = pf.sets.map(function (x) { return x[0] + "-" + x[1]; }).join(" ");
-      if (!pf.fim && pf.games && (n0(pf.games[0]) + n0(pf.games[1]) > 0 || pf.pontos)) parcialTxt = (pf.sets.length + 1) + "º set em andamento: " + n0(pf.games[0]) + "-" + n0(pf.games[1]) + " em games" + (pf.pontos ? " (" + pf.pontos + " no game)" : "");
+      res = pf.sets.map(function (x) { return x[0] + "–" + x[1]; }).join(", ");
+      if (!pf.fim) {
+        var gA = pf.games ? n0(pf.games[0]) : 0, gB = pf.games ? n0(pf.games[1]) : 0, temSet = gA + gB > 0 || !!pf.pontos;
+        parcialHtml = '<div class="parcial"><div><small>Sets concluídos</small><b>' + (pf.sets.length ? esc(res) : "nenhum") + "</b></div>" +
+          (temSet ? "<div><small>" + (pf.sets.length + 1) + "º set (em andamento)</small><b>" + gA + "–" + gB + " em games</b></div>" : "") +
+          (pf.pontos ? "<div><small>Game em andamento</small><b>" + esc(String(pf.pontos).replace("-", "–")) + "</b></div>" : "") + "</div>";
+      }
     }
-    var pg = n0(s.pctGanhos), prim = val("pctPrimeiro"), df = val("df"), aces = val("aces");
+    var parcial = !concl;
+    /* TODAS as contagens partem dos mesmos pontos registrados; sem os pontos, o relatório usa o resumo e marca o que não foi registrado */
+    var pts = (s.pontos || []).filter(function (p) { return p && typeof p === "object"; }), temPts = pts.length > 0;
+    var pg = n0(s.pctGanhos);
+    function cnt(l, f) { return l.filter(f).length; }
+    function razao(x, n) { if (!n) return { v: null, t: "sem pontos registrados" }; var p = x * 100 / n; return { v: p, t: x + " de " + n + (n < 5 ? " (base pequena)" : " · " + Math.round(p) + "%") }; }
+    var meus = temPts ? pts.filter(function (p) { return p.sacador === "nos"; }) : [], marc = meus.filter(function (p) { return p.saque === "1" || p.saque === "2" || p.saque === "df"; });
+    var nMarc = temPts ? marc.length : n0(s.saquesMarcados), nPrim = temPts ? cnt(marc, function (p) { return p.saque === "1"; }) : n0(s.primeirosDentro);
+    var dfN = temPts ? cnt(meus, function (p) { return p.saque === "df"; }) : (s.df == null ? null : n0(s.df)), acesN = temPts ? cnt(meus, function (p) { return p.saque === "ace"; }) : (s.aces == null ? null : n0(s.aces));
+    var adv = temPts ? pts.filter(function (p) { return p.adverso; }) : [], nAdv = temPts ? adv.length : null, gAdv = temPts ? cnt(adv, function (p) { return p.nos; }) : null;
+    var eNos = n0(s.errosNos), eDec = n0(s.errosDecisao), eExe = n0(s.errosExec), eCls = eDec + eExe, eSem = Math.max(0, eNos - eCls);
+    var prim = nMarc >= 5 ? nPrim * 100 / nMarc : null, df = dfN, aces = acesN, pa = nAdv >= 5 ? gAdv * 100 / nAdv : null;
     function card(t, corpo, cls) { return '<section class="sec ' + (cls || "") + '"><h2>' + esc(t) + "</h2>" + corpo + "</section>"; }
     function kpi(n, t, sub) { return '<div class="kp"><b>' + esc(n) + "</b><span>" + esc(t) + "</span>" + (sub ? "<small>" + esc(sub) + "</small>" : "") + "</div>"; }
 
-    var h = '<header class="capa"><div class="capa-t"><span class="eyebrow">Relatório da partida</span><span class="gera">gerado em ' + esc(o.geradoEm || "") + "</span></div>" +
-      "<h1>" + esc(atleta) + '</h1><p class="ctx">' + esc(ctx.join(" · ")) + '</p><div class="pl">' + (res ? '<span class="res">' + esc(res) + "</span>" : "") + '<span class="selo ' + (concl ? "ok" : "int") + '">' + (concl ? "Partida concluída" : "Acompanhamento interrompido · sem vencedor atribuído") + "</span></div>" + (parcialTxt ? '<p class="parc">' + esc(parcialTxt) + "</p>" : "") + "</header>";
-
-    h += '<div class="kps">' + kpi(Math.round(pg) + "%", "dos pontos ganhos", n0(s.ganhos) + " de " + n0(s.n) + " pontos") + kpi(n0(s.errosNos), "erros do atleta", n0(s.errosDecisao) + " de decisão · " + n0(s.errosExec) + " de execução") +
-      (prim !== null ? kpi(fmt(prim, "%"), "1º saque dentro", df === null ? "" : n0(df) + (n0(df) === 1 ? " dupla falta" : " duplas faltas") + (aces ? " · " + n0(aces) + " aces" : "")) : kpi(df === null ? "—" : n0(df), "duplas faltas", aces ? n0(aces) + " aces" : "1º saque não registrado")) + kpi(fmt(val("pctAdversos"), "%"), "ganhos sob pressão", "pontos em placar adverso") + "</div>";
+    var h = '<header class="capa"><div class="capa-t"><span class="eyebrow">' + (parcial ? "Relatório parcial da partida" : "Relatório da partida") + '</span><span class="gera">gerado em ' + esc(o.geradoEm || "") + "</span></div>" +
+      "<h1>" + esc(atleta) + '</h1><p class="ctx">' + esc(ctx.join(" · ")) + '</p>' +
+      (parcial ? '<div class="pl"><span class="selo int">Acompanhamento interrompido. Resultado final não registrado.</span></div>' + (parcialHtml || (res ? '<div class="parcial"><div><small>Resultado registrado até a interrupção</small><b>' + esc(res) + "</b></div></div>" : "")) :
+        '<div class="pl">' + (res ? '<span class="res">' + esc(res) + "</span>" : "") + '<span class="selo ok">Partida concluída</span></div>') + "</header>";
+    var kSaq = nMarc > 0 ? kpi(Math.round(nPrim * 100 / nMarc) + "%", "1º saque dentro", nPrim + " de " + nMarc + " saques marcados" + (dfN ? " · " + dfN + (dfN === 1 ? " dupla falta" : " duplas faltas") : "") + (acesN ? " · " + acesN + (acesN === 1 ? " ace" : " aces") : ""))
+      : (!temPts && n0(s.pctPrimeiro) > 0 ? kpi(Math.round(n0(s.pctPrimeiro)) + "%", "1º saque dentro", "contagem de saques não disponível neste registro") : kpi("não registrado", "1º saque dentro", "os saques não foram marcados neste jogo"));
+    var kAdv = nAdv === null ? (val("pctAdversos") !== null ? kpi(Math.round(val("pctAdversos")) + "%", "ganhos sob pressão", "contagem não disponível neste registro") : kpi("não registrado", "ganhos sob pressão", "placar adverso não registrado"))
+      : nAdv === 0 ? kpi("sem pontos", "ganhos sob pressão", "o atleta não esteve atrás no placar") : kpi(nAdv >= 5 ? Math.round(gAdv * 100 / nAdv) + "%" : gAdv + " de " + nAdv, "ganhos sob pressão", gAdv + " de " + nAdv + " pontos em placar adverso" + (nAdv < 5 ? " (base pequena)" : ""));
+    h += '<div class="kps">' + kpi(Math.round(pg) + "%", "dos pontos ganhos", n0(s.ganhos) + " de " + n0(s.n) + " pontos") + kpi(eNos, "erros do atleta", eDec + " de decisão · " + eExe + " de execução" + (eSem > 0 ? " · " + eSem + " sem classificação" : "")) + kSaq + kAdv + "</div>";
+    if (parcial) h += '<p class="escopo">Os indicadores consideram apenas os pontos registrados até a interrupção.</p>';
 
     /* leitura do jogo */
     var forte = [], atencao = [];
-    (leitura(s) || []).forEach(function (x) { atencao.push(x[1]); });
-    if (prim !== null && prim >= 62) forte.push("1º saque consistente: " + r1(prim) + "% dentro.");
-    if (df !== null && df <= 1) forte.push("Controle do segundo saque: " + n0(df) + (n0(df) === 1 ? " dupla falta." : " duplas faltas."));
-    var pa = val("pctAdversos"); if (pa !== null && pa >= 55) forte.push("Resiste à pressão: " + r1(pa) + "% dos pontos em placar adverso.");
+    /* as leituras automáticas do motor que repetem indicadores já calculados aqui, com a base explícita (1º saque, duplas faltas, decisão x execução), ficam de fora: evita números e bases diferentes no mesmo relatório */
+    (leitura(s) || []).forEach(function (x) { if (!/decis|execu|primeiro saque|1º saque|dupla/i.test(String(x[1]))) atencao.push(x[1]); });
+    if (prim !== null && prim >= 62) forte.push("1º saque consistente: " + nPrim + " de " + nMarc + " saques marcados dentro (" + r1(prim) + "%).");
+    if (df !== null && nMarc >= 5 && df <= 1) forte.push("Controle do segundo saque: " + df + (df === 1 ? " dupla falta." : " duplas faltas."));
+    if (pa !== null && pa >= 55) forte.push("Resiste à pressão: " + gAdv + " de " + nAdv + " pontos ganhos em placar adverso (" + r1(pa) + "%).");
     if (pg >= 60) forte.push("Domínio do placar: " + Math.round(pg) + "% dos pontos ganhos.");
-    var pc = val("pctErrosCurtos"); if (pc !== null && pc <= 30 && n0(s.errosNos) >= 4) forte.push("Poucos erros no início do ponto (" + r1(pc) + "% nas duas primeiras bolas).");
-    if (prim !== null && prim < 55) atencao.push("1º saque dentro em apenas " + r1(prim) + "%.");
-    if (df !== null && df >= 3) atencao.push(n0(df) + " duplas faltas no jogo.");
-    if (pa !== null && pa < 45) atencao.push("Cai sob pressão: " + r1(pa) + "% dos pontos em placar adverso.");
-    var ed = n0(s.errosDecisao), ee = n0(s.errosExec);
-    if (ed + ee >= 6) { if (ed > ee * 1.3) atencao.push("Os erros são mais de decisão (" + pct(ed, ed + ee) + "%): o trabalho é de escolha de jogada."); else if (ee > ed * 1.3) atencao.push("Os erros são mais de execução (" + pct(ee, ed + ee) + "%): o trabalho é técnico."); }
+    var pc = val("pctErrosCurtos"); if (pc !== null && pc <= 30 && eNos >= 4) forte.push("Poucos erros no início do ponto (" + r1(pc) + "% nas duas primeiras bolas).");
+    if (prim !== null && prim < 55) atencao.push("1º saque dentro em " + nPrim + " de " + nMarc + " saques marcados (" + r1(prim) + "%).");
+    if (df !== null && df >= 3) atencao.push(df + " duplas faltas no jogo.");
+    if (pa !== null && pa < 45) atencao.push("Cai sob pressão: " + gAdv + " de " + nAdv + " pontos ganhos em placar adverso (" + r1(pa) + "%).");
+    if (eCls >= 6) { if (eDec > eExe * 1.3) atencao.push("Entre os " + eCls + " erros classificados, " + Math.round(eDec * 100 / eCls) + "% são de decisão (" + eDec + " de " + eCls + ")."); else if (eExe > eDec * 1.3) atencao.push("Entre os " + eCls + " erros classificados, " + Math.round(eExe * 100 / eCls) + "% são de execução (" + eExe + " de " + eCls + ")."); }
+    if (eSem > 0) atencao.push(eSem + (eSem === 1 ? " erro ficou sem classificação (decisão ou execução)." : " erros ficaram sem classificação (decisão ou execução)."));
     function uniq(l) { var v = {}; return l.filter(function (t) { if (v[t]) return false; v[t] = 1; return true; }).slice(0, 5); }
     forte = uniq(forte); atencao = uniq(atencao);
     function lista(tit, cor, itens, vazio) { return '<div class="lei" style="border-top:3px solid ' + cor + '"><h3>' + esc(tit) + "</h3>" + (itens.length ? "<ul>" + itens.map(function (t) { return "<li>" + esc(t) + "</li>"; }).join("") + "</ul>" : '<p class="mudo">' + esc(vazio) + "</p>") + "</div>"; }
@@ -307,20 +329,44 @@
     /* como os pontos terminaram */
     if (d && d.fins) {
       var fi = [{ nome: "Winner de " + atleta, v: d.fins.winner_nos, cor: AZUL }, { nome: "Erro do adversário", v: d.fins.erro_dele, cor: AZUL_CL }, { nome: "Erro de " + atleta, v: d.fins.erro_nos, cor: LARANJA }, { nome: "Winner do adversário", v: d.fins.winner_dele, cor: LARANJA_CL }], tf = fi.reduce(function (t, x) { return t + n0(x.v); }, 0);
-      if (tf) h += card("Como os pontos terminaram", pilha100(fi) + '<div class="fins">' + fi.map(function (x) { return '<div><i style="background:' + x.cor + '"></i><b>' + n0(x.v) + "</b> " + esc(x.nome) + " <small>" + pct(x.v, tf) + "%</small></div>"; }).join("") + "</div>");
+      if (tf) {
+        var somaArr = fi.reduce(function (t, x) { return t + Math.round(n0(x.v) * 100 / tf); }, 0), gan = n0(d.fins.winner_nos) + n0(d.fins.erro_dele), per = n0(d.fins.erro_nos) + n0(d.fins.winner_dele);
+        h += card("Como os pontos terminaram", pilha100(fi) + '<div class="fins">' + fi.map(function (x) { return '<div><i style="background:' + x.cor + '"></i><b>' + n0(x.v) + "</b> " + esc(x.nome) + " <small>" + n0(x.v) + " de " + tf + " · " + Math.round(n0(x.v) * 100 / tf) + "%</small></div>"; }).join("") + "</div>" +
+          '<p class="mudo">Pontos ganhos: ' + gan + " (" + n0(d.fins.winner_nos) + " winners + " + n0(d.fins.erro_dele) + " erros do adversário) · Pontos perdidos: " + per + " (" + n0(d.fins.erro_nos) + " erros + " + n0(d.fins.winner_dele) + " winners do adversário) · Total: " + tf + " pontos." +
+          (n0(s.n) && tf !== n0(s.n) ? " Atenção: os encerramentos registrados somam " + tf + " de " + n0(s.n) + " pontos." : "") + (somaArr !== 100 ? " Percentuais arredondados: a soma pode não ser exatamente 100%." : "") + "</p>");
+      }
     }
     /* saque e devolução */
     var sq = "", dv = "";
-    if (prim !== null) sq += barraH("1º saque dentro", "", prim, 100, AZUL, r1(prim) + "%");
-    [["pctSacD", "Ganhos no meu saque · igualdade"], ["pctSacE", "Ganhos no meu saque · vantagem"]].forEach(function (p) { var v = val(p[0]); if (v !== null) sq += barraH(p[1], "", v, 100, AZUL, r1(v) + "%"); });
-    [["pctDevD", "Ganhos no saque dele · igualdade"], ["pctDevE", "Ganhos no saque dele · vantagem"]].forEach(function (p) { var v = val(p[0]); if (v !== null) dv += barraH(p[1], "", v, 100, AZUL_CL, r1(v) + "%"); });
-    if (d && d.devolucao && n0(d.devolucao.nos.n) > 0) dv += barraH("Erros de devolução", n0(d.devolucao.nos.n) + " pontos no saque dele", pct(d.devolucao.nos.e, d.devolucao.nos.n), 100, LARANJA, pct(d.devolucao.nos.e, d.devolucao.nos.n) + "%");
+    function linha(rot, x, n, cor, det) { var q = razao(x, n); return barraH(rot, det || "", q.v === null ? 0 : q.v, 100, cor, q.t); }
+    function lado(lista, l) { return lista.filter(function (p) { return p.lado === l; }); }
+    if (temPts) {
+      var dele = pts.filter(function (p) { return p.sacador === "ele"; });
+      sq += nMarc > 0 ? linha("1º saque dentro", nPrim, nMarc, AZUL, "entre os saques marcados") : barraH("1º saque dentro", "", 0, 100, AZUL, "não registrado");
+      [["D", "igualdade"], ["E", "vantagem"]].forEach(function (k) { var l = lado(meus, k[0]); sq += linha("Pontos ganhos no meu saque · " + k[1], cnt(l, function (p) { return p.nos; }), l.length, AZUL); dv += linha("Pontos ganhos no saque dele · " + k[1], cnt(lado(dele, k[0]), function (p) { return p.nos; }), lado(dele, k[0]).length, AZUL_CL); });
+      sq += '<p class="mudo">' + (nMarc > 0 || dfN || acesN ? "Duplas faltas: <b>" + n0(dfN) + "</b> · Aces: <b>" + n0(acesN) + "</b>. Já estão contados nos pontos perdidos e ganhos, não são somados de novo." : "Duplas faltas e aces: não registrados neste jogo.") + "</p>";
+      if (d && d.devolucao) dv += linha("Erros de devolução", n0(d.devolucao.nos.e), n0(d.devolucao.nos.n), LARANJA, "pontos no saque dele");
+    } else {
+      if (val("pctPrimeiro") !== null) sq += barraH("1º saque dentro", "", val("pctPrimeiro"), 100, AZUL, r1(val("pctPrimeiro")) + "% (contagem não disponível)");
+      [["pctSacD", "Pontos ganhos no meu saque · igualdade"], ["pctSacE", "Pontos ganhos no meu saque · vantagem"]].forEach(function (p) { var v = val(p[0]); sq += v !== null ? barraH(p[1], "", v, 100, AZUL, r1(v) + "%") : barraH(p[1], "", 0, 100, AZUL, "não registrado"); });
+      [["pctDevD", "Pontos ganhos no saque dele · igualdade"], ["pctDevE", "Pontos ganhos no saque dele · vantagem"]].forEach(function (p) { var v = val(p[0]); dv += v !== null ? barraH(p[1], "", v, 100, AZUL_CL, r1(v) + "%") : barraH(p[1], "", 0, 100, AZUL_CL, "não registrado"); });
+    }
     if (sq || dv) h += card("Saque e devolução", '<div class="duas"><div class="cx"><h3>Meu saque</h3>' + (sq || '<p class="mudo">Sem dados de saque.</p>') + '</div><div class="cx"><h3>Devolução</h3>' + (dv || '<p class="mudo">Sem dados de devolução.</p>') + "</div></div>");
     /* onde o ponto se decide + decisão x execução */
-    var bc = val("pctCurtos"), bm = val("pctMedios"), bl = val("pctLongos"), meio = "";
-    if (bc !== null || bm !== null || bl !== null) meio += '<div class="cx"><h3>Onde o ponto se decidiu</h3>' + pilha100([{ nome: "1–2 bolas", v: bc || 0, cor: AZUL }, { nome: "3–4 bolas", v: bm || 0, cor: AZUL_CL }, { nome: "5+ bolas", v: bl || 0, cor: CINZA }]) + leg([["1–2 bolas " + fmt(bc, "%"), AZUL], ["3–4 bolas " + fmt(bm, "%"), AZUL_CL], ["5+ bolas " + fmt(bl, "%"), CINZA]]) + '<p class="mudo">Cerca de 70% dos pontos do circuito terminam em até quatro bolas.</p></div>';
-    if (ed + ee > 0) meio += '<div class="cx"><h3>Erros: decisão ou execução</h3>' + pilha100([{ nome: "Decisão", v: ed, cor: LARANJA }, { nome: "Execução", v: ee, cor: LARANJA_CL }]) + leg([["Decisão " + ed, LARANJA], ["Execução " + ee, LARANJA_CL]]) + '<p class="mudo">Decisão errada e execução errada não se corrigem juntas.</p></div>';
+    var nc = n0(s.curtos), nm = n0(s.medios), nl = n0(s.longos), nb = nc + nm + nl, meio = "";
+    if (nb > 0) {
+      var rb = [Math.round(nc * 100 / nb), Math.round(nm * 100 / nb), Math.round(nl * 100 / nb)];
+      meio += '<div class="cx"><h3>Onde o ponto se decidiu</h3>' + pilha100([{ nome: "1–2 bolas", v: nc, cor: AZUL }, { nome: "3–4 bolas", v: nm, cor: AZUL_CL }, { nome: "5+ bolas", v: nl, cor: CINZA }]) +
+        leg([["1–2 bolas · " + nc + " de " + nb + " · " + rb[0] + "%", AZUL], ["3–4 bolas · " + nm + " de " + nb + " · " + rb[1] + "%", AZUL_CL], ["5+ bolas · " + nl + " de " + nb + " · " + rb[2] + "%", CINZA]]) +
+        '<p class="mudo">Cerca de 70% dos pontos do circuito terminam em até quatro bolas.' + (rb[0] + rb[1] + rb[2] !== 100 ? " Percentuais arredondados." : "") + (n0(s.n) && nb !== n0(s.n) ? " " + (n0(s.n) - nb) + " pontos sem número de bolas registrado." : "") + "</p></div>";
+    }
+    if (eNos > 0) {
+      meio += '<div class="cx"><h3>Erros: decisão ou execução</h3>' + pilha100([{ nome: "Decisão", v: eDec, cor: LARANJA }, { nome: "Execução", v: eExe, cor: LARANJA_CL }, { nome: "Sem classificação", v: eSem, cor: CINZA }]) +
+        leg([["Decisão " + eDec, LARANJA], ["Execução " + eExe, LARANJA_CL]].concat(eSem > 0 ? [["Sem classificação " + eSem, CINZA]] : [])) + '<p class="mudo" style="margin:2px 0">A barra mostra a parte de cada tipo entre os ' + eNos + " erros.</p>" +
+        '<p class="mudo"><b>' + eNos + " erros:</b> " + eDec + " de decisão, " + eExe + " de execução" + (eSem > 0 ? " e " + eSem + " sem classificação" : "") + "." + (eCls > 0 ? " Entre os " + eCls + " erros classificados: " + Math.round(eDec * 100 / eCls) + "% de decisão e " + Math.round(eExe * 100 / eCls) + "% de execução." : " Nenhum erro foi classificado.") + (eCls > 0 && Math.round(eDec * 100 / eCls) + Math.round(eExe * 100 / eCls) !== 100 ? " Percentuais arredondados." : "") + "</p></div>";
+    }
     if (meio) h += card("Padrões do jogo", '<div class="duas">' + meio + "</div>");
+
 
     /* comparação com os jogos anteriores */
     if (ant.length) {
@@ -342,7 +388,7 @@
     if (prox.length || r.observacaoFinal) h += card("Para o próximo treino", (prox.length ? "<ul class=\"prox\">" + prox.map(function (t) { return "<li>" + esc(t) + "</li>"; }).join("") + "</ul>" : "") + (r.observacaoFinal ? "<blockquote>" + esc(r.observacaoFinal) + '<footer>Observação do treinador</footer></blockquote>' : ""));
 
     var CSSP = "@page{size:A4;margin:12mm}*{box-sizing:border-box}body{font-family:-apple-system,system-ui,'Segoe UI',Roboto,sans-serif;color:" + TINTA + ";max-width:860px;margin:0 auto;padding:20px 18px 36px;line-height:1.5;-webkit-print-color-adjust:exact;print-color-adjust:exact;background:#fff}" +
-      ".capa{background:" + MARCA + ";color:#fff;border-radius:18px;padding:22px 26px 24px;margin-bottom:16px;border-bottom:5px solid #69B32A}.capa-t{display:flex;justify-content:space-between;align-items:center;font-size:11px;letter-spacing:.16em;text-transform:uppercase;opacity:.85}.eyebrow{font-weight:800;color:#9BD65B}.capa h1{font-size:34px;line-height:1.1;margin:14px 0 4px;letter-spacing:-.02em}.ctx{margin:0;font-size:14px;opacity:.88}.pl{display:flex;align-items:center;gap:14px;margin-top:16px;flex-wrap:wrap}.parc{margin:10px 0 0;font-size:13px;color:#C8E8A6;font-weight:600}.res{font-size:30px;font-weight:800;letter-spacing:.02em;font-variant-numeric:tabular-nums}.selo{font-size:11.5px;font-weight:700;padding:5px 12px;border-radius:999px;background:rgba(255,255,255,.14)}.selo.ok{background:#69B32A;color:#0B2A24}" +
+      ".capa{background:" + MARCA + ";color:#fff;border-radius:18px;padding:22px 26px 24px;margin-bottom:16px;border-bottom:5px solid #69B32A}.capa-t{display:flex;justify-content:space-between;align-items:center;font-size:11px;letter-spacing:.16em;text-transform:uppercase;opacity:.85}.eyebrow{font-weight:800;color:#9BD65B}.capa h1{font-size:34px;line-height:1.1;margin:14px 0 4px;letter-spacing:-.02em}.ctx{margin:0;font-size:14px;opacity:.88}.pl{display:flex;align-items:center;gap:14px;margin-top:16px;flex-wrap:wrap}.parcial{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.parcial>div{background:rgba(255,255,255,.1);border-radius:12px;padding:9px 14px}.parcial small{display:block;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;opacity:.8}.parcial b{font-size:18px}.escopo{font-size:12px;color:#5B6B63;margin:6px 2px 0;font-style:italic}.res{font-size:30px;font-weight:800;letter-spacing:.02em;font-variant-numeric:tabular-nums}.selo{font-size:11.5px;font-weight:700;padding:5px 12px;border-radius:999px;background:rgba(255,255,255,.14)}.selo.ok{background:#69B32A;color:#0B2A24}" +
       ".kps{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:6px}.kps.k2{grid-template-columns:repeat(2,1fr)}.kp{border:1px solid " + LINHA + ";border-radius:14px;padding:13px 14px;background:#F6F8F7;break-inside:avoid}.kp b{display:block;font-size:28px;line-height:1.05;color:" + MARCA + ";letter-spacing:-.02em}.kp span{display:block;font-size:12.5px;font-weight:600;margin-top:3px}.kp small{display:block;font-size:11px;color:" + GRAFITE + ";margin-top:2px}" +
       ".xy{width:100%;height:auto;display:block}.sec{margin-top:22px;break-inside:avoid}.sec h2{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:" + MARCA + ";margin:0 0 10px;padding-bottom:6px;border-bottom:1px solid " + LINHA + ";display:flex;align-items:center;gap:8px}.sec h2:before{content:'';width:8px;height:8px;border-radius:2px;background:#69B32A}h3{font-size:13.5px;margin:0 0 8px}.mudo{color:" + GRAFITE + ";font-size:12px;margin:4px 0 8px}" +
       ".duas{display:grid;grid-template-columns:1fr 1fr;gap:12px}.lei,.cx{border:1px solid " + LINHA + ";border-radius:14px;padding:12px 14px;break-inside:avoid}.lei ul{margin:0;padding-left:18px;font-size:13px}.lei li{margin:4px 0}" +
@@ -355,7 +401,7 @@
       ".no-print{margin-bottom:14px;display:flex;gap:10px}.no-print button{padding:10px 16px;font-weight:700;cursor:pointer;border-radius:10px;border:1px solid " + MARCA + ";background:" + MARCA + ";color:#fff}.no-print button+button{background:#fff;color:" + MARCA + "}.rodape{margin-top:26px;padding-top:10px;border-top:1px solid " + LINHA + ";font-size:11px;color:" + GRAFITE + "}.marca{margin-bottom:10px}" +
       "@media(max-width:700px){.kps{grid-template-columns:1fr 1fr}.duas{grid-template-columns:1fr}.capa h1{font-size:28px}}@media print{.no-print{display:none}.kps{grid-template-columns:repeat(4,1fr)}.duas{grid-template-columns:1fr 1fr}}";
     function pilhaGamesP(gs) { return '<div class="gms' + (gs.length > 12 ? " mini" : "") + '">' + gs.map(function (x) { var p = pct(x.g, x.n); return '<div class="gm"><div class="gm-b" title="Game ' + x.j + ": " + x.g + " de " + x.n + ' pontos"><i style="height:' + p + "%;background:" + (p >= 50 ? AZUL : LARANJA) + '"></i></div><span>' + x.j + "</span><small>" + p + "%</small></div>"; }).join("") + "</div>" + (gs.length > 12 ? '<p class="mudo">Cada barra é um game (número abaixo); passe o dedo ou o mouse sobre a barra para ver os pontos.</p>' : ""); }
-    return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Relatório da partida · ' + esc(atleta) + "</title><style>" + CSSP + "</style></head><body>" +
+    return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + (parcial ? "Relatório parcial da partida" : "Relatório da partida") + ' · ' + esc(atleta) + "</title><style>" + CSSP + "</style></head><body>" +
       '<div class="no-print"><button onclick="window.print()">Salvar como PDF / Imprimir</button><button onclick="window.close()">Fechar</button></div>' + (o.cabecalhoHtml ? '<div class="marca">' + o.cabecalhoHtml + "</div>" : "") + h +
       '<p class="rodape">Um jogo é uma amostra: o resultado não muda a rota do plano, quem muda a rota é o padrão que se repete. Os números vêm dos pontos marcados pelo treinador; medidas que o jogo não registrou ficam de fora. Análise gerada com a Tecnologia QuadraLab.</p></body></html>';
   }

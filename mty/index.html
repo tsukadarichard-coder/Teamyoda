@@ -9894,10 +9894,10 @@ function resume(pontos) {
     pctCurtos: pct(curtos), pctMedios: pct(medios), pctLongos: pct(longos),
     pctAte4: pct(curtos + medios),
     ganhos, pctGanhos: pct(ganhos),
-    errosNos: errosNos.length, errosDecisao, errosExec, errosCurtos,
+    errosNos: errosNos.length, errosDecisao, errosExec, errosSemCausa: errosNos.length - errosDecisao - errosExec, errosCurtos,
     pctErrosCurtos: errosNos.length ? Math.round((errosCurtos / errosNos.length) * 100) : 0,
     df: df.length, dfAdverso, razaoDF: Number(razaoDF.toFixed(1)),
-    pctPrimeiro: Math.round((primeiros / comSaqueMarcado) * 100),
+    pctPrimeiro: Math.round((primeiros / comSaqueMarcado) * 100), primeirosDentro: primeiros, saquesMarcados: meusSaques.filter((p) => p.saque === "1" || p.saque === "2" || p.saque === "df").length,
     pctProtocolo: pct(protocolo), rede, redeGanha, ataquePerdido,
     aces, acesAdv, dfAdv, nSaqueDele: saquesDele.length,
     pctPrimeiroAdv: comSaqueDele ? Math.round((saquesDele.filter((p) => p.saque === "1").length / comSaqueDele) * 100) : 0,
@@ -9926,9 +9926,9 @@ function leitura(r) {
   if (r.detalhe && r.detalhe.devolucao.nos.n >= 8 && r.errosDevolucao >= 3 && r.pctErrosDevolucao >= 25)
     sinais.push(["devolucao", `Erros de devolução de saque: ${r.errosDevolucao} em ${r.detalhe.devolucao.nos.n} pontos no saque do adversário (${r.pctErrosDevolucao}%). O ponto está sendo perdido na primeira bola em jogo: vale olhar a posição de espera, o split step e o alvo da devolução.`]);
   if (r.errosDecisao > r.errosExec && r.errosNos >= 5)
-    sinais.push(["fundo", `Mais erros de decisão (${r.errosDecisao}) que de execução (${r.errosExec}). O recurso existe; o padrão de decisão é que não está treinado.`]);
+    sinais.push(["fundo", `Entre os ${r.errosDecisao + r.errosExec} erros classificados, ${r.errosDecisao} são de decisão e ${r.errosExec} de execução.${r.errosSemCausa > 0 ? ` Há ${r.errosSemCausa} sem classificação.` : ""}`]);
   if (r.errosExec > r.errosDecisao * 2 && r.errosNos >= 5)
-    sinais.push(["fundo", `Os erros são de execução (${r.errosExec} contra ${r.errosDecisao} de decisão). A decisão está certa — corrige-se apoio e ponto de contato, nunca a jogada.`]);
+    sinais.push(["fundo", `Entre os ${r.errosDecisao + r.errosExec} erros classificados, ${r.errosExec} são de execução e ${r.errosDecisao} de decisão.${r.errosSemCausa > 0 ? ` Há ${r.errosSemCausa} sem classificação.` : ""}`]);
   if (r.pctProtocolo > 0 && r.pctProtocolo < 70)
     sinais.push(["mental", `Protocolo presente em ${r.pctProtocolo}% dos pontos. Abaixo de 80% o intervalo de 20 segundos está sendo desperdiçado.`]);
   if (r.ataquePerdido >= 4)
@@ -10434,14 +10434,16 @@ function ResumoScout({ r, sinais, aluno, alunos, setAlunos, pontos, cfg, mental 
       <Secao titulo="O jogo em números">
         <Tabela cabecalho={["Medida", "Valor"]} linhas={[
           ["Pontos coletados", r.n],
-          ["Pontos ganhos", `${r.ganhos} · ${r.pctGanhos}%`],
-          ["Erros do meu jogador", r.errosNos],
+          ["Pontos ganhos", `${r.ganhos} de ${r.n} pontos · ${r.pctGanhos}%`],
+          ["Erros do meu jogador", `${r.errosNos}${r.n ? " · " + Math.round((r.errosNos / r.n) * 100) + "% dos pontos" : ""}`],
           ["— por decisão", r.errosDecisao],
           ["— por execução", r.errosExec],
+          ...(r.errosSemCausa > 0 ? [["— sem classificação", r.errosSemCausa]] : []),
+          ...(r.errosDecisao + r.errosExec > 0 ? [[`Entre os ${r.errosDecisao + r.errosExec} erros classificados`, `${Math.round((r.errosDecisao / (r.errosDecisao + r.errosExec)) * 100)}% decisão · ${Math.round((r.errosExec / (r.errosDecisao + r.errosExec)) * 100)}% execução`]] : []),
           ["Erros na bola 1–2", `${r.errosCurtos} · ${r.pctErrosCurtos}% dos erros`],
-          ["1º saque dentro", r.pctPrimeiro ? r.pctPrimeiro + "%" : "não marcado"],
-          ["Duplas faltas", `${r.df} · ${r.dfAdverso} em placar adverso`],
-          ["Aces do meu jogador", r.aces],
+          ["1º saque dentro", r.saquesMarcados > 0 ? `${r.primeirosDentro} de ${r.saquesMarcados} saques marcados · ${r.pctPrimeiro}%` : "não registrado"],
+          ["Duplas faltas", r.saquesMarcados > 0 || r.df > 0 ? `${r.df} · ${r.dfAdverso} em placar adverso` : "não registrado"],
+          ["Aces do meu jogador", r.saquesMarcados > 0 || r.aces > 0 ? r.aces : "não registrado"],
           ["Saque do adversário", r.nSaqueDele ? `${r.pctPrimeiroAdv ? r.pctPrimeiroAdv + "% de 1º saque dentro · " : ""}${r.acesAdv} aces · ${r.dfAdv} duplas faltas` : "—"],
           ["Pontos no meu saque · lado da igualdade", r.nSacD ? `${r.pctSacD}% ganhos · ${r.nSacD} pontos` : "—"],
           ["Pontos no meu saque · lado da vantagem", r.nSacE ? `${r.pctSacE}% ganhos · ${r.nSacE} pontos` : "—"],
@@ -10559,7 +10561,18 @@ function Relatorio({ final, identidade, aluno, alunos, setAlunos, cfg, pontos, p
 
   return (
     <div>
-      <Etiqueta cor={concluida ? C.quadra : "#C9A227"}>{concluida ? "Partida concluída" : "Acompanhamento interrompido — sem vencedor atribuído"}</Etiqueta>
+      <Etiqueta cor={concluida ? C.quadra : "#C9A227"}>{concluida ? "Partida concluída" : "Relatório parcial da partida"}</Etiqueta>
+      {!concluida && placar && (
+        <div data-parcial style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "10px 13px", marginTop: 8 }}>
+          <p style={{ ...prosa, fontSize: 13.5, fontWeight: 700 }}>Acompanhamento interrompido. Resultado final não registrado.</p>
+          <p style={{ ...prosa, fontSize: 13, marginTop: 4 }}>
+            Sets concluídos: <b>{placar.sets.length ? placar.sets.map((x) => x[0] + "–" + x[1]).join(", ") : "nenhum"}</b>
+            {placar.g[0] + placar.g[1] > 0 ? <><br />{placar.sets.length + 1}º set: <b>{placar.g[0]}–{placar.g[1]} em games</b></> : null}
+            {(placar.p[0] + placar.p[1] > 0) ? <><br />Game em andamento: <b>{rotuloPontos(placar).replace("-", "–")}</b></> : null}
+          </p>
+          <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 4 }}>Os indicadores consideram apenas os pontos registrados até a interrupção.</p>
+        </div>
+      )}
       {aoRetomar && !(final && !concluida) && (
         <div className="mt-3" style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "11px 14px" }}>
           <p style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{concluida ? "Marcou algum ponto errado?" : "Encerrou sem querer?"}</p>
