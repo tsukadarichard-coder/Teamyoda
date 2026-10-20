@@ -10551,7 +10551,7 @@ function Relatorio({ identidade, aluno, alunos, setAlunos, cfg, pontos, placar, 
   function gerarPDF(comAnteriores) {
     const atual = montarRegistro();
     const anteriores = comAnteriores ? (aluno.registros || []).filter((x) => x.tipo === "jogo" && x.scout && x.id !== atual.id).slice(-5) : [];
-    exportarRelatorioJogos(aluno, identidade, [...anteriores, atual]);
+    exportarRelatorioPartida(aluno, identidade, atual, anteriores);
   }
   const temAnteriores = (aluno.registros || []).some((x) => x.tipo === "jogo" && x.scout && !(original && x.id === original.id));
   function salvar() {
@@ -10584,8 +10584,8 @@ function Relatorio({ identidade, aluno, alunos, setAlunos, cfg, pontos, placar, 
         <p style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>Relatório em PDF</p>
         <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, margin: "3px 0 8px" }}>Abre o relatório com gráficos e leituras, pronto para salvar como PDF. No celular, use Compartilhar ou Imprimir e escolha “Salvar como PDF”.</p>
         <div className="flex gap-2 flex-wrap">
-          <Botao pequeno variante="saibro" onClick={() => gerarPDF(false)}>Relatório desta partida (PDF)</Botao>
-          {temAnteriores && <Botao pequeno variante="vazio" onClick={() => gerarPDF(true)}>Com a evolução dos jogos anteriores</Botao>}
+          <Botao pequeno variante="saibro" onClick={() => gerarPDF(false)}>Relatório da partida (PDF)</Botao>
+          {temAnteriores && <Botao pequeno variante="vazio" onClick={() => gerarPDF(true)}>Com comparação aos jogos anteriores</Botao>}
         </div>
       </div>
       <div className="mt-3"><ResumoScout r={r} sinais={sinais} aluno={aluno} alunos={alunos} setAlunos={setAlunos} pontos={pontos} cfg={cfg} mental={mental} /></div>
@@ -10643,6 +10643,22 @@ function exportarRelatorioJogos(aluno, identidade, jogosEscolhidos) {
   try {
     html = window.QLRelatorioJogos.gerar({
       atleta: aluno.nome, jogos, metricas: METRICAS_SCOUT, tendencia: tendenciaScout, leitura, zonasDe,
+      detalheDe: (r) => r.scout.detalhe || ((r.scout.pontos || []).length ? resume(r.scout.pontos).detalhe : null),
+      cabecalhoHtml: cabecalhoRelatorioHTML(identidade), geradoEm: new Date().toLocaleDateString("pt-BR"),
+    });
+  } catch (e) { janela.close(); alert("Não foi possível montar o relatório: " + (e && e.message ? e.message : e)); return; }
+  janela.document.write(html);
+  janela.document.close();
+}
+/* Relatório de uma partida, em página elegante pronta para "Salvar como PDF" (scout/relatorio-jogos.js · gerarPartida). */
+function exportarRelatorioPartida(aluno, identidade, reg, anteriores) {
+  if (!window.QLRelatorioJogos || !window.QLRelatorioJogos.gerarPartida) { alert("Não foi possível carregar o gerador do relatório. Recarregue a página e tente de novo."); return; }
+  const janela = window.open("", "_blank");
+  if (!janela) { alert("O navegador bloqueou a janela de exportação — permita pop-ups pra este site e tente de novo."); return; }
+  let html;
+  try {
+    html = window.QLRelatorioJogos.gerarPartida({
+      atleta: aluno.nome, reg, anteriores, metricas: METRICAS_SCOUT, leitura, zonasDe,
       detalheDe: (r) => r.scout.detalhe || ((r.scout.pontos || []).length ? resume(r.scout.pontos).detalhe : null),
       cabecalhoHtml: cabecalhoRelatorioHTML(identidade), geradoEm: new Date().toLocaleDateString("pt-BR"),
     });

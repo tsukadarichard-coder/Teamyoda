@@ -27,15 +27,15 @@ if (!existe()) { console.log("smoke-encerrar-partida: pulado (sem React/Babel lo
     // 3) encerrar de vez abre o relatório com o PDF
     await p.getByRole("button", { name: "Encerrar e ver relatório" }).click(); await p.getByRole("button", { name: "Encerrar de vez e ver o relatório" }).click();
     await p.waitForSelector("[data-pdf-partida]");
-    await p.getByRole("button", { name: "Relatório desta partida (PDF)" }).click(); await p.waitForTimeout(500);
+    await p.getByRole("button", { name: "Relatório da partida (PDF)" }).click(); await p.waitForTimeout(500);
     let docs = await p.evaluate(() => window.__docs);
-    assert.strictEqual(docs.length, 1, app + ": abriu o documento"); assert(/Salvar como PDF|print/i.test(docs[0]) && /1 jogo analisado|jogo analisado/.test(docs[0]), app + ": relatório de 1 jogo, pronto para salvar como PDF");
-    await p.getByRole("button", { name: "Com a evolução dos jogos anteriores" }).click(); await p.waitForTimeout(500);
-    docs = await p.evaluate(() => window.__docs); assert(/<b>2<\/b><span>jogos analisados/.test(docs[1]), app + ": com a evolução inclui o jogo anterior");
+    assert.strictEqual(docs.length, 1, app + ": abriu o documento"); assert(/Salvar como PDF/.test(docs[0]) && /Relatório da partida/.test(docs[0]) && !/Em relação aos jogos anteriores/.test(docs[0]), app + ": relatório da partida sem comparação, pronto para salvar como PDF");
+    await p.getByRole("button", { name: "Com comparação aos jogos anteriores" }).click(); await p.waitForTimeout(500);
+    docs = await p.evaluate(() => window.__docs); assert(/Em relação aos jogos anteriores/.test(docs[1]) && /Média dos 1 jogo anterior/.test(docs[1]), app + ": com comparação inclui o jogo anterior");
     // salvar no caderno e gerar de novo não duplica o jogo
     await p.getByRole("button", { name: "Salvar no caderno" }).click(); await p.waitForTimeout(400);
-    await p.getByRole("button", { name: "Com a evolução dos jogos anteriores" }).click(); await p.waitForTimeout(500);
-    docs = await p.evaluate(() => window.__docs); assert(/<b>2<\/b><span>jogos analisados/.test(docs[2]), app + ": depois de salvar não conta o jogo duas vezes");
+    await p.getByRole("button", { name: "Com comparação aos jogos anteriores" }).click(); await p.waitForTimeout(500);
+    docs = await p.evaluate(() => window.__docs); assert(/Média dos 1 jogo anterior/.test(docs[2]) && !/Média dos 2 jogos anteriores/.test(docs[2]), app + ": depois de salvar não conta o jogo duas vezes");
     assert.deepStrictEqual(erros, [], app + ": erros de JS " + erros.join(" | "));
     console.log("smoke-encerrar-partida " + app + ": ok"); await b.close(); srv.close();
   }

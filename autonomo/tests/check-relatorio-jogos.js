@@ -35,5 +35,13 @@ assert((html.match(/<svg/g) || []).length >= 14, "poucos gráficos: " + (html.ma
 /* um único jogo e jogo sem detalhe não quebram */
 const um = R.gerar({ atleta: "Ana", jogos: [regs[0]], metricas: METRICAS_SCOUT, tendencia: tendenciaScout, leitura: M.leitura, zonasDe: M.zonasDe, detalheDe: () => null, cabecalhoHtml: "", geradoEm: "x" });
 assert(um.includes("Com um único jogo"), "aviso de jogo único");
+/* relatório da partida (1 jogo, página elegante) */
+const base = { atleta: "Ana <b>Souza", metricas: METRICAS_SCOUT, leitura: M.leitura, zonasDe: M.zonasDe, detalheDe: (r) => r.scout.detalhe || M.resume(r.scout.pontos).detalhe, cabecalhoHtml: "<b>Academia</b>", geradoEm: "20/10/2026" };
+const p1 = R.gerarPartida({ ...base, reg: regs[5], anteriores: regs.slice(0, 5) });
+["Relatório da partida", "Partida concluída", "A leitura do jogo", "Como os pontos terminaram", "Saque e devolução", "Padrões do jogo", "Em relação aos jogos anteriores", "Estado mental", "Salvar como PDF"].forEach((x) => assert(p1.includes(x), "seção do relatório da partida: " + x));
+assert(!p1.includes("<b>Souza") && !/undefined|NaN|Infinity/.test(p1.replace(/<style>[\s\S]*?<\/style>/, "")), "partida: sem escape e sem valor inválido");
+const p2 = R.gerarPartida({ ...base, reg: { ...regs[0], concluida: false, resultado: "não concluído", observacaoFinal: "Boa <i>reação</i>." }, anteriores: [] });
+assert(p2.includes("Acompanhamento interrompido") && !p2.includes("Em relação aos jogos anteriores") && p2.includes("Observação do treinador") && !p2.includes("<i>reação"), "partida interrompida, sem anteriores, observação escapada");
+assert(R.gerarPartida({ ...base, reg: { ...regs[0], scout: { n: 3, ganhos: 1, pctGanhos: 33 } }, detalheDe: () => null }).includes("Relatório da partida"), "jogo sem detalhe não quebra");
 fs.writeFileSync(path.join(process.env.TMPDIR || "/tmp", "relatorio-jogos-teste.html"), html);
 console.log("check-relatorio-jogos: ok (" + html.length + " bytes)");
