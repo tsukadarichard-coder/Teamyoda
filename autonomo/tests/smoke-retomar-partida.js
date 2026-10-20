@@ -25,35 +25,28 @@ async function encerrar(p) { await p.getByRole("button", { name: "Encerrar e ver
   for (const app of apps) {
     const { srv } = abrir(app), porta = srv.address().port;
     const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", args: ["--no-sandbox"] });
-    /* A) encerrou sem querer: volta do relatório, salva, volta de novo e o registro é substituído */
+    /* A) encerrar: voltar à partida pelo diálogo; encerrar de vez não oferece mais retomar; salvar no caderno */
     let p = await nova(b, porta);
     await p.getByText("Iniciar acompanhamento").click(); await p.waitForTimeout(300);
     await marca(p, 3);
     assert((await texto(p)).includes("3 pontos"), app + ": 3 pontos marcados");
     await p.getByRole("button", { name: "Encerrar e ver relatório" }).click(); await p.waitForSelector("[data-encerrar]");
     assert(await p.getByRole("button", { name: "Voltar à partida" }).count() === 1, app + ": pergunta ao encerrar (encerrar de vez ou voltar)");
-    await p.getByRole("button", { name: "Encerrar de vez e ver o relatório" }).click(); await p.waitForTimeout(500);
-    let t = await texto(p);
-    assert(t.includes("Encerrou sem querer?") && t.includes("Voltar à partida e continuar"), app + ": relatório oferece voltar. " + t.slice(0, 300));
-    await p.getByRole("button", { name: /Voltar à partida e continuar/ }).click(); await p.waitForTimeout(500);
-    t = await texto(p); assert(t.includes("3 pontos") && t.includes("Encerrar e ver relatório"), app + ": voltou para a marcação com os 3 pontos");
+    await p.getByRole("button", { name: "Voltar à partida" }).click(); await p.waitForTimeout(400);
+    let t = await texto(p); assert(t.includes("3 pontos") && t.includes("Encerrar e ver relatório"), app + ": voltou para a marcação com os 3 pontos");
     await marca(p, 1); assert((await texto(p)).includes("4 pontos"), app + ": continua marcando (4 pontos)");
     await encerrar(p);
+    t = await texto(p);
+    assert(!t.includes("Encerrou sem querer?") && !t.includes("Voltar à partida e continuar"), app + ": depois de encerrar de vez o relatório não oferece retomar. " + t.slice(0, 200));
     p.aceitar = false; p.dialogos = [];
     await p.getByRole("button", { name: "Novo jogo" }).click(); await p.waitForTimeout(300);
     assert(p.dialogos.some((d) => d.includes("ainda não foi salva")), app + ": Novo jogo pede confirmação antes de apagar");
-    assert((await texto(p)).includes("Voltar à partida e continuar"), app + ": cancelou, a partida continua no relatório");
+    assert((await texto(p)).includes("Salvar no caderno"), app + ": cancelou, a partida continua no relatório");
     p.aceitar = true;
     await p.getByRole("button", { name: "Salvar no caderno" }).click(); await p.waitForTimeout(400);
     assert.strictEqual((await aluno(p)).registros.length, 1, app + ": partida salva no caderno");
     assert.strictEqual((await aluno(p)).registros[0].scout.pontos.length, 4);
     assert(!(await aluno(p)).scoutRascunho, app + ": ao salvar, o rascunho some");
-    await p.getByRole("button", { name: /Voltar à partida e continuar/ }).click(); await p.waitForTimeout(500);
-    assert((await texto(p)).includes("4 pontos"), app + ": retomou a partida já salva");
-    await marca(p, 1);
-    await encerrar(p);
-    await p.getByRole("button", { name: "Salvar no caderno" }).click(); await p.waitForTimeout(400);
-    const a2 = await aluno(p); assert.strictEqual(a2.registros.length, 1, app + ": o registro antigo foi substituído, não duplicado"); assert.strictEqual(a2.registros[0].scout.pontos.length, 5);
     assert.deepStrictEqual(p.erros, [], app + ": erros de JS " + p.erros.join(" | "));
     await p.close();
 

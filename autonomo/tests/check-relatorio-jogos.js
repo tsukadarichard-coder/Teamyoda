@@ -50,5 +50,11 @@ assert(R.gerarPartida({ ...base, reg: { ...regs[0], scout: { n: 3, ganhos: 1, pc
   const h = R.gerarPartida({ ...base, reg: antigo, anteriores: [regs[0]], detalheDe: () => null });
   assert(h.includes("Relatório da partida") && !/undefined|NaN|Infinity/.test(h.replace(/<style>[\s\S]*?<\/style>/, "")), "jogo antigo " + i + " gera o relatório: " + (h.match(/.{30}(undefined|NaN|Infinity).{30}/) || [])[0]);
 });
+/* set em andamento aparece no relatório, e muitos games viram uma grade (não estouram a página) */
+const pa = R.gerarPartida({ ...base, reg: { ...regs[0], concluida: false, resultado: "4-6 7-6" }, anteriores: [], placarFinal: { sets: [[4, 6], [7, 6]], games: [3, 2], pontos: "30-15", fim: false } });
+assert(pa.includes("4-6 7-6") && pa.includes("3º set em andamento: 3-2 em games (30-15 no game)"), "set em andamento no cabeçalho");
+assert(R.gerarPartida({ ...base, reg: regs[0], anteriores: [], placarFinal: { sets: [[6, 4]], games: [0, 0], fim: true } }).indexOf("em andamento") < 0, "partida concluída sem set em andamento");
+const many = R.gerarPartida({ ...base, reg: regs[5], anteriores: [], detalheDe: () => ({ fins: { winner_nos: 1, erro_dele: 1, erro_nos: 1, winner_dele: 1 }, games: Array.from({ length: 29 }, (_, i) => ({ j: i + 1, n: 6, g: i % 6 })) }) });
+assert(/class="gms mini"/.test(many) && many.includes("grid-template-columns:repeat(auto-fill"), "29 games em grade compacta");
 fs.writeFileSync(path.join(process.env.TMPDIR || "/tmp", "relatorio-jogos-teste.html"), html);
 console.log("check-relatorio-jogos: ok (" + html.length + " bytes)");
