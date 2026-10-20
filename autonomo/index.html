@@ -9443,7 +9443,7 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
             </p>
             <div className="flex gap-2 mt-3 flex-wrap">
               <Botao pequeno variante="saibro" onClick={continuarRascunho}>Continuar partida em andamento</Botao>
-              <Botao pequeno variante="vazio" onClick={() => { continuarRascunho(); setFase("depois"); }}>Ver relatório e salvar como interrompida</Botao>
+              <Botao pequeno variante="vazio" onClick={() => { continuarRascunho(); setMotivoFim(null); setPassoFim("motivo"); setConfirmandoFim(true); }}>Encerrar de vez e salvar como interrompida</Botao>
               <Botao pequeno variante="vazio" onClick={() => { if (window.confirm("Descartar esta partida em andamento? Os pontos coletados serão perdidos.")) { const idAuto = rascunhoSalvo && rascunhoSalvo.idRegistro; limparRascunhoSalvo(); if (idAuto) setAlunos((prev) => prev.map((x) => x.id !== aluno.id ? x : { ...x, registros: (x.registros || []).filter((g) => !(g.id === idAuto && g.parcialAuto)) })); } }}>Descartar</Botao>
             </div>
           </div>
@@ -10479,10 +10479,15 @@ function ResumoScout({ r, sinais, aluno, alunos, setAlunos, pontos, cfg, mental 
     { faixa: "5+ bolas", valor: r.pctLongos },
   ];
 
+  const [msgOrdem, setMsgOrdem] = useState("");
   function reordenar() {
     const areas = [...new Set(sinais.map((s) => s[0]))];
-    const nova = [...areas, ...(aluno.prioridades || []).filter((p) => !areas.includes(p))];
-    setAlunos(alunos.map((a) => a.id === aluno.id ? { ...a, prioridades: nova } : a));
+    const atual = aluno.prioridades || [];
+    const nova = [...areas, ...atual.filter((p) => !areas.includes(p))];
+    const nomes = (l) => l.slice(0, 4).map((id, i) => (i + 1) + "º " + ((AREAS[id] && AREAS[id].nome) || id)).join(" · ");
+    if (JSON.stringify(nova) === JSON.stringify(atual)) { setMsgOrdem("As prioridades já estão nesta ordem: " + nomes(atual) + "."); return; }
+    setAlunos((lista) => lista.map((a) => a.id === aluno.id ? { ...a, prioridades: nova } : a));
+    setMsgOrdem("Prioridades atualizadas: " + nomes(nova) + ".");
   }
 
   const graficos = (() => {
@@ -10569,6 +10574,7 @@ function ResumoScout({ r, sinais, aluno, alunos, setAlunos, pontos, cfg, mental 
             <Botao pequeno variante="vazio" onClick={reordenar}>
               Reordenar prioridades do jogador por esta leitura
             </Botao>
+            {msgOrdem && <p role="status" style={{ ...prosa, fontSize: 13, fontWeight: 700, color: C.quadra, marginTop: 8 }}>{msgOrdem}</p>}
             <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 8 }}>
               Muda os ciclos de estímulo e a proporção tática do plano. A rotação de estímulos
               acontece no fim do mesociclo — não no dia seguinte ao jogo.

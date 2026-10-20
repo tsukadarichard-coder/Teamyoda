@@ -21,8 +21,8 @@ function cliente(){const db=db2();const storageFirestore={async get(k){return k 
  nuvem[K]={value:JSON.stringify([al("a"),al("b")])};
  const A=cliente(),B=cliente();let estA=null,estB=null;
  for(const [c,nome] of [[A,"A"],[B,"B"]]){const r=await c.storageFirestore.get(K);const lista=JSON.parse(r.value);if(nome==="A")estA=lista;else estB=lista;}
- A.SINC.aoMudar[K]=l=>{estA=l};A.SINC.local[K]=()=>estA;A.SINC.pronto[K]=()=>true;
- B.SINC.aoMudar[K]=l=>{estB=l};B.SINC.local[K]=()=>estB;B.SINC.pronto[K]=()=>true;
+ A.SINC.aoMudar[K]=fn=>{estA=fn(estA)};A.SINC.local[K]=()=>estA;A.SINC.pronto[K]=()=>true;
+ B.SINC.aoMudar[K]=fn=>{estB=fn(estB)};B.SINC.local[K]=()=>estB;B.SINC.pronto[K]=()=>true;
  await A.storageFirestore.observar(K);await B.storageFirestore.observar(K);
  /* B registra uma sessão no aluno "a" */
  estB=estB.map(x=>x.id==="a"?{...x,registros:[{id:"r1",tipo:"sessao",por:"B"}]}:x);

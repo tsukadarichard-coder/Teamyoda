@@ -280,7 +280,7 @@ if (db && window.MTYSync) {
       });
       SINC.base[key] = juntada;
       /* a nuvem tinha coisas de outros professores: a tela passa a mostrá-las */
-      if (JSON.stringify(juntada) !== JSON.stringify(local) && SINC.aoMudar[key]) SINC.aoMudar[key](juntada);
+      if (JSON.stringify(juntada) !== JSON.stringify(local) && SINC.aoMudar[key]) SINC.aoMudar[key]((atual) => window.MTYSync.mesclar(local, atual, juntada));
       return { key, value: JSON.stringify(juntada), shared: true };
     } catch (e) { console.error("Firestore set (junção):", e); return null; }
   };
@@ -292,10 +292,10 @@ if (db && window.MTYSync) {
       if (!snap.exists || snap.metadata.hasPendingWrites || !SINC.pronto[key] || !SINC.pronto[key]()) return;
       const nuvem = lerLista(snap.data().value);
       if (!nuvem || JSON.stringify(nuvem) === JSON.stringify(SINC.base[key])) return;
-      const local = SINC.local[key] ? SINC.local[key]() : nuvem;
-      const juntada = window.MTYSync.mesclar(SINC.base[key] || [], local, nuvem);
+      const baseAntes = SINC.base[key] || [];
       SINC.base[key] = nuvem;
-      if (SINC.aoMudar[key] && JSON.stringify(juntada) !== JSON.stringify(local)) SINC.aoMudar[key](juntada);
+      /* junta com a tela mais recente (não com uma cópia que pode estar um passo atrás) */
+      if (SINC.aoMudar[key]) SINC.aoMudar[key]((atual) => window.MTYSync.mesclar(baseAntes, atual, nuvem));
     }, (e) => console.error("Firestore observar:", e));
   };
 }
@@ -9475,7 +9475,7 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
             </p>
             <div className="flex gap-2 mt-3 flex-wrap">
               <Botao pequeno variante="saibro" onClick={continuarRascunho}>Continuar partida em andamento</Botao>
-              <Botao pequeno variante="vazio" onClick={() => { continuarRascunho(); setFase("depois"); }}>Ver relatório e salvar como interrompida</Botao>
+              <Botao pequeno variante="vazio" onClick={() => { continuarRascunho(); setMotivoFim(null); setPassoFim("motivo"); setConfirmandoFim(true); }}>Encerrar de vez e salvar como interrompida</Botao>
               <Botao pequeno variante="vazio" onClick={() => { if (window.confirm("Descartar esta partida em andamento? Os pontos coletados serão perdidos.")) { const idAuto = rascunhoSalvo && rascunhoSalvo.idRegistro; limparRascunhoSalvo(); if (idAuto) setAlunos((prev) => prev.map((x) => x.id !== aluno.id ? x : { ...x, registros: (x.registros || []).filter((g) => !(g.id === idAuto && g.parcialAuto)) })); } }}>Descartar</Botao>
             </div>
           </div>
@@ -10511,10 +10511,15 @@ function ResumoScout({ r, sinais, aluno, alunos, setAlunos, pontos, cfg, mental 
     { faixa: "5+ bolas", valor: r.pctLongos },
   ];
 
+  const [msgOrdem, setMsgOrdem] = useState("");
   function reordenar() {
     const areas = [...new Set(sinais.map((s) => s[0]))];
-    const nova = [...areas, ...(aluno.prioridades || []).filter((p) => !areas.includes(p))];
-    setAlunos(alunos.map((a) => a.id === aluno.id ? { ...a, prioridades: nova } : a));
+    const atual = aluno.prioridades || [];
+    const nova = [...areas, ...atual.filter((p) => !areas.includes(p))];
+    const nomes = (l) => l.slice(0, 4).map((id, i) => (i + 1) + "º " + ((AREAS[id] && AREAS[id].nome) || id)).join(" · ");
+    if (JSON.stringify(nova) === JSON.stringify(atual)) { setMsgOrdem("As prioridades já estão nesta ordem: " + nomes(atual) + "."); return; }
+    setAlunos((lista) => lista.map((a) => a.id === aluno.id ? { ...a, prioridades: nova } : a));
+    setMsgOrdem("Prioridades atualizadas: " + nomes(nova) + ".");
   }
 
   const graficos = (() => {
@@ -10601,6 +10606,7 @@ function ResumoScout({ r, sinais, aluno, alunos, setAlunos, pontos, cfg, mental 
             <Botao pequeno variante="vazio" onClick={reordenar}>
               Reordenar prioridades do jogador por esta leitura
             </Botao>
+            {msgOrdem && <p role="status" style={{ ...prosa, fontSize: 13, fontWeight: 700, color: C.quadra, marginTop: 8 }}>{msgOrdem}</p>}
             <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 8 }}>
               Muda os ciclos de estímulo e a proporção tática do plano. A rotação de estímulos
               acontece no fim do mesociclo — não no dia seguinte ao jogo.
@@ -19787,10 +19793,10 @@ function App() {
   /* recebe, ao vivo, o que os outros professores registram (sessões, observações, alunos novos) */
   useEffect(() => {
     if (!autenticado || (exigeLogin && !orgAtual) || !window.storage.observar) return undefined;
-    SINC.aoMudar["mty:alunos:v2"] = (l) => setAlunos(l);
+    SINC.aoMudar["mty:alunos:v2"] = (fn) => setAlunos((prev) => { const novo = fn(prev); return JSON.stringify(novo) === JSON.stringify(prev) ? prev : novo; });
     SINC.local["mty:alunos:v2"] = () => alunosRef.current;
     SINC.pronto["mty:alunos:v2"] = () => !!prontoRef.current.alunos;
-    SINC.aoMudar["mty:turmas:v1"] = (l) => setTurmas(l);
+    SINC.aoMudar["mty:turmas:v1"] = (fn) => setTurmas((prev) => { const novo = fn(prev); return JSON.stringify(novo) === JSON.stringify(prev) ? prev : novo; });
     SINC.local["mty:turmas:v1"] = () => turmasRef.current;
     SINC.pronto["mty:turmas:v1"] = () => !!prontoRef.current.turmas;
     let encerrado = false; const desfazer = [];

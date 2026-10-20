@@ -47,6 +47,21 @@ async function encerrar(p) { await p.getByRole("button", { name: "Encerrar e ver
     assert.deepStrictEqual(p.erros, [], app + ": erros de JS " + p.erros.join(" | "));
     await p.close();
 
+    /* A2) com a cópia automática já criada (passaram >5 s), encerrar de vez não deixa a partida "em andamento" nem ressuscita depois */
+    p = await nova(b, porta);
+    await p.getByText("Iniciar acompanhamento").click(); await p.waitForTimeout(300);
+    await marca(p, 3); await p.waitForTimeout(6500);
+    assert((await aluno(p)).scoutRascunho && (await aluno(p)).registros.length === 1, app + ": durante a partida, rascunho e registro automático existem");
+    await encerrar(p); await p.waitForTimeout(7000);
+    let al2 = await aluno(p);
+    assert(!al2.scoutRascunho, app + ": depois de encerrar de vez o rascunho não volta (nem 7 s depois)");
+    assert.strictEqual(al2.registros.length, 1, app + ": um único registro (a cópia automática foi substituída, sem duplicar)");
+    assert.strictEqual(al2.registros[0].concluida, false); assert(al2.registros[0].encerramento, app + ": com o motivo");
+    await p.evaluate(() => window.__desmontar()); await p.waitForTimeout(400); await p.evaluate(() => window.__montar()); await p.waitForTimeout(600);
+    t = await texto(p); assert(!t.includes("Partida em andamento encontrada"), app + ": ao voltar à tela não há partida em andamento. " + t.slice(0, 200));
+    assert.deepStrictEqual(p.erros, [], app + ": erros de JS (A2) " + p.erros.join(" | "));
+    await p.close();
+
     /* B) saiu da tela no meio: a partida volta (aparelho e nuvem) */
     p = await nova(b, porta);
     await p.getByText("Iniciar acompanhamento").click(); await p.waitForTimeout(300);
