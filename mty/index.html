@@ -9161,6 +9161,9 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
   const [fase, setFase] = useState("antes");
   const [confirmandoFim, setConfirmandoFim] = useState(false);
   const [encerradoDeVez, setEncerradoDeVez] = useState(false);
+  const [passoFim, setPassoFim] = useState("pergunta");
+  const [motivoFim, setMotivoFim] = useState(null);
+  const [encerramento, setEncerramento] = useState(null);
   const [mental, setMental] = useState({ antes: {}, jogo: {}, depois: {} });
   const [cfg, setCfg] = useState({ adversario: "", torneio: "", formato: "3sets", saca: "nos", semVantagem: false, superTiebreakDecisivo: false });
   const [placar, setPlacar] = useState(null);
@@ -9302,14 +9305,14 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
 
   /* do relatório de volta para a marcação (quando a partida foi encerrada sem querer) */
   function voltarParaPartida(idSalvo) {
-    concluidoRef.current = false; setEncerradoDeVez(false);
+    concluidoRef.current = false; setEncerradoDeVez(false); setEncerramento(null);
     if (idSalvo) setRetomandoId(idSalvo);
     setFase("durante");
   }
 
   function comecar() {
     if (rascunhoSalvo && !window.confirm("Este jogador já tem uma partida em andamento. Começar uma nova apaga a anterior. Quer começar mesmo assim?")) return;
-    concluidoRef.current = false; setRetomandoId(null); setEncerradoDeVez(false);
+    concluidoRef.current = false; setRetomandoId(null); setEncerradoDeVez(false); setEncerramento(null);
     setPlacar(placarInicial(cfg.formato, cfg.saca, cfg.semVantagem, cfg.superTiebreakDecisivo));
     setPontos([]);
     setPilha([]);
@@ -9499,7 +9502,7 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
             {[...partidasAnteriores].reverse().slice(0, 5).map((r) => (
               <div key={r.id} style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10,
                 borderLeft: "3px solid " + C.saibro, padding: "10px 13px", marginBottom: 7 }}>
-                <Etiqueta>{new Date(r.data).toLocaleDateString("pt-BR")}{r.concluida === false ? " · Interrompida" : ""}</Etiqueta>
+                <Etiqueta>{new Date(r.data).toLocaleDateString("pt-BR")}{r.concluida === false ? " · Interrompida" + (r.encerramento ? " (" + rotuloEncerramento(r.encerramento) + ")" : "") : ""}</Etiqueta>
                 <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>{r.torneio} · {r.adversario} · {r.resultado}</p>
                 <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>Protocolo entre pontos: {r.protocolo}%</p>
                 {r.scout && (
@@ -9518,9 +9521,9 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
 
   /* ── relatório ── */
   if (fase === "depois")
-    return <Relatorio final={encerradoDeVez} identidade={identidade} aluno={aluno} alunos={alunos} setAlunos={setAlunos} cfg={cfg}
+    return <Relatorio final={encerradoDeVez} encerramento={encerramento} identidade={identidade} aluno={aluno} alunos={alunos} setAlunos={setAlunos} cfg={cfg}
       pontos={pontos} placar={placar} aoConcluir={limparRascunhoSalvo} mental={mental} setMental={setMental} aoRetomar={voltarParaPartida} retomandoId={retomandoId}
-      aoSair={() => { limparRascunhoSalvo(); setRetomandoId(null); setEncerradoDeVez(false); setFase("antes"); setPontos([]); setMental({ antes: {}, jogo: {}, depois: {} }); }} />;
+      aoSair={() => { limparRascunhoSalvo(); setRetomandoId(null); setEncerradoDeVez(false); setEncerramento(null); setFase("antes"); setPontos([]); setMental({ antes: {}, jogo: {}, depois: {} }); }} />;
 
   /* ── durante ── */
   const sacadorAtual = quemSaca(placar), nossoSaque = sacadorAtual === "nos", ladoAtual = ladoDoSaque(placar);
@@ -9560,13 +9563,48 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
       {confirmandoFim && (
         <div role="dialog" aria-modal="true" aria-label="Encerrar a partida" data-encerrar style={{ position: "fixed", inset: 0, zIndex: 60, display: "flex", alignItems: "flex-end", justifyContent: "center", padding: 12 }}>
           <div onClick={() => setConfirmandoFim(false)} style={{ position: "absolute", inset: 0, background: "rgba(16,30,25,.5)" }} />
-          <div style={{ position: "relative", background: C.cal, borderRadius: 16, width: "100%", maxWidth: 440, padding: "20px 18px 16px", boxShadow: "0 12px 40px rgba(0,0,0,.25)" }}>
+          <div style={{ position: "relative", background: C.cal, borderRadius: 16, width: "100%", maxWidth: 440, maxHeight: "92vh", overflowY: "auto", padding: "20px 18px 16px", boxShadow: "0 12px 40px rgba(0,0,0,.25)" }}>
             <p style={{ fontFamily: ARCH, fontSize: 17, fontWeight: 700 }}>Encerrar a partida?</p>
             <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, margin: "6px 0 14px" }}>A partida ainda não terminou no placar ({rotuloPontos(placar)}, sets {setsTexto}). Você tem {pontos.length} pontos marcados.</p>
-            <div className="flex flex-col gap-2">
-              <Botao variante="saibro" onClick={() => { setConfirmandoFim(false); setEncerradoDeVez(true); setFase("depois"); }}>Encerrar de vez e ver o relatório</Botao>
-              <Botao variante="vazio" onClick={() => setConfirmandoFim(false)}>Voltar à partida</Botao>
-            </div>
+            {passoFim === "pergunta" ? (
+              <div className="flex flex-col gap-2">
+                <Botao variante="saibro" onClick={() => setPassoFim("motivo")}>Encerrar de vez</Botao>
+                <Botao variante="vazio" onClick={() => setConfirmandoFim(false)}>Voltar à partida</Botao>
+              </div>
+            ) : (
+              <div data-motivo-fim>
+                <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginBottom: 8 }}>Por que a partida não terminou?</p>
+                <div className="flex flex-col gap-2">
+                  {MOTIVOS_ENCERRAMENTO.map(([cod, rot]) => (
+                    <button key={cod} type="button" aria-pressed={!!motivoFim && motivoFim.motivo === cod} onClick={() => setMotivoFim({ motivo: cod })}
+                      style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, minHeight: 46, borderRadius: 10, cursor: "pointer", textAlign: "left", padding: "0 14px",
+                        border: "1px solid " + (motivoFim && motivoFim.motivo === cod ? C.tinta : C.linha), background: motivoFim && motivoFim.motivo === cod ? C.tinta : C.cal, color: motivoFim && motivoFim.motivo === cod ? C.papel : C.tinta }}>
+                      {motivoFim && motivoFim.motivo === cod ? "✓ " : ""}{rot}
+                    </button>
+                  ))}
+                </div>
+                {motivoFim && (motivoFim.motivo === "medico" || motivoFim.motivo === "desclassificacao") && (
+                  <div className="flex gap-2 mt-2" role="group" aria-label="De quem">
+                    {[["atleta", "Do jogador"], ["adversario", "Do adversário"]].map(([k, r]) => (
+                      <button key={k} type="button" aria-pressed={motivoFim.de === k} onClick={() => setMotivoFim({ ...motivoFim, de: motivoFim.de === k ? undefined : k })}
+                        style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, minHeight: 40, borderRadius: 10, cursor: "pointer", padding: "0 14px", border: "1px solid " + (motivoFim.de === k ? C.tinta : C.linha), background: motivoFim.de === k ? C.tinta : C.cal, color: motivoFim.de === k ? C.papel : C.grafite }}>
+                        {motivoFim.de === k ? "✓ " : ""}{r}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {motivoFim && motivoFim.motivo === "outro" && (
+                  <input aria-label="Outro motivo" style={{ ...entrada, marginTop: 8 }} maxLength={120} placeholder="Qual foi o motivo?" value={motivoFim.detalhe || ""} onChange={(e) => setMotivoFim({ ...motivoFim, detalhe: e.target.value })} />
+                )}
+                <div className="flex flex-col gap-2 mt-3">
+                  <Botao variante="saibro" disabled={!motivoFim} onClick={() => {
+                    setEncerramento({ motivo: motivoFim.motivo, ...(motivoFim.de ? { de: motivoFim.de } : {}), ...(motivoFim.detalhe && motivoFim.detalhe.trim() ? { detalhe: motivoFim.detalhe.trim().slice(0, 120) } : {}), quando: new Date().toISOString() });
+                    setConfirmandoFim(false); setEncerradoDeVez(true); setFase("depois");
+                  }}>Salvar e ver o relatório</Botao>
+                  <Botao variante="vazio" onClick={() => setConfirmandoFim(false)}>Voltar à partida</Botao>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -9799,7 +9837,7 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
         <div className="flex gap-2 flex-wrap justify-end">
           <Botao pequeno variante="vazio" onClick={alternarModo}>{modoRapido ? "Modo rápido ✓" : "Modo detalhado ✓"}</Botao>
           <Botao pequeno variante="vazio" onClick={desfazer}>Desfazer</Botao>
-          <Botao pequeno onClick={() => { if (placar.fim) setFase("depois"); else setConfirmandoFim(true); }}>Encerrar e ver relatório</Botao>
+          <Botao pequeno onClick={() => { if (placar.fim) setFase("depois"); else { setPassoFim("pergunta"); setMotivoFim(null); setConfirmandoFim(true); } }}>Encerrar e ver relatório</Botao>
         </div>
       </div>
       {!rascunho && placar && (
@@ -10514,7 +10552,7 @@ function DetalheJogoRegistro({ r, aluno, alunos, setAlunos }) {
   );
 }
 
-function Relatorio({ final, identidade, aluno, alunos, setAlunos, cfg, pontos, placar, aoSair, aoConcluir, mental, setMental, aoRetomar, retomandoId }) {
+function Relatorio({ final, encerramento, identidade, aluno, alunos, setAlunos, cfg, pontos, placar, aoSair, aoConcluir, mental, setMental, aoRetomar, retomandoId }) {
   const r = useMemo(() => resume(pontos), [pontos]);
   const sinais = useMemo(() => leitura(r), [r]);
   const [salvo, setSalvo] = useState(false);
@@ -10526,6 +10564,9 @@ function Relatorio({ final, identidade, aluno, alunos, setAlunos, cfg, pontos, p
   const concluida = !!(placar && placar.fim);
 
   const idRascunho = useMemo(() => "r" + Date.now(), []);
+  const [autoSalvo, setAutoSalvo] = useState(false);
+  const autoRef = useRef(false);
+  const encEfetivo = concluida ? null : (encerramento || (original && original.encerramento) || null);
   function montarRegistro() {
     return {
       id: original ? original.id : idRascunho, tipo: "jogo", data: new Date().toISOString().slice(0, 10),
@@ -10533,7 +10574,7 @@ function Relatorio({ final, identidade, aluno, alunos, setAlunos, cfg, pontos, p
       plano: "", protocolo: r.pctProtocolo, erros12: r.pctErrosCurtos,
       revelou: sinais.map((s) => s[1]).join(" "),
       resultado: placar ? [...placar.sets.map((x) => `${x[0]}-${x[1]}`), ...(!placar.fim && (placar.g[0] + placar.g[1] > 0) ? [`${placar.g[0]}-${placar.g[1]} (set em andamento)`] : [])].join(" ") || "não concluído" : "—",
-      concluida, observacaoFinal: obsFinal.trim().slice(0, 1200), mental: mentalLimpo(mental),
+      concluida, ...(encEfetivo ? { encerramento: encEfetivo } : {}), observacaoFinal: obsFinal.trim().slice(0, 1200), mental: mentalLimpo(mental),
       scout: { ...r, pontos, cfg: { formato: cfg.formato, saca: cfg.saca, semVantagem: !!cfg.semVantagem, superTiebreakDecisivo: !!cfg.superTiebreakDecisivo } },
     };
   }
@@ -10556,6 +10597,11 @@ function Relatorio({ final, identidade, aluno, alunos, setAlunos, cfg, pontos, p
     if (aoConcluir) aoConcluir();
   }
 
+  /* encerrar de vez um jogo incompleto já salva o registro no caderno (com o motivo); os campos abaixo continuam editáveis e "Salvar alterações" atualiza o mesmo registro */
+  useEffect(() => {
+    if (final && !concluida && encerramento && pontos.length && !autoRef.current) { autoRef.current = true; salvar(); setAutoSalvo(true); }
+  }, []);
+
   if (!pontos.length)
     return <div><Aviso>Nenhum ponto coletado.</Aviso><Botao onClick={aoSair}>Voltar</Botao></div>;
 
@@ -10570,6 +10616,7 @@ function Relatorio({ final, identidade, aluno, alunos, setAlunos, cfg, pontos, p
             {placar.g[0] + placar.g[1] > 0 ? <><br />{placar.sets.length + 1}º set: <b>{placar.g[0]}–{placar.g[1]} em games</b></> : null}
             {(placar.p[0] + placar.p[1] > 0) ? <><br />Game em andamento: <b>{rotuloPontos(placar).replace("-", "–")}</b></> : null}
           </p>
+          {encEfetivo && <p style={{ ...prosa, fontSize: 13, marginTop: 4 }}>Motivo informado: <b>{rotuloEncerramento(encEfetivo)}</b></p>}
           <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 4 }}>Os indicadores consideram apenas os pontos registrados até a interrupção.</p>
         </div>
       )}
@@ -10599,7 +10646,7 @@ function Relatorio({ final, identidade, aluno, alunos, setAlunos, cfg, pontos, p
 
       <BotaoCompartilharResumo texto={textoResumoScout(r, sinais, pontos, cfg, { adversario: cfg.adversario, torneio: cfg.torneio, resultado: placar ? placar.sets.map((x) => `${x[0]}-${x[1]}`).join(" ") : "" })} />
 
-      {!salvo && (
+      {(!salvo || autoSalvo) && (
         <div className="mt-3">
           <CartaoMental titulo="Avaliação mental depois do jogo" nota="Como o jogador termina, de 1 (muito baixo) a 5 (muito alto). Opcional."
             valores={(mental || {}).depois || {}} aoMudar={(k, v) => setMental({ ...mental, depois: { ...(mental.depois || {}), [k]: v } })} />
@@ -10619,7 +10666,7 @@ function Relatorio({ final, identidade, aluno, alunos, setAlunos, cfg, pontos, p
       )}
       <div className="flex gap-2 flex-wrap mt-3">
         {!salvo ? <Botao onClick={salvar} variante="saibro">Salvar no caderno</Botao>
-          : <Etiqueta cor={C.quadra}>✓ Salvo no caderno do jogador</Etiqueta>}
+          : <><Etiqueta cor={C.quadra}>✓ Salvo no caderno do jogador</Etiqueta>{autoSalvo && <Botao onClick={salvar} variante="vazio">Salvar alterações</Botao>}</>}
         <Botao variante="vazio" onClick={() => { if (salvo || !pontos.length || window.confirm("Esta partida ainda não foi salva. Começar um novo jogo apaga os " + pontos.length + " pontos coletados. Quer apagar mesmo?")) aoSair(); }}>Novo jogo</Botao>
       </div>
     </div>
@@ -10673,6 +10720,17 @@ function relatorioDaPartidaSalva(aluno, identidade, r, comComparacao) {
     ? (aluno.registros || []).filter((x) => x.tipo === "jogo" && x.scout && x.id !== r.id && String(x.data) <= String(r.data)).sort((a, b) => String(a.data).localeCompare(String(b.data))).slice(-5)
     : [];
   exportarRelatorioPartida(aluno, identidade, r, anteriores);
+}
+/* Por que o jogo acompanhado não terminou (perguntado ao encerrar de vez). Fica no registro do jogo; não atribui vencedor. */
+const MOTIVOS_ENCERRAMENTO = [
+  ["adversario_desistiu", "Adversário desistiu"], ["atleta_desistiu", "Jogador desistiu"], ["medico", "Motivo médico", true],
+  ["desclassificacao", "Desclassificação", true], ["outro", "Outro motivo"], ["nao_informado", "Prefiro não informar"],
+];
+function rotuloEncerramento(e) {
+  if (!e || !e.motivo) return "";
+  const base = (MOTIVOS_ENCERRAMENTO.find((m) => m[0] === e.motivo) || [e.motivo, "Motivo informado"])[1];
+  const de = e.de === "atleta" ? " (do jogador)" : e.de === "adversario" ? " (do adversário)" : "";
+  return e.motivo === "nao_informado" ? "Motivo não informado" : base + de + (e.detalhe ? ": " + e.detalhe : "");
 }
 function exportarCadernoPDF(a, identidade) {
   const janela = window.open("", "_blank");
@@ -11051,7 +11109,7 @@ function TelaRegistro({ aluno, alunos, setAlunos, identidade, abrirRegistroId, a
                         {r.tipo === "jogo" && (
                           <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>
                             {r.torneio} · {r.adversario} · {r.resultado}
-                            {r.concluida === false ? <span style={{ color: "#C9A227" }}> · Interrompida</span> : null}
+                            {r.concluida === false ? <span style={{ color: "#C9A227" }}> · Interrompida{r.encerramento ? " (" + rotuloEncerramento(r.encerramento) + ")" : ""}</span> : null}
                             <br />Protocolo executado em {r.protocolo}% dos pontos
                             {r.revelou ? <><br /><span style={{ color: C.grafite }}>{r.revelou}</span></> : null}
                           </p>

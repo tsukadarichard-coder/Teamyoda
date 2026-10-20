@@ -19,22 +19,28 @@ if (!existe()) { console.log("smoke-encerrar-partida: pulado (sem React/Babel lo
     await p.getByRole("button", { name: "Encerrar e ver relatório" }).click(); await p.waitForSelector("[data-encerrar]");
     let t = await p.evaluate(() => document.body.innerText);
     assert(/Encerrar a partida\?/.test(t) && /3 pontos/.test(t), app + ": diálogo com os pontos");
-    assert(await p.getByRole("button", { name: "Voltar à partida" }).count() === 1 && await p.getByRole("button", { name: "Encerrar de vez e ver o relatório" }).count() === 1, app + ": as duas opções");
+    assert(await p.getByRole("button", { name: "Voltar à partida" }).count() === 1 && await p.getByRole("button", { name: "Encerrar de vez" }).count() === 1, app + ": as duas opções");
     // 2) voltar mantém a partida
     await p.getByRole("button", { name: "Voltar à partida" }).click(); await p.waitForTimeout(300);
     assert.strictEqual(await p.locator("[data-encerrar]").count(), 0, app + ": diálogo fechou");
     assert(await p.getByRole("button", { name: "Winner meu" }).first().isVisible(), app + ": segue na marcação");
     // 3) encerrar de vez abre o relatório com o PDF
-    await p.getByRole("button", { name: "Encerrar e ver relatório" }).click(); await p.getByRole("button", { name: "Encerrar de vez e ver o relatório" }).click();
+    await p.getByRole("button", { name: "Encerrar e ver relatório" }).click(); await p.getByRole("button", { name: "Encerrar de vez" }).click();
+    assert(/Por que a partida não terminou\?/.test(await p.evaluate(() => document.body.innerText)) && await p.getByRole("button", { name: "Salvar e ver o relatório" }).isDisabled(), app + ": pergunta o motivo e só avança com uma resposta");
+    for (const m of ["Adversário desistiu", "Jogador desistiu", "Motivo médico", "Desclassificação", "Outro motivo", "Prefiro não informar"]) assert.strictEqual(await p.getByRole("button", { name: m }).count(), 1, app + ": opção " + m);
+    await p.getByRole("button", { name: "Motivo médico" }).click(); await p.getByRole("button", { name: "Do jogador" }).click();
+    await p.getByRole("button", { name: "Salvar e ver o relatório" }).click(); await p.waitForTimeout(500);
+    assert(/salvo no caderno/i.test(await p.evaluate(() => document.body.innerText)) && /Motivo informado: Motivo médico \(do jogador\)/.test(await p.evaluate(() => document.body.innerText)), app + ": salvou de vez e mostra o motivo");
+    const regs1 = await p.evaluate(() => window.__alunos[0].registros); assert(regs1.length === 2 && regs1[1].concluida === false && regs1[1].encerramento.motivo === "medico" && regs1[1].encerramento.de === "atleta", app + ": registro salvo com o motivo");
     await p.waitForSelector("[data-pdf-partida]");
     await p.getByRole("button", { name: "Relatório da partida (PDF)" }).click(); await p.waitForTimeout(500);
     let docs = await p.evaluate(() => window.__docs);
-    assert.strictEqual(docs.length, 1, app + ": abriu o documento"); assert(/Salvar como PDF/.test(docs[0]) && /Relatório (parcial da|da) partida/.test(docs[0]) && !/Em relação aos jogos anteriores/.test(docs[0]), app + ": relatório da partida sem comparação, pronto para salvar como PDF");
+    assert.strictEqual(docs.length, 1, app + ": abriu o documento"); assert(/Salvar como PDF/.test(docs[0]) && /Relatório (parcial da|da) partida/.test(docs[0]) && /Motivo informado: <b>Motivo médico \(do jogador\)/.test(docs[0]) && !/Em relação aos jogos anteriores/.test(docs[0]), app + ": relatório da partida sem comparação, pronto para salvar como PDF");
     assert(/logo-quadralab-relatorio\.png/.test(docs[0]) && !/Team Yoda|Metodologia MTY/.test(docs[0]), app + ": logo do QuadraLab (não da academia)");
     await p.getByRole("button", { name: "Com comparação aos jogos anteriores" }).click(); await p.waitForTimeout(500);
     docs = await p.evaluate(() => window.__docs); assert(/Em relação aos jogos anteriores/.test(docs[1]) && /Média dos 1 jogo anterior/.test(docs[1]), app + ": com comparação inclui o jogo anterior");
     // salvar no caderno e gerar de novo não duplica o jogo
-    await p.getByRole("button", { name: "Salvar no caderno" }).click(); await p.waitForTimeout(400);
+    await p.getByRole("button", { name: "Salvar alterações" }).click(); await p.waitForTimeout(400);
     await p.getByRole("button", { name: "Com comparação aos jogos anteriores" }).click(); await p.waitForTimeout(500);
     docs = await p.evaluate(() => window.__docs); assert(/Média dos 1 jogo anterior/.test(docs[2]) && !/Média dos 2 jogos anteriores/.test(docs[2]), app + ": depois de salvar não conta o jogo duas vezes");
     // jogos já coletados: relatório direto da lista, sem alterar nenhum registro

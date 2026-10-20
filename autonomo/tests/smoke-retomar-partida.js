@@ -19,7 +19,8 @@ async function nova(b, porta, alunosIniciais, sessao) {
 const marca = async (p, n) => { for (let i = 0; i < n; i++) { await p.getByRole("button", { name: "Winner meu" }).click(); await p.getByRole("button", { name: "1-2", exact: true }).click(); await p.waitForTimeout(450); } };
 const texto = (p) => p.evaluate(() => document.body.innerText);
 const aluno = (p) => p.evaluate(() => JSON.parse(JSON.stringify(window.__alunos[0])));
-async function encerrar(p) { await p.getByRole("button", { name: "Encerrar e ver relatório" }).click(); await p.waitForTimeout(200); const d = p.getByRole("button", { name: "Encerrar de vez e ver o relatório" }); if (await d.count()) await d.click(); await p.waitForTimeout(500); }
+async function salvar(p) { const b = p.getByRole("button", { name: "Salvar no caderno" }); if (await b.count()) await b.click(); else { const c = p.getByRole("button", { name: "Salvar alterações" }); if (await c.count()) await c.click(); } await p.waitForTimeout(400); }
+async function encerrar(p) { await p.getByRole("button", { name: "Encerrar e ver relatório" }).click(); await p.waitForTimeout(200); const d = p.getByRole("button", { name: "Encerrar de vez" }); if (await d.count()) { await d.click(); await p.getByRole("button", { name: "Prefiro não informar" }).click(); await p.getByRole("button", { name: "Salvar e ver o relatório" }).click(); } await p.waitForTimeout(500); }
 (async () => {
   const apps = process.argv[2] ? [process.argv[2]] : ["autonomo", "mty"];
   for (const app of apps) {
@@ -38,15 +39,11 @@ async function encerrar(p) { await p.getByRole("button", { name: "Encerrar e ver
     await encerrar(p);
     t = await texto(p);
     assert(!t.includes("Encerrou sem querer?") && !t.includes("Voltar à partida e continuar"), app + ": depois de encerrar de vez o relatório não oferece retomar. " + t.slice(0, 200));
-    p.aceitar = false; p.dialogos = [];
-    await p.getByRole("button", { name: "Novo jogo" }).click(); await p.waitForTimeout(300);
-    assert(p.dialogos.some((d) => d.includes("ainda não foi salva")), app + ": Novo jogo pede confirmação antes de apagar");
-    assert((await texto(p)).includes("Salvar no caderno"), app + ": cancelou, a partida continua no relatório");
-    p.aceitar = true;
-    await p.getByRole("button", { name: "Salvar no caderno" }).click(); await p.waitForTimeout(400);
-    assert.strictEqual((await aluno(p)).registros.length, 1, app + ": partida salva no caderno");
+    assert.strictEqual((await aluno(p)).registros.length, 1, app + ": encerrar de vez salva o jogo incompleto no caderno");
+    assert.strictEqual((await aluno(p)).registros[0].concluida, false); assert.strictEqual((await aluno(p)).registros[0].encerramento.motivo, "nao_informado");
     assert.strictEqual((await aluno(p)).registros[0].scout.pontos.length, 4);
-    assert(!(await aluno(p)).scoutRascunho, app + ": ao salvar, o rascunho some");
+    assert(!(await aluno(p)).scoutRascunho, app + ": o rascunho some ao encerrar de vez");
+    assert((await texto(p)).toLowerCase().includes("salvo no caderno"), app + ": relatório mostra que já está salvo");
     assert.deepStrictEqual(p.erros, [], app + ": erros de JS " + p.erros.join(" | "));
     await p.close();
 
@@ -90,7 +87,7 @@ async function encerrar(p) { await p.getByRole("button", { name: "Encerrar e ver
     assert((await texto(p)).includes("6 pontos"), app + ": retomou a partida salva com 6 pontos");
     await marca(p, 1);
     await encerrar(p);
-    await p.getByRole("button", { name: "Salvar no caderno" }).click(); await p.waitForTimeout(400);
+    await salvar(p);
     const a3 = await aluno(p); assert.strictEqual(a3.registros.length, 1, app + ": substituiu o registro interrompido"); assert.strictEqual(a3.registros[0].scout.pontos.length, 7);
     assert.deepStrictEqual(p.erros, [], app + ": erros de JS (C) " + p.erros.join(" | "));
     await p.close();
@@ -106,7 +103,7 @@ async function encerrar(p) { await p.getByRole("button", { name: "Encerrar e ver
     await p.getByRole("button", { name: "Desfazer" }).click(); await p.waitForTimeout(300);
     assert((await texto(p)).includes("47 pontos"), app + ": desfaz o último ponto de um jogo concluído");
     await encerrar(p);
-    await p.getByRole("button", { name: "Salvar no caderno" }).click(); await p.waitForTimeout(400);
+    await salvar(p);
     const a4 = await aluno(p); assert.strictEqual(a4.registros.length, 1, app + ": o jogo reaberto não duplica");
     const r4 = a4.registros[0]; assert.strictEqual(r4.id, "rJ", app + ": mantém o mesmo registro");
     assert.strictEqual(r4.scout.pontos.length, 47); assert.strictEqual(r4.compartilhado.token, "tokenfamilia123", app + ": o link da família continua o mesmo");
