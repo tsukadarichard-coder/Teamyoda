@@ -43,5 +43,12 @@ assert(!p1.includes("<b>Souza") && !/undefined|NaN|Infinity/.test(p1.replace(/<s
 const p2 = R.gerarPartida({ ...base, reg: { ...regs[0], concluida: false, resultado: "não concluído", observacaoFinal: "Boa <i>reação</i>." }, anteriores: [] });
 assert(p2.includes("Acompanhamento interrompido") && !p2.includes("Em relação aos jogos anteriores") && p2.includes("Observação do treinador") && !p2.includes("<i>reação"), "partida interrompida, sem anteriores, observação escapada");
 assert(R.gerarPartida({ ...base, reg: { ...regs[0], scout: { n: 3, ganhos: 1, pctGanhos: 33 } }, detalheDe: () => null }).includes("Relatório da partida"), "jogo sem detalhe não quebra");
+/* jogos antigos (formatos anteriores) também geram o relatório, sem quebrar e sem valores inválidos */
+[{ data: "2025-01-10", torneio: "Copa", adversario: "X", resultado: "6-4 6-3", protocolo: 60, scout: { n: 55, ganhos: 30, pctGanhos: 54.5, errosNos: 9 } },
+ { data: "2025-02-10", resultado: "não concluído", scout: { n: 12 } },
+ { data: "", scout: {} }].forEach((antigo, i) => {
+  const h = R.gerarPartida({ ...base, reg: antigo, anteriores: [regs[0]], detalheDe: () => null });
+  assert(h.includes("Relatório da partida") && !/undefined|NaN|Infinity/.test(h.replace(/<style>[\s\S]*?<\/style>/, "")), "jogo antigo " + i + " gera o relatório: " + (h.match(/.{30}(undefined|NaN|Infinity).{30}/) || [])[0]);
+});
 fs.writeFileSync(path.join(process.env.TMPDIR || "/tmp", "relatorio-jogos-teste.html"), html);
 console.log("check-relatorio-jogos: ok (" + html.length + " bytes)");

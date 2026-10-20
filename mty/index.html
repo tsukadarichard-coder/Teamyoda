@@ -9501,6 +9501,12 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
                 <Etiqueta>{new Date(r.data).toLocaleDateString("pt-BR")}{r.concluida === false ? " · Interrompida" : ""}</Etiqueta>
                 <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>{r.torneio} · {r.adversario} · {r.resultado}</p>
                 <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>Protocolo entre pontos: {r.protocolo}%</p>
+                {r.scout && (
+                  <div className="flex gap-3 flex-wrap mt-1">
+                    <button onClick={() => relatorioDaPartidaSalva(aluno, identidade, r, false)} style={{ ...prosa, fontSize: 12, color: C.saibro, fontWeight: 700, cursor: "pointer", border: "none", background: "none", padding: "6px 0", minHeight: 36 }}>Relatório da partida (PDF)</button>
+                    <button onClick={() => relatorioDaPartidaSalva(aluno, identidade, r, true)} style={{ ...prosa, fontSize: 12, color: C.grafite, fontWeight: 700, cursor: "pointer", border: "none", background: "none", padding: "6px 0", minHeight: 36 }}>Com comparação</button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -10647,6 +10653,13 @@ function exportarRelatorioPartida(aluno, identidade, reg, anteriores) {
   janela.document.write(html);
   janela.document.close();
 }
+/* Relatório da partida de um jogo JÁ salvo no caderno: só lê o registro, nunca altera nada. Compara com até 5 jogos anteriores a ele. */
+function relatorioDaPartidaSalva(aluno, identidade, r, comComparacao) {
+  const anteriores = comComparacao
+    ? (aluno.registros || []).filter((x) => x.tipo === "jogo" && x.scout && x.id !== r.id && String(x.data) <= String(r.data)).sort((a, b) => String(a.data).localeCompare(String(b.data))).slice(-5)
+    : [];
+  exportarRelatorioPartida(aluno, identidade, r, anteriores);
+}
 function exportarCadernoPDF(a, identidade) {
   const janela = window.open("", "_blank");
   if (!janela) { alert("O navegador bloqueou a janela de exportação — permita pop-ups pra este site e tente de novo."); return; }
@@ -11033,6 +11046,12 @@ function TelaRegistro({ aluno, alunos, setAlunos, identidade, abrirRegistroId, a
                           <button onClick={() => aoReabrirJogo(r.id)}
                             style={{ ...prosa, fontSize: 12, color: C.saibro, fontWeight: 700, cursor: "pointer", border: "none", background: "none", padding: 0, marginTop: 6, marginRight: 14 }}>
                             {r.concluida === false ? "Retomar partida" : "Reabrir partida"}
+                          </button>
+                        )}
+                        {r.tipo === "jogo" && r.scout && (
+                          <button onClick={() => relatorioDaPartidaSalva(aluno, identidade, r, true)}
+                            style={{ ...prosa, fontSize: 12, color: C.saibro, fontWeight: 700, cursor: "pointer", border: "none", background: "none", padding: 0, marginTop: 6, marginRight: 14 }}>
+                            Relatório da partida (PDF)
                           </button>
                         )}
                         {r.tipo === "jogo" && r.scout && (

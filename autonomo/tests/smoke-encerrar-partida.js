@@ -36,6 +36,13 @@ if (!existe()) { console.log("smoke-encerrar-partida: pulado (sem React/Babel lo
     await p.getByRole("button", { name: "Salvar no caderno" }).click(); await p.waitForTimeout(400);
     await p.getByRole("button", { name: "Com comparação aos jogos anteriores" }).click(); await p.waitForTimeout(500);
     docs = await p.evaluate(() => window.__docs); assert(/Média dos 1 jogo anterior/.test(docs[2]) && !/Média dos 2 jogos anteriores/.test(docs[2]), app + ": depois de salvar não conta o jogo duas vezes");
+    // jogos já coletados: relatório direto da lista, sem alterar nenhum registro
+    await p.reload(); await p.waitForFunction(() => document.body.innerText.includes("Análise de partida"), null, { timeout: 120000 });
+    const antes = await p.evaluate(() => JSON.stringify(window.__alunos[0].registros));
+    await p.getByRole("button", { name: "Relatório da partida (PDF)" }).first().click(); await p.waitForTimeout(400);
+    let d2 = await p.evaluate(() => window.__docs); assert(d2.length === 1 && /Relatório da partida/.test(d2[0]) && /Ana/.test(d2[0]), app + ": relatório de jogo já salvo");
+    await p.getByRole("button", { name: "Com comparação" }).first().click(); await p.waitForTimeout(400);
+    assert.strictEqual(await p.evaluate(() => JSON.stringify(window.__alunos[0].registros)), antes, app + ": gerar o relatório não altera nenhum registro");
     assert.deepStrictEqual(erros, [], app + ": erros de JS " + erros.join(" | "));
     console.log("smoke-encerrar-partida " + app + ": ok"); await b.close(); srv.close();
   }
