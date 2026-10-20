@@ -30,6 +30,7 @@ if (!existe()) { console.log("smoke-encerrar-partida: pulado (sem React/Babel lo
     await p.getByRole("button", { name: "Relatório da partida (PDF)" }).click(); await p.waitForTimeout(500);
     let docs = await p.evaluate(() => window.__docs);
     assert.strictEqual(docs.length, 1, app + ": abriu o documento"); assert(/Salvar como PDF/.test(docs[0]) && /Relatório da partida/.test(docs[0]) && !/Em relação aos jogos anteriores/.test(docs[0]), app + ": relatório da partida sem comparação, pronto para salvar como PDF");
+    assert(/logo-quadralab-relatorio\.png/.test(docs[0]) && !/Team Yoda|Metodologia MTY/.test(docs[0]), app + ": logo do QuadraLab (não da academia)");
     await p.getByRole("button", { name: "Com comparação aos jogos anteriores" }).click(); await p.waitForTimeout(500);
     docs = await p.evaluate(() => window.__docs); assert(/Em relação aos jogos anteriores/.test(docs[1]) && /Média dos 1 jogo anterior/.test(docs[1]), app + ": com comparação inclui o jogo anterior");
     // salvar no caderno e gerar de novo não duplica o jogo

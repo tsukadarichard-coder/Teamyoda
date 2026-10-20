@@ -10632,7 +10632,7 @@ function exportarRelatorioJogos(aluno, identidade, jogosEscolhidos) {
     html = window.QLRelatorioJogos.gerar({
       atleta: aluno.nome, jogos, metricas: METRICAS_SCOUT, tendencia: tendenciaScout, leitura, zonasDe,
       detalheDe: (r) => r.scout.detalhe || ((r.scout.pontos || []).length ? resume(r.scout.pontos).detalhe : null),
-      cabecalhoHtml: cabecalhoRelatorioHTML(identidade), geradoEm: new Date().toLocaleDateString("pt-BR"),
+      cabecalhoHtml: cabecalhoQuadraLabHTML(), geradoEm: new Date().toLocaleDateString("pt-BR"),
     });
   } catch (e) { janela.close(); alert("Não foi possível montar o relatório: " + (e && e.message ? e.message : e)); return; }
   janela.document.write(html);
@@ -10648,7 +10648,7 @@ function exportarRelatorioPartida(aluno, identidade, reg, anteriores) {
     html = window.QLRelatorioJogos.gerarPartida({
       atleta: aluno.nome, reg, anteriores, metricas: METRICAS_SCOUT, leitura, zonasDe, placarFinal: placarDoResumo(reg.scout),
       detalheDe: (r) => r.scout.detalhe || ((r.scout.pontos || []).length ? resume(r.scout.pontos).detalhe : null),
-      cabecalhoHtml: cabecalhoRelatorioHTML(identidade), geradoEm: new Date().toLocaleDateString("pt-BR"),
+      cabecalhoHtml: cabecalhoQuadraLabHTML(), geradoEm: new Date().toLocaleDateString("pt-BR"),
     });
   } catch (e) { janela.close(); alert("Não foi possível montar o relatório: " + (e && e.message ? e.message : e)); return; }
   janela.document.write(html);
@@ -11794,6 +11794,11 @@ function formatarRelatorioHTML(texto) {
 /* Cabeçalho comum aos relatórios internos em PDF — a mesma identidade
    visual em todos (Metodologia MTY), mais o nome da academia quando
    disponível (identidade vem do App, carregado da conta logada). */
+/* Cabeçalho dos relatórios de partida e de jogos: a marca do QuadraLab (o relatório é da Tecnologia QuadraLab), não a da academia. */
+function cabecalhoQuadraLabHTML() {
+  const url = new URL("assets/logo-quadralab-relatorio.png", window.location.href).href;
+  return '<img src="' + url + '" alt="QuadraLab" style="height:40px;width:auto;display:block">';
+}
 function cabecalhoRelatorioHTML(identidade) {
   const nomeAcademia = identidade && identidade.nome;
   return '<div style="border-bottom:3px solid #C8102E;padding-bottom:10px;margin-bottom:18px;display:flex;justify-content:space-between;align-items:flex-end;gap:10px">' +

@@ -56,5 +56,12 @@ assert(pa.includes("4-6 7-6") && pa.includes("3º set em andamento: 3-2 em games
 assert(R.gerarPartida({ ...base, reg: regs[0], anteriores: [], placarFinal: { sets: [[6, 4]], games: [0, 0], fim: true } }).indexOf("em andamento") < 0, "partida concluída sem set em andamento");
 const many = R.gerarPartida({ ...base, reg: regs[5], anteriores: [], detalheDe: () => ({ fins: { winner_nos: 1, erro_dele: 1, erro_nos: 1, winner_dele: 1 }, games: Array.from({ length: 29 }, (_, i) => ({ j: i + 1, n: 6, g: i % 6 })) }) });
 assert(/class="gms mini"/.test(many) && many.includes("grid-template-columns:repeat(auto-fill"), "29 games em grade compacta");
+/* momentum ponto a ponto (gráfico XY) */
+const ptsXY = Array.from({ length: 60 }, (_, i) => ({ nos: [1, 1, 0, 1, 0, 0, 0, 0, 1, 1][i % 10] === 1, set: i < 30 ? 1 : 2, jogo: Math.floor(i / 6) + 1 }));
+const mx = R.gerarPartida({ ...base, reg: { ...regs[0], scout: { ...regs[0].scout, pontos: ptsXY } }, anteriores: [], detalheDe: () => null });
+assert(mx.includes("Momentum do jogo, ponto a ponto") && /<svg class="xy"/.test(mx) && mx.includes(">Set 2<") && /Melhor sequência: <b>\d+ pontos seguidos/.test(mx) && /Pior sequência/.test(mx), "momentum XY com sets e sequências");
+assert((mx.match(/<circle/g) || []).length === 60, "um ponto por ponto da partida");
+assert(!R.gerarPartida({ ...base, reg: { ...regs[0], scout: { ...regs[0].scout, pontos: ptsXY.slice(0, 3) } }, anteriores: [], detalheDe: () => null }).includes("Momentum do jogo"), "poucos pontos: sem gráfico");
+assert(!/undefined|NaN|Infinity/.test(mx.replace(/<style>[\s\S]*?<\/style>/, "")), "momentum sem valores inválidos");
 fs.writeFileSync(path.join(process.env.TMPDIR || "/tmp", "relatorio-jogos-teste.html"), html);
 console.log("check-relatorio-jogos: ok (" + html.length + " bytes)");

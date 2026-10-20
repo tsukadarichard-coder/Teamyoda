@@ -218,6 +218,44 @@
 
   /* ── Relatório da partida: um jogo, em página elegante (A4), para o treinador entregar ao atleta e à família.
         o: { atleta, reg (jogo salvo ou em curso), anteriores (jogos anteriores, opcional), metricas, leitura, detalheDe, cabecalhoHtml, geradoEm } ── */
+  /* Momentum ponto a ponto: eixo X = número do ponto, eixo Y = saldo acumulado (pontos ganhos menos perdidos) do atleta. Linhas verticais marcam os sets. */
+  function momentoXY(pts, atleta) {
+    var n = pts.length, saldo = [0], W = 720, H = 280, L = 42, Rr = 16, T = 18, B = 34, i;
+    for (i = 0; i < n; i++) saldo.push(saldo[i] + (pts[i].nos ? 1 : -1));
+    var mx = Math.max.apply(null, saldo.concat([2])), mn = Math.min.apply(null, saldo.concat([-2]));
+    var passo = Math.max(1, Math.ceil((mx - mn) / 6)); mx = Math.ceil(mx / passo) * passo; mn = Math.floor(mn / passo) * passo;
+    function x(k) { return L + (W - L - Rr) * k / n; }
+    function y(v) { return T + (H - T - B) * (1 - (v - mn) / (mx - mn)); }
+    var y0 = y(0), d = "M" + x(0).toFixed(1) + "," + y0.toFixed(1);
+    for (i = 1; i <= n; i++) d += "L" + x(i).toFixed(1) + "," + y(saldo[i]).toFixed(1);
+    var area = d + "L" + x(n).toFixed(1) + "," + y0.toFixed(1) + "Z";
+    var g = '<defs><clipPath id="mxa"><rect x="0" y="0" width="' + W + '" height="' + y0.toFixed(1) + '"/></clipPath><clipPath id="mxb"><rect x="0" y="' + y0.toFixed(1) + '" width="' + W + '" height="' + (H - y0).toFixed(1) + '"/></clipPath></defs>';
+    for (var v = mn; v <= mx; v += passo) { var yy = y(v); g += '<line x1="' + L + '" x2="' + (W - Rr) + '" y1="' + yy.toFixed(1) + '" y2="' + yy.toFixed(1) + '" stroke="' + (v === 0 ? GRAFITE : LINHA) + '" stroke-width="' + (v === 0 ? 1.4 : 1) + '"/><text x="' + (L - 6) + '" y="' + (yy + 3.5).toFixed(1) + '" text-anchor="end" font-size="10" fill="' + GRAFITE + '">' + (v > 0 ? "+" : "") + v + "</text>"; }
+    /* sequências: a melhor e a pior (pontos seguidos) */
+    var melhor = { len: 0, ini: 0 }, pior = { len: 0, ini: 0 }, run = 0, ini = 0, sinal = null;
+    for (i = 0; i < n; i++) { var ganhou = !!pts[i].nos; if (ganhou === sinal) run++; else { sinal = ganhou; run = 1; ini = i; } var alvo = ganhou ? melhor : pior; if (run > alvo.len) { alvo.len = run; alvo.ini = ini; } }
+    [[melhor, AZUL], [pior, LARANJA]].forEach(function (b) { if (b[0].len >= 4) g += '<rect x="' + x(b[0].ini).toFixed(1) + '" y="' + T + '" width="' + (x(b[0].ini + b[0].len) - x(b[0].ini)).toFixed(1) + '" height="' + (H - T - B) + '" fill="' + b[1] + '" opacity=".10"/>'; });
+    g += '<path d="' + area + '" fill="' + AZUL + '" opacity=".16" clip-path="url(#mxa)"/><path d="' + area + '" fill="' + LARANJA + '" opacity=".16" clip-path="url(#mxb)"/>';
+    g += '<path d="' + d + '" fill="none" stroke="' + AZUL + '" stroke-width="2" stroke-linejoin="round" clip-path="url(#mxa)"/><path d="' + d + '" fill="none" stroke="' + LARANJA + '" stroke-width="2" stroke-linejoin="round" clip-path="url(#mxb)"/>';
+    /* sets e games */
+    g += '<text x="' + (x(0) + 4).toFixed(1) + '" y="' + (T + 10) + '" font-size="10" font-weight="700" fill="' + MARCA + '">Set ' + n0(pts[0].set || 1) + "</text>";
+    for (i = 1; i < n; i++) {
+      if (pts[i].set !== pts[i - 1].set && pts[i].set != null) g += '<line x1="' + x(i).toFixed(1) + '" x2="' + x(i).toFixed(1) + '" y1="' + T + '" y2="' + (H - B) + '" stroke="' + MARCA + '" stroke-width="1.2" stroke-dasharray="4 3"/><text x="' + (x(i) + 4).toFixed(1) + '" y="' + (T + 10) + '" font-size="10" font-weight="700" fill="' + MARCA + '">Set ' + pts[i].set + "</text>";
+      else if (pts[i].jogo !== pts[i - 1].jogo && pts[i].jogo != null) g += '<line x1="' + x(i).toFixed(1) + '" x2="' + x(i).toFixed(1) + '" y1="' + (H - B) + '" y2="' + (H - B + 4) + '" stroke="' + CINZA + '"/>';
+    }
+    var passoX = n > 150 ? 25 : n > 80 ? 20 : 10;
+    for (i = 0; i <= n; i += passoX) g += '<text x="' + x(i).toFixed(1) + '" y="' + (H - 14) + '" text-anchor="middle" font-size="10" fill="' + GRAFITE + '">' + i + "</text>";
+    g += '<text x="' + ((L + W - Rr) / 2) + '" y="' + (H - 2) + '" text-anchor="middle" font-size="10" fill="' + GRAFITE + '">ponto da partida</text>';
+    if (n <= 260) for (i = 1; i <= n; i++) g += '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(saldo[i]).toFixed(1) + '" r="1.7" fill="' + (pts[i - 1].nos ? AZUL : LARANJA) + '"><title>Ponto ' + i + (pts[i - 1].nos ? ": ganho" : ": perdido") + " · saldo " + (saldo[i] > 0 ? "+" : "") + saldo[i] + "</title></circle>";
+    var top = 0, bot = 0, itop = 0, ibot = 0; for (i = 1; i <= n; i++) { if (saldo[i] > top) { top = saldo[i]; itop = i; } if (saldo[i] < bot) { bot = saldo[i]; ibot = i; } }
+    var notas = [];
+    if (melhor.len >= 3) notas.push('<span><i style="background:' + AZUL + '"></i>Melhor sequência: <b>' + melhor.len + " pontos seguidos</b> (pontos " + (melhor.ini + 1) + " a " + (melhor.ini + melhor.len) + ")</span>");
+    if (pior.len >= 3) notas.push('<span><i style="background:' + LARANJA + '"></i>Pior sequência: <b>' + pior.len + " pontos seguidos</b> (pontos " + (pior.ini + 1) + " a " + (pior.ini + pior.len) + ")</span>");
+    if (top > 0) notas.push("<span>Maior vantagem: <b>+" + top + "</b> no ponto " + itop + "</span>");
+    if (bot < 0) notas.push("<span>Maior desvantagem: <b>" + bot + "</b> no ponto " + ibot + "</span>");
+    return '<p class="mudo">Saldo acumulado de pontos de ' + esc(atleta) + " (ganhos menos perdidos). Acima da linha do zero, o atleta lidera o jogo; as linhas tracejadas marcam o início de cada set.</p>" +
+      '<svg class="xy" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Momentum do jogo ponto a ponto">' + g + '</svg><p class="leg">' + notas.join("") + "</p>";
+  }
   function gerarPartida(o) {
     var atleta = String(o.atleta || "Atleta"), r = o.reg || {}, s = r.scout || {}, M = o.metricas || [], leitura = o.leitura || function () { return []; };
     var ant = (o.anteriores || []).filter(function (x) { return x && x.scout; });
@@ -261,6 +299,9 @@
     function lista(tit, cor, itens, vazio) { return '<div class="lei" style="border-top:3px solid ' + cor + '"><h3>' + esc(tit) + "</h3>" + (itens.length ? "<ul>" + itens.map(function (t) { return "<li>" + esc(t) + "</li>"; }).join("") + "</ul>" : '<p class="mudo">' + esc(vazio) + "</p>") + "</div>"; }
     h += card("A leitura do jogo", '<div class="duas">' + lista("O que funcionou", AZUL, forte, "Sem destaque claro neste jogo.") + lista("O que pede atenção", LARANJA, atencao, "Nada fora do esperado nos indicadores coletados.") + "</div>");
 
+    /* momentum ponto a ponto */
+    var pontosJogo = (s.pontos || []).filter(function (p) { return p && typeof p === "object"; });
+    if (pontosJogo.length >= 6) h += card("Momentum do jogo, ponto a ponto", momentoXY(pontosJogo, atleta));
     /* como o jogo se desenrolou */
     if (d && d.games && d.games.length > 1) h += card("Como o jogo se desenrolou", '<p class="mudo">Pontos ganhos em cada game (azul: o atleta ganhou mais da metade dos pontos do game).</p>' + pilhaGamesP(d.games));
     /* como os pontos terminaram */
@@ -303,7 +344,7 @@
     var CSSP = "@page{size:A4;margin:12mm}*{box-sizing:border-box}body{font-family:-apple-system,system-ui,'Segoe UI',Roboto,sans-serif;color:" + TINTA + ";max-width:860px;margin:0 auto;padding:20px 18px 36px;line-height:1.5;-webkit-print-color-adjust:exact;print-color-adjust:exact;background:#fff}" +
       ".capa{background:" + MARCA + ";color:#fff;border-radius:18px;padding:22px 26px 24px;margin-bottom:16px;border-bottom:5px solid #69B32A}.capa-t{display:flex;justify-content:space-between;align-items:center;font-size:11px;letter-spacing:.16em;text-transform:uppercase;opacity:.85}.eyebrow{font-weight:800;color:#9BD65B}.capa h1{font-size:34px;line-height:1.1;margin:14px 0 4px;letter-spacing:-.02em}.ctx{margin:0;font-size:14px;opacity:.88}.pl{display:flex;align-items:center;gap:14px;margin-top:16px;flex-wrap:wrap}.parc{margin:10px 0 0;font-size:13px;color:#C8E8A6;font-weight:600}.res{font-size:30px;font-weight:800;letter-spacing:.02em;font-variant-numeric:tabular-nums}.selo{font-size:11.5px;font-weight:700;padding:5px 12px;border-radius:999px;background:rgba(255,255,255,.14)}.selo.ok{background:#69B32A;color:#0B2A24}" +
       ".kps{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:6px}.kps.k2{grid-template-columns:repeat(2,1fr)}.kp{border:1px solid " + LINHA + ";border-radius:14px;padding:13px 14px;background:#F6F8F7;break-inside:avoid}.kp b{display:block;font-size:28px;line-height:1.05;color:" + MARCA + ";letter-spacing:-.02em}.kp span{display:block;font-size:12.5px;font-weight:600;margin-top:3px}.kp small{display:block;font-size:11px;color:" + GRAFITE + ";margin-top:2px}" +
-      ".sec{margin-top:22px;break-inside:avoid}.sec h2{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:" + MARCA + ";margin:0 0 10px;padding-bottom:6px;border-bottom:1px solid " + LINHA + ";display:flex;align-items:center;gap:8px}.sec h2:before{content:'';width:8px;height:8px;border-radius:2px;background:#69B32A}h3{font-size:13.5px;margin:0 0 8px}.mudo{color:" + GRAFITE + ";font-size:12px;margin:4px 0 8px}" +
+      ".xy{width:100%;height:auto;display:block}.sec{margin-top:22px;break-inside:avoid}.sec h2{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:" + MARCA + ";margin:0 0 10px;padding-bottom:6px;border-bottom:1px solid " + LINHA + ";display:flex;align-items:center;gap:8px}.sec h2:before{content:'';width:8px;height:8px;border-radius:2px;background:#69B32A}h3{font-size:13.5px;margin:0 0 8px}.mudo{color:" + GRAFITE + ";font-size:12px;margin:4px 0 8px}" +
       ".duas{display:grid;grid-template-columns:1fr 1fr;gap:12px}.lei,.cx{border:1px solid " + LINHA + ";border-radius:14px;padding:12px 14px;break-inside:avoid}.lei ul{margin:0;padding-left:18px;font-size:13px}.lei li{margin:4px 0}" +
       ".leg{display:flex;flex-wrap:wrap;gap:3px 12px;margin:6px 0 0;font-size:11px;color:" + GRAFITE + "}.leg i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px}.pilha{display:flex;height:22px;border-radius:7px;overflow:hidden;gap:2px;margin:6px 0}.pilha b{color:#fff;font-size:10.5px;display:flex;align-items:center;justify-content:center;min-width:0}" +
       ".fins{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin-top:8px;font-size:12.5px}.fins i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px}.fins small{color:" + GRAFITE + "}" +
