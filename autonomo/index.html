@@ -12296,6 +12296,8 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
   const eTurma = !!turma;
   const entidade = eTurma ? turma : aluno;
   const podeEditar = eTurma ? podeEditarTurma(turma, papelAtual, uidAtual) : podeEditarAluno(aluno, papelAtual, uidAtual);
+  /* Marcar a aula como feita, anotar observação, data e dor vale para qualquer professor logado (substituição); editar o plano em si segue só com o titular. */
+  const podeRegistrarAulaPlano = podeEditar || papelAtual === "coordenador" || !!uidAtual;
   const exigeLogin = typeof window !== "undefined" && !!window.mtyAuth;
   const [texto, setTexto] = useState("");
   const [erro, setErro] = useState("");
@@ -13394,7 +13396,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                 return (
                   <CardAulaChecklist key={ai} id={id} indice={ai + 1} titulo={au.t} descricao={au.d} selo={au.selo} qtdExercicios={(au.ex || []).length}
                     status={status} defineStatus={defineStatus} reg={reg} campo={campo}
-                    chuvaAberta={chuvaAberta} setChuvaAberta={setChuvaAberta} podeEditar={podeEditar} papelAtual={papelAtual} />
+                    chuvaAberta={chuvaAberta} setChuvaAberta={setChuvaAberta} podeEditar={podeRegistrarAulaPlano} papelAtual={papelAtual} />
                 );
               })}
             </div>
@@ -13413,7 +13415,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                   <CardAulaChecklist key={ri} id={"REF" + bi + "-" + ri} indice={"Reforço " + (ri + 1)} titulo="Reforço do bloco"
                     descricao="Os exercícios aparecem ao montar a sessão de hoje pra esta aula."
                     status={status} defineStatus={defineStatus} reg={reg} campo={campo}
-                    chuvaAberta={chuvaAberta} setChuvaAberta={setChuvaAberta} podeEditar={podeEditar} papelAtual={papelAtual} />
+                    chuvaAberta={chuvaAberta} setChuvaAberta={setChuvaAberta} podeEditar={podeRegistrarAulaPlano} papelAtual={papelAtual} />
                 ))}
               </div>
             );
