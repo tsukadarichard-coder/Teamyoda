@@ -7205,6 +7205,8 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
      substituto"). O resto da tela (gerar plano, editar exercícios etc.)
      continua seguindo `podeEditar` normalmente. */
   const podeRegistrarAula = papelAtual === "coordenador" || !!uidAtual;
+  /* Gerar, montar e registrar a SESSÃO do dia vale para qualquer professor logado da academia (substituição de última hora). Editar o plano, a ficha e as prioridades do jogador continua só com o titular ou o coordenador. */
+  const podeSessao = podeEditar || podeRegistrarAula;
   const [professoresSessao, setProfessoresSessao] = useState([]);
   useEffect(() => {
     if (aluno.professorUid && aluno.professorUid !== uidAtual) listaProfessores().then(setProfessoresSessao);
@@ -7738,8 +7740,11 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
         )}
       </div>
 
-      {!podeEditar && (
-        <div className="mb-5"><Aviso>Este jogador é de outro treinador — só ele (ou o coordenador) pode registrar a sessão dele.</Aviso></div>
+      {!podeEditar && podeSessao && (
+        <div className="mb-5"><Aviso cor={C.quadra}>Este jogador é do professor {aluno.professorNome || "titular"}. Você pode gerar e registrar a sessão no lugar dele (o registro guarda o seu nome como substituto). O plano e a ficha seguem com o titular ou o coordenador.</Aviso></div>
+      )}
+      {!podeEditar && !podeSessao && (
+        <div className="mb-5"><Aviso>Entre na sua conta para gerar e registrar a sessão deste jogador.</Aviso></div>
       )}
 
       {/* Os três momentos da mesma aula (pedido explícito: compartilham os
@@ -7761,8 +7766,8 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
       )}
       {!plano && (
         <div className="flex gap-2 flex-wrap items-center">
-          <Botao onClick={gerar} variante="saibro" disabled={!podeEditar}>{previaSemAprovacao ? "Pré-visualizar sessão" : "Gerar sessão"}</Botao>
-          <Botao variante="vazio" disabled={!podeEditar} onClick={() => setChuvaMenuAberto(!chuvaMenuAberto)}>🌧️ Foi dia de chuva</Botao>
+          <Botao onClick={gerar} variante="saibro" disabled={!podeSessao}>{previaSemAprovacao ? "Pré-visualizar sessão" : "Gerar sessão"}</Botao>
+          <Botao variante="vazio" disabled={!podeSessao} onClick={() => setChuvaMenuAberto(!chuvaMenuAberto)}>🌧️ Foi dia de chuva</Botao>
         </div>
       )}
       {!plano && chuvaMenuAberto && (
@@ -7792,7 +7797,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
               {estadoSalvo === "salvando" ? "Salvando…" : estadoSalvo === "erro" ? "Não foi possível salvar — tentar novamente"
                 : exigeLogin ? "Rascunho salvo na nuvem" : "Rascunho salvo neste aparelho"}
             </Etiqueta>
-            {podeEditar && (
+            {podeSessao && (
               <button onClick={() => {
                 if (confirm("Isso substitui apenas o rascunho desta sessão ainda não salva, com um novo sorteio — nenhuma aula já registrada é afetada. Gerar uma versão nova agora?")) descartarRascunho();
               }} style={{ ...prosa, fontSize: 12, color: C.grafite, cursor: "pointer", border: "none", background: "none", padding: 0 }}>
@@ -7925,7 +7930,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
                 <CartaoExercicio key={p.c} e={p} aoRemover={() => removerPersonalizado(p.c)} />
               ))}
               {!formPersonalizadoAberto ? (
-                <Botao variante="vazio" onClick={() => setFormPersonalizadoAberto(true)} disabled={!podeEditar}>+ Adicionar exercício próprio</Botao>
+                <Botao variante="vazio" onClick={() => setFormPersonalizadoAberto(true)} disabled={!podeSessao}>+ Adicionar exercício próprio</Botao>
               ) : (
                 <div style={{ background: C.papel, border: "1px solid " + C.linha, borderRadius: 10, padding: "13px 15px" }}>
                   <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>
@@ -16449,7 +16454,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
                 <div className="mb-3"><Etiqueta cor={C.saibro}>Conduzir</Etiqueta></div>
                 <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
                   <Etiqueta cor={C.quadra}>✓ Sessão salva — continua aqui mesmo se fechar o app ou trocar de aparelho</Etiqueta>
-                  {podeEditar && (
+                  {podeRegistrarSessaoTurma && (
                     <button onClick={() => setSessaoTurma(null)} style={{ ...prosa, fontSize: 12, color: C.grafite, cursor: "pointer", border: "none", background: "none", padding: 0 }}>
                       Descartar e gerar outra
                     </button>

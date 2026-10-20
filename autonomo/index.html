@@ -7240,6 +7240,8 @@ function garanteBrincadeira(exerciciosAtuais, evitar, estagio) {
 
 function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual, exerciciosCustom, setExerciciosCustom }) {
   const podeEditar = podeEditarAluno(aluno, papelAtual, uidAtual);
+  /* Gerar, montar e registrar a SESSÃO do dia vale para qualquer professor logado da academia (substituição de última hora). Editar o plano, a ficha e as prioridades do jogador continua só com o titular ou o coordenador. */
+  const podeSessao = podeEditar || papelAtual === "coordenador" || !!uidAtual;
   const exigeLogin = typeof window !== "undefined" && !!window.mtyAuth;
   const hoje = new Date().toISOString().slice(0, 10);
   /* A sessão gerada some se ficar só na memória do navegador — celular
@@ -7761,8 +7763,11 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
         )}
       </div>
 
-      {!podeEditar && (
-        <div className="mb-5"><Aviso>Este jogador é de outro treinador — só ele (ou o coordenador) pode registrar a sessão dele.</Aviso></div>
+      {!podeEditar && podeSessao && (
+        <div className="mb-5"><Aviso cor={C.quadra}>Este jogador é do professor {aluno.professorNome || "titular"}. Você pode gerar e registrar a sessão no lugar dele (o registro guarda o seu nome como substituto). O plano e a ficha seguem com o titular ou o coordenador.</Aviso></div>
+      )}
+      {!podeEditar && !podeSessao && (
+        <div className="mb-5"><Aviso>Entre na sua conta para gerar e registrar a sessão deste jogador.</Aviso></div>
       )}
 
       {!aulaAtual && (
@@ -7777,8 +7782,8 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
       )}
       {!plano && (
         <div className="flex gap-2 flex-wrap items-center">
-          <Botao onClick={gerar} variante="saibro" disabled={!podeEditar}>{previaSemAprovacao ? "Pré-visualizar sessão" : "Gerar sessão"}</Botao>
-          <Botao variante="vazio" disabled={!podeEditar} onClick={() => setChuvaMenuAberto(!chuvaMenuAberto)}>🌧️ Foi dia de chuva</Botao>
+          <Botao onClick={gerar} variante="saibro" disabled={!podeSessao}>{previaSemAprovacao ? "Pré-visualizar sessão" : "Gerar sessão"}</Botao>
+          <Botao variante="vazio" disabled={!podeSessao} onClick={() => setChuvaMenuAberto(!chuvaMenuAberto)}>🌧️ Foi dia de chuva</Botao>
         </div>
       )}
       {!plano && chuvaMenuAberto && (
@@ -7807,7 +7812,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
               {estadoSalvo === "salvando" ? "Salvando…" : estadoSalvo === "erro" ? "Não foi possível salvar — tentar novamente"
                 : exigeLogin ? "Rascunho salvo na nuvem" : "Rascunho salvo neste aparelho"}
             </Etiqueta>
-            {podeEditar && (
+            {podeSessao && (
               <button onClick={() => {
                 if (confirm("Isso substitui apenas o rascunho desta sessão ainda não salva, com um novo sorteio — nenhuma aula já registrada é afetada. Gerar uma versão nova agora?")) descartarRascunho();
               }} style={{ ...prosa, fontSize: 12, color: C.grafite, cursor: "pointer", border: "none", background: "none", padding: 0 }}>
@@ -7940,7 +7945,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
                 <CartaoExercicio key={p.c} e={p} aoRemover={() => removerPersonalizado(p.c)} />
               ))}
               {!formPersonalizadoAberto ? (
-                <Botao variante="vazio" onClick={() => setFormPersonalizadoAberto(true)} disabled={!podeEditar}>+ Adicionar exercício próprio</Botao>
+                <Botao variante="vazio" onClick={() => setFormPersonalizadoAberto(true)} disabled={!podeSessao}>+ Adicionar exercício próprio</Botao>
               ) : (
                 <div style={{ background: C.papel, border: "1px solid " + C.linha, borderRadius: 10, padding: "13px 15px" }}>
                   <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>
@@ -7986,7 +7991,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
               zIndex: 27, background: C.papel, borderTop: "1px solid " + C.linha, padding: "10px 16px",
               boxShadow: "0 -2px 10px rgba(16,59,50,.08)" }}>
               <div style={{ maxWidth: 760, margin: "0 auto" }}>
-                <Botao onClick={() => setFechando(true)} disabled={!podeEditar}>Finalizar e registrar aula</Botao>
+                <Botao onClick={() => setFechando(true)} disabled={!podeSessao}>Finalizar e registrar aula</Botao>
               </div>
             </div>
           )}
@@ -15266,6 +15271,8 @@ function TelaScoutTurma({ membros, alunos, setAlunos }) {
 
 function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, aoRemover, papelAtual, uidAtual, exerciciosCustom, setExerciciosCustom, identidade }) {
   const podeEditar = podeEditarTurma(turma, papelAtual, uidAtual);
+  /* Qualquer professor logado pode gerar e registrar a aula da turma; editar a turma em si segue com o titular. */
+  const podeRegistrarSessaoTurma = papelAtual === "coordenador" || !!uidAtual;
   const membros = turma.membros.map((id) => alunos.find((a) => a.id === id)).filter(Boolean);
   const hoje = new Date().toISOString().slice(0, 10);
   /* Mesma trava de perda que a sessão individual: a sessão de turma
@@ -15554,7 +15561,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
             <div key={p.id} style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderLeft: "3px solid " + C.saibro, padding: "10px 13px", marginTop: 8 }}>
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>{p.data}{p.motivo ? " · " + p.motivo : ""}</div>
-                <Botao pequeno variante="vazio" disabled={!podeEditar} onClick={() => marcarResolvida(p.id)}>Marcar como resolvida</Botao>
+                <Botao pequeno variante="vazio" disabled={!podeRegistrarSessaoTurma} onClick={() => marcarResolvida(p.id)}>Marcar como resolvida</Botao>
               </div>
               {p.nota && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>{p.nota}</p>}
             </div>
@@ -15626,7 +15633,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
         <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: 15 }}>
           <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
             <Etiqueta>Presença</Etiqueta>
-            <Botao pequeno variante="vazio" disabled={!podeEditar}
+            <Botao pequeno variante="vazio" disabled={!podeRegistrarSessaoTurma}
               onClick={() => setPresenca(Object.fromEntries(membros.map((m) => [m.id, "presente"])))}>
               Marcar todos presentes
             </Botao>
@@ -15639,13 +15646,13 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 600 }}>{m.nome || "Sem nome"}</span>
                   <div className="flex gap-1">
-                    <button type="button" disabled={!podeEditar} onClick={() => setPresenca((p) => ({ ...p, [m.id]: "presente" }))}
+                    <button type="button" disabled={!podeRegistrarSessaoTurma} onClick={() => setPresenca((p) => ({ ...p, [m.id]: "presente" }))}
                       style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "5px 10px", borderRadius: 10, cursor: "pointer",
                         border: "1px solid " + (st === "presente" ? C.quadra : C.linha),
                         background: st === "presente" ? C.quadra : C.papel, color: st === "presente" ? "#fff" : C.grafite }}>
                       Presente
                     </button>
-                    <button type="button" disabled={!podeEditar} onClick={() => setPresenca((p) => ({ ...p, [m.id]: "ausente" }))}
+                    <button type="button" disabled={!podeRegistrarSessaoTurma} onClick={() => setPresenca((p) => ({ ...p, [m.id]: "ausente" }))}
                       style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "5px 10px", borderRadius: 10, cursor: "pointer",
                         border: "1px solid " + (st === "ausente" ? "#8A2E2E" : C.linha),
                         background: st === "ausente" ? "#8A2E2E" : C.papel, color: st === "ausente" ? "#fff" : C.grafite }}>
@@ -15661,7 +15668,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
                   {notaAberta ? "Ocultar nota individual" : (obsIndividual[m.id] ? "Editar nota individual" : "+ nota individual")}
                 </button>
                 {notaAberta && (
-                  <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, resize: "vertical", fontSize: 12.5, marginTop: 6 }}
+                  <textarea rows={2} disabled={!podeRegistrarSessaoTurma} style={{ ...entrada, resize: "vertical", fontSize: 12.5, marginTop: 6 }}
                     value={obsIndividual[m.id] || ""} onChange={(e) => setObsIndividual((o) => ({ ...o, [m.id]: e.target.value }))}
                     placeholder="Observação só deste jogador nesta sessão." />
                 )}
@@ -15695,7 +15702,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
               <div className="mb-5">
                 <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
                   <Etiqueta cor={C.quadra}>✓ Sessão salva — continua aqui mesmo se fechar a plataforma ou trocar de aparelho</Etiqueta>
-                  {podeEditar && (
+                  {podeRegistrarSessaoTurma && (
                     <button onClick={() => setSessaoTurma(null)} style={{ ...prosa, fontSize: 12, color: C.grafite, cursor: "pointer", border: "none", background: "none", padding: 0 }}>
                       Descartar e gerar outra
                     </button>
@@ -15801,7 +15808,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
                         <span style={{ ...prosa, fontSize: 13 }}>{e.n}</span>
                         <div className="flex gap-1 flex-wrap">
                           {[["feito", "Feito"], ["parcial", "Parcial"], ["nao_feito", "Não feito"]].map(([v, r]) => (
-                            <button key={v} disabled={!podeEditar} onClick={() => setStatusExercicios((x) => ({ ...x, [e.c]: v }))}
+                            <button key={v} disabled={!podeRegistrarSessaoTurma} onClick={() => setStatusExercicios((x) => ({ ...x, [e.c]: v }))}
                               style={{ fontFamily: ARCH, fontSize: 10.5, fontWeight: 700, padding: "5px 9px", borderRadius: 10, cursor: "pointer",
                                 border: "1px solid " + (st === v ? C.tinta : C.linha),
                                 background: st === v ? C.tinta : C.papel, color: st === v ? C.papel : C.grafite }}>{r}</button>
@@ -15813,20 +15820,20 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
                 </Campo>
               )}
               <Campo rotulo="O que corrigi hoje">
-                <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, resize: "vertical" }} value={obs.corrigi}
+                <textarea rows={2} disabled={!podeRegistrarSessaoTurma} style={{ ...entrada, resize: "vertical" }} value={obs.corrigi}
                   onChange={(e) => setObs({ ...obs, corrigi: e.target.value })} placeholder="Em que camada estava a causa" />
               </Campo>
               <Campo rotulo="O que vi e deixei passar" nota="O campo mais valioso do registro: o que você escolheu ignorar hoje, e por quê.">
-                <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, resize: "vertical" }} value={obs.ignorei}
+                <textarea rows={2} disabled={!podeRegistrarSessaoTurma} style={{ ...entrada, resize: "vertical" }} value={obs.ignorei}
                   onChange={(e) => setObs({ ...obs, ignorei: e.target.value })} />
               </Campo>
               <Campo rotulo="O que eu teria montado diferente" nota="Se a proposta não servia, escreva o que serviria. É isso que corrige as regras.">
-                <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, resize: "vertical" }} value={obs.mudaria}
+                <textarea rows={2} disabled={!podeRegistrarSessaoTurma} style={{ ...entrada, resize: "vertical" }} value={obs.mudaria}
                   onChange={(e) => setObs({ ...obs, mudaria: e.target.value })} />
               </Campo>
               <CamposTemas temas={temasGrupo} statusTemas={statusTemas} setStatusTemas={setStatusTemas} podeEditar={podeEditar} />
               <Campo rotulo="Leitura da aula" nota="A impressão geral do grupo na sessão, além dos temas — fica guardada no caderno de cada jogador.">
-                <textarea rows={2} disabled={!podeEditar} style={{ ...entrada, resize: "vertical" }} value={obs.leituraDaAula}
+                <textarea rows={2} disabled={!podeRegistrarSessaoTurma} style={{ ...entrada, resize: "vertical" }} value={obs.leituraDaAula}
                   onChange={(e) => setObs({ ...obs, leituraDaAula: e.target.value })} />
               </Campo>
               <Campo rotulo="Engajamento geral do grupo na sessão" nota="Nota de 1 a 5 — a presença de cada jogador já é marcada individualmente acima.">
