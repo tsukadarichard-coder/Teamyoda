@@ -11607,6 +11607,113 @@ function propostasNovasDoAluno(aluno, todos) {
   if (aluno.plano) { try { restantes = listaAulas(aluno.plano, aluno.regPlano).filter((a) => statusAula(aluno.regPlano, a.id) !== "feita").length; } catch (e) { restantes = null; } }
   return QE.novasPropostas(aluno, { agora: new Date().toISOString(), blocoAtual: vig && vig.bloco, aulasRestantes: restantes, exercicios: exerciciosParaRevisao(aluno), aprendizado: todos && todos.length > 1 ? QE.aprendizado(todos) : undefined });
 }
+/* Jogador de turma não tem plano individual: o plano e as aulas feitas moram na TURMA. Para as sugestões de ajuste enxergarem o bloco e as aulas restantes, cada integrante é lido com o plano da turma. */
+function visaoDaTurma(membro, turma) {
+  return turma && turma.plano ? { ...membro, plano: turma.plano, regPlano: turma.regPlano || {} } : membro;
+}
+function membrosDaTurma(turma, alunos) {
+  return (turma.membros || []).map((id) => (alunos || []).find((a) => a.id === id)).filter(Boolean);
+}
+/* Sugestões pendentes dos integrantes, juntas por padrão: o que aparece em mais de um jogador é um padrão do grupo. */
+function gruposRevisaoTurma(turma, alunos) {
+  const QE = typeof window !== "undefined" && window.QLEvidencias;
+  if (!QE) return [];
+  const mapa = {};
+  membrosDaTurma(turma, alunos).forEach((m) => QE.pendentes(m).forEach((r) => {
+    const g = mapa[r.chave] = mapa[r.chave] || { chave: r.chave, base: r, revs: [], jogadores: [] };
+    g.revs.push(r); g.jogadores.push({ id: m.id, nome: m.nome || "Sem nome" });
+  }));
+  const peso = { alta: 0, media: 1, baixa: 2 };
+  return Object.values(mapa).map((g) => ({ ...g, ex: [...new Set(g.revs.flatMap((r) => (r.acao && r.acao.ex) || []))].slice(0, 5) }))
+    .sort((a, b) => b.jogadores.length - a.jogadores.length || (peso[a.base.forca] ?? 1) - (peso[b.base.forca] ?? 1));
+}
+function RevisaoTurma({ turma, alunos, setAlunos, aoAtualizarTurma, podeEditar }) {
+  const QE = typeof window !== "undefined" && window.QLEvidencias;
+  const [verVersoes, setVerVersoes] = useState(false);
+  const membros = membrosDaTurma(turma, alunos);
+  const chaveDados = membros.map((m) => (m.movimentos || []).length + "." + (m.registros || []).length + "." + (m.revisoesPlano || []).length).join("|");
+  useEffect(() => {
+    if (!QE || !podeEditar || !setAlunos || !turma.plano) return;
+    const agora = new Date().toISOString(), novos = {};
+    membros.forEach((m) => {
+      const livres = propostasNovasDoAluno(visaoDaTurma(m, turma), alunos).filter((p) => !QE.bloqueada(m.revisoesPlano, p.chave, agora));
+      if (livres.length) novos[m.id] = livres;
+    });
+    if (!Object.keys(novos).length) return;
+    setAlunos((lista) => lista.map((x) => (novos[x.id] ? { ...x, revisoesPlano: (x.revisoesPlano || []).concat(novos[x.id]).slice(-60) } : x)));
+  }, [turma.id, chaveDados]);
+  if (!QE) return null;
+  const grupos = gruposRevisaoTurma(turma, alunos);
+  const versoes = turma.versoesPlano || [];
+  if (!grupos.length && !versoes.length) return null;
+  const nomeEx = (c) => { const e = TODOS_EXERCICIOS().find((x) => x.c === c); return e ? e.n : c; };
+  const cor = { alta: C.saibro, media: C.grafite, baixa: C.linha };
+  const miniBtn = { ...prosa, fontSize: 12.5, fontWeight: 700, border: "1px solid " + C.linha, background: C.cal, borderRadius: 8, padding: "8px 12px", cursor: "pointer", minHeight: 40 };
+  const blocoExiste = (a) => !!(turma.plano && a && a.bloco && turma.plano.blocos.some((b) => (b.titulo || b.nome) === a.bloco));
+  function decidir(g, status) {
+    const agora = new Date().toISOString(), a = g.base.acao || {};
+    const aplica = status === "aceita" && a.tipo === "reforco" && g.ex.length > 0 && blocoExiste(a);
+    const ids = new Set(g.revs.map((r) => r.id));
+    setAlunos((lista) => lista.map((x) => ((x.revisoesPlano || []).some((r) => ids.has(r.id))
+      ? { ...x, revisoesPlano: x.revisoesPlano.map((r) => (ids.has(r.id) ? { ...r, status, decididoEm: agora, ...(aplica ? { aplicada: true } : {}) } : r)) } : x)));
+    if (aplica) {
+      const rp = turma.regPlano || {}, blocos = rp.__blocos || {}, info = blocos[a.bloco] || {};
+      aoAtualizarTurma({
+        regPlano: { ...rp, __blocos: { ...blocos, [a.bloco]: { ...info, reforcos: (info.reforcos || []).concat([{ ex: g.ex, origem: "revisao", revisaoId: g.base.id }]) } } },
+        versoesPlano: versoes.concat([{ n: versoes.length + 2, em: agora, motivo: g.base.titulo + (g.jogadores.length > 1 ? " (" + g.jogadores.length + " jogadores)" : " (" + g.jogadores[0].nome + ")"), mudanca: "Reforço no bloco “" + a.bloco + "” com " + g.ex.length + " exercícios", revisaoId: g.base.id }]).slice(-40),
+      });
+    }
+  }
+  return (
+    <div className="mb-7" data-revisao-turma>
+      <p style={{ fontFamily: ARCH, fontSize: 11, letterSpacing: 1.2, textTransform: "uppercase", color: C.saibro, fontWeight: 700 }}>Tecnologia QuadraLab</p>
+      <h3 style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, margin: "2px 0 4px" }}>Revisão do plano com os dados do grupo</h3>
+      <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>Junta o que os scouts e as análises de cada jogador da turma mostram. O que se repete em mais de um jogador é um padrão do grupo. O plano não muda sozinho: você decide cada ajuste.</p>
+      {grupos.length === 0 && <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginBottom: 10 }}>Nenhuma sugestão pendente agora.</p>}
+      {grupos.map((g) => {
+        const r = g.base, a = r.acao || {}, grupo = g.jogadores.length > 1;
+        return (
+          <div key={g.chave} data-sugestao-turma style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + (cor[r.forca] || C.linha), borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
+            <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{r.titulo}</p>
+            <p style={{ ...prosa, fontSize: 12, color: grupo ? C.saibro : C.grafite, fontWeight: 700, margin: "2px 0" }}>
+              {grupo ? "Padrão do grupo · " + g.jogadores.length + " de " + membros.length + " jogadores" : "Só em um jogador"}: {g.jogadores.map((j) => j.nome).join(", ")}
+            </p>
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, margin: "3px 0 6px" }}>{r.motivo}</p>
+            {a.tipo === "reforco" && g.ex.length > 0 && (
+              <p style={{ ...prosa, fontSize: 13, marginBottom: 6 }}>{podeEditar && blocoExiste(a) ? "Entra como aula de reforço no bloco “" + a.bloco + "” da turma: " : "Exercícios sugeridos: "}{g.ex.map(nomeEx).join(" · ")}</p>
+            )}
+            {a.texto && <p style={{ ...prosa, fontSize: 13, marginBottom: 6 }}>{a.texto}</p>}
+            {(r.dicas || []).length > 0 && <ul style={{ ...prosa, fontSize: 12.5, color: C.grafite, paddingLeft: 18, marginBottom: 6 }}>{r.dicas.map((d, i) => <li key={i}>{d}</li>)}</ul>}
+            {podeEditar ? (
+              <div className="flex flex-wrap gap-2 mt-1">
+                <button onClick={() => decidir(g, "aceita")} style={{ ...miniBtn, background: C.saibro, color: "#fff", borderColor: C.saibro }}>{a.tipo === "reforco" && blocoExiste(a) ? "Aceitar e incluir na turma" : "Aceitar"}</button>
+                <button onClick={() => decidir(g, "adiada")} style={miniBtn}>Depois</button>
+                <button onClick={() => decidir(g, "recusada")} style={miniBtn}>Recusar</button>
+              </div>
+            ) : <p style={{ ...prosa, fontSize: 12, color: C.grafite }}>Só o professor responsável pela turma decide os ajustes.</p>}
+          </div>
+        );
+      })}
+      {versoes.length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          <button onClick={() => setVerVersoes((v) => !v)} style={{ ...prosa, fontSize: 12.5, fontWeight: 700, color: C.saibro, border: "none", background: "none", cursor: "pointer", padding: 0 }}>{verVersoes ? "Ocultar versões do plano da turma" : "Versões do plano da turma (" + (versoes.length + 1) + ")"}</button>
+          {verVersoes && (
+            <div>
+              {versoes.slice().reverse().map((v) => (
+                <div key={v.revisaoId} style={{ borderBottom: "1px solid " + C.linha, padding: "8px 0" }}>
+                  <p style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>Versão {v.n} · {new Date(v.em).toLocaleDateString("pt-BR")}</p>
+                  <p style={{ ...prosa, fontSize: 12.5 }}>{v.mudanca}</p>
+                  <p style={{ ...prosa, fontSize: 12, color: C.grafite }}>Motivo: {v.motivo}</p>
+                </div>
+              ))}
+              <div style={{ padding: "8px 0" }}><p style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>Versão 1 · plano original</p></div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 /* Atletas da academia no QuadraLab Player: o treinador tem um código fixo (o atleta digita no Player e o vínculo nasce ativo) e pode pedir o vínculo pelo e-mail do atleta (ele aprova no app). */
 function CartaoVinculoAcademia() {
   const [aberto, setAberto] = useState(false);
@@ -11647,21 +11754,34 @@ function CartaoVinculoAcademia() {
     </div>
   );
 }
-function CartaoRevisoesPlano({ alunos, irPara }) {
+function CartaoRevisoesPlano({ alunos, turmas, irPara, irParaTurma }) {
   const lista = useMemo(() => {
     const QE = typeof window !== "undefined" && window.QLEvidencias;
     if (!QE || !irPara) return [];
-    return (alunos || []).filter((a) => a && a.nome).map((a) => ({ a, n: QE.pendentes(a).length + propostasNovasDoAluno(a, alunos).length })).filter((x) => x.n > 0);
-  }, [alunos]);
+    const emTurma = new Set(), itens = [];
+    /* jogador de turma não tem plano individual: as sugestões dele entram juntas na turma */
+    (turmas || []).filter((t) => t && t.plano && irParaTurma).forEach((t) => {
+      const chaves = new Set();
+      membrosDaTurma(t, alunos).forEach((m) => {
+        emTurma.add(m.id);
+        QE.pendentes(m).forEach((r) => chaves.add(r.chave));
+        propostasNovasDoAluno(visaoDaTurma(m, t), alunos).forEach((p) => chaves.add(p.chave));
+      });
+      if (chaves.size) itens.push({ key: "t" + t.id, nome: t.nome || "Turma", n: chaves.size, rotulo: "Turma · ", abrir: () => irParaTurma(t.id) });
+    });
+    (alunos || []).filter((a) => a && a.nome && !(emTurma.has(a.id) && !a.plano))
+      .forEach((a) => { const n = QE.pendentes(a).length + propostasNovasDoAluno(a, alunos).length; if (n > 0) itens.push({ key: a.id, nome: a.nome, n, rotulo: "", abrir: () => irPara(a.id) }); });
+    return itens;
+  }, [alunos, turmas]);
   if (!lista.length) return null;
   return (
     <div className="mb-5" style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "12px 14px" }}>
       <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>Revisão sugerida do plano</p>
       <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, margin: "2px 0 8px" }}>Os vídeos e os jogos mostraram padrões que pedem um ajuste. Você decide o que entra.</p>
-      {lista.slice(0, 6).map(({ a, n }) => (
-        <button key={a.id} onClick={() => irPara(a.id)} className="w-full text-left"
+      {lista.slice(0, 6).map(({ key, nome, n, rotulo, abrir }) => (
+        <button key={key} onClick={abrir} className="w-full text-left"
           style={{ display: "block", background: C.papel, border: "1px solid " + C.linha, borderRadius: 10, padding: "9px 12px", marginBottom: 6, cursor: "pointer", minHeight: 44 }}>
-          <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{a.nome}</span>
+          <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{rotulo}{nome}</span>
           <span style={{ ...prosa, fontSize: 12, color: C.grafite, display: "block" }}>{n} {n === 1 ? "sugestão" : "sugestões"} de ajuste</span>
         </button>
       ))}
@@ -12899,6 +13019,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
           </Aviso>
         )}
         {!eTurma && <RevisaoPlano aluno={aluno} alunos={alunos} setAlunos={setAlunos} podeEditar={podeEditar} />}
+        {eTurma && <RevisaoTurma turma={turma} alunos={alunos} setAlunos={setAlunos} aoAtualizarTurma={atualiza} podeEditar={podeEditar} />}
         {!planoCandidato && (
           <Aviso cor={C.quadra}>
             {eTurma ? "Esta turma ainda não tem um planejamento. Escolha uma opção abaixo para começar."
@@ -13413,6 +13534,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
       {modo === "resumo" && (
         <>
           {!eTurma && <RevisaoPlano aluno={aluno} alunos={alunos} setAlunos={setAlunos} podeEditar={podeEditar} />}
+        {eTurma && <RevisaoTurma turma={turma} alunos={alunos} setAlunos={setAlunos} aoAtualizarTurma={atualiza} podeEditar={podeEditar} />}
           {eTurma && <AvisoRevisaoTurma membros={membros} />}
           <LinhaDeRaciocinio plano={plano} aulas={aulas} status={status} reg={reg} />
 
@@ -18423,7 +18545,7 @@ function CardPrimeirosPassos({ passo1Ok, passo2Ok, passo3Ok, aoPasso1, aoPasso2,
 }
 
 function TelaDashboard({ aoAbrirScout, alunos, turmas, ocorrencias, papelAtual, uidAtual, exigeLogin, irPara, usoIA, identidade,
-  aoAbrirSessao, aoAbrirTurmas, aoAbrirAgenda, aoAdicionarJogador, aoEditarDados,
+  aoAbrirSessao, aoAbrirTurmas, aoAbrirTurma, aoAbrirAgenda, aoAdicionarJogador, aoEditarDados,
   onboardingDispensado, setOnboardingDispensado }) {
   const [verTodos, setVerTodos] = useState(false);
   /* null fechado, "abertas"/"dadas" abrem a lista do card correspondente,
@@ -18493,7 +18615,7 @@ function TelaDashboard({ aoAbrirScout, alunos, turmas, ocorrencias, papelAtual, 
       )}
       <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>{saudacao}</h1>
       <CartaoPartidasEmAndamento alunos={alunos} aoAbrirScout={aoAbrirScout} />
-      <CartaoRevisoesPlano alunos={alunosVistos} irPara={irPara} />
+      <CartaoRevisoesPlano alunos={alunosVistos} turmas={turmasVistas} irPara={irPara} irParaTurma={aoAbrirTurma} />
       <CartaoVinculoAcademia />
       <p style={{ ...prosa, color: C.grafite, marginBottom: 14 }}>
         {verTodos ? "A academia inteira, de uma vez." : "Só o que é seu — mais quem ainda não tem professor definido."}
@@ -20228,7 +20350,7 @@ function App() {
          aba === "dashboard" ? <TelaDashboard aoAbrirScout={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("scout"); }} alunos={alunos} turmas={turmas} ocorrencias={ocorrencias} papelAtual={papelAtual} uidAtual={uidAtual} exigeLogin={exigeLogin} usoIA={usoIA} identidade={identidade}
            irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }}
            aoAbrirSessao={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("sessao"); }}
-           aoAbrirTurmas={() => setAba("turmas")} aoAbrirAgenda={() => setAba("agenda")}
+           aoAbrirTurmas={() => setAba("turmas")} aoAbrirTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} aoAbrirAgenda={() => setAba("agenda")}
            aoAdicionarJogador={() => { criar(); setAba("alunos"); }}
            aoEditarDados={(id, et) => { setAba("alunos"); setAbertoId(id); setSubaba("ficha"); setEtapaFichaAlvo(et); }}
            onboardingDispensado={onboardingDispensado} setOnboardingDispensado={setOnboardingDispensado} /> :

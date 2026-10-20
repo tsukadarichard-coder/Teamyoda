@@ -252,6 +252,8 @@ async function handleGet(event) {
     nivelAvaliado: aluno.nivelAvaliado !== false,
     temPlano: !!plano,
     planoRascunho,
+    /* jogador de turma: o plano mostrado é o da turma (ele não tem plano individual) */
+    planoDaTurma: turmaDoAluno ? { nome: turmaDoAluno.nome || "Turma" } : null,
     tipoPlano: plano ? plano.tipo || "" : null,
     prioridade: plano ? plano.prioridade || "" : null,
     totalAulas: aulas.length,
@@ -282,12 +284,20 @@ async function handlePost(event) {
   const { refAlunos, alunos, idx } = await carregarContexto(org, id, t);
   const aluno = alunos[idx];
 
-  if (acao === "cancelar") return await acaoCancelar(refAlunos, alunos, idx, aluno);
+  if (acao === "cancelar") return await acaoCancelar(refAlunos, alunos, idx, aluno, org);
   if (acao === "reagendar") return await acaoReagendar(refAlunos, alunos, idx, aluno, body);
   if (acao === "feedback") return await acaoFeedbackCoord(org, id, body);
   if (acao === "jogo") return await acaoTexto(refAlunos, alunos, idx, aluno, body, "jogosRelatados");
   if (acao === "duvida") return await acaoDuvida(refAlunos, alunos, idx, aluno, body);
   throw new ErroPublico(400, "Ação desconhecida.");
+}
+
+async function turmaComPlano(org, aluno) {
+  try {
+    const doc = await admin.firestore().collection("orgs").doc(org).collection("dados").doc(CHAVE_TURMAS).get();
+    const turmas = doc.exists ? JSON.parse(doc.data().value || "[]") : [];
+    return turmas.some((tu) => Array.isArray(tu.membros) && tu.membros.includes(aluno.id) && tu.plano);
+  } catch (e) { return false; }
 }
 
 async function salvar(refAlunos, alunos) {
@@ -299,7 +309,8 @@ async function salvar(refAlunos, alunos) {
    chuva). Com menos de 24h, não existe cancelamento de verdade: a
    aula em vigor é marcada "feita" — o horário estava reservado e foi
    usado, avisado tarde ou não. */
-async function acaoCancelar(refAlunos, alunos, idx, aluno) {
+async function acaoCancelar(refAlunos, alunos, idx, aluno, org) {
+  if (!aluno.plano && (await turmaComPlano(org, aluno))) throw new ErroPublico(400, "Esta é uma aula em grupo: o horário é da turma. Para faltar ou pedir outro horário, use “Pedir reposição” ou avise seu treinador.");
   if (!aluno.plano || !aluno.plano.aprovado) throw new ErroPublico(400, "Não há aula pendente para cancelar.");
   const aula = aulaEmVigor(aluno);
   if (!aula) throw new ErroPublico(400, "Não há aula pendente para cancelar.");

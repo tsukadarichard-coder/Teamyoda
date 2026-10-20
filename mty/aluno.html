@@ -615,6 +615,7 @@ function todosHorarios(agenda) {
     if (!blocos.length) return '';
     const chaveAtual = semanaAtualPadrao(blocos);
     let html = '<div class="painel"><h2>Seu plano, semana a semana</h2>';
+    if (d.planoDaTurma) html += '<p style="font-size:13px;color:#6B6461;margin:2px 0 10px">Este é o plano da sua turma: ' + escapar(d.planoDaTurma.nome) + '. O seu treinador ajusta o plano do grupo com base nos jogos e nas análises dos jogadores.</p>';
     blocos.forEach(function (b) {
       html += '<div class="bloco">' + escapar(b.bloco) + '</div>';
       b.semanas.forEach(function (s) {
