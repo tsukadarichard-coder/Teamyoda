@@ -54,6 +54,7 @@ async function encerrar(p) { await p.getByRole("button", { name: "Encerrar e ver
     await p.evaluate(() => window.__desmontar()); await p.waitForTimeout(400);
     let al = await aluno(p); assert(al.scoutRascunho && al.scoutRascunho.pontos.length === 3, app + ": ao sair, a nuvem guarda os 3 pontos");
     assert(!al.scoutRascunho.pilha, app + ": o rascunho não guarda a pilha de desfazer");
+    assert(al.registros.length === 1 && al.registros[0].concluida === false && al.registros[0].scout.pontos.length === 3, app + ": ao sair, o jogo incompleto já está no caderno e pode ser reaberto");
     t = await texto(p); assert(t.includes("Partida em andamento") && t.includes("Ana Souza") && t.includes("3 pontos"), app + ": o Início lista a partida em andamento. " + t.slice(0, 200));
     await p.getByRole("button", { name: /Ana Souza/ }).click(); assert.strictEqual(await p.evaluate(() => window.__abriu), "a1", app + ": tocar no cartão abre o jogador");
     await p.evaluate(() => window.__montar()); await p.waitForTimeout(500);

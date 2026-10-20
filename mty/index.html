@@ -8834,6 +8834,20 @@ function dataHoraCurta(iso) {
   const d = new Date(iso);
   return isNaN(d) ? "" : d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) + " " + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
+/* Registro do jogo no caderno enquanto a partida ainda corre: se o app fechar ou o treinador sair sem "Salvar", o jogo continua listado e pode ser reaberto. */
+function registroPartidaAuto(id, cfg, pontos, placar, mental, anterior) {
+  const r = resume(pontos), sinais = leitura(r);
+  return {
+    ...(anterior || {}),
+    id, tipo: "jogo", data: (anterior && anterior.data) || new Date().toISOString().slice(0, 10),
+    torneio: ((cfg.torneio || "").trim().slice(0, 80)) || "jogo-treino", adversario: cfg.adversario || "—", nivelAdversario: (anterior && anterior.nivelAdversario) || "",
+    plano: "", protocolo: r.pctProtocolo, erros12: r.pctErrosCurtos, revelou: sinais.map((x) => x[1]).join(" "),
+    resultado: placar ? [...placar.sets.map((x) => `${x[0]}-${x[1]}`), ...(!placar.fim && (placar.g[0] + placar.g[1] > 0) ? [`${placar.g[0]}-${placar.g[1]} (set em andamento)`] : [])].join(" ") || "não concluído" : "—",
+    concluida: !!(placar && placar.fim), observacaoFinal: (anterior && anterior.observacaoFinal) || "", mental: mentalLimpo(mental),
+    scout: { ...r, pontos, cfg: { formato: cfg.formato, saca: cfg.saca, semVantagem: !!cfg.semVantagem, superTiebreakDecisivo: !!cfg.superTiebreakDecisivo } },
+    parcialAuto: true,
+  };
+}
 const reabrivel = (r) => r.tipo === "jogo" && r.scout && (r.scout.pontos || []).length > 0; /* jogos vindos do Competição não têm os pontos e não reabrem */
 /* Início: partidas que ficaram pela metade (rascunho na nuvem), para continuar de onde pararam. */
 function CartaoPartidasEmAndamento({ alunos, aoAbrirScout }) {
@@ -9182,6 +9196,7 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
   const [confirmadoEm, setConfirmadoEm] = useState(0);
   const [modoRapido, setModoRapido] = useState(() => { try { return localStorage.getItem("ql-scout-modo") !== "completo"; } catch { return true; } }); /* marcação rápida: resultado + bola; os detalhes ficam para depois */
   const [detalhes, setDetalhes] = useState(false);
+  const idParcialRef = useRef(null); /* id do registro automático da partida em curso (o mesmo que "Salvar" depois substitui) */
   const concluidoRef = useRef(false); /* depois de salvar ou descartar, o rascunho não é regravado */
   const ultimoRascunhoRef = useRef(null);
   const [retomandoId, setRetomandoId] = useState(null); /* partida salva que foi reaberta: é substituída quando você salvar de novo */
@@ -9245,11 +9260,18 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
   function gravarRascunhoNuvem() {
     const u = ultimoRascunhoRef.current;
     if (!u || concluidoRef.current) return;
-    setAlunos((prev) => prev.map((a) => a.id !== aluno.id ? a : { ...a, scoutRascunho: { v: 1, salvoEm: new Date().toISOString(), ...u } }));
+    let id = idParcialRef.current;
+    if (!id) { id = idParcialRef.current = "p" + Date.now(); setRetomandoId(id); }
+    setAlunos((prev) => prev.map((a) => {
+      if (a.id !== aluno.id) return a;
+      const regs = a.registros || [], ant = regs.find((x) => x.id === id);
+      const reg = registroPartidaAuto(id, u.cfg, u.pontos, u.placar, u.mental, ant);
+      return { ...a, scoutRascunho: { v: 1, salvoEm: new Date().toISOString(), ...u }, registros: ant ? regs.map((x) => x.id === id ? reg : x) : [...regs, reg] };
+    }));
   }
   useEffect(() => {
     if ((fase !== "durante" && fase !== "depois") || !pontos.length || concluidoRef.current) return undefined;
-    ultimoRascunhoRef.current = { cfg, placar, pontos, fase, mental, aoVivo: aoVivo ? { token: aoVivo.token, expiraEm: aoVivo.expiraEm } : null };
+    ultimoRascunhoRef.current = { cfg, placar, pontos, fase, mental, aoVivo: aoVivo ? { token: aoVivo.token, expiraEm: aoVivo.expiraEm } : null, idRegistro: idParcialRef.current };
     const t = setTimeout(gravarRascunhoNuvem, 5000);
     return () => clearTimeout(t);
   }, [fase, cfg, placar, pontos, mental, aoVivo && aoVivo.token, aluno.id]);
@@ -9285,7 +9307,7 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
   function continuarRascunho() {
     if (!rascunhoSalvo) return;
     const r = rascunhoSalvo, refeito = refazerPlacar(r.cfg, r.pontos || []);
-    concluidoRef.current = false; setRetomandoId(null);
+    concluidoRef.current = false; idParcialRef.current = (aluno.registros || []).some((x) => x.id === r.idRegistro) ? r.idRegistro : null; setRetomandoId(idParcialRef.current);
     setCfg(r.cfg);
     setPlacar(r.placar || refeito.placar);
     setPontos(r.pontos);
@@ -9301,7 +9323,7 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
     const sc = reg.scout || {}, c = sc.cfg || {}, pts = sc.pontos || [];
     const novoCfg = { adversario: reg.adversario && reg.adversario !== "—" ? reg.adversario : "", torneio: reg.torneio && reg.torneio !== "jogo-treino" ? reg.torneio : "", formato: c.formato || "3sets", saca: c.saca || "nos", semVantagem: !!c.semVantagem, superTiebreakDecisivo: !!c.superTiebreakDecisivo };
     const refeito = refazerPlacar(novoCfg, pts);
-    concluidoRef.current = false;
+    concluidoRef.current = false; idParcialRef.current = reg.id;
     setCfg(novoCfg); setPlacar(refeito.placar); setPontos(pts); setPilha(refeito.pilha);
     setMental(reg.mental ? { antes: reg.mental.antes || {}, jogo: reg.mental.jogo || {}, depois: reg.mental.depois || {} } : { antes: {}, jogo: {}, depois: {} });
     setAoVivo(null); setAoVivoEstado(""); setRetomandoId(reg.id); setRascunhoSalvo(null);
@@ -9311,13 +9333,13 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
   /* do relatório de volta para a marcação (quando a partida foi encerrada sem querer) */
   function voltarParaPartida(idSalvo) {
     concluidoRef.current = false; setEncerradoDeVez(false); setEncerramento(null);
-    if (idSalvo) setRetomandoId(idSalvo);
+    if (idSalvo) { setRetomandoId(idSalvo); idParcialRef.current = idSalvo; }
     setFase("durante");
   }
 
   function comecar() {
     if (rascunhoSalvo && !window.confirm("Este jogador já tem uma partida em andamento. Começar uma nova apaga a anterior. Quer começar mesmo assim?")) return;
-    concluidoRef.current = false; setRetomandoId(null); setEncerradoDeVez(false); setEncerramento(null);
+    concluidoRef.current = false; idParcialRef.current = null; setRetomandoId(null); setEncerradoDeVez(false); setEncerramento(null);
     setPlacar(placarInicial(cfg.formato, cfg.saca, cfg.semVantagem, cfg.superTiebreakDecisivo));
     setPontos([]);
     setPilha([]);
@@ -9403,7 +9425,7 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
             <div className="flex gap-2 mt-3 flex-wrap">
               <Botao pequeno variante="saibro" onClick={continuarRascunho}>Continuar partida em andamento</Botao>
               <Botao pequeno variante="vazio" onClick={() => { continuarRascunho(); setFase("depois"); }}>Ver relatório e salvar como interrompida</Botao>
-              <Botao pequeno variante="vazio" onClick={() => { if (window.confirm("Descartar esta partida em andamento? Os pontos coletados serão perdidos.")) limparRascunhoSalvo(); }}>Descartar</Botao>
+              <Botao pequeno variante="vazio" onClick={() => { if (window.confirm("Descartar esta partida em andamento? Os pontos coletados serão perdidos.")) { const idAuto = rascunhoSalvo && rascunhoSalvo.idRegistro; limparRascunhoSalvo(); if (idAuto) setAlunos((prev) => prev.map((x) => x.id !== aluno.id ? x : { ...x, registros: (x.registros || []).filter((g) => !(g.id === idAuto && g.parcialAuto)) })); } }}>Descartar</Botao>
             </div>
           </div>
         )}
