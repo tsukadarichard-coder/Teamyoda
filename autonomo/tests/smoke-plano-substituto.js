@@ -26,7 +26,7 @@ const srv=http.createServer((q,r)=>{const u=q.url.split("?")[0];if(u==="/"){r.wr
 (async()=>{const b=await chromium.launch({executablePath:"/opt/pw-browsers/chromium-1194/chrome-linux/chrome",args:["--no-sandbox"]}),p=await b.newPage({viewport:{width:480,height:900}});
 const erros=[];p.on("pageerror",e=>erros.push(e.message));p.on("console",m=>{if(m.type()==="error"&&!/Failed to load|BABEL/.test(m.text()))erros.push("c:"+m.text().slice(0,200))});
 await p.goto("http://localhost:"+srv.address().port+"/");
-await p.waitForFunction(()=>document.body.innerText.includes("Sem planejamento"),null,{timeout:120000});
+await p.waitForFunction(()=>document.body.innerText.toLowerCase().includes("sem planejamento"),null,{timeout:120000});
 let t=await p.evaluate(()=>document.body.innerText);
 assert(/é do professor Yoda\. Você pode gerar, colar e aprovar o plano no lugar dele/.test(t),app+": aviso de substituto no plano da turma. "+t.slice(0,300));
 assert(!/a montagem do plano fica travada/.test(t),app+": sem o aviso de travamento");
