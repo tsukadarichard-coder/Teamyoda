@@ -97,7 +97,7 @@ a { color: inherit; }
 .quadra .bola { fill: #fff; stroke: var(--tinta); stroke-width: 3; }
 .abertura-telas .quadra { position: absolute; left: 0; right: 0; top: 30px; width: 100%; height: 470px; }
 .faixa-quadra { display: none; }
-.abertura-telas img { position: absolute; width: 214px; height: auto; border-radius: 18px; border: 1px solid var(--linha-forte); background: #fff; }
+.abertura-telas .celular { position: absolute; width: 224px; }
 .abertura-telas .tela-a { left: 9%; top: 0; }
 .abertura-telas .tela-b { right: 9%; top: 90px; }
 @media (max-width: 899px) {
@@ -173,9 +173,28 @@ a { color: inherit; }
   .acoes .link { justify-content: center; }
 }
 
-.produto-tela { margin: 0; border: 1px solid var(--linha-forte); border-radius: 14px; overflow: hidden; background: #fff; max-width: 250px; width: 100%; justify-self: center; }
-.produto-tela figcaption { font-size: 13px; color: var(--cinza); padding: 8px 12px; border-top: 1px solid var(--linha); }
-.produto[data-p="treinador"] .produto-tela { max-width: 300px; }
+/* mockups de aparelho: celular e notebook com as telas reais de demonstração */
+.celular { position: relative; width: 100%; background: #0d1411; border-radius: 34px; padding: 7px; box-shadow: 0 6px 18px rgba(11, 45, 32, .12); }
+.celular::before, .celular::after { content: ""; position: absolute; width: 3px; background: #0d1411; border-radius: 2px; }
+.celular::before { left: -2px; top: 17%; height: 7%; }
+.celular::after { right: -2px; top: 22%; height: 11%; }
+.celular-tela { position: relative; border-radius: 27px; overflow: hidden; background: #fff; padding-top: 26px; }
+.celular-tela::before { content: ""; position: absolute; top: 8px; left: 50%; width: 28%; height: 13px; transform: translateX(-50%); background: #0d1411; border-radius: 10px; z-index: 1; }
+.celular-tela img { width: 100%; display: block; }
+.notebook { width: 100%; }
+.notebook-tela { border: 8px solid #0d1411; border-bottom-width: 10px; border-radius: 12px 12px 0 0; background: #f3f6f4; overflow: hidden; }
+.notebook-barra { height: 22px; background: #e8ebe8; display: flex; align-items: center; gap: 5px; padding: 0 9px; }
+.notebook-barra i { width: 6px; height: 6px; border-radius: 50%; background: #c4cbc6; display: block; }
+.notebook-barra span { margin-left: 8px; font-size: 10px; color: #5b6962; }
+.notebook-corpo { aspect-ratio: 16 / 10; display: grid; place-items: center; padding: 10px; }
+.notebook-corpo img { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; border: 1px solid #dde5e0; border-radius: 6px; background: #fff; }
+.notebook-base { height: 10px; width: 112%; margin-left: -6%; background: #cdd3cf; border-radius: 0 0 12px 12px; }
+.produto-tela, .tela { margin: 0; min-width: 0; }
+.produto-tela { max-width: 240px; width: 100%; justify-self: center; }
+.produto[data-p="treinador"] .produto-tela { max-width: 340px; }
+.produto-tela figcaption, .tela figcaption { font-size: 13px; color: var(--cinza); text-align: center; padding-top: 12px; }
+.tela { flex: 0 1 44%; }
+.tela.larga { flex-basis: 78%; }
 
 /* abas */
 .abas { display: flex; flex-wrap: wrap; gap: 4px 24px; border-bottom: 1px solid var(--linha-forte); margin-bottom: var(--e4); }
@@ -194,9 +213,6 @@ a { color: inherit; }
 .painel[data-p="competicao"] { --cor: var(--competicao); }
 .painel-acao { margin-top: var(--e3); }
 .telas { display: flex; gap: var(--e2); justify-content: center; align-items: flex-start; min-width: 0; }
-.tela { margin: 0; flex: 0 1 46%; min-width: 0; border-radius: 14px; overflow: hidden; border: 1px solid var(--linha-forte); background: #fff; }
-.tela.larga { flex-basis: 100%; }
-.tela figcaption { font-size: 13px; color: var(--cinza); padding: 8px 12px; border-top: 1px solid var(--linha); }
 .aviso-telas { font-size: 13px; color: var(--cinza); margin-top: var(--e2); }
 @media (max-width: 899px) { .painel { grid-template-columns: 1fr; gap: var(--e3); } .abas { gap: 4px 18px; } }
 
