@@ -20,13 +20,56 @@ const porta = srv.address().port, base = "http://localhost:" + porta;
   const p = await ctx.newPage(); const erros = [];
   p.on("pageerror", (e) => erros.push(e.message));
   p.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource|ERR_FAILED/.test(m.text())) erros.push("c:" + m.text().slice(0, 160)); });
-  for (const w of [360, 390, 768, 1280]) {
+  for (const w of [320, 375, 390, 430, 768, 1280]) {
     await p.setViewportSize({ width: w, height: 900 }); await p.goto(base + "/"); await p.waitForLoadState("load");
     const sobra = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     assert(sobra <= 0, "rolagem horizontal em " + w + "px: " + sobra);
-    const cortado = await p.evaluate(() => [...document.querySelectorAll("img")].filter((i) => i.getBoundingClientRect().right > innerWidth + 1).map((i) => i.alt));
-    assert.deepStrictEqual(cortado, [], "imagem cortada em " + w + "px");
+    /* nenhum elemento visível pode passar da tela (sem esconder com overflow no body) */
+    const fora = await p.evaluate(() => [...document.querySelectorAll("body *")].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && e.offsetParent !== null && !e.classList.contains("pular") && (r.right > innerWidth + 0.5 || r.left < -0.5); }).map((e) => e.tagName + "." + e.className).slice(0, 5));
+    assert.deepStrictEqual(fora, [], "elementos fora da tela em " + w + "px");
+    if (w < 900) {
+      const alt = await p.evaluate(() => document.querySelector(".topo").getBoundingClientRect().height);
+      assert(alt >= 70 && alt <= 82, "altura do cabeçalho no celular (" + w + "px): " + alt);
+      assert(await p.isVisible("#btn-menu") && await p.isVisible("#btn-entrar") && !(await p.isVisible(".topo-nav")), "cabeçalho do celular: logo, Entrar e menu");
+      const logo = await p.evaluate(() => { const i = document.querySelector(".topo-logo img").getBoundingClientRect(); return i.width / i.height; });
+      assert(Math.abs(logo - 360 / 115) < 0.05, "proporção do logo preservada: " + logo);
+      const h1 = await p.evaluate(() => parseFloat(getComputedStyle(document.querySelector("h1")).fontSize));
+      assert(h1 >= 36 && h1 <= 44, "título entre 36 e 44 px em " + w + "px: " + h1);
+      assert(!(await p.isVisible(".abertura .sobretitulo")), "sem 'QUADRALAB HUB' acima do título no celular");
+      const peso = await p.evaluate(() => parseInt(getComputedStyle(document.querySelector(".abertura .texto")).fontWeight));
+      assert(peso <= 500, "texto de apoio sem negrito");
+      const primeiro = await p.evaluate(() => document.querySelector(".rapido").getBoundingClientRect().top);
+      assert(primeiro < 760, "os cartões das plataformas aparecem cedo (" + primeiro + ")");
+      const ordem = await p.evaluate(() => { const r = document.querySelector(".rapidos").getBoundingClientRect().top, a = [...document.querySelectorAll(".arte")].find((x) => x.offsetParent !== null).getBoundingClientRect().top; return a > r; });
+      assert(ordem, "a arte do Hub fica depois dos cartões no celular");
+    } else {
+      assert(await p.isVisible(".topo-nav") && !(await p.isVisible("#btn-menu")), "desktop mantém a navegação horizontal");
+    }
   }
+  /* menu do celular */
+  await p.setViewportSize({ width: 390, height: 844 }); await p.goto(base + "/");
+  assert(!(await p.isVisible("#menu-nav")) && (await p.getAttribute("#btn-menu", "aria-expanded")) === "false");
+  await p.click("#btn-menu");
+  assert(await p.isVisible("#menu-nav") && (await p.getAttribute("#btn-menu", "aria-expanded")) === "true", "menu abre");
+  const pos = await p.$$eval("#menu-nav a", (as) => as.map((a) => { const r = a.getBoundingClientRect(); return [a.textContent, Math.round(r.left), Math.round(r.top), Math.round(r.height)]; }));
+  assert.deepStrictEqual(pos.map((x) => x[0]), ["Plataformas", "Como funciona", "Dúvidas"]);
+  assert(pos[0][1] === pos[1][1] && pos[1][2] > pos[0][2] && pos[2][2] > pos[1][2] && pos.every((x) => x[3] >= 44), "menu vertical com áreas de toque de 44 px");
+  await p.keyboard.press("Escape");
+  assert(!(await p.isVisible("#menu-nav")) && (await p.getAttribute("#btn-menu", "aria-expanded")) === "false", "Esc fecha o menu");
+  assert.strictEqual(await p.evaluate(() => document.activeElement.id), "btn-menu", "foco volta ao botão do menu");
+  await p.click("#btn-menu"); await p.click('#menu-nav a[href="#duvidas"]'); await p.waitForTimeout(700);
+  assert(!(await p.isVisible("#menu-nav")), "escolher uma seção fecha o menu");
+  assert((await p.evaluate(() => document.getElementById("duvidas").getBoundingClientRect().top)) < 200, "a âncora Dúvidas rolou até a seção");
+  await p.evaluate(() => window.scrollTo(0, 0));
+  await p.click("#btn-menu"); await p.click("#btn-entrar");
+  assert(await p.isVisible("#menu-entrar") && !(await p.isVisible("#menu-nav")), "Entrar abre a seleção e fecha o menu de seções");
+  await p.keyboard.press("Escape");
+  /* botão principal rola até os três produtos */
+  await p.evaluate(() => window.scrollTo(0, 0)); await p.click(".chamadas .botao"); await p.waitForTimeout(800);
+  assert((await p.evaluate(() => document.getElementById("plataformas").getBoundingClientRect().top)) < 120, "Escolher minha plataforma rola até os produtos");
+  const cart = await p.$$eval(".rapido", (as) => as.map((a) => [a.getAttribute("href"), a.textContent.replace(/\s+/g, " ").trim()]));
+  assert.deepStrictEqual(cart.map((c) => c[0]), ["/player/", "/treinador", "/competicao/"]);
+  assert(/Quero organizar meu jogo\./.test(cart[0][1]) && /Quero planejar e acompanhar meus alunos\./.test(cart[1][1]) && /Quero organizar minha temporada\./.test(cart[2][1]), "textos dos cartões");
   await p.setViewportSize({ width: 390, height: 900 }); await p.goto(base + "/");
   /* destinos */
   const hrefs = await p.evaluate(() => [...document.querySelectorAll("a[href]")].map((a) => a.getAttribute("href")));

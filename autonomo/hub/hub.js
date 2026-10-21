@@ -52,12 +52,31 @@
   if (botao && menu) {
     botao.addEventListener("click", function () { if (menu.hidden) abrir(); else fechar(false); });
     document.addEventListener("keydown", function (e) { if (e.key === "Escape") fechar(true); });
-    document.addEventListener("click", function (e) { if (!menu.hidden && !menu.contains(e.target) && e.target !== botao) fechar(false); });
+    document.addEventListener("click", function (e) { if (!menu.hidden && !menu.contains(e.target) && !botao.contains(e.target)) fechar(false); });
     menu.addEventListener("keydown", function (e) {
       var links = Array.prototype.slice.call(menu.querySelectorAll("a")), i = links.indexOf(document.activeElement);
       if (e.key === "ArrowDown") { e.preventDefault(); links[(i + 1) % links.length].focus(); }
       if (e.key === "ArrowUp") { e.preventDefault(); links[(i - 1 + links.length) % links.length].focus(); }
     });
+  }
+
+  /* menu de seções no celular */
+  var btnMenu = document.getElementById("btn-menu"), nav = document.getElementById("menu-nav");
+  function fecharNav(devolverFoco) {
+    if (!nav || nav.hidden) return;
+    nav.hidden = true; btnMenu.setAttribute("aria-expanded", "false");
+    if (devolverFoco) btnMenu.focus();
+  }
+  if (btnMenu && nav) {
+    btnMenu.addEventListener("click", function () {
+      if (nav.hidden) { fechar(false); nav.hidden = false; btnMenu.setAttribute("aria-expanded", "true"); var l = nav.querySelector("a"); if (l) l.focus(); }
+      else fecharNav(false);
+    });
+    nav.addEventListener("click", function (e) { if (e.target.closest && e.target.closest("a")) fecharNav(false); });
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape") fecharNav(true); });
+    document.addEventListener("click", function (e) { if (!nav.hidden && !nav.contains(e.target) && !btnMenu.contains(e.target)) fecharNav(false); });
+    window.addEventListener("resize", function () { if (window.innerWidth >= 900) fecharNav(false); });
+    botao.addEventListener("click", function () { if (!menu.hidden) fecharNav(false); });
   }
 
   /* abas de "Como funciona" */

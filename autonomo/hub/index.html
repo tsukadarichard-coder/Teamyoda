@@ -29,7 +29,7 @@
   <div class="miolo">
     <div class="topo-linha">
       <a class="topo-logo" href="/?hub=1" aria-label="QuadraLab Hub, início">
-        <img src="/hub/img/logo-hub-360.webp" srcset="/hub/img/logo-hub-360.webp 360w, /hub/img/logo-hub-720.webp 720w" sizes="172px" width="360" height="115" alt="QuadraLab Hub">
+        <img src="/hub/img/logo-hub-360.webp" srcset="/hub/img/logo-hub-360.webp 360w, /hub/img/logo-hub-720.webp 720w" sizes="(max-width: 899px) 150px, 172px" width="360" height="115" alt="QuadraLab Hub">
       </a>
       <nav class="topo-nav" aria-label="Seções da página">
         <a href="#plataformas">Plataformas</a>
@@ -37,8 +37,9 @@
         <a href="#duvidas">Dúvidas</a>
       </nav>
       <div class="topo-acoes">
-        <button type="button" class="botao botao-contorno" id="btn-entrar" aria-expanded="false" aria-controls="menu-entrar">Já tenho conta</button>
-        <a class="botao botao-escuro" href="#plataformas">Escolher minha plataforma</a>
+        <button type="button" class="botao botao-contorno" id="btn-entrar" aria-expanded="false" aria-controls="menu-entrar"><span class="so-desk">Já tenho conta</span><span class="so-mob">Entrar</span></button>
+        <a class="botao botao-escuro so-desk" href="#plataformas">Escolher minha plataforma</a>
+        <button type="button" class="botao-menu" id="btn-menu" aria-expanded="false" aria-controls="menu-nav" aria-label="Menu"><span class="barras" aria-hidden="true"></span></button>
         <div class="menu-entrar" id="menu-entrar" hidden>
           <p>Em qual plataforma você tem conta?</p>
           <a data-p="player" href="/player/#/entrar">Entrar no Player</a>
@@ -47,57 +48,72 @@
         </div>
       </div>
     </div>
-    <nav class="topo-faixa" aria-label="Seções da página">
+  </div>
+  <nav class="menu-nav" id="menu-nav" aria-label="Seções da página" hidden>
+    <div class="miolo">
       <a href="#plataformas">Plataformas</a>
       <a href="#como-funciona">Como funciona</a>
       <a href="#duvidas">Dúvidas</a>
-      <a class="destaque" href="#plataformas">Escolher minha plataforma</a>
-    </nav>
-  </div>
+    </div>
+  </nav>
 </header>
 
 <main id="conteudo">
   <section class="abertura" aria-labelledby="titulo-hub">
     <div class="miolo abertura-grade">
       <div>
-        <p class="sobretitulo">QuadraLab Hub</p>
+        <p class="sobretitulo so-desk">QuadraLab Hub</p>
         <h1 id="titulo-hub">Seu tênis conectado.</h1>
-        <p class="sub">Estratégia para quem joga. Planejamento para quem ensina. Acompanhamento para quem compete.</p>
-        <p class="apoio">Conheça a família QuadraLab e encontre a plataforma para o seu próximo passo dentro e fora da quadra.</p>
-        <div class="botoes">
-          <a class="botao botao-escuro" href="#plataformas">Encontre sua plataforma</a>
-          <a class="botao botao-contorno" href="#como-funciona">Veja como funciona</a>
+        <p class="texto">Estratégia para jogadores, planejamento para treinadores e acompanhamento para quem compete.</p>
+        <div class="chamadas">
+          <a class="botao botao-escuro" href="#plataformas">Escolher minha plataforma</a>
+          <a class="link-discreto" href="#como-funciona">Veja como funciona</a>
         </div>
       </div>
-      <div class="familia" aria-label="A família QuadraLab">
-        <div class="familia-hub">
-          <img src="/hub/img/logo-hub-720.webp" srcset="/hub/img/logo-hub-360.webp 360w, /hub/img/logo-hub-720.webp 720w" sizes="260px" width="720" height="229" alt="QuadraLab Hub">
-        </div>
-        <div class="familia-lista">
-          <a data-p="player" href="#player">
-            <img src="/hub/img/logo-player-360.webp" srcset="/hub/img/logo-player-360.webp 360w, /hub/img/logo-player-720.webp 720w" sizes="210px" width="360" height="113" alt="QuadraLab Player">
-            <span>Para quem joga</span>
-          </a>
-          <a data-p="treinador" href="#treinador">
-            <img src="/hub/img/logo-treinador-360.webp" srcset="/hub/img/logo-treinador-360.webp 360w, /hub/img/logo-treinador-720.webp 720w" sizes="210px" width="360" height="115" alt="QuadraLab Treinador">
-            <span>Para quem ensina</span>
-          </a>
-          <a data-p="competicao" href="#competicao">
-            <img src="/hub/img/logo-competicao-360.webp" srcset="/hub/img/logo-competicao-360.webp 360w, /hub/img/logo-competicao-720.webp 720w" sizes="210px" width="360" height="108" alt="QuadraLab Competição">
-            <span>Para quem compete</span>
-          </a>
-        </div>
-        <p class="familia-nota">O Hub reúne as plataformas. Você escolhe a que combina com o seu momento e não precisa contratar todas.</p>
+      <div class="arte so-desk">
+        <img src="/hub/img/logo-hub-720.webp" srcset="/hub/img/logo-hub-360.webp 360w, /hub/img/logo-hub-720.webp 720w" sizes="320px" width="720" height="229" alt="QuadraLab Hub">
+        <p>O Hub reúne as plataformas. Você escolhe a que combina com o seu momento e não precisa contratar todas.</p>
       </div>
     </div>
   </section>
 
-  <section class="secao clara" id="plataformas" aria-labelledby="titulo-plataformas">
+  <section class="escolha" id="plataformas" aria-labelledby="titulo-plataformas">
+    <div class="miolo">
+      <h2 id="titulo-plataformas">Qual é o seu próximo passo?</h2>
+      <p class="intro">Escolha pelo seu objetivo. Cada plataforma tem um papel no seu tênis.</p>
+      <div class="rapidos">
+        <a class="rapido" data-p="player" href="/player/">
+          <img src="/hub/img/logo-player-360.webp" srcset="/hub/img/logo-player-360.webp 360w, /hub/img/logo-player-720.webp 720w" sizes="190px" width="360" height="113" alt="QuadraLab Player">
+          <span class="rapido-para">Para jogadores</span>
+          <span class="rapido-texto">Quero organizar meu jogo.</span>
+          <span class="botao botao-player">Player</span>
+        </a>
+        <a class="rapido" data-p="treinador" href="/treinador">
+          <img src="/hub/img/logo-treinador-360.webp" srcset="/hub/img/logo-treinador-360.webp 360w, /hub/img/logo-treinador-720.webp 720w" sizes="190px" width="360" height="115" alt="QuadraLab Treinador">
+          <span class="rapido-para">Para treinadores</span>
+          <span class="rapido-texto">Quero planejar e acompanhar meus alunos.</span>
+          <span class="botao botao-treinador">Treinador</span>
+        </a>
+        <a class="rapido" data-p="competicao" href="/competicao/">
+          <img src="/hub/img/logo-competicao-360.webp" srcset="/hub/img/logo-competicao-360.webp 360w, /hub/img/logo-competicao-720.webp 720w" sizes="190px" width="360" height="108" alt="QuadraLab Competição">
+          <span class="rapido-para">Para quem disputa torneios</span>
+          <span class="rapido-texto">Quero organizar minha temporada.</span>
+          <span class="botao botao-competicao">Competição</span>
+        </a>
+      </div>
+      <div class="arte so-mob">
+        <img src="/hub/img/logo-hub-720.webp" srcset="/hub/img/logo-hub-360.webp 360w, /hub/img/logo-hub-720.webp 720w" sizes="240px" width="720" height="229" alt="QuadraLab Hub">
+        <p>O Hub reúne as plataformas. Você escolhe a que combina com o seu momento e não precisa contratar todas.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="secao clara" id="detalhes" aria-labelledby="titulo-detalhes">
     <div class="miolo">
       <div class="secao-cab">
-        <p class="sobretitulo">Plataformas</p>
-        <h2 id="titulo-plataformas">Qual é o seu próximo passo?</h2>
-        <p>Escolha pelo seu objetivo. Cada plataforma tem um papel no seu tênis.</p>
+        <p class="sobretitulo">Em detalhe</p>
+        <h2 id="titulo-detalhes">O que cada plataforma oferece</h2>
+        <p>Benefícios, o que é grátis e como começar.</p>
       </div>
       <div class="cartoes">
 
