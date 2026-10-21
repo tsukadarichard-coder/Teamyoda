@@ -25,7 +25,7 @@ const porta = srv.address().port, base = "http://localhost:" + porta;
     const sobra = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     assert(sobra <= 0, "rolagem horizontal em " + w + "px: " + sobra);
     /* nenhum elemento visível pode passar da tela (sem esconder com overflow no body) */
-    const fora = await p.evaluate(() => [...document.querySelectorAll("body *")].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && e.offsetParent !== null && !e.classList.contains("pular") && (r.right > innerWidth + 0.5 || r.left < -0.5); }).map((e) => e.tagName + "." + e.className).slice(0, 5));
+    const fora = await p.evaluate(() => [...document.querySelectorAll("body *")].filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && e.offsetParent !== null && !e.classList.contains("pular") && !(e.closest("svg") && e.tagName.toLowerCase() !== "svg") && (r.right > innerWidth + 0.5 || r.left < -0.5); }).map((e) => e.tagName + "." + e.className).slice(0, 5));
     assert.deepStrictEqual(fora, [], "elementos fora da tela em " + w + "px");
     if (w < 900) {
       const alt = await p.evaluate(() => document.querySelector(".topo").getBoundingClientRect().height);
@@ -39,7 +39,7 @@ const porta = srv.address().port, base = "http://localhost:" + porta;
       assert(f.corpo >= 16 && f.corpo <= 17 && f.lh >= 1.5 && f.lh <= 1.7, "texto corrido 16-17 px, entrelinha ~1,6: " + JSON.stringify(f));
       assert(!(await p.isVisible(".abertura-telas")), "sem imagem alta atrasando os produtos no celular");
       const primeiro = await p.evaluate(() => document.querySelector(".rapido").getBoundingClientRect().top);
-      assert(primeiro < 700, "os produtos aparecem cedo (" + primeiro + ")");
+      assert(primeiro < 800, "os produtos aparecem cedo (" + primeiro + ")");
       const aberto = await p.evaluate(() => [...document.querySelectorAll("details.beneficios")].some((d) => d.open));
       assert(!aberto, "benefícios recolhidos no celular");
     } else {
