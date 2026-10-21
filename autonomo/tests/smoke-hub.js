@@ -37,14 +37,18 @@ const porta = srv.address().port, base = "http://localhost:" + porta;
       assert(f.h1 >= 36 && f.h1 <= 42, "título principal 36-42 px em " + w + "px: " + f.h1);
       assert(f.h2 >= 26 && f.h2 <= 30, "títulos de seção 26-30 px em " + w + "px: " + f.h2);
       assert(f.corpo >= 16 && f.corpo <= 17 && f.lh >= 1.5 && f.lh <= 1.7, "texto corrido 16-17 px, entrelinha ~1,6: " + JSON.stringify(f));
-      assert(!(await p.isVisible(".abertura-telas")), "sem imagem alta atrasando os produtos no celular");
+      const fh = await p.evaluate(() => document.querySelector(".abertura-foto img").getBoundingClientRect().height);
+      assert(fh <= 210, "foto da abertura baixa no celular (" + fh + ")");
+      const cab = await p.evaluate(() => { const c = (e) => { const r = document.querySelector(e).getBoundingClientRect(); return [r.top + r.height / 2, r.height, r.width]; }; return { logo: c(".topo-logo img"), entrar: c("#btn-entrar"), menu: c("#btn-menu") }; });
+      assert(Math.abs(cab.logo[0] - cab.entrar[0]) <= 2 && Math.abs(cab.entrar[0] - cab.menu[0]) <= 2, "logo, Entrar e menu alinhados: " + JSON.stringify(cab));
+      assert(cab.entrar[1] <= 42 && cab.entrar[1] >= 40 && cab.logo[2] >= 150, "Entrar reduzido e logo maior: " + JSON.stringify(cab));
       const primeiro = await p.evaluate(() => document.querySelector(".rapido").getBoundingClientRect().top);
       assert(primeiro < 900, "os produtos aparecem cedo (" + primeiro + ")");
       const aberto = await p.evaluate(() => [...document.querySelectorAll("details.beneficios")].some((d) => d.open));
       assert(!aberto, "benefícios recolhidos no celular");
     } else {
       assert(await p.isVisible(".topo-nav") && !(await p.isVisible("#btn-menu")), "desktop mantém a navegação horizontal");
-      assert(await p.isVisible(".abertura-telas"), "desktop mostra as telas ao lado do texto");
+      assert(await p.isVisible(".abertura-foto img"), "desktop mostra a fotografia ao lado do texto");
       assert(await p.evaluate(() => [...document.querySelectorAll("details.beneficios")].every((d) => d.open)), "benefícios abertos no desktop");
     }
     /* leveza: pesos, espaçamento entre letras, bordas, sombras e botões */
@@ -97,6 +101,10 @@ const porta = srv.address().port, base = "http://localhost:" + porta;
   assert((await p.evaluate(() => document.getElementById("plataformas").getBoundingClientRect().top)) < 120, "Conheça as plataformas rola até os produtos");
   const cart = await p.$$eval(".rapido", (as) => as.map((a) => [a.querySelector("a.botao").getAttribute("href"), a.textContent.replace(/\s+/g, " ").trim()]));
   assert.deepStrictEqual(cart.map((c) => c[0]), ["/player/", "/treinador", "/competicao/"]);
+  assert(/Estratégia para jogadores/.test(cart[0][1]) && /Planejamento e acompanhamento/.test(cart[1][1]) && /Calendário e evolução competitiva/.test(cart[2][1]), "descritores das plataformas");
+  assert.strictEqual(await p.locator(".rapido .rapido-tela img").count(), 3, "um mockup por plataforma");
+  assert.strictEqual((await p.textContent(".abertura .texto")).trim(), "Tecnologia para jogar melhor, ensinar com inteligência e evoluir na competição.");
+  assert.strictEqual(await p.locator(".como-passos li").count(), 3, "três passos em Como funciona");
   assert(/Quero organizar meu jogo\./.test(cart[0][1]) && /Quero planejar e acompanhar meus alunos\./.test(cart[1][1]) && /Quero organizar minha temporada\./.test(cart[2][1]), "textos dos produtos");
   assert.strictEqual(await p.textContent(".chamadas .botao"), "Conheça as plataformas");
   assert.strictEqual((await p.textContent(".chamadas .link")).trim(), "Como funciona");

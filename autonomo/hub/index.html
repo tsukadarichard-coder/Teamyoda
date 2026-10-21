@@ -29,7 +29,7 @@
   <div class="miolo">
     <div class="topo-linha">
       <a class="topo-logo" href="/?hub=1" aria-label="QuadraLab Hub, início">
-        <img src="/hub/img/logo-hub-360.webp" srcset="/hub/img/logo-hub-360.webp 360w, /hub/img/logo-hub-720.webp 720w" sizes="140px" width="360" height="115" alt="QuadraLab Hub">
+        <img src="/hub/img/logo-hub-360.webp" srcset="/hub/img/logo-hub-360.webp 360w, /hub/img/logo-hub-720.webp 720w" sizes="156px" width="360" height="115" alt="QuadraLab Hub">
       </a>
       <nav class="topo-nav" aria-label="Seções da página">
         <a href="#plataformas">Plataformas</a>
@@ -62,23 +62,17 @@
     <div class="miolo abertura-grade">
       <div class="abertura-texto">
         <h1 id="titulo-hub">Seu tênis conectado.</h1>
-        <p class="texto">Estratégia para jogadores, planejamento para treinadores e acompanhamento para quem compete.</p>
+        <p class="texto">Tecnologia para jogar melhor, ensinar com inteligência e evoluir na competição.</p>
         <div class="chamadas">
           <a class="botao botao-escuro" href="#plataformas">Conheça as plataformas</a>
           <a class="link" href="#como-funciona">Como funciona</a>
         </div>
       </div>
-      <div class="abertura-telas">
-        <img class="foto" src="/hub/img/foto-hero-756.webp" srcset="/hub/img/foto-hero-480.webp 480w, /hub/img/foto-hero-756.webp 756w" sizes="520px" width="756" height="500" alt="Bola de tênis na linha de uma quadra de saibro, com um jogador ao fundo" fetchpriority="high" decoding="async">
-        <div class="celular tela-a" aria-hidden="true"><div class="celular-tela"><img src="/hub/img/tela-player-inicio.webp" width="380" height="775" alt="" decoding="async"></div></div>
-        <div class="celular tela-b" aria-hidden="true"><div class="celular-tela"><img src="/hub/img/tela-comp-temporada.webp" width="380" height="822" alt="" decoding="async"></div></div>
-      </div>
+      <figure class="abertura-foto">
+        <img src="/hub/img/foto-hero-756.webp" srcset="/hub/img/foto-hero-480.webp 480w, /hub/img/foto-hero-756.webp 756w" sizes="(max-width: 899px) 100vw, 520px" width="756" height="500" alt="Bola de tênis na linha de uma quadra de saibro, com um jogador ao fundo" fetchpriority="high" decoding="async">
+      </figure>
     </div>
   </section>
-
-  <div class="faixa-foto">
-    <img src="/hub/img/foto-hero-480.webp" srcset="/hub/img/foto-hero-480.webp 480w, /hub/img/foto-hero-756.webp 756w" sizes="(max-width: 520px) 100vw, 520px" width="480" height="317" alt="Bola de tênis na linha de uma quadra de saibro, com um jogador ao fundo" decoding="async">
-  </div>
 
   <section class="escolha" id="plataformas" aria-labelledby="titulo-plataformas">
     <div class="miolo">
@@ -86,22 +80,31 @@
       <p class="intro">Escolha pelo seu objetivo. Cada plataforma tem um papel no seu tênis.</p>
       <div class="rapidos">
         <div class="rapido" data-p="player">
-          <img src="/hub/img/logo-player-360.webp" srcset="/hub/img/logo-player-360.webp 360w, /hub/img/logo-player-720.webp 720w" sizes="170px" width="360" height="113" alt="QuadraLab Player">
-          <p class="para">Para jogadores</p>
-          <p class="frase">Quero organizar meu jogo.</p>
-          <a class="botao botao-player" href="/player/">Conhecer o Player</a>
+          <div class="rapido-info">
+            <img src="/hub/img/logo-player-360.webp" srcset="/hub/img/logo-player-360.webp 360w, /hub/img/logo-player-720.webp 720w" sizes="170px" width="360" height="113" alt="QuadraLab Player">
+            <p class="para">Estratégia para jogadores</p>
+            <p class="frase">Quero organizar meu jogo.</p>
+            <a class="botao botao-player" href="/player/">Conhecer o Player</a>
+          </div>
+          <div class="rapido-tela"><div class="celular"><div class="celular-tela"><img src="/hub/img/tela-player-inicio.webp" width="380" height="775" alt="Tela inicial do QuadraLab Player, com o próximo treino e a estratégia escolhida" loading="lazy" decoding="async"></div></div></div>
         </div>
         <div class="rapido" data-p="treinador">
-          <img src="/hub/img/logo-treinador-360.webp" srcset="/hub/img/logo-treinador-360.webp 360w, /hub/img/logo-treinador-720.webp 720w" sizes="170px" width="360" height="115" alt="QuadraLab Treinador">
-          <p class="para">Para treinadores</p>
-          <p class="frase">Quero planejar e acompanhar meus alunos.</p>
-          <a class="botao botao-treinador" href="/treinador">Conhecer o Treinador</a>
+          <div class="rapido-info">
+            <img src="/hub/img/logo-treinador-360.webp" srcset="/hub/img/logo-treinador-360.webp 360w, /hub/img/logo-treinador-720.webp 720w" sizes="170px" width="360" height="115" alt="QuadraLab Treinador">
+            <p class="para">Planejamento e acompanhamento</p>
+            <p class="frase">Quero planejar e acompanhar meus alunos.</p>
+            <a class="botao botao-treinador" href="/treinador">Conhecer o Treinador</a>
+          </div>
+          <div class="rapido-tela"><div class="notebook"><div class="notebook-tela"><div class="notebook-barra" aria-hidden="true"><i></i><i></i><i></i><span>quadralab.com.br/treinador</span></div><div class="notebook-corpo"><img src="/hub/img/tela-treinador-planejamento.webp" width="560" height="555" alt="Tela de planejamento do QuadraLab Treinador, com as aulas realizadas e a próxima aula" loading="lazy" decoding="async"></div></div><div class="notebook-base" aria-hidden="true"></div></div></div>
         </div>
         <div class="rapido" data-p="competicao">
-          <img src="/hub/img/logo-competicao-360.webp" srcset="/hub/img/logo-competicao-360.webp 360w, /hub/img/logo-competicao-720.webp 720w" sizes="170px" width="360" height="108" alt="QuadraLab Competição">
-          <p class="para">Para quem disputa torneios</p>
-          <p class="frase">Quero organizar minha temporada.</p>
-          <a class="botao botao-competicao" href="/competicao/">Conhecer o Competição</a>
+          <div class="rapido-info">
+            <img src="/hub/img/logo-competicao-360.webp" srcset="/hub/img/logo-competicao-360.webp 360w, /hub/img/logo-competicao-720.webp 720w" sizes="170px" width="360" height="108" alt="QuadraLab Competição">
+            <p class="para">Calendário e evolução competitiva</p>
+            <p class="frase">Quero organizar minha temporada.</p>
+            <a class="botao botao-competicao" href="/competicao/">Conhecer o Competição</a>
+          </div>
+          <div class="rapido-tela"><div class="celular"><div class="celular-tela"><img src="/hub/img/tela-comp-temporada.webp" width="380" height="822" alt="Tela de temporada do QuadraLab Competição, com os próximos torneios" loading="lazy" decoding="async"></div></div></div>
         </div>
       </div>
     </div>
@@ -121,7 +124,6 @@
           <h3>Entre em quadra com um plano.</h3>
           <p class="desc">Transforme suas características em uma estratégia de jogo e dê mais direção ao que você treina.</p>
         </div>
-        <figure class="produto-tela"><div class="celular"><div class="celular-tela"><img src="/hub/img/tela-player-jogadas.webp" width="420" height="857" alt="Tela de jogadas do QuadraLab Player, com a sequência de golpes e quando usar" loading="lazy"></div></div><figcaption>Jogadas do Player (demonstração)</figcaption></figure>
         <div class="produto-corpo">
           <details class="beneficios">
             <summary>O que você encontra</summary>
@@ -149,7 +151,6 @@
           <h3>Seu olhar. Um plano para cada aluno.</h3>
           <p class="desc">Organize jogadores, prepare suas aulas e acompanhe cada ciclo com o seu olhar profissional.</p>
         </div>
-        <figure class="produto-tela"><div class="notebook"><div class="notebook-tela"><div class="notebook-barra" aria-hidden="true"><i></i><i></i><i></i><span>quadralab.com.br/treinador</span></div><div class="notebook-corpo"><img src="/hub/img/tela-treinador-planejamento.webp" width="560" height="555" alt="Tela de planejamento do QuadraLab Treinador, com as aulas realizadas e a próxima aula" loading="lazy"></div></div><div class="notebook-base" aria-hidden="true"></div></div><figcaption>Planejamento do Treinador (demonstração)</figcaption></figure>
         <div class="produto-corpo">
           <details class="beneficios">
             <summary>O que você encontra</summary>
@@ -176,7 +177,6 @@
           <h3>Do calendário à preparação.</h3>
           <p class="desc">Organize sua temporada e acompanhe treinos e partidas com quem conhece o seu jogo.</p>
         </div>
-        <figure class="produto-tela"><div class="celular"><div class="celular-tela"><img src="/hub/img/tela-comp-partida.webp" width="420" height="909" alt="Tela de partida do QuadraLab Competição, com dificuldades e pontos positivos" loading="lazy"></div></div><figcaption>Partida no Competição (demonstração)</figcaption></figure>
         <div class="produto-corpo">
           <details class="beneficios">
             <summary>O que você encontra</summary>
@@ -204,8 +204,14 @@
     <div class="miolo">
       <div class="secao-cab">
         <h2 id="titulo-como">Entenda como funciona na prática.</h2>
-        <p>Escolha o seu perfil para ver o caminho em quatro passos.</p>
+        <p>Em três passos você escolhe, cadastra e começa a usar.</p>
       </div>
+      <ol class="como-passos">
+        <li><h3>Escolha a plataforma</h3><p>Veja qual combina com o seu objetivo: jogar, ensinar ou competir.</p></li>
+        <li><h3>Faça seu cadastro</h3><p>Crie sua conta grátis na plataforma escolhida. Player e Competição usam o mesmo e-mail e a mesma senha.</p></li>
+        <li><h3>Utilize os recursos disponíveis</h3><p>Use o que está incluído em cada plano e conheça os serviços opcionais quando precisar.</p></li>
+      </ol>
+      <h3 class="sub-abas">Veja o caminho de cada perfil</h3>
       <div class="abas" role="tablist" aria-label="Escolha o seu perfil">
         <button class="aba" role="tab" id="aba-player" data-p="player" aria-selected="true" aria-controls="painel-player" type="button">Sou jogador</button>
         <button class="aba" role="tab" id="aba-treinador" data-p="treinador" aria-selected="false" aria-controls="painel-treinador" tabindex="-1" type="button">Sou treinador</button>
