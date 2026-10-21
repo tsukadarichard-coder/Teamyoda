@@ -62,50 +62,44 @@
     <div class="miolo abertura-grade">
       <div class="abertura-texto">
         <h1 id="titulo-hub">Seu tênis conectado.</h1>
-        <p class="texto">Tecnologia para jogar melhor, ensinar com inteligência e evoluir na competição.</p>
-        <div class="chamadas">
-          <a class="botao botao-escuro" href="#plataformas">Conheça as plataformas</a>
-          <a class="link" href="#como-funciona">Como funciona</a>
-        </div>
+        <p class="texto">Estratégia para jogar. Planejamento para ensinar. Acompanhamento para competir.</p>
       </div>
       <figure class="abertura-foto">
-        <img src="/hub/img/foto-hero-756.webp" srcset="/hub/img/foto-hero-480.webp 480w, /hub/img/foto-hero-756.webp 756w" sizes="(max-width: 899px) 100vw, 520px" width="756" height="500" alt="Bola de tênis na linha de uma quadra de saibro, com um jogador ao fundo" fetchpriority="high" decoding="async">
+        <img src="/hub/img/foto-hero-756.webp" srcset="/hub/img/foto-hero-480.webp 480w, /hub/img/foto-hero-756.webp 756w" sizes="(max-width: 899px) calc(100vw - 40px), 540px" width="756" height="500" alt="Bola de tênis na linha de uma quadra de saibro, com um jogador ao fundo" fetchpriority="high" decoding="async">
       </figure>
+      <div class="chamadas">
+        <a class="botao botao-escuro" href="#plataformas">Conheça as plataformas</a>
+        <a class="link" href="#como-funciona">Como funciona</a>
+      </div>
     </div>
   </section>
 
   <section class="escolha" id="plataformas" aria-labelledby="titulo-plataformas">
     <div class="miolo">
-      <h2 id="titulo-plataformas">Qual é o seu próximo passo?</h2>
-      <p class="intro">Escolha pelo seu objetivo. Cada plataforma tem um papel no seu tênis.</p>
-      <div class="rapidos">
-        <div class="rapido" data-p="player">
-          <div class="rapido-info">
-            <img src="/hub/img/logo-player-360.webp" srcset="/hub/img/logo-player-360.webp 360w, /hub/img/logo-player-720.webp 720w" sizes="170px" width="360" height="113" alt="QuadraLab Player">
-            <p class="para">Estratégia para jogadores</p>
-            <p class="frase">Quero organizar meu jogo.</p>
-            <a class="botao botao-player" href="/player/">Conhecer o Player</a>
-          </div>
-          <div class="rapido-tela"><div class="celular"><div class="celular-tela"><img src="/hub/img/tela-player-inicio.webp" width="380" height="775" alt="Tela inicial do QuadraLab Player, com o próximo treino e a estratégia escolhida" loading="lazy" decoding="async"></div></div></div>
-        </div>
-        <div class="rapido" data-p="treinador">
-          <div class="rapido-info">
-            <img src="/hub/img/logo-treinador-360.webp" srcset="/hub/img/logo-treinador-360.webp 360w, /hub/img/logo-treinador-720.webp 720w" sizes="170px" width="360" height="115" alt="QuadraLab Treinador">
-            <p class="para">Planejamento e acompanhamento</p>
-            <p class="frase">Quero planejar e acompanhar meus alunos.</p>
-            <a class="botao botao-treinador" href="/treinador">Conhecer o Treinador</a>
-          </div>
-          <div class="rapido-tela"><div class="notebook"><div class="notebook-tela"><div class="notebook-barra" aria-hidden="true"><i></i><i></i><i></i><span>quadralab.com.br/treinador</span></div><div class="notebook-corpo"><img src="/hub/img/tela-treinador-planejamento.webp" width="560" height="555" alt="Tela de planejamento do QuadraLab Treinador, com as aulas realizadas e a próxima aula" loading="lazy" decoding="async"></div></div><div class="notebook-base" aria-hidden="true"></div></div></div>
-        </div>
-        <div class="rapido" data-p="competicao">
-          <div class="rapido-info">
-            <img src="/hub/img/logo-competicao-360.webp" srcset="/hub/img/logo-competicao-360.webp 360w, /hub/img/logo-competicao-720.webp 720w" sizes="170px" width="360" height="108" alt="QuadraLab Competição">
-            <p class="para">Calendário e evolução competitiva</p>
-            <p class="frase">Quero organizar minha temporada.</p>
-            <a class="botao botao-competicao" href="/competicao/">Conhecer o Competição</a>
-          </div>
-          <div class="rapido-tela"><div class="celular"><div class="celular-tela"><img src="/hub/img/tela-comp-temporada.webp" width="380" height="822" alt="Tela de temporada do QuadraLab Competição, com os próximos torneios" loading="lazy" decoding="async"></div></div></div>
-        </div>
+      <h2 id="titulo-plataformas">Uma plataforma para cada etapa do seu tênis.</h2>
+      <p class="intro">Escolha por onde começar.</p>
+      <div class="plats">
+        <article class="plat" data-p="player">
+          <img class="plat-logo" src="/hub/img/logo-player-360.webp" srcset="/hub/img/logo-player-360.webp 360w, /hub/img/logo-player-720.webp 720w" sizes="190px" width="360" height="113" alt="QuadraLab Player" loading="lazy" decoding="async">
+          <p class="ident">Para jogadores</p>
+          <p class="plat-texto">Organize suas estratégias, prepare seu jogo e registre suas partidas.</p>
+          <figure class="plat-tela"><img src="/hub/img/plat-player-420.webp" srcset="/hub/img/plat-player-420.webp 420w, /hub/img/plat-player-760.webp 760w" sizes="(max-width: 899px) calc(100vw - 80px), 320px" width="420" height="857" alt="Tela de estratégias do QuadraLab Player, com a lista de planos de jogo" loading="lazy" decoding="async"><figcaption>Estratégias no Player (dados de demonstração)</figcaption></figure>
+          <a class="botao botao-player" href="/player/">Conhecer o Player</a>
+        </article>
+        <article class="plat" data-p="treinador">
+          <img class="plat-logo" src="/hub/img/logo-treinador-360.webp" srcset="/hub/img/logo-treinador-360.webp 360w, /hub/img/logo-treinador-720.webp 720w" sizes="190px" width="360" height="115" alt="QuadraLab Treinador" loading="lazy" decoding="async">
+          <p class="ident">Para treinadores</p>
+          <p class="plat-texto">Planeje os treinos e acompanhe o desenvolvimento de cada aluno.</p>
+          <figure class="plat-tela"><img src="/hub/img/plat-treinador-420.webp" srcset="/hub/img/plat-treinador-420.webp 420w, /hub/img/plat-treinador-760.webp 760w" sizes="(max-width: 899px) calc(100vw - 80px), 320px" width="420" height="416" alt="Tela de planejamento do QuadraLab Treinador, com as aulas realizadas e a próxima aula" loading="lazy" decoding="async"><figcaption>Planejamento no Treinador (dados de demonstração)</figcaption></figure>
+          <a class="botao botao-treinador" href="/treinador">Conhecer o Treinador</a>
+        </article>
+        <article class="plat" data-p="competicao">
+          <img class="plat-logo" src="/hub/img/logo-competicao-360.webp" srcset="/hub/img/logo-competicao-360.webp 360w, /hub/img/logo-competicao-720.webp 720w" sizes="190px" width="360" height="108" alt="QuadraLab Competição" loading="lazy" decoding="async">
+          <p class="ident">Para quem compete</p>
+          <p class="plat-texto">Organize o calendário, prepare seus torneios e acompanhe sua temporada.</p>
+          <figure class="plat-tela"><img src="/hub/img/plat-competicao-420.webp" srcset="/hub/img/plat-competicao-420.webp 420w, /hub/img/plat-competicao-760.webp 760w" sizes="(max-width: 899px) calc(100vw - 80px), 320px" width="420" height="909" alt="Tela de temporada do QuadraLab Competição, com os próximos torneios" loading="lazy" decoding="async"><figcaption>Temporada no Competição (dados de demonstração)</figcaption></figure>
+          <a class="botao botao-competicao" href="/competicao/">Conhecer o Competição</a>
+        </article>
       </div>
     </div>
   </section>
@@ -228,9 +222,7 @@
           </ol>
           <div class="painel-acao"><a class="botao botao-player" href="/player/">Conhecer o Player</a></div>
         </div>
-        <div class="telas">
-          <figure class="tela"><div class="celular"><div class="celular-tela"><img src="/hub/img/tela-player-treinos.webp" width="380" height="775" alt="Tela de treinos do QuadraLab Player, com o próximo treino e os programas" loading="lazy"></div></div><figcaption>Treinos</figcaption></figure>
-          <figure class="tela"><div class="celular"><div class="celular-tela"><img src="/hub/img/tela-player-estrategias.webp" width="380" height="775" alt="Tela de estratégias do QuadraLab Player" loading="lazy"></div></div><figcaption>Estratégias</figcaption></figure>
+        <div class="telas"><figure class="tela"><img src="/hub/img/aba-player-1-420.webp" srcset="/hub/img/aba-player-1-420.webp 420w, /hub/img/aba-player-1-760.webp 760w" sizes="(max-width: 899px) 44vw, 220px" width="420" height="857" alt="Tela de treinos do QuadraLab Player, com o próximo treino e os programas" loading="lazy" decoding="async"><figcaption>Treinos</figcaption></figure><figure class="tela"><img src="/hub/img/aba-player-2-420.webp" srcset="/hub/img/aba-player-2-420.webp 420w, /hub/img/aba-player-2-760.webp 760w" sizes="(max-width: 899px) 44vw, 220px" width="420" height="857" alt="Tela de jogadas do QuadraLab Player, com a sequência de golpes e quando usar" loading="lazy" decoding="async"><figcaption>Jogadas</figcaption></figure>
         </div>
       </div>
 
@@ -244,8 +236,7 @@
           </ol>
           <div class="painel-acao"><a class="botao botao-treinador" href="/treinador">Conhecer o Treinador</a></div>
         </div>
-        <div class="telas">
-          <figure class="tela larga"><div class="notebook"><div class="notebook-tela"><div class="notebook-barra" aria-hidden="true"><i></i><i></i><i></i><span>quadralab.com.br/treinador</span></div><div class="notebook-corpo"><img src="/hub/img/tela-treinador-exercicios.webp" width="560" height="515" alt="Tela de sessão do QuadraLab Treinador, com os exercícios do aquecimento" loading="lazy"></div></div><div class="notebook-base" aria-hidden="true"></div></div><figcaption>Sessão com os exercícios</figcaption></figure>
+        <div class="telas"><figure class="tela larga"><img src="/hub/img/aba-treinador-1-420.webp" srcset="/hub/img/aba-treinador-1-420.webp 420w, /hub/img/aba-treinador-1-760.webp 760w" sizes="(max-width: 899px) 44vw, 220px" width="420" height="371" alt="Tela de sessão do QuadraLab Treinador, com os exercícios do aquecimento" loading="lazy" decoding="async"><figcaption>Sessão com os exercícios</figcaption></figure>
         </div>
       </div>
 
@@ -259,9 +250,7 @@
           </ol>
           <div class="painel-acao"><a class="botao botao-competicao" href="/competicao/">Conhecer o Competição</a></div>
         </div>
-        <div class="telas">
-          <figure class="tela"><div class="celular"><div class="celular-tela"><img src="/hub/img/tela-comp-hero.webp" width="380" height="822" alt="Tela inicial do QuadraLab Competição, com a contagem para o próximo torneio" loading="lazy"></div></div><figcaption>Início do Competição</figcaption></figure>
-          <figure class="tela"><div class="celular"><div class="celular-tela"><img src="/hub/img/tela-comp-semana.webp" width="380" height="822" alt="Tela de planejamento semanal do QuadraLab Competição" loading="lazy"></div></div><figcaption>Planejamento da semana</figcaption></figure>
+        <div class="telas"><figure class="tela"><img src="/hub/img/aba-comp-1-420.webp" srcset="/hub/img/aba-comp-1-420.webp 420w, /hub/img/aba-comp-1-760.webp 760w" sizes="(max-width: 899px) 44vw, 220px" width="420" height="909" alt="Tela inicial do QuadraLab Competição, com a contagem para o próximo torneio" loading="lazy" decoding="async"><figcaption>Início do Competição</figcaption></figure><figure class="tela"><img src="/hub/img/aba-comp-2-420.webp" srcset="/hub/img/aba-comp-2-420.webp 420w, /hub/img/aba-comp-2-760.webp 760w" sizes="(max-width: 899px) 44vw, 220px" width="420" height="909" alt="Tela de planejamento semanal do QuadraLab Competição" loading="lazy" decoding="async"><figcaption>Planejamento da semana</figcaption></figure>
         </div>
       </div>
       <p class="aviso-telas">As telas mostram dados de demonstração.</p>
