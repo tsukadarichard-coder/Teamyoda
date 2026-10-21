@@ -39,7 +39,7 @@ const porta = srv.address().port, base = "http://localhost:" + porta;
       assert(f.corpo >= 16 && f.corpo <= 17 && f.lh >= 1.5 && f.lh <= 1.7, "texto corrido 16-17 px, entrelinha ~1,6: " + JSON.stringify(f));
       assert(!(await p.isVisible(".abertura-telas")), "sem imagem alta atrasando os produtos no celular");
       const primeiro = await p.evaluate(() => document.querySelector(".rapido").getBoundingClientRect().top);
-      assert(primeiro < 800, "os produtos aparecem cedo (" + primeiro + ")");
+      assert(primeiro < 900, "os produtos aparecem cedo (" + primeiro + ")");
       const aberto = await p.evaluate(() => [...document.querySelectorAll("details.beneficios")].some((d) => d.open));
       assert(!aberto, "benefícios recolhidos no celular");
     } else {

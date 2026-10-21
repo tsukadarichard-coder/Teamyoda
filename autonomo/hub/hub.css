@@ -89,17 +89,12 @@ a { color: inherit; }
 .abertura h1 { font-size: clamp(3rem, 5vw, 4.25rem); line-height: 1.07; letter-spacing: -0.025em; margin-bottom: var(--e2); }
 .abertura .texto { font-size: 1.2rem; line-height: 1.6; color: var(--texto); max-width: 33ch; }
 .chamadas { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 24px; margin-top: var(--e3); }
-.abertura-telas { position: relative; height: 560px; }
-.quadra { width: 100%; height: auto; display: block; border-radius: 14px; background: #e2eadb; }
-.quadra .l { stroke: #fff; stroke-width: 3; }
-.quadra .rede { stroke: #fff; stroke-width: 4; stroke-dasharray: 3 8; }
-.quadra .rota { stroke: var(--tinta); stroke-width: 3; stroke-dasharray: 9 9; opacity: .75; }
-.quadra .bola { fill: #fff; stroke: var(--tinta); stroke-width: 3; }
-.abertura-telas .quadra { position: absolute; left: 0; right: 0; top: 30px; width: 100%; height: 470px; }
-.faixa-quadra { display: none; }
-.abertura-telas .celular { position: absolute; width: 224px; }
-.abertura-telas .tela-a { left: 9%; top: 0; }
-.abertura-telas .tela-b { right: 9%; top: 90px; }
+.abertura-telas { position: relative; height: 600px; }
+.abertura-telas .foto { position: absolute; inset: 0 0 auto 0; width: 100%; height: 400px; object-fit: cover; object-position: 35% 55%; border-radius: 14px; }
+.abertura-telas .celular { position: absolute; width: 196px; }
+.faixa-foto { display: none; }
+.abertura-telas .tela-a { left: 6%; top: 150px; }
+.abertura-telas .tela-b { right: 6%; top: 110px; }
 @media (max-width: 899px) {
   .abertura { padding-block: 32px 32px; }
   .abertura-grade { grid-template-columns: 1fr; gap: 0; }
@@ -109,8 +104,8 @@ a { color: inherit; }
   .chamadas .botao { width: 100%; }
   .chamadas .link { justify-content: center; }
   .abertura-telas { display: none; }
-  .faixa-quadra { display: block; padding-inline: max(20px, env(safe-area-inset-left, 0px)) max(20px, env(safe-area-inset-right, 0px)); max-width: 520px; margin: 0 auto 28px; }
-  .faixa-quadra .quadra { height: 112px; width: 100%; }
+  .faixa-foto { display: block; padding-inline: max(20px, env(safe-area-inset-left, 0px)) max(20px, env(safe-area-inset-right, 0px)); max-width: 560px; margin: 0 auto 32px; }
+  .faixa-foto img { width: 100%; height: 190px; object-fit: cover; object-position: 30% 60%; border-radius: 10px; }
 }
 
 /* escolha das plataformas */
@@ -143,6 +138,8 @@ a { color: inherit; }
 
 /* produtos em detalhe */
 .produto { display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 0.7fr) minmax(0, 1.05fr); gap: var(--e4); align-items: start; padding-block: var(--e4); border-top: 1px solid var(--linha-forte); }
+.produto-foto { grid-column: 1 / -1; margin: 0; }
+.produto-foto img { width: 100%; height: 240px; object-fit: cover; border-radius: 10px; }
 .produto-nome { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
 .produto[data-p="player"] .produto-nome { color: var(--player-texto); }
 .produto[data-p="treinador"] .produto-nome { color: var(--treinador-texto); }
@@ -167,6 +164,7 @@ a { color: inherit; }
 @media (max-width: 899px) {
   .produto { grid-template-columns: 1fr; gap: var(--e2); padding-block: var(--e3); }
   .produto-tela { display: none; }
+  .produto-foto img { height: 170px; }
   .produto h3 { font-size: 22px; }
   .acoes { flex-direction: column; align-items: stretch; gap: 0; }
   .acoes .botao { width: 100%; }
