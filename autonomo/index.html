@@ -7,7 +7,8 @@
 <title>QuadraLab</title>
 <meta name="description" content="QuadraLab — plataforma para treinadores de tênis.">
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://quadralab.com.br">
+<meta property="og:url" content="https://quadralab.com.br/treinador">
+<link rel="canonical" href="https://quadralab.com.br/treinador">
 <meta property="og:title" content="QuadraLab — plataforma para treinadores de tênis">
 <meta property="og:description" content="Ficha, plano de aula por IA e evolução do aluno — para o professor de tênis autônomo.">
 <meta property="og:image" content="https://quadralab.com.br/assets/icon-512.png">
@@ -14701,6 +14702,14 @@ function TelaVendas({ aoEntrar }) {
   function irParaCadastro() {
     window.location.href = "cadastro-individual.html";
   }
+  /* links vindos do QuadraLab Hub: /treinador#entrar abre o login; /treinador#qlab-planos rola até a seção */
+  useEffect(() => {
+    const alvo = (window.location.hash || "").replace("#", "");
+    if (!alvo) return undefined;
+    const t = setTimeout(() => { if (alvo === "entrar") abrirLogin(); else irParaSecao(alvo); }, 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="qlab-vendas" style={{ background: C.papel }}>

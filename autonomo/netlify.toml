@@ -4,6 +4,26 @@
 [functions]
   directory = "netlify/functions"
 
+# Página inicial: QuadraLab Hub. O app e a página comercial do Treinador ficam em /treinador
+# (o arquivo continua sendo index.html, que também segue acessível em /index.html).
+[[redirects]]
+  from = "/"
+  to = "/hub/index.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/treinador"
+  to = "/index.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/treinador/"
+  to = "/treinador"
+  status = 301
+  force = true
+
 [[headers]]
   for = "/manifest.json"
   [headers.values]
