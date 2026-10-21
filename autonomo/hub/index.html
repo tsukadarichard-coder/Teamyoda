@@ -19,7 +19,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/hub/hub.css">
 </head>
 <body>
@@ -29,7 +29,7 @@
   <div class="miolo">
     <div class="topo-linha">
       <a class="topo-logo" href="/?hub=1" aria-label="QuadraLab Hub, início">
-        <img src="/hub/img/logo-hub-360.webp" srcset="/hub/img/logo-hub-360.webp 360w, /hub/img/logo-hub-720.webp 720w" sizes="(max-width: 899px) 150px, 172px" width="360" height="115" alt="QuadraLab Hub">
+        <img src="/hub/img/logo-hub-360.webp" srcset="/hub/img/logo-hub-360.webp 360w, /hub/img/logo-hub-720.webp 720w" sizes="140px" width="360" height="115" alt="QuadraLab Hub">
       </a>
       <nav class="topo-nav" aria-label="Seções da página">
         <a href="#plataformas">Plataformas</a>
@@ -37,8 +37,7 @@
         <a href="#duvidas">Dúvidas</a>
       </nav>
       <div class="topo-acoes">
-        <button type="button" class="botao botao-contorno" id="btn-entrar" aria-expanded="false" aria-controls="menu-entrar"><span class="so-desk">Já tenho conta</span><span class="so-mob">Entrar</span></button>
-        <a class="botao botao-escuro so-desk" href="#plataformas">Escolher minha plataforma</a>
+        <button type="button" class="botao-entrar" id="btn-entrar" aria-expanded="false" aria-controls="menu-entrar">Entrar</button>
         <button type="button" class="botao-menu" id="btn-menu" aria-expanded="false" aria-controls="menu-nav" aria-label="Menu"><span class="barras" aria-hidden="true"></span></button>
         <div class="menu-entrar" id="menu-entrar" hidden>
           <p>Em qual plataforma você tem conta?</p>
@@ -61,18 +60,17 @@
 <main id="conteudo">
   <section class="abertura" aria-labelledby="titulo-hub">
     <div class="miolo abertura-grade">
-      <div>
-        <p class="sobretitulo so-desk">QuadraLab Hub</p>
+      <div class="abertura-texto">
         <h1 id="titulo-hub">Seu tênis conectado.</h1>
         <p class="texto">Estratégia para jogadores, planejamento para treinadores e acompanhamento para quem compete.</p>
         <div class="chamadas">
-          <a class="botao botao-escuro" href="#plataformas">Escolher minha plataforma</a>
-          <a class="link-discreto" href="#como-funciona">Veja como funciona</a>
+          <a class="botao botao-escuro" href="#plataformas">Conheça as plataformas</a>
+          <a class="link" href="#como-funciona">Como funciona</a>
         </div>
       </div>
-      <div class="arte so-desk">
-        <img src="/hub/img/logo-hub-720.webp" srcset="/hub/img/logo-hub-360.webp 360w, /hub/img/logo-hub-720.webp 720w" sizes="320px" width="720" height="229" alt="QuadraLab Hub">
-        <p>O Hub reúne as plataformas. Você escolhe a que combina com o seu momento e não precisa contratar todas.</p>
+      <div class="abertura-telas" aria-hidden="true">
+        <img class="tela-a" src="/hub/img/tela-hero-player.webp" width="360" height="735" alt="" decoding="async">
+        <img class="tela-b" src="/hub/img/tela-hero-comp.webp" width="360" height="779" alt="" decoding="async">
       </div>
     </div>
   </section>
@@ -82,118 +80,118 @@
       <h2 id="titulo-plataformas">Qual é o seu próximo passo?</h2>
       <p class="intro">Escolha pelo seu objetivo. Cada plataforma tem um papel no seu tênis.</p>
       <div class="rapidos">
-        <a class="rapido" data-p="player" href="/player/">
-          <img src="/hub/img/logo-player-360.webp" srcset="/hub/img/logo-player-360.webp 360w, /hub/img/logo-player-720.webp 720w" sizes="190px" width="360" height="113" alt="QuadraLab Player">
-          <span class="rapido-para">Para jogadores</span>
-          <span class="rapido-texto">Quero organizar meu jogo.</span>
-          <span class="botao botao-player">Player</span>
-        </a>
-        <a class="rapido" data-p="treinador" href="/treinador">
-          <img src="/hub/img/logo-treinador-360.webp" srcset="/hub/img/logo-treinador-360.webp 360w, /hub/img/logo-treinador-720.webp 720w" sizes="190px" width="360" height="115" alt="QuadraLab Treinador">
-          <span class="rapido-para">Para treinadores</span>
-          <span class="rapido-texto">Quero planejar e acompanhar meus alunos.</span>
-          <span class="botao botao-treinador">Treinador</span>
-        </a>
-        <a class="rapido" data-p="competicao" href="/competicao/">
-          <img src="/hub/img/logo-competicao-360.webp" srcset="/hub/img/logo-competicao-360.webp 360w, /hub/img/logo-competicao-720.webp 720w" sizes="190px" width="360" height="108" alt="QuadraLab Competição">
-          <span class="rapido-para">Para quem disputa torneios</span>
-          <span class="rapido-texto">Quero organizar minha temporada.</span>
-          <span class="botao botao-competicao">Competição</span>
-        </a>
-      </div>
-      <div class="arte so-mob">
-        <img src="/hub/img/logo-hub-720.webp" srcset="/hub/img/logo-hub-360.webp 360w, /hub/img/logo-hub-720.webp 720w" sizes="240px" width="720" height="229" alt="QuadraLab Hub">
-        <p>O Hub reúne as plataformas. Você escolhe a que combina com o seu momento e não precisa contratar todas.</p>
+        <div class="rapido" data-p="player">
+          <img src="/hub/img/logo-player-360.webp" srcset="/hub/img/logo-player-360.webp 360w, /hub/img/logo-player-720.webp 720w" sizes="170px" width="360" height="113" alt="QuadraLab Player">
+          <p class="para">Para jogadores</p>
+          <p class="frase">Quero organizar meu jogo.</p>
+          <a class="botao botao-player" href="/player/">Conhecer o Player</a>
+        </div>
+        <div class="rapido" data-p="treinador">
+          <img src="/hub/img/logo-treinador-360.webp" srcset="/hub/img/logo-treinador-360.webp 360w, /hub/img/logo-treinador-720.webp 720w" sizes="170px" width="360" height="115" alt="QuadraLab Treinador">
+          <p class="para">Para treinadores</p>
+          <p class="frase">Quero planejar e acompanhar meus alunos.</p>
+          <a class="botao botao-treinador" href="/treinador">Conhecer o Treinador</a>
+        </div>
+        <div class="rapido" data-p="competicao">
+          <img src="/hub/img/logo-competicao-360.webp" srcset="/hub/img/logo-competicao-360.webp 360w, /hub/img/logo-competicao-720.webp 720w" sizes="170px" width="360" height="108" alt="QuadraLab Competição">
+          <p class="para">Para quem disputa torneios</p>
+          <p class="frase">Quero organizar minha temporada.</p>
+          <a class="botao botao-competicao" href="/competicao/">Conhecer o Competição</a>
+        </div>
       </div>
     </div>
   </section>
 
-  <section class="secao clara" id="detalhes" aria-labelledby="titulo-detalhes">
+  <section class="secao" id="detalhes" aria-labelledby="titulo-detalhes">
     <div class="miolo">
       <div class="secao-cab">
-        <p class="sobretitulo">Em detalhe</p>
         <h2 id="titulo-detalhes">O que cada plataforma oferece</h2>
         <p>Benefícios, o que é grátis e como começar.</p>
       </div>
-      <div class="cartoes">
 
-        <article class="cartao" data-p="player" id="player">
-          <div class="cartao-logo"><img src="/hub/img/logo-player-360.webp" srcset="/hub/img/logo-player-360.webp 360w, /hub/img/logo-player-720.webp 720w" sizes="250px" width="360" height="113" alt="QuadraLab Player" loading="lazy"></div>
-          <span class="publico">Para jogadores</span>
+      <article class="produto" data-p="player" id="player">
+        <div class="produto-topo">
+          <p class="produto-nome">QuadraLab Player</p>
           <h3>Entre em quadra com um plano.</h3>
           <p class="desc">Transforme suas características em uma estratégia de jogo e dê mais direção ao que você treina.</p>
-          <ul>
-            <li>Preencha seu perfil e conte como você joga.</li>
-            <li>Receba sugestões de estratégia para o seu jogo.</li>
-            <li>Escolha jogadas e entenda quando usá-las.</li>
-            <li>Registre partidas e dificuldades.</li>
-            <li>Leve os pontos de atenção para o treino.</li>
-            <li>Aquecimento e desafios, conforme os recursos disponíveis.</li>
-          </ul>
-          <div class="entrada">
-            <b>Comece grátis, sem cartão.</b>
-            <small>O plano gratuito inclui 1 estratégia. Programas de treino dependem do plano.</small>
-          </div>
-          <div class="cartao-botoes">
+        </div>
+        <div class="produto-corpo">
+          <details class="beneficios">
+            <summary>O que você encontra</summary>
+            <ul>
+              <li>Preencha seu perfil e conte como você joga.</li>
+              <li>Receba sugestões de estratégia para o seu jogo.</li>
+              <li>Escolha jogadas e entenda quando usá-las.</li>
+              <li>Registre partidas e dificuldades.</li>
+              <li>Leve os pontos de atenção para o treino.</li>
+              <li>Aquecimento e desafios, conforme os recursos disponíveis.</li>
+            </ul>
+          </details>
+          <p class="entrada"><b>Comece grátis, sem cartão.</b> O plano gratuito inclui 1 estratégia. Programas de treino dependem do plano.</p>
+          <div class="acoes">
             <a class="botao botao-player" href="/player/">Conhecer o Player</a>
-            <a class="botao contorno-player" href="/player/#/criar">Criar conta grátis</a>
+            <a class="link" href="/player/#/criar">Criar conta grátis</a>
           </div>
-        </article>
+        </div>
+      </article>
 
-        <article class="cartao" data-p="treinador" id="treinador">
-          <div class="cartao-logo"><img src="/hub/img/logo-treinador-360.webp" srcset="/hub/img/logo-treinador-360.webp 360w, /hub/img/logo-treinador-720.webp 720w" sizes="250px" width="360" height="115" alt="QuadraLab Treinador" loading="lazy"></div>
-          <span class="publico">Para treinadores</span>
+      <article class="produto" data-p="treinador" id="treinador">
+        <div class="produto-topo">
+          <p class="produto-nome">QuadraLab Treinador</p>
           <h3>Seu olhar. Um plano para cada aluno.</h3>
           <p class="desc">Organize jogadores, prepare suas aulas e acompanhe cada ciclo com o seu olhar profissional.</p>
-          <ul>
-            <li>Ficha e avaliação de cada jogador.</li>
-            <li>Sugestões de planejamento de até 4 semanas.</li>
-            <li>Revisão e edição pelo treinador.</li>
-            <li>Catálogo de exercícios para preparar as sessões.</li>
-            <li>Registro de aulas, observações e histórico.</li>
-          </ul>
-          <div class="entrada">
-            <b>Plano gratuito para até 5 alunos.</b>
-            <small>Os planos pagos continuam na <a href="/treinador#qlab-planos">página do Treinador</a>.</small>
-          </div>
-          <div class="cartao-botoes">
+        </div>
+        <div class="produto-corpo">
+          <details class="beneficios">
+            <summary>O que você encontra</summary>
+            <ul>
+              <li>Ficha e avaliação de cada jogador.</li>
+              <li>Sugestões de planejamento de até 4 semanas.</li>
+              <li>Revisão e edição pelo treinador.</li>
+              <li>Catálogo de exercícios para preparar as sessões.</li>
+              <li>Registro de aulas, observações e histórico.</li>
+            </ul>
+          </details>
+          <p class="entrada"><b>Plano gratuito para até 5 alunos.</b> Os planos pagos continuam na <a href="/treinador#qlab-planos">página do Treinador</a>.</p>
+          <div class="acoes">
             <a class="botao botao-treinador" href="/treinador">Conhecer o Treinador</a>
-            <a class="botao contorno-treinador" href="/cadastro-individual.html">Criar conta grátis</a>
+            <a class="link" href="/cadastro-individual.html">Criar conta grátis</a>
           </div>
-        </article>
+        </div>
+      </article>
 
-        <article class="cartao" data-p="competicao" id="competicao">
-          <div class="cartao-logo"><img src="/hub/img/logo-competicao-360.webp" srcset="/hub/img/logo-competicao-360.webp 360w, /hub/img/logo-competicao-720.webp 720w" sizes="250px" width="360" height="108" alt="QuadraLab Competição" loading="lazy"></div>
-          <span class="publico">Para atletas que disputam torneios</span>
+      <article class="produto" data-p="competicao" id="competicao">
+        <div class="produto-topo">
+          <p class="produto-nome">QuadraLab Competição</p>
           <h3>Do calendário à preparação.</h3>
           <p class="desc">Organize sua temporada e acompanhe treinos e partidas com quem conhece o seu jogo.</p>
-          <ul>
-            <li>Calendário de torneios e prioridades.</li>
-            <li>Períodos de preparação, competição e recuperação.</li>
-            <li>Planejamento da temporada, das próximas 4 semanas e da semana atual.</li>
-            <li>Revisão e aprovação pelo treinador vinculado.</li>
-            <li>Registros de treinos e partidas.</li>
-            <li>Devolutivas e scouts.</li>
-            <li>Participação dos responsáveis, conforme vínculos e permissões.</li>
-          </ul>
-          <div class="entrada">
-            <b>Comece pela sua temporada. É grátis.</b>
-            <small>Consultorias e Acompanhamento MTY são opcionais e contratados à parte.</small>
-          </div>
-          <div class="cartao-botoes">
+        </div>
+        <div class="produto-corpo">
+          <details class="beneficios">
+            <summary>O que você encontra</summary>
+            <ul>
+              <li>Calendário de torneios e prioridades.</li>
+              <li>Períodos de preparação, competição e recuperação.</li>
+              <li>Planejamento da temporada, das próximas 4 semanas e da semana atual.</li>
+              <li>Revisão e aprovação pelo treinador vinculado.</li>
+              <li>Registros de treinos e partidas.</li>
+              <li>Devolutivas e scouts.</li>
+              <li>Participação dos responsáveis, conforme vínculos e permissões.</li>
+            </ul>
+          </details>
+          <p class="entrada"><b>Comece pela sua temporada. É grátis.</b> Consultorias e Acompanhamento MTY são opcionais e contratados à parte.</p>
+          <div class="acoes">
             <a class="botao botao-competicao" href="/competicao/">Conhecer o Competição</a>
-            <a class="botao contorno-competicao" href="/competicao/#/criar">Criar conta grátis</a>
+            <a class="link" href="/competicao/#/criar">Criar conta grátis</a>
           </div>
-        </article>
-
-      </div>
+        </div>
+      </article>
     </div>
   </section>
 
   <section class="secao" id="como-funciona" aria-labelledby="titulo-como">
     <div class="miolo">
       <div class="secao-cab">
-        <p class="sobretitulo">Como funciona</p>
         <h2 id="titulo-como">Entenda como funciona na prática.</h2>
         <p>Escolha o seu perfil para ver o caminho em quatro passos.</p>
       </div>
@@ -249,32 +247,28 @@
           <figure class="tela"><img src="/hub/img/tela-comp-semana.webp" width="380" height="822" alt="Tela de planejamento semanal do QuadraLab Competição" loading="lazy"><figcaption>Planejamento da semana</figcaption></figure>
         </div>
       </div>
-      <p class="telas-aviso" style="margin-top:18px">As telas mostram dados de demonstração.</p>
+      <p class="aviso-telas">As telas mostram dados de demonstração.</p>
     </div>
   </section>
 
-  <section class="secao clara" id="metodo" aria-labelledby="titulo-metodo">
+  <section class="institucional" id="metodo" aria-labelledby="titulo-metodo">
     <div class="miolo confianca">
       <div>
-        <p class="sobretitulo">Metodologia e confiança</p>
         <h2 id="titulo-metodo">A tecnologia organiza. Você conduz.</h2>
         <p>A metodologia MTY, de Richard Tsukada, orienta a proposta do QuadraLab. A tecnologia ajuda a organizar informações e sugerir caminhos; as decisões continuam com o jogador e o treinador.</p>
       </div>
-      <div class="pontos">
-        <p class="ponto">O perfil e os registros contextualizam as sugestões.</p>
-        <p class="ponto">A IA apoia o trabalho e não substitui o treinador.</p>
-        <p class="ponto">No Competição, o treinador aprova o planejamento.</p>
-        <p class="ponto">O atleta controla o compartilhamento de suas informações.</p>
-      </div>
+      <ul class="pontos">
+        <li>O perfil e os registros contextualizam as sugestões.</li>
+        <li>A IA apoia o trabalho e não substitui o treinador.</li>
+        <li>No Competição, o treinador aprova o planejamento.</li>
+        <li>O atleta controla o compartilhamento de suas informações.</li>
+      </ul>
     </div>
   </section>
 
   <section class="secao" id="duvidas" aria-labelledby="titulo-duvidas">
     <div class="miolo">
-      <div class="secao-cab">
-        <p class="sobretitulo">Dúvidas</p>
-        <h2 id="titulo-duvidas">Perguntas frequentes</h2>
-      </div>
+      <div class="secao-cab"><h2 id="titulo-duvidas">Perguntas frequentes</h2></div>
       <div class="perguntas">
         <details>
           <summary>Qual plataforma devo escolher?</summary>
@@ -292,7 +286,7 @@
         </details>
         <details>
           <summary>Player e Competição usam a mesma conta?</summary>
-          <div class="resp"><p>Sim. Os dois usam o mesmo e-mail e a mesma senha. O Treinador tem acesso próprio, que você usa pela opção “Já tenho conta”.</p></div>
+          <div class="resp"><p>Sim. Os dois usam o mesmo e-mail e a mesma senha. O Treinador tem acesso próprio, que você usa pela opção “Entrar”.</p></div>
         </details>
         <details>
           <summary>A IA substitui o treinador?</summary>
@@ -304,9 +298,7 @@
         </details>
         <details>
           <summary>Existe atendimento com Richard Tsukada?</summary>
-          <div class="resp">
-            <p>Sim. Há consultorias e o Acompanhamento MTY, que são opcionais e contratados à parte. Veja as ofertas e as condições atuais nas páginas do <a href="/player/">Player</a> e do <a href="/competicao/">Competição</a>.</p>
-          </div>
+          <div class="resp"><p>Sim. Há consultorias e o Acompanhamento MTY, que são opcionais e contratados à parte. Veja as ofertas e as condições atuais nas páginas do <a href="/player/">Player</a> e do <a href="/competicao/">Competição</a>.</p></div>
         </details>
         <details>
           <summary>O Hub é uma assinatura?</summary>
@@ -332,7 +324,7 @@
 <footer class="rodape">
   <div class="miolo rodape-grade">
     <div>
-      <img src="/hub/img/logo-hub-360.webp" srcset="/hub/img/logo-hub-360.webp 360w, /hub/img/logo-hub-720.webp 720w" sizes="200px" width="360" height="115" alt="QuadraLab Hub" loading="lazy">
+      <img src="/hub/img/logo-hub-360.webp" srcset="/hub/img/logo-hub-360.webp 360w, /hub/img/logo-hub-720.webp 720w" sizes="150px" width="360" height="115" alt="QuadraLab Hub" loading="lazy">
       <p class="ass">Seu tênis conectado.</p>
       <p class="peq">Richard Tsukada • Metodologia MTY</p>
       <p class="peq">quadralab.com.br</p>

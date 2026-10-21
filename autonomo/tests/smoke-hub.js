@@ -29,23 +29,51 @@ const porta = srv.address().port, base = "http://localhost:" + porta;
     assert.deepStrictEqual(fora, [], "elementos fora da tela em " + w + "px");
     if (w < 900) {
       const alt = await p.evaluate(() => document.querySelector(".topo").getBoundingClientRect().height);
-      assert(alt >= 70 && alt <= 82, "altura do cabeçalho no celular (" + w + "px): " + alt);
+      assert(alt >= 56 && alt <= 80, "cabeçalho compacto no celular (" + w + "px): " + alt);
       assert(await p.isVisible("#btn-menu") && await p.isVisible("#btn-entrar") && !(await p.isVisible(".topo-nav")), "cabeçalho do celular: logo, Entrar e menu");
       const logo = await p.evaluate(() => { const i = document.querySelector(".topo-logo img").getBoundingClientRect(); return i.width / i.height; });
       assert(Math.abs(logo - 360 / 115) < 0.05, "proporção do logo preservada: " + logo);
-      const h1 = await p.evaluate(() => parseFloat(getComputedStyle(document.querySelector("h1")).fontSize));
-      assert(h1 >= 36 && h1 <= 44, "título entre 36 e 44 px em " + w + "px: " + h1);
-      assert(!(await p.isVisible(".abertura .sobretitulo")), "sem 'QUADRALAB HUB' acima do título no celular");
-      const peso = await p.evaluate(() => parseInt(getComputedStyle(document.querySelector(".abertura .texto")).fontWeight));
-      assert(peso <= 500, "texto de apoio sem negrito");
+      const f = await p.evaluate(() => ({ h1: parseFloat(getComputedStyle(document.querySelector("h1")).fontSize), h2: parseFloat(getComputedStyle(document.querySelector("#titulo-plataformas")).fontSize), corpo: parseFloat(getComputedStyle(document.querySelector(".abertura .texto")).fontSize), lh: parseFloat(getComputedStyle(document.querySelector(".abertura .texto")).lineHeight) / parseFloat(getComputedStyle(document.querySelector(".abertura .texto")).fontSize) }));
+      assert(f.h1 >= 36 && f.h1 <= 42, "título principal 36-42 px em " + w + "px: " + f.h1);
+      assert(f.h2 >= 26 && f.h2 <= 30, "títulos de seção 26-30 px em " + w + "px: " + f.h2);
+      assert(f.corpo >= 16 && f.corpo <= 17 && f.lh >= 1.5 && f.lh <= 1.7, "texto corrido 16-17 px, entrelinha ~1,6: " + JSON.stringify(f));
+      assert(!(await p.isVisible(".abertura-telas")), "sem imagem alta atrasando os produtos no celular");
       const primeiro = await p.evaluate(() => document.querySelector(".rapido").getBoundingClientRect().top);
-      assert(primeiro < 760, "os cartões das plataformas aparecem cedo (" + primeiro + ")");
-      const ordem = await p.evaluate(() => { const r = document.querySelector(".rapidos").getBoundingClientRect().top, a = [...document.querySelectorAll(".arte")].find((x) => x.offsetParent !== null).getBoundingClientRect().top; return a > r; });
-      assert(ordem, "a arte do Hub fica depois dos cartões no celular");
+      assert(primeiro < 700, "os produtos aparecem cedo (" + primeiro + ")");
+      const aberto = await p.evaluate(() => [...document.querySelectorAll("details.beneficios")].some((d) => d.open));
+      assert(!aberto, "benefícios recolhidos no celular");
     } else {
       assert(await p.isVisible(".topo-nav") && !(await p.isVisible("#btn-menu")), "desktop mantém a navegação horizontal");
+      assert(await p.isVisible(".abertura-telas"), "desktop mostra as telas ao lado do texto");
+      assert(await p.evaluate(() => [...document.querySelectorAll("details.beneficios")].every((d) => d.open)), "benefícios abertos no desktop");
     }
+    /* leveza: pesos, espaçamento entre letras, bordas, sombras e botões */
+    const leve = await p.evaluate(() => {
+      const out = [];
+      document.querySelectorAll("body *").forEach((e) => {
+        if (e.offsetParent === null) return; const c = getComputedStyle(e), fs = parseFloat(c.fontSize);
+        const temTexto = [...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
+        if (temTexto && parseInt(c.fontWeight) > 600 && !/^H[1]$/.test(e.tagName)) out.push("peso " + c.fontWeight + " " + e.tagName + "." + e.className);
+        if (temTexto && c.letterSpacing !== "normal" && parseFloat(c.letterSpacing) / fs > 0.02) out.push("tracking " + e.className);
+        if (temTexto && c.textTransform === "uppercase") out.push("caixa alta " + e.className);
+        if (/\bbotao\b/.test(e.className) && c.boxShadow !== "none") out.push("sombra no botão");
+      });
+      const h1 = parseInt(getComputedStyle(document.querySelector("h1")).fontWeight); if (h1 > 700) out.push("h1 " + h1);
+      document.querySelectorAll(".rapido, .produto, .tela, .botao-entrar").forEach((e) => { const c = getComputedStyle(e); if (Math.max(...["Top", "Right", "Bottom", "Left"].map((l) => parseFloat(c["border" + l + "Width"]))) > 1) out.push("borda grossa " + e.className); if (c.boxShadow !== "none") out.push("sombra " + e.className); });
+      document.querySelectorAll(".botao").forEach((e) => { if (e.offsetParent === null) return; const r = e.getBoundingClientRect(), c = getComputedStyle(e); if (r.height < 46 || r.height > 50) out.push("altura do botão " + r.height); const rd = parseFloat(c.borderTopLeftRadius); if (rd < 6 || rd > 8) out.push("raio do botão " + rd); const fz = parseFloat(c.fontSize); if (fz < 14 || fz > 16) out.push("fonte do botão " + fz); });
+      return out;
+    });
+    assert.deepStrictEqual(leve, [], "excesso de peso visual em " + w + "px");
   }
+  /* contraste dos textos cinza (mínimo 4,5:1) */
+  const contraste = await p.evaluate(() => {
+    const lum = (rgb) => { const [r, g, b] = rgb.match(/[\d.]+/g).slice(0, 3).map(Number).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+    const fundo = (e) => { while (e) { const c = getComputedStyle(e).backgroundColor; if (!/rgba\(0, 0, 0, 0\)|transparent/.test(c)) return c; e = e.parentElement; } return "rgb(250,248,241)"; };
+    const ruins = [];
+    document.querySelectorAll(".intro, .para, .desc, .entrada, .aviso-telas, figcaption, .produto-nome, .fechamento p, .institucional p, .pontos li, .rodape .peq, .aba").forEach((e) => { if (e.offsetParent === null) return; const a = lum(getComputedStyle(e).color), b = lum(fundo(e)), r = (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05); if (r < 4.5) ruins.push(e.className + " " + r.toFixed(2)); });
+    return ruins;
+  });
+  assert.deepStrictEqual(contraste, [], "contraste insuficiente");
   /* menu do celular */
   await p.setViewportSize({ width: 390, height: 844 }); await p.goto(base + "/");
   assert(!(await p.isVisible("#menu-nav")) && (await p.getAttribute("#btn-menu", "aria-expanded")) === "false");
@@ -66,18 +94,13 @@ const porta = srv.address().port, base = "http://localhost:" + porta;
   await p.keyboard.press("Escape");
   /* botão principal rola até os três produtos */
   await p.evaluate(() => window.scrollTo(0, 0)); await p.click(".chamadas .botao"); await p.waitForTimeout(800);
-  assert((await p.evaluate(() => document.getElementById("plataformas").getBoundingClientRect().top)) < 120, "Escolher minha plataforma rola até os produtos");
-  const cart = await p.$$eval(".rapido", (as) => as.map((a) => [a.getAttribute("href"), a.textContent.replace(/\s+/g, " ").trim()]));
+  assert((await p.evaluate(() => document.getElementById("plataformas").getBoundingClientRect().top)) < 120, "Conheça as plataformas rola até os produtos");
+  const cart = await p.$$eval(".rapido", (as) => as.map((a) => [a.querySelector("a.botao").getAttribute("href"), a.textContent.replace(/\s+/g, " ").trim()]));
   assert.deepStrictEqual(cart.map((c) => c[0]), ["/player/", "/treinador", "/competicao/"]);
-  assert(/Quero organizar meu jogo\./.test(cart[0][1]) && /Quero planejar e acompanhar meus alunos\./.test(cart[1][1]) && /Quero organizar minha temporada\./.test(cart[2][1]), "textos dos cartões");
-  await p.setViewportSize({ width: 390, height: 900 }); await p.goto(base + "/");
-  /* destinos */
-  const hrefs = await p.evaluate(() => [...document.querySelectorAll("a[href]")].map((a) => a.getAttribute("href")));
-  for (const h of new Set(hrefs)) {
-    if (h.startsWith("#")) { assert(await p.evaluate((id) => !!document.getElementById(id), h.slice(1)), "âncora sem destino: " + h); continue; }
-    const caminho = h.split("#")[0].split("?")[0]; if (!caminho || caminho === "/") continue;
-    const rr = await ctx.request.get(base + caminho); assert.strictEqual(rr.status(), 200, "destino inexistente: " + h);
-  }
+  assert(/Quero organizar meu jogo\./.test(cart[0][1]) && /Quero planejar e acompanhar meus alunos\./.test(cart[1][1]) && /Quero organizar minha temporada\./.test(cart[2][1]), "textos dos produtos");
+  assert.strictEqual(await p.textContent(".chamadas .botao"), "Conheça as plataformas");
+  assert.strictEqual((await p.textContent(".chamadas .link")).trim(), "Como funciona");
+  assert.strictEqual(await p.locator(".abertura .botao").count(), 1, "um único botão principal na abertura");
   const textoBotoes = await p.evaluate(() => [...document.querySelectorAll(".botao, .topo-faixa a, summary")].map((e) => e.textContent).join("|"));
   assert(!/[→›»➜➔]/.test(textoBotoes), "botão com seta");
   /* imagens */

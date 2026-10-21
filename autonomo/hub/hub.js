@@ -79,6 +79,15 @@
     botao.addEventListener("click", function () { if (!menu.hidden) fecharNav(false); });
   }
 
+  /* benefícios: abertos no computador, recolhidos no celular (a página não fica longa demais) */
+  var beneficios = Array.prototype.slice.call(document.querySelectorAll("details.beneficios"));
+  if (window.matchMedia) {
+    var larga = window.matchMedia("(min-width: 900px)");
+    var ajustar = function () { beneficios.forEach(function (d) { d.open = larga.matches; }); };
+    ajustar();
+    if (larga.addEventListener) larga.addEventListener("change", ajustar); else if (larga.addListener) larga.addListener(ajustar);
+  }
+
   /* abas de "Como funciona" */
   var abas = Array.prototype.slice.call(document.querySelectorAll('[role="tab"]'));
   function ativar(aba, foco) {
