@@ -12451,6 +12451,8 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
   const podeEditar = eTurma ? podeEditarTurma(turma, papelAtual, uidAtual) : podeEditarAluno(aluno, papelAtual, uidAtual);
   /* Marcar a aula como feita, anotar observação, data e dor vale para qualquer professor logado (substituição); editar o plano em si segue só com o titular. */
   const podeRegistrarAulaPlano = podeEditar || papelAtual === "coordenador" || !!uidAtual;
+  /* Qualquer professor logado da academia pode gerar, colar e aprovar o plano (substituição de última hora). Substituir um plano que já existe, refazer, ficha e prioridades seguem só com o titular ou o coordenador. */
+  const podeGerarPlano = podeRegistrarAulaPlano;
   const exigeLogin = typeof window !== "undefined" && !!window.mtyAuth;
   const [texto, setTexto] = useState("");
   const [erro, setErro] = useState("");
@@ -13016,8 +13018,11 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
         <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Plano</h1>
         <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginBottom: 4 }}>{entidade.nome || (eTurma ? "Turma sem nome" : "Jogador sem nome")}</p>
         <div className="mb-4"><Etiqueta cor={C.grafite}>Sem planejamento</Etiqueta></div>
-        {!podeEditar && (
-          <Aviso>{eTurma ? "Esta turma" : "Este jogador"} é de outro treinador — a montagem do plano fica travada. Só o professor responsável ou o coordenador podem gerar ou colar um plano.</Aviso>
+        {!podeEditar && !podeGerarPlano && (
+          <Aviso>{eTurma ? "Esta turma" : "Este jogador"} é de outro treinador — entre com a sua conta de professor para gerar o plano.</Aviso>
+        )}
+        {!podeEditar && podeGerarPlano && (
+          <Aviso cor={C.quadra}>{eTurma ? "Esta turma" : "Este jogador"} é do professor {entidade.professorNome || "titular"}. Você pode gerar, colar e aprovar o plano no lugar dele; o nome de quem aprovou fica registrado.</Aviso>
         )}
         {/* O status de uma geração em segundo plano fica aqui, acima da escolha de modo —
             modoCriacao reseta pra null a cada vez que esta tela monta (ver useState acima),
@@ -13161,9 +13166,9 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                     return (
                       <div key={p.id} style={{ borderRadius: 10, border: "1px solid " + (selecionado ? C.quadra : C.linha),
                         background: selecionado ? C.cal : "#fff", overflow: "hidden" }}>
-                        <button type="button" disabled={!podeEditar}
+                        <button type="button" disabled={!podeGerarPlano}
                           onClick={() => setProgramaEscolhido(selecionado ? null : p.id)}
-                          className="w-full" style={{ textAlign: "left", padding: "10px 12px", cursor: podeEditar ? "pointer" : "default", background: "none", border: "none" }}>
+                          className="w-full" style={{ textAlign: "left", padding: "10px 12px", cursor: podeGerarPlano ? "pointer" : "default", background: "none", border: "none" }}>
                           <div className="flex items-start justify-between gap-2">
                             <p style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700, color: C.tinta }}>{p.nome}</p>
                             {selecionado && (
@@ -13241,13 +13246,13 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
               {erroPrograma && <Aviso>{erroPrograma}</Aviso>}
               {programaAtual.aberto ? (
                 <>
-                  <Botao variante="saibro" disabled={!podeEditar || !padraoObservado.trim() || gerando} onClick={gerarJogadaComIA}>
+                  <Botao variante="saibro" disabled={!podeGerarPlano || !padraoObservado.trim() || gerando} onClick={gerarJogadaComIA}>
                     {gerando ? "Criando os exercícios da jogada…" : "Gerar exercícios com IA"}
                   </Botao>
                   {gerando && <BarraProgresso segundos={segundosIA} etapa={etapaIA} estimativa={30} aoCancelar={pararDeEsperar} />}
                 </>
               ) : (
-                <Botao variante="saibro" disabled={!podeEditar} onClick={gerarDoPrograma}>Revisar programa</Botao>
+                <Botao variante="saibro" disabled={!podeGerarPlano} onClick={gerarDoPrograma}>Revisar programa</Botao>
               )}
             </div>
           )}
@@ -13299,7 +13304,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
           {erro && <Aviso>{erro}</Aviso>}
           <div className="flex gap-2 flex-wrap items-center">
             <Botao onClick={gerarComIA} variante="saibro"
-              disabled={gerando || !podeEditar || (entidade.geracaoPlano && entidade.geracaoPlano.status === "gerando")}>
+              disabled={gerando || !podeGerarPlano || (entidade.geracaoPlano && entidade.geracaoPlano.status === "gerando")}>
               {gerando ? "Enviando o pedido…"
                 : (entidade.geracaoPlano && entidade.geracaoPlano.status === "gerando") ? "Gerando em segundo plano…"
                 : "Gerar planejamento"}
@@ -13314,7 +13319,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                 value={texto} onChange={(e) => setTexto(e.target.value)} />
             </Campo>
             {erro && <Aviso>{erro}</Aviso>}
-            <Botao onClick={importar} variante="saibro" disabled={!podeEditar}>Importar</Botao>
+            <Botao onClick={importar} variante="saibro" disabled={!podeGerarPlano}>Importar</Botao>
           </Secao>
         )}
 
@@ -13533,7 +13538,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
             {revisaoAtual === "aguardando_revisao" ? (
               <Botao pequeno variante="saibro" onClick={refazerPlanejamento}>Revisar planejamento com a ficha atual</Botao>
             ) : (
-              <Botao pequeno variante="saibro" disabled={!podeEditar || aprovando} onClick={aprovarPlano}>
+              <Botao pequeno variante="saibro" disabled={!podeGerarPlano || aprovando} onClick={aprovarPlano}>
                 {aprovando ? "Aprovando…" : "Revisar e aprovar"}
               </Botao>
             )}
