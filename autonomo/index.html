@@ -8868,20 +8868,34 @@ function registroPartidaAuto(id, cfg, pontos, placar, mental, anterior) {
   };
 }
 const reabrivel = (r) => r.tipo === "jogo" && r.scout && (r.scout.pontos || []).length > 0; /* jogos vindos do Competição não têm os pontos e não reabrem */
+/* Rascunho de partida que já foi salvo de verdade no caderno (mesmos pontos, registro que não é a cópia automática): não é mais "partida em andamento". */
+function rascunhoRedundante(a) {
+  const r = a && a.scoutRascunho, n = r && (r.pontos || []).length;
+  if (!n) return false;
+  return (a.registros || []).some((g) => g.tipo === "jogo" && !g.parcialAuto && g.scout && (g.scout.pontos || []).length >= n
+    && JSON.stringify(g.scout.pontos[0]) === JSON.stringify(r.pontos[0]) && JSON.stringify(g.scout.pontos[n - 1]) === JSON.stringify(r.pontos[n - 1]));
+}
+const semRascunhoScout = (a) => { const { scoutRascunho, ...resto } = a; return resto; };
 /* Início: partidas que ficaram pela metade (rascunho na nuvem), para continuar de onde pararam. */
-function CartaoPartidasEmAndamento({ alunos, aoAbrirScout }) {
-  const lista = (alunos || []).filter((a) => a.nome && a.scoutRascunho && (a.scoutRascunho.pontos || []).length);
+function CartaoPartidasEmAndamento({ alunos, aoAbrirScout, aoDescartar }) {
+  const lista = (alunos || []).filter((a) => a.nome && a.scoutRascunho && (a.scoutRascunho.pontos || []).length && !rascunhoRedundante(a));
   if (!lista.length || !aoAbrirScout) return null;
   return (
     <div className="mb-5" style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "12px 14px" }}>
       <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{lista.length === 1 ? "Partida em andamento" : "Partidas em andamento"}</p>
       <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, margin: "2px 0 8px" }}>Partidas que não foram concluídas. Toque para continuar de onde parou.</p>
       {lista.map((a) => (
-        <button key={a.id} onClick={() => aoAbrirScout(a.id)} className="w-full text-left"
+        <div key={a.id}>
+        <button onClick={() => aoAbrirScout(a.id)} className="w-full text-left"
           style={{ display: "block", background: C.papel, border: "1px solid " + C.linha, borderRadius: 10, padding: "9px 12px", marginBottom: 6, cursor: "pointer", minHeight: 44 }}>
           <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{a.nome}</span>
           <span style={{ ...prosa, fontSize: 12, color: C.grafite, display: "block" }}>{textoPlacarRascunho(a.scoutRascunho)} · {a.scoutRascunho.pontos.length} pontos · salva {dataHoraCurta(a.scoutRascunho.salvoEm)}</span>
         </button>
+        {aoDescartar && (
+          <button type="button" onClick={() => { if (window.confirm("Descartar esta partida em andamento de " + a.nome + "? Se ela já foi salva no caderno, o jogo salvo continua lá.")) aoDescartar(a.id); }}
+            style={{ ...prosa, fontSize: 12, color: C.grafite, textDecoration: "underline", background: "none", border: "none", cursor: "pointer", padding: "0 0 8px 2px", marginTop: -2 }}>Descartar esta partida em andamento</button>
+        )}
+        </div>
       ))}
     </div>
   );
@@ -16361,7 +16375,7 @@ function CardPrimeirosPassos({ passo1Ok, passo2Ok, passo3Ok, aoPasso1, aoPasso2,
   );
 }
 
-function TelaDashboard({ aoAbrirScout, alunos, turmas, uidAtual, exigeLogin, irPara, aoAbrirSessao, usoIA, identidade, meuNome,
+function TelaDashboard({ aoAbrirScout, aoDescartarPartida, alunos, turmas, uidAtual, exigeLogin, irPara, aoAbrirSessao, usoIA, identidade, meuNome,
   aoCriarPlanejamento, aoAbrirTurmas, aoAbrirAgenda, aoAdicionarJogador, aoEditarDados,
   onboardingDispensado, setOnboardingDispensado }) {
   const [escolhendoPlanejamento, setEscolhendoPlanejamento] = useState(false);
@@ -16414,7 +16428,7 @@ function TelaDashboard({ aoAbrirScout, alunos, turmas, uidAtual, exigeLogin, irP
   return (
     <div>
       <h1 style={{ fontFamily: ARCH, fontSize: 26, fontWeight: 700, marginBottom: 4 }}>{saudacao}</h1>
-      <CartaoPartidasEmAndamento alunos={alunos} aoAbrirScout={aoAbrirScout} />
+      <CartaoPartidasEmAndamento alunos={alunos} aoAbrirScout={aoAbrirScout} aoDescartar={aoDescartarPartida} />
       <CartaoRevisoesPlano alunos={alunos} turmas={turmas} irPara={irPara} irParaTurma={() => aoAbrirTurmas()} />
       <CartaoVinculoAcademia />
       <p style={{ ...prosa, fontSize: 15, color: C.grafite, marginBottom: onboardingDispensado && !onboardingCompleto ? 4 : 18 }}>
@@ -17516,6 +17530,12 @@ function App() {
     }
   }, [alunos, carregando, autenticado, rascunhosNaoConfirmados]);
   useEffect(() => { if (autenticado && !carregandoTurmas && prontoRef.current.turmas) grave("mty:turmas:v1", turmas, true); }, [turmas, carregandoTurmas, autenticado]);
+  /* partida que já foi salva no caderno não fica como "em andamento" (sobra de versões antigas ou de outro aparelho) */
+  useEffect(() => {
+    if (carregando) return;
+    alunos.filter(rascunhoRedundante).forEach((a) => { try { localStorage.removeItem(ChaveRascunho(a.id)); } catch { /* sem armazenamento */ } });
+    setAlunos((prev) => (prev.some(rascunhoRedundante) ? prev.map((a) => (rascunhoRedundante(a) ? semRascunhoScout(a) : a)) : prev));
+  }, [alunos, carregando]);
   // sincronizado durante o render (não num useEffect): TelaCatalogo e as
   // funções de geração leem TODOS_EXERCICIOS() no mesmo render em que
   // exerciciosCustom muda — um efeito rodaria tarde demais pra isso e o
@@ -17875,7 +17895,7 @@ function App() {
            aoAbrirPlano={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }}
            aoAbrirSessao={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("sessao"); }}
            aoAbrirTurmas={() => setAba("turmas")} /> :
-         aba === "dashboard" ? <TelaDashboard aoAbrirScout={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("scout"); }} alunos={alunos} turmas={turmas} uidAtual={uidAtual} exigeLogin={exigeLogin} usoIA={usoIA} identidade={identidade} meuNome={meuNome}
+         aba === "dashboard" ? <TelaDashboard aoAbrirScout={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("scout"); }} aoDescartarPartida={(id) => { try { localStorage.removeItem(ChaveRascunho(id)); } catch { /* sem armazenamento */ } setAlunos((l) => l.map((a) => (a.id === id ? semRascunhoScout(a) : a))); }} alunos={alunos} turmas={turmas} uidAtual={uidAtual} exigeLogin={exigeLogin} usoIA={usoIA} identidade={identidade} meuNome={meuNome}
            irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }}
            aoAbrirSessao={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("sessao"); }}
            aoCriarPlanejamento={() => setAba("alunos")} aoAbrirTurmas={() => setAba("turmas")} aoAbrirAgenda={() => setAba("agenda")}
