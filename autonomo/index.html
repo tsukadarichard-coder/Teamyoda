@@ -14415,13 +14415,49 @@ function CartaoLogin({ aoEntrar }) {
    não há fotografia de tênis licenciada disponível no projeto (ver
    relatório de implementação). Puramente decorativo (aria-hidden),
    nunca compete com o texto por estar em opacidade baixa e atrás dele. */
-function MotivoQuadra({ opacidade = 0.14 }) {
+/* Com animar: as linhas da quadra se desenham quando o motivo entra na
+   tela e a bola percorre o arco pontilhado uma vez (SMIL, disparado por
+   IntersectionObserver). Quem pede "reduzir movimento" vê o desenho
+   pronto, parado. */
+const ARCO_MOTIVO = "M60 300C110 230 170 150 260 80";
+function MotivoQuadra({ opacidade = 0.14, animar = false }) {
+  const svgRef = useRef(null);
+  const movRef = useRef(null);
+  const aparecerRef = useRef(null);
+  const [ativo] = useState(() => animar && typeof window !== "undefined" && "IntersectionObserver" in window
+    && !(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches));
+  useEffect(() => {
+    if (!ativo || !svgRef.current) return undefined;
+    const svg = svgRef.current;
+    const io = new IntersectionObserver((ents) => {
+      if (!ents.some((e) => e.isIntersecting)) return;
+      io.disconnect();
+      svg.classList.add("qlab-motivo-desenha");
+      if (aparecerRef.current && aparecerRef.current.beginElement) aparecerRef.current.beginElement();
+      if (movRef.current && movRef.current.beginElement) movRef.current.beginElement();
+    }, { threshold: 0.2 });
+    io.observe(svg);
+    return () => io.disconnect();
+  }, [ativo]);
+  const linhas = ["M48 20H312A28 28 0 0 1 340 48V312A28 28 0 0 1 312 340H48A28 28 0 0 1 20 312V48A28 28 0 0 1 48 20Z",
+    "M180 20v320", "M20 180h320", "M20 100h320", "M20 260h320"];
+  const tom = Math.min(opacidade * 3, 0.55);
   return (
-    <svg className="qlab-motivo" viewBox="0 0 360 360" fill="none" aria-hidden="true" focusable="false">
-      <rect x="20" y="20" width="320" height="320" rx="28" stroke="#fff" strokeOpacity={opacidade} strokeWidth="3" />
-      <path d="M180 20v320M20 180h320M20 100h320M20 260h320" stroke="#fff" strokeOpacity={opacidade} strokeWidth="2" />
-      <path d="M60 300C110 230 170 150 260 80" stroke={C.saibro} strokeOpacity={Math.min(opacidade * 3, 0.55)} strokeWidth="3" strokeDasharray="2 10" strokeLinecap="round" />
-      <circle cx="270" cy="72" r="16" fill={C.saibro} fillOpacity={Math.min(opacidade * 3, 0.5)} />
+    <svg ref={svgRef} className={"qlab-motivo" + (ativo ? " qlab-motivo-anima" : "")} viewBox="0 0 360 360" fill="none" aria-hidden="true" focusable="false">
+      {linhas.map((d, i) => (
+        <path key={i} d={d} pathLength="1" className="qlab-motivo-linha" style={{ "--atraso": i * 90 + "ms" }}
+          stroke="#fff" strokeOpacity={opacidade} strokeWidth={i === 0 ? 3 : 2} />
+      ))}
+      <path d={ARCO_MOTIVO} className="qlab-motivo-arco" stroke={C.saibro} strokeOpacity={tom} strokeWidth="3" strokeDasharray="2 10" strokeLinecap="round" />
+      {ativo ? (
+        <circle r="16" cx="0" cy="0" fill={C.saibro} fillOpacity="0">
+          <animateMotion ref={movRef} begin="indefinite" dur="1.5s" fill="freeze" path={ARCO_MOTIVO}
+            calcMode="spline" keyPoints="0;1" keyTimes="0;1" keySplines="0.3 0 0.2 1" />
+          <set ref={aparecerRef} attributeName="fill-opacity" to={Math.min(opacidade * 3, 0.5)} begin="indefinite" fill="freeze" />
+        </circle>
+      ) : (
+        <circle cx="270" cy="72" r="16" fill={C.saibro} fillOpacity={Math.min(opacidade * 3, 0.5)} />
+      )}
     </svg>
   );
 }
@@ -14478,7 +14514,7 @@ const ETAPAS_DEMONSTRACAO = [
   { numero: "03", titulo: "Entre em quadra com a sessão preparada.",
     texto: "Consulte a sequência de exercícios e ajuste a aula conforme sua necessidade.",
     img: "assets/demo-sessao-compacta.png", razao: 860 / 620,
-    imgAmpliada: "assets/demo-sessao-exercicios.png",
+    imgAmpliada: "assets/demo-sessao-exercicios.png", rolar: { img: "assets/demo-sessao-exercicios.png", razao: 860 / 1992 },
     alt: "Primeiro exercício da sessão de hoje de Beatriz Lima, com descrição, duração estimada e série — a tela completa mostra mais dois exercícios em sequência.",
     destaque: "A sequência da aula, à mão." },
   { numero: "04", titulo: "A aula termina. O acompanhamento continua.",
@@ -14552,10 +14588,11 @@ function guardarPlanoEscolhido(plano) {
   try { sessionStorage.setItem(CHAVE_PLANO_ESCOLHIDO, plano); } catch (e) {}
 }
 
-function CardPlanoPublico({ plano, aoEscolher, aoEntrar }) {
+function CardPlanoPublico({ plano, ordem = 0, aoEscolher, aoEntrar }) {
   const destacar = plano.id === "essencial";
   return (
-    <div className="qlab-plano-cartao" style={destacar ? { borderColor: C.saibro, borderWidth: 2 } : undefined}>
+    <div className={"qlab-plano-cartao qlab-anim" + (destacar ? " qlab-plano-destaque" : "")}
+      style={{ "--atraso": ordem * 120 + "ms", ...(destacar ? { borderColor: C.saibro, borderWidth: 2 } : {}) }}>
       <p className="qlab-plano-nome">{plano.nome}</p>
       <p className="qlab-plano-preco">{plano.preco}<span>{plano.periodo}</span></p>
       <p className="qlab-plano-beneficio">{plano.beneficio}</p>
@@ -14583,13 +14620,13 @@ function SecaoPlanos({ irParaCadastro, abrirLogin }) {
   }
   return (
     <section className="qlab-secao" id="qlab-planos">
-      <div className="qlab-secao-cabecalho">
+      <div className="qlab-secao-cabecalho qlab-anim">
         <h2>Escolha o plano para sua rotina de treinador</h2>
         <p className="qlab-secao-sub">Comece gratuitamente com até 5 alunos e amplie conforme sua necessidade.</p>
       </div>
       <div className="qlab-planos-grade">
-        {PLANOS_PUBLICOS.map((p) => (
-          <CardPlanoPublico key={p.id} plano={p} aoEscolher={escolher} aoEntrar={entrarComPlano} />
+        {PLANOS_PUBLICOS.map((p, i) => (
+          <CardPlanoPublico key={p.id} plano={p} ordem={i} aoEscolher={escolher} aoEntrar={entrarComPlano} />
         ))}
       </div>
       <div className="qlab-planos-inclusos">
@@ -14619,6 +14656,62 @@ function FaqItem({ pergunta, resposta }) {
       </summary>
       <p style={{ ...prosa, fontSize: 14, color: C.grafite, margin: "10px 0 0" }}>{resposta}</p>
     </details>
+  );
+}
+
+/* Vídeo de 30 s da família QuadraLab (Treinador, Player, Competição),
+   vertical, sem som por padrão. Só baixa e toca quando aparece na tela
+   (preload="none" + IntersectionObserver) e pausa ao sair dela. Quem pede
+   "reduzir movimento" não tem reprodução automática: vê a capa e os
+   controles do navegador. */
+function VideoFamilia() {
+  const videoRef = useRef(null);
+  const [comSom, setComSom] = useState(false);
+  const [pausadoPeloUsuario, setPausadoPeloUsuario] = useState(false);
+  const pausadoRef = useRef(false);
+  const [reduzir] = useState(() => typeof window !== "undefined" && !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches));
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v || reduzir || !("IntersectionObserver" in window)) return undefined;
+    v.muted = true;
+    const io = new IntersectionObserver((ents) => {
+      ents.forEach((e) => {
+        if (e.isIntersecting && e.intersectionRatio >= 0.35) { if (!pausadoRef.current) v.play().catch(() => {}); }
+        else v.pause();
+      });
+    }, { threshold: [0, 0.35, 0.7] });
+    io.observe(v);
+    return () => io.disconnect();
+  }, [reduzir]);
+  function alternarSom() {
+    const v = videoRef.current; if (!v) return;
+    v.muted = !v.muted; setComSom(!v.muted);
+    if (v.paused) { pausadoRef.current = false; setPausadoPeloUsuario(false); v.play().catch(() => {}); }
+  }
+  function alternarPausa() {
+    const v = videoRef.current; if (!v || reduzir) return;
+    if (v.paused) { pausadoRef.current = false; setPausadoPeloUsuario(false); v.play().catch(() => {}); }
+    else { pausadoRef.current = true; setPausadoPeloUsuario(true); v.pause(); }
+  }
+  return (
+    <div className="qlab-video-moldura">
+      <video ref={videoRef} className="qlab-video" poster="assets/video/familia-quadralab-capa.jpg"
+        preload="none" loop playsInline muted={!comSom} controls={reduzir} onClick={alternarPausa} width="540" height="960"
+        aria-label="Vídeo de 30 segundos da família QuadraLab: celulares mostram telas reais do Treinador, do Player e do Competição.">
+        <source src="assets/video/familia-quadralab-30s.mp4" type='video/mp4; codecs="avc1.64001F, mp4a.40.2"' />
+        <source src="assets/video/familia-quadralab-30s.webm" type='video/webm; codecs="vp9, opus"' />
+      </video>
+      {!reduzir && (
+        <div className="qlab-video-acoes">
+          <button type="button" className="qlab-video-botao" onClick={alternarSom} aria-pressed={comSom}>
+            {comSom ? "Silenciar" : "Ativar som"}
+          </button>
+          {pausadoPeloUsuario && (
+            <button type="button" className="qlab-video-botao" onClick={alternarPausa}>Continuar</button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -14671,7 +14764,44 @@ function LightboxCaptura({ captura, aoFechar }) {
    acesso rápido a quem já tem conta (cartão de login real, embutido no
    hero) e cadastro para quem ainda não tem (cadastro-individual.html).
    Só aparece pra quem não está autenticado — ver App(), mais abaixo. */
+/* Título do hero quebrado em palavras: cada uma sobe por trás de uma
+   máscara, em sequência (--i), só na primeira pintura. */
+function PalavrasHero({ texto, inicio = 0 }) {
+  const ps = texto.split(" ");
+  return ps.map((p, i) => (
+    <React.Fragment key={i}>
+      <span className="qlab-palavra-mascara"><span className="qlab-palavra" style={{ "--i": inicio + i }}>{p}</span></span>{i < ps.length - 1 ? " " : ""}
+    </React.Fragment>
+  ));
+}
+
 function TelaVendas({ aoEntrar }) {
+  const raizRef = useRef(null);
+  const headerRef = useRef(null);
+  /* Revelação ao rolar: elementos com .qlab-anim entram quando aparecem
+     na tela (uma vez). A classe .qlab-js-anim só é posta aqui — sem JS,
+     sem IntersectionObserver ou com "reduzir movimento", tudo já aparece
+     pronto. O cabeçalho fica mais compacto depois do topo. */
+  useEffect(() => {
+    const raiz = raizRef.current;
+    if (!raiz) return undefined;
+    function aoRolar() {
+      if (headerRef.current) headerRef.current.classList.toggle("qlab-header-compacto", window.scrollY > 24);
+    }
+    window.addEventListener("scroll", aoRolar, { passive: true });
+    aoRolar();
+    const reduz = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduz || !("IntersectionObserver" in window)) return () => window.removeEventListener("scroll", aoRolar);
+    raiz.classList.add("qlab-js-anim");
+    const io = new IntersectionObserver((ents) => {
+      ents.forEach((e) => { if (e.isIntersecting) { e.target.classList.add("qlab-visivel"); io.unobserve(e.target); } });
+    }, { rootMargin: "0px 0px -8% 0px", threshold: 0.12 });
+    const observar = () => raiz.querySelectorAll(".qlab-anim:not(.qlab-visivel)").forEach((el) => io.observe(el));
+    observar();
+    const mo = new MutationObserver(observar);
+    mo.observe(raiz, { childList: true, subtree: true });
+    return () => { io.disconnect(); mo.disconnect(); window.removeEventListener("scroll", aoRolar); };
+  }, []);
   const [capturaAberta, setCapturaAberta] = useState(null);
   const [telaLoginAberta, setTelaLoginAberta] = useState(false);
   const [ehDesktop, setEhDesktop] = useState(() => typeof window !== "undefined" ? window.innerWidth >= 860 : true);
@@ -14717,7 +14847,7 @@ function TelaVendas({ aoEntrar }) {
   }, []);
 
   return (
-    <div className="qlab-vendas" style={{ background: C.papel }}>
+    <div ref={raizRef} className="qlab-vendas" style={{ background: C.papel }}>
       <style>{`
         .qlab-vendas * { box-sizing: border-box; }
         .qlab-vendas a { color: inherit; }
@@ -14800,9 +14930,6 @@ function TelaVendas({ aoEntrar }) {
         .qlab-captura-botao { display: block; width: 100%; height: 100%; border: none; padding: 0; background: #fff; cursor: zoom-in; }
         .qlab-captura-botao img { display: block; width: 100%; height: 100%; object-fit: contain; object-position: top center; }
 
-        .qlab-demo-previa { max-width: 420px; margin: 0 auto 44px; border-radius: 16px; overflow: hidden;
-          border: 1px solid ${C.linha}; box-shadow: ${SOMBRA}; background: #fff; }
-        .qlab-demo-previa img { display: block; width: 100%; height: auto; }
 
         .qlab-demo-etapas { display: flex; flex-direction: column; gap: 40px; max-width: 980px; margin: 0 auto; }
         .qlab-demo-etapa { display: flex; flex-direction: column; gap: 18px; }
@@ -14887,13 +15014,104 @@ function TelaVendas({ aoEntrar }) {
         .qlab-link-claro:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 
         .qlab-rodape { background: #0B1713; color: #AEBDB6; padding: 26px 20px; }
+
+        /* ── movimento ── só transform/opacidade; tudo desliga com "reduzir movimento" */
+        .qlab-header { transition: padding .25s ease, box-shadow .25s ease; }
+        .qlab-header-compacto { padding-top: 8px; padding-bottom: 8px; box-shadow: ${SOMBRA_ALTA}; }
+        .qlab-hero::before, .qlab-cta-final::before { content: ""; position: absolute; z-index: 0; pointer-events: none; width: 680px; height: 680px;
+          left: -220px; top: -260px; border-radius: 50%; background: radial-gradient(closest-side, rgba(105,179,42,.30), rgba(105,179,42,0));
+          animation: qlab-luz 16s ease-in-out infinite alternate; }
+        .qlab-cta-final::before { left: auto; right: -260px; top: -200px; animation-duration: 19s; }
+        @keyframes qlab-luz { from { transform: translate(0, 0) scale(1); } to { transform: translate(260px, 140px) scale(1.2); } }
+        .qlab-palavra-mascara { display: inline-block; overflow: hidden; vertical-align: top; padding: 0 .04em .1em; margin: 0 -.04em -.1em; }
+        .qlab-palavra { display: inline-block; animation: qlab-sobe .8s cubic-bezier(.16,1,.3,1) both; animation-delay: calc(120ms + var(--i) * 60ms); }
+        @keyframes qlab-sobe { from { transform: translateY(110%); } to { transform: none; } }
+        .qlab-hero h1 .qlab-destaque { background-image: linear-gradient(rgba(105,179,42,.6), rgba(105,179,42,.6)); background-repeat: no-repeat;
+          background-position: 0 94%; background-size: 0% 4px; -webkit-box-decoration-break: clone; box-decoration-break: clone;
+          animation: qlab-sublinha .8s cubic-bezier(.16,1,.3,1) 1s forwards; }
+        @keyframes qlab-sublinha { to { background-size: 100% 4px; } }
+        .qlab-entra { animation: qlab-entra .8s cubic-bezier(.16,1,.3,1) both; animation-delay: var(--atraso, 0ms); }
+        @keyframes qlab-entra { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+        .qlab-entra-lado { animation: qlab-entra-lado .9s cubic-bezier(.16,1,.3,1) .35s both; }
+        @keyframes qlab-entra-lado { from { opacity: 0; transform: translateX(40px) scale(.98); } to { opacity: 1; transform: none; } }
+
+        .qlab-motivo-anima .qlab-motivo-linha { stroke-dasharray: 1; stroke-dashoffset: 1; }
+        .qlab-motivo-anima .qlab-motivo-arco { opacity: 0; }
+        .qlab-motivo-desenha .qlab-motivo-linha { animation: qlab-desenha 1.2s cubic-bezier(.65,0,.35,1) forwards; animation-delay: var(--atraso, 0ms); }
+        .qlab-motivo-desenha .qlab-motivo-arco { animation: qlab-aparece .6s ease .5s forwards; }
+        @keyframes qlab-desenha { to { stroke-dashoffset: 0; } }
+        @keyframes qlab-aparece { to { opacity: 1; } }
+
+        .qlab-js-anim .qlab-anim { opacity: 0; transform: translateY(28px);
+          transition: opacity .7s cubic-bezier(.16,1,.3,1), transform .9s cubic-bezier(.16,1,.3,1); transition-delay: var(--atraso, 0ms); }
+        .qlab-js-anim .qlab-anim-esq { transform: translateX(-40px); }
+        .qlab-js-anim .qlab-anim-dir { transform: translateX(40px); }
+        .qlab-js-anim .qlab-anim-3d { transform: perspective(1000px) rotateX(12deg) translateY(48px) scale(.96); transform-origin: 50% 100%; }
+        .qlab-js-anim .qlab-anim.qlab-visivel { opacity: 1; transform: none; }
+
+        .qlab-demo-etapa-cartao { transition: transform .25s ease, box-shadow .25s ease; }
+        .qlab-demo-etapa-cartao:hover { transform: translateY(-4px); box-shadow: ${SOMBRA_ALTA}; }
+        .qlab-js-anim .qlab-demo-etapa-destaque { border-left-color: transparent; position: relative; }
+        .qlab-demo-etapa-destaque::before { content: ""; position: absolute; left: -2px; top: 0; bottom: 0; width: 2px; background: ${C.saibro};
+          transform-origin: top; transform: scaleY(0); transition: transform .7s cubic-bezier(.16,1,.3,1) .45s; }
+        .qlab-js-anim .qlab-visivel .qlab-demo-etapa-destaque::before { transform: scaleY(1); }
+        .qlab-rola-janela { position: relative; display: block; overflow: hidden; width: 100%; height: 100%; }
+        .qlab-captura-botao .qlab-rola-img { position: absolute; left: 0; top: 0; width: 100%; height: auto; object-fit: initial;
+          animation: qlab-rola 11s ease-in-out 1.2s infinite alternate; animation-play-state: paused; }
+        .qlab-visivel .qlab-rola-img, .qlab-vendas:not(.qlab-js-anim) .qlab-rola-img { animation-play-state: running; }
+        @keyframes qlab-rola { 0%, 12% { transform: translateY(0); } 88%, 100% { transform: translateY(var(--rolagem)); } }
+
+        .qlab-video-bloco { display: grid; grid-template-columns: 1fr; gap: 28px; align-items: center; max-width: 980px; margin: 0 auto 64px; }
+        @media (min-width: 860px) { .qlab-video-bloco { grid-template-columns: 1fr 340px; gap: 56px; } }
+        .qlab-video-texto h3 { font-family: ${ARCH}; font-weight: 800; font-size: 24px; color: ${C.tinta}; margin: 0 0 10px; line-height: 1.22; }
+        .qlab-video-texto p { font-family: ${SERIF}; font-size: 15px; color: ${C.grafite}; margin: 0 0 14px; line-height: 1.55; }
+        .qlab-video-apps { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; padding: 0; list-style: none; }
+        .qlab-video-apps li { font-family: ${ARCH}; font-size: 13px; font-weight: 700; padding: 6px 12px; border-radius: 999px; background: #fff; border: 1px solid ${C.linha}; }
+        .qlab-video-moldura { position: relative; width: min(340px, 82vw); margin: 0 auto; border-radius: 26px; overflow: hidden; background: #0B1713;
+          aspect-ratio: 9 / 16; box-shadow: 0 30px 60px rgba(16,59,50,.28), 0 0 0 1px rgba(16,59,50,.08); }
+        .qlab-video-moldura::after { content: ""; position: absolute; inset: -30%; z-index: -1; background: radial-gradient(closest-side, rgba(105,179,42,.35), rgba(105,179,42,0)); }
+        .qlab-video { display: block; width: 100%; height: 100%; object-fit: cover; cursor: pointer; }
+        .qlab-video-acoes { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 8px; }
+        .qlab-video-botao { font-family: ${ARCH}; font-size: 13px; font-weight: 700; color: #fff; background: rgba(10,20,16,.62); border: 1px solid rgba(255,255,255,.35);
+          border-radius: 999px; padding: 8px 14px; cursor: pointer; backdrop-filter: blur(6px); }
+        .qlab-video-botao:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+        .qlab-passo { position: relative; padding-top: 16px; }
+        .qlab-passo::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px; border-radius: 3px; background: ${C.linha}; }
+        .qlab-passo::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px; border-radius: 3px; background: ${C.saibro};
+          transform-origin: left; transform: scaleX(1); }
+        .qlab-js-anim .qlab-passo::after { transform: scaleX(0); transition: transform .9s cubic-bezier(.65,0,.35,1); transition-delay: calc(var(--atraso, 0ms) + 250ms); }
+        .qlab-js-anim .qlab-passo.qlab-visivel::after { transform: scaleX(1); }
+        .qlab-js-anim .qlab-passo .qlab-passo-numero { transform: scale(.4); transition: transform .5s cubic-bezier(.34,1.56,.64,1); transition-delay: calc(var(--atraso, 0ms) + 200ms); }
+        .qlab-js-anim .qlab-passo.qlab-visivel .qlab-passo-numero { transform: none; }
+
+        .qlab-recurso-cartao, .qlab-plano-cartao { transition: transform .25s ease, box-shadow .25s ease, opacity .7s cubic-bezier(.16,1,.3,1); }
+        .qlab-recurso-cartao:hover, .qlab-plano-cartao:hover { transform: translateY(-4px); box-shadow: ${SOMBRA_ALTA}; }
+        .qlab-js-anim .qlab-recurso-cartao.qlab-anim, .qlab-js-anim .qlab-plano-cartao.qlab-anim {
+          transition: opacity .7s cubic-bezier(.16,1,.3,1), transform .9s cubic-bezier(.16,1,.3,1), box-shadow .25s ease; transition-delay: var(--atraso, 0ms); }
+        .qlab-js-anim .qlab-visivel.qlab-recurso-cartao:hover, .qlab-js-anim .qlab-visivel.qlab-plano-cartao:hover { transform: translateY(-4px); transition-delay: 0ms; }
+        .qlab-js-anim .qlab-recurso-cartao .qlab-icone { transform: scale(.5) rotate(-25deg); opacity: 0; transition: transform .6s cubic-bezier(.34,1.56,.64,1), opacity .4s ease;
+          transition-delay: calc(var(--atraso, 0ms) + 250ms); }
+        .qlab-js-anim .qlab-recurso-cartao.qlab-visivel .qlab-icone { transform: none; opacity: 1; }
+        .qlab-plano-destaque { position: relative; }
+        .qlab-plano-destaque::after { content: ""; position: absolute; inset: -2px; border-radius: 15px; pointer-events: none;
+          box-shadow: 0 0 0 0 rgba(105,179,42,.45); animation: qlab-pulso 2.8s ease-out 1.2s 3; }
+        @keyframes qlab-pulso { 0% { box-shadow: 0 0 0 0 rgba(105,179,42,.45); } 100% { box-shadow: 0 0 0 14px rgba(105,179,42,0); } }
+        .qlab-faq-item[open] p { animation: qlab-entra .45s cubic-bezier(.16,1,.3,1) both; }
+
+        @media (prefers-reduced-motion: reduce) {
+          .qlab-hero::before, .qlab-cta-final::before, .qlab-palavra, .qlab-entra, .qlab-entra-lado, .qlab-rola-img, .qlab-plano-destaque::after,
+          .qlab-faq-item[open] p { animation: none !important; }
+          .qlab-hero h1 .qlab-destaque { animation: none; background-size: 100% 4px; }
+          .qlab-header, .qlab-recurso-cartao, .qlab-plano-cartao, .qlab-demo-etapa-cartao { transition: none !important; }
+        }
         .qlab-rodape-conteudo { max-width: 1080px; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center;
           justify-content: space-between; gap: 16px; }
         .qlab-rodape-marca { background: #fff; border-radius: 10px; padding: 6px 10px; display: inline-flex; }
         .qlab-rodape-dominio { font-family: ${ARCH}; font-size: 13px; letter-spacing: .02em; }
       `}</style>
 
-      <header className="qlab-header">
+      <header ref={headerRef} className="qlab-header">
         <Marca altura={30} />
         <nav className="qlab-nav" aria-label="Seções da página">
           <a href="#qlab-como-funciona" onClick={(e) => { e.preventDefault(); irParaSecao("qlab-como-funciona"); }}>Como funciona</a>
@@ -14908,13 +15126,13 @@ function TelaVendas({ aoEntrar }) {
       </header>
 
       <section className="qlab-hero">
-        <MotivoQuadra opacidade={0.12} />
+        <MotivoQuadra opacidade={0.12} animar />
         <div className="qlab-hero-grid">
           <div>
-            <p className="qlab-hero-eyebrow">Plataforma para treinadores de tênis</p>
-            <h1>Seu olhar de treinador. <span className="qlab-destaque">Mais clareza</span> para planejar.</h1>
-            <p className="qlab-hero-sub">Organize jogadores, prepare suas aulas e acompanhe cada ciclo em um só lugar.</p>
-            <div className="qlab-hero-botoes">
+            <p className="qlab-hero-eyebrow qlab-entra">Plataforma para treinadores de tênis</p>
+            <h1><PalavrasHero texto="Seu olhar de treinador." /> <span className="qlab-destaque"><PalavrasHero texto="Mais clareza" inicio={4} /></span> <PalavrasHero texto="para planejar." inicio={6} /></h1>
+            <p className="qlab-hero-sub qlab-entra" style={{ "--atraso": "650ms" }}>Organize jogadores, prepare suas aulas e acompanhe cada ciclo em um só lugar.</p>
+            <div className="qlab-hero-botoes qlab-entra" style={{ "--atraso": "800ms" }}>
               <button type="button" className="qlab-btn qlab-btn-primario" onClick={irParaCadastro}>
                 Começar grátis <IconeSeta tam={16} />
               </button>
@@ -14922,12 +15140,12 @@ function TelaVendas({ aoEntrar }) {
                 Ver como funciona
               </button>
             </div>
-            <p className="qlab-hero-apoio">
+            <p className="qlab-hero-apoio qlab-entra" style={{ "--atraso": "950ms" }}>
               Plano gratuito para até 5 alunos. <a href="#qlab-planos" onClick={(e) => { e.preventDefault(); irParaSecao("qlab-planos"); }}>Ver planos</a>
             </p>
           </div>
           {ehDesktop && (
-            <div className="qlab-hero-login">
+            <div className="qlab-hero-login qlab-entra-lado">
               <CartaoLogin aoEntrar={aoEntrar} />
             </div>
           )}
@@ -14951,7 +15169,7 @@ function TelaVendas({ aoEntrar }) {
       )}
 
       <section className="qlab-secao qlab-secao-alt" id="qlab-demonstracao">
-        <div className="qlab-secao-cabecalho">
+        <div className="qlab-secao-cabecalho qlab-anim">
           <p className="qlab-secao-eyebrow">Conheça o QuadraLab</p>
           <h2>Da avaliação à próxima aula, tudo conectado.</h2>
           <p className="qlab-secao-sub">
@@ -14959,25 +15177,45 @@ function TelaVendas({ aoEntrar }) {
           </p>
         </div>
 
-        <div className="qlab-demo-previa">
-          <img src="assets/demo-planejamento.png" alt="Planejamento aprovado de uma jogadora, com objetivo do ciclo, período de 4 semanas e 1 de 2 aulas já realizadas."
-            width="860" height="852" />
+        <div className="qlab-video-bloco">
+          <div className="qlab-video-texto qlab-anim qlab-anim-esq">
+            <p className="qlab-secao-eyebrow">A família QuadraLab em 30 segundos</p>
+            <h3>O Treinador faz parte de uma família de apps para o tênis.</h3>
+            <p>O Treinador organiza o seu trabalho com cada aluno. O Player ajuda o atleta a preparar o próprio jogo, e o Competição dá direção à temporada de torneios.</p>
+            <ul className="qlab-video-apps" aria-label="Apps da família QuadraLab">
+              <li style={{ color: "#3F7A12" }}>Treinador</li>
+              <li style={{ color: "#C43F00" }}>Player</li>
+              <li style={{ color: "#0040FC" }}>Competição</li>
+            </ul>
+            <a className="qlab-link-escuro" href="/">Conhecer a família QuadraLab</a>
+          </div>
+          <div className="qlab-anim qlab-anim-3d" style={{ "--atraso": "120ms" }}>
+            <VideoFamilia />
+          </div>
         </div>
 
         <div className="qlab-demo-etapas">
           {ETAPAS_DEMONSTRACAO.map((e, i) => (
             <div key={i} className={"qlab-demo-etapa" + (i % 2 === 1 ? " qlab-demo-etapa-inv" : "")}>
-              <div className="qlab-demo-etapa-texto">
+              <div className={"qlab-demo-etapa-texto qlab-anim " + (i % 2 === 1 ? "qlab-anim-dir" : "qlab-anim-esq")}>
                 <span className="qlab-demo-etapa-numero">{e.numero}</span>
                 <h3>{e.titulo}</h3>
                 <p>{e.texto}</p>
               </div>
-              <div className="qlab-demo-etapa-visual">
+              <div className="qlab-demo-etapa-visual qlab-anim qlab-anim-3d" style={{ "--atraso": "120ms" }}>
                 <div className="qlab-demo-etapa-cartao" style={{ aspectRatio: String(e.razao) }}>
                   <button type="button" className="qlab-captura-botao"
                     onClick={() => setCapturaAberta({ src: e.imgAmpliada || e.img, titulo: e.titulo, texto: e.destaque })}
                     aria-label={"Ampliar tela: " + e.titulo}>
-                    <img src={e.img} alt={e.alt} loading="lazy" />
+                    {e.rolar ? (
+                      /* a tela inteira rola devagar dentro do cartão, mostrando a sequência completa da aula */
+                      <span className="qlab-rola-janela">
+                        <img className="qlab-rola-img" src={e.rolar.img} alt={e.alt} loading="lazy"
+                          style={{ "--rolagem": "-" + ((1 - e.rolar.razao / e.razao) * 100).toFixed(2) + "%" }} />
+                      </span>
+                    ) : (
+                      <img src={e.img} alt={e.alt} loading="lazy" />
+                    )}
                   </button>
                 </div>
                 <p className="qlab-demo-etapa-destaque">{e.destaque}</p>
@@ -14990,7 +15228,7 @@ function TelaVendas({ aoEntrar }) {
           ))}
         </div>
 
-        <div className="qlab-demo-cta">
+        <div className="qlab-demo-cta qlab-anim">
           <h3>Veja como isso funciona com seus próprios alunos.</h3>
           <p>Comece com o plano gratuito para até 5 alunos.</p>
           <div className="qlab-demo-cta-acoes">
@@ -15003,12 +15241,12 @@ function TelaVendas({ aoEntrar }) {
       </section>
 
       <section className="qlab-secao" id="qlab-como-funciona">
-        <div className="qlab-secao-cabecalho">
+        <div className="qlab-secao-cabecalho qlab-anim">
           <h2>Do cadastro ao registro da aula</h2>
         </div>
         <div className="qlab-passos">
           {PASSOS_COMO_FUNCIONA.map((p, i) => (
-            <div key={i} className="qlab-passo">
+            <div key={i} className="qlab-passo qlab-anim" style={{ "--atraso": i * 140 + "ms" }}>
               <div className="qlab-passo-cabecalho">
                 <span className="qlab-passo-numero">{p.numero}</span>
                 <h3>{p.titulo}</h3>
@@ -15020,12 +15258,12 @@ function TelaVendas({ aoEntrar }) {
       </section>
 
       <section className="qlab-secao" id="qlab-recursos">
-        <div className="qlab-secao-cabecalho">
+        <div className="qlab-secao-cabecalho qlab-anim">
           <h2>Feito para o seu dia a dia de treinador</h2>
         </div>
         <div className="qlab-recursos">
           {RECURSOS_QUADRALAB.map((r, i) => (
-            <div key={i} className="qlab-recurso-cartao">
+            <div key={i} className="qlab-recurso-cartao qlab-anim" style={{ "--atraso": i * 120 + "ms" }}>
               <div className="qlab-icone"><r.Icone tam={22} /></div>
               <h3>{r.titulo}</h3>
               <p>{r.texto}</p>
@@ -15037,7 +15275,7 @@ function TelaVendas({ aoEntrar }) {
       <SecaoPlanos irParaCadastro={irParaCadastro} abrirLogin={abrirLogin} />
 
       <section className="qlab-secao" id="qlab-duvidas">
-        <div className="qlab-secao-cabecalho">
+        <div className="qlab-secao-cabecalho qlab-anim">
           <p className="qlab-secao-eyebrow">Perguntas frequentes</p>
           <h2>Tire suas dúvidas</h2>
         </div>
@@ -15047,8 +15285,8 @@ function TelaVendas({ aoEntrar }) {
       </section>
 
       <section className="qlab-cta-final">
-        <MotivoQuadra opacidade={0.12} />
-        <div className="qlab-cta-final-conteudo">
+        <MotivoQuadra opacidade={0.12} animar />
+        <div className="qlab-cta-final-conteudo qlab-anim">
           <h2>Prepare sua próxima aula com o QuadraLab.</h2>
           <div className="qlab-cta-final-acoes">
             <button type="button" className="qlab-btn qlab-btn-primario" onClick={irParaCadastro}>
