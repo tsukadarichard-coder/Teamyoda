@@ -7639,6 +7639,10 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
       // diferente do professor titular do jogador (substituição).
       substitutoUid: souSubstituto ? uidAtual : "",
       substitutoNome: souSubstituto ? meuNomeSessao : "",
+      // Quem registrou esta aula, sempre (inclusive o coordenador ou o
+      // próprio titular) — é o que a tela Aulas da equipe mostra.
+      registradoPorUid: uidAtual || "",
+      registradoPorNome: meuNomeSessao || "",
     };
     const alunosAtualizados = alunos.map((a) => {
       if (a.id !== aluno.id) return a;
@@ -14364,7 +14368,7 @@ function EditorMeuNome({ org, uid, emailAtual }) {
    (isso já é o Dashboard com "toda a academia"), e sim "cada um deles,
    lado a lado". A grade de horário completa mora na Agenda; aqui é
    gente, não grade. */
-function VisaoGeralEquipe({ alunos, turmas, uidAtual, irPara }) {
+function VisaoGeralEquipe({ alunos, turmas, uidAtual, irPara, verAulas }) {
   const [professores, setProfessores] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [selecionado, setSelecionado] = useState(null); // uid do professor aberto, ou null
@@ -14426,10 +14430,11 @@ function VisaoGeralEquipe({ alunos, turmas, uidAtual, irPara }) {
 
   if (carregando) return <p style={{ ...prosa, color: C.grafite }}>Carregando…</p>;
 
+  const aulas7 = montarAulasEquipe(alunos, turmas).filter((x) => x.data >= periodoUltimosDias(7).inicio);
   const linhas = professores.map((p) => {
     const meus = alunos.filter((a) => a.professorUid === p.uid);
     const abertos = meus.filter((a) => a.plano && aulaEmVigor(a)).length;
-    const dadas7 = aulasDadasRecentes(meus, 7);
+    const dadas7 = aulas7.filter((x) => (x.quemUid ? x.quemUid === p.uid : x.quemNome === p.nome)).length;
     const minhasTurmas = turmas.filter((t) => t.professorUid === p.uid || t.professorAuxiliarUid === p.uid);
     let pendencias = 0;
     minhasTurmas.forEach((t) => (t.pendencias || []).forEach((pd) => { if (!pd.resolvida) pendencias++; }));
@@ -14448,8 +14453,11 @@ function VisaoGeralEquipe({ alunos, turmas, uidAtual, irPara }) {
           <Etiqueta>{profAberto.alunos} jogador{profAberto.alunos === 1 ? "" : "es"}</Etiqueta>
           <Etiqueta>{profAberto.turmas} turma{profAberto.turmas === 1 ? "" : "s"}</Etiqueta>
           <Etiqueta cor={profAberto.abertos > 0 ? C.saibro : C.grafite}>{profAberto.abertos} aula{profAberto.abertos === 1 ? "" : "s"} em aberto</Etiqueta>
-          <Etiqueta cor={C.quadra}>{profAberto.dadas7} dada{profAberto.dadas7 === 1 ? "" : "s"} · 7 dias</Etiqueta>
+          <Etiqueta cor={C.quadra}>{profAberto.dadas7} registrada{profAberto.dadas7 === 1 ? "" : "s"} · 7 dias</Etiqueta>
         </div>
+        {verAulas && (
+          <div className="mb-5"><Botao pequeno onClick={() => verAulas(chaveProfessor(profAberto.uid, profAberto.nome))}>Ver as aulas que {profAberto.nome} registrou</Botao></div>
+        )}
         {meus.length === 0 ? (
           <p style={{ ...prosa, color: C.grafite, marginBottom: 16 }}>Nenhum jogador atribuído a este professor ainda.</p>
         ) : (
@@ -14519,12 +14527,270 @@ function VisaoGeralEquipe({ alunos, turmas, uidAtual, irPara }) {
               <Etiqueta>{l.alunos} jogador{l.alunos === 1 ? "" : "es"}</Etiqueta>
               <Etiqueta>{l.turmas} turma{l.turmas === 1 ? "" : "s"}</Etiqueta>
               <Etiqueta cor={l.abertos > 0 ? C.saibro : C.grafite}>{l.abertos} aula{l.abertos === 1 ? "" : "s"} em aberto</Etiqueta>
-              <Etiqueta cor={C.quadra}>{l.dadas7} dada{l.dadas7 === 1 ? "" : "s"} · 7 dias</Etiqueta>
+              <Etiqueta cor={C.quadra}>{l.dadas7} aula{l.dadas7 === 1 ? "" : "s"} registrada{l.dadas7 === 1 ? "" : "s"} · 7 dias</Etiqueta>
               {l.pendencias > 0 && <Etiqueta cor={C.saibro}>{l.pendencias} pendência{l.pendencias === 1 ? "" : "s"} de grupo</Etiqueta>}
             </div>
+            {verAulas && (
+              <button onClick={() => verAulas(chaveProfessor(l.uid, l.nome))} className="mt-2"
+                style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, color: C.quadra, cursor: "pointer", border: "none", background: "none", padding: 0 }}>
+                Ver aulas registradas →
+              </button>
+            )}
           </div>
         ))
       )}
+    </div>
+  );
+}
+
+/* ── aulas da equipe (coordenador) ──
+   Tudo o que os professores registraram como aula — individual (Sessão de
+   hoje) e em turma — numa lista só, por data, com quem deu a aula, o que
+   foi feito e as observações de fechamento. Lê os mesmos registros que
+   já vivem em cada jogador (a.registros, tipo "sessao"); uma sessão de
+   turma, que vira um registro por membro, aparece aqui UMA vez, com a
+   presença do grupo. Quem deu a aula: quem registrou (registradoPor*,
+   gravado desde esta tela existir) → substituto → professor titular do
+   jogador ou da turma (registros antigos não guardavam quem registrou). */
+function duracaoMin(d) {
+  const n = parseInt(String(d == null ? "" : d), 10);
+  return isNaN(n) ? 0 : n;
+}
+function montarAulasEquipe(alunos, turmas) {
+  const turmaPorNome = new Map((turmas || []).map((t) => [t.nome, t]));
+  const individuais = [], grupos = new Map();
+  (alunos || []).forEach((a) => (a.registros || []).forEach((r) => {
+    if (!r || r.tipo !== "sessao" || !r.data) return;
+    const base = {
+      data: r.data, ciclo: r.ciclo || "", aulaDoPlano: r.aulaDoPlano || "", duracao: duracaoMin(r.duracao),
+      corrigi: r.corrigi || "", ignorei: r.ignorei || "", mudaria: r.mudaria || "", proximoFoco: r.proximoFoco || "",
+      leituraDaAula: r.leituraDaAula || "", exercicios: r.exercicios || [], exerciciosStatus: r.exerciciosStatus || {},
+      temas: r.temas || [],
+    };
+    if (r.turma) {
+      const chave = r.data + "|" + r.turma;
+      const t = turmaPorNome.get(r.turma);
+      let g = grupos.get(chave);
+      if (!g) {
+        const titularUid = t ? t.professorUid || "" : "", titularNome = t ? t.professorNome || "" : "";
+        const quemUid = r.registradoPorUid || r.substitutoUid || titularUid;
+        const quemNome = r.registradoPorNome || r.substitutoNome || titularNome || "Professor não definido";
+        g = { ...base, id: "t-" + chave, tipo: "turma", alvo: r.turma, turmaId: t ? t.id : null, quemUid, quemNome, titularNome,
+          substituicao: !!(r.substitutoNome || (r.registradoPorUid && titularUid && r.registradoPorUid !== titularUid && (!t || r.registradoPorUid !== t.professorAuxiliarUid))),
+          presentes: [], ausentes: [], notas: [] };
+        grupos.set(chave, g);
+      }
+      (r.presenca === "ausente" ? g.ausentes : g.presentes).push({ id: a.id, nome: a.nome || "Sem nome" });
+      if (r.notaIndividual) g.notas.push({ nome: a.nome || "Sem nome", nota: r.notaIndividual });
+      if (r.presenca !== "ausente" && !g.exercicios.length && (r.exercicios || []).length) { g.exercicios = r.exercicios; g.exerciciosStatus = r.exerciciosStatus || {}; g.temas = r.temas || []; }
+    } else {
+      const titularUid = a.professorUid || "", titularNome = a.professorNome || "";
+      individuais.push({ ...base, id: a.id + "-" + r.id, tipo: "individual", alvo: a.nome || "Sem nome", alunoId: a.id,
+        quemUid: r.registradoPorUid || r.substitutoUid || titularUid,
+        quemNome: r.registradoPorNome || r.substitutoNome || titularNome || "Professor não definido",
+        titularNome,
+        substituicao: !!(r.substitutoNome || (r.registradoPorUid && titularUid && r.registradoPorUid !== titularUid)),
+        presentes: [], ausentes: [], notas: [] });
+    }
+  }));
+  return [...individuais, ...grupos.values()].sort((x, y) => (x.data < y.data ? 1 : x.data > y.data ? -1 : x.alvo.localeCompare(y.alvo)));
+}
+function chaveProfessor(uid, nome) { return uid ? "u:" + uid : "n:" + (nome || ""); }
+function periodoUltimosDias(n) { return { inicio: dataISO(new Date(Date.now() - (n - 1) * 86400000)), fim: dataISO(new Date()) }; }
+function rotuloDiaAulas(data) {
+  const hoje = dataISO(new Date()), ontem = dataISO(new Date(Date.now() - 86400000));
+  return data === hoje ? "Hoje" : data === ontem ? "Ontem" : formatarDataLonga(data);
+}
+function csvAulasEquipe(lista) {
+  const esc = (v) => '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
+  const linhas = [["Data", "Professor", "Tipo", "Jogador ou turma", "Presentes", "Ausentes", "Aula do plano / ciclo", "Duração (min)", "Exercícios", "Corrigi", "Deixei passar", "Teria montado diferente", "Próximo foco", "Leitura da aula", "Substituição"]];
+  lista.forEach((x) => linhas.push([x.data, x.quemNome, x.tipo === "turma" ? "Turma" : "Individual", x.alvo,
+    x.tipo === "turma" ? x.presentes.length : "", x.tipo === "turma" ? x.ausentes.length : "", x.aulaDoPlano || x.ciclo, x.duracao || "",
+    x.exercicios.length, x.corrigi, x.ignorei, x.mudaria, x.proximoFoco, x.leituraDaAula, x.substituicao ? "sim (titular: " + (x.titularNome || "—") + ")" : ""]));
+  return linhas.map((l) => l.map(esc).join(";")).join("\n");
+}
+
+function CartaoAulaEquipe({ x, irPara, irParaTurma }) {
+  const [aberto, setAberto] = useState(false);
+  const exercicios = x.exercicios.map((c) => {
+    const ex = TODOS_EXERCICIOS().find((e) => e.c === c);
+    const st = x.exerciciosStatus[c];
+    return { nome: ex ? ex.n : c, status: st && st !== "feito" ? st : null };
+  });
+  const temObs = x.corrigi || x.ignorei || x.mudaria || x.proximoFoco || x.leituraDaAula;
+  return (
+    <div style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "12px 14px", marginBottom: 8 }}>
+      <div className="flex items-start justify-between gap-3">
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{x.alvo}</div>
+          <div className="flex flex-wrap gap-2 mt-1">
+            <Etiqueta cor={C.quadra}>{x.quemNome}</Etiqueta>
+            <Etiqueta>{x.tipo === "turma" ? "Turma · " + x.presentes.length + " presente" + (x.presentes.length === 1 ? "" : "s") + (x.ausentes.length ? " · " + x.ausentes.length + " falt" + (x.ausentes.length === 1 ? "ou" : "aram") : "") : "Individual"}</Etiqueta>
+            {x.duracao > 0 && <Etiqueta>{x.duracao} min</Etiqueta>}
+            {x.substituicao && <Etiqueta cor={C.saibro}>Substituição{x.titularNome ? " · titular: " + x.titularNome : ""}</Etiqueta>}
+          </div>
+          {(x.aulaDoPlano || x.ciclo) && (
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 6 }}>{x.aulaDoPlano ? "Aula do plano: " + x.aulaDoPlano : x.ciclo}</p>
+          )}
+          {x.proximoFoco && <p style={{ ...prosa, fontSize: 13, color: C.tinta, marginTop: 4 }}><b>Próximo foco:</b> {x.proximoFoco}</p>}
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-4 mt-2">
+        <button onClick={() => setAberto(!aberto)} style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, color: C.quadra, cursor: "pointer", background: "none", border: "none", padding: 0 }}>
+          {aberto ? "Fechar detalhes" : "Ver o que foi feito" + (exercicios.length ? " (" + exercicios.length + " exercício" + (exercicios.length === 1 ? "" : "s") + ")" : "")}
+        </button>
+        {x.tipo === "individual" && irPara && (
+          <button onClick={() => irPara(x.alunoId)} style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, color: C.grafite, cursor: "pointer", background: "none", border: "none", padding: 0 }}>Abrir caderno do jogador →</button>
+        )}
+        {x.tipo === "turma" && x.turmaId && irParaTurma && (
+          <button onClick={() => irParaTurma(x.turmaId)} style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, color: C.grafite, cursor: "pointer", background: "none", border: "none", padding: 0 }}>Abrir turma →</button>
+        )}
+      </div>
+      {aberto && (
+        <div className="mt-3 pt-3" style={{ borderTop: "1px solid " + C.linha }}>
+          {exercicios.length > 0 ? (
+            <div className="mb-3">
+              <Etiqueta>Exercícios da aula</Etiqueta>
+              <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+                {exercicios.map((e, i) => (
+                  <li key={i} style={{ ...prosa, fontSize: 13, color: C.tinta }}>{e.nome}{e.status && <span style={{ color: C.saibro, fontWeight: 700 }}> · {e.status}</span>}</li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 8 }}>Nenhum exercício registrado nesta aula.</p>
+          )}
+          {x.corrigi && <Linha rotulo="Corrigi" texto={x.corrigi} />}
+          {x.ignorei && <Linha rotulo="Deixei passar" texto={x.ignorei} />}
+          {x.mudaria && <Linha rotulo="Teria montado diferente" texto={x.mudaria} />}
+          {x.leituraDaAula && <Linha rotulo="Leitura da aula" texto={x.leituraDaAula} />}
+          {!temObs && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>O professor não deixou observações de fechamento nesta aula.</p>}
+          {x.temas.length > 0 && (
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 6 }}>
+              Temas avaliados: {x.temas.map((t) => t.nome + (t.status ? " (" + t.status + ")" : "")).join(" · ")}
+            </p>
+          )}
+          {x.tipo === "turma" && (
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 6 }}>
+              Presentes: {x.presentes.map((p) => p.nome).join(", ") || "—"}
+              {x.ausentes.length > 0 && <><br />Faltaram: {x.ausentes.map((p) => p.nome).join(", ")}</>}
+              {x.notas.length > 0 && <><br />Notas individuais: {x.notas.map((n) => n.nome + ": " + n.nota).join(" · ")}</>}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TelaAulasEquipe({ alunos, turmas, irPara, irParaTurma, professorInicial = "", titulo = true }) {
+  const [professores, setProfessores] = useState([]);
+  useEffect(() => { listaProfessores().then(setProfessores); }, []);
+  const [periodo, setPeriodo] = useState(() => ({ ...periodoUltimosDias(7), rotulo: "7 dias" }));
+  const [prof, setProf] = useState(professorInicial);
+  useEffect(() => { setProf(professorInicial); }, [professorInicial]);
+  const [tipo, setTipo] = useState("todas");
+  const [busca, setBusca] = useState("");
+
+  const todas = useMemo(() => montarAulasEquipe(alunos, turmas), [alunos, turmas]);
+  const noPeriodo = todas.filter((x) => x.data >= periodo.inicio && x.data <= periodo.fim);
+
+  /* Resumo por professor: todos os aprovados aparecem, mesmo sem aula no
+     período (é justamente quem o coordenador precisa notar). */
+  const resumo = new Map();
+  professores.forEach((p) => resumo.set(chaveProfessor(p.uid, p.nome), { chave: chaveProfessor(p.uid, p.nome), nome: p.nome, aulas: 0, individuais: 0, turmas: 0, jogadores: new Set(), minutos: 0, ultima: "" }));
+  const nomeParaChave = new Map(professores.map((p) => [p.nome, chaveProfessor(p.uid, p.nome)]));
+  const chaveDe = (x) => (x.quemUid && resumo.has("u:" + x.quemUid)) ? "u:" + x.quemUid : (nomeParaChave.get(x.quemNome) || chaveProfessor(x.quemUid, x.quemNome));
+  noPeriodo.forEach((x) => {
+    const k = chaveDe(x);
+    if (!resumo.has(k)) resumo.set(k, { chave: k, nome: x.quemNome, aulas: 0, individuais: 0, turmas: 0, jogadores: new Set(), minutos: 0, ultima: "" });
+    const r = resumo.get(k);
+    r.aulas++; if (x.tipo === "turma") r.turmas++; else r.individuais++;
+    if (x.tipo === "turma") x.presentes.forEach((p) => r.jogadores.add(p.id)); else r.jogadores.add(x.alunoId);
+    r.minutos += x.duracao; if (x.data > r.ultima) r.ultima = x.data;
+  });
+  const ultimaGeral = new Map();
+  todas.forEach((x) => { const k = chaveDe(x); if (!ultimaGeral.has(k) || x.data > ultimaGeral.get(k)) ultimaGeral.set(k, x.data); });
+  const linhasResumo = [...resumo.values()].sort((a, b) => b.aulas - a.aulas || a.nome.localeCompare(b.nome));
+
+  const termo = busca.trim().toLowerCase();
+  const filtradas = noPeriodo.filter((x) => (!prof || chaveDe(x) === prof) && (tipo === "todas" || x.tipo === tipo)
+    && (!termo || x.alvo.toLowerCase().includes(termo) || x.presentes.some((p) => p.nome.toLowerCase().includes(termo))));
+  const porDia = [];
+  filtradas.forEach((x) => { const ult = porDia[porDia.length - 1]; if (ult && ult.data === x.data) ult.itens.push(x); else porDia.push({ data: x.data, itens: [x] }); });
+
+  const atalhos = [
+    { rotulo: "Hoje", ...periodoUltimosDias(1) }, { rotulo: "7 dias", ...periodoUltimosDias(7) },
+    { rotulo: "30 dias", ...periodoUltimosDias(30) }, { rotulo: "Este mês", ...periodoMes(0) }, { rotulo: "Mês anterior", ...periodoMes(-1) },
+  ];
+  const chip = (ativo) => ({ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, padding: "6px 12px", borderRadius: 999, cursor: "pointer",
+    border: "1px solid " + (ativo ? C.quadra : C.linha), background: ativo ? C.quadra : C.cal, color: ativo ? "#fff" : C.tinta });
+
+  return (
+    <div>
+      {titulo && <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Aulas da equipe</h1>}
+      <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginBottom: 14 }}>
+        Tudo o que os professores registraram como aula — individual e em turma —, com quem deu a aula, os exercícios e as observações de fechamento.
+      </p>
+
+      <div className="flex flex-wrap gap-2 mb-3">
+        {atalhos.map((a) => (
+          <button key={a.rotulo} style={chip(periodo.rotulo === a.rotulo)} onClick={() => setPeriodo({ inicio: a.inicio, fim: a.fim, rotulo: a.rotulo })}>{a.rotulo}</button>
+        ))}
+      </div>
+
+      {/* resumo por professor: toque pra filtrar */}
+      <div className="mb-5" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 8 }}>
+        {linhasResumo.map((r) => {
+          const ativo = prof === r.chave, ult = ultimaGeral.get(r.chave);
+          return (
+            <button key={r.chave} onClick={() => setProf(ativo ? "" : r.chave)} className="text-left"
+              style={{ background: ativo ? "#EEF4F1" : C.cal, border: "1px solid " + (ativo ? C.quadra : C.linha), borderRadius: 10, padding: "10px 12px", cursor: "pointer" }}>
+              <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, color: C.tinta }}>{r.nome}</div>
+              <div style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, color: r.aulas ? C.quadra : C.saibro, lineHeight: 1.2 }}>
+                {r.aulas} <span style={{ fontSize: 12.5, fontWeight: 600, color: C.grafite }}>aula{r.aulas === 1 ? "" : "s"} · {periodo.rotulo.toLowerCase()}</span>
+              </div>
+              <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>
+                {r.aulas ? r.individuais + " individua" + (r.individuais === 1 ? "l" : "is") + " · " + r.turmas + " em turma · " + r.jogadores.size + " jogador" + (r.jogadores.size === 1 ? "" : "es") : "Nenhuma aula registrada no período"}
+                <br />{ult ? "Última aula registrada: " + rotuloDiaAulas(ult).toLowerCase() : "Ainda sem aulas registradas"}
+              </p>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="flex flex-wrap gap-2 items-end mb-4">
+        <Campo rotulo="Professor">
+          <select style={{ ...entrada, width: 210 }} value={prof} onChange={(e) => setProf(e.target.value)}>
+            <option value="">Todos os professores</option>
+            {linhasResumo.map((r) => <option key={r.chave} value={r.chave}>{r.nome}</option>)}
+          </select>
+        </Campo>
+        <Campo rotulo="Tipo">
+          <select style={{ ...entrada, width: 150 }} value={tipo} onChange={(e) => setTipo(e.target.value)}>
+            <option value="todas">Todas</option><option value="individual">Individuais</option><option value="turma">Em turma</option>
+          </select>
+        </Campo>
+        <Campo rotulo="Jogador ou turma">
+          <input style={{ ...entrada, width: 200 }} value={busca} placeholder="Buscar…" onChange={(e) => setBusca(e.target.value)} />
+        </Campo>
+        {filtradas.length > 0 && (
+          <Botao pequeno variante="vazio" onClick={() => baixarCSV("aulas-da-equipe-" + periodo.inicio + "-a-" + periodo.fim + ".csv", csvAulasEquipe(filtradas))}>Exportar CSV</Botao>
+        )}
+      </div>
+
+      {porDia.length === 0 ? (
+        <p style={{ ...prosa, fontSize: 13.5, color: C.grafite }}>
+          Nenhuma aula registrada {prof ? "por este professor " : ""}no período. As aulas aparecem aqui quando o professor fecha a Sessão de hoje (individual ou da turma).
+        </p>
+      ) : porDia.map((d) => (
+        <div key={d.data} className="mb-4">
+          <p style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, letterSpacing: ".05em", textTransform: "uppercase", color: C.grafite, marginBottom: 6 }}>
+            {rotuloDiaAulas(d.data)} · {d.itens.length} aula{d.itens.length === 1 ? "" : "s"}
+          </p>
+          {d.itens.map((x) => <CartaoAulaEquipe key={x.id} x={x} irPara={irPara} irParaTurma={irParaTurma} />)}
+        </div>
+      ))}
     </div>
   );
 }
@@ -14533,8 +14799,9 @@ function VisaoGeralEquipe({ alunos, turmas, uidAtual, irPara }) {
    Pedidos de acesso ficam pendentes até alguém com role "coordenador"
    aprovar — a function aprovar-treinador confere isso pelo próprio
    token de quem chama, não por um segredo separado. */
-function TelaEquipe({ alunos, turmas, membros, setMembros, carregandoForm, uidAtual, irPara, irParaManual }) {
-  const [subaba, setSubaba] = useState("visao");
+function TelaEquipe({ alunos, turmas, membros, setMembros, carregandoForm, uidAtual, irPara, irParaCaderno, irParaTurma, irParaManual }) {
+  const [subaba, setSubaba] = useState("aulas");
+  const [profAulas, setProfAulas] = useState("");
   const [pendentes, setPendentes] = useState([]);
   const [carregando, setCarregando] = useState(true);
   const [ocupado, setOcupado] = useState(null);
@@ -14644,7 +14911,7 @@ function TelaEquipe({ alunos, turmas, membros, setMembros, carregandoForm, uidAt
     <div>
       <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Equipe</h1>
       <div className="flex gap-5 mb-6" style={{ borderBottom: "1px solid " + C.linha }}>
-        {[{ v: "visao", r: "Visão geral" }, { v: "pedidos", r: "Pedidos" }, { v: "formacao", r: "Formação" }].map((t) => (
+        {[{ v: "aulas", r: "Aulas da equipe" }, { v: "visao", r: "Visão geral" }, { v: "pedidos", r: "Pedidos" }, { v: "formacao", r: "Formação" }].map((t) => (
           <button key={t.v} onClick={() => setSubaba(t.v)}
             style={{ fontFamily: ARCH, fontSize: 13, fontWeight: subaba === t.v ? 700 : 500, padding: "8px 0", cursor: "pointer",
               color: subaba === t.v ? C.tinta : C.grafite, borderBottom: "2px solid " + (subaba === t.v ? C.saibro : "transparent"), marginBottom: -1 }}>
@@ -14653,8 +14920,10 @@ function TelaEquipe({ alunos, turmas, membros, setMembros, carregandoForm, uidAt
         ))}
       </div>
 
-      {subaba === "visao" ? (
-        <VisaoGeralEquipe alunos={alunos} turmas={turmas} uidAtual={uidAtual} irPara={irPara} />
+      {subaba === "aulas" ? (
+        <TelaAulasEquipe alunos={alunos} turmas={turmas} irPara={irParaCaderno || irPara} irParaTurma={irParaTurma} professorInicial={profAulas} titulo={false} />
+      ) : subaba === "visao" ? (
+        <VisaoGeralEquipe alunos={alunos} turmas={turmas} uidAtual={uidAtual} irPara={irPara} verAulas={(chave) => { setProfAulas(chave); setSubaba("aulas"); }} />
       ) : subaba === "pedidos" ? (
         <div>
           <p style={{ ...prosa, color: C.grafite, marginBottom: 10 }}>
@@ -16438,6 +16707,8 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
           // é diferente do professor titular/auxiliar da turma.
           substitutoUid: souSubstitutoTurma ? uidAtual : "",
           substitutoNome: souSubstitutoTurma ? meuNomeSessaoTurma : "",
+          registradoPorUid: uidAtual || "",
+          registradoPorNome: meuNomeSessaoTurma || "",
         };
         /* Salvar de novo no mesmo dia pra esta turma substitui o registro
            anterior em vez de empilhar duplicata — ver seção 6, "impedir
@@ -19971,7 +20242,7 @@ function App() {
       ...(mostraTorneiosEventos ? [{ v: "torneios", r: "Torneios" }, { v: "eventos", r: "Eventos" }] : []),
     ] },
     { id: "equipe", label: "Coordenação", itens: [
-      ...(papelAtual === "coordenador" ? [{ v: "equipe", r: "Equipe" }] : []),
+      ...(papelAtual === "coordenador" ? [{ v: "aulas-equipe", r: "Aulas da equipe" }, { v: "equipe", r: "Equipe" }] : []),
       // Relatórios mora aqui no menu, mas continua liberado pro professor
       // ver o próprio (TelaRelatorioProfessores já restringe por dentro) —
       // o pedido foi "professores continuam acessando os próprios
@@ -20355,7 +20626,12 @@ function App() {
          aba === "aulas" ? <TelaAulas /> :
          aba === "metodo" ? <TelaMetodo /> :
          aba === "equipe" ? <TelaEquipe alunos={alunos} turmas={turmas} membros={membrosFormacao} setMembros={setMembrosFormacao} carregandoForm={carregandoFormacao} uidAtual={uidAtual}
-           irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }} irParaManual={irParaManual} /> :
+           irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }}
+           irParaCaderno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("registro"); }}
+           irParaTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} irParaManual={irParaManual} /> :
+         aba === "aulas-equipe" && papelAtual === "coordenador" ? <TelaAulasEquipe alunos={alunos} turmas={turmas}
+           irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("registro"); }}
+           irParaTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} /> :
          aba === "formacao" ? <TelaFormacaoPessoal membros={membrosFormacao} setMembros={setMembrosFormacao} carregando={carregandoFormacao} uidAtual={uidAtual} irParaManual={irParaManual} /> :
          aba === "turmas" ? <TelaTurmas alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade}
            exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} quadras={quadras} ocorrencias={ocorrencias}
