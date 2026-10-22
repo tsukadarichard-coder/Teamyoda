@@ -106,16 +106,6 @@ const SITUACOES = [["ataque", "Ataque"], ["contra", "Contra-ataque"], ["defesa",
 const GOLPES = [["forehand", "Forehand"], ["backhand", "Backhand"], ["voleio", "Voleio"], ["smash", "Smash"], ["drop", "Drop shot"], ["lob", "Lob"], ["devolucao", "Devolução"]];
 const DIRECOES = [["cruzado", "Cruzado"], ["paralelo", "Paralelo"]];
 const DIRECOES_SAQUE = [["aberto", "Aberto"], ["fechado", "Fechado"], ["corpo", "Corpo"]];
-/* efeito do último golpe e as batidas do rali inteiro ("seq") vêm do scout montado a partir do vídeo (scout/video-scout.js) */
-const EFEITOS = [["top", "Top spin"], ["slice", "Slice"], ["flat", "Chapado"]];
-function batidasDoJogador(pontos) {
-  const r = { total: 0, golpes: { FH: 0, BH: 0, V: 0, SM: 0, S: 0, D: 0 }, direcao: { c: 0, p: 0, m: 0 }, efeito: { t: 0, s: 0, f: 0 } };
-  pontos.forEach((p) => String(p.seq || "").split(" ").forEach((b) => {
-    const m = /^n(S|FH|BH|SM|V|D|\?)([cpm]?)([tsf]?)$/.exec(b); if (!m) return;
-    r.total++; if (r.golpes[m[1]] != null) r.golpes[m[1]]++; if (m[2]) r.direcao[m[2]]++; if (m[3]) r.efeito[m[3]]++;
-  }));
-  return r;
-}
 /* qualidade da devolução do jogador (opcional, no ponto em que o adversário saca) e nível do adversário (no fim da partida) */
 const QUALIDADES_DEVOLUCAO = [["boa", "Boa"], ["regular", "Regular"], ["fraca", "Fraca"]];
 const NIVEIS_ADVERSARIO = [["iniciante", "Iniciante"], ["intermediario", "Intermediário"], ["avancado", "Avançado"], ["competitivo", "Competitivo"], ["elite", "Elite / profissional"]];
@@ -180,8 +170,6 @@ function resume(pontos) {
     situacoes: Object.fromEntries(SITUACOES.map(([k]) => { const l = pontos.filter((p) => p.situacao === k); return [k, { n: l.length, g: ganhosDe(l) }]; })),
     devolucao: { nos: { n: devNos.length, e: devNos.filter(erroDeDevolucao).length, q: Object.fromEntries(QUALIDADES_DEVOLUCAO.map(([k]) => { const l = devNos.filter((p) => p.qualDev === k); return [k, { n: l.length, g: ganhosDe(l) }]; })) }, ele: { n: devEle.length, e: devEle.filter(erroDeDevolucaoDele).length } },
     corrida: { n: conta((p) => p.corrida), g: conta((p) => p.corrida && p.nos) },
-    efeitos: Object.fromEntries(EFEITOS.map(([k]) => { const l = pontos.filter((p) => p.efeito === k); return [k, { n: l.length, g: ganhosDe(l), w: l.filter((p) => p.fim === "winner_nos").length, e: l.filter((p) => p.fim === "erro_nos").length }]; })),
-    rali: batidasDoJogador(pontos),
     decisoes: Object.fromEntries(DECISOES.map(([k]) => { const l = pontos.filter((p) => p.dec === k); return [k, { n: l.length, g: ganhosDe(l) }]; })),
     games: [...new Set(pontos.filter((p) => p.jogo).map((p) => p.jogo))].sort((a, b) => a - b).map((j) => {
       const l = pontos.filter((p) => p.jogo === j), d = (k) => l.filter((p) => p.dec === k).length;

@@ -34,6 +34,8 @@
 <script src="scout/video-scout.js"></script>
 <script src="scout/video-visao.js"></script>
 <script src="scout/video-scout-ui.js"></script>
+<script src="scout/quadra-auto.js"></script>
+<script src="scout/padroes.js"></script>
 <script src="scout/video-jogo.js"></script>
 <link rel="stylesheet" href="scout/movimento.css">
 <link rel="stylesheet" href="scout/graficos.css">
@@ -8349,16 +8351,6 @@ const SITUACOES = [["ataque", "Ataque"], ["contra", "Contra-ataque"], ["defesa",
 const GOLPES = [["forehand", "Forehand"], ["backhand", "Backhand"], ["voleio", "Voleio"], ["smash", "Smash"], ["drop", "Drop shot"], ["lob", "Lob"], ["devolucao", "Devolução"]];
 const DIRECOES = [["cruzado", "Cruzado"], ["paralelo", "Paralelo"]];
 const DIRECOES_SAQUE = [["aberto", "Aberto"], ["fechado", "Fechado"], ["corpo", "Corpo"]];
-/* efeito do último golpe e as batidas do rali inteiro ("seq") vêm do scout montado a partir do vídeo (scout/video-scout.js) */
-const EFEITOS = [["top", "Top spin"], ["slice", "Slice"], ["flat", "Chapado"]];
-function batidasDoJogador(pontos) {
-  const r = { total: 0, golpes: { FH: 0, BH: 0, V: 0, SM: 0, S: 0, D: 0 }, direcao: { c: 0, p: 0, m: 0 }, efeito: { t: 0, s: 0, f: 0 } };
-  pontos.forEach((p) => String(p.seq || "").split(" ").forEach((b) => {
-    const m = /^n(S|FH|BH|SM|V|D|\?)([cpm]?)([tsf]?)$/.exec(b); if (!m) return;
-    r.total++; if (r.golpes[m[1]] != null) r.golpes[m[1]]++; if (m[2]) r.direcao[m[2]]++; if (m[3]) r.efeito[m[3]]++;
-  }));
-  return r;
-}
 /* qualidade da devolução do jogador (opcional, no ponto em que o adversário saca) e nível do adversário (no fim da partida) */
 const QUALIDADES_DEVOLUCAO = [["boa", "Boa"], ["regular", "Regular"], ["fraca", "Fraca"]];
 const NIVEIS_ADVERSARIO = [["iniciante", "Iniciante"], ["intermediario", "Intermediário"], ["avancado", "Avançado"], ["competitivo", "Competitivo"], ["elite", "Elite / profissional"]];
@@ -9259,6 +9251,17 @@ function TelaMovimento({ aluno, alunos, setAlunos, identidade, planoAtual }) {
           <div dangerouslySetInnerHTML={{ __html: window.QLMovimento.evolucaoHTML(movimentos) }} />
           <h3 className="qm-h" style={{ marginTop: 18 }}>Jogos em vídeo</h3>
           <div dangerouslySetInnerHTML={{ __html: window.QLVideoJogo ? window.QLVideoJogo.evolucaoHTML(jogosVideo) : "" }} />
+          {(() => { /* padrões somando todos os jogos com scout montado do vídeo: o que se repete de partida em partida */
+            const jogosScout = (aluno.registros || []).filter((r) => r.tipo === "jogo" && r.origem === "video" && r.scout && (r.scout.pontos || []).length);
+            if (!window.QLPadroes || !jogosScout.length) return null;
+            const todos = jogosScout.reduce((t, r) => t.concat(r.scout.pontos), []);
+            return (
+              <>
+                <h3 className="qm-h" style={{ marginTop: 18 }}>Padrões em {jogosScout.length === 1 ? "1 jogo" : jogosScout.length + " jogos"} em vídeo · {todos.length} pontos</h3>
+                <div dangerouslySetInnerHTML={{ __html: window.QLPadroes.html(window.QLPadroes.analisar(todos), { A: String(aluno.nome || "Jogador").split(" ")[0], B: "Adversário" }) }} />
+              </>
+            );
+          })()}
           <p className="qm-msg" style={{ marginTop: 12 }}>A evolução dos jogos marcados no scout completo está em "Análise de partida".</p>
         </div>
       )}
@@ -10029,8 +10032,6 @@ function resume(pontos) {
     situacoes: Object.fromEntries(SITUACOES.map(([k]) => { const l = pontos.filter((p) => p.situacao === k); return [k, { n: l.length, g: ganhosDe(l) }]; })),
     devolucao: { nos: { n: devNos.length, e: devNos.filter(erroDeDevolucao).length, q: Object.fromEntries(QUALIDADES_DEVOLUCAO.map(([k]) => { const l = devNos.filter((p) => p.qualDev === k); return [k, { n: l.length, g: ganhosDe(l) }]; })) }, ele: { n: devEle.length, e: devEle.filter(erroDeDevolucaoDele).length } },
     corrida: { n: conta((p) => p.corrida), g: conta((p) => p.corrida && p.nos) },
-    efeitos: Object.fromEntries(EFEITOS.map(([k]) => { const l = pontos.filter((p) => p.efeito === k); return [k, { n: l.length, g: ganhosDe(l), w: l.filter((p) => p.fim === "winner_nos").length, e: l.filter((p) => p.fim === "erro_nos").length }]; })),
-    rali: batidasDoJogador(pontos),
     decisoes: Object.fromEntries(DECISOES.map(([k]) => { const l = pontos.filter((p) => p.dec === k); return [k, { n: l.length, g: ganhosDe(l) }]; })),
     games: [...new Set(pontos.filter((p) => p.jogo).map((p) => p.jogo))].sort((a, b) => a - b).map((j) => {
       const l = pontos.filter((p) => p.jogo === j), d = (k) => l.filter((p) => p.dec === k).length;
@@ -10492,20 +10493,6 @@ function DetalheScout({ det }) {
           <Tabela cabecalho={["", "Pontos", "Ganhos"]} linhas={[...direcoes.map(([k, r]) => [r, det.direcao[k].n, pct(det.direcao[k].g, det.direcao[k].n)]), ...(det.corrida.n ? [["Na corrida (todos os golpes)", det.corrida.n, pct(det.corrida.g, det.corrida.n)]] : [])]} />
         </Secao>
       )}
-      {det.efeitos && EFEITOS.some(([k]) => det.efeitos[k].n) && (
-        <Secao titulo="Efeito do último golpe" nota="Top spin, slice ou chapado na bola com que o jogador terminou o ponto.">
-          <Tabela cabecalho={["Efeito", "Pontos", "Winners", "Erros", "Ganhos"]} linhas={EFEITOS.filter(([k]) => det.efeitos[k].n).map(([k, r]) => [r, det.efeitos[k].n, det.efeitos[k].w, det.efeitos[k].e, pct(det.efeitos[k].g, det.efeitos[k].n)])} />
-        </Secao>
-      )}
-      {det.rali && det.rali.total > 0 && (
-        <Secao titulo="Todas as batidas do jogador (vídeo)" nota="Cada bola que o jogador bateu nos ralis, não só a última do ponto. Vem do scout montado a partir do vídeo.">
-          <Tabela cabecalho={["", "Batidas", "% do total"]} linhas={[
-            ...[["FH", "Forehand"], ["BH", "Backhand"], ["V", "Voleio"], ["SM", "Smash"], ["S", "Saque"]].filter(([k]) => det.rali.golpes[k]).map(([k, r]) => [r, det.rali.golpes[k], pct(det.rali.golpes[k], det.rali.total)]),
-            ...[["c", "Cruzado"], ["p", "Paralelo"], ["m", "No meio"]].filter(([k]) => det.rali.direcao[k]).map(([k, r]) => ["Direção · " + r, det.rali.direcao[k], pct(det.rali.direcao[k], det.rali.total)]),
-            ...[["t", "Top spin"], ["s", "Slice"], ["f", "Chapado"]].filter(([k]) => det.rali.efeito[k]).map(([k, r]) => ["Efeito · " + r, det.rali.efeito[k], pct(det.rali.efeito[k], det.rali.total)]),
-          ]} />
-        </Secao>
-      )}
       {(sacNos.length > 0 || sacEle.length > 0) && (
         <Secao titulo="Direção do saque" nota="Pontos ganhos por quem sacou, por direção.">
           <Tabela cabecalho={["Saque", "Marcados", "Aces", "Ganhos"]} linhas={[
@@ -10640,6 +10627,11 @@ function ResumoScout({ r, sinais, aluno, alunos, setAlunos, pontos, cfg, mental 
       </Secao>
 
 
+      {window.QLPadroes && (pontos || []).some((p) => p.seq || (p.batidas && p.batidas.length)) && (
+        <Secao titulo="Padrões de jogo" nota="Do scout montado a partir do vídeo: como cada ponto foi construído, as sequências que deram ponto e as que deram erro, de cada lado.">
+          <div dangerouslySetInnerHTML={{ __html: window.QLPadroes.html(window.QLPadroes.analisar(pontos), { A: String((aluno && aluno.nome) || "Jogador").split(" ")[0], B: (cfg && cfg.adversario) || "Adversário" }) }} />
+        </Secao>
+      )}
       <Secao titulo="O que este jogo aponta" nota="Leitura automática pelas regras do método. É ponto de partida para a sua conversa com o atleta, não conclusão.">
         {sinais.length === 0 ? (
           <p style={{ ...prosa, color: C.grafite }}>

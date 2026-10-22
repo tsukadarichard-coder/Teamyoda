@@ -44,7 +44,80 @@
     var asp = o.aspecto || 16 / 9;
     /* pixels (normalizados × aspecto) por metro, perto e longe: escala da altura de uma pessoa na imagem */
     function escala(y) { var a = aplicarH(Hi, [-1, y]), b = aplicarH(Hi, [1, y]); return Math.hypot((b[0] - a[0]) * asp, b[1] - a[1]) / 2; }
-    return { H: H, Hi: Hi, asp: asp, simples: !!o.simples, escala: escala, mao: { A: o.maoA || "D", B: o.maoB || "D" }, corA: o.corA || null, corB: o.corB || null, atletaComecaPerto: o.atletaComecaPerto };
+    return { H: H, Hi: Hi, asp: asp, simples: !!o.simples, escala: escala, cam: camera(Hi, asp), mao: { A: o.maoA || "D", B: o.maoB || "D" }, corA: o.corA || null, corB: o.corB || null, atletaComecaPerto: o.atletaComecaPerto };
+  }
+  /* ── câmera em 3D a partir da quadra (homografia do chão), supondo pixels quadrados e o centro óptico no meio da imagem:
+     dá a altura da bola em cada quadro (o raio da câmera cruzado com a posição da bola sobre a quadra) ── */
+  function camera(Hi, asp) {
+    var cx = asp / 2, cy = 0.5, M = [Hi[0] * asp, Hi[1] * asp, Hi[2] * asp, Hi[3], Hi[4], Hi[5], Hi[6], Hi[7], Hi[8]];
+    var A = [M[0] - cx * M[6], M[1] - cx * M[7], M[2] - cx * M[8], M[3] - cy * M[6], M[4] - cy * M[7], M[5] - cy * M[8], M[6], M[7], M[8]];
+    var f2 = -(A[0] * A[1] + A[3] * A[4]) / (A[6] * A[7]), f2b = ((A[0] * A[0] + A[3] * A[3]) - (A[1] * A[1] + A[4] * A[4])) / (A[7] * A[7] - A[6] * A[6]);
+    var f2v = [f2, f2b].filter(function (v) { return isFinite(v) && v > 0; });
+    if (!f2v.length) return null;
+    var f = Math.sqrt(f2v[0]);
+    var k1 = [A[0] / f, A[3] / f, A[6]], k2 = [A[1] / f, A[4] / f, A[7]], k3 = [A[2] / f, A[5] / f, A[8]];
+    var n1 = Math.hypot(k1[0], k1[1], k1[2]), n2 = Math.hypot(k2[0], k2[1], k2[2]), l = (n1 + n2) / 2;
+    var r1 = k1.map(function (v) { return v / n1; }), r2 = k2.map(function (v) { return v / n2; }), d = r1[0] * r2[0] + r1[1] * r2[1] + r1[2] * r2[2];
+    r2 = [r2[0] - d * r1[0], r2[1] - d * r1[1], r2[2] - d * r1[2]]; var nn = Math.hypot(r2[0], r2[1], r2[2]); r2 = r2.map(function (v) { return v / nn; });
+    var t = k3.map(function (v) { return v / l; });
+    if (t[2] < 0) { r1 = r1.map(function (v) { return -v; }); r2 = r2.map(function (v) { return -v; }); t = t.map(function (v) { return -v; }); }
+    var r3 = [r1[1] * r2[2] - r1[2] * r2[1], r1[2] * r2[0] - r1[0] * r2[2], r1[0] * r2[1] - r1[1] * r2[0]];
+    var C = [0, 1, 2].map(function (i) { return -([r1, r2, r3][i][0] * t[0] + [r1, r2, r3][i][1] * t[1] + [r1, r2, r3][i][2] * t[2]); });
+    if (C[2] < 0) { r3 = r3.map(function (v) { return -v; }); C[2] = -C[2]; } // eixo z para cima
+    return { f: f, cx: cx, cy: cy, asp: asp, r1: r1, r2: r2, r3: r3, t: t, C: C };
+  }
+  function projetar3(cam, X, Y, Z) {
+    var p = [0, 1, 2].map(function (i) { return cam.r1[i] * X + cam.r2[i] * Y + cam.r3[i] * Z + cam.t[i]; });
+    return [(cam.f * p[0] / p[2] + cam.cx) / cam.asp, cam.f * p[1] / p[2] + cam.cy];
+  }
+  /* altura (m) do ponto da imagem (u,v) se ele estiver na vertical de (X,Y) da quadra */
+  function alturaNoRaio(cam, u, v, X, Y) {
+    var x = (u * cam.asp - cam.cx) / cam.f, y = (v - cam.cy) / cam.f;
+    var m = [0, 1, 2].map(function (i) { return cam.r1[i] * X + cam.r2[i] * Y + cam.t[i]; }), d = cam.r3;
+    var a = [m[0] - x * m[2], m[1] - y * m[2]], b = [d[0] - x * d[2], d[1] - y * d[2]];
+    return -(a[0] * b[0] + a[1] * b[1]) / (b[0] * b[0] + b[1] * b[1]);
+  }
+  /* voo da bola da batida ao quique, em 3D: a posição sobre a quadra anda em linha reta de quem bateu até o quique; a altura vem
+     de cada quadro. z(τ) = z0 + vz·τ − a·τ²/2: a velocidade sai da distância e do tempo; a aceleração vertical efetiva separa o
+     efeito (top spin cai mais rápido que a gravidade, o slice "flutua") */
+  var G = 9.81;
+  function voo3D(cam, t0, Ph, q, trilha, saque) {
+    if (!cam || !Ph || !q || !trilha) return null;
+    var tb = q.t, T = tb - t0; if (T < 0.25 || T > 2.5) return null;
+    var pts = [];
+    trilha.forEach(function (p) {
+      if (p.t <= t0 + 0.04 || p.t >= tb - 0.02) return;
+      var s = (p.t - t0) / T, X = Ph[0] + s * (q.P[0] - Ph[0]), Y = Ph[1] + s * (q.P[1] - Ph[1]);
+      var Z = alturaNoRaio(cam, p.x, p.y, X, Y); if (isFinite(Z) && Z > -0.5 && Z < 9) pts.push([p.t - t0, Z, 1]);
+    });
+    if (pts.length < 5) return null;
+    pts.push([T, 0, 6]); // o quique está no chão
+    pts.push([0, saque ? 2.6 : 1.0, saque ? 3 : 0.5]); // altura típica do contato
+    /* mínimos quadrados ponderados em (z0, vz, a) */
+    var S = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], r = [0, 0, 0];
+    pts.forEach(function (p) { var f = [1, p[0], -p[0] * p[0] / 2], w = p[2]; for (var i = 0; i < 3; i++) { r[i] += w * f[i] * p[1]; for (var j = 0; j < 3; j++) S[i][j] += w * f[i] * f[j]; } });
+    var c = resolver(S, r); if (!c) return null;
+    var res = 0, n = 0; pts.forEach(function (p) { if (p[2] === 1) { res += Math.pow(c[0] + c[1] * p[0] - c[2] * p[0] * p[0] / 2 - p[1], 2); n++; } });
+    var rms = Math.sqrt(res / n), dist = Math.hypot(q.P[0] - Ph[0], q.P[1] - Ph[1]), vh = dist / T, v0 = Math.hypot(vh, c[1]);
+    var redeS = (0 - Ph[1]) / (q.P[1] - Ph[1]), alturaRede = redeS > 0 && redeS < 1 ? c[0] + c[1] * redeS * T - c[2] * Math.pow(redeS * T, 2) / 2 : null;
+    return { vel: Math.round(v0 * 3.6), velMedia: Math.round(Math.hypot(dist, 0) / T * 3.6), acel: Math.round(c[2] * 10) / 10, z0: Math.round(c[0] * 100) / 100,
+      alturaRede: alturaRede == null ? null : Math.round(alturaRede * 100) / 100, rms: Math.round(rms * 100) / 100, n: n,
+      efeito: saque ? null : c[2] > G + 2.2 ? "top" : c[2] < G - 2 ? "slice" : "flat", conf: n >= 8 && rms < 0.35 ? "media" : "baixa" };
+  }
+  /* depois de um quique de verdade a bola sobe: reconstrói a altura nos quadros seguintes (seguindo na mesma direção, um pouco
+     mais devagar) e devolve a velocidade vertical média (m/s); num "quique" falso no meio do voo ela continua caindo */
+  function subidaDepois(cam, t0, Ph, q, trilha) {
+    if (!cam || !Ph || !q || !trilha) return null;
+    var T = q.t - t0, dx = q.P[0] - Ph[0], dy = q.P[1] - Ph[1], dist = Math.hypot(dx, dy); if (T <= 0 || !dist) return null;
+    var vh = dist / T * 0.75, ux = dx / dist, uy = dy / dist, pts = [];
+    trilha.forEach(function (p) {
+      var u = p.t - q.t; if (u <= 0.02 || u > 0.4) return;
+      var Z = alturaNoRaio(cam, p.x, p.y, q.P[0] + ux * vh * u, q.P[1] + uy * vh * u); if (isFinite(Z)) pts.push([u, Z]);
+    });
+    if (pts.length < 3) return null;
+    var mt = pts.reduce(function (s, p) { return s + p[0]; }, 0) / pts.length, mz = pts.reduce(function (s, p) { return s + p[1]; }, 0) / pts.length, num = 0, den = 0;
+    pts.forEach(function (p) { num += (p[0] - mt) * (p[1] - mz); den += (p[0] - mt) * (p[0] - mt); });
+    return den ? num / den : null;
   }
   function linhasQuadra() { /* segmentos das linhas (em metros) para desenhar a sobreposição da calibração */
     var w = LARG_D / 2, s = MEIA_S, L = MEIO_C;
@@ -175,7 +248,7 @@
     return { r: r, cx: cx, cy: cy };
   }
   /* quique: a trilha é explicada por dois arcos que se encontram num ponto, com a bola passando a subir na imagem */
-  function quique(bolas, t0, t1, ctx, excluir, ladoAlvo, final) {
+  function quique(bolas, t0, t1, ctx, excluir, ladoAlvo, final, valida) {
     var pts = [];
     bolas.forEach(function (q) { if (q.t < t0 || q.t > t1) return; q.b.forEach(function (b) { if (!excluir || !excluir(q.t, b)) pts.push({ t: q.t, x: b[0], y: b[1] }); }); });
     if (pts.length < 8) return null;
@@ -194,6 +267,7 @@
         var img = [(pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2], Pq = aplicarH(ctx.H, img);
         if (Math.abs(Pq[0]) > 8 || Math.abs(Pq[1]) > MEIO_C + 4 || tb + base - t0 < 0.14) continue; // fora do plausível
         if (ladoAlvo && Pq[1] * ladoAlvo < 0 && !(final && Math.abs(Pq[1]) < 3.5)) continue; // a bola quica do lado de lá (ou na rede, se foi a última)
+        if (valida && !valida({ t: tb + base, P: Pq }, tr)) continue; // a trajetória até esse quique tem de fazer sentido em 3D
         var r = A.r + B.r, ganho = U.r / Math.max(r, 1e-7);
         if (ganho < 3) continue; // dois arcos têm de explicar bem melhor que um
         var c = { r: r, ganho: ganho, j: j, img: img, P: Pq, A: A, B: B, L: L, R: R }; todos.push(c);
@@ -293,7 +367,14 @@
     /* batidas: posição, tipo de golpe, efeito, corrida, destino */
     var batidas = hits.map(function (t, i) {
       var k = quem[i], f = noTempo(tr[k], t, 0.25), b = { t: t, quem: k, P: f ? f.P : null };
-      var qq = quique(bolas, t + 0.15, (i + 1 < nH ? hits[i + 1] - 0.06 : t + 2.2), ctx, function (tq, bb) { return dentroDeJogador(tr, tq, bb, ctx, hits, quem); }, k === "perto" ? 1 : -1, i === nH - 1);
+      var Pb = noTempo(tr[k], t, 0.25);
+      /* quique só vale se a bola, saindo de quem bateu, chega nele com altura de contato, gravidade e altura plausíveis */
+      var valida = ctx.cam && Pb ? function (q, trilha) {
+        var sobe = subidaDepois(ctx.cam, t, Pb.P, q, trilha); if (sobe != null && sobe < -1) return false;
+        var v = voo3D(ctx.cam, t, Pb.P, q, trilha, i === 0); if (!v) return true;
+        return v.acel > 2 && v.acel < 32 && v.z0 > -0.4 && v.z0 < (i === 0 ? 3.8 : 3.2) && v.rms < 0.8 && v.vel < 260;
+      } : null;
+      var qq = quique(bolas, t + 0.15, (i + 1 < nH ? hits[i + 1] - 0.06 : t + 2.2), ctx, function (tq, bb) { return dentroDeJogador(tr, tq, bb, ctx, hits, quem); }, k === "perto" ? 1 : -1, i === nH - 1, valida);
       b.quique = qq && !qq.semQuique ? qq : null; b.trilha = qq ? qq.trilha : null;
       return b;
     });
@@ -310,18 +391,33 @@
         return;
       }
       var g = golpe(tr[k], b.t, maoQuem, asp, bolas);
-      b.golpe = g.v; b.gConf = g.c; b.efeito = g.efeito; b.eConf = g.eConf;
+      b.golpe = g.v; b.gConf = g.c; b.efeito = g.efeito; b.efeitoPunho = g.efeito; b.eConf = g.eConf;
       if (b.P && Math.abs(b.P[1]) < 5.2 && b.golpe !== "smash") { b.golpe = "voleio"; b.gConf = g.c === "baixa" ? "baixa" : "media"; b.efeito = null; }
       if (i === 1) b.devolucao = true;
       var a = noTempo(tr[k], b.t - 0.55, 0.2), z = noTempo(tr[k], b.t - 0.05, 0.15);
       if (a && z && z.t > a.t) { var vel = Math.hypot(z.P[0] - a.P[0], z.P[1] - a.P[1]) / (z.t - a.t); b.corrida = vel > 2.3; b.velocidade = Math.round(vel * 10) / 10; }
       b.rede = !!(b.P && Math.abs(b.P[1]) < SERV + 0.5);
     });
+    /* voo em 3D (velocidade, altura na rede, efeito pela trajetória) de cada batida que tem quique do lado de lá */
+    batidas.forEach(function (b, i) {
+      var lado = b.quem === "perto" ? 1 : -1;
+      if (!b.quique || !b.P || b.quique.P[1] * lado <= 0) return;
+      var v = voo3D(ctx.cam, b.t, b.P, b.quique, b.trilha, i === 0);
+      if (!v) return;
+      b.voo = v; b.vel = v.vel;
+      if (i > 0 && v.efeito && v.conf === "media" && b.golpe !== "voleio") { // a física da bola vale mais que o punho quando o voo é bem visto
+        if (!b.efeito || b.eConf !== "media" || b.efeito === v.efeito) { b.efeito = v.efeito; b.eConf = b.efeito === (b.efeitoPunho || v.efeito) ? "alta" : "media"; }
+      }
+    });
     /* direção de cada batida: pelo quique do lado de lá ou pela posição de quem rebateu */
     batidas.forEach(function (b, i) {
       if (i === 0 || !b.P) return;
       var dest = null, c = "media", lado = b.quem === "perto" ? 1 : -1;
-      if (b.quique && b.quique.P[1] * lado > 0) { dest = b.quique.P[0]; c = "alta"; b.profundidade = Math.abs(b.quique.P[1]) > MEIO_C - 3.5 ? "funda" : Math.abs(b.quique.P[1]) < SERV ? "curta" : "media"; }
+      if (b.quique && b.quique.P[1] * lado > 0) {
+        dest = b.quique.P[0]; c = "alta";
+        b.distFundo = Math.round((MEIO_C - Math.abs(b.quique.P[1])) * 10) / 10; // metros antes da linha de base (negativo = fora)
+        b.profundidade = b.distFundo < 3 ? "funda" : Math.abs(b.quique.P[1]) < SERV ? "curta" : "media";
+      }
       else if (batidas[i + 1] && batidas[i + 1].P) dest = batidas[i + 1].P[0];
       if (dest == null) return;
       var xh = b.P[0];
@@ -468,7 +564,36 @@
     var fim = feixe.slice().sort(function (x, y) { return (y.lp + bonusFinal(y.e, alvo)) - (x.lp + bonusFinal(x.e, alvo)); })[0];
     var decs = [], estados = [];
     for (var n = fim; n && n.pai; n = n.pai) { decs.unshift(n.dec); estados.unshift({ e: n.pai.e, ap: n.pai.ap, falta: n.pai.falta }); }
-    return { decisoes: decs, antes: estados, final: fim.e, atletaTerminouPerto: fim.ap, confere: alvo ? bonusFinal(fim.e, alvo) === 0 : null };
+    return { decisoes: decs, antes: estados, final: fim.e, atletaTerminouPerto: fim.ap, confere: alvo ? bonusFinal(fim.e, alvo) === 0 : null, lp: fim.lp + bonusFinal(fim.e, alvo), cfg: cfg };
+  }
+  /* formato descoberto: decodifica com cada formato comum e fica o que melhor explica a sequência de saques e lados
+     (pequena preferência pelo mais comum: melhor de 3 sets com vantagem) */
+  var FORMATOS = [[{ formato: "3sets" }, 0], [{ formato: "3sets", superTiebreakDecisivo: true }, -1.5], [{ formato: "1set" }, -1.5], [{ formato: "4games" }, -3],
+    [{ formato: "3sets", semVantagem: true }, -2.5], [{ formato: "3sets", semVantagem: true, superTiebreakDecisivo: true }, -3], [{ formato: "1set", semVantagem: true }, -3], [{ formato: "4games", semVantagem: true }, -3.5]];
+  function decodificarAuto(an, base) {
+    base = base || {};
+    if (base.formato) return decodificar(an, base);
+    var melhor = null;
+    FORMATOS.forEach(function (f) {
+      var d = decodificar(an, Object.assign({}, base, f[0])), nota = d.lp + f[1];
+      if (d.final.fim && d.decisoes.length && d.decisoes[d.decisoes.length - 1].papel !== "fora") nota += 5; // a partida termina exatamente no último ponto do vídeo
+      if (!melhor || nota > melhor.nota) { melhor = d; melhor.nota = nota; melhor.formatoAuto = f[0]; }
+    });
+    return melhor;
+  }
+  /* mão de cada jogador: no contato do saque, o punho mais alto é o da mão dominante (voto em todos os saques de cada um) */
+  function maosAuto(dados, an, dec, ctx) {
+    var votos = { nos: { D: 0, E: 0 }, ele: { D: 0, E: 0 } };
+    dec.decisoes.forEach(function (d, k) {
+      if (d.papel === "fora" || !an[k] || !an[k].nHits) return;
+      var est = dec.antes[k], sac = Placar.quemSaca(est.e), lado = (sac === "nos") === est.ap ? "perto" : "longe";
+      var tr = trilhas(dados[k].quadros || [], ctx), f = comPose(tr[lado], an[k].batidas[0].t, 0.08);
+      if (!f || !f.lm[15] || !f.lm[16]) return;
+      var dif = f.lm[16].y - f.lm[15].y; // y cresce para baixo: punho direito mais alto → dif negativo
+      if (Math.abs(dif) > 0.004) votos[sac][dif < 0 ? "D" : "E"]++;
+    });
+    var esc = function (v) { return v.E > v.D * 1.5 && v.E >= 2 ? "E" : "D"; };
+    return { A: esc(votos.nos), B: esc(votos.ele), votos: votos };
   }
   function lerPlacar(txt) {
     var sets = String(txt || "").match(/\d+\s*[-x×/]\s*\d+/g); if (!sets) return null;
@@ -493,7 +618,8 @@
       if (reanalisar) a = an[k] = reanalisar(k, { servidorPerto: sacPerto, atletaPerto: est.ap }); // refaz as batidas com o sacador e o lado decididos pelo placar
       if (d.papel === "falta") { faltaPend = { k: k, pFalta: a.pFalta }; return; }
       var atletaPerto = est.ap, quemA = atletaPerto ? "perto" : "longe";
-      var bats = a.batidas.map(function (b) { return { t: Math.round(b.t * 100) / 100, quem: b.quem === quemA ? "nos" : "ele", golpe: b.devolucao && b.golpe !== "voleio" ? (b.golpe || "devolucao") : b.golpe, efeito: b.efeito || null, direcao: b.direcao || null, corrida: !!b.corrida, rede: !!b.rede, profundidade: b.profundidade || null }; });
+      var bats = a.batidas.map(function (b) { return { t: Math.round(b.t * 100) / 100, quem: b.quem === quemA ? "nos" : "ele", golpe: b.devolucao && b.golpe !== "voleio" ? (b.golpe || "devolucao") : b.golpe, efeito: b.efeito || null, direcao: b.direcao || null, corrida: !!b.corrida, rede: !!b.rede, profundidade: b.profundidade || null,
+        vel: b.vel || null, distFundo: b.distFundo == null ? null : b.distFundo, alturaRede: b.voo ? b.voo.alturaRede : null }; });
       var meus = a.batidas.filter(function (b) { return b.quem === quemA; }), u = meus[meus.length - 1] || null, nH = a.nHits;
       var ultimo = a.batidas[nH - 1], ultNos = ultimo ? ultimo.quem === quemA : sac === "nos";
       var saque = d.saque, nos = d.nos, fim;
@@ -525,7 +651,7 @@
     return pontos;
   }
 
-  return { calibrar: calibrar, homografia: homografia, aplicarH: aplicarH, cantosQuadra: cantosQuadra, linhasQuadra: linhasQuadra, Placar: Placar,
-    analisarPonto: analisarPonto, decodificar: decodificar, montarScout: montarScout, lerPlacar: lerPlacar, quique: quique, golpe: golpe, trilhas: trilhas, dentroDeJogador: dentroDeJogador,
+  return { calibrar: calibrar, camera: camera, projetar3: projetar3, alturaNoRaio: alturaNoRaio, voo3D: voo3D, homografia: homografia, aplicarH: aplicarH, cantosQuadra: cantosQuadra, linhasQuadra: linhasQuadra, Placar: Placar,
+    analisarPonto: analisarPonto, decodificar: decodificar, decodificarAuto: decodificarAuto, maosAuto: maosAuto, montarScout: montarScout, lerPlacar: lerPlacar, quique: quique, golpe: golpe, trilhas: trilhas, dentroDeJogador: dentroDeJogador,
     QUADRA: { comprimento: COMP, larguraDuplas: LARG_D, larguraSimples: LARG_S, linhaSaque: SERV } };
 });

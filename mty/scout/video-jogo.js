@@ -164,6 +164,7 @@
         tocar: function (ini, fim) { tocarJanela(ini, fim, ""); },
         moverVideo: function (slot) { if (v.parentNode !== slot) { slot.appendChild(v); q("rev").hidden = true; } },
         cotaLiberada: function () { return !(st.cota && !st.cota.liberado); },
+        autoIniciar: !(st.cota && !st.cota.liberado), // o scout completo começa sozinho depois de achar os pontos
         aoSalvarScout: o.aoSalvarScout ? function (d) { return o.aoSalvarScout(d); } : null,
         aoSalvarVideo: function (pontosScout) {
           /* também guarda o jogo no histórico de jogos em vídeo (comparação e evolução) */
@@ -172,7 +173,8 @@
             var nb = (p.batidas || []).length;
             return { n: i + 1, ini: p.video ? p.video.ini : 0, fim: p.video ? p.video.fim : 0, saque: p.video ? p.video.ini + 1.8 : 0, sacador: p.sacador === "nos" ? "A" : "B", venc: p.nos ? "A" : "B", tipo: tipo, golpes: nb, duracao: nb ? (p.batidas[nb - 1].t - p.batidas[0].t) : 0 };
           });
-          st.salvo = false; q("salvar").onclick();
+          if (!st.regId) st.salvo = false; // a mesma partida salva de novo atualiza o registro (não conta outra vez na cota)
+          q("salvar").onclick();
         },
       });
       st.lugarVideo = lugarVideo;

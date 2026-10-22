@@ -112,11 +112,12 @@ function simularPartida(o = {}) {
       bats.forEach((b) => { traj[b.quem].push([b.T, b.de[0], b.de[1]]); });
       ["nos", "ele"].forEach((q) => { const u = traj[q][traj[q].length - 1]; traj[q].push([tFim, u[1] * 0.7, u[2]]); });
       const ondeEsta = (q, tt) => { const l = traj[q]; for (let i = 1; i < l.length; i++) if (tt <= l[i][0]) { const a = l[i - 1], b = l[i], f = (tt - a[0]) / Math.max(1e-6, b[0] - a[0]); return [a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f]; } const u = l[l.length - 1]; return [u[1], u[2]]; };
-      /* bola em 3D */
+      /* bola em 3D: o efeito muda a aceleração vertical (top spin cai mais rápido, slice flutua) */
+      const aEf = (b) => b.efeito === "top" ? 9.81 + 5 : b.efeito === "slice" ? 9.81 - 3.5 : 9.81;
       const bola = (tt) => {
         for (let i = bats.length - 1; i >= 0; i--) {
           const b = bats[i]; if (tt < b.T) continue;
-          const u = tt - b.T, T1 = b.dur, g = 9.81, z0 = b.z, vz = (g * T1 * T1 / 2 - z0) / T1;
+          const u = tt - b.T, T1 = b.dur, g = aEf(b), z0 = b.z, vz = (g * T1 * T1 / 2 - z0) / T1;
           const vx = (b.alvo[0] - b.de[0]) / T1, vy = (b.alvo[1] - b.de[1]) / T1;
           if (b.fim === "rede" && u > T1) return null;
           if (u <= T1) return [b.de[0] + vx * u, b.de[1] + vy * u, z0 + vz * u - g * u * u / 2];
@@ -154,7 +155,8 @@ function simularPartida(o = {}) {
       }
       segs.push(seg);
       const v = { papel: fimTipo === "falta" ? "falta" : "ponto", sacador: sac, lado: ld, nHits: bats.length, dirSaque: ds, entra,
-        batidas: bats.map((b) => ({ quem: b.quem, golpe: b.golpe, efeito: b.efeito || null, direcao: b.direcao || null, corrida: false, alvo: b.alvo, fim: b.fim || null })) };
+        batidas: bats.map((b) => ({ quem: b.quem, golpe: b.golpe, efeito: b.efeito || null, direcao: b.direcao || null, corrida: false, alvo: b.alvo, fim: b.fim || null,
+          vel: (() => { const T1 = b.dur, d = Math.hypot(b.alvo[0] - b.de[0], b.alvo[1] - b.de[1]), vz = (aEf(b) * T1 * T1 / 2 - b.z) / T1; return Math.round(Math.hypot(d / T1, vz) * 3.6); })() })) };
       t = tFim + (o.pausaFalta != null ? o.pausaFalta : 6 + rnd() * 10);
       if (fimTipo === "falta") {
         if (tentativa === 2) { venc = rec; v.papel = "ponto"; v.saque = "df"; resultado = { venc, saque: "df" }; }

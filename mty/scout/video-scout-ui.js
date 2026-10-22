@@ -43,7 +43,7 @@
         'Cada campo vem marcado como confiável ou "confira"; o que o vídeo não mostra (situação do ponto, decisão, causa do erro) você completa. No fim vira um scout normal no caderno do jogador.</p>' +
         '<p class="qm-msg">Funciona melhor com a câmera parada, atrás e acima da linha de fundo, pegando a quadra inteira. Tudo roda aqui no aparelho.</p>' +
         '<div class="qm-row"><button class="qm-pri" data-a="ir">Montar o scout completo</button></div></div>';
-      el.querySelector('[data-a="ir"]').onclick = function () { S.fase = "calibrar"; render(); pegarQuadro(); };
+      el.querySelector('[data-a="ir"]').onclick = function () { iniciarAuto(); };
     }
 
     /* ── calibração ── */
@@ -71,9 +71,9 @@
         '<div class="vs-cal"><canvas data-r="cv"></canvas></div><p class="qm-msg" data-r="calmsg">Carregando um quadro do vídeo…</p>' +
         '<div class="qm-row"><button data-a="refazer">Refazer a marcação</button><label class="qm-msg" style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-r="simples"' + (c.simples ? " checked" : "") + '> marquei os cantos da quadra de simples</label></div>' +
         '<div class="vs-form">' +
-        '<label>Mão de ' + esc(n.A) + '<select data-r="maoA"><option value="D">Destro</option><option value="E"' + (c.maoA === "E" ? " selected" : "") + '>Canhoto</option></select></label>' +
-        '<label>Mão de ' + esc(n.B) + '<select data-r="maoB"><option value="D">Destro</option><option value="E"' + (c.maoB === "E" ? " selected" : "") + '>Canhoto</option></select></label>' +
-        '<label>Formato<select data-r="formato"><option value="3sets">Melhor de 3 sets</option><option value="1set"' + (c.formato === "1set" ? " selected" : "") + '>Set único</option><option value="4games"' + (c.formato === "4games" ? " selected" : "") + '>Set a 4 games</option></select></label>' +
+        '<label>Mão de ' + esc(n.A) + '<select data-r="maoA"><option value="">Automático (pelo saque)</option><option value="D"' + (c.maoA === "D" ? " selected" : "") + '>Destro</option><option value="E"' + (c.maoA === "E" ? " selected" : "") + '>Canhoto</option></select></label>' +
+        '<label>Mão de ' + esc(n.B) + '<select data-r="maoB"><option value="">Automático (pelo saque)</option><option value="D"' + (c.maoB === "D" ? " selected" : "") + '>Destro</option><option value="E"' + (c.maoB === "E" ? " selected" : "") + '>Canhoto</option></select></label>' +
+        '<label>Formato<select data-r="formato"><option value="">Automático</option><option value="3sets"' + (c.formato === "3sets" ? " selected" : "") + '>Melhor de 3 sets</option><option value="1set"' + (c.formato === "1set" ? " selected" : "") + '>Set único</option><option value="4games"' + (c.formato === "4games" ? " selected" : "") + '>Set a 4 games</option></select></label>' +
         '<label>Quem sacou o 1º ponto<select data-r="saca"><option value="">Não sei (o app descobre)</option><option value="nos"' + (c.saca === "nos" ? " selected" : "") + '>' + esc(n.A) + '</option><option value="ele"' + (c.saca === "ele" ? " selected" : "") + '>' + esc(n.B) + '</option></select></label>' +
         '<label>Placar final (opcional, ajuda muito)<input type="text" data-r="final" placeholder="ex.: 6-4 3-6 10-8" value="' + esc(c.placarFinal || "") + '"></label>' +
         '<label>Regras<span style="display:flex;flex-direction:column;gap:3px;color:var(--qink)"><span><input type="checkbox" data-r="semVant"' + (c.semVantagem ? " checked" : "") + '> sem vantagem (ponto decisivo)</span><span><input type="checkbox" data-r="stb"' + (c.superTiebreakDecisivo ? " checked" : "") + '> 3º set em super tie-break</span></span></label>' +
@@ -81,7 +81,7 @@
         '<p class="qm-msg">Leva alguns minutos (mais rápido no computador). Deixe esta tela aberta; o vídeo não sai do aparelho.</p></div>';
       el.querySelector('[data-a="refazer"]').onclick = function () { S.cantos = []; S.atleta = S.adv = null; desenhar(); };
       el.querySelector('[data-a="voltar"]').onclick = function () { S.fase = "convite"; render(); };
-      el.querySelector('[data-a="gerar"]').onclick = gerar;
+      el.querySelector('[data-a="gerar"]').onclick = function () { gerar(false); };
       /* o ponto é fixado ao soltar o dedo, com uma lupa mostrando onde ele vai cair (no celular a quadra fica pequena);
          começar perto de um canto e arrastar ajusta aquele canto. No celular o adversário fica junto dos cantos do fundo:
          um toque parado ali marca o jogador, só o movimento arrasta o canto */
@@ -106,7 +106,7 @@
         desenhar();
       };
       cv.onpointercancel = function () { S.toque = null; desenhar(); };
-      if (S.img) desenhar();
+      if (S.img) desenhar(); else pegarQuadro();
     }
     function desenhar() {
       var cv = el.querySelector('[data-r="cv"]'); if (!cv || !S.img) return;
@@ -145,7 +145,7 @@
     }
     function lerCfg() {
       var g = function (n) { return el.querySelector('[data-r="' + n + '"]'); };
-      return { simples: g("simples").checked, maoA: g("maoA").value, maoB: g("maoB").value, formato: g("formato").value, saca: g("saca").value || null,
+      return { simples: g("simples").checked, maoA: g("maoA").value || null, maoB: g("maoB").value || null, formato: g("formato").value || null, saca: g("saca").value || null,
         placarFinal: g("final").value.trim(), semVantagem: g("semVant").checked, superTiebreakDecisivo: g("stb").checked };
     }
 
@@ -155,33 +155,69 @@
       bat.forEach(function (t) { if (cur && t - cur[cur.length - 1] <= 3.2) cur.push(t); else { cur = [t]; l.push(cur); } });
       return l.map(function (h) { return { ini: Math.max(0, h[0] - 1.8), fim: Math.min(dur || 1e9, h[h.length - 1] + 2.4), hits: h }; });
     }
-    async function gerar() {
-      S.cfg = lerCfg();
-      var cal = VS.calibrar(S.cantos, { simples: S.cfg.simples, aspecto: S.asp, maoA: S.cfg.maoA, maoB: S.cfg.maoB, corA: corEm(S.atleta), corB: corEm(S.adv) });
+    function progresso(fr, t) { var b = el.querySelector('[data-r="barra"]'), m = el.querySelector('[data-r="pmsg"]'); if (b && fr != null) b.value = fr; if (m && t) m.textContent = t; }
+    /* automático: acha a quadra sozinho no primeiro quadro; o atleta é quem está perto da câmera no começo (dá para trocar depois);
+       mão e formato saem da própria partida. Se a quadra não for achada, cai na marcação manual. */
+    async function iniciarAuto() {
+      S.fase = "processando"; render(); progresso(0, "Procurando a quadra no vídeo…");
+      await pegarQuadro();
+      var r = null;
+      if (S.img && raiz.QLQuadraAuto) {
+        var w = 640, h = Math.round(w / S.asp), c = document.createElement("canvas"); c.width = w; c.height = h;
+        var x = c.getContext("2d", { willReadFrequently: true }); x.drawImage(S.img, 0, 0, w, h);
+        await new Promise(function (ok) { setTimeout(ok, 30); });
+        try { r = raiz.QLQuadraAuto.detectar(x.getImageData(0, 0, w, h).data, w, h); } catch (e) { r = null; }
+      }
+      if (!r || r.nota < 0.55 || r.visiveis < 0.45) {
+        S.fase = "calibrar"; render(); msgCal("Não achei as linhas da quadra sozinho neste vídeo. Marque os 4 cantos (leva poucos segundos).");
+        return;
+      }
+      S.cantos = r.cantos; S.quadraAuto = true;
+      S.cfg = S.cfg || { simples: false, maoA: null, maoB: null, formato: null, saca: null, placarFinal: "", semVantagem: false, superTiebreakDecisivo: false };
+      gerar(true);
+    }
+    async function gerar(auto) {
+      if (!auto) S.cfg = lerCfg();
+      var cal = VS.calibrar(S.cantos, { simples: S.cfg.simples, aspecto: S.asp, corA: S.atleta ? corEm(S.atleta) : null, corB: S.adv ? corEm(S.adv) : null });
       if (!cal) { msgCal("Os cantos não formam uma quadra. Refaça a marcação."); return; }
-      var pa = VS.aplicarH(cal.H, S.atleta);
-      cal.atletaComecaPerto = pa[1] < 0; S.ctx = cal;
-      S.fase = "processando"; render();
+      cal.atletaComecaPerto = S.atleta ? VS.aplicarH(cal.H, S.atleta)[1] < 0 : S.atletaPerto !== false; S.ctx = cal;
+      S.fase = "processando"; render(); progresso(0, S.quadraAuto ? "Quadra encontrada ✓ · lendo os pontos…" : "Lendo os pontos…");
       var trechos = dividir(api.batidas(), api.duracao());
       S.sinal = { cancelado: false };
       try {
-        var r = await raiz.QLVisao.processar(api.arquivo(), api.video, trechos, cal, { sinal: S.sinal, aoProgresso: function (fr, t) { var b = el.querySelector('[data-r="barra"]'), m = el.querySelector('[data-r="pmsg"]'); if (b) b.value = fr; if (m) m.textContent = t; } });
+        var r = await raiz.QLVisao.processar(api.arquivo(), api.video, trechos, cal, { sinal: S.sinal, aoProgresso: progresso });
         S.dados = r.dados; S.semPose = !r.pose;
         /* cor da roupa de cada um: do tronco (pose) nos primeiros pontos, antes da primeira troca de lado — mais firme que o toque */
         var cores = { perto: [], longe: [] };
         S.dados.slice(0, 3).forEach(function (d) { d.quadros.forEach(function (q) { q.jog.forEach(function (j) { if (j.cor && j.pe) cores[VS.aplicarH(cal.H, j.pe)[1] < 0 ? "perto" : "longe"].push(j.cor); }); }); });
         var mediana = function (l) { if (l.length < 5) return null; return [0, 1, 2].map(function (c) { var v = l.map(function (x) { return x[c]; }).sort(function (a, b) { return a - b; }); return v[Math.floor(v.length / 2)]; }); };
-        var cP = mediana(cores.perto), cL = mediana(cores.longe);
-        if (cP && cL) { cal.corA = cal.atletaComecaPerto ? cP : cL; cal.corB = cal.atletaComecaPerto ? cL : cP; }
-        if (cal.corA && cal.corB && Math.hypot(cal.corA[0] - cal.corB[0], cal.corA[1] - cal.corB[1], cal.corA[2] - cal.corB[2]) < 45) cal.corA = cal.corB = null; // roupas parecidas: vale só a regra de troca de lado
-        S.an = S.dados.map(function (d) { return VS.analisarPonto(d, cal); });
-        S.dec = VS.decodificar(S.an, { formato: S.cfg.formato, semVantagem: S.cfg.semVantagem, superTiebreakDecisivo: S.cfg.superTiebreakDecisivo, saca: S.cfg.saca, atletaComecaPerto: cal.atletaComecaPerto, placarFinal: S.cfg.placarFinal });
-        S.pontos = VS.montarScout(S.an, S.dec, function (k, op) { return VS.analisarPonto(S.dados[k], cal, op); });
-        S.sacaInicial = S.pontos.length ? S.pontos[0].sacador : (S.cfg.saca || "nos");
-        recalcular(); S.fase = "revisar"; S.salvo = false; render();
+        S.cores = { perto: mediana(cores.perto), longe: mediana(cores.longe) };
+        remontar();
+        S.fase = "revisar"; S.salvo = false; render(); salvar(true);
       } catch (e) {
         S.fase = "calibrar"; render(); msgCal(/cancelado/.test(e.message) ? "Scout cancelado." : "Não consegui gerar o scout: " + (e.message || e));
       }
+    }
+    /* refaz o scout a partir do que já foi lido do vídeo (sem ler de novo): troca de atleta, formato, mãos, placar final */
+    function remontar() {
+      var cal = S.ctx, cP = S.cores && S.cores.perto, cL = S.cores && S.cores.longe;
+      cal.corA = cP && cL ? (cal.atletaComecaPerto ? cP : cL) : cal.corA; cal.corB = cP && cL ? (cal.atletaComecaPerto ? cL : cP) : cal.corB;
+      if (cal.corA && cal.corB && Math.hypot(cal.corA[0] - cal.corB[0], cal.corA[1] - cal.corB[1], cal.corA[2] - cal.corB[2]) < 45) cal.corA = cal.corB = null; // roupas parecidas: vale só a regra de troca de lado
+      var maos = { A: S.cfg.maoA || (S.maosAuto && S.maosAuto.A) || "D", B: S.cfg.maoB || (S.maosAuto && S.maosAuto.B) || "D" };
+      var base = { saca: S.cfg.saca, atletaComecaPerto: cal.atletaComecaPerto, placarFinal: S.cfg.placarFinal };
+      if (S.cfg.formato) { base.formato = S.cfg.formato; base.semVantagem = S.cfg.semVantagem; base.superTiebreakDecisivo = S.cfg.superTiebreakDecisivo; }
+      var rodar = function () { cal.mao = maos; S.an = S.dados.map(function (d) { return VS.analisarPonto(d, cal); }); S.dec = VS.decodificarAuto(S.an, base); };
+      rodar();
+      if (!S.cfg.maoA || !S.cfg.maoB) {
+        var m = VS.maosAuto(S.dados, S.an, S.dec, cal); S.maosAuto = m;
+        var novas = { A: S.cfg.maoA || m.A, B: S.cfg.maoB || m.B };
+        if (novas.A !== maos.A || novas.B !== maos.B) { maos = novas; rodar(); }
+      }
+      S.maos = maos;
+      S.regras = { formato: S.dec.cfg.formato || "3sets", semVantagem: !!S.dec.cfg.semVantagem, superTiebreakDecisivo: !!S.dec.cfg.superTiebreakDecisivo };
+      S.pontos = VS.montarScout(S.an, S.dec, function (k, op) { return VS.analisarPonto(S.dados[k], cal, op); });
+      S.sacaInicial = S.pontos.length ? S.pontos[0].sacador : (S.cfg.saca || "nos");
+      recalcular();
     }
     function processando() {
       el.innerHTML = '<div class="qm-card"><h3 class="qm-h">Gerando o scout…</h3><div class="qm-row"><progress data-r="barra" max="1" value="0" style="flex:1;min-width:160px;height:10px;accent-color:#0B3B2E"></progress><button data-a="parar">Cancelar</button></div>' +
@@ -191,7 +227,7 @@
 
     /* ── placar e campos derivados depois de uma edição ── */
     function recalcular() {
-      var cfg = { formato: S.cfg.formato, semVantagem: S.cfg.semVantagem, superTiebreakDecisivo: S.cfg.superTiebreakDecisivo }, e = VS.Placar.inicial(cfg, S.sacaInicial);
+      var e = VS.Placar.inicial(S.regras, S.sacaInicial);
       S.pontos.forEach(function (p, i) {
         p.n = i + 1; p.placarAntes = VS.Placar.rotulo(e); p.jogo = VS.Placar.jogo(e); p.set = VS.Placar.set(e); p.lado = VS.Placar.lado(e); p.adverso = VS.Placar.adverso(e);
         var sac = VS.Placar.quemSaca(e); if (sac !== p.sacador) { p.sacador = sac; }
@@ -212,7 +248,19 @@
     function revisar() {
       var n = nomes(), conf = S.pontos.filter(precisaConferir).length, alvo = S.cfg.placarFinal;
       var lista = S.pontos.map(function (p, i) { return [p, i]; }).filter(function (x) { return S.filtro === "todos" || precisaConferir(x[0]); });
-      el.innerHTML = '<div class="qm-card"><h3 class="qm-h">Scout da partida · confira e salve</h3>' +
+      var regrasTxt = { "3sets": "Melhor de 3 sets", "1set": "Set único", "4games": "Set a 4 games" }[S.regras.formato] + (S.regras.semVantagem ? " · sem vantagem" : "") + (S.regras.superTiebreakDecisivo ? " · super tie-break" : "");
+      var opF = function (v, r) { return '<option value="' + v + '"' + ((S.cfg.formato || "") === v ? " selected" : "") + ">" + r + "</option>"; };
+      var opM = function (k, v, r) { return '<option value="' + v + '"' + ((S.cfg[k] || "") === v ? " selected" : "") + ">" + r + "</option>"; };
+      var maoTxt = function (m) { return m === "E" ? "canhoto" : "destro"; };
+      el.innerHTML = '<div class="qm-card"><h3 class="qm-h">Scout da partida · gerado e salvo automaticamente</h3>' +
+        '<p class="qm-msg">' + (S.quadraAuto ? "Quadra achada sozinha ✓" : "Quadra marcada à mão") + " · " + esc(n.A) + " começa " + (S.ctx.atletaComecaPerto ? "perto" : "longe") + " da câmera · " + esc(n.A) + " " + maoTxt(S.maos.A) + ", " + esc(n.B) + " " + maoTxt(S.maos.B) + (S.cfg.maoA && S.cfg.maoB ? "" : " (pelo saque)") + " · " + esc(regrasTxt) + (S.cfg.formato ? "" : " (detectado)") + "</p>" +
+        '<details class="vs-aj"><summary class="qm-msg" style="cursor:pointer">Ajustar (se algo acima não estiver certo)</summary><div class="vs-form">' +
+        '<label>Quem é ' + esc(n.A) + '<button data-a="trocar" type="button">É o outro jogador (trocar)</button></label>' +
+        '<label>Formato<select data-aj="formato">' + opF("", "Automático") + opF("3sets", "Melhor de 3 sets") + opF("1set", "Set único") + opF("4games", "Set a 4 games") + "</select></label>" +
+        '<label>Mão de ' + esc(n.A) + '<select data-aj="maoA">' + opM("maoA", "", "Automático") + opM("maoA", "D", "Destro") + opM("maoA", "E", "Canhoto") + "</select></label>" +
+        '<label>Mão de ' + esc(n.B) + '<select data-aj="maoB">' + opM("maoB", "", "Automático") + opM("maoB", "D", "Destro") + opM("maoB", "E", "Canhoto") + "</select></label>" +
+        '<label>Placar final (ajuda a acertar quem ganhou cada ponto)<span style="display:flex;gap:6px"><input type="text" data-aj="placarFinal" placeholder="ex.: 6-4 3-6 10-8" value="' + esc(S.cfg.placarFinal || "") + '" style="flex:1"><button type="button" data-a="aplicarPlacar">Aplicar</button></span></label>' +
+        '<label>Linhas da quadra<button type="button" data-a="refazer">Ver / ajustar a quadra</button></label></div></details>' +
         '<div class="vs-res"><div><b>' + esc(textoPlacar(S.placar)) + "</b>placar reconstruído" + (S.placar.fim ? " · fim de jogo" : "") + "</div><div><b>" + S.pontos.length + "</b>pontos</div><div><b>" + conf + "</b>para conferir</div></div>" +
         (alvo ? '<p class="qm-msg">' + (S.dec.confere ? "✓ Bate com o placar final informado (" + esc(alvo) + ")." : "⚠ Não bateu com o placar informado (" + esc(alvo) + "): confira os pontos marcados.") + "</p>" : "") +
         (S.semPose ? '<p class="qm-msg">⚠ O modelo de pose não carregou (sem internet?): golpes e efeito ficaram em branco para você marcar.</p>' : "") +
@@ -220,21 +268,31 @@
         '<div data-r="slotVideo"></div>' +
         '<div class="qm-row" style="margin-top:8px"><button data-f="todos"' + (S.filtro === "todos" ? ' class="qm-pri"' : "") + '>Todos</button><button data-f="conf"' + (S.filtro === "conf" ? ' class="qm-pri"' : "") + ">Para conferir (" + conf + ")</button></div>" +
         '<div data-r="pts">' + lista.map(function (x) { return cartao(x[0], x[1], n); }).join("") + (lista.length ? "" : '<p class="qm-msg">Nada para conferir. 👍</p>') + "</div>" +
-        '<div class="qm-row" style="margin-top:12px"><button class="qm-pri" data-a="salvar">' + (S.salvo ? "Salvar de novo" : "Salvar scout no caderno do jogador") + '</button><button data-a="csv">Baixar CSV</button><button data-a="refazer">Refazer a calibração</button></div><p class="qm-msg" data-r="smsg"></p></div>';
+        '<div class="qm-row" style="margin-top:12px"><button class="qm-pri" data-a="salvar">' + (S.salvo ? "Salvar de novo" : "Salvar scout no caderno do jogador") + '</button><button data-a="csv">Baixar CSV</button></div><p class="qm-msg" data-r="smsg">' + (S.salvo ? "Salvo no caderno do jogador ✓ (as correções também são salvas sozinhas)." : "") + "</p></div>" +
+        (raiz.QLPadroes ? '<div class="qm-card"><h3 class="qm-h">Padrões da partida</h3><p class="qm-msg">Como cada ponto foi construído: as sequências exatas que deram ponto e as que deram erro, dos dois lados. Somando vários jogos, os padrões aparecem na aba Evolução.</p>' + raiz.QLPadroes.html(raiz.QLPadroes.analisar(S.pontos), n) + "</div>" : "");
       var slot = el.querySelector('[data-r="slotVideo"]'); if (api.video && api.moverVideo) api.moverVideo(slot);
       [].forEach.call(el.querySelectorAll("[data-f]"), function (b) { b.onclick = function () { S.filtro = b.getAttribute("data-f"); S.aberto = -1; render(); }; });
-      el.querySelector('[data-a="salvar"]').onclick = salvar;
+      el.querySelector('[data-a="salvar"]').onclick = function () { salvar(); };
       el.querySelector('[data-a="csv"]').onclick = csv;
       el.querySelector('[data-a="refazer"]').onclick = function () { S.fase = "calibrar"; render(); };
+      var refazerTudo = function () { remontar(); S.aberto = -1; render(); salvar(true); };
+      el.querySelector('[data-a="trocar"]').onclick = function () {
+        S.ctx.atletaComecaPerto = !S.ctx.atletaComecaPerto; S.atletaPerto = S.ctx.atletaComecaPerto; S.atleta = S.adv = null;
+        var a = S.cfg.maoA; S.cfg.maoA = S.cfg.maoB; S.cfg.maoB = a; if (S.cfg.saca) S.cfg.saca = S.cfg.saca === "nos" ? "ele" : "nos";
+        if (S.maosAuto) S.maosAuto = { A: S.maosAuto.B, B: S.maosAuto.A };
+        refazerTudo();
+      };
+      [].forEach.call(el.querySelectorAll("select[data-aj]"), function (sl) { sl.onchange = function () { S.cfg[sl.getAttribute("data-aj")] = sl.value || null; if (sl.getAttribute("data-aj") === "formato") { S.cfg.semVantagem = false; S.cfg.superTiebreakDecisivo = false; } refazerTudo(); }; });
+      el.querySelector('[data-a="aplicarPlacar"]').onclick = function () { S.cfg.placarFinal = el.querySelector('[data-aj="placarFinal"]').value.trim(); refazerTudo(); };
       el.querySelector('[data-r="pts"]').onclick = function (e) {
         var b = e.target.closest("[data-i]"); if (!b) return; var i = +b.getAttribute("data-i"), ac = b.getAttribute("data-acao"), p = S.pontos[i];
         if (ac === "ver") api.tocar(p.video.falta != null ? p.video.falta : p.video.ini, p.video.fim);
         if (ac === "editar") { S.aberto = S.aberto === i ? -1 : i; render(); var c = el.querySelector('[data-cart="' + i + '"]'); if (c && c.scrollIntoView) c.scrollIntoView({ block: "nearest" }); }
-        if (ac === "remover" && window.confirm("Tirar este trecho do scout (não era ponto)?")) { S.pontos.splice(i, 1); S.aberto = -1; recalcular(); S.salvo = false; render(); }
+        if (ac === "remover" && window.confirm("Tirar este trecho do scout (não era ponto)?")) { S.pontos.splice(i, 1); S.aberto = -1; recalcular(); render(); salvar(true); }
       };
       el.querySelector('[data-r="pts"]').onchange = function (e) {
         var c = e.target.closest("[data-ed]"); if (!c) return; var i = +c.getAttribute("data-ed"), k = e.target.getAttribute("data-k"), p = S.pontos[i], v = e.target.type === "checkbox" ? e.target.checked : (e.target.value || null);
-        aplicarEdicao(p, k, v); recalcular(); S.salvo = false; render();
+        aplicarEdicao(p, k, v); recalcular(); render(); salvar(true);
       };
     }
     function aplicarEdicao(p, k, v) {
@@ -269,17 +327,17 @@
       return h + "</div>";
     }
     function pontosParaSalvar() { return compactar(S.pontos); }
-    function salvar() {
+    function salvar(silencioso) {
       var n = nomes(), pts = pontosParaSalvar(), m = el.querySelector('[data-r="smsg"]');
       if (!pts.length) return;
       S.idScout = S.idScout || "pv" + Date.now().toString(36);
       var arq = api.arquivo(), quando = arq && arq.lastModified ? new Date(arq.lastModified) : null;
-      var dados = { id: S.idScout, data: quando && !isNaN(quando) ? quando.toISOString().slice(0, 10) : null, pontos: pts, placar: S.placar, cfg: { formato: S.cfg.formato, saca: S.sacaInicial, semVantagem: S.cfg.semVantagem, superTiebreakDecisivo: S.cfg.superTiebreakDecisivo, adversario: n.B === "Adversário" ? "" : n.B, torneio: "" } };
+      var dados = { id: S.idScout, data: quando && !isNaN(quando) ? quando.toISOString().slice(0, 10) : null, pontos: pts, placar: S.placar, cfg: { formato: S.regras.formato, saca: S.sacaInicial, semVantagem: S.regras.semVantagem, superTiebreakDecisivo: S.regras.superTiebreakDecisivo, adversario: n.B === "Adversário" ? "" : n.B, torneio: "" } };
       try {
         var r = api.aoSalvarScout ? api.aoSalvarScout(dados) : null;
         if (api.aoSalvarVideo) api.aoSalvarVideo(S.pontos);
         S.salvo = true; Promise.resolve(r).then(function () { if (m) m.textContent = api.aoSalvarScout ? "Scout salvo no caderno do jogador, junto com os scouts dos outros jogos." : "Scout pronto (baixe o CSV)."; });
-        el.querySelector('[data-a="salvar"]').textContent = "Salvar de novo";
+        var bt = el.querySelector('[data-a="salvar"]'); if (bt) bt.textContent = "Salvar de novo";
       } catch (e) { if (m) m.textContent = "Não foi possível salvar agora: " + (e.message || e); }
     }
     function csv() {
@@ -287,7 +345,7 @@
       S.pontos.forEach(function (p) { linhas.push([p.n, p.set, p.jogo, p.placarAntes, p.sacador === "nos" ? n.A : n.B, p.lado, p.saque, p.dirSaque || "", p.nos ? n.A : n.B, p.fim, p.bola, p.golpe || "", p.direcao || "", p.efeito || "", p.corrida ? "sim" : "", p.rede ? "sim" : "", p.situacao || "", p.dec || "", compactar([p])[0].seq, p.video ? fmt(p.video.ini) : ""].join(";")); });
       var a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["﻿" + linhas.join("\n")], { type: "text/csv" })); a.download = "scout-video.csv"; a.click();
     }
-    render();
+    if (api.autoIniciar) iniciarAuto(); else render();
     return { estado: S, recalcular: recalcular, _definir: function (pontos, cfg, dec) { S.pontos = pontos; S.cfg = cfg; S.dec = dec || { confere: null }; S.sacaInicial = pontos.length ? pontos[0].sacador : "nos"; recalcular(); S.fase = "revisar"; render(); } };
   }
   /* pontos no formato gravado no caderno (sem os detalhes só da tela), com as batidas compactas em "seq" */
@@ -295,7 +353,7 @@
   function compactar(pontos) {
     return pontos.map(function (p) {
       var q = {}; CAMPOS.forEach(function (k) { q[k] = p[k] == null ? null : p[k]; });
-      q.seq = (p.batidas || []).map(function (b) { return (b.quem === "nos" ? "n" : "e") + ({ saque: "S", forehand: "FH", backhand: "BH", voleio: "V", smash: "SM", devolucao: "D" }[b.golpe] || "?") + ({ cruzado: "c", paralelo: "p", centro: "m" }[b.direcao] || "") + ({ top: "t", slice: "s", flat: "f" }[b.efeito] || ""); }).join(" ");
+      q.seq = (p.batidas || []).map(function (b) { return (b.quem === "nos" ? "n" : "e") + ({ saque: "S", forehand: "FH", backhand: "BH", voleio: "V", smash: "SM", devolucao: "D" }[b.golpe] || "?") + ({ cruzado: "c", paralelo: "p", centro: "m" }[b.direcao] || "") + ({ top: "t", slice: "s", flat: "f" }[b.efeito] || "") + ({ funda: "F", media: "M", curta: "C" }[b.profundidade] || "") + (b.vel ? ":" + b.vel : ""); }).join(" ");
       q.origem = "video"; return q;
     });
   }

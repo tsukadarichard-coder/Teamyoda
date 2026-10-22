@@ -16,7 +16,7 @@ if (process.env.AVI) {
   arquivo = video.replace(/\.mp4$/, ".avi"); cp.execSync(`ffmpeg -v error -y -i "${video}" -c:v mpeg4 -q:v 3 -c:a libmp3lame "${arquivo}"`);
 }
 const pagina = `<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><link rel=stylesheet href=/scout/movimento.css><div id=a style="max-width:1000px;margin:auto"></div>
-<script src=/scout/video-segmentador.js></script><script src=/scout/video-audio.js></script><script src=/scout/video-scout.js></script><script src=/scout/video-visao.js></script><script src=/scout/video-scout-ui.js></script><script src=/scout/video-jogo.js></script>
+<script src=/scout/video-segmentador.js></script><script src=/scout/video-audio.js></script><script src=/scout/video-scout.js></script><script src=/scout/video-visao.js></script><script src=/scout/video-scout-ui.js></script><script src=/scout/quadra-auto.js></script><script src=/scout/padroes.js></script><script src=/scout/video-jogo.js></script>
 <script>
 window.__salvos = []; window.__videos = [];
 window.vj = QLVideoJogo.montar(document.getElementById("a"), { atleta: "Ana", aoSalvar: (r) => window.__videos.push(r), aoSalvarScout: (d) => window.__salvos.push(JSON.parse(JSON.stringify(d))) });
@@ -45,40 +45,45 @@ const srv = http.createServer((q, r) => {
   await p.route(/@ffmpeg\/core@0\.12\.10\/dist\/umd\/(.*)$/, async (rt) => { const n = /umd\/(.*)$/.exec(rt.request().url())[1]; if (!fs.existsSync(path.join(CORE, n))) return rt.abort(); await rt.fulfill({ status: 200, headers: { "access-control-allow-origin": "*", "content-type": n.endsWith(".wasm") ? "application/wasm" : "text/javascript" }, body: fs.readFileSync(path.join(CORE, n)) }); });
   await p.goto("http://localhost:" + srv.address().port + "/");
   await p.waitForFunction(() => window.__D);
+  if (process.env.MANUAL) await p.evaluate(() => { QLQuadraAuto.detectar = () => null; }); // simula um vídeo em que a quadra não é achada
   await p.setInputFiles("input[type=file]", arquivo); await p.waitForTimeout(600);
   await p.click('[data-r="go"]');
   await p.waitForFunction(() => /pontos detectados/.test(document.querySelector('[data-r="st"]').textContent), null, { timeout: 120000 });
   const hits = await p.evaluate(() => vj.estado.hits.length);
   assert(Math.abs(hits - D.hits.length) <= 1, "batidas pelo som: " + hits + " de " + D.hits.length);
   if (process.env.AVI) assert(await p.evaluate(() => vj.estado.clipes), "AVI: o navegador não exibe, modo de clipes");
-  await p.click("text=Montar o scout completo");
-  await p.waitForFunction(() => /Toque no canto 1/.test(document.querySelector('[data-r="instr"]').textContent), null, { timeout: 120000 })
-    .catch(async () => { throw new Error("quadro da calibração não apareceu: " + await p.textContent('[data-r="calmsg"]') + " | " + erros.join(" | ")); });
-  const cv = await p.$('[data-r="cv"]'); await cv.scrollIntoViewIfNeeded(); await p.evaluate(() => window.scrollBy(0, 120)); await p.waitForTimeout(200); const bx = await cv.boundingBox();
-  const toque = (x, y) => p.mouse.click(bx.x + x * bx.width, bx.y + y * bx.height);
-  if (capturas) { /* a lupa aparece enquanto o dedo está na tela; o ponto é fixado ao soltar */
-    fs.mkdirSync(capturas, { recursive: true });
-    await p.mouse.move(bx.x + D.cantos[0][0] * bx.width, bx.y + D.cantos[0][1] * bx.height); await p.mouse.down(); await p.waitForTimeout(100);
-    await cv.screenshot({ path: path.join(capturas, "scout-lupa.png") }); await p.mouse.up();
-    for (const c of D.cantos.slice(1)) await toque(c[0], c[1]);
-  } else for (const c of D.cantos) await toque(c[0], c[1]);
-  /* atleta e adversário: o tronco de cada um no quadro mostrado (o do primeiro saque) */
-  const fq = D.quadros[Math.round(D.hits[0] * D.fps)] || D.quadros.find((q) => q);
-  const tronco = (cor) => { const j = fq.j.filter((x) => x.lm).sort((a, c) => dist(a.cor, cor) - dist(c.cor, cor))[0]; const l = [11, 12, 23, 24].map((i) => j.lm[i]); return [l.reduce((s, v) => s + v[0], 0) / 4, l.reduce((s, v) => s + v[1], 0) / 4]; };
-  const dist = (a, c) => Math.hypot(a[0] - c[0], a[1] - c[1], a[2] - c[2]);
-  const tA = tronco(D.cores.nos), tB = tronco(D.cores.ele);
-  await toque(tA[0], tA[1]); await toque(tB[0], tB[1]);
-  if (capturas) { fs.mkdirSync(capturas, { recursive: true }); await p.screenshot({ path: path.join(capturas, "scout-calibracao.png"), fullPage: true }); }
-  assert(/Pronto/.test(await p.textContent('[data-r="instr"]')), "calibração completa: " + await p.textContent('[data-r="instr"]') + " cantos " + JSON.stringify(await p.evaluate(() => vj.estado.scoutUI.estado.cantos)));
-  await p.selectOption('[data-r="formato"]', D.cfg.formato);
-  if (capturas) { fs.mkdirSync(capturas, { recursive: true }); await p.screenshot({ path: path.join(capturas, "scout-calibracao.png"), fullPage: true }); }
+  /* automático: depois de achar os pontos o app acha a quadra sozinho, lê o vídeo, monta e salva o scout. MANUAL=1 testa a
+     marcação à mão (quando a quadra não é achada) */
   const t0 = Date.now();
-  await p.click('[data-a="gerar"]');
-  await p.waitForSelector(".vs-res", { timeout: 600000 });
+  if (process.env.MANUAL) {
+    await p.waitForFunction(() => /Toque no canto 1/.test((document.querySelector('[data-r="instr"]') || {}).textContent || ""), null, { timeout: 120000 })
+      .catch(async () => { throw new Error("quadro da calibração não apareceu: " + await p.textContent('[data-r="calmsg"]').catch(() => "") + " | " + erros.join(" | ")); });
+    assert(/Não achei as linhas/.test(await p.textContent('[data-r="calmsg"]')), "aviso de marcação manual");
+    const cv = await p.$('[data-r="cv"]'); await cv.scrollIntoViewIfNeeded(); await p.evaluate(() => window.scrollBy(0, 120)); await p.waitForTimeout(200); const bx = await cv.boundingBox();
+    const toque = (x, y) => p.mouse.click(bx.x + x * bx.width, bx.y + y * bx.height);
+    if (capturas) {
+      fs.mkdirSync(capturas, { recursive: true });
+      await p.mouse.move(bx.x + D.cantos[0][0] * bx.width, bx.y + D.cantos[0][1] * bx.height); await p.mouse.down(); await p.waitForTimeout(100);
+      await cv.screenshot({ path: path.join(capturas, "scout-lupa.png") }); await p.mouse.up();
+      for (const c of D.cantos.slice(1)) await toque(c[0], c[1]);
+    } else for (const c of D.cantos) await toque(c[0], c[1]);
+    const fq = D.quadros[Math.round(D.hits[0] * D.fps)] || D.quadros.find((q) => q);
+    const dist = (a, c) => Math.hypot(a[0] - c[0], a[1] - c[1], a[2] - c[2]);
+    const tronco = (cor) => { const j = fq.j.filter((x) => x.lm).sort((a, c) => dist(a.cor, cor) - dist(c.cor, cor))[0]; const l = [11, 12, 23, 24].map((i) => j.lm[i]); return [l.reduce((s, v) => s + v[0], 0) / 4, l.reduce((s, v) => s + v[1], 0) / 4]; };
+    const tA = tronco(D.cores.nos), tB = tronco(D.cores.ele);
+    await toque(tA[0], tA[1]); await toque(tB[0], tB[1]);
+    assert(/Pronto/.test(await p.textContent('[data-r="instr"]')), "calibração completa");
+    await p.click('[data-a="gerar"]');
+  }
+  await p.waitForSelector(".vs-res", { timeout: 600000 }).catch(async () => { throw new Error("o scout não ficou pronto: " + (await p.textContent('[data-r="scout"]')).slice(0, 300) + " | " + erros.join(" | ")); });
+  if (!process.env.MANUAL) assert(await p.evaluate(() => vj.estado.scoutUI.estado.quadraAuto), "a quadra foi achada sozinha");
+  await p.waitForTimeout(300);
+  assert.strictEqual((await p.evaluate(() => window.__salvos.length)) >= 1, true, "salvo sozinho no caderno");
   const r = await p.evaluate(() => { const S = vj.estado.scoutUI.estado; return { pontos: S.pontos.map((x) => ({ nos: x.nos, saque: x.saque, sacador: x.sacador, golpe: x.golpe, efeito: x.efeito, bola: x.bola, n: (x.batidas || []).length, fonte: null })), placar: QLVideoScout.Placar.texto(S.placar), bolas: S.dados.reduce((s, d) => s + d.quadros.filter((q) => q.bolas.length).length, 0), quadros: S.dados.reduce((s, d) => s + d.quadros.length, 0) }; });
   const V = D.pontos, n = Math.min(V.length, r.pontos.length), certo = (k) => V.slice(0, n).filter((v, i) => r.pontos[i][k] === v[k]).length;
   console.log("  " + r.pontos.length + "/" + V.length + " pontos · placar " + r.placar + " (verdade " + D.placar + ") · quem ganhou " + certo("nos") + "/" + n + " · saque " + certo("saque") + "/" + n + " · sacador " + certo("sacador") + "/" + n +
     " · bola achada em " + Math.round(r.bolas / r.quadros * 100) + "% dos quadros · " + ((Date.now() - t0) / 1000).toFixed(0) + " s");
+  if (process.env.DEPURA_DADOS) fs.writeFileSync(process.env.DEPURA_DADOS, JSON.stringify(Object.assign(await p.evaluate(() => { const S = vj.estado.scoutUI.estado; return { dados: S.dados, cantos: S.cantos, asp: S.asp, cores: S.cores, maos: S.maos, perto: S.ctx.atletaComecaPerto }; }), { verdade: D.verdade })));
   if (process.env.DEPURA) { const dd = await p.evaluate(() => { const S = vj.estado.scoutUI.estado; return S.dec.decisoes.map((d, k) => ({ papel: d.papel, nos: d.nos, saida: S.an[k].saida, pUlt: S.an[k].pUltimoGanhou, nH: S.an[k].nHits, falsas: (S.an[k].falsas || []).length, ult: S.an[k].batidas.length ? S.an[k].batidas[S.an[k].batidas.length - 1].quem : null, qq: S.an[k].batidas.map((b) => b.quique ? b.quique.P.map((v) => v.toFixed(1)).join(",") : "-").join(" ") })); }); dd.forEach((d, k) => console.log(k, JSON.stringify(d), "verdade:", JSON.stringify({ papel: D.verdade[k].papel, nos: D.verdade[k].nos, fim: D.verdade[k].fimTipo, nH: D.verdade[k].nHits, alvos: D.verdade[k].batidas.map((x) => x.alvo.map((v) => v.toFixed(1)).join(",")).join(" ") }))); }
   assert.strictEqual(r.pontos.length, V.length, "um ponto do scout para cada ponto jogado");
   assert(certo("sacador") === n && certo("saque") >= n - 1 && certo("nos") >= n - 1, "sacador, tipo de saque e quem ganhou");
@@ -94,14 +99,24 @@ const srv = http.createServer((q, r) => {
   assert(depois.placares !== antes && depois.auto === "treinador", "a edição refaz o placar e fica marcada como do treinador");
   await p.click('[data-ed="0"] select[data-k="situacao"]').catch(() => {});
   await p.selectOption('[data-ed="0"] select[data-k="situacao"]', "ataque");
-  await p.click('[data-a="salvar"]'); await p.waitForTimeout(400);
+  await p.waitForTimeout(300);
   const salvo = await p.evaluate(() => ({ s: window.__salvos, v: window.__videos }));
-  assert.strictEqual(salvo.s.length, 1, "scout entregue ao caderno");
-  const sp = salvo.s[0].pontos;
+  assert(salvo.s.length >= 2, "salvo sozinho ao gerar e de novo a cada correção");
+  const ult = salvo.s[salvo.s.length - 1], sp = ult.pontos;
+  assert(salvo.s.every((x) => x.id === ult.id), "o mesmo registro é atualizado (não duplica no caderno)");
   assert.strictEqual(sp.length, r.pontos.length); assert.strictEqual(sp[0].situacao, "ataque");
   assert(sp.every((x) => typeof x.nos === "boolean" && x.sacador && x.placarAntes && x.fim && x.bola && /^[ne]S/.test(x.seq)), "pontos no formato do scout, com as batidas compactas");
-  assert(JSON.stringify(salvo.s[0]).length < 400 * r.pontos.length, "gravação compacta (" + JSON.stringify(salvo.s[0]).length + " bytes)");
-  assert.strictEqual(salvo.v.length, 1, "também vai para o histórico de jogos em vídeo");
+  assert(sp.some((x) => /:\d+/.test(x.seq)), "velocidade das bolas gravada");
+  assert(JSON.stringify(ult).length < 500 * r.pontos.length, "gravação compacta (" + JSON.stringify(ult).length + " bytes)");
+  assert(salvo.v.length >= 1 && salvo.v.every((x) => x.id === salvo.v[0].id), "também vai para o histórico de jogos em vídeo (um registro só)");
+  /* padrões da partida na tela */
+  const tp = await p.textContent('[data-r="scout"]');
+  assert(/Padrões da partida/.test(tp) && /Como os pontos foram/.test(tp) && /Velocidade e profundidade/.test(tp) && /km\/h/.test(tp), "padrões, velocidade e profundidade na revisão");
+  /* trocar o atleta: o placar e quem ganhou cada ponto se invertem */
+  const ganhosAntes = await p.evaluate(() => vj.estado.scoutUI.estado.pontos.filter((x) => x.nos).length);
+  await p.click(".vs-aj summary"); await p.click('[data-a="trocar"]'); await p.waitForTimeout(400);
+  const troca = await p.evaluate(() => ({ g: vj.estado.scoutUI.estado.pontos.filter((x) => x.nos).length, n: vj.estado.scoutUI.estado.pontos.length, perto: vj.estado.scoutUI.estado.ctx.atletaComecaPerto }));
+  assert(troca.perto === false && Math.abs(troca.g - (troca.n - ganhosAntes)) <= 1, "trocar o atleta inverte os pontos ganhos (" + ganhosAntes + " → " + troca.g + " de " + troca.n + ")");
   assert.deepStrictEqual(erros, [], "erros de JS: " + erros.join(" | "));
   console.log("check-video-scout-navegador: ok");
   await b.close(); srv.close(); fs.rmSync(pasta, { recursive: true, force: true });
