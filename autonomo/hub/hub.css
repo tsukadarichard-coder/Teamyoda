@@ -247,3 +247,101 @@ a { color: inherit; }
   .rodape-grade { grid-template-columns: 1fr; }
 }
 @media (max-width: 380px) { body { font-size: 16px; } }
+
+/* ── seção do filme: a família em 30 segundos (vídeo vertical, sem som por padrão) ── */
+.filme { padding-block: 8px 48px; }
+.filme-grade { display: grid; grid-template-columns: 1fr; gap: var(--e3); align-items: center; }
+.filme-sobre { font-size: 14px; font-weight: 600; color: var(--cinza); margin-bottom: 8px; }
+.filme-texto h2 { font-size: clamp(28px, 8vw, 32px); line-height: 1.2; letter-spacing: -0.01em; margin-bottom: 12px; }
+.filme-texto > p { color: var(--cinza); max-width: 46ch; }
+.filme-apps { list-style: none; margin: 16px 0 4px; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.filme-apps li { font-size: 14px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--linha-forte); background: var(--papel); }
+.filme-apps li[data-p="player"] { color: var(--player-texto); }
+.filme-apps li[data-p="treinador"] { color: var(--treinador-texto); }
+.filme-apps li[data-p="competicao"] { color: var(--competicao-texto); }
+.filme-quadro { position: relative; width: min(340px, 86vw); margin: 0 auto; aspect-ratio: 9 / 16; border-radius: 18px; overflow: hidden; background: #0b0f0e; border: 1px solid var(--linha-forte); }
+.filme-quadro video { display: block; width: 100%; height: 100%; object-fit: cover; cursor: pointer; }
+.filme-acoes { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 8px; }
+.filme-acoes[hidden] { display: none; }
+.filme-botao { font-family: var(--fonte); font-size: 14px; font-weight: 600; color: #fff; background: rgba(11, 20, 16, .64); border: 1px solid rgba(255, 255, 255, .4); border-radius: 999px; min-height: 40px; padding: 0 14px; cursor: pointer; }
+.filme-botao:focus-visible { outline-color: #fff; }
+@media (min-width: 900px) {
+  .filme { padding-block: 16px 64px; }
+  .filme-grade { grid-template-columns: minmax(0, 1fr) 360px; gap: 64px; }
+  .filme-texto h2 { font-size: 36px; }
+  .filme-quadro { width: 360px; }
+}
+
+/* ── movimento: só transform/opacidade/recorte; o JS liga .anima no <html> (nunca com "reduzir movimento") ── */
+.topo { transition: box-shadow .25s ease; }
+.topo.rolou { box-shadow: 0 1px 0 var(--linha-forte); }
+.anima .titulo-palavras .pm { display: inline-block; overflow: hidden; vertical-align: top; padding-bottom: .08em; margin-bottom: -.08em; }
+.anima .titulo-palavras .p { display: inline-block; animation: hub-sobe .9s cubic-bezier(.16, 1, .3, 1) both; animation-delay: calc(100ms + var(--i) * 80ms); }
+@keyframes hub-sobe { from { transform: translateY(110%); } to { transform: none; } }
+.anima .abertura .texto, .anima .chamadas { animation: hub-entra .8s cubic-bezier(.16, 1, .3, 1) both; animation-delay: .45s; }
+.anima .chamadas { animation-delay: .6s; }
+@keyframes hub-entra { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+.anima .abertura-foto { overflow: hidden; border-radius: 10px; animation: hub-recorte 1.1s cubic-bezier(.65, 0, .35, 1) .2s both; }
+.anima .abertura-foto img { animation: hub-zoom 1.8s cubic-bezier(.16, 1, .3, 1) .2s both; }
+@keyframes hub-recorte { from { clip-path: inset(100% 0 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes hub-zoom { from { transform: scale(1.12); } to { transform: none; } }
+@media (min-width: 900px) { .anima .abertura-foto { border-radius: 14px; } }
+
+.anima .revela { opacity: 0; transform: translateY(24px); transition: opacity .7s cubic-bezier(.16, 1, .3, 1), transform .9s cubic-bezier(.16, 1, .3, 1); transition-delay: var(--atraso, 0ms); }
+.anima .revela-sobe { transform: translateY(48px) scale(.97); }
+.anima .revela.visivel { opacity: 1; transform: none; }
+
+/* cartões das plataformas: barra na cor do produto, logo em cortina e a tela real rolando devagar */
+.plat { position: relative; overflow: hidden; }
+.plat::before { content: ""; position: absolute; left: 0; top: 0; height: 3px; width: 100%; background: var(--cor-plat); transform-origin: left; }
+.plat[data-p="player"] { --cor-plat: var(--player); }
+.plat[data-p="treinador"] { --cor-plat: var(--treinador); }
+.plat[data-p="competicao"] { --cor-plat: var(--competicao); }
+.anima .plat::before { transform: scaleX(0); transition: transform 1s cubic-bezier(.65, 0, .35, 1); transition-delay: calc(var(--atraso, 0ms) + 250ms); }
+.anima .plat.visivel::before { transform: scaleX(1); }
+.anima .plat .plat-logo { clip-path: inset(0 100% 0 0); transition: clip-path .8s cubic-bezier(.65, 0, .35, 1); transition-delay: calc(var(--atraso, 0ms) + 350ms); }
+.anima .plat.visivel .plat-logo { clip-path: inset(0 0 0 0); }
+.anima .plat[data-p="player"].visivel .plat-tela img, .anima .plat[data-p="competicao"].visivel .plat-tela img { animation: hub-rola 12s ease-in-out 1.4s infinite alternate; }
+@keyframes hub-rola { 0%, 10% { object-position: center top; } 90%, 100% { object-position: center bottom; } }
+.plat .plat-tela img { transition: transform .3s ease; }
+.plat:hover .plat-tela img { transform: translateY(-3px); }
+
+/* plataformas em detalhe: foto se revela, a linha da cor cresce */
+.anima .produto .produto-foto { overflow: hidden; border-radius: 10px; clip-path: inset(0 0 100% 0); transition: clip-path 1s cubic-bezier(.65, 0, .35, 1); }
+.anima .produto .produto-foto img { transform: scale(1.1); transition: transform 1.6s cubic-bezier(.16, 1, .3, 1); }
+.anima .produto.visivel .produto-foto { clip-path: inset(0 0 0 0); }
+.anima .produto.visivel .produto-foto img { transform: none; }
+.anima .produto .entrada { border-left-color: transparent; position: relative; }
+.produto .entrada::before { content: ""; position: absolute; left: -2px; top: 0; bottom: 0; width: 2px; background: var(--cor); transform: scaleY(1); transform-origin: top; }
+.anima .produto .entrada::before { transform: scaleY(0); transition: transform .8s cubic-bezier(.16, 1, .3, 1) .5s; }
+.anima .produto.visivel .entrada::before { transform: scaleY(1); }
+
+/* como funciona: a linha de cada passo se preenche em sequência; troca de aba desliza */
+.como-passos li { position: relative; }
+.anima .como-passos li::after { content: ""; position: absolute; left: 0; right: 0; top: -1px; height: 2px; background: var(--tinta); transform: scaleX(0); transform-origin: left; transition: transform .9s cubic-bezier(.65, 0, .35, 1); }
+.anima .como-passos li:nth-child(2)::after { transition-delay: .25s; }
+.anima .como-passos li:nth-child(3)::after { transition-delay: .5s; }
+.anima .como-passos.visivel li::after { transform: scaleX(1); }
+.anima .painel:not([hidden]) > div:first-child { animation: hub-entra .5s cubic-bezier(.16, 1, .3, 1) both; }
+.anima .painel:not([hidden]) .tela { animation: hub-entra .6s cubic-bezier(.16, 1, .3, 1) both; }
+.anima .painel:not([hidden]) .tela + .tela { animation-delay: .1s; }
+
+/* institucional: os pontos entram um a um */
+.anima .confianca .pontos li { opacity: 0; transform: translateX(16px); transition: opacity .6s ease, transform .7s cubic-bezier(.16, 1, .3, 1); }
+.anima .confianca.visivel .pontos li { opacity: 1; transform: none; }
+.anima .confianca.visivel .pontos li:nth-child(2) { transition-delay: .1s; }
+.anima .confianca.visivel .pontos li:nth-child(3) { transition-delay: .2s; }
+.anima .confianca.visivel .pontos li:nth-child(4) { transition-delay: .3s; }
+
+/* perguntas: a resposta aparece suave */
+.anima .perguntas details[open] .resp, .anima .beneficios[open] ul { animation: hub-entra .45s cubic-bezier(.16, 1, .3, 1) both; }
+
+/* fechamento: os três botões entram em sequência */
+.anima .fechamento .revela .botao { opacity: 0; transform: translateY(14px); transition: opacity .6s ease, transform .7s cubic-bezier(.16, 1, .3, 1); }
+.anima .fechamento .revela.visivel .botao { opacity: 1; transform: none; }
+.anima .fechamento .revela.visivel .botao:nth-child(2) { transition-delay: .1s; }
+.anima .fechamento .revela.visivel .botao:nth-child(3) { transition-delay: .2s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .anima .revela, .anima .revela-sobe { opacity: 1; transform: none; transition: none; }
+}

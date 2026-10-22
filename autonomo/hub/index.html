@@ -61,7 +61,7 @@
   <section class="abertura" aria-labelledby="titulo-hub">
     <div class="miolo abertura-grade">
       <div class="abertura-texto">
-        <h1 id="titulo-hub">Seu tênis conectado.</h1>
+        <h1 id="titulo-hub" class="titulo-palavras">Seu tênis conectado.</h1>
         <p class="texto">Estratégia para jogar. Planejamento para ensinar. Acompanhamento para competir.</p>
       </div>
       <figure class="abertura-foto">
@@ -74,26 +74,53 @@
     </div>
   </section>
 
+  <section class="filme" id="em-30-segundos" aria-labelledby="titulo-filme">
+    <div class="miolo filme-grade">
+      <div class="filme-texto revela">
+        <p class="filme-sobre">A família QuadraLab em 30 segundos</p>
+        <h2 id="titulo-filme">Jogar, ensinar e competir. Cada um com a sua plataforma.</h2>
+        <p>Veja o Player, o Treinador e o Competição em ação, com as telas reais de cada plataforma (dados de demonstração).</p>
+        <ul class="filme-apps" aria-label="Plataformas da família QuadraLab">
+          <li data-p="player">Player</li>
+          <li data-p="treinador">Treinador</li>
+          <li data-p="competicao">Competição</li>
+        </ul>
+        <a class="link" href="#plataformas">Conheça as plataformas</a>
+      </div>
+      <div class="filme-quadro revela revela-sobe">
+        <video id="video-familia" poster="/assets/video/familia-quadralab-capa.jpg" preload="none" loop muted playsinline width="540" height="960"
+          aria-label="Vídeo de 30 segundos da família QuadraLab: celulares mostram telas reais do Player, do Treinador e do Competição.">
+          <source src="/assets/video/familia-quadralab-30s.mp4" type='video/mp4; codecs="avc1.64001F, mp4a.40.2"'>
+          <source src="/assets/video/familia-quadralab-30s.webm" type='video/webm; codecs="vp9, opus"'>
+        </video>
+        <div class="filme-acoes" id="filme-acoes" hidden>
+          <button type="button" class="filme-botao" id="btn-som" aria-pressed="false">Ativar som</button>
+          <button type="button" class="filme-botao" id="btn-pausa" aria-pressed="false">Pausar</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section class="escolha" id="plataformas" aria-labelledby="titulo-plataformas">
     <div class="miolo">
-      <h2 id="titulo-plataformas">Uma plataforma para cada etapa do seu tênis.</h2>
-      <p class="intro">Escolha por onde começar.</p>
+      <h2 id="titulo-plataformas" class="revela">Uma plataforma para cada etapa do seu tênis.</h2>
+      <p class="intro revela">Escolha por onde começar.</p>
       <div class="plats">
-        <article class="plat" data-p="player">
+        <article class="plat revela revela-sobe" data-p="player">
           <img class="plat-logo" src="/hub/img/logo-player-360.webp" srcset="/hub/img/logo-player-360.webp 360w, /hub/img/logo-player-720.webp 720w" sizes="190px" width="360" height="113" alt="QuadraLab Player" loading="lazy" decoding="async">
           <p class="ident">Para jogadores</p>
           <p class="plat-texto">Organize suas estratégias, prepare seu jogo e registre suas partidas.</p>
           <figure class="plat-tela"><img src="/hub/img/plat-player-420.webp" srcset="/hub/img/plat-player-420.webp 420w, /hub/img/plat-player-760.webp 760w" sizes="(max-width: 899px) calc(100vw - 80px), 320px" width="420" height="857" alt="Tela de estratégias do QuadraLab Player, com a lista de planos de jogo" loading="lazy" decoding="async"><figcaption>Estratégias no Player (dados de demonstração)</figcaption></figure>
           <a class="botao botao-player" href="/player/">Conhecer o Player</a>
         </article>
-        <article class="plat" data-p="treinador">
+        <article class="plat revela revela-sobe" data-p="treinador" style="--atraso:120ms">
           <img class="plat-logo" src="/hub/img/logo-treinador-360.webp" srcset="/hub/img/logo-treinador-360.webp 360w, /hub/img/logo-treinador-720.webp 720w" sizes="190px" width="360" height="115" alt="QuadraLab Treinador" loading="lazy" decoding="async">
           <p class="ident">Para treinadores</p>
           <p class="plat-texto">Planeje os treinos e acompanhe o desenvolvimento de cada aluno.</p>
           <figure class="plat-tela"><img src="/hub/img/plat-treinador-420.webp" srcset="/hub/img/plat-treinador-420.webp 420w, /hub/img/plat-treinador-760.webp 760w" sizes="(max-width: 899px) calc(100vw - 80px), 320px" width="420" height="416" alt="Tela de planejamento do QuadraLab Treinador, com as aulas realizadas e a próxima aula" loading="lazy" decoding="async"><figcaption>Planejamento no Treinador (dados de demonstração)</figcaption></figure>
           <a class="botao botao-treinador" href="/treinador">Conhecer o Treinador</a>
         </article>
-        <article class="plat" data-p="competicao">
+        <article class="plat revela revela-sobe" data-p="competicao" style="--atraso:240ms">
           <img class="plat-logo" src="/hub/img/logo-competicao-360.webp" srcset="/hub/img/logo-competicao-360.webp 360w, /hub/img/logo-competicao-720.webp 720w" sizes="190px" width="360" height="108" alt="QuadraLab Competição" loading="lazy" decoding="async">
           <p class="ident">Para quem compete</p>
           <p class="plat-texto">Organize o calendário, prepare seus torneios e acompanhe sua temporada.</p>
@@ -106,12 +133,12 @@
 
   <section class="secao" id="detalhes" aria-labelledby="titulo-detalhes">
     <div class="miolo">
-      <div class="secao-cab">
+      <div class="secao-cab revela">
         <h2 id="titulo-detalhes">O que cada plataforma oferece</h2>
         <p>Benefícios, o que é grátis e como começar.</p>
       </div>
 
-      <article class="produto" data-p="player" id="player">
+      <article class="produto revela" data-p="player" id="player">
         <figure class="produto-foto"><img src="/hub/img/foto-player-756.webp" srcset="/hub/img/foto-player-480.webp 480w, /hub/img/foto-player-756.webp 756w" sizes="(max-width: 899px) 100vw, 1040px" width="756" height="500" alt="Tenista rebatendo com a raquete laranja em primeiro plano e a bola à frente" loading="lazy" decoding="async"></figure>
         <div class="produto-topo">
           <p class="produto-nome">QuadraLab Player</p>
@@ -138,7 +165,7 @@
         </div>
       </article>
 
-      <article class="produto" data-p="treinador" id="treinador">
+      <article class="produto revela" data-p="treinador" id="treinador">
         <figure class="produto-foto"><img src="/hub/img/foto-treinador-756.webp" srcset="/hub/img/foto-treinador-480.webp 480w, /hub/img/foto-treinador-756.webp 756w" sizes="(max-width: 899px) 100vw, 1040px" width="756" height="500" alt="Treinador de boné acompanhando uma análise de movimento em um tablet, ao lado da quadra" loading="lazy" decoding="async"></figure>
         <div class="produto-topo">
           <p class="produto-nome">QuadraLab Treinador</p>
@@ -164,7 +191,7 @@
         </div>
       </article>
 
-      <article class="produto" data-p="competicao" id="competicao">
+      <article class="produto revela" data-p="competicao" id="competicao">
         <figure class="produto-foto"><img src="/hub/img/foto-competicao-756.webp" srcset="/hub/img/foto-competicao-480.webp 480w, /hub/img/foto-competicao-756.webp 756w" sizes="(max-width: 899px) 100vw, 1040px" width="756" height="500" alt="Bolsa de tênis, toalha, garrafa e bolas sobre o banco, ao pôr do sol, ao lado de uma quadra de saibro" loading="lazy" decoding="async"></figure>
         <div class="produto-topo">
           <p class="produto-nome">QuadraLab Competição</p>
@@ -196,16 +223,16 @@
 
   <section class="secao" id="como-funciona" aria-labelledby="titulo-como">
     <div class="miolo">
-      <div class="secao-cab">
+      <div class="secao-cab revela">
         <h2 id="titulo-como">Entenda como funciona na prática.</h2>
         <p>Em três passos você escolhe, cadastra e começa a usar.</p>
       </div>
-      <ol class="como-passos">
+      <ol class="como-passos revela">
         <li><h3>Escolha a plataforma</h3><p>Veja qual combina com o seu objetivo: jogar, ensinar ou competir.</p></li>
         <li><h3>Faça seu cadastro</h3><p>Crie sua conta grátis na plataforma escolhida. Player e Competição usam o mesmo e-mail e a mesma senha.</p></li>
         <li><h3>Utilize os recursos disponíveis</h3><p>Use o que está incluído em cada plano e conheça os serviços opcionais quando precisar.</p></li>
       </ol>
-      <h3 class="sub-abas">Veja o caminho de cada perfil</h3>
+      <h3 class="sub-abas revela">Veja o caminho de cada perfil</h3>
       <div class="abas" role="tablist" aria-label="Escolha o seu perfil">
         <button class="aba" role="tab" id="aba-player" data-p="player" aria-selected="true" aria-controls="painel-player" type="button">Sou jogador</button>
         <button class="aba" role="tab" id="aba-treinador" data-p="treinador" aria-selected="false" aria-controls="painel-treinador" tabindex="-1" type="button">Sou treinador</button>
@@ -258,7 +285,7 @@
   </section>
 
   <section class="institucional" id="metodo" aria-labelledby="titulo-metodo">
-    <div class="miolo confianca">
+    <div class="miolo confianca revela">
       <div>
         <h2 id="titulo-metodo">A tecnologia organiza. Você conduz.</h2>
         <p>A metodologia MTY, de Richard Tsukada, orienta a proposta do QuadraLab. A tecnologia ajuda a organizar informações e sugerir caminhos; as decisões continuam com o jogador e o treinador.</p>
@@ -274,8 +301,8 @@
 
   <section class="secao" id="duvidas" aria-labelledby="titulo-duvidas">
     <div class="miolo">
-      <div class="secao-cab"><h2 id="titulo-duvidas">Perguntas frequentes</h2></div>
-      <div class="perguntas">
+      <div class="secao-cab revela"><h2 id="titulo-duvidas">Perguntas frequentes</h2></div>
+      <div class="perguntas revela">
         <details>
           <summary>Qual plataforma devo escolher?</summary>
           <div class="resp"><p>O Player é para montar a estratégia e organizar o próprio jogo. O Treinador é para planejar e acompanhar alunos. O Competição é para organizar a temporada e o acompanhamento de atletas.</p></div>
@@ -315,7 +342,7 @@
   </section>
 
   <section class="fechamento" aria-labelledby="titulo-fecha">
-    <div class="miolo">
+    <div class="miolo revela">
       <h2 id="titulo-fecha">Seu próximo passo começa aqui.</h2>
       <p>Escolha a plataforma que combina com o seu momento.</p>
       <div class="botoes">
