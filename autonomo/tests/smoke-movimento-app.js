@@ -17,7 +17,7 @@ const lib = { react: CDN + "/react-18.3.1/package/umd/react.development.js", dom
     const fonte = html.slice(i, j);
     const pagina = `<!doctype html><meta charset=utf-8><link rel=stylesheet href="/scout/movimento.css"><div id=raiz></div>
 <script src=/lib/react.js></script><script src=/lib/dom.js></script><script src=/lib/babel.js></script>
-<script src=/scout/movimento-motor.js></script><script src=/scout/movimento.js></script><script src=/scout/video-segmentador.js></script><script src=/scout/video-audio.js></script><script src=/scout/video-jogo.js></script>
+<script src=/scout/movimento-motor.js></script><script src=/scout/movimento.js></script><script src=/scout/video-segmentador.js></script><script src=/scout/video-audio.js></script><script src=/scout/video-scout.js></script><script src=/scout/video-visao.js></script><script src=/scout/video-scout-ui.js></script><script src=/scout/video-jogo.js></script>
 <script type="text/babel">
 const { useState, useEffect, useRef } = React;
 const _m = QLMovimento.montar; QLMovimento.montar = (el, o) => { const c = _m(el, o); window.__ctl = c; return c; };

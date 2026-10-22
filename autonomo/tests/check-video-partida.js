@@ -70,7 +70,7 @@ console.log("  vídeos de teste gerados em", ((Date.now() - t0) / 1000).toFixed(
 
 /* 2) no navegador */
 const pagina = `<!doctype html><meta charset=utf-8><link rel=stylesheet href=/scout/movimento.css><div id=a></div>
-<script src=/scout/video-segmentador.js></script><script src=/scout/video-audio.js></script><script src=/scout/video-jogo.js></script>
+<script src=/scout/video-segmentador.js></script><script src=/scout/video-audio.js></script><script src=/scout/video-scout.js></script><script src=/scout/video-visao.js></script><script src=/scout/video-scout-ui.js></script><script src=/scout/video-jogo.js></script>
 <script>window.vj=QLVideoJogo.montar(document.getElementById("a"),{atleta:"Ana"});</script>`;
 const srv = http.createServer((q, r) => { const u = q.url.split("?")[0]; if (u === "/") { r.writeHead(200, { "content-type": "text/html; charset=utf-8" }); return r.end(pagina); } const f = path.join(raiz, u); if (f.startsWith(raiz) && fs.existsSync(f)) { r.writeHead(200, { "content-type": u.endsWith(".css") ? "text/css" : "text/javascript" }); return r.end(fs.readFileSync(f)); } r.writeHead(404); r.end(); }).listen(0);
 (async () => {

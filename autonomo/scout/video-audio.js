@@ -165,6 +165,80 @@
     return null;
   }
 
+  /* trilha de vídeo do MP4/MOV, para decodificar só os trechos dos pontos com WebCodecs (VideoDecoder):
+     codec + descrição (avcC/hvcC/av1C), tamanho e, por amostra, posição no arquivo, tamanho, tempos (decodificação/exibição) e quadro-chave */
+  function hex2(n) { return (n < 16 ? "0" : "") + n.toString(16); }
+  function codecVideo(dv, ent, entFim, formato) {
+    var caixa = function (t) { return buscaFundo(dv, ent + 86, entFim, t); }, b, u8 = function (o) { return dv.getUint8(o); };
+    if (formato === "avc1" || formato === "avc3") {
+      b = caixa("avcC"); if (!b) return null;
+      return { codec: formato + "." + hex2(u8(b.ini + 9)) + hex2(u8(b.ini + 10)) + hex2(u8(b.ini + 11)), descricao: new Uint8Array(dv.buffer, dv.byteOffset + b.ini + 8, b.fim - b.ini - 8).slice() };
+    }
+    if (formato === "hvc1" || formato === "hev1") {
+      b = caixa("hvcC"); if (!b) return null;
+      var o = b.ini + 8, x = u8(o + 1), esp = ["", "A", "B", "C"][x >> 6], tier = (x >> 5) & 1, perfil = x & 31, compat = dv.getUint32(o + 2), rev = 0;
+      for (var i = 0; i < 32; i++) if (compat & (1 << i)) rev |= 1 << (31 - i);
+      var restr = []; for (i = 0; i < 6; i++) restr.push(u8(o + 6 + i));
+      while (restr.length && restr[restr.length - 1] === 0) restr.pop();
+      return { codec: formato + "." + esp + perfil + "." + (rev >>> 0).toString(16) + "." + (tier ? "H" : "L") + u8(o + 12) + (restr.length ? "." + restr.map(function (v) { return v.toString(16); }).join(".") : ""), descricao: new Uint8Array(dv.buffer, dv.byteOffset + o, b.fim - o).slice() };
+    }
+    if (formato === "vp09") {
+      b = caixa("vpcC"); if (!b) return { codec: "vp09.00.10.08" };
+      var p0 = b.ini + 12, d2 = function (n) { return ("0" + n).slice(-2); };
+      return { codec: "vp09." + d2(u8(p0)) + "." + d2(u8(p0 + 1)) + "." + d2(u8(p0 + 2) >> 4) };
+    }
+    if (formato === "av01") {
+      b = caixa("av1C"); if (!b) return null;
+      var y1 = u8(b.ini + 9), y2 = u8(b.ini + 10), prof = y1 >> 5, nivel = y1 & 31, t = (y2 >> 7) & 1, hb = (y2 >> 6) & 1, tw = (y2 >> 5) & 1;
+      return { codec: "av01." + prof + "." + ("0" + nivel).slice(-2) + (t ? "H" : "M") + "." + (hb ? (tw ? "12" : "10") : "08"), descricao: new Uint8Array(dv.buffer, dv.byteOffset + b.ini + 8, b.fim - b.ini - 8).slice() };
+    }
+    return null;
+  }
+  function lerTabelaVideo(buf) {
+    var dv = new DataView(buf), trilhas = filhos(dv, 8, buf.byteLength).filter(function (c) { return c.tipo === "trak"; });
+    for (var i = 0; i < trilhas.length; i++) {
+      var tk = trilhas[i], ini = tk.ini + tk.cab, fim = tk.fim;
+      var hdlr = acha(dv, ini, fim, ["mdia", "hdlr"]); if (!hdlr || tipo4(dv, hdlr.ini + hdlr.cab + 8) !== "vide") continue;
+      var mdhd = acha(dv, ini, fim, ["mdia", "mdhd"]), v = dv.getUint8(mdhd.ini + mdhd.cab);
+      var escala = v === 1 ? dv.getUint32(mdhd.ini + mdhd.cab + 20) : dv.getUint32(mdhd.ini + mdhd.cab + 12);
+      var stbl = ["mdia", "minf", "stbl"], st = function (n) { return acha(dv, ini, fim, stbl.concat([n])); };
+      var stsd = st("stsd"), ent = stsd.ini + stsd.cab + 8, entFim = ent + dv.getUint32(ent), formato = tipo4(dv, ent + 4);
+      var larg = dv.getUint16(ent + 32), alt = dv.getUint16(ent + 34), cod = codecVideo(dv, ent, entFim, formato);
+      var tkhd = acha(dv, ini, fim, ["tkhd"]), rot = 0;
+      if (tkhd) { var vt = dv.getUint8(tkhd.ini + tkhd.cab), mo = tkhd.ini + tkhd.cab + (vt === 1 ? 52 : 40), a = dv.getInt32(mo), b2 = dv.getInt32(mo + 4); rot = Math.round(Math.atan2(b2, a) * 180 / Math.PI); }
+      var stsz = st("stsz"), stsc = st("stsc"), stco = st("stco") || st("co64"), stts = st("stts"), ctts = st("ctts"), stss = st("stss"), co64 = stco && tipo4(dv, stco.ini + 4) === "co64";
+      if (!stsz || !stco) return { formato: formato, erro: "tabela de amostras ausente" };
+      var tamUnico = dv.getUint32(stsz.ini + stsz.cab + 4), n = dv.getUint32(stsz.ini + stsz.cab + 8), k;
+      var tam = new Uint32Array(n), off = new Float64Array(n), dts = new Float64Array(n), pts = new Float64Array(n), chave = new Uint8Array(n);
+      for (k = 0; k < n; k++) tam[k] = tamUnico || dv.getUint32(stsz.ini + stsz.cab + 12 + 4 * k);
+      var nCh = dv.getUint32(stco.ini + stco.cab + 4), nSc = dv.getUint32(stsc.ini + stsc.cab + 4), regra = 0, am = 0;
+      for (var c = 0; c < nCh && am < n; c++) {
+        while (regra + 1 < nSc && dv.getUint32(stsc.ini + stsc.cab + 8 + 12 * (regra + 1)) <= c + 1) regra++;
+        var spc = dv.getUint32(stsc.ini + stsc.cab + 8 + 12 * regra + 4), o2 = co64 ? u64(dv, stco.ini + stco.cab + 8 + 8 * c) : dv.getUint32(stco.ini + stco.cab + 8 + 4 * c);
+        for (var j = 0; j < spc && am < n; j++, am++) { off[am] = o2; o2 += tam[am]; }
+      }
+      var nTs = dv.getUint32(stts.ini + stts.cab + 4), tempo = 0; am = 0;
+      for (k = 0; k < nTs; k++) { var cnt = dv.getUint32(stts.ini + stts.cab + 8 + 8 * k), dl = dv.getUint32(stts.ini + stts.cab + 12 + 8 * k); for (j = 0; j < cnt && am < n; j++, am++) { dts[am] = tempo / escala; tempo += dl; } }
+      for (k = 0; k < n; k++) pts[k] = dts[k];
+      if (ctts) {
+        var vc = dv.getUint8(ctts.ini + ctts.cab), nCt = dv.getUint32(ctts.ini + ctts.cab + 4); am = 0;
+        for (k = 0; k < nCt; k++) { var cc = dv.getUint32(ctts.ini + ctts.cab + 8 + 8 * k), co = vc === 1 ? dv.getInt32(ctts.ini + ctts.cab + 12 + 8 * k) : dv.getUint32(ctts.ini + ctts.cab + 12 + 8 * k); for (j = 0; j < cc && am < n; j++, am++) pts[am] = dts[am] + co / escala; }
+        var menor = Infinity; for (k = 0; k < Math.min(n, 64); k++) menor = Math.min(menor, pts[k]); // edição implícita: o primeiro quadro exibido começa em 0
+        if (menor > 0 && isFinite(menor)) for (k = 0; k < n; k++) pts[k] -= menor;
+      }
+      if (stss) { var nS = dv.getUint32(stss.ini + stss.cab + 4); for (k = 0; k < nS; k++) { var ix = dv.getUint32(stss.ini + stss.cab + 8 + 4 * k) - 1; if (ix >= 0 && ix < n) chave[ix] = 1; } }
+      else for (k = 0; k < n; k++) chave[k] = 1;
+      return { formato: formato, codec: cod && cod.codec, descricao: cod && cod.descricao, largura: larg, altura: alt, rotacao: rot, n: n, off: off, tam: tam, dts: dts, pts: pts, chave: chave };
+    }
+    return null;
+  }
+  async function tabelaVideo(file) {
+    if (!(await ehIsoBmff(file))) return null;
+    var topo = await caixasTopo(file), moov = topo.filter(function (c) { return c.tipo === "moov"; })[0];
+    if (!moov || moov.tam > 400 * 1024 * 1024) return null;
+    return lerTabelaVideo(await lerFatia(file, moov.ini, moov.ini + moov.tam));
+  }
+
   /* ── caminho 1: MP4/MOV em partes ── */
   async function viaIsoBmff(file, o) {
     var topo = await caixasTopo(file), moov = topo.filter(function (c) { return c.tipo === "moov"; })[0];
@@ -332,16 +406,25 @@
   /* clipe curto (360p) para rever um ponto quando o navegador não exibe o vídeo original:
      MP4/H.264 onde o navegador toca H.264 (quase todos); WebM/VP8 nos que não tocam */
   function tocaH264() { try { var v = raiz.document.createElement("video"); return !!v.canPlayType('video/mp4; codecs="avc1.42E01E, mp4a.40.2"'); } catch (e) { return true; } }
-  async function clipe(file, ini, dur) {
-    var ff = await ffmpeg(), caminho = await montar(ff, file), mp4 = tocaH264(), nome = mp4 ? "/clipe.mp4" : "/clipe.webm";
+  async function clipe(file, ini, dur, op) {
+    var ff = await ffmpeg(), caminho = await montar(ff, file), mp4 = tocaH264(), nome = mp4 ? "/clipe.mp4" : "/clipe.webm", alt = (op && op.altura) || 360;
     var cod = mp4 ? ["-c:v", "libx264", "-preset", "ultrafast", "-crf", "30", "-c:a", "aac", "-b:a", "96k", "-movflags", "+faststart"]
       : ["-c:v", "libvpx", "-deadline", "realtime", "-cpu-used", "8", "-b:v", "700k", "-c:a", "libvorbis", "-q:a", "3"]; // libopus quebra no ffmpeg.wasm 0.12
-    try { await ff.exec(["-hide_banner", "-ss", String(Math.max(0, ini)), "-i", caminho, "-t", String(dur), "-vf", "scale=-2:360"].concat(cod, ["-y", nome])); }
+    try { await ff.exec(["-hide_banner", "-ss", String(Math.max(0, ini)), "-i", caminho, "-t", String(dur), "-vf", "scale=-2:" + alt].concat(cod, ["-y", nome])); }
     catch (e) { parar(); throw e; } // um erro dentro do ffmpeg deixa a instância inutilizável: a próxima chamada recria
     var d = await ff.readFile(nome).catch(function () { return null; }); try { await ff.deleteFile(nome); } catch (e) {}
     if (!d || !d.length) throw new Error("não foi possível converter este trecho");
     return new Blob([d], { type: mp4 ? "video/mp4" : "video/webm" });
   }
 
-  return { energia: energia, clipe: clipe, parar: parar, ehIsoBmff: ehIsoBmff, lerTabelaAudio: lerTabelaAudio, Acumulador: Acumulador };
+  /* um quadro (PNG) do vídeo, para a calibração quando o navegador não exibe o original (o codificador JPEG quebra no ffmpeg.wasm 0.12) */
+  async function quadro(file, t) {
+    var ff = await ffmpeg(), caminho = await montar(ff, file);
+    try { await ff.exec(["-hide_banner", "-ss", String(Math.max(0, t)), "-i", caminho, "-frames:v", "1", "-an", "-vf", "scale=-2:720", "-c:v", "png", "-f", "image2", "-update", "1", "-y", "/quadro.png"]); } catch (e) { parar(); throw e; }
+    var d = await ff.readFile("/quadro.png").catch(function () { return null; }); try { await ff.deleteFile("/quadro.png"); } catch (e) {}
+    if (!d || !d.length) throw new Error("não foi possível tirar um quadro do vídeo");
+    return new Blob([d], { type: "image/png" });
+  }
+
+  return { energia: energia, clipe: clipe, parar: parar, tabelaVideo: tabelaVideo, lerTabelaVideo: lerTabelaVideo, quadro: quadro, ehIsoBmff: ehIsoBmff, lerTabelaAudio: lerTabelaAudio, Acumulador: Acumulador };
 });

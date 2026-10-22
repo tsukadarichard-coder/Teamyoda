@@ -70,7 +70,7 @@
     var c = function (f) { return cl.filter(f).length; };
     var ga = c(function (p) { return p.venc === "A"; });
     var noSaqueA = cl.filter(function (p) { return p.sacador === "A"; }), noSaqueB = cl.filter(function (p) { return p.sacador === "B"; });
-    var erro = function (p) { return p.tipo === "Erro forçado" || p.tipo === "Erro não forçado"; };
+    var erro = function (p) { return p.tipo === "Erro" || p.tipo === "Erro forçado" || p.tipo === "Erro não forçado"; };
     var bat = pts.filter(function (p) { return p.golpes > 0; });
     var r = {
       total: pts.length, classificados: cl.length, ganhos: ga, pctGanhos: cl.length ? Math.round(ga / cl.length * 100) : null,

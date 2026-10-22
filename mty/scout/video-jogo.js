@@ -5,7 +5,7 @@
    Depende de scout/video-segmentador.js (QLSegmentador), video-audio.js, movimento-motor.js (QLBiomec.cota) e movimento.css.
    QLVideoJogo.montar(el, { atleta, historico, cota, cotaDe, aoSalvar, aoRemover, aoMudar, logo }) · QLVideoJogo.evolucaoHTML(historico) */
 (function (raiz) {
-  var S = raiz.QLSegmentador, ACEITA = "video/*,.mp4,.m4v,.mov,.qt,.3gp,.3g2,.mkv,.webm,.avi,.mts,.m2ts,.ts,.mpg,.mpeg,.wmv,.flv,.ogv,.dv,.hevc", TIPOS = ["", "Ace", "Dupla falta", "Winner", "Erro forçado", "Erro não forçado"];
+  var S = raiz.QLSegmentador, ACEITA = "video/*,.mp4,.m4v,.mov,.qt,.3gp,.3g2,.mkv,.webm,.avi,.mts,.m2ts,.ts,.mpg,.mpeg,.wmv,.flv,.ogv,.dv,.hevc", TIPOS = ["", "Ace", "Dupla falta", "Winner", "Erro", "Erro forçado", "Erro não forçado"];
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function fmt(t) { var h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = Math.floor(t % 60); return (h ? h + ":" + (m < 10 ? "0" : "") : "") + m + ":" + (s < 10 ? "0" : "") + s; }
   function tamanho(b) { return b >= 1073741824 ? (b / 1073741824).toFixed(1).replace(".", ",") + " GB" : Math.max(1, Math.round(b / 1048576)) + " MB"; }
@@ -56,6 +56,7 @@
       '<p class="qm-msg">Atalhos: ← → trocam de ponto · espaço revê · A / B marcam o vencedor.</p></div><div><div class="vj-lista" data-r="lista"></div></div></div></div>' +
       '<div class="qm-card" data-r="cmpC" hidden><h3 class="qm-h">Comparação com os jogos em vídeo anteriores</h3><div data-r="cmp"></div></div>' +
       '<div class="qm-card"><div class="qm-row"><button class="qm-pri" data-r="salvar">Salvar jogo no histórico</button><button data-r="csv">Baixar CSV</button><button data-r="json">Baixar JSON</button></div><p class="qm-msg" data-r="salvoMsg"></p></div></div>' +
+      '<div data-r="scout"></div>' +
       '<div class="qm-card" data-r="evoC"><h3 class="qm-h">Evolução dos jogos em vídeo</h3><div data-r="evo"></div><div data-r="hl"></div></div>';
     var q = function (n) { return el.querySelector('[data-r="' + n + '"]'); }, v = q("v");
     function msg(t) { q("st").textContent = t; }
@@ -91,6 +92,8 @@
       if (st.sinal) { st.sinal.cancelado = true; raiz.QLAudioVideo.parar(); }
       st.vezClipe++;
       if (st.url) URL.revokeObjectURL(st.url); limparClipes(); modoClipes(false);
+      if (st.lugarVideo && v.parentNode !== st.lugarVideo) st.lugarVideo.insertBefore(v, st.lugarVideo.firstChild);
+      q("scout").innerHTML = ""; st.scoutDe = null; st.hits = null;
       st.url = URL.createObjectURL(f); st.arq = f; st.en = null; st.vez++; st.fim = null;
       var vez = st.vez, ok = function () { if (vez === st.vez && !v.videoWidth) modoClipes(true); };
       v.onloadedmetadata = ok; v.onerror = function () { if (vez === st.vez) modoClipes(true); }; v.src = st.url;
@@ -114,12 +117,13 @@
       q("go").disabled = true; q("re").disabled = true; st.lendo = true;
       try {
         if (!st.en) await decodifica();
-        msg("Detectando batidas…"); var h = S.batidas(st.en, +q("sens").value), antigos = st.pts;
+        msg("Detectando batidas…"); var h = S.batidas(st.en, +q("sens").value), antigos = st.pts; st.hits = h.map(function (x) { return x.t; });
         st.pts = S.pontos(h, { gap: +q("gap").value, dur: st.dur }).map(function (p) {
           var ex = antigos.filter(function (x) { return Math.abs(x.saque - p.saque) < 1; })[0]; p.venc = ex ? ex.venc : ""; p.tipo = ex ? ex.tipo : ""; p.sacador = ex ? ex.sacador : ""; return p;
         });
         st.sel = 0; st.salvo = false; st.regId = null; render(); q("rev").hidden = false; q("re").disabled = false;
-        msg("Partida de " + fmt(st.dur) + " · " + h.length + " batidas · " + st.pts.length + " pontos detectados. Revise os clipes.");
+        msg("Partida de " + fmt(st.dur) + " · " + h.length + " batidas · " + st.pts.length + " pontos detectados. Revise os clipes ou monte o scout completo abaixo.");
+        montarScout();
       } catch (e) { msg(/cancelado/.test(e.message) ? "Leitura cancelada." : "Erro: " + e.message); q("re").disabled = !st.en; }
       st.lendo = false; q("go").disabled = !!(st.cota && !st.cota.liberado) || !st.arq;
     }
@@ -137,15 +141,42 @@
     }
     async function tocar(i) {
       if (i < 0 || i >= st.pts.length) return; st.sel = i; var p = st.pts[i]; render(true);
-      if (!st.clipes) { v.currentTime = p.ini; st.fim = p.fim; v.play(); return; }
-      var vez = ++st.vezClipe; st.fim = null; msg("Preparando o clipe do ponto " + p.n + "…");
+      await tocarJanela(p.ini, p.fim, "Ponto " + p.n, st.pts[i + 1]);
+    }
+    /* toca um trecho do vídeo; quando o navegador não exibe o original, converte o trecho num clipe (e já prepara o próximo) */
+    async function tocarJanela(ini, fim, rotulo, proximo) {
+      if (!st.clipes) { if (st.url && v.src !== st.url) { v.src = st.url; } v.currentTime = ini; st.fim = fim; v.play().catch(function () {}); return; }
+      var vez = ++st.vezClipe; st.fim = null; msg("Preparando o clipe" + (rotulo ? " (" + rotulo.toLowerCase() + ")" : "") + "…");
       try {
-        var url = await clipeDe(p); if (vez !== st.vezClipe) return;
-        st.base = p.ini; v.src = url; v.currentTime = 0; v.play().catch(function () {}); msg("Ponto " + p.n + " · " + fmt(p.ini) + "–" + fmt(p.fim));
-        if (st.pts[i + 1]) clipeDe(st.pts[i + 1]).catch(function () {});
-      } catch (e) { if (vez === st.vezClipe) msg("Não consegui preparar o clipe deste ponto: " + (e.message || e)); }
+        var url = await clipeDe({ ini: ini, fim: fim }); if (vez !== st.vezClipe) return;
+        st.base = ini; v.src = url; v.currentTime = 0; v.play().catch(function () {}); msg((rotulo ? rotulo + " · " : "") + fmt(ini) + "–" + fmt(fim));
+        if (proximo) clipeDe(proximo).catch(function () {});
+      } catch (e) { if (vez === st.vezClipe) msg("Não consegui preparar o clipe: " + (e.message || e)); }
     }
     function agora() { return (st.clipes ? st.base : 0) + v.currentTime; }
+    /* scout completo: calibração, visão e revisão ponto a ponto (scout/video-scout-ui.js) */
+    function montarScout() {
+      if (!raiz.QLVideoScoutUI || st.scoutDe === st.arq) return;
+      st.scoutDe = st.arq; var lugarVideo = v.parentNode;
+      st.scoutUI = raiz.QLVideoScoutUI.montar(q("scout"), {
+        arquivo: function () { return st.arq; }, video: v, batidas: function () { return st.hits || []; }, duracao: function () { return st.dur; },
+        nomes: function () { return { A: q("nA").value, B: q("nB").value }; }, clipes: function () { return st.clipes; },
+        tocar: function (ini, fim) { tocarJanela(ini, fim, ""); },
+        moverVideo: function (slot) { if (v.parentNode !== slot) { slot.appendChild(v); q("rev").hidden = true; } },
+        cotaLiberada: function () { return !(st.cota && !st.cota.liberado); },
+        aoSalvarScout: o.aoSalvarScout ? function (d) { return o.aoSalvarScout(d); } : null,
+        aoSalvarVideo: function (pontosScout) {
+          /* também guarda o jogo no histórico de jogos em vídeo (comparação e evolução) */
+          st.pts = pontosScout.map(function (p, i) {
+            var tipo = p.saque === "ace" ? "Ace" : p.saque === "df" ? "Dupla falta" : /^winner/.test(p.fim) ? "Winner" : "Erro";
+            var nb = (p.batidas || []).length;
+            return { n: i + 1, ini: p.video ? p.video.ini : 0, fim: p.video ? p.video.fim : 0, saque: p.video ? p.video.ini + 1.8 : 0, sacador: p.sacador === "nos" ? "A" : "B", venc: p.nos ? "A" : "B", tipo: tipo, golpes: nb, duracao: nb ? (p.batidas[nb - 1].t - p.batidas[0].t) : 0 };
+          });
+          st.salvo = false; q("salvar").onclick();
+        },
+      });
+      st.lugarVideo = lugarVideo;
+    }
     v.addEventListener("timeupdate", function () { if (st.fim != null && v.currentTime >= st.fim) { v.pause(); st.fim = null; } });
     function render(manter) {
       var nA = q("nA").value || "Atleta", nB = q("nB").value || "Adversário", pl = S.placar(st.pts.map(function (p) { return p.venc; })), r = S.resumirJogo(st.pts);
