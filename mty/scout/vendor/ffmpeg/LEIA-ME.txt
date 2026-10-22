@@ -1,0 +1,4 @@
+@ffmpeg/ffmpeg 0.12.15 (UMD: ffmpeg.js + 814.ffmpeg.js) · licença MIT · https://github.com/ffmpegwasm/ffmpeg.wasm
+Invólucro do ffmpeg.wasm usado por scout/video-audio.js como leitor universal de vídeo (MKV, AVI, MTS, WMV…).
+Fica no site porque o Worker precisa ser da mesma origem. O núcleo (@ffmpeg/core 0.12.10, ~30 MB) é baixado de CDN
+(jsdelivr, com unpkg de reserva) só quando um vídeo precisa dele. Mantenha as duas cópias iguais em mty/scout e autonomo/scout.

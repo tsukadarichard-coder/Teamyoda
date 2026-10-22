@@ -1,11 +1,14 @@
 /* Jogo em vídeo → rascunho de scout · Tecnologia QuadraLab.
    O som das batidas separa a partida em pontos; o treinador revisa cada clipe e classifica. O vídeo não sai do aparelho.
-   Depende de scout/video-segmentador.js (QLSegmentador), movimento-motor.js (QLBiomec.cota) e movimento.css.
+   Partidas inteiras e qualquer formato (MP4/MOV de celular, MKV, AVI, MTS…): o som é lido em partes por scout/video-audio.js (QLAudioVideo).
+   Se o navegador não exibe o vídeo original (ex.: HEVC em alguns aparelhos, AVI), cada ponto vira um clipe curto na hora de rever.
+   Depende de scout/video-segmentador.js (QLSegmentador), video-audio.js, movimento-motor.js (QLBiomec.cota) e movimento.css.
    QLVideoJogo.montar(el, { atleta, historico, cota, cotaDe, aoSalvar, aoRemover, aoMudar, logo }) · QLVideoJogo.evolucaoHTML(historico) */
 (function (raiz) {
-  var S = raiz.QLSegmentador, TIPOS = ["", "Ace", "Dupla falta", "Winner", "Erro forçado", "Erro não forçado"];
+  var S = raiz.QLSegmentador, ACEITA = "video/*,.mp4,.m4v,.mov,.qt,.3gp,.3g2,.mkv,.webm,.avi,.mts,.m2ts,.ts,.mpg,.mpeg,.wmv,.flv,.ogv,.dv,.hevc", TIPOS = ["", "Ace", "Dupla falta", "Winner", "Erro forçado", "Erro não forçado"];
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
-  function fmt(t) { var m = Math.floor(t / 60), s = Math.floor(t % 60); return m + ":" + (s < 10 ? "0" : "") + s; }
+  function fmt(t) { var h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = Math.floor(t % 60); return (h ? h + ":" + (m < 10 ? "0" : "") : "") + m + ":" + (s < 10 ? "0" : "") + s; }
+  function tamanho(b) { return b >= 1073741824 ? (b / 1073741824).toFixed(1).replace(".", ",") + " GB" : Math.max(1, Math.round(b / 1048576)) + " MB"; }
   function data(iso) { try { return new Date(iso).toLocaleDateString("pt-BR"); } catch (e) { return ""; } }
   function ordenar(l) { return (l || []).slice().sort(function (a, b) { return a.criadoEm < b.criadoEm ? -1 : 1; }); }
 
@@ -38,15 +41,17 @@
 
   function montar(el, o) {
     o = o || {};
-    var st = { pts: [], sel: 0, en: null, dur: 0, url: null, fim: null, arq: null, historico: (o.historico || []).slice(), cota: o.cota || null, regId: null, salvo: false };
+    var st = { pts: [], sel: 0, en: null, dur: 0, url: null, fim: null, arq: null, historico: (o.historico || []).slice(), cota: o.cota || null, regId: null, salvo: false,
+      clipes: false, base: 0, cache: [], vez: 0, vezClipe: 0, sinal: null, lendo: false };
     el.classList.add("qlm");
-    el.innerHTML = '<div class="qm-card"><div id="vj-cota"></div><div class="qm-row"><label class="qm-btn">Escolher vídeo da partida<input data-r="arq" type="file" accept="video/*" hidden></label>' +
+    el.innerHTML = '<div class="qm-card"><div id="vj-cota"></div><div class="qm-row"><label class="qm-btn">Escolher vídeo da partida<input data-r="arq" type="file" accept="' + ACEITA + '" hidden></label>' +
       '<label>Atleta <input type="text" data-r="nA" style="width:130px"></label><label>Adversário <input type="text" data-r="nB" value="Adversário" style="width:130px"></label>' +
       '<button class="qm-pri" data-r="go" disabled>Detectar pontos</button></div>' +
       '<div class="qm-row" style="margin-top:8px"><label>Sensibilidade <input data-r="sens" type="range" min="1" max="10" value="5"></label><label>Pausa que separa pontos (s) <input data-r="gap" type="number" value="6" min="2" max="30" style="width:70px"></label><button data-r="re" disabled>Reprocessar</button></div>' +
-      '<p class="qm-msg" data-r="st">Câmera fixa e perto da quadra captam melhor o som da bola. Vídeos de até cerca de 1 hora funcionam; acima disso o navegador pode ficar sem memória.</p></div>' +
+      '<div class="qm-row" data-r="prog" style="display:none;margin-top:10px"><progress data-r="barra" max="1" value="0" style="flex:1;min-width:160px;height:10px;accent-color:#0B3B2E"></progress><button data-r="parar">Cancelar</button></div>' +
+      '<p class="qm-msg" data-r="st">Pode enviar a partida inteira, em qualquer formato — inclusive vídeos gravados no celular (MP4, MOV, HEVC), MKV, AVI e MTS. O vídeo não sai do aparelho: o som é lido aqui mesmo, em partes. Câmera fixa e perto da quadra captam melhor o som da bola.</p></div>' +
       '<div data-r="rev" hidden><div class="qm-card"><div class="qm-kp" data-r="kp"></div>' +
-      '<div class="vj-grid" style="margin-top:12px"><div><video class="vj-video" data-r="v" controls playsinline></video>' +
+      '<div class="vj-grid" style="margin-top:12px"><div><video class="vj-video" data-r="v" controls playsinline></video><p class="qm-msg" data-r="aviso" hidden></p>' +
       '<div class="qm-row" style="margin-top:8px"><button data-r="ant">◀ Anterior</button><button data-r="rep">↻ Rever</button><button data-r="prox">Próximo ▶</button><button data-r="add">+ Ponto aqui</button></div>' +
       '<p class="qm-msg">Atalhos: ← → trocam de ponto · espaço revê · A / B marcam o vencedor.</p></div><div><div class="vj-lista" data-r="lista"></div></div></div></div>' +
       '<div class="qm-card" data-r="cmpC" hidden><h3 class="qm-h">Comparação com os jogos em vídeo anteriores</h3><div data-r="cmp"></div></div>' +
@@ -75,32 +80,72 @@
       var id = b.getAttribute("data-rm"); st.historico = st.historico.filter(function (h) { return h.id !== id; });
       Promise.resolve(o.aoRemover(id)).catch(function () {}); if (o.aoMudar) o.aoMudar(st.historico); if (o.cotaDe) { st.cota = o.cotaDe(st.historico); cota(); } renderHist();
     };
-    q("arq").onchange = function (e) {
-      var f = e.target.files[0]; if (!f) return; if (st.url) URL.revokeObjectURL(st.url);
-      st.url = URL.createObjectURL(f); v.src = st.url; st.arq = f; st.en = null; q("go").disabled = !!(st.cota && !st.cota.liberado); msg("Vídeo carregado: " + f.name);
-    };
-    async function decodifica() {
-      var buf = await st.arq.arrayBuffer(), ac = new (window.AudioContext || window.webkitAudioContext)(), ab;
-      try { ab = await ac.decodeAudioData(buf); } catch (e) { throw new Error("não consegui ler o áudio deste vídeo (formato ou tamanho). Tente exportar em MP4/H.264."); }
-      st.dur = ab.duration; var x = ab.getChannelData(0), y = new Float32Array(x.length), a = 0.95;
-      for (var i = 1; i < x.length; i++) y[i] = a * y[i - 1] + a * (x[i] - x[i - 1]);
-      st.en = S.energia(y, ab.sampleRate, 10); ac.close();
+    /* clipes: quando o navegador não exibe o original, cada ponto é convertido (QLAudioVideo.clipe) e guardado num cache pequeno */
+    function limparClipes() { st.cache.forEach(function (c) { if (c.url) URL.revokeObjectURL(c.url); }); st.cache = []; st.base = 0; }
+    function modoClipes(sim) {
+      st.clipes = sim; var a = q("aviso"); a.hidden = !sim;
+      a.textContent = sim ? "Este navegador não exibe este formato de vídeo direto; ao rever, cada ponto é convertido num clipe curto aqui no aparelho (leva alguns segundos)." : "";
     }
+    q("arq").onchange = function (e) {
+      var f = e.target.files[0]; if (!f) return;
+      if (st.sinal) { st.sinal.cancelado = true; raiz.QLAudioVideo.parar(); }
+      st.vezClipe++;
+      if (st.url) URL.revokeObjectURL(st.url); limparClipes(); modoClipes(false);
+      st.url = URL.createObjectURL(f); st.arq = f; st.en = null; st.vez++; st.fim = null;
+      var vez = st.vez, ok = function () { if (vez === st.vez && !v.videoWidth) modoClipes(true); };
+      v.onloadedmetadata = ok; v.onerror = function () { if (vez === st.vez) modoClipes(true); }; v.src = st.url;
+      q("go").disabled = !!(st.cota && !st.cota.liberado); msg("Vídeo carregado: " + f.name + " (" + tamanho(f.size) + "). Toque em Detectar pontos.");
+    };
+    function progresso(fr, t) { q("barra").value = Math.max(0, Math.min(1, fr || 0)); if (t) msg(t); }
+    async function decodifica() {
+      var sinal = st.sinal = { cancelado: false }, arq = st.arq, t0 = Date.now();
+      q("prog").style.display = ""; progresso(0, "Lendo o som da partida…");
+      try {
+        var r = await raiz.QLAudioVideo.energia(arq, { janelaMs: 10, sinal: sinal, aoProgresso: progresso });
+        if (sinal.cancelado || arq !== st.arq) throw new Error("cancelado");
+        st.en = { e: r.e, dt: r.dt }; st.dur = r.dur || r.e.length * r.dt;
+        st.via = r.via; st.leitura = (Date.now() - t0) / 1000;
+      } finally { q("prog").style.display = "none"; if (st.sinal === sinal) st.sinal = null; }
+    }
+    q("parar").onclick = function () { if (st.sinal) { st.sinal.cancelado = true; raiz.QLAudioVideo.parar(); } };
     async function processa() {
       if (st.cota && !st.cota.liberado) { cota(); return; }
-      q("go").disabled = true;
+      if (st.lendo) return;
+      q("go").disabled = true; q("re").disabled = true; st.lendo = true;
       try {
-        if (!st.en) { msg("Lendo o áudio…"); await decodifica(); }
+        if (!st.en) await decodifica();
         msg("Detectando batidas…"); var h = S.batidas(st.en, +q("sens").value), antigos = st.pts;
         st.pts = S.pontos(h, { gap: +q("gap").value, dur: st.dur }).map(function (p) {
           var ex = antigos.filter(function (x) { return Math.abs(x.saque - p.saque) < 1; })[0]; p.venc = ex ? ex.venc : ""; p.tipo = ex ? ex.tipo : ""; p.sacador = ex ? ex.sacador : ""; return p;
         });
-        st.sel = 0; st.salvo = false; st.regId = null; render(); q("rev").hidden = false; q("re").disabled = false; msg(h.length + " batidas · " + st.pts.length + " pontos detectados. Revise os clipes.");
-      } catch (e) { msg("Erro: " + e.message); }
-      q("go").disabled = !!(st.cota && !st.cota.liberado);
+        st.sel = 0; st.salvo = false; st.regId = null; render(); q("rev").hidden = false; q("re").disabled = false;
+        msg("Partida de " + fmt(st.dur) + " · " + h.length + " batidas · " + st.pts.length + " pontos detectados. Revise os clipes.");
+      } catch (e) { msg(/cancelado/.test(e.message) ? "Leitura cancelada." : "Erro: " + e.message); q("re").disabled = !st.en; }
+      st.lendo = false; q("go").disabled = !!(st.cota && !st.cota.liberado) || !st.arq;
     }
     q("go").onclick = processa; q("re").onclick = processa;
-    function tocar(i) { if (i < 0 || i >= st.pts.length) return; st.sel = i; var p = st.pts[i]; v.currentTime = p.ini; st.fim = p.fim; v.play(); render(true); }
+    function clipeDe(p) {
+      var c = st.cache.filter(function (x) { return x.ini === p.ini && x.fim === p.fim; })[0];
+      if (c) return c.pr;
+      var arq = st.arq; c = { ini: p.ini, fim: p.fim, url: null };
+      c.pr = (st.filaClipe = (st.filaClipe || Promise.resolve()).catch(function () {}).then(function () { return raiz.QLAudioVideo.clipe(arq, p.ini, Math.max(1, p.fim - p.ini)); }))
+        .then(function (b) { c.url = URL.createObjectURL(b); return c.url; });
+      c.pr.catch(function () { st.cache = st.cache.filter(function (x) { return x !== c; }); });
+      st.cache.push(c);
+      while (st.cache.length > 6) { var velho = st.cache.shift(); if (velho.url) URL.revokeObjectURL(velho.url); }
+      return c.pr;
+    }
+    async function tocar(i) {
+      if (i < 0 || i >= st.pts.length) return; st.sel = i; var p = st.pts[i]; render(true);
+      if (!st.clipes) { v.currentTime = p.ini; st.fim = p.fim; v.play(); return; }
+      var vez = ++st.vezClipe; st.fim = null; msg("Preparando o clipe do ponto " + p.n + "…");
+      try {
+        var url = await clipeDe(p); if (vez !== st.vezClipe) return;
+        st.base = p.ini; v.src = url; v.currentTime = 0; v.play().catch(function () {}); msg("Ponto " + p.n + " · " + fmt(p.ini) + "–" + fmt(p.fim));
+        if (st.pts[i + 1]) clipeDe(st.pts[i + 1]).catch(function () {});
+      } catch (e) { if (vez === st.vezClipe) msg("Não consegui preparar o clipe deste ponto: " + (e.message || e)); }
+    }
+    function agora() { return (st.clipes ? st.base : 0) + v.currentTime; }
     v.addEventListener("timeupdate", function () { if (st.fim != null && v.currentTime >= st.fim) { v.pause(); st.fim = null; } });
     function render(manter) {
       var nA = q("nA").value || "Atleta", nB = q("nB").value || "Adversário", pl = S.placar(st.pts.map(function (p) { return p.venc; })), r = S.resumirJogo(st.pts);
@@ -126,7 +171,7 @@
       q("cmpC").hidden = !(ant.n && ant.linhas.length); q("cmp").innerHTML = tabelaCmp(ant);
     }
     q("ant").onclick = function () { tocar(st.sel - 1); }; q("prox").onclick = function () { tocar(st.sel + 1); }; q("rep").onclick = function () { tocar(st.sel); };
-    q("add").onclick = function () { var t = v.currentTime; st.pts.push({ n: 0, ini: Math.max(0, t - 2), fim: t + 3, saque: t, golpes: 0, duracao: 0, suspeito: "adicionado manualmente", venc: "", tipo: "", sacador: "" }); st.pts.sort(function (a, b) { return a.saque - b.saque; }); st.pts.forEach(function (x, j) { x.n = j + 1; }); st.salvo = false; render(true); };
+    q("add").onclick = function () { var t = agora(); st.pts.push({ n: 0, ini: Math.max(0, t - 2), fim: t + 3, saque: t, golpes: 0, duracao: 0, suspeito: "adicionado manualmente", venc: "", tipo: "", sacador: "" }); st.pts.sort(function (a, b) { return a.saque - b.saque; }); st.pts.forEach(function (x, j) { x.n = j + 1; }); st.salvo = false; render(true); };
     el.addEventListener("keydown", function (e) {
       if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName) || q("rev").hidden) return;
       if (e.key === "ArrowRight") tocar(st.sel + 1); else if (e.key === "ArrowLeft") tocar(st.sel - 1); else if (e.key === " ") { e.preventDefault(); tocar(st.sel); }

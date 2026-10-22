@@ -17,10 +17,11 @@
     var k = 14 - sens; // 13..4
     var med = mediana(e), dev = mediana(e.map(function (x) { return Math.abs(x - med); })) || 1e-6;
     for (i = 2; i < e.length - 1; i++) {
+      lim = k * dev * 1.4826;
+      if (!(e[i] >= e[i - 1] && e[i] >= e[i + 1] && e[i] > med + lim)) continue; // só calcula o piso local nos candidatos (partidas de horas)
       loc = e.slice(Math.max(0, i - jan), i - 1); piso = mediana(loc);
       flux = e[i] - piso;
-      lim = k * dev * 1.4826;
-      if (flux > lim && e[i] >= e[i - 1] && e[i] >= e[i + 1] && e[i] > med + lim) {
+      if (flux > lim) {
         var t = i * dt;
         if (t - ult >= minGap) { hits.push({ t: t, f: flux }); ult = t; }
         else if (hits.length && flux > hits[hits.length - 1].f) { hits[hits.length - 1] = { t: t, f: flux }; ult = t; }
