@@ -47,8 +47,8 @@
     }
 
     /* ── calibração ── */
-    async function pegarQuadro() {
-      var bat = api.batidas(), t = bat.length ? bat[0] : 5, v = api.video;
+    async function pegarQuadro(tq) {
+      var bat = api.batidas(), t = tq != null ? tq : bat.length ? bat[0] : 5, v = api.video;
       try {
         if (!api.clipes() && v && v.videoWidth) {
           await new Promise(function (r) { var f = function () { v.removeEventListener("seeked", f); r(); }; v.addEventListener("seeked", f); v.pause(); v.currentTime = t; setTimeout(r, 4000); });
@@ -160,15 +160,25 @@
        mão e formato saem da própria partida. Se a quadra não for achada, cai na marcação manual. */
     async function iniciarAuto() {
       S.fase = "processando"; render(); progresso(0, "Procurando a quadra no vídeo…");
-      await pegarQuadro();
-      var r = null;
-      if (S.img && raiz.QLQuadraAuto) {
+      /* alguns quadros espalhados pelo começo do jogo (o jogador pode tapar uma linha num deles); fica o que confirma mais
+         linhas da quadra. Aceita com 4 ou mais linhas inteiras confirmadas */
+      var bat = api.batidas(), dur = api.duracao() || 60, tempos = [];
+      [0, 1, 2, 4, 7, 11].forEach(function (k) { if (bat[k] != null) tempos.push(bat[k] + 0.3); });
+      if (!tempos.length) tempos = [Math.min(5, dur / 3), dur / 2];
+      var r = null, img = null, asp = null;
+      for (var k = 0; k < tempos.length && raiz.QLQuadraAuto; k++) {
+        if (S.sinal && S.sinal.cancelado) return;
+        await pegarQuadro(tempos[k]); if (!S.img) continue;
         var w = 640, h = Math.round(w / S.asp), c = document.createElement("canvas"); c.width = w; c.height = h;
         var x = c.getContext("2d", { willReadFrequently: true }); x.drawImage(S.img, 0, 0, w, h);
         await new Promise(function (ok) { setTimeout(ok, 30); });
-        try { r = raiz.QLQuadraAuto.detectar(x.getImageData(0, 0, w, h).data, w, h); } catch (e) { r = null; }
+        var rk = null; try { rk = raiz.QLQuadraAuto.detectar(x.getImageData(0, 0, w, h).data, w, h); } catch (e) { rk = null; }
+        if (rk && (!r || rk.confirmadas > r.confirmadas || (rk.confirmadas === r.confirmadas && rk.nota > r.nota))) { r = rk; img = S.img; asp = S.asp; S.tQuadra = tempos[k]; }
+        if (r && r.confirmadas >= 7) break;
+        progresso(0, "Procurando a quadra no vídeo… (" + (k + 1) + "/" + tempos.length + ")");
       }
-      if (!r || r.nota < 0.55 || r.visiveis < 0.45) {
+      if (img) { S.img = img; S.asp = asp; }
+      if (!r || r.confirmadas < 4 || r.visiveis < 0.3) {
         S.fase = "calibrar"; render(); msgCal("Não achei as linhas da quadra sozinho neste vídeo. Marque os 4 cantos (leva poucos segundos).");
         return;
       }

@@ -17,7 +17,7 @@ function quadro(c, rnd) {
   const larg = (y) => (y > H * 0.65 ? 1.6 : y > H * 0.45 ? 1 : 0.6);
   const L = 11.885, S = 6.4, D = 5.485, SI = 4.115, branco = [238, 238, 232];
   [[[-D, -L], [D, -L]], [[-D, L], [D, L]], [[-D, -L], [-D, L]], [[D, -L], [D, L]], [[-SI, -L], [-SI, L]], [[SI, -L], [SI, L]], [[-SI, -S], [SI, -S]], [[-SI, S], [SI, S]], [[0, -S], [0, S]], [[0, -L], [0, -L + 0.15]], [[0, L], [0, L - 0.15]]]
-    .forEach((s) => linha([s[0][0], s[0][1], 0], [s[1][0], s[1][1], 0], larg, branco));
+    .forEach((s) => !c.semLinhas && linha([s[0][0], s[0][1], 0], [s[1][0], s[1][1], 0], larg, branco));
   /* rede (faixa branca no alto) e postes; alambrado */
   linha([-6.4, 0, 1.07], [6.4, 0, 0.914], 1.2, branco); linha([-6.4, 0, 0], [-6.4, 0, 1.07], 1, [60, 60, 60]); linha([6.4, 0, 0], [6.4, 0, 1.07], 1, [60, 60, 60]);
   for (let k = 0; k < c.distr; k++) { const x0 = rnd() * W, y0 = rnd() * H, w = 6 + rnd() * 30, h2 = 12 + rnd() * 40, cor = rnd() < 0.3 ? [230, 230, 230] : [rnd() * 255, rnd() * 255, rnd() * 255]; for (let y = y0; y < y0 + h2; y++) for (let x = x0; x < x0 + w; x++) pinta(x, y, cor); }
@@ -30,6 +30,8 @@ const CAMERAS = [
   ["de lado", { pos: [3.2, -19, 5], alvo: [0.5, 2, 0], foco: 1.6 }],
   ["baixa", { pos: [-0.8, -18.5, 2.6], alvo: [0, 3, 0], foco: 1.8 }],
   ["perto, fundo de cá cortado", { pos: [0.2, -16.5, 4], alvo: [0, 5, 0], foco: 1.25 }],
+  /* celular na mão, no canto de cá e baixo, olhando em diagonal para a rede (como o vídeo real de teste) */
+  ["de canto, na mão", { pos: [6.9, -18.8, 2.4], alvo: [-2, -4, 0], foco: 2.3 }],
 ];
 const rnd = gerador(4); let pior = 0, n = 0;
 for (const [nome, c] of CAMERAS) for (const piso of Object.keys(PISOS)) {
@@ -40,7 +42,14 @@ for (const [nome, c] of CAMERAS) for (const piso of Object.keys(PISOS)) {
   const visiveis = f.cantos.map((p) => p[0] >= 0 && p[0] <= 1 && p[1] >= 0 && p[1] <= 1);
   const e = Math.max(...err.filter((_, i) => visiveis[i]).concat(visiveis.some(Boolean) ? [] : [0]));
   pior = Math.max(pior, e); n++;
-  console.log("  " + nome + " · " + piso + ": erro máximo " + e.toFixed(1) + " px (cantos visíveis " + visiveis.filter(Boolean).length + "/4) · nota " + r.nota.toFixed(2));
+  console.log("  " + nome + " · " + piso + ": erro máximo " + e.toFixed(1) + " px (cantos visíveis " + visiveis.filter(Boolean).length + "/4) · nota " + r.nota.toFixed(2) + " · " + r.confirmadas + " linhas");
+  if ((e >= 6 || process.env.TODOS) && process.env.DEPURA) require("fs").writeFileSync(process.env.DEPURA, f.img), console.log(JSON.stringify(r.cantos.map(p=>[p[0]*W,p[1]*H].map(Math.round))), JSON.stringify(f.cantos.map(p=>[p[0]*W,p[1]*H].map(Math.round))));
   assert(e < 6, nome + " / " + piso + ": cantos longe demais (" + e.toFixed(1) + " px)");
+  assert(r.confirmadas >= 4, nome + " / " + piso + ": poucas linhas confirmadas (" + r.confirmadas + ")");
+}
+/* sem quadra (piso liso com riscos e manchas): não pode inventar uma */
+for (let k = 0; k < 4; k++) {
+  const f = quadro({ ...CAMERAS[k][1], ...PISOS.saibro, distr: 40, semLinhas: true }, rnd), r = Q.detectar(f.img, W, H);
+  assert(!r || r.confirmadas < 4, "inventou uma quadra num piso sem linhas (" + (r && r.confirmadas) + " linhas)");
 }
 console.log("check-quadra-auto: ok (" + n + " quadros, pior " + pior.toFixed(1) + " px)");
