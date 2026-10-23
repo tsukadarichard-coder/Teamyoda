@@ -308,6 +308,7 @@
         fe.appendChild(d);
       });
       var meu = ++S.token;
+      S.canvases = cvs;
       (async function () {
         S.fotos = [];
         for (var i = 0; i < r.fases.length; i++) {
@@ -350,11 +351,27 @@
       renderHistorico();
     }
     /* relatório completo (checklist com pareceres, fases, fotos, conclusão, comparação) no arquivo da academia */
+    /* Fotos das fases para o arquivo: reduzidas para caber sempre no documento do relatório (vídeo de celular em pé gera
+       fotos altas e pesadas; sem isto o relatório passava do limite e era guardado sem nenhuma foto). */
+    function fotosParaArquivo(lado, qualidade) {
+      return (S.canvases || []).map(function (c, i) {
+        if (!c || !c.width || !S.fotos[i]) return S.fotos[i] || "";
+        var k = Math.min(1, lado / Math.max(c.width, c.height)), o = document.createElement("canvas");
+        o.width = Math.max(1, Math.round(c.width * k)); o.height = Math.max(1, Math.round(c.height * k));
+        o.getContext("2d").drawImage(c, 0, 0, o.width, o.height);
+        try { return o.toDataURL("image/jpeg", qualidade); } catch (e) { return S.fotos[i] || ""; }
+      });
+    }
     function arquivar() {
       if (!arquivo || !alunoId || !S.regAtual || !opts.aoSalvar) return;
       var reg = S.regAtual, meu = S.token, el2 = q("salvoMsg");
       var arq = { id: reg.id, alunoId: alunoId, criadoEm: reg.criadoEm, golpe: reg.golpe, emp: reg.emp, dom: reg.dom, atleta: q("atl").value || opts.atleta || "", cabecalho: opts.cabecalho || "",
-        resultado: S.resultado, fotos: S.fotos.slice(), comparacao: S.comparacao || null, resumo: reg };
+        resultado: S.resultado, fotos: [], comparacao: S.comparacao || null, resumo: reg };
+      var tentativas = [[560, 0.78], [440, 0.66], [340, 0.55], [260, 0.45]];
+      for (var k = 0; k < tentativas.length; k++) {
+        arq.fotos = fotosParaArquivo(tentativas[k][0], tentativas[k][1]);
+        if (JSON.stringify(arq).length < 850000) break;
+      }
       el2.textContent = "Guardando o relatório completo…";
       return arquivo.salvar(alunoId, arq).then(function () {
         if (meu === S.token) el2.textContent = "Relatório guardado. Ele fica em \"Análises salvas\" e pode ser reaberto quando quiser.";

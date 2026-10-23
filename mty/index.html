@@ -10917,10 +10917,32 @@ function rotuloEncerramento(e) {
   const de = e.de === "atleta" ? " (do jogador)" : e.de === "adversario" ? " (do adversário)" : "";
   return e.motivo === "nao_informado" ? "Motivo não informado" : base + de + (e.detalhe ? ": " + e.detalhe : "");
 }
-function exportarCadernoPDF(a, identidade) {
+async function exportarCadernoPDF(a, identidade) {
   const janela = window.open("", "_blank");
   if (!janela) { alert("O navegador bloqueou a janela de exportação — permita pop-ups pra este site e tente de novo."); return; }
+  janela.document.write('<p style="font:14px system-ui,sans-serif;padding:20px">Montando o caderno…</p>');
   const regs = a.registros || [];
+
+  /* análises de movimento: ficha + arquivo da academia, cada uma com as fotos das fases e o checklist */
+  const arqMov = arquivoMovimento();
+  let movs = a.movimentos || [];
+  if (arqMov && window.QLMovArquivo && a.id) { try { movs = window.QLMovArquivo.juntar(movs, await arqMov.indice(a.id)); } catch (e) { /* fica a ficha */ } }
+  movs = [...movs].sort((x, y) => String(x.criadoEm).localeCompare(String(y.criadoEm)));
+  const relMov = arqMov ? await Promise.all(movs.map((m) => arqMov.ler(m.id).catch(() => null))) : movs.map(() => null);
+  const movHTML = movs.length ? (
+    '<h2>Análises de movimento</h2>' + movs.map((m, k) => {
+      const arq = relMov[k], r = arq && arq.resultado, fotos = (arq && arq.fotos) || [], res = m.res || {};
+      const itens = r ? (r.itens || []) : (m.itens || []).map((i) => ({ nome: i.n, valor: i.v, unidade: i.u, ref: i.r, status: i.s }));
+      return '<div class="mov"><h3>' + escaparHTML(new Date(m.criadoEm).toLocaleDateString("pt-BR")) + ' · ' + escaparHTML(nomeGolpeMov(m)) + '</h3>' +
+        '<p class="detalhe">' + (res.ok || 0) + ' itens OK · ' + (res.atencao || 0) + ' em atenção · ' + (res.nao || 0) + ' para revisar</p>' +
+        (r && fotos.some(Boolean) ? '<div class="fotos">' + (r.fases || []).map((f, i) => fotos[i] ? '<figure><img src="' + escaparHTML(fotos[i]) + '" alt=""><figcaption>' + (i + 1) + '. ' + escaparHTML((r.nomes || [])[i] || "") + ' · ' + Number(f.t || 0).toFixed(2) + ' s</figcaption></figure>' : '').join("") + '</div>' : '') +
+        '<table><thead><tr><th>Item</th><th>Medido</th><th>Referência</th><th>Parecer</th></tr></thead><tbody>' +
+        itens.map((it) => '<tr><td>' + escaparHTML(it.nome) + '</td><td>' + (it.valor == null ? "—" : escaparHTML(Math.round(it.valor * 10) / 10 + (it.unidade || ""))) + '</td><td>' + escaparHTML(it.ref || "") + '</td><td><b>' + escaparHTML(ROTULO_STATUS_MOV[it.status] || "Revisar") + '</b>' + (it.comentario ? '<br><span class="detalhe">' + escaparHTML(it.comentario) + '</span>' : '') + '</td></tr>').join("") +
+        '</tbody></table>' +
+        (m.texto ? '<p class="detalhe"><b>Conclusão:</b> ' + escaparHTML(m.texto) + '</p>' : '') +
+        ((m.prio || []).length ? '<p class="detalhe"><b>Prioridades:</b> ' + escaparHTML(m.prio.join(" · ")) + '</p>' : '') + '</div>';
+    }).join("")
+  ) : "";
 
   const sess = regs.filter((r) => r.tipo === "sessao");
   const sessHTML = sess.length ? (
@@ -10972,6 +10994,7 @@ function exportarCadernoPDF(a, identidade) {
     '</tbody></table>'
   ) : "";
 
+  janela.document.open();
   janela.document.write(
     '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">' +
     '<title>Caderno · ' + escaparHTML(a.nome || "sem nome") + '</title>' +
@@ -10986,12 +11009,13 @@ function exportarCadernoPDF(a, identidade) {
     'th,td{border:1px solid #D8D1CB;padding:5px 7px;text-align:left}' +
     'th{background:#F4F0EB}' +
     '.rodape{margin-top:24px;padding-top:10px;border-top:1px solid #D8D1CB;font-size:11.5px;color:#6B6461;font-style:italic}' +
+    '.mov{margin-bottom:18px;break-inside:avoid-page}.fotos{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:6px 0 8px}.fotos figure{margin:0;border:1px solid #D8D1CB;border-radius:4px;padding:3px;break-inside:avoid}.fotos img{display:block;width:100%;max-height:70mm;object-fit:contain;background:#111}.fotos figcaption{font-size:10.5px;margin-top:2px}' +
     '@media print { .no-print{display:none} }' +
     '</style></head><body>' +
     cabecalhoRelatorioHTML(identidade) +
     '<h1>Caderno de campo</h1>' +
     '<div class="sub">' + escaparHTML(a.nome || "sem nome") + ' · estágio ' + escaparHTML(a.estagio) + ' · nível ' + escaparHTML(a.nivel) + ' · ' + regs.length + ' registros</div>' +
-    sessHTML + jogosHTML + semanasHTML + medHTML +
+    sessHTML + jogosHTML + movHTML + semanasHTML + medHTML +
     '<p class="rodape">Material de campo. Serve para corrigir o método, não para julgar o jogador.</p>' +
     '<div class="no-print" style="margin-top:20px;display:flex;gap:10px">' +
     '<button onclick="window.print()" style="padding:10px 16px;font-weight:700;cursor:pointer">Salvar como PDF / Imprimir</button>' +
@@ -11096,7 +11120,7 @@ function PainelAnotacoes({ aluno, setAlunos, alunos }) {
    planejamento prospectivo. O rótulo evita a ambiguidade do antigo
    "+ Semana", que sugeria planejar a semana que vem. */
 function rotuloTipoRegistro(tipo) {
-  return { sessao: "Sessão", jogo: "Jogo", semana: "Registro semanal", medicao: "Medição", anotacao: "Anotação" }[tipo] || tipo;
+  return { sessao: "Sessão", jogo: "Jogo", semana: "Registro semanal", medicao: "Medição", anotacao: "Anotação", movimento: "Análise de movimento" }[tipo] || tipo;
 }
 
 const OPCOES_NOVO_REGISTRO = [
@@ -11188,7 +11212,10 @@ function TelaRegistro({ aluno, alunos, setAlunos, identidade, abrirRegistroId, a
      pedido): registros estruturados (jogo/semana/medição/sessão) e
      anotações livres vêm de arrays diferentes no dado, mas aparecem
      juntos aqui — nunca ocultos por não caber num dos filtros. */
-  const itens = [...regs, ...anotacoes.map((a) => ({ ...a, tipo: "anotacao" }))]
+  const [versaoMov, setVersaoMov] = useState(0);
+  const movimentosCaderno = useMovimentosDoJogador(aluno, versaoMov);
+  const itens = [...regs, ...anotacoes.map((a) => ({ ...a, tipo: "anotacao" })),
+    ...movimentosCaderno.map((m) => ({ ...m, tipo: "movimento", data: String(m.criadoEm || "").slice(0, 10) }))]
     .sort((a, b) => (a.data < b.data ? 1 : a.data > b.data ? -1 : 0));
   const vazioTotal = itens.length === 0;
   const itensFiltrados = filtro === "todos" ? itens : itens.filter((i) => i.tipo === filtro);
@@ -11215,6 +11242,7 @@ function TelaRegistro({ aluno, alunos, setAlunos, identidade, abrirRegistroId, a
             { v: "jogo", r: "Jogos" },
             { v: "semana", r: "Semanas" },
             { v: "medicao", r: "Medições" },
+            { v: "movimento", r: "Análises de movimento" },
           ]}
           valor={filtro} aoMudar={(v) => { setCriando(null); setFiltro(v); }} />
       </div>
@@ -11266,7 +11294,9 @@ function TelaRegistro({ aluno, alunos, setAlunos, identidade, abrirRegistroId, a
             <>
               <div className="mb-4"><Etiqueta>{itensFiltrados.length} registros</Etiqueta></div>
               {itensFiltrados.map((r) => (
-                r.tipo === "anotacao" ? (
+                r.tipo === "movimento" ? (
+                  <CartaoMovimentoCaderno key={"mv-" + r.id} m={r} aluno={aluno} setAlunos={setAlunos} historico={movimentosCaderno} identidade={identidade} aoRemovido={() => setVersaoMov((v) => v + 1)} />
+                ) : r.tipo === "anotacao" ? (
                   <button key={r.id} onClick={() => setFiltro("anotacao")} className="w-full text-left"
                     style={{ display: "block", background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderLeft: "3px solid " + C.grafite, padding: "11px 13px", marginBottom: 8, cursor: "pointer" }}>
                     <Etiqueta>{new Date(r.data).toLocaleDateString("pt-BR")} · {rotuloTipoRegistro(r.tipo)}</Etiqueta>
@@ -11348,6 +11378,107 @@ function TelaRegistro({ aluno, alunos, setAlunos, identidade, abrirRegistroId, a
                 </p>
               </div>
             </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* Análises de movimento do jogador para o caderno: as da ficha + as do arquivo da academia (que não se perdem com a ficha). */
+function useMovimentosDoJogador(aluno, versao) {
+  const [indice, setIndice] = useState(null);
+  useEffect(() => {
+    let vivo = true;
+    const arq = arquivoMovimento();
+    if (arq && aluno && aluno.id) arq.indice(aluno.id).then((ind) => { if (vivo) setIndice(ind); }).catch(() => {});
+    return () => { vivo = false; };
+  }, [aluno && aluno.id, (aluno && aluno.movimentos || []).length, versao]);
+  const ficha = (aluno && aluno.movimentos) || [];
+  return window.QLMovArquivo && indice ? window.QLMovArquivo.juntar(ficha, indice) : ficha;
+}
+
+const NOMES_GOLPE_MOV = { forehand: "Forehand", backhand: "Backhand", saque: "Saque" };
+function nomeGolpeMov(m) { return (NOMES_GOLPE_MOV[m.golpe] || "Golpe") + (m.golpe === "backhand" ? (String(m.emp) === "1" ? " (uma mão)" : " (duas mãos)") : ""); }
+const COR_STATUS_MOV = { ok: "#2E8B57", atencao: "#C65825", nao_avaliavel: "#8A96A0" };
+const ROTULO_STATUS_MOV = { ok: "OK", atencao: "Atenção", nao_avaliavel: "Revisar" };
+
+/* Uma análise de movimento no caderno: resumo, fotos das fases e checklist (do arquivo da academia) e o relatório completo em PDF. */
+function CartaoMovimentoCaderno({ m, aluno, setAlunos, historico, identidade, aoRemovido }) {
+  const [aberto, setAberto] = useState(false);
+  const [arq, setArq] = useState(undefined); // undefined = ainda não carregou · null = análise sem arquivo (antiga)
+  useEffect(() => {
+    if (!aberto || arq !== undefined) return;
+    const a = arquivoMovimento();
+    if (!a) { setArq(null); return; }
+    a.ler(m.id).then((x) => setArq(x || null)).catch(() => setArq(null));
+  }, [aberto]);
+  const res = m.res || {};
+  function abrirPDF() {
+    if (!window.QLMovimento) return;
+    window.QLMovimento.abrirRelatorio(m, { arquivo: arquivoMovimento(), historico, atleta: aluno.nome, logo: new URL("assets/logo-quadralab.png", window.location.href).href, cabecalho: identidade && identidade.nomeAcademia ? identidade.nomeAcademia : "" });
+  }
+  function remover() {
+    if (!confirm("Remover esta análise de movimento? O relatório e as fotos dela também são apagados.")) return;
+    setAlunos((prev) => prev.map((a) => a.id !== aluno.id ? a : { ...a, movimentos: (a.movimentos || []).filter((x) => x.id !== m.id) }));
+    const a = arquivoMovimento();
+    if (a) a.remover(aluno.id, m.id).catch(() => {}).then(() => { if (aoRemovido) aoRemovido(); });
+  }
+  const r = arq && arq.resultado;
+  const fotos = arq && Array.isArray(arq.fotos) ? arq.fotos : [];
+  return (
+    <div data-movimento={m.id} style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderLeft: "3px solid #2E8B57", padding: "11px 13px", marginBottom: 8 }}>
+      <div className="flex justify-between items-start gap-3">
+        <div className="flex-1">
+          <Etiqueta>{new Date(m.criadoEm).toLocaleDateString("pt-BR")} · Análise de movimento</Etiqueta>
+          <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginTop: 4 }}>{nomeGolpeMov(m)}</p>
+          <p style={{ ...prosa, fontSize: 13.5, marginTop: 2 }}>{res.ok || 0} itens OK · {res.atencao || 0} em atenção · {res.nao || 0} para revisar</p>
+          {(m.prio || []).length > 0 && <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginTop: 2 }}>Prioridades: {m.prio.slice(0, 3).join(" · ")}</p>}
+          <button onClick={() => setAberto(!aberto)}
+            style={{ ...prosa, fontSize: 12, color: C.saibro, fontWeight: 700, cursor: "pointer", border: "none", background: "none", padding: 0, marginTop: 6, marginRight: 14 }}>
+            {aberto ? "Ocultar fotos e checklist" : "Ver fotos e checklist"}
+          </button>
+          <button onClick={abrirPDF}
+            style={{ ...prosa, fontSize: 12, color: C.saibro, fontWeight: 700, cursor: "pointer", border: "none", background: "none", padding: 0, marginTop: 6 }}>
+            Relatório completo (PDF)
+          </button>
+        </div>
+        <button onClick={remover} aria-label="Excluir análise" style={{ width: 32, height: 32, border: "none", background: "none", cursor: "pointer", fontSize: 18, color: C.grafite }}>×</button>
+      </div>
+      {aberto && (
+        <div className="mt-3 pt-3" style={{ borderTop: "1px solid " + C.linha }}>
+          {arq === undefined && <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Carregando o relatório…</p>}
+          {arq !== undefined && fotos.some(Boolean) && r && (
+            <div className="mb-3" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 6 }}>
+              {(r.fases || []).map((f, i) => fotos[i] ? (
+                <figure key={i} style={{ margin: 0, border: "1px solid " + C.linha, borderRadius: 6, padding: 3, background: "#fff" }}>
+                  <img src={fotos[i]} alt={(r.nomes || [])[i] || "Fase " + (i + 1)} style={{ display: "block", width: "100%", height: "auto", borderRadius: 4, background: "#111" }} />
+                  <figcaption style={{ ...prosa, fontSize: 11, marginTop: 3 }}><b>{i + 1}. {(r.nomes || [])[i]}</b> · {Number(f.t || 0).toFixed(2)} s</figcaption>
+                </figure>
+              ) : null)}
+            </div>
+          )}
+          {arq !== undefined && !fotos.some(Boolean) && (
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 8 }}>
+              {arq ? "As fotos desta análise não foram guardadas." : "Esta análise é de antes de o app guardar o relatório completo: as fotos e os comentários de cada item não existem mais. As medidas e a conclusão estão abaixo."}
+            </p>
+          )}
+          {arq !== undefined && (
+            <div>
+              <Etiqueta>Checklist</Etiqueta>
+              <div className="mt-2">
+                {(r ? r.itens || [] : (m.itens || []).map((i) => ({ nome: i.n, valor: i.v, unidade: i.u, ref: i.r, status: i.s }))).map((it, k) => (
+                  <div key={k} style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "6px 0", borderTop: k ? "1px solid " + C.linha : "none" }}>
+                    <span style={{ fontFamily: ARCH, fontSize: 10.5, fontWeight: 700, color: "#fff", background: COR_STATUS_MOV[it.status] || "#8A96A0", borderRadius: 99, padding: "2px 8px", whiteSpace: "nowrap", marginTop: 2 }}>{ROTULO_STATUS_MOV[it.status] || "Revisar"}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ ...prosa, fontSize: 13 }}><b>{it.nome}</b>{it.valor == null ? "" : " · " + Math.round(it.valor * 10) / 10 + (it.unidade || "")}{it.ref ? <span style={{ color: C.grafite }}> · ref. {it.ref}</span> : null}</p>
+                      {it.comentario && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>{it.comentario}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {m.texto && <p style={{ ...prosa, fontSize: 13, marginTop: 8 }}><b>Conclusão:</b> {m.texto}</p>}
+            </div>
           )}
         </div>
       )}

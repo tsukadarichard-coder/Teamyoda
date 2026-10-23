@@ -64,6 +64,8 @@ ReactDOM.createRoot(document.getElementById("raiz")).render(<Host />);
     assert((await p.locator(".qlm").first().locator("[data-r=salvoMsg]").textContent()).includes("Demonstração"), app + ": demonstração não salva");
     assert.strictEqual(await p.evaluate(() => window.__alunos[0].movimentos.length), 0, app + ": demo não grava no jogador");
     // análises reais (quadros injetados): salva no jogador, a 2ª compara com a 1ª
+    /* vídeo de celular em pé (1080×1920): as fotos das fases saem altas; no arquivo elas são reduzidas, nunca descartadas */
+    await p.evaluate(() => { const cv = document.querySelector(".qlm [data-r=cv]"); cv.width = 1080; cv.height = 1920; });
     const analisa = async () => { await p.evaluate(() => window.__ctl.injetar(window.QLBiomec.sintetico(40, "D").map((q, k) => { q.t = k * 0.05; return q; }), {})); await p.waitForTimeout(300); };
     await analisa();
     assert.strictEqual(await p.evaluate(() => window.__alunos[0].movimentos.length), 1, app + ": 1ª análise salva no jogador");
@@ -107,6 +109,8 @@ ReactDOM.createRoot(document.getElementById("raiz")).render(<Host />);
     [pop] = await Promise.all([p.waitForEvent("popup"), p.locator(".qlm [data-r=lista] [data-ver]").last().click()]);
     await pop.waitForFunction(() => /^Análise de movimento/.test(document.title));
     assert.strictEqual(await pop.locator(".fotos img").count(), 6, app + ": análise mais antiga também reabre completa");
+    const tamanhos = await pop.evaluate(() => Promise.all([...document.querySelectorAll(".fotos img")].map((i) => (i.complete ? Promise.resolve() : new Promise((r) => { i.onload = r; })).then(() => [i.naturalWidth, i.naturalHeight]))));
+    assert(tamanhos.every(([w, h]) => w > 0 && h > 0 && Math.max(w, h) <= 560 && h > w), app + ": fotos em pé guardadas reduzidas (" + JSON.stringify(tamanhos[0]) + ")");
     if (process.env.CAPTURAS) { await pop.setViewportSize({ width: 390, height: 1400 }); await pop.screenshot({ path: path.join(process.env.CAPTURAS, app + "-relatorio.png") }); }
     await pop.close();
     // remover tira do histórico e do arquivo, e não volta ao recarregar
