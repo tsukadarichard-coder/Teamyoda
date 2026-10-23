@@ -68,6 +68,7 @@ const srv = http.createServer((q, r) => {
   }
   await p.waitForSelector(".vs-res", { timeout: 600000 }).catch(async () => { throw new Error("o scout não ficou pronto: " + (await p.textContent('[data-r="scout"]')).slice(0, 300) + " | " + erros.join(" | ")); });
   if (!process.env.MANUAL) assert(await p.evaluate(() => vj.estado.scoutUI.estado.quadraAuto), "a quadra foi achada sozinha");
+  if (process.env.DEPURA_QUADRA) console.log(JSON.stringify(await p.evaluate(() => { const S = vj.estado.scoutUI.estado; return { t: S.tQuadra, impl: S.quadraImplausivel, cantos: S.cantos }; })));
   await p.waitForTimeout(300);
   assert.strictEqual((await p.evaluate(() => window.__salvos.length)) >= 1, true, "salvo sozinho no caderno");
   const r = await p.evaluate(() => { const S = vj.estado.scoutUI.estado; return { pontos: S.pontos.map((x) => ({ nos: x.nos, saque: x.saque, sacador: x.sacador, golpe: x.golpe, efeito: x.efeito, bola: x.bola, n: (x.batidas || []).length, fonte: null })), placar: QLVideoScout.Placar.texto(S.placar), bolas: S.dados.reduce((s, d) => s + d.quadros.filter((q) => q.bolas.length).length, 0), quadros: S.dados.reduce((s, d) => s + d.quadros.length, 0) }; });

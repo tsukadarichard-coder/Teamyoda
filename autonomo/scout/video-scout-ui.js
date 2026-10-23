@@ -44,7 +44,8 @@
         (S.semImagem
           ? '<p class="qm-msg">O navegador não entregou as imagens deste vídeo (só o som). Tente pelo Chrome ou pelo Safari atualizado, ou exporte o vídeo de novo em MP4 (H.264) e envie outra vez.</p>'
           : '<p class="qm-msg">O app procura as linhas da quadra sozinho em vários momentos da partida e não encontrou linhas suficientes. Para o scout automático funcionar:</p>' +
-            '<ul class="qm-ul"><li>filme de trás da linha de fundo, um pouco do alto, com a quadra inteira no quadro (as quatro linhas de fora);</li><li>evite cortar o fundo de cá ou as laterais;</li><li>deixe o celular parado ou acompanhe a jogada devagar.</li></ul>') +
+            '<ul class="qm-ul"><li><b>filme do alto</b>: atrás da linha de fundo, com o celular a 3–5 m de altura (arquibancada, alambrado, tripé alto). Com a câmera perto do chão a quadra de lá fica achatada numa faixa fina e as linhas se confundem;</li><li>centralizado, com a quadra inteira no quadro (as quatro linhas de fora), na horizontal;</li><li>celular parado (tripé ou preso no alambrado), 60 quadros por segundo se der.</li></ul>' +
+            (S.quadraImplausivel ? '<p class="qm-msg">Neste vídeo o app achou linhas, mas a quadra ficou achatada demais para medir com segurança (câmera baixa) e foi descartada para não gerar um scout errado.</p>' : '')) +
         '<p class="qm-msg">Os pontos achados pelo som continuam acima, com os clipes de cada um.</p>' +
         '<div class="qm-row"><button class="qm-pri" data-a="denovo">Procurar de novo</button></div></div>';
       el.querySelector('[data-a="denovo"]').onclick = function () { iniciarAuto(); };
@@ -177,8 +178,16 @@
         if (tempos.every(function (x) { return Math.abs(x - perto) > 3; })) tempos.push(perto + 0.3);
       });
       if (!tempos.length) tempos = [Math.min(5, dur / 3), dur / 2];
-      var r = null, img = null, asp = null; S.viuImagem = false;
+      var r = null, img = null, asp = null; S.viuImagem = false; S.quadraImplausivel = false;
       var bom = function () { return r && r.confirmadas >= 4 && r.visiveis >= 0.3; };
+      /* quadra com forma de quadra vista de trás: o fundo de cá bem abaixo do fundo de lá (profundidade na imagem) e mais largo.
+         Uma "quadra" achatada numa faixa fina (câmera quase no chão, linhas de saque tomadas por linhas de fundo) é recusada:
+         melhor pedir outro ângulo do que gerar um scout errado */
+      var plausivel = function (rk) {
+        if (!rk || !rk.cantos) return false;
+        var c = rk.cantos, yPerto = (c[0][1] + c[1][1]) / 2, yLonge = (c[2][1] + c[3][1]) / 2, lPerto = Math.abs(c[1][0] - c[0][0]), lLonge = Math.abs(c[2][0] - c[3][0]);
+        return yPerto - yLonge >= 0.15 && lPerto > lLonge * 1.05 && lPerto >= 0.25;
+      };
       async function procurar(lista, total0, total) {
         for (var k = 0; k < lista.length && raiz.QLQuadraAuto; k++) {
           if (S.sinal && S.sinal.cancelado) return;
@@ -187,6 +196,7 @@
           var x = c.getContext("2d", { willReadFrequently: true }); x.drawImage(S.img, 0, 0, w, h);
           await new Promise(function (ok) { setTimeout(ok, 30); });
           var rk = null; try { rk = raiz.QLQuadraAuto.detectar(x.getImageData(0, 0, w, h).data, w, h); } catch (e) { rk = null; }
+          if (rk && !plausivel(rk)) { S.quadraImplausivel = true; rk = null; }
           if (rk && (!r || rk.confirmadas > r.confirmadas || (rk.confirmadas === r.confirmadas && rk.nota > r.nota))) { r = rk; img = S.img; asp = S.asp; S.tQuadra = lista[k]; }
           if (r && r.confirmadas >= 7) break;
           progresso((total0 + k + 1) / total * 0.1, "Procurando a quadra no vídeo… (" + (total0 + k + 1) + "/" + total + ")");
@@ -201,7 +211,7 @@
       await procurar(tempos, 0, tempos.length + extras.length);
       if (!bom()) await procurar(extras, tempos.length, tempos.length + extras.length);
       if (img) { S.img = img; S.asp = asp; }
-      if (!r || r.confirmadas < 3 || r.visiveis < 0.25) {
+      if (!bom()) {
         /* tudo automático: sem marcação manual. Diz o que fazer para o próximo vídeo dar certo */
         S.fase = "semQuadra"; S.semImagem = !S.viuImagem; render();
         return;
