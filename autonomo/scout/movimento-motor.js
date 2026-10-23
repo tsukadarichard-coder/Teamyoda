@@ -10,7 +10,7 @@
   var FASES_SAQUE = ["Preparação", "Lançamento da bola", "Armada (racket drop)", "Contato", "Seguimento", "Recuperação"];
   function nomesFases(golpe) { return golpe === "saque" ? FASES_SAQUE : FASES; }
 
-  /* Faixas de referência editáveis. Valores iniciais vêm do caso do material-base; precisam de validação do especialista. */
+  /* Faixas de referência editáveis. Valores iniciais de referência; o treinador ajusta na tela. */
   var REGRAS = {
     joelhos: { alvo: 90, tol: 10 },
     tronco: { alvo: 90, tol: 10 },

@@ -108,7 +108,7 @@
       '<div class="kpi"><div style="background:#2E8B57"><b>' + r.resumo.ok + '</b>OK</div><div style="background:#C65825"><b>' + r.resumo.atencao + '</b>Atenção</div><div style="background:#8A96A0"><b>' + r.resumo.nao_avaliavel + "</b>Revisar com treinador</div></div>" +
       fotos + '<div class="quebra"></div><h2>Checklist por fase</h2><table><thead><tr><th>Item</th><th>Medido</th><th>Referência</th><th>Parecer</th></tr></thead><tbody>' + tb + "</tbody></table>" +
       '<div class="quebra"></div><h2>Conclusão e intervenções sugeridas</h2><p>' + esc(co.texto) + "</p>" + cb + evo +
-      '<div class="rod">Tecnologia QuadraLab · relatório automático de apoio ao treinador. As medidas vêm de estimativa de pose em vídeo e as faixas de referência são provisórias. Itens "Revisar" dependem de avaliação presencial. Metodologia de referência: TennisBiomec · DNA USP.</div></body></html>';
+      '<div class="rod">Tecnologia QuadraLab · relatório automático de apoio ao treinador. As medidas vêm de estimativa de pose em vídeo e as faixas de referência são provisórias. Itens "Revisar" dependem de avaliação presencial.</div></body></html>';
   }
 
   /* ── relatório de uma análise salva antes do arquivo completo: só o resumo (medidas, pareceres, conclusão) existe ── */
@@ -186,7 +186,7 @@
       '<p class="qm-msg">Itens "Revisar" dependem de mão, face da raquete, vista de cima ou olhar: ficam para o treinador. Pareceres automáticos são apoio, não diagnóstico.</p></div>' +
       '<div class="qm-card"><h3 class="qm-h">Conclusão e intervenções sugeridas</h3><p data-r="ctx" style="margin:0 0 8px"></p><div data-r="cbody"></div><p class="qm-msg">Sugestões geradas por regras a partir das medidas deste vídeo; não substituem avaliação presencial.</p></div>' +
       '<div class="qm-card"><div class="qm-row"><button class="qm-pri" data-r="pdf">Relatório em PDF</button><button data-r="json">Baixar dados (JSON)</button></div><p class="qm-msg" data-r="salvoMsg"></p>' +
-      '<details><summary>Faixas de referência (editáveis)</summary><p class="qm-msg">Valores iniciais do caso do material-base; precisam de validação de especialista.</p>' +
+      '<details><summary>Faixas de referência (editáveis)</summary><p class="qm-msg">Valores iniciais de referência; ajuste conforme a avaliação do treinador.</p>' +
       '<div class="qm-row"><label>Joelhos° <input data-r="rJ" type="number" value="90" style="width:70px"></label><label>± <input data-r="rJt" type="number" value="10" style="width:60px"></label>' +
       '<label>Tronco° <input data-r="rT" type="number" value="90" style="width:70px"></label><label>± <input data-r="rTt" type="number" value="10" style="width:60px"></label>' +
       '<label>Antebraço ND máx° <input data-r="rA" type="number" value="20" style="width:70px"></label><label>Contato à frente mín <input data-r="rC" type="number" step="0.05" value="0.15" style="width:70px"></label>' +
