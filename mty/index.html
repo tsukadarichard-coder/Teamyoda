@@ -19770,6 +19770,405 @@ const NAV_CONTEUDO = [{ v: "casos", r: "Casos" }];
 const NAV_MANUAL = [{ v: "catalogo", r: "Catálogo" }, { v: "tecnica", r: "Técnica" }, { v: "taticas", r: "Táticas" },
   { v: "conducao", r: "Condução" }, { v: "publicos", r: "Públicos" }, { v: "aulas", r: "Aulas" }, { v: "metodo", r: "Como decide" }];
 
+/* ── FINANCEIRO (só controle; só o dono vê) ───────────────────────────────
+   Entradas e saídas do mês do Team Yoda e do 39 Ranch, calculadas sozinhas a
+   partir do que o app já registra (turmas, aulas, reservas, torneios,
+   eventos, professores) e da tabela de preços que o dono preenche. Tudo
+   passa por netlify/functions/financeiro.js, que confere o e-mail do login
+   e guarda preços e controle fora do alcance do resto da equipe. Nada aqui
+   cobra, gera link ou fala com banco: é só controle. */
+const DONOS_FINANCEIRO = ["tsukada.richard@gmail.com"];
+const FINANCEIRO_INICIO = "2026-11";
+function ehDonoFinanceiro() {
+  const u = window.mtyAuth && window.mtyAuth.usuario();
+  return !!(u && u.email && DONOS_FINANCEIRO.includes(String(u.email).toLowerCase()));
+}
+async function chamarFinanceiro(metodo, mes, corpo) {
+  const token = await window.mtyAuth.tokenId();
+  const r = await fetch("/.netlify/functions/financeiro" + (metodo === "GET" ? "?mes=" + mes : ""), {
+    method: metodo, headers: { "content-type": "application/json", authorization: "Bearer " + token }, body: metodo === "GET" ? undefined : JSON.stringify(corpo),
+  });
+  const c = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(c.erro || ("Erro " + r.status));
+  return c;
+}
+function reais(v) { return (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
+function mesISOAtual() { return new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 7); }
+function somaMes(mes, d) { const [a, m] = mes.split("-").map(Number); return new Date(Date.UTC(a, m - 1 + d, 1)).toISOString().slice(0, 7); }
+function nomeMes(mes) { const [a, m] = mes.split("-").map(Number); return ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"][m - 1] + " de " + a; }
+const ROTULOS_RECEITA = { mensalidades: "Mensalidades das turmas", pacotes: "Pacotes de aulas individuais", quadras: "Aluguel de quadras", torneios: "Inscrições em torneios", eventos: "Eventos", manuaisEntrada: "Outras entradas (lançadas)" };
+const ROTULOS_DESPESA = { professores: "Professores", fixas: "Despesas fixas", imposto: "Impostos", manuaisSaida: "Outras saídas (lançadas)" };
+const CATEGORIAS_DESPESA_FIN = { aluguel: "Aluguel", manutencao: "Manutenção", materiais: "Materiais", outros: "Outras" };
+const FORMAS_PROFESSOR = { aula: "Por aula dada", fixo: "Fixo mensal", pct: "% do que as aulas dele rendem" };
+
+function CartaoValor({ rotulo, valor, nota, cor }) {
+  return (
+    <div style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "10px 12px" }}>
+      <Etiqueta>{rotulo}</Etiqueta>
+      <div style={{ fontFamily: ARCH, fontSize: 21, fontWeight: 700, color: cor || C.tinta, lineHeight: 1.25, marginTop: 2 }}>{valor}</div>
+      {nota && <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>{nota}</p>}
+    </div>
+  );
+}
+function TabelaFin({ cabecalho, linhas, rodape }) {
+  const cel = { fontFamily: ARCH, fontSize: 13, padding: "6px 8px", borderBottom: "1px solid " + C.linha, textAlign: "left", verticalAlign: "top" };
+  return (
+    <div style={{ overflowX: "auto", marginBottom: 10 }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", background: C.cal }}>
+        <thead><tr>{cabecalho.map((h, i) => <th key={i} style={{ ...cel, fontWeight: 700, color: C.grafite, fontSize: 11.5, textAlign: i && i === cabecalho.length - 1 ? "right" : "left" }}>{h}</th>)}</tr></thead>
+        <tbody>
+          {linhas.map((l, k) => <tr key={k}>{l.map((c, i) => <td key={i} style={{ ...cel, textAlign: i && i === l.length - 1 ? "right" : "left" }}>{c}</td>)}</tr>)}
+          {rodape && <tr>{rodape.map((c, i) => <td key={i} style={{ ...cel, fontWeight: 700, borderBottom: "none", textAlign: i && i === rodape.length - 1 ? "right" : "left" }}>{c}</td>)}</tr>}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+function BarrasHistorico({ historico }) {
+  const max = Math.max(1, ...historico.map((h) => Math.max(h.entradas, h.saidas)));
+  return (
+    <div>
+      {historico.map((h) => (
+        <div key={h.mes} className="mb-2">
+          <div className="flex justify-between" style={{ fontFamily: ARCH, fontSize: 12.5 }}>
+            <span style={{ fontWeight: 600 }}>{nomeMes(h.mes)}</span>
+            <span style={{ fontWeight: 700, color: h.resultado >= 0 ? C.quadra : "#B23A2E" }}>{reais(h.resultado)}</span>
+          </div>
+          <div style={{ height: 7, background: "#E9EFEC", borderRadius: 4, marginTop: 3 }}><div style={{ width: (h.entradas / max * 100) + "%", height: 7, background: C.quadra, borderRadius: 4 }} /></div>
+          <div style={{ height: 7, background: "#F3ECE9", borderRadius: 4, marginTop: 2 }}><div style={{ width: (h.saidas / max * 100) + "%", height: 7, background: "#C9744F", borderRadius: 4 }} /></div>
+        </div>
+      ))}
+      <p style={{ ...prosa, fontSize: 12, color: C.grafite }}>Barra verde: entradas · barra laranja: saídas · à direita, o resultado.</p>
+    </div>
+  );
+}
+
+function TelaFinanceiro() {
+  const [mes, setMes] = useState(() => (mesISOAtual() < FINANCEIRO_INICIO ? FINANCEIRO_INICIO : mesISOAtual()));
+  const [dados, setDados] = useState(null);
+  const [erro, setErro] = useState("");
+  const [carregando, setCarregando] = useState(true);
+  const [aba, setAba] = useState("team-yoda");
+  const [secao, setSecao] = useState("resumo");
+  const [rascunho, setRascunho] = useState({}); // org → config em edição
+  const [salvando, setSalvando] = useState(false);
+  const [aviso, setAviso] = useState("");
+  const [busca, setBusca] = useState("");
+  const [turmaAberta, setTurmaAberta] = useState("");
+  const [novoLanc, setNovoLanc] = useState({ tipo: "entrada", descricao: "", valor: "" });
+
+  async function carregar(m) {
+    setCarregando(true); setErro("");
+    try { const d = await chamarFinanceiro("GET", m || mes); setDados(d); setRascunho({}); }
+    catch (e) { setErro(String(e.message || e)); }
+    setCarregando(false);
+  }
+  useEffect(() => { carregar(mes); }, [mes]);
+
+  const academia = dados && dados.academias.find((a) => a.org === aba);
+  const cfg = academia ? (rascunho[aba] || academia.config || {}) : {};
+  const alterado = !!rascunho[aba];
+  function mudar(fn) { const novo = JSON.parse(JSON.stringify(cfg)); fn(novo); setRascunho({ ...rascunho, [aba]: novo }); setAviso(""); }
+  function doMes(c) { c.meses = c.meses || {}; c.meses[mes] = c.meses[mes] || { recebidos: {}, pagos: {}, valores: {}, manuais: [] }; const m = c.meses[mes]; m.recebidos = m.recebidos || {}; m.pagos = m.pagos || {}; m.valores = m.valores || {}; m.manuais = m.manuais || []; return m; }
+  async function salvar() {
+    setSalvando(true); setAviso("");
+    try { await chamarFinanceiro("POST", mes, { org: aba, config: cfg }); await carregar(mes); setAviso("Salvo. Os valores do mês já foram recalculados."); }
+    catch (e) { setAviso("Não salvou: " + String(e.message || e)); }
+    setSalvando(false);
+  }
+  function csvMes() {
+    const l = [["Academia", "Grupo", "Item", "Valor"]];
+    dados.academias.forEach((a) => {
+      const r = a.mes;
+      r.receitas.mensalidades.turmas.forEach((t) => l.push([a.nome, "Entrada", "Mensalidades · " + t.nome + " (" + t.alunos.length + " alunos)", t.total]));
+      r.receitas.pacotes.alunos.forEach((p) => l.push([a.nome, "Entrada", "Pacote individual · " + p.nome, p.valor]));
+      r.receitas.quadras.porQuadra.forEach((q) => l.push([a.nome, "Entrada", "Quadra · " + q.nome + " (" + q.reservas + " reservas)", q.total]));
+      r.receitas.torneios.lista.forEach((t) => l.push([a.nome, "Entrada", "Torneio · " + t.nome + " (" + t.inscritos + " inscritos)", t.total]));
+      r.receitas.eventos.lista.forEach((e) => l.push([a.nome, "Entrada", "Evento · " + e.nome + " (" + e.confirmados + " confirmados)", e.total]));
+      r.despesas.professores.lista.forEach((p) => l.push([a.nome, "Saída", "Professor · " + p.nome, p.valor]));
+      r.despesas.fixas.lista.forEach((d) => l.push([a.nome, "Saída", CATEGORIAS_DESPESA_FIN[d.categoria] + " · " + d.nome, d.valor]));
+      l.push([a.nome, "Saída", "Impostos (" + r.despesas.imposto.pct + "%)", r.despesas.imposto.valor]);
+      r.manuais.forEach((m) => l.push([a.nome, m.tipo === "saida" ? "Saída" : "Entrada", "Lançado · " + m.descricao, m.valor]));
+      l.push([a.nome, "Resultado", "Entradas − saídas", r.resultado]);
+    });
+    const esc = (v) => '"' + String(v == null ? "" : typeof v === "number" ? v.toFixed(2).replace(".", ",") : v).replace(/"/g, '""') + '"';
+    baixarCSV("financeiro-" + mes + ".csv", l.map((x) => x.map(esc).join(";")).join("\n"));
+  }
+
+  const chipF = (ativo) => ({ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, padding: "6px 12px", borderRadius: 999, cursor: "pointer",
+    border: "1px solid " + (ativo ? C.quadra : C.linha), background: ativo ? C.quadra : C.cal, color: ativo ? "#fff" : C.tinta });
+  const num = { ...entrada, width: 110, fontSize: 15, padding: "6px 8px" };
+  const h2 = { fontFamily: ARCH, fontSize: 16, fontWeight: 700, margin: "18px 0 8px" };
+
+  return (
+    <div>
+      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Financeiro</h1>
+      <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginBottom: 12 }}>
+        Só controle, e só você vê. Entradas e saídas saem sozinhas do que o app registra, com os preços que você define em “Preços”. Nada aqui cobra ninguém.
+      </p>
+
+      <div className="flex flex-wrap gap-2 items-center mb-3">
+        <Botao pequeno variante="vazio" disabled={mes <= FINANCEIRO_INICIO} onClick={() => setMes(somaMes(mes, -1))}>◀</Botao>
+        <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, minWidth: 150, textAlign: "center" }}>{nomeMes(mes)}</span>
+        <Botao pequeno variante="vazio" onClick={() => setMes(somaMes(mes, 1))}>▶</Botao>
+        {dados && <Botao pequeno variante="vazio" onClick={csvMes}>Baixar CSV do mês</Botao>}
+      </div>
+      <div className="flex flex-wrap gap-2 mb-4">
+        {[{ v: "team-yoda", r: "Team Yoda" }, { v: "39-ranch", r: "39 Ranch" }, { v: "geral", r: "Visão geral" }].map((t) => (
+          <button key={t.v} style={chipF(aba === t.v)} onClick={() => { if (alterado && !confirm("Há alterações não salvas nesta academia. Sair mesmo assim?")) return; setRascunho({}); setAba(t.v); }}>{t.r}</button>
+        ))}
+      </div>
+
+      {carregando && <p style={{ ...prosa, color: C.grafite }}>Calculando o mês…</p>}
+      {erro && <Aviso>{erro}</Aviso>}
+
+      {dados && !carregando && aba === "geral" && (() => {
+        const g = dados.geral, A = dados.academias;
+        const linha = (k, rot, grupo) => [rot, ...A.map((a) => reais(grupo === "r" ? (k === "manuaisEntrada" ? a.mes.receitas.manuais : a.mes.receitas[k].total) : (k === "manuaisSaida" ? a.mes.despesas.manuais : k === "imposto" ? a.mes.despesas.imposto.valor : a.mes.despesas[k].total))), reais(g.porTipo[k])];
+        return (
+          <div>
+            <div className="mb-4" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 8 }}>
+              <CartaoValor rotulo="Entradas" valor={reais(g.entradas)} />
+              <CartaoValor rotulo="Saídas" valor={reais(g.saidas)} />
+              <CartaoValor rotulo="Resultado" valor={reais(g.resultado)} cor={g.resultado >= 0 ? C.quadra : "#B23A2E"} nota={g.margem == null ? "" : "margem de " + String(g.margem).replace(".", ",") + "%"} />
+              <CartaoValor rotulo="Recebido" valor={reais(g.recebido)} nota={"de " + reais(g.aReceber) + " em mensalidades e pacotes"} />
+              <CartaoValor rotulo="Pago" valor={reais(g.pago)} nota={"de " + reais(g.aPagar) + " a pagar"} />
+            </div>
+            <h2 style={h2}>Entradas por academia</h2>
+            <TabelaFin cabecalho={["", ...A.map((a) => a.nome), "Total"]} linhas={Object.keys(ROTULOS_RECEITA).map((k) => linha(k, ROTULOS_RECEITA[k], "r"))}
+              rodape={["Total", ...A.map((a) => reais(a.mes.entradas)), reais(g.entradas)]} />
+            <h2 style={h2}>Saídas por academia</h2>
+            <TabelaFin cabecalho={["", ...A.map((a) => a.nome), "Total"]} linhas={Object.keys(ROTULOS_DESPESA).map((k) => linha(k, ROTULOS_DESPESA[k], "d"))}
+              rodape={["Total", ...A.map((a) => reais(a.mes.saidas)), reais(g.saidas)]} />
+            <h2 style={h2}>Mês a mês (as duas academias, desde {nomeMes(FINANCEIRO_INICIO)})</h2>
+            <BarrasHistorico historico={dados.historicoGeral} />
+          </div>
+        );
+      })()}
+
+      {dados && !carregando && academia && (() => {
+        const r = academia.mes, cat = academia.catalogo, M = (cfg.meses || {})[mes] || {};
+        return (
+          <div>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {[{ v: "resumo", r: "Resumo do mês" }, { v: "controle", r: "Recebido e pago" }, { v: "precos", r: "Preços" }].map((t) => (
+                <button key={t.v} style={chipF(secao === t.v)} onClick={() => setSecao(t.v)}>{t.r}</button>
+              ))}
+            </div>
+
+            {secao === "resumo" && (
+              <div>
+                <div className="mb-4" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 8 }}>
+                  <CartaoValor rotulo="Entradas" valor={reais(r.entradas)} />
+                  <CartaoValor rotulo="Saídas" valor={reais(r.saidas)} />
+                  <CartaoValor rotulo="Resultado" valor={reais(r.resultado)} cor={r.resultado >= 0 ? C.quadra : "#B23A2E"} nota={r.margem == null ? "" : "margem de " + String(r.margem).replace(".", ",") + "%"} />
+                  <CartaoValor rotulo="Em aberto" valor={reais(r.controle.aReceber - r.controle.recebido)} nota={r.controle.emAberto.length + " mensalidade(s)/pacote(s) sem marcar como recebido"} cor={r.controle.emAberto.length ? "#B23A2E" : C.quadra} />
+                </div>
+                {(r.receitas.mensalidades.semPreco.length > 0 || r.receitas.quadras.horasSemPreco > 0 || r.despesas.professores.lista.some((p) => !p.configurado && (p.aulasIndividuais + p.aulasTurma) > 0)) && (
+                  <Aviso>
+                    Falta preço para fechar a conta:
+                    {r.receitas.mensalidades.semPreco.length > 0 && <> turmas {r.receitas.mensalidades.semPreco.map((t) => t.nome).join(", ")};</>}
+                    {r.receitas.quadras.horasSemPreco > 0 && <> {String(r.receitas.quadras.horasSemPreco).replace(".", ",")} h de quadra sem preço por horário (cadastre em Academia → Quadras);</>}
+                    {r.despesas.professores.lista.some((p) => !p.configurado && (p.aulasIndividuais + p.aulasTurma) > 0) && <> forma de pagamento de professores com aulas no mês;</>}
+                    {" "}veja em “Preços”.
+                  </Aviso>
+                )}
+                <h2 style={h2}>Entradas · {reais(r.entradas)}</h2>
+                <TabelaFin cabecalho={["Mensalidades", "Alunos", "Preço", "Total"]}
+                  linhas={r.receitas.mensalidades.turmas.map((t) => [t.nome, t.alunos.length, reais(t.preco), reais(t.total)])} rodape={["Subtotal", "", "", reais(r.receitas.mensalidades.total)]} />
+                {r.receitas.pacotes.alunos.length > 0 && <TabelaFin cabecalho={["Pacotes individuais", "Aulas no mês", "Total"]}
+                  linhas={r.receitas.pacotes.alunos.map((p) => [p.nome, p.aulasNoMes, reais(p.valor)])} rodape={["Subtotal", "", reais(r.receitas.pacotes.total)]} />}
+                {r.receitas.quadras.porQuadra.length > 0 && <TabelaFin cabecalho={["Quadras", "Reservas", "Total"]}
+                  linhas={r.receitas.quadras.porQuadra.map((q) => [q.nome, q.reservas, reais(q.total)])} rodape={["Subtotal", r.receitas.quadras.reservas, reais(r.receitas.quadras.total)]} />}
+                {r.receitas.torneios.lista.length > 0 && <TabelaFin cabecalho={["Torneios", "Inscritos", "Total"]}
+                  linhas={r.receitas.torneios.lista.map((t) => [t.nome, t.inscritos, reais(t.total)])} rodape={["Subtotal", "", reais(r.receitas.torneios.total)]} />}
+                {r.receitas.eventos.lista.length > 0 && <TabelaFin cabecalho={["Eventos", "Confirmados", "Total"]}
+                  linhas={r.receitas.eventos.lista.map((e) => [e.nome, e.confirmados, reais(e.total)])} rodape={["Subtotal", "", reais(r.receitas.eventos.total)]} />}
+                <h2 style={h2}>Saídas · {reais(r.saidas)}</h2>
+                <TabelaFin cabecalho={["Professores", "Forma", "Aulas (ind. / turma)", "Total"]}
+                  linhas={r.despesas.professores.lista.map((p) => [p.nome, p.configurado ? FORMAS_PROFESSOR[p.forma] : "sem forma definida", p.aulasIndividuais + " / " + p.aulasTurma, reais(p.valor)])}
+                  rodape={["Subtotal", "", "", reais(r.despesas.professores.total)]} />
+                <TabelaFin cabecalho={["Despesas fixas", "Tipo", "Total"]}
+                  linhas={r.despesas.fixas.lista.map((d) => [d.nome, CATEGORIAS_DESPESA_FIN[d.categoria], reais(d.valor)]).concat([["Impostos", r.despesas.imposto.pct + "% das entradas", reais(r.despesas.imposto.valor)]])}
+                  rodape={["Subtotal", "", reais(r.despesas.fixas.total + r.despesas.imposto.valor)]} />
+                {r.manuais.length > 0 && <TabelaFin cabecalho={["Lançados à mão", "Tipo", "Valor"]} linhas={r.manuais.map((m) => [m.descricao, m.tipo === "saida" ? "Saída" : "Entrada", reais(m.valor)])} />}
+                <h2 style={h2}>Mês a mês (últimos 6, desde {nomeMes(FINANCEIRO_INICIO)})</h2>
+                <BarrasHistorico historico={academia.historico} />
+              </div>
+            )}
+
+            {secao === "controle" && (
+              <div>
+                <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginBottom: 8 }}>Marque o que já entrou e o que já foi pago neste mês. Lance à mão o que o app não enxerga.</p>
+                <h2 style={h2}>A receber · {reais(r.controle.recebido)} de {reais(r.controle.aReceber)}</h2>
+                {r.receitas.mensalidades.turmas.flatMap((t) => t.alunos.map((a) => ({ ...a, onde: t.nome }))).concat(r.receitas.pacotes.alunos.map((p) => ({ ...p, onde: "Pacote individual" }))).map((l) => {
+                  const marcado = !!(M.recebidos || {})[l.chave];
+                  return (
+                    <label key={l.chave} className="flex items-center gap-2" style={{ fontFamily: ARCH, fontSize: 13.5, padding: "5px 0", borderBottom: "1px solid " + C.linha }}>
+                      <input type="checkbox" checked={marcado} onChange={(e) => mudar((c) => { const m = doMes(c); if (e.target.checked) m.recebidos[l.chave] = true; else delete m.recebidos[l.chave]; })} />
+                      <span style={{ flex: 1 }}>{l.nome} <span style={{ color: C.grafite }}>· {l.onde}{l.desconto ? " · desconto " + reais(l.desconto) : ""}</span></span>
+                      <b>{reais(l.valor)}</b>
+                    </label>
+                  );
+                })}
+                {r.controle.aReceber === 0 && <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Sem mensalidades nem pacotes com preço neste mês.</p>}
+                <h2 style={h2}>A pagar · {reais(r.controle.pago)} de {reais(r.controle.aPagar)}</h2>
+                {r.despesas.professores.lista.filter((p) => p.valor > 0).map((p) => (
+                  <label key={p.chave} className="flex items-center gap-2" style={{ fontFamily: ARCH, fontSize: 13.5, padding: "5px 0", borderBottom: "1px solid " + C.linha }}>
+                    <input type="checkbox" checked={!!(M.pagos || {})[p.chave]} onChange={(e) => mudar((c) => { const m = doMes(c); if (e.target.checked) m.pagos[p.chave] = true; else delete m.pagos[p.chave]; })} />
+                    <span style={{ flex: 1 }}>{p.nome} <span style={{ color: C.grafite }}>· professor</span></span><b>{reais(p.valor)}</b>
+                  </label>
+                ))}
+                {r.despesas.fixas.lista.map((d) => (
+                  <div key={d.chave} className="flex items-center gap-2" style={{ fontFamily: ARCH, fontSize: 13.5, padding: "5px 0", borderBottom: "1px solid " + C.linha }}>
+                    <input type="checkbox" checked={!!(M.pagos || {})[d.chave]} onChange={(e) => mudar((c) => { const m = doMes(c); if (e.target.checked) m.pagos[d.chave] = true; else delete m.pagos[d.chave]; })} />
+                    <span style={{ flex: 1 }}>{d.nome} <span style={{ color: C.grafite }}>· {CATEGORIAS_DESPESA_FIN[d.categoria]}</span></span>
+                    <input type="number" min="0" step="0.01" style={num} title="valor deste mês" value={(M.valores || {})[d.id] != null ? M.valores[d.id] : d.valor}
+                      onChange={(e) => mudar((c) => { const m = doMes(c); if (e.target.value === "") delete m.valores[d.id]; else m.valores[d.id] = Number(e.target.value); })} />
+                  </div>
+                ))}
+                {r.despesas.imposto.valor > 0 && (
+                  <label className="flex items-center gap-2" style={{ fontFamily: ARCH, fontSize: 13.5, padding: "5px 0" }}>
+                    <input type="checkbox" checked={!!(M.pagos || {}).imposto} onChange={(e) => mudar((c) => { const m = doMes(c); if (e.target.checked) m.pagos.imposto = true; else delete m.pagos.imposto; })} />
+                    <span style={{ flex: 1 }}>Impostos ({r.despesas.imposto.pct}%)</span><b>{reais(r.despesas.imposto.valor)}</b>
+                  </label>
+                )}
+                <h2 style={h2}>Lançados à mão</h2>
+                {((M.manuais) || []).map((x) => (
+                  <div key={x.id} className="flex items-center gap-2" style={{ fontFamily: ARCH, fontSize: 13.5, padding: "5px 0", borderBottom: "1px solid " + C.linha }}>
+                    <span style={{ flex: 1 }}>{x.descricao || "Sem descrição"} <span style={{ color: C.grafite }}>· {x.tipo === "saida" ? "saída" : "entrada"}</span></span>
+                    <b>{reais(x.valor)}</b>
+                    <Botao pequeno variante="vazio" onClick={() => mudar((c) => { const m = doMes(c); m.manuais = m.manuais.filter((y) => y.id !== x.id); })}>✕</Botao>
+                  </div>
+                ))}
+                <div className="flex flex-wrap gap-2 items-end mt-2">
+                  <select style={{ ...entrada, width: 120, fontSize: 15 }} value={novoLanc.tipo} onChange={(e) => setNovoLanc({ ...novoLanc, tipo: e.target.value })}><option value="entrada">Entrada</option><option value="saida">Saída</option></select>
+                  <input style={{ ...entrada, width: 220, fontSize: 15 }} placeholder="Descrição" value={novoLanc.descricao} onChange={(e) => setNovoLanc({ ...novoLanc, descricao: e.target.value })} />
+                  <input type="number" min="0" step="0.01" style={num} placeholder="Valor" value={novoLanc.valor} onChange={(e) => setNovoLanc({ ...novoLanc, valor: e.target.value })} />
+                  <Botao pequeno variante="vazio" disabled={!novoLanc.valor} onClick={() => { mudar((c) => { doMes(c).manuais.push({ id: "x" + Date.now().toString(36), tipo: novoLanc.tipo, descricao: novoLanc.descricao.trim(), valor: Number(novoLanc.valor) }); }); setNovoLanc({ tipo: novoLanc.tipo, descricao: "", valor: "" }); }}>Adicionar</Botao>
+                </div>
+              </div>
+            )}
+
+            {secao === "precos" && (
+              <div>
+                <h2 style={h2}>Mensalidade por turma</h2>
+                <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 6 }}>Valor que cada aluno da turma paga por mês. Toque em “descontos” para dar desconto a um aluno.</p>
+                {cat.turmas.map((t) => (
+                  <div key={t.id} style={{ borderBottom: "1px solid " + C.linha, padding: "6px 0" }}>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span style={{ flex: 1, fontFamily: ARCH, fontSize: 14, fontWeight: 600 }}>{t.nome} <span style={{ color: C.grafite, fontWeight: 500 }}>· {t.alunos} aluno{t.alunos === 1 ? "" : "s"}{t.professorNome ? " · " + t.professorNome : ""}</span></span>
+                      <input type="number" min="0" step="0.01" style={num} placeholder="R$ / mês" value={((cfg.turmas || {})[t.id] || {}).preco || ""}
+                        onChange={(e) => mudar((c) => { c.turmas = c.turmas || {}; if (!e.target.value) delete c.turmas[t.id]; else c.turmas[t.id] = { preco: Number(e.target.value) }; })} />
+                      <Botao pequeno variante="vazio" onClick={() => setTurmaAberta(turmaAberta === t.id ? "" : t.id)}>descontos</Botao>
+                    </div>
+                    {turmaAberta === t.id && t.membros.map((a) => {
+                      const k = t.id + ":" + a.id, d = (cfg.descontos || {})[k] || { tipo: "pct", valor: "" };
+                      return (
+                        <div key={a.id} className="flex flex-wrap items-center gap-2" style={{ padding: "4px 0 4px 14px" }}>
+                          <span style={{ flex: 1, fontFamily: ARCH, fontSize: 13 }}>{a.nome}</span>
+                          <select style={{ ...entrada, width: 90, fontSize: 14, padding: "5px 6px" }} value={d.tipo} onChange={(e) => mudar((c) => { c.descontos = c.descontos || {}; c.descontos[k] = { tipo: e.target.value, valor: d.valor || 0 }; })}>
+                            <option value="pct">%</option><option value="valor">R$</option></select>
+                          <input type="number" min="0" step="0.01" style={{ ...num, width: 90 }} placeholder="desconto" value={d.valor || ""}
+                            onChange={(e) => mudar((c) => { c.descontos = c.descontos || {}; if (!e.target.value) delete c.descontos[k]; else c.descontos[k] = { tipo: d.tipo, valor: Number(e.target.value) }; })} />
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+                {cat.turmas.length === 0 && <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Nenhuma turma cadastrada nesta academia.</p>}
+
+                <h2 style={h2}>Pacote mensal de aulas individuais</h2>
+                <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 6 }}>Preencha o valor do pacote de quem tem aulas individuais; em branco, o aluno não tem pacote.</p>
+                <input style={{ ...entrada, fontSize: 15, marginBottom: 6 }} placeholder="Buscar aluno" value={busca} onChange={(e) => setBusca(e.target.value)} />
+                {cat.alunos.filter((a) => (busca ? a.nome.toLowerCase().includes(busca.toLowerCase()) : (a.aulasIndividuais || (cfg.pacotes || {})[a.id]))).slice(0, 80).map((a) => (
+                  <div key={a.id} className="flex flex-wrap items-center gap-2" style={{ borderBottom: "1px solid " + C.linha, padding: "5px 0" }}>
+                    <span style={{ flex: 1, fontFamily: ARCH, fontSize: 13.5 }}>{a.nome} <span style={{ color: C.grafite }}>{a.professorNome ? "· " + a.professorNome : ""}{a.turmas.length ? " · turmas: " + a.turmas.join(", ") : ""}</span></span>
+                    <input type="number" min="0" step="0.01" style={num} placeholder="R$ / mês" value={((cfg.pacotes || {})[a.id] || {}).preco || ""}
+                      onChange={(e) => mudar((c) => { c.pacotes = c.pacotes || {}; if (!e.target.value) delete c.pacotes[a.id]; else c.pacotes[a.id] = { preco: Number(e.target.value) }; })} />
+                  </div>
+                ))}
+                {!busca && <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 4 }}>Aparecem os alunos com aula individual registrada ou com pacote. Para outro aluno, use a busca.</p>}
+
+                <h2 style={h2}>Professores</h2>
+                {cat.professores.map((p) => {
+                  const c0 = (cfg.professores || {})[p.chave] || { forma: "aula" };
+                  const muda = (campo, v) => mudar((c) => { c.professores = c.professores || {}; c.professores[p.chave] = { ...c0, [campo]: v }; });
+                  return (
+                    <div key={p.chave} className="flex flex-wrap items-center gap-2" style={{ borderBottom: "1px solid " + C.linha, padding: "6px 0" }}>
+                      <span style={{ flex: 1, minWidth: 120, fontFamily: ARCH, fontSize: 14, fontWeight: 600 }}>{p.nome}</span>
+                      <select style={{ ...entrada, width: 200, fontSize: 14, padding: "6px 8px" }} value={c0.forma || "aula"} onChange={(e) => muda("forma", e.target.value)}>
+                        {Object.keys(FORMAS_PROFESSOR).map((f) => <option key={f} value={f}>{FORMAS_PROFESSOR[f]}</option>)}
+                      </select>
+                      {(c0.forma || "aula") === "aula" && <>
+                        <input type="number" min="0" step="0.01" style={{ ...num, width: 105 }} placeholder="individual" title="R$ por aula individual" value={c0.individual || ""} onChange={(e) => muda("individual", Number(e.target.value) || 0)} />
+                        <input type="number" min="0" step="0.01" style={{ ...num, width: 105 }} placeholder="turma" title="R$ por aula de turma" value={c0.turma || ""} onChange={(e) => muda("turma", Number(e.target.value) || 0)} />
+                      </>}
+                      {c0.forma === "fixo" && <input type="number" min="0" step="0.01" style={num} placeholder="R$ / mês" value={c0.fixo || ""} onChange={(e) => muda("fixo", Number(e.target.value) || 0)} />}
+                      {c0.forma === "pct" && <input type="number" min="0" max="100" step="0.1" style={{ ...num, width: 90 }} placeholder="%" value={c0.pct || ""} onChange={(e) => muda("pct", Number(e.target.value) || 0)} />}
+                    </div>
+                  );
+                })}
+                <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 4 }}>“Por aula” usa as aulas registradas em Aulas da equipe (aula de turma conta uma vez por dia). “%” vale sobre as mensalidades das turmas e os pacotes dos alunos dele.</p>
+
+                {(cat.torneios.length > 0 || cat.eventos.length > 0) && <h2 style={h2}>Torneios e eventos</h2>}
+                {cat.torneios.map((t) => (
+                  <div key={t.id} className="flex flex-wrap items-center gap-2" style={{ borderBottom: "1px solid " + C.linha, padding: "5px 0" }}>
+                    <span style={{ flex: 1, fontFamily: ARCH, fontSize: 13.5 }}>{t.nome} <span style={{ color: C.grafite }}>· torneio{t.data ? " · " + t.data.split("-").reverse().join("/") : ""}</span></span>
+                    <input type="number" min="0" step="0.01" style={num} placeholder="inscrição R$" value={((cfg.torneios || {})[t.id] || {}).inscricao || ""}
+                      onChange={(e) => mudar((c) => { c.torneios = c.torneios || {}; if (!e.target.value) delete c.torneios[t.id]; else c.torneios[t.id] = { inscricao: Number(e.target.value) }; })} />
+                  </div>
+                ))}
+                {cat.eventos.map((ev) => (
+                  <div key={ev.id} className="flex flex-wrap items-center gap-2" style={{ borderBottom: "1px solid " + C.linha, padding: "5px 0" }}>
+                    <span style={{ flex: 1, fontFamily: ARCH, fontSize: 13.5 }}>{ev.nome} <span style={{ color: C.grafite }}>· evento{ev.data ? " · " + ev.data.split("-").reverse().join("/") : ""}</span></span>
+                    <input type="number" min="0" step="0.01" style={num} placeholder="R$ / pessoa" value={((cfg.eventos || {})[ev.id] || {}).porPessoa || ""}
+                      onChange={(e) => mudar((c) => { c.eventos = c.eventos || {}; if (!e.target.value) delete c.eventos[ev.id]; else c.eventos[ev.id] = { porPessoa: Number(e.target.value) }; })} />
+                  </div>
+                ))}
+
+                <h2 style={h2}>Quadras</h2>
+                <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>
+                  O aluguel usa o preço por horário já cadastrado em Academia → Quadras.
+                  {cat.quadras.filter((q) => !q.temPreco).length > 0 ? " Sem preço ainda: " + cat.quadras.filter((q) => !q.temPreco).map((q) => q.nome).join(", ") + "." : cat.quadras.length ? " Todas as quadras têm preço." : " Nenhuma quadra cadastrada."}
+                </p>
+
+                <h2 style={h2}>Despesas fixas do mês</h2>
+                {(cfg.despesas || []).map((d, i) => (
+                  <div key={d.id} className="flex flex-wrap items-center gap-2" style={{ borderBottom: "1px solid " + C.linha, padding: "5px 0" }}>
+                    <input style={{ ...entrada, width: 200, fontSize: 15 }} placeholder="Nome (ex.: aluguel do clube)" value={d.nome} onChange={(e) => mudar((c) => { c.despesas[i].nome = e.target.value; })} />
+                    <select style={{ ...entrada, width: 140, fontSize: 14, padding: "6px 8px" }} value={d.categoria} onChange={(e) => mudar((c) => { c.despesas[i].categoria = e.target.value; })}>
+                      {Object.keys(CATEGORIAS_DESPESA_FIN).map((k) => <option key={k} value={k}>{CATEGORIAS_DESPESA_FIN[k]}</option>)}
+                    </select>
+                    <input type="number" min="0" step="0.01" style={num} placeholder="R$ / mês" value={d.valor || ""} onChange={(e) => mudar((c) => { c.despesas[i].valor = Number(e.target.value) || 0; })} />
+                    <Botao pequeno variante="vazio" onClick={() => mudar((c) => { c.despesas.splice(i, 1); })}>✕</Botao>
+                  </div>
+                ))}
+                <Botao pequeno variante="vazio" style={{ marginTop: 6 }} onClick={() => mudar((c) => { c.despesas = c.despesas || []; c.despesas.push({ id: "d" + Date.now().toString(36), nome: "", categoria: "aluguel", valor: 0 }); })}>+ Despesa fixa</Botao>
+                <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 4 }}>O valor daqui vale todo mês; em “Recebido e pago” dá para ajustar o valor de um mês só.</p>
+
+                <h2 style={h2}>Impostos</h2>
+                <div className="flex items-center gap-2">
+                  <input type="number" min="0" max="100" step="0.1" style={{ ...num, width: 90 }} value={cfg.impostoPct || ""} placeholder="%" onChange={(e) => mudar((c) => { c.impostoPct = Number(e.target.value) || 0; })} />
+                  <span style={{ ...prosa, fontSize: 13, color: C.grafite }}>% sobre as entradas do mês</span>
+                </div>
+              </div>
+            )}
+
+            {(alterado || aviso) && (
+              <div style={{ position: "sticky", bottom: 0, background: C.papel, borderTop: "1px solid " + C.linha, padding: "10px 0", marginTop: 14 }} className="flex flex-wrap items-center gap-3">
+                {alterado && <Botao onClick={salvar} disabled={salvando}>{salvando ? "Salvando…" : "Salvar " + academia.nome}</Botao>}
+                {alterado && <Botao variante="vazio" onClick={() => { setRascunho({}); setAviso(""); }} disabled={salvando}>Descartar</Botao>}
+                {aviso && <span style={{ ...prosa, fontSize: 13, color: /Não salvou/.test(aviso) ? "#B23A2E" : C.quadra }}>{aviso}</span>}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
 function App() {
   const [alunos, setAlunos] = useState([]);
   const [turmas, setTurmas] = useState([]);
@@ -20278,6 +20677,8 @@ function App() {
       // relatórios quando autorizado", não escondê-los daqui.
       { v: "relatorio", r: "Relatórios" },
     ] },
+    /* Financeiro: só o dono (e-mail na lista; o servidor confere de novo), em qualquer academia em que ele entrar */
+    { id: "gestao", label: "Gestão", itens: ehDonoFinanceiro() ? [{ v: "financeiro", r: "Financeiro" }] : [] },
     { id: "conteudo", label: "Conteúdo", itens: [
       ...NAV_CONTEUDO,
       ...(exigeLogin && uidAtual ? [{ v: "formacao", r: "Formação" }] : []),
@@ -20658,6 +21059,7 @@ function App() {
            irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }}
            irParaCaderno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("registro"); }}
            irParaTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} irParaManual={irParaManual} /> :
+         aba === "financeiro" && ehDonoFinanceiro() ? <TelaFinanceiro /> :
          aba === "aulas-equipe" && papelAtual === "coordenador" ? <TelaAulasEquipe alunos={alunos} turmas={turmas}
            irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("registro"); }}
            irParaTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} /> :
