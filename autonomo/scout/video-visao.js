@@ -122,21 +122,41 @@
     };
   }
 
-  /* ── bola: diferença com o quadro anterior e o seguinte, cor amarelada ou brilho, componentes pequenos ── */
+  /* ── bola: diferença com o quadro anterior e o seguinte, cor amarelada ou brilho, componentes pequenos ──
+     Câmera na mão: cada quadro vem com G (imagem normalizada do quadro → imagem de referência, pela quadra acompanhada);
+     antes de comparar, o pixel do quadro do meio é levado aos vizinhos por G e a diferença é a menor numa janela 3×3
+     (meio pixel de erro do acompanhamento não vira "movimento" nas bordas das linhas). Saída já na imagem de referência */
   function DetectorBola(w, h) {
-    var ant = null, atual = null, rgbAtual = null, tAtual = 0;
+    var ant = null, atual = null, rgbAtual = null, tAtual = 0, gAnt = null, gAtual = null;
     var area = w * h, marca = new Uint8Array(area), fila = new Int32Array(area);
+    var S = [w, 0, 0, 0, h, 0, 0, 0, 1], Si = [1 / w, 0, 0, 0, 1 / h, 0, 0, 0, 1];
     function lum(d) { var L = new Uint8Array(area); for (var i = 0, j = 0; i < area; i++, j += 4) L[i] = (d[j] * 3 + d[j + 1] * 5 + d[j + 2] * 2) / 10; return L; }
+    function mul(A, B) { var C = []; for (var i = 0; i < 3; i++) for (var j = 0; j < 3; j++) C.push(A[i * 3] * B[j] + A[i * 3 + 1] * B[3 + j] + A[i * 3 + 2] * B[6 + j]); return C; }
+    function inv(H) { return raiz.QLQuadraAuto.inverter(H); }
+    function identidade(G) { return !G || (Math.abs(G[0] - 1) + Math.abs(G[1]) + Math.abs(G[2]) + Math.abs(G[3]) + Math.abs(G[4] - 1) + Math.abs(G[5]) + Math.abs(G[6]) + Math.abs(G[7])) < 1e-6; }
+    /* pixel do quadro do meio → pixel do vizinho */
+    function ponte(gc, gv) { return mul(S, mul(inv(gv), mul(gc, Si))); }
+    function difMin(L, M, x, y, v) {
+      var wv = M[6] * x + M[7] * y + M[8], xa = Math.round((M[0] * x + M[1] * y + M[2]) / wv), ya = Math.round((M[3] * x + M[4] * y + M[5]) / wv);
+      if (xa < 1 || ya < 1 || xa >= w - 1 || ya >= h - 1) return 0;
+      var mn = 255; for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++) { var d = Math.abs(v - L[(ya + dy) * w + xa + dx]); if (d < mn) mn = d; }
+      return mn;
+    }
     return {
       /* recebe o quadro novo; devolve os candidatos do quadro anterior (que agora tem vizinhos dos dois lados) */
-      quadro: function (t, rgba) {
-        var L = lum(rgba), saida = null;
+      quadro: function (t, rgba, G) {
+        var L = lum(rgba), saida = null, gNovo = G || null;
         if (ant && atual) {
           var th = 16; marca.fill(0);
+          var parado = identidade(gAnt) && identidade(gAtual) && identidade(gNovo);
+          var Ma = parado ? null : ponte(gAtual || [1, 0, 0, 0, 1, 0, 0, 0, 1], gAnt || [1, 0, 0, 0, 1, 0, 0, 0, 1]), Mn = parado ? null : ponte(gAtual || [1, 0, 0, 0, 1, 0, 0, 0, 1], gNovo || [1, 0, 0, 0, 1, 0, 0, 0, 1]);
           for (var i = 0, j = 0; i < area; i++, j += 4) {
-            if (Math.abs(atual[i] - ant[i]) > th && Math.abs(atual[i] - L[i]) > th) {
+            var v = atual[i], ok;
+            if (parado) ok = Math.abs(v - ant[i]) > th && Math.abs(v - L[i]) > th;
+            else { var x = i % w, y = (i / w) | 0; ok = difMin(ant, Ma, x, y, v) > th && difMin(L, Mn, x, y, v) > th; }
+            if (ok) {
               var r = rgbAtual[j], g = rgbAtual[j + 1], b = rgbAtual[j + 2];
-              if (Math.min(r, g) - b > 40 || atual[i] > 205) marca[i] = 1; // amarelo-esverdeado da bola (pele e saibro ficam de fora) ou bola muito clara
+              if (Math.min(r, g) - b > 40 || v > 205) marca[i] = 1; // amarelo-esverdeado da bola (pele e saibro ficam de fora) ou bola muito clara
             }
           }
           var comps = [], maxA = Math.max(40, area / 2500);
@@ -144,22 +164,26 @@
             if (marca[p] !== 1) continue;
             var n = 0, sx = 0, sy = 0, cab = 0, fim = 0; fila[fim++] = p; marca[p] = 2;
             while (cab < fim) {
-              var q = fila[cab++], x = q % w, y = (q / w) | 0; n++; sx += x; sy += y;
+              var q = fila[cab++], qx = q % w, qy = (q / w) | 0; n++; sx += qx; sy += qy;
               if (n > maxA * 3) continue;
-              if (x > 0 && marca[q - 1] === 1) { marca[q - 1] = 2; fila[fim++] = q - 1; }
-              if (x < w - 1 && marca[q + 1] === 1) { marca[q + 1] = 2; fila[fim++] = q + 1; }
-              if (y > 0 && marca[q - w] === 1) { marca[q - w] = 2; fila[fim++] = q - w; }
-              if (y < h - 1 && marca[q + w] === 1) { marca[q + w] = 2; fila[fim++] = q + w; }
+              if (qx > 0 && marca[q - 1] === 1) { marca[q - 1] = 2; fila[fim++] = q - 1; }
+              if (qx < w - 1 && marca[q + 1] === 1) { marca[q + 1] = 2; fila[fim++] = q + 1; }
+              if (qy > 0 && marca[q - w] === 1) { marca[q - w] = 2; fila[fim++] = q - w; }
+              if (qy < h - 1 && marca[q + w] === 1) { marca[q + w] = 2; fila[fim++] = q + w; }
             }
             if (n >= 1 && n <= maxA) comps.push([sx / n / w, sy / n / h, n]);
           }
           comps.sort(function (a, b) { return Math.abs(a[2] - 6) - Math.abs(b[2] - 6); });
-          saida = { t: tAtual, bolas: comps.slice(0, 14).map(function (c) { return [Math.round(c[0] * 10000) / 10000, Math.round(c[1] * 10000) / 10000]; }) };
+          saida = { t: tAtual, bolas: comps.slice(0, 14).map(function (c) {
+            var pt = [c[0], c[1]];
+            if (gAtual) { var z = gAtual[6] * pt[0] + gAtual[7] * pt[1] + gAtual[8]; pt = [(gAtual[0] * pt[0] + gAtual[1] * pt[1] + gAtual[2]) / z, (gAtual[3] * pt[0] + gAtual[4] * pt[1] + gAtual[5]) / z]; }
+            return [Math.round(pt[0] * 10000) / 10000, Math.round(pt[1] * 10000) / 10000];
+          }) };
         }
-        ant = atual; atual = L; rgbAtual = rgba; tAtual = t;
+        ant = atual; atual = L; rgbAtual = rgba; tAtual = t; gAnt = gAtual; gAtual = gNovo;
         return saida;
       },
-      reiniciar: function () { ant = atual = rgbAtual = null; },
+      reiniciar: function () { ant = atual = rgbAtual = null; gAnt = gAtual = null; },
     };
   }
 
@@ -178,36 +202,70 @@
     var rx = rc.getContext("2d", { willReadFrequently: true });
     /* metade da quadra de cada jogador, em pixels da imagem, para começar a procurar */
     var L2 = VS.QUADRA.comprimento / 2, W2 = VS.QUADRA.larguraDuplas / 2 + 2;
-    function caixaMetade(lado) {
-      var ys = lado === "perto" ? [-L2 - 3, -1] : [1, L2 + 4], pts = [[-W2, ys[0]], [W2, ys[0]], [W2, ys[1]], [-W2, ys[1]]].map(function (p) { return VS.aplicarH(cal.Hi, p); });
+    function caixaMetade(lado, Hiq) {
+      var ys = lado === "perto" ? [-L2 - 3, -1] : [1, L2 + 4], pts = [[-W2, ys[0]], [W2, ys[0]], [W2, ys[1]], [-W2, ys[1]]].map(function (p) { return VS.aplicarH(Hiq || cal.Hi, p); });
       var x0 = Math.min.apply(null, pts.map(function (p) { return p[0]; })), x1 = Math.max.apply(null, pts.map(function (p) { return p[0]; }));
       var y0 = Math.min.apply(null, pts.map(function (p) { return p[1]; })), y1 = Math.max.apply(null, pts.map(function (p) { return p[1]; }));
       var alt = 1.9 * cal.escala(lado === "perto" ? -L2 : L2);
       return [x0, y0 - alt * 1.1, x1, y1];
     }
     var roi = { perto: null, longe: null };
+    /* câmera na mão: a quadra é acompanhada a cada quadro (em 640 px) e tudo o que sai do quadro (pés, pose, bola) vai para a
+       imagem de referência, a da calibração, por G = Hi_ref · H_quadro. Para um celular que gira na mão isso vale também
+       para a bola no ar. Câmera parada (G ≈ identidade por 1 s): confere a quadra só a cada 6 quadros */
+    var QA = raiz.QLQuadraAuto, acomp = QA && QA.Acompanhador && o.acompanhar !== false ? QA.Acompanhador(cal.Hi) : null;
+    var cq = document.createElement("canvas"), cqx = cq.getContext("2d", { willReadFrequently: true }); cq.width = 640; cq.height = Math.round(640 / asp);
+    var HnAtual = cal.Hi, quietos = 0, nq = 0, movel = false;
+    function mul(A, B) { return QA.multiplicar(A, B); }
+    /* maior deslocamento (px na imagem reduzida) por G de pontos da quadra (cantos e meio): os cantos do quadro, longe da
+       quadra, ampliam o ruído do acompanhamento e fariam uma câmera parada parecer mexida */
+    var PQ = [[-5.5, -11.9], [5.5, -11.9], [5.5, 11.9], [-5.5, 11.9], [0, 0]].map(function (p) { return VS.aplicarH(cal.Hi, p); });
+    function desvio(G) {
+      var m = 0; PQ.forEach(function (c) { var p = VS.aplicarH(G, c); m = Math.max(m, Math.hypot((p[0] - c[0]) * W, (p[1] - c[1]) * Hh)); }); return m;
+    }
+    function quadraNoQuadro(img) {
+      if (!acomp) return null;
+      nq++;
+      if (quietos < 30 || nq % 6 === 0) {
+        cqx.drawImage(img, 0, 0, cq.width, cq.height);
+        var r = acomp.quadro(cqx.getImageData(0, 0, cq.width, cq.height).data, cq.width, cq.height), antes = HnAtual;
+        HnAtual = r.Hn;
+        var passo = desvio(QA.multiplicar(antes, QA.inverter(HnAtual)));
+        quietos = passo < 0.5 ? quietos + 1 : 0;
+      }
+      /* até ~3 px é o ruído entre a calibração e o acompanhamento numa câmera parada: fica a imagem como está */
+      var G = QA.multiplicar(cal.Hi, QA.inverter(HnAtual));
+      if (desvio(G) < 3) return null;
+      movel = true; return G;
+    }
+    function leva(G, p) { if (!G || !p) return p; var q = VS.aplicarH(G, [p.x != null ? p.x : p[0], p.y != null ? p.y : p[1]]); return p.x != null ? { x: q[0], y: q[1], v: p.v } : q; }
     var resultados = [], t0 = Date.now(), total = trechos.reduce(function (s, x) { return s + (x.fim - x.ini); }, 0), feito = 0;
     for (var k = 0; k < trechos.length; k++) {
       if (sinal.cancelado) throw new Error("cancelado");
       var tr = trechos[k], det = DetectorBola(W, Hh), quadros = [], alvoPose = [], fps = 30;
+      if (acomp) { acomp.novoTrecho(); quietos = 0; }
       tr.hits.forEach(function (h) { [-0.55, -0.16, -0.12, -0.05, 0, 0.12, 0.16].forEach(function (d) { alvoPose.push(h + d); }); });
       for (var tp = tr.ini; tp <= tr.fim; tp += 0.2) alvoPose.push(tp);
       alvoPose.sort(function (a, b) { return a - b; });
       var ip = 0;
       var aoQuadro = async function (t, img, wi, he) {
+        var G = quadraNoQuadro(img), Hiq = G ? HnAtual : cal.Hi, Hq = G ? QA.inverter(HnAtual) : cal.H;
         cx.drawImage(img, 0, 0, W, Hh);
-        var d = cx.getImageData(0, 0, W, Hh).data, sb = det.quadro(t, d);
+        var d = cx.getImageData(0, 0, W, Hh).data, sb = det.quadro(t, d, G);
         if (sb) { var qa = quadros[quadros.length - 1]; if (qa && Math.abs(qa.t - sb.t) < 0.001) qa.bolas = sb.bolas; }
         var q = { t: Math.round(t * 1000) / 1000, jog: [], bolas: [] };
         while (ip < alvoPose.length && alvoPose[ip] < t - 0.5 / fps) ip++;
         if (ip < alvoPose.length && alvoPose[ip] <= t + 0.5 / fps) {
           while (ip < alvoPose.length && alvoPose[ip] <= t + 0.5 / fps) ip++;
-          ["perto", "longe"].forEach(function (lado) { var j = jogador(img, wi, he, t, lado, d); if (j) q.jog.push(j); });
+          ["perto", "longe"].forEach(function (lado) {
+            var j = jogador(img, wi, he, t, lado, d, Hq, Hiq, !!G);
+            if (j) q.jog.push(G ? { pe: leva(G, j.pe), lm: j.lm && j.lm.map(function (p) { return leva(G, p); }), cor: j.cor } : j);
+          });
         }
         quadros.push(q);
       };
-      function jogador(img, wi, he, t, lado, rgba) {
-        var r = roi[lado] || caixaMetade(lado);
+      function jogador(img, wi, he, t, lado, rgba, Hq, Hiq, mexe) {
+        var r = roi[lado] || caixaMetade(lado, Hiq);
         var cxr = (r[0] + r[2]) / 2 * wi, cyr = (r[1] + r[3]) / 2 * he, lado2 = Math.max((r[2] - r[0]) * wi, (r[3] - r[1]) * he, 96);
         var sx = Math.max(0, cxr - lado2 / 2), sy = Math.max(0, cyr - lado2 / 2), sw = Math.min(wi - sx, lado2), sh = Math.min(he - sy, lado2);
         var full = null;
@@ -221,7 +279,7 @@
           var pes = [27, 28, 29, 30, 31, 32].map(function (i) { return full[i]; }).filter(function (p) { return p && p.v > 0.2; });
           if (!pes.length) return null;
           var pe = [(full[27].x + full[28].x) / 2, Math.max.apply(null, pes.map(function (p) { return p.y; }))];
-          var P = VS.aplicarH(cal.H, pe);
+          var P = VS.aplicarH(Hq, pe);
           if (Math.abs(P[0]) > 9 || (lado === "perto" ? P[1] > 0.5 || P[1] < -L2 - 7 : P[1] < -0.5 || P[1] > L2 + 7)) { roi[lado] = null; return null; } // outra pessoa
           var xs = full.map(function (p) { return p.x; }), ys = full.map(function (p) { return p.y; }), alt = Math.max.apply(null, ys) - Math.min.apply(null, ys);
           var c = [(Math.min.apply(null, xs) + Math.max.apply(null, xs)) / 2, (Math.min.apply(null, ys) + Math.max.apply(null, ys)) / 2], m = Math.max(alt * 1.3, 0.04);
@@ -237,7 +295,7 @@
           return { pe: pe, lm: full, cor: cor };
         }
         roi[lado] = null;
-        return manchaDeMovimento(rgba, lado);
+        return mexe ? null : manchaDeMovimento(rgba, lado);
       }
       /* sem pose: a maior mancha de movimento na metade da quadra (bastante para posição e lado) */
       var antL = {};
@@ -267,7 +325,7 @@
       var seg = (Date.now() - t0) / 1000, falta = feito ? seg / feito * (total - feito) : 0;
       aviso(feito / total, "Analisando o ponto " + (k + 1) + " de " + trechos.length + (k > 2 ? " · cerca de " + Math.max(1, Math.round(falta / 60)) + " min restantes" : "") + "…");
     }
-    return { dados: resultados, fonte: clipe ? "clipes" : fonte.tipo, pose: !!pose };
+    return { dados: resultados, fonte: clipe ? "clipes" : fonte.tipo, pose: !!pose, cameraMovel: movel };
   }
 
   raiz.QLVisao = { processar: processar, carregarPose: carregarPose, DetectorBola: DetectorBola, fonteWebCodecs: fonteWebCodecs };

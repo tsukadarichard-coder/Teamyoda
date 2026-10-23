@@ -17,7 +17,24 @@ for (let f = 0; f <= Math.round(fim * fps); f++) {
   const q = porQuadro.get(f);
   quadros.push(q ? { j: q.jog.map((j) => ({ lm: j.lm ? j.lm.map((p) => [+(p.x.toFixed(4)), +(p.y.toFixed(4))]) : null, pe: j.pe, cor: j.cor })), b: q.bolas.slice(0, 1) } : null);
 }
-const json = { W, H, fps, linhas: segLinhas, quadros, cantos: sim.cantos, verdade: sim.verdade, pontos: sim.pontos, cores: sim.cores, cfg: sim.cfg, hits: [].concat(...sim.segmentos.map((s) => s.hits)), placar: require("../scout/video-scout.js").Placar.texto(sim.placar) };
+/* panoramica: a câmera gira na mão (guinada ±6°, arfagem ±1,5°) — cada quadro é a imagem da câmera parada levada por
+   M = K·R·K⁻¹. mov[f]: imagem normalizada parada → do quadro; inv[f]: coeficientes do PIL (pixel do quadro → pixel parado) */
+let mov = null, inv = null;
+if (o.panoramica) {
+  const f = 0.9 * W, mul = (A, B) => { const C = []; for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) C.push(A[i * 3] * B[j] + A[i * 3 + 1] * B[3 + j] + A[i * 3 + 2] * B[6 + j]); return C; };
+  const K = [f, 0, W / 2, 0, f, H / 2, 0, 0, 1], Ki = [1 / f, 0, -W / (2 * f), 0, 1 / f, -H / (2 * f), 0, 0, 1];
+  const S = [W, 0, 0, 0, H, 0, 0, 0, 1], Si = [1 / W, 0, 0, 0, 1 / H, 0, 0, 0, 1];
+  mov = []; inv = [];
+  for (let k = 0; k < quadros.length; k++) {
+    const t = k / fps, g = 6 * Math.PI / 180 * Math.sin(2 * Math.PI * t / 7), a = 1.5 * Math.PI / 180 * Math.sin(2 * Math.PI * t / 4.3);
+    const Ry = [Math.cos(g), 0, Math.sin(g), 0, 1, 0, -Math.sin(g), 0, Math.cos(g)], Rx = [1, 0, 0, 0, Math.cos(a), -Math.sin(a), 0, Math.sin(a), Math.cos(a)];
+    const Rt = mul(Rx, Ry), RtT = [Rt[0], Rt[3], Rt[6], Rt[1], Rt[4], Rt[7], Rt[2], Rt[5], Rt[8]];
+    const M = mul(K, mul(Rt, Ki)), Mi = mul(K, mul(RtT, Ki));
+    mov.push(mul(Si, mul(M, S)).map((v, i, A) => +(v / A[8]).toPrecision(9)));
+    inv.push(Mi.map((v) => v / Mi[8]).slice(0, 8));
+  }
+}
+const json = { W, H, fps, linhas: segLinhas, quadros, mov, inv, cantos: sim.cantos, verdade: sim.verdade, pontos: sim.pontos, cores: sim.cores, cfg: sim.cfg, hits: [].concat(...sim.segmentos.map((s) => s.hits)), placar: require("../scout/video-scout.js").Placar.texto(sim.placar) };
 fs.writeFileSync(saida.replace(/\.mp4$/, ".json"), JSON.stringify(json));
 /* áudio: estalos nas batidas + ruído */
 const sr = 48000, n = Math.round(fim * sr), a = Buffer.alloc(n * 2);

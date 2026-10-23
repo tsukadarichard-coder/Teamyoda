@@ -6,7 +6,7 @@
 const fs = require("fs"), path = require("path"), http = require("http"), os = require("os"), cp = require("child_process"), assert = require("assert");
 try { cp.execSync("ffmpeg -version && python3 -c 'import PIL'", { stdio: "ignore" }); } catch (e) { console.log("check-video-scout-navegador: pulado (sem ffmpeg ou Pillow)"); process.exit(0); }
 const raiz = path.join(__dirname, ".."), pasta = fs.mkdtempSync(path.join(os.tmpdir(), "qlscout-")), video = path.join(pasta, "partida.mp4"), capturas = process.argv[2] || "";
-cp.execFileSync("node", [path.join(__dirname, "gerar-video-sintetico.js"), video, JSON.stringify({ maxPontos: 10, semente: 5 })], { stdio: "ignore" });
+cp.execFileSync("node", [path.join(__dirname, "gerar-video-sintetico.js"), video, JSON.stringify({ maxPontos: 10, semente: 5, panoramica: !!process.env.PANORAMICA })], { stdio: "ignore" });
 const D = JSON.parse(fs.readFileSync(video.replace(/\.mp4$/, ".json"), "utf8"));
 /* AVI=1: o mesmo jogo num formato que o navegador não lê (tudo passa pelo ffmpeg no aparelho: quadro, som e clipes dos pontos) */
 const CORE = process.env.FFMPEG_CORE_DIR || "/tmp/claude-0/-home-user-Teamyoda/f36f7b1a-5380-5cd8-93be-4b9b8aa1980b/scratchpad/npmv/x/ffmpeg-core-0.12.10/package/dist/umd";
@@ -26,14 +26,16 @@ fetch("/dados.json").then((r) => r.json()).then((D) => {
   QLVisao.carregarPose = () => Promise.resolve({ detectarQuadro(t, lado) {
     const q = D.quadros[Math.round(t * D.fps)]; if (!q) return null;
     const j = q.j.filter((x) => x.lm && (QLVideoScout.aplicarH(cal.H, x.pe)[1] < 0) === (lado === "perto"))[0];
-    return j ? j.lm.map((p) => ({ x: p[0], y: p[1], v: 0.9 })) : null;
+    const M = D.mov && D.mov[Math.round(t * D.fps)]; // PANORAMICA=1: a pose segue a câmera na mão
+    const leva = (p) => { if (!M) return p; const z = M[6] * p[0] + M[7] * p[1] + M[8]; return [(M[0] * p[0] + M[1] * p[1] + M[2]) / z, (M[3] * p[0] + M[4] * p[1] + M[5]) / z]; };
+    return j ? j.lm.map((p) => { const q = leva(p); return { x: q[0], y: q[1], v: 0.9 }; }) : null;
   } });
 });
 </script>`;
 const srv = http.createServer((q, r) => {
   const u = q.url.split("?")[0];
   if (u === "/") { r.writeHead(200, { "content-type": "text/html; charset=utf-8" }); return r.end(pagina); }
-  if (u === "/dados.json") { r.writeHead(200, { "content-type": "application/json" }); return r.end(JSON.stringify({ W: D.W, H: D.H, fps: D.fps, cantos: D.cantos, quadros: D.quadros })); }
+  if (u === "/dados.json") { r.writeHead(200, { "content-type": "application/json" }); return r.end(JSON.stringify({ W: D.W, H: D.H, fps: D.fps, cantos: D.cantos, quadros: D.quadros, mov: D.mov })); }
   const f = path.join(raiz, u); if (f.startsWith(raiz) && fs.existsSync(f)) { r.writeHead(200, { "content-type": u.endsWith(".css") ? "text/css" : "text/javascript" }); return r.end(fs.readFileSync(f)); }
   r.writeHead(404); r.end();
 }).listen(0);

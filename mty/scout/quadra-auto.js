@@ -127,6 +127,38 @@
   var TRECHOS = (function () { var l = []; LINHAS.forEach(function (sg) { var partes = sg[0][1] < 0 && sg[1][1] > 0 ? [[sg[0], [sg[0][0], 0]], [[sg[0][0], 0], sg[1]]] : [sg]; partes.forEach(function (q) { var n = Math.max(6, Math.round(Math.hypot(q[1][0] - q[0][0], q[1][1] - q[0][1]) / 0.3)), t = []; for (var i = 0; i <= n; i++) t.push([q[0][0] + (q[1][0] - q[0][0]) * i / n, q[0][1] + (q[1][1] - q[0][1]) * i / n]); l.push(t); }); }); return l; })();
   var AMOSTRAS = (function () { var l = []; LINHAS.forEach(function (sg) { var n = Math.max(4, Math.round(Math.hypot(sg[1][0] - sg[0][0], sg[1][1] - sg[0][1]) / 0.3)); for (var i = 0; i <= n; i++) l.push([sg[0][0] + (sg[1][0] - sg[0][0]) * i / n, sg[0][1] + (sg[1][1] - sg[0][1]) * i / n]); }); return l; })();
 
+  /* câmera de verdade: com pixels quadrados e o centro óptico no meio do quadro, a homografia do chão (quadra em m → pixels)
+     dá duas estimativas independentes da distância focal, que têm de ser positivas e parecidas. Um encaixe "torcido"
+     (lateral tomada por linha de fundo) cobre bem as linhas mas pede uma câmera impossível */
+  function coerente(H, w, h) {
+    var cx = w / 2, cy = h / 2, a0 = H[0] - cx * H[6], a1 = H[1] - cx * H[7], a3 = H[3] - cy * H[6], a4 = H[4] - cy * H[7], a6 = H[6], a7 = H[7];
+    /* cada estimativa só vale bem condicionada: a 1ª precisa de a6 e a7 comparáveis (câmera olhando reto pela quadra zera
+       a6), a 2ª precisa deles diferentes */
+    var est = [], m6 = Math.abs(a6), m7 = Math.abs(a7), mx = Math.max(m6, m7);
+    if (!mx) return true;
+    if (Math.min(m6, m7) / mx > 0.15) est.push(-(a0 * a1 + a3 * a4) / (a6 * a7));
+    if (Math.abs(m7 - m6) / mx > 0.15) est.push((a0 * a0 + a3 * a3 - a1 * a1 - a4 * a4) / (a7 * a7 - a6 * a6));
+    for (var i = 0; i < est.length; i++) if (!(est[i] > 0) || Math.sqrt(est[i]) < 0.35 * h || Math.sqrt(est[i]) > 12 * h) return false;
+    return est.length < 2 || Math.max(est[0], est[1]) / Math.min(est[0], est[1]) < 2.5;
+  }
+  /* pixels de linha distintos a até 2 px de alguma linha da quadra projetada (H: quadra → pixels). Uma quadra encolhida ou
+     "torcida" pode ter quase todos os pontos sobre linha, mas explica poucos pixels */
+  var carimbo = null, rodada2 = 0;
+  function explicadosEm(m, w, h, H) {
+    if (!carimbo || carimbo.length !== w * h) { carimbo = new Uint32Array(w * h); rodada2 = 0; }
+    rodada2++; var ex = 0;
+    for (var li = 0; li < LINHAS.length; li++) {
+      var sg = LINHAS[li];
+      for (var i = 0; i <= 700; i++) {
+        var p = aplicar(H, [sg[0][0] + (sg[1][0] - sg[0][0]) * i / 700, sg[0][1] + (sg[1][1] - sg[0][1]) * i / 700]); if (p[2] <= 0) continue;
+        var px = Math.round(p[0]), py = Math.round(p[1]); if (px < -2 || py < -2 || px > w + 1 || py > h + 1) continue;
+        for (var yy = Math.max(0, py - 2); yy <= Math.min(h - 1, py + 2); yy++) for (var xx = Math.max(0, px - 2); xx <= Math.min(w - 1, px + 2); xx++) {
+          var q = yy * w + xx; if (carimbo[q] !== rodada2) { carimbo[q] = rodada2; if (m[q]) ex++; }
+        }
+      }
+    }
+    return ex;
+  }
   function detectar(rgba, w, h) {
     var m = mascara(rgba, w, h), dil = new Uint8Array(w * h);
     for (var y = 1; y < h - 1; y++) for (var x = 1; x < w - 1; x++) { var i = y * w + x; if (m[i] || m[i - 1] || m[i + 1] || m[i - w] || m[i + w]) dil[i] = 1; }
@@ -148,20 +180,19 @@
       }
       return dentro < AMOSTRAS.length * 0.3 ? -1 : unicos - 0.35 * erros;
     }
-    /* câmera de verdade: com pixels quadrados e o centro óptico no meio do quadro, a homografia do chão dá duas estimativas
-       independentes da distância focal, que têm de ser positivas e parecidas. Um encaixe "torcido" (lateral tomada por linha
-       de fundo) cobre bem as linhas mas pede uma câmera impossível */
-    function coerente(H) {
-      var cx = w / 2, cy = h / 2, a0 = H[0] - cx * H[6], a1 = H[1] - cx * H[7], a3 = H[3] - cy * H[6], a4 = H[4] - cy * H[7], a6 = H[6], a7 = H[7];
-      var n = Math.hypot(a0, a1, a3, a4) || 1, est = [];
-      if (Math.abs(a6 * a7) * h * h > 1e-4 * n * n / 4) est.push(-(a0 * a1 + a3 * a4) / (a6 * a7));
-      if (Math.abs(a7 * a7 - a6 * a6) * h * h > 1e-4 * n * n / 4) est.push((a0 * a0 + a3 * a3 - a1 * a1 - a4 * a4) / (a7 * a7 - a6 * a6));
-      for (var i = 0; i < est.length; i++) if (!(est[i] > 0) || Math.sqrt(est[i]) < 0.35 * h || Math.sqrt(est[i]) > 12 * h) return false;
-      return est.length < 2 || Math.max(est[0], est[1]) / Math.min(est[0], est[1]) < 2.5;
-    }
     /* hipóteses: dois pares de retas (as famílias dos pontos de fuga só ordenam: com retas quase paralelas o agrupamento
        erra, então vale qualquer par contra qualquer par). Os 4 cruzamentos têm de formar um quadrilátero convexo; cada par
        pode ser o das paralelas à rede ou o das laterais, e cada reta qualquer linha do modelo */
+    var top = [];
+    function guardar(c) {
+      /* sem quase-repetidos: um candidato com os cantos a menos de 3 px de outro fica só se for melhor */
+      var cs = [[-D, -L], [D, -L], [D, L], [-D, L]].map(function (p) { return aplicar(c.H, p); });
+      for (var i = 0; i < top.length; i++) {
+        var d = 0; for (var k = 0; k < 4; k++) d = Math.max(d, Math.hypot(cs[k][0] - top[i].cs[k][0], cs[k][1] - top[i].cs[k][1]));
+        if (d < 3) { if (c.nota > top[i].nota) { top[i] = { nota: c.nota, H: c.H, cs: cs }; top.sort(function (a, b) { return b.nota - a.nota; }); } return; }
+      }
+      top.push({ nota: c.nota, H: c.H, cs: cs }); top.sort(function (a, b) { return b.nota - a.nota; }); if (top.length > 40) top.pop();
+    }
     var cand = fam[0].concat(fam[1]).filter(function (l, k, arr) { return arr.indexOf(l) === k; }), resto = linhas.filter(function (l) { return cand.indexOf(l) < 0; });
     var R = cand.concat(resto).slice(0, 12), pares = [], melhor = null;
     for (var a = 0; a < R.length; a++) for (var b = a + 1; b < R.length; b++) pares.push([R[a], R[b]]);
@@ -176,17 +207,23 @@
           for (var j1 = 0; j1 < 4; j1++) for (var j2 = j1 + 1; j2 < 4; j2++) {
             var yS = MODELO_H[i1], yI = MODELO_H[i2], xE = MODELO_V[j1], xD = MODELO_V[j2];
             var H = homografia([[xE, yI], [xD, yI], [xD, yS], [xE, yS]], q); if (!H) continue;
-            if (!coerente(H)) continue;
-            var sc = nota(H); if (sc > (melhor ? melhor.nota : 0)) melhor = { nota: sc, H: H };
+            if (!coerente(H, w, h)) continue;
+            var sc = nota(H); if (sc > 0 && (top.length < 40 || sc > top[top.length - 1].nota)) guardar({ nota: sc, H: H });
           } }
       }
     }
+    /* segunda leitura dos 40 melhores: pixels de linha explicados (a até 2 px de alguma linha da quadra projetada) contra
+       os que sobram. Um encaixe errado deixa de fora uma linha forte (a de fundo, uma lateral) e isso pesa contra ele */
+    var nm = 0; for (var z = 0; z < m.length; z++) nm += m[z];
+    function explicados(H) { return explicadosEm(m, w, h, H); }
+    top.forEach(function (c) { var ex = explicados(c.H); c.nota2 = c.nota + ex * 0.5 - (nm - ex) * 0.5; if (!melhor || c.nota2 > melhor.nota2) melhor = c; });
     if (!melhor) return null;
+    melhor = { nota: melhor.nota, H: melhor.H };
     /* refinamento: ajusta cada canto da quadra de duplas em ±2 px enquanto a nota sobe */
     var cantosM = [[-D, -L], [D, -L], [D, L], [-D, L]], cs = cantosM.map(function (c) { var p = aplicar(melhor.H, c); return [p[0], p[1]]; }), base = melhor.nota;
     for (var it = 0; it < 3; it++) for (var k = 0; k < 4; k++) for (var dx = -2; dx <= 2; dx += 2) for (var dy = -2; dy <= 2; dy += 2) {
       if (!dx && !dy) continue; var t = cs.map(function (c) { return c.slice(); }); t[k][0] += dx; t[k][1] += dy;
-      var H2 = homografia(cantosM, t); if (!H2 || !coerente(H2)) continue; var s2 = nota(H2); if (s2 > base) { base = s2; cs = t; melhor.H = H2; }
+      var H2 = homografia(cantosM, t); if (!H2 || !coerente(H2, w, h)) continue; var s2 = nota(H2); if (s2 > base) { base = s2; cs = t; melhor.H = H2; }
     }
     /* orientação: o lado "de cá" (y < 0) é o mais perto da câmera (aparece maior) e +x fica à direita de quem olha de cá */
     var area = function (y0, y1) { var c = [[-D, y0], [D, y0], [D, y1], [-D, y1]].map(function (p) { return aplicar(melhor.H, p); }), A = 0; for (var i = 0; i < 4; i++) { var u = c[i], v = c[(i + 1) % 4]; A += u[0] * v[1] - v[0] * u[1]; } return Math.abs(A) / 2; };
@@ -206,5 +243,115 @@
     });
     return { cantos: cs.map(function (c) { return [c[0] / w, c[1] / h]; }), nota: dentro ? acerto / dentro : 0, visiveis: dentro / AMOSTRAS.length, confirmadas: confirmadas, linhas: linhas.length, depura: { linhas: linhas, familias: fam } };
   }
-  return { detectar: detectar, mascara: mascara, _hough: hough, _familias: familias };
+  /* ── quadra acompanhada quadro a quadro (câmera na mão, panorâmica) ──
+     Parte da homografia do quadro anterior: cada ponto das linhas do modelo procura, na normal da linha projetada, o pixel
+     de linha mais próximo; a homografia é corrigida (Gauss-Newton, perturbação (I+D) em coordenadas normalizadas) para
+     levar as linhas do modelo até lá. Raio de busca decrescente, pesos robustos para jogador e sombras.
+     Hn: quadra (m) → imagem normalizada (0..1). Devolve { Hn, acerto (fração das amostras sobre linha), n } ou null */
+  /* amostras com a direção da linha e a linha do modelo a que pertencem */
+  var DIRS = (function () {
+    var l = [];
+    TRECHOS.forEach(function (tr) {
+      var a = tr[0], b = tr[tr.length - 1], n = Math.hypot(b[0] - a[0], b[1] - a[1]), m = (a[0] + b[0]) / 2, mm = (a[1] + b[1]) / 2;
+      var li = LINHAS.findIndex(function (sg) { var u = [sg[1][0] - sg[0][0], sg[1][1] - sg[0][1]], v = [m - sg[0][0], mm - sg[0][1]]; return Math.abs(u[0] * v[1] - u[1] * v[0]) < 1e-6 && v[0] * u[0] + v[1] * u[1] >= 0 && v[0] * u[0] + v[1] * u[1] <= u[0] * u[0] + u[1] * u[1]; });
+      tr.forEach(function (p) { l.push([p[0], p[1], (b[0] - a[0]) / n, (b[1] - a[1]) / n, li]); });
+    });
+    return l;
+  })();
+  function distSeg(p, a, b) { var dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy, t = L2 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L2)) : 0; return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy); }
+  function areaPerto(H) { var c = [[-D, -L], [D, -L], [D, 0], [-D, 0]].map(function (p) { return aplicar(H, p); }), A = 0; if (c.some(function (q) { return q[2] <= 0; })) return 0; for (var i = 0; i < 4; i++) { var u = c[i], v = c[(i + 1) % 4]; A += u[0] * v[1] - v[0] * u[1]; } return Math.abs(A) / 2; }
+  function multiplicar(A, B) { var C = []; for (var i = 0; i < 3; i++) for (var j = 0; j < 3; j++) C.push(A[i * 3] * B[j] + A[i * 3 + 1] * B[3 + j] + A[i * 3 + 2] * B[6 + j]); return C; }
+  function normalizar(H) { var k = H[8] || 1; return H.map(function (v) { return v / k; }); }
+  function rastrear(rgba, w, h, Hn, o) {
+    o = o || {};
+    var m = o.mascara || mascara(rgba, w, h), s = w, cx = w / 2, cy = h / 2;
+    var Hp = normalizar(multiplicar([w, 0, 0, 0, h, 0, 0, 0, 1], Hn)), k0 = w / 480, raios = o.raios || [6 * k0, 4 * k0, 3, 2.5];
+    function proc(p, nx, ny, R) { // pixel de linha mais perto de p na direção (nx, ny), até R
+      for (var k = 0; k <= R; k++) for (var sg = k ? -1 : 1; sg <= 1; sg += 2) {
+        var x = Math.round(p[0] + nx * k * sg), y = Math.round(p[1] + ny * k * sg);
+        if (x >= 0 && y >= 0 && x < w && y < h && m[y * w + x]) return k * sg;
+      }
+      return null;
+    }
+    function pares(H, R) {
+      var l = [], seg = LINHAS.map(function (sg) { return [aplicar(H, sg[0]), aplicar(H, sg[1])]; });
+      for (var i = 0; i < DIRS.length; i++) {
+        var d = DIRS[i], p = aplicar(H, d), q = aplicar(H, [d[0] + d[2] * 0.2, d[1] + d[3] * 0.2]);
+        if (p[2] <= 0 || p[0] < 2 || p[1] < 2 || p[0] > w - 3 || p[1] > h - 3) continue;
+        /* ambígua: outra linha da quadra passa a menos de 2 raios na imagem (outra metade comprimida, cruzamentos) */
+        var amb = false; for (var z = 0; z < seg.length && !amb; z++) if (z !== d[4] && seg[z][0][2] > 0 && seg[z][1][2] > 0 && distSeg(p, seg[z][0], seg[z][1]) < 2 * R + 2) amb = true;
+        if (amb) continue;
+        var tx = q[0] - p[0], ty = q[1] - p[1], tn = Math.hypot(tx, ty); if (!tn) continue;
+        var nx = -ty / tn, ny = tx / tn, off = proc(p, nx, ny, R);
+        l.push({ X: d, n: [nx, ny], c: off == null ? null : nx * p[0] + ny * p[1] + off });
+      }
+      return l;
+    }
+    var H = Hp, total = 0, usados = 0;
+    for (var it = 0; it < raios.length; it++) {
+      var R = raios[it], P = pares(H, Math.ceil(R)), ok = P.filter(function (e) { return e.c != null; });
+      total = P.length; usados = ok.length;
+      if (ok.length < 12) return null;
+      for (var gn = 0; gn < 2; gn++) {
+        var A = [], b = [], i, j;
+        for (i = 0; i < 8; i++) { A.push([0, 0, 0, 0, 0, 0, 0, 0]); b.push(0); }
+        for (var e = 0; e < ok.length; e++) {
+          var E = ok[e], p = aplicar(H, E.X), u = (p[0] - cx) / s, v = (p[1] - cy) / s;
+          var r = E.n[0] * p[0] + E.n[1] * p[1] - E.c, ar = Math.abs(r), wt = ar <= 1.5 ? 1 : ar < R * 1.5 ? 1.5 / ar : 0;
+          if (!wt) continue;
+          var J = [E.n[0] * u, E.n[0] * v, E.n[0], E.n[1] * u, E.n[1] * v, E.n[1], -(E.n[0] * u + E.n[1] * v) * u, -(E.n[0] * u + E.n[1] * v) * v].map(function (z) { return z * s; });
+          for (i = 0; i < 8; i++) { b[i] -= wt * J[i] * r; for (j = 0; j < 8; j++) A[i][j] += wt * J[i] * J[j]; }
+        }
+        var tr = 0; for (i = 0; i < 8; i++) tr += A[i][i]; for (i = 0; i < 8; i++) A[i][i] += 1e-6 * tr + 1e-9;
+        var D = resolver(A, b); if (!D) return null;
+        var N = [1 / s, 0, -cx / s, 0, 1 / s, -cy / s, 0, 0, 1], Ni = [s, 0, cx, 0, s, cy, 0, 0, 1];
+        H = normalizar(multiplicar(Ni, multiplicar([1 + D[0], D[1], D[2], D[3], 1 + D[4], D[5], D[6], D[7], 1], multiplicar(N, H))));
+      }
+    }
+    /* não pode virar uma câmera impossível nem a quadra encolher/esticar de um quadro para o outro */
+    var a0 = areaPerto(Hp), a1 = areaPerto(H);
+    if (!coerente(H, w, h) || !a0 || a1 / a0 < 0.8 || a1 / a0 > 1.25) return null;
+    var fin = pares(H, 2), ac = fin.filter(function (e) { return e.c != null; }).length;
+    return { Hn: normalizar(multiplicar([1 / w, 0, 0, 0, 1 / h, 0, 0, 0, 1], H)), acerto: fin.length ? ac / fin.length : 0, n: fin.length, cobertos: explicadosEm(m, w, h, H) };
+  }
+  function inverter(H) {
+    var a = H[0], b = H[1], c = H[2], d = H[3], e = H[4], f = H[5], g = H[6], h = H[7], i = H[8];
+    var A = e * i - f * h, B = -(d * i - f * g), C = d * h - e * g, det = a * A + b * B + c * C;
+    if (!det) return null;
+    return normalizar([A, -(b * i - c * h), b * f - c * e, B, a * i - c * g, -(a * f - c * d), C, -(a * h - b * g), a * e - b * d].map(function (v) { return v / det; }));
+  }
+  /* acompanha a quadra num trecho de vídeo: prevê o movimento (velocidade constante da câmera), corrige pelas linhas,
+     tenta com raio maior se perder e, de tempos em tempos (ou perdida), procura a quadra de novo do zero e fica com a
+     homografia que explica mais linhas. Hn: quadra (m) → imagem normalizada */
+  function Acompanhador(Hn0, o) {
+    o = o || {};
+    var Hn = Hn0, ant = null, perdidos = 0, n = 0, cada = o.redetectarCada || 45, forcar = false, refCob = 0;
+    /* aceita se explica pelo menos 60% dos pixels de linha que a quadra vinha explicando (jogador na frente tira um
+       pouco; um encaixe que escorregou para outra linha ou encolheu tira muito) */
+    function serve(r) { return r && r.n >= 20 && (!refCob || r.cobertos >= 0.6 * refCob) ? r : null; }
+    function confere(rgba, w, h, H, m) { return serve(rastrear(rgba, w, h, H, { mascara: m })); }
+    return {
+      quadro: function (rgba, w, h) {
+        n++;
+        var m = mascara(rgba, w, h), r = null, k0 = w / 480, fonte = null;
+        if (Hn && ant && !perdidos) { var M = multiplicar(Hn, inverter(ant) || [1, 0, 0, 0, 1, 0, 0, 0, 1]); r = confere(rgba, w, h, normalizar(multiplicar(M, Hn)), m); if (r) fonte = "previsto"; }
+        if (!r && Hn) { r = confere(rgba, w, h, Hn, m); if (r) fonte = "anterior"; }
+        if (!r && Hn) { r = serve(rastrear(rgba, w, h, Hn, { mascara: m, raios: [16 * k0, 10 * k0, 6 * k0, 4, 3, 2.5] })); if (r) fonte = "largo"; }
+        if (!Hn || forcar || n % cada === 0 || perdidos % 10 === 4) {
+          forcar = false;
+          var d = detectar(rgba, w, h);
+          if (d && d.confirmadas >= 4) {
+            var Hd = homografia([[-D, -L], [D, -L], [D, L], [-D, L]], d.cantos), rd = Hd && rastrear(rgba, w, h, Hd, { mascara: m });
+            if (rd && rd.n >= 20 && (!r ? !refCob || rd.cobertos >= 0.6 * refCob : rd.cobertos > r.cobertos * 1.15)) { r = rd; fonte = "detectado"; }
+          }
+        }
+        if (r) { ant = Hn; Hn = r.Hn; perdidos = 0; refCob = refCob ? Math.max(refCob * 0.97, r.cobertos * 0.1 + refCob * 0.9) : r.cobertos; } else { perdidos++; ant = null; }
+        return { Hn: Hn, ok: !!r, acerto: r ? r.acerto : 0, fonte: fonte };
+      },
+      /* começo de outro trecho (a câmera pode ter mudado no intervalo): sem previsão de movimento e procura do zero */
+      novoTrecho: function () { ant = null; forcar = true; },
+      get Hn() { return Hn; },
+    };
+  }
+  return { detectar: detectar, mascara: mascara, rastrear: rastrear, Acompanhador: Acompanhador, inverter: inverter, multiplicar: multiplicar, _hough: hough, _familias: familias };
 });

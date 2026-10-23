@@ -41,7 +41,7 @@
       el.innerHTML = '<div class="qm-card"><h3 class="qm-h">Scout completo da partida (automático)</h3>' +
         '<p class="qm-msg">O app lê o vídeo e preenche, ponto a ponto: quem sacou, 1º ou 2º saque, ace, dupla falta e direção do saque; quem bateu cada bola, forehand, backhand, voleio ou smash, efeito, direção, se bateu na corrida e se subiu à rede; e quem ganhou o ponto (winner ou erro), com o placar reconstruído. ' +
         'Cada campo vem marcado como confiável ou "confira"; o que o vídeo não mostra (situação do ponto, decisão, causa do erro) você completa. No fim vira um scout normal no caderno do jogador.</p>' +
-        '<p class="qm-msg">Funciona melhor com a câmera parada, atrás e acima da linha de fundo, pegando a quadra inteira. Tudo roda aqui no aparelho.</p>' +
+        '<p class="qm-msg">Vale câmera parada ou celular na mão acompanhando a jogada (o app segue as linhas da quadra a cada quadro). Fica melhor com a quadra inteira no quadro e as linhas visíveis. Tudo roda aqui no aparelho.</p>' +
         '<div class="qm-row"><button class="qm-pri" data-a="ir">Montar o scout completo</button></div></div>';
       el.querySelector('[data-a="ir"]').onclick = function () { iniciarAuto(); };
     }

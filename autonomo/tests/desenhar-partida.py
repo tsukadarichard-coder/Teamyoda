@@ -10,7 +10,7 @@ ff = subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fm
                        "-f", "s16le", "-ar", "48000", "-ac", "1", "-i", sys.argv[3], "-c:v", "libvpx-vp9", "-deadline", "realtime", "-cpu-used", "8", "-b:v", "1500k",
                        "-g", "60", "-c:a", "libopus", "-b:a", "64k", "-shortest", sys.argv[2]], stdin=subprocess.PIPE)
 OSSOS = [(11, 12), (11, 13), (13, 15), (12, 14), (14, 16), (11, 23), (12, 24), (23, 24), (23, 25), (25, 27), (24, 26), (26, 28), (0, 11), (0, 12)]
-for q in d["quadros"]:
+for k, q in enumerate(d["quadros"]):
     im = base.copy(); g = ImageDraw.Draw(im)
     if q:
         for j in q["j"]:
@@ -24,5 +24,7 @@ for q in d["quadros"]:
             r = max(2, alt / 12); g.ellipse([P[0][0] - r, P[0][1] - r, P[0][0] + r, P[0][1] + r], fill=(225, 195, 160))
         for x, y in q["b"]:
             r = 3.2; g.ellipse([x * W - r, y * H - r, x * W + r, y * H + r], fill=(222, 240, 60))
+    if d.get("inv"):  # câmera na mão: o quadro parado levado pela rotação da câmera
+        im = im.transform((W, H), Image.PERSPECTIVE, d["inv"][k], resample=Image.BILINEAR, fillcolor=(46, 110, 78))
     ff.stdin.write(im.tobytes())
 ff.stdin.close(); ff.wait()
