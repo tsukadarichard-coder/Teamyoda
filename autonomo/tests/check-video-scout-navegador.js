@@ -47,7 +47,8 @@ const srv = http.createServer((q, r) => {
   await p.route(/@ffmpeg\/core@0\.12\.10\/dist\/umd\/(.*)$/, async (rt) => { const n = /umd\/(.*)$/.exec(rt.request().url())[1]; if (!fs.existsSync(path.join(CORE, n))) return rt.abort(); await rt.fulfill({ status: 200, headers: { "access-control-allow-origin": "*", "content-type": n.endsWith(".wasm") ? "application/wasm" : "text/javascript" }, body: fs.readFileSync(path.join(CORE, n)) }); });
   await p.goto("http://localhost:" + srv.address().port + "/");
   await p.waitForFunction(() => window.__D);
-  if (process.env.MANUAL) await p.evaluate(() => { QLQuadraAuto.detectar = () => null; }); // simula um vídeo em que a quadra não é achada
+  if (process.env.SEM_WEBCODECS) await p.evaluate(() => { window.VideoDecoder = undefined; }); // como num navegador sem WebCodecs: o quadro vem do vídeo tocando
+  if (process.env.MANUAL) await p.evaluate(() => { QLQuadraAuto.detectar = () => null; }); // simula um vídeo em que a quadra não é achada (MANUAL=1: confere que não pede marcação à mão)
   /* como na análise de movimento: escolher o vídeo já começa tudo (sem tocar em nenhum botão) */
   await p.setInputFiles("input[type=file]", arquivo);
   await p.waitForFunction(() => /pontos detectados/.test(document.querySelector('[data-r="st"]').textContent), null, { timeout: 120000 });
@@ -58,24 +59,12 @@ const srv = http.createServer((q, r) => {
      marcação à mão (quando a quadra não é achada) */
   const t0 = Date.now();
   if (process.env.MANUAL) {
-    await p.waitForFunction(() => /Toque no canto 1/.test((document.querySelector('[data-r="instr"]') || {}).textContent || ""), null, { timeout: 120000 })
-      .catch(async () => { throw new Error("quadro da calibração não apareceu: " + await p.textContent('[data-r="calmsg"]').catch(() => "") + " | " + erros.join(" | ")); });
-    assert(/Não achei as linhas/.test(await p.textContent('[data-r="calmsg"]')), "aviso de marcação manual");
-    const cv = await p.$('[data-r="cv"]'); await cv.scrollIntoViewIfNeeded(); await p.evaluate(() => window.scrollBy(0, 120)); await p.waitForTimeout(200); const bx = await cv.boundingBox();
-    const toque = (x, y) => p.mouse.click(bx.x + x * bx.width, bx.y + y * bx.height);
-    if (capturas) {
-      fs.mkdirSync(capturas, { recursive: true });
-      await p.mouse.move(bx.x + D.cantos[0][0] * bx.width, bx.y + D.cantos[0][1] * bx.height); await p.mouse.down(); await p.waitForTimeout(100);
-      await cv.screenshot({ path: path.join(capturas, "scout-lupa.png") }); await p.mouse.up();
-      for (const c of D.cantos.slice(1)) await toque(c[0], c[1]);
-    } else for (const c of D.cantos) await toque(c[0], c[1]);
-    const fq = D.quadros[Math.round(D.hits[0] * D.fps)] || D.quadros.find((q) => q);
-    const dist = (a, c) => Math.hypot(a[0] - c[0], a[1] - c[1], a[2] - c[2]);
-    const tronco = (cor) => { const j = fq.j.filter((x) => x.lm).sort((a, c) => dist(a.cor, cor) - dist(c.cor, cor))[0]; const l = [11, 12, 23, 24].map((i) => j.lm[i]); return [l.reduce((s, v) => s + v[0], 0) / 4, l.reduce((s, v) => s + v[1], 0) / 4]; };
-    const tA = tronco(D.cores.nos), tB = tronco(D.cores.ele);
-    await toque(tA[0], tA[1]); await toque(tB[0], tB[1]);
-    assert(/Pronto/.test(await p.textContent('[data-r="instr"]')), "calibração completa");
-    await p.click('[data-a="gerar"]');
+    /* sem quadra achada: tudo é automático, não aparece marcação manual; explica como filmar */
+    await p.waitForSelector("text=Não achei a quadra neste vídeo", { timeout: 120000 });
+    assert.strictEqual(await p.locator('[data-r="cv"], [data-a="gerar"]').count(), 0, "sem marcação manual dos cantos");
+    assert(/quadra inteira no quadro/.test(await p.textContent('[data-r="scout"]')), "diz como filmar para o automático funcionar");
+    assert(await p.evaluate(() => { const c = document.createElement("canvas"); c.width = 40; c.height = 30; c.getContext("2d").fillRect(0, 0, 40, 30); return QLVisao._escuro(c); }), "quadro preto é descartado");
+    await b.close(); srv.close(); console.log("check-video-scout-navegador (sem quadra): ok"); return;
   }
   await p.waitForSelector(".vs-res", { timeout: 600000 }).catch(async () => { throw new Error("o scout não ficou pronto: " + (await p.textContent('[data-r="scout"]')).slice(0, 300) + " | " + erros.join(" | ")); });
   if (!process.env.MANUAL) assert(await p.evaluate(() => vj.estado.scoutUI.estado.quadraAuto), "a quadra foi achada sozinha");

@@ -175,7 +175,7 @@
           var ex = antigos.filter(function (x) { return Math.abs(x.saque - p.saque) < 1; })[0]; p.venc = ex ? ex.venc : ""; p.tipo = ex ? ex.tipo : ""; p.sacador = ex ? ex.sacador : ""; return p;
         });
         st.sel = 0; st.salvo = false; st.regId = null; render(); q("rev").hidden = false; q("re").disabled = false;
-        msg("Partida de " + fmt(st.dur) + " · " + h.length + " batidas · " + st.pts.length + " pontos detectados. Revise os clipes ou monte o scout completo abaixo.");
+        msg("Partida de " + fmt(st.dur) + " · " + h.length + " batidas · " + st.pts.length + " pontos detectados. Montando o scout automático (quadra, jogadores e bola)…");
         montarScout();
       } catch (e) { msg(/cancelado/.test(e.message) ? "Leitura cancelada." : "Erro: " + e.message); q("re").disabled = !st.en; }
       st.lendo = false; q("go").disabled = !!(st.cota && !st.cota.liberado) || !st.arq;

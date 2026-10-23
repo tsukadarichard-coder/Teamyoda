@@ -34,7 +34,21 @@
     if (!document.getElementById("vs-css")) { var st0 = document.createElement("style"); st0.id = "vs-css"; st0.textContent = CSS; document.head.appendChild(st0); }
     var S = { fase: "convite", toque: null, cantos: [], atleta: null, adv: null, cores: {}, img: null, asp: 16 / 9, an: null, dados: null, dec: null, pontos: null, filtro: "todos", aberto: -1, sinal: null, cfg: null, ctx: null };
     function nomes() { var n = api.nomes(); return { A: n.A || "Atleta", B: n.B || "Adversário" }; }
-    function render() { ({ convite: convite, calibrar: calibrar, processando: processando, revisar: revisar })[S.fase](); }
+    function render() { ({ convite: convite, calibrar: calibrar, processando: processando, revisar: revisar, semQuadra: semQuadra, erro: erroScout })[S.fase](); }
+    function erroScout() {
+      el.innerHTML = '<div class="qm-card"><p class="qm-msg">' + esc(S.erro || "") + '</p><div class="qm-row"><button class="qm-pri" data-a="denovo">Gerar o scout de novo</button></div></div>';
+      el.querySelector('[data-a="denovo"]').onclick = function () { if (S.cantos && S.cantos.length === 4) gerar(true); else iniciarAuto(); };
+    }
+    function semQuadra() {
+      el.innerHTML = '<div class="qm-card"><h3 class="qm-h">Não achei a quadra neste vídeo</h3>' +
+        (S.semImagem
+          ? '<p class="qm-msg">O navegador não entregou as imagens deste vídeo (só o som). Tente pelo Chrome ou pelo Safari atualizado, ou exporte o vídeo de novo em MP4 (H.264) e envie outra vez.</p>'
+          : '<p class="qm-msg">O app procura as linhas da quadra sozinho em vários momentos da partida e não encontrou linhas suficientes. Para o scout automático funcionar:</p>' +
+            '<ul class="qm-ul"><li>filme de trás da linha de fundo, um pouco do alto, com a quadra inteira no quadro (as quatro linhas de fora);</li><li>evite cortar o fundo de cá ou as laterais;</li><li>deixe o celular parado ou acompanhe a jogada devagar.</li></ul>') +
+        '<p class="qm-msg">Os pontos achados pelo som continuam acima, com os clipes de cada um.</p>' +
+        '<div class="qm-row"><button class="qm-pri" data-a="denovo">Procurar de novo</button></div></div>';
+      el.querySelector('[data-a="denovo"]').onclick = function () { iniciarAuto(); };
+    }
 
     /* ── convite ── */
     function convite() {
@@ -48,19 +62,13 @@
 
     /* ── calibração ── */
     async function pegarQuadro(tq) {
-      var bat = api.batidas(), t = tq != null ? tq : bat.length ? bat[0] : 5, v = api.video;
+      var bat = api.batidas(), t = tq != null ? tq : bat.length ? bat[0] : 5;
       try {
-        if (!api.clipes() && v && v.videoWidth) {
-          await new Promise(function (r) { var f = function () { v.removeEventListener("seeked", f); r(); }; v.addEventListener("seeked", f); v.pause(); v.currentTime = t; setTimeout(r, 4000); });
-          var c = document.createElement("canvas"); c.width = v.videoWidth; c.height = v.videoHeight; c.getContext("2d").drawImage(v, 0, 0); S.img = c; S.asp = v.videoWidth / v.videoHeight;
-        } else {
-          msgCal("Preparando um quadro do vídeo…");
-          var b = await raiz.QLAudioVideo.quadro(api.arquivo(), t), im = new Image();
-          await new Promise(function (r, f) { im.onload = r; im.onerror = f; im.src = URL.createObjectURL(b); });
-          var c2 = document.createElement("canvas"); c2.width = im.naturalWidth; c2.height = im.naturalHeight; c2.getContext("2d").drawImage(im, 0, 0); S.img = c2; S.asp = im.naturalWidth / im.naturalHeight;
-        }
-        msgCal(""); desenhar();
-      } catch (e) { msgCal("Não consegui mostrar um quadro do vídeo: " + (e.message || e)); }
+        /* quadro de verdade (no iPhone, desenhar o vídeo parado dá imagem preta): ver QLVisao.quadroEm */
+        var r = raiz.QLVisao && raiz.QLVisao.quadroEm ? await raiz.QLVisao.quadroEm(api.arquivo(), api.clipes() ? null : api.video, t) : null;
+        if (r) { S.img = r.img; S.asp = r.asp; } else S.img = null;
+        msgCal(""); if (S.fase === "calibrar") desenhar();
+      } catch (e) { S.img = null; msgCal("Não consegui ler um quadro do vídeo: " + (e.message || e)); }
     }
     function msgCal(t) { var m = el.querySelector('[data-r="calmsg"]'); if (m) m.textContent = t; }
     function passoAtual() { return S.cantos.length < 4 ? "cantos" : !S.atleta ? "atleta" : !S.adv ? "adv" : "pronto"; }
@@ -169,21 +177,33 @@
         if (tempos.every(function (x) { return Math.abs(x - perto) > 3; })) tempos.push(perto + 0.3);
       });
       if (!tempos.length) tempos = [Math.min(5, dur / 3), dur / 2];
-      var r = null, img = null, asp = null;
-      for (var k = 0; k < tempos.length && raiz.QLQuadraAuto; k++) {
-        if (S.sinal && S.sinal.cancelado) return;
-        await pegarQuadro(tempos[k]); if (!S.img) continue;
-        var w = 640, h = Math.round(w / S.asp), c = document.createElement("canvas"); c.width = w; c.height = h;
-        var x = c.getContext("2d", { willReadFrequently: true }); x.drawImage(S.img, 0, 0, w, h);
-        await new Promise(function (ok) { setTimeout(ok, 30); });
-        var rk = null; try { rk = raiz.QLQuadraAuto.detectar(x.getImageData(0, 0, w, h).data, w, h); } catch (e) { rk = null; }
-        if (rk && (!r || rk.confirmadas > r.confirmadas || (rk.confirmadas === r.confirmadas && rk.nota > r.nota))) { r = rk; img = S.img; asp = S.asp; S.tQuadra = tempos[k]; }
-        if (r && r.confirmadas >= 7) break;
-        progresso(0, "Procurando a quadra no vídeo… (" + (k + 1) + "/" + tempos.length + ")");
+      var r = null, img = null, asp = null; S.viuImagem = false;
+      var bom = function () { return r && r.confirmadas >= 4 && r.visiveis >= 0.3; };
+      async function procurar(lista, total0, total) {
+        for (var k = 0; k < lista.length && raiz.QLQuadraAuto; k++) {
+          if (S.sinal && S.sinal.cancelado) return;
+          await pegarQuadro(lista[k]); if (!S.img) continue; S.viuImagem = true;
+          var w = 640, h = Math.round(w / S.asp), c = document.createElement("canvas"); c.width = w; c.height = h;
+          var x = c.getContext("2d", { willReadFrequently: true }); x.drawImage(S.img, 0, 0, w, h);
+          await new Promise(function (ok) { setTimeout(ok, 30); });
+          var rk = null; try { rk = raiz.QLQuadraAuto.detectar(x.getImageData(0, 0, w, h).data, w, h); } catch (e) { rk = null; }
+          if (rk && (!r || rk.confirmadas > r.confirmadas || (rk.confirmadas === r.confirmadas && rk.nota > r.nota))) { r = rk; img = S.img; asp = S.asp; S.tQuadra = lista[k]; }
+          if (r && r.confirmadas >= 7) break;
+          progresso((total0 + k + 1) / total * 0.1, "Procurando a quadra no vídeo… (" + (total0 + k + 1) + "/" + total + ")");
+        }
       }
+      /* 1º os momentos de sempre; só se a quadra não aparecer, o resto da partida (câmera que mudou de lugar, linhas tapadas) */
+      var extras = [];
+      [0.1, 0.3, 0.45, 0.6, 0.7, 0.9].forEach(function (f) {
+        var alvo = dur * f, perto = bat.length ? bat.reduce(function (m, b) { return Math.abs(b - alvo) < Math.abs(m - alvo) ? b : m; }, bat[0]) : alvo;
+        if (tempos.concat(extras).every(function (x) { return Math.abs(x - (perto + 0.3)) > 3; })) extras.push(perto + 0.3);
+      });
+      await procurar(tempos, 0, tempos.length + extras.length);
+      if (!bom()) await procurar(extras, tempos.length, tempos.length + extras.length);
       if (img) { S.img = img; S.asp = asp; }
-      if (!r || r.confirmadas < 4 || r.visiveis < 0.3) {
-        S.fase = "calibrar"; render(); msgCal("Não achei as linhas da quadra sozinho neste vídeo. Marque os 4 cantos (leva poucos segundos).");
+      if (!r || r.confirmadas < 3 || r.visiveis < 0.25) {
+        /* tudo automático: sem marcação manual. Diz o que fazer para o próximo vídeo dar certo */
+        S.fase = "semQuadra"; S.semImagem = !S.viuImagem; render();
         return;
       }
       S.cantos = r.cantos; S.quadraAuto = true;
@@ -209,7 +229,7 @@
         remontar();
         S.fase = "revisar"; S.salvo = false; render(); salvar(true);
       } catch (e) {
-        S.fase = "calibrar"; render(); msgCal(/cancelado/.test(e.message) ? "Scout cancelado." : "Não consegui gerar o scout: " + (e.message || e));
+        S.erro = /cancelado/.test(e.message) ? "Scout cancelado." : "Não consegui gerar o scout: " + (e.message || e); S.fase = "erro"; render();
       }
     }
     /* refaz o scout a partir do que já foi lido do vídeo (sem ler de novo): troca de atleta, formato, mãos, placar final */
@@ -274,7 +294,7 @@
         '<label>Mão de ' + esc(n.A) + '<select data-aj="maoA">' + opM("maoA", "", "Automático") + opM("maoA", "D", "Destro") + opM("maoA", "E", "Canhoto") + "</select></label>" +
         '<label>Mão de ' + esc(n.B) + '<select data-aj="maoB">' + opM("maoB", "", "Automático") + opM("maoB", "D", "Destro") + opM("maoB", "E", "Canhoto") + "</select></label>" +
         '<label>Placar final (ajuda a acertar quem ganhou cada ponto)<span style="display:flex;gap:6px"><input type="text" data-aj="placarFinal" placeholder="ex.: 6-4 3-6 10-8" value="' + esc(S.cfg.placarFinal || "") + '" style="flex:1"><button type="button" data-a="aplicarPlacar">Aplicar</button></span></label>' +
-        '<label>Linhas da quadra<button type="button" data-a="refazer">Ver / ajustar a quadra</button></label></div></details>' +
+        '</div></details>' +
         '<div class="vs-res"><div><b>' + esc(textoPlacar(S.placar)) + "</b>placar reconstruído" + (S.placar.fim ? " · fim de jogo" : "") + "</div><div><b>" + S.pontos.length + "</b>pontos</div><div><b>" + conf + "</b>para conferir</div></div>" +
         (alvo ? '<p class="qm-msg">' + (S.dec.confere ? "✓ Bate com o placar final informado (" + esc(alvo) + ")." : "⚠ Não bateu com o placar informado (" + esc(alvo) + "): confira os pontos marcados.") + "</p>" : "") +
         (S.semPose ? '<p class="qm-msg">⚠ O modelo de pose não carregou (sem internet?): golpes e efeito ficaram em branco para você marcar.</p>' : "") +
@@ -288,7 +308,6 @@
       [].forEach.call(el.querySelectorAll("[data-f]"), function (b) { b.onclick = function () { S.filtro = b.getAttribute("data-f"); S.aberto = -1; render(); }; });
       el.querySelector('[data-a="salvar"]').onclick = function () { salvar(); };
       el.querySelector('[data-a="csv"]').onclick = csv;
-      el.querySelector('[data-a="refazer"]').onclick = function () { S.fase = "calibrar"; render(); };
       var refazerTudo = function () { remontar(); S.aberto = -1; render(); salvar(true); };
       el.querySelector('[data-a="trocar"]').onclick = function () {
         S.ctx.atletaComecaPerto = !S.ctx.atletaComecaPerto; S.atletaPerto = S.ctx.atletaComecaPerto; S.atleta = S.adv = null;

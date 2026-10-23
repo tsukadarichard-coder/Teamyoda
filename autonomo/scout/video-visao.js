@@ -350,5 +350,50 @@
     return { dados: resultados, fonte: clipe ? "clipes" : fonte.tipo, pose: !!pose, cameraMovel: movel };
   }
 
-  raiz.QLVisao = { processar: processar, carregarPose: carregarPose, DetectorBola: DetectorBola, fonteWebCodecs: fonteWebCodecs };
+  /* ── um quadro do vídeo no instante t, para achar a quadra ──
+     No iPhone (Safari), desenhar um <video> que só foi posicionado (sem tocar) devolve um quadro PRETO; por isso, em ordem:
+     1) decodificar o quadro direto do arquivo (WebCodecs); 2) tocar um instante do vídeo, sem som, e pegar o quadro que o
+     navegador entrega (requestVideoFrameCallback); 3) o conversor do próprio app (ffmpeg). Quadro preto é descartado. */
+  function copia(img, w, h) { var c = document.createElement("canvas"); c.width = w; c.height = h; c.getContext("2d").drawImage(img, 0, 0, w, h); return c; }
+  function escuro(c) {
+    var w = 64, h = Math.max(1, Math.round(64 * c.height / c.width)), m = document.createElement("canvas"); m.width = w; m.height = h;
+    var x = m.getContext("2d", { willReadFrequently: true }); x.drawImage(c, 0, 0, w, h);
+    var d = x.getImageData(0, 0, w, h).data, soma = 0, soma2 = 0, n = w * h;
+    for (var i = 0; i < d.length; i += 4) { var l = (d[i] * 3 + d[i + 1] * 5 + d[i + 2] * 2) / 10; soma += l; soma2 += l * l; }
+    var med = soma / n, dp = Math.sqrt(Math.max(0, soma2 / n - med * med));
+    return med < 8 || dp < 2; // tudo preto (ou uma cor só): o navegador não entregou o quadro
+  }
+  var fontes = typeof WeakMap !== "undefined" ? new WeakMap() : null;
+  async function quadroEm(file, v, t, o) {
+    o = o || {};
+    var tentativas = [];
+    if (file) tentativas.push(async function () {
+      var f = fontes && fontes.get(file);
+      if (f === undefined) { f = await fonteWebCodecs(file).catch(function () { return null; }); if (fontes) fontes.set(file, f); }
+      if (!f) return null;
+      var c = null;
+      await f.trecho(Math.max(0, t), t + 0.25, function (tq, img, w, h) { if (!c) c = copia(img, w, h); });
+      return c;
+    });
+    if (v && v.src && !o.semVideo) tentativas.push(async function () {
+      if (!v.videoWidth) await new Promise(function (r) { var f = function () { v.removeEventListener("loadeddata", f); r(); }; v.addEventListener("loadeddata", f); setTimeout(r, 4000); });
+      if (!v.videoWidth || !v.requestVideoFrameCallback) return null;
+      var c = null, mutado = v.muted;
+      await Promise.race([fonteVideo(v, 0).trecho(t, t + 0.4, function (tq, img, w, h) { if (!c) c = copia(img, w, h); }), espera(8000)]);
+      v.pause(); v.muted = mutado;
+      return c;
+    });
+    if (file && raiz.QLAudioVideo && raiz.QLAudioVideo.quadro) tentativas.push(async function () {
+      var b = await raiz.QLAudioVideo.quadro(file, t), im = new Image(), url = URL.createObjectURL(b);
+      try { await new Promise(function (r, f) { im.onload = r; im.onerror = f; im.src = url; }); return copia(im, im.naturalWidth, im.naturalHeight); }
+      finally { URL.revokeObjectURL(url); }
+    });
+    for (var k = 0; k < tentativas.length; k++) {
+      var c = await tentativas[k]().catch(function () { return null; });
+      if (c && c.width && !escuro(c)) return { img: c, asp: c.width / c.height };
+    }
+    return null;
+  }
+
+  raiz.QLVisao = { processar: processar, carregarPose: carregarPose, DetectorBola: DetectorBola, fonteWebCodecs: fonteWebCodecs, quadroEm: quadroEm, _escuro: escuro };
 })(typeof window !== "undefined" ? window : this);
