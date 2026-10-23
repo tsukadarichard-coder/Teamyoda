@@ -82,7 +82,7 @@ const srv = http.createServer((q, r) => { const u = q.url.split("?")[0]; if (u =
     p.on("pageerror", (e) => erros.push(e.message));
     await p.route(/@ffmpeg\/core@0\.12\.10\/dist\/umd\/(.*)$/, async (r) => { const n = /umd\/(.*)$/.exec(r.request().url())[1]; if (!temCore) return r.abort(); await r.fulfill({ status: 200, headers: { "access-control-allow-origin": "*", "content-type": n.endsWith(".wasm") ? "application/wasm" : "text/javascript" }, body: fs.readFileSync(path.join(CORE, n)) }); });
     await p.goto("http://localhost:" + srv.address().port + "/");
-    const t = Date.now(); await p.setInputFiles("input[type=file]", v.arq); await p.waitForTimeout(500); await p.click('[data-r="go"]');
+    const t = Date.now(); await p.setInputFiles("input[type=file]", v.arq); // a leitura começa sozinha ao escolher o vídeo
     await p.waitForFunction(() => /pontos detectados|Erro/.test(document.querySelector('[data-r="st"]').textContent), null, { timeout: 600000 });
     const r = await p.evaluate(() => ({ msg: document.querySelector('[data-r="st"]').textContent, pts: vj.estado.pts.map((x) => x.saque), via: vj.estado.via, dur: vj.estado.dur, clipes: vj.estado.clipes,
       barra: getComputedStyle(document.querySelector('[data-r="prog"]')).display }));

@@ -48,8 +48,8 @@ const srv = http.createServer((q, r) => {
   await p.goto("http://localhost:" + srv.address().port + "/");
   await p.waitForFunction(() => window.__D);
   if (process.env.MANUAL) await p.evaluate(() => { QLQuadraAuto.detectar = () => null; }); // simula um vídeo em que a quadra não é achada
-  await p.setInputFiles("input[type=file]", arquivo); await p.waitForTimeout(600);
-  await p.click('[data-r="go"]');
+  /* como na análise de movimento: escolher o vídeo já começa tudo (sem tocar em nenhum botão) */
+  await p.setInputFiles("input[type=file]", arquivo);
   await p.waitForFunction(() => /pontos detectados/.test(document.querySelector('[data-r="st"]').textContent), null, { timeout: 120000 });
   const hits = await p.evaluate(() => vj.estado.hits.length);
   assert(Math.abs(hits - D.hits.length) <= 1, "batidas pelo som: " + hits + " de " + D.hits.length);
@@ -91,6 +91,24 @@ const srv = http.createServer((q, r) => {
   assert(certo("sacador") === n && certo("saque") >= n - 1 && certo("nos") >= n - 1, "sacador, tipo de saque e quem ganhou");
   assert(r.bolas / r.quadros > 0.5, "a bola é achada nos pixels na maior parte dos quadros");
   if (capturas) await p.screenshot({ path: path.join(capturas, "scout-revisao.png"), fullPage: true });
+  /* "Ver rastreamento": quadra, jogadores e bola desenhados por cima do ponto, acompanhando o vídeo */
+  await p.click('.vs-pt[data-cart="1"] [data-acao="rastro"]');
+  await p.waitForSelector("canvas.vs-rastro", { timeout: 5000 });
+  await p.waitForFunction(() => { const v = document.querySelector("video"); return v && v.currentTime > 0.3 && !v.paused; }, null, { timeout: 15000 }).catch(() => {});
+  await p.waitForTimeout(900);
+  const rastro = await p.evaluate(() => {
+    const c = document.querySelector("canvas.vs-rastro"), x = c.getContext("2d"), d = x.getImageData(0, 0, c.width, c.height).data;
+    let verde = 0, laranja = 0, azul = 0, pintado = 0;
+    for (let i = 0; i < d.length; i += 4) { if (d[i + 3] < 40) continue; pintado++; const r = d[i], g = d[i + 1], b = d[i + 2]; if (g > 150 && r < 140 && b < 100) verde++; if (r > 200 && g > 110 && g < 170 && b < 90) laranja++; if (b > 200 && r < 120) azul++; }
+    return { w: c.width, h: c.height, pintado, verde, laranja, azul, leg: (document.querySelector('[data-r="rastroLeg"]') || {}).textContent || "" };
+  });
+  assert(rastro.w > 100 && rastro.verde > 200, "rastreamento desenha as linhas da quadra (" + JSON.stringify(rastro) + ")");
+  assert(rastro.laranja > 5 && rastro.azul > 5, "rastreamento desenha os dois jogadores (" + JSON.stringify(rastro) + ")");
+  assert(/Rastreamento do ponto/.test(rastro.leg), "legenda do rastreamento");
+  if (process.env.PANORAMICA) assert(await p.evaluate(() => vj.estado.scoutUI.estado.dados.some((d) => d.quadros.some((q) => q.G))), "câmera na mão: cada quadro guarda a correção da câmera");
+  if (capturas) { await p.waitForFunction(() => { const v = document.querySelector("video"), S = vj.estado.scoutUI.estado, pt = S.pontos[1]; return v.currentTime > (pt.batidas[1] ? pt.batidas[1].t : pt.video.ini + 2); }, null, { timeout: 15000 }).catch(() => {}); await p.locator('[data-r="slotVideo"]').screenshot({ path: path.join(capturas, "scout-rastreamento.png") }); }
+  await p.click('[data-a="fecharRastro"]');
+  assert.strictEqual(await p.locator("canvas.vs-rastro").count(), 0, "fechar o rastreamento");
   /* edição: trocar como terminou o 1º ponto refaz o placar dos seguintes */
   const antes = await p.evaluate(() => vj.estado.scoutUI.estado.pontos.map((x) => x.placarAntes).join("|"));
   await p.click('.vs-pt[data-cart="0"] [data-acao="editar"]');

@@ -670,6 +670,7 @@
         adverso: Placar.adverso(est.e), sacador: sac, lado: Placar.lado(est.e),
         n: pontos.length + 1, placarAntes: Placar.rotulo(est.e), jogo: Placar.jogo(est.e), set: Placar.set(est.e),
         video: { ini: Math.round(a.ini * 10) / 10, fim: Math.round(a.fim * 10) / 10, falta: faltaPend ? Math.round(an[faltaPend.k].ini * 10) / 10 : null },
+        k: k, atletaPerto: atletaPerto, // só na tela (rastreamento); compactar() não grava
         batidas: bats,
         auto: {
           nos: confDe(clamp(pLocal) + (dec.confere ? 0.15 : 0)), fim: a.fimConf === "alta" && pLocal > 0.75 ? "alta" : confDe(pLocal),

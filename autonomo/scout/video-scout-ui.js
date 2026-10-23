@@ -164,6 +164,10 @@
          linhas da quadra. Aceita com 4 ou mais linhas inteiras confirmadas */
       var bat = api.batidas(), dur = api.duracao() || 60, tempos = [];
       [0, 1, 2, 4, 7, 11].forEach(function (k) { if (bat[k] != null) tempos.push(bat[k] + 0.3); });
+      [0.2, 0.35, 0.5, 0.65, 0.8].forEach(function (f) { // e espalhados pela partida, perto de uma batida (bola em jogo, câmera no jogo)
+        var alvo = dur * f, perto = bat.length ? bat.reduce(function (m, b) { return Math.abs(b - alvo) < Math.abs(m - alvo) ? b : m; }, bat[0]) : alvo;
+        if (tempos.every(function (x) { return Math.abs(x - perto) > 3; })) tempos.push(perto + 0.3);
+      });
       if (!tempos.length) tempos = [Math.min(5, dur / 3), dur / 2];
       var r = null, img = null, asp = null;
       for (var k = 0; k < tempos.length && raiz.QLQuadraAuto; k++) {
@@ -296,7 +300,8 @@
       el.querySelector('[data-a="aplicarPlacar"]').onclick = function () { S.cfg.placarFinal = el.querySelector('[data-aj="placarFinal"]').value.trim(); refazerTudo(); };
       el.querySelector('[data-r="pts"]').onclick = function (e) {
         var b = e.target.closest("[data-i]"); if (!b) return; var i = +b.getAttribute("data-i"), ac = b.getAttribute("data-acao"), p = S.pontos[i];
-        if (ac === "ver") api.tocar(p.video.falta != null ? p.video.falta : p.video.ini, p.video.fim);
+        if (ac === "ver") { pararRastro(); api.tocar(p.video.falta != null ? p.video.falta : p.video.ini, p.video.fim); }
+        if (ac === "rastro") verRastreamento(i);
         if (ac === "editar") { S.aberto = S.aberto === i ? -1 : i; render(); var c = el.querySelector('[data-cart="' + i + '"]'); if (c && c.scrollIntoView) c.scrollIntoView({ block: "nearest" }); }
         if (ac === "remover" && window.confirm("Tirar este trecho do scout (não era ponto)?")) { S.pontos.splice(i, 1); S.aberto = -1; recalcular(); render(); salvar(true); }
       };
@@ -304,6 +309,95 @@
         var c = e.target.closest("[data-ed]"); if (!c) return; var i = +c.getAttribute("data-ed"), k = e.target.getAttribute("data-k"), p = S.pontos[i], v = e.target.type === "checkbox" ? e.target.checked : (e.target.value || null);
         aplicarEdicao(p, k, v); recalcular(); render(); salvar(true);
       };
+    }
+    /* ── rastreamento: o que a visão leu do vídeo, desenhado por cima do ponto, para conferir o tracking:
+       linhas da quadra (acompanhando a câmera), os dois jogadores (pés e pose), a bola que o motor seguiu (e os outros
+       candidatos, em cinza), os quiques e cada batida com quem bateu e o golpe ── */
+    var LIG = [[11, 12], [11, 13], [13, 15], [12, 14], [14, 16], [11, 23], [12, 24], [23, 24], [23, 25], [25, 27], [24, 26], [26, 28]];
+    var CURTO_G = { saque: "Saque", forehand: "Forehand", backhand: "Backhand", voleio: "Voleio", smash: "Smash", devolucao: "Devolução", drop: "Drop", lob: "Lob" };
+    function pararRastro() {
+      S.rastro = null;
+      var c = el.querySelector("canvas.vs-rastro"), l = el.querySelector('[data-r="rastroLeg"]');
+      if (c) c.remove(); if (l) l.remove();
+    }
+    function verRastreamento(i) {
+      var p = S.pontos[i], v = api.video, slot = el.querySelector('[data-r="slotVideo"]');
+      if (!p || p.k == null || !S.dados || !S.dados[p.k] || !v || !slot) return;
+      pararRastro();
+      var id = { i: i }; S.rastro = id;
+      slot.style.position = "relative";
+      var cv = document.createElement("canvas"); cv.className = "vs-rastro";
+      cv.style.cssText = "position:absolute;left:0;top:0;pointer-events:none;z-index:2";
+      slot.appendChild(cv);
+      var n = nomes(), leg = document.createElement("div"); leg.setAttribute("data-r", "rastroLeg"); leg.className = "qm-msg";
+      leg.innerHTML = '<b>Rastreamento do ponto ' + p.n + '</b> · <span style="color:#6c3">━ quadra</span> · <span style="color:#F08A3C">● ' + esc(n.A) + '</span> · <span style="color:#4F8EF7">● ' + esc(n.B) + '</span> · <span style="color:#FFE14D">● bola seguida</span> · <span style="color:#999">● outros candidatos</span> · <span style="color:#FF4FD8">✕ quique</span> <button type="button" data-a="fecharRastro">Fechar rastreamento</button>';
+      slot.appendChild(leg);
+      leg.querySelector('[data-a="fecharRastro"]').onclick = pararRastro;
+      if (slot.scrollIntoView) slot.scrollIntoView({ block: "start", behavior: "smooth" });
+      api.tocar(p.video.falta != null ? p.video.falta : p.video.ini, p.video.fim);
+      var laco = function () {
+        if (S.rastro !== id || !cv.isConnected) return;
+        desenharRastro(cv, v, p, api.tempo ? api.tempo() : v.currentTime);
+        requestAnimationFrame(laco);
+      };
+      requestAnimationFrame(laco);
+    }
+    function desenharRastro(cv, v, p, t) {
+      /* o trecho lido que contém este instante (o ponto pode começar num 1º saque que foi falta, que é outro trecho) */
+      var kk = p.k; S.dados.forEach(function (dd, j) { if (t >= dd.ini - 0.05 && t <= dd.fim + 0.05 && (kk === p.k ? !(t >= S.dados[p.k].ini && t <= S.dados[p.k].fim) : false)) kk = j; });
+      var QA = raiz.QLQuadraAuto, d = S.dados[kk], an = S.an && S.an[kk], cal = S.ctx;
+      var vw = v.clientWidth, vh = v.clientHeight; if (!vw || !vh) return;
+      cv.style.left = v.offsetLeft + "px"; cv.style.top = v.offsetTop + "px";
+      if (cv.width !== vw || cv.height !== vh) { cv.width = vw; cv.height = vh; }
+      var x = cv.getContext("2d"); x.clearRect(0, 0, vw, vh);
+      /* área da imagem dentro do <video> (o vídeo fica inteiro, com faixas se a proporção não bate) */
+      var ar = v.videoWidth && v.videoHeight ? v.videoWidth / v.videoHeight : S.asp, cw = vw, ch = vw / ar;
+      if (ch > vh) { ch = vh; cw = vh * ar; }
+      var ox = (vw - cw) / 2, oy = (vh - ch) / 2;
+      var perto = function (lista, t, lim) { var m = null; (lista || []).forEach(function (q) { if (Math.abs(q.t - t) <= lim && (!m || Math.abs(q.t - t) < Math.abs(m.t - t))) m = q; }); return m; };
+      var q = perto(d.quadros, t, 0.2), comJog = perto(d.quadros.filter(function (z) { return z.jog && z.jog.length; }), t, 0.3);
+      var G = (q && q.G) || (comJog && comJog.G) || null, inv = G && QA && QA.inverter ? QA.inverter(G) : null;
+      var px = function (pt) { var r = inv ? VS.aplicarH(inv, pt) : pt; return [ox + r[0] * cw, oy + r[1] * ch]; };
+      var linha = function (a, b) { x.beginPath(); x.moveTo(a[0], a[1]); x.lineTo(b[0], b[1]); x.stroke(); };
+      var lw = Math.max(1.5, cw / 420);
+      /* quadra */
+      x.strokeStyle = "rgba(102,204,51,.9)"; x.lineWidth = lw;
+      VS.linhasQuadra().forEach(function (sg) { linha(px(VS.aplicarH(cal.Hi, sg[0])), px(VS.aplicarH(cal.Hi, sg[1]))); });
+      /* jogadores */
+      var n = nomes(), ladoA = p.atletaPerto ? "perto" : "longe";
+      if (comJog) comJog.jog.forEach(function (j) {
+        if (!j.pe) return;
+        var lado = VS.aplicarH(cal.H, j.pe)[1] < 0 ? "perto" : "longe", ehA = lado === ladoA, cor = ehA ? "#F08A3C" : "#4F8EF7";
+        x.strokeStyle = cor; x.fillStyle = cor; x.lineWidth = lw * 1.4;
+        if (j.lm) LIG.forEach(function (l) { var a = j.lm[l[0]], b = j.lm[l[1]]; if (a && b && (a.v == null || a.v > 0.3) && (b.v == null || b.v > 0.3)) linha(px([a.x, a.y]), px([b.x, b.y])); });
+        var pe = px(j.pe); x.beginPath(); x.arc(pe[0], pe[1], lw * 3, 0, 7); x.fill();
+        x.font = "bold " + Math.round(Math.max(11, cw / 70)) + "px system-ui,sans-serif"; x.fillText(ehA ? n.A : n.B, pe[0] + lw * 4, pe[1] + lw * 2);
+      });
+      /* bola: outros candidatos do quadro (cinza) e a trilha que o motor seguiu (amarelo) */
+      if (q && q.bolas) { x.fillStyle = "rgba(170,170,170,.75)"; q.bolas.forEach(function (b) { var c = px(b); x.beginPath(); x.arc(c[0], c[1], lw * 1.6, 0, 7); x.fill(); }); }
+      var bats = (an && an.batidas) || [];
+      bats.forEach(function (b) {
+        (b.trilha || []).forEach(function (pt) {
+          var dt = t - pt.t; if (dt < -0.02 || dt > 0.5) return;
+          var c = px([pt.x, pt.y]); x.fillStyle = "rgba(255,225,77," + (1 - dt / 0.55).toFixed(2) + ")";
+          x.beginPath(); x.arc(c[0], c[1], lw * (dt < 0.05 ? 3.4 : 2.2), 0, 7); x.fill();
+        });
+        if (b.quique && b.quique.img && Math.abs(t - b.quique.t) < 0.9) {
+          var c = px(b.quique.img), r = lw * 5; x.strokeStyle = "#FF4FD8"; x.lineWidth = lw * 1.6;
+          linha([c[0] - r, c[1] - r], [c[0] + r, c[1] + r]); linha([c[0] - r, c[1] + r], [c[0] + r, c[1] - r]);
+        }
+      });
+      /* batida da hora: quem bateu e o golpe, como o scout registrou */
+      (kk === p.k ? p.batidas || [] : []).forEach(function (b, k) {
+        if (Math.abs(t - b.t) > 0.45) return;
+        var ab = bats[k], onde = ab && ab.P ? px(VS.aplicarH(cal.Hi, ab.P)) : [ox + 12, oy + 24];
+        var txt = (b.quem === "nos" ? n.A : n.B) + " · " + (CURTO_G[b.golpe] || "batida") + (b.direcao ? " " + b.direcao : "");
+        x.font = "bold " + Math.round(Math.max(12, cw / 55)) + "px system-ui,sans-serif";
+        var w = x.measureText(txt).width + 12, X = Math.min(Math.max(ox + 4, onde[0] - w / 2), ox + cw - w - 4), Y = Math.max(oy + 4, onde[1] - lw * 26);
+        x.fillStyle = "rgba(0,0,0,.72)"; x.fillRect(X, Y, w, Math.max(18, cw / 40)); x.fillStyle = "#fff"; x.fillText(txt, X + 6, Y + Math.max(13, cw / 55));
+      });
+      x.fillStyle = "rgba(0,0,0,.6)"; x.fillRect(ox + 4, oy + ch - 22, 128, 18); x.fillStyle = "#fff"; x.font = "12px system-ui,sans-serif";
+      x.fillText("t = " + t.toFixed(2) + " s" + (inv ? " · câmera móvel" : ""), ox + 10, oy + ch - 9);
     }
     function aplicarEdicao(p, k, v) {
       p.auto = p.auto || {};
@@ -321,7 +415,7 @@
         '<div class="vs-ch">' + chip("Último golpe de " + n.A, ROT(GOLPES, p.golpe), a.golpe) + chip("Direção", ROT(DIRECOES, p.direcao), a.direcao) + chip("Efeito", ROT(EFEITOS, p.efeito), a.efeito) +
         (p.corrida ? chip("", "na corrida", a.corrida) : "") + (p.rede ? chip("", "subiu à rede", a.rede) : "") + chip("Situação", ROT(SITUACOES, p.situacao), a.situacao) + chip("Decisão", ROT(DECISOES, p.dec), a.dec) + "</div>" +
         (p.batidas && p.batidas.length ? '<div class="vs-seq">' + seqHTML(p, n) + "</div>" : "") +
-        '<div class="qm-row" style="margin-top:8px"><button data-i="' + i + '" data-acao="ver">▶ Ver</button><button data-i="' + i + '" data-acao="editar">' + (S.aberto === i ? "Fechar" : "Editar / completar") + '</button><button class="qm-x" data-i="' + i + '" data-acao="remover">Não era ponto</button><span class="qm-msg">depois: ' + esc(p.placarDepois || "") + "</span></div>";
+        '<div class="qm-row" style="margin-top:8px"><button data-i="' + i + '" data-acao="ver">▶ Ver</button>' + (p.k != null && S.dados && S.dados[p.k] ? '<button data-i="' + i + '" data-acao="rastro">👁 Ver rastreamento</button>' : "") + '<button data-i="' + i + '" data-acao="editar">' + (S.aberto === i ? "Fechar" : "Editar / completar") + '</button><button class="qm-x" data-i="' + i + '" data-acao="remover">Não era ponto</button><span class="qm-msg">depois: ' + esc(p.placarDepois || "") + "</span></div>";
       if (S.aberto === i) {
         h += '<div class="vs-ed" data-ed="' + i + '">' +
           "<label>Como terminou" + sel("fim", FIM.map(function (f) { return [f[0], f[1].replace("do atleta", "de " + n.A).replace("do adversário", "de " + n.B)]; }), p.fim) + "</label>" +

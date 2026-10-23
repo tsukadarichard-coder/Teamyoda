@@ -254,6 +254,7 @@
         var d = cx.getImageData(0, 0, W, Hh).data, sb = det.quadro(t, d, G);
         if (sb) { var qa = quadros[quadros.length - 1]; if (qa && Math.abs(qa.t - sb.t) < 0.001) qa.bolas = sb.bolas; }
         var q = { t: Math.round(t * 1000) / 1000, jog: [], bolas: [] };
+        if (G) q.G = G.map(function (x) { return Math.round(x * 1e6) / 1e6; }); // imagem deste quadro → imagem de referência (câmera em movimento)
         while (ip < alvoPose.length && alvoPose[ip] < t - 0.5 / fps) ip++;
         if (ip < alvoPose.length && alvoPose[ip] <= t + 0.5 / fps) {
           while (ip < alvoPose.length && alvoPose[ip] <= t + 0.5 / fps) ip++;

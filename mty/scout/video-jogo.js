@@ -46,11 +46,11 @@
     el.classList.add("qlm");
     el.innerHTML = '<div class="qm-card"><div id="vj-cota"></div><div class="qm-row"><label class="qm-btn">Escolher vídeo da partida<input data-r="arq" type="file" accept="' + ACEITA + '" hidden></label>' +
       '<label>Atleta <input type="text" data-r="nA" style="width:130px"></label><label>Adversário <input type="text" data-r="nB" value="Adversário" style="width:130px"></label>' +
-      '<button class="qm-pri" data-r="go" disabled>Detectar pontos</button></div>' +
+      '<button class="qm-pri" data-r="go" disabled>Analisar de novo</button></div>' +
       '<div class="qm-row" style="margin-top:8px"><label style="flex:1;min-width:220px">ou link do YouTube <input type="url" data-r="yt" placeholder="https://youtu.be/…" style="width:100%"></label><button data-r="ytgo">Abrir link</button></div>' +
       '<div class="qm-row" style="margin-top:8px"><label>Sensibilidade <input data-r="sens" type="range" min="1" max="10" value="5"></label><label>Pausa que separa pontos (s) <input data-r="gap" type="number" value="6" min="2" max="30" style="width:70px"></label><button data-r="re" disabled>Reprocessar</button></div>' +
       '<div class="qm-row" data-r="prog" style="display:none;margin-top:10px"><progress data-r="barra" max="1" value="0" style="flex:1;min-width:160px;height:10px;accent-color:#0B3B2E"></progress><button data-r="parar">Cancelar</button></div>' +
-      '<p class="qm-msg" data-r="st">Pode enviar a partida inteira, em qualquer formato — inclusive vídeos gravados no celular (MP4, MOV, HEVC), MKV, AVI e MTS. O vídeo não sai do aparelho: o som é lido aqui mesmo, em partes. Câmera fixa e perto da quadra captam melhor o som da bola.</p></div>' +
+      '<p class="qm-msg" data-r="st">Pode enviar a partida inteira, em qualquer formato — inclusive vídeos gravados no celular (MP4, MOV, HEVC), MKV, AVI e MTS. Ao escolher o vídeo, a análise começa sozinha: acha os pontos, rastreia quadra, jogadores e bola e monta o scout, que vai salvo para o caderno do jogador. Em cada ponto, "Ver rastreamento" mostra o que foi seguido. O vídeo não sai do aparelho. Câmera fixa e perto da quadra captam melhor o som da bola.</p></div>' +
       '<div data-r="rev" hidden><div class="qm-card"><div class="qm-kp" data-r="kp"></div>' +
       '<div class="vj-grid" style="margin-top:12px"><div><video class="vj-video" data-r="v" controls playsinline></video><p class="qm-msg" data-r="aviso" hidden></p>' +
       '<div class="qm-row" style="margin-top:8px"><button data-r="ant">◀ Anterior</button><button data-r="rep">↻ Rever</button><button data-r="prox">Próximo ▶</button><button data-r="add">+ Ponto aqui</button></div>' +
@@ -146,7 +146,11 @@
       st.url = URL.createObjectURL(f); st.arq = f; st.en = null; st.vez++; st.fim = null;
       var vez = st.vez, ok = function () { if (vez === st.vez && !v.videoWidth) modoClipes(true); };
       v.onloadedmetadata = ok; v.onerror = function () { if (vez === st.vez) modoClipes(true); }; v.src = st.url;
-      q("go").disabled = !!(st.cota && !st.cota.liberado); msg("Vídeo carregado: " + f.name + " (" + tamanho(f.size) + "). Toque em Detectar pontos.");
+      q("go").disabled = !!(st.cota && !st.cota.liberado);
+      /* como na análise de movimento: escolheu o vídeo, a análise começa sozinha (pontos → rastreamento → scout salvo no caderno) */
+      if (st.cota && !st.cota.liberado) { msg("Vídeo carregado: " + f.name + " (" + tamanho(f.size) + ")."); cota(); return; }
+      msg("Vídeo carregado: " + f.name + " (" + tamanho(f.size) + "). Analisando automaticamente…");
+      processa();
     };
     function progresso(fr, t) { q("barra").value = Math.max(0, Math.min(1, fr || 0)); if (t) msg(t); }
     async function decodifica() {
@@ -211,7 +215,7 @@
       st.scoutUI = raiz.QLVideoScoutUI.montar(q("scout"), {
         arquivo: function () { return st.arq; }, video: v, batidas: function () { return st.hits || []; }, duracao: function () { return st.dur; },
         nomes: function () { return { A: q("nA").value, B: q("nB").value }; }, clipes: function () { return st.clipes; },
-        tocar: function (ini, fim) { tocarJanela(ini, fim, ""); },
+        tocar: function (ini, fim) { tocarJanela(ini, fim, ""); }, tempo: agora,
         moverVideo: function (slot) { if (v.parentNode !== slot) { slot.appendChild(v); q("rev").hidden = true; } },
         cotaLiberada: function () { return !(st.cota && !st.cota.liberado); },
         autoIniciar: !(st.cota && !st.cota.liberado), // o scout completo começa sozinho depois de achar os pontos
