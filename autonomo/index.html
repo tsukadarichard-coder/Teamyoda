@@ -11749,7 +11749,19 @@ function RevisaoTurma({ turma, alunos, setAlunos, aoAtualizarTurma, podeEditar }
     </div>
   );
 }
-/* Atletas da academia no QuadraLab Player: o treinador tem um código fixo (o atleta digita no Player e o vínculo nasce ativo) e pode pedir o vínculo pelo e-mail do atleta (ele aprova no app). */
+/* Atletas da academia: o treinador tem um código fixo (o atleta digita no QuadraLab Competição, com a mesma conta do Player, e o vínculo nasce ativo)
+   e pode pedir o vínculo pelo e-mail do atleta (ele aprova no app). A mensagem pronta leva o passo a passo inteiro: link, conta, papel, código e atalho na tela. */
+function mensagemCodigoAcademia(codigo) {
+  return "Olá! Para entrar na equipe da academia no QuadraLab (app grátis para acompanhar seus treinos, jogos e torneios), siga o passo a passo:\n\n" +
+    "1) No celular, abra: https://quadralab.com.br/competicao/#/criar\n   (no iPhone use o Safari; no Android, o Chrome. Se abrir dentro do WhatsApp, toque nos três pontinhos e em \u201cAbrir no navegador\u201d.)\n" +
+    "2) Toque em \u201cCriar minha conta grátis\u201d e preencha nome, e-mail e uma senha. Se você já usa o QuadraLab Player, toque em \u201cEntrar\u201d e use o mesmo e-mail e senha.\n" +
+    "3) Em \u201cQual é o seu papel?\u201d, escolha \u201cAtleta\u201d, informe a sua data de nascimento e toque em \u201cContinuar\u201d.\n" +
+    "4) Na tela Início, no cartão \u201cTenho o código do meu treinador\u201d, digite o código " + codigo + " e toque em \u201cVincular ao treinador\u201d. Pronto: o vínculo é feito na hora.\n\n" +
+    "Para deixar o app na tela do celular (fica como um aplicativo, sem baixar nada da loja):\n" +
+    "- iPhone: abra o link no Safari, toque em Compartilhar (quadrado com seta para cima) e depois em \u201cAdicionar à Tela de Início\u201d.\n" +
+    "- Android: abra o link no Chrome, toque nos três pontinhos (canto de cima) e depois em \u201cInstalar app\u201d ou \u201cAdicionar à tela inicial\u201d.\n\n" +
+    "Qualquer dúvida, é só responder esta mensagem.";
+}
 function CartaoVinculoAcademia() {
   const [aberto, setAberto] = useState(false);
   const [codigo, setCodigo] = useState("");
@@ -11764,22 +11776,33 @@ function CartaoVinculoAcademia() {
   }
   async function pedir(ev) {
     ev.preventDefault(); setOcupado(true); setMsg(null);
-    try { const r = await chamarAoVivo({ acao: "pedirVinculo", email }); setMsg({ t: "Pedido enviado a " + r.atleta + ". Assim que ele aprovar no QuadraLab Player, o atleta aparece no scout ao vivo." }); setEmail(""); }
+    try { const r = await chamarAoVivo({ acao: "pedirVinculo", email }); setMsg({ t: "Pedido enviado a " + r.atleta + ". Assim que ele aprovar no QuadraLab Competição (em Início), o atleta aparece no scout ao vivo." }); setEmail(""); }
     catch (e) { setMsg({ erro: true, t: e.message }); }
     setOcupado(false);
   }
   return (
     <div className="mb-5" data-vinculo-academia style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "10px 14px" }}>
       <button onClick={abrir} className="w-full text-left" style={{ background: "none", border: "none", cursor: "pointer", padding: 0, minHeight: 36 }}>
-        <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>Atletas da academia no QuadraLab Player {aberto ? "▾" : "▸"}</span>
+        <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>Atletas da academia no QuadraLab Competição {aberto ? "▾" : "▸"}</span>
       </button>
       {aberto && (
         <div style={{ marginTop: 8 }}>
-          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Peça ao atleta o código abaixo no Player, em “Tenho o código do meu treinador”. O vínculo é feito na hora, mesmo para menores (o termo da matrícula cobre).</p>
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Envie ao atleta o código abaixo com as instruções: ele cria a conta grátis no QuadraLab Competição (ou entra com a mesma conta do Player) e digita o código em “Tenho o código do meu treinador”. O vínculo é feito na hora, mesmo para menores (o termo da matrícula cobre).</p>
           <p data-codigo-academia style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, letterSpacing: 3, margin: "8px 0" }}>{codigo || "…"}</p>
-          {codigo && <Botao pequeno variante="vazio" onClick={() => { try { navigator.clipboard.writeText(codigo); setMsg({ t: "Código copiado." }); } catch (e) { /* sem área de transferência */ } }}>Copiar código</Botao>}
+          {codigo && (
+            <div className="flex flex-wrap" style={{ gap: 8 }}>
+              <a data-enviar-instrucoes href={"https://wa.me/?text=" + encodeURIComponent(mensagemCodigoAcademia(codigo))} target="_blank" rel="noopener noreferrer"
+                style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 600, padding: "7px 13px", borderRadius: 10, background: C.quadra, color: "#fff", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>Enviar instruções pelo WhatsApp</a>
+              <Botao pequeno variante="vazio" onClick={async () => { try { await navigator.clipboard.writeText(mensagemCodigoAcademia(codigo)); setMsg({ t: "Mensagem com as instruções copiada. Cole no WhatsApp, SMS ou e-mail." }); } catch (e) { setMsg({ erro: true, t: "Não consegui copiar. Use o botão do WhatsApp." }); } }}>Copiar instruções</Botao>
+              <Botao pequeno variante="vazio" onClick={async () => { try { await navigator.clipboard.writeText(codigo); setMsg({ t: "Código copiado." }); } catch (e) { /* sem área de transferência */ } }}>Copiar só o código</Botao>
+            </div>
+          )}
+          {codigo && (
+            <details style={{ marginTop: 8 }}><summary style={{ ...prosa, fontSize: 12.5, cursor: "pointer" }}>Ver a mensagem que o atleta recebe</summary>
+              <p style={{ ...prosa, fontSize: 12, whiteSpace: "pre-line", color: C.grafite, marginTop: 6 }}>{mensagemCodigoAcademia(codigo)}</p></details>
+          )}
           <form onSubmit={pedir} style={{ marginTop: 12 }}>
-            <label style={{ ...prosa, fontSize: 12.5 }}>Ou peça pelo e-mail do atleta (ele precisa já ter conta de atleta no Player)</label>
+            <label style={{ ...prosa, fontSize: 12.5 }}>Ou peça pelo e-mail do atleta (ele precisa já ter conta de atleta no QuadraLab Competição; ele aprova em Início)</label>
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@do.atleta" style={{ width: "100%", padding: "10px 12px", border: "1px solid " + C.linha, borderRadius: 8, margin: "6px 0", fontSize: 14 }} />
             <Botao pequeno variante="saibro" type="submit" disabled={ocupado || !email}>{ocupado ? "Enviando…" : "Pedir vínculo"}</Botao>
           </form>

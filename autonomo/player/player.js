@@ -2957,9 +2957,26 @@
     if (v.status === "aguardando") return v.origem === "academia" ? "Pedido do treinador da academia: aguardando a sua aprovação" : "A pessoa usou o código: aguardando aprovação";
     return ROTULO_VINC[v.status] || v.status;
   }
+  /* convite completo para mandar pelo WhatsApp (ou copiar): onde abrir, como criar a conta, qual papel escolher, como colocar o app
+     na tela inicial do celular, onde digitar o código e o que acontece depois. Quem já usa o QuadraLab Player entra com a mesma conta. */
+  var LINK_COMP = "https://quadralab.com.br/competicao/";
+  function passosInstalarTexto() {
+    return "Para deixar o app na tela do celular (fica como um aplicativo, sem baixar nada da loja):\n" +
+      "- iPhone: abra o link no Safari, toque em Compartilhar (quadrado com seta para cima) e depois em \u201cAdicionar à Tela de Início\u201d.\n" +
+      "- Android: abra o link no Chrome, toque nos três pontinhos (canto de cima) e depois em \u201cInstalar app\u201d ou \u201cAdicionar à tela inicial\u201d.";
+  }
   function mensagemConvite(v) {
-    var papel = v.tipo === "treinador" ? "treinador" : "responsável";
-    return "Oi! Convidei você para acompanhar a minha preparação no QuadraLab Competição, como " + papel + ".\n\n1) Crie a sua conta grátis como " + papel + ": https://quadralab.com.br/competicao/#/criar\n2) Em Início, digite o código: " + v.codigo + "\n3) Eu aprovo o pedido por aqui.\n\nO código vale até " + dataISO(v.expiraEm) + ".";
+    var papel = v.tipo === "treinador" ? "Treinador" : "Responsável";
+    var nome = ((estado.dados && estado.dados.perfil && estado.dados.perfil.nome) || "").split(" ")[0];
+    return "Oi! " + (nome ? "Aqui é " + nome + ". " : "") + "Convidei você para acompanhar a minha preparação no QuadraLab Competição, como " + papel.toLowerCase() + ". É grátis.\n\n" +
+      "Passo a passo:\n" +
+      "1) No celular, abra: " + LINK_COMP + "#/criar\n   (no iPhone use o Safari; no Android, o Chrome. Se abrir dentro do WhatsApp, toque nos três pontinhos e em \u201cAbrir no navegador\u201d.)\n" +
+      "2) Toque em \u201cCriar minha conta grátis\u201d e preencha nome, e-mail e uma senha. Se você já usa o QuadraLab Player, toque em \u201cEntrar\u201d e use o mesmo e-mail e senha.\n" +
+      "3) Em \u201cQual é o seu papel?\u201d, escolha \u201c" + papel + "\u201d e toque em \u201cContinuar\u201d.\n" +
+      "4) Na tela Início, abra \u201cEntrar na equipe de um atleta\u201d, digite o código " + v.codigo + " e toque em \u201cUsar código\u201d.\n" +
+      "5) Pronto: eu recebo o pedido e aprovo por aqui" + (v.tipo === "treinador" ? " (se eu for menor de idade, quem aprova é o meu responsável)" : "") + ". Depois disso você já me vê no seu Início.\n\n" +
+      passosInstalarTexto() + "\n\n" +
+      "O código vale até " + dataISO(v.expiraEm) + " e só pode ser usado uma vez.";
   }
   function vinculoMeuHtml(v, comp) {
     var quem = v.pessoa ? esc(v.pessoa.nome) + (v.pessoa.email ? ' <span class="nota">(' + esc(v.pessoa.email) + ")</span>" : "") : "";
@@ -2967,8 +2984,8 @@
     if (v.status === "convite") {
       var papel = v.tipo === "treinador" ? "treinador" : "responsável";
       h += '<p class="olho" style="margin-top:8px">Código de convite</p><p class="comp-codigo" aria-label="Código do convite">' + esc(v.codigo) + '</p><p class="nota">Vale até ' + esc(dataISO(v.expiraEm)) + ". Só pode ser usado uma vez, por uma pessoa.</p>" +
-        '<div class="acoes"><a class="btn btn-primario" href="https://wa.me/?text=' + encodeURIComponent(mensagemConvite(v)) + '" target="_blank" rel="noopener noreferrer">Enviar pelo WhatsApp<span class="sr"> (abre em nova aba)</span></a><button type="button" class="btn btn-secundario" data-copiar="' + esc(v.codigo) + '">Copiar código</button><button type="button" class="btn btn-texto" data-rev="' + v.id + '">Cancelar convite</button></div>' +
-        '<details class="det" style="margin-top:8px"><summary>O que a pessoa precisa fazer</summary><ol class="beneficios" style="margin-top:8px"><li>Criar a conta grátis em quadralab.com.br/competicao, escolhendo o papel de <strong>' + papel + '</strong>.</li><li>Em Início, digitar o código <strong>' + esc(v.codigo) + '</strong> e tocar em “Usar código”.</li><li>Esperar a sua aprovação. Você a vê aqui, em “Quem acompanha você”.</li></ol></details>';
+        '<div class="acoes"><a class="btn btn-primario" href="https://wa.me/?text=' + encodeURIComponent(mensagemConvite(v)) + '" target="_blank" rel="noopener noreferrer">Enviar pelo WhatsApp<span class="sr"> (abre em nova aba)</span></a><button type="button" class="btn btn-secundario" data-copiar="' + esc(mensagemConvite(v)) + '" data-copiado="Mensagem com as instruções copiada. Cole no SMS, e-mail ou outro app.">Copiar mensagem com as instruções</button><button type="button" class="btn btn-texto" data-copiar="' + esc(v.codigo) + '">Copiar só o código</button><button type="button" class="btn btn-texto" data-rev="' + v.id + '">Cancelar convite</button></div>' +
+        '<details class="det" style="margin-top:8px"><summary>O que a pessoa precisa fazer</summary><ol class="beneficios" style="margin-top:8px"><li>Abrir <strong>quadralab.com.br/competicao</strong> no celular (Safari no iPhone, Chrome no Android).</li><li>Tocar em “Criar minha conta grátis” (ou em “Entrar”, se já usa o QuadraLab Player, com o mesmo e-mail e senha).</li><li>Em “Qual é o seu papel?”, escolher <strong>' + papel + '</strong>.</li><li>Em Início, abrir “Entrar na equipe de um atleta”, digitar o código <strong>' + esc(v.codigo) + '</strong> e tocar em “Usar código”.</li><li>Esperar a sua aprovação. Você a vê aqui, em “Quem acompanha você”.</li><li>Para ter o app na tela do celular: no iPhone, Compartilhar e “Adicionar à Tela de Início”; no Android, três pontinhos e “Instalar app”.</li></ol><p class="nota" style="margin-top:6px">Tudo isso já vai escrito na mensagem do WhatsApp.</p></details>';
     } else if (v.status === "aguardando") {
       var soResp = (v.tipo === "treinador" && comp.menor && v.origem !== "academia") || (v.tipo === "responsavel" && comp.menor && comp.ativosResp > 0);
       h += soResp ? '<p class="nota"><strong>Falta a aprovação:</strong> como você é menor de idade, ' + (v.tipo === "treinador" ? "quem aprova o treinador" : "quem aprova mais um responsável") + " é um responsável que já está vinculado. Avise-o para abrir o app dele.</p>"
@@ -3421,7 +3438,7 @@
     if (window.QL_COMP_HUB) window.QL_COMP_HUB(comp, s);
     anexarCartaoInstalar();
     app.querySelectorAll("[data-copiar]").forEach(function (b) {
-      b.addEventListener("click", function () { var c = b.getAttribute("data-copiar"); (navigator.clipboard ? navigator.clipboard.writeText(c) : Promise.reject()).then(function () { toast("Código copiado."); }, function () { toast("Copie manualmente: " + c); }); });
+      b.addEventListener("click", function () { var c = b.getAttribute("data-copiar"); (navigator.clipboard ? navigator.clipboard.writeText(c) : Promise.reject()).then(function () { toast(b.getAttribute("data-copiado") || "Código copiado."); }, function () { toast("Copie manualmente: " + c); }); });
     });
     app.querySelectorAll("[data-rev]").forEach(function (b) {
       b.addEventListener("click", function () { if (window.confirm("Encerrar este vínculo? A pessoa deixa de ver os seus dados na hora.")) acaoComp({ acao: "revogar", id: b.getAttribute("data-rev") }, b, "Vínculo encerrado."); });
