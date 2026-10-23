@@ -345,3 +345,10 @@ a { color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .anima .revela, .anima .revela-sobe { opacity: 1; transform: none; transition: none; }
 }
+
+/* QuadraLab Hub: profissionais */
+.hub-prof-passos { list-style: none; margin: 0 0 var(--e3); padding: 0; display: grid; gap: 12px; max-width: 70ch; }
+.hub-prof-passos li { padding-left: 14px; border-left: 3px solid var(--linha); line-height: 1.55; }
+.hub-prof-acoes { display: flex; flex-wrap: wrap; gap: 12px; }
+.hub-prof-nota { margin-top: 16px; color: var(--cinza); max-width: 70ch; }
+@media (min-width: 900px) { .hub-prof-passos { grid-template-columns: repeat(3, 1fr); max-width: none; } }

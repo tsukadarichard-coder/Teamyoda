@@ -1,3 +1,5 @@
 
 # capturas geradas pelo smoke do Olhar do treinador
 autonomo/tests/capturas-olhar/
+# capturas geradas pelo smoke do QuadraLab Hub
+autonomo/tests/capturas-hub/

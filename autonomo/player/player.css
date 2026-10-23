@@ -767,3 +767,58 @@ video.olhar-midia { background: #000; max-height: 70vh; }
 .abas-planos { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; padding: 0; list-style: none; }
 .abas-planos a { display: inline-flex; align-items: center; min-height: 44px; padding: 8px 14px; border: 1.5px solid var(--linha); border-radius: 99px; background: var(--cal); color: var(--tinta); font-weight: 600; font-size: 15px; text-decoration: none; }
 .abas-planos a[aria-current="page"] { background: var(--quadra); border-color: var(--quadra); color: #fff; }
+
+/* ══ QuadraLab Hub: encontrar um treinador, perfil, pedido e Meus atendimentos ══
+   A cor de destaque vem de --saibro: laranja no Player, azul na Competição (competicao.css redefine a variável). */
+.hub-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.hub-lista > .cartao + .cartao { margin-top: 0; }
+.hub-card-topo { display: flex; gap: 12px; align-items: center; min-width: 0; }
+.hub-card-topo > div { min-width: 0; }
+.hub-foto { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; flex: none; background: var(--papel); }
+.hub-foto-g { width: 80px; height: 80px; }
+.hub-foto-vazia { display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 22px; color: var(--grafite); border: 1px solid var(--linha); }
+.hub-nome { font-size: 18px; margin: 0; overflow-wrap: anywhere; }
+.hub-esp { margin-top: 10px; font-weight: 600; color: var(--saibro-texto); }
+.hub-preco-txt { margin-top: 6px; }
+.hub-card .acoes { margin-top: 10px; }
+.hub-filtros .det summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; align-items: center; }
+.hub-preco { display: grid; grid-template-columns: 1fr 110px; gap: 8px; }
+.hub-preco select, .hub-preco input { min-width: 0; }
+.hub-grade { display: grid; grid-template-columns: 52px repeat(7, minmax(30px, 1fr)); gap: 4px; align-items: center; font-size: 12.5px; }
+.hub-grade-dia { text-align: center; color: var(--grafite); font-weight: 600; }
+.hub-grade-turno { color: var(--grafite); font-weight: 600; }
+.hub-grade-cel { display: block; position: relative; height: 36px; cursor: pointer; }
+.hub-grade-cel input { position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.hub-grade-cel span { display: block; height: 100%; border: 1px solid var(--linha); border-radius: 8px; background: var(--cal); }
+.hub-grade-cel input:checked + span { background: var(--saibro); border-color: var(--saibro); }
+.hub-grade-cel input:checked + span::after { content: "✓"; color: #fff; display: flex; align-items: center; justify-content: center; height: 100%; font-weight: 700; }
+.hub-grade-cel input:focus-visible + span { outline: 3px solid var(--saibro); outline-offset: 1px; }
+.hub-vazio h2 { font-size: 18px; }
+.hub-serv-topo { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.hub-serv-topo h3 { margin: 0; font-size: 16px; }
+.hub-previa { margin-top: 16px; background: var(--saibro-fundo); border-radius: 12px; padding: 12px 14px; }
+.hub-dl { display: grid; grid-template-columns: minmax(96px, auto) 1fr; gap: 4px 12px; margin: 6px 0 0; font-size: 14.5px; }
+.hub-dl dt { color: var(--grafite); font-weight: 600; }
+.hub-dl dd { margin: 0; overflow-wrap: anywhere; }
+.hub-enviado h1 { font-size: 22px; }
+.hub-item { padding: 0; }
+.hub-item-link { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; color: inherit; text-decoration: none; min-height: 44px; }
+.hub-item-topo { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.hub-badge { background: var(--saibro); color: #fff; border-radius: 99px; font-size: 12.5px; font-weight: 700; padding: 2px 9px; }
+.hub-proxima { font-weight: 600; color: var(--saibro-texto); font-size: 14px; }
+.hub-avisos p { margin: 0 0 4px; }
+.hub-original summary { cursor: pointer; min-height: 32px; }
+.hub-proposta { border-left: 4px solid var(--linha); }
+.hub-prop-vigente { border-left-color: var(--saibro); }
+.hub-prop-aceita { border-left-color: var(--marca); }
+.hub-prop-substituida { opacity: .72; }
+.hub-msgs { display: flex; flex-direction: column; gap: 8px; max-height: 60vh; overflow-y: auto; padding: 4px 0; }
+.hub-msg { align-self: flex-start; max-width: 88%; background: var(--cal); border: 1px solid var(--linha); border-radius: 14px; padding: 8px 12px; }
+.hub-msg p { margin: 0; overflow-wrap: anywhere; }
+.hub-msg-minha { align-self: flex-end; background: var(--saibro-fundo); border-color: transparent; }
+.hub-msg-sis { align-self: center; background: none; border: none; text-align: center; color: var(--grafite); font-size: 13.5px; }
+.hub-den { min-height: 0; padding: 0; font-size: 12.5px; }
+.hub-enviar { display: flex; gap: 8px; align-items: flex-end; margin-top: 12px; }
+.hub-enviar textarea { flex: 1; min-height: 52px; min-width: 0; }
+.hub-resposta { margin-top: 6px; padding-left: 10px; border-left: 3px solid var(--linha); }
+.opcao-linha { display: flex; gap: 8px; align-items: center; min-height: 44px; }

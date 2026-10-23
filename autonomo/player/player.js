@@ -575,6 +575,7 @@
         '<a class="indicador" href="' + (prog ? "#/treinos" : recursos().planejamento ? "#/planejar/" + esc(estrategia.id) : "#/treinos") + '"' + (tituloProg ? ' title="' + esc(tituloProg) + '"' : "") + '><span class="ind-rotulo">Treinos</span><strong>' + (prog ? (podeRegistrar() ? prog.concluidos + " de " + prog.total + " treinos concluídos" : prog.total + " treinos previstos") : "Sem programa") + '</strong><span class="ind-nota clamp2">' + (prog ? esc(tituloProg) : "Organizar meus treinos") + "</span></a></div>";
     }
     if (estrategia) html += cartaoPartidasInicio();
+    if (window.QL_HUB) html += window.QL_HUB.cartaoInicio();
     html += '<section class="cartao compacto" style="margin-top:14px" aria-labelledby="t-plano-ini"><h2 id="t-plano-ini">Seu plano</h2><p class="nota" style="margin-top:6px"><strong>' + esc(assinaturaDoJogador().nome) + '</strong> · veja o que o seu plano inclui, compare os planos ou contrate um atendimento com o Richard.</p>' +
       '<div class="acoes"><a class="btn btn-secundario" href="#/assinatura">Plano e assinatura</a><a class="btn btn-secundario" href="#/consultorias">Consultorias</a></div></section>';
     tela(html);
@@ -1466,22 +1467,22 @@
   /* ══ casca do app: menu lateral (computador), menu inferior (celular) e conta ══ */
   var NAV_DA_ROTA = {
     aquecimento: "aquecimento", "ao-vivo": "ao-vivo", pedidos: "pedidos", acompanhamento: "acompanhamento", desafio: "desafios", desafios: "desafios", partidas: "partidas",
-    preparo: "temporada", diario: "competicao", temporada: "temporada", competicao: "competicao", ficha: "jogador", jogador: "jogador", conta: "conta", assinatura: "assinatura", assinaturas: "assinatura", consultorias: "consultorias", olhar: "consultorias", atendimentos: "atendimentos", ajuda: "ajuda",
+    preparo: "temporada", diario: "competicao", temporada: "temporada", competicao: "competicao", ficha: "jogador", jogador: "jogador", conta: "conta", assinatura: "assinatura", assinaturas: "assinatura", consultorias: "consultorias", olhar: "consultorias", atendimentos: "atendimentos", atendimento: "atendimentos", treinadores: "treinadores", treinador: "treinadores", ajuda: "ajuda",
     estrategia: "estrategia", plano: "estrategia", planos: "estrategia", completar: "estrategia", gerando: "estrategia",
     jogadas: "jogadas", planejar: "treinos", treinos: "treinos", treino: "treinos", programa: "treinos", planejamento: "treinos", gerandoPlanej: "treinos",
   };
-  var NAV_MAIS = { preparo: 1, diario: 1, temporada: 1, competicao: 1, partidas: 1, conta: 1, jogador: 1, ficha: 1, assinatura: 1, consultorias: 1, olhar: 1, atendimentos: 1, ajuda: 1 };
+  var NAV_MAIS = { preparo: 1, diario: 1, temporada: 1, competicao: 1, partidas: 1, conta: 1, jogador: 1, ficha: 1, assinatura: 1, consultorias: 1, olhar: 1, atendimentos: 1, atendimento: 1, treinadores: 1, treinador: 1, ajuda: 1 };
   var BARRA_SECAO = { aquecimento: "treinos", desafio: "treinos", desafios: "treinos" }; // páginas que pertencem à seção Treinos
   /* Competição é um app à parte (quadralab.com.br/competicao/), com as mesmas contas e o mesmo servidor. O mesmo código atende os dois:
      window.QL_MODO = "competicao" liga a navegação e a tela inicial próprias; no Player, as rotas da Competição apontam para lá. */
   var MODO_COMP = window.QL_MODO === "competicao";
   var ROTAS_COMP = { competicao: 1, temporada: 1, preparo: 1, diario: 1, devolutivas: 1, focos: 1, scouts: 1, "ao-vivo": 1, pedidos: 1, acompanhamento: 1, recomendacoes: 1, treinos: 1 };
-  var ROTAS_APP_COMP = { "": 1, inicio: 1, competicao: 1, temporada: 1, planejamento: 1, acompanhamento: 1, preparo: 1, diario: 1, devolutivas: 1, focos: 1, scouts: 1, "ao-vivo": 1, pedidos: 1, recomendacoes: 1, treinos: 1, consultorias: 1, partidas: 1, aquecimento: 1, desafios: 1, pensamentos: 1, ritual: 1, conta: 1, ajuda: 1 };
+  var ROTAS_APP_COMP = { "": 1, inicio: 1, competicao: 1, temporada: 1, planejamento: 1, acompanhamento: 1, preparo: 1, diario: 1, devolutivas: 1, focos: 1, scouts: 1, "ao-vivo": 1, pedidos: 1, recomendacoes: 1, treinos: 1, consultorias: 1, partidas: 1, aquecimento: 1, desafios: 1, pensamentos: 1, ritual: 1, conta: 1, ajuda: 1, treinadores: 1, treinador: 1, atendimentos: 1, atendimento: 1 };
   var PLAYER_BASE = "";
   var MARCA_APP = MODO_COMP ? "QuadraLab Competição" : "QuadraLab Player";
   if (MODO_COMP) {
-    NAV_DA_ROTA = { "": "inicio", inicio: "inicio", competicao: "inicio", temporada: "temporada", planejamento: "planejamento", acompanhamento: "acompanhamento", preparo: "temporada", aquecimento: "aquecimento", desafios: "desafios", desafio: "desafios", pensamentos: "pensamentos", ritual: "ritual", partidas: "partidas", diario: "diario", devolutivas: "inicio", focos: "inicio", scouts: "inicio", pedidos: "pedidos", recomendacoes: "recomendacoes", treinos: "treinos", consultorias: "consultorias", conta: "conta", ajuda: "ajuda" };
-    NAV_MAIS = { conta: 1, ajuda: 1, consultorias: 1, pensamentos: 1, ritual: 1 }; BARRA_SECAO = { aquecimento: "temporada", desafio: "temporada", desafios: "temporada", planejamento: "temporada" };
+    NAV_DA_ROTA = { "": "inicio", inicio: "inicio", competicao: "inicio", temporada: "temporada", planejamento: "planejamento", acompanhamento: "acompanhamento", preparo: "temporada", aquecimento: "aquecimento", desafios: "desafios", desafio: "desafios", pensamentos: "pensamentos", ritual: "ritual", partidas: "partidas", diario: "diario", devolutivas: "inicio", focos: "inicio", scouts: "inicio", pedidos: "pedidos", recomendacoes: "recomendacoes", treinos: "treinos", consultorias: "consultorias", conta: "conta", ajuda: "ajuda", treinadores: "treinadores", treinador: "treinadores", atendimentos: "atendimentos", atendimento: "atendimentos" };
+    NAV_MAIS = { conta: 1, ajuda: 1, consultorias: 1, pensamentos: 1, ritual: 1, treinadores: 1, treinador: 1, atendimentos: 1, atendimento: 1 }; BARRA_SECAO = { aquecimento: "temporada", desafio: "temporada", desafios: "temporada", planejamento: "temporada" };
   }
   var ultimaCasca = { logado: false, rota: "" };
   function atualizarCasca(logado, rota) {
@@ -3387,6 +3388,7 @@
         '<form id="fCodigo" style="margin-top:12px" novalidate><div class="campo"><label for="codigo">Código de convite (8 letras e números)</label><input id="codigo" maxlength="12" autocomplete="off" autocapitalize="characters" placeholder="Ex.: K7MQ4XD2"><p class="nota" style="margin-top:6px">Cada código vale para o papel em que ele foi gerado: o seu papel nesta conta é <strong>' + ROTULO_PAPEL[comp.papel].toLowerCase() + "</strong>.</p></div>" +
         '<div class="aviso" id="avisoCod" role="alert" hidden></div><button class="btn btn-primario" type="submit">Usar código</button></form></details>';
     }
+    if (comp.papel !== "treinador" && window.QL_HUB) html += window.QL_HUB.cartaoInicio();
     tela(html);
     definirPapel(comp.papel); vigia.sig = sigEstado(s); vigia.ultimo = s; vigia.rapido = haEspera(s); marcarBadge(contarPendencias(s, comp)); iniciarVigia(); mostrarAoVivoAgora();
     if (comp.papel !== "atleta") preencherCartoesAtleta(s);
@@ -4700,9 +4702,11 @@
         (p.estado === "aguardando_pagamento" && p.pagamento.estado === "falhou" ? ' <span class="nota">' + esc(p.pagamento.rotulo) + "</span>" : "") + (p.prazoTexto && (p.estado === "recebido" || p.estado === "em_analise") ? ' <span class="nota">· até ' + esc(p.prazoTexto) + "</span>" : "") + "</p>" +
         '<div class="acoes">' + botao(p) + "</div></li>");
     });
-    tela(abasPlanosHtml("atendimentos") + '<h1>Meus atendimentos</h1><p class="sub">Pedidos do Olhar do treinador e as orientações que você recebeu.</p>' +
+    tela(abasPlanosHtml("atendimentos") + '<h1>Meus atendimentos</h1><p class="sub">Seus pedidos a treinadores do QuadraLab Hub, os pedidos do Olhar do treinador e as orientações que você recebeu.</p>' +
+      '<div id="hubAtend"></div><h2 class="secao">Olhar do treinador</h2>' +
       (itens.length ? '<ul class="olhar-lista">' + itens.join("") + "</ul>" : '<div class="cartao" style="margin-top:14px"><h2>Você ainda não tem atendimentos</h2><p class="nota" style="margin-top:6px">Quando você pedir um olhar do treinador, o acompanhamento e a devolutiva ficam aqui.</p><div class="acoes"><a class="btn btn-primario" href="#/olhar">Conhecer o olhar do treinador</a></div></div>') +
       '<p class="nota" style="margin-top:12px">Outros serviços, como a revisão de estratégia e a análise completa, são combinados pelo WhatsApp. Veja em <a href="#/consultorias">Consultorias</a>.</p>');
+    if (window.QL_HUB) window.QL_HUB.preencherAtendimentos(document.getElementById("hubAtend"));
   }
 
   async function rotear() {
@@ -4731,6 +4735,7 @@
       }
     }
     var r = partes[0];
+    if (HUB_TELAS[r]) { HUB_TELAS[r].apply(null, partes.slice(1)); return; }
     if (MODO_COMP && COMP_TELAS[r]) { COMP_TELAS[r].apply(null, partes.slice(1)); return; }
     if (r === "ficha") telaFicha(partes[1]);
     else if (r === "gerando" && partes[1]) telaGerando(partes[1]);
@@ -4775,11 +4780,11 @@
   }
 
   /* Competição: as telas de planejamento e acompanhamento moram em competicao/comp-plano.js e usam estas utilidades */
-  var COMP_TELAS = {};
+  var COMP_TELAS = {}, HUB_TELAS = {}; // QuadraLab Hub (player/hub.js): encontrar um treinador e Meus atendimentos, nos dois apps
   window.QL_APP = {
     tela: tela, api: api, esc: esc, ir: ir, toast: toast, ocupado: ocupado, reais: reais, dataCurta: dataCurta, dataISO: dataISO, hojeISOLocal: hojeISOLocal, botaoVoz: botaoVoz,
     periodoTorneio: periodoTorneio, quandoTorneio: quandoTorneio, rotuloEstadoTorneio: rotuloEstadoTorneio, rotuloAreas: rotuloAreas, areasComp: function () { return AREAS_COMP; },
-    registrar: function (rota, fn) { COMP_TELAS[rota] = fn; }, atualizarHome: function () { return telaCompeticao(); },
+    registrar: function (rota, fn) { COMP_TELAS[rota] = fn; }, registrarHub: function (rotas) { Object.keys(rotas).forEach(function (k) { HUB_TELAS[k] = rotas[k]; }); }, atualizarHome: function () { return telaCompeticao(); },
   };
 
   /* ── início ── */

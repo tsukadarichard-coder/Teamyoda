@@ -154,6 +154,42 @@
     var a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([txt], { type: "text/csv;charset=utf-8" })); a.download = nome + "-" + hojeISO() + ".csv"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
   }
 
+  /* ══ QuadraLab Hub: moderação e indicadores (sem conversas: só o que foi denunciado) ══ */
+  TELAS.hub = async function (h, forcar) {
+    var d = await carregar("hub", "admin-hub", "", forcar), c = $("#conteudo"), i = d.indicadores;
+    var abertas = d.denuncias.filter(function (x) { return x.estado === "aberta"; });
+    function acao(corpo, ok) {
+      var m = prompt("Motivo da decisão (fica registrado):"); if (!m) return;
+      corpo.motivo = m;
+      chamar("admin-hub", { corpo: corpo }).then(function () { toast(ok); invalidar(); rotear(true); }).catch(function (e) { toast(e.message, true); });
+    }
+    c.innerHTML = cabeca("QuadraLab Hub", "Profissionais publicados, pedidos e moderação. As conversas são privadas: aqui aparece só o conteúdo denunciado.") +
+      '<div class="kpis">' + [kpi(String(i.perfisPublicados), "Perfis publicados", true), kpi(String(i.visualizacoes), "Visualizações de perfil"), kpi(String(i.buscas), "Buscas"), kpi(String(i.buscasSemResultado), "Buscas sem resultado"),
+        kpi(String(i.pedidos), "Pedidos enviados"), kpi(String(i.respostas), "Pedidos respondidos"), kpi(String(i.propostas), "Propostas"), kpi(String(i.aceites), "Aceites"), kpi(String(i.concluidos), "Atendimentos concluídos"),
+        kpi(i.primeiraRespostaMediaMin == null ? "—" : i.primeiraRespostaMediaMin + " min", "Tempo médio até a 1ª resposta")].join("") + "</div>" +
+      '<section class="secao"><h2>Denúncias abertas (' + abertas.length + ")</h2>" + (abertas.length ? '<div class="tabela-rolagem"><table><thead><tr><th>Quando</th><th>Tipo</th><th>Motivo</th><th>Conteúdo denunciado</th><th>Ações</th></tr></thead><tbody>' + abertas.map(function (x) {
+        return "<tr><td>" + esc(dt(x.em)) + "</td><td>" + esc(x.tipo) + "</td><td>" + esc(x.motivo) + (x.texto ? "<br><small>" + esc(x.texto) + "</small>" : "") + "</td><td>" + esc(x.conteudo) + '</td><td><div class="acoes">' +
+          (x.tipo === "mensagem" ? '<button type="button" class="bt claro" data-hub-ocultar-msg="' + esc(x.id) + '">Ocultar mensagem</button>' : "") +
+          (x.tipo === "avaliacao" ? '<button type="button" class="bt claro" data-hub-ocultar-av="' + esc(x.alvo.avaliacaoId) + '" data-den="' + esc(x.id) + '">Ocultar avaliação</button>' : "") +
+          (x.alvo && x.alvo.profissionalUid ? '<button type="button" class="bt claro" data-hub-suspender="' + esc(x.alvo.profissionalUid) + '">Suspender perfil</button>' : "") +
+          '<button type="button" class="bt claro" data-hub-resolver="' + esc(x.id) + '">Encerrar sem ação</button></div></td></tr>';
+      }).join("") + "</tbody></table></div>" : '<p class="nota">Nenhuma denúncia aberta.</p>') + "</section>" +
+      '<section class="secao"><h2>Profissionais (' + d.perfis.length + ')</h2><div class="tabela-rolagem"><table><thead><tr><th>Nome</th><th>Cidade</th><th>Estado</th><th class="num">Pedidos</th><th class="num">Concluídos</th><th>Verificação</th><th>Ações</th></tr></thead><tbody>' + d.perfis.map(function (p) {
+        var m = p.metricas || {};
+        return "<tr><td>" + esc(p.nome) + "</td><td>" + esc(p.cidade || "—") + "</td><td>" + esc(p.rotulo) + '</td><td class="num">' + (m.pedidos || 0) + '</td><td class="num">' + (m.concluidos || 0) + "</td><td>" + (p.verificado ? "Verificado" : "—") + '</td><td><div class="acoes">' +
+          (p.estado === "suspenso" ? '<button type="button" class="bt claro" data-hub-reativar="' + esc(p.uid) + '">Reativar</button>' : '<button type="button" class="bt claro" data-hub-suspender="' + esc(p.uid) + '">Suspender</button>') +
+          (p.verificado ? '<button type="button" class="bt claro" data-hub-desverificar="' + esc(p.uid) + '">Remover selo</button>' : '<button type="button" class="bt claro" data-hub-verificar="' + esc(p.uid) + '">Marcar verificado</button>') + "</div></td></tr>";
+      }).join("") + "</tbody></table></div></section>" +
+      '<section class="secao"><h2>Pedidos por estado</h2><p class="nota">' + esc(Object.keys(d.pedidos.porEstado).map(function (k) { return k.replace(/_/g, " ") + ": " + d.pedidos.porEstado[k]; }).join(" · ") || "Nenhum pedido ainda.") + "</p></section>";
+    $$("[data-hub-suspender]").forEach(function (b) { b.onclick = function () { acao({ acao: "suspender", uid: b.getAttribute("data-hub-suspender") }, "Perfil suspenso."); }; });
+    $$("[data-hub-reativar]").forEach(function (b) { b.onclick = function () { acao({ acao: "reativar", uid: b.getAttribute("data-hub-reativar") }, "Perfil reativado (o estado escolhido pelo profissional é mantido)."); }; });
+    $$("[data-hub-verificar]").forEach(function (b) { b.onclick = function () { var it = prompt("O que foi conferido de fato? (ex.: registro no CREF, formação). Separe por vírgula."); if (!it) return; acao({ acao: "verificar", uid: b.getAttribute("data-hub-verificar"), itens: it.split(",").map(function (x) { return x.trim(); }).filter(Boolean) }, "Selo de verificado aplicado."); }; });
+    $$("[data-hub-desverificar]").forEach(function (b) { b.onclick = function () { acao({ acao: "removerVerificacao", uid: b.getAttribute("data-hub-desverificar") }, "Selo removido."); }; });
+    $$("[data-hub-ocultar-msg]").forEach(function (b) { b.onclick = function () { acao({ acao: "ocultarMensagem", denunciaId: b.getAttribute("data-hub-ocultar-msg") }, "Mensagem ocultada."); }; });
+    $$("[data-hub-ocultar-av]").forEach(function (b) { b.onclick = function () { acao({ acao: "ocultarAvaliacao", avaliacaoId: b.getAttribute("data-hub-ocultar-av"), denunciaId: b.getAttribute("data-den") }, "Avaliação ocultada."); }; });
+    $$("[data-hub-resolver]").forEach(function (b) { b.onclick = function () { acao({ acao: "resolverDenuncia", denunciaId: b.getAttribute("data-hub-resolver"), decisao: "sem ação" }, "Denúncia encerrada."); }; });
+  };
+
   /* ══ Visão geral ══ */
   function kpi(num, rot, azul) { return '<div class="kpi"><div class="n' + (azul ? " azul" : "") + (/^R\$/.test(num) ? " moeda" : "") + '">' + esc(num) + '</div><div class="r">' + esc(rot) + "</div></div>"; }
   function produto(titulo, link, rotuloLink, kpis) { return '<section class="produto"><header><h3>' + esc(titulo) + '</h3><a href="' + link + '">' + esc(rotuloLink) + '</a></header><div class="kpis">' + kpis.join("") + "</div></section>"; }
