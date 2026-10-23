@@ -3,3 +3,5 @@
 autonomo/tests/capturas-olhar/
 # capturas geradas pelo smoke do QuadraLab Hub
 autonomo/tests/capturas-hub/
+# vídeos gerados (entregues à parte, não versionados)
+videos/
