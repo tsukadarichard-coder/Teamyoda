@@ -216,7 +216,7 @@
   function aval(c, t) { return c[0] + c[1] * t + c[2] * t * t; }
   function deriv(c, t) { return c[1] + 2 * c[2] * t; }
   /* trilha da bola: liga os candidatos quadro a quadro pela posição prevista (posição + velocidade); fica a trilha mais longa */
-  function trilhaBola(pts, asp) {
+  function trilhaBola(pts, asp, dica) {
     var porT = {}, ts = [];
     pts.forEach(function (p) { if (!porT[p.t]) { porT[p.t] = []; ts.push(p.t); } porT[p.t].push(p); });
     ts.sort(function (a, b) { return a - b; });
@@ -253,9 +253,21 @@
       if (d > 0.03 + 1.3 * vel * gap) continue;
       if (best[j].v + peso(B) > best[i].v) best[i] = { v: best[j].v + peso(B), ant: j };
     }
-    var fim = -1; best.forEach(function (b, i) { if (fim < 0 || b.v > best[fim].v) fim = i; });
+    /* dica de quem bateu: a bola sai de perto dele (origem) e vai para o outro lado (sentido na imagem: -1 sobe, +1 desce).
+       Corrente ao contrário ou começando longe de quem bateu é quase sempre ruído (alambrado, corpo, outra quadra) */
+    function cadeiaDe(i) { var c = []; for (var k = i; k >= 0; k = best[k].ant) c.unshift(peca[k]); return c; }
+    var fim = -1, notaFim = 0;
+    best.forEach(function (b, i) {
+      var nota = b.v;
+      if (dica) {
+        var c = cadeiaDe(i), a = c[0].pts[0], zl = c[c.length - 1].pts, z = zl[zl.length - 1], dy = z.y - a.y;
+        if (dica.sentido && dy * dica.sentido < -0.03) nota *= 0.4;
+        if (dica.origem && a.t - dica.t0 < 0.35 && Math.hypot((a.x - dica.origem[0]) * asp, a.y - dica.origem[1]) > 0.3) nota *= 0.6;
+      }
+      if (fim < 0 || nota > notaFim) { fim = i; notaFim = nota; }
+    });
     if (fim < 0) return null;
-    var cadeia = []; for (var k = fim; k >= 0; k = best[k].ant) cadeia.unshift(peca[k]);
+    var cadeia = cadeiaDe(fim);
     var pts2 = [].concat.apply([], cadeia.map(function (tl) { return tl.pts; }));
     return pts2.length >= 5 ? pts2 : null;
   }
@@ -265,11 +277,11 @@
     return { r: r, cx: cx, cy: cy };
   }
   /* quique: a trilha é explicada por dois arcos que se encontram num ponto, com a bola passando a subir na imagem */
-  function quique(bolas, t0, t1, ctx, excluir, ladoAlvo, final, valida) {
+  function quique(bolas, t0, t1, ctx, excluir, ladoAlvo, final, valida, dica) {
     var pts = [];
     bolas.forEach(function (q) { if (q.t < t0 || q.t > t1) return; q.b.forEach(function (b) { if (!excluir || !excluir(q.t, b)) pts.push({ t: q.t, x: b[0], y: b[1] }); }); });
     if (pts.length < 8) return null;
-    var tr = trilhaBola(pts, ctx.asp); if (!tr || tr.length < 8) return null;
+    var tr = trilhaBola(pts, ctx.asp, dica ? Object.assign({ t0: t0 }, dica) : null); if (!tr || tr.length < 8) return null;
     var base = tr[0].t, P = tr.map(function (p) { return { t: p.t - base, x: p.x, y: p.y }; });
     /* ajuste local (±0,32 s em volta da quebra): a perspectiva deixa a trajetória longa longe de uma parábola na imagem */
     function melhorQuebra(P) {
@@ -391,7 +403,11 @@
         var v = voo3D(ctx.cam, t, Pb.P, q, trilha, i === 0); if (!v) return true;
         return v.acel > 2 && v.acel < 32 && v.z0 > -0.4 && v.z0 < (i === 0 ? 3.8 : 3.2) && v.rms < 0.8 && v.vel < 260;
       } : null;
-      var qq = quique(bolas, t + 0.15, (i + 1 < nH ? hits[i + 1] - 0.06 : t + 2.2), ctx, function (tq, bb) { return dentroDeJogador(tr, tq, bb, ctx, hits, quem); }, k === "perto" ? 1 : -1, i === nH - 1, valida);
+      /* onde estava quem bateu, na imagem (tronco, ~1 m acima dos pés) */
+      var origem = Pb && Pb.pe ? [Pb.pe[0], Pb.pe[1] - (ctx.escala ? ctx.escala(Pb.P[1]) : 0.05)] : null;
+      /* janela desde logo depois da batida (o corpo de quem bateu já é excluído): no vídeo real a batida pelo som pode vir
+         atrasada e cortar a descida antes do quique */
+      var qq = quique(bolas, t + 0.05, (i + 1 < nH ? hits[i + 1] - 0.03 : t + 2.2), ctx, function (tq, bb) { return dentroDeJogador(tr, tq, bb, ctx, hits, quem); }, k === "perto" ? 1 : -1, i === nH - 1, valida, { sentido: k === "perto" ? -1 : 1, origem: origem });
       b.quique = qq && !qq.semQuique ? qq : null; b.trilha = qq ? qq.trilha : null;
       return b;
     });

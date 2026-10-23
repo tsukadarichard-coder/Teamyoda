@@ -209,7 +209,7 @@
       var alt = 1.9 * cal.escala(lado === "perto" ? -L2 : L2);
       return [x0, y0 - alt * 1.1, x1, y1];
     }
-    var roi = { perto: null, longe: null };
+    var roi = { perto: null, longe: null }, ultVarre = {};
     /* câmera na mão: a quadra é acompanhada a cada quadro (em 640 px) e tudo o que sai do quadro (pés, pose, bola) vai para a
        imagem de referência, a da calibração, por G = Hi_ref · H_quadro. Para um celular que gira na mão isso vale também
        para a bola no ar. Câmera parada (G ≈ identidade por 1 s): confere a quadra só a cada 6 quadros */
@@ -274,10 +274,10 @@
           var lm = null; try { lm = pose.detectar(rc, t * 1000, lado); } catch (e) { lm = null; }
           return lm ? lm.map(function (p) { return { x: (sx + p.x * sw) / wi, y: (sy + p.y * sh) / he, v: p.v }; }) : null;
         }
-        function naMetade(f) { // pés do lado certo da quadra
+        function naMetade(f) { // pessoa nova: pés dentro da área de jogo do lado certo, longe da rede (juiz, gente na lateral, poste)
           var pp = [27, 28].map(function (i) { return f[i]; }); if (!pp[0] || !pp[1]) return false;
           var P = VS.aplicarH(Hq, [(pp[0].x + pp[1].x) / 2, Math.max(pp[0].y, pp[1].y)]);
-          return Math.abs(P[0]) <= 9 && (lado === "perto" ? P[1] <= 0.5 && P[1] >= -L2 - 7 : P[1] >= -0.5 && P[1] <= L2 + 7);
+          return Math.abs(P[0]) <= 7.5 && (lado === "perto" ? P[1] <= -3 && P[1] >= -L2 - 6 : P[1] >= 3 && P[1] <= L2 + 6);
         }
         var full = null;
         if (pose && pose.detectarQuadro) full = pose.detectarQuadro(t, lado); // testes: pose já no quadro inteiro
@@ -286,11 +286,14 @@
              15 px no recorte), varre a metade em quadrados de ~3 alturas de pessoa */
           var altPx = 1.9 * cal.escala(lado === "perto" ? -L2 : L2) * he, T = Math.max(96, 3.2 * altPx);
           if (roi[lado] || lado2 <= 1.6 * T) full = recorte(cxr - lado2 / 2, cyr - lado2 / 2, lado2);
-          else {
-            var x0 = r[0] * wi, x1 = r[2] * wi, y0 = r[1] * he, y1 = r[3] * he, tent = 0;
-            for (var yy = y0; yy < y1 && !full && tent < 12; yy += 0.6 * T) for (var xx = x0; xx < x1 && !full && tent < 12; xx += 0.6 * T) {
-              tent++; var f = recorte(xx, yy, T); if (f && naMetade(f)) full = f;
-            }
+          else if (!(t - (ultVarre[lado] || -9) < 0.5)) {
+            /* no máximo a cada 0,5 s, começando pela linha de fundo (onde o jogador costuma estar), até 6 quadrados */
+            ultVarre[lado] = t;
+            var sinal = lado === "perto" ? -1 : 1, quad = [];
+            [L2 - 0.5, L2 - 4, L2 - 7.5].forEach(function (yq) {
+              [-4, 0, 4].forEach(function (xq) { var c = VS.aplicarH(Hiq, [xq, sinal * yq]); quad.push([c[0] * wi - T / 2, c[1] * he - T * 0.75]); });
+            });
+            for (var qi = 0; qi < quad.length && qi < 6 && !full; qi++) { var f = recorte(quad[qi][0], quad[qi][1], T); if (f && naMetade(f)) full = f; }
           }
         }
         if (full) {
