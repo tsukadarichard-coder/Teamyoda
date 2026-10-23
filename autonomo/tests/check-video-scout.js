@@ -11,11 +11,11 @@ const P = V.Placar;
 /* 1) placar igual ao do app */
 const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
 const pega = (nome) => { const i = html.indexOf(nome); assert(i >= 0, "não achei " + nome + " no index.html"); let d = 0, j = html.indexOf("{", i); for (let k = j; k < html.length; k++) { if (html[k] === "{") d++; else if (html[k] === "}" && --d === 0) return html.slice(i, k + 1); } };
-const app = new Function(["const PONTOS_TENIS = [\"0\", \"15\", \"30\", \"40\"];", pega("function placarInicial("), pega("function rotuloPontos("), pega("function gamesParaSet("), pega("function aplicaPonto("), pega("function quemSaca("), pega("function ladoDoSaque(")].join("\n") +
+const app = new Function(["const PONTOS_TENIS = [\"0\", \"15\", \"30\", \"40\"];", pega("function placarInicial("), pega("function rotuloPontos("), pega("function gamesParaSet("), pega("function tiebreakUnico("), pega("function aplicaPonto("), pega("function quemSaca("), pega("function ladoDoSaque(")].join("\n") +
   "\nreturn { placarInicial, rotuloPontos, aplicaPonto, quemSaca, ladoDoSaque };")();
 let semente = 3; const rnd = () => ((semente = (semente * 1103515245 + 12345) % 2147483648) / 2147483648);
 let pontosComparados = 0;
-for (const formato of ["3sets", "1set", "4games"]) for (const semVantagem of [false, true]) for (const superTiebreakDecisivo of [false, true]) for (let rep = 0; rep < 6; rep++) {
+for (const formato of ["3sets", "1set", "4games", "tb7", "tb10"]) for (const semVantagem of [false, true]) for (const superTiebreakDecisivo of [false, true]) for (let rep = 0; rep < 6; rep++) {
   const cfg = { formato, semVantagem, superTiebreakDecisivo }, saca = rnd() < 0.5 ? "nos" : "ele";
   let a = app.placarInicial(formato, saca, semVantagem, superTiebreakDecisivo), m = P.inicial(cfg, saca), pNos = 0.3 + rnd() * 0.4, ends = 0;
   while (!a.fim && pontosComparados < 1e6) {

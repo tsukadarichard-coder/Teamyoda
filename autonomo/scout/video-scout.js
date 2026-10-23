@@ -127,15 +127,16 @@
 
   /* ── placar (mesmas regras do scout do app: aplicaPonto, quemSaca, ladoDoSaque) ── */
   var PT = ["0", "15", "30", "40"];
+  var TB_UNICO = { tb7: 7, tb10: 10 }; // partida inteira num tie-break só (7) ou num match tie-break (10)
   var Placar = {
-    inicial: function (cfg, saca) { return { formato: cfg.formato || "3sets", p: [0, 0], g: [0, 0], sets: [], saque: saca || "nos", tiebreak: false, fim: false, vencedor: null, semVantagem: !!cfg.semVantagem, superTiebreakDecisivo: !!cfg.superTiebreakDecisivo }; },
+    inicial: function (cfg, saca) { return { formato: cfg.formato || "3sets", p: [0, 0], g: [0, 0], sets: [], saque: saca || "nos", tiebreak: !!TB_UNICO[cfg.formato], fim: false, vencedor: null, semVantagem: !!cfg.semVantagem, superTiebreakDecisivo: !!cfg.superTiebreakDecisivo }; },
     aplicar: function (e0, nos) {
       var e = { formato: e0.formato, p: e0.p.slice(), g: e0.g.slice(), sets: e0.sets.slice(), saque: e0.saque, tiebreak: e0.tiebreak, fim: e0.fim, vencedor: e0.vencedor, semVantagem: e0.semVantagem, superTiebreakDecisivo: e0.superTiebreakDecisivo };
       if (e.fim) return e;
       var i = nos ? 0 : 1, j = 1 - i, alvoG = e.formato === "4games" ? 4 : 6;
       e.p[i]++;
-      var stb = e.formato === "3sets" && e.superTiebreakDecisivo && e.sets.length === 2; if (stb) e.tiebreak = true;
-      var alvoTB = stb ? 10 : 7;
+      var unico = TB_UNICO[e.formato] || 0, stb = !!unico || (e.formato === "3sets" && e.superTiebreakDecisivo && e.sets.length === 2); if (stb) e.tiebreak = true;
+      var alvoTB = unico || (stb ? 10 : 7);
       function fechaSet(q, ptsTB) {
         e.sets.push(stb ? ptsTB : [e.g[0], e.g[1]]); e.g = [0, 0]; e.tiebreak = false;
         var m = e.sets.filter(function (s) { return s[0] > s[1]; }).length, d = e.sets.filter(function (s) { return s[1] > s[0]; }).length, prec = e.formato === "3sets" ? 2 : 1;
@@ -149,7 +150,7 @@
       }
       return e;
     },
-    quemSaca: function (e) { if (!e.tiebreak && !(e.formato === "3sets" && e.superTiebreakDecisivo && e.sets.length === 2)) return e.saque; var n = e.p[0] + e.p[1]; return Math.floor((n + 1) / 2) % 2 === 0 ? e.saque : (e.saque === "nos" ? "ele" : "nos"); },
+    quemSaca: function (e) { if (!e.tiebreak && !TB_UNICO[e.formato] && !(e.formato === "3sets" && e.superTiebreakDecisivo && e.sets.length === 2)) return e.saque; var n = e.p[0] + e.p[1]; return Math.floor((n + 1) / 2) % 2 === 0 ? e.saque : (e.saque === "nos" ? "ele" : "nos"); },
     lado: function (e) { return (e.p[0] + e.p[1]) % 2 === 0 ? "D" : "E"; },
     rotulo: function (e) { if (e.tiebreak) return e.p[0] + "-" + e.p[1]; var a = e.p[0], b = e.p[1]; if (a >= 3 && b >= 3) return a === b || e.semVantagem ? "40-40" : (a > b ? "AD-40" : "40-AD"); return PT[a] + "-" + PT[b]; },
     jogo: function (e) { return e.sets.reduce(function (t, x) { return t + x[0] + x[1]; }, 0) + e.g[0] + e.g[1] + 1; },
@@ -157,7 +158,7 @@
     adverso: function (e) { return e.p[1] > e.p[0] || e.g[1] > e.g[0]; },
     /* troca de lado: depois de game ímpar no set, a cada 6 pontos do tie-break e no fim do set com total ímpar de games */
     trocaLado: function (e0, e1) {
-      if (e1.sets.length > e0.sets.length) { var s = e1.sets[e1.sets.length - 1]; return e0.tiebreak && (e0.formato === "3sets" && e0.superTiebreakDecisivo && e0.sets.length === 2) ? false : (s[0] + s[1]) % 2 === 1; }
+      if (e1.sets.length > e0.sets.length) { var s = e1.sets[e1.sets.length - 1]; return e0.tiebreak && (TB_UNICO[e0.formato] || (e0.formato === "3sets" && e0.superTiebreakDecisivo && e0.sets.length === 2)) ? false : (s[0] + s[1]) % 2 === 1; }
       if (e1.g[0] + e1.g[1] > e0.g[0] + e0.g[1]) return (e1.g[0] + e1.g[1]) % 2 === 1;
       if (e1.tiebreak || (e0.tiebreak && e1.p[0] + e1.p[1] > 0)) return (e1.p[0] + e1.p[1]) % 6 === 0;
       return false;
@@ -602,7 +603,8 @@
   /* formato descoberto: decodifica com cada formato comum e fica o que melhor explica a sequência de saques e lados
      (pequena preferência pelo mais comum: melhor de 3 sets com vantagem) */
   var FORMATOS = [[{ formato: "3sets" }, 0], [{ formato: "3sets", superTiebreakDecisivo: true }, -1.5], [{ formato: "1set" }, -1.5], [{ formato: "4games" }, -3],
-    [{ formato: "3sets", semVantagem: true }, -2.5], [{ formato: "3sets", semVantagem: true, superTiebreakDecisivo: true }, -3], [{ formato: "1set", semVantagem: true }, -3], [{ formato: "4games", semVantagem: true }, -3.5]];
+    [{ formato: "3sets", semVantagem: true }, -2.5], [{ formato: "3sets", semVantagem: true, superTiebreakDecisivo: true }, -3], [{ formato: "1set", semVantagem: true }, -3], [{ formato: "4games", semVantagem: true }, -3.5],
+    [{ formato: "tb10" }, -4], [{ formato: "tb7" }, -4.5]];
   function decodificarAuto(an, base) {
     base = base || {};
     if (base.formato) return decodificar(an, base);

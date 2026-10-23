@@ -8208,7 +8208,7 @@ const PONTOS_TENIS = ["0", "15", "30", "40"];
 function placarInicial(formato, sacaPrimeiro, semVantagem, superTiebreakDecisivo) {
   return {
     formato, p: [0, 0], g: [0, 0], sets: [], saque: sacaPrimeiro,
-    tiebreak: false, fim: false, vencedor: null,
+    tiebreak: !!tiebreakUnico(formato), fim: false, vencedor: null,
     semVantagem: !!semVantagem, superTiebreakDecisivo: !!superTiebreakDecisivo,
   };
 }
@@ -8234,6 +8234,10 @@ function ehAdverso(e) {
 function gamesParaSet(formato) {
   return formato === "4games" ? 4 : 6;
 }
+/* Partida inteira num tie-break só: "tb7" (tie-break de 7 pontos) e "tb10" (match tie-break de 10 pontos), 2 de diferença. */
+function tiebreakUnico(formato) {
+  return formato === "tb7" ? 7 : formato === "tb10" ? 10 : 0;
+}
 
 /* Duas mecânicas reais de pontuação, opcionais e configuráveis — antes
    só existia a regra clássica (vantagem + games até o fim, sem super
@@ -8252,9 +8256,10 @@ function aplicaPonto(e0, nos) {
   e.p[i]++;
 
   const alvoGames = gamesParaSet(e.formato);
-  const setDecisivoComSuperTB = e.formato === "3sets" && e.superTiebreakDecisivo && e.sets.length === 2;
+  const unico = tiebreakUnico(e.formato);
+  const setDecisivoComSuperTB = !!unico || (e.formato === "3sets" && e.superTiebreakDecisivo && e.sets.length === 2);
   if (setDecisivoComSuperTB) e.tiebreak = true;
-  const alvoTiebreak = setDecisivoComSuperTB ? 10 : 7;
+  const alvoTiebreak = unico || (setDecisivoComSuperTB ? 10 : 7);
 
   function fechaGame(quem) {
     e.g[quem]++;
@@ -8663,7 +8668,7 @@ function ComparacaoScoutCompleta({ jogos }) {
 }
 
 function rotuloFormato(formato) {
-  return { "3sets": "Melhor de 3 sets", "1set": "Set único", "4games": "Set a 4 games" }[formato] || formato;
+  return { "3sets": "Melhor de 3 sets", "1set": "Set único", "4games": "Set a 4 games", tb7: "Tie-break (7 pontos)", tb10: "Match tie-break (10 pontos)" }[formato] || formato;
 }
 
 /* Resumo honesto das regras REALMENTE implementadas em aplicaPonto() —
@@ -8673,6 +8678,10 @@ function rotuloFormato(formato) {
    marcar nenhum dos dois, vale a regra clássica (vantagem no game,
    sem super tie-break no set decisivo). */
 function regrasFormato(formato, semVantagem, superTiebreakDecisivo) {
+  if (tiebreakUnico(formato)) return [
+    `A partida inteira é um único ${formato === "tb10" ? "match tie-break de 10" : "tie-break de 7"} pontos — vence quem chegar primeiro com 2 de diferença.`,
+    "O saque troca a cada 2 pontos (o primeiro sacador saca só o 1º ponto) e os jogadores trocam de lado a cada 6 pontos.",
+  ];
   const games = formato === "4games" ? 4 : 6;
   const linhas = [];
   linhas.push(formato === "3sets" ? "Melhor de 3 sets — vence quem fechar 2." : "Um set único decide a partida inteira.");
@@ -9558,31 +9567,33 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
           <input style={entrada} value={cfg.torneio} onChange={(e) => setCfg({ ...cfg, torneio: e.target.value })} placeholder="Torneio ou jogo-treino" />
         </Campo>
         <Campo rotulo="Formato">
-          <Seletor opcoes={[{ v: "3sets", r: "Melhor de 3 sets" }, { v: "1set", r: "Set único" }, { v: "4games", r: "Set a 4 games" }]}
-            valor={cfg.formato} aoMudar={(v) => setCfg({ ...cfg, formato: v })} />
+          <Seletor opcoes={[{ v: "3sets", r: "Melhor de 3 sets" }, { v: "1set", r: "Set único" }, { v: "4games", r: "Set a 4 games" }, { v: "tb7", r: "Só tie-break (7)" }, { v: "tb10", r: "Match tie-break (10)" }]}
+            valor={cfg.formato} aoMudar={(v) => setCfg({ ...cfg, formato: v, ...(tiebreakUnico(v) ? { semVantagem: false, superTiebreakDecisivo: false } : {}) })} />
         </Campo>
         <Campo rotulo="Quem saca primeiro">
           <Seletor opcoes={[{ v: "nos", r: aluno.nome }, { v: "ele", r: "Adversário" }]}
             valor={cfg.saca} aoMudar={(v) => setCfg({ ...cfg, saca: v })} />
         </Campo>
-        <Campo rotulo="Pontuação">
-          <div className="flex flex-wrap gap-2">
-            <button onClick={() => setCfg({ ...cfg, semVantagem: !cfg.semVantagem })}
-              style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 600, padding: "9px 13px", borderRadius: 10, minHeight: 44,
-                cursor: "pointer", border: "1px solid " + (cfg.semVantagem ? C.tinta : C.linha),
-                background: cfg.semVantagem ? C.tinta : C.cal, color: cfg.semVantagem ? C.papel : C.grafite }}>
-              {cfg.semVantagem ? "✓ " : ""}Ponto decisivo em 40-40 (sem vantagem)
-            </button>
-            {cfg.formato === "3sets" && (
-              <button onClick={() => setCfg({ ...cfg, superTiebreakDecisivo: !cfg.superTiebreakDecisivo })}
+        {!tiebreakUnico(cfg.formato) && (
+          <Campo rotulo="Pontuação">
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => setCfg({ ...cfg, semVantagem: !cfg.semVantagem })}
                 style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 600, padding: "9px 13px", borderRadius: 10, minHeight: 44,
-                  cursor: "pointer", border: "1px solid " + (cfg.superTiebreakDecisivo ? C.tinta : C.linha),
-                  background: cfg.superTiebreakDecisivo ? C.tinta : C.cal, color: cfg.superTiebreakDecisivo ? C.papel : C.grafite }}>
-                {cfg.superTiebreakDecisivo ? "✓ " : ""}Super tie-break (10 pontos) no set decisivo
+                  cursor: "pointer", border: "1px solid " + (cfg.semVantagem ? C.tinta : C.linha),
+                  background: cfg.semVantagem ? C.tinta : C.cal, color: cfg.semVantagem ? C.papel : C.grafite }}>
+                {cfg.semVantagem ? "✓ " : ""}Ponto decisivo em 40-40 (sem vantagem)
               </button>
-            )}
-          </div>
-        </Campo>
+              {cfg.formato === "3sets" && (
+                <button onClick={() => setCfg({ ...cfg, superTiebreakDecisivo: !cfg.superTiebreakDecisivo })}
+                  style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 600, padding: "9px 13px", borderRadius: 10, minHeight: 44,
+                    cursor: "pointer", border: "1px solid " + (cfg.superTiebreakDecisivo ? C.tinta : C.linha),
+                    background: cfg.superTiebreakDecisivo ? C.tinta : C.cal, color: cfg.superTiebreakDecisivo ? C.papel : C.grafite }}>
+                  {cfg.superTiebreakDecisivo ? "✓ " : ""}Super tie-break (10 pontos) no set decisivo
+                </button>
+              )}
+            </div>
+          </Campo>
+        )}
         <div className="mb-4" style={{ background: C.cal, borderLeft: "3px solid " + C.linha, padding: "11px 14px" }}>
           <Etiqueta>Regras desta partida</Etiqueta>
           {regrasFormato(cfg.formato, cfg.semVantagem, cfg.superTiebreakDecisivo).map((l, i) => (

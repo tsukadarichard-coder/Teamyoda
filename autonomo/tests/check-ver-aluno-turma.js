@@ -18,6 +18,9 @@ const get=async(id)=>JSON.parse((await handler({httpMethod:"GET",queryStringPara
  d=await get("a1");assert.strictEqual(d.temPlano,false);assert.strictEqual(d.planoRascunho,true,"plano da turma ainda em rascunho não aparece");
  dados["mty:turmas:v1"]={value:JSON.stringify([{id:"t1",nome:"Turma",membros:["a1"],plano:plano(true),regPlano:{},horarios:[{dia:2,hora:"10:00"}]}])};
  const r=await handler({httpMethod:"POST",body:JSON.stringify({org:"o",id:"a1",t:"tok",acao:"cancelar"})});
- assert.strictEqual(r.statusCode,400);assert(/aula em grupo/i.test(JSON.parse(r.body).erro),"cancelar numa aula em grupo explica o caminho");
+ assert.strictEqual(r.statusCode,400);assert(/fale direto com o seu treinador/i.test(JSON.parse(r.body).erro),"cancelar não é mais pelo link do aluno");
+ const r2=await handler({httpMethod:"POST",body:JSON.stringify({org:"o",id:"a2",t:"tok",acao:"reagendar",diaPreferido:2,horaPreferido:"10:00"})});
+ assert.strictEqual(r2.statusCode,400,"remarcar também não");
+ assert.deepStrictEqual(JSON.parse(dados["mty:alunos:v2"].value)[1].pedidosReposicao,undefined,"nada gravado");
  console.log("check-ver-aluno-turma: ok");
 })().catch(e=>{console.error(e.message||e);process.exit(1)});

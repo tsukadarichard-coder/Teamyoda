@@ -1,6 +1,7 @@
 /* Leitura pública e limitada do progresso de UM jogador, e agora também
-   um punhado de ações que ELE pode disparar (cancelar a aula em vigor,
-   pedir reposição, mandar feedback pro coordenador, descrever um jogo)
+   um punhado de ações que ELE pode disparar (mandar feedback pro
+   coordenador, descrever um jogo, dizer o que quer trabalhar; cancelar
+   ou remarcar aula saiu do link: quem mexe na agenda é o treinador)
    — tudo pelo mesmo link, sem login. A segurança aqui não é a regra do
    Firestore (o Admin SDK ignora regras) — é o "linkToken" gerado por
    jogador: sem ele batendo exatamente, a function nem devolve o nome,
@@ -378,81 +379,16 @@ async function handlePost(event) {
   const { refAlunos, alunos, idx } = await carregarContexto(org, id, t);
   const aluno = alunos[idx];
 
-  if (acao === "cancelar") return await acaoCancelar(refAlunos, alunos, idx, aluno, org);
-  if (acao === "reagendar") return await acaoReagendar(refAlunos, alunos, idx, aluno, body);
+  /* cancelar ou remarcar aula não é mais pelo link do aluno: quem mexe na agenda é o treinador */
+  if (acao === "cancelar" || acao === "reagendar") throw new ErroPublico(400, "Para faltar ou trocar de horário, fale direto com o seu treinador.");
   if (acao === "feedback") return await acaoFeedbackCoord(org, id, body);
   if (acao === "jogo") return await acaoTexto(refAlunos, alunos, idx, aluno, body, "jogosRelatados");
   if (acao === "duvida") return await acaoDuvida(refAlunos, alunos, idx, aluno, body);
   throw new ErroPublico(400, "Ação desconhecida.");
 }
 
-async function turmaComPlano(org, aluno) {
-  try {
-    const doc = await admin.firestore().collection("orgs").doc(org).collection("dados").doc(CHAVE_TURMAS).get();
-    const turmas = doc.exists ? JSON.parse(doc.data().value || "[]") : [];
-    return turmas.some((tu) => Array.isArray(tu.membros) && tu.membros.includes(aluno.id) && tu.plano);
-  } catch (e) { return false; }
-}
-
 async function salvar(refAlunos, alunos) {
   await refAlunos.set({ value: JSON.stringify(alunos), atualizado: Date.now() });
-}
-
-/* Cancelar com pelo menos 24h de aviso marca a aula como "cancelada"
-   (repete, sem penalidade — mesmo mecanismo de uma aula perdida por
-   chuva). Com menos de 24h, não existe cancelamento de verdade: a
-   aula em vigor é marcada "feita" — o horário estava reservado e foi
-   usado, avisado tarde ou não. */
-async function acaoCancelar(refAlunos, alunos, idx, aluno, org) {
-  if (!aluno.plano && (await turmaComPlano(org, aluno))) throw new ErroPublico(400, "Esta é uma aula em grupo: o horário é da turma. Para faltar ou pedir outro horário, use “Pedir reposição” ou avise seu treinador.");
-  if (!aluno.plano || !aluno.plano.aprovado) throw new ErroPublico(400, "Não há aula pendente para cancelar.");
-  const aula = aulaEmVigor(aluno);
-  if (!aula) throw new ErroPublico(400, "Não há aula pendente para cancelar.");
-  if (!aluno.horarios || !aluno.horarios.length) {
-    throw new ErroPublico(400, "Sem horário fixo cadastrado — fale com seu treinador para cancelar essa aula.");
-  }
-  const agora = new Date();
-  const proxima = proximaOcorrencia(aluno.horarios, agora);
-  const horasDeAviso = proxima ? (proxima.getTime() - agora.getTime()) / 3600000 : 0;
-  const dentroDoPrazo = horasDeAviso >= 24;
-  const hoje = agora.toISOString().slice(0, 10);
-
-  const d = { status: dentroDoPrazo ? "cancelada" : "feita", data: hoje };
-  if (dentroDoPrazo) d.motivo = "Cancelado pelo aluno, com aviso de 24h ou mais";
-  else d.obs = "Cancelado pelo aluno com menos de 24h de aviso — contado como aula realizada.";
-  aluno.regPlano = { ...(aluno.regPlano || {}), [aula.id]: d };
-  alunos[idx] = aluno;
-  await salvar(refAlunos, alunos);
-
-  return resposta(200, {
-    ok: true, dentroDoPrazo,
-    mensagem: dentroDoPrazo
-      ? "Aula cancelada com aviso — não conta como realizada, seu treinador vai repor."
-      : "Cancelamento com menos de 24h de aviso: esta aula já entra como realizada.",
-  });
-}
-
-async function acaoReagendar(refAlunos, alunos, idx, aluno, body) {
-  const { diaPreferido, horaPreferido, nota } = body;
-  if (diaPreferido === undefined || diaPreferido === null || !horaPreferido) {
-    throw new ErroPublico(400, "Escolha um dia e um horário preferido.");
-  }
-  const jaTemPendente = (aluno.pedidosReposicao || []).some((p) => p.status === "pendente");
-  if (jaTemPendente) {
-    throw new ErroPublico(400, "Você já tem um pedido de reposição em aberto — aguarde seu treinador responder antes de enviar outro.");
-  }
-  const pedido = {
-    id: "pedreag-" + Date.now().toString(36),
-    criadoEm: new Date().toISOString(),
-    diaPreferido: Number(diaPreferido),
-    horaPreferido: String(horaPreferido).slice(0, 5),
-    nota: String(nota || "").trim().slice(0, 500),
-    status: "pendente",
-  };
-  aluno.pedidosReposicao = [pedido, ...(aluno.pedidosReposicao || [])].slice(0, LIMITE_LISTA);
-  alunos[idx] = aluno;
-  await salvar(refAlunos, alunos);
-  return resposta(200, { ok: true, mensagem: "Pedido enviado — seu treinador vai confirmar o novo horário." });
 }
 
 /* O que o aluno gostaria de trabalhar / suas dúvidas — diferente do

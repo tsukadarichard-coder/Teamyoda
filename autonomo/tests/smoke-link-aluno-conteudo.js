@@ -63,6 +63,8 @@ function dadosIniciais() {
     assert(/Análises de movimento/i.test(t) && (t.match(/Ver relatório/g) || []).length === 2, app + ": as 2 análises (ficha + arquivo)");
     assert(/Seus jogos \(scout\)/i.test(t) && /Copa da Primavera/.test(t), app + ": jogos com scout");
     assert(/Jogos em vídeo/i.test(t) && /30 pontos · 60% ganhos/.test(t), app + ": jogos em vídeo");
+    assert(/Próxima aula/i.test(t) && !/Cancelar esta aula|Pedir outro horário/.test(t), app + ": sem cancelar nem remarcar aula pelo link");
+    assert.strictEqual(await p.locator("[data-acao=abrir-cancelar], [data-acao=abrir-reagendar]").count(), 0, app + ": sem os botões");
     if (capturas) { fs.mkdirSync(capturas, { recursive: true }); await p.screenshot({ path: path.join(capturas, app + "-link-aluno.png"), fullPage: true }); }
 
     // relatório completo de uma análise (com fotos e comentários)

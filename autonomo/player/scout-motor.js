@@ -8,7 +8,7 @@ const PONTOS_TENIS = ["0", "15", "30", "40"];
 function placarInicial(formato, sacaPrimeiro, semVantagem, superTiebreakDecisivo) {
   return {
     formato, p: [0, 0], g: [0, 0], sets: [], saque: sacaPrimeiro,
-    tiebreak: false, fim: false, vencedor: null,
+    tiebreak: !!tiebreakUnico(formato), fim: false, vencedor: null,
     semVantagem: !!semVantagem, superTiebreakDecisivo: !!superTiebreakDecisivo,
   };
 }
@@ -34,6 +34,10 @@ function ehAdverso(e) {
 function gamesParaSet(formato) {
   return formato === "4games" ? 4 : 6;
 }
+/* Partida inteira num tie-break só: "tb7" (tie-break de 7 pontos) e "tb10" (match tie-break de 10 pontos), 2 de diferença. */
+function tiebreakUnico(formato) {
+  return formato === "tb7" ? 7 : formato === "tb10" ? 10 : 0;
+}
 
 /* Duas mecânicas reais de pontuação, opcionais e configuráveis — antes
    só existia a regra clássica (vantagem + games até o fim, sem super
@@ -52,9 +56,10 @@ function aplicaPonto(e0, nos) {
   e.p[i]++;
 
   const alvoGames = gamesParaSet(e.formato);
-  const setDecisivoComSuperTB = e.formato === "3sets" && e.superTiebreakDecisivo && e.sets.length === 2;
+  const unico = tiebreakUnico(e.formato);
+  const setDecisivoComSuperTB = !!unico || (e.formato === "3sets" && e.superTiebreakDecisivo && e.sets.length === 2);
   if (setDecisivoComSuperTB) e.tiebreak = true;
-  const alvoTiebreak = setDecisivoComSuperTB ? 10 : 7;
+  const alvoTiebreak = unico || (setDecisivoComSuperTB ? 10 : 7);
 
   function fechaGame(quem) {
     e.g[quem]++;
@@ -300,6 +305,30 @@ function montarResumoPublico(reg, aluno) {
     nivelAdversario: NIVEIS_ADVERSARIO.some((x) => x[0] === reg.nivelAdversario) ? reg.nivelAdversario : "", mental: mentalLimpo(reg.mental),
     zonas: zonasDe(sc.pontos), serie: serie.map((x, i) => [x.nos ? 1 : 0, x.set, contagem[i][0], contagem[i][1]]), sinais: sinais.map((s) => s[1]),
   };
+}
+/* Link do aluno (aluno.html): os jogos com scout entram lá com o mesmo resumo da página da família. As contas desse resumo
+   moram aqui no app, então o app guarda os resumos de cada jogador que tem link num documento à parte
+   (orgs/{org}/dados/mty:paraAluno:v1:{alunoId}), que ver-aluno.js lê. Só regrava quando algum jogo muda. */
+const enviadosParaAluno = {};
+async function publicarResumosParaAlunos(alunos) {
+  if (!db) return;
+  const org = await organizacao();
+  if (!org) return;
+  for (const a of alunos || []) {
+    if (!a || !a.linkToken || !a.id) continue;
+    const jogos = (a.registros || []).filter((r) => r.tipo === "jogo" && r.scout).sort((x, y) => String(x.data || "").localeCompare(String(y.data || "")));
+    const assinatura = jogos.map((r) => [r.id, r.data, (r.scout.pontos || []).length, r.scout.n, r.resultado, r.concluida, (r.observacaoFinal || "").length, r.nivelAdversario].join(":")).join("|");
+    const chave = org + "|" + a.id;
+    if (enviadosParaAluno[chave] === assinatura) continue;
+    const lista = [];
+    jogos.forEach((r) => { try { lista.push({ id: r.id, video: r.origem === "video", ...montarResumoPublico(r, a) }); } catch (e) { /* jogo sem dados suficientes para o resumo */ } });
+    let valor = JSON.stringify({ jogos: lista, atualizadoEm: new Date().toISOString() });
+    while (valor.length > 900000 && lista.length > 1) { lista.shift(); valor = JSON.stringify({ jogos: lista, atualizadoEm: new Date().toISOString() }); }
+    try {
+      await db.collection("orgs").doc(org).collection("dados").doc("mty:paraAluno:v1:" + a.id).set({ value: valor, atualizado: Date.now() });
+      enviadosParaAluno[chave] = assinatura;
+    } catch (e) { console.error("resumos do link do aluno:", e && e.message); }
+  }
 }
 
 var motor = { placarInicial: placarInicial, aplicaPonto: aplicaPonto, rotuloPontos: rotuloPontos, ehAdverso: ehAdverso, quemSaca: quemSaca, ladoDoSaque: ladoDoSaque, ROTULO_LADO: ROTULO_LADO, SITUACOES: SITUACOES, GOLPES: GOLPES, DIRECOES: DIRECOES, DIRECOES_SAQUE: DIRECOES_SAQUE, QUALIDADES_DEVOLUCAO: QUALIDADES_DEVOLUCAO, NIVEIS_ADVERSARIO: NIVEIS_ADVERSARIO, ESCALAS_MENTAIS: ESCALAS_MENTAIS, DECISOES: DECISOES, numeroDoGame: numeroDoGame, numeroDoSet: numeroDoSet, mentalLimpo: mentalLimpo, erroDeDevolucao: erroDeDevolucao, erroDeDevolucaoDele: erroDeDevolucaoDele, ZONAS: ZONAS, resume: resume, leitura: leitura, montarResumoPublico: montarResumoPublico, serieMomento: serieMomento, contagemDosPontos: contagemDosPontos, zonasDe: zonasDe };

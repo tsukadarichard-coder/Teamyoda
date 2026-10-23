@@ -73,6 +73,11 @@ window.firebase={initializeApp:function(){},auth:function(){return a}};})();`;
   await pg.screenshot({ path: path.join(saida, "scout-treinador-ao-vivo.png") });
   await pg.click('a[href$="/marcar"]'); await pg.waitForSelector("#sfIniciar");
   assert.ok((await pg.textContent("body")).includes("Marque os pontos do jogo"), "texto próprio do treinador");
+  /* formatos só de tie-break: a partida inteira é um tie-break (7) ou um match tie-break (10); some a opção de pontuação */
+  await pg.click('[data-cfg="formato"][data-v="tb10"]'); await pg.waitForSelector("text=um único match tie-break de 10 pontos");
+  assert.strictEqual(await pg.locator('[data-tog="semVantagem"]').count(), 0, "sem a opção de ponto decisivo no match tie-break");
+  await pg.click('[data-cfg="formato"][data-v="tb7"]'); await pg.waitForSelector("text=um único tie-break de 7 pontos");
+  await pg.click('[data-cfg="formato"][data-v="3sets"]'); await pg.waitForSelector('[data-tog="semVantagem"]');
   await pg.click('[data-ment="antes"][data-mk="conf"][data-mv="4"]');
   await pg.click("#sfIniciar"); await pg.waitForSelector(".sf-cab");
   await pg.click('[data-mjogo="3"]');
