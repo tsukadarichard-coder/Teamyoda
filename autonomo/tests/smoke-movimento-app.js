@@ -17,16 +17,17 @@ const lib = { react: CDN + "/react-18.3.1/package/umd/react.development.js", dom
     const fonte = html.slice(i, j);
     const pagina = `<!doctype html><meta charset=utf-8><link rel=stylesheet href="/scout/movimento.css"><div id=raiz></div>
 <script src=/lib/react.js></script><script src=/lib/dom.js></script><script src=/lib/babel.js></script>
-<script src=/scout/movimento-motor.js></script><script src=/scout/movimento.js></script><script src=/scout/video-segmentador.js></script><script src=/scout/video-audio.js></script><script src=/scout/video-scout.js></script><script src=/scout/video-visao.js></script><script src=/scout/video-scout-ui.js></script><script src=/scout/quadra-auto.js></script><script src=/scout/padroes.js></script><script src=/scout/video-jogo.js></script>
+<script src=/scout/movimento-motor.js></script><script src=/scout/movimento-arquivo.js></script><script src=/scout/movimento.js></script><script src=/scout/video-segmentador.js></script><script src=/scout/video-audio.js></script><script src=/scout/video-scout.js></script><script src=/scout/video-visao.js></script><script src=/scout/video-scout-ui.js></script><script src=/scout/quadra-auto.js></script><script src=/scout/padroes.js></script><script src=/scout/video-jogo.js></script>
 <script type="text/babel">
 const { useState, useEffect, useRef } = React;
 const _m = QLMovimento.montar; QLMovimento.montar = (el, o) => { const c = _m(el, o); window.__ctl = c; return c; };
 const _v = QLVideoJogo.montar; QLVideoJogo.montar = (el, o) => { const c = _v(el, o); window.__vctl = c; return c; };
 const C = { linha: "#ddd", cal: "#fff", tinta: "#111", papel: "#fff", grafite: "#555", saibro: "#c65825" };
 const ARCH = "sans-serif"; const prosa = {};
+const db = null; const organizacao = async () => null; /* sem nuvem: o arquivo de relatórios usa o localStorage */
 ${fonte}
 function Host() {
-  const [alunos, setAlunos] = useState([{ id: "a1", nome: "Ana Souza", movimentos: [] }, { id: "a2", nome: "Bia Lima", movimentos: [] }]);
+  const [alunos, setAlunos] = useState([{ id: "a1", nome: "Ana Souza", movimentos: window.__legado || [] }, { id: "a2", nome: "Bia Lima", movimentos: [] }]);
   const [plano, setPlano] = useState(window.__plano === undefined ? null : window.__plano);
   window.__setPlano = setPlano; window.__alunos = alunos;
   return <div><TelaMovimento aluno={alunos[0]} alunos={alunos} setAlunos={setAlunos} identidade={{ nomeAcademia: "Academia X" }} planoAtual={plano} /></div>;
@@ -87,7 +88,49 @@ ReactDOM.createRoot(document.getElementById("raiz")).render(<Host />);
     assert((await p.textContent("body")).includes("Forehand · 2 análises"), app + ": evolução agrupa por golpe");
     assert((await p.textContent("body")).includes("Jogos em vídeo · 2 jogos"), app + ": evolução dos jogos em vídeo");
     assert((await p.textContent("body")).includes("Último jogo × anteriores"), app + ": jogo em vídeo compara com anteriores");
+    // cada análise guarda o relatório completo num arquivo à parte; "Ver relatório" reabre com fotos, checklist e conclusão
+    await p.waitForFunction(() => Object.keys(localStorage).filter((k) => k.startsWith("local:mty:movrel:v1:")).length === 2, null, { timeout: 5000 });
+    assert.strictEqual(await p.locator("[data-ver]:visible").count(), 2, app + ": Evolução lista as 2 análises com Ver relatório");
+    let [pop] = await Promise.all([p.waitForEvent("popup"), p.locator("[data-ver]:visible").first().click()]);
+    await pop.waitForFunction(() => /^Análise de movimento/.test(document.title));
+    let tr = await pop.textContent("body");
+    assert(tr.includes("Checklist por fase") && tr.includes("Conclusão e intervenções sugeridas") && tr.includes("Ana Souza"), app + ": relatório completo reaberto");
+    assert(tr.includes("Evolução em relação à análise anterior"), app + ": a mais recente traz a comparação guardada");
+    assert.strictEqual(await pop.locator(".fotos img").count(), 6, app + ": relatório reaberto com as 6 fotos das fases");
+    await pop.close();
+    // a lista do jogador perde as análises (gravação que falhou / outro aparelho gravou por cima): ao abrir, elas voltam do arquivo
+    await p.reload();
+    await p.waitForSelector(".qlm [data-r=demo]", { timeout: 20000 });
+    await p.waitForFunction(() => window.__alunos[0].movimentos.length === 2, null, { timeout: 5000 });
+    assert.strictEqual(await p.locator(".qlm [data-r=lista] [data-ver]").count(), 2, app + ": Análises salvas recuperadas do arquivo");
+    if (process.env.CAPTURAS) { await p.locator(".qm-hist [data-r=lista]").scrollIntoViewIfNeeded(); await p.screenshot({ path: path.join(process.env.CAPTURAS, app + "-lista.png") }); }
+    [pop] = await Promise.all([p.waitForEvent("popup"), p.locator(".qlm [data-r=lista] [data-ver]").last().click()]);
+    await pop.waitForFunction(() => /^Análise de movimento/.test(document.title));
+    assert.strictEqual(await pop.locator(".fotos img").count(), 6, app + ": análise mais antiga também reabre completa");
+    if (process.env.CAPTURAS) { await pop.setViewportSize({ width: 390, height: 1400 }); await pop.screenshot({ path: path.join(process.env.CAPTURAS, app + "-relatorio.png") }); }
+    await pop.close();
+    // remover tira do histórico e do arquivo, e não volta ao recarregar
+    p.once("dialog", (d) => d.accept());
+    await p.locator(".qlm [data-r=lista] [data-rm]").first().click();
+    await p.waitForFunction(() => Object.keys(localStorage).filter((k) => k.startsWith("local:mty:movrel:v1:")).length === 1, null, { timeout: 5000 });
+    await p.reload();
+    await p.waitForSelector(".qlm [data-r=demo]", { timeout: 20000 });
+    await p.waitForFunction(() => window.__alunos[0].movimentos.length === 1, null, { timeout: 5000 });
+    await p.waitForTimeout(300);
+    assert.strictEqual(await p.locator(".qlm [data-r=lista] [data-ver]").count(), 1, app + ": removida não volta");
     await p.close();
+    // análise antiga (de antes do arquivo): só o resumo existe; reabre como relatório resumido e entra no índice do jogador
+    const pl = await b.newPage({ viewport: { width: 390, height: 900 } });
+    pl.on("pageerror", (e) => erros.push(e.message));
+    await pl.addInitScript(() => { window.__plano = null; window.__legado = [{ id: "mvantigo", criadoEm: "2026-08-02T12:00:00.000Z", golpe: "saque", emp: "", dom: "D", itens: [{ n: "Joelhos no lançamento", s: "atencao", v: 150, u: "°", r: "≤ 140°" }], res: { ok: 3, atencao: 1, nao: 2 }, texto: "Flexão de joelhos curta no lançamento.", prio: ["Joelhos no lançamento"], origem: "video" }]; });
+    await pl.goto("http://localhost:" + porta + "/");
+    await pl.waitForSelector(".qlm [data-r=demo]", { timeout: 20000 });
+    await pl.waitForFunction(() => /mvantigo/.test(localStorage.getItem("local:mty:movidx:v1:a1") || ""), null, { timeout: 5000 });
+    [pop] = await Promise.all([pl.waitForEvent("popup"), pl.locator(".qlm [data-r=lista] [data-ver]").first().click()]);
+    await pop.waitForFunction(() => /^Análise de movimento/.test(document.title));
+    tr = await pop.textContent("body");
+    assert(tr.includes("antes de o app guardar o relatório completo") && tr.includes("Joelhos no lançamento") && tr.includes("Flexão de joelhos curta"), app + ": análise antiga reabre pelo resumo");
+    await pl.close();
     // planos
     const casos = [["gratis", /não está incluída|Essencial e Premium/], ["essencial", /Plano com limite: você usou 0 de 5/], ["premium", null]];
     for (const [pl, esp] of casos) {

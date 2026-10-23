@@ -75,6 +75,7 @@
 <script src="scout/movimento-motor.js"></script>
 <script src="metodo/metodo-proprio.js"></script>
 <script src="scout/evidencias.js"></script>
+<script src="scout/movimento-arquivo.js"></script>
 <script src="scout/movimento.js"></script>
 <script src="scout/video-segmentador.js"></script>
 <script src="scout/video-audio.js"></script>
@@ -9135,6 +9136,13 @@ function SeloTecnologiaQuadraLab({ texto }) {
 
 /* Análise de movimento em vídeo (forehand, backhand, saque) com histórico e evolução. A análise roda no aparelho.
    Cota por plano (só no app do treinador autônomo): Essencial = quantidade por mês, Premium = ilimitado; sem plano = ilimitado. */
+/* Arquivo dos relatórios de análise de movimento (um documento por relatório, fora da lista de jogadores). */
+function arquivoMovimento() {
+  if (!window.QLMovArquivo) return null;
+  if (!window.__arquivoMov) window.__arquivoMov = window.QLMovArquivo.criar({ db, org: () => organizacao() });
+  return window.__arquivoMov;
+}
+
 function TelaMovimento({ aluno, alunos, setAlunos, identidade, planoAtual }) {
   const raiz = useRef(null);
   const raizVideo = useRef(null);
@@ -9151,13 +9159,19 @@ function TelaMovimento({ aluno, alunos, setAlunos, identidade, planoAtual }) {
     if (!raiz.current || !window.QLMovimento) return undefined;
     const alvo = raiz.current;
     window.QLMovimento.montar(alvo, {
-      atleta: aluno.nome, historico: aluno.movimentos || [], plano: planoAtual, semMarca: true,
+      atleta: aluno.nome, alunoId, historico: aluno.movimentos || [], plano: planoAtual, semMarca: true, arquivo: arquivoMovimento(),
       cota: window.QLBiomec.cota("movimento", planoAtual, outros.concat(aluno.movimentos || [])),
       cotaDe: (hist) => window.QLBiomec.cota("movimento", planoAtual, outros.concat(hist)),
       logo: "assets/logo-quadralab.png", logoAbsoluto: new URL("assets/logo-quadralab.png", window.location.href).href,
       cabecalho: identidade && identidade.nomeAcademia ? identidade.nomeAcademia : "",
       aoSalvar: (reg) => setAlunos((prev) => prev.map((a) => a.id !== alunoId ? a : { ...a, movimentos: [...(a.movimentos || []).filter((m) => m.id !== reg.id), reg].slice(-80) })),
       aoRemover: (id) => setAlunos((prev) => prev.map((a) => a.id !== alunoId ? a : { ...a, movimentos: (a.movimentos || []).filter((m) => m.id !== id) })),
+      /* análises que estavam no arquivo da academia e faltavam no jogador (gravação perdida) voltam para o jogador */
+      aoRecuperar: (lista) => setAlunos((prev) => prev.map((a) => {
+        if (a.id !== alunoId) return a;
+        const novo = lista.slice(-80);
+        return JSON.stringify(novo) === JSON.stringify(a.movimentos || []) ? a : { ...a, movimentos: novo };
+      })),
     });
     return () => { alvo.innerHTML = ""; };
   }, [alunoId]);
@@ -9214,6 +9228,15 @@ function TelaMovimento({ aluno, alunos, setAlunos, identidade, planoAtual }) {
         <div className="qlm">
           <h3 className="qm-h" style={{ marginTop: 4 }}>Movimento: golpes em vídeo</h3>
           <div dangerouslySetInnerHTML={{ __html: window.QLMovimento.evolucaoHTML(movimentos) }} />
+          {movimentos.length > 0 && window.QLMovimento.listaHTML && (
+            <div className="qm-hist" style={{ marginTop: 10 }}
+              onClick={(e) => {
+                const b = e.target.closest("[data-ver]"); if (!b) return;
+                const h = movimentos.find((m) => m.id === b.getAttribute("data-ver")); if (!h) return;
+                window.QLMovimento.abrirRelatorio(h, { arquivo: arquivoMovimento(), historico: movimentos, atleta: aluno.nome, logo: new URL("assets/logo-quadralab.png", window.location.href).href, cabecalho: identidade && identidade.nomeAcademia ? identidade.nomeAcademia : "" });
+              }}
+              dangerouslySetInnerHTML={{ __html: window.QLMovimento.listaHTML(movimentos) }} />
+          )}
           <h3 className="qm-h" style={{ marginTop: 18 }}>Jogos em vídeo</h3>
           <div dangerouslySetInnerHTML={{ __html: window.QLVideoJogo ? window.QLVideoJogo.evolucaoHTML(jogosVideo) : "" }} />
           {(() => { /* padrões somando todos os jogos com scout montado do vídeo: o que se repete de partida em partida */
@@ -18490,6 +18513,8 @@ function App() {
   function removerAluno(id) {
     if (!confirm("Remover este jogador? A ficha, o plano e o histórico dele vão junto — não dá pra desfazer.")) return;
     setAlunos(alunos.filter((a) => a.id !== id));
+    /* os relatórios de análise de movimento dele também (ficam num arquivo à parte) */
+    const arq = arquivoMovimento(); if (arq) arq.removerJogador(id).catch(() => {});
     setAbertoId(null);
   }
 

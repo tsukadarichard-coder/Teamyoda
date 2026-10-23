@@ -1,7 +1,9 @@
 /* Análise de movimento em vídeo · Tecnologia QuadraLab.
    Interface compartilhada: protótipo, app do treinador (QuadraLab) e Team Yoda usam este arquivo.
    Depende de scout/movimento-motor.js (QLBiomec) e de scout/movimento.css. A análise roda no aparelho; o vídeo não é enviado.
-   QLMovimento.montar(el, { atleta, historico, cota, logo, aoSalvar, aoRemover }) -> controle { injetar(quadros, opts) }
+   QLMovimento.montar(el, { atleta, alunoId, historico, cota, logo, arquivo, aoSalvar, aoRemover, aoRecuperar }) -> controle { injetar(quadros, opts) }
+     arquivo (scout/movimento-arquivo.js): cada análise guarda o relatório completo e pode ser reaberta em "Análises salvas".
+   QLMovimento.abrirRelatorio(resumo, { arquivo, historico, logo, atleta, cabecalho }) -> reabre o relatório de uma análise salva.
    QLMovimento.evolucaoHTML(historico) -> HTML da evolução por golpe (gráfico + comparação com a análise anterior). */
 (function (raiz) {
   var B = raiz.QLBiomec;
@@ -72,9 +74,10 @@
   /* ── relatório (janela própria, como o relatório dos jogos) ── */
   function relatorioHTML(d) {
     var r = d.resultado, co = B.conclusao(r), nm = nomeGolpe(d.golpe, d.emp), logo = d.logo || "assets/logo-quadralab.png";
-    var fotos = r.fases.map(function (f, i) {
-      return '<div class="f"><img src="' + (d.fotos[i] || "") + '" alt=""><b>' + (i + 1) + ". " + esc(r.nomes[i]) + "</b><span>" + f.t.toFixed(2) + " s</span></div>";
-    }).join("");
+    var temFotos = (d.fotos || []).some(function (x) { return !!x; });
+    var fotos = temFotos ? '<div class="fotos">' + r.fases.map(function (f, i) {
+      return '<div class="f">' + (d.fotos[i] ? '<img src="' + esc(d.fotos[i]) + '" alt="">' : "") + "<b>" + (i + 1) + ". " + esc(r.nomes[i]) + "</b><span>" + f.t.toFixed(2) + " s</span></div>";
+    }).join("") + "</div>" : '<p class="qm-msg">' + (d.semFotos ? "As fotos das fases não couberam no arquivo deste relatório; as medidas e os pareceres estão completos." : "Fases: " + r.fases.map(function (f, i) { return (i + 1) + ". " + esc(r.nomes[i]) + " (" + f.t.toFixed(2) + " s)"; }).join(" · ")) + "</p>";
     var tb = "", fa = -1;
     r.itens.forEach(function (it) {
       if (it.fase !== fa) { fa = it.fase; tb += '<tr class="fh"><td colspan="4">' + (fa + 1) + ". " + esc(r.nomes[fa]) + "</td></tr>"; }
@@ -101,18 +104,67 @@
       ".nop{margin-bottom:10px}.nop button{font:inherit;padding:8px 14px;border-radius:8px;border:1px solid #0B3B2E;background:#0B3B2E;color:#fff;margin-right:6px;cursor:pointer}@media print{.nop{display:none}body{padding:0}}";
     return "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Análise de movimento · " + esc(nm) + "</title><style>" + css + "</style></head><body>" +
       '<div class="nop"><button onclick="window.print()">Salvar como PDF / Imprimir</button><button onclick="window.close()">Fechar</button></div>' +
-      '<div class="cab"><img src="' + esc(logo) + '" alt="QuadraLab"><div><div class="t">Análise de movimento · ' + esc(nm) + "</div><small>" + (d.atleta ? "Atleta: " + esc(d.atleta) + " · " : "") + "Mão dominante: " + (d.dom === "E" ? "esquerda" : "direita") + " · " + new Date().toLocaleDateString("pt-BR") + (d.demo ? " · dados de demonstração" : "") + (d.cabecalho ? " · " + esc(d.cabecalho) : "") + "</small></div></div>" +
+      '<div class="cab"><img src="' + esc(logo) + '" alt="QuadraLab"><div><div class="t">Análise de movimento · ' + esc(nm) + "</div><small>" + (d.atleta ? "Atleta: " + esc(d.atleta) + " · " : "") + "Mão dominante: " + (d.dom === "E" ? "esquerda" : "direita") + " · " + (d.data ? new Date(d.data) : new Date()).toLocaleDateString("pt-BR") + (d.demo ? " · dados de demonstração" : "") + (d.cabecalho ? " · " + esc(d.cabecalho) : "") + "</small></div></div>" +
       '<div class="kpi"><div style="background:#2E8B57"><b>' + r.resumo.ok + '</b>OK</div><div style="background:#C65825"><b>' + r.resumo.atencao + '</b>Atenção</div><div style="background:#8A96A0"><b>' + r.resumo.nao_avaliavel + "</b>Revisar com treinador</div></div>" +
-      '<div class="fotos">' + fotos + '</div><div class="quebra"></div><h2>Checklist por fase</h2><table><thead><tr><th>Item</th><th>Medido</th><th>Referência</th><th>Parecer</th></tr></thead><tbody>' + tb + "</tbody></table>" +
+      fotos + '<div class="quebra"></div><h2>Checklist por fase</h2><table><thead><tr><th>Item</th><th>Medido</th><th>Referência</th><th>Parecer</th></tr></thead><tbody>' + tb + "</tbody></table>" +
       '<div class="quebra"></div><h2>Conclusão e intervenções sugeridas</h2><p>' + esc(co.texto) + "</p>" + cb + evo +
       '<div class="rod">Tecnologia QuadraLab · relatório automático de apoio ao treinador. As medidas vêm de estimativa de pose em vídeo e as faixas de referência são provisórias. Itens "Revisar" dependem de avaliação presencial. Metodologia de referência: TennisBiomec · DNA USP.</div></body></html>';
+  }
+
+  /* ── relatório de uma análise salva antes do arquivo completo: só o resumo (medidas, pareceres, conclusão) existe ── */
+  function relatorioResumoHTML(h, d) {
+    var nm = nomeGolpe(h.golpe, h.emp), logo = d.logo || "assets/logo-quadralab.png";
+    var tb = (h.itens || []).map(function (i) { return "<tr><td>" + esc(i.n) + "</td><td>" + val(i) + "</td><td>" + esc(i.r) + '</td><td><span class="t ' + esc(i.s) + '">' + (ROT[i.s] || "") + "</span></td></tr>"; }).join("");
+    var evo = d.historico && d.historico.length > 1 ? "<h2>Evolução do jogador neste golpe</h2>" + graficoHTML(B.serie(d.historico, h.golpe, h.emp)) : "";
+    var css = "body{font:12px system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:#14202B;margin:0;padding:14px;max-width:900px;margin:auto}.cab{display:flex;align-items:center;gap:14px;border-bottom:3px solid #0B3B2E;padding-bottom:8px;margin-bottom:10px}.cab img{height:34px}.cab .t{font-size:19px;font-weight:800;color:#0B3B2E}.cab small{display:block;color:#444;font-size:11px;margin-top:2px}" +
+      "h2{font-size:15px;color:#0B3B2E;margin:12px 0 6px}.kpi{display:flex;gap:8px}.kpi div{flex:1;text-align:center;border-radius:8px;padding:7px;color:#fff}.kpi b{display:block;font-size:19px}table{width:100%;border-collapse:collapse;table-layout:fixed;overflow-wrap:anywhere;font-size:10.8px}td,th{text-align:left;padding:5px 4px;border-top:1px solid #E2DED5;vertical-align:top}th{font-size:10px;color:#5C6B78;border-top:0}" +
+      ".t{display:inline-block;padding:1px 8px;border-radius:99px;font-size:10px;font-weight:700;color:#fff}.t.ok{background:#2E8B57}.t.atencao{background:#C65825}.t.nao_avaliavel{background:#8A96A0}.av{background:#F3F1EA;border-radius:8px;padding:8px 10px;color:#444}.qm-msg{color:#5C6B78;font-size:10.5px}svg.qm-graf{width:100%;max-width:520px}" +
+      ".nop{margin-bottom:10px}.nop button{font:inherit;padding:8px 14px;border-radius:8px;border:1px solid #0B3B2E;background:#0B3B2E;color:#fff;margin-right:6px;cursor:pointer}@media print{.nop{display:none}body{padding:0}}.rod{margin-top:12px;border-top:1px solid #ccc;padding-top:6px;font-size:9.5px;color:#555}";
+    return "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Análise de movimento · " + esc(nm) + "</title><style>" + css + "</style></head><body>" +
+      '<div class="nop"><button onclick="window.print()">Salvar como PDF / Imprimir</button><button onclick="window.close()">Fechar</button></div>' +
+      '<div class="cab"><img src="' + esc(logo) + '" alt="QuadraLab"><div><div class="t">Análise de movimento · ' + esc(nm) + "</div><small>" + (d.atleta ? "Atleta: " + esc(d.atleta) + " · " : "") + "Mão dominante: " + (h.dom === "E" ? "esquerda" : "direita") + " · " + data(h.criadoEm) + (d.cabecalho ? " · " + esc(d.cabecalho) : "") + "</small></div></div>" +
+      '<p class="av">Esta análise foi feita antes de o app guardar o relatório completo. Ficaram guardados as medidas, os pareceres e a conclusão; as fotos das fases e os comentários de cada item não foram guardados na época.</p>' +
+      '<div class="kpi"><div style="background:#2E8B57"><b>' + h.res.ok + '</b>OK</div><div style="background:#C65825"><b>' + h.res.atencao + '</b>Atenção</div><div style="background:#8A96A0"><b>' + h.res.nao + "</b>Revisar com treinador</div></div>" +
+      '<h2>Checklist</h2><table><thead><tr><th>Item</th><th>Medido</th><th>Referência</th><th>Parecer</th></tr></thead><tbody>' + tb + "</tbody></table>" +
+      "<h2>Conclusão</h2><p>" + esc(h.texto) + "</p>" + (h.prio && h.prio.length ? "<h2>Prioridades</h2><ul>" + h.prio.map(function (n) { return "<li>" + esc(n) + "</li>"; }).join("") + "</ul>" : "") + evo +
+      '<div class="rod">Tecnologia QuadraLab · relatório automático de apoio ao treinador. As medidas vêm de estimativa de pose em vídeo e as faixas de referência são provisórias.</div></body></html>';
+  }
+
+  function mesmoGolpe(a, b) { return a.golpe === b.golpe && (a.golpe !== "backhand" || String(a.emp) === String(b.emp)); }
+
+  /* Reabre o relatório de uma análise salva: o completo (arquivo da academia) ou, para análises antigas, o resumo guardado no jogador.
+     A janela abre na hora do toque (senão o navegador bloqueia) e é preenchida quando o arquivo chega. */
+  function abrirRelatorio(h, o) {
+    o = o || {};
+    var w = window.open("", "_blank");
+    if (!w) { alert("O navegador bloqueou a janela do relatório — permita pop-ups para este site e tente de novo."); return; }
+    w.document.write('<!doctype html><meta charset="utf-8"><title>Carregando relatório…</title><p style="font:14px system-ui,sans-serif;padding:20px;color:#14202B">Carregando o relatório…</p>');
+    var hist = B.ordenar(o.historico || []).filter(function (x) { return mesmoGolpe(x, h) && x.criadoEm <= h.criadoEm; });
+    var p = o.arquivo ? Promise.resolve().then(function () { return o.arquivo.ler(h.id); }).catch(function () { return null; }) : Promise.resolve(null);
+    return p.then(function (arq) {
+      var html = arq && arq.resultado
+        ? relatorioHTML({ resultado: arq.resultado, golpe: arq.golpe, emp: arq.emp, dom: arq.dom, atleta: arq.atleta || o.atleta || "", fotos: arq.fotos || [], semFotos: arq.semFotos, logo: o.logo, comparacao: arq.comparacao, historico: hist, cabecalho: arq.cabecalho || o.cabecalho, data: arq.criadoEm })
+        : relatorioResumoHTML(h, { atleta: o.atleta || "", logo: o.logo, cabecalho: o.cabecalho, historico: hist });
+      w.document.open(); w.document.write(html); w.document.close();
+    });
+  }
+
+  /* lista das análises salvas (mais recente primeiro), com o botão de reabrir cada relatório */
+  function listaHTML(historico, o) {
+    o = o || {};
+    var lista = B.ordenar(historico || []).slice().reverse();
+    if (!lista.length) return "";
+    return '<h4>Análises salvas</h4><table class="qm-salvas"><tbody>' + lista.map(function (h) {
+      return "<tr><td>" + data(h.criadoEm) + "</td><td>" + esc(nomeGolpe(h.golpe, h.emp)) + "</td><td>" + h.res.ok + " OK · " + h.res.atencao + ' atenção</td><td><div class="qm-acoes"><button class="qm-x qm-ver" data-ver="' + esc(h.id) + '">Ver relatório</button>' + (o.remover ? '<button class="qm-x" data-rm="' + esc(h.id) + '">Remover</button>' : "") + "</div></td></tr>";
+    }).join("") + "</tbody></table>";
   }
 
   /* ── tela ── */
   function montar(el, opts) {
     opts = opts || {};
     var logo = opts.logo || "assets/logo-quadralab.png";
-    var S = { golpe: "forehand", emp: "2", quadros: null, real: false, resultado: null, fotos: [], regId: null, historico: (opts.historico || []).slice(), cota: opts.cota || null, token: 0 };
+    var S = { golpe: "forehand", emp: "2", quadros: null, real: false, resultado: null, fotos: [], regId: null, regAtual: null, historico: (opts.historico || []).slice(), cota: opts.cota || null, token: 0 };
+    var arquivo = opts.arquivo || null, alunoId = opts.alunoId || null;
     el.classList.add("qlm");
     el.innerHTML =
       (opts.semMarca ? "" : '<div class="qm-row" style="justify-content:space-between"><div>' + badgeHTML(logo) + '</div></div>') +
@@ -158,17 +210,18 @@
     }
     function renderHistorico() {
       q("evo").innerHTML = evolucaoHTML(S.historico);
-      var lista = B.ordenar(S.historico).slice().reverse();
-      q("lista").innerHTML = lista.length ? '<h4>Análises salvas</h4><table><tbody>' + lista.map(function (h) {
-        return "<tr><td>" + data(h.criadoEm) + "</td><td>" + esc(nomeGolpe(h.golpe, h.emp)) + "</td><td>" + h.res.ok + " OK · " + h.res.atencao + " atenção</td>" + (opts.aoRemover ? '<td><button class="qm-x" data-rm="' + esc(h.id) + '">Remover</button></td>' : "") + "</tr>";
-      }).join("") + "</tbody></table>" : "";
+      q("lista").innerHTML = listaHTML(S.historico, { remover: !!opts.aoRemover });
     }
+    function opcoesRelatorio() { return { arquivo: arquivo, historico: S.historico, logo: opts.logoAbsoluto || logo, atleta: opts.atleta || "", cabecalho: opts.cabecalho }; }
     q("lista").onclick = function (e) {
+      var ver = e.target.closest("[data-ver]");
+      if (ver) { var h = S.historico.filter(function (x) { return x.id === ver.getAttribute("data-ver"); })[0]; if (h) abrirRelatorio(h, opcoesRelatorio()); return; }
       var b = e.target.closest("[data-rm]"); if (!b || !opts.aoRemover) return;
       if (!window.confirm("Remover esta análise do histórico?")) return;
       var id = b.getAttribute("data-rm");
       S.historico = S.historico.filter(function (h) { return h.id !== id; });
       Promise.resolve(opts.aoRemover(id)).catch(function () {});
+      if (arquivo && alunoId) arquivo.remover(alunoId, id).catch(function () {});
       if (opts.aoMudar) opts.aoMudar(S.historico);
       renderHistorico();
     };
@@ -266,6 +319,8 @@
           try { S.fotos[i] = c2.toDataURL("image/jpeg", 0.8); } catch (e) { S.fotos[i] = ""; }
         }
         if (meu === S.token && !sintetico && v.src) await seek(0);
+        await Promise.resolve(); /* mostrar() termina antes (o registro desta análise só existe no fim dele) */
+        if (meu === S.token && !sintetico) arquivar();
       })();
       var tb = "", fa = -1;
       r.itens.forEach(function (it) {
@@ -286,7 +341,7 @@
       S.comparacao = cmp;
       q("cmpC").hidden = !cmp; q("cmp").innerHTML = comparacaoHTML(cmp);
       if (!sintetico && opts.aoSalvar) {
-        S.regId = reg.id;
+        S.regId = reg.id; S.regAtual = reg;
         S.historico = S.historico.filter(function (h) { return h.id !== reg.id; }).concat([reg]);
         q("salvoMsg").textContent = "Análise salva no histórico do jogador.";
         Promise.resolve(opts.aoSalvar(reg)).then(function () { if (novo && S.cota && S.cota.limite != null) { S.cota = opts.cotaDe ? opts.cotaDe(S.historico) : B.cota(opts.recurso || "movimento", opts.plano, S.historico); atualizaCota(); } }).catch(function () { q("salvoMsg").textContent = "Não foi possível salvar no histórico agora."; });
@@ -294,6 +349,35 @@
       } else q("salvoMsg").textContent = sintetico ? "Demonstração: nada foi salvo." : "";
       renderHistorico();
     }
+    /* relatório completo (checklist com pareceres, fases, fotos, conclusão, comparação) no arquivo da academia */
+    function arquivar() {
+      if (!arquivo || !alunoId || !S.regAtual || !opts.aoSalvar) return;
+      var reg = S.regAtual, meu = S.token, el2 = q("salvoMsg");
+      var arq = { id: reg.id, alunoId: alunoId, criadoEm: reg.criadoEm, golpe: reg.golpe, emp: reg.emp, dom: reg.dom, atleta: q("atl").value || opts.atleta || "", cabecalho: opts.cabecalho || "",
+        resultado: S.resultado, fotos: S.fotos.slice(), comparacao: S.comparacao || null, resumo: reg };
+      el2.textContent = "Guardando o relatório completo…";
+      return arquivo.salvar(alunoId, arq).then(function () {
+        if (meu === S.token) el2.textContent = "Relatório guardado. Ele fica em \"Análises salvas\" e pode ser reaberto quando quiser.";
+      }).catch(function (e) {
+        if (meu !== S.token) return;
+        el2.innerHTML = esc("Não foi possível guardar o relatório completo agora (" + ((e && e.message) || "sem conexão") + "). ") + '<button class="qm-x" data-r="resalvar">Tentar de novo</button>';
+      });
+    }
+    q("salvoMsg").onclick = function (e) { if (e.target.closest("[data-r=resalvar]")) arquivar(); };
+    /* o histórico também vem do arquivo da academia: o que estiver lá e faltar no jogador volta; o que só existe no jogador entra no arquivo */
+    if (arquivo && alunoId) arquivo.indice(alunoId).then(function (ind) {
+      var antes = S.historico, junto = raiz.QLMovArquivo.juntar(antes, ind);
+      var mudou = junto.length !== antes.length || junto.some(function (h) { return !antes.some(function (x) { return x.id === h.id; }); });
+      var soNoJogador = antes.filter(function (h) { return ind.removidos.indexOf(h.id) < 0 && !ind.itens.some(function (x) { return x.id === h.id; }); });
+      if (mudou) {
+        S.historico = junto;
+        if (S.cota && S.cota.limite != null && opts.cotaDe) S.cota = opts.cotaDe(S.historico);
+        atualizaCota(); renderHistorico();
+        if (opts.aoMudar) opts.aoMudar(S.historico);
+        if (opts.aoRecuperar) opts.aoRecuperar(S.historico.slice());
+      }
+      if (soNoJogador.length) arquivo.registrar(alunoId, soNoJogador).catch(function () {});
+    }).catch(function () { /* sem conexão: fica o que está no jogador */ });
     function injetar(quadros, o) { o = o || {}; S.quadros = quadros; S.real = !o.sintetico; S.regId = null; mostrar(!!o.sintetico, true); }
     q("pdf").onclick = function () {
       if (!S.resultado) return;
@@ -312,5 +396,5 @@
     return { injetar: injetar, seek: seek, estado: S, atualizarHistorico: function (h, cota) { S.historico = h.slice(); if (cota) S.cota = cota; atualizaCota(); renderHistorico(); } };
   }
 
-  raiz.QLMovimento = { montar: montar, evolucaoHTML: evolucaoHTML, comparacaoHTML: comparacaoHTML, relatorioHTML: relatorioHTML, badgeHTML: badgeHTML };
+  raiz.QLMovimento = { montar: montar, evolucaoHTML: evolucaoHTML, comparacaoHTML: comparacaoHTML, relatorioHTML: relatorioHTML, badgeHTML: badgeHTML, abrirRelatorio: abrirRelatorio, listaHTML: listaHTML };
 })(typeof window !== "undefined" ? window : this);
