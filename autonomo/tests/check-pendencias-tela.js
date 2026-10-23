@@ -19,19 +19,21 @@ window.mtyAuth={usuario:()=>({uid:"u1",email:"coord@x.com"}),tokenId:async()=>"x
 const hoje = dataISO(new Date()), dia = new Date(hoje + "T12:00:00").getDay(), ontem = dataISO(new Date(Date.now() - 86400000)), em3 = dataISO(new Date(Date.now() + 3 * 86400000));
 window.__testes = { n1: numeroWhatsApp("(11) 98765-4321"), n2: numeroWhatsApp("+55 11 98765-4321"), n3: numeroWhatsApp("123"), modelo: preencherModelo("Oi {nome}, {x}", { nome: "Ana" }) };
 function Teste() {
-  const [alunos] = useState([
+  const [alunos, setAlunos] = useState([
     { id: "a1", nome: "Ana Souza", telefone: "(11) 98765-4321", pedidosReposicao: [{ id: "p1", status: "pendente", diaPreferido: 3 }], creditosReposicao: [{ id: "c1", status: "disponivel", validoAte: em3 }] },
     { id: "a2", nome: "Bia Lima", telefone: "11 91111-2222", telefoneResponsavel: "11 93333-4444", creditosReposicao: [{ id: "c2", status: "pendente_aprovacao" }] },
     { id: "a3", nome: "Caio Reis" },
   ]);
-  const [turmas] = useState([{ id: "t1", nome: "Sub-12", membros: ["a1", "a2", "a3"], horarios: [{ dia, hora: "17:00", quadraId: "q1" }] }]);
-  const [ocorrencias] = useState([{ id: "o0", origemTipo: "turma", origemId: "t1", data: ontem, horaInicio: "17:00", status: "agendada" }]);
+  const [turmas] = useState([{ id: "t1", nome: "Sub-12", membros: ["a1", "a2", "a3"], horarios: [{ dia, hora: "17:00", quadraId: "q1" }] },
+    { id: "t2", nome: "Adulto", membros: ["a3"], horarios: [{ dia, hora: "19:00", quadraId: "q2" }] }]);
+  const [ocorrencias, setOcorrencias] = useState([{ id: "o0", origemTipo: "turma", origemId: "t1", data: ontem, horaInicio: "17:00", status: "agendada" }]);
   const [reservas, setReservas] = useState([{ id: "r1", quadraId: "q1", data: em3, horaInicio: "08:00", horaFim: "09:00", nomeContato: "Duda Melo", telefoneContato: "11 95555-6666", origem: "cliente", vistoPeloStaff: false }]);
   const [torneios, setTorneios] = useState([{ id: "to1", nome: "Open", categorias: [{ id: "c1", nome: "B", inscritos: [{ id: "i1", nomeContato: "Edu", telefoneContato: "11 97777-8888", origem: "cliente", vistoPeloStaff: false }] }] }]);
   const [eventos, setEventos] = useState([]);
   const [modelos, setModelos] = useState(MODELOS_MENSAGEM_PADRAO);
-  window.__estado = { reservas, torneios, modelos };
-  return <div style={{ padding: 12 }}><TelaPendencias alunos={alunos} turmas={turmas} quadras={[{ id: "q1", nome: "Quadra 1" }]} ocorrencias={ocorrencias}
+  window.__estado = { reservas, torneios, modelos, alunos, ocorrencias };
+  return <div style={{ padding: 12 }}><TelaPendencias alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={[{ id: "q1", nome: "Quadra 1" }, { id: "q2", nome: "Quadra 2" }]} ocorrencias={ocorrencias}
+    setOcorrencias={setOcorrencias} regrasReposicao={{ motivosElegiveis: [], exigeAprovacao: true, validadeDias: 30, reverterCreditoAoCancelar: true }}
     reservas={reservas} setReservas={setReservas} torneios={torneios} setTorneios={setTorneios} eventos={eventos} setEventos={setEventos}
     modelos={modelos} setModelos={setModelos} orgAtual="team-yoda" irParaAluno={(id) => { window.__abriu = id; }} irPara={(v) => { window.__foi = v; }} /></div>;
 }
@@ -85,7 +87,32 @@ ReactDOM.createRoot(document.getElementById("root")).render(<Teste />);`;
       await p.click('button:text-is("Lembrete")');
       L = await links(); assert(L.some((l) => /text=Fala, Ana! Sub-12 às 17:00, te espero\./.test(l.href)), "lembrete usa o texto novo");
       await p.click('button:text-is("Abrir")'); assert.strictEqual(await p.evaluate(() => window.__abriu), "a1", "abrir o jogador do pedido");
-      if (capturas) { fs.mkdirSync(capturas, { recursive: true }); await p.screenshot({ path: path.join(capturas, "pendencias.png"), fullPage: true }); }
+      /* chuva: prévia, filtro de quadra, cancelamento com crédito e mensagens */
+      p.on("dialog", (d) => d.accept());
+      await p.click('button:text-is("☂ Cancelar por chuva")');
+      t = await p.evaluate(() => document.body.innerText);
+      assert(/Vão ser canceladas 2 aulas \(3 jogadores\)/.test(t), "prévia: as duas aulas de hoje");
+      assert(/aguardando sua aprovação/.test(t), "avisa que o crédito entra aguardando aprovação");
+      await p.click('button:text-is("Quadra 2")');
+      t = await p.evaluate(() => document.body.innerText);
+      assert(/Vão ser canceladas 1 aula \(3 jogadores\)/.test(t) && /17:00 Sub-12/.test(t), "só a Quadra 1");
+      await p.click('button:text-is("Cancelar 1 aula")');
+      await p.waitForFunction(() => /aula cancelada \(chuva\)/.test(document.body.innerText), null, { timeout: 10000 });
+      const E = await p.evaluate(() => window.__estado);
+      const deHoje = E.ocorrencias.filter((o) => o.data === new Date().toISOString().slice(0, 10) || o.data === new Date(Date.now()).toLocaleDateString("sv"));
+      const t1 = E.ocorrencias.find((o) => o.origemId === "t1" && o.status === "cancelada"), t2 = E.ocorrencias.find((o) => o.origemId === "t2");
+      assert(t1 && t1.motivoCancelamento === "chuva", "aula da Quadra 1 cancelada com o motivo");
+      assert(t2 && t2.status === "agendada", "a da Quadra 2 continua agendada");
+      assert(E.ocorrencias.find((o) => o.id === "o0").status === "agendada", "aula de ontem não é mexida");
+      ["a1", "a2", "a3"].forEach((id) => { const c = E.alunos.find((a) => a.id === id).creditosReposicao.filter((x) => x.origemOcorrenciaId === t1.id); assert(c.length === 1 && c[0].status === "pendente_aprovacao", "crédito de " + id); });
+      L = await links();
+      assert(L.some((l) => /wa\.me\/5511987654321\?text=Olá, Ana! A aula de Sub-12 de hoje às 17:00 foi cancelada \(chuva\)/.test(l.href)), "mensagem de cancelamento pronta para a Ana");
+      if (capturas) { fs.mkdirSync(capturas, { recursive: true }); await p.screenshot({ path: path.join(capturas, "pendencias-chuva.png"), fullPage: true }); }
+      /* de novo: a aula já cancelada não entra, nem ganha crédito em dobro */
+      await p.click('button:text-is("Fechar")');
+      t = await p.evaluate(() => document.body.innerText);
+      assert(/Vão ser canceladas 1 aula \(1 jogador\)/.test(t) && /19:00 Adulto/.test(t), "só sobra a aula das 19h");
+      if (capturas) await p.screenshot({ path: path.join(capturas, "pendencias.png"), fullPage: true });
       console.log("  lembrete, cancelamento, reposições, reserva e inscrição com WhatsApp pronto; textos editáveis");
     } else {
       await p.click('button:text-is("Lembrete")');

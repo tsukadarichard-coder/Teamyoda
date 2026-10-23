@@ -19829,11 +19829,116 @@ function CopiarTexto({ texto }) {
   return <Botao pequeno variante="vazio" onClick={() => { try { navigator.clipboard.writeText(texto); setOk(true); setTimeout(() => setOk(false), 1500); } catch (e) { window.prompt("Copie o texto:", texto); } }}>{ok ? "Copiado ✓" : "Copiar texto"}</Botao>;
 }
 
-function TelaPendencias({ alunos, turmas, quadras, ocorrencias, reservas, setReservas, torneios, setTorneios, eventos, setEventos, modelos, setModelos, orgAtual, irParaAluno, irPara }) {
+/* Cancelamento em massa (chuva): todas as aulas agendadas de um dia — ou só de algumas quadras, ou a partir de uma
+   hora — viram "cancelada" com o motivo, exatamente como o cancelamento de uma aula só: a reposição que estava marcada
+   devolve o crédito (aplicarEfeitoCreditoNaOcorrencia) e, se pedido, cada jogador das aulas regulares/experimentais
+   ganha um crédito de reposição pela regra da unidade (novoCreditoReposicao: com aprovação, entra "aguardando").
+   Aulas do dia que a Agenda ainda não gerou (horários fixos) são geradas antes. Função pura: devolve as listas novas. */
+function cancelarAulasEmMassa({ ocorrencias, alunos, turmas, regras, data, quadras, aPartirDe, motivo, darCredito }) {
+  const geradas = gerarOcorrenciasFaltantes(ocorrencias || [], alunos || [], turmas || [], data, data, []);
+  const todas = (ocorrencias || []).concat(geradas);
+  const alvo = (o) => o.data === data && o.status === "agendada" && (!quadras || quadras.has(o.quadraId || "")) && (!aPartirDe || (o.horaInicio || "") >= aPartirDe);
+  const agora = new Date().toISOString(), afetadas = [];
+  let novosAlunos = alunos || [];
+  const novasOc = todas.map((o) => {
+    if (!alvo(o)) return o;
+    const ocNova = { ...o, status: "cancelada", motivoCancelamento: motivo, atualizadoEm: agora };
+    novosAlunos = aplicarEfeitoCreditoNaOcorrencia(novosAlunos, o, ocNova, regras);
+    const ids = alunosDaOcorrencia(o, turmas || []);
+    if (darCredito && (o.tipo === "regular" || o.tipo === "experimental")) {
+      ids.forEach((id) => {
+        const al = novosAlunos.find((a) => a.id === id);
+        if (!al || (al.creditosReposicao || []).some((c) => c.origemOcorrenciaId === o.id)) return;
+        const credito = novoCreditoReposicao({ alunoId: id, origemOcorrenciaId: o.id, motivo, regras });
+        novosAlunos = novosAlunos.map((a) => (a.id === id ? { ...a, creditosReposicao: [...(a.creditosReposicao || []), credito] } : a));
+      });
+    }
+    afetadas.push({ oc: ocNova, alunoIds: ids });
+    return ocNova;
+  });
+  afetadas.sort((a, b) => (a.oc.horaInicio || "").localeCompare(b.oc.horaInicio || ""));
+  return { ocorrencias: novasOc, alunos: novosAlunos, afetadas };
+}
+
+function PainelChuva({ alunos, setAlunos, turmas, quadras, ocorrencias, setOcorrencias, regrasReposicao, modelo, irParaAluno }) {
+  const [data, setData] = useState(dataISO(new Date()));
+  const [motivo, setMotivo] = useState("chuva");
+  const [aPartirDe, setAPartirDe] = useState("");
+  const [quadrasSel, setQuadrasSel] = useState(null); // null = todas
+  const [darCredito, setDarCredito] = useState(true);
+  const [feito, setFeito] = useState(null);
+  const alunoPorId = new Map((alunos || []).map((a) => [a.id, a]));
+  const opcoesQuadra = [...(quadras || []).map((q) => ({ id: q.id, nome: q.nome || "Quadra" })), { id: "", nome: "Sem quadra" }];
+  const previa = cancelarAulasEmMassa({ ocorrencias, alunos, turmas, regras: regrasReposicao, data, quadras: quadrasSel, aPartirDe, motivo: motivo.trim() || "chuva", darCredito });
+  const nJog = new Set(previa.afetadas.flatMap((x) => x.alunoIds)).size;
+  function titulo(o) { return o.origemTipo === "turma" ? ((turmas || []).find((t) => t.id === o.origemId) || {}).nome || "Turma" : o.origemTipo === "individual" ? "Aula de " + ((alunoPorId.get(o.origemId) || {}).nome || "jogador") : "Aula"; }
+  function alternarQuadra(id) {
+    const base = quadrasSel ? new Set(quadrasSel) : new Set(opcoesQuadra.map((q) => q.id));
+    if (base.has(id)) base.delete(id); else base.add(id);
+    setQuadrasSel(base.size === opcoesQuadra.length ? null : base);
+  }
+  function aplicar() {
+    if (!previa.afetadas.length) return;
+    const quando = data === dataISO(new Date()) ? "de hoje" : "de " + dataCurta(data);
+    if (!confirm("Cancelar " + previa.afetadas.length + " aula" + (previa.afetadas.length === 1 ? "" : "s") + " " + quando + " (" + (motivo.trim() || "chuva") + ")" + (darCredito ? " e dar crédito de reposição a " + nJog + " jogador" + (nJog === 1 ? "" : "es") : "") + "?")) return;
+    setOcorrencias(previa.ocorrencias); setAlunos(previa.alunos);
+    setFeito({ afetadas: previa.afetadas, motivo: motivo.trim() || "chuva", data, creditos: darCredito });
+  }
+  const sub = { ...prosa, fontSize: 12.5, color: C.grafite };
+  const chipQ = (on) => ({ fontFamily: ARCH, fontSize: 12, fontWeight: 700, padding: "5px 10px", borderRadius: 999, cursor: "pointer", border: "1px solid " + (on ? C.quadra : C.linha), background: on ? C.quadra : C.cal, color: on ? "#fff" : C.tinta });
+
+  if (feito) {
+    const txt = (a, o) => preencherModelo(modelo, { nome: primeiroNome(a ? a.nome : "pessoal"), aula: titulo(o), hora: o.horaInicio, motivo: " (" + feito.motivo + ")" });
+    return (
+      <div style={{ background: C.cal, border: "1px solid " + C.quadra, borderRadius: 10, padding: "12px 14px", marginBottom: 10 }}>
+        <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, color: C.quadra }}>✓ {feito.afetadas.length} aula{feito.afetadas.length === 1 ? "" : "s"} cancelada{feito.afetadas.length === 1 ? "" : "s"} ({feito.motivo}){feito.creditos ? " · créditos de reposição lançados" + (regrasReposicao && regrasReposicao.exigeAprovacao ? " (aguardando sua aprovação, pela regra de reposição)" : "") : ""}.</p>
+        <p style={{ ...sub, margin: "4px 0 8px" }}>Agora avise cada turma: copie o texto para o grupo ou mande para cada jogador.</p>
+        {feito.afetadas.map(({ oc, alunoIds }) => (
+          <div key={oc.id} style={{ borderTop: "1px solid " + C.linha, padding: "8px 0" }}>
+            <div className="flex flex-wrap items-center gap-2"><span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700, flex: 1 }}>{oc.horaInicio} · {titulo(oc)}</span>{alunoIds.length > 1 && <CopiarTexto texto={txt(null, oc)} />}</div>
+            {alunoIds.map((id) => { const a = alunoPorId.get(id); if (!a) return null; return (
+              <div key={id} className="flex flex-wrap items-center gap-2" style={{ padding: "3px 0 3px 10px" }}>
+                <span style={{ fontFamily: ARCH, fontSize: 13, flex: 1 }}>{a.nome || "Sem nome"}{!contatoDoAluno(a) && <button onClick={() => irParaAluno(a.id)} style={{ ...sub, marginLeft: 6, textDecoration: "underline", background: "none", border: "none", cursor: "pointer" }}>cadastrar WhatsApp</button>}</span>
+                <BotaoWhats telefone={contatoDoAluno(a)} texto={txt(a, oc)} />
+              </div>); })}
+          </div>
+        ))}
+        <Botao pequeno variante="vazio" onClick={() => { setFeito(null); setQuadrasSel(null); setAPartirDe(""); }}>Fechar</Botao>
+      </div>
+    );
+  }
+  return (
+    <div style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "12px 14px", marginBottom: 10 }}>
+      <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Cancelar aulas por chuva</p>
+      <div className="flex flex-wrap items-end gap-3">
+        <Campo rotulo="Dia"><input type="date" style={{ ...entrada, width: 165, fontSize: 15, padding: "6px 8px" }} value={data} onChange={(e) => setData(e.target.value || dataISO(new Date()))} /></Campo>
+        <Campo rotulo="A partir de (opcional)"><input type="time" style={{ ...entrada, width: 130, fontSize: 15, padding: "6px 8px" }} value={aPartirDe} onChange={(e) => setAPartirDe(e.target.value)} /></Campo>
+        <Campo rotulo="Motivo"><input style={{ ...entrada, width: 160, fontSize: 15, padding: "6px 8px" }} value={motivo} onChange={(e) => setMotivo(e.target.value)} /></Campo>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 mb-2">
+        <span style={sub}>Quadras:</span>
+        {opcoesQuadra.map((q) => <button key={q.id || "sem"} style={chipQ(!quadrasSel || quadrasSel.has(q.id))} onClick={() => alternarQuadra(q.id)}>{q.nome}</button>)}
+      </div>
+      <label className="flex items-center gap-2" style={{ fontFamily: ARCH, fontSize: 13.5, marginBottom: 8 }}>
+        <input type="checkbox" checked={darCredito} onChange={(e) => setDarCredito(e.target.checked)} /> Dar crédito de reposição a cada jogador{regrasReposicao && regrasReposicao.exigeAprovacao ? " (entra aguardando sua aprovação, pela regra de reposição)" : ""}
+      </label>
+      {previa.afetadas.length === 0 ? <p style={sub}>Nenhuma aula agendada com esses filtros.</p> : (
+        <div style={{ marginBottom: 8 }}>
+          <p style={sub}>Vão ser canceladas {previa.afetadas.length} aula{previa.afetadas.length === 1 ? "" : "s"} ({nJog} jogador{nJog === 1 ? "" : "es"}):</p>
+          {previa.afetadas.map(({ oc, alunoIds }) => <p key={oc.id} style={{ ...prosa, fontSize: 13 }}>· {oc.horaInicio} {titulo(oc)}{(quadras || []).find((q) => q.id === oc.quadraId) ? " · " + quadras.find((q) => q.id === oc.quadraId).nome : ""} · {alunoIds.length} jogador{alunoIds.length === 1 ? "" : "es"}</p>)}
+        </div>
+      )}
+      <Botao onClick={aplicar} disabled={!previa.afetadas.length}>Cancelar {previa.afetadas.length || ""} aula{previa.afetadas.length === 1 ? "" : "s"}</Botao>
+    </div>
+  );
+}
+
+function TelaPendencias({ alunos, setAlunos, turmas, quadras, ocorrencias, setOcorrencias, regrasReposicao, reservas, setReservas, torneios, setTorneios, eventos, setEventos, modelos, setModelos, orgAtual, irParaAluno, irPara }) {
   const hoje = dataISO(new Date());
   const M = { ...MODELOS_MENSAGEM_PADRAO, ...(modelos || {}) };
   const [aberta, setAberta] = useState(""); // aula com destinatários abertos: id + "|" + tipo de mensagem
   const [motivo, setMotivo] = useState("chuva");
+  const [chuva, setChuva] = useState(false);
   const [editandoModelos, setEditandoModelos] = useState(false);
   const [rascunhoModelos, setRascunhoModelos] = useState(M);
   const [financeiro, setFinanceiro] = useState(null);
@@ -19915,7 +20020,12 @@ function TelaPendencias({ alunos, turmas, quadras, ocorrencias, reservas, setRes
         ))}
       </div>
 
-      <h2 style={h2}>Aulas de hoje</h2>
+      <div className="flex flex-wrap items-center gap-2" style={{ margin: "20px 0 8px" }}>
+        <h2 style={{ ...h2, margin: 0, flex: 1 }}>Aulas de hoje</h2>
+        {setOcorrencias && setAlunos && <Botao pequeno variante={chuva ? "cheio" : "vazio"} onClick={() => setChuva(!chuva)}>☂ Cancelar por chuva</Botao>}
+      </div>
+      {chuva && <PainelChuva alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias}
+        regrasReposicao={regrasReposicao} modelo={M.cancelamento} irParaAluno={irParaAluno} />}
       {aulasHoje.length === 0 && <p style={sub}>Nenhuma aula com horário fixo para hoje.</p>}
       {aulasHoje.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 mb-2">
@@ -19968,7 +20078,7 @@ function TelaPendencias({ alunos, turmas, quadras, ocorrencias, reservas, setRes
       ))}
       {creditosAprovar.length > 0 && (
         <div style={linha} className="flex flex-wrap items-center gap-2">
-          <span style={{ fontFamily: ARCH, fontSize: 13.5, flex: 1 }}>{creditosAprovar.length} crédito{creditosAprovar.length === 1 ? "" : "s"} de reposição esperando sua aprovação ({creditosAprovar.map((x) => primeiroNome(x.aluno.nome)).join(", ")})</span>
+          <span style={{ fontFamily: ARCH, fontSize: 13.5, flex: 1 }}>{creditosAprovar.length} crédito{creditosAprovar.length === 1 ? "" : "s"} de reposição esperando sua aprovação ({[...new Set(creditosAprovar.map((x) => primeiroNome(x.aluno.nome)))].join(", ")})</span>
           <Botao pequeno variante="vazio" onClick={() => irPara("reposicoes")}>Aprovar em Reposições</Botao>
         </div>
       )}
@@ -21334,7 +21444,7 @@ function App() {
            irParaCaderno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("registro"); }}
            irParaTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} irParaManual={irParaManual} /> :
          aba === "financeiro" && ehDonoFinanceiro() ? <TelaFinanceiro /> :
-         aba === "pendencias" && (papelAtual === "coordenador" || ehDonoFinanceiro()) ? <TelaPendencias alunos={alunos} turmas={turmas} quadras={quadras} ocorrencias={ocorrencias}
+         aba === "pendencias" && (papelAtual === "coordenador" || ehDonoFinanceiro()) ? <TelaPendencias alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} regrasReposicao={regrasReposicao}
            reservas={reservas} setReservas={setReservas} torneios={torneios} setTorneios={setTorneios} eventos={eventos} setEventos={setEventos}
            modelos={modelosMensagem} setModelos={setModelosMensagem} orgAtual={orgAtual}
            irParaAluno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("ficha"); }} irPara={(v) => setAba(v)} /> :
