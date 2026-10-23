@@ -20548,6 +20548,103 @@ function TelaFinanceiro() {
   );
 }
 
+/* ── AVISOS DO PROFESSOR (pop-up) ─────────────────────────────────────────
+   Cada professor, ao abrir o app, vê num pop-up o que é dele: aulas que já
+   passaram e ficaram sem fechar (marcar como dada ou cancelada), aulas de
+   hoje que ainda vão acontecer, reposições a marcar dos jogadores dele
+   (crédito disponível sem horário, pedido do aluno) e onde está na
+   formação — curso atual e o próximo módulo ou quiz. Reabre de hora em hora
+   enquanto houver aula em aberto ou reposição a marcar. */
+function proximoPassoFormacao(membro) {
+  const totalModulos = CURSOS_FORMACAO.reduce((s, c) => s + c.modulos.length, 0);
+  const feitos = membro ? CURSOS_FORMACAO.reduce((n, c) => n + c.modulos.filter((_, i) => progressoModulo(membro, c.id, i).concluido).length, 0) : 0;
+  for (let k = 0; k < CURSOS_FORMACAO.length; k++) {
+    const c = CURSOS_FORMACAO[k];
+    const i = c.modulos.findIndex((_, idx) => !(membro && progressoModulo(membro, c.id, idx).concluido));
+    if (i >= 0) return { cursoIndice: k + 1, cursos: CURSOS_FORMACAO.length, curso: c.nome, proximo: "Módulo " + (i + 1) + ": " + c.modulos[i].t, feitos, totalModulos, completa: false };
+    const q = membro && (membro.quiz || {})[c.id];
+    if ((c.quiz || []).length && !(q && q.acertos != null)) return { cursoIndice: k + 1, cursos: CURSOS_FORMACAO.length, curso: c.nome, proximo: "Quiz do curso", feitos, totalModulos, completa: false };
+  }
+  return { completa: true, feitos, totalModulos, cursos: CURSOS_FORMACAO.length };
+}
+function avisosDoProfessorPopup({ uid, alunos, turmas, ocorrencias, membrosFormacao, agora }) {
+  if (!uid) return null;
+  const d = agora || new Date(), hoje = dataISO(d), hora = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  const minha = (o) => o.professorUid === uid || o.professorAuxiliarUid === uid || o.substitutoUid === uid;
+  const titulo = (o) => o.origemTipo === "turma" ? ((turmas || []).find((t) => t.id === o.origemId) || {}).nome || "Turma"
+    : o.origemTipo === "individual" ? ((alunos || []).find((a) => a.id === o.origemId) || {}).nome || "Aula individual" : "Aula";
+  const emAberto = (ocorrencias || []).filter((o) => o.status === "agendada" && o.data < hoje && minha(o))
+    .sort((a, b) => b.data.localeCompare(a.data) || (a.horaInicio || "").localeCompare(b.horaInicio || "")).map((o) => ({ id: o.id, data: o.data, hora: o.horaInicio, titulo: titulo(o) }));
+  const deHoje = (ocorrencias || []).filter((o) => o.data === hoje).concat(gerarOcorrenciasFaltantes(ocorrencias || [], alunos || [], turmas || [], hoje, hoje, []));
+  const aDar = deHoje.filter((o) => o.status === "agendada" && minha(o) && (o.horaFim || o.horaInicio || "99:99") >= hora)
+    .sort((a, b) => (a.horaInicio || "").localeCompare(b.horaInicio || "")).map((o) => ({ id: o.id, hora: o.horaInicio, titulo: titulo(o) }));
+  /* jogadores do professor: os individuais dele e os das turmas dele */
+  const meus = new Set((alunos || []).filter((a) => a.professorUid === uid).map((a) => a.id));
+  (turmas || []).filter((t) => t.professorUid === uid || t.professorAuxiliarUid === uid).forEach((t) => (t.membros || []).forEach((id) => meus.add(id)));
+  const reposicoes = [];
+  (alunos || []).filter((a) => meus.has(a.id)).forEach((a) => {
+    (a.creditosReposicao || []).forEach((c) => {
+      if (c.status === "disponivel" && !c.ocorrenciaReposicaoId && (!c.validoAte || c.validoAte >= hoje)) reposicoes.push({ alunoId: a.id, nome: a.nome || "Sem nome", validoAte: c.validoAte || null, tipo: "credito" });
+    });
+    (a.pedidosReposicao || []).filter((p) => p.status === "pendente").forEach(() => reposicoes.push({ alunoId: a.id, nome: a.nome || "Sem nome", tipo: "pedido" }));
+  });
+  const formacao = proximoPassoFormacao((membrosFormacao || []).find((m) => m.uid === uid));
+  return { emAberto, aDar, reposicoes, formacao, urgente: emAberto.length + reposicoes.length };
+}
+
+function PopupAvisosProfessor({ avisos, aoIr, aoFechar }) {
+  const { emAberto, aDar, reposicoes, formacao } = avisos;
+  const sec = { background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "10px 12px", marginBottom: 10 };
+  const tit = { fontFamily: ARCH, fontSize: 14.5, fontWeight: 700, marginBottom: 4 };
+  const item = { ...prosa, fontSize: 13, color: C.tinta };
+  const mais = (l, n) => (l.length > n ? <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>e mais {l.length - n}…</p> : null);
+  return (
+    <div role="dialog" aria-modal="true" aria-label="Seus avisos" data-popup-avisos style={{ position: "fixed", inset: 0, zIndex: 70, display: "flex", alignItems: "center", justifyContent: "center", padding: 14 }}>
+      <div onClick={aoFechar} style={{ position: "absolute", inset: 0, background: "rgba(16,30,25,.45)" }} />
+      <div style={{ position: "relative", background: C.papel, borderRadius: 14, padding: "16px 16px 12px", width: "100%", maxWidth: 460, maxHeight: "88vh", overflowY: "auto", boxShadow: "0 12px 40px rgba(0,0,0,.25)" }}>
+        <h2 style={{ fontFamily: ARCH, fontSize: 19, fontWeight: 700, marginBottom: 10 }}>Seus avisos</h2>
+        {emAberto.length > 0 && (
+          <div style={{ ...sec, borderLeft: "4px solid #B23A2E" }}>
+            <p style={tit}>Aulas em aberto · {emAberto.length}</p>
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 4 }}>Já passaram e ainda não foram marcadas como dadas ou canceladas.</p>
+            {emAberto.slice(0, 5).map((a) => <p key={a.id} style={item}>· {dataCurta(a.data)} {a.hora} — {a.titulo}</p>)}{mais(emAberto, 5)}
+            <div className="mt-2"><Botao pequeno onClick={() => aoIr("aulas-hoje")}>Fechar as aulas</Botao></div>
+          </div>
+        )}
+        {aDar.length > 0 && (
+          <div style={sec}>
+            <p style={tit}>Aulas de hoje · {aDar.length}</p>
+            {aDar.slice(0, 6).map((a) => <p key={a.id} style={item}>· {a.hora} — {a.titulo}</p>)}{mais(aDar, 6)}
+            <div className="mt-2"><Botao pequeno variante="vazio" onClick={() => aoIr("aulas-hoje")}>Ver aulas de hoje</Botao></div>
+          </div>
+        )}
+        {reposicoes.length > 0 && (
+          <div style={{ ...sec, borderLeft: "4px solid " + C.saibro }}>
+            <p style={tit}>Reposições a marcar · {reposicoes.length}</p>
+            {reposicoes.slice(0, 5).map((r, i) => <p key={i} style={item}>· {r.nome} — {r.tipo === "pedido" ? "pediu reposição" : "crédito disponível" + (r.validoAte ? " até " + dataCurta(r.validoAte) : "")}</p>)}{mais(reposicoes, 5)}
+            <div className="mt-2"><Botao pequeno variante="vazio" onClick={() => aoIr("reposicoes")}>Marcar reposições</Botao></div>
+          </div>
+        )}
+        <div style={sec}>
+          <p style={tit}>Formação</p>
+          {formacao.completa ? (
+            <p style={item}>Formação completa — {formacao.feitos} de {formacao.totalModulos} módulos. Parabéns!</p>
+          ) : (
+            <>
+              <p style={item}><b>Estágio atual:</b> curso {formacao.cursoIndice} de {formacao.cursos} — {formacao.curso}</p>
+              <p style={item}><b>Próximo:</b> {formacao.proximo}</p>
+              <div style={{ height: 6, background: "#E9EFEC", borderRadius: 4, margin: "6px 0 2px" }}><div style={{ width: Math.round(formacao.feitos / Math.max(1, formacao.totalModulos) * 100) + "%", height: 6, background: C.quadra, borderRadius: 4 }} /></div>
+              <p style={{ ...prosa, fontSize: 12, color: C.grafite }}>{formacao.feitos} de {formacao.totalModulos} módulos concluídos</p>
+              <div className="mt-2"><Botao pequeno variante="vazio" onClick={() => aoIr("formacao")}>Continuar a formação</Botao></div>
+            </>
+          )}
+        </div>
+        <div className="flex justify-end"><Botao pequeno variante="vazio" onClick={aoFechar}>Ver depois</Botao></div>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [alunos, setAlunos] = useState([]);
   const [turmas, setTurmas] = useState([]);
@@ -20778,6 +20875,20 @@ function App() {
   const [pedidosPendentesCount, setPedidosPendentesCount] = useState(0);
   const [limiteAtingido, setLimiteAtingido] = useState(false);
   const uidAtual = exigeLogin && window.mtyAuth.usuario() ? window.mtyAuth.usuario().uid : null;
+  /* pop-up de avisos do professor: abre quando o app termina de carregar e reabre de hora em hora enquanto houver aula
+     em aberto ou reposição a marcar (a formação aparece junto, mas sozinha não reabre) */
+  const [popupAvisos, setPopupAvisos] = useState({ aberto: false, mostrado: false, fechadoEm: 0 });
+  const [relogioAvisos, setRelogioAvisos] = useState(0);
+  useEffect(() => { const t = setInterval(() => setRelogioAvisos((n) => n + 1), 5 * 60000); return () => clearInterval(t); }, []);
+  const dadosProntos = !carregando && !carregandoTurmas && !carregandoOcorrencias && !carregandoFormacao;
+  const avisosPopup = useMemo(() => (dadosProntos && uidAtual ? avisosDoProfessorPopup({ uid: uidAtual, alunos, turmas, ocorrencias, membrosFormacao }) : null),
+    [dadosProntos, uidAtual, alunos, turmas, ocorrencias, membrosFormacao, relogioAvisos]);
+  useEffect(() => {
+    if (!avisosPopup || popupAvisos.aberto) return;
+    const temAlgo = avisosPopup.urgente > 0 || avisosPopup.aDar.length > 0 || !avisosPopup.formacao.completa;
+    if (!popupAvisos.mostrado && temAlgo) setPopupAvisos({ aberto: true, mostrado: true, fechadoEm: 0 });
+    else if (popupAvisos.mostrado && avisosPopup.urgente > 0 && Date.now() - popupAvisos.fechadoEm >= 60 * 60000) setPopupAvisos({ ...popupAvisos, aberto: true });
+  }, [avisosPopup, popupAvisos]);
 
   useEffect(() => {
     if (!exigeLogin) return;
@@ -21274,6 +21385,11 @@ function App() {
                   </span>
                 )}
               </button>
+              {popupAvisos.aberto && avisosPopup && (
+                <PopupAvisosProfessor avisos={avisosPopup}
+                  aoFechar={() => setPopupAvisos({ aberto: false, mostrado: true, fechadoEm: Date.now() })}
+                  aoIr={(v) => { setPopupAvisos({ aberto: false, mostrado: true, fechadoEm: Date.now() }); setAba(v); }} />
+              )}
               {avisosAberto && (
                 <>
                   <div onClick={() => setAvisosAberto(false)} style={{ position: "fixed", inset: 0, zIndex: 19 }} />
