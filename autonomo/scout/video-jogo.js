@@ -47,6 +47,7 @@
     el.innerHTML = '<div class="qm-card"><div id="vj-cota"></div><div class="qm-row"><label class="qm-btn">Escolher vídeo da partida<input data-r="arq" type="file" accept="' + ACEITA + '" hidden></label>' +
       '<label>Atleta <input type="text" data-r="nA" style="width:130px"></label><label>Adversário <input type="text" data-r="nB" value="Adversário" style="width:130px"></label>' +
       '<button class="qm-pri" data-r="go" disabled>Detectar pontos</button></div>' +
+      '<div class="qm-row" style="margin-top:8px"><label style="flex:1;min-width:220px">ou link do YouTube <input type="url" data-r="yt" placeholder="https://youtu.be/…" style="width:100%"></label><button data-r="ytgo">Abrir link</button></div>' +
       '<div class="qm-row" style="margin-top:8px"><label>Sensibilidade <input data-r="sens" type="range" min="1" max="10" value="5"></label><label>Pausa que separa pontos (s) <input data-r="gap" type="number" value="6" min="2" max="30" style="width:70px"></label><button data-r="re" disabled>Reprocessar</button></div>' +
       '<div class="qm-row" data-r="prog" style="display:none;margin-top:10px"><progress data-r="barra" max="1" value="0" style="flex:1;min-width:160px;height:10px;accent-color:#0B3B2E"></progress><button data-r="parar">Cancelar</button></div>' +
       '<p class="qm-msg" data-r="st">Pode enviar a partida inteira, em qualquer formato — inclusive vídeos gravados no celular (MP4, MOV, HEVC), MKV, AVI e MTS. O vídeo não sai do aparelho: o som é lido aqui mesmo, em partes. Câmera fixa e perto da quadra captam melhor o som da bola.</p></div>' +
@@ -59,6 +60,53 @@
       '<div data-r="scout"></div>' +
       '<div class="qm-card" data-r="evoC"><h3 class="qm-h">Evolução dos jogos em vídeo</h3><div data-r="evo"></div><div data-r="hl"></div></div>';
     var q = function (n) { return el.querySelector('[data-r="' + n + '"]'); }, v = q("v");
+    /* ── link do YouTube: o vídeo toca no player oficial (o navegador não deixa ler os quadros de um vídeo do YouTube, e
+       baixar fora das opções do YouTube não é permitido). Dá para marcar os pontos à mão, ligados ao tempo do vídeo; a
+       análise automática (bola, quique, golpes) precisa do arquivo ── */
+    function idYouTube(u) {
+      var m = /(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|live\/|embed\/))([A-Za-z0-9_-]{11})/.exec(String(u || "").trim());
+      return m ? m[1] : null;
+    }
+    var apiYT = null;
+    function carregarApiYT() {
+      if (raiz.YT && raiz.YT.Player) return Promise.resolve(raiz.YT);
+      if (!apiYT) apiYT = new Promise(function (ok, falha) {
+        var antes = raiz.onYouTubeIframeAPIReady;
+        raiz.onYouTubeIframeAPIReady = function () { if (antes) try { antes(); } catch (e) {} ok(raiz.YT); };
+        var sc = document.createElement("script"); sc.src = "https://www.youtube.com/iframe_api"; sc.onerror = function () { apiYT = null; falha(new Error("não consegui carregar o player do YouTube")); };
+        document.head.appendChild(sc);
+      });
+      return apiYT;
+    }
+    async function abrirYouTube() {
+      var id = idYouTube(q("yt").value);
+      if (!id) { msg("Esse link não parece de um vídeo do YouTube. Cole o link do vídeo (youtu.be/… ou youtube.com/watch?v=…)."); return; }
+      if (st.sinal) { st.sinal.cancelado = true; raiz.QLAudioVideo.parar(); }
+      if (st.url) { URL.revokeObjectURL(st.url); st.url = null; }
+      limparClipes(); modoClipes(false); st.arq = null; st.en = null; st.hits = null; st.vez++; st.fim = null;
+      q("scout").innerHTML = ""; st.scoutDe = null; q("go").disabled = true; q("re").disabled = true;
+      v.pause(); v.removeAttribute("src"); v.style.display = "none";
+      var caixa = q("ytbox");
+      if (!caixa) { caixa = document.createElement("div"); caixa.setAttribute("data-r", "ytbox"); caixa.className = "vj-video"; caixa.style.aspectRatio = "16/9"; v.parentNode.insertBefore(caixa, v); }
+      caixa.innerHTML = '<div data-r="ytp" style="width:100%;height:100%"></div>';
+      st.pts = []; st.sel = 0; st.salvo = false; st.regId = null; st.yt = { id: id, player: null };
+      q("rev").hidden = false; render();
+      msg("Abrindo o vídeo do YouTube…");
+      try {
+        var YTa = await carregarApiYT(); if (!st.yt || st.yt.id !== id) return;
+        st.yt.player = new YTa.Player(caixa.firstChild, { videoId: id, width: "100%", height: "100%", playerVars: { playsinline: 1, rel: 0 },
+          events: { onReady: function () { if (st.yt && st.yt.id === id) st.dur = st.yt.player.getDuration() || 0; } } });
+        msg("Vídeo do YouTube aberto. A cada ponto, toque em “+ Ponto aqui” quando o saque sair e marque quem ganhou (botões ou teclas A/B). " +
+          "Bola, quique, velocidade e golpes automáticos só com o arquivo do vídeo: se o vídeo é do seu canal, baixe no YouTube Studio (Conteúdo → ⋮ → Baixar) e escolha o arquivo acima.");
+      } catch (e) { msg("Não consegui abrir o player do YouTube: " + (e.message || e)); }
+    }
+    q("ytgo").onclick = abrirYouTube;
+    q("yt").addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); abrirYouTube(); } });
+    function sairYouTube() { if (!st.yt) return; try { if (st.yt.player && st.yt.player.destroy) st.yt.player.destroy(); } catch (e) {} st.yt = null; var c = q("ytbox"); if (c) c.remove(); v.style.display = ""; }
+    setInterval(function () { // fim do trecho no player do YouTube
+      if (!st.yt || !st.yt.player || st.fim == null || !st.yt.player.getCurrentTime) return;
+      if (st.yt.player.getCurrentTime() >= st.fim) { st.yt.player.pauseVideo(); st.fim = null; }
+    }, 200);
     function msg(t) { q("st").textContent = t; }
     function cota() {
       var c = st.cota, slot = el.querySelector("#vj-cota");
@@ -89,6 +137,7 @@
     }
     q("arq").onchange = function (e) {
       var f = e.target.files[0]; if (!f) return;
+      sairYouTube();
       if (st.sinal) { st.sinal.cancelado = true; raiz.QLAudioVideo.parar(); }
       st.vezClipe++;
       if (st.url) URL.revokeObjectURL(st.url); limparClipes(); modoClipes(false);
@@ -145,6 +194,7 @@
     }
     /* toca um trecho do vídeo; quando o navegador não exibe o original, converte o trecho num clipe (e já prepara o próximo) */
     async function tocarJanela(ini, fim, rotulo, proximo) {
+      if (st.yt) { if (st.yt.player && st.yt.player.seekTo) { st.yt.player.seekTo(ini, true); st.yt.player.playVideo(); st.fim = fim; } return; }
       if (!st.clipes) { if (st.url && v.src !== st.url) { v.src = st.url; } v.currentTime = ini; st.fim = fim; v.play().catch(function () {}); return; }
       var vez = ++st.vezClipe; st.fim = null; msg("Preparando o clipe" + (rotulo ? " (" + rotulo.toLowerCase() + ")" : "") + "…");
       try {
@@ -153,7 +203,7 @@
         if (proximo) clipeDe(proximo).catch(function () {});
       } catch (e) { if (vez === st.vezClipe) msg("Não consegui preparar o clipe: " + (e.message || e)); }
     }
-    function agora() { return (st.clipes ? st.base : 0) + v.currentTime; }
+    function agora() { if (st.yt) return st.yt.player && st.yt.player.getCurrentTime ? st.yt.player.getCurrentTime() || 0 : 0; return (st.clipes ? st.base : 0) + v.currentTime; }
     /* scout completo: calibração, visão e revisão ponto a ponto (scout/video-scout-ui.js) */
     function montarScout() {
       if (!raiz.QLVideoScoutUI || st.scoutDe === st.arq) return;
@@ -204,7 +254,12 @@
       q("cmpC").hidden = !(ant.n && ant.linhas.length); q("cmp").innerHTML = tabelaCmp(ant);
     }
     q("ant").onclick = function () { tocar(st.sel - 1); }; q("prox").onclick = function () { tocar(st.sel + 1); }; q("rep").onclick = function () { tocar(st.sel); };
-    q("add").onclick = function () { var t = agora(); st.pts.push({ n: 0, ini: Math.max(0, t - 2), fim: t + 3, saque: t, golpes: 0, duracao: 0, suspeito: "adicionado manualmente", venc: "", tipo: "", sacador: "" }); st.pts.sort(function (a, b) { return a.saque - b.saque; }); st.pts.forEach(function (x, j) { x.n = j + 1; }); st.salvo = false; render(true); };
+    q("add").onclick = function () {
+      var t = agora();
+      /* no YouTube (sem os pontos achados pelo som) o ponto vai do saque até o próximo ponto marcado */
+      var fimP = st.yt ? t + 12 : t + 3;
+      if (st.yt) st.pts.forEach(function (x) { if (x.saque < t && x.fim > t - 0.5) { x.fim = Math.max(x.saque + 1, t - 0.5); x.duracao = x.fim - x.saque; } });
+      st.pts.push({ n: 0, ini: Math.max(0, t - (st.yt ? 1 : 2)), fim: fimP, saque: t, golpes: 0, duracao: 0, suspeito: st.yt ? "" : "adicionado manualmente", venc: "", tipo: "", sacador: "" }); st.pts.sort(function (a, b) { return a.saque - b.saque; }); st.pts.forEach(function (x, j) { x.n = j + 1; }); st.salvo = false; render(true); };
     el.addEventListener("keydown", function (e) {
       if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName) || q("rev").hidden) return;
       if (e.key === "ArrowRight") tocar(st.sel + 1); else if (e.key === "ArrowLeft") tocar(st.sel - 1); else if (e.key === " ") { e.preventDefault(); tocar(st.sel); }
@@ -213,7 +268,8 @@
     el.setAttribute("tabindex", "-1");
     function registro() {
       return { id: st.regId || ("vj" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)), criadoEm: new Date().toISOString(), atleta: q("nA").value, adversario: q("nB").value,
-        pontos: st.pts.map(function (p) { return { n: p.n, ini: +p.ini.toFixed(1), fim: +p.fim.toFixed(1), saque: +p.saque.toFixed(1), sacador: p.sacador, venc: p.venc, tipo: p.tipo, golpes: p.golpes, duracao: +p.duracao.toFixed(1) }; }), res: S.resumirJogo(st.pts), origem: "video" };
+        pontos: st.pts.map(function (p) { return { n: p.n, ini: +p.ini.toFixed(1), fim: +p.fim.toFixed(1), saque: +p.saque.toFixed(1), sacador: p.sacador, venc: p.venc, tipo: p.tipo, golpes: p.golpes, duracao: +p.duracao.toFixed(1) }; }), res: S.resumirJogo(st.pts), origem: "video",
+        youtube: st.yt ? st.yt.id : undefined };
     }
     q("salvar").onclick = function () {
       if (!st.pts.length) return; if (st.cota && !st.cota.liberado && !st.salvo) { cota(); return; }
