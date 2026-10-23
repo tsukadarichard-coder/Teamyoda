@@ -267,13 +267,31 @@
       function jogador(img, wi, he, t, lado, rgba, Hq, Hiq, mexe) {
         var r = roi[lado] || caixaMetade(lado, Hiq);
         var cxr = (r[0] + r[2]) / 2 * wi, cyr = (r[1] + r[3]) / 2 * he, lado2 = Math.max((r[2] - r[0]) * wi, (r[3] - r[1]) * he, 96);
-        var sx = Math.max(0, cxr - lado2 / 2), sy = Math.max(0, cyr - lado2 / 2), sw = Math.min(wi - sx, lado2), sh = Math.min(he - sy, lado2);
+        function recorte(sx, sy, lado2) { // pose num quadrado da imagem; devolve os pontos no quadro inteiro
+          sx = Math.max(0, sx); sy = Math.max(0, sy); var sw = Math.min(wi - sx, lado2), sh = Math.min(he - sy, lado2);
+          if (sw < 16 || sh < 16) return null;
+          rx.clearRect(0, 0, 256, 256); rx.drawImage(img, sx, sy, sw, sh, 0, 0, 256, 256);
+          var lm = null; try { lm = pose.detectar(rc, t * 1000, lado); } catch (e) { lm = null; }
+          return lm ? lm.map(function (p) { return { x: (sx + p.x * sw) / wi, y: (sy + p.y * sh) / he, v: p.v }; }) : null;
+        }
+        function naMetade(f) { // pés do lado certo da quadra
+          var pp = [27, 28].map(function (i) { return f[i]; }); if (!pp[0] || !pp[1]) return false;
+          var P = VS.aplicarH(Hq, [(pp[0].x + pp[1].x) / 2, Math.max(pp[0].y, pp[1].y)]);
+          return Math.abs(P[0]) <= 9 && (lado === "perto" ? P[1] <= 0.5 && P[1] >= -L2 - 7 : P[1] >= -0.5 && P[1] <= L2 + 7);
+        }
         var full = null;
         if (pose && pose.detectarQuadro) full = pose.detectarQuadro(t, lado); // testes: pose já no quadro inteiro
         else if (pose) {
-          rx.clearRect(0, 0, 256, 256); rx.drawImage(img, sx, sy, sw, sh, 0, 0, 256, 256);
-          var lm = null; try { lm = pose.detectar(rc, t * 1000, lado); } catch (e) { lm = null; }
-          if (lm) full = lm.map(function (p) { return { x: (sx + p.x * sw) / wi, y: (sy + p.y * sh) / he, v: p.v }; });
+          /* sem a pessoa acompanhada e com a metade da quadra grande demais perto do tamanho dela (o jogador de longe vira
+             15 px no recorte), varre a metade em quadrados de ~3 alturas de pessoa */
+          var altPx = 1.9 * cal.escala(lado === "perto" ? -L2 : L2) * he, T = Math.max(96, 3.2 * altPx);
+          if (roi[lado] || lado2 <= 1.6 * T) full = recorte(cxr - lado2 / 2, cyr - lado2 / 2, lado2);
+          else {
+            var x0 = r[0] * wi, x1 = r[2] * wi, y0 = r[1] * he, y1 = r[3] * he, tent = 0;
+            for (var yy = y0; yy < y1 && !full && tent < 12; yy += 0.6 * T) for (var xx = x0; xx < x1 && !full && tent < 12; xx += 0.6 * T) {
+              tent++; var f = recorte(xx, yy, T); if (f && naMetade(f)) full = f;
+            }
+          }
         }
         if (full) {
           var pes = [27, 28, 29, 30, 31, 32].map(function (i) { return full[i]; }).filter(function (p) { return p && p.v > 0.2; });

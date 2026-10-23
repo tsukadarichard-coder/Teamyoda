@@ -239,8 +239,25 @@
       });
       livres.forEach(function (c, j) { if (!cUsado[j]) { var tl = { pts: [c], u: c, v: [0, 0] }; abertas.push(tl); todas.push(tl); } });
     });
-    var melhor = todas.filter(function (tl) { return tl.pts.length >= 5; }).sort(function (a, b) { return b.pts.length - a.pts.length; })[0];
-    return melhor ? melhor.pts : null;
+    /* no vídeo real a bola some um ou dois quadros perto do quique (linha, sombra) e a trilha se parte em duas: liga pedaços
+       em sequência (o seguinte começa até 0,25 s depois, perto de onde o anterior ia). Pedaço quase parado é ruído (corpo do
+       jogador, gente atrás do alambrado) e vale pouco */
+    var peca = todas.filter(function (tl) { return tl.pts.length >= 3; }).sort(function (a, b) { return a.pts[0].t - b.pts[0].t; });
+    function rapidez(tl) { var a = tl.pts[0], z = tl.pts[tl.pts.length - 1], dt = z.t - a.t; return dt > 0 ? Math.hypot((z.x - a.x) * asp, z.y - a.y) / dt : 0; }
+    function peso(tl) { return tl.pts.length * (rapidez(tl) < 0.12 ? 0.3 : 1); }
+    var best = peca.map(function (tl) { return { v: peso(tl), ant: -1 }; });
+    for (var i = 0; i < peca.length; i++) for (var j = 0; j < i; j++) {
+      var A = peca[j], B = peca[i], fa = A.pts[A.pts.length - 1], ib = B.pts[0], gap = ib.t - fa.t;
+      if (gap <= 0 || gap > 0.25) continue;
+      var vel = Math.max(rapidez(A), rapidez(B)), d = Math.hypot((ib.x - fa.x) * asp, ib.y - fa.y);
+      if (d > 0.03 + 1.3 * vel * gap) continue;
+      if (best[j].v + peso(B) > best[i].v) best[i] = { v: best[j].v + peso(B), ant: j };
+    }
+    var fim = -1; best.forEach(function (b, i) { if (fim < 0 || b.v > best[fim].v) fim = i; });
+    if (fim < 0) return null;
+    var cadeia = []; for (var k = fim; k >= 0; k = best[k].ant) cadeia.unshift(peca[k]);
+    var pts2 = [].concat.apply([], cadeia.map(function (tl) { return tl.pts; }));
+    return pts2.length >= 5 ? pts2 : null;
   }
   function residuo(P, eixoX, eixoY, asp) {
     var cx = ajustaQuad(P, "x"), cy = ajustaQuad(P, "y"); if (!cx || !cy) return null;
