@@ -6361,6 +6361,12 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
               <input type="date" style={entrada} value={f.nascimento} max={new Date().toISOString().slice(0, 10)}
                 onChange={(e) => set("nascimento", e.target.value)} />
             </Campo>
+            <Campo rotulo="WhatsApp do jogador" nota="Com DDD. Usado nas mensagens prontas de Pendências do dia.">
+              <input style={entrada} inputMode="tel" value={f.telefone || ""} onChange={(e) => set("telefone", e.target.value)} placeholder="(11) 99999-9999" />
+            </Campo>
+            <Campo rotulo="WhatsApp do responsável" nota="Para jogador menor: as mensagens vão para este número quando ele estiver preenchido.">
+              <input style={entrada} inputMode="tel" value={f.telefoneResponsavel || ""} onChange={(e) => set("telefoneResponsavel", e.target.value)} placeholder="(11) 98888-8888" />
+            </Campo>
             <Campo rotulo="Altura atual (m)">
               <input style={entrada} inputMode="decimal" value={f.alturaAtual} onChange={(e) => set("alturaAtual", e.target.value)} placeholder="1,78" />
             </Campo>
@@ -6735,6 +6741,7 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
           <Secao titulo="Dados">
             <Linha rotulo="Nome" texto={f.nome || "Sem nome ainda"} />
             <Linha rotulo="Nascimento" texto={f.nascimento || "não informado"} />
+            <Linha rotulo="WhatsApp" texto={[f.telefone, f.telefoneResponsavel ? "responsável " + f.telefoneResponsavel : ""].filter(Boolean).join(" · ") || "não informado"} />
             <div className="mt-2"><Botao pequeno variante="vazio" onClick={() => setEtapa(1)}>Editar Dados</Botao></div>
           </Secao>
           <Secao titulo="Rotina">
@@ -19770,6 +19777,268 @@ const NAV_CONTEUDO = [{ v: "casos", r: "Casos" }];
 const NAV_MANUAL = [{ v: "catalogo", r: "Catálogo" }, { v: "tecnica", r: "Técnica" }, { v: "taticas", r: "Táticas" },
   { v: "conducao", r: "Condução" }, { v: "publicos", r: "Públicos" }, { v: "aulas", r: "Aulas" }, { v: "metodo", r: "Como decide" }];
 
+/* ── PENDÊNCIAS DO DIA + MENSAGENS PRONTAS ────────────────────────────────
+   Uma tela só com o que precisa de atenção hoje (aulas do dia, aulas que
+   ficaram sem fechar, pedidos de reposição, créditos vencendo, reservas e
+   inscrições novas e — para o dono — mensalidades em aberto) e, em cada
+   item, a mensagem pronta: o botão abre o WhatsApp com o número e o texto
+   já preenchidos (link wa.me), e o envio é sempre de quem toca. Nada é
+   enviado sozinho, nenhuma integração paga. Os textos são modelos que o
+   coordenador edita uma vez (mty:modelosMensagem:v1). */
+const MODELOS_MENSAGEM_PADRAO = {
+  lembrete: "Olá, {nome}! Lembrete: {aula} hoje às {hora}. Até já!",
+  cancelamento: "Olá, {nome}! A aula de {aula} de hoje às {hora} foi cancelada{motivo}. A reposição fica garantida — combinamos o novo horário.",
+  mensalidade: "Olá, {nome}! Passando para lembrar da mensalidade de {mes} ({valor}). Se já pagou, pode desconsiderar. Obrigado!",
+  reposicao: "Olá, {nome}! Recebi seu pedido de reposição. Vejo o melhor horário e te confirmo por aqui.",
+  reserva: "Olá, {nome}! Sua reserva da {quadra} em {data}, das {inicio} às {fim}, está confirmada. Até lá!",
+  inscricao: "Olá, {nome}! Sua inscrição em {evento} está confirmada. Até lá!",
+};
+const ROTULOS_MODELO = { lembrete: "Lembrete de aula", cancelamento: "Aula cancelada", mensalidade: "Mensalidade em aberto", reposicao: "Resposta a pedido de reposição", reserva: "Reserva de quadra confirmada", inscricao: "Inscrição confirmada" };
+const VARIAVEIS_MODELO = { lembrete: "{nome} {aula} {hora}", cancelamento: "{nome} {aula} {hora} {motivo}", mensalidade: "{nome} {mes} {valor}", reposicao: "{nome}", reserva: "{nome} {quadra} {data} {inicio} {fim}", inscricao: "{nome} {evento}" };
+
+/* número no formato do WhatsApp: só dígitos, com 55 quando vier só DDD + número */
+function numeroWhatsApp(t) {
+  let d = String(t || "").replace(/\D/g, "");
+  if (d.startsWith("00")) d = d.slice(2);
+  if (d.length === 10 || d.length === 11) d = "55" + d;
+  return d.length >= 12 && d.length <= 15 ? d : "";
+}
+function linkWhatsApp(telefone, texto) {
+  const n = numeroWhatsApp(telefone);
+  return "https://wa.me/" + n + "?text=" + encodeURIComponent(texto);
+}
+function preencherModelo(modelo, vars) { return String(modelo || "").replace(/\{(\w+)\}/g, (m, k) => (vars[k] != null ? vars[k] : "")); }
+/* a quem mandar: o responsável, quando cadastrado (jogador menor); senão o próprio jogador */
+function contatoDoAluno(a) { return (a && (a.telefoneResponsavel || a.telefone)) || ""; }
+function primeiroNome(n) { return String(n || "").trim().split(/\s+/)[0] || ""; }
+function dataCurta(iso) { return iso ? iso.split("-").reverse().slice(0, 2).join("/") : ""; }
+
+function BotaoWhats({ telefone, texto, rotulo }) {
+  const ok = !!numeroWhatsApp(telefone);
+  return (
+    <a href={linkWhatsApp(telefone, texto)} target="_blank" rel="noopener noreferrer"
+      title={ok ? "Abre o WhatsApp com a mensagem pronta" : "Sem número cadastrado: abre o WhatsApp para escolher o contato"}
+      style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, padding: "6px 11px", borderRadius: 10, textDecoration: "none", whiteSpace: "nowrap",
+        border: "1px solid " + (ok ? "#1E8E4E" : C.linha), background: ok ? "#1E8E4E" : C.cal, color: ok ? "#fff" : C.grafite }}>
+      {rotulo || "WhatsApp"}{ok ? "" : " (sem nº)"}
+    </a>
+  );
+}
+function CopiarTexto({ texto }) {
+  const [ok, setOk] = useState(false);
+  return <Botao pequeno variante="vazio" onClick={() => { try { navigator.clipboard.writeText(texto); setOk(true); setTimeout(() => setOk(false), 1500); } catch (e) { window.prompt("Copie o texto:", texto); } }}>{ok ? "Copiado ✓" : "Copiar texto"}</Botao>;
+}
+
+function TelaPendencias({ alunos, turmas, quadras, ocorrencias, reservas, setReservas, torneios, setTorneios, eventos, setEventos, modelos, setModelos, orgAtual, irParaAluno, irPara }) {
+  const hoje = dataISO(new Date());
+  const M = { ...MODELOS_MENSAGEM_PADRAO, ...(modelos || {}) };
+  const [aberta, setAberta] = useState(""); // aula com destinatários abertos: id + "|" + tipo de mensagem
+  const [motivo, setMotivo] = useState("chuva");
+  const [editandoModelos, setEditandoModelos] = useState(false);
+  const [rascunhoModelos, setRascunhoModelos] = useState(M);
+  const [financeiro, setFinanceiro] = useState(null);
+  const alunoPorId = useMemo(() => new Map((alunos || []).map((a) => [a.id, a])), [alunos]);
+  const quadraPorId = useMemo(() => new Map((quadras || []).map((q) => [q.id, q])), [quadras]);
+  const dono = ehDonoFinanceiro();
+
+  /* mensalidades em aberto do mês: só para o dono, pelo financeiro (o servidor confere o login de novo) */
+  useEffect(() => {
+    if (!dono) return;
+    let vivo = true;
+    chamarFinanceiro("GET", mesISOAtual()).then((d) => { if (vivo) setFinanceiro(d); }).catch(() => { if (vivo) setFinanceiro({ erro: true }); });
+    return () => { vivo = false; };
+  }, [dono]);
+
+  /* aulas de hoje: as ocorrências já geradas e, se a Agenda ainda não gerou as de hoje, as dos horários fixos */
+  const aulasHoje = useMemo(() => {
+    const ja = (ocorrencias || []).filter((o) => o.data === hoje);
+    const faltam = gerarOcorrenciasFaltantes(ocorrencias || [], alunos || [], turmas || [], hoje, hoje, []);
+    return ja.concat(faltam).sort((a, b) => (a.horaInicio || "").localeCompare(b.horaInicio || ""));
+  }, [ocorrencias, alunos, turmas, hoje]);
+  function tituloAula(o) {
+    if (o.origemTipo === "turma") { const t = (turmas || []).find((x) => x.id === o.origemId); return t ? t.nome : "Turma"; }
+    if (o.origemTipo === "individual") { const a = alunoPorId.get(o.origemId); return a ? "Aula de " + (a.nome || "jogador") : "Aula individual"; }
+    return o.titulo || "Aula";
+  }
+  function destinatarios(o) {
+    if (o.origemTipo === "turma") { const t = (turmas || []).find((x) => x.id === o.origemId); return t ? (t.membros || []).map((id) => alunoPorId.get(id)).filter(Boolean) : []; }
+    const a = alunoPorId.get(o.origemId); return a ? [a] : [];
+  }
+  const semFechar = (ocorrencias || []).filter((o) => o.status === "agendada" && o.data < hoje);
+
+  const pedidosReposicao = [];
+  (alunos || []).forEach((a) => (a.pedidosReposicao || []).filter((p) => p.status === "pendente").forEach((p) => pedidosReposicao.push({ aluno: a, pedido: p })));
+  const em7 = dataISO(new Date(Date.now() + 7 * 86400000));
+  const creditosAprovar = [], creditosVencendo = [];
+  (alunos || []).forEach((a) => (a.creditosReposicao || []).forEach((c) => {
+    if (c.status === "pendente_aprovacao") creditosAprovar.push({ aluno: a, credito: c });
+    else if (c.status === "disponivel" && c.validoAte && c.validoAte >= hoje && c.validoAte <= em7) creditosVencendo.push({ aluno: a, credito: c });
+  }));
+  const reservasNovas = (reservas || []).filter((r) => r.origem === "cliente" && !r.vistoPeloStaff);
+  const inscricoesNovas = [];
+  (torneios || []).forEach((t) => (t.categorias || []).forEach((c) => (c.inscritos || []).filter((i) => i.origem === "cliente" && !i.vistoPeloStaff)
+    .forEach((i) => inscricoesNovas.push({ tipo: "torneio", nome: i.nomeContato, telefone: i.telefoneContato, evento: t.nome + (c.nome ? " · " + c.nome : ""), id: i.id, torneioId: t.id, categoriaId: c.id }))));
+  (eventos || []).forEach((e) => (e.convidados || []).filter((c) => c.origem === "cliente" && !c.vistoPeloStaff)
+    .forEach((c) => inscricoesNovas.push({ tipo: "evento", nome: c.nomeContato, telefone: c.telefoneContato, evento: e.nome, id: c.id, eventoId: e.id, espera: c.status === "espera" })));
+  const minhaAcademia = financeiro && financeiro.academias ? financeiro.academias.find((a) => a.org === orgAtual) : null;
+  const emAberto = minhaAcademia ? minhaAcademia.mes.controle.emAberto : [];
+
+  function verReserva(r) { setReservas((reservas || []).map((x) => (x.id === r.id ? { ...x, vistoPeloStaff: true } : x))); }
+  function verInscricao(i) {
+    if (i.tipo === "torneio") setTorneios((torneios || []).map((t) => (t.id !== i.torneioId ? t : { ...t, categorias: t.categorias.map((c) => (c.id !== i.categoriaId ? c : { ...c, inscritos: c.inscritos.map((x) => (x.id === i.id ? { ...x, vistoPeloStaff: true } : x)) })) })));
+    else setEventos((eventos || []).map((e) => (e.id !== i.eventoId ? e : { ...e, convidados: e.convidados.map((x) => (x.id === i.id ? { ...x, vistoPeloStaff: true } : x)) })));
+  }
+
+  const h2 = { fontFamily: ARCH, fontSize: 16, fontWeight: 700, margin: "20px 0 8px" };
+  const linha = { background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "9px 12px", marginBottom: 6 };
+  const sub = { ...prosa, fontSize: 12.5, color: C.grafite };
+  const contagens = [
+    { n: aulasHoje.filter((o) => o.status !== "cancelada").length, r: "aulas hoje" },
+    { n: semFechar.length, r: "sem fechar" },
+    { n: pedidosReposicao.length + creditosAprovar.length, r: "reposições" },
+    { n: reservasNovas.length + inscricoesNovas.length, r: "novos pelo link" },
+    ...(dono ? [{ n: emAberto.length, r: "mensalidades em aberto" }] : []),
+  ];
+
+  return (
+    <div>
+      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Pendências do dia</h1>
+      <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginBottom: 12 }}>
+        Tudo o que pede atenção hoje, com a mensagem pronta: o botão verde abre o WhatsApp com o número e o texto preenchidos — você só confere e envia.
+      </p>
+      <div className="mb-2" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 8 }}>
+        {contagens.map((c) => (
+          <div key={c.r} style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "8px 11px" }}>
+            <div style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, color: c.n ? C.quadra : C.grafite }}>{c.n}</div>
+            <div style={{ ...sub, fontSize: 12 }}>{c.r}</div>
+          </div>
+        ))}
+      </div>
+
+      <h2 style={h2}>Aulas de hoje</h2>
+      {aulasHoje.length === 0 && <p style={sub}>Nenhuma aula com horário fixo para hoje.</p>}
+      {aulasHoje.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 mb-2">
+          <span style={sub}>Motivo do cancelamento, se precisar:</span>
+          <input style={{ ...entrada, width: 180, fontSize: 14, padding: "5px 8px" }} value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="ex.: chuva" />
+        </div>
+      )}
+      {aulasHoje.map((o) => {
+        const dest = destinatarios(o), titulo = tituloAula(o), q = quadraPorId.get(o.quadraId);
+        const status = o.status === "cancelada" ? "cancelada" : o.status === "realizada" ? "realizada" : "agendada";
+        return (
+          <div key={o.id} style={linha}>
+            <div className="flex flex-wrap items-center gap-2">
+              <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, flex: 1 }}>{o.horaInicio} · {titulo}{q ? " · " + q.nome : ""}</span>
+              <Etiqueta cor={status === "cancelada" ? "#B23A2E" : status === "realizada" ? C.quadra : C.grafite}>{status}</Etiqueta>
+              <Botao pequeno variante="vazio" onClick={() => setAberta(aberta === o.id + "|lembrete" ? "" : o.id + "|lembrete")}>Lembrete</Botao>
+              <Botao pequeno variante="vazio" onClick={() => setAberta(aberta === o.id + "|cancelamento" ? "" : o.id + "|cancelamento")}>Aviso de cancelamento</Botao>
+            </div>
+            {aberta.startsWith(o.id + "|") && (() => {
+              const tipo = aberta.split("|")[1];
+              const texto = (a) => preencherModelo(M[tipo], { nome: primeiroNome(a ? a.nome : ""), aula: titulo, hora: o.horaInicio, motivo: motivo.trim() ? " (" + motivo.trim() + ")" : "" });
+              return (
+                <div style={{ marginTop: 8 }}>
+                  {dest.length > 1 && <div className="flex flex-wrap items-center gap-2 mb-2"><span style={sub}>Para o grupo da turma:</span><CopiarTexto texto={texto({ nome: "pessoal" })} /></div>}
+                  {dest.map((a) => (
+                    <div key={a.id} className="flex flex-wrap items-center gap-2" style={{ padding: "4px 0", borderTop: "1px solid " + C.linha }}>
+                      <span style={{ fontFamily: ARCH, fontSize: 13, flex: 1 }}>{a.nome || "Sem nome"}{!contatoDoAluno(a) && <button onClick={() => irParaAluno(a.id)} style={{ ...sub, marginLeft: 6, textDecoration: "underline", background: "none", border: "none", cursor: "pointer" }}>cadastrar WhatsApp</button>}</span>
+                      <BotaoWhats telefone={contatoDoAluno(a)} texto={texto(a)} />
+                    </div>
+                  ))}
+                  {dest.length === 0 && <p style={sub}>Sem jogadores ligados a esta aula.</p>}
+                </div>
+              );
+            })()}
+          </div>
+        );
+      })}
+      {semFechar.length > 0 && (
+        <Aviso>{semFechar.length} aula{semFechar.length === 1 ? "" : "s"} de dias anteriores ainda sem marcar como dada ou cancelada. <button onClick={() => irPara("aulas-hoje")} style={{ textDecoration: "underline", background: "none", border: "none", cursor: "pointer", font: "inherit" }}>Fechar em Aulas de hoje</button></Aviso>
+      )}
+
+      <h2 style={h2}>Reposições</h2>
+      {pedidosReposicao.length + creditosAprovar.length + creditosVencendo.length === 0 && <p style={sub}>Nenhum pedido ou crédito pendente.</p>}
+      {pedidosReposicao.map(({ aluno, pedido }) => (
+        <div key={pedido.id || aluno.id} style={linha} className="flex flex-wrap items-center gap-2">
+          <span style={{ fontFamily: ARCH, fontSize: 13.5, flex: 1 }}><b>{aluno.nome}</b> pediu reposição{pedido.diaPreferido != null && typeof nomeDia === "function" ? " · prefere " + nomeDia(pedido.diaPreferido) : ""}</span>
+          <Botao pequeno variante="vazio" onClick={() => irParaAluno(aluno.id)}>Abrir</Botao>
+          <BotaoWhats telefone={contatoDoAluno(aluno)} texto={preencherModelo(M.reposicao, { nome: primeiroNome(aluno.nome) })} rotulo="Responder" />
+        </div>
+      ))}
+      {creditosAprovar.length > 0 && (
+        <div style={linha} className="flex flex-wrap items-center gap-2">
+          <span style={{ fontFamily: ARCH, fontSize: 13.5, flex: 1 }}>{creditosAprovar.length} crédito{creditosAprovar.length === 1 ? "" : "s"} de reposição esperando sua aprovação ({creditosAprovar.map((x) => primeiroNome(x.aluno.nome)).join(", ")})</span>
+          <Botao pequeno variante="vazio" onClick={() => irPara("reposicoes")}>Aprovar em Reposições</Botao>
+        </div>
+      )}
+      {creditosVencendo.map(({ aluno, credito }) => (
+        <div key={credito.id} style={linha} className="flex flex-wrap items-center gap-2">
+          <span style={{ fontFamily: ARCH, fontSize: 13.5, flex: 1 }}>Crédito de <b>{aluno.nome}</b> vence em {dataCurta(credito.validoAte)}</span>
+          <BotaoWhats telefone={contatoDoAluno(aluno)} texto={"Olá, " + primeiroNome(aluno.nome) + "! Você tem uma reposição disponível até " + dataCurta(credito.validoAte) + ". Quer marcar?"} />
+        </div>
+      ))}
+
+      <h2 style={h2}>Novos pelo link</h2>
+      {reservasNovas.length + inscricoesNovas.length === 0 && <p style={sub}>Nenhuma reserva ou inscrição nova.</p>}
+      {reservasNovas.map((r) => {
+        const q = quadraPorId.get(r.quadraId);
+        return (
+          <div key={r.id} style={linha} className="flex flex-wrap items-center gap-2">
+            <span style={{ fontFamily: ARCH, fontSize: 13.5, flex: 1 }}><b>{r.nomeContato || "Sem nome"}</b> reservou {q ? q.nome : "quadra"} · {dataCurta(r.data)} {r.horaInicio}–{r.horaFim}</span>
+            <BotaoWhats telefone={r.telefoneContato} texto={preencherModelo(M.reserva, { nome: primeiroNome(r.nomeContato), quadra: q ? q.nome : "quadra", data: dataCurta(r.data), inicio: r.horaInicio, fim: r.horaFim })} rotulo="Confirmar" />
+            <Botao pequeno variante="vazio" onClick={() => verReserva(r)}>Visto</Botao>
+          </div>
+        );
+      })}
+      {inscricoesNovas.map((i) => (
+        <div key={i.id} style={linha} className="flex flex-wrap items-center gap-2">
+          <span style={{ fontFamily: ARCH, fontSize: 13.5, flex: 1 }}><b>{i.nome || "Sem nome"}</b> se inscreveu em {i.evento}{i.espera ? " (lista de espera)" : ""}</span>
+          <BotaoWhats telefone={i.telefone} texto={preencherModelo(M.inscricao, { nome: primeiroNome(i.nome), evento: i.evento })} rotulo="Confirmar" />
+          <Botao pequeno variante="vazio" onClick={() => verInscricao(i)}>Visto</Botao>
+        </div>
+      ))}
+
+      {dono && (
+        <>
+          <h2 style={h2}>Mensalidades em aberto · {nomeMes(mesISOAtual())}</h2>
+          {!financeiro && <p style={sub}>Consultando o financeiro…</p>}
+          {financeiro && financeiro.erro && <p style={sub}>Não consegui consultar o financeiro agora.</p>}
+          {minhaAcademia && emAberto.length === 0 && <p style={sub}>Nada em aberto (ou ainda sem preços em Financeiro → Preços).</p>}
+          {emAberto.map((l) => {
+            const id = l.chave.split(":").pop(), a = alunoPorId.get(id);
+            return (
+              <div key={l.chave} style={linha} className="flex flex-wrap items-center gap-2">
+                <span style={{ fontFamily: ARCH, fontSize: 13.5, flex: 1 }}><b>{l.nome}</b> · {reais(l.valor)}</span>
+                <BotaoWhats telefone={contatoDoAluno(a)} texto={preencherModelo(M.mensalidade, { nome: primeiroNome(l.nome), mes: nomeMes(mesISOAtual()).split(" de ")[0], valor: reais(l.valor) })} rotulo="Lembrar" />
+              </div>
+            );
+          })}
+          {emAberto.length > 0 && <p style={sub}>Quando o pagamento entrar, marque em Financeiro → Recebido e pago.</p>}
+        </>
+      )}
+
+      <h2 style={h2}>Modelos de mensagem</h2>
+      {!editandoModelos ? (
+        <Botao pequeno variante="vazio" onClick={() => { setRascunhoModelos(M); setEditandoModelos(true); }}>Editar os textos</Botao>
+      ) : (
+        <div>
+          {Object.keys(MODELOS_MENSAGEM_PADRAO).map((k) => (
+            <Campo key={k} rotulo={ROTULOS_MODELO[k]} nota={"Pode usar: " + VARIAVEIS_MODELO[k]}>
+              <textarea rows={2} style={{ ...entrada, fontSize: 15 }} value={rascunhoModelos[k]} onChange={(e) => setRascunhoModelos({ ...rascunhoModelos, [k]: e.target.value })} />
+            </Campo>
+          ))}
+          <div className="flex flex-wrap gap-2">
+            <Botao onClick={() => { setModelos(rascunhoModelos); setEditandoModelos(false); }}>Salvar textos</Botao>
+            <Botao variante="vazio" onClick={() => setRascunhoModelos(MODELOS_MENSAGEM_PADRAO)}>Voltar aos textos padrão</Botao>
+            <Botao variante="vazio" onClick={() => setEditandoModelos(false)}>Cancelar</Botao>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── FINANCEIRO (só controle; só o dono vê) ───────────────────────────────
    Entradas e saídas do mês do Team Yoda e do 39 Ranch, calculadas sozinhas a
    partir do que o app já registra (turmas, aulas, reservas, torneios,
@@ -20187,6 +20456,8 @@ function App() {
   const [carregandoOcorrencias, setCarregandoOcorrencias] = useState(true);
   const [regrasReposicao, setRegrasReposicao] = useState(regrasReposicaoPadrao());
   const [carregandoRegrasReposicao, setCarregandoRegrasReposicao] = useState(true);
+  const [modelosMensagem, setModelosMensagem] = useState(MODELOS_MENSAGEM_PADRAO);
+  const [carregandoModelos, setCarregandoModelos] = useState(true);
   const [exerciciosCustom, setExerciciosCustom] = useState([]);
   const [carregandoCustom, setCarregandoCustom] = useState(true);
   /* Formação da equipe, no App (não em TelaEquipe): tanto a aba "Formação"
@@ -20473,6 +20744,7 @@ function App() {
     setCarregandoBloqueiosAula(true);
     setCarregandoOcorrencias(true);
     setCarregandoRegrasReposicao(true);
+    setCarregandoModelos(true);
     leia("mty:alunos:v2", []).then((a) => { setAlunos(a); prontoRef.current.alunos = true; setCarregando(false); });
     leia("mty:turmas:v1", [], true).then((t) => { setTurmas(t); prontoRef.current.turmas = true; setCarregandoTurmas(false); });
     leia("mty:exerciciosCustom:v1", [], true).then((ex) => { setExerciciosCustom(ex); setCatalogoCustom(ex); prontoRef.current.exerciciosCustom = true; setCarregandoCustom(false); });
@@ -20484,6 +20756,7 @@ function App() {
     leia("mty:bloqueiosAula:v1", [], true).then((b) => { setBloqueiosAula(b); prontoRef.current.bloqueiosAula = true; setCarregandoBloqueiosAula(false); });
     leia("mty:ocorrencias:v1", [], true).then((o) => { setOcorrencias(o); prontoRef.current.ocorrencias = true; setCarregandoOcorrencias(false); });
     leia("mty:regrasReposicao:v1", regrasReposicaoPadrao(), true).then((r) => { setRegrasReposicao(r); prontoRef.current.regrasReposicao = true; setCarregandoRegrasReposicao(false); });
+    leia("mty:modelosMensagem:v1", MODELOS_MENSAGEM_PADRAO, true).then((m) => { setModelosMensagem({ ...MODELOS_MENSAGEM_PADRAO, ...(m || {}) }); prontoRef.current.modelosMensagem = true; setCarregandoModelos(false); });
     leia("mty:onboardingDispensado", false, true).then((v) => { setOnboardingDispensado(v); prontoRef.current.onboarding = true; });
 }, [autenticado, orgAtual]);
   useEffect(() => { if (autenticado && !carregando && prontoRef.current.alunos) grave("mty:alunos:v2", alunos); }, [alunos, carregando, autenticado]);
@@ -20501,6 +20774,7 @@ function App() {
   useEffect(() => { if (autenticado && !carregandoBloqueiosAula && prontoRef.current.bloqueiosAula) grave("mty:bloqueiosAula:v1", bloqueiosAula, true); }, [bloqueiosAula, carregandoBloqueiosAula, autenticado]);
   useEffect(() => { if (autenticado && !carregandoOcorrencias && prontoRef.current.ocorrencias) grave("mty:ocorrencias:v1", ocorrencias, true); }, [ocorrencias, carregandoOcorrencias, autenticado]);
   useEffect(() => { if (autenticado && !carregandoRegrasReposicao && prontoRef.current.regrasReposicao) grave("mty:regrasReposicao:v1", regrasReposicao, true); }, [regrasReposicao, carregandoRegrasReposicao, autenticado]);
+  useEffect(() => { if (autenticado && !carregandoModelos && prontoRef.current.modelosMensagem) grave("mty:modelosMensagem:v1", modelosMensagem, true); }, [modelosMensagem, carregandoModelos, autenticado]);
   useEffect(() => { if (autenticado && !carregandoFormacao && prontoRef.current.formacao) grave("mty:formacao:v1", membrosFormacao, true); }, [membrosFormacao, carregandoFormacao, autenticado]);
   useEffect(() => { if (autenticado && prontoRef.current.onboarding) grave("mty:onboardingDispensado", onboardingDispensado, true); }, [onboardingDispensado, autenticado]);
 
@@ -20662,7 +20936,7 @@ function App() {
      é material de apoio (Casos + Formação). Um grupo sem nenhum item
      (ex.: Academia numa academia sem nada disso) some. */
   const gruposNav = [
-    { id: "dia-a-dia", label: "Dia a dia", itens: NAV_DIA_A_DIA },
+    { id: "dia-a-dia", label: "Dia a dia", itens: papelAtual === "coordenador" || ehDonoFinanceiro() ? [NAV_DIA_A_DIA[0], { v: "pendencias", r: "Pendências do dia" }, ...NAV_DIA_A_DIA.slice(1)] : NAV_DIA_A_DIA },
     { id: "alunos-turmas", label: "Alunos e turmas", itens: NAV_ALUNOS_TURMAS },
     { id: "academia", label: "Academia", itens: [
       ...(mostraQuadras ? [{ v: "quadras", r: "Quadras" }, { v: "grade-aulas", r: "Horários recorrentes" }] : []),
@@ -21060,6 +21334,10 @@ function App() {
            irParaCaderno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("registro"); }}
            irParaTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} irParaManual={irParaManual} /> :
          aba === "financeiro" && ehDonoFinanceiro() ? <TelaFinanceiro /> :
+         aba === "pendencias" && (papelAtual === "coordenador" || ehDonoFinanceiro()) ? <TelaPendencias alunos={alunos} turmas={turmas} quadras={quadras} ocorrencias={ocorrencias}
+           reservas={reservas} setReservas={setReservas} torneios={torneios} setTorneios={setTorneios} eventos={eventos} setEventos={setEventos}
+           modelos={modelosMensagem} setModelos={setModelosMensagem} orgAtual={orgAtual}
+           irParaAluno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("ficha"); }} irPara={(v) => setAba(v)} /> :
          aba === "aulas-equipe" && papelAtual === "coordenador" ? <TelaAulasEquipe alunos={alunos} turmas={turmas}
            irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("registro"); }}
            irParaTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} /> :
