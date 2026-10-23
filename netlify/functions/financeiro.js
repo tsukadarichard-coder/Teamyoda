@@ -140,3 +140,7 @@ exports.handler = async function (event) {
   }
 };
 exports._limpar = (c) => desembrulhar(limpar(c));
+/* usados pela Central do dono (central.js): mesma regra de acesso e mesma leitura das academias */
+exports._exigirDono = exigirDono;
+exports._ErroPublico = ErroPublico;
+exports._lerAcademia = lerAcademia;

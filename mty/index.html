@@ -20645,6 +20645,389 @@ function PopupAvisosProfessor({ avisos, aoIr, aoFechar }) {
   );
 }
 
+/* ── CENTRAL DO DONO ──────────────────────────────────────────────────────
+   Agenda, tarefas, metas e indicadores, revisão semanal e notas dos quatro
+   negócios (Team Yoda, 39 Ranch, QuadraLab, Alvor) num lugar só — só o dono
+   vê (netlify/functions/central.js confere o e-mail e guarda tudo fora do
+   alcance do app). Números automáticos de onde já existem; o resto, o dono
+   digita. Salva sozinho a cada mudança. */
+const NEGOCIOS_CENTRAL = [
+  { id: "team-yoda", nome: "Team Yoda", cor: "#103B32" }, { id: "39-ranch", nome: "39 Ranch", cor: "#8A6D1E" },
+  { id: "quadralab", nome: "QuadraLab", cor: "#2F5D9E" }, { id: "alvor", nome: "Alvor", cor: "#7A3E8E" }, { id: "geral", nome: "Geral", cor: "#5B6B63" },
+];
+const LINKS_PADRAO_CENTRAL = {
+  "team-yoda": [{ rotulo: "App Team Yoda", url: "https://app.39tennis.com.br" }],
+  "39-ranch": [{ rotulo: "Site 39 Ranch", url: "https://39tennis.com.br" }],
+  quadralab: [{ rotulo: "Site QuadraLab", url: "https://quadralab.com.br" }, { rotulo: "Painel do administrador", url: "https://quadralab.com.br/admin.html" }],
+  alvor: [{ rotulo: "Alvor Hub", url: "https://alvorhub.netlify.app" }],
+};
+function negocioCentral(id) { return NEGOCIOS_CENTRAL.find((n) => n.id === id) || NEGOCIOS_CENTRAL[4]; }
+async function chamarCentral(metodo, corpo) {
+  const token = await window.mtyAuth.tokenId();
+  const r = await fetch("/.netlify/functions/central", { method: metodo, headers: { "content-type": "application/json", authorization: "Bearer " + token }, body: metodo === "GET" ? undefined : JSON.stringify(corpo) });
+  const c = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(c.erro || ("Erro " + r.status));
+  return c;
+}
+function segundaDe(iso) { const d = new Date(iso + "T12:00:00"); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return dataISO(d); }
+function maisDias(iso, n) { const d = new Date(iso + "T12:00:00"); d.setDate(d.getDate() + n); return dataISO(d); }
+function diaSemanaCurto(iso) { return ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"][new Date(iso + "T12:00:00").getDay()]; }
+function compromissosNoDia(agenda, iso) {
+  const dia = new Date(iso + "T12:00:00").getDay();
+  return (agenda || []).filter((x) => x.data === iso || (x.semanal && x.data <= iso && new Date(x.data + "T12:00:00").getDay() === dia))
+    .sort((a, b) => (a.inicio || "99").localeCompare(b.inicio || "99"));
+}
+function novoIdCentral(p) { return p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+function EtiquetaNegocio({ id }) {
+  const n = negocioCentral(id);
+  return <span style={{ fontFamily: ARCH, fontSize: 10.5, fontWeight: 700, color: "#fff", background: n.cor, borderRadius: 999, padding: "2px 8px", whiteSpace: "nowrap" }}>{n.nome}</span>;
+}
+function BarraMeta({ real, meta }) {
+  if (!meta) return null;
+  const pct = Math.max(0, Math.min(100, Math.round((Number(real) || 0) / meta * 100)));
+  return (<div style={{ height: 6, background: "#E9EFEC", borderRadius: 4, marginTop: 3 }}><div style={{ width: pct + "%", height: 6, borderRadius: 4, background: pct >= 100 ? C.quadra : pct >= 60 ? "#C9A227" : "#C9744F" }} /></div>);
+}
+
+function TelaCentral() {
+  const [resp, setResp] = useState(null);
+  const [dados, setDados] = useState(null);
+  const [erro, setErro] = useState("");
+  const [estadoSalvar, setEstadoSalvar] = useState("");
+  const [aba, setAba] = useState("hoje");
+  const [semana, setSemana] = useState(() => segundaDe(dataISO(new Date())));
+  const [mesNeg, setMesNeg] = useState(mesISOAtual());
+  const [filtroNeg, setFiltroNeg] = useState("");
+  const [mostrarFeitas, setMostrarFeitas] = useState(false);
+  const [novaTarefa, setNovaTarefa] = useState({ titulo: "", negocio: "geral", prazo: "", prioridade: "media" });
+  const [novoComp, setNovoComp] = useState(null);
+  const [novaNota, setNovaNota] = useState({ texto: "", negocio: "geral", decisao: false });
+  const [semanaRev, setSemanaRev] = useState(() => segundaDe(dataISO(new Date())));
+  const carregadoRef = useRef(false), timerRef = useRef(null);
+  const hoje = (resp && resp.hoje) || dataISO(new Date());
+
+  useEffect(() => {
+    chamarCentral("GET").then((r) => { setResp(r); setDados(r.dados); carregadoRef.current = true; }).catch((e) => setErro(String(e.message || e)));
+  }, []);
+  /* salva sozinho, 1 s depois da última mudança */
+  function mudar(fn) {
+    setDados((atual) => { const novo = JSON.parse(JSON.stringify(atual)); fn(novo); return novo; });
+    setEstadoSalvar("pendente");
+  }
+  useEffect(() => {
+    if (!carregadoRef.current || estadoSalvar !== "pendente") return;
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      setEstadoSalvar("salvando");
+      chamarCentral("POST", { dados }).then(() => setEstadoSalvar("salvo")).catch(() => setEstadoSalvar("erro"));
+    }, 1000);
+    return () => clearTimeout(timerRef.current);
+  }, [dados, estadoSalvar]);
+
+  if (erro) return <div><h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700 }}>Central</h1><Aviso>{erro}</Aviso></div>;
+  if (!dados) return <p style={{ ...prosa, color: C.grafite }}>Abrindo a Central…</p>;
+
+  const auto = resp.auto || {}, ty = auto["team-yoda"] || {}, rc = auto["39-ranch"] || {}, ql = auto.quadralab || {};
+  const neg = (id) => dados.negocios[id] || { metas: {}, indicadores: {}, links: [], notas: "" };
+  const garantirNeg = (d, id) => { d.negocios[id] = d.negocios[id] || { metas: {}, indicadores: {}, links: [], notas: "" }; return d.negocios[id]; };
+  const tarefasAbertas = dados.tarefas.filter((t) => !t.feita);
+  const atrasadas = tarefasAbertas.filter((t) => t.prazo && t.prazo < hoje);
+  const deHoje = tarefasAbertas.filter((t) => t.prazo === hoje);
+  const revAnterior = dados.revisoes[maisDias(segundaDe(hoje), -7)];
+  const revAtual = dados.revisoes[segundaDe(hoje)];
+  const diaSemana = new Date(hoje + "T12:00:00").getDay();
+
+  /* alertas: o que pede decisão hoje, de todos os negócios */
+  const alertas = [];
+  [["team-yoda", ty], ["39-ranch", rc]].forEach(([id, a]) => {
+    if (a.erro) { alertas.push({ id, nivel: "medio", texto: "Não consegui ler os números agora." }); return; }
+    if (a.aulasEmAberto) alertas.push({ id, nivel: "alto", texto: a.aulasEmAberto + " aula(s) sem fechar" });
+    if (a.emAbertoMensalidades) alertas.push({ id, nivel: "alto", texto: a.emAbertoMensalidades + " mensalidade(s) em aberto no mês" });
+    if (a.pedidosReposicao) alertas.push({ id, nivel: "medio", texto: a.pedidosReposicao + " pedido(s) de reposição" });
+    if (a.reservasNovas) alertas.push({ id, nivel: "medio", texto: a.reservasNovas + " reserva(s) nova(s) pelo link" });
+    if (a.semPreco) alertas.push({ id, nivel: "baixo", texto: "Turmas sem preço no Financeiro" });
+  });
+  if (ql.erro) alertas.push({ id: "quadralab", nivel: "medio", texto: ql.erro });
+  (ql.precisaDeVoce || []).forEach((p) => alertas.push({ id: "quadralab", nivel: p.nivel, texto: p.titulo + (p.n > 1 ? " (" + p.n + ")" : "") }));
+  if (atrasadas.length) alertas.push({ id: "geral", nivel: "alto", texto: atrasadas.length + " tarefa(s) atrasada(s)" });
+  if ((diaSemana === 5 || diaSemana === 6 || diaSemana === 0) && !(revAtual && revAtual.feitaEm)) alertas.push({ id: "geral", nivel: "medio", texto: "Faça a revisão da semana (15 min)" });
+  const corNivel = { alto: "#B23A2E", medio: "#C9A227", baixo: C.grafite };
+
+  const h2 = { fontFamily: ARCH, fontSize: 16, fontWeight: 700, margin: "18px 0 8px" };
+  const sub = { ...prosa, fontSize: 12.5, color: C.grafite };
+  const cartao = { background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "10px 12px", marginBottom: 8 };
+  const chipA = (on) => ({ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, padding: "6px 12px", borderRadius: 999, cursor: "pointer", border: "1px solid " + (on ? C.quadra : C.linha), background: on ? C.quadra : C.cal, color: on ? "#fff" : C.tinta });
+  const inp = { ...entrada, fontSize: 15, padding: "6px 9px" };
+
+  function adicionarTarefa(base) {
+    const t = { ...novaTarefa, ...(base || {}) }; if (!t.titulo.trim()) return;
+    mudar((d) => d.tarefas.unshift({ id: novoIdCentral("ta"), titulo: t.titulo.trim(), negocio: t.negocio, prazo: t.prazo, prioridade: t.prioridade, feita: false, nota: "", criadaEm: hoje }));
+    setNovaTarefa({ ...novaTarefa, titulo: "" });
+  }
+  function alternarTarefa(id) { mudar((d) => { const t = d.tarefas.find((x) => x.id === id); t.feita = !t.feita; t.feitaEm = t.feita ? hoje : ""; }); }
+  function linhaTarefa(t) {
+    const atrasada = !t.feita && t.prazo && t.prazo < hoje;
+    return (
+      <div key={t.id} className="flex flex-wrap items-center gap-2" style={{ padding: "6px 0", borderBottom: "1px solid " + C.linha }}>
+        <input type="checkbox" checked={t.feita} onChange={() => alternarTarefa(t.id)} aria-label={"Concluir " + t.titulo} />
+        <span style={{ width: 8, height: 8, borderRadius: 8, background: t.prioridade === "alta" ? "#B23A2E" : t.prioridade === "baixa" ? "#9AA7A0" : "#C9A227" }} title={"prioridade " + t.prioridade} />
+        <span style={{ fontFamily: ARCH, fontSize: 13.5, flex: 1, minWidth: 140, textDecoration: t.feita ? "line-through" : "none", color: t.feita ? C.grafite : C.tinta }}>{t.titulo}</span>
+        <EtiquetaNegocio id={t.negocio} />
+        {t.prazo && <span style={{ ...sub, color: atrasada ? "#B23A2E" : C.grafite, fontWeight: atrasada ? 700 : 400 }}>{t.prazo === hoje ? "hoje" : dataCurta(t.prazo)}</span>}
+        <button onClick={() => mudar((d) => { d.tarefas = d.tarefas.filter((x) => x.id !== t.id); })} style={{ border: "none", background: "none", cursor: "pointer", color: C.grafite }} aria-label="Apagar tarefa">✕</button>
+      </div>
+    );
+  }
+  function formTarefa() {
+    return (
+      <div className="flex flex-wrap items-end gap-2 mb-2">
+        <input style={{ ...inp, flex: 1, minWidth: 180 }} placeholder="Nova tarefa" value={novaTarefa.titulo} onChange={(e) => setNovaTarefa({ ...novaTarefa, titulo: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") adicionarTarefa(); }} />
+        <select style={{ ...inp, width: 130 }} value={novaTarefa.negocio} onChange={(e) => setNovaTarefa({ ...novaTarefa, negocio: e.target.value })}>{NEGOCIOS_CENTRAL.map((n) => <option key={n.id} value={n.id}>{n.nome}</option>)}</select>
+        <input type="date" style={{ ...inp, width: 150 }} value={novaTarefa.prazo} onChange={(e) => setNovaTarefa({ ...novaTarefa, prazo: e.target.value })} aria-label="Prazo" />
+        <select style={{ ...inp, width: 110 }} value={novaTarefa.prioridade} onChange={(e) => setNovaTarefa({ ...novaTarefa, prioridade: e.target.value })}><option value="alta">Alta</option><option value="media">Média</option><option value="baixa">Baixa</option></select>
+        <Botao pequeno onClick={() => adicionarTarefa()}>Adicionar</Botao>
+      </div>
+    );
+  }
+  function listaCompromissos(iso) {
+    const l = compromissosNoDia(dados.agenda, iso);
+    if (!l.length) return <p style={sub}>Nada marcado.</p>;
+    return l.map((x) => (
+      <div key={x.id + iso} className="flex flex-wrap items-center gap-2" style={{ padding: "5px 0", borderBottom: "1px solid " + C.linha }}>
+        <span style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, minWidth: 92 }}>{x.inicio || "dia todo"}{x.fim ? "–" + x.fim : ""}</span>
+        <span style={{ fontFamily: ARCH, fontSize: 13.5, flex: 1, minWidth: 120 }}>{x.titulo}{x.local ? <span style={{ color: C.grafite }}> · {x.local}</span> : null}{x.semanal ? <span style={{ color: C.grafite }}> · toda semana</span> : null}</span>
+        <EtiquetaNegocio id={x.negocio} />
+        <button onClick={() => setNovoComp({ ...x })} style={{ border: "none", background: "none", cursor: "pointer", color: C.grafite, fontSize: 12.5, textDecoration: "underline" }}>editar</button>
+      </div>
+    ));
+  }
+  function formCompromisso() {
+    if (!novoComp) return <Botao pequeno variante="vazio" onClick={() => setNovoComp({ id: "", titulo: "", data: aba === "agenda" ? semana < segundaDe(hoje) || semana > segundaDe(hoje) ? semana : hoje : hoje, inicio: "", fim: "", negocio: "geral", local: "", nota: "", semanal: false })}>+ Compromisso</Botao>;
+    const c = novoComp, set = (k, v) => setNovoComp({ ...c, [k]: v });
+    return (
+      <div style={{ ...cartao, borderColor: C.quadra }}>
+        <div className="flex flex-wrap items-end gap-2">
+          <input style={{ ...inp, flex: 1, minWidth: 180 }} placeholder="Título (ex.: reunião com o clube)" value={c.titulo} onChange={(e) => set("titulo", e.target.value)} />
+          <input type="date" style={{ ...inp, width: 150 }} value={c.data} onChange={(e) => set("data", e.target.value)} aria-label="Dia" />
+          <input type="time" style={{ ...inp, width: 110 }} value={c.inicio} onChange={(e) => set("inicio", e.target.value)} aria-label="Início" />
+          <input type="time" style={{ ...inp, width: 110 }} value={c.fim} onChange={(e) => set("fim", e.target.value)} aria-label="Fim" />
+        </div>
+        <div className="flex flex-wrap items-end gap-2 mt-2">
+          <select style={{ ...inp, width: 130 }} value={c.negocio} onChange={(e) => set("negocio", e.target.value)}>{NEGOCIOS_CENTRAL.map((n) => <option key={n.id} value={n.id}>{n.nome}</option>)}</select>
+          <input style={{ ...inp, width: 200 }} placeholder="Local (opcional)" value={c.local} onChange={(e) => set("local", e.target.value)} />
+          <label className="flex items-center gap-1" style={{ fontFamily: ARCH, fontSize: 13 }}><input type="checkbox" checked={c.semanal} onChange={(e) => set("semanal", e.target.checked)} /> repete toda semana</label>
+        </div>
+        <div className="flex flex-wrap gap-2 mt-2">
+          <Botao pequeno disabled={!c.titulo.trim() || !c.data} onClick={() => { mudar((d) => { if (c.id) d.agenda = d.agenda.map((x) => (x.id === c.id ? { ...c, titulo: c.titulo.trim() } : x)); else d.agenda.push({ ...c, id: novoIdCentral("ag"), titulo: c.titulo.trim() }); }); setNovoComp(null); }}>Salvar</Botao>
+          {c.id && <Botao pequeno variante="vazio" onClick={() => { mudar((d) => { d.agenda = d.agenda.filter((x) => x.id !== c.id); }); setNovoComp(null); }}>Apagar</Botao>}
+          <Botao pequeno variante="vazio" onClick={() => setNovoComp(null)}>Cancelar</Botao>
+        </div>
+      </div>
+    );
+  }
+  /* números de cada negócio: automáticos quando há, senão o que o dono digitou no mês */
+  function numeros(id, mes) {
+    const ind = (neg(id).indicadores || {})[mes] || {}, meta = (neg(id).metas || {})[mes] || {};
+    if (id === "team-yoda" || id === "39-ranch") { const a = id === "team-yoda" ? ty : rc; return { receita: mes === a.mes ? a.entradas : ind.receita, clientes: a.jogadores != null ? a.jogadores : ind.clientes, novos: ind.novos, resultado: mes === a.mes ? a.resultado : null, auto: !a.erro, meta, ind }; }
+    if (id === "quadralab" && ql.configurado && !ql.erro) return { receita: mes === mesISOAtual() && ql.confirmado != null ? ql.confirmado : ind.receita, clientes: ql.assinaturasAtivas, novos: ql.novas30, auto: true, meta, ind };
+    return { receita: ind.receita, clientes: ind.clientes, novos: ind.novos, auto: false, meta, ind };
+  }
+  function cartaoNegocioResumo(id) {
+    const n = negocioCentral(id), x = numeros(id, mesISOAtual());
+    return (
+      <div key={id} style={{ ...cartao, borderTop: "3px solid " + n.cor }}>
+        <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{n.nome}</div>
+        <div style={{ fontFamily: ARCH, fontSize: 19, fontWeight: 700, color: n.cor }}>{x.receita != null ? reais(x.receita) : "—"}</div>
+        <BarraMeta real={x.receita} meta={x.meta.receita} />
+        <p style={{ ...sub, fontSize: 12, marginTop: 3 }}>
+          {x.meta.receita ? "meta " + reais(x.meta.receita) + " · " : ""}{id === "quadralab" ? (x.clientes != null ? x.clientes + " assinaturas ativas" : "sem números automáticos") : x.clientes != null ? x.clientes + (id === "alvor" ? " clientes" : " jogadores") : "digite os números em Negócios"}
+          {id === "team-yoda" && ty.aulasHoje != null ? " · " + ty.aulasHoje + " aulas hoje" : ""}{id === "39-ranch" && rc.aulasHoje != null ? " · " + rc.aulasHoje + " aulas hoje" : ""}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-2" style={{ marginBottom: 4 }}>
+        <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, flex: 1 }}>Central</h1>
+        <span style={{ ...sub, color: estadoSalvar === "erro" ? "#B23A2E" : C.grafite }}>{estadoSalvar === "salvando" || estadoSalvar === "pendente" ? "Salvando…" : estadoSalvar === "salvo" ? "Salvo ✓" : estadoSalvar === "erro" ? "Não salvou — tente de novo" : ""}</span>
+      </div>
+      <p style={{ ...sub, fontSize: 13.5, marginBottom: 10 }}>{new Date(hoje + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })} · Team Yoda, 39 Ranch, QuadraLab e Alvor num lugar só. Só você vê.</p>
+      <div className="flex flex-wrap gap-2 mb-3">
+        {[["hoje", "Hoje"], ["agenda", "Agenda"], ["tarefas", "Tarefas"], ["negocios", "Negócios"], ["revisao", "Revisão semanal"], ["notas", "Notas e decisões"]].map(([v, r]) => <button key={v} style={chipA(aba === v)} onClick={() => setAba(v)}>{r}</button>)}
+      </div>
+
+      {aba === "hoje" && (
+        <div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 8 }}>
+            {["team-yoda", "39-ranch", "quadralab", "alvor"].map((id) => cartaoNegocioResumo(id))}
+          </div>
+          <h2 style={h2}>Precisa de você · {alertas.length}</h2>
+          {alertas.length === 0 && <p style={sub}>Nada pendente. Bom dia!</p>}
+          {alertas.map((a, i) => (
+            <div key={i} className="flex flex-wrap items-center gap-2" style={{ padding: "5px 0", borderBottom: "1px solid " + C.linha }}>
+              <span style={{ width: 8, height: 8, borderRadius: 8, background: corNivel[a.nivel] || C.grafite }} />
+              <EtiquetaNegocio id={a.id} /><span style={{ fontFamily: ARCH, fontSize: 13.5, flex: 1, minWidth: 160 }}>{a.texto}</span>
+            </div>
+          ))}
+          {revAnterior && (revAnterior.prioridades || []).filter(Boolean).length > 0 && (
+            <>
+              <h2 style={h2}>Prioridades da semana</h2>
+              {revAnterior.prioridades.filter(Boolean).map((p, i) => <p key={i} style={{ ...prosa, fontSize: 14 }}>{i + 1}. {p}</p>)}
+            </>
+          )}
+          <h2 style={h2}>Agenda de hoje</h2>
+          {listaCompromissos(hoje)}
+          <div className="mt-2">{formCompromisso()}</div>
+          <h2 style={h2}>Tarefas · {atrasadas.length ? atrasadas.length + " atrasada(s) · " : ""}{deHoje.length} para hoje</h2>
+          {formTarefa()}
+          {atrasadas.concat(deHoje).map((t) => linhaTarefa(t))}
+          {tarefasAbertas.filter((t) => !t.prazo && t.prioridade === "alta").map((t) => linhaTarefa(t))}
+          {!atrasadas.length && !deHoje.length && <p style={sub}>Nenhuma tarefa para hoje.</p>}
+        </div>
+      )}
+
+      {aba === "agenda" && (
+        <div>
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            <Botao pequeno variante="vazio" onClick={() => setSemana(maisDias(semana, -7))}>◀</Botao>
+            <span style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700 }}>Semana de {dataCurta(semana)} a {dataCurta(maisDias(semana, 6))}</span>
+            <Botao pequeno variante="vazio" onClick={() => setSemana(maisDias(semana, 7))}>▶</Botao>
+            {semana !== segundaDe(hoje) && <Botao pequeno variante="vazio" onClick={() => setSemana(segundaDe(hoje))}>Hoje</Botao>}
+          </div>
+          {formCompromisso()}
+          {[0, 1, 2, 3, 4, 5, 6].map((k) => { const iso = maisDias(semana, k); return (
+            <div key={iso} style={{ ...cartao, marginTop: 8, borderLeft: iso === hoje ? "4px solid " + C.quadra : "1px solid " + C.linha }}>
+              <p style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700, marginBottom: 2 }}>{diaSemanaCurto(iso)} {dataCurta(iso)}{iso === hoje ? " · hoje" : ""}</p>
+              {listaCompromissos(iso)}
+              {dados.tarefas.filter((t) => !t.feita && t.prazo === iso).map((t) => <p key={t.id} style={{ ...sub, marginTop: 2 }}>☐ prazo: {t.titulo}</p>)}
+            </div>); })}
+        </div>
+      )}
+
+      {aba === "tarefas" && (
+        <div>
+          {formTarefa()}
+          <div className="flex flex-wrap gap-2 mb-2">
+            <button style={chipA(!filtroNeg)} onClick={() => setFiltroNeg("")}>Todos</button>
+            {NEGOCIOS_CENTRAL.map((n) => <button key={n.id} style={chipA(filtroNeg === n.id)} onClick={() => setFiltroNeg(n.id)}>{n.nome}</button>)}
+            <label className="flex items-center gap-1" style={{ fontFamily: ARCH, fontSize: 12.5 }}><input type="checkbox" checked={mostrarFeitas} onChange={(e) => setMostrarFeitas(e.target.checked)} /> mostrar feitas</label>
+          </div>
+          {(() => {
+            const l = dados.tarefas.filter((t) => !filtroNeg || t.negocio === filtroNeg);
+            const ab = l.filter((t) => !t.feita), em7 = maisDias(hoje, 7);
+            const ordem = (a, b) => ({ alta: 0, media: 1, baixa: 2 }[a.prioridade] - { alta: 0, media: 1, baixa: 2 }[b.prioridade]) || (a.prazo || "9").localeCompare(b.prazo || "9");
+            const grupos = [["Atrasadas", ab.filter((t) => t.prazo && t.prazo < hoje)], ["Hoje", ab.filter((t) => t.prazo === hoje)], ["Próximos 7 dias", ab.filter((t) => t.prazo > hoje && t.prazo <= em7)],
+              ["Depois", ab.filter((t) => t.prazo > em7)], ["Sem prazo", ab.filter((t) => !t.prazo)], ...(mostrarFeitas ? [["Feitas", l.filter((t) => t.feita).sort((a, b) => (b.feitaEm || "").localeCompare(a.feitaEm || "")).slice(0, 30)]] : [])];
+            return grupos.filter(([, g]) => g.length).map(([nome, g]) => (
+              <div key={nome} className="mb-3"><p style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, color: nome === "Atrasadas" ? "#B23A2E" : C.grafite, margin: "10px 0 2px" }}>{nome} · {g.length}</p>{g.slice().sort(ordem).map((t) => linhaTarefa(t))}</div>
+            ));
+          })()}
+          {!dados.tarefas.length && <p style={sub}>Nenhuma tarefa ainda. Comece pelo que está na sua cabeça agora.</p>}
+        </div>
+      )}
+
+      {aba === "negocios" && (
+        <div>
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            <Botao pequeno variante="vazio" onClick={() => setMesNeg(somaMes(mesNeg, -1))}>◀</Botao>
+            <span style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700, minWidth: 140, textAlign: "center" }}>{nomeMes(mesNeg)}</span>
+            <Botao pequeno variante="vazio" onClick={() => setMesNeg(somaMes(mesNeg, 1))}>▶</Botao>
+          </div>
+          {["team-yoda", "39-ranch", "quadralab", "alvor"].map((id) => {
+            const n = negocioCentral(id), x = numeros(id, mesNeg), v = neg(id), links = (v.links && v.links.length ? v.links : LINKS_PADRAO_CENTRAL[id] || []);
+            const campoMeta = (k) => <input type="number" min="0" step="0.01" style={{ ...inp, width: 120 }} value={x.meta[k] != null ? x.meta[k] : ""} placeholder="meta" onChange={(e) => mudar((d) => { const g = garantirNeg(d, id); g.metas[mesNeg] = { ...(g.metas[mesNeg] || {}), [k]: e.target.value === "" ? null : Number(e.target.value) }; })} />;
+            const campoInd = (k, auto) => auto ? <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{x[k] != null ? (k === "receita" ? reais(x[k]) : x[k]) : "—"} <span style={{ ...sub, fontWeight: 400 }}>(automático)</span></span>
+              : <input type="number" min="0" step="0.01" style={{ ...inp, width: 120 }} value={x.ind[k] != null ? x.ind[k] : ""} placeholder="realizado" onChange={(e) => mudar((d) => { const g = garantirNeg(d, id); g.indicadores[mesNeg] = { ...(g.indicadores[mesNeg] || {}), [k]: e.target.value === "" ? null : Number(e.target.value) }; })} />;
+            const autoReceita = (id === "team-yoda" || id === "39-ranch" || id === "quadralab") && x.auto && mesNeg === mesISOAtual();
+            const autoClientes = (id === "team-yoda" || id === "39-ranch" || id === "quadralab") && x.auto;
+            return (
+              <div key={id} style={{ ...cartao, borderTop: "3px solid " + n.cor, padding: "12px 14px" }}>
+                <p style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, color: n.cor, marginBottom: 6 }}>{n.nome}</p>
+                <TabelaFin cabecalho={["Indicador", "Meta do mês", "Realizado"]} linhas={[
+                  ["Receita", campoMeta("receita"), <div>{campoInd("receita", autoReceita)}<BarraMeta real={x.receita} meta={x.meta.receita} /></div>],
+                  [id === "quadralab" ? "Assinaturas ativas" : id === "alvor" ? "Clientes ativos" : "Jogadores", campoMeta("clientes"), <div>{campoInd("clientes", autoClientes)}<BarraMeta real={x.clientes} meta={x.meta.clientes} /></div>],
+                  [id === "quadralab" ? "Contas novas (30 dias)" : "Novos clientes", campoMeta("novos"), <div>{campoInd("novos", id === "quadralab" && x.auto)}<BarraMeta real={x.novos} meta={x.meta.novos} /></div>],
+                ]} />
+                {(id === "team-yoda" || id === "39-ranch") && x.resultado != null && <p style={sub}>Resultado do mês (Financeiro): <b>{reais(x.resultado)}</b>. Detalhe em Gestão → Financeiro.</p>}
+                {id === "quadralab" && !ql.configurado && <p style={sub}>Para os números automáticos do QuadraLab, configure no site do Team Yoda (Netlify) a variável QUADRALAB_ADMIN_SECRET com o mesmo ADMIN_SECRET do QuadraLab. Até lá, digite os números do mês.</p>}
+                {id === "quadralab" && ql.configurado && !ql.erro && <p style={sub}>A receber: {reais(ql.aReceber)} · {ql.venceEm7} assinatura(s) vencendo em 7 dias · {ql.contas} contas no Player.</p>}
+                <div className="mt-2">
+                  <Etiqueta>Links</Etiqueta>
+                  <div className="flex flex-wrap gap-2 mt-1">{links.map((l, i) => <a key={i} href={l.url} target="_blank" rel="noopener noreferrer" style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, color: n.cor }}>{l.rotulo} ↗</a>)}</div>
+                </div>
+                <div className="mt-2">
+                  <Etiqueta>Notas do negócio</Etiqueta>
+                  <textarea rows={2} style={{ ...inp, marginTop: 4 }} placeholder="Contexto, próximos passos, pessoas-chave…" value={v.notas || ""} onChange={(e) => mudar((d) => { garantirNeg(d, id).notas = e.target.value; })} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {aba === "revisao" && (() => {
+        const r = dados.revisoes[semanaRev] || { bem: "", travou: "", decisoes: "", prioridades: ["", "", ""], feitaEm: "" };
+        const setR = (k, val) => mudar((d) => { d.revisoes[semanaRev] = { ...(d.revisoes[semanaRev] || { bem: "", travou: "", decisoes: "", prioridades: ["", "", ""], feitaEm: "" }), [k]: val }; });
+        const prio = (r.prioridades && r.prioridades.length ? r.prioridades : ["", "", ""]).concat(["", "", ""]).slice(0, Math.max(3, (r.prioridades || []).length));
+        const feitasSemana = dados.tarefas.filter((t) => t.feita && t.feitaEm >= semanaRev && t.feitaEm <= maisDias(semanaRev, 6)).length;
+        return (
+          <div>
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <Botao pequeno variante="vazio" onClick={() => setSemanaRev(maisDias(semanaRev, -7))}>◀</Botao>
+              <span style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700 }}>Semana de {dataCurta(semanaRev)} a {dataCurta(maisDias(semanaRev, 6))}</span>
+              <Botao pequeno variante="vazio" onClick={() => setSemanaRev(maisDias(semanaRev, 7))}>▶</Botao>
+              {r.feitaEm && <Etiqueta cor={C.quadra}>revisão feita em {dataCurta(r.feitaEm)}</Etiqueta>}
+            </div>
+            <p style={{ ...sub, marginBottom: 8 }}>15 minutos no fim da semana: {feitasSemana} tarefa(s) concluída(s) nesta semana. Olhe os números em Negócios e responda.</p>
+            <Campo rotulo="O que foi bem"><textarea rows={3} style={inp} value={r.bem} onChange={(e) => setR("bem", e.target.value)} /></Campo>
+            <Campo rotulo="O que travou ou preocupa"><textarea rows={3} style={inp} value={r.travou} onChange={(e) => setR("travou", e.target.value)} /></Campo>
+            <Campo rotulo="Decisões tomadas"><textarea rows={2} style={inp} value={r.decisoes} onChange={(e) => setR("decisoes", e.target.value)} /></Campo>
+            <Campo rotulo="Prioridades da próxima semana" nota="Aparecem em “Hoje” durante a semana seguinte.">
+              {prio.map((p, i) => <input key={i} style={{ ...inp, marginBottom: 5 }} placeholder={(i + 1) + "."} value={p} onChange={(e) => { const l = prio.slice(); l[i] = e.target.value; setR("prioridades", l); }} />)}
+              {prio.length < 5 && <Botao pequeno variante="vazio" onClick={() => setR("prioridades", prio.concat([""]))}>+ prioridade</Botao>}
+            </Campo>
+            <Botao onClick={() => { setR("feitaEm", hoje); prio.filter((p) => p.trim()).forEach((p) => adicionarTarefa({ titulo: p.trim(), negocio: "geral", prazo: maisDias(semanaRev, 11), prioridade: "alta" })); }} disabled={!!r.feitaEm}>{r.feitaEm ? "Revisão feita ✓" : "Concluir revisão e virar as prioridades em tarefas"}</Botao>
+            <h2 style={h2}>Semanas anteriores</h2>
+            {Object.keys(dados.revisoes).filter((s) => s !== semanaRev).sort().reverse().slice(0, 8).map((s) => (
+              <button key={s} onClick={() => setSemanaRev(s)} style={{ ...cartao, display: "block", width: "100%", textAlign: "left", cursor: "pointer" }}>
+                <span style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>Semana de {dataCurta(s)}</span>
+                <span style={{ ...sub, display: "block" }}>{(dados.revisoes[s].prioridades || []).filter(Boolean).join(" · ") || "sem prioridades"}</span>
+              </button>
+            ))}
+          </div>
+        );
+      })()}
+
+      {aba === "notas" && (
+        <div>
+          <div style={cartao}>
+            <textarea rows={2} style={inp} placeholder="Ideia, conversa, decisão…" value={novaNota.texto} onChange={(e) => setNovaNota({ ...novaNota, texto: e.target.value })} />
+            <div className="flex flex-wrap items-center gap-2 mt-2">
+              <select style={{ ...inp, width: 130 }} value={novaNota.negocio} onChange={(e) => setNovaNota({ ...novaNota, negocio: e.target.value })}>{NEGOCIOS_CENTRAL.map((n) => <option key={n.id} value={n.id}>{n.nome}</option>)}</select>
+              <label className="flex items-center gap-1" style={{ fontFamily: ARCH, fontSize: 13 }}><input type="checkbox" checked={novaNota.decisao} onChange={(e) => setNovaNota({ ...novaNota, decisao: e.target.checked })} /> é uma decisão</label>
+              <Botao pequeno disabled={!novaNota.texto.trim()} onClick={() => { mudar((d) => d.notas.unshift({ id: novoIdCentral("no"), data: hoje, negocio: novaNota.negocio, texto: novaNota.texto.trim(), decisao: novaNota.decisao })); setNovaNota({ texto: "", negocio: novaNota.negocio, decisao: false }); }}>Guardar</Botao>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 my-2">
+            <button style={chipA(!filtroNeg)} onClick={() => setFiltroNeg("")}>Todos</button>
+            {NEGOCIOS_CENTRAL.map((n) => <button key={n.id} style={chipA(filtroNeg === n.id)} onClick={() => setFiltroNeg(n.id)}>{n.nome}</button>)}
+          </div>
+          {dados.notas.filter((x) => !filtroNeg || x.negocio === filtroNeg).map((x) => (
+            <div key={x.id} style={{ ...cartao, borderLeft: x.decisao ? "4px solid " + C.quadra : "1px solid " + C.linha }}>
+              <div className="flex flex-wrap items-center gap-2"><EtiquetaNegocio id={x.negocio} /><span style={sub}>{dataCurta(x.data)}{x.decisao ? " · decisão" : ""}</span><span style={{ flex: 1 }} />
+                <button onClick={() => mudar((d) => { d.notas = d.notas.filter((y) => y.id !== x.id); })} style={{ border: "none", background: "none", cursor: "pointer", color: C.grafite }} aria-label="Apagar nota">✕</button></div>
+              <p style={{ ...prosa, fontSize: 14, marginTop: 4, whiteSpace: "pre-wrap" }}>{x.texto}</p>
+            </div>
+          ))}
+          {!dados.notas.length && <p style={sub}>Guarde aqui as decisões e ideias de cada negócio — fica tudo pesquisável por negócio.</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function App() {
   const [alunos, setAlunos] = useState([]);
   const [turmas, setTurmas] = useState([]);
@@ -21173,7 +21556,7 @@ function App() {
       { v: "relatorio", r: "Relatórios" },
     ] },
     /* Financeiro: só o dono (e-mail na lista; o servidor confere de novo), em qualquer academia em que ele entrar */
-    { id: "gestao", label: "Gestão", itens: ehDonoFinanceiro() ? [{ v: "financeiro", r: "Financeiro" }] : [] },
+    { id: "gestao", label: "Gestão", itens: ehDonoFinanceiro() ? [{ v: "central", r: "Central" }, { v: "financeiro", r: "Financeiro" }] : [] },
     { id: "conteudo", label: "Conteúdo", itens: [
       ...NAV_CONTEUDO,
       ...(exigeLogin && uidAtual ? [{ v: "formacao", r: "Formação" }] : []),
@@ -21559,6 +21942,7 @@ function App() {
            irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }}
            irParaCaderno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("registro"); }}
            irParaTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} irParaManual={irParaManual} /> :
+         aba === "central" && ehDonoFinanceiro() ? <TelaCentral /> :
          aba === "financeiro" && ehDonoFinanceiro() ? <TelaFinanceiro /> :
          aba === "pendencias" && (papelAtual === "coordenador" || ehDonoFinanceiro()) ? <TelaPendencias alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} regrasReposicao={regrasReposicao}
            reservas={reservas} setReservas={setReservas} torneios={torneios} setTorneios={setTorneios} eventos={eventos} setEventos={setEventos}
