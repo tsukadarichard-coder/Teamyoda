@@ -302,8 +302,8 @@ footer { margin-top: 22px; font-size: 13px; color: var(--grafite); text-align: c
     var gr = el("div", {}); if (p.n > 0 && window.QLScoutGraficos) gr.innerHTML = QLScoutGraficos.topo(p) + QLScoutGraficos.secoes(p);
     [p.n > 0 ? gr : null, secaoMomento(p), p.n > 0 ? secaoNumeros(p) : null, p.n > 0 ? secaoBolas(p) : null, secaoMapa(p), p.n > 0 ? secaoSinais(p) : null].forEach(function (x) { if (x) cont.appendChild(x); });
     cont.appendChild(el("p", { cls: "aviso", texto: "Um jogo é uma amostra. Três jogos na mesma direção são um sinal; um jogo isolado é ruído. O que importa é o padrão que se repete." }));
-    cont.appendChild(el("footer", { texto: token ? "Compartilhado pelo treinador no QuadraLab. Esta página se atualiza sozinha enquanto a partida acontece; o link expira em algumas horas e pode ser desativado pelo treinador." : "Compartilhado pelo treinador no QuadraLab. Este link vale até " + dataBR(ate) + " e pode ser desativado pelo treinador a qualquer momento." }));
-    if (token) { window.scrollTo(0, sy); return; }
+    cont.appendChild(el("footer", { texto: token ? "Compartilhado pelo treinador no QuadraLab. Esta página se atualiza sozinha enquanto a partida acontece; o link expira em algumas horas e pode ser desativado pelo treinador." : (ate ? "Compartilhado pelo treinador no QuadraLab. Este link vale até " + dataBR(ate) + " e pode ser desativado pelo treinador a qualquer momento." : "Do seu link de aluno, compartilhado pelo treinador no QuadraLab.") }));
+    if (token || !ate) { window.scrollTo(0, sy); return; }
     var imp = el("p", { cls: "nota", style: "text-align:center;margin-top:10px" });
     imp.appendChild(document.createTextNode("Você é o atleta? Guarde este scout na sua conta em "));
     var a = el("a", { href: "https://quadralab.com.br/competicao/#/scouts", target: "_blank", rel: "noopener noreferrer", texto: "QuadraLab Competição · Scouts do treinador" });
@@ -350,6 +350,13 @@ footer { margin-top: 22px; font-size: 13px; color: var(--grafite); text-align: c
     return;
   }
   if (!q.get("org") || !q.get("id") || !q.get("j") || !q.get("t")) { erro("Link incompleto. Peça um novo ao seu treinador."); return; }
+  /* aberto a partir do link do aluno (aluno.html): o mesmo resumo, conferido pelo token do link do aluno */
+  if (q.get("a") === "1") {
+    pegar("/.netlify/functions/ver-aluno?" + new URLSearchParams({ org: q.get("org"), id: q.get("id"), t: q.get("t"), jogo: q.get("j") }).toString())
+      .then(function (c) { desenhar(c.publico, ""); })
+      .catch(function (e) { erro(e.message || "Não foi possível abrir agora."); });
+    return;
+  }
   pegar("/.netlify/functions/scout-publico?" + new URLSearchParams({ org: q.get("org"), id: q.get("id"), j: q.get("j"), t: q.get("t") }).toString())
     .then(function (c) { desenhar(c.publico, c.ate); })
     .catch(function (e) { erro(e.message || "Não foi possível abrir agora."); });

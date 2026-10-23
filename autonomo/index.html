@@ -10339,6 +10339,30 @@ function montarResumoPublico(reg, aluno) {
     zonas: zonasDe(sc.pontos), serie: serie.map((x, i) => [x.nos ? 1 : 0, x.set, contagem[i][0], contagem[i][1]]), sinais: sinais.map((s) => s[1]),
   };
 }
+/* Link do aluno (aluno.html): os jogos com scout entram lá com o mesmo resumo da página da família. As contas desse resumo
+   moram aqui no app, então o app guarda os resumos de cada jogador que tem link num documento à parte
+   (orgs/{org}/dados/mty:paraAluno:v1:{alunoId}), que ver-aluno.js lê. Só regrava quando algum jogo muda. */
+const enviadosParaAluno = {};
+async function publicarResumosParaAlunos(alunos) {
+  if (!db) return;
+  const org = await organizacao();
+  if (!org) return;
+  for (const a of alunos || []) {
+    if (!a || !a.linkToken || !a.id) continue;
+    const jogos = (a.registros || []).filter((r) => r.tipo === "jogo" && r.scout).sort((x, y) => String(x.data || "").localeCompare(String(y.data || "")));
+    const assinatura = jogos.map((r) => [r.id, r.data, (r.scout.pontos || []).length, r.scout.n, r.resultado, r.concluida, (r.observacaoFinal || "").length, r.nivelAdversario].join(":")).join("|");
+    const chave = org + "|" + a.id;
+    if (enviadosParaAluno[chave] === assinatura) continue;
+    const lista = [];
+    jogos.forEach((r) => { try { lista.push({ id: r.id, video: r.origem === "video", ...montarResumoPublico(r, a) }); } catch (e) { /* jogo sem dados suficientes para o resumo */ } });
+    let valor = JSON.stringify({ jogos: lista, atualizadoEm: new Date().toISOString() });
+    while (valor.length > 900000 && lista.length > 1) { lista.shift(); valor = JSON.stringify({ jogos: lista, atualizadoEm: new Date().toISOString() }); }
+    try {
+      await db.collection("orgs").doc(org).collection("dados").doc("mty:paraAluno:v1:" + a.id).set({ value: valor, atualizado: Date.now() });
+      enviadosParaAluno[chave] = assinatura;
+    } catch (e) { console.error("resumos do link do aluno:", e && e.message); }
+  }
+}
 /* Observação final do treinador sobre o jogo: aparece na página que a família recebe. Se o link já foi gerado, o resumo dele é refeito ao salvar. */
 function ObservacaoFinalRegistro({ r, aluno, alunos, setAlunos }) {
   const [texto, setTexto] = useState(r.observacaoFinal || "");
@@ -13373,6 +13397,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
             ))}
           </div>
         )}
+        {modo === "resumo" && blocoCompartilhar()}
       </div>
     );
   }
@@ -13456,6 +13481,61 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
     }
     setMembroCopiadoId(membroId);
     setTimeout(() => setMembroCopiadoId((id) => (id === membroId ? null : id)), 2000);
+  }
+
+  /* Link do aluno: o mesmo bloco no fim da aba Evolução e na tela "Sem planejamento" — o link traz também análises, scouts
+     e o plano da turma, então vale gerar mesmo antes de existir um plano individual. */
+  function blocoCompartilhar() {
+    return (
+    <div className="mt-6 pt-4" style={{ borderTop: "1px solid " + C.linha }}>
+      {!eTurma ? (
+        <div>
+          <Botao pequeno variante="vazio" onClick={gerarLinkAluno}>{gerandoLink ? "Gerando…" : "Compartilhar com o jogador"}</Botao>
+          <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginTop: 6 }}>O link mostra o plano aprovado do jogador e o das turmas dele, as análises de movimento (com o relatório completo), os jogos com scout, os jogos em vídeo e os relatórios de ciclo. Rascunho nunca aparece pra ele.</p>
+          {linkAluno && (
+            <>
+              <div className="mt-2 flex gap-2 items-center flex-wrap">
+                <input id="mty-link-aluno" readOnly value={linkAluno} style={{ ...entrada, fontSize: 12, flex: 1 }}
+                  onFocus={(e) => e.target.select()} />
+                <Botao pequeno variante="vazio" onClick={copiarLinkAluno}>{linkCopiado ? "✓ copiado" : "Copiar"}</Botao>
+              </div>
+              <div className="mt-2 flex gap-2 flex-wrap">
+                <Botao pequeno variante="vazio" onClick={() => window.open(linkAluno, "_blank")}>Pré-visualizar como o jogador vê</Botao>
+                <Botao pequeno variante="vazio" disabled={!podeEditar} onClick={revogarLinkAluno}>Revogar link</Botao>
+              </div>
+            </>
+          )}
+        </div>
+      ) : (
+        <div>
+          <Etiqueta>Compartilhar com os jogadores</Etiqueta>
+          <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, margin: "4px 0 8px" }}>Cada jogador recebe o próprio link, com o planejamento desta turma, as análises de movimento, os jogos com scout e os jogos em vídeo dele.</p>
+          {membros.map((m) => (
+            <div key={m.id} className="mb-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, minWidth: 100 }}>{m.nome || "Sem nome"}</span>
+                {!linksMembros[m.id] ? (
+                  <Botao pequeno variante="vazio" onClick={() => gerarLinkMembro(m)}>{gerandoMembroId === m.id ? "Gerando…" : "Gerar link"}</Botao>
+                ) : (
+                  <>
+                    <input id={"mty-link-membro-" + m.id} readOnly value={linksMembros[m.id]} style={{ ...entrada, fontSize: 12, flex: 1, minWidth: 160 }}
+                      onFocus={(e) => e.target.select()} />
+                    <Botao pequeno variante="vazio" onClick={() => copiarLinkMembro(m.id)}>{membroCopiadoId === m.id ? "✓ copiado" : "Copiar"}</Botao>
+                  </>
+                )}
+              </div>
+              {linksMembros[m.id] && (
+                <div className="mt-1 flex gap-2 flex-wrap">
+                  <Botao pequeno variante="vazio" onClick={() => window.open(linksMembros[m.id], "_blank")}>Pré-visualizar como o jogador vê</Botao>
+                  <Botao pequeno variante="vazio" disabled={!podeEditar} onClick={() => revogarLinkMembro(m.id)}>Revogar link</Botao>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+    );
   }
 
   const revisaoAtual = statusRevisao(plano, fichaMudouDepoisDoPlano);
@@ -13860,54 +13940,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
 
             <HistoricoRelatorios historico={historico} abrirHist={abrirHist} setAbrirHist={setAbrirHist} removerDoHistorico={removerDoHistorico} podeEditar={podeEditar} nomeEntidade={entidade.nome} identidade={identidade} />
 
-            <div className="mt-6 pt-4" style={{ borderTop: "1px solid " + C.linha }}>
-              {!eTurma ? (
-                <div>
-                  <Botao pequeno variante="vazio" onClick={gerarLinkAluno}>{gerandoLink ? "Gerando…" : "Compartilhar com o jogador"}</Botao>
-                  <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginTop: 6 }}>Recurso em construção — o link funciona, mas a experiência do lado do jogador ainda está sendo ajustada. Mostra só o que estiver aprovado; rascunho nunca aparece pra ele.</p>
-                  {linkAluno && (
-                    <>
-                      <div className="mt-2 flex gap-2 items-center flex-wrap">
-                        <input id="mty-link-aluno" readOnly value={linkAluno} style={{ ...entrada, fontSize: 12, flex: 1 }}
-                          onFocus={(e) => e.target.select()} />
-                        <Botao pequeno variante="vazio" onClick={copiarLinkAluno}>{linkCopiado ? "✓ copiado" : "Copiar"}</Botao>
-                      </div>
-                      <div className="mt-2 flex gap-2 flex-wrap">
-                        <Botao pequeno variante="vazio" onClick={() => window.open(linkAluno, "_blank")}>Pré-visualizar como o jogador vê</Botao>
-                        <Botao pequeno variante="vazio" disabled={!podeEditar} onClick={revogarLinkAluno}>Revogar link</Botao>
-                      </div>
-                    </>
-                  )}
-                </div>
-              ) : (
-                <div>
-                  <Etiqueta>Compartilhar com os jogadores</Etiqueta>
-                  <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, margin: "4px 0 8px" }}>Recurso em construção — o link funciona, mas a experiência do lado do jogador ainda está sendo ajustada.</p>
-                  {membros.map((m) => (
-                    <div key={m.id} className="mb-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, minWidth: 100 }}>{m.nome || "Sem nome"}</span>
-                        {!linksMembros[m.id] ? (
-                          <Botao pequeno variante="vazio" onClick={() => gerarLinkMembro(m)}>{gerandoMembroId === m.id ? "Gerando…" : "Gerar link"}</Botao>
-                        ) : (
-                          <>
-                            <input id={"mty-link-membro-" + m.id} readOnly value={linksMembros[m.id]} style={{ ...entrada, fontSize: 12, flex: 1, minWidth: 160 }}
-                              onFocus={(e) => e.target.select()} />
-                            <Botao pequeno variante="vazio" onClick={() => copiarLinkMembro(m.id)}>{membroCopiadoId === m.id ? "✓ copiado" : "Copiar"}</Botao>
-                          </>
-                        )}
-                      </div>
-                      {linksMembros[m.id] && (
-                        <div className="mt-1 flex gap-2 flex-wrap">
-                          <Botao pequeno variante="vazio" onClick={() => window.open(linksMembros[m.id], "_blank")}>Pré-visualizar como o jogador vê</Botao>
-                          <Botao pequeno variante="vazio" disabled={!podeEditar} onClick={() => revogarLinkMembro(m.id)}>Revogar link</Botao>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            {blocoCompartilhar()}
           </>
         );
       })()}
@@ -16583,7 +16616,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
       {subaba === "plano" ? (
         <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} alunos={alunos} setAlunos={setAlunos} modo="resumo" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} />
       ) : subaba === "aulas" ? (
-        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} />
+        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} alunos={alunos} setAlunos={setAlunos} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} />
       ) : subaba === "fechamento" ? (
         <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} alunos={alunos} setAlunos={setAlunos} modo="fechamento" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} />
       ) : subaba === "scout" ? (
@@ -17591,6 +17624,7 @@ function compromissosDaData(alunos, turmas, data) {
         titulo: e.nome || (tipo === "turma" ? "Turma sem nome" : "Sem nome"),
         tipoAula: tipo === "individual" ? nomeTipoAula(e.estagio) : null,
         status: statusOcorrencia(e, chave), chave, recorrente: false, avulsoId: av.id,
+        reposicao: !!av.reposicao, motivo: av.motivo || "",
       });
     });
   }
@@ -17619,6 +17653,7 @@ function CartaoAula({ c, onClick }) {
         </div>
         <div className="flex items-center gap-2 flex-wrap mt-1">
           {c.tipoAula && <Etiqueta>{c.tipoAula}</Etiqueta>}
+          {c.reposicao && <Etiqueta cor="#6A3FA0">Reposição</Etiqueta>}
           <Etiqueta cor={info.cor}>{info.icone} {info.r}</Etiqueta>
         </div>
       </div>
@@ -17631,13 +17666,14 @@ function CartaoAula({ c, onClick }) {
    nunca uma lista paralela), depois data/horário/duração e se repete
    toda semana ou é só desta vez. Repetir grava em `horarios` (a mesma
    fonte usada em toda a Agenda); "só esta data" vira um item avulso. */
-function AgendarAulaDialog({ alunos, turmas, setAlunos, setTurmas, dataInicial, aoFechar }) {
+function AgendarAulaDialog({ alunos, turmas, setAlunos, setTurmas, dataInicial, aoFechar, reposicao }) {
   const [passo, setPasso] = useState("escolher");
   const [alvo, setAlvo] = useState(null);
   const [data, setData] = useState(formatarDataISO(dataInicial));
   const [hora, setHora] = useState("17:00");
   const [duracao, setDuracao] = useState("1h30");
-  const [repetir, setRepetir] = useState(true);
+  const [repetir, setRepetir] = useState(reposicao ? "reposicao" : true); // true = toda semana · false = só esta data · "reposicao" = reposição nesta data
+  const [motivo, setMotivo] = useState("");
   const [conflitoIgnorado, setConflitoIgnorado] = useState(false);
 
   function escolher(tipo, id) {
@@ -17654,7 +17690,7 @@ function AgendarAulaDialog({ alunos, turmas, setAlunos, setTurmas, dataInicial, 
   function confirmar() {
     if (conflito && !conflitoIgnorado) { setConflitoIgnorado(true); return; }
     const entidade = alvo.tipo === "turma" ? turmas.find((t) => t.id === alvo.id) : alunos.find((a) => a.id === alvo.id);
-    if (repetir) {
+    if (repetir === true) {
       const dia = dataObj.getDay();
       const jaExiste = (entidade.horarios || []).some((h) => h.dia === dia && h.hora === hora);
       const horarios = jaExiste ? entidade.horarios
@@ -17663,7 +17699,7 @@ function AgendarAulaDialog({ alunos, turmas, setAlunos, setTurmas, dataInicial, 
       if (alvo.tipo === "turma") setTurmas(turmas.map((t) => (t.id === alvo.id ? { ...t, ...patch } : t)));
       else setAlunos(alunos.map((a) => (a.id === alvo.id ? { ...a, ...patch } : a)));
     } else {
-      const novo = { id: "av" + Date.now(), data, hora, horaFim };
+      const novo = { id: "av" + Date.now(), data, hora, horaFim, ...(repetir === "reposicao" ? { reposicao: true, motivo: motivo.trim() } : {}) };
       const agendaAvulsos = [...(entidade.agendaAvulsos || []), novo];
       if (alvo.tipo === "turma") setTurmas(turmas.map((t) => (t.id === alvo.id ? { ...t, agendaAvulsos } : t)));
       else setAlunos(alunos.map((a) => (a.id === alvo.id ? { ...a, agendaAvulsos } : a)));
@@ -17678,7 +17714,7 @@ function AgendarAulaDialog({ alunos, turmas, setAlunos, setTurmas, dataInicial, 
         style={{ position: "fixed", left: 0, right: 0, bottom: 0, background: C.cal, zIndex: 40,
           borderRadius: "16px 16px 0 0", boxShadow: SOMBRA_ALTA, maxHeight: "85vh", display: "flex", flexDirection: "column" }}>
         <div className="flex items-center justify-between" style={{ padding: "14px 18px", borderBottom: "1px solid " + C.linha }}>
-          <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{passo === "escolher" ? "Agendar pra quem?" : "Agendar aula"}</span>
+          <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{passo === "escolher" ? (reposicao ? "Reposição pra quem?" : "Agendar pra quem?") : repetir === "reposicao" ? "Agendar reposição" : "Agendar aula"}</span>
           <button onClick={aoFechar} aria-label="Fechar" style={{ width: 36, height: 36, border: "none", background: "none", cursor: "pointer", fontSize: 20, color: C.grafite }}>×</button>
         </div>
         <div style={{ overflowY: "auto", padding: "14px 18px" }}>
@@ -17710,8 +17746,13 @@ function AgendarAulaDialog({ alunos, turmas, setAlunos, setTurmas, dataInicial, 
               <Campo rotulo="Horário"><input type="time" style={entrada} value={hora} onChange={(e) => { setHora(e.target.value); setConflitoIgnorado(false); }} /></Campo>
               <Campo rotulo="Duração"><Seletor opcoes={DURACOES_TREINO} valor={duracao} aoMudar={(v) => { setDuracao(v); setConflitoIgnorado(false); }} /></Campo>
               <Campo rotulo="Repetição">
-                <Seletor opcoes={[{ v: true, r: "Toda semana neste dia e horário" }, { v: false, r: "Só esta data" }]} valor={repetir} aoMudar={setRepetir} />
+                <Seletor opcoes={[{ v: true, r: "Toda semana neste dia e horário" }, { v: false, r: "Só esta data" }, { v: "reposicao", r: "Reposição (só esta data)" }]} valor={repetir} aoMudar={setRepetir} />
               </Campo>
+              {repetir === "reposicao" && (
+                <Campo rotulo="Motivo da reposição (opcional)">
+                  <input style={entrada} value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ex.: aula de 12/10 cancelada pela chuva" />
+                </Campo>
+              )}
               {conflito && (
                 <Aviso cor="#C9A227">
                   Conflito de horário: {conflito.titulo} já está marcado das {conflito.hora} às {conflito.horaFim} neste dia.
@@ -17719,7 +17760,7 @@ function AgendarAulaDialog({ alunos, turmas, setAlunos, setTurmas, dataInicial, 
                 </Aviso>
               )}
               <div className="flex gap-2 flex-wrap mt-2">
-                <Botao variante="saibro" onClick={confirmar}>{conflito && !conflitoIgnorado ? "Continuar" : "Agendar"}</Botao>
+                <Botao variante="saibro" onClick={confirmar}>{conflito && !conflitoIgnorado ? "Continuar" : repetir === "reposicao" ? "Agendar reposição" : "Agendar"}</Botao>
                 <Botao variante="vazio" onClick={() => setPasso("escolher")}>Voltar</Botao>
               </div>
             </>
@@ -17749,6 +17790,7 @@ function OcorrenciaDetalhe({ c, aoFechar, aoVerJogador, aoAbrirPlano, aoAbrirSes
           </p>
           <div className="flex items-center gap-2 flex-wrap mt-2">
             {c.tipoAula && <Etiqueta>{c.tipoAula}</Etiqueta>}
+          {c.reposicao && <Etiqueta cor="#6A3FA0">Reposição</Etiqueta>}
             <Etiqueta cor={info.cor}>{info.icone} {info.r}</Etiqueta>
           </div>
 
@@ -17909,7 +17951,10 @@ function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, aoVerJogador, aoAbri
             </button>
           ))}
         </div>
-        <Botao pequeno onClick={() => setAgendando(true)}>+ Agendar aula</Botao>
+        <div className="flex gap-2 flex-wrap">
+          <Botao pequeno variante="vazio" onClick={() => setAgendando("reposicao")}>+ Reposição</Botao>
+          <Botao pequeno onClick={() => setAgendando(true)}>+ Agendar aula</Botao>
+        </div>
       </div>
 
       {modo === "dia" && (
@@ -18032,7 +18077,7 @@ function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, aoVerJogador, aoAbri
 
       {agendando && (
         <AgendarAulaDialog alunos={alunos} turmas={turmas} setAlunos={setAlunos} setTurmas={setTurmas}
-          dataInicial={dataRef} aoFechar={() => setAgendando(false)} />
+          dataInicial={dataRef} aoFechar={() => setAgendando(false)} reposicao={agendando === "reposicao"} />
       )}
       {ocorrenciaAberta && (
         <OcorrenciaDetalhe c={ocorrenciaAberta} aoFechar={() => setOcorrenciaAberta(null)}
@@ -18414,6 +18459,12 @@ function App() {
     }
   }, [alunos, carregando, autenticado, rascunhosNaoConfirmados]);
   useEffect(() => { if (autenticado && !carregandoTurmas && prontoRef.current.turmas) grave("mty:turmas:v1", turmas, true); }, [turmas, carregandoTurmas, autenticado]);
+  /* jogos com scout de quem tem link do aluno: resumos para a página do aluno (espera a edição assentar) */
+  useEffect(() => {
+    if (!autenticado || carregando || !prontoRef.current.alunos) return undefined;
+    const t = setTimeout(() => { publicarResumosParaAlunos(alunos).catch(() => {}); }, 3000);
+    return () => clearTimeout(t);
+  }, [alunos, carregando, autenticado]);
   /* partida que já foi salva no caderno não fica como "em andamento" (sobra de versões antigas ou de outro aparelho) */
   useEffect(() => {
     if (carregando) return;

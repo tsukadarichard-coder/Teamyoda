@@ -10381,6 +10381,30 @@ function montarResumoPublico(reg, aluno) {
     zonas: zonasDe(sc.pontos), serie: serie.map((x, i) => [x.nos ? 1 : 0, x.set, contagem[i][0], contagem[i][1]]), sinais: sinais.map((s) => s[1]),
   };
 }
+/* Link do aluno (aluno.html): os jogos com scout entram lá com o mesmo resumo da página da família. As contas desse resumo
+   moram aqui no app, então o app guarda os resumos de cada jogador que tem link num documento à parte
+   (orgs/{org}/dados/mty:paraAluno:v1:{alunoId}), que ver-aluno.js lê. Só regrava quando algum jogo muda. */
+const enviadosParaAluno = {};
+async function publicarResumosParaAlunos(alunos) {
+  if (!db) return;
+  const org = await organizacao();
+  if (!org) return;
+  for (const a of alunos || []) {
+    if (!a || !a.linkToken || !a.id) continue;
+    const jogos = (a.registros || []).filter((r) => r.tipo === "jogo" && r.scout).sort((x, y) => String(x.data || "").localeCompare(String(y.data || "")));
+    const assinatura = jogos.map((r) => [r.id, r.data, (r.scout.pontos || []).length, r.scout.n, r.resultado, r.concluida, (r.observacaoFinal || "").length, r.nivelAdversario].join(":")).join("|");
+    const chave = org + "|" + a.id;
+    if (enviadosParaAluno[chave] === assinatura) continue;
+    const lista = [];
+    jogos.forEach((r) => { try { lista.push({ id: r.id, video: r.origem === "video", ...montarResumoPublico(r, a) }); } catch (e) { /* jogo sem dados suficientes para o resumo */ } });
+    let valor = JSON.stringify({ jogos: lista, atualizadoEm: new Date().toISOString() });
+    while (valor.length > 900000 && lista.length > 1) { lista.shift(); valor = JSON.stringify({ jogos: lista, atualizadoEm: new Date().toISOString() }); }
+    try {
+      await db.collection("orgs").doc(org).collection("dados").doc("mty:paraAluno:v1:" + a.id).set({ value: valor, atualizado: Date.now() });
+      enviadosParaAluno[chave] = assinatura;
+    } catch (e) { console.error("resumos do link do aluno:", e && e.message); }
+  }
+}
 /* Observação final do treinador sobre o jogo: aparece na página que a família recebe. Se o link já foi gerado, o resumo dele é refeito ao salvar. */
 function ObservacaoFinalRegistro({ r, aluno, alunos, setAlunos }) {
   const [texto, setTexto] = useState(r.observacaoFinal || "");
@@ -13431,6 +13455,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
             ))}
           </div>
         )}
+        {modo === "resumo" && blocoCompartilhar()}
       </div>
     );
   }
@@ -13514,6 +13539,61 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
     }
     setMembroCopiadoId(membroId);
     setTimeout(() => setMembroCopiadoId((id) => (id === membroId ? null : id)), 2000);
+  }
+
+  /* Link do aluno: o mesmo bloco no fim da aba Evolução e na tela "Sem planejamento" — o link traz também análises, scouts
+     e o plano da turma, então vale gerar mesmo antes de existir um plano individual. */
+  function blocoCompartilhar() {
+    return (
+    <div className="mt-6 pt-4" style={{ borderTop: "1px solid " + C.linha }}>
+      {!eTurma ? (
+        <div>
+          <Botao pequeno variante="vazio" onClick={gerarLinkAluno}>{gerandoLink ? "Gerando…" : "Compartilhar com o jogador"}</Botao>
+          <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginTop: 6 }}>O link mostra o plano aprovado do jogador e o das turmas dele, as análises de movimento (com o relatório completo), os jogos com scout, os jogos em vídeo e os relatórios de ciclo. Rascunho nunca aparece pra ele.</p>
+          {linkAluno && (
+            <>
+              <div className="mt-2 flex gap-2 items-center flex-wrap">
+                <input id="mty-link-aluno" readOnly value={linkAluno} style={{ ...entrada, fontSize: 12, flex: 1 }}
+                  onFocus={(e) => e.target.select()} />
+                <Botao pequeno variante="vazio" onClick={copiarLinkAluno}>{linkCopiado ? "✓ copiado" : "Copiar"}</Botao>
+              </div>
+              <div className="mt-2 flex gap-2 flex-wrap">
+                <Botao pequeno variante="vazio" onClick={() => window.open(linkAluno, "_blank")}>Pré-visualizar como o jogador vê</Botao>
+                <Botao pequeno variante="vazio" disabled={!podeEditar} onClick={revogarLinkAluno}>Revogar link</Botao>
+              </div>
+            </>
+          )}
+        </div>
+      ) : (
+        <div>
+          <Etiqueta>Compartilhar com os jogadores</Etiqueta>
+          <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, margin: "4px 0 8px" }}>Cada jogador recebe o próprio link, com o planejamento desta turma, as análises de movimento, os jogos com scout e os jogos em vídeo dele.</p>
+          {membros.map((m) => (
+            <div key={m.id} className="mb-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, minWidth: 100 }}>{m.nome || "Sem nome"}</span>
+                {!linksMembros[m.id] ? (
+                  <Botao pequeno variante="vazio" onClick={() => gerarLinkMembro(m)}>{gerandoMembroId === m.id ? "Gerando…" : "Gerar link"}</Botao>
+                ) : (
+                  <>
+                    <input id={"mty-link-membro-" + m.id} readOnly value={linksMembros[m.id]} style={{ ...entrada, fontSize: 12, flex: 1, minWidth: 160 }}
+                      onFocus={(e) => e.target.select()} />
+                    <Botao pequeno variante="vazio" onClick={() => copiarLinkMembro(m.id)}>{membroCopiadoId === m.id ? "✓ copiado" : "Copiar"}</Botao>
+                  </>
+                )}
+              </div>
+              {linksMembros[m.id] && (
+                <div className="mt-1 flex gap-2 flex-wrap">
+                  <Botao pequeno variante="vazio" onClick={() => window.open(linksMembros[m.id], "_blank")}>Pré-visualizar como o jogador vê</Botao>
+                  <Botao pequeno variante="vazio" disabled={!podeEditar} onClick={() => revogarLinkMembro(m.id)}>Revogar link</Botao>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+    );
   }
 
   const revisaoAtual = statusRevisao(plano, fichaMudouDepoisDoPlano);
@@ -14005,54 +14085,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
 
             <HistoricoRelatorios historico={historico} abrirHist={abrirHist} setAbrirHist={setAbrirHist} removerDoHistorico={removerDoHistorico} podeEditar={podeEditar} nomeEntidade={entidade.nome} identidade={identidade} />
 
-            <div className="mt-6 pt-4" style={{ borderTop: "1px solid " + C.linha }}>
-              {!eTurma ? (
-                <div>
-                  <Botao pequeno variante="vazio" onClick={gerarLinkAluno}>{gerandoLink ? "Gerando…" : "Compartilhar com o jogador"}</Botao>
-                  <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginTop: 6 }}>Recurso em construção — o link funciona, mas a experiência do lado do jogador ainda está sendo ajustada. Mostra só o que estiver aprovado; rascunho nunca aparece pra ele.</p>
-                  {linkAluno && (
-                    <>
-                      <div className="mt-2 flex gap-2 items-center flex-wrap">
-                        <input id="mty-link-aluno" readOnly value={linkAluno} style={{ ...entrada, fontSize: 12, flex: 1 }}
-                          onFocus={(e) => e.target.select()} />
-                        <Botao pequeno variante="vazio" onClick={copiarLinkAluno}>{linkCopiado ? "✓ copiado" : "Copiar"}</Botao>
-                      </div>
-                      <div className="mt-2 flex gap-2 flex-wrap">
-                        <Botao pequeno variante="vazio" onClick={() => window.open(linkAluno, "_blank")}>Pré-visualizar como o jogador vê</Botao>
-                        <Botao pequeno variante="vazio" disabled={!podeEditar} onClick={revogarLinkAluno}>Revogar link</Botao>
-                      </div>
-                    </>
-                  )}
-                </div>
-              ) : (
-                <div>
-                  <Etiqueta>Compartilhar com os jogadores</Etiqueta>
-                  <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, margin: "4px 0 8px" }}>Recurso em construção — o link funciona, mas a experiência do lado do jogador ainda está sendo ajustada.</p>
-                  {membros.map((m) => (
-                    <div key={m.id} className="mb-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, minWidth: 100 }}>{m.nome || "Sem nome"}</span>
-                        {!linksMembros[m.id] ? (
-                          <Botao pequeno variante="vazio" onClick={() => gerarLinkMembro(m)}>{gerandoMembroId === m.id ? "Gerando…" : "Gerar link"}</Botao>
-                        ) : (
-                          <>
-                            <input id={"mty-link-membro-" + m.id} readOnly value={linksMembros[m.id]} style={{ ...entrada, fontSize: 12, flex: 1, minWidth: 160 }}
-                              onFocus={(e) => e.target.select()} />
-                            <Botao pequeno variante="vazio" onClick={() => copiarLinkMembro(m.id)}>{membroCopiadoId === m.id ? "✓ copiado" : "Copiar"}</Botao>
-                          </>
-                        )}
-                      </div>
-                      {linksMembros[m.id] && (
-                        <div className="mt-1 flex gap-2 flex-wrap">
-                          <Botao pequeno variante="vazio" onClick={() => window.open(linksMembros[m.id], "_blank")}>Pré-visualizar como o jogador vê</Botao>
-                          <Botao pequeno variante="vazio" disabled={!podeEditar} onClick={() => revogarLinkMembro(m.id)}>Revogar link</Botao>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            {blocoCompartilhar()}
           </>
         );
       })()}
@@ -16860,9 +16893,9 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
       {subaba === "plano" ? (
         <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="resumo" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} ocorrencias={ocorrencias} />
       ) : subaba === "aulas" ? (
-        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} setSubaba={setSubaba} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} ocorrencias={ocorrencias} />
+        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} ocorrencias={ocorrencias} />
       ) : subaba === "fechamento" ? (
-        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} setSubaba={setSubaba} modo="fechamento" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} ocorrencias={ocorrencias} />
+        <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="fechamento" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} ocorrencias={ocorrencias} />
       ) : subaba === "scout" ? (
         <TelaScoutTurma membros={membros} alunos={alunos} setAlunos={setAlunos} />
       ) : (
@@ -18140,6 +18173,7 @@ function LinhaCredito({ credito, aluno, professores, turmas, ocorrencias, aoApro
 function TelaReposicoes({ alunos, setAlunos, turmas, quadras, reservas, bloqueiosAula, ocorrencias, setOcorrencias, regrasReposicao, setRegrasReposicao, papelAtual }) {
   const [professores, setProfessores] = useState([]);
   const [mostrarRegras, setMostrarRegras] = useState(false);
+  const [novaAberta, setNovaAberta] = useState(false);
   useEffect(() => { listaProfessores().then(setProfessores); }, []);
 
   const hoje = new Date().toISOString().slice(0, 10);
@@ -18187,13 +18221,58 @@ function TelaReposicoes({ alunos, setAlunos, turmas, quadras, reservas, bloqueio
   }
 
   const ordemStatus = ["pendente_aprovacao", "disponivel", "reservado", "utilizado", "vencido", "cancelado"];
+  /* reposições marcadas daqui pra frente (de crédito ou criadas direto), para aluno ou turma */
+  const proximas = ocorrencias.filter((o) => o.tipo === "reposicao" && o.status === "agendada" && o.data >= hoje)
+    .sort((a, b) => (a.data + a.horaInicio).localeCompare(b.data + b.horaInicio));
+  function nomeDaOrigem(o) {
+    if (o.origemTipo === "turma") { const t = turmas.find((x) => x.id === o.origemId); return (t ? t.nome : "Turma removida") + " (turma)"; }
+    const a = alunos.find((x) => x.id === o.origemId); return a ? a.nome || "Sem nome" : "Aluno removido";
+  }
+  function desmarcar(o) {
+    if (!confirm("Desmarcar esta reposição?")) return;
+    const ocNova = { ...o, status: "cancelada", motivoCancelamento: "Reposição desmarcada pelo treinador", atualizadoEm: new Date().toISOString() };
+    setOcorrencias(ocorrencias.map((x) => (x.id === o.id ? ocNova : x)));
+    setAlunos(aplicarEfeitoCreditoNaOcorrencia(alunos, o, ocNova, regrasReposicao));
+  }
 
   return (
     <div>
-      <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Reposições</h1>
+      <div className="flex items-center justify-between gap-3 flex-wrap" style={{ marginBottom: 4 }}>
+        <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700 }}>Reposições</h1>
+        <Botao onClick={() => setNovaAberta(true)}>+ Nova reposição</Botao>
+      </div>
       <p style={{ ...prosa, fontSize: 14, color: C.grafite, marginBottom: 16 }}>
-        Créditos de reposição nascem sempre de uma concessão manual — veja "Conceder crédito de reposição" ao cancelar uma aula em "Aulas de hoje".
+        Marque uma reposição para qualquer aluno ou turma em "+ Nova reposição". Os créditos de reposição concedidos ao cancelar uma aula em "Aulas de hoje" aparecem abaixo e também podem ser agendados.
       </p>
+      <ModalAgendar aberto={novaAberta} aoFechar={() => setNovaAberta(false)} tipoInicial="reposicao"
+        alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={() => {}} quadras={quadras} reservas={reservas || []} setReservas={() => {}}
+        bloqueiosAula={bloqueiosAula || []} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} aoIrParaRecorrentes={() => {}} />
+
+      <div className="mb-5">
+        <Etiqueta cor={COR_CATEGORIA_TIPO.reposicao}>Reposições marcadas ({proximas.length})</Etiqueta>
+        {proximas.length === 0 ? (
+          <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginTop: 6 }}>Nenhuma reposição marcada daqui pra frente.</p>
+        ) : (
+          <div className="mt-2">
+            {proximas.map((o) => (
+              <div key={o.id} data-reposicao={o.id} style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "4px solid " + COR_CATEGORIA_TIPO.reposicao, boxShadow: SOMBRA, borderRadius: 10, padding: "10px 13px", marginBottom: 8 }}>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div>
+                    <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{nomeDaOrigem(o)}</p>
+                    <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>
+                      {formatarDataLonga(o.data)} · {o.horaInicio}–{o.horaFim}
+                      {o.quadraId && (quadras || []).find((q) => q.id === o.quadraId) ? " · " + (quadras || []).find((q) => q.id === o.quadraId).nome : ""}
+                      {o.professorNome ? " · " + o.professorNome : ""}
+                    </p>
+                    {(o.motivoReposicao || o.observacoes) && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>{o.motivoReposicao || o.observacoes}</p>}
+                  </div>
+                  <Botao pequeno variante="vazio" onClick={() => desmarcar(o)}>Desmarcar</Botao>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="flex flex-wrap gap-2 mb-4">
         {ordemStatus.map((s) => (
@@ -19191,16 +19270,18 @@ function TelaDashboard({ aoAbrirScout, aoDescartarPartida, alunos, turmas, ocorr
    igual. Isso corrige de raiz a razão de "Agenda não bate com Quadras":
    eram dois cálculos diferentes de quem está ocupado quando. */
 /* "+ Agendar" — fluxo único pedido na seção 5: um só botão, campos
-   condicionais por tipo. Reposição e bloqueio não ganham um formulário
-   próprio aqui — reposição precisa partir de um crédito já existente
-   (regra que já vale em Reposições, nunca inventa o direito), e
-   bloqueio recorrente por horário já tem seu próprio mecanismo em
+   condicionais por tipo. Reposição: aula avulsa do tipo "reposicao" para
+   qualquer aluno ou turma, criada direto pelo treinador (também pela tela
+   Reposições, que abre este mesmo modal); créditos de reposição continuam
+   existindo e são agendados na própria tela Reposições. Bloqueio
+   recorrente por horário já tem seu próprio mecanismo em
    "Horários recorrentes"; duplicar os dois aqui criaria uma segunda
    forma de produzir a mesma coisa, exatamente o que a unificação quer
    evitar. Por isso, ao escolher um desses dois tipos, o modal fecha e
    leva direto pra tela certa, em vez de reimplementar o fluxo. */
-function ModalAgendar({ aberto, aoFechar, dataInicial, horaInicial, quadraIdInicial, alunos, setAlunos, turmas, setTurmas, quadras, reservas, setReservas, bloqueiosAula, ocorrencias, setOcorrencias, aoIrParaReposicoes, aoIrParaRecorrentes }) {
-  const [tipo, setTipo] = useState(null); // null | "individual" | "turma" | "locacao"
+function ModalAgendar({ aberto, aoFechar, dataInicial, horaInicial, quadraIdInicial, tipoInicial, alunos, setAlunos, turmas, setTurmas, quadras, reservas, setReservas, bloqueiosAula, ocorrencias, setOcorrencias, aoIrParaReposicoes, aoIrParaRecorrentes }) {
+  const [tipo, setTipo] = useState(tipoInicial || null); // null | "individual" | "turma" | "locacao" | "reposicao"
+  const [repoPara, setRepoPara] = useState("individual"); // reposição: "individual" | "turma"
   const [alunoId, setAlunoId] = useState("");
   const [turmaId, setTurmaId] = useState("");
   const [data, setData] = useState(dataInicial || dataISO(new Date()));
@@ -19225,20 +19306,20 @@ function ModalAgendar({ aberto, aoFechar, dataInicial, horaInicial, quadraIdInic
       setData(dataInicial || dataISO(new Date()));
       setHoraInicio(horaInicial || "");
       setQuadraId(quadraIdInicial || "");
+      if (tipoInicial) setTipo(tipoInicial);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aberto, dataInicial, horaInicial, quadraIdInicial]);
+  }, [aberto, dataInicial, horaInicial, quadraIdInicial, tipoInicial]);
 
   if (!aberto) return null;
 
   function fecharTudo() {
-    setTipo(null); setAlunoId(""); setTurmaId(""); setHoraInicio(""); setHoraFim(""); setQuadraId("");
+    setTipo(null); setRepoPara("individual"); setAlunoId(""); setTurmaId(""); setHoraInicio(""); setHoraFim(""); setQuadraId("");
     setRepeticao("unica"); setNomeContato(""); setTelefoneContato(""); setObservacao(""); setErro(""); setEnviando(false);
     aoFechar();
   }
 
   function escolherTipo(t) {
-    if (t === "reposicao") { fecharTudo(); aoIrParaReposicoes(); return; }
     if (t === "bloqueio") { fecharTudo(); aoIrParaRecorrentes(); return; }
     setTipo(t);
     setErro("");
@@ -19248,16 +19329,18 @@ function ModalAgendar({ aberto, aoFechar, dataInicial, horaInicial, quadraIdInic
     }
   }
 
+  /* reposição usa o mesmo formulário da aula, para um aluno ou uma turma */
+  const tipoAlvo = tipo === "reposicao" ? repoPara : tipo;
   function aoMudarEntidadeOuHora(novaHoraInicio) {
     setHoraInicio(novaHoraInicio);
-    const entidade = tipo === "individual" ? alunos.find((a) => a.id === alunoId) : turmas.find((x) => x.id === turmaId);
+    const entidade = tipoAlvo === "individual" ? alunos.find((a) => a.id === alunoId) : turmas.find((x) => x.id === turmaId);
     if (entidade && novaHoraInicio) setHoraFim(horaMaisMinutos(novaHoraInicio, minutosDaDuracao(entidade.duracaoPadrao)));
   }
 
   async function confirmar() {
     setErro("");
-    if (tipo === "individual" && !alunoId) return setErro("Escolha o jogador.");
-    if (tipo === "turma" && !turmaId) return setErro("Escolha a turma.");
+    if (tipoAlvo === "individual" && !alunoId) return setErro("Escolha o jogador.");
+    if (tipoAlvo === "turma" && !turmaId) return setErro("Escolha a turma.");
     if (tipo === "locacao" && (!nomeContato.trim() || !telefoneContato.trim())) return setErro("Preencha nome e telefone de contato.");
     if (tipo === "locacao" && !quadraId) return setErro("Escolha a quadra.");
     if (!data || !horaInicio || !horaFim) return setErro("Preencha data, início e término.");
@@ -19274,12 +19357,12 @@ function ModalAgendar({ aberto, aoFechar, dataInicial, horaInicial, quadraIdInic
         return;
       }
 
-      // aula individual ou de turma
-      const origemTipo = tipo === "turma" ? "turma" : "individual";
-      const entidade = tipo === "turma" ? turmas.find((x) => x.id === turmaId) : alunos.find((a) => a.id === alunoId);
+      // aula (ou reposição) individual ou de turma
+      const origemTipo = tipoAlvo === "turma" ? "turma" : "individual";
+      const entidade = tipoAlvo === "turma" ? turmas.find((x) => x.id === turmaId) : alunos.find((a) => a.id === alunoId);
       if (!entidade) { setErro("Não encontrei o cadastro escolhido."); return; }
 
-      if (repeticao === "semanal") {
+      if (repeticao === "semanal" && tipo !== "reposicao") {
         const dia = diaDaSemanaISO(data);
         const novoHorario = { dia, hora: horaInicio, quadraId: quadraId || "" };
         const candidataValidacao = novaOcorrencia({
@@ -19299,7 +19382,8 @@ function ModalAgendar({ aberto, aoFechar, dataInicial, horaInicial, quadraIdInic
           origemTipo, origemId: entidade.id, recorrenciaChave: null, data, horaInicio, horaFim, quadraId: quadraId || "",
           professorUid: entidade.professorUid || "", professorNome: entidade.professorNome || "",
           professorAuxiliarUid: entidade.professorAuxiliarUid || "", professorAuxiliarNome: entidade.professorAuxiliarNome || "",
-          tipo: "regular", status: "agendada", observacoes: observacao.trim(),
+          tipo: tipo === "reposicao" ? "reposicao" : "regular", status: "agendada", observacoes: observacao.trim(),
+          ...(tipo === "reposicao" ? { motivoReposicao: observacao.trim() } : {}),
         });
         const conflitos = conflitosDeOcorrencia(ocorrencias, candidata, turmas);
         if (conflitos.length) { setErro("Conflito de " + conflitos[0].tipo + " nesse horário — escolha outro."); return; }
@@ -19323,7 +19407,7 @@ function ModalAgendar({ aberto, aoFechar, dataInicial, horaInicial, quadraIdInic
           borderRadius: "16px 16px 0 0", boxShadow: SOMBRA_ALTA, paddingBottom: "env(safe-area-inset-bottom)",
           maxHeight: "88vh", overflowY: "auto" }}>
         <div className="flex items-center justify-between" style={{ padding: "14px 18px", borderBottom: "1px solid " + C.linha }}>
-          <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>Agendar</span>
+          <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{tipo === "reposicao" ? "Nova reposição" : "Agendar"}</span>
           <button onClick={fecharTudo} aria-label="Fechar" style={{ width: 44, height: 44, border: "none", background: "none", cursor: "pointer", fontSize: 20, color: C.grafite }}>×</button>
         </div>
         <div style={{ padding: 18 }}>
@@ -19340,12 +19424,21 @@ function ModalAgendar({ aberto, aoFechar, dataInicial, horaInicial, quadraIdInic
             </div>
           ) : (
             <div>
-              {(tipo === "individual" || tipo === "turma") && (
-                <Campo rotulo={tipo === "individual" ? "Jogador" : "Turma"}>
-                  <select style={entrada} value={tipo === "individual" ? alunoId : turmaId}
-                    onChange={(e) => { if (tipo === "individual") setAlunoId(e.target.value); else setTurmaId(e.target.value); }}>
+              {tipo === "reposicao" && (
+                <Campo rotulo="Reposição para">
+                  <Seletor opcoes={[{ v: "individual", r: "Um aluno" }, { v: "turma", r: "Uma turma" }]} valor={repoPara} aoMudar={(v) => { setRepoPara(v); setErro(""); }} />
+                </Campo>
+              )}
+              {(tipoAlvo === "individual" || tipoAlvo === "turma") && (
+                <Campo rotulo={tipoAlvo === "individual" ? (tipo === "reposicao" ? "Aluno" : "Jogador") : "Turma"}>
+                  <select style={entrada} value={tipoAlvo === "individual" ? alunoId : turmaId}
+                    onChange={(e) => {
+                      if (tipoAlvo === "individual") setAlunoId(e.target.value); else setTurmaId(e.target.value);
+                      const ent = tipoAlvo === "individual" ? alunos.find((a) => a.id === e.target.value) : turmas.find((x) => x.id === e.target.value);
+                      if (ent && horaInicio) setHoraFim(horaMaisMinutos(horaInicio, minutosDaDuracao(ent.duracaoPadrao)));
+                    }}>
                     <option value="">Escolha…</option>
-                    {(tipo === "individual" ? alunos : turmas).map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
+                    {(tipoAlvo === "individual" ? alunos.filter((a) => a.nome) : turmas).map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
                   </select>
                 </Campo>
               )}
@@ -19382,13 +19475,14 @@ function ModalAgendar({ aberto, aoFechar, dataInicial, horaInicial, quadraIdInic
                     valor={repeticao} aoMudar={setRepeticao} />
                 </Campo>
               )}
-              <Campo rotulo="Observação (opcional)">
-                <textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={observacao} onChange={(e) => setObservacao(e.target.value)} />
+              <Campo rotulo={tipo === "reposicao" ? "Motivo da reposição (opcional)" : "Observação (opcional)"}>
+                <textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={observacao} onChange={(e) => setObservacao(e.target.value)}
+                  placeholder={tipo === "reposicao" ? "Ex.: aula de 12/10 cancelada pela chuva" : undefined} />
               </Campo>
               {erro && <Aviso>{erro}</Aviso>}
               <div className="flex gap-2 mt-2">
-                <Botao variante="vazio" onClick={() => setTipo(null)} disabled={enviando}>← Trocar tipo</Botao>
-                <Botao onClick={confirmar} disabled={enviando}>{enviando ? "Agendando…" : "Agendar"}</Botao>
+                {!tipoInicial && <Botao variante="vazio" onClick={() => setTipo(null)} disabled={enviando}>← Trocar tipo</Botao>}
+                <Botao onClick={confirmar} disabled={enviando}>{enviando ? "Agendando…" : tipo === "reposicao" ? "Agendar reposição" : "Agendar"}</Botao>
               </div>
             </div>
           )}
@@ -21028,6 +21122,12 @@ function App() {
 }, [autenticado, orgAtual]);
   useEffect(() => { if (autenticado && !carregando && prontoRef.current.alunos) grave("mty:alunos:v2", alunos); }, [alunos, carregando, autenticado]);
   useEffect(() => { if (autenticado && !carregandoTurmas && prontoRef.current.turmas) grave("mty:turmas:v1", turmas, true); }, [turmas, carregandoTurmas, autenticado]);
+  /* jogos com scout de quem tem link do aluno: resumos para a página do aluno (espera a edição assentar) */
+  useEffect(() => {
+    if (!autenticado || carregando || !prontoRef.current.alunos) return undefined;
+    const t = setTimeout(() => { publicarResumosParaAlunos(alunos).catch(() => {}); }, 3000);
+    return () => clearTimeout(t);
+  }, [alunos, carregando, autenticado]);
   /* partida que já foi salva no caderno não fica como "em andamento" (sobra de versões antigas ou de outro aparelho) */
   useEffect(() => {
     if (carregando) return;

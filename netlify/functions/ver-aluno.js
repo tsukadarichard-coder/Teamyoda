@@ -6,6 +6,7 @@
    jogador: sem ele batendo exatamente, a function nem devolve o nome,
    nem aceita gravar nada. */
 const { admin, app } = require("./_firebase-admin");
+const { limpar: limparResumoJogo } = require("./_scout-publico");
 
 class ErroPublico extends Error {
   constructor(status, mensagem) { super(mensagem); this.status = status; }
@@ -20,6 +21,10 @@ const CHAVE_TURMAS = "mty:turmas:v1";
    seria possível, porque o Firestore protege documentos inteiros, não
    chaves soltas dentro de um JSON serializado num campo "value". */
 const CHAVE_FEEDBACKS_COORD = "mty:feedbacks-coordenador:v1";
+/* Documentos à parte, gravados pelo app do treinador (ver scout/movimento-arquivo.js e resumosParaAluno no index.html):
+   relatório completo de cada análise de movimento, índice das análises do jogador e os resumos dos jogos com scout. */
+const PREF_MOV_REL = "mty:movrel:v1:", PREF_MOV_IDX = "mty:movidx:v1:", PREF_PARA_ALUNO = "mty:paraAluno:v1:";
+const ID_DOC = /^[A-Za-z0-9_.:-]{1,120}$/;
 const LIMITE_TEXTO = 2000;
 const LIMITE_LISTA = 100;
 
@@ -183,6 +188,8 @@ async function handleGet(event) {
 
   const { alunos, idx } = await carregarContexto(org, id, t);
   const aluno = alunos[idx];
+  if (q.rel) return await relatorioMovimento(org, id, aluno, String(q.rel));
+  if (q.jogo) return await resumoJogo(org, id, String(q.jogo));
 
   let turmas = [];
   try {
@@ -199,10 +206,12 @@ async function handleGet(event) {
      mesmo com a turma toda tendo um ciclo em andamento. Um aluno com
      plano individual próprio (fora de turma) não é afetado: só cai no
      fallback quando aluno.plano está vazio. */
-  const turmaDoAluno = !aluno.plano
-    ? turmas.find((tu) => Array.isArray(tu.membros) && tu.membros.includes(id) && tu.plano)
+  const turmasDoAluno = turmas.filter((tu) => Array.isArray(tu.membros) && tu.membros.includes(id));
+  const planoIndividualAprovado = !!(aluno.plano && aluno.plano.aprovado);
+  const turmaDoAluno = !planoIndividualAprovado
+    ? (turmasDoAluno.find((tu) => tu.plano && tu.plano.aprovado) || (!aluno.plano ? turmasDoAluno.find((tu) => tu.plano) : null) || null)
     : null;
-  const fontePlano = aluno.plano ? aluno : (turmaDoAluno || aluno);
+  const fontePlano = planoIndividualAprovado ? aluno : (turmaDoAluno || aluno);
   const horariosEfetivos = turmaDoAluno ? (turmaDoAluno.horarios || []) : (aluno.horarios || []);
 
   /* Nunca expõe rascunho pelo link do aluno — só o que o treinador já
@@ -231,6 +240,9 @@ async function handleGet(event) {
     const info = await admin.firestore().collection("orgs").doc(org).collection("meta").doc("info").get();
     if (info.exists) academiaNome = info.data().nome || "";
   } catch (e) { academiaNome = ""; }
+
+  /* análises de movimento, jogos com scout e o que mais o treinador registrou: tudo o que é do jogador vai no link */
+  const extras = await conteudoDoAluno(org, id, aluno);
 
   let feedbacksEnviados = [];
   try {
@@ -269,7 +281,89 @@ async function handleGet(event) {
     pedidosConteudo: aluno.pedidosConteudo || [],
     historicoRelatorios: aluno.historicoRelatorios || [],
     mapaConceitos: mapaConceitosDoAluno(aluno.registros),
+    /* planejamento de cada turma em que o jogador treina (além do individual, quando ele tiver os dois) */
+    turmas: turmasDoAluno.filter((tu) => tu !== turmaDoAluno).map(resumoPlanoTurma),
+    movimentos: extras.movimentos,
+    jogos: extras.jogos,
+    jogosVideo: extras.jogosVideo,
   });
+}
+
+/* Plano de uma turma para o link do jogador: só o que está aprovado (rascunho nunca aparece), aula a aula. */
+function resumoPlanoTurma(tu) {
+  const aprovado = !!(tu.plano && tu.plano.aprovado);
+  const plano = aprovado ? tu.plano : null, reg = aprovado ? (tu.regPlano || {}) : {};
+  const aulas = listaAulas(plano).map((a) => {
+    const r = reg[a.id] || {};
+    return { bloco: a.bloco, semana: a.semana, foco: a.foco, titulo: a.t || "", status: r.status || (r.feita ? "feita" : ""), data: r.data || null };
+  });
+  const emVigor = aulaEmVigor({ plano, regPlano: reg });
+  return {
+    nome: tu.nome || "Turma", horarios: tu.horarios || [], temPlano: aprovado, planoRascunho: !!(tu.plano && !aprovado),
+    tipoPlano: plano ? plano.tipo || "" : null, prioridade: plano ? plano.prioridade || "" : null,
+    totalAulas: aulas.length, aulasFeitas: aulas.filter((a) => a.status === "feita").length, aulas,
+    aulaEmVigor: emVigor ? { titulo: emVigor.t || "", bloco: emVigor.bloco, semana: emVigor.semana } : null,
+  };
+}
+
+function lerJSON(v, padrao) { try { const x = JSON.parse(v); return x == null ? padrao : x; } catch (e) { return padrao; } }
+async function lerDado(org, chave) {
+  const snap = await admin.firestore().collection("orgs").doc(org).collection("dados").doc(chave).get();
+  return snap.exists ? snap.data() : null;
+}
+
+/* Histórico de análises de movimento do jogador: o que está na ficha + o índice do arquivo (que não se perde com a ficha), menos as removidas. */
+async function movimentosDoAluno(org, id, aluno) {
+  let ind = { itens: [], removidos: [] };
+  try { const d = await lerDado(org, PREF_MOV_IDX + id); if (d) ind = Object.assign(ind, lerJSON(d.value, {})); } catch (e) { /* sem índice */ }
+  const fora = new Set(Array.isArray(ind.removidos) ? ind.removidos : []), mapa = new Map();
+  (aluno.movimentos || []).concat(Array.isArray(ind.itens) ? ind.itens : []).forEach((h) => { if (h && h.id && !fora.has(h.id)) mapa.set(h.id, h); });
+  return [...mapa.values()].sort((a, b) => String(b.criadoEm || "").localeCompare(String(a.criadoEm || ""))).slice(0, 200).map((h) => ({
+    id: String(h.id).slice(0, 120), criadoEm: String(h.criadoEm || "").slice(0, 30), golpe: ["forehand", "backhand", "saque"].includes(h.golpe) ? h.golpe : "forehand",
+    emp: String(h.emp || "").slice(0, 2), dom: h.dom === "E" ? "E" : "D",
+    itens: (Array.isArray(h.itens) ? h.itens : []).slice(0, 60).map((i) => ({ n: String(i.n || "").slice(0, 120), s: ["ok", "atencao", "nao_avaliavel"].includes(i.s) ? i.s : "nao_avaliavel", v: Number.isFinite(+i.v) && i.v !== null ? +i.v : null, u: String(i.u || "").slice(0, 20), r: String(i.r || "").slice(0, 80) })),
+    res: { ok: +((h.res || {}).ok) || 0, atencao: +((h.res || {}).atencao) || 0, nao: +((h.res || {}).nao) || 0 },
+    texto: String(h.texto || "").slice(0, 2000), prio: (Array.isArray(h.prio) ? h.prio : []).slice(0, 8).map((x) => String(x).slice(0, 120)),
+  }));
+}
+
+async function conteudoDoAluno(org, id, aluno) {
+  const movimentos = await movimentosDoAluno(org, id, aluno).catch(() => []);
+  let jogos = [];
+  try {
+    const d = await lerDado(org, PREF_PARA_ALUNO + id);
+    const lista = d ? (lerJSON(d.value, {}).jogos || []) : [];
+    jogos = lista.filter((j) => j && j.id).map((j) => ({
+      id: String(j.id).slice(0, 120), data: String(j.data || "").slice(0, 10), torneio: String(j.torneio || "").slice(0, 80), resultado: String(j.resultado || "").slice(0, 40),
+      concluida: !!j.concluida, n: +j.n || 0, pctGanhos: +j.pctGanhos || 0, video: !!j.video,
+    })).sort((a, b) => b.data.localeCompare(a.data));
+  } catch (e) { jogos = []; }
+  const jogosVideo = (aluno.jogosVideo || []).filter((h) => h && h.res).map((h) => ({
+    id: String(h.id || "").slice(0, 120), criadoEm: String(h.criadoEm || "").slice(0, 30),
+    total: +h.res.total || 0, pctGanhos: typeof h.res.pctGanhos === "number" ? h.res.pctGanhos : null, batidasMedia: typeof h.res.batidasMedia === "number" ? h.res.batidasMedia : null,
+  })).sort((a, b) => b.criadoEm.localeCompare(a.criadoEm)).slice(0, 100);
+  return { movimentos, jogos, jogosVideo };
+}
+
+/* Relatório completo de UMA análise de movimento do jogador (com as fotos das fases): só se a análise for dele. */
+async function relatorioMovimento(org, id, aluno, rel) {
+  if (!ID_DOC.test(rel)) throw new ErroPublico(400, "Relatório inválido.");
+  const meus = await movimentosDoAluno(org, id, aluno);
+  if (!meus.some((h) => h.id === rel)) throw new ErroPublico(404, "Relatório não encontrado.");
+  const d = await lerDado(org, PREF_MOV_REL + rel);
+  const arq = d ? lerJSON(d.value, null) : null;
+  if (!arq || (arq.alunoId && arq.alunoId !== id)) return resposta(200, { arquivo: null });
+  delete arq.cabecalho;
+  return resposta(200, { arquivo: arq });
+}
+
+/* Resumo completo de UM jogo com scout do jogador (o mesmo formato da página do scout da família). */
+async function resumoJogo(org, id, jogo) {
+  if (!ID_DOC.test(jogo)) throw new ErroPublico(400, "Jogo inválido.");
+  const d = await lerDado(org, PREF_PARA_ALUNO + id);
+  const j = d ? (lerJSON(d.value, {}).jogos || []).find((x) => x && x.id === jogo) : null;
+  if (!j) throw new ErroPublico(404, "Jogo não encontrado.");
+  return resposta(200, { ate: "", publico: limparResumoJogo(j) });
 }
 
 async function handlePost(event) {

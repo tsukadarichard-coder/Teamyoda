@@ -144,6 +144,9 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catc
   padrao();
 })();
 </script>
+<!-- relatório completo das análises de movimento (o mesmo do app do treinador) -->
+<script src="scout/movimento-motor.js"></script>
+<script src="scout/movimento.js"></script>
 <script>
 function escapar(s){ return String(s||'').replace(/[&<>"]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
 
@@ -526,6 +529,7 @@ function todosHorarios(agenda) {
         ? 'Seu treinador está preparando seu plano — assim que for revisado e aprovado, aparece aqui.'
         : 'Ainda não há um plano montado para você.';
       el.innerHTML = '<header><h1>' + escapar(d.nome) + '</h1><div class="sub">' + subtitulo + '</div></header>' +
+        painelTurmas(d) + painelMovimentos(d) + painelJogos(d) + painelJogosVideo(d) +
         painelMapaConceitos(d, ui) + painelEvolucao(d) + painelRelatorios(d) + painelComunicacao(d) + '<div class="sincronia" id="mty-sincronia"></div>';
       ligarEventos(d);
       return;
@@ -540,7 +544,11 @@ function todosHorarios(agenda) {
       '<div>' + legendaRosca(d.aulasFeitas, pendente, repetindo) +
       '<div class="progtxt">' + d.aulasFeitas + ' de ' + d.totalAulas + ' aulas realizadas — isto é execução, não é uma nota sobre sua técnica.</div></div></div></div>';
     html += painelSemanas(d);
+    html += painelTurmas(d);
     html += painelGlossario(d.aulas);
+    html += painelMovimentos(d);
+    html += painelJogos(d);
+    html += painelJogosVideo(d);
     html += painelMapaConceitos(d, ui);
     html += painelEvolucao(d);
     html += painelRelatorios(d);
@@ -548,6 +556,60 @@ function todosHorarios(agenda) {
     html += '<div class="sincronia" id="mty-sincronia"></div>';
     el.innerHTML = html;
     ligarEventos(d);
+  }
+
+  /* ── tudo o que é do jogador além do plano: plano da turma, análises de movimento, jogos com scout e jogos em vídeo ── */
+  function dataCurta(iso) { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || '')); return m ? m[3] + '/' + m[2] + '/' + m[1] : ''; }
+  const NOME_GOLPE = { forehand: 'Forehand', backhand: 'Backhand', saque: 'Saque' };
+  function nomeGolpe(h) { return (NOME_GOLPE[h.golpe] || 'Golpe') + (h.golpe === 'backhand' ? (String(h.emp) === '1' ? ' (uma mão)' : ' (duas mãos)') : ''); }
+  function linhaLista(esq, meio, botao) {
+    return '<div style="display:flex;align-items:center;gap:10px;border-top:1px solid var(--linha);padding:9px 0">' +
+      '<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13.5px">' + esq + '</div><div style="font-size:12.5px;color:var(--cinza)">' + meio + '</div></div>' + botao + '</div>';
+  }
+  function painelPlanoTurma(tu, k) {
+    let html = '<div class="painel" data-painel="turma"><h2>Planejamento da turma · ' + escapar(tu.nome) + '</h2>';
+    const dias = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+    if ((tu.horarios || []).length) html += '<p style="font-size:13px;color:var(--cinza);margin:0 0 8px">Aulas: ' + tu.horarios.map(function (h) { return escapar(dias[h.dia] || '') + ' às ' + escapar(h.hora); }).join(' · ') + '</p>';
+    if (!tu.temPlano) return html + '<p style="font-size:13px;margin:0">' + (tu.planoRascunho ? 'O treinador está preparando o plano da turma — assim que for aprovado, aparece aqui.' : 'A turma ainda não tem um plano montado.') + '</p></div>';
+    if (tu.prioridade) html += '<p style="font-size:13px;margin:0 0 6px">' + escapar(tu.prioridade) + '</p>';
+    html += '<p style="font-size:13px;margin:0 0 8px"><b>' + tu.aulasFeitas + ' de ' + tu.totalAulas + '</b> aulas realizadas' + (tu.aulaEmVigor ? ' · próxima: ' + escapar(tu.aulaEmVigor.titulo) : '') + '</p>';
+    agruparEmSemanas(tu.aulas).forEach(function (b) {
+      html += '<div class="bloco">' + escapar(b.bloco) + '</div>';
+      b.semanas.forEach(function (sm) {
+        const feitas = sm.aulas.filter(function (a) { return a.status === 'feita'; }).length;
+        html += '<details style="border:1px solid var(--linha);border-radius:4px;margin-bottom:8px;padding:8px 12px"><summary style="cursor:pointer"><span class="semana" style="margin:0">Semana ' + sm.semana + (sm.foco ? ' · ' + escapar(sm.foco) : '') + '</span> <span style="font-size:12.5px;color:var(--cinza)">' + feitas + ' de ' + sm.aulas.length + '</span></summary>' +
+          sm.aulas.map(function (a) { return '<div class="aula' + (a.status === 'feita' ? ' feita' : '') + '" style="margin:6px 0 0"><span class="txt">' + escapar(a.titulo) + '</span><span style="font-size:10.5px;font-weight:700;color:' + (a.status === 'feita' ? 'var(--verde)' : 'var(--cinza)') + ';white-space:nowrap">' + (ROTULO_STATUS_AULA[a.status] || 'Planejada') + '</span></div>'; }).join('') + '</details>';
+      });
+    });
+    return html + '</div>';
+  }
+  function painelTurmas(d) { return (d.turmas || []).map(painelPlanoTurma).join(''); }
+  function painelMovimentos(d) {
+    const l = d.movimentos || [];
+    if (!l.length) return '';
+    return '<div class="painel" data-painel="movimentos"><h2>Análises de movimento</h2><p style="font-size:13px;color:var(--cinza);margin:0 0 4px">Cada análise que o seu treinador fez em vídeo, com o relatório completo.</p>' +
+      l.map(function (h) { return linhaLista(escapar(nomeGolpe(h)) + ' · ' + dataCurta(h.criadoEm), h.res.ok + ' itens OK · ' + h.res.atencao + ' em atenção', '<button class="btn" data-acao="ver-movimento" data-id="' + escapar(h.id) + '">Ver relatório</button>'); }).join('') + '</div>';
+  }
+  function painelJogos(d) {
+    const l = d.jogos || [];
+    if (!l.length) return '';
+    const base = 'scout/index.html?a=1&org=' + encodeURIComponent(org) + '&id=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(t) + '&j=';
+    return '<div class="painel" data-painel="jogos"><h2>Seus jogos (scout)</h2>' +
+      l.map(function (j) { return linhaLista(dataCurta(j.data) + (j.torneio ? ' · ' + escapar(j.torneio) : '') + (j.video ? ' · em vídeo' : ''), (j.resultado ? escapar(j.resultado) + ' · ' : '') + Math.round(j.pctGanhos) + '% dos pontos ganhos · ' + j.n + ' pontos', '<a class="btn" style="text-decoration:none;white-space:nowrap" target="_blank" rel="noopener" href="' + base + encodeURIComponent(j.id) + '">Ver jogo</a>'); }).join('') + '</div>';
+  }
+  function painelJogosVideo(d) {
+    const l = d.jogosVideo || [];
+    if (!l.length) return '';
+    return '<div class="painel" data-painel="jogos-video"><h2>Jogos em vídeo</h2>' +
+      l.map(function (j) { return linhaLista(dataCurta(j.criadoEm), j.total + ' pontos' + (j.pctGanhos == null ? '' : ' · ' + j.pctGanhos + '% ganhos') + (j.batidasMedia == null ? '' : ' · ' + String(Math.round(j.batidasMedia * 10) / 10).replace('.', ',') + ' batidas por ponto'), ''); }).join('') + '</div>';
+  }
+  function abrirRelatorioMovimento(d, idMov) {
+    const h = (d.movimentos || []).find(function (x) { return x.id === idMov; });
+    if (!h || !window.QLMovimento) { alert('Não foi possível abrir o relatório agora. Recarregue a página e tente de novo.'); return; }
+    window.QLMovimento.abrirRelatorio(h, {
+      historico: d.movimentos, atleta: d.nome, logo: new URL('assets/logo-quadralab.png', location.href).href, cabecalho: d.academiaNome || '',
+      arquivo: { ler: function (rel) { return fetch('/.netlify/functions/ver-aluno?org=' + encodeURIComponent(org) + '&id=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(t) + '&rel=' + encodeURIComponent(rel)).then(function (r) { return r.ok ? r.json() : {}; }).then(function (x) { return x.arquivo || null; }); } },
+    });
   }
 
   /* Agrupa o plano achatado (d.aulas) de volta em bloco → semana, só pra
@@ -887,6 +949,7 @@ function todosHorarios(agenda) {
     if (acao === 'escolher-horario') { ui.diaEscolhido = Number(dataset.dia); ui.horaEscolhida = dataset.hora; render(d); return; }
     if (acao === 'alternar-relatorio') { ui.relatorioAberto = (ui.relatorioAberto === dataset.id) ? null : dataset.id; render(d); return; }
     if (acao === 'exportar-relatorio-pdf') { exportarRelatorioPDF(d, dataset.id); return; }
+    if (acao === 'ver-movimento') { abrirRelatorioMovimento(d, dataset.id); return; }
     if (acao === 'abrir-glossario') { ui.glossarioAberto = true; render(d); return; }
     if (acao === 'tocar-celula-conceito') { ui.celulaConceitoSelecionada = dataset.texto; render(d); return; }
     if (acao === 'alternar-semana') {
