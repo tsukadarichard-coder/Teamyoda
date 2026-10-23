@@ -1,0 +1,23 @@
+# Central do dono — site só de páginas (sem functions próprias). Os dados ficam no Firebase e passam pela function
+# central.js do site do Team Yoda, que confere o login e só deixa o dono entrar. O navegador fala sempre com este
+# endereço (/api/central); o Netlify repassa o pedido, com o login, para o Team Yoda.
+[build]
+  publish = "."
+
+[[redirects]]
+  from = "/api/central"
+  to = "https://app.39tennis.com.br/.netlify/functions/central"
+  status = 200
+  force = true
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "same-origin"
+
+[[headers]]
+  for = "/manifest.json"
+  [headers.values]
+    Content-Type = "application/manifest+json; charset=utf-8"

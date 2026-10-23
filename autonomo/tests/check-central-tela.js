@@ -1,5 +1,5 @@
-/* Tela da Central do dono no Team Yoda (mty/index.html → TelaCentral), com a function de verdade (central.js) sobre um
-   Firebase falso: números automáticos, tarefa digitada tecla a tecla (o campo não perde o foco), compromisso na agenda,
+/* Central do dono, site separado (central/index.html), com a function de verdade (central.js, servida pelo Team Yoda e
+   alcançada por /api/central) sobre um Firebase falso: login (senha errada, outra conta, dono), números automáticos, tarefa digitada tecla a tecla (o campo não perde o foco), compromisso na agenda,
    revisão semanal virando tarefas, notas e gravação automática. Usa React/Babel locais (defina CDN_DIR).
    Rode: node tests/check-central-tela.js [pasta-das-capturas] */
 const fs = require("fs"), path = require("path"), http = require("http"), assert = require("assert"), Module = require("module");
@@ -29,26 +29,42 @@ const m = { "/r.js": CDN + "/react-18.3.1/package/umd/react.development.js", "/d
 (async () => {
   const { chromium } = require("/opt/node22/lib/node_modules/playwright");
   const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", args: ["--no-sandbox"] });
-  const raiz = path.join(__dirname, "..", "..", "mty"), html = fs.readFileSync(path.join(raiz, "index.html"), "utf8");
-  const ms = [...html.matchAll(/<script type="text\/babel"[^>]*>([\s\S]*?)<\/script>/g)].map((x) => x[1]).join("\n");
-  const corte = ms.indexOf('ReactDOM.createRoot(document.getElementById("root")).render(<App />);');
-  assert(corte > 0, "achou o ponto de montagem do app");
-  const corpo = `async function listaProfessores(){return [];} async function organizacao(){return "team-yoda";} var db=null, auth=null;
-window.mtyAuth={usuario:()=>({uid:"u1",email:"tsukada.richard@gmail.com"}),tokenId:async()=>"dono"};\n` + ms.slice(0, corte) + `
-ReactDOM.createRoot(document.getElementById("root")).render(<div style={{padding:12}}><TelaCentral /></div>);`;
-  const pagina = `<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><div id=root></div><script src=/r.js></script><script src=/d.js></script><script src=/p.js></script><script src=/c.js></script><script src=/b.js></script>
-<script>window.MTY={evento(){},id:()=>"x",map(){},tokenSeguro(){return ""}};</script><script src=/sync-listas.js></script><script type="text/babel">${corpo}</script>`;
-  const srv = http.createServer((q, r) => { const u = q.url.split("?")[0]; if (u === "/") { r.writeHead(200, { "content-type": "text/html; charset=utf-8" }); return r.end(pagina); } if (m[u]) { r.writeHead(200, { "content-type": "text/javascript" }); return r.end(fs.readFileSync(m[u])); } const f = path.join(raiz, u); if (f.startsWith(raiz) && fs.existsSync(f) && fs.statSync(f).isFile()) { r.writeHead(200, { "content-type": "text/javascript" }); return r.end(fs.readFileSync(f)); } r.writeHead(404); r.end(); }).listen(0);
+  const raiz = path.join(__dirname, "..", "..", "central"), pagina = fs.readFileSync(path.join(raiz, "index.html"), "utf8");
+  const toml = fs.readFileSync(path.join(raiz, "netlify.toml"), "utf8");
+  assert(/from = "\/api\/central"\s+to = "https:\/\/app\.39tennis\.com\.br\/\.netlify\/functions\/central"\s+status = 200/.test(toml), "proxy /api/central → function do Team Yoda");
+  /* Firebase falso: senha "certa" entra; o token diz quem é */
+  const firebaseFalso = `window.firebase = { apps: [], initializeApp() { this.apps.push(1); }, auth() { return window.__auth; } };
+window.__auth = { currentUser: null, cbs: [], onAuthStateChanged(cb) { this.cbs.push(cb); setTimeout(() => cb(this.currentUser), 0); return () => {}; },
+  async signInWithEmailAndPassword(e, s) { if (s !== "certa") throw { code: "auth/invalid-credential" }; this.currentUser = { email: e, getIdToken: async () => (e === "tsukada.richard@gmail.com" ? "dono" : "outro") }; this.cbs.forEach((c) => c(this.currentUser)); },
+  async signOut() { this.currentUser = null; this.cbs.forEach((c) => c(null)); }, async sendPasswordResetEmail() {} };`;
+  const externos = { "react.production.min.js": m["/r.js"], "react-dom.production.min.js": m["/d.js"], "babel.min.js": m["/b.js"] };
+  const srv = http.createServer((q, r) => { const u = q.url.split("?")[0]; if (u === "/") { r.writeHead(200, { "content-type": "text/html; charset=utf-8" }); return r.end(pagina); } const f = path.join(raiz, u); if (f.startsWith(raiz) && fs.existsSync(f) && fs.statSync(f).isFile()) { r.writeHead(200); return r.end(fs.readFileSync(f)); } r.writeHead(404); r.end(); }).listen(0);
   for (const larg of [1100, 390]) {
     const p = await b.newPage({ viewport: { width: larg, height: 900 } }), erros = [];
     p.on("pageerror", (e) => erros.push(e.message));
-    await p.route(/tailwindcss/, (r) => r.fulfill({ status: 200, contentType: "text/javascript", body: "" }));
-    await p.route(/\.netlify\/functions\/central/, async (rt) => {
+    await p.route(/tailwindcss|fonts\.g/, (r) => r.fulfill({ status: 200, contentType: "text/javascript", body: "" }));
+    await p.route(/firebase-app-compat/, (r) => r.fulfill({ status: 200, contentType: "text/javascript", body: firebaseFalso }));
+    await p.route(/firebase-auth-compat/, (r) => r.fulfill({ status: 200, contentType: "text/javascript", body: "" }));
+    await p.route(/unpkg\.com/, (r) => { const nome = Object.keys(externos).find((k) => r.request().url().endsWith(k)); return r.fulfill({ status: 200, contentType: "text/javascript", body: fs.readFileSync(externos[nome]) }); });
+    await p.route(/\/api\/central$/, async (rt) => {
       const q = rt.request(); if (q.method() === "POST") posts++;
       const r = await central.handler({ httpMethod: q.method(), headers: q.headers(), body: q.postData() });
       await rt.fulfill({ status: r.statusCode, contentType: "application/json", body: r.body });
     });
     await p.goto("http://localhost:" + srv.address().port + "/");
+    await p.waitForSelector('input[type="password"]', { timeout: 90000 }).catch(() => { throw new Error("não renderizou o login: " + erros.join(" | ")); });
+    const entrar = async (email, senha) => { await p.fill('input[type="email"]', email); await p.fill('input[type="password"]', senha); await p.click('button:text-is("Entrar")'); };
+    if (larg === 1100) {
+      await entrar("tsukada.richard@gmail.com", "errada");
+      await p.waitForFunction(() => /E-mail ou senha não conferem/.test(document.body.innerText), null, { timeout: 5000 });
+      await entrar("prof@x.com", "certa");
+      await p.waitForFunction(() => /só do dono/.test(document.body.innerText), null, { timeout: 5000 });
+      if (capturas) { fs.mkdirSync(capturas, { recursive: true }); }
+      await p.click('button:text-is("Sair")');
+      await p.waitForSelector('input[type="password"]', { timeout: 5000 });
+      console.log("  login: senha errada recusada; outra conta vê só o aviso");
+    }
+    await entrar("tsukada.richard@gmail.com", "certa");
     await p.waitForFunction(() => /Precisa de você/.test(document.body.innerText), null, { timeout: 90000 }).catch(() => { throw new Error("não renderizou: " + erros.join(" | ")); });
     let t = await p.evaluate(() => document.body.innerText);
     if (larg === 1100) {

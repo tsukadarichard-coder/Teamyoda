@@ -1,6 +1,7 @@
 /* Central do dono — agenda, tarefas, metas e indicadores, revisão semanal e notas dos quatro negócios (Team Yoda, 39 Ranch,
    QuadraLab, Alvor), num lugar só e só para o dono (mesma regra do financeiro: e-mail na lista FINANCEIRO_DONOS).
 
+   A tela é um site à parte (pasta central/, endereço próprio), que chega aqui por /api/central (proxy no netlify.toml de lá).
    Os dados ficam em central/dono, fora do alcance do app. Os números automáticos vêm de onde já existem:
    · Team Yoda e 39 Ranch: o mesmo cálculo do financeiro (entradas, saídas, resultado, em aberto), mais jogadores, turmas e
      aulas (de hoje e em aberto), lidos com o Admin SDK;
