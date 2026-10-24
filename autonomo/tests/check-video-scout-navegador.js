@@ -84,7 +84,8 @@ const srv = http.createServer((q, r) => {
   if (process.env.DEPURA) { const dd = await p.evaluate(() => { const S = vj.estado.scoutUI.estado; return S.dec.decisoes.map((d, k) => ({ papel: d.papel, nos: d.nos, saida: S.an[k].saida, pUlt: S.an[k].pUltimoGanhou, nH: S.an[k].nHits, falsas: (S.an[k].falsas || []).length, ult: S.an[k].batidas.length ? S.an[k].batidas[S.an[k].batidas.length - 1].quem : null, qq: S.an[k].batidas.map((b) => b.quique ? b.quique.P.map((v) => v.toFixed(1)).join(",") : "-").join(" ") })); }); dd.forEach((d, k) => console.log(k, JSON.stringify(d), "verdade:", JSON.stringify({ papel: D.verdade[k].papel, nos: D.verdade[k].nos, fim: D.verdade[k].fimTipo, nH: D.verdade[k].nHits, alvos: D.verdade[k].batidas.map((x) => x.alvo.map((v) => v.toFixed(1)).join(",")).join(" ") }))); }
   assert.strictEqual(r.pontos.length, V.length, "um ponto do scout para cada ponto jogado");
   assert(certo("sacador") === n && certo("saque") >= n - 1 && certo("nos") >= n - 1, "sacador, tipo de saque e quem ganhou");
-  assert(r.bolas / r.quadros > 0.5, "a bola é achada nos pixels na maior parte dos quadros");
+  /* a IA só marca a bola onde ela está (o detector por pixels também marca candidatos falsos); fora dos ralis não há bola */
+  assert(r.bolas / r.quadros > (/^ia/.test(r.via) ? 0.35 : 0.5), "a bola é achada na maior parte dos quadros");
   if (capturas) await p.screenshot({ path: path.join(capturas, "scout-revisao.png"), fullPage: true });
   /* "Ver rastreamento": quadra, jogadores e bola desenhados por cima do ponto, acompanhando o vídeo */
   await p.click('.vs-pt[data-cart="1"] [data-acao="rastro"]');
