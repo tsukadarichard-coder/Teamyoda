@@ -359,9 +359,16 @@
       cv.style.cssText = "position:absolute;left:0;top:0;pointer-events:none;z-index:2";
       slot.appendChild(cv);
       var n = nomes(), leg = document.createElement("div"); leg.setAttribute("data-r", "rastroLeg"); leg.className = "qm-msg";
-      leg.innerHTML = '<b>Rastreamento do ponto ' + p.n + '</b> · <span style="color:#6c3">━ quadra</span> · <span style="color:#F08A3C">● ' + esc(n.A) + '</span> · <span style="color:#4F8EF7">● ' + esc(n.B) + '</span> · <span style="color:#FFE14D">● bola seguida</span> · <span style="color:#999">● outros candidatos</span> · <span style="color:#FF4FD8">✕ quique</span> <button type="button" data-a="fecharRastro">Fechar rastreamento</button>';
+      var legenda = function () {
+        leg.innerHTML = '<b>Rastreamento do ponto ' + p.n + '</b> · ' + (S.verDeteccoes
+          ? '<span style="color:#6c3">━ quadra</span> · <span style="color:#F08A3C">● ' + esc(n.A) + '</span> · <span style="color:#4F8EF7">● ' + esc(n.B) + '</span> · <span style="color:#FFE14D">● bola seguida</span> · <span style="color:#999">● outros candidatos</span> · <span style="color:#FF4FD8">✕ quique</span> '
+          : '<span style="color:#9DB82A">━ rastro da bola</span> · <span style="color:#9DB82A">◯ quique</span> ') +
+          '<button type="button" data-a="modoRastro">' + (S.verDeteccoes ? "Ver como transmissão" : "Ver detecções (conferir)") + '</button> <button type="button" data-a="fecharRastro">Fechar rastreamento</button>';
+        leg.querySelector('[data-a="fecharRastro"]').onclick = pararRastro;
+        leg.querySelector('[data-a="modoRastro"]').onclick = function () { S.verDeteccoes = !S.verDeteccoes; legenda(); };
+      };
+      legenda();
       slot.appendChild(leg);
-      leg.querySelector('[data-a="fecharRastro"]').onclick = pararRastro;
       if (slot.scrollIntoView) slot.scrollIntoView({ block: "start", behavior: "smooth" });
       api.tocar(p.video.falta != null ? p.video.falta : p.video.ini, p.video.fim);
       var laco = function () {
@@ -370,6 +377,48 @@
         requestAnimationFrame(laco);
       };
       requestAnimationFrame(laco);
+    }
+    /* rastro da bola como na transmissão de TV: um cometa amarelo-limão com brilho, que afina para trás (últimos ~0,4 s),
+       quebrado onde a detecção falhou por mais de um instante; no quique, um anel que se abre */
+    function rastroBola(x, bats, t, px, lw) {
+      var pts = [];
+      bats.forEach(function (b) { (b.trilha || []).forEach(function (pt) { if (pt.t <= t + 0.01 && pt.t >= t - 0.42) pts.push(pt); }); });
+      pts.sort(function (a, b) { return a.t - b.t; });
+      var limpo = []; pts.forEach(function (pt) { var u = limpo[limpo.length - 1]; if (!u || pt.t - u.t > 0.004) limpo.push(pt); });
+      var trechos = [], cur = [];
+      limpo.forEach(function (pt) { var u = cur[cur.length - 1]; if (u && pt.t - u.t > 0.14) { trechos.push(cur); cur = []; } cur.push(pt); });
+      if (cur.length) trechos.push(cur);
+      /* curva suave (Catmull-Rom) passando pelas posições */
+      function suave(l) {
+        var o = [];
+        for (var i = 0; i < l.length - 1; i++) {
+          var p0 = l[Math.max(0, i - 1)], p1 = l[i], p2 = l[i + 1], p3 = l[Math.min(l.length - 1, i + 2)];
+          for (var k = 0; k < 6; k++) {
+            var u = k / 6, u2 = u * u, u3 = u2 * u, f = function (a, b, c, d) { return 0.5 * (2 * b + (-a + c) * u + (2 * a - 5 * b + 4 * c - d) * u2 + (-a + 3 * b - 3 * c + d) * u3); };
+            o.push({ c: [f(p0.c[0], p1.c[0], p2.c[0], p3.c[0]), f(p0.c[1], p1.c[1], p2.c[1], p3.c[1])], t: p1.t + (p2.t - p1.t) * u });
+          }
+        }
+        o.push(l[l.length - 1]); return o;
+      }
+      x.save(); x.lineCap = "round"; x.shadowColor = "rgba(215,242,58,.9)"; x.shadowBlur = lw * 7;
+      trechos.forEach(function (tr) {
+        var l = suave(tr.map(function (pt) { return { c: px([pt.x, pt.y]), t: pt.t }; }));
+        for (var i = 1; i < l.length; i++) {
+          var idade = Math.max(0, Math.min(1, (t - l[i].t) / 0.42)), a = 1 - idade;
+          x.strokeStyle = "rgba(215,242,58," + (0.15 + 0.8 * a).toFixed(3) + ")"; x.lineWidth = lw * (0.8 + 4.2 * a);
+          x.beginPath(); x.moveTo(l[i - 1].c[0], l[i - 1].c[1]); x.lineTo(l[i].c[0], l[i].c[1]); x.stroke();
+        }
+        var cab = l[l.length - 1];
+        if (t - cab.t < 0.06) { x.fillStyle = "#F4FF9A"; x.beginPath(); x.arc(cab.c[0], cab.c[1], lw * 3.2, 0, 7); x.fill(); }
+      });
+      bats.forEach(function (b) {
+        if (!b.quique || !b.quique.img) return;
+        var dt = t - b.quique.t; if (dt < 0 || dt > 0.6) return;
+        var c = px(b.quique.img), r = lw * (4 + dt * 40);
+        x.strokeStyle = "rgba(215,242,58," + (1 - dt / 0.6).toFixed(2) + ")"; x.lineWidth = lw * 1.8;
+        x.beginPath(); x.ellipse(c[0], c[1], r, r * 0.38, 0, 0, 7); x.stroke();
+      });
+      x.restore();
     }
     function desenharRastro(cv, v, p, t) {
       /* o trecho lido que contém este instante (o ponto pode começar num 1º saque que foi falta, que é outro trecho) */
@@ -389,12 +438,12 @@
       var px = function (pt) { var r = inv ? VS.aplicarH(inv, pt) : pt; return [ox + r[0] * cw, oy + r[1] * ch]; };
       var linha = function (a, b) { x.beginPath(); x.moveTo(a[0], a[1]); x.lineTo(b[0], b[1]); x.stroke(); };
       var lw = Math.max(1.5, cw / 420);
-      /* quadra */
+      /* quadra (modo detecções) */
       x.strokeStyle = "rgba(102,204,51,.9)"; x.lineWidth = lw;
-      VS.linhasQuadra().forEach(function (sg) { linha(px(VS.aplicarH(cal.Hi, sg[0])), px(VS.aplicarH(cal.Hi, sg[1]))); });
+      if (S.verDeteccoes) VS.linhasQuadra().forEach(function (sg) { linha(px(VS.aplicarH(cal.Hi, sg[0])), px(VS.aplicarH(cal.Hi, sg[1]))); });
       /* jogadores */
       var n = nomes(), ladoA = p.atletaPerto ? "perto" : "longe";
-      if (comJog) comJog.jog.forEach(function (j) {
+      if (comJog && S.verDeteccoes) comJog.jog.forEach(function (j) {
         if (!j.pe) return;
         var lado = VS.aplicarH(cal.H, j.pe)[1] < 0 ? "perto" : "longe", ehA = lado === ladoA, cor = ehA ? "#F08A3C" : "#4F8EF7";
         x.strokeStyle = cor; x.fillStyle = cor; x.lineWidth = lw * 1.4;
@@ -402,20 +451,22 @@
         var pe = px(j.pe); x.beginPath(); x.arc(pe[0], pe[1], lw * 3, 0, 7); x.fill();
         x.font = "bold " + Math.round(Math.max(11, cw / 70)) + "px system-ui,sans-serif"; x.fillText(ehA ? n.A : n.B, pe[0] + lw * 4, pe[1] + lw * 2);
       });
-      /* bola: outros candidatos do quadro (cinza) e a trilha que o motor seguiu (amarelo) */
-      if (q && q.bolas) { x.fillStyle = "rgba(170,170,170,.75)"; q.bolas.forEach(function (b) { var c = px(b); x.beginPath(); x.arc(c[0], c[1], lw * 1.6, 0, 7); x.fill(); }); }
       var bats = (an && an.batidas) || [];
-      bats.forEach(function (b) {
-        (b.trilha || []).forEach(function (pt) {
-          var dt = t - pt.t; if (dt < -0.02 || dt > 0.5) return;
-          var c = px([pt.x, pt.y]); x.fillStyle = "rgba(255,225,77," + (1 - dt / 0.55).toFixed(2) + ")";
-          x.beginPath(); x.arc(c[0], c[1], lw * (dt < 0.05 ? 3.4 : 2.2), 0, 7); x.fill();
+      if (S.verDeteccoes) {
+        /* bola: outros candidatos do quadro (cinza) e a trilha que o motor seguiu (amarelo) */
+        if (q && q.bolas) { x.fillStyle = "rgba(170,170,170,.75)"; q.bolas.forEach(function (b) { var c = px(b); x.beginPath(); x.arc(c[0], c[1], lw * 1.6, 0, 7); x.fill(); }); }
+        bats.forEach(function (b) {
+          (b.trilha || []).forEach(function (pt) {
+            var dt = t - pt.t; if (dt < -0.02 || dt > 0.5) return;
+            var c = px([pt.x, pt.y]); x.fillStyle = "rgba(255,225,77," + (1 - dt / 0.55).toFixed(2) + ")";
+            x.beginPath(); x.arc(c[0], c[1], lw * (dt < 0.05 ? 3.4 : 2.2), 0, 7); x.fill();
+          });
+          if (b.quique && b.quique.img && Math.abs(t - b.quique.t) < 0.9) {
+            var c = px(b.quique.img), r = lw * 5; x.strokeStyle = "#FF4FD8"; x.lineWidth = lw * 1.6;
+            linha([c[0] - r, c[1] - r], [c[0] + r, c[1] + r]); linha([c[0] - r, c[1] + r], [c[0] + r, c[1] - r]);
+          }
         });
-        if (b.quique && b.quique.img && Math.abs(t - b.quique.t) < 0.9) {
-          var c = px(b.quique.img), r = lw * 5; x.strokeStyle = "#FF4FD8"; x.lineWidth = lw * 1.6;
-          linha([c[0] - r, c[1] - r], [c[0] + r, c[1] + r]); linha([c[0] - r, c[1] + r], [c[0] + r, c[1] - r]);
-        }
-      });
+      } else rastroBola(x, bats, t, px, lw);
       /* batida da hora: quem bateu e o golpe, como o scout registrou */
       (kk === p.k ? p.batidas || [] : []).forEach(function (b, k) {
         if (Math.abs(t - b.t) > 0.45) return;

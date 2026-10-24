@@ -85,13 +85,28 @@ const srv = http.createServer((q, r) => {
   await p.click('.vs-pt[data-cart="1"] [data-acao="rastro"]');
   await p.waitForSelector("canvas.vs-rastro", { timeout: 5000 });
   await p.waitForFunction(() => { const v = document.querySelector("video"); return v && v.currentTime > 0.3 && !v.paused; }, null, { timeout: 15000 }).catch(() => {});
-  await p.waitForTimeout(900);
-  const rastro = await p.evaluate(() => {
-    const c = document.querySelector("canvas.vs-rastro"), x = c.getContext("2d"), d = x.getImageData(0, 0, c.width, c.height).data;
-    let verde = 0, laranja = 0, azul = 0, pintado = 0;
-    for (let i = 0; i < d.length; i += 4) { if (d[i + 3] < 40) continue; pintado++; const r = d[i], g = d[i + 1], b = d[i + 2]; if (g > 150 && r < 140 && b < 100) verde++; if (r > 200 && g > 110 && g < 170 && b < 90) laranja++; if (b > 200 && r < 120) azul++; }
-    return { w: c.width, h: c.height, pintado, verde, laranja, azul, leg: (document.querySelector('[data-r="rastroLeg"]') || {}).textContent || "" };
-  });
+  /* modo transmissão (padrão): só o rastro da bola, amarelo-limão, como na TV */
+  const lima = await p.evaluate(() => new Promise((ok) => { let max = 0, n = 0; const f = () => {
+    const c = document.querySelector("canvas.vs-rastro"); if (!c) return ok(max);
+    const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data; let k = 0;
+    for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 60 && d[i] > 170 && d[i + 1] > 200 && d[i + 2] < 140) k++;
+    max = Math.max(max, k); if (++n > 720) return ok(max); requestAnimationFrame(f); }; f(); }));
+  assert(lima > 40, "rastro da bola desenhado no modo transmissão (" + lima + " px)");
+  if (capturas) { await p.evaluate(() => { const S = vj.estado.scoutUI.estado, b = S.an[S.pontos[1].k].batidas[0], v = document.querySelector("video"); v.pause(); v.currentTime = b.trilha[Math.floor(b.trilha.length * 0.55)].t; }); await p.waitForTimeout(700); await p.locator('[data-r="slotVideo"]').screenshot({ path: path.join(capturas, "scout-rastro-transmissao.png") }); }
+  await p.click('[data-a="modoRastro"]');
+  await p.evaluate(() => { const S = vj.estado.scoutUI.estado, v = document.querySelector("video"); v.currentTime = S.pontos[1].video.ini + 0.5; v.play(); });
+  await p.waitForTimeout(1500);
+  /* ao longo do ponto (cada jogador aparece nos quadros em que a pose foi lida) */
+  const rastro = await p.evaluate(() => new Promise((ok) => {
+    const m = { w: 0, h: 0, pintado: 0, verde: 0, laranja: 0, azul: 0 }; let n = 0;
+    const f = () => {
+      const c = document.querySelector("canvas.vs-rastro"); if (!c) return ok(m);
+      const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data; let pintado = 0, verde = 0, laranja = 0, azul = 0;
+      for (let i = 0; i < d.length; i += 4) { if (d[i + 3] < 40) continue; pintado++; const r = d[i], g = d[i + 1], b = d[i + 2]; if (g > 150 && r < 140 && b < 100) verde++; if (r > 200 && g > 110 && g < 170 && b < 90) laranja++; if (b > 200 && r < 120) azul++; }
+      Object.assign(m, { w: c.width, h: c.height, pintado: Math.max(m.pintado, pintado), verde: Math.max(m.verde, verde), laranja: Math.max(m.laranja, laranja), azul: Math.max(m.azul, azul), leg: (document.querySelector('[data-r="rastroLeg"]') || {}).textContent || "" });
+      if (++n > 360) return ok(m); requestAnimationFrame(f);
+    }; f();
+  }));
   assert(rastro.w > 100 && rastro.verde > 200, "rastreamento desenha as linhas da quadra (" + JSON.stringify(rastro) + ")");
   assert(rastro.laranja > 5 && rastro.azul > 5, "rastreamento desenha os dois jogadores (" + JSON.stringify(rastro) + ")");
   assert(/Rastreamento do ponto/.test(rastro.leg), "legenda do rastreamento");
