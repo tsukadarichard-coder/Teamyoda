@@ -6,7 +6,7 @@
 const fs = require("fs"), path = require("path"), http = require("http"), os = require("os"), cp = require("child_process"), assert = require("assert");
 try { cp.execSync("ffmpeg -version && python3 -c 'import PIL'", { stdio: "ignore" }); } catch (e) { console.log("check-video-scout-navegador: pulado (sem ffmpeg ou Pillow)"); process.exit(0); }
 const raiz = path.join(__dirname, ".."), pasta = fs.mkdtempSync(path.join(os.tmpdir(), "qlscout-")), video = path.join(pasta, "partida.mp4"), capturas = process.argv[2] || "";
-cp.execFileSync("node", [path.join(__dirname, "gerar-video-sintetico.js"), video, JSON.stringify({ maxPontos: 10, semente: 5, panoramica: !!process.env.PANORAMICA })], { stdio: "ignore" });
+cp.execFileSync("node", [path.join(__dirname, "gerar-video-sintetico.js"), video, JSON.stringify({ maxPontos: +process.env.PONTOS || 10, semente: 5, panoramica: !!process.env.PANORAMICA })], { stdio: "ignore" });
 const D = JSON.parse(fs.readFileSync(video.replace(/\.mp4$/, ".json"), "utf8"));
 /* AVI=1: o mesmo jogo num formato que o navegador não lê (tudo passa pelo ffmpeg no aparelho: quadro, som e clipes dos pontos) */
 const CORE = process.env.FFMPEG_CORE_DIR || "/tmp/claude-0/-home-user-Teamyoda/f36f7b1a-5380-5cd8-93be-4b9b8aa1980b/scratchpad/npmv/x/ffmpeg-core-0.12.10/package/dist/umd";
@@ -16,7 +16,7 @@ if (process.env.AVI) {
   arquivo = video.replace(/\.mp4$/, ".avi"); cp.execSync(`ffmpeg -v error -y -i "${video}" -c:v mpeg4 -q:v 3 -c:a libmp3lame "${arquivo}"`);
 }
 const pagina = `<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><link rel=stylesheet href=/scout/movimento.css><div id=a style="max-width:1000px;margin:auto"></div>
-<script src=/scout/video-segmentador.js></script><script src=/scout/video-audio.js></script><script src=/scout/video-scout.js></script><script src=/scout/video-visao.js></script><script src=/scout/video-scout-ui.js></script><script src=/scout/quadra-auto.js></script><script src=/scout/padroes.js></script><script src=/scout/video-jogo.js></script>
+<script src=/scout/video-segmentador.js></script><script src=/scout/video-audio.js></script><script src=/scout/video-scout.js></script><script src=/scout/video-visao.js></script>${process.env.SEM_IA ? "" : "<script src=/scout/bola-ia.js></script>"}<script src=/scout/video-scout-ui.js></script><script src=/scout/quadra-auto.js></script><script src=/scout/padroes.js></script><script src=/scout/video-jogo.js></script>
 <script>
 window.__salvos = []; window.__videos = [];
 window.vj = QLVideoJogo.montar(document.getElementById("a"), { atleta: "Ana", aoSalvar: (r) => window.__videos.push(r), aoSalvarScout: (d) => window.__salvos.push(JSON.parse(JSON.stringify(d))) });
@@ -45,9 +45,14 @@ const srv = http.createServer((q, r) => {
   const p = await b.newPage({ viewport: { width: +process.env.LARGURA || 1100, height: 1000 } }), erros = [];
   p.on("pageerror", (e) => erros.push(e.message));
   await p.route(/@ffmpeg\/core@0\.12\.10\/dist\/umd\/(.*)$/, async (rt) => { const n = /umd\/(.*)$/.exec(rt.request().url())[1]; if (!fs.existsSync(path.join(CORE, n))) return rt.abort(); await rt.fulfill({ status: 200, headers: { "access-control-allow-origin": "*", "content-type": n.endsWith(".wasm") ? "application/wasm" : "text/javascript" }, body: fs.readFileSync(path.join(CORE, n)) }); });
+  /* onnxruntime-web da IA da bola: do CDN no app, da cópia local no teste (ORT_DIR); sem a cópia, o app cai no detector por pixels */
+  const ORT_DIR = process.env.ORT_DIR || "/tmp/claude-0/-home-user-Teamyoda/f36f7b1a-5380-5cd8-93be-4b9b8aa1980b/scratchpad/ortweb/package/dist";
+  await p.route(/onnxruntime-web@1\.20\.1\/dist\/(.*)$/, async (rt) => { const n = /dist\/(.*)$/.exec(rt.request().url())[1]; if (!fs.existsSync(path.join(ORT_DIR, n))) return rt.abort(); await rt.fulfill({ status: 200, headers: { "access-control-allow-origin": "*", "content-type": n.endsWith(".wasm") ? "application/wasm" : "text/javascript" }, body: fs.readFileSync(path.join(ORT_DIR, n)) }); });
   await p.goto("http://localhost:" + srv.address().port + "/");
   await p.waitForFunction(() => window.__D);
   if (process.env.SEM_WEBCODECS) await p.evaluate(() => { window.VideoDecoder = undefined; }); // como num navegador sem WebCodecs: o quadro vem do vídeo tocando
+  /* IA_WASM=1: a IA da bola mesmo sem placa de vídeo (lenta: use com PONTOS=3) */
+  if (process.env.IA_WASM) await p.evaluate(() => { const orig = QLVisao.processar; QLVisao.processar = (f, v, t, c, o) => orig(f, v, t, c, Object.assign({ bolaIA: { wasm: true, limiteMs: 1e9 } }, o)); });
   if (process.env.MANUAL) await p.evaluate(() => { QLQuadraAuto.detectar = () => null; }); // simula um vídeo em que a quadra não é achada (MANUAL=1: confere que não pede marcação à mão)
   /* como na análise de movimento: escolher o vídeo já começa tudo (sem tocar em nenhum botão) */
   await p.setInputFiles("input[type=file]", arquivo);
@@ -66,15 +71,15 @@ const srv = http.createServer((q, r) => {
     assert(await p.evaluate(() => { const c = document.createElement("canvas"); c.width = 40; c.height = 30; c.getContext("2d").fillRect(0, 0, 40, 30); return QLVisao._escuro(c); }), "quadro preto é descartado");
     await b.close(); srv.close(); console.log("check-video-scout-navegador (sem quadra): ok"); return;
   }
-  await p.waitForSelector(".vs-res", { timeout: 600000 }).catch(async () => { throw new Error("o scout não ficou pronto: " + (await p.textContent('[data-r="scout"]')).slice(0, 300) + " | " + erros.join(" | ")); });
+  await p.waitForSelector(".vs-res", { timeout: process.env.IA_WASM ? 3600000 : 600000 }).catch(async () => { throw new Error("o scout não ficou pronto: " + (await p.textContent('[data-r="scout"]')).slice(0, 300) + " | " + erros.join(" | ")); });
   if (!process.env.MANUAL) assert(await p.evaluate(() => vj.estado.scoutUI.estado.quadraAuto), "a quadra foi achada sozinha");
   if (process.env.DEPURA_QUADRA) console.log(JSON.stringify(await p.evaluate(() => { const S = vj.estado.scoutUI.estado; return { t: S.tQuadra, impl: S.quadraImplausivel, cantos: S.cantos }; })));
   await p.waitForTimeout(300);
   assert.strictEqual((await p.evaluate(() => window.__salvos.length)) >= 1, true, "salvo sozinho no caderno");
-  const r = await p.evaluate(() => { const S = vj.estado.scoutUI.estado; return { pontos: S.pontos.map((x) => ({ nos: x.nos, saque: x.saque, sacador: x.sacador, golpe: x.golpe, efeito: x.efeito, bola: x.bola, n: (x.batidas || []).length, fonte: null })), placar: QLVideoScout.Placar.texto(S.placar), bolas: S.dados.reduce((s, d) => s + d.quadros.filter((q) => q.bolas.length).length, 0), quadros: S.dados.reduce((s, d) => s + d.quadros.length, 0) }; });
+  const r = await p.evaluate(() => { const S = vj.estado.scoutUI.estado; return { pontos: S.pontos.map((x) => ({ nos: x.nos, saque: x.saque, sacador: x.sacador, golpe: x.golpe, efeito: x.efeito, bola: x.bola, n: (x.batidas || []).length, fonte: null })), placar: QLVideoScout.Placar.texto(S.placar), via: S.bolaVia, bolas: S.dados.reduce((s, d) => s + d.quadros.filter((q) => q.bolas.length).length, 0), quadros: S.dados.reduce((s, d) => s + d.quadros.length, 0) }; });
   const V = D.pontos, n = Math.min(V.length, r.pontos.length), certo = (k) => V.slice(0, n).filter((v, i) => r.pontos[i][k] === v[k]).length;
   console.log("  " + r.pontos.length + "/" + V.length + " pontos · placar " + r.placar + " (verdade " + D.placar + ") · quem ganhou " + certo("nos") + "/" + n + " · saque " + certo("saque") + "/" + n + " · sacador " + certo("sacador") + "/" + n +
-    " · bola achada em " + Math.round(r.bolas / r.quadros * 100) + "% dos quadros · " + ((Date.now() - t0) / 1000).toFixed(0) + " s");
+    " · bola (" + r.via + ") achada em " + Math.round(r.bolas / r.quadros * 100) + "% dos quadros · " + ((Date.now() - t0) / 1000).toFixed(0) + " s");
   if (process.env.DEPURA_DADOS) fs.writeFileSync(process.env.DEPURA_DADOS, JSON.stringify(Object.assign(await p.evaluate(() => { const S = vj.estado.scoutUI.estado; return { dados: S.dados, cantos: S.cantos, asp: S.asp, cores: S.cores, maos: S.maos, perto: S.ctx.atletaComecaPerto }; }), { verdade: D.verdade })));
   if (process.env.DEPURA) { const dd = await p.evaluate(() => { const S = vj.estado.scoutUI.estado; return S.dec.decisoes.map((d, k) => ({ papel: d.papel, nos: d.nos, saida: S.an[k].saida, pUlt: S.an[k].pUltimoGanhou, nH: S.an[k].nHits, falsas: (S.an[k].falsas || []).length, ult: S.an[k].batidas.length ? S.an[k].batidas[S.an[k].batidas.length - 1].quem : null, qq: S.an[k].batidas.map((b) => b.quique ? b.quique.P.map((v) => v.toFixed(1)).join(",") : "-").join(" ") })); }); dd.forEach((d, k) => console.log(k, JSON.stringify(d), "verdade:", JSON.stringify({ papel: D.verdade[k].papel, nos: D.verdade[k].nos, fim: D.verdade[k].fimTipo, nH: D.verdade[k].nHits, alvos: D.verdade[k].batidas.map((x) => x.alvo.map((v) => v.toFixed(1)).join(",")).join(" ") }))); }
   assert.strictEqual(r.pontos.length, V.length, "um ponto do scout para cada ponto jogado");

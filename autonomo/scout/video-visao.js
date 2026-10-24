@@ -195,6 +195,13 @@
     if (!fonte && video && video.videoWidth) fonte = fonteVideo(video);
     if (!fonte) clipe = true;
     var pose = o.pose === undefined ? await raiz.QLVisao.carregarPose().catch(function () { return null; }) : o.pose;
+    /* bola pela IA (WASB) quando o aparelho consegue rodar; senão, o detector por pixels abaixo */
+    var ia = null;
+    if (o.bolaIA !== false && raiz.QLBolaIA) {
+      aviso(0, "Preparando a IA que segue a bola…");
+      ia = await raiz.QLBolaIA.carregar(o.bolaIA).catch(function () { return null; });
+    }
+    var viaIA = ia ? ia.via : "", comIA = 0;
     var asp = cal.asp, W = LARG, Hh = Math.round(LARG / asp);
     var cv = document.createElement("canvas"); cv.width = W; cv.height = Hh;
     var cx = cv.getContext("2d", { willReadFrequently: true });
@@ -242,7 +249,7 @@
     var resultados = [], t0 = Date.now(), total = trechos.reduce(function (s, x) { return s + (x.fim - x.ini); }, 0), feito = 0;
     for (var k = 0; k < trechos.length; k++) {
       if (sinal.cancelado) throw new Error("cancelado");
-      var tr = trechos[k], det = DetectorBola(W, Hh), quadros = [], alvoPose = [], fps = 30;
+      var tr = trechos[k], det = DetectorBola(W, Hh), quadros = [], alvoPose = [], fps = 30, dia = ia ? ia.trecho() : null;
       if (acomp) { acomp.novoTrecho(); quietos = 0; }
       tr.hits.forEach(function (h) { [-0.55, -0.16, -0.12, -0.05, 0, 0.12, 0.16].forEach(function (d) { alvoPose.push(h + d); }); });
       for (var tp = tr.ini; tp <= tr.fim; tp += 0.2) alvoPose.push(tp);
@@ -255,6 +262,7 @@
         if (sb) { var qa = quadros[quadros.length - 1]; if (qa && Math.abs(qa.t - sb.t) < 0.001) qa.bolas = sb.bolas; }
         var q = { t: Math.round(t * 1000) / 1000, jog: [], bolas: [] };
         if (G) q.G = G.map(function (x) { return Math.round(x * 1e6) / 1e6; }); // imagem deste quadro → imagem de referência (câmera em movimento)
+        if (dia) { try { await dia.quadro(img, wi, he, G, q); } catch (e) { dia = null; ia = null; } }
         while (ip < alvoPose.length && alvoPose[ip] < t - 0.5 / fps) ip++;
         if (ip < alvoPose.length && alvoPose[ip] <= t + 0.5 / fps) {
           while (ip < alvoPose.length && alvoPose[ip] <= t + 0.5 / fps) ip++;
@@ -340,6 +348,12 @@
         await fonteVideo(vv, tr.ini).trecho(tr.ini, tr.fim, aoQuadro, sinal);
         URL.revokeObjectURL(vv.src);
       } else await fonte.trecho(tr.ini, tr.fim, aoQuadro, sinal);
+      if (dia) { try { await dia.fim(); } catch (e) { dia = null; ia = null; } }
+      /* com a IA: os candidatos dela (q.ia) no lugar dos do detector por pixels; se ela falhou no meio, fica o detector */
+      quadros.forEach(function (q) { if (dia) q.bolas = q.ia || []; delete q.ia; });
+      if (dia) comIA++;
+      /* placa de vídeo fraca demais (a análise passaria de ~2,5× a duração dos pontos): os próximos pontos vão pelos pixels */
+      if (dia && dia.medida().rodadas >= 4 && dia.medida().msMediana > ((o.bolaIA && o.bolaIA.limiteMs) || 250)) ia = null;
       var dados = { ini: tr.ini, fim: tr.fim, hits: tr.hits, quadros: quadros };
       resultados.push(dados);
       if (o.aoTrecho) o.aoTrecho(k, dados);
@@ -347,7 +361,7 @@
       var seg = (Date.now() - t0) / 1000, falta = feito ? seg / feito * (total - feito) : 0;
       aviso(feito / total, "Analisando o ponto " + (k + 1) + " de " + trechos.length + (k > 2 ? " · cerca de " + Math.max(1, Math.round(falta / 60)) + " min restantes" : "") + "…");
     }
-    return { dados: resultados, fonte: clipe ? "clipes" : fonte.tipo, pose: !!pose, cameraMovel: movel };
+    return { dados: resultados, fonte: clipe ? "clipes" : fonte.tipo, pose: !!pose, cameraMovel: movel, bola: comIA ? "ia-" + viaIA + (comIA < trechos.length ? "-parcial" : "") : "pixels" };
   }
 
   /* ── um quadro do vídeo no instante t, para achar a quadra ──

@@ -1,0 +1,5 @@
+wasb-tenis.onnx — detector de bola WASB treinado em tênis (pesos oficiais "wasb_tennis_best"), convertido para ONNX
+(entrada "quadros" [1, 9, 288, 512], saída "mapas" [1, 3, 288, 512], logits). Usado por scout/bola-ia.js.
+
+WASB-SBDT: Copyright (c) 2023 NTT Communications Corporation — licença MIT (github.com/nttcom/WASB-SBDT).
+HRNet: Copyright (c) Microsoft — licença MIT.

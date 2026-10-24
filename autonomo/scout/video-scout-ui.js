@@ -230,7 +230,7 @@
       S.sinal = { cancelado: false };
       try {
         var r = await raiz.QLVisao.processar(api.arquivo(), api.video, trechos, cal, { sinal: S.sinal, aoProgresso: progresso });
-        S.dados = r.dados; S.semPose = !r.pose;
+        S.dados = r.dados; S.semPose = !r.pose; S.bolaVia = r.bola;
         /* cor da roupa de cada um: do tronco (pose) nos primeiros pontos, antes da primeira troca de lado — mais firme que o toque */
         var cores = { perto: [], longe: [] };
         S.dados.slice(0, 3).forEach(function (d) { d.quadros.forEach(function (q) { q.jog.forEach(function (j) { if (j.cor && j.pe) cores[VS.aplicarH(cal.H, j.pe)[1] < 0 ? "perto" : "longe"].push(j.cor); }); }); });
@@ -297,7 +297,7 @@
       var opM = function (k, v, r) { return '<option value="' + v + '"' + ((S.cfg[k] || "") === v ? " selected" : "") + ">" + r + "</option>"; };
       var maoTxt = function (m) { return m === "E" ? "canhoto" : "destro"; };
       el.innerHTML = '<div class="qm-card"><h3 class="qm-h">Scout da partida · gerado e salvo automaticamente</h3>' +
-        '<p class="qm-msg">' + (S.quadraAuto ? "Quadra achada sozinha ✓" : "Quadra marcada à mão") + " · " + esc(n.A) + " começa " + (S.ctx.atletaComecaPerto ? "perto" : "longe") + " da câmera · " + esc(n.A) + " " + maoTxt(S.maos.A) + ", " + esc(n.B) + " " + maoTxt(S.maos.B) + (S.cfg.maoA && S.cfg.maoB ? "" : " (pelo saque)") + " · " + esc(regrasTxt) + (S.cfg.formato ? "" : " (detectado)") + "</p>" +
+        '<p class="qm-msg">' + (S.quadraAuto ? "Quadra achada sozinha ✓" : "Quadra marcada à mão") + (/^ia/.test(S.bolaVia || "") ? " · Bola seguida pela IA ✓" : "") + " · " + esc(n.A) + " começa " + (S.ctx.atletaComecaPerto ? "perto" : "longe") + " da câmera · " + esc(n.A) + " " + maoTxt(S.maos.A) + ", " + esc(n.B) + " " + maoTxt(S.maos.B) + (S.cfg.maoA && S.cfg.maoB ? "" : " (pelo saque)") + " · " + esc(regrasTxt) + (S.cfg.formato ? "" : " (detectado)") + "</p>" +
         '<details class="vs-aj"><summary class="qm-msg" style="cursor:pointer">Ajustar (se algo acima não estiver certo)</summary><div class="vs-form">' +
         '<label>Quem é ' + esc(n.A) + '<button data-a="trocar" type="button">É o outro jogador (trocar)</button></label>' +
         '<label>Formato<select data-aj="formato">' + opF("", "Automático") + opF("3sets", "Melhor de 3 sets") + opF("1set", "Set único") + opF("4games", "Set a 4 games") + opF("tb7", "Só tie-break (7)") + opF("tb10", "Match tie-break (10)") + "</select></label>" +
