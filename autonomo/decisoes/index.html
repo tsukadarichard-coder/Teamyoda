@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!--CABECA-->
+<title>Simulador de Decisões · QuadraLab Player</title>
+<meta name="description" content="Plataforma educativa de tênis: escolha jogadas em situações de ponto, veja uma resposta possível do adversário e entenda como uma decisão se conecta à próxima.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="decisoes.css">
+<!--/CABECA-->
+<link rel="icon" type="image/png" sizes="32x32" href="../assets/player-favicon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="../assets/player-apple-touch-icon.png">
+</head>
+<body>
+<!--CORPO-->
+<a class="pular" href="#conteudo">Pular para o conteúdo</a>
+<header class="topo">
+  <div class="topo-in">
+    <a class="marca" href="#inicio"><img src="../assets/logo-quadralab-player-v2-240.png" alt="QuadraLab Player" width="155" height="36"></a>
+    <nav class="nav" aria-label="Principal">
+      <a href="#cenarios" data-rota="cenarios">Cenários</a>
+      <a href="#progresso" data-rota="progresso">Meu progresso</a>
+      <a href="#consultoria" data-rota="consultoria">Consultoria</a>
+    </nav>
+  </div>
+</header>
+<main id="conteudo" class="pagina" tabindex="-1"></main>
+<footer class="rodape">
+  <div class="rodape-in">
+    <p><strong>QuadraLab Player</strong> · Simulador de Decisões · protótipo</p>
+    <p>Simulação didática: trajetórias, tempos e respostas são ilustrativos. Nada aqui é enviado a um servidor.</p>
+    <p><a href="#modulo">Módulo completo (planejado)</a> · <a href="#consultoria">Consultoria individual</a></p>
+  </div>
+</footer>
+<div id="anuncio" class="sr" aria-live="polite" aria-atomic="true"></div>
+<script src="cenarios.js"></script>
+<script src="motor.js"></script>
+<script src="app.js"></script>
+<!--/CORPO-->
+</body>
+</html>
