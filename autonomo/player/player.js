@@ -1466,12 +1466,12 @@
 
   /* ══ casca do app: menu lateral (computador), menu inferior (celular) e conta ══ */
   var NAV_DA_ROTA = {
-    aquecimento: "aquecimento", "ao-vivo": "ao-vivo", pedidos: "pedidos", acompanhamento: "acompanhamento", desafio: "desafios", desafios: "desafios", partidas: "partidas",
+    aquecimento: "aquecimento", movimento: "movimento", "ao-vivo": "ao-vivo", pedidos: "pedidos", acompanhamento: "acompanhamento", desafio: "desafios", desafios: "desafios", partidas: "partidas",
     preparo: "temporada", diario: "competicao", temporada: "temporada", competicao: "competicao", ficha: "jogador", jogador: "jogador", conta: "conta", assinatura: "assinatura", assinaturas: "assinatura", consultorias: "consultorias", olhar: "consultorias", atendimentos: "atendimentos", atendimento: "atendimentos", treinadores: "treinadores", treinador: "treinadores", ajuda: "ajuda",
     estrategia: "estrategia", plano: "estrategia", planos: "estrategia", completar: "estrategia", gerando: "estrategia",
     jogadas: "jogadas", planejar: "treinos", treinos: "treinos", treino: "treinos", programa: "treinos", planejamento: "treinos", gerandoPlanej: "treinos",
   };
-  var NAV_MAIS = { preparo: 1, diario: 1, temporada: 1, competicao: 1, partidas: 1, conta: 1, jogador: 1, ficha: 1, assinatura: 1, consultorias: 1, olhar: 1, atendimentos: 1, atendimento: 1, treinadores: 1, treinador: 1, ajuda: 1 };
+  var NAV_MAIS = { movimento: 1, preparo: 1, diario: 1, temporada: 1, competicao: 1, partidas: 1, conta: 1, jogador: 1, ficha: 1, assinatura: 1, consultorias: 1, olhar: 1, atendimentos: 1, atendimento: 1, treinadores: 1, treinador: 1, ajuda: 1 };
   var BARRA_SECAO = { aquecimento: "treinos", desafio: "treinos", desafios: "treinos" }; // páginas que pertencem à seção Treinos
   /* Competição é um app à parte (quadralab.com.br/competicao/), com as mesmas contas e o mesmo servidor. O mesmo código atende os dois:
      window.QL_MODO = "competicao" liga a navegação e a tela inicial próprias; no Player, as rotas da Competição apontam para lá. */
@@ -4800,7 +4800,7 @@
   /* Competição: as telas de planejamento e acompanhamento moram em competicao/comp-plano.js e usam estas utilidades */
   var COMP_TELAS = {}, HUB_TELAS = {}; // QuadraLab Hub (player/hub.js): encontrar um treinador e Meus atendimentos, nos dois apps
   window.QL_APP = {
-    tela: tela, api: api, esc: esc, ir: ir, toast: toast, ocupado: ocupado, reais: reais, dataCurta: dataCurta, dataISO: dataISO, hojeISOLocal: hojeISOLocal, botaoVoz: botaoVoz,
+    tela: tela, api: api, esc: esc, ir: ir, dados: function () { return estado.dados; }, toast: toast, ocupado: ocupado, reais: reais, dataCurta: dataCurta, dataISO: dataISO, hojeISOLocal: hojeISOLocal, botaoVoz: botaoVoz,
     periodoTorneio: periodoTorneio, quandoTorneio: quandoTorneio, rotuloEstadoTorneio: rotuloEstadoTorneio, rotuloAreas: rotuloAreas, areasComp: function () { return AREAS_COMP; },
     registrar: function (rota, fn) { COMP_TELAS[rota] = fn; }, registrarHub: function (rotas) { Object.keys(rotas).forEach(function (k) { HUB_TELAS[k] = rotas[k]; }); }, atualizarHome: function () { return telaCompeticao(); },
   };

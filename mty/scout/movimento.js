@@ -2,6 +2,7 @@
    Interface compartilhada: protótipo, app do treinador (QuadraLab) e Team Yoda usam este arquivo.
    Depende de scout/movimento-motor.js (QLBiomec) e de scout/movimento.css. A análise roda no aparelho; o vídeo não é enviado.
    QLMovimento.montar(el, { atleta, alunoId, historico, cota, logo, arquivo, aoSalvar, aoRemover, aoRecuperar }) -> controle { injetar(quadros, opts) }
+     cotaGolpe(golpe) -> { limite, usados, liberado, texto }: limite por golpe, conferido ao trocar de golpe e depois de salvar (Player).
      arquivo (scout/movimento-arquivo.js): cada análise guarda o relatório completo e pode ser reaberta em "Análises salvas".
    QLMovimento.abrirRelatorio(resumo, { arquivo, historico, logo, atleta, cabecalho }) -> reabre o relatório de uma análise salva.
    QLMovimento.evolucaoHTML(historico) -> HTML da evolução por golpe (gráfico + comparação com a análise anterior). */
@@ -165,6 +166,7 @@
     var logo = opts.logo || "assets/logo-quadralab.png";
     var S = { golpe: "forehand", emp: "2", quadros: null, real: false, resultado: null, fotos: [], regId: null, regAtual: null, historico: (opts.historico || []).slice(), cota: opts.cota || null, token: 0 };
     var arquivo = opts.arquivo || null, alunoId = opts.alunoId || null;
+    if (opts.cotaGolpe) S.cota = opts.cotaGolpe(S.golpe);
     el.classList.add("qlm");
     el.innerHTML =
       (opts.semMarca ? "" : '<div class="qm-row" style="justify-content:space-between"><div>' + badgeHTML(logo) + '</div></div>') +
@@ -202,7 +204,7 @@
     function atualizaCota() {
       var c = S.cota, slot = el.querySelector("#qm-cota-slot");
       if (!c || c.limite == null) { slot.innerHTML = ""; return; }
-      var txt = c.bloqueado ? "A análise de movimento não está incluída no seu plano atual. Está disponível nos planos Essencial (quantidade mensal) e Premium (ilimitado)."
+      var txt = c.texto ? c.texto : c.bloqueado ? "A análise de movimento não está incluída no seu plano atual. Está disponível nos planos Essencial (quantidade mensal) e Premium (ilimitado)."
         : (c.liberado ? "Plano com limite: você usou " + c.usados + " de " + c.limite + " análises de movimento neste mês (" + c.restantes + " restantes). No Premium é ilimitado."
           : "Você usou as " + c.limite + " análises de movimento deste mês. Elas voltam no próximo mês, ou passe ao Premium para análises ilimitadas.");
       slot.innerHTML = '<div class="qm-cota' + (c.liberado ? "" : " bloq") + '">' + esc(txt) + "</div>";
@@ -230,6 +232,7 @@
       S.golpe = b.getAttribute("data-g");
       [].forEach.call(this.children, function (x) { x.className = x === b ? "on" : ""; });
       pegaGuia(); S.quadros = null; S.real = false; q("saida").hidden = true; msg("Escolha o vídeo do golpe selecionado e toque em Analisar.");
+      if (opts.cotaGolpe) { S.cota = opts.cotaGolpe(S.golpe); atualizaCota(); } // limite por golpe (QuadraLab Player gratuito)
     };
     q("arq").onchange = function (e) {
       var f = e.target.files[0]; if (!f) return;
@@ -345,7 +348,7 @@
         S.regId = reg.id; S.regAtual = reg;
         S.historico = S.historico.filter(function (h) { return h.id !== reg.id; }).concat([reg]);
         q("salvoMsg").textContent = "Análise salva no histórico do jogador.";
-        Promise.resolve(opts.aoSalvar(reg)).then(function () { if (novo && S.cota && S.cota.limite != null) { S.cota = opts.cotaDe ? opts.cotaDe(S.historico) : B.cota(opts.recurso || "movimento", opts.plano, S.historico); atualizaCota(); } }).catch(function () { q("salvoMsg").textContent = "Não foi possível salvar no histórico agora."; });
+        Promise.resolve(opts.aoSalvar(reg)).then(function () { if (opts.cotaGolpe) { S.cota = opts.cotaGolpe(S.golpe); atualizaCota(); } else if (novo && S.cota && S.cota.limite != null) { S.cota = opts.cotaDe ? opts.cotaDe(S.historico) : B.cota(opts.recurso || "movimento", opts.plano, S.historico); atualizaCota(); } }).catch(function (e) { q("salvoMsg").textContent = e && e.publico ? e.message : "Não foi possível salvar no histórico agora."; });
         if (opts.aoMudar) opts.aoMudar(S.historico);
       } else q("salvoMsg").textContent = sintetico ? "Demonstração: nada foi salvo." : "";
       renderHistorico();
