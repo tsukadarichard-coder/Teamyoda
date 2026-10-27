@@ -426,5 +426,38 @@
   c2.etapas.d1.tatica = "inicio"; ["d2_aberto", "d2_corpo", "d2_t"].forEach(function (k) { c2.etapas[k].tatica = "ataque"; });
   c3.etapas.d1.tatica = "defesa"; ["d2_cruzado", "d2_winner", "d2_angulo"].forEach(function (k) { c3.etapas[k].tatica = "construcao"; });
 
-  return { ROTULOS: ROTULOS, OBJETIVOS: OBJETIVOS, TATICAS: TATICAS, DUAS_DEFESAS: DUAS_DEFESAS, AVISO: AVISO, PERGUNTA: PERGUNTA, NOTAS: NOTAS, CENARIOS: [c1, c2, c3], MODULO: MODULO };
+  /* ── camada de jogo: cada padrão em 4 níveis (a mesma situação com outra superfície, outro adversário, outro placar) ── */
+  var VARIANTES = {
+    superficies: { saibro: "Saibro", rapida: "Quadra rápida" },
+    adversarios: { equilibrado: "Adversário equilibrado", defensor: "Adversário que devolve tudo", agressivo: "Adversário agressivo" },
+    descricoes: {
+      saibro: "Saibro: bola mais lenta e quique mais alto. Pontos mais longos; curtinha e ângulo rendem mais.",
+      rapida: "Quadra rápida: bola mais rápida e quique mais baixo. Tirar tempo e subir rendem mais; o toque fica mais difícil.",
+      defensor: "Adversário que devolve tudo: fica no fundo e devolve quase tudo. Troca sem intenção não termina; a frente da quadra é o caminho.",
+      agressivo: "Adversário agressivo: ataca qualquer bola curta e entra na quadra. Profundidade e as duas defesas pesam mais.",
+      decisivo: "Ponto decisivo: a decisão é fechada antes do ponto e não se reabre por medo.",
+    },
+    notas: {
+      rapida_tempo: "Na quadra rápida, tirar o tempo do adversário rende mais: a bola chega antes e a subida à rede fica mais forte.",
+      rapida_toque: "Na quadra rápida, a bola curta passa rápido e quica baixo: o toque fica mais difícil de controlar.",
+      saibro_toque: "No saibro, a bola curta morre mais e o quique alto deixa o adversário longe: a curtinha e o ângulo rendem mais.",
+      saibro_forca: "No saibro, a força máxima rende menos: a bola perde velocidade no quique e o adversário tem tempo de chegar.",
+      defensor_sem_intencao: "Contra quem devolve tudo, a troca sem intenção não termina: ele fica confortável no fundo, esperando a sua bola.",
+      defensor_frente: "Contra quem devolve tudo do fundo, a frente da quadra é o caminho: a bola curta e a subida tiram o adversário da zona de conforto.",
+      agressivo_curta: "Contra o adversário agressivo, a bola curta é convite para ele: ele entra e ataca.",
+      agressivo_profundidade: "Contra o adversário agressivo, a profundidade o tira da quadra e corta o ataque dele.",
+      decisivo_margem: "No ponto decisivo, a bola de pouca margem pesa mais: o método pede a decisão fechada antes, não o risco por impulso.",
+      decisivo_iniciativa: "No ponto decisivo, jogar só para não errar continua entregando a iniciativa ao adversário.",
+      recupera_defensor: "Este adversário se defende alto e no centro sempre que pode: depois de atacar, a próxima bola tende a vir lenta.",
+      recupera_agressivo: "Este adversário contra-ataca para o espaço mesmo pressionado: a sua posição de recuperação é testada.",
+    },
+  };
+  var NIVEIS = [
+    { n: 1, nome: "Base", variante: {} },
+    { n: 2, nome: "Quadra rápida · adversário agressivo", variante: { superficie: "rapida", adversario: "agressivo" } },
+    { n: 3, nome: "Saibro · adversário que devolve tudo", variante: { superficie: "saibro", adversario: "defensor" } },
+    { n: 4, nome: "Ponto decisivo", variante: { superficie: "saibro", adversario: "agressivo", decisivo: true }, placar: "Tie-break · 5–6" },
+  ];
+
+  return { VARIANTES: VARIANTES, NIVEIS: NIVEIS, ROTULOS: ROTULOS, OBJETIVOS: OBJETIVOS, TATICAS: TATICAS, DUAS_DEFESAS: DUAS_DEFESAS, AVISO: AVISO, PERGUNTA: PERGUNTA, NOTAS: NOTAS, CENARIOS: [c1, c2, c3], MODULO: MODULO };
 });

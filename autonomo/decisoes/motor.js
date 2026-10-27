@@ -21,6 +21,15 @@
   var NOME_ALTURA = { baixa: "Baixa", media: "Média", alta: "Alta" };
   var NOME_INTENSIDADE = { controlada: "Controlada", firme: "Firme", maxima: "Máxima" };
   var QUADRO = 1 / 30;
+  /* variações de uma mesma situação (camada de jogo): superfície, perfil do adversário e ponto decisivo.
+     Mudam a ilustração (velocidade, quique, resposta) e a avaliação (a mesma escolha pesa diferente) */
+  var SUPERFICIE = { saibro: { vel: 0.88, chute: -0.3, hC: 0.25 }, rapida: { vel: 1.15, chute: 0.4, hC: -0.15 } };
+  var PERFIL_ADV = { equilibrado: { vel: 1 }, defensor: { vel: 0.9 }, agressivo: { vel: 1.15 } };
+  function varianteOk(v) {
+    v = v || {};
+    return { superficie: SUPERFICIE[v.superficie] ? v.superficie : null, adversario: PERFIL_ADV[v.adversario] ? v.adversario : "equilibrado", decisivo: !!v.decisivo };
+  }
+  function velSup(v) { return v && v.superficie ? SUPERFICIE[v.superficie].vel : 1; }
 
   /* ── vetores ── */
   function sub(a, b) { return [a[0] - b[0], a[1] - b[1]]; }
@@ -121,12 +130,40 @@
     else if (ii < Math.min.apply(null, faixaI)) { p += 0.5; m.push("intensidade"); }
     return { p: p, m: m };
   }
-  function avaliarGolpe(conteudo, etapa, opcao, altura, intensidade) {
+  /* o que a variação muda no peso de uma escolha (regras gerais; os textos estão em conteudo.VARIANTES) */
+  function ajustesVariante(variante, etapa, opcao, intensidade, ctx) {
+    var v = varianteOk(variante), d = 0, notas = [];
+    var curta = opcao.alvo && opcao.alvo[1] < S && ctx !== "saque";
+    var sobe = !!(opcao.resposta && opcao.resposta.voleio);
+    function nota(k, delta) { d += delta; notas.push(k); }
+    if (v.superficie === "rapida") {
+      if (opcao.objetivo === "tempo" || sobe) nota("rapida_tempo", -0.5);
+      else if (curta && ctx !== "passada" && ctx !== "rede") nota("rapida_toque", 0.5);
+    } else if (v.superficie === "saibro") {
+      if (curta && ctx !== "passada") nota("saibro_toque", -0.5);
+      else if (intensidade === "maxima" && ctx !== "defesa") nota("saibro_forca", 0.5);
+    }
+    if (v.adversario === "defensor") {
+      if (opcao.nivel === "iniciativa" || opcao.objetivo === "margem") nota("defensor_sem_intencao", 0.5);
+      else if (sobe || (curta && ctx !== "passada")) nota("defensor_frente", -0.5);
+    } else if (v.adversario === "agressivo") {
+      if (curta && ctx !== "passada" && ctx !== "rede") nota("agressivo_curta", 0.5);
+      else if (opcao.objetivo === "quadra" || opcao.objetivo === "ganhar_tempo") nota("agressivo_profundidade", -0.5);
+    }
+    if (v.decisivo) {
+      if ((opcao.risco || 0) >= 1.5) nota("decisivo_margem", 0.5);
+      else if (opcao.nivel === "iniciativa") nota("decisivo_iniciativa", 0);
+    }
+    return { delta: d, notas: notas };
+  }
+  function avaliarGolpe(conteudo, etapa, opcao, altura, intensidade, variante) {
     var ctx = contextoDe(etapa, opcao), ideais = Array.isArray(opcao.ideal) ? opcao.ideal : [opcao.ideal || {}];
     var ia = ALTURAS.indexOf(altura), ii = INTENSIDADES.indexOf(intensidade);
     var melhor = ideais.map(function (f) { return pontosFaixa(ctx, f, ia, ii); }).sort(function (a, b) { return a.p - b.p; })[0];
-    var pontos = (opcao.risco || 0) + melhor.p, motivos = melhor.m;
+    var aj = ajustesVariante(variante, etapa, opcao, intensidade, ctx);
+    var pontos = Math.max(0, (opcao.risco || 0) + melhor.p + aj.delta), motivos = melhor.m;
     var nivel = opcao.nivel || (pontos <= 0.5 ? "coerente" : pontos <= 1.5 ? "inicio" : "controle");
+    var NV = (conteudo.VARIANTES || {}).notas || {};
     var ataque = ctx === "ataque" || ctx === "saque";
     var pressao = (opcao.pressao || 0) + { controlada: -0.3, firme: 0, maxima: 0.3 }[intensidade] + (ataque ? { baixa: 0.15, media: 0, alta: -0.35 } : { baixa: 0, media: 0, alta: 0.1 })[altura];
     var pressaoNivel = pressao < 0.8 ? "baixa" : pressao < 1.5 ? "media" : "alta";
@@ -134,7 +171,7 @@
     return {
       nivel: nivel, rotulo: conteudo.ROTULOS[nivel], pontos: pontos, pressao: r2(pressao), pressaoNivel: pressaoNivel, motivos: motivos,
       texto: opcao.texto, notaAltura: N.altura[ctx][altura], notaIntensidade: N.intensidade[ctx][intensidade], resumo: opcao.resumo,
-      objetivo: opcao.objetivo || null,
+      objetivo: opcao.objetivo || null, notasVariante: aj.notas.map(function (k) { return NV[k]; }).filter(Boolean),
     };
   }
   function efeitoTexto(pressaoNivel, tempoVoo) {
@@ -150,11 +187,13 @@
     var chute = saque ? 3.4 + { baixa: 0.6, media: 0.3, alta: 0 }[altura] + { controlada: 0, firme: 0.5, maxima: 1.0 }[intensidade]
       : curta ? 1.2 + { baixa: 0, media: 0.2, alta: 0.5 }[altura]
       : 2.4 + { baixa: 0, media: 0.6, alta: 1.3 }[altura] + { controlada: 0, firme: 0.4, maxima: 0.8 }[intensidade];
+    var va = varianteOk(estado.variante), sup = va.superficie ? SUPERFICIE[va.superficie] : null;
+    if (sup && !curta) chute = Math.max(1.2, chute + sup.chute);
     var C = soma(T, mult(dir, chute));
     C = [lim(C[0], -W - 2.4, W + 2.4), lim(C[1], -L - 3.4, L + 3.4)];
-    var hC = altura === "alta" && !curta ? 1.35 : 0.95;
+    var hC = (altura === "alta" && !curta ? 1.35 : 0.95) + (sup && !curta ? sup.hC : 0);
     var apice = saque ? APICE_SAQUE[altura] : APICE[altura];
-    var v = VEL[intensidade] * (saque ? 1.35 : 1);
+    var v = VEL[intensidade] * (saque ? 1.35 : 1) * velSup(va);
     var b = voo(P, estado.hContato || 1, T, C, hC, apice, v, 0);
     var advIni = estado.adv;
     var tSai = 0.12;
@@ -164,8 +203,9 @@
 
   function simularGolpe(conteudo, cenario, estado, etapaId, opcao, altura, intensidade) {
     var g = planoGolpe(cenario, estado, etapaId, opcao, altura, intensidade), etapa = g.etapa;
-    var av = avaliarGolpe(conteudo, etapa, opcao, altura, intensidade);
+    var av = avaliarGolpe(conteudo, etapa, opcao, altura, intensidade, estado.variante);
     av.efeito = efeitoTexto(av.pressaoNivel, g.tempoVoo);
+    var fatorResp = velSup(estado.variante) * PERFIL_ADV[varianteOk(estado.variante).adversario].vel;
     var proxima = opcao.proxima ? cenario.etapas[opcao.proxima] : null;
     var anim = { bola: g.b.quadros.slice(), jog: [], adv: g.adv.slice(), alvo: g.T, quiques: [g.T], rastrosBola: [], rastrosJog: [], rastrosAdv: [], rede: g.b.rede, dur: g.b.tFim, pausa: null };
     var final;
@@ -179,12 +219,12 @@
       anim.dur = tPara; anim.pausa = "A bola ainda está no ar.";
       var bp = bolaEm(g.b.quadros, tPara), ap = posEm(g.adv, tPara);
       final = { etapa: opcao.proxima, jog: g.P.slice(), adv: ap, bola: [bp.x, bp.y], hBola: bp.h, hContato: null,
-        voo: { de: etapaId, opcao: opcao.id, altura: altura, intensidade: intensidade, desde: tPara, jogAntes: estado.jog.slice(), advAntes: estado.adv.slice(), hAntes: estado.hContato || 1 },
+        voo: { de: etapaId, opcao: opcao.id, altura: altura, intensidade: intensidade, desde: tPara, jogAntes: estado.jog.slice(), advAntes: estado.adv.slice(), hAntes: estado.hContato || 1, variante: estado.variante || null },
         pressaoNivel: av.pressaoNivel, pressao: av.pressao };
     } else if (opcao.resposta) {
       /* resposta possível do adversário, coerente com o alvo; você se recupera e depois vai para a bola */
       var R = opcao.resposta, tGolpe = g.b.tFim + 0.25;
-      var vR = av.pressaoNivel === "alta" ? 15 : av.pressaoNivel === "media" ? 18 : 21;
+      var vR = (av.pressaoNivel === "alta" ? 15 : av.pressaoNivel === "media" ? 18 : 21) * fatorResp;
       var br = R.voleio ? direto(g.C, 1.0, R.contato, 1.1, av.pressaoNivel === "alta" ? 2.6 : 1.9, vR, tGolpe)
         : voo(g.C, 1.0, R.quique, R.contato, 0.9, av.pressaoNivel === "alta" ? 3.1 : 2.3, vR, tGolpe);
       var R0 = R.jogRecupera || cobertura(g.C, -12.0), tJogSai = 0.22;
@@ -218,8 +258,8 @@
   function simularRecuperacao(conteudo, cenario, estado, etapaId, opcao) {
     var v = estado.voo, etapa = cenario.etapas[etapaId];
     var opAnt = cenario.etapas[v.de].opcoes.filter(function (o) { return o.id === v.opcao; })[0];
-    var g = planoGolpe(cenario, { jog: v.jogAntes, adv: v.advAntes, hContato: v.hAntes }, v.de, opAnt, v.altura, v.intensidade);
-    var t0 = v.desde, C = g.C, J = estado.jog;
+    var g = planoGolpe(cenario, { jog: v.jogAntes, adv: v.advAntes, hContato: v.hAntes, variante: estado.variante }, v.de, opAnt, v.altura, v.intensidade);
+    var t0 = v.desde, C = g.C, J = estado.jog, va = varianteOk(estado.variante);
     var R = posicaoRecuperacao(opcao, J, C);
     var nivelP = estado.pressaoNivel || "media";
     /* a resposta possível: com o adversário pressionado, uma bola defensiva (alta e central, ou lobby se você estiver
@@ -230,12 +270,15 @@
       { id: "paralela", q: [-lado * 3.1, -9.3], ap: 2.3 },
     ];
     var escolha;
-    if (nivelP === "alta") escolha = naRede ? { id: "lobby", q: [-R[0] * 0.3, -9.6], ap: 5.6 } : { id: "central", q: [0.3, -9.4], ap: 3.2 };
+    /* perfil do adversário: quem devolve tudo se defende alto mesmo sem estar tão pressionado; o agressivo
+       contra-ataca para o espaço mesmo pressionado */
+    var defende = nivelP === "alta" && va.adversario !== "agressivo" || (nivelP === "media" && va.adversario === "defensor");
+    if (defende) escolha = naRede ? { id: "lobby", q: [-R[0] * 0.3, -9.6], ap: 5.6 } : { id: "central", q: [0.3, -9.4], ap: 3.2 };
     else {
       if (naRede) cand.push({ id: "lobby", q: [-R[0] * 0.3, -9.9], ap: 5.8 });
       escolha = cand.slice().sort(function (a, b) { return dist(b.q, R) - dist(a.q, R); })[0];
     }
-    var vR = nivelP === "alta" ? 14 : nivelP === "media" ? 18 : 22;
+    var vR = (nivelP === "alta" ? 14 : nivelP === "media" ? 18 : 22) * velSup(va) * PERFIL_ADV[va.adversario].vel;
     var dirR = unit(sub(escolha.q, C)), fimR = soma(escolha.q, mult(dirR, escolha.id === "lobby" ? 4.0 : 4.2));
     fimR = [lim(fimR[0], -W - 2.2, W + 2.2), lim(fimR[1], -L - 3.2, -1)];
     var tAdvChega = g.b.tFim - t0, tGolpe = tAdvChega + 0.25;
@@ -273,6 +316,7 @@
     var av = {
       nivel: nivel, rotulo: conteudo.ROTULOS[nivel], pressaoNivel: nivelP, texto: (opcao.textos || {})[nivelP] || "", resumo: opcao.resumo,
       resposta: "Uma resposta possível do adversário: " + descResp + ".", cobertura: cobertura_, textoCobertura: textoCob,
+      notasVariante: va.adversario !== "equilibrado" && conteudo.VARIANTES ? [conteudo.VARIANTES.notas["recupera_" + va.adversario]].filter(Boolean) : [],
     };
     var quiqueOk = bolaResp.some(function (q) { return q.quique; });
     var anim = { bola: bolaResto.concat(bolaResp), jog: jog, adv: advPts, quiques: quiqueOk ? [g.T, escolha.q] : [g.T], alvo: null, dur: tFimResp + 0.4, rede: br.rede, recuperacao: R, resposta: { de: C, quique: quiqueOk ? escolha.q : null, contato: I, voleio: !quiqueOk } };
@@ -285,8 +329,32 @@
     if (!etapa) throw new Error("etapa inexistente: " + etapaId);
     var opcao = etapa.opcoes.filter(function (o) { return o.id === escolha.opcao; })[0];
     if (!opcao) throw new Error("opção inexistente: " + escolha.opcao);
-    if (etapa.tipo === "recuperacao") return simularRecuperacao(conteudo, cenario, estado, etapaId, opcao);
-    return simularGolpe(conteudo, cenario, estado, etapaId, opcao, escolha.altura || "media", escolha.intensidade || "firme");
+    var r = etapa.tipo === "recuperacao" ? simularRecuperacao(conteudo, cenario, estado, etapaId, opcao)
+      : simularGolpe(conteudo, cenario, estado, etapaId, opcao, escolha.altura || "media", escolha.intensidade || "firme");
+    r.estadoFinal.variante = estado.variante || null;
+    r.respostaCategoria = categoriaResposta(r);
+    if (escolha.previsao && r.respostaCategoria) r.previsao = { escolhida: escolha.previsao, certa: escolha.previsao === r.respostaCategoria };
+    return r;
+  }
+  /* para "prever antes de ver": classifica a resposta possível do adversário que a animação mostra */
+  var CATEGORIAS = { cruzada: "Cruzada", paralela: "Na paralela", meio: "Pelo meio", curta: "Curta", lobby: "Lobby" };
+  function categoriaResposta(r) {
+    if (r.recuperacao) return { cruzada: "cruzada", paralela: "paralela", lobby: "lobby", central: "meio" }[r.recuperacao.resposta] || null;
+    var a = r.anim && r.anim.resposta; if (!a) return null;
+    var Q = a.quique || a.contato, C = a.de;
+    if (!a.voleio && Math.abs(Q[1]) < S) return "curta";
+    if (Math.abs(Q[0]) < 1.2) return "meio";
+    if (Math.abs(C[0]) < 0.6) return "meio";
+    return (Q[0] > 0) === (C[0] > 0) ? "paralela" : "cruzada";
+  }
+  /* a etapa vai mostrar uma resposta do adversário? (golpe com resposta, ou recuperação) */
+  function temResposta(cenario, etapaId, opcaoId) {
+    var e = cenario.etapas[etapaId]; if (!e) return false;
+    if (e.tipo === "recuperacao") return true;
+    var o = e.opcoes.filter(function (x) { return x.id === opcaoId; })[0];
+    if (!o || !o.resposta) return false;
+    var prox = o.proxima ? cenario.etapas[o.proxima] : null;
+    return !(prox && prox.tipo === "recuperacao");
   }
 
   /* para a tela da recuperação: onde está a bola em voo (alvo, contato do adversário, caminho no chão) e onde fica
@@ -294,7 +362,7 @@
   function vooAtual(cenario, estado) {
     var v = estado.voo; if (!v) return null;
     var op = cenario.etapas[v.de].opcoes.filter(function (o) { return o.id === v.opcao; })[0];
-    var g = planoGolpe(cenario, { jog: v.jogAntes, adv: v.advAntes, hContato: v.hAntes }, v.de, op, v.altura, v.intensidade);
+    var g = planoGolpe(cenario, { jog: v.jogAntes, adv: v.advAntes, hContato: v.hAntes, variante: estado.variante }, v.de, op, v.altura, v.intensidade);
     return { P: g.P, T: g.T, C: g.C, desde: v.desde, quadros: g.b.quadros };
   }
   function posicoesRecuperacao(cenario, estado, etapaId) {
@@ -303,14 +371,14 @@
     return etapa.opcoes.map(function (o) { return { id: o.id, R: posicaoRecuperacao(o, estado.jog, va.C) }; });
   }
 
-  function estadoInicial(cenario) {
+  function estadoInicial(cenario, variante) {
     var i = cenario.inicio;
-    return { etapa: "d1", jog: i.jog.slice(), adv: i.adv.slice(), bola: i.jog.slice(), hContato: i.hContato || 1, voo: null };
+    return { etapa: "d1", jog: i.jog.slice(), adv: i.adv.slice(), bola: i.jog.slice(), hContato: i.hContato || 1, voo: null, variante: variante ? varianteOk(variante) : null };
   }
 
   /* refaz o caminho já decidido (para retomar exatamente de onde parou); devolve null se algo não confere */
-  function refazer(conteudo, cenario, caminho) {
-    var est = estadoInicial(cenario), passos = [];
+  function refazer(conteudo, cenario, caminho, variante) {
+    var est = estadoInicial(cenario, variante), passos = [];
     for (var i = 0; i < caminho.length; i++) {
       var c = caminho[i];
       if (!c || c.etapa !== est.etapa || !cenario.etapas[c.etapa]) return null;
@@ -331,54 +399,142 @@
     return { pontos: pts, dRede: dRede, folga: g.b.rede ? r2(g.b.rede.h - REDE) : null, total: d1 + d2, hRede: REDE };
   }
 
-  /* ── progresso (armazenamento local) ── */
+  /* ── progresso (armazenamento local) ──
+     Cada situação é um padrão num nível: chave "<cenario>.<nivel>" (a chave antiga, só "<cenario>", vira o nível 1).
+     Também guarda o modo relâmpago e os dias jogados (para a sequência de dias). */
   var CHAVE = "qlDecisoes:v1";
-  function progressoVazio() { return { v: 1, cenarios: {} }; }
+  function progressoVazio() { return { v: 2, cenarios: {}, relampago: { melhor: 0, partidas: [] }, dias: [] }; }
   function escolhaValida(cenario, e) {
     if (!e || typeof e !== "object") return null;
     var et = cenario.etapas[e.etapa]; if (!et) return null;
     if (!et.opcoes.some(function (o) { return o.id === e.opcao; })) return null;
     var out = { etapa: e.etapa, opcao: e.opcao };
     if (et.tipo === "golpe") { out.altura = ALTURAS.indexOf(e.altura) >= 0 ? e.altura : "media"; out.intensidade = INTENSIDADES.indexOf(e.intensidade) >= 0 ? e.intensidade : "firme"; }
+    if (CATEGORIAS[e.previsao]) out.previsao = e.previsao;
     return out;
   }
+  function tentativaValida(cenario, t) {
+    var e = escolhaValida(cenario, t); if (!e) return null;
+    e.primeira = !!(t && t.primeira); e.em = dataValida(t && t.em) || null; e.previsaoCerta = !!(t && t.previsaoCerta && e.previsao);
+    return e;
+  }
   function dataValida(s) { return typeof s === "string" && /^\d{4}-\d{2}-\d{2}T/.test(s) ? s.slice(0, 30) : null; }
+  function chaveSituacao(cenId, n) { return cenId + "." + n; }
+  function niveis(conteudo) { return conteudo.NIVEIS || [{ n: 1, nome: "Base", variante: {} }]; }
+  function varianteDoNivel(conteudo, n) { var x = niveis(conteudo).filter(function (v) { return v.n === n; })[0]; return x ? x.variante : {}; }
   function normalizar(bruto, conteudo) {
     var p = progressoVazio();
-    if (!bruto || typeof bruto !== "object" || !bruto.cenarios || typeof bruto.cenarios !== "object") return p;
+    if (!bruto || typeof bruto !== "object") return p;
+    var fonte = bruto.cenarios && typeof bruto.cenarios === "object" ? bruto.cenarios : {};
     conteudo.CENARIOS.forEach(function (cen) {
-      var c = bruto.cenarios[cen.id]; if (!c || typeof c !== "object") return;
-      var exec = c.execucao && typeof c.execucao === "object" ? c.execucao : {};
-      var caminho = (Array.isArray(exec.caminho) ? exec.caminho : []).slice(0, 3).map(function (e) { return escolhaValida(cen, e); });
-      if (caminho.some(function (x) { return !x; }) || !refazer(conteudo, cen, caminho)) caminho = [];
-      var rf = refazer(conteudo, cen, caminho);
-      var pend = escolhaValida(cen, exec.pendente);
-      if (pend && (!rf || rf.estado.etapa !== pend.etapa)) pend = null;
-      var tent = (Array.isArray(exec.tentativas) ? exec.tentativas : []).slice(-60).map(function (t) {
-        var e = escolhaValida(cen, t); if (!e) return null; e.primeira = !!(t && t.primeira); e.em = dataValida(t && t.em) || null; return e;
-      }).filter(Boolean);
-      var hist = (Array.isArray(c.historico) ? c.historico : []).slice(-20).map(function (h) {
-        if (!h || typeof h !== "object") return null;
-        var cam = (Array.isArray(h.caminho) ? h.caminho : []).map(function (e) { return escolhaValida(cen, e); });
-        if (cam.length !== 3 || cam.some(function (x) { return !x; })) return null;
-        var tt = (Array.isArray(h.tentativas) ? h.tentativas : []).slice(-60).map(function (t) {
-          var e = escolhaValida(cen, t); if (!e) return null; e.primeira = !!(t && t.primeira); e.em = dataValida(t && t.em) || null; return e;
+      niveis(conteudo).forEach(function (nv) {
+        var chave = chaveSituacao(cen.id, nv.n), variante = nv.variante;
+        var c = fonte[chave] || (nv.n === 1 ? fonte[cen.id] : null);
+        if (!c || typeof c !== "object") return;
+        var exec = c.execucao && typeof c.execucao === "object" ? c.execucao : {};
+        var caminho = (Array.isArray(exec.caminho) ? exec.caminho : []).slice(0, 3).map(function (e) { return escolhaValida(cen, e); });
+        if (caminho.some(function (x) { return !x; }) || !refazer(conteudo, cen, caminho, variante)) caminho = [];
+        var rf = refazer(conteudo, cen, caminho, variante);
+        var pend = escolhaValida(cen, exec.pendente);
+        if (pend && (!rf || rf.estado.etapa !== pend.etapa)) pend = null;
+        var tent = (Array.isArray(exec.tentativas) ? exec.tentativas : []).slice(-60).map(function (t) { return tentativaValida(cen, t); }).filter(Boolean);
+        var hist = (Array.isArray(c.historico) ? c.historico : []).slice(-20).map(function (h) {
+          if (!h || typeof h !== "object") return null;
+          var cam = (Array.isArray(h.caminho) ? h.caminho : []).map(function (e) { return escolhaValida(cen, e); });
+          if (cam.length !== 3 || cam.some(function (x) { return !x; })) return null;
+          var tt = (Array.isArray(h.tentativas) ? h.tentativas : []).slice(-60).map(function (t) { return tentativaValida(cen, t); }).filter(Boolean);
+          var est = Number.isInteger(h.estrelas) ? lim(h.estrelas, 0, 3) : estrelas(conteudo, cen, cam, tt, variante).estrelas;
+          return { concluidoEm: dataValida(h.concluidoEm), caminho: cam, exploradas: Math.max(0, Math.min(99, h.exploradas | 0)), tentativas: tt, estrelas: est, leitura: lim(h.leitura | 0, 0, 3) };
         }).filter(Boolean);
-        return { concluidoEm: dataValida(h.concluidoEm), caminho: cam, exploradas: Math.max(0, Math.min(99, h.exploradas | 0)), tentativas: tt };
-      }).filter(Boolean);
-      var fim = !!(rf && rf.estado.fim);
-      p.cenarios[cen.id] = {
-        iniciadoEm: dataValida(c.iniciadoEm), atualizadoEm: dataValida(c.atualizadoEm), concluidoEm: dataValida(c.concluidoEm),
-        execucao: { caminho: caminho, pendente: fim ? null : pend, tentativas: tent, fim: fim },
-        historico: hist,
-      };
+        var fim = !!(rf && rf.estado.fim);
+        p.cenarios[chave] = {
+          iniciadoEm: dataValida(c.iniciadoEm), atualizadoEm: dataValida(c.atualizadoEm), concluidoEm: dataValida(c.concluidoEm),
+          execucao: { caminho: caminho, pendente: fim ? null : pend, tentativas: tent, fim: fim },
+          historico: hist,
+        };
+      });
     });
+    var rl = bruto.relampago && typeof bruto.relampago === "object" ? bruto.relampago : {};
+    p.relampago = { melhor: lim(rl.melhor | 0, 0, 999), partidas: (Array.isArray(rl.partidas) ? rl.partidas : []).slice(-20).map(function (x) { return x && dataValida(x.em) ? { em: x.em, pontos: lim(x.pontos | 0, 0, 999) } : null; }).filter(Boolean) };
+    p.dias = (Array.isArray(bruto.dias) ? bruto.dias : []).filter(function (d) { return typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d); }).sort().filter(function (d, i, a) { return a.indexOf(d) === i; }).slice(-120);
     return p;
   }
 
+  /* ── camada de jogo ── */
+  /* estrelas de uma situação concluída: uma por decisão em que a PRIMEIRA escolha foi coerente com o contexto
+     (explorar alternativas depois não tira nem dá estrela). Leitura: previsões certas da resposta do adversário */
+  function estrelas(conteudo, cenario, caminho, tentativas, variante) {
+    var rf = refazer(conteudo, cenario, caminho, variante); if (!rf) return { estrelas: 0, leitura: 0, detalhe: [] };
+    var detalhe = rf.passos.map(function (ps) {
+      var prim = (tentativas || []).filter(function (t) { return t.etapa === ps.escolha.etapa && t.primeira; })[0] || ps.escolha;
+      var r; try { r = simular(conteudo, cenario, ps.estadoAntes, prim.etapa, prim); } catch (e) { r = ps.resultado; }
+      return { etapa: ps.escolha.etapa, nivel: r.avaliacao.nivel, estrela: r.avaliacao.nivel === "coerente" };
+    });
+    var leitura = (tentativas || []).filter(function (t) { return t.previsaoCerta; }).length;
+    return { estrelas: detalhe.filter(function (d) { return d.estrela; }).length, leitura: Math.min(3, leitura), detalhe: detalhe };
+  }
+  function melhorEstrelas(prog, chave) { var c = prog.cenarios[chave]; return c && c.historico.length ? Math.max.apply(null, c.historico.map(function (h) { return h.estrelas || 0; })) : -1; }
+  /* nível liberado: o 1 sempre; os seguintes com 2 estrelas ou mais no anterior */
+  function nivelLiberado(prog, cenId, n) { return n <= 1 || melhorEstrelas(prog, chaveSituacao(cenId, n - 1)) >= 2; }
+  /* revisão espaçada: cada padrão volta depois de 1, 3 ou 7 dias (conforme as estrelas da última vez), num nível
+     diferente do último jogado, para ver se o princípio se transfere para outro contexto */
+  var DIA = 86400000;
+  function revisoes(conteudo, prog, agora) {
+    agora = agora || Date.now();
+    var out = [];
+    conteudo.CENARIOS.forEach(function (cen) {
+      var ult = null;
+      niveis(conteudo).forEach(function (nv) {
+        var c = prog.cenarios[chaveSituacao(cen.id, nv.n)]; if (!c) return;
+        c.historico.forEach(function (h) { if (h.concluidoEm && (!ult || h.concluidoEm > ult.em)) ult = { em: h.concluidoEm, n: nv.n, estrelas: h.estrelas || 0 }; });
+      });
+      if (!ult) return;
+      var intervalo = ult.estrelas >= 3 ? 7 : ult.estrelas === 2 ? 3 : 1, vence = Date.parse(ult.em) + intervalo * DIA;
+      if (vence > agora) return;
+      var proximo = (ult.n % niveis(conteudo).length) + 1;
+      out.push({ cenario: cen.id, nivel: proximo, desde: ult.em, estrelas: ult.estrelas, atraso: Math.floor((agora - vence) / DIA) });
+    });
+    return out.sort(function (a, b) { return a.estrelas - b.estrelas || b.atraso - a.atraso; });
+  }
+  /* sequência de dias seguidos até hoje (ou até ontem, se hoje ainda não jogou) */
+  function sequenciaDias(dias, hoje) {
+    var set = {}; (dias || []).forEach(function (d) { set[d] = 1; });
+    var d = new Date(hoje + "T12:00:00Z"), n = 0;
+    if (!set[hoje]) d = new Date(d.getTime() - DIA);
+    while (set[d.toISOString().slice(0, 10)]) { n++; d = new Date(d.getTime() - DIA); }
+    return n;
+  }
+  /* modo relâmpago: as decisões de golpe que dá para jogar isoladas (decisão 1 e, pelo caminho mais natural, a 2),
+     em qualquer nível. A escolha é só do alvo: a altura e a intensidade usadas são as da primeira faixa ideal da opção */
+  function poolRelampago(conteudo) {
+    var pool = [];
+    conteudo.CENARIOS.forEach(function (cen) {
+      niveis(conteudo).forEach(function (nv) {
+        var e0 = estadoInicial(cen, nv.variante);
+        pool.push({ cenario: cen.id, nivel: nv.n, etapa: "d1", estado: e0 });
+        cen.etapas.d1.opcoes.forEach(function (o) {
+          var prox = o.proxima && cen.etapas[o.proxima];
+          if (!prox || prox.tipo !== "golpe" || !o.resposta) return;
+          var esc = escolhaPadrao(o); esc.opcao = o.id;
+          var r = simular(conteudo, cen, e0, "d1", esc);
+          pool.push({ cenario: cen.id, nivel: nv.n, etapa: o.proxima, estado: r.estadoFinal });
+        });
+      });
+    });
+    return pool;
+  }
+  function escolhaPadrao(opcao) {
+    var f = Array.isArray(opcao.ideal) ? opcao.ideal[0] : (opcao.ideal || {});
+    var a = (f.altura || ["media"]), i = (f.intensidade || ["firme"]);
+    return { altura: a.indexOf("media") >= 0 ? "media" : a[0], intensidade: i.indexOf("firme") >= 0 ? "firme" : i[0] };
+  }
+  var PONTOS_NIVEL = { coerente: 3, inicio: 2, controle: 1, iniciativa: 1 };
+
   return {
     L: L, W: W, S: S, REDE: REDE, ALTURAS: ALTURAS, INTENSIDADES: INTENSIDADES, NOME_ALTURA: NOME_ALTURA, NOME_INTENSIDADE: NOME_INTENSIDADE, CHAVE: CHAVE,
-    cobertura: cobertura, simular: simular, vooAtual: vooAtual, posicoesRecuperacao: posicoesRecuperacao, estadoInicial: estadoInicial, refazer: refazer, avaliarGolpe: avaliarGolpe, perfil: perfil,
+    cobertura: cobertura, simular: simular, varianteOk: varianteOk, CATEGORIAS: CATEGORIAS, categoriaResposta: categoriaResposta, temResposta: temResposta, vooAtual: vooAtual, posicoesRecuperacao: posicoesRecuperacao, estadoInicial: estadoInicial, refazer: refazer, avaliarGolpe: avaliarGolpe, perfil: perfil,
     posEm: posEm, bolaEm: bolaEm, progressoVazio: progressoVazio, normalizar: normalizar, escolhaValida: escolhaValida, trilha: trilha,
+    chaveSituacao: chaveSituacao, varianteDoNivel: varianteDoNivel, estrelas: estrelas, melhorEstrelas: melhorEstrelas, nivelLiberado: nivelLiberado,
+    revisoes: revisoes, sequenciaDias: sequenciaDias, poolRelampago: poolRelampago, escolhaPadrao: escolhaPadrao, PONTOS_NIVEL: PONTOS_NIVEL,
   };
 });
