@@ -9,7 +9,7 @@
 const http = require("http"), fs = require("fs"), path = require("path"), assert = require("assert");
 const { chromium } = require("/opt/node22/lib/node_modules/playwright");
 const raiz = path.join(__dirname, ".."), capturas = process.argv[2] || "";
-const K = require(path.join(raiz, "decisoes/cenarios-mais.js")), M = require(path.join(raiz, "decisoes/motor.js"));
+const K = require(path.join(raiz, "decisoes/cenarios-mais3.js")), M = require(path.join(raiz, "decisoes/motor.js"));
 
 /* ── motor: todos os caminhos de todos os cenários (3 combinações de altura × intensidade por golpe) ── */
 let caminhos = 0;
@@ -27,7 +27,16 @@ function anda(cen, est, prof) {
     else { caminhos++; assert(r.estadoFinal.fim && prof === 3, cen.id + ": termina na decisão 3"); if (r.recuperacao) assert(/Uma resposta possível/.test(r.avaliacao.resposta)); }
   }
 }
-assert(K.CENARIOS.length >= 15, "15 cenários");
+assert.strictEqual(K.CENARIOS.length, 34, "34 cenários");
+assert.strictEqual(new Set(K.CENARIOS.map((c) => c.id)).size, 34, "ids únicos");
+/* cada cenário: uma trilha conhecida, uma escolha coerente na decisão 1, e os exercícios citados existem no catálogo MTY */
+const CAT = new Set(require(path.join(raiz, "netlify/functions/_player-catalogo.js")).DRILLS.map((d) => d.c));
+K.CENARIOS.forEach((cen) => {
+  assert(K.TRILHAS.some((t) => t.id === cen.trilha) || cen.gratis, cen.id + ": trilha");
+  const est = M.estadoInicial(cen);
+  assert(cen.etapas.d1.opcoes.some((o) => COMB.concat([["alta", "firme"], ["media", "controlada"], ["baixa", "controlada"], ["baixa", "firme"], ["media", "maxima"]]).some((c) => M.simular(K, cen, est, "d1", { opcao: o.id, altura: c[0], intensidade: c[1] }).avaliacao.nivel === "coerente")), cen.id + ": há uma escolha coerente");
+  (cen.missao.passos.join(" ").match(/\b(?:IP|RT|AT|PT|DT|ADV)\d{3}\b/g) || []).forEach((cod) => assert(CAT.has(cod), cen.id + ": " + cod + " existe no catálogo"));
+});
 K.CENARIOS.forEach((cen) => { assert(cen.missao && cen.missao.passos.length && cen.perguntaMetodo, cen.id + ": missão e pergunta do método"); anda(cen, M.estadoInicial(cen), 1); });
 /* as duas defesas do método: alta e cruzada acelerada são coerentes no mesmo alvo */
 const dd = K.CENARIOS.find((c) => c.id === "neutralize");
@@ -191,7 +200,7 @@ const srv = http.createServer((q, r) => { let f = path.join(raiz, decodeURICompo
   assert(/Neste nível/i.test(await txt(p)), "nota do nível no retorno");
   await cap(p, "08e-nivel2-cel");
   await p.goto(base + "#cenarios"); t = await txt(p);
-  assert(/de 180 estrelas/.test(t) && /pontos de leitura/.test(t) && /dias? seguidos?/.test(t), "placar do jogo");
+  assert(/de 408 estrelas/.test(t) && /pontos de leitura/.test(t) && /dias? seguidos?/.test(t), "placar do jogo");
 
   /* revisão do dia: um cenário concluído há 8 dias volta, em outro nível */
   await p.evaluate(() => { const k = "qlDecisoes:v1", g = JSON.parse(localStorage.getItem(k)); g.cenarios["defesa.1"].historico.forEach((h) => { h.concluidoEm = new Date(Date.now() - 8 * 864e5).toISOString(); }); localStorage.setItem(k, JSON.stringify(g)); });
@@ -217,8 +226,8 @@ const srv = http.createServer((q, r) => { let f = path.join(raiz, decodeURICompo
   /* cenários do método: biblioteca por situação tática; "Arma, abre e fecha" com três golpes; approach e voleio */
   await p.goto(base + "#cenarios"); t = await txt(p);
   assert(/Para começar · gratuitos/i.test(t) && /Prévia do conteúdo planejado/.test(t), "biblioteca: gratuitos e prévia");
-  for (const tr of ["Início do ponto", "Construção", "Ataque e transição", "Defesa e contra-ataque"]) assert(t.includes(tr), "trilha " + tr);
-  assert.strictEqual(await p.locator("article.cen").count(), 15, "15 cenários na biblioteca");
+  for (const tr of ["Início do ponto", "Construção", "Ataque e transição", "Defesa e contra-ataque", "Pontos importantes"]) assert(t.includes(tr), "trilha " + tr);
+  assert.strictEqual(await p.locator("article.cen").count(), 34, "34 cenários na biblioteca");
   await cap(p, "08b-biblioteca-cel");
   await p.goto(base + "#jogar-pop"); await p.waitForSelector("#quadra svg");
   assert(/Situação tática: Construção/i.test(await txt(p)), "situação tática na decisão");
@@ -240,6 +249,18 @@ const srv = http.createServer((q, r) => { let f = path.join(raiz, decodeURICompo
   await p.goto(base + "#jogar-segundo"); await p.waitForSelector("#quadra svg");
   await p.click('label.op:has-text("Só colocar a bola em jogo")'); await p.click("#btJogar"); await fimAnim(p);
   assert(/devolve a iniciativa ao adversário/.test(await txt(p)), "sacar só para não errar: devolve a iniciativa");
+  /* novos padrões: abre e sobe (três golpes, o último um voleio), smash e ponto importante */
+  await p.goto(base + "#jogar-abresobe"); await p.waitForSelector("#quadra svg");
+  for (const rot of ["Cruzada angulada, para abrir", "Approach na paralela e subir", "Voleio no lado aberto"]) {
+    await p.click('label.op:has-text("' + rot + '")'); await p.click("#btJogar"); await fimAnim(p); await p.click("#btSeguir");
+  }
+  await p.waitForSelector(".missao"); assert(/PT005/.test(await txt(p)), "abre e sobe: exercício do catálogo");
+  await p.goto(base + "#jogar-smash"); await p.waitForSelector("#quadra svg");
+  await p.click('label.op:has-text("Força máxima na linha")'); await p.click("#btJogar"); await fimAnim(p);
+  assert(/pouca margem/.test(await txt(p)), "smash: força máxima na linha explicada");
+  await p.goto(base + "#jogar-longos"); await p.waitForSelector("#quadra svg");
+  await p.click('label.op:has-text("Alta no meio, esperando o erro")'); await p.click("#btJogar"); await fimAnim(p);
+  assert(/esperar o erro do outro/.test(await txt(p)), "ponto longo: esperar o erro devolve a iniciativa");
   await p.goto(base + "#progresso"); await p.click("#btLimpar"); await p.click("#btLimparSim");
   for (const id of ["neutralize", "saque", "defesa"]) { /* refaz os três gratuitos para o resto do teste */
     await p.goto(base + "#jogar-" + id); await p.waitForSelector("#quadra svg");
@@ -249,7 +270,7 @@ const srv = http.createServer((q, r) => { let f = path.join(raiz, decodeURICompo
 
   /* progresso */
   await p.goto(base + "#progresso"); t = await txt(p);
-  assert(/3 de 15 cenários iniciados · 3 de 15 concluídos/.test(t) && /só neste navegador/.test(t) && (t.match(/Concluído em/g) || []).length === 3);
+  assert(/3 de 34 cenários iniciados · 3 de 34 concluídos/.test(t) && /só neste navegador/.test(t) && (t.match(/Concluído em/g) || []).length === 3);
   await p.click('a[href="#jogar-neutralize"]'); await p.waitForSelector("#quadra svg");
   await p.click('label.op:has-text("Tentar uma curta")'); await p.click("#btJogar"); await fimAnim(p); await p.click("#btSeguir");
   await p.goto(base + "#progresso"); t = await txt(p);
@@ -259,9 +280,9 @@ const srv = http.createServer((q, r) => { let f = path.join(raiz, decodeURICompo
   assert(/O adversário correu, chegou à curta/.test(await txt(p)), "retoma o caminho da curta");
   await p.goto(base + "#progresso"); await p.click("#btLimpar");
   assert(/Limpar todo o progresso\?/.test(await txt(p))); await p.click("#btLimparNao");
-  assert(/3 de 15 concluídos/.test(await txt(p)), "cancelar mantém o progresso");
+  assert(/3 de 34 concluídos/.test(await txt(p)), "cancelar mantém o progresso");
   await p.click("#btLimpar"); await p.click("#btLimparSim");
-  assert(/0 de 15 cenários iniciados/.test(await txt(p)), "progresso apagado");
+  assert(/0 de 34 cenários iniciados/.test(await txt(p)), "progresso apagado");
   /* dados locais inválidos */
   await p.evaluate(() => localStorage.setItem("qlDecisoes:v1", "{quebrado"));
   await p.goto(base + "#jogar-saque"); await p.reload(); await p.waitForSelector("#quadra svg");

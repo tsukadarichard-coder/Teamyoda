@@ -925,11 +925,15 @@
 
   [vantagem, segundo, devolucao, troca, pop, empurra, convite, gatilho, contorno, duas, saida, contra].forEach(function (c) { K.CENARIOS.push(c); });
   K.CENARIOS.forEach(function (c, i) { c.numero = i + 1; });
+  /* construtores reaproveitados pelos arquivos seguintes (cenarios-mais2.js, cenarios-mais3.js) */
+  K.CONSTRUTORES = { recFundo: recFundo, recAtaque: recAtaque, recRede: recRede, d2Construcao: d2Construcao, d2Defesa: d2Defesa, d2Passada: d2Passada,
+    d2Voleio: d2Voleio, d2PrimeiraBola: d2PrimeiraBola, opc: opc, fecho: fecho, IDEAL_ATAQUE: IDEAL_ATAQUE, IDEAL_BASE: IDEAL_BASE, ALTA: ALTA, ACELERADA: ACELERADA };
   K.TRILHAS = [
     { id: "inicio", titulo: "Início do ponto", texto: "Saque, devolução e as primeiras bolas: onde a maior parte dos pontos se decide." },
     { id: "construcao", titulo: "Construção", texto: "Ganhar a quadra, produzir ângulo e escolher a bola certa para mudar de direção." },
     { id: "ataque", titulo: "Ataque e transição", texto: "Bola curta, gatilho de subida, approach e voleio." },
     { id: "defesa", titulo: "Defesa e contra-ataque", texto: "As duas defesas do método e a saída para o ataque." },
+    { id: "placar", titulo: "Pontos importantes", texto: "Break point, set point e ponto longo: a decisão fechada antes, sem reabrir por medo." },
   ];
   return K;
 });
