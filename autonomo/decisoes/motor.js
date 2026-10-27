@@ -530,11 +530,31 @@
   }
   var PONTOS_NIVEL = { coerente: 3, inicio: 2, controle: 1, iniciativa: 1 };
 
+  /* resumo que o QuadraLab Player lê no Início (mesmo domínio, outra chave): só números, sem as escolhas.
+     As revisões vão como datas de vencimento, para o Player contar as que já venceram no dia em que abrir. */
+  var CHAVE_RESUMO = "qlDecisoes:resumo";
+  function resumoParaPlayer(conteudo, prog, agora) {
+    var nv = niveis(conteudo), est = 0, iniciados = 0, vencimentos = [];
+    conteudo.CENARIOS.forEach(function (cen) {
+      var ult = null, mexeu = false;
+      nv.forEach(function (n) {
+        var ch = chaveSituacao(cen.id, n.n), c = prog.cenarios[ch]; if (!c) return;
+        mexeu = true; est += Math.max(0, melhorEstrelas(prog, ch));
+        c.historico.forEach(function (h) { if (h.concluidoEm && (!ult || h.concluidoEm > ult.em)) ult = { em: h.concluidoEm, estrelas: h.estrelas || 0 }; });
+      });
+      if (mexeu) iniciados++;
+      if (ult) vencimentos.push(Date.parse(ult.em) + (ult.estrelas >= 3 ? 7 : ult.estrelas === 2 ? 3 : 1) * DIA);
+    });
+    return { v: 1, estrelas: est, max: conteudo.CENARIOS.length * nv.length * 3, cenarios: conteudo.CENARIOS.length, iniciados: iniciados,
+      dias: (prog.dias || []).slice(-60), vencimentos: vencimentos, recorde: (prog.relampago && prog.relampago.melhor) || 0, em: new Date(agora || Date.now()).toISOString() };
+  }
+
   return {
     L: L, W: W, S: S, REDE: REDE, ALTURAS: ALTURAS, INTENSIDADES: INTENSIDADES, NOME_ALTURA: NOME_ALTURA, NOME_INTENSIDADE: NOME_INTENSIDADE, CHAVE: CHAVE,
     cobertura: cobertura, simular: simular, varianteOk: varianteOk, CATEGORIAS: CATEGORIAS, categoriaResposta: categoriaResposta, temResposta: temResposta, vooAtual: vooAtual, posicoesRecuperacao: posicoesRecuperacao, estadoInicial: estadoInicial, refazer: refazer, avaliarGolpe: avaliarGolpe, perfil: perfil,
     posEm: posEm, bolaEm: bolaEm, progressoVazio: progressoVazio, normalizar: normalizar, escolhaValida: escolhaValida, trilha: trilha,
     chaveSituacao: chaveSituacao, varianteDoNivel: varianteDoNivel, estrelas: estrelas, melhorEstrelas: melhorEstrelas, nivelLiberado: nivelLiberado,
     revisoes: revisoes, sequenciaDias: sequenciaDias, poolRelampago: poolRelampago, escolhaPadrao: escolhaPadrao, PONTOS_NIVEL: PONTOS_NIVEL,
+    CHAVE_RESUMO: CHAVE_RESUMO, resumoParaPlayer: resumoParaPlayer,
   };
 });

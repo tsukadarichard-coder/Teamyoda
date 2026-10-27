@@ -560,7 +560,7 @@
       destaque = '<div class="cartao destaque"><p class="olho">Programa concluído</p><h2>Hora de organizar os próximos treinos</h2><p class="nota" style="margin-top:6px">Veja como foi em Treinos ou monte um novo programa.</p>' +
         '<a class="btn btn-primario btn-grande" href="#/planejar/' + esc(estrategia.id) + '">Organizar novos treinos</a><p style="margin-top:8px"><a class="btn btn-texto" href="#/treinos">Ver histórico</a></p></div>';
     }
-    html += (sub ? '<p class="sub">' + esc(sub) + "</p>" : "") + '<div style="margin-top:14px">' + destaque + "</div>" + (estrategia ? '<div id="olharInicio" style="margin-top:14px"></div>' : "") + preparacaoInicioHtml();
+    html += (sub ? '<p class="sub">' + esc(sub) + "</p>" : "") + '<div style="margin-top:14px">' + destaque + "</div>" + cartaoSimuladorHtml() + (estrategia ? '<div id="olharInicio" style="margin-top:14px"></div>' : "") + preparacaoInicioHtml();
     if (explicar) html += '<div style="margin-top:14px">' + esteiraHtml() + "</div>";
 
     /* "Qual é minha estratégia, quais jogadas vou praticar e qual é meu próximo treino?" */
@@ -582,6 +582,40 @@
     ligarGerar();
     if (estrategia) preencherOlharInicio();
     anexarCartaoInstalar();
+  }
+  /* Simulador de decisões (../decisoes/): cartão em destaque no Início. O simulador grava um resumo só com números
+     no navegador (mesmo domínio); aqui só lemos. Sem resumo, o cartão convida a começar. */
+  function resumoSimulador() {
+    var r = null;
+    try { r = JSON.parse(localStorage.getItem("qlDecisoes:resumo") || "null"); } catch (e) { r = null; }
+    if (!r || typeof r !== "object" || r.v !== 1) return null;
+    var hoje = hojeISOLocal(), dias = {}, n = 0, agora = Date.now();
+    (Array.isArray(r.dias) ? r.dias : []).forEach(function (x) { if (typeof x === "string") dias[x] = 1; });
+    var d = new Date(hoje + "T12:00:00Z");
+    if (!dias[hoje]) d = new Date(d.getTime() - 86400000);
+    while (dias[d.toISOString().slice(0, 10)] && n < 999) { n++; d = new Date(d.getTime() - 86400000); }
+    var num = function (x) { return Number.isFinite(x) && x >= 0 ? Math.floor(x) : 0; };
+    return { estrelas: num(r.estrelas), max: num(r.max), cenarios: num(r.cenarios), iniciados: num(r.iniciados), seguidos: n, recorde: num(r.recorde),
+      revisoes: (Array.isArray(r.vencimentos) ? r.vencimentos : []).filter(function (v) { return Number.isFinite(v) && v <= agora; }).length };
+  }
+  function cartaoSimuladorHtml() {
+    var r = resumoSimulador(), url = "../decisoes/", titulo, texto, acao, alvo, nums = "";
+    if (!r || !r.iniciados) {
+      titulo = "Treine a sua leitura de jogo";
+      texto = "Situações de ponto da Metodologia MTY: escolha a jogada, veja a resposta do adversário e entenda por que ela funciona. Ganhe estrelas e libere níveis.";
+      acao = "Começar o simulador"; alvo = url;
+    } else {
+      nums = '<ul class="sim-nums"><li><span aria-hidden="true">★</span> ' + r.estrelas + (r.max ? " de " + r.max : "") + " estrelas</li>" +
+        (r.seguidos ? "<li>" + r.seguidos + (r.seguidos === 1 ? " dia seguido" : " dias seguidos") + "</li>" : "") +
+        (r.cenarios ? "<li>" + r.iniciados + " de " + r.cenarios + " padrões</li>" : "") + "</ul>";
+      if (r.revisoes) { titulo = r.revisoes === 1 ? "1 padrão para revisar hoje" : r.revisoes + " padrões para revisar hoje"; texto = "Revisar no dia certo é o que fixa a decisão. Cada revisão volta no nível seguinte."; acao = "Fazer as revisões"; alvo = url + "#desafios"; }
+      else if (r.iniciados < r.cenarios) { titulo = "Continue treinando a sua leitura"; texto = "Cada padrão tem quatro níveis: quadra rápida, saibro, adversários diferentes e o ponto decisivo."; acao = "Continuar"; alvo = url + "#cenarios"; }
+      else { titulo = "Você já jogou todos os padrões"; texto = "Agora é velocidade: 10 decisões, 8 segundos cada, no modo relâmpago."; acao = "Jogar o relâmpago"; alvo = url + "#relampago"; }
+    }
+    return '<section class="simulador-ini" aria-labelledby="t-sim-ini"><p class="olho">' + (r && r.iniciados ? "Simulador de decisões" : '<span class="tag-novo">Novo</span> Simulador de decisões') + "</p>" +
+      '<h2 id="t-sim-ini">' + esc(titulo) + "</h2><p>" + esc(texto) + "</p>" + nums +
+      '<div class="acoes"><a class="btn btn-grande btn-sim" href="' + alvo + '">' + esc(acao) + "</a>" +
+      (r && r.iniciados && alvo.indexOf("#relampago") < 0 ? '<a class="btn btn-texto btn-sim-sec" href="' + url + '#relampago">Modo relâmpago' + (r.recorde ? " · recorde " + r.recorde : "") + "</a>" : "") + "</div></section>";
   }
   function perfilRascunhado() { try { return !!localStorage.getItem(chaveRascunho()); } catch (e) { return false; } }
 

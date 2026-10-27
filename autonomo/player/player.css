@@ -822,3 +822,19 @@ video.olhar-midia { background: #000; max-height: 70vh; }
 .hub-enviar textarea { flex: 1; min-height: 52px; min-width: 0; }
 .hub-resposta { margin-top: 6px; padding-left: 10px; border-left: 3px solid var(--linha); }
 .opcao-linha { display: flex; gap: 8px; align-items: center; min-height: 44px; }
+
+/* Simulador de decisões: destaque no Início e no menu */
+.simulador-ini { background: var(--quadra); color: #fff; border-radius: var(--raio); padding: 20px 18px; margin-top: 14px; box-shadow: var(--sombra-alta); border-left: 4px solid var(--saibro-claro); }
+.simulador-ini .olho { color: #A8DB7D; display: flex; align-items: center; gap: 8px; }
+.simulador-ini h2 { color: #fff; }
+.simulador-ini > p:not(.olho) { color: #E3EEE8; margin-top: 8px; }
+.sim-nums { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 14px 0 0; padding: 0; }
+.sim-nums li { background: rgba(255,255,255,.1); border-radius: 999px; padding: 6px 12px; font-size: 14px; font-weight: 600; color: #fff; }
+.sim-nums li span { color: #F4D35E; }
+.simulador-ini .acoes { margin-top: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.simulador-ini .btn-sim { background: #fff; color: var(--quadra); border-color: #fff; }
+.simulador-ini .btn-sim-sec { color: #fff; }
+.tag-novo { display: inline-block; background: var(--saibro); color: #fff; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; border-radius: 999px; padding: 2px 8px; line-height: 1.5; vertical-align: middle; }
+.nav-sim { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.painel-sim { justify-content: space-between; gap: 10px; background: var(--saibro-fundo); border-radius: 12px; border-top: none; padding: 10px 12px; margin-bottom: 6px; }
+.painel-sim-txt { display: block; font-size: 13.5px; font-weight: 400; color: var(--grafite); margin-top: 2px; }

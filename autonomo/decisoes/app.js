@@ -46,7 +46,13 @@
     try { bruto = JSON.parse(localStorage.getItem(M.CHAVE) || "null"); } catch (e) { bruto = null; }
     return M.normalizar(bruto, K);
   }
-  function salvar() { try { localStorage.setItem(M.CHAVE, JSON.stringify(prog)); return true; } catch (e) { return false; } }
+  function salvar() {
+    try { localStorage.setItem(M.CHAVE, JSON.stringify(prog)); } catch (e) { return false; }
+    try { localStorage.setItem(M.CHAVE_RESUMO, JSON.stringify(M.resumoParaPlayer(K, prog))); } catch (e) { /* o resumo do Player é opcional */ }
+    return true;
+  }
+  /* quem jogou antes do resumo existir também aparece no Início do Player */
+  if (Object.keys(prog.cenarios).length) { try { localStorage.setItem(M.CHAVE_RESUMO, JSON.stringify(M.resumoParaPlayer(K, prog))); } catch (e) { /* opcional */ } }
   function registro(id) {
     var c = prog.cenarios[id];
     if (!c) c = prog.cenarios[id] = { iniciadoEm: null, atualizadoEm: null, concluidoEm: null, execucao: { caminho: [], pendente: null, tentativas: [], fim: false }, historico: [] };
@@ -604,7 +610,7 @@
         : '<button type="button" class="btn btn-texto" id="btLimpar">Limpar progresso</button>') + "</section>", "Meu progresso");
     var b = $("#btLimpar"); if (b) b.addEventListener("click", function () { telaProgresso(true); var s = $("#btLimparNao"); if (s) { s.focus(); $("#limpar").scrollIntoView({ block: "center" }); } });
     var sN = $("#btLimparNao"); if (sN) sN.addEventListener("click", function () { telaProgresso(false); var x = $("#btLimpar"); if (x) x.focus(); });
-    var sS = $("#btLimparSim"); if (sS) sS.addEventListener("click", function () { prog = M.progressoVazio(); try { localStorage.removeItem(M.CHAVE); } catch (e) { /* sem armazenamento */ } telaProgresso(false); anunciar("Progresso apagado."); });
+    var sS = $("#btLimparSim"); if (sS) sS.addEventListener("click", function () { prog = M.progressoVazio(); try { localStorage.removeItem(M.CHAVE); localStorage.removeItem(M.CHAVE_RESUMO); } catch (e) { /* sem armazenamento */ } telaProgresso(false); anunciar("Progresso apagado."); });
   }
 
   /* F. módulo completo (planejado) */
