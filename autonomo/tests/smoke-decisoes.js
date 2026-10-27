@@ -44,7 +44,27 @@ assert.notStrictEqual(M.simular(K, c1, e0, "d1", { opcao: "paralela", altura: "b
 assert.notStrictEqual(baixaMax.avaliacao.notaAltura, altaCtl.avaliacao.notaAltura);
 /* progresso inválido não quebra */
 assert.deepStrictEqual(M.normalizar("lixo", K), M.progressoVazio());
-assert.deepStrictEqual(M.normalizar({ cenarios: { neutralize: { execucao: { caminho: [{ etapa: "d9", opcao: "x" }] } } } }, K).cenarios.neutralize.execucao.caminho, []);
+assert.deepStrictEqual(M.normalizar({ cenarios: { neutralize: { execucao: { caminho: [{ etapa: "d9", opcao: "x" }] } } } }, K).cenarios["neutralize.1"].execucao.caminho, []);
+/* camada de jogo: níveis mudam a avaliação, estrelas, desbloqueio, revisão espaçada, sequência de dias, relâmpago */
+assert.strictEqual(K.NIVEIS.length, 4);
+const vant = K.CENARIOS.find((c) => c.id === "vantagem"), ctp = vant.etapas.d2_aberto.opcoes.find((o) => o.id === "contrape");
+assert.notStrictEqual(M.avaliarGolpe(K, vant.etapas.d2_aberto, ctp, "media", "firme", K.NIVEIS[0].variante).nivel, M.avaliarGolpe(K, vant.etapas.d2_aberto, ctp, "media", "firme", K.NIVEIS[1].variante).nivel, "o nível muda a avaliação");
+assert(M.avaliarGolpe(K, vant.etapas.d2_aberto, ctp, "media", "firme", K.NIVEIS[1].variante).notasVariante.length, "nota do nível no retorno");
+const camOk = [{ etapa: "d1", opcao: "cruzado", altura: "alta", intensidade: "firme" }, { etapa: "d2_cruzado", opcao: "altura", altura: "alta", intensidade: "firme" }, { etapa: "d3", opcao: "cobrir" }];
+assert.strictEqual(M.estrelas(K, c1, camOk, [], {}).estrelas, 3);
+const tentErr = [{ etapa: "d1", opcao: "curta", altura: "baixa", intensidade: "maxima", primeira: true }, { etapa: "d1", opcao: "cruzado", altura: "alta", intensidade: "firme" }];
+assert.strictEqual(M.estrelas(K, c1, camOk, tentErr, {}).estrelas, 2, "a estrela vale pela primeira escolha");
+const pg = M.normalizar({ cenarios: { "neutralize.1": { historico: [{ concluidoEm: "2026-10-20T10:00:00Z", caminho: camOk, estrelas: 1 }] } } }, K);
+assert.strictEqual(M.nivelLiberado(pg, "neutralize", 2), false, "1 estrela não libera o nível 2");
+const pg2 = M.normalizar({ cenarios: { "neutralize.1": { historico: [{ concluidoEm: "2026-10-26T10:00:00Z", caminho: camOk, estrelas: 3 }] } } }, K);
+assert.strictEqual(M.nivelLiberado(pg2, "neutralize", 2), true);
+assert.strictEqual(M.revisoes(K, pg2, Date.parse("2026-10-28T10:00:00Z")).length, 0, "3 estrelas: volta em 7 dias");
+assert.deepStrictEqual(M.revisoes(K, pg2, Date.parse("2026-11-03T11:00:00Z")).map((r) => [r.cenario, r.nivel]), [["neutralize", 2]], "volta em outro nível");
+assert.strictEqual(M.sequenciaDias(["2026-10-25", "2026-10-26", "2026-10-27"], "2026-10-27"), 3);
+assert(M.poolRelampago(K).length >= 100);
+const r1 = M.simular(K, c1, e0, "d1", { opcao: "cruzado", altura: "alta", intensidade: "firme", previsao: "cruzada" });
+assert(M.CATEGORIAS[r1.respostaCategoria] && r1.previsao, "categoria da resposta e previsão");
+assert.strictEqual(M.temResposta(c1, "d1", "cruzado"), true); assert.strictEqual(M.temResposta(c1, "d2_cruzado", "altura"), false, "pausa antes da recuperação: sem previsão");
 console.log("  motor: " + caminhos + " caminhos completos");
 
 /* ── navegador ── */
@@ -144,6 +164,55 @@ const srv = http.createServer((q, r) => { let f = path.join(raiz, decodeURICompo
     assert(/Missão de treino/i.test(await txt(p)), id + ": missão");
   }
   await cap(p, "08-resumo-defesa-cel");
+
+  /* camada de jogo: estrelas no resumo, nível 2 liberado com variações, previsão da resposta, nível bloqueado */
+  await p.goto(base + "#resumo-saque"); t = await txt(p);
+  assert(/de 3 primeiras escolhas coerentes/.test(t), "estrelas no resumo");
+  await p.goto(base + "#jogar-pop.3"); t = await txt(p);
+  assert(/Nível 3 bloqueado/.test(t), "nível bloqueado sem estrelas no anterior");
+  await p.goto(base + "#jogar-neutralize"); await p.waitForSelector("#quadra svg");
+  await p.click('label.op:has-text("Devolver cruzado com margem")'); await p.click('.segmentos label:has-text("Alta")');
+  assert(await p.locator(".chips-prev").count(), "previsão aparece quando a jogada mostra uma resposta");
+  await p.click('.chips-prev label:has-text("Cruzada")');
+  await p.click("#btJogar"); await fimAnim(p);
+  t = await txt(p); assert(/Você previu: Cruzada/.test(t), "resultado da previsão");
+  await p.click("#btSeguir");
+  assert(!(await p.locator(".chips-prev").count()), "sem previsão antes de escolher o alvo");
+  await p.click('label.op:has-text("Dar altura e margem")'); await p.click('.segmentos label:has-text("Alta")');
+  assert(!(await p.locator(".chips-prev").count()), "sem previsão quando a animação pausa antes da recuperação");
+  await p.click("#btJogar"); await fimAnim(p); await p.click("#btSeguir");
+  await p.click('label.op:has-text("Cobrir a resposta provável")'); await p.click('.chips-prev label:has-text("Pelo meio")'); await p.click("#btJogar"); await fimAnim(p); await p.click("#btSeguir");
+  await p.waitForSelector(".placar-final"); t = await txt(p);
+  assert(/Nível 2 liberado/.test(t), "2+ estrelas liberam o nível 2");
+  await cap(p, "08d-estrelas-cel");
+  await p.click("text=Jogar o nível 2"); await p.waitForSelector("#quadra svg"); t = await txt(p);
+  assert(/Nível 2 de 4/i.test(t) && /Quadra rápida/.test(t) && /Adversário agressivo/.test(t), "nível 2 com quadra rápida e adversário agressivo");
+  await p.click('label.op:has-text("Tentar uma curta")'); await p.click("#btJogar"); await fimAnim(p);
+  assert(/Neste nível/i.test(await txt(p)), "nota do nível no retorno");
+  await cap(p, "08e-nivel2-cel");
+  await p.goto(base + "#cenarios"); t = await txt(p);
+  assert(/de 180 estrelas/.test(t) && /pontos de leitura/.test(t) && /dias? seguidos?/.test(t), "placar do jogo");
+
+  /* revisão do dia: um cenário concluído há 8 dias volta, em outro nível */
+  await p.evaluate(() => { const k = "qlDecisoes:v1", g = JSON.parse(localStorage.getItem(k)); g.cenarios["defesa.1"].historico.forEach((h) => { h.concluidoEm = new Date(Date.now() - 8 * 864e5).toISOString(); }); localStorage.setItem(k, JSON.stringify(g)); });
+  await p.goto(base + "#desafios"); await p.reload(); t = await txt(p);
+  assert(/Saia da defesa com intenção/.test(t), "revisão do dia lista o cenário");
+  await cap(p, "08f-desafios-cel");
+  await p.locator("[data-rev]").first().click(); await p.waitForSelector("#quadra svg");
+  assert(/Nível 2 de 4/i.test(await txt(p)), "a revisão abre outro nível, mesmo bloqueado na campanha");
+
+  /* relâmpago: 10 decisões com tempo */
+  await p.goto(base + "#relampago"); await p.waitForSelector("[data-rel]");
+  for (let i = 0; i < 10; i++) {
+    await p.waitForSelector("[data-rel]:not([disabled])");
+    if (i === 3) { await p.waitForFunction(() => /Tempo esgotado/.test(document.querySelector("#relRet").textContent), null, { timeout: 9000 }); }
+    else await p.locator("[data-rel]").first().click();
+    if (i === 0) await cap(p, "08g-relampago-cel");
+    await p.click("#painel .btn-primario");
+  }
+  await p.waitForFunction(() => /^Relâmpago: \d+ pontos/.test(document.querySelector("h1").textContent), null, { timeout: 5000 });
+  t = await txt(p); assert(/Tempo esgotado/.test(t) && (t.match(/\n\d+\. /g) || []).length >= 10, "resultado do relâmpago com as 10 decisões");
+  await p.goto(base + "#desafios"); assert(/Sua melhor marca: [1-9]/.test(await txt(p)), "melhor marca guardada");
 
   /* cenários do método: biblioteca por situação tática; "Arma, abre e fecha" com três golpes; approach e voleio */
   await p.goto(base + "#cenarios"); t = await txt(p);

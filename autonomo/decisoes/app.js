@@ -11,7 +11,24 @@
   var POR_ID = {}; K.CENARIOS.forEach(function (c) { POR_ID[c.id] = c; });
   var ROT_CURTO = { coerente: "Coerente", inicio: "Possível para começar", controle: "Exige mais controle", iniciativa: "Devolve a iniciativa" };
   var GRATIS = K.CENARIOS.filter(function (c) { return c.gratis; }), PREVIA = K.CENARIOS.filter(function (c) { return !c.gratis; });
-  var TOTAL = K.CENARIOS.length;
+  var TOTAL = K.CENARIOS.length, NIVEIS = K.NIVEIS || [{ n: 1, nome: "Base", variante: {} }], NN = NIVEIS.length;
+  var V = K.VARIANTES || { superficies: {}, adversarios: {}, descricoes: {}, notas: {} };
+  /* situação = padrão num nível. Rotas: #jogar-<id> (nível 1) ou #jogar-<id>.<n>; idem #resumo- */
+  function sitDe(txt) { var m = /^([a-z0-9]+)(?:\.(\d))?$/.exec(txt || ""); if (!m || !POR_ID[m[1]]) return null; var n = m[2] ? +m[2] : 1; return n >= 1 && n <= NN ? { cen: POR_ID[m[1]], n: n, chave: m[1] + "." + n } : null; }
+  function rotaSit(id, n) { return id + (n > 1 ? "." + n : ""); }
+  function nivelDe(n) { return NIVEIS.filter(function (x) { return x.n === n; })[0] || NIVEIS[0]; }
+  function estrelasHTML(n, total) { var s = ""; for (var i = 0; i < (total || 3); i++) s += i < n ? "★" : "☆"; return '<span class="estrelas" aria-label="' + Math.max(0, n) + " de " + (total || 3) + ' estrelas">' + s + "</span>"; }
+  function hojeISO() { var d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+  function marcarDia() { var h = hojeISO(); if (prog.dias.indexOf(h) < 0) { prog.dias.push(h); prog.dias = prog.dias.slice(-120); } }
+  function totais() {
+    var est = 0, leit = 0;
+    K.CENARIOS.forEach(function (c) { NIVEIS.forEach(function (nv) { var b = M.melhorEstrelas(prog, M.chaveSituacao(c.id, nv.n)); if (b > 0) est += b; var r = prog.cenarios[M.chaveSituacao(c.id, nv.n)]; if (r) r.historico.forEach(function (h) { leit += h.leitura || 0; }); }); });
+    return { estrelas: est, max: TOTAL * NN * 3, leitura: leit, dias: M.sequenciaDias(prog.dias, hojeISO()), revisoes: M.revisoes(K, prog).length };
+  }
+  function hudHTML() {
+    var t = totais();
+    return '<div class="hud" role="group" aria-label="Seu jogo"><div><strong>' + t.estrelas + '</strong><span>de ' + t.max + ' estrelas</span></div><div><strong>' + t.leitura + '</strong><span>pontos de leitura</span></div><div><strong>' + t.dias + '</strong><span>' + (t.dias === 1 ? "dia seguido" : "dias seguidos") + '</span></div><div><strong>' + t.revisoes + '</strong><span>' + (t.revisoes === 1 ? "revisão hoje" : "revisões hoje") + "</span></div></div>";
+  }
 
   /* ── utilidades ── */
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
@@ -36,6 +53,7 @@
     return c;
   }
   function situacao(id) {
+    if (POR_ID[id]) id = id + ".1";
     var c = prog.cenarios[id];
     if (!c || (!c.iniciadoEm && !c.historico.length)) return { estado: "novo", rotulo: "Não iniciado" };
     var ex = c.execucao, emAndamento = ex.caminho.length || ex.pendente || ex.tentativas.length;
@@ -205,7 +223,7 @@
     if (h1) { h1.setAttribute("tabindex", "-1"); h1.focus({ preventScroll: true }); }
     $$(".nav a").forEach(function (a) { a.classList.toggle("ativo", a.getAttribute("data-rota") === rotaAtual()); a.setAttribute("aria-current", a.getAttribute("data-rota") === rotaAtual() ? "page" : "false"); });
   }
-  function rotaAtual() { var h = location.hash.replace(/^#/, ""); return /^jogar-|^resumo-/.test(h) || h === "cenarios" ? "cenarios" : h === "pedido" ? "consultoria" : h; }
+  function rotaAtual() { var h = location.hash.replace(/^#/, ""); return /^jogar-|^resumo-/.test(h) || h === "cenarios" ? "cenarios" : h === "pedido" ? "consultoria" : h === "relampago" ? "desafios" : h; }
   var AVISO_HTML = '<p class="aviso-sim">' + esc(K.AVISO) + "</p>";
 
   /* A. apresentação */
@@ -219,14 +237,24 @@
       '<p class="previa-instr" id="previaInstr">Toque num alvo para ver a bola e uma resposta possível.</p><div class="previa-lista" id="previaLista"></div><p class="previa-res" id="previaRes" aria-live="polite"></p>' + AVISO_HTML + "</div></section>" +
       '<section class="bloco" aria-labelledby="t-cen"><h2 id="t-cen">Três cenários para começar</h2><div class="grade-cen">' + GRATIS.map(cartaoCenario).join("") + "</div>" +
         (PREVIA.length ? '<div class="cartao faixa"><p><strong>Mais ' + PREVIA.length + " cenários em prévia</strong>, organizados pelas situações táticas da Metodologia MTY: início do ponto, construção, ataque e transição, defesa e contra-ataque.</p><a class=\"btn btn-texto\" href=\"#cenarios\">Ver todos os cenários</a></div>" : "") + "</section>" +
-      '<section class="bloco duas"><div class="cartao"><h2>Como funciona</h2><ol class="passos"><li>Leia a situação e o placar.</li><li>Escolha o alvo na quadra ou na lista.</li><li>Ajuste a altura sobre a rede e a intensidade.</li><li>Veja a bola, o deslocamento dos jogadores e uma resposta possível.</li><li>Leia a explicação e compare outra alternativa.</li><li>Leve uma missão para treinar em quadra.</li></ol></div>' +
+      '<section class="bloco duas"><div class="cartao"><h2>Como funciona</h2><ol class="passos"><li>Leia a situação e o placar.</li><li>Escolha o alvo na quadra ou na lista.</li><li>Ajuste a altura sobre a rede e a intensidade.</li><li>Veja a bola, o deslocamento dos jogadores e uma resposta possível.</li><li>Leia a explicação e compare outra alternativa.</li><li>Leve uma missão para treinar em quadra.</li><li>Ganhe estrelas pelas primeiras escolhas coerentes, libere níveis com outra quadra, outro adversário e o ponto decisivo, e treine a leitura no modo relâmpago.</li></ol></div>' +
       '<div class="cartao"><h2>Quer olhar para as suas partidas?</h2><p>O simulador ajuda você a explorar decisões. A consultoria analisa como essas situações aparecem nas suas partidas.</p><div class="acoes"><a class="btn btn-secundario" href="#consultoria">Conhecer a consultoria</a></div></div></section>', "");
     previa();
   }
   function cartaoCenario(c) {
-    var s = situacao(c.id), botao = s.estado === "andamento" ? "Continuar" : s.estado === "concluido" ? "Jogar de novo" : "Começar";
-    return '<article class="cartao cen"><p class="cen-num">Cenário ' + c.numero + (c.gratis ? ' <span class="tag tag-gratis">Gratuito</span>' : ' <span class="tag tag-previa">Prévia</span>') + '</p><h3>' + esc(c.titulo) + '</h3><p class="cen-placar">' + esc(c.placar + " · " + c.sacador) + "</p><p>" + esc(c.chamada) + '</p><p class="cen-estado e-' + s.estado + '">' + esc(s.rotulo) + "</p>" +
-      '<div class="acoes"><a class="btn btn-primario" href="#jogar-' + c.id + '">' + botao + "</a>" + (s.estado === "concluido" ? '<a class="btn btn-texto" href="#resumo-' + c.id + '">Ver resumo</a>' : "") + "</div></article>";
+    /* próximo nível a jogar: o primeiro em andamento, senão o primeiro liberado ainda sem estrelas, senão o 1 */
+    var alvoN = 1, niveisHTML = NIVEIS.map(function (nv) {
+      var chave = M.chaveSituacao(c.id, nv.n), lib = M.nivelLiberado(prog, c.id, nv.n), best = M.melhorEstrelas(prog, chave), st = situacao(chave);
+      var rot = "Nível " + nv.n + ": " + nv.nome + (lib ? "" : ". Bloqueado: faça 2 estrelas no nível " + (nv.n - 1));
+      return lib ? '<a class="nivel' + (st.estado === "andamento" ? " andamento" : "") + '" href="#jogar-' + rotaSit(c.id, nv.n) + '" title="' + esc(nv.nome) + '" aria-label="' + esc(rot) + (best >= 0 ? ", " + best + " de 3 estrelas" : "") + '"><b>' + nv.n + "</b>" + (best >= 0 ? estrelasHTML(best) : '<span class="estrelas vazio">novo</span>') + "</a>"
+        : '<span class="nivel bloq" aria-label="' + esc(rot) + '" title="' + esc(rot) + '"><b>' + nv.n + '</b><span class="estrelas vazio">bloqueado</span></span>';
+    }).join("");
+    NIVEIS.some(function (nv) { var st = situacao(M.chaveSituacao(c.id, nv.n)); if (st.estado === "andamento") { alvoN = nv.n; return true; } return false; }) ||
+      NIVEIS.some(function (nv) { if (M.nivelLiberado(prog, c.id, nv.n) && M.melhorEstrelas(prog, M.chaveSituacao(c.id, nv.n)) < 0) { alvoN = nv.n; return true; } return false; });
+    var s = situacao(M.chaveSituacao(c.id, alvoN)), botao = s.estado === "andamento" ? "Continuar" : s.estado === "concluido" ? "Jogar de novo" : alvoN > 1 ? "Jogar o nível " + alvoN : "Começar";
+    var temResumo = M.melhorEstrelas(prog, M.chaveSituacao(c.id, 1)) >= 0;
+    return '<article class="cartao cen"><p class="cen-num">Cenário ' + c.numero + (c.gratis ? ' <span class="tag tag-gratis">Gratuito</span>' : ' <span class="tag tag-previa">Prévia</span>') + '</p><h3>' + esc(c.titulo) + '</h3><p class="cen-placar">' + esc(c.placar + " · " + c.sacador) + "</p><p>" + esc(c.chamada) + '</p><div class="niveis" aria-label="Níveis">' + niveisHTML + '</div><p class="cen-estado e-' + s.estado + '">' + esc((alvoN > 1 ? "Nível " + alvoN + " · " : "") + s.rotulo) + "</p>" +
+      '<div class="acoes"><a class="btn btn-primario" href="#jogar-' + rotaSit(c.id, alvoN) + '">' + botao + "</a>" + (temResumo ? '<a class="btn btn-texto" href="#resumo-' + c.id + '">Ver resumo</a>' : "") + "</div></article>";
   }
   /* prévia interativa: decisão 1 do cenário 1, altura média e intensidade controlada */
   function previa() {
@@ -257,33 +285,47 @@
       var l = PREVIA.filter(function (c) { return c.trilha === t.id; });
       return l.length ? '<section class="bloco trilha" aria-labelledby="t-' + t.id + '"><h2 id="t-' + t.id + '">' + esc(t.titulo) + '</h2><p class="det">' + esc(t.texto) + '</p><div class="grade-cen">' + l.map(cartaoCenario).join("") + "</div></section>" : "";
     }).join("");
-    tela('<h1>Cenários</h1><p class="lead">Situações de ponto com três decisões cada. Você pode repetir, comparar caminhos e retomar de onde parou.</p>' +
+    tela('<h1>Cenários</h1><p class="lead">Situações de ponto com três decisões cada, em ' + NN + ' níveis: a mesma situação em outra quadra, contra outro adversário e no ponto decisivo. Cada primeira escolha coerente vale uma estrela; duas estrelas liberam o nível seguinte.</p>' + hudHTML() +
+      '<div class="acoes"><a class="btn btn-secundario" href="#desafios">Desafios: relâmpago e revisão do dia</a></div>' +
       '<section class="bloco" aria-labelledby="t-gratis"><h2 id="t-gratis">Para começar · gratuitos</h2><div class="grade-cen">' + GRATIS.map(cartaoCenario).join("") + "</div></section>" +
       (PREVIA.length ? '<div class="cartao faixa aviso-previa"><p><strong>Prévia do conteúdo planejado.</strong> Os ' + PREVIA.length + " cenários abaixo seguem a Metodologia MTY, por situação tática. Estão abertos nesta versão de teste para avaliação e ainda passam pela revisão de Richard Tsukada.</p><a class=\"btn btn-texto\" href=\"#modulo\">Conhecer o módulo</a></div>" + trilhas : ""), "Cenários");
   }
 
   /* C. simulador */
   var sim = null;
-  function telaSimulador(id) {
-    var cen = POR_ID[id]; if (!cen) return ir("cenarios");
-    var reg = registro(id), ex = reg.execucao;
+  function telaSimulador(rota) {
+    var st = sitDe(rota); if (!st) return ir("cenarios");
+    var cen = st.cen, n = st.n, nv = nivelDe(n), variante = nv.variante;
+    if (!M.nivelLiberado(prog, cen.id, n) && !revisaoLivre[st.chave]) {
+      tela('<a class="btn btn-texto voltar" href="#cenarios">Cenários</a><h1>' + esc(cen.titulo) + '</h1><div class="cartao"><p><strong>Nível ' + n + " bloqueado.</strong> Faça 2 estrelas no nível " + (n - 1) + ' para liberar.</p><div class="acoes"><a class="btn btn-primario" href="#jogar-' + rotaSit(cen.id, n - 1) + '">Jogar o nível ' + (n - 1) + "</a></div></div>", cen.titulo);
+      return;
+    }
+    var id = st.chave, reg = registro(id), ex = reg.execucao;
     if (ex.fim) { ex.caminho = []; ex.pendente = null; ex.tentativas = []; ex.fim = false; }
-    var rf = M.refazer(K, cen, ex.caminho);
-    if (!rf) { ex.caminho = []; ex.pendente = null; rf = M.refazer(K, cen, []); }
+    var rf = M.refazer(K, cen, ex.caminho, variante);
+    if (!rf) { ex.caminho = []; ex.pendente = null; rf = M.refazer(K, cen, [], variante); }
     if (!reg.iniciadoEm) reg.iniciadoEm = new Date().toISOString();
     salvar();
-    sim = { cen: cen, reg: reg, est: rf.estado, sel: { opcao: null, altura: "media", intensidade: "firme" }, fase: "escolha", res: null };
+    sim = { cen: cen, n: n, chave: id, variante: variante, reg: reg, est: rf.estado, sel: { opcao: null, altura: "media", intensidade: "firme", previsao: null }, fase: "escolha", res: null };
     if (ex.pendente && ex.pendente.etapa === sim.est.etapa) {
-      sim.sel = { opcao: ex.pendente.opcao, altura: ex.pendente.altura || "media", intensidade: ex.pendente.intensidade || "firme" };
+      sim.sel = { opcao: ex.pendente.opcao, altura: ex.pendente.altura || "media", intensidade: ex.pendente.intensidade || "firme", previsao: ex.pendente.previsao || null };
       sim.res = M.simular(K, cen, sim.est, sim.est.etapa, ex.pendente); sim.fase = "resultado";
     }
     tela('<div class="sim"><a class="btn btn-texto voltar" href="#cenarios">Cenários</a>' +
-      '<header class="sim-topo"><p class="cen-num">Cenário ' + cen.numero + '</p><h1>' + esc(cen.titulo) + '</h1><p class="placar"><span class="chip-placar">' + esc(cen.placar) + "</span> " + esc(cen.sacador + " · " + cen.lado) + "</p></header>" +
+      '<header class="sim-topo"><p class="cen-num">Cenário ' + cen.numero + " · Nível " + n + (NN > 1 ? " de " + NN : "") + '</p><h1>' + esc(cen.titulo) + '</h1><p class="placar"><span class="chip-placar">' + esc(nv.placar || cen.placar) + "</span> " + esc(cen.sacador + " · " + cen.lado) + "</p>" + variantesHTML(variante) + "</header>" +
       '<div class="sim-grade"><div class="sim-quadra"><div class="quadra-host" id="quadra"></div><ul class="legenda" aria-label="Legenda"><li><span class="lg lg-voce"></span>Você</li><li><span class="lg lg-adv"></span>Adversário</li><li><span class="lg lg-bola"></span>Bola</li><li><span class="lg lg-alvo">1</span>Alvos</li><li><span class="lg lg-traj"></span>Trajetória da bola</li><li><span class="lg lg-desl"></span>Deslocamento</li></ul>' + AVISO_HTML + "</div>" +
       '<div class="sim-painel" id="painel"></div></div></div>', cen.titulo);
     sim.q = Quadra($("#quadra"), { rotulo: "Quadra de simples vista de cima. Você, em laranja, embaixo; o adversário, em verde-escuro, em cima." });
     renderSim();
     if (sim.fase === "resultado") quadroEm(sim.q, sim.res.anim, sim.res.anim.dur, true);
+  }
+  function variantesHTML(v) {
+    v = v || {}; var chips = [], desc = [];
+    if (v.superficie) { chips.push(V.superficies[v.superficie]); desc.push(V.descricoes[v.superficie]); }
+    if (v.adversario && v.adversario !== "equilibrado") { chips.push(V.adversarios[v.adversario]); desc.push(V.descricoes[v.adversario]); }
+    if (v.decisivo) { chips.push("Ponto decisivo"); desc.push(V.descricoes.decisivo); }
+    if (!chips.length) return "";
+    return '<div class="variantes"><p class="chips">' + chips.map(function (c) { return '<span class="chip-var">' + esc(c) + "</span>"; }).join("") + '</p><details><summary>O que muda neste nível</summary><ul class="lista">' + desc.filter(Boolean).map(function (d) { return "<li>" + esc(d) + "</li>"; }).join("") + "</ul></details></div>";
   }
   function etapaAtual() { return sim.cen.etapas[sim.est.etapa]; }
   function itensAlvo() {
@@ -298,7 +340,7 @@
   function renderSim() {
     var etapa = etapaAtual(), cen = sim.cen, fase = sim.fase, bloqueado = fase !== "escolha";
     if (fase !== "resultado" || !sim.res) cenaInicial(sim.q, cen, sim.est);
-    if (fase !== "escolha") sim.q.limpar("alvos"); else desenharAlvos(sim.q, itensAlvo(), sim.sel.opcao, function (id) { sim.sel.opcao = id; renderSim(); anunciar("Escolhido: " + opcaoDe(cen, sim.est.etapa, id).rotulo); }, bloqueado);
+    if (fase !== "escolha") sim.q.limpar("alvos"); else desenharAlvos(sim.q, itensAlvo(), sim.sel.opcao, function (id) { sim.sel.opcao = id; sim.sel.previsao = null; renderSim(); anunciar("Escolhido: " + opcaoDe(cen, sim.est.etapa, id).rotulo); }, bloqueado);
     if (fase === "escolha" && sim.sel.opcao && etapa.tipo === "golpe") {
       var o = opcaoDe(cen, sim.est.etapa, sim.sel.opcao);
       sim.q.limpar("intencao"); sim.q.linha("intencao", [sim.est.jog, o.alvo], { stroke: "#FFFFFF", "stroke-width": 0.07, "stroke-dasharray": "0.25 0.25", opacity: 0.7 });
@@ -328,8 +370,13 @@
         (pf ? '<figure class="perfil">' + perfilSVG(pf) + "<figcaption>Vista lateral ilustrativa: da sua raquete até o adversário, passando pela rede.</figcaption></figure>" : "") +
         seg("intensidade", "Intensidade", M.INTENSIDADES, M.NOME_INTENSIDADE);
     }
+    var prev = "";
+    if (sim.sel.opcao && M.temResposta(sim.cen, sim.est.etapa, sim.sel.opcao)) {
+      prev = '<fieldset class="campo prever"' + d + '><legend>Antes de ver: que resposta você espera do adversário? <span class="det">(opcional, vale ponto de leitura)</span></legend><div class="chips-prev">' +
+        Object.keys(M.CATEGORIAS).map(function (k) { return '<label class="' + (sim.sel.previsao === k ? "sel" : "") + '"><input type="radio" name="previsao" value="' + k + '"' + (sim.sel.previsao === k ? " checked" : "") + "><span>" + M.CATEGORIAS[k] + "</span></label>"; }).join("") + "</div></fieldset>";
+    }
     var pronto = !!sim.sel.opcao && !bloqueado;
-    return lista + ajustes + '<div class="acoes"><button type="button" class="btn btn-primario largo" id="btJogar"' + (pronto ? "" : " disabled") + ">" + (sim.fase === "animando" ? "Animação em andamento…" : golpe ? "Jogar e ver a resposta" : "Ir para a posição e ver a resposta") + "</button></div>" +
+    return lista + ajustes + prev + '<div class="acoes"><button type="button" class="btn btn-primario largo" id="btJogar"' + (pronto ? "" : " disabled") + ">" + (sim.fase === "animando" ? "Animação em andamento…" : golpe ? "Jogar e ver a resposta" : "Ir para a posição e ver a resposta") + "</button></div>" +
       (sim.sel.opcao ? "" : '<p class="dica">Toque num número na quadra ou escolha na lista.</p>') + historicoEtapa();
   }
   function historicoEtapa() {
@@ -346,15 +393,17 @@
     var txt = etapa.tipo === "golpe"
       ? "<p>" + esc(av.texto) + "</p><p>" + esc(av.notaAltura) + " " + esc(av.notaIntensidade) + "</p><p>" + esc(av.efeito) + "</p>" + (r.anim.pausa ? '<p class="nota">A animação para com a bola cruzando a rede: a próxima decisão é para onde você vai enquanto ela viaja.</p>' : '<p class="nota">Na quadra aparece uma resposta possível do adversário, coerente com o seu alvo. Ela não é uma previsão.</p>')
       : "<p>" + esc(av.texto) + "</p><p>" + esc(av.resposta) + " " + esc(av.textoCobertura) + "</p>";
+    var notasV = (av.notasVariante || []).length ? '<div class="nota-var"><p class="sobre">Neste nível</p>' + av.notasVariante.map(function (x) { return "<p>" + esc(x) + "</p>"; }).join("") + "</div>" : "";
+    var pv = r.previsao ? '<p class="previsao ' + (r.previsao.certa ? "ok" : "") + '">Você previu: <strong>' + esc(M.CATEGORIAS[r.previsao.escolhida]) + "</strong>. A resposta mostrada foi: <strong>" + esc(M.CATEGORIAS[r.respostaCategoria]) + "</strong>" + (r.previsao.certa ? " · +1 ponto de leitura" : ". Observe o que levou a ela.") + "</p>" : "";
     var obj = av.objetivo && K.OBJETIVOS ? '<p class="objetivo">Objetivo do método nesta escolha: <strong>' + esc(K.OBJETIVOS[av.objetivo]) + "</strong></p>" : "";
-    return '<section class="feedback n-' + av.nivel + '" aria-labelledby="t-fb"><h2 id="t-fb" class="fb-rotulo">' + esc(av.rotulo) + "</h2>" + det + obj + txt + "</section>" +
+    return '<section class="feedback n-' + av.nivel + '" aria-labelledby="t-fb"><h2 id="t-fb" class="fb-rotulo">' + esc(av.rotulo) + "</h2>" + det + obj + txt + notasV + pv + "</section>" +
       '<div class="acoes empilhar"><button type="button" class="btn btn-primario largo" id="btSeguir">' + (ultima ? "Ver o resumo do cenário" : "Continuar o ponto") + '</button>' +
       '<button type="button" class="btn btn-secundario" id="btComparar">Comparar outra alternativa</button><button type="button" class="btn btn-texto" id="btRepetir">Repetir a animação</button></div>' + historicoEtapa();
   }
   function ligarPainel() {
     var p = $("#painel");
-    $$('input[name="op"]', p).forEach(function (i) { i.addEventListener("change", function () { sim.sel.opcao = i.value; renderSim(); focarRadio("op", i.value); }); });
-    $$('input[name="altura"], input[name="intensidade"]', p).forEach(function (i) { i.addEventListener("change", function () { sim.sel[i.name] = i.value; renderSim(); focarRadio(i.name, i.value); }); });
+    $$('input[name="op"]', p).forEach(function (i) { i.addEventListener("change", function () { sim.sel.opcao = i.value; sim.sel.previsao = null; renderSim(); focarRadio("op", i.value); }); });
+    $$('input[name="altura"], input[name="intensidade"], input[name="previsao"]', p).forEach(function (i) { i.addEventListener("change", function () { sim.sel[i.name] = i.value; renderSim(); focarRadio(i.name, i.value); }); });
     var j = $("#btJogar"); if (j) j.addEventListener("click", jogar);
     var s = $("#btSeguir"); if (s) s.addEventListener("click", seguir);
     var c = $("#btComparar"); if (c) c.addEventListener("click", function () { sim.fase = "escolha"; sim.res = null; renderSim(); var f = $('input[name="op"]:checked') || $('input[name="op"]'); if (f) f.focus(); });
@@ -365,9 +414,10 @@
     if (sim.fase !== "escolha" || !sim.sel.opcao) return;
     var etapa = etapaAtual(), esc_ = { etapa: sim.est.etapa, opcao: sim.sel.opcao };
     if (etapa.tipo === "golpe") { esc_.altura = sim.sel.altura; esc_.intensidade = sim.sel.intensidade; }
+    if (sim.sel.previsao && M.temResposta(sim.cen, sim.est.etapa, sim.sel.opcao)) esc_.previsao = sim.sel.previsao;
     var r = M.simular(K, sim.cen, sim.est, sim.est.etapa, esc_);
     var ex = sim.reg.execucao;
-    ex.tentativas.push(Object.assign({ primeira: !tentativasDaEtapa().length, em: new Date().toISOString() }, esc_));
+    ex.tentativas.push(Object.assign({ primeira: !tentativasDaEtapa().length, em: new Date().toISOString(), previsaoCerta: !!(r.previsao && r.previsao.certa) }, esc_));
     ex.pendente = esc_; sim.reg.atualizadoEm = new Date().toISOString(); salvar();
     sim.res = r; sim.fase = "animando"; renderSim();
     var quadra = $("#quadra"); if (quadra && quadra.getBoundingClientRect().top < 0) quadra.scrollIntoView({ behavior: reduzir.matches ? "auto" : "smooth", block: "start" });
@@ -394,24 +444,29 @@
     ex.caminho.push(ex.pendente); ex.pendente = null; sim.reg.atualizadoEm = new Date().toISOString();
     if (!r.estadoFinal.etapa) {
       ex.fim = true; sim.reg.concluidoEm = new Date().toISOString();
-      var exploradas = ex.tentativas.length - ex.caminho.length;
-      sim.reg.historico.push({ concluidoEm: sim.reg.concluidoEm, caminho: ex.caminho.slice(), exploradas: Math.max(0, exploradas), tentativas: ex.tentativas.slice() });
+      var exploradas = ex.tentativas.length - ex.caminho.length, ganho = M.estrelas(K, sim.cen, ex.caminho, ex.tentativas, sim.variante);
+      sim.reg.historico.push({ concluidoEm: sim.reg.concluidoEm, caminho: ex.caminho.slice(), exploradas: Math.max(0, exploradas), tentativas: ex.tentativas.slice(), estrelas: ganho.estrelas, leitura: ganho.leitura });
       sim.reg.historico = sim.reg.historico.slice(-20);
-      salvar(); ir("resumo-" + sim.cen.id); return;
+      marcarDia(); delete revisaoLivre[sim.chave];
+      salvar(); ir("resumo-" + rotaSit(sim.cen.id, sim.n)); return;
     }
     salvar();
-    sim.est = r.estadoFinal; sim.res = null; sim.fase = "escolha"; sim.sel = { opcao: null, altura: "media", intensidade: "firme" };
+    sim.est = r.estadoFinal; sim.res = null; sim.fase = "escolha"; sim.sel = { opcao: null, altura: "media", intensidade: "firme", previsao: null };
     renderSim();
     var t = $(".etapa-num"); if (t) { t.setAttribute("tabindex", "-1"); t.focus(); }
     anunciar("Decisão " + etapaAtual().numero + " de 3. " + etapaAtual().situacao);
   }
 
   /* D. resumo e missão */
-  function telaResumo(id) {
-    var cen = POR_ID[id]; if (!cen) return ir("cenarios");
+  function telaResumo(rota) {
+    var st = sitDe(rota); if (!st) return ir("cenarios");
+    var cen = st.cen, n = st.n, nv = nivelDe(n), id = st.chave;
     var reg = prog.cenarios[id], ultimo = reg && reg.historico.length ? reg.historico[reg.historico.length - 1] : null;
-    if (!ultimo) return ir("jogar-" + id);
-    var rf = M.refazer(K, cen, ultimo.caminho);
+    if (!ultimo) return ir("jogar-" + rotaSit(cen.id, n));
+    var rf = M.refazer(K, cen, ultimo.caminho, nv.variante);
+    var proxN = n < NN ? n + 1 : null, liberou = proxN && M.nivelLiberado(prog, cen.id, proxN);
+    var placarEstrelas = '<section class="cartao placar-final" aria-labelledby="t-est"><h2 id="t-est">' + estrelasHTML(ultimo.estrelas || 0) + ' <span class="sr">estrelas</span></h2><p>' + (ultimo.estrelas || 0) + " de 3 primeiras escolhas coerentes com o contexto" + (ultimo.leitura ? " · " + ultimo.leitura + (ultimo.leitura === 1 ? " ponto" : " pontos") + " de leitura" : "") + ".</p>" +
+      (proxN ? (liberou ? '<p class="libera">Nível ' + proxN + " liberado: " + esc(nivelDe(proxN).nome) + '.</p><div class="acoes"><a class="btn btn-primario" href="#jogar-' + rotaSit(cen.id, proxN) + '">Jogar o nível ' + proxN + "</a></div>" : '<p class="det">Faça 2 estrelas para liberar o nível ' + proxN + " (" + esc(nivelDe(proxN).nome) + ").</p>") : '<p class="libera">Você completou todos os níveis deste padrão. Ele volta na revisão do dia, em outro contexto.</p>') + "</section>";
     var tent = ultimo.tentativas || [];
     var linhas = rf.passos.map(function (p) {
       var et = cen.etapas[p.escolha.etapa], o = opcaoDe(cen, p.escolha.etapa, p.escolha.opcao), av = p.resultado.avaliacao;
@@ -423,30 +478,126 @@
         (outras.length ? '<p class="det">Também explorado: ' + outras.map(function (t) { var oo = opcaoDe(cen, t.etapa, t.opcao); return esc(oo.rotulo) + (t.altura ? " (" + M.NOME_ALTURA[t.altura].toLowerCase() + ", " + M.NOME_INTENSIDADE[t.intensidade].toLowerCase() + ")" : ""); }).join("; ") + ".</p>" : "") + "</li>";
     }).join("");
     var prox = K.CENARIOS[(cen.numero) % K.CENARIOS.length];
-    tela('<a class="btn btn-texto voltar" href="#cenarios">Cenários</a><p class="cen-num">Resumo · Cenário ' + cen.numero + "</p><h1>" + esc(cen.titulo) + '</h1><p class="placar"><span class="chip-placar">' + esc(cen.placar) + "</span> " + esc(cen.sacador) + "</p>" +
-      '<ol class="decisoes">' + linhas + "</ol>" +
+    tela('<a class="btn btn-texto voltar" href="#cenarios">Cenários</a><p class="cen-num">Resumo · Cenário ' + cen.numero + " · Nível " + n + "</p><h1>" + esc(cen.titulo) + '</h1><p class="placar"><span class="chip-placar">' + esc(nv.placar || cen.placar) + "</span> " + esc(cen.sacador) + "</p>" + variantesHTML(nv.variante) +
+      placarEstrelas + '<ol class="decisoes">' + linhas + "</ol>" +
       '<section class="cartao missao" aria-labelledby="t-missao"><p class="sobre">Missão de treino</p><h2 id="t-missao">' + esc(cen.missao.titulo) + "</h2><p>" + esc(cen.missao.texto) + '</p><ol class="passos">' + cen.missao.passos.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ol>" +
       '<div class="pergunta"><p class="sobre">Para observar em quadra</p><p class="pq">' + esc(K.PERGUNTA) + "</p>" + (cen.perguntaMetodo ? '<p class="pq2">' + esc(cen.perguntaMetodo) + "</p>" : "") + "</div></section>" +
-      '<div class="acoes"><a class="btn btn-primario" href="#jogar-' + cen.id + '" id="btOutro">Comparar outro caminho</a><a class="btn btn-secundario" href="#jogar-' + prox.id + '">Explorar próximo cenário</a></div>' +
+      '<div class="acoes"><a class="btn btn-' + (proxN && liberou ? "secundario" : "primario") + '" href="#jogar-' + rotaSit(cen.id, n) + '" id="btOutro">Comparar outro caminho</a><a class="btn btn-secundario" href="#jogar-' + prox.id + '">Explorar próximo cenário</a></div>' +
       '<section class="cartao convite"><p>Você explorou essas situações no simulador. Quer entender como elas aparecem nas suas partidas?</p><div class="acoes"><a class="btn btn-secundario" href="#consultoria">Conhecer a consultoria</a></div><p class="det">O simulador continua disponível, sem contratar nada.</p></section>', "Resumo · " + cen.titulo);
+  }
+
+  /* ══ desafios ══ */
+  var revisaoLivre = {}; /* níveis abertos pela revisão do dia, mesmo ainda bloqueados na campanha */
+  function telaDesafios() {
+    var rev = M.revisoes(K, prog), best = prog.relampago.melhor;
+    var lista = rev.length ? '<ul class="revisoes">' + rev.slice(0, 5).map(function (r) {
+      var c = POR_ID[r.cenario], nv = nivelDe(r.nivel);
+      return '<li class="cartao"><p class="cen-num">Cenário ' + c.numero + " · nível " + r.nivel + "</p><h3>" + esc(c.titulo) + '</h3><p class="det">' + esc(nv.nome) + " · da última vez: " + estrelasHTML(r.estrelas) + '</p><div class="acoes"><button type="button" class="btn btn-secundario" data-rev="' + rotaSit(c.id, r.nivel) + '">Revisar</button></div></li>';
+    }).join("") + "</ul>" : '<p class="det">Nenhuma revisão para hoje. Cada cenário que você conclui volta depois de 1, 3 ou 7 dias, conforme as estrelas, num contexto diferente.</p>';
+    tela('<h1>Desafios</h1><p class="lead">Treine a leitura rápida e volte às situações no momento certo para fixar o que aprendeu.</p>' + hudHTML() +
+      '<div class="duas"><section class="cartao relampago-c" aria-labelledby="t-rel"><p class="sobre">Modo relâmpago</p><h2 id="t-rel">10 decisões, 8 segundos cada</h2><p>Só o alvo, sem animação: a primeira leitura da situação. Como na Matriz três caminhos do método, a resposta precisa estar pronta antes da bola chegar.</p>' +
+      '<p class="det">Sua melhor marca: <strong>' + best + "</strong> de 40 pontos.</p><div class=\"acoes\"><a class=\"btn btn-primario\" href=\"#relampago\">Jogar o relâmpago</a></div></section>" +
+      '<section class="cartao" aria-labelledby="t-rev"><p class="sobre">Revisão do dia</p><h2 id="t-rev">Situações para rever</h2><p class="det">O mesmo princípio, em outro contexto: é assim que se vê se ele foi aprendido.</p>' + lista + "</section></div>", "Desafios");
+    $$("[data-rev]").forEach(function (b) { b.addEventListener("click", function () { var st = sitDe(b.getAttribute("data-rev")); if (!st) return; revisaoLivre[st.chave] = true; ir("jogar-" + b.getAttribute("data-rev")); }); });
+  }
+
+  /* modo relâmpago: 10 decisões de golpe sorteadas, 6 s para escolher o alvo, sem animação */
+  var rel = null, RELAMPAGO_S = 8;
+  function telaRelampago() {
+    pararRelogio();
+    var pool = M.poolRelampago(K).filter(function (x) { return M.nivelLiberado(prog, x.cenario, x.nivel) || x.nivel === 1; });
+    var sorteio = [], usados = {};
+    while (sorteio.length < 10 && sorteio.length < pool.length) { var i = Math.floor(Math.random() * pool.length), k = pool[i].cenario + pool[i].etapa; if (usados[k] && Object.keys(usados).length < pool.length) continue; usados[k] = 1; sorteio.push(pool[i]); }
+    rel = { itens: sorteio, i: 0, pontos: 0, respostas: [], t0: 0, bloqueado: false };
+    tela('<a class="btn btn-texto voltar" href="#desafios">Desafios</a><h1>Relâmpago</h1><p class="lead">Escolha o alvo antes de o tempo acabar. A altura e a intensidade ficam na faixa natural de cada alvo.</p>' +
+      '<div class="rel-topo"><p id="relConta" class="rel-conta"></p><p id="relPontos" class="rel-pontos"></p></div><div class="rel-barra" aria-hidden="true"><i id="relBarra"></i></div>' +
+      '<div class="sim-grade rel"><div class="sim-quadra"><div class="quadra-host" id="quadra"></div></div><div class="sim-painel" id="painel"></div></div>', "Relâmpago");
+    rel.q = Quadra($("#quadra"), { rotulo: "Quadra do modo relâmpago." });
+    rodadaRelampago();
+  }
+  var relogio = 0;
+  function pararRelogio() { if (relogio) { clearInterval(relogio); relogio = 0; } }
+  function rodadaRelampago() {
+    pararRelogio();
+    if (!rel) return;
+    if (rel.i >= rel.itens.length) return fimRelampago();
+    var it = rel.itens[rel.i], cen = POR_ID[it.cenario], etapa = cen.etapas[it.etapa], nv = nivelDe(it.nivel);
+    cenaInicial(rel.q, cen, it.estado);
+    rel.bloqueado = false;
+    function escolher(id) {
+      if (rel.bloqueado) return;
+      rel.bloqueado = true; pararRelogio();
+      var o = opcaoDe(cen, it.etapa, id), e = M.escolhaPadrao(o); e.opcao = id;
+      var av = M.simular(K, cen, it.estado, it.etapa, e).avaliacao, seg = (Date.now() - rel.t0) / 1000;
+      var pts = M.PONTOS_NIVEL[av.nivel] + (seg < 3 && av.nivel === "coerente" ? 1 : 0);
+      rel.pontos += pts; rel.respostas.push({ cen: cen, etapa: etapa, o: o, av: av, pts: pts, seg: seg });
+      mostrarRetornoRel(av, pts);
+    }
+    desenharAlvos(rel.q, etapa.opcoes.map(function (o) { return { id: o.id, p: o.alvo, rotulo: o.rotulo }; }), null, escolher, false);
+    $("#relConta").textContent = "Decisão " + (rel.i + 1) + " de " + rel.itens.length;
+    $("#relPontos").textContent = rel.pontos + " pontos";
+    $("#painel").innerHTML = '<p class="etapa-num">' + esc(cen.titulo) + " · nível " + it.nivel + '</p><p class="placar"><span class="chip-placar">' + esc(nv.placar || cen.placar) + "</span> " + esc(cen.lado) + "</p>" + variantesHTML(nv.variante) +
+      '<p class="situacao">' + esc(etapa.situacao) + '</p><div class="opcoes" role="group" aria-label="' + esc(etapa.pergunta) + '">' + etapa.opcoes.map(function (o, i) { return '<button type="button" class="op" data-rel="' + o.id + '"><span class="num" aria-hidden="true">' + (i + 1) + '</span><span class="op-txt">' + esc(o.rotulo) + "</span></button>"; }).join("") + '</div><p id="relRet" class="rel-ret" aria-live="polite"></p>';
+    $$("[data-rel]").forEach(function (b) { b.addEventListener("click", function () { escolher(b.getAttribute("data-rel")); }); });
+    var topo = $(".rel-topo"); if (topo && rel.i > 0) topo.scrollIntoView({ block: "start", behavior: reduzir.matches ? "auto" : "smooth" });
+    rel.t0 = Date.now();
+    var barra = $("#relBarra");
+    relogio = setInterval(function () {
+      var f = Math.max(0, 1 - (Date.now() - rel.t0) / (RELAMPAGO_S * 1000));
+      if (barra) barra.style.width = (f * 100).toFixed(1) + "%";
+      if (f <= 0) {
+        pararRelogio(); if (rel.bloqueado) return; rel.bloqueado = true;
+        rel.respostas.push({ cen: cen, etapa: etapa, o: null, av: null, pts: 0, seg: RELAMPAGO_S });
+        mostrarRetornoRel(null, 0);
+      }
+    }, 100);
+    var f1 = $("[data-rel]"); if (f1) f1.focus({ preventScroll: true });
+  }
+  function mostrarRetornoRel(av, pts) {
+    $$("[data-rel]").forEach(function (b) { b.disabled = true; });
+    $("#relRet").innerHTML = av ? '<span class="tag n-' + av.nivel + '">' + esc(av.rotulo) + "</span> +" + pts + " · " + esc(av.resumo) : "<strong>Tempo esgotado.</strong> No jogo, a bola não espera: a decisão vem antes de ela chegar.";
+    $("#relPontos").textContent = rel.pontos + " pontos";
+    var proximo = function () { if (!rel) return; rel.i++; rodadaRelampago(); };
+    var b = document.createElement("button"); b.type = "button"; b.className = "btn btn-primario largo"; b.textContent = rel.i + 1 >= rel.itens.length ? "Ver resultado" : "Próxima decisão";
+    b.addEventListener("click", proximo); $("#painel").appendChild(b); b.focus({ preventScroll: true });
+  }
+  function fimRelampago() {
+    var r = rel, recorde = r.pontos > prog.relampago.melhor;
+    prog.relampago.melhor = Math.max(prog.relampago.melhor, r.pontos);
+    prog.relampago.partidas = prog.relampago.partidas.concat([{ em: new Date().toISOString(), pontos: r.pontos }]).slice(-20);
+    marcarDia(); salvar();
+    tela('<a class="btn btn-texto voltar" href="#desafios">Desafios</a><h1>Relâmpago: ' + r.pontos + ' pontos</h1><p class="lead">' + (recorde ? "Nova melhor marca. " : "") + "Coerente vale 3, possível para começar vale 2, exige mais controle ou devolve a iniciativa vale 1. Coerente em menos de 3 segundos ganha +1.</p>" +
+      '<ol class="decisoes">' + r.respostas.map(function (x, i) {
+        return '<li class="cartao dec"><p class="etapa-num">' + (i + 1) + ". " + esc(x.cen.titulo) + "</p><p>" + esc(x.etapa.situacao) + "</p>" + (x.av ? '<p class="dec-esc"><strong>' + esc(x.o.rotulo) + '</strong> · ' + x.seg.toFixed(1) + ' s</p><p><span class="tag n-' + x.av.nivel + '">' + esc(x.av.rotulo) + "</span> +" + x.pts + "</p><p>" + esc(x.av.texto) + "</p>" : '<p class="dec-esc"><strong>Tempo esgotado</strong></p>') + "</li>";
+      }).join("") + '</ol><div class="acoes"><a class="btn btn-primario" href="#relampago" id="btRelNovo">Jogar de novo</a><a class="btn btn-secundario" href="#desafios">Voltar aos desafios</a></div>', "Relâmpago");
+    var b = $("#btRelNovo"); if (b) b.addEventListener("click", function (e) { e.preventDefault(); telaRelampago(); });
+    rel = null;
   }
 
   /* E. progresso */
   function telaProgresso(confirmar) {
     var cards = K.CENARIOS.map(function (c) {
-      var s = situacao(c.id), reg = prog.cenarios[c.id], ex = reg ? reg.execucao : null;
-      var acao = s.estado === "andamento" ? '<a class="btn btn-primario" href="#jogar-' + c.id + '">Retomar na decisão ' + s.etapa + "</a>" : s.estado === "concluido" ? '<a class="btn btn-secundario" href="#jogar-' + c.id + '">Jogar de novo</a><a class="btn btn-texto" href="#resumo-' + c.id + '">Ver resumo</a>' : '<a class="btn btn-secundario" href="#jogar-' + c.id + '">Começar</a>';
-      var hist = "";
-      if (ex && ex.tentativas.length && !ex.fim) hist += '<p class="det">Tentativas no caminho atual: ' + ex.tentativas.length + "</p>";
-      if (reg && reg.historico.length) hist += '<details><summary>Histórico (' + reg.historico.length + (reg.historico.length === 1 ? " vez" : " vezes") + ')</summary><ul class="hist">' + reg.historico.slice().reverse().map(function (h) {
-        return "<li><strong>" + dataBR(h.concluidoEm) + "</strong> · " + h.caminho.map(function (e) { return esc(opcaoDe(c, e.etapa, e.opcao).rotulo); }).join(" → ") + (h.exploradas ? ' <span class="det">(' + h.exploradas + (h.exploradas === 1 ? " alternativa explorada" : " alternativas exploradas") + ")</span>" : "") + "</li>";
-      }).join("") + "</ul></details>";
-      return '<article class="cartao prog"><p class="cen-num">Cenário ' + c.numero + "</p><h2>" + esc(c.titulo) + '</h2><p class="cen-estado e-' + s.estado + '">' + esc(s.rotulo) + "</p>" + hist + '<div class="acoes">' + acao + "</div></article>";
+      var linhas = [], acao = "", andamento = null, algum = false;
+      NIVEIS.forEach(function (nv) {
+        var chave = M.chaveSituacao(c.id, nv.n), st = situacao(chave), reg = prog.cenarios[chave], best = M.melhorEstrelas(prog, chave);
+        if (st.estado === "novo") return;
+        algum = true;
+        if (st.estado === "andamento" && !andamento) andamento = { n: nv.n, etapa: st.etapa };
+        var hist = reg && reg.historico.length ? '<details><summary>Histórico (' + reg.historico.length + (reg.historico.length === 1 ? " vez" : " vezes") + ')</summary><ul class="hist">' + reg.historico.slice().reverse().map(function (h) {
+          return "<li><strong>" + dataBR(h.concluidoEm) + "</strong> " + estrelasHTML(h.estrelas || 0) + " · " + h.caminho.map(function (e) { return esc(opcaoDe(c, e.etapa, e.opcao).rotulo); }).join(" → ") + (h.exploradas ? ' <span class="det">(' + h.exploradas + (h.exploradas === 1 ? " alternativa explorada" : " alternativas exploradas") + ")</span>" : "") + "</li>";
+        }).join("") + "</ul></details>" : "";
+        linhas.push('<li><p><strong>Nível ' + nv.n + "</strong> " + (best >= 0 ? estrelasHTML(best) : "") + ' <span class="cen-estado e-' + st.estado + '">' + esc(st.rotulo) + "</span></p>" + (reg && reg.execucao.tentativas.length && !reg.execucao.fim ? '<p class="det">Tentativas no caminho atual: ' + reg.execucao.tentativas.length + "</p>" : "") + hist + "</li>");
+      });
+      if (andamento) acao = '<a class="btn btn-primario" href="#jogar-' + rotaSit(c.id, andamento.n) + '">Retomar na decisão ' + andamento.etapa + (andamento.n > 1 ? " (nível " + andamento.n + ")" : "") + "</a>";
+      else if (algum) acao = '<a class="btn btn-secundario" href="#jogar-' + c.id + '">Jogar de novo</a><a class="btn btn-texto" href="#resumo-' + c.id + '">Ver resumo</a>';
+      else acao = '<a class="btn btn-secundario" href="#jogar-' + c.id + '">Começar</a>';
+      return '<article class="cartao prog"><p class="cen-num">Cenário ' + c.numero + "</p><h2>" + esc(c.titulo) + "</h2>" + (linhas.length ? '<ul class="niveis-prog">' + linhas.join("") + "</ul>" : '<p class="cen-estado e-novo">Não iniciado</p>') + '<div class="acoes">' + acao + "</div></article>";
     }).join("");
-    var concluidos = K.CENARIOS.filter(function (c) { var r = prog.cenarios[c.id]; return r && r.historico.length; });
-    var iniciados = K.CENARIOS.filter(function (c) { return situacao(c.id).estado !== "novo"; }).length;
+    function algumNivel(c, f) { return NIVEIS.some(function (nv) { return f(M.chaveSituacao(c.id, nv.n)); }); }
+    var concluidos = K.CENARIOS.filter(function (c) { return algumNivel(c, function (k) { var r = prog.cenarios[k]; return r && r.historico.length; }); });
+    var iniciados = K.CENARIOS.filter(function (c) { return algumNivel(c, function (k) { return situacao(k).estado !== "novo"; }); }).length;
     var missoes = concluidos.length ? '<ul class="missoes">' + concluidos.map(function (c) { return '<li class="cartao"><p class="sobre">Cenário ' + c.numero + "</p><h3>" + esc(c.missao.titulo) + "</h3><p>" + esc(c.missao.texto) + "</p></li>"; }).join("") + "</ul>" : '<p class="det">As missões aparecem aqui quando você conclui um cenário.</p>';
-    tela('<h1>Meu progresso</h1><p class="lead">' + iniciados + " de " + TOTAL + " cenários iniciados · " + concluidos.length + " de " + TOTAL + " concluídos.</p>" +
+    tela('<h1>Meu progresso</h1><p class="lead">' + iniciados + " de " + TOTAL + " cenários iniciados · " + concluidos.length + " de " + TOTAL + " concluídos.</p>" + hudHTML() +
       '<p class="aviso-local">Seu progresso fica salvo só neste navegador, neste aparelho. Ele não aparece em outro aparelho e some se os dados do navegador forem apagados.</p>' +
       '<div class="grade-cen">' + cards + "</div><section class=\"bloco\" aria-labelledby=\"t-mis\"><h2 id=\"t-mis\">Missões de treino</h2>" + missoes + "</section>" +
       '<section class="bloco limpar" id="limpar">' + (confirmar ? '<div class="cartao confirma" role="alertdialog" aria-labelledby="t-conf" aria-describedby="d-conf"><h2 id="t-conf">Limpar todo o progresso?</h2><p id="d-conf">Os cenários voltam para o início e o histórico de tentativas é apagado deste navegador. Não dá para desfazer.</p><div class="acoes"><button type="button" class="btn btn-perigo" id="btLimparSim">Limpar progresso</button><button type="button" class="btn btn-secundario" id="btLimparNao">Cancelar</button></div></div>'
@@ -546,9 +697,12 @@
   function rotear() {
     var h = location.hash.replace(/^#/, "") || "inicio";
     if (h === "conteudo") return;
+    if (h !== "relampago") { pararRelogio(); rel = null; }
     if (h.indexOf("jogar-") === 0) return telaSimulador(h.slice(6));
     if (h.indexOf("resumo-") === 0) return telaResumo(h.slice(7));
     if (h === "cenarios") return telaCenarios();
+    if (h === "desafios") return telaDesafios();
+    if (h === "relampago") return telaRelampago();
     if (h === "progresso") return telaProgresso(false);
     if (h === "modulo") return telaModulo();
     if (h === "consultoria") return telaConsultoria();
