@@ -9,7 +9,9 @@
   var reduzir = window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : { matches: false };
   var SVGNS = "http://www.w3.org/2000/svg";
   var POR_ID = {}; K.CENARIOS.forEach(function (c) { POR_ID[c.id] = c; });
-  var ROT_CURTO = { coerente: "Coerente", inicio: "Possível para começar", controle: "Exige mais controle" };
+  var ROT_CURTO = { coerente: "Coerente", inicio: "Possível para começar", controle: "Exige mais controle", iniciativa: "Devolve a iniciativa" };
+  var GRATIS = K.CENARIOS.filter(function (c) { return c.gratis; }), PREVIA = K.CENARIOS.filter(function (c) { return !c.gratis; });
+  var TOTAL = K.CENARIOS.length;
 
   /* ── utilidades ── */
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
@@ -215,14 +217,15 @@
       '<ul class="fatos"><li><strong>3</strong> cenários gratuitos</li><li><strong>9</strong> decisões em sequência</li><li><strong>Sem cadastro</strong> para experimentar</li><li><strong>Explicações</strong> e missão de treino</li></ul></div>' +
       '<div class="previa cartao" aria-labelledby="t-previa"><h2 id="t-previa" class="h-previa">Experimente aqui</h2><p class="previa-ctx">' + esc(c1.placar + " · " + c1.contexto) + '</p><div class="quadra-host previa-quadra" id="previaQuadra"></div>' +
       '<p class="previa-instr" id="previaInstr">Toque num alvo para ver a bola e uma resposta possível.</p><div class="previa-lista" id="previaLista"></div><p class="previa-res" id="previaRes" aria-live="polite"></p>' + AVISO_HTML + "</div></section>" +
-      '<section class="bloco" aria-labelledby="t-cen"><h2 id="t-cen">Três cenários para começar</h2><div class="grade-cen">' + K.CENARIOS.map(cartaoCenario).join("") + "</div></section>" +
+      '<section class="bloco" aria-labelledby="t-cen"><h2 id="t-cen">Três cenários para começar</h2><div class="grade-cen">' + GRATIS.map(cartaoCenario).join("") + "</div>" +
+        (PREVIA.length ? '<div class="cartao faixa"><p><strong>Mais ' + PREVIA.length + " cenários em prévia</strong>, organizados pelas situações táticas da Metodologia MTY: início do ponto, construção, ataque e transição, defesa e contra-ataque.</p><a class=\"btn btn-texto\" href=\"#cenarios\">Ver todos os cenários</a></div>" : "") + "</section>" +
       '<section class="bloco duas"><div class="cartao"><h2>Como funciona</h2><ol class="passos"><li>Leia a situação e o placar.</li><li>Escolha o alvo na quadra ou na lista.</li><li>Ajuste a altura sobre a rede e a intensidade.</li><li>Veja a bola, o deslocamento dos jogadores e uma resposta possível.</li><li>Leia a explicação e compare outra alternativa.</li><li>Leve uma missão para treinar em quadra.</li></ol></div>' +
       '<div class="cartao"><h2>Quer olhar para as suas partidas?</h2><p>O simulador ajuda você a explorar decisões. A consultoria analisa como essas situações aparecem nas suas partidas.</p><div class="acoes"><a class="btn btn-secundario" href="#consultoria">Conhecer a consultoria</a></div></div></section>', "");
     previa();
   }
   function cartaoCenario(c) {
     var s = situacao(c.id), botao = s.estado === "andamento" ? "Continuar" : s.estado === "concluido" ? "Jogar de novo" : "Começar";
-    return '<article class="cartao cen"><p class="cen-num">Cenário ' + c.numero + '</p><h3>' + esc(c.titulo) + '</h3><p class="cen-placar">' + esc(c.placar + " · " + c.sacador) + "</p><p>" + esc(c.chamada) + '</p><p class="cen-estado e-' + s.estado + '">' + esc(s.rotulo) + "</p>" +
+    return '<article class="cartao cen"><p class="cen-num">Cenário ' + c.numero + (c.gratis ? ' <span class="tag tag-gratis">Gratuito</span>' : ' <span class="tag tag-previa">Prévia</span>') + '</p><h3>' + esc(c.titulo) + '</h3><p class="cen-placar">' + esc(c.placar + " · " + c.sacador) + "</p><p>" + esc(c.chamada) + '</p><p class="cen-estado e-' + s.estado + '">' + esc(s.rotulo) + "</p>" +
       '<div class="acoes"><a class="btn btn-primario" href="#jogar-' + c.id + '">' + botao + "</a>" + (s.estado === "concluido" ? '<a class="btn btn-texto" href="#resumo-' + c.id + '">Ver resumo</a>' : "") + "</div></article>";
   }
   /* prévia interativa: decisão 1 do cenário 1, altura média e intensidade controlada */
@@ -250,9 +253,13 @@
 
   /* B. biblioteca */
   function telaCenarios() {
-    tela('<h1>Cenários</h1><p class="lead">Três situações de ponto, com três decisões cada. Você pode repetir, comparar caminhos e retomar de onde parou.</p>' +
-      '<div class="grade-cen">' + K.CENARIOS.map(cartaoCenario).join("") + "</div>" +
-      '<div class="cartao faixa"><p><strong>Módulo planejado: ' + esc(K.MODULO.titulo) + ".</strong> 12 cenários sobre saque, devolução, primeira bola e recuperação. Ainda não está disponível.</p><a class=\"btn btn-texto\" href=\"#modulo\">Conhecer o módulo</a></div>", "Cenários");
+    var trilhas = (K.TRILHAS || []).map(function (t) {
+      var l = PREVIA.filter(function (c) { return c.trilha === t.id; });
+      return l.length ? '<section class="bloco trilha" aria-labelledby="t-' + t.id + '"><h2 id="t-' + t.id + '">' + esc(t.titulo) + '</h2><p class="det">' + esc(t.texto) + '</p><div class="grade-cen">' + l.map(cartaoCenario).join("") + "</div></section>" : "";
+    }).join("");
+    tela('<h1>Cenários</h1><p class="lead">Situações de ponto com três decisões cada. Você pode repetir, comparar caminhos e retomar de onde parou.</p>' +
+      '<section class="bloco" aria-labelledby="t-gratis"><h2 id="t-gratis">Para começar · gratuitos</h2><div class="grade-cen">' + GRATIS.map(cartaoCenario).join("") + "</div></section>" +
+      (PREVIA.length ? '<div class="cartao faixa aviso-previa"><p><strong>Prévia do conteúdo planejado.</strong> Os ' + PREVIA.length + " cenários abaixo seguem a Metodologia MTY, por situação tática. Estão abertos nesta versão de teste para avaliação e ainda passam pela revisão de Richard Tsukada.</p><a class=\"btn btn-texto\" href=\"#modulo\">Conhecer o módulo</a></div>" + trilhas : ""), "Cenários");
   }
 
   /* C. simulador */
@@ -297,6 +304,7 @@
       sim.q.limpar("intencao"); sim.q.linha("intencao", [sim.est.jog, o.alvo], { stroke: "#FFFFFF", "stroke-width": 0.07, "stroke-dasharray": "0.25 0.25", opacity: 0.7 });
     }
     var cab = '<p class="etapa-num">Decisão ' + etapa.numero + " de 3" + (etapa.golpe ? " · " + esc(etapa.golpe) : "") + "</p>" +
+      (etapa.tatica && K.TATICAS ? '<p class="tatica">Situação tática: <strong>' + esc(K.TATICAS[etapa.tatica]) + "</strong></p>" : "") +
       (etapa.numero === 1 ? '<p class="ctx">' + esc(cen.contexto) + "</p>" : "") + '<p class="situacao">' + esc(etapa.situacao) + "</p>";
     var corpo = fase === "resultado" ? painelResultado() : painelEscolha(bloqueado);
     $("#painel").innerHTML = cab + corpo;
@@ -338,7 +346,8 @@
     var txt = etapa.tipo === "golpe"
       ? "<p>" + esc(av.texto) + "</p><p>" + esc(av.notaAltura) + " " + esc(av.notaIntensidade) + "</p><p>" + esc(av.efeito) + "</p>" + (r.anim.pausa ? '<p class="nota">A animação para com a bola cruzando a rede: a próxima decisão é para onde você vai enquanto ela viaja.</p>' : '<p class="nota">Na quadra aparece uma resposta possível do adversário, coerente com o seu alvo. Ela não é uma previsão.</p>')
       : "<p>" + esc(av.texto) + "</p><p>" + esc(av.resposta) + " " + esc(av.textoCobertura) + "</p>";
-    return '<section class="feedback n-' + av.nivel + '" aria-labelledby="t-fb"><h2 id="t-fb" class="fb-rotulo">' + esc(av.rotulo) + "</h2>" + det + txt + "</section>" +
+    var obj = av.objetivo && K.OBJETIVOS ? '<p class="objetivo">Objetivo do método nesta escolha: <strong>' + esc(K.OBJETIVOS[av.objetivo]) + "</strong></p>" : "";
+    return '<section class="feedback n-' + av.nivel + '" aria-labelledby="t-fb"><h2 id="t-fb" class="fb-rotulo">' + esc(av.rotulo) + "</h2>" + det + obj + txt + "</section>" +
       '<div class="acoes empilhar"><button type="button" class="btn btn-primario largo" id="btSeguir">' + (ultima ? "Ver o resumo do cenário" : "Continuar o ponto") + '</button>' +
       '<button type="button" class="btn btn-secundario" id="btComparar">Comparar outra alternativa</button><button type="button" class="btn btn-texto" id="btRepetir">Repetir a animação</button></div>' + historicoEtapa();
   }
@@ -417,7 +426,7 @@
     tela('<a class="btn btn-texto voltar" href="#cenarios">Cenários</a><p class="cen-num">Resumo · Cenário ' + cen.numero + "</p><h1>" + esc(cen.titulo) + '</h1><p class="placar"><span class="chip-placar">' + esc(cen.placar) + "</span> " + esc(cen.sacador) + "</p>" +
       '<ol class="decisoes">' + linhas + "</ol>" +
       '<section class="cartao missao" aria-labelledby="t-missao"><p class="sobre">Missão de treino</p><h2 id="t-missao">' + esc(cen.missao.titulo) + "</h2><p>" + esc(cen.missao.texto) + '</p><ol class="passos">' + cen.missao.passos.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ol>" +
-      '<div class="pergunta"><p class="sobre">Para observar em quadra</p><p class="pq">' + esc(K.PERGUNTA) + "</p></div></section>" +
+      '<div class="pergunta"><p class="sobre">Para observar em quadra</p><p class="pq">' + esc(K.PERGUNTA) + "</p>" + (cen.perguntaMetodo ? '<p class="pq2">' + esc(cen.perguntaMetodo) + "</p>" : "") + "</div></section>" +
       '<div class="acoes"><a class="btn btn-primario" href="#jogar-' + cen.id + '" id="btOutro">Comparar outro caminho</a><a class="btn btn-secundario" href="#jogar-' + prox.id + '">Explorar próximo cenário</a></div>' +
       '<section class="cartao convite"><p>Você explorou essas situações no simulador. Quer entender como elas aparecem nas suas partidas?</p><div class="acoes"><a class="btn btn-secundario" href="#consultoria">Conhecer a consultoria</a></div><p class="det">O simulador continua disponível, sem contratar nada.</p></section>', "Resumo · " + cen.titulo);
   }
@@ -437,7 +446,7 @@
     var concluidos = K.CENARIOS.filter(function (c) { var r = prog.cenarios[c.id]; return r && r.historico.length; });
     var iniciados = K.CENARIOS.filter(function (c) { return situacao(c.id).estado !== "novo"; }).length;
     var missoes = concluidos.length ? '<ul class="missoes">' + concluidos.map(function (c) { return '<li class="cartao"><p class="sobre">Cenário ' + c.numero + "</p><h3>" + esc(c.missao.titulo) + "</h3><p>" + esc(c.missao.texto) + "</p></li>"; }).join("") + "</ul>" : '<p class="det">As missões aparecem aqui quando você conclui um cenário.</p>';
-    tela('<h1>Meu progresso</h1><p class="lead">' + iniciados + " de 3 cenários iniciados · " + concluidos.length + " de 3 concluídos.</p>" +
+    tela('<h1>Meu progresso</h1><p class="lead">' + iniciados + " de " + TOTAL + " cenários iniciados · " + concluidos.length + " de " + TOTAL + " concluídos.</p>" +
       '<p class="aviso-local">Seu progresso fica salvo só neste navegador, neste aparelho. Ele não aparece em outro aparelho e some se os dados do navegador forem apagados.</p>' +
       '<div class="grade-cen">' + cards + "</div><section class=\"bloco\" aria-labelledby=\"t-mis\"><h2 id=\"t-mis\">Missões de treino</h2>" + missoes + "</section>" +
       '<section class="bloco limpar" id="limpar">' + (confirmar ? '<div class="cartao confirma" role="alertdialog" aria-labelledby="t-conf" aria-describedby="d-conf"><h2 id="t-conf">Limpar todo o progresso?</h2><p id="d-conf">Os cenários voltam para o início e o histórico de tentativas é apagado deste navegador. Não dá para desfazer.</p><div class="acoes"><button type="button" class="btn btn-perigo" id="btLimparSim">Limpar progresso</button><button type="button" class="btn btn-secundario" id="btLimparNao">Cancelar</button></div></div>'
@@ -452,7 +461,7 @@
     var m = K.MODULO;
     tela('<p class="sobre">Módulo planejado</p><h1>' + esc(m.titulo) + '</h1><p class="lead">Um produto digital para treinar as decisões que abrem o ponto: do saque e da devolução até a primeira bola e a recuperação.</p>' +
       '<div class="duas"><section class="cartao"><h2>O que está planejado</h2><ul class="lista">' + m.itens.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + '</ul><p class="preco">' + esc(m.preco) + ' <span class="tag">' + esc(m.precoNota) + "</span></p><p class=\"det\">Valor de teste, ainda não validado.</p></section>" +
-      '<section class="cartao"><h2>O que existe hoje</h2><ul class="lista"><li>Somente os três cenários iniciais estão implementados e são gratuitos.</li><li>O módulo completo não inclui análise individual das suas partidas.</li><li>Não há compra nesta versão: nenhum pagamento é feito por aqui.</li></ul><div class="acoes"><a class="btn btn-primario" href="#cenarios">Experimentar os cenários gratuitos</a><a class="btn btn-texto" href="#consultoria">Conhecer a consultoria</a></div></section></div>', m.titulo);
+      '<section class="cartao"><h2>O que existe hoje</h2><ul class="lista"><li>Os três cenários iniciais são gratuitos.</li>' + (PREVIA.length ? "<li>Outros " + PREVIA.length + " cenários estão abertos nesta versão de teste como prévia do conteúdo planejado, ainda em revisão. Na versão real, fariam parte de módulos como este.</li>" : "") + '<li>Os demais cenários do módulo ainda não existem.</li><li>O módulo completo não inclui análise individual das suas partidas.</li><li>Não há compra nesta versão: nenhum pagamento é feito por aqui.</li></ul><div class="acoes"><a class="btn btn-primario" href="#cenarios">Experimentar os cenários gratuitos</a><a class="btn btn-texto" href="#consultoria">Conhecer a consultoria</a></div></section></div>', m.titulo);
   }
 
   /* G. consultoria */

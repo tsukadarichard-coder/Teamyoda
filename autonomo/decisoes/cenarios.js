@@ -25,7 +25,16 @@
     coerente: "Coerente com este contexto.",
     inicio: "Uma intenção possível para começar.",
     controle: "Uma escolha que exige mais controle.",
+    iniciativa: "Uma escolha que devolve a iniciativa ao adversário.",
   };
+  /* Metodologia MTY: os três objetivos do jogo (nesta ordem) e as duas formas de defesa */
+  var OBJETIVOS = {
+    quadra: "Ganhar a quadra", angulo: "Produzir ângulo", tempo: "Diminuir o tempo do adversário",
+    ganhar_tempo: "Ganhar tempo para se reorganizar", margem: "Construir com margem",
+  };
+  var TATICAS = { inicio: "Início do ponto", neutra: "Neutra", construcao: "Construção", ataque: "Ataque", contra: "Contra-ataque", defesa: "Defesa" };
+  /* as duas defesas do método valem igualmente: bola alta para ganhar tempo, ou cruzada acelerada */
+  var DUAS_DEFESAS = [{ altura: ["media", "alta"], intensidade: ["controlada", "firme"] }, { altura: ["baixa", "media"], intensidade: ["firme", "maxima"] }];
   var AVISO = "Simulação didática. Trajetórias, tempos e respostas são ilustrativos.";
   var PERGUNTA = "Minha escolha me deixou preparado para a bola seguinte?";
 
@@ -52,6 +61,11 @@
         media: "Altura média sobre a rede é a base mais estável para escolher a direção.",
         alta: "Mais altura sobre a rede costuma vir com mais efeito: margem maior, bola mais lenta e quique mais alto.",
       },
+      rede: {
+        baixa: "Baixo e para a frente, o voleio chega rápido e obriga o adversário a jogar de baixo para cima.",
+        media: "Altura média dá margem ao voleio sem deixar a bola subir demais para o adversário.",
+        alta: "Um voleio alto e lento dá ao adversário tempo e altura para a passada ou o lobby.",
+      },
       passada: {
         baixa: "Baixa sobre a rede, a bola obriga o adversário perto da rede a volear de baixo para cima.",
         media: "Altura média numa passada facilita o voleio de quem está na rede.",
@@ -60,9 +74,9 @@
     },
     intensidade: {
       defesa: {
-        controlada: "Intensidade controlada preserva o equilíbrio que faltou no contato.",
-        firme: "Firme ainda é possível se o corpo consegue acompanhar o golpe.",
-        maxima: "Força máxima com o corpo fora de equilíbrio costuma custar controle: na ilustração a bola chega mais rápido, mas a margem diminui.",
+        controlada: "Controlada, a bola ganha tempo pela altura e pela profundidade, não pela velocidade.",
+        firme: "Firme, a bola já começa a tirar tempo do adversário, se o apoio estabiliza o corpo no contato.",
+        maxima: "Acelerar é uma das duas defesas do método (a outra é a bola alta): tira tempo do adversário mesmo de uma posição difícil, desde que o apoio estabilize o contato. Sem esse apoio, a margem diminui.",
       },
       neutro: {
         controlada: "Controlada, a bola mantém a troca e dá tempo para os dois.",
@@ -78,6 +92,11 @@
         controlada: "Controlado, o saque entra com mais facilidade, mas a devolução chega com menos pressão.",
         firme: "Firme combina ritmo e direção.",
         maxima: "Máximo pode render uma devolução fraca; em 30–30, porém, uma falta coloca o ponto no segundo saque.",
+      },
+      rede: {
+        controlada: "Controlado, o voleio ganha precisão; a pressão vem da direção e da posição na rede.",
+        firme: "Firme, o voleio tira tempo do adversário sem perder o controle da raquete.",
+        maxima: "No voleio, força máxima raramente é necessária: perto da rede, a posição já tira o tempo do adversário.",
       },
       passada: {
         controlada: "Controlada facilita a precisão, mas dá tempo ao voleio.",
@@ -100,8 +119,8 @@
         situacao: "Você chega atrasado e esticado, com o contato mais baixo do que gostaria. O adversário deu um passo para dentro depois do saque e está perto do centro. Há muita quadra aberta do seu lado.",
         pergunta: "Para onde devolver?",
         opcoes: [
-          { id: "cruzado", rotulo: "Devolver cruzado com margem", alvo: [-2.3, 8.6], risco: 0, pressao: 0.6, ideal: { altura: ["media", "alta"], intensidade: ["controlada", "firme"] },
-            texto: "A diagonal é a direção mais longa da quadra e passa pela parte mais baixa da rede. A partir de um contato esticado, ela oferece mais margem e, se for profunda, dá tempo para você voltar para perto do centro antes da próxima bola.",
+          { id: "cruzado", rotulo: "Devolver cruzado com margem", alvo: [-2.3, 8.6], risco: 0, pressao: 0.6, ideal: DUAS_DEFESAS, objetivo: "ganhar_tempo",
+            texto: "A diagonal é a direção mais longa da quadra e passa pela parte mais baixa da rede. A partir de um contato esticado, ela oferece mais margem. Alta e profunda, dá tempo para você voltar; acelerada, tira tempo do adversário. As duas são defesas válidas.",
             resumo: "Cruzado com margem: mais quadra, rede mais baixa e tempo para recuperar.",
             resposta: { quique: [2.4, -8.6], contato: [3.2, -11.7], advRecupera: [-0.7, 12.3] }, proxima: "d2_cruzado" },
           { id: "paralela", rotulo: "Buscar a paralela próxima da linha", alvo: [3.5, 10.4], risco: 1, pressao: 1.2, ideal: { altura: ["media"], intensidade: ["controlada", "firme"] },
@@ -120,7 +139,7 @@
         pergunta: "Qual a próxima bola?",
         opcoes: [
           { id: "altura", rotulo: "Dar altura e margem", alvo: [-2.2, 9.6], risco: 0, pressao: 0.9, ideal: { altura: ["media", "alta"], intensidade: ["controlada", "firme"] },
-            texto: "Com o corpo mais organizado, uma bola alta e profunda na diagonal mantém a troca neutra e empurra o adversário para trás. É uma forma de reconstruir o ponto sem pressa: você ganha tempo para voltar ao centro e esperar uma bola mais curta.",
+            texto: "Com o corpo mais organizado, uma bola alta e profunda na diagonal mantém a troca neutra e empurra o adversário para trás. Você ganha a quadra que tinha perdido e volta ao centro pronto para construir a próxima bola com intenção.",
             resumo: "Altura e margem na diagonal: troca neutra e tempo para se reorganizar.", proxima: "d3" },
           { id: "paralela", rotulo: "Acelerar a paralela", alvo: [3.5, 10.2], risco: 1, pressao: 1.6, contexto: "ataque", ideal: { altura: ["media"], intensidade: ["firme"] },
             texto: "A bola chegou mais confortável, então mudar de direção passa a ser uma possibilidade. A paralela ainda cruza a parte alta da rede e encurta o tempo do adversário, mas abre a diagonal para ele se não for profunda.",
@@ -220,7 +239,7 @@
         { id: "linha", rotulo: "Buscar a linha com força", alvo: [3.85, 10.5], risco: 1, pressao: 1.9, ideal: { altura: ["media"], intensidade: ["firme"] },
           texto: espaco + " Buscar a linha com força vai na mesma direção, mas sem margem. Numa bola confortável é tentador; o ganho de pressão costuma ser pequeno perto do risco de errar.",
           resumo: "Linha com força: um pouco mais de pressão, muito menos margem.", proxima: "d3" },
-        { id: "centro", rotulo: "Jogar alto no centro e recuar", alvo: [0.1, 9.6], risco: 0.5, pressao: 0.5, contexto: "neutro", ideal: { altura: ["alta", "media"], intensidade: ["controlada", "firme"] },
+        { id: "centro", rotulo: "Jogar alto no centro e recuar", alvo: [0.1, 9.6], risco: 0.5, pressao: 0.5, contexto: "neutro", nivel: "iniciativa", ideal: { altura: ["alta", "media"], intensidade: ["controlada", "firme"] },
           texto: "Jogar alto no centro devolve tempo ao adversário, que ainda se reorganizava depois da devolução. É uma escolha segura, mas que abre mão da vantagem criada pelo saque.",
           resumo: "Alto no centro: seguro, mas devolve o tempo ao adversário.", proxima: "d3" },
       ],
@@ -311,7 +330,7 @@
         { id: "linha", rotulo: "Buscar a linha com força máxima", alvo: alvos.linha, risco: 1.5, pressao: 1.9, ideal: { altura: ["media"], intensidade: ["firme"] },
           texto: "Força máxima perto da linha logo na primeira bola confortável é um salto grande: você sai da defesa direto para a bola de menor margem, ainda com o break point contra.",
           resumo: "Linha com força máxima: salto grande de risco logo depois de sair da defesa.", proxima: "d3" },
-        { id: "curta", rotulo: "Devolver curto no centro", alvo: alvos.curta, risco: 1, pressao: 0.2, contexto: "neutro", ideal: { altura: ["media"], intensidade: ["controlada"] },
+        { id: "curta", rotulo: "Devolver curto no centro", alvo: alvos.curta, risco: 1, pressao: 0.2, contexto: "neutro", nivel: "iniciativa", ideal: { altura: ["media"], intensidade: ["controlada"] },
           texto: "Uma bola curta no centro devolve ao adversário uma bola confortável: ele entra na quadra e escolhe o lado. A melhora que você conseguiu passa para ele.",
           resumo: "Curto no centro: a bola confortável passa para o adversário.", proxima: "d3" },
       ],
@@ -329,8 +348,8 @@
         situacao: "A bola chega acima do ombro e você está atrás da linha, com o peso para trás. O adversário está perto do centro, um passo dentro da quadra.",
         pergunta: "Como sair desta bola?",
         opcoes: [
-          { id: "cruzado", rotulo: "Jogar cruzado com margem", alvo: [2.4, 8.8], risco: 0, pressao: 0.6, ideal: { altura: ["media", "alta"], intensidade: ["controlada", "firme"] },
-            texto: "Com a bola acima do ombro e o corpo para trás, a diagonal oferece a rede mais baixa e a quadra mais longa. Uma bola cruzada com altura neutraliza e dá tempo para você se reequilibrar e voltar ao centro.",
+          { id: "cruzado", rotulo: "Jogar cruzado com margem", alvo: [2.4, 8.8], risco: 0, pressao: 0.6, ideal: DUAS_DEFESAS, objetivo: "ganhar_tempo",
+            texto: "Com a bola acima do ombro e o corpo para trás, a diagonal oferece a rede mais baixa e a quadra mais longa. Com altura, neutraliza e dá tempo para você se reequilibrar; acelerada, devolve a pressão ao adversário. As duas são defesas válidas no método.",
             resumo: "Cruzado com margem: neutralizar e ganhar tempo para se reequilibrar.",
             resposta: { quique: [-1.6, -8.0], contato: [-2.0, -10.8], advRecupera: [0.9, 12.2] }, proxima: "d2_cruzado" },
           { id: "winner", rotulo: "Buscar winner paralelo", alvo: [-3.8, 10.6], risco: 2, pressao: 1.6, ideal: { altura: ["media"], intensidade: ["firme"] },
@@ -397,5 +416,15 @@
     itens: ["12 cenários", "Saque, devolução, primeira bola e recuperação", "Variações de contexto", "Explicações para todas as alternativas", "Missões de treino", "Compra única, sem assinatura"],
   };
 
-  return { ROTULOS: ROTULOS, AVISO: AVISO, PERGUNTA: PERGUNTA, NOTAS: NOTAS, CENARIOS: [c1, c2, c3], MODULO: MODULO };
+  [c1, c2, c3].forEach(function (c) { c.gratis = true; });
+  c1.trilha = "defesa"; c2.trilha = "inicio"; c3.trilha = "defesa";
+  c1.perguntaMetodo = "Depois da devolução, você chegou equilibrado à bola seguinte?";
+  c2.perguntaMetodo = "Você leu a devolução antes de escolher a direção da primeira bola?";
+  c3.perguntaMetodo = "Você sabia, antes de bater, se a bola era para neutralizar ou para pressionar?";
+  /* situação tática de cada decisão (taxonomia do scout MTY) */
+  c1.etapas.d1.tatica = "defesa"; ["d2_cruzado"].forEach(function (k) { c1.etapas[k].tatica = "neutra"; }); c1.etapas.d2_paralela.tatica = "defesa"; c1.etapas.d2_curta.tatica = "contra";
+  c2.etapas.d1.tatica = "inicio"; ["d2_aberto", "d2_corpo", "d2_t"].forEach(function (k) { c2.etapas[k].tatica = "ataque"; });
+  c3.etapas.d1.tatica = "defesa"; ["d2_cruzado", "d2_winner", "d2_angulo"].forEach(function (k) { c3.etapas[k].tatica = "construcao"; });
+
+  return { ROTULOS: ROTULOS, OBJETIVOS: OBJETIVOS, TATICAS: TATICAS, DUAS_DEFESAS: DUAS_DEFESAS, AVISO: AVISO, PERGUNTA: PERGUNTA, NOTAS: NOTAS, CENARIOS: [c1, c2, c3], MODULO: MODULO };
 });

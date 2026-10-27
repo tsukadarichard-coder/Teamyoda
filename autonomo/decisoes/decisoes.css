@@ -214,3 +214,13 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }
 h1[tabindex="-1"]:focus, .etapa-num[tabindex="-1"]:focus { outline: none; }
 .cen { display: flex; flex-direction: column; }
+.tag-gratis { background: var(--coerente-fundo); color: var(--coerente); margin-left: 6px; letter-spacing: 0; text-transform: none; }
+.tag-previa { background: #EFEAF7; color: #4D3D78; margin-left: 6px; letter-spacing: 0; text-transform: none; }
+.tag.n-iniciativa { background: #F6E3E0; color: #8B2E22; }
+.feedback.n-iniciativa .fb-rotulo { background: #F6E3E0; color: #8B2E22; }
+.tatica { font-size: .9rem; color: var(--cinza); }
+.tatica strong, .objetivo strong { color: var(--tinta); }
+.objetivo { font-size: .92rem; color: var(--cinza); }
+.pq2 { font-size: 1rem; font-weight: 600; color: var(--tinta); }
+.trilha { margin-top: 26px; }
+.aviso-previa { background: #FBF9FD; }

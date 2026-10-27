@@ -9,36 +9,38 @@
 const http = require("http"), fs = require("fs"), path = require("path"), assert = require("assert");
 const { chromium } = require("/opt/node22/lib/node_modules/playwright");
 const raiz = path.join(__dirname, ".."), capturas = process.argv[2] || "";
-const K = require(path.join(raiz, "decisoes/cenarios.js")), M = require(path.join(raiz, "decisoes/motor.js"));
+const K = require(path.join(raiz, "decisoes/cenarios-mais.js")), M = require(path.join(raiz, "decisoes/motor.js"));
 
-/* ── motor ── */
+/* ── motor: todos os caminhos de todos os cenários (3 combinações de altura × intensidade por golpe) ── */
 let caminhos = 0;
-for (const cen of K.CENARIOS) {
-  const e0 = M.estadoInicial(cen);
-  for (const o1 of cen.etapas.d1.opcoes) for (const a of M.ALTURAS) for (const i of M.INTENSIDADES) {
-    const r1 = M.simular(K, cen, e0, "d1", { opcao: o1.id, altura: a, intensidade: i }), e1 = r1.estadoFinal;
-    assert(cen.etapas[e1.etapa], "etapa seguinte existe");
-    for (const o2 of cen.etapas[e1.etapa].opcoes) for (const a2 of M.ALTURAS) {
-      const r2 = M.simular(K, cen, e1, e1.etapa, { opcao: o2.id, altura: a2, intensidade: "firme" }), e2 = r2.estadoFinal;
-      assert.deepStrictEqual([r2.anim.jog[0].x, r2.anim.jog[0].y], e1.jog, "continuidade: você começa a etapa 2 onde terminou a 1");
-      assert.deepStrictEqual([r2.anim.adv[0].x, r2.anim.adv[0].y], e1.adv, "continuidade: o adversário também");
-      for (const o3 of cen.etapas.d3.opcoes) {
-        const r3 = M.simular(K, cen, e2, "d3", { opcao: o3.id });
-        caminhos++;
-        assert.deepStrictEqual([r3.anim.jog[0].x, r3.anim.jog[0].y], e2.jog);
-        const b = r3.anim.bola[0]; assert(Math.hypot(b.x - e2.bola[0], b.y - e2.bola[1]) < 0.01, "a bola continua de onde parou");
-        assert(r3.estadoFinal.fim && /Uma resposta possível/.test(r3.avaliacao.resposta));
-      }
-    }
+const COMB = [["baixa", "maxima"], ["media", "firme"], ["alta", "controlada"]];
+function anda(cen, est, prof) {
+  const et = cen.etapas[est.etapa];
+  assert(et, cen.id + ": etapa " + est.etapa + " existe"); assert.strictEqual(et.numero, prof, cen.id + " " + est.etapa + ": decisão " + prof);
+  for (const o of et.opcoes) for (const c of (et.tipo === "golpe" ? COMB : [[null, null]])) {
+    const r = M.simular(K, cen, est, est.etapa, { opcao: o.id, altura: c[0], intensidade: c[1] }), a = r.anim;
+    if (a.jog.length) assert(Math.hypot(a.jog[0].x - est.jog[0], a.jog[0].y - est.jog[1]) < 0.01, cen.id + ": você começa onde terminou a etapa anterior");
+    if (a.adv.length) assert(Math.hypot(a.adv[0].x - est.adv[0], a.adv[0].y - est.adv[1]) < 0.01, cen.id + ": o adversário também");
+    assert(Math.hypot(a.bola[0].x - est.bola[0], a.bola[0].y - est.bola[1]) < 0.05, cen.id + ": a bola continua de onde parou");
+    assert(a.bola.every((q) => Math.abs(q.x) < 7 && Math.abs(q.y) < 16 && q.h >= -0.01 && q.h < 7), cen.id + ": bola dentro da área desenhada");
+    if (r.estadoFinal.etapa) anda(cen, r.estadoFinal, prof + 1);
+    else { caminhos++; assert(r.estadoFinal.fim && prof === 3, cen.id + ": termina na decisão 3"); if (r.recuperacao) assert(/Uma resposta possível/.test(r.avaliacao.resposta)); }
   }
 }
+assert(K.CENARIOS.length >= 15, "15 cenários");
+K.CENARIOS.forEach((cen) => { assert(cen.missao && cen.missao.passos.length && cen.perguntaMetodo, cen.id + ": missão e pergunta do método"); anda(cen, M.estadoInicial(cen), 1); });
+/* as duas defesas do método: alta e cruzada acelerada são coerentes no mesmo alvo */
+const dd = K.CENARIOS.find((c) => c.id === "neutralize");
+assert.strictEqual(M.avaliarGolpe(K, dd.etapas.d1, dd.etapas.d1.opcoes[0], "alta", "controlada").nivel, "coerente");
+assert.strictEqual(M.avaliarGolpe(K, dd.etapas.d1, dd.etapas.d1.opcoes[0], "media", "maxima").nivel, "coerente", "cruzada acelerada também é defesa válida");
+assert.strictEqual(M.avaliarGolpe(K, K.CENARIOS.find((c) => c.id === "segundo").etapas.d1, K.CENARIOS.find((c) => c.id === "segundo").etapas.d1.opcoes[2], "media", "controlada").nivel, "iniciativa", "sacar só para não errar devolve a iniciativa");
 /* altura e intensidade mudam a animação e o texto */
 const c1 = K.CENARIOS[0], e0 = M.estadoInicial(c1);
 const baixaMax = M.simular(K, c1, e0, "d1", { opcao: "cruzado", altura: "baixa", intensidade: "maxima" });
 const altaCtl = M.simular(K, c1, e0, "d1", { opcao: "cruzado", altura: "alta", intensidade: "controlada" });
 assert(Math.max(...altaCtl.anim.bola.map((q) => q.h)) > Math.max(...baixaMax.anim.bola.map((q) => q.h)) + 1, "altura alta sobe mais");
 assert(altaCtl.anim.bola.find((q) => q.quique).t > baixaMax.anim.bola.find((q) => q.quique).t, "intensidade controlada: bola mais lenta");
-assert.notStrictEqual(baixaMax.avaliacao.nivel, altaCtl.avaliacao.nivel, "a combinação muda a avaliação");
+assert.notStrictEqual(M.simular(K, c1, e0, "d1", { opcao: "paralela", altura: "baixa", intensidade: "maxima" }).avaliacao.nivel, M.simular(K, c1, e0, "d1", { opcao: "paralela", altura: "media", intensidade: "firme" }).avaliacao.nivel, "a combinação muda a avaliação");
 assert.notStrictEqual(baixaMax.avaliacao.notaAltura, altaCtl.avaliacao.notaAltura);
 /* progresso inválido não quebra */
 assert.deepStrictEqual(M.normalizar("lixo", K), M.progressoVazio());
@@ -143,9 +145,42 @@ const srv = http.createServer((q, r) => { let f = path.join(raiz, decodeURICompo
   }
   await cap(p, "08-resumo-defesa-cel");
 
+  /* cenários do método: biblioteca por situação tática; "Arma, abre e fecha" com três golpes; approach e voleio */
+  await p.goto(base + "#cenarios"); t = await txt(p);
+  assert(/Para começar · gratuitos/i.test(t) && /Prévia do conteúdo planejado/.test(t), "biblioteca: gratuitos e prévia");
+  for (const tr of ["Início do ponto", "Construção", "Ataque e transição", "Defesa e contra-ataque"]) assert(t.includes(tr), "trilha " + tr);
+  assert.strictEqual(await p.locator("article.cen").count(), 15, "15 cenários na biblioteca");
+  await cap(p, "08b-biblioteca-cel");
+  await p.goto(base + "#jogar-pop"); await p.waitForSelector("#quadra svg");
+  assert(/Situação tática: Construção/i.test(await txt(p)), "situação tática na decisão");
+  for (const rot of ["Profunda, para armar", "Angulada cruzada, para abrir", "Mudar de direção na paralela"]) {
+    await p.click('label.op:has-text("' + rot + '")'); await p.click("#btJogar"); await fimAnim(p);
+    assert(/Objetivo do método nesta escolha/.test(await txt(p)), "objetivo do método no retorno");
+    await p.click("#btSeguir");
+  }
+  await p.waitForSelector(".missao"); t = await txt(p);
+  assert(/Cada bola teve o seu papel/.test(t) && /PT003/.test(t), "pop: pergunta do método e exercício do catálogo");
+  await p.goto(base + "#jogar-convite"); await p.waitForSelector("#quadra svg");
+  await p.click('label.op:has-text("Approach na paralela e subir")'); await p.click("#btJogar"); await fimAnim(p); await p.click("#btSeguir");
+  t = await txt(p); assert(/Qual voleio\?/.test(t) && /Voleio de forehand/i.test(t), "approach leva ao voleio");
+  await p.click('label.op:has-text("Voleio no lado aberto")'); await p.click("#btJogar"); await fimAnim(p); await p.click("#btSeguir");
+  t = await txt(p); assert(/Fechar a rede na linha da bola/.test(t), "recuperação na rede");
+  await cap(p, "08c-rede-cel");
+  await p.click('label.op:has-text("Fechar a rede na linha da bola")'); await p.click("#btJogar"); await fimAnim(p); await p.click("#btSeguir");
+  await p.waitForSelector(".missao");
+  await p.goto(base + "#jogar-segundo"); await p.waitForSelector("#quadra svg");
+  await p.click('label.op:has-text("Só colocar a bola em jogo")'); await p.click("#btJogar"); await fimAnim(p);
+  assert(/devolve a iniciativa ao adversário/.test(await txt(p)), "sacar só para não errar: devolve a iniciativa");
+  await p.goto(base + "#progresso"); await p.click("#btLimpar"); await p.click("#btLimparSim");
+  for (const id of ["neutralize", "saque", "defesa"]) { /* refaz os três gratuitos para o resto do teste */
+    await p.goto(base + "#jogar-" + id); await p.waitForSelector("#quadra svg");
+    for (let n = 0; n < 3; n++) { await p.locator('input[name="op"]').first().check({ force: true }); await p.click("#btJogar"); await fimAnim(p); await p.click("#btSeguir"); }
+    await p.waitForSelector(".missao");
+  }
+
   /* progresso */
   await p.goto(base + "#progresso"); t = await txt(p);
-  assert(/3 de 3 cenários iniciados · 3 de 3 concluídos/.test(t) && /só neste navegador/.test(t) && (t.match(/Concluído em/g) || []).length === 3);
+  assert(/3 de 15 cenários iniciados · 3 de 15 concluídos/.test(t) && /só neste navegador/.test(t) && (t.match(/Concluído em/g) || []).length === 3);
   await p.click('a[href="#jogar-neutralize"]'); await p.waitForSelector("#quadra svg");
   await p.click('label.op:has-text("Tentar uma curta")'); await p.click("#btJogar"); await fimAnim(p); await p.click("#btSeguir");
   await p.goto(base + "#progresso"); t = await txt(p);
@@ -155,9 +190,9 @@ const srv = http.createServer((q, r) => { let f = path.join(raiz, decodeURICompo
   assert(/O adversário correu, chegou à curta/.test(await txt(p)), "retoma o caminho da curta");
   await p.goto(base + "#progresso"); await p.click("#btLimpar");
   assert(/Limpar todo o progresso\?/.test(await txt(p))); await p.click("#btLimparNao");
-  assert(/3 de 3 concluídos/.test(await txt(p)), "cancelar mantém o progresso");
+  assert(/3 de 15 concluídos/.test(await txt(p)), "cancelar mantém o progresso");
   await p.click("#btLimpar"); await p.click("#btLimparSim");
-  assert(/0 de 3 cenários iniciados/.test(await txt(p)), "progresso apagado");
+  assert(/0 de 15 cenários iniciados/.test(await txt(p)), "progresso apagado");
   /* dados locais inválidos */
   await p.evaluate(() => localStorage.setItem("qlDecisoes:v1", "{quebrado"));
   await p.goto(base + "#jogar-saque"); await p.reload(); await p.waitForSelector("#quadra svg");
@@ -165,7 +200,7 @@ const srv = http.createServer((q, r) => { let f = path.join(raiz, decodeURICompo
 
   /* módulo, consultoria e solicitação demonstrativa */
   await p.goto(base + "#modulo"); t = await txt(p);
-  assert(/As primeiras quatro bolas/.test(t) && /R\$ 197/.test(t) && /preço em avaliação/.test(t) && /Somente os três cenários iniciais estão implementados/.test(t) && /não inclui análise individual/.test(t) && /Não há compra nesta versão/.test(t));
+  assert(/As primeiras quatro bolas/.test(t) && /R\$ 197/.test(t) && /preço em avaliação/.test(t) && /Os três cenários iniciais são gratuitos/.test(t) && /prévia do conteúdo planejado/.test(t) && /não inclui análise individual/.test(t) && /Não há compra nesta versão/.test(t));
   await p.goto(base + "#consultoria"); t = await txt(p);
   assert(/Clareza sobre o que trabalhar\. Direção para aplicar\./.test(t) && /Análise de 3 partidas completas/.test(t) && /Até 6 horas de gravação/.test(t) && /R\$ 2\.000/.test(t) && /valor em avaliação/.test(t) && /Aulas presenciais/.test(t));
   await cap(p, "10-consultoria-cel");

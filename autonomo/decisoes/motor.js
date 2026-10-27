@@ -67,6 +67,16 @@
     return { quadros: q, tQuique: t0 + t1, tFim: t0 + t1 + t2, rede: rede, perfil: { d1: d1, d2: d2, a1: a1, a2: a2 } };
   }
 
+  /* trajetória sem quique do seu lado (você toca de voleio): de P (altura h0) até K (altura hK) */
+  function direto(P, h0, K, hK, apice, v, t0) {
+    var d = dist(P, K), t1 = d / v * LENTO, a = arco(h0, hK, apice), q = [];
+    for (var t = 0; t < t1; t += QUADRO) { var s = t / t1, p = lerp(P, K, s); q.push({ t: t0 + t, x: p[0], y: p[1], h: a(s) }); }
+    q.push({ t: t0 + t1, x: K[0], y: K[1], h: hK });
+    var rede = null;
+    if ((P[1] < 0) !== (K[1] < 0)) { var sn = (0 - P[1]) / (K[1] - P[1]); rede = { t: t0 + sn * t1, h: a(sn), x: P[0] + (K[0] - P[0]) * sn }; }
+    return { quadros: q, tQuique: null, tFim: t0 + t1, rede: rede };
+  }
+
   /* deslocamento: de A até B a partir de tIni, na velocidade v (ou chegando exatamente em tChega) */
   function trilha(pontos) { return pontos; }
   function mover(A, B, tIni, tChega, v) {
@@ -99,17 +109,24 @@
 
   /* ── avaliação de um golpe: alvo + altura + intensidade no contexto ── */
   function contextoDe(etapa, opcao) { return opcao.contexto || etapa.contexto || "neutro"; }
-  function avaliarGolpe(conteudo, etapa, opcao, altura, intensidade) {
-    var ctx = contextoDe(etapa, opcao), ideal = opcao.ideal || {};
-    var ia = ALTURAS.indexOf(altura), ii = INTENSIDADES.indexOf(intensidade);
+  /* "ideal" pode ser uma faixa ({ altura, intensidade }) ou uma lista de faixas igualmente válidas — por exemplo, as
+     duas defesas do método: bola alta para ganhar tempo, ou cruzada acelerada. Vale a faixa que a escolha mais se aproxima */
+  function pontosFaixa(ctx, ideal, ia, ii) {
     var faixaA = (ideal.altura || ALTURAS).map(function (x) { return ALTURAS.indexOf(x); });
     var faixaI = (ideal.intensidade || INTENSIDADES).map(function (x) { return INTENSIDADES.indexOf(x); });
-    var pontos = opcao.risco || 0, motivos = [];
-    if (ia < Math.min.apply(null, faixaA)) { pontos += 1; motivos.push("altura"); }
-    else if (ia > Math.max.apply(null, faixaA)) { if (ctx === "ataque" || ctx === "saque" || ctx === "passada") { pontos += 0.5; motivos.push("altura"); } }
-    if (ii > Math.max.apply(null, faixaI)) { pontos += ctx === "defesa" && intensidade === "maxima" ? 1.5 : 1; motivos.push("intensidade"); }
-    else if (ii < Math.min.apply(null, faixaI)) { pontos += 0.5; motivos.push("intensidade"); }
-    var nivel = pontos <= 0.5 ? "coerente" : pontos <= 1.5 ? "inicio" : "controle";
+    var p = 0, m = [];
+    if (ia < Math.min.apply(null, faixaA)) { p += 1; m.push("altura"); }
+    else if (ia > Math.max.apply(null, faixaA)) { if (ctx === "ataque" || ctx === "saque" || ctx === "passada" || ctx === "rede") { p += 0.5; m.push("altura"); } }
+    if (ii > Math.max.apply(null, faixaI)) { p += ctx === "defesa" && ii === 2 ? 1.5 : 1; m.push("intensidade"); }
+    else if (ii < Math.min.apply(null, faixaI)) { p += 0.5; m.push("intensidade"); }
+    return { p: p, m: m };
+  }
+  function avaliarGolpe(conteudo, etapa, opcao, altura, intensidade) {
+    var ctx = contextoDe(etapa, opcao), ideais = Array.isArray(opcao.ideal) ? opcao.ideal : [opcao.ideal || {}];
+    var ia = ALTURAS.indexOf(altura), ii = INTENSIDADES.indexOf(intensidade);
+    var melhor = ideais.map(function (f) { return pontosFaixa(ctx, f, ia, ii); }).sort(function (a, b) { return a.p - b.p; })[0];
+    var pontos = (opcao.risco || 0) + melhor.p, motivos = melhor.m;
+    var nivel = opcao.nivel || (pontos <= 0.5 ? "coerente" : pontos <= 1.5 ? "inicio" : "controle");
     var ataque = ctx === "ataque" || ctx === "saque";
     var pressao = (opcao.pressao || 0) + { controlada: -0.3, firme: 0, maxima: 0.3 }[intensidade] + (ataque ? { baixa: 0.15, media: 0, alta: -0.35 } : { baixa: 0, media: 0, alta: 0.1 })[altura];
     var pressaoNivel = pressao < 0.8 ? "baixa" : pressao < 1.5 ? "media" : "alta";
@@ -117,6 +134,7 @@
     return {
       nivel: nivel, rotulo: conteudo.ROTULOS[nivel], pontos: pontos, pressao: r2(pressao), pressaoNivel: pressaoNivel, motivos: motivos,
       texto: opcao.texto, notaAltura: N.altura[ctx][altura], notaIntensidade: N.intensidade[ctx][intensidade], resumo: opcao.resumo,
+      objetivo: opcao.objetivo || null,
     };
   }
   function efeitoTexto(pressaoNivel, tempoVoo) {
@@ -167,19 +185,24 @@
       /* resposta possível do adversário, coerente com o alvo; você se recupera e depois vai para a bola */
       var R = opcao.resposta, tGolpe = g.b.tFim + 0.25;
       var vR = av.pressaoNivel === "alta" ? 15 : av.pressaoNivel === "media" ? 18 : 21;
-      var br = voo(g.C, 1.0, R.quique, R.contato, 0.9, av.pressaoNivel === "alta" ? 3.1 : 2.3, vR, tGolpe);
-      var R0 = cobertura(g.C, -12.0), tJogSai = 0.22;
+      var br = R.voleio ? direto(g.C, 1.0, R.contato, 1.1, av.pressaoNivel === "alta" ? 2.6 : 1.9, vR, tGolpe)
+        : voo(g.C, 1.0, R.quique, R.contato, 0.9, av.pressaoNivel === "alta" ? 3.1 : 2.3, vR, tGolpe);
+      var R0 = R.jogRecupera || cobertura(g.C, -12.0), tJogSai = 0.22;
       var meio = ate(g.P, R0, tJogSai, tGolpe + 0.1);
       anim.bola = g.b.quadros.concat(br.quadros);
-      anim.quiques = [g.T, R.quique];
+      anim.quiques = R.voleio ? [g.T] : [g.T, R.quique];
       anim.jog = mover(g.P, meio, tJogSai, tGolpe + 0.1).concat(mover(meio, R.contato, tGolpe + 0.1, br.tFim).slice(1));
       anim.adv = g.adv.concat(mover(g.C, R.advRecupera, tGolpe + 0.05, br.tFim + 0.3).slice(1));
       anim.dur = br.tFim + 0.3;
-      anim.resposta = { de: g.C, quique: R.quique, contato: R.contato, rede: br.rede };
-      final = { etapa: opcao.proxima, jog: R.contato.slice(), adv: R.advRecupera.slice(), bola: R.contato.slice(), hContato: 0.9, voo: null, pressaoNivel: av.pressaoNivel, pressao: av.pressao };
+      anim.resposta = { de: g.C, quique: R.voleio ? null : R.quique, contato: R.contato, rede: br.rede, voleio: !!R.voleio };
+      final = { etapa: opcao.proxima, jog: R.contato.slice(), adv: R.advRecupera.slice(), bola: R.contato.slice(), hContato: R.voleio ? 1.1 : 0.9, voo: null, pressaoNivel: av.pressaoNivel, pressao: av.pressao };
     } else {
-      anim.jog = mover(g.P, cobertura(g.C, -12.0), 0.22, null);
-      final = { etapa: null, jog: posEm(anim.jog, anim.dur), adv: g.C.slice(), bola: g.C.slice(), voo: null };
+      /* último golpe da sequência: a bola chega ao adversário e você se recupera na profundidade em que está */
+      var yRec = g.P[1] < -7 ? -12.0 : g.P[1];
+      anim.jog = mover(g.P, cobertura(g.C, yRec), 0.22, null);
+      anim.adv = g.adv.concat([{ t: anim.dur + 0.3, x: g.C[0], y: g.C[1] }]);
+      anim.dur += 0.3;
+      final = { etapa: null, jog: posEm(anim.jog, anim.dur), adv: g.C.slice(), bola: g.C.slice(), voo: null, fim: true, pressaoNivel: av.pressaoNivel };
     }
     anim.contatoAdv = g.C;
     return { anim: anim, estadoFinal: final, avaliacao: av, golpe: { P: g.P, T: g.T, C: g.C, altura: altura, intensidade: intensidade, rede: g.b.rede, saque: g.saque } };
