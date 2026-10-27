@@ -825,8 +825,8 @@ video.olhar-midia { background: #000; max-height: 70vh; }
 
 /* Simulador de decisões: destaque no Início e no menu */
 .simulador-ini { background: var(--quadra); color: #fff; border-radius: var(--raio); padding: 20px 18px; margin-top: 14px; box-shadow: var(--sombra-alta); border-left: 4px solid var(--saibro-claro); }
-.simulador-ini .olho { color: #A8DB7D; display: flex; align-items: center; gap: 8px; }
-.simulador-ini h2 { color: #fff; }
+.simulador-ini .olho, body.comp .simulador-ini .olho { color: #A8DB7D; display: flex; align-items: center; gap: 8px; }
+.simulador-ini h2, body.comp .simulador-ini h2 { color: #fff; }
 .simulador-ini > p:not(.olho) { color: #E3EEE8; margin-top: 8px; }
 .sim-nums { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 14px 0 0; padding: 0; }
 .sim-nums li { background: rgba(255,255,255,.1); border-radius: 999px; padding: 6px 12px; font-size: 14px; font-weight: 600; color: #fff; }

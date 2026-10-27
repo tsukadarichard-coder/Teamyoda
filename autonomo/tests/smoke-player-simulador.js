@@ -107,6 +107,20 @@ window.firebase={initializeApp:function(){},auth:function(){return a}};})();`;
   await p.evaluate(() => localStorage.setItem("qlDecisoes:resumo", JSON.stringify({ v: 1, estrelas: "x", dias: "y", vencimentos: [null, "z"], iniciados: 2, cenarios: 34 })));
   await inicio(); t = await txt(); assert(/★\s*0 estrelas/.test(t) && !/revisar hoje/.test(t), "campos inválidos viram zero");
 
+  /* Competição: o atleta vê o cartão no Início e o item no Mais; o responsável não */
+  store["jogadores/ua"].competicao = { papel: "atleta", nascimento: "1990-02-02", ativadoEm: "2026-09-01T10:00:00Z" };
+  await p.evaluate(() => localStorage.removeItem("qlDecisoes:resumo"));
+  await p.goto(base + "/competicao/#/inicio"); await p.waitForSelector(".simulador-ini", { timeout: 15000 });
+  assert(/Treine a sua leitura de jogo/.test(await txt()) && /Meu planejamento/.test(await txt()), "Competição: cartão no Início do atleta");
+  await p.click("#btMais"); await p.waitForSelector("#painelMais:not([hidden])");
+  assert(await p.isVisible("#painelMais .painel-sim"), "Competição: item no Mais do atleta");
+  await cap("competicao-simulador-atleta");
+  await p.click("#btFecharMais"); if (capturas) await p.locator(".simulador-ini").screenshot({ path: path.join(capturas, "competicao-simulador-cartao.png") });
+  store["jogadores/ua"].competicao = { papel: "responsavel", ativadoEm: "2026-09-01T10:00:00Z" };
+  await p.goto(base + "/competicao/#/inicio"); await p.reload(); await p.waitForSelector("h1", { timeout: 15000 }); await p.waitForTimeout(800);
+  assert(!(await p.$(".simulador-ini")) && !(await p.isVisible(".lateral-nav .nav-sim")), "responsável: sem o cartão");
+  delete store["jogadores/ua"].competicao;
+
   /* computador: item no menu lateral */
   const pc = await browser.newPage({ viewport: { width: 1280, height: 860 } });
   await pc.context().route("https://www.gstatic.com/firebasejs/**", (r) => r.fulfill({ contentType: "text/javascript", body: r.request().url().includes("app-compat") ? FIREBASE_STUB : "" }));
