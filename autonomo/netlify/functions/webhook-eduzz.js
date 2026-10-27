@@ -45,10 +45,10 @@
    mapeado cai no plano "gratis" (nunca dá acesso indevido, só fica sem
    upgrade automático até você preencher aqui). */
 const MAPA_PRODUTO = {
-  "3136975": { plano: "essencial", duracaoDias: 32 }, // QuadraLab Essencial · R$29,90/mês · até 30 jogadores (recriado em 27/10/2026)
-  "3124922": { plano: "essencial", duracaoDias: 32 }, // Essencial antigo, sumiu da Eduzz em 27/10/2026 — mantido só para eventos atrasados
-  "3136981": { plano: "premium", duracaoDias: 32 }, // QuadraLab Premium · R$59,90/mês · jogadores ilimitados (recriado em 27/10/2026)
-  "3124932": { plano: "premium", duracaoDias: 32 }, // Premium antigo, sumiu da Eduzz em 27/10/2026 — mantido só para eventos atrasados
+  "3136975": { plano: "essencial", duracaoDias: 32 }, // QuadraLab Essencial · R$29,90/mês · até 30 jogadores (duplicata criada em 27/10/2026 — também libera, caso alguém compre por ela)
+  "3124922": { plano: "essencial", duracaoDias: 32 }, // QuadraLab Essencial (produto original)
+  "3136981": { plano: "premium", duracaoDias: 32 }, // QuadraLab Premium · R$59,90/mês · jogadores ilimitados (duplicata criada em 27/10/2026 — também libera, caso alguém compre por ela)
+  "3124932": { plano: "premium", duracaoDias: 32 }, // QuadraLab Premium (produto original, checkout chk.eduzz.com/D0R8KEP69Y)
 };
 
 /* event (data.event) que contam como "aprovado, liberar acesso" e
