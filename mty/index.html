@@ -3150,10 +3150,10 @@ const entrada = {
 };
 const prosa = { fontFamily: SERIF, fontSize: 14.5, lineHeight: 1.55, color: C.tinta, margin: 0 };
 
-function Campo({ rotulo, children, nota }) {
+function Campo({ rotulo, children, nota, manual }) {
   return (
     <div className="mb-4">
-      <div className="mb-2"><Etiqueta>{rotulo}</Etiqueta></div>
+      <div className="mb-2" style={manual ? { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" } : undefined}><Etiqueta>{rotulo}</Etiqueta>{manual && <LinkManual para={manual} />}</div>
       {children}
       {nota && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 5 }}>{nota}</p>}
     </div>
@@ -3331,10 +3331,139 @@ function EditorHorarios({ horarios, setHorarios, quadras }) {
   );
 }
 
-function Secao({ titulo, children, nota, id }) {
+/* ── Manual ao lado do trabalho ──
+   Ficha, planejamento, sessão e exercícios apontam para o conceito do Manual
+   de onde vieram. O conceito abre num painel por cima da tela (PainelManual,
+   na raiz do App): nada por baixo é desmontado, então "Voltar" devolve o
+   treinador exatamente onde estava — mesma tela, mesma rolagem, mesmo
+   preenchimento pela metade. O botão Voltar do celular faz o mesmo.
+   Sem Manual na academia (identidade.mostrarManual === false), o contexto
+   é null e os links simplesmente não aparecem. */
+const ManualCtx = React.createContext(null);
+function LinkManual({ para, compacto, children }) {
+  const ctx = React.useContext(ManualCtx);
+  if (!ctx || !para) return null;
+  return (
+    <button type="button" className="mty-link-manual" data-manual={para.aba + (para.id ? ":" + para.id : "")}
+      onClick={(ev) => { ev.stopPropagation(); ctx.abrir(para); }}
+      aria-label={"Ver no Manual: " + para.rotulo} title={"Manual · " + para.rotulo}
+      style={{ display: "inline-flex", alignItems: "center", gap: 5, fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, color: C.quadra,
+        background: "#EAF3EE", border: "1px solid #CFE3D7", borderRadius: 999, padding: "5px 10px", cursor: "pointer", minHeight: 30, lineHeight: 1.2, textAlign: "left" }}>
+      <span aria-hidden="true">📖</span>{children || (compacto ? "Manual" : "Manual · " + para.rotulo)}
+    </button>
+  );
+}
+/* Referências do Manual usadas pelas telas de trabalho (aba + âncora). */
+const REF_MANUAL = {
+  ficha: { aba: "metodo", id: "principio-1", rotulo: "A ficha é a F-01" },
+  camadas: { aba: "metodo", id: "principio-2", rotulo: "A ordem das camadas" },
+  fases: { aba: "metodo", id: "principio-3", rotulo: "As competições desenham as fases" },
+  volume: { aba: "metodo", id: "principio-4", rotulo: "Volume e intensidade" },
+  prioridades: { aba: "metodo", id: "principio-5", rotulo: "As prioridades viram ciclos" },
+  repeticao: { aba: "metodo", id: "principio-6", rotulo: "Repetição distribuída" },
+  olhar: { aba: "metodo", id: "principio-7", rotulo: "O olhar decide" },
+  processo: { aba: "metodo", id: "principio-8", rotulo: "O jogo por métrica de processo" },
+  divergencia: { aba: "metodo", id: "principio-9", rotulo: "A divergência é o dado" },
+  objetivos: { aba: "taticas", id: "objetivos-jogo", rotulo: "Os três objetivos do jogo" },
+  trilho: { aba: "metodo", id: "principio-11", rotulo: "O trilho é a progressão de ensino" },
+  niveis: { aba: "taticas", id: "legenda-niveis", rotulo: "Critérios de nível Y1–Y6" },
+  escada: { aba: "taticas", id: "escada-tatica", rotulo: "A escada tática por nível" },
+  basico: { aba: "taticas", id: "basico-tatico", rotulo: "O básico tático" },
+  padroes: { aba: "taticas", id: "dezesseis-padroes", rotulo: "Os dezesseis padrões" },
+  ensinoTatico: { aba: "taticas", id: "ensino-tatico", rotulo: "Como se ensina tática" },
+  placar: { aba: "taticas", id: "tatica-placar", rotulo: "Tática por situação de placar" },
+  corpo: { aba: "taticas", id: "perfis-corpo", rotulo: "Perfis de corpo" },
+  temperamento: { aba: "taticas", id: "temperamento", rotulo: "Temperamento" },
+  vocabulario: { aba: "taticas", id: "vocabulario", rotulo: "O vocabulário tático" },
+  estrutura: { aba: "aulas", id: "estrutura-blocos", rotulo: "A estrutura de toda aula" },
+  protocolos: { aba: "aulas", id: "protocolos", rotulo: "Os oito protocolos de quadra" },
+  reducaoTempo: { aba: "aulas", id: "reducao-tempo", rotulo: "Reduzir o tempo do adversário" },
+  ludico: { aba: "aulas", id: "ludico", rotulo: "O trabalho lúdico" },
+  autoverificacao: { aba: "aulas", id: "autoverificacao", rotulo: "Autoverificação do professor" },
+  familias: { aba: "catalogo", id: "mapa-familias", rotulo: "Mapa das famílias" },
+  seisFases: { aba: "tecnica", id: "T-01", rotulo: "T-01 · As seis fases" },
+  apoios: { aba: "metodo", id: "D-03", rotulo: "D-03 · Bases de apoio" },
+  avTatica: { aba: "metodo", id: "D-05", rotulo: "D-05 · Avaliação tática" },
+  avMental: { aba: "metodo", id: "D-06", rotulo: "D-06 · Avaliação mental" },
+  reavaliacao: { aba: "metodo", id: "D-08", rotulo: "D-08 · Reavaliação periódica" },
+  conversa: { aba: "conducao", id: "C-07", rotulo: "C-07 · A conversa de reavaliação" },
+  instruir: { aba: "conducao", id: "C-01", rotulo: "C-01 · Instruir em soluções" },
+  pergunta: { aba: "conducao", id: "C-03", rotulo: "C-03 · A pergunta antes da resposta" },
+  erro: { aba: "conducao", id: "C-05", rotulo: "C-05 · Ressignificação do erro" },
+  publicos: { aba: "publicos", id: "resumo", rotulo: "O que muda em cada público" },
+  trilhaA: { aba: "aulas", id: "trilha-A", rotulo: "Trilha A · Y1" },
+  trilhaB: { aba: "aulas", id: "trilha-B", rotulo: "Trilha B · Y2" },
+  trilhaC: { aba: "aulas", id: "trilha-C", rotulo: "Trilha C · Y3" },
+  trilhaAdultos: { aba: "aulas", id: "trilha-adultos", rotulo: "Trilhas D, E, F · Adultos" },
+  trilhaG: { aba: "aulas", id: "trilha-G", rotulo: "Trilha G · Competição" },
+};
+/* golpe (como aparece na ficha, no scout e nos exercícios) → ficha técnica da Parte 2 */
+function refGolpe(nome) {
+  const n = " " + String(nome || "").toLowerCase().replace(/\bfh\b/g, "forehand").replace(/\bbh\b/g, "backhand") + " ";
+  const t = (id, r) => ({ aba: "tecnica", id, rotulo: id + " · " + r });
+  if (!n) return null;
+  if (n.includes("devolu")) return t("T-07", "Devolução");
+  if (n.includes("saque")) return t("T-05", "Saque");
+  if (n.includes("smash")) return t("T-09", "Smash");
+  if (n.includes("voleio") || n.includes("rede")) return t("T-08", "Voleio");
+  if (n.includes("curt") || n.includes("aproxima") || n.includes("approach")) return t("T-10", "Curtinha e aproximação");
+  if (n.includes("backhand")) return t("T-03", "Backhand");
+  if (n.includes("forehand") || n.includes("direita")) return t("T-02", "Forehand");
+  if (n.includes("empunhad")) return t("T-11", "Empunhaduras");
+  if (n.includes("split")) return { aba: "tecnica", id: "M-01", rotulo: "M-01 · Split step" };
+  if (n.includes("desloc") || n.includes("moviment") || n.includes("pernas")) return { aba: "tecnica", id: "M-02", rotulo: "M-02 · Padrões de deslocamento" };
+  return null;
+}
+/* família do catálogo → linha do mapa das famílias (foco e quando usar) */
+function refFamilia(f) {
+  if (!f || !FAM[f]) return null;
+  return { aba: "catalogo", id: "familia-" + f, rotulo: "Família " + f + " · " + FAM[f] };
+}
+/* os conceitos do Manual por trás de um exercício: a família (foco e quando
+   usar), o golpe e a ideia tática que ele treina — no máximo três */
+function refsExercicio(e) {
+  if (!e) return [];
+  const P = (id, r) => ({ aba: "tecnica", id, rotulo: id + " · " + r });
+  const porFamilia = {
+    TR: [REF_MANUAL.trilho, REF_MANUAL.ensinoTatico], BR: [REF_MANUAL.ludico], IP: [P("P-05", "A matriz de decisão do saque"), P("P-06", "Devolução e primeira bola")],
+    PDS: [P("P-05", "A matriz de decisão do saque")], AT: [P("P-02", "Os seis sistemas de ataque")], PDR: [P("P-02", "Os seis sistemas de ataque")],
+    DT: [REF_MANUAL.padroes], PT: [REF_MANUAL.padroes, REF_MANUAL.objetivos], ADV: [REF_MANUAL.padroes], RT: [REF_MANUAL.reducaoTempo],
+    MV: [{ aba: "tecnica", id: "M-02", rotulo: "M-02 · Padrões de deslocamento" }], JA: [REF_MANUAL.estrutura], DM: [REF_MANUAL.avMental],
+  };
+  const lista = [refFamilia(e.f), ...(porFamilia[e.f] || []), e.f !== "MV" ? refGolpe(e.n) : null].filter(Boolean);
+  const vistos = {};
+  return lista.filter((r) => { const k = r.aba + r.id; if (vistos[k]) return false; vistos[k] = 1; return true; }).slice(0, 3);
+}
+/* conceitos citados num texto do plano (título de bloco, foco da semana, aula):
+   códigos de ficha (T-02, C-03, D-05), padrões (P1–P16) e ideias-chave do método */
+function refsNoTexto(t) {
+  const txt = String(t || ""), out = [];
+  const add = (r) => { if (r && !out.some((x) => x.aba === r.aba && x.id === r.id)) out.push(r); };
+  (txt.match(/\b[TMP]-\d{2}\b/g) || []).forEach((id) => { const f = [...SERIE_T, ...SERIE_M, ...SERIE_P].find((x) => x.id === id); if (f) add({ aba: "tecnica", id, rotulo: id + " · " + f.titulo }); });
+  (txt.match(/\bC-0\d\b/g) || []).forEach((id) => { const c = SERIE_CONDUCAO.find((x) => x.id === id); if (c) add({ aba: "conducao", id, rotulo: id + " · " + c.titulo }); });
+  (txt.match(/\b[DI]-0\d\b/g) || []).forEach((id) => { const d = FICHAS_DIAGNOSTICO.find((x) => x.id === id); if (d) add({ aba: "metodo", id, rotulo: id + " · " + d.titulo }); });
+  (txt.match(/\bP(?:1[0-6]|[1-9])\b/g) || []).forEach((c) => { const pd = PADROES_TATICOS.find((x) => x.c === c); if (pd) add({ aba: "taticas", id: "padrao-" + c, rotulo: c + " · " + pd.n }); });
+  const low = txt.toLowerCase();
+  if (/trilho/.test(low)) add(REF_MANUAL.trilho);
+  if (/in[ií]cio do ponto/.test(low)) add(refFamilia("IP"));
+  if (/redu[çc][ãa]o de tempo|tirar o tempo|tempo do advers/.test(low)) add(REF_MANUAL.reducaoTempo);
+  if (/l[úu]dic|brincadeira/.test(low)) add(REF_MANUAL.ludico);
+  if (/placar|break point|set point|tie-?break/.test(low)) add(REF_MANUAL.placar);
+  if (/ganhar a quadra|produzir [âa]ngulo|tr[êe]s objetivos/.test(low)) add(REF_MANUAL.objetivos);
+  if (/regenera|afina[çc][ãa]o|semana de (torneio|competi)/.test(low)) add(REF_MANUAL.fases);
+  if (/reavalia/.test(low)) add(REF_MANUAL.reavaliacao);
+  return out.slice(0, 4);
+}
+/* trilha de aulas pelo estágio/nível do aluno */
+function refTrilha(estagio) {
+  return { V: REF_MANUAL.trilhaA, L: REF_MANUAL.trilhaB, G: REF_MANUAL.trilhaC, A: REF_MANUAL.trilhaAdultos, C: REF_MANUAL.trilhaG }[estagio] || null;
+}
+
+function Secao({ titulo, children, nota, id, manual }) {
   return (
     <section id={id} className="mb-9" style={{ scrollMarginTop: 90 }}>
-      <h2 style={{ fontFamily: ARCH, fontSize: 17, fontWeight: 700, marginBottom: nota ? 6 : 14 }}>{titulo}</h2>
+      <h2 style={{ fontFamily: ARCH, fontSize: 17, fontWeight: 700, marginBottom: nota || manual ? 6 : 14 }}>{titulo}</h2>
+      {manual && <div style={{ marginBottom: nota ? 8 : 14, display: "flex", gap: 6, flexWrap: "wrap" }}>{(Array.isArray(manual) ? manual : [manual]).filter(Boolean).map((m) => <LinkManual key={m.aba + m.id} para={m} />)}</div>}
       {nota && <p style={{ ...prosa, color: C.grafite, marginBottom: 14 }}>{nota}</p>}
       {children}
     </section>
@@ -3631,8 +3760,8 @@ function CriteriosDoNivel({ nivel }) {
 }
 
 /* ── legenda completa Y1–Y6, pra estudo do treinador (Parte 9 do manual) ── */
-function LegendaNiveis({ nivelInicial }) {
-  const [aberto, setAberto] = useState(false);
+function LegendaNiveis({ nivelInicial, abertoInicial }) {
+  const [aberto, setAberto] = useState(!!abertoInicial);
   const [nivelAtivo, setNivelAtivo] = useState(nivelInicial || "Y1");
   useEffect(() => { if (nivelInicial) setNivelAtivo(nivelInicial); }, [nivelInicial]);
 
@@ -4049,8 +4178,9 @@ function CartaoExercicio({ e, aoTrocar, aoRemover, aoAtualizar, exerciciosCustom
           </div>
         )}
       </div>
-      {(temVideo || temDiagrama || podeEditar) && (
+      {(temVideo || temDiagrama || podeEditar || refsExercicio(e).length > 0) && (
         <div className="flex items-center gap-2 flex-wrap mt-2">
+          {refsExercicio(e).length > 0 && <LinkManual para={refsExercicio(e)[0]} compacto>Conceito no Manual</LinkManual>}
           {temVideo && <BotaoChip ativo onClick={abrirDetalhe}>🎥 Vídeo</BotaoChip>}
           {!temVideo && podeEditar && <BotaoChip onClick={abrirEdicao}>+ Vídeo</BotaoChip>}
           {temDiagrama && <BotaoChip ativo onClick={abrirDetalhe}>📐 Diagrama</BotaoChip>}
@@ -4072,6 +4202,12 @@ function CartaoExercicio({ e, aoTrocar, aoRemover, aoAtualizar, exerciciosCustom
           {e.videoUrl && <div className="mb-3"><VideoExercicio url={e.videoUrl} /></div>}
           {e.diagrama && (e.diagrama.pontos || []).length > 0 && <div className="mb-3"><QuadraDiagrama diagrama={e.diagrama} editavel={false} /></div>}
           {!e.custom && <p style={{ ...prosa, fontSize: 11, color: C.grafite, marginBottom: 6 }}>Código do catálogo: {e.c}</p>}
+          {refsExercicio(e).length > 0 && (
+            <div className="mb-3">
+              <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginBottom: 5 }}>De onde vem este exercício, no Manual:</p>
+              <div className="flex gap-2 flex-wrap">{refsExercicio(e).map((r) => <LinkManual key={r.aba + r.id} para={r} />)}</div>
+            </div>
+          )}
           {e.m && <Linha rotulo="Montagem" texto={e.m} />}
           {e.r && <Linha rotulo="− Regressão" texto={e.r} />}
           {e.p && <Linha rotulo="+ Progressão" texto={e.p} />}
@@ -6012,6 +6148,7 @@ function BlocoGolpe({ golpe, ent, setEnt, avaliacao, aoMudarAvaliacao }) {
       </button>
       {aberto && (
         <div style={{ padding: "0 13px 13px" }}>
+          <div className="flex gap-2 flex-wrap mb-3"><LinkManual para={refGolpe(golpe)} /><LinkManual para={REF_MANUAL.seisFases} /></div>
           <CampoEntrada rotulo="Em quais situações funciona bem?" valor={ok} aoMudar={(v) => setEnt("g_" + golpe + "_ok", v)} />
           <CampoEntrada rotulo="Em quais situações apresenta dificuldade?" valor={falha} aoMudar={(v) => setEnt("g_" + golpe + "_falha", v)} />
           <FasesGolpe golpe={golpe} avaliacao={avaliacao} aoMudar={aoMudarAvaliacao} />
@@ -6351,7 +6488,8 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
 
       {etapa === 1 && (
         <>
-          <p style={{ ...prosa, color: C.grafite, marginBottom: 14 }}>F-01 do manual: a ficha de avaliação inicial — identificação básica, o que não muda de aula pra aula.</p>
+          <p style={{ ...prosa, color: C.grafite, marginBottom: 8 }}>F-01 do manual: a ficha de avaliação inicial — identificação básica, o que não muda de aula pra aula.</p>
+          <div className="mb-4"><LinkManual para={REF_MANUAL.ficha} /></div>
           <div className="mb-9">
             <Campo rotulo="Nome">
               <input ref={refNome} style={{ ...entrada, ...(erroNome ? { borderColor: "#B3261E" } : {}) }} value={f.nome} placeholder="Nome do jogador"
@@ -6398,7 +6536,7 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
                 nota={(!f.tipoFisico ? "Não informado. " : "") + "O tipo de treino se define pelo tipo físico (D-02)."}>
                 <Seletor opcoes={[{ v: "leve", r: "Leve" }, { v: "medio", r: "Médio" }, { v: "forte", r: "Forte" }]} valor={f.tipoFisico} aoMudar={(v) => set("tipoFisico", v)} />
               </Campo>
-              <Campo rotulo="Histórico de atividades na infância" nota={(!f.baseMotora ? "Não informado. " : "") + "Define quanto o bloco de base motora pesa. Trabalho geral igual para todos significa que o diagnóstico não foi feito."}>
+              <Campo rotulo="Histórico de atividades na infância" manual={refFamilia("CO")} nota={(!f.baseMotora ? "Não informado. " : "") + "Define quanto o bloco de base motora pesa. Trabalho geral igual para todos significa que o diagnóstico não foi feito."}>
                 <Seletor opcoes={[{ v: "pobre", r: "Pouca variedade" }, { v: "media", r: "Média" }, { v: "rica", r: "Muitos esportes" }]} valor={f.baseMotora} aoMudar={(v) => set("baseMotora", v)} />
               </Campo>
               {f.estagio !== "A" ? (
@@ -6477,7 +6615,7 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
                 ))}
                 <Botao pequeno variante="vazio" onClick={() => addLista("marcos", { ano: "", marco: "", precisa: "" })}>+ Marco</Botao>
               </Secao>
-              <Secao titulo="Calendário" nota="As datas de competição desenham as fases sozinhas.">
+              <Secao titulo="Calendário" nota="As datas de competição desenham as fases sozinhas." manual={[REF_MANUAL.fases, REF_MANUAL.volume]}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <Campo rotulo="Início do ciclo"><input type="date" style={entrada} value={f.inicio} onChange={(e) => set("inicio", e.target.value)} /></Campo>
                   <Campo rotulo="Semanas"><input type="number" min={4} max={52} style={entrada} value={f.semanas} onChange={(e) => set("semanas", Number(e.target.value))} /></Campo>
@@ -6500,14 +6638,14 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
 
       {etapa === 3 && (
         <>
-          <Secao titulo="Classificação inicial" nota="É criança, adulto ou juvenil/adulto de competição? Isso decide o catálogo de exercícios e o questionário de nível usados no resto da ficha.">
+          <Secao titulo="Classificação inicial" manual={[refTrilha(f.estagio), REF_MANUAL.publicos]} nota="É criança, adulto ou juvenil/adulto de competição? Isso decide o catálogo de exercícios e o questionário de nível usados no resto da ficha.">
             <Campo rotulo="Estágio">
               <Seletor opcoes={ESTAGIOS.map((e) => ({ v: e.s, r: e.n }))} valor={f.estagio} aoMudar={(v) => set("estagio", v)} />
             </Campo>
             <Etiqueta cor={C.grafite}>{faseDoEstagio(f.estagio)}</Etiqueta>
           </Secao>
 
-          <Secao titulo="Avaliação do jogador" nota="Registre o que você observa em quadra. A classificação segue os critérios da metodologia, com sua revisão.">
+          <Secao titulo="Avaliação do jogador" nota="Registre o que você observa em quadra. A classificação segue os critérios da metodologia, com sua revisão." manual={[REF_MANUAL.niveis, REF_MANUAL.escada]}>
             <AjudaContextual titulo="Como funciona a avaliação">
               O aluno nunca é testado — é observado dentro das aulas normais. Um critério só é confirmado
               depois de aparecer em três ocasiões — você decide quantas valem no mesmo dia, inclusive
@@ -6540,11 +6678,11 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
       {etapa === 4 && (
         <>
           <Secao titulo="Perfil de jogo" nota="Parte 6 do manual: o jogo nasce do corpo e do temperamento do jogador — não se escolhe, se reconhece.">
-            <Campo rotulo="Perfil de corpo">
+            <Campo rotulo="Perfil de corpo" manual={REF_MANUAL.corpo}>
               <Seletor opcoes={PERFIS_CORPO.map((p) => ({ v: p.v, r: p.r }))} valor={f.perfilCorpo} aoMudar={(v) => set("perfilCorpo", v)} />
             </Campo>
             {f.perfilCorpo && <p style={{ ...prosa, color: C.grafite, fontSize: 13, marginTop: -6, marginBottom: 14 }}>{PERFIS_CORPO.find((p) => p.v === f.perfilCorpo).d}</p>}
-            <Campo rotulo="Temperamento">
+            <Campo rotulo="Temperamento" manual={REF_MANUAL.temperamento}>
               <Seletor opcoes={PERFIS_TEMPERAMENTO.map((p) => ({ v: p.v, r: p.r }))} valor={f.perfilTemperamento} aoMudar={(v) => set("perfilTemperamento", v)} />
             </Campo>
             {f.perfilTemperamento && <p style={{ ...prosa, color: C.grafite, fontSize: 13, marginTop: -6, marginBottom: f.estagio === "A" ? 14 : 0 }}>{PERFIS_TEMPERAMENTO.find((p) => p.v === f.perfilTemperamento).d}</p>}
@@ -6587,7 +6725,7 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
           </div>
           {mostrarAvaliacaoCompleta && (
             <>
-          <Secao titulo="Avaliação por golpe" nota="Toque em cada golpe pra avaliar.">
+          <Secao titulo="Avaliação por golpe" nota="Toque em cada golpe pra avaliar. Dentro de cada golpe, a ficha técnica dele no Manual." manual={REF_MANUAL.seisFases}>
             <AjudaContextual>
               "Erra o backhand" diz pouco. "Erra o backhand quando a bola vem alta e ele está recuando" diz
               quase tudo. Descreva a situação, não só o golpe — e marque "Ainda não observei" quando for o
@@ -6598,9 +6736,9 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
             ))}
           </Secao>
 
-          <Secao titulo="Dimensões" nota="A ordem é técnico, físico, tático, mental, e não pode ser invertida (D-01). Cada camada abre a seguinte.">
+          <Secao titulo="Dimensões" nota="A ordem é técnico, físico, tático, mental, e não pode ser invertida (D-01). Cada camada abre a seguinte." manual={REF_MANUAL.camadas}>
             <div className="mb-5">
-              <div className="mb-2"><Etiqueta cor={C.tinta}>Técnica — síntese geral</Etiqueta></div>
+              <div className="mb-2 flex items-center gap-2 flex-wrap"><Etiqueta cor={C.tinta}>Técnica — síntese geral</Etiqueta><LinkManual para={REF_MANUAL.apoios} /></div>
               <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 6 }}>
                 Quais golpes estão consistentes? Onde ocorre a dificuldade?
               </p>
@@ -6640,7 +6778,7 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
             </div>
 
             <div className="mb-5" style={{ opacity: liberada.tatico ? 1 : 0.45 }}>
-              <div className="mb-2"><Etiqueta cor={liberada.tatico ? C.tinta : C.grafite}>Tática</Etiqueta></div>
+              <div className="mb-2 flex items-center gap-2 flex-wrap"><Etiqueta cor={liberada.tatico ? C.tinta : C.grafite}>Tática</Etiqueta><LinkManual para={REF_MANUAL.avTatica} /></div>
               <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 6 }}>
                 Como constrói o ponto e escolhe os alvos?
               </p>
@@ -6673,7 +6811,7 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
             </div>
 
             <div className="mb-5" style={{ opacity: liberada.mental ? 1 : 0.45 }}>
-              <div className="mb-2"><Etiqueta cor={liberada.mental ? C.tinta : C.grafite}>Mental</Etiqueta></div>
+              <div className="mb-2 flex items-center gap-2 flex-wrap"><Etiqueta cor={liberada.mental ? C.tinta : C.grafite}>Mental</Etiqueta><LinkManual para={REF_MANUAL.avMental} /></div>
               <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 6 }}>
                 Como reage ao erro e às situações de pressão?
               </p>
@@ -6721,7 +6859,7 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
             </Botao>
           </div>
           {mostrarMaisAvaliacao && (
-            <Secao titulo="Prioridades" nota="A ordem define os ciclos de estímulo do macro e a proporção do volume tático. Arraste pelas setas.">
+            <Secao titulo="Prioridades" nota="A ordem define os ciclos de estímulo do macro e a proporção do volume tático. Arraste pelas setas." manual={REF_MANUAL.prioridades}>
               {f.prioridades.map((p, i) => (
                 <div key={p} className="flex items-center gap-3 mb-2" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderLeft: "3px solid " + (i < 2 ? C.saibro : C.linha), padding: "9px 12px" }}>
                   <span style={{ fontFamily: ARCH, fontWeight: 700, fontSize: 13, color: i < 2 ? C.saibro : C.grafite, width: 18 }}>{LETRAS[i]}</span>
@@ -6751,7 +6889,7 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
             <Linha rotulo="Duração" texto={f.duracaoPadrao || "1h30"} />
             <div className="mt-2"><Botao pequeno variante="vazio" onClick={() => setEtapa(2)}>Editar Rotina</Botao></div>
           </Secao>
-          <Secao titulo="Nível">
+          <Secao titulo="Nível" manual={REF_MANUAL.niveis}>
             <CartaoNivel f={f} />
             <div className="mt-2"><Botao pequeno variante="vazio" onClick={() => setEtapa(3)}>Editar Nível</Botao></div>
           </Secao>
@@ -6866,7 +7004,7 @@ function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual, podeEditar = true,
         </div>
       )}
 
-      <Secao titulo="Avaliação do treinador"
+      <Secao titulo="Avaliação do treinador" manual={[REF_MANUAL.camadas, REF_MANUAL.reavaliacao]}
         nota={a.fichaAtualizadaEm ? "Atualizado em " + formatarDataHoraCurta(a.fichaAtualizadaEm) : undefined}>
         {temCamada ? camadasRot.map(([k, rot]) => (a.camadas[k] || "").trim() && (
           <div key={k}>
@@ -6886,7 +7024,7 @@ function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual, podeEditar = true,
           : <p style={{ ...prosa, color: C.grafite }}>Avaliação do treinador ainda não preenchida — o que não foi observado aparece como "Não informado" ou "Ainda não avaliado", nunca como conclusão.</p>}
       </Secao>
 
-      <Secao titulo="Perfil de jogo">
+      <Secao titulo="Perfil de jogo" manual={[REF_MANUAL.corpo, REF_MANUAL.temperamento]}>
         {corpo && <Linha rotulo="Corpo" texto={corpo.r} />}
         {temperamento && <Linha rotulo="Temperamento" texto={temperamento.r} />}
         {a.estagio === "A" && objetivosAdulto.length > 0 && <Linha rotulo="Objetivo" texto={objetivosAdulto.map((o) => o.r).join(" · ")} />}
@@ -6927,7 +7065,7 @@ function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual, podeEditar = true,
         )}
       </Secao>
 
-      <Secao titulo="Prioridades de desenvolvimento"
+      <Secao titulo="Prioridades de desenvolvimento" manual={REF_MANUAL.prioridades}
         nota="As duas primeiras recebem mais volume de treino no ciclo — não é a ordem da aula.">
         <ol style={{ ...prosa, listStyleType: "decimal", paddingLeft: 20, margin: 0 }}>
           {(a.prioridades || []).map((p) => <li key={p} style={{ marginBottom: 4 }}>{AREAS[p].nome}</li>)}
@@ -6946,7 +7084,7 @@ function ResumoFicha({ aluno: a, aoEditar, salvo, papelAtual, podeEditar = true,
         {a.objetivoFinal ? <Linha rotulo="Objetivo" texto={a.objetivoFinal} /> : <p style={{ ...prosa, color: C.grafite }}>Sem objetivo final definido.</p>}
       </Secao>
 
-      <Secao titulo="Calendário" nota="Datas e rotina de quadra que ajudam a planejar o ciclo.">
+      <Secao titulo="Calendário" nota="Datas e rotina de quadra que ajudam a planejar o ciclo." manual={REF_MANUAL.fases}>
         <p style={prosa}>
           {a.inicio ? "Início " + a.inicio : "sem data de início"} · {a.semanas} semanas · {a.diasQuadra ? a.diasQuadra + " dia" + (a.diasQuadra === 1 ? "" : "s") + " de quadra por semana" : "dias de quadra por semana não informados"} · {a.periodos == null ? "turnos por dia não informados" : a.periodos >= 2 ? "dois turnos por dia" : "um turno por dia"}
         </p>
@@ -7049,7 +7187,7 @@ function TelaPeriodizacao({ aluno, aoCriarPeriodo }) {
     <div>
       <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Periodização</h1>
       <p style={{ ...prosa, fontSize: 14, color: C.grafite, marginBottom: 16 }}>Períodos, focos de trabalho e aulas vinculadas ao longo do ciclo.</p>
-      <Secao titulo="O ciclo em uma imagem" nota="O volume sobe nos mesociclos de base e cai nas semanas de afinação e torneio; a intensidade faz o caminho oposto e chega ao pico exatamente na competição. Nenhuma semana combina volume máximo com intensidade máxima — é essa separação que protege o corpo.">
+      <Secao titulo="O ciclo em uma imagem" manual={[REF_MANUAL.fases, REF_MANUAL.volume]} nota="O volume sobe nos mesociclos de base e cai nas semanas de afinação e torneio; a intensidade faz o caminho oposto e chega ao pico exatamente na competição. Nenhuma semana combina volume máximo com intensidade máxima — é essa separação que protege o corpo.">
         <div style={{ height: 210, marginLeft: -18 }}>
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={dados}>
@@ -7072,7 +7210,7 @@ function TelaPeriodizacao({ aluno, aoCriarPeriodo }) {
         </div>
       </Secao>
 
-      <Secao titulo="Os blocos do ciclo">
+      <Secao titulo="Os blocos do ciclo" manual={REF_MANUAL.fases}>
         <Tabela cabecalho={["Semanas", "Fase", "Função"]} larguras={["18%", "26%", "56%"]}
           linhas={grupos.map((g) => [
             <span style={{ fontFamily: ARCH, fontWeight: 700 }}>{g.ini === g.fim ? g.ini : `${g.ini}–${g.fim}`}</span>,
@@ -7081,7 +7219,7 @@ function TelaPeriodizacao({ aluno, aoCriarPeriodo }) {
           ])} />
       </Secao>
 
-      <Secao titulo="A semana-padrão" nota="Vale nos mesociclos de base. Muda nas semanas de afinação, competição e regeneração.">
+      <Secao titulo="A semana-padrão" manual={REF_MANUAL.estrutura} nota="Vale nos mesociclos de base. Muda nas semanas de afinação, competição e regeneração.">
         <Tabela cabecalho={["Horário", ...grade.dias]}
           linhas={grade.faixas.map((fx) => [
             <span style={{ fontFamily: ARCH, fontSize: 11, fontWeight: 600 }}>{fx.hora}</span>,
@@ -7096,7 +7234,7 @@ function TelaPeriodizacao({ aluno, aoCriarPeriodo }) {
         </div>
       </Secao>
 
-      <Secao titulo="A proporção tática" nota="Cerca de 70% dos pontos do circuito têm até quatro golpes. O treino espelha isso — e concentra o volume nas duas maiores lacunas.">
+      <Secao titulo="A proporção tática" manual={[REF_MANUAL.prioridades, REF_MANUAL.objetivos]} nota="Cerca de 70% dos pontos do circuito têm até quatro golpes. O treino espelha isso — e concentra o volume nas duas maiores lacunas.">
         <div className="flex" style={{ height: 42, marginBottom: 10 }}>
           {[["abertura", "Padrões de abertura", C.saibro], ["media", "Trocas médias", C.quadra], ["defesa", "Defesa longa", C.grafite]].map(([k, rot, cor]) => (
             <div key={k} style={{ width: prop[k] + "%", background: cor, color: "#fff", fontFamily: ARCH, fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", borderRight: "2px solid " + C.papel }}>
@@ -7112,7 +7250,7 @@ function TelaPeriodizacao({ aluno, aoCriarPeriodo }) {
         </p>
       </Secao>
 
-      <Secao titulo="Os ciclos de estímulo" nota="Cada estímulo é mantido por três treinos; a rotação é parcial ao fim de cada mesociclo. Nunca os dois estímulos de um ciclo ao mesmo tempo.">
+      <Secao titulo="Os ciclos de estímulo" manual={REF_MANUAL.repeticao} nota="Cada estímulo é mantido por três treinos; a rotação é parcial ao fim de cada mesociclo. Nunca os dois estímulos de um ciclo ao mesmo tempo.">
         {ciclos.map((c) => (
           <div key={c.letra} className="mb-6">
             <div className="flex items-baseline gap-3 mb-2">
@@ -7133,7 +7271,7 @@ function TelaPeriodizacao({ aluno, aoCriarPeriodo }) {
         ))}
       </Secao>
 
-      <Secao titulo="Critérios tangíveis de avaliação" nota="Cada critério tem linha de base medida na semana 1 e meta ao fim do primeiro mesociclo. Números são referência de direção, não sentença: a reavaliação é feita com o atleta.">
+      <Secao titulo="Critérios tangíveis de avaliação" manual={[REF_MANUAL.processo, REF_MANUAL.reavaliacao]} nota="Cada critério tem linha de base medida na semana 1 e meta ao fim do primeiro mesociclo. Números são referência de direção, não sentença: a reavaliação é feita com o atleta.">
         {ciclos.map((c) => (
           <div key={c.letra} className="mb-6">
             <h3 style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700, marginBottom: 8 }}>{AREAS[c.areaId].nome}</h3>
@@ -7148,7 +7286,7 @@ function TelaPeriodizacao({ aluno, aoCriarPeriodo }) {
         </p>
       </Secao>
 
-      <Secao titulo="Caderno do treinador">
+      <Secao titulo="Caderno do treinador" manual={[REF_MANUAL.autoverificacao, REF_MANUAL.instruir]}>
         <p style={{ ...prosa, marginBottom: 10 }}>Antes de entrar na quadra:</p>
         {["Qual estímulo de cada ciclo está ativo hoje? Nunca decidir em quadra",
           "Quem é o jogador ativo em cada rotação, e o que os demais devem exigir dele",
@@ -7171,7 +7309,7 @@ function TelaPeriodizacao({ aluno, aoCriarPeriodo }) {
         </div>
       </Secao>
 
-      <Secao titulo="Cartão do jogador" nota="Uma página, impressa e plastificada, na mochila. É o único material que o jogador carrega.">
+      <Secao titulo="Cartão do jogador" manual={REF_MANUAL.vocabulario} nota="Uma página, impressa e plastificada, na mochila. É o único material que o jogador carrega.">
         <div style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.saibro, padding: 18 }}>
           <div className="mb-4"><Etiqueta cor={C.saibro}>Protocolo entre pontos</Etiqueta></div>
           {[["Fechei", "o ponto anterior acabou quando acabou; meu gesto de encerrar é sempre o mesmo"],
@@ -7826,7 +7964,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
       )}
       {!aulaAtual && (
         <>
-          <Campo rotulo="Ciclo ativo hoje" nota="O caderno do treinador manda decidir isto antes de entrar na quadra.">
+          <Campo rotulo="Ciclo ativo hoje" nota="O caderno do treinador manda decidir isto antes de entrar na quadra." manual={REF_MANUAL.repeticao}>
             <Seletor opcoes={ciclos.map((c, i) => ({ v: i, r: `${c.letra} · ${c.nome}` }))} valor={cicloAtivo} aoMudar={setCiclo} />
           </Campo>
           <Campo rotulo="Duração">
@@ -7861,7 +7999,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
 
       {plano && (
         <div className="mt-7">
-          <div className="mb-3"><Etiqueta cor={C.saibro}>Conduzir</Etiqueta></div>
+          <div className="mb-3 flex items-center gap-2 flex-wrap"><Etiqueta cor={C.saibro}>Conduzir</Etiqueta><LinkManual para={REF_MANUAL.estrutura} /><LinkManual para={REF_MANUAL.protocolos} /><LinkManual para={REF_MANUAL.instruir} /></div>
           <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
             <Etiqueta cor={estadoSalvo === "erro" ? "#8A2E2E" : C.quadra}>
               {estadoSalvo === "salvando" ? "Salvando…" : estadoSalvo === "erro" ? "Não foi possível salvar — tentar novamente"
@@ -7953,7 +8091,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
                 <div className="flex-1 self-center">
                   <div style={{ fontFamily: ARCH, fontSize: 32, fontWeight: 700, lineHeight: 1, color: dentro ? C.tinta : C.saibro }}>{pctIP}%</div>
                   <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginTop: 4 }}>
-                    da sessão em início do ponto.{" "}
+                    da sessão em início do ponto.{" "}<LinkManual para={refFamilia("IP")} compacto>Por que 25–35%</LinkManual>{" "}
                     {dentro ? "Dentro da faixa do método (25–35%)." : <span style={{ color: C.saibro }}>Fora da faixa de 25–35%.</span>}
                   </p>
                 </div>
@@ -8119,11 +8257,11 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
                     </Campo>
                   )}
 
-                  <Campo rotulo="Adaptações" nota="Se a proposta não servia, o que você mudou ou faria diferente.">
+                  <Campo rotulo="Adaptações" nota="Se a proposta não servia, o que você mudou ou faria diferente." manual={REF_MANUAL.divergencia}>
                     <textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={obs.mudaria}
                       onChange={(e) => setObs({ ...obs, mudaria: e.target.value })} />
                   </Campo>
-                  <Campo rotulo="Observações" nota="O que corrigiu hoje e o que escolheu deixar passar — o campo mais valioso do registro.">
+                  <Campo rotulo="Observações" nota="O que corrigiu hoje e o que escolheu deixar passar — o campo mais valioso do registro." manual={REF_MANUAL.autoverificacao}>
                     <textarea rows={2} style={{ ...entrada, resize: "vertical", marginBottom: 8 }} value={obs.corrigi}
                       onChange={(e) => setObs({ ...obs, corrigi: e.target.value })} placeholder="o que corrigi" />
                     <textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={obs.ignorei}
@@ -12520,6 +12658,9 @@ function CardAulaChecklist({ id, indice, titulo, descricao, selo, qtdExercicios,
           <div style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700,
             color: st === "feita" ? C.quadra : C.tinta }}>{indice} · {titulo}</div>
           {descricao && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2, whiteSpace: "pre-line" }}>{descricao}</p>}
+          {refsNoTexto((titulo || "") + " " + (descricao || "")).length > 0 && (
+            <div className="flex gap-2 flex-wrap" style={{ marginTop: 6 }}>{refsNoTexto((titulo || "") + " " + (descricao || "")).map((r) => <LinkManual key={r.aba + r.id} para={r} />)}</div>
+          )}
           {/* "Na Sessão de hoje" era uma promessa vaga — essa aula pode nem
              ser hoje. Quando é a aula em vigor, isto já é um link real pra
              abrir de verdade; as outras (ainda não alcançadas na sequência)
@@ -13386,7 +13527,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
           </div>
         )}
 
-        {!planoCandidato && modoCriacao === "programa" && <Secao titulo="Programas prontos"
+        {!planoCandidato && modoCriacao === "programa" && <Secao titulo="Programas prontos" manual={[REF_MANUAL.estrutura, REF_MANUAL.publicos]}
           nota={"Escolha uma estrutura de treino, adapte " + (eTurma ? "ao grupo" : "ao jogador") + " e revise antes de usar."}>
           {eTurma && (
             <Aviso>
@@ -13511,7 +13652,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
           )}
         </Secao>}
 
-        {!planoCandidato && modoCriacao === "ficha" && <Secao titulo={eTurma ? "Gerar a partir das fichas do grupo" : "Gerar a partir da ficha"}
+        {!planoCandidato && modoCriacao === "ficha" && <Secao titulo={eTurma ? "Gerar a partir das fichas do grupo" : "Gerar a partir da ficha"} manual={[REF_MANUAL.prioridades, REF_MANUAL.fases, REF_MANUAL.olhar]}
           nota={eTurma
             ? "Usa o que está preenchido na ficha de cada jogador do grupo e monta UM plano pra turma inteira, escolhendo exercícios que sirvam pra todos (ou em estações, se os níveis pedirem). Se a turma já teve ciclos anteriores, o plano novo considera o que ficou registrado neles."
             : "Usa o que está preenchido na aba Ficha e escolhe os exercícios dentro do catálogo, respeitando o estágio do jogador. Se o jogador já teve ciclos anteriores, o plano novo é montado considerando o que ficou registrado neles."}>
@@ -13950,6 +14091,18 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
           </div>
           {b.alvo && <p style={{ ...prosa, fontSize: 13, color: C.grafite, background: C.cal,
             border: "1px solid " + C.linha, borderTop: "none", padding: "11px 15px", margin: 0 }}>{b.alvo}</p>}
+          {(() => {
+            const refs = [...refsNoTexto((b.titulo || "") + " " + (b.alvo || "") + " " + (b.semanasLista || []).map((x) => x.foco || "").join(" ")),
+              !eTurma && aluno ? refTrilha(aluno.estagio) : null].filter(Boolean);
+            const vistos = {};
+            const lista = refs.filter((r) => { const k = r.aba + r.id; if (vistos[k]) return false; vistos[k] = 1; return true; }).slice(0, 4);
+            return lista.length ? (
+              <div className="flex gap-2 flex-wrap" style={{ background: C.cal, border: "1px solid " + C.linha, borderTop: "none", padding: "9px 15px" }}>
+                <span style={{ ...prosa, fontSize: 11.5, color: C.grafite, alignSelf: "center" }}>No Manual:</span>
+                {lista.map((r) => <LinkManual key={r.aba + r.id} para={r} />)}
+              </div>
+            ) : null;
+          })()}
 
           {(b.semanasLista || []).map((sem, si) => {
             const aulasDaSemana = (sem.aulas || []).map((au, ai) => {
@@ -14022,7 +14175,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
               return (
                 <div style={{ background: C.papel, border: "1px solid " + C.linha, borderTop: "none",
                   borderLeft: "3px solid " + C.quadra, padding: "12px 15px" }}>
-                  <Etiqueta cor={C.quadra}>Critério de saída</Etiqueta>
+                  <div className="flex items-center gap-2 flex-wrap"><Etiqueta cor={C.quadra}>Critério de saída</Etiqueta><LinkManual para={REF_MANUAL.niveis} compacto /></div>
                   <p style={{ ...prosa, fontSize: 13, marginTop: 4 }}>{saidaTexto || "Avaliado no fechamento do ciclo."}</p>
                 </div>
               );
@@ -14116,7 +14269,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
                 Ver critérios do ciclo ▼
               </button>
             ) : (
-            <Secao titulo="Critérios do ciclo" nota="A mesma pergunta de sempre — atingido, parcial, não atingido — pra poder comparar de um ciclo pro outro. 'Não avaliado' não é 'não atingido': é só o que ninguém chegou a conferir ainda.">
+            <Secao titulo="Critérios do ciclo" manual={[REF_MANUAL.reavaliacao, REF_MANUAL.conversa]} nota="A mesma pergunta de sempre — atingido, parcial, não atingido — pra poder comparar de um ciclo pro outro. 'Não avaliado' não é 'não atingido': é só o que ninguém chegou a conferir ainda.">
               {plano.blocos.filter((b) => b.saida).length === 0 && (
                 <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Este plano não define critérios de saída avaliáveis.</p>
               )}
@@ -14236,10 +14389,21 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
   );
 }
 
-function MapaFamilias() {
-  const [aberto, setAberto] = useState(false);
+function MapaFamilias({ foco }) {
+  const [aberto, setAberto] = useState(!!foco);
+  const cat = foco ? CATEGORIAS_EXERCICIO.find((c) => c.c === foco) : null;
+  const blocos = foco ? BLOCO_FAMILIAS.filter((b) => b.familias.split(/[^A-Z]+/).includes(foco)) : [];
   return (
     <div id="mapa-familias" className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "12px 15px", scrollMarginTop: 90 }}>
+      {foco && FAM[foco] && (
+        <div id={"familia-" + foco} className="mb-3" style={{ background: "#EAF3EE", border: "1px solid #CFE3D7", borderLeft: "3px solid " + C.quadra, padding: "10px 13px" }}>
+          <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{foco} · {FAM[foco]}</div>
+          {cat && <p style={{ ...prosa, fontSize: 13, marginTop: 4 }}><b>Foco:</b> {cat.foco}</p>}
+          {cat && <p style={{ ...prosa, fontSize: 13, marginTop: 3 }}><b>Quando usar:</b> {cat.quando}</p>}
+          {blocos.length > 0 && <p style={{ ...prosa, fontSize: 13, marginTop: 3 }}><b>Bloco da aula:</b> {blocos.map((b) => b.bloco).join(" · ")}</p>}
+          <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 6 }}>Abaixo, os exercícios desta família no catálogo.</p>
+        </div>
+      )}
       <button onClick={() => setAberto(!aberto)} className="w-full flex items-center justify-between gap-3" style={{ cursor: "pointer" }}>
         <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>Mapa das famílias · foco e quando usar</span>
         <Etiqueta>{aberto ? "fechar" : "abrir"}</Etiqueta>
@@ -14331,10 +14495,11 @@ function NovoExercicioAcademia({ aoAdicionar }) {
   );
 }
 
-function TelaCatalogo({ exerciciosCustom, setExerciciosCustom }) {
+function TelaCatalogo({ exerciciosCustom, setExerciciosCustom, focoId }) {
+  const focoFamilia = focoId && focoId.indexOf("familia-") === 0 ? focoId.slice(8) : null;
   const [busca, setBusca] = useState("");
   const [estagio, setEstagio] = useState("todos");
-  const [familia, setFamilia] = useState("todas");
+  const [familia, setFamilia] = useState(focoFamilia && FAM[focoFamilia] ? focoFamilia : "todas");
   const lista = useMemo(() => {
     const t = busca.trim().toLowerCase();
     const filtrados = TODOS_EXERCICIOS().filter((e) => {
@@ -14353,8 +14518,8 @@ function TelaCatalogo({ exerciciosCustom, setExerciciosCustom }) {
   }
   return (
     <div>
-      <MapaFamilias />
-      <NovoExercicioAcademia aoAdicionar={(ex) => setExerciciosCustom([...exerciciosCustom, ex])} />
+      <MapaFamilias foco={focoFamilia} />
+      {!focoFamilia && <NovoExercicioAcademia aoAdicionar={(ex) => setExerciciosCustom([...exerciciosCustom, ex])} />}
       <input style={{ ...entrada, marginBottom: 14 }} value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por código, nome ou montagem" />
       <Campo rotulo="Estágio"><Seletor opcoes={[{ v: "todos", r: "Todos" }, ...ESTAGIOS.map((e) => ({ v: e.s, r: e.s }))]} valor={estagio} aoMudar={setEstagio} /></Campo>
       <Campo rotulo="Família"><Seletor opcoes={[{ v: "todas", r: "Todas" }, ...Object.keys(FAM).map((f) => ({ v: f, r: f }))]} valor={familia} aoMudar={setFamilia} /></Campo>
@@ -17202,7 +17367,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
               </div>
             ) : (
               <div className="mb-5">
-                <div className="mb-3"><Etiqueta cor={C.saibro}>Conduzir</Etiqueta></div>
+                <div className="mb-3 flex items-center gap-2 flex-wrap"><Etiqueta cor={C.saibro}>Conduzir</Etiqueta><LinkManual para={REF_MANUAL.estrutura} /><LinkManual para={REF_MANUAL.protocolos} /><LinkManual para={REF_MANUAL.instruir} /></div>
                 <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
                   <Etiqueta cor={C.quadra}>✓ Sessão salva — continua aqui mesmo se fechar o app ou trocar de aparelho</Etiqueta>
                   {podeRegistrarSessaoTurma && (
@@ -21422,6 +21587,7 @@ function App() {
      vendo normalmente; só quem é provisionado dali pra frente sem marcar
      a opção fica sem essa aba. */
   const mostraManual = !identidade || typeof identidade.mostrarManual !== "boolean" || identidade.mostrarManual;
+  const { ctx: ctxManual, pilha: pilhaManual, voltar: voltarManual } = usePainelManual(mostraManual);
   /* Quadras é o oposto do Manual: uma feature nova, que nenhuma academia
      usava antes de existir — então o padrão é ficar ESCONDIDA, e só
      aparece pra quem for provisionado explicitamente com a opção
@@ -21505,9 +21671,12 @@ function App() {
   if (exigeLogin && !orgAtual) return <TelaSemAcademia />;
 
   return (
+    <ManualCtx.Provider value={ctxManual}>
     <div style={{ background: C.papel, minHeight: "100vh", color: C.tinta }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        .mty-foco-manual { outline: 3px solid ${C.saibro}; outline-offset: 4px; border-radius: 6px; transition: outline-color .6s; }
+        .mty-link-manual:hover { background: #DCEDE3 !important; }
         * { -webkit-tap-highlight-color: transparent; }
         button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid ${C.saibro}; outline-offset: 2px; }
         button { transition: transform .06s ease, opacity .06s ease; }
@@ -22208,12 +22377,14 @@ function App() {
         </>
       )}
     </div>
+    <PainelManual pilha={pilhaManual} aoVoltar={voltarManual} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} />
+    </ManualCtx.Provider>
   );
 }
 
-function TelaTaticas() {
+function TelaTaticas({ focoId }) {
   const [nivelFiltro, setNivelFiltro] = useState("todos");
-  const [padraoAberto, setPadraoAberto] = useState(null);
+  const [padraoAberto, setPadraoAberto] = useState(focoId && focoId.indexOf("padrao-") === 0 ? focoId.slice(7) : null);
   const padroes = nivelFiltro === "todos" ? PADROES_TATICOS : PADROES_TATICOS.filter((p) => p.nv === nivelFiltro);
 
   return (
@@ -22223,7 +22394,7 @@ function TelaTaticas() {
         aqui fica só a referência para consultar durante o planejamento.
       </p>
 
-      <LegendaNiveis />
+      <LegendaNiveis abertoInicial={focoId === "legenda-niveis"} />
 
       <Secao id="vocabulario" titulo="O vocabulário" nota="Oito termos. O aluno não precisa decorá-los — o professor precisa usá-los sempre da mesma forma.">
         {VOCABULARIO_TATICO.map((v) => (
@@ -22266,7 +22437,7 @@ function TelaTaticas() {
         ))}
       </Secao>
 
-      <Secao titulo="Perfis de corpo" nota="Onde o jogador consegue jogar a partir de — corpo, não estatura.">
+      <Secao id="perfis-corpo" titulo="Perfis de corpo" nota="Onde o jogador consegue jogar a partir de — corpo, não estatura.">
         {PERFIS_CORPO.map((p) => (
           <div key={p.v} className="mb-3" style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.quadra, padding: "10px 13px" }}>
             <div style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{p.r}</div>
@@ -22275,7 +22446,7 @@ function TelaTaticas() {
         ))}
       </Secao>
 
-      <Secao titulo="Temperamento" nota="Cruza com o perfil de corpo — existe jogador alto e direto, e pequeno e cadenciado.">
+      <Secao id="temperamento" titulo="Temperamento" nota="Cruza com o perfil de corpo — existe jogador alto e direto, e pequeno e cadenciado.">
         {PERFIS_TEMPERAMENTO.map((p) => (
           <div key={p.v} className="mb-3" style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.saibro, padding: "10px 13px" }}>
             <div style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{p.r}</div>
@@ -22295,7 +22466,7 @@ function TelaTaticas() {
           ))}
         </div>
         {padroes.map((p) => (
-          <div key={p.c} onClick={() => setPadraoAberto(padraoAberto === p.c ? null : p.c)}
+          <div key={p.c} id={"padrao-" + p.c} onClick={() => setPadraoAberto(padraoAberto === p.c ? null : p.c)}
             className="mb-2" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "9px 12px", cursor: "pointer" }}>
             <div className="flex items-center gap-2">
               <span style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, color: C.saibro }}>{p.c}</span>
@@ -22319,7 +22490,7 @@ function TelaTaticas() {
         padrão novo entra pelo trilho — nunca direto no ponto livre.
       </Aviso>
 
-      <Secao titulo="Como se ensina tática" nota="A parte mais importante desta tela. Tática mal ensinada não é tática pela metade: é aluno travado, que pensa demais e executa de menos.">
+      <Secao id="ensino-tatico" titulo="Como se ensina tática" nota="A parte mais importante desta tela. Tática mal ensinada não é tática pela metade: é aluno travado, que pensa demais e executa de menos.">
         <p style={{ ...prosa, fontSize: 13, marginBottom: 12 }}>
           Tática não se ensina só explicando — ela se ensina simulando, em trilho fechado, até a
           decisão virar automática, e só depois se abre.
@@ -22556,8 +22727,8 @@ function TelaTecnica({ focoId }) {
   );
 }
 
-function TelaAulas() {
-  const [subaba, setSubaba] = useState("estrutura");
+function TelaAulas({ focoId }) {
+  const [subaba, setSubaba] = useState({ "trilha-A": "a", "trilha-B": "b", "trilha-C": "c", "trilha-adultos": "adultos", "trilha-G": "g" }[focoId] || "estrutura");
   return (
     <div>
       <p style={{ ...prosa, marginBottom: 14 }}>
@@ -22587,7 +22758,7 @@ function TelaAulas() {
             ))}
           </Secao>
 
-          <Secao titulo="Os oito protocolos de quadra" nota="Valem em toda aula, de toda trilha, em toda unidade.">
+          <Secao id="protocolos" titulo="Os oito protocolos de quadra" nota="Valem em toda aula, de toda trilha, em toda unidade.">
             {PROGRAMA_ESTRUTURA.protocolos.map((p, i) => (
               <div key={i} className="flex gap-3 mb-2">
                 <p style={{ ...prosa, fontSize: 12.5 }}>{p}</p>
@@ -22628,7 +22799,7 @@ function TelaAulas() {
       {["a", "b", "c"].includes(subaba) && (() => {
         const t = TRILHAS_INFANTIS.find((x) => x.id === subaba.toUpperCase());
         return (
-          <Secao titulo={"Trilha " + t.id + " — " + t.nome} nota={"Nível " + t.nivel + " · " + t.publico}>
+          <Secao id={"trilha-" + t.id} titulo={"Trilha " + t.id + " — " + t.nome} nota={"Nível " + t.nivel + " · " + t.publico}>
             <p style={{ ...prosa, fontSize: 13, marginBottom: 14 }}><b>Objetivo do ciclo:</b> {t.objetivo}</p>
             {t.mesociclos.map((m) => (
               <div key={m.m} className="mb-3" style={{ background: C.cal, border: "1px solid " + C.linha, padding: "10px 13px" }}>
@@ -22643,7 +22814,7 @@ function TelaAulas() {
 
       {subaba === "adultos" && (
         <div>
-          <Secao titulo="Trilhas D, E, F — Adultos" nota="Grupo (D), dupla (E) e individual (F) compartilham o mesmo currículo de 24 aulas — o que muda é a condução, não o conteúdo.">
+          <Secao id="trilha-adultos" titulo="Trilhas D, E, F — Adultos" nota="Grupo (D), dupla (E) e individual (F) compartilham o mesmo currículo de 24 aulas — o que muda é a condução, não o conteúdo.">
             <Tabela cabecalho={["", "D · Grupo", "E · Dupla", "F · Individual"]}
               linhas={[
                 ["Início do ponto", ...TRILHA_ADULTOS.formatos.map((f) => f.inicio)],
@@ -22666,7 +22837,7 @@ function TelaAulas() {
 
       {subaba === "g" && (
         <div>
-          <Secao titulo="Trilha G — Competição" nota={TRILHA_COMPETICAO.publico}>
+          <Secao id="trilha-G" titulo="Trilha G — Competição" nota={TRILHA_COMPETICAO.publico}>
             <h4 style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>Estrutura do semestre (24 semanas)</h4>
             <Tabela cabecalho={["Semanas", "Fase", "Função"]}
               linhas={TRILHA_COMPETICAO.semestre.map((s) => [s.sem, s.fase, s.funcao])} />
@@ -22749,6 +22920,100 @@ function TelaMetodo() {
           </div>
         ))}
       </Secao>
+    </div>
+  );
+}
+
+/* Estado do painel do Manual (usado pelo App). Cada abertura empilha uma
+   entrada no histórico do navegador, pra o Voltar do celular fechar o painel
+   em vez de sair do app; Esc também fecha. */
+function usePainelManual(ativo) {
+  const [pilha, setPilha] = useState([]);
+  const entradas = useRef(0);
+  const ctx = useMemo(() => ativo ? {
+    abrir: (ref) => {
+      setPilha((p) => [...p, ref]);
+      try { window.history.pushState({ mtyManual: true }, ""); entradas.current++; } catch (e) { /* sem histórico: o botão Voltar do painel resolve */ }
+    },
+  } : null, [ativo]);
+  function voltar() {
+    if (entradas.current > 0) { try { window.history.back(); return; } catch (e) { /* cai no fechamento direto */ } }
+    setPilha((p) => p.slice(0, -1));
+  }
+  useEffect(() => {
+    function aoHistorico() {
+      if (entradas.current > 0) entradas.current--;
+      setPilha((p) => (p.length ? p.slice(0, -1) : p));
+    }
+    window.addEventListener("popstate", aoHistorico);
+    return () => window.removeEventListener("popstate", aoHistorico);
+  }, []);
+  useEffect(() => {
+    if (!pilha.length) return;
+    function tecla(e) { if (e.key === "Escape") voltar(); }
+    const antes = document.documentElement.style.overflow;
+    document.documentElement.style.overflow = "hidden";
+    window.addEventListener("keydown", tecla);
+    return () => { window.removeEventListener("keydown", tecla); document.documentElement.style.overflow = antes; };
+  }, [pilha.length]);
+  return { ctx, pilha, voltar };
+}
+
+/* O painel que abre o Manual por cima da tela de trabalho. Mostra a aba
+   inteira do Manual (contexto em volta do conceito), rola até o conceito e
+   o destaca por alguns segundos. "Voltar" fecha o painel — a tela de baixo
+   nunca foi desmontada. Um conceito aberto de dentro do painel empilha. */
+function PainelManual({ pilha, aoVoltar, exerciciosCustom, setExerciciosCustom }) {
+  const atual = pilha[pilha.length - 1];
+  const corpoRef = useRef(null), voltarRef = useRef(null);
+  useEffect(() => {
+    if (!atual) return;
+    if (voltarRef.current) voltarRef.current.focus({ preventScroll: true });
+    const t = setTimeout(() => {
+      const box = corpoRef.current;
+      if (!box) return;
+      const el = atual.id ? box.querySelector('[id="' + String(atual.id).replace(/"/g, "") + '"]') : null;
+      if (!el) { box.scrollTop = 0; return; }
+      box.scrollTop = Math.max(0, el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop - 14);
+      el.classList.add("mty-foco-manual");
+      setTimeout(() => el.classList.remove("mty-foco-manual"), 2600);
+    }, 90);
+    return () => clearTimeout(t);
+  }, [atual, pilha.length]);
+  if (!atual) return null;
+  const f = atual.id || null;
+  const tela = atual.aba === "catalogo" ? <TelaCatalogo exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} focoId={f} /> :
+    atual.aba === "taticas" ? <TelaTaticas focoId={f} /> :
+    atual.aba === "tecnica" ? <TelaTecnica focoId={f} /> :
+    atual.aba === "conducao" ? <TelaConducao /> :
+    atual.aba === "publicos" ? <TelaPublicos /> :
+    atual.aba === "aulas" ? <TelaAulas focoId={f} /> :
+    <TelaMetodo />;
+  const nomeAba = (NAV_MANUAL.find((t) => t.v === atual.aba) || { r: "Manual" }).r;
+  return (
+    <div role="dialog" aria-modal="true" aria-labelledby="mty-manual-titulo" className="mty-painel-manual"
+      style={{ position: "fixed", inset: 0, zIndex: 90, background: C.papel, display: "flex", flexDirection: "column" }}>
+      <div style={{ background: C.cal, borderBottom: "1px solid " + C.linha, boxShadow: SOMBRA, padding: "10px 16px", paddingTop: "calc(10px + env(safe-area-inset-top))" }}>
+        <div style={{ maxWidth: 760, margin: "0 auto", display: "flex", alignItems: "center", gap: 12 }}>
+          <button ref={voltarRef} type="button" onClick={aoVoltar} className="mty-manual-voltar"
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: ARCH, fontSize: 14, fontWeight: 700, color: C.cal, background: C.quadra,
+              border: "none", borderRadius: 10, padding: "10px 14px", minHeight: 44, cursor: "pointer", flexShrink: 0 }}>
+            <span aria-hidden="true">←</span> Voltar
+          </button>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: ARCH, fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: C.saibro }}>Manual MTY · {nomeAba}</div>
+            <div id="mty-manual-titulo" style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{atual.rotulo}</div>
+          </div>
+        </div>
+      </div>
+      <div ref={corpoRef} style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
+        <div key={pilha.length + ":" + atual.aba + ":" + f} className="px-5 py-6" style={{ maxWidth: 760, margin: "0 auto", paddingBottom: 80 }}>
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 16 }}>
+            Consulta do Manual. Ao tocar em <b>Voltar</b>, você volta exatamente onde estava — nada do que você estava preenchendo se perde.
+          </p>
+          {tela}
+        </div>
+      </div>
     </div>
   );
 }
