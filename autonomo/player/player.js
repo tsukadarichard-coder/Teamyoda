@@ -4754,7 +4754,7 @@
         (p.estado === "aguardando_pagamento" && p.pagamento.estado === "falhou" ? ' <span class="nota">' + esc(p.pagamento.rotulo) + "</span>" : "") + (p.prazoTexto && (p.estado === "recebido" || p.estado === "em_analise") ? ' <span class="nota">· até ' + esc(p.prazoTexto) + "</span>" : "") + "</p>" +
         '<div class="acoes">' + botao(p) + "</div></li>");
     });
-    tela(abasPlanosHtml("atendimentos") + '<h1>Meus atendimentos</h1><p class="sub">Seus pedidos a treinadores do QuadraLab Hub, os pedidos do Olhar do treinador e as orientações que você recebeu.</p>' +
+    tela(abasPlanosHtml("atendimentos") + '<h1>Meus atendimentos</h1><p class="sub">Os pedidos do Olhar do treinador e as orientações que você recebeu.</p>' +
       '<div id="hubAtend"></div><h2 class="secao">Olhar do treinador</h2>' +
       (itens.length ? '<ul class="olhar-lista">' + itens.join("") + "</ul>" : '<div class="cartao" style="margin-top:14px"><h2>Você ainda não tem atendimentos</h2><p class="nota" style="margin-top:6px">Quando você pedir um olhar do treinador, o acompanhamento e a devolutiva ficam aqui.</p><div class="acoes"><a class="btn btn-primario" href="#/olhar">Conhecer o olhar do treinador</a></div></div>') +
       '<p class="nota" style="margin-top:12px">Outros serviços, como a revisão de estratégia e a análise completa, são combinados pelo WhatsApp. Veja em <a href="#/consultorias">Consultorias</a>.</p>');

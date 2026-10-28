@@ -6,6 +6,8 @@ const http = require("http"), fs = require("fs"), path = require("path"), assert
 const { chromium } = require("/opt/node22/lib/node_modules/playwright");
 const CDN = process.env.CDN_DIR || "/tmp/claude-0/-home-user-Teamyoda/f36f7b1a-5380-5cd8-93be-4b9b8aa1980b/scratchpad/cdn";
 if (!fs.existsSync(CDN)) { console.log("smoke-hub-marketplace: pulado (sem React/Babel locais; defina CDN_DIR)"); process.exit(0); }
+/* o Hub está desligado enquanto o Treinador e o Player são validados separados (LIGACAO_PLAYER no index.html; ver tests/check-apps-separados.js) */
+if (/const LIGACAO_PLAYER = false;/.test(fs.readFileSync(path.join(__dirname, "../index.html"), "utf8"))) { console.log("smoke-hub-marketplace: pulado (Hub desligado: LIGACAO_PLAYER = false)"); process.exit(0); }
 const raiz = path.join(__dirname, ".."), fx = path.join(raiz, "netlify/functions/");
 const saida = path.join(__dirname, "capturas-hub"); fs.mkdirSync(saida, { recursive: true });
 

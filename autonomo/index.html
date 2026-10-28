@@ -565,6 +565,9 @@ const LINKS_CHECKOUT_EDUZZ = {
   essencial: "https://chk.eduzz.com/6W4GYZEO0Z", // produto 3124922 — "EO0Z": letra O e depois zero
   premium: "https://chk.eduzz.com/D0R8KEP69Y", // produto 3124932 — "D0R8" com ZERO (com a letra O dava erro DEF_A)
 };
+/* Ligação com o QuadraLab Player e o Competição (QuadraLab Hub, atletas da academia, troca de scouts e jogo ao vivo no app do atleta):
+   desligada enquanto o app do treinador e o Player são validados separados. O código e os dados continuam; true religa tudo. */
+const LIGACAO_PLAYER = false;
 /* Cota mensal da Tecnologia QuadraLab (análise de movimento): fonte única em scout/movimento-motor.js. */
 const LIMITE_MOVIMENTO_ESSENCIAL = (window.QLBiomec && window.QLBiomec.LIMITES_PLANO.movimento.essencial) || 5;
 const PRECOS_PLANO = {
@@ -9039,6 +9042,7 @@ function CartaoAoVivo({ aluno, cfg, pontos, placar, mental, aoVivo, setAoVivo, e
   const url = aoVivo ? location.origin + "/scout/?l=" + aoVivo.token : "";
   /* atletas do QuadraLab Competição que me vincularam como treinador: ligar o jogo a um deles faz o jogo aparecer sozinho no app dele e dos responsáveis */
   useEffect(() => {
+    if (!LIGACAO_PLAYER) return undefined;
     let vivo = true;
     chamarAoVivo({ acao: "atletas" }).then((c) => {
       if (!vivo) return;
@@ -9100,7 +9104,7 @@ function CartaoAoVivo({ aluno, cfg, pontos, placar, mental, aoVivo, setAoVivo, e
               </label>
             </div>
           )}
-          {atletas.length === 0 && (
+          {LIGACAO_PLAYER && atletas.length === 0 && (
             <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 6 }}>
               Para o jogo aparecer sozinho no app do atleta, peça que ele (ou o responsável) vincule você como treinador no QuadraLab Competição, com o código de convite. Sem isso, só dá para enviar o link.
             </p>
@@ -9558,7 +9562,7 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
           valores={mental.antes} aoMudar={(k, v) => setMental({ ...mental, antes: { ...mental.antes, [k]: v } })} />
         <Botao onClick={comecar} variante="saibro">Iniciar acompanhamento</Botao>
 
-        {window.mtyAuth && <CartaoIntercambio aluno={aluno} alunos={alunos} setAlunos={setAlunos} />}
+        {LIGACAO_PLAYER && window.mtyAuth && <CartaoIntercambio aluno={aluno} alunos={alunos} setAlunos={setAlunos} />}
 
         {partidasAnteriores.length > 0 && (
           <div className="mt-6">
@@ -12135,7 +12139,6 @@ const NOVIDADES = [
   ["Planejamento que melhora com os dados", "Na aba Plano, a Revisão do plano cruza as análises de vídeo e os scouts dos jogos e sugere ajustes. Você aceita, recusa ou deixa para depois; nada muda sozinho, e o diário mostra se o ajuste funcionou."],
   ["Meu método (plano Premium)", "Descreva a sua linha de trabalho (áreas, critérios de saída, princípios e a sua biblioteca de exercícios), ou cole os seus planejamentos e deixe a IA preencher. O gerador de plano passa a seguir só as suas regras."],
   ["Metas de saída medidas e versões do plano", "O critério de saída do bloco mostra o que o vídeo e o scout já confirmam, o plano guarda as versões de cada ajuste aceito, e os reforços sugeridos passam a atacar o item do vídeo e a priorizar o que funcionou em outros jogadores."],
-  ["Atletas da academia no Player", "No Início, “Atletas da academia” mostra o seu código fixo. O atleta digita no QuadraLab Player e o vínculo é feito na hora (menores também, o termo da matrícula cobre). Você também pode pedir o vínculo pelo e-mail do atleta."],
   ["Marcação rápida no scout", "Marque só o resultado e a bola do ponto durante o jogo e complete os detalhes depois. Mais fácil de usar na quadra."],
   ["Retomar partidas", "Fechou sem querer? As partidas não terminadas aparecem no Início e podem ser retomadas de onde pararam, inclusive o link dos pais."],
   ["Análise de movimento", "Envie o vídeo e acompanhe a evolução golpe a golpe (Tecnologia QuadraLab)."],
@@ -15277,8 +15280,8 @@ const ETAPAS_DEMONSTRACAO = [
    em vez de repetida (e potencialmente divergente) em cada um. */
 const PLANOS_PUBLICOS = [
   { id: "gratis", nome: "Gratuito", preco: "R$ 0", periodo: "", beneficio: "Até 5 alunos", botao: "Começar grátis" },
-  { id: "essencial", nome: "Essencial", preco: "R$ 29,90", periodo: "/mês", beneficio: "Até 30 alunos · " + LIMITE_MOVIMENTO_ESSENCIAL + " análises de movimento por mês · perfil profissional no QuadraLab Hub", botao: "Escolher Essencial" },
-  { id: "premium", nome: "Premium", preco: "R$ 59,90", periodo: "/mês", beneficio: "Alunos e análises de movimento ilimitados · perfil profissional no QuadraLab Hub", botao: "Escolher Premium" },
+  { id: "essencial", nome: "Essencial", preco: "R$ 29,90", periodo: "/mês", beneficio: "Até 30 alunos · " + LIMITE_MOVIMENTO_ESSENCIAL + " análises de movimento por mês", botao: "Escolher Essencial" },
+  { id: "premium", nome: "Premium", preco: "R$ 59,90", periodo: "/mês", beneficio: "Alunos e análises de movimento ilimitados", botao: "Escolher Premium" },
 ];
 const RECURSOS_INCLUSOS_TODOS_PLANOS = [
   "Ficha e avaliação técnica/tática de cada jogador",
@@ -15290,7 +15293,6 @@ const RECURSOS_INCLUSOS_TODOS_PLANOS = [
 const RECURSOS_TECNOLOGIA_QUADRALAB = [
   "Análise de movimento em vídeo (forehand, backhand e saque), com fotos dos momentos, conclusão e sugestões de intervenção",
   "Comparação automática de cada análise com a anterior, na biomecânica e nos jogos",
-  "Perfil profissional publicado no QuadraLab Hub, com seus serviços, para receber pedidos de jogadores do QuadraLab Player e Competição",
 ];
 
 const FAQ_QUADRALAB = [
@@ -15306,8 +15308,6 @@ const FAQ_QUADRALAB = [
     r: "Sim. Você pode trocar, adicionar ou remover exercícios da sessão e ajustar o planejamento quando quiser — nada fica travado." },
   { p: "Como funciona o apoio da IA?",
     r: "A IA sugere um planejamento com base na ficha e no histórico do jogador. A sugestão sempre chega como rascunho: você revisa e só vira plano ativo depois da sua aprovação. O apoio da IA está disponível nos três planos, sem limite adicional definido hoje." },
-  { p: "O que é o perfil profissional no QuadraLab Hub?",
-    r: "Nos planos Essencial e Premium você pode publicar um perfil com apresentação, experiência, locais e serviços com preço. Jogadores do QuadraLab Player e da Competição encontram o perfil e enviam pedidos; vocês conversam pela plataforma e combinam valor, horário e pagamento diretamente, sem comissão. A publicação só acontece quando você escolhe e pode ser pausada a qualquer momento. A quantidade de contatos depende da procura, da região e dos serviços oferecidos. No plano gratuito você monta o rascunho e vê a prévia." },
   { p: "Como funcionam os 7 dias de teste?",
     r: "Essencial e Premium têm 7 dias grátis configurados no checkout antes da primeira cobrança. A cobrança é mensal e recorrente a partir do fim do teste, e você gerencia ou cancela a assinatura diretamente na área de compras da Eduzz (nossa processadora de pagamento) a qualquer momento." },
   { p: "Preciso cadastrar cartão?",
@@ -15375,11 +15375,11 @@ function SecaoPlanos({ irParaCadastro, abrirLogin }) {
           <CardPlanoPublico key={p.id} plano={p} ordem={i} aoEscolher={escolher} aoEntrar={entrarComPlano} />
         ))}
       </div>
-      <div className="qlab-planos-inclusos" data-venda-hub style={{ borderLeft: "3px solid " + C.saibro }}>
+      {LIGACAO_PLAYER && <div className="qlab-planos-inclusos" data-venda-hub style={{ borderLeft: "3px solid " + C.saibro }}>
         <p className="qlab-planos-inclusos-titulo">Organize suas aulas e seja encontrado por novos jogadores.</p>
         <p style={{ ...prosa, fontSize: 14.5 }}>Publique seu perfil profissional, apresente seus serviços e receba pedidos de jogadores do QuadraLab Player e Competição.</p>
         <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginTop: 6 }}>A publicação amplia sua presença na plataforma. A quantidade de contatos depende da procura, da região e dos serviços oferecidos. Disponível a partir do plano Essencial; a publicação só acontece quando você escolhe publicar, e os valores são combinados e pagos diretamente com você, sem comissão.</p>
-      </div>
+      </div>}
       <div className="qlab-planos-inclusos">
         <p className="qlab-planos-inclusos-titulo">Os três planos incluem:</p>
         <ul>
@@ -17433,7 +17433,7 @@ function TelaDashboard({ aoAbrirScout, aoDescartarPartida, alunos, turmas, uidAt
       <h1 style={{ fontFamily: ARCH, fontSize: 26, fontWeight: 700, marginBottom: 4 }}>{saudacao}</h1>
       <CartaoPartidasEmAndamento alunos={alunos} aoAbrirScout={aoAbrirScout} aoDescartar={aoDescartarPartida} />
       <CartaoRevisoesPlano alunos={alunos} turmas={turmas} irPara={irPara} irParaTurma={() => aoAbrirTurmas()} />
-      <CartaoVinculoAcademia />
+      {LIGACAO_PLAYER && <CartaoVinculoAcademia />}
       <p style={{ ...prosa, fontSize: 15, color: C.grafite, marginBottom: onboardingDispensado && !onboardingCompleto ? 4 : 18 }}>
         Vamos preparar sua próxima aula?
       </p>
@@ -17620,7 +17620,8 @@ function IconeCalendario({ tam = 28 }) {
 
 function PainelMais({ aba, setAba, aoFechar }) {
   const itens = [...NAV_PRINCIPAL.filter((t) => !["dashboard", "alunos", "agenda"].includes(t.v)),
-    { v: "metodo", r: "Meu método" }, { v: "catalogo", r: "Catálogo de exercícios" }, { v: "hubPerfil", r: "Meu perfil profissional" }, { v: "hubPedidos", r: "Pedidos de atendimento" }];
+    { v: "metodo", r: "Meu método" }, { v: "catalogo", r: "Catálogo de exercícios" },
+    ...(LIGACAO_PLAYER ? [{ v: "hubPerfil", r: "Meu perfil profissional" }, { v: "hubPedidos", r: "Pedidos de atendimento" }] : [])];
   return (
     <>
       <div onClick={aoFechar} style={{ position: "fixed", inset: 0, background: "rgba(16,30,25,.4)", zIndex: 39 }} />
@@ -18412,7 +18413,7 @@ function App() {
   /* QuadraLab Hub: conta as mensagens/pedidos não lidos do profissional (aviso dentro do app, sem e-mail nem WhatsApp) */
   const [hubNaoLidas, setHubNaoLidas] = useState(0);
   useEffect(() => {
-    if (!exigeLogin || !uidAtual) return;
+    if (!LIGACAO_PLAYER || !exigeLogin || !uidAtual) return;
     let vivo = true;
     const ver = () => chamarHub("hub-atendimentos").then((r) => { if (vivo) setHubNaoLidas((r.comoProfissional || []).reduce((s, p) => s + (p.naoLidas || 0), 0)); }).catch(() => {});
     ver(); const t = setInterval(ver, 90000);
@@ -18610,8 +18611,8 @@ function App() {
      marcada. */
   const gruposNav = [
     { id: "trabalho", label: "Meu trabalho", itens: [...NAV_PRINCIPAL, { v: "metodo", r: "Meu método" }, { v: "catalogo", r: "Catálogo de exercícios" }] },
-    { id: "hub", label: "QuadraLab Hub", badge: hubNaoLidas > 0 ? String(hubNaoLidas) : null, itens: [{ v: "hubPerfil", r: "Meu perfil profissional" }, { v: "hubPedidos", r: "Pedidos de atendimento" + (hubNaoLidas > 0 ? " (" + hubNaoLidas + ")" : "") }] },
-  ].filter((g) => g.itens.length > 0);
+    LIGACAO_PLAYER && { id: "hub", label: "QuadraLab Hub", badge: hubNaoLidas > 0 ? String(hubNaoLidas) : null, itens: [{ v: "hubPerfil", r: "Meu perfil profissional" }, { v: "hubPedidos", r: "Pedidos de atendimento" + (hubNaoLidas > 0 ? " (" + hubNaoLidas + ")" : "") }] },
+  ].filter((g) => g && g.itens.length > 0);
   function criar() {
     if (planoVencido || (limitePlano != null && alunos.length >= limitePlano)) {
       setLimiteAtingido(true);
@@ -18913,8 +18914,8 @@ function App() {
         {carregando ? <p style={{ ...prosa, color: C.grafite }}>Carregando…</p> :
          aba === "ajuda" ? <TelaAjuda /> :
          aba === "catalogo" ? <TelaCatalogo exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
-         aba === "hubPerfil" ? <TelaPerfilProfissional planoAtual={planoAtual} planoVencido={planoVencido} emailAtual={window.mtyAuth && window.mtyAuth.usuario() ? window.mtyAuth.usuario().email : ""} aoAbrirPedidos={() => setAba("hubPedidos")} /> :
-         aba === "hubPedidos" ? <TelaPedidosAtendimento aoAbrirPerfil={() => setAba("hubPerfil")} /> :
+         aba === "hubPerfil" && LIGACAO_PLAYER ? <TelaPerfilProfissional planoAtual={planoAtual} planoVencido={planoVencido} emailAtual={window.mtyAuth && window.mtyAuth.usuario() ? window.mtyAuth.usuario().email : ""} aoAbrirPedidos={() => setAba("hubPedidos")} /> :
+         aba === "hubPedidos" && LIGACAO_PLAYER ? <TelaPedidosAtendimento aoAbrirPerfil={() => setAba("hubPerfil")} /> :
          aba === "metodo" ? <TelaMeuMetodo metodo={metodo} setMetodo={setMetodo} planoAtual={planoAtual} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
          aba === "taticas" ? <TelaTaticas /> :
          aba === "tecnica" ? <TelaTecnica focoId={focoManualId} /> :
