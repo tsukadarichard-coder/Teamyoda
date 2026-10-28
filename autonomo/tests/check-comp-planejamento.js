@@ -177,5 +177,13 @@ function vinculo(id, atleta, pessoaUid, tipo, areas) { store["vinculos/" + id] =
   await PL("jovem", { acao: "gerar" });
   const sj = (await PL("jovem")).vigente.conteudo.semanas;
   assert.ok(sj.every((s) => s.atividades.filter((a) => a.tipo === "treino" || a.tipo === "jogo_treino").length <= 4), "limite conservador por idade");
+  /* treinador pelo app QuadraLab Treinador (conta de academia): só Essencial/Premium; academia sem plano definido segue liberada */
+  tokens.carlos = { ...tokens.carlos, orgId: "orgC" };
+  assert.strictEqual((await PL("carlos", null, "vinculoCarlos1")).s, 200, "academia sem plano vê");
+  store["orgs/orgC/meta/info"] = { plano: "gratis" };
+  assert.strictEqual((await PL("carlos", null, "vinculoCarlos1")).s, 403, "grátis não vê o planejamento");
+  assert.strictEqual((await PL("carlos", { acao: "aprovar", vinculoId: "vinculoCarlos1", id: aprov.id })).s, 403, "grátis não aprova");
+  store["orgs/orgC/meta/info"] = { plano: "premium" };
+  assert.strictEqual((await PL("carlos", null, "vinculoCarlos1")).s, 200, "Premium vê");
   console.log("check-comp-planejamento: ok");
 })().catch((e) => { console.error(e); process.exit(1); });

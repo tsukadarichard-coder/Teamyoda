@@ -20,6 +20,7 @@ const P = require("./_comp-planejamento");
 const C = require("./_player-competicao");
 const T = require("./_player-torneios");
 const PART = require("./_player-partidas");
+const { academiaComCompeticao, ERRO_PLANO_COMPETICAO } = require("./_scout-copias");
 
 const db = () => admin.firestore();
 const agoraISO = () => new Date().toISOString();
@@ -121,11 +122,14 @@ function semanaAtual(vig, hoje) {
   return ((vig.conteudo || {}).semanas || []).find((s) => s.inicio <= hoje && hoje <= s.fim) || null;
 }
 
-async function vinculoDoTreinador(uid, id) {
+async function vinculoDoTreinador(usuario, id) {
+  const uid = usuario.uid;
   if (!/^[A-Za-z0-9]{10,40}$/.test(String(id || ""))) throw new ErroPublico(400, "Vínculo inválido.");
   const s = await db().collection("vinculos").doc(id).get();
   const v = s.exists ? s.data() : null;
   if (!v || v.pessoaUid !== uid || v.status !== "ativo") throw new ErroPublico(404, "Vínculo não encontrado.");
+  /* treinador pelo app QuadraLab Treinador (conta de academia): só nos planos Essencial e Premium */
+  if (usuario.orgId && v.tipo === "treinador" && !(await academiaComCompeticao(db(), usuario.orgId))) throw new ErroPublico(403, ERRO_PLANO_COMPETICAO);
   if (!C.areasValidas(v.areas).includes("planejamento")) throw new ErroPublico(403, "O atleta não compartilhou o planejamento com você. Peça para ele incluir a área “Meu planejamento” no vínculo.");
   return v;
 }
@@ -139,7 +143,7 @@ exports.handler = async function (event) {
 
     /* ── pessoa vinculada lendo o plano do atleta ── */
     if (event.httpMethod === "GET" && q.ver) {
-      const v = await vinculoDoTreinador(uid, q.ver);
+      const v = await vinculoDoTreinador(usuario, q.ver);
       const aj = (await refJogador(v.atletaUid).get()).data() || {};
       const todas = (await versoes(v.atletaUid)).sort((a, b) => b.versao - a.versao), vig = P.vigente(todas);
       const exec = (await listar(refJogador(v.atletaUid), "compExecucoes")).sort((a, b) => String(b.data).localeCompare(String(a.data))).slice(0, 60);
@@ -180,7 +184,7 @@ exports.handler = async function (event) {
 
     /* ── treinador ── */
     if (acaoTreinador) {
-      const v = await vinculoDoTreinador(uid, body.vinculoId);
+      const v = await vinculoDoTreinador(usuario, body.vinculoId);
       if (v.tipo !== "treinador") throw new ErroPublico(403, "Só o treinador revisa e aprova o planejamento.");
       const atleta = v.atletaUid, col = refJogador(atleta).collection("compPlanejamentos");
       if (!ID_DOC.test(String(body.id || body.baseId || ""))) throw new ErroPublico(400, "Versão inválida.");

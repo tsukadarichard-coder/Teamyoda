@@ -12063,7 +12063,7 @@ async function chamarCompeticao(vinculoId, corpo) {
   if (!r.ok) throw Object.assign(new Error(c.erro || ("Erro " + r.status)), { status: r.status });
   return c;
 }
-const ROTULO_AREA_COMP = { temporada: "Temporada e torneios", partidas: "Partidas e scouts", estrategias: "Preparação das partidas", treinos: "Focos de treino", diario: "Diário" };
+const ROTULO_AREA_COMP = { planejamento: "Planejamento", temporada: "Temporada e torneios", partidas: "Partidas e scouts", estrategias: "Preparação das partidas", treinos: "Focos de treino", diario: "Diário" };
 const ROTULO_ESTADO_TORNEIO = { planejado: "Planejado", inscrito: "Inscrito", jogando: "Em andamento", encerrado: "Encerrado", desistiu: "Desistiu" };
 const dataCurtaComp = (s) => (/^\d{4}-\d{2}-\d{2}/.test(String(s || "")) ? String(s).slice(8, 10) + "/" + String(s).slice(5, 7) + "/" + String(s).slice(2, 4) : "");
 function BlocoComp({ titulo, area, areas, vazio, children, quantos }) {
@@ -12131,6 +12131,218 @@ function FormDevolutiva({ vinculoId, referencias, aoSalvar }) {
       <div style={{ marginTop: 10 }}><Botao pequeno variante="saibro" type="submit" disabled={ocupado}>{ocupado ? "Enviando…" : "Enviar devolutiva"}</Botao></div>
       {msg && <p role="status" style={{ ...prosa, fontSize: 12.5, marginTop: 8, color: msg.erro ? "#A33" : C.tinta }}>{msg.t}</p>}
     </form>
+  );
+}
+/* Planejamento da temporada do atleta do Competição (comp-planejamento ?ver): o treinador lê a versão vigente e as propostas,
+   aprova uma versão em revisão ou cria a revisão dele (vira "em revisão" assinada por ele; aprovada, passa a valer no app do atleta).
+   Só com a área "Meu planejamento" compartilhada no vínculo. */
+async function chamarPlanoComp(vinculoId, corpo) {
+  if (!window.mtyAuth || !window.mtyAuth.usuario()) throw Object.assign(new Error("Entre com a sua conta da academia."), { status: 401 });
+  const tk = await window.mtyAuth.tokenId();
+  const r = await fetch("/.netlify/functions/comp-planejamento" + (corpo ? "" : "?ver=" + encodeURIComponent(vinculoId)), {
+    method: corpo ? "POST" : "GET", headers: { authorization: "Bearer " + tk, ...(corpo ? { "content-type": "application/json" } : {}) }, body: corpo ? JSON.stringify(corpo) : undefined, cache: "no-store",
+  });
+  const c = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(c.erro || ("Erro " + r.status)), { status: r.status });
+  return c;
+}
+const ROT_BLOCO_COMP = { preparacao: "Preparação", competicao: "Competição", recuperacao: "Recuperação" };
+const COR_BLOCO_COMP = { preparacao: "#2563EB", competicao: "#C2410C", recuperacao: "#1F6B4A" };
+const ROT_TIPO_ATIV_COMP = { treino: "Treino", jogo_treino: "Jogo-treino", competicao: "Competição", recuperacao: "Recuperação", preparo: "Preparação", outro: "Outro" };
+const DIA_SEM_COMP = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+const diaComp = (iso) => DIA_SEM_COMP[new Date(iso + "T12:00:00Z").getUTCDay()] + " " + dataCurtaComp(iso).slice(0, 5);
+const somarDiasComp = (iso, n) => new Date(Date.parse(iso + "T12:00:00Z") + n * 86400000).toISOString().slice(0, 10);
+const semanasOrdenadas = (v) => (((v && v.conteudo) || {}).semanas || []).slice().sort((a, b) => a.inicio.localeCompare(b.inicio));
+const campoComp = { display: "block", width: "100%", minWidth: 0, marginTop: 4, padding: "8px 10px", border: "1px solid " + C.linha, borderRadius: 8, fontSize: 14, fontFamily: "inherit", background: "#fff", boxSizing: "border-box" };
+
+function VersaoPlanoComp({ v }) {
+  const c = v.conteudo || {}, t = c.temporada || {};
+  return (
+    <div data-versao-plano={v.id}>
+      {(t.objetivos || []).length > 0 && <div style={{ marginBottom: 8 }}><p style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700 }}>Objetivos de desenvolvimento</p><ul style={{ ...prosa, fontSize: 13, margin: "2px 0 0 18px", listStyle: "disc" }}>{t.objetivos.map((o, i) => <li key={i}>{o}</li>)}</ul></div>}
+      {(t.blocos || []).length > 0 && (
+        <div style={{ marginBottom: 8 }}>
+          <p style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700 }}>Blocos da temporada</p>
+          {t.blocos.map((b) => (
+            <div key={b.id} style={{ display: "flex", gap: 8, alignItems: "baseline", ...prosa, fontSize: 13, marginTop: 3 }}>
+              <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 2, background: COR_BLOCO_COMP[b.tipo], flexShrink: 0 }} />
+              <span><b>{ROT_BLOCO_COMP[b.tipo]}</b>{b.rotulo ? " · " + b.rotulo : ""} <span style={{ color: C.grafite }}>{dataCurtaComp(b.inicio)} a {dataCurtaComp(b.fim)}</span></span>
+            </div>
+          ))}
+        </div>
+      )}
+      {semanasOrdenadas(v).map((s) => (
+        <div key={s.inicio} style={{ borderTop: "1px solid " + C.linha, padding: "7px 0", ...prosa, fontSize: 13 }}>
+          <b style={{ fontFamily: ARCH }}>Semana {s.n} · {dataCurtaComp(s.inicio).slice(0, 5)} a {dataCurtaComp(s.fim).slice(0, 5)}</b>{s.revisao ? <span style={{ color: C.grafite }}> · revisão</span> : null}
+          {s.objetivo && <div>{s.objetivo}</div>}
+          {(s.focos || []).length > 0 && <div style={{ color: C.grafite, fontSize: 12.5 }}>Focos: {s.focos.map((f) => f.texto).join(" · ")}</div>}
+          {(s.atividades || []).length > 0 && <ul style={{ margin: "3px 0 0 18px", listStyle: "disc" }}>{s.atividades.slice().sort((a, b) => a.data.localeCompare(b.data)).map((a) => <li key={a.id}>{diaComp(a.data)}: {a.titulo}{a.minutos ? " · " + a.minutos + " min" : ""}{a.tipo && a.tipo !== "treino" ? " · " + ROT_TIPO_ATIV_COMP[a.tipo] : ""}</li>)}</ul>}
+        </div>
+      ))}
+      {c.orientacoes && <div style={{ ...prosa, fontSize: 13, marginTop: 6 }}><b style={{ fontFamily: ARCH, fontSize: 12.5 }}>Orientações do treinador</b><div style={{ whiteSpace: "pre-wrap" }}>{c.orientacoes}</div></div>}
+    </div>
+  );
+}
+
+function EditorPlanoComp({ v, aoSalvar, aoCancelar }) {
+  const [c, setC] = useState(() => {
+    const x = JSON.parse(JSON.stringify(v.conteudo || {}));
+    x.temporada = x.temporada || {}; x.temporada.objetivos = x.temporada.objetivos || []; x.temporada.blocos = x.temporada.blocos || [];
+    x.semanas = semanasOrdenadas(v).map((s) => ({ ...s, focos: s.focos || [], atividades: s.atividades || [] }));
+    return x;
+  });
+  const [ocupado, setOcupado] = useState(false);
+  const [erro, setErro] = useState(null);
+  const mudar = (fn) => setC((ant) => { const n = JSON.parse(JSON.stringify(ant)); fn(n); return n; });
+  const objetivos = [0, 1, 2, 3, 4].map((i) => c.temporada.objetivos[i] || "");
+  async function salvar(aprovar) {
+    setOcupado(true); setErro(null);
+    const conteudo = JSON.parse(JSON.stringify(c));
+    conteudo.temporada.objetivos = conteudo.temporada.objetivos.map((o) => String(o || "").trim()).filter(Boolean);
+    conteudo.semanas.forEach((s) => { s.focos = s.focos.filter((f) => String(f.texto || "").trim()); s.atividades = s.atividades.filter((a) => String(a.titulo || "").trim()); });
+    try { await aoSalvar(conteudo, aprovar); } catch (e) { setErro(e.message); setOcupado(false); }
+  }
+  const secao = { background: "#fff", border: "1px solid " + C.linha, borderRadius: 10, padding: "10px 12px", marginTop: 10 };
+  const rotulo = { ...prosa, fontSize: 12.5, display: "block", marginTop: 6 };
+  const remover = { border: "none", background: "none", color: "#A33", cursor: "pointer", padding: "4px 0", fontSize: 12 };
+  return (
+    <div data-editor-plano-comp>
+      <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Você cria uma versão em revisão assinada por você, a partir da versão {v.versao}. Ela só passa a valer quando aprovada; a versão do atleta fica no histórico.</p>
+      <div style={secao}>
+        <p style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>Objetivos de desenvolvimento</p>
+        {objetivos.map((o, i) => <input key={i} aria-label={"Objetivo " + (i + 1)} maxLength={120} value={o} onChange={(e) => mudar((n) => { const l = [0, 1, 2, 3, 4].map((k) => n.temporada.objetivos[k] || ""); l[i] = e.target.value; n.temporada.objetivos = l; })} style={campoComp} />)}
+      </div>
+      {c.temporada.blocos.length > 0 && (
+        <div style={secao}>
+          <p style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>Blocos da temporada</p>
+          {c.temporada.blocos.map((b, i) => (
+            <div key={b.id} data-bloco-edit style={{ borderTop: i ? "1px solid " + C.linha : "none", paddingTop: i ? 8 : 0, marginTop: 8 }}>
+              <p style={{ ...prosa, fontSize: 13 }}><b>{ROT_BLOCO_COMP[b.tipo]}</b>{b.rotulo ? " · " + b.rotulo : ""}</p>
+              <div style={{ display: "flex", gap: 8 }}>
+                <label style={{ ...rotulo, flex: 1, minWidth: 0 }}>Início<input type="date" value={b.inicio} onChange={(e) => mudar((n) => { n.temporada.blocos[i].inicio = e.target.value; })} style={campoComp} /></label>
+                <label style={{ ...rotulo, flex: 1, minWidth: 0 }}>Término<input type="date" value={b.fim} onChange={(e) => mudar((n) => { n.temporada.blocos[i].fim = e.target.value; })} style={campoComp} /></label>
+              </div>
+              <button type="button" style={remover} onClick={() => mudar((n) => { n.temporada.blocos.splice(i, 1); })}>Remover este bloco</button>
+            </div>
+          ))}
+        </div>
+      )}
+      {c.semanas.map((s, si) => (
+        <div key={s.inicio} style={secao} data-semana-edit={si}>
+          <p style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>Semana {s.n} · {dataCurtaComp(s.inicio).slice(0, 5)} a {dataCurtaComp(s.fim).slice(0, 5)}</p>
+          <label style={rotulo}>Objetivo da semana<input maxLength={200} value={s.objetivo || ""} onChange={(e) => mudar((n) => { n.semanas[si].objetivo = e.target.value; })} style={campoComp} /></label>
+          <label style={{ ...rotulo, display: "flex", gap: 6, alignItems: "center" }}><input type="checkbox" checked={!!s.revisao} onChange={(e) => mudar((n) => { n.semanas[si].revisao = e.target.checked; })} /> Momento de revisão do planejamento</label>
+          <p style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, marginTop: 8 }}>Focos técnicos e táticos</p>
+          {s.focos.map((f, fi) => (
+            <div key={fi} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <input aria-label="Foco" maxLength={120} value={f.texto} onChange={(e) => mudar((n) => { n.semanas[si].focos[fi].texto = e.target.value; })} style={{ ...campoComp, flex: 1 }} />
+              <button type="button" style={remover} onClick={() => mudar((n) => { n.semanas[si].focos.splice(fi, 1); })}>Remover</button>
+            </div>
+          ))}
+          {s.focos.length < 5 && <Botao pequeno variante="vazio" onClick={() => mudar((n) => { n.semanas[si].focos.push({ texto: "", origem: "treinador", refId: null }); })}>Adicionar foco</Botao>}
+          <p style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, marginTop: 10 }}>Atividades</p>
+          {s.atividades.map((a, ai) => (
+            <div key={ai} data-ativ-edit style={{ border: "1px solid " + C.linha, borderRadius: 8, padding: "6px 8px", marginTop: 6 }}>
+              <div style={{ display: "flex", gap: 6 }}>
+                <select aria-label="Dia" value={a.data} onChange={(e) => mudar((n) => { n.semanas[si].atividades[ai].data = e.target.value; })} style={{ ...campoComp, flex: 1 }}>
+                  {[0, 1, 2, 3, 4, 5, 6].map((k) => { const d = somarDiasComp(s.inicio, k); return <option key={d} value={d}>{diaComp(d)}</option>; })}
+                </select>
+                <select aria-label="Tipo" value={a.tipo || "treino"} onChange={(e) => mudar((n) => { n.semanas[si].atividades[ai].tipo = e.target.value; })} style={{ ...campoComp, flex: 1 }}>
+                  {Object.keys(ROT_TIPO_ATIV_COMP).map((k) => <option key={k} value={k}>{ROT_TIPO_ATIV_COMP[k]}</option>)}
+                </select>
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <input aria-label="Atividade" maxLength={100} value={a.titulo} onChange={(e) => mudar((n) => { n.semanas[si].atividades[ai].titulo = e.target.value; })} style={{ ...campoComp, flex: 3 }} />
+                <input aria-label="Minutos" type="number" min={5} max={300} inputMode="numeric" value={a.minutos || ""} onChange={(e) => mudar((n) => { n.semanas[si].atividades[ai].minutos = parseInt(e.target.value, 10) || null; })} style={{ ...campoComp, flex: 1 }} />
+              </div>
+              <button type="button" style={remover} onClick={() => mudar((n) => { n.semanas[si].atividades.splice(ai, 1); })}>Remover</button>
+            </div>
+          ))}
+          {s.atividades.length < 21 && <div style={{ marginTop: 6 }}><Botao pequeno variante="vazio" onClick={() => mudar((n) => { n.semanas[si].atividades.push({ data: s.inicio, titulo: "", tipo: "treino", minutos: 60 }); })}>Adicionar atividade</Botao></div>}
+        </div>
+      ))}
+      <div style={secao}>
+        <label style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>Orientações para o atleta
+          <textarea rows={4} maxLength={1200} value={c.orientacoes || ""} onChange={(e) => mudar((n) => { n.orientacoes = e.target.value; })} style={campoComp} />
+        </label>
+        <p style={{ ...prosa, fontSize: 12, color: C.grafite }}>Aparece para o atleta como observação do treinador.</p>
+      </div>
+      {erro && <p role="alert" style={{ ...prosa, fontSize: 12.5, color: "#A33", marginTop: 8 }}>{erro}</p>}
+      <div className="flex flex-wrap" style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+        <Botao pequeno variante="saibro" disabled={ocupado} onClick={() => salvar(true)}>{ocupado ? "Salvando…" : "Salvar e aprovar"}</Botao>
+        <Botao pequeno variante="vazio" disabled={ocupado} onClick={() => salvar(false)}>Salvar como versão em revisão</Botao>
+        <Botao pequeno variante="vazio" disabled={ocupado} onClick={aoCancelar}>Cancelar</Botao>
+      </div>
+    </div>
+  );
+}
+
+function PlanoCompeticaoAtleta({ vid }) {
+  const [d, setD] = useState(null);
+  const [erro, setErro] = useState(null);
+  const [selId, setSelId] = useState(null);
+  const [editando, setEditando] = useState(false);
+  const [msg, setMsg] = useState(null);
+  async function carregar() { setErro(null); try { setD(await chamarPlanoComp(vid)); } catch (e) { setErro(e); } }
+  useEffect(() => { setD(null); setSelId(null); setEditando(false); carregar(); }, [vid]);
+  const caixa = (filhos) => (
+    <section data-plano-comp style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: "12px 14px", marginBottom: 12 }}>
+      <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Planejamento da temporada</p>{filhos}
+    </section>
+  );
+  if (erro) return caixa(<p style={{ ...prosa, fontSize: 12.5, color: erro.status === 403 ? C.grafite : "#A33" }}>{erro.message}</p>);
+  if (!d) return caixa(<p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Carregando…</p>);
+  const versoes = d.versoes || [], ativas = versoes.filter((x) => x.status !== "substituido");
+  if (!versoes.length) return caixa(<p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>O atleta ainda não gerou o planejamento no app dele. Quando existir, aparece aqui para você revisar e aprovar.</p>);
+  const emRev = ativas.filter((x) => x.status === "em_revisao");
+  const sel = versoes.find((x) => x.id === selId) || emRev[0] || d.vigente || ativas[0];
+  async function aprovar(x) {
+    if (!window.confirm("Aprovar esta versão? Ela passa a valer no app do atleta e a aprovada anterior fica como substituída.")) return;
+    try { await chamarPlanoComp(vid, { acao: "aprovar", vinculoId: vid, id: x.id }); setMsg("Versão aprovada. Já vale no app do atleta."); setSelId(null); carregar(); } catch (e) { setMsg(e.message); }
+  }
+  async function salvarEdicao(conteudo, aprovarJa) {
+    const r = await chamarPlanoComp(vid, { acao: "treinadorSalvar", vinculoId: vid, baseId: sel.id, conteudo });
+    if (aprovarJa) await chamarPlanoComp(vid, { acao: "aprovar", vinculoId: vid, id: r.id });
+    setMsg(aprovarJa ? "Versão aprovada. Já vale no app do atleta." : "Versão em revisão salva. Aprove quando estiver pronta.");
+    setEditando(false); setSelId(null); carregar();
+  }
+  const chip = (x) => {
+    const cor = x.status === "aprovado" ? "#1F6B4A" : x.status === "em_revisao" ? "#C2410C" : C.grafite;
+    return <span style={{ fontFamily: ARCH, fontSize: 10.5, fontWeight: 700, color: cor, border: "1px solid " + cor, borderRadius: 999, padding: "1px 7px" }}>{x.rotulo}</span>;
+  };
+  if (editando && sel) return caixa(<EditorPlanoComp v={sel} aoSalvar={salvarEdicao} aoCancelar={() => setEditando(false)} />);
+  return caixa(
+    <>
+      {msg && <p role="status" style={{ ...prosa, fontSize: 12.5, marginBottom: 6 }}>{msg}</p>}
+      {ativas.map((x) => (
+        <div key={x.id} data-versao-comp={x.status} style={{ borderTop: "1px solid " + C.linha, padding: "8px 0" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>{chip(x)}<span style={{ ...prosa, fontSize: 12, color: C.grafite }}>Versão {x.versao} · {x.autorNome || "Plataforma"} · {dataCurtaComp(x.criadoEm)}</span></div>
+          {x.status === "sugestao" && <p style={{ ...prosa, fontSize: 12, color: C.grafite }}>Ainda não enviada para revisão pelo atleta.</p>}
+          {x.substituiId && x.status !== "aprovado" && <p style={{ ...prosa, fontSize: 12, color: C.grafite }}>Proposta de ajuste: o plano aprovado continua valendo até você aprovar esta.</p>}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+            {sel.id !== x.id && <Botao pequeno variante="vazio" onClick={() => setSelId(x.id)}>Ver</Botao>}
+            {d.podeEditar && x.status === "em_revisao" && <Botao pequeno variante="saibro" onClick={() => aprovar(x)}>Aprovar como está</Botao>}
+            {d.podeEditar && <Botao pequeno variante="vazio" onClick={() => { setSelId(x.id); setEditando(true); }}>{x.status === "aprovado" ? "Propor ajuste" : "Revisar e editar"}</Botao>}
+          </div>
+        </div>
+      ))}
+      {sel && (
+        <div style={{ background: "#fff", border: "1px solid " + C.linha, borderRadius: 10, padding: "10px 12px", marginTop: 8 }}>
+          <p style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, marginBottom: 4 }}>Versão {sel.versao} em exibição</p>
+          <VersaoPlanoComp v={sel} />
+        </div>
+      )}
+      {(d.execucoes || []).length > 0 && (
+        <div style={{ marginTop: 10 }}>
+          <p style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700 }}>Registros do atleta (relato dele)</p>
+          {d.execucoes.slice(0, 8).map((x) => (
+            <div key={x.id} style={{ ...prosa, fontSize: 12.5, borderTop: "1px solid " + C.linha, padding: "5px 0" }}>
+              {dataCurtaComp(x.data)} · <b>{x.titulo || "Atividade do plano"}</b> · {{ sim: "feito", parcial: "em parte", nao: "não feito" }[x.feito] || x.feito}{x.esforco ? " · esforço " + x.esforco + "/5" : ""}{x.obs ? " · " + x.obs : ""}
+            </div>
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 function TelaCompeticaoAtleta({ aluno, planoAtual, aoAbrirInicio }) {
@@ -12225,6 +12437,7 @@ function TelaCompeticaoAtleta({ aluno, planoAtual, aoAbrirInicio }) {
           {diario.length > 5 && !verDiario && <Botao pequeno variante="vazio" onClick={() => setVerDiario(true)}>Ver os {diario.length} registros</Botao>}
         </BlocoComp>
       )}
+      {areas.includes("planejamento") ? <PlanoCompeticaoAtleta vid={vid} /> : <BlocoComp titulo="Planejamento da temporada" area="planejamento" areas={areas} />}
       <section data-devolutivas style={{ background: C.papel, border: "1px solid " + C.saibro, borderRadius: 12, padding: "12px 14px", marginBottom: 12 }}>
         <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginBottom: 2 }}>Devolutivas para o atleta</p>
         <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 8 }}>Ele lê no QuadraLab Competição e pode levar o foco para o treino.</p>
@@ -12519,7 +12732,7 @@ function RevisaoPlano({ aluno, alunos, setAlunos, podeEditar }) {
 /* Janela de novidades do QuadraLab: abre ao entrar até a pessoa marcar "Não mostrar mais". Nova versão da lista (NOVIDADES_VERSAO) volta a aparecer. */
 const NOVIDADES_VERSAO = "2026-10f";
 const NOVIDADES = [
-  ["Aba Competição na ficha (Essencial e Premium)", "No jogador ligado a um atleta do QuadraLab Competição, a aba Competição mostra a temporada, as partidas, os scouts, os focos e o diário que ele compartilha, e você escreve devolutivas que ele lê no app dele."],
+  ["Aba Competição na ficha (Essencial e Premium)", "No jogador ligado a um atleta do QuadraLab Competição, a aba Competição mostra a temporada, as partidas, os scouts, os focos e o diário que ele compartilha. Você revisa, ajusta e aprova o planejamento da temporada dele e escreve devolutivas que ele lê no app dele."],
   ["Observar jogos", "Quando não dá para fazer o scout (dois jogos ao mesmo tempo no torneio): um toque por fundamento, bom ou ajustar, e notas. Vai para o caderno de cada jogador."],
   ["Áudio e descritivo para o aluno (Essencial e Premium)", "Grave observações durante o jogo ou conversas com o jogador; o texto vem do ditado do aparelho. A IA escreve um retorno com o que você anotou e você compartilha com o aluno."],
   ["Quadro tático", "Uma quadra para desenhar no iPad ou no celular, com a Apple Pencil ou o dedo: setas, deslocamentos, jogadores e bola."],
