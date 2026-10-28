@@ -144,6 +144,20 @@ const servidor = http.createServer(async (req, res) => {
   await p.goto(base + "/aluno.html?org=org1&id=j2&t=xj2"); await p.waitForSelector('[data-painel="relatorios-atleta"]', { timeout: 20000 });
   assert(!/Rascunho da Ana/.test(await p.evaluate(() => document.body.innerText)), "rascunho não aparece para o aluno");
 
+  /* excluir a equipe: o auxiliar não pode; o coordenador exclui (com confirmação) e os relatórios ficam na ficha do atleta */
+  await p.goto(base + "/__t?uid=u2"); await p.waitForSelector("[data-equipe-card]", { timeout: 120000 });
+  await p.click("[data-equipe-card]"); await p.click("text=Editar equipe");
+  assert(/Só o coordenador da equipe pode excluí-la/.test(await p.locator("[data-excluir-equipe]").innerText()), "auxiliar não exclui");
+  await p.goto(base + "/__t?uid=u1"); await p.waitForSelector("[data-equipe-card]", { timeout: 120000 });
+  await p.click("[data-equipe-card]"); await p.click("text=Editar equipe");
+  p.once("dialog", (d) => d.dismiss()); await p.click("text=Excluir equipe"); await p.waitForTimeout(200);
+  assert.strictEqual(await p.locator("[data-form-equipe]").count(), 1, "cancelar a confirmação não exclui");
+  p.once("dialog", (d) => d.accept()); await p.click("text=Excluir equipe");
+  await p.waitForSelector("[data-equipes]"); await p.waitForTimeout(200);
+  assert.strictEqual(await p.locator("[data-equipe-card]").count(), 0, "equipe excluída");
+  assert.deepStrictEqual(await p.evaluate(() => JSON.parse(localStorage.getItem("st:mty:equipes:v1"))), [], "lista salva vazia");
+  assert((await lista())[0].relatoriosAtleta.length >= 1, "relatórios do atleta continuam");
+
   /* novidades em destaque, com atalho */
   await p.goto(base + "/__t?uid=u1&novidades=1"); await p.waitForSelector("[data-novidades]", { timeout: 120000 });
   assert(await p.locator("[data-novidade-nova]").count() >= 5 && /Já disponível no Team Yoda/.test(await p.locator("[data-novidades]").innerText()), "novidades em destaque");

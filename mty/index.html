@@ -21623,7 +21623,7 @@ function RelatorioAtletaEditor({ aluno, setAlunos, relatorioId, periodoInicial, 
     </div>
   );
 }
-function FormEquipe({ inicial, alunos, professores, aoSalvar, aoCancelar }) {
+function FormEquipe({ inicial, alunos, professores, aoSalvar, aoCancelar, aoExcluir }) {
   const [nome, setNome] = useState((inicial && inicial.nome) || "");
   const [coord, setCoord] = useState((inicial && inicial.coordenadorUid) || "");
   const [aux, setAux] = useState(((inicial && inicial.auxiliares) || []).map((x) => x.uid));
@@ -21668,6 +21668,14 @@ function FormEquipe({ inicial, alunos, professores, aoSalvar, aoCancelar }) {
         <Botao variante="saibro" disabled={!nome.trim() || !membros.length} onClick={salvar}>Salvar equipe</Botao>
         <Botao variante="vazio" onClick={aoCancelar}>Cancelar</Botao>
       </div>
+      {inicial && (
+        <div data-excluir-equipe style={{ borderTop: "1px solid " + C.linha, marginTop: 14, paddingTop: 10 }}>
+          {aoExcluir ? <>
+            <Botao variante="vazio" style={{ color: "#B42318", borderColor: "#B42318" }} onClick={aoExcluir}>Excluir equipe</Botao>
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 6 }}>Apaga a equipe, o planejamento e as avaliações das sessões. Os relatórios já salvos continuam na ficha de cada atleta.</p>
+          </> : <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Só o coordenador da equipe pode excluí-la.</p>}
+        </div>
+      )}
     </div>
   );
 }
@@ -22101,6 +22109,10 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
       <div>
         <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700 }}>{form === "nova" ? "Nova equipe de competição" : "Editar equipe"}</h1>
         <FormEquipe inicial={form === "editar" ? aberta : null} alunos={alunos} professores={professores} aoCancelar={() => setForm(null)}
+          aoExcluir={form === "editar" && (podePublicar(aberta) || !aberta.coordenadorUid) ? () => {
+            if (!window.confirm("Excluir a equipe \"" + aberta.nome + "\"? O planejamento e as avaliações das sessões serão apagados. Os relatórios já salvos continuam na ficha de cada atleta.")) return;
+            salvarLista(equipes.filter((e) => e.id !== aberta.id)); setForm(null); setAbertaId(null); setPlanoAberto(false); setEditor(null);
+          } : null}
           aoSalvar={(dados) => {
             if (form === "nova") { const nova = { id: "eq-" + Date.now().toString(36), criadoEm: new Date().toISOString(), ...dados }; salvarLista([...equipes, nova]); setAbertaId(nova.id); }
             else salvarLista(equipes.map((e) => (e.id === aberta.id ? { ...e, ...dados } : e)));
