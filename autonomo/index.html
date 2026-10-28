@@ -12050,6 +12050,202 @@ function CartaoVinculoAcademia({ alunos, setAlunos, planoAtual }) {
     </div>
   );
 }
+/* ── Aba "Competição" na ficha: o que o atleta ligado (aluno.competicao) compartilha no QuadraLab Competição — temporada, jogos e
+   scouts, preparação, treinos e diário — e as devolutivas que o treinador escreve daqui e o atleta lê no app dele. Só as áreas que o
+   atleta marcou chegam (a function player-competicao confere o vínculo e o plano). Essencial e Premium. */
+async function chamarCompeticao(vinculoId, corpo) {
+  if (!window.mtyAuth || !window.mtyAuth.usuario()) throw Object.assign(new Error("Entre com a sua conta da academia."), { status: 401 });
+  const tk = await window.mtyAuth.tokenId();
+  const r = await fetch("/.netlify/functions/player-competicao" + (corpo ? "" : "?ver=" + encodeURIComponent(vinculoId)), {
+    method: corpo ? "POST" : "GET", headers: { authorization: "Bearer " + tk, ...(corpo ? { "content-type": "application/json" } : {}) }, body: corpo ? JSON.stringify(corpo) : undefined, cache: "no-store",
+  });
+  const c = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(c.erro || ("Erro " + r.status)), { status: r.status });
+  return c;
+}
+const ROTULO_AREA_COMP = { temporada: "Temporada e torneios", partidas: "Partidas e scouts", estrategias: "Preparação das partidas", treinos: "Focos de treino", diario: "Diário" };
+const ROTULO_ESTADO_TORNEIO = { planejado: "Planejado", inscrito: "Inscrito", jogando: "Em andamento", encerrado: "Encerrado", desistiu: "Desistiu" };
+const dataCurtaComp = (s) => (/^\d{4}-\d{2}-\d{2}/.test(String(s || "")) ? String(s).slice(8, 10) + "/" + String(s).slice(5, 7) + "/" + String(s).slice(2, 4) : "");
+function BlocoComp({ titulo, area, areas, vazio, children, quantos }) {
+  const compartilhada = !area || areas.includes(area);
+  return (
+    <section data-bloco-comp={area || titulo} style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: "12px 14px", marginBottom: 12 }}>
+      <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginBottom: 6 }}>{titulo}{quantos ? <span style={{ fontWeight: 500, color: C.grafite }}> · {quantos}</span> : null}</p>
+      {!compartilhada ? <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>O atleta não compartilhou esta parte com você. Ele muda isso no app dele, em “Quem acompanha você”.</p>
+        : (quantos ? children : <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>{vazio}</p>)}
+    </section>
+  );
+}
+function LinhaComp({ children, destaque }) {
+  return <div style={{ borderTop: "1px solid " + C.linha, padding: "7px 0", ...prosa, fontSize: 13, color: destaque ? C.tinta : undefined }}>{children}</div>;
+}
+function FormDevolutiva({ vinculoId, referencias, aoSalvar }) {
+  const [tipo, setTipo] = useState("geral");
+  const [refId, setRefId] = useState("");
+  const [f, setF] = useState({ destaques: "", melhorar: "", foco: "", assunto: "", recomendacao: "" });
+  const [msg, setMsg] = useState(null);
+  const [ocupado, setOcupado] = useState(false);
+  const opcoes = tipo === "torneio" ? (referencias.torneios || []) : tipo === "partida" ? (referencias.partidas || []) : [];
+  const campo = (k, rot, linhas, max) => (
+    <label style={{ ...prosa, fontSize: 12.5, display: "block", marginTop: 8 }}>{rot}
+      <textarea value={f[k]} maxLength={max} rows={linhas} onChange={(e) => setF({ ...f, [k]: e.target.value })}
+        style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", border: "1px solid " + C.linha, borderRadius: 8, fontSize: 14, fontFamily: "inherit", background: "#fff", boxSizing: "border-box" }} />
+    </label>
+  );
+  async function enviar(ev) {
+    ev.preventDefault(); setOcupado(true); setMsg(null);
+    try {
+      await chamarCompeticao(vinculoId, { acao: "devolutiva", id: vinculoId, tipo, refId: refId || null, ...f });
+      setF({ destaques: "", melhorar: "", foco: "", assunto: "", recomendacao: "" }); setRefId("");
+      setMsg({ t: "Devolutiva enviada. O atleta lê no app dele." }); aoSalvar();
+    } catch (e) { setMsg({ erro: true, t: e.message }); }
+    setOcupado(false);
+  }
+  return (
+    <form onSubmit={enviar} data-form-devolutiva>
+      <label style={{ ...prosa, fontSize: 12.5, display: "block" }}>Sobre o quê
+        <select value={tipo} onChange={(e) => { setTipo(e.target.value); setRefId(""); }}
+          style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", border: "1px solid " + C.linha, borderRadius: 8, fontSize: 14, background: "#fff" }}>
+          <option value="geral">Geral</option>
+          {(referencias.torneios || []).length > 0 && <option value="torneio">Um torneio</option>}
+          {(referencias.partidas || []).length > 0 && <option value="partida">Uma partida</option>}
+          <option value="recomendacao">Recomendação (leitura, vídeo, treino, hábito…)</option>
+        </select>
+      </label>
+      {opcoes.length > 0 && (
+        <select aria-label="Qual" value={refId} onChange={(e) => setRefId(e.target.value)}
+          style={{ display: "block", width: "100%", marginTop: 6, padding: "8px 10px", border: "1px solid " + C.linha, borderRadius: 8, fontSize: 14, background: "#fff" }}>
+          <option value="">Escolha…</option>
+          {opcoes.map((o) => <option key={o.id} value={o.id}>{o.rotulo}</option>)}
+        </select>
+      )}
+      {tipo === "recomendacao" ? (<>
+        {campo("assunto", "Assunto (opcional)", 1, 80)}
+        {campo("recomendacao", "Recomendação", 3, 2000)}
+        {campo("foco", "Foco de treino (opcional)", 1, 200)}
+      </>) : (<>
+        {campo("destaques", "O que foi bem", 2, 600)}
+        {campo("melhorar", "O que melhorar", 2, 600)}
+        {campo("foco", "Foco de treino", 1, 200)}
+      </>)}
+      <div style={{ marginTop: 10 }}><Botao pequeno variante="saibro" type="submit" disabled={ocupado}>{ocupado ? "Enviando…" : "Enviar devolutiva"}</Botao></div>
+      {msg && <p role="status" style={{ ...prosa, fontSize: 12.5, marginTop: 8, color: msg.erro ? "#A33" : C.tinta }}>{msg.t}</p>}
+    </form>
+  );
+}
+function TelaCompeticaoAtleta({ aluno, planoAtual, aoAbrirInicio }) {
+  const trava = planoQueLibera("competicao", planoAtual);
+  const vid = aluno.competicao && aluno.competicao.vinculoId;
+  const [d, setD] = useState(null);
+  const [erro, setErro] = useState(null);
+  const [verDiario, setVerDiario] = useState(false);
+  async function carregar() {
+    setErro(null);
+    try { setD(await chamarCompeticao(vid)); } catch (e) { setErro(e.status === 404 ? "O vínculo com este atleta foi encerrado no QuadraLab Competição. Peça para ele digitar o seu código de novo." : e.message); }
+  }
+  useEffect(() => { setD(null); if (vid && !trava) carregar(); }, [vid, trava]);
+  const cabecalho = (
+    <div className="mb-4">
+      <h2 style={{ fontFamily: ARCH, fontSize: 20, fontWeight: 700 }}>Competição <Cadeado plano={trava} /></h2>
+      <p style={{ ...prosa, fontSize: 13.5, color: C.grafite }}>O que {aluno.nome ? aluno.nome.split(" ")[0] : "o atleta"} registra no QuadraLab Competição, sem você sair do seu app.</p>
+    </div>
+  );
+  if (trava) return (
+    <div data-competicao-ficha="bloqueado">{cabecalho}
+      <div style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: "12px 14px" }}>
+        <p style={{ ...prosa, fontSize: 13 }}>Com o atleta ligado a esta ficha, aqui aparecem a temporada e os torneios, as partidas e os scouts, a preparação dos jogos, os focos de treino e o diário que ele compartilha com você. E você escreve devolutivas que ele lê no app dele.</p>
+        <BotoesAssinatura planoAtual={planoAtual} planoVencido={false} minimo="essencial" pequeno />
+      </div>
+    </div>
+  );
+  if (!vid) return (
+    <div data-competicao-ficha="sem-vinculo">{cabecalho}
+      <div style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: "12px 14px" }}>
+        <p style={{ ...prosa, fontSize: 13 }}>Este jogador ainda não está ligado a um atleta do QuadraLab Competição. No Início, abra “Atletas do QuadraLab Competição”, envie o seu código ao atleta e, quando ele aparecer, escolha esta ficha.</p>
+        {aoAbrirInicio && <div style={{ marginTop: 10 }}><Botao pequeno variante="vazio" onClick={aoAbrirInicio}>Ir para o Início</Botao></div>}
+      </div>
+    </div>
+  );
+  if (erro) return <div data-competicao-ficha="erro">{cabecalho}<p role="alert" style={{ ...prosa, fontSize: 13, color: "#A33" }}>{erro}</p><div style={{ marginTop: 8 }}><Botao pequeno variante="vazio" onClick={carregar}>Tentar de novo</Botao></div></div>;
+  if (!d) return <div data-competicao-ficha="carregando">{cabecalho}<p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Carregando o que o atleta compartilha…</p></div>;
+  const areas = d.areas || [], x = d.dados || {};
+  const torneios = x.torneios || [], partidas = x.partidas || [], scouts = x.scouts || [], preparos = x.preparos || [], focos = (x.focos || []).filter((f) => f.status !== "resolvido"), diario = x.diario || [];
+  const nomeTorneio = (id) => (torneios.find((t) => t.id === id) || {}).nome || "";
+  const prox = torneios.filter((t) => t.fase !== "passado");
+  const vit = partidas.filter((p) => p.resultado === "vitoria").length;
+  const devs = [...(d.devolutivas || [])].sort((a, b) => String(b.criadoEm).localeCompare(String(a.criadoEm)));
+  async function excluir(dv) {
+    if (!window.confirm("Apagar esta devolutiva? O atleta deixa de vê-la.")) return;
+    try { await chamarCompeticao(vid, { acao: "excluirDevolutiva", id: vid, devolutivaId: dv.id }); carregar(); } catch (e) { setErro(e.message); }
+  }
+  const diarioVisivel = verDiario ? diario : diario.slice(0, 5);
+  return (
+    <div data-competicao-ficha="ok">{cabecalho}
+      <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 10 }}>Compartilhado por {d.atleta && d.atleta.nome}: {Object.keys(ROTULO_AREA_COMP).filter((a) => areas.includes(a)).map((a) => ROTULO_AREA_COMP[a]).join(" · ") || (d.diarioPorRegistro && diario.length ? "registros do diário" : "nada ainda")}.</p>
+      <BlocoComp titulo="Temporada" area="temporada" areas={areas} quantos={torneios.length} vazio="Nenhum torneio cadastrado.">
+        {(prox.length ? prox : torneios).slice(0, 8).map((t) => (
+          <LinhaComp key={t.id}>
+            <b style={{ fontFamily: ARCH }}>{t.nome}</b>{t.prioridade ? <span style={{ fontFamily: ARCH, fontSize: 10, fontWeight: 700, marginLeft: 6, padding: "1px 6px", borderRadius: 999, border: "1px solid " + C.linha }}>{t.prioridade}</span> : null}
+            <div style={{ color: C.grafite, fontSize: 12.5 }}>{dataCurtaComp(t.inicio)}{t.fim && t.fim !== t.inicio ? " a " + dataCurtaComp(t.fim) : ""}{t.cidade ? " · " + t.cidade : ""}{t.categoria ? " · " + t.categoria : ""} · {ROTULO_ESTADO_TORNEIO[t.estado] || t.estado}{t.fase !== "passado" && t.diasParaInicio >= 0 ? " · em " + t.diasParaInicio + " dia" + (t.diasParaInicio === 1 ? "" : "s") : ""}</div>
+          </LinhaComp>
+        ))}
+        {prox.length > 0 && torneios.length > prox.length && <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 4 }}>{torneios.length - prox.length} torneio(s) já disputado(s).</p>}
+      </BlocoComp>
+      <BlocoComp titulo="Partidas" area="partidas" areas={areas} quantos={partidas.length} vazio="Nenhuma partida registrada.">
+        <p style={{ ...prosa, fontSize: 12.5, marginBottom: 4 }} data-resumo-partidas>{vit} vitória{vit === 1 ? "" : "s"} e {partidas.length - vit} derrota{partidas.length - vit === 1 ? "" : "s"}</p>
+        {partidas.slice(0, 8).map((p) => (
+          <LinhaComp key={p.id}>
+            <b style={{ fontFamily: ARCH, color: p.resultado === "vitoria" ? "#1F6B4A" : "#C2410C" }}>{p.resultado === "vitoria" ? "Vitória" : "Derrota"}</b>{p.adversario ? " contra " + p.adversario : ""}{p.placar ? " · " + p.placar : ""}
+            <div style={{ color: C.grafite, fontSize: 12.5 }}>{dataCurtaComp(p.data)}{p.torneioId && nomeTorneio(p.torneioId) ? " · " + nomeTorneio(p.torneioId) : ""}{p.rodada ? " · " + p.rodada : ""}</div>
+          </LinhaComp>
+        ))}
+      </BlocoComp>
+      {areas.includes("partidas") && (
+        <BlocoComp titulo="Scouts no app do atleta" quantos={scouts.length} areas={areas} vazio="Nenhum scout ainda. Os jogos que você marca ao vivo para este atleta aparecem aqui e no app dele.">
+          {scouts.slice(0, 8).map((s) => (
+            <LinhaComp key={s.id}><b style={{ fontFamily: ARCH }}>{s.rotulo}</b><div style={{ color: C.grafite, fontSize: 12.5 }}>{dataCurtaComp(s.data)}{s.resumo && s.resumo.n ? " · " + s.resumo.pctGanhos + "% dos pontos ganhos em " + s.resumo.n : ""}{s.origem === "academia" ? " · marcado por você" : ""}</div></LinhaComp>
+          ))}
+        </BlocoComp>
+      )}
+      <BlocoComp titulo="Preparação das partidas" area="estrategias" areas={areas} quantos={preparos.length} vazio="Nenhuma preparação registrada.">
+        {preparos.slice(0, 5).map((p) => (
+          <LinhaComp key={p.id}><b style={{ fontFamily: ARCH }}>{p.adversario ? "Contra " + p.adversario : "Partida"}</b>{p.rodada ? " · " + p.rodada : ""}<div style={{ color: C.grafite, fontSize: 12.5 }}>{dataCurtaComp(p.data)}{nomeTorneio(p.torneioId) ? " · " + nomeTorneio(p.torneioId) : ""}</div>
+            {(p.prioridades || []).length > 0 && <ul style={{ margin: "4px 0 0 18px", listStyle: "disc" }}>{p.prioridades.map((q, i) => <li key={i}>{q}</li>)}</ul>}
+            {p.padrao && <div style={{ marginTop: 3 }}>Padrão: {p.padrao}</div>}
+          </LinhaComp>
+        ))}
+      </BlocoComp>
+      <BlocoComp titulo="Focos de treino em aberto" area="treinos" areas={areas} quantos={focos.length} vazio="Nenhum foco em aberto.">
+        {focos.slice(0, 8).map((f) => <LinhaComp key={f.id}>{f.texto}<div style={{ color: C.grafite, fontSize: 12.5 }}>{f.origemRotulo}{f.status === "treinando" ? " · treinando" : ""}</div></LinhaComp>)}
+      </BlocoComp>
+      {(areas.includes("diario") || diario.length > 0) && (
+        <BlocoComp titulo="Diário" quantos={diario.length} areas={areas} vazio="Nenhum registro no diário.">
+          {d.diarioPorRegistro && <p style={{ ...prosa, fontSize: 12, color: C.grafite }}>Só os registros que o atleta escolheu mostrar a você.</p>}
+          {diarioVisivel.map((r) => <LinhaComp key={r.id}><span style={{ color: C.grafite, fontSize: 12.5 }}>{dataCurtaComp(r.data)}{r.humor ? " · humor " + r.humor + "/5" : ""}{r.torneioId && nomeTorneio(r.torneioId) ? " · " + nomeTorneio(r.torneioId) : ""}</span><div style={{ whiteSpace: "pre-wrap" }}>{r.texto}</div></LinhaComp>)}
+          {diario.length > 5 && !verDiario && <Botao pequeno variante="vazio" onClick={() => setVerDiario(true)}>Ver os {diario.length} registros</Botao>}
+        </BlocoComp>
+      )}
+      <section data-devolutivas style={{ background: C.papel, border: "1px solid " + C.saibro, borderRadius: 12, padding: "12px 14px", marginBottom: 12 }}>
+        <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginBottom: 2 }}>Devolutivas para o atleta</p>
+        <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 8 }}>Ele lê no QuadraLab Competição e pode levar o foco para o treino.</p>
+        <FormDevolutiva vinculoId={vid} referencias={d.referencias || {}} aoSalvar={carregar} />
+        {devs.map((dv) => (
+          <div key={dv.id} data-devolutiva style={{ borderTop: "1px solid " + C.linha, marginTop: 10, paddingTop: 8, ...prosa, fontSize: 13 }}>
+            <div className="flex items-center justify-between" style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+              <b style={{ fontFamily: ARCH }}>{dv.refRotulo || "Geral"}</b>
+              <span style={{ color: C.grafite, fontSize: 12 }}>{dataCurtaComp(dv.criadoEm)}</span>
+            </div>
+            {dv.destaques && <div>Foi bem: {dv.destaques}</div>}
+            {dv.melhorar && <div>Melhorar: {dv.melhorar}</div>}
+            {dv.recomendacao && <div style={{ whiteSpace: "pre-wrap" }}>{dv.recomendacao}</div>}
+            {dv.foco && <div>Foco: {dv.foco}</div>}
+            <button onClick={() => excluir(dv)} style={{ border: "none", background: "none", color: "#A33", cursor: "pointer", padding: 0, fontSize: 12, marginTop: 4 }}>Apagar</button>
+          </div>
+        ))}
+      </section>
+    </div>
+  );
+}
 /* ── Área do aluno: o aluno cria a conta dele (Sou aluno), digita o código do professor e o professor aprova aqui, dizendo qual
    jogador da lista é aquela conta. Depois o aluno vê, com login, só o que é dele (o mesmo conteúdo do link "Compartilhar com o jogador").
    Tudo passa pela function aluno-conta (login conferido no servidor); o aluno nunca recebe acesso aos dados da academia. */
@@ -12321,8 +12517,9 @@ function RevisaoPlano({ aluno, alunos, setAlunos, podeEditar }) {
 }
 
 /* Janela de novidades do QuadraLab: abre ao entrar até a pessoa marcar "Não mostrar mais". Nova versão da lista (NOVIDADES_VERSAO) volta a aparecer. */
-const NOVIDADES_VERSAO = "2026-10e";
+const NOVIDADES_VERSAO = "2026-10f";
 const NOVIDADES = [
+  ["Aba Competição na ficha (Essencial e Premium)", "No jogador ligado a um atleta do QuadraLab Competição, a aba Competição mostra a temporada, as partidas, os scouts, os focos e o diário que ele compartilha, e você escreve devolutivas que ele lê no app dele."],
   ["Observar jogos", "Quando não dá para fazer o scout (dois jogos ao mesmo tempo no torneio): um toque por fundamento, bom ou ajustar, e notas. Vai para o caderno de cada jogador."],
   ["Áudio e descritivo para o aluno (Essencial e Premium)", "Grave observações durante o jogo ou conversas com o jogador; o texto vem do ditado do aparelho. A IA escreve um retorno com o que você anotou e você compartilha com o aluno."],
   ["Quadro tático", "Uma quadra para desenhar no iPad ou no celular, com a Apple Pencil ou o dedo: setas, deslocamentos, jogadores e bola."],
@@ -19661,7 +19858,7 @@ function App() {
                  encerramento formal do ciclo (ação "Concluir ciclo" dentro
                  da própria seção, preservada — ver TelaPlano modo=fechamento). */
               const principais = [{ v: "ficha", r: "Perfil" }, { v: "plano", r: "Planejamento" }, { v: "aulas", r: "Aulas" }, { v: "fechamento", r: "Resumo do ciclo" }];
-              const itensMais = [{ v: "periodizacao", r: "Periodização" }, { v: "sessao", r: "Sessão de hoje" }, { v: "scout", r: "Análise de partida" }, { v: "movimento", r: "Análise de movimento", trava: planoQueLibera("movimento", planoAtual) }, { v: "registro", r: "Caderno" }, { v: "estilo", r: "Estilo de jogo" }, { v: "adversarios", r: "Adversários" }];
+              const itensMais = [{ v: "periodizacao", r: "Periodização" }, { v: "sessao", r: "Sessão de hoje" }, { v: "scout", r: "Análise de partida" }, { v: "movimento", r: "Análise de movimento", trava: planoQueLibera("movimento", planoAtual) }, { v: "registro", r: "Caderno" }, { v: "estilo", r: "Estilo de jogo" }, { v: "adversarios", r: "Adversários" }, { v: "competicao", r: "Competição", trava: planoQueLibera("competicao", planoAtual) }];
               const todasSecoes = [...principais, ...itensMais];
               const maisAtivo = itensMais.some((t) => t.v === subaba);
               const secaoAtual = todasSecoes.find((t) => t.v === subaba) || principais[0];
@@ -19763,6 +19960,7 @@ function App() {
              subaba === "estilo" ? <TelaEstiloTatico aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
              subaba === "movimento" ? <TelaMovimento aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade} planoAtual={planoAtual} /> :
              subaba === "adversarios" ? <TelaAdversarios aluno={aberto} alunos={alunos} setAlunos={setAlunos} planoAtual={planoAtual} /> :
+             subaba === "competicao" ? <TelaCompeticaoAtleta aluno={aberto} planoAtual={planoAtual} aoAbrirInicio={() => { setAbertoId(null); setAba("dashboard"); }} /> :
              <TelaSessao aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} papelAtual={papelAtual} uidAtual={uidAtual}
                exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} />}
           </div>

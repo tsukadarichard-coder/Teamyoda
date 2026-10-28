@@ -379,5 +379,19 @@ async function get(uid, qs) { const r = await handler({ httpMethod: "GET", heade
   col("vinculos").pedidoComumB001 = { atletaUid: "menor2", atletaNome: "Atleta Menor 2", tipo: "treinador", status: "aguardando", areas: ["perfil"], pessoaUid: "trein", pessoaNome: "T", historico: [], criadoEm: "2026-10-01" };
   assert.strictEqual((await post("menor2", { acao: "decidir", id: "pedidoComumB001", aprovar: true })).s, 403, "fluxo comum de menor segue exigindo responsável");
 
+  /* treinador pelo app QuadraLab Treinador (conta de academia): ver o atleta e escrever devolutivas só no Essencial/Premium (academia sem plano: liberado) */
+  tokens.treinA = { ...(tokens.treinA || { uid: "treinA", name: "Treinador Academia" }), orgId: "orgA" };
+  assert.strictEqual((await get("treinA", { ver: "pedidoAcademiaA1" })).s, 200, "academia sem plano definido vê");
+  col("orgs/orgA/meta").info = { plano: "gratis" };
+  const bloq = await get("treinA", { ver: "pedidoAcademiaA1" });
+  assert.strictEqual(bloq.s, 403); assert.ok(/Essencial e Premium/.test(bloq.erro));
+  assert.strictEqual((await post("treinA", { acao: "devolutiva", id: "pedidoAcademiaA1", tipo: "geral", destaques: "Boa semana." })).s, 403, "grátis não escreve devolutiva");
+  col("orgs/orgA/meta").info = { plano: "essencial", planoAtivoAte: "2000-01-01" };
+  assert.strictEqual((await get("treinA", { ver: "pedidoAcademiaA1" })).s, 403, "plano vencido bloqueia");
+  col("orgs/orgA/meta").info = { plano: "essencial" };
+  assert.strictEqual((await get("treinA", { ver: "pedidoAcademiaA1" })).s, 200, "Essencial vê");
+  assert.strictEqual((await post("treinA", { acao: "devolutiva", id: "pedidoAcademiaA1", tipo: "geral", destaques: "Boa semana." })).s, 200, "Essencial escreve devolutiva");
+  assert.strictEqual((await get("trein", { ver: idT })).s, 200, "treinador sem academia (só Competição) não muda");
+
   console.log("check-competicao: ok");
 })().catch((e) => { console.error(e); process.exit(1); });

@@ -14,11 +14,16 @@
    Tudo pelo uid do token. Os vínculos moram em vinculos/{id}, sem regra de Firestore: só estas functions alcançam. */
 const { admin, ErroPublico, resposta, usuarioDoPedido, refJogador, OPCOES } = require("./_player");
 const C = require("./_player-competicao");
+const { academiaComCompeticao, ERRO_PLANO_COMPETICAO } = require("./_scout-copias");
 
 const db = () => admin.firestore();
 const agoraISO = () => new Date().toISOString();
 const hojeNoBrasil = () => new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
 const ID_VALIDO = /^[A-Za-z0-9]{10,40}$/;
+/* treinador pelo app QuadraLab Treinador (conta de academia): ver o atleta e escrever devolutivas só nos planos Essencial e Premium */
+async function conferirPlanoAcademia(usuario, v) {
+  if (usuario.orgId && v.tipo === "treinador" && !(await academiaComCompeticao(db(), usuario.orgId))) throw new ErroPublico(403, ERRO_PLANO_COMPETICAO);
+}
 
 async function dadosJogador(uid) { const s = await refJogador(uid).get(); return s.exists ? s.data() : {}; }
 function comp(d) { return (d && d.competicao) || {}; }
@@ -111,6 +116,7 @@ exports.handler = async function (event) {
       const { v } = await carregarVinculo(ver);
       /* a pessoa vinculada, e só com vínculo ativo; qualquer outro caso é "não encontrado" para não revelar que existe */
       if (v.pessoaUid !== uid || v.status !== "ativo") throw new ErroPublico(404, "Vínculo não encontrado.");
+      await conferirPlanoAcademia(usuario, v);
       const aj = await dadosJogador(v.atletaUid);
       const areas = C.areasValidas(v.areas), out = { atleta: { nome: aj.nome || v.atletaNome || "Atleta" }, areas, dados: {} };
       if (areas.includes("perfil")) out.dados.perfil = C.perfilCompartilhavel(aj.ficha, OPCOES);
@@ -254,6 +260,7 @@ exports.handler = async function (event) {
     if (body.acao === "devolutiva" || body.acao === "excluirDevolutiva") {
       const { v } = await carregarVinculo(body.id);
       if (v.tipo !== "treinador" || v.pessoaUid !== uid || v.status !== "ativo") throw new ErroPublico(403, "Só o treinador com vínculo ativo escreve devolutivas.");
+      await conferirPlanoAcademia(usuario, v);
       const dev = refJogador(v.atletaUid).collection("devolutivas");
       if (body.acao === "excluirDevolutiva") {
         if (!ID_VALIDO.test(String(body.devolutivaId || ""))) throw new ErroPublico(400, "Devolutiva inválida.");
