@@ -8,7 +8,9 @@
    POST (login de treinador):
      { acao: "envio", alunoId, contentType, tamanho } → { url, caminho, cabecalhos }
      { acao: "ouvir", caminho }                        → { url }
-     { acao: "apagar", caminho }                       → { ok } */
+     { acao: "apagar", caminho }                       → { ok }
+     { acao: "mover", caminho, alunoId }               → { caminho } (registro passado para outro jogador: o arquivo vai para a pasta dele,
+                                                          para o link do aluno tocar só o áudio do próprio jogador) */
 const { admin, app } = require("./_firebase-admin");
 const A = require("./_olhar-armazenamento");
 
@@ -67,6 +69,17 @@ exports.handler = async function (event) {
       if (!minha(caminho)) return resposta(404, { erro: "Áudio não encontrado." });
       try { await (await A.bucket()).file(caminho).delete(); } catch (e) { /* já não existia */ }
       return resposta(200, { ok: true });
+    }
+    if (body.acao === "mover") {
+      const caminho = String(body.caminho || ""), alunoId = String(body.alunoId || "");
+      if (!minha(caminho)) return resposta(404, { erro: "Áudio não encontrado." });
+      if (!ID.test(alunoId)) return resposta(400, { erro: "Jogador inválido." });
+      const partes = caminho.split("/");
+      if (partes[2] === alunoId) return resposta(200, { ok: true, caminho });
+      const novo = ["audios", claims.orgId, alunoId, partes[3]].join("/"), b = await A.bucket();
+      await b.file(caminho).copy(b.file(novo));
+      try { await b.file(caminho).delete(); } catch (e) { /* a cópia já vale */ }
+      return resposta(200, { ok: true, caminho: novo });
     }
     return resposta(400, { erro: "Ação desconhecida." });
   } catch (e) {

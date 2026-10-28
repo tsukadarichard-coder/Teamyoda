@@ -78,6 +78,7 @@
 <script src="scout/movimento-arquivo.js"></script>
 <script src="scout/movimento.js"></script>
 <script src="scout/padroes.js"></script>
+<script src="obs-voz.js"></script>
 <link rel="stylesheet" href="scout/movimento.css">
 <link rel="stylesheet" href="scout/graficos.css">
 <script crossorigin src="https://unpkg.com/@babel/standalone@7.29.9/babel.min.js"></script>
@@ -93,6 +94,10 @@
     text-align: center; color: #fff; overflow: hidden; transition: all .15s ease; }
   #mty-faixa.mty-faixa-ok { height: 3px; padding: 0; }
   #mty-faixa.mty-faixa-alerta { padding: 7px 14px; }
+  /* Observar jogos: ponto pulsando enquanto o microfone está aberto */
+  .ql-pulso { animation: ql-pulso 1.2s ease-in-out infinite; }
+  @keyframes ql-pulso { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+  @media (prefers-reduced-motion: reduce) { .ql-pulso { animation: none; } }
 </style>
 </head>
 <body>
@@ -213,6 +218,7 @@ async function contarPedidosPendentes() {
    Na nuvem não existe mais "local" vs "compartilhado" — uma vez logado
    numa academia, tudo que se lê e grava é da academia inteira. */
 const storageFirestore = {
+  nuvem: true, /* Observar jogos usa isto para saber se a sessão sobe para a conta */
   async get(key) {
     const org = await organizacao();
     if (!org) return null;
@@ -5441,6 +5447,7 @@ function promptPlanoEstruturado(a, semanas, aulasSemana, historico, enfase) {
     "FICHA DO JOGADOR:",
     relatorioFicha(a),
     ...(resumoScout ? ["", resumoScout] : []),
+    ...(prioridadesObservadasParaPrompt(a) ? ["", prioridadesObservadasParaPrompt(a)] : []),
     ...(evidenciasParaPrompt(a) ? ["", evidenciasParaPrompt(a)] : []),
     ...(ciclosAnteriores.length ? [
       "",
@@ -8417,6 +8424,33 @@ function tendenciaScout(valores, maiorEhMelhor) {
    um texto interpretativo inventado. */
 function evidenciasParaPrompt(aluno) {
   try { return (typeof window !== "undefined" && window.QLEvidencias && window.QLEvidencias.textoParaPrompt(aluno)) || ""; } catch (e) { return ""; }
+}
+/* prioridades que o treinador levou do Observar jogos (texto dele, sem números): entram no próximo plano até serem marcadas como resolvidas */
+function prioridadesObservadasParaPrompt(a) {
+  const ab = ((a && a.prioridadesObservadas) || []).filter((p) => p && p.texto && p.status !== "resolvida").slice(-10);
+  if (!ab.length) return null;
+  return ["PRIORIDADES ANOTADAS PELO TREINADOR AO OBSERVAR JOGOS (texto do treinador) — considere-as ao escolher a prioridade do ciclo e os focos dos blocos; não invente dados além delas:",
+    ...ab.map((p) => "· " + p.texto + (p.origem ? " (" + p.origem + ")" : ""))].join("\n");
+}
+function CartaoPrioridadesObservadas({ aluno, setAlunos, podeEditar }) {
+  const abertas = ((aluno && aluno.prioridadesObservadas) || []).filter((p) => p && p.status !== "resolvida");
+  if (!abertas.length) return null;
+  const resolver = (id) => setAlunos((l) => l.map((a) => (a.id !== aluno.id ? a : { ...a, prioridadesObservadas: (a.prioridadesObservadas || []).map((p) => (p.id === id ? { ...p, status: "resolvida", resolvidaEm: new Date().toISOString() } : p)) })));
+  return (
+    <div data-prioridades-observadas className="mb-4" style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.saibro, borderRadius: 12, padding: "11px 13px" }}>
+      <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>Prioridades anotadas nos jogos · {abertas.length}</p>
+      <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Vieram do Observar jogos e entram no próximo planejamento gerado.</p>
+      {abertas.map((p) => (
+        <div key={p.id} style={{ display: "flex", gap: 8, alignItems: "flex-start", borderTop: "1px solid " + C.linha, paddingTop: 6, marginTop: 6 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ ...prosa, fontSize: 14 }}>{p.texto}</p>
+            {p.origem && <p style={{ ...prosa, fontSize: 11.5, color: C.grafite }}>{p.origem}</p>}
+          </div>
+          {podeEditar && <Botao pequeno variante="vazio" onClick={() => resolver(p.id)}>Resolvida</Botao>}
+        </div>
+      ))}
+    </div>
+  );
 }
 function resumoScoutPlanejamento(registros) {
   const jogos = (registros || []).filter((r) => r.tipo === "jogo" && r.scout && !r.origemCompeticao); /* jogos vindos do Competição não têm todas as medidas (ex.: erros na bola 1–2) */
@@ -12730,10 +12764,10 @@ function RevisaoPlano({ aluno, alunos, setAlunos, podeEditar }) {
 }
 
 /* Janela de novidades do QuadraLab: abre ao entrar até a pessoa marcar "Não mostrar mais". Nova versão da lista (NOVIDADES_VERSAO) volta a aparecer. */
-const NOVIDADES_VERSAO = "2026-10f";
+const NOVIDADES_VERSAO = "2026-10g";
 const NOVIDADES = [
+  ["Observar jogos por voz", "Acompanhe vários jogos ao mesmo tempo: escolha o jogo, toque em Ditar observação e fale. Comece pelo nome do jogador para registrar no jogo certo. Tudo fica salvo no aparelho e sobe para a sua conta; a organização e o resumo ficam para depois."],
   ["Aba Competição na ficha (Essencial e Premium)", "No jogador ligado a um atleta do QuadraLab Competição, a aba Competição mostra a temporada, as partidas, os scouts, os focos e o diário que ele compartilha. Você revisa, ajusta e aprova o planejamento da temporada dele e escreve devolutivas que ele lê no app dele."],
-  ["Observar jogos", "Quando não dá para fazer o scout (dois jogos ao mesmo tempo no torneio): um toque por fundamento, bom ou ajustar, e notas. Vai para o caderno de cada jogador."],
   ["Áudio e descritivo para o aluno (Essencial e Premium)", "Grave observações durante o jogo ou conversas com o jogador; o texto vem do ditado do aparelho. A IA escreve um retorno com o que você anotou e você compartilha com o aluno."],
   ["Quadro tático", "Uma quadra para desenhar no iPad ou no celular, com a Apple Pencil ou o dedo: setas, deslocamentos, jogadores e bola."],
   ["Atletas do QuadraLab Competição (Essencial e Premium)", "O juvenil de competição continua no app dele e você acompanha daqui: no Início, ligue cada atleta à ficha dele; o jogo ao vivo e os scouts vão direto para o app do atleta."],
@@ -13801,6 +13835,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
         {!podeEditar && podeGerarPlano && (
           <Aviso cor={C.quadra}>{eTurma ? "Esta turma" : "Este jogador"} é do professor {entidade.professorNome || "titular"}. Você pode gerar, colar e aprovar o plano no lugar dele; o nome de quem aprovou fica registrado.</Aviso>
         )}
+        {!eTurma && <CartaoPrioridadesObservadas aluno={aluno} setAlunos={setAlunos} podeEditar={podeEditar} />}
         {!eTurma && <RevisaoPlano aluno={aluno} alunos={alunos} setAlunos={setAlunos} podeEditar={podeEditar} />}
         {eTurma && <RevisaoTurma turma={turma} alunos={alunos} setAlunos={setAlunos} aoAtualizarTurma={atualiza} podeEditar={podeEditar} />}
         {!planoCandidato && (
@@ -14336,7 +14371,8 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
 
       {modo === "resumo" && (
         <>
-          {!eTurma && <RevisaoPlano aluno={aluno} alunos={alunos} setAlunos={setAlunos} podeEditar={podeEditar} />}
+          {!eTurma && <CartaoPrioridadesObservadas aluno={aluno} setAlunos={setAlunos} podeEditar={podeEditar} />}
+        {!eTurma && <RevisaoPlano aluno={aluno} alunos={alunos} setAlunos={setAlunos} podeEditar={podeEditar} />}
         {eTurma && <RevisaoTurma turma={turma} alunos={alunos} setAlunos={setAlunos} aoAtualizarTurma={atualiza} podeEditar={podeEditar} />}
           {eTurma && <AvisoRevisaoTurma membros={membros} />}
           <LinhaDeRaciocinio plano={plano} aulas={aulas} status={status} reg={reg} />
@@ -14756,7 +14792,7 @@ function promptPlanoMeuMetodo(a, semanas, aulasSemana, historico, enfase) {
   const resumoScout = resumoScoutPlanejamento(a.registros);
   return QM.montarPrompt(m, {
     ficha: relatorioFicha(a, true), indice: QM.indice(EXERCICIOS_CUSTOM), semanas, nBlocos, porBloco, aulasSemana, enfase: textoEnfase(enfase),
-    extras: [resumoScout, evidenciasParaPrompt(a),
+    extras: [resumoScout, prioridadesObservadasParaPrompt(a), evidenciasParaPrompt(a),
       ciclosAnteriores.length ? "RELATÓRIOS DOS CICLOS ANTERIORES DESTE JOGADOR — o novo plano responde ao que ficou em aberto, ao que foi atingido e ao que não foi:\n" + ciclosAnteriores.join("\n") : ""],
   });
 }
@@ -15329,10 +15365,8 @@ function TelaPedidosAtendimento({ aoAbrirPerfil }) {
   );
 }
 
-/* ── Observar jogos: observação rápida de partida, quando não dá para fazer o scout ponto a ponto (ex.: dois jogos ao mesmo tempo no
-   torneio). Um toque por fundamento (bom / ajustar), notas escritas e o placar do momento; tudo fica no aparelho enquanto o jogo
-   acontece e, ao encerrar, vira um registro "observacao" no caderno de cada jogador. Toques e notas: todos os planos. Gráfico:
-   Essencial e Premium (PLANO_DO_RECURSO.graficoObservacao). */
+/* ── Observar jogos: fundamentos, resumo e gráfico dos toques (+ Positivo / + Ajuste), usados também pelo caderno. A tela (voz
+   primeiro) é a TelaObservar, mais abaixo. Gráfico: Essencial e Premium (PLANO_DO_RECURSO.graficoObservacao). */
 const CATEGORIAS_OBS = [
   { v: "saque", r: "Saque" }, { v: "devolucao", r: "Devolução" }, { v: "fundo", r: "Fundo de quadra" }, { v: "transicao", r: "Rede e transição" },
   { v: "tatico", r: "Tático" }, { v: "mental", r: "Mental" }, { v: "fisico", r: "Físico" },
@@ -15479,7 +15513,7 @@ function ListaObservacoes({ obs, aoRemover }) {
           <span style={{ fontFamily: ARCH, fontSize: 11, color: C.grafite, minWidth: 38 }}>{hhmm(o.em)}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <span style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, color: o.tipo === "bom" ? "#1F6B4A" : o.tipo === "ajustar" ? "#C2410C" : C.tinta }}>
-              {ROTULO_CAT_OBS[o.cat || "geral"]}{o.tipo === "bom" ? " · bom" : o.tipo === "ajustar" ? " · ajustar" : ""}</span>
+              {o.prioridade ? "★ " : ""}{ROTULO_CAT_OBS[o.cat || "geral"]}{o.tipo === "bom" ? " · bom" : o.tipo === "ajustar" ? " · ajustar" : o.natureza && o.natureza !== "observacao" && typeof ROTULO_NAT_OBS !== "undefined" ? " · " + ROTULO_NAT_OBS[o.natureza] : ""}</span>
             {o.placar && <span style={{ ...prosa, fontSize: 11.5, color: C.grafite }}> · {o.placar}</span>}
             {o.texto && <p style={{ ...prosa, fontSize: 13, marginTop: 1 }}>{o.texto}</p>}
             {o.audio && <OuvirAudio audio={o.audio} />}
@@ -15491,141 +15525,834 @@ function ListaObservacoes({ obs, aoRemover }) {
     </div>
   );
 }
-function PainelJogoObs({ jogo, aluno, aoMudar, planoAtual }) {
-  const [nota, setNota] = useState("");
-  const [catNota, setCatNota] = useState("geral");
-  const [eco, setEco] = useState("");
-  const add = (o) => {
-    const item = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), em: new Date().toISOString(), placar: jogo.placar || "", ...o };
-    aoMudar({ ...jogo, obs: [...(jogo.obs || []), item] });
-    setEco(ROTULO_CAT_OBS[item.cat || "geral"] + (item.tipo ? " · " + item.tipo : " · nota")); setTimeout(() => setEco(""), 1600);
+/* ── Observar jogos, com a voz como ação principal (torneio: vários jogos ao mesmo tempo). Escolher o jogo → tocar no microfone →
+   falar → registrado. Nada de formulário a cada fala: a classificação é sugerida depois (obs-voz.js, por palavras-chave) e é
+   editável; a transcrição original nunca é alterada.
+
+   Onde cada coisa fica, e o estado que a tela mostra (nunca "salvo" antes de conferir):
+   · a sessão (jogos e observações) é gravada neste aparelho a cada mudança e lida de volta para conferir → "Salvo neste aparelho";
+   · com login na academia, a mesma sessão sobe para a conta (orgs/{org}/dados/ql-observar:v2:{uid}); quando o Firestore confirma
+     a gravação → "Sincronizado". Sem internet fica pendente e sobe sozinha quando a conexão volta (a sessão inteira, por id: tentar de
+     novo nunca duplica). Outro aparelho, ou o app reaberto, recupera a sessão em andamento;
+   · áudio (Essencial e Premium): gravado junto com o ditado, guardado no aparelho (IndexedDB) até o envio para o armazenamento
+     privado (audio-treinador) dar certo; aí o arquivo local é apagado. Na nuvem, o áudio fica enquanto a observação existir e pode
+     ser apagado a qualquer momento (o texto fica). No plano grátis fica só o texto ditado, e isso aparece antes de gravar;
+   · transcrição: o ditado do próprio aparelho (reconhecimento de voz do navegador, pt-BR, sem custo). Ele não transcreve um áudio já
+     gravado: se falhar (sem internet, por exemplo), o áudio fica guardado para ouvir e escrever depois.
+   "Manter escuta ativa" só existe onde o navegador tem reconhecimento de voz, só começa por toque do professor e para (avisando)
+   quando a tela bloqueia, o app sai da frente ou o reconhecimento deixa de responder. Ao concluir um jogo, o resumo editável vira um
+   registro "observacao" no caderno do jogador e as prioridades podem ir para o planejamento (aluno.prioridadesObservadas). */
+const CHAVE_OBS_V2 = "ql-observar:v2", CHAVE_OBS_SYNC = "ql-observar:v2:sync";
+const ESTADO_JOGO_OBS = { acompanhando: "Acompanhando", pausado: "Pausado", encerrado: "Encerrado" };
+const NATUREZAS_OBS = [["observacao", "Observação do jogo"], ["positivo", "Ponto positivo"], ["atencao", "Ponto de atenção"], ["insight", "Insight para o treino"], ["pergunta", "Pergunta para conversar"]];
+const ROTULO_NAT_OBS = Object.fromEntries(NATUREZAS_OBS);
+const idObs = () => "t" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7);
+const tempoDoIdObs = (id) => { const m = /^t([0-9a-z]+)-/.exec(String(id || "")); return m ? parseInt(m[1], 36) : 0; };
+const agoraIsoObs = () => new Date().toISOString();
+const primeiroNomeObs = (n) => String(n || "Jogador").trim().split(/\s+/)[0] || "Jogador";
+
+/* sobra de uma captura interrompida (app fechado no meio): sem texto e sem áudio sai; com conteúdo fica, sem a marca de captura */
+function limparSessaoObs(s) {
+  const util = (o) => !(o.capturando || o.transcrevendo) || o.texto || o.audioPendente || (o.audio && o.audio.caminho);
+  const limpa = (o) => { const { capturando, transcrevendo, ...r } = o; return (capturando || transcrevendo) && !r.texto ? { ...r, semTranscricao: true } : r; };
+  return { versao: 2, ativoId: null, confirmar: [], ...s, confirmar: (s.confirmar || []).filter(util).map(limpa), jogos: (s.jogos || []).map((j) => ({ ...j, obs: (j.obs || []).filter(util).map(limpa) })) };
+}
+function lerSessaoObs() {
+  try {
+    const v2 = JSON.parse(localStorage.getItem(CHAVE_OBS_V2) || "null");
+    if (v2 && Array.isArray(v2.jogos)) return limparSessaoObs(v2);
+    /* sessão da versão anterior (até 2 jogos, toques e notas): continua de onde parou */
+    const v1 = JSON.parse(localStorage.getItem(CHAVE_OBSERVAR) || "null");
+    if (v1 && Array.isArray(v1.jogos) && v1.jogos.some((j) => j.alunoId)) {
+      return { versao: 2, atualizadoEm: agoraIsoObs(), ativoId: null, confirmar: [], jogos: v1.jogos.filter((j) => j.alunoId).map((j) => ({
+        id: idObs(), alunoId: j.alunoId, apelido: "", adversario: j.adversario || "", torneio: j.torneio || "", quadra: "", placar: j.placar || "", estado: "acompanhando",
+        iniciadoEm: v1.iniciadoEm || agoraIsoObs(), novas: 0,
+        obs: (j.obs || []).map((o) => ({ ...o, mod: o.em, origem: o.tipo ? "toque" : o.audio ? "voz" : "texto", natureza: o.tipo === "bom" ? "positivo" : o.tipo === "ajustar" ? "atencao" : "observacao" })),
+      })) };
+    }
+  } catch (e) { /* sem armazenamento */ }
+  return null;
+}
+/* grava e lê de volta: só conta como salvo se o que voltou é igual ao que foi gravado */
+function gravarSessaoObs(s) {
+  try { const t = JSON.stringify(s); localStorage.setItem(CHAVE_OBS_V2, t); localStorage.removeItem(CHAVE_OBSERVAR); return localStorage.getItem(CHAVE_OBS_V2) === t; } catch (e) { return false; }
+}
+/* áudios ainda não enviados, guardados no aparelho (IndexedDB), pela id da observação */
+const audioLocalObs = (() => {
+  let abrindo = null;
+  const abrir = () => abrindo || (abrindo = new Promise((ok, falha) => {
+    try { const r = indexedDB.open("ql-observar-audio", 1); r.onupgradeneeded = () => r.result.createObjectStore("audios"); r.onsuccess = () => ok(r.result); r.onerror = () => { abrindo = null; falha(r.error); }; }
+    catch (e) { abrindo = null; falha(e); }
+  }));
+  const tx = async (modo, fn) => { const db = await abrir(); return new Promise((ok, falha) => { const t = db.transaction("audios", modo); const req = fn(t.objectStore("audios")); t.oncomplete = () => ok(req && req.result); t.onerror = () => falha(t.error); t.onabort = () => falha(t.error); }); };
+  return {
+    guardar: (id, blob) => tx("readwrite", (s) => s.put(blob, id)),
+    ler: (id) => tx("readonly", (s) => s.get(id)),
+    apagar: (id) => tx("readwrite", (s) => s.delete(id)).catch(() => {}),
+    chaves: () => tx("readonly", (s) => s.getAllKeys()).catch(() => []),
   };
-  const r = resumoObservacoes(jogo.obs);
+})();
+/* conta da academia na nuvem (storageFirestore marca nuvem: true); sem login ou em modo local, só o aparelho */
+const nuvemObs = () => (window.storage && window.storage.nuvem && window.mtyAuth && window.mtyAuth.usuario && window.mtyAuth.usuario()) ? window.storage : null;
+const chaveNuvemObs = () => "ql-observar:v2:" + window.mtyAuth.usuario().uid;
+async function subirAudioObs(alunoId, blob) {
+  const c = await chamarAudio({ acao: "envio", alunoId, contentType: blob.type || "audio/webm", tamanho: blob.size });
+  const up = await fetch(c.url, { method: "PUT", headers: c.cabecalhos, body: blob });
+  if (!up.ok) throw new Error("envio " + up.status);
+  return { caminho: c.caminho, tipo: c.contentType };
+}
+/* o que vai para o caderno: sem marcas de captura e sem referência a arquivo local */
+function obsParaRegistro(o) {
+  const r = { id: o.id, em: o.em, origem: o.origem || "texto", natureza: o.natureza || "observacao", cat: o.cat || "geral" };
+  if (o.tipo) r.tipo = o.tipo;
+  if (o.texto) r.texto = o.texto;
+  if (o.placar) r.placar = o.placar;
+  if (o.prioridade) r.prioridade = true;
+  if (o.audio && o.audio.caminho) r.audio = o.audio;
+  return r;
+}
+function resumoInicialObs(jogo) {
+  const obs = jogo.obs || [], linhas = (f) => obs.filter(f).filter((o) => o.texto).map((o) => "- " + o.texto).join("\n");
+  const toques = (t) => obs.filter((o) => o.origem === "toque" && o.tipo === t).length;
+  return {
+    positivos: linhas((o) => o.natureza === "positivo" && o.origem !== "toque"), positivosToques: toques("bom"),
+    atencao: linhas((o) => o.natureza === "atencao" && o.origem !== "toque"), atencaoToques: toques("ajustar"),
+    insights: linhas((o) => o.natureza === "insight"), perguntas: linhas((o) => o.natureza === "pergunta"),
+    outras: linhas((o) => (o.natureza || "observacao") === "observacao" && o.origem !== "toque"),
+    prioridades: obs.filter((o) => o.prioridade && o.texto).map((o) => "- " + o.texto).join("\n"),
+  };
+}
+const linhasDoTextoObs = (t) => String(t || "").split("\n").map((l) => l.replace(/^\s*[-•*]\s*/, "").trim()).filter(Boolean);
+
+function OuvirAudioLocal({ id, duracaoSeg }) {
+  const [url, setUrl] = useState(""); const [erro, setErro] = useState("");
+  useEffect(() => () => { if (url) URL.revokeObjectURL(url); }, [url]);
+  if (url) return <audio controls autoPlay src={url} style={{ width: "100%", marginTop: 4 }} />;
   return (
-    <div data-painel-obs style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: "12px 12px" }}>
-      <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{aluno ? aluno.nome : "Jogador"}{jogo.adversario ? <span style={{ fontWeight: 500, color: C.grafite }}> × {jogo.adversario}</span> : null}</p>
-      {jogo.torneio && <p style={{ ...prosa, fontSize: 12, color: C.grafite }}>{jogo.torneio}</p>}
-      <label style={{ ...prosa, fontSize: 12, color: C.grafite, display: "block", marginTop: 8 }}>Placar agora (vai junto em cada toque)
-        <input value={jogo.placar || ""} onChange={(e) => aoMudar({ ...jogo, placar: e.target.value.slice(0, 30) })} placeholder="Ex.: 6/4 3/2"
-          style={{ ...entrada, marginTop: 4, padding: "7px 10px", fontSize: 15 }} />
-      </label>
-      <div style={{ marginTop: 10 }}>
-        {CATEGORIAS_OBS.map((c) => (
-          <div key={c.v} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, alignItems: "center", marginBottom: 6 }}>
-            <span style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 600 }}>{c.r}{r[c.v] ? <span style={{ color: C.grafite, fontWeight: 500 }}> {r[c.v].bom}·{r[c.v].ajustar}</span> : null}</span>
-            <button data-toque={c.v + ":bom"} onClick={() => add({ cat: c.v, tipo: "bom" })} style={{ minHeight: 46, borderRadius: 10, border: "1px solid #1F6B4A", background: "#E7F2EC", color: "#1F6B4A", fontFamily: ARCH, fontWeight: 700, fontSize: 13.5, cursor: "pointer" }}>Bom</button>
-            <button data-toque={c.v + ":ajustar"} onClick={() => add({ cat: c.v, tipo: "ajustar" })} style={{ minHeight: 46, borderRadius: 10, border: "1px solid #C2410C", background: "#FBEBE1", color: "#9A3412", fontFamily: ARCH, fontWeight: 700, fontSize: 13.5, cursor: "pointer" }}>Ajustar</button>
-          </div>
-        ))}
+    <span>
+      <button data-ouvir-local onClick={async () => { try { const b = await audioLocalObs.ler(id); if (!b) throw new Error("O áudio não está mais neste aparelho."); setUrl(URL.createObjectURL(b)); } catch (e) { setErro(e.message || "Não foi possível abrir."); } }}
+        style={{ ...prosa, fontSize: 12.5, fontWeight: 700, color: C.quadra, background: "none", border: "none", cursor: "pointer", padding: "4px 0", minHeight: 32 }}>▶ Ouvir{duracaoSeg ? " (" + mmss(duracaoSeg) + ")" : ""}</button>
+      {erro && <span style={{ ...prosa, fontSize: 12, color: "#A33" }}> {erro}</span>}
+    </span>
+  );
+}
+
+const chipObs = { fontFamily: ARCH, fontSize: 11.5, fontWeight: 600, padding: "3px 9px", borderRadius: 999, border: "1px solid " + C.linha, background: C.cal, color: C.tinta, cursor: "pointer", minHeight: 30 };
+/* um registro no feed: texto original, jogador, horário, classificação (sugerida ou escolhida), estado de salvamento e áudio;
+   ações secundárias num toque, sem confirmação obrigatória (excluir tem "Desfazer") */
+function ItemObsFeed({ o, nomeJogador, estado, jogosDestino, travaAudio, aoMudar, aoMover, aoExcluir, aoApagarAudio, aoTentarAudio }) {
+  const [aberto, setAberto] = useState(false);
+  const [editando, setEditando] = useState(false);
+  const [texto, setTexto] = useState(o.texto || "");
+  const nat = o.natureza || "observacao";
+  const sel = { ...entrada, padding: "6px 8px", fontSize: 14, width: "auto" };
+  return (
+    <div data-item-obs={o.id} style={{ borderBottom: "1px solid " + C.linha, padding: "9px 0" }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
+        <span style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700 }}>{nomeJogador}</span>
+        <span style={{ fontFamily: ARCH, fontSize: 11.5, color: C.grafite }}>{hhmm(o.em)}{o.placar ? " · " + o.placar : ""}</span>
+        {o.prioridade && <span data-prioridade style={{ fontFamily: ARCH, fontSize: 11, fontWeight: 700, color: C.quadra }}>★ Prioridade</span>}
+        <span data-estado-obs={estado.chave} style={{ fontFamily: ARCH, fontSize: 11, marginLeft: "auto", color: estado.erro ? "#A33" : C.grafite }}>{estado.erro ? "⚠ " : estado.chave === "sincronizado" ? "✓ " : ""}{estado.r}</span>
       </div>
-      <p role="status" aria-live="polite" style={{ ...prosa, fontSize: 12.5, color: C.quadra, minHeight: 18 }}>{eco ? "Anotado: " + eco : ""}</p>
-      <form onSubmit={(ev) => { ev.preventDefault(); const t = nota.trim(); if (!t) return; add({ cat: catNota, texto: t.slice(0, 1000) }); setNota(""); }} style={{ marginTop: 4 }}>
-        <label style={{ ...prosa, fontSize: 12, color: C.grafite }}>Nota escrita
-          <textarea value={nota} onChange={(e) => setNota(e.target.value)} rows={2} placeholder="O que você viu e quer lembrar…" style={{ ...entrada, marginTop: 4, fontSize: 15 }} /></label>
-        <div className="flex gap-2 items-center flex-wrap" style={{ marginTop: 6 }}>
-          <select value={catNota} onChange={(e) => setCatNota(e.target.value)} aria-label="Fundamento da nota" style={{ ...entrada, width: "auto", padding: "7px 10px", fontSize: 14 }}>
-            <option value="geral">Geral</option>{CATEGORIAS_OBS.map((c) => <option key={c.v} value={c.v}>{c.r}</option>)}
-          </select>
-          <Botao pequeno type="submit" disabled={!nota.trim()}>Anotar</Botao>
+      {o.origem === "toque" ? (
+        <p style={{ ...prosa, fontSize: 14, marginTop: 2 }}>Toque: <b>{o.tipo === "bom" ? "+ Positivo" : "+ Ajuste"}</b>{o.cat && o.cat !== "geral" ? " · " + ROTULO_CAT_OBS[o.cat] : ""}</p>
+      ) : editando ? (
+        <div style={{ marginTop: 4 }}>
+          <textarea aria-label="Editar observação" value={texto} onChange={(e) => setTexto(e.target.value)} rows={3} style={{ ...entrada, fontSize: 15 }} />
+          <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+            <Botao pequeno onClick={() => { aoMudar({ texto: texto.trim().slice(0, 8000), semTranscricao: !texto.trim() && o.semTranscricao, editado: true }); setEditando(false); }}>Salvar texto</Botao>
+            <Botao pequeno variante="vazio" onClick={() => { setTexto(o.texto || ""); setEditando(false); }}>Cancelar</Botao>
+          </div>
         </div>
-      </form>
-      <GravadorVoz alunoId={jogo.alunoId} trava={planoQueLibera("audio", planoAtual)} rotulo="Gravar observação" maxSeg={600}
-        aoGravado={({ texto, audio }) => add({ cat: catNota, texto, audio })} />
-      <ListaObservacoes obs={jogo.obs} aoRemover={(id) => { const o = jogo.obs.find((x) => x.id === id); if (o && o.audio) chamarAudio({ acao: "apagar", caminho: o.audio.caminho }).catch(() => {}); aoMudar({ ...jogo, obs: jogo.obs.filter((x) => x.id !== id) }); }} />
+      ) : o.texto ? (
+        <p style={{ ...prosa, fontSize: 15, marginTop: 2, whiteSpace: "pre-wrap" }}>{o.texto}</p>
+      ) : (
+        <p style={{ ...prosa, fontSize: 13, marginTop: 2, color: C.grafite }}>{o.capturando || o.transcrevendo ? "…" : "Sem transcrição: ouça o áudio e escreva, se quiser."}</p>
+      )}
+      {o.origem !== "toque" && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4, alignItems: "center" }}>
+          <span style={{ fontFamily: ARCH, fontSize: 11.5, color: C.grafite }}>{ROTULO_NAT_OBS[nat]} · {ROTULO_CAT_OBS[o.cat || "geral"]}{o.sugerido ? " (sugerido)" : ""}</span>
+          {(o.opcoesNat || []).map((n) => <button key={n} style={chipObs} onClick={() => aoMudar({ natureza: n, opcoesNat: [], sugerido: false })}>{ROTULO_NAT_OBS[n]}?</button>)}
+          {(o.opcoesCat || []).map((c) => <button key={c} style={chipObs} onClick={() => aoMudar({ cat: c, opcoesCat: [], sugerido: false })}>{ROTULO_CAT_OBS[c]}?</button>)}
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        {o.audio && o.audio.caminho ? <OuvirAudio audio={o.audio} /> : o.audioPendente ? <OuvirAudioLocal id={o.id} duracaoSeg={o.audioPendente.duracaoSeg} /> : null}
+        {estado.chave === "audio-falha" && estado.erro && <button onClick={aoTentarAudio} style={{ ...chipObs, minHeight: 32 }}>Tentar enviar agora</button>}
+        {!o.capturando && !o.transcrevendo && <button data-mais-obs onClick={() => setAberto(!aberto)} style={{ ...prosa, fontSize: 12.5, fontWeight: 700, color: C.quadra, background: "none", border: "none", cursor: "pointer", padding: "4px 0", minHeight: 32 }}>{aberto ? "Fechar" : "Editar ▾"}</button>}
+      </div>
+      {aberto && (
+        <div data-acoes-obs style={{ background: C.papel, borderRadius: 10, padding: "8px 10px", marginTop: 4, display: "grid", gap: 8 }}>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {o.origem !== "toque" && <Botao pequeno variante="vazio" onClick={() => { setEditando(true); setAberto(false); }}>Editar texto</Botao>}
+            <Botao pequeno variante="vazio" onClick={() => aoMudar({ prioridade: !o.prioridade })}>{o.prioridade ? "Tirar prioridade" : "★ Marcar prioridade"}</Botao>
+            {o.audio && o.audio.caminho && !travaAudio && <Botao pequeno variante="vazio" onClick={aoApagarAudio}>Apagar áudio (fica o texto)</Botao>}
+            <Botao pequeno variante="vazio" onClick={aoExcluir}>Excluir</Botao>
+          </div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {o.origem !== "toque" && (
+              <select aria-label="Tipo de registro" value={nat} onChange={(e) => aoMudar({ natureza: e.target.value, opcoesNat: [], sugerido: false })} style={sel}>
+                {NATUREZAS_OBS.map(([v, r]) => <option key={v} value={v}>{r}</option>)}
+              </select>
+            )}
+            <select aria-label="Fundamento" value={o.cat || "geral"} onChange={(e) => aoMudar({ cat: e.target.value, opcoesCat: [], sugerido: false })} style={sel}>
+              <option value="geral">Geral</option>{CATEGORIAS_OBS.map((c) => <option key={c.v} value={c.v}>{c.r}</option>)}
+            </select>
+            {jogosDestino.length > 0 && (
+              <select aria-label="Corrigir jogador" value="" onChange={(e) => e.target.value && aoMover(e.target.value)} style={sel}>
+                <option value="">Corrigir jogador…</option>{jogosDestino.map((j) => <option key={j.id} value={j.id}>{j.nome}</option>)}
+              </select>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-function TelaObservar({ alunos, setAlunos, planoAtual, aoVerCaderno }) {
-  const lerRasc = () => { try { const r = JSON.parse(localStorage.getItem(CHAVE_OBSERVAR) || "null"); return r && Array.isArray(r.jogos) ? r : null; } catch (e) { return null; } };
-  const [rasc, setRasc] = useState(lerRasc);
-  const [ativo, setAtivo] = useState(0);
-  const [config, setConfig] = useState([{ alunoId: "", adversario: "", torneio: "" }, { alunoId: "", adversario: "", torneio: "" }]);
-  const [salvos, setSalvos] = useState(null);
+
+/* jogadores e dados (todos opcionais, menos o jogador) de um ou mais jogos a começar */
+function FormNovosJogosObs({ alunos, ocupados, apelidosEmUso, aoComecar, aoCancelar }) {
+  const vazio = () => ({ alunoId: "", apelido: "", quadra: "", adversario: "", torneio: "" });
+  const [linhas, setLinhas] = useState([vazio()]);
   const ordenados = [...(alunos || [])].sort((a, b) => String(a.nome || "").localeCompare(String(b.nome || "")));
-  const guardar = (r) => { setRasc(r); try { if (r) localStorage.setItem(CHAVE_OBSERVAR, JSON.stringify(r)); else localStorage.removeItem(CHAVE_OBSERVAR); } catch (e) { /* sem armazenamento */ } };
-  const alunoDe = (id) => (alunos || []).find((a) => a.id === id);
-  function comecar() {
-    const jogos = config.filter((c) => c.alunoId).map((c) => ({ ...c, placar: "", obs: [] }));
-    if (!jogos.length) return;
-    setSalvos(null); setAtivo(0); guardar({ iniciadoEm: new Date().toISOString(), jogos });
-  }
-  function encerrar() {
-    const hoje = new Date().toISOString().slice(0, 10), feitos = [];
-    const regs = rasc.jogos.filter((j) => (j.obs || []).length && alunoDe(j.alunoId)).map((j) => ({
-      alunoId: j.alunoId, reg: { id: "obs-" + Date.now().toString(36) + "-" + j.alunoId.slice(-4), tipo: "observacao", contexto: "partida", data: hoje, criadoEm: new Date().toISOString(),
-        torneio: j.torneio || "", adversario: j.adversario || "", placar: j.placar || "", obs: j.obs },
-    }));
-    if (!regs.length) { if (confirm("Nenhuma observação foi anotada. Encerrar mesmo assim?")) guardar(null); return; }
-    setAlunos((lista) => lista.map((a) => { const x = regs.find((g) => g.alunoId === a.id); if (!x) return a; feitos.push(a); return { ...a, registros: [...(a.registros || []), x.reg] }; }));
-    setSalvos(regs.map((g) => ({ alunoId: g.alunoId, nome: (alunoDe(g.alunoId) || {}).nome, obs: g.reg.obs })));
-    guardar(null);
-  }
-  const travaGrafico = planoQueLibera("graficoObservacao", planoAtual);
-  if (salvos) {
-    return (
-      <div data-observar-salvo>
-        <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700 }}>Observações salvas</h1>
-        <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginTop: 4 }}>Cada jogo virou um registro no caderno do jogador.</p>
-        {salvos.map((s0) => (
-          <div key={s0.alunoId} style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: "12px 14px", marginTop: 12 }}>
-            <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{s0.nome} · {s0.obs.length} {s0.obs.length === 1 ? "observação" : "observações"}</p>
-            <div style={{ marginTop: 8 }}>{travaGrafico ? <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Gráfico por fundamento<Cadeado plano={travaGrafico} /></p> : <GraficoObservacoes obs={s0.obs} />}</div>
-            <div className="mt-2"><Botao pequeno variante="vazio" onClick={() => aoVerCaderno(s0.alunoId)}>Ver no caderno</Botao></div>
-          </div>
-        ))}
-        <div className="mt-4"><Botao onClick={() => setSalvos(null)}>Observar outro jogo</Botao></div>
+  const usados = new Set([...(ocupados || []), ...linhas.map((l) => l.alunoId).filter(Boolean)]);
+  const mudar = (i, k, v) => setLinhas(linhas.map((l, x) => (x === i ? { ...l, [k]: v } : l)));
+  const apelidoDe = (l) => (l.apelido.trim() || primeiroNomeObs((ordenados.find((a) => a.id === l.alunoId) || {}).nome));
+  const todosApelidos = [...(apelidosEmUso || []), ...linhas.filter((l) => l.alunoId).map(apelidoDe)].map((a) => a.toLowerCase());
+  const repetido = (l) => l.alunoId && todosApelidos.filter((a) => a === apelidoDe(l).toLowerCase()).length > 1;
+  const prontos = linhas.filter((l) => l.alunoId);
+  return (
+    <div data-novos-jogos>
+      {!ordenados.length && <p style={{ ...prosa, fontSize: 13.5, marginTop: 8 }}>Cadastre um jogador primeiro.</p>}
+      {linhas.map((l, i) => (
+        <div key={i} data-novo-jogo={i} style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: "12px 14px", marginTop: 10 }}>
+          <label style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, display: "block" }}>Selecionar jogador
+            <select data-observar-jogador={i} value={l.alunoId} onChange={(e) => mudar(i, "alunoId", e.target.value)} style={{ ...entrada, marginTop: 6, minHeight: 46 }}>
+              <option value="">Escolha o jogador…</option>
+              {ordenados.filter((a) => a.id === l.alunoId || !usados.has(a.id)).map((a) => <option key={a.id} value={a.id}>{a.nome || "Jogador"}</option>)}
+            </select>
+          </label>
+          {repetido(l) && <p role="alert" style={{ ...prosa, fontSize: 12.5, color: "#9A3412", marginTop: 6 }}>Já tem um jogo com o nome “{apelidoDe(l)}”. Dê um nome curto diferente para a fala reconhecer o jogador certo.</p>}
+          <details style={{ marginTop: 8 }}>
+            <summary style={{ ...prosa, fontSize: 13, color: C.quadra, fontWeight: 700, cursor: "pointer", minHeight: 32 }}>Nome curto, quadra, adversário e torneio (opcional)</summary>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>
+              <input aria-label="Nome curto para a fala" placeholder={"Nome curto (" + (l.alunoId ? apelidoDe({ ...l, apelido: "" }) : "ex.: Nico") + ")"} value={l.apelido} onChange={(e) => mudar(i, "apelido", e.target.value.slice(0, 30))} style={entrada} />
+              <input aria-label="Quadra" placeholder="Quadra" value={l.quadra} onChange={(e) => mudar(i, "quadra", e.target.value.slice(0, 20))} style={entrada} />
+              <input aria-label="Adversário" placeholder="Adversário" value={l.adversario} onChange={(e) => mudar(i, "adversario", e.target.value.slice(0, 60))} style={entrada} />
+              <input aria-label="Torneio" placeholder="Torneio" value={l.torneio} onChange={(e) => mudar(i, "torneio", e.target.value.slice(0, 60))} style={entrada} />
+            </div>
+          </details>
+          {linhas.length > 1 && <button onClick={() => setLinhas(linhas.filter((_, x) => x !== i))} style={{ ...prosa, fontSize: 12.5, color: C.grafite, background: "none", border: "none", cursor: "pointer", marginTop: 6, minHeight: 32 }}>Tirar</button>}
+        </div>
+      ))}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+        <Botao variante="saibro" disabled={!prontos.length} onClick={() => aoComecar(prontos.map((l) => ({ ...l, apelido: l.apelido.trim() })))}>Começar a observar</Botao>
+        <Botao variante="vazio" onClick={() => setLinhas([...linhas, vazio()])}>+ Adicionar jogo</Botao>
+        {aoCancelar && <Botao variante="vazio" onClick={aoCancelar}>Cancelar</Botao>}
       </div>
-    );
+    </div>
+  );
+}
+
+/* resumo editável ao concluir um jogo: só o que foi registrado, organizado pelo tipo; nada de "foi bem/mal" por contagem */
+function ResumoJogoObs({ jogo, nome, aoVoltar, aoSalvar, aoLevarPlano, salvoEm, levadas, aoVerCaderno }) {
+  const [r, setR] = useState(() => jogo.resumo || resumoInicialObs(jogo));
+  const campo = (k, rot, dica) => (
+    <label style={{ display: "block", marginTop: 12 }}>
+      <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{rot}</span>
+      {dica && <span style={{ ...prosa, fontSize: 12, color: C.grafite, display: "block" }}>{dica}</span>}
+      <textarea data-resumo-campo={k} value={r[k] || ""} onChange={(e) => setR({ ...r, [k]: e.target.value })} rows={Math.max(2, linhasDoTextoObs(r[k]).length + 1)} style={{ ...entrada, marginTop: 4, fontSize: 15 }} placeholder="Nada registrado. Escreva, se quiser." />
+    </label>
+  );
+  const prioridades = linhasDoTextoObs(r.prioridades);
+  return (
+    <div data-resumo-jogo>
+      <button onClick={aoVoltar} style={{ ...prosa, fontSize: 13.5, color: C.quadra, fontWeight: 700, background: "none", border: "none", cursor: "pointer", padding: 0, minHeight: 36 }}>‹ Voltar aos jogos</button>
+      <h1 style={{ fontFamily: ARCH, fontSize: 21, fontWeight: 700, marginTop: 4 }}>Resumo · {nome}</h1>
+      <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>{[jogo.torneio, jogo.adversario ? "× " + jogo.adversario : "", jogo.quadra ? "Quadra " + jogo.quadra : "", jogo.placar].filter(Boolean).join(" · ") || "Jogo observado"} · {(jogo.obs || []).length} registros</p>
+      <p data-aviso-resumo style={{ ...prosa, fontSize: 13, background: C.papel, border: "1px solid " + C.linha, borderRadius: 10, padding: "8px 10px", marginTop: 10 }}>Resumo baseado nas observações registradas; não representa um scout completo.</p>
+      {campo("positivos", "Pontos positivos registrados", r.positivosToques ? "Mais " + r.positivosToques + " toque(s) em + Positivo." : "")}
+      {campo("atencao", "Pontos de atenção", r.atencaoToques ? "Mais " + r.atencaoToques + " toque(s) em + Ajuste." : "")}
+      {campo("insights", "Insights para o treino")}
+      {campo("perguntas", "Perguntas para conversar com o jogador")}
+      {campo("outras", "Outras observações")}
+      {campo("prioridades", "Prioridades", "As que você marcou com ★. Uma por linha.")}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
+        <Botao variante="saibro" onClick={() => aoSalvar(r)}>{salvoEm ? "Salvar de novo no histórico" : "Salvar no histórico"}</Botao>
+        <Botao variante="vazio" disabled={!prioridades.length} onClick={() => aoLevarPlano(prioridades, r)}>Levar prioridades para o planejamento</Botao>
+      </div>
+      {salvoEm && <p role="status" data-resumo-salvo style={{ ...prosa, fontSize: 13, color: C.quadra, marginTop: 8 }}>Salvo no caderno de {nome}. Os outros jogos continuam abertos.</p>}
+      {salvoEm && aoVerCaderno && <div style={{ marginTop: 6 }}><Botao pequeno variante="vazio" onClick={aoVerCaderno}>Ver no caderno</Botao></div>}
+      {levadas > 0 && <p role="status" style={{ ...prosa, fontSize: 13, color: C.quadra, marginTop: 4 }}>{levadas} prioridade(s) no Plano de {nome}: aparecem na aba Plano e entram no próximo planejamento gerado.</p>}
+    </div>
+  );
+}
+
+function TelaObservar({ alunos, setAlunos, planoAtual, aoVerCaderno }) {
+  const V = window.QLObservarVoz;
+  const [sessao, setSessao] = useState(lerSessaoObs);
+  const sessaoRef = useRef(sessao); sessaoRef.current = sessao;
+  const [local, setLocal] = useState({ ate: null, falha: false });
+  const [syncAte, setSyncAte] = useState(() => { try { return (JSON.parse(localStorage.getItem(CHAVE_OBS_SYNC) || "null") || {}).ate || null; } catch (e) { return null; } });
+  const [uploads, setUploads] = useState({});
+  const [aviso, setAviso] = useState(null);
+  const [online, setOnline] = useState(typeof navigator === "undefined" || navigator.onLine !== false);
+  const [adicionando, setAdicionando] = useState(false);
+  const [resumoDe, setResumoDe] = useState(null);
+  const [levadas, setLevadas] = useState({});
+  const [filtro, setFiltro] = useState("todas");
+  const [verTodas, setVerTodas] = useState(false);
+  const [escrevendo, setEscrevendo] = useState(false);
+  const [nota, setNota] = useState("");
+  const [ultimoToque, setUltimoToque] = useState(null);
+  const [cap, setCap] = useState(null);
+  const [telaAcesa, setTelaAcesa] = useState(null);
+  const capRef = useRef(null), enviandoRef = useRef(new Set()), sincRef = useRef({ indo: false, de_novo: false }), avisoTimer = useRef(null), wakeRef = useRef(null);
+  const [tickSync, setTickSync] = useState(0);
+  const travaAudio = planoQueLibera("audio", planoAtual);
+  const SR = typeof window !== "undefined" ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
+  const gravaAudio = !travaAudio && typeof navigator !== "undefined" && !!navigator.mediaDevices && typeof window.MediaRecorder !== "undefined";
+  const nuvem = nuvemObs();
+  const alunoDe = (id) => (alunos || []).find((a) => a.id === id);
+  const nomeJogo = (j) => (j ? j.apelido || primeiroNomeObs((alunoDe(j.alunoId) || {}).nome) : "Jogador");
+  const jogos = (sessao && sessao.jogos) || [];
+  const abertos = jogos.filter((j) => j.estado !== "encerrado");
+  const ativo = jogos.find((j) => j.id === (sessao && sessao.ativoId) && j.estado !== "encerrado") || abertos[0] || null;
+  const ativoIdRef = useRef(null); ativoIdRef.current = ativo ? ativo.id : null;
+
+  const mostrarAviso = (t, extra) => {
+    clearTimeout(avisoTimer.current);
+    setAviso({ t, ...(extra || {}) });
+    avisoTimer.current = setTimeout(() => setAviso(null), (extra && extra.desfazer) ? 7000 : extra && extra.erro ? 9000 : 3500);
+  };
+  const atualizar = (fn) => setSessao((s) => {
+    const base = s ? JSON.parse(JSON.stringify(s)) : { versao: 2, jogos: [], confirmar: [], ativoId: null };
+    const n = fn(base) || base;
+    n.atualizadoEm = agoraIsoObs();
+    return n;
+  });
+  const acharObs = (n, id) => {
+    for (const j of n.jogos) { const i = j.obs.findIndex((o) => o.id === id); if (i >= 0) return { lista: j.obs, i, jogo: j }; }
+    const i = (n.confirmar || []).findIndex((o) => o.id === id);
+    return i >= 0 ? { lista: n.confirmar, i, jogo: null } : null;
+  };
+
+  /* grava no aparelho a cada mudança e confere */
+  useEffect(() => {
+    if (!sessao) return;
+    const ok = gravarSessaoObs(sessao);
+    setLocal((l) => ({ ate: ok ? sessao.atualizadoEm : l.ate, falha: !ok }));
+  }, [sessao]);
+  const marcarSync = (ate) => { if (!ate) return; setSyncAte((x) => { const v = !x || ate > x ? ate : x; try { localStorage.setItem(CHAVE_OBS_SYNC, JSON.stringify({ ate: v })); } catch (e) { /* sem armazenamento */ } return v; }); };
+  /* sobe a sessão para a conta; uma gravação por vez; a confirmação do Firestore é o que marca "Sincronizado" */
+  async function sincronizar() {
+    const nv = nuvemObs(), snap = sessaoRef.current;
+    if (!nv || !snap) return;
+    if (sincRef.current.indo) { sincRef.current.de_novo = true; return; }
+    sincRef.current.indo = true;
+    const gravacao = Promise.resolve().then(() => nv.set(chaveNuvemObs(), JSON.stringify(snap))).then((r) => { if (r) marcarSync(snap.atualizadoEm); return r; }).catch(() => null);
+    await Promise.race([gravacao, new Promise((ok) => setTimeout(ok, 15000))]);
+    sincRef.current.indo = false;
+    if (sincRef.current.de_novo) { sincRef.current.de_novo = false; setTickSync((t) => t + 1); }
   }
-  if (!rasc) {
+  useEffect(() => {
+    if (!nuvem || !sessao || (syncAte && sessao.atualizadoEm <= syncAte)) return undefined;
+    const t = setTimeout(sincronizar, 1000);
+    return () => clearTimeout(t);
+  }, [sessao && sessao.atualizadoEm, online, tickSync, !!nuvem]);
+  /* outro aparelho (ou o app reaberto sem a cópia local): recupera a sessão em andamento da conta */
+  useEffect(() => {
+    const nv = nuvemObs(); if (!nv) return undefined;
+    let vivo = true;
+    (async () => {
+      try {
+        const r = await nv.get(chaveNuvemObs());
+        const remoto = r && r.value ? JSON.parse(r.value) : null;
+        if (!vivo || !remoto || !Array.isArray(remoto.jogos)) return;
+        const loc = sessaoRef.current;
+        if ((!loc || !loc.jogos.length) && remoto.jogos.length && (!loc || !loc.atualizadoEm || remoto.atualizadoEm > loc.atualizadoEm)) {
+          setSessao(limparSessaoObs(remoto)); marcarSync(remoto.atualizadoEm);
+          mostrarAviso("Recuperamos as observações em andamento salvas na sua conta.");
+        } else if (loc && remoto.atualizadoEm === loc.atualizadoEm) marcarSync(remoto.atualizadoEm);
+      } catch (e) { /* sem conexão: fica o que está no aparelho */ }
+    })();
+    return () => { vivo = false; };
+  }, []);
+  /* conexão */
+  useEffect(() => {
+    const on = () => { setOnline(true); setUploads((u) => Object.fromEntries(Object.entries(u).filter(([, v]) => v !== "falha"))); };
+    const off = () => setOnline(false);
+    window.addEventListener("online", on); window.addEventListener("offline", off);
+    return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
+  }, []);
+  /* fila de áudios: envia o que está guardado no aparelho; falhou, tenta de novo em 30 s ou quando a conexão voltar */
+  async function enviarAudio(alunoId, o) {
+    if (enviandoRef.current.has(o.id)) return;
+    enviandoRef.current.add(o.id); setUploads((u) => ({ ...u, [o.id]: "enviando" }));
+    try {
+      const blob = await audioLocalObs.ler(o.id);
+      if (!blob) {
+        atualizar((n) => { const a = acharObs(n, o.id); if (a) { delete a.lista[a.i].audioPendente; a.lista[a.i].audioPerdido = true; a.lista[a.i].mod = agoraIsoObs(); } return n; });
+        throw new Error("perdido");
+      }
+      const audio = { ...(await subirAudioObs(alunoId, blob)), duracaoSeg: (o.audioPendente && o.audioPendente.duracaoSeg) || 0 };
+      atualizar((n) => { const a = acharObs(n, o.id); if (a) { const x = a.lista[a.i]; delete x.audioPendente; x.audio = audio; x.mod = agoraIsoObs(); } return n; });
+      /* jogo já salvo no caderno: o áudio que chegou depois entra no registro também */
+      const a1 = acharObs(sessaoRef.current, o.id), registro = a1 && a1.jogo && a1.jogo.registroId ? { alunoId: a1.jogo.alunoId, regId: a1.jogo.registroId } : null;
+      if (registro) setAlunos((l) => l.map((al) => al.id !== registro.alunoId ? al : { ...al, registros: (al.registros || []).map((r) => r.id !== registro.regId ? r : { ...r, obs: (r.obs || []).map((x) => (x.id === o.id ? { ...x, audio } : x)) }) }));
+      setUploads((u) => { const { [o.id]: _, ...r } = u; return r; });
+    } catch (e) {
+      if (e.message !== "perdido") { setUploads((u) => ({ ...u, [o.id]: "falha" })); setTimeout(() => setUploads((u) => (u[o.id] === "falha" ? Object.fromEntries(Object.entries(u).filter(([k]) => k !== o.id)) : u)), 30000); }
+      else setUploads((u) => { const { [o.id]: _, ...r } = u; return r; });
+    } finally { enviandoRef.current.delete(o.id); }
+  }
+  useEffect(() => {
+    if (travaAudio || !online || !sessao) return;
+    sessao.jogos.forEach((j) => j.obs.forEach((o) => { if (o.audioPendente && !o.capturando && !o.transcrevendo && !uploads[o.id] && local.ate && o.mod <= local.ate) enviarAudio(j.alunoId, o); }));
+  }, [sessao, online, uploads, local.ate]);
+  /* áudio local que já foi enviado, ou de observação excluída há mais de 10 min: sai do aparelho */
+  useEffect(() => {
+    if (!sessao || !local.ate) return;
+    audioLocalObs.chaves().then((ks) => (ks || []).forEach((k) => {
+      const a = acharObs(sessao, k);
+      if ((a && !a.lista[a.i].audioPendente && !a.lista[a.i].capturando && !a.lista[a.i].transcrevendo) || (!a && Date.now() - tempoDoIdObs(k) > 600000)) audioLocalObs.apagar(k);
+    }));
+  }, [local.ate]);
+
+  function estadoDe(o) {
+    if (o.capturando) return { chave: "capturando", r: "Capturando" };
+    if (o.transcrevendo) return { chave: "transcrevendo", r: "Transcrevendo" };
+    if (!(local.ate && o.mod <= local.ate)) return local.falha ? { chave: "falha", r: "Falha ao salvar", erro: true } : { chave: "salvando", r: "Salvando…" };
+    if (o.audioPendente) {
+      if (travaAudio) return { chave: "local", r: "Salvo neste aparelho" };
+      return uploads[o.id] === "enviando" ? { chave: "audio-enviando", r: "Enviando áudio" } : { chave: "audio-falha", r: online ? "Áudio aguardando envio" : "Áudio salvo neste aparelho · sem conexão", erro: online };
+    }
+    if (nuvem && syncAte && o.mod <= syncAte) return { chave: "sincronizado", r: "Sincronizado" };
+    return { chave: "local", r: "Salvo neste aparelho" };
+  }
+
+  /* ── registrar uma fala (ou texto): classifica, identifica o jogador pelo nome e guarda ── */
+  /* decide ANTES de gravar (com a sessão atual): para qual jogo vai e a classificação sugerida; o atualizar só aplica */
+  function decidir(texto, origem, jogoPadraoId) {
+    const s = sessaoRef.current || { jogos: [] };
+    const alvos = s.jogos.filter((j) => j.estado !== "encerrado").map((j) => ({ id: j.id, apelido: nomeJogo(j), nome: (alunoDe(j.alunoId) || {}).nome || "" }));
+    const rot = texto && V ? V.identificarJogador(texto, alvos) : { modo: "ativo" };
+    const cls = texto && V && origem !== "toque" ? V.classificar(texto) : null;
+    const alvo = rot.modo === "confirmar" ? null : (s.jogos.find((j) => j.id === (rot.modo === "nome" ? rot.jogoId : jogoPadraoId)) || s.jogos.find((j) => j.id === jogoPadraoId));
+    return { rot, cls, alvoId: alvo ? alvo.id : null, nome: alvo ? nomeJogo(alvo) : "", jogoPadraoId };
+  }
+  function aplicar(n, o, d) {
+    if (d.cls) Object.assign(o, { natureza: d.cls.natureza, cat: d.cls.cat, sugerido: d.cls.natureza !== "observacao" || d.cls.cat !== "geral", opcoesNat: d.cls.opcoesNatureza, opcoesCat: d.cls.opcoesCat });
+    if (d.rot.modo === "confirmar") { n.confirmar = n.confirmar || []; n.confirmar.push({ ...o, jogoId: d.jogoPadraoId, candidatos: d.rot.candidatos }); return; }
+    const alvo = n.jogos.find((j) => j.id === d.alvoId); if (!alvo) { n.confirmar = n.confirmar || []; n.confirmar.push({ ...o, candidatos: [] }); return; }
+    o.atribuicao = d.rot.modo; o.placar = o.placar || alvo.placar || "";
+    alvo.obs.push(o);
+    if (alvo.estado === "pausado") alvo.estado = "acompanhando";
+    if (alvo.id !== ativoIdRef.current) alvo.novas = (alvo.novas || 0) + 1;
+  }
+  function avisoEncaixe(d, extra) {
+    if (d.rot.modo === "confirmar" || !d.alvoId) mostrarAviso("Confirme o jogador desta observação (nome parecido ou repetido)." + (extra ? " " + extra : ""), { erro: !!extra });
+    else mostrarAviso("Registrado para " + d.nome + "." + (extra ? " " + extra : ""), { erro: !!extra });
+  }
+  function registrarTexto(texto, origem, jogoId) {
+    const t = String(texto || "").trim().slice(0, 8000); if (!t || !jogoId) return;
+    const em = agoraIsoObs(), d = decidir(t, origem, jogoId);
+    atualizar((n) => { aplicar(n, { id: idObs(), em, mod: em, origem, texto: t, natureza: "observacao", cat: "geral" }, d); return n; });
+    avisoEncaixe(d);
+  }
+
+  /* ── captura por voz ── */
+  function ligarDitado(c) {
+    if (!SR || c.semDitado || !c.ativo) return;
+    let sr; try { sr = new SR(); } catch (e) { c.semDitado = true; return; }
+    sr.lang = "pt-BR"; sr.continuous = true; sr.interimResults = true;
+    sr.onresult = (ev) => {
+      let inter = "", teveFinal = false;
+      for (let i = ev.resultIndex; i < ev.results.length; i++) {
+        const t = ev.results[i][0].transcript;
+        if (ev.results[i].isFinal) { teveFinal = true; if (c.modo === "continuo") { if (t.trim()) registrarTexto(t, "voz", ativoIdRef.current); } else c.finais += t.trim() + " "; }
+        else inter += t;
+      }
+      c.ultimo = c.modo === "continuo" ? inter.trim() : (c.finais + inter).trim();
+      c.ouviuEm = Date.now();
+      setCap((x) => x && { ...x, texto: c.ultimo });
+      /* toque: o que já foi reconhecido vai sendo guardado, para não perder se o app fechar no meio */
+      if (c.modo === "toque" && teveFinal) atualizar((n) => { const a = acharObs(n, c.obsId); if (a) { a.lista[a.i].texto = c.finais.trim(); a.lista[a.i].mod = agoraIsoObs(); } return n; });
+    };
+    sr.onerror = (ev) => {
+      const e = ev && ev.error;
+      if (e === "not-allowed" || e === "service-not-allowed") { c.semDitado = true; c.motivo = "O ditado não foi liberado neste navegador (permissão do microfone ou do reconhecimento de fala)."; }
+      else if (e === "network") { c.semDitado = true; c.motivo = "Sem internet, o ditado do aparelho não funciona."; }
+      else if (e === "audio-capture") { c.semDitado = true; c.motivo = "O microfone não está disponível."; }
+    };
+    sr.onend = () => {
+      c.sr = null;
+      if (c.fimDitado) { c.fimDitado(); return; }
+      if (!c.ativo) return;
+      if (c.semDitado) {
+        if (c.modo === "continuo" || !c.mr) encerrarCaptura(c.motivo);
+        else setCap((x) => x && { ...x, aviso: c.motivo + " O áudio continua sendo gravado." });
+        return;
+      }
+      const agora = Date.now(); c.reinicios = (c.reinicios || []).filter((t) => agora - t < 20000).concat(agora);
+      if (c.reinicios.length > 8 && !(c.ouviuEm > agora - 20000)) { encerrarCaptura("O reconhecimento de voz parou de responder neste aparelho." + (c.modo === "continuo" ? " Use o toque no microfone." : "")); return; }
+      setTimeout(() => ligarDitado(c), 250);
+    };
+    c.sr = sr;
+    try { sr.start(); } catch (e) { c.sr = null; c.semDitado = true; }
+  }
+  async function comecarToque() {
+    if (capRef.current || !ativo) return;
+    if (!SR && !gravaAudio) { mostrarAviso("Este navegador não reconhece fala. Use “Escrever” (o microfone do teclado do celular também dita).", { erro: true }); setEscrevendo(true); return; }
+    const jogoId = ativo.id, obsId = idObs(), em = agoraIsoObs();
+    const c = { modo: "toque", obsId, jogoId, finais: "", ultimo: "", inicio: Date.now(), ativo: true, partes: [], semDitado: !SR };
+    capRef.current = c;
+    atualizar((n) => { const j = n.jogos.find((x) => x.id === jogoId); if (j) { j.obs.push({ id: obsId, em, mod: em, origem: "voz", texto: "", natureza: "observacao", cat: "geral", capturando: true, placar: j.placar || "" }); if (j.estado === "pausado") j.estado = "acompanhando"; } return n; });
+    setCap({ modo: "toque", jogoId, texto: "", seg: 0 });
+    ligarDitado(c);
+    if (gravaAudio) {
+      try { c.stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+      catch (e) { if (!SR || c.semDitado) { encerrarCaptura("O microfone não foi liberado. Permita o microfone nas configurações do navegador."); return; } setCap((x) => x && { ...x, aviso: "Sem acesso ao microfone para guardar o áudio; fica só o texto ditado." }); }
+      if (c.stream && !c.ativo) { c.stream.getTracks().forEach((t) => t.stop()); return; }
+      if (c.stream) {
+        const tipo = ["audio/webm;codecs=opus", "audio/mp4", "audio/webm"].find((t) => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) || "";
+        try { c.mr = new MediaRecorder(c.stream, tipo ? { mimeType: tipo } : undefined); c.mr.ondataavailable = (e) => { if (e.data && e.data.size) c.partes.push(e.data); }; c.mr.start(1000); } catch (e) { c.mr = null; }
+        c.stream.getAudioTracks().forEach((t) => { t.onended = () => { if (c.ativo) encerrarCaptura("O microfone foi interrompido (ligação ou outro app). O que foi captado ficou salvo."); }; });
+      }
+    }
+    c.timer = setInterval(() => { const seg = Math.round((Date.now() - c.inicio) / 1000); setCap((x) => x && { ...x, seg }); if (seg >= 300) encerrarCaptura("Limite de 5 minutos por observação: a captura foi encerrada e salva."); }, 500);
+  }
+  async function pedirTelaAcesa() {
+    try { if (navigator.wakeLock && navigator.wakeLock.request) { wakeRef.current = await navigator.wakeLock.request("screen"); setTelaAcesa(true); return; } } catch (e) { /* sem permissão */ }
+    setTelaAcesa(false);
+  }
+  function soltarTelaAcesa() { try { wakeRef.current && wakeRef.current.release(); } catch (e) { /* já solta */ } wakeRef.current = null; setTelaAcesa(null); }
+  function comecarEscuta() {
+    if (capRef.current || !ativo || !SR) return;
+    const c = { modo: "continuo", ativo: true, finais: "", ultimo: "", inicio: Date.now() };
+    capRef.current = c; setCap({ modo: "continuo", texto: "" });
+    pedirTelaAcesa();
+    ligarDitado(c);
+  }
+  async function encerrarCaptura(motivo) {
+    const c = capRef.current; if (!c || !c.ativo) return;
+    c.ativo = false; clearInterval(c.timer); capRef.current = null;
+    if (c.modo === "continuo") {
+      soltarTelaAcesa();
+      try { c.sr && c.sr.stop(); } catch (e) { /* parado */ }
+      if (c.ultimo) registrarTexto(c.ultimo, "voz", ativoIdRef.current);
+      setCap(null);
+      if (motivo) mostrarAviso("A escuta parou. " + motivo, { erro: true });
+      return;
+    }
+    setCap((x) => x && { ...x, transcrevendo: true });
+    atualizar((n) => { const a = acharObs(n, c.obsId); if (a) { delete a.lista[a.i].capturando; a.lista[a.i].transcrevendo = true; } return n; });
+    if (c.sr) await new Promise((ok) => { c.fimDitado = ok; try { c.sr.stop(); } catch (e) { ok(); } setTimeout(ok, 1800); });
+    let blob = null;
+    if (c.mr) blob = await new Promise((ok) => {
+      const montar = () => new Blob(c.partes, { type: (c.mr.mimeType || "audio/webm").split(";")[0] });
+      if (c.mr.state === "inactive") { ok(montar()); return; }
+      c.mr.onstop = () => ok(montar());
+      try { c.mr.stop(); } catch (e) { ok(montar()); }
+      setTimeout(() => ok(montar()), 2500);
+    });
+    if (c.stream) c.stream.getTracks().forEach((t) => t.stop());
+    const texto = (c.finais.trim() || c.ultimo || "").slice(0, 8000), duracaoSeg = Math.round((Date.now() - c.inicio) / 1000);
+    let audioPendente = null, audio = null, avisoAudio = "";
+    if (blob && blob.size) {
+      try { await audioLocalObs.guardar(c.obsId, blob); const v = await audioLocalObs.ler(c.obsId); if (v && v.size === blob.size) audioPendente = { tipo: blob.type, duracaoSeg }; } catch (e) { /* sem IndexedDB */ }
+      if (!audioPendente) {
+        /* o navegador não deixou guardar no aparelho: tenta enviar já */
+        const alunoId = ((sessaoRef.current.jogos || []).find((j) => j.id === c.jogoId) || {}).alunoId;
+        try { audio = { ...(await subirAudioObs(alunoId, blob)), duracaoSeg }; } catch (e) { avisoAudio = "Este navegador não deixa guardar áudio no aparelho e o envio falhou: o áudio não foi guardado." + (texto ? " O texto ficou." : ""); }
+      }
+    }
+    setCap(null);
+    const vazio = !texto && !audioPendente && !audio;
+    const d = vazio ? null : decidir(texto, "voz", c.jogoId);
+    atualizar((n) => {
+      const a = acharObs(n, c.obsId); if (!a) return n;
+      const o = a.lista.splice(a.i, 1)[0];
+      delete o.capturando; delete o.transcrevendo;
+      if (vazio) return n;
+      Object.assign(o, { texto, mod: agoraIsoObs() });
+      if (audioPendente) o.audioPendente = audioPendente;
+      if (audio) o.audio = audio;
+      if (!texto) o.semTranscricao = true;
+      aplicar(n, o, d);
+      return n;
+    });
+    if (vazio) mostrarAviso((motivo ? motivo + " " : "") + (avisoAudio ? avisoAudio + " " : "") + "Nada foi captado. Tente de novo.", { erro: true });
+    else avisoEncaixe(d, [motivo, avisoAudio, !texto ? "Sem transcrição: o áudio ficou guardado para ouvir." : ""].filter(Boolean).join(" "));
+  }
+  /* sair da tela, bloquear o aparelho ou trocar de app interrompe a captura (o navegador não ouve em segundo plano) */
+  useEffect(() => {
+    const vis = () => { if (document.hidden && capRef.current) encerrarCaptura(capRef.current.modo === "continuo" ? "O app saiu da tela (tela bloqueada ou outro app). Toque em “Manter escuta ativa” para retomar." : "A captura parou porque o app saiu da tela. O que foi captado ficou salvo."); };
+    document.addEventListener("visibilitychange", vis);
+    return () => { document.removeEventListener("visibilitychange", vis); if (capRef.current) encerrarCaptura(); };
+  }, []);
+
+  /* ── ações ── */
+  function comecarJogos(lista) {
+    const em = agoraIsoObs();
+    const novos = lista.map((l) => ({ id: idObs(), alunoId: l.alunoId, apelido: l.apelido || "", quadra: l.quadra || "", adversario: l.adversario || "", torneio: l.torneio || "", placar: "", estado: "acompanhando", iniciadoEm: em, novas: 0, obs: [] }));
+    atualizar((n) => { n.jogos = n.jogos.filter((j) => !(j.estado === "encerrado" && !j.obs.some((o) => o.audioPendente))).concat(novos); if (!n.ativoId || !n.jogos.some((j) => j.id === n.ativoId && j.estado !== "encerrado")) n.ativoId = novos[0].id; return n; });
+    setAdicionando(false);
+  }
+  const selecionar = (id) => atualizar((n) => { n.ativoId = id; const j = n.jogos.find((x) => x.id === id); if (j) j.novas = 0; return n; });
+  const mudarJogo = (id, campos) => atualizar((n) => { const j = n.jogos.find((x) => x.id === id); if (j) Object.assign(j, campos); return n; });
+  const mudarObs = (id, campos) => atualizar((n) => { const a = acharObs(n, id); if (a) Object.assign(a.lista[a.i], campos, { mod: agoraIsoObs() }); return n; });
+  function moverObs(id, jogoId) {
+    const s = sessaoRef.current, a0 = s && acharObs(s, id), alvo0 = s && s.jogos.find((j) => j.id === jogoId);
+    if (!a0 || !alvo0) return;
+    const o0 = a0.lista[a0.i], alunoAntes = a0.jogo ? a0.jogo.alunoId : (s.jogos.find((j) => j.id === o0.jogoId) || {}).alunoId, caminho = o0.audio && o0.audio.caminho;
+    atualizar((n) => {
+      const a = acharObs(n, id), alvo = n.jogos.find((j) => j.id === jogoId); if (!a || !alvo) return n;
+      const o = a.lista.splice(a.i, 1)[0]; delete o.candidatos; delete o.jogoId;
+      Object.assign(o, { mod: agoraIsoObs(), atribuicao: "manual" }); alvo.obs.push(o); alvo.obs.sort((x, y) => String(x.em).localeCompare(String(y.em)));
+      if (alvo.id !== ativoIdRef.current) alvo.novas = (alvo.novas || 0) + 1;
+      return n;
+    });
+    mostrarAviso("Registrado para " + nomeJogo(alvo0) + ".");
+    /* áudio já enviado vai para a pasta do jogador certo (o link do aluno só toca o áudio do próprio jogador) */
+    if (caminho && alunoAntes && alunoAntes !== alvo0.alunoId) {
+      chamarAudio({ acao: "mover", caminho, alunoId: alvo0.alunoId })
+        .then((r) => atualizar((n) => { const b = acharObs(n, id); if (b && b.lista[b.i].audio) { b.lista[b.i].audio = { ...b.lista[b.i].audio, caminho: r.caminho }; b.lista[b.i].mod = agoraIsoObs(); } return n; }))
+        .catch(() => {});
+    }
+  }
+  function excluirObs(id) {
+    const s = sessaoRef.current, a0 = s && acharObs(s, id);
+    if (!a0) return;
+    let guardado = { o: a0.lista[a0.i], jogoId: a0.jogo ? a0.jogo.id : null, i: a0.i };
+    atualizar((n) => { const a = acharObs(n, id); if (a) a.lista.splice(a.i, 1); return n; });
+    mostrarAviso("Registro excluído.", { desfazer: () => {
+      if (!guardado) return;
+      const g = guardado; guardado = null;
+      atualizar((n) => { const j = g.jogoId && n.jogos.find((x) => x.id === g.jogoId); const lista = j ? j.obs : (n.confirmar = n.confirmar || []); lista.splice(Math.min(g.i, lista.length), 0, { ...g.o, mod: agoraIsoObs() }); return n; });
+      setAviso(null);
+    }, aoSumir: () => { if (guardado && guardado.o.audio && guardado.o.audio.caminho) chamarAudio({ acao: "apagar", caminho: guardado.o.audio.caminho }).catch(() => {}); guardado = null; } });
+  }
+  /* o arquivo de um registro excluído só é apagado quando o "Desfazer" some */
+  useEffect(() => () => { if (aviso && aviso.aoSumir) aviso.aoSumir(); }, [aviso]);
+  function apagarAudio(id) {
+    const a = acharObs(sessaoRef.current, id); const cam = a && a.lista[a.i].audio && a.lista[a.i].audio.caminho; if (!cam) return;
+    chamarAudio({ acao: "apagar", caminho: cam }).then(() => { atualizar((n) => { const b = acharObs(n, id); if (b) { delete b.lista[b.i].audio; b.lista[b.i].mod = agoraIsoObs(); } return n; }); mostrarAviso("Áudio apagado. O texto continua."); })
+      .catch((e) => mostrarAviso("Não foi possível apagar o áudio agora: " + e.message, { erro: true }));
+  }
+  function toque(tipo) {
+    if (!ativo) return;
+    const em = agoraIsoObs(), id = idObs();
+    atualizar((n) => { const j = n.jogos.find((x) => x.id === ativo.id); if (j) j.obs.push({ id, em, mod: em, origem: "toque", tipo, natureza: tipo === "bom" ? "positivo" : "atencao", cat: "geral", placar: j.placar || "" }); return n; });
+    setUltimoToque({ id, tipo });
+    mostrarAviso(tipo === "bom" ? "+ Positivo registrado." : "+ Ajuste registrado.", { desfazer: () => { atualizar((n) => { const a = acharObs(n, id); if (a) a.lista.splice(a.i, 1); return n; }); setUltimoToque(null); setAviso(null); } });
+  }
+  function salvarHistorico(jogo, resumo) {
+    const reg = { id: "obs-" + jogo.id, tipo: "observacao", contexto: "partida", data: String(jogo.iniciadoEm || agoraIsoObs()).slice(0, 10), criadoEm: agoraIsoObs(),
+      torneio: jogo.torneio || "", adversario: jogo.adversario || "", placar: jogo.placar || "", quadra: jogo.quadra || "", obs: jogo.obs.filter((o) => !o.capturando && !o.transcrevendo).map(obsParaRegistro),
+      resumo: { positivos: resumo.positivos || "", atencao: resumo.atencao || "", insights: resumo.insights || "", perguntas: resumo.perguntas || "", outras: resumo.outras || "", prioridades: resumo.prioridades || "", positivosToques: resumo.positivosToques || 0, atencaoToques: resumo.atencaoToques || 0 } };
+    setAlunos((lista) => lista.map((a) => (a.id !== jogo.alunoId ? a : { ...a, registros: [...(a.registros || []).filter((r) => r.id !== reg.id), reg] })));
+    atualizar((n) => { const j = n.jogos.find((x) => x.id === jogo.id); if (j) Object.assign(j, { estado: "encerrado", salvoEm: agoraIsoObs(), registroId: reg.id, resumo }); if (n.ativoId === jogo.id) n.ativoId = (n.jogos.find((x) => x.estado !== "encerrado") || {}).id || null; return n; });
+  }
+  function levarParaPlano(jogo, linhas) {
+    const origem = "Observar jogos · " + ([jogo.torneio, jogo.adversario ? "× " + jogo.adversario : ""].filter(Boolean).join(" ") || new Date(jogo.iniciadoEm || Date.now()).toLocaleDateString("pt-BR"));
+    /* não repete o que já está em aberto no Plano */
+    const al = alunoDe(jogo.alunoId) || {}, ja = new Set((al.prioridadesObservadas || []).filter((p) => p.status !== "resolvida").map((p) => p.texto.toLowerCase()));
+    const add = linhas.filter((t) => !ja.has(t.toLowerCase())).map((t) => ({ id: idObs(), texto: t.slice(0, 300), origem, em: agoraIsoObs(), status: "aberta" }));
+    if (add.length) setAlunos((lista) => lista.map((a) => (a.id !== jogo.alunoId ? a : { ...a, prioridadesObservadas: [...(a.prioridadesObservadas || []), ...add].slice(-40) })));
+    setLevadas((l) => ({ ...l, [jogo.id]: linhas.length }));
+  }
+
+  /* ── telas ── */
+  const avisoPlanoAudio = travaAudio
+    ? <span>Plano grátis: fica o texto ditado. Guardar o áudio junto<Cadeado plano={travaAudio} /></span>
+    : gravaAudio ? "O áudio fica guardado junto com o texto (apague quando quiser)." : "Este navegador não grava áudio: fica o texto ditado.";
+  const faixaAviso = aviso && (
+    <div role="status" aria-live="polite" data-aviso-obs style={{ ...prosa, fontSize: 13.5, display: "flex", gap: 10, alignItems: "center", justifyContent: "space-between", background: aviso.erro ? "#FBEBE1" : C.quadra, color: aviso.erro ? "#7C2D12" : "#fff", borderRadius: 10, padding: "8px 12px", marginTop: 8 }}>
+      <span style={{ color: "inherit" }}>{aviso.t}</span>
+      {aviso.desfazer && <button onClick={aviso.desfazer} style={{ background: "none", border: "1px solid currentColor", color: "inherit", borderRadius: 8, padding: "4px 10px", fontFamily: ARCH, fontWeight: 700, fontSize: 12.5, cursor: "pointer", minHeight: 34 }}>Desfazer</button>}
+    </div>
+  );
+
+  if (resumoDe) {
+    const j = jogos.find((x) => x.id === resumoDe);
+    if (j) return <ResumoJogoObs jogo={j} nome={nomeJogo(j)} salvoEm={j.salvoEm} levadas={levadas[j.id] || 0} aoVoltar={() => setResumoDe(null)}
+      aoSalvar={(r) => salvarHistorico(j, r)} aoLevarPlano={(linhas) => levarParaPlano(j, linhas)} aoVerCaderno={aoVerCaderno ? () => aoVerCaderno(j.alunoId) : null} />;
+  }
+
+  if (!jogos.length) {
     return (
       <div data-observar>
         <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700 }}>Observar jogos</h1>
-        <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginTop: 4 }}>Quando não dá para fazer o scout ponto a ponto (por exemplo, dois jogos ao mesmo tempo no torneio): um toque por fundamento, o que saiu bem ou o que precisa ajustar, e notas rápidas. No fim, tudo vai para o caderno de cada jogador.</p>
-        {!ordenados.length && <p style={{ ...prosa, fontSize: 13, marginTop: 12 }}>Cadastre um jogador primeiro.</p>}
-        {config.map((c, i) => (
-          <div key={i} style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: "12px 14px", marginTop: 12 }}>
-            <p style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{i === 0 ? "Jogo 1" : "Jogo 2 (opcional)"}</p>
-            <select data-observar-jogador={i} value={c.alunoId} onChange={(e) => setConfig(config.map((x, k) => k === i ? { ...x, alunoId: e.target.value } : x))} style={{ ...entrada, marginTop: 6 }}>
-              <option value="">Escolha o jogador…</option>
-              {ordenados.filter((a) => a.id === c.alunoId || !config.some((x) => x.alunoId === a.id)).map((a) => <option key={a.id} value={a.id}>{a.nome || "Jogador"}</option>)}
-            </select>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>
-              <input value={c.adversario} onChange={(e) => setConfig(config.map((x, k) => k === i ? { ...x, adversario: e.target.value.slice(0, 60) } : x))} placeholder="Adversário" aria-label={"Adversário do jogo " + (i + 1)} style={entrada} />
-              <input value={c.torneio} onChange={(e) => setConfig(config.map((x, k) => k === i ? { ...x, torneio: e.target.value.slice(0, 60) } : x))} placeholder="Torneio" aria-label={"Torneio do jogo " + (i + 1)} style={entrada} />
-            </div>
-          </div>
-        ))}
-        <div className="mt-4"><Botao variante="saibro" disabled={!config.some((c) => c.alunoId)} onClick={comecar}>Começar a observar</Botao></div>
+        <p style={{ ...prosa, fontSize: 14, color: C.grafite, marginTop: 4 }}>Acompanhe vários jogos ao mesmo tempo: escolha o jogo, toque no microfone e fale. Comece pelo nome do jogador para registrar no jogo certo. Organize depois.</p>
+        {faixaAviso}
+        <FormNovosJogosObs alunos={alunos} ocupados={[]} apelidosEmUso={[]} aoComecar={comecarJogos} />
       </div>
     );
   }
-  const jogos = rasc.jogos;
-  const mudarJogo = (i, j) => guardar({ ...rasc, jogos: jogos.map((x, k) => (k === i ? j : x)) });
+
+  const ouvindo = cap && cap.modo === "continuo";
+  const gravando = cap && cap.modo === "toque";
+  const alvoCap = gravando ? jogos.find((j) => j.id === cap.jogoId) : ativo;
+  const obsAtivo = ativo ? [...ativo.obs].reverse() : [];
+  const filtradas = obsAtivo.filter((o) => filtro === "todas" || (filtro === "prioridade" && o.prioridade) || (filtro === "voz" && o.origem !== "toque") || (filtro === "toques" && o.origem === "toque") || (filtro === "geral" && o.origem !== "toque" && (o.cat || "geral") === "geral"));
+  const toquesBom = ativo ? ativo.obs.filter((o) => o.origem === "toque" && o.tipo === "bom").length : 0, toquesAj = ativo ? ativo.obs.filter((o) => o.origem === "toque" && o.tipo === "ajustar").length : 0;
+  const destinos = (o) => abertos.filter((j) => !ativo || j.id !== ativo.id || o.jogoId).map((j) => ({ id: j.id, nome: nomeJogo(j) }));
+  const pendConf = (sessao && sessao.confirmar) || [];
+  const pendentesEnvio = jogos.reduce((t, j) => t + j.obs.filter((o) => o.audioPendente).length, 0);
+
   return (
     <div data-observando>
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 style={{ fontFamily: ARCH, fontSize: 20, fontWeight: 700 }}>Observando {jogos.length === 1 ? "1 jogo" : "2 jogos"}</h1>
-        <Botao variante="saibro" pequeno onClick={encerrar}>Encerrar e salvar no caderno</Botao>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+        <h1 style={{ fontFamily: ARCH, fontSize: 20, fontWeight: 700 }}>Observar jogos</h1>
+        <Botao pequeno variante="vazio" onClick={() => setAdicionando(!adicionando)}>{adicionando ? "Fechar" : "+ Adicionar jogo"}</Botao>
       </div>
-      {jogos.length > 1 && (
-        <div className="flex gap-2 mt-3 md:hidden" role="tablist">
-          {jogos.map((j, i) => (
-            <button key={i} role="tab" aria-selected={ativo === i} onClick={() => setAtivo(i)}
-              style={{ flex: 1, minHeight: 44, borderRadius: 10, border: "1px solid " + (ativo === i ? C.quadra : C.linha), background: ativo === i ? C.quadra : C.cal, color: ativo === i ? "#fff" : C.tinta, fontFamily: ARCH, fontWeight: 700, fontSize: 13.5, cursor: "pointer" }}>
-              {String((alunoDe(j.alunoId) || {}).nome || "Jogador").split(" ")[0]} · {(j.obs || []).length}
+      {!online && <p data-sem-conexao style={{ ...prosa, fontSize: 12.5, color: "#7C2D12", background: "#FBEBE1", borderRadius: 8, padding: "6px 10px", marginTop: 6 }}>Sem internet: os registros ficam neste aparelho e sobem quando a conexão voltar. O ditado do aparelho pode não funcionar sem internet{gravaAudio ? "; o áudio continua sendo guardado" : ""}.</p>}
+      {local.falha && <p role="alert" style={{ ...prosa, fontSize: 12.5, color: "#A33", marginTop: 6 }}>Falha ao salvar neste aparelho (armazenamento cheio ou bloqueado). {nuvem ? "Os registros seguem para a sua conta enquanto houver conexão." : "Não feche o app até resolver."}</p>}
+      <div role="tablist" aria-label="Jogos em acompanhamento" style={{ display: "flex", gap: 8, overflowX: "auto", padding: "8px 0 4px", WebkitOverflowScrolling: "touch" }}>
+        {jogos.map((j) => {
+          const sel = ativo && ativo.id === j.id;
+          return (
+            <button key={j.id} role="tab" aria-selected={!!sel} data-jogo-card={nomeJogo(j)} onClick={() => j.estado === "encerrado" ? setResumoDe(j.id) : selecionar(j.id)}
+              style={{ flexShrink: 0, minWidth: 118, textAlign: "left", borderRadius: 12, padding: "8px 11px", cursor: "pointer", border: (sel ? "2px solid " : "1px solid ") + (sel ? C.quadra : C.linha), background: sel ? "#EAF3EE" : C.cal, opacity: j.estado === "encerrado" ? 0.7 : 1 }}>
+              <span style={{ display: "block", fontFamily: ARCH, fontSize: 14, fontWeight: 700, color: C.tinta }}>{sel ? "● " : ""}{nomeJogo(j)}</span>
+              <span style={{ display: "block", fontFamily: ARCH, fontSize: 11.5, color: C.grafite }}>{j.quadra ? "Quadra " + j.quadra + " · " : ""}{j.estado === "encerrado" ? "Encerrado" + (j.salvoEm ? " · salvo" : "") : ESTADO_JOGO_OBS[j.estado] || "Acompanhando"}</span>
+              {j.novas > 0 && !sel && <span data-novas style={{ display: "inline-block", marginTop: 3, fontFamily: ARCH, fontSize: 11, fontWeight: 700, color: "#fff", background: C.quadra, borderRadius: 999, padding: "1px 7px" }}>{j.novas} {j.novas === 1 ? "nova" : "novas"}</span>}
             </button>
-          ))}
-        </div>
-      )}
-      <div className={"grid gap-3 mt-3 " + (jogos.length > 1 ? "md:grid-cols-2" : "")}>
-        {jogos.map((j, i) => (
-          <div key={i} className={jogos.length > 1 && ativo !== i ? "hidden md:block" : ""}>
-            <PainelJogoObs jogo={j} aluno={alunoDe(j.alunoId)} planoAtual={planoAtual} aoMudar={(nj) => mudarJogo(i, nj)} />
-          </div>
-        ))}
+          );
+        })}
       </div>
-      <div className="mt-4"><Botao pequeno variante="vazio" onClick={() => { if (confirm("Descartar estas observações sem salvar?")) guardar(null); }}>Descartar</Botao></div>
+      {adicionando && <FormNovosJogosObs alunos={alunos} ocupados={abertos.map((j) => j.alunoId)} apelidosEmUso={abertos.map(nomeJogo)} aoComecar={comecarJogos} aoCancelar={() => setAdicionando(false)} />}
+
+      {!ativo ? (
+        <div style={{ marginTop: 12 }}>
+          <p style={{ ...prosa, fontSize: 14 }}>Todos os jogos foram encerrados.</p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+            <Botao onClick={() => setAdicionando(true)}>+ Adicionar jogo</Botao>
+            <Botao variante="vazio" disabled={pendentesEnvio > 0} onClick={() => atualizar((n) => { n.jogos = n.jogos.filter((j) => j.obs.some((o) => o.audioPendente)); return n; })}>{pendentesEnvio ? "Aguardando envio de " + pendentesEnvio + " áudio(s)" : "Limpar a lista"}</Botao>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* área fixa de captura: jogador ativo sempre visível perto do microfone */}
+          <section data-captura aria-label="Captura" style={{ position: "sticky", top: 56, zIndex: 6, background: C.papel, paddingTop: 8, paddingBottom: 8 }}>
+            <div style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 14, padding: "10px 12px", boxShadow: SOMBRA }}>
+              <p data-jogador-ativo style={{ fontFamily: ARCH, fontSize: 13, color: C.grafite }}>Registrando para <b style={{ fontSize: 17, color: C.tinta }}>{nomeJogo(alvoCap)}</b>{alvoCap && alvoCap.quadra ? " · Quadra " + alvoCap.quadra : ""}</p>
+              {ouvindo ? (
+                <div data-escuta-ativa style={{ marginTop: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                    <span aria-hidden="true" className="ql-pulso" style={{ width: 12, height: 12, borderRadius: 999, background: "#C2410C", display: "inline-block" }} />
+                    <span style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700, color: "#9A3412" }}>Escuta ativa · ouvindo para {nomeJogo(ativo)}</span>
+                  </div>
+                  <p style={{ ...prosa, fontSize: 14, marginTop: 4, color: cap.texto ? C.tinta : C.grafite, minHeight: 21 }}>{cap.texto || "Fale; cada pausa vira um registro."}</p>
+                  <button data-parar-escuta onClick={() => encerrarCaptura()} style={{ width: "100%", minHeight: 52, marginTop: 6, borderRadius: 12, border: "none", background: "#9A3412", color: "#fff", fontFamily: ARCH, fontWeight: 700, fontSize: 16, cursor: "pointer" }}>■ Parar a escuta</button>
+                  <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 4 }}>{telaAcesa ? "A tela fica acesa enquanto escuta." : "Mantenha a tela ligada: com a tela bloqueada a escuta para."} Diga o nome no começo para registrar em outro jogo.</p>
+                </div>
+              ) : gravando ? (
+                <div data-gravando style={{ marginTop: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span aria-hidden="true" className="ql-pulso" style={{ width: 12, height: 12, borderRadius: 999, background: "#C2410C", display: "inline-block" }} />
+                    <span style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700, color: "#9A3412" }}>{cap.transcrevendo ? "Transcrevendo…" : "Ouvindo para " + nomeJogo(alvoCap)} · {mmss(cap.seg || 0)}</span>
+                  </div>
+                  <p style={{ ...prosa, fontSize: 14, marginTop: 4, color: cap.texto ? C.tinta : C.grafite, minHeight: 21 }}>{cap.texto || (SR ? "A transcrição aparece aqui enquanto você fala…" : "Gravando o áudio (este navegador não transcreve).")}</p>
+                  {cap.aviso && <p role="alert" style={{ ...prosa, fontSize: 12.5, color: "#9A3412" }}>{cap.aviso}</p>}
+                  <button data-parar onClick={() => encerrarCaptura()} disabled={!!cap.transcrevendo} style={{ width: "100%", minHeight: 60, marginTop: 6, borderRadius: 14, border: "none", background: "#9A3412", color: "#fff", fontFamily: ARCH, fontWeight: 700, fontSize: 18, cursor: "pointer" }}>■ Parar</button>
+                </div>
+              ) : (
+                <div style={{ marginTop: 8 }}>
+                  <button data-ditar onClick={comecarToque} aria-label={"Ditar observação para " + nomeJogo(ativo)}
+                    style={{ width: "100%", minHeight: 68, borderRadius: 14, border: "none", background: C.quadra, color: "#fff", fontFamily: ARCH, fontWeight: 700, fontSize: 19, cursor: "pointer", boxShadow: SOMBRA }}>🎙 Ditar observação</button>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+                    {SR ? <button data-escuta onClick={comecarEscuta} style={{ ...chipObs, minHeight: 40, fontSize: 13, padding: "6px 12px" }}>◉ Manter escuta ativa</button>
+                      : <span style={{ ...prosa, fontSize: 12, color: C.grafite }}>Escuta contínua indisponível neste navegador: use o toque.</span>}
+                    <span style={{ ...prosa, fontSize: 12, color: C.grafite }}>Toque para começar; toque de novo para parar.</span>
+                  </div>
+                  <p data-aviso-plano-audio style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 4 }}>{avisoPlanoAudio}</p>
+                </div>
+              )}
+              {faixaAviso}
+            </div>
+          </section>
+
+          {pendConf.length > 0 && (
+            <section data-confirmar-jogador style={{ background: "#FFF7ED", border: "1px solid #FDBA74", borderRadius: 12, padding: "10px 12px", marginTop: 6 }}>
+              <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>Confirmar jogador · {pendConf.length}</p>
+              {pendConf.map((o) => {
+                const cand = (o.candidatos && o.candidatos.length ? o.candidatos : abertos.map((j) => j.id)).map((id) => jogos.find((j) => j.id === id)).filter((j) => j && j.estado !== "encerrado");
+                return (
+                  <div key={o.id} data-pendente={o.id} style={{ borderTop: "1px solid #FED7AA", paddingTop: 6, marginTop: 6 }}>
+                    <p style={{ ...prosa, fontSize: 14 }}><span style={{ fontFamily: ARCH, fontSize: 11.5, color: C.grafite }}>{hhmm(o.em)} </span>{o.texto || "(sem transcrição)"}</p>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
+                      {cand.map((j) => <button key={j.id} onClick={() => moverObs(o.id, j.id)} style={{ ...chipObs, minHeight: 40, fontSize: 13 }}>É de {nomeJogo(j)}</button>)}
+                      {abertos.filter((j) => !cand.includes(j)).length > 0 && (
+                        <select aria-label="Outro jogo" value="" onChange={(e) => e.target.value && moverObs(o.id, e.target.value)} style={{ ...entrada, width: "auto", padding: "6px 8px", fontSize: 13.5 }}>
+                          <option value="">Outro jogo…</option>{abertos.filter((j) => !cand.includes(j)).map((j) => <option key={j.id} value={j.id}>{nomeJogo(j)}</option>)}
+                        </select>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </section>
+          )}
+
+          {/* alternativas: toque e escrita, com menos destaque que o microfone */}
+          <section style={{ marginTop: 8 }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <button data-toque="bom" onClick={() => toque("bom")} style={{ minHeight: 44, padding: "0 14px", borderRadius: 10, border: "1px solid #1F6B4A", background: "#E7F2EC", color: "#1F6B4A", fontFamily: ARCH, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>+ Positivo</button>
+              <button data-toque="ajustar" onClick={() => toque("ajustar")} style={{ minHeight: 44, padding: "0 14px", borderRadius: 10, border: "1px solid #C2410C", background: "#FBEBE1", color: "#9A3412", fontFamily: ARCH, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>+ Ajuste</button>
+              <button onClick={() => setEscrevendo(!escrevendo)} style={{ minHeight: 44, padding: "0 14px", borderRadius: 10, border: "1px solid " + C.linha, background: C.cal, color: C.tinta, fontFamily: ARCH, fontWeight: 600, fontSize: 14, cursor: "pointer" }}>✎ Escrever</button>
+            </div>
+            {(toquesBom > 0 || toquesAj > 0) && <p data-contagem-toques style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 4 }}>Toques: {toquesBom} positivo(s) · {toquesAj} ajuste(s). Contagem dos toques, não é estatística da partida.</p>}
+            {ultimoToque && (
+              <div data-detalhe-toque style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6, alignItems: "center" }}>
+                <span style={{ ...prosa, fontSize: 12, color: C.grafite }}>Fundamento (opcional):</span>
+                {CATEGORIAS_OBS.map((c) => <button key={c.v} style={chipObs} onClick={() => { mudarObs(ultimoToque.id, { cat: c.v }); setUltimoToque(null); }}>{c.r}</button>)}
+                <button style={{ ...chipObs, border: "none", background: "none" }} onClick={() => setUltimoToque(null)}>✕</button>
+              </div>
+            )}
+            {escrevendo && (
+              <form onSubmit={(ev) => { ev.preventDefault(); registrarTexto(nota, "texto", ativo.id); setNota(""); }} style={{ marginTop: 8 }}>
+                <textarea aria-label="Escrever observação" value={nota} onChange={(e) => setNota(e.target.value)} rows={2} placeholder={"Ex.: " + nomeJogo(ativo) + ", está devolvendo muito atrás"} style={{ ...entrada, fontSize: 15 }} />
+                <div style={{ marginTop: 6 }}><Botao pequeno type="submit" disabled={!nota.trim()}>Registrar</Botao></div>
+              </form>
+            )}
+          </section>
+
+          {/* feed do jogo ativo */}
+          <section data-feed style={{ marginTop: 12 }}>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+              <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginRight: 4 }}>Registros de {nomeJogo(ativo)} · {ativo.obs.length}</span>
+              {[["todas", "Todas"], ["prioridade", "★ Prioridades"], ["voz", "Voz e escrita"], ["toques", "Toques"], ["geral", "Sem fundamento"]].map(([v, r]) => (
+                <button key={v} aria-pressed={filtro === v} onClick={() => setFiltro(v)} style={{ ...chipObs, background: filtro === v ? C.quadra : C.cal, color: filtro === v ? "#fff" : C.tinta, borderColor: filtro === v ? C.quadra : C.linha }}>{r}</button>
+              ))}
+            </div>
+            {!filtradas.length && <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginTop: 8 }}>{ativo.obs.length ? "Nada neste filtro." : "Nenhum registro ainda. Toque em “Ditar observação” e fale."}</p>}
+            {(verTodas ? filtradas : filtradas.slice(0, 25)).map((o) => (
+              <ItemObsFeed key={o.id} o={o} nomeJogador={nomeJogo(ativo)} estado={estadoDe(o)} jogosDestino={destinos(o).filter((j) => j.id !== ativo.id)} travaAudio={travaAudio}
+                aoMudar={(c) => mudarObs(o.id, c)} aoMover={(jid) => moverObs(o.id, jid)} aoExcluir={() => excluirObs(o.id)} aoApagarAudio={() => apagarAudio(o.id)}
+                aoTentarAudio={() => { setUploads((u) => { const { [o.id]: _, ...r } = u; return r; }); }} />
+            ))}
+            {!verTodas && filtradas.length > 25 && <Botao pequeno variante="vazio" onClick={() => setVerTodas(true)}>Ver todos ({filtradas.length})</Botao>}
+          </section>
+
+          <details data-dados-jogo style={{ marginTop: 12, background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: "8px 12px" }}>
+            <summary style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700, cursor: "pointer", minHeight: 36, display: "flex", alignItems: "center" }}>Dados do jogo (opcional)</summary>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, margin: "6px 0 4px" }}>
+              {[["apelido", "Nome curto para a fala", 30, primeiroNomeObs((alunoDe(ativo.alunoId) || {}).nome)], ["quadra", "Quadra", 20, ""], ["adversario", "Adversário", 60, ""], ["torneio", "Torneio", 60, ""], ["placar", "Placar agora", 30, "Ex.: 6/4 3/2"]].map(([k, r, max, ph]) => (
+                <label key={k} style={{ ...prosa, fontSize: 12, color: C.grafite }}>{r}
+                  <input value={ativo[k] || ""} placeholder={ph} onChange={(e) => mudarJogo(ativo.id, { [k]: e.target.value.slice(0, max) })} style={{ ...entrada, marginTop: 3, fontSize: 15 }} /></label>
+              ))}
+            </div>
+          </details>
+
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14, marginBottom: 8 }}>
+            <Botao variante="saibro" disabled={!!cap} onClick={() => setResumoDe(ativo.id)}>Concluir este jogo</Botao>
+            <Botao variante="vazio" onClick={() => mudarJogo(ativo.id, { estado: ativo.estado === "pausado" ? "acompanhando" : "pausado" })}>{ativo.estado === "pausado" ? "Retomar" : "Pausar"} este jogo</Botao>
+          </div>
+          {aoVerCaderno && jogos.some((j) => j.salvoEm) && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Jogos encerrados e salvos ficam no caderno de cada jogador.</p>}
+        </>
+      )}
     </div>
   );
 }
@@ -15655,7 +16382,9 @@ function FormNotaVoz({ aluno, planoAtual, aoSalvar }) {
 /* Descritivo para o aluno, escrito pela IA só com o que o treinador observou (toques, notas e o texto das gravações). */
 function promptDescritivoObservacao(aluno, r) {
   const nome = String((aluno && aluno.nome) || "o jogador").split(" ")[0];
-  const linhas = (r.obs || []).map((o) => "- [" + (ROTULO_CAT_OBS[o.cat || "geral"] || "Geral") + (o.tipo ? " · " + (o.tipo === "bom" ? "saiu bem" : "precisa ajustar") : "") + (o.placar ? " · placar " + o.placar : "") + "]" + (o.texto ? " " + o.texto : "")).join("\n");
+  const linhas = (r.obs || []).map((o) => "- [" + (ROTULO_CAT_OBS[o.cat || "geral"] || "Geral") + (o.tipo ? " · " + (o.tipo === "bom" ? "saiu bem" : "precisa ajustar") : o.natureza && o.natureza !== "observacao" ? " · " + String(ROTULO_NAT_OBS[o.natureza] || "").toLowerCase() : "") + (o.prioridade ? " · prioridade" : "") + (o.placar ? " · placar " + o.placar : "") + "]" + (o.texto ? " " + o.texto : "")).join("\n");
+  const res = r.resumo, resumoTxt = res ? [["Pontos positivos", res.positivos], ["Pontos de atenção", res.atencao], ["Insights para o treino", res.insights], ["Perguntas para conversar", res.perguntas], ["Outras observações", res.outras], ["Prioridades", res.prioridades]]
+    .filter(([, t]) => String(t || "").trim()).map(([k, t]) => k + ":\n" + String(t).trim()).join("\n") : "";
   const contexto = r.contexto === "conversa" ? "uma conversa ou comentário do treinador com o jogador (" + (r.titulo || "conversa") + ")"
     : "a observação de uma partida" + (r.torneio ? " no torneio " + r.torneio : "") + (r.adversario ? " contra " + r.adversario : "") + (r.placar ? " (placar " + r.placar + ")" : "");
   return [
@@ -15669,7 +16398,26 @@ function promptDescritivoObservacao(aluno, r) {
     "Foco para os próximos treinos: 1 a 3 itens começando com \"- \".",
     "Omita uma seção se não houver nada para ela nas anotações. No máximo 220 palavras.",
     "", "Anotações do treinador:", linhas || "- (sem anotações)",
+    ...(resumoTxt ? ["", "Resumo revisado pelo treinador (vale mais que as anotações soltas; não acrescente nada além disto):", resumoTxt] : []),
   ].join("\n");
+}
+/* resumo revisado ao concluir o jogo (Observar jogos) */
+function ResumoRegistroObs({ res }) {
+  const sec = [["Pontos positivos", res.positivos, res.positivosToques ? res.positivosToques + " toque(s) em + Positivo" : ""], ["Pontos de atenção", res.atencao, res.atencaoToques ? res.atencaoToques + " toque(s) em + Ajuste" : ""], ["Insights para o treino", res.insights], ["Perguntas para conversar", res.perguntas], ["Outras observações", res.outras], ["Prioridades", res.prioridades]]
+    .filter(([, t, n]) => String(t || "").trim() || n);
+  if (!sec.length) return null;
+  return (
+    <div data-resumo-registro style={{ background: C.papel, borderRadius: 8, padding: "8px 10px", marginTop: 8 }}>
+      <p style={{ ...prosa, fontSize: 11.5, color: C.grafite }}>Resumo baseado nas observações registradas; não representa um scout completo.</p>
+      {sec.map(([k, t, n]) => (
+        <div key={k} style={{ marginTop: 6 }}>
+          <p style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700 }}>{k}</p>
+          {linhasDoTextoObs(t).map((l, i) => <p key={i} style={{ ...prosa, fontSize: 13.5 }}>• {l}</p>)}
+          {n && <p style={{ ...prosa, fontSize: 12, color: C.grafite }}>{n}</p>}
+        </div>
+      ))}
+    </div>
+  );
 }
 /* Registro "observacao" no caderno: resumo, gráfico (Essencial e Premium), a lista do que foi anotado, o descritivo para o aluno
    (gerado pela IA no Essencial e Premium, sempre editável) e "compartilhar com o aluno" (link e Área do aluno). */
@@ -15706,6 +16454,7 @@ function CartaoObservacaoCaderno({ r, aluno, planoAtual, aoApagar, aoAtualizar }
               <p style={{ ...prosa, fontSize: 12.5 }}>Gráfico por fundamento (o que saiu bem e o que precisa ajustar)<Cadeado plano={trava} /></p>
             </div>
           ) : <GraficoObservacoes obs={obs} />}
+          {r.resumo && <ResumoRegistroObs res={r.resumo} />}
           <ListaObservacoes obs={obs} />
           <div data-descritivo style={{ marginTop: 12, borderTop: "1px solid " + C.linha, paddingTop: 10 }}>
             <p style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>Descritivo para o aluno</p>

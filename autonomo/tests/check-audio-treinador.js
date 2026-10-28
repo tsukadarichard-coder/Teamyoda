@@ -9,7 +9,8 @@ const docRef = (p) => ({ async get() { return { exists: store[p] !== undefined, 
 const colRef = (p) => ({ doc: (id) => docRef(p + "/" + id) });
 const auth = { async verifyIdToken(t) { const m = { prof1: { uid: "prof1", orgId: "org1" }, prof2: { uid: "prof2", orgId: "org2" }, aluno: { uid: "al1", tipo: "aluno" } }; if (!m[t]) throw new Error("x"); return m[t]; } };
 require.cache[require.resolve(fx + "_firebase-admin.js")] = { id: "y", filename: "y", loaded: true, exports: { admin: { firestore: () => ({ collection: (n) => colRef(n) }), auth: () => auth }, app: () => {} } };
-const bucket = { file: (c) => ({ async getSignedUrl(o) { return ["https://bucket/" + o.action + "/" + c]; }, async delete() { apagados.push(c); } }) };
+const copias = [];
+const bucket = { file: (c) => ({ caminho: c, async getSignedUrl(o) { return ["https://bucket/" + o.action + "/" + c]; }, async delete() { apagados.push(c); }, async copy(dest) { copias.push([c, dest.caminho]); } }) };
 require.cache[require.resolve(fx + "_olhar-armazenamento.js")] = { id: "z", filename: "z", loaded: true, exports: { bucket: async () => bucket } };
 const { handler } = require(fx + "audio-treinador.js");
 const post = async (tk, b) => { const r = await handler({ httpMethod: "POST", headers: tk ? { authorization: "Bearer " + tk } : {}, body: JSON.stringify(b) }); return { s: r.statusCode, ...JSON.parse(r.body) }; };
@@ -31,6 +32,13 @@ const post = async (tk, b) => { const r = await handler({ httpMethod: "POST", he
   assert.strictEqual((await post("prof1", { acao: "ouvir", caminho: "olhar/x/1.mp3" })).s, 404, "fora de audios/ não");
   assert.strictEqual((await post("prof2", { acao: "apagar", caminho })).s, 404);
   assert.strictEqual((await post("prof1", { acao: "apagar", caminho })).s, 200); assert.deepStrictEqual(apagados, [caminho]);
+  /* mover para outro jogador (registro corrigido): copia para a pasta dele e apaga o antigo; outra academia não move */
+  const r2 = await post("prof1", { acao: "envio", alunoId: "j1", contentType: "audio/webm", tamanho: 10 });
+  assert.strictEqual((await post("prof2", { acao: "mover", caminho: r2.caminho, alunoId: "j2" })).s, 404);
+  assert.strictEqual((await post("prof1", { acao: "mover", caminho: r2.caminho, alunoId: "../x" })).s, 400);
+  const mv = await post("prof1", { acao: "mover", caminho: r2.caminho, alunoId: "j2" });
+  assert(mv.s === 200 && mv.caminho === r2.caminho.replace("/j1/", "/j2/") && copias.length === 1 && apagados.includes(r2.caminho), JSON.stringify(mv));
+  assert.strictEqual((await post("prof1", { acao: "mover", caminho: mv.caminho, alunoId: "j2" })).caminho, mv.caminho, "mesmo jogador: nada muda");
   delete store["orgs/org2/meta/info"];
   assert.strictEqual((await post("prof2", { acao: "envio", alunoId: "j9", contentType: "audio/webm", tamanho: 10 })).s, 200, "academia sem plano definido grava");
   console.log("check-audio-treinador: ok");
