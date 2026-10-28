@@ -644,7 +644,7 @@ function todosHorarios(agenda) {
         ? 'Seu treinador está preparando seu plano — assim que for revisado e aprovado, aparece aqui.'
         : 'Ainda não há um plano montado para você.';
       el.innerHTML = barraConta() + '<header><h1>' + escapar(d.nome) + '</h1><div class="sub">' + subtitulo + '</div></header>' +
-        painelTurmas(d) + painelMovimentos(d) + painelJogos(d) + painelJogosVideo(d) +
+        painelTurmas(d) + painelObservacoes(d) + painelMovimentos(d) + painelJogos(d) + painelJogosVideo(d) +
         painelMapaConceitos(d, ui) + painelEvolucao(d) + painelRelatorios(d) + painelComunicacao(d) + '<div class="sincronia" id="mty-sincronia"></div>';
       ligarEventos(d); ligarBarra();
       return;
@@ -661,6 +661,7 @@ function todosHorarios(agenda) {
     html += painelSemanas(d);
     html += painelTurmas(d);
     html += painelGlossario(d.aulas);
+    html += painelObservacoes(d);
     html += painelMovimentos(d);
     html += painelJogos(d);
     html += painelJogosVideo(d);
@@ -699,6 +700,37 @@ function todosHorarios(agenda) {
     return html + '</div>';
   }
   function painelTurmas(d) { return (d.turmas || []).map(painelPlanoTurma).join(''); }
+  /* Observações de partida e conversas que o treinador compartilhou: o descritivo, o que ele anotou e os áudios (link temporário). */
+  const CAT_OBS = { saque: 'Saque', devolucao: 'Devolução', fundo: 'Fundo de quadra', transicao: 'Rede e transição', tatico: 'Tático', mental: 'Mental', fisico: 'Físico', geral: 'Geral' };
+  const audiosAbertos = {};
+  function painelObservacoes(d) {
+    const l = d.observacoes || [];
+    if (!l.length) return '';
+    return '<div class="painel" data-painel="observacoes"><h2>Observações do seu treinador</h2><p class="desc">O que o seu treinador observou nos jogos e o que vocês conversaram, para você revisar.</p>' +
+      l.map(function (o) {
+        const tit = o.contexto === 'conversa' ? (o.titulo || 'Conversa') : [o.torneio, o.adversario ? '× ' + o.adversario : '', o.placar].filter(Boolean).join(' · ') || 'Partida';
+        const bom = o.itens.filter(function (i) { return i.tipo === 'bom'; }).length, aj = o.itens.filter(function (i) { return i.tipo === 'ajustar'; }).length;
+        return '<div class="obs-bloco" style="border-top:1px solid var(--linha);padding-top:10px;margin-top:10px"><div style="font-size:11.5px;color:var(--cinza)">' + escapar(dataCurta(o.data)) + ' · ' + (o.contexto === 'conversa' ? 'Conversa' : 'Jogo') + '</div>' +
+          '<div style="font-weight:700;margin-top:2px">' + escapar(tit) + '</div>' +
+          (bom || aj ? '<div style="font-size:12.5px;color:var(--cinza)">' + bom + ' ' + (bom === 1 ? 'ponto positivo' : 'pontos positivos') + ' · ' + aj + ' para ajustar</div>' : '') +
+          (o.descritivo ? '<div style="white-space:pre-line;font-size:14px;margin-top:8px">' + escapar(o.descritivo) + '</div>' : '') +
+          (o.itens.some(function (i) { return i.texto || i.audio; }) ? '<details style="margin-top:8px"><summary style="cursor:pointer;font-size:13px;font-weight:600">Anotações e áudios</summary>' +
+            o.itens.filter(function (i) { return i.texto || i.audio; }).map(function (i) {
+              const chave = o.id + ':' + i.id;
+              return '<div style="padding:6px 0;border-bottom:1px solid var(--linha);font-size:13.5px"><strong style="font-size:12px">' + escapar(CAT_OBS[i.cat] || 'Geral') + (i.tipo ? ' · ' + (i.tipo === 'bom' ? 'bom' : 'ajustar') : '') + '</strong>' +
+                (i.texto ? '<div>' + escapar(i.texto) + '</div>' : '') +
+                (i.audio ? (audiosAbertos[chave] ? '<audio controls src="' + escapar(audiosAbertos[chave]) + '" style="width:100%;margin-top:4px"></audio>'
+                  : '<button type="button" class="btn fraco" data-ouvir-obs="' + escapar(chave) + '" style="margin-top:4px">▶ Ouvir' + (i.duracaoSeg ? ' (' + Math.floor(i.duracaoSeg / 60) + ':' + String(i.duracaoSeg % 60).padStart(2, '0') + ')' : '') + '</button>') : '') + '</div>';
+            }).join('') + '</details>' : '') + '</div>';
+      }).join('') + '</div>';
+  }
+  async function urlAudioObs(chave) {
+    if (CONTA) return (await chamarConta('GET', 'audio=' + encodeURIComponent(chave))).url;
+    const r = await fetch('/.netlify/functions/ver-aluno?org=' + encodeURIComponent(org) + '&id=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(t) + '&audio=' + encodeURIComponent(chave));
+    const x = await r.json().catch(function () { return {}; });
+    if (!r.ok) throw new Error(x.erro || 'Não foi possível abrir o áudio.');
+    return x.url;
+  }
   function painelMovimentos(d) {
     const l = d.movimentos || [];
     if (!l.length) return '';
@@ -1006,6 +1038,16 @@ function todosHorarios(agenda) {
   }
 
   function ligarEventos(d) {
+    el.querySelectorAll('[data-ouvir-obs]').forEach(function (btn) {
+      btn.addEventListener('click', async function () {
+        const chave = btn.getAttribute('data-ouvir-obs'); btn.disabled = true; btn.textContent = 'Abrindo…';
+        try {
+          audiosAbertos[chave] = await urlAudioObs(chave);
+          const a = document.createElement('audio'); a.controls = true; a.autoplay = true; a.src = audiosAbertos[chave]; a.style.width = '100%'; a.style.marginTop = '4px';
+          btn.replaceWith(a);
+        } catch (e) { btn.disabled = false; btn.textContent = 'Tentar de novo'; }
+      });
+    });
     el.querySelectorAll('[data-acao]').forEach(function (btn) {
       btn.addEventListener('click', function () { onAcao(btn.dataset, d); });
     });

@@ -198,6 +198,7 @@ async function responderGet(org, id, q, ctx) {
   const aluno = alunos[idx];
   if (q.rel) return await relatorioMovimento(org, id, aluno, String(q.rel));
   if (q.jogo) return await resumoJogo(org, id, String(q.jogo));
+  if (q.audio) return await audioCompartilhado(org, id, aluno, String(q.audio));
 
   let turmas = [];
   try {
@@ -294,7 +295,34 @@ async function responderGet(org, id, q, ctx) {
     movimentos: extras.movimentos,
     jogos: extras.jogos,
     jogosVideo: extras.jogosVideo,
+    observacoes: observacoesCompartilhadas(aluno),
   });
+}
+
+/* Observações de partida e conversas que o treinador marcou "compartilhar com o aluno": o descritivo, o que foi anotado e se há
+   áudio (o arquivo só abre por ?audio=<registro>:<observação>, com link temporário). */
+const CAT_OBS = { saque: "Saque", devolucao: "Devolução", fundo: "Fundo de quadra", transicao: "Rede e transição", tatico: "Tático", mental: "Mental", fisico: "Físico", geral: "Geral" };
+function observacoesCompartilhadas(aluno) {
+  return (aluno.registros || []).filter((r) => r && r.tipo === "observacao" && r.compartilhado).map((r) => ({
+    id: String(r.id).slice(0, 80), data: String(r.data || "").slice(0, 10), contexto: r.contexto === "conversa" ? "conversa" : "partida",
+    titulo: String(r.titulo || "").slice(0, 80), torneio: String(r.torneio || "").slice(0, 60), adversario: String(r.adversario || "").slice(0, 60), placar: String(r.placar || "").slice(0, 30),
+    descritivo: String(r.descritivo || "").slice(0, 6000),
+    itens: (r.obs || []).slice(0, 200).map((o) => ({ id: String(o.id || "").slice(0, 40), em: String(o.em || "").slice(0, 30), cat: CAT_OBS[o.cat] ? o.cat : "geral",
+      tipo: o.tipo === "bom" || o.tipo === "ajustar" ? o.tipo : null, texto: String(o.texto || "").slice(0, 8000), audio: !!(o.audio && o.audio.caminho), duracaoSeg: (o.audio && +o.audio.duracaoSeg) || 0 })),
+  })).sort((a, b) => b.data.localeCompare(a.data)).slice(0, 60);
+}
+async function audioCompartilhado(org, id, aluno, ref) {
+  const [regId, obsId] = ref.split(":");
+  const r = (aluno.registros || []).find((x) => x && x.tipo === "observacao" && x.compartilhado && x.id === regId);
+  const o = r && (r.obs || []).find((x) => x && x.id === obsId);
+  const caminho = o && o.audio && String(o.audio.caminho || "");
+  if (!caminho || !/^audios\/[A-Za-z0-9_-]{1,80}\/[A-Za-z0-9_-]{1,80}\/[0-9]{10,16}-[a-z0-9]{6}\.(webm|m4a|aac|mp3|ogg)$/.test(caminho) || caminho.split("/")[1] !== org || caminho.split("/")[2] !== id) {
+    throw new ErroPublico(404, "Áudio não encontrado.");
+  }
+  let A;
+  try { A = require("./_olhar-armazenamento"); } catch (e) { throw new ErroPublico(404, "Áudio indisponível."); }
+  const [url] = await (await A.bucket()).file(caminho).getSignedUrl({ version: "v4", action: "read", expires: Date.now() + 10 * 60 * 1000, responseDisposition: "inline" });
+  return resposta(200, { url });
 }
 
 /* Plano de uma turma para o link do jogador: só o que está aprovado (rascunho nunca aparece), aula a aula. */

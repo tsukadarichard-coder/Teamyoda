@@ -2,7 +2,7 @@
 
    Duas pontas, a mesma function (login obrigatório, conferido aqui com verifyIdToken):
    · conta de ALUNO (sem orgId nos claims):
-       GET                       → { conta, vinculo, dados? }  (dados = o mesmo conteúdo do link do aluno, só com vínculo ativo; ?rel= e ?jogo= também)
+       GET                       → { conta, vinculo, dados? }  (dados = o mesmo conteúdo do link do aluno, só com vínculo ativo; ?rel=, ?jogo= e ?audio= também)
        POST { acao: "vincular", codigo }   → pede o vínculo ao professor dono do código (fica "aguardando" até ele aprovar)
        POST { acao: "cancelarPedido" }     → desiste do pedido ainda não aprovado
        POST { acao: "duvida" | "jogo" | "feedback", texto } → as mesmas ações do link (só com vínculo ativo)
@@ -62,7 +62,7 @@ async function ladoAluno(claims, metodo, q, body) {
     if (!v || v.status !== "ativo") return resposta(200, base);
     const ctx = await contexto(v);
     if (!ctx) return resposta(200, { ...base, vinculo: { ...publicoVinculo(v), status: "encerrado" } });
-    if (q.rel || q.jogo) return await VA.responderGet(v.orgId, v.alunoId, { rel: q.rel, jogo: q.jogo }, ctx);
+    if (q.rel || q.jogo || q.audio) return await VA.responderGet(v.orgId, v.alunoId, { rel: q.rel, jogo: q.jogo, audio: q.audio }, ctx);
     const r = await VA.responderGet(v.orgId, v.alunoId, {}, ctx);
     return resposta(200, { ...base, dados: JSON.parse(r.body) });
   }

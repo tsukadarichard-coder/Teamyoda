@@ -11262,7 +11262,7 @@ function TelaRegistro({ aluno, alunos, setAlunos, identidade, aoReabrirJogo, pla
               <div className="mb-4"><Etiqueta>{itensFiltrados.length} registros</Etiqueta></div>
               {itensFiltrados.map((r) => (
                 r.tipo === "observacao" ? (
-                  <CartaoObservacaoCaderno key={"ob-" + r.id} r={r} planoAtual={planoAtual} aoApagar={() => { if (!confirm(r.contexto === "conversa" ? "Apagar esta conversa e as gravações dela?" : "Apagar esta observação de partida?")) return; (r.obs || []).forEach((o) => { if (o.audio) chamarAudio({ acao: "apagar", caminho: o.audio.caminho }).catch(() => {}); }); apaga(r.id); }} />
+                  <CartaoObservacaoCaderno key={"ob-" + r.id} r={r} aluno={aluno} planoAtual={planoAtual} aoAtualizar={(campos) => atualizarRegistro(r.id, campos)} aoApagar={() => { if (!confirm(r.contexto === "conversa" ? "Apagar esta conversa e as gravações dela?" : "Apagar esta observação de partida?")) return; (r.obs || []).forEach((o) => { if (o.audio) chamarAudio({ acao: "apagar", caminho: o.audio.caminho }).catch(() => {}); }); apaga(r.id); }} />
                 ) : r.tipo === "movimento" ? (
                   <CartaoMovimentoCaderno key={"mv-" + r.id} m={r} aluno={aluno} setAlunos={setAlunos} historico={movimentosCaderno} identidade={identidade} aoRemovido={() => setVersaoMov((v) => v + 1)} />
                 ) : r.tipo === "anotacao" ? (
@@ -12321,8 +12321,11 @@ function RevisaoPlano({ aluno, alunos, setAlunos, podeEditar }) {
 }
 
 /* Janela de novidades do QuadraLab: abre ao entrar até a pessoa marcar "Não mostrar mais". Nova versão da lista (NOVIDADES_VERSAO) volta a aparecer. */
-const NOVIDADES_VERSAO = "2026-10d";
+const NOVIDADES_VERSAO = "2026-10e";
 const NOVIDADES = [
+  ["Observar jogos", "Quando não dá para fazer o scout (dois jogos ao mesmo tempo no torneio): um toque por fundamento, bom ou ajustar, e notas. Vai para o caderno de cada jogador."],
+  ["Áudio e descritivo para o aluno (Essencial e Premium)", "Grave observações durante o jogo ou conversas com o jogador; o texto vem do ditado do aparelho. A IA escreve um retorno com o que você anotou e você compartilha com o aluno."],
+  ["Quadro tático", "Uma quadra para desenhar no iPad ou no celular, com a Apple Pencil ou o dedo: setas, deslocamentos, jogadores e bola."],
   ["Atletas do QuadraLab Competição (Essencial e Premium)", "O juvenil de competição continua no app dele e você acompanha daqui: no Início, ligue cada atleta à ficha dele; o jogo ao vivo e os scouts vão direto para o app do atleta."],
   ["Área do aluno", "Seus alunos podem criar uma conta de aluno, digitar o seu código e, depois que você aprova no Início, acompanhar o plano, as aulas e a evolução."],
   ["Planejamento que melhora com os dados", "Na aba Plano, a Revisão do plano cruza as análises de vídeo e os scouts dos jogos e sugere ajustes. Você aceita, recusa ou deixa para depois; nada muda sozinho, e o diário mostra se o ajuste funcionou."],
@@ -14939,7 +14942,7 @@ function GraficoObservacoes({ obs }) {
   const COR_AJ = "#C2410C", COR_BOM = "#1F6B4A";
   return (
     <div data-grafico-observacao role="img" aria-label={"Toques por fundamento: " + cats.map((c) => c.r + " " + r[c.v].bom + " bom e " + r[c.v].ajustar + " ajustar").join("; ")}>
-      <div className="flex justify-between" style={{ ...prosa, fontSize: 11.5, color: C.grafite, margin: "0 0 4px" }}><span>◀ Ajustar</span><span>Bom ▶</span></div>
+      <div style={{ ...prosa, fontSize: 11.5, color: C.grafite, margin: "0 0 4px", display: "flex", justifyContent: "space-between" }}><span>◀ Ajustar</span><span>Bom ▶</span></div>
       {cats.map((c) => (
         <div key={c.v} style={{ display: "grid", gridTemplateColumns: "1fr 92px 1fr", alignItems: "center", gap: 6, margin: "4px 0" }}>
           <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 4 }}>
@@ -15239,9 +15242,39 @@ function FormNotaVoz({ aluno, planoAtual, aoSalvar }) {
     </div>
   );
 }
-/* Registro "observacao" no caderno: resumo, gráfico (Essencial e Premium) e a lista do que foi anotado. */
-function CartaoObservacaoCaderno({ r, planoAtual, aoApagar }) {
+/* Descritivo para o aluno, escrito pela IA só com o que o treinador observou (toques, notas e o texto das gravações). */
+function promptDescritivoObservacao(aluno, r) {
+  const nome = String((aluno && aluno.nome) || "o jogador").split(" ")[0];
+  const linhas = (r.obs || []).map((o) => "- [" + (ROTULO_CAT_OBS[o.cat || "geral"] || "Geral") + (o.tipo ? " · " + (o.tipo === "bom" ? "saiu bem" : "precisa ajustar") : "") + (o.placar ? " · placar " + o.placar : "") + "]" + (o.texto ? " " + o.texto : "")).join("\n");
+  const contexto = r.contexto === "conversa" ? "uma conversa ou comentário do treinador com o jogador (" + (r.titulo || "conversa") + ")"
+    : "a observação de uma partida" + (r.torneio ? " no torneio " + r.torneio : "") + (r.adversario ? " contra " + r.adversario : "") + (r.placar ? " (placar " + r.placar + ")" : "");
+  return [
+    "Você ajuda um treinador de tênis a escrever para o aluno dele, " + nome + ", um retorno sobre " + contexto + ".",
+    "Use SOMENTE o que está nas anotações abaixo. Não invente golpes, números, placares nem situações que não estejam escritos. Se uma anotação for curta, mantenha curta.",
+    "Escreva em português do Brasil, falando direto com " + nome + " (você), em tom de treinador: claro, encorajador e honesto, sem exagero.",
+    "Formato, em texto simples (sem markdown, sem asteriscos):",
+    "Resumo: 2 a 3 frases.",
+    "O que funcionou: até 4 itens começando com \"- \".",
+    "O que ajustar: até 4 itens começando com \"- \", cada um com o que fazer de diferente.",
+    "Foco para os próximos treinos: 1 a 3 itens começando com \"- \".",
+    "Omita uma seção se não houver nada para ela nas anotações. No máximo 220 palavras.",
+    "", "Anotações do treinador:", linhas || "- (sem anotações)",
+  ].join("\n");
+}
+/* Registro "observacao" no caderno: resumo, gráfico (Essencial e Premium), a lista do que foi anotado, o descritivo para o aluno
+   (gerado pela IA no Essencial e Premium, sempre editável) e "compartilhar com o aluno" (link e Área do aluno). */
+function CartaoObservacaoCaderno({ r, aluno, planoAtual, aoApagar, aoAtualizar }) {
   const [aberto, setAberto] = useState(false);
+  const [desc, setDesc] = useState(r.descritivo || "");
+  const [etapa, setEtapa] = useState("");
+  const [erroIA, setErroIA] = useState("");
+  const travaIA = planoQueLibera("descritivoIA", planoAtual);
+  async function gerar() {
+    setErroIA(""); setEtapa("Começando");
+    try { const t = (await chamarIA(promptDescritivoObservacao(aluno, r), 1200, setEtapa)).trim().replace(/\*\*/g, ""); setDesc(t); aoAtualizar && aoAtualizar({ descritivo: t }); }
+    catch (e) { setErroIA(e.message || "Não foi possível gerar agora."); }
+    setEtapa("");
+  }
   const obs = r.obs || [], bom = obs.filter((o) => o.tipo === "bom").length, aj = obs.filter((o) => o.tipo === "ajustar").length, notas = obs.filter((o) => o.texto).length, audios = obs.filter((o) => o.audio).length;
   const trava = planoQueLibera("graficoObservacao", planoAtual);
   return (
@@ -15264,8 +15297,24 @@ function CartaoObservacaoCaderno({ r, planoAtual, aoApagar }) {
             </div>
           ) : <GraficoObservacoes obs={obs} />}
           <ListaObservacoes obs={obs} />
+          <div data-descritivo style={{ marginTop: 12, borderTop: "1px solid " + C.linha, paddingTop: 10 }}>
+            <p style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>Descritivo para o aluno</p>
+            <div className="flex gap-2 flex-wrap items-center" style={{ marginTop: 6 }}>
+              {travaIA ? <span style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Gerar com IA a partir das observações<Cadeado plano={travaIA} /></span>
+                : <Botao pequeno variante="vazio" disabled={!!etapa || !obs.length} onClick={gerar}>{etapa ? etapa + "…" : desc ? "Gerar de novo com IA" : "Gerar com IA"}</Botao>}
+            </div>
+            {erroIA && <p role="alert" style={{ ...prosa, fontSize: 12.5, color: "#A33", marginTop: 4 }}>{erroIA}</p>}
+            <textarea value={desc} onChange={(e) => setDesc(e.target.value)} onBlur={() => { if ((r.descritivo || "") !== desc) aoAtualizar && aoAtualizar({ descritivo: desc.slice(0, 6000) }); }}
+              placeholder={travaIA ? "Escreva aqui o retorno para o aluno…" : "Gere com IA ou escreva o retorno para o aluno…"} aria-label="Descritivo para o aluno"
+              style={{ ...entrada, minHeight: 110, marginTop: 8, fontSize: 14.5 }} />
+            <label className="flex items-center gap-2" style={{ ...prosa, fontSize: 13.5, marginTop: 8, cursor: "pointer" }}>
+              <input type="checkbox" data-compartilhar checked={!!r.compartilhado} onChange={(e) => aoAtualizar && aoAtualizar({ compartilhado: e.target.checked, descritivo: desc.slice(0, 6000) })} style={{ width: 20, height: 20 }} />
+              <span>Compartilhar com o aluno <span style={{ color: C.grafite, fontSize: 12.5 }}>(aparece na Área do aluno e no link dele, com o descritivo, as anotações e os áudios)</span></span>
+            </label>
+          </div>
         </div>
       )}
+      {!aberto && r.compartilhado && <p style={{ ...prosa, fontSize: 12, color: C.quadra, marginTop: 4 }}>Compartilhado com o aluno</p>}
     </div>
   );
 }
