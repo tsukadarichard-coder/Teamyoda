@@ -5,7 +5,9 @@
      abre por link temporário. Rode: node tests/smoke-descritivo-observacao.js [pasta-das-capturas] */
 const http = require("http"), fs = require("fs"), path = require("path"), assert = require("assert");
 const { chromium } = require("/opt/node22/lib/node_modules/playwright");
-const raiz = path.join(__dirname, ".."), fx = path.join(raiz, "netlify/functions/"), capturas = process.argv[2] || "";
+/* APP=mty roda o mesmo teste no app do Team Yoda (mty/, functions na raiz do repositório) */
+const MTY = process.env.APP === "mty";
+const raiz = MTY ? path.join(__dirname, "../../mty") : path.join(__dirname, ".."), fx = MTY ? path.join(__dirname, "../../netlify/functions/") : path.join(raiz, "netlify/functions/"), capturas = process.argv[2] || "";
 const CDN = process.env.CDN_DIR || "/tmp/claude-0/-home-user-Teamyoda/f36f7b1a-5380-5cd8-93be-4b9b8aa1980b/scratchpad/cdn";
 if (!fs.existsSync(CDN)) { console.log("smoke-descritivo-observacao: pulado (sem React/Babel locais; defina CDN_DIR)"); process.exit(0); }
 const DESC = "Resumo: Você competiu bem.\nO que funcionou:\n- Fundo de quadra consistente\nO que ajustar:\n- Segundo saque mais profundo";
@@ -70,11 +72,13 @@ const servidor = http.createServer(async (req, res) => {
   assert(reg.compartilhado === true && /Parabéns pela garra/.test(reg.descritivo), "editado e compartilhado");
   await cap("descritivo-01-treinador");
 
+  if (!MTY) { /* o Team Yoda não tem planos */
   /* grátis: gerar tem cadeado, escrever continua */
   plano = "gratis"; await p.goto(base + "/__t"); await p.waitForSelector("[data-caderno-observacao]", { timeout: 120000 });
   await p.click("[data-caderno-observacao] >> text=Ver detalhes");
   assert(await p.locator("[data-descritivo] [data-cadeado=essencial]").count() === 1 && await p.locator("[data-descritivo] button:has-text('Gerar com IA')").count() === 0, "grátis: cadeado no gerar");
   assert(await p.locator('[aria-label="Descritivo para o aluno"]').isEditable(), "grátis: escreve à mão");
+  }
 
   /* aluno pelo link */
   dados["mty:alunos:v2"] = { value: JSON.stringify([{ id: "j1", nome: "Lia Souza", linkToken: "tok", horarios: [], registros: [

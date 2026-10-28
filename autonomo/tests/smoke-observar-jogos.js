@@ -11,7 +11,9 @@
    Rode: node tests/smoke-observar-jogos.js [pasta-das-capturas] */
 const http = require("http"), fs = require("fs"), path = require("path"), assert = require("assert");
 const { chromium } = require("/opt/node22/lib/node_modules/playwright");
-const raiz = path.join(__dirname, ".."), fx = path.join(raiz, "netlify/functions/"), capturas = process.argv[2] || "";
+/* APP=mty roda o mesmo teste no app do Team Yoda (mty/, functions na raiz do repositório) */
+const MTY = process.env.APP === "mty";
+const raiz = MTY ? path.join(__dirname, "../../mty") : path.join(__dirname, ".."), fx = MTY ? path.join(__dirname, "../../netlify/functions/") : path.join(raiz, "netlify/functions/"), capturas = process.argv[2] || "";
 const CDN = process.env.CDN_DIR || "/tmp/claude-0/-home-user-Teamyoda/f36f7b1a-5380-5cd8-93be-4b9b8aa1980b/scratchpad/cdn";
 if (!fs.existsSync(CDN)) { console.log("smoke-observar-jogos: pulado (sem React/Babel locais; defina CDN_DIR)"); process.exit(0); }
 
@@ -246,6 +248,7 @@ const servidor = http.createServer(async (req, res) => {
   assert(/Registrando para Pedro/.test(await p.locator("[data-jogador-ativo]").innerText()), "os outros continuam");
   assert.strictEqual((await sessao()).jogos.filter((j) => j.estado !== "encerrado").length, 2);
 
+  if (!MTY) { /* o Team Yoda não tem planos */
   /* plano grátis: avisa antes de gravar e guarda só o texto */
   plano = "gratis"; store["orgs/org1/meta/info"] = { plano: "gratis" };
   const ctx3 = await browser.newContext({ viewport: { width: 390, height: 844 }, permissions: ["microphone"] });
@@ -258,6 +261,7 @@ const servidor = http.createServer(async (req, res) => {
   const s3 = await p3.evaluate(() => JSON.parse(localStorage.getItem("ql-observar:v2")));
   assert(s3.jogos[0].obs[0].texto === "Lia, ótima devolução" && !s3.jogos[0].obs[0].audioPendente && !s3.jogos[0].obs[0].audio && !(await p3.evaluate(() => window.__faixas)), "grátis: só texto, sem abrir gravação de áudio");
   await ctx3.close();
+  }
 
   assert.deepStrictEqual(erros, [], "erros de JS: " + erros.join(" | "));
   console.log("smoke-observar-jogos: ok");

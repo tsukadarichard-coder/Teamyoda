@@ -4,7 +4,9 @@
    · plano grátis: o gravador mostra o cadeado (o texto continua possível). Rode: node tests/smoke-audio-treinador.js [pasta-das-capturas] */
 const http = require("http"), fs = require("fs"), path = require("path"), assert = require("assert");
 const { chromium } = require("/opt/node22/lib/node_modules/playwright");
-const raiz = path.join(__dirname, ".."), fx = path.join(raiz, "netlify/functions/"), capturas = process.argv[2] || "";
+/* APP=mty roda o mesmo teste no app do Team Yoda (mty/, functions na raiz do repositório) */
+const MTY = process.env.APP === "mty";
+const raiz = MTY ? path.join(__dirname, "../../mty") : path.join(__dirname, ".."), fx = MTY ? path.join(__dirname, "../../netlify/functions/") : path.join(raiz, "netlify/functions/"), capturas = process.argv[2] || "";
 const CDN = process.env.CDN_DIR || "/tmp/claude-0/-home-user-Teamyoda/f36f7b1a-5380-5cd8-93be-4b9b8aa1980b/scratchpad/cdn";
 if (!fs.existsSync(CDN)) { console.log("smoke-audio-treinador: pulado (sem React/Babel locais; defina CDN_DIR)"); process.exit(0); }
 
@@ -78,12 +80,14 @@ const servidor = http.createServer(async (req, res) => {
   await p.waitForFunction(() => !document.querySelector("[data-caderno-observacao]"));
   assert.deepStrictEqual(apagados, [caminho], "apagar o registro apaga o arquivo");
 
+  if (!MTY) { /* o Team Yoda não tem planos */
   /* plano grátis: cadeado no gravador, texto continua */
   plano = "gratis"; store["orgs/org1/meta/info"] = { plano: "gratis" };
   await novaConversa();
   assert.strictEqual(await p.locator("[data-form-voz] [data-cadeado=essencial]").count(), 1, "cadeado no gravador");
   await p.fill("[data-form-voz] textarea", "Combinamos treinar a devolução"); await p.click("text=Salvar no caderno");
   await p.waitForSelector("[data-caderno-observacao]");
+  }
   assert.deepStrictEqual(erros, [], "erros de JS: " + erros.join(" | "));
   console.log("smoke-audio-treinador: ok");
   await browser.close(); servidor.close();

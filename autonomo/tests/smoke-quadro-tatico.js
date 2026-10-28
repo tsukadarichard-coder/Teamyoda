@@ -4,7 +4,9 @@
    · com a Apple Pencil em uso, o dedo não risca (palma), mas ainda arrasta peça. Rode: node tests/smoke-quadro-tatico.js [pasta-das-capturas] */
 const http = require("http"), fs = require("fs"), path = require("path"), assert = require("assert");
 const { chromium } = require("/opt/node22/lib/node_modules/playwright");
-const raiz = path.join(__dirname, ".."), capturas = process.argv[2] || "";
+/* APP=mty roda o mesmo teste no app do Team Yoda (mty/) */
+const MTY = process.env.APP === "mty";
+const raiz = MTY ? path.join(__dirname, "../../mty") : path.join(__dirname, ".."), capturas = process.argv[2] || "";
 const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".png": "image/png" };
 const servidor = http.createServer((req, res) => {
   const u = new URL(req.url, "http://x"); let f = path.join(raiz, decodeURIComponent(u.pathname)); if (u.pathname.endsWith("/")) f = path.join(f, "index.html");
