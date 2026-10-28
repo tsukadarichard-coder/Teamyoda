@@ -14607,6 +14607,12 @@ function TelaCatalogo({ exerciciosCustom, setExerciciosCustom, focoId }) {
   }
   return (
     <div>
+      {!focoFamilia && (
+        <div className="mb-3">
+          <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700 }}>Catálogo de exercícios</h1>
+          <p data-total-catalogo style={{ ...prosa, fontSize: 13.5, color: C.grafite }}>{TODOS_EXERCICIOS().length} exercícios no catálogo{exerciciosCustom && exerciciosCustom.length ? " (" + exerciciosCustom.length + " da academia)" : ""}</p>
+        </div>
+      )}
       <MapaFamilias foco={focoFamilia} />
       {!focoFamilia && <NovoExercicioAcademia aoAdicionar={(ex) => setExerciciosCustom([...exerciciosCustom, ex])} />}
       <input style={{ ...entrada, marginBottom: 14 }} value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por código, nome ou montagem" />
@@ -15421,7 +15427,8 @@ function TelaEquipe({ alunos, turmas, membros, setMembros, carregandoForm, uidAt
 
   return (
     <div>
-      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Equipe</h1>
+      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Equipe da organização</h1>
+      <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginBottom: 6 }}>Professores e coordenação da academia (não confundir com as Equipes de competição, que reúnem atletas).</p>
       <div className="flex gap-5 mb-6" style={{ borderBottom: "1px solid " + C.linha }}>
         {[{ v: "aulas", r: "Aulas da equipe" }, { v: "visao", r: "Visão geral" }, { v: "pedidos", r: "Pedidos" }, { v: "formacao", r: "Formação" }].map((t) => (
           <button key={t.v} onClick={() => setSubaba(t.v)}
@@ -16619,6 +16626,7 @@ function TelaClientes({ quadras, reservas, torneios, eventos }) {
       <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Clientes</h1>
       <p style={{ ...prosa, color: C.grafite, marginBottom: 16 }}>
         Todo mundo que já reservou quadra, se inscreveu em torneio ou confirmou presença em evento — num só lugar, do contato mais recente pro mais antigo.
+        {" "}Clientes são contatos de contratação, reservas e inscrições; o acompanhamento esportivo de quem treina fica em Jogadores (nada é unido automaticamente).
       </p>
       <div className="flex gap-2 flex-wrap mb-3">
         {FILTROS_CLIENTE.map((f) => (
@@ -19398,8 +19406,8 @@ function CardPrimeirosPassos({ passo1Ok, passo2Ok, passo3Ok, aoPasso1, aoPasso2,
   );
 }
 
-function TelaDashboard({ aoAbrirScout, aoDescartarPartida, alunos, turmas, ocorrencias, papelAtual, uidAtual, exigeLogin, irPara, usoIA, identidade,
-  aoAbrirSessao, aoAbrirTurmas, aoAbrirTurma, aoAbrirAgenda, aoAdicionarJogador, aoEditarDados,
+function TelaDashboard({ aoAbrirScout, aoDescartarPartida, alunos, turmas, ocorrencias, quadras, papelAtual, uidAtual, exigeLogin, irPara, usoIA, identidade,
+  aoAbrirSessao, aoAbrirTurmas, aoAbrirTurma, aoAbrirAgenda, aoAbrirAgendaEm, aoAdicionarJogador, aoEditarDados, aoAbrirSecao, podePendencias,
   onboardingDispensado, setOnboardingDispensado }) {
   const [verTodos, setVerTodos] = useState(false);
   /* null fechado, "abertas"/"dadas" abrem a lista do card correspondente,
@@ -19407,13 +19415,7 @@ function TelaDashboard({ aoAbrirScout, aoDescartarPartida, alunos, turmas, ocorr
      gráfico "aulas dadas por professor" — mesma lista, filtrada. */
   const [detalhe, setDetalhe] = useState(null);
   const [escolhendoPlanejamento, setEscolhendoPlanejamento] = useState(false);
-  const [meuNome, setMeuNome] = useState("");
-  useEffect(() => {
-    listaProfessores().then((lista) => {
-      const eu = lista.find((p) => p.uid === uidAtual);
-      if (eu) setMeuNome(eu.nome);
-    });
-  }, [uidAtual]);
+  const [todasPendencias, setTodasPendencias] = useState(false);
   const meus = (professorUid) => !professorUid || professorUid === uidAtual;
 
   const alunosVistos = (!exigeLogin || verTodos || !uidAtual) ? alunos : alunos.filter((a) => meus(a.professorUid));
@@ -19436,50 +19438,61 @@ function TelaDashboard({ aoAbrirScout, aoDescartarPartida, alunos, turmas, ocorr
   const ehProfessorFiltro = detalhe && detalhe !== "abertas" && detalhe !== "dadas";
   const dadasDetalhe = (detalhe === "dadas" || ehProfessorFiltro)
     ? aulasDadasDetalhe(alunosVistos, 7, ehProfessorFiltro ? detalhe : null) : [];
-  let pendenciasAbertas = 0;
-  turmasVistas.forEach((t) => (t.pendencias || []).forEach((p) => { if (!p.resolvida) pendenciasAbertas++; }));
   const porProfessor = verTodos ? aulasPorProfessor(alunosVistos) : [];
-  const primeiroNome = (meuNome || "").trim().split(" ")[0];
-  const saudacao = primeiroNome ? "Olá, " + primeiroNome : "Início";
+  const hojeISO = dataISO(new Date());
+  const quadraPorId = useMemo(() => new Map((quadras || []).map((q) => [q.id, q])), [quadras]);
 
+  /* ── próxima aula: a ação acompanha o estado real (registro em andamento, planejamento pronto ou nada preparado) ── */
   const prox = proximoCompromisso(alunosVistos, turmasVistas, ocorrencias);
-  function aoVerAula() {
-    if (!prox) return;
-    if (prox.tipo === "individual") aoAbrirSessao(prox.entidade.id);
-    else aoAbrirTurmas();
+  const proxEnt = prox && prox.entidade;
+  const proxRascunho = proxEnt && (prox.tipo === "individual" ? proxEnt.rascunhoSessao : proxEnt.rascunhoSessaoTurma);
+  const proxAcao = !prox ? null
+    : proxRascunho && proxRascunho.criadoEm === hojeISO ? { r: "Continuar registro", f: () => (prox.tipo === "individual" ? aoAbrirSessao(proxEnt.id) : aoAbrirTurma(proxEnt.id)) }
+    : proxEnt.plano ? { r: "Ver planejamento", f: () => (prox.tipo === "individual" ? aoAbrirSessao(proxEnt.id) : aoAbrirTurma(proxEnt.id)) }
+    : { r: "Preparar aula", f: () => (prox.tipo === "individual" ? irPara(proxEnt.id) : aoAbrirTurma(proxEnt.id)) };
+  const proxQuadra = prox ? (() => { const h = (proxEnt.horarios || []).find((x) => x.dia === prox.dia && x.hora === prox.hora); const q = h && h.quadraId ? quadraPorId.get(h.quadraId) : null; return q ? q.nome : ""; })() : "";
+
+  /* ── aulas do dia: as mesmas ocorrências da tela Aulas de hoje (as já geradas e as dos horários fixos), em ordem de horário ── */
+  const idsVistos = useMemo(() => new Set([...alunosVistos.map((a) => a.id), ...turmasVistas.map((t) => t.id)]), [alunosVistos, turmasVistas]);
+  const aulasDoDia = useMemo(() => {
+    const ja = (ocorrencias || []).filter((o) => o.data === hojeISO);
+    const faltam = gerarOcorrenciasFaltantes(ocorrencias || [], alunos || [], turmas || [], hojeISO, hojeISO, []);
+    return ja.concat(faltam).filter((o) => (o.origemId ? idsVistos.has(o.origemId) : verTodos || meus(o.professorUid)))
+      .sort((a, b) => (a.horaInicio || "").localeCompare(b.horaInicio || ""));
+  }, [ocorrencias, alunos, turmas, hojeISO, idsVistos, verTodos]);
+  function tituloAula(o) {
+    if (o.origemTipo === "turma") { const t = turmas.find((x) => x.id === o.origemId); return t ? t.nome : "Turma"; }
+    if (o.origemTipo === "individual") { const a = alunos.find((x) => x.id === o.origemId); return a ? a.nome || "Jogador" : "Aula individual"; }
+    return o.titulo || (o.tipo === "reposicao" ? "Reposição" : "Aula avulsa");
+  }
+  const ROT_STATUS = { realizada: ["Realizada", C.quadra], cancelada: ["Cancelada", "#9A3412"], falta: ["Falta", "#9A3412"], agendada: ["Agendada", C.grafite] };
+  function abrirAula(o) {
+    if (o.origemTipo === "individual" && o.origemId) aoAbrirSessao(o.origemId);
+    else if (o.origemTipo === "turma" && o.origemId) aoAbrirTurma(o.origemId);
+    else aoAbrirSecao("aulas-hoje");
   }
 
-  /* Agenda de hoje: o resto do dia, sem repetir o item já mostrado como
-     "próxima aula" logo acima. */
-  const agora = new Date();
-  const diaHoje = agora.getDay();
-  const hojeISO = dataISO(agora);
-  const horaAtual = String(agora.getHours()).padStart(2, "0") + ":" + String(agora.getMinutes()).padStart(2, "0");
-  const hojeRestante = compromissosDaSemana(alunosVistos, turmasVistas)
-    .filter((c) => c.dia === diaHoje && c.hora >= horaAtual)
-    .filter((c) => !(prox && c.titulo === prox.titulo && c.hora === prox.hora))
-    .filter((c) => statusHojeDoCompromisso(ocorrencias, c, diaHoje, hojeISO) !== "cancelada");
+  /* ── pendências reais, das que pedem ação primeiro ── */
+  const pendencias = [];
+  alunosVistos.forEach((a) => (a.pedidosReposicao || []).filter((p) => p.status === "pendente").forEach((p) => pendencias.push({ k: "rep" + a.id + (p.id || p.em || ""), t: (a.nome || "Jogador") + " pediu reposição", d: "Responder o pedido", f: () => irPara(a.id) })));
+  (ocorrencias || []).filter((o) => o.status === "agendada" && o.data < hojeISO && (o.origemId ? idsVistos.has(o.origemId) : meus(o.professorUid)))
+    .sort((x, y) => (y.data + y.horaInicio).localeCompare(x.data + x.horaInicio))
+    .forEach((o) => pendencias.push({ k: "sf" + o.id, t: tituloAula(o) + " · " + o.data.split("-").reverse().slice(0, 2).join("/") + (o.horaInicio ? " " + o.horaInicio : ""), d: "Aula sem registro (realizada, falta ou cancelada?)", f: () => aoAbrirAgendaEm(o.data) }));
+  turmasVistas.forEach((t) => (t.pendencias || []).filter((p) => !p.resolvida).forEach((p, i) => pendencias.push({ k: "tp" + t.id + i, t: t.nome + (p.data ? " · " + p.data : ""), d: p.motivo || "Pendência da turma", f: () => aoAbrirTurma(t.id) })));
+  planosParaRevisar(alunosVistos, turmasVistas).forEach((p) => pendencias.push({ k: "pr" + p.tipo + p.id, t: p.nome, d: "A ficha mudou depois do planejamento: revisar", f: () => (p.tipo === "turma" ? aoAbrirTurma(p.id) : irPara(p.id)) }));
+  const pendenciasVistas = todasPendencias ? pendencias : pendencias.slice(0, 5);
 
-  const planosRevisar = useMemo(() => planosParaRevisar(alunosVistos, turmasVistas), [alunosVistos, turmasVistas]);
+  const secao = { background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 14, padding: "14px 16px", marginBottom: 14 };
+  const tituloSecao = (t, n) => <div className="flex items-center justify-between gap-2" style={{ marginBottom: 6 }}><h2 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{t}</h2>{n != null && <span style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, color: C.grafite }}>{n}</span>}</div>;
+  const linhaBtn = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, width: "100%", textAlign: "left", padding: "8px 2px", minHeight: 44, border: "none", borderTop: "1px solid " + C.linha, background: "none", cursor: "pointer" };
 
   return (
-    <div>
-      {identidade && identidade.nome && (
-        <div className="mb-1"><Etiqueta>{identidade.nome}</Etiqueta></div>
-      )}
-      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>{saudacao}</h1>
-      <CartaoPartidasEmAndamento alunos={alunos} aoAbrirScout={aoAbrirScout} aoDescartar={aoDescartarPartida} />
-      <CartaoRevisoesPlano alunos={alunosVistos} turmas={turmasVistas} irPara={irPara} irParaTurma={aoAbrirTurma} />
-      <CartaoVinculoAcademia />
-      <p style={{ ...prosa, color: C.grafite, marginBottom: 14 }}>
-        {verTodos ? "A academia inteira, de uma vez." : "Só o que é seu — mais quem ainda não tem professor definido."}
-      </p>
-
+    <div data-hoje-resumo>
       {exigeLogin && uidAtual && (
-        <div className="flex gap-2 mb-5">
+        <div className="flex gap-2 mb-3">
           {[{ v: false, r: "Meu painel" }, { v: true, r: "Toda a academia" }].map((t) => (
-            <button key={String(t.v)} onClick={() => setVerTodos(t.v)}
-              style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, padding: "6px 11px", borderRadius: 3, cursor: "pointer",
+            <button key={String(t.v)} onClick={() => setVerTodos(t.v)} aria-pressed={verTodos === t.v}
+              style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, padding: "6px 11px", minHeight: 32, borderRadius: 8, cursor: "pointer",
                 border: "1px solid " + (verTodos === t.v ? C.saibro : C.linha),
                 background: verTodos === t.v ? C.saibro : C.papel, color: verTodos === t.v ? "#fff" : C.grafite }}>
               {t.r}
@@ -19488,15 +19501,6 @@ function TelaDashboard({ aoAbrirScout, aoDescartarPartida, alunos, turmas, ocorr
         </div>
       )}
 
-      {onboardingDispensado && !onboardingCompleto && (
-        <div className="mb-4">
-          <button type="button" onClick={() => setOnboardingDispensado(false)}
-            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: ARCH,
-              fontSize: 12.5, fontWeight: 700, color: C.quadra, textDecoration: "underline" }}>
-            Retomar primeiros passos
-          </button>
-        </div>
-      )}
       {mostrarOnboarding && (
         <CardPrimeirosPassos
           passo1Ok={onboardingPasso1} passo2Ok={onboardingPasso2} passo3Ok={onboardingPasso3}
@@ -19506,80 +19510,104 @@ function TelaDashboard({ aoAbrirScout, aoDescartarPartida, alunos, turmas, ocorr
           aoDispensar={() => setOnboardingDispensado(true)} />
       )}
 
-      {/* ── ação principal: única entrada pra criar planejamento na tela toda ──
-         Pede primeiro se é pra um jogador ou uma turma — são fluxos
-         diferentes, cada um com seu próprio TelaPlano. */}
-      <div className="mb-3">
-        <Botao variante="saibro" onClick={() => setEscolhendoPlanejamento(true)} style={{ width: "100%" }}>Criar planejamento</Botao>
+      {/* ── B. próxima aula ── */}
+      <div data-proxima-aula style={secao}>
+        <Etiqueta cor={C.saibro}>Próxima aula</Etiqueta>
+        {prox ? (
+          <div className="mt-1">
+            <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>{prox.diaLabel} · {prox.hora}{proxQuadra ? " · " + proxQuadra : ""}{prox.tipo === "turma" ? " · turma" : ""}</p>
+            <h2 style={{ fontFamily: ARCH, fontSize: 18, fontWeight: 700, marginTop: 2 }}>{prox.titulo}</h2>
+            <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginTop: 2 }}>
+              {proxRascunho && proxRascunho.criadoEm === hojeISO ? "Registro em andamento" : prox.objetivo ? "Planejamento: " + prox.objetivo : proxEnt.plano ? "Com planejamento" : "Ainda sem planejamento para esta aula"}
+            </p>
+            <div className="mt-2"><Botao onClick={proxAcao.f}>{proxAcao.r}</Botao></div>
+          </div>
+        ) : !alunosVistos.length && !turmasVistas.length ? (
+          <div className="mt-1">
+            <p style={{ ...prosa, color: C.grafite }}>Cadastre um jogador para começar a organizar seus treinos.</p>
+            <div className="mt-2"><Botao variante="vazio" onClick={aoAdicionarJogador}>Adicionar jogador</Botao></div>
+          </div>
+        ) : (
+          <p style={{ ...prosa, color: C.grafite, marginTop: 4 }}>Nenhuma aula agendada nos próximos dias.</p>
+        )}
       </div>
-      <div className="flex gap-2 flex-wrap mb-5">
-        <Botao pequeno variante="vazio" onClick={aoAdicionarJogador}>+ Adicionar jogador</Botao>
-        <Botao pequeno variante="vazio" onClick={aoAbrirAgenda}>+ Agendar aula</Botao>
+
+      {/* ── C. aulas do dia ── */}
+      <div data-aulas-do-dia style={secao}>
+        {tituloSecao("Aulas de hoje", aulasDoDia.length || null)}
+        {aulasDoDia.length === 0 ? (
+          <div>
+            <p style={{ ...prosa, fontSize: 13.5, color: C.grafite }}>Nenhuma aula agendada para hoje.</p>
+            <div className="mt-2"><Botao pequeno variante="vazio" onClick={aoAbrirAgenda}>Agendar aula</Botao></div>
+          </div>
+        ) : (
+          <>
+            {aulasDoDia.map((o) => {
+              const [rs, cor] = ROT_STATUS[o.status] || ROT_STATUS.agendada;
+              const q = o.quadraId ? quadraPorId.get(o.quadraId) : null;
+              return (
+                <button key={o.id} type="button" onClick={() => abrirAula(o)} style={linhaBtn} data-aula-dia>
+                  <span style={{ display: "flex", gap: 10, alignItems: "baseline", minWidth: 0 }}>
+                    <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{o.horaInicio || "--:--"}</span>
+                    <span style={{ minWidth: 0 }}>
+                      <span style={{ display: "block", fontFamily: ARCH, fontSize: 14, fontWeight: 600, color: C.tinta, textDecoration: o.status === "cancelada" ? "line-through" : "none" }}>{tituloAula(o)}</span>
+                      {q && <span style={{ display: "block", ...prosa, fontSize: 12, color: C.grafite }}>{q.nome}</span>}
+                    </span>
+                  </span>
+                  <span style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, color: cor, flexShrink: 0 }}>{rs}</span>
+                </button>
+              );
+            })}
+            <button type="button" onClick={() => aoAbrirSecao("aulas-hoje")} style={{ ...prosa, fontSize: 13, fontWeight: 700, color: C.quadra, background: "none", border: "none", cursor: "pointer", padding: "8px 0 0", minHeight: 36 }}>Gerenciar as aulas de hoje (presença, cancelamento, reposição) ›</button>
+          </>
+        )}
+      </div>
+
+      {/* ── D. pendências ── */}
+      <div data-pendencias-hoje style={secao}>
+        {tituloSecao("Pendências", pendencias.length || null)}
+        {pendencias.length === 0 ? <p style={{ ...prosa, fontSize: 13.5, color: C.grafite }}>Tudo em dia.</p> : (
+          <>
+            {pendenciasVistas.map((p) => (
+              <button key={p.k} type="button" onClick={p.f} style={linhaBtn}>
+                <span style={{ minWidth: 0 }}>
+                  <span style={{ display: "block", fontFamily: ARCH, fontSize: 14, fontWeight: 600, color: C.tinta }}>{p.t}</span>
+                  <span style={{ display: "block", ...prosa, fontSize: 12.5, color: C.grafite }}>{p.d}</span>
+                </span>
+                <span style={{ color: C.grafite, flexShrink: 0 }}><IconeSeta tam={16} /></span>
+              </button>
+            ))}
+            {pendencias.length > 5 && !todasPendencias && <button type="button" onClick={() => setTodasPendencias(true)} style={{ ...prosa, fontSize: 13, fontWeight: 700, color: C.quadra, background: "none", border: "none", cursor: "pointer", padding: "8px 0 0", minHeight: 36 }}>Ver todas ({pendencias.length})</button>}
+          </>
+        )}
+        {podePendencias && <button type="button" onClick={() => aoAbrirSecao("pendencias")} style={{ display: "block", ...prosa, fontSize: 13, fontWeight: 700, color: C.quadra, background: "none", border: "none", cursor: "pointer", padding: "8px 0 0", minHeight: 36 }}>Pendências da academia com mensagens prontas ›</button>}
+      </div>
+
+      <CartaoPartidasEmAndamento alunos={alunos} aoAbrirScout={aoAbrirScout} aoDescartar={aoDescartarPartida} />
+      <CartaoRevisoesPlano alunos={alunosVistos} turmas={turmasVistas} irPara={irPara} irParaTurma={aoAbrirTurma} />
+      <CartaoVinculoAcademia />
+
+      {/* ── E. ações secundárias ── */}
+      <div className="flex gap-2 flex-wrap mb-5" data-acoes-hoje>
+        <Botao pequeno variante="vazio" onClick={aoAbrirAgenda}>Agendar aula</Botao>
+        <Botao pequeno variante="vazio" onClick={aoAdicionarJogador}>Adicionar jogador</Botao>
+        <Botao pequeno variante="vazio" onClick={() => setEscolhendoPlanejamento(true)}>Criar planejamento</Botao>
       </div>
       {escolhendoPlanejamento && (
         <EscolherPlanejamentoDialog alunos={alunosVistos} turmas={turmasVistas}
           aoEscolherJogador={(id) => { setEscolhendoPlanejamento(false); irPara(id); }}
-          aoEscolherTurma={() => { setEscolhendoPlanejamento(false); aoAbrirTurmas(); }}
+          aoEscolherTurma={(id) => { setEscolhendoPlanejamento(false); aoAbrirTurma(id); }}
           aoFechar={() => setEscolhendoPlanejamento(false)}
           aoAdicionarJogador={() => { setEscolhendoPlanejamento(false); aoAdicionarJogador(); }} />
       )}
 
-      {/* ── próxima aula ── */}
-      <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 14, padding: "16px 18px" }}>
-        <Etiqueta cor={C.saibro}>Próxima aula</Etiqueta>
-        {prox ? (
-          <div className="mt-2">
-            <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>{prox.diaLabel} · {prox.hora}</p>
-            <h2 style={{ fontFamily: ARCH, fontSize: 18, fontWeight: 700, marginTop: 2 }}>{prox.titulo}</h2>
-            <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginTop: 4 }}>
-              {prox.objetivo || "Ainda sem plano montado pra essa aula."}
-            </p>
-            <div className="mt-3"><Botao onClick={aoVerAula}>Ver planejamento</Botao></div>
-          </div>
-        ) : (
-          <div className="mt-2">
-            <p style={{ ...prosa, color: C.grafite, marginTop: 2 }}>Nenhuma aula agendada.</p>
-            <div className="mt-3"><Botao variante="vazio" onClick={aoAbrirAgenda}>Agendar aula</Botao></div>
-          </div>
-        )}
-      </div>
-
-      {hojeRestante.length > 0 && (
-        <div className="mb-5">
-          <h2 style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginBottom: 8 }}>Hoje, mais tarde</h2>
-          {hojeRestante.map((c, i) => (
-            <div key={i} className="flex items-center justify-between gap-3 mb-1.5" style={{ padding: "4px 0" }}>
-              <span style={{ ...prosa, fontSize: 13.5 }}>{c.titulo}</span>
-              <span style={{ ...prosa, fontSize: 13, color: C.grafite, flexShrink: 0 }}>{c.hora}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {planosRevisar.length > 0 && (
-        <div className="mb-5">
-          <h2 style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginBottom: 8 }}>Planejamentos que precisam de revisão</h2>
-          {planosRevisar.map((p) => (
-            <button key={p.tipo + p.id} onClick={() => (p.tipo === "turma" ? aoAbrirTurmas() : irPara(p.id))}
-              className="w-full text-left flex items-center justify-between gap-3"
-              style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 12, padding: "11px 14px", marginBottom: 7, cursor: "pointer", minHeight: 44 }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{p.nome}</div>
-                <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>A ficha mudou depois que o plano foi gerado</p>
-              </div>
-              <span style={{ color: C.grafite, flexShrink: 0 }}><IconeSeta tam={18} /></span>
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div className="mb-2" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
+      <h2 style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, margin: "4px 0 8px", color: C.grafite }}>Visão geral</h2>
+      <div className="mb-2" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
         <TileEstat rotulo="Jogadores" valor={alunosVistos.length} />
         <TileEstat rotulo="Aulas prontas" valor={abertos.length} cor={abertos.length > 0 ? C.saibro : C.tinta} legenda="com plano pronto pra dar"
           ativo={detalhe === "abertas"} onClick={abertos.length > 0 ? () => setDetalhe(detalhe === "abertas" ? null : "abertas") : null} />
         <TileEstat rotulo="Aulas na semana" valor={dadas7} cor={C.quadra} legenda="já dadas, últimos 7 dias"
           ativo={detalhe === "dadas"} onClick={dadas7 > 0 ? () => setDetalhe(detalhe === "dadas" ? null : "dadas") : null} />
-        <TileEstat rotulo="Pendências" valor={pendenciasAbertas} cor={pendenciasAbertas > 0 ? C.saibro : C.tinta} legenda="avisos em aberto nas turmas" />
       </div>
 
       {detalhe === "abertas" && (
@@ -22213,16 +22241,17 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   );
 }
 /* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
-const NOVIDADES_TY_VERSAO = "ty-2026-10c";
+const NOVIDADES_TY_VERSAO = "ty-2026-10d";
 const NOVIDADES_TY = [
-  { novo: true, t: "Planejamento fechado com gráficos e avaliação de cada treino", d: "Ao fechar o planejamento da equipe, ele vira a visão Geral, Semanal e Diária com gráficos (sessões por grupo, itens trabalhados) e aparece para os atletas. No fim de cada sessão, avalie presença e rendimento de 1 a 5 de cada atleta (com notas por item e observações). A aba Rendimento mostra a evolução e gera o relatório do ciclo em PDF; o rendimento também entra no relatório de cada atleta.", onde: "Equipes de competição › abra a equipe › Abrir planejamento › Diário › Avaliar sessão", aba: "equipes" },
-  { novo: true, t: "Planejamento da equipe", d: "O coordenador monta o ciclo da equipe (4, 8 ou 12 semanas, com a explicação de cada um), os dias de treino e a duração. Em cada mês, semana e dia: técnico, tático ou misto, os itens (movimentação, mudança de direção, precisão, cada golpe, ataque, defesa e construção) e espaço para observações. Sem IA. Aparece na aba Equipe do jogador, no relatório e no link do aluno.", onde: "Menu › Alunos e turmas › Equipes de competição › abra a equipe", aba: "equipes" },
-  { novo: true, t: "Equipes de competição e relatório para os pais", d: "Monte a equipe com coordenador, auxiliares e atletas, sem precisar de plano. Veja a ficha, o último scout, a última observação e a biomecânica de cada atleta e gere o relatório do período (torneio, mês ou datas) com a sua observação. Publicado, ele aparece na página do aluno e sai pelo WhatsApp ou em PDF.", onde: "Menu › Alunos e turmas › Equipes de competição", aba: "equipes" },
-  { novo: true, t: "Observar jogos por voz", d: "Acompanhe vários jogos ao mesmo tempo: escolha o jogo, toque em Ditar observação e fale. Comece pelo nome do jogador para registrar no jogo certo. Tudo fica salvo no aparelho e sobe para a sua conta; o resumo sai ao concluir cada jogo.", onde: "Menu › Dia a dia › Observar jogos", aba: "observar" },
+  { novo: true, t: "Navegação nova: Hoje, Jogadores, Agenda e Mais", d: "Hoje reúne a próxima aula, as aulas do dia e as pendências (Aulas de hoje e Pendências do dia viraram seções de Hoje). Agenda traz o calendário e as Reposições. O resto está em Mais, em grupos que abrem e fecham. No computador, o botão no topo do menu recolhe a lateral numa faixa de ícones; no celular, a barra de baixo leva aos quatro destinos.", onde: "Menu lateral (computador) ou barra de baixo (celular)", aba: "dashboard" },
+  { novo: true, t: "Planejamento fechado com gráficos e avaliação de cada treino", d: "Ao fechar o planejamento da equipe, ele vira a visão Geral, Semanal e Diária com gráficos (sessões por grupo, itens trabalhados) e aparece para os atletas. No fim de cada sessão, avalie presença e rendimento de 1 a 5 de cada atleta (com notas por item e observações). A aba Rendimento mostra a evolução e gera o relatório do ciclo em PDF; o rendimento também entra no relatório de cada atleta.", onde: "Mais › Grupos › Equipes de competição › abra a equipe › Abrir planejamento › Diário › Avaliar sessão", aba: "equipes" },
+  { novo: true, t: "Planejamento da equipe", d: "O coordenador monta o ciclo da equipe (4, 8 ou 12 semanas, com a explicação de cada um), os dias de treino e a duração. Em cada mês, semana e dia: técnico, tático ou misto, os itens (movimentação, mudança de direção, precisão, cada golpe, ataque, defesa e construção) e espaço para observações. Sem IA. Aparece na aba Equipe do jogador, no relatório e no link do aluno.", onde: "Mais › Grupos › Equipes de competição › abra a equipe", aba: "equipes" },
+  { novo: true, t: "Equipes de competição e relatório para os pais", d: "Monte a equipe com coordenador, auxiliares e atletas, sem precisar de plano. Veja a ficha, o último scout, a última observação e a biomecânica de cada atleta e gere o relatório do período (torneio, mês ou datas) com a sua observação. Publicado, ele aparece na página do aluno e sai pelo WhatsApp ou em PDF.", onde: "Mais › Grupos › Equipes de competição", aba: "equipes" },
+  { novo: true, t: "Observar jogos por voz", d: "Acompanhe vários jogos ao mesmo tempo: escolha o jogo, toque em Ditar observação e fale. Comece pelo nome do jogador para registrar no jogo certo. Tudo fica salvo no aparelho e sobe para a sua conta; o resumo sai ao concluir cada jogo.", onde: "Mais › Treino e análise › Observar jogos", aba: "observar" },
   { novo: true, t: "Página do aluno com relatórios", d: "Os relatórios publicados aparecem no link de cada aluno, e ele mesmo pode tocar em Gerar relatório para ver um resumo atualizado dos jogos, scouts e análises de movimento.", onde: "Link do aluno (Compartilhar com o jogador)" },
   { novo: true, t: "Áudio, conversas e descritivo para o aluno", d: "Grave observações e conversas com o jogador; o texto vem do ditado do aparelho. A IA escreve um retorno só com o que você anotou e você compartilha com o aluno.", onde: "Jogadores › abra o jogador › Caderno › + Novo registro" },
-  { novo: true, t: "Quadro tático", d: "Uma quadra para desenhar no iPad ou no celular, com a Apple Pencil ou o dedo: setas, deslocamentos, jogadores e bola.", onde: "Menu › Dia a dia › Quadro tático", aba: "quadro" },
-  { novo: true, t: "Prioridades dos jogos no planejamento", d: "As prioridades que você leva do Observar jogos aparecem na aba Plano do jogador e entram no próximo planejamento gerado.", onde: "Jogadores › abra o jogador › Plano" },
+  { novo: true, t: "Quadro tático", d: "Uma quadra para desenhar no iPad ou no celular, com a Apple Pencil ou o dedo: setas, deslocamentos, jogadores e bola.", onde: "Mais › Treino e análise › Quadro tático", aba: "quadro" },
+  { novo: true, t: "Prioridades dos jogos no planejamento", d: "As prioridades que você leva do Observar jogos aparecem na aba Plano do jogador e entram no próximo planejamento gerado.", onde: "Jogadores › abra o jogador › Planejamento" },
 ];
 /* Janela de novidades: abre ao entrar até a pessoa marcar "Não mostrar mais"; uma nova versão da lista volta a aparecer. O que acabou
    de ser instalado (novo: true) vem primeiro, em destaque, com onde encontrar e o atalho "Abrir"; o resto fica numa lista discreta. */
@@ -22279,6 +22308,199 @@ function JanelaNovidades({ nomeApp, versao, itens, irPara }) {
     </div>
   );
 }
+/* ── Navegação (Hoje, Jogadores, Agenda e Mais) ──
+   Quatro destinos principais; o resto fica no menu complementar, em grupos que abrem e fecham. As rotas antigas continuam valendo:
+   "Aulas de hoje" e "Pendências do dia" são seções de Hoje, "Reposições" é seção de Agenda (mesmos valores de aba de antes).
+   Computador (≥ 1024 px): menu lateral expandido ou recolhido numa faixa de ícones (preferência por usuário e aparelho).
+   Tablet: menu sobreposto pelo ☰ do topo. Celular: barra inferior; "Mais" abre o painel com os grupos. */
+const NAV_PRINCIPAL_TY = [
+  { v: "dashboard", r: "Hoje", icone: "hoje", inclui: ["dashboard", "aulas-hoje", "pendencias"] },
+  { v: "alunos", r: "Jogadores", icone: "jogadores", inclui: ["alunos"] },
+  { v: "agenda", r: "Agenda", icone: "agenda", inclui: ["agenda", "reposicoes"] },
+];
+const principalDaAba = (aba) => NAV_PRINCIPAL_TY.find((p) => p.inclui.includes(aba)) || null;
+const LARGURA_MENU = { expandido: 248, recolhido: 68 };
+function IconeNav({ nome, tam = 20 }) {
+  const p = { width: tam, height: tam, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true", focusable: "false" };
+  if (nome === "hoje") return <svg {...p}><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>;
+  if (nome === "jogadores") return <svg {...p}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8" /></svg>;
+  if (nome === "agenda") return <svg {...p}><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>;
+  if (nome === "mais") return <svg {...p}><circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" /></svg>;
+  if (nome === "recolher") return <svg {...p}><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5" /></svg>;
+  if (nome === "expandir") return <svg {...p}><path d="M13 17l5-5-5-5M6 17l5-5-5-5" /></svg>;
+  if (nome === "ajuda") return <svg {...p}><circle cx="12" cy="12" r="10" /><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01" /></svg>;
+  if (nome === "menu") return <svg {...p}><path d="M3 6h18M3 12h18M3 18h18" /></svg>;
+  if (nome === "fechar") return <svg {...p}><path d="M18 6L6 18M6 6l12 12" /></svg>;
+  if (nome === "seta") return <svg {...p}><path d="M9 6l6 6-6 6" /></svg>;
+  return null;
+}
+/* largura útil da janela (não o tipo do aparelho): celular até 760 px, tablet até 1023 px, computador daí para cima */
+function modoDaLargura(w) { return w <= 760 ? "celular" : w < 1024 ? "tablet" : "desktop"; }
+function useModoTela() {
+  const [modo, setModo] = useState(() => (typeof window === "undefined" ? "desktop" : modoDaLargura(window.innerWidth)));
+  useEffect(() => {
+    const ajustar = () => setModo(modoDaLargura(window.innerWidth));
+    window.addEventListener("resize", ajustar);
+    return () => window.removeEventListener("resize", ajustar);
+  }, []);
+  return modo;
+}
+/* preferências do menu, por usuário neste aparelho */
+function lerPrefMenu(chave, padrao) { try { const v = localStorage.getItem(chave); return v === null ? padrao : JSON.parse(v); } catch { return padrao; } }
+function gravarPrefMenu(chave, valor) { try { localStorage.setItem(chave, JSON.stringify(valor)); } catch { /* sem armazenamento: vale só nesta visita */ } }
+
+const estiloItemNav = (ativo) => ({ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", fontFamily: ARCH, fontSize: 13.5, fontWeight: ativo ? 700 : 600,
+  padding: "7px 10px", minHeight: 38, borderRadius: 8, cursor: "pointer", border: "none", background: ativo ? C.tinta : "transparent", color: ativo ? C.papel : C.grafite });
+/* Hoje, Jogadores e Agenda com ícone (menu expandido e painel do tablet) */
+function ItensPrincipaisNav({ aba, aoIr }) {
+  const atual = principalDaAba(aba);
+  return (
+    <div className="flex flex-col" style={{ gap: 2 }} data-nav-principais>
+      {NAV_PRINCIPAL_TY.map((p) => (
+        <button key={p.v} type="button" onClick={() => aoIr(p.v)} aria-current={atual === p ? "page" : undefined} style={estiloItemNav(atual === p)}>
+          <IconeNav nome={p.icone} tam={18} />{p.r}
+        </button>
+      ))}
+    </div>
+  );
+}
+/* grupos do menu complementar: o título abre e fecha (seta); o grupo da página atual ganha um ponto quando está fechado */
+function GruposNav({ grupos, aba, abertos, aoAlternar, aoIr }) {
+  return (
+    <div data-grupos-nav>
+      {grupos.map((g) => {
+        const aberto = !!abertos[g.id], temAtual = g.itens.some((t) => t.v === aba);
+        return (
+          <div key={g.id} style={{ marginTop: 6 }}>
+            <button type="button" onClick={() => aoAlternar(g.id)} aria-expanded={aberto} aria-controls={"grupo-nav-" + g.id} data-grupo-nav={g.id}
+              className="w-full flex items-center justify-between gap-2" style={{ padding: "6px 8px", minHeight: 34, border: "none", background: "none", cursor: "pointer", borderRadius: 8 }}>
+              <span className="flex items-center gap-2">
+                <span style={{ fontFamily: ARCH, fontSize: 11, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", color: temAtual ? C.tinta : C.grafite }}>{g.label}</span>
+                {temAtual && !aberto && <span aria-label="contém a página atual" style={{ width: 7, height: 7, borderRadius: 999, background: C.saibro, display: "inline-block" }} />}
+              </span>
+              <span style={{ color: C.grafite, display: "inline-flex", transform: aberto ? "rotate(90deg)" : "none", transition: "transform .15s" }} className="mty-nav-anim"><IconeNav nome="seta" tam={15} /></span>
+            </button>
+            {aberto && (
+              <div id={"grupo-nav-" + g.id} className="flex flex-col" style={{ gap: 1, paddingLeft: 4 }}>
+                {g.itens.map((t) => (
+                  <button key={t.v} type="button" onClick={() => aoIr(t.v)} aria-current={aba === t.v ? "page" : undefined} style={{ ...estiloItemNav(aba === t.v), fontSize: 13.5, minHeight: 36 }}>{t.r}</button>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+/* seções de uma página principal (Hoje: Resumo, Aulas de hoje, Pendências; Agenda: Calendário, Reposições) */
+function SecoesPagina({ itens, atual, aoTrocar, rotulo }) {
+  return (
+    <nav aria-label={rotulo} data-secoes-pagina className="flex mb-4" style={{ gap: 4, borderBottom: "1px solid " + C.linha, overflowX: "auto" }}>
+      {itens.map((t) => (
+        <button key={t.v} type="button" onClick={() => aoTrocar(t.v)} aria-current={atual === t.v ? "page" : undefined}
+          style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: atual === t.v ? 700 : 500, padding: "9px 10px", minHeight: 42, cursor: "pointer", background: "none", border: "none",
+            borderBottom: "2px solid " + (atual === t.v ? C.saibro : "transparent"), color: atual === t.v ? C.tinta : C.grafite, marginBottom: -1, whiteSpace: "nowrap", flexShrink: 0 }}>
+          {t.r}{t.n ? <span style={{ marginLeft: 6, fontSize: 11.5, fontWeight: 700, color: "#fff", background: C.saibro, borderRadius: 999, padding: "1px 7px" }}>{t.n}</span> : null}
+        </button>
+      ))}
+    </nav>
+  );
+}
+/* cabeçalho de Hoje: saudação curta, data e academia */
+function CabecalhoHoje({ identidade, uidAtual }) {
+  const [nome, setNome] = useState("");
+  useEffect(() => {
+    let vivo = true;
+    if (uidAtual) listaProfessores().then((l) => { const eu = (l || []).find((p) => p.uid === uidAtual); if (vivo && eu) setNome(eu.nome || ""); }).catch(() => {});
+    return () => { vivo = false; };
+  }, [uidAtual]);
+  const primeiro = (nome || "").trim().split(" ")[0];
+  const data = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" });
+  return (
+    <div className="mb-3">
+      <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, lineHeight: 1.15 }}>Hoje</h1>
+      <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginTop: 2 }}>
+        {primeiro ? "Olá, " + primeiro + " · " : ""}{data.charAt(0).toUpperCase() + data.slice(1)}{identidade && identidade.nome ? " · " + identidade.nome : ""}
+      </p>
+    </div>
+  );
+}
+/* Planejamentos: quem tem planejamento, em que ponto está e quem ainda não tem (jogadores e turmas) */
+function TelaPlanejamentos({ alunos, turmas, aoAbrirJogador, aoAbrirTurma, aoAdicionarJogador }) {
+  const [escolhendo, setEscolhendo] = useState(false);
+  const revisar = useMemo(() => new Set(planosParaRevisar(alunos || [], turmas || []).map((p) => p.tipo + p.id)), [alunos, turmas]);
+  const jogadores = (alunos || []).filter((a) => a.nome).sort((a, b) => String(a.nome).localeCompare(String(b.nome)));
+  const linha = (titulo, situacao, destaque, aoClicar, chave) => (
+    <button key={chave} type="button" onClick={aoClicar} className="w-full text-left flex items-center justify-between gap-3"
+      style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "9px 12px", marginBottom: 6, cursor: "pointer", minHeight: 44 }}>
+      <span style={{ minWidth: 0 }}>
+        <span style={{ display: "block", fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{titulo}</span>
+        <span style={{ display: "block", ...prosa, fontSize: 12.5, color: destaque ? "#9A3412" : C.grafite }}>{situacao}</span>
+      </span>
+      <span style={{ color: C.grafite, flexShrink: 0 }}><IconeNav nome="seta" tam={16} /></span>
+    </button>
+  );
+  const situacaoJogador = (a) => {
+    if (!a.plano) return ["Sem planejamento", false];
+    if (revisar.has("individual" + a.id)) return ["A ficha mudou depois do planejamento: revisar", true];
+    const aula = aulaEmVigor(a);
+    return [aula ? "Em andamento · " + [aula.bloco, aula.semana ? "semana " + aula.semana : "", aula.t].filter(Boolean).join(" · ") : "Planejamento concluído", false];
+  };
+  return (
+    <div data-tela-planejamentos>
+      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Planejamentos</h1>
+      <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginBottom: 12 }}>O planejamento de cada jogador e de cada turma, em que ponto está e quem ainda não tem. Toque para abrir.</p>
+      <div className="mb-4"><Botao variante="saibro" onClick={() => setEscolhendo(true)}>Criar planejamento</Botao></div>
+      {escolhendo && <EscolherPlanejamentoDialog alunos={alunos || []} turmas={turmas || []} aoFechar={() => setEscolhendo(false)}
+        aoEscolherJogador={(id) => { setEscolhendo(false); aoAbrirJogador(id); }} aoEscolherTurma={(id) => { setEscolhendo(false); aoAbrirTurma(id); }}
+        aoAdicionarJogador={() => { setEscolhendo(false); aoAdicionarJogador(); }} />}
+      <h2 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, margin: "6px 0 8px" }}>Jogadores</h2>
+      {!jogadores.length && <p style={{ ...prosa, fontSize: 13.5, color: C.grafite }}>Cadastre um jogador para começar a organizar seus treinos.</p>}
+      {jogadores.map((a) => { const [s, d] = situacaoJogador(a); return linha(a.nome, s, d, () => aoAbrirJogador(a.id), "a" + a.id); })}
+      {(turmas || []).length > 0 && <h2 style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, margin: "14px 0 8px" }}>Turmas</h2>}
+      {(turmas || []).map((t) => linha(t.nome || "Turma", !t.plano ? "Sem planejamento" : revisar.has("turma" + t.id) ? "Algum aluno mudou de ficha: revisar" : "Com planejamento", revisar.has("turma" + t.id), () => aoAbrirTurma(t.id), "t" + t.id))}
+    </div>
+  );
+}
+/* Ajuda: primeiros passos, novidades, manual do método e como a navegação está organizada */
+function TelaAjuda({ mostraManual, aoPrimeirosPassos, aoNovidades, aoIr }) {
+  const card = { background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: "12px 14px", marginBottom: 10 };
+  return (
+    <div data-tela-ajuda>
+      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 10 }}>Ajuda</h1>
+      <div style={card}>
+        <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>Primeiros passos</p>
+        <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, margin: "2px 0 8px" }}>O guia de início (cadastrar um jogador, completar os dados e montar o primeiro planejamento) volta a aparecer em Hoje.</p>
+        <Botao pequeno variante="vazio" onClick={aoPrimeirosPassos}>Mostrar primeiros passos</Botao>
+      </div>
+      <div style={card}>
+        <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>Novidades</p>
+        <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, margin: "2px 0 8px" }}>Os recursos instalados recentemente, com onde encontrar cada um.</p>
+        <Botao pequeno variante="vazio" onClick={aoNovidades}>Ver novidades</Botao>
+      </div>
+      {mostraManual && (
+        <div style={card}>
+          <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>Manual do método</p>
+          <div className="flex flex-wrap" style={{ gap: 6, marginTop: 8 }}>
+            {[["tecnica", "Técnica"], ["taticas", "Táticas"], ["conducao", "Condução"], ["publicos", "Públicos"], ["aulas", "Aulas do método"], ["metodo", "Como decide"]].map(([v, r]) => <Botao key={v} pequeno variante="vazio" onClick={() => aoIr(v)}>{r}</Botao>)}
+          </div>
+        </div>
+      )}
+      <div style={card}>
+        <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>Onde fica cada coisa</p>
+        <ul style={{ ...prosa, fontSize: 13.5, margin: "4px 0 0", paddingLeft: 18 }}>
+          <li><b>Hoje</b>: próxima aula, aulas do dia e pendências (as antigas “Aulas de hoje” e “Pendências do dia” são seções dela).</li>
+          <li><b>Jogadores</b>: acompanhamento esportivo de cada um (perfil, planejamento, aulas, evolução e registros).</li>
+          <li><b>Agenda</b>: calendário, agendamentos e reposições.</li>
+          <li><b>Mais</b>: treino e análise, grupos, gestão da academia, método e formação, configurações e ajuda.</li>
+          <li>No computador, o botão no topo do menu recolhe a lateral numa faixa de ícones; a escolha fica salva neste aparelho.</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 const NAV_DIA_A_DIA = [{ v: "dashboard", r: "Início" }, { v: "aulas-hoje", r: "Aulas de hoje" }, { v: "agenda", r: "Agenda" }, { v: "reposicoes", r: "Reposições" }, { v: "observar", r: "Observar jogos" }, { v: "quadro", r: "Quadro tático" }];
 const NAV_ALUNOS_TURMAS = [{ v: "alunos", r: "Jogadores" }, { v: "turmas", r: "Turmas" }, { v: "equipes", r: "Equipes de competição" }];
 const NAV_CONTEUDO = [{ v: "casos", r: "Casos" }];
@@ -23355,20 +23577,6 @@ function App() {
   const [tiposAulaAbertos, setTiposAulaAbertos] = useState({});
   const [avisosAberto, setAvisosAberto] = useState(false);
   const [perfilAberto, setPerfilAberto] = useState(false);
-  /* Menu lateral: cada grupo abre/fecha independente, mas começa todo
-     aberto — assim quem já usa o app continua vendo tudo de cara, sem
-     precisar clicar em nada antes de navegar. */
-  const [gruposAbertos, setGruposAbertos] = useState({ "dia-a-dia": true, "alunos-turmas": true, academia: true, equipe: true, conteudo: true });
-  function alternarGrupo(id) {
-    setGruposAbertos((atual) => ({ ...atual, [id]: !atual[id] }));
-  }
-  /* No celular em pé, a barra lateral de 252px não cabe do lado do
-     conteúdo — vira uma gaveta que fica recolhida por padrão (o CSS,
-     no <style> abaixo, cuida de escondê-la fora da tela só em telas
-     estreitas) e abre por cima de tudo com o botão ☰ do topo. Sempre à
-     esquerda, nunca empilhada — só entra e sai por toque. No computador
-     o botão ☰ nem aparece (também via CSS), e esse estado não tem efeito. */
-  const [menuMobileAberto, setMenuMobileAberto] = useState(false);
   /* Avisos são recalculados do zero a cada render (aula de hoje, pendência,
      pedido do aluno) — sem estado próprio, o mesmo aviso reaparecia
      idêntico toda vez que o sininho abria de novo, mesmo já tendo sido
@@ -23383,6 +23591,48 @@ function App() {
   const [pedidosPendentesCount, setPedidosPendentesCount] = useState(0);
   const [limiteAtingido, setLimiteAtingido] = useState(false);
   const uidAtual = exigeLogin && window.mtyAuth.usuario() ? window.mtyAuth.usuario().uid : null;
+  /* Navegação: largura útil da tela decide o modo (computador, tablet, celular). No computador o menu lateral fica expandido ou
+     recolhido numa faixa de ícones — preferência por usuário e aparelho (localStorage), começa expandido. painelNav é o painel
+     sobreposto: o menu inteiro no tablet (☰), os grupos no celular ("Mais") e ao lado da faixa recolhida ("Mais"). Trocar de
+     modo ou recolher só muda estilos: o conteúdo (formulários, filtros, registros em andamento) não é desmontado. */
+  const modoTela = useModoTela();
+  const chaveMenu = "mty:menu:" + (uidAtual || "local");
+  const [menuRecolhido, setMenuRecolhido] = useState(() => lerPrefMenu(chaveMenu + ":recolhido", false));
+  const [gruposNavSalvos, setGruposNavSalvos] = useState(() => lerPrefMenu(chaveMenu + ":grupos", null));
+  useEffect(() => { setMenuRecolhido(lerPrefMenu(chaveMenu + ":recolhido", false)); setGruposNavSalvos(lerPrefMenu(chaveMenu + ":grupos", null)); }, [chaveMenu]);
+  const [painelNav, setPainelNav] = useState(false);
+  const abridorPainelRef = useRef(null);
+  const painelNavRef = useRef(null);
+  function abrirPainelNav(e) { abridorPainelRef.current = e && e.currentTarget; setPainelNav(true); }
+  function fecharPainelNav(devolverFoco) {
+    setPainelNav(false);
+    if (devolverFoco !== false) setTimeout(() => { if (abridorPainelRef.current && document.body.contains(abridorPainelRef.current)) abridorPainelRef.current.focus(); }, 0);
+  }
+  function alternarRecolhido() {
+    const n = !menuRecolhido;
+    setMenuRecolhido(n); gravarPrefMenu(chaveMenu + ":recolhido", n); setPainelNav(false);
+  }
+  useEffect(() => { setPainelNav(false); }, [modoTela]);
+  /* painel aberto: Esc fecha, o foco entra no painel e, no tablet e no celular, a página de trás não rola */
+  useEffect(() => {
+    if (!painelNav) return undefined;
+    const tecla = (e) => { if (e.key === "Escape") fecharPainelNav(); };
+    document.addEventListener("keydown", tecla);
+    const t = setTimeout(() => { const b = painelNavRef.current && painelNavRef.current.querySelector("button"); if (b) b.focus(); }, 0);
+    const antes = document.body.style.overflow;
+    if (modoTela !== "desktop") document.body.style.overflow = "hidden";
+    return () => { document.removeEventListener("keydown", tecla); clearTimeout(t); document.body.style.overflow = antes; };
+  }, [painelNav, modoTela]);
+  /* reabrir as Novidades pela Ajuda (remonta a janela depois de limpar o "não mostrar mais") */
+  const [novidadesChave, setNovidadesChave] = useState(0);
+  /* de onde o jogador foi aberto (Hoje, Agenda, uma turma...), para o botão de voltar levar de volta ao mesmo lugar */
+  const [origemJogador, setOrigemJogador] = useState(null);
+  const abaRef = useRef(aba), origemPendenteRef = useRef(null);
+  useEffect(() => { if (aba === "alunos" && abaRef.current !== "alunos") origemPendenteRef.current = abaRef.current; abaRef.current = aba; }, [aba]);
+  useEffect(() => {
+    if (!abertoId || aba !== "alunos") { setOrigemJogador(null); origemPendenteRef.current = null; return; }
+    if (origemPendenteRef.current) { setOrigemJogador(origemPendenteRef.current); origemPendenteRef.current = null; }
+  }, [abertoId, aba]);
   /* pop-up de avisos do professor: abre quando o app termina de carregar e reabre de hora em hora enquanto houver aula
      em aberto ou reposição a marcar (a formação aparece junto, mas sozinha não reabre) */
   const [popupAvisos, setPopupAvisos] = useState({ aberto: false, mostrado: false, fechadoEm: 0 });
@@ -23671,29 +23921,62 @@ function App() {
      "Coordenação" (Equipe + Relatórios) é só do coordenador; "Conteúdo"
      é material de apoio (Casos + Formação). Um grupo sem nenhum item
      (ex.: Academia numa academia sem nada disso) some. */
+  /* Menu complementar (pedido: Hoje, Jogadores e Agenda como destinos principais; o resto em grupos, sem remover nenhum
+     destino nem mudar quem vê o quê). As mesmas regras de antes decidem cada item: Quadras/Horários/Clientes/Torneios/Eventos
+     pelos recursos da academia e só para o coordenador; Aulas da equipe e Equipe da organização só para o coordenador;
+     Financeiro só para o dono; Manual e Catálogo só onde o Manual existe. As telas continuam conferindo a permissão por
+     dentro (esconder o item não é a proteção). Grupo sem item some. */
+  const ehCoordenador = papelAtual === "coordenador";
+  const podePendencias = ehCoordenador || ehDonoFinanceiro();
   const gruposNav = [
-    { id: "dia-a-dia", label: "Dia a dia", itens: papelAtual === "coordenador" || ehDonoFinanceiro() ? [NAV_DIA_A_DIA[0], { v: "pendencias", r: "Pendências do dia" }, ...NAV_DIA_A_DIA.slice(1)] : NAV_DIA_A_DIA },
-    { id: "alunos-turmas", label: "Alunos e turmas", itens: NAV_ALUNOS_TURMAS },
-    { id: "academia", label: "Academia", itens: [
+    { id: "treino", label: "Treino e análise", itens: [
+      { v: "planejamentos", r: "Planejamentos" },
+      ...(mostraManual ? [{ v: "catalogo", r: "Catálogo de exercícios" }] : []),
+      { v: "quadro", r: "Quadro tático" }, { v: "observar", r: "Observar jogos" },
+    ] },
+    { id: "grupos", label: "Grupos", itens: [{ v: "turmas", r: "Turmas" }, { v: "equipes", r: "Equipes de competição" }] },
+    { id: "gestao", label: "Gestão da academia", itens: [
       ...(mostraQuadras ? [{ v: "quadras", r: "Quadras" }, { v: "grade-aulas", r: "Horários recorrentes" }] : []),
       ...(mostraQuadras || mostraTorneiosEventos ? [{ v: "clientes", r: "Clientes" }] : []),
       ...(mostraTorneiosEventos ? [{ v: "torneios", r: "Torneios" }, { v: "eventos", r: "Eventos" }] : []),
+      ...(ehCoordenador ? [{ v: "aulas-equipe", r: "Aulas da equipe" }] : []),
+      // o professor também vê o próprio relatório (a tela restringe por dentro)
+      { v: "relatorio", r: "Relatório de aulas" },
+      ...(ehDonoFinanceiro() ? [{ v: "financeiro", r: "Financeiro" }] : []),
     ] },
-    { id: "equipe", label: "Coordenação", itens: [
-      ...(papelAtual === "coordenador" ? [{ v: "aulas-equipe", r: "Aulas da equipe" }, { v: "equipe", r: "Equipe" }] : []),
-      // Relatórios mora aqui no menu, mas continua liberado pro professor
-      // ver o próprio (TelaRelatorioProfessores já restringe por dentro) —
-      // o pedido foi "professores continuam acessando os próprios
-      // relatórios quando autorizado", não escondê-los daqui.
-      { v: "relatorio", r: "Relatórios" },
-    ] },
-    /* Financeiro: só o dono (e-mail na lista; o servidor confere de novo), em qualquer academia em que ele entrar */
-    { id: "gestao", label: "Gestão", itens: ehDonoFinanceiro() ? [{ v: "financeiro", r: "Financeiro" }] : [] },
-    { id: "conteudo", label: "Conteúdo", itens: [
+    { id: "metodo", label: "Método e formação", itens: [
+      ...(mostraManual ? [{ v: "tecnica", r: "Técnica" }, { v: "taticas", r: "Táticas" }, { v: "conducao", r: "Condução" }, { v: "publicos", r: "Públicos" }, { v: "aulas", r: "Aulas do método" }, { v: "metodo", r: "Como decide" }] : []),
       ...NAV_CONTEUDO,
       ...(exigeLogin && uidAtual ? [{ v: "formacao", r: "Formação" }] : []),
     ] },
+    { id: "config", label: "Configurações e suporte", itens: [
+      ...(ehCoordenador ? [{ v: "equipe", r: "Equipe da organização" }] : []),
+      { v: "ajuda", r: "Ajuda" },
+    ] },
   ].filter((g) => g.itens.length > 0);
+  /* grupos abertos: na primeira vez, só o grupo da página atual; depois, a escolha de cada um fica salva */
+  const grupoDaAba = gruposNav.find((g) => g.itens.some((t) => t.v === aba));
+  const gruposNavAbertos = gruposNavSalvos || (grupoDaAba ? { [grupoDaAba.id]: true } : {});
+  function alternarGrupoNav(id) {
+    const n = { ...gruposNavAbertos, [id]: !gruposNavAbertos[id] };
+    setGruposNavSalvos(n); gravarPrefMenu(chaveMenu + ":grupos", n);
+  }
+  function irNav(v) { setAba(v); setAbertoId(null); setManualAberto(false); if (painelNav) fecharPainelNav(false); }
+  const principalAtual = abertoId && aba === "alunos" ? NAV_PRINCIPAL_TY[1] : principalDaAba(aba);
+  const maisAtivo = !principalAtual;
+  const lateralVisivel = modoTela === "desktop";
+  const larguraLateral = lateralVisivel ? (menuRecolhido ? LARGURA_MENU.recolhido : LARGURA_MENU.expandido) : 0;
+  /* "Aulas de hoje" e "Pendências do dia" são seções de Hoje; "Reposições" é seção de Agenda (as abas antigas continuam valendo) */
+  const topoHoje = (
+    <>
+      <CabecalhoHoje identidade={identidade} uidAtual={uidAtual} />
+      <SecoesPagina rotulo="Seções de Hoje" atual={aba} aoTrocar={(v) => setAba(v)}
+        itens={[{ v: "dashboard", r: "Resumo" }, { v: "aulas-hoje", r: "Aulas de hoje" }, ...(podePendencias ? [{ v: "pendencias", r: "Pendências" }] : [])]} />
+    </>
+  );
+  const rotuloDaAba = (v) => { const p = NAV_PRINCIPAL_TY.find((x) => x.v === v); if (p) return p.r; const r = { "aulas-hoje": "Aulas de hoje", pendencias: "Pendências", reposicoes: "Reposições" }[v]; if (r) return r;
+    for (const g of gruposNav) { const t = g.itens.find((x) => x.v === v); if (t) return t.r; } return ""; };
+  const topoAgenda = <SecoesPagina rotulo="Seções da Agenda" atual={aba} aoTrocar={(v) => setAba(v)} itens={[{ v: "agenda", r: "Calendário" }, { v: "reposicoes", r: "Reposições" }]} />;
   function criar() {
     if (planoVencido || (limitePlano != null && alunos.length >= limitePlano)) {
       setLimiteAtingido(true);
@@ -23732,7 +24015,7 @@ function App() {
 
   return (
     <ManualCtx.Provider value={ctxManual}>
-    <div style={{ background: C.papel, minHeight: "100vh", color: C.tinta }}>
+    <div style={{ background: C.papel, minHeight: "100vh", color: C.tinta, "--mty-lateral": larguraLateral + "px" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         .mty-foco-manual { outline: 3px solid ${C.saibro}; outline-offset: 4px; border-radius: 6px; transition: outline-color .6s; }
@@ -23741,8 +24024,15 @@ function App() {
         button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid ${C.saibro}; outline-offset: 2px; }
         button { transition: transform .06s ease, opacity .06s ease; }
         button:active:not(:disabled) { transform: scale(0.96); opacity: 0.75; }
-        .mty-sidebar { transition: transform .2s ease; }
-        .mty-hamburger { display: none; }
+        /* menu: transição discreta (some com "reduzir movimento"); faixa recolhida com rótulo ao passar o mouse ou focar pelo teclado */
+        .mty-nav-anim { transition: margin-left .18s ease, width .18s ease, transform .15s ease; }
+        @media (prefers-reduced-motion: reduce) { .mty-nav-anim { transition: none !important; } }
+        .mty-trilho-btn { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 46px; height: 46px; margin: 3px 0; border-radius: 10px; border: none; background: transparent; color: ${C.grafite}; cursor: pointer; }
+        .mty-trilho-btn:hover { background: ${C.papel}; color: ${C.tinta}; }
+        .mty-trilho-btn.ativo { background: ${C.tinta}; color: ${C.papel}; }
+        .mty-trilho-btn::after { content: attr(data-rotulo); position: absolute; left: calc(100% + 10px); top: 50%; transform: translateY(-50%); white-space: nowrap; pointer-events: none;
+          background: ${C.tinta}; color: ${C.papel}; font-family: ${ARCH}; font-size: 12.5px; font-weight: 600; padding: 5px 9px; border-radius: 6px; opacity: 0; visibility: hidden; z-index: 40; }
+        .mty-trilho-btn:hover::after, .mty-trilho-btn:focus-visible::after { opacity: 1; visibility: visible; }
         /* Navegação interna do jogador (Perfil/Planejamento/Aulas/Resumo do
            ciclo/Mais): no computador são abas; no celular, uma barra de
            abas comprimindo 5+ nomes em uma linha fica ilegível, então vira
@@ -23755,11 +24045,8 @@ function App() {
              do conteúdo — ela vira uma gaveta escondida fora da tela à
              esquerda por padrão, e desliza por cima de tudo (nunca
              empurrando ou empilhando nada) quando o botão ☰ abre ela. */
-          .mty-sidebar { transform: translateX(-100%); }
-          .mty-sidebar.aberta { transform: translateX(0); box-shadow: 4px 0 18px rgba(0,0,0,.18); }
-          .mty-hamburger { display: inline-flex !important; }
-          .mty-fechar-menu-mobile { display: inline-flex !important; }
-          .mty-topbar, .mty-main { margin-left: 0 !important; }
+          /* a barra fixa de "Finalizar e registrar aula" fica acima da barra de navegação inferior */
+          .mty-barra-finalizar { bottom: calc(57px + env(safe-area-inset-bottom)) !important; }
           /* O sino de avisos fica entre outros botões (plano, nome, sair)
              numa fileira que quebra linha no celular — o dropdown, ancorado
              no próprio botão do sino, saía da tela quando ele não era mais
@@ -23793,101 +24080,111 @@ function App() {
           .mty-linha-rotulo { flex: 0 0 auto; padding-top: 2px; min-width: 92px; }
           .mty-linha-valor { flex: 1 1 220px; min-width: 200px; }
         }
-        /* Barra fixa de "Finalizar e registrar aula" (Sessão de hoje) —
-           mty não tem navegação inferior no celular (a barra lateral vira
-           gaveta, ver .mty-sidebar acima), então encosta direto na borda
-           da tela em qualquer largura. */
-        .mty-barra-finalizar { bottom: 0; }
+        /* Barra fixa de "Finalizar e registrar aula" (Sessão de hoje): começa depois do menu lateral (não fica por baixo dele) e,
+           no celular, acima da barra de navegação inferior (ver a media query acima). */
+        .mty-barra-finalizar { bottom: 0; left: var(--mty-lateral, 0px) !important; }
       `}</style>
 
-      {menuMobileAberto && (
-        <div onClick={() => setMenuMobileAberto(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.35)", zIndex: 25 }} />
+      {/* ── menu lateral expandido (computador) ── */}
+      {lateralVisivel && !menuRecolhido && (
+        <aside className="mty-sidebar mty-nav-anim" aria-label="Menu" data-menu-lateral style={{ position: "fixed", left: 0, top: 0, bottom: 0, width: LARGURA_MENU.expandido, overflowY: "auto",
+          background: C.cal, borderRight: "1px solid " + C.linha, zIndex: 30 }}>
+          <div style={{ height: 4, background: C.saibro }} />
+          <div className="flex items-center justify-between gap-2" style={{ padding: "12px 12px 8px 14px" }}>
+            <Marca identidade={identidade} altura={24} />
+            <button type="button" onClick={alternarRecolhido} aria-label="Recolher menu" title="Recolher menu" data-recolher-menu
+              style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 36, height: 36, borderRadius: 8, border: "1px solid " + C.linha, background: C.papel, color: C.grafite, cursor: "pointer", flexShrink: 0 }}>
+              <IconeNav nome="recolher" tam={17} />
+            </button>
+          </div>
+          <nav aria-label="Navegação" style={{ padding: "2px 10px 16px" }}>
+            <ItensPrincipaisNav aba={principalAtual ? principalAtual.v : aba} aoIr={irNav} />
+            <GruposNav grupos={gruposNav} aba={aba} abertos={gruposNavAbertos} aoAlternar={alternarGrupoNav} aoIr={irNav} />
+          </nav>
+        </aside>
       )}
 
-      <header className={"mty-sidebar" + (menuMobileAberto ? " aberta" : "")} style={{ position: "fixed", left: 0, top: 0, bottom: 0, width: 252, overflowY: "auto",
-        background: C.cal, borderRight: "1px solid " + C.linha, zIndex: 30 }}>
-        <div style={{ height: 4, background: C.saibro }} />
-        <div style={{ padding: "18px 18px 14px" }} className="flex items-start justify-between gap-2">
-          <div>
-            <Marca identidade={identidade} altura={26} />
-            <div className="mt-2"><Etiqueta>Ficha, periodização e sessão · 315 exercícios</Etiqueta></div>
-          </div>
-          <button type="button" className="mty-fechar-menu-mobile" onClick={() => setMenuMobileAberto(false)} aria-label="Fechar menu"
-            style={{ display: "none", fontSize: 18, lineHeight: 1, cursor: "pointer", padding: "4px 9px", border: "1px solid " + C.linha,
-              borderRadius: 10, background: C.papel, color: C.grafite, flexShrink: 0 }}>
-            ×
+      {/* ── faixa recolhida (computador): só os destinos principais; "Mais" abre os grupos ao lado ── */}
+      {lateralVisivel && menuRecolhido && (
+        <nav className="mty-trilho mty-nav-anim" aria-label="Menu recolhido" data-menu-recolhido style={{ position: "fixed", left: 0, top: 0, bottom: 0, width: LARGURA_MENU.recolhido,
+          background: C.cal, borderRight: "1px solid " + C.linha, zIndex: 30, display: "flex", flexDirection: "column", alignItems: "center" }}>
+          <div style={{ height: 4, background: C.saibro, alignSelf: "stretch" }} />
+          <button type="button" onClick={alternarRecolhido} aria-label="Expandir menu" data-rotulo="Expandir menu" data-expandir-menu className="mty-trilho-btn" style={{ marginTop: 10 }}>
+            <IconeNav nome="expandir" tam={18} />
           </button>
-        </div>
-        <nav style={{ display: "block", padding: "4px 10px 18px" }}>
-          {gruposNav.map((g) => (
-            <div key={g.id} className="mb-1">
-              <button onClick={() => alternarGrupo(g.id)} className="w-full flex items-center justify-between gap-2"
-                style={{ padding: "9px 8px", border: "none", background: "none", cursor: "pointer", borderRadius: 3 }}>
-                <span className="flex items-center gap-2">
-                  <Etiqueta>{g.label}</Etiqueta>
-                  {g.badge && (
-                    <span style={{ fontFamily: ARCH, fontSize: 9, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase",
-                      color: "#fff", background: C.saibro, padding: "2px 6px", borderRadius: 999 }}>{g.badge}</span>
-                  )}
-                </span>
-                <span style={{ fontSize: 13, color: C.grafite, fontWeight: 700 }}>{gruposAbertos[g.id] ? "−" : "+"}</span>
-              </button>
-              {gruposAbertos[g.id] && (
-                <div className="flex flex-col" style={{ gap: 1 }}>
-                  {g.itens.map((t) => (
-                    <button key={t.v} onClick={() => { setAba(t.v); setAbertoId(null); setManualAberto(false); setMenuMobileAberto(false); }}
-                      className="text-left"
-                      style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 600, padding: "8px 10px", borderRadius: 3, cursor: "pointer",
-                        border: "none", background: aba === t.v ? C.tinta : "transparent", color: aba === t.v ? C.papel : C.grafite }}>
-                      {t.r}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+          <div style={{ height: 1, background: C.linha, alignSelf: "stretch", margin: "8px 10px" }} />
+          {NAV_PRINCIPAL_TY.map((p) => (
+            <button key={p.v} type="button" onClick={() => irNav(p.v)} aria-label={p.r} data-rotulo={p.r} aria-current={principalAtual === p ? "page" : undefined}
+              className={"mty-trilho-btn" + (principalAtual === p ? " ativo" : "")}>
+              <IconeNav nome={p.icone} />
+            </button>
           ))}
-          {mostraManual && (
-            /* O dropdown do Manual virou lista inline (como os outros
-               grupos) em vez de flutuar ao lado — dentro de uma barra
-               lateral com scroll próprio, um popup absoluto corria o
-               risco de ficar cortado. A mecânica de abrir/fechar (guarda
-               contra clique fantasma, fechar ao tocar fora, fechar ao
-               escolher um item) continua a mesma de sempre — alternarManual
-               e manualAberto não mudaram, só a posição visual do resultado. */
-            <div ref={manualRef} className="mb-1">
-              <button onClick={alternarManual} className="w-full flex items-center justify-between gap-2"
-                style={{ padding: "9px 8px", border: "none", cursor: "pointer", borderRadius: 3,
-                  background: NAV_MANUAL.some((t) => t.v === aba) ? C.tinta : "none" }}>
-                <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 600,
-                  color: NAV_MANUAL.some((t) => t.v === aba) ? C.papel : C.grafite }}>Manual</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: NAV_MANUAL.some((t) => t.v === aba) ? C.papel : C.grafite }}>
-                  {manualAberto ? "−" : "+"}
-                </span>
+          <button type="button" onClick={(e) => (painelNav ? fecharPainelNav() : abrirPainelNav(e))} aria-label="Mais" data-rotulo="Mais" aria-haspopup="dialog" aria-expanded={painelNav}
+            className={"mty-trilho-btn" + (maisAtivo || painelNav ? " ativo" : "")} data-mais-trilho>
+            <IconeNav nome="mais" />
+          </button>
+          <div style={{ flex: 1 }} />
+          <button type="button" onClick={() => irNav("ajuda")} aria-label="Ajuda e configurações" data-rotulo="Ajuda e configurações" aria-current={aba === "ajuda" ? "page" : undefined}
+            className={"mty-trilho-btn" + (aba === "ajuda" ? " ativo" : "")} style={{ marginBottom: 12 }}>
+            <IconeNav nome="ajuda" />
+          </button>
+        </nav>
+      )}
+
+      {/* ── painel sobreposto: grupos ao lado da faixa (computador), menu inteiro (tablet) ou grupos (celular) ── */}
+      {painelNav && (
+        <>
+          <div onClick={() => fecharPainelNav()} data-fundo-painel style={{ position: "fixed", inset: 0, background: modoTela === "desktop" ? "rgba(16,30,25,.12)" : "rgba(16,30,25,.4)", zIndex: 31 }} />
+          <div ref={painelNavRef} role="dialog" aria-modal="true" aria-label={modoTela === "tablet" ? "Menu" : "Mais opções"} data-painel-nav
+            style={{ position: "fixed", top: 0, bottom: 0, left: modoTela === "desktop" ? LARGURA_MENU.recolhido : 0, width: modoTela === "desktop" ? 280 : "min(320px, 88vw)", maxWidth: "100vw",
+              background: C.cal, borderRight: "1px solid " + C.linha, boxShadow: "6px 0 24px rgba(0,0,0,.16)", zIndex: 32, overflowY: "auto", overscrollBehavior: "contain",
+              paddingTop: "env(safe-area-inset-top)", paddingBottom: "calc(16px + env(safe-area-inset-bottom))" }}>
+            <div className="flex items-center justify-between gap-2" style={{ position: "sticky", top: 0, background: C.cal, zIndex: 1, padding: "10px 10px 8px 14px", borderBottom: "1px solid " + C.linha }}>
+              {modoTela === "desktop" ? <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>Mais</span> : <Marca identidade={identidade} altura={22} />}
+              <button type="button" onClick={() => fecharPainelNav()} aria-label="Fechar menu" data-fechar-painel
+                style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 40, height: 40, borderRadius: 8, border: "1px solid " + C.linha, background: C.papel, color: C.grafite, cursor: "pointer" }}>
+                <IconeNav nome="fechar" tam={18} />
               </button>
-              {manualAberto && (
-                <div className="flex flex-col" style={{ gap: 1 }}>
-                  {NAV_MANUAL.map((t) => (
-                    <button key={t.v} onClick={() => { setAba(t.v); setAbertoId(null); setManualAberto(false); setMenuMobileAberto(false); }}
-                      className="text-left"
-                      style={{ fontFamily: ARCH, fontSize: 13, fontWeight: aba === t.v ? 700 : 500, padding: "7px 10px 7px 18px",
-                        borderRadius: 3, cursor: "pointer", border: "none",
-                        color: aba === t.v ? C.tinta : C.grafite, background: aba === t.v ? "#EFEAE4" : "transparent" }}>
-                      {t.r}
-                    </button>
-                  ))}
-                </div>
+            </div>
+            <nav aria-label="Navegação" style={{ padding: "6px 10px 8px" }}>
+              {modoTela === "tablet" && <ItensPrincipaisNav aba={principalAtual ? principalAtual.v : aba} aoIr={irNav} />}
+              <GruposNav grupos={gruposNav} aba={aba} abertos={gruposNavAbertos} aoAlternar={alternarGrupoNav} aoIr={irNav} />
+            </nav>
+          </div>
+        </>
+      )}
+
+      {/* ── barra inferior (celular) ── */}
+      {modoTela === "celular" && (
+        <nav className="mty-bottomnav" aria-label="Navegação principal" data-barra-inferior style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 28, background: C.cal,
+          borderTop: "1px solid " + C.linha, display: "grid", gridTemplateColumns: "repeat(4, 1fr)", paddingBottom: "env(safe-area-inset-bottom)", boxShadow: "0 -2px 10px rgba(0,0,0,.05)" }}>
+          {[...NAV_PRINCIPAL_TY, { v: "__mais", r: "Mais", icone: "mais" }].map((p) => {
+            const ehMais = p.v === "__mais", ativo = ehMais ? maisAtivo || painelNav : principalAtual === p && !painelNav;
+            return (
+              <button key={p.v} type="button" onClick={(e) => (ehMais ? (painelNav ? fecharPainelNav() : abrirPainelNav(e)) : irNav(p.v))}
+                aria-current={!ehMais && principalAtual === p ? "page" : undefined} aria-haspopup={ehMais ? "dialog" : undefined} aria-expanded={ehMais ? painelNav : undefined}
+                style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, minHeight: 56, border: "none", background: "none", cursor: "pointer",
+                  color: ativo ? C.tinta : C.grafite, fontFamily: ARCH, fontSize: 11.5, fontWeight: ativo ? 700 : 600, borderTop: "3px solid " + (ativo ? C.saibro : "transparent") }}>
+                <IconeNav nome={p.icone} tam={21} />{p.r}
+              </button>
+            );
+          })}
+        </nav>
+      )}
+
+      <div className="mty-topbar mty-nav-anim" style={{ marginLeft: larguraLateral, borderBottom: "1px solid " + C.linha, background: C.cal, position: "sticky", top: 0, zIndex: 9 }}>
+        <div className="px-4 py-2 flex items-center gap-2" style={{ justifyContent: "flex-end", minHeight: 52 }}>
+          {modoTela !== "desktop" && (
+            <div className="flex items-center gap-2" style={{ marginRight: "auto", minWidth: 0 }}>
+              {modoTela === "tablet" && (
+                <button type="button" onClick={(e) => abrirPainelNav(e)} aria-label="Abrir menu" aria-haspopup="dialog" aria-expanded={painelNav} data-abrir-menu
+                  style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 40, height: 40, borderRadius: 10, border: "1px solid " + C.linha, background: C.cal, color: C.tinta, cursor: "pointer" }}>
+                  <IconeNav nome="menu" />
+                </button>
               )}
+              <Marca identidade={identidade} altura={22} />
             </div>
           )}
-        </nav>
-      </header>
-
-      <div className="mty-topbar" style={{ marginLeft: 252, borderBottom: "1px solid " + C.linha, background: C.cal, position: "sticky", top: 0, zIndex: 9 }}>
-        <div className="px-5 py-2 flex items-center gap-2" style={{ justifyContent: "flex-end" }}>
-          <button className="mty-hamburger" onClick={() => setMenuMobileAberto(true)} aria-label="Abrir menu"
-            style={{ marginRight: "auto", fontSize: 18, cursor: "pointer", padding: "4px 9px", border: "1px solid " + C.linha, borderRadius: 10, background: C.cal }}>
-            ☰
-          </button>
           <div className="flex items-center gap-2" style={{ flexWrap: "wrap", justifyContent: "flex-end" }}>
           {exigeLogin && uidAtual && (
             <div style={{ position: "relative" }}>
@@ -24065,9 +24362,15 @@ function App() {
         </div>
       </div>
 
-      <JanelaNovidades nomeApp="Team Yoda" versao={NOVIDADES_TY_VERSAO} itens={NOVIDADES_TY} irPara={(v) => { setAba(v); setAbertoId(null); }} />
-      <main className="mty-main px-5 py-6" style={{ maxWidth: 760, marginLeft: 252 }}>
+      <JanelaNovidades key={novidadesChave} nomeApp="Team Yoda" versao={NOVIDADES_TY_VERSAO} itens={NOVIDADES_TY} irPara={(v) => { setAba(v); setAbertoId(null); }} />
+      <main className="mty-main px-5 py-6 mty-nav-anim" style={{ maxWidth: lateralVisivel && menuRecolhido ? 940 : 760, marginLeft: larguraLateral,
+        paddingBottom: modoTela === "celular" ? "calc(84px + env(safe-area-inset-bottom))" : undefined }}>
         {carregando ? <p style={{ ...prosa, color: C.grafite }}>Carregando…</p> :
+         aba === "planejamentos" ? <TelaPlanejamentos alunos={alunos} turmas={turmas} aoAbrirJogador={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }}
+           aoAbrirTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} aoAdicionarJogador={() => { criar(); setAba("alunos"); }} /> :
+         aba === "ajuda" ? <TelaAjuda mostraManual={mostraManual} aoIr={irNav}
+           aoPrimeirosPassos={() => { setOnboardingDispensado(false); irNav("dashboard"); }}
+           aoNovidades={() => { try { localStorage.removeItem("ql-novidades:" + NOVIDADES_TY_VERSAO); } catch { /* sem armazenamento */ } setNovidadesChave((k) => k + 1); }} /> :
          aba === "equipes" ? <TelaEquipes alunos={alunos} setAlunos={setAlunos} uidAtual={uidAtual} papelAtual={papelAtual} identidade={identidade} aoAbrirJogador={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("ficha"); }} /> :
          aba === "observar" ? <TelaObservar alunos={alunos} setAlunos={setAlunos} planoAtual={null} aoVerCaderno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("registro"); }} /> :
          aba === "quadro" ? <TelaQuadroTatico /> :
@@ -24084,10 +24387,10 @@ function App() {
            irParaCaderno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("registro"); }}
            irParaTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} irParaManual={irParaManual} /> :
          aba === "financeiro" && ehDonoFinanceiro() ? <TelaFinanceiro /> :
-         aba === "pendencias" && (papelAtual === "coordenador" || ehDonoFinanceiro()) ? <TelaPendencias alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} regrasReposicao={regrasReposicao}
+         aba === "pendencias" && podePendencias ? <>{topoHoje}<TelaPendencias alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} regrasReposicao={regrasReposicao}
            reservas={reservas} setReservas={setReservas} torneios={torneios} setTorneios={setTorneios} eventos={eventos} setEventos={setEventos}
            modelos={modelosMensagem} setModelos={setModelosMensagem} orgAtual={orgAtual}
-           irParaAluno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("ficha"); }} irPara={(v) => setAba(v)} /> :
+           irParaAluno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("ficha"); }} irPara={(v) => setAba(v)} /></> :
          aba === "aulas-equipe" && papelAtual === "coordenador" ? <TelaAulasEquipe alunos={alunos} turmas={turmas}
            irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("registro"); }}
            irParaTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} /> :
@@ -24101,25 +24404,26 @@ function App() {
          aba === "torneios" && mostraTorneiosEventos ? <TelaTorneios torneios={torneios} setTorneios={setTorneios} orgAtual={orgAtual} /> :
          aba === "eventos" && mostraTorneiosEventos ? <TelaEventos eventos={eventos} setEventos={setEventos} orgAtual={orgAtual} /> :
          aba === "clientes" && (mostraQuadras || mostraTorneiosEventos) ? <TelaClientes quadras={quadras} reservas={reservas} torneios={torneios} eventos={eventos} /> :
-         aba === "agenda" ? <TelaAgenda alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias}
+         aba === "agenda" ? <>{topoAgenda}<TelaAgenda alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias}
            quadras={quadras} reservas={reservas} setReservas={setReservas} bloqueiosAula={bloqueiosAula}
            orgAtual={orgAtual} mostraQuadras={mostraQuadras} uidAtual={uidAtual} exigeLogin={exigeLogin} regrasReposicao={regrasReposicao} setAba={setAba}
            dataAlvo={agendaDataAlvo} visualizacaoAlvo={agendaVisualizacaoAlvo} aoConsumirAlvo={() => { setAgendaDataAlvo(null); setAgendaVisualizacaoAlvo(null); }}
            irParaSessaoAluno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("sessao"); }}
-           irParaSessaoTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} /> :
-         aba === "aulas-hoje" ? <TelaAulasHoje alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} quadras={quadras} reservas={reservas} bloqueiosAula={bloqueiosAula} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} regrasReposicao={regrasReposicao} uidAtual={uidAtual} papelAtual={papelAtual}
+           irParaSessaoTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} /></> :
+         aba === "aulas-hoje" ? <>{topoHoje}<TelaAulasHoje alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} quadras={quadras} reservas={reservas} bloqueiosAula={bloqueiosAula} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} regrasReposicao={regrasReposicao} uidAtual={uidAtual} papelAtual={papelAtual}
            irParaSessaoAluno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("sessao"); }}
-           irParaSessaoTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} /> :
-         aba === "reposicoes" ? <TelaReposicoes alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} reservas={reservas} bloqueiosAula={bloqueiosAula} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias}
-           regrasReposicao={regrasReposicao} setRegrasReposicao={setRegrasReposicao} papelAtual={papelAtual} /> :
+           irParaSessaoTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} /></> :
+         aba === "reposicoes" ? <>{topoAgenda}<TelaReposicoes alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} reservas={reservas} bloqueiosAula={bloqueiosAula} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias}
+           regrasReposicao={regrasReposicao} setRegrasReposicao={setRegrasReposicao} papelAtual={papelAtual} /></> :
          aba === "relatorio" ? <TelaRelatorioProfessores ocorrencias={ocorrencias} alunos={alunos} turmas={turmas} papelAtual={papelAtual} uidAtual={uidAtual} /> :
-         aba === "dashboard" ? <TelaDashboard aoAbrirScout={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("scout"); }} aoDescartarPartida={(id) => { try { localStorage.removeItem(ChaveRascunho(id)); } catch { /* sem armazenamento */ } setAlunos((l) => l.map((a) => (a.id === id ? semRascunhoScout(a) : a))); }} alunos={alunos} turmas={turmas} ocorrencias={ocorrencias} papelAtual={papelAtual} uidAtual={uidAtual} exigeLogin={exigeLogin} usoIA={usoIA} identidade={identidade}
+         aba === "dashboard" ? <>{topoHoje}<TelaDashboard quadras={quadras} podePendencias={podePendencias} aoAbrirSecao={(v) => setAba(v)}
+           aoAbrirAgendaEm={(data) => { setAgendaDataAlvo(data); setAba("agenda"); }} aoAbrirScout={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("scout"); }} aoDescartarPartida={(id) => { try { localStorage.removeItem(ChaveRascunho(id)); } catch { /* sem armazenamento */ } setAlunos((l) => l.map((a) => (a.id === id ? semRascunhoScout(a) : a))); }} alunos={alunos} turmas={turmas} ocorrencias={ocorrencias} papelAtual={papelAtual} uidAtual={uidAtual} exigeLogin={exigeLogin} usoIA={usoIA} identidade={identidade}
            irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }}
            aoAbrirSessao={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("sessao"); }}
            aoAbrirTurmas={() => setAba("turmas")} aoAbrirTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} aoAbrirAgenda={() => setAba("agenda")}
            aoAdicionarJogador={() => { criar(); setAba("alunos"); }}
            aoEditarDados={(id, et) => { setAba("alunos"); setAbertoId(id); setSubaba("ficha"); setEtapaFichaAlvo(et); }}
-           onboardingDispensado={onboardingDispensado} setOnboardingDispensado={setOnboardingDispensado} /> :
+           onboardingDispensado={onboardingDispensado} setOnboardingDispensado={setOnboardingDispensado} /></> :
          aberto ? (() => {
           /* "Durante a criação de um novo jogador" é o cadastro inteiro,
              não só a primeira tela com nome vazio: aluno.cadastroConcluido
@@ -24136,9 +24440,18 @@ function App() {
           return (
           <div>
             <div className="flex items-center justify-between gap-3 mb-3">
-              <button onClick={() => tentarNavegar(() => setAbertoId(null))} style={{ ...prosa, fontSize: 13.5, color: C.grafite, cursor: "pointer", background: "none", border: "none", padding: 0, minHeight: 32 }}>
-                ← {cadastroCompleto ? "Todos os jogadores" : "Jogadores"}
-              </button>
+              {/* aberto a partir de outra tela (aula de hoje, agenda, turma...): o primeiro caminho é voltar para ela */}
+              <div className="flex items-center flex-wrap" style={{ gap: "2px 14px" }}>
+                {origemJogador && rotuloDaAba(origemJogador) && (
+                  <button onClick={() => tentarNavegar(() => { const o = origemJogador; setAbertoId(null); setAba(o); })} data-voltar-origem
+                    style={{ ...prosa, fontSize: 13.5, fontWeight: 700, color: C.quadra, cursor: "pointer", background: "none", border: "none", padding: 0, minHeight: 32 }}>
+                    ← Voltar para {rotuloDaAba(origemJogador)}
+                  </button>
+                )}
+                <button onClick={() => tentarNavegar(() => setAbertoId(null))} style={{ ...prosa, fontSize: 13.5, color: C.grafite, cursor: "pointer", background: "none", border: "none", padding: 0, minHeight: 32 }}>
+                  {origemJogador && rotuloDaAba(origemJogador) ? "" : "← "}{cadastroCompleto ? "Todos os jogadores" : "Jogadores"}
+                </button>
+              </div>
               {/* Sempre disponível, inclusive no cadastro ainda não concluído:
                   quem sai pelo "Salvar e sair" no meio do cadastro precisa
                   conseguir remover o jogador também. */}
@@ -24301,9 +24614,10 @@ function App() {
           );
         })() : (
           <div>
+            <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Jogadores</h1>
             <p style={{ ...prosa, color: C.grafite, marginBottom: 14 }}>
-              Cada jogador guarda a ficha das quatro camadas, o calendário e o histórico de sessões.
-              É desse conjunto que sai a periodização.
+              Acompanhamento esportivo: cada jogador guarda a ficha, o planejamento, as aulas, a evolução e os registros.
+              {mostraQuadras || mostraTorneiosEventos ? " Reservas de quadra e inscrições de quem não treina aqui ficam em Clientes." : ""}
             </p>
             {exigeLogin && uidAtual && (
               <div className="flex gap-5 mb-5" style={{ borderBottom: "1px solid " + C.linha }}>
