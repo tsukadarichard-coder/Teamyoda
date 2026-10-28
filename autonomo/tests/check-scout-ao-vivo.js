@@ -3,7 +3,7 @@ const path = require("path"), assert = require("assert");
 const fx = path.join(__dirname, "../netlify/functions/");
 const store = {}; const J = (v) => JSON.parse(JSON.stringify(v));
 function nested(v, dentroDeArray) { if (Array.isArray(v)) { if (dentroDeArray) throw new Error("Nested arrays are not supported"); v.forEach((x) => nested(x, true)); } else if (v && typeof v === "object") Object.values(v).forEach((x) => nested(x, false)); }
-function docRef(p) { return { async get() { return { exists: store[p] !== undefined, data: () => J(store[p]) }; }, async set(v) { nested(v); store[p] = J(v); }, async update(v) { nested(v); Object.assign(store[p], J(v)); }, async delete() { delete store[p]; } }; }
+function docRef(p) { return { collection: (n) => colRef(p + "/" + n), async get() { return { exists: store[p] !== undefined, data: () => J(store[p]) }; }, async set(v) { nested(v); store[p] = J(v); }, async update(v) { nested(v); Object.assign(store[p], J(v)); }, async delete() { delete store[p]; } }; }
 function colRef(c, filtros = []) { return { limit: () => colRef(c, filtros), async add(v) { const id = "n" + Object.keys(store).length + "x"; store[c + "/" + id] = J(v); return { id }; }, doc: (id) => docRef(c + "/" + id), where: (k, op, v) => colRef(c, filtros.concat([[k, v]])), async get() { const ks = Object.keys(store).filter((k) => k.startsWith(c + "/") && filtros.every(([f, v]) => store[k][f] === v)); const docs = ks.map((k) => ({ id: k.split("/")[1], data: () => J(store[k]) })); return { docs, forEach: (f) => docs.forEach(f) }; } }; }
 const tokens = { "tok-a": { uid: "u1", orgId: "orgA" }, "tok-e": { uid: "u9", orgId: "orgA", email: "treina@x.com", email_verified: true }, "tok-ne": { uid: "u8", orgId: "orgA", email: "treina@x.com", email_verified: false }, "tok-b": { uid: "u2", orgId: "orgB" }, "tok-sem-org": { uid: "u3" }, "tok-resp": { uid: "r1" }, "tok-resp2": { uid: "r2" }, "tok-treina": { uid: "t1" } };
 const contas = { "ana@x.com": { uid: "atl1", displayName: "Ana" }, "bia@x.com": { uid: "resp9", displayName: "Bia" } };
@@ -69,6 +69,15 @@ const GET = async (q) => { const r = await handler({ httpMethod: "GET", headers:
   assert.deepStrictEqual(lista.atletas, [{ vinculoId: "v1", nome: "Ana Souza" }], "só treinador ativo com a área partidas");
   assert.deepStrictEqual((await POST("tok-e", { acao: "atletas" })).atletas.map((x) => x.vinculoId), ["v2"], "por e-mail verificado");
   assert.deepStrictEqual((await POST("tok-ne", { acao: "atletas" })).atletas, [], "e-mail não verificado não vale");
+  /* plano grátis: a conexão com o Competição tem cadeado (Essencial e Premium); conta sem plano definido segue liberada */
+  store["orgs/orgA/meta/info"] = { plano: "gratis" };
+  { const r = await POST("tok-a", { acao: "atletas" }); assert(r.bloqueado && !r.atletas.length, "grátis: sem atletas do Competição"); }
+  assert.strictEqual((await POST("tok-a", { acao: "iniciar", vinculoId: "v1", resumo: { n: 0 } })).s, 403, "grátis: jogo ao vivo não liga ao atleta");
+  store["orgs/orgA/meta/info"] = { plano: "essencial", planoAtivoAte: "2020-01-01" };
+  assert((await POST("tok-a", { acao: "atletas" })).bloqueado, "Essencial vencido: bloqueado");
+  store["orgs/orgA/meta/info"] = { plano: "premium" };
+  assert.strictEqual((await POST("tok-a", { acao: "atletas" })).atletas.length, 1, "Premium: liberado");
+  delete store["orgs/orgA/meta/info"];
   assert.strictEqual((await POST("tok-b", { acao: "iniciar", vinculoId: "v1", resumo: resumo(1) })).s, 403, "vínculo de outro treinador");
   assert.strictEqual((await POST("tok-a", { acao: "iniciar", vinculoId: "v3", resumo: resumo(1) })).s, 403, "sem a área partidas");
   assert.strictEqual((await POST("tok-a", { acao: "iniciar", vinculoId: "v4", resumo: resumo(1) })).s, 403, "responsável não inicia jogo");

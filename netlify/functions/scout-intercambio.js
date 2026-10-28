@@ -11,7 +11,7 @@
    · o atleta vê as cópias na aba "Scouts do treinador" e pode excluí-las; o treinador só retira as que enviou. */
 const { admin, app } = require("./_firebase-admin");
 const { limpar } = require("./_scout-publico");
-const { colDoAtleta, idEnviado, vinculosDoTreinador, gravarCopia } = require("./_scout-copias");
+const { colDoAtleta, idEnviado, vinculosDoTreinador, gravarCopia, academiaComCompeticao, ERRO_PLANO_COMPETICAO } = require("./_scout-copias");
 
 const MAX_JOGOS = 100;
 function resposta(statusCode, corpo) {
@@ -28,6 +28,7 @@ exports.handler = async function (event) {
     let claims;
     try { claims = await admin.auth().verifyIdToken(idToken); } catch (e) { return resposta(401, { erro: "Sua sessão expirou. Entre de novo." }); }
     if (!claims.orgId) return resposta(403, { erro: "Esta conta ainda não está ligada a uma academia." });
+    if (!(await academiaComCompeticao(admin.firestore(), claims.orgId))) return resposta(403, { erro: ERRO_PLANO_COMPETICAO });
     if (String(event.body || "").length > 900000) return resposta(413, { erro: "Pedido grande demais. Envie menos jogos por vez." });
     let body;
     try { body = JSON.parse(event.body || "{}"); } catch (e) { return resposta(400, { erro: "Pedido inválido." }); }

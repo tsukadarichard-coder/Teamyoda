@@ -36,4 +36,14 @@ async function gravarCopia(atletaUid, id, { origem, orgId, marcadoPor, resumo })
   if (existe) await doc.update(dados); else await doc.set({ ...dados, importadoEm: agora(), torneioId: null, partidaId: null });
   return true;
 }
-module.exports = { MAX_SCOUTS, colDoAtleta, idEnviado, idAoVivo, vinculosDoTreinador, gravarCopia };
+/* Conexão do app do treinador com o QuadraLab Competição (atletas vinculados, jogo ao vivo no app do atleta, troca de scouts):
+   planos Essencial e Premium em dia. Conta de academia sem plano definido (academias antigas, Team Yoda) segue liberada. */
+const ERRO_PLANO_COMPETICAO = "A conexão com o QuadraLab Competição faz parte dos planos Essencial e Premium.";
+async function academiaComCompeticao(db, orgId) {
+  const s = await db.collection("orgs").doc(orgId).collection("meta").doc("info").get();
+  const i = s.exists ? s.data() : {};
+  if (!i.plano) return true;
+  if (i.plano !== "essencial" && i.plano !== "premium") return false;
+  return !(i.planoAtivoAte && i.planoAtivoAte < agora().slice(0, 10));
+}
+module.exports = { MAX_SCOUTS, colDoAtleta, idEnviado, idAoVivo, vinculosDoTreinador, gravarCopia, academiaComCompeticao, ERRO_PLANO_COMPETICAO };

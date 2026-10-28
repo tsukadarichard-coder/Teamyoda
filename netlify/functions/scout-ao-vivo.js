@@ -17,7 +17,7 @@
 const crypto = require("crypto");
 const { admin, app } = require("./_firebase-admin");
 const { limpar } = require("./_scout-publico");
-const { vinculosDoTreinador, gravarCopia, idAoVivo } = require("./_scout-copias");
+const { vinculosDoTreinador, gravarCopia, idAoVivo, academiaComCompeticao, ERRO_PLANO_COMPETICAO } = require("./_scout-copias");
 
 const VALIDADE_MS = 12 * 3600 * 1000;
 const RETOMAR_ATE_MS = 7 * 24 * 3600 * 1000; // um link vencido há até 7 dias pode ser reativado por quem retoma a mesma partida
@@ -64,7 +64,10 @@ exports.handler = async function (event) {
     try { body = JSON.parse(event.body || "{}"); } catch (e) { return resposta(400, { erro: "Pedido inválido." }); }
 
     if (familia && body.acao !== "iniciar" && body.acao !== "atualizar" && body.acao !== "revogar" && body.acao !== "retomar") return resposta(403, { erro: "Esta conta ainda não está ligada a uma academia." });
+    /* atletas do Competição pelo app do treinador: só nos planos Essencial e Premium (o código do treinador continua livre: é o mesmo da Área do aluno) */
+    const comCompeticao = async () => familia || await academiaComCompeticao(admin.firestore(), claims.orgId);
     if (body.acao === "atletas") {
+      if (!(await comCompeticao())) return resposta(200, { ok: true, atletas: [], bloqueado: true });
       const lista = [...(await vinculosDoTreinador(admin.firestore(), claims))].map(([id, v]) => ({ vinculoId: id, nome: String(v.atletaNome || "Atleta").slice(0, 60) }));
       return resposta(200, { ok: true, atletas: lista });
     }
@@ -86,6 +89,7 @@ exports.handler = async function (event) {
         }
         return resposta(200, { ok: true, codigo: existente.id });
       }
+      if (!(await comCompeticao())) return resposta(403, { erro: ERRO_PLANO_COMPETICAO });
       const email = String(body.email || "").trim().toLowerCase();
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 120) return resposta(400, { erro: "Informe um e-mail válido." });
       let atleta;
@@ -111,6 +115,7 @@ exports.handler = async function (event) {
       let ligacao = {};
       if (familia && !body.vinculoId) return resposta(403, { erro: "Esta conta ainda não está ligada a uma academia." });
       if (body.vinculoId) {
+        if (!(await comCompeticao())) return resposta(403, { erro: ERRO_PLANO_COMPETICAO });
         const v = (await vinculosDoTreinador(admin.firestore(), claims, familia ? ["responsavel", "treinador"] : "treinador")).get(String(body.vinculoId));
         if (!v) return resposta(403, { erro: "Este atleta não está vinculado a você com acesso às partidas." });
         ligacao = { atletaUid: v.atletaUid, vinculoId: String(body.vinculoId) };

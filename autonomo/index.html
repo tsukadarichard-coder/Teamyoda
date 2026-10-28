@@ -562,7 +562,7 @@ const NOMES_PLANO = { gratis: "Plano grátis", essencial: "Plano Essencial", pre
    Contas sem plano definido (academias antigas) seguem sem limite na análise de movimento; Meu método e o plano de jogo por IA
    são só do Premium, como sempre foram. */
 const ORDEM_PLANO = { gratis: 0, essencial: 1, premium: 2 };
-const PLANO_DO_RECURSO = { movimento: "essencial", metodo: "premium", planoJogoIA: "premium" };
+const PLANO_DO_RECURSO = { movimento: "essencial", metodo: "premium", planoJogoIA: "premium", competicao: "essencial" };
 function planoQueLibera(recurso, planoAtual) {
   const minimo = PLANO_DO_RECURSO[recurso];
   if (!minimo) return null;
@@ -580,6 +580,9 @@ const LINKS_CHECKOUT_EDUZZ = {
 /* Ligação com o QuadraLab Player e o Competição (QuadraLab Hub, atletas da academia, troca de scouts e jogo ao vivo no app do atleta):
    desligada enquanto o app do treinador e o Player são validados separados. O código e os dados continuam; true religa tudo. */
 const LIGACAO_PLAYER = false;
+/* Conexão com o QuadraLab Competição: o juvenil de competição segue no app dele e o treinador acompanha daqui (atletas ligados à ficha,
+   jogo ao vivo no app do atleta, troca de scouts). Planos Essencial e Premium (ver PLANO_DO_RECURSO.competicao; o servidor confere de novo). */
+const LIGACAO_COMPETICAO = true;
 /* Cota mensal da Tecnologia QuadraLab (análise de movimento): fonte única em scout/movimento-motor.js. */
 const LIMITE_MOVIMENTO_ESSENCIAL = (window.QLBiomec && window.QLBiomec.LIMITES_PLANO.movimento.essencial) || 5;
 const PRECOS_PLANO = {
@@ -8977,13 +8980,16 @@ function CartaoIntercambio({ aluno, alunos, setAlunos }) {
   const [vid, setVid] = useState("");
   const [aviso, setAviso] = useState("");
   const [ocupado, setOcupado] = useState(false);
+  const [bloqueado, setBloqueado] = useState(false);
   const proprios = (aluno.registros || []).filter((r) => r.tipo === "jogo" && r.scout && !r.origemCompeticao);
   const trazidos = (aluno.registros || []).filter((r) => r.origemCompeticao);
   useEffect(() => {
     let vivo = true;
     chamarAoVivo({ acao: "atletas" }).then((c) => {
       if (!vivo) return;
-      const lista = c.atletas || []; setAtletas(lista);
+      const lista = c.atletas || []; setAtletas(lista); setBloqueado(!!c.bloqueado);
+      /* a ficha ligada ao atleta do Competição (cartão do Início) manda */
+      if (aluno.competicao && lista.some((x) => x.vinculoId === aluno.competicao.vinculoId)) { setVid(aluno.competicao.vinculoId); return; }
       const norm = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
       let salvo = ""; try { salvo = localStorage.getItem("ql-ao-vivo-vinculo:" + aluno.id) || ""; } catch { /* sem armazenamento */ }
       const igual = lista.filter((x) => norm(x.nome) === norm(aluno.nome));
@@ -9023,7 +9029,11 @@ function CartaoIntercambio({ aluno, alunos, setAlunos }) {
   return (
     <div className="mt-4 mb-4" style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.quadra, padding: "12px 14px" }}>
       <Etiqueta>Intercâmbio com o QuadraLab Competição</Etiqueta>
-      {atletas.length === 0 ? (
+      {bloqueado ? (
+        <p data-intercambio-cadeado style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 6 }}>
+          Levar os scouts deste jogador ao app Competição dele (e trazer de lá os jogos marcados) faz parte dos planos Essencial e Premium.<Cadeado plano="essencial" />
+        </p>
+      ) : atletas.length === 0 ? (
         <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 6 }}>
           Para levar os scouts deste jogador ao app Competição dele (e trazer de lá os jogos marcados), peça que ele ou o responsável vincule você como treinador no Competição, com o código de convite, liberando a área Partidas.
         </p>
@@ -9067,13 +9077,15 @@ function CartaoAoVivo({ aluno, cfg, pontos, placar, mental, aoVivo, setAoVivo, e
   const tentouRef = useRef(false);
   const url = aoVivo ? location.origin + "/scout/?l=" + aoVivo.token : "";
   /* atletas do QuadraLab Competição que me vincularam como treinador: ligar o jogo a um deles faz o jogo aparecer sozinho no app dele e dos responsáveis */
+  const [bloqueado, setBloqueado] = useState(false);
   useEffect(() => {
-    if (!LIGACAO_PLAYER) return undefined;
+    if (!LIGACAO_COMPETICAO) return undefined;
     let vivo = true;
     chamarAoVivo({ acao: "atletas" }).then((c) => {
       if (!vivo) return;
-      const lista = c.atletas || []; setAtletas(lista);
-      /* o atleta escolhido da última vez, ou o único com o mesmo nome do jogador, já vem selecionado */
+      const lista = c.atletas || []; setAtletas(lista); setBloqueado(!!c.bloqueado);
+      /* a ficha ligada ao atleta do Competição (cartão do Início) manda; senão o escolhido da última vez, ou o único com o mesmo nome */
+      if (aluno.competicao && lista.some((x) => x.vinculoId === aluno.competicao.vinculoId)) { setVinculoId(aluno.competicao.vinculoId); return; }
       const norm = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
       let salvo = ""; try { salvo = localStorage.getItem("ql-ao-vivo-vinculo:" + aluno.id) || ""; } catch { /* sem armazenamento */ }
       const igual = lista.filter((x) => norm(x.nome) === norm(aluno.nome));
@@ -9130,7 +9142,12 @@ function CartaoAoVivo({ aluno, cfg, pontos, placar, mental, aoVivo, setAoVivo, e
               </label>
             </div>
           )}
-          {LIGACAO_PLAYER && atletas.length === 0 && (
+          {LIGACAO_COMPETICAO && bloqueado && (
+            <p data-ao-vivo-cadeado style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 6 }}>
+              O jogo aparecer sozinho no app do atleta (QuadraLab Competição) faz parte dos planos Essencial e Premium.<Cadeado plano="essencial" /> O link para a família funciona em todos os planos.
+            </p>
+          )}
+          {LIGACAO_COMPETICAO && !bloqueado && atletas.length === 0 && (
             <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 6 }}>
               Para o jogo aparecer sozinho no app do atleta, peça que ele (ou o responsável) vincule você como treinador no QuadraLab Competição, com o código de convite. Sem isso, só dá para enviar o link.
             </p>
@@ -9590,7 +9607,7 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
           valores={mental.antes} aoMudar={(k, v) => setMental({ ...mental, antes: { ...mental.antes, [k]: v } })} />
         <Botao onClick={comecar} variante="saibro">Iniciar acompanhamento</Botao>
 
-        {LIGACAO_PLAYER && window.mtyAuth && <CartaoIntercambio aluno={aluno} alunos={alunos} setAlunos={setAlunos} />}
+        {LIGACAO_COMPETICAO && window.mtyAuth && <CartaoIntercambio aluno={aluno} alunos={alunos} setAlunos={setAlunos} />}
 
         {partidasAnteriores.length > 0 && (
           <div className="mt-6">
@@ -11937,44 +11954,84 @@ function mensagemCodigoAcademia(codigo) {
     "- Android: abra o link no Chrome, toque nos três pontinhos (canto de cima) e depois em \u201cInstalar app\u201d ou \u201cAdicionar à tela inicial\u201d.\n\n" +
     "Qualquer dúvida, é só responder esta mensagem.";
 }
-function CartaoVinculoAcademia() {
+/* O atleta digita este código no QuadraLab Competição e o vínculo nasce ativo; aqui o treinador diz de qual ficha da lista é cada atleta
+   (aluno.competicao). Com isso o jogo ao vivo e a troca de scouts já sabem para quem ir, sem escolher a cada vez. Essencial e Premium. */
+function CartaoVinculoAcademia({ alunos, setAlunos, planoAtual }) {
   const [aberto, setAberto] = useState(false);
   const [codigo, setCodigo] = useState("");
+  const [atletas, setAtletas] = useState(null);
   const [email, setEmail] = useState("");
   const [msg, setMsg] = useState(null);
   const [ocupado, setOcupado] = useState(false);
-  if (typeof window === "undefined" || !window.mtyAuth) return null;
+  const trava = planoQueLibera("competicao", planoAtual);
+  const nuvem = typeof window !== "undefined" && !!window.mtyAuth;
+  async function carregarAtletas() { try { const c = await chamarAoVivo({ acao: "atletas" }); setAtletas(c.bloqueado ? [] : (c.atletas || [])); } catch (e) { setAtletas([]); } }
+  useEffect(() => { if (nuvem && !trava) carregarAtletas(); }, [trava]);
+  if (!nuvem) return null;
+  const ligadoA = (vid) => (alunos || []).find((a) => a.competicao && a.competicao.vinculoId === vid);
+  const semFicha = (atletas || []).filter((x) => !ligadoA(x.vinculoId));
   async function abrir() {
     const abrindo = !aberto;
     setAberto(abrindo);
-    if (abrindo && !codigo) { try { setCodigo((await chamarAoVivo({ acao: "meuCodigo" })).codigo); } catch (e) { setMsg({ erro: true, t: e.message }); } }
+    if (abrindo && !trava && !codigo) { try { setCodigo((await chamarAoVivo({ acao: "meuCodigo" })).codigo); } catch (e) { setMsg({ erro: true, t: e.message }); } }
   }
   async function pedir(ev) {
     ev.preventDefault(); setOcupado(true); setMsg(null);
-    try { const r = await chamarAoVivo({ acao: "pedirVinculo", email }); setMsg({ t: "Pedido enviado a " + r.atleta + ". Assim que ele aprovar no QuadraLab Competição (em Início), o atleta aparece no scout ao vivo." }); setEmail(""); }
+    try { const r = await chamarAoVivo({ acao: "pedirVinculo", email }); setMsg({ t: "Pedido enviado a " + r.atleta + ". Assim que ele aprovar no QuadraLab Competição (em Início), aparece aqui para você ligar à ficha dele." }); setEmail(""); }
     catch (e) { setMsg({ erro: true, t: e.message }); }
     setOcupado(false);
   }
+  /* liga (ou desliga) o atleta do Competição a uma ficha: um atleta por ficha */
+  function ligar(atleta, alunoId) {
+    setAlunos((lista) => lista.map((a) => {
+      if (a.competicao && a.competicao.vinculoId === atleta.vinculoId && a.id !== alunoId) { const { competicao, ...resto } = a; return resto; }
+      if (a.id === alunoId) return { ...a, competicao: { vinculoId: atleta.vinculoId, nome: atleta.nome, ligadoEm: new Date().toISOString() } };
+      return a;
+    }));
+    setMsg({ t: alunoId ? atleta.nome + " ligado à ficha. O jogo ao vivo e os scouts já vão para o app dele." : "Ligação desfeita." });
+  }
+  const ordenados = [...(alunos || [])].sort((a, b) => String(a.nome || "").localeCompare(String(b.nome || "")));
   return (
-    <div className="mb-5" data-vinculo-academia style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "10px 14px" }}>
-      <button onClick={abrir} className="w-full text-left" style={{ background: "none", border: "none", cursor: "pointer", padding: 0, minHeight: 36 }}>
-        <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>Atletas da academia no QuadraLab Competição {aberto ? "▾" : "▸"}</span>
+    <div className="mb-5" data-vinculo-academia style={{ background: C.cal, border: "1px solid " + (semFicha.length ? C.saibro : C.linha), borderRadius: 10, padding: "10px 14px" }}>
+      <button onClick={abrir} className="w-full text-left flex items-center gap-1 flex-wrap" style={{ background: "none", border: "none", cursor: "pointer", padding: 0, minHeight: 36, width: "100%", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 4, textAlign: "left" }}>
+        <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>Atletas do QuadraLab Competição {aberto ? "▾" : "▸"}</span>
+        <Cadeado plano={trava} />
+        {!trava && semFicha.length > 0 && <span data-atletas-sem-ficha style={{ fontFamily: ARCH, fontSize: 10, fontWeight: 700, color: "#fff", background: C.saibro, padding: "2px 7px", borderRadius: 999, marginLeft: 6, whiteSpace: "nowrap" }}>{semFicha.length} para ligar à ficha</span>}
       </button>
-      {aberto && (
+      {aberto && trava && (
+        <div style={{ marginTop: 8 }} data-competicao-bloqueado>
+          <p style={{ ...prosa, fontSize: 13 }}>O juvenil de competição continua usando o app dele, o QuadraLab Competição, e você acompanha tudo daqui: o jogo marcado ao vivo aparece no app do atleta e dos pais, os scouts vão e voltam entre os dois apps e cada atleta fica ligado à ficha dele na sua lista.</p>
+          <BotoesAssinatura planoAtual={planoAtual} planoVencido={false} minimo="essencial" pequeno />
+        </div>
+      )}
+      {aberto && !trava && (
         <div style={{ marginTop: 8 }}>
-          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Envie ao atleta o código abaixo com as instruções: ele cria a conta grátis no QuadraLab Competição (ou entra com a mesma conta do Player) e digita o código em “Tenho o código do meu treinador”. O vínculo é feito na hora, mesmo para menores (o termo da matrícula cobre).</p>
+          {(atletas || []).length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              {(atletas || []).map((x) => {
+                const f = ligadoA(x.vinculoId);
+                return (
+                  <div key={x.vinculoId} data-atleta-competicao style={{ border: "1px solid " + (f ? C.linha : C.saibro), borderRadius: 10, padding: "8px 10px", marginTop: 6, background: f ? C.cal : C.papel }}>
+                    <label style={{ ...prosa, fontSize: 13, display: "block" }}><b style={{ fontFamily: ARCH }}>{x.nome}</b> · ficha na sua lista
+                      <select value={f ? f.id : ""} onChange={(e) => ligar(x, e.target.value)}
+                        style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", border: "1px solid " + C.linha, borderRadius: 8, fontSize: 14, background: "#fff" }}>
+                        <option value="">{f ? "Desfazer a ligação" : "Escolha a ficha…"}</option>
+                        {ordenados.map((a) => <option key={a.id} value={a.id}>{a.nome || "Jogador"}</option>)}
+                      </select>
+                    </label>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Envie ao atleta o código abaixo com as instruções: ele cria a conta grátis no QuadraLab Competição (ou entra com a mesma conta do Player) e digita o código em “Tenho o código do meu treinador”. Depois ele aparece aqui para você ligar à ficha.</p>
           <p data-codigo-academia style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, letterSpacing: 3, margin: "8px 0" }}>{codigo || "…"}</p>
           {codigo && (
             <div className="flex flex-wrap" style={{ gap: 8 }}>
               <a data-enviar-instrucoes href={"https://wa.me/?text=" + encodeURIComponent(mensagemCodigoAcademia(codigo))} target="_blank" rel="noopener noreferrer"
                 style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 600, padding: "7px 13px", borderRadius: 10, background: C.quadra, color: "#fff", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>Enviar instruções pelo WhatsApp</a>
-              <Botao pequeno variante="vazio" onClick={async () => { try { await navigator.clipboard.writeText(mensagemCodigoAcademia(codigo)); setMsg({ t: "Mensagem com as instruções copiada. Cole no WhatsApp, SMS ou e-mail." }); } catch (e) { setMsg({ erro: true, t: "Não consegui copiar. Use o botão do WhatsApp." }); } }}>Copiar instruções</Botao>
-              <Botao pequeno variante="vazio" onClick={async () => { try { await navigator.clipboard.writeText(codigo); setMsg({ t: "Código copiado." }); } catch (e) { /* sem área de transferência */ } }}>Copiar só o código</Botao>
+              <Botao pequeno variante="vazio" onClick={async () => { try { await navigator.clipboard.writeText(mensagemCodigoAcademia(codigo)); setMsg({ t: "Mensagem com as instruções copiada. Cole no WhatsApp, SMS ou e-mail." }); } catch (e) { setMsg({ erro: true, t: "Não foi possível copiar. Selecione o código e copie." }); } }}>Copiar as instruções</Botao>
             </div>
-          )}
-          {codigo && (
-            <details style={{ marginTop: 8 }}><summary style={{ ...prosa, fontSize: 12.5, cursor: "pointer" }}>Ver a mensagem que o atleta recebe</summary>
-              <p style={{ ...prosa, fontSize: 12, whiteSpace: "pre-line", color: C.grafite, marginTop: 6 }}>{mensagemCodigoAcademia(codigo)}</p></details>
           )}
           <form onSubmit={pedir} style={{ marginTop: 12 }}>
             <label style={{ ...prosa, fontSize: 12.5 }}>Ou peça pelo e-mail do atleta (ele precisa já ter conta de atleta no QuadraLab Competição; ele aprova em Início)</label>
@@ -12258,8 +12315,10 @@ function RevisaoPlano({ aluno, alunos, setAlunos, podeEditar }) {
 }
 
 /* Janela de novidades do QuadraLab: abre ao entrar até a pessoa marcar "Não mostrar mais". Nova versão da lista (NOVIDADES_VERSAO) volta a aparecer. */
-const NOVIDADES_VERSAO = "2026-10c";
+const NOVIDADES_VERSAO = "2026-10d";
 const NOVIDADES = [
+  ["Atletas do QuadraLab Competição (Essencial e Premium)", "O juvenil de competição continua no app dele e você acompanha daqui: no Início, ligue cada atleta à ficha dele; o jogo ao vivo e os scouts vão direto para o app do atleta."],
+  ["Área do aluno", "Seus alunos podem criar uma conta de aluno, digitar o seu código e, depois que você aprova no Início, acompanhar o plano, as aulas e a evolução."],
   ["Planejamento que melhora com os dados", "Na aba Plano, a Revisão do plano cruza as análises de vídeo e os scouts dos jogos e sugere ajustes. Você aceita, recusa ou deixa para depois; nada muda sozinho, e o diário mostra se o ajuste funcionou."],
   ["Meu método (plano Premium)", "Descreva a sua linha de trabalho (áreas, critérios de saída, princípios e a sua biblioteca de exercícios), ou cole os seus planejamentos e deixe a IA preencher. O gerador de plano passa a seguir só as suas regras."],
   ["Metas de saída medidas e versões do plano", "O critério de saída do bloco mostra o que o vídeo e o scout já confirmam, o plano guarda as versões de cada ajuste aceito, e os reforços sugeridos passam a atacar o item do vídeo e a priorizar o que funcionou em outros jogadores."],
@@ -17531,7 +17590,7 @@ function CardPrimeirosPassos({ passo1Ok, passo2Ok, passo3Ok, aoPasso1, aoPasso2,
   );
 }
 
-function TelaDashboard({ aoAbrirScout, aoDescartarPartida, alunos, turmas, uidAtual, exigeLogin, irPara, aoAbrirSessao, usoIA, identidade, meuNome,
+function TelaDashboard({ aoAbrirScout, aoDescartarPartida, alunos, setAlunos, planoAtual, turmas, uidAtual, exigeLogin, irPara, aoAbrirSessao, usoIA, identidade, meuNome,
   aoCriarPlanejamento, aoAbrirTurmas, aoAbrirAgenda, aoAdicionarJogador, aoEditarDados,
   onboardingDispensado, setOnboardingDispensado }) {
   const [escolhendoPlanejamento, setEscolhendoPlanejamento] = useState(false);
@@ -17586,7 +17645,7 @@ function TelaDashboard({ aoAbrirScout, aoDescartarPartida, alunos, turmas, uidAt
       <h1 style={{ fontFamily: ARCH, fontSize: 26, fontWeight: 700, marginBottom: 4 }}>{saudacao}</h1>
       <CartaoPartidasEmAndamento alunos={alunos} aoAbrirScout={aoAbrirScout} aoDescartar={aoDescartarPartida} />
       <CartaoRevisoesPlano alunos={alunos} turmas={turmas} irPara={irPara} irParaTurma={() => aoAbrirTurmas()} />
-      {LIGACAO_PLAYER && <CartaoVinculoAcademia />}
+      {LIGACAO_COMPETICAO && <CartaoVinculoAcademia alunos={alunos} setAlunos={setAlunos} planoAtual={planoAtual} />}
       <CartaoAreaAluno alunos={alunos} />
       <p style={{ ...prosa, fontSize: 15, color: C.grafite, marginBottom: onboardingDispensado && !onboardingCompleto ? 4 : 18 }}>
         Vamos preparar sua próxima aula?
@@ -19085,7 +19144,7 @@ function App() {
            aoAbrirPlano={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }}
            aoAbrirSessao={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("sessao"); }}
            aoAbrirTurmas={() => setAba("turmas")} /> :
-         aba === "dashboard" ? <TelaDashboard aoAbrirScout={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("scout"); }} aoDescartarPartida={(id) => { try { localStorage.removeItem(ChaveRascunho(id)); } catch { /* sem armazenamento */ } setAlunos((l) => l.map((a) => (a.id === id ? semRascunhoScout(a) : a))); }} alunos={alunos} turmas={turmas} uidAtual={uidAtual} exigeLogin={exigeLogin} usoIA={usoIA} identidade={identidade} meuNome={meuNome}
+         aba === "dashboard" ? <TelaDashboard setAlunos={setAlunos} planoAtual={planoAtual} aoAbrirScout={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("scout"); }} aoDescartarPartida={(id) => { try { localStorage.removeItem(ChaveRascunho(id)); } catch { /* sem armazenamento */ } setAlunos((l) => l.map((a) => (a.id === id ? semRascunhoScout(a) : a))); }} alunos={alunos} turmas={turmas} uidAtual={uidAtual} exigeLogin={exigeLogin} usoIA={usoIA} identidade={identidade} meuNome={meuNome}
            irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }}
            aoAbrirSessao={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("sessao"); }}
            aoCriarPlanejamento={() => setAba("alunos")} aoAbrirTurmas={() => setAba("turmas")} aoAbrirAgenda={() => setAba("agenda")}

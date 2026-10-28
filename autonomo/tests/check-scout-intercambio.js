@@ -22,6 +22,10 @@ const POST = async (h, tk, corpo) => { const r = await h({ httpMethod: "POST", h
   assert.strictEqual((await POST(IC.handler, "tok-b", { acao: "enviar", vinculoId: "v1", jogos: [{ id: "j1", resumo: resumo(10) }] })).s, 403, "outra academia não envia para este atleta");
   assert.strictEqual((await POST(IC.handler, "tok-a", { acao: "enviar", vinculoId: "v9", jogos: [{ id: "j1", resumo: resumo(10) }] })).s, 403, "vínculo sem a área partidas");
   assert.strictEqual((await POST(IC.handler, "tok-a", { acao: "enviar", vinculoId: "v1", jogos: [] })).s, 400);
+  /* plano grátis: troca de scouts com o Competição tem cadeado (Essencial e Premium) */
+  store["orgs/orgA/meta/info"] = { plano: "gratis" };
+  assert.strictEqual((await POST(IC.handler, "tok-a", { acao: "enviar", vinculoId: "v1", jogos: [{ id: "j1", resumo: resumo(10) }] })).s, 403, "grátis não troca scouts");
+  delete store["orgs/orgA/meta/info"];
   /* enviar: cópia na conta do atleta, sem o que é proibido, sem duplicar */
   let r = await POST(IC.handler, "tok-a", { acao: "enviar", vinculoId: "v1", jogos: [{ id: "j1", resumo: resumo(10) }, { id: "j2", resumo: resumo(30) }, { id: "", resumo: {} }] });
   assert.strictEqual(r.s, 200); assert.strictEqual(r.enviados, 2);
