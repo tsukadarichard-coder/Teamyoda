@@ -18,6 +18,13 @@
   status = 200
   force = true
 
+# Área do aluno do Treinador: o aluno entra com a conta dele (aluno.html sem org/id/t)
+[[redirects]]
+  from = "/aluno"
+  to = "/aluno.html"
+  status = 200
+  force = true
+
 [[redirects]]
   from = "/treinador/"
   to = "/treinador"

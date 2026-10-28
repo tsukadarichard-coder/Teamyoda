@@ -11987,6 +11987,102 @@ function CartaoVinculoAcademia() {
     </div>
   );
 }
+/* ── Área do aluno: o aluno cria a conta dele (Sou aluno), digita o código do professor e o professor aprova aqui, dizendo qual
+   jogador da lista é aquela conta. Depois o aluno vê, com login, só o que é dele (o mesmo conteúdo do link "Compartilhar com o jogador").
+   Tudo passa pela function aluno-conta (login conferido no servidor); o aluno nunca recebe acesso aos dados da academia. */
+async function chamarAreaAluno(metodo, corpo) {
+  if (!window.mtyAuth || !window.mtyAuth.usuario()) throw Object.assign(new Error("Entre com a sua conta de treinador."), { status: 401 });
+  const tk = await window.mtyAuth.tokenId();
+  const r = await fetch("/.netlify/functions/aluno-conta" + (metodo === "GET" ? "?treinador=1" : ""), {
+    method: metodo, headers: { authorization: "Bearer " + tk, ...(corpo ? { "content-type": "application/json" } : {}) }, body: corpo ? JSON.stringify(corpo) : undefined, cache: "no-store",
+  });
+  const c = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(c.erro || ("Erro " + r.status)), { status: r.status });
+  return c;
+}
+const ENDERECO_AREA_ALUNO = "quadralab.com.br/aluno";
+function mensagemAreaAluno(codigo) {
+  return "Oi! Agora você pode acompanhar o seu plano, as suas aulas e a sua evolução pelo QuadraLab:\n" +
+    "1) Abra " + ENDERECO_AREA_ALUNO + "\n" +
+    "2) Toque em \u201cCriar conta de aluno\u201d (ou entre, se já tiver conta)\n" +
+    "3) Digite o meu código: " + codigo + "\n" +
+    "Eu aprovo por aqui e a sua área abre.";
+}
+function CartaoAreaAluno({ alunos }) {
+  const [d, setD] = useState(null);
+  const [aberto, setAberto] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const [ocupado, setOcupado] = useState("");
+  const [escolha, setEscolha] = useState({});
+  const nuvem = typeof window !== "undefined" && !!window.mtyAuth;
+  async function carregar() { try { const c = await chamarAreaAluno("GET"); setD(c); if (c.pedidos.length) setAberto(true); } catch (e) { setMsg({ erro: true, t: e.message }); } }
+  useEffect(() => { if (nuvem) carregar(); }, []);
+  if (!nuvem) return null;
+  const norm = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  const sugestao = (p) => { const n = norm(p.nome); const iguais = (alunos || []).filter((a) => norm(a.nome) === n || (n && norm(a.nome).split(" ")[0] === n.split(" ")[0])); return iguais.length === 1 ? iguais[0].id : ""; };
+  async function agir(corpo, ok) {
+    setOcupado(corpo.uid); setMsg(null);
+    try { await chamarAreaAluno("POST", corpo); setMsg({ t: ok }); await carregar(); } catch (e) { setMsg({ erro: true, t: e.message }); }
+    setOcupado("");
+  }
+  const pend = d ? d.pedidos : [], vinc = d ? d.vinculados : [];
+  const ordenados = [...(alunos || [])].sort((a, b) => String(a.nome || "").localeCompare(String(b.nome || "")));
+  return (
+    <div className="mb-5" data-area-aluno style={{ background: C.cal, border: "1px solid " + (pend.length ? C.saibro : C.linha), borderRadius: 10, padding: "10px 14px" }}>
+      <button onClick={() => setAberto(!aberto)} className="w-full text-left flex items-center gap-2" style={{ background: "none", border: "none", cursor: "pointer", padding: 0, minHeight: 36 }}>
+        <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>Área do aluno {aberto ? "▾" : "▸"}</span>
+        {pend.length > 0 && <span data-pedidos-aluno style={{ fontFamily: ARCH, fontSize: 10, fontWeight: 700, color: "#fff", background: C.saibro, padding: "2px 7px", borderRadius: 999 }}>{pend.length} {pend.length === 1 ? "pedido" : "pedidos"}</span>}
+        {!pend.length && vinc.length > 0 && <span style={{ ...prosa, fontSize: 12, color: C.grafite }}>{vinc.length} {vinc.length === 1 ? "aluno com conta" : "alunos com conta"}</span>}
+      </button>
+      {aberto && (
+        <div style={{ marginTop: 8 }}>
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Seus alunos podem ter uma conta própria para acompanhar o plano, as aulas, as análises e os jogos. Eles veem só o que é deles, e só depois que você aprova.</p>
+          {pend.map((p) => (
+            <div key={p.uid} data-pedido-aluno style={{ border: "1px solid " + C.saibro, borderRadius: 10, padding: "10px 12px", marginTop: 10, background: C.papel }}>
+              <p style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{p.nome || "Aluno"} <span style={{ ...prosa, fontSize: 12, fontWeight: 400, color: C.grafite }}>{p.email}</span></p>
+              <label style={{ ...prosa, fontSize: 12.5, display: "block", marginTop: 6 }}>Quem é na sua lista?
+                <select value={escolha[p.uid] ?? sugestao(p)} onChange={(e) => setEscolha({ ...escolha, [p.uid]: e.target.value })}
+                  style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", border: "1px solid " + C.linha, borderRadius: 8, fontSize: 14, background: "#fff" }}>
+                  <option value="">Escolha o jogador…</option>
+                  {ordenados.map((a) => <option key={a.id} value={a.id}>{a.nome || "Jogador"}</option>)}
+                </select>
+              </label>
+              <div className="flex flex-wrap" style={{ gap: 8, marginTop: 8 }}>
+                <Botao pequeno variante="saibro" disabled={!!ocupado || !(escolha[p.uid] ?? sugestao(p))}
+                  onClick={() => agir({ acao: "aprovar", uid: p.uid, alunoId: escolha[p.uid] ?? sugestao(p) }, "Pronto: " + (p.nome || "o aluno") + " já vê a área dele.")}>{ocupado === p.uid ? "Aguarde…" : "Aprovar"}</Botao>
+                <Botao pequeno variante="vazio" disabled={!!ocupado} onClick={() => agir({ acao: "recusar", uid: p.uid }, "Pedido recusado.")}>Recusar</Botao>
+              </div>
+              {!ordenados.length && <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 6 }}>Cadastre o jogador na sua lista primeiro; depois aprove o pedido.</p>}
+            </div>
+          ))}
+          <div style={{ marginTop: 12 }}>
+            <p style={{ ...prosa, fontSize: 12.5 }}>Seu código para os alunos:</p>
+            <p data-codigo-professor style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, letterSpacing: 3, margin: "4px 0 8px" }}>{d ? d.codigo : "…"}</p>
+            {d && (
+              <div className="flex flex-wrap" style={{ gap: 8 }}>
+                <a href={"https://wa.me/?text=" + encodeURIComponent(mensagemAreaAluno(d.codigo))} target="_blank" rel="noopener noreferrer"
+                  style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 600, padding: "7px 13px", borderRadius: 10, background: C.quadra, color: "#fff", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>Enviar instruções pelo WhatsApp</a>
+                <Botao pequeno variante="vazio" onClick={async () => { try { await navigator.clipboard.writeText(mensagemAreaAluno(d.codigo)); setMsg({ t: "Mensagem com as instruções copiada." }); } catch (e) { setMsg({ erro: true, t: "Não foi possível copiar. Selecione o código e copie." }); } }}>Copiar as instruções</Botao>
+              </div>
+            )}
+          </div>
+          {vinc.length > 0 && (
+            <div style={{ marginTop: 12 }}>
+              <p style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700 }}>Alunos com conta</p>
+              {vinc.map((v) => (
+                <div key={v.uid} className="flex items-center justify-between flex-wrap" style={{ gap: 8, padding: "6px 0", borderBottom: "1px solid " + C.linha }}>
+                  <span style={{ ...prosa, fontSize: 13 }}>{v.alunoNome || "Jogador removido"} <span style={{ color: C.grafite, fontSize: 12 }}>· {v.email}</span></span>
+                  <Botao pequeno variante="vazio" disabled={!!ocupado} onClick={() => { if (confirm("Desvincular a conta de " + (v.alunoNome || "este aluno") + "? Ele deixa de ver a área até pedir de novo.")) agir({ acao: "desvincular", uid: v.uid }, "Conta desvinculada."); }}>Desvincular</Botao>
+                </div>
+              ))}
+            </div>
+          )}
+          {msg && <p role="status" style={{ ...prosa, fontSize: 12.5, marginTop: 8, color: msg.erro ? "#A33" : C.tinta }}>{msg.t}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
 function CartaoRevisoesPlano({ alunos, turmas, irPara, irParaTurma }) {
   const lista = useMemo(() => {
     const QE = typeof window !== "undefined" && window.QLEvidencias;
@@ -14934,18 +15030,31 @@ function TelaCatalogo({ exerciciosCustom, setExerciciosCustom }) {
    Só existe quando o Firebase está configurado. Em modo local o app abre
    direto, porque não há nuvem para proteger. Todos os treinadores que
    entram veem os mesmos dados: é conta de equipe, não de aluno. */
+/* Conta sem área de treinador: a conta de aluno (claim tipo "aluno") vai direto para a Área do aluno; outra conta sem área
+   (ex.: só do Player) pode abrir a Área do aluno também, para se vincular ao professor. */
 function TelaSemAcademia() {
+  const [verificando, setVerificando] = useState(true);
+  useEffect(() => {
+    let vivo = true;
+    const u = window.mtyAuth && window.mtyAuth.usuario();
+    if (!u) { setVerificando(false); return undefined; }
+    u.getIdTokenResult().then((t) => { if (!vivo) return; if (t.claims && t.claims.tipo === "aluno") window.location.replace("aluno.html"); else setVerificando(false); })
+      .catch(() => { if (vivo) setVerificando(false); });
+    return () => { vivo = false; };
+  }, []);
+  if (verificando) return <div style={{ background: C.papel, minHeight: "100vh" }} />;
   return (
     <div style={{ background: C.papel, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "40px 20px" }}>
       <div style={{ width: "100%", maxWidth: 400, textAlign: "center" }}>
         <div style={{ margin: "0 auto 26px" }}><Marca altura={34} /></div>
         <div className="mty-cartao" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderRadius: 16, padding: "28px 26px", boxShadow: SOMBRA_ALTA }}>
-          <h1 style={{ fontFamily: ARCH, fontSize: 18, fontWeight: 700 }}>Conta sem área própria</h1>
+          <h1 style={{ fontFamily: ARCH, fontSize: 18, fontWeight: 700 }}>Esta conta não é de treinador</h1>
           <p style={{ ...prosa, fontSize: 14, color: C.grafite, marginTop: 10 }}>
-            Sua conta existe, mas ainda não tem uma área vinculada — isso não deveria acontecer.
-            Entre em contato com o suporte pra resolver.
+            Se você é aluno de um professor que usa o QuadraLab, a sua área fica na Área do aluno: lá você se vincula ao seu professor
+            e acompanha o seu plano e as suas aulas.
           </p>
-          <div className="mt-6">
+          <div className="mt-6 flex flex-col gap-2 items-center">
+            <Botao onClick={() => { window.location.href = "aluno.html"; }}>Abrir a Área do aluno</Botao>
             <Botao variante="vazio" onClick={() => window.mtyAuth.sair()}>Sair</Botao>
           </div>
         </div>
@@ -15192,6 +15301,9 @@ function CartaoLogin({ aoEntrar }) {
 
       <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 18, textAlign: "center" }}>
         Ainda não tem conta? <a href="cadastro-individual.html" style={{ color: C.saibro, fontWeight: 700 }}>Cadastre-se</a>.
+      </p>
+      <p style={{ ...prosa, fontSize: 13, color: C.grafite, textAlign: "center", marginTop: 6 }}>
+        É aluno? <a href="aluno.html" style={{ color: C.saibro, fontWeight: 700 }}>Entre na Área do aluno</a>.
       </p>
       <InstalarApp />
     </div>
@@ -17475,6 +17587,7 @@ function TelaDashboard({ aoAbrirScout, aoDescartarPartida, alunos, turmas, uidAt
       <CartaoPartidasEmAndamento alunos={alunos} aoAbrirScout={aoAbrirScout} aoDescartar={aoDescartarPartida} />
       <CartaoRevisoesPlano alunos={alunos} turmas={turmas} irPara={irPara} irParaTurma={() => aoAbrirTurmas()} />
       {LIGACAO_PLAYER && <CartaoVinculoAcademia />}
+      <CartaoAreaAluno alunos={alunos} />
       <p style={{ ...prosa, fontSize: 15, color: C.grafite, marginBottom: onboardingDispensado && !onboardingCompleto ? 4 : 18 }}>
         Vamos preparar sua próxima aula?
       </p>

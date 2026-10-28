@@ -165,7 +165,9 @@ async function salvarFeedbacksCoord(ref, mapa) {
   await ref.set({ value: JSON.stringify(mapa), atualizado: Date.now() });
 }
 
-async function carregarContexto(org, id, t) {
+/* semToken: a Área do aluno (aluno-conta.js) já conferiu no servidor que a conta logada está vinculada a este jogador,
+   então não usa o linkToken do link público. */
+async function carregarContexto(org, id, t, semToken) {
   app();
   const refAlunos = admin.firestore().collection("orgs").doc(org).collection("dados").doc(CHAVE_ALUNOS);
   const snap = await refAlunos.get();
@@ -176,7 +178,7 @@ async function carregarContexto(org, id, t) {
   catch (e) { throw new ErroPublico(500, "Dados da academia corrompidos."); }
 
   const idx = alunos.findIndex((a) => a.id === id);
-  if (idx < 0 || !alunos[idx].linkToken || alunos[idx].linkToken !== t) {
+  if (idx < 0 || (!semToken && (!alunos[idx].linkToken || alunos[idx].linkToken !== t))) {
     throw new ErroPublico(404, "Link inválido — peça um novo ao seu treinador.");
   }
   return { refAlunos, alunos, idx };
@@ -187,7 +189,12 @@ async function handleGet(event) {
   const { org, id, t } = q;
   if (!org || !id || !t) throw new ErroPublico(400, "Link incompleto.");
 
-  const { alunos, idx } = await carregarContexto(org, id, t);
+  return await responderGet(org, id, q, await carregarContexto(org, id, t));
+}
+
+/* O que o jogador vê (link público ou Área do aluno): plano aprovado, aulas, análises, jogos, relatórios. */
+async function responderGet(org, id, q, ctx) {
+  const { alunos, idx } = ctx;
   const aluno = alunos[idx];
   if (q.rel) return await relatorioMovimento(org, id, aluno, String(q.rel));
   if (q.jogo) return await resumoJogo(org, id, String(q.jogo));
@@ -376,7 +383,13 @@ async function handlePost(event) {
   if (!org || !id || !t) throw new ErroPublico(400, "Link incompleto.");
   if (!acao) throw new ErroPublico(400, "Ação não informada.");
 
-  const { refAlunos, alunos, idx } = await carregarContexto(org, id, t);
+  return await executarAcao(org, id, body, await carregarContexto(org, id, t));
+}
+
+/* O que o jogador pode fazer (link público ou Área do aluno): dúvida/pedido de conteúdo, relatar jogo, feedback ao coordenador. */
+async function executarAcao(org, id, body, ctx) {
+  const acao = body.acao;
+  const { refAlunos, alunos, idx } = ctx;
   const aluno = alunos[idx];
 
   /* cancelar ou remarcar aula não é mais pelo link do aluno: quem mexe na agenda é o treinador */
@@ -437,3 +450,6 @@ async function acaoTexto(refAlunos, alunos, idx, aluno, body, campo) {
 function resposta(statusCode, corpo) {
   return { statusCode, headers: { "content-type": "application/json" }, body: JSON.stringify(corpo) };
 }
+
+/* usado pela Área do aluno (aluno-conta.js): mesmos dados e as mesmas ações do link, com a conta logada no lugar do token */
+module.exports.interno = { carregarContexto, responderGet, executarAcao, ErroPublico, CHAVE_ALUNOS };

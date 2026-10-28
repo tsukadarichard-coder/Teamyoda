@@ -72,6 +72,14 @@
   .rodape a{ color:var(--saibro); font-weight:700; text-decoration:none; }
   .rodape a:hover{ text-decoration:underline; }
   .verificando{ text-align:center; padding:60px 20px; color:var(--grafite); font-size:14px; }
+  .papeis{ display:grid; gap:10px; margin-top:6px; }
+  .papel{ display:block; width:100%; text-align:left; border:1px solid var(--linha); border-radius:12px; background:var(--cal); padding:14px 16px;
+    cursor:pointer; font:inherit; color:var(--tinta); min-height:64px; transition:border-color .15s ease, box-shadow .15s ease; }
+  .papel:hover, .papel:focus-visible{ border-color:var(--saibro); box-shadow:0 0 0 3px rgba(105,179,42,.18); }
+  .papel strong{ display:block; font-size:15.5px; }
+  .papel span{ display:block; font-size:13px; color:var(--grafite); margin-top:2px; }
+  .trocar{ background:none; border:none; padding:0; margin:0 0 14px; cursor:pointer; font:inherit; font-size:13px; font-weight:600; color:var(--quadra); text-decoration:underline; }
+  .opcional{ font-weight:400; color:var(--grafite); }
 </style>
 </head>
 <body>
@@ -84,18 +92,39 @@ var CONFIGURADO = (typeof MTY_CONFIG !== "undefined") && MTY_CONFIG.apiKey !== "
 var auth = null;
 if (CONFIGURADO) { try { auth = firebase.auth(); } catch (e) { auth = null; } }
 
-/* Alguém com sessão válida não precisa ver o formulário de cadastro de
-   novo — manda direto pro app, igual ao login já faz na outra direção. */
-function mostrarFormulario() {
+/* Primeiro a pessoa diz o que é: treinador (cria a própria área de trabalho) ou aluno (cria a conta e se vincula ao professor
+   pelo código dele; vê só a Área do aluno). ?papel=aluno ou ?papel=treinador abre direto o formulário certo. */
+function mostrarEscolha() {
   document.getElementById('pagina').innerHTML =
     '<div class="marca"><img src="assets/logo-quadralab.png" alt="QuadraLab"></div>' +
     '<div class="cartao">' +
       '<h1>Crie sua conta</h1>' +
-      '<p class="sub">Comece a organizar suas aulas de tênis em um só lugar.</p>' +
-      '<div class="selo-linha">' +
+      '<p class="sub">Você é treinador ou aluno?</p>' +
+      '<div class="papeis">' +
+        '<button type="button" class="papel" data-papel="treinador"><strong>Sou treinador</strong><span>Organize aulas, fichas, planejamento e análises dos seus alunos.</span></button>' +
+        '<button type="button" class="papel" data-papel="aluno"><strong>Sou aluno</strong><span>Acompanhe o seu plano, as suas aulas e a sua evolução com o seu professor.</span></button>' +
+      '</div>' +
+    '</div>' +
+    '<p class="rodape">Já tem conta? <a href="index.html">Entrar</a></p>';
+  Array.prototype.forEach.call(document.querySelectorAll('[data-papel]'), function (b) {
+    b.onclick = function () { mostrarFormulario(b.getAttribute('data-papel')); };
+  });
+}
+
+/* Alguém com sessão válida não precisa ver o formulário de cadastro de
+   novo — manda direto pro app, igual ao login já faz na outra direção. */
+function mostrarFormulario(papel) {
+  var aluno = papel === 'aluno', minimo = aluno ? 8 : 6;
+  document.getElementById('pagina').innerHTML =
+    '<div class="marca"><img src="assets/logo-quadralab.png" alt="QuadraLab"></div>' +
+    '<div class="cartao">' +
+      '<button type="button" class="trocar" id="btTrocar">' + (aluno ? 'Sou treinador' : 'Sou aluno') + '</button>' +
+      '<h1>' + (aluno ? 'Crie sua conta de aluno' : 'Crie sua conta') + '</h1>' +
+      '<p class="sub">' + (aluno ? 'Depois, o seu professor aprova o vínculo e a sua área abre com o seu plano e as suas aulas.' : 'Comece a organizar suas aulas de tênis em um só lugar.') + '</p>' +
+      (aluno ? '' : '<div class="selo-linha">' +
         '<span class="selo">Grátis para até 5 jogadores</span>' +
         '<button type="button" class="link-detalhes" id="btDetalhes">Ver detalhes</button>' +
-      '</div>' +
+      '</div>') +
       '<div class="detalhes" id="detalhes">Agenda, ficha do jogador, planejamento com IA e histórico completo, sem prazo — o plano grátis só limita o número de jogadores cadastrados ao mesmo tempo. Para mais jogadores, fale com a gente depois de criar sua conta.</div>' +
       '<form id="form" autocomplete="on">' +
         '<div class="campo">' +
@@ -112,10 +141,12 @@ function mostrarFormulario() {
             '<input type="password" id="senha" name="new-password" autocomplete="new-password">' +
             '<button type="button" class="btn-olho" id="btOlho" aria-label="Mostrar senha">' + olhoAberto() + '</button>' +
           '</div>' +
-          '<p class="requisito" id="requisito"><span class="marca-check">○</span> Pelo menos 6 caracteres</p>' +
+          '<p class="requisito" id="requisito"><span class="marca-check">○</span> Pelo menos ' + minimo + ' caracteres</p>' +
         '</div>' +
+        (aluno ? '<div class="campo"><label for="codigo">Código do seu professor <span class="opcional">(opcional, dá para pôr depois)</span></label>' +
+          '<input type="text" id="codigo" name="codigo" autocomplete="off" autocapitalize="characters" maxlength="12" placeholder="8 letras e números"></div>' : '') +
         '<div id="msgErro"></div>' +
-        '<button type="submit" class="bt" id="btEnviar" disabled>Criar minha conta</button>' +
+        '<button type="submit" class="bt" id="btEnviar" disabled>' + (aluno ? 'Criar minha conta de aluno' : 'Criar minha conta') + '</button>' +
       '</form>' +
       '<div id="msgOk"></div>' +
     '</div>' +
@@ -129,9 +160,10 @@ function mostrarFormulario() {
   var requisito = document.getElementById('requisito');
   var mostrando = false;
 
-  document.getElementById('btDetalhes').onclick = function () {
+  if (!aluno) document.getElementById('btDetalhes').onclick = function () {
     document.getElementById('detalhes').classList.toggle('aberto');
   };
+  document.getElementById('btTrocar').onclick = function () { mostrarFormulario(aluno ? 'treinador' : 'aluno'); };
 
   function olhoTroca() {
     mostrando = !mostrando;
@@ -142,7 +174,7 @@ function mostrarFormulario() {
   btOlho.onclick = olhoTroca;
 
   function atualizarEstado() {
-    var senhaOk = senhaEl.value.length >= 6;
+    var senhaOk = senhaEl.value.length >= minimo;
     requisito.className = 'requisito' + (senhaOk ? ' ok' : '');
     requisito.querySelector('.marca-check').textContent = senhaOk ? '✓' : '○';
     btEnviar.disabled = !(nomeEl.value.trim() && emailEl.value.trim() && senhaOk);
@@ -164,28 +196,32 @@ function mostrarFormulario() {
     btEnviar.disabled = true;
     btEnviar.textContent = 'Criando sua conta…';
     try {
-      var r = await fetch('/.netlify/functions/cadastro-individual', {
+      var corpo = { nome: nome, email: email, senha: senha };
+      if (aluno) corpo.codigo = document.getElementById('codigo').value.trim();
+      var r = await fetch('/.netlify/functions/' + (aluno ? 'cadastro-aluno' : 'cadastro-individual'), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ nome: nome, email: email, senha: senha }),
+        body: JSON.stringify(corpo),
       });
       var d = await r.json().catch(function () { return {}; });
       if (!r.ok) throw new Error(d.erro || ('Erro ' + r.status));
 
       // Conta criada no servidor — agora loga de verdade no cliente e
       // segue pro app, em vez de mandar a pessoa digitar tudo de novo.
-      if (typeof MTY !== 'undefined' && MTY.evento) MTY.evento('conta_criada');
+      if (typeof MTY !== 'undefined' && MTY.evento) MTY.evento(aluno ? 'conta_aluno_criada' : 'conta_criada');
+      criando = true;
       document.getElementById('msgOk').innerHTML = '<div class="msg ok">Conta criada! Entrando…</div>';
       document.getElementById('form').style.display = 'none';
       document.getElementById('rodape').style.display = 'none';
       if (auth) {
         await auth.signInWithEmailAndPassword(email, senha);
       }
-      window.location.href = 'index.html';
+      window.location.href = aluno ? 'aluno.html' : 'index.html';
     } catch (e) {
       msgErro.innerHTML = '<div class="msg erro" role="alert">' + escapeHtml(e.message || String(e)) + '</div>';
+      criando = false;
       btEnviar.disabled = false;
-      btEnviar.textContent = 'Criar minha conta';
+      btEnviar.textContent = aluno ? 'Criar minha conta de aluno' : 'Criar minha conta';
       // nome e e-mail continuam preenchidos — só a senha seria sensível
       // o bastante pra não valer a pena preservar.
     }
@@ -204,13 +240,17 @@ function escapeHtml(s) {
   return d.innerHTML;
 }
 
+var criando = false; // o login logo depois do cadastro dispara onAuthStateChanged: quem decide o destino é o envio do formulário
+var papelUrl = (location.search.match(/[?&]papel=(aluno|treinador)\b/) || [])[1];
+function inicio() { if (papelUrl) mostrarFormulario(papelUrl); else mostrarEscolha(); }
 if (auth) {
   auth.onAuthStateChanged(function (u) {
+    if (criando) return;
     if (u) { window.location.href = 'index.html'; return; }
-    mostrarFormulario();
+    inicio();
   });
 } else {
-  mostrarFormulario();
+  inicio();
 }
 </script>
 </body>

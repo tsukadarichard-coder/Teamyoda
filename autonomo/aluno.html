@@ -57,6 +57,19 @@
   .cel{font-size:10.5px; text-align:center; padding:5px 2px; border-radius:3px; border:1px solid var(--linha); cursor:pointer; background:var(--papel)}
   .cel.ocupado{background:#EFE7E4; color:var(--cinza); cursor:default; text-decoration:line-through}
   .cel.sel{background:var(--verde); color:#fff; border-color:var(--verde)}
+  /* Área do aluno (conta própria, sem link): entrar, vincular ao professor, barra da conta */
+  .conta-barra{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:14px 0 0; font-size:12.5px; color:var(--cinza)}
+  .conta-barra img{height:22px}
+  .conta-barra button{background:none; border:none; padding:6px 0; font:600 12.5px -apple-system,sans-serif; color:var(--tinta); text-decoration:underline; cursor:pointer; min-height:36px}
+  .acesso{background:#fff; border:1px solid var(--linha); border-radius:10px; padding:22px 20px; margin-top:22px}
+  .acesso h1{margin-top:0}
+  .acesso label{display:block; font-size:12.5px; font-weight:600; color:var(--cinza); margin:14px 0 5px}
+  .acesso input{width:100%; font:16px -apple-system,sans-serif; padding:11px 12px; border:1px solid var(--linha); border-radius:8px; background:var(--papel); min-height:44px}
+  .acesso .btn{width:100%; margin-top:16px; min-height:46px; font-size:14.5px; border-radius:8px}
+  .acesso .rodape-acesso{font-size:13px; color:var(--cinza); margin-top:14px; text-align:center}
+  .acesso .rodape-acesso a{color:var(--verde); font-weight:700}
+  .msg-acesso{font-size:13px; margin-top:12px; padding:10px 12px; border-radius:6px; background:var(--papel)}
+  .msg-acesso.erro-msg{border-left:3px solid #A6432F; color:#7A2E21}
   .pedido-pendente{background:#FDF6E7; border:1px solid #C9A227; border-radius:4px; padding:10px 12px; font-size:12.5px; margin-top:8px}
 </style>
 </head>
@@ -144,6 +157,10 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catc
   padrao();
 })();
 </script>
+<!-- Área do aluno (aluno.html sem org/id/t): conta própria do aluno, entra com e-mail e senha -->
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-auth-compat.js"></script>
+<script src="mty-nuvem.js"></script>
 <!-- relatório completo das análises de movimento (o mesmo do app do treinador) -->
 <script src="scout/movimento-motor.js"></script>
 <script src="scout/movimento.js"></script>
@@ -458,9 +475,91 @@ function todosHorarios(agenda) {
   const el = document.getElementById('conteudo');
   const INTERVALO = 20000; // atualiza sozinho a cada 20s — o aluno não precisa recarregar a página
 
-  if (!org || !id || !t) {
+  /* Sem org/id/t: Área do aluno. O aluno entra com a conta dele; a function aluno-conta confere o vínculo com o professor e
+     devolve o mesmo conteúdo do link, só do próprio jogador. Com o link (org/id/t), tudo segue como sempre, sem login. */
+  const CONTA = !org || !id || !t;
+  const auth = CONTA && typeof firebase !== 'undefined' && typeof MTY_CONFIG !== 'undefined' && MTY_CONFIG.apiKey !== 'COLE_AQUI' ? firebase.auth() : null;
+  let contaAtual = null;
+  if (CONTA && !auth) {
     el.innerHTML = '<div class="erro">Este link está incompleto. Peça o link certo ao seu treinador.</div>';
     return;
+  }
+  async function chamarConta(metodo, qs, corpo) {
+    const u = auth.currentUser;
+    if (!u) throw new Error('Entre com a sua conta.');
+    const tk = await u.getIdToken();
+    const r = await fetch('/.netlify/functions/aluno-conta' + (qs ? '?' + qs : ''), {
+      method: metodo, headers: Object.assign({ authorization: 'Bearer ' + tk }, corpo ? { 'content-type': 'application/json' } : {}),
+      body: corpo ? JSON.stringify(corpo) : undefined, cache: 'no-store',
+    });
+    const d = await r.json().catch(function () { return {}; });
+    if (!r.ok) throw new Error(d.erro || ('Erro ' + r.status));
+    return d;
+  }
+  function barraConta() {
+    if (!CONTA) return '';
+    return '<div class="conta-barra"><img src="assets/logo-quadralab.png" alt="QuadraLab"><span>' + escapar((contaAtual && contaAtual.email) || '') +
+      ' · <button type="button" data-conta="sair">Sair</button></span></div>';
+  }
+  function ligarBarra() {
+    const b = el.querySelector('[data-conta="sair"]');
+    if (b) b.onclick = function () { auth.signOut(); };
+  }
+  function telaEntrar(msg) {
+    el.innerHTML = '<div class="conta-barra"><img src="assets/logo-quadralab.png" alt="QuadraLab"></div>' +
+      '<form class="acesso" id="fEntrar" novalidate><h1>Área do aluno</h1><div class="sub">Entre para ver o seu plano, as suas aulas e a sua evolução.</div>' +
+      '<label for="aEmail">E-mail</label><input id="aEmail" type="email" autocomplete="email" inputmode="email">' +
+      '<label for="aSenha">Senha</label><input id="aSenha" type="password" autocomplete="current-password">' +
+      '<div id="aMsg">' + (msg ? '<div class="msg-acesso">' + escapar(msg) + '</div>' : '') + '</div>' +
+      '<button class="btn" type="submit" id="aEntrar">Entrar</button>' +
+      '<p class="rodape-acesso">Ainda não tem conta? <a href="cadastro-individual.html?papel=aluno">Criar conta de aluno</a></p>' +
+      '<p class="rodape-acesso"><a href="#" id="aEsqueci">Esqueci a senha</a></p></form>';
+    const msgEl = document.getElementById('aMsg');
+    const mostrar = function (t, erro) { msgEl.innerHTML = '<div class="msg-acesso' + (erro ? ' erro-msg' : '') + '" role="' + (erro ? 'alert' : 'status') + '">' + escapar(t) + '</div>'; };
+    document.getElementById('fEntrar').onsubmit = async function (ev) {
+      ev.preventDefault();
+      const email = document.getElementById('aEmail').value.trim(), senha = document.getElementById('aSenha').value;
+      if (!email || !senha) { mostrar('Informe o e-mail e a senha.', true); return; }
+      const b = document.getElementById('aEntrar'); b.disabled = true; b.textContent = 'Entrando…';
+      try { await auth.signInWithEmailAndPassword(email, senha); }
+      catch (e) { b.disabled = false; b.textContent = 'Entrar'; mostrar(/network/.test(e.code || '') ? 'Sem conexão. Tente de novo.' : 'E-mail ou senha não conferem.', true); }
+    };
+    document.getElementById('aEsqueci').onclick = async function (ev) {
+      ev.preventDefault();
+      const email = document.getElementById('aEmail').value.trim();
+      if (!email) { mostrar('Escreva o seu e-mail acima e toque em "Esqueci a senha" de novo.', true); return; }
+      try { await auth.sendPasswordResetEmail(email); } catch (e) { /* não revela se o e-mail existe */ }
+      mostrar('Se houver uma conta com esse e-mail, enviamos um link para criar uma nova senha.', false);
+    };
+  }
+  /* sem vínculo ativo: código do professor, pedido aguardando, recusado ou encerrado */
+  function telaVinculo(r) {
+    const v = r.vinculo, aguardando = v && v.status === 'aguardando';
+    let topo;
+    if (aguardando) topo = '<h1>Pedido enviado</h1><div class="sub">Assim que <strong>' + escapar(v.treinadorNome) + '</strong> aprovar, a sua área abre aqui com o seu plano e as suas aulas. Esta página atualiza sozinha.</div>';
+    else if (v && v.status === 'recusado') topo = '<h1>Vincule-se ao seu professor</h1><div class="msg-acesso erro-msg">' + escapar(v.treinadorNome) + ' não aprovou o pedido. Confira o código com o seu professor e tente de novo.</div>';
+    else if (v && v.status === 'encerrado') topo = '<h1>Vincule-se ao seu professor</h1><div class="msg-acesso">O vínculo com ' + escapar(v.treinadorNome) + ' foi encerrado. Se você treina com outro professor, use o código dele.</div>';
+    else topo = '<h1>Olá' + (r.conta && r.conta.nome ? ', ' + escapar(r.conta.nome.split(' ')[0]) : '') + '!</h1><div class="sub">Para ver o seu plano e as suas aulas, peça ao seu professor o código dele no QuadraLab e digite abaixo.</div>';
+    el.innerHTML = barraConta() + '<div class="acesso">' + topo +
+      (aguardando ? '<button class="btn fraco" type="button" id="aCancelar">Cancelar o pedido</button>'
+        : '<form id="fVinc" novalidate><label for="aCodigo">Código do professor</label><input id="aCodigo" autocomplete="off" autocapitalize="characters" maxlength="12" placeholder="8 letras e números">' +
+          '<button class="btn" type="submit" id="aVincular">Pedir vínculo</button></form>') +
+      '<div id="aMsg"></div></div>';
+    ligarBarra();
+    const msgEl = document.getElementById('aMsg');
+    const mostrar = function (t) { msgEl.innerHTML = '<div class="msg-acesso erro-msg" role="alert">' + escapar(t) + '</div>'; };
+    const f = document.getElementById('fVinc');
+    if (f) f.onsubmit = async function (ev) {
+      ev.preventDefault();
+      const b = document.getElementById('aVincular'); b.disabled = true; b.textContent = 'Enviando…';
+      try { await chamarConta('POST', '', { acao: 'vincular', codigo: document.getElementById('aCodigo').value }); await carregar(true); }
+      catch (e) { b.disabled = false; b.textContent = 'Pedir vínculo'; mostrar(e.message); }
+    };
+    const c = document.getElementById('aCancelar');
+    if (c) c.onclick = async function () {
+      c.disabled = true;
+      try { await chamarConta('POST', '', { acao: 'cancelarPedido' }); await carregar(true); } catch (e) { c.disabled = false; mostrar(e.message); }
+    };
   }
 
   let ultimoJson = null;
@@ -484,6 +583,7 @@ function todosHorarios(agenda) {
   };
 
   async function postAcao(corpo) {
+    if (CONTA) return await chamarConta('POST', '', corpo);
     const r = await fetch('/.netlify/functions/ver-aluno', {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify(Object.assign({ org: org, id: id, t: t }, corpo)),
@@ -494,10 +594,25 @@ function todosHorarios(agenda) {
   }
 
   async function carregar(forcarRender) {
+    if (CONTA && !auth.currentUser) return;
     try {
-      const r = await fetch('/.netlify/functions/ver-aluno?org=' + encodeURIComponent(org) + '&id=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(t));
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.erro || ('Erro ' + r.status));
+      let d;
+      if (CONTA) {
+        const c = await chamarConta('GET');
+        if (!('vinculo' in c)) { contaAtual = null; el.innerHTML = '<div class="acesso"><h1>Esta é uma conta de treinador</h1><div class="sub">A sua área de trabalho fica no app do treinador.</div><a class="btn" style="display:block;text-align:center;text-decoration:none;margin-top:16px" href="index.html">Abrir o app do treinador</a></div>'; ultimoJson = null; return; }
+        contaAtual = c.conta;
+        if (!c.dados) {
+          const j = JSON.stringify(c);
+          if (j !== ultimoJson || forcarRender) telaVinculo(c);
+          ultimoJson = j; ultimoDado = null;
+          return;
+        }
+        d = c.dados;
+      } else {
+        const r = await fetch('/.netlify/functions/ver-aluno?org=' + encodeURIComponent(org) + '&id=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(t));
+        d = await r.json();
+        if (!r.ok) throw new Error(d.erro || ('Erro ' + r.status));
+      }
 
       const textoJson = JSON.stringify(d);
       const primeiraCarga = ultimoJson === null;
@@ -528,10 +643,10 @@ function todosHorarios(agenda) {
       const subtitulo = d.planoRascunho
         ? 'Seu treinador está preparando seu plano — assim que for revisado e aprovado, aparece aqui.'
         : 'Ainda não há um plano montado para você.';
-      el.innerHTML = '<header><h1>' + escapar(d.nome) + '</h1><div class="sub">' + subtitulo + '</div></header>' +
+      el.innerHTML = barraConta() + '<header><h1>' + escapar(d.nome) + '</h1><div class="sub">' + subtitulo + '</div></header>' +
         painelTurmas(d) + painelMovimentos(d) + painelJogos(d) + painelJogosVideo(d) +
         painelMapaConceitos(d, ui) + painelEvolucao(d) + painelRelatorios(d) + painelComunicacao(d) + '<div class="sincronia" id="mty-sincronia"></div>';
-      ligarEventos(d);
+      ligarEventos(d); ligarBarra();
       return;
     }
     const repetindo = d.aulas.filter(function (a) { return a.status === 'falta' || a.status === 'cancelada'; }).length;
@@ -554,8 +669,8 @@ function todosHorarios(agenda) {
     html += painelRelatorios(d);
     html += painelComunicacao(d);
     html += '<div class="sincronia" id="mty-sincronia"></div>';
-    el.innerHTML = html;
-    ligarEventos(d);
+    el.innerHTML = barraConta() + html;
+    ligarEventos(d); ligarBarra();
   }
 
   /* ── tudo o que é do jogador além do plano: plano da turma, análises de movimento, jogos com scout e jogos em vídeo ── */
@@ -593,7 +708,7 @@ function todosHorarios(agenda) {
   function painelJogos(d) {
     const l = d.jogos || [];
     if (!l.length) return '';
-    const base = 'scout/index.html?a=1&org=' + encodeURIComponent(org) + '&id=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(t) + '&j=';
+    const base = CONTA ? 'scout/index.html?a=2&j=' : 'scout/index.html?a=1&org=' + encodeURIComponent(org) + '&id=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(t) + '&j=';
     return '<div class="painel" data-painel="jogos"><h2>Seus jogos (scout)</h2>' +
       l.map(function (j) { return linhaLista(dataCurta(j.data) + (j.torneio ? ' · ' + escapar(j.torneio) : '') + (j.video ? ' · em vídeo' : ''), (j.resultado ? escapar(j.resultado) + ' · ' : '') + Math.round(j.pctGanhos) + '% dos pontos ganhos · ' + j.n + ' pontos', '<a class="btn" style="text-decoration:none;white-space:nowrap" target="_blank" rel="noopener" href="' + base + encodeURIComponent(j.id) + '">Ver jogo</a>'); }).join('') + '</div>';
   }
@@ -608,7 +723,7 @@ function todosHorarios(agenda) {
     if (!h || !window.QLMovimento) { alert('Não foi possível abrir o relatório agora. Recarregue a página e tente de novo.'); return; }
     window.QLMovimento.abrirRelatorio(h, {
       historico: d.movimentos, atleta: d.nome, logo: new URL('assets/logo-quadralab.png', location.href).href, cabecalho: d.academiaNome || '',
-      arquivo: { ler: function (rel) { return fetch('/.netlify/functions/ver-aluno?org=' + encodeURIComponent(org) + '&id=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(t) + '&rel=' + encodeURIComponent(rel)).then(function (r) { return r.ok ? r.json() : {}; }).then(function (x) { return x.arquivo || null; }); } },
+      arquivo: { ler: function (rel) { if (CONTA) return chamarConta('GET', 'rel=' + encodeURIComponent(rel)).then(function (x) { return x.arquivo || null; }).catch(function () { return null; }); return fetch('/.netlify/functions/ver-aluno?org=' + encodeURIComponent(org) + '&id=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(t) + '&rel=' + encodeURIComponent(rel)).then(function (r) { return r.ok ? r.json() : {}; }).then(function (x) { return x.arquivo || null; }); } },
     });
   }
 
@@ -956,7 +1071,10 @@ function todosHorarios(agenda) {
     if (destacar) setTimeout(() => { nota.className = 'sincronia'; }, 2500);
   }
 
-  carregar();
+  if (CONTA) {
+    el.innerHTML = '<div class="carregando">Carregando…</div>';
+    auth.onAuthStateChanged(function (u) { ultimoJson = null; if (u) carregar(true); else { contaAtual = null; telaEntrar(); } });
+  } else carregar();
   setInterval(carregar, INTERVALO);
 })();
 </script>

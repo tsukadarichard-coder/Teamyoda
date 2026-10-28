@@ -380,6 +380,20 @@ footer { margin-top: 22px; font-size: 13px; color: var(--grafite); text-align: c
     buscar();
     return;
   }
+  /* aberto pela Área do aluno (aluno.html com conta): o jogo vem de aluno-conta, conferido pela conta logada do aluno */
+  if (q.get("a") === "2" && q.get("j")) {
+    var carregar = function (src) { return new Promise(function (ok, falha) { var s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = function () { falha(new Error("Sem conexão. Tente de novo.")); }; document.head.appendChild(s); }); };
+    carregar("https://www.gstatic.com/firebasejs/12.17.1/firebase-app-compat.js")
+      .then(function () { return carregar("https://www.gstatic.com/firebasejs/12.17.1/firebase-auth-compat.js"); })
+      .then(function () { return carregar("../mty-nuvem.js"); })
+      .then(function () { return new Promise(function (ok, falha) { var sai = firebase.auth().onAuthStateChanged(function (u) { sai(); if (u) ok(u); else falha(new Error("Entre na Área do aluno para ver este jogo.")); }); }); })
+      .then(function (u) { return u.getIdToken(); })
+      .then(function (tk) { return fetch("/.netlify/functions/aluno-conta?" + new URLSearchParams({ jogo: q.get("j") }).toString(), { headers: { authorization: "Bearer " + tk }, cache: "no-store" }); })
+      .then(function (r) { return r.json().then(function (c) { if (!r.ok) throw new Error(c.erro || "Não foi possível abrir agora."); return c; }); })
+      .then(function (c) { desenhar(c.publico, ""); })
+      .catch(function (e) { erro(e.message || "Não foi possível abrir agora."); });
+    return;
+  }
   if (!q.get("org") || !q.get("id") || !q.get("j") || !q.get("t")) { erro("Link incompleto. Peça um novo ao seu treinador."); return; }
   /* aberto a partir do link do aluno (aluno.html): o mesmo resumo, conferido pelo token do link do aluno */
   if (q.get("a") === "1") {
