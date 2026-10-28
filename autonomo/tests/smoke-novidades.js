@@ -8,7 +8,7 @@ const app=process.argv[2]||"mty";const raiz=path.join(__dirname,"..",app==="mty"
 const html=fs.readFileSync(path.join(raiz,"index.html"),"utf8");
 const ms=[...html.matchAll(/<script type="text\/babel"[^>]*>([\s\S]*?)<\/script>/g)].map(m=>m[1]).join("\n");
 const corte=ms.indexOf('ReactDOM.createRoot(document.getElementById("root")).render(<App />);');
-const corpo=ms.slice(0,corte)+`ReactDOM.createRoot(document.getElementById("root")).render(<div><NovidadesQuadraLab /><p id="x">app</p></div>);`;
+const corpo=ms.slice(0,corte)+`ReactDOM.createRoot(document.getElementById("root")).render(<div>${app==="mty"?'<JanelaNovidades nomeApp="Team Yoda" versao={NOVIDADES_TY_VERSAO} itens={NOVIDADES_TY} />':"<NovidadesQuadraLab />"}<p id="x">app</p></div>);`;
 const pagina=`<!doctype html><meta charset=utf-8><div id=root></div><script src=/r.js></script><script src=/d.js></script><script src=/p.js></script><script src=/c.js></script><script src=/b.js></script>
 <script>window.MTY={evento(){},id:()=>"x",map(){},tokenSeguro(){return ""}};</script>
 <script src=/scout/graficos.js></script><script src=/scout/ao-vivo.js></script><script src=/scout/relatorio-jogos.js></script><script src=/scout/movimento-motor.js></script><script src=/scout/evidencias.js></script><script src=/scout/movimento.js></script><script src=/scout/video-segmentador.js></script><script src=/scout/video-jogo.js></script>

@@ -9,7 +9,7 @@ const R = path.join(__dirname, "../.."), ler = (f) => fs.readFileSync(path.join(
   ["autonomo/netlify/functions/_olhar-armazenamento.js", "netlify/functions/_olhar-armazenamento.js"],
   ["autonomo/netlify/functions/ver-aluno.js", "netlify/functions/ver-aluno.js"]]
   .forEach(([a, b]) => assert.strictEqual(ler(b), ler(a), b + " fora de sincronia com " + a + " (copie o arquivo)"));
-const bloco = (h) => { const t = ler(h), a = t.indexOf("/* ── Observar jogos: fundamentos"), b = t.indexOf("function TelaMeuMetodo(", a), c = t.indexOf("const NAV_DIA_A_DIA", a); return t.slice(a, b > 0 ? b : c); };
+const bloco = (h) => { const t = ler(h), a = t.indexOf("/* ── Observar jogos: fundamentos"), b = t.indexOf("function TelaMeuMetodo(", a), c = t.indexOf("/* ── Equipes de competição", a); return t.slice(a, b > 0 ? b : c); };
 assert.strictEqual(bloco("mty/index.html"), bloco("autonomo/index.html").replace('position: "sticky", top: 56', 'position: "sticky", top: 52'), "componentes do kit diferentes entre autonomo e mty");
 const M = ler("mty/index.html");
 assert(/const planoQueLibera = \(\) => null;/.test(M), "Team Yoda: tudo liberado");

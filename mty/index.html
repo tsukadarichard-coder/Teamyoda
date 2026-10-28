@@ -39,6 +39,7 @@
 <script src="scout/quadra-auto.js"></script>
 <script src="scout/padroes.js"></script>
 <script src="obs-voz.js"></script>
+<script src="relatorio-atleta.js"></script>
 <script src="scout/video-jogo.js"></script>
 <link rel="stylesheet" href="scout/movimento.css">
 <link rel="stylesheet" href="scout/graficos.css">
@@ -21417,8 +21418,392 @@ function TelaQuadroTatico() {
   );
 }
 
+/* ── Equipes de competição e relatório do atleta (Team Yoda) ──
+   Equipe: coordenador, auxiliares e os atletas; não exige plano de treino (o plano pode vir depois, na ficha de cada um). A tela da
+   equipe mostra, por atleta, a ficha, o último scout, a última observação de jogo, a última análise de movimento e o último relatório.
+   Relatório (relatorio-atleta.js): junta os registros do período (torneio, mês ou datas) e a observação do treinador. Auxiliar escreve
+   o rascunho; quem publica é o coordenador da equipe (ou da academia). Publicado, aparece na página do aluno (link dos pais), sai pelo
+   WhatsApp com o link e em PDF. Fica em aluno.relatoriosAtleta; a lista de equipes em mty:equipes:v1. */
+const CHAVE_EQUIPES = "mty:equipes:v1";
+const mesAtualRel = () => new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 7);
+const chavePeriodoRel = (p) => !p ? "" : p.tipo === "torneio" ? "t:" + String(p.torneio || "").toLowerCase().trim() : p.tipo === "mes" ? "m:" + p.mes : "d:" + (p.de || "") + ":" + (p.ate || "");
+async function movimentosDoJogadorAsync(aluno) {
+  const ficha = (aluno && aluno.movimentos) || [], arq = arquivoMovimento();
+  if (!arq || !aluno || !aluno.id) return ficha;
+  try { const ind = await arq.indice(aluno.id); return window.QLMovArquivo && ind ? window.QLMovArquivo.juntar(ficha, ind) : ficha; } catch (e) { return ficha; }
+}
+function situacaoAtleta(a) {
+  const regs = a.registros || [], maior = (l) => l.filter(Boolean).sort().pop() || "";
+  const rels = (a.relatoriosAtleta || []).slice().sort((x, y) => String(y.atualizadoEm || "").localeCompare(String(x.atualizadoEm || "")));
+  return {
+    fichaCompleta: a.cadastroConcluido !== false,
+    scout: maior(regs.filter((r) => r.tipo === "jogo" && r.scout && r.scout.n > 0).map((r) => String(r.data || "").slice(0, 10))),
+    observacao: maior(regs.filter((r) => r.tipo === "observacao" && r.contexto !== "conversa").map((r) => String(r.data || "").slice(0, 10))),
+    movimento: maior((a.movimentos || []).map((m) => String(m.criadoEm || "").slice(0, 10))),
+    relatorio: rels[0] || null,
+  };
+}
+/* link da página do aluno (o mesmo de "Compartilhar com o jogador"): cria a chave se ainda não existe */
+async function linkPaginaAluno(aluno, setAlunos) {
+  let chave = aluno.linkToken;
+  if (!chave) { chave = MTY.tokenSeguro(); setAlunos((l) => l.map((a) => (a.id === aluno.id ? { ...a, linkToken: chave } : a))); }
+  const org = await organizacao();
+  return location.origin + "/aluno.html?org=" + encodeURIComponent(org || "") + "&id=" + encodeURIComponent(aluno.id) + "&t=" + encodeURIComponent(chave);
+}
+function promptObservacaoRelatorio(dados) {
+  const nome = String(dados.nome || "o atleta").split(" ")[0], n = dados.numeros || {};
+  const l = (t, x) => (x && x.length ? [t + ":", ...x.map((i) => "- " + i)] : []);
+  return [
+    "Você ajuda um treinador de tênis a escrever a observação final de um relatório para " + nome + " e a família (atleta juvenil de competição).",
+    "Período: " + (dados.rotulo || "") + ". Use SOMENTE os dados abaixo. Não invente golpes, números, resultados, causas nem avaliações psicológicas.",
+    "Não conclua que o atleta foi bem ou mal numa área pela quantidade de registros. Se os dados forem poucos, diga isso com naturalidade.",
+    "Português do Brasil, tom de treinador: claro, encorajador e honesto. Texto corrido, 120 a 180 palavras, sem markdown e sem asteriscos.",
+    "Feche com 1 a 3 focos para os próximos treinos, tirados dos dados.",
+    "", "Dados:",
+    "Jogos: " + (n.jogos || 0) + (n.pontos ? " · " + n.pontos + " pontos no scout" : "") + (n.pctGanhosMedio != null ? " · " + n.pctGanhosMedio + "% dos pontos ganhos (média)" : ""),
+    ...(dados.jogos || []).map((j) => "- " + j.data + (j.torneio ? " · " + j.torneio : "") + (j.adversario ? " · contra " + j.adversario : "") + (j.resultado ? " · " + j.resultado : "") + (j.n ? " · scout " + j.n + " pontos, " + j.pctGanhos + "% ganhos" : "") + (j.observacaoFinal ? " · nota: " + j.observacaoFinal : "")),
+    ...l("Pontos positivos observados", dados.positivos), ...l("Pontos de atenção", dados.atencao), ...l("Foco de treino anotado", dados.foco),
+    ...(dados.movimentos || []).map((m) => "- Análise de movimento " + m.golpe + " (" + m.data + "): " + m.ok + " pontos OK, " + m.atencao + " em atenção" + (m.prio && m.prio.length ? "; prioridades: " + m.prio.join(", ") : "")),
+  ].join("\n");
+}
+function SeletorPeriodoRel({ valor, aoMudar, torneios }) {
+  const s = { ...entrada, padding: "7px 9px", fontSize: 14 };
+  return (
+    <div data-seletor-periodo style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+      <label style={{ ...prosa, fontSize: 12, color: C.grafite }}>Período
+        <select aria-label="Tipo de período" value={valor.tipo} onChange={(e) => {
+          const t = e.target.value;
+          aoMudar(t === "mes" ? { tipo: "mes", mes: mesAtualRel() } : t === "torneio" ? { tipo: "torneio", torneio: (torneios || [])[0] || "" } : { tipo: "datas", de: mesAtualRel() + "-01", ate: new Date().toISOString().slice(0, 10) });
+        }} style={{ ...s, display: "block", marginTop: 3, width: "auto" }}>
+          <option value="torneio">Torneio</option><option value="mes">Mês</option><option value="datas">Datas</option>
+        </select>
+      </label>
+      {valor.tipo === "mes" && <input type="month" aria-label="Mês" value={valor.mes} onChange={(e) => aoMudar({ tipo: "mes", mes: e.target.value })} style={{ ...s, width: "auto" }} />}
+      {valor.tipo === "torneio" && (
+        (torneios || []).length ? (
+          <select aria-label="Torneio" value={valor.torneio} onChange={(e) => aoMudar({ tipo: "torneio", torneio: e.target.value })} style={{ ...s, width: "auto", maxWidth: 260 }}>
+            {torneios.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+        ) : <input aria-label="Torneio" placeholder="Nome do torneio" value={valor.torneio} onChange={(e) => aoMudar({ tipo: "torneio", torneio: e.target.value })} style={{ ...s, width: 220 }} />
+      )}
+      {valor.tipo === "datas" && (<>
+        <input type="date" aria-label="De" value={valor.de} onChange={(e) => aoMudar({ ...valor, de: e.target.value })} style={{ ...s, width: "auto" }} />
+        <input type="date" aria-label="Até" value={valor.ate} onChange={(e) => aoMudar({ ...valor, ate: e.target.value })} style={{ ...s, width: "auto" }} />
+      </>)}
+    </div>
+  );
+}
+/* um relatório: período, prévia (o mesmo que a família vê), observação do treinador, rascunho com IA, publicar, WhatsApp, PDF */
+function RelatorioAtletaEditor({ aluno, setAlunos, relatorioId, periodoInicial, podePublicar, autor, academia, aoVoltar }) {
+  const R = window.QLRelatorioAtleta;
+  const existente = (aluno.relatoriosAtleta || []).find((r) => r.id === relatorioId) || null;
+  const movimentos = useMovimentosDoJogador(aluno, 0);
+  const torneios = R ? R.torneiosDoAluno(aluno) : [];
+  const [periodo, setPeriodo] = useState(() => (existente && existente.periodo) || periodoInicial || { tipo: "mes", mes: mesAtualRel() });
+  const [dados, setDados] = useState(() => (existente && existente.dados) || null);
+  const [obs, setObs] = useState(() => (existente && existente.observacao) || "");
+  const [id] = useState(() => (existente ? existente.id : "rel-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5)));
+  const [etapaIA, setEtapaIA] = useState("");
+  const [msg, setMsg] = useState(null);
+  const atual = (aluno.relatoriosAtleta || []).find((r) => r.id === id) || null;
+  const publicado = atual && atual.status === "publicado";
+  /* sem dados ainda (relatório novo) ou período trocado: monta de novo com o que foi registrado */
+  useEffect(() => { if (R && (!dados || chavePeriodoRel(dados.periodo) !== chavePeriodoRel(periodo))) setDados(R.coletar(aluno, movimentos, periodo)); }, [chavePeriodoRel(periodo), movimentos.length]);
+  if (!R) return <p style={{ ...prosa, fontSize: 13 }}>Recarregue o app para usar os relatórios.</p>;
+  function gravar(extra) {
+    const agora = new Date().toISOString();
+    const base = { id, periodo, dados: dados || R.coletar(aluno, movimentos, periodo), observacao: obs.slice(0, 8000), atualizadoEm: agora, autorUid: autor.uid || null, autorNome: autor.nome || "" };
+    setAlunos((l) => l.map((a) => {
+      if (a.id !== aluno.id) return a;
+      const lista = a.relatoriosAtleta || [], ant = lista.find((r) => r.id === id);
+      const novo = { status: "rascunho", criadoEm: agora, ...(ant || {}), ...base, ...(extra || {}) };
+      return { ...a, relatoriosAtleta: ant ? lista.map((r) => (r.id === id ? novo : r)) : [...lista, novo].slice(-60) };
+    }));
+  }
+  async function rascunhoIA() {
+    setMsg(null); setEtapaIA("Começando");
+    try { const t = (await chamarIA(promptObservacaoRelatorio(dados), 900, setEtapaIA)).trim().replace(/\*\*/g, ""); setObs(t); setMsg({ t: "Rascunho escrito pela IA com os dados do período. Revise antes de publicar." }); }
+    catch (e) { setMsg({ erro: true, t: e.message || "Não foi possível gerar agora." }); }
+    setEtapaIA("");
+  }
+  async function whatsapp() {
+    const url = await linkPaginaAluno(aluno, setAlunos);
+    const texto = "Olá! O relatório de " + String(aluno.nome || "").split(" ")[0] + " (" + (dados.rotulo || "") + ") já está disponível. Abra pelo link: " + url;
+    window.open("https://wa.me/?text=" + encodeURIComponent(texto), "_blank", "noopener");
+  }
+  function pdf() {
+    const w = window.open("", "_blank");
+    if (!w) { setMsg({ erro: true, t: "O navegador bloqueou a nova janela. Permita pop-ups para baixar o PDF." }); return; }
+    w.document.write(R.documento(dados, { observacao: obs, treinador: (atual && atual.publicadoPor) || autor.nome, academia, publicadoEm: atual && atual.publicadoEm }));
+    w.document.close();
+  }
+  return (
+    <div data-relatorio-editor>
+      <button onClick={aoVoltar} style={{ ...prosa, fontSize: 13.5, color: C.quadra, fontWeight: 700, background: "none", border: "none", cursor: "pointer", padding: 0, minHeight: 36 }}>‹ Voltar à equipe</button>
+      <h1 style={{ fontFamily: ARCH, fontSize: 21, fontWeight: 700, marginTop: 4 }}>Relatório · {aluno.nome}</h1>
+      <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>{publicado ? "Publicado: aparece na página do aluno." : "Rascunho: só a equipe vê."}{atual && atual.autorNome ? " Última edição: " + atual.autorNome + "." : ""}</p>
+      <div style={{ marginTop: 10 }}>
+        <SeletorPeriodoRel valor={periodo} torneios={torneios} aoMudar={(p) => { setPeriodo(p); setDados(null); }} />
+        <div style={{ marginTop: 8 }}><Botao pequeno variante="vazio" onClick={() => { setDados(R.coletar(aluno, movimentos, periodo)); setMsg({ t: "Dados atualizados com o que está registrado agora." }); }}>Atualizar com os dados do período</Botao></div>
+      </div>
+      {dados && (
+        <div data-previa-relatorio style={{ background: "#fff", border: "1px solid " + C.linha, borderRadius: 12, padding: "14px 16px", marginTop: 12 }}>
+          <style>{R.css}</style>
+          <div dangerouslySetInnerHTML={{ __html: R.html(dados, { observacao: "", academia }) }} />
+        </div>
+      )}
+      <div style={{ marginTop: 14 }}>
+        <label style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>Observação do treinador
+          <textarea aria-label="Observação do treinador" value={obs} onChange={(e) => setObs(e.target.value)} rows={7} placeholder="O que você quer dizer ao atleta e à família sobre este período…" style={{ ...entrada, marginTop: 6, fontSize: 15 }} />
+        </label>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
+          <Botao pequeno variante="vazio" disabled={!!etapaIA || !dados} onClick={rascunhoIA}>{etapaIA ? etapaIA + "…" : "Rascunho com IA"}</Botao>
+        </div>
+      </div>
+      {msg && <p role="status" style={{ ...prosa, fontSize: 13, color: msg.erro ? "#A33" : C.quadra, marginTop: 8 }}>{msg.t}</p>}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
+        <Botao variante="vazio" disabled={!dados} onClick={() => { gravar(); setMsg({ t: "Rascunho salvo." }); }}>Salvar rascunho</Botao>
+        {podePublicar ? (
+          <Botao variante="saibro" disabled={!dados} onClick={() => { gravar({ status: "publicado", publicadoEm: new Date().toISOString(), publicadoPor: autor.nome || "", publicadoPorUid: autor.uid || null }); setMsg({ t: "Publicado: o relatório já aparece na página do aluno." }); }}>{publicado ? "Publicar de novo" : "Publicar para o aluno"}</Botao>
+        ) : <span style={{ ...prosa, fontSize: 12.5, color: C.grafite, alignSelf: "center" }}>Quem publica é o coordenador da equipe.</span>}
+      </div>
+      {publicado && (
+        <div data-relatorio-publicado style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+          <Botao variante="vazio" onClick={whatsapp}>Enviar pelo WhatsApp</Botao>
+          <Botao variante="vazio" onClick={pdf}>Baixar PDF</Botao>
+          {podePublicar && <Botao variante="vazio" onClick={() => { gravar({ status: "rascunho", publicadoEm: null }); setMsg({ t: "O relatório saiu da página do aluno e voltou a ser rascunho." }); }}>Despublicar</Botao>}
+        </div>
+      )}
+    </div>
+  );
+}
+function FormEquipe({ inicial, alunos, professores, aoSalvar, aoCancelar }) {
+  const [nome, setNome] = useState((inicial && inicial.nome) || "");
+  const [coord, setCoord] = useState((inicial && inicial.coordenadorUid) || "");
+  const [aux, setAux] = useState(((inicial && inicial.auxiliares) || []).map((x) => x.uid));
+  const [membros, setMembros] = useState((inicial && inicial.membros) || []);
+  const [busca, setBusca] = useState("");
+  const ordenados = [...(alunos || [])].sort((a, b) => String(a.nome || "").localeCompare(String(b.nome || "")));
+  const alterna = (l, set, v) => set(l.includes(v) ? l.filter((x) => x !== v) : [...l, v]);
+  const visiveis = ordenados.filter((a) => !busca.trim() || String(a.nome || "").toLowerCase().includes(busca.trim().toLowerCase()));
+  function salvar() {
+    const pc = professores.find((p) => p.uid === coord);
+    aoSalvar({ nome: nome.trim(), coordenadorUid: coord || null, coordenadorNome: pc ? pc.nome : "", auxiliares: aux.filter((u) => u !== coord).map((u) => ({ uid: u, nome: (professores.find((p) => p.uid === u) || {}).nome || "" })), membros });
+  }
+  return (
+    <div data-form-equipe style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: "12px 14px", marginTop: 12 }}>
+      <Campo rotulo="Nome da equipe"><input aria-label="Nome da equipe" value={nome} onChange={(e) => setNome(e.target.value.slice(0, 60))} placeholder="Ex.: Juvenil competição 14-16" style={entrada} /></Campo>
+      <Campo rotulo="Coordenador">
+        <select aria-label="Coordenador" value={coord} onChange={(e) => setCoord(e.target.value)} style={entrada}>
+          <option value="">Escolha…</option>{professores.map((p) => <option key={p.uid} value={p.uid}>{p.nome}</option>)}
+        </select>
+      </Campo>
+      <Campo rotulo="Auxiliares" nota="Podem registrar e escrever rascunhos de relatório; quem publica é o coordenador.">
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {professores.filter((p) => p.uid !== coord).map((p) => (
+            <label key={p.uid} style={{ ...prosa, fontSize: 13.5, display: "flex", alignItems: "center", gap: 6, border: "1px solid " + C.linha, borderRadius: 999, padding: "4px 10px", cursor: "pointer", minHeight: 36 }}>
+              <input type="checkbox" checked={aux.includes(p.uid)} onChange={() => alterna(aux, setAux, p.uid)} /> {p.nome}
+            </label>
+          ))}
+          {professores.length <= 1 && <span style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Os professores da academia aparecem aqui.</span>}
+        </div>
+      </Campo>
+      <Campo rotulo={"Atletas · " + membros.length}>
+        <input aria-label="Buscar atleta" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar pelo nome" style={{ ...entrada, marginBottom: 6 }} />
+        <div style={{ maxHeight: 260, overflowY: "auto", border: "1px solid " + C.linha, borderRadius: 10, padding: "4px 8px" }}>
+          {visiveis.map((a) => (
+            <label key={a.id} data-atleta-opcao style={{ ...prosa, fontSize: 14, display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: "1px solid " + C.linha, cursor: "pointer" }}>
+              <input type="checkbox" checked={membros.includes(a.id)} onChange={() => alterna(membros, setMembros, a.id)} style={{ width: 18, height: 18 }} /> {a.nome || "Jogador"}
+            </label>
+          ))}
+        </div>
+      </Campo>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <Botao variante="saibro" disabled={!nome.trim() || !membros.length} onClick={salvar}>Salvar equipe</Botao>
+        <Botao variante="vazio" onClick={aoCancelar}>Cancelar</Botao>
+      </div>
+    </div>
+  );
+}
+function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAbrirJogador }) {
+  const [equipes, setEquipes] = useState(null);
+  const [professores, setProfessores] = useState([]);
+  const [abertaId, setAbertaId] = useState(null);
+  const [form, setForm] = useState(null); // null | "nova" | "editar"
+  const [editor, setEditor] = useState(null); // { alunoId, relatorioId, periodo }
+  const [periodo, setPeriodo] = useState({ tipo: "mes", mes: mesAtualRel() });
+  const [msg, setMsg] = useState(null);
+  const [gerando, setGerando] = useState(false);
+  useEffect(() => { leia(CHAVE_EQUIPES, [], true).then((l) => setEquipes(Array.isArray(l) ? l : [])); listaProfessores().then(setProfessores).catch(() => {}); }, []);
+  const salvarLista = (l) => { setEquipes(l); grave(CHAVE_EQUIPES, l, true); };
+  const eu = professores.find((p) => p.uid === uidAtual) || {};
+  const autor = { uid: uidAtual || null, nome: eu.nome || "" };
+  const academia = (identidade && (identidade.nomeAcademia || identidade.nome)) || "";
+  if (!equipes) return <p style={{ ...prosa, color: C.grafite }}>Carregando…</p>;
+  const aberta = equipes.find((e) => e.id === abertaId);
+  const podePublicar = (eq) => papelAtual === "coordenador" || (eq && eq.coordenadorUid && eq.coordenadorUid === uidAtual);
+
+  if (aberta && editor) {
+    const al = (alunos || []).find((a) => a.id === editor.alunoId);
+    if (al) return <RelatorioAtletaEditor key={editor.relatorioId || "novo-" + al.id} aluno={al} setAlunos={setAlunos} relatorioId={editor.relatorioId} periodoInicial={editor.periodo} podePublicar={podePublicar(aberta)} autor={autor} academia={academia} aoVoltar={() => setEditor(null)} />;
+  }
+  if (form === "nova" || (aberta && form === "editar")) {
+    return (
+      <div>
+        <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700 }}>{form === "nova" ? "Nova equipe de competição" : "Editar equipe"}</h1>
+        <FormEquipe inicial={form === "editar" ? aberta : null} alunos={alunos} professores={professores} aoCancelar={() => setForm(null)}
+          aoSalvar={(dados) => {
+            if (form === "nova") { const nova = { id: "eq-" + Date.now().toString(36), criadoEm: new Date().toISOString(), ...dados }; salvarLista([...equipes, nova]); setAbertaId(nova.id); }
+            else salvarLista(equipes.map((e) => (e.id === aberta.id ? { ...e, ...dados } : e)));
+            setForm(null);
+          }} />
+      </div>
+    );
+  }
+  if (!aberta) {
+    return (
+      <div data-equipes>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, flexWrap: "wrap" }}>
+          <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700 }}>Equipes de competição</h1>
+          <Botao onClick={() => setForm("nova")}>Nova equipe</Botao>
+        </div>
+        <p style={{ ...prosa, fontSize: 14, color: C.grafite, marginTop: 4 }}>Coordenador, auxiliares e atletas, sem precisar de plano de treino. Acompanhe a ficha, os scouts, as observações e a biomecânica de cada atleta e envie o relatório do período para a família.</p>
+        {!equipes.length && <p style={{ ...prosa, fontSize: 14, marginTop: 14 }}>Nenhuma equipe ainda. Toque em “Nova equipe”.</p>}
+        {equipes.map((e) => (
+          <button key={e.id} data-equipe-card onClick={() => setAbertaId(e.id)} className="w-full text-left"
+            style={{ display: "block", width: "100%", textAlign: "left", background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 12, padding: "12px 14px", marginTop: 10, cursor: "pointer" }}>
+            <span style={{ display: "block", fontFamily: ARCH, fontSize: 16, fontWeight: 700 }}>{e.nome}</span>
+            <span style={{ display: "block", ...prosa, fontSize: 13, color: C.grafite }}>{(e.membros || []).length} atletas{e.coordenadorNome ? " · coord. " + e.coordenadorNome : ""}{(e.auxiliares || []).length ? " · aux. " + e.auxiliares.map((x) => x.nome).join(", ") : ""}</span>
+          </button>
+        ))}
+      </div>
+    );
+  }
+  const atletas = (aberta.membros || []).map((id) => (alunos || []).find((a) => a.id === id)).filter(Boolean);
+  async function gerarTodos() {
+    const R = window.QLRelatorioAtleta; if (!R) return;
+    setGerando(true); setMsg(null);
+    const agora = new Date().toISOString(), k = chavePeriodoRel(periodo), porAluno = {};
+    for (const a of atletas) porAluno[a.id] = R.coletar(a, await movimentosDoJogadorAsync(a), periodo);
+    let novos = 0, atualizados = 0;
+    setAlunos((l) => l.map((a) => {
+      if (!porAluno[a.id]) return a;
+      const lista = a.relatoriosAtleta || [], ant = lista.find((r) => chavePeriodoRel(r.periodo) === k && r.status !== "publicado");
+      if (ant) { atualizados++; return { ...a, relatoriosAtleta: lista.map((r) => (r === ant ? { ...r, dados: porAluno[a.id], atualizadoEm: agora } : r)) }; }
+      novos++;
+      return { ...a, relatoriosAtleta: [...lista, { id: "rel-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), periodo, dados: porAluno[a.id], observacao: "", status: "rascunho", criadoEm: agora, atualizadoEm: agora, autorUid: autor.uid, autorNome: autor.nome }].slice(-60) };
+    }));
+    setGerando(false);
+    setMsg({ t: "Rascunhos prontos para " + atletas.length + " atleta(s). Abra cada um, escreva a observação e publique." });
+  }
+  const chip = (ok, texto) => <span style={{ fontFamily: ARCH, fontSize: 11.5, padding: "2px 8px", borderRadius: 999, border: "1px solid " + (ok ? "#1F6B4A" : C.linha), color: ok ? "#1F6B4A" : C.grafite, whiteSpace: "nowrap" }}>{ok ? "✓ " : "— "}{texto}</span>;
+  const d = (s) => (s ? new Date(s.slice(0, 10) + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : "");
+  const k = chavePeriodoRel(periodo);
+  return (
+    <div data-equipe-aberta>
+      <button onClick={() => { setAbertaId(null); setMsg(null); }} style={{ ...prosa, fontSize: 13.5, color: C.quadra, fontWeight: 700, background: "none", border: "none", cursor: "pointer", padding: 0, minHeight: 36 }}>‹ Equipes</button>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, flexWrap: "wrap" }}>
+        <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700 }}>{aberta.nome}</h1>
+        <Botao pequeno variante="vazio" onClick={() => setForm("editar")}>Editar equipe</Botao>
+      </div>
+      <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>{aberta.coordenadorNome ? "Coordenador: " + aberta.coordenadorNome : "Sem coordenador definido"}{(aberta.auxiliares || []).length ? " · Auxiliares: " + aberta.auxiliares.map((x) => x.nome).join(", ") : ""}</p>
+      <section data-relatorios-equipe style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.saibro, borderRadius: 12, padding: "12px 14px", marginTop: 12 }}>
+        <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 6 }}>Relatórios da equipe</p>
+        <SeletorPeriodoRel valor={periodo} aoMudar={setPeriodo} torneios={[...new Set([].concat(...atletas.map((a) => (window.QLRelatorioAtleta ? window.QLRelatorioAtleta.torneiosDoAluno(a) : []))))]} />
+        <div style={{ marginTop: 8 }}><Botao variante="saibro" disabled={gerando || !atletas.length} onClick={gerarTodos}>{gerando ? "Gerando…" : "Gerar rascunhos para todos"}</Botao></div>
+        {msg && <p role="status" style={{ ...prosa, fontSize: 13, color: msg.erro ? "#A33" : C.quadra, marginTop: 6 }}>{msg.t}</p>}
+      </section>
+      {atletas.map((a) => {
+        const s = situacaoAtleta(a), doPeriodo = (a.relatoriosAtleta || []).filter((r) => chavePeriodoRel(r.periodo) === k).sort((x, y) => String(y.atualizadoEm).localeCompare(String(x.atualizadoEm)))[0];
+        return (
+          <div key={a.id} data-atleta-equipe={a.nome} style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: "10px 12px", marginTop: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
+              <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{a.nome}</span>
+              <span style={{ ...prosa, fontSize: 12, color: C.grafite }}>{doPeriodo ? (doPeriodo.status === "publicado" ? "Relatório publicado" : "Rascunho do relatório") : s.relatorio ? "Último relatório: " + (s.relatorio.dados && s.relatorio.dados.rotulo || "") : "Sem relatório"}</span>
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+              {chip(s.fichaCompleta, s.fichaCompleta ? "Ficha completa" : "Ficha incompleta")}
+              {chip(!!s.scout, s.scout ? "Scout " + d(s.scout) : "Sem scout")}
+              {chip(!!s.observacao, s.observacao ? "Observação " + d(s.observacao) : "Sem observação")}
+              {chip(!!s.movimento, s.movimento ? "Biomecânica " + d(s.movimento) : "Sem biomecânica")}
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+              <Botao pequeno variante={doPeriodo && doPeriodo.status !== "publicado" ? "saibro" : "vazio"} onClick={() => setEditor({ alunoId: a.id, relatorioId: doPeriodo ? doPeriodo.id : null, periodo })}>{doPeriodo ? "Abrir relatório" : "Relatório do período"}</Botao>
+              <Botao pequeno variante="vazio" onClick={() => aoAbrirJogador(a.id)}>Abrir ficha</Botao>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+/* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
+const NOVIDADES_TY_VERSAO = "ty-2026-10a";
+const NOVIDADES_TY = [
+  { novo: true, t: "Equipes de competição e relatório para os pais", d: "Monte a equipe com coordenador, auxiliares e atletas, sem precisar de plano. Veja a ficha, o último scout, a última observação e a biomecânica de cada atleta e gere o relatório do período (torneio, mês ou datas) com a sua observação. Publicado, ele aparece na página do aluno e sai pelo WhatsApp ou em PDF.", onde: "Menu › Alunos e turmas › Equipes de competição", aba: "equipes" },
+  { novo: true, t: "Observar jogos por voz", d: "Acompanhe vários jogos ao mesmo tempo: escolha o jogo, toque em Ditar observação e fale. Comece pelo nome do jogador para registrar no jogo certo. Tudo fica salvo no aparelho e sobe para a sua conta; o resumo sai ao concluir cada jogo.", onde: "Menu › Dia a dia › Observar jogos", aba: "observar" },
+  { novo: true, t: "Página do aluno com relatórios", d: "Os relatórios publicados aparecem no link de cada aluno, e ele mesmo pode tocar em Gerar relatório para ver um resumo atualizado dos jogos, scouts e análises de movimento.", onde: "Link do aluno (Compartilhar com o jogador)" },
+  { novo: true, t: "Áudio, conversas e descritivo para o aluno", d: "Grave observações e conversas com o jogador; o texto vem do ditado do aparelho. A IA escreve um retorno só com o que você anotou e você compartilha com o aluno.", onde: "Jogadores › abra o jogador › Caderno › + Novo registro" },
+  { novo: true, t: "Quadro tático", d: "Uma quadra para desenhar no iPad ou no celular, com a Apple Pencil ou o dedo: setas, deslocamentos, jogadores e bola.", onde: "Menu › Dia a dia › Quadro tático", aba: "quadro" },
+  { novo: true, t: "Prioridades dos jogos no planejamento", d: "As prioridades que você leva do Observar jogos aparecem na aba Plano do jogador e entram no próximo planejamento gerado.", onde: "Jogadores › abra o jogador › Plano" },
+];
+/* Janela de novidades: abre ao entrar até a pessoa marcar "Não mostrar mais"; uma nova versão da lista volta a aparecer. O que acabou
+   de ser instalado (novo: true) vem primeiro, em destaque, com onde encontrar e o atalho "Abrir"; o resto fica numa lista discreta. */
+function JanelaNovidades({ nomeApp, versao, itens, irPara }) {
+  const chave = "ql-novidades:" + versao;
+  const [aberto, setAberto] = useState(() => { try { return localStorage.getItem(chave) !== "off"; } catch { return true; } });
+  const [naoMostrar, setNaoMostrar] = useState(false);
+  const [verAntigas, setVerAntigas] = useState(false);
+  if (!aberto) return null;
+  function fechar() { if (naoMostrar) { try { localStorage.setItem(chave, "off"); } catch { /* sem armazenamento */ } } setAberto(false); }
+  const novos = itens.filter((x) => x.novo), antigos = itens.filter((x) => !x.novo);
+  return (
+    <div role="dialog" aria-modal="true" aria-label={"Novidades do " + nomeApp} data-novidades style={{ position: "fixed", inset: 0, zIndex: 80, display: "flex", alignItems: "center", justifyContent: "center", padding: 12 }}>
+      <div onClick={fechar} style={{ position: "absolute", inset: 0, background: "rgba(16,30,25,.55)" }} />
+      <div style={{ position: "relative", background: C.cal, borderRadius: 16, maxWidth: 480, width: "100%", maxHeight: "88vh", overflowY: "auto", boxShadow: "0 12px 40px rgba(0,0,0,.28)" }}>
+        <div style={{ background: C.quadra, color: "#fff", padding: "16px 20px 14px", borderRadius: "16px 16px 0 0" }}>
+          <p style={{ fontFamily: ARCH, fontSize: 11, letterSpacing: 1.4, textTransform: "uppercase", fontWeight: 800, color: "#C9F29B" }}>Novidades instaladas</p>
+          <h2 style={{ fontFamily: ARCH, fontSize: 21, fontWeight: 800, margin: "2px 0 0", color: "#fff" }}>Já disponível no {nomeApp}</h2>
+          <p style={{ fontFamily: ARCH, fontSize: 13, opacity: 0.85, marginTop: 4, color: "#fff" }}>{novos.length} {novos.length === 1 ? "recurso novo, pronto" : "recursos novos, prontos"} para usar hoje.</p>
+        </div>
+        <div style={{ padding: "14px 16px 16px" }}>
+          {novos.map((x) => (
+            <div key={x.t} data-novidade-nova style={{ border: "2px solid " + C.saibro, background: "#F1F8EA", borderRadius: 12, padding: "11px 13px", marginBottom: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span style={{ fontFamily: ARCH, fontSize: 10.5, fontWeight: 800, letterSpacing: 0.8, color: "#fff", background: C.saibro, borderRadius: 999, padding: "2px 8px" }}>NOVO</span>
+                <span style={{ fontFamily: ARCH, fontSize: 15.5, fontWeight: 800, color: C.tinta }}>{x.t}</span>
+              </div>
+              <p style={{ ...prosa, fontSize: 13.5, color: C.tinta, marginTop: 5 }}>{x.d}</p>
+              {(x.onde || (x.aba && irPara)) && (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
+                  {x.onde && <span style={{ fontFamily: ARCH, fontSize: 12, color: C.grafite }}>Onde: {x.onde}</span>}
+                  {x.aba && irPara && <button onClick={() => { irPara(x.aba); setAberto(false); }} style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, color: "#fff", background: C.quadra, border: "none", borderRadius: 10, padding: "8px 14px", cursor: "pointer", minHeight: 38 }}>Abrir</button>}
+                </div>
+              )}
+            </div>
+          ))}
+          {antigos.length > 0 && (
+            <div style={{ marginTop: 4 }}>
+              <button onClick={() => setVerAntigas(!verAntigas)} style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, color: C.quadra, background: "none", border: "none", cursor: "pointer", padding: "6px 0", minHeight: 36 }}>{verAntigas ? "Ocultar as anteriores" : "Ver novidades anteriores (" + antigos.length + ")"}</button>
+              {verAntigas && antigos.map((x) => (
+                <div key={x.t} style={{ marginBottom: 10 }}>
+                  <p style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{x.t}</p>
+                  <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>{x.d}</p>
+                </div>
+              ))}
+            </div>
+          )}
+          <label style={{ ...prosa, fontSize: 13, display: "flex", alignItems: "center", gap: 8, margin: "10px 0 12px", cursor: "pointer", minHeight: 36 }}>
+            <input type="checkbox" checked={naoMostrar} onChange={(e) => setNaoMostrar(e.target.checked)} style={{ width: 18, height: 18 }} /> Não mostrar mais
+          </label>
+          <Botao variante="saibro" onClick={fechar}>Entendi</Botao>
+        </div>
+      </div>
+    </div>
+  );
+}
 const NAV_DIA_A_DIA = [{ v: "dashboard", r: "Início" }, { v: "aulas-hoje", r: "Aulas de hoje" }, { v: "agenda", r: "Agenda" }, { v: "reposicoes", r: "Reposições" }, { v: "observar", r: "Observar jogos" }, { v: "quadro", r: "Quadro tático" }];
-const NAV_ALUNOS_TURMAS = [{ v: "alunos", r: "Jogadores" }, { v: "turmas", r: "Turmas" }];
+const NAV_ALUNOS_TURMAS = [{ v: "alunos", r: "Jogadores" }, { v: "turmas", r: "Turmas" }, { v: "equipes", r: "Equipes de competição" }];
 const NAV_CONTEUDO = [{ v: "casos", r: "Casos" }];
 const NAV_MANUAL = [{ v: "catalogo", r: "Catálogo" }, { v: "tecnica", r: "Técnica" }, { v: "taticas", r: "Táticas" },
   { v: "conducao", r: "Condução" }, { v: "publicos", r: "Públicos" }, { v: "aulas", r: "Aulas" }, { v: "metodo", r: "Como decide" }];
@@ -23203,8 +23588,10 @@ function App() {
         </div>
       </div>
 
+      <JanelaNovidades nomeApp="Team Yoda" versao={NOVIDADES_TY_VERSAO} itens={NOVIDADES_TY} irPara={(v) => { setAba(v); setAbertoId(null); }} />
       <main className="mty-main px-5 py-6" style={{ maxWidth: 760, marginLeft: 252 }}>
         {carregando ? <p style={{ ...prosa, color: C.grafite }}>Carregando…</p> :
+         aba === "equipes" ? <TelaEquipes alunos={alunos} setAlunos={setAlunos} uidAtual={uidAtual} papelAtual={papelAtual} identidade={identidade} aoAbrirJogador={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("ficha"); }} /> :
          aba === "observar" ? <TelaObservar alunos={alunos} setAlunos={setAlunos} planoAtual={null} aoVerCaderno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("registro"); }} /> :
          aba === "quadro" ? <TelaQuadroTatico /> :
          aba === "catalogo" ? <TelaCatalogo exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :

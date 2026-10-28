@@ -296,19 +296,31 @@ async function responderGet(org, id, q, ctx) {
     jogos: extras.jogos,
     jogosVideo: extras.jogosVideo,
     observacoes: observacoesCompartilhadas(aluno),
+    relatoriosAtleta: relatoriosPublicados(aluno),
   });
 }
 
 /* Observações de partida e conversas que o treinador marcou "compartilhar com o aluno": o descritivo, o que foi anotado e se há
    áudio (o arquivo só abre por ?audio=<registro>:<observação>, com link temporário). */
 const CAT_OBS = { saque: "Saque", devolucao: "Devolução", fundo: "Fundo de quadra", transicao: "Rede e transição", tatico: "Tático", mental: "Mental", fisico: "Físico", geral: "Geral" };
+/* Relatórios do atleta publicados pelo treinador (Team Yoda): os dados do período já organizados no app do treinador e a observação dele.
+   Rascunhos nunca saem daqui. */
+function relatoriosPublicados(aluno) {
+  return (Array.isArray(aluno.relatoriosAtleta) ? aluno.relatoriosAtleta : []).filter((r) => r && r.status === "publicado" && r.dados && typeof r.dados === "object")
+    .filter((r) => JSON.stringify(r.dados).length <= 120000)
+    .map((r) => ({ id: String(r.id || "").slice(0, 80), publicadoEm: String(r.publicadoEm || "").slice(0, 30), treinador: String(r.publicadoPor || "").slice(0, 80), observacao: String(r.observacao || "").slice(0, 8000), dados: r.dados }))
+    .sort((a, b) => b.publicadoEm.localeCompare(a.publicadoEm)).slice(0, 40);
+}
 function observacoesCompartilhadas(aluno) {
   return (aluno.registros || []).filter((r) => r && r.tipo === "observacao" && r.compartilhado).map((r) => ({
     id: String(r.id).slice(0, 80), data: String(r.data || "").slice(0, 10), contexto: r.contexto === "conversa" ? "conversa" : "partida",
     titulo: String(r.titulo || "").slice(0, 80), torneio: String(r.torneio || "").slice(0, 60), adversario: String(r.adversario || "").slice(0, 60), placar: String(r.placar || "").slice(0, 30),
     descritivo: String(r.descritivo || "").slice(0, 6000),
     itens: (r.obs || []).slice(0, 200).map((o) => ({ id: String(o.id || "").slice(0, 40), em: String(o.em || "").slice(0, 30), cat: CAT_OBS[o.cat] ? o.cat : "geral",
-      tipo: o.tipo === "bom" || o.tipo === "ajustar" ? o.tipo : null, texto: String(o.texto || "").slice(0, 8000), audio: !!(o.audio && o.audio.caminho), duracaoSeg: (o.audio && +o.audio.duracaoSeg) || 0 })),
+      tipo: o.tipo === "bom" || o.tipo === "ajustar" ? o.tipo : null, natureza: ["observacao", "positivo", "atencao", "insight"].includes(o.natureza) ? o.natureza : null,
+      texto: o.natureza === "pergunta" ? "" : String(o.texto || "").slice(0, 8000), audio: !!(o.audio && o.audio.caminho), duracaoSeg: (o.audio && +o.audio.duracaoSeg) || 0 })),
+    /* resumo revisado ao concluir o jogo (Observar jogos), sem as perguntas internas do treinador */
+    resumo: r.resumo ? { positivos: String(r.resumo.positivos || "").slice(0, 4000), atencao: String(r.resumo.atencao || "").slice(0, 4000), insights: String(r.resumo.insights || "").slice(0, 4000), prioridades: String(r.resumo.prioridades || "").slice(0, 4000) } : null,
   })).sort((a, b) => b.data.localeCompare(a.data)).slice(0, 60);
 }
 async function audioCompartilhado(org, id, aluno, ref) {

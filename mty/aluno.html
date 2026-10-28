@@ -147,6 +147,7 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catc
 <!-- relatório completo das análises de movimento (o mesmo do app do treinador) -->
 <script src="scout/movimento-motor.js"></script>
 <script src="scout/movimento.js"></script>
+<script src="relatorio-atleta.js"></script>
 <script>
 function escapar(s){ return String(s||'').replace(/[&<>"]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
 
@@ -474,6 +475,9 @@ function todosHorarios(agenda) {
     diaEscolhido: null, horaEscolhida: null,
     mensagem: null, enviando: false,
     relatorioAberto: null, // id do relatório de ciclo aberto na lista, ou null
+    relAtletaAberto: null, // id do relatório do treinador aberto (Team Yoda)
+    relGerado: null, // relatório gerado na hora pelo botão "Gerar relatório"
+    relGeradoPeriodo: 'mes',
     semanaAberta: null, // chave "bloco·semana" do bloco de semana expandido no plano compacto
     glossarioAberto: false,
     celulaConceitoSelecionada: null, // texto da última célula do mapa de conceitos tocada (fallback de toque, sem :hover)
@@ -529,7 +533,7 @@ function todosHorarios(agenda) {
         ? 'Seu treinador está preparando seu plano — assim que for revisado e aprovado, aparece aqui.'
         : 'Ainda não há um plano montado para você.';
       el.innerHTML = '<header><h1>' + escapar(d.nome) + '</h1><div class="sub">' + subtitulo + '</div></header>' +
-        painelTurmas(d) + painelObservacoes(d) + painelMovimentos(d) + painelJogos(d) + painelJogosVideo(d) +
+        painelTurmas(d) + painelRelatoriosAtleta(d) + painelObservacoes(d) + painelMovimentos(d) + painelJogos(d) + painelJogosVideo(d) +
         painelMapaConceitos(d, ui) + painelEvolucao(d) + painelRelatorios(d) + painelComunicacao(d) + '<div class="sincronia" id="mty-sincronia"></div>';
       ligarEventos(d);
       return;
@@ -546,6 +550,7 @@ function todosHorarios(agenda) {
     html += painelSemanas(d);
     html += painelTurmas(d);
     html += painelGlossario(d.aulas);
+    html += painelRelatoriosAtleta(d);
     html += painelObservacoes(d);
     html += painelMovimentos(d);
     html += painelJogos(d);
@@ -588,6 +593,41 @@ function todosHorarios(agenda) {
   /* Observações de partida e conversas que o treinador compartilhou: o descritivo, o que ele anotou e os áudios (link temporário). */
   const CAT_OBS = { saque: 'Saque', devolucao: 'Devolução', fundo: 'Fundo de quadra', transicao: 'Rede e transição', tatico: 'Tático', mental: 'Mental', fisico: 'Físico', geral: 'Geral' };
   const audiosAbertos = {};
+  /* Relatórios do treinador (publicados no app do treinador) e o botão "Gerar relatório": um resumo feito na hora com os registros
+     que o link recebe, sem a observação do treinador (relatorio-atleta.js; o mesmo desenho do relatório do treinador). */
+  function periodoGerado(k) {
+    const hoje = new Date(), iso = (x) => x.toISOString().slice(0, 10), menos = (dias) => iso(new Date(hoje.getTime() - dias * 86400000));
+    if (k === 'tudo') return { tipo: 'tudo' };
+    return { tipo: 'datas', de: menos(k === 'tri' ? 91 : 30), ate: iso(hoje) };
+  }
+  function painelRelatoriosAtleta(d) {
+    const R = window.QLRelatorioAtleta;
+    if (!R) return '';
+    const l = d.relatoriosAtleta || [];
+    let html = '<div class="painel" data-painel="relatorios-atleta"><style>' + R.css + '</style><h2>Relatórios do treinador</h2>';
+    html += l.length ? '<p class="desc">O que o seu treinador reuniu de cada período: jogos, scouts, observações, análises de movimento e a observação dele.</p>'
+      : '<p class="desc">Quando o seu treinador publicar um relatório, ele aparece aqui.</p>';
+    html += l.map(function (r) {
+      const aberto = ui.relAtletaAberto === r.id;
+      return '<div style="border-top:1px solid var(--linha);padding:10px 0"><div style="font-weight:700">' + escapar((r.dados && r.dados.rotulo) || 'Relatório') + '</div>' +
+        '<div style="font-size:12px;color:var(--cinza)">Publicado em ' + escapar(R.dataBR(r.publicadoEm)) + (r.treinador ? ' por ' + escapar(r.treinador) : '') + '</div>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><button type="button" class="btn" data-rel-ver="' + escapar(r.id) + '">' + (aberto ? 'Fechar' : 'Ver relatório') + '</button>' +
+        '<button type="button" class="btn fraco" data-rel-pdf="' + escapar(r.id) + '">Baixar PDF</button></div>' +
+        (aberto ? '<div style="margin-top:10px">' + R.html(r.dados, { observacao: r.observacao, treinador: r.treinador, publicadoEm: r.publicadoEm, academia: d.academiaNome }) + '</div>' : '') + '</div>';
+    }).join('');
+    html += '<div data-gerar-relatorio style="border-top:1px solid var(--linha);padding-top:12px;margin-top:6px"><div style="font-weight:700">Gerar relatório agora</div>' +
+      '<p class="desc" style="margin:2px 0 8px">Um resumo na hora com os seus registros (jogos, scouts, observações compartilhadas e análises de movimento). Não inclui a observação do treinador.</p>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><select data-gerar-periodo aria-label="Período" style="padding:8px;border-radius:8px;border:1px solid var(--linha);font-size:14px">' +
+      [['mes', 'Último mês'], ['tri', 'Últimos 3 meses'], ['tudo', 'Tudo']].map(function (o) { return '<option value="' + o[0] + '"' + (ui.relGeradoPeriodo === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') +
+      '</select><button type="button" class="btn" data-gerar-rel>Gerar relatório</button>' + (ui.relGerado ? '<button type="button" class="btn fraco" data-gerado-pdf>Baixar PDF</button>' : '') + '</div>' +
+      (ui.relGerado ? '<div style="margin-top:10px" data-relatorio-gerado>' + R.html(ui.relGerado, { automatico: true, academia: d.academiaNome }) + '</div>' : '') + '</div>';
+    return html + '</div>';
+  }
+  function abrirPdfRelatorio(doc) {
+    const w = window.open('', '_blank');
+    if (!w) { alert('Permita pop-ups para baixar o PDF.'); return; }
+    w.document.write(doc); w.document.close();
+  }
   function painelObservacoes(d) {
     const l = d.observacoes || [];
     if (!l.length) return '';
@@ -923,6 +963,16 @@ function todosHorarios(agenda) {
   }
 
   function ligarEventos(d) {
+    el.querySelectorAll('[data-rel-ver]').forEach(function (b) { b.addEventListener('click', function () { const id = b.getAttribute('data-rel-ver'); ui.relAtletaAberto = ui.relAtletaAberto === id ? null : id; render(d); }); });
+    el.querySelectorAll('[data-rel-pdf]').forEach(function (b) { b.addEventListener('click', function () {
+      const r = (d.relatoriosAtleta || []).find(function (x) { return x.id === b.getAttribute('data-rel-pdf'); });
+      if (r) abrirPdfRelatorio(window.QLRelatorioAtleta.documento(r.dados, { observacao: r.observacao, treinador: r.treinador, publicadoEm: r.publicadoEm, academia: d.academiaNome }));
+    }); });
+    el.querySelectorAll('[data-gerar-rel]').forEach(function (b) { b.addEventListener('click', function () {
+      const sel = el.querySelector('[data-gerar-periodo]'); ui.relGeradoPeriodo = sel ? sel.value : 'mes';
+      ui.relGerado = window.QLRelatorioAtleta.coletarDoLink(d, periodoGerado(ui.relGeradoPeriodo)); render(d);
+    }); });
+    el.querySelectorAll('[data-gerado-pdf]').forEach(function (b) { b.addEventListener('click', function () { if (ui.relGerado) abrirPdfRelatorio(window.QLRelatorioAtleta.documento(ui.relGerado, { automatico: true, academia: d.academiaNome })); }); });
     el.querySelectorAll('[data-ouvir-obs]').forEach(function (btn) {
       btn.addEventListener('click', async function () {
         const chave = btn.getAttribute('data-ouvir-obs'); btn.disabled = true; btn.textContent = 'Abrindo…';
