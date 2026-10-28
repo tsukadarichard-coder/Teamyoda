@@ -77,15 +77,7 @@
 <script src="scout/evidencias.js"></script>
 <script src="scout/movimento-arquivo.js"></script>
 <script src="scout/movimento.js"></script>
-<script src="scout/video-segmentador.js"></script>
-<script src="scout/video-audio.js"></script>
-<script src="scout/video-scout.js"></script>
-<script src="scout/video-visao.js"></script>
-<script src="scout/bola-ia.js"></script>
-<script src="scout/video-scout-ui.js"></script>
-<script src="scout/quadra-auto.js"></script>
 <script src="scout/padroes.js"></script>
-<script src="scout/video-jogo.js"></script>
 <link rel="stylesheet" href="scout/movimento.css">
 <link rel="stylesheet" href="scout/graficos.css">
 <script crossorigin src="https://unpkg.com/@babel/standalone@7.29.9/babel.min.js"></script>
@@ -573,12 +565,11 @@ const LINKS_CHECKOUT_EDUZZ = {
   essencial: "https://chk.eduzz.com/6W4GYZEO0Z", // produto 3124922 — "EO0Z": letra O e depois zero
   premium: "https://chk.eduzz.com/D0R8KEP69Y", // produto 3124932 — "D0R8" com ZERO (com a letra O dava erro DEF_A)
 };
-/* Cotas mensais da Tecnologia QuadraLab (análise de movimento e jogo em vídeo): fonte única em scout/movimento-motor.js. */
+/* Cota mensal da Tecnologia QuadraLab (análise de movimento): fonte única em scout/movimento-motor.js. */
 const LIMITE_MOVIMENTO_ESSENCIAL = (window.QLBiomec && window.QLBiomec.LIMITES_PLANO.movimento.essencial) || 5;
-const LIMITE_VIDEO_ESSENCIAL = (window.QLBiomec && window.QLBiomec.LIMITES_PLANO.video.essencial) || 2;
 const PRECOS_PLANO = {
-  essencial: { preco: "R$ 29,90/mês", beneficio: "até 30 jogadores · " + LIMITE_MOVIMENTO_ESSENCIAL + " análises de movimento e " + LIMITE_VIDEO_ESSENCIAL + " jogos em vídeo por mês" },
-  premium: { preco: "R$ 59,90/mês", beneficio: "jogadores, análises de movimento e jogos em vídeo ilimitados" },
+  essencial: { preco: "R$ 29,90/mês", beneficio: "até 30 jogadores · " + LIMITE_MOVIMENTO_ESSENCIAL + " análises de movimento por mês" },
+  premium: { preco: "R$ 59,90/mês", beneficio: "jogadores e análises de movimento ilimitados" },
 };
 
 const ESTAGIOS = [
@@ -9155,15 +9146,11 @@ function arquivoMovimento() {
 
 function TelaMovimento({ aluno, alunos, setAlunos, identidade, planoAtual }) {
   const raiz = useRef(null);
-  const raizVideo = useRef(null);
   const [aba, setAba] = useState("analisar");
   const alunoId = aluno.id;
   const movimentos = aluno.movimentos || [];
   const outros = (alunos || []).filter((a) => a.id !== alunoId).reduce((t, a) => t.concat(a.movimentos || []), []);
   const cotaAtual = window.QLBiomec ? window.QLBiomec.cota("movimento", planoAtual, outros.concat(movimentos)) : null;
-  const jogosVideo = aluno.jogosVideo || [];
-  const outrosVideos = (alunos || []).filter((a) => a.id !== alunoId).reduce((t, a) => t.concat(a.jogosVideo || []), []);
-  const cotaVideo = window.QLBiomec ? window.QLBiomec.cota("video", planoAtual, outrosVideos.concat(jogosVideo)) : null;
 
   useEffect(() => {
     if (!raiz.current || !window.QLMovimento) return undefined;
@@ -9186,26 +9173,6 @@ function TelaMovimento({ aluno, alunos, setAlunos, identidade, planoAtual }) {
     return () => { alvo.innerHTML = ""; };
   }, [alunoId]);
 
-  useEffect(() => {
-    if (!raizVideo.current || !window.QLVideoJogo) return undefined;
-    const alvo = raizVideo.current;
-    window.QLVideoJogo.montar(alvo, {
-      atleta: aluno.nome, historico: aluno.jogosVideo || [], plano: planoAtual,
-      cota: window.QLBiomec.cota("video", planoAtual, outrosVideos.concat(aluno.jogosVideo || [])),
-      cotaDe: (hist) => window.QLBiomec.cota("video", planoAtual, outrosVideos.concat(hist)),
-      aoSalvar: (reg) => setAlunos((prev) => prev.map((a) => a.id !== alunoId ? a : { ...a, jogosVideo: [...(a.jogosVideo || []).filter((m) => m.id !== reg.id), reg].slice(-60) })),
-      /* scout completo montado do vídeo: vira um jogo com scout no caderno, igual ao marcado na quadra (relatórios, evolução, planejamento) */
-      aoSalvarScout: (d) => setAlunos((prev) => prev.map((a) => {
-        if (a.id !== alunoId) return a;
-        const regs = a.registros || [], ant = regs.find((x) => x.id === d.id);
-        const reg = { ...registroPartidaAuto(d.id, d.cfg, d.pontos, d.placar, {}, ant), parcialAuto: false, origem: "video", ...(d.data && !ant ? { data: d.data } : {}) };
-        return { ...a, registros: ant ? regs.map((x) => x.id === d.id ? reg : x) : [...regs, reg] };
-      })),
-      aoRemover: (id) => setAlunos((prev) => prev.map((a) => a.id !== alunoId ? a : { ...a, jogosVideo: (a.jogosVideo || []).filter((m) => m.id !== id) })),
-    });
-    return () => { alvo.innerHTML = ""; };
-  }, [alunoId]);
-
   if (!window.QLMovimento || !window.QLBiomec) {
     return <p style={{ ...prosa, fontSize: 13.5 }}>Não foi possível carregar a análise de movimento. Recarregue a página e tente de novo.</p>;
   }
@@ -9215,12 +9182,12 @@ function TelaMovimento({ aluno, alunos, setAlunos, identidade, planoAtual }) {
       <div className="mb-3 flex items-center justify-between flex-wrap gap-2">
         <div>
           <p style={{ fontFamily: ARCH, fontSize: 17, fontWeight: 800, color: C.tinta }}>Análise de movimento</p>
-          <p style={{ ...prosa, fontSize: 13 }}>Golpes (forehand, backhand, saque) e jogos a partir de vídeo. Cada análise é comparada com a anterior de {String(aluno.nome || "").split(" ")[0] || "o jogador"}.</p>
+          <p style={{ ...prosa, fontSize: 13 }}>Golpes (forehand, backhand, saque) a partir de vídeo. Cada análise é comparada com a anterior de {String(aluno.nome || "").split(" ")[0] || "o jogador"}.</p>
         </div>
         <SeloTecnologiaQuadraLab />
       </div>
       <div className="flex gap-2 mb-3">
-        {[{ v: "analisar", r: "Golpes em vídeo" }, { v: "jogo", r: "Jogo em vídeo" }, { v: "evolucao", r: "Evolução" }].map((t) => (
+        {[{ v: "analisar", r: "Golpes em vídeo" }, { v: "evolucao", r: "Evolução" }].map((t) => (
           <button key={t.v} onClick={() => setAba(t.v)}
             style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, padding: "9px 14px", minHeight: 44, borderRadius: 10, cursor: "pointer",
               border: "1px solid " + (aba === t.v ? C.tinta : C.linha), background: aba === t.v ? C.tinta : C.cal, color: aba === t.v ? C.papel : C.grafite }}>{t.r}</button>
@@ -9233,7 +9200,6 @@ function TelaMovimento({ aluno, alunos, setAlunos, identidade, planoAtual }) {
         </div>
       )}
       <div style={{ display: aba === "analisar" ? "block" : "none" }}><div ref={raiz} /></div>
-      <div style={{ display: aba === "jogo" ? "block" : "none" }}><div ref={raizVideo} /></div>
       {aba === "evolucao" && (
         <div className="qlm">
           <h3 className="qm-h" style={{ marginTop: 4 }}>Movimento: golpes em vídeo</h3>
@@ -9247,19 +9213,6 @@ function TelaMovimento({ aluno, alunos, setAlunos, identidade, planoAtual }) {
               }}
               dangerouslySetInnerHTML={{ __html: window.QLMovimento.listaHTML(movimentos) }} />
           )}
-          <h3 className="qm-h" style={{ marginTop: 18 }}>Jogos em vídeo</h3>
-          <div dangerouslySetInnerHTML={{ __html: window.QLVideoJogo ? window.QLVideoJogo.evolucaoHTML(jogosVideo) : "" }} />
-          {(() => { /* padrões somando todos os jogos com scout montado do vídeo: o que se repete de partida em partida */
-            const jogosScout = (aluno.registros || []).filter((r) => r.tipo === "jogo" && r.origem === "video" && r.scout && (r.scout.pontos || []).length);
-            if (!window.QLPadroes || !jogosScout.length) return null;
-            const todos = jogosScout.reduce((t, r) => t.concat(r.scout.pontos), []);
-            return (
-              <>
-                <h3 className="qm-h" style={{ marginTop: 18 }}>Padrões em {jogosScout.length === 1 ? "1 jogo" : jogosScout.length + " jogos"} em vídeo · {todos.length} pontos</h3>
-                <div dangerouslySetInnerHTML={{ __html: window.QLPadroes.html(window.QLPadroes.analisar(todos), { A: String(aluno.nome || "Jogador").split(" ")[0], B: "Adversário" }) }} />
-              </>
-            );
-          })()}
           <p className="qm-msg" style={{ marginTop: 12 }}>A evolução dos jogos marcados no scout completo está em "Análise de partida".</p>
         </div>
       )}
@@ -12185,7 +12138,7 @@ const NOVIDADES = [
   ["Atletas da academia no Player", "No Início, “Atletas da academia” mostra o seu código fixo. O atleta digita no QuadraLab Player e o vínculo é feito na hora (menores também, o termo da matrícula cobre). Você também pode pedir o vínculo pelo e-mail do atleta."],
   ["Marcação rápida no scout", "Marque só o resultado e a bola do ponto durante o jogo e complete os detalhes depois. Mais fácil de usar na quadra."],
   ["Retomar partidas", "Fechou sem querer? As partidas não terminadas aparecem no Início e podem ser retomadas de onde pararam, inclusive o link dos pais."],
-  ["Análise de movimento e jogo em vídeo", "Envie o vídeo, acompanhe a evolução golpe a golpe e compare jogos (Tecnologia QuadraLab)."],
+  ["Análise de movimento", "Envie o vídeo e acompanhe a evolução golpe a golpe (Tecnologia QuadraLab)."],
   ["Sessão de hoje e plano com IA mais estáveis", "Correções ao gerar a sessão e o plano, inclusive quando a sessão de login vence."],
 ];
 function NovidadesQuadraLab() {
@@ -13634,7 +13587,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
       {!eTurma ? (
         <div>
           <Botao pequeno variante="vazio" onClick={gerarLinkAluno}>{gerandoLink ? "Gerando…" : "Compartilhar com o jogador"}</Botao>
-          <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginTop: 6 }}>O link mostra o plano aprovado do jogador e o das turmas dele, as análises de movimento (com o relatório completo), os jogos com scout, os jogos em vídeo e os relatórios de ciclo. Rascunho nunca aparece pra ele.</p>
+          <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginTop: 6 }}>O link mostra o plano aprovado do jogador e o das turmas dele, as análises de movimento (com o relatório completo), os jogos com scout e os relatórios de ciclo. Rascunho nunca aparece pra ele.</p>
           {linkAluno && (
             <>
               <div className="mt-2 flex gap-2 items-center flex-wrap">
@@ -13652,7 +13605,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
       ) : (
         <div>
           <Etiqueta>Compartilhar com os jogadores</Etiqueta>
-          <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, margin: "4px 0 8px" }}>Cada jogador recebe o próprio link, com o planejamento desta turma, as análises de movimento, os jogos com scout e os jogos em vídeo dele.</p>
+          <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, margin: "4px 0 8px" }}>Cada jogador recebe o próprio link, com o planejamento desta turma, as análises de movimento e os jogos com scout dele.</p>
           {membros.map((m) => (
             <div key={m.id} className="mb-2">
               <div className="flex items-center gap-2 flex-wrap">
@@ -15324,8 +15277,8 @@ const ETAPAS_DEMONSTRACAO = [
    em vez de repetida (e potencialmente divergente) em cada um. */
 const PLANOS_PUBLICOS = [
   { id: "gratis", nome: "Gratuito", preco: "R$ 0", periodo: "", beneficio: "Até 5 alunos", botao: "Começar grátis" },
-  { id: "essencial", nome: "Essencial", preco: "R$ 29,90", periodo: "/mês", beneficio: "Até 30 alunos · " + LIMITE_MOVIMENTO_ESSENCIAL + " análises de movimento e " + LIMITE_VIDEO_ESSENCIAL + " jogos em vídeo por mês · perfil profissional no QuadraLab Hub", botao: "Escolher Essencial" },
-  { id: "premium", nome: "Premium", preco: "R$ 59,90", periodo: "/mês", beneficio: "Alunos, análises de movimento e jogos em vídeo ilimitados · perfil profissional no QuadraLab Hub", botao: "Escolher Premium" },
+  { id: "essencial", nome: "Essencial", preco: "R$ 29,90", periodo: "/mês", beneficio: "Até 30 alunos · " + LIMITE_MOVIMENTO_ESSENCIAL + " análises de movimento por mês · perfil profissional no QuadraLab Hub", botao: "Escolher Essencial" },
+  { id: "premium", nome: "Premium", preco: "R$ 59,90", periodo: "/mês", beneficio: "Alunos e análises de movimento ilimitados · perfil profissional no QuadraLab Hub", botao: "Escolher Premium" },
 ];
 const RECURSOS_INCLUSOS_TODOS_PLANOS = [
   "Ficha e avaliação técnica/tática de cada jogador",
@@ -15336,7 +15289,6 @@ const RECURSOS_INCLUSOS_TODOS_PLANOS = [
 /* Tecnologia QuadraLab: só nos planos Essencial (com cota mensal) e Premium (ilimitado). */
 const RECURSOS_TECNOLOGIA_QUADRALAB = [
   "Análise de movimento em vídeo (forehand, backhand e saque), com fotos dos momentos, conclusão e sugestões de intervenção",
-  "Jogo em vídeo: separa a partida em pontos para você revisar e classificar",
   "Comparação automática de cada análise com a anterior, na biomecânica e nos jogos",
   "Perfil profissional publicado no QuadraLab Hub, com seus serviços, para receber pedidos de jogadores do QuadraLab Player e Competição",
 ];
@@ -15345,9 +15297,9 @@ const FAQ_QUADRALAB = [
   { p: "Para quem é o QuadraLab?",
     r: "Para o professor de tênis autônomo — quem dá aulas particulares e organiza sozinho a própria agenda, as fichas dos alunos e o planejamento das aulas." },
   { p: "O que está incluído no plano gratuito?",
-    r: "Os recursos de gestão da plataforma — ficha, planejamento com apoio de IA, agenda, turmas, catálogo de exercícios e relatórios — para até 5 alunos, sem prazo para experimentar. A análise de movimento e o jogo em vídeo (Tecnologia QuadraLab) fazem parte dos planos Essencial e Premium." },
+    r: "Os recursos de gestão da plataforma — ficha, planejamento com apoio de IA, agenda, turmas, catálogo de exercícios e relatórios — para até 5 alunos, sem prazo para experimentar. A análise de movimento (Tecnologia QuadraLab) faz parte dos planos Essencial e Premium." },
   { p: "Qual é a diferença entre os planos?",
-    r: "A gestão (ficha, planejamento, agenda, turmas, relatórios) é a mesma nos três planos; o que muda é o número de alunos — até 5 no gratuito, até 30 no Essencial e ilimitado no Premium. A Tecnologia QuadraLab (análise de movimento e jogo em vídeo) entra no Essencial, com " + LIMITE_MOVIMENTO_ESSENCIAL + " análises de movimento e " + LIMITE_VIDEO_ESSENCIAL + " jogos em vídeo por mês, e no Premium, sem limite. \"Ilimitado\" não se aplica ao apoio de IA, que segue sem limite adicional definido hoje." },
+    r: "A gestão (ficha, planejamento, agenda, turmas, relatórios) é a mesma nos três planos; o que muda é o número de alunos — até 5 no gratuito, até 30 no Essencial e ilimitado no Premium. A Tecnologia QuadraLab (análise de movimento) entra no Essencial, com " + LIMITE_MOVIMENTO_ESSENCIAL + " análises de movimento por mês, e no Premium, sem limite. \"Ilimitado\" não se aplica ao apoio de IA, que segue sem limite adicional definido hoje." },
   { p: "Como começo a usar?",
     r: "Crie sua conta gratuita, cadastre até 5 jogadores e preencha a ficha de cada um. A partir da ficha, a plataforma já ajuda a montar o primeiro planejamento." },
   { p: "Posso editar os exercícios e o planejamento?",

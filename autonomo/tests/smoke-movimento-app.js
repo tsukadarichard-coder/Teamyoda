@@ -73,7 +73,9 @@ ReactDOM.createRoot(document.getElementById("raiz")).render(<Host />);
     await analisa();
     assert.strictEqual(await p.evaluate(() => window.__alunos[0].movimentos.length), 2, app + ": 2ª análise salva");
     assert(await p.locator(".qlm").first().locator("[data-r=cmpC]").isVisible(), app + ": 2ª análise compara com a anterior");
-    // jogo em vídeo: pontos classificados são salvos no jogador; o 2º jogo compara com o 1º
+    // jogo em vídeo (só Team Yoda; foi retirado do QuadraLab treinador): pontos classificados são salvos no jogador; o 2º jogo compara com o 1º
+    if (app === "autonomo") assert.strictEqual(await p.getByText("Jogo em vídeo", { exact: true }).count(), 0, app + ": sem a aba Jogo em vídeo");
+    if (app === "mty") {
     await p.getByText("Jogo em vídeo", { exact: true }).first().click();
     const jogo = async (ganhos) => {
       await p.evaluate((g) => { const pts = []; for (let i = 0; i < 10; i++) pts.push({ n: i + 1, ini: i * 20, fim: i * 20 + 8, saque: i * 20 + 2, golpes: 3 + (i % 4), duracao: 4, sacador: i % 2 ? "B" : "A", venc: i < g ? "A" : "B", tipo: i < g ? "Winner" : "Erro não forçado" }); window.__vctl.definirPontos(pts); window.__vctl.estado.regId = null; window.__vctl.estado.salvo = false; }, ganhos);
@@ -84,12 +86,15 @@ ReactDOM.createRoot(document.getElementById("raiz")).render(<Host />);
     await jogo(7);
     assert.strictEqual(await p.evaluate(() => window.__alunos[0].jogosVideo.length), 2, app + ": 2º jogo em vídeo salvo");
     assert.strictEqual(await p.evaluate(() => window.__alunos[0].jogosVideo[1].res.pctGanhos), 70, app + ": resumo do jogo");
+    }
     // aba evolução
     await p.getByText("Evolução", { exact: true }).first().click();
     assert((await p.textContent("body")).includes("Última análise × anterior"), app + ": evolução mostra comparação com a anterior");
     assert((await p.textContent("body")).includes("Forehand · 2 análises"), app + ": evolução agrupa por golpe");
-    assert((await p.textContent("body")).includes("Jogos em vídeo · 2 jogos"), app + ": evolução dos jogos em vídeo");
-    assert((await p.textContent("body")).includes("Último jogo × anteriores"), app + ": jogo em vídeo compara com anteriores");
+    if (app === "mty") {
+      assert((await p.textContent("body")).includes("Jogos em vídeo · 2 jogos"), app + ": evolução dos jogos em vídeo");
+      assert((await p.textContent("body")).includes("Último jogo × anteriores"), app + ": jogo em vídeo compara com anteriores");
+    } else assert(!(await p.textContent("body")).includes("Jogos em vídeo"), app + ": evolução sem jogos em vídeo");
     // cada análise guarda o relatório completo num arquivo à parte; "Ver relatório" reabre com fotos, checklist e conclusão
     await p.waitForFunction(() => Object.keys(localStorage).filter((k) => k.startsWith("local:mty:movrel:v1:")).length === 2, null, { timeout: 5000 });
     assert.strictEqual(await p.locator("[data-ver]:visible").count(), 2, app + ": Evolução lista as 2 análises com Ver relatório");
@@ -150,12 +155,14 @@ ReactDOM.createRoot(document.getElementById("raiz")).render(<Host />);
         assert.strictEqual(c.liberado, false, app + ": 5 de 5 bloqueia");
         for (let k = 0; k < 5; k++) { await p.evaluate(() => window.__ctl.injetar(window.QLBiomec.sintetico(40, "D").map((q, i) => { q.t = i * 0.05; return q; }), {})); await p.waitForTimeout(250); }
         assert((await p.textContent(".qlm")).includes("Você usou as 5 análises de movimento deste mês"), app + ": após 5 análises, aviso de limite do mês");
+        if (app === "mty") {
         await p.getByText("Jogo em vídeo", { exact: true }).first().click();
         for (let k = 0; k < 2; k++) {
           await p.evaluate(() => { const pts = [{ n: 1, ini: 0, fim: 8, saque: 2, golpes: 3, duracao: 4, sacador: "A", venc: "A", tipo: "Ace" }]; window.__vctl.definirPontos(pts); window.__vctl.estado.regId = null; window.__vctl.estado.salvo = false; });
           await p.locator(".qlm [data-r=salvar]").click(); await p.waitForTimeout(250);
         }
         assert((await p.textContent("body")).includes("Você salvou os 2 jogos em vídeo deste mês"), app + ": após 2 jogos, aviso de limite do mês");
+        }
         assert.strictEqual(await p.evaluate(() => window.QLBiomec.cota("movimento", "essencial", [{ criadoEm: "2020-01-01T00:00:00Z" }]).usados), 0, app + ": meses anteriores não contam");
       }
       await p.close();
