@@ -268,3 +268,10 @@ button.op[disabled] { opacity: .6; cursor: default; }
 .niveis-prog p { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 @media (max-width: 899px) { .rel .quadra-svg { height: min(32svh, 320px); } }
 .rel-topo { scroll-margin-top: 120px; }
+
+/* dentro do Player/Competição (?embed=1): o app já mostra a marca e o menu */
+.embutido .rodape, .embutido .pular { display: none; }
+.embutido body::before { display: none; }
+.embutido .topo { top: 0; }
+.embutido .marca { text-decoration: none; }
+.marca-txt { font-weight: 800; font-size: 1.05rem; color: var(--tinta); line-height: 1.2; padding: 8px 0; }

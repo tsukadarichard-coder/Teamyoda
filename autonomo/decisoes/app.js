@@ -6,6 +6,14 @@
   "use strict";
   var K = window.QLD_CONTEUDO, M = window.QLD_MOTOR;
   var app = document.getElementById("conteudo"), anuncio = document.getElementById("anuncio");
+  /* Dentro do Player/Competição (?embed=1, num quadro do próprio app): sem a marca e o rodapé daqui, e cada tela avisa o app,
+     que guarda o endereço (#/simulador/<tela>) para recarregar e voltar no mesmo lugar. */
+  var EMBUTIDO = /[?&]embed=1(&|$)/.test(location.search) && window.parent !== window;
+  if (EMBUTIDO) {
+    document.documentElement.classList.add("embutido");
+    var marca = document.querySelector(".marca"); if (marca) marca.innerHTML = '<span class="marca-txt">Simulador</span>';
+  }
+  function avisarApp(h) { if (EMBUTIDO) try { window.parent.postMessage({ tipo: "ql-sim-rota", rota: h }, location.origin); } catch (e) { /* app fora do ar */ } }
   var reduzir = window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : { matches: false };
   var SVGNS = "http://www.w3.org/2000/svg";
   var POR_ID = {}; K.CENARIOS.forEach(function (c) { POR_ID[c.id] = c; });
@@ -703,6 +711,7 @@
   function rotear() {
     var h = location.hash.replace(/^#/, "") || "inicio";
     if (h === "conteudo") return;
+    avisarApp(h);
     if (h !== "relampago") { pararRelogio(); rel = null; }
     if (h.indexOf("jogar-") === 0) return telaSimulador(h.slice(6));
     if (h.indexOf("resumo-") === 0) return telaResumo(h.slice(7));

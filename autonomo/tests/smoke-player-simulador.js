@@ -69,7 +69,7 @@ window.firebase={initializeApp:function(){},auth:function(){return a}};})();`;
   await inicio();
   let t = await txt();
   assert(/Novo\s+Simulador de decisões/i.test(t) && /Treine a sua leitura de jogo/.test(t), "cartão de estreia");
-  assert.strictEqual(await p.getAttribute(".simulador-ini .btn-sim", "href"), "../decisoes/");
+  assert.strictEqual(await p.getAttribute(".simulador-ini .btn-sim", "href"), "#/simulador");
   const ordem = await p.evaluate(() => Array.from(document.querySelectorAll(".lateral-nav .nav-item")).slice(0, 2).map((a) => a.textContent.trim()));
   assert(/^Início$/.test(ordem[0]) && /^Simulador de decisões/.test(ordem[1]), "menu lateral: logo abaixo de Início");
   await p.click("#btMais"); await p.waitForSelector("#painelMais:not([hidden])");
@@ -78,14 +78,25 @@ window.firebase={initializeApp:function(){},auth:function(){return a}};})();`;
   await p.click("#btFecharMais");
   await cap("player-simulador-novo");
 
-  /* joga um cenário no simulador e volta */
-  await p.click(".simulador-ini .btn-sim"); await p.waitForURL(/\/decisoes\//);
-  await p.goto(base + "/decisoes/#jogar-neutralize"); await p.waitForSelector("#quadra svg");
+  /* o simulador abre DENTRO do Player: mesmo endereço, menu do app em volta, sem a marca e o rodapé dele */
+  await p.click(".simulador-ini .btn-sim"); await p.waitForURL(/\/player\/#\/simulador/);
+  await p.waitForSelector("#simQuadro"); const q = p.frameLocator("#simQuadro");
+  await q.locator(".hero, .pagina h1").first().waitFor({ timeout: 15000 });
+  assert(await p.isVisible("#navInf"), "o menu inferior do Player continua na tela");
+  assert(await q.locator(".rodape").isHidden() && (await q.locator(".marca img").count()) === 0, "sem a marca e o rodapé do simulador");
+  const alt = await p.evaluate(() => { const f = document.getElementById("simQuadro").getBoundingClientRect(), n = document.getElementById("navInf").getBoundingClientRect(); return { fim: f.bottom, nav: n.top, alt: f.height }; });
+  assert(alt.alt > 400 && Math.abs(alt.fim - alt.nav) < 3, "o quadro ocupa a área entre o topo e o menu inferior " + JSON.stringify(alt));
+  await q.locator('.nav a[data-rota="cenarios"]').click();
+  await p.waitForFunction(() => location.hash === "#/simulador/cenarios");
+  await cap("player-simulador-dentro");
+  await p.goto(base + "/player/#/simulador/jogar-neutralize"); await p.reload();
+  await p.frameLocator("#simQuadro").locator("#quadra svg").waitFor({ timeout: 15000 });
+  const f = p.frame({ url: /decisoes/ });
   for (let n = 0; n < 3; n++) {
-    await p.locator('input[name="op"]').first().check({ force: true }); await p.click("#btJogar");
-    await p.waitForSelector("#btSeguir", { timeout: 20000 }); await p.click("#btSeguir");
+    await f.locator('input[name="op"]').first().check({ force: true }); await f.click("#btJogar");
+    await f.waitForSelector("#btSeguir", { timeout: 20000 }); await f.click("#btSeguir");
   }
-  await p.waitForSelector(".missao");
+  await f.waitForSelector(".missao");
   const resumo = await p.evaluate(() => JSON.parse(localStorage.getItem("qlDecisoes:resumo")));
   assert(resumo && resumo.v === 1 && resumo.iniciados === 1 && resumo.max === 408 && resumo.dias.length === 1, "o simulador grava o resumo");
   assert(!("cenarios" in resumo && typeof resumo.cenarios === "object"), "o resumo não leva as escolhas");
@@ -98,7 +109,7 @@ window.firebase={initializeApp:function(){},auth:function(){return a}};})();`;
   await p.evaluate(() => { const r = JSON.parse(localStorage.getItem("qlDecisoes:resumo")); r.vencimentos = [Date.now() - 86400000, Date.now() - 1000, Date.now() + 86400000]; localStorage.setItem("qlDecisoes:resumo", JSON.stringify(r)); });
   await inicio(); t = await txt();
   assert(/2 padrões para revisar hoje/.test(t), "revisões vencidas");
-  assert.strictEqual(await p.getAttribute(".simulador-ini .btn-sim", "href"), "../decisoes/#desafios");
+  assert.strictEqual(await p.getAttribute(".simulador-ini .btn-sim", "href"), "#/simulador/desafios");
   await cap("player-simulador-revisoes");
 
   /* resumo inválido: volta ao convite, sem erro */
