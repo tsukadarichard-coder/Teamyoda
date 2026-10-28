@@ -23,7 +23,10 @@ const srv=http.createServer((q,r)=>{const u=q.url.split("?")[0];if(u==="/"){r.wr
 (async()=>{const b=await chromium.launch({executablePath:"/opt/pw-browsers/chromium-1194/chrome-linux/chrome",args:["--no-sandbox"]});
 const abre=async(premium)=>{const p=await b.newPage({viewport:{width:480,height:1000}});p.on("pageerror",e=>erros.push(e.message));await p.addInitScript(v=>{window.__premium=v},premium);await p.goto("http://localhost:"+srv.address().port+"/");await p.waitForFunction(()=>document.body.innerText.length>30,null,{timeout:120000});return p};
 const erros=[];
-let p=await abre(false);assert.strictEqual(await p.locator("[data-metodo-bloqueado]").count(),1,"plano Essencial vê o bloqueio");assert(/Disponível no plano Premium/.test(await p.evaluate(()=>document.body.innerText)));await p.close();
+let p=await abre(false);assert.strictEqual(await p.locator("[data-metodo-bloqueado]").count(),1,"plano Essencial vê o bloqueio");assert(/Disponível no plano Premium/.test(await p.evaluate(()=>document.body.innerText)));
+{const t=await p.evaluate(()=>document.body.innerText);assert((await p.locator("[data-cadeado=premium]").count())>=5&&/O que você encontra aqui/.test(t)&&/Minha biblioteca de exercícios/.test(t),"bloqueio mostra o que tem dentro, com cadeado");
+assert(/Assinar Plano Premium/.test(t)&&!/Assinar Plano Essencial/.test(t),"só oferece o plano que libera (Premium)");}
+await p.close();
 p=await abre(true);await p.waitForSelector("[data-meu-metodo]",{timeout:20000});
 assert(await p.getByRole("checkbox",{name:/Usar o meu método/}).isDisabled(),"ativação travada sem os mínimos");
 assert(/pelo menos 3 princípios/.test(await p.evaluate(()=>document.body.innerText)),"lista o que falta");

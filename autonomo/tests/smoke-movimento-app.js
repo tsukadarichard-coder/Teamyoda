@@ -15,6 +15,11 @@ const lib = { react: CDN + "/react-18.3.1/package/umd/react.development.js", dom
     const j = html.indexOf("function TelaScout({ aluno, alunos, setAlunos, identidade }) {");
     assert(i > 0 && j > i, app + ": componentes não encontrados");
     const fonte = html.slice(i, j);
+    /* regra dos planos e o cadeado vêm do próprio index.html (só no QuadraLab); os botões de assinatura viram um marcador */
+    const ini = html.indexOf("const ORDEM_PLANO"), fimRegra = html.indexOf("\n}\n", html.indexOf("function planoQueLibera")) + 3;
+    const iCad = html.indexOf("function Cadeado("), fimCad = html.indexOf("\n}\n", iCad) + 3;
+    const planos = ini > 0 ? html.slice(ini, fimRegra) + html.slice(iCad, fimCad) + 'const NOMES_PLANO = { gratis: "Plano grátis", essencial: "Plano Essencial", premium: "Plano Premium" };\n'
+      : "const planoQueLibera = () => null; const Cadeado = () => null;\n";
     const pagina = `<!doctype html><meta charset=utf-8><link rel=stylesheet href="/scout/movimento.css"><div id=raiz></div>
 <script src=/lib/react.js></script><script src=/lib/dom.js></script><script src=/lib/babel.js></script>
 <script src=/scout/movimento-motor.js></script><script src=/scout/movimento-arquivo.js></script><script src=/scout/movimento.js></script><script src=/scout/video-segmentador.js></script><script src=/scout/video-audio.js></script><script src=/scout/video-scout.js></script><script src=/scout/video-visao.js></script><script src=/scout/video-scout-ui.js></script><script src=/scout/quadra-auto.js></script><script src=/scout/padroes.js></script><script src=/scout/video-jogo.js></script>
@@ -24,6 +29,8 @@ const _m = QLMovimento.montar; QLMovimento.montar = (el, o) => { const c = _m(el
 const _v = QLVideoJogo.montar; QLVideoJogo.montar = (el, o) => { const c = _v(el, o); window.__vctl = c; return c; };
 const C = { linha: "#ddd", cal: "#fff", tinta: "#111", papel: "#fff", grafite: "#555", saibro: "#c65825" };
 const ARCH = "sans-serif"; const prosa = {};
+const BotoesAssinatura = ({ minimo }) => <div data-botoes-assinatura={minimo || "todos"} />;
+${planos}
 const db = null; const organizacao = async () => null; /* sem nuvem: o arquivo de relatórios usa o localStorage */
 ${fonte}
 function Host() {
@@ -147,6 +154,8 @@ ReactDOM.createRoot(document.getElementById("raiz")).render(<Host />);
       if (esp) assert(esp.test(t), app + " " + pl + ": mensagem de plano esperada → " + t.slice(0, 400));
       else assert(!/Plano com limite|não está incluída/.test(t), app + " premium ilimitado");
       if (pl === "gratis") assert(await p.locator(".qlm").first().locator("[data-r=go]").isDisabled(), app + ": gratis não analisa");
+      if (pl === "gratis" && app === "autonomo") assert((await p.locator("[data-cadeado=essencial]").count()) > 0 && (await p.locator("[data-botoes-assinatura]").count()) === 1, app + ": gratis vê o cadeado e a assinatura");
+      if (pl === "premium") assert.strictEqual(await p.locator("[data-cadeado]").count(), 0, app + ": premium sem cadeado");
       if (pl === "essencial") {
         await p.evaluate(() => { window.__ctl.estado.cota = window.QLBiomec.cota("movimento", "essencial", []); });
         const mes = new Date().toISOString();

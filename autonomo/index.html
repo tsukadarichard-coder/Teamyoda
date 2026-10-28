@@ -557,6 +557,18 @@ function registrosDaTurma(turma, membros) {
 const LIMITE_ALUNOS_GRATIS = 5;
 const LIMITES_POR_PLANO = { gratis: LIMITE_ALUNOS_GRATIS, essencial: 30, premium: null };
 const NOMES_PLANO = { gratis: "Plano grátis", essencial: "Plano Essencial", premium: "Plano Premium" };
+/* Recursos por plano: tudo aparece para todos, para o treinador conhecer o sistema inteiro. O que o plano atual não inclui
+   mostra um cadeado com o plano que libera, e a tela explica o recurso e oferece a assinatura.
+   Contas sem plano definido (academias antigas) seguem sem limite na análise de movimento; Meu método e o plano de jogo por IA
+   são só do Premium, como sempre foram. */
+const ORDEM_PLANO = { gratis: 0, essencial: 1, premium: 2 };
+const PLANO_DO_RECURSO = { movimento: "essencial", metodo: "premium", planoJogoIA: "premium" };
+function planoQueLibera(recurso, planoAtual) {
+  const minimo = PLANO_DO_RECURSO[recurso];
+  if (!minimo) return null;
+  if (!planoAtual) return minimo === "premium" ? "premium" : null;
+  return (ORDEM_PLANO[planoAtual] || 0) >= ORDEM_PLANO[minimo] ? null : minimo;
+}
 function limiteDeAlunos(plano) {
   return plano && Object.prototype.hasOwnProperty.call(LIMITES_POR_PLANO, plano) ? LIMITES_POR_PLANO[plano] : null;
 }
@@ -3083,7 +3095,21 @@ function CartaoPlano({ plano }) {
   );
 }
 
-function BotoesAssinatura({ planoAtual, planoVencido, emailAtual, pequeno }) {
+/* Cadeado ao lado de um recurso que o plano atual não inclui: diz qual plano libera. */
+function Cadeado({ plano, claro }) {
+  if (!plano) return null;
+  const cor = claro ? "#fff" : C.saibro;
+  return (
+    <span data-cadeado={plano} title={"Disponível a partir do " + NOMES_PLANO[plano]}
+      style={{ display: "inline-flex", alignItems: "center", gap: 3, marginLeft: 6, verticalAlign: "middle", fontFamily: ARCH, fontSize: 10, fontWeight: 700,
+        letterSpacing: ".04em", textTransform: "uppercase", color: cor, border: "1px solid " + cor, borderRadius: 999, padding: "1px 6px 1px 5px", lineHeight: 1.4 }}>
+      <svg width="9" height="10" viewBox="0 0 9 10" aria-hidden="true"><rect x="0.5" y="4.2" width="8" height="5.3" rx="1.2" fill={cor} /><path d="M2.3 4.4V3a2.2 2.2 0 0 1 4.4 0v1.4" fill="none" stroke={cor} strokeWidth="1.3" /></svg>
+      {plano === "premium" ? "Premium" : "Essencial"}
+    </span>
+  );
+}
+
+function BotoesAssinatura({ planoAtual, planoVencido, emailAtual, pequeno, minimo }) {
   if (planoVencido && (planoAtual === "essencial" || planoAtual === "premium")) {
     return (
       <div className="mt-2">
@@ -3097,7 +3123,7 @@ function BotoesAssinatura({ planoAtual, planoVencido, emailAtual, pequeno }) {
       </div>
     );
   }
-  const planosDisponiveis = ["essencial", "premium"].filter((p) => p !== planoAtual);
+  const planosDisponiveis = ["essencial", "premium"].filter((p) => p !== planoAtual && (!minimo || ORDEM_PLANO[p] >= ORDEM_PLANO[minimo]));
   if (!planosDisponiveis.length) return null;
   return (
     <div className="mt-2">
@@ -8791,7 +8817,7 @@ function CartaoAdversario({ adversario, aluno, planoAtual, aoAtualizar, aoApagar
                já registrou aqui nunca somem por falta de upgrade. */
             <div className="mt-3" style={{ background: C.papel, border: "1px solid " + C.linha, borderRadius: 10, padding: "10px 12px" }}>
               <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>
-                Gerar o plano de jogo por IA é exclusivo do {NOMES_PLANO.premium}.
+                Gerar o plano de jogo por IA é exclusivo do {NOMES_PLANO.premium}.<Cadeado plano="premium" />
               </p>
               <div className="mt-2"><Botao pequeno onClick={() => abrirCheckoutEduzz("premium")}>Conhecer o {NOMES_PLANO.premium}</Botao></div>
             </div>
@@ -9199,8 +9225,10 @@ function TelaMovimento({ aluno, alunos, setAlunos, identidade, planoAtual }) {
       </div>
       {bloqueado && aba !== "evolucao" && (
         <div className="mb-3" style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "11px 14px" }}>
-          <p style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700, marginBottom: 4 }}>Análise de movimento nos planos Essencial e Premium</p>
+          <p style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700, marginBottom: 4 }}>Análise de movimento nos planos Essencial e Premium{planoQueLibera("movimento", planoAtual) && <Cadeado plano="essencial" />}</p>
           <p style={{ ...prosa, fontSize: 13 }}>No Essencial você faz uma quantidade de análises por mês; no Premium, análises ilimitadas. As análises que já existirem continuam disponíveis na aba Evolução.</p>
+          {planoQueLibera("movimento", planoAtual) && <p style={{ ...prosa, fontSize: 13, marginTop: 6 }}>Toque em <b>Ver demonstração</b> abaixo para ver uma análise completa, com as fotos dos momentos, o checklist e a conclusão.</p>}
+          <BotoesAssinatura planoAtual={planoAtual} planoVencido={false} pequeno />
         </div>
       )}
       <div style={{ display: aba === "analisar" ? "block" : "none" }}><div ref={raiz} /></div>
@@ -14741,12 +14769,25 @@ function TelaMeuMetodo({ metodo, setMetodo, planoAtual, exerciciosCustom, setExe
   if (planoAtual !== "premium") {
     return (
       <div data-metodo-bloqueado>
-        <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Meu método</h1>
+        <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Meu método<Cadeado plano="premium" /></h1>
         <div style={{ background: C.cal, borderLeft: "3px solid " + C.saibro, padding: "14px 16px", marginTop: 12 }}>
           <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Disponível no plano Premium</p>
           <p style={{ ...prosa, fontSize: 13.5 }}>Descreva a sua linha de trabalho (áreas, critérios de saída, princípios e a sua biblioteca de exercícios) ou importe os seus planejamentos. O gerador de plano passa a seguir só as suas regras.</p>
         </div>
-        <div className="mt-4"><BotoesAssinatura planoAtual={planoAtual} planoVencido={false} /></div>
+        <p style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, margin: "16px 0 6px" }}>O que você encontra aqui</p>
+        <div style={{ display: "grid", gap: 8 }}>
+          {[["Importar do meu material", "Cole o seu planejamento ou a descrição do método: a IA preenche os campos com o que estiver escrito e você revisa."],
+            ["Áreas de trabalho e critérios de saída", "O que cada bloco trabalha e como você sabe que o jogador pode avançar."],
+            ["Princípios e o que eu nunca faço", "Regras que a IA segue em todo plano, e o que ela nunca inclui."],
+            ["Minha biblioteca de exercícios", "O gerador passa a usar só os seus exercícios. Dá para importar por planilha."],
+            ["Usar o meu método ao gerar planos", "Com tudo preenchido, cada plano individual sai no seu jeito de trabalhar."]].map(([t, d]) => (
+            <div key={t} style={{ border: "1px dashed " + C.linha, borderRadius: 10, padding: "10px 12px", background: C.papel, opacity: 0.85 }}>
+              <p style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{t}<Cadeado plano="premium" /></p>
+              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>{d}</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4"><BotoesAssinatura planoAtual={planoAtual} planoVencido={false} minimo="premium" /></div>
       </div>
     );
   }
@@ -17618,9 +17659,9 @@ function IconeCalendario({ tam = 28 }) {
   );
 }
 
-function PainelMais({ aba, setAba, aoFechar }) {
+function PainelMais({ aba, setAba, aoFechar, planoAtual }) {
   const itens = [...NAV_PRINCIPAL.filter((t) => !["dashboard", "alunos", "agenda"].includes(t.v)),
-    { v: "metodo", r: "Meu método" }, { v: "catalogo", r: "Catálogo de exercícios" },
+    { v: "metodo", r: "Meu método", trava: planoQueLibera("metodo", planoAtual) }, { v: "catalogo", r: "Catálogo de exercícios" },
     ...(LIGACAO_PLAYER ? [{ v: "hubPerfil", r: "Meu perfil profissional" }, { v: "hubPedidos", r: "Pedidos de atendimento" }] : [])];
   return (
     <>
@@ -17638,7 +17679,7 @@ function PainelMais({ aba, setAba, aoFechar }) {
               aria-current={aba === t.v ? "page" : undefined}
               style={{ display: "block", padding: "13px 12px", border: "none", cursor: "pointer", borderRadius: 10, minHeight: 44,
                 background: aba === t.v ? C.saibro : "none", color: aba === t.v ? "#fff" : C.tinta }}>
-              <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 600 }}>{t.r}</span>
+              <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 600 }}>{t.r}</span><Cadeado plano={t.trava} claro={aba === t.v} />
             </button>
           ))}
           <div style={{ borderTop: "1px solid " + C.linha, margin: "6px 2px" }} />
@@ -18610,7 +18651,7 @@ function App() {
      aparece pra quem for provisionado explicitamente com a opção
      marcada. */
   const gruposNav = [
-    { id: "trabalho", label: "Meu trabalho", itens: [...NAV_PRINCIPAL, { v: "metodo", r: "Meu método" }, { v: "catalogo", r: "Catálogo de exercícios" }] },
+    { id: "trabalho", label: "Meu trabalho", itens: [...NAV_PRINCIPAL, { v: "metodo", r: "Meu método", trava: planoQueLibera("metodo", planoAtual) }, { v: "catalogo", r: "Catálogo de exercícios" }] },
     LIGACAO_PLAYER && { id: "hub", label: "QuadraLab Hub", badge: hubNaoLidas > 0 ? String(hubNaoLidas) : null, itens: [{ v: "hubPerfil", r: "Meu perfil profissional" }, { v: "hubPedidos", r: "Pedidos de atendimento" + (hubNaoLidas > 0 ? " (" + hubNaoLidas + ")" : "") }] },
   ].filter((g) => g && g.itens.length > 0);
   function criar() {
@@ -18782,7 +18823,7 @@ function App() {
                       style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 600, padding: "8px 10px", borderRadius: 10, cursor: "pointer",
                         border: "none", transition: "background .12s ease",
                         background: aba === t.v ? C.saibro : "transparent", color: aba === t.v ? "#fff" : C.grafite }}>
-                      {t.r}
+                      {t.r}<Cadeado plano={t.trava} claro={aba === t.v} />
                     </button>
                   ))}
                 </div>
@@ -19008,7 +19049,7 @@ function App() {
                  encerramento formal do ciclo (ação "Concluir ciclo" dentro
                  da própria seção, preservada — ver TelaPlano modo=fechamento). */
               const principais = [{ v: "ficha", r: "Perfil" }, { v: "plano", r: "Planejamento" }, { v: "aulas", r: "Aulas" }, { v: "fechamento", r: "Resumo do ciclo" }];
-              const itensMais = [{ v: "periodizacao", r: "Periodização" }, { v: "sessao", r: "Sessão de hoje" }, { v: "scout", r: "Análise de partida" }, { v: "movimento", r: "Análise de movimento" }, { v: "registro", r: "Caderno" }, { v: "estilo", r: "Estilo de jogo" }, { v: "adversarios", r: "Adversários" }];
+              const itensMais = [{ v: "periodizacao", r: "Periodização" }, { v: "sessao", r: "Sessão de hoje" }, { v: "scout", r: "Análise de partida" }, { v: "movimento", r: "Análise de movimento", trava: planoQueLibera("movimento", planoAtual) }, { v: "registro", r: "Caderno" }, { v: "estilo", r: "Estilo de jogo" }, { v: "adversarios", r: "Adversários" }];
               const todasSecoes = [...principais, ...itensMais];
               const maisAtivo = itensMais.some((t) => t.v === subaba);
               const secaoAtual = todasSecoes.find((t) => t.v === subaba) || principais[0];
@@ -19060,7 +19101,7 @@ function App() {
                               background: subaba === t.v ? C.saibro : C.cal,
                               fontFamily: ARCH, fontSize: 13, fontWeight: subaba === t.v ? 700 : 500,
                               color: subaba === t.v ? "#fff" : C.tinta }}>
-                            {t.r}
+                            {t.r}<Cadeado plano={t.trava} claro={subaba === t.v} />
                           </button>
                         ))}
                       </div>
@@ -19088,7 +19129,7 @@ function App() {
                             style={{ display: "block", padding: "12px 14px", minHeight: 44, border: "none", borderBottom: "1px solid " + C.linha,
                               background: subaba === t.v ? C.saibro + "1a" : C.cal, cursor: "pointer",
                               fontFamily: ARCH, fontSize: 14, fontWeight: subaba === t.v ? 700 : 500, color: subaba === t.v ? C.saibro : C.tinta }}>
-                            {subaba === t.v ? "✓ " : ""}{t.r}
+                            {subaba === t.v ? "✓ " : ""}{t.r}<Cadeado plano={t.trava} />
                           </button>
                         ))}
                       </div>
@@ -19260,7 +19301,7 @@ function App() {
       </nav>
 
       {maisAberto && (
-        <PainelMais aba={aba} setAba={setAba} aoFechar={() => setMaisAberto(false)} />
+        <PainelMais aba={aba} setAba={setAba} aoFechar={() => setMaisAberto(false)} planoAtual={planoAtual} />
       )}
 
       {acaoSaidaPendente && (
