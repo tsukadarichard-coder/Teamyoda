@@ -16351,6 +16351,16 @@ function TelaObservar({ alunos, setAlunos, planoAtual, aoVerCaderno }) {
             <Botao variante="vazio" onClick={() => mudarJogo(ativo.id, { estado: ativo.estado === "pausado" ? "acompanhando" : "pausado" })}>{ativo.estado === "pausado" ? "Retomar" : "Pausar"} este jogo</Botao>
           </div>
           {aoVerCaderno && jogos.some((j) => j.salvoEm) && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Jogos encerrados e salvos ficam no caderno de cada jogador.</p>}
+          <details data-como-guarda style={{ marginTop: 6, marginBottom: 12 }}>
+            <summary style={{ ...prosa, fontSize: 12.5, color: C.quadra, fontWeight: 700, cursor: "pointer", minHeight: 32 }}>Como os registros são guardados</summary>
+            <ul style={{ ...prosa, fontSize: 12.5, color: C.grafite, margin: "4px 0 0 18px", listStyle: "disc" }}>
+              <li>Cada registro é salvo neste aparelho na hora{nuvem ? " e sobe para a sua conta quando há internet (aí aparece “Sincronizado”)" : ""}.</li>
+              <li>O texto vem do reconhecimento de voz do próprio aparelho, sem custo. Em muitos aparelhos ele precisa de internet.</li>
+              <li>{travaAudio ? "No plano grátis, o áudio não é guardado; fica o texto ditado." : "Áudio: fica neste aparelho só até ser enviado; na sua conta, enquanto a observação existir. Apague quando quiser em Editar (o texto fica)."}</li>
+              <li>O microfone só é usado enquanto você dita ou mantém a escuta ativa. Com a tela bloqueada ou o app em segundo plano, a captura para e avisamos.</li>
+              <li>Para abrir o app é preciso internet; com ele aberto, os registros continuam sendo guardados mesmo se a conexão cair.</li>
+            </ul>
+          </details>
         </>
       )}
     </div>
