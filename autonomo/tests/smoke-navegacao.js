@@ -184,7 +184,7 @@ const base = "http://localhost:" + srv.address().port + "/";
   await p.click('[data-menu-lateral] [data-grupo-nav="gestao"]').catch(() => {});
   t = await p.locator("[data-menu-lateral]").innerText();
   assert(!/Quadras|Horários recorrentes|Clientes|Torneios|Eventos|Aulas da equipe|Equipe da organização|Financeiro/.test(t), "professor não vê gestão restrita: " + t);
-  assert(/Relatório de aulas/.test(t), "professor continua vendo o próprio relatório");
+  assert(/Relatório do mês/.test(t), "professor continua vendo o próprio relatório");
   assert.strictEqual(await p.locator('[data-secoes-pagina] button:has-text("Pendências")').count(), 0, "seção Pendências da academia só para coordenador/dono");
   /* a rota antiga de uma tela restrita não abre a tela para quem não pode */
   await p.evaluate(() => sessionStorage.setItem("mty:nav:aba", "quadras")); await p.reload(); await p.waitForSelector("main.mty-main", { timeout: 120000 });
