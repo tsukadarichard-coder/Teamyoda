@@ -11106,6 +11106,7 @@ const OPCOES_NOVO_REGISTRO = [
   { v: "jogo", titulo: "Jogo", desc: "Resultado e observações de uma partida." },
   { v: "medicao", titulo: "Medição", desc: "Valores e avaliações acompanhados pela plataforma." },
   { v: "semana", titulo: "Registro semanal", desc: "Planilha de como foi a semana que passou: erros, protocolo e observações, dia a dia." },
+  { v: "voz", titulo: "Conversa ou comentário em áudio", desc: "Grave uma conversa (no almoço, depois do jogo) ou um comentário para o jogador; o texto vem do ditado do aparelho." },
 ];
 
 /* Painel de escolha do tipo de registro a criar — fecha por botão
@@ -11167,6 +11168,7 @@ function TelaRegistro({ aluno, alunos, setAlunos, identidade, aoReabrirJogo, pla
   function escolherNovoRegistro(tipo) {
     setPainelAberto(false);
     if (tipo === "anotacao") { setFiltro("anotacao"); return; }
+    if (tipo === "voz") { setFiltro("observacao"); setCriando("voz"); return; }
     setFiltro(tipo);
     setCriando(tipo);
   }
@@ -11206,7 +11208,7 @@ function TelaRegistro({ aluno, alunos, setAlunos, identidade, aoReabrirJogo, pla
             { v: "semana", r: "Semanas" },
             { v: "medicao", r: "Medições" },
             { v: "movimento", r: "Análises de movimento" },
-            { v: "observacao", r: "Observações de partida" },
+            { v: "observacao", r: "Observações e conversas" },
           ]}
           valor={filtro} aoMudar={(v) => { setCriando(null); setFiltro(v); }} />
       </div>
@@ -11233,6 +11235,7 @@ function TelaRegistro({ aluno, alunos, setAlunos, identidade, aoReabrirJogo, pla
       {criando === "jogo" && <FormJogo aoSalvar={adiciona} />}
       {criando === "semana" && <FormSemana aoSalvar={adiciona} />}
       {criando === "medicao" && <FormMedicao aluno={aluno} aoSalvar={adiciona} />}
+      {criando === "voz" && <FormNotaVoz aluno={aluno} planoAtual={planoAtual} aoSalvar={adiciona} />}
 
       {!criando && filtro === "anotacao" && <PainelAnotacoes aluno={aluno} alunos={alunos} setAlunos={setAlunos} />}
 
@@ -11259,7 +11262,7 @@ function TelaRegistro({ aluno, alunos, setAlunos, identidade, aoReabrirJogo, pla
               <div className="mb-4"><Etiqueta>{itensFiltrados.length} registros</Etiqueta></div>
               {itensFiltrados.map((r) => (
                 r.tipo === "observacao" ? (
-                  <CartaoObservacaoCaderno key={"ob-" + r.id} r={r} planoAtual={planoAtual} aoApagar={() => { if (confirm("Apagar esta observação de partida?")) apaga(r.id); }} />
+                  <CartaoObservacaoCaderno key={"ob-" + r.id} r={r} planoAtual={planoAtual} aoApagar={() => { if (!confirm(r.contexto === "conversa" ? "Apagar esta conversa e as gravações dela?" : "Apagar esta observação de partida?")) return; (r.obs || []).forEach((o) => { if (o.audio) chamarAudio({ acao: "apagar", caminho: o.audio.caminho }).catch(() => {}); }); apaga(r.id); }} />
                 ) : r.tipo === "movimento" ? (
                   <CartaoMovimentoCaderno key={"mv-" + r.id} m={r} aluno={aluno} setAlunos={setAlunos} historico={movimentosCaderno} identidade={identidade} aoRemovido={() => setVersaoMov((v) => v + 1)} />
                 ) : r.tipo === "anotacao" ? (
@@ -14953,6 +14956,105 @@ function GraficoObservacoes({ obs }) {
     </div>
   );
 }
+/* ── Áudio do treinador (Essencial e Premium): grava pelo navegador (MediaRecorder) e, ao mesmo tempo, transcreve com o ditado do
+   próprio aparelho (reconhecimento de voz em pt-BR, sem custo). O arquivo vai direto para o armazenamento privado (audio-treinador);
+   no caderno ficam o texto e a referência ao arquivo. Se o ditado falhar (alguns iPhones não deixam gravar e ditar juntos), o áudio
+   fica gravado do mesmo jeito; se o envio falhar, o texto fica. */
+async function chamarAudio(corpo) {
+  if (!window.mtyAuth || !window.mtyAuth.usuario()) throw new Error("Entre na sua conta para gravar áudio.");
+  const tk = await window.mtyAuth.tokenId();
+  const r = await fetch("/.netlify/functions/audio-treinador", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + tk }, body: JSON.stringify(corpo) });
+  const c = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(c.erro || ("Erro " + r.status));
+  return c;
+}
+const mmss = (s) => Math.floor((s || 0) / 60) + ":" + String(Math.round(s || 0) % 60).padStart(2, "0");
+function GravadorVoz({ alunoId, trava, aoGravado, rotulo = "Gravar áudio", maxSeg = 1800 }) {
+  const [estado, setEstado] = useState("parado");
+  const [seg, setSeg] = useState(0);
+  const [texto, setTexto] = useState("");
+  const [erro, setErro] = useState("");
+  const rec = useRef(null);
+  useEffect(() => () => { const r = rec.current; if (r) { r.ativo = false; r.cancelado = true; clearInterval(r.timer); try { r.sr && r.sr.stop(); } catch (e) { /* parado */ } try { if (r.mr.state !== "inactive") r.mr.stop(); } catch (e) { /* parado */ } r.stream.getTracks().forEach((t) => t.stop()); } }, []);
+  if (trava) return <p data-audio-cadeado style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Gravar áudio, com o texto pelo ditado do aparelho<Cadeado plano={trava} /></p>;
+  if (typeof window === "undefined" || !navigator.mediaDevices || !window.MediaRecorder) return <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Este navegador não grava áudio. Use o Safari (iPhone/iPad) ou o Chrome.</p>;
+  async function iniciar() {
+    setErro(""); setTexto("");
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch (e) { setErro("Permita o uso do microfone nas configurações do navegador."); return; }
+    const tipo = ["audio/webm;codecs=opus", "audio/mp4", "audio/webm"].find((t) => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) || "";
+    const mr = new MediaRecorder(stream, tipo ? { mimeType: tipo } : undefined);
+    const r = { mr, stream, partes: [], inicio: Date.now(), finais: "", ultimo: "", sr: null, ativo: true };
+    mr.ondataavailable = (e) => { if (e.data && e.data.size) r.partes.push(e.data); };
+    mr.onstop = () => { if (!r.cancelado) terminar(r); };
+    mr.start(1000);
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const ligarSR = () => {
+      if (!SR || !r.ativo || r.semDitado) return;
+      try {
+        const sr = new SR(); sr.lang = "pt-BR"; sr.continuous = true; sr.interimResults = true;
+        sr.onresult = (ev) => { let inter = ""; for (let i = ev.resultIndex; i < ev.results.length; i++) { const t = ev.results[i][0].transcript; if (ev.results[i].isFinal) r.finais += t.trim() + " "; else inter += t; } r.ultimo = (r.finais + inter).trim(); setTexto(r.ultimo); };
+        sr.onerror = (ev) => { if (["not-allowed", "service-not-allowed", "audio-capture"].includes(ev.error)) r.semDitado = true; };
+        sr.onend = () => { if (r.ativo) setTimeout(ligarSR, 250); };
+        r.sr = sr; sr.start();
+      } catch (e) { r.semDitado = true; }
+    };
+    ligarSR();
+    r.timer = setInterval(() => { const s2 = Math.round((Date.now() - r.inicio) / 1000); setSeg(s2); if (s2 >= maxSeg) parar(); }, 500);
+    rec.current = r; setSeg(0); setEstado("gravando");
+  }
+  function parar() {
+    const r = rec.current; if (!r || !r.ativo) return;
+    r.ativo = false; clearInterval(r.timer);
+    try { r.sr && r.sr.stop(); } catch (e) { /* parado */ }
+    try { if (r.mr.state !== "inactive") r.mr.stop(); } catch (e) { terminar(r); }
+    r.stream.getTracks().forEach((t) => t.stop());
+  }
+  async function terminar(r) {
+    rec.current = null; setEstado("enviando");
+    const duracaoSeg = Math.round((Date.now() - r.inicio) / 1000), textoFinal = (r.finais.trim() || r.ultimo || "").slice(0, 8000);
+    const blob = new Blob(r.partes, { type: (r.mr.mimeType || "audio/webm").split(";")[0] });
+    let audio = null;
+    try {
+      if (!blob.size) throw new Error("nada foi gravado");
+      const c = await chamarAudio({ acao: "envio", alunoId, contentType: blob.type, tamanho: blob.size });
+      const up = await fetch(c.url, { method: "PUT", headers: c.cabecalhos, body: blob });
+      if (!up.ok) throw new Error("envio " + up.status);
+      audio = { caminho: c.caminho, tipo: c.contentType, duracaoSeg };
+    } catch (e) { setErro("O áudio não foi guardado (" + (e.message || "sem conexão") + ")." + (textoFinal ? " O texto ficou." : "")); }
+    setEstado("parado"); setTexto("");
+    if (audio || textoFinal) aoGravado({ texto: textoFinal, audio, semDitado: !!r.semDitado && !textoFinal });
+  }
+  return (
+    <div data-gravador style={{ marginTop: 8 }}>
+      {estado === "parado" && <Botao pequeno variante="vazio" onClick={iniciar}>● {rotulo}</Botao>}
+      {estado === "gravando" && (
+        <div style={{ border: "1px solid #C2410C", background: "#FBEBE1", borderRadius: 10, padding: "8px 10px" }}>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, color: "#9A3412" }}>● Gravando {mmss(seg)}</span>
+            <Botao pequeno onClick={parar}>Parar e guardar</Botao>
+          </div>
+          <p style={{ ...prosa, fontSize: 13, marginTop: 6, color: texto ? C.tinta : C.grafite }}>{texto || "O texto do ditado aparece aqui enquanto você fala…"}</p>
+        </div>
+      )}
+      {estado === "enviando" && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Guardando o áudio…</p>}
+      {erro && <p role="alert" style={{ ...prosa, fontSize: 12.5, color: "#A33", marginTop: 4 }}>{erro}</p>}
+    </div>
+  );
+}
+function OuvirAudio({ audio }) {
+  const [url, setUrl] = useState(""); const [erro, setErro] = useState(""); const [ocupado, setOcupado] = useState(false);
+  if (!audio || !audio.caminho) return null;
+  if (url) return <audio controls autoPlay src={url} style={{ width: "100%", marginTop: 4 }} />;
+  return (
+    <span>
+      <button data-ouvir onClick={async () => { setOcupado(true); setErro(""); try { setUrl((await chamarAudio({ acao: "ouvir", caminho: audio.caminho })).url); } catch (e) { setErro(e.message); } setOcupado(false); }}
+        style={{ ...prosa, fontSize: 12.5, fontWeight: 700, color: C.saibro, background: "none", border: "none", cursor: "pointer", padding: "4px 0", minHeight: 32 }}>
+        {ocupado ? "Abrindo…" : "▶ Ouvir" + (audio.duracaoSeg ? " (" + mmss(audio.duracaoSeg) + ")" : "")}</button>
+      {erro && <span style={{ ...prosa, fontSize: 12, color: "#A33" }}> {erro}</span>}
+    </span>
+  );
+}
 function hhmm(iso) { try { return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }); } catch (e) { return ""; } }
 function ListaObservacoes({ obs, aoRemover }) {
   const lista = [...(obs || [])].reverse();
@@ -14967,6 +15069,8 @@ function ListaObservacoes({ obs, aoRemover }) {
               {ROTULO_CAT_OBS[o.cat || "geral"]}{o.tipo === "bom" ? " · bom" : o.tipo === "ajustar" ? " · ajustar" : ""}</span>
             {o.placar && <span style={{ ...prosa, fontSize: 11.5, color: C.grafite }}> · {o.placar}</span>}
             {o.texto && <p style={{ ...prosa, fontSize: 13, marginTop: 1 }}>{o.texto}</p>}
+            {o.audio && <OuvirAudio audio={o.audio} />}
+            {o.audio && !o.texto && <p style={{ ...prosa, fontSize: 12, color: C.grafite }}>Áudio sem texto (o ditado não funcionou neste aparelho).</p>}
           </div>
           {aoRemover && <button onClick={() => aoRemover(o.id)} aria-label="Tirar esta observação" style={{ border: "none", background: "none", color: C.grafite, cursor: "pointer", minWidth: 36, minHeight: 36 }}>✕</button>}
         </div>
@@ -14974,7 +15078,7 @@ function ListaObservacoes({ obs, aoRemover }) {
     </div>
   );
 }
-function PainelJogoObs({ jogo, aluno, aoMudar }) {
+function PainelJogoObs({ jogo, aluno, aoMudar, planoAtual }) {
   const [nota, setNota] = useState("");
   const [catNota, setCatNota] = useState("geral");
   const [eco, setEco] = useState("");
@@ -15012,7 +15116,9 @@ function PainelJogoObs({ jogo, aluno, aoMudar }) {
           <Botao pequeno type="submit" disabled={!nota.trim()}>Anotar</Botao>
         </div>
       </form>
-      <ListaObservacoes obs={jogo.obs} aoRemover={(id) => aoMudar({ ...jogo, obs: jogo.obs.filter((o) => o.id !== id) })} />
+      <GravadorVoz alunoId={jogo.alunoId} trava={planoQueLibera("audio", planoAtual)} rotulo="Gravar observação" maxSeg={600}
+        aoGravado={({ texto, audio }) => add({ cat: catNota, texto, audio })} />
+      <ListaObservacoes obs={jogo.obs} aoRemover={(id) => { const o = jogo.obs.find((x) => x.id === id); if (o && o.audio) chamarAudio({ acao: "apagar", caminho: o.audio.caminho }).catch(() => {}); aoMudar({ ...jogo, obs: jogo.obs.filter((x) => x.id !== id) }); }} />
     </div>
   );
 }
@@ -15102,7 +15208,7 @@ function TelaObservar({ alunos, setAlunos, planoAtual, aoVerCaderno }) {
       <div className={"grid gap-3 mt-3 " + (jogos.length > 1 ? "md:grid-cols-2" : "")}>
         {jogos.map((j, i) => (
           <div key={i} className={jogos.length > 1 && ativo !== i ? "hidden md:block" : ""}>
-            <PainelJogoObs jogo={j} aluno={alunoDe(j.alunoId)} aoMudar={(nj) => mudarJogo(i, nj)} />
+            <PainelJogoObs jogo={j} aluno={alunoDe(j.alunoId)} planoAtual={planoAtual} aoMudar={(nj) => mudarJogo(i, nj)} />
           </div>
         ))}
       </div>
@@ -15110,25 +15216,49 @@ function TelaObservar({ alunos, setAlunos, planoAtual, aoVerCaderno }) {
     </div>
   );
 }
+/* Conversa ou comentário em áudio: uma ou mais gravações (e/ou texto) num registro "observacao" de contexto "conversa". */
+function FormNotaVoz({ aluno, planoAtual, aoSalvar }) {
+  const [titulo, setTitulo] = useState("");
+  const [obs, setObs] = useState([]);
+  const [texto, setTexto] = useState("");
+  const trava = planoQueLibera("audio", planoAtual);
+  const novoId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  function salvar() {
+    const itens = obs.concat(texto.trim() ? [{ id: novoId(), em: new Date().toISOString(), cat: "geral", texto: texto.trim().slice(0, 8000) }] : []);
+    if (!itens.length) return;
+    aoSalvar({ id: "obs-" + Date.now().toString(36), tipo: "observacao", contexto: "conversa", titulo: titulo.trim().slice(0, 80) || "Conversa", data: new Date().toISOString().slice(0, 10), criadoEm: new Date().toISOString(), obs: itens });
+  }
+  return (
+    <div data-form-voz style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: "12px 14px", marginBottom: 16 }}>
+      <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>Conversa ou comentário em áudio</p>
+      <Campo rotulo="Sobre o quê"><input style={entrada} value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Ex.: conversa no almoço do torneio" /></Campo>
+      <GravadorVoz alunoId={aluno.id} trava={trava} rotulo={obs.length ? "Gravar outra parte" : "Gravar"} aoGravado={({ texto: t, audio }) => setObs((l) => [...l, { id: novoId(), em: new Date().toISOString(), cat: "geral", texto: t, audio }])} />
+      <ListaObservacoes obs={obs} aoRemover={(id) => { const o = obs.find((x) => x.id === id); if (o && o.audio) chamarAudio({ acao: "apagar", caminho: o.audio.caminho }).catch(() => {}); setObs(obs.filter((x) => x.id !== id)); }} />
+      <Campo rotulo={trava ? "O que foi conversado" : "Texto (opcional, além das gravações)"}><textarea style={{ ...entrada, minHeight: 70 }} value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Os pontos principais da conversa…" /></Campo>
+      <div className="mt-2"><Botao variante="saibro" disabled={!obs.length && !texto.trim()} onClick={salvar}>Salvar no caderno</Botao></div>
+    </div>
+  );
+}
 /* Registro "observacao" no caderno: resumo, gráfico (Essencial e Premium) e a lista do que foi anotado. */
 function CartaoObservacaoCaderno({ r, planoAtual, aoApagar }) {
   const [aberto, setAberto] = useState(false);
-  const obs = r.obs || [], bom = obs.filter((o) => o.tipo === "bom").length, aj = obs.filter((o) => o.tipo === "ajustar").length, notas = obs.filter((o) => o.texto).length;
+  const obs = r.obs || [], bom = obs.filter((o) => o.tipo === "bom").length, aj = obs.filter((o) => o.tipo === "ajustar").length, notas = obs.filter((o) => o.texto).length, audios = obs.filter((o) => o.audio).length;
   const trava = planoQueLibera("graficoObservacao", planoAtual);
   return (
     <div data-caderno-observacao style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderLeft: "3px solid " + C.saibro, padding: "11px 13px", marginBottom: 8 }}>
       <div className="flex justify-between items-start gap-3">
         <div className="flex-1">
-          <Etiqueta>{new Date(r.data + "T12:00:00").toLocaleDateString("pt-BR")} · {rotuloTipoRegistro(r.tipo)}</Etiqueta>
-          <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>{[r.torneio, r.adversario ? "× " + r.adversario : "", r.placar].filter(Boolean).join(" · ") || "Partida"}</p>
-          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>{obs.length} {obs.length === 1 ? "observação" : "observações"} · {bom} bom · {aj} ajustar{notas ? " · " + notas + (notas === 1 ? " nota" : " notas") : ""}</p>
+          <Etiqueta>{new Date(r.data + "T12:00:00").toLocaleDateString("pt-BR")} · {r.contexto === "conversa" ? "Conversa ou comentário" : rotuloTipoRegistro(r.tipo)}</Etiqueta>
+          <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>{r.contexto === "conversa" ? r.titulo : [r.torneio, r.adversario ? "× " + r.adversario : "", r.placar].filter(Boolean).join(" · ") || "Partida"}</p>
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>{r.contexto === "conversa" ? (audios ? audios + (audios === 1 ? " gravação" : " gravações") : "Texto") + (audios ? " · " + mmss(obs.reduce((t, o) => t + ((o.audio && o.audio.duracaoSeg) || 0), 0)) : "")
+            : obs.length + (obs.length === 1 ? " observação" : " observações") + " · " + bom + " bom · " + aj + " ajustar" + (notas ? " · " + notas + (notas === 1 ? " nota" : " notas") : "") + (audios ? " · " + audios + (audios === 1 ? " áudio" : " áudios") : "")}</p>
           <button onClick={() => setAberto(!aberto)} style={{ ...prosa, fontSize: 12, color: C.saibro, fontWeight: 700, cursor: "pointer", border: "none", background: "none", padding: 0, marginTop: 6 }}>{aberto ? "Ocultar" : "Ver detalhes"}</button>
         </div>
         <button onClick={aoApagar} style={{ ...prosa, fontSize: 12, color: C.grafite, cursor: "pointer", border: "none", background: "none" }}>Apagar</button>
       </div>
       {aberto && (
         <div style={{ marginTop: 10 }}>
-          {trava ? (
+          {r.contexto === "conversa" ? null : trava ? (
             <div style={{ background: C.papel, borderRadius: 8, padding: "8px 10px" }}>
               <p style={{ ...prosa, fontSize: 12.5 }}>Gráfico por fundamento (o que saiu bem e o que precisa ajustar)<Cadeado plano={trava} /></p>
             </div>
