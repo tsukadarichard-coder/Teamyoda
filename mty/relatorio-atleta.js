@@ -10,6 +10,7 @@
    · html(relatorio, opcoes)              → o relatório em HTML (texto sempre escapado); css → estilos; documento() → página para imprimir/PDF
    periodo: { tipo: "torneio", torneio } | { tipo: "mes", mes: "AAAA-MM" } | { tipo: "datas", de, ate } (datas AAAA-MM-DD). */
 (function (raiz) {
+  const PE = typeof module !== "undefined" && module.exports ? require("./plano-equipe.js") : raiz.QLPlanoEquipe;
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
   const norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
   const dia = (s) => String(s || "").slice(0, 10);
@@ -69,11 +70,14 @@
       torneios: unicos(j.map((x) => x.torneio).concat(obs.map((o) => o.torneio))),
       jogos: j, positivos: juntar("positivos"), atencao: juntar("atencao"), foco: unicos(juntar("prioridades").concat(juntar("insights"))),
       movimentos: base.movimentos, videos: base.videos,
+      /* planejamento da equipe no período (semanas e dias que tocam as datas do relatório) */
+      planejamento: (base.planos || []).map((x) => ({ equipe: String(x.equipe || "Equipe"), ciclo: PE ? PE.rotuloCiclo(x.plano.ciclo) : "", semanas: PE ? PE.noPeriodo(x.plano, base.iv.de, base.iv.ate) : [] })).filter((x) => x.semanas.length),
     };
   }
 
   /* app do treinador: registros do caderno + análises de movimento do jogador */
-  function coletar(aluno, movimentos, periodo) {
+  /* planos: [{ equipe, plano }] — o planejamento das equipes de competição do atleta (opcional) */
+  function coletar(aluno, movimentos, periodo, planos) {
     const regs = (aluno && aluno.registros) || [];
     const doTorneio = periodo && periodo.tipo === "torneio";
     const noTorneio = (r) => norm(torneioDe(r.torneio)) === norm(periodo.torneio);
@@ -90,7 +94,7 @@
       .map((m) => ({ data: dia(m.criadoEm), golpe: nomeGolpe(m), ok: +((m.res || {}).ok) || 0, atencao: +((m.res || {}).atencao) || 0, prio: (m.prio || []).slice(0, 4).map(String) }));
     const videos = ((aluno && aluno.jogosVideo) || []).filter((h) => h && h.res && iv.de && dentro(h.criadoEm, iv))
       .map((h) => ({ data: dia(h.criadoEm), pontos: +h.res.total || 0, pctGanhos: typeof h.res.pctGanhos === "number" ? h.res.pctGanhos : null }));
-    return montar({ nome: (aluno && aluno.nome) || "Jogador", periodo, rotulo: rotuloPeriodo(periodo, iv), iv, jogos, obsBlocos, movimentos: movs, videos });
+    return montar({ nome: (aluno && aluno.nome) || "Jogador", periodo, rotulo: rotuloPeriodo(periodo, iv), iv, jogos, obsBlocos, movimentos: movs, videos, planos: (planos || []).filter((x) => x && x.plano) });
   }
 
   /* página do aluno: o que o link já recebe (jogos, análises de movimento, observações compartilhadas) */
@@ -106,7 +110,7 @@
     const movs = (d.movimentos || []).filter((m) => vale(m.criadoEm)).sort((a, b) => String(a.criadoEm).localeCompare(String(b.criadoEm)))
       .map((m) => ({ data: dia(m.criadoEm), golpe: nomeGolpe(m), ok: +((m.res || {}).ok) || 0, atencao: +((m.res || {}).atencao) || 0, prio: (m.prio || []).slice(0, 4).map(String) }));
     const videos = (d.jogosVideo || []).filter((h) => vale(h.criadoEm)).map((h) => ({ data: dia(h.criadoEm), pontos: +h.total || 0, pctGanhos: typeof h.pctGanhos === "number" ? h.pctGanhos : null }));
-    return montar({ nome: d.nome || "Jogador", periodo, rotulo: rotuloPeriodo(periodo, iv), iv, jogos, obsBlocos, movimentos: movs, videos });
+    return montar({ nome: d.nome || "Jogador", periodo, rotulo: rotuloPeriodo(periodo, iv), iv, jogos, obsBlocos, movimentos: movs, videos, planos: (d.planosEquipe || []).filter((x) => x && x.plano) });
   }
 
   const css = [
@@ -146,8 +150,13 @@
       h.push("<h3>Análise de movimento (biomecânica)</h3>" + rel.movimentos.map((m) => '<div class="rel-jogo"><b>' + esc(m.golpe) + "</b> · " + esc(dataBR(m.data)) + "<small>" + m.ok + " ponto(s) do movimento OK · " + m.atencao + " em atenção</small>" +
         (m.prio && m.prio.length ? "<small>Prioridades: " + m.prio.map(esc).join(" · ") + "</small>" : "") + "</div>").join(""));
     }
+    (rel.planejamento || []).forEach((pl) => {
+      h.push("<h3>Planejamento da equipe · " + esc(pl.equipe) + "</h3>" + (pl.ciclo ? '<p style="font-size:12.5px;color:#5B6B63;margin:0 0 4px">Ciclo de ' + esc(pl.ciclo) + "</p>" : "") + pl.semanas.map((s) => '<div class="rel-jogo"><b>Semana ' + s.n + "</b> · " + esc(dataBR(s.inicio).slice(0, 5)) + " a " + esc(dataBR(s.fim).slice(0, 5)) +
+        ([s.grupo, s.itens.join(", ")].filter(Boolean).length ? "<small>" + esc([s.grupo, s.itens.join(", ")].filter(Boolean).join(" · ")) + "</small>" : "") + (s.obs ? "<small>" + esc(s.obs) + "</small>" : "") +
+        s.dias.filter((d) => d.grupo || d.itens.length || d.obs).map((d) => "<small>" + esc(dataBR(d.data).slice(0, 5)) + ": " + esc([d.grupo, d.itens.join(", "), d.obs].filter(Boolean).join(" · ")) + "</small>").join("") + "</div>").join(""));
+    });
     if ((rel.videos || []).length) h.push("<h3>Jogos analisados em vídeo</h3>" + rel.videos.map((v) => '<div class="rel-jogo"><b>' + esc(dataBR(v.data)) + "</b><small>" + v.pontos + " pontos" + (v.pctGanhos != null ? " · " + v.pctGanhos + "% ganhos" : "") + "</small></div>").join(""));
-    if (!cartoes.length && !(rel.positivos || []).length && !(rel.atencao || []).length && !(rel.foco || []).length) h.push('<p style="font-size:14px;color:#5B6B63">Nenhum registro neste período.</p>');
+    if (!cartoes.length && !(rel.planejamento || []).length && !(rel.positivos || []).length && !(rel.atencao || []).length && !(rel.foco || []).length) h.push('<p style="font-size:14px;color:#5B6B63">Nenhum registro neste período.</p>');
     if (opcoes.observacao) h.push("<h3>Observação do treinador</h3><div class=\"rel-obs\">" + esc(opcoes.observacao) + "</div>");
     h.push('<p class="rel-nota">Relatório baseado nos registros do período (scouts, observações e análises); não é uma avaliação completa do jogador.</p></div>');
     return h.join("");

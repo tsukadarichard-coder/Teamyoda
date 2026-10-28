@@ -39,6 +39,7 @@
 <script src="scout/quadra-auto.js"></script>
 <script src="scout/padroes.js"></script>
 <script src="obs-voz.js"></script>
+<script src="plano-equipe.js"></script>
 <script src="relatorio-atleta.js"></script>
 <script src="scout/video-jogo.js"></script>
 <link rel="stylesheet" href="scout/movimento.css">
@@ -21494,7 +21495,7 @@ function SeletorPeriodoRel({ valor, aoMudar, torneios }) {
   );
 }
 /* um relatório: período, prévia (o mesmo que a família vê), observação do treinador, rascunho com IA, publicar, WhatsApp, PDF */
-function RelatorioAtletaEditor({ aluno, setAlunos, relatorioId, periodoInicial, podePublicar, autor, academia, aoVoltar }) {
+function RelatorioAtletaEditor({ aluno, setAlunos, relatorioId, periodoInicial, podePublicar, autor, academia, aoVoltar, planos }) {
   const R = window.QLRelatorioAtleta;
   const existente = (aluno.relatoriosAtleta || []).find((r) => r.id === relatorioId) || null;
   const movimentos = useMovimentosDoJogador(aluno, 0);
@@ -21508,11 +21509,11 @@ function RelatorioAtletaEditor({ aluno, setAlunos, relatorioId, periodoInicial, 
   const atual = (aluno.relatoriosAtleta || []).find((r) => r.id === id) || null;
   const publicado = atual && atual.status === "publicado";
   /* sem dados ainda (relatório novo) ou período trocado: monta de novo com o que foi registrado */
-  useEffect(() => { if (R && (!dados || chavePeriodoRel(dados.periodo) !== chavePeriodoRel(periodo))) setDados(R.coletar(aluno, movimentos, periodo)); }, [chavePeriodoRel(periodo), movimentos.length]);
+  useEffect(() => { if (R && (!dados || chavePeriodoRel(dados.periodo) !== chavePeriodoRel(periodo))) setDados(R.coletar(aluno, movimentos, periodo, planos)); }, [chavePeriodoRel(periodo), movimentos.length]);
   if (!R) return <p style={{ ...prosa, fontSize: 13 }}>Recarregue o app para usar os relatórios.</p>;
   function gravar(extra) {
     const agora = new Date().toISOString();
-    const base = { id, periodo, dados: dados || R.coletar(aluno, movimentos, periodo), observacao: obs.slice(0, 8000), atualizadoEm: agora, autorUid: autor.uid || null, autorNome: autor.nome || "" };
+    const base = { id, periodo, dados: dados || R.coletar(aluno, movimentos, periodo, planos), observacao: obs.slice(0, 8000), atualizadoEm: agora, autorUid: autor.uid || null, autorNome: autor.nome || "" };
     setAlunos((l) => l.map((a) => {
       if (a.id !== aluno.id) return a;
       const lista = a.relatoriosAtleta || [], ant = lista.find((r) => r.id === id);
@@ -21544,7 +21545,7 @@ function RelatorioAtletaEditor({ aluno, setAlunos, relatorioId, periodoInicial, 
       <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>{publicado ? "Publicado: aparece na página do aluno." : "Rascunho: só a equipe vê."}{atual && atual.autorNome ? " Última edição: " + atual.autorNome + "." : ""}</p>
       <div style={{ marginTop: 10 }}>
         <SeletorPeriodoRel valor={periodo} torneios={torneios} aoMudar={(p) => { setPeriodo(p); setDados(null); }} />
-        <div style={{ marginTop: 8 }}><Botao pequeno variante="vazio" onClick={() => { setDados(R.coletar(aluno, movimentos, periodo)); setMsg({ t: "Dados atualizados com o que está registrado agora." }); }}>Atualizar com os dados do período</Botao></div>
+        <div style={{ marginTop: 8 }}><Botao pequeno variante="vazio" onClick={() => { setDados(R.coletar(aluno, movimentos, periodo, planos)); setMsg({ t: "Dados atualizados com o que está registrado agora." }); }}>Atualizar com os dados do período</Botao></div>
       </div>
       {dados && (
         <div data-previa-relatorio style={{ background: "#fff", border: "1px solid " + C.linha, borderRadius: 12, padding: "14px 16px", marginTop: 12 }}>
@@ -21625,6 +21626,229 @@ function FormEquipe({ inicial, alunos, professores, aoSalvar, aoCancelar }) {
     </div>
   );
 }
+/* ── Planejamento da equipe de competição (plano-equipe.js): o coordenador monta, sem IA. Ciclo (4, 8, 12 semanas ou personalizado,
+   com a explicação de cada um), dias de treino e duração da sessão; depois mensal, semanal e diário: grande grupo (técnico, tático ou
+   misto), itens da classificação e observações. Fica em equipe.plano (mty:equipes:v1) e aparece na aba Equipe da ficha de cada
+   atleta, no relatório e na página do aluno. Auxiliares e os demais treinadores veem; só o coordenador edita. */
+const proximaSegundaEq = () => { const d = new Date(Date.now() - 3 * 3600 * 1000); const dia = d.getUTCDay(); d.setUTCDate(d.getUTCDate() + ((8 - dia) % 7 || 7)); return d.toISOString().slice(0, 10); };
+const hojeEq = () => new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
+function SeletorGrupoEq({ valor, aoMudar, editavel }) {
+  const PE = window.QLPlanoEquipe;
+  if (!editavel) return valor ? <span style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700 }}>{PE.ROTULO_GRUPO[valor]}</span> : null;
+  return (
+    <div role="radiogroup" aria-label="Grande grupo" style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+      {PE.GRUPOS.map(([v, r]) => (
+        <button key={v} role="radio" aria-checked={valor === v} onClick={() => aoMudar(valor === v ? "" : v)}
+          style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, padding: "6px 11px", minHeight: 36, borderRadius: 999, cursor: "pointer", border: "1px solid " + (valor === v ? C.quadra : C.linha), background: valor === v ? C.quadra : C.cal, color: valor === v ? "#fff" : C.tinta }}>{valor === v ? "✓ " : ""}{r}</button>
+      ))}
+    </div>
+  );
+}
+function ChipsClassificacaoEq({ valor, aoMudar, editavel }) {
+  const PE = window.QLPlanoEquipe, sel = valor || [];
+  if (!editavel) return sel.length ? <span style={{ ...prosa, fontSize: 13 }}>{PE.rotulosItens(sel).join(", ")}</span> : null;
+  return (
+    <div data-classificacao>
+      {PE.CLASSIFICACAO.map((g) => (
+        <div key={g.id} style={{ marginTop: 6 }}>
+          <span style={{ fontFamily: ARCH, fontSize: 11, fontWeight: 700, color: C.grafite, textTransform: "uppercase", letterSpacing: ".06em" }}>{g.r}</span>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 3 }}>
+            {g.itens.map(([v, r]) => {
+              const on = sel.includes(v);
+              return <button key={v} aria-pressed={on} onClick={() => aoMudar(on ? sel.filter((x) => x !== v) : [...sel, v])}
+                style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 600, padding: "5px 10px", minHeight: 34, borderRadius: 999, cursor: "pointer", border: "1px solid " + (on ? C.saibro : C.linha), background: on ? "#F1F8EA" : C.cal, color: C.tinta }}>{on ? "✓ " : ""}{r}</button>;
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+/* observação: salva ao sair do campo (não grava a cada letra) */
+function ObsEq({ valor, aoSalvar, editavel, rotulo }) {
+  const [t, setT] = useState(valor || "");
+  useEffect(() => { setT(valor || ""); }, [valor]);
+  if (!editavel) return valor ? <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, whiteSpace: "pre-wrap", marginTop: 4 }}>{valor}</p> : null;
+  return <textarea aria-label={rotulo} value={t} onChange={(e) => setT(e.target.value)} onBlur={() => { if (t !== (valor || "")) aoSalvar(t.slice(0, 2000)); }} rows={2} placeholder="Observações (opcional)" style={{ ...entrada, marginTop: 6, fontSize: 14.5 }} />;
+}
+function ConfigCicloEquipe({ inicial, aoSalvar, aoCancelar }) {
+  const PE = window.QLPlanoEquipe;
+  const padraoN = inicial ? inicial.semanas : 4;
+  const [opcao, setOpcao] = useState([4, 8, 12].includes(padraoN) ? padraoN : 0);
+  const [n, setN] = useState(padraoN);
+  const [inicio, setInicio] = useState((inicial && inicial.inicio) || proximaSegundaEq());
+  const [dias, setDias] = useState((inicial && inicial.dias) || [1, 3, 5]);
+  const [duracao, setDuracao] = useState((inicial && inicial.duracaoMin) || 90);
+  const [grupo, setGrupo] = useState((inicial && inicial.grupo) || "");
+  const [objetivo, setObjetivo] = useState((inicial && inicial.objetivo) || "");
+  const semanas = opcao || n;
+  return (
+    <div data-config-ciclo style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: "12px 14px", marginTop: 10 }}>
+      <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>Duração do ciclo</p>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>
+        {PE.CICLOS.map((c) => (
+          <button key={c.r} aria-pressed={opcao === c.semanas} onClick={() => setOpcao(c.semanas)}
+            style={{ textAlign: "left", padding: "9px 11px", borderRadius: 10, cursor: "pointer", border: "2px solid " + (opcao === c.semanas ? C.quadra : C.linha), background: opcao === c.semanas ? "#EAF3EE" : C.cal, fontFamily: ARCH, fontSize: 14, fontWeight: 700, color: C.tinta }}>{opcao === c.semanas ? "✓ " : ""}{c.r}</button>
+        ))}
+      </div>
+      {opcao === 0 && <label style={{ ...prosa, fontSize: 13, display: "block", marginTop: 8 }}>Número de semanas<input type="number" min={1} max={24} aria-label="Número de semanas" value={n} onChange={(e) => setN(Math.max(1, Math.min(24, parseInt(e.target.value, 10) || 1)))} style={{ ...entrada, marginTop: 4, width: 110 }} /></label>}
+      <p data-explicacao-ciclo style={{ ...prosa, fontSize: 13.5, background: C.papel, borderRadius: 10, padding: "8px 10px", marginTop: 8 }}>{PE.explicacaoCiclo(opcao)}</p>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
+        <label style={{ ...prosa, fontSize: 13 }}>Início do ciclo<input type="date" aria-label="Início do ciclo" value={inicio} onChange={(e) => setInicio(e.target.value)} style={{ ...entrada, marginTop: 4 }} /></label>
+        <label style={{ ...prosa, fontSize: 13 }}>Duração da sessão (min)<input type="number" min={15} max={600} aria-label="Duração da sessão" value={duracao} onChange={(e) => setDuracao(parseInt(e.target.value, 10) || "")} style={{ ...entrada, marginTop: 4 }} /></label>
+      </div>
+      <p style={{ ...prosa, fontSize: 13, marginTop: 10 }}>Dias de treino</p>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
+        {[1, 2, 3, 4, 5, 6, 0].map((d) => {
+          const on = dias.includes(d);
+          return <button key={d} aria-pressed={on} onClick={() => setDias(on ? dias.filter((x) => x !== d) : [...dias, d])} style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, minWidth: 48, minHeight: 40, borderRadius: 10, cursor: "pointer", border: "1px solid " + (on ? C.quadra : C.linha), background: on ? C.quadra : C.cal, color: on ? "#fff" : C.tinta }}>{PE.DIAS[d]}</button>;
+        })}
+      </div>
+      <p style={{ ...prosa, fontSize: 13, marginTop: 10 }}>Grande grupo do ciclo (opcional)</p>
+      <div style={{ marginTop: 4 }}><SeletorGrupoEq valor={grupo} aoMudar={setGrupo} editavel /></div>
+      <label style={{ ...prosa, fontSize: 13, display: "block", marginTop: 10 }}>Objetivo do ciclo (opcional)
+        <textarea aria-label="Objetivo do ciclo" value={objetivo} onChange={(e) => setObjetivo(e.target.value)} rows={2} placeholder="Ex.: preparar a equipe para a Copa Verão" style={{ ...entrada, marginTop: 4 }} /></label>
+      <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 8 }}>{semanas} {semanas === 1 ? "semana" : "semanas"} · {dias.length} {dias.length === 1 ? "dia" : "dias"} de treino por semana{inicio ? " · de " + new Date(inicio + "T12:00:00").toLocaleDateString("pt-BR") + " a " + new Date(PE.somar(inicio, semanas * 7 - 1) + "T12:00:00").toLocaleDateString("pt-BR") : ""}</p>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+        <Botao variante="saibro" disabled={!inicio || !dias.length} onClick={() => aoSalvar({ semanas, inicio, dias, duracaoMin: duracao, grupo, objetivo: objetivo.trim() })}>{inicial ? "Salvar o ciclo" : "Criar o planejamento"}</Botao>
+        {aoCancelar && <Botao variante="vazio" onClick={aoCancelar}>Cancelar</Botao>}
+      </div>
+    </div>
+  );
+}
+function PlanoEquipeEditor({ equipe, podeEditar, autor, aoSalvarPlano, aoVoltar }) {
+  const PE = window.QLPlanoEquipe;
+  const plano = equipe.plano || null;
+  const hoje = hojeEq();
+  const [vista, setVista] = useState("semanal");
+  const [editandoCiclo, setEditandoCiclo] = useState(false);
+  const atual = plano ? PE.semanaDe(plano, hoje) : null;
+  const [semanaDia, setSemanaDia] = useState(() => (atual ? atual.n : 1));
+  const [abertas, setAbertas] = useState(() => new Set(atual ? [atual.n] : [1]));
+  if (!PE) return <p style={{ ...prosa, fontSize: 13 }}>Recarregue o app para usar o planejamento.</p>;
+  const salvar = (p) => aoSalvarPlano({ ...p, atualizadoEm: new Date().toISOString(), autorNome: autor.nome || (p && p.autorNome) || "" });
+  const mudarSemana = (n, campos) => salvar({ ...plano, semanas: plano.semanas.map((s) => (s.n === n ? { ...s, ...campos } : s)) });
+  const mudarDia = (n, data, campos) => salvar({ ...plano, semanas: plano.semanas.map((s) => (s.n !== n ? s : { ...s, dias: s.dias.map((d) => (d.data === data ? { ...d, ...campos } : d)) })) });
+  const mudarMes = (m, campos) => salvar({ ...plano, meses: { ...plano.meses, [m]: { ...(plano.meses[m] || {}), ...campos } } });
+  const voltar = <button onClick={aoVoltar} style={{ ...prosa, fontSize: 13.5, color: C.quadra, fontWeight: 700, background: "none", border: "none", cursor: "pointer", padding: 0, minHeight: 36 }}>‹ Voltar à equipe</button>;
+  if (!plano || editandoCiclo) {
+    return (
+      <div data-plano-equipe>
+        {voltar}
+        <h1 style={{ fontFamily: ARCH, fontSize: 21, fontWeight: 700, marginTop: 4 }}>Planejamento · {equipe.nome}</h1>
+        {!podeEditar ? <p style={{ ...prosa, fontSize: 14, marginTop: 8 }}>O coordenador da equipe ainda não criou o planejamento.</p> : (
+          <>
+            <p style={{ ...prosa, fontSize: 13.5, color: C.grafite }}>Escolha a duração do ciclo, os dias de treino e a duração da sessão. Depois você preenche o mês, as semanas e os dias.</p>
+            <ConfigCicloEquipe inicial={plano && plano.ciclo} aoCancelar={plano ? () => setEditandoCiclo(false) : null}
+              aoSalvar={(cfg) => { salvar({ id: (plano && plano.id) || "pl-" + Date.now().toString(36), criadoEm: (plano && plano.criadoEm) || new Date().toISOString(), ...PE.montarCiclo(cfg, plano || {}) }); setEditandoCiclo(false); }} />
+          </>
+        )}
+      </div>
+    );
+  }
+  const st = PE.situacao(plano, hoje);
+  const card = { background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: "11px 13px", marginTop: 10 };
+  const resumoLinha = (g, itens) => [g ? PE.ROTULO_GRUPO[g] : "", PE.rotulosItens(itens).join(", ")].filter(Boolean).join(" · ");
+  const fmt = (iso) => new Date(iso + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+  const semDia = plano.semanas.find((s) => s.n === semanaDia) || plano.semanas[0];
+  return (
+    <div data-plano-equipe>
+      {voltar}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, flexWrap: "wrap" }}>
+        <h1 style={{ fontFamily: ARCH, fontSize: 21, fontWeight: 700, marginTop: 4 }}>Planejamento · {equipe.nome}</h1>
+        {podeEditar && <Botao pequeno variante="vazio" onClick={() => setEditandoCiclo(true)}>Editar ciclo</Botao>}
+      </div>
+      <p data-resumo-ciclo style={{ ...prosa, fontSize: 13.5, color: C.grafite }}>Ciclo de {PE.rotuloCiclo(plano.ciclo)}{plano.ciclo.grupo ? " · " + PE.ROTULO_GRUPO[plano.ciclo.grupo] : ""}{st === "antes" ? " · começa em " + fmt(plano.ciclo.inicio) : st === "encerrado" ? " · encerrado" : atual ? " · semana " + atual.n + " de " + plano.ciclo.semanas : ""}</p>
+      {plano.ciclo.objetivo && <p style={{ ...prosa, fontSize: 14, marginTop: 4 }}>{plano.ciclo.objetivo}</p>}
+      <details style={{ marginTop: 6 }}><summary style={{ ...prosa, fontSize: 13, color: C.quadra, fontWeight: 700, cursor: "pointer", minHeight: 32 }}>O que este ciclo representa</summary><p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>{PE.explicacaoCiclo([4, 8, 12].includes(plano.ciclo.semanas) ? plano.ciclo.semanas : 0)}</p></details>
+      {!podeEditar && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>Só o coordenador da equipe edita o planejamento.</p>}
+      <div role="tablist" style={{ display: "flex", gap: 6, marginTop: 12 }}>
+        {[["mensal", "Mensal"], ["semanal", "Semanal"], ["diario", "Diário"]].map(([v, r]) => (
+          <button key={v} role="tab" aria-selected={vista === v} onClick={() => setVista(v)} style={{ flex: 1, minHeight: 42, borderRadius: 10, cursor: "pointer", fontFamily: ARCH, fontWeight: 700, fontSize: 14, border: "1px solid " + (vista === v ? C.quadra : C.linha), background: vista === v ? C.quadra : C.cal, color: vista === v ? "#fff" : C.tinta }}>{r}</button>
+        ))}
+      </div>
+
+      {vista === "mensal" && Object.keys(plano.meses).map((m) => {
+        const x = plano.meses[m] || {}, sems = plano.semanas.filter((s) => s.inicio.slice(0, 7) === m || s.fim.slice(0, 7) === m);
+        return (
+          <div key={m} data-mes={m} style={card}>
+            <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 6 }}>{PE.rotuloMes(m)}</p>
+            <SeletorGrupoEq valor={x.grupo} editavel={podeEditar} aoMudar={(g) => mudarMes(m, { grupo: g })} />
+            <ObsEq valor={x.obs} editavel={podeEditar} rotulo={"Observações de " + PE.rotuloMes(m)} aoSalvar={(o) => mudarMes(m, { obs: o })} />
+            <div style={{ marginTop: 6 }}>{sems.map((s) => <p key={s.n} style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Semana {s.n} ({fmt(s.inicio)} a {fmt(s.fim)}){resumoLinha(s.grupo, s.itens) ? " · " + resumoLinha(s.grupo, s.itens) : ""}</p>)}</div>
+          </div>
+        );
+      })}
+
+      {vista === "semanal" && plano.semanas.map((s) => {
+        const aberta = abertas.has(s.n), eAtual = atual && atual.n === s.n;
+        return (
+          <div key={s.n} data-semana-eq={s.n} style={{ ...card, borderLeft: eAtual ? "4px solid " + C.saibro : card.border }}>
+            <button onClick={() => setAbertas((a) => { const n = new Set(a); if (n.has(s.n)) n.delete(s.n); else n.add(s.n); return n; })} style={{ width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer", padding: 0, minHeight: 36 }}>
+              <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>Semana {s.n}{eAtual ? " · esta semana" : ""} {aberta ? "▾" : "▸"}</span>
+              <span style={{ display: "block", ...prosa, fontSize: 12.5, color: C.grafite }}>{fmt(s.inicio)} a {fmt(s.fim)}{resumoLinha(s.grupo, s.itens) ? " · " + resumoLinha(s.grupo, s.itens) : ""}</span>
+            </button>
+            {aberta && (
+              <div style={{ marginTop: 6 }}>
+                <SeletorGrupoEq valor={s.grupo} editavel={podeEditar} aoMudar={(g) => mudarSemana(s.n, { grupo: g })} />
+                <div style={{ marginTop: 4 }}><ChipsClassificacaoEq valor={s.itens} editavel={podeEditar} aoMudar={(l) => mudarSemana(s.n, { itens: l })} /></div>
+                <ObsEq valor={s.obs} editavel={podeEditar} rotulo={"Observações da semana " + s.n} aoSalvar={(o) => mudarSemana(s.n, { obs: o })} />
+                <div style={{ marginTop: 8 }}><Botao pequeno variante="vazio" onClick={() => { setSemanaDia(s.n); setVista("diario"); }}>Ver os {s.dias.length} dias de treino</Botao></div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {vista === "diario" && semDia && (
+        <div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 10 }}>
+            <select aria-label="Semana" value={semDia.n} onChange={(e) => setSemanaDia(parseInt(e.target.value, 10))} style={{ ...entrada, width: "auto", padding: "7px 9px", fontSize: 14 }}>
+              {plano.semanas.map((s) => <option key={s.n} value={s.n}>Semana {s.n} · {fmt(s.inicio)} a {fmt(s.fim)}</option>)}
+            </select>
+            {podeEditar && (semDia.grupo || semDia.itens.length > 0) && <Botao pequeno variante="vazio" onClick={() => salvar({ ...plano, semanas: plano.semanas.map((s) => (s.n !== semDia.n ? s : { ...s, dias: s.dias.map((d) => (d.grupo || d.itens.length ? d : { ...d, grupo: s.grupo, itens: [...s.itens] })) })) })}>Copiar a semana para os dias vazios</Botao>}
+          </div>
+          {resumoLinha(semDia.grupo, semDia.itens) && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 6 }}>Semana {semDia.n}: {resumoLinha(semDia.grupo, semDia.itens)}</p>}
+          {!semDia.dias.length && <p style={{ ...prosa, fontSize: 13.5, marginTop: 8 }}>Nenhum dia de treino nesta semana. Ajuste os dias em “Editar ciclo”.</p>}
+          {semDia.dias.map((d) => (
+            <div key={d.data} data-dia-eq={d.data} style={{ ...card, borderLeft: d.data === hoje ? "4px solid " + C.saibro : card.border }}>
+              <p style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700, marginBottom: 6 }}>{PE.DIAS[PE.diaSemana(d.data)]} {fmt(d.data)}{d.data === hoje ? " · hoje" : ""}{plano.ciclo.duracaoMin ? <span style={{ fontWeight: 500, color: C.grafite }}> · {plano.ciclo.duracaoMin} min</span> : null}</p>
+              <SeletorGrupoEq valor={d.grupo} editavel={podeEditar} aoMudar={(g) => mudarDia(semDia.n, d.data, { grupo: g })} />
+              <div style={{ marginTop: 4 }}><ChipsClassificacaoEq valor={d.itens} editavel={podeEditar} aoMudar={(l) => mudarDia(semDia.n, d.data, { itens: l })} /></div>
+              <ObsEq valor={d.obs} editavel={podeEditar} rotulo={"Observações do dia " + fmt(d.data)} aoSalvar={(o) => mudarDia(semDia.n, d.data, { obs: o })} />
+            </div>
+          ))}
+        </div>
+      )}
+      {podeEditar && st === "encerrado" && (
+        <div style={{ marginTop: 14 }}><Botao variante="saibro" onClick={() => aoSalvarPlano(null, plano)}>Começar um novo ciclo</Botao></div>
+      )}
+    </div>
+  );
+}
+/* aba "Equipe" na ficha do jogador: as equipes de competição dele e o planejamento (a mesma visão que a página do aluno mostra) */
+function AbaEquipeJogador({ aluno, aoAbrirEquipes }) {
+  const PE = window.QLPlanoEquipe;
+  const [equipes, setEquipes] = useState(null);
+  const [aberto, setAberto] = useState(false);
+  useEffect(() => { leia(CHAVE_EQUIPES, [], true).then((l) => setEquipes(Array.isArray(l) ? l : [])); }, [aluno.id]);
+  if (!equipes) return <p style={{ ...prosa, color: C.grafite }}>Carregando…</p>;
+  const minhas = equipes.filter((e) => (e.membros || []).includes(aluno.id));
+  return (
+    <div data-aba-equipe>
+      <h2 style={{ fontFamily: ARCH, fontSize: 20, fontWeight: 700 }}>Equipe de competição</h2>
+      {!minhas.length && <p style={{ ...prosa, fontSize: 14, marginTop: 6 }}>{aluno.nome ? aluno.nome.split(" ")[0] : "Este jogador"} não está em nenhuma equipe de competição.</p>}
+      {minhas.map((e) => (
+        <div key={e.id} style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: "11px 13px", marginTop: 10 }}>
+          {e.plano && PE ? <div dangerouslySetInnerHTML={{ __html: PE.htmlAluno({ equipe: e.nome, coordenador: e.coordenadorNome, plano: e.plano }, hojeEq(), aberto) }} />
+            : <><p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{e.nome}</p><p style={{ ...prosa, fontSize: 13.5, color: C.grafite }}>O coordenador ainda não criou o planejamento da equipe.</p></>}
+          {e.plano && <div style={{ marginTop: 8 }}><Botao pequeno variante="vazio" onClick={() => setAberto(!aberto)}>{aberto ? "Ver só esta semana" : "Ver o ciclo inteiro"}</Botao></div>}
+        </div>
+      ))}
+      {aoAbrirEquipes && <div style={{ marginTop: 12 }}><Botao pequeno variante="vazio" onClick={aoAbrirEquipes}>Abrir Equipes de competição</Botao></div>}
+    </div>
+  );
+}
 function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAbrirJogador }) {
   const [equipes, setEquipes] = useState(null);
   const [professores, setProfessores] = useState([]);
@@ -21634,6 +21858,7 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   const [periodo, setPeriodo] = useState({ tipo: "mes", mes: mesAtualRel() });
   const [msg, setMsg] = useState(null);
   const [gerando, setGerando] = useState(false);
+  const [planoAberto, setPlanoAberto] = useState(false);
   useEffect(() => { leia(CHAVE_EQUIPES, [], true).then((l) => setEquipes(Array.isArray(l) ? l : [])); listaProfessores().then(setProfessores).catch(() => {}); }, []);
   const salvarLista = (l) => { setEquipes(l); grave(CHAVE_EQUIPES, l, true); };
   const eu = professores.find((p) => p.uid === uidAtual) || {};
@@ -21642,10 +21867,16 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   if (!equipes) return <p style={{ ...prosa, color: C.grafite }}>Carregando…</p>;
   const aberta = equipes.find((e) => e.id === abertaId);
   const podePublicar = (eq) => papelAtual === "coordenador" || (eq && eq.coordenadorUid && eq.coordenadorUid === uidAtual);
+  /* planejamento das equipes de que o atleta participa (entra no relatório do período) */
+  const planosDo = (a) => equipes.filter((e) => e.plano && (e.membros || []).includes(a.id)).map((e) => ({ equipe: e.nome, plano: e.plano }));
 
   if (aberta && editor) {
     const al = (alunos || []).find((a) => a.id === editor.alunoId);
-    if (al) return <RelatorioAtletaEditor key={editor.relatorioId || "novo-" + al.id} aluno={al} setAlunos={setAlunos} relatorioId={editor.relatorioId} periodoInicial={editor.periodo} podePublicar={podePublicar(aberta)} autor={autor} academia={academia} aoVoltar={() => setEditor(null)} />;
+    if (al) return <RelatorioAtletaEditor key={editor.relatorioId || "novo-" + al.id} aluno={al} setAlunos={setAlunos} relatorioId={editor.relatorioId} periodoInicial={editor.periodo} podePublicar={podePublicar(aberta)} autor={autor} academia={academia} planos={planosDo(al)} aoVoltar={() => setEditor(null)} />;
+  }
+  if (aberta && planoAberto) {
+    return <PlanoEquipeEditor equipe={aberta} podeEditar={!!podePublicar(aberta)} autor={autor} aoVoltar={() => setPlanoAberto(false)}
+      aoSalvarPlano={(p, anterior) => salvarLista(equipes.map((e) => (e.id !== aberta.id ? e : { ...e, plano: p, planosAnteriores: anterior ? [...(e.planosAnteriores || []), anterior].slice(-6) : e.planosAnteriores })))} />;
   }
   if (form === "nova" || (aberta && form === "editar")) {
     return (
@@ -21684,7 +21915,7 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
     const R = window.QLRelatorioAtleta; if (!R) return;
     setGerando(true); setMsg(null);
     const agora = new Date().toISOString(), k = chavePeriodoRel(periodo), porAluno = {};
-    for (const a of atletas) porAluno[a.id] = R.coletar(a, await movimentosDoJogadorAsync(a), periodo);
+    for (const a of atletas) porAluno[a.id] = R.coletar(a, await movimentosDoJogadorAsync(a), periodo, planosDo(a));
     let novos = 0, atualizados = 0;
     setAlunos((l) => l.map((a) => {
       if (!porAluno[a.id]) return a;
@@ -21707,6 +21938,14 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
         <Botao pequeno variante="vazio" onClick={() => setForm("editar")}>Editar equipe</Botao>
       </div>
       <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>{aberta.coordenadorNome ? "Coordenador: " + aberta.coordenadorNome : "Sem coordenador definido"}{(aberta.auxiliares || []).length ? " · Auxiliares: " + aberta.auxiliares.map((x) => x.nome).join(", ") : ""}</p>
+      <section data-planejamento-equipe style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.quadra, borderRadius: 12, padding: "12px 14px", marginTop: 12 }}>
+        <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>Planejamento da equipe</p>
+        {aberta.plano && window.QLPlanoEquipe ? (() => {
+          const PE = window.QLPlanoEquipe, s = PE.semanaDe(aberta.plano, hojeEq());
+          return <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Ciclo de {PE.rotuloCiclo(aberta.plano.ciclo)}{s ? " · semana " + s.n + (s.grupo || s.itens.length ? ": " + [s.grupo ? PE.ROTULO_GRUPO[s.grupo] : "", PE.rotulosItens(s.itens).join(", ")].filter(Boolean).join(" · ") : "") : ""}</p>;
+        })() : <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>{podePublicar(aberta) ? "Monte o ciclo da equipe: mensal, semanal e diário, com técnico, tático ou misto e os itens de cada treino." : "O coordenador ainda não criou o planejamento."}</p>}
+        {(aberta.plano || podePublicar(aberta)) && <div style={{ marginTop: 8 }}><Botao variante={aberta.plano ? "vazio" : "saibro"} onClick={() => setPlanoAberto(true)}>{aberta.plano ? "Abrir planejamento" : "Criar planejamento"}</Botao></div>}
+      </section>
       <section data-relatorios-equipe style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.saibro, borderRadius: 12, padding: "12px 14px", marginTop: 12 }}>
         <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 6 }}>Relatórios da equipe</p>
         <SeletorPeriodoRel valor={periodo} aoMudar={setPeriodo} torneios={[...new Set([].concat(...atletas.map((a) => (window.QLRelatorioAtleta ? window.QLRelatorioAtleta.torneiosDoAluno(a) : []))))]} />
@@ -21738,8 +21977,9 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   );
 }
 /* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
-const NOVIDADES_TY_VERSAO = "ty-2026-10a";
+const NOVIDADES_TY_VERSAO = "ty-2026-10b";
 const NOVIDADES_TY = [
+  { novo: true, t: "Planejamento da equipe", d: "O coordenador monta o ciclo da equipe (4, 8 ou 12 semanas, com a explicação de cada um), os dias de treino e a duração. Em cada mês, semana e dia: técnico, tático ou misto, os itens (movimentação, mudança de direção, precisão, cada golpe, ataque, defesa e construção) e espaço para observações. Sem IA. Aparece na aba Equipe do jogador, no relatório e no link do aluno.", onde: "Menu › Alunos e turmas › Equipes de competição › abra a equipe", aba: "equipes" },
   { novo: true, t: "Equipes de competição e relatório para os pais", d: "Monte a equipe com coordenador, auxiliares e atletas, sem precisar de plano. Veja a ficha, o último scout, a última observação e a biomecânica de cada atleta e gere o relatório do período (torneio, mês ou datas) com a sua observação. Publicado, ele aparece na página do aluno e sai pelo WhatsApp ou em PDF.", onde: "Menu › Alunos e turmas › Equipes de competição", aba: "equipes" },
   { novo: true, t: "Observar jogos por voz", d: "Acompanhe vários jogos ao mesmo tempo: escolha o jogo, toque em Ditar observação e fale. Comece pelo nome do jogador para registrar no jogo certo. Tudo fica salvo no aparelho e sobe para a sua conta; o resumo sai ao concluir cada jogo.", onde: "Menu › Dia a dia › Observar jogos", aba: "observar" },
   { novo: true, t: "Página do aluno com relatórios", d: "Os relatórios publicados aparecem no link de cada aluno, e ele mesmo pode tocar em Gerar relatório para ver um resumo atualizado dos jogos, scouts e análises de movimento.", onde: "Link do aluno (Compartilhar com o jogador)" },
@@ -23713,7 +23953,7 @@ function App() {
                  critérios e pendências do ciclo — não é só o passo final
                  de encerrar, é onde se acompanha como o jogador está indo. */
               const principais = [{ v: "ficha", r: "Perfil" }, { v: "plano", r: "Planejamento" }, { v: "aulas", r: "Aulas" }, { v: "fechamento", r: "Evolução" }];
-              const itensMais = [{ v: "periodizacao", r: "Periodização" }, { v: "sessao", r: "Sessão de hoje" }, { v: "scout", r: "Análise de partida" }, { v: "movimento", r: "Análise de movimento" }, { v: "registro", r: "Caderno" }, { v: "estilo", r: "Estilo de jogo" }, { v: "adversarios", r: "Adversários" }];
+              const itensMais = [{ v: "periodizacao", r: "Periodização" }, { v: "sessao", r: "Sessão de hoje" }, { v: "scout", r: "Análise de partida" }, { v: "movimento", r: "Análise de movimento" }, { v: "registro", r: "Caderno" }, { v: "estilo", r: "Estilo de jogo" }, { v: "adversarios", r: "Adversários" }, { v: "equipe", r: "Equipe" }];
               const todasSecoes = [...principais, ...itensMais];
               const maisAtivo = itensMais.some((t) => t.v === subaba);
               const secaoAtual = todasSecoes.find((t) => t.v === subaba) || principais[0];
@@ -23817,6 +24057,7 @@ function App() {
              subaba === "estilo" ? <TelaEstiloTatico aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
              subaba === "movimento" ? <TelaMovimento aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade} planoAtual={null} /> :
              subaba === "adversarios" ? <TelaAdversarios aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
+             subaba === "equipe" ? <AbaEquipeJogador aluno={aberto} aoAbrirEquipes={() => { setAbertoId(null); setAba("equipes"); }} /> :
              <TelaSessao aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} papelAtual={papelAtual} uidAtual={uidAtual}
                exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} />}
           </div>

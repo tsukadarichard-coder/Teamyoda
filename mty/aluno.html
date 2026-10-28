@@ -147,6 +147,7 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catc
 <!-- relatório completo das análises de movimento (o mesmo do app do treinador) -->
 <script src="scout/movimento-motor.js"></script>
 <script src="scout/movimento.js"></script>
+<script src="plano-equipe.js"></script>
 <script src="relatorio-atleta.js"></script>
 <script>
 function escapar(s){ return String(s||'').replace(/[&<>"]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
@@ -476,6 +477,7 @@ function todosHorarios(agenda) {
     mensagem: null, enviando: false,
     relatorioAberto: null, // id do relatório de ciclo aberto na lista, ou null
     relAtletaAberto: null, // id do relatório do treinador aberto (Team Yoda)
+    planoEquipeAberto: {}, // equipe → ciclo inteiro aberto no planejamento da equipe
     relGerado: null, // relatório gerado na hora pelo botão "Gerar relatório"
     relGeradoPeriodo: 'mes',
     semanaAberta: null, // chave "bloco·semana" do bloco de semana expandido no plano compacto
@@ -533,7 +535,7 @@ function todosHorarios(agenda) {
         ? 'Seu treinador está preparando seu plano — assim que for revisado e aprovado, aparece aqui.'
         : 'Ainda não há um plano montado para você.';
       el.innerHTML = '<header><h1>' + escapar(d.nome) + '</h1><div class="sub">' + subtitulo + '</div></header>' +
-        painelTurmas(d) + painelRelatoriosAtleta(d) + painelObservacoes(d) + painelMovimentos(d) + painelJogos(d) + painelJogosVideo(d) +
+        painelTurmas(d) + painelPlanoEquipe(d) + painelRelatoriosAtleta(d) + painelObservacoes(d) + painelMovimentos(d) + painelJogos(d) + painelJogosVideo(d) +
         painelMapaConceitos(d, ui) + painelEvolucao(d) + painelRelatorios(d) + painelComunicacao(d) + '<div class="sincronia" id="mty-sincronia"></div>';
       ligarEventos(d);
       return;
@@ -549,6 +551,7 @@ function todosHorarios(agenda) {
       '<div class="progtxt">' + d.aulasFeitas + ' de ' + d.totalAulas + ' aulas realizadas — isto é execução, não é uma nota sobre sua técnica.</div></div></div></div>';
     html += painelSemanas(d);
     html += painelTurmas(d);
+    html += painelPlanoEquipe(d);
     html += painelGlossario(d.aulas);
     html += painelRelatoriosAtleta(d);
     html += painelObservacoes(d);
@@ -590,6 +593,17 @@ function todosHorarios(agenda) {
     return html + '</div>';
   }
   function painelTurmas(d) { return (d.turmas || []).map(painelPlanoTurma).join(''); }
+  /* Planejamento da equipe de competição (feito pelo coordenador no app): a semana de agora com os dias e, aberto, o ciclo inteiro. */
+  function painelPlanoEquipe(d) {
+    const P = window.QLPlanoEquipe, l = d.planosEquipe || [];
+    if (!P || !l.length) return '';
+    const hoje = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    return l.map(function (info, i) {
+      const aberto = !!ui.planoEquipeAberto[i];
+      return '<div class="painel" data-painel="plano-equipe"><h2>Planejamento da equipe</h2>' + P.htmlAluno(info, hoje, aberto) +
+        '<button type="button" class="btn fraco" data-plano-equipe-ver="' + i + '" style="margin-top:8px">' + (aberto ? 'Mostrar só esta semana' : 'Ver o ciclo inteiro') + '</button></div>';
+    }).join('');
+  }
   /* Observações de partida e conversas que o treinador compartilhou: o descritivo, o que ele anotou e os áudios (link temporário). */
   const CAT_OBS = { saque: 'Saque', devolucao: 'Devolução', fundo: 'Fundo de quadra', transicao: 'Rede e transição', tatico: 'Tático', mental: 'Mental', fisico: 'Físico', geral: 'Geral' };
   const audiosAbertos = {};
@@ -963,6 +977,7 @@ function todosHorarios(agenda) {
   }
 
   function ligarEventos(d) {
+    el.querySelectorAll('[data-plano-equipe-ver]').forEach(function (b) { b.addEventListener('click', function () { const i = b.getAttribute('data-plano-equipe-ver'); ui.planoEquipeAberto[i] = !ui.planoEquipeAberto[i]; render(d); }); });
     el.querySelectorAll('[data-rel-ver]').forEach(function (b) { b.addEventListener('click', function () { const id = b.getAttribute('data-rel-ver'); ui.relAtletaAberto = ui.relAtletaAberto === id ? null : id; render(d); }); });
     el.querySelectorAll('[data-rel-pdf]').forEach(function (b) { b.addEventListener('click', function () {
       const r = (d.relatoriosAtleta || []).find(function (x) { return x.id === b.getAttribute('data-rel-pdf'); });

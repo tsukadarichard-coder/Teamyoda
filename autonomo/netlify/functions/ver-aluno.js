@@ -252,6 +252,7 @@ async function responderGet(org, id, q, ctx) {
 
   /* análises de movimento, jogos com scout e o que mais o treinador registrou: tudo o que é do jogador vai no link */
   const extras = await conteudoDoAluno(org, id, aluno);
+  const planosEquipe = await planosEquipeDoAluno(org, id).catch(() => []);
 
   let feedbacksEnviados = [];
   try {
@@ -297,6 +298,7 @@ async function responderGet(org, id, q, ctx) {
     jogosVideo: extras.jogosVideo,
     observacoes: observacoesCompartilhadas(aluno),
     relatoriosAtleta: relatoriosPublicados(aluno),
+    planosEquipe,
   });
 }
 
@@ -305,6 +307,28 @@ async function responderGet(org, id, q, ctx) {
 const CAT_OBS = { saque: "Saque", devolucao: "Devolução", fundo: "Fundo de quadra", transicao: "Rede e transição", tatico: "Tático", mental: "Mental", fisico: "Físico", geral: "Geral" };
 /* Relatórios do atleta publicados pelo treinador (Team Yoda): os dados do período já organizados no app do treinador e a observação dele.
    Rascunhos nunca saem daqui. */
+/* Planejamento das equipes de competição do jogador (Team Yoda, mty:equipes:v1), montado pelo coordenador: só os campos conhecidos. */
+const GRUPOS_EQ = ["tecnico", "tatico", "misto"];
+const ITENS_EQ = ["movimentacao", "mudanca_direcao", "precisao", "saque", "forehand", "backhand", "approach", "voleio", "smash", "devolucao", "drop_shot", "ataque", "defesa", "construcao"];
+const DATA_EQ = /^\d{4}-\d{2}-\d{2}$/;
+function limparPlanoEquipe(p) {
+  if (!p || !p.ciclo || !Array.isArray(p.semanas)) return null;
+  const g = (x) => (GRUPOS_EQ.includes(x) ? x : ""), it = (l) => ITENS_EQ.filter((v) => Array.isArray(l) && l.includes(v)), t = (x, n) => String(x == null ? "" : x).slice(0, n), d = (x) => (DATA_EQ.test(String(x || "")) ? x : "");
+  const c = p.ciclo;
+  return {
+    id: t(p.id, 60), atualizadoEm: t(p.atualizadoEm, 30), autorNome: t(p.autorNome, 80),
+    ciclo: { semanas: Math.max(1, Math.min(24, +c.semanas || 1)), inicio: d(c.inicio), fim: d(c.fim), dias: (Array.isArray(c.dias) ? c.dias : []).map(Number).filter((x) => x >= 0 && x <= 6), duracaoMin: +c.duracaoMin || null, grupo: g(c.grupo), objetivo: t(c.objetivo, 1500) },
+    meses: Object.fromEntries(Object.entries(p.meses || {}).filter(([m]) => /^\d{4}-\d{2}$/.test(m)).slice(0, 8).map(([m, x]) => [m, { grupo: g(x && x.grupo), obs: t(x && x.obs, 2000) }])),
+    semanas: p.semanas.slice(0, 24).map((s) => ({ n: +s.n || 0, inicio: d(s.inicio), fim: d(s.fim), grupo: g(s.grupo), itens: it(s.itens), obs: t(s.obs, 2000),
+      dias: (Array.isArray(s.dias) ? s.dias : []).slice(0, 7).filter((x) => DATA_EQ.test(String(x.data || ""))).map((x) => ({ data: x.data, grupo: g(x.grupo), itens: it(x.itens), obs: t(x.obs, 1500) })) })),
+  };
+}
+async function planosEquipeDoAluno(org, id) {
+  const doc = await lerDado(org, "mty:equipes:v1");
+  const equipes = doc ? lerJSON(doc.value, []) : [];
+  return (Array.isArray(equipes) ? equipes : []).filter((e) => e && Array.isArray(e.membros) && e.membros.includes(id) && e.plano)
+    .map((e) => ({ equipe: String(e.nome || "Equipe").slice(0, 60), coordenador: String(e.coordenadorNome || "").slice(0, 80), plano: limparPlanoEquipe(e.plano) })).filter((x) => x.plano).slice(0, 4);
+}
 function relatoriosPublicados(aluno) {
   return (Array.isArray(aluno.relatoriosAtleta) ? aluno.relatoriosAtleta : []).filter((r) => r && r.status === "publicado" && r.dados && typeof r.dados === "object")
     .filter((r) => JSON.stringify(r.dados).length <= 120000)
