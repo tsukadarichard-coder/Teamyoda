@@ -126,6 +126,54 @@ async function encerrar(p) { await p.getByRole("button", { name: "Encerrar e ver
     assert(r4.compartilhado.publico && r4.compartilhado.publico.placar && r4.compartilhado.publico.n === 47, app + ": o link da família passa a mostrar o jogo atualizado com o placar");
     assert.strictEqual(r4.observacaoFinal, "Jogo sólido."); assert.strictEqual(r4.nivelAdversario, "igual");
     assert.deepStrictEqual(p.erros, [], app + ": erros de JS (D) " + p.erros.join(" | "));
+    await p.close();
+
+    /* E) continuar depois de sair (rascunho de versões antigas, sem o id do registro) não cria outra cópia do mesmo jogo */
+    p = await nova(b, porta);
+    await p.getByText("Iniciar acompanhamento").click(); await p.waitForTimeout(300);
+    await marca(p, 3); await p.waitForTimeout(6500);
+    await p.evaluate(() => window.__desmontar()); await p.waitForTimeout(400);
+    await p.evaluate(() => { const k = Object.keys(localStorage).find((x) => x.startsWith("scout-rascunho:")); const r = JSON.parse(localStorage.getItem(k)); delete r.idRegistro; r.salvoEm = new Date(Date.now() + 60000).toISOString(); localStorage.setItem(k, JSON.stringify(r)); });
+    for (let volta = 0; volta < 2; volta++) {
+      await p.evaluate(() => window.__montar()); await p.waitForTimeout(500);
+      await p.getByRole("button", { name: "Continuar partida em andamento" }).click(); await p.waitForTimeout(400);
+      await marca(p, 1); await p.waitForTimeout(6500);
+      await p.evaluate(() => window.__desmontar()); await p.waitForTimeout(400);
+    }
+    let a5 = await aluno(p);
+    assert.strictEqual(a5.registros.length, 1, app + ": continuar duas vezes mantém um só registro (" + a5.registros.map((r) => r.id + ":" + r.scout.pontos.length).join(", ") + ")");
+    assert.strictEqual(a5.registros[0].scout.pontos.length, 5);
+    /* encerrar de vez pelo cartão, com motivo: some da lista "Voltar a um jogo salvo" e não fica cópia interrompida */
+    await p.evaluate(() => window.__montar()); await p.waitForTimeout(500);
+    await p.getByRole("button", { name: "Encerrar de vez e salvar como interrompida" }).click(); await p.waitForTimeout(300);
+    await p.getByRole("button", { name: "Prefiro não informar" }).click(); await p.getByRole("button", { name: "Salvar e ver o relatório" }).click(); await p.waitForTimeout(7000);
+    a5 = await aluno(p);
+    assert(a5.registros.length === 1 && a5.registros[0].encerramento && !a5.scoutRascunho, app + ": encerrada com motivo, um registro só");
+    await p.evaluate(() => window.__desmontar()); await p.waitForTimeout(300); await p.evaluate(() => window.__montar()); await p.waitForTimeout(600);
+    t = await texto(p);
+    assert(!t.includes("Voltar a um jogo salvo") && !t.includes("Partida em andamento encontrada"), app + ": a encerrada com motivo não aparece para retomar. " + t.slice(0, 300));
+    assert.deepStrictEqual(p.erros, [], app + ": erros de JS (E) " + p.erros.join(" | "));
+    await p.close();
+
+    /* F) caderno com cópias repetidas (versões antigas): ao abrir fica um registro por partida; o link da família passa para o que fica */
+    const pts = (n, bola) => Array.from({ length: n }, (_, i) => ({ fim: "winner_nos", nos: i % 3 !== 2, saque: null, bola, causa: null, rede: false, situacao: null, adverso: false, sacador: "nos", lado: "D", dirSaque: null, n: i + 1, placarAntes: "0-0", jogo: 1, set: 1 }));
+    const cfgJ = { formato: "3sets", saca: "nos", semVantagem: false, superTiebreakDecisivo: false };
+    const X = pts(9, "1-2"), Y = pts(4, "3-4");
+    const regsF = [
+      { id: "pA", tipo: "jogo", data: "2026-10-20", adversario: "Simon", resultado: "1-0", concluida: false, parcialAuto: true, compartilhado: { token: "famX", ate: "2099-01-01" }, scout: { n: 9, pontos: X, cfg: cfgJ } },
+      { id: "pB", tipo: "jogo", data: "2026-10-20", adversario: "Simon", resultado: "1-0", concluida: false, parcialAuto: true, scout: { n: 6, pontos: X.slice(0, 6), cfg: cfgJ } },
+      { id: "rX", tipo: "jogo", data: "2026-10-23", adversario: "Simon", resultado: "1-0", concluida: false, encerramento: { motivo: "chuva" }, scout: { n: 9, pontos: X, cfg: cfgJ } },
+      { id: "pY", tipo: "jogo", data: "2026-10-24", adversario: "Rafael", resultado: "0-0", concluida: false, parcialAuto: true, scout: { n: 4, pontos: Y, cfg: cfgJ } },
+      { id: "nota", tipo: "observacao", data: "2026-10-24" },
+    ];
+    p = await nova(b, porta, [{ id: "a1", nome: "Ana Souza", registros: regsF }]);
+    await p.waitForTimeout(600);
+    const a6 = await aluno(p);
+    assert.deepStrictEqual(a6.registros.map((r) => r.id), ["rX", "pY", "nota"], app + ": cópias do mesmo jogo saíram");
+    assert.strictEqual(a6.registros[0].compartilhado.token, "famX", app + ": o link da família passou para o registro que ficou");
+    t = await texto(p);
+    assert(t.includes("contra Rafael") && !t.includes("contra Simon"), app + ": a lista mostra só a interrompida sem motivo. " + t.slice(0, 400));
+    assert.deepStrictEqual(p.erros, [], app + ": erros de JS (F) " + p.erros.join(" | "));
     await p.close(); await b.close(); srv.close();
     console.log("smoke-retomar-partida " + app + ": ok");
   }

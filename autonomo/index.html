@@ -8943,6 +8943,39 @@ function registroPartidaAuto(id, cfg, pontos, placar, mental, anterior) {
   };
 }
 const reabrivel = (r) => r.tipo === "jogo" && r.scout && (r.scout.pontos || []).length > 0; /* jogos vindos do Competição não têm os pontos e não reabrem */
+/* mesma partida: os pontos de um registro são o começo (ou o todo) dos pontos do outro */
+function mesmaPartida(a, b) {
+  const pa = (a && a.scout && a.scout.pontos) || [], pb = (b && b.scout && b.scout.pontos) || [];
+  const [curta, longa] = pa.length <= pb.length ? [pa, pb] : [pb, pa];
+  if (!curta.length || (curta.length < 3 && curta.length !== longa.length)) return false;
+  const k = curta.length - 1, igual = (i) => JSON.stringify(curta[i]) === JSON.stringify(longa[i]);
+  if (!igual(0) || !igual(k)) return false; /* descarte rápido antes de comparar tudo */
+  return JSON.stringify(curta) === JSON.stringify(longa.slice(0, curta.length));
+}
+/* Um registro por partida: cópias automáticas que ficaram para trás (ao continuar a partida em outro momento ou ao encerrá-la com motivo)
+   e registros com exatamente os mesmos pontos saem; fica o mais completo (o que foi salvo de verdade, com motivo, com link da família, o mais recente).
+   O link da família de um registro que sai passa para o que fica. */
+function semJogosRepetidos(registros, idPreferido) {
+  const l = registros || [];
+  const nota = (g, i) => [g.id === idPreferido ? 1 : 0, g.scout.pontos.length, g.parcialAuto ? 0 : 1, g.encerramento ? 1 : 0, g.compartilhado ? 1 : 0, i];
+  const maior = (a, b) => { for (let k = 0; k < a.length; k++) if (a[k] !== b[k]) return a[k] > b[k]; return false; };
+  const fora = new Map();
+  l.forEach((g, i) => {
+    if (!reabrivel(g)) return;
+    let melhor = null, notaMelhor = null;
+    l.forEach((h, j) => {
+      if (j === i || !reabrivel(h) || !mesmaPartida(g, h)) return;
+      if (!g.parcialAuto && h.scout.pontos.length !== g.scout.pontos.length) return;
+      const n = nota(h, j);
+      if (maior(n, nota(g, i)) && (!notaMelhor || maior(n, notaMelhor))) { melhor = h; notaMelhor = n; }
+    });
+    if (melhor) fora.set(g.id, melhor.id);
+  });
+  if (!fora.size) return l;
+  const link = {};
+  fora.forEach((para, de) => { const g = l.find((x) => x.id === de); if (g && g.compartilhado && !link[para]) link[para] = g.compartilhado; });
+  return l.filter((g) => !fora.has(g.id)).map((g) => (link[g.id] && !g.compartilhado ? { ...g, compartilhado: link[g.id] } : g));
+}
 /* Rascunho de partida que já foi salvo de verdade no caderno (mesmos pontos, registro que não é a cópia automática): não é mais "partida em andamento". */
 function rascunhoRedundante(a) {
   const r = a && a.scoutRascunho, n = r && (r.pontos || []).length;
@@ -9354,6 +9387,8 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
   /* a partida em andamento vem do aparelho ou da nuvem (a mais recente): assim ela volta em outro aparelho e depois de limpar o navegador */
   useEffect(() => {
     if (fase !== "antes") return;
+    /* jogos repetidos no caderno (versões antigas criavam uma cópia nova a cada vez que a partida era continuada): fica um por partida */
+    if (semJogosRepetidos(aluno.registros).length !== (aluno.registros || []).length) setAlunos((prev) => prev.map((a) => (a.id !== aluno.id ? a : { ...a, registros: semJogosRepetidos(a.registros) })));
     /* pedido vindo do Caderno ("Reabrir partida"): abre direto na marcação */
     try {
       const pedido = sessionStorage.getItem("ql-reabrir:" + aluno.id);
@@ -9371,6 +9406,12 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
     const nuvem = aluno.scoutRascunho && (aluno.scoutRascunho.pontos || []).length ? aluno.scoutRascunho : null;
     const valido = (r) => r && r.cfg && Array.isArray(r.pontos) && r.pontos.length > 0;
     const escolhido = valido(local) && valido(nuvem) ? ((local.salvoEm || "") >= (nuvem.salvoEm || "") ? local : nuvem) : (valido(local) ? local : (valido(nuvem) ? nuvem : null));
+    /* a partida já foi salva no caderno (encerrada, com motivo ou concluída): não é mais "em andamento" */
+    if (escolhido && rascunhoRedundante({ registros: aluno.registros, scoutRascunho: escolhido })) {
+      try { localStorage.removeItem(ChaveRascunho(aluno.id)); } catch { /* sem armazenamento */ }
+      if (aluno.scoutRascunho) setAlunos((prev) => prev.map((a) => (a.id !== aluno.id || !a.scoutRascunho ? a : semRascunhoScout(a))));
+      setRascunhoSalvo(null); return;
+    }
     setRascunhoSalvo(escolhido);
   }, [aluno.id, fase, aluno.scoutRascunho && aluno.scoutRascunho.salvoEm]);
 
@@ -9378,7 +9419,7 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
     if (fase !== "durante" && fase !== "depois") return;
     if (concluidoRef.current) return;
     try {
-      localStorage.setItem(ChaveRascunho(aluno.id), JSON.stringify({ cfg, placar, pontos, fase, aoVivo, mental, salvoEm: new Date().toISOString() }));
+      localStorage.setItem(ChaveRascunho(aluno.id), JSON.stringify({ cfg, placar, pontos, fase, aoVivo, mental, idRegistro: idParcialRef.current, salvoEm: new Date().toISOString() }));
       setEstadoRascunho("salvo");
     } catch { setEstadoRascunho("erro"); }
   }, [fase, cfg, placar, pontos, aoVivo, mental, aluno.id]);
@@ -9393,7 +9434,7 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
       if (a.id !== aluno.id) return a;
       const regs = a.registros || [], ant = regs.find((x) => x.id === id);
       const reg = registroPartidaAuto(id, u.cfg, u.pontos, u.placar, u.mental, ant);
-      return { ...a, scoutRascunho: { v: 1, salvoEm: new Date().toISOString(), ...u }, registros: ant ? regs.map((x) => x.id === id ? reg : x) : [...regs, reg] };
+      return { ...a, scoutRascunho: { v: 1, salvoEm: new Date().toISOString(), ...u }, registros: semJogosRepetidos(ant ? regs.map((x) => x.id === id ? reg : x) : [...regs, reg], id) };
     }));
   }
   useEffect(() => {
@@ -9434,7 +9475,9 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
   function continuarRascunho() {
     if (!rascunhoSalvo) return;
     const r = rascunhoSalvo, refeito = refazerPlacar(r.cfg, r.pontos || []);
-    concluidoRef.current = false; idParcialRef.current = (aluno.registros || []).some((x) => x.id === r.idRegistro) ? r.idRegistro : null; setRetomandoId(idParcialRef.current);
+    /* o registro desta partida no caderno: o que o rascunho lembra ou, em rascunhos antigos, o jogo com os mesmos pontos (continua nele, sem criar outro) */
+    const regs = aluno.registros || [], doRascunho = regs.find((x) => x.id === r.idRegistro) || regs.filter((x) => reabrivel(x) && mesmaPartida(x, { scout: { pontos: r.pontos } })).pop();
+    concluidoRef.current = false; idParcialRef.current = doRascunho ? doRascunho.id : null; setRetomandoId(idParcialRef.current);
     setCfg(r.cfg);
     setPlacar(r.placar || refeito.placar);
     setPontos(r.pontos);
@@ -9535,7 +9578,8 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
 
   /* ── antes ── */
   if (fase === "antes") {
-    const partidasAnteriores = (aluno.registros || []).filter((r) => r.tipo === "jogo");
+    /* encerrada de vez com motivo não volta para cá (continua no caderno, onde pode ser reaberta) */
+    const partidasAnteriores = semJogosRepetidos(aluno.registros).filter((r) => r.tipo === "jogo" && !(r.concluida === false && r.encerramento));
     return (
       <div>
         <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, marginBottom: 2 }}>Análise de partida</h1>
@@ -10783,7 +10827,7 @@ function Relatorio({ final, encerramento, identidade, aluno, alunos, setAlunos, 
       reg.compartilhado = { ...original.compartilhado };
       if (original.compartilhado.ate >= new Date().toISOString().slice(0, 10)) reg.compartilhado.publico = montarResumoPublico(reg, aluno);
     }
-    setAlunos(alunos.map((a) => a.id === aluno.id ? { ...a, registros: (a.registros || []).some((x) => x.id === reg.id) ? a.registros.map((x) => x.id === reg.id ? reg : x) : [...(a.registros || []), reg] } : a));
+    setAlunos((prev) => prev.map((a) => a.id === aluno.id ? { ...a, registros: semJogosRepetidos((a.registros || []).some((x) => x.id === reg.id) ? a.registros.map((x) => x.id === reg.id ? reg : x) : [...(a.registros || []), reg], reg.id) } : a));
     setSalvo(true); setSalvoId(reg.id);
     if (aoConcluir) aoConcluir();
   }
