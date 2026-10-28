@@ -14910,6 +14910,35 @@ function TelaPedidosAtendimento({ aoAbrirPerfil }) {
   );
 }
 
+/* Quadro tático (quadro/): quadra para desenhar com o dedo ou a Apple Pencil, aberto dentro do app (quadro/?embed=1), ocupando a
+   área útil da tela. "Tela cheia" abre a mesma página sozinha (no iPad, dá mais espaço para desenhar). Todos os planos. */
+function TelaQuadroTatico() {
+  const ref = useRef(null);
+  const [alt, setAlt] = useState(560);
+  useEffect(() => {
+    const ajustar = () => {
+      if (!ref.current) return;
+      const nav = document.querySelector(".mty-bottomnav");
+      const baixo = nav && getComputedStyle(nav).display !== "none" ? nav.getBoundingClientRect().height : 0;
+      setAlt(Math.max(460, Math.round(window.innerHeight - ref.current.getBoundingClientRect().top - baixo - 12)));
+    };
+    ajustar(); window.addEventListener("resize", ajustar);
+    return () => window.removeEventListener("resize", ajustar);
+  }, []);
+  return (
+    <div data-quadro-tatico>
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+        <div>
+          <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700 }}>Quadro tático</h1>
+          <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Desenhe com o dedo ou a Apple Pencil: setas para a bola, tracejado para o deslocamento, jogadores e bola arrastáveis.</p>
+        </div>
+        <a href="quadro/" style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 600, color: C.quadra }}>Tela cheia</a>
+      </div>
+      <iframe ref={ref} src="quadro/?embed=1" title="Quadro tático" style={{ display: "block", width: "100%", height: alt, border: "1px solid " + C.linha, borderRadius: 12, background: "#2B2B2B" }} />
+    </div>
+  );
+}
+
 function TelaMeuMetodo({ metodo, setMetodo, planoAtual, exerciciosCustom, setExerciciosCustom }) {
   const QM = typeof window !== "undefined" && window.QLMetodo;
   const m = QM ? QM.limpar(metodo || QM.vazio()) : null;
@@ -17833,7 +17862,7 @@ function IconeCalendario({ tam = 28 }) {
 
 function PainelMais({ aba, setAba, aoFechar, planoAtual }) {
   const itens = [...NAV_PRINCIPAL.filter((t) => !["dashboard", "alunos", "agenda"].includes(t.v)),
-    { v: "metodo", r: "Meu método", trava: planoQueLibera("metodo", planoAtual) }, { v: "catalogo", r: "Catálogo de exercícios" },
+    { v: "quadro", r: "Quadro tático" }, { v: "metodo", r: "Meu método", trava: planoQueLibera("metodo", planoAtual) }, { v: "catalogo", r: "Catálogo de exercícios" },
     ...(LIGACAO_PLAYER ? [{ v: "hubPerfil", r: "Meu perfil profissional" }, { v: "hubPedidos", r: "Pedidos de atendimento" }] : [])];
   return (
     <>
@@ -18823,7 +18852,7 @@ function App() {
      aparece pra quem for provisionado explicitamente com a opção
      marcada. */
   const gruposNav = [
-    { id: "trabalho", label: "Meu trabalho", itens: [...NAV_PRINCIPAL, { v: "metodo", r: "Meu método", trava: planoQueLibera("metodo", planoAtual) }, { v: "catalogo", r: "Catálogo de exercícios" }] },
+    { id: "trabalho", label: "Meu trabalho", itens: [...NAV_PRINCIPAL, { v: "quadro", r: "Quadro tático" }, { v: "metodo", r: "Meu método", trava: planoQueLibera("metodo", planoAtual) }, { v: "catalogo", r: "Catálogo de exercícios" }] },
     LIGACAO_PLAYER && { id: "hub", label: "QuadraLab Hub", badge: hubNaoLidas > 0 ? String(hubNaoLidas) : null, itens: [{ v: "hubPerfil", r: "Meu perfil profissional" }, { v: "hubPedidos", r: "Pedidos de atendimento" + (hubNaoLidas > 0 ? " (" + hubNaoLidas + ")" : "") }] },
   ].filter((g) => g && g.itens.length > 0);
   function criar() {
@@ -19129,6 +19158,7 @@ function App() {
          aba === "catalogo" ? <TelaCatalogo exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
          aba === "hubPerfil" && LIGACAO_PLAYER ? <TelaPerfilProfissional planoAtual={planoAtual} planoVencido={planoVencido} emailAtual={window.mtyAuth && window.mtyAuth.usuario() ? window.mtyAuth.usuario().email : ""} aoAbrirPedidos={() => setAba("hubPedidos")} /> :
          aba === "hubPedidos" && LIGACAO_PLAYER ? <TelaPedidosAtendimento aoAbrirPerfil={() => setAba("hubPerfil")} /> :
+         aba === "quadro" ? <TelaQuadroTatico /> :
          aba === "metodo" ? <TelaMeuMetodo metodo={metodo} setMetodo={setMetodo} planoAtual={planoAtual} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
          aba === "taticas" ? <TelaTaticas /> :
          aba === "tecnica" ? <TelaTecnica focoId={focoManualId} /> :
@@ -19457,7 +19487,7 @@ function App() {
             );
           })}
           {(() => {
-            const ativo = maisAberto || ["turmas", "casos", "metodo", "catalogo", "hubPerfil", "hubPedidos"].includes(aba);
+            const ativo = maisAberto || ["turmas", "casos", "quadro", "metodo", "catalogo", "hubPerfil", "hubPedidos"].includes(aba);
             return (
               <button className="mty-bottomnav-item flex-1 flex flex-col items-center justify-center gap-1"
                 onClick={() => setMaisAberto(true)} aria-current={ativo ? "page" : undefined}

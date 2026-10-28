@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Quadro tático · QuadraLab</title>
+<meta name="theme-color" content="#103B32">
+<link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="../assets/apple-touch-icon.png">
+<link rel="stylesheet" href="quadro.css">
+</head>
+<body>
+<div class="qt" id="qt">
+  <header class="qt-topo">
+    <a class="qt-voltar" id="qtVoltar" href="../treinador">‹ QuadraLab</a>
+    <strong class="qt-titulo">Quadro tático</strong>
+    <div class="qt-acoes-topo">
+      <button type="button" class="qt-bt" data-acao="desfazer" aria-label="Desfazer" title="Desfazer">↶</button>
+      <button type="button" class="qt-bt" data-acao="refazer" aria-label="Refazer" title="Refazer">↷</button>
+      <button type="button" class="qt-bt" data-acao="menu" aria-haspopup="true" aria-expanded="false" id="btMenu">Quadro ▾</button>
+    </div>
+  </header>
+  <div class="qt-ferramentas" role="toolbar" aria-label="Ferramentas">
+    <div class="qt-grupo">
+      <button type="button" class="qt-fer" data-fer="caneta" aria-pressed="true">Caneta</button>
+      <button type="button" class="qt-fer" data-fer="seta" aria-pressed="false">Seta</button>
+      <button type="button" class="qt-fer" data-fer="reta" aria-pressed="false">Reta</button>
+      <button type="button" class="qt-fer" data-fer="borracha" aria-pressed="false">Apagar</button>
+    </div>
+    <div class="qt-grupo">
+      <button type="button" class="qt-traco" id="btTraco" aria-pressed="false" title="Tracejado: deslocamento do jogador">Tracejado</button>
+    </div>
+    <div class="qt-grupo qt-cores" role="radiogroup" aria-label="Cor">
+      <button type="button" class="qt-cor" data-cor="#E53935" aria-label="Vermelho" aria-checked="true" role="radio"></button>
+      <button type="button" class="qt-cor" data-cor="#1E63E9" aria-label="Azul" aria-checked="false" role="radio"></button>
+      <button type="button" class="qt-cor" data-cor="#FFD60A" aria-label="Amarelo" aria-checked="false" role="radio"></button>
+      <button type="button" class="qt-cor" data-cor="#FFFFFF" aria-label="Branco" aria-checked="false" role="radio"></button>
+      <button type="button" class="qt-cor" data-cor="#111111" aria-label="Preto" aria-checked="false" role="radio"></button>
+    </div>
+    <div class="qt-grupo">
+      <button type="button" class="qt-peca" data-peca="A">+ Jogador azul</button>
+      <button type="button" class="qt-peca" data-peca="B">+ Jogador vermelho</button>
+      <button type="button" class="qt-peca" data-peca="bola">+ Bola</button>
+    </div>
+  </div>
+  <div class="qt-palco" id="qtPalco"><canvas id="qtTela" aria-label="Quadra de tênis para desenhar"></canvas></div>
+  <div class="qt-menu" id="qtMenu" hidden>
+    <p class="qt-menu-tit">Quadra</p>
+    <div class="qt-seg" data-grupo="area"><button type="button" data-val="inteira">Inteira</button><button type="button" data-val="meia">Meia quadra</button></div>
+    <div class="qt-seg" data-grupo="piso"><button type="button" data-val="saibro">Saibro</button><button type="button" data-val="rapida">Rápida</button><button type="button" data-val="grama">Grama</button></div>
+    <p class="qt-menu-tit">Desenho</p>
+    <button type="button" class="qt-item" data-acao="salvar">Salvar este quadro</button>
+    <button type="button" class="qt-item" data-acao="abrir">Abrir um quadro salvo</button>
+    <button type="button" class="qt-item" data-acao="imagem">Baixar como imagem</button>
+    <button type="button" class="qt-item" data-acao="compartilhar" id="btCompartilhar">Compartilhar imagem</button>
+    <button type="button" class="qt-item" data-acao="tirarPecas">Tirar jogadores e bola</button>
+    <button type="button" class="qt-item perigo" data-acao="limpar">Limpar tudo</button>
+  </div>
+  <div class="qt-dialogo" id="qtDialogo" hidden role="dialog" aria-modal="true" aria-labelledby="qtDialogoTit"></div>
+  <div class="qt-aviso" id="qtAviso" role="status" aria-live="polite" hidden></div>
+</div>
+<script src="quadro.js"></script>
+</body>
+</html>
