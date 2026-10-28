@@ -562,7 +562,7 @@ const NOMES_PLANO = { gratis: "Plano grátis", essencial: "Plano Essencial", pre
    Contas sem plano definido (academias antigas) seguem sem limite na análise de movimento; Meu método e o plano de jogo por IA
    são só do Premium, como sempre foram. */
 const ORDEM_PLANO = { gratis: 0, essencial: 1, premium: 2 };
-const PLANO_DO_RECURSO = { movimento: "essencial", metodo: "premium", planoJogoIA: "premium", competicao: "essencial" };
+const PLANO_DO_RECURSO = { movimento: "essencial", metodo: "premium", planoJogoIA: "premium", competicao: "essencial", graficoObservacao: "essencial", audio: "essencial", descritivoIA: "essencial" };
 function planoQueLibera(recurso, planoAtual) {
   const minimo = PLANO_DO_RECURSO[recurso];
   if (!minimo) return null;
@@ -11098,7 +11098,7 @@ function PainelAnotacoes({ aluno, setAlunos, alunos }) {
    planejamento prospectivo. O rótulo evita a ambiguidade do antigo
    "+ Semana", que sugeria planejar a semana que vem. */
 function rotuloTipoRegistro(tipo) {
-  return { sessao: "Sessão", jogo: "Jogo", semana: "Registro semanal", medicao: "Medição", anotacao: "Anotação", movimento: "Análise de movimento" }[tipo] || tipo;
+  return { sessao: "Sessão", jogo: "Jogo", semana: "Registro semanal", medicao: "Medição", anotacao: "Anotação", movimento: "Análise de movimento", observacao: "Observação de partida" }[tipo] || tipo;
 }
 
 const OPCOES_NOVO_REGISTRO = [
@@ -11141,7 +11141,7 @@ function PainelNovoRegistro({ aoEscolher, aoFechar }) {
   );
 }
 
-function TelaRegistro({ aluno, alunos, setAlunos, identidade, aoReabrirJogo }) {
+function TelaRegistro({ aluno, alunos, setAlunos, identidade, aoReabrirJogo, planoAtual }) {
   const [filtro, setFiltro] = useState("todos");
   const [criando, setCriando] = useState(null); // null | "anotacao" | "jogo" | "semana" | "medicao"
   const [painelAberto, setPainelAberto] = useState(false);
@@ -11206,6 +11206,7 @@ function TelaRegistro({ aluno, alunos, setAlunos, identidade, aoReabrirJogo }) {
             { v: "semana", r: "Semanas" },
             { v: "medicao", r: "Medições" },
             { v: "movimento", r: "Análises de movimento" },
+            { v: "observacao", r: "Observações de partida" },
           ]}
           valor={filtro} aoMudar={(v) => { setCriando(null); setFiltro(v); }} />
       </div>
@@ -11257,7 +11258,9 @@ function TelaRegistro({ aluno, alunos, setAlunos, identidade, aoReabrirJogo }) {
             <>
               <div className="mb-4"><Etiqueta>{itensFiltrados.length} registros</Etiqueta></div>
               {itensFiltrados.map((r) => (
-                r.tipo === "movimento" ? (
+                r.tipo === "observacao" ? (
+                  <CartaoObservacaoCaderno key={"ob-" + r.id} r={r} planoAtual={planoAtual} aoApagar={() => { if (confirm("Apagar esta observação de partida?")) apaga(r.id); }} />
+                ) : r.tipo === "movimento" ? (
                   <CartaoMovimentoCaderno key={"mv-" + r.id} m={r} aluno={aluno} setAlunos={setAlunos} historico={movimentosCaderno} identidade={identidade} aoRemovido={() => setVersaoMov((v) => v + 1)} />
                 ) : r.tipo === "anotacao" ? (
                   <button key={r.id} onClick={() => setFiltro("anotacao")} className="w-full text-left"
@@ -14910,6 +14913,233 @@ function TelaPedidosAtendimento({ aoAbrirPerfil }) {
   );
 }
 
+/* ── Observar jogos: observação rápida de partida, quando não dá para fazer o scout ponto a ponto (ex.: dois jogos ao mesmo tempo no
+   torneio). Um toque por fundamento (bom / ajustar), notas escritas e o placar do momento; tudo fica no aparelho enquanto o jogo
+   acontece e, ao encerrar, vira um registro "observacao" no caderno de cada jogador. Toques e notas: todos os planos. Gráfico:
+   Essencial e Premium (PLANO_DO_RECURSO.graficoObservacao). */
+const CATEGORIAS_OBS = [
+  { v: "saque", r: "Saque" }, { v: "devolucao", r: "Devolução" }, { v: "fundo", r: "Fundo de quadra" }, { v: "transicao", r: "Rede e transição" },
+  { v: "tatico", r: "Tático" }, { v: "mental", r: "Mental" }, { v: "fisico", r: "Físico" },
+];
+const ROTULO_CAT_OBS = Object.fromEntries(CATEGORIAS_OBS.map((c) => [c.v, c.r]).concat([["geral", "Geral"]]));
+const CHAVE_OBSERVAR = "ql-observar:v1";
+function resumoObservacoes(obs) {
+  const r = {};
+  (obs || []).forEach((o) => { const c = o.cat || "geral"; r[c] = r[c] || { bom: 0, ajustar: 0, notas: 0 }; if (o.tipo === "bom") r[c].bom++; else if (o.tipo === "ajustar") r[c].ajustar++; if (o.texto) r[c].notas++; });
+  return r;
+}
+/* Barras divergentes por fundamento: à esquerda o que precisa ajustar, à direita o que saiu bem (mesma escala). */
+function GraficoObservacoes({ obs }) {
+  const r = resumoObservacoes(obs), cats = CATEGORIAS_OBS.filter((c) => r[c.v] && (r[c.v].bom || r[c.v].ajustar));
+  if (!cats.length) return <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Sem toques de bom/ajustar para o gráfico.</p>;
+  const max = Math.max(1, ...cats.map((c) => Math.max(r[c.v].bom, r[c.v].ajustar)));
+  const COR_AJ = "#C2410C", COR_BOM = "#1F6B4A";
+  return (
+    <div data-grafico-observacao role="img" aria-label={"Toques por fundamento: " + cats.map((c) => c.r + " " + r[c.v].bom + " bom e " + r[c.v].ajustar + " ajustar").join("; ")}>
+      <div className="flex justify-between" style={{ ...prosa, fontSize: 11.5, color: C.grafite, margin: "0 0 4px" }}><span>◀ Ajustar</span><span>Bom ▶</span></div>
+      {cats.map((c) => (
+        <div key={c.v} style={{ display: "grid", gridTemplateColumns: "1fr 92px 1fr", alignItems: "center", gap: 6, margin: "4px 0" }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 4 }}>
+            {r[c.v].ajustar > 0 && <span style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, color: C.tinta }}>{r[c.v].ajustar}</span>}
+            <div style={{ height: 14, width: (r[c.v].ajustar / max * 100) + "%", minWidth: r[c.v].ajustar ? 4 : 0, background: COR_AJ, borderRadius: "4px 0 0 4px" }} />
+          </div>
+          <span style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 600, textAlign: "center", color: C.tinta }}>{c.r}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <div style={{ height: 14, width: (r[c.v].bom / max * 100) + "%", minWidth: r[c.v].bom ? 4 : 0, background: COR_BOM, borderRadius: "0 4px 4px 0" }} />
+            {r[c.v].bom > 0 && <span style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, color: C.tinta }}>{r[c.v].bom}</span>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+function hhmm(iso) { try { return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }); } catch (e) { return ""; } }
+function ListaObservacoes({ obs, aoRemover }) {
+  const lista = [...(obs || [])].reverse();
+  if (!lista.length) return null;
+  return (
+    <div style={{ marginTop: 8 }}>
+      {lista.map((o) => (
+        <div key={o.id} data-obs className="flex items-start gap-2" style={{ padding: "6px 0", borderBottom: "1px solid " + C.linha }}>
+          <span style={{ fontFamily: ARCH, fontSize: 11, color: C.grafite, minWidth: 38 }}>{hhmm(o.em)}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, color: o.tipo === "bom" ? "#1F6B4A" : o.tipo === "ajustar" ? "#C2410C" : C.tinta }}>
+              {ROTULO_CAT_OBS[o.cat || "geral"]}{o.tipo === "bom" ? " · bom" : o.tipo === "ajustar" ? " · ajustar" : ""}</span>
+            {o.placar && <span style={{ ...prosa, fontSize: 11.5, color: C.grafite }}> · {o.placar}</span>}
+            {o.texto && <p style={{ ...prosa, fontSize: 13, marginTop: 1 }}>{o.texto}</p>}
+          </div>
+          {aoRemover && <button onClick={() => aoRemover(o.id)} aria-label="Tirar esta observação" style={{ border: "none", background: "none", color: C.grafite, cursor: "pointer", minWidth: 36, minHeight: 36 }}>✕</button>}
+        </div>
+      ))}
+    </div>
+  );
+}
+function PainelJogoObs({ jogo, aluno, aoMudar }) {
+  const [nota, setNota] = useState("");
+  const [catNota, setCatNota] = useState("geral");
+  const [eco, setEco] = useState("");
+  const add = (o) => {
+    const item = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), em: new Date().toISOString(), placar: jogo.placar || "", ...o };
+    aoMudar({ ...jogo, obs: [...(jogo.obs || []), item] });
+    setEco(ROTULO_CAT_OBS[item.cat || "geral"] + (item.tipo ? " · " + item.tipo : " · nota")); setTimeout(() => setEco(""), 1600);
+  };
+  const r = resumoObservacoes(jogo.obs);
+  return (
+    <div data-painel-obs style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: "12px 12px" }}>
+      <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{aluno ? aluno.nome : "Jogador"}{jogo.adversario ? <span style={{ fontWeight: 500, color: C.grafite }}> × {jogo.adversario}</span> : null}</p>
+      {jogo.torneio && <p style={{ ...prosa, fontSize: 12, color: C.grafite }}>{jogo.torneio}</p>}
+      <label style={{ ...prosa, fontSize: 12, color: C.grafite, display: "block", marginTop: 8 }}>Placar agora (vai junto em cada toque)
+        <input value={jogo.placar || ""} onChange={(e) => aoMudar({ ...jogo, placar: e.target.value.slice(0, 30) })} placeholder="Ex.: 6/4 3/2"
+          style={{ ...entrada, marginTop: 4, padding: "7px 10px", fontSize: 15 }} />
+      </label>
+      <div style={{ marginTop: 10 }}>
+        {CATEGORIAS_OBS.map((c) => (
+          <div key={c.v} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, alignItems: "center", marginBottom: 6 }}>
+            <span style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 600 }}>{c.r}{r[c.v] ? <span style={{ color: C.grafite, fontWeight: 500 }}> {r[c.v].bom}·{r[c.v].ajustar}</span> : null}</span>
+            <button data-toque={c.v + ":bom"} onClick={() => add({ cat: c.v, tipo: "bom" })} style={{ minHeight: 46, borderRadius: 10, border: "1px solid #1F6B4A", background: "#E7F2EC", color: "#1F6B4A", fontFamily: ARCH, fontWeight: 700, fontSize: 13.5, cursor: "pointer" }}>Bom</button>
+            <button data-toque={c.v + ":ajustar"} onClick={() => add({ cat: c.v, tipo: "ajustar" })} style={{ minHeight: 46, borderRadius: 10, border: "1px solid #C2410C", background: "#FBEBE1", color: "#9A3412", fontFamily: ARCH, fontWeight: 700, fontSize: 13.5, cursor: "pointer" }}>Ajustar</button>
+          </div>
+        ))}
+      </div>
+      <p role="status" aria-live="polite" style={{ ...prosa, fontSize: 12.5, color: C.quadra, minHeight: 18 }}>{eco ? "Anotado: " + eco : ""}</p>
+      <form onSubmit={(ev) => { ev.preventDefault(); const t = nota.trim(); if (!t) return; add({ cat: catNota, texto: t.slice(0, 1000) }); setNota(""); }} style={{ marginTop: 4 }}>
+        <label style={{ ...prosa, fontSize: 12, color: C.grafite }}>Nota escrita
+          <textarea value={nota} onChange={(e) => setNota(e.target.value)} rows={2} placeholder="O que você viu e quer lembrar…" style={{ ...entrada, marginTop: 4, fontSize: 15 }} /></label>
+        <div className="flex gap-2 items-center flex-wrap" style={{ marginTop: 6 }}>
+          <select value={catNota} onChange={(e) => setCatNota(e.target.value)} aria-label="Fundamento da nota" style={{ ...entrada, width: "auto", padding: "7px 10px", fontSize: 14 }}>
+            <option value="geral">Geral</option>{CATEGORIAS_OBS.map((c) => <option key={c.v} value={c.v}>{c.r}</option>)}
+          </select>
+          <Botao pequeno type="submit" disabled={!nota.trim()}>Anotar</Botao>
+        </div>
+      </form>
+      <ListaObservacoes obs={jogo.obs} aoRemover={(id) => aoMudar({ ...jogo, obs: jogo.obs.filter((o) => o.id !== id) })} />
+    </div>
+  );
+}
+function TelaObservar({ alunos, setAlunos, planoAtual, aoVerCaderno }) {
+  const lerRasc = () => { try { const r = JSON.parse(localStorage.getItem(CHAVE_OBSERVAR) || "null"); return r && Array.isArray(r.jogos) ? r : null; } catch (e) { return null; } };
+  const [rasc, setRasc] = useState(lerRasc);
+  const [ativo, setAtivo] = useState(0);
+  const [config, setConfig] = useState([{ alunoId: "", adversario: "", torneio: "" }, { alunoId: "", adversario: "", torneio: "" }]);
+  const [salvos, setSalvos] = useState(null);
+  const ordenados = [...(alunos || [])].sort((a, b) => String(a.nome || "").localeCompare(String(b.nome || "")));
+  const guardar = (r) => { setRasc(r); try { if (r) localStorage.setItem(CHAVE_OBSERVAR, JSON.stringify(r)); else localStorage.removeItem(CHAVE_OBSERVAR); } catch (e) { /* sem armazenamento */ } };
+  const alunoDe = (id) => (alunos || []).find((a) => a.id === id);
+  function comecar() {
+    const jogos = config.filter((c) => c.alunoId).map((c) => ({ ...c, placar: "", obs: [] }));
+    if (!jogos.length) return;
+    setSalvos(null); setAtivo(0); guardar({ iniciadoEm: new Date().toISOString(), jogos });
+  }
+  function encerrar() {
+    const hoje = new Date().toISOString().slice(0, 10), feitos = [];
+    const regs = rasc.jogos.filter((j) => (j.obs || []).length && alunoDe(j.alunoId)).map((j) => ({
+      alunoId: j.alunoId, reg: { id: "obs-" + Date.now().toString(36) + "-" + j.alunoId.slice(-4), tipo: "observacao", contexto: "partida", data: hoje, criadoEm: new Date().toISOString(),
+        torneio: j.torneio || "", adversario: j.adversario || "", placar: j.placar || "", obs: j.obs },
+    }));
+    if (!regs.length) { if (confirm("Nenhuma observação foi anotada. Encerrar mesmo assim?")) guardar(null); return; }
+    setAlunos((lista) => lista.map((a) => { const x = regs.find((g) => g.alunoId === a.id); if (!x) return a; feitos.push(a); return { ...a, registros: [...(a.registros || []), x.reg] }; }));
+    setSalvos(regs.map((g) => ({ alunoId: g.alunoId, nome: (alunoDe(g.alunoId) || {}).nome, obs: g.reg.obs })));
+    guardar(null);
+  }
+  const travaGrafico = planoQueLibera("graficoObservacao", planoAtual);
+  if (salvos) {
+    return (
+      <div data-observar-salvo>
+        <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700 }}>Observações salvas</h1>
+        <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginTop: 4 }}>Cada jogo virou um registro no caderno do jogador.</p>
+        {salvos.map((s0) => (
+          <div key={s0.alunoId} style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: "12px 14px", marginTop: 12 }}>
+            <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{s0.nome} · {s0.obs.length} {s0.obs.length === 1 ? "observação" : "observações"}</p>
+            <div style={{ marginTop: 8 }}>{travaGrafico ? <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Gráfico por fundamento<Cadeado plano={travaGrafico} /></p> : <GraficoObservacoes obs={s0.obs} />}</div>
+            <div className="mt-2"><Botao pequeno variante="vazio" onClick={() => aoVerCaderno(s0.alunoId)}>Ver no caderno</Botao></div>
+          </div>
+        ))}
+        <div className="mt-4"><Botao onClick={() => setSalvos(null)}>Observar outro jogo</Botao></div>
+      </div>
+    );
+  }
+  if (!rasc) {
+    return (
+      <div data-observar>
+        <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700 }}>Observar jogos</h1>
+        <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginTop: 4 }}>Quando não dá para fazer o scout ponto a ponto (por exemplo, dois jogos ao mesmo tempo no torneio): um toque por fundamento, o que saiu bem ou o que precisa ajustar, e notas rápidas. No fim, tudo vai para o caderno de cada jogador.</p>
+        {!ordenados.length && <p style={{ ...prosa, fontSize: 13, marginTop: 12 }}>Cadastre um jogador primeiro.</p>}
+        {config.map((c, i) => (
+          <div key={i} style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: "12px 14px", marginTop: 12 }}>
+            <p style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{i === 0 ? "Jogo 1" : "Jogo 2 (opcional)"}</p>
+            <select data-observar-jogador={i} value={c.alunoId} onChange={(e) => setConfig(config.map((x, k) => k === i ? { ...x, alunoId: e.target.value } : x))} style={{ ...entrada, marginTop: 6 }}>
+              <option value="">Escolha o jogador…</option>
+              {ordenados.filter((a) => a.id === c.alunoId || !config.some((x) => x.alunoId === a.id)).map((a) => <option key={a.id} value={a.id}>{a.nome || "Jogador"}</option>)}
+            </select>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>
+              <input value={c.adversario} onChange={(e) => setConfig(config.map((x, k) => k === i ? { ...x, adversario: e.target.value.slice(0, 60) } : x))} placeholder="Adversário" aria-label={"Adversário do jogo " + (i + 1)} style={entrada} />
+              <input value={c.torneio} onChange={(e) => setConfig(config.map((x, k) => k === i ? { ...x, torneio: e.target.value.slice(0, 60) } : x))} placeholder="Torneio" aria-label={"Torneio do jogo " + (i + 1)} style={entrada} />
+            </div>
+          </div>
+        ))}
+        <div className="mt-4"><Botao variante="saibro" disabled={!config.some((c) => c.alunoId)} onClick={comecar}>Começar a observar</Botao></div>
+      </div>
+    );
+  }
+  const jogos = rasc.jogos;
+  const mudarJogo = (i, j) => guardar({ ...rasc, jogos: jogos.map((x, k) => (k === i ? j : x)) });
+  return (
+    <div data-observando>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h1 style={{ fontFamily: ARCH, fontSize: 20, fontWeight: 700 }}>Observando {jogos.length === 1 ? "1 jogo" : "2 jogos"}</h1>
+        <Botao variante="saibro" pequeno onClick={encerrar}>Encerrar e salvar no caderno</Botao>
+      </div>
+      {jogos.length > 1 && (
+        <div className="flex gap-2 mt-3 md:hidden" role="tablist">
+          {jogos.map((j, i) => (
+            <button key={i} role="tab" aria-selected={ativo === i} onClick={() => setAtivo(i)}
+              style={{ flex: 1, minHeight: 44, borderRadius: 10, border: "1px solid " + (ativo === i ? C.quadra : C.linha), background: ativo === i ? C.quadra : C.cal, color: ativo === i ? "#fff" : C.tinta, fontFamily: ARCH, fontWeight: 700, fontSize: 13.5, cursor: "pointer" }}>
+              {String((alunoDe(j.alunoId) || {}).nome || "Jogador").split(" ")[0]} · {(j.obs || []).length}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className={"grid gap-3 mt-3 " + (jogos.length > 1 ? "md:grid-cols-2" : "")}>
+        {jogos.map((j, i) => (
+          <div key={i} className={jogos.length > 1 && ativo !== i ? "hidden md:block" : ""}>
+            <PainelJogoObs jogo={j} aluno={alunoDe(j.alunoId)} aoMudar={(nj) => mudarJogo(i, nj)} />
+          </div>
+        ))}
+      </div>
+      <div className="mt-4"><Botao pequeno variante="vazio" onClick={() => { if (confirm("Descartar estas observações sem salvar?")) guardar(null); }}>Descartar</Botao></div>
+    </div>
+  );
+}
+/* Registro "observacao" no caderno: resumo, gráfico (Essencial e Premium) e a lista do que foi anotado. */
+function CartaoObservacaoCaderno({ r, planoAtual, aoApagar }) {
+  const [aberto, setAberto] = useState(false);
+  const obs = r.obs || [], bom = obs.filter((o) => o.tipo === "bom").length, aj = obs.filter((o) => o.tipo === "ajustar").length, notas = obs.filter((o) => o.texto).length;
+  const trava = planoQueLibera("graficoObservacao", planoAtual);
+  return (
+    <div data-caderno-observacao style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderLeft: "3px solid " + C.saibro, padding: "11px 13px", marginBottom: 8 }}>
+      <div className="flex justify-between items-start gap-3">
+        <div className="flex-1">
+          <Etiqueta>{new Date(r.data + "T12:00:00").toLocaleDateString("pt-BR")} · {rotuloTipoRegistro(r.tipo)}</Etiqueta>
+          <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>{[r.torneio, r.adversario ? "× " + r.adversario : "", r.placar].filter(Boolean).join(" · ") || "Partida"}</p>
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>{obs.length} {obs.length === 1 ? "observação" : "observações"} · {bom} bom · {aj} ajustar{notas ? " · " + notas + (notas === 1 ? " nota" : " notas") : ""}</p>
+          <button onClick={() => setAberto(!aberto)} style={{ ...prosa, fontSize: 12, color: C.saibro, fontWeight: 700, cursor: "pointer", border: "none", background: "none", padding: 0, marginTop: 6 }}>{aberto ? "Ocultar" : "Ver detalhes"}</button>
+        </div>
+        <button onClick={aoApagar} style={{ ...prosa, fontSize: 12, color: C.grafite, cursor: "pointer", border: "none", background: "none" }}>Apagar</button>
+      </div>
+      {aberto && (
+        <div style={{ marginTop: 10 }}>
+          {trava ? (
+            <div style={{ background: C.papel, borderRadius: 8, padding: "8px 10px" }}>
+              <p style={{ ...prosa, fontSize: 12.5 }}>Gráfico por fundamento (o que saiu bem e o que precisa ajustar)<Cadeado plano={trava} /></p>
+            </div>
+          ) : <GraficoObservacoes obs={obs} />}
+          <ListaObservacoes obs={obs} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* Quadro tático (quadro/): quadra para desenhar com o dedo ou a Apple Pencil, aberto dentro do app (quadro/?embed=1), ocupando a
    área útil da tela. "Tela cheia" abre a mesma página sozinha (no iPad, dá mais espaço para desenhar). Todos os planos. */
 function TelaQuadroTatico() {
@@ -17862,7 +18092,7 @@ function IconeCalendario({ tam = 28 }) {
 
 function PainelMais({ aba, setAba, aoFechar, planoAtual }) {
   const itens = [...NAV_PRINCIPAL.filter((t) => !["dashboard", "alunos", "agenda"].includes(t.v)),
-    { v: "quadro", r: "Quadro tático" }, { v: "metodo", r: "Meu método", trava: planoQueLibera("metodo", planoAtual) }, { v: "catalogo", r: "Catálogo de exercícios" },
+    { v: "observar", r: "Observar jogos" }, { v: "quadro", r: "Quadro tático" }, { v: "metodo", r: "Meu método", trava: planoQueLibera("metodo", planoAtual) }, { v: "catalogo", r: "Catálogo de exercícios" },
     ...(LIGACAO_PLAYER ? [{ v: "hubPerfil", r: "Meu perfil profissional" }, { v: "hubPedidos", r: "Pedidos de atendimento" }] : [])];
   return (
     <>
@@ -18852,7 +19082,7 @@ function App() {
      aparece pra quem for provisionado explicitamente com a opção
      marcada. */
   const gruposNav = [
-    { id: "trabalho", label: "Meu trabalho", itens: [...NAV_PRINCIPAL, { v: "quadro", r: "Quadro tático" }, { v: "metodo", r: "Meu método", trava: planoQueLibera("metodo", planoAtual) }, { v: "catalogo", r: "Catálogo de exercícios" }] },
+    { id: "trabalho", label: "Meu trabalho", itens: [...NAV_PRINCIPAL, { v: "observar", r: "Observar jogos" }, { v: "quadro", r: "Quadro tático" }, { v: "metodo", r: "Meu método", trava: planoQueLibera("metodo", planoAtual) }, { v: "catalogo", r: "Catálogo de exercícios" }] },
     LIGACAO_PLAYER && { id: "hub", label: "QuadraLab Hub", badge: hubNaoLidas > 0 ? String(hubNaoLidas) : null, itens: [{ v: "hubPerfil", r: "Meu perfil profissional" }, { v: "hubPedidos", r: "Pedidos de atendimento" + (hubNaoLidas > 0 ? " (" + hubNaoLidas + ")" : "") }] },
   ].filter((g) => g && g.itens.length > 0);
   function criar() {
@@ -19159,6 +19389,7 @@ function App() {
          aba === "hubPerfil" && LIGACAO_PLAYER ? <TelaPerfilProfissional planoAtual={planoAtual} planoVencido={planoVencido} emailAtual={window.mtyAuth && window.mtyAuth.usuario() ? window.mtyAuth.usuario().email : ""} aoAbrirPedidos={() => setAba("hubPedidos")} /> :
          aba === "hubPedidos" && LIGACAO_PLAYER ? <TelaPedidosAtendimento aoAbrirPerfil={() => setAba("hubPerfil")} /> :
          aba === "quadro" ? <TelaQuadroTatico /> :
+         aba === "observar" ? <TelaObservar alunos={alunos} setAlunos={setAlunos} planoAtual={planoAtual} aoVerCaderno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("registro"); }} /> :
          aba === "metodo" ? <TelaMeuMetodo metodo={metodo} setMetodo={setMetodo} planoAtual={planoAtual} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
          aba === "taticas" ? <TelaTaticas /> :
          aba === "tecnica" ? <TelaTecnica focoId={focoManualId} /> :
@@ -19349,7 +19580,7 @@ function App() {
              subaba === "fechamento" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="fechamento" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
              subaba === "periodizacao" ? <TelaPeriodizacao aluno={aberto} aoCriarPeriodo={() => { setEtapaFichaAlvo(2); setSubaba("ficha"); }} /> :
              subaba === "scout" ? <TelaScout aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade} /> :
-             subaba === "registro" ? <TelaRegistro aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade} aoReabrirJogo={(id) => { try { sessionStorage.setItem("ql-reabrir:" + aberto.id, id); } catch { /* sem sessionStorage */ } setSubaba("scout"); }} /> :
+             subaba === "registro" ? <TelaRegistro aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade} planoAtual={planoAtual} aoReabrirJogo={(id) => { try { sessionStorage.setItem("ql-reabrir:" + aberto.id, id); } catch { /* sem sessionStorage */ } setSubaba("scout"); }} /> :
              subaba === "estilo" ? <TelaEstiloTatico aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
              subaba === "movimento" ? <TelaMovimento aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade} planoAtual={planoAtual} /> :
              subaba === "adversarios" ? <TelaAdversarios aluno={aberto} alunos={alunos} setAlunos={setAlunos} planoAtual={planoAtual} /> :
@@ -19487,7 +19718,7 @@ function App() {
             );
           })}
           {(() => {
-            const ativo = maisAberto || ["turmas", "casos", "quadro", "metodo", "catalogo", "hubPerfil", "hubPedidos"].includes(aba);
+            const ativo = maisAberto || ["turmas", "casos", "observar", "quadro", "metodo", "catalogo", "hubPerfil", "hubPedidos"].includes(aba);
             return (
               <button className="mty-bottomnav-item flex-1 flex flex-col items-center justify-center gap-1"
                 onClick={() => setMaisAberto(true)} aria-current={ativo ? "page" : undefined}
