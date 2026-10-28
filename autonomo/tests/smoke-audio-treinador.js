@@ -72,7 +72,7 @@ const servidor = http.createServer(async (req, res) => {
   const reg = (await p.evaluate(() => window.__lista))[0].registros[0];
   assert(reg.tipo === "observacao" && reg.contexto === "conversa" && reg.titulo === "Conversa no almoço do torneio" && reg.obs[0].audio.caminho === caminho && /segundo saque/.test(reg.obs[0].texto), "registro de conversa com a gravação");
   let t = await p.evaluate(() => document.body.innerText);
-  assert(/Conversa ou comentário/.test(t) && /1 gravação/.test(t), "caderno mostra a conversa");
+  assert(/Conversa ou comentário/i.test(t) && /1 gravação/.test(t), "caderno mostra a conversa");
   await p.click("[data-caderno-observacao] >> text=Ver detalhes"); await p.waitForSelector("[data-caderno-observacao] [data-ouvir]");
   await cap("audio-03-caderno");
   p.once("dialog", (d) => d.accept());
