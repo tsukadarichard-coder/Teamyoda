@@ -88,6 +88,85 @@
   const rotuloCiclo = (c) => !c ? "" : c.semanas + (c.semanas === 1 ? " semana" : " semanas") + " · " + dataBR(c.inicio) + " a " + dataBR(c.fim) + (c.dias && c.dias.length ? " · " + c.dias.map((d) => DIAS[d]).join(", ") : "") + (c.duracaoMin ? " · " + c.duracaoMin + " min" : "");
   const explicacaoCiclo = (n) => (CICLOS.find((c) => c.semanas === n) || CICLOS[CICLOS.length - 1]).d;
 
+  /* ── visão do planejamento fechado: números do ciclo e gráficos (HTML com estilo próprio, igual no app, no link do aluno e nos relatórios) ──
+     Cores dos grandes grupos (validadas com o validador de paleta do dataviz, ordem fixa, nunca pelo tamanho): técnico azul, tático laranja,
+     misto verde-água; "sem grupo" em cinza. O valor vem sempre escrito ao lado da barra e cada gráfico tem a versão em tabela. */
+  const COR_GRUPO = { tecnico: "#2a78d6", tatico: "#eb6834", misto: "#1baf7a", "": "#B9C3BE" };
+  const V = { tinta: "#17251F", sec: "#5B6B63", linha: "#E2E8E5", trilho: "#EEF2F0", barra: "#103B32", fonte: "Inter,system-ui,-apple-system,'Segoe UI',sans-serif" };
+  const fechado = (p) => !!(p && p.ciclo) && p.status !== "rascunho"; /* planejamentos de antes do "Fechar" contam como fechados */
+  const catDoItem = (v) => (CLASSIFICACAO.find((g) => g.itens.some((x) => x[0] === v)) || {}).r || "";
+  /* cada dia de treino é uma sessão; sem grupo ou itens próprios, o dia segue a semana */
+  function sessoes(p) {
+    return ((p && p.semanas) || []).flatMap((s) => (s.dias || []).map((d) => ({ n: s.n, data: d.data, grupo: grupoValido(d.grupo) || grupoValido(s.grupo), itens: itensValidos(d.itens && d.itens.length ? d.itens : s.itens), obs: d.obs || "" })));
+  }
+  function estatisticas(p) {
+    const ss = sessoes(p), zero = () => ({ tecnico: 0, tatico: 0, misto: 0, "": 0 });
+    const porGrupo = zero(); ss.forEach((x) => { porGrupo[x.grupo]++; });
+    const porSemana = ((p && p.semanas) || []).map((s) => { const c = zero(); ss.filter((x) => x.n === s.n).forEach((x) => { c[x.grupo]++; }); return { n: s.n, inicio: s.inicio, fim: s.fim, grupos: c, total: ss.filter((x) => x.n === s.n).length }; });
+    const porItem = ORDEM_ITEM.map((v) => ({ item: v, rotulo: ROTULO_ITEM[v], cat: catDoItem(v), sessoes: ss.filter((x) => x.itens.includes(v)).length })).filter((x) => x.sessoes);
+    const min = (p && p.ciclo && p.ciclo.duracaoMin) || 0;
+    return { sessoes: ss.length, minutos: ss.length * min, porGrupo, porSemana, porItem };
+  }
+  const horas = (min) => { const h = Math.floor(min / 60), m = min % 60; return h ? h + " h" + (m ? " " + m + " min" : "") : m + " min"; };
+  const plural = (n, um, varios) => n + " " + (n === 1 ? um : varios);
+  /* peças dos gráficos */
+  function vizSecao(titulo, nota, corpo) {
+    return '<div data-grafico style="margin-top:14px;font-family:' + V.fonte + '"><div style="font-weight:700;font-size:14.5px;color:' + V.tinta + '">' + esc(titulo) + "</div>" + (nota ? '<div style="font-size:12.5px;color:' + V.sec + ';margin:1px 0 6px">' + esc(nota) + "</div>" : "") + corpo + "</div>";
+  }
+  function vizLegenda(itens) {
+    return '<div style="display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:' + V.sec + ';margin:4px 0 6px">' + itens.map(([nome, cor]) => '<span style="display:inline-flex;align-items:center;gap:5px"><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:' + cor + '"></i>' + esc(nome) + "</span>").join("") + "</div>";
+  }
+  function vizLinha(rot, pct, cor, valor, titulo) {
+    const w = pct > 0 ? Math.max(pct, 2) : 0;
+    return '<div style="display:flex;align-items:center;gap:8px;margin:4px 0" title="' + esc(titulo || rot + ": " + valor) + '"><div style="width:104px;flex:none;font-size:12.5px;color:' + V.tinta + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(rot) + "</div>" +
+      '<div role="img" aria-label="' + esc(titulo || rot + ": " + valor) + '" style="flex:1;min-width:0;height:12px;border-radius:4px;background:' + V.trilho + '"><div style="height:12px;border-radius:4px;width:' + w.toFixed(1) + "%;background:" + cor + '"></div></div>' +
+      '<div style="width:62px;flex:none;text-align:right;font-size:12.5px;font-variant-numeric:tabular-nums;color:' + V.tinta + '">' + esc(valor) + "</div></div>";
+  }
+  function vizPilha(rot, partes, total, maxTotal, valor, titulo) {
+    const larg = maxTotal > 0 && total > 0 ? Math.max((total / maxTotal) * 100, 4) : 0;
+    return '<div style="display:flex;align-items:center;gap:8px;margin:4px 0"><div style="width:104px;flex:none;font-size:12.5px;color:' + V.tinta + '">' + esc(rot) + "</div>" +
+      '<div role="img" aria-label="' + esc(titulo) + '" style="flex:1;min-width:0;height:12px"><div style="display:flex;gap:2px;height:12px;width:' + larg.toFixed(1) + '%">' +
+      partes.filter((x) => x.v > 0).map((x) => '<b title="' + esc(x.titulo) + '" style="flex:' + x.v + ";background:" + x.cor + ';border-radius:3px"></b>').join("") + "</div></div>" +
+      '<div style="width:62px;flex:none;text-align:right;font-size:12.5px;font-variant-numeric:tabular-nums;color:' + V.tinta + '">' + esc(valor) + "</div></div>";
+  }
+  function vizTabela(cab, linhas) {
+    return '<details style="margin-top:4px"><summary style="cursor:pointer;font-size:12.5px;color:' + V.sec + '">Ver como tabela</summary><div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:12.5px;margin-top:4px;min-width:100%"><thead><tr>' +
+      cab.map((c) => '<th style="text-align:left;padding:3px 8px 3px 0;border-bottom:1px solid ' + V.linha + '">' + esc(c) + "</th>").join("") + "</tr></thead><tbody>" +
+      linhas.map((l) => "<tr>" + l.map((c) => '<td style="padding:3px 8px 3px 0;border-bottom:1px solid ' + V.linha + ';font-variant-numeric:tabular-nums">' + esc(c) + "</td>").join("") + "</tr>").join("") + "</tbody></table></div></details>";
+  }
+  function vizNumeros(l) {
+    return '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px;margin-top:8px;font-family:' + V.fonte + '">' + l.map(([v, r]) => '<div style="border:1px solid ' + V.linha + ';border-radius:10px;padding:7px 9px;background:#fff"><b style="display:block;font-size:19px;color:' + V.tinta + '">' + esc(v) + '</b><span style="font-size:11.5px;color:' + V.sec + '">' + esc(r) + "</span></div>").join("") + "</div>";
+  }
+  const ROT_GRUPO_GRAF = [["tecnico", "Técnico"], ["tatico", "Tático"], ["misto", "Misto"], ["", "Sem grupo"]];
+  function graficoGruposSemana(p) {
+    const e = estatisticas(p), max = Math.max(0, ...e.porSemana.map((s) => s.total));
+    if (!e.sessoes) return "";
+    const usados = ROT_GRUPO_GRAF.filter(([g]) => e.porGrupo[g] > 0);
+    return vizSecao("Sessões por grupo em cada semana", "Cada barra é uma semana; o tamanho é o número de sessões.",
+      vizLegenda(usados.map(([g, r]) => [r + " · " + e.porGrupo[g], COR_GRUPO[g]])) +
+      e.porSemana.map((s) => {
+        const desc = usados.filter(([g]) => s.grupos[g]).map(([g, r]) => r + " " + s.grupos[g]).join(", ");
+        return vizPilha("Semana " + s.n, usados.map(([g, r]) => ({ v: s.grupos[g], cor: COR_GRUPO[g], titulo: "Semana " + s.n + " · " + r + ": " + plural(s.grupos[g], "sessão", "sessões") })), s.total, max, plural(s.total, "sessão", "sessões"), "Semana " + s.n + ": " + (desc || "sem sessões"));
+      }).join("") +
+      vizTabela(["Semana", ...usados.map(([, r]) => r), "Total"], e.porSemana.map((s) => ["Semana " + s.n + " (" + dataBR(s.inicio) + ")", ...usados.map(([g]) => s.grupos[g]), s.total])));
+  }
+  function graficoItens(p) {
+    const e = estatisticas(p), max = Math.max(0, ...e.porItem.map((x) => x.sessoes));
+    if (!e.porItem.length) return "";
+    return vizSecao("O que o ciclo trabalha", "Em quantas sessões cada item aparece.",
+      CLASSIFICACAO.map((g) => { const l = e.porItem.filter((x) => x.cat === g.r); return l.length ? '<div style="font-size:11px;font-weight:700;color:' + V.sec + ';text-transform:uppercase;letter-spacing:.06em;margin-top:8px">' + esc(g.r) + "</div>" + l.map((x) => vizLinha(x.rotulo, (x.sessoes / max) * 100, V.barra, plural(x.sessoes, "sessão", "sessões"))).join("") : ""; }).join("") +
+      vizTabela(["Item", "Grupo", "Sessões"], e.porItem.map((x) => [x.rotulo, x.cat, x.sessoes])));
+  }
+  /* visão geral: números do ciclo e os dois gráficos */
+  function htmlVisaoGeral(p) {
+    if (!p || !p.ciclo) return "";
+    const e = estatisticas(p);
+    const nums = [[p.ciclo.semanas, p.ciclo.semanas === 1 ? "semana" : "semanas"], [e.sessoes, e.sessoes === 1 ? "sessão de treino" : "sessões de treino"]];
+    if (e.minutos) nums.push([horas(e.minutos), "de treino planejado"]);
+    ROT_GRUPO_GRAF.slice(0, 3).forEach(([g, r]) => { if (e.porGrupo[g]) nums.push([e.porGrupo[g], "sessões · " + r.toLowerCase()]); });
+    return '<div data-visao-geral>' + vizNumeros(nums) + graficoGruposSemana(p) + graficoItens(p) + "</div>";
+  }
+
   /* página do aluno: o ciclo, a semana atual com os dias (hoje em destaque) e, aberto, o ciclo inteiro com o mensal */
   function htmlAluno(info, hoje, aberto) {
     const p = info && info.plano;
@@ -98,12 +177,13 @@
       (linha(s.grupo, s.itens) ? '<div style="font-size:13.5px">' + esc(linha(s.grupo, s.itens)) + "</div>" : "") + (s.obs ? '<div style="font-size:13px;color:#5B6B63;white-space:pre-line">' + esc(s.obs) + "</div>" : "") +
       (destaque && (s.dias || []).length ? (s.dias || []).map((d) => '<div style="margin-top:6px;padding:6px 8px;border-radius:8px;' + (d.data === hoje ? "background:#F1F8EA;border:1px solid #69B32A" : "background:#F6F8F7") + '"><b>' + DIAS[diaSemana(d.data)] + " " + dataBR(d.data) + (d.data === hoje ? " · hoje" : "") + "</b>" +
         (linha(d.grupo, d.itens) ? '<div style="font-size:13px">' + esc(linha(d.grupo, d.itens)) + "</div>" : "") + (d.obs ? '<div style="font-size:12.5px;color:#5B6B63;white-space:pre-line">' + esc(d.obs) + "</div>" : "") + "</div>").join("") : "") + "</div>";
-    let h = '<div style="margin-top:8px"><div style="font-weight:700;font-size:15px">' + esc(info.equipe || "Equipe") + "</div>" +
+    let h = '<div style="margin-top:8px;font-family:' + V.fonte + '"><div style="font-weight:700;font-size:15px">' + esc(info.equipe || "Equipe") + "</div>" +
       '<div style="font-size:12.5px;color:#5B6B63">Ciclo de ' + esc(rotuloCiclo(p.ciclo)) + (info.coordenador ? " · coord. " + esc(info.coordenador) : "") + "</div>" +
       (p.ciclo.grupo || p.ciclo.objetivo ? '<div style="font-size:13.5px;margin-top:4px">' + esc([p.ciclo.grupo ? ROTULO_GRUPO[p.ciclo.grupo] : "", p.ciclo.objetivo].filter(Boolean).join(" · ")) + "</div>" : "");
     if (st === "encerrado") h += '<p style="font-size:13px;color:#5B6B63">Este ciclo terminou em ' + dataBR(p.ciclo.fim) + ".</p>";
     if (atual) h += '<div style="font-size:12px;font-weight:700;color:#103B32;margin-top:8px;text-transform:uppercase;letter-spacing:.06em">' + (st === "antes" ? "Primeira semana" : "Esta semana") + "</div>" + sem(atual, true);
     if (aberto) {
+      h += '<div style="font-size:12px;font-weight:700;color:#103B32;margin-top:10px;text-transform:uppercase;letter-spacing:.06em">Visão geral do ciclo</div>' + htmlVisaoGeral(p);
       h += '<div style="font-size:12px;font-weight:700;color:#103B32;margin-top:10px;text-transform:uppercase;letter-spacing:.06em">Mês a mês</div>' +
         Object.entries(p.meses || {}).map(([m, x]) => '<div style="border-top:1px solid #E2E8E5;padding:6px 0"><b>' + esc(rotuloMes(m)) + "</b>" + (x.grupo ? " · " + esc(ROTULO_GRUPO[x.grupo]) : "") + (x.obs ? '<div style="font-size:13px;color:#5B6B63;white-space:pre-line">' + esc(x.obs) + "</div>" : "") + "</div>").join("") +
         '<div style="font-size:12px;font-weight:700;color:#103B32;margin-top:10px;text-transform:uppercase;letter-spacing:.06em">Todas as semanas</div>' + p.semanas.map((s) => sem(s, false)).join("");
@@ -111,7 +191,8 @@
     return h + "</div>";
   }
 
-  const api = { GRUPOS, ROTULO_GRUPO, CLASSIFICACAO, ROTULO_ITEM, CICLOS, DIAS, montarCiclo, limpar, semanaDe, situacao, noPeriodo, rotuloCiclo, explicacaoCiclo, rotuloMes, rotulosItens, htmlAluno, somar, diaSemana };
+  const api = { GRUPOS, ROTULO_GRUPO, CLASSIFICACAO, ROTULO_ITEM, CICLOS, DIAS, montarCiclo, limpar, semanaDe, situacao, noPeriodo, rotuloCiclo, explicacaoCiclo, rotuloMes, rotulosItens, htmlAluno, somar, diaSemana,
+    COR_GRUPO, V, fechado, sessoes, estatisticas, horas, plural, vizSecao, vizLegenda, vizLinha, vizPilha, vizTabela, vizNumeros, graficoGruposSemana, graficoItens, htmlVisaoGeral, dataBR, esc };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else raiz.QLPlanoEquipe = api;
 })(typeof window !== "undefined" ? window : this);

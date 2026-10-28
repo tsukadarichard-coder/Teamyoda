@@ -45,7 +45,7 @@ window.__abertas=[];window.open=function(u){const w={u:u,html:"",document:{write
 const pagina = (q) => `<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><div id=root></div>
 <script src=/__cdn/r.js></script><script src=/__cdn/d.js></script><script src=/__cdn/p.js></script><script src=/__cdn/c.js></script><script src=/__cdn/b.js></script>
 <script>${STUBS};window.__ini=${JSON.stringify(ALUNOS)};window.__uid=${JSON.stringify(q.get("uid") || "u1")};window.__papel=${JSON.stringify(q.get("papel") || "professor")};window.__novidades=${q.get("novidades") ? "true" : "false"};</script>
-<script src=/scout/graficos.js></script><script src=/scout/ao-vivo.js></script><script src=/scout/relatorio-jogos.js></script><script src=/scout/movimento-motor.js></script><script src=/scout/evidencias.js></script><script src=/scout/movimento.js></script><script src=/obs-voz.js></script><script src=/relatorio-atleta.js></script>
+<script src=/scout/graficos.js></script><script src=/scout/ao-vivo.js></script><script src=/scout/relatorio-jogos.js></script><script src=/scout/movimento-motor.js></script><script src=/scout/evidencias.js></script><script src=/scout/movimento.js></script><script src=/obs-voz.js></script><script src=/plano-equipe.js></script><script src=/equipe-rendimento.js></script><script src=/relatorio-atleta.js></script>
 <script type="text/babel">${corpo}</script>`;
 const CDNS = { "/__cdn/r.js": "/react-18.3.1/package/umd/react.development.js", "/__cdn/d.js": "/react-dom-18.3.1/package/umd/react-dom.development.js", "/__cdn/p.js": "/prop-types-15.8.1/package/prop-types.min.js", "/__cdn/c.js": "/recharts-2.15.4/package/umd/Recharts.js", "/__cdn/b.js": "/babel-standalone-7.29.9/package/babel.min.js" };
 

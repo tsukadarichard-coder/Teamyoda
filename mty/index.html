@@ -40,6 +40,7 @@
 <script src="scout/padroes.js"></script>
 <script src="obs-voz.js"></script>
 <script src="plano-equipe.js"></script>
+<script src="equipe-rendimento.js"></script>
 <script src="relatorio-atleta.js"></script>
 <script src="scout/video-jogo.js"></script>
 <link rel="stylesheet" href="scout/movimento.css">
@@ -21760,17 +21761,22 @@ function ConfigCicloEquipe({ inicial, aoSalvar, aoCancelar }) {
     </div>
   );
 }
-function PlanoEquipeEditor({ equipe, podeEditar, autor, aoSalvarPlano, aoVoltar }) {
-  const PE = window.QLPlanoEquipe;
+/* planejamento da equipe: em rascunho o coordenador edita (mensal, semanal, diário); ao fechar, vira a visão com gráficos (geral, semanal,
+   diário) e aparece para os atletas. Em qualquer momento a comissão avalia cada sessão já feita, e o rendimento vira o relatório do ciclo. */
+function PlanoEquipeEditor({ equipe, podeEditar, podeAvaliar, atletas, autor, academia, aoSalvarPlano, aoVoltar }) {
+  const PE = window.QLPlanoEquipe, RE = window.QLRendimentoEquipe;
   const plano = equipe.plano || null;
   const hoje = hojeEq();
-  const [vista, setVista] = useState("semanal");
+  const fechadoP = !!(PE && PE.fechado(plano));
+  const [vista, setVista] = useState(() => (fechadoP ? "geral" : "semanal"));
   const [editandoCiclo, setEditandoCiclo] = useState(false);
-  const atual = plano ? PE.semanaDe(plano, hoje) : null;
+  const [avaliando, setAvaliando] = useState(null); // data da sessão em avaliação
+  const atual = plano && PE ? PE.semanaDe(plano, hoje) : null;
   const [semanaDia, setSemanaDia] = useState(() => (atual ? atual.n : 1));
   const [abertas, setAbertas] = useState(() => new Set(atual ? [atual.n] : [1]));
-  if (!PE) return <p style={{ ...prosa, fontSize: 13 }}>Recarregue o app para usar o planejamento.</p>;
+  if (!PE || !RE) return <p style={{ ...prosa, fontSize: 13 }}>Recarregue o app para usar o planejamento.</p>;
   const salvar = (p) => aoSalvarPlano({ ...p, atualizadoEm: new Date().toISOString(), autorNome: autor.nome || (p && p.autorNome) || "" });
+  const editavel = podeEditar && !fechadoP;
   const mudarSemana = (n, campos) => salvar({ ...plano, semanas: plano.semanas.map((s) => (s.n === n ? { ...s, ...campos } : s)) });
   const mudarDia = (n, data, campos) => salvar({ ...plano, semanas: plano.semanas.map((s) => (s.n !== n ? s : { ...s, dias: s.dias.map((d) => (d.data === data ? { ...d, ...campos } : d)) })) });
   const mudarMes = (m, campos) => salvar({ ...plano, meses: { ...plano.meses, [m]: { ...(plano.meses[m] || {}), ...campos } } });
@@ -21784,59 +21790,112 @@ function PlanoEquipeEditor({ equipe, podeEditar, autor, aoSalvarPlano, aoVoltar 
           <>
             <p style={{ ...prosa, fontSize: 13.5, color: C.grafite }}>Escolha a duração do ciclo, os dias de treino e a duração da sessão. Depois você preenche o mês, as semanas e os dias.</p>
             <ConfigCicloEquipe inicial={plano && plano.ciclo} aoCancelar={plano ? () => setEditandoCiclo(false) : null}
-              aoSalvar={(cfg) => { salvar({ id: (plano && plano.id) || "pl-" + Date.now().toString(36), criadoEm: (plano && plano.criadoEm) || new Date().toISOString(), ...PE.montarCiclo(cfg, plano || {}) }); setEditandoCiclo(false); }} />
+              aoSalvar={(cfg) => { salvar({ id: (plano && plano.id) || "pl-" + Date.now().toString(36), criadoEm: (plano && plano.criadoEm) || new Date().toISOString(), ...(plano ? {} : { status: "rascunho" }), ...PE.montarCiclo(cfg, plano || {}) }); setEditandoCiclo(false); }} />
           </>
         )}
       </div>
     );
+  }
+  const sessoes = PE.sessoes(plano);
+  if (avaliando) {
+    const ses = sessoes.find((s) => s.data === avaliando);
+    if (ses) return <AvaliacaoSessaoEq sessao={ses} atletas={atletas} valor={RE.avaliacaoDe(plano, avaliando)} duracao={plano.ciclo.duracaoMin} aoVoltar={() => setAvaliando(null)}
+      aoSalvar={(av) => { salvar({ ...plano, avaliacoes: { ...(plano.avaliacoes || {}), [avaliando]: { ...av, autorNome: autor.nome || "", atualizadoEm: new Date().toISOString() } } }); setAvaliando(null); }} />;
   }
   const st = PE.situacao(plano, hoje);
   const card = { background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: "11px 13px", marginTop: 10 };
   const resumoLinha = (g, itens) => [g ? PE.ROTULO_GRUPO[g] : "", PE.rotulosItens(itens).join(", ")].filter(Boolean).join(" · ");
   const fmt = (iso) => new Date(iso + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
   const semDia = plano.semanas.find((s) => s.n === semanaDia) || plano.semanas[0];
+  const res = RE.resumo(plano, atletas, hoje);
+  const html = (h) => <div dangerouslySetInnerHTML={{ __html: h }} />;
+  const relatorioCiclo = () => {
+    const w = window.open("", "_blank");
+    if (!w) { alert("Permita pop-ups para abrir o relatório."); return; }
+    w.document.write(RE.documento({ equipe: equipe.nome, coordenador: equipe.coordenadorNome, academia }, plano, atletas, hoje)); w.document.close();
+  };
+  const fechar = () => { if (window.confirm("Fechar o planejamento? Ele passa a aparecer na ficha dos atletas, no relatório e no link de cada aluno. Você pode reabrir para editar depois.")) salvar({ ...plano, status: "fechado", fechadoEm: new Date().toISOString(), fechadoPor: autor.nome || "" }); };
+  const reabrir = () => { if (window.confirm("Reabrir para editar? Enquanto estiver em edição, os atletas não veem o planejamento. As avaliações das sessões continuam guardadas.")) { salvar({ ...plano, status: "rascunho" }); setVista("semanal"); } };
+  /* resumo da avaliação de uma sessão (dia) */
+  const resumoAval = (data) => {
+    const a = RE.avaliacaoDe(plano, data);
+    if (!a) return null;
+    const rs = Object.values(a.atletas || {}), pr = rs.filter((r) => r.presente !== false), ns = pr.map((r) => r.nota).filter(Boolean);
+    return [a.nota ? "Sessão " + a.nota + "/5" : "", rs.length ? pr.length + "/" + rs.length + " presentes" : "", ns.length ? "rendimento " + RE.dec(ns.reduce((s, x) => s + x, 0) / ns.length) : ""].filter(Boolean).join(" · ");
+  };
+  const abas = [[fechadoP ? "geral" : "mensal", fechadoP ? "Geral" : "Mensal"], ["semanal", "Semanal"], ["diario", "Diário"], ["rendimento", "Rendimento"]];
+  const vistaAtual = vista === "geral" && !fechadoP ? "mensal" : vista === "mensal" && fechadoP ? "geral" : vista;
+  const mesesLista = Object.keys(plano.meses || {});
   return (
     <div data-plano-equipe>
       {voltar}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, flexWrap: "wrap" }}>
         <h1 style={{ fontFamily: ARCH, fontSize: 21, fontWeight: 700, marginTop: 4 }}>Planejamento · {equipe.nome}</h1>
-        {podeEditar && <Botao pequeno variante="vazio" onClick={() => setEditandoCiclo(true)}>Editar ciclo</Botao>}
+        {editavel && <Botao pequeno variante="vazio" onClick={() => setEditandoCiclo(true)}>Editar ciclo</Botao>}
       </div>
-      <p data-resumo-ciclo style={{ ...prosa, fontSize: 13.5, color: C.grafite }}>Ciclo de {PE.rotuloCiclo(plano.ciclo)}{plano.ciclo.grupo ? " · " + PE.ROTULO_GRUPO[plano.ciclo.grupo] : ""}{st === "antes" ? " · começa em " + fmt(plano.ciclo.inicio) : st === "encerrado" ? " · encerrado" : atual ? " · semana " + atual.n + " de " + plano.ciclo.semanas : ""}</p>
+      <p data-status-plano style={{ marginTop: 2 }}>
+        <span style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "3px 9px", borderRadius: 999, background: fechadoP ? "#EAF3EE" : "#FFF7ED", color: fechadoP ? C.quadra : "#9A3412", border: "1px solid " + (fechadoP ? "#B9D7C6" : "#FDBA74") }}>
+          {fechadoP ? "Fechado" + (plano.fechadoEm ? " em " + fmt(plano.fechadoEm.slice(0, 10)) : "") + " · visível para os atletas" : "Rascunho · só a comissão vê"}
+        </span>
+      </p>
+      <p data-resumo-ciclo style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginTop: 6 }}>Ciclo de {PE.rotuloCiclo(plano.ciclo)}{plano.ciclo.grupo ? " · " + PE.ROTULO_GRUPO[plano.ciclo.grupo] : ""}{st === "antes" ? " · começa em " + fmt(plano.ciclo.inicio) : st === "encerrado" ? " · encerrado" : atual ? " · semana " + atual.n + " de " + plano.ciclo.semanas : ""}</p>
       {plano.ciclo.objetivo && <p style={{ ...prosa, fontSize: 14, marginTop: 4 }}>{plano.ciclo.objetivo}</p>}
       <details style={{ marginTop: 6 }}><summary style={{ ...prosa, fontSize: 13, color: C.quadra, fontWeight: 700, cursor: "pointer", minHeight: 32 }}>O que este ciclo representa</summary><p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>{PE.explicacaoCiclo([4, 8, 12].includes(plano.ciclo.semanas) ? plano.ciclo.semanas : 0)}</p></details>
-      {!podeEditar && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>Só o coordenador da equipe edita o planejamento.</p>}
-      <div role="tablist" style={{ display: "flex", gap: 6, marginTop: 12 }}>
-        {[["mensal", "Mensal"], ["semanal", "Semanal"], ["diario", "Diário"]].map(([v, r]) => (
-          <button key={v} role="tab" aria-selected={vista === v} onClick={() => setVista(v)} style={{ flex: 1, minHeight: 42, borderRadius: 10, cursor: "pointer", fontFamily: ARCH, fontWeight: 700, fontSize: 14, border: "1px solid " + (vista === v ? C.quadra : C.linha), background: vista === v ? C.quadra : C.cal, color: vista === v ? "#fff" : C.tinta }}>{r}</button>
+      {!podeEditar && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>Só o coordenador da equipe edita o planejamento.{podeAvaliar ? " Você pode avaliar as sessões." : ""}</p>}
+      {podeEditar && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+          {fechadoP ? <Botao pequeno variante="vazio" onClick={reabrir}>Reabrir para editar</Botao> : <Botao pequeno variante="saibro" onClick={fechar}>Fechar planejamento</Botao>}
+        </div>
+      )}
+      <div role="tablist" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 4, marginTop: 12 }}>
+        {abas.map(([v, r]) => (
+          <button key={v} role="tab" aria-selected={vistaAtual === v} onClick={() => setVista(v)} style={{ minWidth: 0, minHeight: 42, padding: "0 2px", borderRadius: 10, cursor: "pointer", fontFamily: ARCH, fontWeight: 700, fontSize: 12.5, border: "1px solid " + (vistaAtual === v ? C.quadra : C.linha), background: vistaAtual === v ? C.quadra : C.cal, color: vistaAtual === v ? "#fff" : C.tinta }}>{r}</button>
         ))}
       </div>
 
-      {vista === "mensal" && Object.keys(plano.meses).map((m) => {
+      {vistaAtual === "geral" && (
+        <div data-vista-geral style={card}>
+          {html(PE.htmlVisaoGeral(plano))}
+          {mesesLista.length > 0 && <p style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700, marginTop: 14 }}>Mês a mês</p>}
+          {mesesLista.map((m) => { const x = plano.meses[m] || {}; return <div key={m} style={{ borderTop: "1px solid " + C.linha, padding: "6px 0" }}><p style={{ ...prosa, fontSize: 13.5, fontWeight: 700 }}>{PE.rotuloMes(m)}{x.grupo ? " · " + PE.ROTULO_GRUPO[x.grupo] : ""}</p>{x.obs && <p style={{ ...prosa, fontSize: 13, color: C.grafite, whiteSpace: "pre-wrap" }}>{x.obs}</p>}</div>; })}
+        </div>
+      )}
+
+      {vistaAtual === "mensal" && mesesLista.map((m) => {
         const x = plano.meses[m] || {}, sems = plano.semanas.filter((s) => s.inicio.slice(0, 7) === m || s.fim.slice(0, 7) === m);
         return (
           <div key={m} data-mes={m} style={card}>
             <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 6 }}>{PE.rotuloMes(m)}</p>
-            <SeletorGrupoEq valor={x.grupo} editavel={podeEditar} aoMudar={(g) => mudarMes(m, { grupo: g })} />
-            <ObsEq valor={x.obs} editavel={podeEditar} rotulo={"Observações de " + PE.rotuloMes(m)} aoSalvar={(o) => mudarMes(m, { obs: o })} />
+            <SeletorGrupoEq valor={x.grupo} editavel={editavel} aoMudar={(g) => mudarMes(m, { grupo: g })} />
+            <ObsEq valor={x.obs} editavel={editavel} rotulo={"Observações de " + PE.rotuloMes(m)} aoSalvar={(o) => mudarMes(m, { obs: o })} />
             <div style={{ marginTop: 6 }}>{sems.map((s) => <p key={s.n} style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Semana {s.n} ({fmt(s.inicio)} a {fmt(s.fim)}){resumoLinha(s.grupo, s.itens) ? " · " + resumoLinha(s.grupo, s.itens) : ""}</p>)}</div>
           </div>
         );
       })}
 
-      {vista === "semanal" && plano.semanas.map((s) => {
+      {vistaAtual === "semanal" && plano.semanas.map((s) => {
         const aberta = abertas.has(s.n), eAtual = atual && atual.n === s.n;
+        const ds = sessoes.filter((x) => x.n === s.n), rs = res.porSemana.find((x) => x.n === s.n) || {};
         return (
           <div key={s.n} data-semana-eq={s.n} style={{ ...card, borderLeft: eAtual ? "4px solid " + C.saibro : card.border }}>
             <button onClick={() => setAbertas((a) => { const n = new Set(a); if (n.has(s.n)) n.delete(s.n); else n.add(s.n); return n; })} style={{ width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer", padding: 0, minHeight: 36 }}>
               <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>Semana {s.n}{eAtual ? " · esta semana" : ""} {aberta ? "▾" : "▸"}</span>
               <span style={{ display: "block", ...prosa, fontSize: 12.5, color: C.grafite }}>{fmt(s.inicio)} a {fmt(s.fim)}{resumoLinha(s.grupo, s.itens) ? " · " + resumoLinha(s.grupo, s.itens) : ""}</span>
             </button>
+            {fechadoP && ds.length > 0 && (
+              <div data-dias-semana style={{ display: "flex", gap: 2, marginTop: 6 }} role="img" aria-label={"Semana " + s.n + ": " + ds.map((d) => PE.DIAS[PE.diaSemana(d.data)] + " " + (d.grupo ? PE.ROTULO_GRUPO[d.grupo] : "sem grupo")).join(", ")}>
+                {ds.map((d) => <div key={d.data} title={PE.DIAS[PE.diaSemana(d.data)] + " " + fmt(d.data) + " · " + (d.grupo ? PE.ROTULO_GRUPO[d.grupo] : "sem grupo")} style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ height: 10, borderRadius: 3, background: PE.COR_GRUPO[d.grupo || ""] }} />
+                  <div style={{ ...prosa, fontSize: 10.5, color: C.grafite, textAlign: "center", marginTop: 2 }}>{PE.DIAS[PE.diaSemana(d.data)]}{d.grupo ? " · " + PE.ROTULO_GRUPO[d.grupo].slice(0, 3) + "." : ""}</div>
+                </div>)}
+              </div>
+            )}
+            {rs.avaliadas > 0 && <p style={{ ...prosa, fontSize: 12.5, color: C.tinta, marginTop: 4 }}>{rs.avaliadas} de {rs.sessoes} sessões avaliadas{rs.media != null ? " · rendimento " + RE.dec(rs.media) : ""}{rs.presenca != null ? " · presença " + rs.presenca + "%" : ""}</p>}
             {aberta && (
               <div style={{ marginTop: 6 }}>
-                <SeletorGrupoEq valor={s.grupo} editavel={podeEditar} aoMudar={(g) => mudarSemana(s.n, { grupo: g })} />
-                <div style={{ marginTop: 4 }}><ChipsClassificacaoEq valor={s.itens} editavel={podeEditar} aoMudar={(l) => mudarSemana(s.n, { itens: l })} /></div>
-                <ObsEq valor={s.obs} editavel={podeEditar} rotulo={"Observações da semana " + s.n} aoSalvar={(o) => mudarSemana(s.n, { obs: o })} />
+                <SeletorGrupoEq valor={s.grupo} editavel={editavel} aoMudar={(g) => mudarSemana(s.n, { grupo: g })} />
+                <div style={{ marginTop: 4 }}><ChipsClassificacaoEq valor={s.itens} editavel={editavel} aoMudar={(l) => mudarSemana(s.n, { itens: l })} /></div>
+                <ObsEq valor={s.obs} editavel={editavel} rotulo={"Observações da semana " + s.n} aoSalvar={(o) => mudarSemana(s.n, { obs: o })} />
                 <div style={{ marginTop: 8 }}><Botao pequeno variante="vazio" onClick={() => { setSemanaDia(s.n); setVista("diario"); }}>Ver os {s.dias.length} dias de treino</Botao></div>
               </div>
             )}
@@ -21844,35 +21903,136 @@ function PlanoEquipeEditor({ equipe, podeEditar, autor, aoSalvarPlano, aoVoltar 
         );
       })}
 
-      {vista === "diario" && semDia && (
+      {vistaAtual === "diario" && semDia && (
         <div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 10 }}>
             <select aria-label="Semana" value={semDia.n} onChange={(e) => setSemanaDia(parseInt(e.target.value, 10))} style={{ ...entrada, width: "auto", padding: "7px 9px", fontSize: 14 }}>
               {plano.semanas.map((s) => <option key={s.n} value={s.n}>Semana {s.n} · {fmt(s.inicio)} a {fmt(s.fim)}</option>)}
             </select>
-            {podeEditar && (semDia.grupo || semDia.itens.length > 0) && <Botao pequeno variante="vazio" onClick={() => salvar({ ...plano, semanas: plano.semanas.map((s) => (s.n !== semDia.n ? s : { ...s, dias: s.dias.map((d) => (d.grupo || d.itens.length ? d : { ...d, grupo: s.grupo, itens: [...s.itens] })) })) })}>Copiar a semana para os dias vazios</Botao>}
+            {editavel && (semDia.grupo || semDia.itens.length > 0) && <Botao pequeno variante="vazio" onClick={() => salvar({ ...plano, semanas: plano.semanas.map((s) => (s.n !== semDia.n ? s : { ...s, dias: s.dias.map((d) => (d.grupo || d.itens.length ? d : { ...d, grupo: s.grupo, itens: [...s.itens] })) })) })}>Copiar a semana para os dias vazios</Botao>}
           </div>
           {resumoLinha(semDia.grupo, semDia.itens) && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 6 }}>Semana {semDia.n}: {resumoLinha(semDia.grupo, semDia.itens)}</p>}
           {!semDia.dias.length && <p style={{ ...prosa, fontSize: 13.5, marginTop: 8 }}>Nenhum dia de treino nesta semana. Ajuste os dias em “Editar ciclo”.</p>}
-          {semDia.dias.map((d) => (
-            <div key={d.data} data-dia-eq={d.data} style={{ ...card, borderLeft: d.data === hoje ? "4px solid " + C.saibro : card.border }}>
-              <p style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700, marginBottom: 6 }}>{PE.DIAS[PE.diaSemana(d.data)]} {fmt(d.data)}{d.data === hoje ? " · hoje" : ""}{plano.ciclo.duracaoMin ? <span style={{ fontWeight: 500, color: C.grafite }}> · {plano.ciclo.duracaoMin} min</span> : null}</p>
-              <SeletorGrupoEq valor={d.grupo} editavel={podeEditar} aoMudar={(g) => mudarDia(semDia.n, d.data, { grupo: g })} />
-              <div style={{ marginTop: 4 }}><ChipsClassificacaoEq valor={d.itens} editavel={podeEditar} aoMudar={(l) => mudarDia(semDia.n, d.data, { itens: l })} /></div>
-              <ObsEq valor={d.obs} editavel={podeEditar} rotulo={"Observações do dia " + fmt(d.data)} aoSalvar={(o) => mudarDia(semDia.n, d.data, { obs: o })} />
-            </div>
-          ))}
+          {semDia.dias.map((d) => {
+            const ses = sessoes.find((x) => x.data === d.data) || {}, av = resumoAval(d.data), passou = d.data <= hoje;
+            return (
+              <div key={d.data} data-dia-eq={d.data} style={{ ...card, borderLeft: d.data === hoje ? "4px solid " + C.saibro : "4px solid " + PE.COR_GRUPO[ses.grupo || ""] }}>
+                <p style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700, marginBottom: 6 }}>{PE.DIAS[PE.diaSemana(d.data)]} {fmt(d.data)}{d.data === hoje ? " · hoje" : ""}{plano.ciclo.duracaoMin ? <span style={{ fontWeight: 500, color: C.grafite }}> · {plano.ciclo.duracaoMin} min</span> : null}</p>
+                {editavel ? (
+                  <>
+                    <SeletorGrupoEq valor={d.grupo} editavel aoMudar={(g) => mudarDia(semDia.n, d.data, { grupo: g })} />
+                    <div style={{ marginTop: 4 }}><ChipsClassificacaoEq valor={d.itens} editavel aoMudar={(l) => mudarDia(semDia.n, d.data, { itens: l })} /></div>
+                    <ObsEq valor={d.obs} editavel rotulo={"Observações do dia " + fmt(d.data)} aoSalvar={(o) => mudarDia(semDia.n, d.data, { obs: o })} />
+                  </>
+                ) : (
+                  <>
+                    {resumoLinha(ses.grupo, ses.itens) ? <p style={{ ...prosa, fontSize: 13.5 }}>{resumoLinha(ses.grupo, ses.itens)}{!d.grupo && !d.itens.length && (ses.grupo || ses.itens.length) ? <span style={{ color: C.grafite }}> (da semana)</span> : null}</p> : <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Sem grupo ou itens definidos.</p>}
+                    {d.obs && <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, whiteSpace: "pre-wrap", marginTop: 4 }}>{d.obs}</p>}
+                  </>
+                )}
+                <div data-aval-dia style={{ borderTop: "1px solid " + C.linha, marginTop: 8, paddingTop: 8, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                  <span style={{ ...prosa, fontSize: 12.5, color: av ? C.tinta : C.grafite }}>{av ? "Avaliada · " + av : passou ? "Sessão ainda sem avaliação" : "A avaliação abre no dia da sessão"}</span>
+                  {podeAvaliar && passou && <Botao pequeno variante={av ? "vazio" : "saibro"} onClick={() => setAvaliando(d.data)}>{av ? "Editar avaliação" : "Avaliar sessão"}</Botao>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {vistaAtual === "rendimento" && (
+        <div data-vista-rendimento style={card}>
+          {res.avaliadas ? html(RE.htmlRendimento(res)) : <p style={{ ...prosa, fontSize: 13.5 }}>Nenhuma sessão avaliada ainda. Ao final de cada treino, abra o Diário e toque em “Avaliar sessão”: presença, rendimento de 1 a 5 de cada atleta e, se quiser, notas por item e observações.</p>}
+          <div style={{ marginTop: 12 }}><Botao variante={st === "encerrado" ? "saibro" : "vazio"} onClick={relatorioCiclo}>{st === "encerrado" ? "Gerar relatório do ciclo" : "Gerar relatório parcial do ciclo"}</Botao></div>
+          <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 6 }}>O relatório abre pronto para salvar em PDF. O rendimento de cada atleta também entra no relatório dele (Relatórios da equipe).</p>
         </div>
       )}
       {podeEditar && st === "encerrado" && (
-        <div style={{ marginTop: 14 }}><Botao variante="saibro" onClick={() => aoSalvarPlano(null, plano)}>Começar um novo ciclo</Botao></div>
+        <div style={{ marginTop: 14 }}><Botao variante="vazio" onClick={() => aoSalvarPlano(null, plano)}>Começar um novo ciclo</Botao></div>
       )}
     </div>
   );
 }
-/* aba "Equipe" na ficha do jogador: as equipes de competição dele e o planejamento (a mesma visão que a página do aluno mostra) */
+/* escala de 1 a 5 (1 muito abaixo · 3 dentro do esperado · 5 excelente); tocar de novo na nota escolhida limpa */
+function EscalaEq({ valor, aoMudar, rotulo }) {
+  const RE = window.QLRendimentoEquipe;
+  return (
+    <div role="radiogroup" aria-label={rotulo} style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 5 }}>
+      {RE.ESCALA.map(([n, r]) => (
+        <button key={n} type="button" role="radio" aria-checked={valor === n} title={n + " · " + r} onClick={() => aoMudar(valor === n ? null : n)}
+          style={{ minWidth: 0, minHeight: 40, borderRadius: 9, cursor: "pointer", fontFamily: ARCH, fontWeight: 700, fontSize: 15, border: "1px solid " + (valor === n ? C.quadra : C.linha), background: valor === n ? C.quadra : C.cal, color: valor === n ? "#fff" : C.tinta }}>{n}</button>
+      ))}
+    </div>
+  );
+}
+/* avaliação ao final da sessão: a sessão (nota e observação) e cada atleta (presença, rendimento, itens do dia e observação) */
+function AvaliacaoSessaoEq({ sessao, atletas, valor, duracao, aoSalvar, aoVoltar }) {
+  const RE = window.QLRendimentoEquipe, PE = window.QLPlanoEquipe;
+  const [a, setA] = useState(() => {
+    const v = valor || {}, atl = {};
+    (atletas || []).forEach((x) => { const r = (v.atletas || {})[x.id]; atl[x.id] = r ? { presente: r.presente !== false, nota: r.nota || null, itens: { ...(r.itens || {}) }, obs: r.obs || "" } : { presente: true, nota: null, itens: {}, obs: "" }; });
+    return { nota: v.nota || null, obs: v.obs || "", atletas: atl };
+  });
+  const [itensAbertos, setItensAbertos] = useState(() => new Set());
+  const mudarAtl = (id, campos) => setA((x) => ({ ...x, atletas: { ...x.atletas, [id]: { ...x.atletas[id], ...campos } } }));
+  const fmt = (iso) => new Date(iso + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+  const lista = Object.values(a.atletas), presentes = lista.filter((r) => r.presente).length, comNota = lista.filter((r) => r.presente && r.nota).length;
+  const card = { background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: "11px 13px", marginTop: 10 };
+  return (
+    <div data-avaliacao-sessao>
+      <button onClick={aoVoltar} style={{ ...prosa, fontSize: 13.5, color: C.quadra, fontWeight: 700, background: "none", border: "none", cursor: "pointer", padding: 0, minHeight: 36 }}>‹ Voltar ao planejamento</button>
+      <h1 style={{ fontFamily: ARCH, fontSize: 21, fontWeight: 700, marginTop: 4 }}>Avaliar sessão</h1>
+      <p style={{ ...prosa, fontSize: 13.5, color: C.grafite }}>{PE.DIAS[PE.diaSemana(sessao.data)]} {fmt(sessao.data)} · semana {sessao.n}{duracao ? " · " + duracao + " min" : ""}{[sessao.grupo ? PE.ROTULO_GRUPO[sessao.grupo] : "", PE.rotulosItens(sessao.itens).join(", ")].filter(Boolean).length ? " · " + [sessao.grupo ? PE.ROTULO_GRUPO[sessao.grupo] : "", PE.rotulosItens(sessao.itens).join(", ")].filter(Boolean).join(" · ") : ""}</p>
+      <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, background: C.papel, borderRadius: 8, padding: "6px 9px", marginTop: 6 }}>Notas de 1 a 5: 1 muito abaixo · 2 abaixo · 3 dentro do esperado · 4 acima · 5 excelente.</p>
+
+      <div style={card}>
+        <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 6 }}>A sessão</p>
+        <EscalaEq rotulo="Nota da sessão" valor={a.nota} aoMudar={(n) => setA((x) => ({ ...x, nota: n }))} />
+        <textarea aria-label="Observações da sessão" value={a.obs} onChange={(e) => setA((x) => ({ ...x, obs: e.target.value }))} rows={2} placeholder="Como foi a sessão (opcional)" style={{ ...entrada, marginTop: 8, fontSize: 14.5 }} />
+      </div>
+
+      {!(atletas || []).length && <p style={{ ...prosa, fontSize: 13.5, marginTop: 10 }}>A equipe ainda não tem atletas.</p>}
+      {(atletas || []).map((at) => {
+        const r = a.atletas[at.id], abertoItens = itensAbertos.has(at.id), nItens = Object.keys(r.itens || {}).length;
+        return (
+          <div key={at.id} data-avaliar-atleta={at.nome} style={{ ...card, opacity: r.presente ? 1 : 0.8 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, minWidth: 0 }}>{at.nome}</p>
+              <div role="radiogroup" aria-label={"Presença de " + at.nome} style={{ display: "flex", gap: 4, flex: "none" }}>
+                {[[true, "Presente"], [false, "Faltou"]].map(([v, rot]) => (
+                  <button key={rot} type="button" role="radio" aria-checked={r.presente === v} onClick={() => mudarAtl(at.id, { presente: v })}
+                    style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, minHeight: 36, padding: "0 10px", borderRadius: 999, cursor: "pointer", border: "1px solid " + (r.presente === v ? C.tinta : C.linha), background: r.presente === v ? C.tinta : C.cal, color: r.presente === v ? C.papel : C.grafite }}>{r.presente === v ? "✓ " : ""}{rot}</button>
+                ))}
+              </div>
+            </div>
+            {r.presente && (
+              <>
+                <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, margin: "8px 0 4px" }}>Rendimento</p>
+                <EscalaEq rotulo={"Rendimento de " + at.nome} valor={r.nota} aoMudar={(n) => mudarAtl(at.id, { nota: n })} />
+                {sessao.itens.length > 0 && <button type="button" onClick={() => setItensAbertos((s) => { const n = new Set(s); if (n.has(at.id)) n.delete(at.id); else n.add(at.id); return n; })}
+                  style={{ ...prosa, fontSize: 13, color: C.quadra, fontWeight: 700, background: "none", border: "none", cursor: "pointer", padding: 0, minHeight: 34, marginTop: 4 }}>{abertoItens ? "▾" : "▸"} Notas por item{nItens ? " (" + nItens + ")" : " (opcional)"}</button>}
+                {abertoItens && sessao.itens.map((it) => (
+                  <div key={it} style={{ marginTop: 6 }}>
+                    <p style={{ ...prosa, fontSize: 12.5, marginBottom: 3 }}>{PE.ROTULO_ITEM[it]}</p>
+                    <EscalaEq rotulo={PE.ROTULO_ITEM[it] + " de " + at.nome} valor={(r.itens || {})[it] || null} aoMudar={(n) => { const itens = { ...(r.itens || {}) }; if (n) itens[it] = n; else delete itens[it]; mudarAtl(at.id, { itens }); }} />
+                  </div>
+                ))}
+              </>
+            )}
+            <input aria-label={"Observação sobre " + at.nome} value={r.obs} onChange={(e) => mudarAtl(at.id, { obs: e.target.value })} placeholder={r.presente ? "Observação (opcional)" : "Motivo da falta (opcional)"} style={{ ...entrada, marginTop: 8, fontSize: 14.5 }} />
+          </div>
+        );
+      })}
+      <div style={{ position: "sticky", bottom: 0, background: C.papel, padding: "10px 0", marginTop: 10, borderTop: "1px solid " + C.linha }}>
+        <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 6 }}>{presentes} de {lista.length} presentes · {comNota} com nota de rendimento</p>
+        <Botao variante="saibro" onClick={() => aoSalvar(RE.limparAvaliacao(a, (atletas || []).map((x) => x.id)))}>Salvar avaliação</Botao>
+      </div>
+    </div>
+  );
+}
+/* aba "Equipe" na ficha do jogador: o planejamento fechado das equipes dele (a mesma visão do link do aluno) e o rendimento nos treinos */
 function AbaEquipeJogador({ aluno, aoAbrirEquipes }) {
-  const PE = window.QLPlanoEquipe;
+  const PE = window.QLPlanoEquipe, RE = window.QLRendimentoEquipe;
   const [equipes, setEquipes] = useState(null);
   const [aberto, setAberto] = useState(false);
   useEffect(() => { leia(CHAVE_EQUIPES, [], true).then((l) => setEquipes(Array.isArray(l) ? l : [])); }, [aluno.id]);
@@ -21882,13 +22042,24 @@ function AbaEquipeJogador({ aluno, aoAbrirEquipes }) {
     <div data-aba-equipe>
       <h2 style={{ fontFamily: ARCH, fontSize: 20, fontWeight: 700 }}>Equipe de competição</h2>
       {!minhas.length && <p style={{ ...prosa, fontSize: 14, marginTop: 6 }}>{aluno.nome ? aluno.nome.split(" ")[0] : "Este jogador"} não está em nenhuma equipe de competição.</p>}
-      {minhas.map((e) => (
-        <div key={e.id} style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: "11px 13px", marginTop: 10 }}>
-          {e.plano && PE ? <div dangerouslySetInnerHTML={{ __html: PE.htmlAluno({ equipe: e.nome, coordenador: e.coordenadorNome, plano: e.plano }, hojeEq(), aberto) }} />
-            : <><p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{e.nome}</p><p style={{ ...prosa, fontSize: 13.5, color: C.grafite }}>O coordenador ainda não criou o planejamento da equipe.</p></>}
-          {e.plano && <div style={{ marginTop: 8 }}><Botao pequeno variante="vazio" onClick={() => setAberto(!aberto)}>{aberto ? "Ver só esta semana" : "Ver o ciclo inteiro"}</Botao></div>}
-        </div>
-      ))}
+      {minhas.map((e) => {
+        const ok = PE && e.plano && PE.fechado(e.plano), rend = ok && RE ? RE.rendimentoAtleta(e.plano, aluno.id) : null;
+        return (
+          <div key={e.id} style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: "11px 13px", marginTop: 10 }}>
+            {ok ? <div dangerouslySetInnerHTML={{ __html: PE.htmlAluno({ equipe: e.nome, coordenador: e.coordenadorNome, plano: e.plano }, hojeEq(), aberto) }} />
+              : <><p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{e.nome}</p><p style={{ ...prosa, fontSize: 13.5, color: C.grafite }}>{e.plano ? "O coordenador está montando o planejamento; ele aparece aqui quando for fechado." : "O coordenador ainda não criou o planejamento da equipe."}</p></>}
+            {ok && <div style={{ marginTop: 8 }}><Botao pequeno variante="vazio" onClick={() => setAberto(!aberto)}>{aberto ? "Ver só esta semana" : "Ver o ciclo inteiro"}</Botao></div>}
+            {rend && (
+              <div data-rendimento-jogador style={{ borderTop: "1px solid " + C.linha, marginTop: 10, paddingTop: 8 }}>
+                <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>Rendimento nos treinos</p>
+                <p style={{ ...prosa, fontSize: 13.5 }}>Presença {rend.presencas} de {rend.sessoes}{rend.presenca != null ? " (" + rend.presenca + "%)" : ""}{rend.media != null ? " · média " + RE.dec(rend.media) : ""}{rend.tendencia ? " · " + RE.textoTendencia(rend.tendencia) : ""}</p>
+                {rend.porItem.length > 0 && <div dangerouslySetInnerHTML={{ __html: RE.graficoRendimentoItem(rend.porItem) }} />}
+                {rend.obs.length > 0 && <div style={{ marginTop: 6 }}>{rend.obs.slice(-5).reverse().map((o) => <p key={o.data} style={{ ...prosa, fontSize: 13, color: C.grafite }}>{o.data.split("-").reverse().slice(0, 2).join("/")}: {o.texto}</p>)}</div>}
+              </div>
+            )}
+          </div>
+        );
+      })}
       {aoAbrirEquipes && <div style={{ marginTop: 12 }}><Botao pequeno variante="vazio" onClick={aoAbrirEquipes}>Abrir Equipes de competição</Botao></div>}
     </div>
   );
@@ -21912,14 +22083,17 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   const aberta = equipes.find((e) => e.id === abertaId);
   const podePublicar = (eq) => papelAtual === "coordenador" || (eq && eq.coordenadorUid && eq.coordenadorUid === uidAtual);
   /* planejamento das equipes de que o atleta participa (entra no relatório do período) */
-  const planosDo = (a) => equipes.filter((e) => e.plano && (e.membros || []).includes(a.id)).map((e) => ({ equipe: e.nome, plano: e.plano }));
+  const planosDo = (a) => equipes.filter((e) => e.plano && window.QLPlanoEquipe && window.QLPlanoEquipe.fechado(e.plano) && (e.membros || []).includes(a.id)).map((e) => ({ equipe: e.nome, plano: e.plano }));
+  /* coordenador e auxiliares avaliam as sessões */
+  const podeAvaliar = (eq) => !!podePublicar(eq) || (eq && (eq.auxiliares || []).some((x) => x.uid === uidAtual));
+  const atletasDe = (eq) => (eq.membros || []).map((id) => (alunos || []).find((a) => a.id === id)).filter(Boolean).map((a) => ({ id: a.id, nome: a.nome }));
 
   if (aberta && editor) {
     const al = (alunos || []).find((a) => a.id === editor.alunoId);
     if (al) return <RelatorioAtletaEditor key={editor.relatorioId || "novo-" + al.id} aluno={al} setAlunos={setAlunos} relatorioId={editor.relatorioId} periodoInicial={editor.periodo} podePublicar={podePublicar(aberta)} autor={autor} academia={academia} planos={planosDo(al)} aoVoltar={() => setEditor(null)} />;
   }
   if (aberta && planoAberto) {
-    return <PlanoEquipeEditor equipe={aberta} podeEditar={!!podePublicar(aberta)} autor={autor} aoVoltar={() => setPlanoAberto(false)}
+    return <PlanoEquipeEditor equipe={aberta} podeEditar={!!podePublicar(aberta)} podeAvaliar={podeAvaliar(aberta)} atletas={atletasDe(aberta)} academia={academia} autor={autor} aoVoltar={() => setPlanoAberto(false)}
       aoSalvarPlano={(p, anterior) => salvarLista(equipes.map((e) => (e.id !== aberta.id ? e : { ...e, plano: p, planosAnteriores: anterior ? [...(e.planosAnteriores || []), anterior].slice(-6) : e.planosAnteriores })))} />;
   }
   if (form === "nova" || (aberta && form === "editar")) {
@@ -21986,7 +22160,13 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
         <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>Planejamento da equipe</p>
         {aberta.plano && window.QLPlanoEquipe ? (() => {
           const PE = window.QLPlanoEquipe, s = PE.semanaDe(aberta.plano, hojeEq());
-          return <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Ciclo de {PE.rotuloCiclo(aberta.plano.ciclo)}{s ? " · semana " + s.n + (s.grupo || s.itens.length ? ": " + [s.grupo ? PE.ROTULO_GRUPO[s.grupo] : "", PE.rotulosItens(s.itens).join(", ")].filter(Boolean).join(" · ") : "") : ""}</p>;
+          const fch = PE.fechado(aberta.plano), hj = hojeEq(), ses = PE.sessoes(aberta.plano), av = aberta.plano.avaliacoes || {};
+          const pendentes = ses.filter((x) => x.data <= hj && !av[x.data]).length;
+          return <>
+            <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>{fch ? "Fechado · visível para os atletas" : "Rascunho · feche o planejamento para os atletas verem"}</p>
+            <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Ciclo de {PE.rotuloCiclo(aberta.plano.ciclo)}{s ? " · semana " + s.n + (s.grupo || s.itens.length ? ": " + [s.grupo ? PE.ROTULO_GRUPO[s.grupo] : "", PE.rotulosItens(s.itens).join(", ")].filter(Boolean).join(" · ") : "") : ""}</p>
+            {ses.some((x) => x.data <= hj) && <p data-sessoes-pendentes style={{ ...prosa, fontSize: 13, color: pendentes ? "#9A3412" : C.grafite }}>{pendentes ? pendentes + (pendentes === 1 ? " sessão já feita sem avaliação" : " sessões já feitas sem avaliação") : "Todas as sessões feitas estão avaliadas"}</p>}
+          </>;
         })() : <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>{podePublicar(aberta) ? "Monte o ciclo da equipe: mensal, semanal e diário, com técnico, tático ou misto e os itens de cada treino." : "O coordenador ainda não criou o planejamento."}</p>}
         {(aberta.plano || podePublicar(aberta)) && <div style={{ marginTop: 8 }}><Botao variante={aberta.plano ? "vazio" : "saibro"} onClick={() => setPlanoAberto(true)}>{aberta.plano ? "Abrir planejamento" : "Criar planejamento"}</Botao></div>}
       </section>
@@ -22021,8 +22201,9 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   );
 }
 /* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
-const NOVIDADES_TY_VERSAO = "ty-2026-10b";
+const NOVIDADES_TY_VERSAO = "ty-2026-10c";
 const NOVIDADES_TY = [
+  { novo: true, t: "Planejamento fechado com gráficos e avaliação de cada treino", d: "Ao fechar o planejamento da equipe, ele vira a visão Geral, Semanal e Diária com gráficos (sessões por grupo, itens trabalhados) e aparece para os atletas. No fim de cada sessão, avalie presença e rendimento de 1 a 5 de cada atleta (com notas por item e observações). A aba Rendimento mostra a evolução e gera o relatório do ciclo em PDF; o rendimento também entra no relatório de cada atleta.", onde: "Equipes de competição › abra a equipe › Abrir planejamento › Diário › Avaliar sessão", aba: "equipes" },
   { novo: true, t: "Planejamento da equipe", d: "O coordenador monta o ciclo da equipe (4, 8 ou 12 semanas, com a explicação de cada um), os dias de treino e a duração. Em cada mês, semana e dia: técnico, tático ou misto, os itens (movimentação, mudança de direção, precisão, cada golpe, ataque, defesa e construção) e espaço para observações. Sem IA. Aparece na aba Equipe do jogador, no relatório e no link do aluno.", onde: "Menu › Alunos e turmas › Equipes de competição › abra a equipe", aba: "equipes" },
   { novo: true, t: "Equipes de competição e relatório para os pais", d: "Monte a equipe com coordenador, auxiliares e atletas, sem precisar de plano. Veja a ficha, o último scout, a última observação e a biomecânica de cada atleta e gere o relatório do período (torneio, mês ou datas) com a sua observação. Publicado, ele aparece na página do aluno e sai pelo WhatsApp ou em PDF.", onde: "Menu › Alunos e turmas › Equipes de competição", aba: "equipes" },
   { novo: true, t: "Observar jogos por voz", d: "Acompanhe vários jogos ao mesmo tempo: escolha o jogo, toque em Ditar observação e fale. Comece pelo nome do jogador para registrar no jogo certo. Tudo fica salvo no aparelho e sobe para a sua conta; o resumo sai ao concluir cada jogo.", onde: "Menu › Dia a dia › Observar jogos", aba: "observar" },

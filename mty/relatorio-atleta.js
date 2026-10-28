@@ -11,6 +11,8 @@
    periodo: { tipo: "torneio", torneio } | { tipo: "mes", mes: "AAAA-MM" } | { tipo: "datas", de, ate } (datas AAAA-MM-DD). */
 (function (raiz) {
   const PE = typeof module !== "undefined" && module.exports ? require("./plano-equipe.js") : raiz.QLPlanoEquipe;
+  /* avaliações de rendimento das sessões da equipe (só no app do treinador; a página do aluno não as recebe) */
+  const RE = () => (typeof module !== "undefined" && module.exports ? require("./equipe-rendimento.js") : raiz.QLRendimentoEquipe);
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
   const norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
   const dia = (s) => String(s || "").slice(0, 10);
@@ -72,6 +74,8 @@
       movimentos: base.movimentos, videos: base.videos,
       /* planejamento da equipe no período (semanas e dias que tocam as datas do relatório) */
       planejamento: (base.planos || []).map((x) => ({ equipe: String(x.equipe || "Equipe"), ciclo: PE ? PE.rotuloCiclo(x.plano.ciclo) : "", semanas: PE ? PE.noPeriodo(x.plano, base.iv.de, base.iv.ate) : [] })).filter((x) => x.semanas.length),
+      /* rendimento nos treinos da equipe no período (presença, média, itens, evolução e observações da comissão) */
+      rendimento: base.alunoId && RE() ? (base.planos || []).map((x) => { const r = RE().rendimentoAtleta(x.plano, base.alunoId, base.iv.de, base.iv.ate); return r && { equipe: String(x.equipe || "Equipe"), ...r }; }).filter(Boolean) : [],
     };
   }
 
@@ -94,7 +98,7 @@
       .map((m) => ({ data: dia(m.criadoEm), golpe: nomeGolpe(m), ok: +((m.res || {}).ok) || 0, atencao: +((m.res || {}).atencao) || 0, prio: (m.prio || []).slice(0, 4).map(String) }));
     const videos = ((aluno && aluno.jogosVideo) || []).filter((h) => h && h.res && iv.de && dentro(h.criadoEm, iv))
       .map((h) => ({ data: dia(h.criadoEm), pontos: +h.res.total || 0, pctGanhos: typeof h.res.pctGanhos === "number" ? h.res.pctGanhos : null }));
-    return montar({ nome: (aluno && aluno.nome) || "Jogador", periodo, rotulo: rotuloPeriodo(periodo, iv), iv, jogos, obsBlocos, movimentos: movs, videos, planos: (planos || []).filter((x) => x && x.plano) });
+    return montar({ nome: (aluno && aluno.nome) || "Jogador", periodo, rotulo: rotuloPeriodo(periodo, iv), iv, jogos, obsBlocos, movimentos: movs, videos, planos: (planos || []).filter((x) => x && x.plano), alunoId: aluno && aluno.id });
   }
 
   /* página do aluno: o que o link já recebe (jogos, análises de movimento, observações compartilhadas) */
@@ -155,8 +159,18 @@
         ([s.grupo, s.itens.join(", ")].filter(Boolean).length ? "<small>" + esc([s.grupo, s.itens.join(", ")].filter(Boolean).join(" · ")) + "</small>" : "") + (s.obs ? "<small>" + esc(s.obs) + "</small>" : "") +
         s.dias.filter((d) => d.grupo || d.itens.length || d.obs).map((d) => "<small>" + esc(dataBR(d.data).slice(0, 5)) + ": " + esc([d.grupo, d.itens.join(", "), d.obs].filter(Boolean).join(" · ")) + "</small>").join("") + "</div>").join(""));
     });
+    (rel.rendimento || []).forEach((r) => {
+      const d = (v) => (v == null ? "—" : v.toFixed(1).replace(".", ","));
+      h.push("<h3>Rendimento nos treinos · " + esc(r.equipe) + "</h3>" + '<div class="rel-num"><div><b>' + r.presencas + "/" + r.sessoes + "</b><span>presença nas sessões avaliadas</span></div>" +
+        (r.media != null ? "<div><b>" + d(r.media) + "</b><span>rendimento médio (1 a 5)</span></div>" : "") + "</div>" +
+        (r.tendencia ? '<p style="font-size:13.5px;margin:0">' + esc(RE() ? RE().textoTendencia(r.tendencia) : "") + "</p>" : "") +
+        (r.porItem.length ? '<p style="font-size:13.5px;margin:4px 0 0">' + r.porItem.map((x) => esc(x.rotulo) + " " + d(x.media)).join(" · ") + "</p>" : "") +
+        (r.destaques.length ? '<p style="font-size:13.5px;margin:4px 0 0"><b>Destaques:</b> ' + r.destaques.map(esc).join(", ") + "</p>" : "") +
+        (r.desenvolver.length ? '<p style="font-size:13.5px;margin:4px 0 0"><b>A desenvolver:</b> ' + r.desenvolver.map(esc).join(", ") + "</p>" : "") +
+        (r.obs.length ? '<ul class="rel-lista">' + r.obs.map((o) => "<li>" + esc(dataBR(o.data)) + ": " + esc(o.texto) + "</li>").join("") + "</ul>" : ""));
+    });
     if ((rel.videos || []).length) h.push("<h3>Jogos analisados em vídeo</h3>" + rel.videos.map((v) => '<div class="rel-jogo"><b>' + esc(dataBR(v.data)) + "</b><small>" + v.pontos + " pontos" + (v.pctGanhos != null ? " · " + v.pctGanhos + "% ganhos" : "") + "</small></div>").join(""));
-    if (!cartoes.length && !(rel.planejamento || []).length && !(rel.positivos || []).length && !(rel.atencao || []).length && !(rel.foco || []).length) h.push('<p style="font-size:14px;color:#5B6B63">Nenhum registro neste período.</p>');
+    if (!cartoes.length && !(rel.planejamento || []).length && !(rel.rendimento || []).length && !(rel.positivos || []).length && !(rel.atencao || []).length && !(rel.foco || []).length) h.push('<p style="font-size:14px;color:#5B6B63">Nenhum registro neste período.</p>');
     if (opcoes.observacao) h.push("<h3>Observação do treinador</h3><div class=\"rel-obs\">" + esc(opcoes.observacao) + "</div>");
     h.push('<p class="rel-nota">Relatório baseado nos registros do período (scouts, observações e análises); não é uma avaliação completa do jogador.</p></div>');
     return h.join("");

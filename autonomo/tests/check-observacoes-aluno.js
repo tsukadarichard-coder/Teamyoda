@@ -24,14 +24,17 @@ dados["mty:alunos:v2"] = { value: JSON.stringify([
 ]) };
 dados["mty:equipes:v1"] = { value: JSON.stringify([
   { id: "eq1", nome: "Juvenil", coordenadorNome: "Richard", membros: ["j1"], plano: { id: "p1", segredo: "x", ciclo: { semanas: 4, inicio: "2026-11-02", fim: "2026-11-29", dias: [1, 3], grupo: "misto" },
-    meses: { "2026-11": { grupo: "tecnico", obs: "Base" } }, semanas: [{ n: 1, inicio: "2026-11-02", fim: "2026-11-08", grupo: "tecnico", itens: ["saque", "hack"], obs: "Saque", dias: [{ data: "2026-11-02", grupo: "tecnico", itens: ["precisao"], obs: "Cestos" }] }] } },
+    meses: { "2026-11": { grupo: "tecnico", obs: "Base" } }, semanas: [{ n: 1, inicio: "2026-11-02", fim: "2026-11-08", grupo: "tecnico", itens: ["saque", "hack"], obs: "Saque", dias: [{ data: "2026-11-02", grupo: "tecnico", itens: ["precisao"], obs: "Cestos" }] }],
+    avaliacoes: { "2026-11-02": { nota: 4, atletas: { j1: { presente: true, nota: 2, obs: "Interno" } } } } } },
   { id: "eq2", nome: "Outra", membros: ["j9"], plano: { ciclo: {}, semanas: [] } },
+  { id: "eq3", nome: "Rascunho", membros: ["j1"], plano: { status: "rascunho", ciclo: { semanas: 4, inicio: "2026-11-02", fim: "2026-11-29", dias: [1] }, semanas: [] } },
 ]) };
 (async () => {
   let r = await get();
   assert.strictEqual(r.d.planosEquipe.length, 1, "só a equipe do jogador");
   const pe = r.d.planosEquipe[0];
   assert(pe.equipe === "Juvenil" && pe.coordenador === "Richard" && pe.plano.semanas[0].itens.join() === "saque" && pe.plano.semanas[0].dias[0].obs === "Cestos" && !JSON.stringify(pe).includes("segredo"), "planejamento limpo");
+  assert(!JSON.stringify(r.d).includes("Interno") && !JSON.stringify(r.d).includes("avaliacoes"), "as avaliações das sessões não vão para o link");
   assert.strictEqual(r.s, 200);
   assert.deepStrictEqual(r.d.observacoes.map((o) => o.id), ["o3", "o1"], "só as compartilhadas, mais recente primeiro");
   const o1 = r.d.observacoes[1];

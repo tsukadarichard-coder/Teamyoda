@@ -326,7 +326,7 @@ function limparPlanoEquipe(p) {
 async function planosEquipeDoAluno(org, id) {
   const doc = await lerDado(org, "mty:equipes:v1");
   const equipes = doc ? lerJSON(doc.value, []) : [];
-  return (Array.isArray(equipes) ? equipes : []).filter((e) => e && Array.isArray(e.membros) && e.membros.includes(id) && e.plano)
+  return (Array.isArray(equipes) ? equipes : []).filter((e) => e && Array.isArray(e.membros) && e.membros.includes(id) && e.plano && e.plano.status !== "rascunho") /* rascunho: o coordenador ainda não fechou */
     .map((e) => ({ equipe: String(e.nome || "Equipe").slice(0, 60), coordenador: String(e.coordenadorNome || "").slice(0, 80), plano: limparPlanoEquipe(e.plano) })).filter((x) => x.plano).slice(0, 4);
 }
 function relatoriosPublicados(aluno) {
