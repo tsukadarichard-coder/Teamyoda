@@ -16785,7 +16785,7 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual
                 {!t.plano && <Etiqueta cor={C.saibro}>sem plano — toque pra montar</Etiqueta>}
               </div>
               <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>
-                {t.duracaoPadrao} · {plural(t.membros.length, "jogador")}{t.professorNome ? " · prof. " + t.professorNome : ""}
+                {t.duracaoPadrao} · {plural(t.membros.length, "jogador", "jogadores")}{t.professorNome ? " · prof. " + t.professorNome : ""}
               </p>
               {proxima ? (
                 <p style={{ ...prosa, fontSize: 12.5, color: C.quadra, fontWeight: 700, marginTop: 4 }}>
