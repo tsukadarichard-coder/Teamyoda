@@ -260,8 +260,8 @@
       '<div class="qm-card"><h3 class="qm-h">Conclusão e intervenções sugeridas</h3><p data-r="ctx" style="margin:0 0 8px"></p><div data-r="cbody"></div><p class="qm-msg">Sugestões geradas por regras a partir das medidas deste vídeo; não substituem avaliação presencial.</p></div>' +
       '<div class="qm-card"><div class="qm-row"><button class="qm-pri" data-r="pdf">Relatório em PDF</button><button data-r="json">Baixar dados (JSON)</button></div><p class="qm-msg" data-r="salvoMsg"></p>' +
       '<details><summary>Faixas de referência (editáveis)</summary><p class="qm-msg">Valores iniciais de referência; ajuste conforme a avaliação do treinador.</p>' +
-      '<div class="qm-row"><label>Joelhos° <input data-r="rJ" type="number" value="90" style="width:70px"></label><label>± <input data-r="rJt" type="number" value="10" style="width:60px"></label>' +
-      '<label>Tronco° <input data-r="rT" type="number" value="90" style="width:70px"></label><label>± <input data-r="rTt" type="number" value="10" style="width:60px"></label>' +
+      '<div class="qm-row"><label>Joelhos° <input data-r="rJ" type="number" value="' + B.REGRAS.joelhos.alvo + '" style="width:70px"></label><label>± <input data-r="rJt" type="number" value="' + B.REGRAS.joelhos.tol + '" style="width:60px"></label>' +
+      '<label>Tronco° <input data-r="rT" type="number" value="' + B.REGRAS.tronco.alvo + '" style="width:70px"></label><label>± <input data-r="rTt" type="number" value="' + B.REGRAS.tronco.tol + '" style="width:60px"></label>' +
       '<label>Antebraço ND máx° <input data-r="rA" type="number" value="20" style="width:70px"></label><label>Contato à frente mín <input data-r="rC" type="number" step="0.05" value="0.15" style="width:70px"></label>' +
       '<button data-r="re">Reaplicar</button></div></details></div></div>' +
       '<div class="qm-card qm-hist" data-r="histC"><h3 class="qm-h">Evolução e histórico</h3><div data-r="evo"></div><div data-r="lista"></div></div>';

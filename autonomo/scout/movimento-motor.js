@@ -12,8 +12,9 @@
 
   /* Faixas de referência editáveis. Valores iniciais de referência; o treinador ajusta na tela. */
   var REGRAS = {
-    joelhos: { alvo: 90, tol: 10 },
-    tronco: { alvo: 90, tol: 10 },
+    /* ângulo do joelho (quadril-joelho-tornozelo) e do tronco (ombro-quadril-joelho) no giro: 180° = reto. Base atlética, não agachamento. */
+    joelhos: { alvo: 130, tol: 15 },
+    tronco: { alvo: 155, tol: 15 },
     antebracoNaoDominante: { max: 20 },
     contatoFrente: { min: 0.15 },
     splitStep: { min: 0.015 },

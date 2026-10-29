@@ -14,6 +14,7 @@ a.ok(m[3].alturaContato >= -0.2 && m[3].alturaContato <= 0.9, "forehand: altura 
 a.ok(m[3].joelhos - m[1].joelhos > 10, "forehand: extensão de pernas até o contato");
 a.ok(m[1].largOmbros > m[0].largOmbros + 0.3, "forehand: ombros giram na preparação");
 a.ok(m[1].joelhos < m[0].joelhos, "forehand: carrega as pernas no giro");
+a.ok(Math.abs(m[1].joelhos - R.joelhos.alvo) <= R.joelhos.tol && Math.abs(m[1].tronco - R.tronco.alvo) <= R.tronco.tol, "forehand: joelhos e tronco do giro dentro das faixas padrão (" + Math.round(m[1].joelhos) + "°, " + Math.round(m[1].tronco) + "°)");
 /* backhand de duas mãos e de uma mão */
 m = B.modeloPadrao("backhand", "2").map(med);
 a.ok(m[1].distMaos <= R.backhand.duasMaos.max, "backhand 2 mãos: mãos juntas no giro");
