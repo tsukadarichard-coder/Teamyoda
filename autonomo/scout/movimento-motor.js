@@ -208,12 +208,29 @@
     }
     if (arm < 0) arm = Math.max(lanc + 1, contato - quadrosEm(quadros, 0.12));
     if (arm >= contato) arm = Math.max(lanc, contato - 1);
-    /* carga das pernas: a flexão mais funda entre o lançamento e a armada (o joelho dobra no troféu e já estende na armada) */
+    /* pés no chão: o troféu e a carga das pernas acontecem antes do salto. No ar o corpo todo sobe na imagem (o punho fica "mais alto"
+       sem a raquete estar de pé) e as pernas dobram no recolhimento, então os quadros com os pés fora do chão não contam. */
+    function pe(q) { var a = q.lm[P.tornE], b = q.lm[P.tornD], ys = [a, b].filter(visivel).map(function (x) { return x.y; }); return ys.length ? Math.max.apply(null, ys) : NaN; }
+    function tronco(q) { var o = meio(q.lm[P.ombroE], q.lm[P.ombroD]), h = meio(q.lm[P.quadrilE], q.lm[P.quadrilD]); return Math.max(0.05, Math.hypot(o.x - h.x, o.y - h.y)) || 0.2; }
+    var chao = [], trL = tronco(quadros[lanc]);
+    for (i = Math.max(0, lanc - quadrosEm(quadros, 0.5)); i <= lanc; i++) { var yp = pe(quadros[i]); if (isFinite(yp)) chao.push(yp); }
+    chao.sort(function (x, y) { return x - y; });
+    var nivel = chao.length ? chao[Math.floor(chao.length / 2)] : NaN;
+    function noChao(k) { var yp = pe(quadros[k]); return !isFinite(nivel) || !isFinite(yp) || yp >= nivel - 0.12 * trL; }
+    /* carga das pernas: a flexão mais funda entre o lançamento e a armada, com os pés no chão (normalmente no troféu) */
     var carga = lanc, menorJ = Infinity;
-    for (i = lanc; i <= arm; i++) { var mj = joelhosEm(quadros[i]); if (mj < menorJ) { menorJ = mj; carga = i; } }
-    /* preparação (posição de troféu): depois do lançamento o braço da raquete sobe e a raquete fica de pé; o troféu é o punho mais
-       alto antes de cair para a armada */
-    var trofeu = arm > lanc ? idxMin(dy, lanc, arm - 1) : lanc;
+    for (i = lanc; i <= arm; i++) { if (!noChao(i)) continue; var mj = joelhosEm(quadros[i]); if (mj < menorJ) { menorJ = mj; carga = i; } }
+    /* preparação (posição de troféu): ainda no chão, cotovelo da raquete subindo e punho acima do cotovelo (raquete de pé), antes de
+       cair para a armada. Medido em relação ao próprio braço, não à altura do punho na imagem. */
+    var trofeu = -1, melhorT = -Infinity;
+    for (i = lanc; i < arm; i++) {
+      if (!noChao(i)) continue;
+      var lt = quadros[i].lm, ct = lt[L.c], pt = lt[L.p];
+      if (!visivel(ct) || !visivel(pt)) continue;
+      var pe2 = (ct.y - pt.y) / tronco(quadros[i]);          // punho acima do cotovelo (em troncos)
+      if (pe2 > melhorT) { melhorT = pe2; trofeu = i; }
+    }
+    if (trofeu < 0) trofeu = arm > lanc ? (carga > lanc && carga < arm ? carga : idxMin(dy, lanc, arm - 1)) : lanc;
     var hipX = (quadros[lanc].lm[P.quadrilE].x + quadros[lanc].lm[P.quadrilD].x) / 2, nw = quadros[lanc].lm[L.nd.p];
     var dir = (nw.x - hipX) >= 0 ? 1 : -1;
     /* seguimento: a raquete termina embaixo, do outro lado (punho mais baixo logo após o contato). Só olha o 0,8 s seguinte: se o vídeo

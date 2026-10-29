@@ -69,7 +69,7 @@ function trocar(lm) { const o = lm.slice(); [[11, 12], [13, 14], [15, 16], [23, 
 }
 /* saque real (como no vídeo do Team Yoda): no lançamento o braço da raquete está pendurado e o punho bem baixo. A armada (racket
    drop) vem depois, com o cotovelo no alto e o punho caído atrás das costas, e nunca no mesmo quadro do lançamento. */
-function saqueReal(dom) {
+function saqueReal(dom, salto) {
   const q = [], lerp = (a, b, t) => a + (b - a) * Math.max(0, Math.min(1, t));
   for (let i = 0; i < 60; i++) {
     const lm = []; for (let k = 0; k < 33; k++) lm.push({ x: 0.5, y: 0.5, z: 0, v: 1 });
@@ -85,6 +85,9 @@ function saqueReal(dom) {
     set(P.joelhoE, 0.47 + d, 0.70); set(P.joelhoD, 0.53 + d, 0.70); set(P.tornE, 0.47, 0.88); set(P.tornD, 0.53, 0.88);
     const D = dom === "E" ? { p: P.punhoE, c: P.cotE, np: P.punhoD, nc: P.cotD } : { p: P.punhoD, c: P.cotD, np: P.punhoE, nc: P.cotE };
     set(D.p, pw[0], pw[1]); set(D.c, cw[0], cw[1]); set(D.np, nw[0], nw[1]); set(D.nc, (nw[0] + 0.5) / 2, (nw[1] + 0.30) / 2);
+    /* salto: do fim do troféu até depois do contato o corpo inteiro sobe na imagem (pés fora do chão) */
+    const h = !salto || i <= 40 || i >= 56 ? 0 : i <= 50 ? 0.15 * Math.min(1, (i - 40) / 3) : 0.15 * (56 - i) / 6;
+    if (h) lm.forEach((p) => { p.y -= h; });
     q.push({ t: i / 30, lm });
   }
   return q;
@@ -99,6 +102,16 @@ function saqueReal(dom) {
   a.ok(Math.abs(f[3] - 50) <= 2, "saque" + dom + ": contato no punho mais alto (" + f + ")");
   const jArm = r.itens.find((x) => x.nome === "Flexão de joelhos no troféu").valor, jMin = Math.min(...r.fases.map((x) => x.medidas.joelhos));
   a.ok(jArm <= jMin + 0.5, "saque" + dom + ": flexão dos joelhos medida na carga mais funda (" + Math.round(jArm) + ")");
+});
+
+/* com salto (como no vídeo real): no ar o punho fica mais alto na imagem sem a raquete estar de pé; o troféu é antes de sair do chão */
+["D", "E"].forEach((dom) => {
+  const r = B.checklist(saqueReal(dom, true), dom, null, "saque");
+  const f = r.fases.map((x) => x.quadro);
+  a.ok(f[1] >= 37 && f[1] <= 41, "saque com salto" + dom + ": troféu com os pés no chão e raquete de pé (" + f + ")");
+  a.ok(f[2] > f[1] && f[2] < f[3], "saque com salto" + dom + ": armada entre troféu e contato (" + f + ")");
+  const jT = r.itens.find((x) => x.nome === "Flexão de joelhos no troféu").valor;
+  a.ok(Math.abs(jT - r.fases[1].medidas.joelhos) < 15, "saque com salto" + dom + ": joelhos medidos no chão (" + Math.round(jT) + ")");
 });
 
 /* o vídeo continua depois do golpe (o atleta volta e se prepara de novo): seguimento e recuperação ficam logo após o contato,
