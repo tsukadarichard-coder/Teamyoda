@@ -22,7 +22,7 @@ const fotos = ["data:image/jpeg;base64,AAA", "", "data:image/jpeg;base64,BBB"];
 const im = M.imagensFases(r, fotos);
 a.strictEqual(im.length, 6);
 a.deepStrictEqual(im.map((x) => x.foto), [true, false, true, false, false, false]);
-a.ok(im[1].src.startsWith("data:image/svg+xml") && decodeURIComponent(im[1].src).includes("<line") && decodeURIComponent(im[1].src).includes('height="853"'), "pose desenhada na proporção do vídeo");
+a.ok(im[1].src.startsWith("data:image/svg+xml") && decodeURIComponent(im[1].src).includes("<line") && decodeURIComponent(im[1].src).includes("<circle") && decodeURIComponent(im[1].src).includes('height="853"'), "pose desenhada na proporção do vídeo");
 const antigo = JSON.parse(JSON.stringify(r)); antigo.fases.forEach((f) => { delete f.pose; });
 a.ok(M.imagensFases(antigo, []).every((x) => x.src === ""), "análise antiga sem pose: sem imagem");
 
@@ -31,7 +31,12 @@ const html = M.relatorioHTML({ resultado: r, golpe: "forehand", emp: "", dom: "D
 a.strictEqual((html.match(/<img src="data:image\/svg\+xml/g) || []).length, 6, "6 imagens de pose");
 a.ok(/pose detectada naquele momento/.test(html));
 const html2 = M.relatorioHTML({ resultado: r, golpe: "forehand", emp: "", dom: "D", fotos: fotos, logo: "x.png" });
-a.strictEqual((html2.match(/<img src="data:image\/jpeg/g) || []).length, 2, "fotos do vídeo quando existem");
+/* com a foto do vídeo: a imagem real e o boneco da análise lado a lado, numa imagem só */
+const par = decodeURIComponent(im[0].src);
+a.ok(im[0].src.startsWith("data:image/svg+xml") && par.includes('xlink:href="data:image/jpeg;base64,AAA"') && par.includes("boneco da análise") && par.includes("<polygon"), "foto real + boneco lado a lado");
+a.ok(par.includes('viewBox="0 0 968 853"'), "duas imagens da proporção do vídeo, lado a lado");
+a.ok(!decodeURIComponent(im[1].src).includes("<image"), "sem foto: só o boneco");
+a.strictEqual((html2.match(/xlink%3Ahref%3D%22data%3Aimage%2Fjpeg/g) || []).length, 2, "fotos do vídeo quando existem, ao lado do boneco");
 a.ok(/antes de o app guardar as imagens/.test(M.relatorioHTML({ resultado: antigo, golpe: "forehand", emp: "", dom: "D", fotos: [], logo: "x.png" })));
 
 /* 4. relatório do atleta com as imagens de cada análise */

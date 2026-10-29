@@ -112,24 +112,53 @@
   }
 
   /* ── imagem de cada fase ──
-     Todo relatório mostra uma imagem por fase: a foto do vídeo quando ela foi guardada; senão, o desenho da pose detectada naquela
-     fase (o resultado guarda a pose de cada fase). imagensFases(resultado, fotos) → [{ src, foto }] na ordem das fases; src vazio só
-     em análises antigas, de antes de a pose ser guardada. */
-  function svgPose(pose, prop) {
-    var W = 480, H = Math.round(W * (prop > 0.2 && prop < 5 ? prop : 1.33)), sw = 4;
-    var p = function (i) { var a = pose[i]; return a ? [a[0] * W, a[1] * H] : null; };
-    var linhas = LIG.map(function (l) { var a = p(l[0]), b = p(l[1]); return a && b ? '<line x1="' + a[0].toFixed(1) + '" y1="' + a[1].toFixed(1) + '" x2="' + b[0].toFixed(1) + '" y2="' + b[1].toFixed(1) + '"/>' : ""; }).join("");
-    var pontos = [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28].map(function (i) { var a = p(i); return a ? '<circle cx="' + a[0].toFixed(1) + '" cy="' + a[1].toFixed(1) + '" r="6"/>' : ""; }).join("");
-    var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W + " " + H + '" width="' + W + '" height="' + H + '"><rect width="100%" height="100%" fill="#111"/>' +
-      '<g stroke="#4FC3F7" stroke-width="' + sw + '" stroke-linecap="round">' + linhas + '</g><g fill="#FFB74D">' + pontos + "</g>" +
-      '<text x="10" y="' + (H - 12) + '" fill="#9FB3BF" font-family="system-ui,sans-serif" font-size="16">pose detectada</text></svg>';
+     Todo relatório mostra, por fase, a imagem real do vídeo e o boneco da análise lado a lado (uma imagem só, que funciona em todo
+     lugar: tela, PDF, caderno, relatório do atleta). Sem a foto do vídeo, fica só o boneco; o resultado guarda a pose de cada fase.
+     imagensFases(resultado, fotos) → [{ src, foto }] na ordem das fases; src vazio só em análises antigas, de antes da pose guardada. */
+  function bonecoSVG(pose, W, H, o) {
+    o = o || {};
+    var P = function (i) { var a = pose && pose[i]; if (!a) return null; var x = Array.isArray(a) ? a[0] : a.x, y = Array.isArray(a) ? a[1] : a.y; return isFinite(x) && isFinite(y) && a.v !== 0 ? { x: x * W, y: y * H } : null; };
+    var oE = P(11), oD = P(12), qE = P(23), qD = P(24);
+    if (!oE || !oD || !qE || !qD) return "";
+    var f = function (n) { return n.toFixed(1); };
+    var om = { x: (oE.x + oD.x) / 2, y: (oE.y + oD.y) / 2 }, qm = { x: (qE.x + qD.x) / 2, y: (qE.y + qD.y) / 2 };
+    var T = Math.hypot(om.x - qm.x, om.y - qm.y) || 40, cor = o.cor || "#1E88E5", longe = o.corLonge || "#64B5F6", borda = "rgba(0,0,0,.55)", out = "";
+    function seg(a, b, esp, c) {
+      a = P(a); b = P(b); if (!a || !b) return;
+      var xy = ' x1="' + f(a.x) + '" y1="' + f(a.y) + '" x2="' + f(b.x) + '" y2="' + f(b.y) + '"';
+      out += "<line" + xy + ' stroke="' + borda + '" stroke-width="' + f(esp + 3) + '"/><line' + xy + ' stroke="' + c + '" stroke-width="' + f(esp) + '"/>';
+    }
+    var braco = T * 0.15, perna = T * 0.2;
+    /* lado de trás primeiro (esquerdo), depois o da frente, como no boneco do vídeo × boneco */
+    seg(23, 25, perna, longe); seg(25, 27, perna * 0.85, longe); seg(27, 31, perna * 0.6, longe);
+    seg(11, 13, braco, longe); seg(13, 15, braco * 0.85, longe);
+    var pts = [oE, oD, qD, qE].map(function (p) { return f(p.x) + "," + f(p.y); }).join(" ");
+    out += '<polygon points="' + pts + '" fill="' + cor + '" stroke="' + borda + '" stroke-width="' + f(T * 0.14) + '" stroke-linejoin="round"/>' +
+      '<polygon points="' + pts + '" fill="none" stroke="' + cor + '" stroke-width="' + f(T * 0.11) + '" stroke-linejoin="round"/>';
+    seg(24, 26, perna, cor); seg(26, 28, perna * 0.85, cor); seg(28, 32, perna * 0.6, cor);
+    seg(12, 14, braco, cor); seg(14, 16, braco * 0.85, cor);
+    var nz = P(0), cab = nz ? { x: nz.x + (om.x - nz.x) * 0.12, y: nz.y + (om.y - nz.y) * 0.12 } : { x: om.x, y: om.y - T * 0.42 };
+    out += '<line x1="' + f(om.x) + '" y1="' + f(om.y) + '" x2="' + f(cab.x) + '" y2="' + f(cab.y) + '" stroke="' + cor + '" stroke-width="' + f(T * 0.12) + '"/>' +
+      '<circle cx="' + f(cab.x) + '" cy="' + f(cab.y) + '" r="' + f(T * 0.22) + '" fill="' + cor + '" stroke="' + borda + '" stroke-width="2"/>';
+    [15, 16].forEach(function (i) { var m = P(i); if (m) out += '<circle cx="' + f(m.x) + '" cy="' + f(m.y) + '" r="' + f(T * 0.07 + 1) + '" fill="#FFB74D"/>'; });
+    return '<g stroke-linecap="round">' + out + "</g>";
+  }
+  function svgFase(foto, pose, prop) {
+    var W = 480, H = Math.round(W * (prop > 0.2 && prop < 5 ? prop : 1.33)), G = foto ? 8 : 0, X = foto ? W + G : 0, TW = X + W;
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ' + TW + " " + H + '" width="' + TW + '" height="' + H + '">' +
+      '<rect width="100%" height="100%" fill="#fff"/>' +
+      (foto ? '<image x="0" y="0" width="' + W + '" height="' + H + '" preserveAspectRatio="xMidYMid slice" xlink:href="' + foto + '"/>' : "") +
+      '<g transform="translate(' + X + ',0)"><rect width="' + W + '" height="' + H + '" rx="6" fill="#EEF2F0"/>' + bonecoSVG(pose, W, H) +
+      '<text x="10" y="' + (H - 12) + '" fill="#5C6B78" font-family="system-ui,sans-serif" font-size="17">' + (foto ? "boneco da análise" : "boneco da análise (pose detectada)") + "</text></g></svg>";
     return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
   }
+  function svgPose(pose, prop) { return svgFase(null, pose, prop); }
   function imagensFases(resultado, fotos) {
     var r = resultado || {};
     return (r.fases || []).map(function (f, i) {
-      if (fotos && fotos[i]) return { src: fotos[i], foto: true };
-      if (f && f.pose && f.pose.some(Boolean)) return { src: svgPose(f.pose, r.proporcao), foto: false };
+      var temPose = f && f.pose && f.pose.some(Boolean);
+      if (fotos && fotos[i]) return { src: temPose ? svgFase(fotos[i], f.pose, r.proporcao) : fotos[i], foto: true };
+      if (temPose) return { src: svgPose(f.pose, r.proporcao), foto: false };
       return { src: "", foto: false };
     });
   }
@@ -140,7 +169,7 @@
     var imgs = imagensFases(r, d.fotos), temImgs = imgs.some(function (x) { return !!x.src; }), algumaPose = imgs.some(function (x) { return x.src && !x.foto; });
     var fotos = temImgs ? '<div class="fotos">' + r.fases.map(function (f, i) {
       return '<div class="f">' + (imgs[i].src ? '<img src="' + esc(imgs[i].src) + '" alt="' + esc(r.nomes[i]) + '">' : "") + "<b>" + (i + 1) + ". " + esc(r.nomes[i]) + "</b><span>" + f.t.toFixed(2) + " s</span></div>";
-    }).join("") + "</div>" + (algumaPose ? '<p class="qm-msg">Nas fases sem foto do vídeo, a imagem mostra a pose detectada naquele momento.</p>' : "")
+    }).join("") + "</div>" + (algumaPose ? '<p class="qm-msg">Nas fases sem foto do vídeo, a imagem mostra só o boneco da pose detectada naquele momento.</p>' : "")
       : '<p class="qm-msg">Esta análise é de antes de o app guardar as imagens das fases. Fases: ' + r.fases.map(function (f, i) { return (i + 1) + ". " + esc(r.nomes[i]) + " (" + f.t.toFixed(2) + " s)"; }).join(" · ") + "</p>";
     var tb = "", fa = -1;
     r.itens.forEach(function (it) {
@@ -160,7 +189,7 @@
     var css = "@page{size:A4;margin:11mm 11mm 13mm}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}body{font:12px system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:#14202B;margin:0;padding:14px;max-width:900px;margin:auto}" +
       ".cab{display:flex;align-items:center;gap:14px;border-bottom:3px solid #0B3B2E;padding-bottom:8px;margin-bottom:10px}.cab img{height:34px}.cab .t{font-size:19px;font-weight:800;color:#0B3B2E}.cab small{display:block;color:#444;font-size:11px;margin-top:2px}" +
       "h2{font-size:15px;color:#0B3B2E;margin:12px 0 6px}h3{font-size:13px;margin:12px 0 4px;break-after:avoid}.kpi{display:flex;gap:8px}.kpi div{flex:1;text-align:center;border-radius:8px;padding:7px;color:#fff}.kpi b{display:block;font-size:19px}" +
-      ".fotos{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:8px}.f{border:1px solid #E2DED5;border-radius:6px;padding:4px;break-inside:avoid}.f img{display:block;max-height:84mm;max-width:100%;width:auto;margin:0 auto;border-radius:4px;background:#111}.f b{display:block;font-size:11px;margin-top:3px}.f span{font-size:10px;color:#5C6B78}" +
+      ".fotos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:8px}@media(max-width:600px){.fotos{grid-template-columns:1fr}}.f{border:1px solid #E2DED5;border-radius:6px;padding:4px;break-inside:avoid}.f img{display:block;max-height:78mm;max-width:100%;width:auto;margin:0 auto;border-radius:4px;background:#fff}.f b{display:block;font-size:11px;margin-top:3px}.f span{font-size:10px;color:#5C6B78}" +
       "table{width:100%;border-collapse:collapse;table-layout:fixed;overflow-wrap:anywhere;font-size:10.8px}td,th{text-align:left;padding:5px 4px;border-top:1px solid #E2DED5;vertical-align:top}th{font-size:10px;color:#5C6B78;border-top:0}thead{display:table-header-group}tr{break-inside:avoid}tr.fh td{background:#F3F1EA;font-weight:700}" +
       ".t{display:inline-block;padding:1px 8px;border-radius:99px;font-size:10px;font-weight:700;color:#fff}.t.ok{background:#2E8B57}.t.atencao{background:#C65825}.t.nao_avaliavel{background:#8A96A0}small{color:#5C6B78}" +
       ".pr{border:1px solid #E2DED5;border-left:4px solid #C65825;border-radius:8px;padding:6px 9px;margin:6px 0;break-inside:avoid}.pr p{margin:2px 0}.pr ul,ul{margin:3px 0 0 18px;padding:0}.quebra{break-before:page}.rod{margin-top:12px;border-top:1px solid #ccc;padding-top:6px;font-size:9.5px;color:#555}" +
@@ -524,23 +553,32 @@
       var proporcao = sintetico ? 0.75 : (cv.height && cv.width) ? cv.height / cv.width : 0.75;
       r.proporcao = Math.round(proporcao * 1000) / 1000; /* para desenhar a pose de cada fase na proporção do vídeo */
       r.fases.forEach(function (f, i) {
-        var d = document.createElement("div"); d.className = "qm-fase"; var c2 = document.createElement("canvas"); c2.width = 480; c2.height = Math.round(480 * proporcao);
+        /* imagem real (esquerda) e boneco da análise (direita) lado a lado */
+        var d = document.createElement("div"); d.className = "qm-fase"; var c2 = document.createElement("canvas"); c2.width = 480 * 2 + 8; c2.height = Math.round(480 * proporcao);
         var x = c2.getContext("2d"); x.fillStyle = "#111"; x.fillRect(0, 0, c2.width, c2.height); cvs.push(c2);
         d.appendChild(c2); d.insertAdjacentHTML("beforeend", "<b>" + (i + 1) + ". " + esc(r.nomes[i]) + "</b><span>" + f.t.toFixed(2) + " s</span>");
         d.onclick = function () { if (v.src && !sintetico) v.currentTime = f.t; if (c2.requestFullscreen) c2.requestFullscreen().catch(function () {}); };
         fe.appendChild(d);
       });
       var meu = ++S.token;
-      S.canvases = cvs;
+      S.canvases = cvs; S.canvasFoto = [];
       S.fotosProntas = (async function () {
         S.fotos = [];
         for (var i = 0; i < r.fases.length; i++) {
           if (meu !== S.token) return;
-          var f = r.fases[i], c2 = cvs[i], x = c2.getContext("2d");
-          if (!sintetico && v.src) { await seek(f.t); await quadroPronto(); x.drawImage(v, 0, 0, c2.width, c2.height); }
-          desenhar(c2, S.quadros[f.quadro].lm, c2.width, c2.height);
-          x.fillStyle = "rgba(0,0,0,.55)"; x.fillRect(0, 0, 150, 26); x.fillStyle = "#fff"; x.font = "bold 15px system-ui"; x.fillText((i + 1) + ". " + r.nomes[i], 8, 18);
-          try { S.fotos[i] = c2.toDataURL("image/jpeg", 0.8); } catch (e) { S.fotos[i] = ""; }
+          var f = r.fases[i], c2 = cvs[i], x = c2.getContext("2d"), W = 480, H = c2.height;
+          /* foto da fase (é o que fica guardado): o quadro real do vídeo, sem desenho por cima; o boneco vai ao lado */
+          var cf = document.createElement("canvas"); cf.width = W; cf.height = H; var xf = cf.getContext("2d");
+          xf.fillStyle = "#111"; xf.fillRect(0, 0, W, H);
+          if (!sintetico && v.src) { await seek(f.t); await quadroPronto(); xf.drawImage(v, 0, 0, W, H); }
+          else desenhar(cf, S.quadros[f.quadro].lm, W, H);
+          xf.fillStyle = "rgba(0,0,0,.55)"; xf.fillRect(0, 0, 150, 26); xf.fillStyle = "#fff"; xf.font = "bold 15px system-ui"; xf.fillText((i + 1) + ". " + r.nomes[i], 8, 18);
+          S.canvasFoto[i] = cf;
+          try { S.fotos[i] = cf.toDataURL("image/jpeg", 0.8); } catch (e) { S.fotos[i] = ""; }
+          x.fillStyle = "#fff"; x.fillRect(0, 0, c2.width, H); x.drawImage(cf, 0, 0);
+          x.save(); x.translate(W + 8, 0); x.fillStyle = "#EEF2F0"; x.fillRect(0, 0, W, H);
+          desenharBoneco(x, f.pose, W, H, { cor: "#1E88E5", corLonge: "#64B5F6" });
+          x.fillStyle = "#5C6B78"; x.font = "17px system-ui"; x.fillText("boneco da análise", 10, H - 12); x.restore();
         }
         if (meu === S.token && !sintetico && v.src) await seek(0);
         await Promise.resolve(); /* mostrar() termina antes (o registro desta análise só existe no fim dele) */
@@ -580,7 +618,8 @@
     /* Fotos das fases para o arquivo: reduzidas para caber sempre no documento do relatório (vídeo de celular em pé gera
        fotos altas e pesadas; sem isto o relatório passava do limite e era guardado sem nenhuma foto). */
     function fotosParaArquivo(lado, qualidade) {
-      return (S.canvases || []).map(function (c, i) {
+      return (S.fotos || []).map(function (src, i) {
+        var c = (S.canvasFoto || [])[i];   /* só a foto real; o boneco ao lado é desenhado de novo a partir da pose guardada */
         if (!c || !c.width || !S.fotos[i]) return S.fotos[i] || "";
         var k = Math.min(1, lado / Math.max(c.width, c.height)), o = document.createElement("canvas");
         o.width = Math.max(1, Math.round(c.width * k)); o.height = Math.max(1, Math.round(c.height * k));

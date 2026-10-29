@@ -119,7 +119,7 @@
   }
 
   const css = [
-    ".rel-fases{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin:7px 0 2px}.rel-fases figure{margin:0;break-inside:avoid}.rel-fases img{display:block;width:100%;height:auto;max-height:70mm;object-fit:contain;border-radius:4px;background:#111}.rel-fases figcaption{font-size:10.5px;color:#5B6B63;margin-top:2px}",
+    ".rel-fases{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin:7px 0 2px}.rel-fases figure{margin:0;break-inside:avoid}.rel-fases img{display:block;width:100%;height:auto;max-height:78mm;object-fit:contain;border-radius:4px;background:#fff}.rel-fases figcaption{font-size:10.5px;color:#5B6B63;margin-top:2px}",
     ".rel-a{font-family:Inter,system-ui,sans-serif;color:#17251F;line-height:1.5}",
     ".rel-a h3{font-size:15px;margin:16px 0 6px;font-weight:700}",
     ".rel-cab{border-bottom:2px solid #103B32;padding-bottom:8px;margin-bottom:10px}",

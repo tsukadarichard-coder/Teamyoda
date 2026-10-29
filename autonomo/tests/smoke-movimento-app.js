@@ -125,7 +125,15 @@ ReactDOM.createRoot(document.getElementById("raiz")).render(<Host />);
     [pop] = await Promise.all([p.waitForEvent("popup"), p.locator(".qlm [data-r=lista] [data-ver]").last().click()]);
     await pop.waitForFunction(() => /^Análise de movimento/.test(document.title));
     assert.strictEqual(await pop.locator(".fotos img").count(), 6, app + ": análise mais antiga também reabre completa");
-    const tamanhos = await pop.evaluate(() => Promise.all([...document.querySelectorAll(".fotos img")].map((i) => (i.complete ? Promise.resolve() : new Promise((r) => { i.onload = r; })).then(() => [i.naturalWidth, i.naturalHeight]))));
+    /* cada fase: a imagem real e o boneco lado a lado (duas metades em pé); a foto guardada, embutida, continua reduzida */
+    const pares = await pop.evaluate(() => Promise.all([...document.querySelectorAll(".fotos img")].map((i) => (i.complete ? Promise.resolve() : new Promise((r) => { i.onload = r; })).then(() => [i.naturalWidth, i.naturalHeight]))));
+    assert(pares.every(([w, h]) => w > 0 && h > (w - 8) / 2), app + ": imagem real + boneco lado a lado (" + JSON.stringify(pares[0]) + ")");
+    const tamanhos = await pop.evaluate(() => Promise.all([...document.querySelectorAll(".fotos img")].map((i) => {
+      const m = decodeURIComponent(i.getAttribute("src")).match(/xlink:href="(data:image\/jpeg[^"]+)"/);
+      if (!m) return [0, 0];
+      const im = new Image(); im.src = m[1];
+      return new Promise((r) => { im.onload = () => r([im.naturalWidth, im.naturalHeight]); im.onerror = () => r([0, 0]); });
+    })));
     assert(tamanhos.every(([w, h]) => w > 0 && h > 0 && Math.max(w, h) <= 560 && h > w), app + ": fotos em pé guardadas reduzidas (" + JSON.stringify(tamanhos[0]) + ")");
     if (process.env.CAPTURAS) { await pop.setViewportSize({ width: 390, height: 1400 }); await pop.screenshot({ path: path.join(process.env.CAPTURAS, app + "-relatorio.png") }); }
     await pop.close();
