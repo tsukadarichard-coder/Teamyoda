@@ -115,6 +115,8 @@ ReactDOM.createRoot(document.getElementById("raiz")).render(<Host />);
     assert(tr.includes("Checklist por fase") && tr.includes("Conclusão e intervenções sugeridas") && tr.includes("Ana Souza"), app + ": relatório completo reaberto");
     assert(tr.includes("Evolução em relação à análise anterior"), app + ": a mais recente traz a comparação guardada");
     assert.strictEqual(await pop.locator(".fotos img").count(), 6, app + ": relatório reaberto com as 6 fotos das fases");
+    /* sem vídeo (quadros injetados) não há trecho: o relatório abre só com as imagens das fases */
+    assert.strictEqual(await pop.locator("#vbc").count(), 0, app + ": sem trecho, sem o tocador");
     await pop.close();
     // a lista do jogador perde as análises (gravação que falhou / outro aparelho gravou por cima): ao abrir, elas voltam do arquivo
     await p.reload();

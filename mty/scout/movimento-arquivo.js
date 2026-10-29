@@ -4,14 +4,16 @@
    nem de quem gravou por último, e qualquer um pode ser reaberto depois.
      orgs/{org}/dados/mty:movrel:v1:{id}        → um relatório completo
      orgs/{org}/dados/mty:movidx:v1:{alunoId}   → índice do jogador (resumos + removidos), base do histórico e da evolução
+     orgs/{org}/dados/mty:movclip:v1:{id}       → trecho do golpe (quadros pequenos do vídeo + pose de cada um), para o vídeo e o
+                                                  boneco rodarem juntos no relatório reaberto (documento à parte: não pesa no relatório)
    Sem nuvem (modo local), usa o localStorage com as mesmas chaves.
-   QLMovArquivo.criar({ db, org }) -> { salvar(alunoId, arq), ler(id), indice(alunoId), registrar(alunoId, resumos), remover(alunoId, id), removerJogador(alunoId) }
+   QLMovArquivo.criar({ db, org }) -> { salvar(alunoId, arq), ler(id), salvarClip(id, clip), lerClip(id), indice(alunoId), registrar(alunoId, resumos), remover(alunoId, id), removerJogador(alunoId) }
    QLMovArquivo.juntar(resumosDoJogador, indice) -> histórico completo (o que estiver em qualquer um dos dois, menos os removidos) */
 (function (raiz, fab) {
   if (typeof module === "object" && module.exports) module.exports = fab();
   else raiz.QLMovArquivo = fab();
 })(typeof self !== "undefined" ? self : this, function () {
-  var REL = "mty:movrel:v1:", IDX = "mty:movidx:v1:", LIMITE = 900000; /* um documento do Firestore aceita ~1 MB */
+  var REL = "mty:movrel:v1:", IDX = "mty:movidx:v1:", CLIP = "mty:movclip:v1:", LIMITE = 900000; /* um documento do Firestore aceita ~1 MB */
 
   function lerJSON(v, padrao) { try { var x = JSON.parse(v); return x == null ? padrao : x; } catch (e) { return padrao; } }
   function idValido(id) { return typeof id === "string" && /^[A-Za-z0-9_.:-]{1,120}$/.test(id) && id !== "." && id !== ".."; }
@@ -72,6 +74,15 @@
         var s = await (await col()).doc(REL + id).get();
         return s.exists ? lerJSON(s.data().value, null) : null;
       },
+      salvarClip: async function (id, clip) {
+        var v = JSON.stringify(clip);
+        if (v.length > LIMITE) return;
+        await (await col()).doc(CLIP + id).set({ value: v, atualizado: Date.now() });
+      },
+      lerClip: async function (id) {
+        var s = await (await col()).doc(CLIP + id).get();
+        return s.exists ? lerJSON(s.data().value, null) : null;
+      },
       indice: async function (alunoId) {
         var s = await (await col()).doc(IDX + alunoId).get();
         return normIndice(s.exists ? lerJSON(s.data().value, null) : null);
@@ -82,11 +93,12 @@
       remover: async function (alunoId, id) {
         await mexerIndice(alunoId, function (ind) { return semResumo(ind, id); });
         await (await col()).doc(REL + id).delete();
+        await (await col()).doc(CLIP + id).delete();
       },
       removerJogador: async function (alunoId) {
         var c = await col(), s = await c.doc(IDX + alunoId).get();
         var ind = normIndice(s.exists ? lerJSON(s.data().value, null) : null);
-        for (var i = 0; i < ind.itens.length; i++) await c.doc(REL + ind.itens[i].id).delete();
+        for (var i = 0; i < ind.itens.length; i++) { await c.doc(REL + ind.itens[i].id).delete(); await c.doc(CLIP + ind.itens[i].id).delete(); }
         await c.doc(IDX + alunoId).delete();
       }
     };
@@ -104,14 +116,16 @@
         set(IDX + alunoId, JSON.stringify(comResumo(ind(alunoId), arq.resumo)));
       },
       ler: async function (id) { return lerJSON(get(REL + id), null); },
+      salvarClip: async function (id, clip) { try { set(CLIP + id, JSON.stringify(clip)); } catch (e) { /* aparelho sem espaço: o relatório fica sem o trecho */ } },
+      lerClip: async function (id) { return lerJSON(get(CLIP + id), null); },
       indice: async function (alunoId) { return ind(alunoId); },
       registrar: async function (alunoId, resumos) {
         var i = ind(alunoId);
         resumos.forEach(function (r) { if (i.removidos.indexOf(r.id) < 0 && !i.itens.some(function (h) { return h.id === r.id; })) i.itens.push(r); });
         set(IDX + alunoId, JSON.stringify(i));
       },
-      remover: async function (alunoId, id) { set(IDX + alunoId, JSON.stringify(semResumo(ind(alunoId), id))); del(REL + id); },
-      removerJogador: async function (alunoId) { ind(alunoId).itens.forEach(function (h) { del(REL + h.id); }); del(IDX + alunoId); }
+      remover: async function (alunoId, id) { set(IDX + alunoId, JSON.stringify(semResumo(ind(alunoId), id))); del(REL + id); del(CLIP + id); },
+      removerJogador: async function (alunoId) { ind(alunoId).itens.forEach(function (h) { del(REL + h.id); del(CLIP + h.id); }); del(IDX + alunoId); }
     };
   }
 
@@ -126,6 +140,8 @@
     return {
       salvar: function (alunoId, arq) { return checa(alunoId, arq && arq.id) || base.salvar(alunoId, arq); },
       ler: function (id) { return idValido(id) ? base.ler(id) : Promise.resolve(null); },
+      salvarClip: function (id, clip) { return idValido(id) ? base.salvarClip(id, clip) : Promise.reject(new Error("Análise inválida.")); },
+      lerClip: function (id) { return idValido(id) ? base.lerClip(id) : Promise.resolve(null); },
       indice: function (alunoId) { return idValido(alunoId) ? base.indice(alunoId) : Promise.resolve(indiceVazio()); },
       registrar: function (alunoId, resumos) { return checa(alunoId) || base.registrar(alunoId, (resumos || []).filter(function (r) { return r && idValido(r.id); })); },
       remover: function (alunoId, id) { return checa(alunoId, id) || base.remover(alunoId, id); },
@@ -133,5 +149,5 @@
     };
   }
 
-  return { criar: criar, juntar: juntar, REL: REL, IDX: IDX };
+  return { criar: criar, juntar: juntar, REL: REL, IDX: IDX, CLIP: CLIP };
 });

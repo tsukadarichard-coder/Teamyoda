@@ -163,6 +163,50 @@
     });
   }
 
+  /* ── vídeo e boneco juntos no relatório ──
+     O trecho do golpe (quadros pequenos do vídeo + a pose de cada um) roda no próprio relatório: à esquerda o vídeo real, à direita
+     o boneco da análise, no mesmo instante. tocadorClip roda DENTRO da janela do relatório (vai como texto, com desenharBoneco). */
+  function tocadorClip() {
+    var C = window.CLIP, cv = document.getElementById("vbc"), x = cv.getContext("2d"), W = cv.width / 2 - 4, H = cv.height;
+    var ims = C.fotos.map(function (src) { var im = new Image(); im.src = src; im.onload = function () { desenhar(); }; return im; });
+    var t0 = C.t[0], t1 = C.t[C.t.length - 1], T = t0, toca = false, ult = 0;
+    var bt = document.getElementById("vbp"), vel = document.getElementById("vbv"), sl = document.getElementById("vbs"), rot = document.getElementById("vbr");
+    function idx() { var k = 0; for (var i = 0; i < C.t.length; i++) if (C.t[i] <= T + 1e-6) k = i; return k; }
+    function desenhar() {
+      var i = idx();
+      x.fillStyle = "#fff"; x.fillRect(0, 0, cv.width, H);
+      x.fillStyle = "#111"; x.fillRect(0, 0, W, H);
+      if (ims[i] && ims[i].complete && ims[i].naturalWidth) x.drawImage(ims[i], 0, 0, W, H);
+      x.save(); x.translate(W + 8, 0); x.fillStyle = "#EEF2F0"; x.fillRect(0, 0, W, H);
+      desenharBoneco(x, C.poses[i], W, H, { cor: "#1E88E5", corLonge: "#64B5F6" }); x.restore();
+      var f = -1; (C.fases || []).forEach(function (ft, k) { if (ft <= T + 1e-6) f = k; });
+      rot.textContent = (f >= 0 ? (f + 1) + ". " + C.nomes[f] + " · " : "") + T.toFixed(2) + " s";
+      sl.value = Math.round((T - t0) / Math.max(1e-3, t1 - t0) * 1000);
+    }
+    function ciclo(agora) {
+      if (toca) { T += (ult ? (agora - ult) / 1000 : 0) * (+vel.value || 0.5); if (T > t1) T = t0; desenhar(); }
+      ult = agora; requestAnimationFrame(ciclo);
+    }
+    function parar() { toca = false; bt.textContent = "▶ Reproduzir"; }
+    bt.onclick = function () { toca = !toca; ult = 0; bt.textContent = toca ? "❚❚ Pausar" : "▶ Reproduzir"; };
+    sl.oninput = function () { parar(); T = t0 + (+sl.value / 1000) * (t1 - t0); desenhar(); };
+    document.getElementById("vbant").onclick = function () { parar(); T = C.t[Math.max(0, idx() - 1)]; desenhar(); };
+    document.getElementById("vbprox").onclick = function () { parar(); T = C.t[Math.min(C.t.length - 1, idx() + 1)]; desenhar(); };
+    document.getElementById("vbf").onclick = function (e) { var b = e.target.closest("[data-f]"); if (!b) return; parar(); T = Math.max(t0, Math.min(t1, C.fases[+b.getAttribute("data-f")])); desenhar(); };
+    desenhar(); requestAnimationFrame(ciclo);
+  }
+  function clipHTML(clip) {
+    if (!clip || !clip.fotos || clip.fotos.length < 2 || !clip.t || !clip.poses) return "";
+    var W = 360, H = Math.round(W * (clip.prop > 0.2 && clip.prop < 5 ? clip.prop : 1.33));
+    var dados = JSON.stringify(clip).replace(/</g, "\\u003c");
+    return '<div class="vbr"><h2>Vídeo e boneco juntos</h2><canvas id="vbc" width="' + (2 * W + 8) + '" height="' + H + '"></canvas>' +
+      '<div class="vbctl"><button id="vbp">▶ Reproduzir</button><button id="vbant" aria-label="Quadro anterior">◀︎</button><button id="vbprox" aria-label="Próximo quadro">▶︎</button>' +
+      '<select id="vbv" aria-label="Velocidade"><option value="0.25">0,25×</option><option value="0.5" selected>0,5×</option><option value="1">1×</option></select><span id="vbr"></span></div>' +
+      '<input id="vbs" type="range" min="0" max="1000" value="0" aria-label="Posição no golpe">' +
+      '<div id="vbf">' + (clip.fases || []).map(function (t, i) { return '<button data-f="' + i + '">' + (i + 1) + ". " + esc((clip.nomes || [])[i] || "") + "</button>"; }).join("") + "</div></div>" +
+      "<script>window.CLIP=" + dados + ";" + pt.toString() + desenharBoneco.toString() + "(" + tocadorClip.toString() + ")();</" + "script>";
+  }
+
   /* ── relatório (janela própria, como o relatório dos jogos) ── */
   function relatorioHTML(d) {
     var r = d.resultado, co = B.conclusao(r), nm = nomeGolpe(d.golpe, d.emp), logo = d.logo || "assets/logo-quadralab.png";
@@ -194,12 +238,13 @@
       ".t{display:inline-block;padding:1px 8px;border-radius:99px;font-size:10px;font-weight:700;color:#fff}.t.ok{background:#2E8B57}.t.atencao{background:#C65825}.t.nao_avaliavel{background:#8A96A0}small{color:#5C6B78}" +
       ".pr{border:1px solid #E2DED5;border-left:4px solid #C65825;border-radius:8px;padding:6px 9px;margin:6px 0;break-inside:avoid}.pr p{margin:2px 0}.pr ul,ul{margin:3px 0 0 18px;padding:0}.quebra{break-before:page}.rod{margin-top:12px;border-top:1px solid #ccc;padding-top:6px;font-size:9.5px;color:#555}" +
       ".qm-up{color:#2E8B57;font-weight:700}.qm-dn{color:#C65825;font-weight:700}.qm-eq{color:#5C6B78}.qm-tag{display:inline-block;padding:1px 7px;border-radius:99px;font-size:10px;color:#fff}.qm-tag.ok{background:#2E8B57}.qm-tag.atencao{background:#C65825}.qm-tag.nao_avaliavel{background:#8A96A0}.qm-cmp-s{font-weight:700}.qm-msg{color:#5C6B78;font-size:10.5px}svg.qm-graf{width:100%;max-width:520px}" +
-      ".nop{margin-bottom:10px}.nop button{font:inherit;padding:8px 14px;border-radius:8px;border:1px solid #0B3B2E;background:#0B3B2E;color:#fff;margin-right:6px;cursor:pointer}@media print{.nop{display:none}body{padding:0}}";
+      ".nop{margin-bottom:10px}.nop button{font:inherit;padding:8px 14px;border-radius:8px;border:1px solid #0B3B2E;background:#0B3B2E;color:#fff;margin-right:6px;cursor:pointer}@media print{.nop{display:none}body{padding:0}}" +
+      ".vbr{margin-top:10px}.vbr canvas{display:block;width:100%;max-width:760px;height:auto;border-radius:8px;border:1px solid #E2DED5}.vbctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:6px 0}.vbr button,.vbr select{font:inherit;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid #0B3B2E;background:#fff;color:#0B3B2E;cursor:pointer}#vbp{background:#0B3B2E;color:#fff}#vbr{font-size:11px;color:#5C6B78}#vbs{width:100%;max-width:760px}#vbf{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}@media print{.vbr{display:none}}";
     return "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Análise de movimento · " + esc(nm) + "</title><style>" + css + "</style></head><body>" +
       '<div class="nop"><button onclick="window.print()">Salvar como PDF / Imprimir</button><button onclick="window.close()">Fechar</button></div>' +
       '<div class="cab"><img src="' + esc(logo) + '" alt="QuadraLab"><div><div class="t">Análise de movimento · ' + esc(nm) + "</div><small>" + (d.atleta ? "Atleta: " + esc(d.atleta) + " · " : "") + "Mão dominante: " + (d.dom === "E" ? "esquerda" : "direita") + " · " + (d.data ? new Date(d.data) : new Date()).toLocaleDateString("pt-BR") + (d.demo ? " · dados de demonstração" : "") + (d.cabecalho ? " · " + esc(d.cabecalho) : "") + "</small></div></div>" +
       '<div class="kpi"><div style="background:#2E8B57"><b>' + r.resumo.ok + '</b>OK</div><div style="background:#C65825"><b>' + r.resumo.atencao + '</b>Atenção</div><div style="background:#8A96A0"><b>' + r.resumo.nao_avaliavel + "</b>Revisar com treinador</div></div>" +
-      fotos + '<div class="quebra"></div><h2>Checklist por fase</h2><table><thead><tr><th>Item</th><th>Medido</th><th>Referência</th><th>Parecer</th></tr></thead><tbody>' + tb + "</tbody></table>" +
+      clipHTML(d.clip) + fotos + '<div class="quebra"></div><h2>Checklist por fase</h2><table><thead><tr><th>Item</th><th>Medido</th><th>Referência</th><th>Parecer</th></tr></thead><tbody>' + tb + "</tbody></table>" +
       '<div class="quebra"></div><h2>Conclusão e intervenções sugeridas</h2><p>' + esc(co.texto) + "</p>" + cb + evo +
       '<div class="rod">Tecnologia QuadraLab · relatório automático de apoio ao treinador. As medidas vêm de estimativa de pose em vídeo e as faixas de referência são provisórias. Itens "Revisar" dependem de avaliação presencial.</div></body></html>';
   }
@@ -234,9 +279,11 @@
     w.document.write('<!doctype html><meta charset="utf-8"><title>Carregando relatório…</title><p style="font:14px system-ui,sans-serif;padding:20px;color:#14202B">Carregando o relatório…</p>');
     var hist = B.ordenar(o.historico || []).filter(function (x) { return mesmoGolpe(x, h) && x.criadoEm <= h.criadoEm; });
     var p = o.arquivo ? Promise.resolve().then(function () { return o.arquivo.ler(h.id); }).catch(function () { return null; }) : Promise.resolve(null);
-    return p.then(function (arq) {
+    var pc = o.arquivo && o.arquivo.lerClip ? Promise.resolve().then(function () { return o.arquivo.lerClip(h.id); }).catch(function () { return null; }) : Promise.resolve(null);
+    return Promise.all([p, pc]).then(function (x) {
+      var arq = x[0], clip = x[1];
       var html = arq && arq.resultado
-        ? relatorioHTML({ resultado: arq.resultado, golpe: arq.golpe, emp: arq.emp, dom: arq.dom, atleta: arq.atleta || o.atleta || "", fotos: arq.fotos || [], semFotos: arq.semFotos, logo: o.logo, comparacao: arq.comparacao, historico: hist, cabecalho: arq.cabecalho || o.cabecalho, data: arq.criadoEm })
+        ? relatorioHTML({ resultado: arq.resultado, golpe: arq.golpe, emp: arq.emp, dom: arq.dom, atleta: arq.atleta || o.atleta || "", fotos: arq.fotos || [], semFotos: arq.semFotos, logo: o.logo, comparacao: arq.comparacao, historico: hist, cabecalho: arq.cabecalho || o.cabecalho, data: arq.criadoEm, clip: clip })
         : relatorioResumoHTML(h, { atleta: o.atleta || "", logo: o.logo, cabecalho: o.cabecalho, historico: hist });
       w.document.open(); w.document.write(html); w.document.close();
     });
@@ -580,9 +627,15 @@
           desenharBoneco(x, f.pose, W, H, { cor: "#1E88E5", corLonge: "#64B5F6" });
           x.fillStyle = "#5C6B78"; x.font = "17px system-ui"; x.fillText("boneco da análise", 10, H - 12); x.restore();
         }
-        if (meu === S.token && !sintetico && v.src) await seek(0);
         await Promise.resolve(); /* mostrar() termina antes (o registro desta análise só existe no fim dele) */
         if (meu === S.token && !sintetico) arquivar();
+        /* trecho do golpe para o vídeo e o boneco rodarem juntos no relatório (guardado à parte) */
+        S.clip = null;
+        if (meu === S.token && !sintetico && v.src) {
+          var clip = await capturarClip(r, proporcao, meu);
+          if (clip && meu === S.token) { S.clip = clip; if (arquivo && arquivo.salvarClip && S.regAtual) { var idc = S.regAtual.id; S.filaArq = S.filaArq.catch(function () {}).then(function () { return arquivo.salvarClip(idc, clip); }).catch(function () {}); } }
+        }
+        if (meu === S.token && !sintetico && v.src) await seek(0);
       })().catch(function () { /* a análise continua valendo sem as fotos */ });
       var tb = "", fa = -1;
       r.itens.forEach(function (it) {
@@ -613,6 +666,26 @@
       } else q("salvoMsg").textContent = sintetico ? "Demonstração: nada foi salvo." : "";
       renderHistorico();
       prepararVB(sintetico);
+    }
+    /* Trecho do golpe: do começo da primeira fase ao fim da última (com folga), até 40 quadros pequenos do vídeo e a pose de cada um. */
+    async function capturarClip(r, prop, meu) {
+      var qs = S.quadros, f0 = r.fases[0].t, f1 = r.fases[r.fases.length - 1].t, ini = Math.max(0, f0 - 0.5), fim = f1 + 0.3;
+      var sel = qs.filter(function (q2) { return q2.t >= ini && q2.t <= fim; });
+      if (sel.length < 2) return null;
+      var passo = Math.ceil(sel.length / 40); sel = sel.filter(function (q2, i) { return i % passo === 0; });
+      var W = 216, H = Math.round(W * prop), c = document.createElement("canvas"); c.width = W; c.height = H; var x = c.getContext("2d");
+      var clip = { prop: Math.round(prop * 1000) / 1000, t: [], fotos: [], poses: [], fases: r.fases.map(function (f) { return f.t; }), nomes: r.nomes.slice() };
+      for (var i = 0; i < sel.length; i++) {
+        if (meu !== S.token) return null;
+        await seek(sel[i].t); await quadroPronto();
+        x.drawImage(v, 0, 0, W, H);
+        var src; try { src = c.toDataURL("image/jpeg", 0.6); } catch (e) { return null; }
+        clip.t.push(Math.round(sel[i].t * 1000) / 1000); clip.fotos.push(src);
+        clip.poses.push(sel[i].lm.map(function (p) { return p && isFinite(p.x) && isFinite(p.y) && (p.v == null || p.v >= 0.2) ? [Math.round(p.x * 1000) / 1000, Math.round(p.y * 1000) / 1000] : null; }));
+      }
+      /* sempre cabe num documento: tira um quadro sim, outro não, até caber */
+      while (JSON.stringify(clip).length > 850000 && clip.t.length > 8) ["t", "fotos", "poses"].forEach(function (k) { clip[k] = clip[k].filter(function (z, i) { return i % 2 === 0; }); });
+      return clip;
     }
     /* relatório completo (checklist com pareceres, fases, fotos, conclusão, comparação) no arquivo da academia */
     /* Fotos das fases para o arquivo: reduzidas para caber sempre no documento do relatório (vídeo de celular em pé gera
@@ -697,7 +770,7 @@
       Promise.resolve(S.fotosProntas).catch(function () {}).then(function () {
         var hist = S.historico.filter(function (h) { return h.golpe === golpe(); });
         w.document.open();
-        w.document.write(relatorioHTML({ resultado: S.resultado, golpe: golpe(), emp: S.emp, dom: q("dom").value, atleta: q("atl").value || opts.atleta || "", fotos: S.fotos, logo: opts.logoAbsoluto || logo, demo: S.sintetico, comparacao: S.comparacao, historico: hist, cabecalho: opts.cabecalho }));
+        w.document.write(relatorioHTML({ resultado: S.resultado, golpe: golpe(), emp: S.emp, dom: q("dom").value, atleta: q("atl").value || opts.atleta || "", fotos: S.fotos, logo: opts.logoAbsoluto || logo, demo: S.sintetico, comparacao: S.comparacao, historico: hist, cabecalho: opts.cabecalho, clip: S.clip }));
         w.document.close();
       });
     };

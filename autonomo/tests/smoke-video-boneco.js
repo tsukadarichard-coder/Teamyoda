@@ -76,6 +76,25 @@ const srv = http.createServer((q, r) => {
     t = await p.evaluate(() => document.querySelector('.qlm [data-r="cmpMod"]').innerText);
     assert(/tirado de uma análise de vídeo/.test(t), "modelo da academia explicado");
     if (CAP) await p.screenshot({ path: CAP + "/vb-video.png", fullPage: true });
+    /* trecho do golpe guardado à parte: no relatório (também quando reaberto), o vídeo real e o boneco rodam juntos */
+    await p.waitForFunction(() => Object.keys(localStorage).some((k) => k.startsWith("local:mty:movclip:v1:")), null, { timeout: 20000 });
+    const clip = await p.evaluate(() => JSON.parse(localStorage.getItem(Object.keys(localStorage).find((k) => k.startsWith("local:mty:movclip:v1:")))));
+    assert(clip.t.length >= 10 && clip.fotos.length === clip.t.length && clip.poses.length === clip.t.length && clip.fases.length === 6, "trecho com quadros, poses e fases (" + clip.t.length + ")");
+    assert(clip.t[0] <= clip.fases[0] && clip.t[clip.t.length - 1] >= clip.fases[5] - 0.05, "trecho cobre todas as fases");
+    const [pop] = await Promise.all([p.waitForEvent("popup"), Q("pdf").click()]);
+    await pop.waitForSelector("#vbc");
+    const ant = await pop.textContent("#vbr");
+    await pop.click("#vbp"); await pop.waitForTimeout(900); await pop.click("#vbp");
+    const dep = await pop.textContent("#vbr");
+    assert(ant !== dep, "reproduzir avança o vídeo e o boneco juntos (" + ant + " → " + dep + ")");
+    const lados = await pop.evaluate(() => { const c = document.getElementById("vbc"), x = c.getContext("2d"), W = c.width / 2 - 4;
+      const conta = (x0) => { const d = x.getImageData(x0, 0, W, c.height).data; let az = 0, cor = 0; for (let i = 0; i < d.length; i += 4) { if (d[i + 2] > 180 && d[i] < 120) az++; if (Math.abs(d[i] - d[i + 1]) > 20 || Math.abs(d[i + 1] - d[i + 2]) > 20) cor++; } return [az, cor]; };
+      return { video: conta(0), boneco: conta(W + 8) }; });
+    assert(lados.boneco[0] > 200, "boneco desenhado à direita " + JSON.stringify(lados));
+    await pop.click('#vbf [data-f="3"]');
+    assert((await pop.textContent("#vbr")).startsWith("4. "), "botão da fase leva ao contato");
+    if (CAP) { await pop.setViewportSize({ width: 390, height: 900 }); await pop.screenshot({ path: CAP + "/vb-relatorio.png" }); }
+    await pop.close();
   } else console.log("smoke-video-boneco: sem vídeo de teste, parte do vídeo real pulada");
   assert.deepStrictEqual(erros, [], "erros de JS " + erros.join(" | "));
   console.log("smoke-video-boneco: ok");

@@ -79,9 +79,20 @@ const arquivo = (id, criadoEm, extra) => Object.assign({ id, alunoId: "a1", cria
     await assert.rejects(S.salvar("a1", arquivo("a/b", "2026-10-15T10:00:00.000Z")), /inválida/, modo + ": análise inválida");
     assert.strictEqual(await S.ler("a/b"), null, modo + ": leitura com id inválido");
 
+    // trecho do golpe (vídeo + boneco juntos no relatório): documento à parte, sai junto com a análise
+    const clip = { prop: 1.778, t: [1, 1.1], fotos: ["data:image/jpeg;base64,AA", "data:image/jpeg;base64,BB"], poses: [[null], [null]], fases: [1], nomes: ["Contato"] };
+    await S.salvarClip("mv2", clip);
+    assert.deepStrictEqual(await S.lerClip("mv2"), clip, modo + ": trecho guardado e lido");
+    assert(tem("mty:movclip:v1:mv2"), modo + ": trecho num documento próprio");
+    assert.strictEqual(await S.lerClip("mv1"), null, modo + ": análise sem trecho");
+    await assert.rejects(S.salvarClip("a/b", clip), /inválida/, modo + ": trecho com id inválido");
+    await S.salvarClip("mv3", clip);
+    await S.remover("a1", "mv3");
+    assert(!tem("mty:movclip:v1:mv3"), modo + ": remover a análise leva o trecho");
+
     // remover o jogador apaga os relatórios dele
     await S.removerJogador("a1");
-    assert(!tem("mty:movrel:v1:mv2") && !tem("mty:movrel:v1:mv3") && !tem("mty:movidx:v1:a1"), modo + ": jogador removido leva os relatórios");
+    assert(!tem("mty:movrel:v1:mv2") && !tem("mty:movrel:v1:mv3") && !tem("mty:movidx:v1:a1") && !tem("mty:movclip:v1:mv2"), modo + ": jogador removido leva os relatórios e os trechos");
   }
   // sem academia (conta sem org): falha clara, nada gravado
   const db = fakeDb(), S = A.criar({ db, org: async () => null });
