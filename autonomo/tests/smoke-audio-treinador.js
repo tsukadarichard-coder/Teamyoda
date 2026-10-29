@@ -3,6 +3,7 @@
    · salvar cria o registro "observacao" de contexto "conversa" com a gravação; apagar a gravação apaga o arquivo;
    · plano grátis: o gravador mostra o cadeado (o texto continua possível). Rode: node tests/smoke-audio-treinador.js [pasta-das-capturas] */
 const http = require("http"), fs = require("fs"), path = require("path"), assert = require("assert");
+const AULAS_MES_JS=require("fs").readFileSync(require("path").join(__dirname,"../../mty/aulas-mes.js"),"utf8");
 const { chromium } = require("/opt/node22/lib/node_modules/playwright");
 /* APP=mty roda o mesmo teste no app do Team Yoda (mty/, functions na raiz do repositório) */
 const MTY = process.env.APP === "mty";
@@ -31,7 +32,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(<Host />);`;
 /* ditado simulado: devolve uma frase ~300 ms depois de começar */
 const SR_STUB = `window.SpeechRecognition = function () { var s = this; s.start = function () { setTimeout(function () { if (s.onresult) s.onresult({ resultIndex: 0, results: [Object.assign([{ transcript: "Conversamos sobre o segundo saque no saibro" }], { isFinal: true })] }); }, 300); }; s.stop = function () { s.onend = null; }; };`;
 const pagina = (plano) => `<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><div id=root></div>
-<script src=/__cdn/r.js></script><script src=/__cdn/d.js></script><script src=/__cdn/p.js></script><script src=/__cdn/c.js></script><script src=/__cdn/b.js></script>
+<script src=/__cdn/r.js></script><script src=/__cdn/d.js></script><script src=/__cdn/p.js></script><script src=/__cdn/c.js></script><script src=/__cdn/b.js></script><script>${AULAS_MES_JS}</script>
 <script>${SR_STUB}window.MTY={evento(){},id:()=>"x",map(){},tokenSeguro(){return ""}};window.mtyAuth={usuario:()=>({uid:"prof1"}),tokenId:async()=>"prof1"};window.__plano=${JSON.stringify(plano)};</script>
 <script src=/scout/graficos.js></script><script src=/scout/ao-vivo.js></script><script src=/scout/relatorio-jogos.js></script><script src=/scout/movimento-motor.js></script><script src=/scout/evidencias.js></script><script src=/scout/movimento.js></script>
 <script type="text/babel">${corpo}</script>`;

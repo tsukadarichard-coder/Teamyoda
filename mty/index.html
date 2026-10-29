@@ -7424,11 +7424,14 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
   const podeSessao = podeEditar || podeRegistrarAula;
   const [professoresSessao, setProfessoresSessao] = useState([]);
   useEffect(() => {
-    if (aluno.professorUid && aluno.professorUid !== uidAtual) listaProfessores().then(setProfessoresSessao);
+    if (uidAtual) listaProfessoresCache().then(setProfessoresSessao);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aluno.id]);
   const souSubstituto = !!aluno.professorUid && aluno.professorUid !== uidAtual && papelAtual !== "coordenador";
   const meuNomeSessao = professoresSessao.find((p) => p.uid === uidAtual)?.nome || "";
+  /* "Quem deu esta aula?" no fim da aula — começa como substituto quando quem registra não é o titular */
+  const [substitutoSessao, setSubstitutoSessao] = useState(souSubstituto ? uidAtual : "");
+  const nomeSubstitutoSessao = substitutoSessao ? (professoresSessao.find((p) => p.uid === substitutoSessao)?.nome || (substitutoSessao === uidAtual ? meuNomeSessao : "")) : "";
   const exigeLogin = typeof window !== "undefined" && !!window.mtyAuth;
   const hoje = new Date().toISOString().slice(0, 10);
   /* Precisa vir antes do rascunho abaixo — ver rascunhoAindaValido. É o
@@ -7801,8 +7804,8 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
       blocoNome: aulaAtual ? aulaAtual.bloco : null,
       // Quem de fato deu/registrou esta aula — só preenchido quando é
       // diferente do professor titular do jogador (substituição).
-      substitutoUid: souSubstituto ? uidAtual : "",
-      substitutoNome: souSubstituto ? meuNomeSessao : "",
+      substitutoUid: substitutoSessao || "",
+      substitutoNome: nomeSubstitutoSessao,
       // Quem registrou esta aula, sempre (inclusive o coordenador ou o
       // próprio titular) — é o que a tela Aulas da equipe mostra.
       registradoPorUid: uidAtual || "",
@@ -8212,12 +8215,10 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
                 </div>
                 <div style={{ overflowY: "auto", padding: "16px 18px", paddingBottom: "calc(16px + env(safe-area-inset-bottom))" }}>
 
-                  {souSubstituto && (
-                    <Aviso cor={C.saibro}>
-                      Este jogador é do professor {aluno.professorNome || "titular"} — como você está
-                      registrando no lugar dele, o registro guarda {meuNomeSessao ? "\"" + meuNomeSessao + "\"" : "você"} como substituto.
-                    </Aviso>
-                  )}
+                  <div className="mb-4">
+                    <QuemDeuAula titularNome={aluno.professorNome} titularUid={aluno.professorUid} substitutoUid={substitutoSessao}
+                      aoMudar={setSubstitutoSessao} uidAtual={uidAtual} professores={professoresSessao} />
+                  </div>
 
                   {todosExerciciosAtuais.length > 0 && (
                     <Campo rotulo="Atividades realizadas" nota="Indique o que não foi feito ou só parcialmente — o resto conta como feito.">
@@ -17010,11 +17011,13 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
   const podeRegistrarSessaoTurma = papelAtual === "coordenador" || !!uidAtual;
   const [professoresSessaoTurma, setProfessoresSessaoTurma] = useState([]);
   useEffect(() => {
-    if (!podeEditar) listaProfessores().then(setProfessoresSessaoTurma);
+    if (uidAtual) listaProfessoresCache().then(setProfessoresSessaoTurma);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [turma.id]);
   const souSubstitutoTurma = !podeEditar;
   const meuNomeSessaoTurma = professoresSessaoTurma.find((p) => p.uid === uidAtual)?.nome || "";
+  const [substitutoTurma, setSubstitutoTurma] = useState(souSubstitutoTurma && uidAtual ? uidAtual : "");
+  const nomeSubstitutoTurma = substitutoTurma ? (professoresSessaoTurma.find((p) => p.uid === substitutoTurma)?.nome || (substitutoTurma === uidAtual ? meuNomeSessaoTurma : "")) : "";
   const membros = turma.membros.map((id) => alunos.find((a) => a.id === id)).filter(Boolean);
   const hoje = new Date().toISOString().slice(0, 10);
   /* Precisa vir antes do rascunho abaixo — ver rascunhoAindaValido. */
@@ -17226,8 +17229,8 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
           blocoNome: aulaTurma ? aulaTurma.bloco : null,
           // Quem de fato deu/registrou esta sessão — só preenchido quando
           // é diferente do professor titular/auxiliar da turma.
-          substitutoUid: souSubstitutoTurma ? uidAtual : "",
-          substitutoNome: souSubstitutoTurma ? meuNomeSessaoTurma : "",
+          substitutoUid: substitutoTurma || "",
+          substitutoNome: nomeSubstitutoTurma,
           registradoPorUid: uidAtual || "",
           registradoPorNome: meuNomeSessaoTurma || "",
         };
@@ -17309,8 +17312,8 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
       {souSubstitutoTurma && (
         <div className="mb-5">
           <Aviso>
-            Esta turma é de outro treinador — você está registrando no lugar dele, então o registro
-            guarda {meuNomeSessaoTurma ? "\"" + meuNomeSessaoTurma + "\"" : "você"} como substituto.
+            Esta turma é de outro treinador. No fim da sessão, em "Quem deu esta aula?", já vem marcado
+            você como substituto: confira antes de salvar.
           </Aviso>
         </div>
       )}
@@ -17606,6 +17609,10 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
                 <Seletor opcoes={[1, 2, 3, 4, 5].map((n) => ({ v: n, r: String(n) }))} valor={obs.nota}
                   aoMudar={(v) => setObs({ ...obs, nota: v })} />
               </Campo>
+              <div className="mb-4">
+                <QuemDeuAula titularNome={turma.professorNome} titularUid={turma.professorUid} substitutoUid={substitutoTurma}
+                  aoMudar={setSubstitutoTurma} uidAtual={uidAtual} professores={professoresSessaoTurma} />
+              </div>
               <Botao onClick={salvarSessao} disabled={!podeRegistrarSessaoTurma || (statusGeral === "chuva" && !chuvaModeloId)}>Salvar sessão</Botao>
             </div>
           </div>
@@ -17979,6 +17986,41 @@ function tituloOcorrencia(oc, alunos, turmas) {
   return rotuloTipoOcorrencia(oc.tipo);
 }
 
+/* Lista de professores reaproveitada por vários cartões de aula na mesma tela (um pedido por minuto, não um por cartão). */
+let cacheProfessores = { em: 0, p: null };
+function listaProfessoresCache() {
+  if (!cacheProfessores.p || Date.now() - cacheProfessores.em > 60000) cacheProfessores = { em: Date.now(), p: listaProfessores().catch(() => []) };
+  return cacheProfessores.p;
+}
+/* "Quem deu esta aula?" — sempre presente no fim da aula: o titular ou um substituto. É isso que decide para quem a aula
+   conta no Relatório do mês e no pagamento do Financeiro. `professores` (opcional) permite escolher outro professor como
+   substituto — quem marca pela Agenda pode estar registrando a aula de um colega. */
+function QuemDeuAula({ titularNome, substitutoUid, aoMudar, uidAtual, professores, titularUid }) {
+  const ehSub = !!substitutoUid;
+  const outros = (professores || []).filter((p) => p.uid && p.uid !== titularUid);
+  const chip = (ativo) => ({ fontFamily: ARCH, fontSize: 12, fontWeight: 700, padding: "6px 11px", borderRadius: 999, cursor: "pointer", minHeight: 32,
+    border: "1px solid " + (ativo ? C.tinta : C.linha), background: ativo ? C.tinta : C.papel, color: ativo ? C.papel : C.grafite });
+  return (
+    <div data-quem-deu onClick={(e) => e.stopPropagation()}>
+      <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 5 }}>Quem deu esta aula?</p>
+      <div className="flex flex-wrap gap-2 items-center">
+        <button type="button" aria-pressed={!ehSub} onClick={() => aoMudar("")} style={chip(!ehSub)}>Titular{titularNome ? " (" + titularNome + ")" : ""}</button>
+        {(() => {
+          const alvo = uidAtual && uidAtual !== titularUid ? uidAtual : (outros[0] || {}).uid || "";
+          return <button type="button" aria-pressed={ehSub} disabled={!ehSub && !alvo} onClick={() => aoMudar(ehSub ? substitutoUid : alvo)}
+            style={{ ...chip(ehSub), opacity: !ehSub && !alvo ? 0.5 : 1 }}>Substituto</button>;
+        })()}
+        {ehSub && outros.length > 0 && (
+          <select aria-label="Professor substituto" style={{ ...entrada, width: "auto", minWidth: 150, padding: "6px 8px" }} value={substitutoUid} onChange={(e) => aoMudar(e.target.value)}>
+            {!outros.some((p) => p.uid === substitutoUid) && <option value={substitutoUid}>{substitutoUid === uidAtual ? "Eu" : "Escolha…"}</option>}
+            {outros.map((p) => <option key={p.uid} value={p.uid}>{p.uid === uidAtual ? p.nome + " (eu)" : p.nome}</option>)}
+          </select>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ── Marcar a aula em um toque ──
    Realizada, Aluno faltou (aula individual: o professor estava lá) ou Cancelada com o motivo em um toque — e, no
    cancelamento, o crédito de reposição de cada aluno já sai junto (respeitando a regra da unidade: se ela exige
@@ -17997,8 +18039,18 @@ function reposicaoSugerida(motivo, regras) {
   const m = QLAulasMes.MOTIVOS.find((x) => x.v === motivo);
   return m ? m.reposicao : false;
 }
-function MarcarAula({ oc, alunos, setAlunos, turmas, regras, aoAtualizar, compacto }) {
+function MarcarAula({ oc, alunos, setAlunos, turmas, regras, aoAtualizar, compacto, uidAtual, papelAtual }) {
   const [cancelando, setCancelando] = useState(false);
+  const [professores, setProfessores] = useState([]);
+  useEffect(() => { let vivo = true; listaProfessoresCache().then((l) => { if (vivo) setProfessores(l || []); }); return () => { vivo = false; }; }, []);
+  /* professor que não é o titular nem o auxiliar abrindo a aula de um colega: já começa como substituto (dá pra trocar) */
+  const souOutro = !!uidAtual && papelAtual !== "coordenador" && !!oc.professorUid && uidAtual !== oc.professorUid && uidAtual !== oc.professorAuxiliarUid;
+  const [substitutoUid, setSubstitutoUid] = useState(oc.substitutoUid || (souOutro ? uidAtual : ""));
+  function dadosQuemDeu() {
+    if (!substitutoUid) return { substitutoUid: "", substitutoNome: "" };
+    const p = professores.find((x) => x.uid === substitutoUid);
+    return { substitutoUid, substitutoNome: p ? p.nome : oc.substitutoNome || "" };
+  }
   const [motivo, setMotivo] = useState("");
   const [outro, setOutro] = useState("");
   const [darReposicao, setDarReposicao] = useState(false);
@@ -18008,11 +18060,11 @@ function MarcarAula({ oc, alunos, setAlunos, turmas, regras, aoAtualizar, compac
   const podeDarCredito = oc.tipo !== "reposicao" && membros.length > 0 && !!setAlunos && motivo !== QLAulasMes.MOTIVO_IGNORAR;
 
   function realizada() {
-    aoAtualizar({ status: "realizada", duracaoEfetivaMin: oc.duracaoEfetivaMin || duracaoPrevistaOc(oc), motivoCancelamento: "", excluirDoRelatorio: false,
+    aoAtualizar({ status: "realizada", duracaoEfetivaMin: oc.duracaoEfetivaMin || duracaoPrevistaOc(oc), motivoCancelamento: "", excluirDoRelatorio: false, ...dadosQuemDeu(),
       membrosNaAula: membros, presencas: individual ? { ...(oc.presencas || {}), [oc.origemId]: "presente" } : oc.presencas || {} });
   }
   function alunoFaltou() {
-    aoAtualizar({ status: "realizada", duracaoEfetivaMin: oc.duracaoEfetivaMin || duracaoPrevistaOc(oc), motivoCancelamento: "", excluirDoRelatorio: false,
+    aoAtualizar({ status: "realizada", duracaoEfetivaMin: oc.duracaoEfetivaMin || duracaoPrevistaOc(oc), motivoCancelamento: "", excluirDoRelatorio: false, ...dadosQuemDeu(),
       membrosNaAula: membros, presencas: { ...(oc.presencas || {}), [oc.origemId]: "falta" } });
   }
   function escolherMotivo(m) {
@@ -18036,10 +18088,15 @@ function MarcarAula({ oc, alunos, setAlunos, turmas, regras, aoAtualizar, compac
     cursor: "pointer", border: "1px solid " + cor, background: cheio ? cor : C.papel, color: cheio ? "#fff" : cor, minHeight: 36 });
   if (!cancelando) {
     return (
-      <div data-marcar-aula className="flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
-        <button type="button" onClick={realizada} style={botao(C.quadra, true)}>✓ Realizada</button>
-        {individual && <button type="button" onClick={alunoFaltou} style={botao("#B23A2E", false)}>Aluno faltou</button>}
-        <button type="button" onClick={() => setCancelando(true)} style={botao(C.grafite, false)}>✕ Cancelada</button>
+      <div onClick={(e) => e.stopPropagation()}>
+        <div className="mb-2">
+          <QuemDeuAula titularNome={oc.professorNome} titularUid={oc.professorUid} substitutoUid={substitutoUid} aoMudar={setSubstitutoUid} uidAtual={uidAtual} professores={professores} />
+        </div>
+        <div data-marcar-aula className="flex flex-wrap gap-2">
+          <button type="button" onClick={realizada} style={botao(C.quadra, true)}>✓ Realizada</button>
+          {individual && <button type="button" onClick={alunoFaltou} style={botao("#B23A2E", false)}>Aluno faltou</button>}
+          <button type="button" onClick={() => setCancelando(true)} style={botao(C.grafite, false)}>✕ Cancelada</button>
+        </div>
       </div>
     );
   }
@@ -18114,7 +18171,7 @@ function ChamadaRapida({ oc, alunos, turmas, aoAtualizar }) {
    realizada mesmo com alunos ausentes; uma aula cancelada por chuva não
    deve marcar todos como faltantes" — por isso cancelar não mexe em
    `presencas`, e confirmar presença não muda `status`). */
-function CartaoOcorrencia({ ocorrencia: oc, alunos, setAlunos, turmas, quadras, regras, conflitos, aberta, aoAbrir, aoAtualizar, aoAbrirAula }) {
+function CartaoOcorrencia({ ocorrencia: oc, alunos, setAlunos, turmas, quadras, regras, conflitos, aberta, aoAbrir, aoAtualizar, aoAbrirAula, uidAtual, papelAtual }) {
   const [professores, setProfessores] = useState([]);
   const [duracaoEfetiva, setDuracaoEfetiva] = useState(oc.duracaoEfetivaMin || "");
 
@@ -18188,7 +18245,12 @@ function CartaoOcorrencia({ ocorrencia: oc, alunos, setAlunos, turmas, quadras, 
           </span>
         </div>
       </button>
-      {podeMarcar && <div className="mt-2"><MarcarAula oc={oc} alunos={alunos} setAlunos={setAlunos} turmas={turmas} regras={regras} aoAtualizar={aoAtualizar} compacto /></div>}
+      {podeMarcar && <div className="mt-2"><MarcarAula oc={oc} alunos={alunos} setAlunos={setAlunos} turmas={turmas} regras={regras} aoAtualizar={aoAtualizar} compacto uidAtual={uidAtual} papelAtual={papelAtual} /></div>}
+      {ehAula && oc.status === "realizada" && (
+        <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 4 }}>
+          Deu a aula: {oc.substitutoUid || oc.substitutoNome ? (oc.substitutoNome || "substituto") + " (substituto)" : (oc.professorNome || "titular") + " (titular)"}
+        </p>
+      )}
       {oc.status === "cancelada" && oc.motivoCancelamento && !aberta && (
         <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 4 }}>Motivo: {oc.motivoCancelamento}</p>
       )}
@@ -18486,7 +18548,7 @@ function TelaAulasHoje({ alunos, setAlunos, turmas, setTurmas, quadras, reservas
             <CartaoOcorrencia key={o.id} ocorrencia={o} alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} regras={regrasReposicao}
               conflitos={conflitosDoCartao(o)}
               aberta={abertaId === o.id} aoAbrir={() => setAbertaId(abertaId === o.id ? null : o.id)}
-              aoAtualizar={(patch) => atualizar(o.id, patch)} aoAbrirAula={abrirAula} />
+              aoAtualizar={(patch) => atualizar(o.id, patch)} aoAbrirAula={abrirAula} uidAtual={uidAtual} papelAtual={papelAtual} />
           ))}
         </div>
       )}
@@ -18499,7 +18561,7 @@ function TelaAulasHoje({ alunos, setAlunos, turmas, setTurmas, quadras, reservas
               <CartaoOcorrencia key={o.id} ocorrencia={o} alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} regras={regrasReposicao}
                 conflitos={conflitosDoCartao(o)}
                 aberta={abertaId === o.id} aoAbrir={() => setAbertaId(abertaId === o.id ? null : o.id)}
-                aoAtualizar={(patch) => atualizar(o.id, patch)} aoAbrirAula={abrirAula} />
+                aoAtualizar={(patch) => atualizar(o.id, patch)} aoAbrirAula={abrirAula} uidAtual={uidAtual} papelAtual={papelAtual} />
             ))}
           </div>
         </div>
@@ -18913,7 +18975,7 @@ function TelaFechamentoMes({ ocorrencias, setOcorrencias, alunos, setAlunos, tur
           <p style={{ ...prosa, fontSize: 12.5, color: "#6B5A2E", marginBottom: 10 }}>Marque cada uma para o relatório fechar certo. Se a data não era de aula, use "Não era aula" no cancelamento.</p>
           {(todasPendentes ? f.pendentes : f.pendentes.slice(0, 5)).map((a) => linhaAula(a, (
             <div className="mt-2">
-              <MarcarAula oc={a.ocorrencia} alunos={alunos} setAlunos={setAlunos} turmas={turmas} regras={regrasReposicao} aoAtualizar={(patch) => atualizarAula(a, patch)} compacto />
+              <MarcarAula oc={a.ocorrencia} alunos={alunos} setAlunos={setAlunos} turmas={turmas} regras={regrasReposicao} aoAtualizar={(patch) => atualizarAula(a, patch)} compacto uidAtual={uidAtual} papelAtual={papelAtual} />
             </div>
           )))}
           {f.pendentes.length > 5 && (
@@ -20222,7 +20284,7 @@ function construirBlocosPeriodo({ inicioISO, fimISO, alunos, turmas, ocorrencias
   return blocos;
 }
 
-function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, ocorrencias, setOcorrencias, quadras, reservas, setReservas, bloqueiosAula, orgAtual, mostraQuadras, uidAtual, exigeLogin, regrasReposicao, setAba, dataAlvo, visualizacaoAlvo, aoConsumirAlvo, irParaSessaoAluno, irParaSessaoTurma }) {
+function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, ocorrencias, setOcorrencias, quadras, reservas, setReservas, bloqueiosAula, orgAtual, mostraQuadras, uidAtual, papelAtual, exigeLogin, regrasReposicao, setAba, dataAlvo, visualizacaoAlvo, aoConsumirAlvo, irParaSessaoAluno, irParaSessaoTurma }) {
   const hojeISO = dataISO(new Date());
   // Celular abre em "Dia" (lista cabe numa tela sem rolagem horizontal);
   // computador abre em "Semana" — pedido explícito da seção 1.
@@ -20462,7 +20524,7 @@ function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, ocorrencias, setOcor
                 <>
                   <CartaoOcorrencia ocorrencia={ocorrenciaDoDetalhe} alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} regras={regrasReposicao}
                     conflitos={conflitosDeOcorrencia(ocorrencias, ocorrenciaDoDetalhe, turmas)}
-                    aberta={true} aoAbrir={() => {}} aoAtualizar={(patch) => atualizarOcorrencia(ocorrenciaDoDetalhe.id, patch)} />
+                    aberta={true} aoAbrir={() => {}} aoAtualizar={(patch) => atualizarOcorrencia(ocorrenciaDoDetalhe.id, patch)} uidAtual={uidAtual} papelAtual={papelAtual} />
                   {!ocorrenciaDoDetalhe.quadraId && ocorrenciaDoDetalhe.status !== "cancelada" && (
                     <div className="mt-3">
                       <LinhaPendenciaQuadra oc={ocorrenciaDoDetalhe} alunos={alunos} turmas={turmas} quadras={quadras} ocorrencias={ocorrencias} reservas={reservas} bloqueiosAula={bloqueiosAula}
@@ -22427,7 +22489,7 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
 /* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
 const NOVIDADES_TY_VERSAO = "ty-2026-10e";
 const NOVIDADES_TY = [
-  { novo: true, t: "Marcar aulas em um toque e Relatório do mês", d: "Em cada aula: Realizada, Aluno faltou ou Cancelada (com o motivo em um toque e a reposição dos alunos já junto). Na turma, toque em quem faltou. Errou? Desfazer marcação. A aula registrada no caderno já conta como realizada. No fim do mês, o Relatório do mês mostra as aulas sem registro para fechar, cada aluno (presenças, faltas, canceladas, reposições e o que falta remarcar, com relatório em PDF) e cada professor (aulas dadas, horas, substituições), com planilhas para conferir e pagar.", onde: "Hoje › Aulas de hoje e Mais › Gestão da academia › Relatório do mês", aba: "relatorio" },
+  { novo: true, t: "Marcar aulas em um toque e Relatório do mês", d: "Em cada aula: Realizada, Aluno faltou ou Cancelada (com o motivo em um toque e a reposição dos alunos já junto). Na turma, toque em quem faltou. No fim de toda aula, marque quem deu: o titular ou um substituto. Errou? Desfazer marcação. A aula registrada no caderno já conta como realizada. No fim do mês, o Relatório do mês mostra as aulas sem registro para fechar, cada aluno (presenças, faltas, canceladas, reposições e o que falta remarcar, com relatório em PDF) e cada professor (aulas dadas, horas, substituições), com planilhas para conferir e pagar. O Financeiro paga pelas aulas marcadas como realizada, para quem deu a aula.", onde: "Hoje › Aulas de hoje e Mais › Gestão da academia › Relatório do mês", aba: "relatorio" },
   { novo: true, t: "Navegação nova: Hoje, Jogadores, Agenda e Mais", d: "Hoje reúne a próxima aula, as aulas do dia e as pendências (Aulas de hoje e Pendências do dia viraram seções de Hoje). Agenda traz o calendário e as Reposições. O resto está em Mais, em grupos que abrem e fecham. No computador, o botão no topo do menu recolhe a lateral numa faixa de ícones; no celular, a barra de baixo leva aos quatro destinos.", onde: "Menu lateral (computador) ou barra de baixo (celular)", aba: "dashboard" },
   { novo: true, t: "Planejamento fechado com gráficos e avaliação de cada treino", d: "Ao fechar o planejamento da equipe, ele vira a visão Geral, Semanal e Diária com gráficos (sessões por grupo, itens trabalhados) e aparece para os atletas. No fim de cada sessão, avalie presença e rendimento de 1 a 5 de cada atleta (com notas por item e observações). A aba Rendimento mostra a evolução e gera o relatório do ciclo em PDF; o rendimento também entra no relatório de cada atleta.", onde: "Mais › Grupos › Equipes de competição › abra a equipe › Abrir planejamento › Diário › Avaliar sessão", aba: "equipes" },
   { novo: true, t: "Planejamento da equipe", d: "O coordenador monta o ciclo da equipe (4, 8 ou 12 semanas, com a explicação de cada um), os dias de treino e a duração. Em cada mês, semana e dia: técnico, tático ou misto, os itens (movimentação, mudança de direção, precisão, cada golpe, ataque, defesa e construção) e espaço para observações. Sem IA. Aparece na aba Equipe do jogador, no relatório e no link do aluno.", onde: "Mais › Grupos › Equipes de competição › abra a equipe", aba: "equipes" },
@@ -23282,6 +23344,9 @@ function TelaFinanceiro() {
                 <TabelaFin cabecalho={["Professores", "Forma", "Aulas (ind. / turma)", "Total"]}
                   linhas={r.despesas.professores.lista.map((p) => [p.nome, p.configurado ? FORMAS_PROFESSOR[p.forma] : "sem forma definida", p.aulasIndividuais + " / " + p.aulasTurma, reais(p.valor)])}
                   rodape={["Subtotal", "", "", reais(r.despesas.professores.total)]} />
+                <p style={{ ...prosa, fontSize: 12, color: C.grafite, margin: "-6px 0 14px" }}>
+                  Aulas = as marcadas como realizada (na Agenda ou no caderno), para quem deu a aula: o substituto, quando marcado, senão o titular. "Aluno faltou" e canceladas não entram. Confira aula a aula no Relatório do mês.
+                </p>
                 <TabelaFin cabecalho={["Despesas fixas", "Tipo", "Total"]}
                   linhas={r.despesas.fixas.lista.map((d) => [d.nome, CATEGORIAS_DESPESA_FIN[d.categoria], reais(d.valor)]).concat([["Impostos", r.despesas.imposto.pct + "% das entradas", reais(r.despesas.imposto.valor)]])}
                   rodape={["Subtotal", "", reais(r.despesas.fixas.total + r.despesas.imposto.valor)]} />
@@ -24591,7 +24656,7 @@ function App() {
          aba === "clientes" && (mostraQuadras || mostraTorneiosEventos) ? <TelaClientes quadras={quadras} reservas={reservas} torneios={torneios} eventos={eventos} /> :
          aba === "agenda" ? <>{topoAgenda}<TelaAgenda alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias}
            quadras={quadras} reservas={reservas} setReservas={setReservas} bloqueiosAula={bloqueiosAula}
-           orgAtual={orgAtual} mostraQuadras={mostraQuadras} uidAtual={uidAtual} exigeLogin={exigeLogin} regrasReposicao={regrasReposicao} setAba={setAba}
+           orgAtual={orgAtual} mostraQuadras={mostraQuadras} uidAtual={uidAtual} papelAtual={papelAtual} exigeLogin={exigeLogin} regrasReposicao={regrasReposicao} setAba={setAba}
            dataAlvo={agendaDataAlvo} visualizacaoAlvo={agendaVisualizacaoAlvo} aoConsumirAlvo={() => { setAgendaDataAlvo(null); setAgendaVisualizacaoAlvo(null); }}
            irParaSessaoAluno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("sessao"); }}
            irParaSessaoTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} /></> :

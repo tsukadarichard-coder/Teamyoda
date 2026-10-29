@@ -4,6 +4,7 @@
    · Essencial: o atleta vinculado aparece "para ligar à ficha"; ligar grava aluno.competicao; o jogo ao vivo da ficha ligada já vem
      com o atleta escolhido. Rode: node tests/smoke-competicao-treinador.js [pasta-das-capturas] */
 const http = require("http"), fs = require("fs"), path = require("path"), assert = require("assert");
+const AULAS_MES_JS=require("fs").readFileSync(require("path").join(__dirname,"../../mty/aulas-mes.js"),"utf8");
 const { chromium } = require("/opt/node22/lib/node_modules/playwright");
 const raiz = path.join(__dirname, ".."), fx = path.join(raiz, "netlify/functions/");
 const capturas = process.argv[2] || "";
@@ -42,7 +43,7 @@ const corpo = ms.slice(0, corte) + `function Host() {
 }
 ReactDOM.createRoot(document.getElementById("root")).render(<Host />);`;
 const pagina = (plano, alunos) => `<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><div id=root></div>
-<script src=/__cdn/r.js></script><script src=/__cdn/d.js></script><script src=/__cdn/p.js></script><script src=/__cdn/c.js></script><script src=/__cdn/b.js></script>
+<script src=/__cdn/r.js></script><script src=/__cdn/d.js></script><script src=/__cdn/p.js></script><script src=/__cdn/c.js></script><script src=/__cdn/b.js></script><script>${AULAS_MES_JS}</script>
 <script>window.MTY={evento(){},id:()=>"x",map(){},tokenSeguro(){return ""}};window.mtyAuth={usuario:()=>({uid:"prof1"}),tokenId:async()=>"prof1"};window.__plano=${JSON.stringify(plano)};window.__alunos=${JSON.stringify(alunos)};</script>
 <script src=/scout/graficos.js></script><script src=/scout/ao-vivo.js></script><script src=/scout/relatorio-jogos.js></script><script src=/scout/movimento-motor.js></script><script src=/scout/evidencias.js></script><script src=/scout/movimento.js></script>
 <script type="text/babel">${corpo}</script>`;

@@ -5,6 +5,7 @@
    · "Sou treinador" continua levando ao cadastro do treinador; quem entra no app do treinador com conta de aluno vai para a área dele.
    Rode: node tests/smoke-area-aluno.js [pasta-das-capturas] */
 const http = require("http"), fs = require("fs"), path = require("path"), assert = require("assert");
+const AULAS_MES_JS=require("fs").readFileSync(require("path").join(__dirname,"../../mty/aulas-mes.js"),"utf8");
 const { chromium } = require("/opt/node22/lib/node_modules/playwright");
 const raiz = path.join(__dirname, ".."), fx = path.join(raiz, "netlify/functions/");
 const capturas = process.argv[2] || "";
@@ -46,7 +47,7 @@ const ms = [...html.matchAll(/<script type="text\/babel"[^>]*>([\s\S]*?)<\/scrip
 const corte = ms.indexOf('ReactDOM.createRoot(document.getElementById("root")).render(<App />);');
 const corpo = ms.slice(0, corte) + 'ReactDOM.createRoot(document.getElementById("root")).render(<div style={{ padding: 16, maxWidth: 420 }}><CartaoAreaAluno alunos={window.__alunos} /></div>);';
 const paginaTreinador = `<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><div id=root></div>
-<script src=/__cdn/r.js></script><script src=/__cdn/d.js></script><script src=/__cdn/p.js></script><script src=/__cdn/c.js></script><script src=/__cdn/b.js></script>
+<script src=/__cdn/r.js></script><script src=/__cdn/d.js></script><script src=/__cdn/p.js></script><script src=/__cdn/c.js></script><script src=/__cdn/b.js></script><script>${AULAS_MES_JS}</script>
 <script>window.MTY={evento(){},id:()=>"x",map(){},tokenSeguro(){return ""}};window.mtyAuth={usuario:()=>({uid:"prof1"}),tokenId:async()=>"prof1"};window.__alunos=${JSON.stringify(ALUNOS)};</script>
 <script src=/scout/graficos.js></script><script src=/scout/ao-vivo.js></script><script src=/scout/relatorio-jogos.js></script><script src=/scout/movimento-motor.js></script><script src=/scout/evidencias.js></script><script src=/scout/movimento.js></script>
 <script type="text/babel">${corpo}</script>`;

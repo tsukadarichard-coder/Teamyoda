@@ -1,6 +1,7 @@
 /* Convites com passo a passo: o atleta gera o convite na Competição e a mensagem do WhatsApp leva link, conta, papel, código e atalho na tela;
    o treinador da academia envia o código com as mesmas instruções. Rode: node tests/smoke-convite-instrucoes.js */
 const http = require("http"), fs = require("fs"), path = require("path"), assert = require("assert");
+const AULAS_MES_JS=require("fs").readFileSync(require("path").join(__dirname,"../../mty/aulas-mes.js"),"utf8");
 const { chromium } = require("/opt/node22/lib/node_modules/playwright");
 const CDN = process.env.CDN_DIR || "/tmp/claude-0/-home-user-Teamyoda/f36f7b1a-5380-5cd8-93be-4b9b8aa1980b/scratchpad/cdn";
 if (!fs.existsSync(CDN)) { console.log("smoke-convite-instrucoes: pulado (sem React/Babel locais; defina CDN_DIR)"); process.exit(0); }
@@ -40,7 +41,7 @@ window.__msg = mensagemCodigoAcademia;
 function HostOrig(){ const [aba,setAba]=useState(location.hash==="#pedidos"?"hubPedidos":"hubPerfil"); window.__aba=setAba;
  return <div style={{padding:"16px",maxWidth:760}}>{aba==="hubPerfil"?<TelaPerfilProfissional planoAtual={window.__plano} planoVencido={false} emailAtual="carla@exemplo.com" aoAbrirPedidos={()=>setAba("hubPedidos")}/>:<TelaPedidosAtendimento aoAbrirPerfil={()=>setAba("hubPerfil")}/>}</div>; }
 ReactDOM.createRoot(document.getElementById("root")).render(<Host2 />);`;
-const paginaTreinador = `<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><div id=root></div><script src=/r.js></script><script src=/d.js></script><script src=/p.js></script><script src=/c.js></script><script src=/b.js></script>
+const paginaTreinador = `<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><div id=root></div><script src=/r.js></script><script src=/d.js></script><script src=/p.js></script><script src=/c.js></script><script src=/b.js></script><script>${AULAS_MES_JS}</script>
 <script>window.MTY={evento(){},id:()=>"x",map(){},tokenSeguro(){return ""}};window.mtyAuth={usuario:()=>({uid:"x",email:"carla@exemplo.com"}),tokenId:async()=>window.__TOKEN};</script>
 <script src=/scout/graficos.js></script><script src=/scout/ao-vivo.js></script><script src=/scout/relatorio-jogos.js></script><script src=/scout/movimento-motor.js></script><script src=/metodo/metodo-proprio.js></script><script src=/scout/evidencias.js></script><script src=/scout/movimento.js></script><script src=/scout/video-segmentador.js></script><script src=/scout/video-jogo.js></script>
 <script type="text/babel">${corpoTreinador}</script>`;

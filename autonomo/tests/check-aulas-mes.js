@@ -61,4 +61,11 @@ assert(/Rui,2,/.test(A.csvProfessores(f)));
 assert(/Chuva/.test(A.htmlGeral(f, "Team Yoda")) && /Aulas a remarcar/.test(A.htmlAluno(f, "a2")) && /Faltas sem reposição/.test(A.htmlAluno(f, "a2")));
 assert.strictEqual(A.somarMes("2026-12", 1), "2027-01"); assert.strictEqual(A.periodoDoMes("2026-02").fim, "2026-02-28");
 assert.strictEqual(A.criadoEmISO({ id: "turma-1790000000000" }), new Date(1790000000000).toISOString().slice(0, 10));
+/* quem registrou não é quem deu: o coordenador registrando a aula do titular não fica com ela; substituto marcado fica */
+const alunos2 = [{ id: "z1", nome: "Zé", professorUid: "p1", professorNome: "Paula", creditosReposicao: [], registros: [
+  { id: "x1", tipo: "sessao", data: "2026-10-05", registradoPorUid: "coord", registradoPorNome: "Coord" },
+  { id: "x2", tipo: "sessao", data: "2026-10-06", registradoPorUid: "p2", registradoPorNome: "Rui", substitutoUid: "p2", substitutoNome: "Rui" },
+] }];
+const f2 = A.fechamento({ ocorrencias: [], alunos: alunos2, turmas: [], mes: "2026-10", hoje: "2026-10-28" });
+assert.deepStrictEqual(f2.aulas.map((a) => a.deu.nome + (a.substituicao ? "*" : "")), ["Paula", "Rui*"]);
 console.log("check-aulas-mes: ok");

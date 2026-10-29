@@ -9,8 +9,8 @@ const raiz=path.join(__dirname,"..","..","mty");
 const html=fs.readFileSync(path.join(raiz,"index.html"),"utf8");
 const ms=[...html.matchAll(/<script type="text\/babel"[^>]*>([\s\S]*?)<\/script>/g)].map(m=>m[1]).join("\n");
 const corte=ms.indexOf('ReactDOM.createRoot(document.getElementById("root")).render(<App />);');
-const stub=/async function listaProfessores\(/.test(ms)?"":"async function listaProfessores(){return [];}\n";
-const corpo=stub+ms.slice(0,corte)+`
+const corpo=ms.slice(0,corte)+`
+async function listaProfessores(){return [{uid:"p1",nome:"Paula"},{uid:"p2",nome:"Rui"},{uid:"p3",nome:"Gui"}];}
 const DIA=86400000, iso=(ms)=>new Date(ms).toISOString().slice(0,10), agora=Date.now();
 const HOJE=iso(agora), ONTEM=iso(agora-DIA), ANTEONTEM=iso(agora-2*DIA), HA17=iso(agora-17*DIA);
 function Host(){
@@ -56,9 +56,14 @@ const semReg=t.split("AULAS SEM REGISTRO")[1]||t.split("Aulas sem registro")[1]|
 assert(!/Turma Terça/.test(semReg),"a aula registrada no caderno não fica entre as sem registro");
 assert(/Duda Alves/.test(semReg)&&(semReg.match(/Duda Alves/g)||[]).length===1,"Duda só tem a aula depois do cadastro: "+semReg);
 if(CAP)await p.screenshot({path:CAP+"/hoje-antes.png",fullPage:true});
-/* hoje: um toque em Realizada, depois Bia faltou */
+/* hoje: quem deu a aula foi o Gui, substituto; depois um toque em Realizada e Bia faltou */
+const quemDeuHoje=p.locator("[data-quem-deu]").first();
+assert(/Titular \(Paula\)/.test(await quemDeuHoje.innerText()),"opção do titular");
+await quemDeuHoje.getByText("Substituto",{exact:true}).click();
+await quemDeuHoje.locator("select").selectOption("p3");
 await p.locator("[data-marcar-aula]").first().getByText("✓ Realizada").click();await p.waitForTimeout(200);
-let o=await ocDe("oc-hoje");assert.strictEqual(o.status,"realizada");assert.deepStrictEqual(o.membrosNaAula,["a1","a2"],"foto da turma");assert.strictEqual(o.duracaoEfetivaMin,90);
+let o=await ocDe("oc-hoje");assert.strictEqual(o.status,"realizada");assert.strictEqual(o.substitutoUid,"p3");assert.strictEqual(o.substitutoNome,"Gui");
+assert(/Deu a aula: Gui \(substituto\)/.test(await p.evaluate(()=>document.body.innerText)),"cartão mostra quem deu");assert.deepStrictEqual(o.membrosNaAula,["a1","a2"],"foto da turma");assert.strictEqual(o.duracaoEfetivaMin,90);
 await p.locator("[data-chamada-rapida]").getByText("Bia Lima").click();await p.waitForTimeout(200);
 o=await ocDe("oc-hoje");assert.strictEqual(o.presencas.a2,"falta","Bia faltou");
 /* ontem (Caio): cancelada por chuva com reposição */
@@ -103,7 +108,8 @@ const bia=(await est()).alunos.find(a=>a.id==="a2");assert.strictEqual((bia.cred
 if(CAP)await p.screenshot({path:CAP+"/mes-alunos.png",fullPage:true});
 await p.click("[data-vista=professores]");await p.waitForTimeout(150);
 t=await p.evaluate(()=>document.body.innerText);
-assert(/Paula/.test(t)&&/aulas? dadas?/.test(t),"professores");
+assert(/Gui/.test(t)&&/aulas? dadas?/.test(t),"professores: a aula de hoje conta para o substituto");
+assert(/1 como substituto/.test(t),"substituição contada");
 if(CAP)await p.screenshot({path:CAP+"/mes-professores.png",fullPage:true});
 assert.deepStrictEqual(erros,[],"erros de JS "+erros.join(" | "));console.log("smoke-aulas-mes: ok");
 await b.close();srv.close()})().catch(e=>{console.error(e.message||e);process.exit(1)});

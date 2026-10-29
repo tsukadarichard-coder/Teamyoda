@@ -1,7 +1,7 @@
 /* Financeiro (só controle) · cálculo do mês de uma academia a partir do que o app já registra e da tabela de preços que
    o dono preenche. Nada aqui cobra, gera link ou fala com banco/Eduzz: só soma.
 
-   dados  = { alunos, turmas, quadras, reservas, torneios, eventos, professores: [{ uid, nome }] }
+   dados  = { alunos, turmas, ocorrencias, quadras, reservas, torneios, eventos, professores: [{ uid, nome }] }
    config = {
      turmas:      { [turmaId]: { preco } }                      mensalidade por aluno da turma
      descontos:   { [turmaId + ":" + alunoId]: { tipo: "pct" | "valor", valor } }
@@ -14,6 +14,7 @@
      meses: { "AAAA-MM": { recebidos: { chave: true }, pagos: { chave: true }, valores: { despesaId: n }, manuais: [{ id, tipo, descricao, valor }] } }
    }
    calcularMes(dados, config, "AAAA-MM") → resumo com entradas, saídas, resultado e o controle do que foi recebido/pago. */
+const QA = require("./_aulas-mes");
 const CATEGORIAS_DESPESA = { aluguel: "Aluguel", manutencao: "Manutenção", materiais: "Materiais", outros: "Outras" };
 
 function num(v) { const n = Number(v); return isFinite(n) ? n : 0; }
@@ -21,26 +22,15 @@ function r2(v) { return Math.round(v * 100) / 100; }
 function noMes(data, mes) { return typeof data === "string" && data.slice(0, 7) === mes; }
 function chaveProfessor(uid, nome) { return uid ? "u:" + uid : "n:" + (nome || ""); }
 
-/* mesma leitura das "Aulas da equipe" do app: cada sessão registrada no caderno; a de turma conta uma vez por dia */
-function aulasDoMes(alunos, turmas, mes) {
-  const turmaPorNome = new Map((turmas || []).map((t) => [t.nome, t]));
-  const ind = [], grupos = new Map();
-  (alunos || []).forEach((a) => (a.registros || []).forEach((r) => {
-    if (!r || r.tipo !== "sessao" || !noMes(r.data, mes)) return;
-    if (r.turma) {
-      const chave = r.data + "|" + r.turma;
-      if (grupos.has(chave)) return;
-      const t = turmaPorNome.get(r.turma);
-      grupos.set(chave, { tipo: "turma", data: r.data, turmaId: t ? t.id : null,
-        quemUid: r.registradoPorUid || r.substitutoUid || (t && t.professorUid) || "",
-        quemNome: r.registradoPorNome || r.substitutoNome || (t && t.professorNome) || "Professor não definido" });
-    } else {
-      ind.push({ tipo: "individual", data: r.data, alunoId: a.id,
-        quemUid: r.registradoPorUid || r.substitutoUid || a.professorUid || "",
-        quemNome: r.registradoPorNome || r.substitutoNome || a.professorNome || "Professor não definido" });
-    }
-  }));
-  return ind.concat([...grupos.values()]);
+/* aulas dadas no mês: as marcadas como realizada na Agenda e as registradas no caderno (a mesma aula conta uma vez só),
+   para quem de fato deu (o substituto marcado, senão o titular). "Aluno faltou" não entra. Mesma conta do Relatório do mês
+   do app (_aulas-mes.js é cópia de mty/aulas-mes.js). */
+function aulasDoMes(alunos, turmas, mes, ocorrencias) {
+  const { inicio, fim } = QA.periodoDoMes(mes);
+  return QA.aulasDoPeriodo({ ocorrencias: ocorrencias || [], alunos: alunos || [], turmas: turmas || [], inicio, fim, hoje: "9999-12-31" })
+    .filter((a) => a.status === "realizada")
+    .map((a) => ({ tipo: a.origemTipo === "turma" ? "turma" : "individual", data: a.data, alunoId: a.origemTipo === "turma" ? null : a.origemId,
+      turmaId: a.origemTipo === "turma" ? a.origemId : null, aulaTipo: a.tipo, quemUid: a.deu.uid || "", quemNome: a.deu.nome || "Professor não definido" }));
 }
 
 /* preço da quadra numa hora (primeira faixa que cobre, igual ao app) */
@@ -74,7 +64,7 @@ function calcularMes(dados, config, mes) {
   });
   mensalidades.total = r2(mensalidades.total);
 
-  const aulas = aulasDoMes(alunos, turmas, mes);
+  const aulas = aulasDoMes(alunos, turmas, mes, dados.ocorrencias);
   const pacotes = { total: 0, alunos: [] };
   Object.keys(cfgP).forEach((id) => {
     const a = alunoPorId.get(id), preco = num(cfgP[id] && cfgP[id].preco); if (!a || !preco) return;

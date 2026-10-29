@@ -15,7 +15,7 @@ assert(pontos.length >= 30 && pontos.every((p) => /^[ne]S/.test(p.seq)), "pontos
 const P = require("../scout/padroes.js"), pad = P.analisar(pontos);
 assert(pad.comBatidas === pontos.length && pad.golpes.some((g) => g.vel), "padrões lidos da forma compacta, com velocidade");
 
-const m = { "/r.js": CDN + "/react-18.3.1/package/umd/react.development.js", "/d.js": CDN + "/react-dom-18.3.1/package/umd/react-dom.development.js", "/p.js": CDN + "/prop-types-15.8.1/package/prop-types.min.js", "/c.js": CDN + "/recharts-2.15.4/package/umd/Recharts.js", "/b.js": CDN + "/babel-standalone-7.29.9/package/babel.min.js" };
+const m = {"/aulas-mes.js":require("path").join(__dirname,"../../mty/aulas-mes.js"), "/r.js": CDN + "/react-18.3.1/package/umd/react.development.js", "/d.js": CDN + "/react-dom-18.3.1/package/umd/react-dom.development.js", "/p.js": CDN + "/prop-types-15.8.1/package/prop-types.min.js", "/c.js": CDN + "/recharts-2.15.4/package/umd/Recharts.js", "/b.js": CDN + "/babel-standalone-7.29.9/package/babel.min.js" };
 (async () => {
   const { chromium } = require("/opt/node22/lib/node_modules/playwright");
   const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", args: ["--no-sandbox"] });
@@ -29,7 +29,7 @@ const reg = { ...registroPartidaAuto("pv1", { formato: "1set", saca: "nos", adve
 const aluno = { id: "a1", nome: "Ana Souza", registros: [reg] };
 window.__r = { regPontos: reg.scout.pontos.length };
 ReactDOM.createRoot(document.getElementById("root")).render(<DetalheJogoRegistro r={reg} aluno={aluno} alunos={[aluno]} setAlunos={() => {}} />);`;
-    const pagina = `<!doctype html><meta charset=utf-8><div id=root></div><script src=/r.js></script><script src=/d.js></script><script src=/p.js></script><script src=/c.js></script><script src=/b.js></script>
+    const pagina = `<!doctype html><meta charset=utf-8><div id=root></div><script src=/r.js></script><script src=/d.js></script><script src=/p.js></script><script src=/c.js></script><script src=/b.js></script><script src=/aulas-mes.js></script>
 <script>window.MTY={evento(){},id:()=>"x",map(){},tokenSeguro(){return ""}};</script><script src=/sync-listas.js></script><script src=/scout/graficos.js></script><script src=/scout/padroes.js></script>
 <script type="text/babel">${corpo}</script>`;
     const srv = http.createServer((q, r) => { const u = q.url.split("?")[0]; if (u === "/") { r.writeHead(200, { "content-type": "text/html; charset=utf-8" }); return r.end(pagina); } if (m[u]) { r.writeHead(200, { "content-type": "text/javascript" }); return r.end(fs.readFileSync(m[u])); } const f = path.join(raiz, u); if (f.startsWith(raiz) && fs.existsSync(f) && fs.statSync(f).isFile()) { r.writeHead(200, { "content-type": "text/javascript" }); return r.end(fs.readFileSync(f)); } r.writeHead(404); r.end(); }).listen(0);

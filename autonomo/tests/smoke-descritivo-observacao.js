@@ -4,6 +4,7 @@
    · aluno (aluno.html pelo link, function ver-aluno real): painel "Observações do seu treinador" com o descritivo e as anotações; o áudio
      abre por link temporário. Rode: node tests/smoke-descritivo-observacao.js [pasta-das-capturas] */
 const http = require("http"), fs = require("fs"), path = require("path"), assert = require("assert");
+const AULAS_MES_JS=require("fs").readFileSync(require("path").join(__dirname,"../../mty/aulas-mes.js"),"utf8");
 const { chromium } = require("/opt/node22/lib/node_modules/playwright");
 /* APP=mty roda o mesmo teste no app do Team Yoda (mty/, functions na raiz do repositório) */
 const MTY = process.env.APP === "mty";
@@ -25,7 +26,7 @@ function Host() {
 }
 ReactDOM.createRoot(document.getElementById("root")).render(<Host />);`;
 const pagina = (plano) => `<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><div id=root></div>
-<script src=/__cdn/r.js></script><script src=/__cdn/d.js></script><script src=/__cdn/p.js></script><script src=/__cdn/c.js></script><script src=/__cdn/b.js></script>
+<script src=/__cdn/r.js></script><script src=/__cdn/d.js></script><script src=/__cdn/p.js></script><script src=/__cdn/c.js></script><script src=/__cdn/b.js></script><script>${AULAS_MES_JS}</script>
 <script>window.MTY={evento(){},id:()=>"x",map(){},tokenSeguro(){return ""}};window.__plano=${JSON.stringify(plano)};</script>
 <script src=/scout/graficos.js></script><script src=/scout/ao-vivo.js></script><script src=/scout/relatorio-jogos.js></script><script src=/scout/movimento-motor.js></script><script src=/scout/evidencias.js></script><script src=/scout/movimento.js></script>
 <script type="text/babel">${corpo}</script>`;

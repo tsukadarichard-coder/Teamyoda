@@ -124,9 +124,11 @@
         const reg = !usados.has(chave) && oc.status !== "cancelada" ? idx.get(chave) || null : null;
         if (reg) usados.add(chave);
         const status = statusDaAula(oc, reg, hoje);
-        const regAutor = reg ? reg.regs.map((x) => x.r).find((r) => r.registradoPorUid || r.registradoPorNome || r.substitutoNome) : null;
-        const deuUid = oc.substitutoUid || (regAutor && (regAutor.substitutoUid || regAutor.registradoPorUid)) || oc.professorUid || "";
-        const deuNome = oc.substitutoNome || (regAutor && (regAutor.substitutoNome || regAutor.registradoPorNome)) || oc.professorNome || "";
+        /* quem deu: o substituto marcado (na Agenda ou ao registrar a sessão), senão o titular; sem titular, quem registrou */
+        const regSub = reg ? reg.regs.map((x) => x.r).find((r) => r.substitutoUid || r.substitutoNome) : null;
+        const regAutor = reg ? reg.regs.map((x) => x.r).find((r) => r.registradoPorUid || r.registradoPorNome) : null;
+        const deuUid = oc.substitutoUid || (regSub && regSub.substitutoUid) || oc.professorUid || (regAutor && regAutor.registradoPorUid) || "";
+        const deuNome = (oc.substitutoUid || oc.substitutoNome ? oc.substitutoNome : regSub ? regSub.substitutoNome : "") || oc.professorNome || (regAutor && regAutor.registradoPorNome) || "";
         aulas.push({
           id: oc.id, ocorrenciaId: oc.virtual ? null : oc.id, virtual: !!oc.virtual, ocorrencia: oc,
           data: oc.data, horaInicio: oc.horaInicio || "", horaFim: oc.horaFim || "",
@@ -138,7 +140,7 @@
           titular: { uid: oc.professorUid || "", nome: oc.professorNome || "" },
           auxiliar: { uid: oc.professorAuxiliarUid || "", nome: oc.professorAuxiliarNome || "" },
           deu: { uid: deuUid, nome: deuNome || "Professor não definido" },
-          substituicao: !!(oc.substitutoUid || oc.substitutoNome || (deuUid && oc.professorUid && deuUid !== oc.professorUid && deuUid !== oc.professorAuxiliarUid)),
+          substituicao: !!(oc.substitutoUid || oc.substitutoNome || regSub),
           minutos: oc.status === "realizada" && oc.duracaoEfetivaMin ? oc.duracaoEfetivaMin : minutos(oc.horaInicio, oc.horaFim),
         });
       });
@@ -151,8 +153,8 @@
       const dono = individual ? (alunos || []).find((a) => a.id === g.alunoId) : null;
       const titular = individual ? { uid: (dono && dono.professorUid) || "", nome: (dono && dono.professorNome) || "" }
         : { uid: (turma && turma.professorUid) || "", nome: (turma && turma.professorNome) || "" };
-      const deuUid = r0.substitutoUid || r0.registradoPorUid || titular.uid;
-      const deuNome = r0.substitutoNome || r0.registradoPorNome || titular.nome;
+      const deuUid = r0.substitutoUid || titular.uid || r0.registradoPorUid || "";
+      const deuNome = (r0.substitutoUid || r0.substitutoNome ? r0.substitutoNome : "") || titular.nome || r0.registradoPorNome || "";
       const presencas = {};
       g.regs.forEach((x) => { presencas[x.alunoId] = x.r.presenca === "ausente" ? "falta" : "presente"; });
       aulas.push({
@@ -162,7 +164,7 @@
         status: individual && r0.presenca === "ausente" ? "falta" : "realizada", motivo: "", fonte: "caderno",
         registro: g, presencas, membros: g.regs.map((x) => x.alunoId), titular, auxiliar: { uid: "", nome: "" },
         deu: { uid: deuUid, nome: deuNome || "Professor não definido" },
-        substituicao: !!(r0.substitutoNome || (deuUid && titular.uid && deuUid !== titular.uid)),
+        substituicao: !!(r0.substitutoUid || r0.substitutoNome),
         minutos: duracaoTexto(r0.duracao) || 60,
       });
     });

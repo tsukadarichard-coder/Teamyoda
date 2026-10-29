@@ -77,4 +77,26 @@ assert.deepStrictEqual(F.mesesAte("2026-02", 4), ["2025-11", "2025-12", "2026-01
 const z = F.calcularMes(dados, {}, "2026-11");
 assert.strictEqual(z.entradas, 240, "só as quadras, que já têm preço no app");
 assert.strictEqual(z.receitas.mensalidades.semPreco.length, 2);
+/* aulas marcadas como realizada na Agenda também pagam o professor; o substituto marcado recebe no lugar do titular;
+   "Aluno faltou" e cancelada não entram; Agenda + caderno no mesmo dia contam uma vez */
+const oc = (o) => Object.assign({ id: "oc" + Math.random().toString(36).slice(2, 7), tipo: "regular", status: "realizada", horaInicio: "17:00", horaFim: "18:00", presencas: {} }, o);
+const comAgenda = Object.assign({}, dados, { ocorrencias: [
+  oc({ origemTipo: "turma", origemId: "t2", data: "2026-11-02", professorUid: "p1", professorNome: "Leo" }),                                   // Leo, turma, só na Agenda
+  oc({ origemTipo: "turma", origemId: "t1", data: "2026-11-03", professorUid: "p1", professorNome: "Leo" }),                                   // já está no caderno: conta uma vez
+  oc({ origemTipo: "turma", origemId: "t2", data: "2026-11-09", professorUid: "p1", professorNome: "Leo", substitutoUid: "p3", substitutoNome: "Gui" }), // Gui substituiu
+  oc({ origemTipo: "individual", origemId: "a4", data: "2026-11-12", professorUid: "p1", professorNome: "Leo", presencas: { a4: "falta" } }),  // aluno faltou
+  oc({ origemTipo: "turma", origemId: "t2", data: "2026-11-16", professorUid: "p1", professorNome: "Leo", status: "cancelada", motivoCancelamento: "Chuva" }),
+  oc({ origemTipo: "individual", origemId: "a4", data: "2026-11-19", professorUid: "p1", professorNome: "Leo", tipo: "reposicao" }),          // reposição dada
+  oc({ origemTipo: "individual", origemId: "a4", data: "2026-11-20", professorUid: "p1", professorNome: "Leo", status: "agendada" }),         // não marcada
+] });
+const ma = F.calcularMes(comAgenda, config, "2026-11");
+const profA = (n) => ma.despesas.professores.lista.find((p) => p.nome === n);
+assert.strictEqual(profA("Leo").aulasTurma, 3, "Leo: 03 e 10 (caderno) + 02 (Agenda); o 03 não duplica, o 09 foi do Gui");
+assert.strictEqual(profA("Leo").aulasIndividuais, 1, "Leo: só a reposição do dia 19 (falta, cancelada e agendada não contam)");
+assert.strictEqual(profA("Leo").valor, 3 * 120 + 90);
+assert.strictEqual(profA("Gui").aulasTurma, 1, "o substituto recebe a aula que deu");
+assert.strictEqual(profA("Duda").aulasIndividuais, 3, "aulas só do caderno continuam contando");
+/* o módulo do servidor é cópia exata do app */
+const fs = require("fs"), path = require("path");
+assert.strictEqual(fs.readFileSync(path.join(__dirname, "../../netlify/functions/_aulas-mes.js"), "utf8"), fs.readFileSync(path.join(__dirname, "../../mty/aulas-mes.js"), "utf8"), "netlify/functions/_aulas-mes.js precisa ser igual a mty/aulas-mes.js");
 console.log("check-financeiro: ok");

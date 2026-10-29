@@ -14,7 +14,7 @@ const { admin, app } = require("./_firebase-admin");
 const F = require("./_financeiro-calc");
 
 const ACADEMIAS = [{ org: "team-yoda", nome: "Team Yoda" }, { org: "39-ranch", nome: "39 Ranch Tennis Club" }];
-const CHAVES = { alunos: "mty:alunos:v2", turmas: "mty:turmas:v1", quadras: "mty:quadras:v1", reservas: "mty:reservas:v1", torneios: "mty:torneios:v1", eventos: "mty:eventos:v1" };
+const CHAVES = { alunos: "mty:alunos:v2", turmas: "mty:turmas:v1", ocorrencias: "mty:ocorrencias:v1", quadras: "mty:quadras:v1", reservas: "mty:reservas:v1", torneios: "mty:torneios:v1", eventos: "mty:eventos:v1" };
 
 class ErroPublico extends Error { constructor(status, mensagem) { super(mensagem); this.status = status; } }
 function resposta(statusCode, corpo) { return { statusCode, headers: { "content-type": "application/json", "cache-control": "no-store" }, body: JSON.stringify(corpo) }; }

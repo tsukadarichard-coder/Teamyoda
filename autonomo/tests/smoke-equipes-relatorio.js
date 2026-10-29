@@ -7,6 +7,7 @@
    · janela de novidades do Team Yoda com os recursos novos em destaque e o atalho "Abrir".
    Rode: node tests/smoke-equipes-relatorio.js [pasta-das-capturas] */
 const http = require("http"), fs = require("fs"), path = require("path"), assert = require("assert");
+const AULAS_MES_JS=require("fs").readFileSync(require("path").join(__dirname,"../../mty/aulas-mes.js"),"utf8");
 const { chromium } = require("/opt/node22/lib/node_modules/playwright");
 const raiz = path.join(__dirname, "../../mty"), fx = path.join(__dirname, "../../netlify/functions/"), capturas = process.argv[2] || "";
 const CDN = process.env.CDN_DIR || "/tmp/claude-0/-home-user-Teamyoda/f36f7b1a-5380-5cd8-93be-4b9b8aa1980b/scratchpad/cdn";
@@ -43,7 +44,7 @@ window.organizacao=async()=>"org1";window.listaProfessores=async()=>${JSON.strin
 window.storage={get:async(k)=>{const v=localStorage.getItem("st:"+k);return v===null?null:{key:k,value:v};},set:async(k,v)=>{localStorage.setItem("st:"+k,v);return {key:k,value:v};}};
 window.__abertas=[];window.open=function(u){const w={u:u,html:"",document:{write:function(h){w.html+=h;},close:function(){}}};window.__abertas.push(w);return w;};`;
 const pagina = (q) => `<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><div id=root></div>
-<script src=/__cdn/r.js></script><script src=/__cdn/d.js></script><script src=/__cdn/p.js></script><script src=/__cdn/c.js></script><script src=/__cdn/b.js></script>
+<script src=/__cdn/r.js></script><script src=/__cdn/d.js></script><script src=/__cdn/p.js></script><script src=/__cdn/c.js></script><script src=/__cdn/b.js></script><script>${AULAS_MES_JS}</script>
 <script>${STUBS};window.__ini=${JSON.stringify(ALUNOS)};window.__uid=${JSON.stringify(q.get("uid") || "u1")};window.__papel=${JSON.stringify(q.get("papel") || "professor")};window.__novidades=${q.get("novidades") ? "true" : "false"};</script>
 <script src=/scout/graficos.js></script><script src=/scout/ao-vivo.js></script><script src=/scout/relatorio-jogos.js></script><script src=/scout/movimento-motor.js></script><script src=/scout/evidencias.js></script><script src=/scout/movimento.js></script><script src=/obs-voz.js></script><script src=/plano-equipe.js></script><script src=/equipe-rendimento.js></script><script src=/relatorio-atleta.js></script>
 <script type="text/babel">${corpo}</script>`;
