@@ -10,6 +10,7 @@ const ms=[...html.matchAll(/<script type="text\/babel"[^>]*>([\s\S]*?)<\/script>
 const corte=ms.indexOf('ReactDOM.createRoot(document.getElementById("root")).render(<App />);');
 const est=process.argv[3]||"C", niv=process.argv[4]||"Y5";
 const corpo=ms.slice(0,corte)+`
+async function listaProfessores(){return [];}
 const VARS=[
  {n:"C/Y5 padrão",o:{}},{n:"estagio V",o:{estagio:"V"}},{n:"estagio L",o:{estagio:"L"}},{n:"estagio G",o:{estagio:"G"}},{n:"estagio A",o:{estagio:"A"}},{n:"estagio vazio",o:{estagio:""}},
  {n:"sem historico",o:{historico:undefined}},{n:"prioridades vazias",o:{prioridades:[]}},{n:"prioridades undefined",o:{prioridades:undefined}},{n:"nivel vazio",o:{nivel:""}},{n:"V/Y1",o:{estagio:"V",nivel:"Y1"}},
