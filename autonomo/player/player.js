@@ -4008,8 +4008,8 @@
   }
   function scBolasHtml(r) {
     var b = r.bolas, cores = ["#1242CC", "#002418", "#5A6373"];
-    return '<h2 class="secao">Onde o ponto se decidiu</h2><div class="cartao"><div class="sc-barra" role="img" aria-label="Pontos por duração: ' + b.pctCurtos + "% em 1–2 bolas, " + b.pctMedios + "% em 3–4, " + b.pctLongos + '% em 5 ou mais">' +
-      [["1–2 bolas", b.pctCurtos], ["3–4 bolas", b.pctMedios], ["5+ bolas", b.pctLongos]].map(function (x, i) { return '<span style="width:' + Math.max(x[1], 4) + "%;background:" + cores[i] + '">' + x[1] + "%</span>"; }).join("") +
+    return '<h2 class="secao">Onde o ponto se decidiu</h2><div class="cartao"><div class="sc-barra" role="img" aria-label="Pontos por duração: ' + b.pctCurtos + "% em 1–4 bolas, " + b.pctMedios + "% em 5–9, " + b.pctLongos + '% em 10 ou mais">' +
+      [["1–4 bolas", b.pctCurtos], ["5–9 bolas", b.pctMedios], ["10+ bolas", b.pctLongos]].map(function (x, i) { return '<span style="width:' + Math.max(x[1], 4) + "%;background:" + cores[i] + '">' + x[1] + "%</span>"; }).join("") +
       '</div><p class="nota">' + b.pctAte4 + "% dos pontos terminaram em até quatro bolas. Cerca de 70% dos pontos do circuito terminam em até quatro bolas.</p></div>";
   }
   function scNumerosHtml(r) {
@@ -4027,7 +4027,7 @@
     function seq(r, t) { var s = scSerie(r.serie); return s.length >= SC_JANELA ? scSequencias(s)[t].tam : null; }
     var m = [
       ["O jogo", "Pontos coletados", function (r) { return r.n; }, null, ""], ["", "Pontos ganhos", function (r) { return r.pctGanhos; }, true, "%"],
-      ["Onde o ponto se decidiu", "Em 1–2 bolas", function (r) { return r.bolas.pctCurtos; }, null, "%"], ["", "Em 3–4 bolas", function (r) { return r.bolas.pctMedios; }, null, "%"], ["", "Em 5 bolas ou mais", function (r) { return r.bolas.pctLongos; }, null, "%"],
+      ["Onde o ponto se decidiu", "Em 1–4 bolas", function (r) { return r.bolas.pctCurtos; }, null, "%"], ["", "Em 5–9 bolas", function (r) { return r.bolas.pctMedios; }, null, "%"], ["", "Em 10 bolas ou mais", function (r) { return r.bolas.pctLongos; }, null, "%"],
       ["Erros e hábitos", "Erros", function (r) { return r.numeros.errosNos; }, false, ""], ["", "— por decisão", function (r) { return r.numeros.errosDecisao; }, false, ""], ["", "— por execução", function (r) { return r.numeros.errosExec; }, false, ""],
       ["", "Duplas faltas", function (r) { return r.numeros.df; }, false, ""], ["", "Aces", function (r) { return r.numeros.aces != null ? r.numeros.aces : null; }, true, ""], ["", "1º saque do adversário dentro", function (r) { return r.numeros.pctPrimeiroAdv || null; }, null, "%"],
       ["", "Ganhos no saque · igualdade", function (r) { return r.numeros.nSacD ? r.numeros.pctSacD : null; }, true, "%"], ["", "Ganhos no saque · vantagem", function (r) { return r.numeros.nSacE ? r.numeros.pctSacE : null; }, true, "%"],
@@ -4055,9 +4055,9 @@
     var m = [
       m1("O jogo", "n", "Pontos coletados", "", null, function (s) { return s.n; }),
       m1("", "pctGanhos", "Pontos ganhos", "%", true, function (s) { return s.pctGanhos; }),
-      m1("Onde o ponto se decidiu", "pctCurtos", "Em 1–2 bolas", "%", null, function (s) { return s.pctCurtos; }),
-      m1("", "pctMedios", "Em 3–4 bolas", "%", null, function (s) { return s.pctMedios; }),
-      m1("", "pctLongos", "Em 5 bolas ou mais", "%", null, function (s) { return s.pctLongos; }),
+      m1("Onde o ponto se decidiu", "pctCurtos", "Em 1–4 bolas", "%", null, function (s) { return s.pctCurtos; }),
+      m1("", "pctMedios", "Em 5–9 bolas", "%", null, function (s) { return s.pctMedios; }),
+      m1("", "pctLongos", "Em 10 bolas ou mais", "%", null, function (s) { return s.pctLongos; }),
       m1("Erros do atleta", "errosNos", "Erros", "", false, function (s) { return s.errosNos; }),
       m1("", "errosDecisao", "— por decisão", "", false, function (s) { return s.errosDecisao; }),
       m1("", "errosExec", "— por execução", "", false, function (s) { return s.errosExec; }),

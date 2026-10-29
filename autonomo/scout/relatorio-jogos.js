@@ -374,7 +374,7 @@
 
     /* comparação com os jogos anteriores */
     if (ant.length) {
-      var linhasC = [["pctGanhos", "Pontos ganhos", "%", true], ["pctPrimeiro", "1º saque dentro", "%", true], ["errosNos", "Erros do atleta", "", false], ["df", "Duplas faltas", "", false], ["pctErrosCurtos", "Erros nas bolas 1–2", "%", false], ["pctAdversos", "Ganhos sob pressão", "%", true]];
+      var linhasC = [["pctGanhos", "Pontos ganhos", "%", true], ["pctPrimeiro", "1º saque dentro", "%", true], ["errosNos", "Erros do atleta", "", false], ["df", "Duplas faltas", "", false], ["pctErrosCurtos", "Erros em até 4 bolas", "%", false], ["pctAdversos", "Ganhos sob pressão", "%", true]];
       var tr = linhasC.map(function (l) {
         var v = val(l[0]), outros = ant.map(function (x) { return val(l[0], x); }).filter(function (x) { return x !== null; }); if (v === null || !outros.length) return "";
         var m = media(outros), dif = v - m, bom = Math.abs(dif) < 0.5 ? null : (l[3] ? dif > 0 : dif < 0);
