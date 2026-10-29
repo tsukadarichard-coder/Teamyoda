@@ -53,21 +53,6 @@ footer { margin-top: 22px; font-size: 13px; color: var(--grafite); text-align: c
 .log li .q.v { color: #0F5E8C; } .log li .q.c { color: #C65825; }
 .log li small { display: block; color: var(--grafite); font-size: 12.5px; }
 .log li.marco { background: #F1F6F3; border-radius: 8px; border-bottom: 0; margin: 4px 0; font-weight: 800; }
-.logbox { max-height: 300px; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; border: 1px solid var(--linha); border-radius: 10px; padding: 0 8px; margin-top: 10px; background: #FBFCFB; }
-.logbox .log { margin: 0; }
-.logbox .log li:last-child { border-bottom: 0; }
-.logbox:focus-visible { outline: 3px solid #1242CC; outline-offset: 2px; }
-.cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 12px; }
-.cartao { border: 1px solid var(--linha); border-radius: 12px; padding: 12px; background: #fff; display: flex; flex-direction: column; gap: 2px; }
-.cartao .gn { font: 800 34px/1.05 system-ui, sans-serif; letter-spacing: -.02em; color: var(--verde); font-variant-numeric: tabular-nums; }
-.cartao .gn.ruim { color: var(--contra); }
-.cartao .gt { font-size: 13px; font-weight: 700; }
-.cartao .gd { font-size: 12.5px; color: var(--grafite); line-height: 1.35; }
-.cartao.largo { grid-column: 1 / -1; }
-.duelo { display: flex; justify-content: space-between; font-size: 13px; font-weight: 800; margin-top: 6px; }
-.duelo .a { color: #0F5E8C; } .duelo .b { color: #C65825; }
-.barra2 { display: flex; height: 14px; border-radius: 7px; overflow: hidden; margin-top: 4px; background: var(--linha); }
-.barra2 div { height: 100%; }
 .vermais { margin-top: 10px; font: 700 13px system-ui, sans-serif; padding: 9px 14px; border-radius: 10px; border: 1.5px solid var(--linha); background: #fff; color: var(--tinta); cursor: pointer; min-height: 40px; }
 .espera { text-align: center; color: var(--grafite); padding: 22px 8px; }
 .erro { margin: 40px 0; text-align: center; }
@@ -223,7 +208,7 @@ footer { margin-top: 22px; font-size: 13px; color: var(--grafite); text-align: c
   }
   var ROT_ZONA = { "D-REDE": "Direita · rede", "D-APR": "Direita · aproximação", "D-FUNDO": "Direita · fundo", "E-REDE": "Esquerda · rede", "E-APR": "Esquerda · aproximação", "E-FUNDO": "Esquerda · fundo" };
   
-  var logScroll = 0;
+  var verTodos = false;
   /* contagem ponto a ponto: o mais recente em cima, com a pontuação depois de cada ponto, os games e os sets */
   function secaoContagem(p) {
     var serie = p.serie || [], box = el("section"), FIM_ROT = { winner_nos: "Winner de " + p.atleta, erro_dele: "Erro do adversário", erro_nos: "Erro de " + p.atleta, winner_dele: "Winner do adversário" };
@@ -239,19 +224,21 @@ footer { margin-top: 22px; font-size: 13px; color: var(--grafite); text-align: c
       var dots = el("div", { cls: "pts", role: "img", "aria-label": "Últimos pontos: verde ganhos por " + p.atleta + ", vermelho ganhos pelo adversário" });
       serie.slice(-12).forEach(function (x) { dots.appendChild(el("i", { cls: x[0] ? "v" : "" })); });
       box.appendChild(dots);
-      box.appendChild(el("p", { cls: "nota", texto: "Do mais recente para o mais antigo. A pontuação é a de depois do ponto." }));
-      var lista = el("ol", { cls: "log" });
-      for (var i = serie.length - 1; i >= 0; i--) {
+      box.appendChild(el("p", { cls: "nota", texto: "Cada ponto, do mais recente para o mais antigo. A pontuação mostrada é a de depois do ponto." }));
+      var lista = el("ol", { cls: "log" }), ini = verTodos ? 0 : Math.max(0, serie.length - 30);
+      for (var i = serie.length - 1; i >= ini; i--) {
         var x = serie[i], marco = /^(Game|Set)/.test(x[2] || "");
         var q = el("span", { cls: "q " + (x[0] ? "v" : "c"), texto: x[2] || "" });
         var quem = x[0] ? "Ponto de " + p.atleta : "Ponto do adversário";
         var li = el("li", { cls: marco ? "marco" : "" }, [el("span", { cls: "n", texto: "#" + (i + 1) }), el("span", {}, [document.createTextNode(quem), FIM_ROT[x[3]] ? el("small", { texto: FIM_ROT[x[3]] }) : null]), q]);
         lista.appendChild(li);
       }
-      var caixa = el("div", { cls: "logbox", tabindex: "0", role: "region", "aria-label": "Lista dos pontos, role para ver os anteriores" }, [lista]);
-      caixa.addEventListener("scroll", function () { logScroll = caixa.scrollTop; });
-      box.appendChild(caixa);
-      if (serie.length > 6) box.appendChild(el("p", { cls: "nota", style: "margin-top:6px", texto: "Role dentro da caixa para ver os pontos anteriores (" + serie.length + " no total)." }));
+      box.appendChild(lista);
+      if (serie.length > 30) {
+        var b = el("button", { type: "button", cls: "vermais", texto: verTodos ? "Mostrar só os 30 mais recentes" : "Mostrar todos os " + serie.length + " pontos" });
+        b.addEventListener("click", function () { verTodos = !verTodos; montar(); });
+        box.appendChild(b);
+      }
     }
     montar();
     return box;
@@ -290,26 +277,12 @@ footer { margin-top: 22px; font-size: 13px; color: var(--grafite); text-align: c
     box.appendChild(el("p", { cls: "nota", texto: b.pctAte4 + "% dos pontos terminaram em até quatro bolas." + (b.pctAte4 >= 65 ? " Em linha com o circuito." : " Abaixo do circuito: o jogo foi para a troca longa.") }));
     return box;
   }
-  function cartao(num, titulo, detalhe, ruim, largo) {
-    return el("div", { cls: "cartao" + (largo ? " largo" : "") }, [el("div", { cls: "gn" + (ruim ? " ruim" : ""), texto: String(num) }), el("div", { cls: "gt", texto: titulo }), detalhe ? el("div", { cls: "gd", texto: detalhe }) : null]);
-  }
   function secaoNumeros(p) {
-    var nm = p.numeros, perdidos = p.n - p.ganhos, g = el("div", { cls: "cards" });
-    var duelo = el("div", { cls: "cartao largo" }, [
-      el("div", { cls: "gt", texto: "Pontos ganhos" }),
-      el("div", { cls: "gn", texto: p.pctGanhos + "%" }),
-      el("div", { cls: "barra2", role: "img", "aria-label": p.atleta + " ganhou " + p.ganhos + " de " + p.n + " pontos" }, [el("div", { style: "width:" + p.pctGanhos + "%;background:#0F5E8C" }), el("div", { style: "width:" + (100 - p.pctGanhos) + "%;background:#C65825" })]),
-      el("div", { cls: "duelo" }, [el("span", { cls: "a", texto: p.atleta + " " + p.ganhos }), el("span", { cls: "b", texto: "Adversário " + perdidos })])
-    ]);
-    g.appendChild(cartao(nm.errosNos, "Erros de " + p.atleta, nm.errosDecisao + " por decisão · " + nm.errosExec + " por execução", nm.errosNos > 0 && nm.errosNos >= p.n * 0.25));
-    g.appendChild(cartao(nm.df, "Duplas faltas", "", nm.df >= 3));
-    if (nm.aces || nm.acesAdv || nm.dfAdv || nm.pctPrimeiroAdv) g.appendChild(cartao(nm.aces + " · " + nm.acesAdv, "Aces (" + p.atleta + " · adversário)", "adversário: " + nm.dfAdv + " duplas faltas" + (nm.pctPrimeiroAdv ? " · " + nm.pctPrimeiroAdv + "% de 1º saque dentro" : "")));
-    if (nm.nSacD || nm.nSacE) g.appendChild(cartao((nm.nSacD ? nm.pctSacD + "%" : "—") + " · " + (nm.nSacE ? nm.pctSacE + "%" : "—"), "Pontos ganhos no saque de " + p.atleta, "lado da igualdade (" + nm.nSacD + ") · lado da vantagem (" + nm.nSacE + ")"));
-    if (nm.nDevD || nm.nDevE) g.appendChild(cartao((nm.nDevD ? nm.pctDevD + "%" : "—") + " · " + (nm.nDevE ? nm.pctDevE + "%" : "—"), "Pontos ganhos no saque do adversário", "lado da igualdade (" + nm.nDevD + ") · lado da vantagem (" + nm.nDevE + ")"));
-    if (nm.nAtaque || nm.nContra || nm.nDefesa) g.appendChild(cartao(nm.nAtaque + " · " + nm.nContra + " · " + nm.nDefesa, "Ataque · contra-ataque · defesa", (nm.nAtaque ? nm.pctAtaque + "%" : "—") + " · " + (nm.nContra ? nm.pctContra + "%" : "—") + " · " + (nm.nDefesa ? nm.pctDefesa + "%" : "—") + " dos pontos ganhos"));
-    if (nm.pctProtocolo) g.appendChild(cartao(nm.pctProtocolo + "%", "Protocolo entre pontos", "pontos com a rotina feita"));
-    g.appendChild(cartao(nm.redeGanha + "/" + nm.rede, "Subidas à rede", nm.rede ? "convertidas" : "nenhuma subida registrada"));
-    return el("section", {}, [el("h2", { texto: "O jogo em números" }), el("p", { cls: "nota", texto: p.n + " pontos coletados até agora." }), g]);
+    var nm = p.numeros, linhas = [["Pontos coletados", p.n], ["Pontos ganhos", p.ganhos + " · " + p.pctGanhos + "%"], ["Erros de " + p.atleta, nm.errosNos + " (" + nm.errosDecisao + " por decisão, " + nm.errosExec + " por execução)"], ["Duplas faltas", nm.df], ["Protocolo entre pontos", nm.pctProtocolo + "%"], ["Subidas à rede", nm.rede + " · " + nm.redeGanha + " convertidas"]];
+    var t = el("table"), tb = el("tbody");
+    linhas.forEach(function (l) { tb.appendChild(el("tr", {}, [el("td", { texto: l[0] }), el("td", { texto: String(l[1]) })])); });
+    t.appendChild(tb);
+    return el("section", {}, [el("h2", { texto: "O jogo em números" }), t]);
   }
   function secaoSinais(p) {
     var box = el("section", {}, [el("h2", { texto: "O que este jogo aponta" }), el("p", { cls: "nota", texto: "Leitura automática pelas regras do método. É ponto de partida para a conversa com o treinador, não conclusão." })]);
@@ -324,14 +297,10 @@ footer { margin-top: 22px; font-size: 13px; color: var(--grafite); text-align: c
     document.title = "Scout da partida · " + p.atleta;
     document.getElementById("titulo").textContent = "Partida de " + p.atleta;
     document.getElementById("meta").textContent = [dataBR(p.data), p.torneio, p.concluida || p.aoVivo ? "" : "Acompanhamento interrompido"].filter(Boolean).join(" · ");
-    var pl = document.getElementById("placar");
-    if (p.placar && window.QLScoutGraficos && !(p.n > 0)) { pl.className = "placar-cx"; pl.innerHTML = QLScoutGraficos.placarAoVivo(p); pl.hidden = false; }
-    else if (p.placar) pl.hidden = true;
-    else if (p.resultado && p.resultado !== "—") { pl.textContent = p.resultado; pl.hidden = false; }
+    if (p.resultado && p.resultado !== "—") { var pl = document.getElementById("placar"); pl.textContent = p.resultado; pl.hidden = false; }
     cont.textContent = "";
     var gr = el("div", {}); if (p.n > 0 && window.QLScoutGraficos) gr.innerHTML = QLScoutGraficos.topo(p) + QLScoutGraficos.secoes(p);
-    [secaoContagem(p), p.n > 0 ? gr : null, p.n > 0 ? secaoNumeros(p) : null, secaoMomento(p), p.n > 0 ? secaoBolas(p) : null, secaoMapa(p), p.n > 0 ? secaoSinais(p) : null].forEach(function (x) { if (x) cont.appendChild(x); });
-    var lb = cont.querySelector(".logbox"); if (lb) lb.scrollTop = logScroll;
+    [p.n > 0 ? gr : null, secaoMomento(p), p.n > 0 ? secaoNumeros(p) : null, p.n > 0 ? secaoBolas(p) : null, secaoMapa(p), p.n > 0 ? secaoSinais(p) : null].forEach(function (x) { if (x) cont.appendChild(x); });
     cont.appendChild(el("p", { cls: "aviso", texto: "Um jogo é uma amostra. Três jogos na mesma direção são um sinal; um jogo isolado é ruído. O que importa é o padrão que se repete." }));
     cont.appendChild(el("footer", { texto: token ? "Compartilhado pelo treinador no QuadraLab. Esta página se atualiza sozinha enquanto a partida acontece; o link expira em algumas horas e pode ser desativado pelo treinador." : (ate ? "Compartilhado pelo treinador no QuadraLab. Este link vale até " + dataBR(ate) + " e pode ser desativado pelo treinador a qualquer momento." : "Do seu link de aluno, compartilhado pelo treinador no QuadraLab.") }));
     if (token || !ate) { window.scrollTo(0, sy); return; }
@@ -364,6 +333,12 @@ footer { margin-top: 22px; font-size: 13px; color: var(--grafite); text-align: c
       pegar("/.netlify/functions/scout-ao-vivo?" + new URLSearchParams({ t: token, v: String(versao) }).toString())
         .then(function (c) {
           falhas = 0;
+          /* a mesma partida passou para outro link: segue para ele sozinho (o endereço da página também muda) */
+          if (c.substituidoPor && /^[0-9a-f]{32}$/.test(c.substituidoPor) && c.substituidoPor !== token) {
+            token = c.substituidoPor; versao = 0;
+            try { history.replaceState(null, "", location.pathname + "?l=" + token); } catch (e) { /* segue sem trocar o endereço */ }
+            return buscar();
+          }
           if (!c.semMudanca) { versao = c.versao; aoVivo = !!c.publico.aoVivo; desenhar(c.publico, c.expiraEm); }
           else if (aoVivo !== !!c.aoVivo) { aoVivo = !!c.aoVivo; versao = 0; return buscar(); }
           selo(aoVivo ? "AO VIVO · atualizado às " + hora(new Date()) : "Partida encerrada · resultado final", aoVivo);
@@ -378,20 +353,6 @@ footer { margin-top: 22px; font-size: 13px; color: var(--grafite); text-align: c
     };
     document.addEventListener("visibilitychange", function () { if (!document.hidden) buscar(); });
     buscar();
-    return;
-  }
-  /* aberto pela Área do aluno (aluno.html com conta): o jogo vem de aluno-conta, conferido pela conta logada do aluno */
-  if (q.get("a") === "2" && q.get("j")) {
-    var carregar = function (src) { return new Promise(function (ok, falha) { var s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = function () { falha(new Error("Sem conexão. Tente de novo.")); }; document.head.appendChild(s); }); };
-    carregar("https://www.gstatic.com/firebasejs/12.17.1/firebase-app-compat.js")
-      .then(function () { return carregar("https://www.gstatic.com/firebasejs/12.17.1/firebase-auth-compat.js"); })
-      .then(function () { return carregar("../mty-nuvem.js"); })
-      .then(function () { return new Promise(function (ok, falha) { var sai = firebase.auth().onAuthStateChanged(function (u) { sai(); if (u) ok(u); else falha(new Error("Entre na Área do aluno para ver este jogo.")); }); }); })
-      .then(function (u) { return u.getIdToken(); })
-      .then(function (tk) { return fetch("/.netlify/functions/aluno-conta?" + new URLSearchParams({ jogo: q.get("j") }).toString(), { headers: { authorization: "Bearer " + tk }, cache: "no-store" }); })
-      .then(function (r) { return r.json().then(function (c) { if (!r.ok) throw new Error(c.erro || "Não foi possível abrir agora."); return c; }); })
-      .then(function (c) { desenhar(c.publico, ""); })
-      .catch(function (e) { erro(e.message || "Não foi possível abrir agora."); });
     return;
   }
   if (!q.get("org") || !q.get("id") || !q.get("j") || !q.get("t")) { erro("Link incompleto. Peça um novo ao seu treinador."); return; }

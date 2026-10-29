@@ -9177,7 +9177,7 @@ function CartaoAoVivo({ aluno, cfg, pontos, placar, mental, aoVivo, setAoVivo, e
   async function iniciar() {
     setOcupado(true); setAviso("");
     try {
-      const c = await chamarAoVivo({ acao: "iniciar", vinculoId: vinculoId || undefined, resumo: resumoAoVivo(aluno, cfg, pontos, placar, mental) });
+      const c = await chamarAoVivo({ acao: "iniciar", vinculoId: vinculoId || undefined, alunoId: String(aluno.id), resumo: resumoAoVivo(aluno, cfg, pontos, placar, mental) });
       setAoVivo({ token: c.token, expiraEm: c.expiraEm }); setEstado("ok");
     } catch (e) { setAviso(e.message || "Não foi possível iniciar agora."); }
     setOcupado(false);

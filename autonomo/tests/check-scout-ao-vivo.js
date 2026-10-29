@@ -126,5 +126,21 @@ const GET = async (q) => { const r = await handler({ httpMethod: "GET", headers:
   const vin = Object.keys(store).filter((k) => k.startsWith("vinculos/")).map((k) => store[k]).find((v) => v.atletaUid === "atl1");
   assert.ok(vin && vin.status === "aguardando" && vin.origem === "academia" && vin.pessoaUid === "u1" && vin.tipo === "treinador", "pedido aguarda o atleta");
   assert.strictEqual((await POST("tok-a", { acao: "pedirVinculo", email: "ana@x.com" })).s, 409, "não duplica");
+  /* um link por partida: o app perdeu o link e pediu outro no meio do jogo → volta o MESMO link, e a família continua recebendo */
+  for (const k of Object.keys(store)) if (k.startsWith("scoutsAoVivo/")) delete store[k];
+  const l1 = await POST("tok-a", { acao: "iniciar", alunoId: "al1", resumo: resumo(10) });
+  const l1b = await POST("tok-a", { acao: "iniciar", alunoId: "al1", resumo: resumo(14) });
+  assert.strictEqual(l1b.token, l1.token, "a mesma partida continua no mesmo link"); assert.strictEqual(l1b.reaproveitado, true);
+  let gf = await GET({ t: l1.token, v: "1" }); assert.strictEqual(gf.publico.n, 14, "a família recebe o resumo novo");
+  /* outro jogador no mesmo dia, com o mesmo primeiro nome: não mexe no link do primeiro */
+  const outro = await POST("tok-a", { acao: "iniciar", alunoId: "al2", resumo: resumo(30) });
+  assert.notStrictEqual(outro.token, l1.token); assert.ok(!(await GET({ t: l1.token })).substituidoPor, "outro jogador não redireciona a família");
+  /* outra partida do mesmo jogador (começa do zero): link novo, e a família do link antigo é levada para ele */
+  const l2 = await POST("tok-a", { acao: "iniciar", alunoId: "al1", resumo: resumo(1) });
+  assert.notStrictEqual(l2.token, l1.token, "partida nova, link novo");
+  gf = await GET({ t: l1.token, v: "2" }); assert.strictEqual(gf.substituidoPor, l2.token, "a página da família segue para o link novo");
+  /* sem alunoId (versões antigas, app do responsável): comportamento de antes, sempre link novo */
+  const s1 = await POST("tok-a", { acao: "iniciar", resumo: resumo(5) });
+  assert.ok(s1.token && s1.token !== l2.token && !s1.reaproveitado);
   console.log("check-scout-ao-vivo: ok");
 })().catch((e) => { console.error(e); process.exit(1); });

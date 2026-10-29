@@ -7,7 +7,12 @@
      { acao: "iniciar", resumo, vinculoId? }   → cria o link ao vivo e devolve { token, expiraEm }; com vinculoId (de "atletas") o jogo aparece sozinho no app do atleta, dos responsáveis e do treinador
      { acao: "atualizar", token, resumo, fim? } → troca o resumo publicado pelo mais recente (fim: true marca a partida como encerrada)
      { acao: "revogar", token }                 → apaga o link na hora
-   GET ?t=<token>&v=<versão>  (família, sem login) → { versao, publico, aoVivo, expiraEm }, ou { semMudanca: true } se já está na versão v
+   GET ?t=<token>&v=<versão>  (família, sem login) → { versao, publico, aoVivo, expiraEm }, ou { semMudanca: true } se já está na versão v,
+                              ou { substituidoPor: <token> } quando a mesma partida passou para outro link (a página da família troca sozinha)
+
+   Um link por partida: "iniciar" com o alunoId (o jogador no app da academia) reaproveita o link ao vivo do mesmo jogador no mesmo dia
+   quando a partida continua (o resumo novo tem pelo menos os pontos do antigo) — o app pode ter perdido o link (fechou, outro aparelho)
+   e a família continua no mesmo endereço. Se for outra partida, o link antigo que ainda estava ao vivo aponta para o novo.
 
    Segurança:
    · só uma conta de academia (claim orgId) cria, atualiza ou revoga, e só os links da própria academia;
@@ -45,6 +50,7 @@ exports.handler = async function (event) {
       const snap = await col.doc(q.t).get();
       if (!snap.exists) return invalido();
       const d = snap.data();
+      if (d.substituidoPor && TOKEN.test(d.substituidoPor)) return resposta(200, { substituidoPor: d.substituidoPor });
       if (!(Date.parse(d.expiraEm) > Date.now())) return invalido();
       if (String(q.v || "") === String(d.versao)) return resposta(200, { semMudanca: true, versao: d.versao, aoVivo: !!ler(d).aoVivo });
       return resposta(200, { versao: d.versao, publico: limpar(ler(d)), expiraEm: d.expiraEm });
@@ -109,7 +115,18 @@ exports.handler = async function (event) {
       return resposta(200, { ok: true, atleta: v.atletaNome });
     }
     if (body.acao === "iniciar") {
-      const ativos = (await col.where("orgId", "==", dono).get()).docs.filter((d) => Date.parse(d.data().expiraEm) > Date.now());
+      const daOrg = (await col.where("orgId", "==", dono).get()).docs;
+      const alunoId = typeof body.alunoId === "string" && /^[A-Za-z0-9_.:@-]{1,120}$/.test(body.alunoId) ? body.alunoId : "";
+      const novoPub = limpar(body.resumo || {});
+      /* links ao vivo deste jogador hoje (só com alunoId: o primeiro nome sozinho pode ser de outro atleta) */
+      const doJogador = alunoId ? daOrg.filter((x) => { const v = x.data(); if (v.alunoId !== alunoId || !(Date.parse(v.expiraEm) > Date.now()) || v.substituidoPor) return false; const p = ler(v); return p.aoVivo && p.data === novoPub.data; }) : [];
+      const continua = doJogador.filter((x) => (ler(x.data()).n || 0) <= (novoPub.n || 0)).sort((a, b) => String(b.data().criadoEm || "").localeCompare(String(a.data().criadoEm || "")))[0];
+      if (continua) {
+        const v = continua.data();
+        await col.doc(continua.id).update({ versao: (v.versao || 1) + 1, publico: guardar(body.resumo, true), uid: claims.uid });
+        return resposta(200, { ok: true, token: continua.id, expiraEm: v.expiraEm, reaproveitado: true });
+      }
+      const ativos = daOrg.filter((d) => Date.parse(d.data().expiraEm) > Date.now() && !d.data().substituidoPor && !doJogador.some((x) => x.id === d.id));
       if (ativos.length >= MAX_ATIVOS) return resposta(409, { erro: "Sua academia já tem " + MAX_ATIVOS + " links ao vivo abertos. Encerre um antes de abrir outro." });
       /* jogo ligado a um atleta: só com um vínculo de treinador ativo desta conta */
       let ligacao = {};
@@ -121,7 +138,9 @@ exports.handler = async function (event) {
         ligacao = { atletaUid: v.atletaUid, vinculoId: String(body.vinculoId) };
       }
       const token = crypto.randomBytes(16).toString("hex"), expiraEm = new Date(Date.now() + VALIDADE_MS).toISOString();
-      await col.doc(token).set({ orgId: dono, uid: claims.uid, criadoEm: agora(), expiraEm, versao: 1, publico: guardar(body.resumo, true), ...ligacao });
+      await col.doc(token).set({ orgId: dono, uid: claims.uid, criadoEm: agora(), expiraEm, versao: 1, publico: guardar(body.resumo, true), ...ligacao, ...(alunoId ? { alunoId } : {}) });
+      /* outra partida do mesmo jogador hoje: a família que estava no link antigo (ainda "ao vivo") passa para este */
+      for (const x of doJogador) { try { await col.doc(x.id).update({ substituidoPor: token, versao: (x.data().versao || 1) + 1 }); } catch (e) { /* segue */ } }
       return resposta(200, { ok: true, token, expiraEm });
     }
 

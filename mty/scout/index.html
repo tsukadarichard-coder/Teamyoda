@@ -333,6 +333,12 @@ footer { margin-top: 22px; font-size: 13px; color: var(--grafite); text-align: c
       pegar("/.netlify/functions/scout-ao-vivo?" + new URLSearchParams({ t: token, v: String(versao) }).toString())
         .then(function (c) {
           falhas = 0;
+          /* a mesma partida passou para outro link: segue para ele sozinho (o endereço da página também muda) */
+          if (c.substituidoPor && /^[0-9a-f]{32}$/.test(c.substituidoPor) && c.substituidoPor !== token) {
+            token = c.substituidoPor; versao = 0;
+            try { history.replaceState(null, "", location.pathname + "?l=" + token); } catch (e) { /* segue sem trocar o endereço */ }
+            return buscar();
+          }
           if (!c.semMudanca) { versao = c.versao; aoVivo = !!c.publico.aoVivo; desenhar(c.publico, c.expiraEm); }
           else if (aoVivo !== !!c.aoVivo) { aoVivo = !!c.aoVivo; versao = 0; return buscar(); }
           selo(aoVivo ? "AO VIVO · atualizado às " + hora(new Date()) : "Partida encerrada · resultado final", aoVivo);
