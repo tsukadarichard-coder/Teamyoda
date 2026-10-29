@@ -91,6 +91,7 @@ async function encerrar(p) { await p.getByRole("button", { name: "Encerrar e ver
     await p.getByRole("button", { name: "Descartar" }).click(); await p.waitForTimeout(500);
     assert(!(await texto(p)).includes("Partida em andamento encontrada"), app + ": descartada");
     assert(!(await aluno(p)).scoutRascunho, app + ": a nuvem também foi limpa");
+    assert((await aluno(p)).registros.some((r) => r.tipo === "jogo" && r.scout.pontos.length === 3), app + ": descartar a partida em andamento não apaga o jogo do caderno");
     assert.deepStrictEqual(p.erros, [], app + ": erros de JS (B) " + p.erros.join(" | "));
     await p.close();
 
@@ -153,6 +154,25 @@ async function encerrar(p) { await p.getByRole("button", { name: "Encerrar e ver
     t = await texto(p);
     assert(!t.includes("Voltar a um jogo salvo") && !t.includes("Partida em andamento encontrada"), app + ": a encerrada com motivo não aparece para retomar. " + t.slice(0, 300));
     assert.deepStrictEqual(p.erros, [], app + ": erros de JS (E) " + p.erros.join(" | "));
+    await p.close();
+
+    /* G) jogo apagado do caderno vai para a lixeira e volta inteiro com "Recuperar" (o jogo do Nicolas que sumiu não se perde mais) */
+    const ptsG = Array.from({ length: 30 }, (_, i) => ({ fim: i % 2 ? "erro_nos" : "winner_nos", nos: !(i % 2), saque: null, bola: "1-2", causa: null, rede: false, situacao: null, adverso: false, sacador: "nos", lado: "D", dirSaque: null, n: i + 1, placarAntes: "0-0", jogo: 1, set: 1 }));
+    const regG = { id: "rG", tipo: "jogo", data: "2026-10-20", torneio: "ITF Foz do Iguaçu", adversario: "Simon", resultado: "4-6 7-6", concluida: false, parcialAuto: true, observacaoFinal: "Câimbra no 3º set.", scout: { n: 30, pontos: ptsG, cfg: { formato: "3sets", saca: "nos", semVantagem: false, superTiebreakDecisivo: false } } };
+    p = await nova(b, porta, [{ id: "a1", nome: "Ana Souza", registros: [regG, { id: "obs", tipo: "observacao", data: "2026-10-21" }] }]);
+    await p.waitForTimeout(400);
+    await p.evaluate(() => window.__setAlunos((l) => l.map((a) => ({ ...a, registros: a.registros.filter((r) => r.id !== "rG") }))));
+    await p.waitForTimeout(500);
+    await p.evaluate(() => window.__desmontar()); await p.waitForTimeout(300); await p.evaluate(() => window.__montar()); await p.waitForTimeout(800);
+    t = await texto(p);
+    assert(t.includes("Jogos apagados") && t.includes("contra Simon") && t.includes("30 pontos"), app + ": o jogo apagado aparece na lixeira. " + t.slice(0, 400));
+    await p.getByRole("button", { name: "Recuperar" }).click(); await p.waitForTimeout(600);
+    const a7 = await aluno(p), volta = a7.registros.find((r) => r.id === "rG");
+    assert(volta && volta.scout.pontos.length === 30 && volta.observacaoFinal === "Câimbra no 3º set." && volta.parcialAuto === false, app + ": recuperado inteiro, como jogo salvo");
+    await p.waitForTimeout(300);
+    assert(!(await texto(p)).includes("Jogos apagados"), app + ": recuperado sai da lixeira");
+    /* Descartar a partida em andamento não apaga mais o jogo do caderno */
+    assert.deepStrictEqual(p.erros, [], app + ": erros de JS (G) " + p.erros.join(" | "));
     await p.close();
 
     /* F) caderno com cópias repetidas (versões antigas): ao abrir fica um registro por partida; o link da família passa para o que fica */

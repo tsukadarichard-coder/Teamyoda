@@ -76,6 +76,7 @@
 <script src="metodo/metodo-proprio.js"></script>
 <script src="scout/evidencias.js"></script>
 <script src="scout/movimento-arquivo.js"></script>
+<script src="scout/lixeira-jogos.js"></script>
 <script src="scout/movimento.js"></script>
 <script src="scout/padroes.js"></script>
 <script src="obs-voz.js"></script>
@@ -8948,6 +8949,9 @@ function mesmaPartida(a, b) {
   const pa = (a && a.scout && a.scout.pontos) || [], pb = (b && b.scout && b.scout.pontos) || [];
   const [curta, longa] = pa.length <= pb.length ? [pa, pb] : [pb, pa];
   if (!curta.length || (curta.length < 3 && curta.length !== longa.length)) return false;
+  /* pontos não têm hora: dois jogos diferentes podem começar com os mesmos pontos. Torneio ou adversário diferentes = outro jogo. */
+  const dif = (x, y) => x && y && x !== "—" && y !== "—" && String(x).trim().toLowerCase() !== String(y).trim().toLowerCase();
+  if (dif(a.adversario, b.adversario) || dif(a.torneio, b.torneio)) return false;
   const k = curta.length - 1, igual = (i) => JSON.stringify(curta[i]) === JSON.stringify(longa[i]);
   if (!igual(0) || !igual(k)) return false; /* descarte rápido antes de comparar tudo */
   return JSON.stringify(curta) === JSON.stringify(longa.slice(0, curta.length));
@@ -9352,6 +9356,23 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
   const [pilha, setPilha] = useState([]);
   const [mostrarAjuda, setMostrarAjuda] = useState(false);
   const [rascunhoSalvo, setRascunhoSalvo] = useState(null);
+  /* jogos apagados deste jogador (lixeira, 90 dias) */
+  const [lixeira, setLixeira] = useState([]);
+  useEffect(() => {
+    let vivo = true;
+    const noCaderno = new Set((aluno.registros || []).map((g) => String(g.id)));
+    if (window.QLLixeiraJogos && window.storage) window.QLLixeiraJogos.criar(window.storage).indice(aluno.id).then((l) => { if (vivo) setLixeira(l.filter((x) => !noCaderno.has(x.regId))); }).catch(() => {});
+    return () => { vivo = false; };
+  }, [aluno.id, (aluno.registros || []).length]);
+  async function recuperarJogo(item) {
+    const L = window.QLLixeiraJogos.criar(window.storage);
+    const reg = await L.ler(aluno.id, item.regId).catch(() => null);
+    if (!reg) { window.alert("Não foi possível abrir este jogo na lixeira. Tente de novo com internet."); return; }
+    /* volta como jogo salvo (não como cópia automática), para nenhuma limpeza automática tirá-lo de novo */
+    setLixeira((l) => l.filter((x) => x.regId !== item.regId));
+    await L.tirar(aluno.id, item.regId).catch(() => {});
+    setAlunos((prev) => prev.map((a) => (a.id !== aluno.id || (a.registros || []).some((g) => g.id === reg.id) ? a : { ...a, registros: [...(a.registros || []), { ...reg, parcialAuto: false }] })));
+  }
   const [estadoRascunho, setEstadoRascunho] = useState(null); // null | "salvo" | "erro"
   const [confirmadoEm, setConfirmadoEm] = useState(0);
   const [modoRapido, setModoRapido] = useState(() => { try { return localStorage.getItem("ql-scout-modo") !== "completo"; } catch { return true; } }); /* marcação rápida: resultado + bola; os detalhes ficam para depois */
@@ -9596,7 +9617,7 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
             <div className="flex gap-2 mt-3 flex-wrap">
               <Botao pequeno variante="saibro" onClick={continuarRascunho}>Continuar partida em andamento</Botao>
               <Botao pequeno variante="vazio" onClick={() => { continuarRascunho(); setMotivoFim(null); setPassoFim("motivo"); setConfirmandoFim(true); }}>Encerrar de vez e salvar como interrompida</Botao>
-              <Botao pequeno variante="vazio" onClick={() => { if (window.confirm("Descartar esta partida em andamento? Os pontos coletados serão perdidos.")) { const idAuto = rascunhoSalvo && rascunhoSalvo.idRegistro; limparRascunhoSalvo(); if (idAuto) setAlunos((prev) => prev.map((x) => x.id !== aluno.id ? x : { ...x, registros: (x.registros || []).filter((g) => !(g.id === idAuto && g.parcialAuto)) })); } }}>Descartar</Botao>
+              <Botao pequeno variante="vazio" onClick={() => { if (window.confirm("Tirar esta partida de \"em andamento\"? O jogo continua no caderno com os pontos marcados até aqui (para apagá-lo, exclua no caderno).")) limparRascunhoSalvo(); }}>Descartar</Botao>
             </div>
           </div>
         )}
@@ -9613,6 +9634,18 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
           </div>
         )}
 
+        {lixeira.length > 0 && (
+          <div style={{ background: C.cal, borderLeft: "3px solid " + C.linha, padding: "13px 15px", marginBottom: 16 }}>
+            <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>Jogos apagados</p>
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>Jogos com pontos marcados que saíram do caderno deste jogador. Ficam aqui por 90 dias; recuperar devolve o jogo com todos os pontos.</p>
+            {lixeira.map((x) => (
+              <div key={x.regId} className="flex items-center justify-between gap-2 mt-2" style={{ borderTop: "1px solid " + C.linha, paddingTop: 8 }}>
+                <span style={{ ...prosa, fontSize: 13 }}>{String(x.data || "").split("-").reverse().join("/")}{x.adversario && x.adversario !== "—" ? " · contra " + x.adversario : ""}{x.torneio && x.torneio !== "jogo-treino" ? " · " + x.torneio : ""} · {x.resultado || "sem sets fechados"} · {x.pontos} pontos · apagado em {dataHoraCurta(x.removidoEm)}</span>
+                <Botao pequeno variante="saibro" onClick={() => recuperarJogo(x)}>Recuperar</Botao>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="mb-3"><SeloTecnologiaQuadraLab /></div>
         <div className="mb-4">
           <button onClick={() => setMostrarAjuda(!mostrarAjuda)} style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, color: C.saibro, cursor: "pointer", border: "none", background: "none", padding: 0 }}>
@@ -20544,6 +20577,16 @@ function App() {
       grave("mty:alunos:v2", paraGravar);
     }
   }, [alunos, carregando, autenticado, rascunhosNaoConfirmados]);
+  /* lixeira de jogos: todo jogo com pontos que some do caderno (excluído, descartado, apagado por outro aparelho) vai para a
+     lixeira da academia e pode ser recuperado por 90 dias na aba Scout do jogador (scout/lixeira-jogos.js) */
+  const alunosAntesRef = useRef(null);
+  useEffect(() => {
+    if (carregando || !prontoRef.current.alunos) return;
+    const antes = alunosAntesRef.current; alunosAntesRef.current = alunos;
+    if (!antes || !window.QLLixeiraJogos || !window.storage) return;
+    const sumiram = window.QLLixeiraJogos.removidos(antes, alunos);
+    if (sumiram.length) window.QLLixeiraJogos.criar(window.storage).guardar(sumiram).catch((e) => console.error("Lixeira de jogos:", e));
+  }, [alunos, carregando]);
   useEffect(() => { if (autenticado && !carregandoTurmas && prontoRef.current.turmas) grave("mty:turmas:v1", turmas, true); }, [turmas, carregandoTurmas, autenticado]);
   /* jogos com scout de quem tem link do aluno: resumos para a página do aluno (espera a edição assentar) */
   useEffect(() => {
