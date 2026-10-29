@@ -72,13 +72,37 @@
     }).join("");
   }
 
+  /* ── imagem de cada fase ──
+     Todo relatório mostra uma imagem por fase: a foto do vídeo quando ela foi guardada; senão, o desenho da pose detectada naquela
+     fase (o resultado guarda a pose de cada fase). imagensFases(resultado, fotos) → [{ src, foto }] na ordem das fases; src vazio só
+     em análises antigas, de antes de a pose ser guardada. */
+  function svgPose(pose, prop) {
+    var W = 480, H = Math.round(W * (prop > 0.2 && prop < 5 ? prop : 1.33)), sw = 4;
+    var p = function (i) { var a = pose[i]; return a ? [a[0] * W, a[1] * H] : null; };
+    var linhas = LIG.map(function (l) { var a = p(l[0]), b = p(l[1]); return a && b ? '<line x1="' + a[0].toFixed(1) + '" y1="' + a[1].toFixed(1) + '" x2="' + b[0].toFixed(1) + '" y2="' + b[1].toFixed(1) + '"/>' : ""; }).join("");
+    var pontos = [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28].map(function (i) { var a = p(i); return a ? '<circle cx="' + a[0].toFixed(1) + '" cy="' + a[1].toFixed(1) + '" r="6"/>' : ""; }).join("");
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W + " " + H + '" width="' + W + '" height="' + H + '"><rect width="100%" height="100%" fill="#111"/>' +
+      '<g stroke="#4FC3F7" stroke-width="' + sw + '" stroke-linecap="round">' + linhas + '</g><g fill="#FFB74D">' + pontos + "</g>" +
+      '<text x="10" y="' + (H - 12) + '" fill="#9FB3BF" font-family="system-ui,sans-serif" font-size="16">pose detectada</text></svg>';
+    return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+  }
+  function imagensFases(resultado, fotos) {
+    var r = resultado || {};
+    return (r.fases || []).map(function (f, i) {
+      if (fotos && fotos[i]) return { src: fotos[i], foto: true };
+      if (f && f.pose && f.pose.some(Boolean)) return { src: svgPose(f.pose, r.proporcao), foto: false };
+      return { src: "", foto: false };
+    });
+  }
+
   /* ── relatório (janela própria, como o relatório dos jogos) ── */
   function relatorioHTML(d) {
     var r = d.resultado, co = B.conclusao(r), nm = nomeGolpe(d.golpe, d.emp), logo = d.logo || "assets/logo-quadralab.png";
-    var temFotos = (d.fotos || []).some(function (x) { return !!x; });
-    var fotos = temFotos ? '<div class="fotos">' + r.fases.map(function (f, i) {
-      return '<div class="f">' + (d.fotos[i] ? '<img src="' + esc(d.fotos[i]) + '" alt="">' : "") + "<b>" + (i + 1) + ". " + esc(r.nomes[i]) + "</b><span>" + f.t.toFixed(2) + " s</span></div>";
-    }).join("") + "</div>" : '<p class="qm-msg">' + (d.semFotos ? "As fotos das fases não couberam no arquivo deste relatório; as medidas e os pareceres estão completos." : "Fases: " + r.fases.map(function (f, i) { return (i + 1) + ". " + esc(r.nomes[i]) + " (" + f.t.toFixed(2) + " s)"; }).join(" · ")) + "</p>";
+    var imgs = imagensFases(r, d.fotos), temImgs = imgs.some(function (x) { return !!x.src; }), algumaPose = imgs.some(function (x) { return x.src && !x.foto; });
+    var fotos = temImgs ? '<div class="fotos">' + r.fases.map(function (f, i) {
+      return '<div class="f">' + (imgs[i].src ? '<img src="' + esc(imgs[i].src) + '" alt="' + esc(r.nomes[i]) + '">' : "") + "<b>" + (i + 1) + ". " + esc(r.nomes[i]) + "</b><span>" + f.t.toFixed(2) + " s</span></div>";
+    }).join("") + "</div>" + (algumaPose ? '<p class="qm-msg">Nas fases sem foto do vídeo, a imagem mostra a pose detectada naquele momento.</p>' : "")
+      : '<p class="qm-msg">Esta análise é de antes de o app guardar as imagens das fases. Fases: ' + r.fases.map(function (f, i) { return (i + 1) + ". " + esc(r.nomes[i]) + " (" + f.t.toFixed(2) + " s)"; }).join(" · ") + "</p>";
     var tb = "", fa = -1;
     r.itens.forEach(function (it) {
       if (it.fase !== fa) { fa = it.fase; tb += '<tr class="fh"><td colspan="4">' + (fa + 1) + ". " + esc(r.nomes[fa]) + "</td></tr>"; }
@@ -303,6 +327,7 @@
       q("tl").innerHTML = r.fases.map(function (f, i) { return '<i style="left:' + (f.t / tot * 100) + '%"></i><em style="left:' + (f.t / tot * 100) + "%;top:" + (i % 2 ? 22 : 0) + 'px">' + (i + 1) + "</em>"; }).join("");
       var fe = q("fases"); fe.innerHTML = ""; var cvs = [];
       var proporcao = (cv.height && cv.width) ? cv.height / cv.width : 0.75;
+      r.proporcao = Math.round(proporcao * 1000) / 1000; /* para desenhar a pose de cada fase na proporção do vídeo */
       r.fases.forEach(function (f, i) {
         var d = document.createElement("div"); d.className = "qm-fase"; var c2 = document.createElement("canvas"); c2.width = 480; c2.height = Math.round(480 * proporcao);
         var x = c2.getContext("2d"); x.fillStyle = "#111"; x.fillRect(0, 0, c2.width, c2.height); cvs.push(c2);
@@ -312,7 +337,7 @@
       });
       var meu = ++S.token;
       S.canvases = cvs;
-      (async function () {
+      S.fotosProntas = (async function () {
         S.fotos = [];
         for (var i = 0; i < r.fases.length; i++) {
           if (meu !== S.token) return;
@@ -325,7 +350,7 @@
         if (meu === S.token && !sintetico && v.src) await seek(0);
         await Promise.resolve(); /* mostrar() termina antes (o registro desta análise só existe no fim dele) */
         if (meu === S.token && !sintetico) arquivar();
-      })();
+      })().catch(function () { /* a análise continua valendo sem as fotos */ });
       var tb = "", fa = -1;
       r.itens.forEach(function (it) {
         if (it.fase !== fa) { fa = it.fase; tb += '<tr class="qm-fh"><td colspan="4">' + (fa + 1) + ". " + esc(r.nomes[fa]) + "</td></tr>"; }
@@ -348,6 +373,8 @@
         S.regId = reg.id; S.regAtual = reg;
         S.historico = S.historico.filter(function (h) { return h.id !== reg.id; }).concat([reg]);
         q("salvoMsg").textContent = "Análise salva no histórico do jogador.";
+        /* o relatório completo já vai agora (com a pose de cada fase); as fotos entram quando ficarem prontas */
+        if (novo) arquivar(true);
         Promise.resolve(opts.aoSalvar(reg)).then(function () { if (opts.cotaGolpe) { S.cota = opts.cotaGolpe(S.golpe); atualizaCota(); } else if (novo && S.cota && S.cota.limite != null) { S.cota = opts.cotaDe ? opts.cotaDe(S.historico) : B.cota(opts.recurso || "movimento", opts.plano, S.historico); atualizaCota(); } }).catch(function (e) { q("salvoMsg").textContent = e && e.publico ? e.message : "Não foi possível salvar no histórico agora."; });
         if (opts.aoMudar) opts.aoMudar(S.historico);
       } else q("salvoMsg").textContent = sintetico ? "Demonstração: nada foi salvo." : "";
@@ -365,25 +392,52 @@
         try { return o.toDataURL("image/jpeg", qualidade); } catch (e) { return S.fotos[i] || ""; }
       });
     }
-    function arquivar() {
+    /* Relatório guardado no aparelho enquanto não chega ao arquivo (sem conexão, tela fechada no meio): na próxima vez que a análise
+       de movimento abrir para este jogador, ele é enviado de novo. */
+    var PEND = "qlmov:pend:";
+    function chavePend(id) { return PEND + alunoId + ":" + id; }
+    function guardarPendente(arq) {
+      try { localStorage.setItem(chavePend(arq.id), JSON.stringify(arq)); }
+      catch (e) { try { var leve = {}; for (var k in arq) leve[k] = arq[k]; leve.fotos = []; localStorage.setItem(chavePend(arq.id), JSON.stringify(leve)); } catch (e2) { /* sem espaço no aparelho */ } }
+    }
+    function tirarPendente(id) { try { localStorage.removeItem(chavePend(id)); } catch (e) { /* sem armazenamento */ } }
+    function reenviarPendentes() {
+      var chaves = [];
+      try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k && k.indexOf(PEND + alunoId + ":") === 0) chaves.push(k); } } catch (e) { return; }
+      chaves.forEach(function (k) {
+        var arq = null; try { arq = JSON.parse(localStorage.getItem(k)); } catch (e) { arq = null; }
+        if (!arq || !arq.id) { try { localStorage.removeItem(k); } catch (e) { /* nada */ } return; }
+        S.filaArq = S.filaArq.then(function () { return arquivo.salvar(alunoId, arq); }).then(function () { tirarPendente(arq.id); }).catch(function () { /* fica para a próxima */ });
+      });
+    }
+    S.filaArq = Promise.resolve();
+    function arquivar(preliminar) {
       if (!arquivo || !alunoId || !S.regAtual || !opts.aoSalvar) return;
       var reg = S.regAtual, meu = S.token, el2 = q("salvoMsg");
       var arq = { id: reg.id, alunoId: alunoId, criadoEm: reg.criadoEm, golpe: reg.golpe, emp: reg.emp, dom: reg.dom, atleta: q("atl").value || opts.atleta || "", cabecalho: opts.cabecalho || "",
         resultado: S.resultado, fotos: [], comparacao: S.comparacao || null, resumo: reg };
-      var tentativas = [[560, 0.78], [440, 0.66], [340, 0.55], [260, 0.45]];
-      for (var k = 0; k < tentativas.length; k++) {
-        arq.fotos = fotosParaArquivo(tentativas[k][0], tentativas[k][1]);
-        if (JSON.stringify(arq).length < 850000) break;
+      if (preliminar) arq.fotosPendentes = true;
+      else {
+        var tentativas = [[560, 0.78], [440, 0.66], [340, 0.55], [260, 0.45], [200, 0.4]];
+        for (var k = 0; k < tentativas.length; k++) {
+          arq.fotos = fotosParaArquivo(tentativas[k][0], tentativas[k][1]);
+          if (JSON.stringify(arq).length < 850000) break;
+        }
       }
-      el2.textContent = "Guardando o relatório completo…";
-      return arquivo.salvar(alunoId, arq).then(function () {
-        if (meu === S.token) el2.textContent = "Relatório guardado. Ele fica em \"Análises salvas\" e pode ser reaberto quando quiser.";
+      guardarPendente(arq);
+      if (!preliminar) el2.textContent = "Guardando o relatório completo…";
+      /* em fila: a versão com fotos nunca é sobrescrita pela preliminar que chegue depois */
+      S.filaArq = S.filaArq.catch(function () {}).then(function () { return arquivo.salvar(alunoId, arq); }).then(function () {
+        if (!preliminar) tirarPendente(arq.id);
+        if (!preliminar && meu === S.token) el2.textContent = "Relatório guardado com as imagens de cada fase. Ele fica em \"Análises salvas\" e pode ser reaberto quando quiser.";
       }).catch(function (e) {
-        if (meu !== S.token) return;
-        el2.innerHTML = esc("Não foi possível guardar o relatório completo agora (" + ((e && e.message) || "sem conexão") + "). ") + '<button class="qm-x" data-r="resalvar">Tentar de novo</button>';
+        if (preliminar || meu !== S.token) return;
+        el2.innerHTML = esc("Não foi possível guardar o relatório completo agora (" + ((e && e.message) || "sem conexão") + "). Ele ficou guardado neste aparelho e será enviado na próxima vez. ") + '<button class="qm-x" data-r="resalvar">Tentar de novo</button>';
       });
+      return S.filaArq;
     }
     q("salvoMsg").onclick = function (e) { if (e.target.closest("[data-r=resalvar]")) arquivar(); };
+    if (arquivo && alunoId) reenviarPendentes();
     /* o histórico também vem do arquivo da academia: o que estiver lá e faltar no jogador volta; o que só existe no jogador entra no arquivo */
     if (arquivo && alunoId) arquivo.indice(alunoId).then(function (ind) {
       var antes = S.historico, junto = raiz.QLMovArquivo.juntar(antes, ind);
@@ -403,9 +457,14 @@
       if (!S.resultado) return;
       var w = window.open("", "_blank");
       if (!w) { alert("O navegador bloqueou a janela do relatório — permita pop-ups para este site e tente de novo."); return; }
-      var hist = S.historico.filter(function (h) { return h.golpe === golpe(); });
-      w.document.write(relatorioHTML({ resultado: S.resultado, golpe: golpe(), emp: S.emp, dom: q("dom").value, atleta: q("atl").value || opts.atleta || "", fotos: S.fotos, logo: opts.logoAbsoluto || logo, demo: S.sintetico, comparacao: S.comparacao, historico: hist, cabecalho: opts.cabecalho }));
-      w.document.close();
+      w.document.write('<!doctype html><meta charset="utf-8"><title>Preparando o relatório…</title><p style="font:14px system-ui,sans-serif;padding:20px;color:#14202B">Preparando as imagens das fases…</p>');
+      /* espera as fotos das fases ficarem prontas, para o PDF nunca sair sem elas */
+      Promise.resolve(S.fotosProntas).catch(function () {}).then(function () {
+        var hist = S.historico.filter(function (h) { return h.golpe === golpe(); });
+        w.document.open();
+        w.document.write(relatorioHTML({ resultado: S.resultado, golpe: golpe(), emp: S.emp, dom: q("dom").value, atleta: q("atl").value || opts.atleta || "", fotos: S.fotos, logo: opts.logoAbsoluto || logo, demo: S.sintetico, comparacao: S.comparacao, historico: hist, cabecalho: opts.cabecalho }));
+        w.document.close();
+      });
     };
     q("json").onclick = function () {
       var b = new Blob([JSON.stringify({ gerado: new Date().toISOString(), golpe: golpe(), dominante: q("dom").value, resultado: S.resultado }, null, 1)], { type: "application/json" }), a = document.createElement("a");
@@ -416,5 +475,5 @@
     return { injetar: injetar, seek: seek, estado: S, atualizarHistorico: function (h, cota) { S.historico = h.slice(); if (cota) S.cota = cota; atualizaCota(); renderHistorico(); } };
   }
 
-  raiz.QLMovimento = { montar: montar, evolucaoHTML: evolucaoHTML, comparacaoHTML: comparacaoHTML, relatorioHTML: relatorioHTML, badgeHTML: badgeHTML, abrirRelatorio: abrirRelatorio, listaHTML: listaHTML };
+  raiz.QLMovimento = { montar: montar, imagensFases: imagensFases, evolucaoHTML: evolucaoHTML, comparacaoHTML: comparacaoHTML, relatorioHTML: relatorioHTML, badgeHTML: badgeHTML, abrirRelatorio: abrirRelatorio, listaHTML: listaHTML };
 })(typeof window !== "undefined" ? window : this);

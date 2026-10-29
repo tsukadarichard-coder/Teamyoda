@@ -127,6 +127,11 @@
     return { dir: dir, idx: [0, lanc, arm, contato, seg, n - 1], contato: contato };
   }
 
+  /* Pose do quadro de cada fase, compacta ([x, y] com 3 casas; null onde o ponto não foi visto): vai no relatório guardado para que
+     toda análise tenha a imagem da fase, mesmo quando a foto do vídeo não pôde ser guardada. */
+  function poseCompacta(lm) {
+    return (lm || []).map(function (p) { return p && isFinite(p.x) && isFinite(p.y) && (p.v == null || p.v >= 0.2) ? [Math.round(p.x * 1000) / 1000, Math.round(p.y * 1000) / 1000] : null; });
+  }
   function checklistSaque(quadros, dom, regras) {
     var s = segmentarSaque(quadros, dom);
     if (!s) return { erro: "Vídeo curto demais ou pessoa não detectada." };
@@ -161,7 +166,7 @@
     item(5, "Aterrissagem e retorno à quadra", null, "", false, "—", "", "", false);
     var cont2 = { ok: 0, atencao: 0, nao_avaliavel: 0 };
     itens.forEach(function (i) { cont2[i.status]++; });
-    return { golpe: "saque", nomes: FASES_SAQUE, fases: s.idx.map(function (i, k) { return { nome: FASES_SAQUE[k], quadro: i, t: quadros[i].t, medidas: M[k] }; }), itens: itens, resumo: cont2, direcao: s.dir };
+    return { golpe: "saque", nomes: FASES_SAQUE, fases: s.idx.map(function (i, k) { return { nome: FASES_SAQUE[k], quadro: i, t: quadros[i].t, medidas: M[k], pose: poseCompacta(quadros[i].lm) }; }), itens: itens, resumo: cont2, direcao: s.dir };
   }
 
   function checklist(quadros, dom, regras, golpe, emp) {
@@ -215,7 +220,7 @@
     item(5, "Frenagem / retorno ao centro", null, "", false, "—", "", "", false);
     var cont = { ok: 0, atencao: 0, nao_avaliavel: 0 };
     itens.forEach(function (i) { cont[i.status]++; });
-    return { golpe: golpe, nomes: FASES, fases: s.idx.map(function (i, k) { return { nome: FASES[k], quadro: i, t: quadros[i].t, medidas: M[k] }; }), itens: itens, resumo: cont, direcao: s.dir };
+    return { golpe: golpe, nomes: FASES, fases: s.idx.map(function (i, k) { return { nome: FASES[k], quadro: i, t: quadros[i].t, medidas: M[k], pose: poseCompacta(quadros[i].lm) }; }), itens: itens, resumo: cont, direcao: s.dir };
   }
 
 

@@ -105,6 +105,10 @@ ReactDOM.createRoot(document.getElementById("raiz")).render(<Host />);
     // cada análise guarda o relatório completo num arquivo à parte; "Ver relatório" reabre com fotos, checklist e conclusão
     await p.waitForFunction(() => Object.keys(localStorage).filter((k) => k.startsWith("local:mty:movrel:v1:")).length === 2, null, { timeout: 5000 });
     assert.strictEqual(await p.locator("[data-ver]:visible").count(), 2, app + ": Evolução lista as 2 análises com Ver relatório");
+    /* o relatório guardado traz a pose de cada fase (imagem garantida mesmo sem foto) e não fica pendente no aparelho */
+    await p.waitForFunction(() => !Object.keys(localStorage).some((k) => k.startsWith("qlmov:pend:")), null, { timeout: 8000 });
+    const comPose = await p.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("local:mty:movrel:v1:")).map((k) => JSON.parse(localStorage.getItem(k))).every((x) => x.resultado.fases.every((f) => f.pose && f.pose.some(Boolean)) && x.fotos.filter(Boolean).length === 6 && !x.fotosPendentes));
+    assert(comPose, app + ": relatório guardado com a pose de cada fase e as 6 fotos");
     let [pop] = await Promise.all([p.waitForEvent("popup"), p.locator("[data-ver]:visible").first().click()]);
     await pop.waitForFunction(() => /^Análise de movimento/.test(document.title));
     let tr = await pop.textContent("body");

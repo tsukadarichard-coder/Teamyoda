@@ -480,6 +480,8 @@ function todosHorarios(agenda) {
     planoEquipeAberto: {}, // equipe → ciclo inteiro aberto no planejamento da equipe
     relGerado: null, // relatório gerado na hora pelo botão "Gerar relatório"
     relGeradoPeriodo: 'mes',
+    imagensMov: {}, // imagens das fases das análises de movimento nos relatórios (por análise)
+    imagensMovPedidas: {},
     semanaAberta: null, // chave "bloco·semana" do bloco de semana expandido no plano compacto
     glossarioAberto: false,
     celulaConceitoSelecionada: null, // texto da última célula do mapa de conceitos tocada (fallback de toque, sem :hover)
@@ -614,6 +616,33 @@ function todosHorarios(agenda) {
     if (k === 'tudo') return { tipo: 'tudo' };
     return { tipo: 'datas', de: menos(k === 'tri' ? 91 : 30), ate: iso(hoje) };
   }
+  /* imagens das fases das análises de movimento de um relatório (foto do vídeo ou pose), lidas uma vez e guardadas na página */
+  function lerRelMovimento(rel) {
+    return fetch('/.netlify/functions/ver-aluno?org=' + encodeURIComponent(org) + '&id=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(t) + '&rel=' + encodeURIComponent(rel))
+      .then(function (r) { return r.ok ? r.json() : {}; }).then(function (x) { return x.arquivo || null; });
+  }
+  function imagensDoRelatorio(dados, d) {
+    const R = window.QLRelatorioAtleta;
+    if (!R || !R.imagensMovimentos || !dados || !(dados.movimentos || []).length) return Promise.resolve({});
+    return R.imagensMovimentos(dados, lerRelMovimento, d && d.movimentos);
+  }
+  function garantirImagens(dados, d) {
+    const chave = JSON.stringify((dados && dados.movimentos || []).map(function (m) { return (m.id || '') + m.data + m.golpe; }));
+    if (ui.imagensMovPedidas[chave]) return;
+    ui.imagensMovPedidas[chave] = true;
+    imagensDoRelatorio(dados, d).then(function (x) {
+      if (!Object.keys(x).length) return;
+      Object.assign(ui.imagensMov, x); render(d);
+    });
+  }
+  function pdfComImagens(dados, opcoes, d) {
+    const w = window.open('', '_blank');
+    if (!w) { alert('Permita pop-ups para baixar o PDF.'); return; }
+    w.document.write('<!doctype html><meta charset="utf-8"><p style="font:14px system-ui,sans-serif;padding:20px">Preparando o relatório…</p>');
+    imagensDoRelatorio(dados, d).catch(function () { return {}; }).then(function (x) {
+      w.document.open(); w.document.write(window.QLRelatorioAtleta.documento(dados, Object.assign({}, opcoes, { imagensMov: Object.assign({}, ui.imagensMov, x) }))); w.document.close();
+    });
+  }
   function painelRelatoriosAtleta(d) {
     const R = window.QLRelatorioAtleta;
     if (!R) return '';
@@ -627,20 +656,15 @@ function todosHorarios(agenda) {
         '<div style="font-size:12px;color:var(--cinza)">Publicado em ' + escapar(R.dataBR(r.publicadoEm)) + (r.treinador ? ' por ' + escapar(r.treinador) : '') + '</div>' +
         '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><button type="button" class="btn" data-rel-ver="' + escapar(r.id) + '">' + (aberto ? 'Fechar' : 'Ver relatório') + '</button>' +
         '<button type="button" class="btn fraco" data-rel-pdf="' + escapar(r.id) + '">Baixar PDF</button></div>' +
-        (aberto ? '<div style="margin-top:10px">' + R.html(r.dados, { observacao: r.observacao, treinador: r.treinador, publicadoEm: r.publicadoEm, academia: d.academiaNome }) + '</div>' : '') + '</div>';
+        (aberto ? (garantirImagens(r.dados, d), '<div style="margin-top:10px">' + R.html(r.dados, { observacao: r.observacao, treinador: r.treinador, publicadoEm: r.publicadoEm, academia: d.academiaNome, imagensMov: ui.imagensMov }) + '</div>') : '') + '</div>';
     }).join('');
     html += '<div data-gerar-relatorio style="border-top:1px solid var(--linha);padding-top:12px;margin-top:6px"><div style="font-weight:700">Gerar relatório agora</div>' +
       '<p class="desc" style="margin:2px 0 8px">Um resumo na hora com os seus registros (jogos, scouts, observações compartilhadas e análises de movimento). Não inclui a observação do treinador.</p>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><select data-gerar-periodo aria-label="Período" style="padding:8px;border-radius:8px;border:1px solid var(--linha);font-size:14px">' +
       [['mes', 'Último mês'], ['tri', 'Últimos 3 meses'], ['tudo', 'Tudo']].map(function (o) { return '<option value="' + o[0] + '"' + (ui.relGeradoPeriodo === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') +
       '</select><button type="button" class="btn" data-gerar-rel>Gerar relatório</button>' + (ui.relGerado ? '<button type="button" class="btn fraco" data-gerado-pdf>Baixar PDF</button>' : '') + '</div>' +
-      (ui.relGerado ? '<div style="margin-top:10px" data-relatorio-gerado>' + R.html(ui.relGerado, { automatico: true, academia: d.academiaNome }) + '</div>' : '') + '</div>';
+      (ui.relGerado ? (garantirImagens(ui.relGerado, d), '<div style="margin-top:10px" data-relatorio-gerado>' + R.html(ui.relGerado, { automatico: true, academia: d.academiaNome, imagensMov: ui.imagensMov }) + '</div>') : '') + '</div>';
     return html + '</div>';
-  }
-  function abrirPdfRelatorio(doc) {
-    const w = window.open('', '_blank');
-    if (!w) { alert('Permita pop-ups para baixar o PDF.'); return; }
-    w.document.write(doc); w.document.close();
   }
   function painelObservacoes(d) {
     const l = d.observacoes || [];
@@ -981,13 +1005,13 @@ function todosHorarios(agenda) {
     el.querySelectorAll('[data-rel-ver]').forEach(function (b) { b.addEventListener('click', function () { const id = b.getAttribute('data-rel-ver'); ui.relAtletaAberto = ui.relAtletaAberto === id ? null : id; render(d); }); });
     el.querySelectorAll('[data-rel-pdf]').forEach(function (b) { b.addEventListener('click', function () {
       const r = (d.relatoriosAtleta || []).find(function (x) { return x.id === b.getAttribute('data-rel-pdf'); });
-      if (r) abrirPdfRelatorio(window.QLRelatorioAtleta.documento(r.dados, { observacao: r.observacao, treinador: r.treinador, publicadoEm: r.publicadoEm, academia: d.academiaNome }));
+      if (r) pdfComImagens(r.dados, { observacao: r.observacao, treinador: r.treinador, publicadoEm: r.publicadoEm, academia: d.academiaNome }, d);
     }); });
     el.querySelectorAll('[data-gerar-rel]').forEach(function (b) { b.addEventListener('click', function () {
       const sel = el.querySelector('[data-gerar-periodo]'); ui.relGeradoPeriodo = sel ? sel.value : 'mes';
       ui.relGerado = window.QLRelatorioAtleta.coletarDoLink(d, periodoGerado(ui.relGeradoPeriodo)); render(d);
     }); });
-    el.querySelectorAll('[data-gerado-pdf]').forEach(function (b) { b.addEventListener('click', function () { if (ui.relGerado) abrirPdfRelatorio(window.QLRelatorioAtleta.documento(ui.relGerado, { automatico: true, academia: d.academiaNome })); }); });
+    el.querySelectorAll('[data-gerado-pdf]').forEach(function (b) { b.addEventListener('click', function () { if (ui.relGerado) pdfComImagens(ui.relGerado, { automatico: true, academia: d.academiaNome }, d); }); });
     el.querySelectorAll('[data-ouvir-obs]').forEach(function (btn) {
       btn.addEventListener('click', async function () {
         const chave = btn.getAttribute('data-ouvir-obs'); btn.disabled = true; btn.textContent = 'Abrindo…';

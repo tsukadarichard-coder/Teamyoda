@@ -79,6 +79,7 @@
     };
   }
 
+  const chaveMov = (m) => m.id || m.data + "|" + m.golpe;
   /* app do treinador: registros do caderno + análises de movimento do jogador */
   /* planos: [{ equipe, plano }] — o planejamento das equipes de competição do atleta (opcional) */
   function coletar(aluno, movimentos, periodo, planos) {
@@ -95,7 +96,7 @@
     });
     const obsBlocos = candidatos.filter((r) => r.tipo === "observacao" && vale(r)).map((r) => ({ torneio: torneioDe(r.torneio), ...resumoObservacao(r) }));
     const movs = (movimentos || []).filter((m) => m && iv.de && dentro(m.criadoEm, iv)).sort((a, b) => String(a.criadoEm).localeCompare(String(b.criadoEm)))
-      .map((m) => ({ data: dia(m.criadoEm), golpe: nomeGolpe(m), ok: +((m.res || {}).ok) || 0, atencao: +((m.res || {}).atencao) || 0, prio: (m.prio || []).slice(0, 4).map(String) }));
+      .map((m) => ({ id: String(m.id || ""), data: dia(m.criadoEm), golpe: nomeGolpe(m), ok: +((m.res || {}).ok) || 0, atencao: +((m.res || {}).atencao) || 0, prio: (m.prio || []).slice(0, 4).map(String) }));
     const videos = ((aluno && aluno.jogosVideo) || []).filter((h) => h && h.res && iv.de && dentro(h.criadoEm, iv))
       .map((h) => ({ data: dia(h.criadoEm), pontos: +h.res.total || 0, pctGanhos: typeof h.res.pctGanhos === "number" ? h.res.pctGanhos : null }));
     return montar({ nome: (aluno && aluno.nome) || "Jogador", periodo, rotulo: rotuloPeriodo(periodo, iv), iv, jogos, obsBlocos, movimentos: movs, videos, planos: (planos || []).filter((x) => x && x.plano), alunoId: aluno && aluno.id });
@@ -112,12 +113,13 @@
       ? { torneio: torneioDe(o.torneio), positivos: linhas(o.resumo.positivos), atencao: linhas(o.resumo.atencao), insights: linhas(o.resumo.insights), prioridades: linhas(o.resumo.prioridades) }
       : { torneio: torneioDe(o.torneio), positivos: (o.itens || []).filter((i) => i.natureza === "positivo" && i.texto).map((i) => i.texto), atencao: (o.itens || []).filter((i) => i.natureza === "atencao" && i.texto).map((i) => i.texto), insights: (o.itens || []).filter((i) => i.natureza === "insight" && i.texto).map((i) => i.texto), prioridades: [] }));
     const movs = (d.movimentos || []).filter((m) => vale(m.criadoEm)).sort((a, b) => String(a.criadoEm).localeCompare(String(b.criadoEm)))
-      .map((m) => ({ data: dia(m.criadoEm), golpe: nomeGolpe(m), ok: +((m.res || {}).ok) || 0, atencao: +((m.res || {}).atencao) || 0, prio: (m.prio || []).slice(0, 4).map(String) }));
+      .map((m) => ({ id: String(m.id || ""), data: dia(m.criadoEm), golpe: nomeGolpe(m), ok: +((m.res || {}).ok) || 0, atencao: +((m.res || {}).atencao) || 0, prio: (m.prio || []).slice(0, 4).map(String) }));
     const videos = (d.jogosVideo || []).filter((h) => vale(h.criadoEm)).map((h) => ({ data: dia(h.criadoEm), pontos: +h.total || 0, pctGanhos: typeof h.pctGanhos === "number" ? h.pctGanhos : null }));
     return montar({ nome: d.nome || "Jogador", periodo, rotulo: rotuloPeriodo(periodo, iv), iv, jogos, obsBlocos, movimentos: movs, videos, planos: (d.planosEquipe || []).filter((x) => x && x.plano) });
   }
 
   const css = [
+    ".rel-fases{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin:7px 0 2px}.rel-fases figure{margin:0;break-inside:avoid}.rel-fases img{display:block;width:100%;height:auto;max-height:70mm;object-fit:contain;border-radius:4px;background:#111}.rel-fases figcaption{font-size:10.5px;color:#5B6B63;margin-top:2px}",
     ".rel-a{font-family:Inter,system-ui,sans-serif;color:#17251F;line-height:1.5}",
     ".rel-a h3{font-size:15px;margin:16px 0 6px;font-weight:700}",
     ".rel-cab{border-bottom:2px solid #103B32;padding-bottom:8px;margin-bottom:10px}",
@@ -151,8 +153,11 @@
     const lista = (t, l) => (l && l.length ? "<h3>" + t + '</h3><ul class="rel-lista">' + l.map((x) => "<li>" + esc(x) + "</li>").join("") + "</ul>" : "");
     h.push(lista("Pontos positivos observados", rel.positivos), lista("Pontos de atenção", rel.atencao), lista("Foco para os próximos treinos", rel.foco));
     if ((rel.movimentos || []).length) {
+      const imgs = opcoes.imagensMov || {};
       h.push("<h3>Análise de movimento (biomecânica)</h3>" + rel.movimentos.map((m) => '<div class="rel-jogo"><b>' + esc(m.golpe) + "</b> · " + esc(dataBR(m.data)) + "<small>" + m.ok + " ponto(s) do movimento OK · " + m.atencao + " em atenção</small>" +
-        (m.prio && m.prio.length ? "<small>Prioridades: " + m.prio.map(esc).join(" · ") + "</small>" : "") + "</div>").join(""));
+        (m.prio && m.prio.length ? "<small>Prioridades: " + m.prio.map(esc).join(" · ") + "</small>" : "") +
+        ((imgs[chaveMov(m)] || []).some((x) => x.src) ? '<div class="rel-fases">' + imgs[chaveMov(m)].map((x, i) => (x.src ? '<figure><img src="' + esc(x.src) + '" alt="' + esc(x.nome) + '"><figcaption>' + (i + 1) + ". " + esc(x.nome) + "</figcaption></figure>" : "")).join("") + "</div>" : "") +
+        "</div>").join(""));
     }
     (rel.planejamento || []).forEach((pl) => {
       h.push("<h3>Planejamento da equipe · " + esc(pl.equipe) + "</h3>" + (pl.ciclo ? '<p style="font-size:12.5px;color:#5B6B63;margin:0 0 4px">Ciclo de ' + esc(pl.ciclo) + "</p>" : "") + pl.semanas.map((s) => '<div class="rel-jogo"><b>Semana ' + s.n + "</b> · " + esc(dataBR(s.inicio).slice(0, 5)) + " a " + esc(dataBR(s.fim).slice(0, 5)) +
@@ -175,12 +180,29 @@
     h.push('<p class="rel-nota">Relatório baseado nos registros do período (scouts, observações e análises); não é uma avaliação completa do jogador.</p></div>');
     return h.join("");
   }
+  /* Imagens das fases de cada análise de movimento do relatório (a foto do vídeo ou a pose detectada), lidas do arquivo dos
+     relatórios: ler(id) → Promise do relatório completo (ou null). Devolve { [chave]: [{ src, nome }] } para opcoes.imagensMov. `lista`
+     (as análises do jogador, opcional) acha a análise dos relatórios publicados antes de eles guardarem o id (mesma data e golpe). Só no navegador. */
+  async function imagensMovimentos(rel, ler, lista) {
+    const M = raiz && raiz.QLMovimento, saida = {};
+    if (!M || typeof ler !== "function") return saida;
+    await Promise.all(((rel && rel.movimentos) || []).map(async (m) => {
+      const achada = !m.id && (lista || []).find((x) => x && dia(x.criadoEm) === m.data && nomeGolpe(x) === m.golpe);
+      const id = m.id || (achada && achada.id);
+      if (!id) return;
+      let arq = null; try { arq = await ler(id); } catch (e) { arq = null; }
+      const r = arq && arq.resultado;
+      if (r) saida[chaveMov(m)] = M.imagensFases(r, arq.fotos).map((x, i) => ({ src: x.src, nome: (r.nomes || [])[i] || "Fase " + (i + 1) }));
+    }));
+    return saida;
+  }
+
   function documento(rel, opcoes) {
     return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Relatório · ' + esc(rel.nome) + "</title><style>body{margin:24px;max-width:720px}" + css +
       "@media print{body{margin:12mm}}</style></head><body>" + html(rel, opcoes) + "<script>window.onload=function(){setTimeout(function(){window.print()},300)}<\/script></body></html>";
   }
 
-  const api = { coletar, coletarDoLink, html, documento, css, intervalo, rotuloPeriodo, torneiosDoAluno, dataBR };
+  const api = { coletar, coletarDoLink, html, documento, css, intervalo, rotuloPeriodo, torneiosDoAluno, dataBR, imagensMovimentos };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else raiz.QLRelatorioAtleta = api;
 })(typeof window !== "undefined" ? window : this);

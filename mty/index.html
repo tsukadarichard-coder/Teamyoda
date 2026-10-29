@@ -11164,11 +11164,12 @@ async function exportarCadernoPDF(a, identidade) {
   const relMov = arqMov ? await Promise.all(movs.map((m) => arqMov.ler(m.id).catch(() => null))) : movs.map(() => null);
   const movHTML = movs.length ? (
     '<h2>Análises de movimento</h2>' + movs.map((m, k) => {
-      const arq = relMov[k], r = arq && arq.resultado, fotos = (arq && arq.fotos) || [], res = m.res || {};
+      const arq = relMov[k], r = arq && arq.resultado, res = m.res || {};
+      const imgs = r && window.QLMovimento ? window.QLMovimento.imagensFases(r, arq.fotos) : [];
       const itens = r ? (r.itens || []) : (m.itens || []).map((i) => ({ nome: i.n, valor: i.v, unidade: i.u, ref: i.r, status: i.s }));
       return '<div class="mov"><h3>' + escaparHTML(new Date(m.criadoEm).toLocaleDateString("pt-BR")) + ' · ' + escaparHTML(nomeGolpeMov(m)) + '</h3>' +
         '<p class="detalhe">' + (res.ok || 0) + ' itens OK · ' + (res.atencao || 0) + ' em atenção · ' + (res.nao || 0) + ' para revisar</p>' +
-        (r && fotos.some(Boolean) ? '<div class="fotos">' + (r.fases || []).map((f, i) => fotos[i] ? '<figure><img src="' + escaparHTML(fotos[i]) + '" alt=""><figcaption>' + (i + 1) + '. ' + escaparHTML((r.nomes || [])[i] || "") + ' · ' + Number(f.t || 0).toFixed(2) + ' s</figcaption></figure>' : '').join("") + '</div>' : '') +
+        (imgs.some((x) => x.src) ? '<div class="fotos">' + (r.fases || []).map((f, i) => imgs[i].src ? '<figure><img src="' + escaparHTML(imgs[i].src) + '" alt=""><figcaption>' + (i + 1) + '. ' + escaparHTML((r.nomes || [])[i] || "") + ' · ' + Number(f.t || 0).toFixed(2) + ' s</figcaption></figure>' : '').join("") + '</div>' : '') +
         '<table><thead><tr><th>Item</th><th>Medido</th><th>Referência</th><th>Parecer</th></tr></thead><tbody>' +
         itens.map((it) => '<tr><td>' + escaparHTML(it.nome) + '</td><td>' + (it.valor == null ? "—" : escaparHTML(Math.round(it.valor * 10) / 10 + (it.unidade || ""))) + '</td><td>' + escaparHTML(it.ref || "") + '</td><td><b>' + escaparHTML(ROTULO_STATUS_MOV[it.status] || "Revisar") + '</b>' + (it.comentario ? '<br><span class="detalhe">' + escaparHTML(it.comentario) + '</span>' : '') + '</td></tr>').join("") +
         '</tbody></table>' +
@@ -11664,7 +11665,9 @@ function CartaoMovimentoCaderno({ m, aluno, setAlunos, historico, identidade, ao
     if (a) a.remover(aluno.id, m.id).catch(() => {}).then(() => { if (aoRemovido) aoRemovido(); });
   }
   const r = arq && arq.resultado;
-  const fotos = arq && Array.isArray(arq.fotos) ? arq.fotos : [];
+  /* imagem de cada fase: a foto do vídeo ou, sem ela, a pose detectada (scout/movimento.js) */
+  const imgs = r && window.QLMovimento ? window.QLMovimento.imagensFases(r, arq.fotos) : [];
+  const temImgs = imgs.some((x) => x.src);
   return (
     <div data-movimento={m.id} style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderLeft: "3px solid #2E8B57", padding: "11px 13px", marginBottom: 8 }}>
       <div className="flex justify-between items-start gap-3">
@@ -11687,19 +11690,22 @@ function CartaoMovimentoCaderno({ m, aluno, setAlunos, historico, identidade, ao
       {aberto && (
         <div className="mt-3 pt-3" style={{ borderTop: "1px solid " + C.linha }}>
           {arq === undefined && <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Carregando o relatório…</p>}
-          {arq !== undefined && fotos.some(Boolean) && r && (
+          {arq !== undefined && temImgs && r && (
             <div className="mb-3" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 6 }}>
-              {(r.fases || []).map((f, i) => fotos[i] ? (
+              {(r.fases || []).map((f, i) => imgs[i].src ? (
                 <figure key={i} style={{ margin: 0, border: "1px solid " + C.linha, borderRadius: 6, padding: 3, background: "#fff" }}>
-                  <img src={fotos[i]} alt={(r.nomes || [])[i] || "Fase " + (i + 1)} style={{ display: "block", width: "100%", height: "auto", borderRadius: 4, background: "#111" }} />
+                  <img src={imgs[i].src} alt={(r.nomes || [])[i] || "Fase " + (i + 1)} style={{ display: "block", width: "100%", height: "auto", borderRadius: 4, background: "#111" }} />
                   <figcaption style={{ ...prosa, fontSize: 11, marginTop: 3 }}><b>{i + 1}. {(r.nomes || [])[i]}</b> · {Number(f.t || 0).toFixed(2)} s</figcaption>
                 </figure>
               ) : null)}
             </div>
           )}
-          {arq !== undefined && !fotos.some(Boolean) && (
+          {arq !== undefined && temImgs && imgs.some((x) => x.src && !x.foto) && (
+            <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 8 }}>Nas fases sem foto do vídeo, a imagem mostra a pose detectada naquele momento.</p>
+          )}
+          {arq !== undefined && !temImgs && (
             <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 8 }}>
-              {arq ? "As fotos desta análise não foram guardadas." : "Esta análise é de antes de o app guardar o relatório completo: as fotos e os comentários de cada item não existem mais. As medidas e a conclusão estão abaixo."}
+              {arq ? "Esta análise é de antes de o app guardar as imagens das fases: para ter as imagens, faça a análise de novo com o vídeo." : "Esta análise é de antes de o app guardar o relatório completo: as imagens e os comentários de cada item não existem mais. As medidas e a conclusão estão abaixo; para ter as imagens, faça a análise de novo com o vídeo."}
             </p>
           )}
           {arq !== undefined && (
@@ -21829,6 +21835,15 @@ function RelatorioAtletaEditor({ aluno, setAlunos, relatorioId, periodoInicial, 
   const publicado = atual && atual.status === "publicado";
   /* sem dados ainda (relatório novo) ou período trocado: monta de novo com o que foi registrado */
   useEffect(() => { if (R && (!dados || chavePeriodoRel(dados.periodo) !== chavePeriodoRel(periodo))) setDados(R.coletar(aluno, movimentos, periodo, planos)); }, [chavePeriodoRel(periodo), movimentos.length]);
+  /* imagens das fases de cada análise de movimento do período (foto do vídeo ou pose), lidas do arquivo dos relatórios */
+  const [imagensMov, setImagensMov] = useState({});
+  useEffect(() => {
+    const arq = arquivoMovimento();
+    if (!R || !dados || !arq || !(dados.movimentos || []).length) return;
+    let vivo = true;
+    R.imagensMovimentos(dados, (mid) => arq.ler(mid), movimentos).then((x) => { if (vivo) setImagensMov(x); });
+    return () => { vivo = false; };
+  }, [dados, movimentos.length]);
   if (!R) return <p style={{ ...prosa, fontSize: 13 }}>Recarregue o app para usar os relatórios.</p>;
   function gravar(extra) {
     const agora = new Date().toISOString();
@@ -21854,7 +21869,7 @@ function RelatorioAtletaEditor({ aluno, setAlunos, relatorioId, periodoInicial, 
   function pdf() {
     const w = window.open("", "_blank");
     if (!w) { setMsg({ erro: true, t: "O navegador bloqueou a nova janela. Permita pop-ups para baixar o PDF." }); return; }
-    w.document.write(R.documento(dados, { observacao: obs, treinador: (atual && atual.publicadoPor) || autor.nome, academia, publicadoEm: atual && atual.publicadoEm }));
+    w.document.write(R.documento(dados, { observacao: obs, treinador: (atual && atual.publicadoPor) || autor.nome, academia, publicadoEm: atual && atual.publicadoEm, imagensMov }));
     w.document.close();
   }
   return (
@@ -21869,7 +21884,7 @@ function RelatorioAtletaEditor({ aluno, setAlunos, relatorioId, periodoInicial, 
       {dados && (
         <div data-previa-relatorio style={{ background: "#fff", border: "1px solid " + C.linha, borderRadius: 12, padding: "14px 16px", marginTop: 12 }}>
           <style>{R.css}</style>
-          <div dangerouslySetInnerHTML={{ __html: R.html(dados, { observacao: "", academia }) }} />
+          <div dangerouslySetInnerHTML={{ __html: R.html(dados, { observacao: "", academia, imagensMov }) }} />
         </div>
       )}
       <div style={{ marginTop: 14 }}>
