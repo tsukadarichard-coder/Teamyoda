@@ -202,6 +202,25 @@ async function encerrar(p) { await p.getByRole("button", { name: "Encerrar e ver
       await p.close();
     }
 
+    /* I) confronto direto: adversário enfrentado mais de uma vez aparece na aba Scout; ao digitar o nome, o app avisa o histórico */
+    {
+      const sc = (n, pg) => ({ n, pctGanhos: pg, errosNos: 10, pctPrimeiro: 60, adversos: 5, pctAdversos: 40, pontos: [{ n: 1 }] });
+      const regsI = [
+        { id: "c1", tipo: "jogo", data: "2026-03-02", torneio: "Copa Sul", adversario: "Simon Escudeiro", resultado: "6-3 6-4", concluida: true, scout: sc(80, 58) },
+        { id: "c2", tipo: "jogo", data: "2026-10-20", torneio: "ITF Foz do Iguaçu", adversario: "simon escudeiro", resultado: "4-6 7-6", concluida: false, scout: sc(195, 49) },
+      ];
+      p = await nova(b, porta, [{ id: "a1", nome: "Nicolas Kanashiro", registros: regsI }]);
+      t = await texto(p);
+      assert(t.includes("Confrontos diretos") && t.includes("Simon Escudeiro · 2 jogos · 1 vitória · 0 derrotas · 1 interrompido"), app + ": cartão de confrontos diretos. " + t.slice(0, 500));
+      await p.getByRole("button", { name: /Simon Escudeiro · 2 jogos/ }).click(); await p.waitForTimeout(200);
+      t = await texto(p);
+      assert(t.includes("Todos os jogos contra Simon Escudeiro") && t.includes("Copa Sul") && t.includes("ITF Foz do Iguaçu") && t.includes("58% → 49%"), app + ": tabela do confronto com a evolução. " + t.slice(0, 900));
+      await p.locator("input").first().fill("Simon Escudeiro"); await p.waitForTimeout(200);
+      assert((await p.locator("[data-aviso-confronto]").textContent()).includes("Já jogou contra"), app + ": aviso ao digitar o adversário");
+      assert.deepStrictEqual(p.erros, [], app + ": erros de JS (I) " + p.erros.join(" | "));
+      await p.close();
+    }
+
     /* F) caderno com cópias repetidas (versões antigas): ao abrir fica um registro por partida; o link da família passa para o que fica */
     const pts = (n, bola) => Array.from({ length: n }, (_, i) => ({ fim: "winner_nos", nos: i % 3 !== 2, saque: null, bola, causa: null, rede: false, situacao: null, adverso: false, sacador: "nos", lado: "D", dirSaque: null, n: i + 1, placarAntes: "0-0", jogo: 1, set: 1 }));
     const cfgJ = { formato: "3sets", saca: "nos", semVantagem: false, superTiebreakDecisivo: false };

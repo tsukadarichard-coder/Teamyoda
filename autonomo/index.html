@@ -9647,6 +9647,7 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
             ))}
           </div>
         )}
+        <ConfrontosFrequentes aluno={aluno} />
         <div className="mb-3"><SeloTecnologiaQuadraLab /></div>
         <div className="mb-4">
           <button onClick={() => setMostrarAjuda(!mostrarAjuda)} style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, color: C.saibro, cursor: "pointer", border: "none", background: "none", padding: 0 }}>
@@ -9677,6 +9678,7 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
         </Campo>
         <Campo rotulo="Adversário (opcional)">
           <input style={entrada} value={cfg.adversario} onChange={(e) => setCfg({ ...cfg, adversario: e.target.value })} />
+          <AvisoConfronto aluno={aluno} adversario={cfg.adversario} />
         </Campo>
         <Campo rotulo="Torneio (opcional)">
           <input style={entrada} value={cfg.torneio} onChange={(e) => setCfg({ ...cfg, torneio: e.target.value })} placeholder="Torneio ou jogo-treino" />
@@ -10676,6 +10678,100 @@ function compararJogoComAnteriores(atual, anteriores) {
   });
   return { n: jogos.length, linhas, melhoraram, pioraram };
 }
+/* ── Confronto direto: os jogos do jogador contra o mesmo adversário, em torneios e períodos diferentes ──
+   Nome comparado sem acento e sem maiúscula; nome com sobrenome também acha o mesmo nome escrito por inteiro em outro jogo
+   ("Simon Escudeiro" × "simon  escudeiro"). Só o primeiro nome não junta com o nome completo (pode ser outra pessoa). */
+function normNomeAdv(s) { return String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim(); }
+function mesmoAdversario(a, b) {
+  const x = normNomeAdv(a), y = normNomeAdv(b);
+  if (!x || !y || x === "—" || y === "—") return false;
+  if (x === y) return true;
+  const tx = x.split(" "), ty = y.split(" "), [curto, longo] = tx.length <= ty.length ? [tx, ty] : [ty, tx];
+  return curto.length >= 2 && curto[0] === longo[0] && curto.every((t) => longo.includes(t));
+}
+function vencedorDoRegistro(r) {
+  if (r.concluida === false) return "interrompido";
+  const sets = String(r.resultado || "").split(/\s+/).map((t) => t.match(/^(\d+)-(\d+)$/)).filter(Boolean);
+  let a = 0, b = 0; sets.forEach((m) => { if (+m[1] > +m[2]) a++; else if (+m[2] > +m[1]) b++; });
+  return a > b ? "vitoria" : b > a ? "derrota" : "—";
+}
+function jogosContra(aluno, adversario, excluir) {
+  return (aluno.registros || []).filter((r) => r.tipo === "jogo" && mesmoAdversario(r.adversario, adversario) && !(excluir && excluir(r)))
+    .sort((x, y) => String(x.data || "").localeCompare(String(y.data || "")));
+}
+function placarConfronto(jogos) {
+  const c = { vitoria: 0, derrota: 0, interrompido: 0 };
+  jogos.forEach((r) => { const v = vencedorDoRegistro(r); if (c[v] != null) c[v]++; });
+  return c;
+}
+function textoPlacarConfronto(c) {
+  return c.vitoria + (c.vitoria === 1 ? " vitória" : " vitórias") + " · " + c.derrota + (c.derrota === 1 ? " derrota" : " derrotas") + (c.interrompido ? " · " + c.interrompido + (c.interrompido === 1 ? " interrompido" : " interrompidos") : "");
+}
+/* tabela dos confrontos: um jogo por linha, com as medidas que mais mudam de um confronto para outro */
+function ConfrontoDireto({ aluno, adversario, excluir, atual, titulo }) {
+  const jogos = jogosContra(aluno, adversario, excluir);
+  if (!jogos.length && !atual) return null;
+  const nome = (jogos.find((r) => r.adversario && r.adversario !== "—") || {}).adversario || adversario;
+  const pct = (v) => (v == null || !isFinite(v) ? "—" : Math.round(v) + "%");
+  const linha = (r, s, rot) => [rot || String(r.data || "").split("-").reverse().join("/"), r.torneio && r.torneio !== "jogo-treino" ? r.torneio : "treino",
+    (r.resultado || "—") + (r.concluida === false ? " (interrompido)" : ""), s ? pct(s.pctGanhos) : "—", s && s.errosNos != null ? s.errosNos : "—", s && s.pctPrimeiro ? pct(s.pctPrimeiro) : "—", s && s.adversos ? pct(s.pctAdversos) : "—"];
+  const linhas = jogos.map((r) => linha(r, r.scout));
+  if (atual) linhas.push(linha({ data: "", torneio: atual.torneio, resultado: atual.resultado, concluida: atual.concluida }, atual.scout, "Este jogo"));
+  const c = placarConfronto(jogos);
+  const comNumeros = jogos.filter((r) => r.scout && r.scout.pctGanhos != null);
+  const prim = comNumeros[0] && comNumeros[0].scout, ult = atual ? atual.scout : (comNumeros.length > 1 && comNumeros[comNumeros.length - 1].scout);
+  const evol = prim && ult && prim !== ult && prim.pctGanhos != null && ult.pctGanhos != null
+    ? "Do primeiro confronto para " + (atual ? "este jogo" : "o último") + ": pontos ganhos " + Math.round(prim.pctGanhos) + "% → " + Math.round(ult.pctGanhos) + "%" + (prim.errosNos != null && ult.errosNos != null && prim.n && ult.n ? " · erros a cada 10 pontos " + (Math.round(prim.errosNos / prim.n * 100) / 10) + " → " + (Math.round(ult.errosNos / ult.n * 100) / 10) : "") + "."
+    : "";
+  return (
+    <Secao titulo={titulo || ("Confronto direto com " + nome)}
+      nota={jogos.length ? jogos.length + (jogos.length === 1 ? " jogo anterior" : " jogos anteriores") + " contra este adversário: " + textoPlacarConfronto(c) + ". " + evol : "Primeiro jogo registrado contra este adversário. Nos próximos, os confrontos aparecem aqui lado a lado."}>
+      {linhas.length > 0 && <Tabela cabecalho={["Data", "Torneio", "Resultado", "Pontos ganhos", "Erros", "1º saque", "Sob pressão"]} linhas={linhas} larguras={["13%", "21%", "20%", "13%", "9%", "11%", "13%"]} />}
+    </Secao>
+  );
+}
+/* aviso ao digitar o adversário: já jogaram antes? */
+function AvisoConfronto({ aluno, adversario }) {
+  if (normNomeAdv(adversario).length < 3) return null;
+  const jogos = jogosContra(aluno, adversario);
+  if (!jogos.length) return null;
+  const u = jogos[jogos.length - 1];
+  return (
+    <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 6 }} data-aviso-confronto>
+      Já jogou contra {u.adversario}: {jogos.length} {jogos.length === 1 ? "jogo" : "jogos"} ({textoPlacarConfronto(placarConfronto(jogos))}). Último: {String(u.data || "").split("-").reverse().join("/")}{u.torneio && u.torneio !== "jogo-treino" ? " · " + u.torneio : ""} · {u.resultado || "—"}. No relatório deste jogo aparece o confronto direto.
+    </p>
+  );
+}
+/* na aba Scout: adversários enfrentados mais de uma vez */
+function ConfrontosFrequentes({ aluno }) {
+  const [aberto, setAberto] = useState("");
+  const grupos = [];
+  (aluno.registros || []).filter((r) => r.tipo === "jogo" && r.adversario && r.adversario !== "—").forEach((r) => {
+    const g = grupos.find((x) => mesmoAdversario(x.nome, r.adversario));
+    if (g) g.n++; else grupos.push({ nome: r.adversario, n: 1 });
+  });
+  const varios = grupos.filter((g) => g.n >= 2).sort((a, b) => b.n - a.n);
+  if (!varios.length) return null;
+  return (
+    <div style={{ background: C.cal, borderLeft: "3px solid " + C.linha, padding: "13px 15px", marginBottom: 16 }}>
+      <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>Confrontos diretos</p>
+      <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>Adversários que {String(aluno.nome || "").trim().split(/\s+/)[0] || "o jogador"} enfrentou mais de uma vez, em torneios e períodos diferentes.</p>
+      {varios.map((g) => {
+        const c = placarConfronto(jogosContra(aluno, g.nome));
+        return (
+          <div key={g.nome} style={{ borderTop: "1px solid " + C.linha, paddingTop: 8, marginTop: 8 }}>
+            <button type="button" onClick={() => setAberto(aberto === g.nome ? "" : g.nome)} className="w-full text-left"
+              style={{ ...prosa, fontSize: 13, background: "none", border: "none", padding: 0, cursor: "pointer", minHeight: 36 }}>
+              <b>{g.nome}</b> · {g.n} jogos · {textoPlacarConfronto(c)} <span style={{ color: C.saibro }}>{aberto === g.nome ? "▲" : "▼"}</span>
+            </button>
+            {aberto === g.nome && <ConfrontoDireto aluno={aluno} adversario={g.nome} titulo={"Todos os jogos contra " + g.nome} />}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function ComparacaoComAnteriores({ atual, anteriores }) {
   const c = compararJogoComAnteriores(atual, anteriores);
   if (!c.n) {
@@ -10824,6 +10920,9 @@ function DetalheJogoRegistro({ r, aluno, alunos, setAlunos }) {
   return (
     <div className="mt-3 pt-3" style={{ borderTop: "1px solid " + C.linha }}>
       <ResumoScout r={r.scout} sinais={sinais} aluno={aluno} alunos={alunos} setAlunos={setAlunos} pontos={r.scout.pontos} cfg={r.scout.cfg} mental={r.mental} />
+      {r.adversario && r.adversario !== "—" && jogosContra(aluno, r.adversario, (x) => x.id === r.id).length > 0 && (
+        <div className="mt-3"><ConfrontoDireto aluno={aluno} adversario={r.adversario} excluir={(x) => x.id === r.id} atual={r} /></div>
+      )}
       <BotaoCompartilharResumo texto={textoResumoScout(r.scout, sinais, r.scout.pontos, r.scout.cfg, { adversario: r.adversario, torneio: r.torneio, resultado: r.resultado })} />
       <ObservacaoFinalRegistro r={r} aluno={aluno} alunos={alunos} setAlunos={setAlunos} />
       <LinkFamilia reg={r} aluno={aluno} alunos={alunos} setAlunos={setAlunos} />
@@ -10917,6 +11016,10 @@ function Relatorio({ final, encerramento, identidade, aluno, alunos, setAlunos, 
       </div>
       <div className="mt-3"><ResumoScout r={r} sinais={sinais} aluno={aluno} alunos={alunos} setAlunos={setAlunos} pontos={pontos} cfg={cfg} mental={mental} /></div>
       <div className="mt-3"><ComparacaoComAnteriores atual={{ ...r, pontos, cfg }} anteriores={(aluno.registros || []).filter((x) => x.tipo === "jogo" && x.scout)} /></div>
+      {cfg && cfg.adversario && normNomeAdv(cfg.adversario).length >= 3 && (
+        <div className="mt-3"><ConfrontoDireto aluno={aluno} adversario={cfg.adversario} excluir={(x) => mesmaPartida(x, { scout: { pontos } })}
+          atual={{ torneio: cfg.torneio, resultado: placar ? placar.sets.map((x) => x[0] + "-" + x[1]).join(" ") : "", concluida: !!(placar && placar.fim), scout: r }} /></div>
+      )}
 
       <Aviso>
         Um jogo é uma amostra. Três jogos na mesma direção são um sinal; um jogo isolado é ruído. O
