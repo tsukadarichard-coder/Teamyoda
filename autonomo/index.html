@@ -8361,7 +8361,8 @@ function mentalLimpo(m) {
 /* erro de devolução de saque: o jogador errou ao devolver o saque do adversário (golpe marcado como devolução ou, sem golpe marcado, ponto de 1–2 bolas) */
 function erroDeDevolucao(p) { return p.fim === "erro_nos" && p.sacador === "ele" && p.saque !== "df" && (p.golpe === "devolucao" || (!p.golpe && p.bola === "1-2")); }
 /* e o inverso: o adversário errou a devolução do saque do jogador */
-function erroDeDevolucaoDele(p) { return p.fim === "erro_dele" && p.sacador === "nos" && p.saque !== "df" && p.bola === "1-2"; }
+/* erro de devolução do adversário: marcado no ponto ("Erro de devolução do adversário") ou, sem a marcação, erro dele na bola 1–2 do nosso saque */
+function erroDeDevolucaoDele(p) { return p.fim === "erro_dele" && p.sacador === "nos" && p.saque !== "df" && p.saque !== "ace" && (p.devAdv === true || (p.devAdv !== false && p.bola === "1-2")); }
 
 const FIM_PONTO = [
   { v: "winner_nos", r: "Winner meu", nos: true, cor: "#103B32" },
@@ -9911,7 +9912,7 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
               <button key={op.v}
                 onClick={() => setRascunho({ ...(rascunho || {}), ...{
                   fim: op.v, nos: op.nos, saque: rascunho?.saquePre || null, bola: null, causa: null,
-                  rede: false, situacao: null, golpe: null, corrida: false, direcao: null, qualDev: null, dec: null, dirSaque: dirSaque || null, adverso, sacador: quemSaca(placar), lado: ladoDoSaque(placar) } })}
+                  rede: false, situacao: null, golpe: null, corrida: false, direcao: null, qualDev: null, dec: null, devAdv: null, dirSaque: dirSaque || null, adverso, sacador: quemSaca(placar), lado: ladoDoSaque(placar) } })}
                 style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, padding: "26px 8px", minHeight: 76,
                   border: "1px solid " + op.cor, borderRadius: 10, background: C.cal, color: op.cor, cursor: "pointer" }}>
                 {op.r}
@@ -10013,7 +10014,17 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
             </>
           )}
 
-          <div className="mb-2"><Etiqueta>Qual foi o último golpe do jogador (opcional)</Etiqueta></div>
+          {rascunho.sacador === "nos" && rascunho.fim === "erro_dele" && rascunho.saque !== "df" && rascunho.saque !== "ace" && (
+            <div className="flex flex-wrap gap-2 mb-4">
+              <button type="button" aria-pressed={!!rascunho.devAdv} onClick={() => setRascunho({ ...rascunho, devAdv: !rascunho.devAdv })}
+                style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 600, padding: "7px 11px", borderRadius: 10, minHeight: 44, cursor: "pointer",
+                  border: "1px solid " + (rascunho.devAdv ? C.tinta : C.linha), background: rascunho.devAdv ? C.tinta : C.cal, color: rascunho.devAdv ? C.papel : C.grafite }}>
+                {rascunho.devAdv ? "✓ " : ""}Erro de devolução do adversário
+              </button>
+            </div>
+          )}
+
+          <div className="mb-2"><Etiqueta>{"Último golpe de " + (String(aluno.nome || "").trim().split(/\s+/)[0] || "seu jogador") + " (opcional) · vale também quando o ponto foi do adversário"}</Etiqueta></div>
           <div className="flex flex-wrap gap-2 mb-2">
             {GOLPES.map(([k, r]) => (
               <button key={k} type="button" aria-pressed={rascunho.golpe === k}

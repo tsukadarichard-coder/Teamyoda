@@ -129,7 +129,8 @@ function mentalLimpo(m) {
 /* erro de devolução de saque: o jogador errou ao devolver o saque do adversário (golpe marcado como devolução ou, sem golpe marcado, ponto de 1–2 bolas) */
 function erroDeDevolucao(p) { return p.fim === "erro_nos" && p.sacador === "ele" && p.saque !== "df" && (p.golpe === "devolucao" || (!p.golpe && p.bola === "1-2")); }
 /* e o inverso: o adversário errou a devolução do saque do jogador */
-function erroDeDevolucaoDele(p) { return p.fim === "erro_dele" && p.sacador === "nos" && p.saque !== "df" && p.bola === "1-2"; }
+/* erro de devolução do adversário: marcado no ponto ("Erro de devolução do adversário") ou, sem a marcação, erro dele na bola 1–2 do nosso saque */
+function erroDeDevolucaoDele(p) { return p.fim === "erro_dele" && p.sacador === "nos" && p.saque !== "df" && p.saque !== "ace" && (p.devAdv === true || (p.devAdv !== false && p.bola === "1-2")); }
 
 function resume(pontos) {
   const n = pontos.length || 1;
