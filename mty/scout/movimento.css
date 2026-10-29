@@ -38,3 +38,13 @@
 .qlm .vj-plc{font-variant-numeric:tabular-nums;font-weight:700}
 .qlm .qm-kp{display:flex;gap:8px;flex-wrap:wrap}.qlm .qm-kp div{flex:1;min-width:92px;background:#F3F1EA;border-radius:10px;padding:8px;text-align:center;font-size:12px}.qlm .qm-kp b{display:block;font-size:19px}
 .qlm .vj-video{width:100%;border-radius:10px;background:#000;max-height:56vh}
+/* vídeo e boneco lado a lado (inclusive no celular: as duas colunas sempre juntas) */
+.qlm .qm-vb{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;align-items:start}
+.qlm .qm-vb-col{position:relative;min-width:0}
+.qlm .qm-vb video,.qlm .qm-vb canvas{width:100%;display:block;border-radius:10px;background:#111}
+.qlm .qm-vb-rot{position:absolute;left:6px;bottom:6px;background:rgba(0,0,0,.6);color:#fff;font-size:11px;padding:2px 7px;border-radius:99px;pointer-events:none}
+.qlm .qm-vb-sem{background:#111;color:#9FB3BF;border-radius:10px;padding:18px 10px;margin:0;min-height:120px}
+.qlm .qm-vb-ctl{margin-top:8px}
+.qlm .qm-vb-fases{margin-top:6px;gap:6px}.qlm .qm-vb-fases button{font-size:12px;padding:5px 9px}.qlm .qm-vb-fases button.on{background:var(--qok,#2E8B57);color:#fff;border-color:transparent}
+.qlm .qm-cmpm td,.qlm .qm-cmpm th{font-size:12.5px}
+.qlm .qm-vb video[hidden]{display:none}

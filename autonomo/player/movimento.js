@@ -58,6 +58,7 @@
     };
     window.QL_MOVIMENTO = window.QLMovimento.montar(document.getElementById("movArea"), {
       atleta: nome, alunoId: "eu", historico: d.analises || [], logo: "../assets/logo-quadralab.png", logoAbsoluto: logo, arquivo: arquivo,
+      modelos: false, /* no Player: modelo padrão e as próprias análises; modelos da academia são do app do treinador */
       cotaGolpe: function (g) { return textoCota(cota.porGolpe[g], g); },
       aoSalvar: function (reg) {
         salvando = A.api("player-movimento", { metodo: "POST", corpo: { acao: "salvar", resumo: reg } })

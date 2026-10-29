@@ -72,6 +72,45 @@
     }).join("");
   }
 
+  /* ── boneco ──
+     Figura humana (cabeça, tronco, braços e pernas com volume) a partir da pose: usada no vídeo × boneco lado a lado e na comparação
+     com o modelo. lm: pontos normalizados ({x, y} ou [x, y]); o: { cor, contorno, alpha, largura (espessura relativa) }. */
+  function pt(lm, i, w, h) { var p = lm[i]; if (!p) return null; var x = Array.isArray(p) ? p[0] : p.x, y = Array.isArray(p) ? p[1] : p.y; return isFinite(x) && isFinite(y) && !(p.v === 0) ? { x: x * w, y: y * h } : null; }
+  function desenharBoneco(ctx, lm, w, h, o) {
+    o = o || {};
+    if (!lm) return;
+    var P = function (i) { return pt(lm, i, w, h); };
+    var oE = P(11), oD = P(12), qE = P(23), qD = P(24);
+    if (!oE || !oD || !qE || !qD) return;
+    var om = { x: (oE.x + oD.x) / 2, y: (oE.y + oD.y) / 2 }, qm = { x: (qE.x + qD.x) / 2, y: (qE.y + qD.y) / 2 };
+    var T = Math.hypot(om.x - qm.x, om.y - qm.y) || 40, k = o.largura || 1;
+    ctx.save(); ctx.globalAlpha = o.alpha == null ? 1 : o.alpha; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    var cor = o.cor || "#4FC3F7", borda = o.contorno || "rgba(0,0,0,.55)";
+    function seg(a, b, esp, c) {
+      a = P(a); b = P(b); if (!a || !b) return;
+      ctx.strokeStyle = borda; ctx.lineWidth = esp + 3; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      ctx.strokeStyle = c || cor; ctx.lineWidth = esp; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    }
+    var braco = T * 0.15 * k, perna = T * 0.2 * k, escuro = o.corLonge || cor;
+    /* lado de trás primeiro (esquerdo), depois o da frente */
+    seg(23, 25, perna, escuro); seg(25, 27, perna * 0.85, escuro); seg(27, 31, perna * 0.6, escuro);
+    seg(11, 13, braco, escuro); seg(13, 15, braco * 0.85, escuro);
+    /* tronco */
+    ctx.fillStyle = cor; ctx.strokeStyle = borda; ctx.lineWidth = T * 0.14 * k;
+    ctx.beginPath(); ctx.moveTo(oE.x, oE.y); ctx.lineTo(oD.x, oD.y); ctx.lineTo(qD.x, qD.y); ctx.lineTo(qE.x, qE.y); ctx.closePath(); ctx.stroke(); ctx.fill();
+    ctx.strokeStyle = cor; ctx.lineWidth = T * 0.11 * k; ctx.stroke();
+    seg(24, 26, perna); seg(26, 28, perna * 0.85); seg(28, 32, perna * 0.6);
+    seg(12, 14, braco); seg(14, 16, braco * 0.85);
+    /* pescoço e cabeça */
+    var nz = P(0);
+    var cab = nz ? { x: nz.x + (om.x - nz.x) * 0.12, y: nz.y + (om.y - nz.y) * 0.12 } : { x: om.x, y: om.y - T * 0.42 };
+    ctx.strokeStyle = cor; ctx.lineWidth = T * 0.12 * k; ctx.beginPath(); ctx.moveTo(om.x, om.y); ctx.lineTo(cab.x, cab.y); ctx.stroke();
+    ctx.fillStyle = cor; ctx.strokeStyle = borda; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cab.x, cab.y, T * 0.22 * k, 0, 7); ctx.fill(); ctx.stroke();
+    /* mãos */
+    [15, 16].forEach(function (i) { var m = P(i); if (!m) return; ctx.fillStyle = o.corMao || "#FFB74D"; ctx.beginPath(); ctx.arc(m.x, m.y, T * 0.07 * k + 1, 0, 7); ctx.fill(); });
+    ctx.restore();
+  }
+
   /* ── imagem de cada fase ──
      Todo relatório mostra uma imagem por fase: a foto do vídeo quando ela foi guardada; senão, o desenho da pose detectada naquela
      fase (o resultado guarda a pose de cada fase). imagensFases(resultado, fotos) → [{ src, foto }] na ordem das fases; src vazio só
@@ -207,6 +246,14 @@
       '<div class="qm-stage"><video data-r="v" controls playsinline muted preload="auto"></video><canvas data-r="cv"></canvas></div></div>' +
       '<div data-r="saida" hidden>' +
       '<div class="qm-card"><h3 class="qm-h">Resultado</h3><div class="qm-kpi" data-r="kpi"></div><div class="qm-tl" data-r="tl"></div><div class="qm-fases" data-r="fases"></div></div>' +
+      '<div class="qm-card" data-r="vbC"><h3 class="qm-h">Vídeo e boneco lado a lado</h3>' +
+      '<div class="qm-row"><label>Comparar com <select data-r="mod"><option value="">Nada (só o atleta)</option><option value="padrao">Modelo padrão QuadraLab</option></select></label>' +
+      '<button data-r="salvarMod" hidden>Salvar esta análise como modelo da academia</button></div>' +
+      '<div class="qm-vb"><div class="qm-vb-col"><video data-r="v2" playsinline muted preload="auto"></video><p class="qm-msg qm-vb-sem" data-r="v2msg" hidden>Demonstração: sem vídeo, o boneco mostra o movimento sintético.</p><span class="qm-vb-rot">Vídeo</span></div>' +
+      '<div class="qm-vb-col"><canvas data-r="bon" width="480" height="640"></canvas><span class="qm-vb-rot" data-r="bonRot">Boneco</span></div></div>' +
+      '<div class="qm-row qm-vb-ctl"><button data-r="qAnt" aria-label="Quadro anterior">◀ Quadro</button><button class="qm-pri" data-r="play">▶ Reproduzir</button><button data-r="qProx" aria-label="Próximo quadro">Quadro ▶</button>' +
+      '<label>Velocidade <select data-r="vel"><option value="0.25">0,25×</option><option value="0.5" selected>0,5×</option><option value="1">1×</option></select></label></div>' +
+      '<div class="qm-row qm-vb-fases" data-r="faseBt"></div><div data-r="cmpMod"></div></div>' +
       '<div class="qm-card" data-r="cmpC" hidden><h3 class="qm-h">Comparação com a análise anterior</h3><div data-r="cmp"></div></div>' +
       '<div class="qm-card"><h3 class="qm-h">Checklist por fase</h3><table><thead><tr><th>Item</th><th>Medido</th><th>Referência</th><th>Parecer</th></tr></thead><tbody data-r="tb"></tbody></table>' +
       '<p class="qm-msg">Itens "Revisar" dependem de mão, face da raquete, vista de cima ou olhar: ficam para o treinador. Pareceres automáticos são apoio, não diagnóstico.</p></div>' +
@@ -297,7 +344,9 @@
         ajustaCanvas();
         if (dur > 12) { msg("Vídeo longo (" + dur.toFixed(1) + " s). Recorte para apenas um golpe (até 12 s)."); q("go").disabled = false; return; }
         for (var i = 0; i < n; i++) {
-          var t = i / fps; await seek(t);
+          /* espera o quadro novo de fato aparecer depois do seek: em alguns celulares o vídeo muda de tempo antes de mudar a imagem,
+             e a pose saía do quadro anterior (poses repetidas e fases erradas) */
+          var t = i / fps; await seek(t); await quadroPronto();
           var r = pose.detectForVideo(v, Math.round(t * 1000) + 1 + i);
           if (r.landmarks && r.landmarks[0]) {
             ok++; qs.push({ t: t, lm: r.landmarks[0].map(function (p) { return { x: p.x, y: p.y, z: p.z, v: p.visibility }; }) });
@@ -314,10 +363,156 @@
     q("demo").onclick = function () { injetar(B.sintetico(golpe() === "saque" ? 70 : 60, q("dom").value, golpe()), { sintetico: true }); msg("Demonstração com dados sintéticos (não é um vídeo real; não é salvo no histórico)."); };
     q("re").onclick = function () { if (S.quadros) mostrar(!S.real, false); };
 
+    /* ── vídeo e boneco lado a lado ──
+       O vídeo de verdade à esquerda e, à direita, o boneco do atleta no mesmo instante (a pose do quadro mais próximo do tempo do vídeo).
+       Com um modelo escolhido, o modelo aparece atrás do atleta, encaixado no quadril e no tamanho do tronco dele, passando pelas mesmas
+       fases nos mesmos tempos; a tabela compara as medidas da fase em que o vídeo está. */
+    var VB = { t: 0, tocando: false, ultimo: 0, modeloLms: null, alinhados: null, faseAtual: -1, nomeModelo: "", tipoModelo: "", rodando: false };
+    var v2 = q("v2"), bon = q("bon");
+    function lerPref(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
+    function gravarPref(k, val) { try { localStorage.setItem(k, val); } catch (e) { /* sem armazenamento */ } }
+    function tempoVB() { return v2.getAttribute("src") ? v2.currentTime : VB.t; }
+    function fimVB() { var qs = S.quadros || []; return qs.length ? qs[qs.length - 1].t : 0; }
+    function quadroEm(t) {
+      var qs = S.quadros || [], a = 0, b = qs.length - 1;
+      if (!qs.length) return null;
+      while (b - a > 1) { var m = (a + b) >> 1; if (qs[m].t <= t) a = m; else b = m; }
+      return Math.abs(qs[a].t - t) <= Math.abs(qs[b].t - t) ? qs[a] : qs[b];
+    }
+    function faseEm(t) { var fs = (S.resultado && S.resultado.fases) || [], k = 0; fs.forEach(function (f, i) { if (f.t <= t + 1e-6) k = i; }); return k; }
+    function desenharVB() {
+      var r = S.resultado; if (!r) return;
+      var c = bon.getContext("2d"), W = bon.width, H = bon.height, t = tempoVB();
+      c.fillStyle = "#111"; c.fillRect(0, 0, W, H);
+      var qd = quadroEm(t);
+      if (qd) {
+        var pes = [27, 28, 31, 32].map(function (i) { return qd.lm[i] && qd.lm[i].y; }).filter(isFinite);
+        if (pes.length) { var yc = Math.max.apply(null, pes) * H + 6; c.strokeStyle = "#2E3B44"; c.lineWidth = 2; c.beginPath(); c.moveTo(0, yc); c.lineTo(W, yc); c.stroke(); }
+      }
+      if (VB.alinhados) desenharBoneco(c, B.poseNoTempo(VB.alinhados, r.fases, t), W, H, { cor: "#A5D6A7", corLonge: "#7FB98A", alpha: 0.55, corMao: "#C8E6C9" });
+      if (qd) desenharBoneco(c, qd.lm, W, H, { cor: "#4FC3F7", corLonge: "#2B8FBF" });
+      var k = faseEm(t);
+      c.fillStyle = "rgba(0,0,0,.55)"; c.fillRect(0, 0, W, 30); c.fillStyle = "#fff"; c.font = "bold 16px system-ui"; c.fillText((k + 1) + ". " + r.nomes[k] + " · " + t.toFixed(2) + " s", 10, 21);
+      if (VB.alinhados) { c.font = "13px system-ui"; c.fillStyle = "#4FC3F7"; c.fillText("■ Atleta", 10, 50); c.fillStyle = "#A5D6A7"; c.fillText("■ " + (VB.nomeModelo || "Modelo"), 80, 50); }
+      if (k !== VB.faseAtual) { VB.faseAtual = k; tabelaModelo(); [].forEach.call(q("faseBt").children, function (b, i) { b.className = i === k ? "on" : ""; }); }
+    }
+    function ciclo(agora) {
+      if (!el.isConnected) { VB.rodando = false; return; }
+      if (VB.tocando && !v2.getAttribute("src")) {
+        var dt = VB.ultimo ? (agora - VB.ultimo) / 1000 : 0;
+        VB.t += dt * (+q("vel").value || 0.5);
+        if (VB.t > fimVB()) VB.t = 0;
+      }
+      VB.ultimo = agora;
+      if (!q("saida").hidden) desenharVB();
+      requestAnimationFrame(ciclo);
+    }
+    function irPara(t) {
+      VB.tocando = false; q("play").textContent = "▶ Reproduzir";
+      t = Math.max(0, Math.min(fimVB(), t));
+      if (v2.getAttribute("src")) { v2.pause(); v2.currentTime = t; } else VB.t = t;
+      desenharVB();
+    }
+    q("play").onclick = function () {
+      if (v2.getAttribute("src")) { v2.playbackRate = +q("vel").value || 0.5; if (v2.paused) v2.play().catch(function () {}); else v2.pause(); }
+      else { VB.tocando = !VB.tocando; VB.ultimo = 0; q("play").textContent = VB.tocando ? "❚❚ Pausar" : "▶ Reproduzir"; }
+    };
+    v2.addEventListener("play", function () { q("play").textContent = "❚❚ Pausar"; });
+    v2.addEventListener("pause", function () { q("play").textContent = "▶ Reproduzir"; });
+    v2.addEventListener("ended", function () { q("play").textContent = "▶ Reproduzir"; });
+    q("vel").onchange = function () { v2.playbackRate = +q("vel").value || 0.5; };
+    function passoQuadro(sentido) { var p = 1 / (+q("fps").value || 30); irPara(tempoVB() + sentido * p); }
+    q("qAnt").onclick = function () { passoQuadro(-1); };
+    q("qProx").onclick = function () { passoQuadro(1); };
+    q("faseBt").onclick = function (e) { var b = e.target.closest("[data-fase]"); if (b && S.resultado) irPara(S.resultado.fases[+b.getAttribute("data-fase")].t); };
+
+    /* modelos: o padrão QuadraLab, os modelos da academia (análises de referência salvas como modelo) e as análises anteriores deste atleta */
+    var podeModelos = !!(arquivo && opts.modelos !== false);
+    function mesmoGolpeAtual(h) { return h.golpe === golpe() && (golpe() !== "backhand" || String(h.emp) === String(S.emp)); }
+    function opcoesModelo() {
+      var sel = q("mod"), atual = sel.value || lerPref("qlmov:modelo");
+      var html = '<option value="">Nada (só o atleta)</option><option value="padrao">Modelo padrão QuadraLab</option>';
+      var anteriores = S.historico.filter(function (h) { return mesmoGolpeAtual(h) && h.id !== S.regId; });
+      var montarSel = function (mods) {
+        if (mods.length) html += '<optgroup label="Modelos da academia">' + mods.map(function (m) { return '<option value="mod:' + esc(m.id) + '">' + esc(m.nome || "Modelo") + "</option>"; }).join("") + "</optgroup>";
+        if (anteriores.length) html += '<optgroup label="Análises anteriores deste atleta">' + anteriores.slice().reverse().map(function (h) { return '<option value="ana:' + esc(h.id) + '">' + esc(data(h.criadoEm)) + " · " + esc(nomeGolpe(h.golpe, h.emp)) + "</option>"; }).join("") + "</optgroup>";
+        sel.innerHTML = html;
+        sel.value = [].some.call(sel.options, function (o) { return o.value === atual; }) ? atual : "";
+        escolherModelo(sel.value);
+      };
+      montarSel([]);
+      if (podeModelos) arquivo.indice("modelos").then(function (ind) { montarSel(ind.itens.filter(mesmoGolpeAtual)); }).catch(function () {});
+    }
+    function escolherModelo(val) {
+      VB.modeloLms = null; VB.alinhados = null; VB.nomeModelo = ""; VB.tipoModelo = val;
+      var r = S.resultado, dom = q("dom").value;
+      var aplicar = function (lms, nome) {
+        if (VB.tipoModelo !== val || !r) return;
+        VB.modeloLms = lms; VB.nomeModelo = nome;
+        VB.alinhados = lms ? lms.map(function (lm, i) { return B.alinharModelo(lm, r.fases[i].pose, r.proporcao, r.direcao, dom); }) : null;
+        if (VB.alinhados && VB.alinhados.some(function (x) { return !x; })) VB.alinhados = null;
+        q("bonRot").textContent = VB.alinhados ? "Boneco · atleta × " + nome : "Boneco";
+        VB.faseAtual = -1; desenharVB();
+      };
+      if (!val) { aplicar(null, ""); tabelaModelo(); return; }
+      if (val === "padrao") { aplicar(B.modeloPadrao(golpe(), S.emp), "Modelo padrão"); return; }
+      var id = val.slice(4);
+      if (!arquivo) return;
+      Promise.resolve(arquivo.ler(id)).then(function (arq) {
+        if (!arq || !arq.resultado) { q("cmpMod").innerHTML = '<p class="qm-msg">Não foi possível abrir este modelo agora.</p>'; return; }
+        var nome = val.indexOf("mod:") === 0 ? (arq.nome || "Modelo da academia") : "Análise de " + data(arq.criadoEm);
+        aplicar(B.modeloDeResultado(arq.resultado, arq.dom), nome);
+      }).catch(function () {});
+    }
+    q("mod").onchange = function () { gravarPref("qlmov:modelo", this.value.indexOf("ana:") === 0 ? "" : this.value); escolherModelo(this.value); };
+    function fmtMedida(v, u) { return v == null || !isFinite(v) ? "—" : u === "°" ? Math.round(v) + "°" : (Math.round(v * 100) / 100).toString().replace(".", ",") + u; }
+    function tabelaModelo() {
+      var alvo = q("cmpMod"), r = S.resultado;
+      if (!r || !VB.modeloLms) { alvo.innerHTML = ""; return; }
+      var comp = B.compararModelo(r, q("dom").value, VB.modeloLms), k = Math.max(0, VB.faseAtual), f = comp[k];
+      var nota = VB.tipoModelo === "padrao" ? "O modelo padrão é uma técnica de referência desenhada pelo QuadraLab (não é um atleta real): serve de guia visual. Para comparar com um jogador de verdade, analise o vídeo dele e salve como modelo da academia."
+        : "Modelo tirado de uma análise de vídeo, encaixado no quadril e no tamanho do tronco do atleta.";
+      alvo.innerHTML = "<h4>Atleta × " + esc(VB.nomeModelo) + " · " + esc(r.nomes[k]) + "</h4>" +
+        (f && f.linhas.length ? '<table class="qm-cmpm"><thead><tr><th>Medida nesta fase</th><th>Atleta</th><th>Modelo</th><th>Diferença</th></tr></thead><tbody>' + f.linhas.map(function (l) {
+          var dif = l.atleta - l.modelo;
+          return "<tr><td>" + esc(l.nome) + "</td><td>" + fmtMedida(l.atleta, l.unidade) + "</td><td>" + fmtMedida(l.modelo, l.unidade) + "</td><td>" + (dif > 0 ? "+" : "") + fmtMedida(dif, l.unidade) + "</td></tr>";
+        }).join("") + "</tbody></table>" : '<p class="qm-msg">Sem medidas comparáveis nesta fase (pontos do corpo não vistos).</p>') +
+        '<p class="qm-msg">' + esc(nota) + "</p>";
+    }
+    q("salvarMod").onclick = function () {
+      var r = S.resultado; if (!r || !arquivo || S.sintetico) return;
+      var nome = window.prompt("Nome do modelo (ex.: Forehand do professor, Saque de referência):", (q("atl").value || opts.atleta || "Referência") + " · " + nomeGolpe(golpe(), S.emp));
+      if (!nome) return;
+      var id = "mod" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), agora = new Date().toISOString();
+      var leve = { golpe: r.golpe, nomes: r.nomes, direcao: r.direcao, proporcao: r.proporcao, fases: r.fases.map(function (f) { return { nome: f.nome, t: f.t, quadro: f.quadro, pose: f.pose }; }), itens: [], resumo: r.resumo };
+      var arq = { id: id, alunoId: "modelos", nome: nome.slice(0, 80), criadoEm: agora, golpe: golpe(), emp: S.emp, dom: q("dom").value, resultado: leve, fotos: [],
+        resumo: { id: id, nome: nome.slice(0, 80), criadoEm: agora, golpe: golpe(), emp: S.emp, dom: q("dom").value, res: { ok: r.resumo.ok, atencao: r.resumo.atencao, nao: r.resumo.nao_avaliavel }, itens: [] } };
+      q("salvarMod").disabled = true;
+      arquivo.salvar("modelos", arq).then(function () { q("salvoMsg").textContent = "Modelo \"" + arq.nome + "\" salvo: ele aparece em \"Comparar com\" para os golpes iguais de qualquer atleta."; opcoesModelo(); })
+        .catch(function (e) { q("salvoMsg").textContent = "Não foi possível salvar o modelo agora (" + ((e && e.message) || "sem conexão") + ")."; })
+        .then(function () { q("salvarMod").disabled = false; });
+    };
+    function prepararVB(sintetico) {
+      var r = S.resultado; if (!r) return;
+      var prop = r.proporcao > 0.2 && r.proporcao < 5 ? r.proporcao : 0.75;
+      bon.width = 480; bon.height = Math.round(480 * prop);
+      if (!sintetico && arqUrl) { if (v2.getAttribute("src") !== arqUrl) v2.setAttribute("src", arqUrl); v2.hidden = false; q("v2msg").hidden = true; v2.pause(); v2.currentTime = r.fases[0].t; }
+      else { v2.removeAttribute("src"); v2.load(); v2.hidden = true; q("v2msg").hidden = false; VB.t = r.fases[0].t; }
+      VB.tocando = false; q("play").textContent = "▶ Reproduzir";
+      q("faseBt").innerHTML = r.fases.map(function (f, i) { return '<button data-fase="' + i + '">' + (i + 1) + ". " + esc(r.nomes[i]) + "</button>"; }).join("");
+      q("salvarMod").hidden = !(podeModelos && !sintetico);
+      VB.faseAtual = -1;
+      opcoesModelo();
+      if (!VB.rodando) { VB.rodando = true; requestAnimationFrame(ciclo); }
+    }
+
     function mostrar(sintetico, novo) {
       var emp = q("emp").value, dom = q("dom").value;
       S.emp = emp;
-      var r = B.checklist(S.quadros, dom, regras(), golpe(), emp);
+      S.quadros = B.limpar ? B.limpar(S.quadros) : S.quadros; /* trocas esquerda/direita e saltos da pose corrigidos (mesmos índices) */
+      /* ângulos medidos na proporção real do vídeo (a demonstração sintética já está em unidades iguais) */
+      var propVideo = !sintetico && cv.width && cv.height ? cv.height / cv.width : 1;
+      var r = B.checklist(S.quadros, dom, regras(), golpe(), emp, propVideo);
       if (r.erro) { msg(r.erro); return; }
       S.resultado = r; S.sintetico = !!sintetico;
       q("saida").hidden = false;
@@ -326,7 +521,7 @@
       var tot = S.quadros[S.quadros.length - 1].t || 1;
       q("tl").innerHTML = r.fases.map(function (f, i) { return '<i style="left:' + (f.t / tot * 100) + '%"></i><em style="left:' + (f.t / tot * 100) + "%;top:" + (i % 2 ? 22 : 0) + 'px">' + (i + 1) + "</em>"; }).join("");
       var fe = q("fases"); fe.innerHTML = ""; var cvs = [];
-      var proporcao = (cv.height && cv.width) ? cv.height / cv.width : 0.75;
+      var proporcao = sintetico ? 0.75 : (cv.height && cv.width) ? cv.height / cv.width : 0.75;
       r.proporcao = Math.round(proporcao * 1000) / 1000; /* para desenhar a pose de cada fase na proporção do vídeo */
       r.fases.forEach(function (f, i) {
         var d = document.createElement("div"); d.className = "qm-fase"; var c2 = document.createElement("canvas"); c2.width = 480; c2.height = Math.round(480 * proporcao);
@@ -379,6 +574,7 @@
         if (opts.aoMudar) opts.aoMudar(S.historico);
       } else q("salvoMsg").textContent = sintetico ? "Demonstração: nada foi salvo." : "";
       renderHistorico();
+      prepararVB(sintetico);
     }
     /* relatório completo (checklist com pareceres, fases, fotos, conclusão, comparação) no arquivo da academia */
     /* Fotos das fases para o arquivo: reduzidas para caber sempre no documento do relatório (vídeo de celular em pé gera
@@ -472,8 +668,8 @@
     };
     if (opts.atleta) q("atl").value = opts.atleta;
     pegaGuia(); atualizaCota(); renderHistorico();
-    return { injetar: injetar, seek: seek, estado: S, atualizarHistorico: function (h, cota) { S.historico = h.slice(); if (cota) S.cota = cota; atualizaCota(); renderHistorico(); } };
+    return { injetar: injetar, seek: seek, estado: S, tempoVideoBoneco: function () { return tempoVB(); }, atualizarHistorico: function (h, cota) { S.historico = h.slice(); if (cota) S.cota = cota; atualizaCota(); renderHistorico(); } };
   }
 
-  raiz.QLMovimento = { montar: montar, imagensFases: imagensFases, evolucaoHTML: evolucaoHTML, comparacaoHTML: comparacaoHTML, relatorioHTML: relatorioHTML, badgeHTML: badgeHTML, abrirRelatorio: abrirRelatorio, listaHTML: listaHTML };
+  raiz.QLMovimento = { montar: montar, imagensFases: imagensFases, desenharBoneco: desenharBoneco, evolucaoHTML: evolucaoHTML, comparacaoHTML: comparacaoHTML, relatorioHTML: relatorioHTML, badgeHTML: badgeHTML, abrirRelatorio: abrirRelatorio, listaHTML: listaHTML };
 })(typeof window !== "undefined" ? window : this);

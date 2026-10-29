@@ -37,8 +37,72 @@
     for (i = 0; i < arr.length; i++) { s = 0; n = 0; for (j = Math.max(0, i - k); j <= Math.min(arr.length - 1, i + k); j++) { if (isFinite(arr[j])) { s += arr[j]; n++; } } out.push(n ? s / n : NaN); }
     return out;
   }
+  /* duração típica de um quadro (mediana), para transformar segundos em quadros */
+  function passo(quadros) {
+    var d = [];
+    for (var i = 1; i < quadros.length; i++) { var x = quadros[i].t - quadros[i - 1].t; if (x > 0) d.push(x); }
+    d.sort(function (a, b) { return a - b; });
+    return d.length ? d[Math.floor(d.length / 2)] : 1 / 30;
+  }
+  function quadrosEm(quadros, seg) { return Math.max(1, Math.round(seg / passo(quadros))); }
+
+  /* Limpeza dos quadros que vêm da pose (MediaPipe), antes de achar as fases:
+     1) troca esquerda/direita: de lado, o modelo às vezes inverte braços e pernas num quadro (o punho "pula" para o outro braço e
+        parece o golpe mais rápido do vídeo). Quando trocar os lados deixa o corpo bem mais perto do quadro anterior, a troca é desfeita.
+     2) salto isolado: um ponto que pula longe num quadro e volta no seguinte fica "não visto" (v = 0) só naquele quadro.
+     Devolve quadros novos, do mesmo tamanho e na mesma ordem (os índices das fases continuam valendo para o vídeo). */
+  var PARES = [[11, 12], [13, 14], [15, 16], [17, 18], [19, 20], [21, 22], [23, 24], [25, 26], [27, 28], [29, 30], [31, 32], [1, 4], [2, 5], [3, 6], [7, 8], [9, 10]];
+  var PAR = {}; PARES.forEach(function (p) { PAR[p[0]] = p[1]; PAR[p[1]] = p[0]; });
+  var MEMBROS = [13, 14, 15, 16, 25, 26, 27, 28];
+  function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+  function limpar(quadros) {
+    if (!quadros || !quadros.length || quadros.limpo) return quadros;
+    var out = quadros.map(function (q) { return { t: q.t, lm: (q.lm || []).map(function (p) { return p ? { x: p.x, y: p.y, z: p.z, v: p.v } : p; }) }; });
+    var i, k;
+    for (i = 1; i < out.length; i++) {
+      var ant = out[i - 1].lm, cur = out[i].lm, manter = 0, trocar = 0, n = 0;
+      MEMBROS.forEach(function (j) {
+        var a = ant[j], b = cur[j], c = cur[PAR[j]];
+        if (!visivel(a) || !visivel(b) || !visivel(c)) return;
+        manter += dist(a, b); trocar += dist(a, c); n++;
+      });
+      if (n >= 4 && trocar < manter * 0.6 && manter / n > 0.015) {
+        var novo = cur.slice();
+        Object.keys(PAR).forEach(function (j) { novo[j] = cur[PAR[j]]; });
+        out[i].lm = novo;
+      }
+    }
+    /* tronco típico do vídeo, para medir o que é "salto" */
+    var tr = out.map(function (q) { var l = q.lm; return l[11] && l[12] && l[23] && l[24] ? dist(meio(l[11], l[12]), meio(l[23], l[24])) : NaN; }).filter(isFinite).sort(function (a, b) { return a - b; });
+    var J = (tr.length ? tr[Math.floor(tr.length / 2)] : 0.2) * 0.6;
+    for (i = 1; i < out.length - 1; i++) {
+      for (k = 0; k < (out[i].lm || []).length; k++) {
+        var p0 = out[i - 1].lm[k], p1 = out[i].lm[k], p2 = out[i + 1].lm[k];
+        if (!visivel(p0) || !visivel(p1) || !visivel(p2)) continue;
+        if (dist(p0, p1) > J && dist(p1, p2) > J && dist(p0, p2) < J * 0.5) out[i].lm[k] = { x: p1.x, y: p1.y, z: p1.z, v: 0 };
+      }
+    }
+    out.limpo = true;
+    return out;
+  }
+
   function idxMax(arr, a, b) { var m = -Infinity, k = a; for (var i = a; i <= b; i++) if (isFinite(arr[i]) && arr[i] > m) { m = arr[i]; k = i; } return k; }
   function idxMin(arr, a, b) { var m = Infinity, k = a; for (var i = a; i <= b; i++) if (isFinite(arr[i]) && arr[i] < m) { m = arr[i]; k = i; } return k; }
+
+  /* Preparação = posição de espera, o último instante parado antes de o movimento começar. Volta do ponto `fim` (giro ou lançamento):
+     passa pela virada (velocidade baixa no ponto extremo), atravessa o movimento (velocidade alta) e para no primeiro quadro calmo antes
+     dele. Se o movimento já vinha desde o começo da janela, fica o quadro mais "à frente" (`posicao` máxima) da janela. */
+  function inicioDoMovimento(vel, fim, ini, limiar, posicao, maiorEhFrente) {
+    var k = fim, virada = 0;
+    while (k > ini && (vel[k] || 0) < limiar && virada < 12) { k--; virada++; }
+    /* atravessa o movimento; um quadro calmo isolado (ruído da pose) não encerra: precisa de dois seguidos */
+    var andou = false;
+    while (k > ini && ((vel[k] || 0) >= limiar || (vel[k - 1] || 0) >= limiar)) { k--; andou = true; }
+    if (andou && k > ini) return k;
+    var melhor = ini, m = -Infinity;
+    for (var i = ini; i < fim; i++) { var v = maiorEhFrente ? posicao[i] : -posicao[i]; if (isFinite(v) && v > m) { m = v; melhor = i; } }
+    return Math.min(melhor, Math.max(ini, fim - 1));
+  }
 
   /* Direção para onde o jogador está virado (+1 direita da imagem, -1 esquerda): sentido do movimento do punho até o contato. */
   function segmentar(quadros, dom) {
@@ -58,12 +122,16 @@
     var pre = Math.max(0, contato - Math.round(n * 0.35));
     var dir = (px[contato] - px[idxMin(px, pre, contato)]) >= 0 ? 1 : -1;
     var sinal = dir > 0 ? px : px.map(function (v) { return -v; });
-    var giro = idxMin(sinal, 0, contato);                       // punho mais recuado
+    /* o giro (punho mais recuado) é procurado só no último 1,6 s antes do contato: o que acontece antes disso (andar, quicar a bola,
+       outro golpe) não é a preparação deste golpe */
+    var ini = Math.max(0, contato - quadrosEm(quadros, 1.6));
+    var giro = idxMin(sinal, ini, contato);                     // punho mais recuado
     var desc = idxMax(py, giro, contato);                       // ponto mais baixo (y maior) entre giro e contato
     if (desc >= contato) desc = Math.max(giro, contato - 1);
     var seg = idxMin(py, contato, n - 1);                       // punho mais alto após o contato
     if (seg <= contato) seg = Math.min(n - 1, contato + 1);
-    return { dir: dir, idx: [0, giro, desc, contato, seg, Math.min(n - 1, seg + Math.max(1, Math.round((n - 1 - seg) / 2)))], contato: contato, giro: giro, vel: vs };
+    var prep = inicioDoMovimento(vs, giro, Math.max(0, giro - quadrosEm(quadros, 1.5)), 0.12 * (vs[contato] || 1), sinal, true);
+    return { dir: dir, idx: [prep, giro, desc, contato, seg, Math.min(n - 1, seg + Math.max(1, Math.round((n - 1 - seg) / 2)))], contato: contato, giro: giro, prep: prep, vel: vs };
   }
 
   function medidas(q, dom, dir) {
@@ -97,9 +165,9 @@
     return m;
   }
 
-  function splitStep(quadros, fim) {
+  function splitStep(quadros, fim, ini) {
     var ys = [], i;
-    for (i = 0; i <= fim; i++) { var a = quadros[i].lm[P.tornE], b = quadros[i].lm[P.tornD]; ys.push((a.y + b.y) / 2); }
+    for (i = Math.max(0, ini || 0); i <= fim; i++) { var a = quadros[i].lm[P.tornE], b = quadros[i].lm[P.tornD]; ys.push((a.y + b.y) / 2); }
     ys = suavizar(ys, 1);
     if (ys.length < 6) return { amp: 0 };
     var piso = Math.max.apply(null, ys), minimo = Math.min.apply(null, ys);
@@ -117,14 +185,21 @@
     for (i = 0; i < n; i++) { var w = quadros[i].lm[L.p], v = quadros[i].lm[L.nd.p]; dy.push(visivel(w) ? w.y : NaN); dx.push(visivel(w) ? w.x : NaN); ny.push(visivel(v) ? v.y : NaN); }
     dy = suavizar(dy, 2); ny = suavizar(ny, 2); dx = suavizar(dx, 2);
     var contato = idxMin(dy, 2, n - 3);
-    var lanc = idxMin(ny, 0, contato);
+    var lanc = idxMin(ny, Math.max(0, contato - quadrosEm(quadros, 2)), contato);
     if (lanc >= contato) lanc = Math.max(1, contato - 2);
     var arm = idxMax(dy, lanc, contato);
     if (arm >= contato) arm = Math.max(lanc, contato - 1);
     var hipX = (quadros[lanc].lm[P.quadrilE].x + quadros[lanc].lm[P.quadrilD].x) / 2, nw = quadros[lanc].lm[L.nd.p];
     var dir = (nw.x - hipX) >= 0 ? 1 : -1;
     var seg = Math.min(n - 1, contato + Math.max(2, Math.round((n - 1 - contato) / 2)));
-    return { dir: dir, idx: [0, lanc, arm, contato, seg, n - 1], contato: contato };
+    /* preparação: posição de espera antes de o braço do lançamento começar a subir */
+    var vn = [0];
+    for (i = 1; i < n; i++) vn.push(isFinite(ny[i]) && isFinite(ny[i - 1]) ? Math.abs(ny[i] - ny[i - 1]) / Math.max(1e-3, quadros[i].t - quadros[i - 1].t) : 0);
+    vn = suavizar(vn, 1);
+    var iniPrep = Math.max(0, lanc - quadrosEm(quadros, 2.5)), picoN = 0;
+    for (i = iniPrep; i <= lanc; i++) if (vn[i] > picoN) picoN = vn[i];
+    var prep = inicioDoMovimento(vn, lanc, iniPrep, 0.12 * (picoN || 1), ny, true);
+    return { dir: dir, idx: [prep, lanc, arm, contato, seg, Math.min(n - 1, Math.max(seg + 1, contato + quadrosEm(quadros, 1.2)))], contato: contato, prep: prep };
   }
 
   /* Pose do quadro de cada fase, compacta ([x, y] com 3 casas; null onde o ponto não foi visto): vai no relatório guardado para que
@@ -132,11 +207,12 @@
   function poseCompacta(lm) {
     return (lm || []).map(function (p) { return p && isFinite(p.x) && isFinite(p.y) && (p.v == null || p.v >= 0.2) ? [Math.round(p.x * 1000) / 1000, Math.round(p.y * 1000) / 1000] : null; });
   }
-  function checklistSaque(quadros, dom, regras) {
+  function checklistSaque(quadros, dom, regras, original) {
+    original = original || quadros;
     var s = segmentarSaque(quadros, dom);
     if (!s) return { erro: "Vídeo curto demais ou pessoa não detectada." };
     var R = regras.saque, M = s.idx.map(function (i) { return medidas(quadros[i], dom, s.dir); });
-    var lanc = M[1], arm = M[2], cont = M[3], itens = [], ss = splitStep(quadros, s.idx[1]);
+    var lanc = M[1], arm = M[2], cont = M[3], itens = [];
     function item(fase, nome, valor, unidade, ok, ref, cOk, cAt, auto) {
       var st = auto === false ? "nao_avaliavel" : classificar(valor, ok);
       itens.push({ fase: fase, nome: nome, valor: auto === false ? null : valor, unidade: unidade, ref: ref, status: st,
@@ -166,18 +242,27 @@
     item(5, "Aterrissagem e retorno à quadra", null, "", false, "—", "", "", false);
     var cont2 = { ok: 0, atencao: 0, nao_avaliavel: 0 };
     itens.forEach(function (i) { cont2[i.status]++; });
-    return { golpe: "saque", nomes: FASES_SAQUE, fases: s.idx.map(function (i, k) { return { nome: FASES_SAQUE[k], quadro: i, t: quadros[i].t, medidas: M[k], pose: poseCompacta(quadros[i].lm) }; }), itens: itens, resumo: cont2, direcao: s.dir };
+    return { golpe: "saque", nomes: FASES_SAQUE, fases: s.idx.map(function (i, k) { return { nome: FASES_SAQUE[k], quadro: i, t: quadros[i].t, medidas: M[k], pose: poseCompacta(original[i].lm) }; }), itens: itens, resumo: cont2, direcao: s.dir };
   }
 
-  function checklist(quadros, dom, regras, golpe, emp) {
+  /* `prop` = altura/largura do vídeo. A pose vem normalizada (x em fração da largura, y da altura): sem corrigir a proporção, os
+     ângulos de um vídeo em pé (1080×1920) saem distorcidos. As medidas usam a pose em unidades iguais; as poses guardadas continuam
+     normalizadas (para desenhar sobre o vídeo). */
+  function emEscala(quadros, prop) {
+    if (!(prop > 0.2 && prop < 5) || Math.abs(prop - 1) < 1e-3) return quadros;
+    return quadros.map(function (q) { return { t: q.t, lm: q.lm.map(function (p) { return p ? { x: p.x, y: p.y * prop, z: p.z, v: p.v } : p; }) }; });
+  }
+  function checklist(quadros, dom, regras, golpe, emp, prop) {
     golpe = golpe || "forehand";
     regras = regras || REGRAS;
     if (!regras.saque) regras = Object.assign({}, REGRAS, regras);
-    if (golpe === "saque") return checklistSaque(quadros, dom, regras);
+    var original = limpar(quadros);
+    quadros = emEscala(original, prop);
+    if (golpe === "saque") return checklistSaque(quadros, dom, regras, original);
     var s = segmentar(quadros, dom);
     if (!s) return { erro: "Vídeo curto demais ou pessoa não detectada." };
     var M = s.idx.map(function (i) { return medidas(quadros[i], dom, s.dir); });
-    var giro = M[1], contato = M[3], ss = splitStep(quadros, s.giro);
+    var giro = M[1], contato = M[3], ss = splitStep(quadros, s.giro, s.prep - quadrosEm(quadros, 0.8));
     var itens = [];
     function item(fase, nome, valor, unidade, ok, ref, comentOk, comentAt, auto) {
       var st = auto === false ? "nao_avaliavel" : classificar(valor, ok);
@@ -220,7 +305,7 @@
     item(5, "Frenagem / retorno ao centro", null, "", false, "—", "", "", false);
     var cont = { ok: 0, atencao: 0, nao_avaliavel: 0 };
     itens.forEach(function (i) { cont[i.status]++; });
-    return { golpe: golpe, nomes: FASES, fases: s.idx.map(function (i, k) { return { nome: FASES[k], quadro: i, t: quadros[i].t, medidas: M[k], pose: poseCompacta(quadros[i].lm) }; }), itens: itens, resumo: cont, direcao: s.dir };
+    return { golpe: golpe, nomes: FASES, fases: s.idx.map(function (i, k) { return { nome: FASES[k], quadro: i, t: quadros[i].t, medidas: M[k], pose: poseCompacta(original[i].lm) }; }), itens: itens, resumo: cont, direcao: s.dir, proporcao: prop > 0.2 && prop < 5 ? Math.round(prop * 1000) / 1000 : undefined };
   }
 
 
@@ -402,5 +487,127 @@
     return q;
   }
 
-  return { P: P, FASES: FASES, REGRAS: REGRAS, ang: ang, segmentar: segmentar, medidas: medidas, nomesFases: nomesFases, checklist: checklist, conclusao: conclusao, INTERV: INTERV, resumir: resumir, comparar: comparar, anteriorDe: anteriorDe, serie: serie, cota: cota, LIMITES_PLANO: LIMITES_PLANO, ordenar: ordenar, sintetico: sintetico, suavizar: suavizar };
+  /* ── Modelo de referência (opcional na tela) ──
+     Uma pose de técnica padrão por fase de cada golpe, desenhada pelo QuadraLab (não é um atleta real), para comparar lado a lado.
+     Coordenadas do corpo: quadril no (0, 0), unidade = comprimento do tronco, y para baixo, x para a frente do golpe (rumo à rede),
+     jogador destro. alinharModelo() leva a pose para a imagem do atleta: mesma posição do quadril, mesmo tamanho de tronco, mesmo
+     sentido do golpe; para canhotos, troca os lados. Pontos: 0 nariz, 11/12 ombros, 13/14 cotovelos, 15/16 punhos, 23/24 quadris,
+     25/26 joelhos, 27/28 tornozelos, 31/32 pés (ímpar = esquerdo). */
+  function pose(o) { var lm = []; for (var k = 0; k < 33; k++) lm.push(null); Object.keys(o).forEach(function (k) { lm[+k] = { x: o[k][0], y: o[k][1], v: 1 }; }); return lm; }
+  var BASE_PERNAS = { 23: [0.03, 0], 24: [-0.03, 0], 25: [0.30, 0.82], 26: [0.26, 0.84], 27: [0.08, 1.66], 28: [0.02, 1.68], 31: [0.30, 1.72], 32: [0.24, 1.74] };
+  function com(base, o) { var x = {}; Object.keys(base).forEach(function (k) { x[k] = base[k]; }); Object.keys(o).forEach(function (k) { x[k] = o[k]; }); return x; }
+  var ESPERA = com(BASE_PERNAS, { 0: [0.25, -1.42], 11: [0.12, -0.98], 12: [0.06, -1.0], 13: [0.32, -0.55], 14: [0.28, -0.52], 15: [0.62, -0.42], 16: [0.60, -0.38] });
+  var MODELO = {
+    forehand: [
+      ESPERA,
+      { 0: [0.12, -1.40], 11: [0.30, -0.95], 12: [-0.32, -0.98], 13: [0.62, -0.88], 15: [1.05, -0.82], 14: [-0.62, -0.74], 16: [-0.78, -1.05],
+        23: [0.12, 0.02], 24: [-0.14, 0], 25: [0.52, 0.70], 26: [0.22, 0.74], 27: [0.34, 1.56], 28: [-0.08, 1.57], 31: [0.56, 1.62], 32: [0.14, 1.62] },
+      { 0: [0.14, -1.40], 11: [0.24, -0.95], 12: [-0.26, -0.97], 13: [0.50, -0.70], 15: [0.78, -0.55], 14: [-0.55, -0.42], 16: [-0.62, 0.05],
+        23: [0.10, 0.02], 24: [-0.10, 0], 25: [0.52, 0.70], 26: [0.24, 0.74], 27: [0.34, 1.56], 28: [-0.08, 1.57], 31: [0.56, 1.62], 32: [0.14, 1.62] },
+      { 0: [0.26, -1.42], 11: [0.08, -0.98], 12: [0.02, -1.0], 13: [-0.05, -0.55], 15: [0.12, -0.35], 14: [0.42, -0.62], 16: [0.80, -0.45],
+        23: [0.05, 0], 24: [-0.05, 0], 25: [0.36, 0.80], 26: [0.18, 0.84], 27: [0.24, 1.66], 28: [-0.02, 1.66], 31: [0.46, 1.70], 32: [0.20, 1.70] },
+      { 0: [0.20, -1.42], 11: [-0.22, -0.96], 12: [0.28, -0.98], 13: [-0.42, -0.62], 15: [-0.32, -0.40], 14: [0.30, -1.22], 16: [-0.28, -1.30],
+        23: [-0.06, 0], 24: [0.10, 0], 25: [0.32, 0.82], 26: [0.26, 0.84], 27: [0.22, 1.66], 28: [0.06, 1.64], 31: [0.44, 1.70], 32: [0.28, 1.68] },
+      com(ESPERA, { 0: [0.22, -1.42], 15: [0.56, -0.44], 16: [0.54, -0.40] })
+    ],
+    backhand2: [
+      ESPERA,
+      { 0: [0.12, -1.40], 11: [-0.30, -0.98], 12: [0.30, -0.95], 13: [-0.42, -0.52], 15: [-0.70, -0.66], 14: [-0.05, -0.60], 16: [-0.62, -0.72],
+        23: [-0.14, 0], 24: [0.12, 0.02], 25: [0.22, 0.74], 26: [0.52, 0.70], 27: [-0.08, 1.57], 28: [0.34, 1.56], 31: [0.14, 1.62], 32: [0.56, 1.62] },
+      { 0: [0.14, -1.40], 11: [-0.26, -0.97], 12: [0.24, -0.95], 13: [-0.42, -0.30], 15: [-0.66, 0.0], 14: [-0.15, -0.40], 16: [-0.60, -0.04],
+        23: [-0.10, 0], 24: [0.10, 0.02], 25: [0.24, 0.74], 26: [0.52, 0.70], 27: [-0.08, 1.57], 28: [0.34, 1.56], 31: [0.14, 1.62], 32: [0.56, 1.62] },
+      { 0: [0.26, -1.42], 11: [0.04, -0.98], 12: [0.10, -1.0], 13: [0.32, -0.55], 15: [0.70, -0.42], 14: [0.40, -0.60], 16: [0.78, -0.40],
+        23: [-0.05, 0], 24: [0.05, 0], 25: [0.18, 0.84], 26: [0.36, 0.80], 27: [-0.02, 1.66], 28: [0.24, 1.66], 31: [0.20, 1.70], 32: [0.46, 1.70] },
+      { 0: [0.20, -1.42], 11: [0.28, -0.97], 12: [-0.22, -0.96], 13: [0.20, -1.15], 15: [-0.30, -1.30], 14: [0.25, -1.20], 16: [-0.25, -1.35],
+        23: [0.10, 0], 24: [-0.06, 0], 25: [0.26, 0.84], 26: [0.32, 0.82], 27: [0.06, 1.64], 28: [0.22, 1.66], 31: [0.28, 1.68], 32: [0.44, 1.70] },
+      com(ESPERA, { 0: [0.22, -1.42] })
+    ],
+    backhand1: [
+      ESPERA,
+      { 0: [0.12, -1.40], 11: [-0.30, -0.98], 12: [0.30, -0.95], 13: [-0.20, -0.62], 15: [-0.45, -0.80], 14: [-0.02, -0.62], 16: [-0.55, -0.75],
+        23: [-0.14, 0], 24: [0.12, 0.02], 25: [0.22, 0.74], 26: [0.52, 0.70], 27: [-0.08, 1.57], 28: [0.34, 1.56], 31: [0.14, 1.62], 32: [0.56, 1.62] },
+      { 0: [0.14, -1.40], 11: [-0.26, -0.97], 12: [0.24, -0.95], 13: [-0.30, -0.55], 15: [-0.40, -0.30], 14: [-0.10, -0.40], 16: [-0.60, 0.0],
+        23: [-0.10, 0], 24: [0.10, 0.02], 25: [0.24, 0.74], 26: [0.52, 0.70], 27: [-0.08, 1.57], 28: [0.34, 1.56], 31: [0.14, 1.62], 32: [0.56, 1.62] },
+      { 0: [0.20, -1.42], 11: [-0.20, -0.96], 12: [0.22, -0.98], 13: [-0.50, -0.80], 15: [-0.55, -0.55], 14: [0.50, -0.70], 16: [0.80, -0.48],
+        23: [-0.08, 0], 24: [0.08, 0], 25: [0.18, 0.84], 26: [0.38, 0.80], 27: [-0.02, 1.66], 28: [0.26, 1.66], 31: [0.20, 1.70], 32: [0.48, 1.70] },
+      { 0: [0.18, -1.42], 11: [-0.30, -0.96], 12: [0.30, -0.98], 13: [-0.70, -0.85], 15: [-0.80, -0.62], 14: [0.45, -1.30], 16: [0.40, -1.62],
+        23: [-0.08, 0], 24: [0.10, 0], 25: [0.24, 0.84], 26: [0.36, 0.82], 27: [0.04, 1.66], 28: [0.24, 1.66], 31: [0.26, 1.70], 32: [0.46, 1.70] },
+      com(ESPERA, { 0: [0.22, -1.42] })
+    ],
+    saque: [
+      { 0: [0.10, -1.45], 11: [0.28, -1.0], 12: [-0.28, -1.0], 13: [0.30, -0.62], 15: [0.35, -0.25], 14: [0.0, -0.55], 16: [0.30, -0.22],
+        23: [0.15, 0], 24: [-0.15, 0], 25: [0.25, 0.85], 26: [-0.18, 0.86], 27: [0.30, 1.70], 28: [-0.22, 1.70], 31: [0.50, 1.72], 32: [-0.10, 1.74] },
+      { 0: [0.10, -1.45], 11: [0.30, -1.02], 12: [-0.26, -0.96], 13: [0.40, -1.55], 15: [0.48, -2.10], 14: [-0.55, -1.05], 16: [-0.60, -1.45],
+        23: [0.15, 0.01], 24: [-0.15, 0.02], 25: [0.40, 0.75], 26: [-0.05, 0.80], 27: [0.30, 1.68], 28: [-0.22, 1.68], 31: [0.50, 1.72], 32: [-0.10, 1.72] },
+      { 0: [0.12, -1.42], 11: [0.30, -1.05], 12: [-0.25, -0.88], 13: [0.42, -1.55], 15: [0.50, -2.0], 14: [-0.40, -1.30], 16: [-0.75, -1.10],
+        23: [0.14, 0.02], 24: [-0.16, 0.04], 25: [0.52, 0.66], 26: [0.12, 0.72], 27: [0.30, 1.62], 28: [-0.16, 1.62], 31: [0.50, 1.68], 32: [-0.04, 1.68] },
+      { 0: [0.20, -1.50], 11: [0.10, -0.95], 12: [0.02, -1.15], 13: [0.20, -0.55], 15: [0.10, -0.25], 14: [0.21, -1.73], 16: [0.40, -2.31],
+        23: [0.08, -0.05], 24: [-0.06, -0.04], 25: [0.30, 0.82], 26: [0.04, 0.84], 27: [0.36, 1.68], 28: [-0.06, 1.68], 31: [0.56, 1.72], 32: [0.14, 1.72] },
+      { 0: [0.34, -1.40], 11: [0.06, -0.96], 12: [0.34, -1.00], 13: [-0.10, -0.55], 15: [-0.05, -0.20], 14: [0.40, -0.45], 16: [0.10, 0.10],
+        23: [0.12, 0], 24: [0.20, 0.0], 25: [0.42, 0.80], 26: [0.10, 0.84], 27: [0.36, 1.66], 28: [-0.08, 1.60], 31: [0.58, 1.70], 32: [0.10, 1.60] },
+      { 0: [0.28, -1.42], 11: [0.16, -0.98], 12: [0.08, -1.0], 13: [0.30, -0.58], 15: [0.50, -0.45], 14: [0.26, -0.55], 16: [0.52, -0.40],
+        23: [0.05, 0], 24: [-0.05, 0], 25: [0.30, 0.82], 26: [0.24, 0.84], 27: [0.10, 1.66], 28: [0.02, 1.68], 31: [0.32, 1.72], 32: [0.26, 1.74] }
+    ]
+  };
+  function chaveModelo(golpe, emp) { return golpe === "saque" ? "saque" : golpe === "backhand" ? (String(emp) === "1" ? "backhand1" : "backhand2") : "forehand"; }
+  function modeloPadrao(golpe, emp) { return MODELO[chaveModelo(golpe, emp)].map(pose); }
+  /* pose do modelo (coordenadas do corpo) na imagem do atleta: `ref` é a pose do atleta naquela fase ([x, y] ou {x, y}), `prop` = altura/largura
+     do vídeo (para medir em unidades iguais nos dois eixos), dir = sentido do golpe, dom = "D"/"E". Devolve lm normalizado como a pose. */
+  function xy(p) { return !p ? null : Array.isArray(p) ? { x: p[0], y: p[1] } : p; }
+  function alinharModelo(modeloLm, ref, prop, dir, dom) {
+    prop = prop > 0.2 && prop < 5 ? prop : 1;
+    var r = (ref || []).map(xy), oE = r[11], oD = r[12], qE = r[23], qD = r[24];
+    if (!oE || !oD || !qE || !qD) return null;
+    var hx = (qE.x + qD.x) / 2, hy = (qE.y + qD.y) / 2 * prop, sx = (oE.x + oD.x) / 2, sy = (oE.y + oD.y) / 2 * prop;
+    var T = Math.hypot(sx - hx, sy - hy) || 0.2, d = dir < 0 ? -1 : 1;
+    var lm = modeloLm.slice();
+    if (dom === "E") { var t = lm.slice(); Object.keys(PAR).forEach(function (j) { t[j] = lm[PAR[j]]; }); lm = t; }
+    return lm.map(function (p) { return p ? { x: hx + d * p.x * T, y: (hy + p.y * T) / prop, v: 1 } : null; });
+  }
+  /* comparação atleta × modelo numa fase: as medidas que dizem algo naquela fase, lado a lado */
+  var MEDIDAS_FASE = {
+    golpe: [["joelhos", "Joelhos", "°"], ["tronco", "Tronco (ombro-quadril-joelho)", "°"], ["cotoveloDom", "Cotovelo do braço do golpe", "°"], ["largOmbros", "Abertura dos ombros", " tronco"], ["contatoFrente", "Punho à frente do quadril", " tronco"]],
+    saque: [["joelhos", "Joelhos", "°"], ["cotoveloDom", "Cotovelo do braço do golpe", "°"], ["cotoveloND", "Cotovelo do braço do lançamento", "°"], ["alturaPunhoCabeca", "Punho do golpe acima da cabeça", " tronco"], ["alturaPunhoNDCabeca", "Mão do lançamento acima da cabeça", " tronco"]]
+  };
+  function compararModelo(resultado, dom, modeloLms) {
+    var r = resultado || {}, dir = r.direcao || 1, lista = MEDIDAS_FASE[r.golpe === "saque" ? "saque" : "golpe"];
+    return (r.fases || []).map(function (f, i) {
+      var ref = (f.pose || []).map(xy), alvo = modeloLms && modeloLms[i] ? alinharModelo(modeloLms[i], f.pose, r.proporcao, dir, dom) : null;
+      if (!alvo || !ref.length || !ref[11] || !ref[23]) return { fase: f.nome, linhas: [] };
+      var cheio = function (lm) { return lm.map(function (p) { return p || { x: NaN, y: NaN, v: 0 }; }); };
+      var escala = function (lm) { var pr = r.proporcao > 0.2 ? r.proporcao : 1; return lm.map(function (p) { return { x: p.x, y: p.y * pr, v: p.v == null ? 1 : p.v }; }); };
+      var ma = medidas({ lm: escala(cheio(ref)) }, dom, dir), mm = medidas({ lm: escala(cheio(alvo)) }, dom, dir);
+      return { fase: f.nome, linhas: lista.map(function (x) { return { chave: x[0], nome: x[1], unidade: x[2], atleta: ma[x[0]], modelo: mm[x[0]] }; }).filter(function (l) { return isFinite(l.atleta) && isFinite(l.modelo); }) };
+    });
+  }
+  /* Modelo a partir de uma análise de verdade (um atleta de referência filmado e analisado no app): leva a pose de cada fase para as
+     coordenadas do corpo (quadril na origem, tronco = 1, golpe para a frente, como destro). Devolve null se faltar alguma fase. */
+  function modeloDeResultado(resultado, dom) {
+    var r = resultado || {}, prop = r.proporcao > 0.2 && r.proporcao < 5 ? r.proporcao : 1, d = r.direcao < 0 ? -1 : 1;
+    if (!r.fases || !r.fases.length) return null;
+    var lms = r.fases.map(function (f) {
+      var p = (f.pose || []).map(xy), oE = p[11], oD = p[12], qE = p[23], qD = p[24];
+      if (!oE || !oD || !qE || !qD) return null;
+      var hx = (qE.x + qD.x) / 2, hy = (qE.y + qD.y) / 2 * prop, sx = (oE.x + oD.x) / 2, sy = (oE.y + oD.y) / 2 * prop;
+      var T = Math.hypot(sx - hx, sy - hy) || 0.2;
+      var lm = p.map(function (q) { return q ? { x: (q.x - hx) * d / T, y: (q.y * prop - hy) / T, v: 1 } : null; });
+      if (dom === "E") { var t = lm.slice(); Object.keys(PAR).forEach(function (j) { t[j] = lm[PAR[j]]; }); lm = t; }
+      return lm;
+    });
+    return lms.every(Boolean) ? lms : null;
+  }
+  /* pose interpolada entre as fases (para animar o modelo junto do vídeo): `t` é o tempo do vídeo, `fases` traz o tempo de cada fase */
+  function poseNoTempo(lms, fases, t) {
+    if (!lms || !lms.length || !fases || !fases.length) return null;
+    if (t <= fases[0].t) return lms[0];
+    for (var i = 1; i < fases.length; i++) {
+      if (t <= fases[i].t) {
+        var a = lms[i - 1], b = lms[i], u = (t - fases[i - 1].t) / Math.max(1e-6, fases[i].t - fases[i - 1].t);
+        return a.map(function (p, k) { var q = b[k]; return p && q ? { x: p.x + (q.x - p.x) * u, y: p.y + (q.y - p.y) * u, v: 1 } : p || q; });
+      }
+    }
+    return lms[lms.length - 1];
+  }
+
+  return { P: P, FASES: FASES, REGRAS: REGRAS, ang: ang, limpar: limpar, modeloPadrao: modeloPadrao, modeloDeResultado: modeloDeResultado, alinharModelo: alinharModelo, compararModelo: compararModelo, poseNoTempo: poseNoTempo, chaveModelo: chaveModelo, segmentarSaque: segmentarSaque, segmentar: segmentar, medidas: medidas, nomesFases: nomesFases, checklist: checklist, conclusao: conclusao, INTERV: INTERV, resumir: resumir, comparar: comparar, anteriorDe: anteriorDe, serie: serie, cota: cota, LIMITES_PLANO: LIMITES_PLANO, ordenar: ordenar, sintetico: sintetico, suavizar: suavizar };
 });
