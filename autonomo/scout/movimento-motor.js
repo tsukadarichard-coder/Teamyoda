@@ -135,6 +135,10 @@
     return { dir: dir, idx: [prep, giro, desc, contato, seg, Math.min(n - 1, seg + Math.max(1, Math.round((n - 1 - seg) / 2)))], contato: contato, giro: giro, prep: prep, vel: vs };
   }
 
+  function joelhosEm(q) {
+    var lm = q.lm, js = [ang(lm[P.quadrilE], lm[P.joelhoE], lm[P.tornE]), ang(lm[P.quadrilD], lm[P.joelhoD], lm[P.tornD])].filter(isFinite);
+    return js.length ? Math.min.apply(null, js) : Infinity;
+  }
   function medidas(q, dom, dir) {
     var L = ladoIdx(dom), lm = q.lm, m = {};
     var ombroM = meio(lm[P.ombroE], lm[P.ombroD]), quadM = meio(lm[P.quadrilE], lm[P.quadrilD]);
@@ -188,8 +192,23 @@
     var contato = idxMin(dy, 2, n - 3);
     var lanc = idxMin(ny, Math.max(0, contato - quadrosEm(quadros, 2)), contato);
     if (lanc >= contato) lanc = Math.max(1, contato - 2);
-    var arm = idxMax(dy, lanc, contato);
+    /* armada (racket drop): o cotovelo da raquete já subiu à altura do ombro e o punho cai atrás das costas (punho o mais abaixo
+       do cotovelo). Não é o ponto mais baixo do punho: no lançamento o braço da raquete ainda está pendurado e o punho fica bem mais
+       baixo, o que fazia a armada cair no mesmo quadro do lançamento. */
+    var arm = -1, melhor = -Infinity;
+    for (i = lanc + 1; i < contato; i++) {
+      var lm = quadros[i].lm, cw = lm[L.c], ow = lm[L.o], pw = lm[L.p], qw = lm[L.q];
+      if (!visivel(cw) || !visivel(ow) || !visivel(pw)) continue;
+      var tr = visivel(qw) ? Math.max(0.05, Math.abs(qw.y - ow.y)) : 0.2;
+      if (cw.y > ow.y + 0.25 * tr) continue;               // cotovelo ainda abaixo do ombro: braço pendurado ou subindo
+      var queda = (pw.y - cw.y) / tr;
+      if (queda > melhor) { melhor = queda; arm = i; }
+    }
+    if (arm < 0) arm = Math.max(lanc + 1, contato - quadrosEm(quadros, 0.12));
     if (arm >= contato) arm = Math.max(lanc, contato - 1);
+    /* carga das pernas: a flexão mais funda entre o lançamento e a armada (o joelho dobra no troféu e já estende na armada) */
+    var carga = lanc, menorJ = Infinity;
+    for (i = lanc; i <= arm; i++) { var mj = joelhosEm(quadros[i]); if (mj < menorJ) { menorJ = mj; carga = i; } }
     var hipX = (quadros[lanc].lm[P.quadrilE].x + quadros[lanc].lm[P.quadrilD].x) / 2, nw = quadros[lanc].lm[L.nd.p];
     var dir = (nw.x - hipX) >= 0 ? 1 : -1;
     var seg = Math.min(n - 1, contato + Math.max(2, Math.round((n - 1 - contato) / 2)));
@@ -200,7 +219,7 @@
     var iniPrep = Math.max(0, lanc - quadrosEm(quadros, 2.5)), picoN = 0;
     for (i = iniPrep; i <= lanc; i++) if (vn[i] > picoN) picoN = vn[i];
     var prep = inicioDoMovimento(vn, lanc, iniPrep, 0.12 * (picoN || 1), ny, true);
-    return { dir: dir, idx: [prep, lanc, arm, contato, seg, Math.min(n - 1, Math.max(seg + 1, contato + quadrosEm(quadros, 1.2)))], contato: contato, prep: prep };
+    return { dir: dir, idx: [prep, lanc, arm, contato, seg, Math.min(n - 1, Math.max(seg + 1, contato + quadrosEm(quadros, 1.2)))], contato: contato, prep: prep, carga: carga };
   }
 
   /* Pose do quadro de cada fase, compacta ([x, y] com 3 casas; null onde o ponto não foi visto): vai no relatório guardado para que
@@ -214,6 +233,8 @@
     if (!s) return { erro: "Vídeo curto demais ou pessoa não detectada." };
     var R = regras.saque, M = s.idx.map(function (i) { return medidas(quadros[i], dom, s.dir); });
     var lanc = M[1], arm = M[2], cont = M[3], itens = [];
+    var jCarga = joelhosEm(quadros[s.carga]);
+    if (isFinite(jCarga)) arm = Object.assign({}, arm, { joelhos: isFinite(arm.joelhos) ? Math.min(arm.joelhos, jCarga) : jCarga });
     function item(fase, nome, valor, unidade, ok, ref, cOk, cAt, auto) {
       var st = auto === false ? "nao_avaliavel" : classificar(valor, ok);
       itens.push({ fase: fase, nome: nome, valor: auto === false ? null : valor, unidade: unidade, ref: ref, status: st,

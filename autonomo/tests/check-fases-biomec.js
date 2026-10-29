@@ -67,4 +67,37 @@ function trocar(lm) { const o = lm.slice(); [[11, 12], [13, 14], [15, 16], [23, 
   a.ok(certo.every((v, i) => Math.abs(v - ref[i]) < 0.5), "ângulos corretos no vídeo em pé " + certo.map(Math.round) + " × " + ref.map(Math.round));
   a.ok(torto.some((v, i) => Math.abs(v - ref[i]) > 5), "sem a proporção, os ângulos saíam distorcidos");
 }
+/* saque real (como no vídeo do Team Yoda): no lançamento o braço da raquete está pendurado e o punho bem baixo. A armada (racket
+   drop) vem depois, com o cotovelo no alto e o punho caído atrás das costas, e nunca no mesmo quadro do lançamento. */
+function saqueReal(dom) {
+  const q = [], lerp = (a, b, t) => a + (b - a) * Math.max(0, Math.min(1, t));
+  for (let i = 0; i < 60; i++) {
+    const lm = []; for (let k = 0; k < 33; k++) lm.push({ x: 0.5, y: 0.5, z: 0, v: 1 });
+    const set = (k, x, y) => { lm[k] = { x, y, z: 0, v: 1 }; };
+    let pw, cw, nw, d;
+    if (i < 15) { pw = [0.45, 0.52]; cw = [0.43, 0.42]; nw = [0.52, 0.52]; d = 0.02; }
+    else if (i <= 30) { const t = (i - 15) / 15; pw = [lerp(0.45, 0.36, t), lerp(0.52, 0.62, t)]; cw = [0.40, 0.44]; nw = [0.60, lerp(0.52, 0.10, t)]; d = lerp(0.02, 0.06, t); }
+    else if (i <= 40) { const t = (i - 30) / 10; pw = [lerp(0.36, 0.40, t), lerp(0.62, 0.22, t)]; cw = [0.40, lerp(0.44, 0.30, t)]; nw = [0.60, lerp(0.10, 0.15, t)]; d = lerp(0.06, 0.09, t); }
+    else if (i <= 45) { const t = (i - 40) / 5; pw = [lerp(0.40, 0.47, t), lerp(0.22, 0.36, t)]; cw = [0.42, lerp(0.30, 0.24, t)]; nw = [0.60, lerp(0.15, 0.30, t)]; d = lerp(0.09, 0.05, t); }
+    else if (i <= 50) { const t = (i - 45) / 5; pw = [lerp(0.47, 0.58, t), lerp(0.36, 0.05, t)]; cw = [lerp(0.42, 0.55, t), lerp(0.24, 0.16, t)]; nw = [0.58, lerp(0.30, 0.45, t)]; d = lerp(0.05, 0.0, t); }
+    else { const t = (i - 50) / 9; pw = [lerp(0.58, 0.40, t), lerp(0.05, 0.62, t)]; cw = [lerp(0.55, 0.45, t), lerp(0.16, 0.45, t)]; nw = [0.55, 0.50]; d = 0.02; }
+    set(P.ombroE, 0.47, 0.30); set(P.ombroD, 0.53, 0.30); set(P.quadrilE, 0.47, 0.52); set(P.quadrilD, 0.53, 0.52); set(P.nariz, 0.5, 0.22);
+    set(P.joelhoE, 0.47 + d, 0.70); set(P.joelhoD, 0.53 + d, 0.70); set(P.tornE, 0.47, 0.88); set(P.tornD, 0.53, 0.88);
+    const D = dom === "E" ? { p: P.punhoE, c: P.cotE, np: P.punhoD, nc: P.cotD } : { p: P.punhoD, c: P.cotD, np: P.punhoE, nc: P.cotE };
+    set(D.p, pw[0], pw[1]); set(D.c, cw[0], cw[1]); set(D.np, nw[0], nw[1]); set(D.nc, (nw[0] + 0.5) / 2, (nw[1] + 0.30) / 2);
+    q.push({ t: i / 30, lm });
+  }
+  return q;
+}
+["D", "E"].forEach((dom) => {
+  const r = B.checklist(saqueReal(dom), dom, null, "saque");
+  const f = r.fases.map((x) => x.quadro);
+  a.ok(Math.abs(f[1] - 30) <= 2, "saque" + dom + ": lançamento no braço mais alto (" + f + ")");
+  a.ok(f[2] > f[1] + 5, "saque" + dom + ": armada depois do lançamento, não no mesmo quadro (" + f + ")");
+  a.ok(f[2] >= 42 && f[2] <= 47, "saque" + dom + ": armada no racket drop (" + f + ")");
+  a.ok(Math.abs(f[3] - 50) <= 2, "saque" + dom + ": contato no punho mais alto (" + f + ")");
+  const jArm = r.itens.find((x) => x.nome === "Flexão de joelhos na armada").valor, jMin = Math.min(...r.fases.map((x) => x.medidas.joelhos));
+  a.ok(jArm <= jMin + 0.5, "saque" + dom + ": flexão dos joelhos medida na carga mais funda (" + Math.round(jArm) + ")");
+});
+
 console.log("check-fases-biomec: ok");
