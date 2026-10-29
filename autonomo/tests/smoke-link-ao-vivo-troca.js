@@ -5,7 +5,9 @@ const { chromium } = require("/opt/node22/lib/node_modules/playwright");
 const raiz = path.join(__dirname, "..");
 const A = "a".repeat(32), B = "b".repeat(32);
 let versaoB = 3, pedidos = [];
-const pub = (n) => ({ aoVivo: true, atleta: "Nicolas", data: "2026-10-29", torneio: "Copa", resultado: "3-2", n, ganhos: Math.floor(n / 2), pctGanhos: 50, serie: [], placar: { sets: [], games: [3, 2], pontos: "15-0", sacador: "atleta" } });
+const pub = (n) => ({ aoVivo: true, atleta: "Nicolas", data: "2026-10-29", torneio: "Copa", resultado: "3-2", n, ganhos: Math.floor(n / 2), pctGanhos: 50, serie: [], placar: { sets: [], games: [3, 2], pontos: "15-0", sacador: "atleta" },
+  /* o resumo completo, como o servidor publica (sem esses campos a página não desenha) */
+  bolas: { pctCurtos: 60, pctMedios: 30, pctLongos: 10, pctAte4: 60 }, numeros: { errosNos: 2, errosDecisao: 1, errosExec: 1, df: 0, aces: 1, winners: 2, errosDele: 3 }, zonas: {}, sinais: [] });
 const srv = http.createServer((q, r) => {
   const u = new URL(q.url, "http://x");
   if (u.pathname === "/.netlify/functions/scout-ao-vivo") {
