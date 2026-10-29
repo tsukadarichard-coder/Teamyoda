@@ -175,6 +175,33 @@ async function encerrar(p) { await p.getByRole("button", { name: "Encerrar e ver
     assert.deepStrictEqual(p.erros, [], app + ": erros de JS (G) " + p.erros.join(" | "));
     await p.close();
 
+    /* H) Team Yoda, dono: procurar um jogo apagado antes da lixeira (link ao vivo da família) e devolver ao caderno */
+    if (app === "mty") {
+      p = await b.newPage({ viewport: { width: 420, height: 900 } }); p.erros = []; p.on("pageerror", (e) => p.erros.push(e.message)); p.on("dialog", (d) => d.accept());
+      await p.addInitScript(() => {
+        window.__alunosIniciais = [{ id: "a1", nome: "Nicolas Kanashiro", registros: [] }];
+        window.mtyAuth = { usuario: () => ({ email: "tsukada.richard@gmail.com" }), tokenId: async () => "tok" };
+        const f0 = window.fetch;
+        window.fetch = async (u, o) => {
+          if (String(u).includes("recuperar-jogo")) { window.__pedido = JSON.parse(o.body); return new Response(JSON.stringify({ achados: [{ fonte: "ao-vivo", id: "aaaabbbb", atleta: "Nicolas", data: "2026-10-20", torneio: "ITF Foz do Iguaçu", resultado: "4-6 7-6", n: 195, pontos: 195,
+            resumo: { atleta: "Nicolas", data: "2026-10-20", torneio: "ITF Foz do Iguaçu", resultado: "4-6 7-6", concluida: false, n: 195, ganhos: 95, pctGanhos: 49, numeros: { errosNos: 73, errosDecisao: 17, errosExec: 55, df: 12, aces: 5, pctPrimeiro: 57 }, observacaoFinal: "Jogador teve câimbra no 1/1 do terceiro set", serie: [] } }] }), { status: 200 }); }
+          return f0(u, o);
+        };
+      });
+      await p.goto("http://localhost:" + porta + "/");
+      await p.waitForFunction(() => document.body.innerText.includes("Análise de partida"), null, { timeout: 120000 });
+      await p.getByText("Procurar um jogo apagado (antes da lixeira)").click();
+      await p.getByRole("button", { name: "Procurar", exact: true }).click(); await p.waitForTimeout(400);
+      t = await texto(p);
+      assert(t.includes("ITF Foz do Iguaçu") && t.includes("link ao vivo da família") && t.includes("195 pontos"), app + ": a busca mostra o jogo achado no link ao vivo. " + t.slice(0, 500));
+      assert.strictEqual(await p.evaluate(() => window.__pedido.termo), "Nicolas", app + ": procura pelo primeiro nome do jogador");
+      await p.getByRole("button", { name: "Devolver ao caderno" }).click(); await p.waitForTimeout(400);
+      const a8 = await aluno(p), j8 = a8.registros.find((r) => r.tipo === "jogo");
+      assert(j8 && j8.resultado === "4-6 7-6" && j8.data === "2026-10-20" && j8.torneio === "ITF Foz do Iguaçu" && j8.observacaoFinal.includes("câimbra") && j8.scout.errosDecisao === 17, app + ": o jogo volta ao caderno com o placar e os números " + JSON.stringify(j8 && { r: j8.resultado, d: j8.data }));
+      assert.deepStrictEqual(p.erros, [], app + ": erros de JS (H) " + p.erros.join(" | "));
+      await p.close();
+    }
+
     /* F) caderno com cópias repetidas (versões antigas): ao abrir fica um registro por partida; o link da família passa para o que fica */
     const pts = (n, bola) => Array.from({ length: n }, (_, i) => ({ fim: "winner_nos", nos: i % 3 !== 2, saque: null, bola, causa: null, rede: false, situacao: null, adverso: false, sacador: "nos", lado: "D", dirSaque: null, n: i + 1, placarAntes: "0-0", jogo: 1, set: 1 }));
     const cfgJ = { formato: "3sets", saca: "nos", semVantagem: false, superTiebreakDecisivo: false };

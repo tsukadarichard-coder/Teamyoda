@@ -9547,6 +9547,29 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
     if (window.QLLixeiraJogos && window.storage) window.QLLixeiraJogos.criar(window.storage).indice(aluno.id).then((l) => { if (vivo) setLixeira(l.filter((x) => !noCaderno.has(x.regId))); }).catch(() => {});
     return () => { vivo = false; };
   }, [aluno.id, (aluno.registros || []).length]);
+  /* jogo apagado antes da lixeira existir: o dono procura nas cópias que ficaram (netlify/functions/recuperar-jogo.js) */
+  const [busca, setBusca] = useState({ aberto: false, termo: String(aluno.nome || "").trim().split(/\s+/)[0] || "", data: "", ocupado: false, achados: null, erro: "" });
+  async function procurarApagado() {
+    setBusca((b) => ({ ...b, ocupado: true, erro: "", achados: null }));
+    try {
+      const token = await window.mtyAuth.tokenId();
+      const r = await fetch("/.netlify/functions/recuperar-jogo", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + token }, body: JSON.stringify({ acao: "buscar", termo: busca.termo, data: busca.data }) });
+      const c = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(c.erro || "Erro " + r.status);
+      setBusca((b) => ({ ...b, ocupado: false, achados: c.achados || [] }));
+    } catch (e) { setBusca((b) => ({ ...b, ocupado: false, erro: e.message || "Não foi possível procurar agora." })); }
+  }
+  function trazerAchado(x) {
+    let reg = null;
+    const novoId = "rec" + Date.now();
+    if (x.fonte === "caderno" && x.registro) reg = { ...x.registro, id: x.alunoId === aluno.id ? x.registro.id : novoId, parcialAuto: false };
+    else if (x.fonte === "rascunho" && x.rascunho) { const rs = x.rascunho; reg = { ...registroPartidaAuto(novoId, rs.cfg || {}, rs.pontos, rs.placar, rs.mental, null), parcialAuto: false, data: String(rs.salvoEm || "").slice(0, 10) || new Date().toISOString().slice(0, 10) }; }
+    else if (x.resumo) reg = { ...registroDoCompeticao({ id: novoId, resumo: x.resumo, data: x.data }), id: novoId, recuperadoDe: x.fonte, revelou: "Recuperado do resumo publicado (sem os pontos um a um)." };
+    if (!reg) return;
+    if (!window.confirm("Devolver este jogo ao caderno de " + aluno.nome + "?" + (x.resumo ? " Ele volta com os números e o placar do resumo, sem os pontos um a um." : ""))) return;
+    setAlunos((prev) => prev.map((a) => (a.id !== aluno.id || (a.registros || []).some((g) => g.id === reg.id) ? a : { ...a, registros: [...(a.registros || []), reg] })));
+    setBusca((b) => ({ ...b, achados: (b.achados || []).filter((y) => y !== x) }));
+  }
   async function recuperarJogo(item) {
     const L = window.QLLixeiraJogos.criar(window.storage);
     const reg = await L.ler(aluno.id, item.regId).catch(() => null);
@@ -9827,6 +9850,37 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
                 <Botao pequeno variante="saibro" onClick={() => recuperarJogo(x)}>Recuperar</Botao>
               </div>
             ))}
+          </div>
+        )}
+        {typeof ehDonoFinanceiro === "function" && ehDonoFinanceiro() && (
+          <div style={{ marginBottom: 16 }}>
+            {!busca.aberto ? (
+              <button type="button" onClick={() => setBusca((b) => ({ ...b, aberto: true }))} style={{ ...prosa, fontSize: 12.5, color: C.grafite, textDecoration: "underline", background: "none", border: "none", cursor: "pointer", padding: 0 }}>Procurar um jogo apagado (antes da lixeira)</button>
+            ) : (
+              <div style={{ background: C.cal, borderLeft: "3px solid " + C.linha, padding: "13px 15px" }}>
+                <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>Procurar jogo apagado</p>
+                <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>Procura nas cópias que ficaram: o caderno de outros jogadores, a partida em andamento guardada, o link ao vivo da família e o envio ao Competição. Só o dono vê.</p>
+                <div className="flex gap-2 mt-2 flex-wrap items-center">
+                  <input value={busca.termo} onChange={(e) => setBusca({ ...busca, termo: e.target.value })} placeholder="Jogador, torneio ou adversário" aria-label="Jogador, torneio ou adversário"
+                    style={{ ...prosa, fontSize: 14, padding: "8px 10px", border: "1px solid " + C.linha, borderRadius: 8, minWidth: 180, flex: 1 }} />
+                  <input type="date" value={busca.data} onChange={(e) => setBusca({ ...busca, data: e.target.value })} aria-label="Data do jogo"
+                    style={{ ...prosa, fontSize: 14, padding: "7px 8px", border: "1px solid " + C.linha, borderRadius: 8 }} />
+                  <Botao pequeno variante="saibro" onClick={procurarApagado}>{busca.ocupado ? "Procurando…" : "Procurar"}</Botao>
+                </div>
+                {busca.erro && <p style={{ ...prosa, fontSize: 13, color: C.saibro, marginTop: 8 }}>{busca.erro}</p>}
+                {busca.achados && !busca.achados.length && <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginTop: 8 }}>Nenhuma cópia encontrada com esses dados. Tente só o primeiro nome, o torneio ou a data.</p>}
+                {(busca.achados || []).map((x, k) => {
+                  const fonte = { caderno: x.alunoId === aluno.id ? "já está no caderno deste jogador" : "no caderno de " + x.alunoNome, rascunho: "partida em andamento guardada de " + x.alunoNome + " (todos os pontos)", "ao-vivo": "link ao vivo da família (resumo + placar ponto a ponto)", competicao: "cópia enviada ao Competição (resumo)" }[x.fonte];
+                  const jaAqui = x.fonte === "caderno" && x.alunoId === aluno.id;
+                  return (
+                    <div key={k} className="flex items-center justify-between gap-2 mt-2" style={{ borderTop: "1px solid " + C.linha, paddingTop: 8 }}>
+                      <span style={{ ...prosa, fontSize: 13 }}>{String(x.data || "").split("-").reverse().join("/")}{x.torneio ? " · " + x.torneio : ""}{x.adversario && x.adversario !== "—" ? " · contra " + x.adversario : ""}{x.resultado ? " · " + x.resultado : ""} · {x.pontos || x.n || 0} pontos<br /><span style={{ color: C.grafite, fontSize: 12 }}>{fonte}</span></span>
+                      {!jaAqui && <Botao pequeno variante="saibro" onClick={() => trazerAchado(x)}>Devolver ao caderno</Botao>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
         <div className="mb-3"><SeloTecnologiaQuadraLab /></div>
