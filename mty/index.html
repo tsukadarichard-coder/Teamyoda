@@ -8640,7 +8640,7 @@ function resumoScoutPlanejamento(registros) {
   return [
     "DADOS DE PARTIDAS REGISTRADAS (SCOUT) — " + plural(jogos.length, "jogo") + " com scout salvo, médias sobre todos eles:",
     ...(jogos.some((r) => r.scout.pctProtocolo > 0) ? ["· Protocolo entre pontos (jogos antigos): " + media("pctProtocolo").toFixed(0) + "%" + tendenciaTxt("pctProtocolo", true)] : []),
-    "· Erros na bola 1–2 (construção de ponto): " + media("pctErrosCurtos").toFixed(0) + "%" + tendenciaTxt("pctErrosCurtos", false),
+    "· Erros em até 4 bolas (início do ponto): " + media("pctErrosCurtos").toFixed(0) + "%" + tendenciaTxt("pctErrosCurtos", false),
     ...(jogos.some((r) => r.scout.ataquePerdido > 0) ? ["· Ataques perdidos, média por jogo: " + media("ataquePerdido").toFixed(1) + tendenciaTxt("ataquePerdido", false)] : []),
     "· Erros por decisão vs. execução, média por jogo: " + media("errosDecisao").toFixed(1) + " / " + media("errosExec").toFixed(1),
     "Estes são dados de partida real, não da ficha de entrada — use-os pra calibrar prioridade e",
@@ -8741,7 +8741,7 @@ function EvolucaoScout({ jogos }) {
       </p>
       <div className="flex flex-wrap gap-2 mb-3">
         <CartaoTendencia rotulo="1º saque dentro" valores={valoresPrimeiro} sufixo="%" maiorEhMelhor={true} />
-        {valoresErrosCurtos.length > 0 && <CartaoTendencia rotulo="Erros na bola 1–2" valores={valoresErrosCurtos} sufixo="%" maiorEhMelhor={false} />}
+        {valoresErrosCurtos.length > 0 && <CartaoTendencia rotulo="Erros em até 4 bolas" valores={valoresErrosCurtos} sufixo="%" maiorEhMelhor={false} />}
         <CartaoTendencia rotulo="Aces" valores={valoresAces} sufixo="" maiorEhMelhor={true} />
       </div>
       <div style={{ height: 180, marginLeft: -18 }}>
@@ -8752,7 +8752,7 @@ function EvolucaoScout({ jogos }) {
             <YAxis domain={[0, 100]} tick={{ fontSize: 9, fontFamily: ARCH, fill: C.grafite }} width={28} unit="%" />
             <Tooltip contentStyle={{ fontFamily: ARCH, fontSize: 12, borderRadius: 10, border: "1px solid " + C.linha }}
               labelFormatter={(r, p) => r + (p && p[0] ? " · " + p[0].payload.data : "")}
-              formatter={(v, n) => [v + "%", n === "pctPrimeiro" ? "1º saque dentro" : "Erros na bola 1–2"]} />
+              formatter={(v, n) => [v + "%", n === "pctPrimeiro" ? "1º saque dentro" : "Erros em até 4 bolas"]} />
             <Line type="monotone" dataKey="pctPrimeiro" stroke={C.quadra} strokeWidth={2} dot={{ r: 3 }} connectNulls />
             <Line type="monotone" dataKey="pctErrosCurtos" stroke={C.grafite} strokeWidth={2} dot={{ r: 3 }} />
           </ComposedChart>
@@ -8760,7 +8760,7 @@ function EvolucaoScout({ jogos }) {
       </div>
       <div className="flex gap-4 mt-1">
         <Etiqueta cor={C.quadra}>▬ 1º saque dentro</Etiqueta>
-        <Etiqueta cor={C.grafite}>▬ Erros na bola 1–2</Etiqueta>
+        <Etiqueta cor={C.grafite}>▬ Erros em até 4 bolas</Etiqueta>
       </div>
     </div>
   );
@@ -8778,14 +8778,14 @@ function seqDoJogo(s, tipo) {
 const METRICAS_SCOUT = [
   { grupo: "O jogo", k: "n", rot: "Pontos coletados", get: (s) => s.n, melhor: null },
   { k: "pctGanhos", rot: "Pontos ganhos", suf: "%", get: (s) => s.pctGanhos, melhor: true },
-  { grupo: "Onde o ponto se decidiu", k: "pctCurtos", rot: "Em 1–2 bolas", suf: "%", get: (s) => s.pctCurtos, melhor: null },
-  { k: "pctMedios", rot: "Em 3–4 bolas", suf: "%", get: (s) => s.pctMedios, melhor: null },
-  { k: "pctLongos", rot: "Em 5 bolas ou mais", suf: "%", get: (s) => s.pctLongos, melhor: null },
+  { grupo: "Onde o ponto se decidiu", k: "pctCurtos", rot: "Em 1–4 bolas", suf: "%", get: (s) => s.pctCurtos, melhor: null },
+  { k: "pctMedios", rot: "Em 5–9 bolas", suf: "%", get: (s) => s.pctMedios, melhor: null },
+  { k: "pctLongos", rot: "Em 10 bolas ou mais", suf: "%", get: (s) => s.pctLongos, melhor: null },
   { k: "pctAte4", rot: "Em até 4 bolas", suf: "%", get: (s) => s.pctAte4, melhor: null },
   { grupo: "Erros do meu jogador", k: "errosNos", rot: "Erros", get: (s) => s.errosNos, melhor: false },
   { k: "errosDecisao", rot: "— por decisão", get: (s) => s.errosDecisao, melhor: false },
   { k: "errosExec", rot: "— por execução", get: (s) => s.errosExec, melhor: false },
-  { k: "pctErrosCurtos", rot: "Erros na bola 1–2 (% dos erros)", suf: "%", get: (s) => s.pctErrosCurtos, melhor: false },
+  { k: "pctErrosCurtos", rot: "Erros em até 4 bolas (% dos erros)", suf: "%", get: (s) => s.pctErrosCurtos, melhor: false },
   { grupo: "Saque", k: "pctPrimeiro", rot: "1º saque dentro", suf: "%", get: (s) => (s.pctPrimeiro ? s.pctPrimeiro : null), melhor: true },
   { k: "df", rot: "Duplas faltas", get: (s) => s.df, melhor: false },
   { k: "dfAdverso", rot: "Duplas faltas em placar adverso", get: (s) => s.dfAdverso, melhor: false },
@@ -9780,7 +9780,7 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
     const sacador = quemSaca(placar), meu = sacador === "nos";
     const nos = tipo === "ace" ? meu : !meu;
     setPilha([...pilha, { placar, pontos }]);
-    const p = { fim: tipo === "ace" ? (meu ? "winner_nos" : "winner_dele") : (meu ? "erro_nos" : "erro_dele"), nos, saque: tipo, bola: "1-2", causa: tipo === "df" && meu ? "execucao" : null,
+    const p = { fim: tipo === "ace" ? (meu ? "winner_nos" : "winner_dele") : (meu ? "erro_nos" : "erro_dele"), nos, saque: tipo, bola: "1-4", causa: tipo === "df" && meu ? "execucao" : null,
       rede: false, situacao: null, adverso: ehAdverso(placar), sacador, lado: ladoDoSaque(placar), dirSaque: tipo === "ace" ? dirSaque : null,
       n: pontos.length + 1, placarAntes: rotuloPontos(placar), jogo: numeroDoGame(placar), set: numeroDoSet(placar) };
     setDirSaque(null);
@@ -10182,7 +10182,7 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
           )}
           <div className="mb-2"><Etiqueta>Em que bola o ponto terminou</Etiqueta></div>
           <div className="grid grid-cols-3 gap-2">
-            {["1-2", "3-4", "5+"].map((b) => (
+            {["1-4", "5-9", "10+"].map((b) => (
               <button key={b} onClick={() => confirma(b)}
                 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, minHeight: 88, borderRadius: 12, cursor: "pointer", border: "1px solid " + C.tinta, background: C.tinta, color: C.papel }}>
                 {b}
@@ -10305,7 +10305,7 @@ function TelaScout({ aluno, alunos, setAlunos, identidade }) {
 
           <div className="mb-2"><Etiqueta>Em que bola o ponto terminou</Etiqueta></div>
           <div className="grid grid-cols-3 gap-2">
-            {["1-2", "3-4", "5+"].map((b) => (
+            {["1-4", "5-9", "10+"].map((b) => (
               <button key={b} onClick={() => confirma(b)}
                 style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, padding: "18px 6px", minHeight: 44, borderRadius: 10,
                   cursor: "pointer", border: "1px solid " + C.tinta, background: C.tinta, color: C.papel }}>
@@ -10357,14 +10357,14 @@ function resume(pontos) {
   const conta = (f) => pontos.filter(f).length;
   const pct = (x) => Math.round((x / n) * 100);
 
-  const curtos = conta((p) => p.bola === "1-2");
-  const medios = conta((p) => p.bola === "3-4");
-  const longos = conta((p) => p.bola === "5+");
+  const curtos = conta((p) => faixaBola(p.bola) === "1-4");
+  const medios = conta((p) => faixaBola(p.bola) === "5-9");
+  const longos = conta((p) => faixaBola(p.bola) === "10+");
   const ganhos = conta((p) => p.nos);
   const errosNos = pontos.filter((p) => p.fim === "erro_nos");
   const errosDecisao = errosNos.filter((p) => p.causa === "decisao").length;
   const errosExec = errosNos.filter((p) => p.causa === "execucao").length;
-  const errosCurtos = errosNos.filter((p) => p.bola === "1-2").length;
+  const errosCurtos = errosNos.filter((p) => faixaBola(p.bola) === "1-4").length;
 
   const meusSaques = pontos.filter((p) => p.sacador === "nos");
   const df = meusSaques.filter((p) => p.saque === "df");
@@ -10414,7 +10414,7 @@ function resume(pontos) {
   return {
     n: pontos.length, curtos, medios, longos,
     pctCurtos: pct(curtos), pctMedios: pct(medios), pctLongos: pct(longos),
-    pctAte4: pct(curtos + medios),
+    pctAte4: pct(curtos),
     ganhos, pctGanhos: pct(ganhos),
     errosNos: errosNos.length, errosDecisao, errosExec, errosSemCausa: errosNos.length - errosDecisao - errosExec, errosCurtos,
     pctErrosCurtos: errosNos.length ? Math.round((errosCurtos / errosNos.length) * 100) : 0,
@@ -10433,10 +10433,12 @@ function resume(pontos) {
   };
 }
 
+/* Em que bola o ponto terminou: 1–4, 5–9 ou 10+. Jogos marcados antes (1–2, 3–4, 5+): 1–2 e 3–4 contam como 1–4 e 5+ como 5–9. */
+function faixaBola(b) { return b === "1-4" || b === "1-2" || b === "3-4" ? "1-4" : b === "5-9" || b === "5+" ? "5-9" : b === "10+" ? "10+" : null; }
 function leitura(r) {
   const sinais = [];
   if (r.pctErrosCurtos >= 40)
-    sinais.push(["devolucao", `${r.pctErrosCurtos}% dos seus erros aconteceram na bola 1–2. O ponto está sendo perdido antes de existir — o trabalho é de início do ponto, não de troca.`]);
+    sinais.push(["devolucao", `${r.pctErrosCurtos}% dos seus erros aconteceram nas 4 primeiras bolas. O ponto está sendo perdido antes de existir — o trabalho é de início do ponto, não de troca.`]);
   if (r.razaoDF >= 1.5 && r.df > 0)
     sinais.push(["saque", `As duplas faltas aparecem ${r.razaoDF}× mais sob placar adverso. Isso é rotina antes do saque, não mecânica.`]);
   else if (r.pctPrimeiro > 0 && r.pctPrimeiro < 55)
@@ -10584,7 +10586,7 @@ function textoResumoScout(r, sinais, pontos, cfg, meta) {
     const ordenadas = zs.slice().sort((a, b) => b.saldo - a.saldo), mz = ordenadas[0], pz = ordenadas[ordenadas.length - 1];
     if (mz.k !== pz.k) L.push(`Mapa da quadra: melhor saldo na ${nomeZ(mz.k)} (${mz.saldo > 0 ? "+" : ""}${mz.saldo}), pior na ${nomeZ(pz.k)} (${pz.saldo > 0 ? "+" : ""}${pz.saldo}).`);
   }
-  L.push(`Onde o ponto se decidiu: ${r.pctCurtos}% em 1–2 bolas, ${r.pctMedios}% em 3–4, ${r.pctLongos}% em 5 ou mais.`);
+  L.push(`Onde o ponto se decidiu: ${r.pctCurtos}% em 1–4 bolas, ${r.pctMedios}% em 5–9, ${r.pctLongos}% em 10 ou mais.`);
   L.push(`Erros do jogador: ${r.errosNos} (${r.errosDecisao} por decisão, ${r.errosExec} por execução).${r.pctProtocolo ? ` Protocolo entre pontos: ${r.pctProtocolo}%.` : ""}`);
   if (r.aces || r.acesAdv || r.nSaqueDele) L.push(`Saque: ${r.aces} aces do jogador; adversário com ${r.acesAdv} aces e ${r.dfAdv} duplas faltas${r.pctPrimeiroAdv ? `, ${r.pctPrimeiroAdv}% de 1º saque dentro` : ""}.`);
   if (r.nSacD || r.nSacE) L.push(`Pontos ganhos no saque do jogador: ${r.nSacD ? r.pctSacD + "% pela igualdade" : "—"} · ${r.nSacE ? r.pctSacE + "% pela vantagem" : "—"}. No saque do adversário: ${r.nDevD ? r.pctDevD + "% pela igualdade" : "—"} · ${r.nDevE ? r.pctDevE + "% pela vantagem" : "—"}.`);
@@ -11030,9 +11032,9 @@ function ComparacaoComAnteriores({ atual, anteriores }) {
 
 function ResumoScout({ r, sinais, aluno, alunos, setAlunos, pontos, cfg, mental }) {
   const dados = [
-    { faixa: "1–2 bolas", valor: r.pctCurtos },
-    { faixa: "3–4 bolas", valor: r.pctMedios },
-    { faixa: "5+ bolas", valor: r.pctLongos },
+    { faixa: "1–4 bolas", valor: r.pctCurtos },
+    { faixa: "5–9 bolas", valor: r.pctMedios },
+    { faixa: "10+ bolas", valor: r.pctLongos },
   ];
 
   const [msgOrdem, setMsgOrdem] = useState("");
@@ -11069,7 +11071,7 @@ function ResumoScout({ r, sinais, aluno, alunos, setAlunos, pontos, cfg, mental 
           ))}
         </div>
         <Tabela cabecalho={["Faixa", "Pontos", "%"]}
-          linhas={[["1–2 bolas", r.curtos, r.pctCurtos + "%"], ["3–4 bolas", r.medios, r.pctMedios + "%"], ["5 ou mais", r.longos, r.pctLongos + "%"]]} />
+          linhas={[["1–4 bolas", r.curtos, r.pctCurtos + "%"], ["5–9 bolas", r.medios, r.pctMedios + "%"], ["10 ou mais", r.longos, r.pctLongos + "%"]]} />
         <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginTop: 10 }}>
           {r.pctAte4}% dos pontos terminaram em até quatro bolas.
           {r.pctAte4 >= 65 ? " Em linha com o circuito." : " Abaixo do circuito — o jogo está indo para a troca longa."}
@@ -11085,7 +11087,7 @@ function ResumoScout({ r, sinais, aluno, alunos, setAlunos, pontos, cfg, mental 
           ["— por execução", r.errosExec],
           ...(r.errosSemCausa > 0 ? [["— sem classificação", r.errosSemCausa]] : []),
           ...(r.errosDecisao + r.errosExec > 0 ? [[`Entre os ${r.errosDecisao + r.errosExec} erros classificados`, `${Math.round((r.errosDecisao / (r.errosDecisao + r.errosExec)) * 100)}% decisão · ${Math.round((r.errosExec / (r.errosDecisao + r.errosExec)) * 100)}% execução`]] : []),
-          ["Erros na bola 1–2", `${r.errosCurtos} · ${r.pctErrosCurtos}% dos erros`],
+          ["Erros em até 4 bolas", `${r.errosCurtos} · ${r.pctErrosCurtos}% dos erros`],
           ["1º saque dentro", r.saquesMarcados > 0 ? `${r.primeirosDentro} de ${r.saquesMarcados} saques marcados · ${r.pctPrimeiro}%` : "não registrado"],
           ["Duplas faltas", r.saquesMarcados > 0 || r.df > 0 ? `${r.df} · ${r.dfAdverso} em placar adverso` : "não registrado"],
           ["Aces do meu jogador", r.saquesMarcados > 0 || r.aces > 0 ? r.aces : "não registrado"],

@@ -96,7 +96,7 @@
     var forte = [], atencao = [], mudancas = [];
     function cada(k, f) { var v = media(ser(k)); if (v !== null) f(v); }
     cada("pctPrimeiro", function (v) { if (v >= 62) forte.push("1º saque consistente: " + r1(v) + "% dentro em média."); else if (v < 55) atencao.push("1º saque dentro em apenas " + r1(v) + "% em média: dá margem para o adversário atacar o segundo."); });
-    cada("pctErrosCurtos", function (v) { if (v >= 45) atencao.push(r1(v) + "% dos erros acontecem nas duas primeiras bolas: o jogo se perde cedo, na entrada do ponto."); else if (v <= 30) forte.push("Poucos erros nas duas primeiras bolas (" + r1(v) + "% dos erros): entra bem no ponto."); });
+    cada("pctErrosCurtos", function (v) { if (v >= 45) atencao.push(r1(v) + "% dos erros acontecem nas 4 primeiras bolas: o jogo se perde cedo, na entrada do ponto."); else if (v <= 30) forte.push("Poucos erros nas duas primeiras bolas (" + r1(v) + "% dos erros): entra bem no ponto."); });
     cada("df", function (v) { if (v >= 3) atencao.push("Média de " + r1(v) + " duplas faltas por jogo."); else if (v <= 1) forte.push("Controle do segundo saque: " + r1(v) + " duplas faltas por jogo."); });
     cada("pctAdversos", function (v) { if (v < 45) atencao.push("Cai sob pressão: ganha " + r1(v) + "% dos pontos em placar adverso."); else if (v >= 55) forte.push("Resiste à pressão: " + r1(v) + "% dos pontos em placar adverso."); });
     var pa = media(ser("pctAtaque")), pd = media(ser("pctDefesa")), pc = media(ser("pctContra"));
@@ -126,14 +126,14 @@
     h += '<section class="grade">' + [
       linhas("Pontos ganhos", "% dos pontos do jogo", rot, [{ nome: atleta, cor: AZUL, valores: pg }], { min: 0, max: 100, suf: "%", ref: 50, refRot: "50%" }),
       linhas("Primeiro saque dentro", "% dos primeiros saques", rot, [{ nome: "1º saque", cor: AZUL, valores: ser("pctPrimeiro") }], { min: 0, max: 100, suf: "%" }),
-      linhas("Erros nas duas primeiras bolas", "% dos erros do jogo (quanto menor, melhor)", rot, [{ nome: "Erros na bola 1–2", cor: LARANJA, valores: ser("pctErrosCurtos") }], { min: 0, max: 100, suf: "%" }),
+      linhas("Erros nas 4 primeiras bolas", "% dos erros do jogo (quanto menor, melhor)", rot, [{ nome: "Erros em até 4 bolas", cor: LARANJA, valores: ser("pctErrosCurtos") }], { min: 0, max: 100, suf: "%" }),
       empilhadas("Erros por decisão e execução", "número de erros de " + atleta, rot, [{ nome: "Decisão", cor: LARANJA, valores: jogos.map(function (r) { return r.scout.errosDecisao; }) }, { nome: "Execução", cor: LARANJA_CL, valores: jogos.map(function (r) { return r.scout.errosExec; }) }]),
       linhas("Ganhos por tipo de ponto", "% dos pontos de cada tipo", rot, [{ nome: "Ataque", cor: AZUL, valores: ser("pctAtaque") }, { nome: "Contra-ataque", cor: AZUL_CL, valores: ser("pctContra") }, { nome: "Defesa", cor: LARANJA, valores: ser("pctDefesa") }], { min: 0, max: 100, suf: "%" }),
       linhas("Aces e duplas faltas", "por jogo", rot, [{ nome: "Aces", cor: AZUL, valores: ser("aces") }, { nome: "Duplas faltas", cor: LARANJA, valores: ser("df") }]),
       linhas("Lado da quadra no meu saque", "% ganhos", rot, [{ nome: "Igualdade", cor: AZUL, valores: ser("pctSacD") }, { nome: "Vantagem", cor: AZUL_CL, valores: ser("pctSacE") }], { min: 0, max: 100, suf: "%" }),
       linhas("Lado da quadra no saque dele", "% ganhos", rot, [{ nome: "Igualdade", cor: AZUL, valores: ser("pctDevD") }, { nome: "Vantagem", cor: AZUL_CL, valores: ser("pctDevE") }], { min: 0, max: 100, suf: "%" }),
       linhas("Sob pressão", "% ganhos em placar adverso", rot, [{ nome: "Placar adverso", cor: LARANJA, valores: ser("pctAdversos") }], { min: 0, max: 100, suf: "%", ref: 50, refRot: "50%" }),
-      empilhadas("Onde o ponto se decidiu", "% dos pontos por número de bolas", rot, [{ nome: "1–2 bolas", cor: AZUL, valores: ser("pctCurtos") }, { nome: "3–4 bolas", cor: AZUL_CL, valores: ser("pctMedios") }, { nome: "5+ bolas", cor: CINZA, valores: ser("pctLongos") }], { cem: true })
+      empilhadas("Onde o ponto se decidiu", "% dos pontos por número de bolas", rot, [{ nome: "1–4 bolas", cor: AZUL, valores: ser("pctCurtos") }, { nome: "5–9 bolas", cor: AZUL_CL, valores: ser("pctMedios") }, { nome: "10+ bolas", cor: CINZA, valores: ser("pctLongos") }], { cem: true })
     ].join("") + "</section>";
     var temDec = det.some(function (d) { return d && d.decisoes && (n0(d.decisoes.boa.n) + n0(d.decisoes.disc.n) + n0(d.decisoes.ruim.n)) > 0; });
     var temMental = jogos.some(function (r) { var m = r.mental; return m && ["conf", "foco", "energia", "calma"].some(function (k) { return n0(m.antes && m.antes[k]) || n0(m.depois && m.depois[k]); }); });
@@ -314,7 +314,7 @@
     if (df !== null && nMarc >= 5 && df <= 1) forte.push("Controle do segundo saque: " + df + (df === 1 ? " dupla falta." : " duplas faltas."));
     if (pa !== null && pa >= 55) forte.push("Resiste à pressão: " + gAdv + " de " + nAdv + " pontos ganhos em placar adverso (" + r1(pa) + "%).");
     if (pg >= 60) forte.push("Domínio do placar: " + Math.round(pg) + "% dos pontos ganhos.");
-    var pc = val("pctErrosCurtos"); if (pc !== null && pc <= 30 && eNos >= 4) forte.push("Poucos erros no início do ponto (" + r1(pc) + "% nas duas primeiras bolas).");
+    var pc = val("pctErrosCurtos"); if (pc !== null && pc <= 30 && eNos >= 4) forte.push("Poucos erros no início do ponto (" + r1(pc) + "% nas 4 primeiras bolas).");
     if (prim !== null && prim < 55) atencao.push("1º saque dentro em " + nPrim + " de " + nMarc + " saques marcados (" + r1(prim) + "%).");
     if (df !== null && df >= 3) atencao.push(df + " duplas faltas no jogo.");
     if (pa !== null && pa < 45) atencao.push("Cai sob pressão: " + gAdv + " de " + nAdv + " pontos ganhos em placar adverso (" + r1(pa) + "%).");
@@ -360,8 +360,8 @@
     var nc = n0(s.curtos), nm = n0(s.medios), nl = n0(s.longos), nb = nc + nm + nl, meio = "";
     if (nb > 0) {
       var rb = [Math.round(nc * 100 / nb), Math.round(nm * 100 / nb), Math.round(nl * 100 / nb)];
-      meio += '<div class="cx"><h3>Onde o ponto se decidiu</h3>' + pilha100([{ nome: "1–2 bolas", v: nc, cor: AZUL }, { nome: "3–4 bolas", v: nm, cor: AZUL_CL }, { nome: "5+ bolas", v: nl, cor: CINZA }]) +
-        leg([["1–2 bolas · " + nc + " de " + nb + " · " + rb[0] + "%", AZUL], ["3–4 bolas · " + nm + " de " + nb + " · " + rb[1] + "%", AZUL_CL], ["5+ bolas · " + nl + " de " + nb + " · " + rb[2] + "%", CINZA]]) +
+      meio += '<div class="cx"><h3>Onde o ponto se decidiu</h3>' + pilha100([{ nome: "1–4 bolas", v: nc, cor: AZUL }, { nome: "5–9 bolas", v: nm, cor: AZUL_CL }, { nome: "10+ bolas", v: nl, cor: CINZA }]) +
+        leg([["1–4 bolas · " + nc + " de " + nb + " · " + rb[0] + "%", AZUL], ["5–9 bolas · " + nm + " de " + nb + " · " + rb[1] + "%", AZUL_CL], ["10+ bolas · " + nl + " de " + nb + " · " + rb[2] + "%", CINZA]]) +
         '<p class="mudo">Cerca de 70% dos pontos do circuito terminam em até quatro bolas.' + (rb[0] + rb[1] + rb[2] !== 100 ? " Percentuais arredondados." : "") + (n0(s.n) && nb !== n0(s.n) ? " " + (n0(s.n) - nb) + " pontos sem número de bolas registrado." : "") + "</p></div>";
     }
     if (eNos > 0) {

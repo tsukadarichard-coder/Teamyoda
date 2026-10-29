@@ -4,7 +4,7 @@ const M = require("../player/scout-motor.js");
 for (const app of ["autonomo", "mty"]) {
   const html = fs.readFileSync(path.join(__dirname, "..", app === "mty" ? "../mty" : ".", "index.html"), "utf8");
   const a = html.indexOf("const ROTULO_ZONA_COMP"), b = html.indexOf("function ComparacaoScoutCompleta");
-  const c = html.indexOf("function compararJogoComAnteriores"), d = html.indexOf("function ComparacaoComAnteriores");
+  const c = html.indexOf("function compararJogoComAnteriores"), d = html.indexOf("function ConfrontoDireto"); /* até os componentes do confronto direto (JSX) */
   assert(a > 0 && b > a && c > 0 && d > c, app + ": trechos não encontrados");
   const C = { grafite: "#555", quadra: "#0a0", saibro: "#c50", tinta: "#111", linha: "#ddd", papel: "#fff", cal: "#fff" };
   const corpo = html.slice(a, b) + "\n" + html.slice(c, d) + "\nreturn { compararJogoComAnteriores, METRICAS_SCOUT };";

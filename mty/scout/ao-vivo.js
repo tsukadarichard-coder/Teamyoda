@@ -18,13 +18,13 @@
 
   /* ───────── comparação com os jogos anteriores ───────── */
   var COMP = [["pctGanhos", "Pontos ganhos", "%", true], ["pctPrimeiro", "1º saque dentro", "%", true], ["erros100", "Erros por 100 pontos", "", false], ["df100", "Duplas faltas por 100 pontos", "", false],
-    ["pctAdversos", "Ganhos em placar adverso", "%", true], ["pctErrosCurtos", "Erros nas bolas 1–2 (% dos erros)", "%", false], ["pctDev", "Ganhos no saque do adversário", "%", true],
+    ["pctAdversos", "Ganhos em placar adverso", "%", true], ["pctErrosCurtos", "Erros em até 4 bolas (% dos erros)", "%", false], ["pctDev", "Ganhos no saque do adversário", "%", true],
     ["pctAtaque", "Ganhos em ataque", "%", true], ["pctContra", "Ganhos em contra-ataque", "%", true], ["pctDefesa", "Ganhos em defesa", "%", true]];
   function num(v) { return typeof v === "number" && isFinite(v) ? v : null; }
   /* medidas do jogo em andamento, a partir dos pontos; null quando ainda não há amostra */
   function atuais(pontos) {
     var n = pontos.length, meus = pontos.filter(function (p) { return p.sacador === "nos"; }), com1 = meus.filter(function (p) { return p.saque; }), p1 = com1.filter(function (p) { return p.saque === "1" || p.saque === "ace"; }).length;
-    var erros = pontos.filter(function (p) { return p.fim === "erro_nos"; }), curtos = erros.filter(function (p) { return p.bola === "1-2"; }).length, adv = pontos.filter(function (p) { return p.adverso; }), dev = pontos.filter(function (p) { return p.sacador === "ele"; });
+    var erros = pontos.filter(function (p) { return p.fim === "erro_nos"; }), curtos = erros.filter(function (p) { return p.bola === "1-4" || p.bola === "1-2" || p.bola === "3-4"; }).length, adv = pontos.filter(function (p) { return p.adverso; }), dev = pontos.filter(function (p) { return p.sacador === "ele"; });
     function sit(k) { var l = pontos.filter(function (p) { return p.situacao === k; }); return l.length >= 3 ? pct(ganhos(l), l.length) : null; }
     return { n: n, pctGanhos: n >= 5 ? pct(ganhos(pontos), n) : null, pctPrimeiro: com1.length >= 5 ? pct(p1, com1.length) : null, erros100: n >= 8 ? Math.round(erros.length * 1000 / n) / 10 : null,
       df100: n >= 8 ? Math.round(meus.filter(function (p) { return p.saque === "df"; }).length * 1000 / n) / 10 : null, pctAdversos: adv.length >= 4 ? pct(ganhos(adv), adv.length) : null,
@@ -65,7 +65,7 @@
     if (com1.length >= 8 && pct(primeiros, com1.length) < 50) out.push({ p: 3, nivel: "atencao", texto: "1º saque dentro em " + pct(primeiros, com1.length) + "% (" + primeiros + " de " + com1.length + "). Vale pedir mais margem e direção no primeiro saque." });
     var df = pontos.filter(function (p) { return p.saque === "df" && p.sacador === "nos"; }).length;
     if (df >= 3) out.push({ p: 3, nivel: "atencao", texto: df + " duplas faltas até agora. O segundo saque está custando pontos." });
-    var erros = pontos.filter(function (p) { return p.fim === "erro_nos"; }), curtos = erros.filter(function (p) { return p.bola === "1-2"; });
+    var erros = pontos.filter(function (p) { return p.fim === "erro_nos"; }), curtos = erros.filter(function (p) { return p.bola === "1-4" || p.bola === "1-2" || p.bola === "3-4"; });
     if (erros.length >= 4 && pct(curtos.length, erros.length) >= 50) out.push({ p: 4, nivel: "atencao", texto: pct(curtos.length, erros.length) + "% dos erros de " + A + " estão nas duas primeiras bolas: o ponto se perde na entrada." });
     var dec = erros.filter(function (p) { return p.causa === "decisao"; }).length, ex = erros.filter(function (p) { return p.causa === "execucao"; }).length;
     if (dec + ex >= 4) { if (dec >= ex * 1.5) out.push({ p: 4, nivel: "atencao", texto: "A maioria dos erros é de decisão (" + dec + " de " + (dec + ex) + "). Peça para simplificar a escolha de jogada." }); else if (ex >= dec * 1.5) out.push({ p: 5, nivel: "atencao", texto: "A maioria dos erros é de execução (" + ex + " de " + (dec + ex) + "). Peça mais margem, bola mais alta e profunda." }); }

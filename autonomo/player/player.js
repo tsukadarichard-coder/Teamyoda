@@ -3306,7 +3306,7 @@
     }
     function saqueDireto(tipo) {
       var pl = placarAtual(), sacador = M.quemSaca(pl), meu = sacador === "nos", nos = tipo === "ace" ? meu : !meu;
-      adicionar({ fim: tipo === "ace" ? (meu ? "winner_nos" : "winner_dele") : (meu ? "erro_nos" : "erro_dele"), nos: nos, saque: tipo, bola: "1-2", causa: tipo === "df" && meu ? "execucao" : null, rede: false, situacao: null, dirSaque: tipo === "ace" ? dirS : null, adverso: M.ehAdverso(pl), sacador: sacador, lado: M.ladoDoSaque(pl) });
+      adicionar({ fim: tipo === "ace" ? (meu ? "winner_nos" : "winner_dele") : (meu ? "erro_nos" : "erro_dele"), nos: nos, saque: tipo, bola: "1-4", causa: tipo === "df" && meu ? "execucao" : null, rede: false, situacao: null, dirSaque: tipo === "ace" ? dirS : null, adverso: M.ehAdverso(pl), sacador: sacador, lado: M.ladoDoSaque(pl) });
     }
 
     function desenhar() {
@@ -3333,7 +3333,7 @@
             '<p class="olho" style="margin-top:10px">Último golpe de ' + esc(primeiro) + ' (opcional) · vale também quando o ponto foi do adversário</p><div class="sf-chips">'  + M.GOLPES.map(function (x) { return botao((rasc.golpe === x[0] ? "✓ " : "") + x[1], "btn-secundario btn-pequeno", 'data-golpe="' + x[0] + '" aria-pressed="' + (rasc.golpe === x[0]) + '"'); }).join("") + "</div>" +
             '<div class="sf-chips" style="margin-top:8px">' + botao((rasc.corrida ? "✓ " : "") + "Na corrida", "btn-secundario btn-pequeno", 'data-corrida="1" aria-pressed="' + !!rasc.corrida + '"') + M.DIRECOES.map(function (x) { return botao((rasc.direcao === x[0] ? "✓ " : "") + x[1], "btn-secundario btn-pequeno", 'data-direcao="' + x[0] + '" aria-pressed="' + (rasc.direcao === x[0]) + '"'); }).join("") + "</div>" +
             '<p class="olho" style="margin-top:10px">Onde foi o último golpe de ' + esc(primeiro) + ' (opcional)</p><div class="sf-grade3">' + M.ZONAS.map(function (z) { return botao((rasc.zona === z[0] ? "✓ " : "") + z[1], "btn-secundario btn-pequeno", 'data-zona="' + z[0] + '" aria-pressed="' + (rasc.zona === z[0]) + '"'); }).join("") + "</div>" +
-            '<p class="olho" style="margin-top:10px">Em que bola o ponto terminou</p><div class="sf-grade3">' + ["1-2", "3-4", "5+"].map(function (b) { return botao(b, "btn-primario sf-bt", 'data-bola="' + b + '"'); }).join("") + "</div></section>";
+            '<p class="olho" style="margin-top:10px">Em que bola o ponto terminou</p><div class="sf-grade3">' + ["1-4", "5-9", "10+"].map(function (b) { return botao(b, "btn-primario sf-bt", 'data-bola="' + b + '"'); }).join("") + "</div></section>";
         }
       }
       var gan = st.pontos.filter(function (p) { return p.nos; }).length;

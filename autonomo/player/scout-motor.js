@@ -137,14 +137,14 @@ function resume(pontos) {
   const conta = (f) => pontos.filter(f).length;
   const pct = (x) => Math.round((x / n) * 100);
 
-  const curtos = conta((p) => p.bola === "1-2");
-  const medios = conta((p) => p.bola === "3-4");
-  const longos = conta((p) => p.bola === "5+");
+  const curtos = conta((p) => faixaBola(p.bola) === "1-4");
+  const medios = conta((p) => faixaBola(p.bola) === "5-9");
+  const longos = conta((p) => faixaBola(p.bola) === "10+");
   const ganhos = conta((p) => p.nos);
   const errosNos = pontos.filter((p) => p.fim === "erro_nos");
   const errosDecisao = errosNos.filter((p) => p.causa === "decisao").length;
   const errosExec = errosNos.filter((p) => p.causa === "execucao").length;
-  const errosCurtos = errosNos.filter((p) => p.bola === "1-2").length;
+  const errosCurtos = errosNos.filter((p) => faixaBola(p.bola) === "1-4").length;
 
   const meusSaques = pontos.filter((p) => p.sacador === "nos");
   const df = meusSaques.filter((p) => p.saque === "df");
@@ -194,7 +194,7 @@ function resume(pontos) {
   return {
     n: pontos.length, curtos, medios, longos,
     pctCurtos: pct(curtos), pctMedios: pct(medios), pctLongos: pct(longos),
-    pctAte4: pct(curtos + medios),
+    pctAte4: pct(curtos),
     ganhos, pctGanhos: pct(ganhos),
     errosNos: errosNos.length, errosDecisao, errosExec, errosSemCausa: errosNos.length - errosDecisao - errosExec, errosCurtos,
     pctErrosCurtos: errosNos.length ? Math.round((errosCurtos / errosNos.length) * 100) : 0,
@@ -213,10 +213,13 @@ function resume(pontos) {
   };
 }
 
+/* Em que bola o ponto terminou: 1–4, 5–9 ou 10+. Jogos marcados antes (1–2, 3–4, 5+): 1–2 e 3–4 contam como 1–4 e 5+ como 5–9. */
+function faixaBola(b) { return b === "1-4" || b === "1-2" || b === "3-4" ? "1-4" : b === "5-9" || b === "5+" ? "5-9" : b === "10+" ? "10+" : null; }
+
 function leitura(r) {
   const sinais = [];
   if (r.pctErrosCurtos >= 40)
-    sinais.push(["devolucao", `${r.pctErrosCurtos}% dos seus erros aconteceram na bola 1–2. O ponto está sendo perdido antes de existir — o trabalho é de início do ponto, não de troca.`]);
+    sinais.push(["devolucao", `${r.pctErrosCurtos}% dos seus erros aconteceram nas 4 primeiras bolas. O ponto está sendo perdido antes de existir — o trabalho é de início do ponto, não de troca.`]);
   if (r.razaoDF >= 1.5 && r.df > 0)
     sinais.push(["saque", `As duplas faltas aparecem ${r.razaoDF}× mais sob placar adverso. Isso é rotina antes do saque, não mecânica.`]);
   else if (r.pctPrimeiro > 0 && r.pctPrimeiro < 55)

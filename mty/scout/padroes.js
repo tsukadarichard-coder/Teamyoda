@@ -60,11 +60,11 @@
   function analisar(pontos) {
     pontos = (pontos || []).filter(function (p) { return p && typeof p.nos === "boolean"; });
     var r = { total: pontos.length, comBatidas: 0, fins: { winner_nos: 0, erro_dele: 0, erro_nos: 0, winner_dele: 0 }, comprimento: [], ganhos: [], perdidos: [], provocam: [], erros: [], saqueMais1: [], devolucaoMais1: [], jogadas: [], golpes: [], leituras: [] };
-    var I = { ganho: [], perdido: [], provoca: [], erro: [], s1: [], d1: [] }, jog = [{}, {}], faixas = { "1-2": [0, 0], "3-4": [0, 0], "5-8": [0, 0], "9+": [0, 0] }, golpes = {};
+    var I = { ganho: [], perdido: [], provoca: [], erro: [], s1: [], d1: [] }, jog = [{}, {}], faixas = { "1-4": [0, 0], "5-9": [0, 0], "10+": [0, 0] }, golpes = {};
     pontos.forEach(function (p, i) {
       r.fins[p.fim] = (r.fins[p.fim] || 0) + 1;
       var bs = batidas(p), n = bs.length, base = { id: i, g: p.nos, fim: p.fim, ponto: p.n || i + 1 };
-      var fx = n <= 2 ? "1-2" : n <= 4 ? "3-4" : n <= 8 ? "5-8" : "9+"; faixas[fx][0]++; if (p.nos) faixas[fx][1]++;
+      var fx = n <= 4 ? "1-4" : n <= 9 ? "5-9" : "10+"; faixas[fx][0]++; if (p.nos) faixas[fx][1]++;
       if (!n) return; r.comBatidas++;
       /* golpes do jogador: velocidade e profundidade */
       bs.forEach(function (b) {
@@ -111,8 +111,8 @@
     if (piorJ && piorJ.saldo < 0 && piorJ !== melhorJ) L.push({ tipo: "erro", txt: "Jogada que mais custou pontos: " + piorJ.k + " — decidiu " + piorJ.decide + " pontos, perdeu " + piorJ.p + "." });
     var s1 = r.saqueMais1.filter(function (x) { return x.n >= 3; })[0];
     if (s1) L.push({ tipo: "ganho", txt: "Saque + 1 que mais funcionou: " + legivel(s1.k) + " — " + pct(s1.g, s1.n) + "% dos " + s1.n + " pontos." });
-    var longo = r.comprimento.filter(function (x) { return x.faixa === "5-8" || x.faixa === "9+"; }).reduce(function (a, x) { return [a[0] + x.n, a[1] + x.g]; }, [0, 0]);
-    var curto = r.comprimento.filter(function (x) { return x.faixa === "1-2" || x.faixa === "3-4"; }).reduce(function (a, x) { return [a[0] + x.n, a[1] + x.g]; }, [0, 0]);
+    var longo = r.comprimento.filter(function (x) { return x.faixa === "5-9" || x.faixa === "10+"; }).reduce(function (a, x) { return [a[0] + x.n, a[1] + x.g]; }, [0, 0]);
+    var curto = r.comprimento.filter(function (x) { return x.faixa === "1-4"; }).reduce(function (a, x) { return [a[0] + x.n, a[1] + x.g]; }, [0, 0]);
     if (longo[0] >= 4 && curto[0] >= 4) L.push({ tipo: "info", txt: "Pontos curtos (até 4 bolas): " + pct(curto[1], curto[0]) + "% ganhos · ralis longos (5+): " + pct(longo[1], longo[0]) + "% ganhos." });
     return r;
   }

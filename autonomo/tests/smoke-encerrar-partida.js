@@ -14,7 +14,7 @@ if (!existe()) { console.log("smoke-encerrar-partida: pulado (sem React/Babel lo
     await p.goto("http://localhost:" + srv.address().port + "/");
     await p.waitForFunction(() => document.body.innerText.includes("Análise de partida"), null, { timeout: 120000 });
     await p.getByText("Iniciar acompanhamento").click(); await p.waitForTimeout(400);
-    for (const [r, bola] of [["Winner meu", "1-2"], ["Erro dele", "3-4"], ["Winner meu", "5+"]]) { await p.getByRole("button", { name: r }).first().click(); await p.waitForTimeout(300); await p.getByRole("button", { name: bola, exact: true }).click(); await p.waitForTimeout(350); }
+    for (const [r, bola] of [["Winner meu", "1-4"], ["Erro dele", "5-9"], ["Winner meu", "10+"]]) { await p.getByRole("button", { name: r }).first().click(); await p.waitForTimeout(300); await p.getByRole("button", { name: bola, exact: true }).click(); await p.waitForTimeout(350); }
     // 1) encerrar com a partida em andamento: escolha explícita
     await p.getByRole("button", { name: "Encerrar e ver relatório" }).click(); await p.waitForSelector("[data-encerrar]");
     let t = await p.evaluate(() => document.body.innerText);

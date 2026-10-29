@@ -81,12 +81,12 @@ window.firebase={initializeApp:function(){},auth:function(){return a}};})();`;
   await pg.click('[data-ment="antes"][data-mk="conf"][data-mv="4"]');
   await pg.click("#sfIniciar"); await pg.waitForSelector(".sf-cab");
   await pg.click('[data-mjogo="3"]');
-  await pg.click('[data-fim="winner_nos"]'); await pg.waitForSelector('[data-bola="1-2"]'); await pg.click('[data-dec="boa"]'); await pg.click('[data-bola="1-2"]');
+  await pg.click('[data-fim="winner_nos"]'); await pg.waitForSelector('[data-bola="1-4"]'); await pg.click('[data-dec="boa"]'); await pg.click('[data-bola="1-4"]');
   await pg.waitForFunction(() => /1 pontos/.test(document.body.innerText) || /\b1\b.*pontos/.test(document.body.innerText));
   await pg.waitForTimeout(1500);
   const vivo = Object.keys(store).filter((k) => /^scoutsAoVivo\//.test(k));
   assert.strictEqual(vivo.length, 1, "o jogo foi aberto ao vivo"); assert.strictEqual(store[vivo[0]].atletaUid, "at1", "ligado ao atleta pelo vínculo");
-  for (let k = 0; k < 4; k++) { await pg.click('[data-fim="winner_nos"]'); await pg.waitForSelector('[data-bola="1-2"]'); await pg.click('[data-bola="1-2"]'); await pg.waitForTimeout(450); }
+  for (let k = 0; k < 4; k++) { await pg.click('[data-fim="winner_nos"]'); await pg.waitForSelector('[data-bola="1-4"]'); await pg.click('[data-bola="1-4"]'); await pg.waitForTimeout(450); }
   await pg.waitForSelector(".qa-topo", { timeout: 4000 });
   assert.ok((await pg.textContent(".qa-topo")).includes("seguidos"), "alerta de sequência em tempo real");
   assert.ok(await pg.isVisible(".qa-mom svg"), "gráfico de linha do momento sempre visível");

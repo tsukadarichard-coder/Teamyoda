@@ -16,7 +16,7 @@ async function nova(b, porta, alunosIniciais, sessao) {
   await p.waitForFunction((direto) => document.body.innerText.includes(direto ? "Encerrar e ver relatório" : "Análise de partida"), !!sessao, { timeout: 120000 });
   return p;
 }
-const marca = async (p, n) => { for (let i = 0; i < n; i++) { await p.getByRole("button", { name: "Winner meu" }).click(); await p.getByRole("button", { name: "1-2", exact: true }).click(); await p.waitForTimeout(450); } };
+const marca = async (p, n) => { for (let i = 0; i < n; i++) { await p.getByRole("button", { name: "Winner meu" }).click(); await p.getByRole("button", { name: "1-4", exact: true }).click(); await p.waitForTimeout(450); } };
 const texto = (p) => p.evaluate(() => document.body.innerText);
 const aluno = (p) => p.evaluate(() => JSON.parse(JSON.stringify(window.__alunos[0])));
 async function salvar(p) { const b = p.getByRole("button", { name: "Salvar no caderno" }); if (await b.count()) await b.click(); else { const c = p.getByRole("button", { name: "Salvar alterações" }); if (await c.count()) await c.click(); } await p.waitForTimeout(400); }

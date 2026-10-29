@@ -665,7 +665,7 @@
       var golpeU = u ? (u.devolucao && u.golpe !== "voleio" && u.golpe !== "smash" ? "devolucao" : GOLPE_SCOUT[u.golpe] || null) : null;
       var dirS = a.servico && a.servico.dir;
       var p = {
-        fim: fim, nos: nos, saque: saque, bola: nH <= 2 ? "1-2" : nH <= 4 ? "3-4" : "5+", causa: saque === "df" && sac === "nos" ? "execucao" : null,
+        fim: fim, nos: nos, saque: saque, bola: nH <= 4 ? "1-4" : nH <= 9 ? "5-9" : "10+", causa: saque === "df" && sac === "nos" ? "execucao" : null,
         rede: a.batidas.some(function (b) { return b.quem === quemA && b.rede; }), situacao: null,
         golpe: golpeU, corrida: !!(u && u.corrida), direcao: u && (u.direcao === "cruzado" || u.direcao === "paralelo") ? u.direcao : null,
         efeito: u && u.efeito ? u.efeito : null, qualDev: null, dec: null, dirSaque: saque !== "df" ? dirS || null : null,

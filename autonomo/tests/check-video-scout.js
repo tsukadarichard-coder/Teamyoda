@@ -68,7 +68,7 @@ for (const [nome, o, lim] of [["limpa", { formato: "1set", semente: 5 }, 0.95], 
   if (o.final) assert(r.dec.confere, nome + ": placar final informado é respeitado");
   /* 3) formato do scout do app */
   r.pts.forEach((p) => {
-    assert(["winner_nos", "erro_dele", "erro_nos", "winner_dele"].includes(p.fim) && typeof p.nos === "boolean" && ["1", "2", "ace", "df"].includes(p.saque) && ["1-2", "3-4", "5+"].includes(p.bola));
+    assert(["winner_nos", "erro_dele", "erro_nos", "winner_dele"].includes(p.fim) && typeof p.nos === "boolean" && ["1", "2", "ace", "df"].includes(p.saque) && ["1-4", "5-9", "10+"].includes(p.bola));
     assert(["nos", "ele"].includes(p.sacador) && ["D", "E"].includes(p.lado) && p.placarAntes && p.jogo >= 1 && p.set >= 1);
     assert((p.fim === "winner_nos" || p.fim === "erro_dele") === p.nos, "fim coerente com quem ganhou");
   });

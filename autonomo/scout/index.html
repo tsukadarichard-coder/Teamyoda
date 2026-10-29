@@ -271,8 +271,8 @@ footer { margin-top: 22px; font-size: 13px; color: var(--grafite); text-align: c
   function secaoBolas(p) {
     var b = p.bolas, cores = ["#B14C1D", "#103B32", "#5B6B63"];
     var box = el("section", {}, [el("h2", { texto: "Onde o ponto se decidiu" }), el("p", { cls: "nota", texto: "Cerca de 70% dos pontos do circuito terminam em até quatro bolas." })]);
-    var barra = el("div", { cls: "barra", role: "img", "aria-label": "Pontos por duração: " + b.pctCurtos + "% em 1–2 bolas, " + b.pctMedios + "% em 3–4, " + b.pctLongos + "% em 5 ou mais" });
-    [["1–2 bolas", b.pctCurtos], ["3–4 bolas", b.pctMedios], ["5+ bolas", b.pctLongos]].forEach(function (x, i) { var d = el("div", { texto: x[1] + "%" }); d.style.width = Math.max(x[1], 4) + "%"; d.style.background = cores[i]; barra.appendChild(d); });
+    var barra = el("div", { cls: "barra", role: "img", "aria-label": "Pontos por duração: " + b.pctCurtos + "% em 1–4 bolas, " + b.pctMedios + "% em 5–9, " + b.pctLongos + "% em 10 ou mais" });
+    [["1–4 bolas", b.pctCurtos], ["5–9 bolas", b.pctMedios], ["10+ bolas", b.pctLongos]].forEach(function (x, i) { var d = el("div", { texto: x[1] + "%" }); d.style.width = Math.max(x[1], 4) + "%"; d.style.background = cores[i]; barra.appendChild(d); });
     box.appendChild(barra);
     box.appendChild(el("p", { cls: "nota", texto: b.pctAte4 + "% dos pontos terminaram em até quatro bolas." + (b.pctAte4 >= 65 ? " Em linha com o circuito." : " Abaixo do circuito: o jogo foi para a troca longa.") }));
     return box;

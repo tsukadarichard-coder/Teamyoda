@@ -19,28 +19,28 @@ if (!existe()) { console.log("smoke-marcacao-rapida: pulado (sem React/Babel loc
     }
     // 2) depois do resultado, as bolas aparecem grandes e visíveis, sem o formulário longo
     await p.getByRole("button", { name: "Winner meu" }).click(); await p.waitForTimeout(300);
-    for (const n of ["1-2", "3-4", "5+"]) { assert(await dentro(n, true), app + ": bola " + n + " visível sem rolar"); assert((await p.getByRole("button", { name: n, exact: true }).boundingBox()).height >= 80, app + ": bola " + n + " grande"); }
-    assert(!(await p.evaluate(() => document.body.innerText)).toLowerCase().includes("qual foi o último golpe"), app + ": detalhes ficam recolhidos no modo rápido");
+    for (const n of ["1-4", "5-9", "10+"]) { assert(await dentro(n, true), app + ": bola " + n + " visível sem rolar"); assert((await p.getByRole("button", { name: n, exact: true }).boundingBox()).height >= 80, app + ": bola " + n + " grande"); }
+    assert(!(await p.evaluate(() => document.body.innerText)).toLowerCase().includes("último golpe de"), app + ": detalhes ficam recolhidos no modo rápido");
     // 3) 2 toques registram o ponto e a faixa do último ponto aparece
-    await p.getByRole("button", { name: "1-2", exact: true }).click(); await p.waitForTimeout(500);
+    await p.getByRole("button", { name: "1-4", exact: true }).click(); await p.waitForTimeout(500);
     let t = await p.evaluate(() => document.body.innerText);
     assert(t.includes("PONTO 1 REGISTRADO") || t.includes("Ponto 1 registrado"), app + ": faixa do último ponto. " + t.slice(0, 200));
-    assert(t.includes("Winner meu") && t.includes("bola 1-2"), app + ": faixa mostra o que foi marcado");
+    assert(t.includes("Winner meu") && t.includes("bola 1-4"), app + ": faixa mostra o que foi marcado");
     // 4) Corrigir desfaz o ponto
     await p.getByRole("button", { name: "Corrigir" }).click(); await p.waitForTimeout(300);
     assert(!(await p.evaluate(() => document.body.innerText)).match(/PONTO 1 REGISTRADO/i), app + ": Corrigir desfez o ponto");
     // 5) erro meu: causa opcional na etapa rápida; Detalhes reabre o ponto com as escolhas
-    await p.getByRole("button", { name: "Erro meu" }).click(); await p.getByRole("button", { name: "Execução" }).click(); await p.getByRole("button", { name: "3-4", exact: true }).click(); await p.waitForTimeout(400);
+    await p.getByRole("button", { name: "Erro meu" }).click(); await p.getByRole("button", { name: "Execução" }).click(); await p.getByRole("button", { name: "5-9", exact: true }).click(); await p.waitForTimeout(400);
     await p.getByRole("button", { name: "Detalhes", exact: true }).click(); await p.waitForTimeout(400);
     t = await p.evaluate(() => document.body.innerText);
-    assert(t.toLowerCase().includes("qual foi o último golpe"), app + ": Detalhes abre o formulário completo do último ponto");
+    assert(t.toLowerCase().includes("último golpe de"), app + ": Detalhes abre o formulário completo do último ponto");
     const fundo = (n) => p.getByRole("button", { name: n }).evaluate((e) => getComputedStyle(e).backgroundColor);
     assert.notStrictEqual(await fundo("Execução"), await fundo("Decisão"), app + ": a causa escolhida volta marcada (Execução destacada de Decisão)");
-    await p.getByRole("button", { name: "Forehand" }).click(); await p.getByRole("button", { name: "5+", exact: true }).click(); await p.waitForTimeout(400);
+    await p.getByRole("button", { name: "Forehand" }).click(); await p.getByRole("button", { name: "10+", exact: true }).click(); await p.waitForTimeout(400);
     // 6) modo detalhado: o formulário completo abre direto
     await p.getByRole("button", { name: /Modo rápido/ }).click(); await p.waitForTimeout(200);
     await p.getByRole("button", { name: "Winner dele" }).click(); await p.waitForTimeout(300);
-    assert((await p.evaluate(() => document.body.innerText)).toLowerCase().includes("qual foi o último golpe"), app + ": modo detalhado mostra todos os grupos");
+    assert((await p.evaluate(() => document.body.innerText)).toLowerCase().includes("último golpe de"), app + ": modo detalhado mostra todos os grupos");
     assert(await p.getByRole("button", { name: /Modo detalhado/ }).count() === 1, app + ": rótulo do modo");
     assert.deepStrictEqual(erros, [], app + ": erros de JS " + erros.join(" | "));
     await b.close(); srv.close(); console.log("smoke-marcacao-rapida " + app + ": ok");

@@ -17,7 +17,7 @@
   var SITUACOES = [["ataque", "Ataque"], ["contra", "Contra-ataque"], ["defesa", "Defesa"], ["neutra", "Neutra"], ["construcao", "Construção"]];
   var DECISOES = [["boa", "Boa"], ["disc", "Discutível"], ["ruim", "Ruim"]];
   var QUAL_DEV = [["boa", "Boa"], ["regular", "Regular"], ["fraca", "Fraca"]];
-  var BOLAS = [["1-2", "1–2 bolas"], ["3-4", "3–4 bolas"], ["5+", "5 ou mais"]];
+  var BOLAS = [["1-4", "1–4 bolas"], ["5-9", "5–9 bolas"], ["10+", "10 ou mais"]];
   var CURTO = { saque: "Saque", forehand: "FH", backhand: "BH", voleio: "Voleio", smash: "Smash", devolucao: "Devolução", drop: "Drop", lob: "Lob" };
   var ROT = function (lista, v) { var x = lista.filter(function (o) { return o[0] === v; })[0]; return x ? x[1] : ""; };
   var CSS = ".qlm .vs-cal{position:relative;touch-action:none;user-select:none;border-radius:10px;overflow:hidden;background:#111}.qlm .vs-cal canvas{display:block;width:100%}" +
@@ -484,7 +484,7 @@
       if (k === "fim") { p.fim = v; p.nos = FIM.filter(function (f) { return f[0] === v; })[0][2]; p.auto.fim = p.auto.nos = "treinador"; if (p.saque === "ace" || p.saque === "df") p.saque = "1"; }
       else if (k === "saque") {
         p.saque = v; p.auto.saque = "treinador";
-        if (v === "ace" || v === "df") { var meu = p.sacador === "nos"; p.nos = v === "ace" ? meu : !meu; p.fim = v === "ace" ? (meu ? "winner_nos" : "winner_dele") : (meu ? "erro_nos" : "erro_dele"); p.bola = "1-2"; p.auto.nos = p.auto.fim = "treinador"; }
+        if (v === "ace" || v === "df") { var meu = p.sacador === "nos"; p.nos = v === "ace" ? meu : !meu; p.fim = v === "ace" ? (meu ? "winner_nos" : "winner_dele") : (meu ? "erro_nos" : "erro_dele"); p.bola = "1-4"; p.auto.nos = p.auto.fim = "treinador"; }
       } else { p[k] = v; p.auto[k] = "treinador"; }
     }
     function sel(k, lista, v, vazio) { return '<select data-k="' + k + '">' + (vazio ? '<option value="">' + vazio + "</option>" : "") + lista.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === v ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") + "</select>"; }
