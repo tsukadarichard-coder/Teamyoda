@@ -7,7 +7,7 @@
   var P = { nariz: 0, ombroE: 11, ombroD: 12, cotE: 13, cotD: 14, punhoE: 15, punhoD: 16, quadrilE: 23, quadrilD: 24, joelhoE: 25, joelhoD: 26, tornE: 27, tornD: 28, peE: 31, peD: 32 };
   var FASES = ["Preparação", "Giro (unit turn)", "Descida da raquete", "Contato", "Seguimento", "Recuperação"];
 
-  var FASES_SAQUE = ["Preparação", "Lançamento da bola", "Armada (racket drop)", "Contato", "Seguimento", "Recuperação"];
+  var FASES_SAQUE = ["Lançamento da bola", "Preparação (posição de troféu)", "Armada (racket drop)", "Contato", "Seguimento", "Recuperação"];
   function nomesFases(golpe) { return golpe === "saque" ? FASES_SAQUE : FASES; }
 
   /* Faixas de referência editáveis. Valores iniciais de referência; o treinador ajusta na tela. */
@@ -129,10 +129,11 @@
     var giro = idxMin(sinal, ini, contato);                     // punho mais recuado
     var desc = idxMax(py, giro, contato);                       // ponto mais baixo (y maior) entre giro e contato
     if (desc >= contato) desc = Math.max(giro, contato - 1);
-    var seg = idxMin(py, contato, n - 1);                       // punho mais alto após o contato
+    /* punho mais alto após o contato, no 0,8 s seguinte (o resto do vídeo pode ter outro golpe ou o atleta andando) */
+    var seg = idxMin(py, contato, Math.min(n - 1, contato + quadrosEm(quadros, 0.8)));
     if (seg <= contato) seg = Math.min(n - 1, contato + 1);
     var prep = inicioDoMovimento(vs, giro, Math.max(0, giro - quadrosEm(quadros, 1.5)), 0.12 * (vs[contato] || 1), sinal, true);
-    return { dir: dir, idx: [prep, giro, desc, contato, seg, Math.min(n - 1, seg + Math.max(1, Math.round((n - 1 - seg) / 2)))], contato: contato, giro: giro, prep: prep, vel: vs };
+    return { dir: dir, idx: [prep, giro, desc, contato, seg, Math.min(n - 1, seg + quadrosEm(quadros, 0.6))], contato: contato, giro: giro, prep: prep, vel: vs };
   }
 
   function joelhosEm(q) {
@@ -182,7 +183,8 @@
   function classificar(valor, ok, aten) { return isFinite(valor) ? (ok ? "ok" : "atencao") : "nao_avaliavel"; }
 
 
-  /* Saque: contato = ponto mais alto do punho dominante; lançamento = ápice do punho não dominante; armada = ponto mais baixo do punho dominante entre eles. */
+  /* Saque: contato = ponto mais alto do punho dominante; lançamento = ápice do punho não dominante; preparação = posição de troféu
+     (raquete de pé, punho no alto antes de cair); armada = racket drop (punho caído atrás das costas, cotovelo no alto). */
   function segmentarSaque(quadros, dom) {
     var L = ladoIdx(dom), n = quadros.length;
     if (n < 12) return null;
@@ -209,17 +211,16 @@
     /* carga das pernas: a flexão mais funda entre o lançamento e a armada (o joelho dobra no troféu e já estende na armada) */
     var carga = lanc, menorJ = Infinity;
     for (i = lanc; i <= arm; i++) { var mj = joelhosEm(quadros[i]); if (mj < menorJ) { menorJ = mj; carga = i; } }
+    /* preparação (posição de troféu): depois do lançamento o braço da raquete sobe e a raquete fica de pé; o troféu é o punho mais
+       alto antes de cair para a armada */
+    var trofeu = arm > lanc ? idxMin(dy, lanc, arm - 1) : lanc;
     var hipX = (quadros[lanc].lm[P.quadrilE].x + quadros[lanc].lm[P.quadrilD].x) / 2, nw = quadros[lanc].lm[L.nd.p];
     var dir = (nw.x - hipX) >= 0 ? 1 : -1;
-    var seg = Math.min(n - 1, contato + Math.max(2, Math.round((n - 1 - contato) / 2)));
-    /* preparação: posição de espera antes de o braço do lançamento começar a subir */
-    var vn = [0];
-    for (i = 1; i < n; i++) vn.push(isFinite(ny[i]) && isFinite(ny[i - 1]) ? Math.abs(ny[i] - ny[i - 1]) / Math.max(1e-3, quadros[i].t - quadros[i - 1].t) : 0);
-    vn = suavizar(vn, 1);
-    var iniPrep = Math.max(0, lanc - quadrosEm(quadros, 2.5)), picoN = 0;
-    for (i = iniPrep; i <= lanc; i++) if (vn[i] > picoN) picoN = vn[i];
-    var prep = inicioDoMovimento(vn, lanc, iniPrep, 0.12 * (picoN || 1), ny, true);
-    return { dir: dir, idx: [prep, lanc, arm, contato, seg, Math.min(n - 1, Math.max(seg + 1, contato + quadrosEm(quadros, 1.2)))], contato: contato, prep: prep, carga: carga };
+    /* seguimento: a raquete termina embaixo, do outro lado (punho mais baixo logo após o contato). Só olha o 0,8 s seguinte: se o vídeo
+       continua (o atleta volta e prepara outro saque), o fim do vídeo não é o seguimento deste saque. */
+    var seg = idxMax(dy, Math.min(n - 1, contato + 1), Math.min(n - 1, contato + quadrosEm(quadros, 0.8)));
+    if (seg <= contato) seg = Math.min(n - 1, contato + 1);
+    return { dir: dir, idx: [lanc, trofeu, arm, contato, seg, Math.min(n - 1, Math.max(seg + 1, contato + quadrosEm(quadros, 1.2)))], contato: contato, prep: trofeu, carga: carga };
   }
 
   /* Pose do quadro de cada fase, compacta ([x, y] com 3 casas; null onde o ponto não foi visto): vai no relatório guardado para que
@@ -232,22 +233,23 @@
     var s = segmentarSaque(quadros, dom);
     if (!s) return { erro: "Vídeo curto demais ou pessoa não detectada." };
     var R = regras.saque, M = s.idx.map(function (i) { return medidas(quadros[i], dom, s.dir); });
-    var lanc = M[1], arm = M[2], cont = M[3], itens = [];
+    var lanc = M[0], trof = M[1], arm = M[2], cont = M[3], itens = [];
+    /* carga das pernas: a flexão mais funda entre o lançamento e a armada (normalmente no troféu) */
     var jCarga = joelhosEm(quadros[s.carga]);
-    if (isFinite(jCarga)) arm = Object.assign({}, arm, { joelhos: isFinite(arm.joelhos) ? Math.min(arm.joelhos, jCarga) : jCarga });
+    if (isFinite(jCarga)) trof = Object.assign({}, trof, { joelhos: isFinite(trof.joelhos) ? Math.min(trof.joelhos, jCarga) : jCarga });
     function item(fase, nome, valor, unidade, ok, ref, cOk, cAt, auto) {
       var st = auto === false ? "nao_avaliavel" : classificar(valor, ok);
       itens.push({ fase: fase, nome: nome, valor: auto === false ? null : valor, unidade: unidade, ref: ref, status: st,
         comentario: st === "ok" ? cOk : st === "atencao" ? cAt : "Não avaliável automaticamente com esta vista/qualidade — revisão do treinador." });
     }
-    item(0, "Pegada continental", null, "", false, "—", "", "", false);
-    item(1, "Braço de lançamento estendido", lanc.cotoveloND, "°", lanc.cotoveloND >= R.cotoveloLancamento.min, "≥ " + R.cotoveloLancamento.min + "° (provisório)",
+    item(0, "Braço de lançamento estendido", lanc.cotoveloND, "°", lanc.cotoveloND >= R.cotoveloLancamento.min, "≥ " + R.cotoveloLancamento.min + "° (provisório)",
       "Braço de lançamento estendido, sem dobrar o cotovelo.", "Cotovelo do braço de lançamento dobrado: lançamento menos consistente.");
-    item(1, "Altura do lançamento (mão acima da cabeça)", lanc.alturaPunhoNDCabeca, " tronco", lanc.alturaPunhoNDCabeca >= 0.4, "≥ 0,4 tronco acima da cabeça (provisório)",
+    item(0, "Altura do lançamento (mão acima da cabeça)", lanc.alturaPunhoNDCabeca, " tronco", lanc.alturaPunhoNDCabeca >= 0.4, "≥ 0,4 tronco acima da cabeça (provisório)",
       "Lançamento alto o suficiente.", "Lançamento baixo: pouco tempo para a armada.");
-    item(1, "Posição e trajetória da bola", null, "", false, "—", "", "", false);
-    item(2, "Flexão de joelhos na armada", arm.joelhos, "°", Math.abs(arm.joelhos - R.joelhosArmada.alvo) <= R.joelhosArmada.tol, R.joelhosArmada.alvo + "° ± " + R.joelhosArmada.tol + " (provisório)",
-      "Flexão de joelhos adequada para gerar impulso.", arm.joelhos > R.joelhosArmada.alvo ? "Pouca flexão de joelhos: falta carga para subir ao contato." : "Flexão excessiva de joelhos.");
+    item(0, "Posição e trajetória da bola", null, "", false, "—", "", "", false);
+    item(1, "Pegada continental", null, "", false, "—", "", "", false);
+    item(1, "Flexão de joelhos no troféu", trof.joelhos, "°", Math.abs(trof.joelhos - R.joelhosArmada.alvo) <= R.joelhosArmada.tol, R.joelhosArmada.alvo + "° ± " + R.joelhosArmada.tol + " (provisório)",
+      "Flexão de joelhos adequada para gerar impulso.", trof.joelhos > R.joelhosArmada.alvo ? "Pouca flexão de joelhos: falta carga para subir ao contato." : "Flexão excessiva de joelhos.");
     item(2, "Cotovelo dominante na armada", arm.cotoveloDom, "°", Math.abs(arm.cotoveloDom - R.cotoveloArmada.alvo) <= R.cotoveloArmada.tol, R.cotoveloArmada.alvo + "° ± " + R.cotoveloArmada.tol + " (provisório)",
       "Cotovelo flexionado na armada, favorecendo o chicote.", "Cotovelo fora da faixa na armada: afeta o alongamento do braço.");
     item(2, "Pronação e estabilização do punho", null, "", false, "—", "", "", false);
@@ -257,7 +259,7 @@
       "Contato alto.", "Contato baixo: poucas opções de ângulo e velocidade.");
     item(3, "Contato à frente da cabeça", cont.frenteCabeca, " tronco", cont.frenteCabeca >= R.frenteCabeca.min, "≥ " + R.frenteCabeca.min + " tronco à frente da cabeça (provisório)",
       "Contato à frente do corpo.", "Contato atrás ou sobre a cabeça: perde direção e profundidade.");
-    item(3, "Extensão de pernas do armada ao contato", cont.joelhos - arm.joelhos, "°", (cont.joelhos - arm.joelhos) >= R.extensaoJoelhos.min, "≥ " + R.extensaoJoelhos.min + "° (provisório)",
+    item(3, "Extensão de pernas do troféu ao contato", cont.joelhos - trof.joelhos, "°", (cont.joelhos - trof.joelhos) >= R.extensaoJoelhos.min, "≥ " + R.extensaoJoelhos.min + "° (provisório)",
       "Boa transferência de energia das pernas.", "Pouca extensão de pernas: o saque depende mais do braço.");
     item(4, "Seguimento", s.idx[4] - s.idx[3], " quadros", s.idx[4] - s.idx[3] >= 2, "≥ 2 quadros",
       "Seguimento completo após o contato.", "Seguimento curto: o golpe termina cedo.");
@@ -335,12 +337,12 @@
   var INTERV = {
     "Braço de lançamento estendido": { prio: 1, porque: "Lançamento com cotovelo dobrado varia a posição da bola.", ex: ["Lançar sem raquete, estendendo o braço e soltando a bola na altura dos olhos (20 repetições).", "Lançamento contra a parede/cone: a bola deve subir reta no mesmo ponto.", "Deixar a mão aberta e o braço \"acompanhando\" a bola para cima."] },
     "Altura do lançamento (mão acima da cabeça)": { prio: 2, porque: "Lançamento baixo encurta o tempo para a armada e para a subida ao contato.", ex: ["Lançar e deixar a bola cair no chão, mirando um ponto marcado à frente.", "Elevar o lançamento até que a bola passe da altura do contato.", "Coordenar lançamento e armada em câmera lenta (shadow serve)."] },
-    "Flexão de joelhos na armada": { prio: 3, porque: function (it) { return it.valor > 145 ? "Pouca flexão de joelhos: falta carga para subir ao contato." : "Flexão excessiva de joelhos."; }, ex: ["Saque com ênfase em \"sentar\" na armada e subir com o contato.", "Agachamentos com salto leve simulando a subida do saque.", "Trabalhar o ritmo: dobrar, parar um instante e explodir."] },
+    "Flexão de joelhos no troféu": { prio: 3, porque: function (it) { return it.valor > 145 ? "Pouca flexão de joelhos: falta carga para subir ao contato." : "Flexão excessiva de joelhos."; }, ex: ["Saque com ênfase em \"sentar\" no troféu e subir com o contato.", "Agachamentos com salto leve simulando a subida do saque.", "Trabalhar o ritmo: dobrar, parar um instante e explodir."] },
     "Cotovelo dominante na armada": { prio: 4, porque: "Cotovelo fora da faixa na armada reduz o alongamento e a velocidade da cabeça da raquete.", ex: ["Shadow serve parando na posição de armada e conferindo o cotovelo.", "Saque com a raquete caindo atrás das costas (racket drop) sem pressa.", "Exercício com elástico para dar fluidez ao movimento de chicote."] },
     "Extensão do cotovelo no contato": { prio: 5, porque: "Braço dobrado no contato derruba o ponto de impacto e diminui a alavanca.", ex: ["Tocar a bola no ponto mais alto, braço estendido (saque lento).", "Contato em uma bola pendurada, alcançando-a com o braço esticado.", "Foco visual no ponto de contato."] },
     "Altura do contato (punho acima da cabeça)": { prio: 6, porque: "Contato baixo limita ângulo e velocidade do saque.", ex: ["Bola pendurada na altura de alcance máximo para marcar o ponto.", "Subir do chão com as duas pernas e esticar o corpo até a bola.", "Alinhar o lançamento com o ponto de contato desejado."] },
     "Contato à frente da cabeça": { prio: 7, porque: "Contato atrás da cabeça tira a direção e a profundidade.", ex: ["Lançar um pouco mais à frente (conferir com cone no chão).", "Contato com inclinação do corpo para dentro da quadra.", "Saque com o corpo \"caindo\" para a frente, aterrissando dentro da quadra."] },
-    "Extensão de pernas do armada ao contato": { prio: 8, porque: "Pouca extensão de pernas faz o saque depender só do braço.", ex: ["Saque com salto no contato (progressivo).", "Arremesso de medicine ball por cima da cabeça.", "Subida explosiva a partir da flexão da armada."] },
+    "Extensão de pernas do troféu ao contato": { prio: 8, porque: "Pouca extensão de pernas faz o saque depender só do braço.", ex: ["Saque com salto no contato (progressivo).", "Arremesso de medicine ball por cima da cabeça.", "Subida explosiva a partir da flexão do troféu."] },
     "Duas mãos na raquete": { prio: 3, porque: "Mãos afastadas desestabilizam a preparação do backhand de duas mãos.", ex: ["Preparar o backhand segurando a raquete com as duas mãos desde a primeira passada.", "Shadow swing com foco em manter a mão não dominante sobre o cabo.", "Bola na cesta pedindo \"mãos juntas\" na preparação."] },
     "Braço não dominante como contrapeso (1 mão)": { prio: 3, porque: "No backhand de uma mão, o braço não dominante ajuda no equilíbrio e na rotação.", ex: ["Abrir o braço não dominante para trás no contato (shadow swing).", "Backhand com ênfase na abertura dos braços, em câmera lenta.", "Bola na cesta pedindo \"braço de trás aberto\"."] },
     "Rotação de ombros do giro ao contato": { prio: 4, porque: "Pouca rotação de ombros: golpe feito só com o braço.", ex: ["Giro de ombros com bastão para ampliar a amplitude.", "Shadow swing com foco em fechar os ombros no giro e abri-los no contato.", "Arremesso de medicine ball rotacional."] },
@@ -361,6 +363,9 @@
     "Trajetória do seguimento": { prio: 8, porque: "Seguimento curto: o golpe termina cedo e perde fluidez.",
       ex: ["Finalizar o golpe passando a raquete sobre o ombro oposto.", "Shadow swing em câmera lenta, mantendo a cabeça da raquete acelerando depois do contato."] }
   };
+  /* nomes antigos (relatórios de saque guardados antes da fase de troféu) */
+  INTERV["Flexão de joelhos na armada"] = INTERV["Flexão de joelhos no troféu"];
+  INTERV["Extensão de pernas do armada ao contato"] = INTERV["Extensão de pernas do troféu ao contato"];
 
   function conclusao(r) {
     if (!r || r.erro) return null;
@@ -495,12 +500,15 @@
       set(P.joelhoE, 0.47 + d, 0.70); set(P.joelhoD, 0.53 + d, 0.70); set(P.tornE, 0.47, 0.88); set(P.tornD, 0.53, 0.88); set(P.nariz, 0.5, 0.22);
       var ndy = p < 0.3 ? lerp(0.50, 0.12, p / 0.3) : lerp(0.12, 0.5, (p - 0.3) / 0.3), ndx = 0.60;
       var dy, dx, ex, ey;
-      if (p < 0.3) { dy = lerp(0.50, 0.35, p / 0.3); dx = 0.42; }
-      else if (p < 0.5) { dy = lerp(0.35, 0.45, (p - 0.3) / 0.2); dx = lerp(0.42, 0.38, (p - 0.3) / 0.2); }
+      /* lançamento: braço da raquete pendurado; troféu (p 0,4): raquete de pé; armada (p 0,5): punho caído atrás das costas */
+      var eyPre;
+      if (p < 0.3) { dy = lerp(0.50, 0.55, p / 0.3); dx = 0.42; eyPre = 0.42; }
+      else if (p < 0.4) { dy = lerp(0.55, 0.22, (p - 0.3) / 0.1); dx = lerp(0.42, 0.40, (p - 0.3) / 0.1); eyPre = lerp(0.42, 0.30, (p - 0.3) / 0.1); }
+      else if (p < 0.5) { dy = lerp(0.22, 0.42, (p - 0.4) / 0.1); dx = lerp(0.40, 0.38, (p - 0.4) / 0.1); eyPre = lerp(0.30, 0.26, (p - 0.4) / 0.1); }
       else if (p < 0.62) { dy = lerp(0.45, 0.08, (p - 0.5) / 0.12); dx = lerp(0.38, 0.62, (p - 0.5) / 0.12); }
       else { dy = lerp(0.08, 0.55, (p - 0.62) / 0.38); dx = lerp(0.62, 0.55, (p - 0.62) / 0.38); }
       var tc = p < 0.5 ? 1 : lerp(1, 0, (p - 0.5) / 0.12);
-      ex = lerp((0.53 + dx) / 2, 0.38, tc); ey = lerp((0.30 + dy) / 2, 0.30, tc);
+      ex = lerp((0.53 + dx) / 2, 0.38, tc); ey = lerp((0.30 + dy) / 2, p < 0.5 ? eyPre : 0.30, tc);
       var D = dom === "E" ? { o: P.ombroE, p: P.punhoE, c: P.cotE, nd: { o: P.ombroD, p: P.punhoD, c: P.cotD } } : { o: P.ombroD, p: P.punhoD, c: P.cotD, nd: { o: P.ombroE, p: P.punhoE, c: P.cotE } };
       set(D.p, dx, dy); set(D.c, ex, ey);
       set(D.nd.p, ndx, ndy); set(D.nd.c, (ndx + 0.5) / 2 + 0.01, (ndy + 0.30) / 2);
@@ -557,12 +565,15 @@
       com(ESPERA, { 0: [0.22, -1.42] })
     ],
     saque: [
-      { 0: [0.10, -1.45], 11: [0.28, -1.0], 12: [-0.28, -1.0], 13: [0.30, -0.62], 15: [0.35, -0.25], 14: [0.0, -0.55], 16: [0.30, -0.22],
-        23: [0.15, 0], 24: [-0.15, 0], 25: [0.25, 0.85], 26: [-0.18, 0.86], 27: [0.30, 1.70], 28: [-0.22, 1.70], 31: [0.50, 1.72], 32: [-0.10, 1.74] },
-      { 0: [0.10, -1.45], 11: [0.30, -1.02], 12: [-0.26, -0.96], 13: [0.40, -1.55], 15: [0.48, -2.10], 14: [-0.55, -1.05], 16: [-0.60, -1.45],
+      /* lançamento: braço do lançamento no alto, raquete indo para trás */
+      { 0: [0.10, -1.45], 11: [0.30, -1.02], 12: [-0.26, -0.96], 13: [0.40, -1.55], 15: [0.48, -2.10], 14: [-0.45, -0.70], 16: [-0.62, -0.45],
         23: [0.15, 0.01], 24: [-0.15, 0.02], 25: [0.40, 0.75], 26: [-0.05, 0.80], 27: [0.30, 1.68], 28: [-0.22, 1.68], 31: [0.50, 1.72], 32: [-0.10, 1.72] },
-      { 0: [0.12, -1.42], 11: [0.30, -1.05], 12: [-0.25, -0.88], 13: [0.42, -1.55], 15: [0.50, -2.0], 14: [-0.40, -1.30], 16: [-0.75, -1.10],
+      /* preparação (posição de troféu): braço do lançamento apontando a bola, cotovelo da raquete na altura do ombro, raquete de pé, joelhos dobrados */
+      { 0: [0.12, -1.42], 11: [0.30, -1.05], 12: [-0.25, -0.88], 13: [0.42, -1.55], 15: [0.50, -2.0], 14: [-0.58, -0.92], 16: [-0.55, -1.40],
         23: [0.14, 0.02], 24: [-0.16, 0.04], 25: [0.52, 0.66], 26: [0.12, 0.72], 27: [0.30, 1.62], 28: [-0.16, 1.62], 31: [0.50, 1.68], 32: [-0.04, 1.68] },
+      /* armada (racket drop): cotovelo no alto, punho caído atrás das costas, pernas começando a estender */
+      { 0: [0.14, -1.46], 11: [0.26, -1.02], 12: [-0.22, -0.95], 13: [0.36, -1.32], 15: [0.38, -1.62], 14: [-0.30, -1.35], 16: [-0.62, -1.22],
+        23: [0.12, 0.0], 24: [-0.14, 0.02], 25: [0.46, 0.72], 26: [0.08, 0.78], 27: [0.32, 1.64], 28: [-0.14, 1.64], 31: [0.52, 1.70], 32: [-0.02, 1.70] },
       { 0: [0.20, -1.50], 11: [0.10, -0.95], 12: [0.02, -1.15], 13: [0.20, -0.55], 15: [0.10, -0.25], 14: [0.21, -1.73], 16: [0.40, -2.31],
         23: [0.08, -0.05], 24: [-0.06, -0.04], 25: [0.30, 0.82], 26: [0.04, 0.84], 27: [0.36, 1.68], 28: [-0.06, 1.68], 31: [0.56, 1.72], 32: [0.14, 1.72] },
       { 0: [0.34, -1.40], 11: [0.06, -0.96], 12: [0.34, -1.00], 13: [-0.10, -0.55], 15: [-0.05, -0.20], 14: [0.40, -0.45], 16: [0.10, 0.10],

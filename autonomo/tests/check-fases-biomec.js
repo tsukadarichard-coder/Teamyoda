@@ -32,13 +32,13 @@ function trocar(lm) { const o = lm.slice(); [[11, 12], [13, 14], [15, 16], [23, 
   a.ok(giro >= inicioGolpe, g + dom + ": giro dentro do golpe, não no andar (" + giro + ")");
 });
 
-/* saque: preparação antes de o braço do lançamento subir */
+/* saque com o atleta andando antes: lançamento dentro do saque, fases em ordem */
 {
-  const { q, inicioEspera, inicioGolpe } = comPrefixo("saque", "D");
+  const { q, inicioGolpe } = comPrefixo("saque", "D");
   const r = B.checklist(q, "D", null, "saque");
-  const prep = r.fases[0].quadro;
-  a.ok(prep >= inicioEspera && prep <= inicioGolpe + 3, "saque: preparação na espera (quadro " + prep + ")");
+  a.ok(r.fases[0].quadro >= inicioGolpe, "saque: lançamento dentro do saque (quadro " + r.fases[0].quadro + ")");
   a.ok(r.fases.every((f, i) => i === 0 || f.quadro >= r.fases[i - 1].quadro), "saque: fases em ordem");
+  a.strictEqual(r.nomes[1], "Preparação (posição de troféu)");
 }
 
 /* trocas esquerda/direita e salto isolado no meio da preparação não enganam o contato */
@@ -92,12 +92,28 @@ function saqueReal(dom) {
 ["D", "E"].forEach((dom) => {
   const r = B.checklist(saqueReal(dom), dom, null, "saque");
   const f = r.fases.map((x) => x.quadro);
-  a.ok(Math.abs(f[1] - 30) <= 2, "saque" + dom + ": lançamento no braço mais alto (" + f + ")");
-  a.ok(f[2] > f[1] + 5, "saque" + dom + ": armada depois do lançamento, não no mesmo quadro (" + f + ")");
+  a.ok(Math.abs(f[0] - 30) <= 2, "saque" + dom + ": lançamento no braço mais alto (" + f + ")");
+  a.ok(f[1] >= 37 && f[1] <= 41, "saque" + dom + ": preparação na posição de troféu, raquete de pé (" + f + ")");
+  a.ok(f[2] > f[0] + 5 && f[2] > f[1], "saque" + dom + ": armada depois do troféu, não no quadro do lançamento (" + f + ")");
   a.ok(f[2] >= 42 && f[2] <= 47, "saque" + dom + ": armada no racket drop (" + f + ")");
   a.ok(Math.abs(f[3] - 50) <= 2, "saque" + dom + ": contato no punho mais alto (" + f + ")");
-  const jArm = r.itens.find((x) => x.nome === "Flexão de joelhos na armada").valor, jMin = Math.min(...r.fases.map((x) => x.medidas.joelhos));
+  const jArm = r.itens.find((x) => x.nome === "Flexão de joelhos no troféu").valor, jMin = Math.min(...r.fases.map((x) => x.medidas.joelhos));
   a.ok(jArm <= jMin + 0.5, "saque" + dom + ": flexão dos joelhos medida na carga mais funda (" + Math.round(jArm) + ")");
 });
+
+/* o vídeo continua depois do golpe (o atleta volta e se prepara de novo): seguimento e recuperação ficam logo após o contato,
+   não no fim do vídeo */
+{
+  const sq = saqueReal("D"), espera = sq[0].lm;
+  for (let i = 0; i < 120; i++) sq.push({ t: (60 + i) / 30, lm: espera.map((p) => ({ ...p, x: p.x + 0.002 * Math.sin(i) })) });
+  const f = B.checklist(sq, "D", null, "saque").fases.map((x) => x.quadro);
+  a.ok(Math.abs(f[3] - 50) <= 2, "saque longo: contato " + f);
+  a.ok(f[4] > f[3] && f[4] <= f[3] + 25 && f[5] <= f[3] + 37, "saque longo: seguimento e recuperação logo após o contato " + f);
+  const { q } = comPrefixo("forehand", "D"), fim = q[q.length - 1].lm;
+  for (let i = 0; i < 150; i++) q.push({ t: 0, lm: q[40].lm.map((p) => ({ ...p })) });
+  q.forEach((x, i) => { x.t = i / 30; });
+  const g = B.checklist(q, "D").fases.map((x) => x.quadro);
+  a.ok(g[4] <= g[3] + 25 && g[5] <= g[4] + 19, "forehand longo: seguimento e recuperação logo após o contato " + g);
+}
 
 console.log("check-fases-biomec: ok");

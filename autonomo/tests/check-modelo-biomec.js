@@ -25,10 +25,15 @@ a.ok(m[3].ndAtras >= R.backhand.ndAtras.min, "backhand 1 mão: braço não domin
 /* saque */
 m = B.modeloPadrao("saque").map(med);
 const S = R.saque;
-a.ok(m[1].cotoveloND >= S.cotoveloLancamento.min && m[1].alturaPunhoNDCabeca >= 0.4, "saque: lançamento estendido e alto");
-a.ok(Math.abs(m[2].joelhos - S.joelhosArmada.alvo) <= S.joelhosArmada.tol && Math.abs(m[2].cotoveloDom - S.cotoveloArmada.alvo) <= S.cotoveloArmada.tol, "saque: armada");
+a.ok(m[0].cotoveloND >= S.cotoveloLancamento.min && m[0].alturaPunhoNDCabeca >= 0.4, "saque: lançamento estendido e alto");
+a.ok(Math.abs(m[1].joelhos - S.joelhosArmada.alvo) <= S.joelhosArmada.tol, "saque: joelhos dobrados no troféu " + Math.round(m[1].joelhos));
+const lmT = B.modeloPadrao("saque")[1];
+a.ok(lmT[16].y < lmT[14].y && Math.abs(lmT[14].y - lmT[12].y) < 0.2, "saque: troféu com raquete de pé e cotovelo na altura do ombro");
+const lmA = B.modeloPadrao("saque")[2];
+a.ok(lmA[14].y < lmA[12].y && lmA[16].y > lmA[14].y, "saque: armada com cotovelo no alto e punho caído");
+a.ok(Math.abs(m[2].cotoveloDom - S.cotoveloArmada.alvo) <= S.cotoveloArmada.tol, "saque: cotovelo na armada " + Math.round(m[2].cotoveloDom));
 a.ok(m[3].cotoveloDom >= S.cotoveloContato.min && m[3].alturaPunhoCabeca >= S.alturaContato.min && m[3].frenteCabeca >= S.frenteCabeca.min, "saque: contato alto, estendido e à frente");
-a.ok(m[3].joelhos - m[2].joelhos >= S.extensaoJoelhos.min, "saque: extensão de pernas");
+a.ok(m[3].joelhos - m[1].joelhos >= S.extensaoJoelhos.min, "saque: extensão de pernas do troféu ao contato");
 
 /* encaixe no atleta: quadril no lugar, tronco do mesmo tamanho, sentido do golpe, canhoto troca os lados */
 const r = B.checklist(B.sintetico(60, "D"), "D"); r.proporcao = 1;
