@@ -4,23 +4,40 @@
    QLMovimento.montar(el, { atleta, alunoId, historico, cota, logo, arquivo, aoSalvar, aoRemover, aoRecuperar }) -> controle { injetar(quadros, opts) }
      cotaGolpe(golpe) -> { limite, usados, liberado, texto }: limite por golpe, conferido ao trocar de golpe e depois de salvar (Player).
      arquivo (scout/movimento-arquivo.js): cada análise guarda o relatório completo e pode ser reaberta em "Análises salvas".
+     publico: "atleta" no Player (o próprio jogador usa): textos falando com o atleta, sem faixas editáveis nem quadros/s.
+   Vídeo longo: a análise usa 8 s a partir de onde o vídeo estiver (o jogador arrasta até um pouco antes do golpe).
    QLMovimento.abrirRelatorio(resumo, { arquivo, historico, logo, atleta, cabecalho }) -> reabre o relatório de uma análise salva.
    QLMovimento.evolucaoHTML(historico) -> HTML da evolução por golpe (gráfico + comparação com a análise anterior). */
 (function (raiz) {
   var B = raiz.QLBiomec;
   var NOMES = { forehand: "Forehand", backhand: "Backhand", saque: "Saque" };
   var GUIA = {
-    forehand: "Envie UM forehand (2 a 6 s). Câmera fixa na altura da cintura, vista lateral, corpo inteiro no quadro, 60 fps se possível.",
-    backhand: "Envie UM backhand (2 a 6 s). Mesma filmagem do forehand: câmera fixa, vista lateral, corpo inteiro. Informe se é de uma ou duas mãos.",
+    forehand: "Envie UM forehand (2 a 6 s); se o vídeo for mais longo, arraste até um pouco antes do golpe. Câmera fixa na altura da cintura, vista lateral, corpo inteiro no quadro, 60 fps se possível.",
+    backhand: "Envie UM backhand (2 a 6 s); se o vídeo for mais longo, arraste até um pouco antes do golpe. Mesma filmagem do forehand: câmera fixa, vista lateral, corpo inteiro. Informe se é de uma ou duas mãos.",
     saque: "Envie UM saque (3 a 8 s), de lado ou levemente por trás, com corpo e raquete inteiros no quadro (sem cortar o topo do lançamento). As faixas do saque são provisórias."
   };
   var LIG = [[11, 12], [11, 13], [13, 15], [12, 14], [14, 16], [11, 23], [12, 24], [23, 24], [23, 25], [25, 27], [24, 26], [26, 28], [27, 31], [28, 32]];
   var ROT = { ok: "OK", atencao: "Atenção", nao_avaliavel: "Revisar" };
+  /* números como no Brasil (vírgula), com as casas que fazem sentido para cada medida */
+  function fmtNum(v, casas) { return Number(v).toFixed(casas).replace(".", ","); }
+  function fmtValor(valor, unidade) {
+    if (valor == null || !isFinite(valor)) return "—";
+    var u = String(unidade || ""), a = Math.abs(valor);
+    if (u === "°") return Math.round(valor) + "°";
+    if (/quadros/.test(u)) return Math.round(valor) + u;
+    var t = fmtNum(valor, a >= 10 ? 0 : a >= 1 ? 1 : a >= 0.1 ? 2 : 3);
+    if (t.indexOf(",") >= 0) t = t.replace(/0+$/, "").replace(/,$/, "");
+    return t + u;
+  }
+  function txtBR(x) { return String(x == null ? "" : x).replace(/(\d)\.(\d)/g, "$1,$2"); }
+  /* no app do atleta (Player) não há treinador do lado: os textos falam com o próprio jogador */
+  function paraQuem(texto, atleta) { return atleta ? String(texto).replace("revisão do treinador.", "confira olhando o vídeo ou com um treinador.") : texto; }
+  var MSG_VIDEO_RUIM = "Este vídeo não abriu neste aparelho. Vídeos do iPhone em HEVC (.mov) às vezes não abrem no Android ou no computador: filme de novo pelo celular que vai analisar ou, no iPhone, use Ajustes › Câmera › Formatos › Mais compatível.";
 
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function data(iso) { try { return new Date(iso).toLocaleDateString("pt-BR"); } catch (e) { return ""; } }
   function nomeGolpe(g, emp) { return NOMES[g] + (g === "backhand" ? (String(emp) === "1" ? " (uma mão)" : " (duas mãos)") : ""); }
-  function val(i) { return i.v == null ? "—" : (Math.round(i.v * 10) / 10) + (i.u || ""); }
+  function val(i) { return fmtValor(i.v, i.u); }
 
   function badgeHTML(logo) {
     return '<span class="qm-marca"><img src="' + esc(logo || "assets/logo-quadralab.png") + '" alt="QuadraLab"><span>Tecnologia</span></span>';
@@ -218,15 +235,15 @@
     var tb = "", fa = -1;
     r.itens.forEach(function (it) {
       if (it.fase !== fa) { fa = it.fase; tb += '<tr class="fh"><td colspan="4">' + (fa + 1) + ". " + esc(r.nomes[fa]) + "</td></tr>"; }
-      tb += "<tr><td>" + esc(it.nome) + "</td><td>" + (it.valor == null ? "—" : Math.round(it.valor * 100) / 100 + esc(it.unidade)) + "</td><td>" + esc(it.ref) + '</td><td><span class="t ' + it.status + '">' + ROT[it.status] + "</span><br><small>" + esc(it.comentario) + "</small></td></tr>";
+      tb += "<tr><td>" + esc(it.nome) + "</td><td>" + esc(fmtValor(it.valor, it.unidade)) + "</td><td>" + esc(txtBR(it.ref)) + '</td><td><span class="t ' + it.status + '">' + ROT[it.status] + "</span><br><small>" + esc(paraQuem(it.comentario, d.publico === "atleta")) + "</small></td></tr>";
     });
     var cb = "";
     if (co.prioridades.length) cb += "<h3>Prioridades de intervenção</h3>" + co.prioridades.map(function (p, k) {
-      return '<div class="pr"><b>' + (k + 1) + ". " + esc(p.nome) + "</b> <small>(" + (p.valor == null ? "—" : Math.round(p.valor * 100) / 100 + esc(p.unidade)) + " · ref. " + esc(p.ref) + ")</small><p>" + esc(p.porque) + "</p>" +
+      return '<div class="pr"><b>' + (k + 1) + ". " + esc(p.nome) + "</b> <small>(" + esc(fmtValor(p.valor, p.unidade)) + " · ref. " + esc(txtBR(p.ref)) + ")</small><p>" + esc(p.porque) + "</p>" +
         (p.exercicios.length ? "<ul>" + p.exercicios.map(function (e) { return "<li>" + esc(e) + "</li>"; }).join("") + "</ul>" : "") + "</div>";
     }).join("");
     if (co.fortes.length) cb += "<h3>Pontos fortes</h3><ul>" + co.fortes.map(function (n) { return "<li>" + esc(n) + "</li>"; }).join("") + "</ul>";
-    if (co.revisar.length) cb += "<h3>Para o treinador revisar (não medidos)</h3><ul>" + co.revisar.map(function (n) { return "<li>" + esc(n) + "</li>"; }).join("") + "</ul>";
+    if (co.revisar.length) cb += "<h3>" + (d.publico === "atleta" ? "Para conferir no vídeo ou com um treinador (não medidos)" : "Para o treinador revisar (não medidos)") + "</h3><ul>" + co.revisar.map(function (n) { return "<li>" + esc(n) + "</li>"; }).join("") + "</ul>";
     var evo = "";
     if (d.comparacao) evo += '<div class="quebra"></div><h2>Evolução em relação à análise anterior</h2>' + comparacaoHTML(d.comparacao);
     if (d.historico && d.historico.length > 1) evo += "<h2>Evolução do jogador neste golpe</h2>" + graficoHTML(B.serie(d.historico, d.golpe, d.emp));
@@ -243,10 +260,10 @@
     return "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Análise de movimento · " + esc(nm) + "</title><style>" + css + "</style></head><body>" +
       '<div class="nop"><button onclick="window.print()">Salvar como PDF / Imprimir</button><button onclick="window.close()">Fechar</button></div>' +
       '<div class="cab"><img src="' + esc(logo) + '" alt="QuadraLab"><div><div class="t">Análise de movimento · ' + esc(nm) + "</div><small>" + (d.atleta ? "Atleta: " + esc(d.atleta) + " · " : "") + "Mão dominante: " + (d.dom === "E" ? "esquerda" : "direita") + " · " + (d.data ? new Date(d.data) : new Date()).toLocaleDateString("pt-BR") + (d.demo ? " · dados de demonstração" : "") + (d.cabecalho ? " · " + esc(d.cabecalho) : "") + "</small></div></div>" +
-      '<div class="kpi"><div style="background:#2E8B57"><b>' + r.resumo.ok + '</b>OK</div><div style="background:#C65825"><b>' + r.resumo.atencao + '</b>Atenção</div><div style="background:#8A96A0"><b>' + r.resumo.nao_avaliavel + "</b>Revisar com treinador</div></div>" +
+      '<div class="kpi"><div style="background:#2E8B57"><b>' + r.resumo.ok + '</b>OK</div><div style="background:#C65825"><b>' + r.resumo.atencao + '</b>Atenção</div><div style="background:#8A96A0"><b>' + r.resumo.nao_avaliavel + "</b>" + (d.publico === "atleta" ? "Conferir no vídeo" : "Revisar com treinador") + "</div></div>" +
       clipHTML(d.clip) + fotos + '<div class="quebra"></div><h2>Checklist por fase</h2><table><thead><tr><th>Item</th><th>Medido</th><th>Referência</th><th>Parecer</th></tr></thead><tbody>' + tb + "</tbody></table>" +
       '<div class="quebra"></div><h2>Conclusão e intervenções sugeridas</h2><p>' + esc(co.texto) + "</p>" + cb + evo +
-      '<div class="rod">Tecnologia QuadraLab · relatório automático de apoio ao treinador. As medidas vêm de estimativa de pose em vídeo e as faixas de referência são provisórias. Itens "Revisar" dependem de avaliação presencial.</div></body></html>';
+      '<div class="rod">Tecnologia QuadraLab · ' + (d.publico === "atleta" ? "relatório automático para o atleta" : "relatório automático de apoio ao treinador") + '. As medidas vêm de estimativa de pose em vídeo e as faixas de referência são provisórias. Itens "Revisar" dependem de avaliação presencial.</div></body></html>';
   }
 
   /* ── relatório de uma análise salva antes do arquivo completo: só o resumo (medidas, pareceres, conclusão) existe ── */
@@ -262,7 +279,7 @@
       '<div class="nop"><button onclick="window.print()">Salvar como PDF / Imprimir</button><button onclick="window.close()">Fechar</button></div>' +
       '<div class="cab"><img src="' + esc(logo) + '" alt="QuadraLab"><div><div class="t">Análise de movimento · ' + esc(nm) + "</div><small>" + (d.atleta ? "Atleta: " + esc(d.atleta) + " · " : "") + "Mão dominante: " + (h.dom === "E" ? "esquerda" : "direita") + " · " + data(h.criadoEm) + (d.cabecalho ? " · " + esc(d.cabecalho) : "") + "</small></div></div>" +
       '<p class="av">Esta análise foi feita antes de o app guardar o relatório completo. Ficaram guardados as medidas, os pareceres e a conclusão; as fotos das fases e os comentários de cada item não foram guardados na época.</p>' +
-      '<div class="kpi"><div style="background:#2E8B57"><b>' + h.res.ok + '</b>OK</div><div style="background:#C65825"><b>' + h.res.atencao + '</b>Atenção</div><div style="background:#8A96A0"><b>' + h.res.nao + "</b>Revisar com treinador</div></div>" +
+      '<div class="kpi"><div style="background:#2E8B57"><b>' + h.res.ok + '</b>OK</div><div style="background:#C65825"><b>' + h.res.atencao + '</b>Atenção</div><div style="background:#8A96A0"><b>' + h.res.nao + "</b>" + (d.publico === "atleta" ? "Conferir no vídeo" : "Revisar com treinador") + "</div></div>" +
       '<h2>Checklist</h2><table><thead><tr><th>Item</th><th>Medido</th><th>Referência</th><th>Parecer</th></tr></thead><tbody>' + tb + "</tbody></table>" +
       "<h2>Conclusão</h2><p>" + esc(h.texto) + "</p>" + (h.prio && h.prio.length ? "<h2>Prioridades</h2><ul>" + h.prio.map(function (n) { return "<li>" + esc(n) + "</li>"; }).join("") + "</ul>" : "") + evo +
       '<div class="rod">Tecnologia QuadraLab · relatório automático de apoio ao treinador. As medidas vêm de estimativa de pose em vídeo e as faixas de referência são provisórias.</div></body></html>';
@@ -283,8 +300,8 @@
     return Promise.all([p, pc]).then(function (x) {
       var arq = x[0], clip = x[1];
       var html = arq && arq.resultado
-        ? relatorioHTML({ resultado: arq.resultado, golpe: arq.golpe, emp: arq.emp, dom: arq.dom, atleta: arq.atleta || o.atleta || "", fotos: arq.fotos || [], semFotos: arq.semFotos, logo: o.logo, comparacao: arq.comparacao, historico: hist, cabecalho: arq.cabecalho || o.cabecalho, data: arq.criadoEm, clip: clip })
-        : relatorioResumoHTML(h, { atleta: o.atleta || "", logo: o.logo, cabecalho: o.cabecalho, historico: hist });
+        ? relatorioHTML({ resultado: arq.resultado, golpe: arq.golpe, emp: arq.emp, dom: arq.dom, atleta: arq.atleta || o.atleta || "", fotos: arq.fotos || [], semFotos: arq.semFotos, logo: o.logo, comparacao: arq.comparacao, historico: hist, cabecalho: arq.cabecalho || o.cabecalho, data: arq.criadoEm, clip: clip, publico: o.publico })
+        : relatorioResumoHTML(h, { atleta: o.atleta || "", logo: o.logo, cabecalho: o.cabecalho, historico: hist, publico: o.publico });
       w.document.open(); w.document.write(html); w.document.close();
     });
   }
@@ -299,6 +316,26 @@
     }).join("") + "</tbody></table>";
   }
 
+  /* Modelo de pose (MediaPipe): carregado uma vez por página e reaproveitado (antes, cada "Analisar" criava outro e o celular ficava
+     sem memória). Tenta a GPU (bem mais rápida no celular) e volta para a CPU se o aparelho não deixar; no celular usa o modelo
+     "full" (o "heavy" é lento demais sem placa de vídeo). O carimbo de tempo de cada quadro sempre cresce, mesmo entre análises. */
+  var POSE = { p: null, ts: 0 };
+  function celular() { var n = raiz.navigator || {}; return /Android|iPhone|iPad|iPod|Mobile/i.test(n.userAgent || "") || (n.platform === "MacIntel" && n.maxTouchPoints > 1); }
+  function carregarModeloPose() {
+    if (POSE.p) return POSE.p;
+    var CDN = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/";
+    var modelo = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/" + (celular() ? "pose_landmarker_full/float16/latest/pose_landmarker_full.task" : "pose_landmarker_heavy/float16/latest/pose_landmarker_heavy.task");
+    POSE.p = (async function () {
+      var mod = await import(CDN + "vision_bundle.mjs");
+      var fs = await mod.FilesetResolver.forVisionTasks(CDN + "wasm");
+      var cria = function (delegate) { return mod.PoseLandmarker.createFromOptions(fs, { baseOptions: { modelAssetPath: modelo, delegate: delegate }, runningMode: "VIDEO", numPoses: 1 }); };
+      try { return await cria("GPU"); } catch (e) { return cria("CPU"); }
+    })().catch(function (e) { POSE.p = null; throw e; });
+    return POSE.p;
+  }
+  function proximoCarimbo() { POSE.ts = Math.max(POSE.ts + 34, Math.round(raiz.performance ? raiz.performance.now() : Date.now())); return POSE.ts; }
+  var JANELA = 8; /* segundos analisados de cada vídeo (um golpe cabe com folga) */
+
   /* ── tela ── */
   function montar(el, opts) {
     opts = opts || {};
@@ -307,6 +344,7 @@
     var arquivo = opts.arquivo || null, alunoId = opts.alunoId || null;
     if (opts.cotaGolpe) S.cota = opts.cotaGolpe(S.golpe);
     el.classList.add("qlm");
+    var atleta = opts.publico === "atleta"; /* Player: quem usa é o próprio jogador */
     el.innerHTML =
       (opts.semMarca ? "" : '<div class="qm-row" style="justify-content:space-between"><div>' + badgeHTML(logo) + '</div></div>') +
       '<div class="qm-card" data-r="ctl">' +
@@ -316,7 +354,7 @@
       '<label data-r="empL" hidden>Backhand <select data-r="emp"><option value="2">Duas mãos</option><option value="1">Uma mão</option></select></label>' +
       '<label>Atleta <input type="text" data-r="atl" placeholder="Nome (opcional)" style="width:150px"></label>' +
       '<label>Mão dominante <select data-r="dom"><option value="D">Direita</option><option value="E">Esquerda</option></select></label>' +
-      '<label>Quadros/s <select data-r="fps"><option>15</option><option selected>30</option></select></label>' +
+      '<label' + (atleta ? " hidden" : "") + '>Quadros/s <select data-r="fps"><option>15</option><option selected>30</option></select></label>' +
       '<button class="qm-pri" data-r="go" disabled>Analisar</button><button data-r="demo">Ver demonstração</button></div>' +
       '<p class="qm-msg" data-r="guia"></p><p class="qm-msg" data-r="st">Escolha o golpe e envie o vídeo.</p>' +
       '<div class="qm-stage"><video data-r="v" controls playsinline muted preload="auto"></video><canvas data-r="cv"></canvas></div></div>' +
@@ -331,11 +369,12 @@
       '<label>Velocidade <select data-r="vel"><option value="0.25">0,25×</option><option value="0.5" selected>0,5×</option><option value="1">1×</option></select></label></div>' +
       '<div class="qm-row qm-vb-fases" data-r="faseBt"></div><div data-r="cmpMod"></div></div>' +
       '<div class="qm-card" data-r="cmpC" hidden><h3 class="qm-h">Comparação com a análise anterior</h3><div data-r="cmp"></div></div>' +
-      '<div class="qm-card"><h3 class="qm-h">Checklist por fase</h3><table><thead><tr><th>Item</th><th>Medido</th><th>Referência</th><th>Parecer</th></tr></thead><tbody data-r="tb"></tbody></table>' +
-      '<p class="qm-msg">Itens "Revisar" dependem de mão, face da raquete, vista de cima ou olhar: ficam para o treinador. Pareceres automáticos são apoio, não diagnóstico.</p></div>' +
+      '<div class="qm-card"><h3 class="qm-h">Checklist por fase</h3><table class="qm-check"><thead><tr><th>Item</th><th>Medido</th><th>Referência</th><th>Parecer</th></tr></thead><tbody data-r="tb"></tbody></table>' +
+      '<p class="qm-msg">' + (atleta ? 'Itens "Revisar" dependem de mão, face da raquete, vista de cima ou olhar: o vídeo não mostra isso com segurança — confira olhando o vídeo ou com um treinador.'
+        : 'Itens "Revisar" dependem de mão, face da raquete, vista de cima ou olhar: ficam para o treinador.') + ' Pareceres automáticos são apoio, não diagnóstico.</p></div>' +
       '<div class="qm-card"><h3 class="qm-h">Conclusão e intervenções sugeridas</h3><p data-r="ctx" style="margin:0 0 8px"></p><div data-r="cbody"></div><p class="qm-msg">Sugestões geradas por regras a partir das medidas deste vídeo; não substituem avaliação presencial.</p></div>' +
       '<div class="qm-card"><div class="qm-row"><button class="qm-pri" data-r="pdf">Relatório em PDF</button><button data-r="json">Baixar dados (JSON)</button></div><p class="qm-msg" data-r="salvoMsg"></p>' +
-      '<details><summary>Faixas de referência (editáveis)</summary><p class="qm-msg">Valores iniciais de referência; ajuste conforme a avaliação do treinador.</p>' +
+      '<details' + (atleta ? " hidden" : "") + '><summary>Faixas de referência (editáveis)</summary><p class="qm-msg">Valores iniciais de referência; ajuste conforme a avaliação do treinador.</p>' +
       '<div class="qm-row"><label>Joelhos° <input data-r="rJ" type="number" value="' + B.REGRAS.joelhos.alvo + '" style="width:70px"></label><label>± <input data-r="rJt" type="number" value="' + B.REGRAS.joelhos.tol + '" style="width:60px"></label>' +
       '<label>Tronco° <input data-r="rT" type="number" value="' + B.REGRAS.tronco.alvo + '" style="width:70px"></label><label>± <input data-r="rTt" type="number" value="' + B.REGRAS.tronco.tol + '" style="width:60px"></label>' +
       '<label>Antebraço ND máx° <input data-r="rA" type="number" value="20" style="width:70px"></label><label>Contato à frente mín <input data-r="rC" type="number" step="0.05" value="0.15" style="width:70px"></label>' +
@@ -361,7 +400,7 @@
       q("evo").innerHTML = evolucaoHTML(S.historico);
       q("lista").innerHTML = listaHTML(S.historico, { remover: !!opts.aoRemover });
     }
-    function opcoesRelatorio() { return { arquivo: arquivo, historico: S.historico, logo: opts.logoAbsoluto || logo, atleta: opts.atleta || "", cabecalho: opts.cabecalho }; }
+    function opcoesRelatorio() { return { arquivo: arquivo, historico: S.historico, logo: opts.logoAbsoluto || logo, atleta: opts.atleta || "", cabecalho: opts.cabecalho, publico: opts.publico }; }
     q("lista").onclick = function (e) {
       var ver = e.target.closest("[data-ver]");
       if (ver) { var h = S.historico.filter(function (x) { return x.id === ver.getAttribute("data-ver"); })[0]; if (h) abrirRelatorio(h, opcoesRelatorio()); return; }
@@ -384,10 +423,15 @@
     q("arq").onchange = function (e) {
       var f = e.target.files[0]; if (!f) return;
       if (arqUrl) URL.revokeObjectURL(arqUrl);
-      arqUrl = URL.createObjectURL(f); v.src = arqUrl;
+      arqUrl = URL.createObjectURL(f); v.src = arqUrl; S.videoRuim = false;
       q("go").disabled = !!(S.cota && !S.cota.liberado);
       msg("Vídeo carregado. Toque em Analisar.");
     };
+    v.addEventListener("loadedmetadata", function () {
+      if (!arqUrl || !isFinite(v.duration)) return;
+      if (v.duration > JANELA + 0.5) msg("Vídeo de " + fmtNum(v.duration, 0) + " s: a análise usa " + JANELA + " s. Arraste o vídeo até um pouco antes do golpe e toque em Analisar.");
+    });
+    v.addEventListener("error", function () { if (arqUrl) { S.videoRuim = true; msg(MSG_VIDEO_RUIM); } });
     function ajustaCanvas() { cv.width = v.videoWidth || 640; cv.height = v.videoHeight || 360; }
     v.addEventListener("loadedmetadata", ajustaCanvas);
     function desenhar(c, lm, w, h) {
@@ -406,35 +450,43 @@
     }
     function quadroPronto() { return new Promise(function (r) { var ok = false, f = function () { if (!ok) { ok = true; r(); } }; if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(f); setTimeout(f, 220); }); }
     async function carregaPose() {
-      msg("Carregando modelo de pose (primeira vez pode levar alguns segundos)…");
-      var mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs");
-      var fs = await mod.FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
-      return mod.PoseLandmarker.createFromOptions(fs, { baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/latest/pose_landmarker_heavy.task" }, runningMode: "VIDEO", numPoses: 1 });
+      if (!POSE.p) msg("Carregando modelo de pose (primeira vez pode levar alguns segundos)…");
+      return carregarModeloPose();
     }
     q("go").onclick = async function () {
       if (S.cota && !S.cota.liberado) { atualizaCota(); return; }
       q("go").disabled = true;
+      var fim = function () { q("go").disabled = !!(S.cota && !S.cota.liberado); };
+      msg("Preparando o vídeo…");
+      /* no iPhone o vídeo só entrega imagem depois de tocar uma vez (o toque em Analisar vale como gesto) */
+      var ini0 = v.currentTime || 0;
+      try { await v.play(); } catch (e) { /* sem som e sem toque: segue */ }
+      v.pause(); await pronto();
+      var dur = v.duration;
+      if (S.videoRuim || !isFinite(dur) || !(dur > 0) || !v.videoWidth) { msg(MSG_VIDEO_RUIM); fim(); return; }
+      var pose;
+      try { pose = await carregaPose(); }
+      catch (e) { msg("Não foi possível carregar o modelo de pose (" + e.message + "). Verifique a internet e tente de novo."); fim(); return; }
       try {
-        msg("Preparando o vídeo…"); v.pause(); await pronto();
-        var pose = await carregaPose(), fps = +q("fps").value, dur = v.duration, n = Math.floor(dur * fps), qs = [], ok = 0;
+        var fps = +q("fps").value || 30, ini = dur > JANELA + 0.5 ? Math.max(0, Math.min(ini0, dur - JANELA)) : 0, fimT = Math.min(dur, ini + JANELA);
+        var n = Math.max(1, Math.floor((fimT - ini) * fps)), qs = [], ok = 0;
         ajustaCanvas();
-        if (dur > 12) { msg("Vídeo longo (" + dur.toFixed(1) + " s). Recorte para apenas um golpe (até 12 s)."); q("go").disabled = false; return; }
         for (var i = 0; i < n; i++) {
           /* espera o quadro novo de fato aparecer depois do seek: em alguns celulares o vídeo muda de tempo antes de mudar a imagem,
              e a pose saía do quadro anterior (poses repetidas e fases erradas) */
-          var t = i / fps; await seek(t); await quadroPronto();
-          var r = pose.detectForVideo(v, Math.round(t * 1000) + 1 + i);
+          var t = Math.round((ini + i / fps) * 1000) / 1000; await seek(t); await quadroPronto();
+          var r = pose.detectForVideo(v, proximoCarimbo());
           if (r.landmarks && r.landmarks[0]) {
             ok++; qs.push({ t: t, lm: r.landmarks[0].map(function (p) { return { x: p.x, y: p.y, z: p.z, v: p.visibility }; }) });
             var c = cv.getContext("2d"); c.clearRect(0, 0, cv.width, cv.height); desenhar(cv, r.landmarks[0], cv.width, cv.height);
           }
-          if (i % 5 === 0) msg("Analisando… " + Math.round(i / n * 100) + "%");
+          if (i % 3 === 0) msg("Analisando… " + Math.round(i / n * 100) + "% (quadro " + (i + 1) + " de " + n + ")");
         }
-        if (ok < n * 0.6) { msg("Pessoa detectada em poucos quadros (" + ok + "/" + n + "). Reenquadre o vídeo (corpo inteiro, boa luz)."); q("go").disabled = false; return; }
+        if (ok < n * 0.6) { msg("A pessoa apareceu em poucos quadros (" + ok + " de " + n + "). Filme com o corpo inteiro no quadro e boa luz" + (dur > JANELA + 0.5 ? ", e arraste o vídeo até um pouco antes do golpe" : "") + "."); fim(); return; }
         S.quadros = qs; S.real = true; S.regId = null; mostrar(false, true);
-        msg("Análise concluída (" + ok + " quadros).");
-      } catch (e) { msg("Não foi possível carregar o modelo de pose: " + e.message + ". Verifique a conexão com a internet."); }
-      q("go").disabled = !!(S.cota && !S.cota.liberado);
+        msg("Análise concluída (" + ok + " quadros" + (ini > 0 ? ", de " + fmtNum(ini, 1) + " s a " + fmtNum(fimT, 1) + " s do vídeo" : "") + ").");
+      } catch (e) { msg("A análise parou no meio (" + e.message + "). Tente de novo; se repetir, use um vídeo mais curto."); }
+      fim();
     };
     q("demo").onclick = function () { injetar(B.sintetico(golpe() === "saque" ? 70 : 60, q("dom").value, golpe()), { sintetico: true }); msg("Demonstração com dados sintéticos (não é um vídeo real; não é salvo no histórico)."); };
     q("re").onclick = function () { if (S.quadros) mostrar(!S.real, false); };
@@ -593,9 +645,9 @@
       S.resultado = r; S.sintetico = !!sintetico;
       q("saida").hidden = false;
       var c = r.resumo;
-      q("kpi").innerHTML = '<div style="background:var(--qok)"><b>' + c.ok + '</b>OK</div><div style="background:var(--qat)"><b>' + c.atencao + '</b>Atenção</div><div style="background:var(--qna)"><b>' + c.nao_avaliavel + "</b>Revisar com treinador</div>";
-      var tot = S.quadros[S.quadros.length - 1].t || 1;
-      q("tl").innerHTML = r.fases.map(function (f, i) { return '<i style="left:' + (f.t / tot * 100) + '%"></i><em style="left:' + (f.t / tot * 100) + "%;top:" + (i % 2 ? 22 : 0) + 'px">' + (i + 1) + "</em>"; }).join("");
+      q("kpi").innerHTML = '<div style="background:var(--qok)"><b>' + c.ok + '</b>OK</div><div style="background:var(--qat)"><b>' + c.atencao + '</b>Atenção</div><div style="background:var(--qna)"><b>' + c.nao_avaliavel + "</b>" + (atleta ? "Conferir no vídeo" : "Revisar com treinador") + "</div>";
+      var t0 = S.quadros[0].t || 0, tot = (S.quadros[S.quadros.length - 1].t - t0) || 1;
+      q("tl").innerHTML = r.fases.map(function (f, i) { var x = (f.t - t0) / tot * 100; return '<i style="left:' + x + '%"></i><em style="left:' + x + "%;top:" + (i % 2 ? 22 : 0) + 'px">' + (i + 1) + "</em>"; }).join("");
       var fe = q("fases"); fe.innerHTML = ""; var cvs = [];
       var proporcao = sintetico ? 0.75 : (cv.height && cv.width) ? cv.height / cv.width : 0.75;
       r.proporcao = Math.round(proporcao * 1000) / 1000; /* para desenhar a pose de cada fase na proporção do vídeo */
@@ -640,14 +692,14 @@
       var tb = "", fa = -1;
       r.itens.forEach(function (it) {
         if (it.fase !== fa) { fa = it.fase; tb += '<tr class="qm-fh"><td colspan="4">' + (fa + 1) + ". " + esc(r.nomes[fa]) + "</td></tr>"; }
-        tb += "<tr><td>" + esc(it.nome) + "</td><td>" + (it.valor == null ? "—" : Math.round(it.valor * 100) / 100 + esc(it.unidade)) + "</td><td>" + esc(it.ref) + '</td><td><span class="qm-tag ' + it.status + '">' + ROT[it.status] + '</span><br><span class="qm-msg">' + esc(it.comentario) + "</span></td></tr>";
+        tb += '<tr class="qm-it' + (it.valor == null ? " qm-sem" : "") + '"><td class="qm-nome">' + esc(it.nome) + '</td><td data-l="Medido">' + esc(fmtValor(it.valor, it.unidade)) + '</td><td data-l="Referência">' + esc(txtBR(it.ref)) + '</td><td class="qm-par"><span class="qm-tag ' + it.status + '">' + ROT[it.status] + '</span><br><span class="qm-msg">' + esc(paraQuem(it.comentario, atleta)) + "</span></td></tr>";
       });
       q("tb").innerHTML = tb;
       var co = B.conclusao(r); q("ctx").textContent = co.texto;
       var ch = "";
-      if (co.prioridades.length) { ch += "<h4>Prioridades de intervenção</h4>"; co.prioridades.forEach(function (p, k) { ch += '<div class="qm-pr"><b>' + (k + 1) + ". " + esc(p.nome) + '</b> <span class="qm-msg">(' + (p.valor == null ? "—" : Math.round(p.valor * 100) / 100 + esc(p.unidade)) + " · ref. " + esc(p.ref) + ')</span><p class="qm-msg">' + esc(p.porque) + "</p>" + (p.exercicios.length ? "<ul>" + p.exercicios.map(function (e) { return "<li>" + esc(e) + "</li>"; }).join("") + "</ul>" : "") + "</div>"; }); }
+      if (co.prioridades.length) { ch += "<h4>Prioridades de intervenção</h4>"; co.prioridades.forEach(function (p, k) { ch += '<div class="qm-pr"><b>' + (k + 1) + ". " + esc(p.nome) + '</b> <span class="qm-msg">(' + esc(fmtValor(p.valor, p.unidade)) + " · ref. " + esc(txtBR(p.ref)) + ')</span><p class="qm-msg">' + esc(p.porque) + "</p>" + (p.exercicios.length ? "<ul>" + p.exercicios.map(function (e) { return "<li>" + esc(e) + "</li>"; }).join("") + "</ul>" : "") + "</div>"; }); }
       if (co.fortes.length) ch += "<h4>Pontos fortes</h4><ul class=\"qm-ul\">" + co.fortes.map(function (n) { return "<li>" + esc(n) + "</li>"; }).join("") + "</ul>";
-      if (co.revisar.length) ch += "<h4>Para o treinador revisar (não medidos)</h4><ul class=\"qm-ul\">" + co.revisar.map(function (n) { return "<li>" + esc(n) + "</li>"; }).join("") + "</ul>";
+      if (co.revisar.length) ch += "<h4>" + (atleta ? "Para conferir no vídeo ou com um treinador (não medidos)" : "Para o treinador revisar (não medidos)") + "</h4><ul class=\"qm-ul\">" + co.revisar.map(function (n) { return "<li>" + esc(n) + "</li>"; }).join("") + "</ul>";
       q("cbody").innerHTML = ch;
       // comparação com a análise anterior do mesmo golpe + salvamento automático no histórico
       var reg = B.resumir(r, { emp: emp, dom: dom, id: S.regId || undefined });
@@ -770,7 +822,7 @@
       Promise.resolve(S.fotosProntas).catch(function () {}).then(function () {
         var hist = S.historico.filter(function (h) { return h.golpe === golpe(); });
         w.document.open();
-        w.document.write(relatorioHTML({ resultado: S.resultado, golpe: golpe(), emp: S.emp, dom: q("dom").value, atleta: q("atl").value || opts.atleta || "", fotos: S.fotos, logo: opts.logoAbsoluto || logo, demo: S.sintetico, comparacao: S.comparacao, historico: hist, cabecalho: opts.cabecalho, clip: S.clip }));
+        w.document.write(relatorioHTML({ resultado: S.resultado, golpe: golpe(), emp: S.emp, dom: q("dom").value, atleta: q("atl").value || opts.atleta || "", fotos: S.fotos, logo: opts.logoAbsoluto || logo, demo: S.sintetico, comparacao: S.comparacao, historico: hist, cabecalho: opts.cabecalho, clip: S.clip, publico: opts.publico }));
         w.document.close();
       });
     };

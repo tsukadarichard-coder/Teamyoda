@@ -100,6 +100,20 @@ window.firebase={initializeApp:function(){},auth:function(){return a}};})();`;
   const rel = JSON.parse(store[docs[0]].relatorio);
   assert(rel.resultado && rel.fotos.length >= 3 && rel.fotos.every((f) => /^data:image\/jpeg/.test(f)), "relatório completo com as fotos das fases");
   assert.deepStrictEqual(store["jogadores/ua"].movimentoUso, { forehand: 1, backhand: 0, saque: 0 });
+  /* tela do atleta: checklist em cartões com vírgula, textos para o jogador, sem faixas editáveis nem quadros/s */
+  const tela = await p.evaluate(() => ({ tb: document.querySelector('.qlm [data-r="tb"]').innerText, kpi: document.querySelector('.qlm [data-r="kpi"]').innerText,
+    faixas: document.querySelector(".qlm details").hidden, fps: document.querySelector('.qlm [data-r="fps"]').closest("label").hidden,
+    cartao: getComputedStyle(document.querySelector(".qlm table.qm-check tr.qm-it")).display }));
+  assert(!/\d\.\d/.test(tela.tb), "números com vírgula no checklist");
+  assert(/Conferir no vídeo/.test(tela.kpi) && !/revisão do treinador/.test(tela.tb) && /confira olhando o vídeo/.test(tela.tb), "textos para o atleta");
+  assert(tela.faixas && tela.fps, "sem faixas editáveis nem quadros/s no Player");
+  assert.strictEqual(tela.cartao, "block", "checklist em cartões no celular");
+  /* vídeo que o aparelho não abre: explica em vez de "concluída (0 quadros)" */
+  await p.click('[data-r="tabs"] [data-g="backhand"]');
+  await p.setInputFiles('.qlm [data-r="arq"]', { name: "x.mov", mimeType: "video/quicktime", buffer: Buffer.from("nao e video") });
+  await p.click('.qlm [data-r="go"]');
+  await p.waitForFunction(() => /não abriu neste aparelho/.test(document.querySelector('.qlm [data-r="st"]').textContent), null, { timeout: 15000 });
+  await p.click('[data-r="tabs"] [data-g="forehand"]');
   if (capturas) await p.screenshot({ path: path.join(capturas, "player-movimento-resultado.png"), fullPage: true });
 
   /* outro golpe continua liberado */
