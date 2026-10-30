@@ -43,14 +43,14 @@
     if (!raiz) { setTimeout(mostrarFalhaDeCarregamento, 50); return; }
     raiz.innerHTML =
       '<div style="min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center;' +
-      ' gap:16px; padding:24px; box-sizing:border-box; background:#F6F8F7; text-align:center;' +
+      ' gap:16px; padding:24px; box-sizing:border-box; background:#F2F2F2; text-align:center;' +
       ' font-family: Inter, system-ui, sans-serif;">' +
       '<img src="assets/logo-quadralab.png" alt="QuadraLab" style="height:40px;">' +
-      '<p style="font-size:14px; line-height:1.5; color:#5B6B63; max-width:280px; margin:0;">' +
+      '<p style="font-size:14px; line-height:1.5; color:#5A5A5A; max-width:280px; margin:0;">' +
       'Não foi possível carregar o QuadraLab. Verifique sua conexão com a internet e tente de novo.</p>' +
       '<button type="button" onclick="location.reload()" style="font-family: Inter, system-ui, sans-serif;' +
       ' font-size:14px; font-weight:700; padding:12px 22px; border-radius:10px; border:none;' +
-      ' background:#103B32; color:#fff; cursor:pointer;">Tentar novamente</button>' +
+      ' background:#1E4D3F; color:#fff; cursor:pointer;">Tentar novamente</button>' +
       '</div>';
   }
   window.addEventListener("error", function (ev) {
@@ -87,7 +87,7 @@
 <script src="https://cdn.tailwindcss.com"></script>
 
 <style>
-  html, body { margin: 0; padding: 0; background: #F6F8F7; }
+  html, body { margin: 0; padding: 0; background: #F2F2F2; }
   /* Indicador de sincronização: discreto (uma tira fina, sem texto visível)
      quando está tudo certo — só vira um aviso de verdade, com texto e
      altura normal, quando precisa de ação (sem login, sem nuvem configurada,
@@ -107,7 +107,7 @@
 <div id="mty-faixa"></div>
 <div id="root">
   <div style="min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center;
-    gap:24px; padding:20px; box-sizing:border-box; background:#F6F8F7;">
+    gap:24px; padding:20px; box-sizing:border-box; background:#F2F2F2;">
     <img src="assets/logo-quadralab.png" alt="QuadraLab" style="height:44px; opacity:0; animation: mty-boot-fade .5s ease .05s forwards;">
     <div style="width:180px; height:5px; background:#E2E8E5; border-radius:999px; overflow:hidden; position:relative;">
       <div style="position:absolute; top:0; height:100%; background:#69B32A; border-radius:999px; animation: mty-boot-barra 1.3s cubic-bezier(.4,0,.2,1) infinite;"></div>
@@ -331,7 +331,7 @@ async function atualizaFaixa() {
     alerta("Conta sem área vinculada — entre em contato com o suporte.", "#8A2E2E");
     return;
   }
-  ok("Conectado — seus dados estão sincronizados na nuvem.", "#103B32");
+  ok("Conectado — seus dados estão sincronizados na nuvem.", "#1E4D3F");
 }
 atualizaFaixa();
 if (auth) auth.onAuthStateChanged(() => setTimeout(atualizaFaixa, 300));
@@ -399,14 +399,18 @@ function exerciciosAquecimento() {
 }
 
 /* ─────────────────────────── identidade ─────────────────────────── */
+/* Paleta revisada para acessibilidade (contraste WCAG ≥ 4,5:1 para texto, leitura sob sol):
+   quadra #1E4D3F (verde da marca, 9,6:1 sobre branco); saibro #427528 (verde limão escurecido: 5,5:1 sobre branco e 4,9:1
+   sobre o fundo — o #69B32A de antes dava 2,6:1 e sumia como texto ou com texto branco por cima); grafite #5A5A5A (6,9:1);
+   papel #F2F2F2 (fundo). O verde limão claro da marca continua no logo e em linhas decorativas dos relatórios. */
 const C = {
   tinta: "#17251F",
-  papel: "#F6F8F7",
+  papel: "#F2F2F2",
   cal: "#FFFFFF",
-  saibro: "#69B32A",
-  grafite: "#5B6B63",
+  saibro: "#427528",
+  grafite: "#5A5A5A",
   linha: "#E2E8E5",
-  quadra: "#103B32",
+  quadra: "#1E4D3F",
 };
 /* ── elevação (sombra) ──
    Duas profundidades, as duas discretas — identidade esportiva é
@@ -415,10 +419,8 @@ const C = {
    (dropdowns, modais, botão primário no hover). */
 const SOMBRA = "0 1px 2px rgba(16,59,50,.04), 0 1px 3px rgba(16,59,50,.05)";
 const SOMBRA_ALTA = "0 2px 6px rgba(16,59,50,.07), 0 6px 16px rgba(16,59,50,.08)";
-/* ── Início e barra de navegação (revisão de acessibilidade) ──
-   Verde da marca #1E4D3F e acento verde limão escurecido #4A7F2C: o C.saibro (#69B32A) dá 2,6:1 sobre branco e não serve para
-   texto; o #4A7F2C dá 4,8:1. Cinza secundário #5A5A5A (6,9:1), pensado para leitura sob sol. As classes ql-* ficam no <style> do App. */
-const INICIO = { verde: "#1E4D3F", limao: "#4A7F2C", texto2: "#5A5A5A" };
+/* ── Início e barra de navegação: mesmos tons da paleta (as classes ql-* ficam no <style> do App) ── */
+const INICIO = { verde: C.quadra, limao: C.saibro, texto2: C.grafite };
 /* ── tema visual ──
    As telas inteiras leem C.tinta/papel/cal/saibro/grafite/linha/quadra
    direto (não como prop, não como contexto) — um produto de marca única
@@ -2686,10 +2688,10 @@ const LETRAS = ["A", "B", "C", "D", "E", "F"];
 
 /* ── perfis de carga por fase: volume e intensidade nunca no pico juntos ── */
 const PERFIL_FASE = {
-  "Base I": { vol: 70, int: 45, cor: "#103B32" },
-  "Base II": { vol: 88, int: 60, cor: "#103B32" },
-  "Base III": { vol: 82, int: 65, cor: "#103B32" },
-  "Base IV": { vol: 80, int: 68, cor: "#103B32" },
+  "Base I": { vol: 70, int: 45, cor: "#1E4D3F" },
+  "Base II": { vol: 88, int: 60, cor: "#1E4D3F" },
+  "Base III": { vol: 82, int: 65, cor: "#1E4D3F" },
+  "Base IV": { vol: 80, int: 68, cor: "#1E4D3F" },
   Afinação: { vol: 55, int: 82, cor: "#8A7B33" },
   Torneio: { vol: 35, int: 100, cor: "#C8102E" },
   "Ponte competitiva": { vol: 50, int: 88, cor: "#C8102E" },
@@ -4185,7 +4187,7 @@ function BuscaVideoYouTube({ consultaInicial }) {
    arrastar — clique adiciona ponto (modo "ponto") ou liga dois pontos
    já existentes em sequência (modo "seta"), o suficiente pra desenhar
    um padrão tático sem precisar de uma ferramenta de desenho completa. */
-const CORES_PAPEL_DIAGRAMA = { jogador: "#103B32", treinador: "#A6631E" };
+const CORES_PAPEL_DIAGRAMA = { jogador: "#1E4D3F", treinador: "#A6631E" };
 /* As 4 opções do que marcar na quadra, numa escolha só (em vez de
    "modo" + "submodo" empilhados, que confundia): cada opção já diz se
    vai marcar um ponto ou ligar uma seta, e com qual papel/tipo. */
@@ -8373,8 +8375,8 @@ function erroDeDevolucao(p) { return p.fim === "erro_nos" && p.sacador === "ele"
 function erroDeDevolucaoDele(p) { return p.fim === "erro_dele" && p.sacador === "nos" && p.saque !== "df" && p.saque !== "ace" && (p.devAdv === true || (p.devAdv !== false && p.bola === "1-2")); }
 
 const FIM_PONTO = [
-  { v: "winner_nos", r: "Winner meu", nos: true, cor: "#103B32" },
-  { v: "erro_dele", r: "Erro dele", nos: true, cor: "#103B32" },
+  { v: "winner_nos", r: "Winner meu", nos: true, cor: "#1E4D3F" },
+  { v: "erro_dele", r: "Erro dele", nos: true, cor: "#1E4D3F" },
   { v: "erro_nos", r: "Erro meu", nos: false, cor: "#C8102E" },
   { v: "winner_dele", r: "Winner dele", nos: false, cor: "#C8102E" },
 ];
@@ -13116,7 +13118,7 @@ function escaparHTML(s) {
   return String(s || "").replace(/[&<>"]/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[m]));
 }
 
-const NOTA_COR = { sim: "#103B32", par: "#C9A227", nao: "#C8102E", "": "#8A8580" };
+const NOTA_COR = { sim: "#1E4D3F", par: "#C9A227", nao: "#C8102E", "": "#8A8580" };
 const NOTA_LABEL = { sim: "Atingido", par: "Parcial", nao: "Não atingido", "": "Não avaliado" };
 
 /* O relatório de ciclo (construirRelatorio, em TelaPlano) é texto puro
@@ -16779,7 +16781,7 @@ function TelaMeuMetodo({ metodo, setMetodo, planoAtual, exerciciosCustom, setExe
             ["Princípios e o que eu nunca faço", "Regras que a IA segue em todo plano, e o que ela nunca inclui."],
             ["Minha biblioteca de exercícios", "O gerador passa a usar só os seus exercícios. Dá para importar por planilha."],
             ["Usar o meu método ao gerar planos", "Com tudo preenchido, cada plano individual sai no seu jeito de trabalhar."]].map(([t, d]) => (
-            <div key={t} style={{ border: "1px dashed " + C.linha, borderRadius: 10, padding: "10px 12px", background: C.papel, opacity: 0.85 }}>
+            <div key={t} style={{ border: "1px dashed " + C.linha, borderRadius: 10, padding: "10px 12px", background: C.papel }}>
               <p style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{t}<Cadeado plano="premium" /></p>
               <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>{d}</p>
             </div>
