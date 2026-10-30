@@ -1,7 +1,7 @@
 /* Os arquivos compartilhados de scout/ precisam ser idênticos nos dois apps (autonomo = QuadraLab, mty = Team Yoda). Rode: node tests/check-sync-scout.js */
 const fs = require("fs"), path = require("path"), assert = require("assert");
 const A = path.join(__dirname, "../scout"), M = path.join(__dirname, "../../mty/scout");
-const arquivos = ["ao-vivo.js", "ao-vivo.css", "graficos.js", "graficos.css", "relatorio-jogos.js", "movimento-motor.js", "evidencias.js", "movimento-arquivo.js", "movimento.js", "movimento.css", "video-segmentador.js", "video-audio.js", "video-scout.js", "video-visao.js", "video-scout-ui.js", "quadra-auto.js", "padroes.js", "video-jogo.js", "vendor/ffmpeg/ffmpeg.js", "vendor/ffmpeg/814.ffmpeg.js", "bola-ia.js", "vendor/wasb/LEIA-ME.txt"];
+const arquivos = ["ao-vivo.js", "ao-vivo.css", "graficos.js", "graficos.css", "relatorio-jogos.js", "relatorio-aluno.js", "movimento-motor.js", "evidencias.js", "movimento-arquivo.js", "movimento.js", "movimento.css", "video-segmentador.js", "video-audio.js", "video-scout.js", "video-visao.js", "video-scout-ui.js", "quadra-auto.js", "padroes.js", "video-jogo.js", "vendor/ffmpeg/ffmpeg.js", "vendor/ffmpeg/814.ffmpeg.js", "bola-ia.js", "vendor/wasb/LEIA-ME.txt"];
 /* o modelo da IA da bola (binário) */
 assert(fs.existsSync(path.join(M, "vendor/wasb/wasb-tenis.onnx")) && fs.readFileSync(path.join(A, "vendor/wasb/wasb-tenis.onnx")).equals(fs.readFileSync(path.join(M, "vendor/wasb/wasb-tenis.onnx"))), "mty/scout/vendor/wasb/wasb-tenis.onnx fora de sincronia");
 arquivos.forEach((f) => assert(fs.existsSync(path.join(M, f)) && fs.readFileSync(path.join(A, f), "utf8") === fs.readFileSync(path.join(M, f), "utf8"), "mty/scout/" + f + " fora de sincronia com autonomo/scout/" + f + " (copie o arquivo)"));

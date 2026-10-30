@@ -78,6 +78,7 @@
 <script src="scout/evidencias.js"></script>
 <script src="scout/movimento-arquivo.js"></script>
 <script src="scout/lixeira-jogos.js"></script>
+<script src="scout/relatorio-aluno.js"></script>
 <script src="scout/movimento.js"></script>
 <script src="scout/padroes.js"></script>
 <script src="obs-voz.js"></script>
@@ -11132,6 +11133,147 @@ function rotuloEncerramento(e) {
   const de = e.de === "atleta" ? " (do jogador)" : e.de === "adversario" ? " (do adversário)" : "";
   return e.motivo === "nao_informado" ? "Motivo não informado" : base + de + (e.detalhe ? ": " + e.detalhe : "");
 }
+/* ── Relatório do aluno (aba Relatório na ficha) ──
+   Um documento só com perfil, planejamento, aulas do período, scout dos jogos e análises biomecânicas (scout/relatorio-aluno.js),
+   pronto para "Salvar como PDF". Só lê o que já está registrado; a observação do treinador fica guardada na ficha (relatorioObs). */
+const PERIODOS_RELATORIO = [["tudo", "Todo o histórico"], ["30d", "Últimos 30 dias"], ["90d", "Últimos 3 meses"], ["ano", "Este ano"], ["datas", "Escolher datas"]];
+function idadeRelatorio(nasc) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(nasc || "")); if (!m) return "";
+  const h = new Date(); let i = h.getFullYear() - +m[1]; if (h.getMonth() + 1 < +m[2] || (h.getMonth() + 1 === +m[2] && h.getDate() < +m[3])) i--;
+  return i >= 0 && i < 120 ? i + " anos" : "";
+}
+function dadosPlanoRelatorio(a) {
+  const plano = a.plano; if (!plano || !(plano.blocos || []).length) return null;
+  const reg = a.regPlano || {}, aulas = listaAulas(plano, reg), vigor = aulaEmVigor(a);
+  const blocos = plano.blocos.map((b) => {
+    const nome = b.titulo || b.nome, doBloco = aulas.filter((x) => x.bloco === nome);
+    const foco = [...new Set((b.semanasLista || []).map((s) => String(s.foco || "").trim()).filter(Boolean))].slice(0, 4);
+    return { titulo: nome, semanas: (b.semanasLista || []).length || b.semanas || 0, foco, saida: b.saidaTexto || (typeof b.saida === "string" ? b.saida : ""),
+      feitas: doBloco.filter((x) => statusAula(reg, x.id) === "feita").length, total: doBloco.length, liberado: blocoLiberado(reg, nome), atual: !!(vigor && vigor.bloco === nome) };
+  });
+  return { nome: typeof plano.tipo === "string" && plano.tipo !== "individual" ? plano.tipo : "", geradoEm: plano.geradoEm || "", prioridade: typeof plano.prioridade === "string" ? plano.prioridade : "",
+    observacao: typeof plano.observacao === "string" ? plano.observacao : "", feitas: aulas.filter((x) => statusAula(reg, x.id) === "feita").length, total: aulas.length, blocos };
+}
+function dadosAulasRelatorio(a, periodo) {
+  const R = window.QLRelatorioAluno, marc = Object.entries(a.regPlano || {}).filter(([k, v]) => k !== "__blocos" && v && v.data && R.noPeriodo(v.data, periodo)).map(([, v]) => v.status || (v.feita ? "feita" : ""));
+  const sessoes = (a.registros || []).filter((r) => r.tipo === "sessao" && R.noPeriodo(r.data, periodo)).sort((x, y) => String(x.data).localeCompare(String(y.data)))
+    .map((r) => ({ data: r.data, titulo: r.turma ? "Turma " + r.turma : r.ciclo ? "Ciclo " + r.ciclo : "Sessão", exercicios: r.exercicios || [], obs: r.corrigi || "" }));
+  return { feitas: marc.filter((s) => s === "feita").length, faltas: marc.filter((s) => s === "falta").length, canceladas: marc.filter((s) => s === "cancelada").length, sessoes };
+}
+async function movimentosRelatorio(a, periodo) {
+  const R = window.QLRelatorioAluno, arqMov = arquivoMovimento();
+  let movs = a.movimentos || [];
+  if (arqMov && window.QLMovArquivo && a.id) { try { movs = window.QLMovArquivo.juntar(movs, await arqMov.indice(a.id)); } catch (e) { /* fica a ficha */ } }
+  movs = movs.filter((m) => R.noPeriodo(m.criadoEm, periodo));
+  const arqs = arqMov ? await Promise.all(movs.map((m) => arqMov.ler(m.id).catch(() => null))) : movs.map(() => null);
+  return movs.map((m, k) => {
+    const arq = arqs[k], r = arq && arq.resultado, res = m.res || {};
+    const imgs = r && window.QLMovimento ? window.QLMovimento.imagensFases(r, arq.fotos) : [];
+    const itens = r ? (r.itens || []) : (m.itens || []).map((i) => ({ nome: i.n, valor: i.v, unidade: i.u, ref: i.r, status: i.s }));
+    return { data: m.criadoEm, golpe: nomeGolpeMov(m), ok: res.ok || 0, atencao: res.atencao || 0, nao: res.nao || 0, itens, texto: m.texto || "", prio: m.prio || [],
+      fotos: imgs.map((x, i) => ({ src: x && x.src, nome: (r && r.nomes || [])[i] || "" })).filter((x) => x.src) };
+  });
+}
+async function gerarRelatorioAluno(a, identidade, escolha) {
+  const R = window.QLRelatorioAluno;
+  if (!R) { alert("Não foi possível carregar o gerador do relatório. Recarregue a página e tente de novo."); return; }
+  const janela = window.open("", "_blank");
+  if (!janela) { alert("O navegador bloqueou a janela do relatório — permita pop-ups pra este site e tente de novo."); return; }
+  janela.document.write('<p style="font:15px system-ui,sans-serif;padding:20px">Montando o relatório de ' + escaparHTML(a.nome || "aluno") + "…</p>");
+  try {
+    const periodo = R.periodo(escolha.tipo, null, escolha.de, escolha.ate), S = escolha.secoes;
+    const jogos = (a.registros || []).filter((r) => r.tipo === "jogo" && r.scout && R.noPeriodo(r.data, periodo));
+    const html = R.html({
+      atleta: a.nome || "Aluno", periodo, secoes: S, observacao: a.relatorioObs || "",
+      perfil: [["Idade", idadeRelatorio(a.nascimento)], ["Nascimento", a.nascimento ? a.nascimento.split("-").reverse().join("/") : ""], ["Estágio · nível", [a.estagio, a.nivel].filter(Boolean).join(" · ")],
+        ["Lateralidade", a.lateralidade], ["Backhand", a.backhand === "1" || a.backhand === 1 ? "uma mão" : a.backhand === "2" || a.backhand === 2 ? "duas mãos" : a.backhand],
+        ["Dias de quadra por semana", a.diasQuadra || ""], ["Professor", a.professorNome || ""], ["Objetivo", a.objetivoFinal || ""]],
+      plano: S.plano ? dadosPlanoRelatorio(a) : null, aulas: S.aulas ? dadosAulasRelatorio(a, periodo) : null,
+      jogos, metricas: METRICAS_SCOUT, leitura, vencedor: vencedorDoRegistro,
+      movimentos: S.movimento ? await movimentosRelatorio(a, periodo) : [],
+      cabecalhoHtml: cabecalhoQuadraLabHTML(), geradoEm: new Date().toLocaleDateString("pt-BR"),
+    });
+    janela.document.open(); janela.document.write(html); janela.document.close();
+  } catch (e) {
+    janela.document.body.innerHTML = '<p style="font:15px system-ui,sans-serif;padding:20px">Não foi possível montar o relatório: ' + escaparHTML(e && e.message ? e.message : String(e)) + "</p>";
+  }
+}
+function TelaRelatorioAluno({ aluno, setAlunos, identidade }) {
+  const [tipo, setTipo] = useState("tudo");
+  const [datas, setDatas] = useState({ de: "", ate: "" });
+  const [secoes, setSecoes] = useState({ perfil: true, plano: true, aulas: true, scout: true, movimento: true });
+  const [obs, setObs] = useState(aluno.relatorioObs || "");
+  const [gerando, setGerando] = useState(false);
+  const R = window.QLRelatorioAluno;
+  const periodo = R ? R.periodo(tipo, null, datas.de, datas.ate) : { de: "", ate: "" };
+  const noP = (d) => (R ? R.noPeriodo(d, periodo) : true);
+  const prog = useMemo(() => dadosPlanoRelatorio(aluno), [aluno]);
+  const nJogos = (aluno.registros || []).filter((r) => r.tipo === "jogo" && r.scout && noP(r.data)).length;
+  const nMov = (aluno.movimentos || []).filter((m) => noP(m.criadoEm)).length;
+  const nAulas = Object.entries(aluno.regPlano || {}).filter(([k, v]) => k !== "__blocos" && v && v.data && noP(v.data)).length + (aluno.registros || []).filter((r) => r.tipo === "sessao" && noP(r.data)).length;
+  const itens = [
+    ["perfil", "Perfil", "dados da ficha"],
+    ["plano", "Planejamento", prog && prog.total ? prog.feitas + " de " + prog.total + " aulas do plano feitas" : prog ? "planejamento gerado" : "sem planejamento gerado"],
+    ["aulas", "Aulas no período", nAulas ? nAulas + (nAulas === 1 ? " registro" : " registros") : "nenhuma aula marcada no período"],
+    ["scout", "Scout dos jogos", nJogos ? nJogos + (nJogos === 1 ? " jogo com scout" : " jogos com scout") : "nenhum jogo com scout no período"],
+    ["movimento", "Análise biomecânica", nMov ? nMov + (nMov === 1 ? " análise" : " análises") + " (e as guardadas no arquivo)" : "as análises guardadas no arquivo entram ao gerar"],
+  ];
+  function salvarObs() {
+    if ((aluno.relatorioObs || "") === obs) return;
+    setAlunos((lista) => lista.map((x) => (x.id === aluno.id ? { ...x, relatorioObs: obs } : x)));
+  }
+  async function gerar() {
+    salvarObs(); setGerando(true);
+    try { await gerarRelatorioAluno({ ...aluno, relatorioObs: obs }, identidade, { tipo, de: datas.de, ate: datas.ate, secoes }); } finally { setGerando(false); }
+  }
+  const primeiro = String(aluno.nome || "").split(" ")[0] || "o aluno";
+  const chip = (ativo) => ({ fontFamily: ARCH, fontSize: 14, fontWeight: 600, minHeight: 44, padding: "0 14px", borderRadius: 999, cursor: "pointer",
+    border: "1.5px solid " + C.quadra, background: ativo ? C.quadra : "transparent", color: ativo ? "#fff" : C.quadra });
+  return (
+    <div data-relatorio-aluno>
+      <h2 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Relatório de {primeiro}</h2>
+      <p style={{ ...prosa, fontSize: 14.5, color: C.grafite, marginBottom: 16 }}>
+        Junta num documento só o planejamento, as aulas, os scouts dos jogos e as análises biomecânicas. Abre pronto para salvar em PDF, imprimir ou mandar pelo WhatsApp.
+      </p>
+      <div className="mb-4" style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 14, padding: "14px 16px", boxShadow: SOMBRA }}>
+        <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, margin: "0 0 10px" }}>Período</p>
+        <div className="flex flex-wrap" style={{ gap: 8 }} role="radiogroup" aria-label="Período do relatório">
+          {PERIODOS_RELATORIO.map(([v, r]) => (
+            <button key={v} type="button" role="radio" aria-checked={tipo === v} onClick={() => setTipo(v)} style={chip(tipo === v)}>{r}</button>
+          ))}
+        </div>
+        {tipo === "datas" && (
+          <div className="flex flex-wrap mt-3" style={{ gap: 10 }}>
+            <label style={{ ...prosa, fontSize: 14 }}>De<input type="date" value={datas.de} onChange={(e) => setDatas({ ...datas, de: e.target.value })}
+              style={{ display: "block", marginTop: 4, minHeight: 44, padding: "0 10px", border: "1px solid " + C.linha, borderRadius: 10, fontSize: 15 }} /></label>
+            <label style={{ ...prosa, fontSize: 14 }}>Até<input type="date" value={datas.ate} onChange={(e) => setDatas({ ...datas, ate: e.target.value })}
+              style={{ display: "block", marginTop: 4, minHeight: 44, padding: "0 10px", border: "1px solid " + C.linha, borderRadius: 10, fontSize: 15 }} /></label>
+          </div>
+        )}
+      </div>
+      <div className="mb-4" style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 14, padding: "14px 16px", boxShadow: SOMBRA }}>
+        <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, margin: "0 0 6px" }}>O que entra no relatório</p>
+        {itens.map(([k, r, d]) => (
+          <label key={k} className="flex items-center" style={{ gap: 12, minHeight: 52, borderTop: "1px solid " + C.linha, cursor: "pointer" }}>
+            <input type="checkbox" checked={!!secoes[k]} onChange={(e) => setSecoes({ ...secoes, [k]: e.target.checked })} style={{ width: 22, height: 22, accentColor: C.quadra, flex: "none" }} />
+            <span><span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 600, display: "block" }}>{r}</span>
+              <span style={{ ...prosa, fontSize: 13, color: C.grafite }}>{d}</span></span>
+          </label>
+        ))}
+      </div>
+      <div className="mb-4" style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 14, padding: "14px 16px", boxShadow: SOMBRA }}>
+        <label htmlFor="rel-obs" style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, display: "block" }}>Observação do treinador</label>
+        <p style={{ ...prosa, fontSize: 13, color: C.grafite, margin: "2px 0 8px" }}>Entra no fim do relatório. Fica guardada na ficha para o próximo.</p>
+        <textarea id="rel-obs" value={obs} onChange={(e) => setObs(e.target.value)} onBlur={salvarObs} rows={4}
+          placeholder={"Como " + primeiro + " está, o que melhorou e o que vem pela frente…"}
+          style={{ width: "100%", padding: "10px 12px", border: "1px solid " + C.linha, borderRadius: 10, fontSize: 15, fontFamily: ARCH, resize: "vertical" }} />
+      </div>
+      <Botao variante="saibro" onClick={gerar} disabled={gerando || !Object.values(secoes).some(Boolean)} style={{ width: "100%", minHeight: 52, fontSize: 16, borderRadius: 14 }}>
+        {gerando ? "Montando o relatório…" : "Gerar relatório (PDF)"}
+      </Botao>
+    </div>
+  );
+}
 async function exportarCadernoPDF(a, identidade) {
   const janela = window.open("", "_blank");
   if (!janela) { alert("O navegador bloqueou a janela de exportação — permita pop-ups pra este site e tente de novo."); return; }
@@ -21263,7 +21405,7 @@ function App() {
                  "Fechamento" virou "Resumo do ciclo" porque também reúne o
                  encerramento formal do ciclo (ação "Concluir ciclo" dentro
                  da própria seção, preservada — ver TelaPlano modo=fechamento). */
-              const principais = [{ v: "ficha", r: "Perfil" }, { v: "plano", r: "Planejamento" }, { v: "aulas", r: "Aulas" }, { v: "fechamento", r: "Resumo do ciclo" }];
+              const principais = [{ v: "ficha", r: "Perfil" }, { v: "plano", r: "Planejamento" }, { v: "aulas", r: "Aulas" }, { v: "fechamento", r: "Resumo do ciclo" }, { v: "relatorio", r: "Relatório" }];
               const itensMais = [{ v: "periodizacao", r: "Periodização" }, { v: "sessao", r: "Sessão de hoje" }, { v: "scout", r: "Análise de partida" }, { v: "movimento", r: "Análise de movimento", trava: planoQueLibera("movimento", planoAtual) }, { v: "registro", r: "Caderno" }, { v: "estilo", r: "Estilo de jogo" }, { v: "adversarios", r: "Adversários" }, { v: "competicao", r: "Competição", trava: planoQueLibera("competicao", planoAtual) }];
               const todasSecoes = [...principais, ...itensMais];
               const maisAtivo = itensMais.some((t) => t.v === subaba);
@@ -21362,6 +21504,7 @@ function App() {
              subaba === "fechamento" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="fechamento" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
              subaba === "periodizacao" ? <TelaPeriodizacao aluno={aberto} aoCriarPeriodo={() => { setEtapaFichaAlvo(2); setSubaba("ficha"); }} /> :
              subaba === "scout" ? <TelaScout aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade} /> :
+             subaba === "relatorio" ? <TelaRelatorioAluno aluno={aberto} setAlunos={setAlunos} identidade={identidade} /> :
              subaba === "registro" ? <TelaRegistro aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade} planoAtual={planoAtual} aoReabrirJogo={(id) => { try { sessionStorage.setItem("ql-reabrir:" + aberto.id, id); } catch { /* sem sessionStorage */ } setSubaba("scout"); }} /> :
              subaba === "estilo" ? <TelaEstiloTatico aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
              subaba === "movimento" ? <TelaMovimento aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade} planoAtual={planoAtual} /> :
