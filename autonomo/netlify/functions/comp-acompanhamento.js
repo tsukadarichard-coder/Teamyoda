@@ -211,6 +211,8 @@ exports.handler = async function (event) {
         if (existentes.length >= TOR.MAX_DEVOLUTIVAS) throw new ErroPublico(409, "Limite de devolutivas deste atleta atingido.");
         const n = await dev.add(limpo({ tipo: "geral", refId: null, refRotulo: "Acompanhamento MTY · semana " + r.dados.semana, destaques: r.dados.destaques, melhorar: r.dados.melhorar, foco: r.dados.foco, audioLink: r.dados.audioLink || "", semana: r.dados.semana, acompanhamentoId: id, autorUid: uid, autorNome: a.profissional.nome, criadoEm: agoraISO() }));
         await ref.update(limpo({ historico: hist(a, uid, "revisão da semana " + r.dados.semana) }));
+        await require("./_push").avisar(admin, { app: "player", atletaUid: String(a.atletaUid) },
+          { titulo: "Devolutiva da semana " + r.dados.semana, corpo: "Seu treinador revisou a semana " + r.dados.semana + " do Acompanhamento. Toque para ver.", url: "@app", tag: "devolutiva" });
         return resposta(200, { ok: true, id: n.id });
       }
       if (body.acao === "responder") {

@@ -18,6 +18,7 @@
 <script crossorigin src="https://unpkg.com/prop-types@15/prop-types.min.js"></script>
 <script crossorigin src="https://unpkg.com/recharts@2/umd/Recharts.js"></script>
 <script src="imprimir.js"></script>
+<script src="push-cliente.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-auth-compat.js"></script>
@@ -13809,6 +13810,7 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
     const email = (typeof window !== "undefined" && window.mtyAuth && window.mtyAuth.usuario()) ? window.mtyAuth.usuario().email : "treinador";
     const versao = (plano.aprovadoVersao || 0) + 1;
     await salvarComEstado({ plano: { ...plano, aprovado: true, aprovadoEm: new Date().toISOString(), aprovadoPor: email, aprovadoVersao: versao } });
+    if (aluno && !turma) avisarPushAluno("plano", aluno.id);
     setAprovando(false);
   }
 
@@ -20092,6 +20094,7 @@ function TelaDashboard({ aoAbrirScout, aoDescartarPartida, alunos, turmas, ocorr
 
   return (
     <div data-hoje-resumo>
+      <AvisoNotificacoes />
       {exigeLogin && uidAtual && (
         <div className="flex gap-2 mb-3">
           {[{ v: false, r: "Meu painel" }, { v: true, r: "Toda a academia" }].map((t) => (
@@ -22056,7 +22059,7 @@ function CartaoObservacaoCaderno({ r, aluno, planoAtual, aoApagar, aoAtualizar }
               placeholder={travaIA ? "Escreva aqui o retorno para o aluno…" : "Gere com IA ou escreva o retorno para o aluno…"} aria-label="Descritivo para o aluno"
               style={{ ...entrada, minHeight: 110, marginTop: 8, fontSize: 14.5 }} />
             <label className="flex items-center gap-2" style={{ ...prosa, fontSize: 13.5, marginTop: 8, cursor: "pointer" }}>
-              <input type="checkbox" data-compartilhar checked={!!r.compartilhado} onChange={(e) => aoAtualizar && aoAtualizar({ compartilhado: e.target.checked, descritivo: desc.slice(0, 6000) })} style={{ width: 20, height: 20 }} />
+              <input type="checkbox" data-compartilhar checked={!!r.compartilhado} onChange={(e) => { if (aoAtualizar) aoAtualizar({ compartilhado: e.target.checked, descritivo: desc.slice(0, 6000) }); if (e.target.checked && aluno) avisarPushAluno("observacao", aluno.id); }} style={{ width: 20, height: 20 }} />
               <span>Compartilhar com o aluno <span style={{ color: C.grafite, fontSize: 12.5 }}>(aparece na Área do aluno e no link dele, com o descritivo, as anotações e os áudios)</span></span>
             </label>
           </div>
@@ -22251,7 +22254,7 @@ function RelatorioAtletaEditor({ aluno, setAlunos, relatorioId, periodoInicial, 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
         <Botao variante="vazio" disabled={!dados} onClick={() => { gravar(); setMsg({ t: "Rascunho salvo." }); }}>Salvar rascunho</Botao>
         {podePublicar ? (
-          <Botao variante="saibro" disabled={!dados} onClick={() => { gravar({ status: "publicado", publicadoEm: new Date().toISOString(), publicadoPor: autor.nome || "", publicadoPorUid: autor.uid || null }); setMsg({ t: "Publicado: o relatório já aparece na página do aluno." }); }}>{publicado ? "Publicar de novo" : "Publicar para o aluno"}</Botao>
+          <Botao variante="saibro" disabled={!dados} onClick={() => { gravar({ status: "publicado", publicadoEm: new Date().toISOString(), publicadoPor: autor.nome || "", publicadoPorUid: autor.uid || null }); avisarPushAluno("relatorio", aluno.id); setMsg({ t: "Publicado: o relatório já aparece na página do aluno." }); }}>{publicado ? "Publicar de novo" : "Publicar para o aluno"}</Botao>
         ) : <span style={{ ...prosa, fontSize: 12.5, color: C.grafite, alignSelf: "center" }}>Quem publica é o coordenador da equipe.</span>}
       </div>
       {publicado && (
@@ -22918,6 +22921,7 @@ function JanelaNovidades({ nomeApp, versao, itens, irPara }) {
               ))}
             </div>
           )}
+          <BotaoAvisarNovidades itens={itens} />
           <label style={{ ...prosa, fontSize: 13, display: "flex", alignItems: "center", gap: 8, margin: "10px 0 12px", cursor: "pointer", minHeight: 36 }}>
             <input type="checkbox" checked={naoMostrar} onChange={(e) => setNaoMostrar(e.target.checked)} style={{ width: 18, height: 18 }} /> Não mostrar mais
           </label>
@@ -23083,11 +23087,112 @@ function TelaPlanejamentos({ alunos, turmas, aoAbrirJogador, aoAbrirTurma, aoAdi
   );
 }
 /* Ajuda: primeiros passos, novidades, manual do método e como a navegação está organizada */
+/* ── Notificações no celular (push-cliente.js · netlify/functions/push-inscricao.js) ──
+   Avisos do treinador: aulas do dia, aula que passou sem marcar, aluno pedindo acesso, atleta do Competição que aprovou a ligação
+   e novidades do app. Só com conta na nuvem (o servidor confere quem é). */
+/* Avisos que nascem aqui no app (o app grava direto no Firestore): avisa o celular do aluno/pais (netlify/functions/push-avisar.js).
+   Nunca atrapalha a ação: sem nuvem ou sem internet, não faz nada. */
+function avisarPushAluno(tipo, alunoId) {
+  if (!window.mtyAuth || !window.mtyAuth.tokenId || !alunoId) return;
+  window.mtyAuth.tokenId().then((tk) => fetch("/.netlify/functions/push-avisar", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + tk },
+    body: JSON.stringify({ tipo, alunoId: String(alunoId) }) })).catch(() => {});
+}
+/* Dono: avisar todo mundo inscrito sobre as novidades instaladas (botão na janela de novidades). */
+const DONOS_PUSH = ["tsukada.richard@gmail.com"];
+function ehDonoPush() { try { const u = window.mtyAuth && window.mtyAuth.usuario(); return !!(u && u.email && DONOS_PUSH.includes(String(u.email).toLowerCase())); } catch (e) { return false; } }
+function BotaoAvisarNovidades({ itens }) {
+  const [msg, setMsg] = useState(null);
+  const [ocupado, setOcupado] = useState(false);
+  if (!ehDonoPush()) return null;
+  async function avisar() {
+    if (!window.confirm("Mandar uma notificação para todo mundo que ativou as notificações neste app?")) return;
+    setOcupado(true); setMsg(null);
+    try {
+      const tk = await window.mtyAuth.tokenId(), novos = itens.filter((x) => x.novo).map((x) => x.t);
+      const r = await fetch("/.netlify/functions/push-avisar", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + tk },
+        body: JSON.stringify({ tipo: "novidades", titulo: "Novidades no app", corpo: novos.slice(0, 3).join(" · ") + (novos.length > 3 ? " e mais" : "") + ". Toque para ver." }) });
+      const c = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(c.erro || "Não foi possível avisar agora.");
+      setMsg({ t: "Enviado para " + (c.enviados || 0) + (c.enviados === 1 ? " aparelho." : " aparelhos.") });
+    } catch (e) { setMsg({ erro: true, t: e.message }); }
+    setOcupado(false);
+  }
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <Botao pequeno variante="vazio" disabled={ocupado} onClick={avisar} style={{ minHeight: 44 }}>{ocupado ? "Enviando…" : "Avisar todos no celular (dono)"}</Botao>
+      {msg && <p role="status" style={{ ...prosa, fontSize: 12.5, color: msg.erro ? "#B42318" : C.quadra, marginTop: 4 }}>{msg.t}</p>}
+    </div>
+  );
+}
+function usePushEstado() {
+  const [estado, setEstado] = useState("carregando");
+  const atualizar = () => (window.QLPush ? window.QLPush.estado().then(setEstado).catch(() => setEstado("inativo")) : setEstado("indisponivel"));
+  useEffect(() => { atualizar(); }, []);
+  return [estado, setEstado, atualizar];
+}
+async function ativarPushTreinador() {
+  const token = window.mtyAuth && window.mtyAuth.tokenId ? await window.mtyAuth.tokenId() : null;
+  await window.QLPush.ativar({ app: "treinador", token });
+}
+function CartaoNotificacoes({ compacto }) {
+  const [estado, setEstado] = usePushEstado();
+  const [msg, setMsg] = useState(null);
+  const [ocupado, setOcupado] = useState(false);
+  if (!window.mtyAuth || !window.QLPush) return null;
+  const motivo = window.QLPush.motivo();
+  async function alternar() {
+    setOcupado(true); setMsg(null);
+    try {
+      if (estado === "ativo") { await window.QLPush.desativar(); setEstado("inativo"); setMsg({ t: "Notificações desligadas neste aparelho." }); }
+      else { await ativarPushTreinador(); setEstado("ativo"); setMsg({ t: "Pronto: este aparelho vai receber os avisos." }); }
+    } catch (e) { setMsg({ erro: true, t: e.message }); }
+    setOcupado(false);
+  }
+  return (
+    <div data-notificacoes style={compacto ? { padding: "10px 12px" } : { background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: "12px 14px", marginBottom: 10 }}>
+      <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, margin: 0 }}>Notificações no celular</p>
+      <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, margin: "2px 0 8px" }}>
+        {estado === "ativo" ? "Ligadas neste aparelho: aulas do dia, aula sem marcar, aluno pedindo acesso, atleta que aprovou a ligação e novidades."
+          : "Receba no celular as aulas do dia, a aula que passou sem marcar, aluno pedindo acesso, atleta que aprovou a ligação e as novidades."}
+      </p>
+      {estado === "indisponivel" || estado === "negado" ? <p style={{ ...prosa, fontSize: 13.5, margin: 0 }}>{motivo}</p> : (
+        <Botao pequeno variante={estado === "ativo" ? "vazio" : "saibro"} disabled={ocupado || estado === "carregando"} onClick={alternar} style={{ minHeight: 44 }}>
+          {ocupado ? "Aguarde…" : estado === "ativo" ? "Desligar neste aparelho" : "Ativar notificações"}
+        </Botao>
+      )}
+      {estado !== "ativo" && estado !== "indisponivel" && estado !== "negado" && motivo && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 6 }}>{motivo}</p>}
+      {msg && <p role="status" style={{ ...prosa, fontSize: 13, color: msg.erro ? "#B42318" : C.quadra, marginTop: 6 }}>{msg.t}</p>}
+    </div>
+  );
+}
+/* Convite no Início/Hoje: aparece até ativar ou tocar em "Agora não" (lembrado neste aparelho). */
+function AvisoNotificacoes() {
+  const [estado, setEstado] = usePushEstado();
+  const [fechado, setFechado] = useState(() => { try { return localStorage.getItem("ql-push-convite") === "off"; } catch (e) { return false; } });
+  const [erro, setErro] = useState("");
+  const [ocupado, setOcupado] = useState(false);
+  if (!window.mtyAuth || !window.QLPush || fechado || estado !== "inativo") return null;
+  const motivo = window.QLPush.motivo();
+  const fechar = () => { try { localStorage.setItem("ql-push-convite", "off"); } catch (e) { /* sem armazenamento */ } setFechado(true); };
+  async function ativar() { setOcupado(true); setErro(""); try { await ativarPushTreinador(); setEstado("ativo"); } catch (e) { setErro(e.message); } setOcupado(false); }
+  return (
+    <div data-convite-notificacoes role="region" aria-label="Notificações no celular" style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 14, padding: "12px 14px", marginBottom: 14, boxShadow: SOMBRA }}>
+      <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, margin: 0 }}>Receba os lembretes no celular</p>
+      <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, margin: "2px 0 8px" }}>{motivo || "Aulas do dia, aula sem marcar, aluno pedindo acesso e novidades, direto na tela do celular."}</p>
+      <div className="flex flex-wrap" style={{ gap: 8 }}>
+        {!motivo && <Botao pequeno variante="saibro" disabled={ocupado} onClick={ativar} style={{ minHeight: 44 }}>{ocupado ? "Aguarde…" : "Ativar notificações"}</Botao>}
+        <Botao pequeno variante="vazio" onClick={fechar} style={{ minHeight: 44 }}>{motivo ? "Entendi" : "Agora não"}</Botao>
+      </div>
+      {erro && <p role="status" style={{ ...prosa, fontSize: 13, color: "#B42318", marginTop: 6 }}>{erro}</p>}
+    </div>
+  );
+}
 function TelaAjuda({ mostraManual, aoPrimeirosPassos, aoNovidades, aoIr }) {
   const card = { background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: "12px 14px", marginBottom: 10 };
   return (
     <div data-tela-ajuda>
       <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 10 }}>Ajuda</h1>
+      <CartaoNotificacoes />
       <div style={card}>
         <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>Primeiros passos</p>
         <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, margin: "2px 0 8px" }}>O guia de início (cadastrar um jogador, completar os dados e montar o primeiro planejamento) volta a aparecer em Hoje.</p>

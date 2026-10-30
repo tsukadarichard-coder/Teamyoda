@@ -54,3 +54,7 @@
   [headers.values]
     Content-Type = "application/manifest+json; charset=utf-8"
     Cache-Control = "public, max-age=300, must-revalidate"
+
+# Lembretes no celular (push-lembretes.js): roda de hora em hora; ela mesma decide a hora certa (7h, 19h e 21h de Brasília).
+[functions."push-lembretes"]
+  schedule = "0 * * * *"

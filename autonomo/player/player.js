@@ -582,6 +582,7 @@
     ligarGerar();
     if (estrategia) preencherOlharInicio();
     anexarCartaoInstalar();
+    anexarConviteAvisos();
   }
   /* Simulador de decisões: abre dentro do app (#/simulador), com o menu do Player/Competição em volta. O simulador continua sendo a página
      ../decisoes/, carregada num quadro no modo embutido (?embed=1): sem a marca e o rodapé dela, e cada tela que ela abre vira o endereço
@@ -1762,6 +1763,7 @@
         '<button class="btn btn-primario" id="btSalvarConta" type="submit">Salvar alterações</button></form></div>' +
       '<div class="cartao" style="margin-top:14px"><h2>Segurança</h2><p class="nota" style="margin-top:6px">O acesso é por e-mail e senha. Para criar uma nova senha, enviamos um link para o seu e-mail.</p>' +
         '<div class="acoes"><button type="button" class="btn btn-secundario" id="btSenha">Enviar link para alterar a senha</button></div><p class="nota" id="msgSenha" role="status" style="margin-top:8px"></p></div>'
+      + avisosCelularHtml(false)
       + '<div class="cartao" style="margin-top:14px"><h2>Privacidade e dados</h2><p class="nota" style="margin-top:6px">Você pode baixar uma cópia dos seus dados (perfil, estratégias, programas e partidas) ou excluir a sua conta. Você também corrige e exclui cada partida na própria tela de Partidas.</p>' +
         '<div class="acoes"><button type="button" class="btn btn-secundario" id="btBaixarDados">Baixar meus dados</button></div>' +
         '<details class="det" style="margin-top:10px"><summary>Excluir minha conta</summary><div style="margin-top:10px"><p class="nota">Isso apaga o seu perfil, as estratégias, os programas e as partidas e não pode ser desfeito. Registros de pagamento ficam guardados pela Eduzz. Se houver assinatura vigente, cancele-a antes.</p>' +
@@ -1769,6 +1771,7 @@
         '<div class="aviso" id="avisoExcluir" role="alert" hidden></div><div class="acoes"><button type="button" class="btn btn-secundario" id="btExcluirConta">Excluir minha conta definitivamente</button></div></div></details></div>'
     );
     atualizarConta();
+    ligarAvisosCelular(document.getElementById("cartaoAvisos"), false);
     var aviso = document.getElementById("avisoConta");
     document.getElementById("btBaixarDados").addEventListener("click", async function () {
       var bt = this; ocupado(bt, true, "Preparando…");
@@ -2383,6 +2386,45 @@
     });
   }
   /* aviso discreto no fim do Início, uma vez: some com "Agora não" e nunca aparece dentro do app já instalado */
+  /* Avisos no celular (../push-cliente.js · netlify/functions/push-inscricao.js): devolutiva e planejamento do treinador, jogo ao vivo
+     começando e novidades. Em Meu perfil (ligar/desligar) e um convite no Início, até ativar ou tocar em "Agora não". */
+  function avisosCelularHtml(convite) {
+    return '<section class="cartao" id="' + (convite ? "cartaoAvisosConvite" : "cartaoAvisos") + '" style="margin-top:14px" aria-labelledby="t-avisos-' + (convite ? "c" : "p") + '"><h2 id="t-avisos-' + (convite ? "c" : "p") + '">Avisos no celular</h2>' +
+      '<p class="nota" style="margin-top:6px" data-avisos-texto>Receba no celular: devolutivas e planejamento do treinador, jogo ao vivo começando e novidades do app.</p>' +
+      '<div class="acoes"><button type="button" class="btn btn-primario" data-avisos="alternar">Ativar avisos</button>' + (convite ? '<button type="button" class="btn btn-texto" data-avisos="depois">Agora não</button>' : "") + "</div>" +
+      '<p class="nota" role="status" data-avisos-msg style="margin-top:8px"></p></section>';
+  }
+  function ligarAvisosCelular(caixa, convite) {
+    if (!caixa || !window.QLPush) { if (caixa) caixa.remove(); return; }
+    var bt = caixa.querySelector('[data-avisos="alternar"]'), msg = caixa.querySelector("[data-avisos-msg]"), txt = caixa.querySelector("[data-avisos-texto]");
+    var dep = caixa.querySelector('[data-avisos="depois"]');
+    function mostrar(estadoPush) {
+      var motivo = window.QLPush.motivo();
+      if (convite && (estadoPush === "ativo" || estadoPush === "indisponivel" && !motivo)) { caixa.remove(); return; }
+      if (estadoPush === "ativo") { txt.textContent = "Ligados neste aparelho: devolutivas e planejamento do treinador, jogo ao vivo e novidades."; bt.textContent = "Desligar neste aparelho"; bt.className = "btn btn-secundario"; bt.hidden = false; }
+      else if (motivo) { txt.textContent = motivo; bt.hidden = true; if (dep) dep.textContent = "Entendi"; }
+      else { bt.textContent = "Ativar avisos"; bt.className = "btn btn-primario"; bt.hidden = false; }
+      bt.dataset.estado = estadoPush;
+    }
+    window.QLPush.estado().then(mostrar);
+    bt.addEventListener("click", async function () {
+      msg.textContent = ""; ocupado(bt, true, "Aguarde…");
+      try {
+        if (bt.dataset.estado === "ativo") { await window.QLPush.desativar(); msg.textContent = "Avisos desligados neste aparelho."; ocupado(bt, false); mostrar("inativo"); return; }
+        await window.QLPush.ativar({ app: "player", token: await auth.currentUser.getIdToken(), url: location.pathname });
+        msg.textContent = "Pronto: os avisos vão chegar neste aparelho."; ocupado(bt, false); mostrar("ativo");
+        if (convite) setTimeout(function () { caixa.remove(); }, 2500);
+      } catch (e) { ocupado(bt, false); msg.textContent = e.message; }
+    });
+    if (dep) dep.addEventListener("click", function () { try { localStorage.setItem("ql-push-convite-player", "off"); } catch (e) { /* sem armazenamento */ } caixa.remove(); });
+  }
+  function anexarConviteAvisos() {
+    var fechado = false; try { fechado = localStorage.getItem("ql-push-convite-player") === "off"; } catch (e) { fechado = false; }
+    if (fechado || !window.QLPush || document.getElementById("cartaoAvisosConvite")) return;
+    var w = document.createElement("div"); w.innerHTML = avisosCelularHtml(true);
+    var caixa = w.firstChild; app.appendChild(caixa); ligarAvisosCelular(caixa, true);
+  }
+
   function anexarCartaoInstalar() {
     var dispensado = false; try { dispensado = localStorage.getItem("ql-instalar-dispensado") === "1"; } catch (e) { dispensado = false; }
     if (jaInstalado() || dispensado || document.getElementById("cartaoInstalar")) return;
@@ -3495,6 +3537,7 @@
     }
     if (window.QL_COMP_HUB) window.QL_COMP_HUB(comp, s);
     anexarCartaoInstalar();
+    anexarConviteAvisos();
     app.querySelectorAll("[data-copiar]").forEach(function (b) {
       b.addEventListener("click", function () { var c = b.getAttribute("data-copiar"); (navigator.clipboard ? navigator.clipboard.writeText(c) : Promise.reject()).then(function () { toast(b.getAttribute("data-copiado") || "Código copiado."); }, function () { toast("Copie manualmente: " + c); }); });
     });

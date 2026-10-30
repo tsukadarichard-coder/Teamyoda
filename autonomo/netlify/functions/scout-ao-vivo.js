@@ -141,6 +141,11 @@ exports.handler = async function (event) {
       await col.doc(token).set({ orgId: dono, uid: claims.uid, criadoEm: agora(), expiraEm, versao: 1, publico: guardar(body.resumo, true), ...ligacao, ...(alunoId ? { alunoId } : {}) });
       /* outra partida do mesmo jogador hoje: a família que estava no link antigo (ainda "ao vivo") passa para este */
       for (const x of doJogador) { try { await col.doc(x.id).update({ substituidoPor: token, versao: (x.data().versao || 1) + 1 }); } catch (e) { /* segue */ } }
+      /* jogo novo: aviso no celular do aluno/pais (Área do aluno ou link do aluno) e do atleta no Player; o toque abre o placar ao vivo */
+      const PUSH = require("./_push"), quem = String(novoPub.atleta || "").trim().split(/\s+/)[0] || "O jogador";
+      const aviso = { titulo: "Jogo ao vivo", corpo: quem + " começou um jogo" + (novoPub.torneio && novoPub.torneio !== "jogo-treino" ? " · " + novoPub.torneio : "") + ". Toque para acompanhar o placar.", url: "/scout/?l=" + token, tag: "ao-vivo" };
+      if (alunoId && !String(dono).startsWith("fam:")) await PUSH.avisar(admin, { app: "aluno", orgId: String(dono), alunoId }, aviso);
+      if (ligacao.atletaUid) await PUSH.avisar(admin, { app: "player", atletaUid: String(ligacao.atletaUid) }, aviso);
       return resposta(200, { ok: true, token, expiraEm });
     }
 

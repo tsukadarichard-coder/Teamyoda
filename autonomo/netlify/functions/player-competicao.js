@@ -286,6 +286,8 @@ exports.handler = async function (event) {
       }
       if ((await dev.get()).docs.length >= TOR.MAX_DEVOLUTIVAS) throw new ErroPublico(409, "Limite de devolutivas deste atleta atingido.");
       const n = await dev.add({ ...r.dados, refRotulo: rotulo, autorUid: uid, autorNome: jog.nome || usuario.name || "Treinador", vinculoId: body.id, criadoEm: agoraISO() });
+      await require("./_push").avisar(admin, { app: "player", atletaUid: String(v.atletaUid) },
+        { titulo: "Devolutiva do treinador", corpo: (jog.nome || usuario.name || "Seu treinador") + " escreveu uma devolutiva: " + rotulo + ".", url: "@app", tag: "devolutiva" });
       return resposta(200, { ok: true, id: n.id });
     }
 
@@ -296,6 +298,9 @@ exports.handler = async function (event) {
       if (!ok.ok) throw new ErroPublico(403, ok.motivo);
       const aprovar = body.aprovar === true;
       await ref.update({ status: aprovar ? "ativo" : "recusado", decididoEm: agoraISO(), decididoPor: uid, historico: evento(v, uid, aprovar ? "aprovado" : "recusado") });
+      /* pedido da academia aprovado pelo atleta: aviso no celular do treinador */
+      if (aprovar && v.origem === "academia" && v.orgId) await require("./_push").avisar(admin, { app: "treinador", orgId: String(v.orgId) },
+        { titulo: "Atleta aprovou a ligação", corpo: (v.atletaNome || "O atleta") + " aprovou a ligação com você no QuadraLab Competição. O jogo ao vivo e os scouts já vão para o app dele.", url: "@app", tag: "vinculo-atleta" });
       return resposta(200, { ok: true });
     }
 

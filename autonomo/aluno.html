@@ -159,6 +159,7 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catc
 </script>
 <!-- Área do aluno (aluno.html sem org/id/t): conta própria do aluno, entra com e-mail e senha -->
 <script src="imprimir.js"></script>
+<script src="push-cliente.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-auth-compat.js"></script>
 <script src="mty-nuvem.js"></script>
@@ -644,7 +645,7 @@ function todosHorarios(agenda) {
       const subtitulo = d.planoRascunho
         ? 'Seu treinador está preparando seu plano — assim que for revisado e aprovado, aparece aqui.'
         : 'Ainda não há um plano montado para você.';
-      el.innerHTML = barraConta() + '<header><h1>' + escapar(d.nome) + '</h1><div class="sub">' + subtitulo + '</div></header>' +
+      el.innerHTML = barraConta() + '<header><h1>' + escapar(d.nome) + '</h1><div class="sub">' + subtitulo + '</div></header><div id="ql-avisos-celular"></div>' +
         painelTurmas(d) + painelObservacoes(d) + painelMovimentos(d) + painelJogos(d) + painelJogosVideo(d) +
         painelMapaConceitos(d, ui) + painelEvolucao(d) + painelRelatorios(d) + painelComunicacao(d) + '<div class="sincronia" id="mty-sincronia"></div>';
       ligarEventos(d); ligarBarra();
@@ -653,7 +654,7 @@ function todosHorarios(agenda) {
     const repetindo = d.aulas.filter(function (a) { return a.status === 'falta' || a.status === 'cancelada'; }).length;
     const pendente = d.totalAulas - d.aulasFeitas - repetindo;
     let html = '';
-    html += '<header><h1>' + escapar(d.nome) + '</h1><div class="sub">' + escapar(d.tipoPlano) + '</div></header>';
+    html += '<header><h1>' + escapar(d.nome) + '</h1><div class="sub">' + escapar(d.tipoPlano) + '</div></header><div id="ql-avisos-celular"></div>';
     if (d.prioridade) html += '<p class="sub">' + escapar(d.prioridade) + '</p>';
     html += painelProximaAula(d);
     html += '<div class="painel"><h2>Progresso do ciclo</h2><div class="rosca-wrap" style="margin-top:0">' + rosquinhaSvg(d.aulasFeitas, pendente, repetindo) +
@@ -1038,7 +1039,43 @@ function todosHorarios(agenda) {
     return html;
   }
 
+
+  /* Avisos no celular (push-cliente.js · netlify/functions/push-inscricao.js): aula amanhã, jogo ao vivo, planejamento novo,
+     relatório e recados do professor. Com o link, quem ativa são os pais/aluno daquele jogador; na Área do aluno, a conta. */
+  let pushEstado = null, pushMsg = '', pushOcupado = false;
+  function pushFechado() { try { return localStorage.getItem('ql-push-convite-aluno') === 'off'; } catch (e) { return false; } }
+  function montarAvisosCelular() {
+    const box = document.getElementById('ql-avisos-celular');
+    if (!box || !window.QLPush) return;
+    if (pushEstado === null) { pushEstado = 'carregando'; window.QLPush.estado().then(function (s) { pushEstado = s; montarAvisosCelular(); }); return; }
+    if (pushEstado === 'carregando' || (pushEstado === 'indisponivel' && !window.QLPush.motivo())) { box.innerHTML = ''; return; }
+    if (pushEstado === 'ativo') {
+      box.innerHTML = '<div class="painel" style="padding:10px 14px"><p class="sub" style="margin:0">' + (pushMsg ? escapar(pushMsg) + ' ' : 'Avisos no celular ligados neste aparelho. ') +
+        '<button type="button" data-push="desligar" style="background:none;border:0;padding:8px 0;font:inherit;font-weight:700;text-decoration:underline;cursor:pointer;min-height:44px">Desligar</button></p></div>';
+    } else {
+      if (pushFechado() && !pushMsg) { box.innerHTML = ''; return; }
+      const motivo = window.QLPush.motivo();
+      box.innerHTML = '<div class="painel" style="padding:12px 14px"><h2 style="margin-bottom:4px">Avisos no celular</h2><p class="sub" style="margin:0 0 8px">' +
+        escapar(motivo || 'Receba no celular: aula amanhã, jogo ao vivo começando, planejamento novo, relatórios e recados do professor.') + '</p>' +
+        (pushMsg ? '<p class="sub" role="status" style="margin:0 0 8px">' + escapar(pushMsg) + '</p>' : '') +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap">' + (motivo ? '' : '<button type="button" class="btn" data-push="ativar" style="min-height:44px"' + (pushOcupado ? ' disabled' : '') + '>' + (pushOcupado ? 'Aguarde…' : 'Ativar avisos') + '</button>') +
+        '<button type="button" data-push="fechar" style="min-height:44px;background:none;border:1px solid currentColor;border-radius:10px;padding:0 14px;font:inherit;cursor:pointer">' + (motivo ? 'Entendi' : 'Agora não') + '</button></div></div>';
+    }
+    const a = box.querySelector('[data-push="ativar"]'), f = box.querySelector('[data-push="fechar"]'), d = box.querySelector('[data-push="desligar"]');
+    if (a) a.onclick = async function () {
+      pushOcupado = true; pushMsg = ''; montarAvisosCelular();
+      try {
+        const op = { app: 'aluno' };
+        if (typeof CONTA !== 'undefined' && CONTA) op.token = await auth.currentUser.getIdToken(); else op.link = { org: org, id: id, t: t };
+        await window.QLPush.ativar(op); pushEstado = 'ativo'; pushMsg = 'Pronto: os avisos vão chegar neste aparelho.';
+      } catch (e) { pushMsg = e.message; }
+      pushOcupado = false; montarAvisosCelular();
+    };
+    if (f) f.onclick = function () { try { localStorage.setItem('ql-push-convite-aluno', 'off'); } catch (e) { /* sem armazenamento */ } pushMsg = ''; montarAvisosCelular(); };
+    if (d) d.onclick = function () { window.QLPush.desativar().then(function () { pushEstado = 'inativo'; pushMsg = 'Avisos desligados neste aparelho.'; montarAvisosCelular(); }); };
+  }
   function ligarEventos(d) {
+    montarAvisosCelular();
     el.querySelectorAll('[data-ouvir-obs]').forEach(function (btn) {
       btn.addEventListener('click', async function () {
         const chave = btn.getAttribute('data-ouvir-obs'); btn.disabled = true; btn.textContent = 'Abrindo…';

@@ -207,6 +207,8 @@ exports.handler = async function (event) {
         for (const x of todas.filter((o) => o.status === "em_revisao" && (o.id === alvo.id ? alvo.origem !== "treinador" : o.origem === "treinador" && o.autorUid === uid))) {
           await col.doc(x.id).update({ status: "substituido", substituidoPor: nova.id, historico: hist(x, uid, "revisada: substituída pela versão " + nova.versao) });
         }
+        await require("./_push").avisar(admin, { app: "player", atletaUid: String(atleta) },
+          { titulo: "Ajuste no planejamento", corpo: nomeTrein + " sugeriu ajustes no seu planejamento. Toque para ver.", url: "@app", tag: "planejamento" });
         return resposta(200, { ok: true, id: nova.id });
       }
 
@@ -223,6 +225,8 @@ exports.handler = async function (event) {
         await col.doc(alvo.id).update({ status: "substituido", substituidoPor: nova.id, historico: hist(alvo, uid, "revisada e aprovada pelo treinador (nova versão " + nova.versao + ")") });
         aprovada = nova.id;
       }
+      await require("./_push").avisar(admin, { app: "player", atletaUid: String(atleta) },
+        { titulo: "Planejamento aprovado", corpo: nomeTrein + " revisou e aprovou o seu planejamento da temporada. Toque para ver.", url: "@app", tag: "planejamento" });
       for (const x of todas.filter((o) => o.status === "aprovado" && o.id !== aprovada)) await col.doc(x.id).update({ status: "substituido", substituidoPor: aprovada, historico: hist(x, uid, "substituída por uma versão aprovada mais nova") });
       return resposta(200, { ok: true, id: aprovada });
     }

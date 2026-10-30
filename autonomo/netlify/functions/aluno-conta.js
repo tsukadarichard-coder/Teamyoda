@@ -18,6 +18,7 @@
 const crypto = require("crypto");
 const { admin, app } = require("./_firebase-admin");
 const VA = require("./ver-aluno").interno;
+const PUSH = require("./_push");
 
 const ALF = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 const MAX_HIST = 30;
@@ -78,6 +79,8 @@ async function ladoAluno(claims, metodo, q, body) {
     const vinculo = { orgId: cd.orgId, treinadorUid: cd.treinadorUid || null, treinadorNome: String(cd.treinadorNome || "Professor").slice(0, 80), codigo, status: "aguardando",
       alunoId: null, pedidoEm: quando, historico: hist(v, { em: quando, acao: "pedido de vínculo pelo código" }) };
     await ref.set({ ...conta, vinculo });
+    /* aviso no celular do treinador (quem ativou as notificações no app do treinador) */
+    await PUSH.avisar(admin, { app: "treinador", orgId: String(cd.orgId) }, { titulo: "Aluno pedindo acesso", corpo: (conta.nome || "Um aluno") + " pediu para acompanhar as aulas pela Área do aluno. Toque para aprovar no Início.", url: "@app", tag: "pedido-aluno" });
     return resposta(200, { ok: true, vinculo: publicoVinculo(vinculo) });
   }
   if (acao === "cancelarPedido") {
