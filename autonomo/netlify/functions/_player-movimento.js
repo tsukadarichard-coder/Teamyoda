@@ -67,4 +67,14 @@ function relatorioValido(texto, id) {
   return !!(o && o.id === id && o.resultado && typeof o.resultado === "object");
 }
 
-module.exports = { GOLPES, LIMITE_FREE_POR_GOLPE, MAX_ANALISES, MAX_RELATORIO, ID_ANALISE, ilimitado, usoDe, cota, avaliarSalvar, limparResumo, relatorioValido };
+/* trecho do golpe (scout/movimento.js capturarClip): quadros pequenos em JPEG + a pose de cada um, para o vídeo e o boneco rodarem
+   juntos no relatório reaberto. Fica num documento à parte (movimentoClips/{id}): não pesa no relatório nem na lista. */
+function clipValido(texto) {
+  if (typeof texto !== "string" || texto.length > MAX_RELATORIO) return false;
+  let o; try { o = JSON.parse(texto); } catch (e) { return false; }
+  if (!o || !Array.isArray(o.t) || !Array.isArray(o.fotos) || !Array.isArray(o.poses)) return false;
+  if (o.t.length < 2 || o.t.length > 60 || o.fotos.length !== o.t.length || o.poses.length !== o.t.length) return false;
+  return o.t.every((x) => typeof x === "number" && isFinite(x)) && o.fotos.every((f) => typeof f === "string" && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(f));
+}
+
+module.exports = { GOLPES, LIMITE_FREE_POR_GOLPE, MAX_ANALISES, MAX_RELATORIO, ID_ANALISE, ilimitado, usoDe, cota, avaliarSalvar, limparResumo, relatorioValido, clipValido };

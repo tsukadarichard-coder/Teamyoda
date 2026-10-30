@@ -34,6 +34,7 @@
     mao: [["destro", "Destro"], ["canhoto", "Canhoto"]],
     backhand: [["uma", "Uma mão"], ["duas", "Duas mãos"]],
     piso: [["saibro", "Saibro"], ["rapida", "Quadra rápida"], ["ambos", "Os dois"]],
+    sexo: [["masculino", "Masculino"], ["feminino", "Feminino"]],
     padraoPonto: [
       ["ofensivo", "Ofensivo", "Busca abreviar o ponto e ataca assim que tem ângulo"],
       ["construtor", "Construtor", "Sustenta a troca até abrir espaço, sem forçar cedo"],
@@ -63,7 +64,7 @@
   };
 
   var ETAPAS = [
-    { titulo: "Sobre você", campos: ["nivel", "mao", "backhand", "piso"] },
+    { titulo: "Sobre você", campos: ["sexo", "nivel", "mao", "backhand", "piso"] },
     { titulo: "Seu jogo", campos: ["armaPrincipal", "pontoFraco", "padraoPonto"] },
     { titulo: "Em quadra", campos: ["rede", "devolucao", "pressao"] },
     { titulo: "Adversário (opcional)", campos: [] },
@@ -892,7 +893,13 @@
     var f = estado.ficha, a = f.adversario;
     var corpo = "";
     if (n === 1) {
-      corpo = grupo("nivel", "Qual é o seu nível?", OP.nivel) + grupo("mao", "Você joga com qual mão?", OP.mao) +
+      var hojeIso = new Date().toISOString().slice(0, 10);
+      corpo = '<div class="campo" id="g-nascimento"><label for="nascimento">Data de nascimento</label><input id="nascimento" type="date" autocomplete="bday" min="1925-01-01" max="' + hojeIso + '" value="' + esc(f.nascimento || "") + '">' +
+          '<p class="nota" id="idadeTxt" style="margin-top:6px">' + esc(idadeTexto(f.nascimento)) + '</p><p class="erro-campo" hidden>Informe a data de nascimento.</p></div>' +
+        grupo("sexo", "Sexo", OP.sexo) +
+        '<div class="campo" id="g-altura"><label for="altura">Altura (em centímetros)</label><input id="altura" type="number" inputmode="numeric" min="80" max="230" step="1" placeholder="Ex.: 172" value="' + esc(f.altura || "") + '">' +
+          '<p class="erro-campo" hidden>Informe a altura em centímetros (entre 80 e 230).</p></div>' +
+        grupo("nivel", "Qual é o seu nível?", OP.nivel) + grupo("mao", "Você joga com qual mão?", OP.mao) +
         grupo("backhand", "Sua esquerda (backhand) é com…", OP.backhand) + grupo("piso", "Em que piso você mais joga?", OP.piso);
     } else if (n === 2) {
       corpo = grupo("armaPrincipal", "Seu golpe mais forte", AREAS, "O golpe em que você mais confia para ganhar pontos.") +
@@ -940,6 +947,12 @@
         var m = form.querySelector('input[name="' + c + '"]:checked');
         f[c] = m ? m.value : "";
       });
+      if (n === 1) {
+        f.nascimento = document.getElementById("nascimento").value || "";
+        var alt = Math.round(Number(document.getElementById("altura").value));
+        f.altura = alt >= 80 && alt <= 230 ? alt : null;
+        document.getElementById("idadeTxt").textContent = idadeTexto(f.nascimento);
+      }
       if (n === 2 && f.pontoFraco && f.pontoFraco === f.armaPrincipal) f.pontoFraco = "";
       if (n === 3) { f.observacoes = document.getElementById("obs").value.trim(); f.relato = document.getElementById("relato").value.trim(); }
       if (n === 4) {
@@ -968,8 +981,8 @@
         document.getElementById("advCampos").hidden = !e.target.checked;
       });
     }
-    form.querySelectorAll("fieldset").forEach(function (fs) {
-      fs.addEventListener("change", function () { var e = fs.querySelector(".erro-campo"); if (e) e.hidden = true; });
+    form.querySelectorAll("fieldset, #g-nascimento, #g-altura").forEach(function (fs) {
+      fs.addEventListener(fs.tagName === "FIELDSET" ? "change" : "input", function () { var e = fs.querySelector(".erro-campo"); if (e) e.hidden = true; });
     });
     /* rascunho: a cada mudança, as respostas vão para a memória e para o aparelho — sair da tela não perde nada */
     function rascunhar() { lerEtapa(); guardarRascunho(); }
@@ -986,6 +999,19 @@
       if (bt.disabled) return;
       lerEtapa();
       var faltando = ETAPAS[n - 1].campos.filter(function (c) { return !f[c]; });
+      if (n === 1) {
+        /* nascimento e altura: campos de digitar, conferidos aqui (o servidor também confere) */
+        var extras = [];
+        if (idadeDe(f.nascimento) == null) extras.push("nascimento");
+        if (!f.altura) extras.push("altura");
+        ["nascimento", "altura"].forEach(function (c) { document.querySelector("#g-" + c + " .erro-campo").hidden = extras.indexOf(c) < 0; });
+        if (extras.length) {
+          faltando.forEach(function (c) { document.querySelector("#g-" + c + " .erro-campo").hidden = false; });
+          document.getElementById("g-" + extras[0]).scrollIntoView({ block: "center" });
+          document.getElementById(extras[0]).focus({ preventScroll: true });
+          return;
+        }
+      }
       faltando.forEach(function (c) { document.querySelector("#g-" + c + " .erro-campo").hidden = false; });
       if (faltando.length) {
         document.getElementById("g-" + faltando[0]).scrollIntoView({ block: "center" });
@@ -1838,6 +1864,14 @@
   }
 
   /* ── Meu perfil de jogador (a mesma ficha que alimenta estratégias e treinos) ── */
+  /* idade a partir da data de nascimento (cadastro do Player) */
+  function idadeDe(nasc) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(nasc || ""))) return null;
+    var h = new Date().toISOString().slice(0, 10), i = Number(h.slice(0, 4)) - Number(nasc.slice(0, 4));
+    if (h.slice(5) < nasc.slice(5)) i--;
+    return i >= 3 && i <= 100 ? i : null;
+  }
+  function idadeTexto(nasc) { var i = idadeDe(nasc); return i == null ? "" : i + " anos"; }
   function rotuloOp(lista, valor) {
     var m = (lista || []).filter(function (o) { return o[0] === valor; })[0];
     return m ? m[1] : "";
@@ -1859,7 +1893,7 @@
     var mudou = d.fichaAtualizadaEm && primeiraEstrategia && String(d.fichaAtualizadaEm) > String(primeiraEstrategia.criadoEm);
     var funcoes = (f.armaPrincipal ? rotuloOp(AREAS, f.armaPrincipal) : "");
     html += '<p class="nota" style="margin-top:8px">Ao editar, as suas estratégias e programas de treino continuam como estão.</p>' +
-      secaoPerfil("Sobre você", 1, linhaPerfil("Nível", rotuloOp(OP.nivel, f.nivel)) + linhaPerfil("Mão dominante", rotuloOp(OP.mao, f.mao)) + linhaPerfil("Backhand", rotuloOp(OP.backhand, f.backhand)) + linhaPerfil("Piso", rotuloOp(OP.piso, f.piso))) +
+      secaoPerfil("Sobre você", 1, linhaPerfil("Idade", idadeTexto(f.nascimento)) + linhaPerfil("Sexo", rotuloOp(OP.sexo, f.sexo)) + linhaPerfil("Altura", f.altura ? f.altura + " cm" : "") + linhaPerfil("Nível", rotuloOp(OP.nivel, f.nivel)) + linhaPerfil("Mão dominante", rotuloOp(OP.mao, f.mao)) + linhaPerfil("Backhand", rotuloOp(OP.backhand, f.backhand)) + linhaPerfil("Piso", rotuloOp(OP.piso, f.piso))) +
       secaoPerfil("Seu jogo", 2, linhaPerfil("Golpe mais forte", funcoes) + linhaPerfil("Ponto mais vulnerável", rotuloOp(AREAS, f.pontoFraco)) + linhaPerfil("Como constrói o ponto", rotuloOp(OP.padraoPonto, f.padraoPonto))) +
       secaoPerfil("Em quadra", 3, linhaPerfil("Rede", rotuloOp(OP.rede, f.rede)) + linhaPerfil("Devolução", rotuloOp(OP.devolucao, f.devolucao)) + linhaPerfil("Sob pressão", rotuloOp(OP.pressao, f.pressao)) + linhaPerfil("Observações", f.observacoes)) +
       secaoPerfil("Adversário", 4, a.ativo
@@ -3428,7 +3462,7 @@
           return '<label class="comp-papel"><input type="radio" name="papel" value="' + p + '"><span><strong>' + ROTULO_PAPEL[p] + "</strong><br><span class=\"nota\">" +
             { atleta: "Jogo torneios e quero organizar a minha preparação.", responsavel: "Acompanho um atleta menor de idade.", treinador: "Acompanho atletas na preparação e nos torneios." }[p] + "</span></span></label>";
         }).join("") +
-        '<div class="campo" id="campoNasc" hidden><label for="nasc">Data de nascimento do atleta</label><input id="nasc" type="date" autocomplete="bday"><p class="nota" style="margin-top:6px">Usamos só para saber se o atleta é menor de idade: nesse caso o responsável participa das aprovações.</p></div>' +
+        '<div class="campo" id="campoNasc" hidden><label for="nasc">Data de nascimento do atleta</label><input id="nasc" type="date" autocomplete="bday" value="' + esc((estado.dados && estado.dados.ficha && estado.dados.ficha.nascimento) || "") + '"><p class="nota" style="margin-top:6px">Usamos só para saber se o atleta é menor de idade: nesse caso o responsável participa das aprovações.</p></div>' +
         '<div class="aviso" id="avisoPapel" role="alert" hidden></div><button class="btn btn-primario btn-grande" type="submit">Continuar</button></form>');
       var f = document.getElementById("fPapel");
       f.addEventListener("change", function () { var p = f.querySelector('input[name="papel"]:checked'); document.getElementById("campoNasc").hidden = !(p && p.value === "atleta"); });

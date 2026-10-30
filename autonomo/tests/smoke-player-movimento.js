@@ -115,12 +115,21 @@ window.firebase={initializeApp:function(){},auth:function(){return a}};})();`;
   const r3 = await api(p, { acao: "salvar", resumo });
   assert.strictEqual(r3.status, 200, "salvar de novo a mesma análise não conta"); assert.strictEqual(store["jogadores/ua"].movimentoUso.forehand, 1);
 
+  /* trecho do golpe (vídeo e boneco juntos), num documento à parte, como no app do treinador */
+  const px = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ==";
+  const clip = { prop: 1.5, t: [0.1, 0.2, 0.3], fotos: [px, px, px], poses: [[[0.5, 0.5]], [[0.5, 0.5]], [[0.5, 0.5]]], fases: [0.1, 0.3], nomes: ["Preparação", "Contato"] };
+  assert.strictEqual((await api(p, { acao: "clip", id: resumo.id, clip: JSON.stringify({ ...clip, fotos: ["javascript:x", px, px] }) })).status, 400, "trecho com imagem inválida");
+  assert.strictEqual((await api(p, { acao: "clip", id: "mvnaoexiste1", clip: JSON.stringify(clip) })).status, 404, "trecho sem análise salva");
+  assert.strictEqual((await api(p, { acao: "clip", id: resumo.id, clip: JSON.stringify(clip) })).status, 200, "trecho guardado");
+  assert(store["jogadores/ua/movimentoClips/" + resumo.id], "trecho fora do documento da análise");
+
   /* reabrir: histórico e relatório completo vindos do servidor */
   await p.reload(); await p.waitForSelector("#movArea .qm-card", { timeout: 15000 });
   assert.strictEqual(await p.locator("[data-ver]").count(), 1, "análise salva no histórico");
   const [pop] = await Promise.all([p.waitForEvent("popup"), p.click("[data-ver]")]);
   await pop.waitForFunction(() => /Checklist por fase/.test(document.body.innerText), null, { timeout: 10000 });
   assert(await pop.locator("img").count() >= 3, "relatório reaberto com as fotos");
+  assert(/Vídeo e boneco juntos/.test(await pop.evaluate(() => document.body.innerText)), "relatório reaberto com o vídeo e o boneco juntos");
   await pop.close();
 
   /* remover não devolve o uso no plano gratuito */
@@ -129,6 +138,7 @@ window.firebase={initializeApp:function(){},auth:function(){return a}};})();`;
   await p.waitForFunction(() => !document.querySelector("[data-ver]"), null, { timeout: 5000 });
   await new Promise((r) => setTimeout(r, 300));
   assert.strictEqual(Object.keys(store).filter((k) => k.startsWith("jogadores/ua/movimentos/")).length, 0, "análise removida");
+  assert(!store["jogadores/ua/movimentoClips/" + resumo.id], "trecho removido junto");
   await p.reload(); await p.waitForSelector("#movArea .qm-card", { timeout: 15000 });
   assert(/já usou a análise gratuita de forehand/.test(await cotaTxt(p)), "remover não devolve a análise gratuita");
 

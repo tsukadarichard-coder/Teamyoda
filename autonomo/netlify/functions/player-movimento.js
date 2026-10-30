@@ -4,7 +4,9 @@
    GET ?id=mv…                              → { relatorio } (o relatório completo guardado, ou null)
    POST { acao: "salvar", resumo }          → salva o resumo de uma análise (conta no limite do Free se for nova)
    POST { acao: "relatorio", id, relatorio } → guarda o relatório completo (fotos das fases) de uma análise já salva
-   POST { acao: "remover", id }             → apaga a análise (no Free o uso do golpe continua contado)
+   GET ?clip=mv…                            → { clip } (o trecho do golpe: vídeo e boneco juntos no relatório, ou null)
+   POST { acao: "clip", id, clip }          → guarda o trecho do golpe de uma análise já salva (documento à parte)
+   POST { acao: "remover", id }             → apaga a análise e o trecho (no Free o uso do golpe continua contado)
 
    Regras em _player-movimento.js. O limite é conferido aqui, numa transação com o documento do jogador: o app só mostra. */
 const { admin, ErroPublico, resposta, usuarioDoPedido, refJogador, nivelDoJogador, planoFull } = require("./_player");
@@ -14,12 +16,18 @@ const M = require("./_player-movimento");
 exports.handler = async function (event) {
   try {
     const usuario = await usuarioDoPedido(event);
-    const ref = refJogador(usuario.uid), col = ref.collection("movimentos");
+    const ref = refJogador(usuario.uid), col = ref.collection("movimentos"), clips = ref.collection("movimentoClips");
     const full = planoFull(usuario.email);
     const nivelDe = (dados) => nivelDoJogador(dados, usuario.email, hojeISO());
 
     if (event.httpMethod === "GET") {
       const q = event.queryStringParameters || {};
+      if (q.clip) {
+        if (!M.ID_ANALISE.test(String(q.clip))) throw new ErroPublico(400, "Análise inválida.");
+        const c = await clips.doc(q.clip).get();
+        let clip = null; try { clip = c.exists ? JSON.parse(c.data().clip) : null; } catch (e) { clip = null; }
+        return resposta(200, { clip });
+      }
       if (q.id) {
         if (!M.ID_ANALISE.test(String(q.id))) throw new ErroPublico(400, "Análise inválida.");
         const d = await col.doc(q.id).get();
@@ -66,11 +74,21 @@ exports.handler = async function (event) {
       return resposta(200, { ok: true });
     }
 
+    if (body.acao === "clip") {
+      const id = String(body.id || "");
+      if (!M.ID_ANALISE.test(id)) throw new ErroPublico(400, "Análise inválida.");
+      if (!M.clipValido(body.clip)) throw new ErroPublico(400, "Trecho inválido ou grande demais.");
+      if (!(await col.doc(id).get()).exists) throw new ErroPublico(404, "Salve a análise antes do trecho.");
+      await clips.doc(id).set({ clip: body.clip, em: new Date().toISOString() });
+      return resposta(200, { ok: true });
+    }
+
     if (body.acao === "remover") {
       const id = String(body.id || "");
       if (!M.ID_ANALISE.test(id)) throw new ErroPublico(400, "Análise inválida.");
       const d = col.doc(id);
       if ((await d.get()).exists) await d.delete();
+      await clips.doc(id).delete().catch(() => {});
       return resposta(200, { ok: true });
     }
 

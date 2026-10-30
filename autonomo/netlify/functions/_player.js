@@ -223,6 +223,22 @@ function multi(lista, v) {
   return Array.isArray(v) ? [...new Set(v.filter((x) => Object.prototype.hasOwnProperty.call(lista, x)))] : [];
 }
 
+const SEXOS = { masculino: "Masculino", feminino: "Feminino" };
+function nascimentoValido(v, hoje) {
+  if (typeof v !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const d = new Date(v + "T12:00:00Z");
+  if (isNaN(d) || d.toISOString().slice(0, 10) !== v) return false;
+  const h = hoje ? new Date(hoje + "T12:00:00Z") : new Date();
+  return d <= h && h.getUTCFullYear() - d.getUTCFullYear() <= 100 && h.getUTCFullYear() - d.getUTCFullYear() >= 3;
+}
+function idadeEm(nasc, hoje) {
+  if (!nascimentoValido(nasc, hoje)) return null;
+  const h = hoje || new Date().toISOString().slice(0, 10);
+  let i = Number(h.slice(0, 4)) - Number(nasc.slice(0, 4));
+  if (h.slice(5) < nasc.slice(5)) i--;
+  return i;
+}
+
 /* Limpa a ficha vinda do app: só campos conhecidos, só valores válidos. */
 function normalizarFicha(f) {
   f = f || {};
@@ -230,6 +246,11 @@ function normalizarFicha(f) {
   for (const campo of Object.keys(OPCOES)) ficha[campo] = opcao(OPCOES[campo], f[campo]);
   ficha.observacoes = texto(f.observacoes);
   ficha.relato = texto(f.relato, 1500); // relato livre, escrito ou ditado pelo jogador
+  /* dados do cadastro (opcionais para quem já tinha perfil): nascimento (a idade sai dele), sexo e altura em cm */
+  ficha.nascimento = nascimentoValido(f.nascimento) ? f.nascimento : "";
+  ficha.sexo = opcao(SEXOS, f.sexo);
+  const alt = Math.round(Number(f.altura));
+  ficha.altura = alt >= 80 && alt <= 230 ? alt : null;
   const a = f.adversario || {};
   ficha.adversario = {
     ativo: a.ativo === true,
@@ -270,6 +291,13 @@ function linhasFicha(ficha) {
   const L = [
     "FICHA DO JOGADOR (autoavaliação — é como ele se vê, não um diagnóstico feito por treinador):",
     "· Nível: " + OPCOES.nivel[ficha.nivel],
+    ...(() => {
+      const idade = idadeEm(ficha.nascimento), partes = [];
+      if (idade != null) partes.push("idade: " + idade + " anos");
+      if (SEXOS[ficha.sexo]) partes.push("sexo: " + SEXOS[ficha.sexo].toLowerCase());
+      if (ficha.altura) partes.push("altura: " + ficha.altura + " cm");
+      return partes.length ? ["· Físico (informado no cadastro; ajuste a linguagem e as exigências físicas a isso): " + partes.join("; ")] : [];
+    })(),
     "· Mão: " + OPCOES.mao[ficha.mao] + "; " + OPCOES.backhand[ficha.backhand],
     "· Piso onde mais joga: " + OPCOES.piso[ficha.piso],
     "· Golpe mais forte: " + AREAS[ficha.armaPrincipal],
@@ -519,5 +547,5 @@ function finalizarPlano(plano, nivel, comAdversario, temHistorico) {
 module.exports = {
   admin, app, ErroPublico, resposta, usuarioDoPedido, refJogador,
   PLANOS_GRATIS, planoFull, NIVEIS_PLANO, nivelDoJogador, recursosDoNivel, resumoAssinatura, fonteDeEstrategia, PRINCIPIOS_JOGO, linhasFicha, limparComplementos, complementosParaFicha, GRUPOS_PERGUNTA, resumoDrill, AREAS, OPCOES, OPCOES_ADVERSARIO,
-  normalizarFicha, fichaCompleta, adversarioUtil, promptPlano, SCHEMA_PLANO, planoValido, finalizarPlano,
+  normalizarFicha, fichaCompleta, adversarioUtil, idadeEm, nascimentoValido, SEXOS, promptPlano, SCHEMA_PLANO, planoValido, finalizarPlano,
 };

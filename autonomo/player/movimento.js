@@ -52,6 +52,9 @@
       /* o relatório só entra depois do resumo salvo (é o resumo que conta no limite) */
       salvar: function (aluno, arq) { return salvando.then(function () { return A.api("player-movimento", { metodo: "POST", corpo: { acao: "relatorio", id: arq.id, relatorio: JSON.stringify(arq) } }); }); },
       ler: function (id) { return A.api("player-movimento?id=" + encodeURIComponent(id)).then(function (r) { return r.relatorio; }); },
+      /* trecho do golpe (vídeo e boneco juntos no relatório reaberto), como no app do treinador */
+      salvarClip: function (id, clip) { return salvando.then(function () { return A.api("player-movimento", { metodo: "POST", corpo: { acao: "clip", id: id, clip: JSON.stringify(clip) } }); }); },
+      lerClip: function (id) { return A.api("player-movimento?clip=" + encodeURIComponent(id)).then(function (r) { return r.clip; }); },
       indice: function () { return Promise.resolve({ itens: d.analises || [], removidos: [] }); },
       registrar: function () { return Promise.resolve(); },
       remover: function () { return Promise.resolve(); },

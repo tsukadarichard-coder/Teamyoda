@@ -1,15 +1,15 @@
 /* QuadraLab Player — mesma identidade do QuadraLab (verde-quadra, verde
    da marca só em detalhes: sobre branco ele não tem contraste para texto). */
 :root {
-  /* mesma paleta e elevação do app do treinador (QuadraLab) */
+  /* mesma paleta e elevação do app do treinador (QuadraLab): verde #1E4D3F, acento #427528, cinza #5A5A5A, fundo #F2F2F2 */
   --tinta: #17251F;
-  --papel: #F6F8F7;
+  --papel: #F2F2F2;
   --cal: #FFFFFF;
   --marca: #69B32A;
-  --marca-texto: #3D7A16;   /* verde da marca escurecido para texto (≥ 4,5:1) */
-  --grafite: #5B6B63;
+  --marca-texto: #427528;   /* verde da marca escurecido para texto e fundos com texto branco (≥ 4,5:1) */
+  --grafite: #5A5A5A;
   --linha: #E2E8E5;
-  --quadra: #103B32;
+  --quadra: #1E4D3F;
   --saibro: #C2561E;        /* laranja de saibro do logo: só em destaques pontuais */
   --saibro-texto: #A8480F;  /* para texto sobre branco (≥ 4,5:1) */
   --saibro-claro: #F7A66B;  /* sobre o verde-escuro do menu */
@@ -281,7 +281,7 @@ fieldset .nota { margin-bottom: 10px; }
 .passos li + li { margin-top: 10px; }
 .passos .num { flex: 0 0 34px; width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--linha); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; background: var(--cal); color: var(--grafite); }
 .passos li.atual { color: var(--tinta); font-weight: 600; }
-.passos li.atual .num { background: var(--marca); border-color: var(--marca); color: #fff; }
+.passos li.atual .num { background: var(--marca-texto); border-color: var(--marca-texto); color: #fff; }
 .passos li.feito .num { background: var(--quadra); border-color: var(--quadra); color: #fff; }
 .passos li.feito { color: var(--grafite); }
 .passos a { color: inherit; }

@@ -22857,13 +22857,14 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   );
 }
 /* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
-const NOVIDADES_TY_VERSAO = "ty-2026-10f";
+const NOVIDADES_TY_VERSAO = "ty-2026-10g";
 const NOVIDADES_TY = [
-  { novo: true, t: "Relatório do aluno", d: "Nova aba Relatório na ficha de cada jogador: escolha o período e o que entra (perfil, planejamento, aulas, scout dos jogos e análise biomecânica), escreva sua observação e gere um documento só, pronto para salvar em PDF ou mandar pelo WhatsApp.", onde: "Jogadores › abra o jogador › Relatório", aba: "alunos" },
-  { novo: true, t: "Comparação com outros jogos", d: "No relatório de uma partida, \"Com comparação\" agora traz até 5 outros jogos do jogador lado a lado, medida por medida, com a média e a evolução — inclusive no jogo mais antigo.", onde: "Jogadores › abra o jogador › Análise de partida › Partidas registradas › Com comparação", aba: "alunos" },
-  { novo: true, t: "Scout: pontos em 1–4, 5–9 e 10+ bolas e confronto direto", d: "A duração do ponto passou para 1–4, 5–9 e 10+ bolas. Dá para marcar o erro de devolução do adversário, e jogos contra o mesmo adversário se cruzam no confronto direto.", onde: "Jogadores › abra o jogador › Análise de partida", aba: "alunos" },
-  { novo: true, t: "Biomecânica: imagem real e boneco lado a lado", d: "Fases do saque revisadas (lançamento, troféu, armada, contato, seguimento e recuperação), a foto de cada fase ao lado do boneco e o vídeo rodando junto com o boneco no relatório.", onde: "Jogadores › abra o jogador › Análise de movimento", aba: "alunos" },
-  { novo: true, t: "PDF no iPhone e jogos apagados", d: "No iPhone e no iPad, o botão dos relatórios gera o PDF e abre o Compartilhar (imprimir, Arquivos, WhatsApp). Jogos com pontos que saem do caderno ficam 90 dias em Jogos apagados para recuperar.", onde: "Relatórios › Salvar como PDF · Análise de partida › Jogos apagados", aba: "alunos" },
+  { novo: true, t: "Notificações no celular", d: "Ative no Hoje (ou em Ajuda › Notificações no celular) e receba no celular as aulas do dia às 7h, as aulas que passaram sem marcar às 21h e as novidades do app. Alunos e pais ativam no link do aluno e recebem: planejamento liberado, recado do professor, relatório publicado, jogo ao vivo começando e aula no dia seguinte. No iPhone, funciona com o app na tela de início.", onde: "Hoje › Receba os lembretes no celular", aba: "dashboard" },
+  { t: "Relatório do aluno", d: "Nova aba Relatório na ficha de cada jogador: escolha o período e o que entra (perfil, planejamento, aulas, scout dos jogos e análise biomecânica), escreva sua observação e gere um documento só, pronto para salvar em PDF ou mandar pelo WhatsApp.", onde: "Jogadores › abra o jogador › Relatório", aba: "alunos" },
+  { t: "Comparação com outros jogos", d: "No relatório de uma partida, \"Com comparação\" agora traz até 5 outros jogos do jogador lado a lado, medida por medida, com a média e a evolução — inclusive no jogo mais antigo.", onde: "Jogadores › abra o jogador › Análise de partida › Partidas registradas › Com comparação", aba: "alunos" },
+  { t: "Scout: pontos em 1–4, 5–9 e 10+ bolas e confronto direto", d: "A duração do ponto passou para 1–4, 5–9 e 10+ bolas. Dá para marcar o erro de devolução do adversário, e jogos contra o mesmo adversário se cruzam no confronto direto.", onde: "Jogadores › abra o jogador › Análise de partida", aba: "alunos" },
+  { t: "Biomecânica: imagem real e boneco lado a lado", d: "Fases do saque revisadas (lançamento, troféu, armada, contato, seguimento e recuperação), a foto de cada fase ao lado do boneco e o vídeo rodando junto com o boneco no relatório.", onde: "Jogadores › abra o jogador › Análise de movimento", aba: "alunos" },
+  { t: "PDF no iPhone e jogos apagados", d: "No iPhone e no iPad, o botão dos relatórios gera o PDF e abre o Compartilhar (imprimir, Arquivos, WhatsApp). Jogos com pontos que saem do caderno ficam 90 dias em Jogos apagados para recuperar.", onde: "Relatórios › Salvar como PDF · Análise de partida › Jogos apagados", aba: "alunos" },
   { t: "Marcar aulas em um toque e Relatório do mês", d: "Em cada aula: Realizada, Aluno faltou ou Cancelada (com o motivo em um toque e a reposição dos alunos já junto). Na turma, toque em quem faltou. No fim de toda aula, marque quem deu: o titular ou um substituto. Errou? Desfazer marcação. A aula registrada no caderno já conta como realizada. No fim do mês, o Relatório do mês mostra as aulas sem registro para fechar, cada aluno (presenças, faltas, canceladas, reposições e o que falta remarcar, com relatório em PDF) e cada professor (aulas dadas, horas, substituições), com planilhas para conferir e pagar. O Financeiro paga pelas aulas marcadas como realizada, para quem deu a aula.", onde: "Hoje › Aulas de hoje e Mais › Gestão da academia › Relatório do mês", aba: "relatorio" },
   { t: "Navegação nova: Hoje, Jogadores, Agenda e Mais", d: "Hoje reúne a próxima aula, as aulas do dia e as pendências (Aulas de hoje e Pendências do dia viraram seções de Hoje). Agenda traz o calendário e as Reposições. O resto está em Mais, em grupos que abrem e fecham. No computador, o botão no topo do menu recolhe a lateral numa faixa de ícones; no celular, a barra de baixo leva aos quatro destinos.", onde: "Menu lateral (computador) ou barra de baixo (celular)", aba: "dashboard" },
   { t: "Planejamento fechado com gráficos e avaliação de cada treino", d: "Ao fechar o planejamento da equipe, ele vira a visão Geral, Semanal e Diária com gráficos (sessões por grupo, itens trabalhados) e aparece para os atletas. No fim de cada sessão, avalie presença e rendimento de 1 a 5 de cada atleta (com notas por item e observações). A aba Rendimento mostra a evolução e gera o relatório do ciclo em PDF; o rendimento também entra no relatório de cada atleta.", onde: "Mais › Grupos › Equipes de competição › abra a equipe › Abrir planejamento › Diário › Avaliar sessão", aba: "equipes" },
@@ -23088,7 +23089,7 @@ function TelaPlanejamentos({ alunos, turmas, aoAbrirJogador, aoAbrirTurma, aoAdi
 }
 /* Ajuda: primeiros passos, novidades, manual do método e como a navegação está organizada */
 /* ── Notificações no celular (push-cliente.js · netlify/functions/push-inscricao.js) ──
-   Avisos do treinador: aulas do dia, aula que passou sem marcar, aluno pedindo acesso, atleta do Competição que aprovou a ligação
+   Avisos do treinador (Team Yoda): aulas do dia, aula que passou sem marcar
    e novidades do app. Só com conta na nuvem (o servidor confere quem é). */
 /* Avisos que nascem aqui no app (o app grava direto no Firestore): avisa o celular do aluno/pais (netlify/functions/push-avisar.js).
    Nunca atrapalha a ação: sem nuvem ou sem internet, não faz nada. */
@@ -23152,8 +23153,8 @@ function CartaoNotificacoes({ compacto }) {
     <div data-notificacoes style={compacto ? { padding: "10px 12px" } : { background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: "12px 14px", marginBottom: 10 }}>
       <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, margin: 0 }}>Notificações no celular</p>
       <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, margin: "2px 0 8px" }}>
-        {estado === "ativo" ? "Ligadas neste aparelho: aulas do dia, aula sem marcar, aluno pedindo acesso, atleta que aprovou a ligação e novidades."
-          : "Receba no celular as aulas do dia, a aula que passou sem marcar, aluno pedindo acesso, atleta que aprovou a ligação e as novidades."}
+        {estado === "ativo" ? "Ligadas neste aparelho: aulas do dia, aula sem marcar e novidades."
+          : "Receba no celular as aulas do dia, a aula que passou sem marcar e as novidades."}
       </p>
       {estado === "indisponivel" || estado === "negado" ? <p style={{ ...prosa, fontSize: 13.5, margin: 0 }}>{motivo}</p> : (
         <Botao pequeno variante={estado === "ativo" ? "vazio" : "saibro"} disabled={ocupado || estado === "carregando"} onClick={alternar} style={{ minHeight: 44 }}>
@@ -23178,7 +23179,7 @@ function AvisoNotificacoes() {
   return (
     <div data-convite-notificacoes role="region" aria-label="Notificações no celular" style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 14, padding: "12px 14px", marginBottom: 14, boxShadow: SOMBRA }}>
       <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, margin: 0 }}>Receba os lembretes no celular</p>
-      <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, margin: "2px 0 8px" }}>{motivo || "Aulas do dia, aula sem marcar, aluno pedindo acesso e novidades, direto na tela do celular."}</p>
+      <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, margin: "2px 0 8px" }}>{motivo || "Aulas do dia, aula sem marcar e novidades, direto na tela do celular."}</p>
       <div className="flex flex-wrap" style={{ gap: 8 }}>
         {!motivo && <Botao pequeno variante="saibro" disabled={ocupado} onClick={ativar} style={{ minHeight: 44 }}>{ocupado ? "Aguarde…" : "Ativar notificações"}</Botao>}
         <Botao pequeno variante="vazio" onClick={fechar} style={{ minHeight: 44 }}>{motivo ? "Entendi" : "Agora não"}</Botao>
