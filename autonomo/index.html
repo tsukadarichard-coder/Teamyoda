@@ -415,6 +415,10 @@ const C = {
    (dropdowns, modais, botão primário no hover). */
 const SOMBRA = "0 1px 2px rgba(16,59,50,.04), 0 1px 3px rgba(16,59,50,.05)";
 const SOMBRA_ALTA = "0 2px 6px rgba(16,59,50,.07), 0 6px 16px rgba(16,59,50,.08)";
+/* ── Início e barra de navegação (revisão de acessibilidade) ──
+   Verde da marca #1E4D3F e acento verde limão escurecido #4A7F2C: o C.saibro (#69B32A) dá 2,6:1 sobre branco e não serve para
+   texto; o #4A7F2C dá 4,8:1. Cinza secundário #5A5A5A (6,9:1), pensado para leitura sob sol. As classes ql-* ficam no <style> do App. */
+const INICIO = { verde: "#1E4D3F", limao: "#4A7F2C", texto2: "#5A5A5A" };
 /* ── tema visual ──
    As telas inteiras leem C.tinta/papel/cal/saibro/grafite/linha/quadra
    direto (não como prop, não como contexto) — um produto de marca única
@@ -2991,7 +2995,10 @@ function Etiqueta({ children, cor = C.grafite }) {
    Uma família só (traço, 1.8px, cantos arredondados) pra navegação e
    controles do cabeçalho — nada de emoji solto misturado com o resto
    da identidade visual. */
-function IconeInicio({ tam = 20 }) {
+function IconeInicio({ tam = 20, cheio }) {
+  if (cheio) return (
+    <svg width={tam} height={tam} viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" fill="currentColor" /></svg>
+  );
   return (
     <svg width={tam} height={tam} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 11.5 12 4l9 7.5" />
@@ -2999,21 +3006,21 @@ function IconeInicio({ tam = 20 }) {
     </svg>
   );
 }
-function IconeJogadores({ tam = 20 }) {
+function IconeJogadores({ tam = 20, cheio }) {
   return (
     <svg width={tam} height={tam} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="9" cy="8" r="3" />
-      <path d="M3.5 20c0-3.3 2.5-6 5.5-6s5.5 2.7 5.5 6" />
+      <circle cx="9" cy="8" r="3" fill={cheio ? "currentColor" : "none"} />
+      <path d="M3.5 20c0-3.3 2.5-6 5.5-6s5.5 2.7 5.5 6" fill={cheio ? "currentColor" : "none"} />
       <circle cx="17" cy="9" r="2.3" />
       <path d="M15 20c.2-2.6 1.7-4.6 3.8-5.2" />
     </svg>
   );
 }
-function IconeAgenda({ tam = 20 }) {
+function IconeAgenda({ tam = 20, cheio }) {
   return (
     <svg width={tam} height={tam} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3.5" y="5" width="17" height="15" rx="2.2" />
-      <path d="M3.5 9.5h17" />
+      <rect x="3.5" y="5" width="17" height="15" rx="2.2" fill={cheio ? "currentColor" : "none"} />
+      <path d="M3.5 9.5h17" stroke={cheio ? "#fff" : "currentColor"} />
       <path d="M8 3v3.2M16 3v3.2" />
     </svg>
   );
@@ -12232,11 +12239,11 @@ function CartaoVinculoAcademia({ alunos, setAlunos, planoAtual }) {
   }
   const ordenados = [...(alunos || [])].sort((a, b) => String(a.nome || "").localeCompare(String(b.nome || "")));
   return (
-    <div className="mb-5" data-vinculo-academia style={{ background: C.cal, border: "1px solid " + (semFicha.length ? C.saibro : C.linha), borderRadius: 10, padding: "10px 14px" }}>
-      <button onClick={abrir} className="w-full text-left flex items-center gap-1 flex-wrap" style={{ background: "none", border: "none", cursor: "pointer", padding: 0, minHeight: 36, width: "100%", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 4, textAlign: "left" }}>
-        <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>Atletas do QuadraLab Competição {aberto ? "▾" : "▸"}</span>
+    <div className="ql-card ql-atalho" data-vinculo-academia data-aberto={aberto ? "true" : "false"} data-destaque={semFicha.length ? "true" : "false"}>
+      <button onClick={abrir} aria-expanded={aberto} className="ql-atalho-btn">
+        <span>Atletas do QuadraLab Competição {aberto ? "▾" : "▸"}</span>
         <Cadeado plano={trava} />
-        {!trava && semFicha.length > 0 && <span data-atletas-sem-ficha style={{ fontFamily: ARCH, fontSize: 10, fontWeight: 700, color: "#fff", background: C.saibro, padding: "2px 7px", borderRadius: 999, marginLeft: 6, whiteSpace: "nowrap" }}>{semFicha.length} para ligar à ficha</span>}
+        {!trava && semFicha.length > 0 && <span data-atletas-sem-ficha className="ql-selo">{semFicha.length} para ligar à ficha</span>}
       </button>
       {aberto && trava && (
         <div style={{ marginTop: 8 }} data-competicao-bloqueado>
@@ -12734,11 +12741,11 @@ function CartaoAreaAluno({ alunos }) {
   const pend = d ? d.pedidos : [], vinc = d ? d.vinculados : [];
   const ordenados = [...(alunos || [])].sort((a, b) => String(a.nome || "").localeCompare(String(b.nome || "")));
   return (
-    <div className="mb-5" data-area-aluno style={{ background: C.cal, border: "1px solid " + (pend.length ? C.saibro : C.linha), borderRadius: 10, padding: "10px 14px" }}>
-      <button onClick={() => setAberto(!aberto)} className="w-full text-left flex items-center gap-2" style={{ background: "none", border: "none", cursor: "pointer", padding: 0, minHeight: 36 }}>
-        <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>Área do aluno {aberto ? "▾" : "▸"}</span>
-        {pend.length > 0 && <span data-pedidos-aluno style={{ fontFamily: ARCH, fontSize: 10, fontWeight: 700, color: "#fff", background: C.saibro, padding: "2px 7px", borderRadius: 999 }}>{pend.length} {pend.length === 1 ? "pedido" : "pedidos"}</span>}
-        {!pend.length && vinc.length > 0 && <span style={{ ...prosa, fontSize: 12, color: C.grafite }}>{vinc.length} {vinc.length === 1 ? "aluno com conta" : "alunos com conta"}</span>}
+    <div className="ql-card ql-atalho" data-area-aluno data-aberto={aberto ? "true" : "false"} data-destaque={pend.length ? "true" : "false"}>
+      <button onClick={() => setAberto(!aberto)} aria-expanded={aberto} className="ql-atalho-btn">
+        <span>Área do aluno {aberto ? "▾" : "▸"}</span>
+        {pend.length > 0 && <span data-pedidos-aluno className="ql-selo">{pend.length} {pend.length === 1 ? "pedido" : "pedidos"}</span>}
+        {!pend.length && vinc.length > 0 && <span style={{ ...prosa, fontSize: 13, color: INICIO.texto2 }}>{vinc.length} {vinc.length === 1 ? "aluno com conta" : "alunos com conta"}</span>}
       </button>
       {aberto && (
         <div style={{ marginTop: 8 }}>
@@ -19460,58 +19467,39 @@ function EscolherPlanejamentoDialog({ alunos, turmas, aoEscolherJogador, aoEscol
    trilha de evolução (lista vertical, círculo numerado/✓, linha
    conectando) já usada na Ficha, reaproveitada aqui pelo mesmo motivo:
    progresso real, nunca um número de telas visitadas. */
-function CardPrimeirosPassos({ passo1Ok, passo2Ok, passo3Ok, aoPasso1, aoPasso2, aoPasso3, aoDispensar }) {
+function CardPrimeirosPassos({ passo1Ok, passo2Ok, passo3Ok, aoPasso1, aoPasso2, aoPasso3, aoDispensar, recolhido }) {
   const passos = [
     { feito: passo1Ok, titulo: "Cadastrar o primeiro jogador", onClick: passo1Ok ? null : aoPasso1 },
     { feito: passo2Ok, titulo: "Preencher as informações essenciais", onClick: !passo1Ok || passo2Ok ? null : aoPasso2 },
     { feito: passo3Ok, titulo: "Criar o primeiro planejamento", onClick: !passo2Ok || passo3Ok ? null : aoPasso3 },
   ];
   const atualIdx = passos.findIndex((p) => !p.feito);
+  /* Cada linha tem pelo menos 44px (área de toque); o círculo de 32px fica centrado na primeira linha e a linha que liga um
+     passo ao outro sai da base do círculo até o topo do próximo, no centro exato (classes ql-passo* no <style> do App).
+     "recolhido": o card fecha a altura até zero (com os três passos feitos, vira o aviso compacto logo acima). */
   return (
-    <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 14, padding: "16px 18px", boxShadow: SOMBRA }}>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <Etiqueta cor={C.saibro}>Primeiros passos</Etiqueta>
-          <p style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, marginTop: 4 }}>Vamos preparar sua primeira aula?</p>
-        </div>
-        <button onClick={aoDispensar} aria-label="Dispensar orientação de primeiros passos"
-          style={{ background: "none", border: "none", cursor: "pointer", color: C.grafite, fontSize: 18,
-            width: 32, height: 32, flexShrink: 0, lineHeight: 1 }}>×</button>
-      </div>
-      <div className="mt-3">
-        {passos.map((p, i) => {
-          const atual = i === atualIdx;
-          const ultimo = i === passos.length - 1;
-          const cor = p.feito ? C.quadra : atual ? C.saibro : C.linha;
-          const conteudo = (
-            <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: atual ? 700 : 500,
-              color: p.feito ? C.grafite : atual ? C.tinta : C.grafite,
-              textDecoration: atual && p.onClick ? "underline" : "none" }}>
-              {p.titulo}
-            </span>
-          );
-          return (
-            <div key={i} style={{ display: "flex", gap: 12 }}>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
-                <div style={{ width: 24, height: 24, borderRadius: "50%", border: "2px solid " + cor,
-                  background: p.feito ? C.quadra : atual ? C.saibro : C.cal, color: (p.feito || atual) ? "#fff" : C.grafite,
-                  fontFamily: ARCH, fontSize: 11, fontWeight: 700,
-                  display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  {p.feito ? "✓" : i + 1}
-                </div>
-                {!ultimo && <div style={{ width: 2, flex: 1, minHeight: 16, background: p.feito ? C.quadra : C.linha }} />}
-              </div>
-              <div style={{ paddingBottom: ultimo ? 2 : 12 }}>
-                {p.onClick ? (
-                  <button type="button" onClick={p.onClick} style={{ background: "none", border: "none", padding: 0,
-                    cursor: "pointer", textAlign: "left", minHeight: 32 }}>
-                    {conteudo}
-                  </button>
-                ) : conteudo}
-              </div>
-            </div>
-          );
-        })}
+    <div className="ql-pp-casca" data-recolhido={recolhido ? "true" : "false"} aria-hidden={recolhido ? "true" : undefined}>
+      <div className="ql-pp-dentro">
+        <section className="ql-card ql-pp-card" aria-labelledby="ql-pp-titulo" data-primeiros-passos>
+          <button type="button" className="ql-icone-btn ql-pp-fechar" onClick={aoDispensar} tabIndex={recolhido ? -1 : undefined}
+            aria-label="Dispensar orientação de primeiros passos"><svg width="20" height="20" viewBox="0 0 20 20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M5 5l10 10M15 5 5 15" /></svg></button>
+          <p className="ql-rotulo">Primeiros passos</p>
+          <h2 id="ql-pp-titulo">Vamos preparar sua primeira aula?</h2>
+          <ol className="ql-passos">
+            {passos.map((p, i) => {
+              const estado = p.feito ? "feito" : i === atualIdx ? "atual" : "pendente";
+              const situacao = <span className="ql-sr">{p.feito ? " — concluído" : estado === "atual" ? " — próximo passo" : " — pendente"}</span>;
+              return (
+                <li key={i} className="ql-passo" data-estado={estado}>
+                  <span className="ql-passo-circulo" aria-hidden="true">{p.feito ? "✓" : i + 1}</span>
+                  {p.onClick
+                    ? <button type="button" className="ql-passo-btn" onClick={p.onClick} tabIndex={recolhido ? -1 : undefined} aria-current={estado === "atual" ? "step" : undefined}><span>{p.titulo}{situacao}</span></button>
+                    : <span className="ql-passo-btn ql-passo-txt"><span>{p.titulo}{situacao}</span></span>}
+                </li>
+              );
+            })}
+          </ol>
+        </section>
       </div>
     </div>
   );
@@ -19519,7 +19507,7 @@ function CardPrimeirosPassos({ passo1Ok, passo2Ok, passo3Ok, aoPasso1, aoPasso2,
 
 function TelaDashboard({ aoAbrirScout, aoDescartarPartida, alunos, setAlunos, planoAtual, turmas, uidAtual, exigeLogin, irPara, aoAbrirSessao, usoIA, identidade, meuNome,
   aoCriarPlanejamento, aoAbrirTurmas, aoAbrirAgenda, aoAdicionarJogador, aoEditarDados,
-  onboardingDispensado, setOnboardingDispensado }) {
+  onboardingDispensado, setOnboardingDispensado, primeirosPassosForcado, setPrimeirosPassosForcado }) {
   const [escolhendoPlanejamento, setEscolhendoPlanejamento] = useState(false);
   /* "Vamos preparar sua primeira aula?" — três marcos reais, não um
      contador de telas visitadas. Some sozinho quando os três já
@@ -19530,7 +19518,25 @@ function TelaDashboard({ aoAbrirScout, aoDescartarPartida, alunos, setAlunos, pl
   const onboardingPasso2 = onboardingPasso1 && onboardingDadosEssenciaisOk(primeiroJogador);
   const onboardingPasso3 = alunos.some((a) => a.plano);
   const onboardingCompleto = onboardingPasso1 && onboardingPasso2 && onboardingPasso3;
-  const mostrarOnboarding = !onboardingCompleto && !onboardingDispensado;
+  /* Os passos acontecem em outras telas (o Início nem está aberto): este aparelho lembra que o card foi visto com passos
+     pendentes e, na volta ao Início com os três feitos, mostra os três ✓ por um instante e recolhe o card num aviso compacto.
+     Quem já tinha tudo pronto nunca vê o card nem o aviso. "Primeiros passos", no Mais, reabre o card a qualquer momento. */
+  const [concluindo, setConcluindo] = useState(() => {
+    try { return onboardingCompleto && !onboardingDispensado && localStorage.getItem("ql:primeiros-passos-pendente") === "1"; } catch (e) { return false; }
+  });
+  const [recolhido, setRecolhido] = useState(false);
+  useEffect(() => {
+    try {
+      if (!onboardingCompleto && !onboardingDispensado) localStorage.setItem("ql:primeiros-passos-pendente", "1");
+      else if (onboardingCompleto) localStorage.removeItem("ql:primeiros-passos-pendente");
+    } catch (e) { /* sem armazenamento local: o card só some, sem o aviso */ }
+    if (onboardingCompleto && concluindo && !recolhido && !primeirosPassosForcado) {
+      const t = setTimeout(() => setRecolhido(true), 900);
+      return () => clearTimeout(t);
+    }
+  }, [onboardingCompleto, onboardingDispensado, concluindo, recolhido, primeirosPassosForcado]);
+  const mostrarOnboarding = !onboardingDispensado && (!onboardingCompleto || concluindo || primeirosPassosForcado);
+  const cardRecolhido = recolhido && !primeirosPassosForcado;
   /* null fechado; "prontas"/"semana" abrem a lista do indicador correspondente. */
   const [detalhe, setDetalhe] = useState(null);
 
@@ -19569,21 +19575,29 @@ function TelaDashboard({ aoAbrirScout, aoDescartarPartida, alunos, setAlunos, pl
 
   return (
     <div>
-      <h1 style={{ fontFamily: ARCH, fontSize: 26, fontWeight: 700, marginBottom: 4 }}>{saudacao}</h1>
+      <h1 className="ql-inicio-saudacao">{saudacao}</h1>
       <CartaoPartidasEmAndamento alunos={alunos} aoAbrirScout={aoAbrirScout} aoDescartar={aoDescartarPartida} />
       <CartaoRevisoesPlano alunos={alunos} turmas={turmas} irPara={irPara} irParaTurma={() => aoAbrirTurmas()} />
-      {LIGACAO_COMPETICAO && <CartaoVinculoAcademia alunos={alunos} setAlunos={setAlunos} planoAtual={planoAtual} />}
-      <CartaoAreaAluno alunos={alunos} />
-      <p style={{ ...prosa, fontSize: 15, color: C.grafite, marginBottom: onboardingDispensado && !onboardingCompleto ? 4 : 18 }}>
-        Vamos preparar sua próxima aula?
-      </p>
+      {/* atalhos lado a lado e compactos (o que estiver aberto ocupa a linha toda): a "Próxima aula" continua na primeira tela */}
+      <div className="ql-atalhos">
+        {LIGACAO_COMPETICAO && <CartaoVinculoAcademia alunos={alunos} setAlunos={setAlunos} planoAtual={planoAtual} />}
+        <CartaoAreaAluno alunos={alunos} />
+      </div>
+      {!mostrarOnboarding && (
+        <p style={{ ...prosa, fontSize: 15, color: INICIO.texto2, marginBottom: onboardingDispensado && !onboardingCompleto ? 4 : 16 }}>
+          Vamos preparar sua próxima aula?
+        </p>
+      )}
       {onboardingDispensado && !onboardingCompleto && (
-        <div className="mb-4">
-          <button type="button" onClick={() => setOnboardingDispensado(false)}
-            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: ARCH,
-              fontSize: 12.5, fontWeight: 700, color: C.quadra, textDecoration: "underline" }}>
-            Retomar primeiros passos
-          </button>
+        <div className="mb-3">
+          <button type="button" className="ql-link" onClick={() => setOnboardingDispensado(false)}>Retomar primeiros passos</button>
+        </div>
+      )}
+      {cardRecolhido && (
+        <div className="ql-card ql-pp-banner" role="status" data-primeiros-passos-concluido>
+          <span className="ql-pp-ok" aria-hidden="true">✓</span>
+          <span><strong>Configuração concluída</strong><span className="ql-so-celular"> — reabrir em Mais</span></span>
+          <button type="button" className="ql-link ql-so-computador" onClick={() => setPrimeirosPassosForcado(true)}>Reabrir</button>
         </div>
       )}
       {mostrarOnboarding && (
@@ -19592,18 +19606,17 @@ function TelaDashboard({ aoAbrirScout, aoDescartarPartida, alunos, setAlunos, pl
           aoPasso1={aoAdicionarJogador}
           aoPasso2={() => primeiroJogador && aoEditarDados(primeiroJogador.id, onboardingEtapaPendente(primeiroJogador) || 1)}
           aoPasso3={() => primeiroJogador && irPara(primeiroJogador.id)}
-          aoDispensar={() => setOnboardingDispensado(true)} />
+          aoDispensar={() => { setOnboardingDispensado(true); setPrimeirosPassosForcado(false); }}
+          recolhido={cardRecolhido} />
       )}
 
       {/* ── ação principal: única entrada pra criar planejamento na tela toda ──
          Pede primeiro se é pra um jogador ou uma turma — são fluxos
          diferentes, cada um com seu próprio TelaPlano. */}
-      <div className="mb-3">
-        <Botao variante="saibro" onClick={() => setEscolhendoPlanejamento(true)} style={{ width: "100%" }}>Criar planejamento</Botao>
-      </div>
-      <div className="flex gap-2 flex-wrap mb-5">
-        <Botao pequeno variante="vazio" onClick={aoAdicionarJogador}>+ Adicionar jogador</Botao>
-        <Botao pequeno variante="vazio" onClick={aoAbrirAgenda}>+ Agendar aula</Botao>
+      <button type="button" className="ql-cta" onClick={() => setEscolhendoPlanejamento(true)}>Criar planejamento</button>
+      <div className="ql-secundarios">
+        <button type="button" className="ql-outline" onClick={aoAdicionarJogador}>+ Adicionar jogador</button>
+        <button type="button" className="ql-outline" onClick={aoAbrirAgenda}>+ Agendar aula</button>
       </div>
       {escolhendoPlanejamento && (
         <EscolherPlanejamentoDialog alunos={alunos} turmas={turmas}
@@ -19614,24 +19627,25 @@ function TelaDashboard({ aoAbrirScout, aoDescartarPartida, alunos, setAlunos, pl
       )}
 
       {/* ── próxima aula ── */}
-      <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 14, padding: "16px 18px" }}>
-        <Etiqueta cor={C.saibro}>Próxima aula</Etiqueta>
+      <section className="ql-card mb-5" style={{ padding: "6px 10px 14px 18px" }} aria-labelledby="ql-proxima-aula" data-proxima-aula>
+        {/* o cabeçalho inteiro é o botão (ver o planejamento da aula ou, sem aula, abrir a Agenda) */}
+        <button type="button" className="ql-card-cabeca" onClick={prox ? aoVerAula : aoAbrirAgenda}
+          aria-label={prox ? "Próxima aula: ver planejamento" : "Próxima aula: agendar aula"}>
+          <h2 id="ql-proxima-aula" className="ql-rotulo" style={{ fontSize: 17, fontWeight: 700 }}>Próxima aula</h2>
+          <span className="ql-card-cabeca-acao">{prox ? "Ver planejamento" : "Agendar aula"}<svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M8 5l5 5-5 5" /></svg></span>
+        </button>
         {prox ? (
-          <div className="mt-2">
-            <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>{prox.diaLabel} · {prox.hora}</p>
-            <h2 style={{ fontFamily: ARCH, fontSize: 18, fontWeight: 700, marginTop: 2 }}>{prox.titulo}</h2>
-            <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginTop: 4 }}>
-              {prox.objetivo || "Ainda sem plano montado pra essa aula."}
-            </p>
-            <div className="mt-3"><Botao onClick={aoVerAula}>Ver planejamento</Botao></div>
+          <div className="ql-aula">
+            <div className="ql-aula-hora"><b>{prox.hora}</b><span>{prox.diaLabel}</span></div>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <p style={{ fontFamily: ARCH, fontSize: 17, fontWeight: 700, margin: 0, color: C.tinta }}>{prox.titulo}</p>
+              <p style={{ ...prosa, fontSize: 15, color: INICIO.texto2, marginTop: 2 }}>{prox.objetivo || "Ainda sem plano montado pra essa aula."}</p>
+            </div>
           </div>
         ) : (
-          <div className="mt-2">
-            <p style={{ ...prosa, color: C.grafite, marginTop: 2 }}>Nenhuma aula agendada.</p>
-            <div className="mt-3"><Botao variante="vazio" onClick={aoAbrirAgenda}>Agendar aula</Botao></div>
-          </div>
+          <p style={{ ...prosa, fontSize: 15, color: INICIO.texto2, marginTop: 2 }}>Nenhuma aula agendada.</p>
         )}
-      </div>
+      </section>
 
       {hojeRestante.length > 0 && (
         <div className="mb-5">
@@ -19758,7 +19772,7 @@ function IconeCalendario({ tam = 28 }) {
   );
 }
 
-function PainelMais({ aba, setAba, aoFechar, planoAtual }) {
+function PainelMais({ aba, setAba, aoFechar, planoAtual, aoPrimeirosPassos }) {
   const itens = [...NAV_PRINCIPAL.filter((t) => !["dashboard", "alunos", "agenda"].includes(t.v)),
     { v: "observar", r: "Observar jogos" }, { v: "quadro", r: "Quadro tático" }, { v: "metodo", r: "Meu método", trava: planoQueLibera("metodo", planoAtual) }, { v: "catalogo", r: "Catálogo de exercícios" },
     ...(LIGACAO_PLAYER ? [{ v: "hubPerfil", r: "Meu perfil profissional" }, { v: "hubPedidos", r: "Pedidos de atendimento" }] : [])];
@@ -19782,6 +19796,12 @@ function PainelMais({ aba, setAba, aoFechar, planoAtual }) {
             </button>
           ))}
           <div style={{ borderTop: "1px solid " + C.linha, margin: "6px 2px" }} />
+          {aoPrimeirosPassos && (
+            <button onClick={() => { aoPrimeirosPassos(); aoFechar(); }} className="w-full text-left" data-mais-primeiros-passos
+              style={{ display: "block", padding: "13px 12px", border: "none", cursor: "pointer", borderRadius: 10, minHeight: 44, background: "none", color: C.tinta }}>
+              <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 600 }}>Primeiros passos</span>
+            </button>
+          )}
           <button onClick={() => { setAba("ajuda"); aoFechar(); }} className="w-full text-left"
             aria-current={aba === "ajuda" ? "page" : undefined}
             style={{ display: "block", padding: "13px 12px", border: "none", cursor: "pointer", borderRadius: 10, minHeight: 44,
@@ -20664,6 +20684,8 @@ function App() {
      da leitura chegar). */
   const [onboardingDispensado, setOnboardingDispensado] = useState(false);
   const [onboardingCarregado, setOnboardingCarregado] = useState(false);
+  /* reaberto pelo Mais: o card aparece mesmo com os três passos feitos (até fechar no ×) */
+  const [primeirosPassosForcado, setPrimeirosPassosForcado] = useState(false);
   useEffect(() => {
     if (autenticado && onboardingCarregado) grave("mty:onboardingDispensado", onboardingDispensado, true);
   }, [onboardingDispensado, onboardingCarregado, autenticado]);
@@ -20849,7 +20871,80 @@ function App() {
         .mty-cartao:hover { box-shadow: ${SOMBRA_ALTA}; }
         .mty-topo-logo { display: none; }
         .mty-bottomnav { display: none; }
-        .mty-bottomnav-item:focus-visible { outline-offset: -2px; }
+        /* barra de navegação inferior (celular): clara, como a do iOS; a aba ativa fica no verde da marca com o ícone cheio */
+        .mty-bottomnav { background: rgba(255,255,255,.96); -webkit-backdrop-filter: saturate(180%) blur(16px); backdrop-filter: saturate(180%) blur(16px);
+          border-top: 1px solid #D5D9D7; padding: 6px 4px max(env(safe-area-inset-bottom), 14px); }
+        .mty-bottomnav-item { border: 0; background: none; cursor: pointer; padding: 6px 4px; min-height: 56px; border-radius: 12px; color: ${INICIO.texto2}; }
+        .mty-bottomnav-item[aria-current="page"] { color: ${INICIO.verde}; }
+        .mty-bottomnav-item:focus-visible { outline: 3px solid ${INICIO.verde}; outline-offset: -3px; }
+
+        /* ── Início ── (tokens em INICIO) */
+        .ql-inicio-saudacao { font-family: ${ARCH}; font-size: 32px; font-weight: 700; letter-spacing: -.02em; line-height: 1.12; margin: 0 0 10px; color: ${C.tinta}; }
+        .ql-card { background: #fff; border-radius: 16px; box-shadow: 0 1px 2px rgba(16,24,20,.06), 0 4px 14px rgba(16,24,20,.06); }
+        .ql-rotulo { font-family: ${ARCH}; font-size: 15px; font-weight: 600; color: ${INICIO.limao}; margin: 0; }
+        .ql-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+        .ql-link { background: none; border: 0; padding: 0 4px; min-height: 44px; cursor: pointer; font-family: ${ARCH}; font-size: 14px; font-weight: 700; color: ${INICIO.verde}; text-decoration: underline; text-underline-offset: 3px; border-radius: 8px; }
+        .ql-icone-btn { width: 44px; height: 44px; display: grid; place-items: center; border: 0; background: transparent; border-radius: 12px; cursor: pointer; color: ${INICIO.texto2}; }
+        .ql-atalhos { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 12px; }
+        .ql-atalhos:empty { display: none; }
+        .ql-atalho { padding: 0 10px 0 12px; min-width: 0; }
+        .ql-atalho[data-aberto="true"] { grid-column: 1 / -1; padding-bottom: 12px; }
+        .ql-atalho[data-destaque="true"] { box-shadow: inset 0 0 0 1.5px ${INICIO.limao}, 0 1px 2px rgba(16,24,20,.06), 0 4px 14px rgba(16,24,20,.06); }
+        .ql-atalho-btn { width: 100%; min-height: 52px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; padding: 7px 0; background: none; border: 0; cursor: pointer; text-align: left;
+          font-family: ${ARCH}; font-size: 13.5px; font-weight: 700; line-height: 1.3; color: ${C.tinta}; border-radius: 10px; }
+        .ql-selo { font-family: ${ARCH}; font-size: 11.5px; font-weight: 700; color: #fff; background: ${INICIO.limao}; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+        .ql-pp-casca { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .32s ease, opacity .24s ease, margin .32s ease; margin-bottom: 14px; }
+        .ql-pp-casca[data-recolhido="true"] { grid-template-rows: 0fr; opacity: 0; margin-bottom: 0; visibility: hidden; transition: grid-template-rows .32s ease, opacity .24s ease, margin .32s ease, visibility 0s .32s; }
+        .ql-pp-dentro { min-height: 0; }
+        .ql-pp-casca[data-recolhido="true"] .ql-pp-dentro { overflow: hidden; }
+        .ql-pp-card { position: relative; padding: 18px 18px 14px; }
+        .ql-pp-card h2 { font-family: ${ARCH}; font-size: 21px; font-weight: 700; line-height: 1.25; letter-spacing: -.01em; margin: 4px 0 10px; padding-right: 36px; color: ${C.tinta}; }
+        .ql-pp-fechar { position: absolute; top: 6px; right: 6px; }
+        /* passos: linha de 44px, círculo de 32px a 6px do topo, conector do fim de um círculo (38px) ao início do próximo */
+        .ql-passos { list-style: none; margin: 0; padding: 0; }
+        .ql-passo { position: relative; display: flex; align-items: flex-start; gap: 14px; padding-bottom: 8px; }
+        .ql-passo:last-child { padding-bottom: 0; }
+        .ql-passo:not(:last-child)::after { content: ""; position: absolute; width: 2px; left: 15px; top: 38px; bottom: -6px; background: #D5D9D7; }
+        .ql-passo[data-estado="feito"]:not(:last-child)::after { background: ${INICIO.verde}; }
+        .ql-passo-circulo { flex: none; width: 32px; height: 32px; border-radius: 50%; margin-top: 6px; display: grid; place-items: center; font-family: ${ARCH}; font-size: 15px; font-weight: 700; transition: background-color .2s ease; }
+        .ql-passo[data-estado="feito"] .ql-passo-circulo { background: ${INICIO.verde}; color: #fff; }
+        .ql-passo[data-estado="atual"] .ql-passo-circulo { background: ${INICIO.limao}; color: #fff; }
+        .ql-passo[data-estado="pendente"] .ql-passo-circulo { background: #EDEDED; color: #4A4A4A; border: 1.5px solid #8A8A8A; }
+        .ql-passo-btn { flex: 1; min-height: 44px; display: flex; align-items: center; text-align: left; padding: 0 6px; margin-left: -6px; border: 0; background: transparent; border-radius: 10px;
+          font-family: ${ARCH}; font-size: 17px; line-height: 22px; color: ${INICIO.texto2}; cursor: pointer; }
+        .ql-passo-txt { cursor: default; }
+        .ql-passo[data-estado="atual"] .ql-passo-btn { color: ${C.tinta}; font-weight: 700; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+        .ql-pp-banner { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 12px 6px 16px; margin-bottom: 16px; font-family: ${ARCH}; font-size: 15px; color: ${INICIO.texto2}; animation: ql-surgir .32s ease both; }
+        .ql-pp-banner > span:nth-child(2) { flex: 1; }
+        .ql-pp-banner strong { color: ${INICIO.verde}; }
+        .ql-pp-ok { flex: none; width: 24px; height: 24px; border-radius: 50%; background: ${INICIO.verde}; color: #fff; display: grid; place-items: center; font-size: 13px; font-weight: 700; }
+        @keyframes ql-surgir { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+        .ql-cta { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 54px; margin: 0 0 12px; border: 0; border-radius: 14px;
+          background: ${INICIO.verde}; color: #fff; font-family: ${ARCH}; font-size: 18px; font-weight: 700; cursor: pointer; transition: background-color .15s ease, transform .1s ease; }
+        .ql-secundarios { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+        .ql-outline { min-height: 48px; padding: 0 10px; border: 1.5px solid ${INICIO.verde}; border-radius: 14px; background: transparent; color: ${INICIO.verde};
+          font-family: ${ARCH}; font-size: 16px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: background-color .15s ease, transform .1s ease; }
+        @media (max-width: 359px) { .ql-outline { font-size: 14.5px; } }
+        .ql-aula { display: flex; gap: 14px; align-items: center; margin-top: 4px; padding-right: 8px; }
+        .ql-card-cabeca { width: 100%; min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 0 0 0; margin: 0;
+          background: none; border: 0; cursor: pointer; text-align: left; border-radius: 10px; }
+        .ql-card-cabeca-acao { display: inline-flex; align-items: center; gap: 2px; font-family: ${ARCH}; font-size: 14px; font-weight: 600; color: ${INICIO.verde}; white-space: nowrap; }
+        .ql-aula-hora { flex: none; min-width: 64px; padding: 8px 6px; border-radius: 12px; background: #EEF3F0; text-align: center; color: ${INICIO.verde}; font-family: ${ARCH}; }
+        .ql-aula-hora b { display: block; font-size: 20px; line-height: 1.1; }
+        .ql-aula-hora span { font-size: 13px; font-weight: 600; }
+        .ql-cta:active:not(:disabled) { background: #0F2A22; transform: scale(.985); opacity: 1; }
+        .ql-outline:active:not(:disabled) { background: rgba(30,77,63,.14); transform: scale(.98); opacity: 1; }
+        .ql-icone-btn:active, .ql-passo-btn:active, .ql-atalho-btn:active, .ql-card-cabeca:active, .mty-bottomnav-item:active { background: rgba(30,77,63,.12); opacity: 1; }
+        @media (hover: hover) {
+          .ql-cta:hover { background: #163A2F; }
+          .ql-outline:hover, .ql-icone-btn:hover, .ql-atalho-btn:hover, .ql-card-cabeca:hover, .mty-bottomnav-item:hover, button.ql-passo-btn:hover { background: rgba(30,77,63,.07); }
+          button.ql-passo-btn:hover { color: ${C.tinta}; }
+        }
+        .ql-cta:focus-visible, .ql-outline:focus-visible, .ql-icone-btn:focus-visible, .ql-passo-btn:focus-visible, .ql-atalho-btn:focus-visible, .ql-link:focus-visible, .ql-card-cabeca:focus-visible {
+          outline: 3px solid ${INICIO.verde}; outline-offset: 2px; }
+        .ql-so-computador { display: none; }
+        @media (min-width: 761px) { .ql-so-computador { display: inline-block; } .ql-so-celular { display: none; } }
+        @media (prefers-reduced-motion: reduce) { .ql-pp-casca, .ql-pp-banner, .ql-passo-circulo, .ql-cta, .ql-outline { transition: none !important; animation: none !important; } }
         /* Navegação interna do jogador (Perfil/Planejamento/Aulas/Resumo do
            ciclo/Mais): no computador são abas; no celular, uma barra de
            abas comprimindo 5+ nomes em uma linha fica ilegível, então vira
@@ -20877,7 +20972,7 @@ function App() {
            encosta direto na borda da tela. */
         .mty-barra-finalizar { bottom: 0; }
         @media (max-width: 760px) {
-          .mty-barra-finalizar { bottom: calc(56px + env(safe-area-inset-bottom)); }
+          .mty-barra-finalizar { bottom: calc(62px + max(env(safe-area-inset-bottom), 14px)); }
         }
         @media (max-width: 760px) {
           /* No celular a barra lateral de 252px nem existe — fica escondida
@@ -20889,7 +20984,7 @@ function App() {
           .mty-topo-logo { display: block !important; }
           .mty-topbar, .mty-main { margin-left: 0 !important; }
           .mty-bottomnav { display: block !important; }
-          .mty-main { padding-bottom: calc(76px + env(safe-area-inset-bottom)) !important; }
+          .mty-main { padding-bottom: calc(84px + max(env(safe-area-inset-bottom), 14px)) !important; }
           /* O dropdown do sino, ancorado no próprio botão, saía da tela em
              telas estreitas — vira painel fixo, preso pelas duas bordas
              laterais (nunca mais largo que a tela, nunca cortado). */
@@ -21089,7 +21184,8 @@ function App() {
            aoCriarPlanejamento={() => setAba("alunos")} aoAbrirTurmas={() => setAba("turmas")} aoAbrirAgenda={() => setAba("agenda")}
            aoAdicionarJogador={() => { criar(); setAba("alunos"); }}
            aoEditarDados={(id, et) => { setAba("alunos"); setAbertoId(id); setSubaba("ficha"); setEtapaFichaAlvo(et); }}
-           onboardingDispensado={onboardingDispensado} setOnboardingDispensado={setOnboardingDispensado} /> :
+           onboardingDispensado={onboardingDispensado} setOnboardingDispensado={setOnboardingDispensado}
+           primeirosPassosForcado={primeirosPassosForcado} setPrimeirosPassosForcado={setPrimeirosPassosForcado} /> :
          aberto ? (() => {
           /* "Durante a criação de um novo jogador" é o cadastro inteiro,
              não só a primeira tela com nome vazio: aluno.cadastroConcluido
@@ -21376,8 +21472,7 @@ function App() {
       </main>
 
       <nav className="mty-bottomnav" aria-label="Navegação principal" style={{
-        position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 28, background: C.quadra,
-        paddingBottom: "env(safe-area-inset-bottom)" }}>
+        position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 28 }}>
         <div className="flex items-stretch" style={{ maxWidth: 760, margin: "0 auto" }}>
           {[
             { v: "dashboard", r: "Início", Icone: IconeInicio },
@@ -21388,11 +21483,9 @@ function App() {
             return (
               <button key={t.v} className="mty-bottomnav-item flex-1 flex flex-col items-center justify-center gap-1"
                 onClick={() => tentarNavegar(() => { setAba(t.v); setAbertoId(null); setMaisAberto(false); })}
-                aria-current={ativo ? "page" : undefined}
-                style={{ border: "none", background: "none", cursor: "pointer", padding: "9px 4px", minHeight: 56,
-                  color: ativo ? "#fff" : "rgba(255,255,255,.65)" }}>
-                <t.Icone tam={21} />
-                <span style={{ fontFamily: ARCH, fontSize: 11, fontWeight: ativo ? 700 : 600 }}>{t.r}</span>
+                aria-current={ativo ? "page" : undefined}>
+                <t.Icone tam={24} cheio={ativo} />
+                <span style={{ fontFamily: ARCH, fontSize: 12, fontWeight: ativo ? 700 : 600 }}>{t.r}</span>
               </button>
             );
           })}
@@ -21401,11 +21494,9 @@ function App() {
             return (
               <button className="mty-bottomnav-item flex-1 flex flex-col items-center justify-center gap-1"
                 onClick={() => setMaisAberto(true)} aria-current={ativo ? "page" : undefined}
-                aria-haspopup="true" aria-expanded={maisAberto}
-                style={{ border: "none", background: "none", cursor: "pointer", padding: "9px 4px", minHeight: 56,
-                  color: ativo ? "#fff" : "rgba(255,255,255,.65)" }}>
-                <IconeMais tam={21} />
-                <span style={{ fontFamily: ARCH, fontSize: 11, fontWeight: ativo ? 700 : 600 }}>Mais</span>
+                aria-haspopup="true" aria-expanded={maisAberto}>
+                <IconeMais tam={24} />
+                <span style={{ fontFamily: ARCH, fontSize: 12, fontWeight: ativo ? 700 : 600 }}>Mais</span>
               </button>
             );
           })()}
@@ -21413,7 +21504,8 @@ function App() {
       </nav>
 
       {maisAberto && (
-        <PainelMais aba={aba} setAba={setAba} aoFechar={() => setMaisAberto(false)} planoAtual={planoAtual} />
+        <PainelMais aba={aba} setAba={setAba} aoFechar={() => setMaisAberto(false)} planoAtual={planoAtual}
+          aoPrimeirosPassos={() => tentarNavegar(() => { setOnboardingDispensado(false); setPrimeirosPassosForcado(true); setAba("dashboard"); setAbertoId(null); })} />
       )}
 
       {acaoSaidaPendente && (
