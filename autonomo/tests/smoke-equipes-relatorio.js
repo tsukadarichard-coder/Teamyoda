@@ -163,8 +163,8 @@ const servidor = http.createServer(async (req, res) => {
   await p.goto(base + "/__t?uid=u1&novidades=1"); await p.waitForSelector("[data-novidades]", { timeout: 120000 });
   assert(await p.locator("[data-novidade-nova]").count() >= 5 && /Já disponível no Team Yoda/.test(await p.locator("[data-novidades]").innerText()), "novidades em destaque");
   await cap("equipe-04-novidades");
-  await p.locator('[data-novidade-nova]:has-text("Observar jogos por voz") >> text=Abrir').click();
-  await p.waitForSelector('[data-aba="observar"]'); assert.strictEqual(await p.locator("[data-novidades]").count(), 0);
+  await p.locator('[data-novidade-nova]:has-text("Relatório do aluno") >> text=Abrir').click();
+  await p.waitForSelector('[data-aba="alunos"]'); assert.strictEqual(await p.locator("[data-novidades]").count(), 0);
   assert.deepStrictEqual(erros, [], "erros de JS: " + erros.join(" | "));
   console.log("smoke-equipes-relatorio: ok");
   await browser.close(); servidor.close();
