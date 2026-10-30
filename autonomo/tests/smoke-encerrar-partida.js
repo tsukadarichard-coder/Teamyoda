@@ -35,14 +35,14 @@ if (!existe()) { console.log("smoke-encerrar-partida: pulado (sem React/Babel lo
     await p.waitForSelector("[data-pdf-partida]");
     await p.getByRole("button", { name: "Relatório da partida (PDF)" }).click(); await p.waitForTimeout(500);
     let docs = await p.evaluate(() => window.__docs);
-    assert.strictEqual(docs.length, 1, app + ": abriu o documento"); assert(/Salvar como PDF/.test(docs[0]) && /Relatório (parcial da|da) partida/.test(docs[0]) && /Motivo informado: <b>Motivo médico \(do jogador\)/.test(docs[0]) && !/Em relação aos jogos anteriores/.test(docs[0]), app + ": relatório da partida sem comparação, pronto para salvar como PDF");
+    assert.strictEqual(docs.length, 1, app + ": abriu o documento"); assert(/Salvar como PDF/.test(docs[0]) && /Relatório (parcial da|da) partida/.test(docs[0]) && /Motivo informado: <b>Motivo médico \(do jogador\)/.test(docs[0]) && !/Comparação com outros jogos/.test(docs[0]), app + ": relatório da partida sem comparação, pronto para salvar como PDF");
     assert(/logo-quadralab-relatorio\.png/.test(docs[0]) && !/Team Yoda|Metodologia MTY/.test(docs[0]), app + ": logo do QuadraLab (não da academia)");
     await p.getByRole("button", { name: "Com comparação aos jogos anteriores" }).click(); await p.waitForTimeout(500);
-    docs = await p.evaluate(() => window.__docs); assert(/Em relação aos jogos anteriores/.test(docs[1]) && /Média dos 1 jogo anterior/.test(docs[1]), app + ": com comparação inclui o jogo anterior");
+    docs = await p.evaluate(() => window.__docs); assert(/Comparação com outros jogos/.test(docs[1]) && /Este jogo ao lado de 1 outro jogo/.test(docs[1]), app + ": com comparação inclui o outro jogo");
     // salvar no caderno e gerar de novo não duplica o jogo
     await p.getByRole("button", { name: "Salvar alterações" }).click(); await p.waitForTimeout(400);
     await p.getByRole("button", { name: "Com comparação aos jogos anteriores" }).click(); await p.waitForTimeout(500);
-    docs = await p.evaluate(() => window.__docs); assert(/Média dos 1 jogo anterior/.test(docs[2]) && !/Média dos 2 jogos anteriores/.test(docs[2]), app + ": depois de salvar não conta o jogo duas vezes");
+    docs = await p.evaluate(() => window.__docs); assert(/Este jogo ao lado de 1 outro jogo/.test(docs[2]) && !/ao lado de 2 outros jogos/.test(docs[2]), app + ": depois de salvar não conta o jogo duas vezes");
     // jogos já coletados: relatório direto da lista, sem alterar nenhum registro
     await p.reload(); await p.waitForFunction(() => document.body.innerText.includes("Análise de partida"), null, { timeout: 120000 });
     const antes = await p.evaluate(() => JSON.stringify(window.__alunos[0].registros));

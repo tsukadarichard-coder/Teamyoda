@@ -11199,7 +11199,7 @@ function Relatorio({ final, encerramento, identidade, aluno, alunos, setAlunos, 
   /* Relatório em PDF direto da partida: só este jogo, ou este jogo com a evolução dos anteriores. Abre o documento pronto para "Salvar como PDF". */
   function gerarPDF(comAnteriores) {
     const atual = montarRegistro();
-    const anteriores = comAnteriores ? (aluno.registros || []).filter((x) => x.tipo === "jogo" && x.scout && x.id !== atual.id).slice(-5) : [];
+    const anteriores = comAnteriores ? outrosJogosParaComparar(aluno, atual) : [];
     exportarRelatorioPartida(aluno, identidade, atual, anteriores);
   }
   const temAnteriores = (aluno.registros || []).some((x) => x.tipo === "jogo" && x.scout && !(original && x.id === original.id));
@@ -11338,10 +11338,16 @@ function exportarRelatorioPartida(aluno, identidade, reg, anteriores) {
 }
 /* Relatório da partida de um jogo JÁ salvo no caderno: só lê o registro, nunca altera nada. Compara com até 5 jogos anteriores a ele. */
 function relatorioDaPartidaSalva(aluno, identidade, r, comComparacao) {
-  const anteriores = comComparacao
-    ? (aluno.registros || []).filter((x) => x.tipo === "jogo" && x.scout && x.id !== r.id && String(x.data) <= String(r.data)).sort((a, b) => String(a.data).localeCompare(String(b.data))).slice(-5)
-    : [];
-  exportarRelatorioPartida(aluno, identidade, r, anteriores);
+  exportarRelatorioPartida(aluno, identidade, r, comComparacao ? outrosJogosParaComparar(aluno, r) : []);
+}
+/* Os outros jogos que entram na comparação de um jogo: até 5 com scout, os mais próximos antes dele e, se faltar, os de depois
+   (antes só entravam jogos anteriores, então o jogo mais antigo — ou de mesma data salvo depois — abria sozinho). */
+function outrosJogosParaComparar(aluno, r, max = 5) {
+  const outros = (aluno.registros || []).filter((x) => x.tipo === "jogo" && x.scout && x.id !== r.id && (x.scout.n || (x.scout.pontos || []).length))
+    .sort((a, b) => String(a.data).localeCompare(String(b.data)));
+  const antes = outros.filter((x) => String(x.data) <= String(r.data)), depois = outros.filter((x) => String(x.data) > String(r.data));
+  const escolhidos = antes.slice(-max);
+  return escolhidos.concat(depois.slice(0, max - escolhidos.length)).sort((a, b) => String(a.data).localeCompare(String(b.data)));
 }
 /* Por que o jogo acompanhado não terminou (perguntado ao encerrar de vez). Fica no registro do jogo; não atribui vencedor. */
 const MOTIVOS_ENCERRAMENTO = [

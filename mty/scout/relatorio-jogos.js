@@ -325,6 +325,30 @@
     function lista(tit, cor, itens, vazio) { return '<div class="lei" style="border-top:3px solid ' + cor + '"><h3>' + esc(tit) + "</h3>" + (itens.length ? "<ul>" + itens.map(function (t) { return "<li>" + esc(t) + "</li>"; }).join("") + "</ul>" : '<p class="mudo">' + esc(vazio) + "</p>") + "</div>"; }
     h += card("A leitura do jogo", '<div class="duas">' + lista("O que funcionou", AZUL, forte, "Sem destaque claro neste jogo.") + lista("O que pede atenção", LARANJA, atencao, "Nada fora do esperado nos indicadores coletados.") + "</div>");
 
+    /* comparação com os outros jogos do atleta: este jogo e cada um dos outros lado a lado, medida por medida, com a média dos outros */
+    if (ant.length) {
+      var cmpOutros = ant.slice().sort(function (x, y) { return String(x.data || "").localeCompare(String(y.data || "")); });
+      var cmpCurto = function (x) { var adv = x.adversario && x.adversario !== "—" ? String(x.adversario).split(" ")[0] : ""; return dataBR(String(x.data || "").slice(0, 10)).slice(0, 5) + (adv ? "<br><small>" + esc(adv) + "</small>" : ""); };
+      var cmpCab = "<tr><th>Medida</th><th class=\"este\">Este jogo<br><small>" + dataBR(String(r.data || "").slice(0, 10)).slice(0, 5) + "</small></th>" + cmpOutros.map(function (x) { return "<th>" + cmpCurto(x) + "</th>"; }).join("") + "<th>Média dos outros</th><th>Evolução</th></tr>";
+      var cmpGrupo = "", cmpLinhas = "", cmpNcol = cmpOutros.length + 4;
+      M.forEach(function (m) {
+        if (m.grupo) cmpGrupo = m.grupo;
+        var v = val(m.k), cmpVs = cmpOutros.map(function (x) { return val(m.k, x); });
+        if (v === null && !cmpVs.some(function (x) { return x !== null; })) return;
+        if (cmpGrupo) { cmpLinhas += '<tr class="grp"><td colspan="' + cmpNcol + '">' + esc(cmpGrupo) + "</td></tr>"; cmpGrupo = ""; }
+        var cmpMed = media(cmpVs), cmpDif = v !== null && cmpMed !== null ? v - cmpMed : null;
+        var cmpBom = cmpDif === null || m.melhor === null || m.melhor === undefined || Math.abs(cmpDif) < 0.5 ? null : (m.melhor ? cmpDif > 0 : cmpDif < 0);
+        var cmpEvo = cmpDif === null ? "—" : Math.abs(cmpDif) < 0.5 ? "= estável" : (cmpDif > 0 ? "▲ +" : "▼ ") + r1(cmpDif) + (m.suf === "%" ? " p.p." : "");
+        cmpLinhas += "<tr><td>" + esc(m.rot) + '</td><td class="este"><b>' + fmt(v, m.suf) + "</b></td>" + cmpVs.map(function (x) { return "<td>" + fmt(x, m.suf) + "</td>"; }).join("") +
+          "<td>" + fmt(cmpMed, m.suf) + '</td><td class="' + (cmpBom === null ? "" : cmpBom ? "bom" : "ruim") + '">' + cmpEvo + "</td></tr>";
+      });
+      var cmpLista = cmpOutros.map(function (x) {
+        var t = [dataBR(String(x.data || "").slice(0, 10)), x.torneio && x.torneio !== "jogo-treino" ? x.torneio : "Jogo-treino", x.adversario && x.adversario !== "—" ? "contra " + x.adversario : "", x.resultado && x.resultado !== "—" ? x.resultado : ""].filter(Boolean);
+        return "<li>" + esc(t.join(" · ")) + " <small>(" + n0(x.scout.n) + " pontos)</small></li>";
+      }).join("");
+      h += card("Comparação com outros jogos", '<p class="mudo">Este jogo ao lado de ' + cmpOutros.length + (cmpOutros.length === 1 ? " outro jogo" : " outros jogos") + ' de ' + esc(atleta) + ' com scout, medida por medida. A evolução compara este jogo com a média dos outros (azul: melhor; laranja: pior). Um jogo é uma amostra: três jogos na mesma direção são um sinal.</p><ul class="jogos-cmp">' + cmpLista + '</ul><div class="cmp-rol"><table class="cp cmp"><thead>' + cmpCab + "</thead><tbody>" + cmpLinhas + "</tbody></table></div>");
+    }
+
     /* momentum ponto a ponto */
     var pontosJogo = (s.pontos || []).filter(function (p) { return p && typeof p === "object"; });
     if (pontosJogo.length >= 6) h += card("Momentum do jogo, ponto a ponto", momentoXY(pontosJogo, atleta));
@@ -372,16 +396,6 @@
     if (meio) h += card("Padrões do jogo", '<div class="duas">' + meio + "</div>");
 
 
-    /* comparação com os jogos anteriores */
-    if (ant.length) {
-      var linhasC = [["pctGanhos", "Pontos ganhos", "%", true], ["pctPrimeiro", "1º saque dentro", "%", true], ["errosNos", "Erros do atleta", "", false], ["df", "Duplas faltas", "", false], ["pctErrosCurtos", "Erros em até 4 bolas", "%", false], ["pctAdversos", "Ganhos sob pressão", "%", true]];
-      var tr = linhasC.map(function (l) {
-        var v = val(l[0]), outros = ant.map(function (x) { return val(l[0], x); }).filter(function (x) { return x !== null; }); if (v === null || !outros.length) return "";
-        var m = media(outros), dif = v - m, bom = Math.abs(dif) < 0.5 ? null : (l[3] ? dif > 0 : dif < 0);
-        return "<tr><td>" + esc(l[1]) + "</td><td><b>" + fmt(v, l[2]) + "</b></td><td>" + fmt(m, l[2]) + '</td><td class="' + (bom === null ? "" : bom ? "bom" : "ruim") + '">' + (bom === null ? "= estável" : (dif > 0 ? "▲ +" : "▼ ") + r1(dif) + (l[2] ? " p.p." : "")) + "</td></tr>";
-      }).join("");
-      if (tr) h += card("Em relação aos jogos anteriores", '<p class="mudo">Média dos ' + ant.length + (ant.length === 1 ? " jogo anterior" : " jogos anteriores") + ' com scout. Um jogo é uma amostra: três jogos na mesma direção são um sinal.</p><table class="cp"><thead><tr><th>Medida</th><th>Este jogo</th><th>Média anterior</th><th>Diferença</th></tr></thead><tbody>' + tr + "</tbody></table>");
-    }
     /* mental */
     var mt = r.mental || {};
     function mm(bloco) { var m = mt[bloco]; if (!m) return null; var v = ["conf", "foco", "energia", "calma"].map(function (k) { return n0(m[k]); }).filter(function (x) { return x > 0; }); return v.length ? media(v) : null; }
@@ -400,7 +414,7 @@
       ".fins{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin-top:8px;font-size:12.5px}.fins i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px}.fins small{color:" + GRAFITE + "}" +
       ".bh{display:grid;grid-template-columns:44% 1fr auto;gap:8px;align-items:center;margin:8px 0;font-size:12px}.bh-r small{display:block;color:" + GRAFITE + ";font-size:10.5px}.bh-t{height:11px;background:#EDF1EF;border-radius:6px;overflow:hidden}.bh-t>div{height:100%;border-radius:0 6px 6px 0}.bh-v{font-weight:700;font-variant-numeric:tabular-nums}" +
       ".gms{display:grid;grid-template-columns:repeat(auto-fill,minmax(30px,1fr));gap:6px 5px;align-items:end}.gm{text-align:center;font-size:10px;color:" + GRAFITE + "}.gms.mini .gm small{display:none}.gm-b{height:70px;background:#EDF1EF;border-radius:5px;display:flex;align-items:flex-end;overflow:hidden}.gm-b i{display:block;width:100%}.gm small{display:block;color:" + TINTA + ";font-weight:700;font-size:10px}" +
-      "table.cp{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}.cp th{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:" + GRAFITE + ";text-align:center;padding:6px}.cp td{border-top:1px solid " + LINHA + ";padding:8px 6px;text-align:center}.cp td:first-child,.cp th:first-child{text-align:left}.cp .bom{color:" + AZUL + ";font-weight:700}.cp .ruim{color:" + LARANJA + ";font-weight:700}" +
+      "table.cp{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}.cp th{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:" + GRAFITE + ";text-align:center;padding:6px}.cp td{border-top:1px solid " + LINHA + ";padding:8px 6px;text-align:center}.cp td:first-child,.cp th:first-child{text-align:left}.cp .bom{color:" + AZUL + ";font-weight:700}.cp .ruim{color:" + LARANJA + ";font-weight:700}.cmp{font-size:11.5px}.cmp th small,.jogos-cmp small{font-weight:400;text-transform:none;letter-spacing:0;color:" + GRAFITE + "}.cmp .este{background:#EEF3F0}.cmp tr.grp td{text-align:left;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:" + MARCA + ";font-weight:700;padding-top:12px;border-top:0}.cmp-rol{overflow-x:auto}.jogos-cmp{margin:4px 0 10px;padding-left:18px;font-size:12.5px}.jogos-cmp li{margin:2px 0}" +
       ".prox{margin:0;padding-left:18px;font-size:13.5px}.prox li{margin:5px 0}blockquote{margin:12px 0 0;padding:10px 16px;border-left:4px solid #69B32A;background:#F6F8F7;border-radius:0 10px 10px 0;font-size:13.5px}blockquote footer{font-size:11px;color:" + GRAFITE + ";margin-top:4px;letter-spacing:.06em;text-transform:uppercase}" +
       ".no-print{margin-bottom:14px;display:flex;gap:10px}.no-print button{padding:10px 16px;font-weight:700;cursor:pointer;border-radius:10px;border:1px solid " + MARCA + ";background:" + MARCA + ";color:#fff}.no-print button+button{background:#fff;color:" + MARCA + "}.rodape{margin-top:26px;padding-top:10px;border-top:1px solid " + LINHA + ";font-size:11px;color:" + GRAFITE + "}.marca{margin-bottom:10px}" +
       "@media(max-width:700px){.kps{grid-template-columns:1fr 1fr}.duas{grid-template-columns:1fr}.capa h1{font-size:28px}}@media print{.no-print{display:none}.kps{grid-template-columns:repeat(4,1fr)}.duas{grid-template-columns:1fr 1fr}}";

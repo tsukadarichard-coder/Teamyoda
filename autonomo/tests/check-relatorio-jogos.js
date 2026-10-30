@@ -38,10 +38,15 @@ assert(um.includes("Com um único jogo"), "aviso de jogo único");
 /* relatório da partida (1 jogo, página elegante) */
 const base = { atleta: "Ana <b>Souza", metricas: METRICAS_SCOUT, leitura: M.leitura, zonasDe: M.zonasDe, detalheDe: (r) => r.scout.detalhe || M.resume(r.scout.pontos).detalhe, cabecalhoHtml: "<b>Academia</b>", geradoEm: "20/10/2026" };
 const p1 = R.gerarPartida({ ...base, reg: regs[5], anteriores: regs.slice(0, 5) });
-["Relatório da partida", "Partida concluída", "A leitura do jogo", "Como os pontos terminaram", "Saque e devolução", "Padrões do jogo", "Em relação aos jogos anteriores", "Estado mental", "Salvar como PDF"].forEach((x) => assert(p1.includes(x), "seção do relatório da partida: " + x));
+["Relatório da partida", "Partida concluída", "A leitura do jogo", "Como os pontos terminaram", "Saque e devolução", "Padrões do jogo", "Comparação com outros jogos", "Estado mental", "Salvar como PDF"].forEach((x) => assert(p1.includes(x), "seção do relatório da partida: " + x));
+/* comparação: uma coluna por jogo (este + os 5 outros), com a média dos outros e a evolução */
+const cab = /<table class="cp cmp"><thead>([\s\S]*?)<\/thead>/.exec(p1)[1];
+assert.strictEqual((cab.match(/<th/g) || []).length, 1 + 1 + 5 + 2, "colunas: medida, este jogo, 5 outros, média, evolução");
+assert(/Este jogo ao lado de 5 outros jogos/.test(p1) && (p1.match(/<ul class="jogos-cmp">([\s\S]*?)<\/ul>/)[1].match(/<li>/g) || []).length === 5, "lista dos outros jogos");
+assert(/Pontos ganhos/.test(cab + p1) && /class="(bom|ruim)"/.test(p1), "medidas com evolução");
 assert(!p1.includes("<b>Souza") && !/undefined|NaN|Infinity/.test(p1.replace(/<style>[\s\S]*?<\/style>/, "")), "partida: sem escape e sem valor inválido");
 const p2 = R.gerarPartida({ ...base, reg: { ...regs[0], concluida: false, resultado: "não concluído", observacaoFinal: "Boa <i>reação</i>." }, anteriores: [] });
-assert(p2.includes("Acompanhamento interrompido") && !p2.includes("Em relação aos jogos anteriores") && p2.includes("Observação do treinador") && !p2.includes("<i>reação"), "partida interrompida, sem anteriores, observação escapada");
+assert(p2.includes("Acompanhamento interrompido") && !p2.includes("Comparação com outros jogos") && p2.includes("Observação do treinador") && !p2.includes("<i>reação"), "partida interrompida, sem anteriores, observação escapada");
 assert(R.gerarPartida({ ...base, reg: { ...regs[0], scout: { n: 3, ganhos: 1, pctGanhos: 33 } }, detalheDe: () => null }).includes("Relatório parcial da partida") || true, "jogo sem detalhe não quebra");
 /* jogos antigos (formatos anteriores) também geram o relatório, sem quebrar e sem valores inválidos */
 [{ data: "2025-01-10", torneio: "Copa", adversario: "X", resultado: "6-4 6-3", protocolo: 60, scout: { n: 55, ganhos: 30, pctGanhos: 54.5, errosNos: 9 } },
