@@ -66,6 +66,7 @@
 <script crossorigin src="https://unpkg.com/recharts@2/umd/Recharts.js"></script>
 <script src="imprimir.js"></script>
 <script src="push-cliente.js"></script>
+<script src="turmas-lixeira.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-auth-compat.js"></script>
@@ -13121,9 +13122,11 @@ function RevisaoPlano({ aluno, alunos, setAlunos, podeEditar }) {
   );
 }
 
-const NOVIDADES_VERSAO = "2026-11a";
+const NOVIDADES_VERSAO = "2026-11b";
 const NOVIDADES = [
-  { novo: true, t: "PDF dos relatórios mais bonito e sem erros", d: "O relatório da análise de movimento ganhou um resumo com gráfico, as medidas em réguas (a faixa ideal em verde e onde o atleta ficou) e as fases numa grade de uma página. No iPhone, os PDFs de todos os relatórios não cortam mais fotos e tabelas no meio, não saem com página em branco no fim e o texto não sai mais torto.", onde: "Jogadores › abra o jogador › Análise de movimento › Relatório em PDF", aba: "alunos" },
+  { novo: true, t: "Agenda editável", d: "Abra uma aula na Agenda e use Editar para mudar dia, horário e duração (só esta aula ou esta e as próximas) ou Apagar da agenda (some da agenda e das pendências; para registrar que não teve aula, continue usando Cancelar aula). Incluir aulas e reposições continua no + Agendar aula e no + Reposição.", onde: "Agenda › toque numa aula", aba: "agenda" },
+  { novo: true, t: "Turmas apagadas: recuperar", d: "Remover turma agora pede confirmação e a turma fica 90 dias em Turmas apagadas, de onde volta igual. Turmas apagadas antes disso aparecem reconstruídas pelo caderno dos jogadores (nome, jogadores e dias de treino): toque em Recuperar e confira o horário.", onde: "Mais › Turmas › Turmas apagadas", aba: "turmas" },
+  { t: "PDF dos relatórios mais bonito e sem erros", d: "O relatório da análise de movimento ganhou um resumo com gráfico, as medidas em réguas (a faixa ideal em verde e onde o atleta ficou) e as fases numa grade de uma página. No iPhone, os PDFs de todos os relatórios não cortam mais fotos e tabelas no meio, não saem com página em branco no fim e o texto não sai mais torto.", onde: "Jogadores › abra o jogador › Análise de movimento › Relatório em PDF", aba: "alunos" },
   { t: "Análise de movimento mais fácil no celular", d: "Vídeo mais longo não é mais recusado: arraste o vídeo até um pouco antes do golpe e toque em Analisar (a análise usa 8 s dali). Se o vídeo não abrir no aparelho (ex.: vídeo de iPhone no Android), o app explica o que fazer. A análise ficou mais rápida no celular, o checklist virou um cartão por item e os números aparecem com vírgula.", onde: "Jogadores › abra o jogador › Análise de movimento", aba: "alunos" },
   { t: "Notificações no celular", d: "Ative no Início (ou em Mais › Notificações no celular) e receba no celular as aulas do dia às 7h, as aulas que passaram sem marcar às 21h, aluno pedindo acesso e atleta que aprovou a ligação. Alunos e pais ativam na Área do aluno ou no link do aluno e recebem: planejamento liberado, recado do professor, jogo ao vivo começando e aula no dia seguinte. No iPhone, funciona com o app na tela de início.", onde: "Início › Receba os lembretes no celular", aba: "dashboard" },
   { t: "Início novo e app mais legível", d: "Início mais limpo, com os primeiros passos, o botão Criar planejamento e a próxima aula logo na primeira tela. Cores com mais contraste em todo o app, para ler bem até sob sol.", onde: "Início", aba: "dashboard" },
@@ -18415,9 +18418,87 @@ function MenuPerfil({ org, uid, emailAtual, nome, carregado, aoSalvarNome, plano
   );
 }
 
+/* ── Turmas apagadas (turmas-lixeira.js) ──
+   Lixeira: turma removida fica 90 dias em "Turmas apagadas" e volta igual (membros, horários, plano, agenda).
+   Turmas apagadas antes da lixeira: reconstruídas pelos rastros da Agenda e do caderno (nome, jogadores, horários, professor);
+   o planejamento dessas não tem como voltar. Recuperar mantém o mesmo id: as aulas antigas da Agenda voltam a apontar para ela. */
+/* Remover turma: pergunta antes e guarda a turma inteira na lixeira (Turmas apagadas › Recuperar, por 90 dias). */
+function removerTurmaComLixeira(turma, turmas, setTurmas) {
+  if (!window.confirm("Remover a turma \"" + turma.nome + "\"?\n\nEla vai para Turmas apagadas e pode ser recuperada por 90 dias.")) return false;
+  let quem = "";
+  try { const u = window.mtyAuth && window.mtyAuth.usuario && window.mtyAuth.usuario(); quem = u ? (u.displayName || u.email || "") : ""; } catch (e) { quem = ""; }
+  if (window.QLTurmasLixeira && window.storage) window.QLTurmasLixeira.criar(window.storage).guardar(turma, quem).catch(() => {});
+  setTurmas(turmas.filter((t) => t.id !== turma.id));
+  return true;
+}
+function TurmasApagadas({ turmas, setTurmas, alunos, ocorrencias, aoFechar }) {
+  const [lixeira, setLixeira] = useState(null);
+  const [msg, setMsg] = useState("");
+  const L = window.QLTurmasLixeira && window.storage ? window.QLTurmasLixeira.criar(window.storage) : null;
+  useEffect(() => { if (L) L.listar().then(setLixeira).catch(() => setLixeira([])); else setLixeira([]); }, []);
+  const nomeAluno = (id) => { const a = alunos.find((x) => x.id === id); return a ? a.nome : null; };
+  const ativos = new Set(turmas.map((t) => t.id));
+  const daLixeira = (lixeira || []).filter((x) => !ativos.has(x.turma.id));
+  const achadas = window.QLTurmasLixeira ? window.QLTurmasLixeira.reconstruir({ turmas, alunos, ocorrencias: ocorrencias || [] })
+    .filter((x) => !daLixeira.some((l) => l.turma.id === x.turma.id || String(l.turma.nome).trim().toLowerCase() === String(x.turma.nome).trim().toLowerCase())) : [];
+  const DIAS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+  const dataBR = (iso) => (iso ? String(iso).slice(0, 10).split("-").reverse().join("/") : "");
+  function recuperar(turma, daLix) {
+    if (turmas.some((t) => t.id === turma.id)) return;
+    const membros = (turma.membros || []).filter((m) => alunos.some((a) => a.id === m));
+    setTurmas([...turmas, { ...turma, membros }]);
+    if (daLix && L) L.tirar(turma.id).then(() => L.listar().then(setLixeira)).catch(() => {});
+    setMsg("Turma \"" + turma.nome + "\" recuperada" + (daLix ? "." : ". Confira os horários e complete o planejamento na turma."));
+  }
+  function cartao(item, daLix) {
+    const t = item.turma, nomes = (t.membros || []).map(nomeAluno).filter(Boolean);
+    const quando = (t.horarios || []).length ? t.horarios.map((h) => DIAS[h.dia] + " " + h.hora).join(", ")
+      : item.diasSemana && item.diasSemana.length ? item.diasSemana.map((d) => DIAS[d]).join(", ") + " (hora a definir)" : "sem horário fixo";
+    return (
+      <div key={t.id + (daLix ? "-l" : "-a")} data-turma-apagada={t.id} style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: "12px 14px", marginBottom: 10 }}>
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <p style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, margin: 0 }}>{t.nome}</p>
+            <p style={{ ...prosa, fontSize: 13, color: C.grafite, margin: "2px 0 0" }}>
+              {daLix ? "Removida em " + dataBR(item.removidaEm) + (item.por ? " por " + item.por : "") : (item.fonte === "agenda" ? "Encontrada na Agenda" : "Encontrada no caderno") + " · " + item.aulas + (item.aulas === 1 ? " aula" : " aulas") + ", a última em " + dataBR(item.ultima)}
+            </p>
+            <p style={{ ...prosa, fontSize: 13, margin: "6px 0 0" }}><b>{nomes.length} {nomes.length === 1 ? "jogador" : "jogadores"}:</b> {nomes.join(", ") || "—"}</p>
+            <p style={{ ...prosa, fontSize: 13, margin: "2px 0 0" }}><b>Horários:</b> {quando}{t.professorNome ? " · Professor: " + t.professorNome : ""}</p>
+            {!daLix && <p style={{ ...prosa, fontSize: 12, color: C.grafite, margin: "4px 0 0" }}>O planejamento desta turma não tinha cópia; os jogadores, os horários e o histórico das aulas voltam.</p>}
+          </div>
+          <Botao pequeno onClick={() => recuperar(t, daLix)} style={{ minHeight: 44 }}>Recuperar</Botao>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div data-turmas-apagadas style={{ marginBottom: 18 }}>
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
+        <h2 style={{ fontFamily: ARCH, fontSize: 18, fontWeight: 700, margin: 0 }}>Turmas apagadas</h2>
+        <Botao pequeno variante="vazio" onClick={aoFechar}>Fechar</Botao>
+      </div>
+      {msg && <p role="status" style={{ ...prosa, fontSize: 14, color: C.quadra, fontWeight: 600, margin: "0 0 10px" }}>{msg}</p>}
+      {lixeira === null ? <p style={{ ...prosa, color: C.grafite }}>Procurando…</p> : (
+        <>
+          {daLixeira.length > 0 && <>
+            <p style={{ ...prosa, fontSize: 13, color: C.grafite, margin: "0 0 8px" }}>Removidas nos últimos 90 dias — voltam exatamente como estavam.</p>
+            {daLixeira.map((x) => cartao(x, true))}
+          </>}
+          {achadas.length > 0 && <>
+            <p style={{ ...prosa, fontSize: 13, color: C.grafite, margin: "10px 0 8px" }}>Turmas que não estão mais na lista, mas deixaram aulas na Agenda ou sessões no caderno dos jogadores. Dá para recriá-las com o nome, os jogadores e os horários que elas tinham.</p>
+            {achadas.map((x) => cartao(x, false))}
+          </>}
+          {!daLixeira.length && !achadas.length && <p style={{ ...prosa, color: C.grafite }}>Nenhuma turma apagada encontrada.</p>}
+        </>
+      )}
+    </div>
+  );
+}
+
 function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual, exerciciosCustom, setExerciciosCustom, identidade }) {
   const [abertaId, setAbertaId] = useState(null);
   const [criando, setCriando] = useState(false);
+  const [verApagadas, setVerApagadas] = useState(false);
   const [nome, setNome] = useState("");
   const [membrosSel, setMembrosSel] = useState([]);
   const [duracao, setDuracao] = useState("2h");
@@ -18438,7 +18519,7 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual
         exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom}
         abrirEdicao={editarAoAbrir}
         aoFechar={() => { setAbertaId(null); setEditarAoAbrir(false); }}
-        aoRemover={() => { setTurmas(turmas.filter((t) => t.id !== aberta.id)); setAbertaId(null); setEditarAoAbrir(false); }} />
+        aoRemover={() => { if (!removerTurmaComLixeira(aberta, turmas, setTurmas)) return; setAbertaId(null); setEditarAoAbrir(false); }} />
     );
   }
 
@@ -18462,11 +18543,12 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual
     <div>
       <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
         <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700 }}>Turmas</h1>
-        {!criando && <Botao pequeno onClick={() => setCriando(true)}>Nova turma</Botao>}
+        {!criando && <div className="flex gap-2 flex-wrap"><Botao pequeno variante="vazio" onClick={() => setVerApagadas(!verApagadas)}>Turmas apagadas</Botao><Botao pequeno onClick={() => setCriando(true)}>Nova turma</Botao></div>}
       </div>
       <p style={{ ...prosa, color: C.grafite, marginBottom: 18 }}>
         Organize as aulas em grupo mantendo o planejamento e o acompanhamento de cada jogador.
       </p>
+      {verApagadas && <TurmasApagadas turmas={turmas} setTurmas={setTurmas} alunos={alunos} ocorrencias={[]} aoFechar={() => setVerApagadas(false)} />}
 
       {criando && (
         <div style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, padding: 15, marginBottom: 18 }}>
@@ -20029,6 +20111,7 @@ function compromissosDaData(alunos, turmas, data) {
     (e.horarios || []).forEach((h) => {
       if (h.dia !== dow) return;
       const chave = chaveOcorrencia(iso, h.hora);
+      if (statusOcorrencia(e, chave) === "excluida") return; // apagada na Agenda
       lista.push({
         tipo, id: e.id, data: iso, dia: dow, hora: h.hora,
         horaFim: horaMaisMinutos(h.hora, minutosDaDuracao(e.duracaoPadrao)),
@@ -20191,7 +20274,8 @@ function AgendarAulaDialog({ alunos, turmas, setAlunos, setTurmas, dataInicial, 
   );
 }
 
-function OcorrenciaDetalhe({ c, aoFechar, aoVerJogador, aoAbrirPlano, aoAbrirSessao, registrarStatus, aoReagendar, aoCancelar }) {
+function OcorrenciaDetalhe({ c, aoFechar, aoVerJogador, aoAbrirPlano, aoAbrirSessao, registrarStatus, aoReagendar, aoCancelar, aoApagar }) {
+  const [confirmandoApagar, setConfirmandoApagar] = useState(false);
   const info = STATUS_OCORRENCIA[c.status] || STATUS_OCORRENCIA.agendada;
   const [confirmandoCancelamento, setConfirmandoCancelamento] = useState(false);
   return (
@@ -20222,7 +20306,21 @@ function OcorrenciaDetalhe({ c, aoFechar, aoVerJogador, aoAbrirPlano, aoAbrirSes
               <Botao pequeno variante={c.status === "realizada" ? "saibro" : "vazio"} onClick={() => registrarStatus(c, "realizada")}>Registrar aula</Botao>
               <Botao pequeno variante={c.status === "falta" ? "saibro" : "vazio"} onClick={() => registrarStatus(c, "falta")}>Registrar falta</Botao>
             </div>
-            <Botao pequeno variante="vazio" onClick={() => aoReagendar(c)}>Reagendar</Botao>
+            <div className="flex gap-2 flex-wrap">
+              <Botao pequeno variante="vazio" onClick={() => aoReagendar(c)}>Editar (dia, horário, duração)</Botao>
+              <Botao pequeno variante="vazio" onClick={() => setConfirmandoApagar(true)}>Apagar da agenda</Botao>
+            </div>
+            {confirmandoApagar && (
+              <div data-apagar-aula style={{ background: C.papel, borderLeft: "3px solid #B3261E", padding: "11px 13px" }}>
+                <p style={{ ...prosa, fontSize: 13, marginBottom: 4 }}>{c.recorrente ? "Apagar só esta aula, ou esta e as próximas (tira o horário fixo)?" : "Apagar esta aula da agenda?"}</p>
+                <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 8 }}>Some da agenda e das pendências. Para registrar que não teve aula, use "Cancelar aula".</p>
+                <div className="flex gap-2 flex-wrap">
+                  {c.recorrente && <Botao pequeno variante="vazio" onClick={() => aoApagar(c, "todas")}>Esta e as próximas</Botao>}
+                  <Botao pequeno onClick={() => aoApagar(c, "esta")}>{c.recorrente ? "Só esta aula" : "Apagar"}</Botao>
+                  <Botao pequeno variante="vazio" onClick={() => setConfirmandoApagar(false)}>Voltar</Botao>
+                </div>
+              </div>
+            )}
             {!confirmandoCancelamento ? (
               <button onClick={() => setConfirmandoCancelamento(true)}
                 style={{ ...prosa, fontSize: 13, color: "#B3261E", background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: "8px 0", minHeight: 44 }}>
@@ -20250,23 +20348,28 @@ function ReagendarDialog({ c, alunos, turmas, setAlunos, setTurmas, aoFechar }) 
   const [escopo, setEscopo] = useState("esta");
   const [data, setData] = useState(c.data);
   const [hora, setHora] = useState(c.hora);
-  const duracaoMin = minutosDeDuracaoEntre(c.hora, c.horaFim);
+  const [horaFim, setHoraFim] = useState(c.horaFim);
+  const duracaoMin = Math.max(15, minutosDeDuracaoEntre(hora, horaFim) || minutosDeDuracaoEntre(c.hora, c.horaFim));
+  const valido = !!data && /^\d\d:\d\d$/.test(hora) && /^\d\d:\d\d$/.test(horaFim) && horaFim > hora;
+  const DUR_MIN = { 30: "30min", 60: "1h", 90: "1h30", 120: "2h" };
 
   function confirmar() {
     const entidade = c.tipo === "turma" ? turmas.find((t) => t.id === c.id) : alunos.find((a) => a.id === c.id);
     if (!entidade) return;
     let patch;
+    if (!valido) return;
     if (escopo === "todas") {
       const novoDia = new Date(data + "T00:00:00").getDay();
-      patch = { horarios: (entidade.horarios || []).map((h) => (h.dia === c.dia && h.hora === c.hora ? { dia: novoDia, hora } : h)) };
+      patch = { horarios: (entidade.horarios || []).map((h) => (h.dia === c.dia && h.hora === c.hora ? { ...h, dia: novoDia, hora } : h)) };
+      if (DUR_MIN[duracaoMin]) patch.duracaoPadrao = DUR_MIN[duracaoMin];
     } else {
       const novoHoraFim = horaMaisMinutos(hora, duracaoMin);
       const agendaExcecoes = c.recorrente
-        ? { ...(entidade.agendaExcecoes || {}), [c.chave]: { ...((entidade.agendaExcecoes || {})[c.chave] || {}), status: "cancelada", motivo: "reagendada" } }
+        ? { ...(entidade.agendaExcecoes || {}), [c.chave]: { status: "excluida", motivo: "reagendada", para: data + "|" + hora } } /* a aula mudou de lugar: some do horário antigo */
         : (entidade.agendaExcecoes || {});
       const agendaAvulsos = [
         ...(entidade.agendaAvulsos || []).filter((av) => av.id !== c.avulsoId),
-        { id: "av" + Date.now(), data, hora, horaFim: novoHoraFim },
+        { id: "av" + Date.now(), data, hora, horaFim: horaFim || novoHoraFim },
       ];
       patch = { agendaExcecoes, agendaAvulsos };
     }
@@ -20278,11 +20381,11 @@ function ReagendarDialog({ c, alunos, turmas, setAlunos, setTurmas, aoFechar }) 
   return (
     <>
       <div onClick={aoFechar} style={{ position: "fixed", inset: 0, background: "rgba(16,30,25,.4)", zIndex: 41 }} />
-      <div role="dialog" aria-modal="true" aria-label="Reagendar aula"
+      <div role="dialog" aria-modal="true" aria-label="Editar aula"
         style={{ position: "fixed", left: 0, right: 0, bottom: 0, background: C.cal, zIndex: 42,
           borderRadius: "16px 16px 0 0", boxShadow: SOMBRA_ALTA, maxHeight: "85vh", display: "flex", flexDirection: "column" }}>
         <div className="flex items-center justify-between" style={{ padding: "14px 18px", borderBottom: "1px solid " + C.linha }}>
-          <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>Reagendar {c.titulo}</span>
+          <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>Editar {c.titulo}</span>
           <button onClick={aoFechar} aria-label="Fechar" style={{ width: 36, height: 36, border: "none", background: "none", cursor: "pointer", fontSize: 20, color: C.grafite }}>×</button>
         </div>
         <div style={{ overflowY: "auto", padding: "16px 18px" }}>
@@ -20291,9 +20394,17 @@ function ReagendarDialog({ c, alunos, turmas, setAlunos, setTurmas, aoFechar }) 
               <Seletor opcoes={[{ v: "esta", r: "Só esta aula" }, { v: "todas", r: "Esta e as próximas" }]} valor={escopo} aoMudar={setEscopo} />
             </Campo>
           )}
-          <Campo rotulo="Nova data"><input type="date" style={entrada} value={data} onChange={(e) => setData(e.target.value)} /></Campo>
-          <Campo rotulo="Novo horário"><input type="time" style={entrada} value={hora} onChange={(e) => setHora(e.target.value)} /></Campo>
-          <Botao variante="saibro" onClick={confirmar}>Reagendar</Botao>
+          <Campo rotulo="Data"><input type="date" style={entrada} value={data} onChange={(e) => setData(e.target.value)} /></Campo>
+          <div className="grid gap-3" style={{ gridTemplateColumns: "1fr 1fr" }}>
+            <Campo rotulo="Início"><input type="time" style={entrada} value={hora} onChange={(e) => {
+              const ini = e.target.value, dur = minutosDeDuracaoEntre(hora, horaFim);
+              setHora(ini); if (/^\d\d:\d\d$/.test(ini) && dur > 0) setHoraFim(horaMaisMinutos(ini, dur));
+            }} /></Campo>
+            <Campo rotulo="Fim"><input type="time" style={entrada} value={horaFim} onChange={(e) => setHoraFim(e.target.value)} /></Campo>
+          </div>
+          {!valido && <p role="alert" style={{ ...prosa, fontSize: 13, color: "#B3261E", marginBottom: 8 }}>Confira a data e se o fim é depois do início.</p>}
+          {escopo === "todas" && !DUR_MIN[duracaoMin] && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 8 }}>As aulas fixas usam 30 min, 1h, 1h30 ou 2h: a duração nova vale só para esta aula.</p>}
+          <Botao variante="saibro" disabled={!valido} onClick={confirmar}>Salvar</Botao>
         </div>
       </div>
     </>
@@ -20331,6 +20442,18 @@ function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, aoVerJogador, aoAbri
     setOcorrenciaAberta(null);
   }
 
+  /* apagar: some da agenda (não é "cancelada", que fica registrada com motivo) */
+  function apagarOcorrencia(c, escopo) {
+    const entidade = entidadeDe(c);
+    if (escopo === "todas" && c.recorrente) {
+      aplicarPatch(c, { horarios: (entidade.horarios || []).filter((h) => !(h.dia === c.dia && h.hora === c.hora)) });
+    } else if (!c.recorrente) {
+      aplicarPatch(c, { agendaAvulsos: (entidade.agendaAvulsos || []).filter((av) => av.id !== c.avulsoId) });
+    } else {
+      aplicarPatch(c, { agendaExcecoes: { ...(entidade.agendaExcecoes || {}), [c.chave]: { status: "excluida", em: new Date().toISOString() } } });
+    }
+    setOcorrenciaAberta(null);
+  }
   const compromissosDoDia = useMemo(() => compromissosDaData(alunos, turmas, dataRef), [alunos, turmas, dataRef]);
   const inicioSemana = useMemo(() => inicioDaSemana(dataRef), [dataRef]);
   const diasDaSemana = useMemo(() => [0, 1, 2, 3, 4, 5, 6].map((i) => somarDias(inicioSemana, i)), [inicioSemana]);
@@ -20506,7 +20629,7 @@ function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, aoVerJogador, aoAbri
           aoAbrirSessao={(c) => { setOcorrenciaAberta(null); aoAbrirSessao(c.id); }}
           registrarStatus={registrarStatus}
           aoReagendar={(c) => { setOcorrenciaAberta(null); setReagendando(c); }}
-          aoCancelar={cancelarOcorrencia} />
+          aoCancelar={cancelarOcorrencia} aoApagar={apagarOcorrencia} />
       )}
       {reagendando && (
         <ReagendarDialog c={reagendando} alunos={alunos} turmas={turmas} setAlunos={setAlunos} setTurmas={setTurmas}

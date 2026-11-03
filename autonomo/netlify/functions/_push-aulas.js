@@ -10,7 +10,7 @@ function aulasDoDia(dados, iso) {
     const feitaNoCaderno = !turma && (Object.values(e.regPlano || {}).some((r) => r && r.data === iso && (r.status === "feita" || r.feita)) || (e.registros || []).some((r) => r && r.tipo === "sessao" && r.data === iso));
     const status = (hora) => { const x = ((e.agendaExcecoes || {})[iso + "|" + hora] || {}).status; return x || (feitaNoCaderno ? "realizada" : "agendada"); };
     const base = { turma: !!turma, titulo: e.nome || (turma ? "Turma" : "Aluno"), professorUid: e.professorUid || "", alunoIds: turma ? (e.membros || []).map(String) : [String(e.id)] };
-    (e.horarios || []).filter((h) => h && h.dia === dow && /^\d\d:\d\d$/.test(h.hora)).forEach((h) => lista.push({ ...base, hora: h.hora, horaFim: maisMinutos(h.hora, DUR[e.duracaoPadrao] || 90), status: status(h.hora) }));
+    (e.horarios || []).filter((h) => h && h.dia === dow && /^\d\d:\d\d$/.test(h.hora) && status(h.hora) !== "excluida").forEach((h) => lista.push({ ...base, hora: h.hora, horaFim: maisMinutos(h.hora, DUR[e.duracaoPadrao] || 90), status: status(h.hora) }));
     (e.agendaAvulsos || []).filter((av) => av && av.data === iso && /^\d\d:\d\d$/.test(av.hora)).forEach((av) => lista.push({ ...base, hora: av.hora, horaFim: av.horaFim || maisMinutos(av.hora, 60), status: status(av.hora) }));
   }
   (dados.alunos || []).filter((a) => a && a.id != null && a.nome).forEach((a) => add(a, false));

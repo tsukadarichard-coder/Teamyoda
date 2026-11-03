@@ -19,6 +19,7 @@
 <script crossorigin src="https://unpkg.com/recharts@2/umd/Recharts.js"></script>
 <script src="imprimir.js"></script>
 <script src="push-cliente.js"></script>
+<script src="turmas-lixeira.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-auth-compat.js"></script>
@@ -17031,6 +17032,83 @@ function TelaClientes({ quadras, reservas, torneios, eventos }) {
    todo mundo em uma ação (com espaço pra corrigir por pessoa: chuva
    cancela a turma inteira, mas um jogador específico pode ter faltado
    por outro motivo mesmo com o resto treinando). */
+/* ── Turmas apagadas (turmas-lixeira.js) ──
+   Lixeira: turma removida fica 90 dias em "Turmas apagadas" e volta igual (membros, horários, plano, agenda).
+   Turmas apagadas antes da lixeira: reconstruídas pelos rastros da Agenda e do caderno (nome, jogadores, horários, professor);
+   o planejamento dessas não tem como voltar. Recuperar mantém o mesmo id: as aulas antigas da Agenda voltam a apontar para ela. */
+/* Remover turma: pergunta antes e guarda a turma inteira na lixeira (Turmas apagadas › Recuperar, por 90 dias). */
+function removerTurmaComLixeira(turma, turmas, setTurmas) {
+  if (!window.confirm("Remover a turma \"" + turma.nome + "\"?\n\nEla vai para Turmas apagadas e pode ser recuperada por 90 dias.")) return false;
+  let quem = "";
+  try { const u = window.mtyAuth && window.mtyAuth.usuario && window.mtyAuth.usuario(); quem = u ? (u.displayName || u.email || "") : ""; } catch (e) { quem = ""; }
+  if (window.QLTurmasLixeira && window.storage) window.QLTurmasLixeira.criar(window.storage).guardar(turma, quem).catch(() => {});
+  setTurmas(turmas.filter((t) => t.id !== turma.id));
+  return true;
+}
+function TurmasApagadas({ turmas, setTurmas, alunos, ocorrencias, aoFechar }) {
+  const [lixeira, setLixeira] = useState(null);
+  const [msg, setMsg] = useState("");
+  const L = window.QLTurmasLixeira && window.storage ? window.QLTurmasLixeira.criar(window.storage) : null;
+  useEffect(() => { if (L) L.listar().then(setLixeira).catch(() => setLixeira([])); else setLixeira([]); }, []);
+  const nomeAluno = (id) => { const a = alunos.find((x) => x.id === id); return a ? a.nome : null; };
+  const ativos = new Set(turmas.map((t) => t.id));
+  const daLixeira = (lixeira || []).filter((x) => !ativos.has(x.turma.id));
+  const achadas = window.QLTurmasLixeira ? window.QLTurmasLixeira.reconstruir({ turmas, alunos, ocorrencias: ocorrencias || [] })
+    .filter((x) => !daLixeira.some((l) => l.turma.id === x.turma.id || String(l.turma.nome).trim().toLowerCase() === String(x.turma.nome).trim().toLowerCase())) : [];
+  const DIAS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+  const dataBR = (iso) => (iso ? String(iso).slice(0, 10).split("-").reverse().join("/") : "");
+  function recuperar(turma, daLix) {
+    if (turmas.some((t) => t.id === turma.id)) return;
+    const membros = (turma.membros || []).filter((m) => alunos.some((a) => a.id === m));
+    setTurmas([...turmas, { ...turma, membros }]);
+    if (daLix && L) L.tirar(turma.id).then(() => L.listar().then(setLixeira)).catch(() => {});
+    setMsg("Turma \"" + turma.nome + "\" recuperada" + (daLix ? "." : ". Confira os horários e complete o planejamento na turma."));
+  }
+  function cartao(item, daLix) {
+    const t = item.turma, nomes = (t.membros || []).map(nomeAluno).filter(Boolean);
+    const quando = (t.horarios || []).length ? t.horarios.map((h) => DIAS[h.dia] + " " + h.hora).join(", ")
+      : item.diasSemana && item.diasSemana.length ? item.diasSemana.map((d) => DIAS[d]).join(", ") + " (hora a definir)" : "sem horário fixo";
+    return (
+      <div key={t.id + (daLix ? "-l" : "-a")} data-turma-apagada={t.id} style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: "12px 14px", marginBottom: 10 }}>
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <p style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, margin: 0 }}>{t.nome}</p>
+            <p style={{ ...prosa, fontSize: 13, color: C.grafite, margin: "2px 0 0" }}>
+              {daLix ? "Removida em " + dataBR(item.removidaEm) + (item.por ? " por " + item.por : "") : (item.fonte === "agenda" ? "Encontrada na Agenda" : "Encontrada no caderno") + " · " + item.aulas + (item.aulas === 1 ? " aula" : " aulas") + ", a última em " + dataBR(item.ultima)}
+            </p>
+            <p style={{ ...prosa, fontSize: 13, margin: "6px 0 0" }}><b>{nomes.length} {nomes.length === 1 ? "jogador" : "jogadores"}:</b> {nomes.join(", ") || "—"}</p>
+            <p style={{ ...prosa, fontSize: 13, margin: "2px 0 0" }}><b>Horários:</b> {quando}{t.professorNome ? " · Professor: " + t.professorNome : ""}</p>
+            {!daLix && <p style={{ ...prosa, fontSize: 12, color: C.grafite, margin: "4px 0 0" }}>O planejamento desta turma não tinha cópia; os jogadores, os horários e o histórico das aulas voltam.</p>}
+          </div>
+          <Botao pequeno onClick={() => recuperar(t, daLix)} style={{ minHeight: 44 }}>Recuperar</Botao>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div data-turmas-apagadas style={{ marginBottom: 18 }}>
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
+        <h2 style={{ fontFamily: ARCH, fontSize: 18, fontWeight: 700, margin: 0 }}>Turmas apagadas</h2>
+        <Botao pequeno variante="vazio" onClick={aoFechar}>Fechar</Botao>
+      </div>
+      {msg && <p role="status" style={{ ...prosa, fontSize: 14, color: C.quadra, fontWeight: 600, margin: "0 0 10px" }}>{msg}</p>}
+      {lixeira === null ? <p style={{ ...prosa, color: C.grafite }}>Procurando…</p> : (
+        <>
+          {daLixeira.length > 0 && <>
+            <p style={{ ...prosa, fontSize: 13, color: C.grafite, margin: "0 0 8px" }}>Removidas nos últimos 90 dias — voltam exatamente como estavam.</p>
+            {daLixeira.map((x) => cartao(x, true))}
+          </>}
+          {achadas.length > 0 && <>
+            <p style={{ ...prosa, fontSize: 13, color: C.grafite, margin: "10px 0 8px" }}>Turmas que não estão mais na lista, mas deixaram aulas na Agenda ou sessões no caderno dos jogadores. Dá para recriá-las com o nome, os jogadores e os horários que elas tinham.</p>
+            {achadas.map((x) => cartao(x, false))}
+          </>}
+          {!daLixeira.length && !achadas.length && <p style={{ ...prosa, color: C.grafite }}>Nenhuma turma apagada encontrada.</p>}
+        </>
+      )}
+    </div>
+  );
+}
+
 function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual, exerciciosCustom, setExerciciosCustom, identidade, quadras, ocorrencias, turmaAbertaAlvo, aoConsumirTurmaAlvo }) {
   const [abertaId, setAbertaId] = useState(null);
   /* Mesmo padrão de dataAlvo na Agenda: quando alguém pede pra abrir a
@@ -17043,6 +17121,7 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual
     }
   }, [turmaAbertaAlvo, turmas]);
   const [criando, setCriando] = useState(false);
+  const [verApagadas, setVerApagadas] = useState(false);
   const [nome, setNome] = useState("");
   const [membrosSel, setMembrosSel] = useState([]);
   const [duracao, setDuracao] = useState("2h");
@@ -17060,7 +17139,7 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual
         papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} ocorrencias={ocorrencias} quadras={quadras}
         exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom}
         aoFechar={() => setAbertaId(null)}
-        aoRemover={() => { setTurmas(turmas.filter((t) => t.id !== aberta.id)); setAbertaId(null); }} />
+        aoRemover={() => { if (!removerTurmaComLixeira(aberta, turmas, setTurmas)) return; setAbertaId(null); }} />
     );
   }
 
@@ -17084,11 +17163,12 @@ function TelaTurmas({ alunos, setAlunos, turmas, setTurmas, papelAtual, uidAtual
     <div>
       <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
         <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700 }}>Turmas</h1>
-        {!criando && <Botao pequeno onClick={() => setCriando(true)}>Nova turma</Botao>}
+        {!criando && <div className="flex gap-2 flex-wrap"><Botao pequeno variante="vazio" onClick={() => setVerApagadas(!verApagadas)}>Turmas apagadas</Botao><Botao pequeno onClick={() => setCriando(true)}>Nova turma</Botao></div>}
       </div>
       <p style={{ ...prosa, color: C.grafite, marginBottom: 18 }}>
         Organize as aulas em grupo mantendo o planejamento e o acompanhamento de cada jogador.
       </p>
+      {verApagadas && <TurmasApagadas turmas={turmas} setTurmas={setTurmas} alunos={alunos} ocorrencias={ocorrencias} aoFechar={() => setVerApagadas(false)} />}
 
       {criando && (
         <div style={{ background: C.cal, border: "1px solid " + C.linha, padding: 15, marginBottom: 18 }}>
@@ -18145,12 +18225,14 @@ function gerarOcorrenciasFaltantes(ocorrenciasExistentes, alunos, turmas, inicio
   const existentesPorChaveData = new Set(ocorrenciasExistentes.map((o) => o.recorrenciaChave + "|" + o.data));
   const datas = listaDatasEntre(inicioISO, fimISO);
   const novas = [];
-  function processar(origemTipo, origemId, horarios, duracaoPadrao, professorUid, professorNome, professorAuxiliarUid, professorAuxiliarNome, desde) {
+  function processar(origemTipo, origemId, horarios, duracaoPadrao, professorUid, professorNome, professorAuxiliarUid, professorAuxiliarNome, desde, excluidas) {
+    const fora = new Set(excluidas || []);
     (horarios || []).forEach((h) => {
       datas.forEach((data) => {
         if (diaDaSemanaISO(data) !== h.dia) return;
         if (desde && data < desde) return; // antes de o jogador/turma existir não havia aula
         if (feriadosSet.has(data)) return;
+        if (fora.has(data + "|" + h.hora)) return; // aula apagada ou movida na Agenda: não volta sozinha
         const chave = chaveRecorrencia(origemTipo, origemId, h.dia, h.hora);
         if (existentesPorChaveData.has(chave + "|" + data)) return;
         novas.push(novaOcorrencia({
@@ -18164,8 +18246,8 @@ function gerarOcorrenciasFaltantes(ocorrenciasExistentes, alunos, turmas, inicio
       });
     });
   }
-  turmas.forEach((t) => processar("turma", t.id, t.horarios, t.duracaoPadrao, t.professorUid, t.professorNome, t.professorAuxiliarUid, t.professorAuxiliarNome, QLAulasMes.criadoEmISO(t)));
-  alunos.forEach((a) => processar("individual", a.id, a.horarios, a.duracaoPadrao, a.professorUid, a.professorNome, "", "", QLAulasMes.criadoEmISO(a)));
+  turmas.forEach((t) => processar("turma", t.id, t.horarios, t.duracaoPadrao, t.professorUid, t.professorNome, t.professorAuxiliarUid, t.professorAuxiliarNome, QLAulasMes.criadoEmISO(t), t.agendaExcluidas));
+  alunos.forEach((a) => processar("individual", a.id, a.horarios, a.duracaoPadrao, a.professorUid, a.professorNome, "", "", QLAulasMes.criadoEmISO(a), a.agendaExcluidas));
   return novas;
 }
 
@@ -18711,6 +18793,135 @@ function CartaoOcorrencia({ ocorrencia: oc, alunos, setAlunos, turmas, quadras, 
    materializadas por gerarOcorrenciasFaltantes já saírem corretas desde
    o início. Nunca toca em ocorrências já realizadas/canceladas —
    preserva histórico (pedido da seção de recorrências/alterações). */
+/* ── Editar e apagar direto na Agenda ──
+   Aula fixa (de turma ou jogador) nasce dos horários da ficha/turma. Para a geração automática não trazer de volta uma aula apagada
+   ou movida, a data e a hora originais ficam anotadas na turma/jogador (agendaExcluidas: "AAAA-MM-DD|HH:MM", guardadas por 180 dias).
+   "Esta e as próximas" muda o próprio horário fixo (dia, hora, quadra, duração, professor) e refaz as próximas aulas a partir dele;
+   aulas já dadas ou canceladas nunca mudam. */
+const DURACAO_POR_MIN = { 60: "1h", 90: "1h30", 120: "2h" };
+function minutosEntre(h1, h2) { const [a, b] = h1.split(":").map(Number), [c, d] = h2.split(":").map(Number); return (c * 60 + d) - (a * 60 + b); }
+function anotarExcluida(lista, chave) {
+  const limite = somaDiasISO(dataISO(new Date()), -180);
+  return Array.from(new Set([...(lista || []).filter((x) => String(x).slice(0, 10) >= limite), chave]));
+}
+function mexerNaOrigem({ oc, turmas, setTurmas, alunos, setAlunos, mudar }) {
+  if (oc.origemTipo === "turma" && setTurmas) setTurmas((lista) => lista.map((t) => (t.id === oc.origemId ? mudar(t) : t)));
+  else if (oc.origemTipo === "individual" && setAlunos) setAlunos((lista) => lista.map((a) => (a.id === oc.origemId ? mudar(a) : a)));
+}
+function editarOcorrenciaAgenda({ ocorrencias, setOcorrencias, alunos, setAlunos, turmas, setTurmas, oc, novo, escopo, professores }) {
+  const agora = new Date().toISOString();
+  const prof = (professores || []).find((p) => p.uid === novo.professorUid);
+  const professorNome = novo.professorUid ? (prof ? prof.nome : oc.professorNome) : "";
+  const fixa = !!oc.recorrenciaChave && (oc.origemTipo === "turma" || oc.origemTipo === "individual");
+  if (fixa && escopo === "futuras") {
+    const diaAntigo = diaDaSemanaISO(oc.data), diaNovo = diaDaSemanaISO(novo.data), min = minutosEntre(novo.horaInicio, novo.horaFim);
+    mexerNaOrigem({ oc, turmas, setTurmas, alunos, setAlunos, mudar: (e) => {
+      const horarios = (e.horarios || []).map((h) => (h.dia === diaAntigo && h.hora === oc.horaInicio) ? { ...h, dia: diaNovo, hora: novo.horaInicio, quadraId: novo.quadraId || "" } : h);
+      const extra = DURACAO_POR_MIN[min] ? { duracaoPadrao: DURACAO_POR_MIN[min] } : {};
+      const profExtra = novo.professorUid !== oc.professorUid ? { professorUid: novo.professorUid, professorNome } : {};
+      return { ...e, horarios, ...extra, ...profExtra };
+    } });
+    /* as próximas aulas da série (ainda não dadas) saem e voltam já no horário novo */
+    const ficam = ocorrencias.filter((o) => !(o.recorrenciaChave === oc.recorrenciaChave && o.status === "agendada" && o.data >= oc.data));
+    const chave = chaveRecorrencia(oc.origemTipo, oc.origemId, diaNovo, novo.horaInicio);
+    const primeira = novaOcorrencia({ ...oc, id: undefined, recorrenciaChave: chave, data: novo.data, horaInicio: novo.horaInicio, horaFim: novo.horaFim,
+      quadraId: novo.quadraId || "", professorUid: novo.professorUid || "", professorNome, tipo: novo.tipo || oc.tipo, status: "agendada", presencas: {}, criadoEm: agora, atualizadoEm: agora });
+    delete primeira.id; primeira.id = "oc" + Date.now() + Math.random().toString(36).slice(2, 7);
+    setOcorrencias([...ficam, primeira]);
+    return;
+  }
+  const patch = { data: novo.data, horaInicio: novo.horaInicio, horaFim: novo.horaFim, quadraId: novo.quadraId || "", professorUid: novo.professorUid || "", professorNome, tipo: novo.tipo || oc.tipo, atualizadoEm: agora };
+  setOcorrencias(ocorrencias.map((o) => (o.id === oc.id ? { ...o, ...patch } : o)));
+  /* aula fixa movida de dia/hora: o lugar antigo não pode ganhar outra aula igual */
+  if (fixa && (novo.data !== oc.data || novo.horaInicio !== oc.horaInicio)) {
+    mexerNaOrigem({ oc, turmas, setTurmas, alunos, setAlunos, mudar: (e) => ({ ...e, agendaExcluidas: anotarExcluida(e.agendaExcluidas, oc.data + "|" + oc.horaInicio) }) });
+  }
+}
+function excluirOcorrenciaAgenda({ ocorrencias, setOcorrencias, alunos, setAlunos, turmas, setTurmas, oc, escopo, regras }) {
+  /* reposição/aula que usava crédito devolve o crédito, como se fosse cancelada */
+  if (setAlunos && oc.status !== "cancelada") setAlunos(aplicarEfeitoCreditoNaOcorrencia(alunos, oc, { ...oc, status: "cancelada" }, regras));
+  const fixa = !!oc.recorrenciaChave && (oc.origemTipo === "turma" || oc.origemTipo === "individual");
+  if (fixa && escopo === "futuras") {
+    const dia = diaDaSemanaISO(oc.data);
+    mexerNaOrigem({ oc, turmas, setTurmas, alunos, setAlunos, mudar: (e) => ({ ...e, horarios: (e.horarios || []).filter((h) => !(h.dia === dia && h.hora === oc.horaInicio)) }) });
+    setOcorrencias(ocorrencias.filter((o) => o.id !== oc.id && !(o.recorrenciaChave === oc.recorrenciaChave && o.status === "agendada" && o.data >= oc.data)));
+    return;
+  }
+  setOcorrencias(ocorrencias.filter((o) => o.id !== oc.id));
+  if (fixa) mexerNaOrigem({ oc, turmas, setTurmas, alunos, setAlunos, mudar: (e) => ({ ...e, agendaExcluidas: anotarExcluida(e.agendaExcluidas, oc.data + "|" + oc.horaInicio) }) });
+}
+
+/* Painel "Editar" / "Apagar da agenda" de um compromisso aberto na Agenda. */
+function EdicaoOcorrencia({ oc, quadras, professores, aoSalvar, aoExcluir }) {
+  const [modo, setModo] = useState(null); // null | "editar" | "excluir"
+  const [f, setF] = useState(null);
+  const [escopo, setEscopo] = useState("unica");
+  const fixa = !!oc.recorrenciaChave && (oc.origemTipo === "turma" || oc.origemTipo === "individual");
+  const avulsaTipo = !oc.recorrenciaChave;
+  function abrir(m) { setModo(m); setEscopo("unica"); setF({ data: oc.data, horaInicio: oc.horaInicio, horaFim: oc.horaFim, quadraId: oc.quadraId || "", professorUid: oc.professorUid || "", tipo: oc.tipo || "regular" }); }
+  const valido = f && f.data && /^\d\d:\d\d$/.test(f.horaInicio) && /^\d\d:\d\d$/.test(f.horaFim) && f.horaFim > f.horaInicio;
+  const escolhaEscopo = fixa && (
+    <fieldset style={{ border: "none", padding: 0, margin: "10px 0 0" }}>
+      <legend style={{ ...prosa, fontSize: 13, fontWeight: 700, marginBottom: 4 }}>{modo === "excluir" ? "Apagar" : "Mudar"}</legend>
+      {[["unica", "Só esta aula (" + oc.data.split("-").reverse().join("/") + ")"], ["futuras", modo === "excluir" ? "Esta e as próximas (tira o horário fixo)" : "Esta e as próximas (muda o horário fixo)"]].map(([v, r]) => (
+        <label key={v} style={{ ...prosa, fontSize: 13.5, display: "flex", alignItems: "center", gap: 8, minHeight: 36, cursor: "pointer" }}>
+          <input type="radio" name={"escopo-" + oc.id} checked={escopo === v} onChange={() => setEscopo(v)} style={{ width: 18, height: 18 }} /> {r}
+        </label>
+      ))}
+    </fieldset>
+  );
+  if (!modo) return (
+    <div className="flex gap-2 flex-wrap mt-3" data-edicao-ocorrencia>
+      <Botao pequeno variante="vazio" onClick={() => abrir("editar")}>Editar</Botao>
+      <Botao pequeno variante="vazio" onClick={() => abrir("excluir")}>Apagar da agenda</Botao>
+    </div>
+  );
+  if (modo === "excluir") return (
+    <div className="mt-3" data-edicao-ocorrencia style={{ border: "1px solid " + C.linha, borderRadius: 10, padding: 12 }}>
+      <p style={{ ...prosa, fontSize: 14, fontWeight: 700 }}>Apagar da agenda?</p>
+      <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginTop: 4 }}>
+        {oc.status === "realizada" ? "Esta aula já foi dada: apagando, ela sai também do relatório do mês. " : ""}
+        {oc.tipo === "reposicao" ? "O crédito de reposição volta para o jogador. " : ""}
+        Para registrar que não teve aula (com motivo e reposição), use "Cancelada" em vez de apagar.
+      </p>
+      {escolhaEscopo}
+      <div className="flex gap-2 flex-wrap mt-3">
+        <Botao pequeno onClick={() => { aoExcluir(fixa ? escopo : "unica"); setModo(null); }}>Apagar</Botao>
+        <Botao pequeno variante="vazio" onClick={() => setModo(null)}>Voltar</Botao>
+      </div>
+    </div>
+  );
+  return (
+    <div className="mt-3" data-edicao-ocorrencia style={{ border: "1px solid " + C.linha, borderRadius: 10, padding: 12 }}>
+      <p style={{ ...prosa, fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Editar</p>
+      <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))" }}>
+        <label style={{ ...prosa, fontSize: 12.5 }}>Dia<input type="date" style={entrada} value={f.data} onChange={(e) => setF({ ...f, data: e.target.value })} /></label>
+        <label style={{ ...prosa, fontSize: 12.5 }}>Início<input type="time" style={entrada} value={f.horaInicio} onChange={(e) => {
+          const ini = e.target.value, dur = minutosEntre(f.horaInicio, f.horaFim);
+          setF({ ...f, horaInicio: ini, horaFim: /^\d\d:\d\d$/.test(ini) && dur > 0 ? horaMaisMinutos(ini, dur) : f.horaFim });
+        }} /></label>
+        <label style={{ ...prosa, fontSize: 12.5 }}>Fim<input type="time" style={entrada} value={f.horaFim} onChange={(e) => setF({ ...f, horaFim: e.target.value })} /></label>
+        <label style={{ ...prosa, fontSize: 12.5 }}>Quadra<select style={entrada} value={f.quadraId} onChange={(e) => setF({ ...f, quadraId: e.target.value })}>
+          <option value="">Sem quadra</option>{(quadras || []).filter((q) => q.ativa !== false).map((q) => <option key={q.id} value={q.id}>{q.nome}</option>)}
+        </select></label>
+        <label style={{ ...prosa, fontSize: 12.5 }}>Professor<select style={entrada} value={f.professorUid} onChange={(e) => setF({ ...f, professorUid: e.target.value })}>
+          <option value="">Sem professor</option>{(professores || []).map((p) => <option key={p.uid} value={p.uid}>{p.nome}</option>)}
+          {f.professorUid && !(professores || []).some((p) => p.uid === f.professorUid) && <option value={f.professorUid}>{oc.professorNome || "Professor atual"}</option>}
+        </select></label>
+        {avulsaTipo && <label style={{ ...prosa, fontSize: 12.5 }}>Tipo<select style={entrada} value={f.tipo} onChange={(e) => setF({ ...f, tipo: e.target.value })}>
+          {TIPOS_OCORRENCIA.map((t) => <option key={t.v} value={t.v}>{t.r}</option>)}
+        </select></label>}
+      </div>
+      {escolhaEscopo}
+      {!valido && <p role="alert" style={{ ...prosa, fontSize: 12.5, color: "#B42318", marginTop: 6 }}>Confira o dia e se o fim é depois do início.</p>}
+      <div className="flex gap-2 flex-wrap mt-3">
+        <Botao pequeno disabled={!valido} onClick={() => { if (!valido) return; aoSalvar(f, fixa ? escopo : "unica"); setModo(null); }}>Salvar</Botao>
+        <Botao pequeno variante="vazio" onClick={() => setModo(null)}>Voltar</Botao>
+      </div>
+    </div>
+  );
+}
+
 function aplicarPatchComEscopo({ ocorrencias, setOcorrencias, alunos, setAlunos, turmas, setTurmas, oc, patch, escopo }) {
   const agora = new Date().toISOString();
   if (escopo === "futuras" && oc.recorrenciaChave) {
@@ -20659,6 +20870,8 @@ function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, ocorrencias, setOcor
   const [detalheAberto, setDetalheAberto] = useState(null);
   const [pendenciaAberta, setPendenciaAberta] = useState(false);
   const [maisOpcoesAberto, setMaisOpcoesAberto] = useState(false);
+  const [professoresAgenda, setProfessoresAgenda] = useState([]);
+  useEffect(() => { if (detalheAberto && !professoresAgenda.length) listaProfessores().then(setProfessoresAgenda).catch(() => {}); }, [detalheAberto]);
 
   useEffect(() => {
     if (dataAlvo) {
@@ -20892,6 +21105,9 @@ function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, ocorrencias, setOcor
                         aoDefinir={(quadraId, escopo) => atualizarOcorrencia(ocorrenciaDoDetalhe.id, { quadraId }, escopo)} />
                     </div>
                   )}
+                  <EdicaoOcorrencia oc={ocorrenciaDoDetalhe} quadras={quadras} professores={professoresAgenda}
+                    aoSalvar={(novo, escopo) => editarOcorrenciaAgenda({ ocorrencias, setOcorrencias, alunos, setAlunos, turmas, setTurmas, oc: ocorrenciaDoDetalhe, novo, escopo, professores: professoresAgenda })}
+                    aoExcluir={(escopo) => { excluirOcorrenciaAgenda({ ocorrencias, setOcorrencias, alunos, setAlunos, turmas, setTurmas, oc: ocorrenciaDoDetalhe, escopo, regras: regrasReposicao }); setDetalheAberto(null); }} />
                   <div className="flex gap-2 mt-3 flex-wrap">
                     {/* "Abrir aula" leva pra MESMA tela de preparo/condução/registro
                        que a ficha do jogador ou a turma abririam — a aula vista
@@ -22857,9 +23073,11 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   );
 }
 /* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
-const NOVIDADES_TY_VERSAO = "ty-2026-11a";
+const NOVIDADES_TY_VERSAO = "ty-2026-11b";
 const NOVIDADES_TY = [
-  { novo: true, t: "PDF dos relatórios mais bonito e sem erros", d: "O relatório da análise de movimento ganhou um resumo com gráfico, as medidas em réguas (a faixa ideal em verde e onde o atleta ficou) e as fases numa grade de uma página. No iPhone, os PDFs de todos os relatórios não cortam mais fotos e tabelas no meio, não saem com página em branco no fim e o texto não sai mais torto.", onde: "Jogadores › abra o jogador › Análise de movimento › Relatório em PDF", aba: "alunos" },
+  { novo: true, t: "Agenda editável", d: "Abra uma aula na Agenda e use Editar para mudar dia, horário, quadra, professor e tipo (só esta aula ou esta e as próximas) ou Apagar da agenda (a aula não volta sozinha). Incluir aulas, reposições, locações e bloqueios continua no + Agendar.", onde: "Agenda › toque numa aula", aba: "agenda" },
+  { novo: true, t: "Turmas apagadas: recuperar", d: "Remover turma agora pede confirmação e a turma fica 90 dias em Turmas apagadas, de onde volta igual. Turmas apagadas antes disso aparecem reconstruídas pela Agenda e pelo caderno (nome, jogadores, horários e professor) e voltam com o histórico das aulas.", onde: "Turmas › Turmas apagadas", aba: "turmas" },
+  { t: "PDF dos relatórios mais bonito e sem erros", d: "O relatório da análise de movimento ganhou um resumo com gráfico, as medidas em réguas (a faixa ideal em verde e onde o atleta ficou) e as fases numa grade de uma página. No iPhone, os PDFs de todos os relatórios não cortam mais fotos e tabelas no meio, não saem com página em branco no fim e o texto não sai mais torto.", onde: "Jogadores › abra o jogador › Análise de movimento › Relatório em PDF", aba: "alunos" },
   { t: "Análise de movimento mais fácil no celular", d: "Vídeo mais longo não é mais recusado: arraste o vídeo até um pouco antes do golpe e toque em Analisar (a análise usa 8 s dali). Se o vídeo não abrir no aparelho (ex.: vídeo de iPhone no Android), o app explica o que fazer. A análise ficou mais rápida no celular, o checklist virou um cartão por item e os números aparecem com vírgula.", onde: "Jogadores › abra o jogador › Análise de movimento", aba: "alunos" },
   { t: "Notificações no celular", d: "Ative no Hoje (ou em Ajuda › Notificações no celular) e receba no celular as aulas do dia às 7h, as aulas que passaram sem marcar às 21h e as novidades do app. Alunos e pais ativam no link do aluno e recebem: planejamento liberado, recado do professor, relatório publicado, jogo ao vivo começando e aula no dia seguinte. No iPhone, funciona com o app na tela de início.", onde: "Hoje › Receba os lembretes no celular", aba: "dashboard" },
   { t: "Relatório do aluno", d: "Nova aba Relatório na ficha de cada jogador: escolha o período e o que entra (perfil, planejamento, aulas, scout dos jogos e análise biomecânica), escreva sua observação e gere um documento só, pronto para salvar em PDF ou mandar pelo WhatsApp.", onde: "Jogadores › abra o jogador › Relatório", aba: "alunos" },
