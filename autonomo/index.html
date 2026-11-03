@@ -72,6 +72,8 @@
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-auth-compat.js"></script>
 <script src="mty-nuvem.js"></script>
 <script src="scout/graficos.js"></script>
+<script src="scout/quadra-exercicio.js"></script>
+<script src="scout/exercicios-quadra.js"></script>
 <script src="scout/ao-vivo.js"></script>
 <link rel="stylesheet" href="scout/ao-vivo.css">
 <script src="scout/relatorio-jogos.js"></script>
@@ -4023,6 +4025,7 @@ function CartaoExercicio({ e, aoTrocar, aoRemover, aoAtualizar, exerciciosCustom
   const podeEditar = !!(exerciciosCustom && setExerciciosCustom);
   const temVideo = !!e.videoUrl;
   const temDiagrama = !!(e.diagrama && (e.diagrama.pontos || []).length > 0);
+  const temQuadra = !!(e.c && window.QLQuadraExercicio && window.QLQuadraExercicio.tem(e.c)); // quadra animada (scout/exercicios-quadra.js)
   const cardRef = useRef(null);
   function rolarParaCartao() {
     setTimeout(() => cardRef.current && cardRef.current.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
@@ -4078,8 +4081,9 @@ function CartaoExercicio({ e, aoTrocar, aoRemover, aoAtualizar, exerciciosCustom
           </div>
         )}
       </div>
-      {(temVideo || temDiagrama || podeEditar) && (
+      {(temQuadra || temVideo || temDiagrama || podeEditar) && (
         <div className="flex items-center gap-2 flex-wrap mt-2">
+          {temQuadra && <BotaoChip ativo onClick={abrirDetalhe}>▶ Na quadra</BotaoChip>}
           {temVideo && <BotaoChip ativo onClick={abrirDetalhe}>🎥 Vídeo</BotaoChip>}
           {!temVideo && podeEditar && <BotaoChip onClick={abrirEdicao}>+ Vídeo</BotaoChip>}
           {temDiagrama && <BotaoChip ativo onClick={abrirDetalhe}>📐 Diagrama</BotaoChip>}
@@ -4098,6 +4102,7 @@ function CartaoExercicio({ e, aoTrocar, aoRemover, aoAtualizar, exerciciosCustom
       {aberto && editando && <EditorExercicio ex={e} aoSalvar={salvarEdicao} aoCancelar={() => setEditando(false)} />}
       {aberto && !editando && (
         <div className="mt-3 pt-3" style={{ borderTop: "1px solid " + C.linha }}>
+          {temQuadra && <div className="mb-3"><QuadraAnimadaExercicio codigo={e.c} /></div>}
           {e.videoUrl && <div className="mb-3"><VideoExercicio url={e.videoUrl} /></div>}
           {e.diagrama && (e.diagrama.pontos || []).length > 0 && <div className="mb-3"><QuadraDiagrama diagrama={e.diagrama} editavel={false} /></div>}
           {!e.custom && <p style={{ ...prosa, fontSize: 11, color: C.grafite, marginBottom: 6 }}>Código do catálogo: {e.c}</p>}
@@ -4116,6 +4121,16 @@ function CartaoExercicio({ e, aoTrocar, aoRemover, aoAtualizar, exerciciosCustom
   );
 }
 const iconeEstilo = { fontFamily: ARCH, fontSize: 15, width: 27, height: 27, border: "1px solid " + C.linha, borderRadius: 10, background: C.papel, color: C.grafite, cursor: "pointer", lineHeight: 1 };
+/* Quadra animada do exercício (mesma tecnologia do Simulador de Decisões): monta ao abrir o cartão e para ao fechar. */
+function QuadraAnimadaExercicio({ codigo }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!ref.current || !window.QLQuadraExercicio) return undefined;
+    const ctl = window.QLQuadraExercicio.montar(ref.current, codigo);
+    return () => ctl.parar();
+  }, [codigo]);
+  return <div ref={ref} data-quadra-exercicio={codigo} style={{ maxWidth: 640 }} />;
+}
 function BotaoChip({ ativo, onClick, children }) {
   return (
     <button type="button" onClick={onClick}
@@ -13122,10 +13137,11 @@ function RevisaoPlano({ aluno, alunos, setAlunos, podeEditar }) {
   );
 }
 
-const NOVIDADES_VERSAO = "2026-11b";
+const NOVIDADES_VERSAO = "2026-11c";
 const NOVIDADES = [
-  { novo: true, t: "Agenda editável", d: "Abra uma aula na Agenda e use Editar para mudar dia, horário e duração (só esta aula ou esta e as próximas) ou Apagar da agenda (some da agenda e das pendências; para registrar que não teve aula, continue usando Cancelar aula). Incluir aulas e reposições continua no + Agendar aula e no + Reposição.", onde: "Agenda › toque numa aula", aba: "agenda" },
-  { novo: true, t: "Turmas apagadas: recuperar", d: "Remover turma agora pede confirmação e a turma fica 90 dias em Turmas apagadas, de onde volta igual. Turmas apagadas antes disso aparecem reconstruídas pelo caderno dos jogadores (nome, jogadores e dias de treino): toque em Recuperar e confira o horário.", onde: "Mais › Turmas › Turmas apagadas", aba: "turmas" },
+  { novo: true, t: "Exercícios na quadra animada (piloto)", d: "20 exercícios do catálogo (fundamentos FB e padrões táticos DT) ganharam a quadra animada, com a mesma tecnologia do Simulador de Decisões: a posição de cada um, os alvos, cada bola numerada com o quique e o deslocamento do atleta. Toque em ▶ Na quadra e depois em Reproduzir. Os outros exercícios vêm em seguida.", onde: "Catálogo de exercícios › ▶ Na quadra (também na sessão e no plano)", aba: "catalogo" },
+  { t: "Agenda editável", d: "Abra uma aula na Agenda e use Editar para mudar dia, horário e duração (só esta aula ou esta e as próximas) ou Apagar da agenda (some da agenda e das pendências; para registrar que não teve aula, continue usando Cancelar aula). Incluir aulas e reposições continua no + Agendar aula e no + Reposição.", onde: "Agenda › toque numa aula", aba: "agenda" },
+  { t: "Turmas apagadas: recuperar", d: "Remover turma agora pede confirmação e a turma fica 90 dias em Turmas apagadas, de onde volta igual. Turmas apagadas antes disso aparecem reconstruídas pelo caderno dos jogadores (nome, jogadores e dias de treino): toque em Recuperar e confira o horário.", onde: "Mais › Turmas › Turmas apagadas", aba: "turmas" },
   { t: "PDF dos relatórios mais bonito e sem erros", d: "O relatório da análise de movimento ganhou um resumo com gráfico, as medidas em réguas (a faixa ideal em verde e onde o atleta ficou) e as fases numa grade de uma página. No iPhone, os PDFs de todos os relatórios não cortam mais fotos e tabelas no meio, não saem com página em branco no fim e o texto não sai mais torto.", onde: "Jogadores › abra o jogador › Análise de movimento › Relatório em PDF", aba: "alunos" },
   { t: "Análise de movimento mais fácil no celular", d: "Vídeo mais longo não é mais recusado: arraste o vídeo até um pouco antes do golpe e toque em Analisar (a análise usa 8 s dali). Se o vídeo não abrir no aparelho (ex.: vídeo de iPhone no Android), o app explica o que fazer. A análise ficou mais rápida no celular, o checklist virou um cartão por item e os números aparecem com vírgula.", onde: "Jogadores › abra o jogador › Análise de movimento", aba: "alunos" },
   { t: "Notificações no celular", d: "Ative no Início (ou em Mais › Notificações no celular) e receba no celular as aulas do dia às 7h, as aulas que passaram sem marcar às 21h, aluno pedindo acesso e atleta que aprovou a ligação. Alunos e pais ativam na Área do aluno ou no link do aluno e recebem: planejamento liberado, recado do professor, jogo ao vivo começando e aula no dia seguinte. No iPhone, funciona com o app na tela de início.", onde: "Início › Receba os lembretes no celular", aba: "dashboard" },
