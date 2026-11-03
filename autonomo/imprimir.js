@@ -40,18 +40,43 @@
       var esconder = [].slice.call(d.querySelectorAll(".no-print, .nop, .vbr, [data-sem-pdf]"));
       var antes = esconder.map(function (e) { var v = e.style.display; e.style.display = "none"; return v; });
       /* o PDF sai na largura de uma folha A4, não na do celular (senão a direita fica cortada) */
-      var b = d.body.style, salvo = [b.width, b.maxWidth, b.margin, b.boxSizing];
-      b.width = "733px"; b.maxWidth = "733px"; /* A4 menos as margens (194 mm) */ b.margin = "0"; b.boxSizing = "border-box";
-      var volta = function () { esconder.forEach(function (e, i) { e.style.display = antes[i]; }); b.width = salvo[0]; b.maxWidth = salvo[1]; b.margin = salvo[2]; b.boxSizing = salvo[3]; };
+      var b = d.body.style, salvo = [b.width, b.maxWidth, b.margin, b.boxSizing, b.padding, b.minHeight];
+      b.width = "733px"; b.maxWidth = "733px"; /* A4 menos as margens (194 mm) */ b.margin = "0"; b.boxSizing = "border-box"; b.padding = "0"; b.minHeight = "0";
+      /* fonte com nome de verdade: o desenho do PDF no iPhone não entende "system-ui"/"-apple-system" e trocava a letra no meio da
+         linha (texto torto e sobreposto); espaçamento entre letras também desalinhava */
+      var estilo = d.createElement("style"); estilo.id = "ql-pdf-fonte";
+      estilo.textContent = '*{font-family:"Helvetica Neue",Helvetica,Arial,sans-serif !important;letter-spacing:0 !important;text-wrap:wrap !important;font-feature-settings:normal !important}';
+      (d.head || d.body).appendChild(estilo);
+      var volta = function () { esconder.forEach(function (e, i) { e.style.display = antes[i]; }); b.width = salvo[0]; b.maxWidth = salvo[1]; b.margin = salvo[2]; b.boxSizing = salvo[3]; b.padding = salvo[4]; b.minHeight = salvo[5]; if (estilo.parentNode) estilo.parentNode.removeChild(estilo); };
       /* as opções nascem na janela do relatório (listas criadas aqui não passam no "é lista?" da biblioteca de lá) */
       var opcoes = j.JSON.parse(JSON.stringify({
         margin: [8, 8, 10, 8], filename: nomeArquivo(d) + ".pdf",
         image: { type: "jpeg", quality: 0.92 },
         html2canvas: { scale: 2, useCORS: true, windowWidth: 733, scrollX: 0, scrollY: 0, backgroundColor: "#ffffff" },
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-        pagebreak: { mode: ["legacy"], before: ".quebra" },
+        /* não corta foto, linha de tabela, cartão nem gráfico no meio (antes cortava e deixava páginas quase vazias) */
+        pagebreak: { mode: ["css", "legacy"], before: ".quebra", avoid: ["tr", "img", "svg", "canvas", "li", "h2", "h3", ".f", ".pr", ".kpi", ".card", ".cartao", ".bloco", ".medida", ".fase", ".evita-quebra"] },
       }));
-      j.html2pdf().set(opcoes).from(d.body).outputPdf("blob").then(function (blob) {
+      var tela = null;
+      var w = j.html2pdf().set(opcoes).from(d.body).toPdf().get("canvas").then(function (c) { tela = c; }).get("pdf").then(function (pdf) {
+        /* a última página saía em branco quando só sobravam alguns pixels do documento para ela: tira essa sobra */
+        try {
+          var n = pdf.internal.getNumberOfPages(), pg = pdf.internal.pageSize;
+          var utilW = pg.getWidth() - 16, utilH = pg.getHeight() - 18; /* margens [8, 8, 10, 8] em mm */
+          if (n > 1 && tela && tela.width) {
+            /* olha os pixels do pedaço do documento que foi para a última página: se não tiver nada desenhado, tira a página */
+            var pxPorPagina = tela.width * utilH / utilW, y0 = Math.floor((n - 1) * pxPorPagina), alt = tela.height - y0;
+            var vazia = alt <= 2;
+            if (!vazia) {
+              var px = tela.getContext("2d").getImageData(0, y0, tela.width, alt).data;
+              vazia = true;
+              for (var k = 0; k < px.length; k += 16) { if (px[k] < 245 || px[k + 1] < 245 || px[k + 2] < 245) { vazia = false; break; } }
+            }
+            if (vazia) pdf.deletePage(n);
+          }
+        } catch (e) { /* segue com o PDF como saiu */ }
+      });
+      w.outputPdf("blob").then(function (blob) {
         volta(); j.__qlGerandoPDF = false;
         j.__qlUltimoPDF = blob;
         var arquivo = null;

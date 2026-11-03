@@ -224,14 +224,67 @@
       "<script>window.CLIP=" + dados + ";" + pt.toString() + desenharBoneco.toString() + "(" + tocadorClip.toString() + ")();</" + "script>";
   }
 
+  /* ── peças gráficas do relatório ── */
+  var COR = { ok: "#2E8B57", atencao: "#C65825", nao_avaliavel: "#8A96A0" };
+  /* faixa boa a partir do texto da referência ("130° ± 15", "≥ 0,15 …", "≤ 20° …", "> 10° …", "entre -0,2 e 0,9 …") */
+  function faixaDe(ref) {
+    var t = String(ref || "").replace(/(\d),(\d)/g, "$1.$2"), m;
+    if ((m = /(-?\d+(?:\.\d+)?)°?\s*±\s*(\d+(?:\.\d+)?)/.exec(t))) return { min: +m[1] - +m[2], max: +m[1] + +m[2] };
+    if ((m = /entre\s*(-?\d+(?:\.\d+)?)\s*e\s*(-?\d+(?:\.\d+)?)/.exec(t))) return { min: +m[1], max: +m[2] };
+    if ((m = /[≥>]\s*(-?\d+(?:\.\d+)?)/.exec(t))) return { min: +m[1], max: null };
+    if ((m = /≤\s*(-?\d+(?:\.\d+)?)/.exec(t))) return { min: null, max: +m[1] };
+    return null;
+  }
+  /* régua de uma medida: faixa boa em verde, o valor medido marcado com a cor do parecer. Feita de blocos (não SVG): estica para qualquer
+     largura e sai igual no PDF do iPhone. */
+  function reguaHTML(it) {
+    var f = faixaDe(it.ref), v = it.valor;
+    if (!f || v == null || !isFinite(v)) return "";
+    var a = f.min != null ? f.min : f.max, b = f.max != null ? f.max : f.min, larg = Math.max(Math.abs(b - a), Math.abs(a) * 0.6, Math.abs(v - a) * 0.6, 1);
+    var lo = Math.min(v, f.min != null ? f.min : a - larg), hi = Math.max(v, f.max != null ? f.max : b + larg), pad = (hi - lo) * 0.1 || 1;
+    lo -= pad; hi += pad;
+    var pc = function (z) { return Math.max(0, Math.min(100, 100 * (z - lo) / (hi - lo))).toFixed(1); };
+    var z0 = f.min != null ? +pc(f.min) : 0, z1 = f.max != null ? +pc(f.max) : 100;
+    return '<div class="regua" role="img" aria-label="' + esc(it.nome) + ": " + esc(fmtValor(v, it.unidade)) + ", faixa " + esc(txtBR(it.ref)) + '"><i class="trilho"></i>' +
+      '<i class="zona" style="left:' + z0 + "%;width:" + Math.max(1, z1 - z0).toFixed(1) + '%"></i><i class="ponto" style="left:' + pc(v) + "%;background:" + COR[it.status] + '"></i></div>';
+  }
+  /* anel com OK / Atenção / Revisar */
+  function anelSVG(res, rotRevisar) {
+    var tot = res.ok + res.atencao + res.nao_avaliavel || 1, R = 34, C = 2 * Math.PI * R, ini = 0, arcos = "";
+    [["ok", res.ok], ["atencao", res.atencao], ["nao_avaliavel", res.nao_avaliavel]].forEach(function (p) {
+      if (!p[1]) return;
+      var l = C * p[1] / tot;
+      arcos += '<circle cx="45" cy="45" r="' + R + '" fill="none" stroke="' + COR[p[0]] + '" stroke-width="14" stroke-dasharray="' + (l - 1.5).toFixed(1) + " " + (C - l + 1.5).toFixed(1) + '" stroke-dashoffset="' + (-ini).toFixed(1) + '" transform="rotate(-90 45 45)"/>';
+      ini += l;
+    });
+    var medidos = res.ok + res.atencao;
+    return '<svg viewBox="0 0 90 90" width="96" height="96" role="img" aria-label="' + res.ok + " OK, " + res.atencao + " atenção, " + res.nao_avaliavel + " " + rotRevisar + '">' + arcos +
+      '<text x="45" y="44" text-anchor="middle" font-size="19" font-weight="800" fill="#0B3B2E">' + res.ok + "/" + medidos + '</text><text x="45" y="58" text-anchor="middle" font-size="8.5" fill="#5C6B78">medidos OK</text></svg>';
+  }
+
   /* ── relatório (janela própria, como o relatório dos jogos) ── */
   function relatorioHTML(d) {
     var r = d.resultado, co = B.conclusao(r), nm = nomeGolpe(d.golpe, d.emp), logo = d.logo || "assets/logo-quadralab.png";
     var imgs = imagensFases(r, d.fotos), temImgs = imgs.some(function (x) { return !!x.src; }), algumaPose = imgs.some(function (x) { return x.src && !x.foto; });
     var fotos = temImgs ? '<div class="fotos">' + r.fases.map(function (f, i) {
-      return '<div class="f">' + (imgs[i].src ? '<img src="' + esc(imgs[i].src) + '" alt="' + esc(r.nomes[i]) + '">' : "") + "<b>" + (i + 1) + ". " + esc(r.nomes[i]) + "</b><span>" + f.t.toFixed(2) + " s</span></div>";
+      var daFase = r.itens.filter(function (it) { return it.fase === i && it.status !== "nao_avaliavel"; }), at = daFase.filter(function (it) { return it.status === "atencao"; }).length;
+      var selo = daFase.length ? '<i class="sl ' + (at ? "atencao" : "ok") + '">' + (at ? at + " em atenção" : "tudo OK") + "</i>" : "";
+      return '<div class="f">' + (imgs[i].src ? '<img src="' + esc(imgs[i].src) + '" alt="' + esc(r.nomes[i]) + '">' : "") + "<b>" + (i + 1) + ". " + esc(r.nomes[i]) + "</b><span>" + fmtNum(f.t, 2) + " s</span>" + selo + "</div>";
     }).join("") + "</div>" + (algumaPose ? '<p class="qm-msg">Nas fases sem foto do vídeo, a imagem mostra só o boneco da pose detectada naquele momento.</p>' : "")
-      : '<p class="qm-msg">Esta análise é de antes de o app guardar as imagens das fases. Fases: ' + r.fases.map(function (f, i) { return (i + 1) + ". " + esc(r.nomes[i]) + " (" + f.t.toFixed(2) + " s)"; }).join(" · ") + "</p>";
+      : '<p class="qm-msg">Esta análise é de antes de o app guardar as imagens das fases. Fases: ' + r.fases.map(function (f, i) { return (i + 1) + ". " + esc(r.nomes[i]) + " (" + fmtNum(f.t, 2) + " s)"; }).join(" · ") + "</p>";
+    var atletaPub = d.publico === "atleta", rotRev = atletaPub ? "Conferir no vídeo" : "Revisar com treinador";
+    /* medidas em réguas: dá para ver de longe o que está dentro da faixa e o quanto falta */
+    var medidas = "", faseM = -1;
+    r.itens.forEach(function (it) {
+      if (it.valor == null) return;
+      if (it.fase !== faseM) { faseM = it.fase; medidas += '<div class="mfase">' + (faseM + 1) + ". " + esc(r.nomes[faseM]) + "</div>"; }
+      medidas += '<div class="medida"><div class="mn">' + esc(it.nome) + '<small>faixa: ' + esc(txtBR(it.ref)) + '</small></div><div class="mr">' + reguaHTML(it) + '</div><div class="mv"><b>' + esc(fmtValor(it.valor, it.unidade)) + '</b><span class="t ' + it.status + '">' + ROT[it.status] + "</span></div></div>";
+    });
+    var prioCurta = co.prioridades.slice(0, 3).map(function (p) { return "<li>" + esc(p.nome) + "</li>"; }).join("");
+    var resumo = '<div class="resumo"><div class="anel">' + anelSVG(r.resumo, rotRev) + '</div><div class="rtx"><div class="leg">' +
+      '<span><i style="background:' + COR.ok + '"></i>' + r.resumo.ok + ' OK</span><span><i style="background:' + COR.atencao + '"></i>' + r.resumo.atencao + ' Atenção</span><span><i style="background:' + COR.nao_avaliavel + '"></i>' + r.resumo.nao_avaliavel + " " + rotRev + "</span></div>" +
+      "<p>" + esc(co.texto) + "</p>" + (prioCurta ? '<div class="foco"><b>O que treinar primeiro</b><ol>' + prioCurta + "</ol></div>" : '<div class="foco ok"><b>Nenhuma medida fora da faixa.</b></div>') + "</div></div>" +
+      '<p class="como"><b>Como ler:</b> cada régua mostra a faixa de referência em verde e a medida deste vídeo no ponto colorido (verde = dentro da faixa, laranja = fora). Itens "Revisar" não dão para medir pelo vídeo' + (atletaPub ? " — confira olhando o vídeo ou com um treinador." : " e ficam para o treinador.") + "</p>";
     var tb = "", fa = -1;
     r.itens.forEach(function (it) {
       if (it.fase !== fa) { fa = it.fase; tb += '<tr class="fh"><td colspan="4">' + (fa + 1) + ". " + esc(r.nomes[fa]) + "</td></tr>"; }
@@ -249,20 +302,27 @@
     if (d.historico && d.historico.length > 1) evo += "<h2>Evolução do jogador neste golpe</h2>" + graficoHTML(B.serie(d.historico, d.golpe, d.emp));
     var css = "@page{size:A4;margin:11mm 11mm 13mm}*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}body{font:12px system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:#14202B;margin:0;padding:14px;max-width:900px;margin:auto}" +
       ".cab{display:flex;align-items:center;gap:14px;border-bottom:3px solid #0B3B2E;padding-bottom:8px;margin-bottom:10px}.cab img{height:34px}.cab .t{font-size:19px;font-weight:800;color:#0B3B2E}.cab small{display:block;color:#444;font-size:11px;margin-top:2px}" +
-      "h2{font-size:15px;color:#0B3B2E;margin:12px 0 6px}h3{font-size:13px;margin:12px 0 4px;break-after:avoid}.kpi{display:flex;gap:8px}.kpi div{flex:1;text-align:center;border-radius:8px;padding:7px;color:#fff}.kpi b{display:block;font-size:19px}" +
-      ".fotos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:8px}@media(max-width:600px){.fotos{grid-template-columns:1fr}}.f{border:1px solid #E2DED5;border-radius:6px;padding:4px;break-inside:avoid}.f img{display:block;max-height:78mm;max-width:100%;width:auto;margin:0 auto;border-radius:4px;background:#fff}.f b{display:block;font-size:11px;margin-top:3px}.f span{font-size:10px;color:#5C6B78}" +
-      "table{width:100%;border-collapse:collapse;table-layout:fixed;overflow-wrap:anywhere;font-size:10.8px}td,th{text-align:left;padding:5px 4px;border-top:1px solid #E2DED5;vertical-align:top}th{font-size:10px;color:#5C6B78;border-top:0}thead{display:table-header-group}tr{break-inside:avoid}tr.fh td{background:#F3F1EA;font-weight:700}" +
+      "h2{font-size:15px;color:#0B3B2E;margin:14px 0 6px;break-after:avoid;page-break-after:avoid}h2.concl{margin-top:18px}h3{font-size:13px;margin:12px 0 4px;break-after:avoid}.kpi{display:flex;gap:8px}.kpi div{flex:1;text-align:center;border-radius:8px;padding:7px;color:#fff}.kpi b{display:block;font-size:19px}" +
+      ".fotos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:8px}@media screen and (max-width:600px){.fotos{grid-template-columns:repeat(2,minmax(0,1fr))}}.f{border:1px solid #E2DED5;border-radius:8px;padding:5px;break-inside:avoid;page-break-inside:avoid}.f img{display:block;max-height:62mm;max-width:100%;width:auto;margin:0 auto;border-radius:5px;background:#fff}.f b{display:block;font-size:11px;margin-top:4px}.f span{font-size:10px;color:#5C6B78;margin-right:6px}" +
+      ".evita-quebra{break-inside:avoid;page-break-inside:avoid}.sl{display:inline-block;font-style:normal;font-size:9.5px;font-weight:700;border-radius:99px;padding:1px 7px;color:#fff}.sl.ok{background:#2E8B57}.sl.atencao{background:#C65825}" +
+      ".resumo{display:flex;flex-wrap:wrap;gap:16px;align-items:center;border:1px solid #E2DED5;border-radius:12px;padding:12px 14px;margin:10px 0;break-inside:avoid;page-break-inside:avoid}.resumo .anel{flex:none}.rtx{flex:1;min-width:220px}.rtx p{margin:6px 0;font-size:12.5px;line-height:1.45}" +
+      ".leg{display:flex;flex-wrap:wrap;gap:12px;font-size:11.5px;font-weight:700}.leg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}" +
+      ".foco{background:#FBF1EA;border-radius:8px;padding:7px 10px;font-size:12px}.foco.ok{background:#EAF5EE}.foco ol{margin:3px 0 0 18px;padding:0}.como{font-size:10.5px;color:#5C6B78;margin:0 0 6px}" +
+      ".mfase{font-weight:800;color:#0B3B2E;font-size:11.5px;margin:10px 0 2px;border-bottom:1px solid #E2DED5;padding-bottom:2px;break-after:avoid}" +
+      ".medida{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:10px;padding:6px 0 7px;border-bottom:1px dashed #ECE8DF;break-inside:avoid;page-break-inside:avoid}.mn{font-size:11.5px;font-weight:600}.mn small{display:block;font-weight:400;font-size:10px;color:#5C6B78}.mv{grid-column:2;grid-row:1;text-align:right;white-space:nowrap}.mv b{font-size:13px;margin-right:6px}.mr{grid-column:1 / span 2;grid-row:2;padding-top:4px}" +
+      ".regua{position:relative;height:14px}.regua i{position:absolute;display:block}.regua .trilho{left:0;right:0;top:4px;height:6px;border-radius:3px;background:#E7E3DA}.regua .zona{top:4px;height:6px;border-radius:3px;background:#A8D5B5}.regua .ponto{top:0;width:14px;height:14px;margin-left:-7px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.15)}" +
+      "table{width:100%;border-collapse:collapse;table-layout:fixed;overflow-wrap:anywhere;font-size:10.8px}td,th{text-align:left;padding:5px 4px;border-top:1px solid #E2DED5;vertical-align:top}th{font-size:10px;color:#5C6B78;border-top:0}thead{display:table-header-group}tr{break-inside:avoid;page-break-inside:avoid}tr.fh td{background:#F3F1EA;font-weight:700}" +
       ".t{display:inline-block;padding:1px 8px;border-radius:99px;font-size:10px;font-weight:700;color:#fff}.t.ok{background:#2E8B57}.t.atencao{background:#C65825}.t.nao_avaliavel{background:#8A96A0}small{color:#5C6B78}" +
-      ".pr{border:1px solid #E2DED5;border-left:4px solid #C65825;border-radius:8px;padding:6px 9px;margin:6px 0;break-inside:avoid}.pr p{margin:2px 0}.pr ul,ul{margin:3px 0 0 18px;padding:0}.quebra{break-before:page}.rod{margin-top:12px;border-top:1px solid #ccc;padding-top:6px;font-size:9.5px;color:#555}" +
+      ".pr{border:1px solid #E2DED5;border-left:4px solid #C65825;border-radius:8px;padding:6px 9px;margin:6px 0;break-inside:avoid;page-break-inside:avoid}.pr p{margin:2px 0}.pr ul,ul{margin:3px 0 0 18px;padding:0}.quebra{break-before:page}.rod{margin-top:12px;border-top:1px solid #ccc;padding-top:6px;font-size:9.5px;color:#555}" +
       ".qm-up{color:#2E8B57;font-weight:700}.qm-dn{color:#C65825;font-weight:700}.qm-eq{color:#5C6B78}.qm-tag{display:inline-block;padding:1px 7px;border-radius:99px;font-size:10px;color:#fff}.qm-tag.ok{background:#2E8B57}.qm-tag.atencao{background:#C65825}.qm-tag.nao_avaliavel{background:#8A96A0}.qm-cmp-s{font-weight:700}.qm-msg{color:#5C6B78;font-size:10.5px}svg.qm-graf{width:100%;max-width:520px}" +
       ".nop{margin-bottom:10px}.nop button{font:inherit;padding:8px 14px;border-radius:8px;border:1px solid #0B3B2E;background:#0B3B2E;color:#fff;margin-right:6px;cursor:pointer}@media print{.nop{display:none}body{padding:0}}" +
       ".vbr{margin-top:10px}.vbr canvas{display:block;width:100%;max-width:760px;height:auto;border-radius:8px;border:1px solid #E2DED5}.vbctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:6px 0}.vbr button,.vbr select{font:inherit;font-size:12px;padding:6px 10px;border-radius:8px;border:1px solid #0B3B2E;background:#fff;color:#0B3B2E;cursor:pointer}#vbp{background:#0B3B2E;color:#fff}#vbr{font-size:11px;color:#5C6B78}#vbs{width:100%;max-width:760px}#vbf{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}@media print{.vbr{display:none}}";
     return "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Análise de movimento · " + esc(nm) + "</title><style>" + css + "</style></head><body>" +
       '<div class="nop"><button onclick="window.print()">Salvar como PDF / Imprimir</button><button onclick="window.close()">Fechar</button></div>' +
       '<div class="cab"><img src="' + esc(logo) + '" alt="QuadraLab"><div><div class="t">Análise de movimento · ' + esc(nm) + "</div><small>" + (d.atleta ? "Atleta: " + esc(d.atleta) + " · " : "") + "Mão dominante: " + (d.dom === "E" ? "esquerda" : "direita") + " · " + (d.data ? new Date(d.data) : new Date()).toLocaleDateString("pt-BR") + (d.demo ? " · dados de demonstração" : "") + (d.cabecalho ? " · " + esc(d.cabecalho) : "") + "</small></div></div>" +
-      '<div class="kpi"><div style="background:#2E8B57"><b>' + r.resumo.ok + '</b>OK</div><div style="background:#C65825"><b>' + r.resumo.atencao + '</b>Atenção</div><div style="background:#8A96A0"><b>' + r.resumo.nao_avaliavel + "</b>" + (d.publico === "atleta" ? "Conferir no vídeo" : "Revisar com treinador") + "</div></div>" +
-      clipHTML(d.clip) + fotos + '<div class="quebra"></div><h2>Checklist por fase</h2><table><thead><tr><th>Item</th><th>Medido</th><th>Referência</th><th>Parecer</th></tr></thead><tbody>' + tb + "</tbody></table>" +
-      '<div class="quebra"></div><h2>Conclusão e intervenções sugeridas</h2><p>' + esc(co.texto) + "</p>" + cb + evo +
+      resumo + (medidas ? "<h2>As medidas deste vídeo</h2>" + medidas : "") +
+      clipHTML(d.clip) + '<div class="evita-quebra"><h2>As fases do golpe</h2>' + fotos + "</div>" + '<h2>Checklist por fase (detalhado)</h2><table><thead><tr><th>Item</th><th>Medido</th><th>Referência</th><th>Parecer</th></tr></thead><tbody>' + tb + "</tbody></table>" +
+      '<h2 class="concl">Conclusão e intervenções sugeridas</h2><p>' + esc(co.texto) + "</p>" + cb + evo +
       '<div class="rod">Tecnologia QuadraLab · ' + (d.publico === "atleta" ? "relatório automático para o atleta" : "relatório automático de apoio ao treinador") + '. As medidas vêm de estimativa de pose em vídeo e as faixas de referência são provisórias. Itens "Revisar" dependem de avaliação presencial.</div></body></html>';
   }
 
@@ -272,7 +332,7 @@
     var tb = (h.itens || []).map(function (i) { return "<tr><td>" + esc(i.n) + "</td><td>" + val(i) + "</td><td>" + esc(i.r) + '</td><td><span class="t ' + esc(i.s) + '">' + (ROT[i.s] || "") + "</span></td></tr>"; }).join("");
     var evo = d.historico && d.historico.length > 1 ? "<h2>Evolução do jogador neste golpe</h2>" + graficoHTML(B.serie(d.historico, h.golpe, h.emp)) : "";
     var css = "body{font:12px system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:#14202B;margin:0;padding:14px;max-width:900px;margin:auto}.cab{display:flex;align-items:center;gap:14px;border-bottom:3px solid #0B3B2E;padding-bottom:8px;margin-bottom:10px}.cab img{height:34px}.cab .t{font-size:19px;font-weight:800;color:#0B3B2E}.cab small{display:block;color:#444;font-size:11px;margin-top:2px}" +
-      "h2{font-size:15px;color:#0B3B2E;margin:12px 0 6px}.kpi{display:flex;gap:8px}.kpi div{flex:1;text-align:center;border-radius:8px;padding:7px;color:#fff}.kpi b{display:block;font-size:19px}table{width:100%;border-collapse:collapse;table-layout:fixed;overflow-wrap:anywhere;font-size:10.8px}td,th{text-align:left;padding:5px 4px;border-top:1px solid #E2DED5;vertical-align:top}th{font-size:10px;color:#5C6B78;border-top:0}" +
+      "h2{font-size:15px;color:#0B3B2E;margin:14px 0 6px;break-after:avoid;page-break-after:avoid}h2.concl{margin-top:18px}.kpi{display:flex;gap:8px}.kpi div{flex:1;text-align:center;border-radius:8px;padding:7px;color:#fff}.kpi b{display:block;font-size:19px}table{width:100%;border-collapse:collapse;table-layout:fixed;overflow-wrap:anywhere;font-size:10.8px}td,th{text-align:left;padding:5px 4px;border-top:1px solid #E2DED5;vertical-align:top}th{font-size:10px;color:#5C6B78;border-top:0}" +
       ".t{display:inline-block;padding:1px 8px;border-radius:99px;font-size:10px;font-weight:700;color:#fff}.t.ok{background:#2E8B57}.t.atencao{background:#C65825}.t.nao_avaliavel{background:#8A96A0}.av{background:#F3F1EA;border-radius:8px;padding:8px 10px;color:#444}.qm-msg{color:#5C6B78;font-size:10.5px}svg.qm-graf{width:100%;max-width:520px}" +
       ".nop{margin-bottom:10px}.nop button{font:inherit;padding:8px 14px;border-radius:8px;border:1px solid #0B3B2E;background:#0B3B2E;color:#fff;margin-right:6px;cursor:pointer}@media print{.nop{display:none}body{padding:0}}.rod{margin-top:12px;border-top:1px solid #ccc;padding-top:6px;font-size:9.5px;color:#555}";
     return "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Análise de movimento · " + esc(nm) + "</title><style>" + css + "</style></head><body>" +
