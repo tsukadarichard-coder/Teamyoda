@@ -17,7 +17,9 @@
   "use strict";
   var L = 11.885, W = 4.115, S = 6.4, LENTO = 1.8, QUADRO = 1 / 30;
   var COR = { quadra: "#3A7B56", fora: "#2A5E43", atleta: "#E8691F", outro: "#0D3328", bola: "#E4F542", rastro: "#F4FF8A", jog: "#F38A3F", adv: "#0B2A21" };
-  var NOME = { A: "Atleta", T: "Treinador", P: "Parceiro" };
+  var NOME = { A: "Atleta", T: "Treinador", P: "Parceiro", D: "Parceiro de dupla", O: "Adversário", Q: "Adversário" };
+  var W2 = 5.485; /* quadra de duplas */
+  function corDe(k) { return k === "A" ? COR.atleta : k === "D" ? "#C2561E" : COR.outro; }
   var ROTEIROS = {};
   var SVGNS = "http://www.w3.org/2000/svg";
 
@@ -74,6 +76,14 @@
       var P = pos[l.de] ? pos[l.de].slice() : [0, 0], novo = {};
       for (k in pos) novo[k] = pos[k].slice();
       for (k in (l.mover || {})) if (novo[k]) novo[k] = l.mover[k].slice();
+      if (l.semBola) { /* só deslocamento (spider, triângulo, circuito): a 5 m/s, no ritmo lento da animação */
+        var maior = 0; for (k in (l.mover || {})) if (pos[k]) maior = Math.max(maior, dist(pos[k], novo[k]));
+        var tf = t + Math.max(0.6, maior / 5 * LENTO * 0.6);
+        for (k in (l.mover || {})) if (trilhas[k]) { trilhas[k].push({ t: t + 0.05, x: pos[k][0], y: pos[k][1] }); trilhas[k].push({ t: tf, x: novo[k][0], y: novo[k][1] }); }
+        lances.push({ n: i + 1, txt: l.txt || "", de: l.de || "A", t0: t, t1: tf, quadros: [], tQuique: null, quique: null, fim: true, semBola: true });
+        pos = novo; t = tf + (l.pausa != null ? l.pausa : 0.25);
+        return;
+      }
       var prox = d.lances[i + 1] || (d.ciclo ? d.lances[0] : null);
       var receptor = l.para !== undefined ? l.para : (prox && prox.de !== l.de ? prox.de : null);
       var tipo = l.tipo || "";
@@ -103,16 +113,18 @@
 
   /* SVG da quadra com as camadas (em texto, para servir também ao PDF) */
   function quadraTexto(d, uid) {
+    var WQ = d.duplas ? W2 : W;
     var s = '<svg xmlns="' + SVGNS + '" viewBox="' + VB.x + " " + VB.y + " " + VB.w + " " + VB.h + '" class="qe-svg" role="img" aria-label="' + esc(d.resumo || "Quadra do exercício vista de cima") + '">' +
       '<defs><marker id="' + uid + 'j" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="' + COR.jog + '"/></marker>' +
       '<marker id="' + uid + 'a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#FFFFFF"/></marker></defs>' +
       '<rect x="' + VB.x + '" y="' + VB.y + '" width="' + VB.w + '" height="' + VB.h + '" fill="' + COR.fora + '"/>' +
-      '<rect x="' + (-L - 0.6) + '" y="' + (-W - 0.9) + '" width="' + (2 * L + 1.2) + '" height="' + (2 * W + 1.8) + '" fill="' + COR.quadra + '" rx="0.2"/>' +
+      '<rect x="' + (-L - 0.6) + '" y="' + (-WQ - 0.75) + '" width="' + (2 * L + 1.2) + '" height="' + (2 * WQ + 1.5) + '" fill="' + COR.quadra + '" rx="0.2"/>' +
       '<g stroke="#FFFFFF" stroke-width="0.09" fill="none" stroke-linecap="square"><rect x="' + -L + '" y="' + -W + '" width="' + 2 * L + '" height="' + 2 * W + '"/>' +
+      (d.duplas ? '<rect x="' + -L + '" y="' + -W2 + '" width="' + 2 * L + '" height="' + 2 * W2 + '"/>' : "") +
       '<line x1="' + -S + '" y1="' + -W + '" x2="' + -S + '" y2="' + W + '"/><line x1="' + S + '" y1="' + -W + '" x2="' + S + '" y2="' + W + '"/><line x1="' + -S + '" y1="0" x2="' + S + '" y2="0"/>' +
       '<line x1="' + -L + '" y1="0" x2="' + (-L + 0.3) + '" y2="0"/><line x1="' + L + '" y1="0" x2="' + (L - 0.3) + '" y2="0"/></g>' +
-      '<line x1="0" y1="' + (-W - 0.9) + '" x2="0" y2="' + (W + 0.9) + '" stroke="' + COR.adv + '" stroke-width="0.16"/><line x1="0" y1="' + (-W - 0.9) + '" x2="0" y2="' + (W + 0.9) + '" stroke="#FFFFFF" stroke-width="0.05" stroke-dasharray="0.12 0.12"/>' +
-      '<circle cx="0" cy="' + (-W - 0.9) + '" r="0.14" fill="' + COR.adv + '"/><circle cx="0" cy="' + (W + 0.9) + '" r="0.14" fill="' + COR.adv + '"/>';
+      '<line x1="0" y1="' + (-WQ - 0.75) + '" x2="0" y2="' + (WQ + 0.75) + '" stroke="' + COR.adv + '" stroke-width="0.16"/><line x1="0" y1="' + (-WQ - 0.75) + '" x2="0" y2="' + (WQ + 0.75) + '" stroke="#FFFFFF" stroke-width="0.05" stroke-dasharray="0.12 0.12"/>' +
+      '<circle cx="0" cy="' + (-WQ - 0.75) + '" r="0.14" fill="' + COR.adv + '"/><circle cx="0" cy="' + (WQ + 0.75) + '" r="0.14" fill="' + COR.adv + '"/>';
     /* alvos, cones e cesto */
     (d.alvos || []).forEach(function (a) {
       var p1 = T([Math.min(a.x1, a.x2), Math.min(a.y1, a.y2)]), p2 = T([Math.max(a.x1, a.x2), Math.max(a.y1, a.y2)]);
@@ -127,7 +139,7 @@
   function esc(x) { return String(x == null ? "" : x).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
 
   function jogadorTexto(k, p) {
-    var q = T(p), cor = k === "A" ? COR.atleta : COR.outro;
+    var q = T(p), cor = corDe(k);
     return '<g class="qe-j" data-ator="' + k + '" transform="translate(' + q[0].toFixed(3) + "," + q[1].toFixed(3) + ')"><circle r="0.78" fill="' + cor + '" stroke="#FFFFFF" stroke-width="0.13"/>' +
       '<text y="0.3" text-anchor="middle" font-size="0.86" font-weight="800" fill="#FFFFFF" font-family="system-ui,sans-serif">' + k + "</text></g>";
   }
@@ -152,13 +164,14 @@
   }
 
   /* desenho completo, parado: todas as bolas com número, os deslocamentos e todos na posição inicial */
-  function svgEstatico(codigo, uid) {
-    var d = roteiro(codigo); if (!d) return "";
+  function svgEstatico(codigo, uid, dd) {
+    var d = dd || roteiro(codigo); if (!d) return "";
     uid = uid || "qe" + Math.random().toString(36).slice(2, 7);
     var tl = construir(d), s = quadraTexto(d, uid), extra = "", k;
     tl.lances.forEach(function (l) {
       /* bolas do atleta em amarelo; as de quem alimenta ou devolve, em branco mais claro */
-      var doAtleta = l.de === "A";
+      if (l.semBola) return;
+      var doAtleta = l.de === "A" || l.de === "D";
       extra += '<polyline points="' + pts(l.quadros.map(function (q) { return [q.x, q.y]; })) + '" fill="none" stroke="' + (doAtleta ? COR.rastro : "#FFFFFF") + '" stroke-width="' + (doAtleta ? 0.11 : 0.08) + '" stroke-dasharray="0.3 0.22" opacity="' + (doAtleta ? 0.95 : 0.55) + '"/>';
       if (l.quique) extra += marcaTexto(l.quique, l.n);
     });
@@ -173,14 +186,15 @@
     opts = opts || {};
     var d = roteiro(codigo);
     if (!d || !host) return { parar: function () {} };
+    if (!d.resumo && opts.resumo) d = Object.assign({}, d, { resumo: opts.resumo });
     var uid = "qe" + Math.random().toString(36).slice(2, 7), tl = construir(d);
     var atores = Object.keys(d.atores);
     host.classList.add("qe");
-    host.innerHTML = '<div class="qe-quadra">' + svgEstatico(codigo, uid) + "</div>" +
+    host.innerHTML = '<div class="qe-quadra">' + svgEstatico(codigo, uid, d) + "</div>" +
       '<div class="qe-ctl"><button type="button" class="qe-play" aria-label="Reproduzir">▶ Reproduzir</button><button type="button" class="qe-reini" aria-label="Voltar ao início">↺</button>' +
       '<label class="qe-vel">Velocidade <select aria-label="Velocidade"><option value="0.5">0,5×</option><option value="1" selected>1×</option><option value="1.6">1,6×</option></select></label></div>' +
       '<p class="qe-txt" aria-live="polite">' + esc(d.resumo || "") + "</p>" +
-      '<div class="qe-leg">' + atores.map(function (k) { return '<span><i style="background:' + (k === "A" ? COR.atleta : COR.outro) + '"></i>' + (k === "A" ? "Atleta" : NOME[k] || k) + "</span>"; }).join("") +
+      '<div class="qe-leg">' + atores.filter(function (k, i) { return atores.indexOf(k) === i && !(k === "Q" && atores.indexOf("O") >= 0); }).map(function (k) { return '<span><i style="background:' + corDe(k) + '"></i>' + (k === "A" ? "Atleta" : NOME[k] || k) + "</span>"; }).join("") +
       '<span><i style="background:' + COR.bola + ';border-radius:50%"></i>Bola (o número marca o quique)</span>' + ((d.alvos || []).length ? '<span><i style="background:rgba(244,255,138,.5);border:1px dashed #9AA62A"></i>Alvo</span>' : "") + "</div>";
     var svg = host.querySelector("svg"), gR = svg.querySelector(".qe-rastros"), gM = svg.querySelector(".qe-marcas"), gJ = svg.querySelector(".qe-jogadores"), gB = svg.querySelector(".qe-bola");
     var bt = host.querySelector(".qe-play"), txt = host.querySelector(".qe-txt"), sel = host.querySelector("select");
@@ -203,12 +217,13 @@
       });
       for (k in tl.trilhas) { var tr = amostraTrilha(tl.trilhas[k], tt), dd = 0; for (j = 1; j < tr.length; j++) dd += dist(tr[j], tr[j - 1]); if (dd > 0.6) html += rastroTexto(tr, k === "A" ? "A" : "o", uid); }
       gR.innerHTML = html; gM.innerHTML = marcas;
-      if (b) {
+      if (b && bola) {
         var h = Math.max(0, b.h || 0), q = T([b.x, b.y]);
         bola.setAttribute("visibility", "visible"); sombra.setAttribute("visibility", "visible");
         bola.setAttribute("cx", q[0].toFixed(3)); bola.setAttribute("cy", q[1].toFixed(3)); bola.setAttribute("r", (0.32 * (1 + h / 3.2)).toFixed(3));
         sombra.setAttribute("cx", (q[0] + h * 0.16).toFixed(3)); sombra.setAttribute("cy", (q[1] + h * 0.16).toFixed(3)); sombra.setAttribute("opacity", Math.max(0.25, 1 - h / 7).toFixed(2));
       } else { bola.setAttribute("visibility", "hidden"); sombra.setAttribute("visibility", "hidden"); }
+      if (atual < 0) tl.lances.forEach(function (l, i) { if (l.semBola && tt >= l.t0 && tt <= l.t1) atual = i; });
       if (atual !== lanceAtual && atual >= 0) { lanceAtual = atual; var l = tl.lances[atual]; txt.textContent = l.n + " de " + tl.lances.length + " · " + (NOME[l.de] || l.de) + ": " + l.txt; }
     }
     function passo(agora) {
@@ -234,7 +249,7 @@
     function parar() { rodando = false; if (raf) cancelAnimationFrame(raf); raf = 0; bt.textContent = "▶ Reproduzir"; bt.setAttribute("aria-label", "Reproduzir"); }
     function doInicio() {
       parar(); t = 0; lanceAtual = -1;
-      host.querySelector(".qe-quadra").innerHTML = svgEstatico(codigo, uid);
+      host.querySelector(".qe-quadra").innerHTML = svgEstatico(codigo, uid, d);
       svg = host.querySelector("svg"); gR = svg.querySelector(".qe-rastros"); gM = svg.querySelector(".qe-marcas"); gJ = svg.querySelector(".qe-jogadores"); gB = svg.querySelector(".qe-bola");
       txt.textContent = d.resumo || "";
     }

@@ -104,10 +104,22 @@ const base = "http://localhost:" + srv.address().port + "/";
     assert(/Pausar/.test(await p.textContent('[data-quadra-exercicio="DT002"] .qe-play')), rot + ": botão vira Pausar");
     await cap(p, "quadra-" + rot);
     await p.click('[data-quadra-exercicio="DT002"] .qe-play');
-    /* fora do piloto: sem botão */
-    await p.fill('input[placeholder="Buscar por código, nome ou montagem"]', "DT004");
+    /* duplas (quadra de duplas, quatro jogadores) e deslocamento sem bola (spider) também tocam */
+    for (const [cod, n] of [["DP006", 4], ["MV004", 1]]) {
+      await p.fill('input[placeholder="Buscar por código, nome ou montagem"]', cod);
+      await p.waitForTimeout(300);
+      await p.locator('button:has-text("▶ Na quadra")').first().click();
+      await p.waitForSelector('[data-quadra-exercicio="' + cod + '"] svg');
+      assert.strictEqual(await p.locator('[data-quadra-exercicio="' + cod + '"] .qe-j').count(), n, rot + ": " + cod + " com " + n + " jogador(es)");
+      await p.click('[data-quadra-exercicio="' + cod + '"] .qe-play');
+      await p.waitForTimeout(1500);
+      assert(/^\d de \d · /.test(await p.textContent('[data-quadra-exercicio="' + cod + '"] .qe-txt')), rot + ": " + cod + " anda");
+      await p.click('[data-quadra-exercicio="' + cod + '"] .qe-play');
+    }
+    /* jogo de placar (sem bola marcada na quadra): sem botão */
+    await p.fill('input[placeholder="Buscar por código, nome ou montagem"]', "DT018");
     await p.waitForTimeout(300);
-    assert.strictEqual(await p.locator('button:has-text("▶ Na quadra")').count(), 0, rot + ": DT004 ainda não tem quadra");
+    assert.strictEqual(await p.locator('button:has-text("▶ Na quadra")').count(), 0, rot + ": DT018 não tem quadra");
     assert.deepStrictEqual(p.erros, [], rot + ": erros de JS " + p.erros.join(" | "));
   }
   /* Team Yoda, computador */
