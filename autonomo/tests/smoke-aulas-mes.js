@@ -1,4 +1,4 @@
-/* Marcação de aulas em um toque + Relatório do mês (Team Yoda): Realizada/Cancelada com motivo e reposição, chamada rápida,
+/* Marcação de aulas em um toque + Relatório de aulas (Team Yoda), com as reposições ligadas à aula reposta e os períodos: Realizada/Cancelada com motivo e reposição, chamada rápida,
    desfazer, aula do caderno fora das pendências, aulas previstas pela grade no topo do relatório, alunos e professores.
    Roda as telas reais em React/Babel locais (defina CDN_DIR). Rode: node tests/smoke-aulas-mes.js */
 const fs=require("fs"),path=require("path"),http=require("http");const {chromium}=require("/opt/node22/lib/node_modules/playwright");
@@ -33,7 +33,7 @@ function Host(){
  window.__estado={alunos,turmas,ocorrencias};window.__setAba=setAba;
  return <div style={{padding:12,maxWidth:560}}>
   {aba==="hoje"?<TelaAulasHoje alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} quadras={[]} reservas={[]} bloqueiosAula={[]} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} regrasReposicao={regrasReposicaoPadrao()} uidAtual="p1" papelAtual="coordenador" />
-  :<TelaFechamentoMes ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} alunos={alunos} setAlunos={setAlunos} turmas={turmas} regrasReposicao={regrasReposicaoPadrao()} papelAtual="coordenador" uidAtual="p1" identidade={{nome:"Team Yoda"}} irParaReposicoes={()=>{window.__foiReposicoes=1}} irParaAluno={()=>{}} />}
+  :<TelaFechamentoMes ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} quadras={[]} reservas={[]} bloqueiosAula={[]} regrasReposicao={regrasReposicaoPadrao()} papelAtual="coordenador" uidAtual="p1" identidade={{nome:"Team Yoda"}} irParaReposicoes={()=>{window.__foiReposicoes=1}} irParaAluno={()=>{}} />}
  </div>;}
 ReactDOM.createRoot(document.getElementById("root")).render(<Host />);`;
 const pagina=`<!doctype html><meta charset=utf-8><div id=root></div><script src=/r.js></script><script src=/d.js></script><script src=/p.js></script><script src=/c.js></script><script src=/b.js></script>${process.env.TW?"<script src=/tw.js></script>":""}
@@ -111,5 +111,28 @@ t=await p.evaluate(()=>document.body.innerText);
 assert(/Gui/.test(t)&&/aulas? dadas?/.test(t),"professores: a aula de hoje conta para o substituto");
 assert(/1 como substituto/.test(t),"substituição contada");
 if(CAP)await p.screenshot({path:CAP+"/mes-professores.png",fullPage:true});
+/* Reposições do período: a falta da Bia hoje está a repor (com o crédito aguardando aprovação); agendar escolhendo a aula reposta */
+await p.click("[data-vista=reposicoes]");await p.waitForSelector("[data-vista-reposicoes]");
+let bloco=await p.locator('[data-a-repor="oc-hoje"]').innerText();
+assert(/Bia Lima/.test(bloco)&&/faltou na turma Turma Terça/.test(bloco)&&/crédito aguardando aprovação/.test(bloco),"falta da Bia a repor: "+bloco);
+if(CAP)await p.screenshot({path:CAP+"/reposicoes-periodo.png",fullPage:true});
+await p.locator('[data-a-repor="oc-hoje"]').getByText("Agendar reposição").click();
+await p.waitForSelector("[data-aulas-a-repor]");
+assert(await p.locator('[data-repoe="oc-hoje"] input').isChecked(),"a aula da Bia vem escolhida");
+assert(/Qual aula está sendo reposta\?/.test(await p.locator("[data-aulas-a-repor]").innerText()));
+assert(/Bia Lima \(1 a repor\)/.test(await p.locator('select[data-escolher=individual] option:checked').innerText()),"aluno escolhido com a contagem");
+await p.locator('[role=dialog][aria-label=Agendar] input[type=time]').first().fill("19:00");
+if(CAP)await p.screenshot({path:CAP+"/reposicao-escolher-aula.png",fullPage:true});
+await p.locator('[role=dialog][aria-label=Agendar]').getByText("Agendar reposição").click();await p.waitForTimeout(250);
+const rep=(await est()).ocorrencias.find(o=>o.tipo==="reposicao");
+assert(rep&&rep.origemId==="a2"&&rep.repoeAulaId==="oc-hoje"&&/faltou na turma Turma Terça/.test(rep.repoeTexto)&&/Reposição da aula de/.test(rep.motivoReposicao),"reposição ligada: "+JSON.stringify(rep));
+assert.strictEqual(await p.locator('[data-a-repor="oc-hoje"]').count(),0,"a falta saiu da lista");
+assert(/Repõe a aula de .*faltou na turma/.test(await p.locator("[data-reposicao-relatorio]").first().innerText()),"reposição do período diz o que repõe");
+/* períodos */
+await p.click("[data-periodo=semana]");assert(/Semana de/.test(await p.locator("[data-rotulo-periodo]").innerText()));
+await p.click("[data-periodo=trimestre]");assert(/trimestre/.test(await p.locator("[data-rotulo-periodo]").innerText()));
+await p.click('[aria-label="Período anterior"]');await p.click('[aria-label="Próximo período"]');
+await p.click("[data-periodo=mes]");
+if(CAP)await p.screenshot({path:CAP+"/reposicoes-depois.png",fullPage:true});
 assert.deepStrictEqual(erros,[],"erros de JS "+erros.join(" | "));console.log("smoke-aulas-mes: ok");
 await b.close();srv.close()})().catch(e=>{console.error(e.message||e);process.exit(1)});

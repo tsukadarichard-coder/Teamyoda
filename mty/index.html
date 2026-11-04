@@ -18401,23 +18401,23 @@ const ROTULOS_STATUS_CREDITO = {
    diferente de ocNova), nunca à mesma atualização duas vezes. */
 function aplicarEfeitoCreditoNaOcorrencia(alunos, ocAntiga, ocNova, regras) {
   if (ocNova.tipo !== "reposicao") return alunos;
-  const aluno = alunos.find((a) => a.id === ocNova.origemId);
-  if (!aluno) return alunos;
-  const credito = (aluno.creditosReposicao || []).find((c) => c.ocorrenciaReposicaoId === ocNova.id);
-  if (!credito) return alunos;
-  let novoCredito = null;
-  if (ocNova.status === "realizada" && ocAntiga.status !== "realizada") {
-    novoCredito = moverCredito(credito, "utilizado", "reposição realizada");
-  } else if (ocNova.status === "cancelada" && ocAntiga.status !== "cancelada") {
-    novoCredito = (regras && regras.reverterCreditoAoCancelar === false)
+  const realizou = ocNova.status === "realizada" && ocAntiga.status !== "realizada";
+  const cancelou = ocNova.status === "cancelada" && ocAntiga.status !== "cancelada";
+  if (!realizou && !cancelou) return alunos;
+  /* o crédito do aluno da reposição individual, ou os créditos de cada aluno da turma reservados para a reposição da turma */
+  function novo(credito) {
+    if (realizou) return moverCredito(credito, "utilizado", "reposição realizada");
+    return (regras && regras.reverterCreditoAoCancelar === false)
       ? moverCredito(credito, "cancelado", "reposição cancelada — regra da unidade não reverte o crédito")
       : { ...moverCredito(credito, "disponivel", "reposição cancelada — crédito revertido"), ocorrenciaReposicaoId: null };
-  } else {
-    return alunos;
   }
-  return alunos.map((a) => (a.id === aluno.id
-    ? { ...a, creditosReposicao: a.creditosReposicao.map((c) => (c.id === credito.id ? novoCredito : c)) }
-    : a));
+  let mudou = false;
+  const saida = alunos.map((a) => {
+    if (!(a.creditosReposicao || []).some((c) => c.ocorrenciaReposicaoId === ocNova.id)) return a;
+    mudou = true;
+    return { ...a, creditosReposicao: a.creditosReposicao.map((c) => (c.ocorrenciaReposicaoId === ocNova.id ? novo(c) : c)) };
+  });
+  return mudou ? saida : alunos;
 }
 
 function baixarCSV(nomeArquivo, conteudo) {
@@ -19279,19 +19279,52 @@ function LinhaCredito({ credito, aluno, professores, turmas, ocorrencias, aoApro
   );
 }
 
+/* Lista das aulas que ficaram para repor (aluno ou turma), com Agendar reposição desta aula e Não vai repor. */
+function ListaAulasARepor({ itens, aoAgendar, aoDispensar, vazio }) {
+  if (!itens.length) return <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginTop: 6 }}>{vazio || "Nenhuma aula esperando reposição."}</p>;
+  return (
+    <div className="mt-2">
+      {itens.map((p) => (
+        <div key={p.entTipo + p.entId + p.id} data-a-repor={p.id} style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "4px solid #B8860B", boxShadow: SOMBRA, borderRadius: 10, padding: "9px 13px", marginBottom: 8 }}>
+          <p style={{ ...prosa, fontSize: 13.5 }}>
+            <b>{p.entNome}</b>{p.entTipo === "turma" ? <span style={{ color: C.grafite }}> (turma)</span> : null}
+            <span style={{ color: C.grafite }}> · {QLAulasMes.textoPerdida(p)}</span>
+            {p.credito && p.credito.status === "disponivel" && <span style={{ color: C.quadra, fontWeight: 700 }}> · crédito disponível</span>}
+            {p.credito && p.credito.status === "pendente_aprovacao" && <span style={{ color: "#8A6100", fontWeight: 700 }}> · crédito aguardando aprovação</span>}
+          </p>
+          <div className="flex gap-2 flex-wrap mt-2">
+            <Botao pequeno onClick={() => aoAgendar(p)}>Agendar reposição</Botao>
+            <Botao pequeno variante="vazio" onClick={() => aoDispensar(p)}>Não vai repor</Botao>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+/* "Não vai repor": a aula sai da lista de reposições (fica em repoDispensadas da ficha do aluno ou da turma) */
+function dispensarReposicaoTY(p, setAlunos, setTurmas) {
+  const marcar = (x) => (x.id !== p.entId ? x : { ...x, repoDispensadas: [...new Set([...(x.repoDispensadas || []), p.id])] });
+  if (p.entTipo === "turma") { if (setTurmas) setTurmas((l) => l.map(marcar)); }
+  else if (setAlunos) setAlunos((l) => l.map(marcar));
+}
+
 /* Tela "Reposições" — pedido 6: configurar regras por unidade, nunca
    conceder crédito automaticamente, mostrar créditos em cada estado
    (disponível/reservado/utilizado/vencido/cancelado), reservar o crédito
    ao agendar (impede uso duplicado) e consumir ao concluir. Agendar passa
    pelo mesmo conflitosDeOcorrencia() usado em "Aulas de hoje" — não
    oferece hora que já colida com quadra/professor/aluno. */
-function TelaReposicoes({ alunos, setAlunos, turmas, quadras, reservas, bloqueiosAula, ocorrencias, setOcorrencias, regrasReposicao, setRegrasReposicao, papelAtual }) {
+function TelaReposicoes({ alunos, setAlunos, turmas, setTurmas, quadras, reservas, bloqueiosAula, ocorrencias, setOcorrencias, regrasReposicao, setRegrasReposicao, papelAtual, irParaRelatorio }) {
   const [professores, setProfessores] = useState([]);
   const [mostrarRegras, setMostrarRegras] = useState(false);
   const [novaAberta, setNovaAberta] = useState(false);
+  /* reposição aberta a partir de uma aula da lista: { alvo: { tipo, id }, repoe } */
+  const [repoDe, setRepoDe] = useState(null);
+  const [verTodasARepor, setVerTodasARepor] = useState(false);
   useEffect(() => { listaProfessores().then(setProfessores); }, []);
 
   const hoje = new Date().toISOString().slice(0, 10);
+  const aRepor = useMemo(() => QLAulasMes.todasPendentes({ ocorrencias, alunos, turmas, hoje }), [ocorrencias, alunos, turmas, hoje]);
   const todosCreditos = [];
   alunos.forEach((a) => (a.creditosReposicao || []).forEach((c) => todosCreditos.push({ credito: c, aluno: a })));
   const contagens = { pendente_aprovacao: 0, disponivel: 0, reservado: 0, utilizado: 0, vencido: 0, cancelado: 0 };
@@ -19315,7 +19348,7 @@ function TelaReposicoes({ alunos, setAlunos, turmas, quadras, reservas, bloqueio
       origemTipo: "individual", origemId: aluno.id, recorrenciaChave: null,
       data, horaInicio, horaFim, quadraId: quadraId || "",
       professorUid: professorUid || "", professorNome: prof ? prof.nome : "",
-      tipo: "reposicao", status: "agendada",
+      tipo: "reposicao", status: "agendada", repoeAulaId: credito.origemOcorrenciaId || null,
     });
     const conflitosProfessorOuAluno = conflitosDeOcorrencia(ocorrencias, candidata, turmas).filter((c) => c.tipo !== "quadra");
     if (conflitosProfessorOuAluno.length) return { erro: "Esse horário já está ocupado (conflito de " + conflitosProfessorOuAluno[0].tipo + ") — escolha outro." };
@@ -19354,14 +19387,26 @@ function TelaReposicoes({ alunos, setAlunos, turmas, quadras, reservas, bloqueio
     <div>
       <div className="flex items-center justify-between gap-3 flex-wrap" style={{ marginBottom: 4 }}>
         <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700 }}>Reposições</h1>
-        <Botao onClick={() => setNovaAberta(true)}>+ Nova reposição</Botao>
+        <div className="flex gap-2 flex-wrap">
+          {irParaRelatorio && <Botao variante="vazio" onClick={irParaRelatorio}>Relatório de aulas</Botao>}
+          <Botao onClick={() => setNovaAberta(true)}>+ Nova reposição</Botao>
+        </div>
       </div>
       <p style={{ ...prosa, fontSize: 14, color: C.grafite, marginBottom: 16 }}>
-        Marque uma reposição para qualquer aluno ou turma em "+ Nova reposição". Os créditos de reposição concedidos ao cancelar uma aula em "Aulas de hoje" aparecem abaixo e também podem ser agendados.
+        Ao marcar uma reposição, escolha qual aula perdida ela repõe: a aula sai da lista "Aulas a repor". Os créditos de reposição concedidos ao cancelar uma aula em "Aulas de hoje" aparecem abaixo e também podem ser agendados.
       </p>
-      <ModalAgendar aberto={novaAberta} aoFechar={() => setNovaAberta(false)} tipoInicial="reposicao"
+      <ModalAgendar aberto={novaAberta || !!repoDe} aoFechar={() => { setNovaAberta(false); setRepoDe(null); }} tipoInicial="reposicao"
+        alvoInicial={repoDe ? repoDe.alvo : null} repoeInicial={repoDe ? repoDe.repoe : null}
         alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={() => {}} quadras={quadras} reservas={reservas || []} setReservas={() => {}}
         bloqueiosAula={bloqueiosAula || []} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} aoIrParaRecorrentes={() => {}} />
+
+      <div className="mb-5" data-lista-a-repor>
+        <Etiqueta cor="#8A6100">Aulas a repor ({aRepor.length})</Etiqueta>
+        <ListaAulasARepor itens={verTodasARepor ? aRepor : aRepor.slice(0, 8)} vazio={"Nenhuma aula cancelada ou falta esperando reposição nos últimos " + QLAulasMes.JANELA_DIAS + " dias."}
+          aoAgendar={(p) => setRepoDe({ alvo: { tipo: p.entTipo, id: p.entId }, repoe: p.id })}
+          aoDispensar={(p) => dispensarReposicaoTY(p, setAlunos, setTurmas)} />
+        {aRepor.length > 8 && <Botao pequeno variante="vazio" onClick={() => setVerTodasARepor(!verTodasARepor)}>{verTodasARepor ? "Mostrar menos" : "Mostrar todas (" + aRepor.length + ")"}</Botao>}
+      </div>
 
       <div className="mb-5">
         <Etiqueta cor={COR_CATEGORIA_TIPO.reposicao}>Reposições marcadas ({proximas.length})</Etiqueta>
@@ -19437,7 +19482,7 @@ function periodoMes(deslocamento) {
   return { inicio: dataISO(primeiro), fim: dataISO(ultimo) };
 }
 
-/* ── Relatório do mês (aulas) ──
+/* ── Relatório de aulas (semana, mês ou trimestre) ──
    Fechamento de um mês inteiro em três vistas: Visão geral (totais, cancelamentos por motivo, todas as aulas), Alunos
    (presenças, faltas, canceladas, reposições e o que falta remarcar, com relatório do aluno em PDF e crédito de
    reposição em um toque) e Professores (aulas dadas por quem de fato deu, horas, substituições, aulas em que o aluno
@@ -19466,9 +19511,14 @@ function abrirHTMLParaImprimir(html) {
   if (!janela) { alert("O navegador bloqueou a janela do relatório. Permita pop-ups para este site e tente de novo."); return; }
   janela.document.write(html); janela.document.close();
 }
-function TelaFechamentoMes({ ocorrencias, setOcorrencias, alunos, setAlunos, turmas, regrasReposicao, papelAtual, uidAtual, identidade, irParaReposicoes, irParaAluno }) {
+function TelaFechamentoMes({ ocorrencias, setOcorrencias, alunos, setAlunos, turmas, setTurmas, quadras, reservas, bloqueiosAula, regrasReposicao, papelAtual, uidAtual, identidade, irParaReposicoes, irParaAluno }) {
   const hoje = new Date().toISOString().slice(0, 10);
-  const [mes, setMes] = useState(hoje.slice(0, 7));
+  /* período do relatório: semana, mês ou trimestre, navegável */
+  const [tipoPer, setTipoPer] = useState("mes");
+  const [ref, setRef] = useState(hoje);
+  const per = QLAulasMes.periodo(tipoPer, ref);
+  const mes = per.mes || null;
+  const [repoDe, setRepoDe] = useState(null);
   const [vista, setVista] = useState("geral");
   const [busca, setBusca] = useState("");
   const [alunoAberto, setAlunoAberto] = useState(null);
@@ -19480,13 +19530,13 @@ function TelaFechamentoMes({ ocorrencias, setOcorrencias, alunos, setAlunos, tur
 
   /* o que a grade de horários já previa para o mês (até hoje) e ninguém abriu na Agenda — sem gravar nada */
   const previstas = useMemo(() => {
-    const { inicio, fim } = QLAulasMes.periodoDoMes(mes);
-    const ate = fim < hoje ? fim : hoje;
-    if (ate < inicio) return [];
-    return gerarOcorrenciasFaltantes(ocorrencias, alunos, turmas, inicio, ate, []);
-  }, [mes, ocorrencias, alunos, turmas, hoje]);
-  const f = useMemo(() => QLAulasMes.fechamento({ ocorrencias, alunos, turmas, mes, hoje, extras: previstas, soProfessor: ehCoordenador ? null : uidAtual }),
-    [ocorrencias, alunos, turmas, mes, hoje, previstas, ehCoordenador, uidAtual]);
+    const ate = per.fim < hoje ? per.fim : hoje;
+    if (ate < per.inicio) return [];
+    return gerarOcorrenciasFaltantes(ocorrencias, alunos, turmas, per.inicio, ate, []);
+  }, [per.inicio, per.fim, ocorrencias, alunos, turmas, hoje]);
+  const f = useMemo(() => QLAulasMes.fechamento({ ocorrencias, alunos, turmas, mes, inicio: per.inicio, fim: per.fim, rotulo: per.rotulo, hoje, extras: previstas, soProfessor: ehCoordenador ? null : uidAtual }),
+    [ocorrencias, alunos, turmas, mes, per.inicio, per.fim, per.rotulo, hoje, previstas, ehCoordenador, uidAtual]);
+  const mudarPeriodo = (tipo, novaRef) => { setTipoPer(tipo); setRef(novaRef); setAlunoAberto(null); setProfAberto(null); };
 
   function atualizarAula(aula, patch) {
     const agora = new Date().toISOString();
@@ -19509,10 +19559,10 @@ function TelaFechamentoMes({ ocorrencias, setOcorrencias, alunos, setAlunos, tur
       })],
     })));
   }
-  function nomeArquivo(base) { return base + "-" + mes + ".csv"; }
+  function nomeArquivo(base) { return base + "-" + (mes || per.inicio + "_" + per.fim) + ".csv"; }
 
   const t = f.totais;
-  const seletorVista = [{ v: "geral", r: "Visão geral" }, { v: "alunos", r: "Alunos" }, { v: "professores", r: ehCoordenador ? "Professores" : "Minhas aulas dadas" }];
+  const seletorVista = [{ v: "geral", r: "Visão geral" }, { v: "reposicoes", r: "Reposições" + (f.repo.totais.aRepor ? " (" + f.repo.totais.aRepor + " a repor)" : "") }, { v: "alunos", r: "Alunos" }, { v: "professores", r: ehCoordenador ? "Professores" : "Minhas aulas dadas" }];
   const alunosFiltrados = f.porAluno.filter((l) => !busca.trim() || l.nome.toLowerCase().includes(busca.trim().toLowerCase()));
   const tileBase = { background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "9px 12px", minWidth: 104, flex: "1 1 104px" };
   const Tile = ({ r, v, cor }) => (
@@ -19540,23 +19590,33 @@ function TelaFechamentoMes({ ocorrencias, setOcorrencias, alunos, setAlunos, tur
 
   return (
     <div data-fechamento-mes>
-      <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Relatório do mês</h1>
+      <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Relatório de aulas</h1>
       <p style={{ ...prosa, fontSize: 14, color: C.grafite, marginBottom: 14 }}>
-        Aulas realizadas, faltas, cancelamentos e reposições de {ehCoordenador ? "toda a academia" : "suas aulas"}: por aluno e por professor. A aula registrada no caderno já conta como realizada.
+        Aulas realizadas, faltas, cancelamentos e reposições de {ehCoordenador ? "toda a academia" : "suas aulas"} na semana, no mês ou no trimestre: o que ainda falta repor, as reposições dadas e o que cada uma repôs, por aluno e por professor. A aula registrada no caderno já conta como realizada.
       </p>
 
-      <div className="flex items-center gap-2 mb-4" data-seletor-mes>
-        <button type="button" aria-label="Mês anterior" onClick={() => { setMes(QLAulasMes.somarMes(mes, -1)); setAlunoAberto(null); setProfAberto(null); }}
-          style={{ width: 40, height: 40, borderRadius: 10, border: "1px solid " + C.linha, background: C.cal, cursor: "pointer", fontSize: 18 }}>‹</button>
-        <span style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, minWidth: 170, textAlign: "center" }}>{QLAulasMes.nomeDoMes(mes).replace(/^./, (c) => c.toUpperCase())}</span>
-        <button type="button" aria-label="Próximo mês" disabled={mes >= hoje.slice(0, 7)} onClick={() => { setMes(QLAulasMes.somarMes(mes, 1)); setAlunoAberto(null); setProfAberto(null); }}
-          style={{ width: 40, height: 40, borderRadius: 10, border: "1px solid " + C.linha, background: C.cal, cursor: mes >= hoje.slice(0, 7) ? "default" : "pointer", fontSize: 18, opacity: mes >= hoje.slice(0, 7) ? 0.4 : 1 }}>›</button>
+      <div className="flex gap-2 mb-3" role="tablist" aria-label="Período">
+        {[{ v: "semana", r: "Semana" }, { v: "mes", r: "Mês" }, { v: "trimestre", r: "Trimestre" }].map((x) => (
+          <button key={x.v} type="button" role="tab" aria-selected={tipoPer === x.v} data-periodo={x.v} onClick={() => mudarPeriodo(x.v, ref)}
+            style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, padding: "8px 14px", borderRadius: 10, cursor: "pointer", minHeight: 38,
+              border: "1px solid " + (tipoPer === x.v ? C.quadra : C.linha), background: tipoPer === x.v ? C.quadra : C.cal, color: tipoPer === x.v ? "#fff" : C.grafite }}>{x.r}</button>
+        ))}
       </div>
+      <div className="flex items-center gap-2 mb-4" data-seletor-mes>
+        <button type="button" aria-label="Período anterior" onClick={() => mudarPeriodo(tipoPer, QLAulasMes.navegarPeriodo(tipoPer, ref, -1))}
+          style={{ width: 40, height: 40, borderRadius: 10, border: "1px solid " + C.linha, background: C.cal, cursor: "pointer", fontSize: 18 }}>‹</button>
+        <span data-rotulo-periodo style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, minWidth: 170, textAlign: "center" }}>{per.rotulo}</span>
+        <button type="button" aria-label="Próximo período" onClick={() => mudarPeriodo(tipoPer, QLAulasMes.navegarPeriodo(tipoPer, ref, 1))}
+          style={{ width: 40, height: 40, borderRadius: 10, border: "1px solid " + C.linha, background: C.cal, cursor: "pointer", fontSize: 18 }}>›</button>
+      </div>
+      <ModalAgendar aberto={!!repoDe} aoFechar={() => setRepoDe(null)} tipoInicial="reposicao" alvoInicial={repoDe ? repoDe.alvo : null} repoeInicial={repoDe ? repoDe.repoe : null}
+        alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={() => {}} quadras={quadras || []} reservas={reservas || []} setReservas={() => {}}
+        bloqueiosAula={bloqueiosAula || []} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} aoIrParaRecorrentes={() => {}} />
 
       {f.pendentes.length > 0 && (
         <div data-pendentes-mes className="mb-5" style={{ background: "#FFF7E6", border: "1px solid #E2C27A", borderRadius: 12, padding: "12px 14px" }}>
           <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, color: "#8A6100", marginBottom: 2 }}>
-            {plural(f.pendentes.length, "aula sem registro", "aulas sem registro")} neste mês
+            {plural(f.pendentes.length, "aula sem registro", "aulas sem registro")} neste período
           </p>
           <p style={{ ...prosa, fontSize: 12.5, color: "#6B5A2E", marginBottom: 10 }}>Marque cada uma para o relatório fechar certo. Se a data não era de aula, use "Não era aula" no cancelamento.</p>
           {(todasPendentes ? f.pendentes : f.pendentes.slice(0, 5)).map((a) => linhaAula(a, (
@@ -19583,7 +19643,7 @@ function TelaFechamentoMes({ ocorrencias, setOcorrencias, alunos, setAlunos, tur
       {vista === "geral" && (
         <div>
           <div className="flex flex-wrap gap-2 mb-4">
-            <Tile r="Aulas no mês" v={t.aulas} />
+            <Tile r="Aulas no período" v={t.aulas} />
             <Tile r="Realizadas" v={t.realizadas} cor={C.quadra} />
             <Tile r="Canceladas" v={t.canceladas} />
             <Tile r="Faltas de alunos" v={t.faltasAlunos} cor="#B23A2E" />
@@ -19603,9 +19663,54 @@ function TelaFechamentoMes({ ocorrencias, setOcorrencias, alunos, setAlunos, tur
           <div className="flex gap-2 flex-wrap mb-4">
             <Botao pequeno onClick={() => abrirHTMLParaImprimir(QLAulasMes.htmlGeral(f, academia))}>Relatório geral (PDF)</Botao>
             <Botao pequeno variante="vazio" onClick={() => baixarCSV(nomeArquivo("aulas"), QLAulasMes.csvAulas(f))}>Planilha das aulas</Botao>
-            <Botao pequeno variante="vazio" onClick={() => setVerAulas(!verAulas)}>{verAulas ? "Ocultar aulas" : "Ver todas as aulas do mês (" + f.aulas.length + ")"}</Botao>
+            <Botao pequeno variante="vazio" onClick={() => setVerAulas(!verAulas)}>{verAulas ? "Ocultar aulas" : "Ver todas as aulas do período (" + f.aulas.length + ")"}</Botao>
           </div>
-          {verAulas && (f.aulas.length ? f.aulas.map((a) => linhaAula(a)) : <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Nenhuma aula neste mês.</p>)}
+          {verAulas && (f.aulas.length ? f.aulas.map((a) => linhaAula(a)) : <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Nenhuma aula neste período.</p>)}
+        </div>
+      )}
+
+      {vista === "reposicoes" && (
+        <div data-vista-reposicoes>
+          <div className="flex flex-wrap gap-2 mb-4">
+            <Tile r="A repor (do período)" v={f.repo.totais.aRepor} cor={f.repo.totais.aRepor ? "#8A6100" : C.tinta} />
+            <Tile r="Reposições dadas" v={f.repo.totais.dadas} cor={QLAulasMes.COR.reposicao} />
+            <Tile r="Reposições marcadas" v={f.repo.totais.marcadas + f.repo.totais.semRegistro} cor={QLAulasMes.COR.reposicao} />
+            <Tile r="Não aconteceram" v={f.repo.totais.naoFeitas} />
+          </div>
+          <div className="flex gap-2 flex-wrap mb-4">
+            <Botao pequeno onClick={() => abrirHTMLParaImprimir(QLAulasMes.htmlGeral(f, academia))}>Relatório geral (PDF)</Botao>
+          </div>
+          <Etiqueta cor="#8A6100">Aulas a repor</Etiqueta>
+          <ListaAulasARepor itens={f.repo.aRepor} vazio="Nenhuma aula deste período esperando reposição."
+            aoAgendar={(p) => setRepoDe({ alvo: { tipo: p.entTipo, id: p.entId }, repoe: p.id })}
+            aoDispensar={(p) => dispensarReposicaoTY(p, setAlunos, setTurmas)} />
+          {f.repo.aReporAntes.length > 0 && (
+            <details className="mb-3" data-a-repor-antes>
+              <summary style={{ ...prosa, fontSize: 13, color: "#8A6100", fontWeight: 700, cursor: "pointer", padding: "6px 0" }}>
+                {plural(f.repo.aReporAntes.length, "aula de antes deste período ainda a repor", "aulas de antes deste período ainda a repor")}
+              </summary>
+              <ListaAulasARepor itens={f.repo.aReporAntes}
+                aoAgendar={(p) => setRepoDe({ alvo: { tipo: p.entTipo, id: p.entId }, repoe: p.id })}
+                aoDispensar={(p) => dispensarReposicaoTY(p, setAlunos, setTurmas)} />
+            </details>
+          )}
+          <div className="mt-4"><Etiqueta cor={QLAulasMes.COR.reposicao}>Reposições do período ({f.repo.lista.length})</Etiqueta></div>
+          {f.repo.lista.length === 0 ? <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginTop: 6 }}>Nenhuma reposição neste período.</p> : (
+            <div className="mt-2">
+              {f.repo.lista.map((r) => {
+                const cor = { dada: C.quadra, marcada: QLAulasMes.COR.reposicao, semRegistro: "#B8860B", cancelada: "#A6432F", faltou: "#B23A2E" }[r.situacao] || C.grafite;
+                return (
+                  <div key={r.id} data-reposicao-relatorio style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "4px solid " + QLAulasMes.COR.reposicao, borderRadius: 10, padding: "8px 12px", marginBottom: 6 }}>
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <p style={{ ...prosa, fontSize: 13 }}><b>{QLAulasMes.dataBR(r.data)} {QLAulasMes.diaSemanaCurto(r.data)}</b>{r.hora ? " · " + r.hora : ""} · {r.nome}{r.origemTipo === "turma" ? " (turma)" : ""}</p>
+                      <span style={{ fontFamily: ARCH, fontSize: 11, fontWeight: 700, color: cor, border: "1px solid " + cor, borderRadius: 999, padding: "2px 8px", whiteSpace: "nowrap" }}>{QLAulasMes.SITUACAO_REPO[r.situacao]}</span>
+                    </div>
+                    <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>{r.repoeTexto ? "Repõe a " + r.repoeTexto : "Reposição extra (sem aula perdida ligada)"}</p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -19620,7 +19725,7 @@ function TelaFechamentoMes({ ocorrencias, setOcorrencias, alunos, setAlunos, tur
               <span key={k} className="flex items-center gap-1"><span style={{ width: 11, height: 11, borderRadius: 3, background: QLAulasMes.COR[k], display: "inline-block" }} />{r}</span>
             ))}
           </div>
-          {alunosFiltrados.length === 0 && <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Nenhum aluno com aula neste mês.</p>}
+          {alunosFiltrados.length === 0 && <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Nenhum aluno com aula neste período.</p>}
           {alunosFiltrados.map((l) => {
             const aberto = alunoAberto === l.id;
             return (
@@ -19682,7 +19787,7 @@ function TelaFechamentoMes({ ocorrencias, setOcorrencias, alunos, setAlunos, tur
             Conta para quem de fato deu a aula (o substituto entra no lugar do titular). "Aluno faltou" é a aula individual em que o professor estava lá e o aluno não veio: fica separada para você decidir como pagar.
           </p>
           <div className="mb-3"><Botao pequeno variante="vazio" onClick={() => baixarCSV(nomeArquivo("professores"), QLAulasMes.csvProfessores(f))}>Planilha dos professores</Botao></div>
-          {f.porProfessor.length === 0 && <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Nenhuma aula dada neste mês.</p>}
+          {f.porProfessor.length === 0 && <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Nenhuma aula dada neste período.</p>}
           {f.porProfessor.map((p) => {
             const aberto = profAberto === p.chave;
             return (
@@ -20537,7 +20642,7 @@ function TelaDashboard({ aoAbrirScout, aoDescartarPartida, alunos, turmas, ocorr
    forma de produzir a mesma coisa, exatamente o que a unificação quer
    evitar. Por isso, ao escolher um desses dois tipos, o modal fecha e
    leva direto pra tela certa, em vez de reimplementar o fluxo. */
-function ModalAgendar({ aberto, aoFechar, dataInicial, horaInicial, quadraIdInicial, tipoInicial, alunos, setAlunos, turmas, setTurmas, quadras, reservas, setReservas, bloqueiosAula, ocorrencias, setOcorrencias, aoIrParaReposicoes, aoIrParaRecorrentes }) {
+function ModalAgendar({ aberto, aoFechar, dataInicial, horaInicial, quadraIdInicial, tipoInicial, alunos, setAlunos, turmas, setTurmas, quadras, reservas, setReservas, bloqueiosAula, ocorrencias, setOcorrencias, aoIrParaReposicoes, aoIrParaRecorrentes, alvoInicial, repoeInicial }) {
   const [tipo, setTipo] = useState(tipoInicial || null); // null | "individual" | "turma" | "locacao" | "reposicao"
   const [repoPara, setRepoPara] = useState("individual"); // reposição: "individual" | "turma"
   const [alunoId, setAlunoId] = useState("");
@@ -20552,6 +20657,8 @@ function ModalAgendar({ aberto, aoFechar, dataInicial, horaInicial, quadraIdInic
   const [observacao, setObservacao] = useState("");
   const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
+  /* reposição: qual aula perdida está sendo reposta ("" = reposição extra; null = a mais antiga, até escolher) */
+  const [repoe, setRepoe] = useState(null);
 
   /* Clicar num dia/horário/quadra específico da Agenda (em vez do botão
      genérico "+ Agendar") precisa pré-preencher SÓ o contexto conhecido
@@ -20565,15 +20672,31 @@ function ModalAgendar({ aberto, aoFechar, dataInicial, horaInicial, quadraIdInic
       setHoraInicio(horaInicial || "");
       setQuadraId(quadraIdInicial || "");
       if (tipoInicial) setTipo(tipoInicial);
+      if (alvoInicial) {
+        setRepoPara(alvoInicial.tipo === "turma" ? "turma" : "individual");
+        if (alvoInicial.tipo === "turma") setTurmaId(alvoInicial.id); else setAlunoId(alvoInicial.id);
+        const ent = alvoInicial.tipo === "turma" ? turmas.find((x) => x.id === alvoInicial.id) : alunos.find((a) => a.id === alvoInicial.id);
+        if (ent && horaInicial) setHoraFim(horaMaisMinutos(horaInicial, minutosDaDuracao(ent.duracaoPadrao)));
+      }
+      setRepoe(repoeInicial || null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aberto, dataInicial, horaInicial, quadraIdInicial, tipoInicial]);
+  }, [aberto, dataInicial, horaInicial, quadraIdInicial, tipoInicial, alvoInicial, repoeInicial]);
+
+  const hojeRepo = dataISO(new Date());
+  const idRepo = tipo === "reposicao" ? (repoPara === "turma" ? turmaId : alunoId) : "";
+  const pendentesRepo = useMemo(() => (idRepo ? QLAulasMes.pendentesDeReposicao({ ocorrencias, alunos, turmas, hoje: hojeRepo, tipo: repoPara, id: idRepo }) : []),
+    [idRepo, repoPara, ocorrencias, alunos, turmas, hojeRepo]);
+  const contagemRepo = useMemo(() => (aberto && tipo === "reposicao" ? QLAulasMes.contagemPendentes({ ocorrencias, alunos, turmas, hoje: hojeRepo }) : {}),
+    [aberto, tipo, ocorrencias, alunos, turmas, hojeRepo]);
+  const repoeEscolhida = repoe === null ? (pendentesRepo[0] ? pendentesRepo[0].id : "") : repoe;
+  const perdidaRepo = pendentesRepo.find((p) => p.id === repoeEscolhida) || null;
 
   if (!aberto) return null;
 
   function fecharTudo() {
     setTipo(null); setRepoPara("individual"); setAlunoId(""); setTurmaId(""); setHoraInicio(""); setHoraFim(""); setQuadraId("");
-    setRepeticao("unica"); setNomeContato(""); setTelefoneContato(""); setObservacao(""); setErro(""); setEnviando(false);
+    setRepeticao("unica"); setNomeContato(""); setTelefoneContato(""); setObservacao(""); setErro(""); setEnviando(false); setRepoe(null);
     aoFechar();
   }
 
@@ -20641,7 +20764,10 @@ function ModalAgendar({ aberto, aoFechar, dataInicial, horaInicial, quadraIdInic
           professorUid: entidade.professorUid || "", professorNome: entidade.professorNome || "",
           professorAuxiliarUid: entidade.professorAuxiliarUid || "", professorAuxiliarNome: entidade.professorAuxiliarNome || "",
           tipo: tipo === "reposicao" ? "reposicao" : "regular", status: "agendada", observacoes: observacao.trim(),
-          ...(tipo === "reposicao" ? { motivoReposicao: observacao.trim() } : {}),
+          ...(tipo === "reposicao" ? {
+            motivoReposicao: observacao.trim() || (perdidaRepo ? "Reposição da aula de " + QLAulasMes.textoPerdida(perdidaRepo) : ""),
+            ...(perdidaRepo ? { repoeAulaId: perdidaRepo.id, repoeData: perdidaRepo.data, repoeTexto: "aula de " + QLAulasMes.textoPerdida(perdidaRepo) } : {}),
+          } : {}),
         });
         const conflitos = conflitosDeOcorrencia(ocorrencias, candidata, turmas);
         if (conflitos.length) { setErro("Conflito de " + conflitos[0].tipo + " nesse horário — escolha outro."); return; }
@@ -20650,6 +20776,16 @@ function ModalAgendar({ aberto, aoFechar, dataInicial, horaInicial, quadraIdInic
           if (!disp.livre) { setErro(disp.motivo); return; }
         }
         setOcorrencias([...ocorrencias, candidata]);
+        /* o crédito de reposição dessa aula (do aluno, ou de cada aluno da turma) fica reservado para esta reposição */
+        if (tipo === "reposicao" && perdidaRepo && setAlunos) {
+          const ids = origemTipo === "turma" ? QLAulasMes.membrosDaAula(perdidaRepo.aula.ocorrencia || {}, turmas) : [entidade.id];
+          const doAula = (c) => c.origemOcorrenciaId === perdidaRepo.id && statusEfetivoCredito(c, hojeRepo) === "disponivel";
+          if (alunos.some((a) => ids.includes(a.id) && (a.creditosReposicao || []).some(doAula))) {
+            setAlunos(alunos.map((a) => (!ids.includes(a.id) ? a : {
+              ...a, creditosReposicao: (a.creditosReposicao || []).map((c) => (doAula(c) ? { ...moverCredito(c, "reservado", "reposição agendada"), ocorrenciaReposicaoId: candidata.id } : c)),
+            })));
+          }
+        }
       }
       fecharTudo();
     } finally {
@@ -20684,21 +20820,53 @@ function ModalAgendar({ aberto, aoFechar, dataInicial, horaInicial, quadraIdInic
             <div>
               {tipo === "reposicao" && (
                 <Campo rotulo="Reposição para">
-                  <Seletor opcoes={[{ v: "individual", r: "Um aluno" }, { v: "turma", r: "Uma turma" }]} valor={repoPara} aoMudar={(v) => { setRepoPara(v); setErro(""); }} />
+                  <Seletor opcoes={[{ v: "individual", r: "Um aluno" }, { v: "turma", r: "Uma turma" }]} valor={repoPara} aoMudar={(v) => { setRepoPara(v); setErro(""); setRepoe(null); }} />
                 </Campo>
               )}
               {(tipoAlvo === "individual" || tipoAlvo === "turma") && (
                 <Campo rotulo={tipoAlvo === "individual" ? (tipo === "reposicao" ? "Aluno" : "Jogador") : "Turma"}>
-                  <select style={entrada} value={tipoAlvo === "individual" ? alunoId : turmaId}
+                  <select style={entrada} value={tipoAlvo === "individual" ? alunoId : turmaId} data-escolher={tipoAlvo}
                     onChange={(e) => {
                       if (tipoAlvo === "individual") setAlunoId(e.target.value); else setTurmaId(e.target.value);
+                      setRepoe(null);
                       const ent = tipoAlvo === "individual" ? alunos.find((a) => a.id === e.target.value) : turmas.find((x) => x.id === e.target.value);
                       if (ent && horaInicio) setHoraFim(horaMaisMinutos(horaInicio, minutosDaDuracao(ent.duracaoPadrao)));
                     }}>
                     <option value="">Escolha…</option>
-                    {(tipoAlvo === "individual" ? alunos.filter((a) => a.nome) : turmas).map((x) => <option key={x.id} value={x.id}>{x.nome}</option>)}
+                    {(tipoAlvo === "individual" ? alunos.filter((a) => a.nome) : turmas)
+                      .map((x) => ({ x, n: tipo === "reposicao" ? contagemRepo[(tipoAlvo === "turma" ? "turma:" : "individual:") + x.id] || 0 : 0 }))
+                      .sort((p, q) => q.n - p.n)
+                      .map(({ x, n }) => <option key={x.id} value={x.id}>{x.nome}{n ? " (" + n + " a repor)" : ""}</option>)}
                   </select>
                 </Campo>
+              )}
+              {tipo === "reposicao" && idRepo && (
+                <div data-aulas-a-repor style={{ marginBottom: 14 }}>
+                  <p style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Qual aula está sendo reposta?</p>
+                  {pendentesRepo.length === 0 && (
+                    <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginBottom: 6 }}>
+                      {(repoPara === "turma" ? "Esta turma" : "Este aluno") + " não tem aula cancelada ou falta esperando reposição nos últimos " + QLAulasMes.JANELA_DIAS + " dias."}
+                    </p>
+                  )}
+                  {[...pendentesRepo, { id: "", extra: true }].map((p) => {
+                    const marcada = repoeEscolhida === p.id;
+                    return (
+                      <label key={p.id || "extra"} data-repoe={p.id || "extra"}
+                        style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "9px 11px", marginBottom: 6, borderRadius: 10, cursor: "pointer",
+                          border: "1px solid " + (marcada ? C.quadra : C.linha), background: marcada ? "#EEF6F1" : "#fff" }}>
+                        <input type="radio" name="repoe" checked={marcada} onChange={() => setRepoe(p.id)} style={{ marginTop: 3, width: 18, height: 18 }} />
+                        <span style={{ ...prosa, fontSize: 13.5 }}>
+                          {p.extra ? <span style={{ color: C.grafite }}>Nenhuma: reposição extra, sem aula perdida ligada</span> : <>
+                            <b>{QLAulasMes.dataBR(p.data)} {QLAulasMes.diaSemanaCurto(p.data)}{p.hora ? " · " + p.hora : ""}</b>
+                            {" · "}{p.rotulo}{p.motivo ? " (" + p.motivo + ")" : ""}
+                            {p.credito && p.credito.status === "disponivel" && <span style={{ color: C.quadra, fontWeight: 700 }}> · crédito disponível</span>}
+                            {p.credito && p.credito.status === "pendente_aprovacao" && <span style={{ color: "#8A6100", fontWeight: 700 }}> · crédito aguardando aprovação</span>}
+                          </>}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
               )}
               {tipo === "locacao" && (
                 <>
@@ -20733,9 +20901,9 @@ function ModalAgendar({ aberto, aoFechar, dataInicial, horaInicial, quadraIdInic
                     valor={repeticao} aoMudar={setRepeticao} />
                 </Campo>
               )}
-              <Campo rotulo={tipo === "reposicao" ? "Motivo da reposição (opcional)" : "Observação (opcional)"}>
+              <Campo rotulo="Observação (opcional)">
                 <textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={observacao} onChange={(e) => setObservacao(e.target.value)}
-                  placeholder={tipo === "reposicao" ? "Ex.: aula de 12/10 cancelada pela chuva" : undefined} />
+                  placeholder={tipo === "reposicao" ? (perdidaRepo ? "Reposição da aula de " + QLAulasMes.textoPerdida(perdidaRepo) : "Ex.: aula extra antes do torneio") : undefined} />
               </Campo>
               {erro && <Aviso>{erro}</Aviso>}
               <div className="flex gap-2 mt-2">
@@ -23088,9 +23256,10 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   );
 }
 /* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
-const NOVIDADES_TY_VERSAO = "ty-2026-11d";
+const NOVIDADES_TY_VERSAO = "ty-2026-11e";
 const NOVIDADES_TY = [
-  { novo: true, t: "Todos os exercícios de quadra animados", d: "Agora são 233 exercícios do catálogo com a quadra animada: fundamentos, padrões táticos, movimentação (com spider, escadinha e cones), saque e devolução, ataque, ritmo, trilhos, brincadeiras com bola e duplas (na quadra de duplas, com o parceiro e os dois adversários). Cada um mostra onde cada um começa, os alvos, a sequência de bolas numerada e os deslocamentos. Toque em ▶ Na quadra e depois em Reproduzir.", onde: "Catálogo de exercícios › ▶ Na quadra (também na sessão e no plano)", aba: "catalogo" },
+  { novo: true, t: "Reposições ligadas à aula perdida e Relatório de aulas por período", d: "Ao marcar uma reposição, escolha o aluno ou a turma e abre a lista das aulas que ficaram para repor (canceladas, faltas, aula da turma cancelada): escolha qual aula está sendo reposta. Se a aula tem crédito de reposição, ele já fica reservado. Em Reposições, a lista Aulas a repor tem Agendar reposição e Não vai repor. O Relatório do mês virou Relatório de aulas: semana, mês ou trimestre, com a nova aba Reposições (o que falta repor, reposições dadas e marcadas e a aula que cada uma repôs) e o PDF geral com as reposições.", onde: "Agenda › Reposições e Agenda › Relatório de aulas", aba: "relatorio" },
+  { t: "Todos os exercícios de quadra animados", d: "Agora são 233 exercícios do catálogo com a quadra animada: fundamentos, padrões táticos, movimentação (com spider, escadinha e cones), saque e devolução, ataque, ritmo, trilhos, brincadeiras com bola e duplas (na quadra de duplas, com o parceiro e os dois adversários). Cada um mostra onde cada um começa, os alvos, a sequência de bolas numerada e os deslocamentos. Toque em ▶ Na quadra e depois em Reproduzir.", onde: "Catálogo de exercícios › ▶ Na quadra (também na sessão e no plano)", aba: "catalogo" },
   { t: "Exercícios na quadra animada (piloto)", d: "20 exercícios do catálogo (fundamentos FB e padrões táticos DT) ganharam a quadra animada, com a mesma tecnologia do Simulador de Decisões: a posição de cada um, os alvos, cada bola numerada com o quique e o deslocamento do atleta. Toque em ▶ Na quadra e depois em Reproduzir. Os outros exercícios vêm em seguida.", onde: "Catálogo de exercícios › ▶ Na quadra (também na sessão e no plano)", aba: "catalogo" },
   { t: "Agenda editável", d: "Abra uma aula na Agenda e use Editar para mudar dia, horário, quadra, professor e tipo (só esta aula ou esta e as próximas) ou Apagar da agenda (a aula não volta sozinha). Incluir aulas, reposições, locações e bloqueios continua no + Agendar.", onde: "Agenda › toque numa aula", aba: "agenda" },
   { t: "Turmas apagadas: recuperar", d: "Remover turma agora pede confirmação e a turma fica 90 dias em Turmas apagadas, de onde volta igual. Turmas apagadas antes disso aparecem reconstruídas pela Agenda e pelo caderno (nome, jogadores, horários e professor) e voltam com o histórico das aulas.", onde: "Turmas › Turmas apagadas", aba: "turmas" },
@@ -24916,7 +25085,7 @@ function App() {
       ...(mostraTorneiosEventos ? [{ v: "torneios", r: "Torneios" }, { v: "eventos", r: "Eventos" }] : []),
       ...(ehCoordenador ? [{ v: "aulas-equipe", r: "Aulas da equipe" }] : []),
       // o professor também vê o próprio relatório (a tela restringe por dentro)
-      { v: "relatorio", r: "Relatório do mês" },
+      { v: "relatorio", r: "Relatório de aulas" },
       ...(ehDonoFinanceiro() ? [{ v: "financeiro", r: "Financeiro" }] : []),
     ] },
     { id: "metodo", label: "Método e formação", itens: [
@@ -24951,7 +25120,7 @@ function App() {
   );
   const rotuloDaAba = (v) => { const p = NAV_PRINCIPAL_TY.find((x) => x.v === v); if (p) return p.r; const r = { "aulas-hoje": "Aulas de hoje", pendencias: "Pendências", reposicoes: "Reposições" }[v]; if (r) return r;
     for (const g of gruposNav) { const t = g.itens.find((x) => x.v === v); if (t) return t.r; } return ""; };
-  const topoAgenda = <SecoesPagina rotulo="Seções da Agenda" atual={aba} aoTrocar={(v) => setAba(v)} itens={[{ v: "agenda", r: "Calendário" }, { v: "reposicoes", r: "Reposições" }]} />;
+  const topoAgenda = <SecoesPagina rotulo="Seções da Agenda" atual={aba} aoTrocar={(v) => setAba(v)} itens={[{ v: "agenda", r: "Calendário" }, { v: "reposicoes", r: "Reposições" }, { v: "relatorio", r: "Relatório de aulas" }]} />;
   function criar() {
     if (planoVencido || (limitePlano != null && alunos.length >= limitePlano)) {
       setLimiteAtingido(true);
@@ -25388,9 +25557,9 @@ function App() {
          aba === "aulas-hoje" ? <>{topoHoje}<TelaAulasHoje alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} quadras={quadras} reservas={reservas} bloqueiosAula={bloqueiosAula} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} regrasReposicao={regrasReposicao} uidAtual={uidAtual} papelAtual={papelAtual}
            irParaSessaoAluno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("sessao"); }}
            irParaSessaoTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} /></> :
-         aba === "reposicoes" ? <>{topoAgenda}<TelaReposicoes alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} reservas={reservas} bloqueiosAula={bloqueiosAula} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias}
+         aba === "reposicoes" ? <>{topoAgenda}<TelaReposicoes alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} irParaRelatorio={() => setAba("relatorio")} quadras={quadras} reservas={reservas} bloqueiosAula={bloqueiosAula} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias}
            regrasReposicao={regrasReposicao} setRegrasReposicao={setRegrasReposicao} papelAtual={papelAtual} /></> :
-         aba === "relatorio" ? <TelaFechamentoMes ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} alunos={alunos} setAlunos={setAlunos} turmas={turmas} regrasReposicao={regrasReposicao} papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} irParaReposicoes={() => { setAba("reposicoes"); setAbertoId(null); }} irParaAluno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("ficha"); }} /> :
+         aba === "relatorio" ? <TelaFechamentoMes ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} quadras={quadras} reservas={reservas} bloqueiosAula={bloqueiosAula} regrasReposicao={regrasReposicao} papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} irParaReposicoes={() => { setAba("reposicoes"); setAbertoId(null); }} irParaAluno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("ficha"); }} /> :
          aba === "dashboard" ? <>{topoHoje}<TelaDashboard quadras={quadras} podePendencias={podePendencias} aoAbrirSecao={(v) => setAba(v)}
            aoAbrirAgendaEm={(data) => { setAgendaDataAlvo(data); setAba("agenda"); }} aoAbrirScout={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("scout"); }} aoDescartarPartida={(id) => { try { localStorage.removeItem(ChaveRascunho(id)); } catch { /* sem armazenamento */ } setAlunos((l) => l.map((a) => (a.id === id ? semRascunhoScout(a) : a))); }} alunos={alunos} turmas={turmas} ocorrencias={ocorrencias} papelAtual={papelAtual} uidAtual={uidAtual} exigeLogin={exigeLogin} usoIA={usoIA} identidade={identidade}
            irPara={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }}

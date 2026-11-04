@@ -5,6 +5,7 @@
    Defina CDN_DIR (padrão: scratchpad/cdn). Rode: node tests/smoke-reposicao-e-links.js [pasta-das-capturas] */
 const fs = require("fs"), path = require("path"), http = require("http");
 const AULAS_MES_JS=require("fs").readFileSync(require("path").join(__dirname,"../../mty/aulas-mes.js"),"utf8");
+const AGENDA_AULAS_JS=require("fs").readFileSync(require("path").join(__dirname,"../agenda-aulas.js"),"utf8");
 const { chromium } = require("/opt/node22/lib/node_modules/playwright");
 const assert = require("assert");
 const CDN = process.env.CDN_DIR || "/tmp/claude-0/-home-user-Teamyoda/f36f7b1a-5380-5cd8-93be-4b9b8aa1980b/scratchpad/cdn";
@@ -25,7 +26,7 @@ async function organizacao(){return "demo";} var db=null, auth=null;
 window.mtyAuth={entrar:async()=>{},usuario:()=>null};
 ${montagem}`;
   const pagina = `<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><script src="https://cdn.tailwindcss.com"></script><div id=root style="padding:16px"></div>
-<script src=/r.js></script><script src=/d.js></script><script src=/p.js></script><script src=/c.js></script><script src=/b.js></script><script>${AULAS_MES_JS}</script>
+<script src=/r.js></script><script src=/d.js></script><script src=/p.js></script><script src=/c.js></script><script src=/b.js></script><script>${AULAS_MES_JS}</script><script>${AGENDA_AULAS_JS}</script>
 <script>window.MTY={evento(){},id:()=>"x",map(){},tokenSeguro(){return "tok" + Math.random().toString(36).slice(2,10)}};</script>
 <script src=/sync-listas.js></script>${SCOUT.map((f) => "<script src=/scout/" + f + "></script>").join("")}
 <script type="text/babel">${corpo}</script>`;
@@ -147,7 +148,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(<Host />);`);
   await p.click("text=+ Reposição");
   await p.waitForSelector("text=Reposição pra quem?");
   await p.click("[role=dialog] button:has-text('Turma Sub-12')");
-  await p.waitForSelector("text=Motivo da reposição (opcional)");
+  await p.waitForSelector("text=Qual aula está sendo reposta?");
   await p.fill("[role=dialog] input[type=time]", "08:00");
   await p.fill("[role=dialog] input[placeholder^='Ex.:']", "Chuva no sábado");
   await p.click("[role=dialog] button:has-text('Agendar reposição')");

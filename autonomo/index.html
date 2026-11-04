@@ -67,6 +67,7 @@
 <script src="imprimir.js"></script>
 <script src="push-cliente.js"></script>
 <script src="turmas-lixeira.js"></script>
+<script src="agenda-aulas.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-auth-compat.js"></script>
@@ -13137,9 +13138,10 @@ function RevisaoPlano({ aluno, alunos, setAlunos, podeEditar }) {
   );
 }
 
-const NOVIDADES_VERSAO = "2026-11d";
+const NOVIDADES_VERSAO = "2026-11e";
 const NOVIDADES = [
-  { novo: true, t: "Todos os exercícios de quadra animados", d: "Agora são 233 exercícios do catálogo com a quadra animada: fundamentos, padrões táticos, movimentação (com spider, escadinha e cones), saque e devolução, ataque, ritmo, trilhos, brincadeiras com bola e duplas (na quadra de duplas, com o parceiro e os dois adversários). Cada um mostra onde cada um começa, os alvos, a sequência de bolas numerada e os deslocamentos. Toque em ▶ Na quadra e depois em Reproduzir.", onde: "Catálogo de exercícios › ▶ Na quadra (também na sessão e no plano)", aba: "catalogo" },
+  { novo: true, t: "Reposições ligadas à aula perdida e Relatório de aulas", d: "Ao marcar uma reposição (+ Reposição na Agenda), quem tem aula a repor aparece primeiro e, ao escolher o jogador ou a turma, abre a lista das aulas que ficaram para repor (canceladas, faltas, aula da turma cancelada e faltas registradas no caderno): escolha qual aula está sendo reposta. Ao abrir uma aula cancelada na Agenda, use Agendar reposição desta aula ou Não vai repor. O novo Relatório de aulas, na Agenda, mostra a semana, o mês ou o trimestre: aulas dadas, canceladas, faltas, reposições dadas e marcadas (com a aula que cada uma repôs) e o que ainda falta repor, com PDF.", onde: "Agenda › + Reposição e Agenda › Relatório de aulas", aba: "agenda" },
+  { t: "Todos os exercícios de quadra animados", d: "Agora são 233 exercícios do catálogo com a quadra animada: fundamentos, padrões táticos, movimentação (com spider, escadinha e cones), saque e devolução, ataque, ritmo, trilhos, brincadeiras com bola e duplas (na quadra de duplas, com o parceiro e os dois adversários). Cada um mostra onde cada um começa, os alvos, a sequência de bolas numerada e os deslocamentos. Toque em ▶ Na quadra e depois em Reproduzir.", onde: "Catálogo de exercícios › ▶ Na quadra (também na sessão e no plano)", aba: "catalogo" },
   { t: "Exercícios na quadra animada (piloto)", d: "20 exercícios do catálogo (fundamentos FB e padrões táticos DT) ganharam a quadra animada, com a mesma tecnologia do Simulador de Decisões: a posição de cada um, os alvos, cada bola numerada com o quique e o deslocamento do atleta. Toque em ▶ Na quadra e depois em Reproduzir. Os outros exercícios vêm em seguida.", onde: "Catálogo de exercícios › ▶ Na quadra (também na sessão e no plano)", aba: "catalogo" },
   { t: "Agenda editável", d: "Abra uma aula na Agenda e use Editar para mudar dia, horário e duração (só esta aula ou esta e as próximas) ou Apagar da agenda (some da agenda e das pendências; para registrar que não teve aula, continue usando Cancelar aula). Incluir aulas e reposições continua no + Agendar aula e no + Reposição.", onde: "Agenda › toque numa aula", aba: "agenda" },
   { t: "Turmas apagadas: recuperar", d: "Remover turma agora pede confirmação e a turma fica 90 dias em Turmas apagadas, de onde volta igual. Turmas apagadas antes disso aparecem reconstruídas pelo caderno dos jogadores (nome, jogadores e dias de treino): toque em Recuperar e confira o horário.", onde: "Mais › Turmas › Turmas apagadas", aba: "turmas" },
@@ -20186,20 +20188,30 @@ function CartaoAula({ c, onClick }) {
    nunca uma lista paralela), depois data/horário/duração e se repete
    toda semana ou é só desta vez. Repetir grava em `horarios` (a mesma
    fonte usada em toda a Agenda); "só esta data" vira um item avulso. */
-function AgendarAulaDialog({ alunos, turmas, setAlunos, setTurmas, dataInicial, aoFechar, reposicao }) {
-  const [passo, setPasso] = useState("escolher");
-  const [alvo, setAlvo] = useState(null);
+function AgendarAulaDialog({ alunos, turmas, setAlunos, setTurmas, dataInicial, aoFechar, reposicao, alvoInicial, repoeInicial }) {
+  const entInicial = alvoInicial ? (alvoInicial.tipo === "turma" ? turmas.find((t) => t.id === alvoInicial.id) : alunos.find((a) => a.id === alvoInicial.id)) : null;
+  const [passo, setPasso] = useState(entInicial ? "detalhes" : "escolher");
+  const [alvo, setAlvo] = useState(entInicial ? { tipo: alvoInicial.tipo, id: alvoInicial.id } : null);
   const [data, setData] = useState(formatarDataISO(dataInicial));
   const [hora, setHora] = useState("17:00");
-  const [duracao, setDuracao] = useState("1h30");
+  const [duracao, setDuracao] = useState((entInicial && entInicial.duracaoPadrao) || "1h30");
   const [repetir, setRepetir] = useState(reposicao ? "reposicao" : true); // true = toda semana · false = só esta data · "reposicao" = reposição nesta data
   const [motivo, setMotivo] = useState("");
   const [conflitoIgnorado, setConflitoIgnorado] = useState(false);
+  /* reposição: qual aula perdida está sendo reposta ("" = reposição extra, sem aula ligada; null = ainda não escolheu) */
+  const [repoe, setRepoe] = useState(repoeInicial || null);
+  const hojeISO = formatarDataISO(new Date());
+  const pendentes = useMemo(() => (alvo && repetir === "reposicao" && window.QLAgendaAulas
+    ? QLAgendaAulas.pendentesDeReposicao({ alunos, turmas, hoje: hojeISO, tipo: alvo.tipo, id: alvo.id }) : []), [alvo, repetir, alunos, turmas, hojeISO]);
+  const contagem = useMemo(() => (reposicao && window.QLAgendaAulas ? QLAgendaAulas.contagemPendentes({ alunos, turmas, hoje: hojeISO }) : {}), [reposicao, alunos, turmas, hojeISO]);
+  const repoeEscolhida = repoe === null ? (pendentes[0] ? pendentes[0].id : "") : repoe;
+  const perdida = pendentes.find((p) => p.id === repoeEscolhida) || null;
 
   function escolher(tipo, id) {
     const entidade = tipo === "turma" ? turmas.find((t) => t.id === id) : alunos.find((a) => a.id === id);
     setAlvo({ tipo, id });
     setDuracao(entidade.duracaoPadrao || "1h30");
+    setRepoe(null);
     setPasso("detalhes");
   }
 
@@ -20219,7 +20231,11 @@ function AgendarAulaDialog({ alunos, turmas, setAlunos, setTurmas, dataInicial, 
       if (alvo.tipo === "turma") setTurmas(turmas.map((t) => (t.id === alvo.id ? { ...t, ...patch } : t)));
       else setAlunos(alunos.map((a) => (a.id === alvo.id ? { ...a, ...patch } : a)));
     } else {
-      const novo = { id: "av" + Date.now(), data, hora, horaFim, ...(repetir === "reposicao" ? { reposicao: true, motivo: motivo.trim() } : {}) };
+      const repoeTexto = perdida ? QLAgendaAulas.descreverPerdida(perdida) : "";
+      const novo = { id: "av" + Date.now(), data, hora, horaFim, ...(repetir === "reposicao" ? {
+        reposicao: true, motivo: motivo.trim() || (perdida ? "Reposição da aula de " + QLAgendaAulas.descreverPerdida(perdida) : ""),
+        ...(perdida ? { repoe: perdida.id, repoeData: perdida.data, repoeTexto: "aula de " + repoeTexto } : {}),
+      } : {}) };
       const agendaAvulsos = [...(entidade.agendaAvulsos || []), novo];
       if (alvo.tipo === "turma") setTurmas(turmas.map((t) => (t.id === alvo.id ? { ...t, agendaAvulsos } : t)));
       else setAlunos(alunos.map((a) => (a.id === alvo.id ? { ...a, agendaAvulsos } : a)));
@@ -20234,7 +20250,7 @@ function AgendarAulaDialog({ alunos, turmas, setAlunos, setTurmas, dataInicial, 
         style={{ position: "fixed", left: 0, right: 0, bottom: 0, background: C.cal, zIndex: 40,
           borderRadius: "16px 16px 0 0", boxShadow: SOMBRA_ALTA, maxHeight: "85vh", display: "flex", flexDirection: "column" }}>
         <div className="flex items-center justify-between" style={{ padding: "14px 18px", borderBottom: "1px solid " + C.linha }}>
-          <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{passo === "escolher" ? (reposicao ? "Reposição pra quem?" : "Agendar pra quem?") : repetir === "reposicao" ? "Agendar reposição" : "Agendar aula"}</span>
+          <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{passo === "escolher" ? (reposicao ? "Reposição pra quem?" : "Agendar pra quem?") : (repetir === "reposicao" ? "Reposição" : "Agendar aula") + (alvo ? " · " + (((alvo.tipo === "turma" ? turmas : alunos).find((x) => x.id === alvo.id) || {}).nome || "") : "")}</span>
           <button onClick={aoFechar} aria-label="Fechar" style={{ width: 36, height: 36, border: "none", background: "none", cursor: "pointer", fontSize: 20, color: C.grafite }}>×</button>
         </div>
         <div style={{ overflowY: "auto", padding: "14px 18px" }}>
@@ -20242,18 +20258,20 @@ function AgendarAulaDialog({ alunos, turmas, setAlunos, setTurmas, dataInicial, 
             <>
               {/* Cadastros ainda sem nome não aparecem aqui — não dá pra
                   agendar aula pra um jogador que ainda nem tem nome. */}
-              {alunos.filter((a) => a.nome).map((a) => (
-                <button key={a.id} onClick={() => escolher("individual", a.id)} className="w-full text-left"
-                  style={{ display: "block", padding: "12px 10px", border: "none", background: "none", cursor: "pointer", borderRadius: 10, minHeight: 44 }}>
-                  <span style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 600 }}>{a.nome}</span>
-                  <span style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginLeft: 8 }}>Jogador</span>
-                </button>
-              ))}
-              {turmas.map((t) => (
-                <button key={t.id} onClick={() => escolher("turma", t.id)} className="w-full text-left"
-                  style={{ display: "block", padding: "12px 10px", border: "none", background: "none", cursor: "pointer", borderRadius: 10, minHeight: 44 }}>
-                  <span style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 600 }}>{t.nome}</span>
-                  <span style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginLeft: 8 }}>Turma</span>
+              {reposicao && Object.values(contagem).some((n) => n > 0) && (
+                <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, padding: "0 10px 6px" }}>Primeiro quem tem aula a repor.</p>
+              )}
+              {[...alunos.filter((a) => a.nome).map((a) => ({ tipo: "individual", ent: a })), ...turmas.map((t) => ({ tipo: "turma", ent: t }))]
+                .map((x) => ({ ...x, n: contagem[x.tipo + ":" + x.ent.id] || 0 }))
+                .sort((x, y) => (reposicao ? y.n - x.n : 0))
+                .map(({ tipo, ent, n }) => (
+                <button key={tipo + ent.id} onClick={() => escolher(tipo, ent.id)} className="w-full text-left" data-escolher-reposicao={ent.id}
+                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "12px 10px", border: "none", background: "none", cursor: "pointer", borderRadius: 10, minHeight: 44 }}>
+                  <span>
+                    <span style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 600 }}>{ent.nome || "Turma sem nome"}</span>
+                    <span style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginLeft: 8 }}>{tipo === "turma" ? "Turma" : "Jogador"}</span>
+                  </span>
+                  {reposicao && n > 0 && <Etiqueta cor="#8A6100">{n === 1 ? "1 aula a repor" : n + " aulas a repor"}</Etiqueta>}
                 </button>
               ))}
               {alunos.filter((a) => a.nome).length === 0 && turmas.length === 0 && (
@@ -20268,9 +20286,35 @@ function AgendarAulaDialog({ alunos, turmas, setAlunos, setTurmas, dataInicial, 
               <Campo rotulo="Repetição">
                 <Seletor opcoes={[{ v: true, r: "Toda semana neste dia e horário" }, { v: false, r: "Só esta data" }, { v: "reposicao", r: "Reposição (só esta data)" }]} valor={repetir} aoMudar={setRepetir} />
               </Campo>
+              {repetir === "reposicao" && alvo && window.QLAgendaAulas && (
+                <div data-aulas-a-repor style={{ marginBottom: 14 }}>
+                  <p style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Qual aula está sendo reposta?</p>
+                  {pendentes.length === 0 && (
+                    <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginBottom: 6 }}>
+                      {(alvo.tipo === "turma" ? "Esta turma" : "Este jogador") + " não tem aula cancelada ou falta esperando reposição nos últimos " + QLAgendaAulas.JANELA_DIAS + " dias."}
+                    </p>
+                  )}
+                  {[...pendentes, { id: "", extra: true }].map((p) => {
+                    const marcada = repoeEscolhida === p.id;
+                    return (
+                      <label key={p.id || "extra"} data-repoe={p.id || "extra"}
+                        style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "9px 11px", marginBottom: 6, borderRadius: 10, cursor: "pointer",
+                          border: "1px solid " + (marcada ? C.quadra : C.linha), background: marcada ? "#EEF6F1" : C.cal }}>
+                        <input type="radio" name="repoe" checked={marcada} onChange={() => setRepoe(p.id)} style={{ marginTop: 3, width: 18, height: 18 }} />
+                        <span style={{ ...prosa, fontSize: 13.5 }}>
+                          {p.extra ? <span style={{ color: C.grafite }}>Nenhuma: reposição extra, sem aula perdida ligada</span> : <>
+                            <b>{QLAgendaAulas.dataBR(p.data)} {QLAgendaAulas.diaCurto(p.data)}{p.hora ? " · " + p.hora : ""}</b>
+                            {" · "}{p.rotulo}{p.motivo ? " (" + p.motivo + ")" : ""}
+                          </>}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
               {repetir === "reposicao" && (
-                <Campo rotulo="Motivo da reposição (opcional)">
-                  <input style={entrada} value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ex.: aula de 12/10 cancelada pela chuva" />
+                <Campo rotulo="Observação (opcional)">
+                  <input style={entrada} value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder={perdida ? "Reposição da aula de " + QLAgendaAulas.descreverPerdida(perdida) : "Ex.: aula extra antes do torneio"} />
                 </Campo>
               )}
               {conflito && (
@@ -20281,7 +20325,7 @@ function AgendarAulaDialog({ alunos, turmas, setAlunos, setTurmas, dataInicial, 
               )}
               <div className="flex gap-2 flex-wrap mt-2">
                 <Botao variante="saibro" onClick={confirmar}>{conflito && !conflitoIgnorado ? "Continuar" : repetir === "reposicao" ? "Agendar reposição" : "Agendar"}</Botao>
-                <Botao variante="vazio" onClick={() => setPasso("escolher")}>Voltar</Botao>
+                {!entInicial && <Botao variante="vazio" onClick={() => setPasso("escolher")}>Voltar</Botao>}
               </div>
             </>
           )}
@@ -20291,7 +20335,42 @@ function AgendarAulaDialog({ alunos, turmas, setAlunos, setTurmas, dataInicial, 
   );
 }
 
-function OcorrenciaDetalhe({ c, aoFechar, aoVerJogador, aoAbrirPlano, aoAbrirSessao, registrarStatus, aoReagendar, aoCancelar, aoApagar }) {
+/* Na aula aberta da Agenda: a reposição que repõe uma aula cancelada/falta (ou o botão de marcar), e o que uma reposição repõe. */
+function InfoReposicaoDaAula({ c, entidade, aoAgendarReposicao, aoDispensar }) {
+  if (!entidade || !window.QLAgendaAulas) return null;
+  const caixa = { background: C.papel, borderLeft: "3px solid #6A3FA0", padding: "10px 12px", marginTop: 12, borderRadius: 6 };
+  if (c.reposicao) {
+    const av = (entidade.agendaAvulsos || []).find((x) => x.id === c.avulsoId);
+    if (!av || !av.repoe) return null;
+    return <div style={caixa} data-repoe-info><p style={{ ...prosa, fontSize: 13 }}>Repõe a {av.repoeTexto || QLAgendaAulas.textoDoId(av.repoe) || "aula perdida"}.</p></div>;
+  }
+  if (c.status !== "cancelada" && c.status !== "falta") return null;
+  const id = "ag:" + c.chave;
+  const cob = QLAgendaAulas.reposicoesDe(entidade).find((av) => av.repoe === id && !["cancelada", "excluida"].includes(((entidade.agendaExcecoes || {})[av.data + "|" + av.hora] || {}).status));
+  const dispensada = (entidade.repoDispensadas || []).includes(id);
+  return (
+    <div style={caixa} data-reposicao-da-aula>
+      {cob ? (
+        <p style={{ ...prosa, fontSize: 13 }}>Reposição marcada para <b>{QLAgendaAulas.dataBR(cob.data)} {QLAgendaAulas.diaCurto(cob.data)} às {cob.hora}</b>.</p>
+      ) : dispensada ? (
+        <div className="flex items-center gap-2 flex-wrap">
+          <p style={{ ...prosa, fontSize: 13 }}>Marcada como “não vai repor”.</p>
+          <Botao pequeno variante="vazio" onClick={() => aoDispensar(c, false)}>Desfazer</Botao>
+        </div>
+      ) : (
+        <>
+          <p style={{ ...prosa, fontSize: 13, marginBottom: 8 }}>Esta aula está a repor.</p>
+          <div className="flex gap-2 flex-wrap">
+            <Botao pequeno onClick={() => aoAgendarReposicao(c)}>Agendar reposição desta aula</Botao>
+            <Botao pequeno variante="vazio" onClick={() => aoDispensar(c, true)}>Não vai repor</Botao>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function OcorrenciaDetalhe({ c, entidade, aoFechar, aoVerJogador, aoAbrirPlano, aoAbrirSessao, registrarStatus, aoReagendar, aoCancelar, aoApagar, aoAgendarReposicao, aoDispensar }) {
   const [confirmandoApagar, setConfirmandoApagar] = useState(false);
   const info = STATUS_OCORRENCIA[c.status] || STATUS_OCORRENCIA.agendada;
   const [confirmandoCancelamento, setConfirmandoCancelamento] = useState(false);
@@ -20314,6 +20393,7 @@ function OcorrenciaDetalhe({ c, aoFechar, aoVerJogador, aoAbrirPlano, aoAbrirSes
           {c.reposicao && <Etiqueta cor="#6A3FA0">Reposição</Etiqueta>}
             <Etiqueta cor={info.cor}>{info.icone} {info.r}</Etiqueta>
           </div>
+          <InfoReposicaoDaAula c={c} entidade={entidade} aoAgendarReposicao={aoAgendarReposicao} aoDispensar={aoDispensar} />
 
           <div className="flex flex-col gap-2 mt-5">
             <Botao variante="vazio" onClick={() => aoVerJogador(c)}>{c.tipo === "turma" ? "Ver turma" : "Ver jogador"}</Botao>
@@ -20428,12 +20508,147 @@ function ReagendarDialog({ c, alunos, turmas, setAlunos, setTurmas, aoFechar }) 
   );
 }
 
+/* Relatório de aulas da Agenda: semana, mês ou trimestre, com as aulas dadas, canceladas e faltas, as reposições (dadas,
+   marcadas e o que cada uma repôs) e as aulas que ainda precisam ser repostas, com Agendar reposição e Não vai repor
+   (agenda-aulas.js). Imprime ou salva em PDF. */
+function RelatorioAulasDialog({ alunos, turmas, aoFechar, aoAgendarReposicao, aoDispensar }) {
+  const hoje = formatarDataISO(new Date());
+  const [tipo, setTipo] = useState("mes");
+  const [ref, setRef] = useState(hoje);
+  const [verAntes, setVerAntes] = useState(false);
+  const per = QLAgendaAulas.periodo(tipo, ref);
+  const rel = useMemo(() => QLAgendaAulas.relatorio({ alunos, turmas, hoje, inicio: per.inicio, fim: per.fim, rotulo: per.rotulo, tipoPeriodo: tipo }),
+    [alunos, turmas, hoje, per.inicio, per.fim, per.rotulo, tipo]);
+  const t = rel.totais;
+  const tile = (r, v, cor, attr) => (
+    <div {...(attr || {})} style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "8px 11px", flex: "1 1 96px", minWidth: 96 }}>
+      <p style={{ ...prosa, fontSize: 11.5, color: C.grafite }}>{r}</p>
+      <p style={{ fontFamily: ARCH, fontSize: 19, fontWeight: 700, color: cor || C.tinta }}>{v}</p>
+    </div>
+  );
+  const corSituacao = { dada: C.quadra, marcada: "#6A3FA0", semRegistro: "#8A6100", cancelada: "#B3261E", faltou: "#B3261E" };
+  function imprimir() {
+    const janela = window.open("", "_blank");
+    if (!janela) { alert("O navegador bloqueou a janela do relatório. Permita pop-ups para este site e tente de novo."); return; }
+    janela.document.write(QLAgendaAulas.html(rel)); janela.document.close();
+  }
+  const linhaPerdida = (p) => (
+    <div key={p.entTipo + p.entId + p.id} data-a-repor={p.id} style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "9px 12px", marginBottom: 6 }}>
+      <p style={{ ...prosa, fontSize: 13.5 }}>
+        <b>{p.entNome}</b>{p.entTipo === "turma" ? <span style={{ color: C.grafite }}> (turma)</span> : null}
+        <span style={{ color: C.grafite }}> · {QLAgendaAulas.descreverPerdida(p)}</span>
+      </p>
+      <div className="flex gap-2 flex-wrap mt-2">
+        <Botao pequeno onClick={() => aoAgendarReposicao(p)}>Agendar reposição</Botao>
+        <Botao pequeno variante="vazio" onClick={() => aoDispensar(p)}>Não vai repor</Botao>
+      </div>
+    </div>
+  );
+  return (
+    <>
+      <div onClick={aoFechar} style={{ position: "fixed", inset: 0, background: "rgba(16,30,25,.4)", zIndex: 35 }} />
+      <div role="dialog" aria-modal="true" aria-label="Relatório de aulas" data-relatorio-aulas
+        style={{ position: "fixed", left: 0, right: 0, bottom: 0, top: 24, background: C.papel, zIndex: 36, maxWidth: 820, margin: "0 auto",
+          borderRadius: "16px 16px 0 0", boxShadow: SOMBRA_ALTA, display: "flex", flexDirection: "column" }}>
+        <div className="flex items-center justify-between" style={{ padding: "14px 18px", borderBottom: "1px solid " + C.linha, background: C.cal, borderRadius: "16px 16px 0 0" }}>
+          <span style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700 }}>Relatório de aulas</span>
+          <button onClick={aoFechar} aria-label="Fechar" style={{ width: 40, height: 40, border: "none", background: "none", cursor: "pointer", fontSize: 20, color: C.grafite }}>×</button>
+        </div>
+        <div style={{ overflowY: "auto", padding: "14px 18px 28px" }}>
+          <div className="flex gap-2 mb-3" role="tablist" aria-label="Período">
+            {[{ v: "semana", r: "Semana" }, { v: "mes", r: "Mês" }, { v: "trimestre", r: "Trimestre" }].map((x) => (
+              <button key={x.v} role="tab" aria-selected={tipo === x.v} data-periodo={x.v} onClick={() => setTipo(x.v)}
+                style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, padding: "8px 14px", borderRadius: 10, cursor: "pointer", minHeight: 38,
+                  border: "1px solid " + (tipo === x.v ? C.quadra : C.linha), background: tipo === x.v ? C.quadra : C.cal, color: tipo === x.v ? "#fff" : C.grafite }}>
+                {x.r}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 mb-4">
+            <button type="button" aria-label="Período anterior" onClick={() => setRef(QLAgendaAulas.navegar(tipo, ref, -1))}
+              style={{ width: 40, height: 40, borderRadius: 10, border: "1px solid " + C.linha, background: C.cal, cursor: "pointer", fontSize: 18 }}>‹</button>
+            <span data-rotulo-periodo style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700, flex: 1, textAlign: "center" }}>{per.rotulo}</span>
+            <button type="button" aria-label="Próximo período" onClick={() => setRef(QLAgendaAulas.navegar(tipo, ref, 1))}
+              style={{ width: 40, height: 40, borderRadius: 10, border: "1px solid " + C.linha, background: C.cal, cursor: "pointer", fontSize: 18 }}>›</button>
+          </div>
+
+          <div className="flex flex-wrap gap-2 mb-3">
+            {tile("Aulas dadas", t.realizadas, C.quadra)}
+            {tile("Canceladas", t.canceladas)}
+            {tile("Faltas", t.faltas + t.faltasCaderno, "#B3261E")}
+            {tile("Sem registro", t.semRegistro, t.semRegistro ? "#8A6100" : C.tinta)}
+            {tile("Reposições dadas", t.reposicoesDadas, "#6A3FA0")}
+            {tile("Reposições marcadas", t.reposicoesMarcadas, "#6A3FA0")}
+            {tile("A repor", t.aRepor, t.aRepor ? "#8A6100" : C.tinta, { "data-total-a-repor": t.aRepor })}
+          </div>
+          <div className="flex gap-2 flex-wrap mb-5"><Botao pequeno onClick={imprimir}>Salvar PDF / imprimir</Botao></div>
+
+          <h3 style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700, marginBottom: 8 }}>Aulas a repor</h3>
+          {rel.aRepor.length === 0
+            ? <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginBottom: 6 }}>Nenhuma aula deste período esperando reposição.</p>
+            : rel.aRepor.map(linhaPerdida)}
+          {rel.aReporAntes.length > 0 && (
+            <div className="mt-2 mb-2">
+              <button type="button" onClick={() => setVerAntes(!verAntes)} data-ver-antes
+                style={{ ...prosa, fontSize: 13, color: "#8A6100", fontWeight: 700, background: "none", border: "none", cursor: "pointer", padding: "6px 0" }}>
+                {verAntes ? "Ocultar" : "Ver"} {rel.aReporAntes.length === 1 ? "1 aula de antes deste período ainda a repor" : rel.aReporAntes.length + " aulas de antes deste período ainda a repor"}
+              </button>
+              {verAntes && rel.aReporAntes.map(linhaPerdida)}
+            </div>
+          )}
+
+          <h3 style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700, margin: "18px 0 8px" }}>Reposições do período</h3>
+          {rel.reposicoes.length === 0
+            ? <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Nenhuma reposição neste período.</p>
+            : rel.reposicoes.map((r) => (
+              <div key={r.entTipo + r.entId + r.chave} data-reposicao-relatorio style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "4px solid #6A3FA0", borderRadius: 10, padding: "8px 12px", marginBottom: 6 }}>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <p style={{ ...prosa, fontSize: 13.5 }}><b>{QLAgendaAulas.dataBR(r.data)} {QLAgendaAulas.diaCurto(r.data)} {r.hora}</b> · {r.nome}{r.entTipo === "turma" ? " (turma)" : ""}</p>
+                  <Etiqueta cor={corSituacao[r.situacao] || C.grafite}>{QLAgendaAulas.SITUACAO_REPO[r.situacao]}</Etiqueta>
+                </div>
+                <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>{r.repoeTexto ? "Repõe a " + r.repoeTexto : "Reposição extra (sem aula perdida ligada)"}</p>
+              </div>
+            ))}
+
+          <h3 style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700, margin: "18px 0 8px" }}>Por jogador e turma</h3>
+          {rel.porEntidade.length === 0 ? <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Nenhuma aula neste período.</p> : (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ borderCollapse: "collapse", width: "100%", minWidth: 520, ...prosa, fontSize: 12.5 }}>
+                <thead><tr>{["Nome", "Dadas", "Cancel.", "Faltas", "Sem reg.", "Repos. dadas", "Repos. marcadas", "A repor"].map((h, i) => (
+                  <th key={h} style={{ textAlign: i ? "right" : "left", padding: "6px", borderBottom: "1px solid " + C.linha, fontSize: 11, color: C.grafite }}>{h}</th>
+                ))}</tr></thead>
+                <tbody>
+                  {rel.porEntidade.map((l) => (
+                    <tr key={l.chave}>
+                      <td style={{ padding: "6px", borderBottom: "1px solid " + C.linha }}>{l.nome}{l.tipo === "turma" ? <span style={{ color: C.grafite }}> (turma)</span> : null}</td>
+                      {[l.realizadas, l.canceladas, l.faltas + l.faltasCaderno, l.semRegistro, l.reposicoesDadas, l.reposicoesMarcadas, l.aRepor].map((v, i) => (
+                        <td key={i} style={{ padding: "6px", borderBottom: "1px solid " + C.linha, textAlign: "right", fontWeight: i === 6 && v ? 700 : 400, color: i === 6 && v ? "#8A6100" : C.tinta }}>{v}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 12 }}>
+            Aula sem marcação na Agenda conta como dada quando a sessão foi registrada no caderno. Aulas a repor: canceladas e faltas dos últimos {QLAgendaAulas.JANELA_DIAS} dias sem reposição ligada; a reposição cancelada devolve a aula para a lista.
+          </p>
+        </div>
+      </div>
+    </>
+  );
+}
+
 function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, aoVerJogador, aoAbrirPlano, aoAbrirSessao, aoAbrirTurmas }) {
   const [modo, setModo] = useState("dia");
   const [dataRef, setDataRef] = useState(() => new Date());
   const [agendando, setAgendando] = useState(false);
   const [ocorrenciaAberta, setOcorrenciaAberta] = useState(null);
   const [reagendando, setReagendando] = useState(null);
+  const [relatorioAberto, setRelatorioAberto] = useState(false);
+  /* reposição aberta a partir de uma aula perdida: { tipo, id, repoe } */
+  const [reposicaoDe, setReposicaoDe] = useState(null);
+  const totalARepor = useMemo(() => (window.QLAgendaAulas ? QLAgendaAulas.totalPendentes({ alunos, turmas, hoje: formatarDataISO(new Date()) }) : 0), [alunos, turmas]);
 
   const ehHoje = formatarDataISO(dataRef) === formatarDataISO(new Date());
 
@@ -20457,6 +20672,16 @@ function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, aoVerJogador, aoAbri
       aplicarPatch(c, { agendaExcecoes: { ...(entidade.agendaExcecoes || {}), [c.chave]: { ...((entidade.agendaExcecoes || {})[c.chave] || {}), status: "cancelada" } } });
     }
     setOcorrenciaAberta(null);
+  }
+
+  /* "não vai repor": a aula perdida sai da lista de reposições (e volta com Desfazer) */
+  function dispensarReposicao(tipo, id, aulaId, sim) {
+    const lista = (tipo === "turma" ? turmas : alunos).find((x) => x.id === id);
+    if (!lista) return;
+    const atual = lista.repoDispensadas || [];
+    const repoDispensadas = sim ? (atual.includes(aulaId) ? atual : [...atual, aulaId]) : atual.filter((x) => x !== aulaId);
+    if (tipo === "turma") setTurmas(turmas.map((t) => (t.id === id ? { ...t, repoDispensadas } : t)));
+    else setAlunos(alunos.map((a) => (a.id === id ? { ...a, repoDispensadas } : a)));
   }
 
   /* apagar: some da agenda (não é "cancelada", que fica registrada com motivo) */
@@ -20512,6 +20737,7 @@ function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, aoVerJogador, aoAbri
           ))}
         </div>
         <div className="flex gap-2 flex-wrap">
+          <Botao pequeno variante="vazio" onClick={() => setRelatorioAberto(true)}>Relatório de aulas{totalARepor ? " · " + totalARepor + " a repor" : ""}</Botao>
           <Botao pequeno variante="vazio" onClick={() => setAgendando("reposicao")}>+ Reposição</Botao>
           <Botao pequeno onClick={() => setAgendando(true)}>+ Agendar aula</Botao>
         </div>
@@ -20639,8 +20865,19 @@ function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, aoVerJogador, aoAbri
         <AgendarAulaDialog alunos={alunos} turmas={turmas} setAlunos={setAlunos} setTurmas={setTurmas}
           dataInicial={dataRef} aoFechar={() => setAgendando(false)} reposicao={agendando === "reposicao"} />
       )}
+      {reposicaoDe && (
+        <AgendarAulaDialog alunos={alunos} turmas={turmas} setAlunos={setAlunos} setTurmas={setTurmas}
+          dataInicial={new Date()} aoFechar={() => setReposicaoDe(null)} reposicao alvoInicial={{ tipo: reposicaoDe.tipo, id: reposicaoDe.id }} repoeInicial={reposicaoDe.repoe} />
+      )}
+      {relatorioAberto && (
+        <RelatorioAulasDialog alunos={alunos} turmas={turmas} aoFechar={() => setRelatorioAberto(false)}
+          aoAgendarReposicao={(p) => setReposicaoDe({ tipo: p.entTipo, id: p.entId, repoe: p.id })}
+          aoDispensar={(p) => dispensarReposicao(p.entTipo, p.entId, p.id, true)} />
+      )}
       {ocorrenciaAberta && (
-        <OcorrenciaDetalhe c={ocorrenciaAberta} aoFechar={() => setOcorrenciaAberta(null)}
+        <OcorrenciaDetalhe c={ocorrenciaAberta} entidade={entidadeDe(ocorrenciaAberta)} aoFechar={() => setOcorrenciaAberta(null)}
+          aoAgendarReposicao={(c) => { setOcorrenciaAberta(null); setReposicaoDe({ tipo: c.tipo, id: c.id, repoe: "ag:" + c.chave }); }}
+          aoDispensar={(c, sim) => dispensarReposicao(c.tipo, c.id, "ag:" + c.chave, sim)}
           aoVerJogador={(c) => { setOcorrenciaAberta(null); c.tipo === "turma" ? aoAbrirTurmas() : aoVerJogador(c.id); }}
           aoAbrirPlano={(c) => { setOcorrenciaAberta(null); c.tipo === "turma" ? aoAbrirTurmas() : aoAbrirPlano(c.id); }}
           aoAbrirSessao={(c) => { setOcorrenciaAberta(null); aoAbrirSessao(c.id); }}

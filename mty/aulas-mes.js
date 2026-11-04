@@ -174,8 +174,8 @@
   function creditoVivo(c) { return c && c.status !== "cancelado" && c.status !== "vencido"; }
 
   /* Fechamento do mês. `soProfessor` (uid) restringe ao que é dele: aulas em que foi titular, auxiliar ou quem deu. */
-  function fechamento({ ocorrencias, alunos, turmas, mes, hoje, extras, soProfessor }) {
-    const { inicio, fim } = periodoDoMes(mes);
+  function fechamento({ ocorrencias, alunos, turmas, mes, hoje, extras, soProfessor, inicio: ini, fim: fi, rotulo }) {
+    const { inicio, fim } = ini && fi ? { inicio: ini, fim: fi } : periodoDoMes(mes);
     let aulas = aulasDoPeriodo({ ocorrencias, alunos, turmas, inicio, fim, hoje, extras }).filter((a) => a.status !== "ignorada");
     if (soProfessor) aulas = aulas.filter((a) => [a.titular.uid, a.auxiliar.uid, a.deu.uid].includes(soProfessor));
     const passadas = aulas.filter((a) => a.status !== "agendada" && a.status !== "hoje");
@@ -266,10 +266,120 @@
     let porProfessor = [...porProfMap.values()].sort((x, y) => y.dadas - x.dadas || x.nome.localeCompare(y.nome));
     if (soProfessor) porProfessor = porProfessor.filter((p) => p.uid === soProfessor);
 
+    const repo = reposicoesDoPeriodo({ ocorrencias, alunos, turmas, inicio, fim, hoje });
     return {
-      mes, inicio, fim, aulas, totais, motivos, porAluno, porProfessor,
+      mes, inicio, fim, rotulo: rotulo || (mes ? nomeDoMes(mes) : dataBR(inicio) + " a " + dataBR(fim)), aulas, totais, motivos, porAluno, porProfessor, repo,
       pendentes: aulas.filter((a) => a.status === "pendente"),
     };
+  }
+
+  /* ── períodos (semana, mês, trimestre) ── */
+  function isoUTC(d) { return d.toISOString().slice(0, 10); }
+  function somaDias(s, n) { const d = new Date(s + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return isoUTC(d); }
+  function periodo(tipo, ref) {
+    const a = Number(ref.slice(0, 4)), m = Number(ref.slice(5, 7)), p2 = (n) => String(n).padStart(2, "0");
+    if (tipo === "semana") {
+      const w = new Date(ref + "T12:00:00Z").getUTCDay(), i = somaDias(ref, w === 0 ? -6 : 1 - w), f = somaDias(i, 6);
+      return { tipo, inicio: i, fim: f, rotulo: "Semana de " + dataBR(i) + " a " + dataBR(f) };
+    }
+    if (tipo === "trimestre") {
+      const t = Math.floor((m - 1) / 3), m1 = t * 3 + 1, ult = new Date(Date.UTC(a, m1 + 2, 0)).getUTCDate();
+      return { tipo, inicio: a + "-" + p2(m1) + "-01", fim: a + "-" + p2(m1 + 2) + "-" + p2(ult), rotulo: (t + 1) + "º trimestre de " + a + " (" + MESES[m1 - 1] + " a " + MESES[m1 + 1] + ")" };
+    }
+    const mes = ref.slice(0, 7), { inicio, fim } = periodoDoMes(mes);
+    return { tipo: "mes", inicio, fim, rotulo: nomeDoMes(mes).replace(/^./, (c) => c.toUpperCase()), mes };
+  }
+  function navegarPeriodo(tipo, ref, n) {
+    if (tipo === "semana") return somaDias(ref, 7 * n);
+    return somarMes(ref.slice(0, 7), tipo === "trimestre" ? 3 * n : n) + "-01";
+  }
+
+  /* ── reposições: qual aula perdida cada uma repõe e o que ainda falta repor ──
+     A reposição (ocorrência tipo "reposicao") guarda `repoeAulaId` = id da aula perdida (o id da ocorrência, ou "reg:…" da aula
+     só registrada no caderno). Também conta como reposta a aula cujo crédito de reposição já foi agendado (reservado) ou usado.
+     "Não vai repor" fica em `repoDispensadas` da ficha do aluno ou da turma; crédito vencido ou cancelado também tira da lista. */
+  const JANELA_DIAS = 120;
+  function reposicaoValida(o) { return o && o.tipo === "reposicao" && o.status !== "cancelada" && !o.excluirDoRelatorio; }
+  function textoPerdida(p) {
+    return dataBR(p.data) + " " + diaSemanaCurto(p.data) + (p.hora ? " " + p.hora : "") + " · " + p.rotulo + (p.motivo ? " (" + p.motivo + ")" : "");
+  }
+  function pendentesDeReposicao({ ocorrencias, alunos, turmas, hoje, tipo, id, desde, ate, todas }) {
+    hoje = hoje || isoUTC(new Date());
+    desde = desde || somaDias(hoje, -JANELA_DIAS);
+    const fim = ate || somaDias(hoje, 90);
+    const ent = tipo === "turma" ? (turmas || []).find((t) => t.id === id) : (alunos || []).find((a) => a.id === id);
+    if (!ent) return [];
+    const aulas = aulasDoPeriodo({ ocorrencias, alunos, turmas, inicio: desde, fim, hoje }).filter((a) => a.status !== "ignorada" && a.tipo !== "reposicao");
+    const repos = (ocorrencias || []).filter(reposicaoValida);
+    const turmaDe = (a) => (a.origemTipo === "turma" ? (turmas || []).find((t) => t.id === a.origemId) : null);
+    const lista = [];
+    aulas.forEach((a) => {
+      let presenca;
+      if (tipo === "turma") {
+        if (a.origemTipo !== "turma" || a.origemId !== id || a.status !== "cancelada") return;
+        presenca = "cancelada";
+      } else {
+        if (!a.membros.includes(id)) return;
+        presenca = presencaNaAula(a, id);
+        if (presenca !== "falta" && presenca !== "cancelada") return;
+      }
+      const t = turmaDe(a);
+      const credito = tipo === "turma" ? null : ((ent.creditosReposicao || []).find((c) => c.origemOcorrenciaId === a.id || (a.ocorrenciaId && c.origemOcorrenciaId === a.ocorrenciaId)) || null);
+      const doTurma = (r) => r.origemTipo === "turma" && a.origemTipo === "turma" && r.origemId === a.origemId;
+      const cobertaRepo = repos.find((r) => r.repoeAulaId === a.id && (tipo === "turma" ? doTurma(r) : doTurma(r) || (r.origemTipo === "individual" && r.origemId === id))) || null;
+      const cobertaCredito = credito && (credito.status === "reservado" || credito.status === "utilizado") ? (ocorrencias || []).find((o) => o.id === credito.ocorrenciaReposicaoId) || { id: credito.ocorrenciaReposicaoId, data: "" } : null;
+      const statusCred = credito ? (credito.status === "disponivel" && credito.validoAte && credito.validoAte < hoje ? "vencido" : credito.status) : null;
+      const dispensada = (ent.repoDispensadas || []).includes(a.id) || (tipo !== "turma" && presenca === "cancelada" && t && (t.repoDispensadas || []).includes(a.id)) || statusCred === "vencido" || statusCred === "cancelado";
+      lista.push({
+        id: a.id, aula: a, data: a.data, hora: a.horaInicio || "", nome: a.nome, presenca, origem: a.origemTipo === "turma" ? (presenca === "cancelada" ? "turma-cancelada" : "turma-falta") : "individual",
+        rotulo: presenca === "falta" ? (a.origemTipo === "turma" ? "faltou na turma " + a.nome : "faltou") : (a.origemTipo === "turma" && tipo !== "turma" ? "aula da turma " + a.nome + " cancelada" : "cancelada"),
+        motivo: a.motivo || "", credito: credito ? { id: credito.id, status: statusCred } : null,
+        coberta: cobertaRepo || cobertaCredito, dispensada: !!dispensada,
+      });
+    });
+    return (todas ? lista : lista.filter((p) => !p.coberta && !p.dispensada)).sort((x, y) => (x.data + x.hora).localeCompare(y.data + y.hora));
+  }
+  /* aulas a repor da academia toda; a aula de turma cancelada entra uma vez só (na turma), não em cada aluno */
+  function todasPendentes(o) {
+    const out = [];
+    (o.alunos || []).filter((a) => a.nome).forEach((a) => pendentesDeReposicao({ ...o, tipo: "individual", id: a.id })
+      .filter((p) => p.origem !== "turma-cancelada").forEach((p) => out.push({ ...p, entTipo: "individual", entId: a.id, entNome: a.nome })));
+    (o.turmas || []).forEach((t) => pendentesDeReposicao({ ...o, tipo: "turma", id: t.id }).forEach((p) => out.push({ ...p, entTipo: "turma", entId: t.id, entNome: t.nome || "Turma" })));
+    return out.sort((x, y) => (x.data + x.hora).localeCompare(y.data + y.hora) || x.entNome.localeCompare(y.entNome));
+  }
+  function contagemPendentes(o) {
+    const c = {};
+    (o.alunos || []).forEach((a) => { c["individual:" + a.id] = pendentesDeReposicao({ ...o, tipo: "individual", id: a.id }).length; });
+    (o.turmas || []).forEach((t) => { c["turma:" + t.id] = pendentesDeReposicao({ ...o, tipo: "turma", id: t.id }).length; });
+    return c;
+  }
+  /* "aula de 12/10 17:00" da aula que uma reposição repõe (pelo vínculo direto ou pelo crédito reservado para ela) */
+  function textoRepoe(r, ocorrencias, alunos) {
+    if (!r) return "";
+    if (r.repoeTexto) return r.repoeTexto;
+    let origemId = r.repoeAulaId;
+    if (!origemId) {
+      for (const a of alunos || []) { const c = (a.creditosReposicao || []).find((x) => x.ocorrenciaReposicaoId === r.id); if (c) { origemId = c.origemOcorrenciaId; break; } }
+    }
+    if (!origemId) return "";
+    const o = (ocorrencias || []).find((x) => x.id === origemId);
+    if (o) return "aula de " + dataBR(o.data) + (o.horaInicio ? " " + o.horaInicio : "");
+    const m = /\|(\d{4}-\d{2}-\d{2})$/.exec(String(origemId));
+    return m ? "aula de " + dataBR(m[1]) : "";
+  }
+  /* reposições de um período (dadas, marcadas, sem registro, canceladas) e o que ficou a repor nele */
+  function reposicoesDoPeriodo({ ocorrencias, alunos, turmas, inicio, fim, hoje }) {
+    hoje = hoje || isoUTC(new Date());
+    const aulas = aulasDoPeriodo({ ocorrencias, alunos, turmas, inicio, fim, hoje }).filter((a) => a.tipo === "reposicao" && a.ocorrenciaId);
+    const lista = aulas.map((a) => {
+      const situacao = a.status === "realizada" ? "dada" : a.status === "falta" ? "faltou" : a.status === "cancelada" ? "cancelada" : a.status === "pendente" ? "semRegistro" : "marcada";
+      return { id: a.id, data: a.data, hora: a.horaInicio, nome: a.nome, origemTipo: a.origemTipo, situacao, repoeTexto: textoRepoe(a.ocorrencia, ocorrencias, alunos) };
+    });
+    const pend = todasPendentes({ ocorrencias, alunos, turmas, hoje, desde: somaDias(inicio, -JANELA_DIAS), ate: fim });
+    const aRepor = pend.filter((p) => p.data >= inicio), antes = pend.filter((p) => p.data < inicio);
+    const tot = { dadas: 0, marcadas: 0, semRegistro: 0, naoFeitas: 0, aRepor: aRepor.length, aReporAntes: antes.length };
+    lista.forEach((r) => { if (r.situacao === "dada") tot.dadas++; else if (r.situacao === "marcada") tot.marcadas++; else if (r.situacao === "semRegistro") tot.semRegistro++; else tot.naoFeitas++; });
+    return { lista, aRepor, aReporAntes: antes, totais: tot };
   }
 
   /* ── exportação ── */
@@ -318,26 +428,36 @@
       '</td><td>' + esc(a.motivo || "") + '</td></tr>').join("");
     const perdidas = l.perdidas.filter((x) => x.sugerida && !x.temCredito);
     const faltas = l.perdidas.filter((x) => !x.sugerida && !x.temCredito);
-    return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Aulas de ' + esc(l.nome) + ' · ' + esc(nomeDoMes(f.mes)) + '</title><style>' + estiloBase + '</style></head><body>' +
+    return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Aulas de ' + esc(l.nome) + ' · ' + esc(f.rotulo || nomeDoMes(f.mes)) + '</title><style>' + estiloBase + '</style></head><body>' +
       (academia ? '<div class="sub" style="margin-bottom:4px">' + esc(academia) + '</div>' : '') +
-      '<h1>' + esc(l.nome) + '</h1><div class="sub">Aulas de ' + esc(nomeDoMes(f.mes)) + '</div>' +
+      '<h1>' + esc(l.nome) + '</h1><div class="sub">Aulas · ' + esc(f.rotulo || nomeDoMes(f.mes)) + '</div>' +
       '<div class="tiles">' + tile("Presenças", l.presencas) + tile("Faltas", l.faltas) + tile("Canceladas", l.canceladas) + tile("Reposições feitas", l.reposicoesFeitas) + tile("A remarcar", l.aRemarcar) + '</div>' +
-      '<h2>Aula a aula</h2><table><thead><tr><th>Data</th><th>Hora</th><th>Aula</th><th>Situação</th><th>Motivo</th></tr></thead><tbody>' + (linhas || '<tr><td colspan="5">Nenhuma aula no mês.</td></tr>') + '</tbody></table>' +
+      '<h2>Aula a aula</h2><table><thead><tr><th>Data</th><th>Hora</th><th>Aula</th><th>Situação</th><th>Motivo</th></tr></thead><tbody>' + (linhas || '<tr><td colspan="5">Nenhuma aula no período.</td></tr>') + '</tbody></table>' +
       (perdidas.length ? '<h2>Aulas a remarcar</h2><ul>' + perdidas.map((x) => '<li>' + dataBR(x.aula.data) + ' · ' + esc(x.aula.nome) + ' · ' + (x.presenca === "falta" ? "falta" : "cancelada" + (x.aula.motivo ? " (" + esc(x.aula.motivo) + ")" : "")) + '</li>').join("") + '</ul>' : '') +
       (faltas.length ? '<h2>Faltas sem reposição</h2><ul>' + faltas.map((x) => '<li>' + dataBR(x.aula.data) + ' · ' + esc(x.aula.nome) + (x.aula.motivo ? ' · ' + esc(x.aula.motivo) : '') + '</li>').join("") + '</ul>' : '') +
       (l.creditos.disponiveis + l.creditos.aguardando ? '<p class="sub">Créditos de reposição em aberto: ' + (l.creditos.disponiveis + l.creditos.aguardando) + '.</p>' : '') +
       rodapeBotoes() + '</body></html>';
+  }
+  const SITUACAO_REPO = { dada: "Dada", marcada: "Marcada", semRegistro: "Passou sem registro", cancelada: "Cancelada (a aula volta a ficar a repor)", faltou: "Aluno faltou na reposição" };
+  function htmlReposicoes(repo) {
+    if (!repo) return "";
+    const ar = repo.aRepor.map((p) => '<tr><td>' + dataBR(p.data) + ' ' + diaSemanaCurto(p.data) + (p.hora ? ' ' + esc(p.hora) : '') + '</td><td>' + esc(p.entNome) + (p.entTipo === "turma" ? ' <i>(turma)</i>' : '') + '</td><td>' + esc(p.rotulo) + (p.motivo ? ' (' + esc(p.motivo) + ')' : '') + '</td></tr>').join("");
+    const rs = repo.lista.map((r) => '<tr><td>' + dataBR(r.data) + ' ' + diaSemanaCurto(r.data) + ' ' + esc(r.hora || "") + '</td><td>' + esc(r.nome) + (r.origemTipo === "turma" ? ' <i>(turma)</i>' : '') + '</td><td>' + esc(r.repoeTexto || "—") + '</td><td>' + esc(SITUACAO_REPO[r.situacao] || r.situacao) + '</td></tr>').join("");
+    return '<h2>Aulas a repor</h2>' + (repo.totais.aReporAntes ? '<p class="sub">Além destas, ' + repo.totais.aReporAntes + ' de antes deste período ainda a repor.</p>' : '') +
+      '<table><thead><tr><th>Aula perdida</th><th>Aluno ou turma</th><th>O que houve</th></tr></thead><tbody>' + (ar || '<tr><td colspan="3">Nenhuma aula a repor neste período.</td></tr>') + '</tbody></table>' +
+      '<h2>Reposições</h2><table><thead><tr><th>Reposição</th><th>Aluno ou turma</th><th>Repõe</th><th>Situação</th></tr></thead><tbody>' + (rs || '<tr><td colspan="4">Nenhuma reposição neste período.</td></tr>') + '</tbody></table>';
   }
   function htmlGeral(f, academia) {
     const t = f.totais;
     const motivos = Object.keys(f.motivos).map((m) => '<li>' + esc(m) + ': ' + f.motivos[m] + '</li>').join("");
     const profs = f.porProfessor.map((p) => '<tr><td>' + esc(p.nome) + '</td><td class="n">' + p.dadas + '</td><td class="n">' + (p.minutos / 60).toFixed(1).replace(".", ",") + 'h</td><td class="n">' + p.individuais + '</td><td class="n">' + p.turma + '</td><td class="n">' + p.reposicoes + '</td><td class="n">' + p.substituicoes + '</td><td class="n">' + p.comFaltaDoAluno + '</td><td class="n">' + p.canceladas + '</td></tr>').join("");
     const alunosH = f.porAluno.map((l) => '<tr><td>' + esc(l.nome) + '</td><td class="n">' + l.presencas + '</td><td class="n">' + l.faltas + '</td><td class="n">' + l.canceladas + '</td><td class="n">' + l.reposicoesFeitas + '</td><td class="n">' + l.pendentes + '</td><td class="n">' + l.aRemarcar + '</td></tr>').join("");
-    return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Fechamento de aulas · ' + esc(nomeDoMes(f.mes)) + '</title><style>' + estiloBase + '</style></head><body>' +
+    return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório de aulas · ' + esc((f.rotulo || nomeDoMes(f.mes))) + '</title><style>' + estiloBase + '</style></head><body>' +
       (academia ? '<div class="sub" style="margin-bottom:4px">' + esc(academia) + '</div>' : '') +
-      '<h1>Fechamento de aulas</h1><div class="sub">' + esc(nomeDoMes(f.mes)) + '</div>' +
-      '<div class="tiles">' + tile("Aulas no mês", t.aulas) + tile("Realizadas", t.realizadas) + tile("Canceladas", t.canceladas) + tile("Faltas de alunos", t.faltasAlunos) + tile("Reposições feitas", t.reposicoes) + tile("A remarcar", t.aRemarcar) + tile("Sem registro", t.pendentes) + '</div>' +
+      '<h1>Relatório de aulas</h1><div class="sub">' + esc(f.rotulo || nomeDoMes(f.mes)) + (f.inicio ? ' · ' + dataBR(f.inicio) + ' a ' + dataBR(f.fim) : '') + '</div>' +
+      '<div class="tiles">' + tile("Aulas", t.aulas) + tile("Realizadas", t.realizadas) + tile("Canceladas", t.canceladas) + tile("Faltas de alunos", t.faltasAlunos) + tile("Reposições feitas", t.reposicoes) + tile("A remarcar", t.aRemarcar) + tile("Sem registro", t.pendentes) + '</div>' +
       (motivos ? '<h2>Cancelamentos por motivo</h2><ul>' + motivos + '</ul>' : '') +
+      htmlReposicoes(f.repo) +
       '<h2>Professores</h2><table><thead><tr><th>Professor</th><th class="n">Dadas</th><th class="n">Horas</th><th class="n">Indiv.</th><th class="n">Turma</th><th class="n">Repos.</th><th class="n">Substit.</th><th class="n">Aluno faltou</th><th class="n">Cancel.</th></tr></thead><tbody>' + (profs || '<tr><td colspan="9">Nenhuma aula.</td></tr>') + '</tbody></table>' +
       '<h2>Alunos</h2><table><thead><tr><th>Aluno</th><th class="n">Presenças</th><th class="n">Faltas</th><th class="n">Cancel.</th><th class="n">Repos.</th><th class="n">Sem reg.</th><th class="n">A remarcar</th></tr></thead><tbody>' + (alunosH || '<tr><td colspan="7">Nenhum aluno.</td></tr>') + '</tbody></table>' +
       rodapeBotoes() + '</body></html>';
@@ -347,6 +467,7 @@
     TIPOS_AULA, ROTULO, MOTIVOS, MOTIVO_IGNORAR, COR, SIMBOLO, ROTULO_PRESENCA,
     periodoDoMes, nomeDoMes, somarMes, criadoEmISO, indiceRegistros, chaveDaOcorrencia, membrosDaAula, statusDaAula,
     presencaNaAula, aulasDoPeriodo, fechamento, csvAlunos, csvProfessores, csvAulas, htmlAluno, htmlGeral, dataBR, diaSemanaCurto,
+    JANELA_DIAS, SITUACAO_REPO, periodo, navegarPeriodo, somaDias, pendentesDeReposicao, todasPendentes, contagemPendentes, textoPerdida, textoRepoe, reposicoesDoPeriodo,
   };
   if (typeof module === "object" && module.exports) module.exports = api;
   else raiz.QLAulasMes = api;
