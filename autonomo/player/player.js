@@ -640,12 +640,34 @@
       '<div class="acoes"><a class="btn btn-grande btn-sim" href="' + alvo + '">' + esc(acao) + "</a>" +
       (r && r.iniciados && alvo.indexOf("/relampago") < 0 ? '<a class="btn btn-texto btn-sim-sec" href="' + url + '/relampago">Modo relâmpago' + (r.recorde ? " · recorde " + r.recorde : "") + "</a>" : "") + "</div></section>";
   }
+  /* Competição: a estratégia contra adversários do Player (o mesmo perfil, as mesmas estratégias e a mesma cota da conta) */
+  function irEstrategiaContra(nome) {
+    var f = estado.ficha || { adversario: {} }, atual = f.adversario || {};
+    f.adversario = nome && String(atual.nome || "").toLowerCase() !== String(nome).toLowerCase() ? { nome: nome } : Object.assign({}, atual);
+    if (nome) f.adversario.nome = nome;
+    f.adversario.ativo = true; /* a etapa do adversário já abre com "contra um adversário específico" marcado */
+    estado.ficha = f;
+    ir(estado.dados && estado.dados.fichaCompleta ? "#/ficha/4" : "#/ficha/1");
+  }
+  function cartaoEstrategiaCompHtml() {
+    var d = estado.dados || {}, prontos = planosProntos(), contra = prontos.filter(function (p) { return p.adversarioNome; });
+    return '<section class="cartao" data-cartao-estrategia aria-labelledby="t-est-comp" style="margin-top:14px"><p class="olho">Estratégia</p><h2 id="t-est-comp">Estratégia contra adversários</h2>' +
+      '<p class="nota" style="margin-top:6px">Com o seu perfil de jogador e o que você sabe do adversário, montamos como jogar contra ele: as prioridades e as jogadas para aplicar, e depois os treinos.</p>' +
+      (prontos.length ? '<div class="lista-estrategias" style="margin-top:10px">' + prontos.slice(0, 3).map(itemEstrategiaHtml).join("") + "</div>" : "") +
+      '<div class="acoes"><button type="button" class="btn btn-laranja btn-grande" data-montar-estrategia>' + (d.fichaCompleta ? "Montar estratégia contra um adversário" : "Completar meu perfil e montar") + "</button>" +
+      (prontos.length ? '<a class="btn btn-texto" href="#/estrategia">Ver todas (' + prontos.length + ")</a>" : "") + "</div>" +
+      (contra.length ? "" : '<p class="nota" style="margin-top:6px">' + esc(avisoCota()) + "</p>") + "</section>";
+  }
+  function ligarCartaoEstrategiaComp() {
+    var b = app.querySelector("[data-montar-estrategia]");
+    if (b) b.addEventListener("click", function () { irEstrategiaContra(""); });
+  }
   function perfilRascunhado() { try { return !!localStorage.getItem(chaveRascunho()); } catch (e) { return false; } }
 
   /* ══ Estratégia ════════════════════════════════════════════════════ */
   function telaEstrategias() {
     var d = estado.dados;
-    var html = "<h1>Suas estratégias</h1>" +
+    var html = "<h1>" + (MODO_COMP ? "Estratégia contra adversários" : "Suas estratégias") + "</h1>" +
       '<p class="sub">Defina como jogar com suas características e contra cada adversário.</p>';
     if (!d.fichaCompleta) {
       html += '<div class="cartao" style="margin-top:18px"><h2>Complete o seu perfil</h2><p class="nota" style="margin-top:6px">São 4 etapas rápidas, quase tudo de tocar e escolher.</p>' +
@@ -660,8 +682,10 @@
         html += '<div style="margin-top:14px">' + limiteAtingidoHtml(d.semCotaMotivo, d.renovaEm) + "</div>";
       }
     }
+    if (MODO_COMP && d.fichaCompleta && d.podeGerar) html += '<div class="acoes" style="margin-top:10px"><button type="button" class="btn btn-laranja" data-montar-estrategia>Montar estratégia contra um adversário</button></div>';
     tela(html);
     ligarGerar();
+    ligarCartaoEstrategiaComp();
   }
 
   function cartaoPersonalizarHtml(p) {
@@ -681,10 +705,10 @@
     if (!p || p.status !== "pronto") { ir("#/estrategia"); return; }
     var pl = p.plano, programa = planejamentosProntos().filter(function (x) { return x.baseadoEm === id; })[0];
     var prioridades = (pl.diretrizes || []).slice(0, 3);
-    var msgWpp = "Olá, Richard! Criei uma estratégia no QuadraLab Player e quero saber sobre a consultoria.";
+    var msgWpp = "Olá, Richard! Criei uma estratégia no " + MARCA_APP + " e quero saber sobre a consultoria.";
     var treinos;
     if (!recursos().planejamento) {
-      treinos = '<a class="btn btn-secundario largo" href="#/treinos">Organizar meus treinos</a>';
+      treinos = MODO_COMP ? '<a class="btn btn-secundario largo" href="#/planejamento">Organizar meus treinos</a>' : '<a class="btn btn-secundario largo" href="#/treinos">Organizar meus treinos</a>';
     } else if (programa) {
       treinos = '<a class="btn btn-secundario largo" href="#/programa/' + esc(programa.id) + '">Ver programa de treino</a>';
     } else {
@@ -1032,7 +1056,7 @@
         }
         if (editando) { estado.editandoPerfil = false; estado.dados.fichaAtualizadaEm = new Date().toISOString(); ir("#/jogador"); toast("Perfil de jogador salvo. Suas estratégias e programas continuam como estão."); return; }
         if (estado.dados.podeGerar) { ocupado(bt, false); await gerarPlano(bt); }
-        else ir("#/inicio");
+        else ir(MODO_COMP ? "#/estrategia" : "#/inicio");
       } catch (e) {
         var av = document.getElementById("aviso");
         av.textContent = (e.message || "Não foi possível salvar agora.") + " Suas respostas continuam aqui: tente de novo.";
@@ -1068,7 +1092,7 @@
     if (extra && extra.semCota && /^(limite_modelo|plano_sem_recurso|limite_adversarios|limite_programas_ativos)$/.test(extra.motivoCota || "")) {
       tela('<h1>Limite do seu plano</h1><div class="cartao limite-atingido" role="status" style="margin-top:14px"><p>' + esc(msg) + "</p>" +
         '<p class="nota" style="margin-top:6px">Seu perfil, suas estratégias, seus programas e seus registros continuam salvos e disponíveis para consulta.</p>' +
-        '<div class="acoes"><a class="btn btn-primario" href="#/assinaturas">Ampliar o plano</a><a class="btn btn-secundario" href="#/assinatura">Plano e assinatura</a></div></div><div class="acoes"><a class="btn btn-texto" href="#/inicio">Voltar ao início</a></div>');
+        '<div class="acoes"><a class="btn btn-primario" href="' + rotaPlanos("#/assinaturas") + '">Ampliar o plano</a><a class="btn btn-secundario" href="' + rotaPlanos("#/assinatura") + '">Plano e assinatura</a></div></div><div class="acoes"><a class="btn btn-texto" href="#/inicio">Voltar ao início</a></div>');
       return;
     }
     if (extra && extra.semCota) {
@@ -1142,7 +1166,7 @@
     }
     var corpo = '<p><strong>' + n + (n === 1 ? " jogada adicionada" : " jogadas adicionadas") + "</strong> para montar o treino.</p>";
     if (!recursos().planejamento) {
-      corpo += '<div class="acoes"><a class="btn btn-secundario" href="#/treinos">Organizar meus treinos</a></div>';
+      corpo += '<div class="acoes"><a class="btn btn-secundario" href="' + (MODO_COMP ? "#/planejamento" : "#/treinos") + '">Organizar meus treinos</a></div>';
     } else if (pjs.length) {
       corpo += '<p class="nota" style="margin-top:4px">O programa «' + esc(tituloCurto(pjs[0].titulo, 36)) + "» já foi montado antes desta seleção. Para usá-la, crie um novo programa.</p>" +
         '<div class="acoes"><a class="btn btn-primario" href="#/planejar/' + esc(p.id) + '">Criar programa com esta seleção</a><a class="btn btn-secundario" href="#/programa/' + esc(pjs[0].id) + '">Ver programa atual</a></div>';
@@ -1254,7 +1278,7 @@
     if (!r.planejamento) {
       html += '<div class="cartao bloqueado" style="margin-top:18px"><p class="olho">Incluído em assinaturas</p><h2>Programa de treino</h2>' +
         '<p class="nota" style="margin-top:6px">Semanas de treino com os dias e a duração que cabem na sua rotina, e os exercícios de cada treino. Faz parte de uma assinatura.</p>' +
-        '<div class="acoes"><a class="btn btn-primario" href="#/assinaturas">Comparar planos</a><a class="btn btn-secundario" href="#/assinatura">Plano e assinatura</a></div></div>';
+        '<div class="acoes"><a class="btn btn-primario" href="' + rotaPlanos("#/assinaturas") + '">Comparar planos</a><a class="btn btn-secundario" href="' + rotaPlanos("#/assinatura") + '">Plano e assinatura</a></div></div>';
       tela(html); return;
     }
     var programas = planejamentosProntos(), sel = escolherProximoTreino(), ativo = programaAtivo();
@@ -1303,7 +1327,7 @@
   }
   function telaPlanejar(planoId) {
     var plano = planoPorId(planoId);
-    if (!plano || plano.status !== "pronto" || !recursos().planejamento) { ir("#/treinos"); return; }
+    if (!plano || plano.status !== "pronto" || !recursos().planejamento) { ir(rotaTreinos()); return; }
     var marcadas = (plano.escolhidas || []).map(function (n) { return plano.plano.jogadas[n] ? tituloCurto(plano.plano.jogadas[n].titulo, 38) : null; }).filter(Boolean);
     var f = estado.formPlanej = estado.formPlanej || { semanas: "4", dias: ["ter", "qui", "sab"], minutos: "60", apoio: "", inicio: proximaSegunda() };
     tela(
@@ -1400,7 +1424,7 @@
     var pj;
     try { pj = (await api("player-dados?planejamento=" + encodeURIComponent(id))).planejamento; }
     catch (e) { telaErroPlano(e.message); return; }
-    if (pj.status !== "pronto" || !pj.planejamento) { ir("#/treinos"); return; }
+    if (pj.status !== "pronto" || !pj.planejamento) { ir(rotaTreinos()); return; }
     var pl = pj.planejamento, pa = pj.params || {}, regs = pj.registros || {};
     var lista = (estado.dados.planejamentos || []).filter(function (x) { return x.id === id; })[0];
     var and = lista ? andamentoPrograma(lista) : null;
@@ -1408,7 +1432,7 @@
     var prox = escolherProximoTreino();
     var abre = prox && prox.programa.id === id ? prox.sessao.semana : 1;
     tela(
-      '<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/treinos">‹ Treinos</a></p>' +
+      '<p style="margin-bottom:8px"><a class="btn btn-texto" href="' + rotaTreinos() + '">‹ ' + (MODO_COMP ? "Estratégias" : "Treinos") + '</a></p>' +
       '<p class="olho">Programa de treino · ' + (pa.semanas || "") + " semanas</p><h1>" + esc(pl.titulo) + "</h1>" +
       '<p style="margin-top:10px"><span class="tag">' + (pa.dias || []).map(function (d) { return ABREV_DIA[d]; }).join(", ") + " · " + esc(pa.minutos) + " min · começa em " + esc(dataExtensa(pa.inicio)) + "</span></p>" +
       (origem ? '<p class="nota" style="margin-top:8px">Estratégia de origem: <a href="#/estrategia/' + esc(pj.baseadoEm) + '">' + esc(origem) + "</a></p>" : "") +
@@ -1441,7 +1465,7 @@
     var pj;
     try { pj = (await api("player-dados?planejamento=" + encodeURIComponent(pjId))).planejamento; }
     catch (e) { telaErroPlano(e.message); return; }
-    if (pj.status !== "pronto" || !pj.planejamento) { ir("#/treinos"); return; }
+    if (pj.status !== "pronto" || !pj.planejamento) { ir(rotaTreinos()); return; }
     var x = null, semana = null;
     pj.planejamento.semanas.forEach(function (w) { w.sessoes.forEach(function (s) { if (s.id === sessaoId) { x = s; semana = w; } }); });
     if (!x) { ir("#/programa/" + pjId); return; }
@@ -1477,7 +1501,7 @@
           '<div class="acoes"><button type="button" class="btn btn-primario" id="btConcluir">' + (final ? "Atualizar registro" : "Salvar treino") + '</button><span class="nota reg-msg" id="msgTreino" role="status">' + (reg.em && final ? "Salvo em " + dataBR(reg.em) : "") + "</span></div>" +
           '<div id="aposTreino"></div></div>'
         : '<div class="cartao bloqueado" style="margin-top:18px"><p class="olho">Incluído em assinaturas</p><h2>Registre o que você treinou</h2><p class="nota" style="margin-top:6px">Marcar blocos, anotar observações e acompanhar o progresso fazem parte de uma assinatura.</p>' +
-          '<div class="acoes"><a class="btn btn-primario" href="#/assinaturas">Comparar planos</a></div></div>')
+          '<div class="acoes"><a class="btn btn-primario" href="' + rotaPlanos("#/assinaturas") + '">Comparar planos</a></div></div>')
     );
     if (!registrar) return;
 
@@ -1559,12 +1583,20 @@
      window.QL_MODO = "competicao" liga a navegação e a tela inicial próprias; no Player, as rotas da Competição apontam para lá. */
   var MODO_COMP = window.QL_MODO === "competicao";
   var ROTAS_COMP = { competicao: 1, temporada: 1, preparo: 1, diario: 1, devolutivas: 1, focos: 1, scouts: 1, "ao-vivo": 1, pedidos: 1, acompanhamento: 1, recomendacoes: 1, treinos: 1 };
-  var ROTAS_APP_COMP = { "": 1, simulador: 1, inicio: 1, competicao: 1, temporada: 1, planejamento: 1, acompanhamento: 1, preparo: 1, diario: 1, devolutivas: 1, focos: 1, scouts: 1, "ao-vivo": 1, pedidos: 1, recomendacoes: 1, treinos: 1, consultorias: 1, partidas: 1, aquecimento: 1, desafios: 1, pensamentos: 1, ritual: 1, conta: 1, ajuda: 1, treinadores: 1, treinador: 1, atendimentos: 1, atendimento: 1 };
+  /* estratégia contra adversários (perfil, estratégia, jogadas e programa de treino): a mesma do Player, também no Competição */
+  var ROTAS_ESTRATEGIA = { ficha: 1, gerando: 1, estrategia: 1, plano: 1, planos: 1, completar: 1, jogadas: 1, planejar: 1, gerandoPlanej: 1, programa: 1, treino: 1 };
+  var ROTAS_APP_COMP = { ficha: 1, gerando: 1, estrategia: 1, plano: 1, planos: 1, completar: 1, jogadas: 1, planejar: 1, gerandoPlanej: 1, programa: 1, treino: 1, "": 1, simulador: 1, inicio: 1, competicao: 1, temporada: 1, planejamento: 1, acompanhamento: 1, preparo: 1, diario: 1, devolutivas: 1, focos: 1, scouts: 1, "ao-vivo": 1, pedidos: 1, recomendacoes: 1, treinos: 1, consultorias: 1, partidas: 1, aquecimento: 1, desafios: 1, pensamentos: 1, ritual: 1, conta: 1, ajuda: 1, treinadores: 1, treinador: 1, atendimentos: 1, atendimento: 1 };
   var PLAYER_BASE = "";
   var MARCA_APP = MODO_COMP ? "QuadraLab Competição" : "QuadraLab Player";
+  /* Na estratégia aberta no Competição: "treinos" é a lista de programas de treino do Player (no Competição a rota é dos treinos
+     sugeridos pelo treinador), e planos e assinatura são as páginas do Player (a mesma conta e as mesmas cotas). */
+  function rotaTreinos() { return MODO_COMP ? "#/estrategia" : "#/treinos"; }
+  function rotaPlanos(h) { return MODO_COMP ? "../player/" + h : h; }
   if (MODO_COMP) {
-    NAV_DA_ROTA = { "": "inicio", simulador: "simulador", inicio: "inicio", competicao: "inicio", temporada: "temporada", planejamento: "planejamento", acompanhamento: "acompanhamento", preparo: "temporada", aquecimento: "aquecimento", desafios: "desafios", desafio: "desafios", pensamentos: "pensamentos", ritual: "ritual", partidas: "partidas", diario: "diario", devolutivas: "inicio", focos: "inicio", scouts: "inicio", pedidos: "pedidos", recomendacoes: "recomendacoes", treinos: "treinos", consultorias: "consultorias", conta: "conta", ajuda: "ajuda", treinadores: "treinadores", treinador: "treinadores", atendimentos: "atendimentos", atendimento: "atendimentos" };
-    NAV_MAIS = { conta: 1, ajuda: 1, consultorias: 1, pensamentos: 1, ritual: 1, treinadores: 1, treinador: 1, atendimentos: 1, atendimento: 1 }; BARRA_SECAO = { aquecimento: "temporada", desafio: "temporada", desafios: "temporada", planejamento: "temporada" };
+    NAV_DA_ROTA = { ficha: "estrategia", gerando: "estrategia", estrategia: "estrategia", plano: "estrategia", planos: "estrategia", completar: "estrategia", jogadas: "estrategia", planejar: "estrategia", gerandoPlanej: "estrategia", programa: "estrategia", treino: "estrategia",
+      "": "inicio", simulador: "simulador", inicio: "inicio", competicao: "inicio", temporada: "temporada", planejamento: "planejamento", acompanhamento: "acompanhamento", preparo: "temporada", aquecimento: "aquecimento", desafios: "desafios", desafio: "desafios", pensamentos: "pensamentos", ritual: "ritual", partidas: "partidas", diario: "diario", devolutivas: "inicio", focos: "inicio", scouts: "inicio", pedidos: "pedidos", recomendacoes: "recomendacoes", treinos: "treinos", consultorias: "consultorias", conta: "conta", ajuda: "ajuda", treinadores: "treinadores", treinador: "treinadores", atendimentos: "atendimentos", atendimento: "atendimentos" };
+    NAV_MAIS = { conta: 1, ajuda: 1, consultorias: 1, pensamentos: 1, ritual: 1, treinadores: 1, treinador: 1, atendimentos: 1, atendimento: 1, simulador: 1 };
+    Object.keys(ROTAS_ESTRATEGIA).forEach(function (k) { NAV_MAIS[k] = 1; }); BARRA_SECAO = { aquecimento: "temporada", desafio: "temporada", desafios: "temporada", planejamento: "temporada" };
   }
   var ultimaCasca = { logado: false, rota: "" };
   function atualizarCasca(logado, rota) {
@@ -1749,7 +1781,7 @@
       "<p>" + (periodo ? "Você usou todas as " + (o.recurso || "estratégias") + " previstas no período da sua assinatura." + (renovaEm ? " Os limites voltam a partir do próximo pagamento confirmado; o acesso atual vai até " + esc(dataISO(renovaEm)) + "." : "")
         : "Você já usou a estratégia grátis. Para criar outra, é preciso uma assinatura.") + "</p>" +
       '<p class="nota" style="margin-top:6px">Seu perfil, suas estratégias e o que você já preencheu continuam salvos.</p>' +
-      '<div class="acoes"><a class="btn btn-primario" href="#/assinaturas">Comparar assinaturas</a><a class="btn btn-secundario" href="#/assinatura">Plano e assinatura</a></div></div>';
+      '<div class="acoes"><a class="btn btn-primario" href="' + rotaPlanos("#/assinaturas") + '">Comparar assinaturas</a><a class="btn btn-secundario" href="' + rotaPlanos("#/assinatura") + '">Plano e assinatura</a></div></div>';
   }
 
   /* ── Meu perfil (conta) ── */
@@ -2618,7 +2650,7 @@
     var q = (location.hash.split("?")[1] || "").match(/(?:^|&)plano=([^&]+)/);
     var planoSel = ed ? ed.planoId : q ? decodeURIComponent(q[1]) : "";
     var p = ed || { data: hojeISOLocal(), tipo: "treino", funcionou: [], naoFuncionou: [], dificuldades: [], positivos: [] };
-    var planos = MODO_COMP ? [] : planosProntos();
+    var planos = planosProntos();
     var conhecidos = (estado.dados.adversariosCadastrados || []).concat((estado.ficha && estado.ficha.adversario && estado.ficha.adversario.nome) ? [estado.ficha.adversario.nome] : []);
     var vistos = {}; conhecidos = conhecidos.filter(function (n) { var k = String(n).toLowerCase(); if (!n || vistos[k]) return false; vistos[k] = 1; return true; });
     var escala = '<div class="escala">' + [1, 2, 3, 4, 5].map(function (n) {
@@ -3494,7 +3526,7 @@
           (respPendente ? "Seu convite ao responsável está em aberto: veja o código em “Quem acompanha você”, mais abaixo. " : "") +
           'Como você é menor de idade, um responsável (pai, mãe ou outro) precisa estar vinculado antes de convidar o treinador ou contratar qualquer serviço. Depois você pode vincular também o outro responsável.</p>' +
           (respPendente ? '<div class="acoes"><a class="btn btn-primario btn-grande" href="#quemAcompanha" id="lkVincResp">Ver o código do convite</a></div>' : '<div class="acoes"><button type="button" class="btn btn-primario btn-grande" id="btVincResp">Gerar código para o pai ou a mãe</button></div>') + "</section>" : "") +
-        cartaoSimuladorHtml() + '<div id="hubProximo"></div><section class="cartao comp-plano-hub" id="hubPlano" aria-labelledby="t-mp"><p class="olho">Temporada, semanas e rotina</p><h2 id="t-mp">Meu planejamento</h2><p class="nota" style="margin-top:6px">Organize sua preparação de acordo com seus objetivos, sua rotina e seus próximos torneios.</p>' +
+        cartaoSimuladorHtml() + cartaoEstrategiaCompHtml() + '<div id="hubProximo"></div><section class="cartao comp-plano-hub" id="hubPlano" aria-labelledby="t-mp"><p class="olho">Temporada, semanas e rotina</p><h2 id="t-mp">Meu planejamento</h2><p class="nota" style="margin-top:6px">Organize sua preparação de acordo com seus objetivos, sua rotina e seus próximos torneios.</p>' +
         '<div id="hubPlanoDados"></div><div class="acoes"><a class="btn btn-laranja btn-grande" href="#/planejamento">Abrir meu planejamento</a></div></section>' +
         '<div id="hubPre"></div><div id="hubDes"></div><div id="hubDev"></div><div id="hubAcomp"></div>' +
         '<div class="cartao" style="margin-top:14px"><h2>Temporada</h2><p class="nota" style="margin-top:6px">Seus torneios, datas e prazos num só lugar.</p><div class="acoes"><a class="btn btn-secundario" href="#/temporada">Abrir a temporada</a><a class="btn btn-secundario" href="#/diario">Diário</a></div></div>' +
@@ -3545,6 +3577,7 @@
     if (comp.papel !== "atleta") preencherCartoesAtleta(s);
     if (comp.papel === "atleta") {
       lembretesTemporada();
+      ligarCartaoEstrategiaComp();
       var bvr = document.getElementById("btVincResp");
       if (bvr) bvr.addEventListener("click", function () { acaoComp({ acao: "convidar", tipo: "responsavel", parentesco: "outro" }, bvr, "Código gerado. Passe-o para o seu responsável."); });
       var lvr = document.getElementById("lkVincResp");
@@ -3819,7 +3852,7 @@
     if (!t) { tela('<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/temporada">‹ Temporada</a></p><div class="aviso">Torneio não encontrado.</div>'); return; }
     var novo = id === "novo", p = novo ? { prioridades: [], data: t.inicio } : r.preparos.filter(function (x) { return x.id === id; })[0];
     if (!p) { ir("#/temporada/" + torneioId); return; }
-    var planos = MODO_COMP ? [] : planosProntos();
+    var planos = planosProntos();
     tela('<p style="margin-bottom:8px"><a class="btn btn-texto" href="#/temporada/' + torneioId + '">‹ ' + esc(t.nome) + "</a></p><h1>Preparar partida</h1>" +
       '<p class="sub">Defina o que importa nesta partida. Poucas prioridades valem mais que muitas.</p>' +
       '<form id="fPrep" class="cartao" style="margin-top:14px" novalidate>' +
@@ -3832,9 +3865,21 @@
         return '<option value="' + esc(x.id) + '"' + (x.id === p.planoId ? " selected" : "") + ">" + esc(tipoEstrategia(x) + (x.adversarioNome ? " — " + x.adversarioNome : "") + " · " + tituloCurto(x.plano.titulo)) + "</option>";
       }).join("") + "</select></div>" : '') +
       '<div class="aviso" id="avisoP" role="alert" hidden></div><button class="btn btn-primario btn-grande" type="submit">' + (novo ? "Salvar preparação" : "Salvar alterações") + "</button></form>" +
+      (MODO_COMP ? '<section class="cartao" data-estrategia-adv style="margin-top:14px"><p class="olho">Estratégia</p><h2>Estratégia contra este adversário</h2>' +
+        (function () {
+          var adv = String(p.adversario || "").toLowerCase(), ja = adv ? planos.filter(function (x) { return String(x.adversarioNome || "").toLowerCase() === adv; }) : [];
+          return (ja.length ? '<div class="lista-estrategias" style="margin-top:8px">' + ja.map(itemEstrategiaHtml).join("") + "</div>" : "") +
+            '<p class="nota" style="margin-top:6px">Monte como jogar contra ele com o seu perfil de jogador e o que você sabe do adversário (o nome vem do campo acima). Depois escolha a estratégia aqui em “Estratégia de apoio”.</p>' +
+            '<div class="acoes"><button type="button" class="btn btn-secundario" id="btEstrAdv">' + (ja.length ? "Montar outra estratégia" : "Montar estratégia contra o adversário") + "</button></div>";
+        })() + "</section>" : "") +
       '<h2 class="secao">Antes de entrar na quadra</h2>' + cartoesPreparacaoHtml("preparo/" + torneioId + "/" + id, false) +
       (novo ? "" : '<div class="acoes"><a class="btn btn-secundario" href="#/partidas/nova?torneio=' + torneioId + '">Registrar a partida</a><button type="button" class="btn btn-texto" id="btExcluirPrep">Excluir esta preparação</button></div>'));
     function v(i) { return document.getElementById(i).value.trim(); }
+    var bea = document.getElementById("btEstrAdv");
+    if (bea) bea.addEventListener("click", function () {
+      if (!v("pAdv")) { toast("Escreva o nome do adversário acima para montar a estratégia contra ele.", null, true); document.getElementById("pAdv").focus(); return; }
+      irEstrategiaContra(v("pAdv"));
+    });
     document.getElementById("fPrep").addEventListener("submit", async function (ev) {
       ev.preventDefault();
       var av = document.getElementById("avisoP"); av.hidden = true;
