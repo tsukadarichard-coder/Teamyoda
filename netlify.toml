@@ -12,3 +12,17 @@
 # Lembretes no celular (push-lembretes.js): roda de hora em hora; ela mesma decide a hora certa (7h, 19h e 21h de Brasília).
 [functions."push-lembretes"]
   schedule = "0 * * * *"
+
+# teamyoda.com.br: a página inicial é o portal de vendas (/portal/); o app do treinador continua em app.39tennis.com.br.
+# Só o endereço "/" muda; /digital/, /aluno.html e o resto funcionam igual nos dois domínios.
+[[redirects]]
+  from = "https://teamyoda.com.br/"
+  to = "/portal/"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "https://www.teamyoda.com.br/*"
+  to = "https://teamyoda.com.br/:splat"
+  status = 301
+  force = true
