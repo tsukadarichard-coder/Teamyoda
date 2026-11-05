@@ -17745,7 +17745,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
       <GerenciarMembrosTurma turma={turma} alunos={alunos} setTurmas={setTurmas} podeEditar={podeEditar} />
 
       <div className="flex flex-wrap gap-5 mb-6" style={{ borderBottom: "1px solid " + C.linha }}>
-        {[{ v: "sessao", r: "Sessão" }, { v: "plano", r: "Plano" }, { v: "aulas", r: "Aulas" }, { v: "fechamento", r: "Evolução" }, { v: "scout", r: "Scout" }].map((t) => (
+        {[{ v: "sessao", r: "Sessão" }, { v: "plano", r: "Plano" }, { v: "aulas", r: "Aulas" }, { v: "fechamento", r: "Evolução" }, { v: "scout", r: "Scout" }, { v: "canal", r: "Canal" }].map((t) => (
           <button key={t.v} onClick={() => setSubaba(t.v)}
             style={{ fontFamily: ARCH, fontSize: 13, fontWeight: subaba === t.v ? 700 : 500, padding: "8px 0", cursor: "pointer", flexShrink: 0,
               color: subaba === t.v ? C.tinta : C.grafite, borderBottom: "2px solid " + (subaba === t.v ? C.saibro : "transparent"), marginBottom: -1 }}>
@@ -17760,6 +17760,8 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
         <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="aulas" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} ocorrencias={ocorrencias} />
       ) : subaba === "fechamento" ? (
         <TelaPlano turma={turma} membros={membros} turmas={turmas} setTurmas={setTurmas} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} modo="fechamento" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} ocorrencias={ocorrencias} />
+      ) : subaba === "canal" ? (
+        <CanalConversa canal={"turma:" + turma.id} />
       ) : subaba === "scout" ? (
         <TelaScoutTurma membros={membros} alunos={alunos} setAlunos={setAlunos} />
       ) : (
@@ -23256,9 +23258,10 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   );
 }
 /* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
-const NOVIDADES_TY_VERSAO = "ty-2026-11e";
+const NOVIDADES_TY_VERSAO = "ty-2026-11f";
 const NOVIDADES_TY = [
-  { novo: true, t: "Reposições ligadas à aula perdida e Relatório de aulas por período", d: "Ao marcar uma reposição, escolha o aluno ou a turma e abre a lista das aulas que ficaram para repor (canceladas, faltas, aula da turma cancelada): escolha qual aula está sendo reposta. Se a aula tem crédito de reposição, ele já fica reservado. Em Reposições, a lista Aulas a repor tem Agendar reposição e Não vai repor. O Relatório do mês virou Relatório de aulas: semana, mês ou trimestre, com a nova aba Reposições (o que falta repor, reposições dadas e marcadas e a aula que cada uma repôs) e o PDF geral com as reposições.", onde: "Agenda › Reposições e Agenda › Relatório de aulas", aba: "relatorio" },
+  { novo: true, t: "Canal da turma e do aluno", d: "Cada turma ganhou um grupo de conversa, e cada aluno uma conversa só com o professor. Na ficha da turma ou do aluno, abra a aba Canal. Os alunos (ou os responsáveis) conversam pelo botão Conversas do link do aluno, e cada mensagem nova avisa no celular de quem ativou os avisos. No grupo todos veem as mensagens, só com o primeiro nome. O professor modera: apaga mensagens, pausa um aluno e pode deixar o grupo no modo avisos, em que só ele escreve.", onde: "Turmas › abrir turma › Canal · Jogadores › aluno › Canal", aba: "turmas" },
+  { t: "Reposições ligadas à aula perdida e Relatório de aulas por período", d: "Ao marcar uma reposição, escolha o aluno ou a turma e abre a lista das aulas que ficaram para repor (canceladas, faltas, aula da turma cancelada): escolha qual aula está sendo reposta. Se a aula tem crédito de reposição, ele já fica reservado. Em Reposições, a lista Aulas a repor tem Agendar reposição e Não vai repor. O Relatório do mês virou Relatório de aulas: semana, mês ou trimestre, com a nova aba Reposições (o que falta repor, reposições dadas e marcadas e a aula que cada uma repôs) e o PDF geral com as reposições.", onde: "Agenda › Reposições e Agenda › Relatório de aulas", aba: "relatorio" },
   { t: "Todos os exercícios de quadra animados", d: "Agora são 233 exercícios do catálogo com a quadra animada: fundamentos, padrões táticos, movimentação (com spider, escadinha e cones), saque e devolução, ataque, ritmo, trilhos, brincadeiras com bola e duplas (na quadra de duplas, com o parceiro e os dois adversários). Cada um mostra onde cada um começa, os alvos, a sequência de bolas numerada e os deslocamentos. Toque em ▶ Na quadra e depois em Reproduzir.", onde: "Catálogo de exercícios › ▶ Na quadra (também na sessão e no plano)", aba: "catalogo" },
   { t: "Exercícios na quadra animada (piloto)", d: "20 exercícios do catálogo (fundamentos FB e padrões táticos DT) ganharam a quadra animada, com a mesma tecnologia do Simulador de Decisões: a posição de cada um, os alvos, cada bola numerada com o quique e o deslocamento do atleta. Toque em ▶ Na quadra e depois em Reproduzir. Os outros exercícios vêm em seguida.", onde: "Catálogo de exercícios › ▶ Na quadra (também na sessão e no plano)", aba: "catalogo" },
   { t: "Agenda editável", d: "Abra uma aula na Agenda e use Editar para mudar dia, horário, quadra, professor e tipo (só esta aula ou esta e as próximas) ou Apagar da agenda (a aula não volta sozinha). Incluir aulas, reposições, locações e bloqueios continua no + Agendar.", onde: "Agenda › toque numa aula", aba: "agenda" },
@@ -23499,6 +23502,126 @@ function TelaPlanejamentos({ alunos, turmas, aoAbrirJogador, aoAbrirTurma, aoAdi
    e novidades do app. Só com conta na nuvem (o servidor confere quem é). */
 /* Avisos que nascem aqui no app (o app grava direto no Firestore): avisa o celular do aluno/pais (netlify/functions/push-avisar.js).
    Nunca atrapalha a ação: sem nuvem ou sem internet, não faz nada. */
+/* ── Canal da turma / do aluno (netlify/functions/canal.js) ──
+   Turma: grupo aberto (professor e alunos ou responsáveis leem e escrevem; aparece só o primeiro nome). Aluno: conversa só entre o
+   professor e o aluno (e o responsável). Moderação do professor: apagar mensagem, pausar um aluno, "só o professor escreve".
+   Precisa da conta na nuvem: as mensagens não ficam no aparelho. Atualiza sozinho a cada 15 segundos com a tela aberta. */
+async function chamarCanal(corpo) {
+  if (!window.mtyAuth || !window.mtyAuth.tokenId) throw new Error("O canal precisa da conta na nuvem. Entre com a sua conta para conversar.");
+  const tk = await window.mtyAuth.tokenId();
+  if (!tk) throw new Error("Entre com a sua conta para conversar.");
+  const r = await fetch("/.netlify/functions/canal", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + tk }, body: JSON.stringify(corpo) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.erro || "Não foi possível agora.");
+  return d;
+}
+function marcarCanalLido(canal, em) { try { if (em) localStorage.setItem("ql-canal-lido:" + canal, em); } catch (e) { /* sem armazenamento */ } }
+function canalLidoEm(canal) { try { return localStorage.getItem("ql-canal-lido:" + canal) || ""; } catch (e) { return ""; } }
+function horaCanal(iso) { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) + " " + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }); }
+function CanalConversa({ canal }) {
+  const [dados, setDados] = useState(null);
+  const [erro, setErro] = useState("");
+  const [texto, setTexto] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [meuNome, setMeuNome] = useState("");
+  const fimRef = useRef(null);
+  const qtdRef = useRef(0);
+  async function carregar() {
+    try {
+      const d = await chamarCanal({ acao: "listar", canal });
+      setDados(d); setErro("");
+      if (d.mensagens.length) marcarCanalLido(canal, d.mensagens[d.mensagens.length - 1].em);
+    } catch (e) { setErro(e.message); }
+  }
+  useEffect(() => {
+    setDados(null); carregar();
+    const t = setInterval(() => { if (!document.hidden) carregar(); }, 15000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canal]);
+  useEffect(() => {
+    const u = window.mtyAuth && window.mtyAuth.usuario && window.mtyAuth.usuario();
+    if (u && u.displayName) setMeuNome(u.displayName);
+    if (u && typeof listaProfessores === "function") listaProfessores().then((ps) => { const p = (ps || []).find((x) => x.uid === u.uid); if (p && p.nome) setMeuNome(p.nome); }).catch(() => {});
+  }, []);
+  useEffect(() => {
+    const n = dados ? dados.mensagens.length : 0;
+    if (n !== qtdRef.current && fimRef.current) fimRef.current.scrollIntoView({ block: "nearest" });
+    qtdRef.current = n;
+  }, [dados]);
+  async function enviar() {
+    if (!texto.trim() || enviando) return;
+    setEnviando(true);
+    try { await chamarCanal({ acao: "enviar", canal, texto, nomeProfessor: meuNome }); setTexto(""); await carregar(); }
+    catch (e) { setErro(e.message); }
+    finally { setEnviando(false); }
+  }
+  async function acao(corpo, confirmar) {
+    if (confirmar && !window.confirm(confirmar)) return;
+    try { await chamarCanal({ ...corpo, canal }); await carregar(); } catch (e) { setErro(e.message); }
+  }
+  const turma = dados && dados.tipo === "turma";
+  return (
+    <div data-canal={canal} style={{ maxWidth: 720 }}>
+      <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginBottom: 12 }}>
+        {canal.startsWith("turma:")
+          ? "Grupo da turma: você e os alunos (ou os responsáveis, pelo link do aluno) leem e escrevem, e todos veem as mensagens. Aparece só o primeiro nome. Cada mensagem nova avisa no celular de quem ativou os avisos."
+          : "Conversa só entre o professor e este aluno (ou o responsável, pelo link do aluno). Cada mensagem nova avisa no celular de quem ativou os avisos."}
+      </p>
+      {erro && <Aviso>{erro}</Aviso>}
+      {!dados && !erro && <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Carregando a conversa…</p>}
+      {dados && (
+        <>
+          {turma && (
+            <details className="mb-3" data-moderacao>
+              <summary style={{ ...prosa, fontSize: 13, fontWeight: 700, cursor: "pointer", padding: "6px 0" }}>Moderação do grupo</summary>
+              <label className="flex items-center gap-2 mt-2" style={{ ...prosa, fontSize: 13.5, cursor: "pointer" }}>
+                <input type="checkbox" checked={!!dados.soProfessor} onChange={(e) => { const v = e.target.checked; setDados({ ...dados, soProfessor: v }); acao({ acao: "modo", soProfessor: v }); }} style={{ width: 18, height: 18 }} />
+                Só o professor escreve (modo avisos)
+              </label>
+              <div className="mt-2">
+                {(dados.participantes || []).map((p) => (
+                  <div key={p.id} className="flex items-center justify-between gap-2" style={{ padding: "4px 0", borderBottom: "1px solid " + C.linha }}>
+                    <span style={{ ...prosa, fontSize: 13 }}>{p.nome}{p.silenciado ? " · pausado" : ""}</span>
+                    <Botao pequeno variante="vazio" onClick={() => acao({ acao: "silenciar", alunoId: p.id, sim: !p.silenciado })}>{p.silenciado ? "Liberar" : "Pausar mensagens"}</Botao>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+          {dados.soProfessor && <p style={{ ...prosa, fontSize: 12.5, color: "#8A6100", marginBottom: 8 }}>Modo avisos: só você escreve neste canal.</p>}
+          <div data-mensagens style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: 12, maxHeight: 460, overflowY: "auto", marginBottom: 10 }}>
+            {dados.mensagens.length === 0 && <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Nenhuma mensagem ainda. Escreva a primeira.</p>}
+            {dados.mensagens.map((m) => {
+              const prof = m.autor.tipo === "professor";
+              return (
+                <div key={m.id} data-mensagem={m.id} style={{ display: "flex", justifyContent: m.minha ? "flex-end" : "flex-start", marginBottom: 8 }}>
+                  <div style={{ maxWidth: "82%", background: m.minha ? "#E3F1E8" : prof ? "#FFF4E8" : C.papel, border: "1px solid " + C.linha, borderRadius: 12, padding: "7px 10px" }}>
+                    <p style={{ ...prosa, fontSize: 11.5, fontWeight: 700, color: prof ? C.saibro : C.grafite }}>{m.autor.nome}{prof ? " · professor" : ""} <span style={{ fontWeight: 400 }}>{horaCanal(m.em)}</span></p>
+                    {m.apagada
+                      ? <p style={{ ...prosa, fontSize: 13, fontStyle: "italic", color: C.grafite }}>Mensagem apagada</p>
+                      : <p style={{ ...prosa, fontSize: 14, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{m.texto}</p>}
+                    {!m.apagada && (
+                      <button type="button" onClick={() => acao({ acao: "apagar", mensagemId: m.id }, "Apagar esta mensagem para todos?")} data-apagar-msg
+                        style={{ ...prosa, fontSize: 11.5, color: C.grafite, background: "none", border: "none", cursor: "pointer", padding: "2px 0", textDecoration: "underline" }}>Apagar</button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            <div ref={fimRef} />
+          </div>
+          <div className="flex gap-2 items-end">
+            <textarea rows={2} value={texto} maxLength={1000} onChange={(e) => setTexto(e.target.value)} placeholder={turma ? "Mensagem para a turma" : "Mensagem para o aluno"} aria-label="Mensagem"
+              onKeyDown={(e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); enviar(); } }}
+              style={{ ...entrada, flex: 1, resize: "vertical", minHeight: 48 }} />
+            <Botao onClick={enviar} disabled={enviando || !texto.trim()}>{enviando ? "Enviando…" : "Enviar"}</Botao>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 function avisarPushAluno(tipo, alunoId) {
   if (!window.mtyAuth || !window.mtyAuth.tokenId || !alunoId) return;
   window.mtyAuth.tokenId().then((tk) => fetch("/.netlify/functions/push-avisar", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + tk },
@@ -25646,7 +25769,7 @@ function App() {
                  "Fechamento" virou "Evolução" porque reúne resultados,
                  critérios e pendências do ciclo — não é só o passo final
                  de encerrar, é onde se acompanha como o jogador está indo. */
-              const principais = [{ v: "ficha", r: "Perfil" }, { v: "plano", r: "Planejamento" }, { v: "aulas", r: "Aulas" }, { v: "fechamento", r: "Evolução" }, { v: "relatorio", r: "Relatório" }];
+              const principais = [{ v: "ficha", r: "Perfil" }, { v: "plano", r: "Planejamento" }, { v: "aulas", r: "Aulas" }, { v: "fechamento", r: "Evolução" }, { v: "relatorio", r: "Relatório" }, { v: "canal", r: "Canal" }];
               const itensMais = [{ v: "periodizacao", r: "Periodização" }, { v: "sessao", r: "Sessão de hoje" }, { v: "scout", r: "Análise de partida" }, { v: "movimento", r: "Análise de movimento" }, { v: "registro", r: "Caderno" }, { v: "estilo", r: "Estilo de jogo" }, { v: "adversarios", r: "Adversários" }, { v: "equipe", r: "Equipe" }];
               const todasSecoes = [...principais, ...itensMais];
               const maisAtivo = itensMais.some((t) => t.v === subaba);
@@ -25747,6 +25870,7 @@ function App() {
              subaba === "periodizacao" ? <TelaPeriodizacao aluno={aberto} aoCriarPeriodo={() => { setEtapaFichaAlvo(2); setSubaba("ficha"); }} /> :
              subaba === "scout" ? <TelaScout aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade} /> :
              subaba === "relatorio" ? <TelaRelatorioAluno aluno={aberto} setAlunos={setAlunos} identidade={identidade} /> :
+             subaba === "canal" ? <CanalConversa canal={"aluno:" + aberto.id} /> :
              subaba === "registro" ? <TelaRegistro aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade} aoReabrirJogo={(id) => { try { sessionStorage.setItem("ql-reabrir:" + aberto.id, id); } catch { /* sem sessionStorage */ } setSubaba("scout"); }}
                abrirRegistroId={registroAbertoAlvo} aoConsumirAbrirRegistro={() => setRegistroAbertoAlvo(null)} /> :
              subaba === "estilo" ? <TelaEstiloTatico aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
