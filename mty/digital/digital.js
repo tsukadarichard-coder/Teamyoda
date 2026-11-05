@@ -355,7 +355,7 @@
       ((d.unidades || []).length ? '<h2 style="margin-top:16px">Alunos ligados</h2>' + d.unidades.map(function (u) { return '<div class="aula-item"><span class="t"><b>' + esc(u.unidade) + '</b><small>Acesso incluído na matrícula</small></span><button class="btn btn-texto" type="button" data-desv="' + esc(u.org) + "|" + esc(u.alunoId) + '">Desligar</button></div>'; }).join("") : "") +
       "</section>" +
       (ac.tipo !== "equipe" && ac.tipo !== "unidade" ? cartaoLigar() : "") +
-      (d.coordenacao ? '<section class="cartao"><h2>Coordenação</h2><p class="det" style="margin-top:0">As trilhas, os vídeos, os treinos de cada aula, os membros e as cortesias ficam no app do treinador, em <b>Mais › Academia Digital</b>.</p><div class="acoes"><a class="btn btn-claro" href="https://app.39tennis.com.br/">Abrir o app do treinador</a></div></section>' : "") +
+      (d.coordenacao ? '<section class="cartao"><h2>Coordenação</h2><p class="det" style="margin-top:0">As trilhas, os vídeos, os treinos de cada aula, os membros e as cortesias ficam no app do treinador, em <b>Mais › Academia Digital</b>.</p><div class="acoes"><a class="btn btn-claro" href="/treinador">Abrir o app do treinador</a></div></section>' : "") +
       '<div class="acoes"><button class="btn btn-claro" type="button" id="btSair">Sair da conta</button></div>',
       "conta"
     );

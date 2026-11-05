@@ -98,7 +98,8 @@ const chamar = async (metodo, corpo, tk) => { const x = await digital({ httpMeth
   assert(!(await vis.content()).includes("Rascunho secreto"));
   assert.strictEqual(await vis.textContent("#preco"), "R$ 59,90/mês");
   assert(/^https:\/\/wa\.me\/\d+\?text=/.test(await vis.getAttribute("[data-porta=cooper] [data-whatsapp]", "href")));
-  assert.strictEqual(await vis.getAttribute("[data-porta=professor] a", "href"), "https://app.39tennis.com.br/");
+  assert.strictEqual(await vis.getAttribute("[data-porta=professor] a", "href"), "/treinador");
+  assert.strictEqual(await vis.getAttribute("[data-porta=\"39ranch\"] a:has-text('Site do 39 Ranch')", "href"), "https://39tennis.com.br/");
   assert(/Incluída na matrícula/.test(await vis.textContent("[data-plano=unidade]")));
   assert(await vis.isHidden("#btAssinar"), "sem link de pagamento não aparece Assinar no portal");
   await vis.fill("#fEspera input[name=email]", "lead@x.com");

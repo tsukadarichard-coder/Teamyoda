@@ -13,8 +13,14 @@
 [functions."push-lembretes"]
   schedule = "0 * * * *"
 
-# teamyoda.com.br: a página inicial é o portal de vendas (/portal/); o app do treinador continua em app.39tennis.com.br.
-# Só o endereço "/" muda; /digital/, /aluno.html e o resto funcionam igual nos dois domínios.
+# teamyoda.com.br é a entrada de tudo do Team Yoda: na raiz, o portal (/portal/); o app do treinador em /treinador; Academia
+# Digital em /digital/; link do aluno, app do cliente, reservas e inscrições como sempre. O 39 Ranch segue no domínio dele
+# (39tennis.com.br e app.39tennis.com.br) e o QuadraLab no quadralab.com.br.
+[[redirects]]
+  from = "/treinador"
+  to = "/index.html"
+  status = 200
+
 [[redirects]]
   from = "https://teamyoda.com.br/"
   to = "/portal/"

@@ -1,4 +1,4 @@
-/* Academia Digital Team Yoda (app.39tennis.com.br/digital/): área restrita online com trilhas de aulas em vídeo (YouTube não
+/* Academia Digital Team Yoda (teamyoda.com.br/digital/): área restrita online com trilhas de aulas em vídeo (YouTube não
    listado), treinos do catálogo com a quadra animada e o simulador de decisões.
    Quem tem acesso:
    · equipe: conta do app do treinador das unidades (token com orgId "team-yoda" ou "39-ranch");
