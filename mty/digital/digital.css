@@ -15,15 +15,16 @@ img { max-width: 100%; }
 :focus-visible { outline: 3px solid var(--saibro); outline-offset: 2px; }
 
 /* topo */
-.topo { background: var(--tinta); color: #fff; position: sticky; top: 0; z-index: 20; }
-.topo-in { max-width: 980px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; gap: 12px; }
+.topo { background: var(--tinta); color: #fff; position: sticky; top: 0; z-index: 20; padding-top: env(safe-area-inset-top, 0px); }
+/* iPhone (viewport-fit=cover): o topo escuro passa por baixo do relógio e da barra de status, e o conteúdo começa abaixo dela */
+.topo-in { max-width: 980px; margin: 0 auto; padding: 10px max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px)); display: flex; align-items: center; gap: 12px; }
 .marca { display: flex; align-items: center; gap: 10px; color: #fff; text-decoration: none; min-width: 0; }
 .marca img { width: 38px; height: 38px; object-fit: contain; background: #fff; border-radius: 10px; padding: 3px; }
 .marca b { font-size: 15px; letter-spacing: -.01em; display: block; line-height: 1.15; }
 .marca span { font-size: 11.5px; opacity: .75; display: block; }
 .topo .espaco { flex: 1; }
 .selo { font-size: 11.5px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: rgba(105, 179, 42, .22); color: #CFEFB4; white-space: nowrap; }
-.abas { background: var(--cal); border-bottom: 1px solid var(--linha); position: sticky; top: 58px; z-index: 19; }
+.abas { background: var(--cal); border-bottom: 1px solid var(--linha); position: sticky; top: calc(58px + env(safe-area-inset-top, 0px)); z-index: 19; }
 .abas-in { max-width: 980px; margin: 0 auto; padding: 0 8px; display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
 .abas a { padding: 12px 14px; color: var(--grafite); text-decoration: none; font-weight: 600; font-size: 14px; border-bottom: 3px solid transparent; white-space: nowrap; }
 .abas a.ativo { color: var(--tinta); border-bottom-color: var(--saibro); }
@@ -100,9 +101,9 @@ dl.ficha dd { margin: 2px 0 0; }
 
 /* simulador */
 .sim { border: 1px solid var(--linha); border-radius: var(--raio); overflow: hidden; background: #fff; }
-.sim iframe { width: 100%; height: calc(100vh - 170px); min-height: 560px; border: 0; display: block; }
+.sim iframe { width: 100%; height: calc(100vh - 170px); height: calc(100dvh - 170px - env(safe-area-inset-top, 0px)); min-height: 560px; border: 0; display: block; }
 
 .carregando { color: var(--grafite); padding: 40px 0; text-align: center; }
 .vazio { color: var(--grafite); text-align: center; padding: 26px 10px; }
-.rodape { max-width: 980px; margin: 0 auto; padding: 0 16px 30px; color: var(--grafite); font-size: 12.5px; }
+.rodape { max-width: 980px; margin: 0 auto; padding: 0 16px calc(30px + env(safe-area-inset-bottom, 0px)); color: var(--grafite); font-size: 12.5px; }
 .preco { font-size: 26px; font-weight: 800; letter-spacing: -.02em; }
