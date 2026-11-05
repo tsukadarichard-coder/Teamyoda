@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Team Yoda · Metodologia MTY</title>
+<meta name="description" content="Team Yoda: aulas de tênis com a Metodologia MTY no Cooper Tênis e no 39 Ranch Tennis Club, e a Academia Digital para treinar de onde estiver. Acesso do professor, do aluno e da Academia Digital.">
+<meta name="theme-color" content="#17251F">
+<link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="../assets/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="../digital/digital.css">
+<style>
+  .topo .nav { display: none; gap: 4px; }
+  .topo .nav a { color: #E3EAE6; text-decoration: none; font-weight: 600; font-size: 14px; padding: 8px 10px; border-radius: 8px; }
+  .topo .nav a:hover { background: rgba(255, 255, 255, .08); }
+  @media (min-width: 720px) { .topo .nav { display: flex; } }
+  .marca img.logo-ty { height: 34px; width: auto; background: #fff; border-radius: 8px; padding: 3px 8px; }
+  section.bloco { max-width: 980px; margin: 0 auto; padding: 28px 16px 8px; }
+  .heroi-portal { background: var(--tinta); color: #fff; }
+  .heroi-portal .in { max-width: 980px; margin: 0 auto; padding: 34px 16px 36px; }
+  .heroi-portal h1 { color: #fff; font-size: clamp(28px, 6vw, 42px); max-width: 16ch; margin: 8px 0 12px; }
+  .heroi-portal p { color: #D5DED9; font-size: 16.5px; max-width: 58ch; margin: 0; }
+  .sobre { font-size: 12.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--saibro); }
+  .heroi-portal .acoes { margin-top: 20px; }
+  .heroi-portal .btn-claro { background: transparent; color: #fff; border-color: rgba(255, 255, 255, .5); }
+  .portas { display: grid; gap: 12px; grid-template-columns: 1fr; }
+  @media (min-width: 640px) { .portas { grid-template-columns: 1fr 1fr; } }
+  .porta { display: flex; flex-direction: column; }
+  .porta .acoes { margin-top: auto; padding-top: 12px; }
+  .porta .ic { width: 48px; height: 48px; border-radius: 12px; display: grid; place-items: center; background: #E9EEEB; font-size: 22px; margin-bottom: 10px; overflow: hidden; }
+  .porta .ic img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
+  .recursos { display: grid; gap: 12px; grid-template-columns: 1fr; }
+  @media (min-width: 760px) { .recursos { grid-template-columns: repeat(3, 1fr); } }
+  .planos { display: grid; gap: 12px; grid-template-columns: 1fr; }
+  @media (min-width: 700px) { .planos { grid-template-columns: 1fr 1fr; } }
+  .plano.destaque { border: 2px solid var(--saibro); }
+  .plano ul { padding-left: 18px; margin: 10px 0 0; }
+  .passos { counter-reset: p; list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+  .passos li { counter-increment: p; position: relative; padding: 14px 14px 14px 56px; background: var(--cal); border: 1px solid var(--linha); border-radius: 12px; }
+  .passos li::before { content: counter(p); position: absolute; left: 14px; top: 12px; width: 30px; height: 30px; border-radius: 50%; background: var(--tinta); color: #fff; display: grid; place-items: center; font-weight: 800; }
+  details.faq { background: var(--cal); border: 1px solid var(--linha); border-radius: 12px; padding: 0 14px; }
+  details.faq + details.faq { margin-top: 8px; }
+  details.faq summary { cursor: pointer; font-weight: 700; padding: 14px 0; min-height: 44px; }
+  details.faq p { margin: 0 0 14px; color: var(--grafite); }
+  .trilhas-vit { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<header class="topo">
+  <div class="topo-in">
+    <a class="marca" href="#inicio"><img class="logo-ty" src="../assets/logo-team-yoda-transparente.png" alt="Team Yoda" width="86" height="34"></a>
+    <span class="espaco"></span>
+    <nav class="nav" aria-label="Principal"><a href="#entrar">Entrar</a><a href="#digital">Academia Digital</a><a href="#perguntas">Perguntas</a></nav>
+  </div>
+</header>
+
+<div class="heroi-portal" id="inicio">
+  <div class="in">
+    <span class="sobre">Team Yoda · Metodologia MTY</span>
+    <h1>Tênis com método, na quadra e fora dela</h1>
+    <p>Aulas presenciais no <b>Team Yoda · Cooper Tênis</b> e no <b>39 Ranch Tennis Club</b>, e a <b>Academia Digital</b> para continuar treinando de onde você estiver. Quem treina nas nossas unidades tem a Academia Digital incluída, sem pagar nada a mais.</p>
+    <div class="acoes"><a class="btn btn-saibro" href="#digital">Conhecer a Academia Digital</a><a class="btn btn-claro" href="#entrar">Já tenho acesso</a></div>
+  </div>
+</div>
+
+<main id="conteudo" style="padding:0;max-width:none">
+  <section class="bloco" id="entrar" aria-labelledby="tEntrar">
+    <h2 id="tEntrar" style="font-size:22px">Escolha como entrar</h2>
+    <div class="portas">
+      <article class="cartao porta" data-porta="professor">
+        <span class="ic" aria-hidden="true">📋</span>
+        <h3>Professor da academia</h3>
+        <p class="det" style="margin:0">Agenda, fichas dos alunos e turmas, planejamento, scout, relatórios e a coordenação da Academia Digital.</p>
+        <div class="acoes"><a class="btn" href="../">Entrar no app do treinador</a></div>
+      </article>
+      <article class="cartao porta" data-porta="cooper">
+        <span class="ic"><img src="../assets/logo-team-yoda.jpg" alt=""></span>
+        <h3>Aluno Team Yoda · Cooper Tênis</h3>
+        <p class="det" style="margin:0">O seu plano, as aulas, as reposições e as conversas com o professor ficam no seu link do aluno (o professor manda pelo WhatsApp). Por ele você entra na Academia Digital sem pagar.</p>
+        <div class="acoes"><a class="btn" href="../digital/">Academia Digital</a><a class="btn btn-claro" data-whatsapp="Olá! Sou aluno do Team Yoda no Cooper Tênis e preciso do meu link do aluno." href="#" target="_blank" rel="noopener">Pedir meu link</a></div>
+      </article>
+      <article class="cartao porta" data-porta="39ranch">
+        <span class="ic"><img src="../assets/logo-39-ranch.png" alt=""></span>
+        <h3>Aluno 39 Ranch Tennis Club</h3>
+        <p class="det" style="margin:0">Mesmo jeito: o seu link do aluno mostra o plano e as aulas, e liga a sua conta na Academia Digital, incluída na matrícula.</p>
+        <div class="acoes"><a class="btn" href="../digital/">Academia Digital</a><a class="btn btn-claro" data-whatsapp="Olá! Sou aluno do 39 Ranch Tennis Club e preciso do meu link do aluno." href="#" target="_blank" rel="noopener">Pedir meu link</a></div>
+      </article>
+      <article class="cartao porta" data-porta="digital">
+        <span class="ic" aria-hidden="true">▶</span>
+        <h3>Academia Digital</h3>
+        <p class="det" style="margin:0">Para quem treina fora das nossas unidades: trilhas de aulas em vídeo, treinos e o simulador, com assinatura mensal.</p>
+        <div class="acoes"><a class="btn btn-saibro" href="../digital/">Entrar ou criar conta</a></div>
+      </article>
+    </div>
+  </section>
+
+  <section class="bloco" id="digital" aria-labelledby="tDigital">
+    <span class="sobre" style="color:var(--saibro-esc)">Academia Digital</span>
+    <h2 id="tDigital" style="font-size:26px;margin-top:4px">A Metodologia MTY no seu celular</h2>
+    <p class="lead">O mesmo método das nossas quadras, organizado para você treinar no seu ritmo, com a tecnologia QuadraLab.</p>
+    <div class="recursos">
+      <div class="cartao"><h3>Trilhas de aulas em vídeo</h3><p class="det" style="margin:0">Aulas em sequência, por nível, com o que fazer depois de assistir. Marque as feitas e acompanhe o seu avanço.</p></div>
+      <div class="cartao"><h3>Treinos com a quadra animada</h3><p class="det" style="margin:0">Os exercícios do catálogo MTY com montagem, carga, regressão e progressão, e a quadra mostrando cada bola e cada deslocamento.</p></div>
+      <div class="cartao"><h3>Simulador de decisões</h3><p class="det" style="margin:0">Situações de ponto: escolha o alvo, a altura e a intensidade, veja uma resposta possível do adversário e entenda a próxima jogada.</p></div>
+    </div>
+    <div id="vitrine" hidden class="cartao"><h3>Trilhas disponíveis</h3><div class="trilhas-vit" id="vitTrilhas"></div></div>
+
+    <h3 style="font-size:18px;margin:22px 0 10px">Planos</h3>
+    <div class="planos">
+      <div class="cartao plano destaque" data-plano="unidade">
+        <span class="nivel" style="font-size:12px;font-weight:700;color:var(--saibro-esc);text-transform:uppercase;letter-spacing:.04em">Aluno das unidades</span>
+        <p class="preco" style="margin:6px 0 0">Incluída na matrícula</p>
+        <p class="det" style="margin:4px 0 0">Para quem faz aula no Team Yoda · Cooper Tênis ou no 39 Ranch Tennis Club.</p>
+        <ul><li>Acesso completo à Academia Digital</li><li>Liberado pelo seu link do aluno, na hora</li><li>Até 3 contas por aluno (aluno, pai e mãe)</li></ul>
+        <div class="acoes"><a class="btn" href="../digital/">Entrar com o meu link</a></div>
+      </div>
+      <div class="cartao plano" data-plano="assinatura">
+        <span class="nivel" style="font-size:12px;font-weight:700;color:var(--grafite);text-transform:uppercase;letter-spacing:.04em">Assinatura</span>
+        <p class="preco" id="preco" style="margin:6px 0 0">Em breve</p>
+        <p class="det" id="precoObs" style="margin:4px 0 0">Para quem treina em qualquer lugar.</p>
+        <ul><li>Trilhas de aulas em vídeo</li><li>Treinos com a quadra animada</li><li>Simulador de decisões</li></ul>
+        <div class="acoes" id="assAcoes"><a class="btn btn-saibro" href="../digital/" id="btAssinar" hidden>Criar conta e assinar</a></div>
+        <form id="fEspera" novalidate style="margin-top:6px">
+          <p class="det" style="margin:0">As assinaturas abrem em breve. Deixe o seu contato e avisamos você primeiro.</p>
+          <label class="campo">Nome<input name="nome" autocomplete="name" maxlength="80"></label>
+          <label class="campo">E-mail<input name="email" type="email" autocomplete="email" inputmode="email"></label>
+          <p id="mEspera" class="msg" hidden></p>
+          <div class="acoes"><button class="btn btn-claro" type="submit">Quero ser avisado</button></div>
+        </form>
+      </div>
+    </div>
+
+    <h3 style="font-size:18px;margin:22px 0 10px">Como funciona</h3>
+    <ol class="passos">
+      <li><b>Crie a sua conta</b> na Academia Digital com e-mail e senha.</li>
+      <li><b>Aluno das unidades:</b> abra o seu link do aluno e toque em <i>Entrar na Academia Digital</i>; o acesso é liberado na hora, sem pagamento. <b>Quem é de fora:</b> assine a mensalidade.</li>
+      <li><b>Treine:</b> assista às aulas, marque as feitas, abra os treinos com a quadra animada e jogue o simulador.</li>
+    </ol>
+  </section>
+
+  <section class="bloco" id="perguntas" aria-labelledby="tFaq">
+    <h2 id="tFaq" style="font-size:22px">Perguntas</h2>
+    <details class="faq"><summary>Sou aluno do Team Yoda ou do 39 Ranch. Pago alguma coisa?</summary><p>Não. A Academia Digital é incluída para quem faz aula nas nossas unidades. Basta ligar a sua conta pelo link do aluno. O acesso vale enquanto você estiver matriculado.</p></details>
+    <details class="faq"><summary>Não tenho o link do aluno. Como consigo?</summary><p>Peça ao seu professor ou fale com a gente pelo WhatsApp: o link é pessoal e mostra o seu plano, as aulas e as conversas com o professor.</p></details>
+    <details class="faq"><summary>Pais e responsáveis podem entrar?</summary><p>Sim. Até três contas podem ser ligadas ao mesmo aluno (por exemplo o aluno, o pai e a mãe), cada uma com o seu e-mail.</p></details>
+    <details class="faq"><summary>Onde ficam os vídeos?</summary><p>No YouTube, em modo não listado, e abrem dentro da Academia Digital no modo de privacidade aprimorada. Só quem tem acesso vê a lista das aulas e os vídeos.</p></details>
+    <details class="faq"><summary>Sou professor. Preciso de outra conta?</summary><p>Não. Entre na Academia Digital com o mesmo e-mail e senha do app do treinador. A coordenação monta as trilhas, os vídeos e os treinos de cada aula no app, em Mais › Academia Digital.</p></details>
+  </section>
+</main>
+<footer class="rodape" style="padding-top:20px">Team Yoda · Metodologia MTY · Tecnologia QuadraLab · <a data-whatsapp="Olá! Quero saber mais sobre o Team Yoda." href="#" target="_blank" rel="noopener">Fale com a gente no WhatsApp</a></footer>
+<script src="../mty-nuvem.js"></script>
+<script>
+(function () {
+  "use strict";
+  var zap = typeof MTY_WHATSAPP !== "undefined" ? MTY_WHATSAPP : "";
+  Array.prototype.forEach.call(document.querySelectorAll("[data-whatsapp]"), function (a) {
+    if (zap) a.href = "https://wa.me/" + zap + "?text=" + encodeURIComponent(a.getAttribute("data-whatsapp")); else a.hidden = true;
+  });
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  var API = "/.netlify/functions/digital";
+  fetch(API + "?vitrine=1").then(function (r) { return r.ok ? r.json() : null; }).then(function (v) {
+    if (!v) return;
+    if (v.trilhas && v.trilhas.length) {
+      document.getElementById("vitrine").hidden = false;
+      document.getElementById("vitTrilhas").innerHTML = v.trilhas.map(function (t) { return '<span class="tag" style="font-size:13px;padding:6px 12px">' + esc(t.titulo) + " · " + t.aulas + (t.aulas === 1 ? " aula" : " aulas") + "</span>"; }).join("");
+    }
+    var venda = v.venda || {};
+    if (venda.preco) document.getElementById("preco").textContent = venda.preco;
+    if (venda.observacao) document.getElementById("precoObs").textContent = venda.observacao;
+    if (venda.checkoutUrl) { document.getElementById("btAssinar").hidden = false; document.getElementById("fEspera").hidden = true; }
+  }).catch(function () { /* sem servidor: a página segue com os textos fixos */ });
+  var f = document.getElementById("fEspera"), m = document.getElementById("mEspera");
+  function aviso(tipo, t) { m.className = "msg msg-" + tipo; m.textContent = t; m.hidden = false; }
+  f.addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var email = f.email.value.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return aviso("erro", "Confira o e-mail.");
+    fetch(API, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ acao: "interesse", nome: f.nome.value.trim(), email: email }) })
+      .then(function (r) { if (!r.ok) throw new Error(); aviso("ok", "Combinado: avisamos você em " + email + " quando abrir."); f.reset(); })
+      .catch(function () { aviso("erro", "Não foi possível agora. Tente de novo."); });
+  });
+})();
+</script>
+</body>
+</html>

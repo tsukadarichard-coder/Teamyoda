@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Academia Digital · Team Yoda</title>
+<meta name="description" content="Academia Digital Team Yoda: trilhas de aulas em vídeo, treinos da Metodologia MTY com a quadra animada e o simulador de decisões. Incluída para quem treina no Team Yoda · Cooper Tênis e no 39 Ranch.">
+<meta name="theme-color" content="#17251F">
+<link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="../assets/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="digital.css">
+</head>
+<body>
+<header class="topo">
+  <div class="topo-in">
+    <a class="marca" href="#trilhas"><img src="../assets/logo-team-yoda-transparente.png" alt="" width="38" height="38"><span><b>Academia Digital</b><span>Team Yoda · Metodologia MTY</span></span></a>
+    <span class="espaco"></span>
+    <span id="selo" class="selo" hidden></span>
+  </div>
+</header>
+<nav id="abas" class="abas" aria-label="Academia Digital" hidden>
+  <div class="abas-in">
+    <a href="#trilhas" data-aba="trilhas">Trilhas</a>
+    <a href="#treinos" data-aba="treinos">Treinos</a>
+    <a href="#simulador" data-aba="simulador">Simulador</a>
+    <a href="#conta" data-aba="conta">Conta</a>
+  </div>
+</nav>
+<main id="app" tabindex="-1"><p class="carregando">Carregando…</p></main>
+<footer class="rodape">Academia Digital Team Yoda · Tecnologia QuadraLab. Os vídeos são exibidos pelo YouTube (modo de privacidade aprimorada). <a href="../portal/">Conheça o Team Yoda</a></footer>
+<div id="anuncio" class="sr" aria-live="polite"></div>
+<script src="../mty-nuvem.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-auth-compat.js"></script>
+<script src="../scout/quadra-exercicio.js"></script>
+<script src="../scout/exercicios-quadra.js"></script>
+<script src="digital.js"></script>
+</body>
+</html>

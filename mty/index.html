@@ -23258,9 +23258,10 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   );
 }
 /* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
-const NOVIDADES_TY_VERSAO = "ty-2026-11f";
+const NOVIDADES_TY_VERSAO = "ty-2026-11g";
 const NOVIDADES_TY = [
-  { novo: true, t: "Canal da turma e do aluno", d: "Cada turma ganhou um grupo de conversa, e cada aluno uma conversa só com o professor. Na ficha da turma ou do aluno, abra a aba Canal. Os alunos (ou os responsáveis) conversam pelo botão Conversas do link do aluno, e cada mensagem nova avisa no celular de quem ativou os avisos. No grupo todos veem as mensagens, só com o primeiro nome. O professor modera: apaga mensagens, pausa um aluno e pode deixar o grupo no modo avisos, em que só ele escreve.", onde: "Turmas › abrir turma › Canal · Jogadores › aluno › Canal", aba: "turmas" },
+  { novo: true, t: "Academia Digital Team Yoda e página de vendas", d: "Nasceu a área online do Team Yoda (endereço /digital/): trilhas de aulas com os seus vídeos do YouTube (suba como Não listado), os treinos do catálogo com a quadra animada e o simulador de decisões. Alunos do Team Yoda · Cooper Tênis e do 39 Ranch não pagam: no link do aluno aparece o cartão Academia Digital, e a conta que eles criarem fica ligada ao aluno na hora (até 3 contas por aluno, para os pais). Professores entram com a conta do app. A coordenação monta as trilhas e aulas, publica, vê os membros e dá cortesia em Mais › Academia Digital. A página de vendas (/portal/) tem as entradas do professor, do aluno Cooper Tênis, do aluno 39 Ranch e da Academia Digital; para quem é de fora mostra o preço e, enquanto não houver link de pagamento, a lista de espera.", onde: "Mais › Academia Digital", aba: "academia-digital" },
+  { t: "Canal da turma e do aluno", d: "Cada turma ganhou um grupo de conversa, e cada aluno uma conversa só com o professor. Na ficha da turma ou do aluno, abra a aba Canal. Os alunos (ou os responsáveis) conversam pelo botão Conversas do link do aluno, e cada mensagem nova avisa no celular de quem ativou os avisos. No grupo todos veem as mensagens, só com o primeiro nome. O professor modera: apaga mensagens, pausa um aluno e pode deixar o grupo no modo avisos, em que só ele escreve.", onde: "Turmas › abrir turma › Canal · Jogadores › aluno › Canal", aba: "turmas" },
   { t: "Reposições ligadas à aula perdida e Relatório de aulas por período", d: "Ao marcar uma reposição, escolha o aluno ou a turma e abre a lista das aulas que ficaram para repor (canceladas, faltas, aula da turma cancelada): escolha qual aula está sendo reposta. Se a aula tem crédito de reposição, ele já fica reservado. Em Reposições, a lista Aulas a repor tem Agendar reposição e Não vai repor. O Relatório do mês virou Relatório de aulas: semana, mês ou trimestre, com a nova aba Reposições (o que falta repor, reposições dadas e marcadas e a aula que cada uma repôs) e o PDF geral com as reposições.", onde: "Agenda › Reposições e Agenda › Relatório de aulas", aba: "relatorio" },
   { t: "Todos os exercícios de quadra animados", d: "Agora são 233 exercícios do catálogo com a quadra animada: fundamentos, padrões táticos, movimentação (com spider, escadinha e cones), saque e devolução, ataque, ritmo, trilhos, brincadeiras com bola e duplas (na quadra de duplas, com o parceiro e os dois adversários). Cada um mostra onde cada um começa, os alvos, a sequência de bolas numerada e os deslocamentos. Toque em ▶ Na quadra e depois em Reproduzir.", onde: "Catálogo de exercícios › ▶ Na quadra (também na sessão e no plano)", aba: "catalogo" },
   { t: "Exercícios na quadra animada (piloto)", d: "20 exercícios do catálogo (fundamentos FB e padrões táticos DT) ganharam a quadra animada, com a mesma tecnologia do Simulador de Decisões: a posição de cada um, os alvos, cada bola numerada com o quique e o deslocamento do atleta. Toque em ▶ Na quadra e depois em Reproduzir. Os outros exercícios vêm em seguida.", onde: "Catálogo de exercícios › ▶ Na quadra (também na sessão e no plano)", aba: "catalogo" },
@@ -24127,6 +24128,213 @@ function TelaPendencias({ alunos, setAlunos, turmas, quadras, ocorrencias, setOc
             <Botao variante="vazio" onClick={() => setRascunhoModelos(MODELOS_MENSAGEM_PADRAO)}>Voltar aos textos padrão</Botao>
             <Botao variante="vazio" onClick={() => setEditandoModelos(false)}>Cancelar</Botao>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Academia Digital (coordenação) ──
+   Monta o conteúdo da área online /digital/ (netlify/functions/digital.js): trilhas de aulas com o link do YouTube (vídeo não
+   listado: nada é hospedado aqui), os treinos do catálogo em cada aula, publicar ou deixar em rascunho, e as informações de venda
+   da página /portal/. Também lista quem criou conta e dá cortesia. Aluno das unidades (Team Yoda · Cooper Tênis e 39 Ranch) entra
+   de graça pelo link do aluno; a assinatura só libera quando houver um link de pagamento aprovado (aqui não se cria cobrança). */
+const NIVEIS_DIGITAL = [["iniciante", "Iniciante"], ["intermediario", "Intermediário"], ["avancado", "Avançado"], ["todos", "Todos os níveis"]];
+const ACESSO_DIGITAL = { equipe: "Equipe", unidade: "Aluno da unidade", assinante: "Assinante", cortesia: "Cortesia", nenhum: "Sem acesso" };
+function idYoutubeDigital(v) {
+  const s = String(v || "").trim();
+  if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
+  const m = /(?:youtu\.be\/|youtube(?:-nocookie)?\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/))([A-Za-z0-9_-]{11})/.exec(s);
+  return m ? m[1] : "";
+}
+async function chamarDigital(corpo) {
+  const token = await window.mtyAuth.tokenId();
+  const r = await fetch("/.netlify/functions/digital", { method: "POST", headers: { "content-type": "application/json", authorization: "Bearer " + token }, body: JSON.stringify(corpo) });
+  const c = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(c.erro || ("Erro " + r.status));
+  return c;
+}
+const novoIdDigital = (p) => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+function paraEdicaoDigital(t) { return { ...t, aulas: (t.aulas || []).map((a) => ({ ...a, youtube: a.youtube ? "https://youtu.be/" + a.youtube : "", _ex: (a.exercicios || []).join(", ") })) }; }
+function TelaAcademiaDigital() {
+  const [secao, setSecao] = useState("conteudo");
+  const [trilhas, setTrilhas] = useState(null);
+  const [venda, setVenda] = useState({ preco: "", checkoutUrl: "", observacao: "" });
+  const [aberta, setAberta] = useState("");
+  const [alterado, setAlterado] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const [aviso, setAviso] = useState("");
+  const [erro, setErro] = useState("");
+  const [membros, setMembros] = useState(null);
+  const [emailCortesia, setEmailCortesia] = useState("");
+  const porCodigo = useMemo(() => Object.fromEntries(EXERCICIOS.map((e) => [e.c, e])), []);
+
+  useEffect(() => {
+    let vivo = true;
+    chamarDigital({ acao: "conteudoCompleto" }).then((d) => {
+      if (!vivo) return;
+      setTrilhas((d.trilhas || []).map(paraEdicaoDigital)); setVenda({ preco: "", checkoutUrl: "", observacao: "", ...(d.venda || {}) });
+    }).catch((e) => { if (vivo) { setErro(e.message); setTrilhas([]); } });
+    return () => { vivo = false; };
+  }, []);
+  function carregarMembros() { setMembros(null); chamarDigital({ acao: "membros" }).then((d) => setMembros(d.membros || [])).catch((e) => { setErro(e.message); setMembros([]); }); }
+  useEffect(() => { if (secao === "membros" && membros === null) carregarMembros(); }, [secao]);
+
+  const mudar = (fn) => { setTrilhas((ts) => fn(ts)); setAlterado(true); setAviso(""); };
+  const mudarTrilha = (id, campo, v) => mudar((ts) => ts.map((t) => (t.id === id ? { ...t, [campo]: v } : t)));
+  const mudarAula = (tid, aid, campo, v) => mudar((ts) => ts.map((t) => (t.id === tid ? { ...t, aulas: t.aulas.map((a) => (a.id === aid ? { ...a, [campo]: v } : a)) } : t)));
+  const moverAula = (tid, i, d) => mudar((ts) => ts.map((t) => { if (t.id !== tid) return t; const l = t.aulas.slice(), j = i + d; if (j < 0 || j >= l.length) return t; [l[i], l[j]] = [l[j], l[i]]; return { ...t, aulas: l }; }));
+  const codigosDe = (txt) => String(txt || "").toUpperCase().split(/[^A-Z0-9]+/).filter(Boolean);
+
+  async function salvar() {
+    setErro(""); setAviso("");
+    for (const t of trilhas) for (const a of t.aulas) {
+      if (a.youtube && !idYoutubeDigital(a.youtube)) { setAberta(t.id); return setErro("O link do YouTube da aula “" + (a.titulo || "sem título") + "” não foi reconhecido. Cole o link do vídeo (youtu.be/… ou youtube.com/watch?v=…)."); }
+      const ruins = codigosDe(a._ex).filter((c) => !porCodigo[c]);
+      if (ruins.length) { setAberta(t.id); return setErro("Na aula “" + (a.titulo || "sem título") + "”, estes códigos não estão no catálogo: " + ruins.join(", ") + "."); }
+    }
+    if (venda.checkoutUrl && !/^https:\/\/\S+$/.test(venda.checkoutUrl.trim())) { setSecao("venda"); return setErro("O link de pagamento precisa começar com https://"); }
+    setSalvando(true);
+    try {
+      const corpo = { acao: "salvarConteudo", venda: { ...venda, checkoutUrl: venda.checkoutUrl.trim() }, trilhas: trilhas.map((t) => ({ id: t.id, titulo: t.titulo, descricao: t.descricao, nivel: t.nivel, publicada: !!t.publicada,
+        aulas: t.aulas.map((a) => ({ id: a.id, titulo: a.titulo, descricao: a.descricao, duracao: a.duracao, youtube: a.youtube, exercicios: codigosDe(a._ex) })) })) };
+      const d = await chamarDigital(corpo);
+      setTrilhas((d.trilhas || []).map(paraEdicaoDigital)); setVenda({ preco: "", checkoutUrl: "", observacao: "", ...(d.venda || {}) });
+      setAlterado(false); setAviso("Salvo. As trilhas publicadas já aparecem na Academia Digital.");
+    } catch (e) { setErro(e.message); }
+    setSalvando(false);
+  }
+  async function cortesia(email, sim) {
+    setErro(""); setAviso("");
+    try { await chamarDigital({ acao: "cortesia", email, sim }); setAviso(sim ? "Cortesia liberada para " + email + "." : "Cortesia retirada de " + email + "."); setEmailCortesia(""); carregarMembros(); }
+    catch (e) { setErro(e.message); }
+  }
+
+  const chip = (ativo) => ({ fontFamily: ARCH, fontSize: 13, fontWeight: 700, padding: "8px 14px", borderRadius: 999, cursor: "pointer", minHeight: 40,
+    border: "1px solid " + (ativo ? C.quadra : C.linha), background: ativo ? C.quadra : C.cal, color: ativo ? "#fff" : C.tinta });
+  const cartao = { background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: 14, marginBottom: 10 };
+  const nota = { ...prosa, fontSize: 12.5, color: C.grafite };
+  const h2 = { fontFamily: ARCH, fontSize: 16, fontWeight: 700, margin: "4px 0 8px" };
+  const link = (p) => location.origin + p;
+
+  return (
+    <div data-academia-digital>
+      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Academia Digital</h1>
+      <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginBottom: 10 }}>
+        A área online do Team Yoda: trilhas de aulas com vídeos do YouTube (suba como “Não listado”), os treinos do catálogo em cada aula e o simulador de decisões.
+        Alunos do Team Yoda · Cooper Tênis e do 39 Ranch entram de graça pelo link do aluno; professores entram com a conta do app.
+      </p>
+      <div className="flex flex-wrap gap-2 mb-3">
+        <a href="/digital/" target="_blank" rel="noopener" style={{ ...chip(false), textDecoration: "none" }}>Abrir a Academia Digital ↗</a>
+        <a href="/portal/" target="_blank" rel="noopener" style={{ ...chip(false), textDecoration: "none" }}>Página de vendas ↗</a>
+        <button type="button" style={chip(false)} onClick={() => navigator.clipboard && navigator.clipboard.writeText(link("/portal/")).then(() => setAviso("Link da página de vendas copiado."))}>Copiar link da página de vendas</button>
+      </div>
+      <div className="flex flex-wrap gap-2 mb-4" role="tablist">
+        {[["conteudo", "Trilhas e aulas"], ["venda", "Venda"], ["membros", "Membros"]].map(([v, r]) => <button key={v} type="button" role="tab" aria-selected={secao === v} style={chip(secao === v)} onClick={() => setSecao(v)}>{r}</button>)}
+      </div>
+      {erro && <Aviso cor="#B23A2E">{erro}</Aviso>}
+      {aviso && <Aviso>{aviso}</Aviso>}
+      {trilhas === null && <p style={{ ...prosa, color: C.grafite }}>Carregando…</p>}
+
+      {trilhas && secao === "conteudo" && (
+        <div>
+          {trilhas.length === 0 && <p style={{ ...nota, marginBottom: 10 }}>Nenhuma trilha ainda. Crie a primeira: por exemplo “Forehand do zero”, com 4 a 6 aulas curtas.</p>}
+          {trilhas.map((t, ti) => (
+            <div key={t.id} style={cartao} data-trilha={t.id}>
+              <div className="flex flex-wrap items-center gap-2">
+                <button type="button" onClick={() => setAberta(aberta === t.id ? "" : t.id)} aria-expanded={aberta === t.id}
+                  style={{ flex: 1, minWidth: 180, textAlign: "left", background: "none", border: 0, cursor: "pointer", fontFamily: ARCH, fontSize: 15, fontWeight: 700, color: C.tinta, padding: "6px 0" }}>
+                  {aberta === t.id ? "▾ " : "▸ "}{t.titulo || "Trilha sem título"} <span style={{ ...nota, fontWeight: 400 }}>· {t.aulas.length} {t.aulas.length === 1 ? "aula" : "aulas"} · {t.publicada ? "publicada" : "rascunho"}</span>
+                </button>
+                <label style={{ ...nota, display: "flex", alignItems: "center", gap: 6, minHeight: 40 }}><input type="checkbox" checked={!!t.publicada} onChange={(e) => mudarTrilha(t.id, "publicada", e.target.checked)} /> Publicada</label>
+              </div>
+              {aberta === t.id && (
+                <div style={{ marginTop: 10 }}>
+                  <Campo rotulo="Título da trilha"><input style={entrada} value={t.titulo} maxLength={120} onChange={(e) => mudarTrilha(t.id, "titulo", e.target.value)} /></Campo>
+                  <Campo rotulo="Nível"><select style={entrada} value={t.nivel} onChange={(e) => mudarTrilha(t.id, "nivel", e.target.value)}>{NIVEIS_DIGITAL.map(([v, r]) => <option key={v} value={v}>{r}</option>)}</select></Campo>
+                  <Campo rotulo="Descrição" nota="Aparece também na vitrine para quem ainda não tem acesso."><textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={t.descricao || ""} maxLength={1500} onChange={(e) => mudarTrilha(t.id, "descricao", e.target.value)} /></Campo>
+                  {t.aulas.map((a, i) => {
+                    const yt = idYoutubeDigital(a.youtube), cods = codigosDe(a._ex);
+                    return (
+                      <div key={a.id} data-aula={a.id} style={{ border: "1px solid " + C.linha, borderRadius: 10, padding: 12, marginBottom: 10, background: C.papel }}>
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                          <span style={{ fontFamily: ARCH, fontWeight: 700, fontSize: 13.5, flex: 1 }}>Aula {i + 1}</span>
+                          <Botao pequeno variante="vazio" disabled={i === 0} onClick={() => moverAula(t.id, i, -1)}>↑</Botao>
+                          <Botao pequeno variante="vazio" disabled={i === t.aulas.length - 1} onClick={() => moverAula(t.id, i, 1)}>↓</Botao>
+                          <Botao pequeno variante="vazio" onClick={() => { if (confirm("Remover a aula “" + (a.titulo || "sem título") + "”?")) mudar((ts) => ts.map((x) => (x.id === t.id ? { ...x, aulas: x.aulas.filter((y) => y.id !== a.id) } : x))); }}>Remover</Botao>
+                        </div>
+                        <Campo rotulo="Título da aula"><input style={entrada} value={a.titulo} maxLength={120} onChange={(e) => mudarAula(t.id, a.id, "titulo", e.target.value)} /></Campo>
+                        <Campo rotulo="Link do vídeo no YouTube" nota={a.youtube ? (yt ? "Vídeo reconhecido." : "Link não reconhecido: cole o endereço do vídeo.") : "Opcional. No YouTube, publique como “Não listado”."}>
+                          <div className="flex gap-2 items-center">
+                            <input style={entrada} value={a.youtube} inputMode="url" placeholder="https://youtu.be/…" onChange={(e) => mudarAula(t.id, a.id, "youtube", e.target.value)} />
+                            {yt && <img src={"https://i.ytimg.com/vi/" + yt + "/default.jpg"} alt="" width={64} height={48} style={{ borderRadius: 6, flex: "none" }} />}
+                          </div>
+                        </Campo>
+                        <Campo rotulo="Duração"><input style={{ ...entrada, maxWidth: 160 }} value={a.duracao || ""} maxLength={20} placeholder="8 min" onChange={(e) => mudarAula(t.id, a.id, "duracao", e.target.value)} /></Campo>
+                        <Campo rotulo="O que fazer depois de assistir"><textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={a.descricao || ""} maxLength={2000} onChange={(e) => mudarAula(t.id, a.id, "descricao", e.target.value)} /></Campo>
+                        <Campo rotulo="Treinos da aula (códigos do catálogo)" nota="Ex.: FB001, FB003. Até 12. Os que têm quadra animada aparecem com ela.">
+                          <input style={entrada} value={a._ex} placeholder="FB001, FB003" onChange={(e) => mudarAula(t.id, a.id, "_ex", e.target.value)} />
+                          {cods.length > 0 && <div className="flex flex-wrap gap-1 mt-2">{cods.map((c) => <span key={c} style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "3px 8px", borderRadius: 999, background: porCodigo[c] ? "#E1F0D5" : "#FDECEA", color: porCodigo[c] ? "#3F7A17" : "#A6332A" }}>{c}{porCodigo[c] ? " · " + porCodigo[c].n : " · não está no catálogo"}</span>)}</div>}
+                        </Campo>
+                      </div>
+                    );
+                  })}
+                  <div className="flex flex-wrap gap-2">
+                    <Botao pequeno variante="vazio" onClick={() => mudar((ts) => ts.map((x) => (x.id === t.id ? { ...x, aulas: x.aulas.concat([{ id: novoIdDigital(t.id + "-a"), titulo: "", youtube: "", duracao: "", descricao: "", exercicios: [], _ex: "" }]) } : x)))}>+ Aula</Botao>
+                    <Botao pequeno variante="vazio" disabled={ti === 0} onClick={() => mudar((ts) => { const l = ts.slice(); [l[ti - 1], l[ti]] = [l[ti], l[ti - 1]]; return l; })}>Subir trilha</Botao>
+                    <Botao pequeno variante="vazio" onClick={() => { if (confirm("Apagar a trilha “" + (t.titulo || "sem título") + "” e as aulas dela?")) mudar((ts) => ts.filter((x) => x.id !== t.id)); }}>Apagar trilha</Botao>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+          <div className="flex flex-wrap gap-2 mt-3">
+            <Botao variante="vazio" onClick={() => { const id = novoIdDigital("tr"); mudar((ts) => ts.concat([{ id, titulo: "", descricao: "", nivel: "todos", publicada: false, aulas: [] }])); setAberta(id); }}>+ Nova trilha</Botao>
+            <Botao variante="saibro" disabled={salvando || !alterado} onClick={salvar}>{salvando ? "Salvando…" : alterado ? "Salvar" : "Salvo"}</Botao>
+          </div>
+        </div>
+      )}
+
+      {trilhas && secao === "venda" && (
+        <div style={cartao}>
+          <h2 style={h2}>Assinatura para quem é de fora</h2>
+          <Campo rotulo="Preço (como aparece na página)"><input style={entrada} value={venda.preco} maxLength={40} placeholder="R$ 59,90/mês" onChange={(e) => { setVenda({ ...venda, preco: e.target.value }); setAlterado(true); }} /></Campo>
+          <Campo rotulo="Observação"><textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={venda.observacao} maxLength={600} onChange={(e) => { setVenda({ ...venda, observacao: e.target.value }); setAlterado(true); }} /></Campo>
+          <Campo rotulo="Link de pagamento (checkout)" nota="Deixe vazio enquanto a cobrança não estiver criada e aprovada: sem link, a página mostra a lista de espera. O acesso do assinante é liberado quando o pagamento for ligado à conta (mesmo e-mail).">
+            <input style={entrada} value={venda.checkoutUrl} inputMode="url" placeholder="https://…" onChange={(e) => { setVenda({ ...venda, checkoutUrl: e.target.value }); setAlterado(true); }} />
+          </Campo>
+          <p style={{ ...nota, marginBottom: 10 }}>Alunos do Team Yoda · Cooper Tênis e do 39 Ranch nunca veem cobrança: o link do aluno libera o acesso enquanto eles estiverem na lista da unidade.</p>
+          <Botao variante="saibro" disabled={salvando || !alterado} onClick={salvar}>{salvando ? "Salvando…" : alterado ? "Salvar" : "Salvo"}</Botao>
+        </div>
+      )}
+
+      {secao === "membros" && (
+        <div>
+          <div style={cartao}>
+            <h2 style={h2}>Dar cortesia</h2>
+            <p style={{ ...nota, marginBottom: 8 }}>Libera o acesso para quem já criou conta na Academia Digital (por exemplo um atleta convidado).</p>
+            <div className="flex flex-wrap gap-2">
+              <input style={{ ...entrada, flex: "1 1 220px" }} type="email" value={emailCortesia} placeholder="e-mail da conta" onChange={(e) => setEmailCortesia(e.target.value)} />
+              <Botao onClick={() => cortesia(emailCortesia.trim().toLowerCase(), true)} disabled={!emailCortesia.trim()}>Dar cortesia</Botao>
+            </div>
+          </div>
+          {membros === null && <p style={{ ...prosa, color: C.grafite }}>Carregando os membros…</p>}
+          {membros && membros.length === 0 && <p style={nota}>Ninguém criou conta ainda.</p>}
+          {membros && membros.length > 0 && (
+            <div style={cartao}>
+              <p style={{ ...nota, marginBottom: 8 }}>{membros.length} {membros.length === 1 ? "conta" : "contas"} · {membros.filter((m) => m.acesso.tipo === "unidade").length} de alunos das unidades · {membros.filter((m) => m.acesso.tipo === "assinante").length} assinantes · {membros.filter((m) => m.acesso.tipo === "nenhum").length} sem acesso</p>
+              {membros.map((m) => (
+                <div key={m.uid} data-membro={m.email} className="flex flex-wrap items-center gap-2" style={{ borderTop: "1px solid " + C.linha, padding: "10px 0" }}>
+                  <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+                    <div style={{ fontFamily: ARCH, fontWeight: 700, fontSize: 14 }}>{m.nome || "Sem nome"}</div>
+                    <div style={{ ...nota, overflowWrap: "anywhere" }}>{m.email} · {ACESSO_DIGITAL[m.acesso.tipo] || m.acesso.tipo}{m.acesso.unidade ? " · " + m.acesso.unidade : ""} · {m.aulasFeitas} {m.aulasFeitas === 1 ? "aula feita" : "aulas feitas"}</div>
+                  </div>
+                  {m.acesso.tipo === "cortesia" && <Botao pequeno variante="vazio" onClick={() => cortesia(m.email, false)}>Tirar cortesia</Botao>}
+                  {m.acesso.tipo === "nenhum" && <Botao pequeno variante="vazio" onClick={() => cortesia(m.email, true)}>Dar cortesia</Botao>}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -25194,6 +25402,8 @@ function App() {
      Financeiro só para o dono; Manual e Catálogo só onde o Manual existe. As telas continuam conferindo a permissão por
      dentro (esconder o item não é a proteção). Grupo sem item some. */
   const ehCoordenador = papelAtual === "coordenador";
+  /* Academia Digital (/digital/): só a coordenação das duas unidades monta (o servidor confere o token de novo) */
+  const mostraDigital = ehCoordenador && (orgAtual === "team-yoda" || orgAtual === "39-ranch");
   const podePendencias = ehCoordenador || ehDonoFinanceiro();
   const gruposNav = [
     { id: "treino", label: "Treino e análise", itens: [
@@ -25202,6 +25412,7 @@ function App() {
       { v: "quadro", r: "Quadro tático" }, { v: "observar", r: "Observar jogos" },
     ] },
     { id: "grupos", label: "Grupos", itens: [{ v: "turmas", r: "Turmas" }, { v: "equipes", r: "Equipes de competição" }] },
+    ...(mostraDigital ? [{ id: "digital", label: "Academia Digital", itens: [{ v: "academia-digital", r: "Academia Digital" }] }] : []),
     { id: "gestao", label: "Gestão da academia", itens: [
       ...(mostraQuadras ? [{ v: "quadras", r: "Quadras" }, { v: "grade-aulas", r: "Horários recorrentes" }] : []),
       ...(mostraQuadras || mostraTorneiosEventos ? [{ v: "clientes", r: "Clientes" }] : []),
@@ -25654,6 +25865,7 @@ function App() {
            irParaCaderno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("registro"); }}
            irParaTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} irParaManual={irParaManual} /> :
          aba === "financeiro" && ehDonoFinanceiro() ? <TelaFinanceiro /> :
+         aba === "academia-digital" && mostraDigital ? <TelaAcademiaDigital /> :
          aba === "pendencias" && podePendencias ? <>{topoHoje}<TelaPendencias alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} regrasReposicao={regrasReposicao}
            reservas={reservas} setReservas={setReservas} torneios={torneios} setTorneios={setTorneios} eventos={eventos} setEventos={setEventos}
            modelos={modelosMensagem} setModelos={setModelosMensagem} orgAtual={orgAtual}
