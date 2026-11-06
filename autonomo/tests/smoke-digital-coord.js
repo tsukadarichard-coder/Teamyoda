@@ -2,6 +2,7 @@
    sobre um Firestore em memória: cria trilha e aula, recusa link do YouTube e código de treino inválidos, salva (o link vira o ID do
    vídeo), publica, salva a venda (link de pagamento só https), lista os membros e dá cortesia.
    Rode: node tests/smoke-digital-coord.js [pasta-das-capturas] (defina CDN_DIR) */
+process.env.DIGITAL_SEM_CURSOS_MTY = "1"; /* os cursos MTY automáticos têm teste próprio (check-digital) */
 const fs = require("fs"), path = require("path"), http = require("http"), assert = require("assert");
 const CDN = process.env.CDN_DIR || "/tmp/claude-0/-home-user-Teamyoda/f36f7b1a-5380-5cd8-93be-4b9b8aa1980b/scratchpad/cdn";
 if (!fs.existsSync(CDN)) { console.log("smoke-digital-coord: pulado (sem React/Babel locais; defina CDN_DIR)"); process.exit(0); }

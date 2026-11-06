@@ -229,8 +229,8 @@
   /* ── visual: capa da trilha (imagem do primeiro vídeo, ou a quadra desenhada), anel de progresso e a quadra do treino ── */
   var QUADRA_DECOR = '<svg class="capa-quadra" viewBox="0 0 160 90" aria-hidden="true" preserveAspectRatio="xMidYMid slice"><g fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.2"><rect x="18" y="14" width="124" height="62"/><line x1="18" y1="22" x2="142" y2="22"/><line x1="18" y1="68" x2="142" y2="68"/><line x1="49" y1="22" x2="49" y2="68"/><line x1="111" y1="22" x2="111" y2="68"/><line x1="49" y1="45" x2="111" y2="45"/><line x1="80" y1="10" x2="80" y2="80" stroke-dasharray="2 2"/></g><circle cx="118" cy="32" r="4" fill="#E4F542"/><path d="M40 60 Q80 18 118 32" fill="none" stroke="#F4FF8A" stroke-width="1.2" stroke-dasharray="3 3"/></svg>';
   function videoDaTrilha(t) { return (t.aulas.filter(function (a) { return a.youtube; })[0] || {}).youtube || ""; }
-  function capa(yt, extra) {
-    return '<div class="capa"' + (yt ? ' style="background-image:url(https://i.ytimg.com/vi/' + esc(yt) + '/mqdefault.jpg),linear-gradient(150deg,#2A5E43 0%,#3A7B56 60%,#69B32A 140%)"' : "") + ">" + (yt ? "" : QUADRA_DECOR) + (extra || "") + "</div>";
+  function capa(yt, extra, cat) {
+    return '<div class="capa' + (cat ? " cat-" + cat : "") + '"' + (yt ? ' style="background-image:url(https://i.ytimg.com/vi/' + esc(yt) + '/mqdefault.jpg),linear-gradient(150deg,#2A5E43 0%,#3A7B56 60%,#69B32A 140%)"' : "") + ">" + (yt ? "" : QUADRA_DECOR) + (extra || "") + "</div>";
   }
   function anel(n, total, escuro) {
     var pc = total ? Math.round(n / total * 100) : 0, c = 2 * Math.PI * 18;
@@ -241,7 +241,7 @@
   function quadraMini(c) { try { return window.QLQuadraExercicio.svgEstatico(c, "mini" + c.toLowerCase()); } catch (e) { return ""; } }
   function cartaoTrilha(t) {
     var n = feitas(t);
-    return '<a class="cartao trilha com-capa" href="#trilha/' + encodeURIComponent(t.id) + '">' + capa(videoDaTrilha(t), '<span class="capa-nivel">' + esc(rotuloCurso(t)) + "</span>" + (concluido(t) ? '<span class="capa-ok">✓ Concluído</span>' : "")) +
+    return '<a class="cartao trilha com-capa" href="#trilha/' + encodeURIComponent(t.id) + '">' + capa(videoDaTrilha(t), '<span class="capa-nivel">' + esc(rotuloCurso(t)) + "</span>" + (concluido(t) ? '<span class="capa-ok">✓ Concluído</span>' : ""), t.categoria) +
       '<div class="trilha-corpo"><div class="trilha-tit"><h3>' + esc(t.titulo) + '</h3><p class="det" style="margin:0">' + t.aulas.length + (t.aulas.length === 1 ? " aula" : " aulas") + " · " + n + (n === 1 ? " feita" : " feitas") + "</p></div>" + anel(n, t.aulas.length) + "</div>" +
       (t.descricao ? '<p class="det" style="margin:8px 0 0">' + esc(resumo(t.descricao, 120)) + "</p>" : "") + "</a>";
   }
@@ -349,7 +349,7 @@
     var p = st.dados.progresso || {}, n = feitas(t);
     tela(
       '<a class="btn btn-texto voltar" href="#trilhas">← Cursos</a>' +
-      '<section class="trilha-heroi">' + capa(videoDaTrilha(t), '<span class="capa-nivel">' + esc(rotuloCurso(t)) + "</span>") +
+      '<section class="trilha-heroi">' + capa(videoDaTrilha(t), '<span class="capa-nivel">' + esc(rotuloCurso(t)) + "</span>", t.categoria) +
         '<div class="th-txt"><div><h1>' + esc(t.titulo) + '</h1><p class="det" style="margin:0">' + n + " de " + t.aulas.length + " aulas feitas</p></div>" + anel(n, t.aulas.length) + "</div></section>" +
       (t.descricao ? '<p class="lead texto-aula">' + esc(t.descricao) + "</p>" : "") +
       (concluido(t) ? '<div class="cartao concluido"><div><b>Curso concluído</b><p class="det" style="margin:2px 0 0">Todas as aulas feitas e todos os quizzes certos.</p></div><a class="btn btn-saibro" href="#certificado/' + encodeURIComponent(t.id) + '">Ver certificado</a></div>' : "") +

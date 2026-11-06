@@ -69,10 +69,23 @@ function limparConteudo(b) {
   if (checkoutUrl && !/^https:\/\/[^\s]+$/.test(checkoutUrl)) throw new Erro(400, "O link de pagamento precisa começar com https://");
   return { trilhas, venda: { preco: txt(v.preco, 40), checkoutUrl, observacao: txtLongo(v.observacao, 600) } };
 }
+/* Os cursos da Metodologia MTY (_cursos-mty.js) entram uma vez, já publicados, e a marca cursosMty impede que voltem
+   depois de a coordenação apagar um deles; trocar a VERSAO insere só os cursos novos (pelo id). */
+const CMTY = require("./_cursos-mty.js");
 async function lerConteudo() {
-  const s = await db().collection("digitalConteudo").doc("academia").get();
+  const ref = db().collection("digitalConteudo").doc("academia");
+  const s = await ref.get();
   const d = s.exists ? s.data() : {};
-  return { trilhas: d.trilhas || [], venda: d.venda || { preco: "", checkoutUrl: "", observacao: "" } };
+  let trilhas = d.trilhas || [], cursosMty = d.cursosMty || null, inseridos = d.cursosMtyInseridos || [];
+  const venda = d.venda || { preco: "", checkoutUrl: "", observacao: "" };
+  if (cursosMty !== CMTY.VERSAO && process.env.DIGITAL_SEM_CURSOS_MTY !== "1") {
+    const ids = new Set(trilhas.map((t) => t.id)), feitos = new Set(inseridos);
+    const novos = CMTY.CURSOS.filter((c) => !ids.has(c.id) && !feitos.has(c.id));
+    trilhas = limparConteudo({ trilhas: trilhas.concat(novos), venda }).trilhas;
+    cursosMty = CMTY.VERSAO; inseridos = inseridos.concat(novos.map((c) => c.id));
+    await ref.set({ ...d, trilhas, venda, cursosMty, cursosMtyInseridos: inseridos, atualizadoEm: agora() });
+  }
+  return { trilhas, venda, cursosMty, cursosMtyInseridos: inseridos };
 }
 /* o que um visitante vê: nome e tamanho das trilhas publicadas, nunca o vídeo nem os treinos */
 function vitrine(c) {
@@ -224,11 +237,11 @@ exports.handler = async function (event) {
     if (!claims) throw new Erro(401, "Entre com a sua conta.");
     if (b.acao === "salvarConteudo" || b.acao === "membros" || b.acao === "cortesia" || b.acao === "conteudoCompleto") {
       if (!ehCoordenacao(claims)) throw new Erro(403, "Só a coordenação mexe na Academia Digital.");
-      if (b.acao === "conteudoCompleto") return resposta(200, await lerConteudo());
+      if (b.acao === "conteudoCompleto") { const c = await lerConteudo(); return resposta(200, { trilhas: c.trilhas, venda: c.venda }); }
       if (b.acao === "membros") return resposta(200, await membros());
       if (b.acao === "cortesia") return resposta(200, await cortesia(claims, b));
-      const limpo = limparConteudo(b);
-      await db().collection("digitalConteudo").doc("academia").set({ ...limpo, atualizadoEm: agora(), atualizadoPor: claims.email || claims.uid });
+      const limpo = limparConteudo(b), atual = await lerConteudo();
+      await db().collection("digitalConteudo").doc("academia").set({ ...limpo, cursosMty: atual.cursosMty, cursosMtyInseridos: atual.cursosMtyInseridos, atualizadoEm: agora(), atualizadoPor: claims.email || claims.uid });
       return resposta(200, { ok: true, ...limpo });
     }
     const conta = await lerConta(claims);

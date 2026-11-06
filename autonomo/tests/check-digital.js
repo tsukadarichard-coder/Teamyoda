@@ -3,6 +3,7 @@
    · aluno da unidade liga a conta pelo link do aluno e não paga (perde o acesso se sair da lista); limite de contas por aluno;
    · equipe entra direto; coordenação salva trilhas (link do YouTube vira o ID; link inválido é recusado), vê membros e dá cortesia;
    · assinatura ativa libera; vencida não; lista de espera; progresso das aulas. Rode: node tests/check-digital.js */
+process.env.DIGITAL_SEM_CURSOS_MTY = "1"; /* os cursos MTY automáticos têm teste próprio (check-digital) */
 const assert = require("assert"), path = require("path");
 const fx = path.join(__dirname, "../../netlify/functions/");
 const store = {}; const J = (v) => JSON.parse(JSON.stringify(v)); let seq = 0;
@@ -160,5 +161,22 @@ store["orgs/39-ranch/dados/mty:alunos:v2"] = { value: JSON.stringify([{ id: "r1"
   /* lista de espera */
   assert.strictEqual((await chamar("POST", { acao: "interesse", email: "quero@x.com", nome: "Quero" })).status, 200);
   assert(store["digitalInteresses/quero@x.com"]);
+  /* cursos MTY: entram uma vez, já publicados e válidos; apagados pela coordenação, não voltam */
+  delete process.env.DIGITAL_SEM_CURSOS_MTY;
+  const { CURSOS, VERSAO } = require(fx + "_cursos-mty.js");
+  r = await chamar("GET", null, "tk-c2@x.com");
+  const ids = r.conteudo.trilhas.map((t) => t.id);
+  assert(["cmty-tecnica", "cmty-tatica", "cmty-mental"].every((id) => ids.includes(id)), "os 3 cursos MTY aparecem publicados");
+  assert.strictEqual(store["digitalConteudo/academia"].cursosMty, VERSAO);
+  const tec = r.conteudo.trilhas.find((t) => t.id === "cmty-tecnica");
+  assert(tec.aulas.length === 12 && tec.aulas.every((a) => a.quiz.length === 2 && a.quiz.every((q) => q.c === undefined)), "técnica: 12 aulas com quiz sem a resposta");
+  assert(!/o treinador|o professor/i.test(CURSOS.map((c) => c.aulas.map((a) => a.descricao).join(" ")).join(" ")), "texto fala com o aluno");
+  r = await chamar("POST", { acao: "quiz", aulaId: "cmty-tec-01", respostas: [1, 1] }, "tk-c2@x.com");
+  assert.strictEqual(r.acertos, 2, "quiz dos cursos MTY conferido no servidor");
+  const cc = await chamar("POST", { acao: "conteudoCompleto" }, "coord");
+  await chamar("POST", { acao: "salvarConteudo", trilhas: cc.trilhas.filter((t) => t.id !== "cmty-mental"), venda: cc.venda }, "coord");
+  r = await chamar("GET", null, "tk-c2@x.com");
+  assert(!r.conteudo.trilhas.some((t) => t.id === "cmty-mental"), "curso apagado pela coordenação não volta");
+  assert.strictEqual(r.conteudo.trilhas.filter((t) => t.id === "cmty-tecnica").length, 1, "sem duplicar");
   console.log("check-digital: ok");
 })().catch((e) => { console.error(e); process.exit(1); });

@@ -5,6 +5,7 @@
    · treinos do catálogo com busca, família e quadra animada; simulador dentro do quadro (?embed=1); conta e sair;
    · visitante sem acesso: vitrine sem vídeo, lista de espera; liga um link do 39 Ranch colado; com link de pagamento aparece Assinar;
    · professor entra com a conta do app do treinador como equipe. Rode: node tests/smoke-digital.js [pasta-das-capturas] */
+process.env.DIGITAL_SEM_CURSOS_MTY = "1"; /* os cursos MTY automáticos têm teste próprio (check-digital) */
 const fs = require("fs"), path = require("path"), http = require("http"), assert = require("assert");
 const { chromium } = require("/opt/node22/lib/node_modules/playwright");
 const capturas = process.argv[2] || "";
