@@ -2,7 +2,7 @@
    vocabulário e básico tático) e dos treinos mentais do catálogo. digital.js insere estes cursos uma vez (cursosMty = VERSAO),
    já publicados; depois a coordenação edita, despublica ou apaga em Mais › Academia Digital como qualquer outro curso.
    Quiz: c = índice da resposta certa (fica só no servidor). */
-const VERSAO = "v3"; /* v2: ilustrações das aulas; v3: fotos de profissionais (Wikimedia Commons, licença livre, com crédito) */
+const VERSAO = "v3"; /* v2: ilustrações das aulas; v3: sequência real das fases (vídeo do Team Yoda) e fotos de profissionais (Wikimedia Commons, licença livre, com crédito) */
 const ORDEM = ["v1", "v2", "v3"];
 const L = (s) => s.join("\n");
 
@@ -315,7 +315,7 @@ const mental = {
 const IMG = (...n) => n.map((x) => "assets/cursos/" + x + ".svg");
 const FOTO = (x) => ["assets/foto-" + x + ".jpg"];
 const IMAGENS = {
-  "cmty-tec-01": FOTO("forehand"), "cmty-tec-02": FOTO("sequencia-forehand").concat(IMG("apoios")), "cmty-tec-03": FOTO("sequencia-backhand2"), "cmty-tec-05": FOTO("saque"), "cmty-tec-06": IMG("saque-lancamentos"),
+  "cmty-tec-01": FOTO("forehand"), "cmty-tec-02": FOTO("sequencia-forehand").concat(IMG("apoios")), "cmty-tec-03": FOTO("sequencia-backhand2-ty").concat(FOTO("sequencia-backhand2")), "cmty-tec-05": FOTO("saque"), "cmty-tec-06": IMG("saque-lancamentos"),
   "cmty-tec-07": IMG("devolucao-posicoes"), "cmty-tec-08": IMG("voleio-zona"), "cmty-tec-09": FOTO("smash"), "cmty-tec-10": IMG("approach-paralela"), "cmty-tec-11": IMG("empunhaduras"),
   "cmty-tec-12": IMG("apoios"),
   "cmty-tat-01": IMG("tat-reconhecer"), "cmty-tat-02": IMG("tat-neutra"), "cmty-tat-03": IMG("tat-ataque"), "cmty-tat-04": IMG("tat-defesa"),
@@ -326,5 +326,5 @@ const IMAGENS = {
 };
 const CURSOS = [tecnica, tatica, mental].map((c) => ({ ...c, aulas: c.aulas.map((a) => ({ id: a.id, titulo: a.titulo, descricao: a.texto, youtube: "", duracao: a.duracao, exercicios: a.exercicios, quiz: a.quiz, imagens: IMAGENS[a.id] || [] })) }));
 /* imagens que cada versão trouxe: quem já tinha os cursos recebe estas por cima das que a aula tem (uma vez só) */
-const NOVAS = { v3: { "cmty-tec-02": FOTO("sequencia-forehand"), "cmty-tec-03": FOTO("sequencia-backhand2"), "cmty-tec-09": FOTO("smash") } };
+const NOVAS = { v3: { "cmty-tec-02": FOTO("sequencia-forehand"), "cmty-tec-03": FOTO("sequencia-backhand2-ty").concat(FOTO("sequencia-backhand2")), "cmty-tec-09": FOTO("smash") } };
 module.exports = { VERSAO, ORDEM, CURSOS, IMAGENS, NOVAS };
