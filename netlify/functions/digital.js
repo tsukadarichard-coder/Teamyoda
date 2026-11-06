@@ -50,7 +50,25 @@ function limparQuiz(q, titulo) {
   });
 }
 /* ilustrações das aulas: só os arquivos do próprio site (mty/assets/cursos e as fotos mty/assets/foto-*.jpg) */
-const IMAGEM = /^assets\/(cursos\/[a-z0-9-]+\.svg|foto-[a-z0-9-]+\.jpg)$/;
+const IMAGEM = /^(assets\/(cursos\/[a-z0-9-]+\.svg|foto-[a-z0-9-]+\.jpg)|img:[a-z0-9]{24})$/;
+/* imagens enviadas pela coordenação (sequência das fases de uma análise de movimento): ficam em digitalImagens/{id} e são
+   servidas em GET ?img={id} (id aleatório de 24 caracteres; a aula aponta para "img:{id}") */
+const IMG_ID = /^[a-z0-9]{24}$/, IMG_MAX = 900000;
+function novoIdImagem() { return require("crypto").randomBytes(18).toString("base64").toLowerCase().replace(/[^a-z0-9]/g, "").padEnd(24, "0").slice(0, 24); }
+async function imagemCurso(claims, b) {
+  if (b.autorizado !== true) throw new Erro(400, "Confirme que você tem a autorização de uso de imagem do atleta.");
+  const m = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(String(b.dados || ""));
+  if (!m) throw new Erro(400, "Imagem inválida.");
+  if (m[1].length > IMG_MAX) throw new Erro(400, "Imagem grande demais.");
+  const c = await lerConteudo(), t = c.trilhas.find((x) => x.id === String(b.trilhaId || "")), a = t && t.aulas.find((x) => x.id === String(b.aulaId || ""));
+  if (!a) throw new Erro(404, "Não encontrei esta aula.");
+  const id = novoIdImagem(), o = b.origem || {};
+  await db().collection("digitalImagens").doc(id).set({ dados: m[1], tipo: "image/jpeg", titulo: txt(b.titulo, 120), trilhaId: t.id, aulaId: a.id,
+    origem: { org: txt(o.org, 40), alunoId: txt(o.alunoId, 120), analiseId: txt(o.analiseId, 120), golpe: txt(o.golpe, 20) }, autorizadoPor: claims.email || claims.uid, criadoEm: agora() });
+  a.imagens = ["img:" + id].concat((a.imagens || []).filter((x) => x !== "img:" + id)).slice(0, 3);
+  await db().collection("digitalConteudo").doc("academia").set({ trilhas: c.trilhas, venda: c.venda, cursosMty: c.cursosMty, cursosMtyInseridos: c.cursosMtyInseridos, atualizadoEm: agora(), atualizadoPor: claims.email || claims.uid });
+  return { ok: true, id, imagens: a.imagens };
+}
 function limparConteudo(b) {
   const trilhas = (Array.isArray(b.trilhas) ? b.trilhas : []).slice(0, MAX_TRILHAS).map((t, i) => {
     const id = ID.test(String(t.id || "")) ? String(t.id) : "tr" + Date.now().toString(36) + i;
@@ -202,6 +220,13 @@ async function cortesia(claims, b) {
 exports.handler = async function (event) {
   try {
     app();
+    if (event.httpMethod === "GET" && (event.queryStringParameters || {}).img) {
+      const id = String(event.queryStringParameters.img);
+      if (!IMG_ID.test(id)) return { statusCode: 400, headers: { "content-type": "text/plain" }, body: "imagem inválida" };
+      const d = await db().collection("digitalImagens").doc(id).get();
+      if (!d.exists) return { statusCode: 404, headers: { "content-type": "text/plain", "cache-control": "no-store" }, body: "não encontrada" };
+      return { statusCode: 200, headers: { "content-type": d.data().tipo || "image/jpeg", "cache-control": "public, max-age=31536000, immutable" }, body: d.data().dados, isBase64Encoded: true };
+    }
     const claims = await quem(event);
     if (event.httpMethod === "GET") {
       const c = await lerConteudo();
@@ -241,8 +266,9 @@ exports.handler = async function (event) {
       return resposta(200, { ok: true });
     }
     if (!claims) throw new Erro(401, "Entre com a sua conta.");
-    if (b.acao === "salvarConteudo" || b.acao === "membros" || b.acao === "cortesia" || b.acao === "conteudoCompleto") {
+    if (b.acao === "salvarConteudo" || b.acao === "membros" || b.acao === "cortesia" || b.acao === "conteudoCompleto" || b.acao === "imagemCurso") {
       if (!ehCoordenacao(claims)) throw new Erro(403, "Só a coordenação mexe na Academia Digital.");
+      if (b.acao === "imagemCurso") return resposta(200, await imagemCurso(claims, b));
       if (b.acao === "conteudoCompleto") { const c = await lerConteudo(); return resposta(200, { trilhas: c.trilhas, venda: c.venda }); }
       if (b.acao === "membros") return resposta(200, await membros());
       if (b.acao === "cortesia") return resposta(200, await cortesia(claims, b));

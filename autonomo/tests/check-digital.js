@@ -202,5 +202,32 @@ store["orgs/39-ranch/dados/mty:alunos:v2"] = { value: JSON.stringify([{ id: "r1"
   const cc2 = await chamar("POST", { acao: "conteudoCompleto" }, "coord");
   await chamar("POST", { acao: "salvarConteudo", trilhas: cc2.trilhas, venda: cc2.venda }, "coord");
   assert.deepStrictEqual(store["digitalConteudo/academia"].trilhas.find((t) => t.id === "cmty-tecnica").aulas.find((a) => a.id === "cmty-tec-05").imagens, ["assets/foto-saque.jpg"]);
+  /* sequência das fases vinda de uma análise: só a coordenação, com autorização; a aula aponta para img:{id}; GET ?img serve o JPEG */
+  const jpg = "data:image/jpeg;base64," + Buffer.from("\xff\xd8\xff\xe0fake-jpeg", "latin1").toString("base64");
+  const pedido = { acao: "imagemCurso", trilhaId: "cmty-tecnica", aulaId: "cmty-tec-03", dados: jpg, autorizado: true, titulo: "backhand de duas mãos", origem: { org: "team-yoda", alunoId: "a1", analiseId: "mv1", golpe: "backhand" } };
+  assert.strictEqual((await chamar("POST", pedido, "tk-c2@x.com")).status, 403, "aluno não envia imagem");
+  assert.strictEqual((await chamar("POST", { ...pedido, autorizado: false }, "coord")).status, 400, "sem autorização de imagem");
+  assert.strictEqual((await chamar("POST", { ...pedido, dados: "data:image/png;base64,AAAA" }, "coord")).status, 400, "só JPEG");
+  assert.strictEqual((await chamar("POST", { ...pedido, dados: "data:image/jpeg;base64," + "A".repeat(900004) }, "coord")).status, 400, "grande demais");
+  assert.strictEqual((await chamar("POST", { ...pedido, aulaId: "nao-existe" }, "coord")).status, 404);
+  const ri = await chamar("POST", pedido, "coord");
+  assert(/^[a-z0-9]{24}$/.test(ri.id), "id aleatório");
+  assert.strictEqual(ri.imagens[0], "img:" + ri.id, "a sequência entra primeiro na aula");
+  assert.strictEqual(store["digitalImagens/" + ri.id].autorizadoPor !== undefined, true);
+  const tecImg = store["digitalConteudo/academia"].trilhas.find((t) => t.id === "cmty-tecnica").aulas.find((a) => a.id === "cmty-tec-03");
+  assert.deepStrictEqual(tecImg.imagens, ["img:" + ri.id]);
+  assert.strictEqual(store["digitalConteudo/academia"].cursosMty, VERSAO, "a marca dos cursos MTY continua");
+  const rg = await D.handler({ httpMethod: "GET", headers: {}, queryStringParameters: { img: ri.id } });
+  assert.strictEqual(rg.statusCode, 200); assert.strictEqual(rg.headers["content-type"], "image/jpeg"); assert(rg.isBase64Encoded);
+  assert.strictEqual(Buffer.from(rg.body, "base64").toString("latin1"), "\xff\xd8\xff\xe0fake-jpeg");
+  assert(/immutable/.test(rg.headers["cache-control"]));
+  assert.strictEqual((await D.handler({ httpMethod: "GET", headers: {}, queryStringParameters: { img: "../x" } })).statusCode, 400);
+  assert.strictEqual((await D.handler({ httpMethod: "GET", headers: {}, queryStringParameters: { img: "a".repeat(24) } })).statusCode, 404);
+  /* o aluno recebe a referência; salvar pela coordenação mantém */
+  r = await chamar("GET", null, "tk-c2@x.com");
+  assert.deepStrictEqual(r.conteudo.trilhas.find((t) => t.id === "cmty-tecnica").aulas.find((a) => a.id === "cmty-tec-03").imagens, ["img:" + ri.id]);
+  const cc3 = await chamar("POST", { acao: "conteudoCompleto" }, "coord");
+  await chamar("POST", { acao: "salvarConteudo", trilhas: cc3.trilhas, venda: cc3.venda }, "coord");
+  assert.deepStrictEqual(store["digitalConteudo/academia"].trilhas.find((t) => t.id === "cmty-tecnica").aulas.find((a) => a.id === "cmty-tec-03").imagens, ["img:" + ri.id]);
   console.log("check-digital: ok");
 })().catch((e) => { console.error(e); process.exit(1); });

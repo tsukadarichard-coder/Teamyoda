@@ -230,13 +230,15 @@
   /* ── visual: capa da trilha (imagem do primeiro vídeo, ou a quadra desenhada), anel de progresso e a quadra do treino ── */
   var QUADRA_DECOR = '<svg class="capa-quadra" viewBox="0 0 160 90" aria-hidden="true" preserveAspectRatio="xMidYMid slice"><g fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.2"><rect x="18" y="14" width="124" height="62"/><line x1="18" y1="22" x2="142" y2="22"/><line x1="18" y1="68" x2="142" y2="68"/><line x1="49" y1="22" x2="49" y2="68"/><line x1="111" y1="22" x2="111" y2="68"/><line x1="49" y1="45" x2="111" y2="45"/><line x1="80" y1="10" x2="80" y2="80" stroke-dasharray="2 2"/></g><circle cx="118" cy="32" r="4" fill="#E4F542"/><path d="M40 60 Q80 18 118 32" fill="none" stroke="#F4FF8A" stroke-width="1.2" stroke-dasharray="3 3"/></svg>';
   /* arte das aulas e dos cursos: a 1ª ilustração/foto da aula, ou a miniatura do vídeo */
-  var IMG_OK = /^assets\/(cursos\/[a-z0-9-]+\.svg|foto-[a-z0-9-]+\.jpg)$/;
+  var IMG_OK = /^(assets\/(cursos\/[a-z0-9-]+\.svg|foto-[a-z0-9-]+\.jpg)|img:[a-z0-9]{24})$/;
+  /* "img:{id}" = sequência das fases enviada pela coordenação (servida pela function); o resto é arquivo do site */
+  function urlImg(x) { return x.indexOf("img:") === 0 ? "/.netlify/functions/digital?img=" + x.slice(4) : "../" + x; }
   function capaCat(cat) { return "../assets/cursos/capa-" + ({ tecnica: 1, tatica: 1, mental: 1 }[cat] ? cat : "geral") + ".svg"; }
   /* miniatura: foto ou diagrama de quadra; cartões cheios de texto (mental, apoios, empunhaduras) ficam com a capa da categoria */
   var SO_TEXTO = /\/(men-|apoios|empunhaduras)/;
   function arteAula(a, cat) {
     var im = (a.imagens || []).filter(function (x) { return IMG_OK.test(x) && !(cat && SO_TEXTO.test(x)); })[0];
-    return im ? "../" + im : a.youtube ? "https://i.ytimg.com/vi/" + a.youtube + "/hqdefault.jpg" : cat ? capaCat(cat) : "";
+    return im ? urlImg(im) : a.youtube ? "https://i.ytimg.com/vi/" + a.youtube + "/hqdefault.jpg" : cat ? capaCat(cat) : "";
   }
   function enquadre(url, i) { return /\/capa-/.test(url) ? ' style="object-position:' + [50, 18, 82, 34, 66][i % 5] + '% 55%"' : ""; }
   /* capa do curso (sem texto por cima): a foto de uma aula, senão a miniatura de um vídeo, senão a capa da categoria */
@@ -440,7 +442,7 @@
     var im = (a.imagens || []).filter(function (x) { return IMG_OK.test(x); });
     if (!im.length) return "";
     return '<div class="ilustracoes' + (im.length > 1 ? " duas" : "") + '">' + im.map(function (x, k) {
-      return '<a class="ilustracao" href="../' + esc(x) + '" target="_blank" rel="noopener"><img src="../' + esc(x) + '" alt="Ilustração ' + (k + 1) + " da aula " + esc(a.titulo) + '" loading="lazy" decoding="async"></a>';
+      return '<a class="ilustracao" href="' + esc(urlImg(x)) + '" target="_blank" rel="noopener"><img src="' + esc(urlImg(x)) + '" alt="Ilustração ' + (k + 1) + " da aula " + esc(a.titulo) + '" loading="lazy" decoding="async"></a>';
     }).join("") + "</div>";
   }
   function telaAula(tid, aid) {

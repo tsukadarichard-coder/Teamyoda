@@ -34,6 +34,7 @@
 <script src="scout/movimento-motor.js"></script>
 <script src="scout/evidencias.js"></script>
 <script src="scout/movimento-arquivo.js"></script>
+<script src="digital-ilustracao.js"></script>
 <script src="scout/lixeira-jogos.js"></script>
 <script src="scout/relatorio-aluno.js"></script>
 <script src="scout/movimento.js"></script>
@@ -9429,7 +9430,108 @@ function arquivoMovimento() {
   return window.__arquivoMov;
 }
 
-function TelaMovimento({ aluno, alunos, setAlunos, identidade, planoAtual }) {
+/* Usar nos cursos (só coordenação do Team Yoda / 39 Ranch): monta a sequência das 6 fases com as fotos reais de uma análise
+   salva (digital-ilustracao.js) e coloca numa aula da Academia Digital, acima do texto. A imagem fica em digitalImagens. */
+function aulaParaGolpeDigital(trilhas, h) {
+  const re = h.golpe === "saque" ? /saque/i : h.golpe === "backhand" ? (String(h.emp) === "1" ? /backhand de uma/i : /backhand de duas|backhand/i) : /forehand/i;
+  for (const t of trilhas || []) for (const a of t.aulas || []) if (re.test(a.titulo || "")) return t.id + "|" + a.id;
+  return "";
+}
+function UsarNosCursosDigital({ aluno, movimentos }) {
+  const [sel, setSel] = useState(null);
+  const [arq, setArq] = useState(null);
+  const [esqueleto, setEsqueleto] = useState(false);
+  const [img, setImg] = useState("");
+  const [trilhas, setTrilhas] = useState(null);
+  const [destino, setDestino] = useState("");
+  const [autorizado, setAutorizado] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [ok, setOk] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const lista = (movimentos || []).slice().sort((a, b) => (a.criadoEm < b.criadoEm ? 1 : -1));
+  useEffect(() => {
+    if (!sel) return undefined;
+    let vivo = true;
+    setArq(null); setImg(""); setOk(""); setMsg("Carregando as fotos da análise…"); setAutorizado(false);
+    const a = arquivoMovimento();
+    Promise.resolve(a ? a.ler(sel.id) : null).then((x) => {
+      if (!vivo) return;
+      if (!x || !(x.fotos || []).filter(Boolean).length) { setMsg("Esta análise foi guardada sem as fotos das fases. Escolha outra."); return; }
+      setArq(x); setMsg("");
+    }).catch((e) => { if (vivo) setMsg("Não consegui abrir a análise: " + ((e && e.message) || "sem conexão")); });
+    chamarDigital({ acao: "conteudoCompleto" }).then((d) => { if (!vivo) return; setTrilhas(d.trilhas || []); setDestino(aulaParaGolpeDigital(d.trilhas, sel)); })
+      .catch((e) => { if (vivo) setMsg("Não consegui carregar os cursos: " + e.message); });
+    return () => { vivo = false; };
+  }, [sel && sel.id]);
+  useEffect(() => {
+    if (!arq || !window.QLIlustracaoFases) return undefined;
+    let vivo = true; setImg("");
+    window.QLIlustracaoFases.montar(arq, { esqueleto }).then((u) => { if (vivo) setImg(u); }).catch((e) => { if (vivo) setMsg(e.message); });
+    return () => { vivo = false; };
+  }, [arq, esqueleto]);
+  const enviar = async () => {
+    const [trilhaId, aulaId] = destino.split("|");
+    if (!trilhaId || !aulaId) return setMsg("Escolha a aula.");
+    if (!autorizado) return setMsg("Marque a autorização de uso de imagem.");
+    setEnviando(true); setMsg("");
+    try {
+      const org = typeof organizacao === "function" ? await organizacao().catch(() => null) : null;
+      await chamarDigital({ acao: "imagemCurso", trilhaId, aulaId, dados: img, autorizado: true, titulo: window.QLIlustracaoFases.golpeTxt(arq),
+        origem: { org: typeof org === "string" ? org : "", alunoId: aluno.id, analiseId: sel.id, golpe: sel.golpe } });
+      const t = (trilhas || []).find((x) => x.id === trilhaId), a = t && t.aulas.find((x) => x.id === aulaId);
+      setOk("Pronto: a sequência entrou na aula “" + (a ? a.titulo : "") + "”, acima do texto. Para tirar, use Mais › Academia Digital › Cursos e aulas.");
+    } catch (e) { setMsg(e.message); }
+    setEnviando(false);
+  };
+  const GOLPE = { forehand: "Forehand", backhand: "Backhand", saque: "Saque" };
+  return (
+    <div data-usar-cursos style={{ marginTop: 18, background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: 14 }}>
+      <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 800, color: C.tinta, marginBottom: 2 }}>Usar nos cursos da Academia Digital</p>
+      <p style={{ ...prosa, fontSize: 13, marginBottom: 10 }}>Monte a sequência das fases com as fotos reais de uma análise e coloque numa aula. Escolha uma análise com boa técnica (a contagem de itens OK ajuda).</p>
+      <div className="flex flex-col gap-2">
+        {lista.map((h) => (
+          <div key={h.id} className="flex items-center gap-2 flex-wrap" style={{ borderTop: "1px solid " + C.linha, paddingTop: 8 }}>
+            <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700, flex: 1, minWidth: 180 }}>
+              {(GOLPE[h.golpe] || h.golpe) + (h.golpe === "backhand" ? (String(h.emp) === "1" ? " de uma mão" : " de duas mãos") : "")} · {String(h.criadoEm || "").slice(8, 10)}/{String(h.criadoEm || "").slice(5, 7)}/{String(h.criadoEm || "").slice(0, 4)}
+              {h.res ? <span style={{ fontWeight: 500, color: C.grafite }}> · {h.res.ok} OK · {h.res.atencao} atenção</span> : null}
+            </span>
+            <Botao pequeno variante={sel && sel.id === h.id ? "cheio" : "vazio"} onClick={() => setSel(sel && sel.id === h.id ? null : h)}>{sel && sel.id === h.id ? "Fechar" : "Usar nos cursos"}</Botao>
+          </div>
+        ))}
+      </div>
+      {sel && (
+        <div data-usar-painel style={{ marginTop: 12, borderTop: "1px dashed " + C.linha, paddingTop: 12 }}>
+          {img ? <img data-previa src={img} alt="Prévia da sequência das fases" style={{ display: "block", width: "100%", maxWidth: 640, borderRadius: 12, marginBottom: 10 }} />
+            : arq ? <p style={{ ...prosa, fontSize: 13 }}>Montando a sequência…</p> : null}
+          {arq && (
+            <>
+              <label style={{ display: "flex", gap: 8, alignItems: "center", fontFamily: ARCH, fontSize: 13.5, minHeight: 40 }}>
+                <input type="checkbox" data-esqueleto checked={esqueleto} onChange={(e) => setEsqueleto(e.target.checked)} /> Mostrar o esqueleto sobre as fotos
+              </label>
+              <Campo rotulo="Aula que recebe a imagem">
+                <select data-destino style={entrada} value={destino} onChange={(e) => setDestino(e.target.value)}>
+                  <option value="">Escolha a aula…</option>
+                  {(trilhas || []).map((t) => (
+                    <optgroup key={t.id} label={t.titulo}>{t.aulas.map((a, i) => <option key={a.id} value={t.id + "|" + a.id}>{i + 1}. {a.titulo}{(a.imagens || []).length ? " (" + a.imagens.length + " imagem" + (a.imagens.length > 1 ? "s" : "") + ")" : ""}</option>)}</optgroup>
+                  ))}
+                </select>
+              </Campo>
+              <label style={{ display: "flex", gap: 8, alignItems: "flex-start", fontFamily: ARCH, fontSize: 13.5, margin: "4px 0 10px" }}>
+                <input type="checkbox" data-autorizado checked={autorizado} onChange={(e) => setAutorizado(e.target.checked)} style={{ marginTop: 3 }} />
+                <span>Tenho a autorização de uso de imagem de {String(aluno.nome || "o atleta").split(" ")[0]} (ou dos responsáveis) para mostrar estas fotos aos alunos da Academia Digital.</span>
+              </label>
+              <Botao onClick={enviar} disabled={!img || enviando || !autorizado || !destino}>{enviando ? "Enviando…" : "Colocar na aula"}</Botao>
+            </>
+          )}
+        </div>
+      )}
+      {msg && <p data-usar-msg style={{ ...prosa, fontSize: 13, color: "#A6332A", marginTop: 8 }}>{msg}</p>}
+      {ok && <p data-usar-ok style={{ ...prosa, fontSize: 13, color: "#3F7A17", marginTop: 8 }}>{ok}</p>}
+    </div>
+  );
+}
+
+function TelaMovimento({ aluno, alunos, setAlunos, identidade, planoAtual, podeCursos }) {
   const raiz = useRef(null);
   const raizVideo = useRef(null);
   const [aba, setAba] = useState("analisar");
@@ -9523,6 +9625,7 @@ function TelaMovimento({ aluno, alunos, setAlunos, identidade, planoAtual }) {
               }}
               dangerouslySetInnerHTML={{ __html: window.QLMovimento.listaHTML(movimentos) }} />
           )}
+          {podeCursos && movimentos.length > 0 && window.QLIlustracaoFases && <UsarNosCursosDigital aluno={aluno} movimentos={movimentos} />}
           <h3 className="qm-h" style={{ marginTop: 18 }}>Jogos em vídeo</h3>
           <div dangerouslySetInnerHTML={{ __html: window.QLVideoJogo ? window.QLVideoJogo.evolucaoHTML(jogosVideo) : "" }} />
           {(() => { /* padrões somando todos os jogos com scout montado do vídeo: o que se repete de partida em partida */
@@ -23258,9 +23361,10 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   );
 }
 /* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
-const NOVIDADES_TY_VERSAO = "ty-2026-11o";
+const NOVIDADES_TY_VERSAO = "ty-2026-11p";
 const NOVIDADES_TY = [
-  { novo: true, t: "Cursos da Academia Digital com visual de streaming", d: "A aba Cursos da Academia Digital ficou no estilo das plataformas de streaming, em tema escuro: um curso em destaque no topo, com capa grande e os botões Continuar e Detalhes; as fileiras Continue de onde parou, Todos os cursos (em pôsteres, com a barra de progresso) e uma fileira de episódios para cada curso, que rola para o lado (no computador, com setas). Cada aula aparece como episódio, com miniatura, número, duração e o check quando está feita. A página do curso mostra a capa, o progresso e a lista de episódios com miniatura e resumo. As capas são a foto real do curso ou uma quadra noturna de estádio em perspectiva, uma para Técnica, Tática e Mental.", onde: "Academia Digital › Cursos", aba: "academia-digital" },
+  { novo: true, t: "Fotos das análises de movimento nas aulas dos cursos", d: "Agora dá para usar uma análise de movimento salva como imagem de uma aula da Academia Digital. Abra o jogador › Análise de movimento › Evolução: em Usar nos cursos da Academia Digital, toque em Usar nos cursos na análise escolhida. O app monta a sequência das seis fases com as fotos reais da análise, o atleta recortado do mesmo tamanho em todas e o nome de cada fase, no mesmo visual escuro das ilustrações (com ou sem o esqueleto por cima). A aula do golpe já vem escolhida (por exemplo, Backhand de duas mãos); marque a autorização de uso de imagem do atleta e toque em Colocar na aula. A sequência aparece para os alunos acima do texto e pode ser removida em Mais › Academia Digital › Cursos e aulas. Só a coordenação vê esta opção.", onde: "Jogadores › abra o jogador › Análise de movimento › Evolução", aba: "alunos" },
+  { t: "Cursos da Academia Digital com visual de streaming", d: "A aba Cursos da Academia Digital ficou no estilo das plataformas de streaming, em tema escuro: um curso em destaque no topo, com capa grande e os botões Continuar e Detalhes; as fileiras Continue de onde parou, Todos os cursos (em pôsteres, com a barra de progresso) e uma fileira de episódios para cada curso, que rola para o lado (no computador, com setas). Cada aula aparece como episódio, com miniatura, número, duração e o check quando está feita. A página do curso mostra a capa, o progresso e a lista de episódios com miniatura e resumo. As capas são a foto real do curso ou uma quadra noturna de estádio em perspectiva, uma para Técnica, Tática e Mental.", onde: "Academia Digital › Cursos", aba: "academia-digital" },
   { t: "Ilustrações nas aulas dos cursos", d: "As aulas dos cursos MTY da Academia Digital agora abrem com imagem, acima do texto, num visual de transmissão de TV. Tática: a quadra em perspectiva com a trajetória da bola em arco, a marca do quique, as zonas-alvo, você e o adversário marcados no chão e chamadas numeradas (bola neutra, ataque, defesa, a bola que arma e a que converte, margem, ganhar a quadra, mudar a direção, negar ângulo, o padrão). Técnica: devolução, zona de voleio, approach, lançamento do saque, empunhaduras e apoios, além das fotos reais de forehand e saque. Mental: cada rotina em cartão com os passos e o tempo de cada um. O aluno toca na imagem para abrir inteira. Em Mais › Academia Digital, cada aula mostra as imagens e dá para remover a que não quiser; o que você já editou não muda.", onde: "Mais › Academia Digital › Cursos e aulas", aba: "academia-digital" },
   { t: "Cursos de Técnica, Tática e Mental já publicados", d: "A Academia Digital agora abre com três cursos da Metodologia MTY escritos para o aluno: Técnica (12 aulas: as seis fases, forehand, backhands, saque, devolução, voleio, smash, curtinha e approach, empunhaduras e apoios), Tática (10 aulas: reconhecer a bola, neutra, ataque, defesa, a bola que arma e a que converte, margem, reduzir o tempo, mudar a direção, negar ângulo e o padrão) e Mental (7 aulas: rotina de 20 segundos, foco no processo, respiração, voltar depois de erros, visualização, checklist do saque e o balanço pós-jogo). Cada aula tem como fazer, erros comuns e como corrigir, treino ligado com a quadra animada e quiz; ao concluir, certificado. Em Mais › Academia Digital dá para editar, colar o link do vídeo de cada aula ou despublicar.", onde: "Mais › Academia Digital › Cursos e aulas", aba: "academia-digital" },
   { t: "Treino de correção a partir da análise de movimento", d: "Quando o aluno salva uma análise de movimento na Academia Digital, a Academia monta sozinha um treino guiado com as correções apontadas: aquecimento com shadow do golpe, as três correções de maior prioridade (com a medida, o porquê e os exercícios de cada uma), um exercício do catálogo com a quadra animada para aplicar na bola e o reteste (filmar de novo e comparar). O treino aparece logo depois da análise, no Início e na aba Treinos, e conta no painel.", onde: "Academia Digital › Análise", aba: "academia-digital" },
@@ -24370,7 +24474,7 @@ function TelaAcademiaDigital() {
                           <Campo rotulo="Ilustrações da aula" nota="Aparecem para o aluno acima do texto. Remova a que não quiser.">
                             <div data-ilustracoes className="flex flex-wrap gap-2">{a.imagens.map((im) => (
                               <div key={im} style={{ width: 120, border: "1px solid " + C.linha, borderRadius: 10, overflow: "hidden", background: "#F6F8F7" }}>
-                                <img src={im} alt="" style={{ display: "block", width: "100%", height: 90, objectFit: "contain" }} />
+                                <img src={im.indexOf("img:") === 0 ? "/.netlify/functions/digital?img=" + im.slice(4) : im} alt="" style={{ display: "block", width: "100%", height: 90, objectFit: "contain", background: "#0C1D16" }} />
                                 <button type="button" onClick={() => mudarAula(t.id, a.id, "imagens", a.imagens.filter((x) => x !== im))} style={{ width: "100%", border: 0, borderTop: "1px solid " + C.linha, background: C.cal, fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "5px 0", color: "#A6332A", cursor: "pointer" }}>Remover</button>
                               </div>))}</div>
                           </Campo>
@@ -26213,7 +26317,7 @@ function App() {
              subaba === "registro" ? <TelaRegistro aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade} aoReabrirJogo={(id) => { try { sessionStorage.setItem("ql-reabrir:" + aberto.id, id); } catch { /* sem sessionStorage */ } setSubaba("scout"); }}
                abrirRegistroId={registroAbertoAlvo} aoConsumirAbrirRegistro={() => setRegistroAbertoAlvo(null)} /> :
              subaba === "estilo" ? <TelaEstiloTatico aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
-             subaba === "movimento" ? <TelaMovimento aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade} planoAtual={null} /> :
+             subaba === "movimento" ? <TelaMovimento aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade} planoAtual={null} podeCursos={mostraDigital} /> :
              subaba === "adversarios" ? <TelaAdversarios aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
              subaba === "equipe" ? <AbaEquipeJogador aluno={aberto} aoAbrirEquipes={() => { setAbertoId(null); setAba("equipes"); }} /> :
              <TelaSessao aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} papelAtual={papelAtual} uidAtual={uidAtual}
