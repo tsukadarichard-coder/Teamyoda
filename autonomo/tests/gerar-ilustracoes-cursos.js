@@ -23,36 +23,96 @@ function texto(x, y, t, o) {
   return '<text x="' + n(x) + '" y="' + n(y) + '" font-size="' + (o.tam || 15) + '" font-weight="' + (o.peso || 600) + '" fill="' + (o.cor || COR.tinta) + '"' + (o.meio ? ' text-anchor="middle"' : o.fim ? ' text-anchor="end"' : "") + ">" + esc(t) + "</text>";
 }
 
-/* ── boneco nas fases ── */
-const LIG = [[11, 12], [11, 13], [13, 15], [12, 14], [14, 16], [11, 23], [12, 24], [23, 24], [23, 25], [25, 27], [24, 26], [26, 28], [27, 31], [28, 32]];
-const LADO_DOM = new Set(["12-14", "14-16", "24-26", "26-28", "28-32", "12-24"]);
-function boneco(p, cx, cy, esc1, destaque) {
-  const P = (i) => (p[i] ? [cx + p[i].x * esc1, cy + p[i].y * esc1] : null);
+/* ── atleta nas fases ──
+   Figura chapada (estilo ilustração): membros com volume e contorno, camiseta, short, tênis, cabeça com cabelo e
+   raquete com cordas. As juntas vêm da pose de referência (índices do MediaPipe). Lado esquerdo atrás (tom mais escuro),
+   lado direito (dominante, destro) na frente com a raquete. */
+const ATL = { pele: "#E2A47B", peleFundo: "#C6875F", camisa: "#E8691F", camisaFundo: "#C2531A", short: "#17251F", shortFundo: "#0D1A15",
+  tenis: "#FFFFFF", sola: "#9FB0A7", cabelo: "#2A1D16", contorno: "#17251F", aro: "#0D3328", cabo: "#17251F", faixa: "#69B32A" };
+function atleta(p, cx, cy, u, contato, lancada) {
+  const P = (i) => (p[i] ? [cx + p[i].x * u, cy + p[i].y * u] : null);
+  const L = (A, C) => [A[0] + C[0], A[1] + C[1]];
+  const ent = (A, C, t) => [A[0] + (C[0] - A[0]) * t, A[1] + (C[1] - A[1]) * t];
+  const o = Math.max(1.6, u * 0.04); /* espessura do contorno */
+  const lin = (A, C, w, cor) => '<line x1="' + n(A[0]) + '" y1="' + n(A[1]) + '" x2="' + n(C[0]) + '" y2="' + n(C[1]) + '" stroke="' + cor + '" stroke-width="' + n(w) + '" stroke-linecap="round"/>';
+  /* uma camada: primeiro todos os contornos, depois os preenchimentos (juntas sem emenda) */
+  const camada = (segs) => segs.filter((x) => x[0] && x[1]).map((x) => lin(x[0], x[1], x[2] * u + 2 * o, ATL.contorno)).join("") + segs.filter((x) => x[0] && x[1]).map((x) => lin(x[0], x[1], x[2] * u, x[3])).join("");
+  const perna = (q, j, t, pe, fundo) => {
+    const Q = P(q), J = P(j), T = P(t), PE = P(pe);
+    return camada([[Q, J, 0.23, fundo ? ATL.peleFundo : ATL.pele], [J, T, 0.17, fundo ? ATL.peleFundo : ATL.pele]]) +
+      (T && PE ? camada([[T, L(PE, [0, 0]), 0.15, ATL.tenis]]) + lin(ent(T, PE, 0.15), PE, 0.05 * u, ATL.sola) : "");
+  };
+  const braco = (om, co, pu, fundo) => {
+    const O = P(om), C = P(co), U = P(pu); if (!O || !C || !U) return "";
+    const manga = ent(O, C, 0.45);
+    return camada([[O, C, 0.15, fundo ? ATL.peleFundo : ATL.pele], [C, U, 0.12, fundo ? ATL.peleFundo : ATL.pele]]) +
+      lin(O, manga, 0.19 * u, fundo ? ATL.camisaFundo : ATL.camisa) +
+      '<circle cx="' + n(U[0]) + '" cy="' + n(U[1]) + '" r="' + n(0.075 * u) + '" fill="' + (fundo ? ATL.peleFundo : ATL.pele) + '" stroke="' + ATL.contorno + '" stroke-width="' + n(o) + '"/>';
+  };
+  const ombE = P(11), ombD = P(12), quaE = P(23), quaD = P(24);
   let s = "";
-  LIG.forEach(([a, b]) => {
-    const A = P(a), C = P(b); if (!A || !C) return;
-    const dom = LADO_DOM.has(a + "-" + b) || LADO_DOM.has(b + "-" + a);
-    s += '<line x1="' + n(A[0]) + '" y1="' + n(A[1]) + '" x2="' + n(C[0]) + '" y2="' + n(C[1]) + '" stroke="' + (dom ? COR.atleta : COR.tinta) + '" stroke-width="' + (dom ? 5.5 : 4.5) + '" stroke-linecap="round"/>';
-  });
-  /* raquete: prolonga o antebraço dominante (cotovelo → punho) */
+  /* sombra no chão */
+  const pes = [P(27), P(28), P(31), P(32)].filter(Boolean), chao = Math.max(...pes.map((x) => x[1])) + 0.05 * u, mx = pes.reduce((a, x) => a + x[0], 0) / pes.length;
+  s += '<ellipse cx="' + n(mx) + '" cy="' + n(chao) + '" rx="' + n(0.55 * u) + '" ry="' + n(0.09 * u) + '" fill="rgba(23,37,31,.10)"/>';
+  /* atrás: perna e braço esquerdos */
+  s += perna(23, 25, 27, 31, true) + braco(11, 13, 15, true);
+  /* frente: perna direita, tronco e short, cabeça, braço e raquete */
+  s += perna(24, 26, 28, 32, false);
+  if (ombE && ombD && quaE && quaD) {
+    const tronco = [ombE, ombD, ent(ombD, quaD, 1.04), ent(ombE, quaE, 1.04)];
+    const pol = (pts, cor, w) => '<polygon points="' + pts.map((x) => n(x[0]) + "," + n(x[1])).join(" ") + '" fill="' + cor + '" stroke="' + cor + '" stroke-width="' + n(w) + '" stroke-linejoin="round"/>';
+    const joE = P(25), joD = P(26);
+    const short = [quaE, quaD, joD ? ent(quaD, joD, 0.42) : quaD, ent(ent(quaE, quaD, 0.5), ent(joE || quaE, joD || quaD, 0.5), 0.3), joE ? ent(quaE, joE, 0.42) : quaE];
+    s += pol(short, ATL.contorno, 0.16 * u + 2 * o) + pol(short, ATL.short, 0.16 * u);
+    s += pol(tronco, ATL.contorno, 0.2 * u + 2 * o) + pol(tronco, ATL.camisa, 0.2 * u);
+    const meioOmb = ent(ombE, ombD, 0.5);
+    const cab = P(0);
+    if (cab) {
+      const lado = cab[0] >= meioOmb[0] ? 1 : -1, c = [cab[0] - lado * 0.05 * u, cab[1] - 0.06 * u];
+      s += lin(meioOmb, ent(meioOmb, c, 0.62), 0.1 * u + 2 * o, ATL.contorno) + lin(meioOmb, ent(meioOmb, c, 0.62), 0.1 * u, ATL.pele);
+      s += '<circle cx="' + n(c[0]) + '" cy="' + n(c[1]) + '" r="' + n(0.2 * u) + '" fill="' + ATL.pele + '" stroke="' + ATL.contorno + '" stroke-width="' + n(o) + '"/>';
+      /* cabelo na parte de cima e de trás; faixa verde */
+      const r = 0.2 * u;
+      const pt = (ang) => [c[0] + r * Math.cos(ang * Math.PI / 180), c[1] + r * Math.sin(ang * Math.PI / 180)];
+      const A = pt(lado > 0 ? 160 : 20), Bq = pt(lado > 0 ? 335 : 205);
+      s += '<path d="M' + n(A[0]) + " " + n(A[1]) + " A" + n(r) + " " + n(r) + " 0 0 1 " + n(Bq[0]) + " " + n(Bq[1]) + " Q" + n(c[0]) + " " + n(c[1] - r * 0.35) + " " + n(A[0]) + " " + n(A[1]) + 'z" fill="' + ATL.cabelo + '"/>';
+      s += lin([c[0] - r * 0.92, c[1] - r * 0.28], [c[0] + r * 0.92, c[1] - r * 0.28], 0.065 * u, ATL.faixa);
+      s += '<circle cx="' + n(c[0]) + '" cy="' + n(c[1]) + '" r="' + n(r) + '" fill="none" stroke="' + ATL.contorno + '" stroke-width="' + n(o) + '"/>';
+    }
+  }
+  /* raquete: prolonga o antebraço direito (cotovelo → punho) */
   const co = P(14), pu = P(16);
   if (co && pu) {
-    const dx = pu[0] - co[0], dy = pu[1] - co[1], L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
-    const cabo = [pu[0] + ux * esc1 * 0.28, pu[1] + uy * esc1 * 0.28], cab = [pu[0] + ux * esc1 * 0.62, pu[1] + uy * esc1 * 0.62];
-    const ang = Math.atan2(uy, ux) * 180 / Math.PI;
-    s += '<line x1="' + n(pu[0]) + '" y1="' + n(pu[1]) + '" x2="' + n(cabo[0]) + '" y2="' + n(cabo[1]) + '" stroke="' + COR.outro + '" stroke-width="3.5" stroke-linecap="round"/>' +
-      '<ellipse cx="' + n(cab[0]) + '" cy="' + n(cab[1]) + '" rx="' + n(esc1 * 0.2) + '" ry="' + n(esc1 * 0.13) + '" transform="rotate(' + n(ang) + " " + n(cab[0]) + " " + n(cab[1]) + ')" fill="none" stroke="' + COR.outro + '" stroke-width="3"/>';
+    const dx = pu[0] - co[0], dy = pu[1] - co[1], Ln = Math.hypot(dx, dy) || 1, ux = dx / Ln, uy = dy / Ln;
+    const fimCabo = [pu[0] + ux * u * 0.2, pu[1] + uy * u * 0.2], garganta = [pu[0] + ux * u * 0.36, pu[1] + uy * u * 0.36], centro = [pu[0] + ux * u * 0.6, pu[1] + uy * u * 0.6];
+    const ang = Math.atan2(uy, ux) * 180 / Math.PI, rx = u * 0.24, ry = u * 0.165;
+    s += lin([pu[0] - ux * u * 0.05, pu[1] - uy * u * 0.05], fimCabo, 0.07 * u, ATL.cabo);
+    s += lin(fimCabo, garganta, 0.035 * u, ATL.aro);
+    s += '<g transform="translate(' + n(centro[0]) + " " + n(centro[1]) + ") rotate(" + n(ang) + ')">' +
+      '<ellipse rx="' + n(rx) + '" ry="' + n(ry) + '" fill="#F4F7F2"/>' +
+      [-0.6, -0.3, 0, 0.3, 0.6].map((k) => lin([k * rx, -ry * Math.sqrt(1 - k * k) * 0.96], [k * rx, ry * Math.sqrt(1 - k * k) * 0.96], 0.9, "#9FB0A7")).join("") +
+      [-0.55, 0, 0.55].map((k) => lin([-rx * Math.sqrt(1 - k * k) * 0.96, k * ry], [rx * Math.sqrt(1 - k * k) * 0.96, k * ry], 0.9, "#9FB0A7")).join("") +
+      '<ellipse rx="' + n(rx) + '" ry="' + n(ry) + '" fill="none" stroke="' + ATL.aro + '" stroke-width="' + n(Math.max(2.4, 0.05 * u)) + '"/></g>';
+    if (contato) {
+      /* a bola encosta na face da raquete, do lado da frente (para a direita da figura) */
+      const sg = -uy >= 0 ? 1 : -1, bx = centro[0] - sg * uy * u * 0.27, by = centro[1] + sg * ux * u * 0.27;
+      s += '<circle cx="' + n(bx) + '" cy="' + n(by) + '" r="' + n(0.1 * u) + '" fill="' + COR.bola + '" stroke="#5C6A1C" stroke-width="1.4"/>' +
+        '<path d="M' + n(bx - 0.07 * u) + " " + n(by - 0.06 * u) + " Q" + n(bx) + " " + n(by) + " " + n(bx - 0.07 * u) + " " + n(by + 0.06 * u) + '" fill="none" stroke="#FFFFFF" stroke-width="1.3" opacity=".85"/>';
+    }
   }
-  const cab0 = P(0); if (cab0) s += '<circle cx="' + n(cab0[0]) + '" cy="' + n(cab0[1]) + '" r="' + n(esc1 * 0.17) + '" fill="' + COR.fundo + '" stroke="' + COR.tinta + '" stroke-width="4"/>';
+  s += braco(12, 14, 16, false);
+  /* saque: a bola lançada acima da mão esquerda */
+  const me = P(15);
+  if (lancada && me) s += '<circle cx="' + n(me[0]) + '" cy="' + n(me[1] - lancada * u) + '" r="' + n(0.1 * u) + '" fill="' + COR.bola + '" stroke="#5C6A1C" stroke-width="1.4"/>';
   return s;
 }
 /* pontos extremos do boneco (com a raquete e a cabeça), em unidades da pose */
 function extremos(p) {
   const xs = [], ys = [];
   [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28, 31, 32].forEach((i) => { if (p[i]) { xs.push(p[i].x); ys.push(p[i].y); } });
-  if (p[0]) { xs.push(p[0].x - 0.17, p[0].x + 0.17); ys.push(p[0].y - 0.17); }
+  if (p[0]) { xs.push(p[0].x - 0.27, p[0].x + 0.27); ys.push(p[0].y - 0.3); }
   if (p[14] && p[16]) { const dx = p[16].x - p[14].x, dy = p[16].y - p[14].y, L = Math.hypot(dx, dy) || 1;
-    xs.push(p[16].x + dx / L * 0.84); ys.push(p[16].y + dy / L * 0.84); }
+    [1, -1].forEach((sg) => { xs.push(p[16].x + dx / L * 0.86 - sg * dy / L * 0.2); ys.push(p[16].y + dy / L * 0.86 + sg * dx / L * 0.2); }); }
   return { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
 }
 function fasesGolpe(golpe, emp, destaque, titulo) {
@@ -67,7 +127,7 @@ function fasesGolpe(golpe, emp, destaque, titulo) {
     s += '<line x1="' + (x0 + 24) + '" y1="' + (y0 + 214) + '" x2="' + (x0 + colW - 24) + '" y2="' + (y0 + 214) + '" stroke="' + COR.linha + '" stroke-width="3"/>';
     /* escala comum às 6 fases; pés no chão do cartão e boneco centrado na largura */
     const e = extremos(p), cx = x0 + colW / 2 - ((e.x0 + e.x1) / 2) * esc1, cy = y0 + 210 - e.y1 * esc1;
-    s += boneco(p, cx, cy, esc1);
+    s += atleta(p, cx, cy, esc1, i === 3 ? 1 : 0, golpe === "saque" ? [0.3, 0.7][i] || 0 : 0);
     s += '<circle cx="' + (x0 + 30) + '" cy="' + (y0 + 28) + '" r="13" fill="' + (on ? COR.verde : COR.tinta) + '"/>' + texto(x0 + 30, y0 + 33, String(i + 1), { tam: 13, peso: 800, cor: "#fff", meio: true });
     s += texto(x0 + colW / 2, y0 + 236, nomes[i], { tam: 15, peso: on ? 800 : 600, meio: true, cor: on ? "#2F5F12" : COR.tinta });
   });
