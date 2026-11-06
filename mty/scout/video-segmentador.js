@@ -94,7 +94,12 @@
     { k: "acesA", rot: "Aces do meu jogador", melhor: true }, { k: "dfA", rot: "Duplas faltas do meu jogador", melhor: false },
     { k: "winnersA", rot: "Winners do meu jogador", melhor: true }, { k: "errosA", rot: "Erros do meu jogador", melhor: false },
     { k: "naoForcadosA", rot: "Erros não forçados do meu jogador", melhor: false },
-    { k: "pctCurtos", rot: "Pontos até 4 batidas", suf: "%", melhor: null }, { k: "batidasMedia", rot: "Batidas por ponto", melhor: null }
+    { k: "pctCurtos", rot: "Pontos até 4 batidas", suf: "%", melhor: null }, { k: "batidasMedia", rot: "Batidas por ponto", melhor: null },
+    /* pernas e golpes (scout/pernas-golpes.js), quando o jogo teve o scout completo do vídeo */
+    { k: "distPonto", rot: "Distância por ponto (m)", melhor: null }, { k: "vmaxKmh", rot: "Velocidade máxima (km/h)", melhor: true },
+    { k: "reacao", rot: "Primeiro passo depois do golpe dele (s)", melhor: false, lim: 0.03 }, { k: "pctPronto", rot: "Pronto no golpe do adversário", suf: "%", melhor: true },
+    { k: "distCentro", rot: "Longe do centro no golpe dele (m)", melhor: false, lim: 0.2 },
+    { k: "velSaque", rot: "Velocidade do saque (km/h)", melhor: true, lim: 2 }, { k: "velFH", rot: "Velocidade do forehand (km/h)", melhor: true, lim: 2 }, { k: "velBH", rot: "Velocidade do backhand (km/h)", melhor: true, lim: 2 }
   ];
   /* Compara um jogo em vídeo com os anteriores (média e último). Mesma lógica de limiar do scout completo. */
   function compararVideo(atual, anteriores) {
@@ -104,9 +109,9 @@
       var prev = (anteriores || []).map(function (h) { return h.res[m.k]; }).filter(function (v) { return typeof v === "number" && isFinite(v); });
       if (typeof va !== "number" || !prev.length) return;
       var media = prev.reduce(function (s, v) { return s + v; }, 0) / prev.length, ultimo = prev[prev.length - 1], delta = va - media;
-      var lim = m.suf === "%" ? 2 : 0.5, sent = (m.melhor === null || Math.abs(delta) < lim) ? 0 : ((delta > 0) === m.melhor ? 1 : -1);
+      var lim = m.lim != null ? m.lim : m.suf === "%" ? 2 : 0.5, sent = (m.melhor === null || Math.abs(delta) < lim) ? 0 : ((delta > 0) === m.melhor ? 1 : -1);
       if (sent > 0) mel++; else if (sent < 0) pio++;
-      var ar = function (v) { return Math.round(v * 10) / 10; };
+      var ar = function (v) { return Math.round(v * (m.lim && m.lim < 0.1 ? 100 : 10)) / (m.lim && m.lim < 0.1 ? 100 : 10); };
       linhas.push({ rot: m.rot, atual: ar(va) + (m.suf || ""), media: ar(media) + (m.suf || ""), ultimo: ar(ultimo) + (m.suf || ""), sentido: sent, neutro: m.melhor === null });
     });
     return { n: (anteriores || []).length, linhas: linhas, melhoraram: mel, pioraram: pio };

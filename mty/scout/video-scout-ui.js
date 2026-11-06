@@ -286,7 +286,7 @@
     function chip(rot, val, conf) { return val ? "<span>" + esc(rot) + ": <b>" + esc(val) + "</b>" + (conf ? '<i class="' + conf + '" title="' + ({ alta: "confiável", media: "confira", baixa: "em dúvida", treinador: "marcado por você" }[conf] || "") + '">' + (conf === "baixa" ? "?" : "●") + "</i>" : "") + "</span>" : ""; }
     function seqHTML(p, n) {
       return (p.batidas || []).map(function (b) {
-        return "<b>" + esc(b.quem === "nos" ? n.A : n.B) + "</b> " + esc(CURTO[b.golpe] || "?") + (b.direcao ? " " + ({ cruzado: "cruzado", paralelo: "paralelo", centro: "no meio" }[b.direcao]) : "") + (b.efeito ? " · " + ROT(EFEITOS, b.efeito).toLowerCase() : "");
+        return "<b>" + esc(b.quem === "nos" ? n.A : n.B) + "</b> " + esc(CURTO[b.golpe] || "?") + (b.direcao ? " " + ({ cruzado: "cruzado", paralelo: "paralelo", centro: "no meio" }[b.direcao]) : "") + (b.efeito ? " · " + ROT(EFEITOS, b.efeito).toLowerCase() : "") + (b.vel ? " · " + b.vel + " km/h" : "");
       }).join(" → ");
     }
     function revisar() {
@@ -313,6 +313,7 @@
         '<div class="qm-row" style="margin-top:8px"><button data-f="todos"' + (S.filtro === "todos" ? ' class="qm-pri"' : "") + '>Todos</button><button data-f="conf"' + (S.filtro === "conf" ? ' class="qm-pri"' : "") + ">Para conferir (" + conf + ")</button></div>" +
         '<div data-r="pts">' + lista.map(function (x) { return cartao(x[0], x[1], n); }).join("") + (lista.length ? "" : '<p class="qm-msg">Nada para conferir. 👍</p>') + "</div>" +
         '<div class="qm-row" style="margin-top:12px"><button class="qm-pri" data-a="salvar">' + (S.salvo ? "Salvar de novo" : "Salvar scout no caderno do jogador") + '</button><button data-a="csv">Baixar CSV</button></div><p class="qm-msg" data-r="smsg">' + (S.salvo ? "Salvo no caderno do jogador ✓ (as correções também são salvas sozinhas)." : "") + "</p></div>" +
+        (raiz.QLPernasGolpes ? '<div class="qm-card" data-r="pernasGolpes"><h3 class="qm-h">Pernas e golpes</h3><p class="qm-msg">Quanto e como cada um se movimentou, e a quantidade e a velocidade dos golpes. Os números acompanham as correções que você fizer nos pontos.</p>' + raiz.QLPernasGolpes.html(raiz.QLPernasGolpes.analisar(S.pontos), n) + "</div>" : "") +
         (raiz.QLPadroes ? '<div class="qm-card"><h3 class="qm-h">Padrões da partida</h3><p class="qm-msg">Como cada ponto foi construído: as sequências exatas que deram ponto e as que deram erro, dos dois lados. Somando vários jogos, os padrões aparecem na aba Evolução.</p>' + raiz.QLPadroes.html(raiz.QLPadroes.analisar(S.pontos), n) + "</div>" : "");
       var slot = el.querySelector('[data-r="slotVideo"]'); if (api.video && api.moverVideo) api.moverVideo(slot);
       [].forEach.call(el.querySelectorAll("[data-f]"), function (b) { b.onclick = function () { S.filtro = b.getAttribute("data-f"); S.aberto = -1; render(); }; });
@@ -516,7 +517,8 @@
       if (!pts.length) return;
       S.idScout = S.idScout || "pv" + Date.now().toString(36);
       var arq = api.arquivo(), quando = arq && arq.lastModified ? new Date(arq.lastModified) : null;
-      var dados = { id: S.idScout, data: quando && !isNaN(quando) ? quando.toISOString().slice(0, 10) : null, pontos: pts, placar: S.placar, cfg: { formato: S.regras.formato, saca: S.sacaInicial, semVantagem: S.regras.semVantagem, superTiebreakDecisivo: S.regras.superTiebreakDecisivo, adversario: n.B === "Adversário" ? "" : n.B, torneio: "" } };
+      var dados = { id: S.idScout, data: quando && !isNaN(quando) ? quando.toISOString().slice(0, 10) : null, pontos: pts, placar: S.placar,
+        pernas: raiz.QLPernasGolpes ? raiz.QLPernasGolpes.resumo(raiz.QLPernasGolpes.analisar(S.pontos)) : undefined, cfg: { formato: S.regras.formato, saca: S.sacaInicial, semVantagem: S.regras.semVantagem, superTiebreakDecisivo: S.regras.superTiebreakDecisivo, adversario: n.B === "Adversário" ? "" : n.B, torneio: "" } };
       try {
         var r = api.aoSalvarScout ? api.aoSalvarScout(dados) : null;
         if (api.aoSalvarVideo) api.aoSalvarVideo(S.pontos);

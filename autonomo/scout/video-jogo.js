@@ -227,6 +227,7 @@
             var nb = (p.batidas || []).length;
             return { n: i + 1, ini: p.video ? p.video.ini : 0, fim: p.video ? p.video.fim : 0, saque: p.video ? p.video.ini + 1.8 : 0, sacador: p.sacador === "nos" ? "A" : "B", venc: p.nos ? "A" : "B", tipo: tipo, golpes: nb, duracao: nb ? (p.batidas[nb - 1].t - p.batidas[0].t) : 0 };
           });
+          st.pernas = raiz.QLPernasGolpes ? raiz.QLPernasGolpes.resumo(raiz.QLPernasGolpes.analisar(pontosScout)) : null; // pernas e golpes entram na comparação
           if (!st.regId) st.salvo = false; // a mesma partida salva de novo atualiza o registro (não conta outra vez na cota)
           q("salvar").onclick();
         },
@@ -272,7 +273,7 @@
     el.setAttribute("tabindex", "-1");
     function registro() {
       return { id: st.regId || ("vj" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)), criadoEm: new Date().toISOString(), atleta: q("nA").value, adversario: q("nB").value,
-        pontos: st.pts.map(function (p) { return { n: p.n, ini: +p.ini.toFixed(1), fim: +p.fim.toFixed(1), saque: +p.saque.toFixed(1), sacador: p.sacador, venc: p.venc, tipo: p.tipo, golpes: p.golpes, duracao: +p.duracao.toFixed(1) }; }), res: S.resumirJogo(st.pts), origem: "video",
+        pontos: st.pts.map(function (p) { return { n: p.n, ini: +p.ini.toFixed(1), fim: +p.fim.toFixed(1), saque: +p.saque.toFixed(1), sacador: p.sacador, venc: p.venc, tipo: p.tipo, golpes: p.golpes, duracao: +p.duracao.toFixed(1) }; }), res: Object.assign(S.resumirJogo(st.pts), st.pernas || {}), origem: "video",
         youtube: st.yt ? st.yt.id : undefined };
     }
     q("salvar").onclick = function () {

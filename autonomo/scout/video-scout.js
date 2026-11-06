@@ -187,6 +187,17 @@
     });
     return { perto: perto, longe: longe };
   }
+  /* rastro dos pés em metros: média a cada 0,1 s → [[t, x, y], …] */
+  function rastro(tr) {
+    var out = [], bin = null, sx = 0, sy = 0, st = 0, n = 0;
+    tr.forEach(function (f) {
+      var b = Math.floor(f.t * 10);
+      if (b !== bin && n) { out.push([Math.round(st / n * 100) / 100, Math.round(sx / n * 100) / 100, Math.round(sy / n * 100) / 100]); sx = sy = st = n = 0; }
+      bin = b; sx += f.P[0]; sy += f.P[1]; st += f.t; n++;
+    });
+    if (n) out.push([Math.round(st / n * 100) / 100, Math.round(sx / n * 100) / 100, Math.round(sy / n * 100) / 100]);
+    return out;
+  }
   function noTempo(tr, t, tol) {
     var m = null, d = tol == null ? 0.2 : tol;
     for (var i = 0; i < tr.length; i++) { var x = Math.abs(tr[i].t - t); if (x <= d) { d = x; m = tr[i]; } }
@@ -486,6 +497,7 @@
       if (Math.abs(chao[1]) < 2.2 && fimT.t - ult.t < 1.3) { pUlt = 0.12; saida = "rede"; fimConf = "media"; }
     }
     return {
+      rastro: { perto: rastro(tr.perto), longe: rastro(tr.longe) }, // pés de cada um na quadra, ~10 por segundo (pernas: scout/pernas-golpes.js)
       ini: d.ini, fim: d.fim, nHits: nH, quem: quem, batidas: batidas, falsas: falsas, sp: sp, ladoObs: ladoObs, pAtletaPerto: pAP, servico: servico,
       pUltimoGanhou: pUlt, fimConf: fimConf, saida: saida, ultimoEhSacador: nH ? quem[nH - 1] === quem[0] : true,
       pFalta: nH === 1 ? (servico && servico.dentro != null ? (servico.dentro ? 0.15 : 0.92) : 0.8) : nH === 2 ? (servico && servico.dentro === false ? 0.75 : 0.12) : 0.02,
@@ -654,7 +666,7 @@
       if (d.papel === "falta") { faltaPend = { k: k, pFalta: a.pFalta }; return; }
       var atletaPerto = est.ap, quemA = atletaPerto ? "perto" : "longe";
       var bats = a.batidas.map(function (b) { return { t: Math.round(b.t * 100) / 100, quem: b.quem === quemA ? "nos" : "ele", golpe: b.devolucao && b.golpe !== "voleio" ? (b.golpe || "devolucao") : b.golpe, efeito: b.efeito || null, direcao: b.direcao || null, corrida: !!b.corrida, rede: !!b.rede, profundidade: b.profundidade || null,
-        vel: b.vel || null, distFundo: b.distFundo == null ? null : b.distFundo, alturaRede: b.voo ? b.voo.alturaRede : null }; });
+        vel: b.vel || null, distFundo: b.distFundo == null ? null : b.distFundo, alturaRede: b.voo ? b.voo.alturaRede : null, chegada: b.velocidade == null ? null : b.velocidade }; });
       var meus = a.batidas.filter(function (b) { return b.quem === quemA; }), u = meus[meus.length - 1] || null, nH = a.nHits;
       var ultimo = a.batidas[nH - 1], ultNos = ultimo ? ultimo.quem === quemA : sac === "nos";
       var saque = d.saque, nos = d.nos, fim;
@@ -673,6 +685,7 @@
         n: pontos.length + 1, placarAntes: Placar.rotulo(est.e), jogo: Placar.jogo(est.e), set: Placar.set(est.e),
         video: { ini: Math.round(a.ini * 10) / 10, fim: Math.round(a.fim * 10) / 10, falta: faltaPend ? Math.round(an[faltaPend.k].ini * 10) / 10 : null },
         k: k, atletaPerto: atletaPerto, // só na tela (rastreamento); compactar() não grava
+        mov: a.rastro ? { nos: a.rastro[quemA], ele: a.rastro[quemA === "perto" ? "longe" : "perto"] } : null, // idem: rastro dos pés (pernas)
         batidas: bats,
         auto: {
           nos: confDe(clamp(pLocal) + (dec.confere ? 0.15 : 0)), fim: a.fimConf === "alta" && pLocal > 0.75 ? "alta" : confDe(pLocal),

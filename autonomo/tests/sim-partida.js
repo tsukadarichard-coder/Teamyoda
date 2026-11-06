@@ -154,7 +154,7 @@ function simularPartida(o = {}) {
         seg.quadros.push(q);
       }
       segs.push(seg);
-      const v = { papel: fimTipo === "falta" ? "falta" : "ponto", sacador: sac, lado: ld, nHits: bats.length, dirSaque: ds, entra,
+      const v = { papel: fimTipo === "falta" ? "falta" : "ponto", sacador: sac, lado: ld, nHits: bats.length, dirSaque: ds, entra, traj,
         batidas: bats.map((b) => ({ quem: b.quem, golpe: b.golpe, efeito: b.efeito || null, direcao: b.direcao || null, corrida: false, alvo: b.alvo, fim: b.fim || null,
           vel: (() => { const T1 = b.dur, d = Math.hypot(b.alvo[0] - b.de[0], b.alvo[1] - b.de[1]), vz = (aEf(b) * T1 * T1 / 2 - b.z) / T1; return Math.round(Math.hypot(d / T1, vz) * 3.6); })() })) };
       t = tFim + (o.pausaFalta != null ? o.pausaFalta : 6 + rnd() * 10);

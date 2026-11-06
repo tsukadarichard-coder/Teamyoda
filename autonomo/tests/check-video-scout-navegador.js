@@ -16,7 +16,7 @@ if (process.env.AVI) {
   arquivo = video.replace(/\.mp4$/, ".avi"); cp.execSync(`ffmpeg -v error -y -i "${video}" -c:v mpeg4 -q:v 3 -c:a libmp3lame "${arquivo}"`);
 }
 const pagina = `<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><link rel=stylesheet href=/scout/movimento.css><div id=a style="max-width:1000px;margin:auto"></div>
-<script src=/scout/video-segmentador.js></script><script src=/scout/video-audio.js></script><script src=/scout/video-scout.js></script><script src=/scout/video-visao.js></script>${process.env.SEM_IA ? "" : "<script src=/scout/bola-ia.js></script>"}<script src=/scout/video-scout-ui.js></script><script src=/scout/quadra-auto.js></script><script src=/scout/padroes.js></script><script src=/scout/video-jogo.js></script>
+<script src=/scout/video-segmentador.js></script><script src=/scout/video-audio.js></script><script src=/scout/video-scout.js></script><script src=/scout/video-visao.js></script>${process.env.SEM_IA ? "" : "<script src=/scout/bola-ia.js></script>"}<script src=/scout/video-scout-ui.js></script><script src=/scout/quadra-auto.js></script><script src=/scout/padroes.js></script><script src=/scout/pernas-golpes.js></script><script src=/scout/video-jogo.js></script>
 <script>
 window.__salvos = []; window.__videos = [];
 window.vj = QLVideoJogo.montar(document.getElementById("a"), { atleta: "Ana", aoSalvar: (r) => window.__videos.push(r), aoSalvarScout: (d) => window.__salvos.push(JSON.parse(JSON.stringify(d))) });
@@ -86,6 +86,14 @@ const srv = http.createServer((q, r) => {
   assert(certo("sacador") === n && certo("saque") >= n - 1 && certo("nos") >= n - 1, "sacador, tipo de saque e quem ganhou");
   /* a IA só marca a bola onde ela está (o detector por pixels também marca candidatos falsos); fora dos ralis não há bola */
   assert(r.bolas / r.quadros > (/^ia/.test(r.via) ? 0.35 : 0.5), "a bola é achada na maior parte dos quadros");
+  /* pernas e golpes: distância, velocidade e golpes de cada um, a partir do rastro dos pés; vão junto no caderno e no histórico */
+  const pg = await p.evaluate(() => { const c = document.querySelector('[data-r="pernasGolpes"]'); const s = window.__salvos[window.__salvos.length - 1]; return { txt: c ? c.textContent : "", mapas: c ? c.querySelectorAll(".pg-mapa svg").length : 0, pernas: s && s.pernas, res: window.__videos.length ? window.__videos[window.__videos.length - 1].res : null }; });
+  assert(/Distância por ponto/.test(pg.txt) && /Velocidade da bola/.test(pg.txt) && /Duração dos ralis/.test(pg.txt) && !/NaN|undefined/.test(pg.txt), "cartão Pernas e golpes");
+  assert.strictEqual(pg.mapas, 2, "mapa de onde cada um ficou");
+  assert(pg.pernas && pg.pernas.distPonto > 2 && pg.pernas.distPonto < 40 && pg.pernas.fh + pg.pernas.bh > 0, "resumo de pernas no scout salvo: " + JSON.stringify(pg.pernas));
+  assert(pg.res && typeof pg.res.distPonto === "number", "pernas entram no histórico de jogos em vídeo");
+  console.log("  pernas: " + pg.pernas.distPonto + " m por ponto · máx. " + pg.pernas.vmaxKmh + " km/h · FH/BH " + pg.pernas.fh + "/" + pg.pernas.bh + " · forehand " + pg.pernas.velFH + " km/h");
+  if (capturas) await p.locator('[data-r="pernasGolpes"]').screenshot({ path: path.join(capturas, "scout-pernas-golpes.png") });
   if (capturas) await p.screenshot({ path: path.join(capturas, "scout-revisao.png"), fullPage: true });
   /* "Ver rastreamento": quadra, jogadores e bola desenhados por cima do ponto, acompanhando o vídeo */
   await p.click('.vs-pt[data-cart="1"] [data-acao="rastro"]');
