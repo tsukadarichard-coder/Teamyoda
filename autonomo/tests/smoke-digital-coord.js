@@ -62,7 +62,7 @@ const base = "http://localhost:" + srv.address().port;
   const p = await ctx.newPage(), erros = [];
   p.on("pageerror", (e) => erros.push(e.message)); p.on("dialog", (d) => d.accept());
   await p.goto(base + "/coord");
-  await p.waitForSelector("text=Nenhuma trilha ainda", { timeout: 60000 });
+  await p.waitForSelector("text=Nenhum curso ainda", { timeout: 60000 });
   /* aviso do endereço novo: só para o Team Yoda (não para o 39 Ranch), quando teamyoda.com.br responde; "Já mudei" esconde de vez */
   await p.waitForSelector("[data-aviso-endereco] >> text=teamyoda.com.br/treinador");
   assert.strictEqual(await p.locator("[data-aviso-endereco]").count(), 1, "só um aviso (o do 39 Ranch não aparece)");
@@ -71,8 +71,8 @@ const base = "http://localhost:" + srv.address().port;
   assert.strictEqual(await p.locator("[data-aviso-endereco]").count(), 0);
   const campo = (rot) => p.locator("div.mb-4", { has: p.locator("text=" + rot) }).locator("input, textarea, select").first();
 
-  await p.click("button:has-text('+ Nova trilha')");
-  await campo("Título da trilha").fill("Forehand do zero");
+  await p.click("button:has-text('+ Novo curso')");
+  await campo("Título do curso").fill("Forehand do zero");
   await campo("Nível").selectOption("iniciante");
   await p.click("button:has-text('+ Aula')");
   await campo("Título da aula").fill("Empunhadura");
@@ -89,15 +89,41 @@ const base = "http://localhost:" + srv.address().port;
   await p.waitForSelector("text=estes códigos não estão no catálogo: ZZ999");
   await campo("Treinos da aula").fill("FB001, FB003");
   await p.click("button:has-text('Salvar')");
-  await p.waitForSelector("text=Salvo. As trilhas publicadas");
+  await p.waitForSelector("text=Salvo. Os cursos publicados");
   let c = store["digitalContas/u1"] && store["digitalConteudo/academia"];
   assert.deepStrictEqual([c.trilhas[0].titulo, c.trilhas[0].nivel, c.trilhas[0].publicada, c.trilhas[0].aulas[0].youtube, c.trilhas[0].aulas[0].exercicios], ["Forehand do zero", "iniciante", false, "dQw4w9WgXcQ", ["FB001", "FB003"]]);
   await p.check("[data-trilha] input[type=checkbox]");
   await p.click("button:has-text('Salvar')");
-  await p.waitForSelector("text=Salvo. As trilhas publicadas");
+  await p.waitForSelector("text=Salvo. Os cursos publicados");
   assert.strictEqual(store["digitalConteudo/academia"].trilhas[0].publicada, true);
   await p.waitForSelector("text=· 1 aula · publicada");
   await (capturas && p.screenshot({ path: path.join(capturas, "digital-coord-trilhas.png"), fullPage: true }));
+
+  /* quiz feito à mão: incompleto é recusado; completo é salvo */
+  await p.click("[data-quiz-editor] button:has-text('+ Pergunta')");
+  await p.fill("[data-pergunta='0'] input", "Onde fica o contato?");
+  await p.click("button:has-text('Salvar')");
+  await p.waitForSelector("text=Pergunta incompleta no quiz");
+  await p.fill("[data-pergunta='0'] input", "Onde fica o contato?");
+  await p.fill("[data-pergunta='0'] textarea", "À frente do corpo\nAtrás do corpo");
+  await p.click("button:has-text('Salvar')");
+  await p.waitForSelector("text=Marque a resposta certa");
+  await p.selectOption("[data-pergunta='0'] select", "0");
+  await p.click("button:has-text('Salvar')");
+  await p.waitForSelector("text=Salvo. Os cursos publicados");
+  assert.deepStrictEqual(store["digitalConteudo/academia"].trilhas[0].aulas[0].quiz, [{ p: "Onde fica o contato?", op: ["À frente do corpo", "Atrás do corpo"], c: 0 }]);
+  /* cursos-modelo: técnica, tática e mental em rascunho, com quiz em todas as aulas e treinos ligados */
+  for (const b of ["+ Curso de Técnica", "+ Curso de Tática", "+ Curso Mental"]) await p.click("[data-modelos] button:has-text('" + b + "')");
+  await p.click("button:has-text('Salvar')");
+  await p.waitForSelector("text=Salvo. Os cursos publicados");
+  const ts = store["digitalConteudo/academia"].trilhas;
+  assert.deepStrictEqual(ts.slice(1).map((t) => [t.categoria, t.publicada]), [["tecnica", false], ["tatica", false], ["mental", false]]);
+  assert.strictEqual(ts[1].aulas.length, 12, "12 aulas da série de técnica");
+  assert(ts[1].aulas.every((a) => a.quiz.length === 1 && a.descricao.length > 80), "técnica: texto e quiz em todas");
+  assert(ts[2].aulas.filter((a) => a.quiz.length).length >= 14 && ts[2].aulas.some((a) => a.exercicios.length), "tática: quiz e trilhos ligados");
+  assert(ts[3].aulas.length === 7 && ts[3].aulas.every((a) => a.exercicios.length === 1 && /^DM/.test(a.exercicios[0])), "mental: um treino DM por aula");
+  assert(ts.slice(1).every((t) => t.aulas.every((a) => a.quiz.every((q) => q.c >= 0 && q.c < q.op.length && new Set(q.op).size === q.op.length))), "quizzes válidos e sem opção repetida");
+  await (capturas && p.screenshot({ path: path.join(capturas, "digital-coord-cursos.png"), fullPage: true }));
 
   /* venda */
   await p.click("button[role=tab]:has-text('Venda')");
@@ -107,9 +133,9 @@ const base = "http://localhost:" + srv.address().port;
   await p.waitForSelector("text=precisa começar com https://");
   await campo("Link de pagamento").fill("");
   await p.click("button:has-text('Salvar')");
-  await p.waitForSelector("text=Salvo. As trilhas publicadas");
+  await p.waitForSelector("text=Salvo. Os cursos publicados");
   assert.deepStrictEqual([store["digitalConteudo/academia"].venda.preco, store["digitalConteudo/academia"].venda.checkoutUrl], ["R$ 59,90/mês", ""]);
-  assert.strictEqual(store["digitalConteudo/academia"].trilhas.length, 1, "salvar a venda mantém as trilhas");
+  assert.strictEqual(store["digitalConteudo/academia"].trilhas.length, 4, "salvar a venda mantém os cursos");
 
   /* membros e cortesia */
   await p.click("button[role=tab]:has-text('Membros')");

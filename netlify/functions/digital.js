@@ -38,6 +38,17 @@ function idDoYoutube(v) {
   return m ? m[1] : "";
 }
 const NIVEIS = ["iniciante", "intermediario", "avancado", "todos"];
+const CATEGORIAS = ["tecnica", "tatica", "mental", "geral"];
+/* quiz de uma aula: até 5 perguntas de 2 a 5 opções; c = índice da certa (fica só no servidor) */
+function limparQuiz(q, titulo) {
+  return (Array.isArray(q) ? q : []).slice(0, 5).map((x) => {
+    const op = (Array.isArray(x && x.op) ? x.op : []).map((o) => txt(o, 220)).filter(Boolean).slice(0, 5);
+    const c = x && Number.isInteger(x.c) ? x.c : -1;
+    if (!txt(x && x.p, 300) || op.length < 2) throw new Erro(400, "Pergunta incompleta no quiz da aula “" + txt(titulo, 60) + "” (precisa do texto e de pelo menos 2 opções).");
+    if (!(c >= 0 && c < op.length)) throw new Erro(400, "Marque a resposta certa em todas as perguntas do quiz da aula “" + txt(titulo, 60) + "”.");
+    return { p: txt(x.p, 300), op, c: Math.floor(c) };
+  });
+}
 function limparConteudo(b) {
   const trilhas = (Array.isArray(b.trilhas) ? b.trilhas : []).slice(0, MAX_TRILHAS).map((t, i) => {
     const id = ID.test(String(t.id || "")) ? String(t.id) : "tr" + Date.now().toString(36) + i;
@@ -46,12 +57,12 @@ function limparConteudo(b) {
       if (a.youtube && !yt) throw new Erro(400, "Link do YouTube inválido na aula “" + txt(a.titulo, 60) + "”.");
       return {
         id: ID.test(String(a.id || "")) ? String(a.id) : id + "-a" + Date.now().toString(36) + j,
-        titulo: txt(a.titulo, 120) || "Aula " + (j + 1), descricao: txtLongo(a.descricao, 2000), youtube: yt,
+        titulo: txt(a.titulo, 120) || "Aula " + (j + 1), descricao: txtLongo(a.descricao, 6000), youtube: yt, quiz: limparQuiz(a.quiz, a.titulo),
         exercicios: (Array.isArray(a.exercicios) ? a.exercicios : []).map((c) => String(c).toUpperCase()).filter((c) => /^[A-Z]{2,4}\d{3}$/.test(c)).slice(0, 12),
         duracao: txt(a.duracao, 20),
       };
     });
-    return { id, titulo: txt(t.titulo, 120) || "Trilha " + (i + 1), descricao: txtLongo(t.descricao, 1500), nivel: NIVEIS.includes(t.nivel) ? t.nivel : "todos", publicada: !!t.publicada, aulas };
+    return { id, titulo: txt(t.titulo, 120) || "Curso " + (i + 1), descricao: txtLongo(t.descricao, 1500), nivel: NIVEIS.includes(t.nivel) ? t.nivel : "todos", categoria: CATEGORIAS.includes(t.categoria) ? t.categoria : "geral", publicada: !!t.publicada, aulas };
   });
   const v = b.venda || {};
   const checkoutUrl = txt(v.checkoutUrl, 400);
@@ -65,9 +76,11 @@ async function lerConteudo() {
 }
 /* o que um visitante vê: nome e tamanho das trilhas publicadas, nunca o vídeo nem os treinos */
 function vitrine(c) {
-  return { trilhas: c.trilhas.filter((t) => t.publicada).map((t) => ({ id: t.id, titulo: t.titulo, descricao: t.descricao, nivel: t.nivel, aulas: t.aulas.length, comVideo: t.aulas.filter((a) => a.youtube).length })), venda: c.venda };
+  return { trilhas: c.trilhas.filter((t) => t.publicada).map((t) => ({ id: t.id, titulo: t.titulo, descricao: t.descricao, nivel: t.nivel, categoria: t.categoria || "geral", aulas: t.aulas.length, comVideo: t.aulas.filter((a) => a.youtube).length })), venda: c.venda };
 }
-const publicadas = (c) => c.trilhas.filter((t) => t.publicada);
+/* para o aluno: só os cursos publicados, e o quiz sem a resposta certa (ela é conferida aqui no servidor) */
+const publicadas = (c) => c.trilhas.filter((t) => t.publicada).map((t) => ({ ...t, aulas: t.aulas.map((a) => ({ ...a, quiz: (a.quiz || []).map((q) => ({ p: q.p, op: q.op })) })) }));
+function aulaPublicada(c, aulaId) { for (const t of c.trilhas) if (t.publicada) for (const a of t.aulas) if (a.id === aulaId) return a; return null; }
 
 async function quem(event) {
   const cab = (event.headers && (event.headers.authorization || event.headers.Authorization)) || "";
@@ -184,6 +197,7 @@ exports.handler = async function (event) {
         conta: { nome: conta.nome, email: conta.email }, acesso, coordenacao: ehCoordenacao(claims),
         unidades: (conta.vinculos || []).map((v) => ({ org: v.org, alunoId: v.alunoId, unidade: ORGS[v.org] || v.org })),
         conteudo: liberado ? { trilhas: publicadas(c) } : null, vitrine: liberado ? null : vitrine(c), venda: c.venda, progresso: conta.progresso || {},
+        quiz: conta.quiz || {},
         presencial: acesso.tipo === "unidade" ? await resumoPresencial(acesso) : null,
       });
     }
@@ -212,6 +226,19 @@ exports.handler = async function (event) {
       const chave = String(b.org) + ":" + String(b.alunoId);
       await refConta(claims.uid).set({ vinculos: (conta.vinculos || []).filter((v) => v.org + ":" + v.alunoId !== chave), vinculoChaves: (conta.vinculoChaves || []).filter((k) => k !== chave) }, { merge: true });
       return resposta(200, { ok: true });
+    }
+    if (b.acao === "quiz") {
+      if (!ID.test(String(b.aulaId || ""))) throw new Erro(400, "Aula inválida.");
+      if ((await acessoDe(claims, conta)).tipo === "nenhum") throw new Erro(403, "Sem acesso à Academia Digital.");
+      const aula = aulaPublicada(await lerConteudo(), String(b.aulaId));
+      if (!aula || !(aula.quiz || []).length) throw new Erro(404, "Esta aula não tem quiz.");
+      const resp = Array.isArray(b.respostas) ? b.respostas : [];
+      const certas = aula.quiz.map((q, i) => Number(resp[i]) === q.c);
+      const r = { acertos: certas.filter(Boolean).length, total: aula.quiz.length, em: agora() };
+      const quiz = { ...(conta.quiz || {}) };
+      if (!quiz[aula.id] || r.acertos >= quiz[aula.id].acertos) quiz[aula.id] = r;
+      if (!claims.orgId) await refConta(claims.uid).set({ quiz }, { merge: true });
+      return resposta(200, { ok: true, certas, ...r, quiz });
     }
     if (b.acao === "progresso") {
       if (!ID.test(String(b.aulaId || ""))) throw new Erro(400, "Aula inválida.");

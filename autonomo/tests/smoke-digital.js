@@ -74,6 +74,8 @@ const chamar = async (metodo, corpo, tk) => { const x = await digital({ httpMeth
       { id: "au1", titulo: "Empunhadura e preparação", youtube: "https://youtu.be/dQw4w9WgXcQ", duracao: "8 min", descricao: "Assista e repita a sombra 10 vezes.", exercicios: ["FB001", "FB002"] },
       { id: "au2", titulo: "Troca na cruzada", exercicios: ["FB003"] }] },
     { id: "tr2", titulo: "Rascunho secreto", publicada: false, aulas: [{ id: "au9", titulo: "Ainda não", youtube: "aaaaaaaaaaa" }] },
+    { id: "tr3", titulo: "Rotina entre pontos", categoria: "mental", nivel: "todos", publicada: true, aulas: [
+      { id: "mq1", titulo: "Os 20 segundos", duracao: "5 min", descricao: "Fechar o ponto, respirar e decidir.", quiz: [{ p: "Quais são as etapas?", op: ["Fechar, respirar e decidir", "Bater mais forte"], c: 0 }, { p: "Quanto tempo?", op: ["5 segundos", "20 segundos"], c: 1 }] }] },
   ], venda: { preco: "R$ 59,90/mês", observacao: "Cancele quando quiser." } }, "tk-c1");
   assert(salvo.ok, JSON.stringify(salvo));
 
@@ -137,7 +139,7 @@ const chamar = async (metodo, corpo, tk) => { const x = await digital({ httpMeth
   assert.strictEqual(await ana.locator(".numero").count(), 4);
   await ana.waitForSelector(".presencial >> text=Suas aulas na quadra");
   assert(/1 de 3/.test(await ana.textContent(".presencial")) && /Backhand paralelo/.test(await ana.textContent(".presencial")) && /qui /.test(await ana.textContent(".presencial")), "plano presencial: feitas, agora no plano e próxima aula");
-  assert(/0\/2/.test(await ana.textContent(".numero >> nth=0")), "aulas feitas 0/2");
+  assert(/0\/3/.test(await ana.textContent(".numero >> nth=0")), "aulas feitas 0/3");
   await ana.waitForSelector(".continuar >> text=Empunhadura e preparação");
   assert(/mqdefault/.test(await ana.getAttribute(".continuar .capa", "style")), "capa com a imagem do vídeo");
   await ana.waitForSelector("a#treinoDia .ex-thumb svg");
@@ -190,6 +192,34 @@ const chamar = async (metodo, corpo, tk) => { const x = await digital({ httpMeth
   await ana.waitForFunction(() => /^\d+ treinos?$/.test(document.querySelector("#fcont").textContent) && [...document.querySelectorAll("#lista .cod")].every((e) => /^FB\d/.test(e.textContent)));
   assert(await ana.locator("#lista .ex-thumb svg").count() > 0, "treinos com a quadra no cartão");
   await cap(ana, "digital-treinos");
+
+  /* 3b. cursos: filtro por categoria, quiz conferido no servidor, certificado */
+  await ana.click(".abas a[data-aba=trilhas]");
+  await ana.waitForSelector("h1 >> text=Cursos");
+  await ana.click("[data-cat=mental]");
+  assert.strictEqual(await ana.locator(".grade a.trilha").count(), 1, "filtro Mental");
+  await ana.click("a.trilha >> text=Rotina entre pontos");
+  await ana.click("a.aula-item >> text=Os 20 segundos");
+  await ana.waitForSelector("#fQuiz");
+  await ana.click("#fQuiz button");
+  await ana.waitForSelector("#mQuiz >> text=Responda todas");
+  await ana.check('input[name=q0][value="0"]'); await ana.check('input[name=q1][value="0"]');
+  await ana.click("#fQuiz button");
+  await ana.waitForSelector(".pergunta.errada");
+  await ana.waitForSelector("#mQuiz >> text=1 de 2 certas");
+  await ana.check('input[name=q1][value="1"]');
+  await ana.click("#fQuiz button");
+  await ana.waitForSelector("#mQuiz >> text=Tudo certo: 2 de 2");
+  assert.strictEqual(store["digitalContas/u1"].quiz.mq1.acertos, 2);
+  await cap(ana, "digital-quiz");
+  await ana.click("#btFeita");
+  await ana.waitForSelector("#btFeita >> text=Feita");
+  await ana.click("a.voltar");
+  await ana.waitForSelector(".concluido >> text=Curso concluído");
+  await ana.click(".concluido a");
+  await ana.waitForSelector(".certificado h1 >> text=Ana Souza");
+  assert(/Rotina entre pontos/.test(await ana.textContent(".certificado h2")));
+  await cap(ana, "digital-certificado");
 
   /* 4. simulador no quadro */
   await ana.click(".abas a[data-aba=simulador]");

@@ -8,6 +8,7 @@
   "use strict";
   var API = "/.netlify/functions/digital";
   var ORG_NOME = { "team-yoda": "Team Yoda · Cooper Tênis", "39-ranch": "39 Ranch Tennis Club" };
+  var CATEG = { tecnica: "Técnica", tatica: "Tática", mental: "Mental", geral: "Geral" };
   var NIVEL = { iniciante: "Iniciante", intermediario: "Intermediário", avancado: "Avançado", todos: "Todos os níveis" };
   var FAM = {
     IP: "Início do ponto", RT: "Redução de tempo", CO: "Coordenação e base motora", AT: "Ataque e finalização", JA: "Jogo aplicado com regra",
@@ -107,6 +108,7 @@
     if (r[0] === "simulador") return telaSimulador(r.slice(1).join("/"));
     if (r[0] === "conta") return telaConta();
     if (r[0] === "trilhas") return telaTrilhas();
+    if (r[0] === "certificado" && r[1]) return telaCertificado(r[1]);
     return telaInicio();
   }
 
@@ -236,10 +238,13 @@
   function quadraMini(c) { try { return window.QLQuadraExercicio.svgEstatico(c, "mini" + c.toLowerCase()); } catch (e) { return ""; } }
   function cartaoTrilha(t) {
     var n = feitas(t);
-    return '<a class="cartao trilha com-capa" href="#trilha/' + encodeURIComponent(t.id) + '">' + capa(videoDaTrilha(t), '<span class="capa-nivel">' + esc(NIVEL[t.nivel] || "") + "</span>") +
+    return '<a class="cartao trilha com-capa" href="#trilha/' + encodeURIComponent(t.id) + '">' + capa(videoDaTrilha(t), '<span class="capa-nivel">' + esc(rotuloCurso(t)) + "</span>" + (concluido(t) ? '<span class="capa-ok">✓ Concluído</span>' : "")) +
       '<div class="trilha-corpo"><div class="trilha-tit"><h3>' + esc(t.titulo) + '</h3><p class="det" style="margin:0">' + t.aulas.length + (t.aulas.length === 1 ? " aula" : " aulas") + " · " + n + (n === 1 ? " feita" : " feitas") + "</p></div>" + anel(n, t.aulas.length) + "</div>" +
       (t.descricao ? '<p class="det" style="margin:8px 0 0">' + esc(resumo(t.descricao, 120)) + "</p>" : "") + "</a>";
   }
+  function rotuloCurso(t) { return [CATEG[t.categoria] && t.categoria !== "geral" ? CATEG[t.categoria] : "", NIVEL[t.nivel] || ""].filter(Boolean).join(" · "); }
+  function quizOk(a) { var q = (st.dados.quiz || {})[a.id]; return !(a.quiz || []).length || !!(q && q.acertos === q.total && q.total > 0); }
+  function concluido(t) { var p = st.dados.progresso || {}; return t.aulas.length > 0 && t.aulas.every(function (a) { return p[a.id] && quizOk(a); }); }
   function proximaAula() {
     var ts = (st.dados.conteudo || {}).trilhas || [], p = st.dados.progresso || {};
     for (var i = 0; i < ts.length; i++) for (var j = 0; j < ts[i].aulas.length; j++) if (!p[ts[i].aulas[j].id]) return { t: ts[i], a: ts[i].aulas[j], i: j };
@@ -302,9 +307,9 @@
       (px ? '<h2 class="secao">Continuar de onde parou</h2><a class="cartao continuar" href="#aula/' + encodeURIComponent(px.t.id) + "/" + encodeURIComponent(px.a.id) + '">' + capa(px.a.youtube || videoDaTrilha(px.t), '<span class="play" aria-hidden="true">▶</span>') +
           '<div class="cont-txt"><span class="det">' + esc(px.t.titulo) + " · aula " + (px.i + 1) + " de " + px.t.aulas.length + (px.a.duracao ? " · " + esc(px.a.duracao) : "") + "</span><h3>" + esc(px.a.titulo) + "</h3></div></a>"
         : ts.length ? '<div class="cartao vazio">Você fez todas as aulas publicadas. Novas aulas aparecem aqui assim que forem lançadas.</div>' : "") +
-      '<h2 class="secao">Trilhas</h2>' +
+      '<h2 class="secao">Cursos</h2>' +
       (ts.length ? '<div class="carrossel">' + ts.map(cartaoTrilha).join("") + "</div>"
-        : '<div class="cartao vazio">As primeiras trilhas estão sendo gravadas. Enquanto isso, explore os treinos e o simulador.</div>') +
+        : '<div class="cartao vazio">Os primeiros cursos de técnica, tática e mental estão sendo preparados. Enquanto isso, explore os treinos e o simulador.</div>') +
       '<div class="duas-col"><section aria-labelledby="tDia"><h2 class="secao" id="tDia">Treino do dia</h2><div id="treinoDia" class="cartao treino-dia"><p class="det">Escolhendo o treino de hoje…</p></div></section>' +
       '<section aria-labelledby="tSim"><h2 class="secao" id="tSim">Simulador de decisões</h2><a class="cartao sim-card" href="#simulador"><div class="sim-arte">' + QUADRA_DECOR + '</div><div><h3>Escolha a jogada</h3><p class="det" style="margin:0">Situações de ponto: alvo, altura e intensidade, e a resposta possível do adversário.</p></div></a></section></div>',
       "inicio"
@@ -320,28 +325,32 @@
   }
 
   function telaTrilhas() {
-    var d = st.dados, ts = (d.conteudo || {}).trilhas || [];
-    var boasVindas = d.acesso.tipo === "unidade" ? "Acesso incluído na sua matrícula · " + esc(d.acesso.unidade) : d.acesso.tipo === "equipe" ? "Acesso da equipe · " + esc(d.acesso.unidade) : d.acesso.tipo === "assinante" ? "Assinatura ativa" : "Acesso de cortesia";
+    var d = st.dados, ts = (d.conteudo || {}).trilhas || [], f = st.filtroCurso || "";
+    var cats = ["tecnica", "tatica", "mental", "geral"].filter(function (c) { return ts.some(function (t) { return (t.categoria || "geral") === c; }); });
+    var lista = ts.filter(function (t) { return !f || (t.categoria || "geral") === f; });
     tela(
       (st.avisoLigado ? '<p class="msg msg-ok">' + esc(st.avisoLigado) + "</p>" : "") +
-      "<h1>Trilhas</h1><p class=\"lead\">" + boasVindas + "</p>" +
-      (ts.length ? '<div class="grade">' + ts.map(cartaoTrilha).join("") + "</div>"
-        : '<div class="cartao vazio">As primeiras trilhas estão sendo gravadas. Enquanto isso, explore os <a href="#treinos">Treinos</a> e o <a href="#simulador">Simulador</a>.</div>'),
+      '<h1>Cursos</h1><p class="lead">Técnica, tática e mental da Metodologia MTY: aulas curtas, treino prático, quiz e certificado ao concluir.</p>' +
+      (cats.length > 1 ? '<div class="chips" role="group" aria-label="Filtrar cursos"><button type="button" data-cat="" class="chip' + (!f ? " ativo" : "") + '" aria-pressed="' + !f + '">Todos</button>' + cats.map(function (c) { return '<button type="button" data-cat="' + c + '" class="chip' + (f === c ? " ativo" : "") + '" aria-pressed="' + (f === c) + '">' + esc(CATEG[c]) + "</button>"; }).join("") + "</div>" : "") +
+      (lista.length ? '<div class="grade">' + lista.map(cartaoTrilha).join("") + "</div>"
+        : '<div class="cartao vazio">Os primeiros cursos estão sendo preparados. Enquanto isso, explore os <a href="#treinos">Treinos</a> e o <a href="#simulador">Simulador</a>.</div>'),
       "trilhas"
     );
+    $$("[data-cat]").forEach(function (b) { b.onclick = function () { st.filtroCurso = b.getAttribute("data-cat"); telaTrilhas(); }; });
   }
   function telaTrilha(id) {
     var t = trilhaPorId(decodeURIComponent(id));
     if (!t) return telaNaoAchou("Esta trilha não está mais disponível.", "#trilhas", "trilhas");
     var p = st.dados.progresso || {}, n = feitas(t);
     tela(
-      '<a class="btn btn-texto voltar" href="#trilhas">← Trilhas</a>' +
-      '<section class="trilha-heroi">' + capa(videoDaTrilha(t), '<span class="capa-nivel">' + esc(NIVEL[t.nivel] || "") + "</span>") +
+      '<a class="btn btn-texto voltar" href="#trilhas">← Cursos</a>' +
+      '<section class="trilha-heroi">' + capa(videoDaTrilha(t), '<span class="capa-nivel">' + esc(rotuloCurso(t)) + "</span>") +
         '<div class="th-txt"><div><h1>' + esc(t.titulo) + '</h1><p class="det" style="margin:0">' + n + " de " + t.aulas.length + " aulas feitas</p></div>" + anel(n, t.aulas.length) + "</div></section>" +
       (t.descricao ? '<p class="lead texto-aula">' + esc(t.descricao) + "</p>" : "") +
+      (concluido(t) ? '<div class="cartao concluido"><div><b>Curso concluído</b><p class="det" style="margin:2px 0 0">Todas as aulas feitas e todos os quizzes certos.</p></div><a class="btn btn-saibro" href="#certificado/' + encodeURIComponent(t.id) + '">Ver certificado</a></div>' : "") +
       '<div style="margin-top:14px">' + t.aulas.map(function (a, i) {
-        return '<a class="aula-item' + (p[a.id] ? " feita" : "") + '" href="#aula/' + encodeURIComponent(t.id) + "/" + encodeURIComponent(a.id) + '"><span class="n" aria-hidden="true">' + (p[a.id] ? "✓" : i + 1) + '</span><span class="t"><b>' + esc(a.titulo) + "</b><small>" +
-          [a.duracao, a.youtube ? "vídeo" : "", a.exercicios.length ? a.exercicios.length + (a.exercicios.length === 1 ? " treino" : " treinos") : "", p[a.id] ? "feita" : ""].filter(Boolean).map(esc).join(" · ") + "</small></span><span aria-hidden=\"true\">›</span></a>";
+        return '<a class="aula-item' + (p[a.id] && quizOk(a) ? " feita" : "") + '" href="#aula/' + encodeURIComponent(t.id) + "/" + encodeURIComponent(a.id) + '"><span class="n" aria-hidden="true">' + (p[a.id] && quizOk(a) ? "✓" : i + 1) + '</span><span class="t"><b>' + esc(a.titulo) + "</b><small>" +
+          [a.duracao, a.youtube ? "vídeo" : "", a.exercicios.length ? a.exercicios.length + (a.exercicios.length === 1 ? " treino" : " treinos") : "", (a.quiz || []).length ? (quizOk(a) ? "quiz certo" : "quiz") : "", p[a.id] ? "feita" : ""].filter(Boolean).map(esc).join(" · ") + "</small></span><span aria-hidden=\"true\">›</span></a>";
       }).join("") + "</div>",
       "trilhas"
     );
@@ -357,10 +366,12 @@
       (a.youtube ? '<div class="video" id="video"><button type="button" id="btVideo" style="background-image:url(https://i.ytimg.com/vi/' + esc(a.youtube) + '/hqdefault.jpg)" aria-label="Assistir ao vídeo: ' + esc(a.titulo) + '"><span>▶ Assistir</span></button></div>' : "") +
       (a.descricao ? '<div class="cartao" style="margin-top:14px"><p class="texto-aula" style="margin:0">' + esc(a.descricao) + "</p></div>" : "") +
       (a.exercicios.length ? '<section aria-labelledby="tEx" style="margin-top:14px"><h2 id="tEx">Treinos desta aula</h2><div id="exAula" class="grade"><p class="det">Carregando os treinos…</p></div></section>' : "") +
+      ((a.quiz || []).length ? quizHtml(a) : "") +
       '<div class="acoes"><button class="btn' + (feita ? " btn-claro" : "") + '" type="button" id="btFeita" aria-pressed="' + feita + '">' + (feita ? "✓ Feita · desmarcar" : "Marcar como feita") + "</button>" +
       (prox ? '<a class="btn btn-claro" href="#aula/' + encodeURIComponent(t.id) + "/" + encodeURIComponent(prox.id) + '">Próxima aula →</a>' : "") + "</div>",
       "trilhas"
     );
+    ligarQuiz(a, function () { telaAula(tid, aid); });
     var bv = $("#btVideo");
     if (bv) bv.onclick = function () {
       $("#video").innerHTML = '<iframe src="https://www.youtube-nocookie.com/embed/' + encodeURIComponent(a.youtube) + '?autoplay=1&rel=0&playsinline=1&modestbranding=1" title="' + esc(a.titulo) + '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>';
@@ -376,6 +387,40 @@
       var el = $("#exAula"); if (!el) return;
       el.innerHTML = a.exercicios.map(function (cod) { var e = c.porCodigo[cod]; return e ? cartaoExercicio(e) : ""; }).join("") || '<p class="det">Os treinos desta aula não estão no catálogo.</p>';
     }).catch(function (e) { var el = $("#exAula"); if (el) el.innerHTML = '<p class="msg msg-erro">' + esc(e.message) + "</p>"; });
+  }
+  function quizHtml(a) {
+    var r = (st.dados.quiz || {})[a.id];
+    return '<section class="cartao quiz" aria-labelledby="tQuiz"><h2 id="tQuiz" style="margin-bottom:2px">Quiz da aula</h2><p class="det" style="margin:0 0 10px">' + (r ? "Seu melhor resultado: " + r.acertos + " de " + r.total + (r.acertos === r.total ? " ✓" : " · acerte todas para concluir a aula") : "Responda para fixar. Acertando todas, a aula conta para o certificado.") + "</p>" +
+      '<form id="fQuiz">' + a.quiz.map(function (q, i) {
+        return '<fieldset class="pergunta" data-q="' + i + '"><legend>' + (i + 1) + ". " + esc(q.p) + "</legend>" + q.op.map(function (o, j) { return '<label class="opcao"><input type="radio" name="q' + i + '" value="' + j + '"> <span>' + esc(o) + "</span></label>"; }).join("") + "</fieldset>";
+      }).join("") + '<p id="mQuiz" class="msg" hidden></p><div class="acoes"><button class="btn" type="submit">Conferir respostas</button></div></form></section>';
+  }
+  function ligarQuiz(a, depois) {
+    var f = $("#fQuiz"); if (!f) return;
+    f.onsubmit = function (ev) {
+      ev.preventDefault();
+      var resp = a.quiz.map(function (q, i) { var m = f.querySelector('input[name="q' + i + '"]:checked'); return m ? +m.value : -1; });
+      if (resp.indexOf(-1) >= 0) return msg($("#mQuiz"), "erro", "Responda todas as perguntas.");
+      var bt = f.querySelector("button"); bt.disabled = true;
+      api("POST", { acao: "quiz", aulaId: a.id, respostas: resp }).then(function (r) {
+        st.dados.quiz = r.quiz || st.dados.quiz;
+        $$(".pergunta", f).forEach(function (fs, i) { fs.classList.remove("certa", "errada"); fs.classList.add(r.certas[i] ? "certa" : "errada"); });
+        bt.disabled = false;
+        msg($("#mQuiz"), r.acertos === r.total ? "ok" : "aviso", r.acertos === r.total ? "Tudo certo: " + r.acertos + " de " + r.total + "." : r.acertos + " de " + r.total + " certas. As marcadas em vermelho valem revisar; tente de novo.");
+        falar(r.acertos + " de " + r.total + " certas.");
+      }).catch(function (e) { bt.disabled = false; msg($("#mQuiz"), "erro", e.message); });
+    };
+  }
+  function telaCertificado(id) {
+    var t = trilhaPorId(decodeURIComponent(id));
+    if (!t || !concluido(t)) return telaNaoAchou("O certificado aparece quando todas as aulas do curso estão feitas e os quizzes certos.", "#trilhas", "trilhas");
+    var p = st.dados.progresso || {}, fim = t.aulas.map(function (a) { return String(p[a.id] || ""); }).sort().pop();
+    tela('<a class="btn btn-texto voltar nao-imprimir" href="#trilha/' + encodeURIComponent(t.id) + '">← ' + esc(t.titulo) + "</a>" +
+      '<section class="certificado" aria-label="Certificado"><img src="../assets/logo-team-yoda-transparente.png" alt="Team Yoda" width="122" height="48"><span class="cert-sobre">Academia Digital · Metodologia MTY</span>' +
+      "<p>Certificamos que</p><h1>" + esc(String(st.dados.conta.nome || "").trim() || "Atleta") + "</h1><p>concluiu o curso</p><h2>" + esc(t.titulo) + "</h2>" +
+      '<p class="det">' + esc(rotuloCurso(t)) + " · " + t.aulas.length + (t.aulas.length === 1 ? " aula" : " aulas") + (fim ? " · concluído em " + dataBR(fim.slice(0, 10)) : "") + "</p></section>" +
+      '<div class="acoes nao-imprimir"><button class="btn" type="button" id="btImprimir">Imprimir ou salvar em PDF</button></div>', "trilhas");
+    $("#btImprimir").onclick = function () { window.print(); };
   }
   function temQuadra(c) { return !!(window.QLQuadraExercicio && window.QLQuadraExercicio.tem(c)); }
   function cartaoExercicio(e) {

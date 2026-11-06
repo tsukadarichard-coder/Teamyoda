@@ -23258,9 +23258,10 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   );
 }
 /* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
-const NOVIDADES_TY_VERSAO = "ty-2026-11i";
+const NOVIDADES_TY_VERSAO = "ty-2026-11j";
 const NOVIDADES_TY = [
-  { novo: true, t: "Academia Digital mais visual", d: "A Academia Digital ganhou a aba Início: painel com o avanço do aluno, os números da semana (aulas feitas, minutos, dias seguidos, dias ativos), o cartão Suas aulas na quadra para alunos das unidades (aulas do ciclo, próxima aula e o que está no plano agora), Continuar de onde parou com a imagem do vídeo, as trilhas com capa e anel de progresso, o Treino do dia com a quadra desenhada e o Simulador. Os cartões de Treinos agora mostram a quadra com as bolas de cada exercício. As capas usam a imagem dos vídeos do YouTube que a coordenação cadastra em Mais › Academia Digital. A página de vendas, a entrada e o painel da Academia Digital agora têm fotos de atletas do Team Yoda em quadra.", onde: "Mais › Academia Digital › Abrir a Academia Digital", aba: "academia-digital" },
+  { novo: true, t: "Cursos de técnica, tática e mental na Academia Digital", d: "As trilhas viraram Cursos, com categoria (Técnica, Tática, Mental), quiz em cada aula e certificado ao concluir (todas as aulas feitas e os quizzes certos; dá para imprimir ou salvar em PDF). As respostas certas ficam no servidor. Em Mais › Academia Digital, os botões + Curso de Técnica, + Curso de Tática e + Curso Mental montam um curso em rascunho com o conteúdo do app: a série de técnica do Manual (12 aulas), o vocabulário e o básico tático (com os trilhos de decisão ligados) e 7 treinos mentais do catálogo. Revise, ajuste os quizzes, grave os vídeos quando quiser e publique. O topo da Academia e da página de vendas ficou claro, com o logo do Team Yoda nas cores originais.", onde: "Mais › Academia Digital › Cursos e aulas", aba: "academia-digital" },
+  { t: "Academia Digital mais visual", d: "A Academia Digital ganhou a aba Início: painel com o avanço do aluno, os números da semana (aulas feitas, minutos, dias seguidos, dias ativos), o cartão Suas aulas na quadra para alunos das unidades (aulas do ciclo, próxima aula e o que está no plano agora), Continuar de onde parou com a imagem do vídeo, as trilhas com capa e anel de progresso, o Treino do dia com a quadra desenhada e o Simulador. Os cartões de Treinos agora mostram a quadra com as bolas de cada exercício. As capas usam a imagem dos vídeos do YouTube que a coordenação cadastra em Mais › Academia Digital. A página de vendas, a entrada e o painel da Academia Digital agora têm fotos de atletas do Team Yoda em quadra.", onde: "Mais › Academia Digital › Abrir a Academia Digital", aba: "academia-digital" },
   { t: "Academia Digital Team Yoda e página de vendas", d: "Nasceu a área online do Team Yoda (endereço /digital/): trilhas de aulas com os seus vídeos do YouTube (suba como Não listado), os treinos do catálogo com a quadra animada e o simulador de decisões. Alunos do Team Yoda · Cooper Tênis e do 39 Ranch não pagam: no link do aluno aparece o cartão Academia Digital, e a conta que eles criarem fica ligada ao aluno na hora (até 3 contas por aluno, para os pais). Professores entram com a conta do app. A coordenação monta as trilhas e aulas, publica, vê os membros e dá cortesia em Mais › Academia Digital. A página de vendas (/portal/) tem as entradas do professor, do aluno Cooper Tênis, do aluno 39 Ranch e da Academia Digital; para quem é de fora mostra o preço e, enquanto não houver link de pagamento, a lista de espera.", onde: "Mais › Academia Digital", aba: "academia-digital" },
   { t: "Canal da turma e do aluno", d: "Cada turma ganhou um grupo de conversa, e cada aluno uma conversa só com o professor. Na ficha da turma ou do aluno, abra a aba Canal. Os alunos (ou os responsáveis) conversam pelo botão Conversas do link do aluno, e cada mensagem nova avisa no celular de quem ativou os avisos. No grupo todos veem as mensagens, só com o primeiro nome. O professor modera: apaga mensagens, pausa um aluno e pode deixar o grupo no modo avisos, em que só ele escreve.", onde: "Turmas › abrir turma › Canal · Jogadores › aluno › Canal", aba: "turmas" },
   { t: "Reposições ligadas à aula perdida e Relatório de aulas por período", d: "Ao marcar uma reposição, escolha o aluno ou a turma e abre a lista das aulas que ficaram para repor (canceladas, faltas, aula da turma cancelada): escolha qual aula está sendo reposta. Se a aula tem crédito de reposição, ele já fica reservado. Em Reposições, a lista Aulas a repor tem Agendar reposição e Não vai repor. O Relatório do mês virou Relatório de aulas: semana, mês ou trimestre, com a nova aba Reposições (o que falta repor, reposições dadas e marcadas e a aula que cada uma repôs) e o PDF geral com as reposições.", onde: "Agenda › Reposições e Agenda › Relatório de aulas", aba: "relatorio" },
@@ -24191,6 +24192,50 @@ async function chamarDigital(corpo) {
   return c;
 }
 const novoIdDigital = (p) => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+/* Cursos-modelo (rascunho) montados com o conteúdo do próprio app: a série de técnica do Manual (SERIE_T), o vocabulário e o
+   básico tático (VOCABULARIO_TATICO, BASICO_TATICO) e os treinos mentais do catálogo (família DM). Os quizzes usam só frases do
+   próprio conteúdo: a certa é a do módulo e as outras opções são de outros módulos do mesmo curso. A coordenação revisa e publica. */
+const CATEG_DIGITAL = [["tecnica", "Técnica"], ["tatica", "Tática"], ["mental", "Mental"], ["geral", "Geral"]];
+function textoDosBlocosDigital(blocos) {
+  return (blocos || []).map((b) => {
+    if (b.tipo === "tabela") return (b.titulo ? b.titulo + "\n" : "") + (b.linhas || []).map((l) => "• " + l.join(" — ")).join("\n");
+    return (b.titulo ? b.titulo + ": " : "") + (b.texto || "");
+  }).filter(Boolean).join("\n\n").slice(0, 5800);
+}
+function perguntaDigital(p, certa, outras, i) {
+  const ops = outras.filter((o) => o && o !== certa).slice(0, 2);
+  const pos = i % (ops.length + 1);
+  ops.splice(pos, 0, certa);
+  return { p, op: ops.map((o) => String(o).slice(0, 220)), c: pos };
+}
+function exerciciosDigital(re, fam, n) { return EXERCICIOS.filter((e) => (!fam || e.f === fam) && re.test(e.n)).slice(0, n || 2).map((e) => e.c); }
+function cursoModeloDigital(tipo) {
+  const id = novoIdDigital("cm"), aula = (titulo, descricao, quiz, ex, j) => ({ id: id + "-a" + j, titulo, descricao, youtube: "", duracao: "", exercicios: ex || [], _ex: (ex || []).join(", "), quiz });
+  if (tipo === "tecnica") {
+    const EX = { "T-02": exerciciosDigital(/^FH|Forehand/i, "FB"), "T-03": exerciciosDigital(/^BH|Backhand/i, "FB"), "T-05": exerciciosDigital(/Saque/i, "PDS"), "T-07": exerciciosDigital(/Devolu/i), "T-08": exerciciosDigital(/Voleio/i), "T-09": exerciciosDigital(/Smash/i), "T-10": exerciciosDigital(/Drop|Curtinha|Approach/i), "T-12": exerciciosDigital(/./, "MV") };
+    const frases = SERIE_T.map((m) => m.frase);
+    return { id, titulo: "Técnica MTY: dos fundamentos ao golpe completo", categoria: "tecnica", nivel: "todos", publicada: false,
+      descricao: "As seis fases para ler o próprio golpe e, depois, cada golpe do tênis: forehand, backhand, saque, devolução, voleio, smash, curtinha, empunhaduras e apoios.",
+      aulas: SERIE_T.map((m, j) => aula(m.titulo, m.frase + "\n\n" + textoDosBlocosDigital(m.blocos), [perguntaDigital("Qual frase resume a aula “" + m.titulo + "”?", m.frase, [frases[(j + 1) % frases.length], frases[(j + 5) % frases.length]], j)], EX[m.id], j)) };
+  }
+  if (tipo === "tatica") {
+    const fazer = VOCABULARIO_TATICO.map((v) => v.oQueFazer), erros = VOCABULARIO_TATICO.map((v) => v.erro), notas = BASICO_TATICO.map((b) => b.d);
+    const EXB = [exerciciosDigital(/dire[cç]/i, "TR"), exerciciosDigital(/virada/i, "TR"), exerciciosDigital(/defesa|transi/i, "TR"), exerciciosDigital(/ganho de quadra/i, "TR"), exerciciosDigital(/nega/i, "TR"), exerciciosDigital(/autoriza/i, "TR")];
+    const n = VOCABULARIO_TATICO.length;
+    return { id, titulo: "Tática MTY: ler a bola e decidir", categoria: "tatica", nivel: "todos", publicada: false,
+      descricao: "O vocabulário da decisão (bola neutra, de ataque, de defesa, a que arma e a que converte) e as seis ações básicas do jogo. Termina no simulador de decisões.",
+      aulas: VOCABULARIO_TATICO.map((v, j) => aula(v.t, "O que é: " + v.oQueE + "\n\nO que fazer: " + v.oQueFazer + "\n\nErro comum: " + v.erro,
+        [perguntaDigital("O que fazer em “" + v.t.replace(/^A /, "a ") + "”?", v.oQueFazer, [fazer[(j + 1) % n], fazer[(j + 3) % n]], j), perguntaDigital("Qual é o erro comum em “" + v.t.replace(/^A /, "a ") + "”?", v.erro, [erros[(j + 2) % n], erros[(j + 4) % n]], j + 1)], [], j))
+        .concat(BASICO_TATICO.map((b, k) => aula(b.t, b.d + "\n\n" + b.nota, [perguntaDigital("O que é “" + b.t.replace(/^B\d · /, "") + "”?", b.d, [notas[(k + 1) % notas.length], notas[(k + 2) % notas.length]], k)], EXB[k], n + k)))
+        .concat([aula("Pratique no simulador", "Abra a aba Simulador e jogue os cenários do nível 1: em cada situação, diga antes de escolher se a bola é neutra, de ataque ou de defesa, e se a sua jogada arma ou converte.", [], [], n + BASICO_TATICO.length)]) };
+  }
+  const DM = ["DM001", "DM004", "DM006", "DM012", "DM014", "DM017", "DM020"].map((c) => EXERCICIOS.find((e) => e.c === c)).filter(Boolean);
+  const objs = DM.map((e) => e.o), corr = DM.map((e) => e.x);
+  return { id, titulo: "Mental MTY: rotina, foco e pressão", categoria: "mental", nivel: "todos", publicada: false,
+    descricao: "A rotina entre pontos, o foco no processo, a respiração, como voltar depois de erros, a visualização, o checklist do saque e o balanço depois do jogo.",
+    aulas: DM.map((e, j) => aula(e.n, "Objetivo: " + e.o + "\n\nComo treinar: " + e.m + (e.g ? "\n\nVolume: " + e.g : "") + (e.x ? "\n\nPreste atenção: " + e.x : ""),
+      [perguntaDigital("Qual é o objetivo de “" + e.n + "”?", e.o, [objs[(j + 1) % objs.length], objs[(j + 3) % objs.length]], j)].concat(e.x ? [perguntaDigital("Em “" + e.n + "”, no que prestar atenção?", e.x, [corr[(j + 2) % corr.length], corr[(j + 4) % corr.length]], j + 1)] : []), [e.c], j)) };
+}
 function paraEdicaoDigital(t) { return { ...t, aulas: (t.aulas || []).map((a) => ({ ...a, youtube: a.youtube ? "https://youtu.be/" + a.youtube : "", _ex: (a.exercicios || []).join(", ") })) }; }
 function TelaAcademiaDigital() {
   const [secao, setSecao] = useState("conteudo");
@@ -24232,11 +24277,12 @@ function TelaAcademiaDigital() {
     if (venda.checkoutUrl && !/^https:\/\/\S+$/.test(venda.checkoutUrl.trim())) { setSecao("venda"); return setErro("O link de pagamento precisa começar com https://"); }
     setSalvando(true);
     try {
-      const corpo = { acao: "salvarConteudo", venda: { ...venda, checkoutUrl: venda.checkoutUrl.trim() }, trilhas: trilhas.map((t) => ({ id: t.id, titulo: t.titulo, descricao: t.descricao, nivel: t.nivel, publicada: !!t.publicada,
-        aulas: t.aulas.map((a) => ({ id: a.id, titulo: a.titulo, descricao: a.descricao, duracao: a.duracao, youtube: a.youtube, exercicios: codigosDe(a._ex) })) })) };
+      const corpo = { acao: "salvarConteudo", venda: { ...venda, checkoutUrl: venda.checkoutUrl.trim() }, trilhas: trilhas.map((t) => ({ id: t.id, titulo: t.titulo, descricao: t.descricao, nivel: t.nivel, categoria: t.categoria || "geral", publicada: !!t.publicada,
+        aulas: t.aulas.map((a) => ({ id: a.id, titulo: a.titulo, descricao: a.descricao, duracao: a.duracao, youtube: a.youtube, exercicios: codigosDe(a._ex),
+          quiz: (a.quiz || []).map((q) => ({ p: q.p, op: (q.op || []).map((o) => String(o).trim()).filter(Boolean), c: q.c })).filter((q) => q.p.trim() || q.op.length) })) })) };
       const d = await chamarDigital(corpo);
       setTrilhas((d.trilhas || []).map(paraEdicaoDigital)); setVenda({ preco: "", checkoutUrl: "", observacao: "", ...(d.venda || {}) });
-      setAlterado(false); setAviso("Salvo. As trilhas publicadas já aparecem na Academia Digital.");
+      setAlterado(false); setAviso("Salvo. Os cursos publicados já aparecem na Academia Digital.");
     } catch (e) { setErro(e.message); }
     setSalvando(false);
   }
@@ -24266,7 +24312,7 @@ function TelaAcademiaDigital() {
         <button type="button" style={chip(false)} onClick={() => navigator.clipboard && navigator.clipboard.writeText(link("/portal/")).then(() => setAviso("Link da página de vendas copiado."))}>Copiar link da página de vendas</button>
       </div>
       <div className="flex flex-wrap gap-2 mb-4" role="tablist">
-        {[["conteudo", "Trilhas e aulas"], ["venda", "Venda"], ["membros", "Membros"]].map(([v, r]) => <button key={v} type="button" role="tab" aria-selected={secao === v} style={chip(secao === v)} onClick={() => setSecao(v)}>{r}</button>)}
+        {[["conteudo", "Cursos e aulas"], ["venda", "Venda"], ["membros", "Membros"]].map(([v, r]) => <button key={v} type="button" role="tab" aria-selected={secao === v} style={chip(secao === v)} onClick={() => setSecao(v)}>{r}</button>)}
       </div>
       {erro && <Aviso cor="#B23A2E">{erro}</Aviso>}
       {aviso && <Aviso>{aviso}</Aviso>}
@@ -24274,20 +24320,23 @@ function TelaAcademiaDigital() {
 
       {trilhas && secao === "conteudo" && (
         <div>
-          {trilhas.length === 0 && <p style={{ ...nota, marginBottom: 10 }}>Nenhuma trilha ainda. Crie a primeira: por exemplo “Forehand do zero”, com 4 a 6 aulas curtas.</p>}
+          {trilhas.length === 0 && <p style={{ ...nota, marginBottom: 10 }}>Nenhum curso ainda. Comece por um curso-modelo abaixo ou crie o seu: por exemplo “Forehand do zero”, com 4 a 6 aulas curtas.</p>}
           {trilhas.map((t, ti) => (
             <div key={t.id} style={cartao} data-trilha={t.id}>
               <div className="flex flex-wrap items-center gap-2">
                 <button type="button" onClick={() => setAberta(aberta === t.id ? "" : t.id)} aria-expanded={aberta === t.id}
                   style={{ flex: 1, minWidth: 180, textAlign: "left", background: "none", border: 0, cursor: "pointer", fontFamily: ARCH, fontSize: 15, fontWeight: 700, color: C.tinta, padding: "6px 0" }}>
-                  {aberta === t.id ? "▾ " : "▸ "}{t.titulo || "Trilha sem título"} <span style={{ ...nota, fontWeight: 400 }}>· {t.aulas.length} {t.aulas.length === 1 ? "aula" : "aulas"} · {t.publicada ? "publicada" : "rascunho"}</span>
+                  {aberta === t.id ? "▾ " : "▸ "}{t.titulo || "Curso sem título"} <span style={{ ...nota, fontWeight: 400 }}>· {t.aulas.length} {t.aulas.length === 1 ? "aula" : "aulas"} · {t.publicada ? "publicada" : "rascunho"}</span>
                 </button>
                 <label style={{ ...nota, display: "flex", alignItems: "center", gap: 6, minHeight: 40 }}><input type="checkbox" checked={!!t.publicada} onChange={(e) => mudarTrilha(t.id, "publicada", e.target.checked)} /> Publicada</label>
               </div>
               {aberta === t.id && (
                 <div style={{ marginTop: 10 }}>
-                  <Campo rotulo="Título da trilha"><input style={entrada} value={t.titulo} maxLength={120} onChange={(e) => mudarTrilha(t.id, "titulo", e.target.value)} /></Campo>
-                  <Campo rotulo="Nível"><select style={entrada} value={t.nivel} onChange={(e) => mudarTrilha(t.id, "nivel", e.target.value)}>{NIVEIS_DIGITAL.map(([v, r]) => <option key={v} value={v}>{r}</option>)}</select></Campo>
+                  <Campo rotulo="Título do curso"><input style={entrada} value={t.titulo} maxLength={120} onChange={(e) => mudarTrilha(t.id, "titulo", e.target.value)} /></Campo>
+                  <div className="flex flex-wrap gap-3">
+                    <div style={{ flex: "1 1 160px" }}><Campo rotulo="Categoria"><select style={entrada} value={t.categoria || "geral"} onChange={(e) => mudarTrilha(t.id, "categoria", e.target.value)}>{CATEG_DIGITAL.map(([v, r]) => <option key={v} value={v}>{r}</option>)}</select></Campo></div>
+                    <div style={{ flex: "1 1 160px" }}><Campo rotulo="Nível"><select style={entrada} value={t.nivel} onChange={(e) => mudarTrilha(t.id, "nivel", e.target.value)}>{NIVEIS_DIGITAL.map(([v, r]) => <option key={v} value={v}>{r}</option>)}</select></Campo></div>
+                  </div>
                   <Campo rotulo="Descrição" nota="Aparece também na vitrine para quem ainda não tem acesso."><textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={t.descricao || ""} maxLength={1500} onChange={(e) => mudarTrilha(t.id, "descricao", e.target.value)} /></Campo>
                   {t.aulas.map((a, i) => {
                     const yt = idYoutubeDigital(a.youtube), cods = codigosDe(a._ex);
@@ -24312,21 +24361,48 @@ function TelaAcademiaDigital() {
                           <input style={entrada} value={a._ex} placeholder="FB001, FB003" onChange={(e) => mudarAula(t.id, a.id, "_ex", e.target.value)} />
                           {cods.length > 0 && <div className="flex flex-wrap gap-1 mt-2">{cods.map((c) => <span key={c} style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, padding: "3px 8px", borderRadius: 999, background: porCodigo[c] ? "#E1F0D5" : "#FDECEA", color: porCodigo[c] ? "#3F7A17" : "#A6332A" }}>{c}{porCodigo[c] ? " · " + porCodigo[c].n : " · não está no catálogo"}</span>)}</div>}
                         </Campo>
+                        <div data-quiz-editor style={{ borderTop: "1px dashed " + C.linha, paddingTop: 10 }}>
+                          <div className="flex items-center gap-2 mb-2"><Etiqueta>Quiz da aula ({(a.quiz || []).length}/5)</Etiqueta><span style={nota}>Acertando todas, a aula conta para o certificado.</span></div>
+                          {(a.quiz || []).map((q, qi) => (
+                            <div key={qi} data-pergunta={qi} style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: 10, marginBottom: 8 }}>
+                              <input style={entrada} value={q.p} maxLength={300} placeholder={"Pergunta " + (qi + 1)} onChange={(e) => mudarAula(t.id, a.id, "quiz", a.quiz.map((x, k) => (k === qi ? { ...x, p: e.target.value } : x)))} />
+                              <textarea rows={3} style={{ ...entrada, marginTop: 6, resize: "vertical" }} value={(q.op || []).join("\n")} placeholder={"Uma opção por linha (2 a 5)"} onChange={(e) => mudarAula(t.id, a.id, "quiz", a.quiz.map((x, k) => (k === qi ? { ...x, op: e.target.value.split("\n").slice(0, 5) } : x)))} />
+                              <div className="flex flex-wrap items-center gap-2" style={{ marginTop: 6 }}>
+                                <span style={nota}>Certa:</span>
+                                <select style={{ ...entrada, width: "auto", flex: "1 1 160px" }} value={q.c == null ? "" : q.c} onChange={(e) => mudarAula(t.id, a.id, "quiz", a.quiz.map((x, k) => (k === qi ? { ...x, c: e.target.value === "" ? null : +e.target.value } : x)))}>
+                                  <option value="">Escolha a resposta certa</option>
+                                  {(q.op || []).map((o, oi) => o.trim() && <option key={oi} value={oi}>{(oi + 1) + ". " + o.slice(0, 60)}</option>)}
+                                </select>
+                                <Botao pequeno variante="vazio" onClick={() => mudarAula(t.id, a.id, "quiz", a.quiz.filter((_, k) => k !== qi))}>Remover</Botao>
+                              </div>
+                            </div>
+                          ))}
+                          {(a.quiz || []).length < 5 && <Botao pequeno variante="vazio" onClick={() => mudarAula(t.id, a.id, "quiz", (a.quiz || []).concat([{ p: "", op: ["", ""], c: null }]))}>+ Pergunta</Botao>}
+                        </div>
                       </div>
                     );
                   })}
                   <div className="flex flex-wrap gap-2">
-                    <Botao pequeno variante="vazio" onClick={() => mudar((ts) => ts.map((x) => (x.id === t.id ? { ...x, aulas: x.aulas.concat([{ id: novoIdDigital(t.id + "-a"), titulo: "", youtube: "", duracao: "", descricao: "", exercicios: [], _ex: "" }]) } : x)))}>+ Aula</Botao>
-                    <Botao pequeno variante="vazio" disabled={ti === 0} onClick={() => mudar((ts) => { const l = ts.slice(); [l[ti - 1], l[ti]] = [l[ti], l[ti - 1]]; return l; })}>Subir trilha</Botao>
-                    <Botao pequeno variante="vazio" onClick={() => { if (confirm("Apagar a trilha “" + (t.titulo || "sem título") + "” e as aulas dela?")) mudar((ts) => ts.filter((x) => x.id !== t.id)); }}>Apagar trilha</Botao>
+                    <Botao pequeno variante="vazio" onClick={() => mudar((ts) => ts.map((x) => (x.id === t.id ? { ...x, aulas: x.aulas.concat([{ id: novoIdDigital(t.id + "-a"), titulo: "", youtube: "", duracao: "", descricao: "", exercicios: [], _ex: "", quiz: [] }]) } : x)))}>+ Aula</Botao>
+                    <Botao pequeno variante="vazio" disabled={ti === 0} onClick={() => mudar((ts) => { const l = ts.slice(); [l[ti - 1], l[ti]] = [l[ti], l[ti - 1]]; return l; })}>Subir curso</Botao>
+                    <Botao pequeno variante="vazio" onClick={() => { if (confirm("Apagar o curso “" + (t.titulo || "sem título") + "” e as aulas dela?")) mudar((ts) => ts.filter((x) => x.id !== t.id)); }}>Apagar curso</Botao>
                   </div>
                 </div>
               )}
             </div>
           ))}
           <div className="flex flex-wrap gap-2 mt-3">
-            <Botao variante="vazio" onClick={() => { const id = novoIdDigital("tr"); mudar((ts) => ts.concat([{ id, titulo: "", descricao: "", nivel: "todos", publicada: false, aulas: [] }])); setAberta(id); }}>+ Nova trilha</Botao>
+            <Botao variante="vazio" onClick={() => { const id = novoIdDigital("tr"); mudar((ts) => ts.concat([{ id, titulo: "", descricao: "", nivel: "todos", categoria: "geral", publicada: false, aulas: [] }])); setAberta(id); }}>+ Novo curso</Botao>
             <Botao variante="saibro" disabled={salvando || !alterado} onClick={salvar}>{salvando ? "Salvando…" : alterado ? "Salvar" : "Salvo"}</Botao>
+          </div>
+          <div style={{ ...cartao, marginTop: 14, background: C.papel }} data-modelos>
+            <h2 style={h2}>Cursos-modelo da Metodologia MTY</h2>
+            <p style={{ ...nota, marginBottom: 8 }}>Monta um curso em rascunho com o conteúdo do app (série de técnica do Manual, vocabulário e básico tático, treinos mentais do catálogo), com quiz em cada aula e treinos ligados. Revise, grave os vídeos quando quiser e publique.</p>
+            <div className="flex flex-wrap gap-2">
+              {[["tecnica", "+ Curso de Técnica"], ["tatica", "+ Curso de Tática"], ["mental", "+ Curso Mental"]].map(([tp, r]) => (
+                <Botao key={tp} pequeno variante="vazio" onClick={() => { const c = cursoModeloDigital(tp); mudar((ts) => ts.concat([c])); setAberta(c.id); setAviso("Curso em rascunho adicionado: revise e toque em Salvar. Ele só aparece para os alunos quando marcado como publicado."); }}>{r}</Botao>
+              ))}
+            </div>
           </div>
         </div>
       )}

@@ -117,6 +117,21 @@ store["orgs/39-ranch/dados/mty:alunos:v2"] = { value: JSON.stringify([{ id: "r1"
   const esperado = JSON.parse(linha.replace(/^const EXERCICIOS = /, "").replace(/;\s*$/, "")).map((e) => Object.fromEntries(K.filter((k) => e[k] != null && e[k] !== "").map((k) => [k, e[k]])));
   assert.deepStrictEqual(r.exercicios, esperado, "netlify/functions/_exercicios-digital.json fora de sincronia com EXERCICIOS de mty/index.html (gere de novo)");
 
+  /* cursos: categoria e quiz (a resposta certa não vai para o aluno; o servidor confere) */
+  assert.strictEqual((await chamar("POST", { acao: "salvarConteudo", trilhas: [{ titulo: "C", aulas: [{ titulo: "A", quiz: [{ p: "?", op: ["x"], c: 0 }] }] }] }, "coord")).status, 400, "pergunta com 1 opção é recusada");
+  assert.strictEqual((await chamar("POST", { acao: "salvarConteudo", trilhas: [{ titulo: "C", aulas: [{ titulo: "A", quiz: [{ p: "?", op: ["x", "y"] }] }] }] }, "coord")).status, 400, "sem resposta certa é recusada");
+  r = await chamar("POST", { acao: "salvarConteudo", trilhas: [{ id: "cm", titulo: "Mental", categoria: "mental", publicada: true, aulas: [{ id: "q1", titulo: "Rotina", quiz: [{ p: "Quanto tempo?", op: ["5 s", "20 s", "1 min"], c: 1 }, { p: "Respira?", op: ["Sim", "Não"], c: 0 }] }] }], venda: { preco: "R$ 59,90/mês" } }, "coord");
+  assert.strictEqual(r.trilhas[0].categoria, "mental");
+  r = await chamar("GET", null, "tk-c2@x.com");
+  assert.strictEqual(r.conteudo.trilhas[0].aulas[0].quiz.length, 2);
+  assert(r.conteudo.trilhas[0].aulas[0].quiz.every((q) => q.c === undefined), "a resposta certa não vai para o aluno");
+  r = await chamar("POST", { acao: "quiz", aulaId: "q1", respostas: [1, 1] }, "tk-c2@x.com");
+  assert.deepStrictEqual([r.acertos, r.total, r.certas], [1, 2, [true, false]]);
+  r = await chamar("POST", { acao: "quiz", aulaId: "q1", respostas: [1, 0] }, "tk-c2@x.com");
+  assert.strictEqual(r.acertos, 2);
+  assert.strictEqual((await chamar("GET", null, "tk-c2@x.com")).quiz.q1.acertos, 2, "melhor resultado guardado");
+  assert.strictEqual((await chamar("POST", { acao: "quiz", aulaId: "q1", respostas: [1, 0] }, "tk-bia@x.com")).status, 403, "sem acesso não responde quiz");
+
   /* lista de espera */
   assert.strictEqual((await chamar("POST", { acao: "interesse", email: "quero@x.com", nome: "Quero" })).status, 200);
   assert(store["digitalInteresses/quero@x.com"]);

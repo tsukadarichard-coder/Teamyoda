@@ -166,3 +166,26 @@ dl.ficha dd { margin: 2px 0 0; }
 .pres-linhas > div { background: var(--papel); border-radius: 12px; padding: 10px 12px; }
 .pres-linhas span { display: block; font-size: 12px; }
 .pres-linhas b { display: block; font-size: 14.5px; margin-top: 2px; }
+
+/* cursos: filtro, quiz e certificado */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
+.chip { min-height: 40px; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--linha); background: var(--cal); font-weight: 700; font-size: 13.5px; cursor: pointer; color: var(--tinta); }
+.chip.ativo { background: var(--tinta); color: #fff; border-color: var(--tinta); }
+.capa-ok { position: absolute; right: 10px; top: 10px; background: var(--saibro); color: #10210A; font-size: 11px; font-weight: 800; padding: 4px 9px; border-radius: 999px; }
+.concluido { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; justify-content: space-between; background: var(--ok-fundo); border-color: #C7E3B0; }
+.quiz { margin-top: 14px; border-radius: 20px; }
+.pergunta { border: 1px solid var(--linha); border-radius: 14px; padding: 10px 12px 6px; margin: 0 0 10px; }
+.pergunta legend { font-weight: 700; padding: 0 4px; }
+.pergunta.certa { border-color: #7DBF4A; background: #F2F9EC; }
+.pergunta.errada { border-color: #E0A39C; background: #FDF1EF; }
+.opcao { display: flex; gap: 10px; align-items: flex-start; padding: 8px 2px; min-height: 40px; cursor: pointer; }
+.opcao input { margin-top: 3px; width: 20px; height: 20px; flex: none; accent-color: var(--verde-esc); }
+.certificado { background: #fff; border: 2px solid var(--tinta); outline: 6px solid #EAF5E1; outline-offset: -14px; border-radius: 18px; padding: 40px 24px; text-align: center; margin-top: 6px; }
+.certificado img { height: 44px; width: auto; }
+.cert-sobre { display: block; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--saibro-esc); margin: 10px 0 18px; }
+.certificado h1 { font-size: 30px; margin: 4px 0 8px; }
+.certificado h2 { font-size: 21px; margin: 4px 0 10px; }
+.certificado p { margin: 0; }
+@media print { .topo, .abas, .rodape, .nao-imprimir { display: none !important; } body { background: #fff; } main { padding: 0; } .certificado { margin-top: 40px; } }
+.marca b { white-space: nowrap; }
+@media (max-width: 400px) { .marca img { height: 24px; } .marca { gap: 9px; } .marca .marca-txt { padding-left: 9px; } .marca b { font-size: 14px; } .selo { font-size: 10.5px; padding: 4px 8px; } }
