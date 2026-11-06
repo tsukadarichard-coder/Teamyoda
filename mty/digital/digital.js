@@ -310,6 +310,7 @@
       (px ? '<h2 class="secao">Continuar de onde parou</h2><a class="cartao continuar" href="#aula/' + encodeURIComponent(px.t.id) + "/" + encodeURIComponent(px.a.id) + '">' + capa(px.a.youtube || videoDaTrilha(px.t), '<span class="play" aria-hidden="true">▶</span>') +
           '<div class="cont-txt"><span class="det">' + esc(px.t.titulo) + " · aula " + (px.i + 1) + " de " + px.t.aulas.length + (px.a.duracao ? " · " + esc(px.a.duracao) : "") + "</span><h3>" + esc(px.a.titulo) + "</h3></div></a>"
         : ts.length ? '<div class="cartao vazio">Você fez todas as aulas publicadas. Novas aulas aparecem aqui assim que forem lançadas.</div>' : "") +
+      (ultimaAnaliseComCorrecao() ? '<h2 class="secao">Seu treino de correção</h2>' + cartaoCorrecao(ultimaAnaliseComCorrecao()) : "") +
       '<h2 class="secao">Cursos</h2>' +
       (ts.length ? '<div class="carrossel">' + ts.map(cartaoTrilha).join("") + "</div>"
         : '<div class="cartao vazio">Os primeiros cursos de técnica, tática e mental estão sendo preparados. Enquanto isso, explore os treinos e o simulador.</div>') +
@@ -454,9 +455,36 @@
     }
     return { def: def, etapas: et, total: et.reduce(function (s, x) { return s + x.min; }, 0) };
   }
+  /* ── treino de correção: montado da análise de movimento (itens em atenção, na ordem de prioridade do motor) ── */
+  var GOLPE_NOME = { forehand: "forehand", backhand: "backhand", saque: "saque" };
+  function analisePorId(id) { return (st.dados.movimentos || []).filter(function (m) { return m.id === id; })[0]; }
+  function emAtencao(m) { var nomes = (m.prio || []).slice(); (m.itens || []).forEach(function (i) { if (i.s === "atencao" && nomes.indexOf(i.n) < 0) nomes.push(i.n); }); return nomes; }
+  function ultimaAnaliseComCorrecao() { var l = (st.dados.movimentos || []).slice().sort(function (a, b) { return String(a.criadoEm) < String(b.criadoEm) ? 1 : -1; }); for (var i = 0; i < l.length; i++) if (emAtencao(l[i]).length) return l[i]; return null; }
+  function tituloCorrecao(m) { return "Correção do " + (GOLPE_NOME[m.golpe] || "golpe") + (m.criadoEm ? " · análise de " + dataBR(String(m.criadoEm).slice(0, 10)) : ""); }
+  function montarCorrecao(m, c) {
+    var I = (window.QLBiomec && window.QLBiomec.INTERV) || {}, nomes = emAtencao(m).slice(0, 3), g = GOLPE_NOME[m.golpe] || "golpe";
+    var et = [{ tipo: "Aquecimento", titulo: "Shadow swing do " + g, min: 5, porque: "Sem bola, devagar: 10 repetições pensando primeiro em “" + (nomes[0] || "") + "”, depois em velocidade normal.", lista: ["Filme-se de lado se puder, para comparar com a análise."] }];
+    nomes.forEach(function (n) {
+      var d = I[n] || {}, item = (m.itens || []).filter(function (i) { return i.n === n; })[0] || {}, pq = "";
+      try { pq = typeof d.porque === "function" ? d.porque({ valor: item.v, nome: n }) : d.porque || ""; } catch (x) { pq = ""; }
+      et.push({ tipo: "Correção", titulo: n, min: 6, porque: (item.v != null ? "Medido: " + String(item.v).replace(".", ",") + (item.u || "") + (item.r ? " (referência " + item.r + "). " : ". ") : "") + pq, lista: (d.ex || []).slice(0, 3) });
+    });
+    var re = m.golpe === "saque" ? null : m.golpe === "backhand" ? /^BH|Backhand/i : /^FH|Forehand/i;
+    var bola = c.lista.filter(function (e) { return temQuadra(e.c) && (m.golpe === "saque" ? e.f === "PDS" : e.f === "FB" && re.test(e.n)); })[0];
+    if (bola) et.push({ tipo: "Aplicar na bola", e: bola, min: 10 });
+    et.push({ tipo: "Reteste", titulo: "Filme de novo e compare", min: 3, porque: "Grave o mesmo golpe, do mesmo ângulo, e analise de novo: a comparação com esta análise aparece no relatório.", lista: [], link: "#analise" });
+    return { def: { id: "correcao-" + m.id, titulo: tituloCorrecao(m), objetivo: "Corrigir: " + nomes.join(", ") + ".", analiseId: m.id }, etapas: et, total: et.reduce(function (s, x) { return s + x.min; }, 0) };
+  }
+  function cartaoCorrecao(m) {
+    var nomes = emAtencao(m);
+    return '<a class="cartao correcao-card" href="#sessao/correcao-' + encodeURIComponent(m.id) + '"><span class="cod">Treino de correção · da sua análise</span><h3>' + esc(tituloCorrecao(m)) + '</h3><p class="det" style="margin:0">' + esc(nomes.slice(0, 3).join(" · ")) + (nomes.length > 3 ? " e mais " + (nomes.length - 3) : "") + "</p>" +
+      (vezesFeita("correcao-" + m.id) ? '<span class="tag tag-quadra">feito ' + vezesFeita("correcao-" + m.id) + "×</span>" : '<span class="tag tag-quadra">▶ Fazer o treino</span>') + "</a>";
+  }
   function vezesFeita(id) { return (st.dados.sessoes || []).filter(function (x) { return x.id === id; }).length; }
   function sessoesHtml(c) {
-    return '<h2 class="secao">Treinos guiados</h2><p class="det" style="margin:-4px 0 10px">Sessões prontas da Metodologia MTY: siga as etapas com o cronômetro e registre os acertos.</p><div class="grade" id="sessoes">' + SESSOES.map(function (def) {
+    var mc = ultimaAnaliseComCorrecao();
+    return (mc ? '<h2 class="secao">Seu treino de correção</h2><div class="grade" style="margin-bottom:4px">' + cartaoCorrecao(mc) + "</div>" : "") +
+      '<h2 class="secao">Treinos guiados</h2><p class="det" style="margin:-4px 0 10px">Sessões prontas da Metodologia MTY: siga as etapas com o cronômetro e registre os acertos.</p><div class="grade" id="sessoes">' + SESSOES.map(function (def) {
       var se = montarSessao(def, c), pri = se.etapas.filter(function (x) { return x.tipo === "Exercício"; })[0], n = vezesFeita(def.id);
       return '<a class="cartao ex sessao-card" href="#sessao/' + def.id + '">' + (pri && temQuadra(pri.e.c) ? '<div class="ex-thumb">' + quadraMini(pri.e.c) + "</div>" : '<div class="ex-thumb sessao-mental" aria-hidden="true">' + QUADRA_DECOR + "</div>") +
         '<span class="cod">' + se.etapas.length + " etapas · ~" + se.total + " min" + (n ? " · feita " + n + (n === 1 ? " vez" : " vezes") : "") + "</span><h3>" + esc(def.titulo) + '</h3><p class="det" style="margin:0">' + esc(def.objetivo) + "</p></a>";
@@ -464,28 +492,31 @@
   }
   function mmss(s) { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
   function telaSessao(id) {
+    id = decodeURIComponent(id);
+    var mov = /^correcao-/.test(id) ? analisePorId(id.slice(9)) : null;
     var def = SESSOES.filter(function (x) { return x.id === id; })[0];
-    if (!def) return telaNaoAchou("Esta sessão não existe.", "#treinos", "treinos");
+    if (!def && !mov) return telaNaoAchou(/^correcao-/.test(id) ? "Esta análise não está mais no seu histórico." : "Esta sessão não existe.", "#treinos", "treinos");
     tela('<p class="carregando">Montando a sessão…</p>', "treinos");
-    catalogo().then(function (c) {
-      var se = montarSessao(def, c);
-      if (!st.sess || st.sess.id !== id) st.sess = { id: id, i: 0, t0: Date.now(), itens: se.etapas.map(function (x) { return { c: x.e.c, feito: false, acertos: "", tentativas: "" }; }) };
+    Promise.all([catalogo(), mov ? carregarMovimento() : null]).then(function (rs) {
+      var c = rs[0], se = mov ? montarCorrecao(mov, c) : montarSessao(def, c);
+      if (!st.sess || st.sess.id !== id) st.sess = { id: id, i: 0, t0: Date.now(), itens: se.etapas.map(function (x) { return x.e ? { c: x.e.c, feito: false, acertos: "", tentativas: "" } : { t: x.titulo, feito: false, acertos: "", tentativas: "" }; }) };
       desenharEtapa(se);
     }).catch(function (e) { tela('<p class="msg msg-erro">' + esc(e.message) + "</p>", "treinos"); });
   }
   function desenharEtapa(se) {
     var S = st.sess, n = se.etapas.length;
     if (S.i >= n) return desenharResumo(se);
-    var et = se.etapas[S.i], e = et.e, it = S.itens[S.i], restante = et.min * 60, rodando = false;
+    var et = se.etapas[S.i], e = et.e, it = S.itens[S.i], restante = et.min * 60, rodando = false, nomeEt = e ? e.n : et.titulo;
     tela('<a class="btn btn-texto voltar" href="#treinos">← Treinos</a><p class="det" style="margin:0">' + esc(se.def.titulo) + "</p>" +
       '<div class="passos-sessao" aria-hidden="true">' + se.etapas.map(function (x, k) { return '<i class="' + (k < S.i ? "ok" : k === S.i ? "agora" : "") + '"></i>'; }).join("") + "</div>" +
-      '<span class="cod" style="display:block;margin-top:8px">Etapa ' + (S.i + 1) + " de " + n + " · " + esc(et.tipo) + " · " + et.min + " min</span><h1>" + esc(e.n) + "</h1>" +
-      (temQuadra(e.c) ? '<div class="cartao" style="margin-top:8px"><div id="quadra" style="max-width:640px"></div></div>' : "") +
+      '<span class="cod" style="display:block;margin-top:8px">Etapa ' + (S.i + 1) + " de " + n + " · " + esc(et.tipo) + " · " + et.min + " min</span><h1>" + esc(nomeEt) + "</h1>" +
+      (e && temQuadra(e.c) ? '<div class="cartao" style="margin-top:8px"><div id="quadra" style="max-width:640px"></div></div>' : "") +
       '<section class="cartao cronometro" aria-label="Cronômetro"><div id="tempo" class="tempo" aria-live="off">' + mmss(restante) + '</div><div class="acoes" style="justify-content:center;margin-top:6px"><button class="btn" type="button" id="btTempo">▶ Iniciar</button><button class="btn btn-claro" type="button" id="btMais1">+1 min</button></div></section>' +
-      '<div class="cartao"><dl class="ficha">' + (e.o ? "<dt>Objetivo</dt><dd>" + esc(e.o) + "</dd>" : "") + (e.m ? '<dt>Como fazer</dt><dd class="texto-aula">' + esc(e.m) + "</dd>" : "") + (e.x ? "<dt>Preste atenção</dt><dd>" + esc(e.x) + "</dd>" : "") + "</dl>" +
+      '<div class="cartao"><dl class="ficha">' + (e ? (e.o ? "<dt>Objetivo</dt><dd>" + esc(e.o) + "</dd>" : "") + (e.m ? '<dt>Como fazer</dt><dd class="texto-aula">' + esc(e.m) + "</dd>" : "") + (e.x ? "<dt>Preste atenção</dt><dd>" + esc(e.x) + "</dd>" : "")
+        : (et.porque ? "<dt>" + (et.tipo === "Correção" ? "Por que corrigir" : "Como fazer") + "</dt><dd>" + esc(et.porque) + "</dd>" : "") + (et.lista && et.lista.length ? "<dt>Como treinar</dt><dd><ul class=\"lista-correcao\">" + et.lista.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul></dd>" : "") + (et.link ? '<dd style="margin-top:10px"><a class="btn btn-claro" href="' + et.link + '">Abrir a análise de movimento</a></dd>' : "")) + "</dl>" +
       '<div class="registro"><span class="det">Registrar (opcional):</span> <label>Acertos <input id="rAc" type="number" inputmode="numeric" min="0" max="200" value="' + esc(it.acertos) + '"></label> <label>de <input id="rTe" type="number" inputmode="numeric" min="1" max="200" value="' + esc(it.tentativas) + '"></label></div></div>' +
       '<div class="acoes"><button class="btn btn-saibro" type="button" id="btConcluir">' + (S.i === n - 1 ? "Concluir e ver resumo" : "Concluir etapa →") + '</button><button class="btn btn-texto" type="button" id="btPular">Pular</button>' + (S.i > 0 ? '<button class="btn btn-texto" type="button" id="btVoltarEt">← Etapa anterior</button>' : "") + "</div>", "treinos");
-    var q = $("#quadra"); if (q) st.quadra = window.QLQuadraExercicio.montar(q, e.c, { resumo: e.o });
+    var q = $("#quadra"); if (q && e) st.quadra = window.QLQuadraExercicio.montar(q, e.c, { resumo: e.o });
     var elT = $("#tempo"), bt = $("#btTempo");
     function tique() { restante -= 1; elT.textContent = mmss(restante); if (restante <= 0) { clearInterval(st.cronometro); st.cronometro = null; rodando = false; bt.textContent = "▶ Iniciar"; elT.classList.add("fim"); falar("Tempo da etapa encerrado."); try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch (x) { /* ok */ } } }
     bt.onclick = function () {
@@ -502,14 +533,14 @@
   function desenharResumo(se) {
     var S = st.sess, min = Math.max(1, Math.round((Date.now() - S.t0) / 60000)), feitos = S.itens.filter(function (x) { return x.feito; }).length;
     tela('<a class="btn btn-texto voltar" href="#treinos">← Treinos</a><h1>Sessão concluída</h1><p class="lead">' + esc(se.def.titulo) + " · " + feitos + " de " + S.itens.length + " etapas feitas</p>" +
-      '<div class="cartao">' + se.etapas.map(function (x, k) { var it = S.itens[k], ac = +it.acertos, te = +it.tentativas; return '<div class="aula-item' + (it.feito ? " feita" : "") + '"><span class="n" aria-hidden="true">' + (it.feito ? "✓" : k + 1) + '</span><span class="t"><b>' + esc(x.e.n) + "</b><small>" + esc(x.tipo) + (te >= 1 && ac >= 0 && ac <= te ? " · " + ac + " de " + te + " (" + Math.round(ac / te * 100) + "%)" : "") + (it.feito ? "" : " · pulada") + "</small></span></div>"; }).join("") + "</div>" +
+      '<div class="cartao">' + se.etapas.map(function (x, k) { var it = S.itens[k], ac = +it.acertos, te = +it.tentativas; return '<div class="aula-item' + (it.feito ? " feita" : "") + '"><span class="n" aria-hidden="true">' + (it.feito ? "✓" : k + 1) + '</span><span class="t"><b>' + esc(x.e ? x.e.n : x.titulo) + "</b><small>" + esc(x.tipo) + (te >= 1 && ac >= 0 && ac <= te ? " · " + ac + " de " + te + " (" + Math.round(ac / te * 100) + "%)" : "") + (it.feito ? "" : " · pulada") + "</small></span></div>"; }).join("") + "</div>" +
       '<label class="campo" style="max-width:220px">Minutos treinados<input id="rMin" type="number" inputmode="numeric" min="1" max="240" value="' + Math.max(min, Math.round(se.total * feitos / Math.max(1, S.itens.length))) + '"></label>' +
       '<p id="mSes" class="msg" hidden></p><div class="acoes"><button class="btn btn-saibro" type="button" id="btSalvarSes">Salvar no meu painel</button><button class="btn btn-texto" type="button" id="btDescartar">Descartar</button></div>', "treinos");
     $("#btDescartar").onclick = function () { st.sess = null; location.hash = "#treinos"; };
     $("#btSalvarSes").onclick = function () {
       var b = this; b.disabled = true;
-      var itens = S.itens.map(function (x) { var o = { c: x.c, feito: x.feito }; if (+x.tentativas >= 1) { o.acertos = +x.acertos || 0; o.tentativas = +x.tentativas; } return o; });
-      api("POST", { acao: "sessao", sessaoId: S.id, titulo: se.def.titulo, minutos: +$("#rMin").value || min, itens: itens }).then(function (r) {
+      var itens = S.itens.map(function (x) { var o = x.c ? { c: x.c, feito: x.feito } : { t: x.t, feito: x.feito }; if (+x.tentativas >= 1) { o.acertos = +x.acertos || 0; o.tentativas = +x.tentativas; } return o; });
+      api("POST", { acao: "sessao", sessaoId: S.id, titulo: se.def.titulo, analiseId: se.def.analiseId, minutos: +$("#rMin").value || min, itens: itens }).then(function (r) {
         st.dados.sessoes = r.sessoes || st.dados.sessoes; st.sess = null;
         msg($("#mSes"), "ok", "Salvo. Os minutos e o dia já contam no seu painel.");
         b.textContent = "Ir para o Início"; b.disabled = false; b.onclick = function () { location.hash = "#inicio"; };
@@ -584,7 +615,15 @@
     var d = st.dados;
     tela('<h1>Análise de movimento</h1><p class="lead">Filme um golpe (forehand, backhand ou saque) e veja o checklist por fase, o vídeo lado a lado com o boneco, os pontos fortes e o que treinar. A análise roda no seu celular: o vídeo não é enviado.</p>' +
       (d.acesso.tipo === "equipe" ? '<p class="msg msg-aviso">Conta da equipe: dá para testar, mas as análises não ficam salvas aqui. Para analisar um aluno, use a ficha dele no app do treinador.</p>' : "") +
-      '<div id="movArea"><p class="carregando">Abrindo a análise…</p></div>', "analise");
+      '<div id="correcaoCta"></div><div id="movArea"><p class="carregando">Abrindo a análise…</p></div>', "analise");
+    function mostrarCta(m, nova) {
+      var el = $("#correcaoCta"); if (!el || !m) return;
+      var nomes = emAtencao(m);
+      el.innerHTML = nomes.length
+        ? '<section class="cartao correcao-cta" aria-live="polite"><span class="cod">' + (nova ? "Treino criado com esta análise" : "Da sua última análise") + '</span><h2 style="margin:2px 0 4px">' + esc(tituloCorrecao(m)) + '</h2><p class="det" style="margin:0 0 10px">Corrigir: ' + esc(nomes.slice(0, 3).join(", ")) + '.</p><a class="btn btn-saibro" href="#sessao/correcao-' + encodeURIComponent(m.id) + '">Fazer o treino de correção</a></section>'
+        : (nova ? '<p class="msg msg-ok">Todos os itens medidos ficaram dentro da referência. Siga com os treinos guiados para manter.</p>' : "");
+    }
+    mostrarCta(ultimaAnaliseComCorrecao(), false);
     carregarMovimento().then(function () {
       var el = $("#movArea"); if (!el) return;
       el.innerHTML = "";
@@ -602,7 +641,7 @@
       st.mov = window.QLMovimento.montar(el, {
         atleta: d.conta.nome || "", alunoId: "eu", historico: d.movimentos || [], logo: "../assets/logo-quadralab.png", logoAbsoluto: logo, arquivo: arquivo,
         modelos: false, publico: "atleta",
-        aoSalvar: function (reg) { salvando = api("POST", { acao: "movSalvar", resumo: reg }).then(function (r) { st.dados.movimentos = r.movimentos || st.dados.movimentos; }); return salvando; },
+        aoSalvar: function (reg) { salvando = api("POST", { acao: "movSalvar", resumo: reg }).then(function (r) { st.dados.movimentos = r.movimentos || st.dados.movimentos; mostrarCta(analisePorId(reg.id) || reg, true); try { $("#correcaoCta").scrollIntoView({ behavior: "smooth", block: "start" }); } catch (x) { /* ok */ } }); return salvando; },
         aoRemover: function (id) { return api("POST", { acao: "movRemover", id: id }).then(function (r) { st.dados.movimentos = r.movimentos || st.dados.movimentos; }); },
       });
     }).catch(function (e) { var el = $("#movArea"); if (el) el.innerHTML = '<p class="msg msg-erro">' + esc(e.message) + "</p>"; });

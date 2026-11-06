@@ -138,6 +138,8 @@ store["orgs/39-ranch/dados/mty:alunos:v2"] = { value: JSON.stringify([{ id: "r1"
   r = await chamar("POST", { acao: "sessao", sessaoId: "fundo", titulo: "Fundo", minutos: 32, itens: [{ c: "fb001", feito: true, acertos: 7, tentativas: 10 }, { c: "FB003", feito: false, acertos: 12, tentativas: 10 }] }, "tk-c2@x.com");
   assert.deepStrictEqual(r.sessoes[0].itens, [{ c: "FB001", feito: true, acertos: 7, tentativas: 10 }, { c: "FB003", feito: false }], "acertos acima das tentativas são descartados");
   assert.strictEqual((await chamar("GET", null, "tk-c2@x.com")).sessoes.length, 1);
+  r = await chamar("POST", { acao: "sessao", sessaoId: "correcao-mv9", analiseId: "mv9", titulo: "Correção do forehand", minutos: 25, itens: [{ t: "Flexão de joelhos no giro", feito: true }, { c: "FB001", feito: true }] }, "tk-c2@x.com");
+  assert.deepStrictEqual([r.sessoes[1].analiseId, r.sessoes[1].itens[0]], ["mv9", { t: "Flexão de joelhos no giro", feito: true }], "etapas de correção (sem código do catálogo) e a análise de origem");
   assert.strictEqual((await chamar("POST", { acao: "sessao", sessaoId: "fundo", minutos: 30, itens: [] }, "tk-bia@x.com")).status, 403);
 
   /* análise de movimento: resumo, relatório e trecho guardados na conta de quem analisou */

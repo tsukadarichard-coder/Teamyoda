@@ -272,13 +272,15 @@ exports.handler = async function (event) {
       const minutos = Math.round(Number(b.minutos));
       if (!(minutos >= 1 && minutos <= 240)) throw new Erro(400, "Duração inválida.");
       const itens = (Array.isArray(b.itens) ? b.itens : []).slice(0, 8).map((x) => {
-        const c = String((x && x.c) || "").toUpperCase(), ac = Number(x && x.acertos), te = Number(x && x.tentativas);
-        if (!/^[A-Z]{2,4}\d{3}$/.test(c)) throw new Erro(400, "Exercício inválido.");
-        const it = { c, feito: !!(x && x.feito) };
+        const c = String((x && x.c) || "").toUpperCase(), t = txt(x && x.t, 80), ac = Number(x && x.acertos), te = Number(x && x.tentativas);
+        if (c ? !/^[A-Z]{2,4}\d{3}$/.test(c) : !t) throw new Erro(400, "Exercício inválido.");
+        const it = c ? { c, feito: !!(x && x.feito) } : { t, feito: !!(x && x.feito) };
         if (te >= 1 && te <= 200 && ac >= 0 && ac <= te) { it.acertos = Math.round(ac); it.tentativas = Math.round(te); }
         return it;
       });
-      const sessoes = ((conta.sessoes || []).concat([{ id: String(b.sessaoId), titulo: txt(b.titulo, 80), minutos, itens, em: agora() }])).slice(-100);
+      const reg = { id: String(b.sessaoId), titulo: txt(b.titulo, 80), minutos, itens, em: agora() };
+      if (ID.test(String(b.analiseId || ""))) reg.analiseId = String(b.analiseId);
+      const sessoes = ((conta.sessoes || []).concat([reg])).slice(-100);
       if (!claims.orgId) await refConta(claims.uid).set({ sessoes }, { merge: true });
       return resposta(200, { ok: true, sessoes });
     }

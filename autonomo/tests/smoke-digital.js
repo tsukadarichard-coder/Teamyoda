@@ -249,13 +249,41 @@ const chamar = async (metodo, corpo, tk) => { const x = await digital({ httpMeth
   assert(/Rotina entre pontos/.test(await ana.textContent(".certificado h2")));
   await cap(ana, "digital-certificado");
 
+  /* 3c0. uma análise salva com itens em atenção vira um treino de correção (Análise, Início e Treinos) */
+  await chamar("POST", { acao: "movSalvar", resumo: { id: "mvT", golpe: "forehand", emp: "", dom: "D", origem: "video", res: { ok: 1, atencao: 2, nao: 0 }, texto: "Dos 3 itens medidos, 1 está dentro da referência e 2 merecem atenção.", criadoEm: new Date().toISOString(), prio: ["Flexão de joelhos no giro", "Contato à frente do corpo"],
+    itens: [{ n: "Flexão de joelhos no giro", s: "atencao", v: 132, u: "°", r: "110–130°" }, { n: "Contato à frente do corpo", s: "atencao", v: 0.05, u: "", r: "≥ 0,15" }, { n: "Trajetória do seguimento", s: "ok" }] } }, "tk-u1");
+  await ana.evaluate(() => { location.hash = "#inicio"; });
+  await ana.reload();
+  await ana.waitForSelector(".painel-heroi");
+  await ana.waitForSelector(".correcao-card >> text=Correção do forehand");
+  await ana.click(".correcao-card");
+  await ana.waitForSelector("h1 >> text=Shadow swing do forehand");
+  await ana.click("#btConcluir");
+  await ana.waitForSelector("h1 >> text=Flexão de joelhos no giro");
+  assert(/Medido: 132°/.test(await ana.textContent(".ficha")) && (await ana.locator(".lista-correcao li").count()) >= 2, "correção com a medida, o porquê e os exercícios");
+  await cap(ana, "digital-correcao");
+  await ana.click("#btConcluir");
+  await ana.waitForSelector("h1 >> text=Contato à frente do corpo");
+  await ana.click("#btConcluir");
+  await ana.waitForSelector("#quadra .qe-quadra svg");
+  assert(/Aplicar na bola/.test(await ana.textContent("main")));
+  await ana.click("#btConcluir");
+  await ana.waitForSelector("h1 >> text=Filme de novo e compare");
+  await ana.click("#btConcluir");
+  await ana.waitForSelector("h1 >> text=Sessão concluída");
+  await ana.click("#btSalvarSes");
+  await ana.waitForSelector("#mSes >> text=Salvo");
+  const corr = store["digitalContas/u1"].sessoes.slice(-1)[0];
+  assert(corr.id === "correcao-mvT" && corr.analiseId === "mvT" && corr.itens.filter((x) => x.t).length === 4, "sessão de correção gravada com a análise de origem");
+
   /* 3c. análise de movimento: o módulo do Player carrega na aba e a demonstração roda (nada é salvo) */
   await ana.click(".abas a[data-aba=analise]");
   await ana.waitForSelector("#movArea.qlm [data-r=demo]", { timeout: 30000 });
+  await ana.waitForSelector("#correcaoCta >> text=Fazer o treino de correção");
   await ana.click("#movArea [data-r=demo]");
   await ana.waitForSelector("#movArea [data-r=saida]:not([hidden])", { timeout: 60000 });
   await ana.waitForSelector("#movArea [data-r=salvoMsg] >> text=Demonstração: nada foi salvo.");
-  assert(!store["digitalContas/u1"].movimentos, "demonstração não é salva");
+  assert.strictEqual(store["digitalContas/u1"].movimentos.length, 1, "demonstração não é salva");
   await cap(ana, "digital-analise");
 
   /* 4. simulador no quadro */

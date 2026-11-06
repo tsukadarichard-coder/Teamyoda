@@ -206,3 +206,9 @@ dl.ficha dd { margin: 2px 0 0; }
 .duas-col { grid-template-columns: 1fr; }
 @media (min-width: 760px) { .duas-col { grid-template-columns: 1fr 1fr 1fr; } }
 #movArea .qlm { font-family: Inter, system-ui, sans-serif; }
+
+/* treino de correção (da análise de movimento) */
+.correcao-card, .correcao-cta { display: block; text-decoration: none; color: inherit; border-radius: 20px; border: 2px solid var(--saibro); background: linear-gradient(180deg, #F4FBEE 0%, #fff 70%); }
+.correcao-cta { margin-bottom: 14px; }
+.lista-correcao { margin: 4px 0 0; padding-left: 18px; }
+.lista-correcao li { margin: 4px 0; }
