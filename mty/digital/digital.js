@@ -24,7 +24,7 @@
   var auth = null;
   try { if (!firebase.apps.length) firebase.initializeApp(MTY_CONFIG); auth = firebase.auth(); } catch (e) { console.error("digital: Firebase", e); }
 
-  var st = { usuario: null, dados: null, catalogo: null, carregandoCatalogo: null, modo: "criar", vitrinePublica: null, filtro: { q: "", f: "", quadra: false, n: 48 }, quadra: null };
+  var st = { usuario: null, dados: null, catalogo: null, carregandoCatalogo: null, modo: "criar", vitrinePublica: null, filtro: { q: "", f: "", quadra: false, n: 24 }, quadra: null };
 
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
   function $(s, r) { return (r || document).querySelector(s); }
@@ -99,14 +99,15 @@
     selo.hidden = !liberado; selo.textContent = liberado ? (ACESSO[d.acesso.tipo] || "") : "";
     if (!liberado) return telaSemAcesso();
     var r = rota();
-    if (r[0] && r[0] !== "trilhas") st.avisoLigado = null;
+    if (r[0] && r[0] !== "trilhas" && r[0] !== "inicio") st.avisoLigado = null;
     if (r[0] === "trilha" && r[1]) return telaTrilha(r[1]);
     if (r[0] === "aula" && r[1] && r[2]) return telaAula(r[1], r[2]);
     if (r[0] === "treinos") return telaTreinos();
     if (r[0] === "treino" && r[1]) return telaTreino(r[1]);
     if (r[0] === "simulador") return telaSimulador(r.slice(1).join("/"));
     if (r[0] === "conta") return telaConta();
-    return telaTrilhas();
+    if (r[0] === "trilhas") return telaTrilhas();
+    return telaInicio();
   }
 
   /* entrar / criar conta */
@@ -182,7 +183,7 @@
       api("POST", { acao: "vincular", link: { org: l.org, id: l.id, t: l.t } }).then(function () {
         st.avisoLigado = "Pronto: a sua conta foi ligada ao aluno de " + ORG_NOME[l.org] + ". O acesso é incluído na sua matrícula.";
         return carregar();
-      }).then(function () { if (location.hash === "#trilhas") render(); else location.hash = "#trilhas"; }).catch(function (e) { msg(m, "erro", e.message); });
+      }).then(function () { if (location.hash === "#inicio") render(); else location.hash = "#inicio"; }).catch(function (e) { msg(m, "erro", e.message); });
     };
   }
 
@@ -219,7 +220,71 @@
   function resumo(t, n) { t = String(t || "").replace(/\s+/g, " ").trim(); return t.length > n ? t.slice(0, n - 1).replace(/\s\S*$/, "") + "…" : t; }
   function trilhaPorId(id) { return ((st.dados.conteudo || {}).trilhas || []).filter(function (t) { return t.id === id; })[0]; }
   function feitas(t) { var p = st.dados.progresso || {}; return t.aulas.filter(function (a) { return p[a.id]; }).length; }
-  function barra(n, total) { var pc = total ? Math.round(n / total * 100) : 0; return '<div class="barra" role="img" aria-label="' + n + " de " + total + ' aulas feitas"><i style="width:' + pc + '%"></i></div>'; }
+
+  /* ── visual: capa da trilha (imagem do primeiro vídeo, ou a quadra desenhada), anel de progresso e a quadra do treino ── */
+  var QUADRA_DECOR = '<svg class="capa-quadra" viewBox="0 0 160 90" aria-hidden="true" preserveAspectRatio="xMidYMid slice"><g fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.2"><rect x="18" y="14" width="124" height="62"/><line x1="18" y1="22" x2="142" y2="22"/><line x1="18" y1="68" x2="142" y2="68"/><line x1="49" y1="22" x2="49" y2="68"/><line x1="111" y1="22" x2="111" y2="68"/><line x1="49" y1="45" x2="111" y2="45"/><line x1="80" y1="10" x2="80" y2="80" stroke-dasharray="2 2"/></g><circle cx="118" cy="32" r="4" fill="#E4F542"/><path d="M40 60 Q80 18 118 32" fill="none" stroke="#F4FF8A" stroke-width="1.2" stroke-dasharray="3 3"/></svg>';
+  function videoDaTrilha(t) { return (t.aulas.filter(function (a) { return a.youtube; })[0] || {}).youtube || ""; }
+  function capa(yt, extra) {
+    return '<div class="capa"' + (yt ? ' style="background-image:url(https://i.ytimg.com/vi/' + esc(yt) + '/mqdefault.jpg),linear-gradient(150deg,#2A5E43 0%,#3A7B56 60%,#69B32A 140%)"' : "") + ">" + (yt ? "" : QUADRA_DECOR) + (extra || "") + "</div>";
+  }
+  function anel(n, total, escuro) {
+    var pc = total ? Math.round(n / total * 100) : 0, c = 2 * Math.PI * 18;
+    return '<svg class="anel" viewBox="0 0 44 44" role="img" aria-label="' + n + " de " + total + ' aulas feitas"><circle cx="22" cy="22" r="18" fill="none" stroke="' + (escuro ? "rgba(255,255,255,.18)" : "#E6ECE9") + '" stroke-width="5"/>' +
+      (n ? '<circle cx="22" cy="22" r="18" fill="none" stroke="#69B32A" stroke-width="5" stroke-linecap="round" stroke-dasharray="' + (c * pc / 100).toFixed(1) + " " + c.toFixed(1) + '" transform="rotate(-90 22 22)"/>' : "") +
+      '<text x="22" y="26" text-anchor="middle" font-size="11" font-weight="800" fill="currentColor">' + pc + "%</text></svg>";
+  }
+  function quadraMini(c) { try { return window.QLQuadraExercicio.svgEstatico(c, "mini" + c.toLowerCase()); } catch (e) { return ""; } }
+  function cartaoTrilha(t) {
+    var n = feitas(t);
+    return '<a class="cartao trilha com-capa" href="#trilha/' + encodeURIComponent(t.id) + '">' + capa(videoDaTrilha(t), '<span class="capa-nivel">' + esc(NIVEL[t.nivel] || "") + "</span>") +
+      '<div class="trilha-corpo"><div class="trilha-tit"><h3>' + esc(t.titulo) + '</h3><p class="det" style="margin:0">' + t.aulas.length + (t.aulas.length === 1 ? " aula" : " aulas") + " · " + n + (n === 1 ? " feita" : " feitas") + "</p></div>" + anel(n, t.aulas.length) + "</div>" +
+      (t.descricao ? '<p class="det" style="margin:8px 0 0">' + esc(resumo(t.descricao, 120)) + "</p>" : "") + "</a>";
+  }
+  function proximaAula() {
+    var ts = (st.dados.conteudo || {}).trilhas || [], p = st.dados.progresso || {};
+    for (var i = 0; i < ts.length; i++) for (var j = 0; j < ts[i].aulas.length; j++) if (!p[ts[i].aulas[j].id]) return { t: ts[i], a: ts[i].aulas[j], i: j };
+    return null;
+  }
+  function diasAtivos() {
+    var p = st.dados.progresso || {}, h = new Date(), lim = new Date(h.getFullYear(), h.getMonth(), h.getDate() - 6).toISOString().slice(0, 10), dias = {};
+    Object.keys(p).forEach(function (k) { var d = String(p[k] || "").slice(0, 10); if (d && d >= lim) dias[d] = 1; });
+    return Object.keys(dias).length;
+  }
+
+  function telaInicio() {
+    var d = st.dados, ts = (d.conteudo || {}).trilhas || [], p = d.progresso || {};
+    var total = 0, feitasTot = 0, emAndamento = 0;
+    ts.forEach(function (t) { var n = feitas(t); total += t.aulas.length; feitasTot += n; if (n && n < t.aulas.length) emAndamento++; });
+    var nome = String(d.conta.nome || "").split(/\s+/)[0] || "atleta";
+    var sub = d.acesso.tipo === "unidade" ? "Incluída na sua matrícula · " + d.acesso.unidade : d.acesso.tipo === "equipe" ? "Equipe · " + d.acesso.unidade : d.acesso.tipo === "assinante" ? "Assinatura ativa" : "Acesso de cortesia";
+    var px = proximaAula(), dias = diasAtivos();
+    tela(
+      (st.avisoLigado ? '<p class="msg msg-ok">' + esc(st.avisoLigado) + "</p>" : "") +
+      '<section class="painel-heroi" aria-label="Seu avanço"><div class="ph-txt"><span class="ph-sobre">Academia Digital</span><h1>Olá, ' + esc(nome) + '</h1><p>' + esc(sub) + "</p></div>" +
+        '<div class="ph-anel">' + anel(feitasTot, total, true) + "<span>do conteúdo</span></div></section>" +
+      '<div class="numeros" role="list">' +
+        '<div class="numero" role="listitem"><b>' + feitasTot + '<small>/' + total + "</small></b><span>aulas feitas</span></div>" +
+        '<div class="numero" role="listitem"><b>' + dias + '<small>/7</small></b><span>dias ativos na semana</span></div>' +
+        '<div class="numero" role="listitem"><b>' + emAndamento + '<small>/' + ts.length + "</small></b><span>trilhas em andamento</span></div></div>" +
+      (px ? '<h2 class="secao">Continuar de onde parou</h2><a class="cartao continuar" href="#aula/' + encodeURIComponent(px.t.id) + "/" + encodeURIComponent(px.a.id) + '">' + capa(px.a.youtube || videoDaTrilha(px.t), '<span class="play" aria-hidden="true">▶</span>') +
+          '<div class="cont-txt"><span class="det">' + esc(px.t.titulo) + " · aula " + (px.i + 1) + " de " + px.t.aulas.length + (px.a.duracao ? " · " + esc(px.a.duracao) : "") + "</span><h3>" + esc(px.a.titulo) + "</h3></div></a>"
+        : ts.length ? '<div class="cartao vazio">Você fez todas as aulas publicadas. Novas aulas aparecem aqui assim que forem lançadas.</div>' : "") +
+      '<h2 class="secao">Trilhas</h2>' +
+      (ts.length ? '<div class="carrossel">' + ts.map(cartaoTrilha).join("") + "</div>"
+        : '<div class="cartao vazio">As primeiras trilhas estão sendo gravadas. Enquanto isso, explore os treinos e o simulador.</div>') +
+      '<div class="duas-col"><section aria-labelledby="tDia"><h2 class="secao" id="tDia">Treino do dia</h2><div id="treinoDia" class="cartao treino-dia"><p class="det">Escolhendo o treino de hoje…</p></div></section>' +
+      '<section aria-labelledby="tSim"><h2 class="secao" id="tSim">Simulador de decisões</h2><a class="cartao sim-card" href="#simulador"><div class="sim-arte">' + QUADRA_DECOR + '</div><div><h3>Escolha a jogada</h3><p class="det" style="margin:0">Situações de ponto: alvo, altura e intensidade, e a resposta possível do adversário.</p></div></a></section></div>',
+      "inicio"
+    );
+    st.avisoLigado = null;
+    catalogo().then(function (c) {
+      var el = $("#treinoDia"); if (!el) return;
+      var com = c.lista.filter(function (e) { return temQuadra(e.c); });
+      if (!com.length) { el.innerHTML = '<p class="det">Abra os <a href="#treinos">Treinos</a>.</p>'; return; }
+      var h = new Date(), dia = Math.floor((h - new Date(h.getFullYear(), 0, 0)) / 864e5), e = com[(dia * 7) % com.length];
+      el.outerHTML = '<a id="treinoDia" class="cartao treino-dia" href="#treino/' + encodeURIComponent(e.c) + '"><div class="ex-thumb">' + quadraMini(e.c) + '</div><span class="cod">' + esc(e.c) + " · " + esc(FAM[e.f] || e.f) + "</span><h3>" + esc(e.n) + '</h3><p class="det" style="margin:0">' + esc(resumo(e.o || e.m, 110)) + "</p></a>";
+    }).catch(function () { var el = $("#treinoDia"); if (el) el.innerHTML = '<p class="det">Abra os <a href="#treinos">Treinos</a>.</p>'; });
+  }
 
   function telaTrilhas() {
     var d = st.dados, ts = (d.conteudo || {}).trilhas || [];
@@ -227,10 +292,7 @@
     tela(
       (st.avisoLigado ? '<p class="msg msg-ok">' + esc(st.avisoLigado) + "</p>" : "") +
       "<h1>Trilhas</h1><p class=\"lead\">" + boasVindas + "</p>" +
-      (ts.length ? '<div class="grade">' + ts.map(function (t) {
-        var n = feitas(t);
-        return '<a class="cartao trilha" href="#trilha/' + encodeURIComponent(t.id) + '"><span class="nivel">' + esc(NIVEL[t.nivel] || "") + "</span><h3>" + esc(t.titulo) + '</h3><p class="det" style="margin:0">' + esc(resumo(t.descricao, 150)) + '</p><p class="det" style="margin:8px 0 0">' + n + " de " + t.aulas.length + " aulas feitas</p>" + barra(n, t.aulas.length) + "</a>";
-      }).join("") + "</div>"
+      (ts.length ? '<div class="grade">' + ts.map(cartaoTrilha).join("") + "</div>"
         : '<div class="cartao vazio">As primeiras trilhas estão sendo gravadas. Enquanto isso, explore os <a href="#treinos">Treinos</a> e o <a href="#simulador">Simulador</a>.</div>'),
       "trilhas"
     );
@@ -240,9 +302,10 @@
     if (!t) return telaNaoAchou("Esta trilha não está mais disponível.", "#trilhas", "trilhas");
     var p = st.dados.progresso || {}, n = feitas(t);
     tela(
-      '<a class="btn btn-texto voltar" href="#trilhas">← Trilhas</a><span class="det" style="display:block;font-weight:700;color:var(--saibro-esc)">' + esc(NIVEL[t.nivel] || "") + "</span><h1>" + esc(t.titulo) + "</h1>" +
+      '<a class="btn btn-texto voltar" href="#trilhas">← Trilhas</a>' +
+      '<section class="trilha-heroi">' + capa(videoDaTrilha(t), '<span class="capa-nivel">' + esc(NIVEL[t.nivel] || "") + "</span>") +
+        '<div class="th-txt"><div><h1>' + esc(t.titulo) + '</h1><p class="det" style="margin:0">' + n + " de " + t.aulas.length + " aulas feitas</p></div>" + anel(n, t.aulas.length) + "</div></section>" +
       (t.descricao ? '<p class="lead texto-aula">' + esc(t.descricao) + "</p>" : "") +
-      '<p class="det">' + n + " de " + t.aulas.length + " aulas feitas</p>" + barra(n, t.aulas.length) +
       '<div style="margin-top:14px">' + t.aulas.map(function (a, i) {
         return '<a class="aula-item' + (p[a.id] ? " feita" : "") + '" href="#aula/' + encodeURIComponent(t.id) + "/" + encodeURIComponent(a.id) + '"><span class="n" aria-hidden="true">' + (p[a.id] ? "✓" : i + 1) + '</span><span class="t"><b>' + esc(a.titulo) + "</b><small>" +
           [a.duracao, a.youtube ? "vídeo" : "", a.exercicios.length ? a.exercicios.length + (a.exercicios.length === 1 ? " treino" : " treinos") : "", p[a.id] ? "feita" : ""].filter(Boolean).map(esc).join(" · ") + "</small></span><span aria-hidden=\"true\">›</span></a>";
@@ -283,8 +346,8 @@
   }
   function temQuadra(c) { return !!(window.QLQuadraExercicio && window.QLQuadraExercicio.tem(c)); }
   function cartaoExercicio(e) {
-    return '<a class="cartao ex" href="#treino/' + encodeURIComponent(e.c) + '"><span class="cod">' + esc(e.c) + " · " + esc(FAM[e.f] || e.f) + "</span><h3>" + esc(e.n) + '</h3><p class="det" style="margin:0">' + esc(resumo(e.o || e.m, 140)) + "</p>" +
-      (temQuadra(e.c) ? '<span class="tag tag-quadra">Quadra animada</span>' : "") + (e.e || []).map(function (s) { return '<span class="tag">' + esc(ESTAGIO[s] || s) + "</span>"; }).join("") + "</a>";
+    return '<a class="cartao ex" href="#treino/' + encodeURIComponent(e.c) + '">' + (temQuadra(e.c) ? '<div class="ex-thumb">' + quadraMini(e.c) + "</div>" : "") + '<span class="cod">' + esc(e.c) + " · " + esc(FAM[e.f] || e.f) + "</span><h3>" + esc(e.n) + '</h3><p class="det" style="margin:0">' + esc(resumo(e.o || e.m, 140)) + "</p>" +
+      (temQuadra(e.c) ? '<span class="tag tag-quadra">▶ Quadra animada</span>' : "") + (e.e || []).map(function (s) { return '<span class="tag">' + esc(ESTAGIO[s] || s) + "</span>"; }).join("") + "</a>";
   }
 
   function telaTreinos() {
@@ -305,11 +368,11 @@
         $("#fcont").textContent = res.length + (res.length === 1 ? " treino" : " treinos");
         $("#lista").innerHTML = res.slice(0, st.filtro.n).map(cartaoExercicio).join("") || '<p class="vazio">Nenhum treino com esse filtro.</p>';
         $("#mais").innerHTML = res.length > st.filtro.n ? '<button class="btn btn-claro" type="button" id="btMais">Mostrar mais</button>' : "";
-        var bm = $("#btMais"); if (bm) bm.onclick = function () { st.filtro.n += 48; filtrar(); };
+        var bm = $("#btMais"); if (bm) bm.onclick = function () { st.filtro.n += 24; filtrar(); };
       }
-      $("#fq").oninput = function () { st.filtro.q = this.value; st.filtro.n = 48; filtrar(); };
-      $("#ff").onchange = function () { st.filtro.f = this.value; st.filtro.n = 48; filtrar(); };
-      $("#fqd").onchange = function () { st.filtro.quadra = this.checked; st.filtro.n = 48; filtrar(); };
+      $("#fq").oninput = function () { st.filtro.q = this.value; st.filtro.n = 24; filtrar(); };
+      $("#ff").onchange = function () { st.filtro.f = this.value; st.filtro.n = 24; filtrar(); };
+      $("#fqd").onchange = function () { st.filtro.quadra = this.checked; st.filtro.n = 24; filtrar(); };
       filtrar();
     }).catch(function (e) { var el = $("#treinos"); if (el) el.innerHTML = '<p class="msg msg-erro">' + esc(e.message) + "</p>"; });
   }
