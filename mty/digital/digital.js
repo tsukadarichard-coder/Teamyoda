@@ -360,6 +360,14 @@
       "trilhas"
     );
   }
+  /* ilustrações da aula (mty/assets/cursos), acima do texto; tocar abre a imagem inteira */
+  function ilustracoes(a) {
+    var im = (a.imagens || []).filter(function (x) { return /^assets\/cursos\/[a-z0-9-]+\.svg$/.test(x); });
+    if (!im.length) return "";
+    return '<div class="ilustracoes' + (im.length > 1 ? " duas" : "") + '">' + im.map(function (x, k) {
+      return '<a class="ilustracao" href="../' + esc(x) + '" target="_blank" rel="noopener"><img src="../' + esc(x) + '" alt="Ilustração ' + (k + 1) + " da aula " + esc(a.titulo) + '" loading="lazy" decoding="async"></a>';
+    }).join("") + "</div>";
+  }
   function telaAula(tid, aid) {
     var t = trilhaPorId(decodeURIComponent(tid)); aid = decodeURIComponent(aid);
     var i = t ? t.aulas.map(function (a) { return a.id; }).indexOf(aid) : -1;
@@ -369,6 +377,7 @@
       '<a class="btn btn-texto voltar" href="#trilha/' + encodeURIComponent(t.id) + '">← ' + esc(t.titulo) + "</a>" +
       '<p class="det" style="margin:0">Aula ' + (i + 1) + " de " + t.aulas.length + (a.duracao ? " · " + esc(a.duracao) : "") + "</p><h1>" + esc(a.titulo) + "</h1>" +
       (a.youtube ? '<div class="video" id="video"><button type="button" id="btVideo" style="background-image:url(https://i.ytimg.com/vi/' + esc(a.youtube) + '/hqdefault.jpg)" aria-label="Assistir ao vídeo: ' + esc(a.titulo) + '"><span>▶ Assistir</span></button></div>' : "") +
+      ilustracoes(a) +
       (a.descricao ? '<div class="cartao" style="margin-top:14px"><p class="texto-aula" style="margin:0">' + esc(a.descricao) + "</p></div>" : "") +
       (a.exercicios.length ? '<section aria-labelledby="tEx" style="margin-top:14px"><h2 id="tEx">Treinos desta aula</h2><div id="exAula" class="grade"><p class="det">Carregando os treinos…</p></div></section>' : "") +
       ((a.quiz || []).length ? quizHtml(a) : "") +

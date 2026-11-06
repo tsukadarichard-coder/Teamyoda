@@ -49,6 +49,8 @@ function limparQuiz(q, titulo) {
     return { p: txt(x.p, 300), op, c: Math.floor(c) };
   });
 }
+/* ilustrações das aulas: só os arquivos do próprio site (mty/assets/cursos) */
+const IMAGEM = /^assets\/cursos\/[a-z0-9-]+\.svg$/;
 function limparConteudo(b) {
   const trilhas = (Array.isArray(b.trilhas) ? b.trilhas : []).slice(0, MAX_TRILHAS).map((t, i) => {
     const id = ID.test(String(t.id || "")) ? String(t.id) : "tr" + Date.now().toString(36) + i;
@@ -60,6 +62,7 @@ function limparConteudo(b) {
         titulo: txt(a.titulo, 120) || "Aula " + (j + 1), descricao: txtLongo(a.descricao, 6000), youtube: yt, quiz: limparQuiz(a.quiz, a.titulo),
         exercicios: (Array.isArray(a.exercicios) ? a.exercicios : []).map((c) => String(c).toUpperCase()).filter((c) => /^[A-Z]{2,4}\d{3}$/.test(c)).slice(0, 12),
         duracao: txt(a.duracao, 20),
+        imagens: (Array.isArray(a.imagens) ? a.imagens : []).map(String).filter((x) => IMAGEM.test(x)).slice(0, 3),
       };
     });
     return { id, titulo: txt(t.titulo, 120) || "Curso " + (i + 1), descricao: txtLongo(t.descricao, 1500), nivel: NIVEIS.includes(t.nivel) ? t.nivel : "todos", categoria: CATEGORIAS.includes(t.categoria) ? t.categoria : "geral", publicada: !!t.publicada, aulas };
@@ -70,7 +73,8 @@ function limparConteudo(b) {
   return { trilhas, venda: { preco: txt(v.preco, 40), checkoutUrl, observacao: txtLongo(v.observacao, 600) } };
 }
 /* Os cursos da Metodologia MTY (_cursos-mty.js) entram uma vez, já publicados, e a marca cursosMty impede que voltem
-   depois de a coordenação apagar um deles; trocar a VERSAO insere só os cursos novos (pelo id). */
+   depois de a coordenação apagar um deles; trocar a VERSAO insere só os cursos novos (pelo id) e completa as ilustrações
+   das aulas MTY que ainda não têm nenhuma. */
 const CMTY = require("./_cursos-mty.js");
 async function lerConteudo() {
   const ref = db().collection("digitalConteudo").doc("academia");
@@ -81,7 +85,9 @@ async function lerConteudo() {
   if (cursosMty !== CMTY.VERSAO && process.env.DIGITAL_SEM_CURSOS_MTY !== "1") {
     const ids = new Set(trilhas.map((t) => t.id)), feitos = new Set(inseridos);
     const novos = CMTY.CURSOS.filter((c) => !ids.has(c.id) && !feitos.has(c.id));
-    trilhas = limparConteudo({ trilhas: trilhas.concat(novos), venda }).trilhas;
+    /* aulas MTY já inseridas e ainda sem ilustração ganham as da versão nova; o que a coordenação editou fica */
+    const comImagens = trilhas.map((t) => ({ ...t, aulas: (t.aulas || []).map((a) => (CMTY.IMAGENS[a.id] && !(a.imagens || []).length ? { ...a, imagens: CMTY.IMAGENS[a.id] } : a)) }));
+    trilhas = limparConteudo({ trilhas: comImagens.concat(novos), venda }).trilhas;
     cursosMty = CMTY.VERSAO; inseridos = inseridos.concat(novos.map((c) => c.id));
     await ref.set({ ...d, trilhas, venda, cursosMty, cursosMtyInseridos: inseridos, atualizadoEm: agora() });
   }

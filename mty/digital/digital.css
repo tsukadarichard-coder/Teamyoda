@@ -89,6 +89,10 @@ label.campo input, label.campo select { display: block; width: 100%; margin-top:
 .video button span { background: rgba(0, 0, 0, .65); border-radius: 999px; padding: 12px 20px; font-weight: 700; }
 .voltar { margin: -4px 0 4px -6px; }
 .texto-aula { white-space: pre-line; }
+.ilustracoes { display: grid; gap: 12px; margin-top: 14px; justify-items: center; }
+.ilustracoes.duas { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); align-items: start; }
+.ilustracao { display: block; width: 100%; max-width: 620px; border-radius: 18px; overflow: hidden; background: #F6F8F7; border: 1px solid var(--linha, #E2E8E5); }
+.ilustracao img { display: block; width: 100%; height: auto; max-height: 560px; object-fit: contain; }
 
 /* treinos */
 .filtros { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }

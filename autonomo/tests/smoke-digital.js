@@ -72,7 +72,7 @@ const chamar = async (metodo, corpo, tk) => { const x = await digital({ httpMeth
   /* a coordenação monta duas trilhas (uma em rascunho) */
   const salvo = await chamar("POST", { acao: "salvarConteudo", trilhas: [
     { id: "tr1", titulo: "Forehand do zero", nivel: "iniciante", publicada: true, descricao: "Do grip ao forehand com intenção.", aulas: [
-      { id: "au1", titulo: "Empunhadura e preparação", youtube: "https://youtu.be/dQw4w9WgXcQ", duracao: "8 min", descricao: "Assista e repita a sombra 10 vezes.", exercicios: ["FB001", "FB002"] },
+      { id: "au1", titulo: "Empunhadura e preparação", youtube: "https://youtu.be/dQw4w9WgXcQ", duracao: "8 min", descricao: "Assista e repita a sombra 10 vezes.", exercicios: ["FB001", "FB002"], imagens: ["assets/cursos/fases-forehand.svg", "assets/cursos/empunhaduras.svg"] },
       { id: "au2", titulo: "Troca na cruzada", exercicios: ["FB003"] }] },
     { id: "tr2", titulo: "Rascunho secreto", publicada: false, aulas: [{ id: "au9", titulo: "Ainda não", youtube: "aaaaaaaaaaa" }] },
     { id: "tr3", titulo: "Rotina entre pontos", categoria: "mental", nivel: "todos", publicada: true, aulas: [
@@ -159,6 +159,10 @@ const chamar = async (metodo, corpo, tk) => { const x = await digital({ httpMeth
   assert(!externos.some((u) => /youtube/.test(u)), "nada do YouTube antes do toque (só a miniatura)");
   await ana.waitForSelector("#exAula a.ex >> text=FB001");
   assert.strictEqual(await ana.locator("#exAula a.ex").count(), 2);
+  /* ilustrações acima do texto, carregadas do próprio site */
+  await ana.waitForFunction(() => [...document.querySelectorAll(".ilustracoes img")].filter((i) => i.complete && i.naturalWidth > 0).length === 2);
+  assert(await ana.evaluate(() => { const il = document.querySelector(".ilustracoes"), tx = document.querySelector(".texto-aula"); return il && tx && (il.compareDocumentPosition(tx) & Node.DOCUMENT_POSITION_FOLLOWING); }), "ilustrações antes do texto");
+  assert.strictEqual(await ana.getAttribute(".ilustracoes a >> nth=0", "href"), "../assets/cursos/fases-forehand.svg");
   await cap(ana, "digital-aula");
   await ana.click("#btVideo");
   const src = await ana.getAttribute("#video iframe", "src");

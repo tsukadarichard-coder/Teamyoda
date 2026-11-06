@@ -49,7 +49,7 @@ const srv = http.createServer((q, r) => {
     if (u.pathname === "/coord") { r.writeHead(200, { "content-type": "text/html; charset=utf-8" }); return r.end(pagina); }
     if (CDNS[u.pathname]) { r.writeHead(200, { "content-type": "text/javascript" }); return r.end(fs.readFileSync(CDNS[u.pathname])); }
     const f = path.join(raiz, decodeURIComponent(u.pathname));
-    if (f.startsWith(raiz) && fs.existsSync(f) && fs.statSync(f).isFile()) { r.writeHead(200, { "content-type": "text/javascript" }); return r.end(fs.readFileSync(f)); }
+    if (f.startsWith(raiz) && fs.existsSync(f) && fs.statSync(f).isFile()) { r.writeHead(200, { "content-type": /\.svg$/.test(f) ? "image/svg+xml" : /\.png$/.test(f) ? "image/png" : "text/javascript" }); return r.end(fs.readFileSync(f)); }
     r.writeHead(404); r.end();
   });
 }).listen(0);
@@ -113,6 +113,17 @@ const base = "http://localhost:" + srv.address().port;
   await p.click("button:has-text('Salvar')");
   await p.waitForSelector("text=Salvo. Os cursos publicados");
   assert.deepStrictEqual(store["digitalConteudo/academia"].trilhas[0].aulas[0].quiz, [{ p: "Onde fica o contato?", op: ["À frente do corpo", "Atrás do corpo"], c: 0 }]);
+  /* ilustrações da aula: aparecem no editor, dá para remover, e salvar mantém as que ficaram */
+  store["digitalConteudo/academia"].trilhas[0].aulas[0].imagens = ["assets/cursos/fases-forehand.svg", "assets/cursos/empunhaduras.svg"];
+  await p.reload();
+  await p.click("[data-trilha] button[aria-expanded] >> text=Forehand do zero");
+  await p.waitForFunction(() => [...document.querySelectorAll("[data-ilustracoes] img")].filter((i) => i.complete && i.naturalWidth > 0).length === 2);
+  await p.click("[data-ilustracoes] button:has-text('Remover') >> nth=1");
+  assert.strictEqual(await p.locator("[data-ilustracoes] img").count(), 1);
+  await p.click("button:has-text('Salvar')");
+  await p.waitForSelector("text=Salvo. Os cursos publicados");
+  assert.deepStrictEqual(store["digitalConteudo/academia"].trilhas[0].aulas[0].imagens, ["assets/cursos/fases-forehand.svg"]);
+  assert.strictEqual(store["digitalConteudo/academia"].trilhas[0].aulas[0].quiz.length, 1, "o quiz continua");
   /* cursos-modelo: técnica, tática e mental em rascunho, com quiz em todas as aulas e treinos ligados */
   for (const b of ["+ Curso de Técnica", "+ Curso de Tática", "+ Curso Mental"]) await p.click("[data-modelos] button:has-text('" + b + "')");
   await p.click("button:has-text('Salvar')");
