@@ -33,7 +33,7 @@ const html = fs.readFileSync(path.join(raiz, "index.html"), "utf8");
 const ms = [...html.matchAll(/<script type="text\/babel"[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]).join("\n");
 const corpo = ms.slice(0, ms.indexOf('ReactDOM.createRoot(document.getElementById("root")).render(<App />);')) + `
 window.mtyAuth={tokenId:()=>Promise.resolve("coord"),usuario:()=>({uid:"c1",email:"coord@ty.com"})};
-ReactDOM.createRoot(document.getElementById("root")).render(<div style={{padding:12}}><TelaAcademiaDigital /></div>);`;
+ReactDOM.createRoot(document.getElementById("root")).render(<div style={{padding:12}}><AvisoEnderecoNovo orgAtual="team-yoda" /><AvisoEnderecoNovo orgAtual="39-ranch" /><TelaAcademiaDigital /></div>);`;
 const pagina = `<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><div id=root></div><script src=/r.js></script><script src=/d.js></script><script src=/p.js></script><script src=/c.js></script><script src=/b.js></script>
 <script>window.MTY={evento(){},id:()=>"x",map(){},tokenSeguro(){return ""}};</script>
 <script src=/scout/graficos.js></script><script src=/scout/ao-vivo.js></script><script src=/scout/relatorio-jogos.js></script><script src=/scout/movimento-motor.js></script><script src=/scout/evidencias.js></script><script src=/scout/movimento.js></script><script src=/scout/video-segmentador.js></script><script src=/scout/video-jogo.js></script>
@@ -57,11 +57,18 @@ const base = "http://localhost:" + srv.address().port;
 (async () => {
   const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", args: ["--no-sandbox"] });
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 } });
-  await ctx.route(/^https?:\/\/(?!localhost)/, (rota) => rota.fulfill({ contentType: "text/plain", body: "" }));
+  const PNG = fs.readFileSync(path.join(raiz, "assets/favicon-32.png"));
+  await ctx.route(/^https?:\/\/(?!localhost)/, (rota) => /teamyoda\.com\.br\/assets\/favicon-32\.png/.test(rota.request().url()) ? rota.fulfill({ contentType: "image/png", body: PNG }) : rota.fulfill({ contentType: "text/plain", body: "" }));
   const p = await ctx.newPage(), erros = [];
   p.on("pageerror", (e) => erros.push(e.message)); p.on("dialog", (d) => d.accept());
   await p.goto(base + "/coord");
   await p.waitForSelector("text=Nenhuma trilha ainda", { timeout: 60000 });
+  /* aviso do endereço novo: só para o Team Yoda (não para o 39 Ranch), quando teamyoda.com.br responde; "Já mudei" esconde de vez */
+  await p.waitForSelector("[data-aviso-endereco] >> text=teamyoda.com.br/treinador");
+  assert.strictEqual(await p.locator("[data-aviso-endereco]").count(), 1, "só um aviso (o do 39 Ranch não aparece)");
+  assert.strictEqual(await p.getAttribute("[data-aviso-endereco] a", "href"), "https://teamyoda.com.br/treinador");
+  await p.click("[data-aviso-endereco] button:has-text('Já mudei')");
+  assert.strictEqual(await p.locator("[data-aviso-endereco]").count(), 0);
   const campo = (rot) => p.locator("div.mb-4", { has: p.locator("text=" + rot) }).locator("input, textarea, select").first();
 
   await p.click("button:has-text('+ Nova trilha')");

@@ -24135,6 +24135,41 @@ function TelaPendencias({ alunos, setAlunos, turmas, quadras, ocorrencias, setOc
   );
 }
 
+/* ── endereço novo do Team Yoda (teamyoda.com.br) ──
+   Os professores do Team Yoda que ainda abrem o app pelo endereço antigo (app.39tennis.com.br, que segue sendo do 39 Ranch) veem
+   um aviso para passar a usar teamyoda.com.br/treinador. Só aparece quando o domínio novo já responde (a imagem de teste carrega),
+   então não mostra nada enquanto o DNS não estiver pronto. "Agora não" esconde nesta sessão; "Já mudei" esconde de vez. */
+const DOMINIO_TY = "teamyoda.com.br";
+function AvisoEnderecoNovo({ orgAtual }) {
+  const ler = (k, area) => { try { return (area === "s" ? sessionStorage : localStorage).getItem(k) === "1"; } catch { return false; } };
+  const [fechado, setFechado] = useState(() => ler("ty-endereco-novo") || ler("ty-endereco-novo", "s"));
+  const [vivo, setVivo] = useState(false);
+  const aqui = String(location.hostname || "");
+  const precisa = orgAtual === "team-yoda" && aqui !== DOMINIO_TY && aqui !== "www." + DOMINIO_TY && !/\.netlify\.app$/.test(aqui);
+  useEffect(() => {
+    if (!precisa || fechado) return undefined;
+    let ativo = true; const img = new Image();
+    img.onload = () => { if (ativo) setVivo(true); };
+    img.src = "https://" + DOMINIO_TY + "/assets/favicon-32.png?v=" + Date.now();
+    return () => { ativo = false; };
+  }, [precisa, fechado]);
+  if (!precisa || fechado || !vivo) return null;
+  const fechar = (sempre) => { try { (sempre ? localStorage : sessionStorage).setItem("ty-endereco-novo", "1"); } catch { /* sem armazenamento */ } setFechado(true); };
+  return (
+    <div role="status" data-aviso-endereco style={{ background: C.quadra, color: "#fff", borderRadius: 14, padding: "14px 16px", marginBottom: 16 }}>
+      <p style={{ fontFamily: ARCH, fontWeight: 700, fontSize: 15, margin: "0 0 4px" }}>O Team Yoda agora tem endereço próprio: teamyoda.com.br</p>
+      <p style={{ fontFamily: ARCH, fontSize: 13.5, lineHeight: 1.5, margin: 0, color: "#DCE7E1" }}>
+        Abra o app por <b>teamyoda.com.br/treinador</b> e entre com o mesmo e-mail e senha. Os dados já estão lá; no endereço novo é só entrar de novo, ativar os avisos e instalar o app na tela de início outra vez. Os links de aluno já enviados continuam funcionando.
+      </p>
+      <div className="flex flex-wrap gap-2" style={{ marginTop: 10 }}>
+        <a href={"https://" + DOMINIO_TY + "/treinador"} style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, background: "#fff", color: C.quadra, borderRadius: 10, padding: "9px 14px", textDecoration: "none" }}>Abrir o endereço novo</a>
+        <button type="button" onClick={() => fechar(false)} style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 600, background: "transparent", color: "#fff", border: "1px solid rgba(255,255,255,.45)", borderRadius: 10, padding: "8px 12px", cursor: "pointer" }}>Agora não</button>
+        <button type="button" onClick={() => fechar(true)} style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 600, background: "transparent", color: "#fff", border: 0, padding: "8px 6px", cursor: "pointer", textDecoration: "underline" }}>Já mudei</button>
+      </div>
+    </div>
+  );
+}
+
 /* ── Academia Digital (coordenação) ──
    Monta o conteúdo da área online /digital/ (netlify/functions/digital.js): trilhas de aulas com o link do YouTube (vídeo não
    listado: nada é hospedado aqui), os treinos do catálogo em cada aula, publicar ou deixar em rascunho, e as informações de venda
@@ -25844,6 +25879,7 @@ function App() {
       <JanelaNovidades key={novidadesChave} nomeApp="Team Yoda" versao={NOVIDADES_TY_VERSAO} itens={NOVIDADES_TY} irPara={(v) => { setAba(v); setAbertoId(null); }} />
       <main className="mty-main px-5 py-6 mty-nav-anim" style={{ maxWidth: lateralVisivel && menuRecolhido ? 940 : 760, marginLeft: larguraLateral,
         paddingBottom: modoTela === "celular" ? "calc(84px + env(safe-area-inset-bottom))" : undefined }}>
+        <AvisoEnderecoNovo orgAtual={orgAtual} />
         {carregando ? <p style={{ ...prosa, color: C.grafite }}>Carregando…</p> :
          aba === "planejamentos" ? <TelaPlanejamentos alunos={alunos} turmas={turmas} aoAbrirJogador={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }}
            aoAbrirTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} aoAdicionarJogador={() => { criar(); setAba("alunos"); }} /> :
