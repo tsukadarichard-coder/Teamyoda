@@ -84,7 +84,8 @@
   }
 
   /* ── telas ── */
-  function tela(html, aba) {
+  function tela(html, aba, cine) {
+    document.body.classList.toggle("modo-cine", !!cine);
     if (st.quadra) { try { st.quadra.parar(); } catch (e) { /* ok */ } st.quadra = null; }
     if (st.cronometro) { clearInterval(st.cronometro); st.cronometro = null; }
     app.innerHTML = html;
@@ -228,9 +229,28 @@
 
   /* ── visual: capa da trilha (imagem do primeiro vídeo, ou a quadra desenhada), anel de progresso e a quadra do treino ── */
   var QUADRA_DECOR = '<svg class="capa-quadra" viewBox="0 0 160 90" aria-hidden="true" preserveAspectRatio="xMidYMid slice"><g fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.2"><rect x="18" y="14" width="124" height="62"/><line x1="18" y1="22" x2="142" y2="22"/><line x1="18" y1="68" x2="142" y2="68"/><line x1="49" y1="22" x2="49" y2="68"/><line x1="111" y1="22" x2="111" y2="68"/><line x1="49" y1="45" x2="111" y2="45"/><line x1="80" y1="10" x2="80" y2="80" stroke-dasharray="2 2"/></g><circle cx="118" cy="32" r="4" fill="#E4F542"/><path d="M40 60 Q80 18 118 32" fill="none" stroke="#F4FF8A" stroke-width="1.2" stroke-dasharray="3 3"/></svg>';
+  /* arte das aulas e dos cursos: a 1ª ilustração/foto da aula, ou a miniatura do vídeo */
+  var IMG_OK = /^assets\/(cursos\/[a-z0-9-]+\.svg|foto-[a-z0-9-]+\.jpg)$/;
+  function capaCat(cat) { return "../assets/cursos/capa-" + ({ tecnica: 1, tatica: 1, mental: 1 }[cat] ? cat : "geral") + ".svg"; }
+  /* miniatura: foto ou diagrama de quadra; cartões cheios de texto (mental, apoios, empunhaduras) ficam com a capa da categoria */
+  var SO_TEXTO = /\/(men-|apoios|empunhaduras)/;
+  function arteAula(a, cat) {
+    var im = (a.imagens || []).filter(function (x) { return IMG_OK.test(x) && !(cat && SO_TEXTO.test(x)); })[0];
+    return im ? "../" + im : a.youtube ? "https://i.ytimg.com/vi/" + a.youtube + "/hqdefault.jpg" : cat ? capaCat(cat) : "";
+  }
+  function enquadre(url, i) { return /\/capa-/.test(url) ? ' style="object-position:' + [50, 18, 82, 34, 66][i % 5] + '% 55%"' : ""; }
+  /* capa do curso (sem texto por cima): a foto de uma aula, senão a miniatura de um vídeo, senão a capa da categoria */
+  function arteCurso(t) {
+    var fotos = [], yt = "";
+    t.aulas.forEach(function (a) { (a.imagens || []).forEach(function (x) { if (/^assets\/foto-/.test(x) && IMG_OK.test(x)) fotos.push("../" + x); }); if (!yt && a.youtube) yt = "https://i.ytimg.com/vi/" + a.youtube + "/hqdefault.jpg"; });
+    return fotos[0] || yt || capaCat(t.categoria);
+  }
+  function minutosAula(a) { var s = String(a.duracao || "").toLowerCase(), h = /(\d+)\s*h/.exec(s), mi = /(\d+)\s*min/.exec(s); return (h ? +h[1] * 60 : 0) + (mi ? +mi[1] : 0); }
+  function minutosCurso(t) { return t.aulas.reduce(function (n, a) { return n + minutosAula(a); }, 0); }
   function videoDaTrilha(t) { return (t.aulas.filter(function (a) { return a.youtube; })[0] || {}).youtube || ""; }
-  function capa(yt, extra, cat) {
-    return '<div class="capa' + (cat ? " cat-" + cat : "") + '"' + (yt ? ' style="background-image:url(https://i.ytimg.com/vi/' + esc(yt) + '/mqdefault.jpg),linear-gradient(150deg,#2A5E43 0%,#3A7B56 60%,#69B32A 140%)"' : "") + ">" + (yt ? "" : QUADRA_DECOR) + (extra || "") + "</div>";
+  function capa(yt, extra, cat, arte) {
+    var fundo = yt ? "https://i.ytimg.com/vi/" + yt + "/mqdefault.jpg" : arte || "";
+    return '<div class="capa' + (cat ? " cat-" + cat : "") + (fundo && !yt ? " com-arte" : "") + '"' + (fundo ? ' style="background-image:url(' + esc(fundo) + '),linear-gradient(150deg,#2A5E43 0%,#3A7B56 60%,#69B32A 140%)"' : "") + ">" + (fundo ? "" : QUADRA_DECOR) + (extra || "") + "</div>";
   }
   function anel(n, total, escuro) {
     var pc = total ? Math.round(n / total * 100) : 0, c = 2 * Math.PI * 18;
@@ -241,7 +261,7 @@
   function quadraMini(c) { try { return window.QLQuadraExercicio.svgEstatico(c, "mini" + c.toLowerCase()); } catch (e) { return ""; } }
   function cartaoTrilha(t) {
     var n = feitas(t);
-    return '<a class="cartao trilha com-capa" href="#trilha/' + encodeURIComponent(t.id) + '">' + capa(videoDaTrilha(t), '<span class="capa-nivel">' + esc(rotuloCurso(t)) + "</span>" + (concluido(t) ? '<span class="capa-ok">✓ Concluído</span>' : ""), t.categoria) +
+    return '<a class="cartao trilha com-capa" href="#trilha/' + encodeURIComponent(t.id) + '">' + capa(videoDaTrilha(t), '<span class="capa-nivel">' + esc(rotuloCurso(t)) + "</span>" + (concluido(t) ? '<span class="capa-ok">✓ Concluído</span>' : ""), t.categoria, arteCurso(t)) +
       '<div class="trilha-corpo"><div class="trilha-tit"><h3>' + esc(t.titulo) + '</h3><p class="det" style="margin:0">' + t.aulas.length + (t.aulas.length === 1 ? " aula" : " aulas") + " · " + n + (n === 1 ? " feita" : " feitas") + "</p></div>" + anel(n, t.aulas.length) + "</div>" +
       (t.descricao ? '<p class="det" style="margin:8px 0 0">' + esc(resumo(t.descricao, 120)) + "</p>" : "") + "</a>";
   }
@@ -329,40 +349,95 @@
     }).catch(function () { var el = $("#treinoDia"); if (el) el.innerHTML = '<p class="det">Abra os <a href="#treinos">Treinos</a>.</p>'; });
   }
 
+  /* ── Cursos no estilo streaming: destaque no topo, fileiras que rolam na horizontal, pôsteres e episódios ── */
+  function proximaDoCurso(t) { var p = st.dados.progresso || {}; for (var i = 0; i < t.aulas.length; i++) if (!p[t.aulas[i].id]) return i; return -1; }
+  function hrefAula(t, a) { return "#aula/" + encodeURIComponent(t.id) + "/" + encodeURIComponent(a.id); }
+  function metaCurso(t) {
+    var m = minutosCurso(t);
+    return [t.aulas.length + (t.aulas.length === 1 ? " aula" : " aulas"), m ? (m >= 60 ? Math.floor(m / 60) + " h " + (m % 60 ? m % 60 + " min" : "") : m + " min").trim() : "", NIVEL[t.nivel] || ""].filter(Boolean).join(" · ");
+  }
+  function arteImg(url, cls, i) { return url ? '<img class="' + cls + '" src="' + esc(url) + '" alt="" loading="lazy" decoding="async"' + (i != null ? enquadre(url, i) : "") + ">" : '<span class="' + cls + ' sem-arte">' + QUADRA_DECOR + "</span>"; }
+  function heroiCine(t, opc) {
+    opc = opc || {};
+    var n = feitas(t), i = proximaDoCurso(t), a = t.aulas[i >= 0 ? i : 0], pc = t.aulas.length ? Math.round(n / t.aulas.length * 100) : 0;
+    var rotBtn = !t.aulas.length ? "" : i < 0 ? "▶ Rever do começo" : n ? "▶ Continuar · aula " + (i + 1) : "▶ Começar";
+    var H = opc.h1 ? "h1" : "h2";
+    return '<section class="cine-heroi' + (opc.classe ? " " + opc.classe : "") + ' cat-' + esc(t.categoria || "geral") + '">' + arteImg(arteCurso(t), "cine-fundo") + '<div class="cine-veu"></div>' +
+      '<div class="cine-info"><span class="cine-marca"><b>MTY</b> ' + esc(CATEG[t.categoria] && t.categoria !== "geral" ? "Curso de " + CATEG[t.categoria] : "Curso") + "</span>" +
+      "<" + H + ">" + esc(t.titulo) + "</" + H + ">" +
+      '<p class="cine-meta">' + (concluido(t) ? '<b class="cine-tag ok">Concluído</b>' : n ? '<b class="cine-tag">' + pc + "% feito</b>" : '<b class="cine-tag novo">Novo</b>') + "<span>" + esc(metaCurso(t)) + "</span></p>" +
+      (t.descricao ? '<p class="cine-desc">' + esc(resumo(t.descricao, opc.h1 ? 260 : 170)) + "</p>" : "") +
+      '<div class="cine-acoes">' + (a ? '<a class="cine-btn primario" href="' + hrefAula(t, a) + '">' + rotBtn + "</a>" : "") +
+      (opc.h1 ? (concluido(t) ? '<a class="cine-btn" href="#certificado/' + encodeURIComponent(t.id) + '">🏅 Certificado</a>' : "") : '<a class="cine-btn" href="#trilha/' + encodeURIComponent(t.id) + '">ⓘ Detalhes</a>') + "</div>" +
+      (opc.anel ? '<div class="cine-anel">' + anel(n, t.aulas.length, true) + "<span>" + n + " de " + t.aulas.length + " aulas feitas</span></div>" : "") +
+      (n ? '<div class="cine-prog" aria-hidden="true"><i style="width:' + pc + '%"></i></div>' : "") + "</div></section>";
+  }
+  function episodio(t, a, i, comCurso) {
+    var p = st.dados.progresso || {}, ok = p[a.id] && quizOk(a);
+    return '<a class="ep' + (ok ? " feita" : "") + '" href="' + hrefAula(t, a) + '"><div class="ep-arte">' + arteImg(arteAula(a, t.categoria || "geral"), "ep-img", i) +
+      '<span class="ep-n">' + (i + 1) + "</span>" + (a.duracao ? '<span class="ep-dur">' + esc(a.duracao) + "</span>" : "") +
+      (ok ? '<span class="ep-ok" aria-label="feita">✓</span>' : "") + '<span class="ep-play" aria-hidden="true">▶</span>' + (p[a.id] ? '<span class="ep-barra"><i></i></span>' : "") +
+      '</div><b class="ep-tit">' + esc(a.titulo) + "</b>" + (comCurso ? '<small class="ep-sub">' + esc(t.titulo) + "</small>" : "") + "</a>";
+  }
+  function poster(t) {
+    var n = feitas(t), pc = t.aulas.length ? Math.round(n / t.aulas.length * 100) : 0;
+    return '<a class="poster trilha cat-' + esc(t.categoria || "geral") + '" href="#trilha/' + encodeURIComponent(t.id) + '">' + arteImg(arteCurso(t), "poster-img") + '<span class="poster-veu"></span>' +
+      '<span class="poster-cat">' + esc(CATEG[t.categoria] || "Curso") + "</span>" + (concluido(t) ? '<span class="poster-ok">✓</span>' : "") +
+      '<span class="poster-txt"><b>' + esc(t.titulo) + "</b><small>" + esc(metaCurso(t)) + "</small></span>" + (n ? '<span class="poster-prog"><i style="width:' + pc + '%"></i></span>' : "") + "</a>";
+  }
+  function fileira(titulo, itens, classe, link) {
+    if (!itens.length) return "";
+    return '<section class="cine-linha"><div class="cine-linha-cab"><h2>' + (link ? '<a href="' + link + '">' + esc(titulo) + ' <span aria-hidden="true">›</span></a>' : esc(titulo)) + "</h2>" +
+      '<div class="cine-setas"><button type="button" class="cine-seta" data-dir="-1" aria-label="Voltar">‹</button><button type="button" class="cine-seta" data-dir="1" aria-label="Avançar">›</button></div></div>' +
+      '<div class="cine-trilho ' + (classe || "") + '">' + itens.join("") + "</div></section>";
+  }
+  function ligarSetas() {
+    $$(".cine-linha").forEach(function (l) {
+      var tr = l.querySelector(".cine-trilho");
+      $$(".cine-seta", l).forEach(function (b) { b.onclick = function () { tr.scrollBy({ left: +b.getAttribute("data-dir") * tr.clientWidth * 0.85, behavior: "smooth" }); }; });
+    });
+  }
   function telaTrilhas() {
     var d = st.dados, ts = (d.conteudo || {}).trilhas || [], f = st.filtroCurso || "";
     var cats = ["tecnica", "tatica", "mental", "geral"].filter(function (c) { return ts.some(function (t) { return (t.categoria || "geral") === c; }); });
     var lista = ts.filter(function (t) { return !f || (t.categoria || "geral") === f; });
+    /* destaque: o curso em andamento; senão o primeiro ainda não começado */
+    var dest = lista.filter(function (t) { return feitas(t) && !concluido(t); })[0] || lista.filter(function (t) { return !feitas(t); })[0] || lista[0];
+    var continuar = lista.filter(function (t) { return feitas(t) && proximaDoCurso(t) >= 0; }).map(function (t) { var i = proximaDoCurso(t); return episodio(t, t.aulas[i], i, true); });
     tela(
-      (st.avisoLigado ? '<p class="msg msg-ok">' + esc(st.avisoLigado) + "</p>" : "") +
-      '<h1>Cursos</h1><p class="lead">Técnica, tática e mental da Metodologia MTY: aulas curtas, treino prático, quiz e certificado ao concluir.</p>' +
-      (cats.length > 1 ? '<div class="chips" role="group" aria-label="Filtrar cursos"><button type="button" data-cat="" class="chip' + (!f ? " ativo" : "") + '" aria-pressed="' + !f + '">Todos</button>' + cats.map(function (c) { return '<button type="button" data-cat="' + c + '" class="chip' + (f === c ? " ativo" : "") + '" aria-pressed="' + (f === c) + '">' + esc(CATEG[c]) + "</button>"; }).join("") + "</div>" : "") +
-      (lista.length ? '<div class="grade">' + lista.map(cartaoTrilha).join("") + "</div>"
-        : '<div class="cartao vazio">Os primeiros cursos estão sendo preparados. Enquanto isso, explore os <a href="#treinos">Treinos</a> e o <a href="#simulador">Simulador</a>.</div>'),
-      "trilhas"
+      '<div class="cine">' + (st.avisoLigado ? '<p class="msg msg-ok">' + esc(st.avisoLigado) + "</p>" : "") +
+      '<div class="cine-topo"><h1 class="cine-pagina">Cursos</h1>' +
+      (cats.length > 1 ? '<div class="chips cine-chips" role="group" aria-label="Filtrar cursos"><button type="button" data-cat="" class="chip' + (!f ? " ativo" : "") + '" aria-pressed="' + !f + '">Todos</button>' + cats.map(function (c) { return '<button type="button" data-cat="' + c + '" class="chip' + (f === c ? " ativo" : "") + '" aria-pressed="' + (f === c) + '">' + esc(CATEG[c]) + "</button>"; }).join("") + "</div>" : "") + "</div>" +
+      (lista.length ? heroiCine(dest) +
+        fileira("Continue de onde parou", continuar, "eps") +
+        fileira(f ? "Cursos de " + CATEG[f] : "Todos os cursos", lista.map(poster), "posters") +
+        lista.map(function (t) { return fileira(t.titulo, t.aulas.map(function (a, i) { return episodio(t, a, i); }), "eps", "#trilha/" + encodeURIComponent(t.id)); }).join("")
+        : '<div class="cine-vazio">Os primeiros cursos estão sendo preparados. Enquanto isso, explore os <a href="#treinos">Treinos</a> e o <a href="#simulador">Simulador</a>.</div>') + "</div>",
+      "trilhas", true
     );
     $$("[data-cat]").forEach(function (b) { b.onclick = function () { st.filtroCurso = b.getAttribute("data-cat"); telaTrilhas(); }; });
+    ligarSetas();
   }
   function telaTrilha(id) {
     var t = trilhaPorId(decodeURIComponent(id));
     if (!t) return telaNaoAchou("Esta trilha não está mais disponível.", "#trilhas", "trilhas");
-    var p = st.dados.progresso || {}, n = feitas(t);
+    var p = st.dados.progresso || {};
     tela(
-      '<a class="btn btn-texto voltar" href="#trilhas">← Cursos</a>' +
-      '<section class="trilha-heroi">' + capa(videoDaTrilha(t), '<span class="capa-nivel">' + esc(rotuloCurso(t)) + "</span>", t.categoria) +
-        '<div class="th-txt"><div><h1>' + esc(t.titulo) + '</h1><p class="det" style="margin:0">' + n + " de " + t.aulas.length + " aulas feitas</p></div>" + anel(n, t.aulas.length) + "</div></section>" +
-      (t.descricao ? '<p class="lead texto-aula">' + esc(t.descricao) + "</p>" : "") +
-      (concluido(t) ? '<div class="cartao concluido"><div><b>Curso concluído</b><p class="det" style="margin:2px 0 0">Todas as aulas feitas e todos os quizzes certos.</p></div><a class="btn btn-saibro" href="#certificado/' + encodeURIComponent(t.id) + '">Ver certificado</a></div>' : "") +
-      '<div style="margin-top:14px">' + t.aulas.map(function (a, i) {
-        return '<a class="aula-item' + (p[a.id] && quizOk(a) ? " feita" : "") + '" href="#aula/' + encodeURIComponent(t.id) + "/" + encodeURIComponent(a.id) + '"><span class="n" aria-hidden="true">' + (p[a.id] && quizOk(a) ? "✓" : i + 1) + '</span><span class="t"><b>' + esc(a.titulo) + "</b><small>" +
-          [a.duracao, a.youtube ? "vídeo" : "", a.exercicios.length ? a.exercicios.length + (a.exercicios.length === 1 ? " treino" : " treinos") : "", (a.quiz || []).length ? (quizOk(a) ? "quiz certo" : "quiz") : "", p[a.id] ? "feita" : ""].filter(Boolean).map(esc).join(" · ") + "</small></span><span aria-hidden=\"true\">›</span></a>";
-      }).join("") + "</div>",
-      "trilhas"
+      '<div class="cine"><a class="cine-voltar voltar" href="#trilhas">← Cursos</a>' + heroiCine(t, { h1: true, anel: true, classe: "trilha-heroi" }) +
+      (concluido(t) ? '<div class="cine-concluido concluido"><div><b>Curso concluído</b><p>Todas as aulas feitas e todos os quizzes certos.</p></div><a class="cine-btn primario" href="#certificado/' + encodeURIComponent(t.id) + '">Ver certificado</a></div>' : "") +
+      '<section class="cine-eps" aria-labelledby="tEps"><h2 id="tEps">Aulas</h2>' + t.aulas.map(function (a, i) {
+        var ok = p[a.id] && quizOk(a);
+        return '<a class="aula-item ep-linha' + (ok ? " feita" : "") + '" href="' + hrefAula(t, a) + '"><span class="ep-linha-n" aria-hidden="true">' + (i + 1) + '</span><span class="ep-arte">' + arteImg(arteAula(a, t.categoria || "geral"), "ep-img", i) + '<span class="ep-play" aria-hidden="true">▶</span>' + (ok ? '<span class="ep-ok">✓</span>' : "") + "</span>" +
+          '<span class="t"><b>' + esc(a.titulo) + "</b><small>" + [a.duracao, a.youtube ? "vídeo" : "", a.exercicios.length ? a.exercicios.length + (a.exercicios.length === 1 ? " treino" : " treinos") : "", (a.quiz || []).length ? (quizOk(a) ? "quiz certo" : "quiz") : "", p[a.id] ? "feita" : ""].filter(Boolean).map(esc).join(" · ") + "</small>" +
+          (a.descricao ? '<span class="ep-desc">' + esc(resumo(a.descricao, 140)) + "</span>" : "") + "</span></a>";
+      }).join("") + "</section>" +
+      (t.descricao && t.descricao.length > 260 ? '<details class="cine-sobre"><summary>Sobre o curso</summary><p class="texto-aula">' + esc(t.descricao) + "</p></details>" : "") + "</div>",
+      "trilhas", true
     );
   }
   /* ilustrações da aula (mty/assets/cursos e fotos), acima do texto; tocar abre a imagem inteira */
   function ilustracoes(a) {
-    var im = (a.imagens || []).filter(function (x) { return /^assets\/(cursos\/[a-z0-9-]+\.svg|foto-[a-z0-9-]+\.jpg)$/.test(x); });
+    var im = (a.imagens || []).filter(function (x) { return IMG_OK.test(x); });
     if (!im.length) return "";
     return '<div class="ilustracoes' + (im.length > 1 ? " duas" : "") + '">' + im.map(function (x, k) {
       return '<a class="ilustracao" href="../' + esc(x) + '" target="_blank" rel="noopener"><img src="../' + esc(x) + '" alt="Ilustração ' + (k + 1) + " da aula " + esc(a.titulo) + '" loading="lazy" decoding="async"></a>';

@@ -56,9 +56,11 @@ const Lq = 11.885, Wq = 4.115, Wd = 5.485, Sq = 6.4;
 function camera(o) {
   /* câmera alta e longe, atrás da sua linha de base (perspectiva suave, como na transmissão) */
   o = Object.assign({ W: 640, yCam: -Lq - 60, h: 35, F: 2131, topo: 126, yLonge: Lq + 3.5 }, o || {});
-  const cx = o.W / 2, Y0 = o.topo - o.h * o.F / (o.yLonge - o.yCam), dRef = -Lq - o.yCam;
-  const P = (x, y, z) => { const d = y - o.yCam; return [cx + x * o.F / d, Y0 + (o.h - (z || 0)) * o.F / d]; };
-  const esc1 = (y) => dRef / (y - o.yCam); /* espessura: 1 na sua linha de base, menor ao fundo */
+  const cx = o.W / 2, Y0 = o.topo - o.h * o.F / (o.yLonge - o.yCam), dRef = -Lq - o.yCam, lw = o.lw || 1;
+  /* giro: câmera em diagonal (gira a quadra em torno do centro antes de projetar) */
+  const g = o.giro || 0, cg = Math.cos(g), sg = Math.sin(g), rot = (x, y) => [x * cg - y * sg, x * sg + y * cg];
+  const P = (x, y, z) => { const r = rot(x, y), d = r[1] - o.yCam; return [cx + r[0] * o.F / d, Y0 + (o.h - (z || 0)) * o.F / d]; };
+  const esc1 = (y) => lw * dRef / (y - o.yCam); /* espessura: 1 (× lw) na sua linha de base, menor ao fundo */
   return Object.assign(o, { P, esc1, cx });
 }
 function chao(q, x1, y1, x2, y2) { return [q.P(x1, y1), q.P(x2, y1), q.P(x2, y2), q.P(x1, y2)]; }
@@ -343,6 +345,34 @@ ARQ["tat-margem"] = (function () {
   const lg = legenda(chaoY + 60, [["1", C.lima, "Mire bem acima da rede: a bola passa com margem e cai perto do fundo."], ["2", C.vermelho, "Rasante: qualquer erro vai para a rede ou cai curta, no meio da quadra."]], W);
   return svg(W, lg.y, s + lg.s, "Margem: a bola alta sobre a rede cai funda; a rasante cai curta", defs);
 })();
+
+/* ── capas dos cursos (sem texto): quadra noturna de estádio em perspectiva baixa, com as trajetórias brilhando ── */
+function capaSvg(cat) {
+  nZona = 0;
+  const W = 1600, H = 900, cor = { tecnica: C.laranja, tatica: C.lima, mental: C.azul, geral: C.lima }[cat];
+  const q = camera({ W, yCam: -Lq - 24, h: 11, F: 2300, topo: 250, yLonge: Lq + 3.5, lw: 2.4, giro: -0.42 });
+  let s = '<defs><radialGradient id="gCeu" cx=".5" cy="0" r="1"><stop offset="0" stop-color="#1F4A37"/><stop offset=".55" stop-color="#0B1712"/><stop offset="1" stop-color="#050907"/></radialGradient>' +
+    '<radialGradient id="gHolofote" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>' +
+    '<radialGradient id="gTinta" cx=".5" cy=".62" r=".7"><stop offset="0" stop-color="' + cor + '" stop-opacity=".22"/><stop offset="1" stop-color="' + cor + '" stop-opacity="0"/></radialGradient>' +
+    '<linearGradient id="gVinheta" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#050907" stop-opacity=".2"/><stop offset=".7" stop-color="#050907" stop-opacity="0"/><stop offset="1" stop-color="#050907" stop-opacity=".75"/></linearGradient>' +
+    '<filter id="fGrande" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="9"/></filter></defs>';
+  s += '<rect width="' + W + '" height="' + H + '" fill="url(#gCeu)"/>';
+  [[260, 40], [800, 10], [1340, 40]].forEach(([x, y]) => { s += '<ellipse cx="' + x + '" cy="' + y + '" rx="260" ry="150" fill="url(#gHolofote)"/>'; });
+  s += '<rect y="120" width="' + W + '" height="190" fill="#0A1611"/><rect y="306" width="' + W + '" height="4" fill="#fff" fill-opacity=".06"/>';
+  s += quadraPerspectiva(q, -Lq - 6).replace('<rect width="' + W + '" height="' + n(q.P(0, q.yLonge)[1] + 2) + '" fill="#132F23"/>', "");
+  const arco = (x1, y1, x2, y2, alt, c, k) => bola(q, x1, y1, x2, y2, { alt, cor: c, z1: 1 }).replace(/stroke-width="([\d.]+)"/g, (m, v) => 'stroke-width="' + n(v * (k || 1)) + '"').replace('filter="url(#fBrilho)"', 'filter="url(#fGrande)"');
+  if (cat === "tatica") s += zona(q, -3.2, 7.0, -0.8, 10.2) + zona(q, 2.2, 8.6, Wq, Lq, C.laranja) + arco(1.0, -Lq - 0.6, -2.0, 8.6, 2.2, C.lima, 1.6) + arco(0.4, -8.6, 3.2, 10.2, 1.3, C.laranja, 1.6) + arco(-2.6, Lq, 2.4, -9.0, 1.8, "#fff", 1.2);
+  else if (cat === "mental") {
+    const B = q.P(0, -2.2, 0); s += '<ellipse cx="' + n(B[0]) + '" cy="' + n(B[1]) + '" rx="34" ry="10" fill="#000" fill-opacity=".35"/>';
+    [260, 190, 120].forEach((r, i) => { s += '<ellipse cx="' + n(B[0]) + '" cy="' + n(B[1] - 40) + '" rx="' + r + '" ry="' + n(r * 0.34) + '" fill="none" stroke="' + C.azul + '" stroke-opacity="' + (0.18 + i * 0.12) + '" stroke-width="3"/>'; });
+    s += '<circle cx="' + n(B[0]) + '" cy="' + n(B[1] - 40) + '" r="70" fill="' + C.azul + '" fill-opacity=".25" filter="url(#fGrande)"/><circle cx="' + n(B[0]) + '" cy="' + n(B[1] - 40) + '" r="30" fill="' + C.lima + '" stroke="#0C1D16" stroke-width="3"/>' +
+      '<path d="M' + n(B[0] - 22) + " " + n(B[1] - 60) + " Q" + n(B[0] + 6) + " " + n(B[1] - 40) + " " + n(B[0] - 22) + " " + n(B[1] - 20) + '" fill="none" stroke="#fff" stroke-opacity=".85" stroke-width="3"/>';
+  } else s += arco(0.6, -Lq - 0.4, -1.2, 9.4, 2.4, cor, 1.8) + arco(-1.6, Lq, 2.8, -8.0, 1.7, "#fff", 1.1);
+  s += '<rect width="' + W + '" height="' + H + '" fill="url(#gTinta)"/><rect width="' + W + '" height="' + H + '" fill="url(#gVinheta)"/>';
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W + " " + H + '" width="' + W + '" height="' + H + '" role="img" aria-label="Capa"><title>Capa</title>' +
+    '<defs><filter id="fBrilho" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3"/></filter></defs>' + s + "</svg>\n";
+}
+["tecnica", "tatica", "mental", "geral"].forEach((c) => { ARQ["capa-" + c] = capaSvg(c); });
 
 /* ── mental ── */
 ARQ["men-rotina"] = passos("A rotina de 20 segundos", [["Fechar o ponto", "Vire de costas para a rede e olhe para as cordas.", C.azul, "0–5 s"], ["Respirar", "Uma ou mais respirações lentas, pela barriga.", C.azul, "5–12 s"], ["Decidir", "Escolha a tática do próximo ponto e só então volte.", C.lima, "12–20 s"]], { sub: "Entre um ponto e outro, sempre na mesma ordem." });

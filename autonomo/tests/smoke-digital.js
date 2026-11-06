@@ -230,7 +230,7 @@ const chamar = async (metodo, corpo, tk) => { const x = await digital({ httpMeth
   await ana.click(".abas a[data-aba=trilhas]");
   await ana.waitForSelector("h1 >> text=Cursos");
   await ana.click("[data-cat=mental]");
-  assert.strictEqual(await ana.locator(".grade a.trilha").count(), 1, "filtro Mental");
+  assert.strictEqual(await ana.locator(".posters a.trilha").count(), 1, "filtro Mental");
   await ana.click("a.trilha >> text=Rotina entre pontos");
   await ana.click("a.aula-item >> text=Os 20 segundos");
   await ana.waitForSelector("#fQuiz");
