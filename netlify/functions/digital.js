@@ -87,13 +87,25 @@ async function acessoDe(claims, conta) {
   for (const v of (conta && conta.vinculos) || []) {
     const lista = await alunosDaOrg(v.org);
     const al = lista.find((a) => a && a.id === v.alunoId);
-    if (al) return { tipo: "unidade", unidade: ORGS[v.org] || v.org, aluno: String(al.nome || "").split(/\s+/)[0] };
+    if (al) return { tipo: "unidade", unidade: ORGS[v.org] || v.org, aluno: String(al.nome || "").split(/\s+/)[0], org: v.org, alunoId: v.alunoId };
   }
   const hoje = agora().slice(0, 10), a = conta && conta.assinatura;
   if (a && a.status === "ativa" && (!a.ate || a.ate >= hoje)) return { tipo: "assinante", ate: a.ate || null };
   const c = conta && conta.cortesia;
   if (c && (!c.ate || c.ate >= hoje)) return { tipo: "cortesia", ate: c.ate || null };
   return { tipo: "nenhum" };
+}
+/* aluno da unidade: o resumo do plano presencial (o mesmo do link do aluno, só os números) para o painel da Academia Digital */
+async function resumoPresencial(ac) {
+  try {
+    const ctx = await VA.carregarContexto(ac.org, ac.alunoId, null, true);
+    const r = await VA.responderGet(ac.org, ac.alunoId, {}, ctx);
+    const d = JSON.parse(r.body || "{}");
+    return {
+      temPlano: !!d.temPlano, tipoPlano: d.tipoPlano || "", totalAulas: d.totalAulas || 0, aulasFeitas: d.aulasFeitas || 0,
+      proximaAula: d.proximaAula || null, agora: d.aulaEmVigor ? d.aulaEmVigor.titulo || "" : "", turma: d.planoDaTurma ? d.planoDaTurma.nome : null,
+    };
+  } catch (e) { return null; }
 }
 const refConta = (uid) => db().collection("digitalContas").doc(uid);
 async function lerConta(claims) {
@@ -172,6 +184,7 @@ exports.handler = async function (event) {
         conta: { nome: conta.nome, email: conta.email }, acesso, coordenacao: ehCoordenacao(claims),
         unidades: (conta.vinculos || []).map((v) => ({ org: v.org, alunoId: v.alunoId, unidade: ORGS[v.org] || v.org })),
         conteudo: liberado ? { trilhas: publicadas(c) } : null, vitrine: liberado ? null : vitrine(c), venda: c.venda, progresso: conta.progresso || {},
+        presencial: acesso.tipo === "unidade" ? await resumoPresencial(acesso) : null,
       });
     }
     if (event.httpMethod !== "POST") return resposta(405, { erro: "Método não permitido." });

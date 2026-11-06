@@ -245,6 +245,32 @@
     for (var i = 0; i < ts.length; i++) for (var j = 0; j < ts[i].aulas.length; j++) if (!p[ts[i].aulas[j].id]) return { t: ts[i], a: ts[i].aulas[j], i: j };
     return null;
   }
+  /* dias seguidos com aula feita (termina hoje ou ontem) e minutos das aulas feitas nos últimos 7 dias (pela duração da aula) */
+  function diaISO(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+  function diasComAula() { var p = st.dados.progresso || {}, m = {}; Object.keys(p).forEach(function (k) { if (p[k]) m[diaISO(new Date(p[k]))] = 1; }); return m; }
+  function sequencia() {
+    var m = diasComAula(), d = new Date(), n = 0;
+    if (!m[diaISO(d)]) d.setDate(d.getDate() - 1);
+    while (m[diaISO(d)]) { n++; d.setDate(d.getDate() - 1); }
+    return n;
+  }
+  function minutosSemana() {
+    var p = st.dados.progresso || {}, lim = Date.now() - 7 * 864e5, tot = 0;
+    ((st.dados.conteudo || {}).trilhas || []).forEach(function (t) { t.aulas.forEach(function (a) {
+      if (!p[a.id] || new Date(p[a.id]).getTime() < lim) return;
+      var s = String(a.duracao || "").toLowerCase(), h = /(\d+)\s*h/.exec(s), mi = /(\d+)\s*min/.exec(s);
+      tot += (h ? +h[1] * 60 : 0) + (mi ? +mi[1] : 0);
+    }); });
+    return tot;
+  }
+  var SEMANA = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+  function quandoAula(iso) { var d = new Date(iso); if (isNaN(d)) return ""; return SEMANA[d.getDay()] + " " + String(d.getDate()).padStart(2, "0") + "/" + String(d.getMonth() + 1).padStart(2, "0") + " às " + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); }
+  function cartaoPresencial() {
+    var pr = st.dados.presencial; if (!pr) return "";
+    if (!pr.temPlano) return '<section class="cartao presencial" aria-labelledby="tPres"><h2 id="tPres" class="secao" style="margin:0 0 4px">Suas aulas na quadra</h2><p class="det" style="margin:0">' + (pr.proximaAula ? "Próxima aula: <b>" + esc(quandoAula(pr.proximaAula)) + "</b>. " : "") + "Quando o seu professor aprovar o plano do ciclo, o avanço aparece aqui.</p></section>";
+    return '<section class="cartao presencial" aria-labelledby="tPres"><div class="pres-cab"><div><span class="ph-sobre" style="color:var(--saibro-esc)">' + esc(st.dados.acesso.unidade || "Na quadra") + '</span><h2 id="tPres" style="margin:2px 0 0">Suas aulas na quadra</h2><p class="det" style="margin:2px 0 0">' + esc(pr.tipoPlano || "Plano do ciclo") + (pr.turma ? " · turma " + esc(pr.turma) : "") + "</p></div>" + anel(pr.aulasFeitas, pr.totalAulas) + "</div>" +
+      '<div class="pres-linhas"><div><span class="det">Aulas do ciclo</span><b>' + pr.aulasFeitas + " de " + pr.totalAulas + "</b></div>" + (pr.proximaAula ? "<div><span class=\"det\">Próxima aula</span><b>" + esc(quandoAula(pr.proximaAula)) + "</b></div>" : "") + (pr.agora ? "<div><span class=\"det\">Agora no plano</span><b>" + esc(pr.agora) + "</b></div>" : "") + "</div></section>";
+  }
   function diasAtivos() {
     var p = st.dados.progresso || {}, h = new Date(), lim = new Date(h.getFullYear(), h.getMonth(), h.getDate() - 6).toISOString().slice(0, 10), dias = {};
     Object.keys(p).forEach(function (k) { var d = String(p[k] || "").slice(0, 10); if (d && d >= lim) dias[d] = 1; });
@@ -253,8 +279,8 @@
 
   function telaInicio() {
     var d = st.dados, ts = (d.conteudo || {}).trilhas || [], p = d.progresso || {};
-    var total = 0, feitasTot = 0, emAndamento = 0;
-    ts.forEach(function (t) { var n = feitas(t); total += t.aulas.length; feitasTot += n; if (n && n < t.aulas.length) emAndamento++; });
+    var total = 0, feitasTot = 0;
+    ts.forEach(function (t) { total += t.aulas.length; feitasTot += feitas(t); });
     var nome = String(d.conta.nome || "").split(/\s+/)[0] || "atleta";
     var sub = d.acesso.tipo === "unidade" ? "Incluída na sua matrícula · " + d.acesso.unidade : d.acesso.tipo === "equipe" ? "Equipe · " + d.acesso.unidade : d.acesso.tipo === "assinante" ? "Assinatura ativa" : "Acesso de cortesia";
     var px = proximaAula(), dias = diasAtivos();
@@ -264,8 +290,10 @@
         '<div class="ph-anel">' + anel(feitasTot, total, true) + "<span>do conteúdo</span></div></section>" +
       '<div class="numeros" role="list">' +
         '<div class="numero" role="listitem"><b>' + feitasTot + '<small>/' + total + "</small></b><span>aulas feitas</span></div>" +
-        '<div class="numero" role="listitem"><b>' + dias + '<small>/7</small></b><span>dias ativos na semana</span></div>' +
-        '<div class="numero" role="listitem"><b>' + emAndamento + '<small>/' + ts.length + "</small></b><span>trilhas em andamento</span></div></div>" +
+        '<div class="numero" role="listitem"><b>' + minutosSemana() + '<small> min</small></b><span>na semana</span></div>' +
+        '<div class="numero" role="listitem"><b>' + sequencia() + '<small>' + (sequencia() === 1 ? " dia" : " dias") + "</small></b><span>seguidos</span></div>" +
+        '<div class="numero" role="listitem"><b>' + dias + '<small>/7</small></b><span>dias ativos</span></div></div>' +
+      cartaoPresencial() +
       (px ? '<h2 class="secao">Continuar de onde parou</h2><a class="cartao continuar" href="#aula/' + encodeURIComponent(px.t.id) + "/" + encodeURIComponent(px.a.id) + '">' + capa(px.a.youtube || videoDaTrilha(px.t), '<span class="play" aria-hidden="true">▶</span>') +
           '<div class="cont-txt"><span class="det">' + esc(px.t.titulo) + " · aula " + (px.i + 1) + " de " + px.t.aulas.length + (px.a.duracao ? " · " + esc(px.a.duracao) : "") + "</span><h3>" + esc(px.a.titulo) + "</h3></div></a>"
         : ts.length ? '<div class="cartao vazio">Você fez todas as aulas publicadas. Novas aulas aparecem aqui assim que forem lançadas.</div>' : "") +

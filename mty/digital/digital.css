@@ -124,7 +124,8 @@ dl.ficha dd { margin: 2px 0 0; }
 .ph-anel span { color: #CFE0D7; }
 .ph-anel .anel { width: 84px; height: 84px; color: #fff; }
 .anel { width: 46px; height: 46px; flex: none; color: var(--tinta); }
-.numeros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+.numeros { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 12px; }
+@media (min-width: 640px) { .numeros { grid-template-columns: repeat(4, 1fr); } }
 .numero { background: var(--cal); border: 1px solid var(--linha); border-radius: 16px; padding: 12px; box-shadow: var(--sombra); min-width: 0; }
 .numero b { display: block; font-size: 24px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; }
 .numero b small { font-size: 13px; font-weight: 700; color: var(--grafite); }
@@ -156,3 +157,11 @@ dl.ficha dd { margin: 2px 0 0; }
 .th-txt > div { flex: 1; min-width: 0; }
 .th-txt h1 { margin: 0 0 2px; }
 .cartao.ex { border-radius: 18px; }
+.presencial { margin-top: 12px; border-radius: 20px; }
+.pres-cab { display: flex; align-items: center; gap: 12px; }
+.pres-cab > div { flex: 1; min-width: 0; }
+.pres-cab .anel { width: 58px; height: 58px; }
+.pres-linhas { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); margin-top: 12px; }
+.pres-linhas > div { background: var(--papel); border-radius: 12px; padding: 10px 12px; }
+.pres-linhas span { display: block; font-size: 12px; }
+.pres-linhas b { display: block; font-size: 14.5px; margin-top: 2px; }

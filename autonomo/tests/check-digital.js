@@ -74,6 +74,7 @@ store["orgs/39-ranch/dados/mty:alunos:v2"] = { value: JSON.stringify([{ id: "r1"
   r = await chamar("POST", { acao: "vincular", link: { org: "team-yoda", id: "a1", t: "tA" } }, "tk-bia@x.com");
   assert.strictEqual(r.acesso.tipo, "unidade"); assert.strictEqual(r.acesso.unidade, "Team Yoda · Cooper Tênis");
   r = await chamar("GET", null, "tk-bia@x.com");
+  assert(r.presencial && r.presencial.temPlano === false && r.presencial.totalAulas === 0, "resumo do plano presencial para aluno da unidade");
   assert.strictEqual(r.conteudo.trilhas.length, 1, "só as publicadas"); assert.strictEqual(r.conteudo.trilhas[0].aulas[0].youtube, "dQw4w9WgXcQ");
   const aula = r.conteudo.trilhas[0].aulas[0].id;
   r = await chamar("POST", { acao: "progresso", aulaId: aula, feito: true }, "tk-bia@x.com");

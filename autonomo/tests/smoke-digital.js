@@ -36,7 +36,9 @@ const admin = {
 };
 require.cache[require.resolve(fx + "_firebase-admin.js")] = { id: "y", filename: "y", loaded: true, exports: { admin, app: () => {} } };
 const digital = require(fx + "digital.js").handler, verAluno = require(fx + "ver-aluno.js").handler;
-store["orgs/team-yoda/dados/mty:alunos:v2"] = { value: JSON.stringify([{ id: "a1", nome: "Ana Souza", linkToken: "tA", registros: [], horarios: [] }]) };
+store["orgs/team-yoda/dados/mty:alunos:v2"] = { value: JSON.stringify([{ id: "a1", nome: "Ana Souza", linkToken: "tA", registros: [], horarios: [{ dia: 4, hora: "17:00" }],
+  plano: { aprovado: true, tipo: "Ciclo de 8 semanas", blocos: [{ titulo: "Base", semanasLista: [{ n: 1, foco: "Consistência", aulas: [{ t: "Forehand cruzado" }, { t: "Backhand paralelo" }, { t: "Saque e devolução" }] }] }] },
+  regPlano: { A01: { status: "feita" } } }]) };
 store["orgs/39-ranch/dados/mty:alunos:v2"] = { value: JSON.stringify([{ id: "r1", nome: "Rui Costa", linkToken: "tR", registros: [], horarios: [] }]) };
 
 /* Firebase de mentira (app + auth) no lugar do gstatic */
@@ -132,7 +134,9 @@ const chamar = async (metodo, corpo, tk) => { const x = await digital({ httpMeth
   assert.strictEqual(await ana.textContent("#selo"), "Aluno da unidade");
   await ana.waitForSelector(".painel-heroi >> text=Incluída na sua matrícula · Team Yoda · Cooper Tênis");
   /* Início: avanço, números da semana, continuar de onde parou, trilhas com capa, treino do dia com a quadra e o simulador */
-  assert.strictEqual(await ana.locator(".numero").count(), 3);
+  assert.strictEqual(await ana.locator(".numero").count(), 4);
+  await ana.waitForSelector(".presencial >> text=Suas aulas na quadra");
+  assert(/1 de 3/.test(await ana.textContent(".presencial")) && /Backhand paralelo/.test(await ana.textContent(".presencial")) && /qui /.test(await ana.textContent(".presencial")), "plano presencial: feitas, agora no plano e próxima aula");
   assert(/0\/2/.test(await ana.textContent(".numero >> nth=0")), "aulas feitas 0/2");
   await ana.waitForSelector(".continuar >> text=Empunhadura e preparação");
   assert(/mqdefault/.test(await ana.getAttribute(".continuar .capa", "style")), "capa com a imagem do vídeo");
@@ -168,6 +172,10 @@ const chamar = async (metodo, corpo, tk) => { const x = await digital({ httpMeth
   await ana.click("a.voltar");
   await ana.waitForSelector("text=1 de 2 aulas feitas");
   assert.strictEqual(await ana.locator(".aula-item.feita").count(), 1);
+  await ana.click(".abas a[data-aba=inicio]");
+  await ana.waitForSelector(".numero >> text=1 dia");
+  assert(/^8/.test(await ana.textContent(".numero >> nth=1")), "8 min na semana (duração da aula feita)");
+  await cap(ana, "digital-inicio-com-progresso");
 
   /* 3. treinos do catálogo */
   await ana.click(".abas a[data-aba=treinos]");
