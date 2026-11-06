@@ -115,6 +115,7 @@
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-auth-compat.js"></script>
 <script src="mty-nuvem.js"></script>
+<script src="imprimir.js"></script>
 <style>
   #portao{display:none; position:fixed; inset:0; background:var(--papel); z-index:100}
   #portao .in{max-width:360px; margin:0 auto; padding:70px 20px}
@@ -530,7 +531,7 @@ function montaImpressao(){
 document.getElementById('btPdf').onclick = ()=>{
   montaImpressao();
   dlg.close();
-  setTimeout(function(){ window.print(); }, 60);
+  setTimeout(function(){ if (window.QLImprimir) window.QLImprimir.imprimirPagina(window); else window.print(); }, 60);
 };
 
 document.getElementById('btZap').onclick = ()=>{

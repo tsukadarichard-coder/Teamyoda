@@ -600,7 +600,7 @@
       "<p>Certificamos que</p><h1>" + esc(String(st.dados.conta.nome || "").trim() || "Atleta") + "</h1><p>concluiu o curso</p><h2>" + esc(t.titulo) + "</h2>" +
       '<p class="det">' + esc(rotuloCurso(t)) + " · " + t.aulas.length + (t.aulas.length === 1 ? " aula" : " aulas") + (fim ? " · concluído em " + dataBR(fim.slice(0, 10)) : "") + "</p></section>" +
       '<div class="acoes nao-imprimir"><button class="btn" type="button" id="btImprimir">Imprimir ou salvar em PDF</button></div>', "trilhas");
-    $("#btImprimir").onclick = function () { window.print(); };
+    $("#btImprimir").onclick = function () { if (window.QLImprimir) window.QLImprimir.imprimirPagina(window); else window.print(); };
   }
   function temQuadra(c) { return !!(window.QLQuadraExercicio && window.QLQuadraExercicio.tem(c)); }
   function cartaoExercicio(e) {

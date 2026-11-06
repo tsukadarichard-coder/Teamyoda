@@ -566,7 +566,7 @@
     var r = (d.relatorios || []).filter(function (x) { return x.id === rid; })[0];
     if (!r) return tela(casca(d, "evolucao", vazio("Relatório não encontrado ou não publicado para você.")));
     tela(casca(d, "evolucao", '<div class="acoes cr-naoimprimir"><button type="button" class="btn btn-laranja" id="btPdf">Salvar em PDF</button>' + (d.papel === "consultor" && r.estado !== "publicado" ? '<a class="btn btn-secundario" href="' + base(d.id) + "/relatorio-editar/" + esc(r.id) + '">Editar</a>' : "") + "</div>" + relatorioCorpo(d, r)));
-    document.getElementById("btPdf").onclick = function () { document.body.classList.add("cr-imprimindo"); setTimeout(function () { window.print(); document.body.classList.remove("cr-imprimindo"); }, 50); };
+    document.getElementById("btPdf").onclick = function () { document.body.classList.add("cr-imprimindo"); setTimeout(function () { if (window.QLImprimir) window.QLImprimir.imprimirPagina(window); else window.print(); document.body.classList.remove("cr-imprimindo"); }, 50); };
   }
   function telaRelatorioEditor(d, itemId) {
     var atual = itemId && itemId !== "novo" ? (d.relatorios || []).filter(function (x) { return x.id === itemId; })[0] : null, k = "reledit-" + d.id + "-" + (atual ? atual.id : "novo");

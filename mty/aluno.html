@@ -426,7 +426,7 @@ function exportarRelatorioPDF(d, id) {
     'h1{font-family:Georgia,serif;font-size:20px;margin:0 0 4px}' +
     '.sub{color:#6B6461;font-size:13px;margin-bottom:20px}' +
     'h2{font-family:Georgia,serif;font-size:15px;margin:26px 0 8px}' +
-    '@media print { .no-print{display:none} }' +
+    '@media print { .no-print{display:none !important} }' +
     '</style></head><body>' +
     cabecalhoRelatorioHTML(d.academiaNome) +
     '<h1>Relatório de ciclo</h1>' +

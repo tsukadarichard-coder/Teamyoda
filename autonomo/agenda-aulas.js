@@ -283,7 +283,7 @@
     'h1{font-size:20px;margin:0 0 4px}h2{font-size:15px;margin:24px 0 8px}.sub{color:#6B6461;font-size:13px;margin-bottom:16px}' +
     'table{width:100%;border-collapse:collapse;font-size:12.5px}th,td{text-align:left;padding:6px 6px;border-bottom:1px solid #E4DED9;vertical-align:top}th{font-size:11px;color:#6B6461;text-transform:uppercase;letter-spacing:.03em}' +
     'td.n,th.n{text-align:right}.tiles{display:flex;flex-wrap:wrap;gap:8px}.tile{border:1px solid #E4DED9;border-radius:8px;padding:8px 12px;min-width:96px}.tile b{display:block;font-size:18px}.tile span{font-size:11px;color:#6B6461}' +
-    '.alerta{color:#8A6100;font-weight:700}tr{break-inside:avoid}.no-print{margin-top:20px;display:flex;gap:10px}@media print{.no-print{display:none}}';
+    '.alerta{color:#8A6100;font-weight:700}tr{break-inside:avoid}.no-print{margin-top:20px;display:flex;gap:10px}@media print{.no-print{display:none !important}}';
   function tile(r, v) { return '<div class="tile"><span>' + esc(r) + '</span><b>' + esc(v) + '</b></div>'; }
   function html(rel, academia) {
     var t = rel.totais;

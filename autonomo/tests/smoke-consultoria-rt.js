@@ -217,6 +217,20 @@ const API = async (uid, corpo, q) => { const r = await handler("consultoria-rt")
   assert(pdf.length > 20000, "PDF gerado");
   assert(await m.evaluate(() => getComputedStyle(document.querySelector(".cr-secoes")).display === "none" && getComputedStyle(document.querySelector(".cr-rel-cab img")).display !== "none"), "PDF sem menus, com o logo");
   await m.emulateMedia({ media: "screen" });
+  await m.evaluate(() => document.body.classList.remove("cr-imprimindo"));
+  /* iPhone/iPad: o botão gera o PDF no aparelho com as regras de impressão da página (sem os menus do app) */
+  const LIB_PDF = process.env.HTML2PDF || "/tmp/claude-0/-home-user-Teamyoda/f36f7b1a-5380-5cd8-93be-4b9b8aa1980b/scratchpad/cdn/html2pdf-0.10.1/package/dist/html2pdf.bundle.min.js";
+  if (fs.existsSync(LIB_PDF)) {
+    await m.route("**/lib-teste/html2pdf.js", (r) => r.fulfill({ contentType: "text/javascript", body: fs.readFileSync(LIB_PDF) }));
+    await m.evaluate(() => { QLImprimir.forcar = true; QLImprimir.LIB = location.origin + "/lib-teste/html2pdf.js"; });
+    await m.click("#btPdf");
+    await m.waitForFunction(() => !!window.__qlUltimoPDF, null, { timeout: 60000 });
+    const bytes = Buffer.from(await m.evaluate(async () => Array.from(new Uint8Array(await window.__qlUltimoPDF.arrayBuffer()))));
+    assert(bytes.length > 20000 && bytes.slice(0, 4).toString() === "%PDF", "PDF do iPhone gerado");
+    if (capturas) fs.writeFileSync(path.join(capturas, "consultoria-relatorio-iphone.pdf"), bytes);
+    assert(!(await m.evaluate(() => document.body.classList.contains("cr-imprimindo"))), "a tela volta ao normal depois do PDF");
+    await m.evaluate(() => { QLImprimir.forcar = false; const a = document.getElementById("ql-pdf-aviso"); if (a) a.remove(); });
+  }
 
   /* ── painel do administrador: lista e ativação manual ── */
   const ad = await pagina("richard", "treinador", 1280);
