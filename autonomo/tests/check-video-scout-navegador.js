@@ -106,6 +106,25 @@ const srv = http.createServer((q, r) => {
     for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 60 && d[i] > 170 && d[i + 1] > 200 && d[i + 2] < 140) k++;
     max = Math.max(max, k); if (++n > 720) return ok(max); requestAnimationFrame(f); }; f(); }));
   assert(lima > 40, "rastro da bola desenhado no modo transmissão (" + lima + " px)");
+  /* placar ao vivo embaixo do vídeo: golpes, FH/BH, velocidade, pernas e a sequência do ponto, acompanhando o tempo */
+  await p.waitForFunction(() => { const h = document.querySelector('[data-r="hud"] .pg-hud'); return h && /golpes/.test(h.textContent); }, null, { timeout: 8000 });
+  const hud = await p.evaluate(() => { const S = vj.estado.scoutUI.estado, pt = S.pontos[1], v = document.querySelector("video"); v.pause();
+    const ult = pt.batidas[pt.batidas.length - 1]; v.currentTime = Math.min(pt.video.fim - 0.2, ult.t + 0.3);
+    return new Promise((ok) => setTimeout(() => { const h = document.querySelector('[data-r="hud"]'); ok({ txt: h.textContent, seq: h.querySelectorAll(".pg-hseq span").length, feitos: h.querySelectorAll(".pg-hseq span.ok, .pg-hseq span.ag").length, meus: pt.batidas.filter((b) => b.quem === "nos").length }); }, 500)); });
+  assert(/forehand \/ backhand/.test(hud.txt) && /velocidade do golpe/.test(hud.txt) && /pernas agora/.test(hud.txt) && !/NaN|undefined/.test(hud.txt), "placar ao vivo: " + hud.txt.slice(0, 200));
+  assert.strictEqual(hud.seq, hud.meus, "sequência do ponto: uma bolinha por golpe do jogador");
+  assert.strictEqual(hud.feitos, hud.meus, "no fim do ponto, todos os golpes do jogador marcados");
+  if (capturas) {
+    const iL = await p.evaluate(() => { const P = vj.estado.scoutUI.estado.pontos; let m = 0; P.forEach((x, i) => { if ((x.batidas || []).length > (P[m].batidas || []).length) m = i; }); return m; });
+    await p.click('.vs-pt[data-cart="' + iL + '"] [data-acao="rastro"]');
+    await p.waitForSelector('[data-r="hud"] .pg-hud', { timeout: 8000 });
+    await p.evaluate((iL) => { const pt = vj.estado.scoutUI.estado.pontos[iL], v = document.querySelector("video"), b = pt.batidas.filter((x) => x.quem === "nos"); v.pause(); v.currentTime = b[Math.max(0, b.length - 2)].t + 0.12; }, iL);
+    await p.waitForTimeout(900);
+    await p.locator('[data-r="slotVideo"]').screenshot({ path: path.join(capturas, "scout-placar-ao-vivo.png") });
+  }
+  await p.click('[data-r="hud"] [data-hq="ele"]');
+  await p.waitForFunction(() => document.querySelector('[data-r="hud"] [data-hq="ele"].qm-pri'), null, { timeout: 3000 });
+  await p.click('[data-r="hud"] [data-hq="nos"]');
   if (capturas) { await p.evaluate(() => { const S = vj.estado.scoutUI.estado, b = S.an[S.pontos[1].k].batidas[0], v = document.querySelector("video"); v.pause(); v.currentTime = b.trilha[Math.floor(b.trilha.length * 0.55)].t; }); await p.waitForTimeout(700); await p.locator('[data-r="slotVideo"]').screenshot({ path: path.join(capturas, "scout-rastro-transmissao.png") }); }
   await p.click('[data-a="modoRastro"]');
   await p.evaluate(() => { const S = vj.estado.scoutUI.estado, v = document.querySelector("video"); v.currentTime = S.pontos[1].video.ini + 0.5; v.play(); });
@@ -128,6 +147,13 @@ const srv = http.createServer((q, r) => {
   if (capturas) { await p.waitForFunction(() => { const v = document.querySelector("video"), S = vj.estado.scoutUI.estado, pt = S.pontos[1]; return v.currentTime > (pt.batidas[1] ? pt.batidas[1].t : pt.video.ini + 2); }, null, { timeout: 15000 }).catch(() => {}); await p.locator('[data-r="slotVideo"]').screenshot({ path: path.join(capturas, "scout-rastreamento.png") }); }
   await p.click('[data-a="fecharRastro"]');
   assert.strictEqual(await p.locator("canvas.vs-rastro").count(), 0, "fechar o rastreamento");
+  /* assistir o jogo inteiro com o placar: no fim de um ponto vai sozinho para o próximo */
+  await p.click('[data-a="assistirTudo"]');
+  await p.waitForSelector('[data-r="hud"] >> text=jogo inteiro: ponto 1 de', { timeout: 8000 });
+  await p.evaluate(() => { const S = vj.estado.scoutUI.estado, v = document.querySelector("video"); v.currentTime = S.pontos[0].video.fim - 0.3; v.play(); });
+  await p.waitForSelector('[data-r="hud"] >> text=jogo inteiro: ponto 2 de', { timeout: 10000 });
+  await p.click('[data-a="fecharRastro"]');
+  assert.strictEqual(await p.locator('[data-r="hud"]').count(), 0, "fechar tira o placar ao vivo");
   /* edição: trocar como terminou o 1º ponto refaz o placar dos seguintes */
   const antes = await p.evaluate(() => vj.estado.scoutUI.estado.pontos.map((x) => x.placarAntes).join("|"));
   await p.click('.vs-pt[data-cart="0"] [data-acao="editar"]');

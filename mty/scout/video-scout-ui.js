@@ -309,6 +309,7 @@
         (alvo ? '<p class="qm-msg">' + (S.dec.confere ? "✓ Bate com o placar final informado (" + esc(alvo) + ")." : "⚠ Não bateu com o placar informado (" + esc(alvo) + "): confira os pontos marcados.") + "</p>" : "") +
         (S.semPose ? '<p class="qm-msg">⚠ O modelo de pose não carregou (sem internet?): golpes e efeito ficaram em branco para você marcar.</p>' : "") +
         '<p class="qm-msg">Legenda: <span style="color:var(--qok);font-weight:800">●</span> confiável · <span style="color:#C99A2E;font-weight:800">●</span> confira · <span style="color:var(--qat);font-weight:800">?</span> em dúvida · <span style="color:var(--qa);font-weight:800">●</span> marcado por você. Toque em ▶ para ver o ponto.</p>' +
+        (raiz.QLPernasGolpes && S.dados ? '<div class="qm-row" style="margin-top:8px"><button type="button" class="qm-pri" data-a="assistirTudo">▶ Assistir o jogo com o placar ao vivo</button><span class="qm-msg" style="margin:0">ponto a ponto, com golpes, velocidade e pernas embaixo do vídeo</span></div>' : "") +
         '<div data-r="slotVideo"></div>' +
         '<div class="qm-row" style="margin-top:8px"><button data-f="todos"' + (S.filtro === "todos" ? ' class="qm-pri"' : "") + '>Todos</button><button data-f="conf"' + (S.filtro === "conf" ? ' class="qm-pri"' : "") + ">Para conferir (" + conf + ")</button></div>" +
         '<div data-r="pts">' + lista.map(function (x) { return cartao(x[0], x[1], n); }).join("") + (lista.length ? "" : '<p class="qm-msg">Nada para conferir. 👍</p>') + "</div>" +
@@ -319,6 +320,8 @@
       [].forEach.call(el.querySelectorAll("[data-f]"), function (b) { b.onclick = function () { S.filtro = b.getAttribute("data-f"); S.aberto = -1; render(); }; });
       el.querySelector('[data-a="salvar"]').onclick = function () { salvar(); };
       el.querySelector('[data-a="csv"]').onclick = csv;
+      var btTudo = el.querySelector('[data-a="assistirTudo"]');
+      if (btTudo) btTudo.onclick = function () { var i0 = S.pontos.findIndex(function (x) { return x.k != null && S.dados[x.k]; }); if (i0 < 0) return; S.seguir = true; S.verDeteccoes = false; verRastreamento(i0); };
       var refazerTudo = function () { remontar(); S.aberto = -1; render(); salvar(true); };
       el.querySelector('[data-a="trocar"]').onclick = function () {
         S.ctx.atletaComecaPerto = !S.ctx.atletaComecaPerto; S.atletaPerto = S.ctx.atletaComecaPerto; S.atleta = S.adv = null;
@@ -347,9 +350,12 @@
     var CURTO_G = { saque: "Saque", forehand: "Forehand", backhand: "Backhand", voleio: "Voleio", smash: "Smash", devolucao: "Devolução", drop: "Drop", lob: "Lob" };
     function pararRastro() {
       S.rastro = null;
-      var c = el.querySelector("canvas.vs-rastro"), l = el.querySelector('[data-r="rastroLeg"]');
-      if (c) c.remove(); if (l) l.remove();
+      var c = el.querySelector("canvas.vs-rastro"), l = el.querySelector('[data-r="rastroLeg"]'), h = el.querySelector('[data-r="hud"]');
+      if (c) c.remove(); if (l) l.remove(); if (h) h.remove();
     }
+    /* placar ao vivo embaixo do vídeo (scout/pernas-golpes.js): golpes, FH/BH, velocidade, pernas e a sequência do ponto */
+    var PGv = raiz.QLPernasGolpes;
+    function cssHud() { if (!PGv || !PGv.HUD_CSS || document.getElementById("pgHudCss")) return; var st = document.createElement("style"); st.id = "pgHudCss"; st.textContent = PGv.HUD_CSS; document.head.appendChild(st); }
     function verRastreamento(i) {
       var p = S.pontos[i], v = api.video, slot = el.querySelector('[data-r="slotVideo"]');
       if (!p || p.k == null || !S.dados || !S.dados[p.k] || !v || !slot) return;
@@ -365,16 +371,36 @@
           ? '<span style="color:#6c3">━ quadra</span> · <span style="color:#F08A3C">● ' + esc(n.A) + '</span> · <span style="color:#4F8EF7">● ' + esc(n.B) + '</span> · <span style="color:#FFE14D">● bola seguida</span> · <span style="color:#999">● outros candidatos</span> · <span style="color:#FF4FD8">✕ quique</span> '
           : '<span style="color:#9DB82A">━ rastro da bola</span> · <span style="color:#9DB82A">◯ quique</span> ') +
           '<button type="button" data-a="modoRastro">' + (S.verDeteccoes ? "Ver como transmissão" : "Ver detecções (conferir)") + '</button> <button type="button" data-a="fecharRastro">Fechar rastreamento</button>';
-        leg.querySelector('[data-a="fecharRastro"]').onclick = pararRastro;
+        leg.querySelector('[data-a="fecharRastro"]').onclick = function () { S.seguir = false; pararRastro(); };
         leg.querySelector('[data-a="modoRastro"]').onclick = function () { S.verDeteccoes = !S.verDeteccoes; legenda(); };
       };
       legenda();
       slot.appendChild(leg);
+      var hud = null, chaveHud = "";
+      if (PGv && PGv.aoVivo) {
+        cssHud(); hud = document.createElement("div"); hud.setAttribute("data-r", "hud");
+        slot.insertBefore(hud, leg);
+        hud.onclick = function (e) { var b = e.target.closest("[data-hq]"); if (b) { S.hudQuem = b.getAttribute("data-hq"); chaveHud = ""; } };
+      }
+      var atualizarHud = function (t) {
+        if (!hud) return;
+        hud.hidden = !!S.verDeteccoes; if (S.verDeteccoes) return;
+        var q = S.hudQuem || "nos", e = PGv.aoVivo(S.pontos, i, t, q), ch = JSON.stringify(e) + q;
+        if (ch === chaveHud) return; chaveHud = ch;
+        hud.innerHTML = '<div class="qm-row" style="gap:6px;margin-top:6px"><span class="qm-msg" style="margin:0">Placar ao vivo de</span><button type="button" data-hq="nos"' + (q === "nos" ? ' class="qm-pri"' : "") + ">" + esc(n.A) + '</button><button type="button" data-hq="ele"' + (q === "ele" ? ' class="qm-pri"' : "") + ">" + esc(n.B) + "</button>" +
+          (S.seguir ? '<span class="qm-msg" style="margin:0">· jogo inteiro: ponto ' + p.n + " de " + S.pontos.length + "</span>" : "") + "</div>" + PGv.hudHTML(e, q === "nos" ? n.A : n.B);
+      };
       if (slot.scrollIntoView) slot.scrollIntoView({ block: "start", behavior: "smooth" });
       api.tocar(p.video.falta != null ? p.video.falta : p.video.ini, p.video.fim);
       var laco = function () {
         if (S.rastro !== id || !cv.isConnected) return;
-        desenharRastro(cv, v, p, api.tempo ? api.tempo() : v.currentTime);
+        var t = api.tempo ? api.tempo() : v.currentTime;
+        desenharRastro(cv, v, p, t); atualizarHud(t);
+        /* jogo inteiro: no fim do ponto, segue para o próximo */
+        if (S.seguir && t >= p.video.fim - 0.08) {
+          for (var j = i + 1; j < S.pontos.length; j++) if (S.pontos[j].k != null && S.dados[S.pontos[j].k]) { verRastreamento(j); return; }
+          S.seguir = false;
+        }
         requestAnimationFrame(laco);
       };
       requestAnimationFrame(laco);
@@ -467,7 +493,17 @@
             linha([c[0] - r, c[1] - r], [c[0] + r, c[1] + r]); linha([c[0] - r, c[1] + r], [c[0] + r, c[1] - r]);
           }
         });
-      } else rastroBola(x, bats, t, px, lw);
+      } else {
+        rastroBola(x, bats, t, px, lw);
+        /* esqueleto fino do jogador do placar ao vivo, como nas transmissões */
+        var ladoHud = (S.hudQuem || "nos") === "nos" ? ladoA : (ladoA === "perto" ? "longe" : "perto");
+        if (comJog) comJog.jog.forEach(function (j) {
+          if (!j.pe || !j.lm || (VS.aplicarH(cal.H, j.pe)[1] < 0 ? "perto" : "longe") !== ladoHud) return;
+          x.save(); x.strokeStyle = "rgba(255,255,255,.92)"; x.lineWidth = lw * 1.1; x.shadowColor = "rgba(0,0,0,.55)"; x.shadowBlur = lw * 2;
+          LIG.forEach(function (l) { var a = j.lm[l[0]], b = j.lm[l[1]]; if (a && b && (a.v == null || a.v > 0.3) && (b.v == null || b.v > 0.3)) linha(px([a.x, a.y]), px([b.x, b.y])); });
+          x.restore();
+        });
+      }
       /* batida da hora: quem bateu e o golpe, como o scout registrou */
       (kk === p.k ? p.batidas || [] : []).forEach(function (b, k) {
         if (Math.abs(t - b.t) > 0.45) return;

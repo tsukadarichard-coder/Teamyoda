@@ -244,5 +244,63 @@
       '<div class="pg-cx">' + R.faixas.map(function (f) { return "<span>" + f.faixa + "</span>"; }).join("") + "</div>";
   }
 
-  return { analisar: analisar, html: html, resumo: resumo, movimento: movimento };
+  /* ── placar ao vivo (assistindo o vídeo): o que aconteceu até o instante t do ponto i, do ponto de vista de "quem" ── */
+  var cacheMov = typeof WeakMap === "function" ? new WeakMap() : null;
+  function movDe(p, q) {
+    var r = p.mov && p.mov[q]; if (!r) return null;
+    if (cacheMov && cacheMov.has(r)) return cacheMov.get(r);
+    var m = movimento(r); if (cacheMov) cacheMov.set(r, m); return m;
+  }
+  /* mediana da velocidade por jogador e golpe no jogo todo: o placar ao vivo descarta o voo mal reconstruído, como o painel */
+  var cacheMed = typeof WeakMap === "function" ? new WeakMap() : null;
+  function medianas(pontos) {
+    if (cacheMed && cacheMed.has(pontos)) { var c = cacheMed.get(pontos); if (c.n === pontos.length) return c.m; }
+    var l = {}; pontos.forEach(function (p) { (p.batidas || []).forEach(function (b) { if (b.vel && b.vel > 20 && b.vel < 260) (l[b.quem + b.golpe] = l[b.quem + b.golpe] || []).push(b.vel); }); });
+    var m = {}; Object.keys(l).forEach(function (k) { var v = l[k].sort(function (a, b) { return a - b; }); if (v.length >= 3) m[k] = v[Math.floor(v.length / 2)]; });
+    if (cacheMed) cacheMed.set(pontos, { n: pontos.length, m: m }); return m;
+  }
+  function velBoa(b, md) { if (!b.vel || b.vel <= 20 || b.vel >= 260) return null; var m = md[b.quem + b.golpe]; return !m || (b.vel >= m * 0.6 && b.vel <= m * 1.45) ? b.vel : null; }
+  function aoVivo(pontos, i, t, quem) {
+    quem = quem || "nos"; var md = medianas(pontos);
+    var vels = [], fh = 0, bh = 0, golpes = 0, porG = { forehand: [], backhand: [], saque: [] };
+    for (var k = 0; k <= i && k < pontos.length; k++) {
+      (pontos[k].batidas || []).forEach(function (b) {
+        if (b.quem !== quem || (k === i && b.t > t + 0.02)) return;
+        golpes++; if (b.golpe === "forehand") fh++; else if (b.golpe === "backhand") bh++;
+        var vb = velBoa(b, md); if (vb) { vels.push({ v: vb, g: b.golpe }); if (porG[b.golpe]) porG[b.golpe].push(vb); }
+      });
+    }
+    var p = pontos[i] || {}, seq = [], n = 0;
+    (p.batidas || []).forEach(function (b) {
+      if (b.quem !== quem) return; n++;
+      seq.push({ n: n, golpe: b.golpe, vel: velBoa(b, md), feito: b.t <= t + 0.02, agora: Math.abs(b.t - t) < 0.45 });
+    });
+    var M = movDe(p, quem), velAgora = null, dist = 0;
+    if (M && M.pts.length) {
+      var perto = null; M.pts.forEach(function (pt) { if (Math.abs(pt.t - t) < 0.2 && (!perto || Math.abs(pt.t - t) < Math.abs(perto.t - t))) perto = pt; });
+      velAgora = perto && perto.v != null ? perto.v * 3.6 : null;
+      for (var j = 1; j < M.pts.length && M.pts[j].t <= t; j++) { var a = M.pts[j - 1], c = M.pts[j], dd = Math.hypot(c.x - a.x, c.y - a.y), dt = c.t - a.t; if (dt > 0 && dt < 0.45 && dd / dt <= VMAX && dd / dt >= 0.35) dist += dd; }
+    }
+    var med = function (l) { return l.length ? Math.round(media(l)) : null; }, ult = vels[vels.length - 1];
+    return { golpes: golpes, fh: fh, bh: bh, ultima: ult ? ult.v : null, ultimaG: ult ? ult.g : null, pico: vels.length ? Math.max.apply(null, vels.map(function (x) { return x.v; })) : null,
+      mediaFH: med(porG.forehand), mediaBH: med(porG.backhand), mediaSaque: med(porG.saque), historico: vels.slice(-14), seq: seq, velAgora: velAgora, distPonto: M ? dist : null, ponto: p.n || i + 1 };
+  }
+  var SIG = { forehand: "FH", backhand: "BH", saque: "S", voleio: "V", smash: "SM", devolucao: "D" };
+  function hudHTML(e, nome) {
+    var kmh = function (v) { return v == null ? "—" : String(Math.round(v)); };
+    var mx = Math.max.apply(null, e.historico.map(function (x) { return x.v; }).concat([1]));
+    return '<div class="pg-hud" role="status" aria-label="Placar ao vivo de ' + esc(nome) + '">' +
+      '<div class="pg-hc"><small>golpes</small><b>' + e.golpes + "</b></div>" +
+      '<div class="pg-hc"><small>forehand / backhand</small><b>' + e.fh + " / " + e.bh + "</b></div>" +
+      '<div class="pg-hc pg-hv"><small>velocidade do golpe</small><b>' + kmh(e.ultima) + "<u>km/h</u></b><span>estimativa" + (e.ultimaG ? " · " + esc((CURTO[e.ultimaG] || "").toLowerCase()) : "") + "</span><span>pico " + kmh(e.pico) + " · FH " + kmh(e.mediaFH) + " · BH " + kmh(e.mediaBH) + "</span></div>" +
+      '<div class="pg-hc pg-hp"><small>pernas agora</small><b>' + (e.velAgora == null ? "—" : num(e.velAgora, 1)) + "<u>km/h</u></b><span>" + (e.distPonto == null ? "" : num(e.distPonto, 1) + " m neste ponto") + "</span></div>" +
+      '<div class="pg-hc pg-hh"><small>histórico</small><div class="pg-hbar">' + e.historico.map(function (x, k) { return '<i style="height:' + Math.max(8, x.v / mx * 100).toFixed(0) + '%"' + (k === e.historico.length - 1 ? ' class="u"' : "") + ' title="' + x.v + ' km/h"></i>'; }).join("") + "</div></div>" +
+      '<div class="pg-hc pg-hs"><small>sequência do ponto ' + e.ponto + '</small><div class="pg-hseq">' + (e.seq.length ? e.seq.map(function (x) { return '<span class="' + (x.agora ? "ag" : x.feito ? "ok" : "") + '"><b>' + x.n + "</b><em>" + (x.feito ? SIG[x.golpe] || "?" : "") + "</em></span>"; }).join("") : '<em class="pg-hvaz">sem batidas</em>') + "</div></div></div>";
+  }
+  var HUD_CSS = ".pg-hud{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#D9D5CA;border:1px solid #D9D5CA;border-radius:12px;overflow:hidden;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;margin-top:8px}" +
+    ".pg-hc{background:#F4F2EC;padding:8px 10px;min-width:0}.pg-hc small{display:block;font-size:10.5px;color:#5C6B78;letter-spacing:.02em}.pg-hc b{display:block;font-size:26px;line-height:1.1;color:#14202B;font-weight:700}.pg-hc b u{text-decoration:none;font-size:11px;color:#5C6B78;margin-left:3px}.pg-hc span{display:block;font-size:10px;color:#5C6B78;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
+    ".pg-hh,.pg-hs{grid-column:span 2}.pg-hbar{display:flex;gap:3px;align-items:flex-end;height:34px;margin-top:4px}.pg-hbar i{flex:1;max-width:12px;background:#2E8B57;border-radius:2px 2px 0 0;opacity:.75}.pg-hbar i.u{background:#0B3B2E;opacity:1}" +
+    ".pg-hseq{display:flex;gap:5px;flex-wrap:wrap;margin-top:4px}.pg-hseq span{display:flex;flex-direction:column;align-items:center;width:24px}.pg-hseq b{width:22px;height:22px;border-radius:50%;border:1.5px solid #B9C2C9;color:#8A96A0;font-size:11px;display:grid;place-items:center;line-height:1}.pg-hseq span.ok b{border-color:#0B3B2E;color:#0B3B2E}.pg-hseq span.ag b{background:#0B3B2E;border-color:#0B3B2E;color:#fff}.pg-hseq em{font-style:normal;font-size:9.5px;color:#5C6B78;height:12px}.pg-hvaz{font-size:11px;color:#8A96A0;font-style:normal}" +
+    "@media (max-width:520px){.pg-hud{grid-template-columns:repeat(2,1fr)}.pg-hc b{font-size:22px}}";
+  return { analisar: analisar, html: html, resumo: resumo, movimento: movimento, aoVivo: aoVivo, hudHTML: hudHTML, HUD_CSS: HUD_CSS };
 });
