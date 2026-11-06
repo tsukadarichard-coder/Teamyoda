@@ -108,6 +108,7 @@
     if (r[0] === "treino" && r[1]) return telaTreino(r[1]);
     if (r[0] === "sessao" && r[1]) return telaSessao(r[1]);
     if (r[0] === "simulador") return telaSimulador(r.slice(1).join("/"));
+    if (r[0] === "analise") return telaAnalise();
     if (r[0] === "conta") return telaConta();
     if (r[0] === "trilhas") return telaTrilhas();
     if (r[0] === "certificado" && r[1]) return telaCertificado(r[1]);
@@ -313,6 +314,7 @@
       (ts.length ? '<div class="carrossel">' + ts.map(cartaoTrilha).join("") + "</div>"
         : '<div class="cartao vazio">Os primeiros cursos de técnica, tática e mental estão sendo preparados. Enquanto isso, explore os treinos e o simulador.</div>') +
       '<div class="duas-col"><section aria-labelledby="tDia"><h2 class="secao" id="tDia">Treino do dia</h2><div id="treinoDia" class="cartao treino-dia"><p class="det">Escolhendo o treino de hoje…</p></div></section>' +
+      '<section aria-labelledby="tMov"><h2 class="secao" id="tMov">Análise de movimento</h2><a class="cartao sim-card" href="#analise"><div class="sim-arte mov-arte" aria-hidden="true"><svg viewBox="0 0 160 90"><g fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><circle cx="78" cy="18" r="7"/><path d="M78 25 L76 52 M76 52 L64 78 M76 52 L90 78 M77 33 L58 44 L46 38 M77 33 L98 40 L112 30"/></g><path d="M112 30 L132 14" stroke="#E4F542" stroke-width="4" stroke-linecap="round"/></svg></div><div><h3>Filme um golpe</h3><p class="det" style="margin:0">Checklist por fase, vídeo e boneco lado a lado e o que treinar.</p></div></a></section>' +
       '<section aria-labelledby="tSim"><h2 class="secao" id="tSim">Simulador de decisões</h2><a class="cartao sim-card" href="#simulador"><div class="sim-arte">' + QUADRA_DECOR + '</div><div><h3>Escolha a jogada</h3><p class="det" style="margin:0">Situações de ponto: alvo, altura e intensidade, e a resposta possível do adversário.</p></div></a></section></div>',
       "inicio"
     );
@@ -557,6 +559,53 @@
       $("#btVoltar").onclick = function () { if (history.length > 1) history.back(); else location.hash = "#treinos"; };
       var q = $("#quadra"); if (q) st.quadra = window.QLQuadraExercicio.montar(q, e.c, { resumo: e.o });
     }).catch(function (err) { tela('<p class="msg msg-erro">' + esc(err.message) + "</p>", "treinos"); });
+  }
+
+  /* ── análise de movimento (a mesma tecnologia do QuadraLab Player): o módulo só carrega quando o aluno abre a aba ── */
+  var carregandoMov = null;
+  function carregarMovimento() {
+    if (window.QLMovimento && window.QLBiomec) return Promise.resolve();
+    if (carregandoMov) return carregandoMov;
+    carregandoMov = new Promise(function (ok, falha) {
+      if (!document.getElementById("css-mov")) { var l = document.createElement("link"); l.id = "css-mov"; l.rel = "stylesheet"; l.href = "../scout/movimento.css"; document.head.appendChild(l); }
+      var fila = ["../scout/movimento-motor.js", "../scout/movimento.js"];
+      (function proximo() {
+        if (!fila.length) return ok();
+        var sc = document.createElement("script"); sc.src = fila.shift(); sc.onload = proximo;
+        sc.onerror = function () { carregandoMov = null; falha(new Error("Não foi possível abrir a análise agora. Confira a internet e tente de novo.")); };
+        document.head.appendChild(sc);
+      })();
+    });
+    return carregandoMov;
+  }
+  /* relatório grande demais (fotos em alta resolução): guarda sem as fotos em vez de não guardar nada */
+  function caberRelatorio(arq) { var t = JSON.stringify(arq); if (t.length <= 890000) return t; var sem = {}; for (var k in arq) sem[k] = arq[k]; sem.fotos = []; sem.semFotos = true; return JSON.stringify(sem); }
+  function telaAnalise() {
+    var d = st.dados;
+    tela('<h1>Análise de movimento</h1><p class="lead">Filme um golpe (forehand, backhand ou saque) e veja o checklist por fase, o vídeo lado a lado com o boneco, os pontos fortes e o que treinar. A análise roda no seu celular: o vídeo não é enviado.</p>' +
+      (d.acesso.tipo === "equipe" ? '<p class="msg msg-aviso">Conta da equipe: dá para testar, mas as análises não ficam salvas aqui. Para analisar um aluno, use a ficha dele no app do treinador.</p>' : "") +
+      '<div id="movArea"><p class="carregando">Abrindo a análise…</p></div>', "analise");
+    carregarMovimento().then(function () {
+      var el = $("#movArea"); if (!el) return;
+      el.innerHTML = "";
+      var salvando = Promise.resolve();
+      var arquivo = {
+        salvar: function (aluno, arq) { return salvando.then(function () { return api("POST", { acao: "movRelatorio", id: arq.id, relatorio: caberRelatorio(arq) }); }); },
+        ler: function (id) { return api("GET", null, "movRel=" + encodeURIComponent(id)).then(function (r) { return r.relatorio; }); },
+        salvarClip: function (id, clip) { return salvando.then(function () { var t = JSON.stringify(clip); return t.length > 890000 ? null : api("POST", { acao: "movClip", id: id, clip: t }); }); },
+        lerClip: function (id) { return api("GET", null, "movClip=" + encodeURIComponent(id)).then(function (r) { return r.clip; }); },
+        indice: function () { return Promise.resolve({ itens: st.dados.movimentos || [], removidos: [] }); },
+        registrar: function () { return Promise.resolve(); },
+        remover: function () { return Promise.resolve(); },
+      };
+      var logo = new URL("../assets/logo-quadralab.png", location.href).href;
+      st.mov = window.QLMovimento.montar(el, {
+        atleta: d.conta.nome || "", alunoId: "eu", historico: d.movimentos || [], logo: "../assets/logo-quadralab.png", logoAbsoluto: logo, arquivo: arquivo,
+        modelos: false, publico: "atleta",
+        aoSalvar: function (reg) { salvando = api("POST", { acao: "movSalvar", resumo: reg }).then(function (r) { st.dados.movimentos = r.movimentos || st.dados.movimentos; }); return salvando; },
+        aoRemover: function (id) { return api("POST", { acao: "movRemover", id: id }).then(function (r) { st.dados.movimentos = r.movimentos || st.dados.movimentos; }); },
+      });
+    }).catch(function (e) { var el = $("#movArea"); if (el) el.innerHTML = '<p class="msg msg-erro">' + esc(e.message) + "</p>"; });
   }
 
   /* simulador de decisões (o mesmo do QuadraLab Player e do Competição), dentro de um quadro; guarda a tela no endereço */

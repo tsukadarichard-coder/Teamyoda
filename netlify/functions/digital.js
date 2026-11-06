@@ -189,6 +189,15 @@ exports.handler = async function (event) {
       if (!claims || (event.queryStringParameters || {}).vitrine) return resposta(200, vitrine(c));
       const conta = await lerConta(claims), acesso = await acessoDe(claims, conta);
       const liberado = acesso.tipo !== "nenhum";
+      const qsp = event.queryStringParameters || {};
+      if (qsp.movRel || qsp.movClip) {
+        if (!liberado) throw new Erro(403, "Sem acesso à Academia Digital.");
+        const id = String(qsp.movRel || qsp.movClip);
+        if (!ID.test(id)) throw new Erro(400, "Análise inválida.");
+        const d = await db().collection(qsp.movRel ? "digitalMovRel" : "digitalMovClip").doc(claims.uid + "_" + id).get();
+        if (!d.exists) throw new Erro(404, "Não encontrei esta análise.");
+        return resposta(200, qsp.movRel ? { relatorio: d.data().v } : { clip: d.data().v });
+      }
       if ((event.queryStringParameters || {}).catalogo) {
         if (!liberado) throw new Erro(403, "Sem acesso à Academia Digital.");
         return resposta(200, { exercicios: require("./_exercicios-digital.json") });
@@ -199,6 +208,7 @@ exports.handler = async function (event) {
         conteudo: liberado ? { trilhas: publicadas(c) } : null, vitrine: liberado ? null : vitrine(c), venda: c.venda, progresso: conta.progresso || {},
         quiz: conta.quiz || {},
         sessoes: (conta.sessoes || []).slice(-60),
+        movimentos: conta.movimentos || [],
         presencial: acesso.tipo === "unidade" ? await resumoPresencial(acesso) : null,
       });
     }
@@ -226,6 +236,33 @@ exports.handler = async function (event) {
     if (b.acao === "desvincular") {
       const chave = String(b.org) + ":" + String(b.alunoId);
       await refConta(claims.uid).set({ vinculos: (conta.vinculos || []).filter((v) => v.org + ":" + v.alunoId !== chave), vinculoChaves: (conta.vinculoChaves || []).filter((k) => k !== chave) }, { merge: true });
+      return resposta(200, { ok: true });
+    }
+    if (/^mov(Salvar|Relatorio|Clip|Remover)$/.test(String(b.acao))) {
+      /* análise de movimento (a mesma do QuadraLab Player): roda no aparelho; aqui ficam só o resumo (histórico e evolução),
+         o relatório completo e o trecho do golpe, na conta de quem analisou. A equipe pode testar, mas nada é guardado. */
+      if ((await acessoDe(claims, conta)).tipo === "nenhum") throw new Erro(403, "Sem acesso à Academia Digital.");
+      if (b.acao === "movSalvar") {
+        const r = b.resumo || {}, tam = JSON.stringify(r).length;
+        if (!ID.test(String(r.id || "")) || tam > 40000) throw new Erro(400, "Análise inválida.");
+        const movimentos = (conta.movimentos || []).filter((m) => m.id !== r.id).concat([r]).slice(-40);
+        if (!claims.orgId) await refConta(claims.uid).set({ movimentos }, { merge: true });
+        return resposta(200, { ok: true, movimentos });
+      }
+      const id = String(b.id || "");
+      if (!ID.test(id)) throw new Erro(400, "Análise inválida.");
+      if (b.acao === "movRemover") {
+        const movimentos = (conta.movimentos || []).filter((m) => m.id !== id);
+        if (!claims.orgId) {
+          await refConta(claims.uid).set({ movimentos }, { merge: true });
+          for (const col of ["digitalMovRel", "digitalMovClip"]) { const ref = db().collection(col).doc(claims.uid + "_" + id); if (ref.delete) await ref.delete(); }
+        }
+        return resposta(200, { ok: true, movimentos });
+      }
+      const v = String(b.acao === "movRelatorio" ? b.relatorio || "" : b.clip || "");
+      if (!v || v.length > 900000) throw new Erro(400, "Relatório grande demais para guardar.");
+      if (!(conta.movimentos || []).some((m) => m.id === id)) throw new Erro(404, "Salve a análise antes do relatório.");
+      if (!claims.orgId) await db().collection(b.acao === "movRelatorio" ? "digitalMovRel" : "digitalMovClip").doc(claims.uid + "_" + id).set({ v, em: agora() });
       return resposta(200, { ok: true });
     }
     if (b.acao === "sessao") {

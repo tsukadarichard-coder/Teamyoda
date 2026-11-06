@@ -249,6 +249,15 @@ const chamar = async (metodo, corpo, tk) => { const x = await digital({ httpMeth
   assert(/Rotina entre pontos/.test(await ana.textContent(".certificado h2")));
   await cap(ana, "digital-certificado");
 
+  /* 3c. análise de movimento: o módulo do Player carrega na aba e a demonstração roda (nada é salvo) */
+  await ana.click(".abas a[data-aba=analise]");
+  await ana.waitForSelector("#movArea.qlm [data-r=demo]", { timeout: 30000 });
+  await ana.click("#movArea [data-r=demo]");
+  await ana.waitForSelector("#movArea [data-r=saida]:not([hidden])", { timeout: 60000 });
+  await ana.waitForSelector("#movArea [data-r=salvoMsg] >> text=Demonstração: nada foi salvo.");
+  assert(!store["digitalContas/u1"].movimentos, "demonstração não é salva");
+  await cap(ana, "digital-analise");
+
   /* 4. simulador no quadro */
   await ana.click(".abas a[data-aba=simulador]");
   const fr = await (await ana.waitForSelector("#simQuadro")).contentFrame();

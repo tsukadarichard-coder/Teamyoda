@@ -140,6 +140,21 @@ store["orgs/39-ranch/dados/mty:alunos:v2"] = { value: JSON.stringify([{ id: "r1"
   assert.strictEqual((await chamar("GET", null, "tk-c2@x.com")).sessoes.length, 1);
   assert.strictEqual((await chamar("POST", { acao: "sessao", sessaoId: "fundo", minutos: 30, itens: [] }, "tk-bia@x.com")).status, 403);
 
+  /* análise de movimento: resumo, relatório e trecho guardados na conta de quem analisou */
+  assert.strictEqual((await chamar("POST", { acao: "movRelatorio", id: "mv1", relatorio: "{}" }, "tk-c2@x.com")).status, 404, "relatório só depois do resumo");
+  r = await chamar("POST", { acao: "movSalvar", resumo: { id: "mv1", golpe: "forehand", criadoEm: "2026-11-06T10:00:00Z", nota: 7 } }, "tk-c2@x.com");
+  assert.strictEqual(r.movimentos.length, 1);
+  assert((await chamar("POST", { acao: "movRelatorio", id: "mv1", relatorio: JSON.stringify({ id: "mv1", fases: [1, 2] }) }, "tk-c2@x.com")).ok);
+  assert((await chamar("POST", { acao: "movClip", id: "mv1", clip: "[1,2,3]" }, "tk-c2@x.com")).ok);
+  assert.strictEqual(JSON.parse((await chamar("GET", null, "tk-c2@x.com", { movRel: "mv1" })).relatorio).fases.length, 2);
+  assert.strictEqual((await chamar("GET", null, "tk-c2@x.com", { movClip: "mv1" })).clip, "[1,2,3]");
+  assert.strictEqual((await chamar("GET", null, "tk-c4@x.com", { movRel: "mv1" })).status, 404, "o relatório de um não abre para outro");
+  assert.strictEqual((await chamar("GET", null, "tk-c2@x.com")).movimentos[0].golpe, "forehand");
+  assert.strictEqual((await chamar("POST", { acao: "movSalvar", resumo: { id: "x".repeat(10), dados: "y".repeat(50000) } }, "tk-c2@x.com")).status, 400, "resumo grande demais");
+  r = await chamar("POST", { acao: "movRemover", id: "mv1" }, "tk-c2@x.com");
+  assert.strictEqual(r.movimentos.length, 0);
+  assert.strictEqual((await chamar("POST", { acao: "movSalvar", resumo: { id: "mv2" } }, "tk-bia@x.com")).status, 403);
+
   /* lista de espera */
   assert.strictEqual((await chamar("POST", { acao: "interesse", email: "quero@x.com", nome: "Quero" })).status, 200);
   assert(store["digitalInteresses/quero@x.com"]);
