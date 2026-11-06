@@ -91,8 +91,8 @@ label.campo input, label.campo select { display: block; width: 100%; margin-top:
 .texto-aula { white-space: pre-line; }
 .ilustracoes { display: grid; gap: 12px; margin-top: 14px; justify-items: center; }
 .ilustracoes.duas { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); align-items: start; }
-.ilustracao { display: block; width: 100%; max-width: 620px; border-radius: 18px; overflow: hidden; background: #F6F8F7; border: 1px solid var(--linha, #E2E8E5); }
-.ilustracao img { display: block; width: 100%; height: auto; max-height: 560px; object-fit: contain; }
+.ilustracao { display: block; width: 100%; max-width: 640px; border-radius: 20px; overflow: hidden; background: #0C1D16; box-shadow: 0 10px 30px rgba(12, 29, 22, .18); }
+.ilustracao img { display: block; width: 100%; height: auto; max-height: 720px; object-fit: contain; }
 
 /* treinos */
 .filtros { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }

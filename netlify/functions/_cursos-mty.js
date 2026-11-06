@@ -2,7 +2,7 @@
    vocabulário e básico tático) e dos treinos mentais do catálogo. digital.js insere estes cursos uma vez (cursosMty = VERSAO),
    já publicados; depois a coordenação edita, despublica ou apaga em Mais › Academia Digital como qualquer outro curso.
    Quiz: c = índice da resposta certa (fica só no servidor). */
-const VERSAO = "v2"; /* v2: ilustrações das aulas (mty/assets/cursos, geradas por autonomo/tests/gerar-ilustracoes-cursos.js) */
+const VERSAO = "v2"; /* v2: ilustrações das aulas (mty/assets/cursos, geradas por autonomo/tests/gerar-ilustracoes-cursos.js, e fotos reais) */
 const L = (s) => s.join("\n");
 
 const tecnica = {
@@ -310,12 +310,12 @@ const mental = {
 };
 
 /* no formato do conteúdo da Academia Digital (descrição da aula = texto) */
-/* ilustrações de cada aula, mostradas acima do texto */
+/* ilustrações de cada aula, mostradas acima do texto (o golpe em si vai com foto real; backhands e smash esperam as fotos/vídeos do Team Yoda) */
 const IMG = (...n) => n.map((x) => "assets/cursos/" + x + ".svg");
+const FOTO = (x) => ["assets/foto-" + x + ".jpg"];
 const IMAGENS = {
-  "cmty-tec-01": IMG("fases-forehand", "recuperacao-forehand"), "cmty-tec-02": IMG("forehand-contato"), "cmty-tec-03": IMG("backhand2-fases"),
-  "cmty-tec-04": IMG("backhand1-fases"), "cmty-tec-05": IMG("saque-fases"), "cmty-tec-06": IMG("saque-lancamentos"), "cmty-tec-07": IMG("devolucao-posicoes"),
-  "cmty-tec-08": IMG("voleio-zona"), "cmty-tec-09": IMG("saque-fases"), "cmty-tec-10": IMG("approach-paralela"), "cmty-tec-11": IMG("empunhaduras"),
+  "cmty-tec-01": FOTO("forehand"), "cmty-tec-02": IMG("apoios"), "cmty-tec-05": FOTO("saque"), "cmty-tec-06": IMG("saque-lancamentos"),
+  "cmty-tec-07": IMG("devolucao-posicoes"), "cmty-tec-08": IMG("voleio-zona"), "cmty-tec-10": IMG("approach-paralela"), "cmty-tec-11": IMG("empunhaduras"),
   "cmty-tec-12": IMG("apoios"),
   "cmty-tat-01": IMG("tat-reconhecer"), "cmty-tat-02": IMG("tat-neutra"), "cmty-tat-03": IMG("tat-ataque"), "cmty-tat-04": IMG("tat-defesa"),
   "cmty-tat-05": IMG("tat-arma-converte"), "cmty-tat-06": IMG("tat-margem"), "cmty-tat-07": IMG("tat-ganhar-quadra"), "cmty-tat-08": IMG("tat-direcao"),

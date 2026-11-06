@@ -49,8 +49,8 @@ function limparQuiz(q, titulo) {
     return { p: txt(x.p, 300), op, c: Math.floor(c) };
   });
 }
-/* ilustrações das aulas: só os arquivos do próprio site (mty/assets/cursos) */
-const IMAGEM = /^assets\/cursos\/[a-z0-9-]+\.svg$/;
+/* ilustrações das aulas: só os arquivos do próprio site (mty/assets/cursos e as fotos mty/assets/foto-*.jpg) */
+const IMAGEM = /^assets\/(cursos\/[a-z0-9-]+\.svg|foto-[a-z0-9-]+\.jpg)$/;
 function limparConteudo(b) {
   const trilhas = (Array.isArray(b.trilhas) ? b.trilhas : []).slice(0, MAX_TRILHAS).map((t, i) => {
     const id = ID.test(String(t.id || "")) ? String(t.id) : "tr" + Date.now().toString(36) + i;

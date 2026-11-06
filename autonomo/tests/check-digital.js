@@ -179,26 +179,28 @@ store["orgs/39-ranch/dados/mty:alunos:v2"] = { value: JSON.stringify([{ id: "r1"
   assert(!r.conteudo.trilhas.some((t) => t.id === "cmty-mental"), "curso apagado pela coordenação não volta");
   assert.strictEqual(r.conteudo.trilhas.filter((t) => t.id === "cmty-tecnica").length, 1, "sem duplicar");
   /* ilustrações: toda aula MTY tem, os arquivos existem e estão em dia com o gerador */
-  CURSOS.forEach((c) => c.aulas.forEach((a) => { assert(a.imagens.length >= 1 && a.imagens.length <= 3, "aula com ilustração: " + a.id); a.imagens.forEach((im) => assert(fs.existsSync(path.join(__dirname, "../../mty", im)), "arquivo existe: " + im)); }));
+  const aulasMty = CURSOS.flatMap((c) => c.aulas);
+  assert(aulasMty.filter((a) => a.imagens.length).length >= 24, "quase todas as aulas MTY com ilustração");
+  aulasMty.forEach((a) => { assert(a.imagens.length <= 3); a.imagens.forEach((im) => assert(fs.existsSync(path.join(__dirname, "../../mty", im)), "arquivo existe: " + im)); });
   assert.strictEqual(require("child_process").spawnSync(process.execPath, [path.join(__dirname, "gerar-ilustracoes-cursos.js"), "--conferir"]).status, 0, "ilustrações em dia com o gerador");
-  assert.deepStrictEqual(r.conteudo.trilhas.find((t) => t.id === "cmty-tecnica").aulas[0].imagens, ["assets/cursos/fases-forehand.svg", "assets/cursos/recuperacao-forehand.svg"], "aluno recebe as ilustrações");
+  assert.deepStrictEqual(r.conteudo.trilhas.find((t) => t.id === "cmty-tecnica").aulas[0].imagens, ["assets/foto-forehand.jpg"], "aluno recebe as ilustrações");
   /* só caminhos do próprio site, até 3 */
   const lc = require(fx + "digital.js").interno.limparConteudo;
-  assert.deepStrictEqual(lc({ trilhas: [{ id: "t1", titulo: "T", aulas: [{ id: "a1", titulo: "A", imagens: ["https://mal.com/x.svg", "assets/cursos/../x.svg", "assets/cursos/a.svg", "assets/cursos/b.svg", "assets/cursos/c.svg", "assets/cursos/d.svg"] }] }] }).trilhas[0].aulas[0].imagens,
-    ["assets/cursos/a.svg", "assets/cursos/b.svg", "assets/cursos/c.svg"]);
+  assert.deepStrictEqual(lc({ trilhas: [{ id: "t1", titulo: "T", aulas: [{ id: "a1", titulo: "A", imagens: ["https://mal.com/x.svg", "assets/cursos/../x.svg", "assets/foto-x.png", "assets/foto-forehand.jpg", "assets/cursos/a.svg", "assets/cursos/b.svg", "assets/cursos/c.svg"] }] }] }).trilhas[0].aulas[0].imagens,
+    ["assets/foto-forehand.jpg", "assets/cursos/a.svg", "assets/cursos/b.svg"]);
   /* quem já tinha a v1: as aulas MTY sem ilustração ganham as da v2; a que a coordenação trocou fica como está */
   const doc = store["digitalConteudo/academia"];
   doc.cursosMty = "v1";
   doc.trilhas = doc.trilhas.map((t) => (t.id !== "cmty-tecnica" ? t : { ...t, aulas: t.aulas.map((a) => ({ ...a, imagens: a.id === "cmty-tec-02" ? ["assets/cursos/apoios.svg"] : [] })) }));
   r = await chamar("GET", null, "tk-c2@x.com");
   const tec2 = r.conteudo.trilhas.find((t) => t.id === "cmty-tecnica");
-  assert.deepStrictEqual(tec2.aulas.find((a) => a.id === "cmty-tec-05").imagens, ["assets/cursos/saque-fases.svg"], "v1 → v2 completa as ilustrações");
+  assert.deepStrictEqual(tec2.aulas.find((a) => a.id === "cmty-tec-05").imagens, ["assets/foto-saque.jpg"], "v1 → v2 completa as ilustrações");
   assert.deepStrictEqual(tec2.aulas.find((a) => a.id === "cmty-tec-02").imagens, ["assets/cursos/apoios.svg"], "edição da coordenação fica");
   assert(!r.conteudo.trilhas.some((t) => t.id === "cmty-mental"), "v2 não traz de volta curso apagado");
   assert.strictEqual(store["digitalConteudo/academia"].cursosMty, VERSAO);
   /* salvar pela coordenação mantém as ilustrações */
   const cc2 = await chamar("POST", { acao: "conteudoCompleto" }, "coord");
   await chamar("POST", { acao: "salvarConteudo", trilhas: cc2.trilhas, venda: cc2.venda }, "coord");
-  assert.deepStrictEqual(store["digitalConteudo/academia"].trilhas.find((t) => t.id === "cmty-tecnica").aulas.find((a) => a.id === "cmty-tec-05").imagens, ["assets/cursos/saque-fases.svg"]);
+  assert.deepStrictEqual(store["digitalConteudo/academia"].trilhas.find((t) => t.id === "cmty-tecnica").aulas.find((a) => a.id === "cmty-tec-05").imagens, ["assets/foto-saque.jpg"]);
   console.log("check-digital: ok");
 })().catch((e) => { console.error(e); process.exit(1); });

@@ -360,9 +360,9 @@
       "trilhas"
     );
   }
-  /* ilustrações da aula (mty/assets/cursos), acima do texto; tocar abre a imagem inteira */
+  /* ilustrações da aula (mty/assets/cursos e fotos), acima do texto; tocar abre a imagem inteira */
   function ilustracoes(a) {
-    var im = (a.imagens || []).filter(function (x) { return /^assets\/cursos\/[a-z0-9-]+\.svg$/.test(x); });
+    var im = (a.imagens || []).filter(function (x) { return /^assets\/(cursos\/[a-z0-9-]+\.svg|foto-[a-z0-9-]+\.jpg)$/.test(x); });
     if (!im.length) return "";
     return '<div class="ilustracoes' + (im.length > 1 ? " duas" : "") + '">' + im.map(function (x, k) {
       return '<a class="ilustracao" href="../' + esc(x) + '" target="_blank" rel="noopener"><img src="../' + esc(x) + '" alt="Ilustração ' + (k + 1) + " da aula " + esc(a.titulo) + '" loading="lazy" decoding="async"></a>';

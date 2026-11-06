@@ -114,7 +114,7 @@ const base = "http://localhost:" + srv.address().port;
   await p.waitForSelector("text=Salvo. Os cursos publicados");
   assert.deepStrictEqual(store["digitalConteudo/academia"].trilhas[0].aulas[0].quiz, [{ p: "Onde fica o contato?", op: ["À frente do corpo", "Atrás do corpo"], c: 0 }]);
   /* ilustrações da aula: aparecem no editor, dá para remover, e salvar mantém as que ficaram */
-  store["digitalConteudo/academia"].trilhas[0].aulas[0].imagens = ["assets/cursos/fases-forehand.svg", "assets/cursos/empunhaduras.svg"];
+  store["digitalConteudo/academia"].trilhas[0].aulas[0].imagens = ["assets/cursos/tat-neutra.svg", "assets/cursos/empunhaduras.svg"];
   await p.reload();
   await p.click("[data-trilha] button[aria-expanded] >> text=Forehand do zero");
   await p.waitForFunction(() => [...document.querySelectorAll("[data-ilustracoes] img")].filter((i) => i.complete && i.naturalWidth > 0).length === 2);
@@ -122,7 +122,7 @@ const base = "http://localhost:" + srv.address().port;
   assert.strictEqual(await p.locator("[data-ilustracoes] img").count(), 1);
   await p.click("button:has-text('Salvar')");
   await p.waitForSelector("text=Salvo. Os cursos publicados");
-  assert.deepStrictEqual(store["digitalConteudo/academia"].trilhas[0].aulas[0].imagens, ["assets/cursos/fases-forehand.svg"]);
+  assert.deepStrictEqual(store["digitalConteudo/academia"].trilhas[0].aulas[0].imagens, ["assets/cursos/tat-neutra.svg"]);
   assert.strictEqual(store["digitalConteudo/academia"].trilhas[0].aulas[0].quiz.length, 1, "o quiz continua");
   /* cursos-modelo: técnica, tática e mental em rascunho, com quiz em todas as aulas e treinos ligados */
   for (const b of ["+ Curso de Técnica", "+ Curso de Tática", "+ Curso Mental"]) await p.click("[data-modelos] button:has-text('" + b + "')");
