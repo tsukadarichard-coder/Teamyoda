@@ -85,7 +85,7 @@
 
   /* ── telas ── */
   function tela(html, aba, cine) {
-    document.body.classList.toggle("modo-cine", !!cine);
+    document.body.classList.add("modo-cine"); /* a Academia inteira no tema escuro (estilo streaming) */
     if (st.quadra) { try { st.quadra.parar(); } catch (e) { /* ok */ } st.quadra = null; }
     if (st.cronometro) { clearInterval(st.cronometro); st.cronometro = null; }
     app.innerHTML = html;
@@ -242,9 +242,15 @@
   }
   function enquadre(url, i) { return /\/capa-/.test(url) ? ' style="object-position:' + [50, 18, 82, 34, 66][i % 5] + '% 55%"' : ""; }
   /* capa do curso (sem texto por cima): a foto de uma aula, senão a miniatura de um vídeo, senão a capa da categoria */
+  /* foto "limpa" (sem texto por cima) serve de capa; as montagens de sequência têm título e legendas, então não */
+  var FOTO_LIMPA = /^assets\/foto-(?!sequencia|smash)[a-z0-9-]+\.jpg$/;
+  function arteHeroi(a, t) {
+    var f = (a.imagens || []).filter(function (x) { return FOTO_LIMPA.test(x); })[0];
+    return f ? "../" + f : a.youtube ? "https://i.ytimg.com/vi/" + a.youtube + "/hqdefault.jpg" : arteCurso(t);
+  }
   function arteCurso(t) {
     var fotos = [], yt = "";
-    t.aulas.forEach(function (a) { (a.imagens || []).forEach(function (x) { if (/^assets\/foto-/.test(x) && IMG_OK.test(x)) fotos.push("../" + x); }); if (!yt && a.youtube) yt = "https://i.ytimg.com/vi/" + a.youtube + "/hqdefault.jpg"; });
+    t.aulas.forEach(function (a) { (a.imagens || []).forEach(function (x) { if (FOTO_LIMPA.test(x)) fotos.push("../" + x); }); if (!yt && a.youtube) yt = "https://i.ytimg.com/vi/" + a.youtube + "/hqdefault.jpg"; });
     return fotos[0] || yt || capaCat(t.categoria);
   }
   function minutosAula(a) { var s = String(a.duracao || "").toLowerCase(), h = /(\d+)\s*h/.exec(s), mi = /(\d+)\s*min/.exec(s); return (h ? +h[1] * 60 : 0) + (mi ? +mi[1] : 0); }
@@ -319,28 +325,40 @@
     var nome = primeiroNome(d.conta.nome);
     var sub = d.acesso.tipo === "unidade" ? "Incluída na sua matrícula · " + d.acesso.unidade : d.acesso.tipo === "equipe" ? "Equipe · " + d.acesso.unidade : d.acesso.tipo === "assinante" ? "Assinatura ativa" : "Acesso de cortesia";
     var px = proximaAula(), dias = diasAtivos();
+    var tsCom = ts.filter(function (t) { return t.aulas.length; });
+    var continuar = tsCom.filter(function (t) { return feitas(t) && proximaDoCurso(t) >= 0; }).map(function (t) { var i = proximaDoCurso(t); return episodio(t, t.aulas[i], i, true); });
+    var arteH = px ? arteHeroi(px.a, px.t) : tsCom[0] ? arteCurso(tsCom[0]) : capaCat("geral");
+    var pcTot = total ? Math.round(feitasTot / total * 100) : 0;
     tela(
-      (st.avisoLigado ? '<p class="msg msg-ok">' + esc(st.avisoLigado) + "</p>" : "") +
-      '<section class="painel-heroi" aria-label="Seu avanço"><div class="ph-txt"><span class="ph-sobre">Academia Digital</span><h1>Olá, ' + esc(nome) + '</h1><p>' + esc(sub) + "</p></div>" +
-        '<div class="ph-anel">' + anel(feitasTot, total, true) + "<span>do conteúdo</span></div></section>" +
+      '<div class="cine">' + (st.avisoLigado ? '<p class="msg msg-ok">' + esc(st.avisoLigado) + "</p>" : "") +
+      /* destaque: a próxima aula em tela cheia, com a saudação e o avanço */
+      '<section class="cine-heroi inicio-heroi" aria-label="Seu avanço">' + arteImg(arteH, "cine-fundo") + '<div class="cine-veu"></div>' +
+        '<div class="cine-info"><span class="cine-marca"><b>MTY</b> Olá, ' + esc(nome) + "</span>" +
+        '<p class="inicio-sub">' + esc(sub) + "</p>" +
+        (px ? "<h2>" + esc(px.a.titulo) + "</h2>" +
+            '<p class="cine-meta"><b class="cine-tag' + (feitas(px.t) ? "" : " novo") + '">' + (feitas(px.t) ? "Continuar" : "Comece aqui") + "</b><span>" + esc(px.t.titulo) + " · aula " + (px.i + 1) + " de " + px.t.aulas.length + (px.a.duracao ? " · " + esc(px.a.duracao) : "") + "</span></p>" +
+            '<div class="cine-acoes"><a class="cine-btn primario" href="' + hrefAula(px.t, px.a) + '">▶ ' + (feitas(px.t) ? "Continuar" : "Começar") + '</a><a class="cine-btn" href="#trilhas">Cursos</a></div>'
+          : ts.length ? "<h2>Você fez todas as aulas publicadas</h2><p class=\"cine-desc\">Novas aulas aparecem aqui assim que forem lançadas.</p><div class=\"cine-acoes\"><a class=\"cine-btn primario\" href=\"#trilhas\">Rever os cursos</a></div>"
+          : "<h2>Os primeiros cursos estão chegando</h2><div class=\"cine-acoes\"><a class=\"cine-btn primario\" href=\"#treinos\">Ver os treinos</a></div>") +
+        '<div class="cine-anel">' + anel(feitasTot, total, true) + "<span>" + pcTot + "% do conteúdo · " + feitasTot + " de " + total + " aulas</span></div>" +
+      "</div></section>" +
       '<div class="numeros" role="list">' +
         '<div class="numero" role="listitem"><b>' + feitasTot + '<small>/' + total + "</small></b><span>aulas feitas</span></div>" +
         '<div class="numero" role="listitem"><b>' + minutosSemana() + '<small> min</small></b><span>na semana</span></div>' +
         '<div class="numero" role="listitem"><b>' + sequencia() + '<small>' + (sequencia() === 1 ? " dia" : " dias") + "</small></b><span>seguidos</span></div>" +
         '<div class="numero" role="listitem"><b>' + dias + '<small>/7</small></b><span>dias ativos</span></div></div>' +
       cartaoPresencial() +
-      (px ? '<h2 class="secao">Continuar de onde parou</h2><a class="cartao continuar" href="#aula/' + encodeURIComponent(px.t.id) + "/" + encodeURIComponent(px.a.id) + '">' + capa(px.a.youtube || videoDaTrilha(px.t), '<span class="play" aria-hidden="true">▶</span>') +
-          '<div class="cont-txt"><span class="det">' + esc(px.t.titulo) + " · aula " + (px.i + 1) + " de " + px.t.aulas.length + (px.a.duracao ? " · " + esc(px.a.duracao) : "") + "</span><h3>" + esc(px.a.titulo) + "</h3></div></a>"
-        : ts.length ? '<div class="cartao vazio">Você fez todas as aulas publicadas. Novas aulas aparecem aqui assim que forem lançadas.</div>' : "") +
-      (ultimaAnaliseComCorrecao() ? '<h2 class="secao">Seu treino de correção</h2>' + cartaoCorrecao(ultimaAnaliseComCorrecao()) : "") +
-      '<h2 class="secao">Cursos</h2>' +
-      (ts.length ? '<div class="carrossel">' + ts.map(cartaoTrilha).join("") + "</div>"
-        : '<div class="cartao vazio">Os primeiros cursos de técnica, tática e mental estão sendo preparados. Enquanto isso, explore os treinos e o simulador.</div>') +
-      '<div class="duas-col"><section aria-labelledby="tDia"><h2 class="secao" id="tDia">Treino do dia</h2><div id="treinoDia" class="cartao treino-dia"><p class="det">Escolhendo o treino de hoje…</p></div></section>' +
-      '<section aria-labelledby="tMov"><h2 class="secao" id="tMov">Análise de movimento</h2><a class="cartao sim-card" href="#analise"><div class="sim-arte mov-arte" aria-hidden="true"><svg viewBox="0 0 160 90"><g fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><circle cx="78" cy="18" r="7"/><path d="M78 25 L76 52 M76 52 L64 78 M76 52 L90 78 M77 33 L58 44 L46 38 M77 33 L98 40 L112 30"/></g><path d="M112 30 L132 14" stroke="#E4F542" stroke-width="4" stroke-linecap="round"/></svg></div><div><h3>Filme um golpe</h3><p class="det" style="margin:0">Checklist por fase, vídeo e boneco lado a lado e o que treinar.</p></div></a></section>' +
-      '<section aria-labelledby="tSim"><h2 class="secao" id="tSim">Simulador de decisões</h2><a class="cartao sim-card" href="#simulador"><div class="sim-arte">' + QUADRA_DECOR + '</div><div><h3>Escolha a jogada</h3><p class="det" style="margin:0">Situações de ponto: alvo, altura e intensidade, e a resposta possível do adversário.</p></div></a></section></div>',
-      "inicio"
+      fileira("Continue de onde parou", continuar, "eps") +
+      (ultimaAnaliseComCorrecao() ? '<section class="cine-linha"><div class="cine-linha-cab"><h2>Seu treino de correção</h2></div>' + cartaoCorrecao(ultimaAnaliseComCorrecao()) + "</section>" : "") +
+      (tsCom.length ? fileira("Cursos", tsCom.map(poster), "posters", "#trilhas")
+        : '<div class="cine-vazio">Os primeiros cursos de técnica, tática e mental estão sendo preparados. Enquanto isso, explore os treinos e o simulador.</div>') +
+      '<section class="cine-linha"><div class="cine-linha-cab"><h2>Para treinar hoje</h2></div><div class="duas-col hoje-grade">' +
+      '<section aria-labelledby="tDia"><h3 class="hoje-tit" id="tDia">Treino do dia</h3><div id="treinoDia" class="cartao treino-dia"><p class="det">Escolhendo o treino de hoje…</p></div></section>' +
+      '<section aria-labelledby="tMov"><h3 class="hoje-tit" id="tMov">Análise de movimento</h3><a class="cartao sim-card" href="#analise"><div class="sim-arte mov-arte" aria-hidden="true"><img src="../assets/foto-sequencia-backhand2-ty.jpg" alt="" loading="lazy"></div><div><h3>Filme um golpe</h3><p class="det" style="margin:0">Checklist por fase, vídeo e boneco lado a lado e o que treinar.</p></div></a></section>' +
+      '<section aria-labelledby="tSim"><h3 class="hoje-tit" id="tSim">Simulador de decisões</h3><a class="cartao sim-card" href="#simulador"><div class="sim-arte" aria-hidden="true"><img src="../assets/cursos/capa-tatica.svg" alt="" loading="lazy"></div><div><h3>Escolha a jogada</h3><p class="det" style="margin:0">Situações de ponto: alvo, altura e intensidade, e a resposta possível do adversário.</p></div></a></section></div></section></div>',
+      "inicio", true
     );
+    ligarSetas();
     st.avisoLigado = null;
     catalogo().then(function (c) {
       var el = $("#treinoDia"); if (!el) return;
@@ -570,7 +588,7 @@
   function sessoesHtml(c) {
     var mc = ultimaAnaliseComCorrecao();
     return (mc ? '<h2 class="secao">Seu treino de correção</h2><div class="grade" style="margin-bottom:4px">' + cartaoCorrecao(mc) + "</div>" : "") +
-      '<h2 class="secao">Treinos guiados</h2><p class="det" style="margin:-4px 0 10px">Sessões prontas da Metodologia MTY: siga as etapas com o cronômetro e registre os acertos.</p><div class="grade" id="sessoes">' + SESSOES.map(function (def) {
+      '<h2 class="secao">Treinos guiados</h2><p class="det" style="margin:-4px 0 10px">Sessões prontas da Metodologia MTY: siga as etapas com o cronômetro e registre os acertos.</p><div class="cine-trilho eps sessoes-trilho" id="sessoes">' + SESSOES.map(function (def) {
       var se = montarSessao(def, c), pri = se.etapas.filter(function (x) { return x.tipo === "Exercício"; })[0], n = vezesFeita(def.id);
       return '<a class="cartao ex sessao-card" href="#sessao/' + def.id + '">' + (pri && temQuadra(pri.e.c) ? '<div class="ex-thumb">' + quadraMini(pri.e.c) + "</div>" : '<div class="ex-thumb sessao-mental" aria-hidden="true">' + QUADRA_DECOR + "</div>") +
         '<span class="cod">' + se.etapas.length + " etapas · ~" + se.total + " min" + (n ? " · feita " + n + (n === 1 ? " vez" : " vezes") : "") + "</span><h3>" + esc(def.titulo) + '</h3><p class="det" style="margin:0">' + esc(def.objetivo) + "</p></a>";
@@ -738,7 +756,7 @@
   function telaSimulador(sub) {
     if ($("#simQuadro") && sub === simAtual) return;
     simAtual = sub;
-    tela('<h1 class="sr">Simulador de decisões</h1><div class="sim"><iframe id="simQuadro" title="Simulador de decisões" src="../decisoes/?embed=1' + (sub ? "#" + esc(sub) : "") + '"></iframe></div>', "simulador");
+    tela('<h1 class="sr">Simulador de decisões</h1><div class="sim"><iframe id="simQuadro" title="Simulador de decisões" src="../decisoes/?embed=1&tema=cine' + (sub ? "#" + esc(sub) : "") + '"></iframe></div>', "simulador");
   }
   window.addEventListener("message", function (e) {
     var f = $("#simQuadro"), d = e.data;

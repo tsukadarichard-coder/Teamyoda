@@ -135,14 +135,15 @@ const chamar = async (metodo, corpo, tk) => { const x = await digital({ httpMeth
   await ana.click("#btEnt");
   await ana.waitForSelector(".msg-ok >> text=ligada ao aluno de Team Yoda · Cooper Tênis");
   assert.strictEqual(await ana.textContent("#selo"), "Aluno da unidade");
-  await ana.waitForSelector(".painel-heroi >> text=Incluída na sua matrícula · Team Yoda · Cooper Tênis");
+  await ana.waitForSelector(".inicio-heroi >> text=Incluída na sua matrícula · Team Yoda · Cooper Tênis");
   /* Início: avanço, números da semana, continuar de onde parou, trilhas com capa, treino do dia com a quadra e o simulador */
   assert.strictEqual(await ana.locator(".numero").count(), 4);
   await ana.waitForSelector(".presencial >> text=Suas aulas na quadra");
   assert(/1 de 3/.test(await ana.textContent(".presencial")) && /Backhand paralelo/.test(await ana.textContent(".presencial")) && /qui /.test(await ana.textContent(".presencial")), "plano presencial: feitas, agora no plano e próxima aula");
   assert(/0\/3/.test(await ana.textContent(".numero >> nth=0")), "aulas feitas 0/3");
-  await ana.waitForSelector(".continuar >> text=Empunhadura e preparação");
-  assert(/mqdefault/.test(await ana.getAttribute(".continuar .capa", "style")), "capa com a imagem do vídeo");
+  await ana.waitForSelector(".inicio-heroi h2 >> text=Empunhadura e preparação");
+  assert.strictEqual(await ana.getAttribute(".inicio-heroi .cine-btn.primario", "href"), "#aula/tr1/au1", "destaque leva à próxima aula");
+  assert(/foto-forehand\.jpg$/.test(await ana.getAttribute(".inicio-heroi .cine-fundo", "src")), "destaque com a foto da aula (sem texto por cima)");
   await ana.waitForSelector("a#treinoDia .ex-thumb svg");
   await ana.waitForSelector(".sim-card");
   assert.deepStrictEqual(store["digitalContas/u1"].vinculoChaves, ["team-yoda:a1"]);
@@ -221,7 +222,7 @@ const chamar = async (metodo, corpo, tk) => { const x = await digital({ httpMeth
   const ses = store["digitalContas/u1"].sessoes;
   assert(ses.length === 1 && ses[0].minutos === 35 && ses[0].itens[0].acertos === 7 && ses[0].itens.filter((x) => x.feito).length === 4, "sessão gravada");
   await ana.click("#btSalvarSes");
-  await ana.waitForSelector(".painel-heroi");
+  await ana.waitForSelector(".inicio-heroi");
   assert(/^43/.test(await ana.textContent(".numero >> nth=1")), "minutos do painel somam a sessão (8 + 35)");
   await ana.click(".abas a[data-aba=treinos]");
   await ana.waitForSelector("#sessoes a[href='#sessao/fundo'] >> text=feita 1 vez");
@@ -259,7 +260,7 @@ const chamar = async (metodo, corpo, tk) => { const x = await digital({ httpMeth
     itens: [{ n: "Flexão de joelhos no giro", s: "atencao", v: 132, u: "°", r: "110–130°" }, { n: "Contato à frente do corpo", s: "atencao", v: 0.05, u: "", r: "≥ 0,15" }, { n: "Trajetória do seguimento", s: "ok" }] } }, "tk-u1");
   await ana.evaluate(() => { location.hash = "#inicio"; });
   await ana.reload();
-  await ana.waitForSelector(".painel-heroi");
+  await ana.waitForSelector(".inicio-heroi");
   await ana.waitForSelector(".correcao-card >> text=Correção do forehand");
   await ana.click(".correcao-card");
   await ana.waitForSelector("h1 >> text=Shadow swing do forehand");
@@ -346,7 +347,7 @@ const chamar = async (metodo, corpo, tk) => { const x = await digital({ httpMeth
   await prof.waitForSelector("#mEnt >> text=E-mail ou senha não conferem.");
   await prof.fill("input[name=senha]", "senha-prof");
   await prof.click("#btEnt");
-  await prof.waitForSelector(".painel-heroi >> text=Equipe · 39 Ranch Tennis Club");
+  await prof.waitForSelector(".inicio-heroi >> text=Equipe · 39 Ranch Tennis Club");
   assert.strictEqual(await prof.textContent("#selo"), "Equipe");
   assert(!store["digitalContas/p1"], "conta da equipe não cria cadastro na Academia Digital");
   /* criar conta com e-mail que já existe leva para Entrar */

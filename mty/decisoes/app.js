@@ -11,6 +11,8 @@
   var EMBUTIDO = /[?&]embed=1(&|$)/.test(location.search) && window.parent !== window;
   if (EMBUTIDO) {
     document.documentElement.classList.add("embutido");
+    /* na Academia Digital (?tema=cine): tema escuro e a quadra em perspectiva, como nas ilustrações dos cursos */
+    if (/[?&]tema=cine(&|$)/.test(location.search)) document.documentElement.classList.add("cine");
     var marca = document.querySelector(".marca"); if (marca) marca.innerHTML = '<span class="marca-txt">Simulador</span>';
   }
   function avisarApp(h) { if (EMBUTIDO) try { window.parent.postMessage({ tipo: "ql-sim-rota", rota: h }, location.origin); } catch (e) { /* app fora do ar */ } }

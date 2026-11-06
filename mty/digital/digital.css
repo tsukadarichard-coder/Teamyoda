@@ -345,3 +345,64 @@ body.modo-cine .rodape a { color: #B7C7BE; }
 .capa.com-arte { background-size: cover; background-position: center 42%; }
 @media (prefers-reduced-motion: reduce) { .ep-arte, .poster, .ep-play { transition: none; } }
 @media (max-width: 559px) { .cine-topo { flex-wrap: nowrap; } .cine-chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-right: -16px; padding-right: 16px; } .cine-chips::-webkit-scrollbar { display: none; } .cine .chip { flex: none; } .cine-fundo { object-position: 55% 30%; } }
+
+/* ── tema escuro em toda a Academia (estilo streaming): as mesmas variáveis, em tons escuros ── */
+body.modo-cine {
+  --tinta: #F1F5F3; --papel: #070B09; --cal: #10201A; --grafite: #A3B5AB; --linha: rgba(255, 255, 255, .09);
+  --verde-esc: #2F6B4C; --saibro-esc: #A6DB74; --ok-fundo: rgba(105, 179, 42, .14); --aviso: #F5C26B; --aviso-fundo: rgba(245, 194, 107, .12);
+  --erro: #FF9A8B; --erro-fundo: rgba(255, 107, 87, .13); --sombra: 0 0 0 1px rgba(255, 255, 255, .04), 0 8px 24px rgba(0, 0, 0, .35);
+  color-scheme: dark;
+}
+body.modo-cine main { max-width: 1280px; }
+body.modo-cine h1, body.modo-cine h2, body.modo-cine h3 { color: #fff; }
+body.modo-cine a { color: #B7E38C; }
+body.modo-cine .btn { background: #fff; border-color: #fff; color: #0B110E; }
+body.modo-cine .btn-claro { background: rgba(255, 255, 255, .08); border-color: rgba(255, 255, 255, .18); color: #F1F5F3; }
+body.modo-cine .btn-texto { background: none; border-color: transparent; color: #B7E38C; }
+body.modo-cine .btn-saibro { background: #E4F542; border-color: #E4F542; color: #0B110E; }
+body.modo-cine label.campo input, body.modo-cine label.campo select, body.modo-cine .filtros input[type=search], body.modo-cine .filtros select, body.modo-cine .registro input {
+  background: #0B1611; border-color: rgba(255, 255, 255, .18); color: #F1F5F3; }
+body.modo-cine .alternar { background: rgba(255, 255, 255, .06); }
+body.modo-cine .alternar button.ativo { background: #1E3A2E; color: #fff; }
+body.modo-cine .heroi { background: #0E1A14; }
+body.modo-cine .faixa-unidade { background: rgba(105, 179, 42, .12); border-color: rgba(105, 179, 42, .35); color: #CDEBB0; }
+body.modo-cine .barra, body.modo-cine .passos-sessao i { background: rgba(255, 255, 255, .12); }
+body.modo-cine .passos-sessao i.agora { background: #E4F542; }
+body.modo-cine .aula-item .n { background: rgba(255, 255, 255, .08); }
+body.modo-cine .tag { background: rgba(255, 255, 255, .08); color: #C9D5CF; }
+body.modo-cine .tag-quadra { background: rgba(105, 179, 42, .16); color: #B7E38C; }
+body.modo-cine .chip { background: transparent; border-color: rgba(255, 255, 255, .28); color: #DCE6E0; }
+body.modo-cine .chip.ativo { background: #fff; color: #0B110E; border-color: #fff; }
+body.modo-cine .anel { color: #fff; }
+body.modo-cine .numero { background: linear-gradient(160deg, #13261D, #0D1913); }
+body.modo-cine .numero b small { color: #A3B5AB; }
+body.modo-cine .concluido { border-color: rgba(105, 179, 42, .4); }
+body.modo-cine .pergunta.certa { border-color: #7DBF4A; background: rgba(125, 191, 74, .12); }
+body.modo-cine .pergunta.errada { border-color: #E0A39C; background: rgba(224, 163, 156, .1); }
+body.modo-cine .correcao-card, body.modo-cine .correcao-cta { background: linear-gradient(180deg, rgba(105, 179, 42, .16) 0%, #10201A 70%); }
+body.modo-cine .sim { background: #070B09; border-color: rgba(255, 255, 255, .08); }
+body.modo-cine .cartao.vazio, body.modo-cine .vazio { color: #A3B5AB; }
+/* o certificado continua um documento claro (tela e impressão) */
+body.modo-cine .certificado { background: #fff; color: #17251F; border-color: #17251F; }
+body.modo-cine .certificado h1, body.modo-cine .certificado h2, body.modo-cine .certificado p, body.modo-cine .certificado b { color: #17251F; }
+body.modo-cine .certificado .cert-sobre { color: #3F7A17; }
+@media print { body.modo-cine { background: #fff; color: #17251F; } }
+/* análise de movimento (módulo compartilhado) no tema escuro */
+body.modo-cine #movArea .qlm { --qink: #F1F5F3; --qmut: #A3B5AB; --qbd: rgba(255, 255, 255, .12); --qa: #B7E38C; color: var(--qink); }
+body.modo-cine #movArea .qlm .qm-card, body.modo-cine #movArea .qlm .qm-fase, body.modo-cine #movArea .qlm .qm-marca, body.modo-cine #movArea .qlm .vj-pt,
+body.modo-cine #movArea .qlm button, body.modo-cine #movArea .qlm select, body.modo-cine #movArea .qlm input, body.modo-cine #movArea .qlm label.qm-btn { background: #10201A; color: #F1F5F3; }
+/* Início no estilo streaming */
+.inicio-heroi { margin-top: 12px; }
+.inicio-heroi .cine-info { padding-top: 150px; }
+.inicio-sub { margin: 6px 0 0; color: #C9D5CF; font-size: 14px; font-weight: 600; }
+.inicio-heroi h2 { font-size: clamp(28px, 6.4vw, 46px); }
+body.modo-cine .numeros { margin-top: 4px; }
+body.modo-cine .numero span { color: #A3B5AB; font-size: 12.5px; }
+.hoje-grade { display: grid; gap: 12px; }
+.hoje-tit { font-size: 13px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: #A3B5AB !important; margin: 0 0 8px; }
+.sim-arte img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 40%; }
+body.modo-cine .sim-card, body.modo-cine .treino-dia { background: linear-gradient(160deg, #13261D, #0D1913); transition: transform .2s ease, box-shadow .2s ease; }
+@media (hover: hover) { body.modo-cine .sim-card:hover, body.modo-cine .treino-dia:hover { transform: translateY(-2px); box-shadow: 0 0 0 2px #E4F542, 0 14px 30px rgba(0, 0, 0, .5); } }
+body.modo-cine .ex-thumb { background: #12291F; }
+body.modo-cine .presencial { background: linear-gradient(160deg, #13261D, #0D1913); }
+.sessoes-trilho > .cartao { margin-bottom: 0; }

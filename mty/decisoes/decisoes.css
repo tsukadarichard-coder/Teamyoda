@@ -275,3 +275,37 @@ button.op[disabled] { opacity: .6; cursor: default; }
 .embutido .topo { top: 0; }
 .embutido .marca { text-decoration: none; }
 .marca-txt { font-weight: 800; font-size: 1.05rem; color: var(--tinta); line-height: 1.2; padding: 8px 0; }
+
+/* ── Academia Digital (?embed=1&tema=cine): tema escuro, estilo streaming, e a quadra inclinada em perspectiva
+   (a mesma quadra vista de cima, girada em 3D como numa transmissão; alvos e animação continuam iguais) ── */
+.cine {
+  --fundo: #070B09; --cartao: #10201A; --tinta: #F1F5F3; --cinza: #A3B5AB; --linha: rgba(255, 255, 255, .09);
+  --laranja: #F07A2D; --laranja-escuro: #F7A26B; --laranja-claro: rgba(240, 122, 45, .16);
+  --quadra: #2E7050; --quadra-fora: #163A2A;
+  --coerente: #8FDB7A; --coerente-fundo: rgba(105, 179, 42, .16); --inicio: #D3DED8; --inicio-fundo: rgba(255, 255, 255, .08);
+  --controle: #F5C26B; --controle-fundo: rgba(245, 194, 107, .13); --perigo: #FF8A7A;
+  --sombra: 0 0 0 1px rgba(255, 255, 255, .04), 0 10px 26px rgba(0, 0, 0, .4);
+  color-scheme: dark;
+}
+.cine body { background: #070B09; }
+.cine .nav a:hover { background: rgba(255, 255, 255, .06); }
+.cine .nav a.ativo { color: #0B110E; background: #E4F542; }
+.cine .btn-primario { background: #fff; color: #0B110E; }
+.cine .btn-primario:hover { background: #E4F542; }
+.cine .btn-secundario { background: rgba(255, 255, 255, .07); border-color: rgba(255, 255, 255, .2); color: #F1F5F3; }
+.cine .btn[disabled] { background: rgba(255, 255, 255, .08); color: #7F948A; }
+.cine .tag-explorada { background: rgba(255, 255, 255, .06); }
+.cine .aviso-local { background: rgba(255, 255, 255, .05); }
+.cine .aviso-demo { border-color: rgba(240, 122, 45, .35); }
+.cine .num, .cine .chip-placar { background: #E4F542; color: #0B110E; }
+.cine .sel .num { background: #F07A2D; color: #fff; }
+.cine .chip-op.sel { border-color: #E4F542; background: rgba(228, 245, 66, .1); }
+.cine .cartao { background: linear-gradient(160deg, #13261D, #0D1913); }
+.cine .sobre, .cine .cen-num, .cine .etapa-num { color: #E4F542; letter-spacing: .14em; }
+.cine h1 { letter-spacing: -.02em; }
+/* quadra em perspectiva */
+.cine .quadra-host { perspective: 1150px; perspective-origin: 50% 0%; padding: 8px 0 0; background: radial-gradient(120% 70% at 50% 0%, rgba(255, 255, 255, .07), rgba(255, 255, 255, 0) 60%); border-radius: 16px; }
+.cine .quadra-svg { transform: rotateX(28deg); transform-origin: 50% 100%; border-radius: 10px; box-shadow: 0 30px 60px rgba(0, 0, 0, .55); }
+.cine .c-rastros polyline { filter: drop-shadow(0 0 .12px rgba(228, 245, 66, .9)); }
+.cine .alvo-fundo { fill: rgba(228, 245, 66, .18); stroke: #E4F542; }
+.cine .alvo.sel .alvo-fundo { fill: #F07A2D; stroke: #fff; }
