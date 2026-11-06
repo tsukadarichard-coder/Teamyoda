@@ -2,7 +2,8 @@
    vocabulário e básico tático) e dos treinos mentais do catálogo. digital.js insere estes cursos uma vez (cursosMty = VERSAO),
    já publicados; depois a coordenação edita, despublica ou apaga em Mais › Academia Digital como qualquer outro curso.
    Quiz: c = índice da resposta certa (fica só no servidor). */
-const VERSAO = "v2"; /* v2: ilustrações das aulas (mty/assets/cursos, geradas por autonomo/tests/gerar-ilustracoes-cursos.js, e fotos reais) */
+const VERSAO = "v3"; /* v2: ilustrações das aulas; v3: fotos de profissionais (Wikimedia Commons, licença livre, com crédito) */
+const ORDEM = ["v1", "v2", "v3"];
 const L = (s) => s.join("\n");
 
 const tecnica = {
@@ -314,8 +315,8 @@ const mental = {
 const IMG = (...n) => n.map((x) => "assets/cursos/" + x + ".svg");
 const FOTO = (x) => ["assets/foto-" + x + ".jpg"];
 const IMAGENS = {
-  "cmty-tec-01": FOTO("forehand"), "cmty-tec-02": IMG("apoios"), "cmty-tec-05": FOTO("saque"), "cmty-tec-06": IMG("saque-lancamentos"),
-  "cmty-tec-07": IMG("devolucao-posicoes"), "cmty-tec-08": IMG("voleio-zona"), "cmty-tec-10": IMG("approach-paralela"), "cmty-tec-11": IMG("empunhaduras"),
+  "cmty-tec-01": FOTO("forehand"), "cmty-tec-02": FOTO("sequencia-forehand").concat(IMG("apoios")), "cmty-tec-03": FOTO("sequencia-backhand2"), "cmty-tec-05": FOTO("saque"), "cmty-tec-06": IMG("saque-lancamentos"),
+  "cmty-tec-07": IMG("devolucao-posicoes"), "cmty-tec-08": IMG("voleio-zona"), "cmty-tec-09": FOTO("smash"), "cmty-tec-10": IMG("approach-paralela"), "cmty-tec-11": IMG("empunhaduras"),
   "cmty-tec-12": IMG("apoios"),
   "cmty-tat-01": IMG("tat-reconhecer"), "cmty-tat-02": IMG("tat-neutra"), "cmty-tat-03": IMG("tat-ataque"), "cmty-tat-04": IMG("tat-defesa"),
   "cmty-tat-05": IMG("tat-arma-converte"), "cmty-tat-06": IMG("tat-margem"), "cmty-tat-07": IMG("tat-ganhar-quadra"), "cmty-tat-08": IMG("tat-direcao"),
@@ -324,4 +325,6 @@ const IMAGENS = {
   "cmty-men-05": IMG("men-visualizar"), "cmty-men-06": IMG("men-checklist-saque"), "cmty-men-07": IMG("men-balanco"),
 };
 const CURSOS = [tecnica, tatica, mental].map((c) => ({ ...c, aulas: c.aulas.map((a) => ({ id: a.id, titulo: a.titulo, descricao: a.texto, youtube: "", duracao: a.duracao, exercicios: a.exercicios, quiz: a.quiz, imagens: IMAGENS[a.id] || [] })) }));
-module.exports = { VERSAO, CURSOS, IMAGENS };
+/* imagens que cada versão trouxe: quem já tinha os cursos recebe estas por cima das que a aula tem (uma vez só) */
+const NOVAS = { v3: { "cmty-tec-02": FOTO("sequencia-forehand"), "cmty-tec-03": FOTO("sequencia-backhand2"), "cmty-tec-09": FOTO("smash") } };
+module.exports = { VERSAO, ORDEM, CURSOS, IMAGENS, NOVAS };

@@ -195,9 +195,22 @@ store["orgs/39-ranch/dados/mty:alunos:v2"] = { value: JSON.stringify([{ id: "r1"
   r = await chamar("GET", null, "tk-c2@x.com");
   const tec2 = r.conteudo.trilhas.find((t) => t.id === "cmty-tecnica");
   assert.deepStrictEqual(tec2.aulas.find((a) => a.id === "cmty-tec-05").imagens, ["assets/foto-saque.jpg"], "v1 → v2 completa as ilustrações");
-  assert.deepStrictEqual(tec2.aulas.find((a) => a.id === "cmty-tec-02").imagens, ["assets/cursos/apoios.svg"], "edição da coordenação fica");
+  assert.deepStrictEqual(tec2.aulas.find((a) => a.id === "cmty-tec-02").imagens, ["assets/foto-sequencia-forehand.jpg", "assets/cursos/apoios.svg"], "a escolha da coordenação fica; a foto nova da v3 entra por cima");
   assert(!r.conteudo.trilhas.some((t) => t.id === "cmty-mental"), "v2 não traz de volta curso apagado");
   assert.strictEqual(store["digitalConteudo/academia"].cursosMty, VERSAO);
+  /* quem já tinha a v2: as fotos novas da v3 entram por cima das imagens da aula, uma vez só; tiradas pela coordenação, não voltam */
+  const doc2 = store["digitalConteudo/academia"];
+  doc2.cursosMty = "v2";
+  doc2.trilhas = doc2.trilhas.map((t) => (t.id !== "cmty-tecnica" ? t : { ...t, aulas: t.aulas.map((a) => (a.id === "cmty-tec-09" ? { ...a, imagens: ["assets/cursos/tat-margem.svg"] } : a.id === "cmty-tec-03" ? { ...a, imagens: [] } : a)) }));
+  r = await chamar("GET", null, "tk-c2@x.com");
+  const tec3 = r.conteudo.trilhas.find((t) => t.id === "cmty-tecnica");
+  assert.deepStrictEqual(tec3.aulas.find((a) => a.id === "cmty-tec-09").imagens, ["assets/foto-smash.jpg", "assets/cursos/tat-margem.svg"], "v2 → v3: foto nova por cima");
+  assert.deepStrictEqual(tec3.aulas.find((a) => a.id === "cmty-tec-03").imagens, ["assets/foto-sequencia-backhand2.jpg"]);
+  const cc4 = await chamar("POST", { acao: "conteudoCompleto" }, "coord");
+  cc4.trilhas.find((t) => t.id === "cmty-tecnica").aulas.find((a) => a.id === "cmty-tec-09").imagens = ["assets/cursos/tat-margem.svg"];
+  await chamar("POST", { acao: "salvarConteudo", trilhas: cc4.trilhas, venda: cc4.venda }, "coord");
+  r = await chamar("GET", null, "tk-c2@x.com");
+  assert.deepStrictEqual(r.conteudo.trilhas.find((t) => t.id === "cmty-tecnica").aulas.find((a) => a.id === "cmty-tec-09").imagens, ["assets/cursos/tat-margem.svg"], "a foto tirada não volta");
   /* salvar pela coordenação mantém as ilustrações */
   const cc2 = await chamar("POST", { acao: "conteudoCompleto" }, "coord");
   await chamar("POST", { acao: "salvarConteudo", trilhas: cc2.trilhas, venda: cc2.venda }, "coord");

@@ -103,8 +103,15 @@ async function lerConteudo() {
   if (cursosMty !== CMTY.VERSAO && process.env.DIGITAL_SEM_CURSOS_MTY !== "1") {
     const ids = new Set(trilhas.map((t) => t.id)), feitos = new Set(inseridos);
     const novos = CMTY.CURSOS.filter((c) => !ids.has(c.id) && !feitos.has(c.id));
-    /* aulas MTY já inseridas e ainda sem ilustração ganham as da versão nova; o que a coordenação editou fica */
-    const comImagens = trilhas.map((t) => ({ ...t, aulas: (t.aulas || []).map((a) => (CMTY.IMAGENS[a.id] && !(a.imagens || []).length ? { ...a, imagens: CMTY.IMAGENS[a.id] } : a)) }));
+    /* aulas MTY já inseridas: sem imagem, ganham as da versão nova; com imagem (inclusive as escolhidas pela coordenação), recebem
+       por cima só as imagens que as versões seguintes trouxeram (CMTY.NOVAS) — uma vez só; se a coordenação tirar, não voltam */
+    const novasImg = {};
+    CMTY.ORDEM.slice(CMTY.ORDEM.indexOf(cursosMty) + 1).forEach((v) => Object.entries(CMTY.NOVAS[v] || {}).forEach(([id, l]) => { novasImg[id] = (novasImg[id] || []).concat(l); }));
+    const comImagens = trilhas.map((t) => ({ ...t, aulas: (t.aulas || []).map((a) => {
+      if (CMTY.IMAGENS[a.id] && !(a.imagens || []).length) return { ...a, imagens: CMTY.IMAGENS[a.id] };
+      if (novasImg[a.id]) return { ...a, imagens: novasImg[a.id].filter((x) => !(a.imagens || []).includes(x)).concat(a.imagens || []).slice(0, 3) };
+      return a;
+    }) }));
     trilhas = limparConteudo({ trilhas: comImagens.concat(novos), venda }).trilhas;
     cursosMty = CMTY.VERSAO; inseridos = inseridos.concat(novos.map((c) => c.id));
     await ref.set({ ...d, trilhas, venda, cursosMty, cursosMtyInseridos: inseridos, atualizadoEm: agora() });
