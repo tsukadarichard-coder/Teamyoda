@@ -86,6 +86,7 @@
   /* ── telas ── */
   function tela(html, aba) {
     if (st.quadra) { try { st.quadra.parar(); } catch (e) { /* ok */ } st.quadra = null; }
+    if (st.cronometro) { clearInterval(st.cronometro); st.cronometro = null; }
     app.innerHTML = html;
     $$(".abas a").forEach(function (a) { var at = a.getAttribute("data-aba") === aba; a.classList.toggle("ativo", at); if (at) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
     window.scrollTo(0, 0);
@@ -105,6 +106,7 @@
     if (r[0] === "aula" && r[1] && r[2]) return telaAula(r[1], r[2]);
     if (r[0] === "treinos") return telaTreinos();
     if (r[0] === "treino" && r[1]) return telaTreino(r[1]);
+    if (r[0] === "sessao" && r[1]) return telaSessao(r[1]);
     if (r[0] === "simulador") return telaSimulador(r.slice(1).join("/"));
     if (r[0] === "conta") return telaConta();
     if (r[0] === "trilhas") return telaTrilhas();
@@ -252,7 +254,7 @@
   }
   /* dias seguidos com aula feita (termina hoje ou ontem) e minutos das aulas feitas nos últimos 7 dias (pela duração da aula) */
   function diaISO(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
-  function diasComAula() { var p = st.dados.progresso || {}, m = {}; Object.keys(p).forEach(function (k) { if (p[k]) m[diaISO(new Date(p[k]))] = 1; }); return m; }
+  function diasComAula() { var p = st.dados.progresso || {}, m = {}; Object.keys(p).forEach(function (k) { if (p[k]) m[diaISO(new Date(p[k]))] = 1; }); (st.dados.sessoes || []).forEach(function (x) { m[diaISO(new Date(x.em))] = 1; }); return m; }
   function sequencia() {
     var m = diasComAula(), d = new Date(), n = 0;
     if (!m[diaISO(d)]) d.setDate(d.getDate() - 1);
@@ -266,6 +268,7 @@
       var s = String(a.duracao || "").toLowerCase(), h = /(\d+)\s*h/.exec(s), mi = /(\d+)\s*min/.exec(s);
       tot += (h ? +h[1] * 60 : 0) + (mi ? +mi[1] : 0);
     }); });
+    (st.dados.sessoes || []).forEach(function (x) { if (new Date(x.em).getTime() >= lim) tot += x.minutos || 0; });
     return tot;
   }
   var SEMANA = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
@@ -277,9 +280,8 @@
       '<div class="pres-linhas"><div><span class="det">Aulas do ciclo</span><b>' + pr.aulasFeitas + " de " + pr.totalAulas + "</b></div>" + (pr.proximaAula ? "<div><span class=\"det\">Próxima aula</span><b>" + esc(quandoAula(pr.proximaAula)) + "</b></div>" : "") + (pr.agora ? "<div><span class=\"det\">Agora no plano</span><b>" + esc(pr.agora) + "</b></div>" : "") + "</div></section>";
   }
   function diasAtivos() {
-    var p = st.dados.progresso || {}, h = new Date(), lim = new Date(h.getFullYear(), h.getMonth(), h.getDate() - 6).toISOString().slice(0, 10), dias = {};
-    Object.keys(p).forEach(function (k) { var d = String(p[k] || "").slice(0, 10); if (d && d >= lim) dias[d] = 1; });
-    return Object.keys(dias).length;
+    var h = new Date(), lim = diaISO(new Date(h.getFullYear(), h.getMonth(), h.getDate() - 6));
+    return Object.keys(diasComAula()).filter(function (d) { return d >= lim; }).length;
   }
 
   /* "Ana Souza" → "Ana"; conta sem nome (só o e-mail, ex.: "joao.silva") → "Joao" */
@@ -428,10 +430,95 @@
       (temQuadra(e.c) ? '<span class="tag tag-quadra">▶ Quadra animada</span>' : "") + (e.e || []).map(function (s) { return '<span class="tag">' + esc(ESTAGIO[s] || s) + "</span>"; }).join("") + "</a>";
   }
 
+  /* ── treinos guiados: sessões prontas montadas do catálogo (aquecimento, 3 exercícios e um desafio) ── */
+  var SESSOES = [
+    { id: "fundo", titulo: "Fundo de quadra: consistência", objetivo: "Profundidade e margem na troca de fundo.", aq: ["MV", 0], pr: ["FB", 0], de: ["DC", 0] },
+    { id: "saque", titulo: "Saque e devolução", objetivo: "Direção do saque e a primeira bola depois dele.", aq: ["MV", 1], pr: ["PDS", 0], de: ["IP", 0] },
+    { id: "movimento", titulo: "Movimentação e base", objetivo: "Chegar equilibrado e recuperar antes da próxima bola.", aq: ["CO", 0], pr: ["MV", 2], de: ["CF", 0] },
+    { id: "decisao", titulo: "Decisão tática", objetivo: "Reconhecer a bola e escolher a jogada certa.", aq: ["FB", 3], pr: ["TR", 0], de: ["JA", 0] },
+    { id: "ataque", titulo: "Ataque e finalização", objetivo: "Entrar na quadra e converter a bola que armou.", aq: ["MV", 3], pr: ["AT", 0], de: ["PT", 0] },
+    { id: "mental", titulo: "Mental de jogo", objetivo: "Rotina entre pontos, respiração e pressão.", fixos: ["DM014", "DM001", "DM006", "DM017", "DM005"] },
+  ];
+  function minutosDe(g) { var m = /(\d+)\s*(?:[-–a]\s*\d+\s*)?min/i.exec(String(g || "")); return m ? Math.min(15, Math.max(3, +m[1])) : 8; }
+  function montarSessao(def, c) {
+    function pegar(f, n, pulo) { return c.lista.filter(function (e) { return e.f === f && temQuadra(e.c); }).slice(pulo || 0, (pulo || 0) + n); }
+    var et = [];
+    if (def.fixos) def.fixos.forEach(function (cod, i) { var e = c.porCodigo[cod]; if (e) et.push({ tipo: i === 0 ? "Aquecimento" : i === def.fixos.length - 1 ? "Desafio" : "Exercício", e: e, min: i === 0 ? 5 : minutosDe(e.g) }); });
+    else {
+      var aq = pegar(def.aq[0], 1, def.aq[1])[0], de = pegar(def.de[0], 1, def.de[1])[0];
+      if (aq) et.push({ tipo: "Aquecimento", e: aq, min: 5 });
+      pegar(def.pr[0], 3, def.pr[1]).forEach(function (e) { et.push({ tipo: "Exercício", e: e, min: minutosDe(e.g) }); });
+      if (de) et.push({ tipo: "Desafio", e: de, min: 8 });
+    }
+    return { def: def, etapas: et, total: et.reduce(function (s, x) { return s + x.min; }, 0) };
+  }
+  function vezesFeita(id) { return (st.dados.sessoes || []).filter(function (x) { return x.id === id; }).length; }
+  function sessoesHtml(c) {
+    return '<h2 class="secao">Treinos guiados</h2><p class="det" style="margin:-4px 0 10px">Sessões prontas da Metodologia MTY: siga as etapas com o cronômetro e registre os acertos.</p><div class="grade" id="sessoes">' + SESSOES.map(function (def) {
+      var se = montarSessao(def, c), pri = se.etapas.filter(function (x) { return x.tipo === "Exercício"; })[0], n = vezesFeita(def.id);
+      return '<a class="cartao ex sessao-card" href="#sessao/' + def.id + '">' + (pri && temQuadra(pri.e.c) ? '<div class="ex-thumb">' + quadraMini(pri.e.c) + "</div>" : '<div class="ex-thumb sessao-mental" aria-hidden="true">' + QUADRA_DECOR + "</div>") +
+        '<span class="cod">' + se.etapas.length + " etapas · ~" + se.total + " min" + (n ? " · feita " + n + (n === 1 ? " vez" : " vezes") : "") + "</span><h3>" + esc(def.titulo) + '</h3><p class="det" style="margin:0">' + esc(def.objetivo) + "</p></a>";
+    }).join("") + "</div>";
+  }
+  function mmss(s) { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
+  function telaSessao(id) {
+    var def = SESSOES.filter(function (x) { return x.id === id; })[0];
+    if (!def) return telaNaoAchou("Esta sessão não existe.", "#treinos", "treinos");
+    tela('<p class="carregando">Montando a sessão…</p>', "treinos");
+    catalogo().then(function (c) {
+      var se = montarSessao(def, c);
+      if (!st.sess || st.sess.id !== id) st.sess = { id: id, i: 0, t0: Date.now(), itens: se.etapas.map(function (x) { return { c: x.e.c, feito: false, acertos: "", tentativas: "" }; }) };
+      desenharEtapa(se);
+    }).catch(function (e) { tela('<p class="msg msg-erro">' + esc(e.message) + "</p>", "treinos"); });
+  }
+  function desenharEtapa(se) {
+    var S = st.sess, n = se.etapas.length;
+    if (S.i >= n) return desenharResumo(se);
+    var et = se.etapas[S.i], e = et.e, it = S.itens[S.i], restante = et.min * 60, rodando = false;
+    tela('<a class="btn btn-texto voltar" href="#treinos">← Treinos</a><p class="det" style="margin:0">' + esc(se.def.titulo) + "</p>" +
+      '<div class="passos-sessao" aria-hidden="true">' + se.etapas.map(function (x, k) { return '<i class="' + (k < S.i ? "ok" : k === S.i ? "agora" : "") + '"></i>'; }).join("") + "</div>" +
+      '<span class="cod" style="display:block;margin-top:8px">Etapa ' + (S.i + 1) + " de " + n + " · " + esc(et.tipo) + " · " + et.min + " min</span><h1>" + esc(e.n) + "</h1>" +
+      (temQuadra(e.c) ? '<div class="cartao" style="margin-top:8px"><div id="quadra" style="max-width:640px"></div></div>' : "") +
+      '<section class="cartao cronometro" aria-label="Cronômetro"><div id="tempo" class="tempo" aria-live="off">' + mmss(restante) + '</div><div class="acoes" style="justify-content:center;margin-top:6px"><button class="btn" type="button" id="btTempo">▶ Iniciar</button><button class="btn btn-claro" type="button" id="btMais1">+1 min</button></div></section>' +
+      '<div class="cartao"><dl class="ficha">' + (e.o ? "<dt>Objetivo</dt><dd>" + esc(e.o) + "</dd>" : "") + (e.m ? '<dt>Como fazer</dt><dd class="texto-aula">' + esc(e.m) + "</dd>" : "") + (e.x ? "<dt>Preste atenção</dt><dd>" + esc(e.x) + "</dd>" : "") + "</dl>" +
+      '<div class="registro"><span class="det">Registrar (opcional):</span> <label>Acertos <input id="rAc" type="number" inputmode="numeric" min="0" max="200" value="' + esc(it.acertos) + '"></label> <label>de <input id="rTe" type="number" inputmode="numeric" min="1" max="200" value="' + esc(it.tentativas) + '"></label></div></div>' +
+      '<div class="acoes"><button class="btn btn-saibro" type="button" id="btConcluir">' + (S.i === n - 1 ? "Concluir e ver resumo" : "Concluir etapa →") + '</button><button class="btn btn-texto" type="button" id="btPular">Pular</button>' + (S.i > 0 ? '<button class="btn btn-texto" type="button" id="btVoltarEt">← Etapa anterior</button>' : "") + "</div>", "treinos");
+    var q = $("#quadra"); if (q) st.quadra = window.QLQuadraExercicio.montar(q, e.c, { resumo: e.o });
+    var elT = $("#tempo"), bt = $("#btTempo");
+    function tique() { restante -= 1; elT.textContent = mmss(restante); if (restante <= 0) { clearInterval(st.cronometro); st.cronometro = null; rodando = false; bt.textContent = "▶ Iniciar"; elT.classList.add("fim"); falar("Tempo da etapa encerrado."); try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch (x) { /* ok */ } } }
+    bt.onclick = function () {
+      if (rodando) { clearInterval(st.cronometro); st.cronometro = null; rodando = false; bt.textContent = "▶ Continuar"; return; }
+      if (restante <= 0) { restante = et.min * 60; elT.classList.remove("fim"); }
+      rodando = true; bt.textContent = "⏸ Pausar"; st.cronometro = setInterval(tique, 1000);
+    };
+    $("#btMais1").onclick = function () { restante += 60; elT.classList.remove("fim"); elT.textContent = mmss(restante); };
+    function guardar() { it.acertos = $("#rAc").value; it.tentativas = $("#rTe").value; }
+    $("#btConcluir").onclick = function () { guardar(); it.feito = true; S.i++; desenharEtapa(se); };
+    $("#btPular").onclick = function () { guardar(); S.i++; desenharEtapa(se); };
+    var bv = $("#btVoltarEt"); if (bv) bv.onclick = function () { guardar(); S.i--; desenharEtapa(se); };
+  }
+  function desenharResumo(se) {
+    var S = st.sess, min = Math.max(1, Math.round((Date.now() - S.t0) / 60000)), feitos = S.itens.filter(function (x) { return x.feito; }).length;
+    tela('<a class="btn btn-texto voltar" href="#treinos">← Treinos</a><h1>Sessão concluída</h1><p class="lead">' + esc(se.def.titulo) + " · " + feitos + " de " + S.itens.length + " etapas feitas</p>" +
+      '<div class="cartao">' + se.etapas.map(function (x, k) { var it = S.itens[k], ac = +it.acertos, te = +it.tentativas; return '<div class="aula-item' + (it.feito ? " feita" : "") + '"><span class="n" aria-hidden="true">' + (it.feito ? "✓" : k + 1) + '</span><span class="t"><b>' + esc(x.e.n) + "</b><small>" + esc(x.tipo) + (te >= 1 && ac >= 0 && ac <= te ? " · " + ac + " de " + te + " (" + Math.round(ac / te * 100) + "%)" : "") + (it.feito ? "" : " · pulada") + "</small></span></div>"; }).join("") + "</div>" +
+      '<label class="campo" style="max-width:220px">Minutos treinados<input id="rMin" type="number" inputmode="numeric" min="1" max="240" value="' + Math.max(min, Math.round(se.total * feitos / Math.max(1, S.itens.length))) + '"></label>' +
+      '<p id="mSes" class="msg" hidden></p><div class="acoes"><button class="btn btn-saibro" type="button" id="btSalvarSes">Salvar no meu painel</button><button class="btn btn-texto" type="button" id="btDescartar">Descartar</button></div>', "treinos");
+    $("#btDescartar").onclick = function () { st.sess = null; location.hash = "#treinos"; };
+    $("#btSalvarSes").onclick = function () {
+      var b = this; b.disabled = true;
+      var itens = S.itens.map(function (x) { var o = { c: x.c, feito: x.feito }; if (+x.tentativas >= 1) { o.acertos = +x.acertos || 0; o.tentativas = +x.tentativas; } return o; });
+      api("POST", { acao: "sessao", sessaoId: S.id, titulo: se.def.titulo, minutos: +$("#rMin").value || min, itens: itens }).then(function (r) {
+        st.dados.sessoes = r.sessoes || st.dados.sessoes; st.sess = null;
+        msg($("#mSes"), "ok", "Salvo. Os minutos e o dia já contam no seu painel.");
+        b.textContent = "Ir para o Início"; b.disabled = false; b.onclick = function () { location.hash = "#inicio"; };
+      }).catch(function (e) { b.disabled = false; msg($("#mSes"), "erro", e.message); });
+    };
+  }
   function telaTreinos() {
-    tela('<h1>Treinos</h1><p class="lead">O catálogo da Metodologia MTY. Nos treinos com quadra animada, toque em Reproduzir para ver cada bola.</p><div id="treinos"><p class="carregando">Carregando o catálogo…</p></div>', "treinos");
+    tela('<h1>Treinos</h1><div id="sessoesWrap"></div><h2 class="secao">Catálogo de exercícios</h2><p class="det" style="margin:-4px 0 10px">Todos os exercícios da Metodologia MTY. Nos que têm quadra animada, toque em Reproduzir para ver cada bola.</p><div id="treinos"><p class="carregando">Carregando o catálogo…</p></div>', "treinos");
     catalogo().then(function (c) {
       var el = $("#treinos"); if (!el) return;
+      var sw = $("#sessoesWrap"); if (sw) sw.innerHTML = sessoesHtml(c);
       var fams = {}; c.lista.forEach(function (e) { fams[e.f] = 1; });
       el.innerHTML = '<div class="filtros"><label class="sr" for="fq">Buscar treino</label><input id="fq" type="search" placeholder="Buscar por nome, código ou objetivo" value="' + esc(st.filtro.q) + '">' +
         '<label class="sr" for="ff">Família</label><select id="ff"><option value="">Todas as famílias</option>' + Object.keys(fams).sort(function (a, b) { return (FAM[a] || a).localeCompare(FAM[b] || b); }).map(function (f) { return '<option value="' + esc(f) + '"' + (st.filtro.f === f ? " selected" : "") + ">" + esc(FAM[f] || f) + "</option>"; }).join("") + "</select>" +

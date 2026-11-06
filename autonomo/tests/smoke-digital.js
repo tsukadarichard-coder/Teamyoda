@@ -193,6 +193,34 @@ const chamar = async (metodo, corpo, tk) => { const x = await digital({ httpMeth
   assert(await ana.locator("#lista .ex-thumb svg").count() > 0, "treinos com a quadra no cartão");
   await cap(ana, "digital-treinos");
 
+  /* 3a. treino guiado: etapas com cronômetro, registro de acertos e resumo que vai para o painel */
+  assert.strictEqual(await ana.locator("#sessoes .sessao-card").count(), 6, "6 sessões guiadas");
+  await ana.click("#sessoes a[href='#sessao/fundo']");
+  await ana.waitForSelector("#tempo >> text=5:00");
+  await ana.waitForSelector("#quadra .qe-quadra svg");
+  await ana.click("#btTempo");
+  await ana.waitForFunction(() => document.querySelector("#tempo").textContent !== "5:00", null, { timeout: 5000 });
+  await ana.click("#btTempo");
+  await ana.fill("#rAc", "7"); await ana.fill("#rTe", "10");
+  await cap(ana, "digital-sessao");
+  await ana.click("#btConcluir");
+  await ana.waitForSelector("text=Etapa 2 de 5");
+  await ana.click("#btPular");
+  for (let k = 0; k < 3; k++) await ana.click("#btConcluir");
+  await ana.waitForSelector("h1 >> text=Sessão concluída");
+  assert(/4 de 5 etapas feitas/.test(await ana.textContent(".lead")));
+  assert(/7 de 10 \(70%\)/.test(await ana.textContent(".cartao")));
+  await ana.fill("#rMin", "35");
+  await ana.click("#btSalvarSes");
+  await ana.waitForSelector("#mSes >> text=Salvo");
+  const ses = store["digitalContas/u1"].sessoes;
+  assert(ses.length === 1 && ses[0].minutos === 35 && ses[0].itens[0].acertos === 7 && ses[0].itens.filter((x) => x.feito).length === 4, "sessão gravada");
+  await ana.click("#btSalvarSes");
+  await ana.waitForSelector(".painel-heroi");
+  assert(/^43/.test(await ana.textContent(".numero >> nth=1")), "minutos do painel somam a sessão (8 + 35)");
+  await ana.click(".abas a[data-aba=treinos]");
+  await ana.waitForSelector("#sessoes a[href='#sessao/fundo'] >> text=feita 1 vez");
+
   /* 3b. cursos: filtro por categoria, quiz conferido no servidor, certificado */
   await ana.click(".abas a[data-aba=trilhas]");
   await ana.waitForSelector("h1 >> text=Cursos");

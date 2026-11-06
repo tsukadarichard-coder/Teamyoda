@@ -132,6 +132,14 @@ store["orgs/39-ranch/dados/mty:alunos:v2"] = { value: JSON.stringify([{ id: "r1"
   assert.strictEqual((await chamar("GET", null, "tk-c2@x.com")).quiz.q1.acertos, 2, "melhor resultado guardado");
   assert.strictEqual((await chamar("POST", { acao: "quiz", aulaId: "q1", respostas: [1, 0] }, "tk-bia@x.com")).status, 403, "sem acesso não responde quiz");
 
+  /* treinos guiados: registro da sessão (minutos, exercícios, acertos) */
+  assert.strictEqual((await chamar("POST", { acao: "sessao", sessaoId: "fundo", minutos: 0, itens: [] }, "tk-c2@x.com")).status, 400);
+  assert.strictEqual((await chamar("POST", { acao: "sessao", sessaoId: "fundo", minutos: 30, itens: [{ c: "xx" }] }, "tk-c2@x.com")).status, 400);
+  r = await chamar("POST", { acao: "sessao", sessaoId: "fundo", titulo: "Fundo", minutos: 32, itens: [{ c: "fb001", feito: true, acertos: 7, tentativas: 10 }, { c: "FB003", feito: false, acertos: 12, tentativas: 10 }] }, "tk-c2@x.com");
+  assert.deepStrictEqual(r.sessoes[0].itens, [{ c: "FB001", feito: true, acertos: 7, tentativas: 10 }, { c: "FB003", feito: false }], "acertos acima das tentativas são descartados");
+  assert.strictEqual((await chamar("GET", null, "tk-c2@x.com")).sessoes.length, 1);
+  assert.strictEqual((await chamar("POST", { acao: "sessao", sessaoId: "fundo", minutos: 30, itens: [] }, "tk-bia@x.com")).status, 403);
+
   /* lista de espera */
   assert.strictEqual((await chamar("POST", { acao: "interesse", email: "quero@x.com", nome: "Quero" })).status, 200);
   assert(store["digitalInteresses/quero@x.com"]);

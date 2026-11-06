@@ -198,6 +198,7 @@ exports.handler = async function (event) {
         unidades: (conta.vinculos || []).map((v) => ({ org: v.org, alunoId: v.alunoId, unidade: ORGS[v.org] || v.org })),
         conteudo: liberado ? { trilhas: publicadas(c) } : null, vitrine: liberado ? null : vitrine(c), venda: c.venda, progresso: conta.progresso || {},
         quiz: conta.quiz || {},
+        sessoes: (conta.sessoes || []).slice(-60),
         presencial: acesso.tipo === "unidade" ? await resumoPresencial(acesso) : null,
       });
     }
@@ -226,6 +227,23 @@ exports.handler = async function (event) {
       const chave = String(b.org) + ":" + String(b.alunoId);
       await refConta(claims.uid).set({ vinculos: (conta.vinculos || []).filter((v) => v.org + ":" + v.alunoId !== chave), vinculoChaves: (conta.vinculoChaves || []).filter((k) => k !== chave) }, { merge: true });
       return resposta(200, { ok: true });
+    }
+    if (b.acao === "sessao") {
+      /* treino guiado feito pelo aluno: minutos, exercícios e acertos (para o painel; nada além disso) */
+      if (!ID.test(String(b.sessaoId || ""))) throw new Erro(400, "Sessão inválida.");
+      if ((await acessoDe(claims, conta)).tipo === "nenhum") throw new Erro(403, "Sem acesso à Academia Digital.");
+      const minutos = Math.round(Number(b.minutos));
+      if (!(minutos >= 1 && minutos <= 240)) throw new Erro(400, "Duração inválida.");
+      const itens = (Array.isArray(b.itens) ? b.itens : []).slice(0, 8).map((x) => {
+        const c = String((x && x.c) || "").toUpperCase(), ac = Number(x && x.acertos), te = Number(x && x.tentativas);
+        if (!/^[A-Z]{2,4}\d{3}$/.test(c)) throw new Erro(400, "Exercício inválido.");
+        const it = { c, feito: !!(x && x.feito) };
+        if (te >= 1 && te <= 200 && ac >= 0 && ac <= te) { it.acertos = Math.round(ac); it.tentativas = Math.round(te); }
+        return it;
+      });
+      const sessoes = ((conta.sessoes || []).concat([{ id: String(b.sessaoId), titulo: txt(b.titulo, 80), minutos, itens, em: agora() }])).slice(-100);
+      if (!claims.orgId) await refConta(claims.uid).set({ sessoes }, { merge: true });
+      return resposta(200, { ok: true, sessoes });
     }
     if (b.acao === "quiz") {
       if (!ID.test(String(b.aulaId || ""))) throw new Erro(400, "Aula inválida.");

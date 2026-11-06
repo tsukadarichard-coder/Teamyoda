@@ -189,3 +189,15 @@ dl.ficha dd { margin: 2px 0 0; }
 @media print { .topo, .abas, .rodape, .nao-imprimir { display: none !important; } body { background: #fff; } main { padding: 0; } .certificado { margin-top: 40px; } }
 .marca b { white-space: nowrap; }
 @media (max-width: 400px) { .marca img { height: 24px; } .marca { gap: 9px; } .marca .marca-txt { padding-left: 9px; } .marca b { font-size: 14px; } .selo { font-size: 10.5px; padding: 4px 8px; } }
+
+/* treinos guiados */
+.passos-sessao { display: flex; gap: 6px; margin-top: 8px; }
+.passos-sessao i { flex: 1; height: 6px; border-radius: 6px; background: #E6ECE9; }
+.passos-sessao i.ok { background: var(--saibro); }
+.passos-sessao i.agora { background: var(--tinta); }
+.cronometro { text-align: center; margin-top: 12px; border-radius: 20px; }
+.tempo { font-size: 56px; font-weight: 800; letter-spacing: -.03em; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.tempo.fim { color: var(--erro); }
+.registro { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--linha); font-size: 14px; }
+.registro input { width: 72px; min-height: 40px; padding: 6px 8px; border: 1px solid #C9D3CE; border-radius: 10px; margin-left: 4px; }
+.sessao-mental { position: relative; aspect-ratio: 16 / 9; background: linear-gradient(150deg, #1E4D3F 0%, #3A7B56 100%); }
