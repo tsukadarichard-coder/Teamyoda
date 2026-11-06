@@ -118,14 +118,14 @@ const API = async (uid, corpo, q) => { const r = await handler("consultoria-rt")
   const r = await pagina("richard", "treinador", 1280);
   await r.goto(base + "/competicao/#/consultoria");
   await r.waitForSelector(".cr-cab >> text=Painel do consultor", { timeout: 20000 });
-  await r.waitForSelector(".cr-painel-item >> text=Ana Lima");
-  assert(/para analisar/.test(await r.locator(".cr-painel-item").innerText()), "análises pendentes no painel");
+  await r.waitForSelector(".crp-atleta >> text=Ana Lima");
+  assert(/para analisar/.test(await r.locator(".crp-atleta").innerText()), "análises pendentes no painel");
   await r.selectOption('#crFiltros select[name="pend"]', "atraso");
   await r.waitForSelector("text=Nenhum atleta com esses filtros.");
   await r.selectOption('#crFiltros select[name="pend"]', "analise");
-  await r.waitForSelector(".cr-painel-item >> text=Ana Lima");
+  await r.waitForSelector(".crp-atleta >> text=Ana Lima");
   await cap(r, "consultoria-consultor-painel");
-  await r.click(".cr-painel-item");
+  await r.click(".crp-atleta");
   await r.waitForSelector("text=Para você");
   /* partida 1: marcações e conclusão (o que só o consultor vê) */
   await r.goto(base + "/competicao/#/consultoria/" + id + "/partida/1"); await r.waitForSelector("#dgSt");
@@ -229,6 +229,17 @@ const API = async (uid, corpo, q) => { const r = await handler("consultoria-rt")
   await ad.waitForSelector("#conteudo h3 >> text=Lia Rocha");
   await cap(ad, "consultoria-admin-painel");
   assert(Object.values(store).some((x) => x && x.atletaUid === "lia" && x.estado === "ativa" && x.ciclos), "ativada pelo painel");
+  /* painel do consultor com dois atletas: computador (menu recolhido e aberto) e celular */
+  await r.goto(base + "/competicao/#/consultoria"); await r.reload(); await r.waitForSelector(".crp-atleta >> text=Lia Rocha");
+  assert.strictEqual(await r.locator(".crp-jornada").count(), 2, "jornada de cada atleta");
+  assert(await r.locator('.crp-atleta:has-text("Ana Lima") .crp-jornada li[aria-current="step"]').count() === 1, "etapa atual marcada");
+  assert(/Dia \d+ de 90/.test(await r.locator(".crp-atleta").first().innerText()), "andamento do ciclo em dias");
+  await r.click('[data-pend="material"]'); await r.waitForSelector('[data-pend="material"][aria-pressed="true"]');
+  assert.strictEqual(await r.locator(".crp-atleta").count(), 1, "Para hoje filtra"); await r.click('[data-pend="material"]'); await r.waitForSelector('.crp-atleta >> text=Ana Lima');
+  await cap(r, "consultoria-painel-computador");
+  await r.click("#btRecolher"); await r.waitForTimeout(300); await cap(r, "consultoria-painel-computador-recolhido"); await r.click("#btAbrirLateral");
+  const rc = await pagina("richard", "treinador", 390); await rc.goto(base + "/competicao/#/consultoria"); await rc.waitForSelector(".crp-atleta >> text=Lia Rocha", { timeout: 20000 });
+  await semRolagem(rc, "painel no celular"); await cap(rc, "consultoria-painel-celular");
 
   /* ── sem acesso ── */
   const z = await pagina("zeca", "atleta", 390);

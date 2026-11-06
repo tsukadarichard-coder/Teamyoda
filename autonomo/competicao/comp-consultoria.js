@@ -101,25 +101,61 @@
       r.consultorias.map(function (c) { return '<a class="cartao cr-item" href="' + base(c.id) + '/plano"><div><h2>' + esc(c.atleta) + '</h2><p class="cr-linha">' + chipEtapa(c.etapa) + (c.ciclo ? "<span>até " + esc(dt(c.ciclo.fim)) + "</span>" : "") + "</p></div><span aria-hidden=\"true\">›</span></a>"; }).join("") + "</div>");
   }
   var ROT_PEND = { material: "Material aguardado", analise: "Análises pendentes", revisao: "Revisões próximas", atraso: "Ações atrasadas", sugestao: "Sugestões do treinador", ciclo: "Fim de ciclo" };
+  /* painel do consultor: o dia em uma tela (computador: três colunas; celular: empilhado). Só o que existe de fato: etapas, pendências,
+     compromissos e datas. Nenhum índice de potencial ou probabilidade. */
+  var JORNADA = [["cadastro", "Cadastro"], ["diagnostico", "Diagnóstico"], ["plano", "Plano"], ["acompanhamento", "Acompanha\u00admento"], ["revisao", "Revisão"]];
+  var ICONE_PEND = { material: "📥", analise: "🎾", sugestao: "💬", revisao: "🔁", atraso: "⏰", ciclo: "📅" };
+  function jornadaHtml(etapa) {
+    var i = JORNADA.map(function (x) { return x[0]; }).indexOf(etapa), fim = etapa === "encerrada";
+    return '<ol class="crp-jornada" aria-label="Etapa do acompanhamento: ' + esc(ETAPA[etapa] || etapa) + '">' + JORNADA.map(function (x, k) {
+      var st = fim || k < i ? "feito" : k === i ? "atual" : "";
+      return '<li class="' + st + '"' + (k === i ? ' aria-current="step"' : "") + '><span class="crp-ponto" aria-hidden="true"></span><span class="crp-rot">' + esc(x[1]) + "</span></li>";
+    }).join("") + "</ol>";
+  }
+  function cicloHtml(c, hoje) {
+    if (!c) return "";
+    var tot = Math.max(1, diasEntreL(c.inicio, c.fim) + 1), pass = Math.min(tot, Math.max(0, diasEntreL(c.inicio, hoje) + 1)), pct = Math.round(pass / tot * 100);
+    return '<div class="crp-ciclo"><div class="crp-barra" role="img" aria-label="Dia ' + pass + " de " + tot + ' do ciclo"><i style="width:' + pct + '%"></i></div><span>Dia ' + pass + " de " + tot + " · até " + esc(curto(c.fim)) + "</span></div>";
+  }
+  function diasEntreL(a, b) { return Math.round((Date.parse(b + "T12:00:00Z") - Date.parse(a + "T12:00:00Z")) / 86400000); }
+  function haQuanto(iso, hoje) { if (!iso) return ""; var d = diasEntreL(String(iso).slice(0, 10), hoje); return d <= 0 ? "hoje" : d === 1 ? "ontem" : "há " + d + " dias"; }
   async function telaPainel() {
     carregando("Carregando o painel…");
     var r; try { r = await api(FN + "?painel=1"); } catch (e) { return erro(e, "#/inicio"); }
-    var f = estado.filtros, todos = r.consultorias;
+    var f = estado.filtros, todos = r.consultorias, hoje = r.hoje || hojeLocal();
     var lista = todos.filter(function (c) { return (!f.atleta || c.id === f.atleta) && (!f.etapa || c.etapa === f.etapa) && (!f.pend || c.pendencias.some(function (p) { return p.tipo === f.pend; })); });
-    var ativos = todos.filter(function (c) { return c.estado === "ativa"; }).length, comPend = todos.filter(function (c) { return c.pendencias.length; }).length;
+    var ativos = todos.filter(function (c) { return c.estado === "ativa"; }), comPend = todos.filter(function (c) { return c.pendencias.length; }).length;
+    var porTipo = {}; todos.forEach(function (c) { c.pendencias.forEach(function (p) { (porTipo[p.tipo] = porTipo[p.tipo] || []).push({ atleta: c.atleta, id: c.id, texto: p.texto }); }); });
+    var num = function (t) { return (porTipo[t] || []).length; };
     var opc = function (o, v) { return Object.keys(o).map(function (k) { return '<option value="' + esc(k) + '"' + (k === v ? " selected" : "") + ">" + esc(o[k]) + "</option>"; }).join(""); };
     var atl = {}; todos.forEach(function (c) { atl[c.id] = c.atleta; });
-    tela(U.voltar("#/inicio", "Início") + '<div class="cr"><header class="cr-cab"><p class="olho">' + SERV + "</p><h1>Painel do consultor</h1>" +
-      '<p class="cr-linha"><span><strong>' + ativos + "</strong> " + (ativos === 1 ? "atleta ativo" : "atletas ativos") + "</span><span><strong>" + comPend + "</strong> com algo para fazer</span></p></header>" +
+    /* faixa de números */
+    var faixa = '<div class="crp-numeros">' + [[ativos.length, ativos.length === 1 ? "atleta ativo" : "atletas ativos"], [comPend, "com algo para fazer"], [num("atraso"), num("atraso") === 1 ? "atleta com ação atrasada" : "atletas com ações atrasadas"], [num("revisao"), "revisões em até 14 dias"]].map(function (x) { return '<div><b>' + x[0] + "</b><span>" + esc(x[1]) + "</span></div>"; }).join("") + "</div>";
+    /* para hoje */
+    var tipos = Object.keys(ROT_PEND).filter(function (t) { return num(t); });
+    var paraHoje = '<section class="cartao crp-col" aria-labelledby="crpHoje"><h2 id="crpHoje">Para hoje</h2>' + (tipos.length ? '<ul class="crp-hoje">' + tipos.map(function (t) {
+      return '<li><button type="button" data-pend="' + t + '" aria-pressed="' + (f.pend === t) + '"><span class="crp-ic" aria-hidden="true">' + ICONE_PEND[t] + "</span><span><strong>" + esc(ROT_PEND[t]) + "</strong><small>" + esc(porTipo[t].map(function (x) { return x.atleta; }).filter(function (v, k, l) { return l.indexOf(v) === k; }).slice(0, 3).join(", ")) + '</small></span><span class="crp-n">' + num(t) + "</span></button></li>";
+    }).join("") + "</ul>" + (f.pend ? '<button type="button" class="btn btn-texto" data-pend="">Ver todos os atletas</button>' : "") : '<p class="nota">Nada pendente hoje.</p>') + "</section>";
+    /* jornadas */
+    var jornadas = '<section class="crp-centro" aria-labelledby="crpJor"><div class="crp-cab-sec"><h2 id="crpJor">Jornada dos atletas</h2><span class="nota">' + lista.length + " de " + todos.length + "</span></div>" +
       '<form class="cr-filtros" id="crFiltros"><label>Atleta<select name="atleta"><option value="">Todos</option>' + opc(atl, f.atleta) + '</select></label><label>Etapa<select name="etapa"><option value="">Todas</option>' + opc(ETAPA, f.etapa) + '</select></label><label>Pendência<select name="pend"><option value="">Todas</option>' + opc(ROT_PEND, f.pend) + "</select></label></form>" +
       (lista.length ? lista.map(function (c) {
-        return '<a class="cartao cr-item cr-painel-item" href="' + base(c.id) + '/plano"><div style="min-width:0;flex:1"><h2>' + esc(c.atleta) + '</h2><p class="cr-linha">' + chipEtapa(c.etapa) + (c.estado !== "ativa" ? "<span>" + esc(c.rotuloEstado) + "</span>" : "") + (c.ciclo ? "<span>Ciclo até " + esc(dt(c.ciclo.fim)) + "</span>" : "") + "</p>" +
-          (c.pendencias.length ? '<ul class="cr-pend">' + c.pendencias.slice(0, 4).map(function (p) { return '<li class="p-' + esc(p.tipo) + '">' + esc(p.texto) + "</li>"; }).join("") + "</ul>" : '<p class="nota">Nada pendente.</p>') +
-          (c.proximos.length ? '<p class="nota">Próximos: ' + c.proximos.slice(0, 2).map(function (x) { return esc(curto(x.data) + " · " + x.titulo); }).join(" · ") + "</p>" : "") +
-          '<p class="nota">Última atualização: ' + esc(dt(c.ultimaAtualizacao)) + "</p></div><span aria-hidden=\"true\">›</span></a>";
-      }).join("") : vazio(todos.length ? "Nenhum atleta com esses filtros." : "Nenhuma consultoria ativada ainda. A ativação é feita no painel do administrador.")) + "</div>");
+        return '<a class="cartao crp-atleta" href="' + base(c.id) + '/plano"><div class="crp-at-topo"><span class="crp-avatar" aria-hidden="true">' + esc(String(c.atleta || "?").split(/\s+/).map(function (p) { return p[0]; }).slice(0, 2).join("").toUpperCase()) + '</span><div style="min-width:0;flex:1"><h3>' + esc(c.atleta) + '</h3><p class="nota">' + esc(c.estado !== "ativa" ? c.rotuloEstado : ETAPA[c.etapa]) + " · atualizado " + esc(haQuanto(c.ultimaAtualizacao, hoje)) + '</p></div><span class="crp-seta" aria-hidden="true">›</span></div>' +
+          jornadaHtml(c.etapa) + cicloHtml(c.ciclo, hoje) +
+          (c.pendencias.length ? '<ul class="cr-pend">' + c.pendencias.slice(0, 3).map(function (p) { return '<li class="p-' + esc(p.tipo) + '">' + esc(p.texto) + "</li>"; }).join("") + "</ul>" : "") + "</a>";
+      }).join("") : vazio(todos.length ? "Nenhum atleta com esses filtros." : "Nenhuma consultoria ativada ainda. A ativação é feita no painel do administrador.")) + "</section>";
+    /* próximos e atualizações */
+    var prox = []; todos.forEach(function (c) { (c.proximos || []).forEach(function (x) { prox.push({ data: x.data, tipo: x.tipo, titulo: x.titulo, atleta: c.atleta, id: c.id }); }); });
+    prox.sort(function (a, b) { return a.data.localeCompare(b.data); });
+    var recentes = todos.slice().sort(function (a, b) { return String(b.ultimaAtualizacao).localeCompare(String(a.ultimaAtualizacao)); }).slice(0, 5);
+    var direita = '<div class="crp-col"><section class="cartao" aria-labelledby="crpProx"><h2 id="crpProx">Próximos 30 dias</h2>' + (prox.length ? '<ul class="crp-agenda">' + prox.slice(0, 8).map(function (x) {
+      return '<li><a href="' + base(x.id) + '/calendario"><span class="crp-data"><b>' + esc(x.data.slice(8, 10)) + "</b>" + esc(["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"][+x.data.slice(5, 7) - 1]) + '</span><span style="min-width:0"><strong>' + esc(x.titulo) + "</strong><small>" + esc((x.tipo === "reuniao" ? "Reunião" : "Torneio") + " · " + x.atleta) + "</small></span></a></li>";
+    }).join("") + "</ul>" : '<p class="nota">Nenhum torneio ou reunião nos próximos 30 dias.</p>') + "</section>" +
+      '<section class="cartao" aria-labelledby="crpRec"><h2 id="crpRec">Atualizados recentemente</h2>' + (recentes.length ? '<ul class="crp-recentes">' + recentes.map(function (c) { return '<li><a href="' + base(c.id) + '/plano"><span class="crp-avatar p" aria-hidden="true">' + esc(String(c.atleta || "?").charAt(0).toUpperCase()) + '</span><span style="min-width:0;flex:1"><strong>' + esc(c.atleta) + "</strong><small>" + esc(ETAPA[c.etapa]) + "</small></span><small>" + esc(haQuanto(c.ultimaAtualizacao, hoje)) + "</small></a></li>"; }).join("") + "</ul>" : '<p class="nota">Sem atualizações.</p>') + "</section></div>";
+    tela(U.voltar("#/inicio", "Início") + '<div class="crp"><header class="cr-cab"><p class="olho">' + SERV + "</p><h1>Painel do consultor</h1></header>" + faixa + '<div class="crp-grade">' + paraHoje + jornadas + direita + "</div></div>");
     var fm = document.getElementById("crFiltros");
     fm.addEventListener("change", function () { estado.filtros = { atleta: fm.atleta.value, etapa: fm.etapa.value, pend: fm.pend.value }; telaPainel(); });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-pend]"), function (b) { b.onclick = function () { var t = b.getAttribute("data-pend"); estado.filtros.pend = estado.filtros.pend === t ? "" : t; telaPainel(); }; });
   }
 
   /* ── MEU PLANO ── */

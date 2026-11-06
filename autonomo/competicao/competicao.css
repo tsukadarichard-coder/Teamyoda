@@ -457,3 +457,58 @@ body.comp .voz-aviso p { margin: 4px 0 0; }
   body.logado.lat-recolhida .lateral-abrir:not([hidden]) { display: block; position: fixed; left: 12px; top: 10px; z-index: 30; min-height: 40px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--linha); background: #fff; box-shadow: var(--sombra-alta); font: 700 13.5px "DM Sans", system-ui, sans-serif; color: var(--tinta); cursor: pointer; }
   body.logado.lat-recolhida .toast { left: 20px; }
 }
+
+/* painel do consultor: o dia em uma tela */
+.crp { max-width: 1240px; container-type: inline-size; }
+.crp-numeros { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+.crp-numeros div { background: #fff; border: 1px solid var(--linha); border-radius: var(--raio); padding: 12px 14px; display: grid; gap: 2px; }
+.crp-numeros b { font: 700 26px "Barlow Condensed", "DM Sans", system-ui, sans-serif; color: var(--tinta); line-height: 1; }
+.crp-numeros span { font-size: 12.5px; color: var(--grafite); }
+.crp-grade { display: grid; gap: 14px; margin-top: 14px; }
+.crp-col { display: grid; gap: 14px; align-content: start; }
+.crp-col > .cartao, .crp-col.cartao { margin: 0; }
+.crp-grade h2 { font-size: 16.5px; }
+.crp-cab-sec { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.crp-hoje { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; }
+.crp-hoje button { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--linha); border-radius: 12px; background: #fff; font: inherit; color: inherit; text-align: left; cursor: pointer; min-height: 52px; }
+.crp-hoje button[aria-pressed="true"] { border-color: var(--saibro); background: var(--saibro-fundo); }
+.crp-hoje strong { display: block; font-size: 14px; }
+.crp-hoje small { display: block; font-size: 12px; color: var(--grafite); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.crp-hoje span:nth-child(2) { flex: 1; min-width: 0; }
+.crp-ic { width: 32px; height: 32px; border-radius: 10px; background: var(--papel); display: grid; place-items: center; font-size: 16px; flex: none; }
+.crp-n { font-weight: 700; min-width: 26px; height: 26px; border-radius: 999px; display: grid; place-items: center; background: var(--saibro); color: #fff; font-size: 13px; }
+.crp-centro { min-width: 0; }
+.crp-centro .cr-filtros { margin-top: 8px; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+.cr-filtros select { width: 100%; min-width: 0; }
+@media (min-width: 761px) { body.logado .principal > .crp { max-width: 1240px; } }
+.crp-atleta { display: block; margin-top: 10px; text-decoration: none; color: inherit; }
+.crp-atleta:hover { box-shadow: var(--sombra-alta); }
+.crp-at-topo { display: flex; align-items: center; gap: 10px; }
+.crp-at-topo h3 { font-size: 16.5px; }
+.crp-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--quadra); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 14px; flex: none; }
+.crp-avatar.p { width: 32px; height: 32px; font-size: 13px; background: var(--saibro); }
+.crp-seta { font-size: 22px; color: var(--grafite); }
+.crp-jornada { list-style: none; margin: 14px 0 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.crp-jornada li { position: relative; display: grid; justify-items: center; gap: 6px; text-align: center; }
+.crp-jornada li::before { content: ""; position: absolute; top: 8px; left: -50%; right: 50%; height: 3px; background: var(--linha); z-index: 0; }
+.crp-jornada li:first-child::before { display: none; }
+.crp-jornada li.feito::before, .crp-jornada li.atual::before { background: var(--marca); }
+.crp-ponto { position: relative; z-index: 1; width: 19px; height: 19px; border-radius: 50%; background: #fff; border: 3px solid var(--linha); }
+.crp-jornada li.feito .crp-ponto { background: var(--marca); border-color: var(--marca); }
+.crp-jornada li.atual .crp-ponto { border-color: var(--saibro); box-shadow: 0 0 0 4px var(--saibro-fundo); }
+.crp-rot { font-size: 11.5px; color: var(--grafite); line-height: 1.2; hyphens: auto; -webkit-hyphens: auto; max-width: 100%; }
+.crp-jornada li.atual .crp-rot { color: var(--saibro-texto); font-weight: 700; }
+.crp-ciclo { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 12.5px; color: var(--grafite); }
+.crp-barra { flex: 1; height: 6px; border-radius: 999px; background: var(--papel); overflow: hidden; }
+.crp-barra i { display: block; height: 100%; background: var(--quadra); border-radius: 999px; }
+.crp-agenda, .crp-recentes { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; }
+.crp-agenda a, .crp-recentes a { display: flex; align-items: center; gap: 10px; padding: 8px 4px; border-top: 1px solid var(--linha); text-decoration: none; color: inherit; }
+.crp-agenda strong, .crp-recentes strong { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.crp-agenda small, .crp-recentes small { display: block; font-size: 12px; color: var(--grafite); }
+.crp-data { flex: none; width: 46px; text-align: center; font-size: 11px; text-transform: uppercase; color: var(--grafite); background: var(--papel); border-radius: 10px; padding: 4px 0; }
+.crp-data b { display: block; font: 700 20px "Barlow Condensed", "DM Sans", system-ui, sans-serif; color: var(--tinta); line-height: 1; }
+@container (min-width: 640px) { .crp-numeros { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@container (min-width: 1000px) { .crp-grade { grid-template-columns: 260px minmax(0, 1fr) 280px; align-items: start; } .crp-grade > .crp-col:first-child { position: sticky; top: 14px; } }
+@container (min-width: 700px) and (max-width: 999px) { .crp-grade { grid-template-columns: minmax(0, 1fr) 280px; } .crp-grade > .crp-col:first-child { grid-column: 1 / -1; } }
+
+@media (min-width: 761px) { body.logado.lat-recolhida .principal { padding-top: 64px; } }
