@@ -190,7 +190,7 @@
   function telaSemAcesso() {
     var d = st.dados, v = d.venda || {}, vit = (d.vitrine && d.vitrine.trilhas) || [];
     tela(
-      '<h1>Olá, ' + esc(String(d.conta.nome || "").split(/\s+/)[0]) + "</h1>" +
+      '<h1>Olá, ' + esc(primeiroNome(d.conta.nome)) + "</h1>" +
       '<p class="lead">A sua conta está criada. Falta liberar o acesso ao conteúdo.</p>' +
       (st.erroLigar ? '<p class="msg msg-erro">' + esc(st.erroLigar) + "</p>" : "") +
       cartaoLigar() +
@@ -277,11 +277,16 @@
     return Object.keys(dias).length;
   }
 
+  /* "Ana Souza" → "Ana"; conta sem nome (só o e-mail, ex.: "joao.silva") → "Joao" */
+  function primeiroNome(n) {
+    var s = String(n || "").trim(), p = /\s/.test(s) ? s.split(/\s+/)[0] : s.split(/[._\-@\d]+/).filter(Boolean)[0] || "";
+    return p ? p.charAt(0).toUpperCase() + p.slice(1) : "atleta";
+  }
   function telaInicio() {
     var d = st.dados, ts = (d.conteudo || {}).trilhas || [], p = d.progresso || {};
     var total = 0, feitasTot = 0;
     ts.forEach(function (t) { total += t.aulas.length; feitasTot += feitas(t); });
-    var nome = String(d.conta.nome || "").split(/\s+/)[0] || "atleta";
+    var nome = primeiroNome(d.conta.nome);
     var sub = d.acesso.tipo === "unidade" ? "Incluída na sua matrícula · " + d.acesso.unidade : d.acesso.tipo === "equipe" ? "Equipe · " + d.acesso.unidade : d.acesso.tipo === "assinante" ? "Assinatura ativa" : "Acesso de cortesia";
     var px = proximaAula(), dias = diasAtivos();
     tela(
