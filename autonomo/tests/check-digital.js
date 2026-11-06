@@ -228,7 +228,7 @@ store["orgs/39-ranch/dados/mty:alunos:v2"] = { value: JSON.stringify([{ id: "r1"
   assert.strictEqual(ri.imagens[0], "img:" + ri.id, "a sequência entra primeiro na aula");
   assert.strictEqual(store["digitalImagens/" + ri.id].autorizadoPor !== undefined, true);
   const tecImg = store["digitalConteudo/academia"].trilhas.find((t) => t.id === "cmty-tecnica").aulas.find((a) => a.id === "cmty-tec-03");
-  assert.deepStrictEqual(tecImg.imagens, ["img:" + ri.id]);
+  assert.deepStrictEqual(tecImg.imagens, ["img:" + ri.id, "assets/foto-sequencia-backhand2.jpg"], "a sequência entra antes da foto que a aula já tinha");
   assert.strictEqual(store["digitalConteudo/academia"].cursosMty, VERSAO, "a marca dos cursos MTY continua");
   const rg = await D.handler({ httpMethod: "GET", headers: {}, queryStringParameters: { img: ri.id } });
   assert.strictEqual(rg.statusCode, 200); assert.strictEqual(rg.headers["content-type"], "image/jpeg"); assert(rg.isBase64Encoded);
@@ -238,9 +238,9 @@ store["orgs/39-ranch/dados/mty:alunos:v2"] = { value: JSON.stringify([{ id: "r1"
   assert.strictEqual((await D.handler({ httpMethod: "GET", headers: {}, queryStringParameters: { img: "a".repeat(24) } })).statusCode, 404);
   /* o aluno recebe a referência; salvar pela coordenação mantém */
   r = await chamar("GET", null, "tk-c2@x.com");
-  assert.deepStrictEqual(r.conteudo.trilhas.find((t) => t.id === "cmty-tecnica").aulas.find((a) => a.id === "cmty-tec-03").imagens, ["img:" + ri.id]);
+  assert.deepStrictEqual(r.conteudo.trilhas.find((t) => t.id === "cmty-tecnica").aulas.find((a) => a.id === "cmty-tec-03").imagens, ["img:" + ri.id, "assets/foto-sequencia-backhand2.jpg"]);
   const cc3 = await chamar("POST", { acao: "conteudoCompleto" }, "coord");
   await chamar("POST", { acao: "salvarConteudo", trilhas: cc3.trilhas, venda: cc3.venda }, "coord");
-  assert.deepStrictEqual(store["digitalConteudo/academia"].trilhas.find((t) => t.id === "cmty-tecnica").aulas.find((a) => a.id === "cmty-tec-03").imagens, ["img:" + ri.id]);
+  assert.deepStrictEqual(store["digitalConteudo/academia"].trilhas.find((t) => t.id === "cmty-tecnica").aulas.find((a) => a.id === "cmty-tec-03").imagens, ["img:" + ri.id, "assets/foto-sequencia-backhand2.jpg"]);
   console.log("check-digital: ok");
 })().catch((e) => { console.error(e); process.exit(1); });
