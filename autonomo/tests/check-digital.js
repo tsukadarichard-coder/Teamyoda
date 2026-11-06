@@ -215,6 +215,37 @@ store["orgs/39-ranch/dados/mty:alunos:v2"] = { value: JSON.stringify([{ id: "r1"
   const cc2 = await chamar("POST", { acao: "conteudoCompleto" }, "coord");
   await chamar("POST", { acao: "salvarConteudo", trilhas: cc2.trilhas, venda: cc2.venda }, "coord");
   assert.deepStrictEqual(store["digitalConteudo/academia"].trilhas.find((t) => t.id === "cmty-tecnica").aulas.find((a) => a.id === "cmty-tec-05").imagens, ["assets/foto-saque.jpg"]);
+  /* aula passo a passo: toda aula MTY tem etapas, com as imagens existentes; quem já tinha a v3 recebe as etapas nas aulas sem nenhuma */
+  aulasMty.forEach((a) => {
+    assert(a.etapas.length >= 2, "etapas: " + a.id);
+    assert.deepStrictEqual(lc({ trilhas: [{ id: "t1", titulo: "T", aulas: [{ id: "a1", titulo: "A", etapas: a.etapas }] }] }).trilhas[0].aulas[0].etapas, a.etapas, "etapas MTY passam inteiras pelo saneamento: " + a.id);
+    a.etapas.forEach((e) => { if (e.img) assert(fs.existsSync(path.join(__dirname, "../../mty", e.img)), "arquivo da etapa existe: " + e.img); });
+  });
+  assert.deepStrictEqual(CURSOS[0].aulas.find((a) => a.id === "cmty-tec-03").etapas.map((e) => e.img), [1, 2, 3, 4, 5, 6].map((k) => "assets/cursos/fases/bh2-" + k + ".jpg"), "backhand de duas mãos: as seis fases reais");
+  const etl = lc({ trilhas: [{ id: "t1", titulo: "T", aulas: [{ id: "a1", titulo: "A", etapas: [
+    { titulo: "Ok", img: "https://mal.com/x.jpg", credito: "c", texto: "x".repeat(900), pontos: ["a", "", "b", "c", "d", "e", "f"], erro: { sinal: "s", correcao: "c" } },
+    { titulo: "Foto", img: "assets/cursos/fases/saque-1.jpg", credito: "Crédito", texto: "t", erros: [{ sinal: "a", correcao: "b" }, { sinal: "", correcao: "x" }] },
+    { titulo: "", texto: "sem título" }, { titulo: "Vazia" }, "lixo"].concat(Array(20).fill({ titulo: "Mais", texto: "m" })) }] }] }).trilhas[0].aulas[0].etapas;
+  assert.strictEqual(etl.length, 9, "sem título/vazias saem; no máximo 12 antes de filtrar");
+  assert.strictEqual(etl[0].img, undefined, "imagem de fora do site sai (e o crédito com ela)");
+  assert.strictEqual(etl[0].credito, undefined);
+  assert.strictEqual(etl[0].texto.length, 800);
+  assert.deepStrictEqual(etl[0].pontos, ["a", "b", "c", "d", "e"]);
+  assert.deepStrictEqual(etl[1], { titulo: "Foto", texto: "t", img: "assets/cursos/fases/saque-1.jpg", credito: "Crédito", erros: [{ sinal: "a", correcao: "b" }] });
+  const doc3 = store["digitalConteudo/academia"];
+  doc3.cursosMty = "v3";
+  doc3.trilhas = doc3.trilhas.map((t) => (t.id !== "cmty-tecnica" ? t : { ...t, aulas: t.aulas.map((a) => (a.id === "cmty-tec-02" ? { ...a, etapas: [{ titulo: "Da coordenação", texto: "x" }] } : { ...a, etapas: undefined })) }));
+  r = await chamar("GET", null, "tk-c2@x.com");
+  const tec4 = r.conteudo.trilhas.find((t) => t.id === "cmty-tecnica");
+  assert.strictEqual(tec4.aulas.find((a) => a.id === "cmty-tec-05").etapas.length, 6, "v3 → v4: saque passo a passo");
+  assert.strictEqual(tec4.aulas.find((a) => a.id === "cmty-tec-05").etapas[0].img, "assets/cursos/fases/saque-1.jpg");
+  assert.deepStrictEqual(tec4.aulas.find((a) => a.id === "cmty-tec-02").etapas.map((e) => e.titulo), ["Da coordenação"], "etapas editadas pela coordenação ficam");
+  assert.strictEqual(store["digitalConteudo/academia"].cursosMty, VERSAO);
+  const cc5 = await chamar("POST", { acao: "conteudoCompleto" }, "coord");
+  cc5.trilhas.find((t) => t.id === "cmty-tecnica").aulas.find((a) => a.id === "cmty-tec-05").etapas[0].titulo = "Posição inicial (editada)";
+  await chamar("POST", { acao: "salvarConteudo", trilhas: cc5.trilhas, venda: cc5.venda }, "coord");
+  r = await chamar("GET", null, "tk-c2@x.com");
+  assert.strictEqual(r.conteudo.trilhas.find((t) => t.id === "cmty-tecnica").aulas.find((a) => a.id === "cmty-tec-05").etapas[0].titulo, "Posição inicial (editada)", "a coordenação edita as etapas");
   /* sequência das fases vinda de uma análise: só a coordenação, com autorização; a aula aponta para img:{id}; GET ?img serve o JPEG */
   const jpg = "data:image/jpeg;base64," + Buffer.from("\xff\xd8\xff\xe0fake-jpeg", "latin1").toString("base64");
   const pedido = { acao: "imagemCurso", trilhaId: "cmty-tecnica", aulaId: "cmty-tec-03", dados: jpg, autorizado: true, titulo: "backhand de duas mãos", origem: { org: "team-yoda", alunoId: "a1", analiseId: "mv1", golpe: "backhand" } };

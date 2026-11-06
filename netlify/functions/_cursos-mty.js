@@ -2,8 +2,8 @@
    vocabulário e básico tático) e dos treinos mentais do catálogo. digital.js insere estes cursos uma vez (cursosMty = VERSAO),
    já publicados; depois a coordenação edita, despublica ou apaga em Mais › Academia Digital como qualquer outro curso.
    Quiz: c = índice da resposta certa (fica só no servidor). */
-const VERSAO = "v3"; /* v2: ilustrações das aulas; v3: sequência real das fases (vídeo do Team Yoda) e fotos de profissionais (Wikimedia Commons, licença livre, com crédito) */
-const ORDEM = ["v1", "v2", "v3"];
+const VERSAO = "v4"; /* v2: ilustrações das aulas; v3: sequência real das fases (vídeo do Team Yoda) e fotos de profissionais (Wikimedia Commons, licença livre, com crédito); v4: aulas passo a passo (etapas com imagem, pontos-chave e erro comum) */
+const ORDEM = ["v1", "v2", "v3", "v4"];
 const L = (s) => s.join("\n");
 
 const tecnica = {
@@ -324,7 +324,9 @@ const IMAGENS = {
   "cmty-men-01": IMG("men-rotina"), "cmty-men-02": IMG("men-processo"), "cmty-men-03": IMG("men-respirar"), "cmty-men-04": IMG("men-erros"),
   "cmty-men-05": IMG("men-visualizar"), "cmty-men-06": IMG("men-checklist-saque"), "cmty-men-07": IMG("men-balanco"),
 };
-const CURSOS = [tecnica, tatica, mental].map((c) => ({ ...c, aulas: c.aulas.map((a) => ({ id: a.id, titulo: a.titulo, descricao: a.texto, youtube: "", duracao: a.duracao, exercicios: a.exercicios, quiz: a.quiz, imagens: IMAGENS[a.id] || [] })) }));
+/* Etapas (aula passo a passo): uma fase por tela, com imagem, explicação, o que conferir e o erro comum (_cursos-mty-etapas.js) */
+const { ETAPAS } = require("./_cursos-mty-etapas.js");
+const CURSOS = [tecnica, tatica, mental].map((c) => ({ ...c, aulas: c.aulas.map((a) => ({ id: a.id, titulo: a.titulo, descricao: a.texto, youtube: "", duracao: a.duracao, exercicios: a.exercicios, quiz: a.quiz, imagens: IMAGENS[a.id] || [], etapas: ETAPAS[a.id] || [] })) }));
 /* imagens que cada versão trouxe: quem já tinha os cursos recebe estas por cima das que a aula tem (uma vez só) */
 const NOVAS = { v3: { "cmty-tec-02": FOTO("sequencia-forehand"), "cmty-tec-03": FOTO("sequencia-backhand2-ty").concat(FOTO("sequencia-backhand2")), "cmty-tec-09": FOTO("smash") } };
-module.exports = { VERSAO, ORDEM, CURSOS, IMAGENS, NOVAS };
+module.exports = { VERSAO, ORDEM, CURSOS, IMAGENS, NOVAS, ETAPAS };

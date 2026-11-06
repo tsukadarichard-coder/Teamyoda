@@ -49,8 +49,23 @@ function limparQuiz(q, titulo) {
     return { p: txt(x.p, 300), op, c: Math.floor(c) };
   });
 }
-/* ilustrações das aulas: só os arquivos do próprio site (mty/assets/cursos e as fotos mty/assets/foto-*.jpg) */
-const IMAGEM = /^(assets\/(cursos\/[a-z0-9-]+\.svg|foto-[a-z0-9-]+\.jpg)|img:[a-z0-9]{24})$/;
+/* ilustrações das aulas: só os arquivos do próprio site (mty/assets/cursos, as fases em mty/assets/cursos/fases e as fotos mty/assets/foto-*.jpg) */
+const IMAGEM = /^(assets\/(cursos\/[a-z0-9-]+\.svg|cursos\/fases\/[a-z0-9-]+\.jpg|foto-[a-z0-9-]+\.jpg)|img:[a-z0-9]{24})$/;
+/* aula passo a passo: cada etapa com título, imagem (opcional, mesma regra das ilustrações), crédito, explicação,
+   o que conferir (até 5) e o erro comum com a correção (ou uma lista de erros, na etapa de diagnóstico) */
+const MAX_ETAPAS = 12;
+function limparErro(e) { e = e || {}; const sinal = txt(e.sinal, 200), correcao = txt(e.correcao, 240); return sinal ? { sinal, correcao } : null; }
+function limparEtapas(l) {
+  return (Array.isArray(l) ? l : []).slice(0, MAX_ETAPAS).map((e) => {
+    e = e || {};
+    const o = { titulo: txt(e.titulo, 80), texto: txtLongo(e.texto, 800) }, pontos = (Array.isArray(e.pontos) ? e.pontos : []).map((x) => txt(x, 160)).filter(Boolean).slice(0, 5);
+    if (pontos.length) o.pontos = pontos;
+    const img = String(e.img || ""); if (IMAGEM.test(img)) { o.img = img; const cr = txt(e.credito, 160); if (cr) o.credito = cr; }
+    const er = limparErro(e.erro); if (er) o.erro = er;
+    const ers = (Array.isArray(e.erros) ? e.erros : []).map(limparErro).filter(Boolean).slice(0, 6); if (ers.length) o.erros = ers;
+    return o;
+  }).filter((e) => e.titulo && (e.texto || e.pontos || e.erros));
+}
 /* imagens enviadas pela coordenação (sequência das fases de uma análise de movimento): ficam em digitalImagens/{id} e são
    servidas em GET ?img={id} (id aleatório de 24 caracteres; a aula aponta para "img:{id}") */
 const IMG_ID = /^[a-z0-9]{24}$/, IMG_MAX = 900000;
@@ -81,6 +96,7 @@ function limparConteudo(b) {
         exercicios: (Array.isArray(a.exercicios) ? a.exercicios : []).map((c) => String(c).toUpperCase()).filter((c) => /^[A-Z]{2,4}\d{3}$/.test(c)).slice(0, 12),
         duracao: txt(a.duracao, 20),
         imagens: (Array.isArray(a.imagens) ? a.imagens : []).map(String).filter((x) => IMAGEM.test(x)).slice(0, 3),
+        etapas: limparEtapas(a.etapas),
       };
     });
     return { id, titulo: txt(t.titulo, 120) || "Curso " + (i + 1), descricao: txtLongo(t.descricao, 1500), nivel: NIVEIS.includes(t.nivel) ? t.nivel : "todos", categoria: CATEGORIAS.includes(t.categoria) ? t.categoria : "geral", publicada: !!t.publicada, aulas };
@@ -91,8 +107,8 @@ function limparConteudo(b) {
   return { trilhas, venda: { preco: txt(v.preco, 40), checkoutUrl, observacao: txtLongo(v.observacao, 600) } };
 }
 /* Os cursos da Metodologia MTY (_cursos-mty.js) entram uma vez, já publicados, e a marca cursosMty impede que voltem
-   depois de a coordenação apagar um deles; trocar a VERSAO insere só os cursos novos (pelo id) e completa as ilustrações
-   das aulas MTY que ainda não têm nenhuma. */
+   depois de a coordenação apagar um deles; trocar a VERSAO insere só os cursos novos (pelo id), completa as ilustrações
+   das aulas MTY que ainda não têm nenhuma e dá as etapas (aula passo a passo) às aulas MTY que ainda não têm. */
 const CMTY = require("./_cursos-mty.js");
 async function lerConteudo() {
   const ref = db().collection("digitalConteudo").doc("academia");
@@ -108,6 +124,7 @@ async function lerConteudo() {
     const novasImg = {};
     CMTY.ORDEM.slice(CMTY.ORDEM.indexOf(cursosMty) + 1).forEach((v) => Object.entries(CMTY.NOVAS[v] || {}).forEach(([id, l]) => { novasImg[id] = (novasImg[id] || []).concat(l); }));
     const comImagens = trilhas.map((t) => ({ ...t, aulas: (t.aulas || []).map((a) => {
+      if (CMTY.ETAPAS[a.id] && !(a.etapas || []).length) a = { ...a, etapas: CMTY.ETAPAS[a.id] };
       if (CMTY.IMAGENS[a.id] && !(a.imagens || []).length) return { ...a, imagens: CMTY.IMAGENS[a.id] };
       if (novasImg[a.id]) return { ...a, imagens: novasImg[a.id].filter((x) => !(a.imagens || []).includes(x)).concat(a.imagens || []).slice(0, 3) };
       return a;

@@ -76,7 +76,10 @@ const chamar = async (metodo, corpo, tk) => { const x = await digital({ httpMeth
       { id: "au2", titulo: "Troca na cruzada", exercicios: ["FB003"] }] },
     { id: "tr2", titulo: "Rascunho secreto", publicada: false, aulas: [{ id: "au9", titulo: "Ainda não", youtube: "aaaaaaaaaaa" }] },
     { id: "tr3", titulo: "Rotina entre pontos", categoria: "mental", nivel: "todos", publicada: true, aulas: [
-      { id: "mq1", titulo: "Os 20 segundos", duracao: "5 min", descricao: "Fechar o ponto, respirar e decidir.", quiz: [{ p: "Quais são as etapas?", op: ["Fechar, respirar e decidir", "Bater mais forte"], c: 0 }, { p: "Quanto tempo?", op: ["5 segundos", "20 segundos"], c: 1 }] }] },
+      { id: "mq1", titulo: "Os 20 segundos", duracao: "5 min", descricao: "Fechar o ponto, respirar e decidir.", etapas: [
+        { titulo: "Fechar o ponto", img: "assets/cursos/men-rotina.svg", texto: "Vire de costas e olhe as cordas.", pontos: ["Olhe as cordas", "Solte o resultado"], erro: { sinal: "Remoer o erro", correcao: "Encerre com um gesto." } },
+        { titulo: "Respirar", img: "assets/cursos/fases/saque-1.jpg", credito: "Atleta do Team Yoda", texto: "Duas respirações pela barriga." },
+        { titulo: "Decidir", texto: "Decida o próximo ponto.", erros: [{ sinal: "Decidir no ponto", correcao: "Decida na rotina." }] }], quiz: [{ p: "Quais são as etapas?", op: ["Fechar, respirar e decidir", "Bater mais forte"], c: 0 }, { p: "Quanto tempo?", op: ["5 segundos", "20 segundos"], c: 1 }] }] },
   ], venda: { preco: "R$ 59,90/mês", observacao: "Cancele quando quiser." } }, "tk-c1");
   assert(salvo.ok, JSON.stringify(salvo));
 
@@ -234,7 +237,35 @@ const chamar = async (metodo, corpo, tk) => { const x = await digital({ httpMeth
   assert.strictEqual(await ana.locator(".posters a.trilha").count(), 1, "filtro Mental");
   await ana.click("a.trilha >> text=Rotina entre pontos");
   await ana.click("a.aula-item >> text=Os 20 segundos");
-  await ana.waitForSelector("#fQuiz");
+  /* aula passo a passo: uma etapa por vez; o quiz e o botão de feita só aparecem no resumo */
+  await ana.waitForSelector("#etapa0 h2 >> text=Fechar o ponto");
+  assert.strictEqual(await ana.textContent("#passoRot"), "Etapa 1 de 3");
+  assert(await ana.isHidden("#etapa1") && await ana.isHidden("#fimAula"), "só a primeira etapa à vista");
+  assert.strictEqual(await ana.locator("#etapa0 .etapa-pontos li").count(), 2);
+  assert(/Remoer o erro/.test(await ana.textContent("#etapa0 .etapa-erro")) && /Encerre com um gesto/.test(await ana.textContent("#etapa0 .etapa-corr")));
+  await ana.waitForFunction(() => { const i = document.querySelector("#etapa0 .etapa-fig img"); return i && i.complete && i.naturalWidth > 0; });
+  await cap(ana, "digital-etapa-1");
+  await ana.click("#etapa0 .etapa-nav .primario");
+  await ana.waitForSelector("#etapa1 h2 >> text=Respirar");
+  assert.strictEqual(await ana.textContent("#passoRot"), "Etapa 2 de 3");
+  assert(/Atleta do Team Yoda/.test(await ana.textContent("#etapa1 figcaption")), "crédito da foto");
+  await ana.waitForFunction(() => { const i = document.querySelector("#etapa1 .etapa-fig img"); return i && i.complete && i.naturalWidth > 0; });
+  await ana.click("#etapa1 .etapa-nav button >> text=Anterior");
+  await ana.waitForSelector("#etapa0 h2", { state: "visible" });
+  await ana.click(".passo-seg >> nth=2");
+  await ana.waitForSelector("#etapa2 .etapa-fig.sem-img", { state: "visible" });
+  assert(/Decidir no ponto/.test(await ana.textContent("#etapa2 .etapa-erros")));
+  await ana.click("#etapa2 .etapa-nav .primario >> text=Ver o resumo");
+  await ana.waitForSelector("#tRes", { state: "visible" });
+  assert.strictEqual(await ana.textContent("#passoRot"), "Resumo");
+  assert.strictEqual(await ana.locator(".resumo-etapa").count(), 3);
+  await ana.waitForSelector("#fimAula #fQuiz", { state: "visible" });
+  await cap(ana, "digital-etapa-resumo");
+  await ana.click(".resumo-etapa >> nth=1");
+  await ana.waitForSelector("#etapa1 h2", { state: "visible" });
+  assert(await ana.isHidden("#fimAula"), "rever uma etapa esconde o fim");
+  await ana.click(".passo-seg.fim");
+  await ana.waitForSelector("#fQuiz", { state: "visible" });
   await ana.click("#fQuiz button");
   await ana.waitForSelector("#mQuiz >> text=Responda todas");
   await ana.check('input[name=q0][value="0"]'); await ana.check('input[name=q1][value="0"]');

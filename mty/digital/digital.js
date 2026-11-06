@@ -230,7 +230,7 @@
   /* ── visual: capa da trilha (imagem do primeiro vídeo, ou a quadra desenhada), anel de progresso e a quadra do treino ── */
   var QUADRA_DECOR = '<svg class="capa-quadra" viewBox="0 0 160 90" aria-hidden="true" preserveAspectRatio="xMidYMid slice"><g fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.2"><rect x="18" y="14" width="124" height="62"/><line x1="18" y1="22" x2="142" y2="22"/><line x1="18" y1="68" x2="142" y2="68"/><line x1="49" y1="22" x2="49" y2="68"/><line x1="111" y1="22" x2="111" y2="68"/><line x1="49" y1="45" x2="111" y2="45"/><line x1="80" y1="10" x2="80" y2="80" stroke-dasharray="2 2"/></g><circle cx="118" cy="32" r="4" fill="#E4F542"/><path d="M40 60 Q80 18 118 32" fill="none" stroke="#F4FF8A" stroke-width="1.2" stroke-dasharray="3 3"/></svg>';
   /* arte das aulas e dos cursos: a 1ª ilustração/foto da aula, ou a miniatura do vídeo */
-  var IMG_OK = /^(assets\/(cursos\/[a-z0-9-]+\.svg|foto-[a-z0-9-]+\.jpg)|img:[a-z0-9]{24})$/;
+  var IMG_OK = /^(assets\/(cursos\/[a-z0-9-]+\.svg|cursos\/fases\/[a-z0-9-]+\.jpg|foto-[a-z0-9-]+\.jpg)|img:[a-z0-9]{24})$/;
   /* "img:{id}" = sequência das fases enviada pela coordenação (servida pela function); o resto é arquivo do site */
   function urlImg(x) { return x.indexOf("img:") === 0 ? "/.netlify/functions/digital?img=" + x.slice(4) : "../" + x; }
   function capaCat(cat) { return "../assets/cursos/capa-" + ({ tecnica: 1, tatica: 1, mental: 1 }[cat] ? cat : "geral") + ".svg"; }
@@ -463,12 +463,82 @@
       return '<a class="ilustracao" href="' + esc(urlImg(x)) + '" target="_blank" rel="noopener"><img src="' + esc(urlImg(x)) + '" alt="Ilustração ' + (k + 1) + " da aula " + esc(a.titulo) + '" loading="lazy" decoding="async"></a>';
     }).join("") + "</div>";
   }
+  /* ── aula passo a passo: uma etapa por tela (imagem, explicação, o que conferir, erro comum) e um resumo no fim ── */
+  function etapasDe(a) { return (a.etapas || []).filter(function (e) { return e && e.titulo; }); }
+  function n2(k) { return (k < 9 ? "0" : "") + (k + 1); }
+  function figuraEtapa(e, k, a) {
+    if (e.img && IMG_OK.test(e.img)) {
+      var u = esc(urlImg(e.img)), retrato = /\/fases\/|foto-sequencia/.test(e.img);
+      return '<figure class="etapa-fig' + (retrato ? " retrato" : " diagrama") + '"><a href="' + u + '" target="_blank" rel="noopener" aria-label="Abrir a imagem inteira"><img src="' + u + '" alt="' + esc(e.titulo) + " — " + esc(a.titulo) + '"' + (k ? ' loading="lazy"' : "") + ' decoding="async"></a>' +
+        (e.credito ? "<figcaption>" + esc(e.credito) + "</figcaption>" : "") + "</figure>";
+    }
+    return '<figure class="etapa-fig sem-img" aria-hidden="true">' + QUADRA_DECOR + '<span class="etapa-num-grande">' + n2(k) + '</span><span class="etapa-fig-t">' + esc(e.titulo) + "</span></figure>";
+  }
+  function htmlEtapa(e, k, n, a) {
+    var prox = k + 1 < n ? "Próxima: " + esc(resumo(etapasDe(a)[k + 1].titulo, 34)) + " →" : "Ver o resumo →";
+    return '<section class="etapa" id="etapa' + k + '" data-k="' + k + '"' + (k ? " hidden" : "") + ' aria-labelledby="tEt' + k + '">' + figuraEtapa(e, k, a) +
+      '<div class="etapa-corpo"><span class="etapa-kicker"><i></i>Etapa ' + (k + 1) + '</span><h2 id="tEt' + k + '">' + esc(e.titulo) + "</h2>" +
+      (e.texto ? '<p class="etapa-texto">' + esc(e.texto) + "</p>" : "") +
+      ((e.pontos || []).length ? '<div class="etapa-bloco"><h3>O que conferir</h3><ul class="etapa-pontos">' + e.pontos.map(function (p) { return "<li>" + esc(p) + "</li>"; }).join("") + "</ul></div>" : "") +
+      (e.erro && e.erro.sinal ? '<div class="etapa-erro"><div><span class="etapa-erro-r">Erro comum</span><p>' + esc(e.erro.sinal) + "</p></div>" + (e.erro.correcao ? '<div class="etapa-corr"><span class="etapa-erro-r">Como corrigir</span><p>' + esc(e.erro.correcao) + "</p></div>" : "") + "</div>" : "") +
+      ((e.erros || []).length ? '<div class="etapa-bloco"><h3>Sintoma → causa</h3><ul class="etapa-erros">' + e.erros.map(function (x) { return "<li><b>" + esc(x.sinal) + "</b><span>" + esc(x.correcao) + "</span></li>"; }).join("") + "</ul></div>" : "") +
+      '<div class="etapa-nav">' + (k ? '<button type="button" class="cine-btn" data-ir="' + (k - 1) + '">← Anterior</button>' : "<span></span>") + '<button type="button" class="cine-btn primario" data-ir="' + (k + 1) + '">' + prox + "</button></div></div></section>";
+  }
+  function htmlResumoEtapas(a, et) {
+    return '<section class="etapa etapa-resumo" id="etapa' + et.length + '" data-k="' + et.length + '" hidden aria-labelledby="tRes"><div class="etapa-corpo largo"><span class="etapa-kicker"><i></i>Resumo da aula</span><h2 id="tRes">A sequência completa</h2>' +
+      '<p class="det">Toque numa etapa para rever.</p><div class="resumo-etapas">' + et.map(function (e, k) {
+        var im = e.img && IMG_OK.test(e.img) ? '<img src="' + esc(urlImg(e.img)) + '" alt="" loading="lazy" decoding="async">' : '<span class="resumo-sem">' + n2(k) + "</span>";
+        return '<button type="button" class="resumo-etapa" data-ir="' + k + '"><span class="resumo-arte">' + im + '</span><span class="resumo-n">' + (k + 1) + "</span><b>" + esc(e.titulo) + "</b></button>";
+      }).join("") + "</div>" +
+      (a.descricao ? '<details class="cine-sobre"><summary>Ler a aula em texto corrido</summary><p class="texto-aula">' + esc(a.descricao) + "</p></details>" : "") + "</div></section>";
+  }
+  function ligarEtapas(a, n) {
+    var atual = 0, raiz = $("#passos"); if (!raiz) return;
+    function ir(k, rolar) {
+      k = Math.max(0, Math.min(n, k)); atual = k;
+      $$(".etapa", raiz).forEach(function (el) { el.hidden = +el.getAttribute("data-k") !== k; });
+      $$(".passo-seg", raiz).forEach(function (el, j) { el.classList.toggle("feito", j < k); el.classList.toggle("atual", j === k); if (j === k) el.setAttribute("aria-current", "step"); else el.removeAttribute("aria-current"); });
+      var rot = $("#passoRot"); if (rot) rot.textContent = k < n ? "Etapa " + (k + 1) + " de " + n : "Resumo";
+      var fim = $("#fimAula"); if (fim) fim.hidden = k < n;
+      if (rolar) {
+        var topo = raiz.getBoundingClientRect().top + window.scrollY - 70;
+        if (window.scrollY > topo) window.scrollTo({ top: Math.max(0, topo), behavior: "smooth" });
+        var h = $("#etapa" + k + " h2"); if (h) { h.setAttribute("tabindex", "-1"); h.focus({ preventScroll: true }); }
+      }
+    }
+    raiz.addEventListener("click", function (ev) { var b = ev.target.closest("[data-ir]"); if (b) ir(+b.getAttribute("data-ir"), true); });
+    raiz.addEventListener("keydown", function (ev) {
+      if (/INPUT|TEXTAREA|SELECT/.test(ev.target.tagName)) return;
+      if (ev.key === "ArrowRight") { ir(atual + 1, true); ev.preventDefault(); } else if (ev.key === "ArrowLeft") { ir(atual - 1, true); ev.preventDefault(); }
+    });
+    /* deslizar o dedo na imagem troca de etapa */
+    var x0 = null;
+    raiz.addEventListener("touchstart", function (ev) { x0 = ev.target.closest(".etapa-fig") ? ev.touches[0].clientX : null; }, { passive: true });
+    raiz.addEventListener("touchend", function (ev) { if (x0 == null) return; var dx = ev.changedTouches[0].clientX - x0; x0 = null; if (Math.abs(dx) > 60) ir(atual + (dx < 0 ? 1 : -1), true); }, { passive: true });
+    ir(0, false);
+  }
   function telaAula(tid, aid) {
     var t = trilhaPorId(decodeURIComponent(tid)); aid = decodeURIComponent(aid);
     var i = t ? t.aulas.map(function (a) { return a.id; }).indexOf(aid) : -1;
     if (i < 0) return telaNaoAchou("Esta aula não está mais disponível.", "#trilhas", "trilhas");
-    var a = t.aulas[i], prox = t.aulas[i + 1], feita = !!(st.dados.progresso || {})[a.id];
-    tela(
+    var a = t.aulas[i], prox = t.aulas[i + 1], feita = !!(st.dados.progresso || {})[a.id], et = etapasDe(a), n = et.length;
+    var intro = String(a.descricao || "").split("\n")[0];
+    if (/^[^:]{2,30}:/.test(intro)) intro = ""; /* "O que é: …" já é a 1ª etapa */
+    tela(n ? (
+      '<a class="btn btn-texto voltar" href="#trilha/' + encodeURIComponent(t.id) + '">← ' + esc(t.titulo) + "</a>" +
+      '<header class="aula-topo"><p class="det" style="margin:0">Aula ' + (i + 1) + " de " + t.aulas.length + (a.duracao ? " · " + esc(a.duracao) : "") + " · " + n + " etapas</p><h1>" + esc(a.titulo) + "</h1>" +
+      (intro ? '<p class="aula-intro">' + esc(intro) + "</p>" : "") + "</header>" +
+      (a.youtube ? '<div class="video" id="video"><button type="button" id="btVideo" style="background-image:url(https://i.ytimg.com/vi/' + esc(a.youtube) + '/hqdefault.jpg)" aria-label="Assistir ao vídeo: ' + esc(a.titulo) + '"><span>▶ Assistir</span></button></div>' : "") +
+      '<div class="passos" id="passos"><div class="passos-barra"><span id="passoRot" class="passo-rot" aria-live="polite">Etapa 1 de ' + n + '</span><ol class="passo-segs">' +
+      et.map(function (e, k) { return '<li><button type="button" class="passo-seg" data-ir="' + k + '" aria-label="Etapa ' + (k + 1) + ": " + esc(e.titulo) + '"></button></li>'; }).join("") +
+      '<li><button type="button" class="passo-seg fim" data-ir="' + n + '" aria-label="Resumo"></button></li></ol></div>' +
+      et.map(function (e, k) { return htmlEtapa(e, k, n, a); }).join("") + htmlResumoEtapas(a, et) + "</div>" +
+      '<div id="fimAula" hidden>' +
+      (a.exercicios.length ? '<section aria-labelledby="tEx" style="margin-top:14px"><h2 id="tEx">Treinos desta aula</h2><div id="exAula" class="grade"><p class="det">Carregando os treinos…</p></div></section>' : "") +
+      ((a.quiz || []).length ? quizHtml(a) : "") +
+      '<div class="acoes"><button class="btn' + (feita ? " btn-claro" : "") + '" type="button" id="btFeita" aria-pressed="' + feita + '">' + (feita ? "✓ Feita · desmarcar" : "Marcar como feita") + "</button>" +
+      (prox ? '<a class="btn btn-claro" href="#aula/' + encodeURIComponent(t.id) + "/" + encodeURIComponent(prox.id) + '">Próxima aula →</a>' : "") + "</div></div>"
+    ) : (
       '<a class="btn btn-texto voltar" href="#trilha/' + encodeURIComponent(t.id) + '">← ' + esc(t.titulo) + "</a>" +
       '<p class="det" style="margin:0">Aula ' + (i + 1) + " de " + t.aulas.length + (a.duracao ? " · " + esc(a.duracao) : "") + "</p><h1>" + esc(a.titulo) + "</h1>" +
       (a.youtube ? '<div class="video" id="video"><button type="button" id="btVideo" style="background-image:url(https://i.ytimg.com/vi/' + esc(a.youtube) + '/hqdefault.jpg)" aria-label="Assistir ao vídeo: ' + esc(a.titulo) + '"><span>▶ Assistir</span></button></div>' : "") +
@@ -477,9 +547,10 @@
       (a.exercicios.length ? '<section aria-labelledby="tEx" style="margin-top:14px"><h2 id="tEx">Treinos desta aula</h2><div id="exAula" class="grade"><p class="det">Carregando os treinos…</p></div></section>' : "") +
       ((a.quiz || []).length ? quizHtml(a) : "") +
       '<div class="acoes"><button class="btn' + (feita ? " btn-claro" : "") + '" type="button" id="btFeita" aria-pressed="' + feita + '">' + (feita ? "✓ Feita · desmarcar" : "Marcar como feita") + "</button>" +
-      (prox ? '<a class="btn btn-claro" href="#aula/' + encodeURIComponent(t.id) + "/" + encodeURIComponent(prox.id) + '">Próxima aula →</a>' : "") + "</div>",
+      (prox ? '<a class="btn btn-claro" href="#aula/' + encodeURIComponent(t.id) + "/" + encodeURIComponent(prox.id) + '">Próxima aula →</a>' : "") + "</div>"),
       "trilhas"
     );
+    if (n) ligarEtapas(a, n);
     ligarQuiz(a, function () { telaAula(tid, aid); });
     var bv = $("#btVideo");
     if (bv) bv.onclick = function () {
