@@ -60,7 +60,10 @@ label.campo input, label.campo select { display: block; width: 100%; margin-top:
 /* entrada */
 .entrada { display: grid; gap: 16px; grid-template-columns: 1fr; max-width: 980px; }
 @media (min-width: 820px) { .entrada { grid-template-columns: 1.1fr .9fr; align-items: start; } }
-.heroi { background: var(--tinta); color: #fff; border-radius: 18px; padding: 22px 20px; }
+.heroi { background: var(--tinta); color: #fff; border-radius: 18px; padding: 0 20px 22px; overflow: hidden; }
+.heroi-img { margin: 0 -20px 16px; aspect-ratio: 16 / 10; overflow: hidden; position: relative; }
+.heroi-img img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; display: block; }
+.heroi-img::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(23, 37, 31, 0) 50%, #17251F 100%); }
 .heroi h1 { color: #fff; font-size: 26px; }
 .heroi p { color: #D5DED9; }
 .heroi ul { margin: 12px 0 0; padding: 0; list-style: none; }
@@ -111,7 +114,7 @@ dl.ficha dd { margin: 2px 0 0; }
 /* ── painel visual (Início, capas, anéis, quadra nos treinos) ── */
 .secao { font-size: 17px; margin: 22px 0 10px; }
 .painel-heroi { display: flex; align-items: center; gap: 16px; color: #fff; border-radius: 22px; padding: 22px 20px; margin-top: 4px;
-  background: radial-gradient(120% 140% at 100% 0%, rgba(105, 179, 42, .55) 0%, rgba(105, 179, 42, 0) 55%), linear-gradient(150deg, #17251F 0%, #1E4D3F 100%);
+  background: linear-gradient(90deg, rgba(23, 37, 31, .97) 0%, rgba(23, 37, 31, .86) 48%, rgba(23, 37, 31, .55) 100%), url(../assets/foto-forehand.jpg) 46% 30% / cover no-repeat, #17251F;
   box-shadow: 0 10px 30px rgba(23, 37, 31, .18); }
 .painel-heroi h1 { color: #fff; font-size: 28px; margin: 2px 0 4px; }
 .painel-heroi p { margin: 0; color: #CFE0D7; font-size: 14px; }

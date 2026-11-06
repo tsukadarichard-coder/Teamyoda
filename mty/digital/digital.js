@@ -118,7 +118,7 @@
     var vit = st.vitrinePublica, trilhasVit = vit && vit.trilhas && vit.trilhas.length ? vit.trilhas : null;
     tela(
       '<div class="entrada">' +
-      '<section class="heroi"><h1>Treine com a Metodologia MTY de onde estiver</h1>' +
+      '<section class="heroi"><figure class="heroi-img"><img src="../assets/foto-saque.jpg" alt="Atleta do Team Yoda no movimento do saque" width="900" height="1200"></figure><h1>Treine com a Metodologia MTY de onde estiver</h1>' +
       '<p>A Academia Digital do Team Yoda reúne trilhas de aulas em vídeo, os treinos do nosso catálogo com a quadra animada e o simulador de decisões.</p>' +
       "<ul><li>Trilhas de aulas por nível, no seu ritmo</li><li>Treinos da Metodologia MTY com a quadra animada mostrando cada bola</li><li>Simulador de decisões: escolha a jogada e veja a resposta</li><li>Aluno do Team Yoda · Cooper Tênis ou do 39 Ranch não paga</li></ul>" +
       (trilhasVit ? '<p style="margin-top:14px"><b style="color:#fff">Trilhas disponíveis:</b> ' + trilhasVit.map(function (t) { return esc(t.titulo); }).join(" · ") + "</p>" : "") +

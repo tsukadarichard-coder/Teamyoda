@@ -19,8 +19,16 @@
   @media (min-width: 720px) { .topo .nav { display: flex; } }
   .marca img.logo-ty { height: 34px; width: auto; background: #fff; border-radius: 8px; padding: 3px 8px; }
   section.bloco { max-width: 980px; margin: 0 auto; padding: 28px 16px 8px; }
-  .heroi-portal { background: var(--tinta); color: #fff; }
-  .heroi-portal .in { max-width: 980px; margin: 0 auto; padding: 34px 16px 36px; }
+  .heroi-portal { background: var(--tinta); color: #fff; overflow: hidden; }
+  .heroi-portal .in { max-width: 980px; margin: 0 auto; padding: 0 16px 36px; display: grid; gap: 20px; grid-template-columns: 1fr; }
+  .heroi-foto { margin: 0 -16px; position: relative; aspect-ratio: 4 / 3; max-height: 360px; overflow: hidden; }
+  .heroi-foto img { width: 100%; height: 100%; object-fit: cover; object-position: 46% 32%; display: block; }
+  .heroi-foto::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(23, 37, 31, 0) 55%, #17251F 100%); }
+  @media (min-width: 760px) {
+    .heroi-portal .in { grid-template-columns: 1.05fr .95fr; align-items: center; padding: 34px 16px 36px; }
+    .heroi-foto { order: 2; margin: 0; aspect-ratio: 4 / 5; max-height: 460px; border-radius: 22px; }
+    .heroi-foto::after { background: linear-gradient(90deg, rgba(23, 37, 31, .35) 0%, rgba(23, 37, 31, 0) 40%); }
+  }
   .heroi-portal h1 { color: #fff; font-size: clamp(28px, 6vw, 42px); max-width: 16ch; margin: 8px 0 12px; }
   .heroi-portal p { color: #D5DED9; font-size: 16.5px; max-width: 58ch; margin: 0; }
   .sobre { font-size: 12.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--saibro); }
@@ -59,10 +67,13 @@
 
 <div class="heroi-portal" id="inicio">
   <div class="in">
+    <figure class="heroi-foto" style="margin-top:0;margin-bottom:0"><img src="../assets/foto-forehand.jpg" alt="Atleta do Team Yoda batendo um forehand em quadra de saibro" width="1179" height="804" fetchpriority="high"></figure>
+    <div class="heroi-txt">
     <span class="sobre">Team Yoda · Metodologia MTY</span>
     <h1>Tênis com método, na quadra e fora dela</h1>
     <p>Aulas presenciais no <b>Team Yoda · Cooper Tênis</b> e no <b>39 Ranch Tennis Club</b>, e a <b>Academia Digital</b> para continuar treinando de onde você estiver. Quem treina nas nossas unidades tem a Academia Digital incluída, sem pagar nada a mais.</p>
     <div class="acoes"><a class="btn btn-saibro" href="#digital">Conhecer a Academia Digital</a><a class="btn btn-claro" href="#entrar">Já tenho acesso</a></div>
+    </div>
   </div>
 </div>
 
