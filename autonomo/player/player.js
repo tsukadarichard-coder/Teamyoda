@@ -1572,12 +1572,12 @@
 
   /* ══ casca do app: menu lateral (computador), menu inferior (celular) e conta ══ */
   var NAV_DA_ROTA = {
-    simulador: "simulador", aquecimento: "aquecimento", movimento: "movimento", "ao-vivo": "ao-vivo", pedidos: "pedidos", acompanhamento: "acompanhamento", desafio: "desafios", desafios: "desafios", partidas: "partidas",
+    simulador: "simulador", aquecimento: "aquecimento", movimento: "movimento", "ao-vivo": "ao-vivo", pedidos: "pedidos", acompanhamento: "acompanhamento", consultoria: "consultoria", desafio: "desafios", desafios: "desafios", partidas: "partidas",
     preparo: "temporada", diario: "competicao", temporada: "temporada", competicao: "competicao", ficha: "jogador", jogador: "jogador", conta: "conta", assinatura: "assinatura", assinaturas: "assinatura", consultorias: "consultorias", olhar: "consultorias", atendimentos: "atendimentos", atendimento: "atendimentos", treinadores: "treinadores", treinador: "treinadores", ajuda: "ajuda",
     estrategia: "estrategia", plano: "estrategia", planos: "estrategia", completar: "estrategia", gerando: "estrategia",
     jogadas: "jogadas", planejar: "treinos", treinos: "treinos", treino: "treinos", programa: "treinos", planejamento: "treinos", gerandoPlanej: "treinos",
   };
-  var NAV_MAIS = { movimento: 1, preparo: 1, diario: 1, temporada: 1, competicao: 1, partidas: 1, conta: 1, jogador: 1, ficha: 1, assinatura: 1, consultorias: 1, olhar: 1, atendimentos: 1, atendimento: 1, treinadores: 1, treinador: 1, ajuda: 1 };
+  var NAV_MAIS = { movimento: 1, preparo: 1, diario: 1, temporada: 1, competicao: 1, partidas: 1, conta: 1, jogador: 1, ficha: 1, assinatura: 1, consultorias: 1, consultoria: 1, olhar: 1, atendimentos: 1, atendimento: 1, treinadores: 1, treinador: 1, ajuda: 1 };
   var BARRA_SECAO = { aquecimento: "treinos", desafio: "treinos", desafios: "treinos" }; // páginas que pertencem à seção Treinos
   /* Competição é um app à parte (quadralab.com.br/competicao/), com as mesmas contas e o mesmo servidor. O mesmo código atende os dois:
      window.QL_MODO = "competicao" liga a navegação e a tela inicial próprias; no Player, as rotas da Competição apontam para lá. */
@@ -1585,7 +1585,7 @@
   var ROTAS_COMP = { competicao: 1, temporada: 1, preparo: 1, diario: 1, devolutivas: 1, focos: 1, scouts: 1, "ao-vivo": 1, pedidos: 1, acompanhamento: 1, recomendacoes: 1, treinos: 1 };
   /* estratégia contra adversários (perfil, estratégia, jogadas e programa de treino): a mesma do Player, também no Competição */
   var ROTAS_ESTRATEGIA = { ficha: 1, gerando: 1, estrategia: 1, plano: 1, planos: 1, completar: 1, jogadas: 1, planejar: 1, gerandoPlanej: 1, programa: 1, treino: 1 };
-  var ROTAS_APP_COMP = { ficha: 1, gerando: 1, estrategia: 1, plano: 1, planos: 1, completar: 1, jogadas: 1, planejar: 1, gerandoPlanej: 1, programa: 1, treino: 1, "": 1, simulador: 1, inicio: 1, competicao: 1, temporada: 1, planejamento: 1, acompanhamento: 1, preparo: 1, diario: 1, devolutivas: 1, focos: 1, scouts: 1, "ao-vivo": 1, pedidos: 1, recomendacoes: 1, treinos: 1, consultorias: 1, partidas: 1, aquecimento: 1, desafios: 1, pensamentos: 1, ritual: 1, conta: 1, ajuda: 1, treinadores: 1, treinador: 1, atendimentos: 1, atendimento: 1 };
+  var ROTAS_APP_COMP = { ficha: 1, gerando: 1, estrategia: 1, plano: 1, planos: 1, completar: 1, jogadas: 1, planejar: 1, gerandoPlanej: 1, programa: 1, treino: 1, "": 1, simulador: 1, inicio: 1, competicao: 1, temporada: 1, planejamento: 1, acompanhamento: 1, preparo: 1, diario: 1, devolutivas: 1, focos: 1, scouts: 1, "ao-vivo": 1, pedidos: 1, recomendacoes: 1, treinos: 1, consultorias: 1, consultoria: 1, partidas: 1, aquecimento: 1, desafios: 1, pensamentos: 1, ritual: 1, conta: 1, ajuda: 1, treinadores: 1, treinador: 1, atendimentos: 1, atendimento: 1 };
   var PLAYER_BASE = "";
   var MARCA_APP = MODO_COMP ? "QuadraLab Competição" : "QuadraLab Player";
   /* Na estratégia aberta no Competição: "treinos" é a lista de programas de treino do Player (no Competição a rota é dos treinos
