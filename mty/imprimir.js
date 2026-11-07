@@ -70,8 +70,8 @@
   /* paginação feita aqui: o "evitar quebra" da biblioteca põe um bloco vazio antes do elemento, o que vira uma célula nova
      nas grades de gráficos e desmonta a página. Aqui cada bloco que cruzaria o fim da página desce para a próxima com
      margem (linhas de tabela ganham uma linha vazia e o cabeçalho da tabela de novo) */
-  function paginar(fd, fw) {
-    var corpo = fd.body, lista;
+  function paginar(corpo, fw) {
+    var fd = corpo.ownerDocument, lista;
     try { lista = [].slice.call(corpo.querySelectorAll(EVITAR.concat([".quebra", "h5"]).join(","))); } catch (e) { return; }
     function y(v) { return v - corpo.getBoundingClientRect().top; }
     /* quanto do que vem depois de um título (ou do cabeçalho de uma tabela) precisa caber com ele: o primeiro bloco */
@@ -97,9 +97,17 @@
       if (ant && ant.getBoundingClientRect().height < 80 && ehTitulo(ant.previousElementSibling)) return ant.previousElementSibling;
       return null;
     }
+    /* a margem nova pode se fundir com a do bloco de cima (colapso de margens) e o bloco desce menos do que o pedido:
+       mede quanto ele desceu de fato e completa a diferença */
     function empurrar(e, quanto) {
+      var antes = e.getBoundingClientRect().top - corpo.getBoundingClientRect().top;
       var m = parseFloat(fw.getComputedStyle(e).marginTop) || 0;
-      e.style.setProperty("margin-top", (m + quanto) + "px", "important");
+      for (var k = 0; k < 4; k++) {
+        e.style.setProperty("margin-top", (m + quanto) + "px", "important");
+        var desceu = (e.getBoundingClientRect().top - corpo.getBoundingClientRect().top) - antes, falta = quanto - desceu;
+        if (falta < 0.5) break;
+        m += falta;
+      }
     }
     for (var i = 0; i < lista.length && i < 4000; i++) {
       var el = lista[i], titulo = /^H[1-5]$/.test(el.tagName), quebra = el.classList.contains("quebra");
@@ -217,7 +225,7 @@
       var base = fd.createElement("style"); base.id = "ql-pdf-base";
       /* fonte com nome de verdade: o desenho do PDF no iPhone não entende "system-ui"/"-apple-system" e trocava a letra no meio da linha */
       base.textContent = "html,body{width:" + LARG + "px !important;max-width:" + LARG + "px !important;margin:0 !important;padding:0 !important;min-height:0 !important;background:#fff !important;box-sizing:border-box}" +
-        '*{font-family:"Helvetica Neue",Helvetica,Arial,sans-serif !important;letter-spacing:0 !important;text-wrap:wrap !important;font-feature-settings:normal !important;animation:none !important;transition:none !important}' +
+        '*{-webkit-text-size-adjust:100% !important;text-size-adjust:100% !important;font-family:"Helvetica Neue",Helvetica,Arial,sans-serif !important;letter-spacing:0 !important;text-wrap:wrap !important;font-feature-settings:normal !important;animation:none !important;transition:none !important}' +
         "body *{max-width:100%}img,svg,canvas{max-width:100% !important;height:auto}svg[height]{height:auto}";
       fd.head.appendChild(base);
       esperarImagens(fd, 4000).then(function () {
@@ -225,7 +233,6 @@
         prenderTitulos(fd, fw);
         fixarSVGs(fd);
         fixarFotos(fd, fw);
-        paginar(fd, fw);
         /* as opções nascem na janela da folha (listas criadas aqui não passam no "é lista?" da biblioteca de lá) */
         var opcoes = fw.JSON.parse(JSON.stringify({
           margin: [8, 8, 10, 8], filename: nomeArquivo(d) + ".pdf",
@@ -235,7 +242,9 @@
           pagebreak: { mode: [] }, /* a paginação já foi feita em paginar() */
         }));
         var tela = null;
-        var w = fw.html2pdf().set(opcoes).from(fd.body).toPdf().get("canvas").then(function (cv) { tela = cv; }).get("pdf").then(function (pdf) {
+        /* as quebras são medidas na própria cópia que a biblioteca desenha (no iPhone a cópia podia ter outro tamanho de letra
+           que a folha e as quebras saíam fora do lugar: bloco cortado no fim de uma página e espaço em branco no topo da outra) */
+        var w = fw.html2pdf().set(opcoes).from(fd.body).toContainer().then(function () { paginar(this.prop.container, fw); }).toPdf().get("canvas").then(function (cv) { tela = cv; }).get("pdf").then(function (pdf) {
           /* a última página saía em branco quando só sobravam alguns pixels do documento para ela: tira essa sobra */
           try {
             var n = pdf.internal.getNumberOfPages(), pg = pdf.internal.pageSize;
