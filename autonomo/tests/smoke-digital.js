@@ -98,18 +98,27 @@ const chamar = async (metodo, corpo, tk) => { const x = await digital({ httpMeth
   }
   const cap = async (p, nome) => { if (capturas) await p.screenshot({ path: path.join(capturas, nome + ".png"), fullPage: true }); };
 
-  /* 0. portal: as quatro entradas, a vitrine e o plano incluído para as unidades */
+  /* 0. portal: aluno e público externo separados, professor discreto, trilhas reais por categoria, aviso de abertura */
   const vis = await pagina(390);
   await vis.goto(base + "/portal/");
-  assert.deepStrictEqual(await vis.$$eval("[data-porta]", (els) => els.map((e) => e.getAttribute("data-porta"))), ["professor", "cooper", "39ranch", "digital"]);
+  assert.deepStrictEqual(await vis.$$eval("[data-acesso]", (els) => els.map((e) => e.getAttribute("data-acesso"))), ["aluno", "externo"]);
   await vis.waitForSelector("#vitTrilhas >> text=Forehand do zero · 2 aulas");
   assert(!(await vis.content()).includes("Rascunho secreto"));
-  assert.strictEqual(await vis.textContent("#preco"), "R$ 59,90/mês");
-  assert(/^https:\/\/wa\.me\/\d+\?text=/.test(await vis.getAttribute("[data-porta=cooper] [data-whatsapp]", "href")));
-  assert.strictEqual(await vis.getAttribute("[data-porta=professor] a", "href"), "/treinador");
-  assert.strictEqual(await vis.getAttribute("[data-porta=\"39ranch\"] a:has-text('Site do 39 Ranch')", "href"), "https://39tennis.com.br/");
-  assert(/Incluída na matrícula/.test(await vis.textContent("[data-plano=unidade]")));
-  assert(await vis.isHidden("#btAssinar"), "sem link de pagamento não aparece Assinar no portal");
+  assert(await vis.isHidden("#assinatura"), "sem link de pagamento não aparece preço nem Assinar (assinatura ainda em breve)");
+  assert(await vis.isHidden("#btAssinar"));
+  assert(!/Assine agora|Entrar ou criar conta/.test(await vis.textContent("body")), "sem chamadas de contratação enquanto a assinatura não abre");
+  assert.strictEqual(await vis.getAttribute("[data-acesso=aluno] a.btn", "href"), "../digital/", "Acessar minha área leva ao fluxo da Academia Digital");
+  await vis.click("#btPrecisoLink");
+  assert(/^https:\/\/wa\.me\/\d+\?text=.*Cooper/.test(decodeURIComponent(await vis.getAttribute("#escolhaUnidade a:has-text('Cooper')", "href"))), "pedir o link escolhendo a unidade");
+  assert.deepStrictEqual(await vis.$$eval("a[data-professor]", (els) => els.map((e) => e.getAttribute("href"))), ["/treinador", "/treinador"], "Área do professor no menu e no rodapé");
+  assert.strictEqual(await vis.getAttribute("[data-unidade=\"39ranch\"] a:has-text('Site do 39 Ranch')", "href"), "https://39tennis.com.br/");
+  assert.strictEqual(await vis.getAttribute("[data-consultoria]", "href"), "https://quadralab.com.br/competicao/");
+  assert(await vis.isHidden("#richard"), "seção do Richard só aparece com foto");
+  /* a primeira tela do celular mostra a chamada e os dois botões */
+  const fimBotoes = await vis.evaluate(() => document.querySelector("#inicio .acoes").getBoundingClientRect().bottom);
+  assert(fimBotoes <= 844, "botões da abertura na primeira tela (" + fimBotoes + ")");
+  /* menu do celular abre e fecha */
+  await vis.click("#menuBt"); assert(await vis.isVisible("#menuCel a:has-text('Área do professor')")); await vis.keyboard.press("Escape"); assert(await vis.isHidden("#menuCel"));
   await vis.fill("#fEspera input[name=email]", "lead@x.com");
   await vis.click("#fEspera button");
   await vis.waitForSelector("#mEspera >> text=avisamos você");
@@ -363,6 +372,7 @@ const chamar = async (metodo, corpo, tk) => { const x = await digital({ httpMeth
   await bia.reload();
   await bia.waitForSelector('a.btn[href="https://pagamento.exemplo/ty"] >> text=Assinar');
   await vis.reload(); await vis.waitForSelector("#btAssinar:visible"); assert(await vis.isHidden("#fEspera"), "com link de pagamento o portal leva para assinar");
+  assert.strictEqual(await vis.textContent("#preco"), "R$ 59,90/mês", "preço real só quando a assinatura existe");
   await bia.fill("#fLigar input", base + "/aluno.html?org=39-ranch&id=r1&t=tR");
   await bia.click("#fLigar button");
   await bia.waitForSelector(".msg-ok >> text=39 Ranch Tennis Club");

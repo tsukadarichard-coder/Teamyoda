@@ -4,198 +4,497 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Team Yoda · Metodologia MTY</title>
-<meta name="description" content="Team Yoda: aulas de tênis com a Metodologia MTY no Cooper Tênis e no 39 Ranch Tennis Club, e a Academia Digital para treinar de onde estiver. Acesso do professor, do aluno e da Academia Digital.">
+<meta name="description" content="Team Yoda: tênis com a Metodologia MTY. Treinos no Team Yoda · Cooper Tênis e no 39 Ranch Tennis Club, Academia Digital e consultorias com Richard Tsukada.">
 <meta name="theme-color" content="#FFFFFF">
 <link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
 <link rel="apple-touch-icon" sizes="180x180" href="../assets/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-<link rel="stylesheet" href="../digital/digital.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="preload" as="image" href="../assets/foto-forehand.jpg">
+<!-- Portal do Team Yoda (teamyoda.com.br). Página estática: o que é dinâmico vem das functions que já existiam
+     (digital?vitrine=1 para as trilhas e a venda, digital acao=interesse para o aviso). Entradas preservadas:
+     /treinador (professor), ../digital/ (Academia Digital e conta ligada pelo link do aluno), WhatsApp (MTY_WHATSAPP),
+     /cliente.html?org=team-yoda (aulas e reservas), 39tennis.com.br, consultorias em quadralab.com.br/competicao/. -->
 <style>
-  .topo .nav { display: none; gap: 4px; }
-  .topo .nav a { color: var(--tinta); text-decoration: none; font-weight: 600; font-size: 14px; padding: 8px 10px; border-radius: 8px; }
-  .topo .nav a:hover { background: #EEF2F0; }
-  @media (min-width: 720px) { .topo .nav { display: flex; } }
-  .marca img.logo-ty { height: 32px; width: auto; }
-  section.bloco { max-width: 980px; margin: 0 auto; padding: 28px 16px 8px; }
-  .heroi-portal { background: var(--tinta); color: #fff; overflow: hidden; }
-  .heroi-portal .in { max-width: 980px; margin: 0 auto; padding: 0 16px 36px; display: grid; gap: 20px; grid-template-columns: 1fr; }
-  .heroi-foto { margin: 0 -16px; position: relative; aspect-ratio: 4 / 3; max-height: 360px; overflow: hidden; }
-  .heroi-foto img { width: 100%; height: 100%; object-fit: cover; object-position: 46% 32%; display: block; }
-  .heroi-foto::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(23, 37, 31, 0) 55%, #17251F 100%); }
-  @media (min-width: 760px) {
-    .heroi-portal .in { grid-template-columns: 1.05fr .95fr; align-items: center; padding: 34px 16px 36px; }
-    .heroi-foto { order: 2; margin: 0; aspect-ratio: 4 / 5; max-height: 460px; border-radius: 22px; }
-    .heroi-foto::after { background: linear-gradient(90deg, rgba(23, 37, 31, .35) 0%, rgba(23, 37, 31, 0) 40%); }
+  :root {
+    --fundo: #FAFAF8; --branco: #FFFFFF; --tinta: #111111; --grafite: #4A4A48; --cinza: #6E6E6B; --linha: #E4E2DE;
+    --verm: #C2000B; --verm-esc: #9E0009; --escuro: #121212;
+    --titulo: "Archivo", "Inter", system-ui, sans-serif; --texto: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --topo: 60px; --largura: 1120px;
   }
-  .heroi-portal h1 { color: #fff; font-size: clamp(28px, 6vw, 42px); max-width: 16ch; margin: 8px 0 12px; }
-  .heroi-portal p { color: #D5DED9; font-size: 16.5px; max-width: 58ch; margin: 0; }
-  .sobre { font-size: 12.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--saibro); }
-  .heroi-portal .acoes { margin-top: 20px; }
-  .heroi-portal .btn-claro { background: transparent; color: #fff; border-color: rgba(255, 255, 255, .5); }
-  .portas { display: grid; gap: 12px; grid-template-columns: 1fr; }
-  @media (min-width: 640px) { .portas { grid-template-columns: 1fr 1fr; } }
-  .porta { display: flex; flex-direction: column; }
-  .porta .acoes { margin-top: auto; padding-top: 12px; }
-  .porta .ic { width: 48px; height: 48px; border-radius: 12px; display: grid; place-items: center; background: #E9EEEB; font-size: 22px; margin-bottom: 10px; overflow: hidden; }
-  .porta .ic img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
-  .video-vendas { max-width: 340px; margin: 0 auto 16px; border-radius: 26px; overflow: hidden; box-shadow: 0 18px 40px rgba(23, 37, 31, .25); background: #17251F; aspect-ratio: 9 / 16; }
-  .video-vendas video { width: 100%; height: 100%; display: block; object-fit: cover; }
-  @media (prefers-reduced-motion: reduce) { .video-vendas video { display: none; } .video-vendas { background: #17251F url(../assets/video-academia-digital.jpg) center / cover; } }
-  .recursos { display: grid; gap: 12px; grid-template-columns: 1fr; }
-  @media (min-width: 760px) { .recursos { grid-template-columns: repeat(3, 1fr); } }
-  .planos { display: grid; gap: 12px; grid-template-columns: 1fr; }
-  @media (min-width: 700px) { .planos { grid-template-columns: 1fr 1fr; } }
-  .plano.destaque { border: 2px solid var(--saibro); }
-  .plano ul { padding-left: 18px; margin: 10px 0 0; }
-  .passos { counter-reset: p; list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
-  .passos li { counter-increment: p; position: relative; padding: 14px 14px 14px 56px; background: var(--cal); border: 1px solid var(--linha); border-radius: 12px; }
-  .passos li::before { content: counter(p); position: absolute; left: 14px; top: 12px; width: 30px; height: 30px; border-radius: 50%; background: var(--tinta); color: #fff; display: grid; place-items: center; font-weight: 800; }
-  details.faq { background: var(--cal); border: 1px solid var(--linha); border-radius: 12px; padding: 0 14px; }
-  details.faq + details.faq { margin-top: 8px; }
-  details.faq summary { cursor: pointer; font-weight: 700; padding: 14px 0; min-height: 44px; }
-  details.faq p { margin: 0 0 14px; color: var(--grafite); }
-  .trilhas-vit { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: calc(var(--topo) + 12px); -webkit-text-size-adjust: 100%; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body { margin: 0; background: var(--fundo); color: var(--tinta); font: 16px/1.6 var(--texto); overflow-x: hidden; }
+  img { max-width: 100%; height: auto; display: block; }
+  a { color: inherit; }
+  :focus-visible { outline: 3px solid var(--verm); outline-offset: 3px; border-radius: 2px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .pular { position: absolute; left: 12px; top: -60px; background: var(--tinta); color: #fff; padding: 10px 14px; z-index: 60; text-decoration: none; }
+  .pular:focus { top: 10px; }
+  .cont { max-width: var(--largura); margin: 0 auto; padding: 0 20px; }
+  h1, h2, h3 { font-family: var(--titulo); letter-spacing: -0.02em; margin: 0; line-height: 1.08; }
+  h2 { font-size: clamp(30px, 7vw, 48px); font-weight: 800; }
+  h3 { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+  p { margin: 0; }
+  .olho { font: 700 12.5px/1 var(--texto); letter-spacing: .12em; text-transform: uppercase; color: var(--verm); margin-bottom: 14px; display: block; }
+  .lead { font-size: 18px; color: var(--grafite); max-width: 56ch; margin-top: 14px; }
+
+  /* botões: retos, sem sombra, sem seta */
+  .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 22px; border-radius: 4px; font: 600 15.5px/1 var(--texto);
+    text-decoration: none; border: 2px solid var(--tinta); background: var(--tinta); color: #fff; cursor: pointer; transition: background .15s, color .15s, border-color .15s; }
+  .btn:hover { background: #2A2A2A; border-color: #2A2A2A; }
+  .btn-verm { background: var(--verm); border-color: var(--verm); }
+  .btn-verm:hover { background: var(--verm-esc); border-color: var(--verm-esc); }
+  .btn-linha { background: transparent; color: var(--tinta); }
+  .btn-linha:hover { background: var(--tinta); color: #fff; }
+  .btn-claro { background: transparent; color: #fff; border-color: rgba(255,255,255,.7); }
+  .btn-claro:hover { background: #fff; color: var(--tinta); border-color: #fff; }
+  .link { font-weight: 600; text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1.5px; background: none; border: 0; padding: 0; cursor: pointer; font-size: 15.5px; color: var(--tinta); font-family: var(--texto); }
+  .acoes { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+
+  /* cabeçalho compacto e fixo */
+  .topo { position: sticky; top: 0; z-index: 50; background: rgba(250,250,248,.94); backdrop-filter: saturate(1.4) blur(8px); -webkit-backdrop-filter: saturate(1.4) blur(8px); border-bottom: 1px solid var(--linha); }
+  .topo .cont { height: var(--topo); display: flex; align-items: center; gap: 12px; }
+  .topo .logo img { height: 30px; width: auto; }
+  .topo nav.desk { display: none; margin-left: auto; gap: 4px; align-items: center; }
+  .topo nav.desk a { text-decoration: none; font-weight: 600; font-size: 15px; padding: 8px 12px; color: var(--grafite); }
+  .topo nav.desk a:hover { color: var(--tinta); }
+  .topo nav.desk a.btn, .topo nav.desk a.btn:hover { color: #fff; }
+  .topo .btn { min-height: 40px; padding: 0 16px; font-size: 14.5px; }
+  .topo .aluno-cel { margin-left: auto; }
+  .menu-bt { width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; background: none; border: 0; cursor: pointer; padding: 0; color: var(--tinta); }
+  .menu-bt span, .menu-bt span::before, .menu-bt span::after { display: block; width: 20px; height: 2px; background: currentColor; position: relative; transition: transform .2s; }
+  .menu-bt span::before, .menu-bt span::after { content: ""; position: absolute; left: 0; }
+  .menu-bt span::before { top: -6px; } .menu-bt span::after { top: 6px; }
+  .menu-bt[aria-expanded="true"] span { background: transparent; }
+  .menu-bt[aria-expanded="true"] span::before { transform: translateY(6px) rotate(45deg); }
+  .menu-bt[aria-expanded="true"] span::after { transform: translateY(-6px) rotate(-45deg); }
+  .menu { border-top: 1px solid var(--linha); background: var(--fundo); }
+  .menu[hidden] { display: none; }
+  .menu a { display: block; padding: 14px 20px; text-decoration: none; font-weight: 600; border-bottom: 1px solid var(--linha); }
+  .menu a.prof { color: var(--cinza); font-weight: 500; }
+  @media (min-width: 900px) {
+    .topo nav.desk { display: flex; }
+    .topo .aluno-cel, .menu-bt, .menu { display: none !important; }
+  }
+
+  /* abertura: no celular a foto inteira (raquete, rosto e gesto) e logo abaixo a chamada com os botões, tudo na primeira tela;
+     no computador a chamada fica sobre a foto */
+  .abertura { position: relative; background: var(--escuro); color: #fff; overflow: hidden; }
+  .abertura .foto { position: relative; aspect-ratio: 1179 / 804; max-height: 46svh; width: 100%; }
+  .abertura .foto img { width: 100%; height: 100%; object-fit: cover; object-position: 40% 40%; }
+  .abertura .foto::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 28%; background: linear-gradient(180deg, rgba(18,18,18,0), var(--escuro)); }
+  .abertura .cont { position: relative; padding-top: 4px; padding-bottom: 32px; }
+  .abertura h1 { font-size: clamp(36px, 10vw, 66px); font-weight: 800; letter-spacing: -0.035em; line-height: .98; }
+  .abertura h1 em { font-style: normal; display: block; font-weight: 700; font-size: .5em; letter-spacing: -0.02em; line-height: 1.15; margin-top: 10px; color: rgba(255,255,255,.92); }
+  .abertura p { font-size: 16.5px; color: rgba(255,255,255,.84); max-width: 44ch; margin: 12px 0 20px; }
+  .abertura .faixa { display: block; width: 40px; height: 4px; background: var(--verm); margin-bottom: 14px; }
+  @media (min-width: 900px) {
+    .abertura .foto { position: absolute; inset: 0 0 0 34%; aspect-ratio: auto; max-height: none; width: auto; }
+    .abertura .foto img { object-position: 42% 40%; }
+    .abertura .foto::after { inset: 0; height: auto; background: linear-gradient(90deg, var(--escuro) 0%, rgba(18,18,18,.5) 22%, rgba(18,18,18,0) 50%); }
+    .abertura .cont { min-height: 620px; display: flex; flex-direction: column; justify-content: center; padding-top: 70px; padding-bottom: 70px; }
+    .abertura .txt { max-width: 560px; }
+    .abertura p { font-size: 18px; margin: 18px 0 26px; }
+  }
+
+  section.sec { padding: 72px 0; }
+  @media (min-width: 900px) { section.sec { padding: 104px 0; } }
+  .escura { background: var(--escuro); color: #fff; }
+  .escura .lead, .escura p { color: rgba(255,255,255,.78); }
+  .branca { background: var(--branco); }
+
+  /* metodologia: texto + foto, pilares em lista com divisões */
+  .met { display: grid; gap: 40px; }
+  .met .foto-met { position: relative; }
+  .met .foto-met img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; object-position: 40% 62%; }
+  .met .foto-met figcaption { font-size: 13px; color: var(--cinza); margin-top: 8px; }
+  .pilares { list-style: none; padding: 0; margin: 34px 0 0; border-top: 1px solid var(--linha); }
+  .pilares li { display: grid; grid-template-columns: 56px 1fr; gap: 0 14px; padding: 22px 0; border-bottom: 1px solid var(--linha); }
+  .pilares .n { font: 800 15px/1.4 var(--titulo); color: var(--verm); padding-top: 2px; }
+  .pilares h3 { margin-bottom: 4px; }
+  .pilares p { color: var(--grafite); }
+  @media (min-width: 900px) { .met { grid-template-columns: 1.05fr .95fr; gap: 72px; align-items: center; } .met .foto-met img { aspect-ratio: 4 / 5; object-position: 45% 45%; } }
+
+  /* Richard (aparece quando há foto) */
+  .rt { display: grid; gap: 32px; align-items: center; }
+  .rt img { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; }
+  @media (min-width: 900px) { .rt { grid-template-columns: .85fr 1.15fr; gap: 64px; } }
+
+  /* unidades */
+  .unidades { display: grid; gap: 0; margin-top: 40px; border-top: 1px solid var(--linha); }
+  .unidade { display: grid; grid-template-columns: 88px 1fr; gap: 18px; padding: 28px 0; border-bottom: 1px solid var(--linha); align-items: start; }
+  .unidade .lg { width: 88px; height: 88px; display: grid; place-items: center; background: #fff; border: 1px solid var(--linha); }
+  .unidade .lg img { max-width: 76px; max-height: 76px; width: auto; height: auto; object-fit: contain; }
+  .unidade p { color: var(--grafite); margin: 6px 0 14px; }
+  @media (min-width: 900px) { .unidades { grid-template-columns: 1fr 1fr; gap: 0 56px; border-top: 0; } .unidade { border-top: 1px solid var(--linha); } }
+
+  /* academia digital */
+  .ad-topo { display: grid; gap: 28px; }
+  .recursos { display: grid; gap: 36px; margin-top: 48px; }
+  .recurso .tela { background: #1B1B1B; padding: 18px 18px 0; overflow: hidden; }
+  .recurso .tela img { width: 100%; max-width: 300px; margin: 0 auto; border-radius: 14px 14px 0 0; aspect-ratio: 368 / 720; object-fit: cover; object-position: top; height: 300px; }
+  .recurso h3 { margin: 18px 0 6px; color: #fff; }
+  .recurso p { font-size: 15.5px; }
+  .nota-tela { font-size: 12.5px; color: rgba(255,255,255,.55) !important; margin-top: 18px; }
+  .trilhas { margin-top: 56px; border-top: 1px solid rgba(255,255,255,.16); }
+  .trilhas[hidden] { display: none; }
+  .trilha { display: grid; grid-template-columns: 1fr; gap: 6px; padding: 20px 0; border-bottom: 1px solid rgba(255,255,255,.16); }
+  .trilha h3 { color: #fff; font-size: 18px; }
+  .trilha ul { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; }
+  .trilha li { color: rgba(255,255,255,.75); font-size: 15px; }
+  .qlab { display: inline-flex; align-items: center; gap: 8px; margin-top: 34px; font-size: 13px; color: rgba(255,255,255,.6); }
+  .qlab img { height: 18px; width: auto; opacity: .85; }
+  @media (min-width: 900px) {
+    .ad-topo { grid-template-columns: 1fr 1fr; gap: 64px; align-items: end; }
+    .recursos { grid-template-columns: repeat(3, 1fr); gap: 28px; }
+    .trilha { grid-template-columns: 220px 1fr; align-items: baseline; }
+  }
+
+  /* consultorias */
+  .cons { display: grid; gap: 36px; }
+  .servicos { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--linha); }
+  .servicos li { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; padding: 18px 0; border-bottom: 1px solid var(--linha); }
+  .servicos b { font-family: var(--titulo); font-size: 17.5px; font-weight: 700; letter-spacing: -0.01em; }
+  .servicos .preco { font-weight: 700; white-space: nowrap; }
+  .servicos .det { grid-column: 1 / -1; color: var(--grafite); font-size: 15px; }
+  .cons .obs { font-size: 14px; color: var(--cinza); margin-top: 16px; }
+  @media (min-width: 900px) { .cons { grid-template-columns: .9fr 1.1fr; gap: 72px; } }
+
+  /* acesso */
+  .acesso { display: grid; gap: 0; }
+  .publico { padding: 40px 0; border-bottom: 1px solid var(--linha); }
+  .publico:first-child { padding-top: 0; }
+  .publico p.txt { color: var(--grafite); margin: 12px 0 22px; max-width: 46ch; }
+  .unid-escolha { margin-top: 18px; padding: 18px; background: var(--fundo); border: 1px solid var(--linha); }
+  .unid-escolha[hidden] { display: none; }
+  .unid-escolha p { font-size: 15px; color: var(--grafite); margin-bottom: 12px; }
+  .campo { display: block; font-weight: 600; font-size: 14.5px; margin-bottom: 12px; }
+  .campo input { display: block; width: 100%; margin-top: 6px; min-height: 48px; padding: 10px 14px; font: 16px var(--texto); border: 1.5px solid #BDBAB4; border-radius: 4px; background: #fff; color: var(--tinta); }
+  .campo input:focus-visible { outline: 3px solid var(--verm); outline-offset: 1px; border-color: var(--tinta); }
+  .campo input[aria-invalid="true"] { border-color: var(--verm); }
+  .msg { font-size: 15px; margin: 4px 0 12px; padding: 12px 14px; border-left: 3px solid; }
+  .msg[hidden] { display: none; }
+  .msg-ok { border-color: #2E7D32; background: #F1F7F1; }
+  .msg-erro { border-color: var(--verm); background: #FBF0F0; }
+  .assinatura[hidden], #fEspera[hidden] { display: none; }
+  .preco-ass { font: 800 28px/1.1 var(--titulo); margin: 10px 0 4px; }
+  @media (min-width: 900px) { .acesso { grid-template-columns: 1fr 1fr; gap: 64px; } .publico { padding: 0; border: 0; } .publico + .publico { border-left: 1px solid var(--linha); padding-left: 64px; } }
+
+  /* perguntas */
+  .faq { max-width: 780px; margin-top: 36px; border-top: 1px solid var(--linha); }
+  .faq details { border-bottom: 1px solid var(--linha); }
+  .faq summary { list-style: none; cursor: pointer; padding: 20px 40px 20px 0; font-weight: 600; font-size: 17px; position: relative; min-height: 48px; }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::after { content: ""; position: absolute; right: 6px; top: 50%; width: 12px; height: 12px; border-right: 2px solid var(--tinta); border-bottom: 2px solid var(--tinta); transform: translateY(-70%) rotate(45deg); transition: transform .2s; }
+  .faq details[open] summary::after { transform: translateY(-30%) rotate(-135deg); }
+  .faq details p { padding: 0 0 20px; color: var(--grafite); max-width: 64ch; }
+
+  /* rodapé */
+  .rodape { background: var(--escuro); color: rgba(255,255,255,.75); padding: 56px 0 32px; font-size: 15px; }
+  .rodape .logo-rod { height: 34px; width: auto; filter: none; background: #fff; padding: 6px 10px; box-sizing: content-box; }
+  .rodape .grade { display: grid; gap: 32px; margin-top: 28px; }
+  .rodape h3 { color: #fff; font-family: var(--texto); font-size: 13px; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; margin-bottom: 12px; }
+  .rodape ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+  .rodape a { color: #fff; text-decoration: none; }
+  .rodape a:hover { text-decoration: underline; }
+  .rodape .fim { margin-top: 40px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,.14); font-size: 13px; color: rgba(255,255,255,.55); display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; }
+  @media (min-width: 900px) { .rodape .grade { grid-template-columns: 1.4fr 1fr 1fr 1fr; } }
+
+  /* entrada discreta das seções */
+  .js .surge { opacity: 0; transform: translateY(14px); transition: opacity .6s ease, transform .6s ease; }
+  .js .surge.vis { opacity: 1; transform: none; }
+  @media (prefers-reduced-motion: reduce) { .js .surge { opacity: 1; transform: none; transition: none; } }
 </style>
 </head>
 <body>
+<script>document.documentElement.classList.add("js");</script>
+<a class="pular" href="#conteudo">Pular para o conteúdo</a>
+
 <header class="topo">
-  <div class="topo-in">
-    <a class="marca" href="#inicio"><img class="logo-ty" src="../assets/logo-team-yoda-transparente.png" alt="Team Yoda" width="81" height="32"><span class="marca-txt"><b>Metodologia MTY</b><span>Cooper Tênis · 39 Ranch · Online</span></span></a>
-    <span class="espaco"></span>
-    <nav class="nav" aria-label="Principal"><a href="#entrar">Entrar</a><a href="#digital">Academia Digital</a><a href="#perguntas">Perguntas</a></nav>
+  <div class="cont">
+    <a class="logo" href="#inicio" aria-label="Team Yoda — início"><img src="../assets/logo-team-yoda-transparente.png" alt="Team Yoda" width="76" height="30"></a>
+    <nav class="desk" aria-label="Principal">
+      <a href="#metodologia">Metodologia</a>
+      <a href="#unidades">Unidades</a>
+      <a href="#academia-digital">Academia Digital</a>
+      <a href="#consultorias">Consultorias</a>
+      <a class="btn btn-verm" href="#acesso" style="margin-left:8px">Área do aluno</a>
+    </nav>
+    <a class="btn btn-verm aluno-cel" href="#acesso">Área do aluno</a>
+    <button class="menu-bt" type="button" aria-expanded="false" aria-controls="menuCel" id="menuBt"><span></span><b class="sr">Menu</b></button>
   </div>
+  <nav class="menu" id="menuCel" aria-label="Menu" hidden>
+    <a href="#metodologia">Metodologia</a>
+    <a href="#unidades">Unidades</a>
+    <a href="#academia-digital">Academia Digital</a>
+    <a href="#consultorias">Consultorias</a>
+    <a href="#perguntas">Perguntas</a>
+    <a class="prof" href="/treinador" data-professor>Área do professor</a>
+  </nav>
 </header>
 
-<div class="heroi-portal" id="inicio">
-  <div class="in">
-    <figure class="heroi-foto" style="margin-top:0;margin-bottom:0"><img src="../assets/foto-forehand.jpg" alt="Atleta do Team Yoda batendo um forehand em quadra de saibro" width="1179" height="804" fetchpriority="high"></figure>
-    <div class="heroi-txt">
-    <span class="sobre">Team Yoda · Metodologia MTY</span>
-    <h1>Tênis com método, na quadra e fora dela</h1>
-    <p>Aulas presenciais no <b>Team Yoda · Cooper Tênis</b> e no <b>39 Ranch Tennis Club</b>, e a <b>Academia Digital</b> para continuar treinando de onde você estiver. Quem treina nas nossas unidades tem a Academia Digital incluída, sem pagar nada a mais.</p>
-    <div class="acoes"><a class="btn btn-saibro" href="#digital">Conhecer a Academia Digital</a><a class="btn btn-claro" href="#entrar">Já tenho acesso</a></div>
-    </div>
-  </div>
-</div>
-
-<main id="conteudo" style="padding:0;max-width:none">
-  <section class="bloco" id="entrar" aria-labelledby="tEntrar">
-    <h2 id="tEntrar" style="font-size:22px">Escolha como entrar</h2>
-    <div class="portas">
-      <article class="cartao porta" data-porta="professor">
-        <span class="ic" aria-hidden="true">📋</span>
-        <h3>Professor da academia</h3>
-        <p class="det" style="margin:0">Agenda, fichas dos alunos e turmas, planejamento, scout, relatórios e a coordenação da Academia Digital.</p>
-        <div class="acoes"><a class="btn" href="/treinador">Entrar no app do treinador</a></div>
-      </article>
-      <article class="cartao porta" data-porta="cooper">
-        <span class="ic"><img src="../assets/logo-team-yoda.jpg" alt=""></span>
-        <h3>Aluno Team Yoda · Cooper Tênis</h3>
-        <p class="det" style="margin:0">O seu plano, as aulas, as reposições e as conversas com o professor ficam no seu link do aluno (o professor manda pelo WhatsApp). Por ele você entra na Academia Digital sem pagar.</p>
-        <div class="acoes"><a class="btn" href="../digital/">Academia Digital</a><a class="btn btn-claro" data-whatsapp="Olá! Sou aluno do Team Yoda no Cooper Tênis e preciso do meu link do aluno." href="#" target="_blank" rel="noopener">Pedir meu link</a></div>
-      </article>
-      <article class="cartao porta" data-porta="39ranch">
-        <span class="ic"><img src="../assets/logo-39-ranch.png" alt=""></span>
-        <h3>Aluno 39 Ranch Tennis Club</h3>
-        <p class="det" style="margin:0">Mesmo jeito: o seu link do aluno mostra o plano e as aulas, e liga a sua conta na Academia Digital, incluída na matrícula. Reservas e o app do clube ficam no site do 39 Ranch.</p>
-        <div class="acoes"><a class="btn" href="../digital/">Academia Digital</a><a class="btn btn-claro" href="https://39tennis.com.br/">Site do 39 Ranch</a><a class="btn btn-claro" data-whatsapp="Olá! Sou aluno do 39 Ranch Tennis Club e preciso do meu link do aluno." href="#" target="_blank" rel="noopener">Pedir meu link</a></div>
-      </article>
-      <article class="cartao porta" data-porta="digital">
-        <span class="ic" aria-hidden="true">▶</span>
-        <h3>Academia Digital</h3>
-        <p class="det" style="margin:0">Para quem treina fora das nossas unidades: trilhas de aulas em vídeo, treinos e o simulador, com assinatura mensal.</p>
-        <div class="acoes"><a class="btn btn-saibro" href="../digital/">Entrar ou criar conta</a></div>
-      </article>
+<main id="conteudo">
+  <section class="abertura" id="inicio" aria-labelledby="tInicio">
+    <div class="foto"><img src="../assets/foto-forehand.jpg" alt="Atleta do Team Yoda batendo um forehand em quadra de saibro" width="1179" height="804" fetchpriority="high"></div>
+    <div class="cont">
+      <div class="txt">
+        <span class="faixa" aria-hidden="true"></span>
+        <h1 id="tInicio">Tênis com método.<em>Evolução dentro e fora da quadra.</em></h1>
+        <p>Conheça a Metodologia MTY, presente nos treinos do Team Yoda e na Academia Digital.</p>
+        <div class="acoes">
+          <a class="btn btn-verm" href="#metodologia">Conhecer a metodologia</a>
+          <a class="btn btn-claro" href="#acesso">Sou aluno</a>
+        </div>
+      </div>
     </div>
   </section>
 
-  <section class="bloco" id="digital" aria-labelledby="tDigital">
-    <span class="sobre" style="color:var(--saibro-esc)">Academia Digital</span>
-    <h2 id="tDigital" style="font-size:26px;margin-top:4px">A Metodologia MTY no seu celular</h2>
-    <p class="lead">O mesmo método das nossas quadras, organizado para você treinar no seu ritmo, com a tecnologia QuadraLab.</p>
-    <div class="video-vendas"><video src="../assets/video-academia-digital.mp4" poster="../assets/video-academia-digital.jpg" autoplay muted loop playsinline preload="metadata" aria-label="Vídeo de 14 segundos mostrando as telas da Academia Digital: painel, treinos com a quadra animada e simulador"></video></div>
-    <div class="recursos">
-      <div class="cartao"><h3>Trilhas de aulas em vídeo</h3><p class="det" style="margin:0">Aulas em sequência, por nível, com o que fazer depois de assistir. Marque as feitas e acompanhe o seu avanço.</p></div>
-      <div class="cartao"><h3>Treinos com a quadra animada</h3><p class="det" style="margin:0">Os exercícios do catálogo MTY com montagem, carga, regressão e progressão, e a quadra mostrando cada bola e cada deslocamento.</p></div>
-      <div class="cartao"><h3>Simulador de decisões</h3><p class="det" style="margin:0">Situações de ponto: escolha o alvo, a altura e a intensidade, veja uma resposta possível do adversário e entenda a próxima jogada.</p></div>
-    </div>
-    <div id="vitrine" hidden class="cartao"><h3>Trilhas disponíveis</h3><div class="trilhas-vit" id="vitTrilhas"></div></div>
-
-    <h3 style="font-size:18px;margin:22px 0 10px">Planos</h3>
-    <div class="planos">
-      <div class="cartao plano destaque" data-plano="unidade">
-        <span class="nivel" style="font-size:12px;font-weight:700;color:var(--saibro-esc);text-transform:uppercase;letter-spacing:.04em">Aluno das unidades</span>
-        <p class="preco" style="margin:6px 0 0">Incluída na matrícula</p>
-        <p class="det" style="margin:4px 0 0">Para quem faz aula no Team Yoda · Cooper Tênis ou no 39 Ranch Tennis Club.</p>
-        <ul><li>Acesso completo à Academia Digital</li><li>Liberado pelo seu link do aluno, na hora</li><li>Até 3 contas por aluno (aluno, pai e mãe)</li></ul>
-        <div class="acoes"><a class="btn" href="../digital/">Entrar com o meu link</a></div>
+  <section class="sec" id="metodologia" aria-labelledby="tMet">
+    <div class="cont met">
+      <div class="surge">
+        <span class="olho">Metodologia MTY</span>
+        <h2 id="tMet">Cada treino tem um propósito.</h2>
+        <p class="lead">Um trabalho que conecta técnica, leitura de jogo e preparação mental para orientar a evolução do jogador.</p>
+        <ol class="pilares">
+          <li><span class="n">01</span><div><h3>Técnica</h3><p>Desenvolva fundamentos para executar melhor cada golpe.</p></div></li>
+          <li><span class="n">02</span><div><h3>Tática</h3><p>Entenda as situações do jogo e tome decisões com mais intenção.</p></div></li>
+          <li><span class="n">03</span><div><h3>Mental</h3><p>Trabalhe rotina, foco e respostas aos desafios da competição.</p></div></li>
+        </ol>
       </div>
-      <div class="cartao plano" data-plano="assinatura">
-        <span class="nivel" style="font-size:12px;font-weight:700;color:var(--grafite);text-transform:uppercase;letter-spacing:.04em">Assinatura</span>
-        <p class="preco" id="preco" style="margin:6px 0 0">Em breve</p>
-        <p class="det" id="precoObs" style="margin:4px 0 0">Para quem treina em qualquer lugar.</p>
-        <ul><li>Trilhas de aulas em vídeo</li><li>Treinos com a quadra animada</li><li>Simulador de decisões</li></ul>
-        <div class="acoes" id="assAcoes"><a class="btn btn-saibro" href="../digital/" id="btAssinar" hidden>Criar conta e assinar</a></div>
-        <form id="fEspera" novalidate style="margin-top:6px">
-          <p class="det" style="margin:0">As assinaturas abrem em breve. Deixe o seu contato e avisamos você primeiro.</p>
-          <label class="campo">Nome<input name="nome" autocomplete="name" maxlength="80"></label>
-          <label class="campo">E-mail<input name="email" type="email" autocomplete="email" inputmode="email"></label>
-          <p id="mEspera" class="msg" hidden></p>
-          <div class="acoes"><button class="btn btn-claro" type="submit">Quero ser avisado</button></div>
-        </form>
-      </div>
+      <figure class="foto-met surge" style="margin:0">
+        <img src="../assets/portal-saque.jpg" alt="Atleta com a camiseta do Team Yoda sacando em quadra coberta" width="720" height="960" loading="lazy" decoding="async">
+        <figcaption>Treino do Team Yoda.</figcaption>
+      </figure>
     </div>
-
-    <h3 style="font-size:18px;margin:22px 0 10px">Como funciona</h3>
-    <ol class="passos">
-      <li><b>Crie a sua conta</b> na Academia Digital com e-mail e senha.</li>
-      <li><b>Aluno das unidades:</b> abra o seu link do aluno e toque em <i>Entrar na Academia Digital</i>; o acesso é liberado na hora, sem pagamento. <b>Quem é de fora:</b> assine a mensalidade.</li>
-      <li><b>Treine:</b> assista às aulas, marque as feitas, abra os treinos com a quadra animada e jogue o simulador.</li>
-    </ol>
   </section>
 
-  <section class="bloco" id="perguntas" aria-labelledby="tFaq">
-    <h2 id="tFaq" style="font-size:22px">Perguntas</h2>
-    <details class="faq"><summary>Sou aluno do Team Yoda ou do 39 Ranch. Pago alguma coisa?</summary><p>Não. A Academia Digital é incluída para quem faz aula nas nossas unidades. Basta ligar a sua conta pelo link do aluno. O acesso vale enquanto você estiver matriculado.</p></details>
-    <details class="faq"><summary>Não tenho o link do aluno. Como consigo?</summary><p>Peça ao seu professor ou fale com a gente pelo WhatsApp: o link é pessoal e mostra o seu plano, as aulas e as conversas com o professor.</p></details>
-    <details class="faq"><summary>Pais e responsáveis podem entrar?</summary><p>Sim. Até três contas podem ser ligadas ao mesmo aluno (por exemplo o aluno, o pai e a mãe), cada uma com o seu e-mail.</p></details>
-    <details class="faq"><summary>Onde ficam os vídeos?</summary><p>No YouTube, em modo não listado, e abrem dentro da Academia Digital no modo de privacidade aprimorada. Só quem tem acesso vê a lista das aulas e os vídeos.</p></details>
-    <details class="faq"><summary>Sou professor. Preciso de outra conta?</summary><p>Não. Entre na Academia Digital com o mesmo e-mail e senha do app do treinador. A coordenação monta as trilhas, os vídeos e os treinos de cada aula no app, em Mais › Academia Digital.</p></details>
+  <!-- Richard Tsukada: a seção só aparece quando a foto existir (troque data-foto pelo arquivo em ../assets/ e tire o hidden) -->
+  <section class="sec branca" id="richard" aria-labelledby="tRichard" hidden>
+    <div class="cont rt">
+      <img class="surge" src="" data-foto="" alt="Richard Tsukada" width="800" height="1000" loading="lazy" decoding="async">
+      <div class="surge">
+        <span class="olho">Quem conduz</span>
+        <h2 id="tRichard">Richard Tsukada</h2>
+        <p class="lead">Treinador e criador da Metodologia MTY. Acompanha de perto o trabalho do Team Yoda em quadra e a evolução de cada jogador.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec branca" id="unidades" aria-labelledby="tUni">
+    <div class="cont">
+      <span class="olho surge">Treino presencial</span>
+      <h2 id="tUni" class="surge">Nos encontramos em quadra.</h2>
+      <p class="lead surge">As aulas presenciais da Metodologia MTY acontecem em duas unidades.</p>
+      <div class="unidades">
+        <article class="unidade surge" data-unidade="cooper">
+          <span class="lg"><img src="../assets/logo-team-yoda-transparente.png" alt="" width="76" height="30" loading="lazy"></span>
+          <div>
+            <h3>Team Yoda · Cooper Tênis</h3>
+            <p>Aulas, turmas e equipe de competição do Team Yoda. Reservas e aulas pelo app do cliente.</p>
+            <div class="acoes"><a class="btn btn-linha" href="/cliente.html?org=team-yoda">Aulas e reservas</a><a class="link" data-whatsapp="Olá! Quero saber sobre as aulas do Team Yoda no Cooper Tênis." href="#" target="_blank" rel="noopener">Falar no WhatsApp</a></div>
+          </div>
+        </article>
+        <article class="unidade surge" data-unidade="39ranch">
+          <span class="lg"><img src="../assets/logo-39-ranch.png" alt="" width="76" height="76" loading="lazy"></span>
+          <div>
+            <h3>39 Ranch Tennis Club</h3>
+            <p>Clube com aulas da Metodologia MTY. Reservas e o app do clube ficam no site do 39 Ranch.</p>
+            <div class="acoes"><a class="btn btn-linha" href="https://39tennis.com.br/">Site do 39 Ranch</a></div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec escura" id="academia-digital" aria-labelledby="tAd">
+    <div class="cont">
+      <div class="ad-topo">
+        <div class="surge">
+          <span class="olho">Academia Digital</span>
+          <h2 id="tAd">Seu aprendizado continua fora da quadra.</h2>
+        </div>
+        <p class="lead surge">Aulas em vídeo, exercícios e situações de jogo para complementar seus treinos.</p>
+      </div>
+      <div class="recursos">
+        <div class="recurso surge"><div class="tela"><img src="../assets/portal-tela-painel.jpg" alt="Tela de início da Academia Digital com o avanço do aluno e as aulas da semana" width="368" height="720" loading="lazy" decoding="async"></div>
+          <h3>Aulas em vídeo</h3><p>Conteúdos organizados para acompanhar no seu ritmo.</p></div>
+        <div class="recurso surge"><div class="tela"><img src="../assets/portal-tela-quadra.jpg" alt="Tela de um treino com a quadra animada mostrando a bola e o alvo" width="368" height="720" loading="lazy" decoding="async"></div>
+          <h3>Treinos com quadra animada</h3><p>Visualize os exercícios, os deslocamentos e a construção das jogadas.</p></div>
+        <div class="recurso surge"><div class="tela"><img src="../assets/portal-tela-simulador.jpg" alt="Tela do simulador de decisões com um cenário de jogo na quadra" width="368" height="720" loading="lazy" decoding="async"></div>
+          <h3>Simulador de decisões</h3><p>Explore situações de jogo e entenda as possibilidades de cada escolha.</p></div>
+      </div>
+      <p class="nota-tela">Telas reais da Academia Digital, com dados de exemplo.</p>
+      <div class="trilhas" id="vitrine" hidden>
+        <div id="vitTrilhas"></div>
+      </div>
+      <span class="qlab"><img src="../assets/logo-quadralab-mark.png" alt="" width="18" height="18" loading="lazy">Tecnologia QuadraLab</span>
+    </div>
+  </section>
+
+  <section class="sec" id="consultorias" aria-labelledby="tCons">
+    <div class="cont cons">
+      <div class="surge">
+        <span class="olho">Consultorias com Richard Tsukada</span>
+        <h2 id="tCons">Orientação para quem compete.</h2>
+        <p class="lead">Para famílias e jogadores juvenis que treinam em qualquer lugar e querem um olhar de fora sobre o momento do jogador, com a Metodologia MTY.</p>
+        <div class="acoes" style="margin-top:26px"><a class="btn btn-verm" href="https://quadralab.com.br/competicao/" data-consultoria>Conhecer as consultorias</a>
+          <a class="link" data-whatsapp="Olá, Richard! Quero saber sobre as consultorias para o meu filho/minha filha." href="#" target="_blank" rel="noopener">Conversar no WhatsApp</a></div>
+      </div>
+      <div class="surge">
+        <ul class="servicos">
+          <li><b>Acompanhamento MTY</b><span class="preco">3 × R$ 790</span><span class="det">Três meses com o Richard: avaliação inicial e três encontros mensais por videochamada.</span></li>
+          <li><b>Revisão de estratégia</b><span class="preco">R$ 149</span><span class="det">Revisão de um plano existente, com ajustes e três prioridades.</span></li>
+          <li><b>Consultoria ao vivo</b><span class="preco">R$ 299</span><span class="det">Videochamada individual de 50 minutos para discutir o momento do jogador.</span></li>
+          <li><b>Análise completa do jogador</b><span class="preco">R$ 1.190</span><span class="det">Três partidas completas, devolutiva em vídeo, relatório e plano de ação.</span></li>
+        </ul>
+        <p class="obs">Contratação e atendimento pelo QuadraLab Competição, onde o jogador também organiza temporada, partidas e planejamento.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec branca" id="acesso" aria-labelledby="tAcesso">
+    <div class="cont">
+      <h2 id="tAcesso" class="sr">Acesso</h2>
+      <div class="acesso">
+        <div class="publico surge" data-acesso="aluno">
+          <span class="olho">Alunos das unidades</span>
+          <h2 style="font-size:clamp(28px,6vw,40px)">Já é nosso aluno?</h2>
+          <p class="txt">A Academia Digital está incluída para alunos das nossas unidades, sem custo adicional.</p>
+          <div class="acoes">
+            <a class="btn btn-verm" href="../digital/">Acessar minha área</a>
+            <button class="link" type="button" id="btPrecisoLink" aria-expanded="false" aria-controls="escolhaUnidade">Preciso do meu link de acesso</button>
+          </div>
+          <div class="unid-escolha" id="escolhaUnidade" hidden>
+            <p>O link do aluno é pessoal: mostra o seu plano, as aulas e libera a Academia Digital. Peça na sua unidade:</p>
+            <div class="acoes">
+              <a class="btn btn-linha" data-whatsapp="Olá! Sou aluno do Team Yoda no Cooper Tênis e preciso do meu link do aluno." href="#" target="_blank" rel="noopener">Team Yoda · Cooper Tênis</a>
+              <a class="btn btn-linha" data-whatsapp="Olá! Sou aluno do 39 Ranch Tennis Club e preciso do meu link do aluno." href="#" target="_blank" rel="noopener">39 Ranch</a>
+            </div>
+          </div>
+        </div>
+        <div class="publico surge" data-acesso="externo">
+          <span class="olho">Público externo</span>
+          <h2 style="font-size:clamp(28px,6vw,40px)">Treina em outro lugar?</h2>
+          <div class="assinatura" id="assinatura" hidden>
+            <p class="txt">A Academia Digital também está aberta para quem treina em qualquer lugar, com assinatura.</p>
+            <p class="preco-ass" id="preco"></p>
+            <p class="txt" id="precoObs" style="margin-top:0"></p>
+            <div class="acoes"><a class="btn btn-verm" href="../digital/" id="btAssinar" hidden>Criar conta e assinar</a></div>
+          </div>
+          <form id="fEspera" novalidate>
+            <p class="txt">Em breve, você também poderá acessar a Academia Digital. Cadastre-se para saber quando as inscrições abrirem.</p>
+            <label class="campo">Nome<input name="nome" autocomplete="name" maxlength="80"></label>
+            <label class="campo">E-mail<input name="email" type="email" autocomplete="email" inputmode="email" required aria-describedby="mEspera"></label>
+            <p id="mEspera" class="msg" role="status" hidden></p>
+            <div class="acoes"><button class="btn" type="submit">Quero ser avisado</button></div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="perguntas" aria-labelledby="tFaq">
+    <div class="cont">
+      <span class="olho">Perguntas</span>
+      <h2 id="tFaq">Perguntas frequentes</h2>
+      <div class="faq">
+        <details><summary>Quem pode acessar a Academia Digital?</summary><p>Os alunos do Team Yoda · Cooper Tênis e do 39 Ranch Tennis Club, pelo link do aluno, e os professores das unidades. <span data-faq-externo>Para quem treina em outro lugar, as assinaturas abrem em breve.</span></p></details>
+        <details><summary>Sou aluno de uma unidade. Preciso pagar?</summary><p>Não. A Academia Digital está incluída para quem faz aula nas nossas unidades. O acesso vale enquanto você estiver matriculado.</p></details>
+        <details><summary>Como consigo meu link de acesso?</summary><p>Peça ao seu professor ou fale com a gente pelo WhatsApp. O link é pessoal: mostra o seu plano, as aulas e as conversas com o professor, e por ele você liga a sua conta na Academia Digital.</p></details>
+        <details><summary>Pais e responsáveis podem acompanhar?</summary><p>Sim. Até três contas podem ser ligadas ao mesmo aluno (por exemplo, o aluno, o pai e a mãe), cada uma com o seu e-mail.</p></details>
+        <details><summary>Posso participar se treino em outro lugar?</summary><p data-faq-fora>A Academia Digital para quem treina fora das nossas unidades abre em breve; deixe o seu e-mail em “Quero ser avisado”. Já as consultorias com Richard Tsukada são para jogadores de qualquer lugar.</p></details>
+      </div>
+    </div>
   </section>
 </main>
-<footer class="rodape" style="padding-top:20px"><a href="/cliente.html?org=team-yoda">App do cliente Team Yoda (aulas e reservas)</a> · Team Yoda · Metodologia MTY · Tecnologia QuadraLab · <a data-whatsapp="Olá! Quero saber mais sobre o Team Yoda." href="#" target="_blank" rel="noopener">Fale com a gente no WhatsApp</a></footer>
+
+<footer class="rodape">
+  <div class="cont">
+    <img class="logo-rod" src="../assets/logo-team-yoda-transparente.png" alt="Team Yoda" width="86" height="34" loading="lazy">
+    <div class="grade">
+      <div><p>Tênis com a Metodologia MTY: técnica, tática e preparação mental, na quadra e na Academia Digital.</p></div>
+      <div><h3>Unidades</h3><ul><li><a href="/cliente.html?org=team-yoda">Team Yoda · Cooper Tênis</a></li><li><a href="https://39tennis.com.br/">39 Ranch Tennis Club</a></li></ul></div>
+      <div><h3>Acesso</h3><ul><li><a href="#acesso">Área do aluno</a></li><li><a href="../digital/">Academia Digital</a></li><li><a href="/treinador" data-professor>Área do professor</a></li></ul></div>
+      <div><h3>Contato</h3><ul><li><a data-whatsapp="Olá! Quero saber mais sobre o Team Yoda." href="#" target="_blank" rel="noopener">WhatsApp</a></li><li><a href="https://quadralab.com.br/competicao/">Consultorias</a></li></ul></div>
+    </div>
+    <div class="fim"><span>Team Yoda · Metodologia MTY</span><span>Tecnologia QuadraLab</span></div>
+  </div>
+</footer>
+
 <script src="../mty-nuvem.js"></script>
 <script>
 (function () {
   "use strict";
+  /* WhatsApp: o número vem de mty-nuvem.js; sem ele o link some (nada de botão sem destino) */
   var zap = typeof MTY_WHATSAPP !== "undefined" ? MTY_WHATSAPP : "";
   Array.prototype.forEach.call(document.querySelectorAll("[data-whatsapp]"), function (a) {
     if (zap) a.href = "https://wa.me/" + zap + "?text=" + encodeURIComponent(a.getAttribute("data-whatsapp")); else a.hidden = true;
   });
-  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+
+  /* menu do celular */
+  var bt = document.getElementById("menuBt"), menu = document.getElementById("menuCel");
+  function fecharMenu() { menu.hidden = true; bt.setAttribute("aria-expanded", "false"); }
+  bt.addEventListener("click", function () { var abrir = menu.hidden; menu.hidden = !abrir; bt.setAttribute("aria-expanded", String(abrir)); });
+  Array.prototype.forEach.call(menu.querySelectorAll("a"), function (a) { a.addEventListener("click", fecharMenu); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !menu.hidden) { fecharMenu(); bt.focus(); } });
+
+  /* "Preciso do meu link": escolher a unidade depois do clique */
+  var bl = document.getElementById("btPrecisoLink"), esc = document.getElementById("escolhaUnidade");
+  bl.addEventListener("click", function () { var abrir = esc.hidden; esc.hidden = !abrir; bl.setAttribute("aria-expanded", String(abrir)); });
+
+  /* seções surgem de leve ao rolar (sem movimento para quem pediu menos movimento) */
+  var reduzir = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var surgem = document.querySelectorAll(".surge");
+  if (reduzir || !("IntersectionObserver" in window)) Array.prototype.forEach.call(surgem, function (el) { el.classList.add("vis"); });
+  else {
+    var io = new IntersectionObserver(function (ents) { ents.forEach(function (en) { if (en.isIntersecting) { en.target.classList.add("vis"); io.unobserve(en.target); } }); }, { rootMargin: "0px 0px -8% 0px" });
+    Array.prototype.forEach.call(surgem, function (el) { io.observe(el); });
+  }
+
+  /* trilhas e venda reais da Academia Digital */
+  function escH(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
   var API = "/.netlify/functions/digital";
+  var CATS = [["tecnica", "Técnica"], ["tatica", "Tática"], ["mental", "Mental"], ["geral", "Outras trilhas"]];
   fetch(API + "?vitrine=1").then(function (r) { return r.ok ? r.json() : null; }).then(function (v) {
     if (!v) return;
-    if (v.trilhas && v.trilhas.length) {
-      document.getElementById("vitrine").hidden = false;
-      document.getElementById("vitTrilhas").innerHTML = v.trilhas.map(function (t) { return '<span class="tag" style="font-size:13px;padding:6px 12px">' + esc(t.titulo) + " · " + t.aulas + (t.aulas === 1 ? " aula" : " aulas") + "</span>"; }).join("");
+    var tr = v.trilhas || [];
+    if (tr.length) {
+      var html = CATS.map(function (c) {
+        var l = tr.filter(function (t) { return (t.categoria || "geral") === c[0]; });
+        if (!l.length) return "";
+        return '<div class="trilha"><h3>' + c[1] + "</h3><ul>" + l.map(function (t) { return '<li class="tag">' + escH(t.titulo) + " · " + t.aulas + (t.aulas === 1 ? " aula" : " aulas") + "</li>"; }).join("") + "</ul></div>";
+      }).join("");
+      if (html) { document.getElementById("vitTrilhas").innerHTML = html; document.getElementById("vitrine").hidden = false; }
     }
+    /* assinatura só aparece quando há link de pagamento de verdade; até lá, o aviso de "em breve" */
     var venda = v.venda || {};
-    if (venda.preco) document.getElementById("preco").textContent = venda.preco;
-    if (venda.observacao) document.getElementById("precoObs").textContent = venda.observacao;
-    if (venda.checkoutUrl) { document.getElementById("btAssinar").hidden = false; document.getElementById("fEspera").hidden = true; }
+    if (venda.checkoutUrl) {
+      document.getElementById("assinatura").hidden = false;
+      document.getElementById("btAssinar").hidden = false;
+      document.getElementById("fEspera").hidden = true;
+      if (venda.preco) document.getElementById("preco").textContent = venda.preco;
+      if (venda.observacao) document.getElementById("precoObs").textContent = venda.observacao;
+      Array.prototype.forEach.call(document.querySelectorAll("[data-faq-externo]"), function (el) { el.textContent = "Quem treina em outro lugar pode assinar."; });
+      var f2 = document.querySelector("[data-faq-fora]"); if (f2) f2.textContent = "Sim. Quem treina fora das nossas unidades pode assinar a Academia Digital, e as consultorias com Richard Tsukada são para jogadores de qualquer lugar.";
+    }
   }).catch(function () { /* sem servidor: a página segue com os textos fixos */ });
+
+  /* aviso de abertura (fluxo que já existia: digital acao=interesse) */
   var f = document.getElementById("fEspera"), m = document.getElementById("mEspera");
   function aviso(tipo, t) { m.className = "msg msg-" + tipo; m.textContent = t; m.hidden = false; }
   f.addEventListener("submit", function (ev) {
     ev.preventDefault();
     var email = f.email.value.trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return aviso("erro", "Confira o e-mail.");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) { f.email.setAttribute("aria-invalid", "true"); f.email.focus(); return aviso("erro", "Confira o e-mail."); }
+    f.email.removeAttribute("aria-invalid");
+    var b = f.querySelector("button"); b.disabled = true;
     fetch(API, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ acao: "interesse", nome: f.nome.value.trim(), email: email }) })
       .then(function (r) { if (!r.ok) throw new Error(); aviso("ok", "Combinado: avisamos você em " + email + " quando abrir."); f.reset(); })
-      .catch(function () { aviso("erro", "Não foi possível agora. Tente de novo."); });
+      .catch(function () { aviso("erro", "Não foi possível agora. Tente de novo."); })
+      .then(function () { b.disabled = false; });
   });
 })();
 </script>

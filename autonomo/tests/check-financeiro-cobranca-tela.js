@@ -90,7 +90,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(<div style={{padding
     assert.strictEqual(await p.evaluate(() => window.__papel), "dono");
     /* novidade do financeiro: só para quem vê o financeiro; a equipe continua na versão dela (a janela não reabre vazia) */
     const nv = await p.evaluate(() => ({ dono: novidadesTYPara(true), equipe: novidadesTYPara(false), versao: NOVIDADES_TY_VERSAO, equipeV: NOVIDADES_TY_VERSAO_EQUIPE }));
-    assert(nv.dono.itens[0].so === "financeiro" && nv.dono.itens[0].novo && nv.dono.versao === nv.versao);
+    assert(nv.dono.itens.some((x) => x.so === "financeiro") && nv.dono.versao === nv.versao, "o dono vê as novidades do financeiro");
     assert(!nv.equipe.itens.some((x) => x.so) && (nv.equipe.itens.some((x) => x.novo) ? nv.equipe.versao === nv.versao : nv.equipe.versao === nv.equipeV));
     await esperar(p, /Entradas/);
     assert(await p.locator("[data-painel] [data-destaque-resultado]").count() === 1, "painel do mês com o resultado em destaque");
