@@ -120,7 +120,7 @@
 
   /* Richard (aparece quando há foto) */
   .rt { display: grid; gap: 32px; align-items: center; }
-  .rt img { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; }
+  .rt img { width: 100%; max-width: 460px; aspect-ratio: 1 / 1; object-fit: cover; }
   @media (min-width: 900px) { .rt { grid-template-columns: .85fr 1.15fr; gap: 64px; } }
 
   /* unidades */
@@ -271,19 +271,19 @@
     </div>
   </section>
 
-  <!-- Richard Tsukada: a seção só aparece quando a foto existir (troque data-foto pelo arquivo em ../assets/ e tire o hidden) -->
-  <section class="sec branca" id="richard" aria-labelledby="tRichard" hidden>
+  <section class="sec branca" id="richard" aria-labelledby="tRichard">
     <div class="cont rt">
-      <img class="surge" src="" data-foto="" alt="Richard Tsukada" width="800" height="1000" loading="lazy" decoding="async">
+      <img class="surge" src="../assets/richard-tsukada.jpg" alt="Retrato de Richard Tsukada" width="900" height="900" loading="lazy" decoding="async">
       <div class="surge">
         <span class="olho">Quem conduz</span>
         <h2 id="tRichard">Richard Tsukada</h2>
         <p class="lead">Treinador e criador da Metodologia MTY. Acompanha de perto o trabalho do Team Yoda em quadra e a evolução de cada jogador.</p>
+        <div class="acoes" style="margin-top:24px"><a class="btn btn-linha" href="#consultorias">Consultorias com o Richard</a></div>
       </div>
     </div>
   </section>
 
-  <section class="sec branca" id="unidades" aria-labelledby="tUni">
+  <section class="sec" id="unidades" aria-labelledby="tUni">
     <div class="cont">
       <span class="olho surge">Treino presencial</span>
       <h2 id="tUni" class="surge">Nos encontramos em quadra.</h2>
@@ -337,7 +337,7 @@
   <section class="sec" id="consultorias" aria-labelledby="tCons">
     <div class="cont cons">
       <div class="surge">
-        <span class="olho">Consultorias com Richard Tsukada</span>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px"><img src="../assets/richard-tsukada-240.jpg" alt="" width="56" height="56" loading="lazy" style="width:56px;height:56px;border-radius:50%;object-fit:cover"><span class="olho" style="margin:0">Consultorias com Richard Tsukada</span></div>
         <h2 id="tCons">Orientação para quem compete.</h2>
         <p class="lead">Para famílias e jogadores juvenis que treinam em qualquer lugar e querem um olhar de fora sobre o momento do jogador, com a Metodologia MTY.</p>
         <div class="acoes" style="margin-top:26px"><a class="btn btn-verm" href="https://quadralab.com.br/competicao/" data-consultoria>Conhecer as consultorias</a>

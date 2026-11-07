@@ -113,7 +113,7 @@ const chamar = async (metodo, corpo, tk) => { const x = await digital({ httpMeth
   assert.deepStrictEqual(await vis.$$eval("a[data-professor]", (els) => els.map((e) => e.getAttribute("href"))), ["/treinador", "/treinador"], "Área do professor no menu e no rodapé");
   assert.strictEqual(await vis.getAttribute("[data-unidade=\"39ranch\"] a:has-text('Site do 39 Ranch')", "href"), "https://39tennis.com.br/");
   assert.strictEqual(await vis.getAttribute("[data-consultoria]", "href"), "https://quadralab.com.br/competicao/");
-  assert(await vis.isHidden("#richard"), "seção do Richard só aparece com foto");
+  assert(await vis.isVisible("#richard img[src$='richard-tsukada.jpg']") || (await vis.locator("#richard img[src$='richard-tsukada.jpg']").count()) === 1, "seção do Richard com a foto");
   /* a primeira tela do celular mostra a chamada e os dois botões */
   const fimBotoes = await vis.evaluate(() => document.querySelector("#inicio .acoes").getBoundingClientRect().bottom);
   assert(fimBotoes <= 844, "botões da abertura na primeira tela (" + fimBotoes + ")");
