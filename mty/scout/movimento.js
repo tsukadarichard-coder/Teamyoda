@@ -268,7 +268,7 @@
     var imgs = imagensFases(r, d.fotos), temImgs = imgs.some(function (x) { return !!x.src; }), algumaPose = imgs.some(function (x) { return x.src && !x.foto; });
     var fotos = temImgs ? '<div class="fotos">' + r.fases.map(function (f, i) {
       var daFase = r.itens.filter(function (it) { return it.fase === i && it.status !== "nao_avaliavel"; }), at = daFase.filter(function (it) { return it.status === "atencao"; }).length;
-      var selo = daFase.length ? '<i class="sl ' + (at ? "atencao" : "ok") + '">' + (at ? at + " em atenção" : "tudo OK") + "</i>" : "";
+      var selo = f.foraDoVideo ? '<i class="sl na">fora do vídeo</i>' : daFase.length ? '<i class="sl ' + (at ? "atencao" : "ok") + '">' + (at ? at + " em atenção" : "tudo OK") + "</i>" : "";
       return '<div class="f">' + (imgs[i].src ? '<img src="' + esc(imgs[i].src) + '" alt="' + esc(r.nomes[i]) + '">' : "") + "<b>" + (i + 1) + ". " + esc(r.nomes[i]) + "</b><span>" + fmtNum(f.t, 2) + " s</span>" + selo + "</div>";
     }).join("") + "</div>" + (algumaPose ? '<p class="qm-msg">Nas fases sem foto do vídeo, a imagem mostra só o boneco da pose detectada naquele momento.</p>' : "")
       : '<p class="qm-msg">Esta análise é de antes de o app guardar as imagens das fases. Fases: ' + r.fases.map(function (f, i) { return (i + 1) + ". " + esc(r.nomes[i]) + " (" + fmtNum(f.t, 2) + " s)"; }).join(" · ") + "</p>";
@@ -281,7 +281,7 @@
       medidas += '<div class="medida"><div class="mn">' + esc(it.nome) + '<small>faixa: ' + esc(txtBR(it.ref)) + '</small></div><div class="mr">' + reguaHTML(it) + '</div><div class="mv"><b>' + esc(fmtValor(it.valor, it.unidade)) + '</b><span class="t ' + it.status + '">' + ROT[it.status] + "</span></div></div>";
     });
     var prioCurta = co.prioridades.slice(0, 3).map(function (p) { return "<li>" + esc(p.nome) + "</li>"; }).join("");
-    var resumo = '<div class="resumo"><div class="anel">' + anelSVG(r.resumo, rotRev) + '</div><div class="rtx"><div class="leg">' +
+    var resumo = (r.aviso ? '<div class="aviso-corte"><b>Atenção:</b> ' + esc(r.aviso) + "</div>" : "") + '<div class="resumo"><div class="anel">' + anelSVG(r.resumo, rotRev) + '</div><div class="rtx"><div class="leg">' +
       '<span><i style="background:' + COR.ok + '"></i>' + r.resumo.ok + ' OK</span><span><i style="background:' + COR.atencao + '"></i>' + r.resumo.atencao + ' Atenção</span><span><i style="background:' + COR.nao_avaliavel + '"></i>' + r.resumo.nao_avaliavel + " " + rotRev + "</span></div>" +
       "<p>" + esc(co.texto) + "</p>" + (prioCurta ? '<div class="foco"><b>O que treinar primeiro</b><ol>' + prioCurta + "</ol></div>" : '<div class="foco ok"><b>Nenhuma medida fora da faixa.</b></div>') + "</div></div>" +
       '<p class="como"><b>Como ler:</b> cada régua mostra a faixa de referência em verde e a medida deste vídeo no ponto colorido (verde = dentro da faixa, laranja = fora). Itens "Revisar" não dão para medir pelo vídeo' + (atletaPub ? " — confira olhando o vídeo ou com um treinador." : " e ficam para o treinador.") + "</p>";
@@ -304,7 +304,7 @@
       ".cab{display:flex;align-items:center;gap:14px;border-bottom:3px solid #0B3B2E;padding-bottom:8px;margin-bottom:10px}.cab img{height:34px}.cab .t{font-size:19px;font-weight:800;color:#0B3B2E}.cab small{display:block;color:#444;font-size:11px;margin-top:2px}" +
       "h2{font-size:15px;color:#0B3B2E;margin:14px 0 6px;break-after:avoid;page-break-after:avoid}h2.concl{margin-top:18px}h3{font-size:13px;margin:12px 0 4px;break-after:avoid}.kpi{display:flex;gap:8px}.kpi div{flex:1;text-align:center;border-radius:8px;padding:7px;color:#fff}.kpi b{display:block;font-size:19px}" +
       ".fotos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:8px}@media screen and (max-width:600px){.fotos{grid-template-columns:repeat(2,minmax(0,1fr))}}.f{border:1px solid #E2DED5;border-radius:8px;padding:5px;break-inside:avoid;page-break-inside:avoid}.f img{display:block;max-height:62mm;max-width:100%;width:auto;margin:0 auto;border-radius:5px;background:#fff}.f b{display:block;font-size:11px;margin-top:4px}.f span{font-size:10px;color:#5C6B78;margin-right:6px}" +
-      ".evita-quebra{break-inside:avoid;page-break-inside:avoid}.sl{display:inline-block;font-style:normal;font-size:9.5px;font-weight:700;border-radius:99px;padding:1px 7px;color:#fff}.sl.ok{background:#2E8B57}.sl.atencao{background:#C65825}" +
+      ".evita-quebra{break-inside:avoid;page-break-inside:avoid}.sl{display:inline-block;font-style:normal;font-size:9.5px;font-weight:700;border-radius:99px;padding:1px 7px;color:#fff}.sl.ok{background:#2E8B57}.sl.atencao{background:#C65825}.sl.na{background:#8A8F98}.aviso-corte{border:1px solid #E8B48F;background:#FDF1E8;color:#7A3A12;border-radius:10px;padding:9px 12px;margin:10px 0;font-size:12.5px;line-height:1.45;break-inside:avoid}" +
       ".resumo{display:flex;flex-wrap:wrap;gap:16px;align-items:center;border:1px solid #E2DED5;border-radius:12px;padding:12px 14px;margin:10px 0;break-inside:avoid;page-break-inside:avoid}.resumo .anel{flex:none}.rtx{flex:1;min-width:220px}.rtx p{margin:6px 0;font-size:12.5px;line-height:1.45}" +
       ".leg{display:flex;flex-wrap:wrap;gap:12px;font-size:11.5px;font-weight:700}.leg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}" +
       ".foco{background:#FBF1EA;border-radius:8px;padding:7px 10px;font-size:12px}.foco.ok{background:#EAF5EE}.foco ol{margin:3px 0 0 18px;padding:0}.como{font-size:10.5px;color:#5C6B78;margin:0 0 6px}" +
@@ -531,20 +531,31 @@
         var fps = +q("fps").value || 30, ini = dur > JANELA + 0.5 ? Math.max(0, Math.min(ini0, dur - JANELA)) : 0, fimT = Math.min(dur, ini + JANELA);
         var n = Math.max(1, Math.floor((fimT - ini) * fps)), qs = [], ok = 0;
         ajustaCanvas();
-        for (var i = 0; i < n; i++) {
-          /* espera o quadro novo de fato aparecer depois do seek: em alguns celulares o vídeo muda de tempo antes de mudar a imagem,
-             e a pose saía do quadro anterior (poses repetidas e fases erradas) */
-          var t = Math.round((ini + i / fps) * 1000) / 1000; await seek(t); await quadroPronto();
-          var r = pose.detectForVideo(v, proximoCarimbo());
-          if (r.landmarks && r.landmarks[0]) {
-            ok++; qs.push({ t: t, lm: r.landmarks[0].map(function (p) { return { x: p.x, y: p.y, z: p.z, v: p.visibility }; }) });
-            var c = cv.getContext("2d"); c.clearRect(0, 0, cv.width, cv.height); desenhar(cv, r.landmarks[0], cv.width, cv.height);
+        var lerQuadros = async function (de, ate) {
+          for (var i = de; i < ate; i++) {
+            /* espera o quadro novo de fato aparecer depois do seek: em alguns celulares o vídeo muda de tempo antes de mudar a imagem,
+               e a pose saía do quadro anterior (poses repetidas e fases erradas) */
+            var t = Math.round((ini + i / fps) * 1000) / 1000; await seek(t); await quadroPronto();
+            var r = pose.detectForVideo(v, proximoCarimbo());
+            if (r.landmarks && r.landmarks[0]) {
+              ok++; qs.push({ t: t, lm: r.landmarks[0].map(function (p) { return { x: p.x, y: p.y, z: p.z, v: p.visibility }; }) });
+              var c = cv.getContext("2d"); c.clearRect(0, 0, cv.width, cv.height); desenhar(cv, r.landmarks[0], cv.width, cv.height);
+            }
+            if (i % 3 === 0) msg("Analisando… " + Math.round(i / ate * 100) + "% (quadro " + (i + 1) + " de " + ate + ")");
           }
-          if (i % 3 === 0) msg("Analisando… " + Math.round(i / n * 100) + "% (quadro " + (i + 1) + " de " + n + ")");
+        };
+        await lerQuadros(0, n);
+        /* o golpe pode continuar depois do trecho de 8 s (ex.: saque que começa no fim do trecho): se o contato caiu no fim do trecho
+           e o vídeo segue, analisa mais um pedaço em vez de colocar contato, seguimento e recuperação nos últimos quadros */
+        for (var volta = 0; volta < 4 && fimT < dur - 1 / fps && B.contatoNoFim && B.contatoNoFim(qs, q("dom").value, golpe()); volta++) {
+          var novoFim = Math.min(dur, fimT + 3), n2 = Math.max(n + 1, Math.floor((novoFim - ini) * fps));
+          msg("O golpe continua depois de " + fmtNum(fimT, 1) + " s: analisando mais um trecho do vídeo…");
+          await lerQuadros(n, n2); n = n2; fimT = novoFim;
         }
         if (ok < n * 0.6) { msg("A pessoa apareceu em poucos quadros (" + ok + " de " + n + "). Filme com o corpo inteiro no quadro e boa luz" + (dur > JANELA + 0.5 ? ", e arraste o vídeo até um pouco antes do golpe" : "") + "."); fim(); return; }
         S.quadros = qs; S.real = true; S.regId = null; mostrar(false, true);
-        msg("Análise concluída (" + ok + " quadros" + (ini > 0 ? ", de " + fmtNum(ini, 1) + " s a " + fmtNum(fimT, 1) + " s do vídeo" : "") + ").");
+        var cortado = S.resultado && S.resultado.aviso ? " Atenção: " + S.resultado.aviso : "";
+        msg("Análise concluída (" + ok + " quadros" + (ini > 0 || fimT < dur - 0.05 || fimT > JANELA + 0.01 ? ", de " + fmtNum(ini, 1) + " s a " + fmtNum(fimT, 1) + " s do vídeo" : "") + ")." + cortado);
       } catch (e) { msg("A análise parou no meio (" + e.message + "). Tente de novo; se repetir, use um vídeo mais curto."); }
       fim();
     };
@@ -755,7 +766,7 @@
         tb += '<tr class="qm-it' + (it.valor == null ? " qm-sem" : "") + '"><td class="qm-nome">' + esc(it.nome) + '</td><td data-l="Medido">' + esc(fmtValor(it.valor, it.unidade)) + '</td><td data-l="Referência">' + esc(txtBR(it.ref)) + '</td><td class="qm-par"><span class="qm-tag ' + it.status + '">' + ROT[it.status] + '</span><br><span class="qm-msg">' + esc(paraQuem(it.comentario, atleta)) + "</span></td></tr>";
       });
       q("tb").innerHTML = tb;
-      var co = B.conclusao(r); q("ctx").textContent = co.texto;
+      var co = B.conclusao(r); q("ctx").textContent = (r.aviso ? "⚠ " + r.aviso + " " : "") + co.texto;
       var ch = "";
       if (co.prioridades.length) { ch += "<h4>Prioridades de intervenção</h4>"; co.prioridades.forEach(function (p, k) { ch += '<div class="qm-pr"><b>' + (k + 1) + ". " + esc(p.nome) + '</b> <span class="qm-msg">(' + esc(fmtValor(p.valor, p.unidade)) + " · ref. " + esc(txtBR(p.ref)) + ')</span><p class="qm-msg">' + esc(p.porque) + "</p>" + (p.exercicios.length ? "<ul>" + p.exercicios.map(function (e) { return "<li>" + esc(e) + "</li>"; }).join("") + "</ul>" : "") + "</div>"; }); }
       if (co.fortes.length) ch += "<h4>Pontos fortes</h4><ul class=\"qm-ul\">" + co.fortes.map(function (n) { return "<li>" + esc(n) + "</li>"; }).join("") + "</ul>";

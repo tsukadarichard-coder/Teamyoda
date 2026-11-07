@@ -293,7 +293,42 @@
     if (!(prop > 0.2 && prop < 5) || Math.abs(prop - 1) < 1e-3) return quadros;
     return quadros.map(function (q) { return { t: q.t, lm: q.lm.map(function (p) { return p ? { x: p.x, y: p.y * prop, z: p.z, v: p.v } : p; }) }; });
   }
+  /* Golpe cortado pelo fim do trecho analisado: o contato caiu no último 0,3 s (o vídeo seguia depois da janela analisada ou acabou
+     ali). Sem isso, contato, seguimento e recuperação iam para os últimos quadros do trecho, a um quadro um do outro, e as medidas
+     dessas fases eram de um quadro de antes do contato. */
+  var FOLGA_FIM = 0.3;
+  function contatoNoFim(quadros, dom, golpe) {
+    var q = limpar(quadros || []);
+    if (q.length < 12) return false;
+    var s = golpe === "saque" ? segmentarSaque(q, dom) : segmentar(q, dom);
+    return !!s && q[q.length - 1].t - q[s.contato].t < FOLGA_FIM;
+  }
+  function marcarCorte(r, quadros) {
+    if (!r || r.erro || !r.fases || r.fases.length < 6 || !quadros.length) return r;
+    var c = r.fases[3].quadro, depois = quadros[quadros.length - 1].t - quadros[c].t;
+    if (!(depois < FOLGA_FIM)) return r;
+    /* contato no último 0,12 s: o ponto mais alto/rápido é só o fim do vídeo, o contato de verdade não apareceu. Até 0,3 s: o contato
+       aparece, mas o seguimento e a recuperação ficaram fora do vídeo. */
+    var semContato = depois < 0.12, de = semContato ? 3 : 4;
+    r.cortado = semContato ? "contato" : "seguimento";
+    r.aviso = semContato
+      ? "O vídeo analisado termina antes do contato: o golpe ficou cortado. Contato, seguimento e recuperação não foram medidos. Envie o vídeo com o golpe inteiro (ou arraste o vídeo até um pouco antes do golpe e analise de novo)."
+      : "O vídeo termina logo depois do contato: seguimento e recuperação não aparecem e não foram medidos.";
+    r.itens.forEach(function (it) {
+      if (it.fase < de || it.status === "nao_avaliavel") return;
+      it.status = "nao_avaliavel"; it.valor = null; it.comentario = "O vídeo termina antes desta fase do golpe: não dá para medir.";
+    });
+    r.fases.forEach(function (f, k) { if (k >= de) f.foraDoVideo = true; });
+    var cont = { ok: 0, atencao: 0, nao_avaliavel: 0 };
+    r.itens.forEach(function (i) { cont[i.status]++; });
+    r.resumo = cont;
+    return r;
+  }
   function checklist(quadros, dom, regras, golpe, emp, prop) {
+    var r = checklistBase(quadros, dom, regras, golpe, emp, prop);
+    return marcarCorte(r, quadros || []);
+  }
+  function checklistBase(quadros, dom, regras, golpe, emp, prop) {
     golpe = golpe || "forehand";
     regras = regras || REGRAS;
     if (!regras.saque) regras = Object.assign({}, REGRAS, regras);
@@ -659,5 +694,5 @@
     return lms[lms.length - 1];
   }
 
-  return { P: P, FASES: FASES, REGRAS: REGRAS, ang: ang, limpar: limpar, modeloPadrao: modeloPadrao, modeloDeResultado: modeloDeResultado, alinharModelo: alinharModelo, compararModelo: compararModelo, poseNoTempo: poseNoTempo, chaveModelo: chaveModelo, segmentarSaque: segmentarSaque, segmentar: segmentar, medidas: medidas, nomesFases: nomesFases, checklist: checklist, conclusao: conclusao, INTERV: INTERV, resumir: resumir, comparar: comparar, anteriorDe: anteriorDe, serie: serie, cota: cota, LIMITES_PLANO: LIMITES_PLANO, ordenar: ordenar, sintetico: sintetico, suavizar: suavizar };
+  return { P: P, FASES: FASES, REGRAS: REGRAS, ang: ang, limpar: limpar, modeloPadrao: modeloPadrao, modeloDeResultado: modeloDeResultado, alinharModelo: alinharModelo, compararModelo: compararModelo, poseNoTempo: poseNoTempo, chaveModelo: chaveModelo, segmentarSaque: segmentarSaque, segmentar: segmentar, contatoNoFim: contatoNoFim, medidas: medidas, nomesFases: nomesFases, checklist: checklist, conclusao: conclusao, INTERV: INTERV, resumir: resumir, comparar: comparar, anteriorDe: anteriorDe, serie: serie, cota: cota, LIMITES_PLANO: LIMITES_PLANO, ordenar: ordenar, sintetico: sintetico, suavizar: suavizar };
 });
