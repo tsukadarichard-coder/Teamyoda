@@ -23362,9 +23362,17 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   );
 }
 /* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
-const NOVIDADES_TY_VERSAO = "ty-2026-11w";
+const NOVIDADES_TY_VERSAO = "ty-2026-11x";
+/* Itens com `so: "financeiro"` só aparecem para o dono e para a parte administrativa. Enquanto o item novo do topo for um
+   desses, quem não o vê continua na versão da equipe abaixo (a janela não reabre vazia para os professores). */
+const NOVIDADES_TY_VERSAO_EQUIPE = "ty-2026-11w";
+function novidadesTYPara(veFinanceiro) {
+  const itens = NOVIDADES_TY.filter((x) => !x.so || (x.so === "financeiro" && veFinanceiro));
+  return { itens, versao: itens.some((x) => x.novo) ? NOVIDADES_TY_VERSAO : NOVIDADES_TY_VERSAO_EQUIPE };
+}
 const NOVIDADES_TY = [
-  { novo: true, t: "Análise de movimento: golpe inteiro mesmo no fim do vídeo", d: "Quando o golpe passava do trecho de 8 s analisado (por exemplo, um saque que começa perto dos 6 s), o contato, o seguimento e a recuperação caíam nos últimos quadros do vídeo, um colado no outro, e as medidas dessas fases saíam erradas. Agora a análise continua sozinha pelo vídeo até o golpe terminar. Se o próprio vídeo acaba antes do fim do golpe, a análise avisa, essas fases aparecem como fora do vídeo e não entram como medida nem na comparação com a análise anterior. O PDF do iPhone também ficou com as quebras de página certas e o tamanho de letra igual ao do computador.", onde: "Jogadores › abra o jogador › Análise de movimento", aba: "alunos" },
+  { novo: true, so: "financeiro", t: "Financeiro: importar a planilha, vencimentos e acesso administrativo", d: "Três coisas novas no Financeiro. 1) Importar planilha: preencha a planilha-modelo com o que vem do Let's Play e do Airtable (alunos, turmas, cobrança, meses em aberto, professores e despesas) e escolha o arquivo. O app mostra antes o que vai entrar — alunos e turmas novos, os que já existiam, nomes casados por aproximação para você conferir — e só grava quando você confirma. Nada é apagado; o que já está no app só é completado, e importar de novo não duplica. 2) Vencimento e forma de pagamento de cada aluno em Recebido e pago, com o que já venceu destacado, e os meses antigos em aberto numa lista para marcar quando a família pagar. 3) Acesso administrativo: cadastre o e-mail de quem cuida da cobrança. Essa pessoa vê só a tela Cobrança (o que cobrar, contato do responsável, pendências e o que pagar a cada professor) e marca recebido e pago; não vê resultado, margem, despesas, impostos nem preços.", onde: "Mais › Gestão da academia › Financeiro (para a parte administrativa: Cobrança)", aba: "financeiro" },
+  { t: "Análise de movimento: golpe inteiro mesmo no fim do vídeo", d: "Quando o golpe passava do trecho de 8 s analisado (por exemplo, um saque que começa perto dos 6 s), o contato, o seguimento e a recuperação caíam nos últimos quadros do vídeo, um colado no outro, e as medidas dessas fases saíam erradas. Agora a análise continua sozinha pelo vídeo até o golpe terminar. Se o próprio vídeo acaba antes do fim do golpe, a análise avisa, essas fases aparecem como fora do vídeo e não entram como medida nem na comparação com a análise anterior. O PDF do iPhone também ficou com as quebras de página certas e o tamanho de letra igual ao do computador.", onde: "Jogadores › abra o jogador › Análise de movimento", aba: "alunos" },
   { t: "Relatórios em PDF com a diagramação certa", d: "Revisamos todos os relatórios que viram PDF: relatório dos jogos e da partida, do aluno, do mês e por aluno, de aulas e reposições, do atleta, do ciclo da equipe, da análise de movimento e o caderno de campo. No iPhone e no iPad o PDF agora sai como uma folha A4 de computador (duas colunas, gráficos no tamanho certo), e não mais no layout do celular. Nenhum gráfico, cartão ou linha de tabela é cortado entre páginas, os títulos ficam junto do conteúdo, a tabela que continua na outra página repete o cabeçalho, as fotos das fases saem sem esticar e os botões Salvar e Voltar não aparecem mais no papel. A ficha de avaliação e o certificado da Academia Digital também geram o PDF no iPhone.", onde: "Qualquer relatório › Salvar como PDF / Imprimir", aba: "alunos" },
   { t: "Placar ao vivo no jogo em vídeo, como numa transmissão", d: "Em Ver rastreamento, embaixo do vídeo aparece agora um placar ao vivo que acompanha a jogada: golpes, forehand e backhand, a velocidade do último golpe (com o pico e as médias de forehand e backhand), o histórico das velocidades em barras, a velocidade do jogador naquele instante e os metros que ele já correu no ponto, e a sequência do ponto numerada (1 saque, 2 BH, 3 FH…). Dá para trocar entre o jogador e o adversário, e o esqueleto de quem está no placar aparece por cima do vídeo. O botão Assistir o jogo com o placar ao vivo passa a partida inteira, de ponto em ponto, sem precisar tocar em nada.", onde: "Jogadores › abra o jogador › Análise de movimento › Jogo em vídeo › Ver rastreamento", aba: "alunos" },
   { t: "Pernas e golpes no jogo em vídeo", d: "O scout montado do vídeo da partida ganhou o painel Pernas e golpes, com o jogador e o adversário lado a lado. Pernas: distância percorrida no jogo e por ponto, velocidade máxima e média correndo, arrancadas, primeiro passo depois do golpe do outro, quantas vezes estava parado e pronto quando o outro bateu, o quanto ficou longe do centro e a velocidade de chegada na bola, além do mapa de onde cada um ficou na quadra e da distância em cada ponto. Golpes: forehand, backhand, voleio e smash de cada um, a velocidade da bola por golpe (média e máxima), a profundidade e a duração dos ralis. A sequência de cada ponto também mostra a velocidade de cada bola. Os números vão junto no scout salvo e entram na comparação da aba Evolução (distância por ponto, velocidade máxima, primeiro passo, velocidade do saque, do forehand e do backhand). São estimativas de uma câmera só, boas para comparar jogos filmados do mesmo jeito.", onde: "Jogadores › abra o jogador › Análise de movimento › Jogo em vídeo", aba: "alunos" },
@@ -24626,6 +24634,30 @@ async function chamarFinanceiro(metodo, mes, corpo) {
   if (!r.ok) throw new Error(c.erro || ("Erro " + r.status));
   return c;
 }
+/* papel no financeiro: "dono", "admin" (parte administrativa, cadastrada pelo dono) ou null. O servidor decide; o menu só segue. */
+let PAPEL_FIN = null;
+async function papelFinanceiro() {
+  if (ehDonoFinanceiro()) return "dono";
+  const u = window.mtyAuth && window.mtyAuth.usuario();
+  if (!u) return null;
+  if (PAPEL_FIN && PAPEL_FIN.uid === u.uid) return PAPEL_FIN.papel;
+  try {
+    const token = await window.mtyAuth.tokenId();
+    const r = await fetch("/.netlify/functions/financeiro?quem=1", { headers: { authorization: "Bearer " + token } });
+    const c = await r.json().catch(() => ({}));
+    PAPEL_FIN = { uid: u.uid, papel: r.ok ? (c.papel || null) : null };
+    return PAPEL_FIN.papel;
+  } catch (e) { return null; }
+}
+const FORMAS_PAGAMENTO = { pix: "Pix", cartao: "Cartão", boleto: "Boleto", dinheiro: "Dinheiro", letsplay: "Let's Play", outro: "Outro" };
+function hojeFin() { return new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10); }
+/* em atraso: o vencimento do mês já passou (mês anterior a hoje, ou dia do vencimento antes de hoje) */
+function atrasadoFin(venc, mes) {
+  if (!venc) return false;
+  const hoje = hojeFin(), mh = hoje.slice(0, 7);
+  return mes < mh || (mes === mh && Number(venc) < Number(hoje.slice(8, 10)));
+}
+function linkWhatsFin(tel) { const d = String(tel || "").replace(/\D/g, ""); if (d.length < 10) return ""; return "https://wa.me/" + (d.length <= 11 ? "55" + d : d); }
 function reais(v) { return (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
 function mesISOAtual() { return new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 7); }
 function somaMes(mes, d) { const [a, m] = mes.split("-").map(Number); return new Date(Date.UTC(a, m - 1 + d, 1)).toISOString().slice(0, 7); }
@@ -24673,6 +24705,287 @@ function BarrasHistorico({ historico }) {
         </div>
       ))}
       <p style={{ ...prosa, fontSize: 12, color: C.grafite }}>Barra verde: entradas · barra laranja: saídas · à direita, o resultado.</p>
+    </div>
+  );
+}
+
+/* Importar planilha (migração do Let's Play/Airtable): lê o .xlsx no navegador (SheetJS), manda as abas para o servidor
+   simular e mostra o relatório; só grava quando o dono confirma. Nada é apagado: o que já existe no app só é completado. */
+let XLSX_CARREGANDO = null;
+function carregarLeitorPlanilha() {
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+  if (!XLSX_CARREGANDO) XLSX_CARREGANDO = new Promise((ok, falha) => {
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+    s.onload = () => (window.XLSX ? ok(window.XLSX) : falha(new Error("O leitor de planilhas não abriu.")));
+    s.onerror = () => { XLSX_CARREGANDO = null; falha(new Error("Não carregou o leitor de planilhas. Confira a internet e tente de novo.")); };
+    document.head.appendChild(s);
+  });
+  return XLSX_CARREGANDO;
+}
+async function lerArquivoPlanilha(arquivo) {
+  const XLSX = await carregarLeitorPlanilha();
+  const wb = XLSX.read(await arquivo.arrayBuffer(), { type: "array", cellDates: true });
+  const abas = {};
+  wb.SheetNames.forEach((nome) => {
+    abas[nome] = XLSX.utils.sheet_to_json(wb.Sheets[nome], { raw: true, defval: "" }).map((l) => {
+      const o = {};
+      Object.keys(l).forEach((k) => { const v = l[k]; o[k] = v instanceof Date ? new Date(v.getTime() + 12 * 3600e3).toISOString().slice(0, 10) : v; });
+      return o;
+    });
+  });
+  return abas;
+}
+const ROTULOS_IMPORTACAO = [
+  ["alunosNovos", "Alunos novos"], ["alunosAtualizados", "Alunos que já existiam (campos vazios completados)"], ["alunosSaiu", "Linhas de quem saiu (não entram)"],
+  ["turmasNovas", "Turmas novas"], ["turmasAtualizadas", "Turmas que já existiam"], ["matriculas", "Matrículas em turma"],
+  ["precosTurma", "Preços de turma"], ["descontos", "Descontos"], ["pacotes", "Pacotes individuais"], ["cobrancas", "Vencimento e forma de pagamento"],
+  ["pendencias", "Pendências antigas (meses antes do controle)"], ["recebidosMarcados", "Pagamentos já marcados como recebidos"],
+  ["professores", "Professores (forma de pagamento)"], ["despesas", "Despesas fixas"],
+];
+function ImportarPlanilhaFin({ aoConcluir }) {
+  const [arquivo, setArquivo] = useState(null); // { nome, abas }
+  const [rel, setRel] = useState(null);
+  const [fase, setFase] = useState(""); // lendo | simulando | gravando | feito
+  const [erro, setErro] = useState("");
+  const h2 = { fontFamily: ARCH, fontSize: 16, fontWeight: 700, margin: "18px 0 8px" };
+  async function escolher(f) {
+    if (!f) return;
+    setRel(null); setErro(""); setArquivo(null); setFase("lendo");
+    try {
+      if (!/\.xlsx?$/i.test(f.name)) throw new Error("Mande o arquivo .xlsx da planilha-modelo (Migracao-Team-Yoda.xlsx).");
+      if (f.size > 8 * 1024 * 1024) throw new Error("Arquivo grande demais (mais de 8 MB). Mande as abas em partes.");
+      const abas = await lerArquivoPlanilha(f);
+      setArquivo({ nome: f.name, abas }); setFase("simulando");
+      const r = await chamarFinanceiro("POST", "", { acao: "importar", planilha: { abas }, simular: true });
+      setRel(r); setFase("");
+    } catch (e) { setErro(String(e.message || e)); setFase(""); }
+  }
+  async function confirmar() {
+    if (!arquivo || !confirm("Gravar a importação no app? Nada é apagado: alunos e turmas que já existem só têm os campos vazios completados.")) return;
+    setErro(""); setFase("gravando");
+    try {
+      const r = await chamarFinanceiro("POST", "", { acao: "importar", planilha: { abas: arquivo.abas }, simular: false });
+      setRel(r); setFase("feito"); aoConcluir && aoConcluir();
+    } catch (e) { setErro(String(e.message || e)); setFase(""); }
+  }
+  const lidas = rel ? Object.values(rel.linhas || {}).reduce((s, v) => s + v, 0) : 0;
+  return (
+    <div>
+      <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginBottom: 10 }}>
+        Para trazer os dados do Let's Play e do Airtable: preencha a planilha-modelo (uma aba para alunos, turmas, cobrança, em aberto, professores e despesas) e escolha o arquivo aqui.
+        Primeiro o app mostra o que vai mudar; só grava quando você confirmar. Nada é apagado — o que já está no app só é completado.
+      </p>
+      <label style={{ display: "inline-block" }}>
+        <input type="file" accept=".xlsx,.xls" style={{ display: "none" }} disabled={!!fase && fase !== "feito"} onChange={(e) => { escolher(e.target.files[0]); e.target.value = ""; }} />
+        <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, padding: "9px 16px", borderRadius: 8, background: C.quadra, color: "#fff", cursor: "pointer", display: "inline-block" }}>
+          {arquivo ? "Escolher outro arquivo" : "Escolher a planilha (.xlsx)"}
+        </span>
+      </label>
+      {arquivo && <span style={{ ...prosa, fontSize: 13, color: C.grafite, marginLeft: 10 }}>{arquivo.nome}</span>}
+      {fase === "lendo" && <p style={{ ...prosa, color: C.grafite, marginTop: 10 }}>Lendo a planilha…</p>}
+      {fase === "simulando" && <p style={{ ...prosa, color: C.grafite, marginTop: 10 }}>Conferindo com o que já está no app…</p>}
+      {fase === "gravando" && <p style={{ ...prosa, color: C.grafite, marginTop: 10 }}>Gravando…</p>}
+      {erro && <div style={{ marginTop: 10 }}><Aviso>{erro}</Aviso></div>}
+      {rel && (
+        <div>
+          {fase === "feito"
+            ? <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, color: C.quadra, marginTop: 14 }}>Importação gravada. Confira em Recebido e pago e em Preços; os professores já veem os alunos e as turmas.</p>
+            : <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginTop: 14 }}>Simulação — nada foi gravado ainda.</p>}
+          {lidas === 0 && <Aviso>Não achei linhas nas abas da planilha-modelo (Alunos, Turmas, Cobrança, Em aberto, Professores, Despesas fixas). Confira se o arquivo é a planilha-modelo e se os dados começam na linha 3.</Aviso>}
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>
+            Linhas lidas: {Object.keys(rel.linhas || {}).map((k) => rel.linhas[k] + " " + ({ alunos: "alunos", turmas: "turmas", cobranca: "cobrança", abertos: "em aberto", professores: "professores", despesas: "despesas" }[k] || k)).join(" · ")}.
+          </p>
+          <TabelaFin cabecalho={["", "Team Yoda", "39 Ranch"]}
+            linhas={ROTULOS_IMPORTACAO.map(([k, r]) => [r, ...["team-yoda", "39-ranch"].map((o) => ((rel.relatorio || {})[o] || {})[k] || 0)])
+              .concat([["Valor das pendências antigas", ...["team-yoda", "39-ranch"].map((o) => reais(((rel.relatorio || {})[o] || {}).valorPendencias))]])}
+            rodape={["Previsto por mês (mensalidades e pacotes)", ...["team-yoda", "39-ranch"].map((o) => reais(((rel.relatorio || {})[o] || {}).previstoMensal))]} />
+          {(rel.aproximados || []).length > 0 && (
+            <div>
+              <h2 style={h2}>Confira: nomes casados por aproximação</h2>
+              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 4 }}>O nome da planilha foi ligado a este aluno do app. Se algum estiver errado, corrija o nome na planilha e escolha o arquivo de novo.</p>
+              <TabelaFin cabecalho={["Academia", "Na planilha", "No app"]} linhas={rel.aproximados.map((x) => [x.academia, x.planilha, x.app])} />
+            </div>
+          )}
+          {(rel.avisos || []).length > 0 && (
+            <div>
+              <h2 style={h2}>Avisos ({rel.avisos.length})</h2>
+              <ul style={{ ...prosa, fontSize: 13, paddingLeft: 18, listStyle: "disc" }}>{rel.avisos.map((a, i) => <li key={i} style={{ marginBottom: 3 }}>{a}</li>)}</ul>
+            </div>
+          )}
+          {fase !== "feito" && lidas > 0 && (
+            <div className="flex flex-wrap gap-2 items-center" style={{ marginTop: 14 }}>
+              <Botao onClick={confirmar}>Confirmar e gravar no app</Botao>
+              <span style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Pode importar de novo depois: nada se repete.</span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* Quem é da parte administrativa: vê só a tela Cobrança (o que cobrar e o que pagar aos professores) e marca recebido/pago */
+function AcessosFin({ admins, aoSalvar }) {
+  const [lista, setLista] = useState(admins || []);
+  const [novo, setNovo] = useState("");
+  const [msg, setMsg] = useState("");
+  const [salvando, setSalvando] = useState(false);
+  useEffect(() => { setLista(admins || []); }, [JSON.stringify(admins || [])]);
+  async function gravar(l) {
+    setSalvando(true); setMsg("");
+    try { const r = await chamarFinanceiro("POST", "", { acao: "acesso", admins: l }); setLista(r.admins); setMsg("Salvo."); aoSalvar && aoSalvar(r.admins); }
+    catch (e) { setMsg("Não salvou: " + String(e.message || e)); }
+    setSalvando(false);
+  }
+  const valido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(novo.trim());
+  return (
+    <div>
+      <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginBottom: 10 }}>
+        Cadastre o e-mail de quem cuida da cobrança. Essa pessoa entra no app com esse e-mail e vê só a tela <b>Cobrança</b>: mensalidades e pacotes do mês com vencimento, forma de pagamento e contato,
+        pendências antigas e o que pagar a cada professor. Ela marca o que entrou e o que foi pago. Não vê resultado, margem, despesas, impostos nem a tabela de preços, e não muda preço.
+      </p>
+      {lista.map((e) => (
+        <div key={e} className="flex items-center gap-2" style={{ fontFamily: ARCH, fontSize: 14, padding: "6px 0", borderBottom: "1px solid " + C.linha }}>
+          <span style={{ flex: 1 }}>{e}</span>
+          <Botao pequeno variante="vazio" disabled={salvando} onClick={() => { if (confirm("Tirar o acesso de " + e + "?")) gravar(lista.filter((x) => x !== e)); }}>Tirar acesso</Botao>
+        </div>
+      ))}
+      {lista.length === 0 && <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Ninguém cadastrado: hoje só você vê o financeiro.</p>}
+      <div className="flex flex-wrap gap-2 items-center mt-3">
+        <input style={{ ...entrada, width: 260, fontSize: 15 }} type="email" placeholder="e-mail da pessoa" value={novo} onChange={(e) => setNovo(e.target.value)} />
+        <Botao pequeno disabled={!valido || salvando || lista.length >= 10} onClick={() => { gravar(lista.concat([novo.trim().toLowerCase()])); setNovo(""); }}>Dar acesso</Botao>
+      </div>
+      {msg && <p style={{ ...prosa, fontSize: 13, marginTop: 6, color: /Não salvou/.test(msg) ? "#B23A2E" : C.quadra }}>{msg}</p>}
+      <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 8 }}>A pessoa precisa ter conta no app (convite em Equipe da organização). Até 10 e-mails.</p>
+    </div>
+  );
+}
+
+/* Tela Cobrança — a parte administrativa: o que cobrar no mês (vencimento, forma, contato), pendências antigas e o que pagar
+   aos professores. Cada toque grava na hora (ação "marcar"); o servidor só aceita itens que existem no mês. */
+function TelaCobranca() {
+  const [mes, setMes] = useState(() => (mesISOAtual() < FINANCEIRO_INICIO ? FINANCEIRO_INICIO : mesISOAtual()));
+  const [dados, setDados] = useState(null);
+  const [erro, setErro] = useState("");
+  const [carregando, setCarregando] = useState(true);
+  const [org, setOrg] = useState("team-yoda");
+  const [filtro, setFiltro] = useState("abertos");
+  const [busca, setBusca] = useState("");
+  const [ocupado, setOcupado] = useState("");
+  async function carregar(m, quieto) {
+    if (!quieto) setCarregando(true);
+    setErro("");
+    try { setDados(await chamarFinanceiro("GET", m || mes)); }
+    catch (e) { setErro(String(e.message || e)); }
+    setCarregando(false);
+  }
+  useEffect(() => { carregar(mes); }, [mes]);
+  async function marcar(chave, corpo) {
+    setOcupado(chave); setErro("");
+    try { await chamarFinanceiro("POST", mes, Object.assign({ acao: "marcar", org, mes }, corpo)); await carregar(mes, true); }
+    catch (e) { setErro("Não gravou: " + String(e.message || e)); }
+    setOcupado("");
+  }
+  const A = dados && dados.academias.find((a) => a.org === org);
+  const chipF = (ativo) => ({ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, padding: "6px 12px", borderRadius: 999, cursor: "pointer",
+    border: "1px solid " + (ativo ? C.quadra : C.linha), background: ativo ? C.quadra : C.cal, color: ativo ? "#fff" : C.tinta });
+  const h2 = { fontFamily: ARCH, fontSize: 16, fontWeight: 700, margin: "18px 0 8px" };
+  const pequeno = { ...entrada, fontSize: 14, padding: "4px 6px" };
+  const linhas = A ? A.cobrar.filter((l) => (filtro === "todos" || (!l.recebido && (filtro === "abertos" || atrasadoFin(l.venc, mes))))
+    && (!busca || (l.nome + " " + l.pagador).toLowerCase().includes(busca.toLowerCase()))) : [];
+  function csv() {
+    const l = [["Aluno", "Onde", "Valor", "Vencimento", "Forma", "Quem paga", "Contato", "Recebido"]].concat(A.cobrar.map((x) => [x.nome, x.onde, x.valor, x.venc ? "dia " + x.venc : "", FORMAS_PAGAMENTO[x.forma] || "", x.pagador, x.contato, x.recebido ? "sim" : "não"]));
+    const esc = (v) => '"' + String(v == null ? "" : typeof v === "number" ? v.toFixed(2).replace(".", ",") : v).replace(/"/g, '""') + '"';
+    baixarCSV("cobranca-" + org + "-" + mes + ".csv", l.map((x) => x.map(esc).join(";")).join("\n"));
+  }
+  return (
+    <div>
+      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Cobrança</h1>
+      <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginBottom: 12 }}>O que cobrar neste mês e o que pagar aos professores. Marque quando o dinheiro entrar ou sair; grava na hora. Nada aqui cobra ninguém sozinho.</p>
+      <div className="flex flex-wrap gap-2 items-center mb-3">
+        <Botao pequeno variante="vazio" disabled={mes <= FINANCEIRO_INICIO} onClick={() => setMes(somaMes(mes, -1))}>◀</Botao>
+        <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, minWidth: 150, textAlign: "center" }}>{nomeMes(mes)}</span>
+        <Botao pequeno variante="vazio" onClick={() => setMes(somaMes(mes, 1))}>▶</Botao>
+        {A && <Botao pequeno variante="vazio" onClick={csv}>Baixar lista (CSV)</Botao>}
+      </div>
+      <div className="flex flex-wrap gap-2 mb-4">
+        {(dados ? dados.academias : [{ org: "team-yoda", nome: "Team Yoda" }, { org: "39-ranch", nome: "39 Ranch" }]).map((a) => (
+          <button key={a.org} style={chipF(org === a.org)} onClick={() => setOrg(a.org)}>{a.nome}</button>
+        ))}
+      </div>
+      {carregando && <p style={{ ...prosa, color: C.grafite }}>Carregando o mês…</p>}
+      {erro && <Aviso>{erro}</Aviso>}
+      {A && !carregando && (
+        <div>
+          <div className="mb-4" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 8 }}>
+            <CartaoValor rotulo="Recebido" valor={reais(A.totais.recebido)} nota={"de " + reais(A.totais.aReceber) + " no mês"} />
+            <CartaoValor rotulo="Falta receber" valor={reais(A.totais.aReceber - A.totais.recebido)} nota={A.totais.emAberto + " em aberto"} cor={A.totais.emAberto ? "#B23A2E" : C.quadra} />
+            <CartaoValor rotulo="Vencidos" valor={reais(A.totais.valorAtrasado)} nota={A.totais.atrasados + " com vencimento passado"} cor={A.totais.atrasados ? "#B23A2E" : C.quadra} />
+            {A.totais.pendencias > 0 && <CartaoValor rotulo="Meses anteriores" valor={reais(A.totais.pendencias)} nota={A.pendencias.length + " pendência(s) antiga(s)"} cor="#B23A2E" />}
+            <CartaoValor rotulo="Professores" valor={reais(A.totais.pagoProfessores)} nota={"pago de " + reais(A.totais.aPagarProfessores)} />
+          </div>
+
+          <h2 style={h2}>A receber</h2>
+          <div className="flex flex-wrap gap-2 items-center mb-2">
+            {[{ v: "abertos", r: "Em aberto" }, { v: "atrasados", r: "Vencidos" }, { v: "todos", r: "Todos" }].map((t) => <button key={t.v} style={chipF(filtro === t.v)} onClick={() => setFiltro(t.v)}>{t.r}</button>)}
+            <input style={{ ...entrada, width: 200, fontSize: 15 }} placeholder="Buscar aluno ou responsável" value={busca} onChange={(e) => setBusca(e.target.value)} />
+          </div>
+          {linhas.map((l) => {
+            const atr = !l.recebido && atrasadoFin(l.venc, mes), wa = linkWhatsFin(l.contato);
+            return (
+              <div key={l.chave} data-linha-cobranca={l.chave} style={{ borderBottom: "1px solid " + C.linha, padding: "7px 0", borderLeft: atr ? "3px solid #B23A2E" : "3px solid transparent", paddingLeft: 8 }}>
+                <label className="flex items-center gap-2" style={{ fontFamily: ARCH, fontSize: 14 }}>
+                  <input type="checkbox" checked={l.recebido} disabled={!!ocupado} onChange={(e) => marcar(l.chave, { recebidos: { [l.chave]: e.target.checked } })} />
+                  <span style={{ flex: 1 }}><b>{l.nome}</b> <span style={{ color: C.grafite }}>· {l.onde}{l.desconto ? " · desconto " + reais(l.desconto) : ""}</span></span>
+                  <b>{reais(l.valor)}</b>
+                </label>
+                <div className="flex flex-wrap items-center gap-2" style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4, paddingLeft: 24 }}>
+                  {atr && <span style={{ color: "#B23A2E", fontWeight: 700 }}>vencido</span>}
+                  <span>vence dia</span>
+                  <input type="number" min="1" max="31" style={{ ...pequeno, width: 58 }} defaultValue={l.venc || ""} key={"v" + l.chave + (l.venc || "")} disabled={!!ocupado}
+                    onBlur={(e) => { const v = Number(e.target.value) || null; if (v !== (l.venc || null) && (v === null || (v >= 1 && v <= 31))) marcar(l.chave, { cobranca: { [l.alunoId]: { venc: v } } }); }} />
+                  <select style={{ ...pequeno, width: 120 }} value={l.forma || ""} disabled={!!ocupado} onChange={(e) => marcar(l.chave, { cobranca: { [l.alunoId]: { forma: e.target.value } } })}>
+                    <option value="">forma…</option>{Object.keys(FORMAS_PAGAMENTO).map((f) => <option key={f} value={f}>{FORMAS_PAGAMENTO[f]}</option>)}
+                  </select>
+                  {l.pagador && <span>· {l.pagador}</span>}
+                  {wa ? <a href={wa} target="_blank" rel="noopener" style={{ color: C.quadra, fontWeight: 700 }}>WhatsApp {l.contato}</a> : l.contato ? <span>{l.contato}</span> : <span>sem telefone</span>}
+                  {l.obs && <span>· {l.obs}</span>}
+                </div>
+              </div>
+            );
+          })}
+          {linhas.length === 0 && <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>{A.cobrar.length ? "Nada nesta lista." + (filtro !== "todos" ? " Veja “Todos”." : "") : "Sem mensalidades nem pacotes com preço neste mês."}</p>}
+
+          {A.pendencias.length > 0 && (
+            <div>
+              <h2 style={h2}>Meses anteriores em aberto · {reais(A.totais.pendencias)}</h2>
+              {A.pendencias.map((p) => {
+                const wa = linkWhatsFin(p.contato);
+                return (
+                  <div key={p.id} className="flex flex-wrap items-center gap-2" style={{ fontFamily: ARCH, fontSize: 14, padding: "7px 0", borderBottom: "1px solid " + C.linha }}>
+                    <span style={{ flex: 1, minWidth: 180 }}><b>{p.nome}</b> <span style={{ color: C.grafite }}>· {nomeMes(p.mes)}{p.obs ? " · " + p.obs : ""}</span>
+                      {wa && <> · <a href={wa} target="_blank" rel="noopener" style={{ color: C.quadra, fontWeight: 700, fontSize: 12.5 }}>WhatsApp</a></>}</span>
+                    <b>{reais(p.valor)}</b>
+                    <Botao pequeno variante="vazio" disabled={!!ocupado} onClick={() => { if (confirm("Marcar " + nomeMes(p.mes) + " de " + p.nome + " como pago?")) marcar(p.id, { pendencias: { [p.id]: true } }); }}>Pago</Botao>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <h2 style={h2}>A pagar aos professores</h2>
+          {A.professores.map((p) => (
+            <label key={p.chave} className="flex items-center gap-2" style={{ fontFamily: ARCH, fontSize: 14, padding: "7px 0", borderBottom: "1px solid " + C.linha }}>
+              <input type="checkbox" checked={!!p.pago} disabled={!!ocupado || !(p.valor > 0)} onChange={(e) => marcar(p.chave, { pagos: { [p.chave]: e.target.checked } })} />
+              <span style={{ flex: 1 }}><b>{p.nome}</b> <span style={{ color: C.grafite }}>· {p.configurado ? FORMAS_PROFESSOR[p.forma] : "forma de pagamento não definida"} · {p.aulasIndividuais} ind. / {p.aulasTurma} turma</span></span>
+              <b>{reais(p.valor)}</b>
+            </label>
+          ))}
+          {A.professores.length === 0 && <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Nenhum professor com aula ou valor neste mês.</p>}
+          <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 6 }}>Valores calculados pelas aulas marcadas como dadas (Agenda e caderno) e pela forma de pagamento que o dono definiu.</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -24738,7 +25051,8 @@ function TelaFinanceiro() {
     <div>
       <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Financeiro</h1>
       <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginBottom: 12 }}>
-        Só controle, e só você vê. Entradas e saídas saem sozinhas do que o app registra, com os preços que você define em “Preços”. Nada aqui cobra ninguém.
+        Só controle, e só você vê tudo. Entradas e saídas saem sozinhas do que o app registra, com os preços que você define em “Preços”. Nada aqui cobra ninguém.
+        Quem você cadastrar em “Acesso administrativo” vê só a tela Cobrança.
       </p>
 
       <div className="flex flex-wrap gap-2 items-center mb-3">
@@ -24748,13 +25062,16 @@ function TelaFinanceiro() {
         {dados && <Botao pequeno variante="vazio" onClick={csvMes}>Baixar CSV do mês</Botao>}
       </div>
       <div className="flex flex-wrap gap-2 mb-4">
-        {[{ v: "team-yoda", r: "Team Yoda" }, { v: "39-ranch", r: "39 Ranch" }, { v: "geral", r: "Visão geral" }].map((t) => (
+        {[{ v: "team-yoda", r: "Team Yoda" }, { v: "39-ranch", r: "39 Ranch" }, { v: "geral", r: "Visão geral" }, { v: "importar", r: "Importar planilha" }, { v: "acessos", r: "Acesso administrativo" }].map((t) => (
           <button key={t.v} style={chipF(aba === t.v)} onClick={() => { if (alterado && !confirm("Há alterações não salvas nesta academia. Sair mesmo assim?")) return; setRascunho({}); setAba(t.v); }}>{t.r}</button>
         ))}
       </div>
 
-      {carregando && <p style={{ ...prosa, color: C.grafite }}>Calculando o mês…</p>}
-      {erro && <Aviso>{erro}</Aviso>}
+      {carregando && aba !== "importar" && <p style={{ ...prosa, color: C.grafite }}>Calculando o mês…</p>}
+      {erro && aba !== "importar" && <Aviso>{erro}</Aviso>}
+
+      {aba === "importar" && <ImportarPlanilhaFin aoConcluir={() => carregar(mes)} />}
+      {dados && !carregando && aba === "acessos" && <AcessosFin admins={(dados.acesso || {}).admins || []} aoSalvar={(l) => setDados({ ...dados, acesso: { admins: l } })} />}
 
       {dados && !carregando && aba === "geral" && (() => {
         const g = dados.geral, A = dados.academias;
@@ -24796,7 +25113,8 @@ function TelaFinanceiro() {
                   <CartaoValor rotulo="Entradas" valor={reais(r.entradas)} />
                   <CartaoValor rotulo="Saídas" valor={reais(r.saidas)} />
                   <CartaoValor rotulo="Resultado" valor={reais(r.resultado)} cor={r.resultado >= 0 ? C.quadra : "#B23A2E"} nota={r.margem == null ? "" : "margem de " + String(r.margem).replace(".", ",") + "%"} />
-                  <CartaoValor rotulo="Em aberto" valor={reais(r.controle.aReceber - r.controle.recebido)} nota={r.controle.emAberto.length + " mensalidade(s)/pacote(s) sem marcar como recebido"} cor={r.controle.emAberto.length ? "#B23A2E" : C.quadra} />
+                  <CartaoValor rotulo="Em aberto" valor={reais(r.controle.aReceber - r.controle.recebido)} nota={r.controle.emAberto.length + " mensalidade(s)/pacote(s) sem marcar como recebido" + (r.controle.atrasados ? " · " + r.controle.atrasados + " vencido(s): " + reais(r.controle.valorAtrasado) : "")} cor={r.controle.emAberto.length ? "#B23A2E" : C.quadra} />
+                  {r.pendencias && r.pendencias.total > 0 && <CartaoValor rotulo="Meses anteriores" valor={reais(r.pendencias.total)} nota={r.pendencias.abertas.length + " pendência(s) de antes do controle"} cor="#B23A2E" />}
                 </div>
                 {(r.receitas.mensalidades.semPreco.length > 0 || r.receitas.quadras.horasSemPreco > 0 || r.despesas.professores.lista.some((p) => !p.configurado && (p.aulasIndividuais + p.aulasTurma) > 0)) && (
                   <Aviso>
@@ -24839,16 +25157,45 @@ function TelaFinanceiro() {
                 <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginBottom: 8 }}>Marque o que já entrou e o que já foi pago neste mês. Lance à mão o que o app não enxerga.</p>
                 <h2 style={h2}>A receber · {reais(r.controle.recebido)} de {reais(r.controle.aReceber)}</h2>
                 {r.receitas.mensalidades.turmas.flatMap((t) => t.alunos.map((a) => ({ ...a, onde: t.nome }))).concat(r.receitas.pacotes.alunos.map((p) => ({ ...p, onde: "Pacote individual" }))).map((l) => {
-                  const marcado = !!(M.recebidos || {})[l.chave];
+                  const marcado = !!(M.recebidos || {})[l.chave], cb = (cfg.cobranca || {})[l.alunoId] || {};
+                  const atr = !marcado && atrasadoFin(cb.venc, mes);
+                  const mudaCob = (campo, v) => mudar((c) => { c.cobranca = c.cobranca || {}; const x = { ...(c.cobranca[l.alunoId] || {}), [campo]: v }; if (!x.venc) delete x.venc; if (!x.forma) delete x.forma; if (Object.keys(x).length) c.cobranca[l.alunoId] = x; else delete c.cobranca[l.alunoId]; });
                   return (
-                    <label key={l.chave} className="flex items-center gap-2" style={{ fontFamily: ARCH, fontSize: 13.5, padding: "5px 0", borderBottom: "1px solid " + C.linha }}>
-                      <input type="checkbox" checked={marcado} onChange={(e) => mudar((c) => { const m = doMes(c); if (e.target.checked) m.recebidos[l.chave] = true; else delete m.recebidos[l.chave]; })} />
-                      <span style={{ flex: 1 }}>{l.nome} <span style={{ color: C.grafite }}>· {l.onde}{l.desconto ? " · desconto " + reais(l.desconto) : ""}</span></span>
-                      <b>{reais(l.valor)}</b>
-                    </label>
+                    <div key={l.chave} style={{ borderBottom: "1px solid " + C.linha, padding: "5px 0 5px 6px", borderLeft: atr ? "3px solid #B23A2E" : "3px solid transparent" }}>
+                      <label className="flex items-center gap-2" style={{ fontFamily: ARCH, fontSize: 13.5 }}>
+                        <input type="checkbox" checked={marcado} onChange={(e) => mudar((c) => { const m = doMes(c); if (e.target.checked) m.recebidos[l.chave] = true; else delete m.recebidos[l.chave]; })} />
+                        <span style={{ flex: 1 }}>{l.nome} <span style={{ color: C.grafite }}>· {l.onde}{l.desconto ? " · desconto " + reais(l.desconto) : ""}</span></span>
+                        <b>{reais(l.valor)}</b>
+                      </label>
+                      <div className="flex flex-wrap items-center gap-2" style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 3, paddingLeft: 22 }}>
+                        {atr && <span style={{ color: "#B23A2E", fontWeight: 700 }}>vencido</span>}
+                        <span>vence dia</span>
+                        <input type="number" min="1" max="31" style={{ ...num, width: 58, fontSize: 13.5, padding: "3px 6px" }} value={cb.venc || ""} onChange={(e) => mudaCob("venc", Math.min(31, Math.max(0, Number(e.target.value) || 0)) || undefined)} />
+                        <select style={{ ...entrada, width: 115, fontSize: 13.5, padding: "3px 6px" }} value={cb.forma || ""} onChange={(e) => mudaCob("forma", e.target.value)}>
+                          <option value="">forma…</option>{Object.keys(FORMAS_PAGAMENTO).map((f) => <option key={f} value={f}>{FORMAS_PAGAMENTO[f]}</option>)}
+                        </select>
+                        {cb.pagador && <span>· {cb.pagador}</span>}
+                      </div>
+                    </div>
                   );
                 })}
                 {r.controle.aReceber === 0 && <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Sem mensalidades nem pacotes com preço neste mês.</p>}
+                {((academia.config || {}).pendencias || []).some((p) => !p.quitada) && (
+                  <div>
+                    <h2 style={h2}>Meses anteriores em aberto · {reais(r.pendencias ? r.pendencias.total : 0)}</h2>
+                    <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 4 }}>Vieram da importação (meses antes de {nomeMes(FINANCEIRO_INICIO)}). Marque quando a família pagar.</p>
+                    {(academia.config.pendencias || []).filter((p) => !p.quitada).map((p0) => {
+                      const p = (cfg.pendencias || []).find((x) => x.id === p0.id) || p0;
+                      return (
+                        <label key={p.id} className="flex items-center gap-2" style={{ fontFamily: ARCH, fontSize: 13.5, padding: "5px 0", borderBottom: "1px solid " + C.linha }}>
+                          <input type="checkbox" checked={!!p.quitada} onChange={(e) => mudar((c) => { const x = (c.pendencias || []).find((y) => y.id === p.id); if (x) { x.quitada = e.target.checked; x.quitadaEm = e.target.checked ? hojeFin() : ""; } })} />
+                          <span style={{ flex: 1 }}>{p.nome} <span style={{ color: C.grafite }}>· {nomeMes(p.mes)}{p.obs ? " · " + p.obs : ""}</span></span>
+                          <b>{reais(p.valor)}</b>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
                 <h2 style={h2}>A pagar · {reais(r.controle.pago)} de {reais(r.controle.aPagar)}</h2>
                 {r.despesas.professores.lista.filter((p) => p.valor > 0).map((p) => (
                   <label key={p.chave} className="flex items-center gap-2" style={{ fontFamily: ARCH, fontSize: 13.5, padding: "5px 0", borderBottom: "1px solid " + C.linha }}>
@@ -25319,6 +25666,14 @@ function App() {
   const [pedidosPendentesCount, setPedidosPendentesCount] = useState(0);
   const [limiteAtingido, setLimiteAtingido] = useState(false);
   const uidAtual = exigeLogin && window.mtyAuth.usuario() ? window.mtyAuth.usuario().uid : null;
+  /* parte administrativa do financeiro (e-mail cadastrado pelo dono): ganha só a tela Cobrança */
+  const [papelFin, setPapelFin] = useState(null);
+  useEffect(() => {
+    if (!uidAtual || !autenticado) { setPapelFin(null); return; }
+    let vivo = true;
+    papelFinanceiro().then((p) => { if (vivo) setPapelFin(p); });
+    return () => { vivo = false; };
+  }, [uidAtual, autenticado]);
   /* Navegação: largura útil da tela decide o modo (computador, tablet, celular). No computador o menu lateral fica expandido ou
      recolhido numa faixa de ícones — preferência por usuário e aparelho (localStorage), começa expandido. painelNav é o painel
      sobreposto: o menu inteiro no tablet (☰), os grupos no celular ("Mais") e ao lado da faixa recolhida ("Mais"). Trocar de
@@ -25683,7 +26038,7 @@ function App() {
       ...(ehCoordenador ? [{ v: "aulas-equipe", r: "Aulas da equipe" }] : []),
       // o professor também vê o próprio relatório (a tela restringe por dentro)
       { v: "relatorio", r: "Relatório de aulas" },
-      ...(ehDonoFinanceiro() ? [{ v: "financeiro", r: "Financeiro" }] : []),
+      ...(ehDonoFinanceiro() ? [{ v: "financeiro", r: "Financeiro" }] : papelFin === "admin" ? [{ v: "cobranca", r: "Cobrança" }] : []),
     ] },
     { id: "metodo", label: "Método e formação", itens: [
       ...(mostraManual ? [{ v: "tecnica", r: "Técnica" }, { v: "taticas", r: "Táticas" }, { v: "conducao", r: "Condução" }, { v: "publicos", r: "Públicos" }, { v: "aulas", r: "Aulas do método" }, { v: "metodo", r: "Como decide" }] : []),
@@ -26103,7 +26458,8 @@ function App() {
         </div>
       </div>
 
-      <JanelaNovidades key={novidadesChave} nomeApp="Team Yoda" versao={NOVIDADES_TY_VERSAO} itens={NOVIDADES_TY} irPara={(v) => { setAba(v); setAbertoId(null); }} />
+      {(() => { const nv = novidadesTYPara(ehDonoFinanceiro() || papelFin === "admin");
+        return <JanelaNovidades key={novidadesChave + ":" + nv.versao} nomeApp="Team Yoda" versao={nv.versao} itens={nv.itens} irPara={(v) => { setAba(v === "financeiro" && !ehDonoFinanceiro() ? "cobranca" : v); setAbertoId(null); }} />; })()}
       <main className="mty-main px-5 py-6 mty-nav-anim" style={{ maxWidth: lateralVisivel && menuRecolhido ? 940 : 760, marginLeft: larguraLateral,
         paddingBottom: modoTela === "celular" ? "calc(84px + env(safe-area-inset-bottom))" : undefined }}>
         <AvisoEnderecoNovo orgAtual={orgAtual} />
@@ -26112,7 +26468,7 @@ function App() {
            aoAbrirTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} aoAdicionarJogador={() => { criar(); setAba("alunos"); }} /> :
          aba === "ajuda" ? <TelaAjuda mostraManual={mostraManual} aoIr={irNav}
            aoPrimeirosPassos={() => { setOnboardingDispensado(false); irNav("dashboard"); }}
-           aoNovidades={() => { try { localStorage.removeItem("ql-novidades:" + NOVIDADES_TY_VERSAO); } catch { /* sem armazenamento */ } setNovidadesChave((k) => k + 1); }} /> :
+           aoNovidades={() => { try { localStorage.removeItem("ql-novidades:" + novidadesTYPara(ehDonoFinanceiro() || papelFin === "admin").versao); } catch { /* sem armazenamento */ } setNovidadesChave((k) => k + 1); }} /> :
          aba === "equipes" ? <TelaEquipes alunos={alunos} setAlunos={setAlunos} uidAtual={uidAtual} papelAtual={papelAtual} identidade={identidade} aoAbrirJogador={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("ficha"); }} /> :
          aba === "observar" ? <TelaObservar alunos={alunos} setAlunos={setAlunos} planoAtual={null} aoVerCaderno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("registro"); }} /> :
          aba === "quadro" ? <TelaQuadroTatico /> :
@@ -26129,6 +26485,7 @@ function App() {
            irParaCaderno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("registro"); }}
            irParaTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} irParaManual={irParaManual} /> :
          aba === "financeiro" && ehDonoFinanceiro() ? <TelaFinanceiro /> :
+         aba === "cobranca" && papelFin === "admin" ? <TelaCobranca /> :
          aba === "academia-digital" && mostraDigital ? <TelaAcademiaDigital /> :
          aba === "pendencias" && podePendencias ? <>{topoHoje}<TelaPendencias alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} regrasReposicao={regrasReposicao}
            reservas={reservas} setReservas={setReservas} torneios={torneios} setTorneios={setTorneios} eventos={eventos} setEventos={setEventos}

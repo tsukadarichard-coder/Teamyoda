@@ -15,7 +15,8 @@ const EXT = {
   "unpkg.com/prop-types": CDN + "/prop-types-15.8.1/package/prop-types.min.js", "unpkg.com/recharts": CDN + "/recharts-2.15.4/package/umd/Recharts.js", "babel.min.js": CDN + "/babel-standalone-7.29.9/package/babel.min.js",
 };
 let html = fs.readFileSync(path.join(raiz, "index.html"), "utf8");
-const versaoNovidades = /NOVIDADES_TY_VERSAO = "([^"]+)"/.exec(html)[1];
+/* versão geral e a da equipe (quando o item novo é só do financeiro): as duas ficam dispensadas */
+const versaoNovidades = [...html.matchAll(/NOVIDADES_TY_VERSAO(?:_EQUIPE)? = "([^"]+)"/g)].map((x) => x[1]);
 /* perfil do teste: papel e academia pela URL (o app sem login não tem perfil) */
 html = html.replace("const [papelAtual, setPapelAtual] = useState(null);", 'const [papelAtual, setPapelAtual] = useState(new URLSearchParams(location.search).get("papel") || null);')
   .replace("const [orgAtual, setOrgAtual] = useState(null);", 'const [orgAtual, setOrgAtual] = useState(new URLSearchParams(location.search).get("org") || null);');
@@ -69,7 +70,7 @@ const base = "http://localhost:" + srv.address().port + "/";
         localStorage.setItem("local:mty:alunos:v2", JSON.stringify(a)); localStorage.setItem("shared:mty:turmas:v1", JSON.stringify(t));
         localStorage.setItem("shared:mty:quadras:v1", JSON.stringify(qd)); localStorage.setItem("shared:mty:onboardingDispensado", "true");
         localStorage.setItem("shared:mty:ocorrencias:v1", JSON.stringify(window.__OC));
-        localStorage.setItem("ql-novidades:" + v, "off");
+        [].concat(v).forEach((x) => localStorage.setItem("ql-novidades:" + x, "off"));
       }
     }, [ALUNOS, TURMAS, QUADRAS, versaoNovidades]);
     return ctx;

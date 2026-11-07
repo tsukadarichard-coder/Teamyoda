@@ -40,8 +40,17 @@ function precoNaHora(quadra, hora) {
 }
 function maisMeiaHora(h) { let [a, b] = h.split(":").map(Number); b += 30; if (b >= 60) { b -= 60; a += 1; } return String(a).padStart(2, "0") + ":" + String(b).padStart(2, "0"); }
 
-function calcularMes(dados, config, mes) {
-  dados = dados || {}; config = config || {};
+/* hoje (AAAA-MM-DD, horário de Brasília) serve para saber o que já passou do vencimento */
+function hojeBR() { return new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10); }
+function atrasado(venc, mes, hoje) {
+  if (!venc) return false;
+  const mesHoje = hoje.slice(0, 7);
+  return mes < mesHoje || (mes === mesHoje && Number(venc) < Number(hoje.slice(8, 10)));
+}
+
+function calcularMes(dados, config, mes, hoje) {
+  dados = dados || {}; config = config || {}; hoje = hoje || hojeBR();
+  const cobranca = config.cobranca || {}, cob = (id) => cobranca[id] || {};
   const alunos = dados.alunos || [], turmas = dados.turmas || [], doMes = (config.meses || {})[mes] || {};
   const recebidos = doMes.recebidos || {}, pagos = doMes.pagos || {}, valores = doMes.valores || {};
   const alunoPorId = new Map(alunos.map((a) => [a.id, a]));
@@ -56,7 +65,7 @@ function calcularMes(dados, config, mes) {
     const linhas = membros.map((a) => {
       const d = cfgD[t.id + ":" + a.id], desconto = !d ? 0 : d.tipo === "pct" ? preco * Math.min(100, num(d.valor)) / 100 : Math.min(preco, num(d.valor));
       const chave = "m:" + t.id + ":" + a.id;
-      return { chave, alunoId: a.id, nome: a.nome || "Sem nome", bruto: preco, desconto: r2(desconto), valor: r2(preco - desconto), recebido: !!recebidos[chave] };
+      return { chave, alunoId: a.id, nome: a.nome || "Sem nome", bruto: preco, desconto: r2(desconto), valor: r2(preco - desconto), recebido: !!recebidos[chave], venc: cob(a.id).venc || null, forma: cob(a.id).forma || "" };
     });
     const total = r2(linhas.reduce((s, l) => s + l.valor, 0));
     mensalidades.turmas.push({ id: t.id, nome: t.nome || "Turma", preco, professorUid: t.professorUid || "", professorNome: t.professorNome || "", alunos: linhas, total });
@@ -70,7 +79,7 @@ function calcularMes(dados, config, mes) {
     const a = alunoPorId.get(id), preco = num(cfgP[id] && cfgP[id].preco); if (!a || !preco) return;
     const chave = "p:" + id;
     pacotes.alunos.push({ chave, alunoId: id, nome: a.nome || "Sem nome", professorUid: a.professorUid || "", valor: preco,
-      aulasNoMes: aulas.filter((x) => x.tipo === "individual" && x.alunoId === id).length, recebido: !!recebidos[chave] });
+      aulasNoMes: aulas.filter((x) => x.tipo === "individual" && x.alunoId === id).length, recebido: !!recebidos[chave], venc: cob(id).venc || null, forma: cob(id).forma || "" });
     pacotes.total += preco;
   });
   pacotes.total = r2(pacotes.total);
@@ -149,6 +158,10 @@ function calcularMes(dados, config, mes) {
   const aReceber = mensalidades.turmas.flatMap((t) => t.alunos).concat(pacotes.alunos);
   const recebido = r2(aReceber.filter((l) => l.recebido).reduce((s, l) => s + l.valor, 0));
   const emAberto = aReceber.filter((l) => !l.recebido && l.valor > 0);
+  const atrasados = emAberto.filter((l) => atrasado(l.venc, mes, hoje));
+  /* dívidas de antes do controle no app (vindas do Let's Play na migração) */
+  const pendAbertas = (Array.isArray(config.pendencias) ? config.pendencias : []).filter((p) => p && !p.quitada)
+    .map((p) => ({ id: p.id, alunoId: p.alunoId || "", nome: p.nome || "Sem nome", mes: p.mes || "", valor: r2(num(p.valor)), venc: p.venc || "", obs: p.obs || "" }));
   const aPagar = professores.lista.map((p) => ({ chave: p.chave, valor: p.valor, pago: p.pago })).concat(fixas.lista, [{ chave: "imposto", valor: imposto.valor, pago: imposto.pago }]);
   const pago = r2(aPagar.filter((l) => l.pago).reduce((s, l) => s + l.valor, 0));
 
@@ -157,7 +170,9 @@ function calcularMes(dados, config, mes) {
     receitas: { mensalidades, pacotes, quadras, torneios, eventos, manuais: manuaisEntrada },
     despesas: { professores, fixas, imposto, manuais: manuaisSaida },
     manuais,
-    controle: { recebido, aReceber: r2(aReceber.reduce((s, l) => s + l.valor, 0)), emAberto: emAberto.map((l) => ({ chave: l.chave, nome: l.nome, valor: l.valor })),
+    pendencias: { abertas: pendAbertas, total: r2(pendAbertas.reduce((s, p) => s + p.valor, 0)) },
+    controle: { recebido, aReceber: r2(aReceber.reduce((s, l) => s + l.valor, 0)), emAberto: emAberto.map((l) => ({ chave: l.chave, nome: l.nome, valor: l.valor, venc: l.venc, forma: l.forma })),
+      atrasados: atrasados.length, valorAtrasado: r2(atrasados.reduce((s, l) => s + l.valor, 0)),
       pago, aPagar: r2(aPagar.reduce((s, l) => s + l.valor, 0)), pendentesPagar: aPagar.filter((l) => !l.pago && l.valor > 0).length },
   };
 }
@@ -186,4 +201,4 @@ function mesesAte(mes, n) {
   return l;
 }
 
-module.exports = { calcularMes, somarMeses, mesesAte, aulasDoMes, chaveProfessor, CATEGORIAS_DESPESA };
+module.exports = { calcularMes, somarMeses, mesesAte, aulasDoMes, chaveProfessor, CATEGORIAS_DESPESA, hojeBR, atrasado };
