@@ -34,7 +34,23 @@ async function numerosAcademia(org) {
     aulasHoje: (Array.isArray(ocorrencias) ? ocorrencias : []).filter((o) => o.data === hoje && o.status !== "cancelada").length,
     aulasEmAberto: (Array.isArray(ocorrencias) ? ocorrencias : []).filter((o) => o.status === "agendada" && o.data < hoje).length,
     pedidosReposicao: pedidos, reservasNovas, semPreco: r.receitas.mensalidades.semPreco.length > 0,
+    dias: seriesDias(ocorrencias, dados.reservas, hoje),
   };
+}
+/* aulas dia a dia (14 dias para trás e 7 para frente) para os gráficos da Central: dadas, canceladas, sem fechar
+   (passaram e ficaram "agendada") e marcadas (de hoje em diante); reservas de quadra no mesmo período */
+function maisDiasISO(iso, n) { const d = new Date(iso + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+function seriesDias(ocorrencias, reservas, hoje) {
+  const ocs = (Array.isArray(ocorrencias) ? ocorrencias : []).filter((o) => o && o.tipo !== "bloqueio");
+  const res = Array.isArray(reservas) ? reservas : [];
+  const l = [];
+  for (let k = -13; k <= 7; k++) {
+    const d = maisDiasISO(hoje, k), doDia = ocs.filter((o) => o.data === d);
+    l.push({ data: d, dadas: doDia.filter((o) => o.status === "realizada").length, canceladas: doDia.filter((o) => o.status === "cancelada").length,
+      semFechar: d < hoje ? doDia.filter((o) => o.status === "agendada").length : 0, marcadas: d >= hoje ? doDia.filter((o) => o.status === "agendada").length : 0,
+      reservas: res.filter((x) => x && x.data === d).length });
+  }
+  return l;
 }
 
 async function numerosQuadraLab() {

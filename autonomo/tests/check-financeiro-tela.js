@@ -84,7 +84,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(<div style={{padding
       assert.deepStrictEqual(Object.keys(posts[posts.length - 1].config.meses["2026-11"].recebidos), ["m:t1:a1"]);
       t = await p.evaluate(() => document.body.innerText); assert(/R\$\s*400,00 de R\$\s*1\.200,00/.test(t), "recebido 400 de 1.200");
       /* visão geral: Team Yoda 1.200 + 39 Ranch 240 de quadra */
-      await p.click('button:text-is("Visão geral")'); t = await p.evaluate(() => document.body.innerText);
+      await p.click('button:text-is("Visão geral")'); await p.click('button:text-is("Ver detalhe")'); t = await p.evaluate(() => document.body.innerText); // tabelas ficam recolhidas
       assert(/39 Ranch Tennis Club/.test(t) && /R\$\s*1\.440,00/.test(t), "visão geral soma as duas academias");
       if (capturas) { fs.mkdirSync(capturas, { recursive: true }); await p.screenshot({ path: path.join(capturas, "financeiro-geral.png"), fullPage: true }); await p.click('button:text-is("Team Yoda")'); await p.waitForTimeout(200); await p.screenshot({ path: path.join(capturas, "financeiro-resumo.png"), fullPage: true }); }
       console.log("  dono: preços salvos, mês recalculado, recebido marcado, visão geral das duas academias");

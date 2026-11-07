@@ -146,6 +146,19 @@ ReactDOM.createRoot(document.getElementById("root")).render(<div style={{padding
     console.log("  dono: planilha simulada e gravada, acesso dado, vencimento/forma e pendência em Recebido e pago");
   }
 
+  /* ── dono no celular: painel em blocos, sem rolagem lateral ── */
+  {
+    const { p, erros, fechar } = await abrir("dono", 390, "<TelaFinanceiro />");
+    await esperar(p, /Mês a mês/);
+    assert(await p.locator("[data-painel] [data-destaque-resultado]").count() === 1);
+    const largura = await p.evaluate(() => document.documentElement.scrollWidth);
+    assert(largura <= 392, "celular: sem rolagem lateral no painel (" + largura + " px)");
+    if (capturas) { await p.waitForTimeout(400); await p.screenshot({ path: path.join(capturas, "financeiro-390.png"), fullPage: true }); }
+    assert.deepStrictEqual(erros, [], "erros de JS: " + erros.join(" | "));
+    await fechar();
+    console.log("  dono no celular 390 px: painel sem rolagem lateral");
+  }
+
   /* ── administrativo: tela Cobrança ── */
   for (const larg of [1100, 390]) {
     const { p, erros, fechar } = await abrir("adm", larg, "<TelaCobranca />");

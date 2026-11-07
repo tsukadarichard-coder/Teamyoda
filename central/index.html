@@ -154,13 +154,13 @@ function Painel({ children, style }) {
   return <div data-painel style={{ background: FUNDO_PAINEL, borderRadius: 24, padding: 12, display: "flex", flexWrap: "wrap", gap: 12, alignItems: "stretch", ...style }}>{children}</div>;
 }
 function CartaoP({ titulo, direita, children, escuro, largura, style }) {
-  const flex = largura === "cheio" ? "1 1 100%" : largura === "2" ? "2 1 420px" : "1 1 220px";
+  const flex = largura === "cheio" ? "1 1 100%" : largura === "2" ? "2 1 420px" : largura === "mini" ? "1 1 150px" : "1 1 220px";
   return (
     <section style={{ flex, minWidth: 0, background: escuro ? C.quadra : "#FFFFFF", color: escuro ? "#FFFFFF" : C.tinta, borderRadius: 20, padding: "16px 18px", boxSizing: "border-box",
       boxShadow: escuro ? "0 8px 24px rgba(16,59,50,.18)" : "0 1px 2px rgba(23,37,31,.05)", ...style }}>
       {(titulo || direita) && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-          <h3 style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700, margin: 0, flex: 1, color: escuro ? "#FFFFFF" : C.tinta }}>{titulo}</h3>
+        <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+          <h3 style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700, margin: 0, flex: "1 1 140px", color: escuro ? "#FFFFFF" : C.tinta }}>{titulo}</h3>
           {direita}
         </div>
       )}
@@ -171,6 +171,69 @@ function CartaoP({ titulo, direita, children, escuro, largura, style }) {
 function ChipP({ children, tom }) {
   const t = { lima: [C.saibro, "#0E1F17"], vermelho: ["#F8DCD8", "#8A2419"], cinza: ["#EEF1EF", C.grafite], claro: ["rgba(255,255,255,.14)", "#FFFFFF"] }[tom || "cinza"];
   return <span style={{ display: "inline-block", fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, background: t[0], color: t[1], borderRadius: 999, padding: "2px 9px", maxWidth: "100%", lineHeight: 1.45 }}>{children}</span>;
+}
+
+/* cores dos dados (validadas para daltonismo e contraste; sempre com legenda): dadas, sem fechar, marcadas; cancelada em cinza */
+const COR_ALERTA_C = "#B23A2E";
+const COR_DADAS = "#4E9F2A", COR_SEM_FECHAR = "#C2577A", COR_MARCADAS = "#2F6FB0", COR_CANCELADAS = "#C4CCC8";
+const DIAS_CURTOS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+/* blocos pequenos (dois por linha no celular) com número grande e um gráfico de barras miúdo */
+function BlocoP({ rotulo, valor, sub, cor, serie, corSerie, alerta, onClick }) {
+  const max = Math.max(1, ...(serie || []).map((x) => x));
+  return (
+    <button type="button" onClick={onClick} data-bloco style={{ flex: "1 1 150px", minWidth: 0, textAlign: "left", cursor: onClick ? "pointer" : "default", background: "#FFFFFF", border: "none", borderRadius: 20, padding: "14px 14px 12px", boxShadow: "0 1px 2px rgba(23,37,31,.05)", fontFamily: ARCH }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ fontSize: 12.5, fontWeight: 600, color: C.grafite, flex: 1, minWidth: 0 }}>{rotulo}</span>
+        {alerta && <span style={{ width: 8, height: 8, borderRadius: 8, background: COR_SEM_FECHAR, flex: "none" }} />}
+      </div>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 8, marginTop: 4 }}>
+        <span style={{ fontSize: 30, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1.05, color: cor || C.tinta, flex: 1 }}>{valor}</span>
+        {serie && serie.length > 0 && (
+          <svg width={Math.min(78, serie.length * 9)} height="30" viewBox={"0 0 " + serie.length * 9 + " 30"} aria-hidden="true" style={{ flex: "none" }}>
+            {serie.map((v, i) => { const h = v ? Math.max(3, v / max * 28) : 2; return <rect key={i} x={i * 9} y={30 - h} width="6" height={h} rx="2" fill={v ? (corSerie || COR_DADAS) : "#E3E8E5"} />; })}
+          </svg>
+        )}
+      </div>
+      {sub && <p style={{ fontSize: 12, color: C.grafite, margin: "6px 0 0", lineHeight: 1.4 }}>{sub}</p>}
+    </button>
+  );
+}
+/* aulas dia a dia: barras empilhadas (dadas, sem fechar, canceladas) nos 14 dias que passaram e as marcadas nos próximos 7 */
+function GraficoAulasP({ dias, hoje }) {
+  const [foco, setFoco] = useState(null);
+  if (!dias || !dias.length) return <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Sem aulas registradas.</p>;
+  const tot = (d) => d.dadas + d.semFechar + d.canceladas + d.marcadas;
+  const max = Math.max(1, ...dias.map(tot)), L = 22, H = 120, W = dias.length * L;
+  const sel = foco != null ? dias[foco] : dias.find((d) => d.data === hoje) || dias[dias.length - 1];
+  const legenda = [["Dadas", COR_DADAS], ["Sem fechar", COR_SEM_FECHAR], ["Canceladas", COR_CANCELADAS], ["Marcadas", COR_MARCADAS]];
+  return (
+    <div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, fontFamily: ARCH, fontSize: 12, color: C.grafite, marginBottom: 8 }}>
+        {legenda.map(([r, c]) => <span key={r}><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 3, background: c, marginRight: 5, verticalAlign: "-1px" }} />{r}</span>)}
+      </div>
+      <svg viewBox={"0 0 " + W + " " + (H + 22)} style={{ width: "100%", height: "auto", display: "block" }} role="img" aria-label="Aulas por dia">
+        {[0.5, 1].map((f) => <line key={f} x1="0" x2={W} y1={H - f * (H - 6)} y2={H - f * (H - 6)} stroke="#EEF1EF" strokeWidth="1" />)}
+        {dias.map((d, i) => {
+          let y = H; const partes = [[d.dadas, COR_DADAS], [d.semFechar, COR_SEM_FECHAR], [d.canceladas, COR_CANCELADAS], [d.marcadas, COR_MARCADAS]];
+          const ehHoje = d.data === hoje, ativo = sel && sel.data === d.data;
+          return (
+            <g key={d.data} onClick={() => setFoco(i)} onMouseEnter={() => setFoco(i)} style={{ cursor: "pointer" }}>
+              <rect x={i * L} y="0" width={L} height={H + 22} fill={ativo ? "rgba(16,59,50,.05)" : "transparent"} />
+              {partes.map(([v, c], k) => { if (!v) return null; const h = Math.max(2, v / max * (H - 6)); y -= h; return <rect key={k} x={i * L + 4} y={y + 1} width={L - 8} height={Math.max(1, h - 2)} rx="3" fill={c} />; })}
+              {!tot(d) && <rect x={i * L + 4} y={H - 2} width={L - 8} height="2" rx="1" fill="#E3E8E5" />}
+              <text x={i * L + L / 2} y={H + 15} textAnchor="middle" style={{ fontFamily: ARCH, fontSize: 9.5, fill: ehHoje ? C.tinta : C.grafite, fontWeight: ehHoje ? 700 : 400 }}>{ehHoje ? "hoje" : d.data.slice(8, 10)}</text>
+            </g>
+          );
+        })}
+      </svg>
+      {sel && (
+        <p style={{ fontFamily: ARCH, fontSize: 12.5, color: C.tinta, margin: "6px 0 0" }}>
+          <b>{DIAS_CURTOS[new Date(sel.data + "T12:00:00").getDay()]} {sel.data.split("-").reverse().slice(0, 2).join("/")}</b>
+          {" · "}{sel.dadas} dada(s){sel.semFechar ? " · " + sel.semFechar + " sem fechar" : ""}{sel.canceladas ? " · " + sel.canceladas + " cancelada(s)" : ""}{sel.marcadas ? " · " + sel.marcadas + " marcada(s)" : ""}{sel.reservas ? " · " + sel.reservas + " reserva(s) de quadra" : ""}
+        </p>
+      )}
+    </div>
+  );
 }
 
 function TelaCentral() {
@@ -187,6 +250,7 @@ function TelaCentral() {
   const [novoComp, setNovoComp] = useState(null);
   const [novaNota, setNovaNota] = useState({ texto: "", negocio: "geral", decisao: false });
   const [semanaRev, setSemanaRev] = useState(() => segundaDe(dataISO(new Date())));
+  const [orgGrafico, setOrgGrafico] = useState("todas");
   const carregadoRef = useRef(false), timerRef = useRef(null);
   const hoje = (resp && resp.hoje) || dataISO(new Date());
 
@@ -320,13 +384,13 @@ function TelaCentral() {
   function cartaoNegocioResumo(id) {
     const n = negocioCentral(id), x = numeros(id, mesISOAtual());
     return (
-      <CartaoP key={id}>
+      <CartaoP key={id} largura="mini">
         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
           <span style={{ width: 10, height: 10, borderRadius: 10, background: n.cor, flex: "none" }} />
           <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700, flex: 1 }}>{n.nome}</span>
-          {x.meta.receita ? <ChipP>{Math.round((Number(x.receita) || 0) / x.meta.receita * 100)}% da meta</ChipP> : null}
+          {x.meta.receita ? <ChipP>{Math.round((Number(x.receita) || 0) / x.meta.receita * 100)}%</ChipP> : null}
         </div>
-        <div style={{ fontFamily: ARCH, fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1.2, marginTop: 8, color: C.tinta }}>{x.receita != null ? reais(x.receita) : "—"}</div>
+        <div style={{ fontFamily: ARCH, fontSize: 21, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1.2, marginTop: 8, color: C.tinta }}>{x.receita != null ? reais(x.receita) : "—"}</div>
         <p style={{ ...sub, fontSize: 11.5, marginTop: 0 }}>receita do mês</p>
         <BarraMeta real={x.receita} meta={x.meta.receita} />
         <p style={{ ...sub, fontSize: 12, marginTop: 6 }}>
@@ -340,19 +404,32 @@ function TelaCentral() {
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2" style={{ marginBottom: 4 }}>
-        <h1 style={{ fontFamily: ARCH, fontSize: 30, fontWeight: 700, letterSpacing: "-0.02em", flex: 1, margin: 0 }}>Central</h1>
+        <h1 style={{ fontFamily: ARCH, fontSize: 30, fontWeight: 700, letterSpacing: "-0.02em", flex: 1, margin: 0 }}>{(() => { const h = new Date().getHours(); return h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite"; })()}, Richard</h1>
         <span style={{ ...sub, color: estadoSalvar === "erro" ? "#B23A2E" : C.grafite }}>{estadoSalvar === "salvando" || estadoSalvar === "pendente" ? "Salvando…" : estadoSalvar === "salvo" ? "Salvo ✓" : estadoSalvar === "erro" ? "Não salvou — tente de novo" : ""}</span>
       </div>
-      <p style={{ ...sub, fontSize: 13.5, marginBottom: 10 }}>{new Date(hoje + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })} · Team Yoda, 39 Ranch, QuadraLab e Alvor num lugar só. Só você vê.</p>
-      <div className="flex flex-wrap gap-2 mb-3">
-        {[["hoje", "Hoje"], ["agenda", "Agenda"], ["tarefas", "Tarefas"], ["negocios", "Negócios"], ["revisao", "Revisão semanal"], ["notas", "Notas e decisões"]].map(([v, r]) => <button key={v} style={chipA(aba === v)} onClick={() => setAba(v)}>{r}</button>)}
+      <p style={{ ...sub, fontSize: 13.5, marginBottom: 10 }}>Central · {new Date(hoje + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })} · só você vê</p>
+      <div data-abas style={{ display: "flex", gap: 8, overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "none", margin: "0 -16px 12px", padding: "2px 16px 4px" }}>
+        {[["hoje", "Hoje"], ["agenda", "Agenda"], ["tarefas", "Tarefas"], ["negocios", "Negócios"], ["revisao", "Revisão semanal"], ["notas", "Notas e decisões"]].map(([v, r]) => <button key={v} style={{ ...chipA(aba === v), whiteSpace: "nowrap", flex: "none" }} onClick={() => setAba(v)}>{r}</button>)}
       </div>
 
       {aba === "hoje" && (() => {
         const altos = alertas.filter((a) => a.nivel === "alto").length;
         const prios = revAnterior ? (revAnterior.prioridades || []).filter(Boolean) : [];
+        const somaDias = (lista) => { const base = (lista[0] || []).map((d) => ({ ...d })); lista.slice(1).forEach((l) => (l || []).forEach((d, k) => { if (base[k]) ["dadas", "canceladas", "semFechar", "marcadas", "reservas"].forEach((c) => { base[k][c] += d[c] || 0; }); })); return base; };
+        const diasTodas = somaDias([ty.dias || [], rc.dias || []].filter((l) => l.length));
+        const dias = orgGrafico === "team-yoda" ? (ty.dias || []) : orgGrafico === "39-ranch" ? (rc.dias || []) : diasTodas;
+        const passados = diasTodas.filter((d) => d.data < hoje), ult7 = passados.slice(-7);
+        const aulasHoje = (ty.aulasHoje || 0) + (rc.aulasHoje || 0), semFechar = (ty.aulasEmAberto || 0) + (rc.aulasEmAberto || 0);
+        const dadas14 = passados.reduce((s2, d) => s2 + d.dadas, 0);
+        const chipO = (on) => ({ fontFamily: ARCH, fontSize: 12, fontWeight: 700, padding: "5px 11px", borderRadius: 999, cursor: "pointer", border: "1px solid " + (on ? "#0E1F17" : "#E0E6E3"), background: on ? "#0E1F17" : "#FFFFFF", color: on ? "#fff" : C.tinta });
         return (
           <Painel>
+            <BlocoP rotulo="Aulas hoje" valor={aulasHoje} serie={diasTodas.filter((d) => d.data >= hoje).slice(0, 7).map((d) => d.marcadas + d.dadas)} corSerie={COR_MARCADAS}
+              sub={"Team Yoda " + (ty.aulasHoje || 0) + " · 39 Ranch " + (rc.aulasHoje || 0)} />
+            <BlocoP rotulo="Sem fechar" valor={semFechar} cor={semFechar ? COR_ALERTA_C : C.tinta} alerta={semFechar > 0} serie={passados.slice(-14).map((d) => d.semFechar)} corSerie={COR_SEM_FECHAR}
+              sub="aulas que passaram sem marcar" />
+            <BlocoP rotulo="Aulas dadas" valor={dadas14} serie={ult7.map((d) => d.dadas)} sub="nos últimos 14 dias" />
+            <BlocoP rotulo="Jogadores" valor={(ty.jogadores || 0) + (rc.jogadores || 0)} sub={"Team Yoda " + (ty.jogadores || 0) + " · 39 Ranch " + (rc.jogadores || 0)} />
             <CartaoP escuro largura="2" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <div style={{ display: "flex", alignItems: "flex-end", gap: 12, flexWrap: "wrap" }}>
                 <div style={{ flex: 1, minWidth: 160 }}>
@@ -372,6 +449,12 @@ function TelaCentral() {
                 ))}
               </div>
             </CartaoP>
+            <CartaoP titulo="Aulas dia a dia" largura="2" direita={
+              <div style={{ display: "flex", gap: 6 }}>{[["todas", "Todas"], ["team-yoda", "Team Yoda"], ["39-ranch", "39 Ranch"]].map(([v, r]) => <button key={v} style={chipO(orgGrafico === v)} onClick={() => setOrgGrafico(v)}>{r}</button>)}</div>}>
+              <p style={{ ...sub, marginTop: -4, marginBottom: 8 }}>Últimos 14 dias e a próxima semana. Toque numa barra para ver o dia.</p>
+              <GraficoAulasP dias={dias} hoje={hoje} />
+            </CartaoP>
+            {["team-yoda", "39-ranch", "quadralab", "alvor"].map((id) => cartaoNegocioResumo(id))}
             <CartaoP titulo="Prioridades da semana" direita={<ChipP>{prios.length}</ChipP>}>
               {prios.length ? prios.map((p, i) => (
                 <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "6px 0", borderBottom: "1px solid #EEF1EF" }}>
@@ -380,7 +463,6 @@ function TelaCentral() {
                 </div>
               )) : <p style={sub}>Defina na Revisão semanal; elas aparecem aqui durante a semana.</p>}
             </CartaoP>
-            {["team-yoda", "39-ranch", "quadralab", "alvor"].map((id) => cartaoNegocioResumo(id))}
             <CartaoP titulo="Agenda de hoje" largura="2" direita={<ChipP>{compromissosNoDia(dados.agenda, hoje).length}</ChipP>}>
               {listaCompromissos(hoje)}
               <div className="mt-2">{formCompromisso()}</div>

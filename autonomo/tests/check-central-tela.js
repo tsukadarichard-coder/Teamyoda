@@ -10,7 +10,10 @@ const hoje = new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10), onte
 const banco = {
   "orgs/team-yoda/dados/mty:alunos:v2": [{ id: "a1", nome: "Ana", registros: [], pedidosReposicao: [{ status: "pendente" }] }, { id: "a2", nome: "Bia", registros: [] }],
   "orgs/team-yoda/dados/mty:turmas:v1": [{ id: "t1", nome: "Sub-12", membros: ["a1", "a2"] }],
-  "orgs/team-yoda/dados/mty:ocorrencias:v1": [{ id: "o1", data: hoje, status: "agendada" }, { id: "o2", data: ontem, status: "agendada" }],
+  "orgs/team-yoda/dados/mty:ocorrencias:v1": [{ id: "o1", data: hoje, status: "agendada" }, { id: "o2", data: ontem, status: "agendada" }].concat(
+    /* aulas dadas, canceladas e marcadas espalhadas para o gráfico dia a dia (não mudam os alertas) */
+    [...Array(13).keys()].flatMap((k) => { const d = new Date(Date.now() - 3 * 3600000 - (k + 2) * 86400000).toISOString().slice(0, 10); return [...Array(2 + (k * 7) % 5).keys()].map((n) => ({ id: "r" + k + "-" + n, data: d, status: n === 4 ? "cancelada" : "realizada" })); }),
+    [...Array(7).keys()].flatMap((k) => { const d = new Date(Date.now() - 3 * 3600000 + (k + 1) * 86400000).toISOString().slice(0, 10); return [...Array(1 + (k * 3) % 4).keys()].map((n) => ({ id: "f" + k + "-" + n, data: d, status: "agendada" })); })),
   "orgs/39-ranch/dados/mty:reservas:v1": [{ id: "r1", quadraId: "q1", data: hoje, horaInicio: "08:00", horaFim: "09:00", origem: "cliente" }],
   "orgs/39-ranch/dados/mty:quadras:v1": [{ id: "q1", nome: "Central", faixasPreco: [{ inicio: "06:00", fim: "23:00", preco: "100" }] }],
 };
