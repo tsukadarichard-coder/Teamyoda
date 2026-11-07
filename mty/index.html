@@ -23362,7 +23362,7 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   );
 }
 /* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
-const NOVIDADES_TY_VERSAO = "ty-2026-11x";
+const NOVIDADES_TY_VERSAO = "ty-2026-11y";
 /* Itens com `so: "financeiro"` só aparecem para o dono e para a parte administrativa. Enquanto o item novo do topo for um
    desses, quem não o vê continua na versão da equipe abaixo (a janela não reabre vazia para os professores). */
 const NOVIDADES_TY_VERSAO_EQUIPE = "ty-2026-11w";
@@ -23371,7 +23371,8 @@ function novidadesTYPara(veFinanceiro) {
   return { itens, versao: itens.some((x) => x.novo) ? NOVIDADES_TY_VERSAO : NOVIDADES_TY_VERSAO_EQUIPE };
 }
 const NOVIDADES_TY = [
-  { novo: true, so: "financeiro", t: "Financeiro: importar a planilha, vencimentos e acesso administrativo", d: "Três coisas novas no Financeiro. 1) Importar planilha: preencha a planilha-modelo com o que vem do Let's Play e do Airtable (alunos, turmas, cobrança, meses em aberto, professores e despesas) e escolha o arquivo. O app mostra antes o que vai entrar — alunos e turmas novos, os que já existiam, nomes casados por aproximação para você conferir — e só grava quando você confirma. Nada é apagado; o que já está no app só é completado, e importar de novo não duplica. 2) Vencimento e forma de pagamento de cada aluno em Recebido e pago, com o que já venceu destacado, e os meses antigos em aberto numa lista para marcar quando a família pagar. 3) Acesso administrativo: cadastre o e-mail de quem cuida da cobrança. Essa pessoa vê só a tela Cobrança (o que cobrar, contato do responsável, pendências e o que pagar a cada professor) e marca recebido e pago; não vê resultado, margem, despesas, impostos nem preços.", onde: "Mais › Gestão da academia › Financeiro (para a parte administrativa: Cobrança)", aba: "financeiro" },
+  { novo: true, so: "financeiro", t: "Financeiro e Cobrança com cara de painel", d: "O Financeiro e a tela Cobrança viraram um painel: o resultado do mês num cartão escuro em destaque (com a margem e quanto as saídas usam do que entra), entradas e saídas com a variação contra o mês anterior, o anel do que já foi recebido, o gráfico mês a mês de entradas × saídas, de onde vem e para onde vai o dinheiro e os professores do mês. A Visão geral compara as duas academias lado a lado. Na Cobrança, o que falta receber fica em destaque, com o recebido, os vencidos e o pagamento dos professores. Os números e as permissões são os mesmos de antes. A Central do dono ganhou o mesmo visual.", onde: "Mais › Gestão da academia › Financeiro (para a parte administrativa: Cobrança)", aba: "financeiro" },
+  { so: "financeiro", t: "Financeiro: importar a planilha, vencimentos e acesso administrativo", d: "Três coisas novas no Financeiro. 1) Importar planilha: preencha a planilha-modelo com o que vem do Let's Play e do Airtable (alunos, turmas, cobrança, meses em aberto, professores e despesas) e escolha o arquivo. O app mostra antes o que vai entrar — alunos e turmas novos, os que já existiam, nomes casados por aproximação para você conferir — e só grava quando você confirma. Nada é apagado; o que já está no app só é completado, e importar de novo não duplica. 2) Vencimento e forma de pagamento de cada aluno em Recebido e pago, com o que já venceu destacado, e os meses antigos em aberto numa lista para marcar quando a família pagar. 3) Acesso administrativo: cadastre o e-mail de quem cuida da cobrança. Essa pessoa vê só a tela Cobrança (o que cobrar, contato do responsável, pendências e o que pagar a cada professor) e marca recebido e pago; não vê resultado, margem, despesas, impostos nem preços.", onde: "Mais › Gestão da academia › Financeiro (para a parte administrativa: Cobrança)", aba: "financeiro" },
   { t: "Análise de movimento: golpe inteiro mesmo no fim do vídeo", d: "Quando o golpe passava do trecho de 8 s analisado (por exemplo, um saque que começa perto dos 6 s), o contato, o seguimento e a recuperação caíam nos últimos quadros do vídeo, um colado no outro, e as medidas dessas fases saíam erradas. Agora a análise continua sozinha pelo vídeo até o golpe terminar. Se o próprio vídeo acaba antes do fim do golpe, a análise avisa, essas fases aparecem como fora do vídeo e não entram como medida nem na comparação com a análise anterior. O PDF do iPhone também ficou com as quebras de página certas e o tamanho de letra igual ao do computador.", onde: "Jogadores › abra o jogador › Análise de movimento", aba: "alunos" },
   { t: "Relatórios em PDF com a diagramação certa", d: "Revisamos todos os relatórios que viram PDF: relatório dos jogos e da partida, do aluno, do mês e por aluno, de aulas e reposições, do atleta, do ciclo da equipe, da análise de movimento e o caderno de campo. No iPhone e no iPad o PDF agora sai como uma folha A4 de computador (duas colunas, gráficos no tamanho certo), e não mais no layout do celular. Nenhum gráfico, cartão ou linha de tabela é cortado entre páginas, os títulos ficam junto do conteúdo, a tabela que continua na outra página repete o cabeçalho, as fotos das fases saem sem esticar e os botões Salvar e Voltar não aparecem mais no papel. A ficha de avaliação e o certificado da Academia Digital também geram o PDF no iPhone.", onde: "Qualquer relatório › Salvar como PDF / Imprimir", aba: "alunos" },
   { t: "Placar ao vivo no jogo em vídeo, como numa transmissão", d: "Em Ver rastreamento, embaixo do vídeo aparece agora um placar ao vivo que acompanha a jogada: golpes, forehand e backhand, a velocidade do último golpe (com o pico e as médias de forehand e backhand), o histórico das velocidades em barras, a velocidade do jogador naquele instante e os metros que ele já correu no ponto, e a sequência do ponto numerada (1 saque, 2 BH, 3 FH…). Dá para trocar entre o jogador e o adversário, e o esqueleto de quem está no placar aparece por cima do vídeo. O botão Assistir o jogo com o placar ao vivo passa a partida inteira, de ponto em ponto, sem precisar tocar em nada.", onde: "Jogadores › abra o jogador › Análise de movimento › Jogo em vídeo › Ver rastreamento", aba: "alunos" },
@@ -24667,15 +24668,6 @@ const ROTULOS_DESPESA = { professores: "Professores", fixas: "Despesas fixas", i
 const CATEGORIAS_DESPESA_FIN = { aluguel: "Aluguel", manutencao: "Manutenção", materiais: "Materiais", outros: "Outras" };
 const FORMAS_PROFESSOR = { aula: "Por aula dada", fixo: "Fixo mensal", pct: "% do que as aulas dele rendem" };
 
-function CartaoValor({ rotulo, valor, nota, cor }) {
-  return (
-    <div style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "10px 12px" }}>
-      <Etiqueta>{rotulo}</Etiqueta>
-      <div style={{ fontFamily: ARCH, fontSize: 21, fontWeight: 700, color: cor || C.tinta, lineHeight: 1.25, marginTop: 2 }}>{valor}</div>
-      {nota && <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 2 }}>{nota}</p>}
-    </div>
-  );
-}
 function TabelaFin({ cabecalho, linhas, rodape }) {
   const cel = { fontFamily: ARCH, fontSize: 13, padding: "6px 8px", borderBottom: "1px solid " + C.linha, textAlign: "left", verticalAlign: "top" };
   return (
@@ -24687,24 +24679,6 @@ function TabelaFin({ cabecalho, linhas, rodape }) {
           {rodape && <tr>{rodape.map((c, i) => <td key={i} style={{ ...cel, fontWeight: 700, borderBottom: "none", textAlign: i && i === rodape.length - 1 ? "right" : "left" }}>{c}</td>)}</tr>}
         </tbody>
       </table>
-    </div>
-  );
-}
-function BarrasHistorico({ historico }) {
-  const max = Math.max(1, ...historico.map((h) => Math.max(h.entradas, h.saidas)));
-  return (
-    <div>
-      {historico.map((h) => (
-        <div key={h.mes} className="mb-2">
-          <div className="flex justify-between" style={{ fontFamily: ARCH, fontSize: 12.5 }}>
-            <span style={{ fontWeight: 600 }}>{nomeMes(h.mes)}</span>
-            <span style={{ fontWeight: 700, color: h.resultado >= 0 ? C.quadra : "#B23A2E" }}>{reais(h.resultado)}</span>
-          </div>
-          <div style={{ height: 7, background: "#E9EFEC", borderRadius: 4, marginTop: 3 }}><div style={{ width: (h.entradas / max * 100) + "%", height: 7, background: C.quadra, borderRadius: 4 }} /></div>
-          <div style={{ height: 7, background: "#F3ECE9", borderRadius: 4, marginTop: 2 }}><div style={{ width: (h.saidas / max * 100) + "%", height: 7, background: "#C9744F", borderRadius: 4 }} /></div>
-        </div>
-      ))}
-      <p style={{ ...prosa, fontSize: 12, color: C.grafite }}>Barra verde: entradas · barra laranja: saídas · à direita, o resultado.</p>
     </div>
   );
 }
@@ -24888,8 +24862,8 @@ function TelaCobranca() {
     setOcupado("");
   }
   const A = dados && dados.academias.find((a) => a.org === org);
-  const chipF = (ativo) => ({ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, padding: "6px 12px", borderRadius: 999, cursor: "pointer",
-    border: "1px solid " + (ativo ? C.quadra : C.linha), background: ativo ? C.quadra : C.cal, color: ativo ? "#fff" : C.tinta });
+  const chipF = (ativo) => ({ fontFamily: ARCH, fontSize: 13, fontWeight: 700, padding: "8px 14px", borderRadius: 999, cursor: "pointer",
+    border: "1px solid " + (ativo ? "#0E1F17" : "#E0E6E3"), background: ativo ? "#0E1F17" : "#FFFFFF", color: ativo ? "#fff" : C.tinta });
   const h2 = { fontFamily: ARCH, fontSize: 16, fontWeight: 700, margin: "18px 0 8px" };
   const pequeno = { ...entrada, fontSize: 14, padding: "4px 6px" };
   const linhas = A ? A.cobrar.filter((l) => (filtro === "todos" || (!l.recebido && (filtro === "abertos" || atrasadoFin(l.venc, mes))))
@@ -24901,7 +24875,7 @@ function TelaCobranca() {
   }
   return (
     <div>
-      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Cobrança</h1>
+      <h1 style={{ fontFamily: ARCH, fontSize: 30, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 4 }}>Cobrança</h1>
       <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginBottom: 12 }}>O que cobrar neste mês e o que pagar aos professores. Marque quando o dinheiro entrar ou sair; grava na hora. Nada aqui cobra ninguém sozinho.</p>
       <div className="flex flex-wrap gap-2 items-center mb-3">
         <Botao pequeno variante="vazio" disabled={mes <= FINANCEIRO_INICIO} onClick={() => setMes(somaMes(mes, -1))}>◀</Botao>
@@ -24918,15 +24892,39 @@ function TelaCobranca() {
       {erro && <Aviso>{erro}</Aviso>}
       {A && !carregando && (
         <div>
-          <div className="mb-4" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 8 }}>
-            <CartaoValor rotulo="Recebido" valor={reais(A.totais.recebido)} nota={"de " + reais(A.totais.aReceber) + " no mês"} />
-            <CartaoValor rotulo="Falta receber" valor={reais(A.totais.aReceber - A.totais.recebido)} nota={A.totais.emAberto + " em aberto"} cor={A.totais.emAberto ? "#B23A2E" : C.quadra} />
-            <CartaoValor rotulo="Vencidos" valor={reais(A.totais.valorAtrasado)} nota={A.totais.atrasados + " com vencimento passado"} cor={A.totais.atrasados ? "#B23A2E" : C.quadra} />
-            {A.totais.pendencias > 0 && <CartaoValor rotulo="Meses anteriores" valor={reais(A.totais.pendencias)} nota={A.pendencias.length + " pendência(s) antiga(s)"} cor="#B23A2E" />}
-            <CartaoValor rotulo="Professores" valor={reais(A.totais.pagoProfessores)} nota={"pago de " + reais(A.totais.aPagarProfessores)} />
-          </div>
+          <Painel style={{ marginBottom: 14 }}>
+            <CartaoP escuro largura="2" style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 14, minHeight: 170 }}>
+              <div>
+              <p style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 600, color: "rgba(255,255,255,.72)", margin: 0 }}>Falta receber em {nomeMes(mes)}</p>
+              <div className="flex flex-wrap items-end gap-3" style={{ marginTop: 4 }}>
+                <span style={{ fontFamily: ARCH, fontSize: 40, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1.05 }}>{reais(A.totais.aReceber - A.totais.recebido)}</span>
+                <ChipP tom="lima">{A.totais.emAberto} em aberto</ChipP>
+              </div>
+              </div>
+              <div>
+              <div><BarraP valor={A.totais.recebido} total={A.totais.aReceber} cor={C.saibro} fundo="rgba(255,255,255,.16)" altura={8} /></div>
+              <p style={{ fontFamily: ARCH, fontSize: 12.5, color: "rgba(255,255,255,.8)", marginTop: 6 }}>Recebido {reais(A.totais.recebido)} de {reais(A.totais.aReceber)} no mês</p>
+              </div>
+            </CartaoP>
+            <CartaoP titulo="Recebido">
+              <div className="flex items-center gap-3">
+                <AnelP feito={A.totais.recebido} total={A.totais.aReceber} centro={A.totais.aReceber > 0 ? Math.round(A.totais.recebido / A.totais.aReceber * 100) + "%" : "—"} sub="do mês" tamanho={116} />
+                <NumeroP rotulo="Já entrou" valor={reais(A.totais.recebido)} nota={"de " + reais(A.totais.aReceber)} />
+              </div>
+            </CartaoP>
+            <CartaoP titulo="Vencidos">
+              <NumeroP rotulo={A.totais.atrasados + " com vencimento passado"} valor={reais(A.totais.valorAtrasado)} cor={A.totais.atrasados ? COR_ALERTA : C.tinta} />
+              {A.totais.pendencias > 0 && <div style={{ marginTop: 10 }}><ChipP tom="vermelho">Meses anteriores: {reais(A.totais.pendencias)} · {A.pendencias.length}</ChipP></div>}
+              {A.totais.atrasados > 0 && <div style={{ marginTop: 10 }}><Botao pequeno variante="vazio" onClick={() => setFiltro("atrasados")}>Ver vencidos</Botao></div>}
+            </CartaoP>
+            <CartaoP titulo="Professores">
+              <NumeroP rotulo="Pago" valor={reais(A.totais.pagoProfessores)} nota={"de " + reais(A.totais.aPagarProfessores) + " a pagar"} />
+              <div style={{ marginTop: 10 }}><BarraP valor={A.totais.pagoProfessores} total={A.totais.aPagarProfessores} cor={COR_SAIDA} /></div>
+            </CartaoP>
+          </Painel>
 
-          <h2 style={h2}>A receber</h2>
+          <div style={CARTAO_BRANCO}>
+          <h2 style={{ ...h2, marginTop: 0 }}>A receber</h2>
           <div className="flex flex-wrap gap-2 items-center mb-2">
             {[{ v: "abertos", r: "Em aberto" }, { v: "atrasados", r: "Vencidos" }, { v: "todos", r: "Todos" }].map((t) => <button key={t.v} style={chipF(filtro === t.v)} onClick={() => setFiltro(t.v)}>{t.r}</button>)}
             <input style={{ ...entrada, width: 200, fontSize: 15 }} placeholder="Buscar aluno ou responsável" value={busca} onChange={(e) => setBusca(e.target.value)} />
@@ -24984,9 +24982,156 @@ function TelaCobranca() {
           ))}
           {A.professores.length === 0 && <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Nenhum professor com aula ou valor neste mês.</p>}
           <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 6 }}>Valores calculados pelas aulas marcadas como dadas (Agenda e caderno) e pela forma de pagamento que o dono definiu.</p>
+          </div>
         </div>
       )}
     </div>
+  );
+}
+
+/* ── PAINEL (visual de dashboard do Financeiro e da Cobrança) ──────────────
+   Fundo cinza-claro, cartões brancos arredondados, números grandes e um cartão escuro em destaque, com o verde da academia.
+   Cores dos dados validadas (daltonismo e contraste): entradas em verde e saídas em framboesa, sempre com legenda e rótulo. */
+const COR_ENTRADA = "#4E9F2A", COR_SAIDA = "#C2577A", COR_ALERTA = "#B23A2E";
+const FUNDO_PAINEL = "#E9EDEB";
+const CARTAO_BRANCO = { background: "#FFFFFF", border: "1px solid #E6EBE8", borderRadius: 20, padding: "16px 18px", boxShadow: "0 1px 2px rgba(23,37,31,.05)" };
+function Painel({ children, style }) {
+  return <div data-painel style={{ background: FUNDO_PAINEL, borderRadius: 24, padding: 12, display: "flex", flexWrap: "wrap", gap: 12, alignItems: "stretch", ...style }}>{children}</div>;
+}
+/* largura: "1" (estreito), "2" (largo) ou "cheio" — no celular todos ocupam a linha inteira */
+function CartaoP({ titulo, direita, children, escuro, largura, style, ...resto }) {
+  const flex = largura === "cheio" ? "1 1 100%" : largura === "2" ? "2 1 420px" : "1 1 230px";
+  return (
+    <section {...resto} style={{ flex, minWidth: 0, background: escuro ? C.quadra : "#FFFFFF", color: escuro ? "#FFFFFF" : C.tinta, borderRadius: 20, padding: "16px 18px",
+      boxShadow: escuro ? "0 8px 24px rgba(16,59,50,.18)" : "0 1px 2px rgba(23,37,31,.05)", boxSizing: "border-box", ...style }}>
+      {(titulo || direita) && (
+        <div className="flex items-center gap-2" style={{ marginBottom: 10 }}>
+          <h3 style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700, margin: 0, flex: 1, color: escuro ? "#FFFFFF" : C.tinta }}>{titulo}</h3>
+          {direita}
+        </div>
+      )}
+      {children}
+    </section>
+  );
+}
+function ChipP({ children, tom }) {
+  const t = { verde: ["#DDF3C6", "#1F4D0F"], lima: [C.saibro, "#0E1F17"], vermelho: ["#F8DCD8", "#8A2419"], cinza: ["#EEF1EF", C.grafite] }[tom || "cinza"];
+  return <span style={{ display: "inline-block", fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, background: t[0], color: t[1], borderRadius: 999, padding: "2px 9px", maxWidth: "100%", whiteSpace: "normal", lineHeight: 1.45 }}>{children}</span>;
+}
+/* variação contra o mês anterior; "bom" diz se subir é bom (entradas) ou ruim (saídas) */
+function VariacaoP({ atual, anterior, bom }) {
+  if (anterior == null || !isFinite(anterior) || anterior === 0) return null;
+  const pct = Math.round((atual - anterior) / Math.abs(anterior) * 1000) / 10;
+  if (!isFinite(pct)) return null;
+  const sobe = pct >= 0, melhor = bom === "cima" ? sobe : !sobe;
+  return <ChipP tom={pct === 0 ? "cinza" : melhor ? "verde" : "vermelho"}>{(sobe ? "▲ +" : "▼ ") + String(pct).replace(".", ",")}%</ChipP>;
+}
+function NumeroP({ rotulo, valor, nota, cor, extra, grande }) {
+  return (
+    <div>
+      <p style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 600, color: C.grafite, margin: 0 }}>{rotulo}</p>
+      <div className="flex flex-wrap items-center gap-2" style={{ marginTop: 2 }}>
+        <span style={{ fontFamily: ARCH, fontSize: grande ? 34 : 26, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1.15, color: cor || C.tinta }}>{valor}</span>
+        {extra}
+      </div>
+      {nota && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 3 }}>{nota}</p>}
+    </div>
+  );
+}
+function BarraP({ valor, total, cor, fundo, altura }) {
+  const pct = total > 0 ? Math.max(0, Math.min(100, valor / total * 100)) : 0;
+  return <div style={{ height: altura || 10, background: fundo || "#EEF1EF", borderRadius: 999, overflow: "hidden" }}><div style={{ width: pct + "%", height: "100%", background: cor || C.saibro, borderRadius: 999 }} /></div>;
+}
+/* anel de duas partes (feito × falta), com o número no meio */
+function AnelP({ feito, total, cor, centro, sub, tamanho }) {
+  const t = tamanho || 132, r = t / 2 - 9, circ = 2 * Math.PI * r, pct = total > 0 ? Math.max(0, Math.min(1, feito / total)) : 0;
+  return (
+    <svg width={t} height={t} viewBox={"0 0 " + t + " " + t} role="img" aria-label={centro + (sub ? " " + sub : "")} style={{ flex: "none" }}>
+      <circle cx={t / 2} cy={t / 2} r={r} fill="none" stroke="#EEF1EF" strokeWidth="14" />
+      <circle cx={t / 2} cy={t / 2} r={r} fill="none" stroke={cor || COR_ENTRADA} strokeWidth="14" strokeLinecap="round"
+        strokeDasharray={(circ * pct) + " " + circ} transform={"rotate(-90 " + t / 2 + " " + t / 2 + ")"} />
+      <text x="50%" y={sub ? "47%" : "53%"} textAnchor="middle" style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, fill: C.tinta }}>{centro}</text>
+      {sub && <text x="50%" y="63%" textAnchor="middle" style={{ fontFamily: ARCH, fontSize: 11, fill: C.grafite }}>{sub}</text>}
+    </svg>
+  );
+}
+/* lista de categorias com barra (um tom só; o valor vem escrito ao lado) */
+function BarrasCategoriaP({ itens, cor }) {
+  const l = itens.filter((x) => x.valor > 0), max = Math.max(1, ...l.map((x) => x.valor)), tot = l.reduce((s, x) => s + x.valor, 0);
+  if (!l.length) return <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Nada neste mês.</p>;
+  return l.sort((a, b) => b.valor - a.valor).map((x) => (
+    <div key={x.rotulo} style={{ marginBottom: 9 }}>
+      <div className="flex justify-between gap-2" style={{ fontFamily: ARCH, fontSize: 13 }}>
+        <span style={{ color: C.tinta }}>{x.rotulo}</span>
+        <span style={{ fontWeight: 700 }}>{reais(x.valor)} <span style={{ color: C.grafite, fontWeight: 500 }}>· {Math.round(x.valor / tot * 100)}%</span></span>
+      </div>
+      <div style={{ marginTop: 4 }}><BarraP valor={x.valor} total={max} cor={cor} altura={8} /></div>
+    </div>
+  ));
+}
+function DicaGraficoP({ active, payload, label, rotular }) {
+  if (!active || !payload || !payload.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div style={{ background: "#FFFFFF", border: "1px solid " + C.linha, borderRadius: 12, padding: "8px 11px", boxShadow: "0 6px 18px rgba(0,0,0,.08)", fontFamily: ARCH, fontSize: 12.5 }}>
+      <p style={{ fontWeight: 700, margin: "0 0 4px" }}>{rotular ? rotular(label, d) : label}</p>
+      {payload.map((p) => <p key={p.dataKey} style={{ margin: 0, color: C.tinta }}><span style={{ display: "inline-block", width: 9, height: 9, borderRadius: 3, background: p.color, marginRight: 6 }} />{p.name}: <b>{reais(p.value)}</b></p>)}
+      {d.resultado != null && <p style={{ margin: "4px 0 0", color: C.grafite }}>Resultado: <b style={{ color: d.resultado >= 0 ? C.tinta : COR_ALERTA }}>{reais(d.resultado)}</b></p>}
+    </div>
+  );
+}
+const MESES_CURTOS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+function mesCurto(mes) { const [a, m] = String(mes).split("-").map(Number); return MESES_CURTOS[m - 1] + "/" + String(a).slice(2); }
+function reaisCurto(v) { const a = Math.abs(v); return (v < 0 ? "−" : "") + (a >= 1000 ? (Math.round(a / 100) / 10).toString().replace(".", ",") + " mil" : String(Math.round(a))); }
+/* entradas × saídas por categoria (mês ou academia): barras lado a lado, um eixo só, legenda e dica ao passar o dedo */
+function GraficoEntradasSaidasP({ dados, chave, rotular, altura }) {
+  const legenda = (
+    <div className="flex flex-wrap gap-3" style={{ fontFamily: ARCH, fontSize: 12, color: C.grafite, marginBottom: 6 }}>
+      <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 3, background: COR_ENTRADA, marginRight: 5 }} />Entradas</span>
+      <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 3, background: COR_SAIDA, marginRight: 5 }} />Saídas</span>
+    </div>
+  );
+  return (
+    <div>
+      {legenda}
+      <div style={{ width: "100%", height: altura || 210 }}>
+        <ResponsiveContainer>
+          <BarChart data={dados} margin={{ top: 6, right: 4, left: -8, bottom: 0 }} barGap={2} barCategoryGap="28%">
+            <CartesianGrid vertical={false} stroke="#EEF1EF" />
+            <XAxis dataKey={chave} tickFormatter={rotular} tick={{ fontFamily: ARCH, fontSize: 11.5, fill: C.grafite }} axisLine={false} tickLine={false} />
+            <YAxis tickFormatter={reaisCurto} tick={{ fontFamily: ARCH, fontSize: 11, fill: C.grafite }} axisLine={false} tickLine={false} width={52} />
+            <Tooltip cursor={{ fill: "rgba(16,59,50,.05)" }} content={<DicaGraficoP rotular={rotular} />} />
+            <Bar dataKey="entradas" name="Entradas" fill={COR_ENTRADA} radius={[6, 6, 0, 0]} maxBarSize={34} isAnimationActive={false} />
+            <Bar dataKey="saidas" name="Saídas" fill={COR_SAIDA} radius={[6, 6, 0, 0]} maxBarSize={34} isAnimationActive={false} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+/* cartão escuro do resultado, com a variação contra o mês anterior */
+function DestaqueResultadoP({ titulo, r, anterior }) {
+  return (
+    <CartaoP escuro largura="2" data-destaque-resultado style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 14, minHeight: 190 }}>
+      <div>
+      <p style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 600, color: "rgba(255,255,255,.72)", margin: 0 }}>{titulo}</p>
+      <div className="flex flex-wrap items-end gap-3" style={{ marginTop: 4 }}>
+        <span style={{ fontFamily: ARCH, fontSize: 40, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1.05, color: r.resultado >= 0 ? "#FFFFFF" : "#FFB4AA" }}>{reais(r.resultado)}</span>
+        {r.margem != null && <ChipP tom="lima">margem {String(r.margem).replace(".", ",")}%</ChipP>}
+      </div>
+      <div className="flex flex-wrap gap-4" style={{ marginTop: 14, fontFamily: ARCH, fontSize: 13, color: "rgba(255,255,255,.85)" }}>
+        <span>Entradas <b style={{ color: "#FFFFFF" }}>{reais(r.entradas)}</b></span>
+        <span>Saídas <b style={{ color: "#FFFFFF" }}>{reais(r.saidas)}</b></span>
+        {anterior && <span>Mês anterior <b style={{ color: "#FFFFFF" }}>{reais(anterior.resultado)}</b></span>}
+      </div>
+      </div>
+      <div>
+      <div><BarraP valor={r.saidas} total={Math.max(r.entradas, r.saidas)} cor={C.saibro} fundo="rgba(255,255,255,.16)" altura={8} /></div>
+      <p style={{ fontFamily: ARCH, fontSize: 11.5, color: "rgba(255,255,255,.65)", marginTop: 5 }}>
+        {r.entradas > 0 ? "As saídas usam " + Math.round(r.saidas / r.entradas * 100) + "% do que entra." : "Sem entradas registradas neste mês."}
+      </p>
+      </div>
+    </CartaoP>
   );
 }
 
@@ -25042,14 +25187,14 @@ function TelaFinanceiro() {
     baixarCSV("financeiro-" + mes + ".csv", l.map((x) => x.map(esc).join(";")).join("\n"));
   }
 
-  const chipF = (ativo) => ({ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, padding: "6px 12px", borderRadius: 999, cursor: "pointer",
-    border: "1px solid " + (ativo ? C.quadra : C.linha), background: ativo ? C.quadra : C.cal, color: ativo ? "#fff" : C.tinta });
+  const chipF = (ativo) => ({ fontFamily: ARCH, fontSize: 13, fontWeight: 700, padding: "8px 14px", borderRadius: 999, cursor: "pointer",
+    border: "1px solid " + (ativo ? "#0E1F17" : "#E0E6E3"), background: ativo ? "#0E1F17" : "#FFFFFF", color: ativo ? "#fff" : C.tinta });
   const num = { ...entrada, width: 110, fontSize: 15, padding: "6px 8px" };
   const h2 = { fontFamily: ARCH, fontSize: 16, fontWeight: 700, margin: "18px 0 8px" };
 
   return (
     <div>
-      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Financeiro</h1>
+      <h1 style={{ fontFamily: ARCH, fontSize: 30, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 4 }}>Financeiro</h1>
       <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginBottom: 12 }}>
         Só controle, e só você vê tudo. Entradas e saídas saem sozinhas do que o app registra, com os preços que você define em “Preços”. Nada aqui cobra ninguém.
         Quem você cadastrar em “Acesso administrativo” vê só a tela Cobrança.
@@ -25070,29 +25215,49 @@ function TelaFinanceiro() {
       {carregando && aba !== "importar" && <p style={{ ...prosa, color: C.grafite }}>Calculando o mês…</p>}
       {erro && aba !== "importar" && <Aviso>{erro}</Aviso>}
 
-      {aba === "importar" && <ImportarPlanilhaFin aoConcluir={() => carregar(mes)} />}
-      {dados && !carregando && aba === "acessos" && <AcessosFin admins={(dados.acesso || {}).admins || []} aoSalvar={(l) => setDados({ ...dados, acesso: { admins: l } })} />}
+      {aba === "importar" && <div style={CARTAO_BRANCO}><ImportarPlanilhaFin aoConcluir={() => carregar(mes)} /></div>}
+      {dados && !carregando && aba === "acessos" && <div style={CARTAO_BRANCO}><AcessosFin admins={(dados.acesso || {}).admins || []} aoSalvar={(l) => setDados({ ...dados, acesso: { admins: l } })} /></div>}
 
       {dados && !carregando && aba === "geral" && (() => {
         const g = dados.geral, A = dados.academias;
         const linha = (k, rot, grupo) => [rot, ...A.map((a) => reais(grupo === "r" ? (k === "manuaisEntrada" ? a.mes.receitas.manuais : a.mes.receitas[k].total) : (k === "manuaisSaida" ? a.mes.despesas.manuais : k === "imposto" ? a.mes.despesas.imposto.valor : a.mes.despesas[k].total))), reais(g.porTipo[k])];
         return (
           <div>
-            <div className="mb-4" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 8 }}>
-              <CartaoValor rotulo="Entradas" valor={reais(g.entradas)} />
-              <CartaoValor rotulo="Saídas" valor={reais(g.saidas)} />
-              <CartaoValor rotulo="Resultado" valor={reais(g.resultado)} cor={g.resultado >= 0 ? C.quadra : "#B23A2E"} nota={g.margem == null ? "" : "margem de " + String(g.margem).replace(".", ",") + "%"} />
-              <CartaoValor rotulo="Recebido" valor={reais(g.recebido)} nota={"de " + reais(g.aReceber) + " em mensalidades e pacotes"} />
-              <CartaoValor rotulo="Pago" valor={reais(g.pago)} nota={"de " + reais(g.aPagar) + " a pagar"} />
-            </div>
-            <h2 style={h2}>Entradas por academia</h2>
+            {(() => {
+              const hist = dados.historicoGeral || [], i = hist.findIndex((h) => h.mes === mes), ant = i > 0 ? hist[i - 1] : null;
+              return (
+                <Painel style={{ marginBottom: 14 }}>
+                  <DestaqueResultadoP titulo={"Resultado de " + nomeMes(mes) + " · as duas academias"} r={g} anterior={ant} />
+                  <CartaoP titulo="Recebido">
+                    <div className="flex items-center gap-3">
+                      <AnelP feito={g.recebido} total={g.aReceber} centro={g.aReceber > 0 ? Math.round(g.recebido / g.aReceber * 100) + "%" : "—"} sub="recebido" />
+                      <div style={{ minWidth: 0 }}>
+                        <p style={{ fontFamily: ARCH, fontSize: 20, fontWeight: 700, margin: 0 }}>{reais(g.recebido)}</p>
+                        <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>de {reais(g.aReceber)} em mensalidades e pacotes</p>
+                      </div>
+                    </div>
+                  </CartaoP>
+                  <CartaoP titulo="Pago">
+                    <NumeroP rotulo="Já pago" valor={reais(g.pago)} nota={"de " + reais(g.aPagar) + " a pagar"} />
+                    <div style={{ marginTop: 10 }}><BarraP valor={g.pago} total={g.aPagar} cor={COR_SAIDA} /></div>
+                  </CartaoP>
+                  <CartaoP titulo="Cada academia no mês" largura="2">
+                    <GraficoEntradasSaidasP dados={A.map((a) => ({ nome: a.nome, entradas: a.mes.entradas, saidas: a.mes.saidas, resultado: a.mes.resultado }))} chave="nome" altura={190} />
+                  </CartaoP>
+                  <CartaoP titulo="Mês a mês" largura="2" direita={<ChipP>desde {nomeMes(FINANCEIRO_INICIO)}</ChipP>}>
+                    <GraficoEntradasSaidasP dados={hist} chave="mes" rotular={mesCurto} altura={190} />
+                  </CartaoP>
+                </Painel>
+              );
+            })()}
+            <CartaoP titulo="Detalhe por academia" largura="cheio">
+            <h2 style={{ ...h2, marginTop: 0 }}>Entradas por academia</h2>
             <TabelaFin cabecalho={["", ...A.map((a) => a.nome), "Total"]} linhas={Object.keys(ROTULOS_RECEITA).map((k) => linha(k, ROTULOS_RECEITA[k], "r"))}
               rodape={["Total", ...A.map((a) => reais(a.mes.entradas)), reais(g.entradas)]} />
             <h2 style={h2}>Saídas por academia</h2>
             <TabelaFin cabecalho={["", ...A.map((a) => a.nome), "Total"]} linhas={Object.keys(ROTULOS_DESPESA).map((k) => linha(k, ROTULOS_DESPESA[k], "d"))}
               rodape={["Total", ...A.map((a) => reais(a.mes.saidas)), reais(g.saidas)]} />
-            <h2 style={h2}>Mês a mês (as duas academias, desde {nomeMes(FINANCEIRO_INICIO)})</h2>
-            <BarrasHistorico historico={dados.historicoGeral} />
+            </CartaoP>
           </div>
         );
       })()}
@@ -25109,13 +25274,51 @@ function TelaFinanceiro() {
 
             {secao === "resumo" && (
               <div>
-                <div className="mb-4" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 8 }}>
-                  <CartaoValor rotulo="Entradas" valor={reais(r.entradas)} />
-                  <CartaoValor rotulo="Saídas" valor={reais(r.saidas)} />
-                  <CartaoValor rotulo="Resultado" valor={reais(r.resultado)} cor={r.resultado >= 0 ? C.quadra : "#B23A2E"} nota={r.margem == null ? "" : "margem de " + String(r.margem).replace(".", ",") + "%"} />
-                  <CartaoValor rotulo="Em aberto" valor={reais(r.controle.aReceber - r.controle.recebido)} nota={r.controle.emAberto.length + " mensalidade(s)/pacote(s) sem marcar como recebido" + (r.controle.atrasados ? " · " + r.controle.atrasados + " vencido(s): " + reais(r.controle.valorAtrasado) : "")} cor={r.controle.emAberto.length ? "#B23A2E" : C.quadra} />
-                  {r.pendencias && r.pendencias.total > 0 && <CartaoValor rotulo="Meses anteriores" valor={reais(r.pendencias.total)} nota={r.pendencias.abertas.length + " pendência(s) de antes do controle"} cor="#B23A2E" />}
-                </div>
+                {(() => {
+                  const hist = academia.historico || [], i = hist.findIndex((h) => h.mes === mes), ant = i > 0 ? hist[i - 1] : null;
+                  const falta = r.controle.aReceber - r.controle.recebido;
+                  return (
+                    <Painel style={{ marginBottom: 14 }}>
+                      <DestaqueResultadoP titulo={"Resultado de " + nomeMes(mes) + " · " + academia.nome} r={r} anterior={ant} />
+                      <CartaoP>
+                        <NumeroP rotulo="Entradas" valor={reais(r.entradas)} cor={C.tinta} extra={ant && <VariacaoP atual={r.entradas} anterior={ant.entradas} bom="cima" />} nota={ant ? "contra " + reais(ant.entradas) + " no mês anterior" : "mensalidades, pacotes, quadras e eventos"} />
+                        <div style={{ height: 14 }} />
+                        <NumeroP rotulo="Saídas" valor={reais(r.saidas)} extra={ant && <VariacaoP atual={r.saidas} anterior={ant.saidas} bom="baixo" />} nota={ant ? "contra " + reais(ant.saidas) + " no mês anterior" : "professores, despesas fixas e impostos"} />
+                      </CartaoP>
+                      <CartaoP titulo="Recebido do mês" direita={<Botao pequeno variante="vazio" onClick={() => setSecao("controle")}>Marcar ↗</Botao>}>
+                        <div className="flex items-center gap-3">
+                          <AnelP feito={r.controle.recebido} total={r.controle.aReceber} centro={r.controle.aReceber > 0 ? Math.round(r.controle.recebido / r.controle.aReceber * 100) + "%" : "—"} sub="recebido" />
+                          <div style={{ minWidth: 0 }}>
+                            <p style={{ fontFamily: ARCH, fontSize: 20, fontWeight: 700, margin: 0 }}>{reais(r.controle.recebido)}</p>
+                            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>de {reais(r.controle.aReceber)}</p>
+                            <p style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, color: falta > 0 ? COR_ALERTA : C.quadra, marginTop: 6 }}>Falta {reais(falta)}</p>
+                            <p style={{ ...prosa, fontSize: 12, color: C.grafite }}>{r.controle.emAberto.length} em aberto{r.controle.atrasados ? " · " + r.controle.atrasados + " vencido(s): " + reais(r.controle.valorAtrasado) : ""}</p>
+                          </div>
+                        </div>
+                        {r.pendencias && r.pendencias.total > 0 && <div style={{ marginTop: 10 }}><ChipP tom="vermelho">Meses anteriores: {reais(r.pendencias.total)} · {r.pendencias.abertas.length} pendência(s)</ChipP></div>}
+                      </CartaoP>
+                      <CartaoP titulo="Mês a mês" largura="2" direita={<ChipP>desde {nomeMes(FINANCEIRO_INICIO)}</ChipP>}>
+                        <GraficoEntradasSaidasP dados={hist} chave="mes" rotular={mesCurto} />
+                      </CartaoP>
+                      <CartaoP titulo="De onde vem o dinheiro">
+                        <BarrasCategoriaP cor={COR_ENTRADA} itens={["mensalidades", "pacotes", "quadras", "torneios", "eventos"].map((k) => ({ rotulo: ROTULOS_RECEITA[k], valor: r.receitas[k].total })).concat([{ rotulo: ROTULOS_RECEITA.manuaisEntrada, valor: r.receitas.manuais }])} />
+                      </CartaoP>
+                      <CartaoP titulo="Para onde vai">
+                        <BarrasCategoriaP cor={COR_SAIDA} itens={[{ rotulo: ROTULOS_DESPESA.professores, valor: r.despesas.professores.total }, { rotulo: ROTULOS_DESPESA.fixas, valor: r.despesas.fixas.total }, { rotulo: ROTULOS_DESPESA.imposto, valor: r.despesas.imposto.valor }, { rotulo: ROTULOS_DESPESA.manuaisSaida, valor: r.despesas.manuais }]} />
+                      </CartaoP>
+                      <CartaoP titulo="Professores no mês">
+                        {r.despesas.professores.lista.filter((p) => p.valor > 0 || p.aulasIndividuais + p.aulasTurma > 0).slice(0, 6).map((p) => (
+                          <div key={p.chave} className="flex items-center gap-2" style={{ fontFamily: ARCH, fontSize: 13, padding: "5px 0", borderBottom: "1px solid #EEF1EF" }}>
+                            <span style={{ width: 28, height: 28, borderRadius: 999, background: "#EEF1EF", display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 12, flex: "none" }}>{(p.nome || "?").slice(0, 1).toUpperCase()}</span>
+                            <span style={{ flex: 1, minWidth: 0, fontWeight: 600 }}>{p.nome}<span style={{ display: "block", color: C.grafite, fontSize: 11.5, fontWeight: 400 }}>{p.aulasIndividuais + p.aulasTurma} aula(s){p.configurado ? "" : " · sem forma definida"}</span></span>
+                            <b>{reais(p.valor)}</b>
+                          </div>
+                        ))}
+                        {!r.despesas.professores.lista.some((p) => p.valor > 0 || p.aulasIndividuais + p.aulasTurma > 0) && <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Nenhuma aula dada registrada neste mês.</p>}
+                      </CartaoP>
+                    </Painel>
+                  );
+                })()}
                 {(r.receitas.mensalidades.semPreco.length > 0 || r.receitas.quadras.horasSemPreco > 0 || r.despesas.professores.lista.some((p) => !p.configurado && (p.aulasIndividuais + p.aulasTurma) > 0)) && (
                   <Aviso>
                     Falta preço para fechar a conta:
@@ -25125,7 +25328,8 @@ function TelaFinanceiro() {
                     {" "}veja em “Preços”.
                   </Aviso>
                 )}
-                <h2 style={h2}>Entradas · {reais(r.entradas)}</h2>
+                <CartaoP titulo="Detalhe do mês" largura="cheio">
+                <h2 style={{ ...h2, marginTop: 0 }}>Entradas · {reais(r.entradas)}</h2>
                 <TabelaFin cabecalho={["Mensalidades", "Alunos", "Preço", "Total"]}
                   linhas={r.receitas.mensalidades.turmas.map((t) => [t.nome, t.alunos.length, reais(t.preco), reais(t.total)])} rodape={["Subtotal", "", "", reais(r.receitas.mensalidades.total)]} />
                 {r.receitas.pacotes.alunos.length > 0 && <TabelaFin cabecalho={["Pacotes individuais", "Aulas no mês", "Total"]}
@@ -25147,13 +25351,12 @@ function TelaFinanceiro() {
                   linhas={r.despesas.fixas.lista.map((d) => [d.nome, CATEGORIAS_DESPESA_FIN[d.categoria], reais(d.valor)]).concat([["Impostos", r.despesas.imposto.pct + "% das entradas", reais(r.despesas.imposto.valor)]])}
                   rodape={["Subtotal", "", reais(r.despesas.fixas.total + r.despesas.imposto.valor)]} />
                 {r.manuais.length > 0 && <TabelaFin cabecalho={["Lançados à mão", "Tipo", "Valor"]} linhas={r.manuais.map((m) => [m.descricao, m.tipo === "saida" ? "Saída" : "Entrada", reais(m.valor)])} />}
-                <h2 style={h2}>Mês a mês (últimos 6, desde {nomeMes(FINANCEIRO_INICIO)})</h2>
-                <BarrasHistorico historico={academia.historico} />
+                </CartaoP>
               </div>
             )}
 
             {secao === "controle" && (
-              <div>
+              <div style={CARTAO_BRANCO}>
                 <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginBottom: 8 }}>Marque o que já entrou e o que já foi pago neste mês. Lance à mão o que o app não enxerga.</p>
                 <h2 style={h2}>A receber · {reais(r.controle.recebido)} de {reais(r.controle.aReceber)}</h2>
                 {r.receitas.mensalidades.turmas.flatMap((t) => t.alunos.map((a) => ({ ...a, onde: t.nome }))).concat(r.receitas.pacotes.alunos.map((p) => ({ ...p, onde: "Pacote individual" }))).map((l) => {
@@ -25235,7 +25438,7 @@ function TelaFinanceiro() {
             )}
 
             {secao === "precos" && (
-              <div>
+              <div style={CARTAO_BRANCO}>
                 <h2 style={h2}>Mensalidade por turma</h2>
                 <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 6 }}>Valor que cada aluno da turma paga por mês. Toque em “descontos” para dar desconto a um aluno.</p>
                 {cat.turmas.map((t) => (

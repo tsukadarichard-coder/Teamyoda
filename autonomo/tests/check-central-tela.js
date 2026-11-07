@@ -42,7 +42,9 @@ window.__auth = { currentUser: null, cbs: [], onAuthStateChanged(cb) { this.cbs.
   for (const larg of [1100, 390]) {
     const p = await b.newPage({ viewport: { width: larg, height: 900 } }), erros = [];
     p.on("pageerror", (e) => erros.push(e.message));
-    await p.route(/tailwindcss|fonts\.g/, (r) => r.fulfill({ status: 200, contentType: "text/javascript", body: "" }));
+    const TW = CDN + "/tw/package/dist/index.global.js"; // Tailwind local, quando houver, para as capturas saírem como no site
+    await p.route(/tailwindcss/, (r) => r.fulfill({ status: 200, contentType: "text/javascript", body: fs.existsSync(TW) ? fs.readFileSync(TW, "utf8") : "" }));
+    await p.route(/fonts\.g/, (r) => r.fulfill({ status: 200, contentType: "text/css", body: "" }));
     await p.route(/firebase-app-compat/, (r) => r.fulfill({ status: 200, contentType: "text/javascript", body: firebaseFalso }));
     await p.route(/firebase-auth-compat/, (r) => r.fulfill({ status: 200, contentType: "text/javascript", body: "" }));
     await p.route(/unpkg\.com/, (r) => { const nome = Object.keys(externos).find((k) => r.request().url().endsWith(k)); return r.fulfill({ status: 200, contentType: "text/javascript", body: fs.readFileSync(externos[nome]) }); });

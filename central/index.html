@@ -140,12 +140,37 @@ function novoIdCentral(p) { return p + Date.now().toString(36) + Math.random().t
 
 function EtiquetaNegocio({ id }) {
   const n = negocioCentral(id);
-  return <span style={{ fontFamily: ARCH, fontSize: 10.5, fontWeight: 700, color: "#fff", background: n.cor, borderRadius: 999, padding: "2px 8px", whiteSpace: "nowrap" }}>{n.nome}</span>;
+  return <span style={{ fontFamily: ARCH, fontSize: 10.5, fontWeight: 700, color: "#fff", background: n.cor, border: "1px solid rgba(255,255,255,.35)", borderRadius: 999, padding: "2px 8px", whiteSpace: "nowrap" }}>{n.nome}</span>;
 }
 function BarraMeta({ real, meta }) {
   if (!meta) return null;
   const pct = Math.max(0, Math.min(100, Math.round((Number(real) || 0) / meta * 100)));
-  return (<div style={{ height: 6, background: "#E9EFEC", borderRadius: 4, marginTop: 3 }}><div style={{ width: pct + "%", height: 6, borderRadius: 4, background: pct >= 100 ? C.quadra : pct >= 60 ? "#C9A227" : "#C9744F" }} /></div>);
+  return (<div style={{ height: 8, background: "#EEF1EF", borderRadius: 999, marginTop: 4, overflow: "hidden" }}><div style={{ width: pct + "%", height: 8, borderRadius: 999, background: pct >= 100 ? C.quadra : pct >= 60 ? C.saibro : "#C9744F" }} /></div>);
+}
+
+/* ── painel (o mesmo visual do Financeiro do Team Yoda): fundo cinza-claro, cartões brancos arredondados, um escuro em destaque ── */
+const FUNDO_PAINEL = "#E9EDEB";
+function Painel({ children, style }) {
+  return <div data-painel style={{ background: FUNDO_PAINEL, borderRadius: 24, padding: 12, display: "flex", flexWrap: "wrap", gap: 12, alignItems: "stretch", ...style }}>{children}</div>;
+}
+function CartaoP({ titulo, direita, children, escuro, largura, style }) {
+  const flex = largura === "cheio" ? "1 1 100%" : largura === "2" ? "2 1 420px" : "1 1 220px";
+  return (
+    <section style={{ flex, minWidth: 0, background: escuro ? C.quadra : "#FFFFFF", color: escuro ? "#FFFFFF" : C.tinta, borderRadius: 20, padding: "16px 18px", boxSizing: "border-box",
+      boxShadow: escuro ? "0 8px 24px rgba(16,59,50,.18)" : "0 1px 2px rgba(23,37,31,.05)", ...style }}>
+      {(titulo || direita) && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+          <h3 style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700, margin: 0, flex: 1, color: escuro ? "#FFFFFF" : C.tinta }}>{titulo}</h3>
+          {direita}
+        </div>
+      )}
+      {children}
+    </section>
+  );
+}
+function ChipP({ children, tom }) {
+  const t = { lima: [C.saibro, "#0E1F17"], vermelho: ["#F8DCD8", "#8A2419"], cinza: ["#EEF1EF", C.grafite], claro: ["rgba(255,255,255,.14)", "#FFFFFF"] }[tom || "cinza"];
+  return <span style={{ display: "inline-block", fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, background: t[0], color: t[1], borderRadius: 999, padding: "2px 9px", maxWidth: "100%", lineHeight: 1.45 }}>{children}</span>;
 }
 
 function TelaCentral() {
@@ -214,8 +239,9 @@ function TelaCentral() {
 
   const h2 = { fontFamily: ARCH, fontSize: 16, fontWeight: 700, margin: "18px 0 8px" };
   const sub = { ...prosa, fontSize: 12.5, color: C.grafite };
-  const cartao = { background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "10px 12px", marginBottom: 8 };
-  const chipA = (on) => ({ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, padding: "6px 12px", borderRadius: 999, cursor: "pointer", border: "1px solid " + (on ? C.quadra : C.linha), background: on ? C.quadra : C.cal, color: on ? "#fff" : C.tinta });
+  const cartao = { background: "#FFFFFF", border: "1px solid #E6EBE8", borderRadius: 16, padding: "12px 14px", marginBottom: 10, boxShadow: "0 1px 2px rgba(23,37,31,.05)" };
+  const quadro = { background: "#FFFFFF", borderRadius: 20, padding: "16px 18px", border: "1px solid #E6EBE8", boxShadow: "0 1px 2px rgba(23,37,31,.05)" };
+  const chipA = (on) => ({ fontFamily: ARCH, fontSize: 13, fontWeight: 700, padding: "8px 14px", borderRadius: 999, cursor: "pointer", border: "1px solid " + (on ? "#0E1F17" : "#E0E6E3"), background: on ? "#0E1F17" : "#FFFFFF", color: on ? "#fff" : C.tinta });
   const inp = { ...entrada, fontSize: 15, padding: "6px 9px" };
 
   function adicionarTarefa(base) {
@@ -294,22 +320,27 @@ function TelaCentral() {
   function cartaoNegocioResumo(id) {
     const n = negocioCentral(id), x = numeros(id, mesISOAtual());
     return (
-      <div key={id} style={{ ...cartao, borderTop: "3px solid " + n.cor }}>
-        <div style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{n.nome}</div>
-        <div style={{ fontFamily: ARCH, fontSize: 19, fontWeight: 700, color: n.cor }}>{x.receita != null ? reais(x.receita) : "—"}</div>
+      <CartaoP key={id}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <span style={{ width: 10, height: 10, borderRadius: 10, background: n.cor, flex: "none" }} />
+          <span style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700, flex: 1 }}>{n.nome}</span>
+          {x.meta.receita ? <ChipP>{Math.round((Number(x.receita) || 0) / x.meta.receita * 100)}% da meta</ChipP> : null}
+        </div>
+        <div style={{ fontFamily: ARCH, fontSize: 26, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1.2, marginTop: 8, color: C.tinta }}>{x.receita != null ? reais(x.receita) : "—"}</div>
+        <p style={{ ...sub, fontSize: 11.5, marginTop: 0 }}>receita do mês</p>
         <BarraMeta real={x.receita} meta={x.meta.receita} />
-        <p style={{ ...sub, fontSize: 12, marginTop: 3 }}>
+        <p style={{ ...sub, fontSize: 12, marginTop: 6 }}>
           {x.meta.receita ? "meta " + reais(x.meta.receita) + " · " : ""}{id === "quadralab" ? (x.clientes != null ? x.clientes + " assinaturas ativas" : "sem números automáticos") : x.clientes != null ? x.clientes + (id === "alvor" ? " clientes" : " jogadores") : "digite os números em Negócios"}
           {id === "team-yoda" && ty.aulasHoje != null ? " · " + ty.aulasHoje + " aulas hoje" : ""}{id === "39-ranch" && rc.aulasHoje != null ? " · " + rc.aulasHoje + " aulas hoje" : ""}
         </p>
-      </div>
+      </CartaoP>
     );
   }
 
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2" style={{ marginBottom: 4 }}>
-        <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, flex: 1 }}>Central</h1>
+        <h1 style={{ fontFamily: ARCH, fontSize: 30, fontWeight: 700, letterSpacing: "-0.02em", flex: 1, margin: 0 }}>Central</h1>
         <span style={{ ...sub, color: estadoSalvar === "erro" ? "#B23A2E" : C.grafite }}>{estadoSalvar === "salvando" || estadoSalvar === "pendente" ? "Salvando…" : estadoSalvar === "salvo" ? "Salvo ✓" : estadoSalvar === "erro" ? "Não salvou — tente de novo" : ""}</span>
       </div>
       <p style={{ ...sub, fontSize: 13.5, marginBottom: 10 }}>{new Date(hoje + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })} · Team Yoda, 39 Ranch, QuadraLab e Alvor num lugar só. Só você vê.</p>
@@ -317,38 +348,55 @@ function TelaCentral() {
         {[["hoje", "Hoje"], ["agenda", "Agenda"], ["tarefas", "Tarefas"], ["negocios", "Negócios"], ["revisao", "Revisão semanal"], ["notas", "Notas e decisões"]].map(([v, r]) => <button key={v} style={chipA(aba === v)} onClick={() => setAba(v)}>{r}</button>)}
       </div>
 
-      {aba === "hoje" && (
-        <div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 8 }}>
+      {aba === "hoje" && (() => {
+        const altos = alertas.filter((a) => a.nivel === "alto").length;
+        const prios = revAnterior ? (revAnterior.prioridades || []).filter(Boolean) : [];
+        return (
+          <Painel>
+            <CartaoP escuro largura="2" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "flex-end", gap: 12, flexWrap: "wrap" }}>
+                <div style={{ flex: 1, minWidth: 160 }}>
+                  <p style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 600, color: "rgba(255,255,255,.72)", margin: 0 }}>Precisa de você</p>
+                  <span style={{ fontFamily: ARCH, fontSize: 44, fontWeight: 700, letterSpacing: "-0.03em", lineHeight: 1.05 }}>{alertas.length}</span>
+                  <span style={{ fontFamily: ARCH, fontSize: 14, color: "rgba(255,255,255,.8)", marginLeft: 8 }}>{alertas.length === 1 ? "assunto" : "assuntos"}</span>
+                </div>
+                {altos > 0 && <ChipP tom="lima">{altos} urgente{altos > 1 ? "s" : ""}</ChipP>}
+              </div>
+              {alertas.length === 0 && <p style={{ ...prosa, color: "rgba(255,255,255,.85)" }}>Nada pendente. Bom dia!</p>}
+              <div>
+                {alertas.map((a, i) => (
+                  <div key={i} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, padding: "6px 0", borderTop: "1px solid rgba(255,255,255,.12)" }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 8, background: a.nivel === "alto" ? "#FF8A7A" : a.nivel === "medio" ? "#E8C766" : "rgba(255,255,255,.5)", flex: "none" }} />
+                    <EtiquetaNegocio id={a.id} /><span style={{ fontFamily: ARCH, fontSize: 13.5, flex: 1, minWidth: 150, color: "#FFFFFF" }}>{a.texto}</span>
+                  </div>
+                ))}
+              </div>
+            </CartaoP>
+            <CartaoP titulo="Prioridades da semana" direita={<ChipP>{prios.length}</ChipP>}>
+              {prios.length ? prios.map((p, i) => (
+                <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "6px 0", borderBottom: "1px solid #EEF1EF" }}>
+                  <span style={{ width: 24, height: 24, borderRadius: 999, background: i === 0 ? C.saibro : "#EEF1EF", color: i === 0 ? "#0E1F17" : C.tinta, fontFamily: ARCH, fontSize: 12, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center", flex: "none" }}>{i + 1}</span>
+                  <span style={{ ...prosa, fontSize: 14 }}>{p}</span>
+                </div>
+              )) : <p style={sub}>Defina na Revisão semanal; elas aparecem aqui durante a semana.</p>}
+            </CartaoP>
             {["team-yoda", "39-ranch", "quadralab", "alvor"].map((id) => cartaoNegocioResumo(id))}
-          </div>
-          <h2 style={h2}>Precisa de você · {alertas.length}</h2>
-          {alertas.length === 0 && <p style={sub}>Nada pendente. Bom dia!</p>}
-          {alertas.map((a, i) => (
-            <div key={i} className="flex flex-wrap items-center gap-2" style={{ padding: "5px 0", borderBottom: "1px solid " + C.linha }}>
-              <span style={{ width: 8, height: 8, borderRadius: 8, background: corNivel[a.nivel] || C.grafite }} />
-              <EtiquetaNegocio id={a.id} /><span style={{ fontFamily: ARCH, fontSize: 13.5, flex: 1, minWidth: 160 }}>{a.texto}</span>
-            </div>
-          ))}
-          {revAnterior && (revAnterior.prioridades || []).filter(Boolean).length > 0 && (
-            <>
-              <h2 style={h2}>Prioridades da semana</h2>
-              {revAnterior.prioridades.filter(Boolean).map((p, i) => <p key={i} style={{ ...prosa, fontSize: 14 }}>{i + 1}. {p}</p>)}
-            </>
-          )}
-          <h2 style={h2}>Agenda de hoje</h2>
-          {listaCompromissos(hoje)}
-          <div className="mt-2">{formCompromisso()}</div>
-          <h2 style={h2}>Tarefas · {atrasadas.length ? atrasadas.length + " atrasada(s) · " : ""}{deHoje.length} para hoje</h2>
-          {formTarefa()}
-          {atrasadas.concat(deHoje).map((t) => linhaTarefa(t))}
-          {tarefasAbertas.filter((t) => !t.prazo && t.prioridade === "alta").map((t) => linhaTarefa(t))}
-          {!atrasadas.length && !deHoje.length && <p style={sub}>Nenhuma tarefa para hoje.</p>}
-        </div>
-      )}
+            <CartaoP titulo="Agenda de hoje" largura="2" direita={<ChipP>{compromissosNoDia(dados.agenda, hoje).length}</ChipP>}>
+              {listaCompromissos(hoje)}
+              <div className="mt-2">{formCompromisso()}</div>
+            </CartaoP>
+            <CartaoP titulo={"Tarefas · " + (atrasadas.length ? atrasadas.length + " atrasada(s) · " : "") + deHoje.length + " para hoje"} largura="2">
+              {formTarefa()}
+              {atrasadas.concat(deHoje).map((t) => linhaTarefa(t))}
+              {tarefasAbertas.filter((t) => !t.prazo && t.prioridade === "alta").map((t) => linhaTarefa(t))}
+              {!atrasadas.length && !deHoje.length && <p style={sub}>Nenhuma tarefa para hoje.</p>}
+            </CartaoP>
+          </Painel>
+        );
+      })()}
 
       {aba === "agenda" && (
-        <div>
+        <div style={quadro}>
           <div className="flex flex-wrap items-center gap-2 mb-2">
             <Botao pequeno variante="vazio" onClick={() => setSemana(maisDias(semana, -7))}>◀</Botao>
             <span style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700 }}>Semana de {dataCurta(semana)} a {dataCurta(maisDias(semana, 6))}</span>
@@ -366,7 +414,7 @@ function TelaCentral() {
       )}
 
       {aba === "tarefas" && (
-        <div>
+        <div style={quadro}>
           {formTarefa()}
           <div className="flex flex-wrap gap-2 mb-2">
             <button style={chipA(!filtroNeg)} onClick={() => setFiltroNeg("")}>Todos</button>
@@ -388,7 +436,7 @@ function TelaCentral() {
       )}
 
       {aba === "negocios" && (
-        <div>
+        <div style={{ background: FUNDO_PAINEL, borderRadius: 24, padding: 12 }}>
           <div className="flex flex-wrap items-center gap-2 mb-2">
             <Botao pequeno variante="vazio" onClick={() => setMesNeg(somaMes(mesNeg, -1))}>◀</Botao>
             <span style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700, minWidth: 140, textAlign: "center" }}>{nomeMes(mesNeg)}</span>
@@ -402,8 +450,11 @@ function TelaCentral() {
             const autoReceita = (id === "team-yoda" || id === "39-ranch" || id === "quadralab") && x.auto && mesNeg === mesISOAtual();
             const autoClientes = (id === "team-yoda" || id === "39-ranch" || id === "quadralab") && x.auto;
             return (
-              <div key={id} style={{ ...cartao, borderTop: "3px solid " + n.cor, padding: "12px 14px" }}>
-                <p style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, color: n.cor, marginBottom: 6 }}>{n.nome}</p>
+              <div key={id} style={{ ...quadro, marginBottom: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                  <span style={{ width: 12, height: 12, borderRadius: 12, background: n.cor }} />
+                  <p style={{ fontFamily: ARCH, fontSize: 17, fontWeight: 700, color: C.tinta, margin: 0 }}>{n.nome}</p>
+                </div>
                 <TabelaFin cabecalho={["Indicador", "Meta do mês", "Realizado"]} linhas={[
                   ["Receita", campoMeta("receita"), <div>{campoInd("receita", autoReceita)}<BarraMeta real={x.receita} meta={x.meta.receita} /></div>],
                   [id === "quadralab" ? "Assinaturas ativas" : id === "alvor" ? "Clientes ativos" : "Jogadores", campoMeta("clientes"), <div>{campoInd("clientes", autoClientes)}<BarraMeta real={x.clientes} meta={x.meta.clientes} /></div>],
@@ -432,7 +483,7 @@ function TelaCentral() {
         const prio = (r.prioridades && r.prioridades.length ? r.prioridades : ["", "", ""]).concat(["", "", ""]).slice(0, Math.max(3, (r.prioridades || []).length));
         const feitasSemana = dados.tarefas.filter((t) => t.feita && t.feitaEm >= semanaRev && t.feitaEm <= maisDias(semanaRev, 6)).length;
         return (
-          <div>
+          <div style={quadro}>
             <div className="flex flex-wrap items-center gap-2 mb-2">
               <Botao pequeno variante="vazio" onClick={() => setSemanaRev(maisDias(semanaRev, -7))}>◀</Botao>
               <span style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700 }}>Semana de {dataCurta(semanaRev)} a {dataCurta(maisDias(semanaRev, 6))}</span>
@@ -460,7 +511,7 @@ function TelaCentral() {
       })()}
 
       {aba === "notas" && (
-        <div>
+        <div style={quadro}>
           <div style={cartao}>
             <textarea rows={2} style={inp} placeholder="Ideia, conversa, decisão…" value={novaNota.texto} onChange={(e) => setNovaNota({ ...novaNota, texto: e.target.value })} />
             <div className="flex flex-wrap items-center gap-2 mt-2">

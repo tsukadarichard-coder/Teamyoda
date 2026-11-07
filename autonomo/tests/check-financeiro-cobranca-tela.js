@@ -62,13 +62,14 @@ const m = { "/aulas-mes.js": path.join(__dirname, "../../mty/aulas-mes.js"), "/r
 window.mtyAuth={usuario:()=>({uid:"u-${quem}",email:${JSON.stringify(EMAILS[quem])}}),tokenId:async()=>${JSON.stringify(quem)}};\n` + ms.slice(0, corte) + `
 papelFinanceiro().then((p) => { window.__papel = p; });
 ReactDOM.createRoot(document.getElementById("root")).render(<div style={{padding:12}}>${tela}</div>);`;
-    const pagina = `<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><div id=root></div><script src=/r.js></script><script src=/d.js></script><script src=/p.js></script><script src=/c.js></script><script src=/b.js></script><script src=/aulas-mes.js></script>
+    const pagina = `<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><script src="https://cdn.tailwindcss.com"></script><div id=root></div><script src=/r.js></script><script src=/d.js></script><script src=/p.js></script><script src=/c.js></script><script src=/b.js></script><script src=/aulas-mes.js></script>
 <script>window.MTY={evento(){},id:()=>"x",map(){},tokenSeguro(){return ""}};</script><script src=/sync-listas.js></script><script type="text/babel">${corpo}</script>`;
     const srv = http.createServer((q, r) => { const u = q.url.split("?")[0]; if (u === "/") { r.writeHead(200, { "content-type": "text/html; charset=utf-8" }); return r.end(pagina); } if (m[u]) { r.writeHead(200, { "content-type": "text/javascript" }); return r.end(fs.readFileSync(m[u])); } const f = path.join(raiz, u); if (f.startsWith(raiz) && fs.existsSync(f) && fs.statSync(f).isFile()) { r.writeHead(200, { "content-type": "text/javascript" }); return r.end(fs.readFileSync(f)); } r.writeHead(404); r.end(); }).listen(0);
     const p = await b.newPage({ viewport: { width: larg, height: 900 } }), erros = [];
     p.on("pageerror", (e) => erros.push(e.message));
     p.on("dialog", (d) => d.accept());
-    await p.route(/tailwindcss/, (r) => r.fulfill({ status: 200, contentType: "text/javascript", body: "" }));
+    const TW = CDN + "/tw/package/dist/index.global.js"; // Tailwind local, quando houver, para as capturas saírem como no app
+    await p.route(/tailwindcss/, (r) => r.fulfill({ status: 200, contentType: "text/javascript", body: fs.existsSync(TW) ? fs.readFileSync(TW, "utf8") : "" }));
     await p.route(/cdnjs\.cloudflare\.com\/ajax\/libs\/xlsx\/0\.18\.5\/xlsx\.full\.min\.js/, (r) => r.fulfill({ status: 200, contentType: "text/javascript", body: fs.readFileSync(XLSX_JS, "utf8") }));
     await p.route(/\.netlify\/functions\/financeiro/, async (rt) => {
       const q = rt.request(), url = new URL(q.url());
@@ -92,6 +93,8 @@ ReactDOM.createRoot(document.getElementById("root")).render(<div style={{padding
     assert(nv.dono.itens[0].so === "financeiro" && nv.dono.itens[0].novo && nv.dono.versao === nv.versao);
     assert(!nv.equipe.itens.some((x) => x.so) && (nv.equipe.itens.some((x) => x.novo) ? nv.equipe.versao === nv.versao : nv.equipe.versao === nv.equipeV));
     await esperar(p, /Entradas/);
+    assert(await p.locator("[data-painel] [data-destaque-resultado]").count() === 1, "painel do mês com o resultado em destaque");
+    if (capturas) { fs.mkdirSync(capturas, { recursive: true }); await p.waitForTimeout(400); await p.screenshot({ path: path.join(capturas, "financeiro-painel.png"), fullPage: true }); }
     await p.click('button:text-is("Importar planilha")');
     const antes = banco["orgs/team-yoda/dados/mty:alunos:v2"].value;
     await p.setInputFiles('input[type="file"]', { name: "Migracao-Team-Yoda.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: planilhaTeste() });
@@ -110,6 +113,12 @@ ReactDOM.createRoot(document.getElementById("root")).render(<div style={{padding
     assert(jt && jt.membros.includes(teste.id) && jt.professorUid === "p1", "turma criada com o aluno e o professor");
     assert.deepStrictEqual(cfg().cobranca[teste.id], { venc: 10, forma: "pix", pagador: "Rita Silva" });
     assert.strictEqual(cfg().pendencias.length, 1); assert.strictEqual(cfg().turmas.t1.preco, 400, "preço que já existia continua");
+    if (capturas) {
+      await p.click('button:text-is("Team Yoda")'); await esperar(p, /Mês a mês/); await p.waitForTimeout(400);
+      await p.screenshot({ path: path.join(capturas, "financeiro-painel-dados.png"), fullPage: true });
+      await p.click('button:text-is("Visão geral")'); await esperar(p, /Cada academia no mês/); await p.waitForTimeout(400);
+      await p.screenshot({ path: path.join(capturas, "financeiro-geral.png"), fullPage: true });
+    }
 
     /* acesso administrativo */
     await p.click('button:text-is("Acesso administrativo")');
@@ -168,7 +177,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(<div style={{padding
     assert.strictEqual(cfg().pendencias[0].quitada, true);
     /* paga o professor */
     await p.locator("label", { hasText: "Leo Martins" }).locator("input").click();
-    await p.waitForFunction(() => (document.body.innerText.match(/pago de/) || []).length > 0, null, { timeout: 15000 });
+    for (let k = 0; k < 60 && !((cfg().meses["2026-11"].pagos || {})["prof:u:p1"]); k++) await p.waitForTimeout(250);
     await p.waitForTimeout(500);
     assert.strictEqual(cfg().meses["2026-11"].pagos["prof:u:p1"], true);
     /* tudo que o administrativo mandou foi "marcar" */
