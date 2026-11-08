@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Área do aluno · Team Yoda</title>
+<meta name="description" content="Área do aluno Team Yoda: entre com e-mail e senha e veja o seu plano, as aulas, as reposições, os relatórios e a Academia Digital.">
+<meta name="theme-color" content="#FFFFFF">
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="../assets/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@700;800&family=Inter:wght@400;500;600;700&display=swap">
+<!-- Área do aluno (teamyoda.com.br/minha-area/): entra com e-mail e senha (a mesma conta da Academia Digital), liga a conta ao
+     aluno colando o link do aluno uma vez e depois abre o Meu plano sem precisar guardar o link (digital acao=meuLink). Aluno,
+     pai e mãe: cada um com o seu e-mail, até 3 contas por aluno. Nada de login novo: Firebase Auth do projeto e digital.js. -->
+<style>
+  :root { --fundo: #FAFAF8; --branco: #FFFFFF; --tinta: #111111; --grafite: #4A4A48; --cinza: #6E6E6B; --linha: #E4E2DE; --verm: #C2000B; --verm-esc: #9E0009; --escuro: #121212;
+    --titulo: "Archivo", "Inter", system-ui, sans-serif; --texto: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--fundo); color: var(--tinta); font: 16px/1.6 var(--texto); -webkit-text-size-adjust: 100%; }
+  img { max-width: 100%; height: auto; display: block; }
+  :focus-visible { outline: 3px solid var(--verm); outline-offset: 3px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .topo { background: var(--branco); border-bottom: 1px solid var(--linha); }
+  .topo .in { max-width: 720px; margin: 0 auto; padding: 0 20px; height: 60px; display: flex; align-items: center; gap: 12px; }
+  .topo img { height: 30px; width: auto; }
+  .topo .esp { flex: 1; }
+  .topo a.volta { font-size: 14.5px; font-weight: 600; color: var(--grafite); text-decoration: none; }
+  main { max-width: 720px; margin: 0 auto; padding: 36px 20px 60px; }
+  h1, h2, h3 { font-family: var(--titulo); letter-spacing: -0.02em; margin: 0; line-height: 1.1; }
+  h1 { font-size: clamp(32px, 8vw, 44px); font-weight: 800; }
+  h2 { font-size: 22px; font-weight: 800; }
+  h3 { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; }
+  p { margin: 0; }
+  .olho { font: 700 12.5px/1 var(--texto); letter-spacing: .12em; text-transform: uppercase; color: var(--verm); display: block; margin-bottom: 12px; }
+  .lead { color: var(--grafite); font-size: 17px; margin-top: 12px; max-width: 52ch; }
+  .det { color: var(--cinza); font-size: 14.5px; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 22px; border-radius: 4px; font: 600 15.5px/1 var(--texto); text-decoration: none;
+    border: 2px solid var(--tinta); background: var(--tinta); color: #fff; cursor: pointer; }
+  .btn:hover { background: #2A2A2A; border-color: #2A2A2A; }
+  .btn:disabled { opacity: .6; cursor: default; }
+  .btn-verm { background: var(--verm); border-color: var(--verm); } .btn-verm:hover { background: var(--verm-esc); border-color: var(--verm-esc); }
+  .btn-linha { background: transparent; color: var(--tinta); } .btn-linha:hover { background: var(--tinta); color: #fff; }
+  .link { font: 600 15px var(--texto); color: var(--tinta); text-decoration: underline; text-underline-offset: 3px; background: none; border: 0; padding: 0; cursor: pointer; }
+  .acoes { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 18px; }
+  .bloco { margin-top: 32px; padding-top: 28px; border-top: 1px solid var(--linha); }
+  .alternar { display: flex; border-bottom: 1px solid var(--linha); margin: 28px 0 22px; }
+  .alternar button { flex: 1; background: none; border: 0; border-bottom: 3px solid transparent; padding: 12px 0; font: 600 15.5px var(--texto); color: var(--cinza); cursor: pointer; }
+  .alternar button[aria-selected="true"] { color: var(--tinta); border-bottom-color: var(--verm); }
+  .campo { display: block; font-weight: 600; font-size: 14.5px; margin-bottom: 14px; }
+  .campo input { display: block; width: 100%; margin-top: 6px; min-height: 48px; padding: 10px 14px; font: 16px var(--texto); border: 1.5px solid #BDBAB4; border-radius: 4px; background: #fff; color: var(--tinta); }
+  .campo input:focus-visible { outline: 3px solid var(--verm); outline-offset: 1px; border-color: var(--tinta); }
+  .msg { font-size: 15px; margin: 4px 0 8px; padding: 12px 14px; border-left: 3px solid; }
+  .msg[hidden] { display: none; }
+  .msg-ok { border-color: #2E7D32; background: #F1F7F1; } .msg-erro { border-color: var(--verm); background: #FBF0F0; } .msg-aviso { border-color: var(--grafite); background: #F2F1EE; }
+  .aluno { padding: 24px 0; border-bottom: 1px solid var(--linha); }
+  .aluno:first-of-type { border-top: 1px solid var(--linha); }
+  .aluno .uni { color: var(--cinza); font-size: 14.5px; margin-top: 4px; }
+  .inclui { list-style: none; padding: 0; margin: 14px 0 0; display: flex; flex-wrap: wrap; gap: 6px 18px; color: var(--grafite); font-size: 14.5px; }
+  .inclui li::before { content: ""; display: inline-block; width: 6px; height: 6px; background: var(--verm); margin-right: 8px; vertical-align: 2px; }
+  .unid { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+  .carregando { color: var(--cinza); }
+  .rodape { max-width: 720px; margin: 0 auto; padding: 0 20px 40px; font-size: 13.5px; color: var(--cinza); display: flex; flex-wrap: wrap; gap: 8px 20px; }
+  .rodape a { color: var(--grafite); }
+</style>
+</head>
+<body>
+<header class="topo"><div class="in">
+  <a href="../portal/" aria-label="Team Yoda — início"><img src="../assets/logo-team-yoda-transparente.png" alt="Team Yoda" width="76" height="30"></a>
+  <span class="esp"></span>
+  <button class="link" type="button" id="btSair" hidden>Sair</button>
+</div></header>
+<main id="app" tabindex="-1"><p class="carregando">Carregando…</p></main>
+<footer class="rodape"><a href="../portal/">teamyoda.com.br</a><a href="../digital/">Academia Digital</a><a href="/treinador">Área do professor</a><span>Tecnologia QuadraLab</span></footer>
+<div id="anuncio" class="sr" aria-live="polite"></div>
+<script src="../mty-nuvem.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-auth-compat.js"></script>
+<script>
+(function () {
+  "use strict";
+  var API = "/.netlify/functions/digital", CHAVE_LINK = "ty-area-link";
+  var ORG_NOME = { "team-yoda": "Team Yoda · Cooper Tênis", "39-ranch": "39 Ranch Tennis Club" };
+  var ERROS_AUTH = { "auth/invalid-credential": "E-mail ou senha não conferem.", "auth/wrong-password": "E-mail ou senha não conferem.", "auth/user-not-found": "E-mail ou senha não conferem.",
+    "auth/invalid-email": "E-mail inválido.", "auth/too-many-requests": "Muitas tentativas. Espere um pouco e tente de novo." };
+  var app = document.getElementById("app"), sair = document.getElementById("btSair"), anuncio = document.getElementById("anuncio");
+  var zap = typeof MTY_WHATSAPP !== "undefined" ? MTY_WHATSAPP : "";
+  var auth = null;
+  try { if (!firebase.apps.length) firebase.initializeApp(MTY_CONFIG); auth = firebase.auth(); } catch (e) { console.error("área do aluno: Firebase", e); }
+  var st = { usuario: null, dados: null, modo: "entrar", aviso: null };
+
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function $(s) { return document.querySelector(s); }
+  function msg(el, tipo, t) { if (el) { el.className = "msg msg-" + tipo; el.textContent = t; el.hidden = !t; } }
+  function falar(t) { anuncio.textContent = ""; setTimeout(function () { anuncio.textContent = t; }, 30); }
+  function tela(html) { app.innerHTML = html; window.scrollTo(0, 0); }
+  function whats(texto) { return zap ? "https://wa.me/" + zap + "?text=" + encodeURIComponent(texto) : ""; }
+
+  /* link do aluno: vem no endereço (botão do Meu plano) ou colado */
+  function lerLink(txt) {
+    var s = String(txt || "").trim(); if (!s) return null;
+    var q = s.indexOf("?") >= 0 ? s.slice(s.indexOf("?") + 1).split("#")[0] : s;
+    var p = new URLSearchParams(q), org = p.get("org"), id = p.get("id"), t = p.get("t");
+    return org && id && t && ORG_NOME[org] ? { org: org, id: id, t: t } : null;
+  }
+  function guardarLink(l) { try { if (l) sessionStorage.setItem(CHAVE_LINK, JSON.stringify(l)); else sessionStorage.removeItem(CHAVE_LINK); } catch (e) { /* sem armazenamento */ } }
+  function linkGuardado() { try { return JSON.parse(sessionStorage.getItem(CHAVE_LINK) || "null"); } catch (e) { return null; } }
+  (function () { var l = lerLink(location.search); if (l) { guardarLink(l); st.modo = "criar"; try { history.replaceState(null, "", location.pathname); } catch (e) { /* ok */ } } })();
+
+  function api(metodo, corpo) {
+    var tk = st.usuario ? st.usuario.getIdToken() : Promise.resolve("");
+    return tk.then(function (t) {
+      var h = { "content-type": "application/json" }; if (t) h.authorization = "Bearer " + t;
+      return fetch(API, { method: metodo, headers: h, body: corpo ? JSON.stringify(corpo) : undefined });
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) { var e = new Error(j.erro || "Não foi possível agora. Tente de novo."); e.status = r.status; throw e; } return j; });
+    });
+  }
+  function carregar() {
+    return api("GET").then(function (d) {
+      st.dados = d;
+      var l = linkGuardado();
+      if (l && d.acesso.tipo !== "equipe") {
+        guardarLink(null);
+        return ligar(l).catch(function (e) { st.aviso = { tipo: "erro", texto: e.message }; });
+      }
+    });
+  }
+  function ligar(l) {
+    return api("POST", { acao: "vincular", link: { org: l.org, id: l.id, t: l.t } }).then(function () {
+      st.aviso = { tipo: "ok", texto: "Pronto: a sua conta está ligada ao aluno de " + ORG_NOME[l.org] + "." };
+      return api("GET").then(function (d) { st.dados = d; });
+    });
+  }
+
+  function render() {
+    sair.hidden = !st.usuario;
+    if (!st.usuario) return telaEntrada();
+    var d = st.dados; if (!d) return;
+    if (d.acesso && d.acesso.tipo === "equipe") return telaEquipe();
+    var alunos = (d.unidades || []);
+    if (!alunos.length) return telaLigar();
+    return telaAlunos(alunos);
+  }
+
+  function telaEntrada() {
+    var criar = st.modo === "criar", l = linkGuardado();
+    tela('<span class="olho">Área do aluno</span><h1>Sua área no Team Yoda</h1>' +
+      '<p class="lead">Entre com o seu e-mail e senha para ver o plano, as aulas, as reposições, os relatórios e a Academia Digital.</p>' +
+      (l ? '<p class="msg msg-aviso" style="margin-top:20px">Aluno de ' + esc(ORG_NOME[l.org]) + ": " + (criar ? "crie a sua conta" : "entre") + " e ela fica ligada ao seu plano.</p>" : "") +
+      '<div class="alternar" role="tablist"><button type="button" role="tab" id="mEntrar" aria-selected="' + !criar + '">Entrar</button><button type="button" role="tab" id="mCriar" aria-selected="' + criar + '">Criar conta</button></div>' +
+      '<form id="fEntrar" novalidate>' +
+      (criar ? '<label class="campo">Seu nome<input name="nome" autocomplete="name" required maxlength="80"></label>' : "") +
+      '<label class="campo">E-mail<input name="email" type="email" autocomplete="email" inputmode="email" required></label>' +
+      '<label class="campo">Senha' + (criar ? " (pelo menos 8 caracteres)" : "") + '<input name="senha" type="password" autocomplete="' + (criar ? "new-password" : "current-password") + '" required></label>' +
+      '<p id="mEnt" class="msg" role="status" hidden></p>' +
+      '<div class="acoes" style="margin-top:6px"><button class="btn btn-verm" type="submit" id="btEnt">' + (criar ? "Criar conta e entrar" : "Entrar") + "</button>" +
+      (!criar ? '<button class="link" type="button" id="btEsqueci">Esqueci a senha</button>' : "") + "</div></form>" +
+      '<div class="bloco"><h3>Primeira vez?</h3><p class="det" style="margin-top:6px">Crie a conta com o seu e-mail e ligue ao aluno com o link do aluno que o professor manda. Aluno, pai e mãe podem ter cada um a sua conta (até 3 por aluno).</p>' +
+      '<p class="det" style="margin-top:10px">É professor? Use a <a href="/treinador">Área do professor</a>.</p></div>');
+    $("#mEntrar").onclick = function () { st.modo = "entrar"; telaEntrada(); };
+    $("#mCriar").onclick = function () { st.modo = "criar"; telaEntrada(); };
+    var f = $("#fEntrar"), m = $("#mEnt"), bt = $("#btEnt");
+    f.onsubmit = function (ev) {
+      ev.preventDefault();
+      var nome = f.nome ? f.nome.value.trim() : "", email = f.email.value.trim(), senha = f.senha.value;
+      if (criar && nome.length < 2) return msg(m, "erro", "Escreva o seu nome.");
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return msg(m, "erro", "Confira o e-mail.");
+      if (criar && senha.length < 8) return msg(m, "erro", "A senha precisa ter pelo menos 8 caracteres.");
+      if (!senha) return msg(m, "erro", "Escreva a senha.");
+      if (!auth) return msg(m, "erro", "Não foi possível conectar agora. Recarregue a página.");
+      bt.disabled = true; msg(m, "aviso", criar ? "Criando a sua conta…" : "Entrando…");
+      var passo = criar ? api("POST", { acao: "criar", nome: nome, email: email, senha: senha }) : Promise.resolve();
+      passo.then(function () { return auth.signInWithEmailAndPassword(email, senha); }).catch(function (e) {
+        bt.disabled = false;
+        if (e && e.status === 409) { st.modo = "entrar"; telaEntrada(); msg($("#mEnt"), "aviso", e.message); $("#fEntrar").email.value = email; return; }
+        msg(m, "erro", (e && ERROS_AUTH[e.code]) || (e && e.message) || "Não foi possível entrar.");
+      });
+    };
+    var esq = $("#btEsqueci");
+    if (esq) esq.onclick = function () {
+      var email = f.email.value.trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return msg(m, "erro", "Escreva o seu e-mail acima e toque de novo em Esqueci a senha.");
+      auth.sendPasswordResetEmail(email).then(function () { msg(m, "ok", "Se houver uma conta com este e-mail, chega nele um link para criar uma nova senha."); })
+        .catch(function (e) { msg(m, "erro", ERROS_AUTH[e.code] || "Não foi possível enviar agora."); });
+    };
+  }
+
+  function formLink(id, rotulo) {
+    return '<form id="' + id + '" novalidate style="margin-top:16px"><label class="campo">' + (rotulo || "Link do aluno") + '<input name="link" inputmode="url" autocomplete="off" placeholder="https://teamyoda.com.br/aluno.html?org=…"></label>' +
+      '<p class="msg" role="status" hidden></p><div class="acoes" style="margin-top:4px"><button class="btn" type="submit">Ligar à minha conta</button></div></form>';
+  }
+  function ligarForm(id) {
+    var f = document.getElementById(id); if (!f) return;
+    f.onsubmit = function (ev) {
+      ev.preventDefault();
+      var m = f.querySelector(".msg"), l = lerLink(f.link.value);
+      if (!l) return msg(m, "erro", "Este não parece um link do aluno do Team Yoda ou do 39 Ranch. Copie o link inteiro que o professor mandou.");
+      msg(m, "aviso", "Conferindo o link…");
+      ligar(l).then(render).catch(function (e) { msg(m, "erro", e.message); });
+    };
+  }
+  function pedirLink() {
+    var a = whats("Olá! Sou aluno do Team Yoda no Cooper Tênis e preciso do meu link do aluno."), b = whats("Olá! Sou aluno do 39 Ranch Tennis Club e preciso do meu link do aluno.");
+    if (!a) return "";
+    return '<p class="det" style="margin-top:16px">Não tem o link? Peça na sua unidade:</p><div class="unid"><a class="btn btn-linha" href="' + a + '" target="_blank" rel="noopener">Team Yoda · Cooper Tênis</a><a class="btn btn-linha" href="' + b + '" target="_blank" rel="noopener">39 Ranch</a></div>';
+  }
+  function avisoHtml() { var a = st.aviso; st.aviso = null; return a ? '<p class="msg msg-' + a.tipo + '" role="status" style="margin-top:20px">' + esc(a.texto) + "</p>" : ""; }
+  function primeiro(n) { return String(n || "").split(/\s+/)[0] || ""; }
+
+  function telaLigar() {
+    var d = st.dados;
+    tela('<span class="olho">Área do aluno</span><h1>Olá, ' + esc(primeiro(d.conta.nome)) + "</h1>" + avisoHtml() +
+      '<p class="lead">Falta ligar a sua conta ao aluno. Cole o link do aluno que o professor mandou (a página “Meu plano”). É só uma vez.</p>' +
+      formLink("fLigar") + pedirLink() +
+      (d.acesso && d.acesso.tipo !== "nenhum" ? '<div class="bloco"><h3>Academia Digital</h3><p class="det" style="margin-top:6px">A sua conta já tem acesso.</p><div class="acoes"><a class="btn btn-linha" href="../digital/">Abrir a Academia Digital</a></div></div>' : ""));
+    ligarForm("fLigar");
+  }
+
+  function telaEquipe() {
+    tela('<span class="olho">Conta da equipe</span><h1>Olá, ' + esc(primeiro(st.dados.conta.nome)) + "</h1>" +
+      '<p class="lead">Esta é uma conta de professor. O seu trabalho fica na Área do professor; a Academia Digital também está liberada.</p>' +
+      '<div class="acoes"><a class="btn btn-verm" href="/treinador">Área do professor</a><a class="btn btn-linha" href="../digital/">Academia Digital</a></div>');
+  }
+
+  function telaAlunos(alunos) {
+    var d = st.dados;
+    tela('<span class="olho">Área do aluno</span><h1>Olá, ' + esc(primeiro(d.conta.nome)) + "</h1>" + avisoHtml() +
+      '<p class="lead">' + (alunos.length > 1 ? "Escolha o aluno." : "Tudo do seu tênis num lugar só.") + "</p>" +
+      '<div style="margin-top:28px">' + alunos.map(function (a, i) {
+        var nome = a.nome || "Aluno";
+        var corpo;
+        if (!a.naLista) corpo = '<p class="msg msg-aviso" style="margin-top:14px">Este aluno não está mais na lista da unidade. Se for engano, fale com o professor.</p>';
+        else if (!a.linkAtual) corpo = '<p class="msg msg-aviso" style="margin-top:14px">O link do aluno mudou. Cole o link novo que o professor mandou para continuar.</p>' + formLink("fRel" + i, "Link novo do aluno");
+        else corpo = '<ul class="inclui"><li>Plano e aulas</li><li>Reposições</li><li>Relatórios e jogos</li><li>Conversa com o professor</li></ul>' +
+          '<div class="acoes"><button class="btn btn-verm" type="button" data-plano="' + i + '">Meu plano e aulas</button><a class="btn btn-linha" href="../digital/">Academia Digital</a></div><p class="msg" role="status" hidden data-msg="' + i + '"></p>';
+        return '<article class="aluno" data-aluno="' + esc(a.org + ":" + a.alunoId) + '"><h2>' + esc(nome) + '</h2><p class="uni">' + esc(a.unidade) + "</p>" + corpo + "</article>";
+      }).join("") + "</div>" +
+      '<div class="bloco"><button class="link" type="button" id="btOutro" aria-expanded="false" aria-controls="outro">Ligar outro aluno (irmão, por exemplo)</button><div id="outro" hidden>' + formLink("fOutro") + "</div></div>");
+    alunos.forEach(function (a, i) { if (!a.linkAtual) ligarForm("fRel" + i); });
+    ligarForm("fOutro");
+    var bo = $("#btOutro"), ou = $("#outro");
+    bo.onclick = function () { ou.hidden = !ou.hidden; bo.setAttribute("aria-expanded", String(!ou.hidden)); };
+    Array.prototype.forEach.call(document.querySelectorAll("[data-plano]"), function (b) {
+      b.onclick = function () {
+        var a = alunos[Number(b.getAttribute("data-plano"))], m = document.querySelector('[data-msg="' + b.getAttribute("data-plano") + '"]');
+        b.disabled = true; msg(m, "aviso", "Abrindo o seu plano…");
+        api("POST", { acao: "meuLink", org: a.org, alunoId: a.alunoId }).then(function (r) { location.href = r.url + "&de=area"; })
+          .catch(function (e) { b.disabled = false; if (e.status === 409) { st.aviso = { tipo: "aviso", texto: e.message }; return carregar().then(render); } msg(m, "erro", e.message); });
+      };
+    });
+  }
+
+  sair.onclick = function () { if (auth) auth.signOut(); };
+  if (!auth) { tela('<p class="msg msg-erro">Não foi possível carregar o login. Verifique a internet e recarregue a página.</p>'); return; }
+  auth.onAuthStateChanged(function (u) {
+    st.usuario = u || null; st.dados = null;
+    if (!u) return render();
+    tela('<p class="carregando">Carregando…</p>');
+    carregar().then(render).catch(function (e) { tela('<p class="msg msg-erro">' + esc(e.message) + '</p><div class="acoes"><button class="btn" type="button" onclick="location.reload()">Tentar de novo</button></div>'); });
+    falar("Você entrou.");
+  });
+})();
+</script>
+</body>
+</html>

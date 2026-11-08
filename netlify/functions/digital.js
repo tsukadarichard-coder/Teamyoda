@@ -15,6 +15,9 @@
    POST { acao: "criar", nome, email, senha } (sem login) → cria a conta
    POST { acao: "interesse", nome, email }   (sem login) → entra na lista de espera da assinatura
    POST (logado) { acao: "vincular", link: { org, id, t } } | { acao: "desvincular", org, alunoId } | { acao: "progresso", aulaId, feito }
+   POST (logado) { acao: "meuLink", org, alunoId } → endereço do Meu plano daquele aluno (Área do aluno: entra com e-mail e senha
+        em vez de guardar o link). Só para uma conta ligada a ele e só enquanto o link do aluno for o mesmo de quando a conta foi
+        ligada: se o professor troca o link (para cortar um acesso), a conta precisa do link novo.
    POST (coordenação) { acao: "salvarConteudo", trilhas, venda } | { acao: "membros" } | { acao: "cortesia", email, sim } */
 const { admin, app } = require("./_firebase-admin");
 const VA = require("./ver-aluno").interno;
@@ -26,6 +29,7 @@ const ID = /^[A-Za-z0-9_.:@-]{1,120}$/;
 const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,24}$/;
 const MAX_CONTAS_POR_ALUNO = 3, MAX_TRILHAS = 40, MAX_AULAS = 60;
 const db = () => admin.firestore();
+const marcaLink = (t) => require("crypto").createHash("sha256").update("mty-link:" + String(t)).digest("hex").slice(0, 32);
 const agora = () => new Date().toISOString();
 const txt = (v, n) => String(v == null ? "" : v).replace(/[\u0000-\u001f]/g, " ").trim().slice(0, n);
 const txtLongo = (v, n) => String(v == null ? "" : v).replace(/\r/g, "").trim().slice(0, n);
@@ -170,6 +174,16 @@ async function acessoDe(claims, conta) {
   return { tipo: "nenhum" };
 }
 /* aluno da unidade: o resumo do plano presencial (o mesmo do link do aluno, só os números) para o painel da Academia Digital */
+/* alunos ligados à conta, com o primeiro nome e se o link ainda é o mesmo (senão, a Área do aluno pede o link novo) */
+async function unidadesDaConta(conta) {
+  const listas = {};
+  return Promise.all((conta.vinculos || []).map(async (v) => {
+    listas[v.org] = listas[v.org] || alunosDaOrg(v.org);
+    const al = (await listas[v.org]).find((a) => a && a.id === v.alunoId);
+    return { org: v.org, alunoId: v.alunoId, unidade: ORGS[v.org] || v.org, nome: al ? String(al.nome || "").split(/\s+/)[0] : "", naLista: !!al,
+      linkAtual: !!(al && al.linkToken && v.marca && marcaLink(al.linkToken) === v.marca) };
+  }));
+}
 async function resumoPresencial(ac) {
   try {
     const ctx = await VA.carregarContexto(ac.org, ac.alunoId, null, true);
@@ -210,15 +224,29 @@ async function vincular(claims, conta, b) {
   const l = b.link || {};
   if (!ORGS[l.org] || !ID.test(String(l.id || "")) || !l.t) throw new Erro(400, "Link do aluno inválido.");
   await VA.carregarContexto(String(l.org), String(l.id), String(l.t)).catch(() => { throw new Erro(404, "Este link do aluno não vale mais. Peça um novo ao seu professor."); });
-  const chave = l.org + ":" + l.id;
+  const chave = l.org + ":" + l.id, marca = marcaLink(l.t);
   if (!(conta.vinculoChaves || []).includes(chave)) {
     const outras = await db().collection("digitalContas").where("vinculoChaves", "array-contains", chave).get();
     if (outras.size >= MAX_CONTAS_POR_ALUNO) throw new Erro(409, "Este aluno já tem " + MAX_CONTAS_POR_ALUNO + " contas ligadas na Academia Digital. Fale com o professor.");
-    conta.vinculos = (conta.vinculos || []).concat([{ org: l.org, alunoId: String(l.id), desde: agora() }]);
+    conta.vinculos = (conta.vinculos || []).concat([{ org: l.org, alunoId: String(l.id), desde: agora(), marca }]);
     conta.vinculoChaves = (conta.vinculoChaves || []).concat([chave]);
     await refConta(claims.uid).set({ vinculos: conta.vinculos, vinculoChaves: conta.vinculoChaves }, { merge: true });
+  } else if ((conta.vinculos || []).some((v) => v.org + ":" + v.alunoId === chave && v.marca !== marca)) {
+    conta.vinculos = conta.vinculos.map((v) => (v.org + ":" + v.alunoId === chave ? { ...v, marca } : v));
+    await refConta(claims.uid).set({ vinculos: conta.vinculos }, { merge: true });
   }
   return { ok: true, acesso: await acessoDe(claims, conta) };
+}
+
+/* Área do aluno: devolve o endereço do Meu plano do aluno ligado à conta (o mesmo link que o professor manda) */
+async function meuLink(claims, conta, b) {
+  const org = String(b.org || ""), alunoId = String(b.alunoId || "");
+  const v = (conta.vinculos || []).find((x) => x.org === org && x.alunoId === alunoId);
+  if (!v) throw new Erro(403, "Esta conta não está ligada a este aluno.");
+  const al = (await alunosDaOrg(org)).find((a) => a && a.id === alunoId);
+  if (!al) throw new Erro(404, "Não encontrei o aluno na lista da unidade. Fale com o professor.");
+  if (!al.linkToken || !v.marca || marcaLink(al.linkToken) !== v.marca) throw new Erro(409, "O link do aluno mudou. Cole o link novo que o professor mandou para continuar.");
+  return { url: "/aluno.html?org=" + encodeURIComponent(org) + "&id=" + encodeURIComponent(alunoId) + "&t=" + encodeURIComponent(al.linkToken) };
 }
 
 async function membros() {
@@ -272,7 +300,7 @@ exports.handler = async function (event) {
       }
       return resposta(200, {
         conta: { nome: conta.nome, email: conta.email }, acesso, coordenacao: ehCoordenacao(claims),
-        unidades: (conta.vinculos || []).map((v) => ({ org: v.org, alunoId: v.alunoId, unidade: ORGS[v.org] || v.org })),
+        unidades: await unidadesDaConta(conta),
         conteudo: liberado ? { trilhas: publicadas(c) } : null, vitrine: liberado ? null : vitrine(c), venda: c.venda, progresso: conta.progresso || {},
         quiz: conta.quiz || {},
         sessoes: (conta.sessoes || []).slice(-60),
@@ -302,6 +330,7 @@ exports.handler = async function (event) {
     }
     const conta = await lerConta(claims);
     if (b.acao === "vincular") return resposta(200, await vincular(claims, conta, b));
+    if (b.acao === "meuLink") return resposta(200, await meuLink(claims, conta, b));
     if (b.acao === "desvincular") {
       const chave = String(b.org) + ":" + String(b.alunoId);
       await refConta(claims.uid).set({ vinculos: (conta.vinculos || []).filter((v) => v.org + ":" + v.alunoId !== chave), vinculoChaves: (conta.vinculoChaves || []).filter((k) => k !== chave) }, { merge: true });
