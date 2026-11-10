@@ -68,6 +68,7 @@
 <script src="push-cliente.js"></script>
 <script src="turmas-lixeira.js"></script>
 <script src="agenda-aulas.js"></script>
+<script src="liberdade.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-auth-compat.js"></script>
@@ -13138,9 +13139,10 @@ function RevisaoPlano({ aluno, alunos, setAlunos, podeEditar }) {
   );
 }
 
-const NOVIDADES_VERSAO = "2026-11i";
+const NOVIDADES_VERSAO = "2026-11-liberdade";
 const NOVIDADES = [
-  { novo: true, t: "Análise de movimento: golpe inteiro mesmo no fim do vídeo", d: "Quando o golpe passava do trecho de 8 s analisado (por exemplo, um saque que começa perto dos 6 s), o contato, o seguimento e a recuperação caíam nos últimos quadros do vídeo, um colado no outro, e as medidas dessas fases saíam erradas. Agora a análise continua sozinha pelo vídeo até o golpe terminar. Se o próprio vídeo acaba antes do fim do golpe, a análise avisa, essas fases aparecem como fora do vídeo e não entram como medida nem na comparação com a análise anterior. O PDF do iPhone também ficou com as quebras de página certas e o tamanho de letra igual ao do computador.", onde: "Jogadores › abra o jogador › Análise de movimento", aba: "alunos" },
+  { novo: true, t: "Minha Liberdade: mais renda, mais vida", d: "Responda 6 perguntas rápidas (alunos, horas, renda, metas e a maior dificuldade; dá para pular) e o Início passa a mostrar quatro números: a renda prevista do mês, as horas da semana (em quadra pela sua agenda, mais o tempo fora dela), quanto vale a sua hora de trabalho e se a semana está dentro do seu limite e dos seus dias livres. Abaixo, uma sugestão por semana (por exemplo, dias com uma aula só que prendem um período inteiro), sempre como estimativa: nada muda na agenda sem você. Em Minha Liberdade você ajusta metas, custos, o valor de cada aluno e compara com o começo.", onde: "Início e Mais › Minha Liberdade", aba: "liberdade" },
+  { t: "Análise de movimento: golpe inteiro mesmo no fim do vídeo", d: "Quando o golpe passava do trecho de 8 s analisado (por exemplo, um saque que começa perto dos 6 s), o contato, o seguimento e a recuperação caíam nos últimos quadros do vídeo, um colado no outro, e as medidas dessas fases saíam erradas. Agora a análise continua sozinha pelo vídeo até o golpe terminar. Se o próprio vídeo acaba antes do fim do golpe, a análise avisa, essas fases aparecem como fora do vídeo e não entram como medida nem na comparação com a análise anterior. O PDF do iPhone também ficou com as quebras de página certas e o tamanho de letra igual ao do computador.", onde: "Jogadores › abra o jogador › Análise de movimento", aba: "alunos" },
   { t: "Relatórios em PDF com a diagramação certa", d: "Revisamos todos os relatórios que viram PDF: relatório dos jogos e da partida, do aluno, de aulas e reposições, da análise de movimento, o caderno de campo e, no QuadraLab Competição, o relatório dos jogos e o relatório da Consultoria. No iPhone e no iPad o PDF agora sai como uma folha A4 de computador (duas colunas, gráficos no tamanho certo), e não mais no layout do celular. Nenhum gráfico, cartão ou linha de tabela é cortado entre páginas, os títulos ficam junto do conteúdo, a tabela que continua na outra página repete o cabeçalho, as fotos das fases saem sem esticar e os botões Salvar e Voltar não aparecem mais no papel.", onde: "Qualquer relatório › Salvar como PDF / Imprimir", aba: "alunos" },
   { t: "Consultoria com Richard Tsukada no QuadraLab Competição", d: "Atletas a partir de 15 anos acompanhados pelo Richard (objetivo universitário nos EUA, profissional ou os dois) podem convidar o treinador para a equipe da consultoria. Com o convite aprovado, você vê as prioridades do plano de 90 dias e as análises publicadas para o treinador, comenta a versão do plano antes da publicação, registra o trabalho feito em quadra (o que foi trabalhado, a resposta do atleta, as dificuldades e os ajustes sugeridos) e marca as ações que são suas. Tudo pelo QuadraLab Competição, com a mesma conta, sem contratar outro plano. Os relatos pessoais do atleta só chegam a você se ele marcar.", onde: "QuadraLab Competição › Serviços do Richard › Consultoria com Richard Tsukada", aba: "alunos" },
   { t: "Canal da turma e do aluno", d: "Cada turma ganhou um grupo de conversa, e cada jogador uma conversa só com você. Na ficha da turma ou do jogador, abra a aba Canal. Os alunos (ou os responsáveis) conversam pelo botão Conversas do link do aluno e da Área do aluno, e cada mensagem nova avisa no celular de quem ativou os avisos. No grupo todos veem as mensagens, só com o primeiro nome. Você modera: apaga mensagens, pausa um aluno e pode deixar o grupo no modo avisos, em que só você escreve.", onde: "Turmas › abrir turma › Canal · Jogador › Canal", aba: "turmas" },
@@ -19774,9 +19776,209 @@ function CardPrimeirosPassos({ passo1Ok, passo2Ok, passo3Ok, aoPasso1, aoPasso2,
   );
 }
 
+/* ── QuadraLab Liberdade (Treinador 2.0 · Etapa 1) ──────────────────────
+   Onboarding de 6 perguntas (pode pular), painel "Minha Liberdade" no Início
+   e a tela completa no Mais. Os números saem de liberdade.js (agenda, valores,
+   o que o professor informou); nada aqui muda aulas, preços ou mensagens.
+   Dados: mty:liberdade:v1:{uid}, só do próprio professor. */
+function reaisQL(v) { return v == null ? "—" : (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }); }
+function horasQL(v) { return v == null ? "—" : String(Math.round(v * 10) / 10).replace(".", ",") + " h"; }
+const ONB_LIBERDADE = [
+  { k: "alunos", p: "Quantos alunos você atende hoje?", d: "Contando aulas individuais e de turma.", op: [["até 5", 5], ["6 a 15", 10], ["16 a 30", 23], ["31 a 50", 40], ["mais de 50", 60]], un: "alunos" },
+  { k: "horasSemana", p: "Quantas horas trabalha por semana?", d: "Some aulas, mensagens, planejamento e deslocamento.", op: [["até 20 h", 18], ["20 a 30 h", 25], ["30 a 40 h", 35], ["40 a 50 h", 45], ["mais de 50 h", 55]], un: "h", extra: { k: "horasQuadra", p: "Dessas, quantas são em quadra? (opcional)", un: "h" } },
+  { k: "rendaMes", p: "Quanto você ganha por mês, mais ou menos?", d: "Só para calcular quanto vale a sua hora. Fica só com você.", op: [["até R$ 3 mil", 3000], ["R$ 3 a 6 mil", 4500], ["R$ 6 a 10 mil", 8000], ["R$ 10 a 15 mil", 12500], ["R$ 15 a 20 mil", 17500], ["mais de R$ 20 mil", 22000]], un: "R$", nao: true },
+  { k: "rendaDesejada", p: "Quanto gostaria de ganhar por mês?", d: "Renda líquida, já tirando custos.", op: [["R$ 6 mil", 6000], ["R$ 8 mil", 8000], ["R$ 10 mil", 10000], ["R$ 12 mil", 12000], ["R$ 15 mil", 15000], ["R$ 20 mil", 20000]], un: "R$" },
+  { k: "horasDesejadas", p: "Quantas horas gostaria de trabalhar por semana?", d: "No total, dentro e fora da quadra.", op: [["20 h", 20], ["25 h", 25], ["30 h", 30], ["35 h", 35], ["40 h", 40]], un: "h" },
+  { k: "dificuldade", p: "Qual é a sua maior dificuldade hoje?", d: "Escolha a principal.", op: Object.keys((window.QLLiberdade || {}).DIFICULDADES || {}).map((c) => [window.QLLiberdade.DIFICULDADES[c], c]) },
+];
+function OnboardingLiberdade({ aoConcluir, aoDispensar }) {
+  const [passo, setPasso] = useState(0);
+  const [resp, setResp] = useState({});
+  const [livre, setLivre] = useState("");
+  const P = ONB_LIBERDADE[passo];
+  function seguir(valor, chave) {
+    const novo = { ...resp };
+    if (valor !== undefined) novo[chave || P.k] = valor;
+    setResp(novo); setLivre("");
+    if (passo + 1 >= ONB_LIBERDADE.length) aoConcluir(novo); else setPasso(passo + 1);
+  }
+  const chip = (sel) => ({ fontFamily: ARCH, fontSize: 14, fontWeight: 600, padding: "10px 14px", borderRadius: 999, cursor: "pointer", minHeight: 44,
+    border: "1px solid " + (sel ? C.quadra : C.linha), background: sel ? "#E6EFE0" : C.cal, color: C.tinta });
+  return (
+    <section data-onboarding-liberdade aria-labelledby="tOnbLib" style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 16, padding: "18px 18px 16px", marginBottom: 16, boxShadow: SOMBRA }}>
+      <div className="flex items-center gap-2" style={{ marginBottom: 6 }}>
+        <span style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: C.saibro, flex: 1 }}>Minha Liberdade · {passo + 1} de {ONB_LIBERDADE.length}</span>
+        <button type="button" onClick={aoDispensar} style={{ fontFamily: ARCH, fontSize: 13, color: C.grafite, background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>Agora não</button>
+      </div>
+      <div style={{ height: 5, background: "#EEF1EF", borderRadius: 5, marginBottom: 14 }}><div style={{ width: ((passo + 1) / ONB_LIBERDADE.length * 100) + "%", height: 5, background: C.saibro, borderRadius: 5 }} /></div>
+      <h2 id="tOnbLib" style={{ fontFamily: ARCH, fontSize: 20, fontWeight: 700, margin: 0 }}>{P.p}</h2>
+      {P.d && <p style={{ ...prosa, fontSize: 14, color: C.grafite, marginTop: 4 }}>{P.d}</p>}
+      <div className="flex flex-wrap gap-2" style={{ marginTop: 12 }}>
+        {P.op.map(([r, v]) => <button key={r} type="button" style={chip(resp[P.k] === v)} onClick={() => seguir(v)}>{r}</button>)}
+        {P.nao && <button type="button" style={chip(false)} onClick={() => seguir(undefined)}>prefiro não dizer</button>}
+      </div>
+      {P.un && (
+        <form className="flex flex-wrap items-center gap-2" style={{ marginTop: 12 }} onSubmit={(e) => { e.preventDefault(); if (Number(livre) > 0) seguir(Number(livre)); }}>
+          <input aria-label={P.p + " (digitar)"} type="number" min="0" inputMode="numeric" value={livre} onChange={(e) => setLivre(e.target.value)} placeholder={"ou digite (" + P.un + ")"} style={{ ...entrada, width: 180, fontSize: 15 }} />
+          <Botao pequeno type="submit" disabled={!(Number(livre) > 0)}>Usar</Botao>
+        </form>
+      )}
+      {P.extra && (
+        <label className="flex flex-wrap items-center gap-2" style={{ fontFamily: ARCH, fontSize: 14, marginTop: 12 }}>
+          <span>{P.extra.p}</span>
+          <input type="number" min="0" inputMode="numeric" value={resp[P.extra.k] == null ? "" : resp[P.extra.k]} onChange={(e) => setResp({ ...resp, [P.extra.k]: e.target.value === "" ? undefined : Number(e.target.value) })} style={{ ...entrada, width: 100, fontSize: 15 }} />
+          <span style={{ color: C.grafite }}>h</span>
+        </label>
+      )}
+      <div className="flex items-center gap-3" style={{ marginTop: 14 }}>
+        {passo > 0 && <button type="button" onClick={() => setPasso(passo - 1)} style={{ fontFamily: ARCH, fontSize: 14, color: C.tinta, background: "none", border: "none", cursor: "pointer" }}>Voltar</button>}
+        <button type="button" onClick={() => seguir(undefined)} style={{ fontFamily: ARCH, fontSize: 14, color: C.grafite, background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>Pular</button>
+      </div>
+    </section>
+  );
+}
+/* os quatro indicadores (compacto no Início, completo na tela) */
+function IndicadoresLiberdade({ ind, compacto }) {
+  const kpi = (rotulo, valor, nota, cor) => (
+    <div style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 14, padding: "12px 12px", minWidth: 0 }}>
+      <div style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 600, color: C.grafite }}>{rotulo}</div>
+      <div style={{ fontFamily: ARCH, fontSize: compacto ? 20 : 24, fontWeight: 700, lineHeight: 1.2, color: cor || C.tinta, fontVariantNumeric: "tabular-nums" }}>{valor}</div>
+      {nota && <div style={{ fontFamily: ARCH, fontSize: 11.5, color: C.grafite, marginTop: 2, lineHeight: 1.35 }}>{nota}</div>}
+    </div>
+  );
+  const r = ind.renda, t = ind.tempo, h = ind.rentabilidade, v = ind.vida;
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 8 }}>
+      {kpi("Renda", reaisQL(r.prevista), (r.prevista == null ? "informe o valor das aulas" : "prevista no mês · " + r.fonte) + (r.recebido != null ? " · recebido " + reaisQL(r.recebido) : "") + (r.liquida != null ? " · líquida " + reaisQL(r.liquida) : ""))}
+      {kpi("Tempo", horasQL(t.total), t.quadra == null ? "informe as horas" : horasQL(t.quadra) + " em quadra" + (t.adm != null ? " · " + horasQL(t.adm) + " fora" : "") + (t.desloc ? " · " + horasQL(t.desloc) + " deslocamento" : "") + (t.fonte === "agenda" ? " · pela agenda" : ""))}
+      {kpi("R$ por hora", h.porHora == null ? "—" : reaisQL(h.porHora), (h.liquidaPorHora != null ? "líquido " + reaisQL(h.liquidaPorHora) + " · " : "") + "sobre a jornada total" + (h.necessariaPorHora ? " · meta pede " + reaisQL(h.necessariaPorHora) : ""))}
+      {kpi("Qualidade de vida", v.acima == null ? "—" : v.acima > 0 ? horasQL(v.acima) + " acima" : "dentro", (v.limite ? "limite " + v.limite + " h" : "defina o limite") + " · " + v.diasLivresRespeitados + " de " + v.diasLivres.length + " dia(s) livre(s)" + (v.recuperadas != null ? " · " + (v.recuperadas >= 0 ? horasQL(v.recuperadas) + " recuperadas" : horasQL(-v.recuperadas) + " a mais") + " vs. início" : ""), v.acima > 0 ? "#A6432F" : null)}
+    </div>
+  );
+}
+function SugestaoLiberdade({ s, aoAcao }) {
+  if (!s) return null;
+  return (
+    <div data-sugestao-liberdade={s.tipo} style={{ background: C.quadra, color: "#fff", borderRadius: 14, padding: "14px 16px", marginTop: 10 }}>
+      <div style={{ fontFamily: ARCH, fontSize: 11.5, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", opacity: .8 }}>Sugestão da semana</div>
+      <div style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, marginTop: 4 }}>{s.titulo}</div>
+      <p style={{ ...prosa, color: "#fff", fontSize: 14, marginTop: 4 }}>{s.texto}</p>
+      <div style={{ fontFamily: ARCH, fontSize: 12.5, marginTop: 8, opacity: .9, lineHeight: 1.5 }}>
+        <div>Benefício: {s.beneficio}</div><div>Renda: {s.financeiro}</div><div>Jornada: {s.jornada}</div>
+      </div>
+      {s.acao && <button type="button" onClick={() => aoAcao(s.acao.aba)} style={{ marginTop: 10, fontFamily: ARCH, fontSize: 13.5, fontWeight: 700, background: "#fff", color: C.quadra, border: "none", borderRadius: 10, padding: "9px 14px", cursor: "pointer", minHeight: 40 }}>{s.acao.rotulo}</button>}
+      <div style={{ fontFamily: ARCH, fontSize: 11, opacity: .7, marginTop: 8 }}>Estimativa a partir da sua agenda e dos seus números. Nada é alterado sem você.</div>
+    </div>
+  );
+}
+function CartaoLiberdade({ lib, alunos, turmas, aoAbrir, aoAcao }) {
+  const L = window.QLLiberdade; if (!L) return null;
+  const hoje = new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10);
+  const ind = L.indicadores(lib, alunos, turmas, hoje), s = lib.pausado ? null : L.sugestao(lib, alunos, turmas, hoje, ind);
+  return (
+    <section data-cartao-liberdade aria-labelledby="tCartLib" style={{ marginBottom: 16 }}>
+      <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
+        <h2 id="tCartLib" style={{ fontFamily: ARCH, fontSize: 17, fontWeight: 700, margin: 0, flex: 1 }}>Minha Liberdade</h2>
+        <button type="button" onClick={aoAbrir} style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 600, color: C.quadra, background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>Abrir</button>
+      </div>
+      <IndicadoresLiberdade ind={ind} compacto />
+      <SugestaoLiberdade s={s} aoAcao={aoAcao} />
+    </section>
+  );
+}
+function TelaLiberdade({ lib, setLib, alunos, setAlunos, turmas, setTurmas, irPara }) {
+  const L = window.QLLiberdade;
+  const [refazer, setRefazer] = useState(false);
+  if (!L) return <Aviso>Não carregou o módulo Minha Liberdade. Recarregue a página.</Aviso>;
+  const hoje = new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10), mes = hoje.slice(0, 7);
+  if (!lib.onboarding || refazer) return <OnboardingLiberdade aoConcluir={(r) => { setLib(L.aplicarOnboarding(lib, r, hoje)); setRefazer(false); }} aoDispensar={() => { if (refazer) setRefazer(false); else setLib({ ...lib, dispensado: true }); irPara(refazer ? "liberdade" : "dashboard"); }} />;
+  const ind = L.indicadores(lib, alunos, turmas, hoje), s = lib.pausado ? null : L.sugestao(lib, alunos, turmas, hoje, ind);
+  const metas = lib.metas || {}, rot = lib.rotina || {}, base = lib.base || {}, M = (lib.meses || {})[mes] || {};
+  const mudar = (fn) => { const n = JSON.parse(JSON.stringify(lib)); fn(n); setLib(n); };
+  const numIn = (rot1, valor, aoMudar, sufixo, id) => (
+    <label className="flex items-center gap-2" style={{ fontFamily: ARCH, fontSize: 14, padding: "6px 0", borderBottom: "1px solid " + C.linha }}>
+      <span style={{ flex: 1 }}>{rot1}</span>
+      <input id={id} type="number" min="0" step="any" inputMode="decimal" value={valor == null ? "" : valor} onChange={(e) => aoMudar(e.target.value === "" ? null : Number(e.target.value))} style={{ ...entrada, width: 120, fontSize: 15, padding: "6px 8px", textAlign: "right" }} />
+      <span style={{ width: 34, color: C.grafite, fontSize: 13 }}>{sufixo}</span>
+    </label>
+  );
+  const h2 = { fontFamily: ARCH, fontSize: 17, fontWeight: 700, margin: "24px 0 6px" };
+  const sub = { ...prosa, fontSize: 13.5, color: C.grafite };
+  const fase = L.FASES[lib.fase] || L.FASES.crescimento;
+  const ents = alunos.filter((a) => a.nome).map((a) => ({ t: "a", e: a })).concat(turmas.map((t) => ({ t: "t", e: t })));
+  const setValor = (t, id, campo, v) => {
+    const f = (lista) => lista.map((x) => (x.id === id ? { ...x, valorMensal: campo === "valorMensal" ? (v || undefined) : undefined, valorAula: campo === "valorAula" ? (v || undefined) : undefined } : x));
+    if (t === "a") setAlunos((l) => f(l)); else setTurmas((l) => f(l));
+  };
+  return (
+    <div data-tela-liberdade>
+      <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700, margin: 0 }}>Minha Liberdade</h1>
+      <p style={{ ...sub, marginTop: 4 }}>Mais renda, mais vida. Os números saem da sua agenda e do que você informa aqui; só você vê.</p>
+      <div className="flex flex-wrap gap-2 items-center" style={{ margin: "12px 0 14px" }}>
+        <span style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700, background: "#E6EFE0", color: C.quadra, borderRadius: 999, padding: "5px 12px" }}>Fase: {fase.nome}</span>
+        <span style={{ ...sub }}>{fase.texto}</span>
+        <select aria-label="Trocar a fase" value={lib.fase || "crescimento"} onChange={(e) => mudar((n) => { n.fase = e.target.value; })} style={{ ...entrada, width: 160, fontSize: 14, padding: "5px 8px" }}>
+          {Object.keys(L.FASES).map((k) => <option key={k} value={k}>{L.FASES[k].nome}</option>)}
+        </select>
+      </div>
+      <IndicadoresLiberdade ind={ind} />
+      <SugestaoLiberdade s={s} aoAcao={(aba) => irPara(aba)} />
+
+      <h2 style={h2}>Metas</h2>
+      {numIn("Renda líquida desejada por mês", metas.rendaLiquida, (v) => mudar((n) => { n.metas.rendaLiquida = v; }), "R$", "libMetaRenda")}
+      {numIn("Limite de horas por semana (total)", metas.horasSemana, (v) => mudar((n) => { n.metas.horasSemana = v; }), "h", "libMetaHoras")}
+      {numIn("Dias de férias no ano", metas.feriasDias, (v) => mudar((n) => { n.metas.feriasDias = v; }), "dias", "libFerias")}
+      <div style={{ fontFamily: ARCH, fontSize: 14, padding: "8px 0", borderBottom: "1px solid " + C.linha }}>
+        <div style={{ marginBottom: 6 }}>Dias livres na semana</div>
+        <div className="flex flex-wrap gap-2">
+          {L.DIAS.map((d, i) => { const on = (metas.diasLivres || []).indexOf(i) >= 0; return (
+            <button key={d} type="button" aria-pressed={on} onClick={() => mudar((n) => { const l = n.metas.diasLivres || []; n.metas.diasLivres = on ? l.filter((x) => x !== i) : l.concat([i]).sort(); })}
+              style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 600, padding: "7px 11px", borderRadius: 999, cursor: "pointer", border: "1px solid " + (on ? C.quadra : C.linha), background: on ? C.quadra : C.cal, color: on ? "#fff" : C.tinta }}>{d.slice(0, 3)}</button>); })}
+        </div>
+      </div>
+
+      <h2 style={h2}>Rotina e custos</h2>
+      <p style={sub}>As horas em quadra vêm da agenda. Aqui entra o que a agenda não vê.</p>
+      {numIn("Horas fora da quadra por semana (mensagens, planejamento)", rot.horasAdminSemana, (v) => mudar((n) => { n.rotina.horasAdminSemana = v; }), "h", "libAdm")}
+      {numIn("Horas de deslocamento por semana", rot.horasDeslocSemana, (v) => mudar((n) => { n.rotina.horasDeslocSemana = v; }), "h", "libDesl")}
+      {numIn("Preço médio de uma aula", rot.precoAulaMedio, (v) => mudar((n) => { n.rotina.precoAulaMedio = v; }), "R$", "libPreco")}
+      {numIn("Custos por mês (quadra, transporte, material)", rot.custosMes, (v) => mudar((n) => { n.rotina.custosMes = v; }), "R$", "libCustos")}
+      {numIn("Impostos sobre o que recebe", rot.impostoPct, (v) => mudar((n) => { n.rotina.impostoPct = v; }), "%", "libImposto")}
+
+      <h2 style={h2}>Este mês</h2>
+      {numIn("Quanto já recebeu em " + mes.split("-").reverse().join("/"), M.recebido, (v) => mudar((n) => { n.meses = n.meses || {}; n.meses[mes] = { ...(n.meses[mes] || {}), recebido: v }; }), "R$", "libRecebido")}
+
+      <h2 style={h2}>Valor de cada aluno (opcional)</h2>
+      <p style={sub}>Sem valor, o aluno entra pelo preço médio. Use mensal para quem paga pacote e por aula para quem paga avulso.</p>
+      {ents.length === 0 && <p style={sub}>Nenhum jogador ou turma ainda. O painel funciona com o que você informou acima.</p>}
+      {ents.slice(0, 120).map(({ t, e }) => {
+        const campo = e.valorAula ? "valorAula" : "valorMensal", v = e.valorAula || e.valorMensal || "";
+        return (
+          <div key={t + e.id} className="flex flex-wrap items-center gap-2" style={{ fontFamily: ARCH, fontSize: 14, padding: "6px 0", borderBottom: "1px solid " + C.linha }}>
+            <span style={{ flex: 1, minWidth: 140 }}>{e.nome || "Sem nome"}{t === "t" ? <span style={{ color: C.grafite }}> · turma</span> : null}</span>
+            <select aria-label={"Tipo de valor de " + (e.nome || "")} value={campo} onChange={(ev) => setValor(t, e.id, ev.target.value, Number(v) || 0)} style={{ ...entrada, width: 110, fontSize: 13.5, padding: "5px 6px" }}>
+              <option value="valorMensal">por mês</option><option value="valorAula">por aula</option>
+            </select>
+            <input aria-label={"Valor de " + (e.nome || "")} type="number" min="0" step="any" inputMode="decimal" value={v} onChange={(ev) => setValor(t, e.id, campo, Number(ev.target.value) || 0)} placeholder="R$" style={{ ...entrada, width: 100, fontSize: 15, padding: "6px 8px", textAlign: "right" }} />
+          </div>
+        );
+      })}
+
+      <h2 style={h2}>Comparação com o início</h2>
+      <p style={sub}>Linha de base de {base.data ? base.data.split("-").reverse().join("/") : "—"}: {base.alunos != null ? base.alunos + " alunos · " : ""}{base.horasSemana != null ? base.horasSemana + " h por semana · " : ""}{base.rendaMes != null ? reaisQL(base.rendaMes) + " por mês" : "renda não informada"}.
+        {" "}Agora: {horasQL(ind.tempo.total)} por semana{ind.renda.prevista != null ? " · " + reaisQL(ind.renda.prevista) + " previstos" : ""}. Mudanças podem ter outras causas além do app.</p>
+
+      <div className="flex flex-wrap gap-2" style={{ marginTop: 22 }}>
+        <Botao variante="vazio" onClick={() => setRefazer(true)}>Refazer as 6 perguntas</Botao>
+        <Botao variante="vazio" onClick={() => mudar((n) => { n.pausado = !n.pausado; })}>{lib.pausado ? "Voltar a mostrar sugestões" : "Pausar as sugestões"}</Botao>
+      </div>
+    </div>
+  );
+}
+
 function TelaDashboard({ aoAbrirScout, aoDescartarPartida, alunos, setAlunos, planoAtual, turmas, uidAtual, exigeLogin, irPara, aoAbrirSessao, usoIA, identidade, meuNome,
   aoCriarPlanejamento, aoAbrirTurmas, aoAbrirAgenda, aoAdicionarJogador, aoEditarDados,
-  onboardingDispensado, setOnboardingDispensado, primeirosPassosForcado, setPrimeirosPassosForcado }) {
+  onboardingDispensado, setOnboardingDispensado, primeirosPassosForcado, setPrimeirosPassosForcado, liberdade, setLiberdade, aoAbrirLiberdade, irParaAba }) {
   const [escolhendoPlanejamento, setEscolhendoPlanejamento] = useState(false);
   /* "Vamos preparar sua primeira aula?" — três marcos reais, não um
      contador de telas visitadas. Some sozinho quando os três já
@@ -19915,6 +20117,11 @@ function TelaDashboard({ aoAbrirScout, aoDescartarPartida, alunos, setAlunos, pl
           <p style={{ ...prosa, fontSize: 15, color: INICIO.texto2, marginTop: 2 }}>Nenhuma aula agendada.</p>
         )}
       </section>
+      {liberdade && !liberdade.onboarding && !liberdade.dispensado && window.QLLiberdade && (
+        <OnboardingLiberdade aoConcluir={(r) => setLiberdade(window.QLLiberdade.aplicarOnboarding(liberdade, r, new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10)))} aoDispensar={() => setLiberdade({ ...liberdade, dispensado: true })} />
+      )}
+      {/* Minha Liberdade (Treinador 2.0): logo depois da próxima aula, sem tirar a aula da primeira tela */}
+      {liberdade && liberdade.onboarding && <CartaoLiberdade lib={liberdade} alunos={alunos} turmas={turmas} aoAbrir={aoAbrirLiberdade} aoAcao={(aba) => irParaAba(aba)} />}
       <AvisoNotificacoes />
 
       {hojeRestante.length > 0 && (
@@ -20043,7 +20250,7 @@ function IconeCalendario({ tam = 28 }) {
 }
 
 function PainelMais({ aba, setAba, aoFechar, planoAtual, aoPrimeirosPassos }) {
-  const itens = [...NAV_PRINCIPAL.filter((t) => !["dashboard", "alunos", "agenda"].includes(t.v)),
+  const itens = [{ v: "liberdade", r: "Minha Liberdade" }, ...NAV_PRINCIPAL.filter((t) => !["dashboard", "alunos", "agenda"].includes(t.v)),
     { v: "observar", r: "Observar jogos" }, { v: "quadro", r: "Quadro tático" }, { v: "metodo", r: "Meu método", trava: planoQueLibera("metodo", planoAtual) }, { v: "catalogo", r: "Catálogo de exercícios" },
     ...(LIGACAO_PLAYER ? [{ v: "hubPerfil", r: "Meu perfil profissional" }, { v: "hubPedidos", r: "Pedidos de atendimento" }] : [])];
   return (
@@ -21458,6 +21665,18 @@ function App() {
     if (autenticado && onboardingCarregado) grave("mty:onboardingDispensado", onboardingDispensado, true);
   }, [onboardingDispensado, onboardingCarregado, autenticado]);
   const prontoRef = useRef({});
+  /* QuadraLab Liberdade: documento só do professor logado (a chave leva o uid) */
+  const [liberdade, setLiberdade] = useState(null);
+  const liberdadeProntaRef = useRef(false);
+  const uidLiberdade = exigeLogin && window.mtyAuth && window.mtyAuth.usuario() ? window.mtyAuth.usuario().uid : "local";
+  useEffect(() => {
+    if (!autenticado || (exigeLogin && !orgAtual)) return;
+    liberdadeProntaRef.current = false;
+    leia("mty:liberdade:v1:" + uidLiberdade, null, true).then((v) => { setLiberdade(v || {}); liberdadeProntaRef.current = true; });
+  }, [autenticado, orgAtual, uidLiberdade]);
+  useEffect(() => {
+    if (autenticado && liberdade && liberdadeProntaRef.current) grave("mty:liberdade:v1:" + uidLiberdade, liberdade, true);
+  }, [liberdade, autenticado, uidLiberdade]);
   useEffect(() => {
     if (!autenticado || (exigeLogin && !orgAtual)) return;
     prontoRef.current = {};
@@ -21550,7 +21769,7 @@ function App() {
      aparece pra quem for provisionado explicitamente com a opção
      marcada. */
   const gruposNav = [
-    { id: "trabalho", label: "Meu trabalho", itens: [...NAV_PRINCIPAL, { v: "observar", r: "Observar jogos" }, { v: "quadro", r: "Quadro tático" }, { v: "metodo", r: "Meu método", trava: planoQueLibera("metodo", planoAtual) }, { v: "catalogo", r: "Catálogo de exercícios" }] },
+    { id: "trabalho", label: "Meu trabalho", itens: [...NAV_PRINCIPAL, { v: "liberdade", r: "Minha Liberdade" }, { v: "observar", r: "Observar jogos" }, { v: "quadro", r: "Quadro tático" }, { v: "metodo", r: "Meu método", trava: planoQueLibera("metodo", planoAtual) }, { v: "catalogo", r: "Catálogo de exercícios" }] },
     LIGACAO_PLAYER && { id: "hub", label: "QuadraLab Hub", badge: hubNaoLidas > 0 ? String(hubNaoLidas) : null, itens: [{ v: "hubPerfil", r: "Meu perfil profissional" }, { v: "hubPedidos", r: "Pedidos de atendimento" + (hubNaoLidas > 0 ? " (" + hubNaoLidas + ")" : "") }] },
   ].filter((g) => g && g.itens.length > 0);
   function criar() {
@@ -21929,6 +22148,7 @@ function App() {
          aba === "catalogo" ? <TelaCatalogo exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
          aba === "hubPerfil" && LIGACAO_PLAYER ? <TelaPerfilProfissional planoAtual={planoAtual} planoVencido={planoVencido} emailAtual={window.mtyAuth && window.mtyAuth.usuario() ? window.mtyAuth.usuario().email : ""} aoAbrirPedidos={() => setAba("hubPedidos")} /> :
          aba === "hubPedidos" && LIGACAO_PLAYER ? <TelaPedidosAtendimento aoAbrirPerfil={() => setAba("hubPerfil")} /> :
+         aba === "liberdade" ? (liberdade ? <TelaLiberdade lib={liberdade} setLib={setLiberdade} alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} irPara={(v) => setAba(v)} /> : <p style={{ ...prosa, color: C.grafite }}>Carregando…</p>) :
          aba === "quadro" ? <TelaQuadroTatico /> :
          aba === "observar" ? <TelaObservar alunos={alunos} setAlunos={setAlunos} planoAtual={planoAtual} aoVerCaderno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("registro"); }} /> :
          aba === "metodo" ? <TelaMeuMetodo metodo={metodo} setMetodo={setMetodo} planoAtual={planoAtual} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
@@ -21953,7 +22173,8 @@ function App() {
            aoAdicionarJogador={() => { criar(); setAba("alunos"); }}
            aoEditarDados={(id, et) => { setAba("alunos"); setAbertoId(id); setSubaba("ficha"); setEtapaFichaAlvo(et); }}
            onboardingDispensado={onboardingDispensado} setOnboardingDispensado={setOnboardingDispensado}
-           primeirosPassosForcado={primeirosPassosForcado} setPrimeirosPassosForcado={setPrimeirosPassosForcado} /> :
+           primeirosPassosForcado={primeirosPassosForcado} setPrimeirosPassosForcado={setPrimeirosPassosForcado}
+           liberdade={liberdade} setLiberdade={setLiberdade} aoAbrirLiberdade={() => setAba("liberdade")} irParaAba={(v) => setAba(v)} /> :
          aberto ? (() => {
           /* "Durante a criação de um novo jogador" é o cadastro inteiro,
              não só a primeira tela com nome vazio: aluno.cadastroConcluido
@@ -22260,7 +22481,7 @@ function App() {
             );
           })}
           {(() => {
-            const ativo = maisAberto || ["turmas", "casos", "observar", "quadro", "metodo", "catalogo", "hubPerfil", "hubPedidos"].includes(aba);
+            const ativo = maisAberto || ["turmas", "casos", "observar", "quadro", "metodo", "catalogo", "hubPerfil", "hubPedidos", "liberdade"].includes(aba);
             return (
               <button className="mty-bottomnav-item flex-1 flex flex-col items-center justify-center gap-1"
                 onClick={() => setMaisAberto(true)} aria-current={ativo ? "page" : undefined}
