@@ -20,6 +20,7 @@ const CONS = require("./_player-consultorias");
 const ASS = require("./_player-assinaturas");
 const AC = require("./_comp-acompanhamento");
 const C = require("./_player-competicao");
+const USO_SCOUT = require("./_scout-app-uso");
 
 function resposta(statusCode, corpo) { return { statusCode, headers: { "content-type": "application/json", "cache-control": "no-store" }, body: JSON.stringify(corpo) }; }
 const LIMITE_CONTAS = 6000;
@@ -135,6 +136,9 @@ async function resumo(db, hoje) {
   } catch (e) { erros.push("academias"); }
   let aoVivo = null;
   try { aoVivo = (await ler(db.collection("scoutsAoVivo"))).filter((s) => Date.parse(s.expiraEm) > Date.now()).length; } catch (e) { /* sem scouts ao vivo */ }
+  /* QuadraLab Scout (app em teste): contagem anônima de uso */
+  let scoutApp = null;
+  try { scoutApp = await USO_SCOUT.resumoUso(db, hoje); } catch (e) { erros.push("scoutApp"); }
 
   /* sem pedido (Eduzz) */
   let semPedido = 0; try { semPedido = (await ler(db.collection("consultoriasPagamentosSemPedido"))).length; } catch (e) { /* nada */ }
@@ -190,7 +194,7 @@ async function resumo(db, hoje) {
   parcelas.filter((p) => p.estado === "pago" && p.pagoEm).forEach((p) => { const i = meses.indexOf(mesDe(p.pagoEm)); if (i >= 0) recMes[i].acompanhamento += p.valorCentavos || 0; });
   const financeiro = { confirmadoCentavos: consultorias.receitaConfirmadaCentavos + acomp.recebidoCentavos, aReceberCentavos: consultorias.aReceberCentavos + acomp.aReceberCentavos, porMes: recMes, nota: "Valores confirmados à mão no painel (consultorias e parcelas) pelo preço de cada serviço. Assinaturas do Player vêm da Eduzz e não entram nesta soma." };
 
-  return { geradoEm: agora, hoje, player, competicao, olhar, consultorias, acompanhamentos: acomp, contatos, academias, scoutsAoVivo: aoVivo, financeiro, precisaDeVoce: pend, atividade: ativ.slice(0, 18), erros };
+  return { geradoEm: agora, hoje, player, competicao, olhar, consultorias, acompanhamentos: acomp, contatos, academias, scoutsAoVivo: aoVivo, scoutApp, financeiro, precisaDeVoce: pend, atividade: ativ.slice(0, 18), erros };
 }
 
 async function pagamentos(db, hoje) {

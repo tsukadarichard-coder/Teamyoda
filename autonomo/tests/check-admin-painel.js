@@ -6,9 +6,9 @@ const store = {};
 const J = (v) => JSON.parse(JSON.stringify(v));
 function docRef(p) { return { id: p.split("/").pop(), async get() { const v = store[p]; return { exists: v !== undefined, id: p.split("/").pop(), data: () => J(v) }; }, async set(v) { store[p] = J(v); }, async update(v) { Object.assign(store[p], J(v)); }, collection: (c) => colRef(p + "/" + c) }; }
 function colRef(p, f = []) {
-  const ids = () => Object.keys(store).filter((k) => k.startsWith(p + "/") && !k.slice(p.length + 1).includes("/")).filter((k) => f.every(([c, v]) => store[k][c] === v));
+  const ids = () => Object.keys(store).filter((k) => k.startsWith(p + "/") && !k.slice(p.length + 1).includes("/")).filter((k) => f.every(([c, v, o]) => o === ">=" ? (store[k][c] || 0) >= v : store[k][c] === v));
   const docs = () => ids().map((k) => ({ id: k.split("/").pop(), data: () => J(store[k]) }));
-  return { doc: (id) => docRef(p + "/" + id), where: (c, o, v) => colRef(p, f.concat([[c, v]])), async listDocuments() { return ids().map((k) => docRef(k)); }, async get() { const d = docs(); return { docs: d, size: d.length, forEach: (fn) => d.forEach(fn) }; } };
+  return { doc: (id) => docRef(p + "/" + id), where: (c, o, v) => colRef(p, f.concat([[c, v, o]])), count: () => ({ async get() { const n = ids().length; return { data: () => ({ count: n }) }; } }), async listDocuments() { return ids().map((k) => docRef(k)); }, async get() { const d = docs(); return { docs: d, size: d.length, forEach: (fn) => d.forEach(fn) }; } };
 }
 const admin = { firestore: () => ({ collection: (n) => colRef(n), collectionGroup: (n) => ({ async get() { const d = Object.keys(store).filter((k) => { const s = k.split("/"); return s.length % 2 === 0 && s[s.length - 2] === n; }).map((k) => ({ id: k.split("/").pop(), ref: { path: k }, data: () => J(store[k]) })); return { docs: d, size: d.length, forEach: (fn) => d.forEach(fn) }; } }) }) };
 require.cache[require.resolve(fx + "_firebase-admin.js")] = { id: "y", filename: "y", loaded: true, exports: { admin, app: () => {} } };
@@ -45,7 +45,11 @@ const ano = +hoje.slice(0, 4);
   store["orgs/academia1/solicitacoes/s1"] = { status: "pendente", nome: "Treinador novo" }; store["orgs/academia1/solicitacoes/s2"] = { status: "aprovada", nome: "Coord" };
   store["jogadoresFaturas/ft1"] = { estado: "paga", email: "ana@exemplo.com", produtoId: "p1", dias: 30, atualizadoEm: hoje };
 
+  /* QuadraLab Scout: contagem anônima (2 aparelhos, um com 3 jogos terminados) */
+  store["scoutAppAparelhos/" + "a".repeat(24)] = { jogosEncerrados: 3, ultimoDia: "2026-01-01" }; store["scoutAppAparelhos/" + "b".repeat(24)] = { jogosEncerrados: 0, ultimoDia: "2026-01-01" };
   const r = await G({ secao: "resumo" }); assert.strictEqual(r.s, 200, r.raw);
+  assert.ok(!(r.erros || []).includes("scoutApp"), "bloco do QuadraLab Scout lido");
+  assert.deepStrictEqual(r.scoutApp.aparelhos, { total: 2, comUmJogo: 1, comTresJogos: 1 }); assert.strictEqual(r.scoutApp.serie.length, 30);
   assert.strictEqual(r.player.contas, 4); assert.strictEqual(r.player.novas7, 2); assert.strictEqual(r.player.comFicha, 2); assert.strictEqual(r.player.assinaturasAtivas, 1); assert.strictEqual(r.player.venceEm7, 1);
   assert.deepStrictEqual(r.competicao.papeis, { atleta: 1, responsavel: 1, treinador: 1 }); assert.strictEqual(r.competicao.menores, 1); assert.strictEqual(r.competicao.vinculos.ativos, 1); assert.strictEqual(r.competicao.vinculos.aguardando, 1);
   assert.strictEqual(r.competicao.registros.torneios, 1); assert.strictEqual(r.competicao.registros.diario, 1);

@@ -55,6 +55,18 @@
     Content-Type = "application/manifest+json; charset=utf-8"
     Cache-Control = "public, max-age=300, must-revalidate"
 
+# QuadraLab Scout (app em teste): manifesto e o service worker do modo sem internet sempre conferidos com o servidor
+[[headers]]
+  for = "/scout-app/manifest.json"
+  [headers.values]
+    Content-Type = "application/manifest+json; charset=utf-8"
+    Cache-Control = "public, max-age=300, must-revalidate"
+
+[[headers]]
+  for = "/scout-app/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
 # Lembretes no celular (push-lembretes.js): roda de hora em hora; ela mesma decide a hora certa (7h, 19h e 21h de Brasília).
 [functions."push-lembretes"]
   schedule = "0 * * * *"
