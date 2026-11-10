@@ -169,7 +169,7 @@
     if (nu.aces) extra.push("aces: " + nu.aces);
     if (nu.df) extra.push("duplas faltas: " + nu.df);
     if (extra.length) linhas.push(extra.join(" · "));
-    linhas.push("Marcado no QuadraLab Scout · quadralab.com.br/scout-app/");
+    linhas.push("Marcado no QuadraLab Scout · quadralab.com.br/scout");
     return linhas.join("\n");
   }
 

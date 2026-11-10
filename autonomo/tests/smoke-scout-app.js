@@ -25,7 +25,7 @@ const base = "http://localhost:" + srv.address().port + "/scout-app/";
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, hasTouch: true, serviceWorkers: "block", acceptDownloads: true });
   const p = await ctx.newPage(); const erros = [];
   p.on("pageerror", (e) => erros.push(e.message));
-  p.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource/.test(m.text())) erros.push(m.text()); });
+  p.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource/.test(m.text()) && !p.url().includes("/scout/?l=")) erros.push(m.text()); });
   const texto = () => p.evaluate(() => document.body.innerText); // rótulos em MAIÚSCULO via CSS: as conferências de rótulo usam tem()
   const tem = (t, trecho) => t.toLowerCase().includes(trecho.toLowerCase());
   const semRolagem = async (onde) => { const w = await p.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]); assert.ok(w[0] <= w[1], onde + ": rolagem lateral " + w); };
@@ -33,7 +33,13 @@ const base = "http://localhost:" + srv.address().port + "/scout-app/";
   const pontos = () => p.textContent("[data-pontos]");
   const ponto = async (fim, bola) => { await p.click(`[data-fim="${fim}"]`); await p.click(`[data-bola="${bola || "5-9"}"]`); };
 
+  /* quadralab.com.br/scout sem link de jogo abre o app; um link da família continua na página da família */
+  await p.goto(base.replace("/scout-app/", "/scout/"), { waitUntil: "networkidle" });
+  assert.ok(p.url().endsWith("/scout-app/"), "/scout leva ao app: " + p.url());
+  await p.goto(base.replace("/scout-app/", "/scout/") + "?l=" + "a".repeat(32), { waitUntil: "domcontentloaded" });
+  assert.ok(p.url().includes("/scout/?l="), "link ao vivo fica na página da família: " + p.url());
   await p.goto(base, { waitUntil: "networkidle" });
+  assert.ok(await p.evaluate(() => { const i = document.querySelector(".marca img"); return i && i.complete && i.naturalWidth > 0; }), "logo carregado");
   let t = await texto();
   assert.ok(t.includes("Seus jogos") && t.includes("Nenhum jogo marcado ainda"), "início vazio: " + t.slice(0, 300));
   await semRolagem("início vazio"); await foto("scout-1-inicio-vazio");
