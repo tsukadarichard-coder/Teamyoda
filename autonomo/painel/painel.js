@@ -192,6 +192,14 @@
 
   /* ══ Visão geral ══ */
   function kpi(num, rot, azul) { return '<div class="kpi"><div class="n' + (azul ? " azul" : "") + (/^R\$/.test(num) ? " moeda" : "") + '">' + esc(num) + '</div><div class="r">' + esc(rot) + "</div></div>"; }
+  /* QuadraLab Scout (app em teste): contagem anônima; a meta do teste é 50 aparelhos com 1 jogo terminado e 15 com 3 ou mais */
+  function scoutAppHtml(sa) {
+    if (!sa) return "";
+    return '<section class="secao" data-scout-app><h2>QuadraLab Scout · em teste</h2><p class="nota">Contagem anônima do app (sem nome de ninguém). Meta proposta para 60 dias depois de publicado: 50 aparelhos com 1 jogo terminado e 15 com 3 jogos ou mais.</p>' +
+      produto("Uso do app", "/scout-app/", "Abrir o app", [kpi(n(sa.aparelhos.comUmJogo), "aparelhos com 1 jogo terminado (meta 50)", true), kpi(n(sa.aparelhos.comTresJogos), "aparelhos com 3 jogos ou mais (meta 15)"),
+        kpi(n(sa.dias7.encerrados), "jogos terminados em 7 dias (" + n(sa.dias30.encerrados) + " em 30)"), kpi(n(sa.dias7.iniciados), "jogos começados em 7 dias (" + n(sa.dias30.iniciados) + " em 30)"),
+        kpi(n(sa.dias7.novos), "aparelhos novos em 7 dias (" + n(sa.dias30.novos) + " em 30)"), kpi(n(sa.aparelhos.total), "aparelhos que já abriram o app")]) + "</section>";
+  }
   function produto(titulo, link, rotuloLink, kpis) { return '<section class="produto"><header><h3>' + esc(titulo) + '</h3><a href="' + link + '">' + esc(rotuloLink) + '</a></header><div class="kpis">' + kpis.join("") + "</div></section>"; }
   TELAS.visao = async function (h, forcar) {
     var r = await carregar("resumo", "admin-painel", "?secao=resumo", forcar), c = $("#conteudo");
@@ -213,7 +221,7 @@
     var prox = ac.encontrosProximos.length ? '<div class="tabela-rolagem"><table><thead><tr><th>Quando</th><th>Atleta</th><th>Encontro</th></tr></thead><tbody>' + ac.encontrosProximos.map(function (e) { return "<tr><td>" + esc(dt(e.data) + " " + (e.hora || "")) + "</td><td>" + esc(e.atleta) + "</td><td>" + esc(e.rotulo) + "</td></tr>"; }).join("") + "</tbody></table></div>" : '<p class="nota">Nenhum encontro agendado para os próximos 7 dias.</p>';
     var ativ = '<ul class="pend">' + r.atividade.map(function (a) { return '<li><a href="#/' + a.secao + '"><span class="nivel baixo">' + esc(a.tipo) + "</span><span>" + esc(a.texto) + '</span><span class="nota">' + esc(dthora(a.em)) + "</span></a></li>"; }).join("") + "</ul>";
     c.innerHTML = cabeca("Visão geral", "Todos os produtos QuadraLab num só lugar. Gerado em " + dthora(r.geradoEm) + ".") + hero +
-      '<section class="secao"><h2>Precisa de você</h2>' + pend + "</section>" + '<section class="secao"><h2>Produtos</h2>' + prods + "</section>" + '<section class="secao"><h2>Evolução</h2>' + graf + "</section>" +
+      '<section class="secao"><h2>Precisa de você</h2>' + pend + "</section>" + scoutAppHtml(r.scoutApp) + '<section class="secao"><h2>Produtos</h2>' + prods + "</section>" + '<section class="secao"><h2>Evolução</h2>' + graf + "</section>" +
       '<div class="grade duas"><section class="secao"><h2>Próximos encontros</h2>' + prox + '</section><section class="secao"><h2>Atividade recente</h2>' + (r.atividade.length ? ativ : '<p class="nota">Sem atividade ainda.</p>') + "</section></div>" +
       (r.erros && r.erros.length ? '<div class="aviso atencao" style="margin-top:16px">Parte dos números não pôde ser lida: ' + esc(r.erros.join(", ")) + ".</div>" : "") + (p.truncado ? '<div class="aviso atencao" style="margin-top:16px">Há mais contas que o limite de leitura: os números do Player são parciais.</div>' : "");
   };

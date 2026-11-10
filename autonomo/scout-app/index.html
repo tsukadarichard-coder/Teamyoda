@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>QuadraLab Scout · marque o jogo ponto a ponto</title>
+<meta name="description" content="Marque o jogo de tênis ponto a ponto no celular, de graça. Placar, números do jogo e comparação com os jogos anteriores. Funciona sem internet.">
+<meta name="theme-color" content="#103B32">
+<meta name="color-scheme" content="light">
+<meta property="og:type" content="website">
+<meta property="og:title" content="QuadraLab Scout">
+<meta property="og:description" content="Marque o jogo ponto a ponto no celular. Placar, números do jogo e evolução, de graça.">
+<link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="../assets/favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="../assets/apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="QL Scout">
+<link rel="stylesheet" href="../scout/graficos.css">
+<link rel="stylesheet" href="../scout/ao-vivo.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header class="topo">
+  <div class="topo-in">
+    <a class="marca" href="#/" aria-label="QuadraLab Scout, início"><span class="marca-q" aria-hidden="true">QL</span><span>QuadraLab <b>Scout</b></span></a>
+    <span class="selo-off" id="seloOff" hidden>sem internet · tudo salvo no celular</span>
+  </div>
+</header>
+<main id="app" tabindex="-1" aria-live="polite"><p class="carregando">Carregando…</p></main>
+<div class="toast" id="toast" role="status" hidden></div>
+<noscript><p style="padding:16px">O QuadraLab Scout precisa do JavaScript ligado no navegador.</p></noscript>
+<script src="../player/scout-motor.js"></script>
+<script src="../scout/ao-vivo.js"></script>
+<script src="../scout/graficos.js"></script>
+<script src="dados.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
