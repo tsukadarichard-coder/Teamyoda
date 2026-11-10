@@ -23,7 +23,7 @@ function colRef(p, f = []) {
   return { doc: (id) => docRef(p + "/" + id), where: (c, o, v) => colRef(p, f.concat([[c, v]])),
     async get() { const d = ids().map((k) => ({ id: k.split("/").pop(), data: () => J(store[k]) })); return { docs: d, size: d.length, forEach: (fn) => d.forEach(fn) }; } };
 }
-const firestore = () => ({ collection: (n) => colRef(n) });
+const firestore = () => ({ collection: (n) => colRef(n), runTransaction: async (fn) => fn({ get: (r) => r.get(), set: (r, v, o) => (o && o.merge ? (store[r.path] = { ...(store[r.path] || {}), ...J(v) }) : r.set(v)), update: (r, v) => r.update(v) }) });
 firestore.FieldValue = { delete: () => DEL };
 const contas = { "tk-ana": { uid: "u-ana", email: "ana@exemplo.com", name: "Ana Mãe" }, "tk-bia": { uid: "u-bia", email: "bia@exemplo.com" } };
 const criados = {}, claims = {};
@@ -130,6 +130,32 @@ const chama = async (tk, corpo, metodo) => {
 
   assert.strictEqual((await chama("tk-ana", { acao: "outra" })).s, 400);
   assert.strictEqual((await chama("tk-ana", null, "PUT")).s, 405);
+  /* análise de movimento: por atleta, 1 de cada golpe no grátis, acesso completo sem limite */
+  process.env.PLAYER_EMAILS_FULL = "bia@exemplo.com";
+  const mov = require(fx + "scout-app-movimento.js").handler;
+  const mv = async (tk, corpo, q) => { const x = await mov({ httpMethod: corpo ? "POST" : "GET", headers: { authorization: "Bearer " + tk }, body: corpo ? JSON.stringify(corpo) : "", queryStringParameters: q || {} }); return { s: x.statusCode, ...JSON.parse(x.body) }; };
+  const resumoMv = (id, golpe) => ({ id, golpe, criadoEm: "2026-11-10T12:00:00.000Z", dom: "D", itens: [{ n: "Preparação", s: "ok", v: 90, u: "°", r: "80–100" }], res: { ok: 1, atencao: 0, nao: 0 }, texto: "Bom golpe", prio: [] });
+  assert.strictEqual((await mov({ httpMethod: "GET", headers: {}, queryStringParameters: {} })).statusCode, 401);
+  r = await mv("tk-ana", null, { atleta: lucas.id }); assert.strictEqual(r.s, 200); assert.deepStrictEqual(r.analises, []); assert.strictEqual(r.cota.plano, "free");
+  assert.strictEqual((await mv("tk-ana", null, { atleta: "aoutroatleta1" })).s, 404, "atleta de fora da conta");
+  assert.strictEqual((await mv("tk-ana", { acao: "salvar", atletaId: "aoutroatleta1", resumo: resumoMv("mvabc12345", "forehand") })).s, 400);
+  r = await mv("tk-ana", { acao: "salvar", atletaId: lucas.id, resumo: resumoMv("mvabc12345", "forehand") }); assert.strictEqual(r.s, 200); assert.strictEqual(r.cota.porGolpe.forehand.liberado, false);
+  assert.strictEqual((await mv("tk-ana", { acao: "salvar", atletaId: lucas.id, resumo: resumoMv("mvabc12345", "forehand") })).s, 200, "refazer a mesma análise não conta de novo");
+  r = await mv("tk-ana", { acao: "salvar", atletaId: lucas.id, resumo: resumoMv("mvdef67890", "forehand") });
+  assert.strictEqual(r.s, 403); assert.ok(/Scout Plus/.test(r.erro), r.erro);
+  r = await mv("tk-ana", { acao: "relatorio", id: "mvabc12345", relatorio: JSON.stringify({ id: "mvabc12345", resultado: { ok: 1 } }) }); assert.strictEqual(r.s, 200);
+  r = await mv("tk-ana", null, { id: "mvabc12345" }); assert.strictEqual(r.relatorio.id, "mvabc12345");
+  r = await mv("tk-ana", null, { atleta: lucas.id }); assert.deepStrictEqual(r.analises.map((x) => x.id), ["mvabc12345"]);
+  assert.strictEqual((await mv("tk-ana", { acao: "relatorio", id: "mvnaoexiste1", relatorio: "{}" })).s, 404);
+  r = await mv("tk-ana", { acao: "remover", id: "mvabc12345" }); assert.strictEqual(r.ok, true);
+  r = await mv("tk-ana", { acao: "salvar", atletaId: lucas.id, resumo: resumoMv("mvghi24680", "forehand") }); assert.strictEqual(r.s, 403, "remover não devolve o uso do grátis");
+  /* outra conta (com acesso completo) não vê as análises da Ana e não tem limite */
+  await chama("tk-bia", { acao: "atletas", atletas: [{ id: "abiaatleta1", nome: "Duda" }] });
+  r = await mv("tk-bia", null, { atleta: lucas.id }); assert.strictEqual(r.s, 404);
+  assert.strictEqual((await mv("tk-bia", null, { id: "mvabc12345" })).s, 404);
+  for (const id of ["mvbia000001", "mvbia000002"]) assert.strictEqual((await mv("tk-bia", { acao: "salvar", atletaId: "abiaatleta1", resumo: resumoMv(id, "saque") })).s, 200, "acesso completo sem limite");
+  r = await mv("tk-bia", null, { atleta: "abiaatleta1" }); assert.strictEqual(r.cota.plano, "pago"); assert.strictEqual(r.analises.length, 2);
+
   /* criar conta (sem login) */
   const conta = require(fx + "scout-app-conta.js").handler;
   const cria = async (c) => { const x = await conta({ httpMethod: "POST", body: JSON.stringify(c) }); return { s: x.statusCode, ...JSON.parse(x.body) }; };

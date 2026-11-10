@@ -1,6 +1,7 @@
 /* QuadraLab Scout: telas do app (entrar, início, novo jogo, marcação, fim de jogo, atleta, minha conta).
    Dados e contas do jogo em dados.js (QLScoutApp) sobre o motor do scout (QLScoutMotor); conta e nuvem em nuvem.js (QLScoutNuvem);
    análise ao vivo em scout/ao-vivo.js (QLAoVivo); gráficos do resumo em scout/graficos.js (QLScoutGraficos), os mesmos da página da família.
+   Relatório dos jogos em PDF em relatorio.js (QLScoutRelatorio, sobre scout/relatorio-jogos.js); análise de movimento com scout/movimento.js (carregado só ao abrir).
    A conta é obrigatória. Tudo é gravado primeiro no aparelho (funciona sem internet) e vai para a nuvem da conta quando há conexão.
    Para o servidor de contagem vai só o número sorteado do aparelho e o evento (scout-app-uso). */
 (function () {
@@ -415,7 +416,7 @@
       '<div class="acoes"><button type="button" class="bt bt-principal" id="btCompartilhar">Compartilhar o resultado</button><a class="bt" id="lkWhats" target="_blank" rel="noopener noreferrer" href="https://wa.me/?text=' + encodeURIComponent(D.textoCompartilhar(M, st, j)) + '">Mandar no WhatsApp</a></div></section>';
     if (n && G) h += '<div class="graficos">' + G.topo(r) + G.secoes(r) + "</div>";
     if (r.sinais && r.sinais.length) h += '<section class="cartao"><h2>O que este jogo aponta</h2><p class="nota">Leitura automática pelos números. É ponto de partida para conversar com o treinador, não conclusão.</p>' + r.sinais.map(function (t) { return '<div class="sinal">' + t + "</div>"; }).join("") + "</section>";
-    if (cmp.jogos.length >= 2) h += '<section class="cartao"><h2>Comparação com os jogos anteriores</h2>' + tabelaComparacao(cmp) + '<div class="acoes"><a class="bt bt-pq" href="#/atleta/' + esc(j.atletaId) + '">Ver todos os jogos de ' + esc(nome) + "</a></div></section>";
+    if (cmp.jogos.length >= 2) h += '<section class="cartao"><h2>Comparação com os jogos anteriores</h2>' + tabelaComparacao(cmp) + '<div class="acoes"><a class="bt bt-pq" href="#/atleta/' + esc(j.atletaId) + '">Ver todos os jogos de ' + esc(nome) + '</a><button type="button" class="bt bt-pq" id="btRelatorioFim">Relatório dos jogos (PDF)</button></div></section>';
     else h += '<div class="aviso">Marque mais jogos de ' + esc(nome) + " para ver a comparação jogo a jogo. Um jogo é uma amostra; três na mesma direção já são um sinal.</div>";
     h += '<section class="cartao"><h2>Depois do jogo <span class="nota">(opcional)</span></h2><div class="campo"><label for="fmNivel">Nível do adversário</label><select id="fmNivel"><option value="">Não informar</option>' +
       M.NIVEIS_ADVERSARIO.map(function (x) { return '<option value="' + esc(x[0]) + '"' + (j.nivelAdversario === x[0] ? " selected" : "") + ">" + esc(x[1]) + "</option>"; }).join("") + "</select></div>" +
@@ -430,6 +431,7 @@
       if (navigator.share) { navigator.share({ title: "QuadraLab Scout", text: t }).catch(function () { /* cancelado */ }); return; }
       copiar(t, "Texto copiado. Cole no WhatsApp ou onde quiser.");
     });
+    var rf = document.getElementById("btRelatorioFim"); if (rf) rf.addEventListener("click", function () { abrirRelatorio(j.atletaId); });
     document.getElementById("fmNivel").addEventListener("change", function (e) { j.nivelAdversario = e.target.value; D.tocar(j); salvar(); });
     document.getElementById("fmObs").addEventListener("input", function (e) { j.observacaoFinal = e.target.value.slice(0, 1200); D.tocar(j); salvar(); });
     var dd = document.getElementById("detMentalDepois"); dd.addEventListener("toggle", function () { marc.mentalDepois = dd.open; });
@@ -466,12 +468,16 @@
     var media = fim.length ? Math.round(fim.reduce(function (s, l) { return s + l.pct; }, 0) / fim.length) : null, cmp = D.comparacao(M, st, id, 8);
     var h = '<p class="voltar"><a class="bt bt-texto" href="#/">‹ Seus jogos</a></p><h1>' + esc(a.nome) + '</h1><p class="sub">' + jogos.length + (jogos.length === 1 ? " jogo" : " jogos") + (fim.length ? " · " + vit + (vit === 1 ? " vitória" : " vitórias") + " e " + der + (der === 1 ? " derrota" : " derrotas") + " · média de " + media + "% dos pontos" : "") + "</p>" +
       '<div class="acoes"><a class="bt bt-principal" href="#/novo" data-novo-atleta="' + esc(id) + '">+ Marcar um jogo de ' + esc(primeiroNome(a.nome)) + "</a></div>" +
+      '<section class="cartao"><h2>Relatório e análise</h2><p class="nota" style="margin-top:0">O relatório reúne os jogos terminados em um PDF com gráficos de evolução. A análise de movimento filma um golpe e mostra o que ajustar.</p><div class="acoes">' +
+        (window.QLScoutRelatorio && window.QLScoutRelatorio.jogosDoRelatorio(M, D, st, id).length ? '<button type="button" class="bt bt-pq" id="btRelatorio">Relatório dos jogos (PDF)</button>' : '<span class="nota">O relatório aparece com 1 jogo terminado de pelo menos 10 pontos.</span>') +
+        '<a class="bt bt-pq" href="#/movimento/' + esc(id) + '" data-movimento>Análise de movimento</a></div></section>' +
       (cmp.jogos.length >= 2 ? '<section class="cartao"><h2>Evolução jogo a jogo</h2>' + tabelaComparacao(cmp) + "</section>" : '<div class="aviso">A comparação aparece a partir de 2 jogos terminados.</div>') +
       (jogos.length ? '<section class="secao"><h2>Jogos</h2><ul class="lista">' + jogos.map(linhaHtml).join("") + "</ul></section>" : "") +
       '<section class="cartao"><h2>Nome</h2><div class="campo" style="margin-top:6px"><label for="atNome">Nome do atleta</label><input id="atNome" maxlength="60" value="' + esc(a.nome) + '"></div><div class="acoes"><button type="button" class="bt bt-pq" id="btRenomear">Salvar nome</button>' +
       (confirmaAtleta === id ? '</div><div class="cartao confirma"><p style="margin:0"><b>Apagar ' + esc(a.nome) + " e " + (jogos.length === 1 ? "o jogo" : "os " + jogos.length + " jogos") + '?</b> Sai da conta e de todos os aparelhos. Não dá para desfazer.</p><div class="acoes"><button type="button" class="bt bt-pq bt-perigo" id="btAtApagarSim">Sim, apagar</button><button type="button" class="bt bt-pq" id="btAtApagarNao">Manter</button></div></div>' :
         '<button type="button" class="bt bt-pq bt-perigo" id="btAtApagar">Apagar atleta</button></div>') + "</section>";
     tela(h, true);
+    var brl = document.getElementById("btRelatorio"); if (brl) brl.addEventListener("click", function () { abrirRelatorio(id); });
     var nv = q("[data-novo-atleta]"); if (nv) nv.addEventListener("click", function () { novo = { atletaId: id, nome: "", outro: false, torneio: "", adversario: "", cfg: Object.assign({}, D.CFG_PADRAO), mental: { antes: {} }, mentalAberto: false }; });
     document.getElementById("btRenomear").addEventListener("click", function () { var r = D.renomearAtleta(st, id, document.getElementById("atNome").value); if (r.erro) { toast(r.erro); return; } atletasMudaram(); salvar(); toast("Nome salvo."); telaAtleta(id); });
     var ap = document.getElementById("btAtApagar"); if (ap) ap.addEventListener("click", function () { confirmaAtleta = id; telaAtleta(id); });
@@ -483,6 +489,77 @@
     });
   }
 
+  /* ══ Relatório dos jogos (PDF) ══ */
+  function abrirRelatorio(atletaId) {
+    if (!window.QLRelatorioJogos || !window.QLScoutRelatorio) { toast("Não foi possível carregar o relatório. Confira a internet e recarregue a página."); return; }
+    var o = window.QLScoutRelatorio.opcoes(M, D, st, atletaId);
+    if (!o.jogos.length) { toast("O relatório precisa de pelo menos 1 jogo terminado com 10 pontos."); return; }
+    var w = window.open("", "_blank");
+    if (!w) { toast("O navegador bloqueou a janela do relatório. Permita janelas novas para este site."); return; }
+    var html;
+    try { html = window.QLRelatorioJogos.gerar(o); } catch (e) { w.close(); toast("Não foi possível montar o relatório: " + e.message); return; }
+    w.document.write(html); w.document.close();
+  }
+
+  /* ══ Análise de movimento (o mesmo módulo do app do treinador e do Player; a análise roda no celular e o vídeo não é enviado) ══ */
+  var movCarregado = null;
+  function carregarMovimento() {
+    if (movCarregado) return movCarregado;
+    function script(src) { return new Promise(function (ok, falha) { var x = document.createElement("script"); x.src = src; x.onload = ok; x.onerror = function () { falha(new Error("Não foi possível carregar a análise. Confira a internet.")); }; document.head.appendChild(x); }); }
+    if (!document.querySelector('link[href="../scout/movimento.css"]')) { var l = document.createElement("link"); l.rel = "stylesheet"; l.href = "../scout/movimento.css"; document.head.appendChild(l); }
+    movCarregado = (window.QLBiomec ? Promise.resolve() : script("../scout/movimento-motor.js")).then(function () { return window.QLMovimento ? null : script("../scout/movimento.js"); })
+      .catch(function (e) { movCarregado = null; throw e; });
+    return movCarregado;
+  }
+  var NOME_GOLPE = { forehand: "forehand", backhand: "backhand", saque: "saque" };
+  function textoCota(c, g) {
+    if (!c || c.limite == null) return null;
+    return { limite: c.limite, usados: c.usadas, restantes: Math.max(0, c.limite - c.usadas), liberado: c.liberado,
+      texto: c.liberado ? "Plano grátis: 1 análise de " + NOME_GOLPE[g] + " por conta. Ela fica salva com o relatório." : "Você já usou a análise grátis de " + NOME_GOLPE[g] + ". Os relatórios continuam aqui; para analisar este golpe de novo, assine o Scout Plus." };
+  }
+  async function telaMovimento(atletaId) {
+    var a = D.atleta(st, atletaId), voltar = '<p class="voltar"><a class="bt bt-texto" href="#/atleta/' + esc(atletaId) + '">‹ ' + esc(a ? primeiroNome(a.nome) : "Atleta") + "</a></p>";
+    if (!a) { tela(voltar + '<div class="aviso atencao">Atleta não encontrado na sua conta.</div>', true); return; }
+    if (navigator.onLine === false) { tela(voltar + '<div class="aviso atencao">A análise de movimento precisa de internet para abrir e guardar o relatório.</div>', true); return; }
+    tela(voltar + '<p class="carregando">Carregando a análise de movimento…</p>', true);
+    var d;
+    try {
+      await sincronizarAgora(); /* o atleta precisa estar na conta antes de guardar a análise */
+      var r = await Promise.all([N.api("scout-app-movimento?atleta=" + encodeURIComponent(atletaId)), carregarMovimento()]); d = r[0];
+    } catch (e) {
+      tela(voltar + '<div class="aviso atencao">' + esc(e.message) + '</div><div class="acoes"><button type="button" class="bt bt-pq" id="btMovDeNovo">Tentar de novo</button></div>', true);
+      document.getElementById("btMovDeNovo").addEventListener("click", function () { telaMovimento(atletaId); });
+      return;
+    }
+    if (location.hash !== "#/movimento/" + atletaId) return;
+    var cota = d.cota || { plano: "pago", porGolpe: {} }, gratis = cota.plano === "free";
+    tela(voltar + "<h1>Análise de movimento</h1>" +
+      '<p class="sub">' + esc(a.nome) + ": filme um golpe (forehand, backhand ou saque) e veja o checklist por fase, os pontos fortes e o que treinar. A análise roda no celular: o vídeo não é enviado.</p>" +
+      (gratis ? '<div class="aviso" data-mov-gratis>Plano grátis: 1 análise de cada golpe por conta (forehand, backhand e saque). No Scout Plus, sem limite.</div>' : "") +
+      '<div id="movArea" style="margin-top:14px"></div>', true);
+    var salvando = Promise.resolve(), api = function (corpo) { return N.api("scout-app-movimento", corpo); };
+    var arquivo = {
+      salvar: function (_al, arq) { return salvando.then(function () { return api({ acao: "relatorio", id: arq.id, relatorio: JSON.stringify(arq) }); }); },
+      ler: function (id) { return N.api("scout-app-movimento?id=" + encodeURIComponent(id)).then(function (x) { return x.relatorio; }); },
+      salvarClip: function (id, clip) { return salvando.then(function () { return api({ acao: "clip", id: id, clip: JSON.stringify(clip) }); }); },
+      lerClip: function (id) { return N.api("scout-app-movimento?clip=" + encodeURIComponent(id)).then(function (x) { return x.clip; }); },
+      indice: function () { return Promise.resolve({ itens: d.analises || [], removidos: [] }); },
+      registrar: function () { return Promise.resolve(); },
+      remover: function () { return Promise.resolve(); },
+    };
+    var logo = new URL("img/logo-scout-192.png", location.href).href;
+    window.QL_MOVIMENTO = window.QLMovimento.montar(document.getElementById("movArea"), {
+      atleta: a.nome, alunoId: atletaId, historico: d.analises || [], logo: "img/logo-scout-192.png", logoAbsoluto: logo, arquivo: arquivo,
+      modelos: false, publico: "atleta",
+      cotaGolpe: function (g) { return textoCota(cota.porGolpe[g], g); },
+      aoSalvar: function (reg) {
+        salvando = api({ acao: "salvar", atletaId: atletaId, resumo: reg }).then(function (x) { if (x.cota) cota = x.cota; }).catch(function (e) { e.publico = true; throw e; });
+        return salvando;
+      },
+      aoRemover: function (id) { return api({ acao: "remover", id: id }); },
+    });
+  }
+
   /* ══ rotas ══ */
   function rota() {
     var partes = (location.hash || "#/").replace(/^#\/?/, "").split("/");
@@ -491,6 +568,7 @@
     if (partes[0] === "novo") telaNovo();
     else if (partes[0] === "jogo" && partes[1]) telaJogo(partes[1]);
     else if (partes[0] === "atleta" && partes[1]) { if (confirmaAtleta !== partes[1]) confirmaAtleta = null; telaAtleta(partes[1]); }
+    else if (partes[0] === "movimento" && partes[1]) telaMovimento(partes[1]);
     else if (partes[0] === "conta") telaConta();
     else if (partes[0] === "perfil") telaPerfil();
     else { novo = null; telaInicio(); }

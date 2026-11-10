@@ -15,7 +15,7 @@ const TIPOS = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", "
 /* ── Firestore e login de mentira (no lugar do Admin SDK) ── */
 const store = {}, J = (v) => JSON.parse(JSON.stringify(v)), DEL = { __apagar: true };
 function docRef(p) {
-  return { id: p.split("/").pop(), async get() { const v = store[p]; return { exists: v !== undefined, id: p.split("/").pop(), data: () => J(v) }; },
+  return { id: p.split("/").pop(), path: p, async get() { const v = store[p]; return { exists: v !== undefined, id: p.split("/").pop(), data: () => J(v) }; },
     async set(v) { store[p] = J(v); }, async delete() { delete store[p]; },
     async update(v) { if (store[p] === undefined) throw new Error("sem documento " + p); for (const k of Object.keys(v)) { if (v[k] === DEL) delete store[p][k]; else store[p][k] = J(v[k]); } },
     collection: (c) => colRef(p + "/" + c) };
@@ -25,7 +25,7 @@ function colRef(p, f = []) {
   return { doc: (id) => docRef(p + "/" + id), where: (c, o, v) => colRef(p, f.concat([[c, v]])),
     async get() { const d = ids().map((k) => ({ id: k.split("/").pop(), data: () => J(store[k]) })); return { docs: d, size: d.length, forEach: (fn) => d.forEach(fn) }; } };
 }
-const firestore = () => ({ collection: (n) => colRef(n), runTransaction: async (fn) => fn({ get: (r) => r.get(), set: (r, v) => r.set(v) }) });
+const firestore = () => ({ collection: (n) => colRef(n), runTransaction: async (fn) => fn({ get: (r) => r.get(), set: (r, v, o) => (o && o.merge ? (store[r.path] = { ...(store[r.path] || {}), ...J(v) }) : r.set(v)), update: (r, v) => r.update(v) }) });
 firestore.FieldValue = { delete: () => DEL };
 const usuarios = {}, tokens = {};
 const admin = { firestore, auth: () => ({
@@ -34,7 +34,7 @@ const admin = { firestore, auth: () => ({
   setCustomUserClaims: async () => {} }) };
 require.cache[require.resolve(fx + "_firebase-admin.js")] = { id: "fa", filename: "fa", loaded: true, exports: { admin, app: () => {} } };
 require.cache[require.resolve(fx + "_scout-copias.js")] = { id: "sc", filename: "sc", loaded: true, exports: { vinculosDoTreinador: async () => new Map(), gravarCopia: async () => {}, idAoVivo: (t) => t, academiaComCompeticao: async () => false, ERRO_PLANO_COMPETICAO: "" } };
-const FUNCOES = { "scout-app": require(fx + "scout-app.js").handler, "scout-app-conta": require(fx + "scout-app-conta.js").handler, "scout-ao-vivo": require(fx + "scout-ao-vivo.js").handler, "scout-app-uso": require(fx + "scout-app-uso.js").handler };
+const FUNCOES = { "scout-app": require(fx + "scout-app.js").handler, "scout-app-conta": require(fx + "scout-app-conta.js").handler, "scout-ao-vivo": require(fx + "scout-ao-vivo.js").handler, "scout-app-uso": require(fx + "scout-app-uso.js").handler, "scout-app-movimento": require(fx + "scout-app-movimento.js").handler };
 const usos = [];
 
 const FIREBASE_FALSO = `(function () {
@@ -221,6 +221,20 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   t = await texto();
   assert.ok(t.includes("Lucas Andrade") && t.includes("2 jogos") && t.includes("1 vitória e 0 derrotas") && t.includes("Evolução jogo a jogo"), "atleta: " + t.slice(0, 600).replace(/\n+/g, " | "));
   await semRolagem(p, "atleta"); await foto(p, "scout-5-atleta");
+  /* relatório dos jogos em PDF (janela nova com o documento) */
+  const [rel] = await Promise.all([p.waitForEvent("popup"), p.click("#btRelatorio")]);
+  await rel.waitForLoadState("load");
+  const tr = await rel.evaluate(() => document.body.innerText);
+  assert.ok(tr.includes("Lucas") && /QUADRALAB/i.test(tr) && tr.includes("Copa Sul") && !tr.includes("Fulano"), "relatório: " + tr.slice(0, 300));
+  await foto(rel, "scout-relatorio"); await rel.close();
+  /* análise de movimento do atleta */
+  const mvGets = []; p.on("request", (rq) => { if (rq.url().includes("scout-app-movimento")) mvGets.push(rq.url()); });
+  await p.click("[data-movimento]");
+  await p.waitForFunction(() => document.querySelector("#movArea") && document.querySelector("#movArea").children.length > 0, null, { timeout: 15000 }).catch(async (e) => { console.log("TELA", (await texto()).slice(0, 500), "ERROS", erros, "GETS", mvGets); throw e; });
+  t = await texto();
+  assert.ok(t.includes("Análise de movimento") && t.includes("Lucas Andrade: filme um golpe") && t.includes("Plano grátis"), "tela da análise: " + t.slice(0, 400));
+  assert.ok(mvGets.some((u) => /atleta=a/.test(u)), "análises do atleta pedidas ao servidor");
+  await semRolagem(p, "análise de movimento"); await foto(p, "scout-7-movimento");
 
   /* segundo celular na mesma conta */
   const c2 = await celular();

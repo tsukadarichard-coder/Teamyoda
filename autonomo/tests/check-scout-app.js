@@ -70,6 +70,18 @@ assert.ok(tx.includes("Placar: 6-0 6-0") && tx.includes("48 pontos"), tx);
 assert.ok(!tx.includes("Fulano") && !tx.includes("Andrade"), "texto sem adversário nem sobrenome");
 assert.ok(D.textoCompartilhar(M, st, j3).startsWith("Jogo de Lucas em andamento"));
 
+/* relatório dos jogos (PDF): jogos terminados, do mais antigo ao mais novo, no gerador do scout do treinador */
+const REL = require("../scout-app/relatorio.js"), RJ = require("../scout/relatorio-jogos.js");
+assert.deepStrictEqual(REL.jogosDoRelatorio(M, D, st, lucas.id).map((j) => j.id), [j1.id, j2.id], "só os terminados, mais antigo primeiro");
+const op = REL.opcoes(M, D, st, lucas.id, { geradoEm: "10/11/2026" });
+assert.strictEqual(op.atleta, "Lucas"); assert.strictEqual(op.jogos.length, 2); assert.strictEqual(op.jogos[0].adversario, "");
+assert.ok(op.metricas.some((m) => m.k === "zona-" + M.ZONAS[0][0]) && op.metricas.some((m) => m.k === "seqFavor"));
+assert.deepStrictEqual(REL.sequencias([[1], [1], [0], [1], [1], [1], [0], [0]]), { melhor: 3, pior: 2 });
+const html = RJ.gerar(op);
+assert.ok(html.includes("Lucas") && html.includes("QUADRALAB") && html.includes("Copa Sul"), "relatório montado");
+assert.ok(!html.includes("Fulano") && !html.includes("Andrade"), "relatório sem adversário nem sobrenome");
+assert.deepStrictEqual(REL.opcoes(M, D, st, marina.id).jogos, [], "atleta sem jogos terminados");
+
 /* cópia de segurança: exportar, importar em outro aparelho, importar de novo não duplica */
 const arquivo = D.exportar(st);
 const outro = D.normalizar(null); D.addAtleta(outro, "Lucas Andrade");
