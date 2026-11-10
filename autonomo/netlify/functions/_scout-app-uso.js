@@ -64,8 +64,8 @@ async function resumoUso(db, hoje) {
   const soma = (l) => { const o = {}; CAMPOS_DIA.forEach((k) => { o[k] = l.reduce((t, x) => t + x[k], 0); }); return o; };
   const ap = db.collection("scoutAppAparelhos");
   const conta = async (q) => (await q.count().get()).data().count;
-  const [total, comUm, comTres] = await Promise.all([conta(ap), conta(ap.where("jogosEncerrados", ">=", 1)), conta(ap.where("jogosEncerrados", ">=", 3))]);
-  return { dias7: soma(serie.slice(-7)), dias30: soma(serie), serie, aparelhos: { total, comUmJogo: comUm, comTresJogos: comTres } };
+  const [total, comUm, comTres, contas] = await Promise.all([conta(ap), conta(ap.where("jogosEncerrados", ">=", 1)), conta(ap.where("jogosEncerrados", ">=", 3)), conta(db.collection("scoutAppContas")).catch(() => null)]);
+  return { dias7: soma(serie.slice(-7)), dias30: soma(serie), serie, aparelhos: { total, comUmJogo: comUm, comTresJogos: comTres }, contas };
 }
 
 module.exports = { EVENTOS, MAX_EVENTOS_DIA, validar, registrar, resumoUso, hojeBR };

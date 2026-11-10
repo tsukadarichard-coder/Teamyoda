@@ -198,7 +198,7 @@
     return '<section class="secao" data-scout-app><h2>QuadraLab Scout · em teste</h2><p class="nota">Contagem anônima do app (sem nome de ninguém). Meta proposta para 60 dias depois de publicado: 50 aparelhos com 1 jogo terminado e 15 com 3 jogos ou mais.</p>' +
       produto("Uso do app", "/scout-app/", "Abrir o app", [kpi(n(sa.aparelhos.comUmJogo), "aparelhos com 1 jogo terminado (meta 50)", true), kpi(n(sa.aparelhos.comTresJogos), "aparelhos com 3 jogos ou mais (meta 15)"),
         kpi(n(sa.dias7.encerrados), "jogos terminados em 7 dias (" + n(sa.dias30.encerrados) + " em 30)"), kpi(n(sa.dias7.iniciados), "jogos começados em 7 dias (" + n(sa.dias30.iniciados) + " em 30)"),
-        kpi(n(sa.dias7.novos), "aparelhos novos em 7 dias (" + n(sa.dias30.novos) + " em 30)"), kpi(n(sa.aparelhos.total), "aparelhos que já abriram o app")]) + "</section>";
+        kpi(n(sa.dias7.novos), "aparelhos novos em 7 dias (" + n(sa.dias30.novos) + " em 30)"), kpi(sa.contas == null ? "—" : n(sa.contas), "contas criadas no app")]) + "</section>";
   }
   function produto(titulo, link, rotuloLink, kpis) { return '<section class="produto"><header><h3>' + esc(titulo) + '</h3><a href="' + link + '">' + esc(rotuloLink) + '</a></header><div class="kpis">' + kpis.join("") + "</div></section>"; }
   TELAS.visao = async function (h, forcar) {

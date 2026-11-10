@@ -126,3 +126,16 @@ td.pior { color: var(--alerta); font-weight: 700; }
 
 @media (max-width: 360px) { .placar .pts { font-size: 40px; } .bt-fim { font-size: 15px; } .grade4 { grid-template-columns: repeat(2, 1fr); } }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }
+
+/* conta */
+.topo-dir { display: inline-flex; align-items: center; gap: 10px; }
+.conta-bt { display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--violeta); color: #fff; font-weight: 800; font-size: 16px; text-decoration: none; }
+.entrar { padding-top: 8px; }
+.chip-n { min-width: 48px; justify-content: center; font-variant-numeric: tabular-nums; }
+.ponto-vivo { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #E0313B; margin-right: 8px; vertical-align: 1px; box-shadow: 0 0 0 0 rgba(224,49,59,.6); animation: pulso 1.6s infinite; }
+@keyframes pulso { 70% { box-shadow: 0 0 0 8px rgba(224,49,59,0); } 100% { box-shadow: 0 0 0 0 rgba(224,49,59,0); } }
+details.cartao.det { margin-top: 12px; border-top: 1px solid var(--linha); }
+@media (prefers-reduced-motion: reduce) { .ponto-vivo { animation: none; } }
+
+/* a área principal recebe foco a cada troca de tela (leitores de tela): sem contorno nela */
+main:focus, main:focus-visible { outline: none; }
