@@ -27,16 +27,19 @@
 <header class="topo">
   <div class="topo-in">
     <a class="marca" href="#/" aria-label="QuadraLab Scout, início"><picture><source srcset="img/logo-scout-96.webp 1x, img/logo-scout-192.webp 2x" type="image/webp"><img src="img/logo-scout-96.png" srcset="img/logo-scout-96.png 1x, img/logo-scout-192.png 2x" width="150" height="40" alt="QuadraLab Scout"></picture></a>
-    <span class="selo-off" id="seloOff" hidden>sem internet · tudo salvo no celular</span>
+    <span class="topo-dir"><span class="selo-off" id="seloOff" hidden>sem internet · tudo salvo no celular</span><a class="conta-bt" id="btConta" href="#/conta" aria-label="Minha conta" hidden></a></span>
   </div>
 </header>
 <main id="app" tabindex="-1" aria-live="polite"><p class="carregando">Carregando…</p></main>
 <div class="toast" id="toast" role="status" hidden></div>
 <noscript><p style="padding:16px">O QuadraLab Scout precisa do JavaScript ligado no navegador.</p></noscript>
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-auth-compat.js"></script>
 <script src="../player/scout-motor.js"></script>
 <script src="../scout/ao-vivo.js"></script>
 <script src="../scout/graficos.js"></script>
 <script src="dados.js"></script>
+<script src="nuvem.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

@@ -136,6 +136,7 @@ function fakeDb() {
   const r = await USO.resumoUso(db, "2026-11-11");
   assert.strictEqual(r.serie.length, 30); assert.strictEqual(r.dias7.encerrados, 3); assert.strictEqual(r.dias7.pontos, 210);
   assert.deepStrictEqual(r.aparelhos, { total: 2, comUmJogo: 1, comTresJogos: 1 });
+  assert.strictEqual(r.contas, 0, "nenhuma conta no banco de mentira");
 
   /* handler: método, tamanho e campos */
   const fx = path.join(__dirname, "../netlify/functions/");
