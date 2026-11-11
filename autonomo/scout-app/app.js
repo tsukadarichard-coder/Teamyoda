@@ -46,7 +46,7 @@
   function primeiroNome(n) { return String(n || "Atleta").trim().split(/\s+/)[0]; }
   function q(sel) { return app.querySelector(sel); }
   function cada(sel, f) { Array.prototype.forEach.call(app.querySelectorAll(sel), f); }
-  function tela(h, topo) { app.innerHTML = h; if (topo) { window.scrollTo(0, 0); try { app.focus({ preventScroll: true }); } catch (e) { /* sem foco */ } } }
+  function tela(h, topo) { app.innerHTML = h; if (topo) { window.scrollTo(0, 0); try { app.focus({ preventScroll: true }); } catch (e) { /* sem foco */ } } if (window.QLScoutGuia) window.QLScoutGuia.atualizar(); }
   function ocupado(bt, sim, rot) { if (!bt) return; if (sim) { bt.dataset.rot = bt.textContent; bt.textContent = rot || "Aguarde…"; bt.disabled = true; } else { bt.textContent = bt.dataset.rot || bt.textContent; bt.disabled = false; } }
 
   /* ── contagem anônima de uso: fila no aparelho, enviada quando há internet ── */
@@ -166,13 +166,14 @@
       '<section class="cartao"><p class="olho">Conta</p><p style="margin:0"><b>' + esc(c.nome || eu.nome || "Sem nome") + '</b></p><p class="nota">' + esc(eu.email) + "</p>" +
       '<p class="nota">Plano: <b>' + (c.plano === "plus" ? "Scout Plus" : "Grátis") + "</b>" + (c.plano === "plus" && c.plusAte ? " até " + esc(dataBR(c.plusAte)) : "") + ' · <a href="#/plus">' + (c.plano === "plus" ? "ver o plano" : "conhecer o Scout Plus") + "</a></p>" +
       '<p class="nota" data-estado-nuvem>' + (navigator.onLine === false ? "Sem internet agora: os jogos vão para a nuvem quando o sinal voltar." : meta.ultima ? "Jogos guardados na nuvem. Última sincronização: " + new Date(meta.ultima).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) + "." : "Sincronizando os jogos com a nuvem…") + "</p>" +
-      '<div class="acoes"><button type="button" class="bt bt-pq" id="btSync">Sincronizar agora</button><a class="bt bt-pq" href="#/perfil">Mudar o nome</a><button type="button" class="bt bt-pq bt-perigo" id="btSair">Sair da conta</button></div></section>' +
+      '<div class="acoes"><button type="button" class="bt bt-pq" id="btSync">Sincronizar agora</button><a class="bt bt-pq" href="#/perfil">Mudar o nome</a><button type="button" class="bt bt-pq" id="btGuia">Ver o guia de novo</button><button type="button" class="bt bt-pq bt-perigo" id="btSair">Sair da conta</button></div></section>' +
       '<section class="cartao"><h2>Cópia dos jogos</h2><p class="nota">Os jogos já ficam na sua conta. Se quiser guardar um arquivo seu também (ou levar para outra conta), faça uma cópia.</p>' +
       '<div class="acoes"><button type="button" class="bt bt-pq" id="btCopia"' + (st.jogos.length ? "" : " disabled") + '>Fazer cópia</button><label class="bt bt-pq" for="arqCopia">Carregar uma cópia</label><input type="file" id="arqCopia" accept=".json,application/json" hidden></div></section>' +
       '<p class="rodape">O nome do adversário e as anotações ficam só na sua conta. O link ao vivo da família mostra só o primeiro nome do atleta e os números.</p>';
     tela(h, true);
     document.getElementById("btSync").addEventListener("click", async function () { var bt = this; ocupado(bt, true, "Sincronizando…"); await sincronizarAgora(); toast(estadoNuvem ? "Não deu agora: " + estadoNuvem + "." : "Tudo sincronizado."); telaConta(); });
     document.getElementById("btSair").addEventListener("click", function () { N.sair(); });
+    document.getElementById("btGuia").addEventListener("click", function () { try { localStorage.removeItem("qls:modo"); } catch (e) { /* segue */ } location.hash = "#/"; setTimeout(iniciarGuia, 100); });
     var bt = document.getElementById("btCopia"); if (bt) bt.addEventListener("click", fazerCopia);
     document.getElementById("arqCopia").addEventListener("change", carregarCopia);
   }
@@ -253,12 +254,12 @@
     function chip(attr, v, rot, on) { return '<button type="button" class="chip" ' + attr + '="' + esc(v) + '" aria-pressed="' + !!on + '">' + rot + "</button>"; }
     var h = '<p class="voltar"><a class="bt bt-texto" href="#/">‹ Seus jogos</a></p><h1>Marcar um jogo</h1><p class="sub">Só o atleta é obrigatório. O resto ajuda a comparar os jogos depois.</p>' +
       '<section class="cartao"><h2>Atleta</h2>' +
-      (st.atletas.length ? '<div class="chips" role="group" aria-label="Atleta">' + st.atletas.map(function (a) { return chip("data-atleta", a.id, esc(a.nome), !novo.outro && novo.atletaId === a.id); }).join("") + chip("data-atleta", "+", "+ Outro atleta", novo.outro) + "</div>" : "") +
+      (st.atletas.length ? '<div class="chips" role="group" aria-label="Atleta" data-tour="atletas">' + st.atletas.map(function (a) { return chip("data-atleta", a.id, esc(a.nome), !novo.outro && novo.atletaId === a.id); }).join("") + chip("data-atleta", "+", "+ Outro atleta", novo.outro) + "</div>" : "") +
       (novo.outro && st.atletas.length >= limiteAtletas() ? '<div class="aviso" data-limite-atletas style="margin-top:12px">No plano grátis é 1 atleta por conta. Com o Scout Plus, atletas sem limite (irmãos, alunos, a equipe toda). <a href="#/plus">Conhecer o Scout Plus</a></div>' :
         novo.outro ? '<div class="campo"><label for="nvNome">Nome do atleta</label><input id="nvNome" maxlength="60" autocomplete="off" autocapitalize="words" placeholder="Ex.: Lucas" value="' + esc(novo.nome) + '"></div>' : "") +
       '<div class="campo"><label for="nvTorneio">Torneio <span class="nota">(opcional)</span></label><input id="nvTorneio" maxlength="80" placeholder="Torneio ou jogo-treino" value="' + esc(novo.torneio) + '"></div>' +
       '<div class="campo"><label for="nvAdv">Adversário <span class="nota">(opcional, nunca vai para o link da família)</span></label><input id="nvAdv" maxlength="80" autocomplete="off" value="' + esc(novo.adversario) + '"></div></section>' +
-      '<section class="cartao"><h2>Formato</h2><div class="chips" role="group" aria-label="Formato">' + [["3sets", "Melhor de 3 sets"], ["1set", "Set único"], ["4games", "Set a 4 games"], ["tb10", "Match tie-break (10)"], ["tb7", "Só tie-break (7)"]].map(function (f) { return chip("data-formato", f[0], f[1], c.formato === f[0]); }).join("") + "</div>" +
+      '<section class="cartao"><h2>Formato</h2><div class="chips" role="group" aria-label="Formato" data-tour="formato">' + [["3sets", "Melhor de 3 sets"], ["1set", "Set único"], ["4games", "Set a 4 games"], ["tb10", "Match tie-break (10)"], ["tb7", "Só tie-break (7)"]].map(function (f) { return chip("data-formato", f[0], f[1], c.formato === f[0]); }).join("") + "</div>" +
       '<p class="olho" style="margin-top:16px">Quem saca primeiro</p><div class="chips" role="group" aria-label="Quem saca primeiro">' + chip("data-saca", "nos", esc(nomeSaque), c.saca === "nos") + chip("data-saca", "ele", "Adversário", c.saca === "ele") + "</div>" +
       (c.formato === "tb7" || c.formato === "tb10" ? '<p class="nota" style="margin-top:12px">Um único tie-break de ' + (c.formato === "tb10" ? "10" : "7") + " pontos, com 2 de diferença.</p>" :
         '<p class="olho" style="margin-top:16px">Pontuação</p><div class="chips">' + chip("data-tog", "semVantagem", "Sem vantagem (ponto decisivo no 40-40)", c.semVantagem) + (c.formato === "3sets" ? chip("data-tog", "superTiebreakDecisivo", "Super tie-break no 3º set", c.superTiebreakDecisivo) : "") + "</div>") +
@@ -287,6 +288,10 @@
   }
 
   /* ══ Marcação ══ */
+  /* modo completo (padrão, como o "modo detalhado" do scout do treinador): direção do saque antes do ponto e os detalhes antes da bola.
+     Modo rápido: só como terminou e a bola; os detalhes ficam para depois, no último ponto. */
+  function modoCompleto() { try { return localStorage.getItem("qls:modo") !== "rapido"; } catch (e) { return true; } }
+  function trocarModo() { try { localStorage.setItem("qls:modo", modoCompleto() ? "rapido" : "completo"); } catch (e) { /* sem armazenamento */ } }
   var FIM_ROT = [["winner_nos", "Winner de ", true], ["erro_dele", "Erro do adversário", true], ["erro_nos", "Erro de ", false], ["winner_dele", "Winner do adversário", false]];
   var marc = { id: null };
   function telaJogo(id) {
@@ -308,7 +313,7 @@
   }
   function desenharMarcacao(j, topo) {
     var a = D.atleta(st, j.atletaId), nome = primeiroNome(a && a.nome), pl = D.placar(M, j), sacador = M.quemSaca(pl), meu = sacador === "nos", n = j.pontos.length;
-    var gan = j.pontos.filter(function (p) { return p.nos; }).length, ant = anterioresDe(j), r = marc.rasc, gameAtual = M.numeroDoGame(pl);
+    var gan = j.pontos.filter(function (p) { return p.nos; }).length, ant = anterioresDe(j), r = marc.rasc, gameAtual = M.numeroDoGame(pl), completo = modoCompleto();
     var soTb = j.cfg.formato === "tb7" || j.cfg.formato === "tb10", sets = soTb ? "tie-break" : pl.sets.map(function (x) { return x[0] + "-" + x[1]; }).concat([pl.g[0] + "-" + pl.g[1]]).join("  ");
     var h = '<p class="voltar"><a class="bt bt-texto" href="#/">‹ Seus jogos</a></p>' +
       '<section class="placar" aria-label="Placar"><div><p class="l">' + esc((meu ? "Saque de " + nome : "Saque do adversário") + " · " + M.ROTULO_LADO[M.ladoDoSaque(pl)]) + '</p><p class="pts" data-pontos>' + esc(M.rotuloPontos(pl)) + '</p></div><div><p class="l">Games</p><p class="sets" data-sets>' + esc(sets) + "</p></div>" +
@@ -316,23 +321,28 @@
       (M.ehAdverso(pl) ? '<p class="adverso">PLACAR ADVERSO · este ponto entra na comparação</p>' : "") +
       (AV && n ? AV.faixaAlerta(j.pontos, nome, ant) : "");
     if (!r) {
-      h += '<section class="cartao"><p class="olho">' + (meu ? "Saque de " + esc(nome) : "Saque do adversário") + ' (opcional)</p><div class="grade4">' +
+      h += '<section class="cartao" data-tour="saque"><p class="olho">' + (meu ? "Saque de " + esc(nome) : "Saque do adversário") + ' (opcional)</p>' +
+        (completo ? '<div class="chips" role="group" aria-label="Direção do saque" style="margin-bottom:8px">' + M.DIRECOES_SAQUE.map(function (x) { return '<button type="button" class="chip" data-dsq="' + esc(x[0]) + '" aria-pressed="' + (marc.dirS === x[0]) + '">' + esc(x[1]) + "</button>"; }).join("") + '<span class="nota" style="align-self:center;margin:0">direção do saque</span></div>' : "") +
+        '<div class="grade4">' +
         [["1", "1º dentro"], ["2", "2º dentro"], ["ace", meu ? "Ace" : "Ace dele"], ["df", meu ? "Dupla falta" : "Dupla falta dele"]].map(function (x) {
           return '<button type="button" class="bt-saque" data-saq="' + x[0] + '"' + (x[0] === "1" || x[0] === "2" ? ' aria-pressed="' + (marc.saquePre === x[0]) + '"' : "") + ">" + x[1] + "</button>";
         }).join("") + "</div></section>" +
-        '<section class="cartao"><p class="olho">Como o ponto terminou</p><div class="grade2">' + FIM_ROT.map(function (o) {
+        '<section class="cartao" data-tour="fim"><p class="olho">Como o ponto terminou</p><div class="grade2">' + FIM_ROT.map(function (o) {
           return '<button type="button" class="bt-fim ' + (o[2] ? "nos" : "ele") + '" data-fim="' + o[0] + '">' + esc(o[1] + (/ $/.test(o[1]) ? nome : "")) + "<small>" + (o[2] ? "ponto de " + esc(nome) : "ponto do adversário") + "</small></button>";
         }).join("") + "</div></section>";
     } else {
       var rot = FIM_ROT.filter(function (o) { return o[0] === r.fim; })[0];
       h += '<section class="cartao rasc' + (r.nos ? "" : " ele") + '"><div class="contagem"><p class="olho" style="margin:0">' + esc(rot[1] + (/ $/.test(rot[1]) ? nome : "")) + '</p><button type="button" class="bt bt-texto bt-pq" id="btTrocar">Trocar</button></div>' +
-        '<p class="olho" style="margin-top:10px">Em que bola o ponto terminou</p><div class="grade3">' + [["1-4", "curto"], ["5-9", "médio"], ["10+", "longo"]].map(function (b) { return '<button type="button" class="bt-bola" data-bola="' + b[0] + '">' + b[0] + "<small>" + b[1] + "</small></button>"; }).join("") + "</div>" +
+        (completo ? detalhesRascHtml(r, nome) : "") +
+        '<p class="olho" style="margin-top:14px" data-tour="bola-titulo">Em que bola o ponto terminou</p><div class="grade3" data-tour="bola">' + [["1-4", "curto"], ["5-9", "médio"], ["10+", "longo"]].map(function (b) { return '<button type="button" class="bt-bola" data-bola="' + b[0] + '">' + b[0] + "<small>" + b[1] + "</small></button>"; }).join("") + "</div>" +
         '<p class="nota">Contando o saque como a 1ª bola. Na dúvida, escolha o mais perto.</p></section>';
     }
-    if (n && !r) h += detalhesHtml(j, nome);
-    h += '<section class="cartao"><div class="contagem"><span><b>' + n + "</b> " + (n === 1 ? "ponto" : "pontos") + " · " + esc(nome) + " ganhou <b>" + gan + "</b>" + (n ? " (" + Math.round(gan * 100 / n) + "%)" : "") + "</span></div>" +
+    if (n && !r) h += registradoHtml(j);
+    if (n && !r && !completo) h += detalhesHtml(j, nome);
+    h += '<section class="cartao" data-tour="contagem"><div class="contagem"><span><b>' + n + "</b> " + (n === 1 ? "ponto" : "pontos") + " · " + esc(nome) + " ganhou <b>" + gan + "</b>" + (n ? " (" + Math.round(gan * 100 / n) + "%)" : "") + "</span></div>" +
       (marc.confirmaFim ? '<div class="cartao confirma"><p style="margin:0"><b>Encerrar o jogo agora?</b> Use quando o jogo parou antes do fim (desistência, chuva, tempo).</p><div class="acoes"><button type="button" class="bt bt-principal bt-pq" id="btFimSim">Sim, encerrar</button><button type="button" class="bt bt-pq" id="btFimNao">Continuar marcando</button></div></div>' :
-        '<div class="acoes"><button type="button" class="bt bt-pq" id="btDesfazer"' + (n || r ? "" : " disabled") + '>Desfazer</button><button type="button" class="bt bt-pq bt-perigo" id="btEncerrar">Encerrar jogo</button></div>') + "</section>";
+        '<div class="acoes"><button type="button" class="bt bt-pq" id="btDesfazer"' + (n || r ? "" : " disabled") + '>Desfazer</button><button type="button" class="bt bt-pq" id="btModo" aria-pressed="' + completo + '">' + (completo ? "Modo completo ✓" : "Modo rápido ✓") + '</button><button type="button" class="bt bt-pq bt-perigo" id="btEncerrar">Encerrar jogo</button></div>' +
+        '<p class="nota">' + (completo ? "Modo completo: direção do saque e detalhes de cada ponto antes da bola. Toque para trocar pelo rápido." : "Modo rápido: só como terminou e a bola; os detalhes ficam no último ponto. Toque para trocar pelo completo.") + "</p>") + "</section>";
     h += aoVivoHtml(j, nome);
     var mg = (j.mental.jogo || {})[gameAtual] || 0;
     h += '<details class="cartao det" id="detMental"' + (marc.mentalAberto ? " open" : "") + '><summary>Mental no game ' + gameAtual + ' (opcional)</summary><p class="nota">Como o atleta está neste game, de 1 a 5.</p><div class="chips">' +
@@ -341,6 +351,25 @@
     h += '<p class="rodape">Salvo no celular a cada ponto e na sua conta quando há internet. Pode fechar e voltar depois.</p>';
     tela(h, topo);
     ligarMarcacao(j, nome);
+  }
+  /* detalhes do ponto em andamento (modo completo): tudo opcional, gravado junto quando tocar na bola */
+  function opRasc(lista, campo, atual) { return lista.map(function (x) { return '<button type="button" class="chip" data-rd="' + campo + '" data-v="' + esc(x[0]) + '" aria-pressed="' + (atual === x[0]) + '">' + esc(x[1]) + "</button>"; }).join(""); }
+  function togRasc(campo, rot, on) { return '<button type="button" class="chip" data-rdb="' + campo + '" aria-pressed="' + !!on + '">' + esc(rot) + "</button>"; }
+  function detalhesRascHtml(r, nome) {
+    return '<div class="det-rasc" data-tour="detalhes"><p class="nota" style="margin-top:8px">Detalhes do ponto (opcionais). Depois toque na bola.</p>' +
+      (r.fim === "erro_nos" ? '<p class="olho">O erro foi de</p><div class="chips">' + opRasc([["decisao", "Decisão"], ["execucao", "Execução"]], "causa", r.causa) + "</div>" : "") +
+      '<p class="olho">Como foi o ponto</p><div class="chips">' + opRasc(M.SITUACOES, "situacao", r.situacao) + togRasc("rede", "Subiu à rede", r.rede) + "</div>" +
+      '<p class="olho">Decisão de ' + esc(nome) + '</p><div class="chips">' + opRasc(M.DECISOES, "dec", r.dec) + "</div>" +
+      (r.sacador === "ele" && r.saque !== "df" && r.saque !== "ace" ? '<p class="olho">Devolução de ' + esc(nome) + '</p><div class="chips">' + opRasc(M.QUALIDADES_DEVOLUCAO, "qualDev", r.qualDev) + "</div>" : "") +
+      (r.sacador === "nos" && r.fim === "erro_dele" && r.saque !== "df" && r.saque !== "ace" ? '<div class="chips" style="margin-top:10px">' + togRasc("devAdv", "Erro de devolução do adversário", r.devAdv) + "</div>" : "") +
+      '<p class="olho">Último golpe de ' + esc(nome) + ' (vale também quando o ponto foi do adversário)</p><div class="chips">' + opRasc(M.GOLPES, "golpe", r.golpe) + "</div>" +
+      '<div class="chips" style="margin-top:8px">' + togRasc("corrida", "Na corrida", r.corrida) + opRasc(M.DIRECOES, "direcao", r.direcao) + "</div>" +
+      '<p class="olho">Onde foi o último golpe de ' + esc(nome) + '</p><div class="grade3 zonas">' + opRasc(M.ZONAS, "zona", r.zona) + "</div></div>";
+  }
+  function registradoHtml(j) {
+    var u = j.pontos[j.pontos.length - 1], f = FIM_ROT.filter(function (o) { return o[0] === u.fim; })[0], nome = primeiroNome((D.atleta(st, j.atletaId) || {}).nome);
+    var rot = u.saque === "ace" ? (u.nos ? "Ace" : "Ace do adversário") : u.saque === "df" ? (u.nos ? "Dupla falta do adversário" : "Dupla falta") : f ? f[1] + (/ $/.test(f[1]) ? nome : "") : "Ponto";
+    return '<div class="registrado" role="status" data-registrado><div><p class="olho" style="margin:0">Ponto ' + u.n + " registrado</p><b>✓ " + esc(rot) + (u.bola ? " · bola " + esc(u.bola) : "") + '</b></div><button type="button" class="bt bt-pq" id="btCorrigir">Corrigir</button></div>';
   }
   function opcoesHtml(lista, campo, atual) { return lista.map(function (x) { return '<button type="button" class="chip" data-det="' + campo + '" data-v="' + esc(x[0]) + '" aria-pressed="' + (atual === x[0]) + '">' + esc(x[1]) + "</button>"; }).join(""); }
   function detalhesHtml(j, nome) {
@@ -361,12 +390,12 @@
     function redesenhar() { desenharMarcacao(j, false); }
     function marcar(p) {
       var r = D.marcarPonto(M, j, p); if (r.erro) { toast(r.erro); return; }
-      marc.rasc = null; marc.saquePre = null; salvar();
+      marc.rasc = null; marc.saquePre = null; marc.dirS = null; salvar();
       agendarAoVivo(j, r.fim);
       if (r.fim) { contarFim(j); telaFim(j, true); return; }
       redesenhar();
     }
-    function base(nos, fim) { var pl = D.placar(M, j); return { fim: fim, nos: nos, saque: marc.saquePre, bola: null, causa: null, rede: false, situacao: null, golpe: null, corrida: false, direcao: null, zona: null, dirSaque: null, adverso: M.ehAdverso(pl), sacador: M.quemSaca(pl), lado: M.ladoDoSaque(pl) }; }
+    function base(nos, fim) { var pl = D.placar(M, j); return { fim: fim, nos: nos, saque: marc.saquePre, bola: null, causa: null, rede: false, situacao: null, golpe: null, corrida: false, direcao: null, zona: null, dirSaque: marc.dirS || null, qualDev: null, dec: null, devAdv: false, adverso: M.ehAdverso(pl), sacador: M.quemSaca(pl), lado: M.ladoDoSaque(pl) }; }
     cada("[data-saq]", function (b) {
       b.addEventListener("click", function () {
         var v = b.getAttribute("data-saq");
@@ -377,6 +406,11 @@
         marcar(p);
       });
     });
+    cada("[data-dsq]", function (b) { b.addEventListener("click", function () { var v = b.getAttribute("data-dsq"); marc.dirS = marc.dirS === v ? null : v; redesenhar(); }); });
+    cada("[data-rd]", function (b) { b.addEventListener("click", function () { var k = b.getAttribute("data-rd"), v = b.getAttribute("data-v"); marc.rasc[k] = marc.rasc[k] === v ? null : v; redesenhar(); }); });
+    cada("[data-rdb]", function (b) { b.addEventListener("click", function () { var k = b.getAttribute("data-rdb"); marc.rasc[k] = !marc.rasc[k]; redesenhar(); }); });
+    var bm = document.getElementById("btModo"); if (bm) bm.addEventListener("click", function () { trocarModo(); toast(modoCompleto() ? "Modo completo: detalhes antes da bola." : "Modo rápido: só como terminou e a bola."); redesenhar(); });
+    var bc = document.getElementById("btCorrigir"); if (bc) bc.addEventListener("click", function () { if (D.desfazer(j)) { salvar(); agendarAoVivo(j); toast("Ponto desfeito. Marque de novo."); redesenhar(); } });
     cada("[data-fim]", function (b) { b.addEventListener("click", function () { var f = FIM_ROT.filter(function (o) { return o[0] === b.getAttribute("data-fim"); })[0]; marc.rasc = base(f[2], f[0]); redesenhar(); }); });
     var tr = document.getElementById("btTrocar"); if (tr) tr.addEventListener("click", function () { marc.rasc = null; redesenhar(); });
     cada("[data-bola]", function (b) { b.addEventListener("click", function () { var p = marc.rasc; p.bola = b.getAttribute("data-bola"); marcar(p); }); });
@@ -545,8 +579,24 @@
     return { limite: c.limite, usados: c.usadas, restantes: Math.max(0, c.limite - c.usadas), liberado: c.liberado,
       texto: c.liberado ? "Plano grátis: 1 análise de " + NOME_GOLPE[g] + " por conta. Ela fica salva com o relatório." : "Você já usou a análise grátis de " + NOME_GOLPE[g] + ". Os relatórios continuam aqui; para analisar este golpe de novo, assine o Scout Plus." };
   }
+  /* Movimento (aba de baixo): escolher o atleta; quem ainda não tem atleta cadastra aqui mesmo, sem precisar marcar jogo */
+  function telaEscolherMovimento() {
+    var h = '<h1>Análise de movimento</h1><p class="sub">Filme um golpe (forehand, backhand ou saque) e veja o checklist por fase, os pontos fortes e o que treinar. A análise roda no celular: o vídeo não é enviado.</p>';
+    if (st.atletas.length) h += '<section class="secao"><h2>Escolha o atleta</h2><div class="lista">' + st.atletas.map(function (a) { return '<a class="mov-atleta" href="#/movimento/' + esc(a.id) + '" data-mov-atleta>' + esc(a.nome) + "<span>Analisar ›</span></a>"; }).join("") + "</div></section>";
+    var pode = st.atletas.length < limiteAtletas();
+    h += '<section class="cartao"><h2>' + (st.atletas.length ? "Outro atleta" : "Cadastre o atleta") + "</h2>" +
+      (pode ? '<div class="campo" style="margin-top:6px"><label for="mvNome">Nome do atleta</label><input id="mvNome" maxlength="60" autocomplete="off" autocapitalize="words" placeholder="Ex.: Lucas"></div><div class="aviso atencao" id="mvErro" role="alert" hidden></div><div class="acoes"><button type="button" class="bt bt-principal" id="btMvAtleta">Cadastrar e analisar</button></div>'
+        : '<p class="nota">No plano grátis é 1 atleta por conta. <a href="#/plus">Com o Scout Plus, atletas sem limite</a>.</p>') + "</section>";
+    tela(h, true);
+    var bt = document.getElementById("btMvAtleta");
+    if (bt) bt.addEventListener("click", function () {
+      var er = document.getElementById("mvErro"), r = D.addAtleta(st, document.getElementById("mvNome").value);
+      if (r.erro) { er.textContent = r.erro; er.hidden = false; return; }
+      atletasMudaram(); salvar(); location.hash = "#/movimento/" + r.atleta.id;
+    });
+  }
   async function telaMovimento(atletaId) {
-    var a = D.atleta(st, atletaId), voltar = '<p class="voltar"><a class="bt bt-texto" href="#/atleta/' + esc(atletaId) + '">‹ ' + esc(a ? primeiroNome(a.nome) : "Atleta") + "</a></p>";
+    var a = D.atleta(st, atletaId), voltar = '<p class="voltar"><a class="bt bt-texto" href="#/movimento">‹ Movimento</a></p>';
     if (!a) { tela(voltar + '<div class="aviso atencao">Atleta não encontrado na sua conta.</div>', true); return; }
     if (navigator.onLine === false) { tela(voltar + '<div class="aviso atencao">A análise de movimento precisa de internet para abrir e guardar o relatório.</div>', true); return; }
     tela(voltar + '<p class="carregando">Carregando a análise de movimento…</p>', true);
@@ -589,7 +639,14 @@
   }
 
   /* ══ rotas ══ */
+  function navBaixo() {
+    var nav = document.getElementById("navBaixo"); if (!nav) return;
+    var aba = /^#\/(movimento)/.test(location.hash) ? "movimento" : /^#\/(conta|plus|perfil)/.test(location.hash) ? "conta" : "jogos";
+    nav.hidden = !eu; document.body.classList.toggle("com-nav", !!eu);
+    Array.prototype.forEach.call(nav.querySelectorAll("a"), function (x) { if (x.getAttribute("data-aba") === aba) x.setAttribute("aria-current", "page"); else x.removeAttribute("aria-current"); });
+  }
   function rota() {
+    navBaixo();
     var partes = (location.hash || "#/").replace(/^#\/?/, "").split("/");
     if (!eu) { telaEntrar(partes[0] === "criar" || partes[0] === "recuperar" ? partes[0] : "entrar"); return; }
     if (partes[0] !== "jogo") { marc.id = null; }
@@ -597,6 +654,7 @@
     else if (partes[0] === "jogo" && partes[1]) telaJogo(partes[1]);
     else if (partes[0] === "atleta" && partes[1]) { if (confirmaAtleta !== partes[1]) confirmaAtleta = null; telaAtleta(partes[1]); }
     else if (partes[0] === "movimento" && partes[1]) telaMovimento(partes[1]);
+    else if (partes[0] === "movimento") telaEscolherMovimento();
     else if (partes[0] === "conta") telaConta();
     else if (partes[0] === "plus") telaPlus();
     else if (partes[0] === "perfil") telaPerfil();
@@ -608,16 +666,50 @@
     b.hidden = !eu; if (eu) b.textContent = (primeiroNome((conta && conta.nome) || eu.nome || eu.email).charAt(0) || "?").toUpperCase();
   }
 
+  /* ══ Guia do primeiro acesso ══ */
+  var GUIA = "qls:guia:";
+  function passosDoGuia() {
+    var NOVO = /^#\/novo/, JOGO = /^#\/jogo\//;
+    return [
+      { rota: /^#\/?$/, alvo: "[data-novo]", acao: "toque", titulo: "Bem-vindo ao QuadraLab Scout!", texto: "Vamos marcar o primeiro ponto juntos. Comece tocando em Marcar um jogo." },
+      { rota: NOVO, alvo: "#nvNome", acao: "digitar", opcional: true, texto: "Digite o nome do atleta que você vai acompanhar.", botao: "Pronto", erro: "Digite o nome do atleta.",
+        validar: function () { var c = document.getElementById("nvNome"); return !!(c && c.value.trim().length >= 2); } },
+      { rota: NOVO, alvo: "[data-tour=\"atletas\"]", acao: "ok", opcional: true, texto: "Aqui você escolhe o atleta. Já deixamos marcado o que está na sua conta." },
+      { rota: NOVO, alvo: "[data-tour=\"formato\"]", acao: "toque", texto: "Escolha o formato do jogo. Melhor de 3 sets é o mais comum em torneio." },
+      { rota: NOVO, alvo: "#btComecar", acao: "toque", texto: "Tudo pronto. Toque em Começar o jogo." },
+      { rota: JOGO, alvo: ".placar", acao: "ok", texto: "Este é o placar. Pontos, games, sets, quem saca e de que lado: o app conta tudo sozinho." },
+      { rota: JOGO, alvo: "[data-tour=\"saque\"]", acao: "ok", texto: "Antes do ponto, se quiser, marque o saque: a direção, 1º ou 2º dentro, ace ou dupla falta. É opcional." },
+      { rota: JOGO, alvo: "[data-tour=\"fim\"]", acao: "toque", texto: "O ponto acabou? Toque em como ele terminou. Azul é ponto do atleta; laranja, do adversário. Experimente agora." },
+      { rota: JOGO, alvo: "[data-tour=\"detalhes\"]", acao: "ok", opcional: true, texto: "Estes são os detalhes do ponto: tipo de jogada, decisão, golpe, direção e onde na quadra. Tudo opcional. Quanto mais você marca, mais completo fica o relatório." },
+      { rota: JOGO, alvo: "[data-tour=\"bola\"]", acao: "toque", texto: "Por último: em que bola o ponto terminou? Contando o saque como a 1ª bola." },
+      { rota: JOGO, alvo: "[data-registrado]", acao: "ok", texto: "Ponto registrado! Marcou errado? Toque em Corrigir e o ponto volta." },
+      { rota: JOGO, alvo: "#btModo", acao: "ok", texto: "Você está no modo completo. Com pressa? Troque aqui pelo modo rápido: só como terminou e a bola." },
+      { rota: JOGO, alvo: "#cartaoAoVivo", acao: "ok", texto: "Quer que a família acompanhe de longe? Abra o link ao vivo e mande no WhatsApp. Eles veem cada ponto." },
+      { rota: JOGO, alvo: "#navBaixo [data-aba=\"movimento\"]", acao: "ok", texto: "Aqui fica a análise de movimento: filme um golpe (forehand, backhand ou saque) e veja o que ajustar." },
+      { rota: JOGO, alvo: "#navBaixo [data-aba=\"jogos\"]", acao: "ok", texto: "Em Jogos ficam todos os jogos e a evolução de cada atleta. Agora é com você: continue marcando. Bom jogo!", botao: "Concluir" },
+    ];
+  }
+  function iniciarGuia() {
+    if (!window.QLScoutGuia || !eu) return;
+    var uid = eu.uid;
+    window.QLScoutGuia.iniciar({ passos: passosDoGuia(), aoFim: function (concluiu) {
+      try { localStorage.setItem(GUIA + uid, concluiu ? "feito" : "pulado"); } catch (e) { /* sem armazenamento */ }
+      toast(concluiu ? "Guia concluído. Para ver de novo: Conta › Ver o guia de novo." : "Guia fechado. Para ver de novo: Conta › Ver o guia de novo.");
+    } });
+  }
+  function guiaPendente() { try { return !localStorage.getItem(GUIA + eu.uid); } catch (e) { return false; } }
+
   var contouAbertura = false;
   function aoMudarConta(u) {
     eu = u; conta = null; marc = { id: null }; novo = null;
-    if (!u) { st = null; botaoConta(); if (!/^#\/(criar|recuperar|entrar)/.test(location.hash)) location.hash = "#/entrar"; else rota(); return; }
+    if (!u) { if (window.QLScoutGuia && window.QLScoutGuia.ativo()) window.QLScoutGuia.terminar(false); st = null; botaoConta(); if (!/^#\/(criar|recuperar|entrar)/.test(location.hash)) location.hash = "#/entrar"; else rota(); return; }
     conta = lerContaGuardada(); carregar(); botaoConta();
     if (!contouAbertura) { contouAbertura = true; uso("abriu"); }
     if (/^#\/(criar|recuperar|entrar)/.test(location.hash) || !location.hash) location.hash = "#/"; else rota();
-    sincronizarAgora().then(botaoConta);
+    sincronizarAgora().then(function () { botaoConta(); if (eu && guiaPendente() && !st.jogos.length && (!location.hash || location.hash === "#/")) iniciarGuia(); });
   }
   window.addEventListener("hashchange", rota);
+  window.addEventListener("hashchange", function () { if (window.QLScoutGuia) window.QLScoutGuia.atualizar(); });
   window.addEventListener("online", conexao); window.addEventListener("offline", conexao);
   /* outra aba do app mudou os dados: recarrega para não sobrescrever */
   window.addEventListener("storage", function (e) { if (eu && e.key === chave()) { carregar(); rota(); } });

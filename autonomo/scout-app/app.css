@@ -144,3 +144,37 @@ main:focus, main:focus-visible { outline: none; }
 table.planos th:not(:first-child), table.planos td:not(:first-child) { text-align: center; white-space: normal; }
 table.planos th:last-child { color: var(--violeta); }
 .plus-oferta .preco { font-size: 26px; margin: 0 0 4px; color: var(--roxo); font-variant-numeric: tabular-nums; }
+
+/* navegação de baixo: Jogos · Movimento · Conta */
+body.com-nav main { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+.abas-baixo { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; display: grid; grid-template-columns: repeat(3, 1fr); background: var(--branco); border-top: 1px solid var(--linha);
+  padding: 6px max(8px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px)); box-shadow: 0 -6px 20px rgba(38,10,62,.06); }
+.abas-baixo a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 52px; text-decoration: none; color: var(--grafite); font-size: 12.5px; font-weight: 700; border-radius: 12px; }
+.abas-baixo svg { width: 24px; height: 24px; }
+.abas-baixo a[aria-current="page"] { color: var(--violeta); background: var(--violeta-claro); }
+.toast { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+/* modo completo e ponto registrado */
+.det-rasc .olho { margin-top: 12px; }
+.det-rasc .zonas .chip { border-radius: 12px; }
+.registrado { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; padding: 10px 14px; border-radius: 12px; background: #EAF4EE; border: 1px solid #CFE6D7; }
+.registrado b { font-size: 15px; }
+.mov-atleta { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px; background: var(--branco); border: 1px solid var(--linha); border-radius: 12px; text-decoration: none; color: inherit; font-weight: 700; }
+.mov-atleta span { color: var(--violeta); font-size: 14px; }
+
+/* guia do primeiro acesso */
+.guia-luz { position: fixed; z-index: 40; border-radius: 14px; box-shadow: 0 0 0 9999px rgba(20, 8, 34, .66); pointer-events: none; outline: 3px solid #FFD84D; }
+.guia-balao { position: fixed; z-index: 41; background: var(--branco); color: var(--tinta); border-radius: 16px; padding: 14px 16px; box-shadow: 0 18px 40px rgba(0,0,0,.35); }
+.guia-balao h3 { margin: 0 0 4px; font-size: 18px; }
+.guia-balao p { margin: 0; font-size: 15.5px; line-height: 1.45; }
+.guia-balao .guia-conta { font-size: 12px; font-weight: 800; letter-spacing: .06em; color: var(--violeta); margin-bottom: 6px; text-transform: uppercase; }
+.guia-balao .guia-erro { color: var(--alerta); font-weight: 700; margin-top: 8px; font-size: 14px; }
+.guia-acoes { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+.guia-ok { min-height: 46px; padding: 8px 18px; border-radius: 12px; border: 0; background: var(--violeta); color: #fff; font-weight: 800; font-size: 15px; cursor: pointer; }
+.guia-dica { font-size: 13.5px; font-weight: 800; color: var(--violeta); }
+.guia-dica::before { content: "👆 "; }
+.guia-pular { min-height: 44px; padding: 6px 4px; border: 0; background: none; color: var(--grafite); font-size: 13.5px; text-decoration: underline; cursor: pointer; }
+.guia-sacode { animation: sacode .35s; }
+@keyframes sacode { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+@media (prefers-reduced-motion: reduce) { .guia-sacode { animation: none; } }
+/* o guia rola até o alvo sem deixá-lo atrás do cabeçalho nem da barra de baixo */
+[data-tour], [data-novo], [data-registrado], .placar, #cartaoAoVivo, #btComecar, #btModo, #nvNome { scroll-margin-top: 76px; scroll-margin-bottom: 100px; }
