@@ -559,7 +559,7 @@ function todosHorarios(agenda) {
         ? 'Seu treinador está preparando seu plano — assim que for revisado e aprovado, aparece aqui.'
         : 'Ainda não há um plano montado para você.';
       el.innerHTML = '<header><h1>' + escapar(d.nome) + '</h1><div class="sub">' + subtitulo + '</div></header><div id="ql-avisos-celular"></div>' +
-        painelMinhaArea() + painelAcademiaDigital() + painelTurmas(d) + painelPlanoEquipe(d) + painelRelatoriosAtleta(d) + painelObservacoes(d) + painelMovimentos(d) + painelJogos(d) + painelJogosVideo(d) +
+        painelMinhaArea() + '<div id="ar-painel"></div>' + painelAcademiaDigital() + painelTurmas(d) + painelPlanoEquipe(d) + painelRelatoriosAtleta(d) + painelObservacoes(d) + painelMovimentos(d) + painelJogos(d) + painelJogosVideo(d) +
         painelMapaConceitos(d, ui) + painelEvolucao(d) + painelRelatorios(d) + painelComunicacao(d) + '<div class="sincronia" id="mty-sincronia"></div>';
       ligarEventos(d);
       return;
@@ -571,6 +571,7 @@ function todosHorarios(agenda) {
     if (d.prioridade) html += '<p class="sub">' + escapar(d.prioridade) + '</p>';
     html += painelProximaAula(d);
     html += painelMinhaArea();
+    html += '<div id="ar-painel"></div>';
     html += painelAcademiaDigital();
     html += '<div class="painel"><h2>Progresso do ciclo</h2><div class="rosca-wrap" style="margin-top:0">' + rosquinhaSvg(d.aulasFeitas, pendente, repetindo) +
       '<div>' + legendaRosca(d.aulasFeitas, pendente, repetindo) +
@@ -620,6 +621,77 @@ function todosHorarios(agenda) {
   }
   function painelTurmas(d) { return (d.turmas || []).map(painelPlanoTurma).join(''); }
   /* Planejamento da equipe de competição (feito pelo coordenador no app): a semana de agora com os dias e, aberto, o ciclo inteiro. */
+  /* Alto rendimento (ar-atleta.js): a semana do plano individual, a carga e o registro de jogos e treinos fora do CT.
+     Para quem está no alto rendimento, substitui o planejamento da equipe. */
+  const arEstado = { dados: null, carregando: false, msg: '', aberto: false };
+  const PSE_ROTULO = ['0 · repouso', '1 · muito leve', '2 · leve', '3 · moderado', '4 · um pouco forte', '5 · forte', '6 · forte', '7 · muito forte', '8 · muito forte', '9 · quase máximo', '10 · máximo'];
+  function arUrl() { return '/.netlify/functions/ar-atleta?org=' + encodeURIComponent(org) + '&id=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(t); }
+  function carregarAltoRendimento() {
+    if ((org !== 'team-yoda' && org !== '39-ranch') || arEstado.carregando) return;
+    if (arEstado.dados) return desenharAltoRendimento();
+    arEstado.carregando = true;
+    fetch(arUrl()).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { arEstado.carregando = false; if (j && j.ativo) { arEstado.dados = j; desenharAltoRendimento(); } })
+      .catch(function () { arEstado.carregando = false; });
+  }
+  function desenharAltoRendimento() {
+    const box = document.getElementById('ar-painel'), d = arEstado.dados; if (!box || !d) return;
+    document.querySelectorAll('[data-painel="plano-equipe"]').forEach(function (x) { x.remove(); });
+    const dBR = function (s) { return s ? s.split('-').reverse().join('/') : ''; };
+    const sem = d.semana, c = d.carga || {};
+    let h = '<div class="painel" data-alto-rendimento><h2>Alto rendimento' + (sem ? ' · semana ' + sem.n + ' de ' + sem.total : '') + '</h2>';
+    h += '<p style="font-size:13px;margin:0 0 6px"><b>' + escapar(d.status.r) + '</b>' + (sem ? ' · ' + escapar(sem.bloco) + (sem.bloco.indexOf(sem.fase) === 0 ? '' : ' (' + escapar(sem.fase) + ')') : '') + '</p>';
+    if (d.proximoTorneio && d.status.v !== 'torneio') h += '<p style="font-size:13px;margin:0 0 6px">Próximo torneio: <b>' + escapar(d.proximoTorneio.nome) + '</b> em ' + dBR(d.proximoTorneio.inicio) + '</p>';
+    h += '<p style="font-size:13px;margin:0 0 8px">Carga da semana: ' + (c.ua || 0) + ' UA' + (c.alvo ? ' de ' + c.alvo.ua + ' (' + c.pct + '%)' : '') + '</p>';
+    if (sem) {
+      h += '<div style="font-size:13px">' + sem.conteudos.map(function (x) {
+        return '<div style="display:flex;justify-content:space-between;gap:8px;border-top:1px solid var(--linha);padding:5px 0"><span>' + escapar(x.titulo) + (x.essencial ? ' · essencial' : '') + (x.tipo === 'fora_do_ct' ? ' · fora do CT' : '') + '</span><b>' + Math.min(x.feitas, x.vezesAlvo) + '/' + x.vezesAlvo + '</b></div>';
+      }).join('') + '</div>';
+      const titulosAtr = sem.atrasados.map(function (x) { return x.titulo; }).filter(function (x, i, l) { return l.indexOf(x) === i; });
+      if (titulosAtr.length) h += '<p style="font-size:12.5px;margin:6px 0 0;color:var(--cinza)">Ficou para trás: ' + titulosAtr.map(escapar).join(', ') + '</p>';
+    }
+    if (arEstado.msg) h += '<p role="status" style="font-size:13px;margin:8px 0 0;color:#1F6B4A"><b>' + escapar(arEstado.msg) + '</b></p>';
+    if (!arEstado.aberto) h += '<div class="linha-btns"><button type="button" class="btn" data-ar-abrir>Registrar treino ou jogo fora do CT</button></div>';
+    else {
+      /* um item por tema: o mesmo conteúdo atrasado de semanas diferentes aparece uma vez só (marca o mais antigo) */
+      const pend = (sem ? sem.atrasados.concat(sem.conteudos.filter(function (x) { return x.feitas < x.vezesAlvo; })) : [])
+        .filter(function (x, i, l) { return l.findIndex(function (y) { return y.titulo === x.titulo; }) === i; });
+      h += '<form data-ar-form style="margin-top:10px;font-size:13.5px">' +
+        '<p style="margin:0 0 6px"><label><input type="radio" name="tipo" value="treino" checked> Treino</label> &nbsp; <label><input type="radio" name="tipo" value="jogo"> Jogo</label></p>' +
+        '<p style="margin:0 0 6px"><label>Data <input type="date" name="data" value="' + d.hoje + '" max="' + d.hoje + '"></label></p>' +
+        '<p style="margin:0 0 6px"><label>Minutos <input type="number" name="minutos" min="1" max="600" value="90" style="width:80px"></label></p>' +
+        '<p style="margin:0 0 6px"><label>Esforço (0 a 10) <select name="pse">' + PSE_ROTULO.map(function (r, i) { return '<option value="' + i + '"' + (i === 6 ? ' selected' : '') + '>' + r + '</option>'; }).join('') + '</select></label></p>' +
+        '<div data-ar-jogo hidden><p style="margin:0 0 6px"><label>Adversário <input name="adversario" maxlength="80"></label></p><p style="margin:0 0 6px"><label>Placar <input name="placar" maxlength="40" style="width:110px"></label> ' +
+        '<select name="resultado"><option value="">resultado</option><option value="vitoria">Vitória</option><option value="derrota">Derrota</option></select></p>' +
+        (d.torneios.length ? '<p style="margin:0 0 6px"><label>Torneio <select name="torneioId"><option value="">—</option>' + d.torneios.map(function (x) { return '<option value="' + escapar(x.id) + '">' + escapar(x.nome) + '</option>'; }).join('') + '</select></label></p>' : '') + '</div>' +
+        (pend.length ? '<p style="margin:6px 0 2px;color:var(--cinza)">O que do plano você fez</p>' + pend.map(function (x) { return '<label style="display:block;padding:2px 0"><input type="checkbox" name="feito" value="' + escapar(x.id) + '"> ' + escapar(x.titulo) + '</label>'; }).join('') : '') +
+        '<p style="margin:6px 0"><label>Observação <input name="obs" maxlength="300" style="width:100%"></label></p>' +
+        '<p data-ar-erro role="alert" style="color:#A6432F;margin:0 0 6px" hidden></p>' +
+        '<div class="linha-btns"><button type="submit" class="btn">Registrar</button><button type="button" class="btn fraco" data-ar-cancelar>Cancelar</button></div></form>';
+    }
+    if (d.registros && d.registros.length) h += '<p style="font-size:12.5px;margin:10px 0 0;color:var(--cinza)">Últimos: ' + d.registros.map(function (r) { return dBR(r.data) + ' ' + (r.tipo === 'jogo' ? 'jogo' : 'treino') + ' ' + r.minutos + ' min' + (r.confirmado ? '' : ' (a confirmar)'); }).join(' · ') + '</p>';
+    box.innerHTML = h + '</div>';
+    const ab = box.querySelector('[data-ar-abrir]'); if (ab) ab.onclick = function () { arEstado.aberto = true; arEstado.msg = ''; desenharAltoRendimento(); };
+    const ca = box.querySelector('[data-ar-cancelar]'); if (ca) ca.onclick = function () { arEstado.aberto = false; desenharAltoRendimento(); };
+    const f = box.querySelector('[data-ar-form]');
+    if (f) {
+      f.querySelectorAll('input[name="tipo"]').forEach(function (r) { r.onchange = function () { f.querySelector('[data-ar-jogo]').hidden = f.tipo.value !== 'jogo'; }; });
+      f.onsubmit = function (ev) {
+        ev.preventDefault();
+        const erro = f.querySelector('[data-ar-erro]'), bt = f.querySelector('button[type="submit"]');
+        const reg = { tipo: f.tipo.value, data: f.data.value, minutos: Number(f.minutos.value), pse: Number(f.pse.value), obs: f.obs.value,
+          conteudosFeitos: Array.prototype.map.call(f.querySelectorAll('input[name="feito"]:checked'), function (x) { return x.value; }) };
+        if (reg.tipo === 'jogo') { reg.jogo = { adversario: f.adversario.value, placar: f.placar.value, resultado: f.resultado.value }; if (f.torneioId) reg.torneioId = f.torneioId.value; }
+        if (!(reg.minutos > 0)) { erro.textContent = 'Informe os minutos.'; erro.hidden = false; return; }
+        bt.disabled = true;
+        fetch('/.netlify/functions/ar-atleta', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ org: org, id: id, t: t, registro: reg }) })
+          .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+          .then(function (x) {
+            if (!x.ok) { bt.disabled = false; erro.textContent = x.j.erro || 'Não foi possível registrar agora.'; erro.hidden = false; return; }
+            arEstado.dados = x.j; arEstado.aberto = false; arEstado.msg = 'Registrado. Entrou na sua carga e no seu plano; o treinador confirma depois.'; desenharAltoRendimento();
+          }).catch(function () { bt.disabled = false; erro.textContent = 'Sem conexão. Tente de novo.'; erro.hidden = false; });
+      };
+    }
+  }
   function painelPlanoEquipe(d) {
     const P = window.QLPlanoEquipe, l = d.planosEquipe || [];
     if (!P || !l.length) return '';
@@ -1060,6 +1132,7 @@ function todosHorarios(agenda) {
     if (d) d.onclick = function () { window.QLPush.desativar().then(function () { pushEstado = 'inativo'; pushMsg = 'Avisos desligados neste aparelho.'; montarAvisosCelular(); }); };
   }
   function ligarEventos(d) {
+    carregarAltoRendimento();
     montarAvisosCelular();
     el.querySelectorAll('[data-plano-equipe-ver]').forEach(function (b) { b.addEventListener('click', function () { const i = b.getAttribute('data-plano-equipe-ver'); ui.planoEquipeAberto[i] = !ui.planoEquipeAberto[i]; render(d); }); });
     el.querySelectorAll('[data-rel-ver]').forEach(function (b) { b.addEventListener('click', function () { const id = b.getAttribute('data-rel-ver'); ui.relAtletaAberto = ui.relAtletaAberto === id ? null : id; render(d); }); });

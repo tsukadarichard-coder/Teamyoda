@@ -52,6 +52,7 @@
 <script src="equipe-rendimento.js"></script>
 <script src="aulas-mes.js"></script>
 <script src="situacoes-jogo.js"></script>
+<script src="alto-rendimento.js"></script>
 <script src="relatorio-atleta.js"></script>
 <script src="scout/video-jogo.js"></script>
 <link rel="stylesheet" href="scout/movimento.css">
@@ -23240,6 +23241,809 @@ function AbaEquipeJogador({ aluno, aoAbrirEquipes }) {
     </div>
   );
 }
+/* ── ALTO RENDIMENTO (11/11/2026) ─────────────────────────────────────────
+   O plano é individual e a sessão do CT nasce dos planos de quem está presente (lógica em alto-rendimento.js).
+   Substitui as Equipes de competição: o planejamento por equipe saiu; os dados antigos ficam guardados (mty:equipes:v1).
+   Dados fora do documento dos alunos, um documento por atleta: orgs/{org}/ar/{alunoId} (+ registros e avaliacoes) e
+   orgs/{org}/arSessoes. Sem nuvem (modo local), o mesmo formato vai para o localStorage. */
+const ARM = () => window.MTYAltoRendimento;
+const arLocal = {
+  ler(k, p) { try { const v = localStorage.getItem("mty:ar:" + k); return v ? JSON.parse(v) : p; } catch { return p; } },
+  gravar(k, v) { try { localStorage.setItem("mty:ar:" + k, JSON.stringify(v)); } catch { /* sem armazenamento */ } },
+};
+async function arRaiz() { if (!db) return null; const org = await organizacao(); return org ? db.collection("orgs").doc(org) : null; }
+async function arLer(alunoId) {
+  const r = await arRaiz(); if (!r) return arLocal.ler("doc:" + alunoId, null);
+  const s = await r.collection("ar").doc(alunoId).get(); return s.exists ? s.data() : null;
+}
+async function arGravar(alunoId, patch) {
+  const v = { ...patch, atualizadoEm: new Date().toISOString() }, r = await arRaiz();
+  if (!r) { arLocal.gravar("doc:" + alunoId, { ...(arLocal.ler("doc:" + alunoId, {}) || {}), ...v }); return; }
+  await r.collection("ar").doc(alunoId).set(v, { merge: true });
+}
+async function arLista(alunoId, sub, ordem, limite) {
+  const r = await arRaiz();
+  if (!r) return (arLocal.ler(sub + ":" + alunoId, []) || []).slice().sort((a, b) => (a[ordem] < b[ordem] ? 1 : -1)).slice(0, limite);
+  const s = await r.collection("ar").doc(alunoId).collection(sub).orderBy(ordem, "desc").limit(limite).get();
+  return s.docs.map((d) => d.data());
+}
+async function arGravarItem(alunoId, sub, item) {
+  const r = await arRaiz();
+  if (!r) { const l = (arLocal.ler(sub + ":" + alunoId, []) || []).filter((x) => x.id !== item.id); arLocal.gravar(sub + ":" + alunoId, [...l, item]); return; }
+  await r.collection("ar").doc(alunoId).collection(sub).doc(item.id).set(item);
+}
+async function arApagarItem(alunoId, sub, id) {
+  const r = await arRaiz();
+  if (!r) { arLocal.gravar(sub + ":" + alunoId, (arLocal.ler(sub + ":" + alunoId, []) || []).filter((x) => x.id !== id)); return; }
+  await r.collection("ar").doc(alunoId).collection(sub).doc(id).delete();
+}
+async function arSessoesLista(limite) {
+  const r = await arRaiz();
+  if (!r) return (arLocal.ler("sessoes", []) || []).slice().sort((a, b) => (a.data < b.data ? 1 : -1)).slice(0, limite);
+  const s = await r.collection("arSessoes").orderBy("data", "desc").limit(limite).get();
+  return s.docs.map((d) => d.data());
+}
+async function arGravarSessao(sessao) {
+  const r = await arRaiz();
+  if (!r) { arLocal.gravar("sessoes", [...(arLocal.ler("sessoes", []) || []).filter((x) => x.id !== sessao.id), sessao]); return; }
+  await r.collection("arSessoes").doc(sessao.id).set(sessao);
+}
+/* grava um registro e já atualiza marcador e carga do atleta */
+async function arRegistrar(alunoId, ar, reg) {
+  const A = ARM(), r = A.normalizarRegistro(reg);
+  await arGravarItem(alunoId, "registros", r);
+  const novo = A.aplicarRegistro(ar, r, hojeEq());
+  await arGravar(alunoId, novo);
+  return { ...ar, ...novo };
+}
+/* liga o alto rendimento na ficha e cria o documento do atleta (o calendário começa com as competições da ficha) */
+async function arAtivar(alunos, setAlunos, ids) {
+  const desde = hojeEq();
+  for (const id of ids) {
+    const a = alunos.find((x) => x.id === id); if (!a) continue;
+    const ja = await arLer(id);
+    const cal = ja && ja.calendario ? ja.calendario : (a.competicoes || []).filter((c) => c && c.data)
+      .map((c, i) => ({ id: "t" + Date.now().toString(36) + i, nome: c.nome || "Competição", inicio: c.data, fim: c.data, prioridade: "secundario", local: "", superficie: "" }));
+    await arGravar(id, { ativo: true, desde: (ja && ja.desde) || desde, calendario: cal, metas: (ja && ja.metas) || [] });
+  }
+  setAlunos(alunos.map((a) => (ids.includes(a.id) ? { ...a, altoRendimento: { ativo: true, desde: (a.altoRendimento && a.altoRendimento.desde) || desde } } : a)));
+}
+const dataBR = (s) => (s ? String(s).slice(0, 10).split("-").reverse().join("/") : "");
+const COR_STATUS = { ct: C.quadra, torneio: "#C9A227", voltou: "#2F6FA6" };
+function ChipStatusAR({ st }) {
+  return <span data-status-ar={st.v} style={{ display: "inline-block", fontFamily: ARCH, fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 999, color: "#fff", background: COR_STATUS[st.v] || C.grafite }}>{st.r}</span>;
+}
+function BarraAR({ pct, cor }) {
+  const v = Math.max(0, Math.min(150, pct || 0));
+  return <div style={{ height: 8, background: C.linha, borderRadius: 4, overflow: "hidden" }}><div style={{ width: Math.min(100, v) + "%", height: "100%", background: cor || (v > 120 ? "#A6432F" : v < 70 ? "#C9A227" : C.quadra) }} /></div>;
+}
+const cartaoAR = { background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: "12px 14px", marginTop: 10 };
+const tituloAR = { fontFamily: ARCH, fontSize: 16, fontWeight: 700 };
+
+/* ── aba "Alto rendimento" na ficha do atleta ── */
+function AbaAltoRendimento({ aluno, alunos, setAlunos }) {
+  const A = ARM(), hoje = hojeEq();
+  const [ar, setAr] = useState(undefined), [regs, setRegs] = useState([]), [avs, setAvs] = useState([]);
+  const [secao, setSecao] = useState("resumo"), [msg, setMsg] = useState(null);
+  const ativo = !!(aluno.altoRendimento && aluno.altoRendimento.ativo);
+  const recarregar = async () => {
+    const d = await arLer(aluno.id); setAr(d || null);
+    if (d) { setRegs(await arLista(aluno.id, "registros", "data", 120)); setAvs(await arLista(aluno.id, "avaliacoes", "data", 200)); }
+  };
+  useEffect(() => { recarregar(); }, [aluno.id, ativo]);
+  if (!A) return <p style={{ ...prosa, color: C.grafite }}>O módulo de alto rendimento não carregou. Recarregue a página.</p>;
+  if (ar === undefined) return <p style={{ ...prosa, color: C.grafite }}>Carregando…</p>;
+  const primeiro = (aluno.nome || "Atleta").split(" ")[0];
+  if (!ativo) {
+    return (
+      <div data-aba-ar>
+        <h2 style={{ fontFamily: ARCH, fontSize: 20, fontWeight: 700 }}>Alto rendimento</h2>
+        <p style={{ ...prosa, fontSize: 14, marginTop: 6 }}>No alto rendimento o plano é individual: calendário de torneios com prioridade, periodização, marcador de progresso, registros de jogos e treinos em viagem e controle de carga. A sessão do CT é montada com quem está presente.</p>
+        <div style={{ marginTop: 12 }}><Botao onClick={async () => { await arAtivar(alunos, setAlunos, [aluno.id]); setMsg("Pronto: " + primeiro + " está no alto rendimento."); }}>Colocar {primeiro} no alto rendimento</Botao></div>
+        {msg && <p style={{ ...prosa, fontSize: 13, color: C.quadra, marginTop: 8 }}>{msg}</p>}
+      </div>
+    );
+  }
+  const doc = ar || { ativo: true, calendario: [], metas: [] };
+  const salvarDoc = async (patch) => { setAr((d) => ({ ...(d || doc), ...patch })); await arGravar(aluno.id, patch); };
+  const st = A.statusAtleta(doc, hoje), m = doc.plano ? A.marcador(doc, hoje) : null, carga = A.cargaSemanaAtual(doc, hoje);
+  const teto = A.tetoDoDia(doc, regs, hoje), ajustes = doc.plano ? A.ajusteSemanal(doc, hoje) : [];
+  const SECOES = [["resumo", "Resumo"], ["calendario", "Calendário"], ["plano", "Plano"], ["metas", "Metas e testes"], ["registros", "Registros"], ["carga", "Carga"]];
+  return (
+    <div data-aba-ar>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <h2 style={{ fontFamily: ARCH, fontSize: 20, fontWeight: 700 }}>Alto rendimento</h2><ChipStatusAR st={st} />
+      </div>
+      {m ? <p data-marcador style={{ ...prosa, fontSize: 14, marginTop: 4 }}><b>{m.blocoTitulo}</b> · semana {m.semanaN} de {m.totalSemanas} · {m.pct}% da semana feito{m.atrasados.length ? " · " + m.atrasados.length + " essencial(is) atrasado(s)" : ""}</p>
+        : <p style={{ ...prosa, fontSize: 14, marginTop: 4, color: C.grafite }}>Ainda sem plano individual. Monte o calendário e gere o plano.</p>}
+      <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Carga da semana: {carga.ua} UA{carga.alvo ? " de " + carga.alvo.ua + " (" + carga.pct + "%)" : ""} · treino de hoje: {teto.r}</p>
+      {ajustes.map((a, i) => <p key={i} data-ajuste style={{ ...prosa, fontSize: 13, color: C.saibro, marginTop: 4 }}>⚑ {a.r}</p>)}
+      <div className="flex gap-2 flex-wrap" style={{ marginTop: 10 }}>{SECOES.map(([v, r]) => <BotaoChip key={v} ativo={secao === v} onClick={() => setSecao(v)}>{r}</BotaoChip>)}</div>
+      {secao === "resumo" && <ResumoAR m={m} />}
+      {secao === "calendario" && <CalendarioAR doc={doc} salvarDoc={salvarDoc} hoje={hoje} />}
+      {secao === "plano" && <PlanoAR aluno={aluno} doc={doc} salvarDoc={salvarDoc} hoje={hoje} regs={regs} avs={avs} />}
+      {secao === "metas" && <MetasAR aluno={aluno} doc={doc} salvarDoc={salvarDoc} avs={avs} setAvs={setAvs} hoje={hoje} />}
+      {secao === "registros" && <RegistrosAR aluno={aluno} doc={doc} setAr={setAr} regs={regs} setRegs={setRegs} hoje={hoje} m={m} />}
+      {secao === "carga" && <CargaAR doc={doc} hoje={hoje} />}
+      <div style={{ marginTop: 24 }}>
+        <Botao pequeno variante="vazio" onClick={() => { if (!window.confirm("Tirar " + primeiro + " do alto rendimento? O plano, os registros e as avaliações ficam guardados.")) return;
+          setAlunos(alunos.map((a) => (a.id === aluno.id ? { ...a, altoRendimento: { ...(a.altoRendimento || {}), ativo: false } } : a))); arGravar(aluno.id, { ativo: false }); }}>Tirar do alto rendimento</Botao>
+      </div>
+    </div>
+  );
+}
+function ResumoAR({ m }) {
+  if (!m) return null;
+  const linha = (c) => (
+    <div key={c.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, borderTop: "1px solid " + C.linha, padding: "7px 0" }}>
+      <span style={{ ...prosa, fontSize: 13.5 }}>{c.titulo}{c.essencial ? " · essencial" : ""}{c.tipo === "fora_do_ct" ? " · fora do CT" : c.tipo === "individual" ? " · individual" : ""}{c.nomeExercicio ? <span style={{ color: C.grafite }}> ({c.codigoExercicio} {c.nomeExercicio})</span> : null}</span>
+      <Etiqueta cor={c.feitas >= c.vezesAlvo ? C.quadra : C.grafite}>{Math.min(c.feitas, c.vezesAlvo)}/{c.vezesAlvo}</Etiqueta>
+    </div>
+  );
+  return (
+    <div style={cartaoAR} data-resumo-ar>
+      <p style={tituloAR}>Semana {m.semanaN} · {m.faseNome}</p>
+      <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>De {dataBR(m.inicioSemana)} · alvo {m.cargaAlvo.minutos} min e {m.cargaAlvo.ua} UA</p>
+      <div style={{ marginTop: 6 }}>{m.conteudos.map(linha)}</div>
+      {m.atrasados.length > 0 && <>
+        <p style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700, marginTop: 10 }}>Essenciais que ficaram para trás</p>
+        {m.atrasados.map((c) => <p key={c.id} style={{ ...prosa, fontSize: 13 }}>· {c.titulo} (semana {c.semanaN})</p>)}
+      </>}
+    </div>
+  );
+}
+function CalendarioAR({ doc, salvarDoc, hoje }) {
+  const A = ARM(), vazio = { nome: "", local: "", inicio: hoje, fim: hoje, prioridade: "secundario", superficie: "" };
+  const [f, setF] = useState(vazio), [erro, setErro] = useState("");
+  const lista = (doc.calendario || []).slice().sort((a, b) => (a.inicio < b.inicio ? -1 : 1));
+  const add = () => {
+    if (!f.nome.trim()) return setErro("Escreva o nome do torneio.");
+    if (!f.inicio || (f.fim && f.fim < f.inicio)) return setErro("Confira as datas.");
+    setErro(""); salvarDoc({ calendario: [...(doc.calendario || []), { ...f, nome: f.nome.trim(), fim: f.fim || f.inicio, id: "t" + Date.now().toString(36) }] }); setF(vazio);
+  };
+  return (
+    <div style={cartaoAR} data-calendario-ar>
+      <p style={tituloAR}>Calendário de torneios</p>
+      {!lista.length && <p style={{ ...prosa, fontSize: 13.5, color: C.grafite }}>Nenhum torneio ainda.</p>}
+      {lista.map((t) => {
+        const passado = (t.fim || t.inicio) < hoje;
+        return (
+          <div key={t.id} data-torneio={t.id} style={{ borderTop: "1px solid " + C.linha, padding: "8px 0", display: "flex", gap: 8, alignItems: "center", opacity: passado ? 0.65 : 1 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{t.nome} <Etiqueta cor={t.prioridade === "principal" ? C.saibro : C.grafite}>{(A.PRIORIDADES[t.prioridade] || {}).r}</Etiqueta></p>
+              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>{dataBR(t.inicio)}{t.fim && t.fim !== t.inicio ? " a " + dataBR(t.fim) : ""}{t.local ? " · " + t.local : ""}{t.superficie ? " · " + t.superficie : ""}</p>
+              {passado && <input aria-label={"Resultado em " + t.nome} placeholder="Resultado (ex.: semifinal)" defaultValue={t.resultado || ""} style={{ ...entrada, marginTop: 4, padding: "5px 8px", fontSize: 13 }}
+                onBlur={(e) => salvarDoc({ calendario: doc.calendario.map((x) => (x.id === t.id ? { ...x, resultado: e.target.value.slice(0, 120) } : x)) })} />}
+            </div>
+            <Botao pequeno variante="vazio" onClick={() => { if (window.confirm("Tirar " + t.nome + " do calendário?")) salvarDoc({ calendario: doc.calendario.filter((x) => x.id !== t.id) }); }}>Tirar</Botao>
+          </div>
+        );
+      })}
+      <div style={{ borderTop: "1px solid " + C.linha, marginTop: 6, paddingTop: 10 }}>
+        <p style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>Novo torneio</p>
+        <Campo rotulo="Nome"><input value={f.nome} onChange={(e) => setF({ ...f, nome: e.target.value })} style={entrada} aria-label="Nome do torneio" /></Campo>
+        <div className="flex gap-2 flex-wrap">
+          <Campo rotulo="Início"><input type="date" value={f.inicio} onChange={(e) => setF({ ...f, inicio: e.target.value, fim: f.fim < e.target.value ? e.target.value : f.fim })} style={entrada} aria-label="Início" /></Campo>
+          <Campo rotulo="Fim"><input type="date" value={f.fim} onChange={(e) => setF({ ...f, fim: e.target.value })} style={entrada} aria-label="Fim" /></Campo>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <Campo rotulo="Prioridade"><select value={f.prioridade} onChange={(e) => setF({ ...f, prioridade: e.target.value })} style={entrada} aria-label="Prioridade">
+            {Object.keys(A.PRIORIDADES).map((k) => <option key={k} value={k}>{A.PRIORIDADES[k].r}</option>)}</select></Campo>
+          <Campo rotulo="Piso"><select value={f.superficie} onChange={(e) => setF({ ...f, superficie: e.target.value })} style={entrada} aria-label="Piso">
+            {["", "Saibro", "Quadra dura", "Grama", "Carpete"].map((s) => <option key={s} value={s}>{s || "—"}</option>)}</select></Campo>
+          <Campo rotulo="Local"><input value={f.local} onChange={(e) => setF({ ...f, local: e.target.value })} style={entrada} aria-label="Local" /></Campo>
+        </div>
+        {erro && <p style={{ ...prosa, fontSize: 13, color: C.saibro }}>{erro}</p>}
+        <Botao pequeno onClick={add}>Adicionar torneio</Botao>
+        <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 6 }}>Principal: 2 semanas de afinação antes e 1 de regeneração depois. Secundário: 1 semana de afinação. Preparatório: treina durante, sem afinação. Depois de mudar o calendário, gere o plano de novo.</p>
+      </div>
+    </div>
+  );
+}
+/* Pedido de plano do alto rendimento para a IA — o mesmo desenho do plano individual e da turma (princípios, catálogo com
+   "use SOMENTE estes códigos", ficha, scout, evidências, prioridades observadas e relatórios dos ciclos anteriores), mais o
+   que é do alto rendimento: calendário com prioridade, metas, testes, jogos e treinos registrados (CT e viagem), carga e o
+   que ficou do ciclo anterior. As fases e a carga vêm prontas do calendário (esqueleto); a IA escolhe conteúdos e exercícios. */
+function resumoPlanoAnteriorAR(doc, hoje) {
+  const A = ARM(); if (!doc.plano) return null;
+  const sems = A.semanasDoPlano(doc.plano).filter((x) => x.semana.inicio <= hoje), prog = doc.progresso || {}, porPilar = {};
+  if (!sems.length) return null;
+  const pend = [];
+  sems.forEach((x) => x.semana.conteudos.forEach((c) => {
+    if (c.tipo === "fora_do_ct") return;
+    const v = ((prog.cumpridos || {})[c.id] || {}).vezes || 0, p = (porPilar[c.pilar] = porPilar[c.pilar] || { alvo: 0, feito: 0 });
+    p.alvo += c.vezesAlvo || 1; p.feito += Math.min(v, c.vezesAlvo || 1);
+    if (c.essencial && v < (c.vezesAlvo || 1)) pend.push(c.titulo + " (semana " + x.semana.n + ")");
+  }));
+  return ["PLANO ANTERIOR DESTE ATLETA (" + sems.length + " semana(s) até hoje): cumprido por pilar — " +
+    Object.keys(porPilar).map((k) => k + " " + porPilar[k].feito + " de " + porPilar[k].alvo).join(", ") + ".",
+    pend.length ? "Essenciais que não foram cumpridos: " + pend.slice(0, 12).join("; ") + "." : "Todos os essenciais foram cumpridos."].join("\n");
+}
+function promptPlanoAltoRendimento(aluno, doc, base, regs, avs) {
+  const A = ARM(), hoje = hojeEq(), esq = A.esqueleto(base), estagio = aluno.estagio || "C";
+  const historico = (aluno.historicoRelatorios || []).slice(0, 3).map((h, i, l) => "── Ciclo " + (l.length - i) + " · " + new Date(h.data).toLocaleDateString("pt-BR") + " ──\n" + h.texto);
+  const resumoScout = resumoScoutPlanejamento(aluno.registros);
+  const cal = (doc.calendario || []).slice().sort((a, b) => (a.inicio < b.inicio ? -1 : 1)).map((t) => "· " + t.nome + " — " + dataBR(t.inicio) + (t.fim && t.fim !== t.inicio ? " a " + dataBR(t.fim) : "") +
+    " — " + ((A.PRIORIDADES[t.prioridade] || {}).r || "") + (t.superficie ? " — " + t.superficie : "") + (t.local ? " — " + t.local : "") + (t.resultado ? " — resultado: " + t.resultado : ""));
+  const metas = (doc.metas || []).map((m) => { const s = A.situacaoMeta(m, avs, A.TESTES_PADRAO), t = A.TESTES_PADRAO.find((x) => x.id === m.testeId);
+    return "· [" + m.pilar + "] " + m.descricao + (t ? " — teste: " + t.nome + (m.alvo !== "" ? ", alvo " + m.alvo + " " + t.unidade : "") : "") + (s.atual != null ? ", atual " + s.atual : "") + (s.atingida != null ? (s.atingida ? " (atingida)" : " (em curso)") : ""); });
+  const evo = A.evolucaoTestes(avs, A.TESTES_PADRAO).map((e) => "· " + e.teste.nome + ": " + e.medidas.map((m) => dataBR(m.data) + " " + m.valor).join(" → ") + " " + e.teste.unidade + (e.melhorou == null ? "" : e.melhorou ? " (melhorou)" : " (piorou)"));
+  const desde = A.somaDias(hoje, -56), rs = (regs || []).filter((r) => r.data >= desde), jogos = rs.filter((r) => r.tipo === "jogo");
+  const vit = jogos.filter((r) => r.jogo && r.jogo.resultado === "vitoria").length, der = jogos.filter((r) => r.jogo && r.jogo.resultado === "derrota").length;
+  const cargas = Object.keys(doc.cargaSemanas || {}).filter((k) => k >= A.chaveSemana(desde)).sort().map((k) => { const c = doc.cargaSemanas[k]; return dataBR(k) + ": " + c.ua + " UA (" + c.minutos + " min, " + c.jogos + " jogo(s), " + (c.viagem || 0) + " UA fora do CT)"; });
+  const temas = Object.keys(A.TEMAS).map((k) => "· " + k + " — " + A.TEMAS[k].r + " (" + A.TEMAS[k].pilar + ")" + (A.TEMAS[k].foraDoCT ? " — fora do CT, sem código" : A.TEMAS[k].individual ? " — sem código, individual" : ""));
+  const linhasEsq = esq.map((s) => "Semana " + s.n + " (" + dataBR(s.inicio) + ") · " + s.faseNome + " · alvo " + s.cargaAlvo.minutos + " min / " + s.cargaAlvo.ua + " UA" +
+    (s.torneioId ? " · " + (((doc.calendario || []).find((t) => t.id === s.torneioId)) || {}).nome : "") + " · modelo: " + s.modelo.map((m) => m.tema + "×" + m.vezes + (m.essencial ? "*" : "")).join(", "));
+  const anterior = resumoPlanoAnteriorAR(doc, hoje);
+  return [
+    "Você é assistente de planejamento da Metodologia MTY, método de tênis do treinador Richard Tsukada. Monte o plano",
+    "INDIVIDUAL de alto rendimento deste atleta. As sessões do CT são montadas depois a partir dos planos de quem está presente,",
+    "então cada conteúdo precisa de um tema da lista abaixo (é o tema que junta atletas num bloco coletivo).",
+    "",
+    "PRINCÍPIOS TRAVADOS — obrigatórios:",
+    ...PRINCIPIOS_MTY.map((p, i) => (i + 1) + ". " + p),
+    "",
+    "EXERCÍCIOS DISPONÍVEIS (estágio " + estagio + ") — use SOMENTE estes códigos:",
+    indiceParaEstagio(estagio),
+    ...regraSituacoes([estagio]),
+    "",
+    "TEMAS (use exatamente estas chaves):",
+    ...temas,
+    "",
+    "FICHA DO ATLETA:",
+    relatorioFicha(aluno),
+    ...(resumoScout ? ["", resumoScout] : []),
+    ...(prioridadesObservadasParaPrompt(aluno) ? ["", prioridadesObservadasParaPrompt(aluno)] : []),
+    ...(evidenciasParaPrompt(aluno) ? ["", evidenciasParaPrompt(aluno)] : []),
+    "",
+    "CALENDÁRIO DE TORNEIOS:",
+    ...(cal.length ? cal : ["(nenhum torneio cadastrado)"]),
+    ...(metas.length ? ["", "METAS POR PILAR:", ...metas] : []),
+    ...(evo.length ? ["", "TESTES REPETÍVEIS (evolução):", ...evo] : []),
+    "",
+    "ÚLTIMAS 8 SEMANAS (CT + viagem): " + rs.length + " registro(s), " + jogos.length + " jogo(s)" + (vit + der ? " (" + vit + " vitória(s), " + der + " derrota(s))" : "") + ".",
+    ...(cargas.length ? ["Carga por semana: " + cargas.join(" · ")] : []),
+    ...(anterior ? ["", anterior] : []),
+    ...(historico.length ? ["", "RELATÓRIOS DOS CICLOS ANTERIORES — o novo plano responde ao que ficou em aberto:", ...historico] : []),
+    "",
+    "ESQUELETO DO PLANO (definido pelo calendário — NÃO mude fases nem carga; * = essencial no modelo):",
+    ...linhasEsq,
+    "",
+    "Devolva APENAS um JSON válido, sem texto antes ou depois, sem crases, neste formato:",
+    JSON.stringify({ prioridade: "a prioridade do ciclo em uma frase", observacao: [{ t: "a · campo", d: "por que importa" }],
+      semanas: [{ n: 1, foco: "foco da semana", conteudos: [{ tema: "tec:fundo", ex: "CÓDIGO", titulo: "o que treinar", vezes: 2, essencial: true, tipo: "coletivo", criterio: "o que conta como cumprido" }] }] }),
+    "",
+    "REGRAS:",
+    "· uma entrada em \"semanas\" para CADA semana do esqueleto, com o mesmo n.",
+    "· semana de treino: 4 a 8 conteúdos; semana de torneio: 1 a 3 (os jogos entram sozinhos). Use o modelo como referência de",
+    "  quantidade e ênfase da fase, ajustando os temas e os exercícios ao que os dados deste atleta mostram.",
+    "· \"tema\" é exatamente uma das chaves acima; \"ex\" é um código da lista (nunca inventado); jogo:torneio e men:revisao sem \"ex\".",
+    "· até 3 conteúdos essenciais por semana: o que não pode ficar para trás se o atleta viajar.",
+    "· toda semana de treino tem ip:inicio (saque e devolução com a bola seguinte) e pelo menos um exercício marcado (situação).",
+    "· \"tipo\": \"individual\" para o que não faz sentido em grupo (correção técnica específica, força com carga própria); senão \"coletivo\".",
+    "· escolha temas e exercícios pelo scout, pelas evidências, pelas prioridades observadas, pelas metas e testes e pelo que ficou",
+    "  do ciclo anterior. O que não estiver nos dados vira item de observacao, nunca suposição.",
+    "· \"criterio\": observável e curto (o que conta como cumprido).",
+  ].join("\n");
+}
+function lerJsonIA(texto) {
+  let t = String(texto || "").trim().replace(/^```(json)?/i, "").replace(/```$/, "").trim();
+  const i = t.indexOf("{"); if (i > 0) t = t.slice(i);
+  const j = t.lastIndexOf("}"); if (j >= 0) t = t.slice(0, j + 1);
+  return JSON.parse(t);
+}
+function PlanoAR({ aluno, doc, salvarDoc, hoje, regs, avs }) {
+  const A = ARM(), p = doc.plano;
+  const [f, setF] = useState({ inicio: hoje, semanas: p ? p.semanas : 16, minutosSemana: p ? p.minutosSemana : 600 });
+  const [aberto, setAberto] = useState(null), [etapa, setEtapa] = useState(""), [erro, setErro] = useState(""), [segundos, setSegundos] = useState(0);
+  const esperando = !!(doc.geracaoIA && doc.geracaoIA.jobId), candidato = doc.planoCandidato || null;
+  useEffect(() => { if (!esperando) { setSegundos(0); return; } const t0 = Date.now(), t = setInterval(() => setSegundos(Math.round((Date.now() - t0) / 1000)), 500); return () => clearInterval(t); }, [esperando]);
+  const montarBase = () => A.gerarPlano({ calendario: doc.calendario || [], inicio: f.inicio, semanas: f.semanas, minutosSemana: f.minutosSemana,
+    prioridades: aluno.prioridades, estagio: aluno.estagio || "C", catalogo: TODOS_EXERCICIOS() });
+  /* só a geração da vez vale: parar de esperar ou gerar de novo invalida a resposta que ainda vai chegar */
+  const jobDaVez = useRef(null);
+  const receber = async (g) => {
+    jobDaVez.current = g.jobId;
+    try {
+      const texto = await aguardarJobIA(g.jobId, g.org, setEtapa);
+      if (jobDaVez.current !== g.jobId) return;
+      const novo = A.aplicarIA(g.base, lerJsonIA(texto), TODOS_EXERCICIOS());
+      novo.geradoEm = new Date().toISOString();
+      await salvarDoc({ geracaoIA: null, planoCandidato: novo }); setEtapa("");
+    } catch (e) { if (jobDaVez.current !== g.jobId) return; await salvarDoc({ geracaoIA: null }); setErro(String(e.message || e)); setEtapa(""); }
+  };
+  /* geração que começou antes (o professor saiu da tela e voltou): continua esperando */
+  useEffect(() => { if (esperando && !etapa) { setEtapa("A IA está montando"); receber(doc.geracaoIA); } }, [esperando]);
+  const gerarIA = async () => {
+    setErro("");
+    try {
+      const base = montarBase();
+      const prompt = promptPlanoAltoRendimento(aluno, doc, base, regs, avs);
+      const { jobId, org } = await iniciarJobIA(prompt, 16000, setEtapa);
+      const g = { jobId, org, iniciadoEm: new Date().toISOString(), base };
+      await salvarDoc({ geracaoIA: g });
+      setEtapa("A IA está montando"); receber(g);
+    } catch (e) { setErro(String(e.message || e)); setEtapa(""); }
+  };
+  const gerarModelo = () => {
+    const novo = montarBase(); novo.origem = "modelo";
+    salvarDoc({ planoCandidato: novo });
+  };
+  const usar = () => {
+    const novo = { ...candidato, versao: p ? (p.versao || 1) + 1 : 1 };
+    salvarDoc({ plano: novo, planoCandidato: null, planoHistorico: p ? [...(doc.planoHistorico || []), p].slice(-5) : doc.planoHistorico || [] });
+  };
+  const listaSemanas = (pl, abrivel) => (pl.blocos || []).map((b) => (
+    <div key={b.id} style={{ borderTop: "1px solid " + C.linha, marginTop: 8, paddingTop: 6 }}>
+      <button type="button" onClick={() => setAberto(aberto === b.id ? null : b.id)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", width: "100%" }}>
+        <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{b.titulo}</span>
+        <span style={{ ...prosa, fontSize: 12.5, color: C.grafite }}> · semanas {b.semanas[0].n}{b.semanas.length > 1 ? "–" + b.semanas[b.semanas.length - 1].n : ""} · {dataBR(b.semanas[0].inicio)}</span>
+      </button>
+      {(aberto === b.id || !abrivel) && b.semanas.map((s) => (
+        <div key={s.n} style={{ marginTop: 6 }}>
+          <p style={{ ...prosa, fontSize: 12.5, fontWeight: 700 }}>Semana {s.n}{s.foco ? " · " + s.foco : ""} · alvo {s.cargaAlvo.minutos} min, {s.cargaAlvo.ua} UA</p>
+          {s.conteudos.map((c) => <p key={c.id} style={{ ...prosa, fontSize: 12.5 }}>· {c.titulo} ×{c.vezesAlvo}{c.essencial ? " (essencial)" : ""}{c.tipo === "individual" ? " · individual" : ""}{c.nomeExercicio ? " — " + c.codigoExercicio + " " + c.nomeExercicio : ""}{c.criterio ? <span style={{ color: C.grafite }}> · {c.criterio}</span> : null}</p>)}
+        </div>
+      ))}
+    </div>
+  ));
+  const atual = p ? A.semanaAtual(p, hoje) : null;
+  return (
+    <div style={cartaoAR} data-plano-ar>
+      <p style={tituloAR}>Plano individual{p ? " · versão " + (p.versao || 1) + (p.origem === "ia" ? " · gerado pela IA" : p.origem === "modelo" ? " · modelo sem IA" : "") : ""}</p>
+      {candidato && (
+        <div data-plano-candidato style={{ border: "1px solid " + C.quadra, borderRadius: 10, padding: "10px 12px", marginTop: 8, background: "#F1F7F1" }}>
+          <p style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700 }}>Revise o plano {candidato.origem === "ia" ? "da IA" : "do modelo"} antes de usar</p>
+          {candidato.prioridade && <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}><b>Prioridade:</b> {candidato.prioridade}</p>}
+          {(candidato.observacao || []).map((o, i) => <p key={i} style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>· {o.t}{o.d ? ": " + o.d : ""}</p>)}
+          {listaSemanas(candidato, true)}
+          <div className="flex gap-2 flex-wrap" style={{ marginTop: 10 }}>
+            <Botao pequeno onClick={usar}>Usar este plano</Botao>
+            <Botao pequeno variante="vazio" onClick={() => salvarDoc({ planoCandidato: null })}>Descartar</Botao>
+          </div>
+          {p && <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 6 }}>O que o atleta já fez continua contando no plano novo.</p>}
+        </div>
+      )}
+      {p && !candidato && <>
+        <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>{p.semanas} semanas a partir de {dataBR(p.inicio)} · {p.minutosSemana} min por semana na base</p>
+        {p.prioridade && <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}><b>Prioridade:</b> {p.prioridade}</p>}
+        <div style={{ display: "flex", gap: 3, marginTop: 8, flexWrap: "wrap" }} aria-label="Fases do plano">
+          {A.semanasDoPlano(p).map((x) => (
+            <span key={x.semana.n} title={"Semana " + x.semana.n + " · " + x.bloco.titulo} style={{ width: 18, height: 18, borderRadius: 4, display: "inline-block",
+              background: { base: "#8FB8A8", especifica: "#2F7A5F", ponte: "#C9A227", precompetitiva: "#D9822B", competicao: "#A6432F", preparatoria: "#B5654A", transicao: "#9CA3AF" }[x.bloco.fase],
+              outline: atual && atual.semana.n === x.semana.n ? "2px solid " + C.tinta : "none" }} />
+          ))}
+        </div>
+        {listaSemanas(p, true)}
+      </>}
+      {esperando ? (
+        <div data-gerando-ia style={{ marginTop: 10 }}>
+          <p style={{ ...prosa, fontSize: 13.5 }}><b>{etapa || "A IA está montando"}…</b> {segundos}s</p>
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Pode sair desta tela: quando voltar, o plano aparece aqui para você revisar.</p>
+          <Botao pequeno variante="vazio" onClick={() => { jobDaVez.current = null; setEtapa(""); salvarDoc({ geracaoIA: null }); }}>Parar de esperar</Botao>
+        </div>
+      ) : (
+        <div style={{ borderTop: "1px solid " + C.linha, marginTop: 10, paddingTop: 10 }}>
+          <p style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{p ? "Novo ciclo" : "Gerar o plano"}</p>
+          <div className="flex gap-2 flex-wrap">
+            <Campo rotulo="Início"><input type="date" value={f.inicio} onChange={(e) => setF({ ...f, inicio: e.target.value })} style={entrada} aria-label="Início do plano" /></Campo>
+            <Campo rotulo="Semanas"><input type="number" min={4} max={52} value={f.semanas} onChange={(e) => setF({ ...f, semanas: Number(e.target.value) || 16 })} style={{ ...entrada, width: 90 }} aria-label="Semanas" /></Campo>
+            <Campo rotulo="Minutos por semana (base)"><input type="number" min={60} max={2400} step={30} value={f.minutosSemana} onChange={(e) => setF({ ...f, minutosSemana: Number(e.target.value) || 600 })} style={{ ...entrada, width: 110 }} aria-label="Minutos por semana" /></Campo>
+          </div>
+          <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 6 }}>As fases e a carga saem do calendário. A IA escolhe os conteúdos e os exercícios com a ficha, os scouts, as evidências, as metas e testes, os jogos e treinos registrados e o que ficou do ciclo anterior.</p>
+          {erro && <p data-erro-ia style={{ ...prosa, fontSize: 13, color: C.saibro, marginBottom: 6 }}>{erro}</p>}
+          <div className="flex gap-2 flex-wrap">
+            <Botao pequeno onClick={gerarIA}>Gerar com IA</Botao>
+            <Botao pequeno variante="vazio" onClick={gerarModelo}>Gerar sem IA (modelo)</Botao>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+function MetasAR({ aluno, doc, salvarDoc, avs, setAvs, hoje }) {
+  const A = ARM(), testes = A.TESTES_PADRAO;
+  const [fm, setFm] = useState({ pilar: "tecnico", descricao: "", testeId: "", alvo: "", prazo: "" });
+  const [fa, setFa] = useState({ testeId: testes[0].id, data: hoje, valor: "" });
+  const evo = A.evolucaoTestes(avs, testes);
+  const addMeta = () => { if (!fm.descricao.trim()) return; salvarDoc({ metas: [...(doc.metas || []), { ...fm, descricao: fm.descricao.trim(), id: "m" + Date.now().toString(36) }] }); setFm({ ...fm, descricao: "", alvo: "" }); };
+  const addAv = async () => {
+    if (fa.valor === "" || isNaN(Number(String(fa.valor).replace(",", ".")))) return;
+    const t = testes.find((x) => x.id === fa.testeId);
+    const av = { id: "v" + Date.now().toString(36), testeId: fa.testeId, pilar: t.pilar, data: fa.data, valor: Number(String(fa.valor).replace(",", ".")) };
+    await arGravarItem(aluno.id, "avaliacoes", av); setAvs([av, ...avs]); setFa({ ...fa, valor: "" });
+  };
+  return (
+    <div style={cartaoAR} data-metas-ar>
+      <p style={tituloAR}>Metas por pilar</p>
+      {A.PILARES.map((pl) => {
+        const ms = (doc.metas || []).filter((x) => x.pilar === pl.v);
+        return ms.length ? <div key={pl.v} style={{ marginTop: 6 }}><p style={{ fontFamily: ARCH, fontSize: 13, fontWeight: 700 }}>{pl.r}</p>
+          {ms.map((x) => { const s = A.situacaoMeta(x, avs, testes), t = testes.find((y) => y.id === x.testeId);
+            return <div key={x.id} data-meta style={{ display: "flex", gap: 8, alignItems: "center", borderTop: "1px solid " + C.linha, padding: "6px 0" }}>
+              <p style={{ ...prosa, fontSize: 13, flex: 1 }}>{x.descricao}{t ? " · " + t.nome + (x.alvo !== "" ? " → alvo " + x.alvo + " " + t.unidade : "") : ""}{x.prazo ? " · até " + dataBR(x.prazo) : ""}{s.atual != null ? " · atual " + s.atual : ""}</p>
+              {s.atingida != null && <Etiqueta cor={s.atingida ? C.quadra : C.grafite}>{s.atingida ? "atingida" : "em curso"}</Etiqueta>}
+              <Botao pequeno variante="vazio" onClick={() => salvarDoc({ metas: doc.metas.filter((y) => y.id !== x.id) })}>Tirar</Botao>
+            </div>; })}</div> : null;
+      })}
+      <div style={{ borderTop: "1px solid " + C.linha, marginTop: 8, paddingTop: 8 }}>
+        <div className="flex gap-2 flex-wrap">
+          <Campo rotulo="Pilar"><select value={fm.pilar} onChange={(e) => setFm({ ...fm, pilar: e.target.value, testeId: "" })} style={entrada} aria-label="Pilar da meta">{A.PILARES.map((p) => <option key={p.v} value={p.v}>{p.r}</option>)}</select></Campo>
+          <Campo rotulo="Teste (opcional)"><select value={fm.testeId} onChange={(e) => setFm({ ...fm, testeId: e.target.value })} style={entrada} aria-label="Teste da meta"><option value="">—</option>{testes.filter((t) => t.pilar === fm.pilar).map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}</select></Campo>
+        </div>
+        <Campo rotulo="Meta"><input value={fm.descricao} onChange={(e) => setFm({ ...fm, descricao: e.target.value })} style={entrada} aria-label="Descrição da meta" placeholder="Ex.: 1º saque dentro acima de 65% em jogo" /></Campo>
+        <div className="flex gap-2 flex-wrap">
+          <Campo rotulo="Alvo"><input value={fm.alvo} onChange={(e) => setFm({ ...fm, alvo: e.target.value })} style={{ ...entrada, width: 100 }} aria-label="Alvo" /></Campo>
+          <Campo rotulo="Prazo"><input type="date" value={fm.prazo} onChange={(e) => setFm({ ...fm, prazo: e.target.value })} style={entrada} aria-label="Prazo" /></Campo>
+        </div>
+        <Botao pequeno onClick={addMeta}>Adicionar meta</Botao>
+      </div>
+      <p style={{ ...tituloAR, marginTop: 16 }}>Testes e evolução</p>
+      {!evo.length && <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Nenhuma medida ainda. Repita o mesmo teste nas mesmas condições para comparar.</p>}
+      {evo.map((e) => (
+        <div key={e.teste.id} data-evolucao={e.teste.id} style={{ borderTop: "1px solid " + C.linha, padding: "6px 0" }}>
+          <p style={{ ...prosa, fontSize: 13.5, fontWeight: 600 }}>{e.teste.nome}</p>
+          <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>{e.medidas.map((x) => dataBR(x.data) + ": " + x.valor).join(" · ")} {e.teste.unidade}
+            {e.melhorou != null && <b style={{ color: e.melhorou ? C.quadra : C.saibro }}> {e.melhorou ? "▲ melhorou" : "▼ piorou"} {Math.abs(e.diferenca)}</b>}</p>
+        </div>
+      ))}
+      <div style={{ borderTop: "1px solid " + C.linha, marginTop: 8, paddingTop: 8 }}>
+        <Campo rotulo="Teste"><select value={fa.testeId} onChange={(e) => setFa({ ...fa, testeId: e.target.value })} style={entrada} aria-label="Teste">{testes.map((t) => <option key={t.id} value={t.id}>{A.PILARES.find((p) => p.v === t.pilar).r} · {t.nome} ({t.unidade})</option>)}</select></Campo>
+        <div className="flex gap-2 flex-wrap">
+          <Campo rotulo="Data"><input type="date" value={fa.data} onChange={(e) => setFa({ ...fa, data: e.target.value })} style={entrada} aria-label="Data do teste" /></Campo>
+          <Campo rotulo="Resultado"><input inputMode="decimal" value={fa.valor} onChange={(e) => setFa({ ...fa, valor: e.target.value })} style={{ ...entrada, width: 110 }} aria-label="Resultado do teste" /></Campo>
+        </div>
+        <Botao pequeno onClick={addAv}>Registrar medida</Botao>
+      </div>
+    </div>
+  );
+}
+/* formulário de registro (treino ou jogo, no CT ou em viagem) */
+function FormRegistroAR({ conteudos, torneios, aoSalvar, hoje }) {
+  const [f, setF] = useState({ data: hoje, origem: "viagem", tipo: "treino", minutos: 90, pse: 6, feitos: [], adversario: "", placar: "", resultado: "", torneioId: "", obs: "" });
+  const [erro, setErro] = useState("");
+  const salvar = () => {
+    if (!(Number(f.minutos) > 0)) return setErro("Informe os minutos.");
+    if (f.data > hoje) return setErro("A data não pode ser futura.");
+    setErro("");
+    aoSalvar({ data: f.data, origem: f.origem, tipo: f.tipo, minutos: f.minutos, pse: f.pse, conteudosFeitos: f.feitos, torneioId: f.torneioId || null, obs: f.obs, autor: "treinador",
+      jogo: f.tipo === "jogo" ? { adversario: f.adversario, placar: f.placar, resultado: f.resultado } : null });
+    setF({ ...f, feitos: [], adversario: "", placar: "", resultado: "", obs: "" });
+  };
+  return (
+    <div data-form-registro-ar style={{ borderTop: "1px solid " + C.linha, marginTop: 8, paddingTop: 8 }}>
+      <div className="flex gap-2 flex-wrap">
+        {[["viagem", "Fora do CT"], ["ct", "No CT"]].map(([v, r]) => <BotaoChip key={v} ativo={f.origem === v} onClick={() => setF({ ...f, origem: v })}>{r}</BotaoChip>)}
+        {[["treino", "Treino"], ["jogo", "Jogo"]].map(([v, r]) => <BotaoChip key={v} ativo={f.tipo === v} onClick={() => setF({ ...f, tipo: v })}>{r}</BotaoChip>)}
+      </div>
+      <div className="flex gap-2 flex-wrap" style={{ marginTop: 6 }}>
+        <Campo rotulo="Data"><input type="date" value={f.data} max={hoje} onChange={(e) => setF({ ...f, data: e.target.value })} style={entrada} aria-label="Data do registro" /></Campo>
+        <Campo rotulo="Minutos"><input type="number" min={1} max={600} value={f.minutos} onChange={(e) => setF({ ...f, minutos: e.target.value })} style={{ ...entrada, width: 90 }} aria-label="Minutos" /></Campo>
+        <Campo rotulo="Esforço (PSE 0–10)"><select value={f.pse} onChange={(e) => setF({ ...f, pse: Number(e.target.value) })} style={entrada} aria-label="PSE">{[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => <option key={n} value={n}>{n}</option>)}</select></Campo>
+      </div>
+      {f.tipo === "jogo" && <div className="flex gap-2 flex-wrap">
+        <Campo rotulo="Adversário"><input value={f.adversario} onChange={(e) => setF({ ...f, adversario: e.target.value })} style={entrada} aria-label="Adversário" /></Campo>
+        <Campo rotulo="Placar"><input value={f.placar} onChange={(e) => setF({ ...f, placar: e.target.value })} style={{ ...entrada, width: 110 }} aria-label="Placar" /></Campo>
+        <Campo rotulo="Resultado"><select value={f.resultado} onChange={(e) => setF({ ...f, resultado: e.target.value })} style={entrada} aria-label="Resultado"><option value="">—</option><option value="vitoria">Vitória</option><option value="derrota">Derrota</option></select></Campo>
+        {torneios.length > 0 && <Campo rotulo="Torneio"><select value={f.torneioId} onChange={(e) => setF({ ...f, torneioId: e.target.value })} style={entrada} aria-label="Torneio"><option value="">—</option>{torneios.map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}</select></Campo>}
+      </div>}
+      {conteudos.length > 0 && <div style={{ marginTop: 4 }}>
+        <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>O que do plano foi feito</p>
+        {conteudos.map((c) => <label key={c.id} style={{ display: "flex", gap: 8, alignItems: "center", ...prosa, fontSize: 13, padding: "3px 0" }}>
+          <input type="checkbox" checked={f.feitos.includes(c.id)} onChange={(e) => setF({ ...f, feitos: e.target.checked ? [...f.feitos, c.id] : f.feitos.filter((x) => x !== c.id) })} /> {c.titulo}{c.atrasado ? " (atrasado)" : ""}</label>)}
+      </div>}
+      <Campo rotulo="Observação"><input value={f.obs} onChange={(e) => setF({ ...f, obs: e.target.value })} style={entrada} aria-label="Observação do registro" /></Campo>
+      {erro && <p style={{ ...prosa, fontSize: 13, color: C.saibro }}>{erro}</p>}
+      <Botao pequeno onClick={salvar}>Registrar</Botao>
+    </div>
+  );
+}
+function RegistrosAR({ aluno, doc, setAr, regs, setRegs, hoje, m }) {
+  const A = ARM();
+  /* um item por tema: o mesmo conteúdo atrasado de semanas diferentes aparece uma vez (o mais antigo primeiro) */
+  const conteudos = m ? [...m.atrasados, ...m.conteudos.filter((c) => c.feitas < c.vezesAlvo)].filter((c, i, l) => l.findIndex((x) => x.titulo === c.titulo) === i) : [];
+  const registrar = async (r) => { const novo = await arRegistrar(aluno.id, doc, r); setAr(novo); setRegs(await arLista(aluno.id, "registros", "data", 120)); };
+  const apagar = async (r) => {
+    if (!window.confirm("Apagar este registro? A carga e o marcador são recalculados.")) return;
+    await arApagarItem(aluno.id, "registros", r.id);
+    const resto = regs.filter((x) => x.id !== r.id), rec = A.recalcular(doc, resto, hoje);
+    await arGravar(aluno.id, rec); setAr({ ...doc, ...rec }); setRegs(resto);
+  };
+  const confirmar = async (r) => { const c = { ...r, confirmado: true }; await arGravarItem(aluno.id, "registros", c); setRegs(regs.map((x) => (x.id === r.id ? c : x))); };
+  return (
+    <div style={cartaoAR} data-registros-ar>
+      <p style={tituloAR}>Jogos e treinos</p>
+      <FormRegistroAR conteudos={conteudos} torneios={doc.calendario || []} aoSalvar={registrar} hoje={hoje} />
+      <div style={{ marginTop: 12 }}>
+        {!regs.length && <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Nenhum registro ainda. O atleta também registra pelo Meu plano quando está viajando.</p>}
+        {regs.slice(0, 30).map((r) => (
+          <div key={r.id} data-registro-ar={r.id} style={{ borderTop: "1px solid " + C.linha, padding: "7px 0", display: "flex", gap: 8, alignItems: "center" }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ ...prosa, fontSize: 13.5 }}><b>{dataBR(r.data)}</b> · {r.tipo === "jogo" ? "Jogo" : "Treino"} {r.origem === "viagem" ? "fora do CT" : "no CT"} · {r.minutos} min · PSE {r.pse} · {r.ua} UA</p>
+              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>{r.jogo && r.jogo.adversario ? "x " + r.jogo.adversario + (r.jogo.placar ? " " + r.jogo.placar : "") + (r.jogo.resultado ? " (" + (r.jogo.resultado === "vitoria" ? "vitória" : "derrota") + ")" : "") + " · " : ""}{r.conteudosFeitos.length} conteúdo(s) do plano{r.autor === "atleta" ? " · registrado pelo atleta" : ""}{r.obs ? " · " + r.obs : ""}</p>
+            </div>
+            {r.confirmado === false && <Botao pequeno onClick={() => confirmar(r)}>Confirmar</Botao>}
+            <Botao pequeno variante="vazio" onClick={() => apagar(r)}>Apagar</Botao>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+function CargaAR({ doc, hoje }) {
+  const A = ARM(), k = A.chaveSemana(hoje), semanas = [];
+  for (let i = 7; i >= 0; i--) {
+    const s = A.somaDias(k, -7 * i), c = (doc.cargaSemanas || {})[s] || { minutos: 0, ua: 0, sessoes: 0, jogos: 0, viagem: 0 };
+    const x = doc.plano ? A.semanasDoPlano(doc.plano).find((y) => y.semana.inicio === s) : null;
+    semanas.push({ s, c, alvo: x ? x.semana.cargaAlvo : null, fase: x ? A.FASES[x.bloco.fase].r : "" });
+  }
+  const acwr = A.acwr(doc, hoje);
+  return (
+    <div style={cartaoAR} data-carga-ar>
+      <p style={tituloAR}>Carga (CT + viagem)</p>
+      <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>UA = minutos × esforço (PSE). {acwr != null ? "Aguda ÷ crônica: " + acwr + (acwr > 1.5 ? " (alta: risco)" : acwr < 0.8 ? " (baixa)" : " (faixa boa)") : "Aguda ÷ crônica aparece com 4 semanas de registros."}</p>
+      {semanas.map(({ s, c, alvo, fase }) => {
+        const pct = alvo && alvo.ua ? Math.round((100 * c.ua) / alvo.ua) : null;
+        return (
+          <div key={s} data-semana-carga={s} style={{ borderTop: "1px solid " + C.linha, padding: "7px 0" }}>
+            <p style={{ ...prosa, fontSize: 13 }}><b>{dataBR(s)}</b>{fase ? " · " + fase : ""} · {c.ua} UA{alvo ? " de " + alvo.ua + " (" + pct + "%)" : ""} · {c.minutos} min · {c.sessoes} treino(s), {c.jogos} jogo(s){c.viagem ? " · " + c.viagem + " UA fora do CT" : ""}</p>
+            {alvo && <BarraAR pct={pct} />}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── tela "Alto rendimento" (no lugar das Equipes de competição) ── */
+function TelaAltoRendimento({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAbrirJogador, exerciciosCustom, setExerciciosCustom }) {
+  const A = ARM(), hoje = hojeEq();
+  const [ars, setArs] = useState(null), [regs, setRegs] = useState({}), [sessoes, setSessoes] = useState([]), [equipes, setEquipes] = useState([]);
+  const [modo, setModo] = useState({ v: "lista" }), [escolha, setEscolha] = useState(""), [msg, setMsg] = useState(null), [professores, setProfessores] = useState([]);
+  const atletas = (alunos || []).filter((a) => a.altoRendimento && a.altoRendimento.ativo).sort((a, b) => String(a.nome).localeCompare(String(b.nome)));
+  const chave = atletas.map((a) => a.id).join(",");
+  const carregar = async () => {
+    const d = {}, r = {};
+    for (const a of atletas) { d[a.id] = (await arLer(a.id)) || { ativo: true, calendario: [] }; r[a.id] = await arLista(a.id, "registros", "data", 30); }
+    setArs(d); setRegs(r); setSessoes(await arSessoesLista(20));
+  };
+  useEffect(() => { carregar(); leia(CHAVE_EQUIPES, [], true).then((l) => setEquipes(Array.isArray(l) ? l : [])); listaProfessores().then(setProfessores).catch(() => {}); }, [chave]);
+  if (!A) return <p style={{ ...prosa, color: C.grafite }}>O módulo de alto rendimento não carregou. Recarregue a página.</p>;
+  if (!ars) return <p style={{ ...prosa, color: C.grafite }}>Carregando…</p>;
+  const eu = professores.find((p) => p.uid === uidAtual) || {};
+  if (modo.v === "relatorio") {
+    const al = alunos.find((a) => a.id === modo.id);
+    if (al) return <RelatorioAtletaEditor key={"rel-" + al.id} aluno={al} setAlunos={setAlunos} relatorioId={null} periodoInicial={{ tipo: "mes", mes: mesAtualRel() }} podePublicar={papelAtual === "coordenador" || !!uidAtual}
+      autor={{ uid: uidAtual || null, nome: eu.nome || "" }} academia={(identidade && (identidade.nomeAcademia || identidade.nome)) || ""} planos={[]} aoVoltar={() => setModo({ v: "lista" })} />;
+  }
+  if (modo.v === "sessao") {
+    return <SessaoAltoRendimento atletas={atletas} ars={ars} regs={regs} sessaoInicial={modo.sessao || null} uidAtual={uidAtual} nomeProfessor={eu.nome || ""} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom}
+      aoVoltar={async () => { setModo({ v: "lista" }); await carregar(); }} />;
+  }
+  const migrar = A.atletasDasEquipes(equipes, alunos);
+  const fora = (alunos || []).filter((a) => !(a.altoRendimento && a.altoRendimento.ativo)).sort((a, b) => String(a.nome).localeCompare(String(b.nome)));
+  return (
+    <div data-alto-rendimento>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, flexWrap: "wrap" }}>
+        <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700 }}>Alto rendimento</h1>
+        <Botao onClick={() => setModo({ v: "sessao" })} disabled={!atletas.length}>Sessão do dia</Botao>
+      </div>
+      <p style={{ ...prosa, fontSize: 14, color: C.grafite, marginTop: 4 }}>Cada atleta tem o próprio plano, montado pelo calendário de torneios. Quando eles se encontram no CT, a sessão do dia junta o que é comum e completa com o individual de cada um.</p>
+      {migrar.length > 0 && (
+        <div data-migrar-equipes style={{ ...cartaoAR, borderLeft: "3px solid " + C.saibro }}>
+          <p style={{ ...prosa, fontSize: 14 }}><b>{migrar.length} atleta(s) das equipes de competição</b> ainda não estão no alto rendimento: {migrar.map((a) => (a.nome || "").split(" ")[0]).join(", ")}.</p>
+          <div style={{ marginTop: 8 }}><Botao pequeno onClick={async () => { await arAtivar(alunos, setAlunos, migrar.map((a) => a.id)); setMsg(migrar.length + " atleta(s) trazidos para o alto rendimento. Monte o calendário e gere o plano de cada um."); }}>Trazer para o alto rendimento</Botao></div>
+        </div>
+      )}
+      {msg && <p style={{ ...prosa, fontSize: 13, color: C.quadra, marginTop: 8 }}>{msg}</p>}
+      {!atletas.length && <p style={{ ...prosa, fontSize: 14, marginTop: 14 }}>Nenhum atleta no alto rendimento ainda.</p>}
+      {atletas.map((a) => {
+        const d = ars[a.id] || {}, st = A.statusAtleta(d, hoje), m = d.plano ? A.marcador(d, hoje) : null, c = A.cargaSemanaAtual(d, hoje), teto = A.tetoDoDia(d, regs[a.id], hoje);
+        const pend = (regs[a.id] || []).filter((r) => r.confirmado === false).length;
+        return (
+          <div key={a.id} data-atleta-ar={a.id} style={cartaoAR}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><p style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700 }}>{a.nome}</p><ChipStatusAR st={st} /></div>
+            {m ? <p style={{ ...prosa, fontSize: 13.5, marginTop: 2 }}>{m.blocoTitulo} · semana {m.semanaN} de {m.totalSemanas} · {m.pct}% da semana{m.atrasados.length ? " · " + m.atrasados.length + " essencial(is) atrasado(s)" : ""}</p>
+              : <p style={{ ...prosa, fontSize: 13.5, marginTop: 2, color: C.saibro }}>Sem plano individual: abra e gere o plano.</p>}
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Carga da semana {c.ua} UA{c.pct != null ? " (" + c.pct + "%)" : ""} · hoje: {teto.r}{pend ? " · " + pend + " registro(s) do atleta a confirmar" : ""}</p>
+            {c.pct != null && <div style={{ marginTop: 4 }}><BarraAR pct={c.pct} /></div>}
+            <div className="flex gap-2 flex-wrap" style={{ marginTop: 8 }}>
+              <Botao pequeno onClick={() => aoAbrirJogador(a.id, "alto")}>Abrir</Botao>
+              <Botao pequeno variante="vazio" onClick={() => setModo({ v: "relatorio", id: a.id })}>Relatório para os pais</Botao>
+            </div>
+          </div>
+        );
+      })}
+      {fora.length > 0 && (
+        <div style={{ ...cartaoAR, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <select value={escolha} onChange={(e) => setEscolha(e.target.value)} style={{ ...entrada, flex: "1 1 180px" }} aria-label="Atleta para o alto rendimento">
+            <option value="">Colocar outro atleta no alto rendimento…</option>{fora.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}</select>
+          <Botao pequeno disabled={!escolha} onClick={async () => { await arAtivar(alunos, setAlunos, [escolha]); setEscolha(""); }}>Colocar</Botao>
+        </div>
+      )}
+      {sessoes.length > 0 && (
+        <div style={{ marginTop: 18 }}>
+          <h2 style={{ fontFamily: ARCH, fontSize: 18, fontWeight: 700 }}>Sessões no CT</h2>
+          {sessoes.map((s) => (
+            <div key={s.id} data-sessao-ar={s.id} style={{ ...cartaoAR, display: "flex", gap: 8, alignItems: "center" }}>
+              <p style={{ ...prosa, fontSize: 13.5, flex: 1 }}><b>{dataBR(s.data)}</b> · {s.presentes.length} atleta(s) · {s.duracaoMin} min · {s.status === "fechada" ? "fechada" : "rascunho"}</p>
+              <Botao pequeno variante="vazio" onClick={() => setModo({ v: "sessao", sessao: s })}>{s.status === "fechada" ? "Ver" : "Continuar"}</Botao>
+            </div>
+          ))}
+        </div>
+      )}
+      {equipes.length > 0 && (
+        <details style={{ marginTop: 18 }}>
+          <summary style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>Equipes de competição (arquivo)</summary>
+          <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginTop: 6 }}>O planejamento por equipe foi substituído pelo plano individual de cada atleta. Os dados antigos continuam guardados.</p>
+          {equipes.map((e) => <p key={e.id} style={{ ...prosa, fontSize: 13 }}>· {e.nome} — {(e.membros || []).length} atleta(s){e.coordenadorNome ? ", coordenação " + e.coordenadorNome : ""}</p>)}
+        </details>
+      )}
+    </div>
+  );
+}
+
+/* ── sessão do dia no CT: presença → sessão montada → fechamento ── */
+/* exercício de um bloco da sessão do alto rendimento: o mesmo cartão das outras sessões (↻ substituir, ✕ remover, editar) e
+   "Escolher outro" para pegar um da lista em vez de sortear. As trocas ficam registradas na sessão (a divergência é o dado). */
+function poolTrocaAR(atual, tema, estagios) {
+  const A = ARM(), T = A.TEMAS[tema] || {}, est = estagios && estagios.length ? estagios : ["A", "C"];
+  return exerciciosParaSorteio().filter((e) => e.c !== (atual && atual.c) && (atual ? e.f === atual.f : (T.familias || []).includes(e.f)) && (!e.e || e.e.some((x) => est.includes(x))));
+}
+function ExercicioSessaoAR({ codigo, tema, editado, fechada, aoTrocar, aoRemover, aoEscolher, aoAtualizar, exerciciosCustom, setExerciciosCustom }) {
+  const [escolhendo, setEscolhendo] = useState(false);
+  const e = editado || (codigo ? TODOS_EXERCICIOS().find((x) => x.c === codigo) : null);
+  if (!e) return fechada ? null : <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, margin: "4px 0" }}>Sem exercício. <button type="button" onClick={aoTrocar} style={{ background: "none", border: "none", color: C.quadra, fontWeight: 700, cursor: "pointer", padding: 0 }}>Sortear um</button></p>;
+  const pool = escolhendo ? poolTrocaAR(e, tema) : [];
+  return (
+    <div data-exercicio-ar={e.c} style={{ margin: "6px 0" }}>
+      <CartaoExercicio e={e} aoTrocar={fechada ? undefined : aoTrocar} aoRemover={fechada ? undefined : aoRemover} aoAtualizar={fechada ? undefined : aoAtualizar}
+        exerciciosCustom={fechada ? undefined : exerciciosCustom} setExerciciosCustom={fechada ? undefined : setExerciciosCustom} />
+      {!fechada && <button type="button" onClick={() => setEscolhendo(!escolhendo)} style={{ background: "none", border: "none", color: C.grafite, fontSize: 12.5, cursor: "pointer", padding: "2px 0", textDecoration: "underline" }}>{escolhendo ? "Fechar a lista" : "Escolher outro"}</button>}
+      {escolhendo && <select aria-label={"Escolher outro exercício no lugar de " + e.n} defaultValue="" onChange={(ev) => { if (ev.target.value) { aoEscolher(ev.target.value); setEscolhendo(false); } }} style={{ ...entrada, marginTop: 4 }}>
+        <option value="">Escolha um exercício…</option>{pool.map((x) => <option key={x.c} value={x.c}>{x.c} · {x.n}</option>)}</select>}
+    </div>
+  );
+}
+function SessaoAltoRendimento({ atletas, ars, regs, sessaoInicial, uidAtual, nomeProfessor, aoVoltar, exerciciosCustom, setExerciciosCustom }) {
+  const A = ARM(), hoje = hojeEq();
+  const [sessao, setSessao] = useState(sessaoInicial), [presentes, setPresentes] = useState(() => atletas.filter((a) => A.statusAtleta(ars[a.id] || {}, hoje).v !== "torneio").map((a) => a.id));
+  const [duracao, setDuracao] = useState(120), [fechando, setFechando] = useState(false), [entradas, setEntradas] = useState({}), [salvando, setSalvando] = useState(false);
+  const nome = (id) => ((atletas.find((a) => a.id === id) || {}).nome || "").split(" ")[0];
+  const fechada = sessao && sessao.status === "fechada";
+  const montar = async () => {
+    const lista = atletas.filter((a) => presentes.includes(a.id)).map((a) => ({ id: a.id, nome: a.nome, ar: ars[a.id], registros: regs[a.id] || [] }));
+    const s = A.montarSessao({ atletas: lista, hoje, duracaoMin: duracao, catalogo: TODOS_EXERCICIOS(), estagio: "C" });
+    s.id = "ses-" + Date.now().toString(36); s.treinadorUid = uidAtual || null; s.treinadorNome = nomeProfessor || "";
+    setSessao(s); await arGravarSessao(s);
+  };
+  const alterar = async (fn) => { const s = fn(JSON.parse(JSON.stringify(sessao))); setSessao(s); await arGravarSessao(s); };
+  const tirarDoBloco = (bi, id) => alterar((s) => { const b = s.blocos[bi]; b.atletas = b.atletas.filter((x) => x !== id); if (b.conteudoPorAtleta) delete b.conteudoPorAtleta[id]; if (b.tarefas) delete b.tarefas[id]; return s; });
+  const tirarBloco = (bi) => alterar((s) => { s.blocos.splice(bi, 1); s.blocos.forEach((b, i) => { b.ordem = i + 1; }); return s; });
+  /* troca do exercício de um bloco (alunoId/ti: tarefa individual de um atleta) */
+  const exDe = (b, alunoId, ti) => (alunoId ? ((b.tarefas || {})[alunoId] || [])[ti] || {} : b);
+  const definirEx = (bi, alunoId, ti, novoCodigo, tipo) => alterar((s) => {
+    const b = s.blocos[bi], alvo = exDe(b, alunoId, ti), saiu = alvo.codigoExercicio || null, e = novoCodigo ? TODOS_EXERCICIOS().find((x) => x.c === novoCodigo) : null;
+    alvo.codigoExercicio = e ? e.c : null; alvo.nomeExercicio = e ? e.n : null;
+    s.divergencias = [...(s.divergencias || []), { bloco: b.titulo, atleta: alunoId || null, tipo, saiu, entrou: e ? e.c : null, em: new Date().toISOString() }];
+    return s;
+  });
+  const sortearEx = (bi, alunoId, ti) => {
+    const b = sessao.blocos[bi], alvo = exDe(b, alunoId, ti), atual = alvo.codigoExercicio ? TODOS_EXERCICIOS().find((x) => x.c === alvo.codigoExercicio) : null;
+    const usados = new Set(sessao.blocos.flatMap((x) => [x.codigoExercicio, ...Object.values(x.tarefas || {}).flat().map((t) => t.codigoExercicio)]).filter(Boolean));
+    const pool = poolTrocaAR(atual, alunoId ? alvo.tema : b.tema).filter((e) => !usados.has(e.c));
+    if (!pool.length) return;
+    definirEx(bi, alunoId, ti, pool[Math.floor(Math.random() * pool.length)].c, "troca");
+  };
+  const editarEx = (bi, alunoId, ti, atualizado) => alterar((s) => { s.exEditados = { ...(s.exEditados || {}), [atualizado.c]: atualizado }; return s; });
+  const cartaoEx = (b, bi, alunoId, ti) => {
+    const alvo = exDe(b, alunoId, ti);
+    return <ExercicioSessaoAR key={(alunoId || "b") + ti + (alvo.codigoExercicio || "")} codigo={alvo.codigoExercicio} tema={alunoId ? alvo.tema : b.tema} editado={(sessao.exEditados || {})[alvo.codigoExercicio]} fechada={fechada}
+      aoTrocar={() => sortearEx(bi, alunoId, ti)} aoRemover={() => definirEx(bi, alunoId, ti, null, "corte")} aoEscolher={(c) => definirEx(bi, alunoId, ti, c, "escolha")}
+      aoAtualizar={(at) => editarEx(bi, alunoId, ti, at)} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} />;
+  };
+  const abrirFechamento = () => {
+    const e = {};
+    sessao.presentes.forEach((id) => { e[id] = { presente: true, minutos: sessao.duracaoMin, pse: 6, feitos: A.conteudosDaSessao(sessao, id).map((c) => c.id), obs: "" }; });
+    setEntradas(e); setFechando(true);
+  };
+  const fechar = async () => {
+    setSalvando(true);
+    /* registrosDoFechamento devolve um registro por quem treinou, na ordem dos presentes */
+    const treinaram = sessao.presentes.filter((id) => entradas[id] && entradas[id].presente !== false);
+    const regsNovos = A.registrosDoFechamento(sessao, entradas);
+    for (let i = 0; i < regsNovos.length; i++) await arRegistrar(treinaram[i], ars[treinaram[i]], regsNovos[i]);
+    const s = { ...sessao, status: "fechada", fechadaEm: new Date().toISOString(), realizado: entradas };
+    await arGravarSessao(s); setSessao(s); setSalvando(false); setFechando(false);
+  };
+  if (!sessao) {
+    return (
+      <div data-sessao-presenca>
+        <Botao pequeno variante="vazio" onClick={aoVoltar}>← Alto rendimento</Botao>
+        <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginTop: 10 }}>Sessão do dia · {dataBR(hoje)}</h1>
+        <p style={{ ...prosa, fontSize: 14, color: C.grafite }}>Marque quem está no CT. A sessão sai do ponto atual do plano de cada um.</p>
+        {atletas.map((a) => {
+          const d = ars[a.id] || {}, st = A.statusAtleta(d, hoje), semPlano = !d.plano;
+          return (
+            <label key={a.id} data-presenca={a.id} style={{ ...cartaoAR, display: "flex", gap: 10, alignItems: "center", opacity: semPlano ? 0.6 : 1 }}>
+              <input type="checkbox" disabled={semPlano} checked={presentes.includes(a.id) && !semPlano} onChange={(e) => setPresentes(e.target.checked ? [...presentes, a.id] : presentes.filter((x) => x !== a.id))} style={{ width: 20, height: 20 }} />
+              <span style={{ flex: 1 }}><b style={{ fontFamily: ARCH }}>{a.nome}</b><br /><span style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>{semPlano ? "Sem plano individual" : st.r + " · " + A.tetoDoDia(d, regs[a.id], hoje).r}</span></span>
+            </label>
+          );
+        })}
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
+          <select value={duracao} onChange={(e) => setDuracao(Number(e.target.value))} style={entrada} aria-label="Duração da sessão">{[60, 90, 120, 150, 180].map((n) => <option key={n} value={n}>{n} min</option>)}</select>
+          <Botao onClick={montar} disabled={!presentes.filter((id) => (ars[id] || {}).plano).length}>Montar a sessão</Botao>
+        </div>
+      </div>
+    );
+  }
+  if (fechando) {
+    return (
+      <div data-sessao-fechar>
+        <Botao pequeno variante="vazio" onClick={() => setFechando(false)}>← Sessão</Botao>
+        <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginTop: 10 }}>Fechar a sessão</h1>
+        <p style={{ ...prosa, fontSize: 14, color: C.grafite }}>O que cada um realmente fez. Isso atualiza o marcador e a carga de cada atleta.</p>
+        {sessao.presentes.map((id) => {
+          const e = entradas[id] || {}, set = (patch) => setEntradas({ ...entradas, [id]: { ...e, ...patch } }), previstos = A.conteudosDaSessao(sessao, id);
+          return (
+            <div key={id} data-fechar-atleta={id} style={cartaoAR}>
+              <label style={{ display: "flex", gap: 8, alignItems: "center" }}><input type="checkbox" checked={e.presente !== false} onChange={(x) => set({ presente: x.target.checked })} /> <b style={{ fontFamily: ARCH, fontSize: 15 }}>{nome(id)}</b> treinou</label>
+              {e.presente !== false && <>
+                <div className="flex gap-2 flex-wrap" style={{ marginTop: 6 }}>
+                  <Campo rotulo="Minutos"><input type="number" min={1} max={600} value={e.minutos} onChange={(x) => set({ minutos: Number(x.target.value) || 0 })} style={{ ...entrada, width: 90 }} aria-label={"Minutos de " + nome(id)} /></Campo>
+                  <Campo rotulo="Esforço (PSE 0–10)"><select value={e.pse} onChange={(x) => set({ pse: Number(x.target.value) })} style={entrada} aria-label={"PSE de " + nome(id)}>{[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => <option key={n} value={n}>{n}</option>)}</select></Campo>
+                </div>
+                {previstos.map((c) => <label key={c.id} style={{ display: "flex", gap: 8, alignItems: "center", ...prosa, fontSize: 13, padding: "2px 0" }}>
+                  <input type="checkbox" checked={(e.feitos || []).includes(c.id)} onChange={(x) => set({ feitos: x.target.checked ? [...(e.feitos || []), c.id] : (e.feitos || []).filter((y) => y !== c.id) })} /> {c.titulo} <span style={{ color: C.grafite }}>· {c.bloco}</span></label>)}
+                <Campo rotulo="Observação"><input value={e.obs || ""} onChange={(x) => set({ obs: x.target.value })} style={entrada} aria-label={"Observação de " + nome(id)} /></Campo>
+              </>}
+            </div>
+          );
+        })}
+        <div style={{ marginTop: 12 }}><Botao onClick={fechar} disabled={salvando}>{salvando ? "Registrando…" : "Registrar e fechar"}</Botao></div>
+      </div>
+    );
+  }
+  return (
+    <div data-sessao-blocos>
+      <Botao pequeno variante="vazio" onClick={aoVoltar}>← Alto rendimento</Botao>
+      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginTop: 10 }}>Sessão de {dataBR(sessao.data)} · {sessao.duracaoMin} min</h1>
+      {fechada && <p style={{ ...prosa, fontSize: 13.5, color: C.quadra }}>Sessão fechada: os registros já entraram no marcador e na carga de cada atleta.</p>}
+      <div style={{ ...cartaoAR }}>
+        {(sessao.atletas || []).map((x) => <p key={x.id} style={{ ...prosa, fontSize: 13 }}><b>{(x.nome || "").split(" ")[0]}</b>{x.semana ? " · " + x.semana.bloco + ", semana " + x.semana.n : ""} · {x.teto.r} · {x.pendentes} pendente(s)</p>)}
+      </div>
+      {sessao.blocos.map((b, bi) => (
+        <div key={b.id} data-bloco-ar={b.tema} style={{ ...cartaoAR, borderLeft: "3px solid " + (b.tipo === "coletivo" ? C.quadra : C.saibro) }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+            <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700 }}>{b.ordem}. {b.titulo} <span style={{ ...prosa, fontSize: 12.5, color: C.grafite, fontWeight: 400 }}>· {b.minutos} min · {b.tipo === "coletivo" ? "coletivo" : "individual"}</span></p>
+            {!fechada && <button type="button" onClick={() => tirarBloco(bi)} aria-label={"Tirar o bloco " + b.titulo} style={{ background: "none", border: "none", color: C.grafite, cursor: "pointer", fontSize: 16 }}>✕</button>}
+          </div>
+          {b.tipo === "coletivo" && cartaoEx(b, bi, null, 0)}
+          <div style={{ marginTop: 4 }}>
+            {b.atletas.map((id) => {
+              const c = b.conteudoPorAtleta && b.conteudoPorAtleta[id], tarefas = b.tarefas && b.tarefas[id], dose = b.dose && b.dose[id];
+              return (
+                <div key={id} style={{ display: "flex", gap: 8, alignItems: "baseline", borderTop: "1px solid " + C.linha, padding: "5px 0" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ ...prosa, fontSize: 13 }}><b>{nome(id)}</b>{dose && dose !== "normal" ? " · dose " + dose : ""}{c ? " · " + c.titulo + (c.atrasado ? " (atrasado)" : "") : ""}</p>
+                    {tarefas && tarefas.map((t, ti) => <div key={t.id}><p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 4 }}>· {t.titulo}{t.atrasado ? " (atrasado)" : ""}</p>{cartaoEx(b, bi, id, ti)}</div>)}
+                  </div>
+                  {!fechada && <button type="button" onClick={() => tirarDoBloco(bi, id)} aria-label={"Tirar " + nome(id) + " deste bloco"} style={{ background: "none", border: "none", color: C.grafite, cursor: "pointer" }}>✕</button>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+      {!fechada && <div className="flex gap-2 flex-wrap" style={{ marginTop: 12 }}>
+        <Botao onClick={abrirFechamento}>Fechar a sessão</Botao>
+        <Botao variante="vazio" onClick={async () => { if (window.confirm("Montar de novo? A sessão atual é descartada.")) { setSessao(null); } }}>Montar de novo</Botao>
+      </div>}
+    </div>
+  );
+}
+
 function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAbrirJogador }) {
   const [equipes, setEquipes] = useState(null);
   const [professores, setProfessores] = useState([]);
@@ -23381,7 +24185,7 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   );
 }
 /* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
-const NOVIDADES_TY_VERSAO = "ty-2026-11-area-aluno";
+const NOVIDADES_TY_VERSAO = "ty-2026-11-alto-rendimento";
 /* Itens com `so: "financeiro"` só aparecem para o dono e para a parte administrativa. Enquanto o item novo do topo for um
    desses, quem não o vê continua na versão da equipe abaixo (a janela não reabre vazia para os professores). */
 const NOVIDADES_TY_VERSAO_EQUIPE = "ty-2026-11w";
@@ -23390,7 +24194,8 @@ function novidadesTYPara(veFinanceiro) {
   return { itens, versao: itens.some((x) => x.novo) ? NOVIDADES_TY_VERSAO : NOVIDADES_TY_VERSAO_EQUIPE };
 }
 const NOVIDADES_TY = [
-  { novo: true, t: "Área do aluno com e-mail e senha", d: "O aluno (e o pai e a mãe, cada um com a sua conta, até 3 por aluno) agora pode guardar o plano numa área com e-mail e senha, em teamyoda.com.br/minha-area. No Meu plano que você manda aparece \"Criar minha área\": a pessoa cria a conta e o aluno já fica ligado. Depois ela abre o plano, as aulas, as reposições, os relatórios e a Academia Digital sem precisar guardar o link. O botão \"Acessar minha área\" do site também leva para lá. Se você trocar o link de um aluno, as contas ligadas a ele param de abrir o plano até receberem o link novo.", onde: "teamyoda.com.br/minha-area (e o Meu plano de cada aluno)", aba: "alunos" },
+  { novo: true, t: "Alto rendimento: plano individual e sessão do dia no CT (no lugar das Equipes de competição)", d: "Em Grupos › Alto rendimento cada atleta tem o próprio plano: o calendário de torneios com prioridade (principal, secundário, preparatório) define as fases e a carga, e a IA escolhe os conteúdos e os exercícios com a ficha, os scouts, as evidências, as metas e testes e o que ficou do ciclo anterior (você revisa antes de usar). Há um marcador de onde ele está (semana atual, o que já fez e os essenciais que ficaram para trás). Jogos e treinos feitos em viagem entram pelo próprio atleta, no Meu plano, ou por você; tudo soma na carga da semana (minutos × esforço). Na Sessão do dia você marca quem está no CT e a sessão sai pronta: blocos coletivos com o que é comum aos presentes e tarefas individuais com o que é de cada um, com os mesmos cartões de exercício das aulas (substituir, remover, editar e escolher outro); ao fechar, o marcador e a carga de cada atleta se atualizam. Metas e testes repetíveis por pilar mostram a evolução. O planejamento por equipe saiu; um botão traz os atletas das equipes antigas para o alto rendimento.", onde: "Mais › Grupos › Alto rendimento (e Jogadores › ficha › Alto rendimento)", aba: "equipes" },
+  { t: "Área do aluno com e-mail e senha", d: "O aluno (e o pai e a mãe, cada um com a sua conta, até 3 por aluno) agora pode guardar o plano numa área com e-mail e senha, em teamyoda.com.br/minha-area. No Meu plano que você manda aparece \"Criar minha área\": a pessoa cria a conta e o aluno já fica ligado. Depois ela abre o plano, as aulas, as reposições, os relatórios e a Academia Digital sem precisar guardar o link. O botão \"Acessar minha área\" do site também leva para lá. Se você trocar o link de um aluno, as contas ligadas a ele param de abrir o plano até receberem o link novo.", onde: "teamyoda.com.br/minha-area (e o Meu plano de cada aluno)", aba: "alunos" },
   { t: "Situações de jogo no catálogo, nas Táticas e nos planos", d: "96 exercícios novos de situação de jogo, cada um com o que ler, o que decidir, a montagem, como variar e o indicador, entraram nas famílias que você já usa: Drills táticos (leitura, organização e defesa), Início do ponto (saque e devolução com a bola seguinte), Power drills de base (construção e mudança no fundo), Ataque (transição e bola curta), Power drills de rede (rede e finalização) e Duplas. A aba Táticas ganhou a situação de jogo e os quatro estados do ponto, da leitura à transferência, nível por situação, como variar e como medir decisão e execução; Condução ganhou as perguntas que ajudam a decidir; Aulas, como desenhar a tarefa, os formatos de prática e sessões com situações. Os planos gerados (jogador e turma) passam a ter pelo menos uma situação de jogo por semana.", onde: "Catálogo de exercícios e Mais › Método e formação › Táticas", aba: "taticas" },
   { t: "Site novo do Team Yoda", d: "O teamyoda.com.br ganhou cara nova: a Metodologia MTY, as duas unidades (Team Yoda · Cooper Tênis e 39 Ranch Tennis Club), a Academia Digital com telas reais da plataforma e as trilhas de Técnica, Tática e Mental, as consultorias com o Richard para jogadores de fora e um caminho claro para quem já é aluno (Acessar minha área e Preciso do meu link). A Área do professor fica no menu e no rodapé, e o app continua em teamyoda.com.br/treinador.", onde: "teamyoda.com.br" },
   { so: "financeiro", t: "Financeiro e Cobrança com cara de painel", d: "O Financeiro e a tela Cobrança viraram um painel: o resultado do mês num cartão escuro em destaque (com a margem e quanto as saídas usam do que entra), entradas e saídas com a variação contra o mês anterior, o anel do que já foi recebido, o gráfico mês a mês de entradas × saídas, de onde vem e para onde vai o dinheiro e os professores do mês. A Visão geral compara as duas academias lado a lado. Na Cobrança, o que falta receber fica em destaque, com o recebido, os vencidos e o pagamento dos professores. No celular os números ficam em blocos lado a lado, com mini gráficos, as abas deslizam numa linha só e as tabelas ficam em “Ver detalhe”. Os números e as permissões são os mesmos de antes. A Central do dono ganhou o mesmo visual, com o gráfico das aulas dia a dia (dadas, sem fechar, canceladas e as marcadas da próxima semana).", onde: "Mais › Gestão da academia › Financeiro (para a parte administrativa: Cobrança)", aba: "financeiro" },
@@ -23907,7 +24712,7 @@ function TelaAjuda({ mostraManual, aoPrimeirosPassos, aoNovidades, aoIr }) {
 }
 
 const NAV_DIA_A_DIA = [{ v: "dashboard", r: "Início" }, { v: "aulas-hoje", r: "Aulas de hoje" }, { v: "agenda", r: "Agenda" }, { v: "reposicoes", r: "Reposições" }, { v: "observar", r: "Observar jogos" }, { v: "quadro", r: "Quadro tático" }];
-const NAV_ALUNOS_TURMAS = [{ v: "alunos", r: "Jogadores" }, { v: "turmas", r: "Turmas" }, { v: "equipes", r: "Equipes de competição" }];
+const NAV_ALUNOS_TURMAS = [{ v: "alunos", r: "Jogadores" }, { v: "turmas", r: "Turmas" }, { v: "equipes", r: "Alto rendimento" }];
 const NAV_CONTEUDO = [{ v: "casos", r: "Casos" }];
 const NAV_MANUAL = [{ v: "catalogo", r: "Catálogo" }, { v: "tecnica", r: "Técnica" }, { v: "taticas", r: "Táticas" },
   { v: "conducao", r: "Condução" }, { v: "publicos", r: "Públicos" }, { v: "aulas", r: "Aulas" }, { v: "metodo", r: "Como decide" }];
@@ -26284,7 +27089,7 @@ function App() {
       ...(mostraManual ? [{ v: "catalogo", r: "Catálogo de exercícios" }] : []),
       { v: "quadro", r: "Quadro tático" }, { v: "observar", r: "Observar jogos" },
     ] },
-    { id: "grupos", label: "Grupos", itens: [{ v: "turmas", r: "Turmas" }, { v: "equipes", r: "Equipes de competição" }] },
+    { id: "grupos", label: "Grupos", itens: [{ v: "turmas", r: "Turmas" }, { v: "equipes", r: "Alto rendimento" }] },
     ...(mostraDigital ? [{ id: "digital", label: "Academia Digital", itens: [{ v: "academia-digital", r: "Academia Digital" }] }] : []),
     { id: "gestao", label: "Gestão da academia", itens: [
       ...(mostraQuadras ? [{ v: "quadras", r: "Quadras" }, { v: "grade-aulas", r: "Horários recorrentes" }] : []),
@@ -26724,7 +27529,7 @@ function App() {
          aba === "ajuda" ? <TelaAjuda mostraManual={mostraManual} aoIr={irNav}
            aoPrimeirosPassos={() => { setOnboardingDispensado(false); irNav("dashboard"); }}
            aoNovidades={() => { try { localStorage.removeItem("ql-novidades:" + novidadesTYPara(ehDonoFinanceiro() || papelFin === "admin").versao); } catch { /* sem armazenamento */ } setNovidadesChave((k) => k + 1); }} /> :
-         aba === "equipes" ? <TelaEquipes alunos={alunos} setAlunos={setAlunos} uidAtual={uidAtual} papelAtual={papelAtual} identidade={identidade} aoAbrirJogador={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("ficha"); }} /> :
+         aba === "equipes" ? <TelaAltoRendimento exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} alunos={alunos} setAlunos={setAlunos} uidAtual={uidAtual} papelAtual={papelAtual} identidade={identidade} aoAbrirJogador={(id, sub) => { setAba("alunos"); setAbertoId(id); setSubaba(sub || "ficha"); }} /> :
          aba === "observar" ? <TelaObservar alunos={alunos} setAlunos={setAlunos} planoAtual={null} aoVerCaderno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("registro"); }} /> :
          aba === "quadro" ? <TelaQuadroTatico /> :
          aba === "catalogo" ? <TelaCatalogo exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
@@ -26858,7 +27663,7 @@ function App() {
                  critérios e pendências do ciclo — não é só o passo final
                  de encerrar, é onde se acompanha como o jogador está indo. */
               const principais = [{ v: "ficha", r: "Perfil" }, { v: "plano", r: "Planejamento" }, { v: "aulas", r: "Aulas" }, { v: "fechamento", r: "Evolução" }, { v: "relatorio", r: "Relatório" }, { v: "canal", r: "Canal" }];
-              const itensMais = [{ v: "periodizacao", r: "Periodização" }, { v: "sessao", r: "Sessão de hoje" }, { v: "scout", r: "Análise de partida" }, { v: "movimento", r: "Análise de movimento" }, { v: "registro", r: "Caderno" }, { v: "estilo", r: "Estilo de jogo" }, { v: "adversarios", r: "Adversários" }, { v: "equipe", r: "Equipe" }];
+              const itensMais = [{ v: "periodizacao", r: "Periodização" }, { v: "sessao", r: "Sessão de hoje" }, { v: "scout", r: "Análise de partida" }, { v: "movimento", r: "Análise de movimento" }, { v: "registro", r: "Caderno" }, { v: "estilo", r: "Estilo de jogo" }, { v: "adversarios", r: "Adversários" }, { v: "alto", r: "Alto rendimento" }];
               const todasSecoes = [...principais, ...itensMais];
               const maisAtivo = itensMais.some((t) => t.v === subaba);
               const secaoAtual = todasSecoes.find((t) => t.v === subaba) || principais[0];
@@ -26964,7 +27769,7 @@ function App() {
              subaba === "estilo" ? <TelaEstiloTatico aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
              subaba === "movimento" ? <TelaMovimento aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade} planoAtual={null} podeCursos={mostraDigital} /> :
              subaba === "adversarios" ? <TelaAdversarios aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
-             subaba === "equipe" ? <AbaEquipeJogador aluno={aberto} aoAbrirEquipes={() => { setAbertoId(null); setAba("equipes"); }} /> :
+             subaba === "alto" || subaba === "equipe" ? <AbaAltoRendimento aluno={aberto} alunos={alunos} setAlunos={setAlunos} /> :
              <TelaSessao aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} papelAtual={papelAtual} uidAtual={uidAtual}
                exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} />}
           </div>

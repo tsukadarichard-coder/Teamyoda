@@ -44,6 +44,15 @@ service cloud.firestore {
     match /orgs/{orgId}/dados/{doc} {
       allow read, write: if orgDoToken() != null && orgDoToken() == orgId && doc != "mty:feedbacks-coordenador:v1";
     }
+    /* Alto rendimento (11/11/2026): o documento de cada atleta (calendário, metas, plano individual, marcador e carga), os
+       registros de treino e jogo, as avaliações e as sessões do dia no CT. Professor da mesma academia lê e grava; o atleta
+       registra o que fez em viagem só pela function ar-atleta.js (Admin SDK, com o link do aluno). */
+    match /orgs/{orgId}/ar/{document=**} {
+      allow read, write: if orgDoToken() != null && orgDoToken() == orgId;
+    }
+    match /orgs/{orgId}/arSessoes/{document=**} {
+      allow read, write: if orgDoToken() != null && orgDoToken() == orgId;
+    }
     match /orgs/{orgId}/iaJobs/{document=**} {
       allow read, write: if orgDoToken() != null && orgDoToken() == orgId;
     }
