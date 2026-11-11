@@ -2,6 +2,22 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
+<script>
+/* A página principal do QuadraLab Scout é a de apresentação (conheca.html): quem chega sem conta entrada neste aparelho cai nela.
+   Segue direto para o app: quem já entrou neste aparelho, quem abriu o app instalado, quem veio por um link de tela do app
+   (os botões Entrar e Criar conta da apresentação usam #/entrar e #/criar) e quem está sem internet. */
+(function () {
+  try {
+    var h = location.hash || "";
+    if (h && h !== "#" && h !== "#/") return;
+    if (navigator.onLine === false) return;
+    if ((window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || navigator.standalone) return;
+    var s = localStorage.getItem("qls:sessao");
+    var entrou = s === "1" || (s == null && Object.keys(localStorage).some(function (k) { return k.indexOf("qls:conta:") === 0; }));
+    if (!entrou) location.replace("conheca.html");
+  } catch (e) { /* sem armazenamento: abre o app */ }
+})();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>QuadraLab Scout · marque o jogo ponto a ponto</title>
 <meta name="description" content="Marque o jogo de tênis ponto a ponto no celular, de graça. Placar, números do jogo e comparação com os jogos anteriores. Funciona sem internet.">
