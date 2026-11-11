@@ -7,6 +7,8 @@
 (function () { var q = new URLSearchParams(location.search); if (q.get("l") || q.get("t")) return;
   var aqui = /(^|\.)quadralab\.com\.br$|quadralab\.netlify\.app$|^localhost$|^127\.0\.0\.1$/.test(location.hostname);
   location.replace((aqui ? "/scout-app/" : "https://quadralab.com.br/scout-app/") + location.hash); })();
+/* link ao vivo aberto pelo app QuadraLab Scout (?l=...&s=1): a página já nasce com as cores do app, sem piscar o verde */
+if (new URLSearchParams(location.search).get("s") === "1") document.documentElement.className = "tema-scout";
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
@@ -66,10 +68,24 @@ footer { margin-top: 22px; font-size: 13px; color: var(--grafite); text-align: c
 .selo.vivo i { width: 9px; height: 9px; border-radius: 50%; background: #ff5a5a; box-shadow: 0 0 0 0 rgba(255,90,90,.7); animation: pulso 1.6s infinite; }
 @keyframes pulso { 70% { box-shadow: 0 0 0 9px rgba(255,90,90,0); } 100% { box-shadow: 0 0 0 0 rgba(255,90,90,0); } }
 @media (prefers-reduced-motion: reduce) { .selo.vivo i { animation: none; } }
+/* Tema do app QuadraLab Scout (roxo e violeta do app; azul e laranja dos pontos continuam os mesmos dos gráficos). Só vale
+   para o link ao vivo que nasceu no app; os links do treinador (Team Yoda e QuadraLab) seguem com as cores de sempre. */
+html.tema-scout { --tinta: #1E1529; --papel: #F5F3F8; --verde: #260A3E; --grafite: #5C546A; --linha: #E2DCEA; --saibro: #6A12BA; }
+html.tema-scout .marca b { color: #C9A6F0; }
+html.tema-scout .placar { color: #260A3E; }
+html.tema-scout .abas button[aria-pressed="true"] { background: #6A12BA; border-color: #6A12BA; }
+html.tema-scout .agora .gr { color: #260A3E; }
+html.tema-scout .aviso { background: #EFE6F9; border-color: #D9C8EE; color: #3A1466; }
+html.tema-scout .log li.marco { background: #EFE6F9; }
+html.tema-scout .qg-sec { border-color: #E2DCEA; box-shadow: 0 1px 2px rgba(38,10,62,.05); }
+html.tema-scout .qg-pl { background: #260A3E; border-color: #260A3E; }
+html.tema-scout .qg-trilho { background: #ECE7F2; }
+html.tema-scout .qg-topo { background: linear-gradient(160deg, #F3ECFA, #fff 70%); }
+html.tema-scout .vermais:focus-visible, html.tema-scout .abas button:focus-visible { outline: 3px solid #6A12BA; outline-offset: 2px; }
 </style>
 </head>
 <body>
-<header><div class="in"><div class="marca">QuadraLab · Scout da partida</div><h1 id="titulo">Carregando…</h1><div class="meta" id="meta"></div><div class="placar" id="placar" hidden></div></div></header>
+<header><div class="in"><div class="marca" id="marca">QuadraLab · Scout da partida</div><h1 id="titulo">Carregando…</h1><div class="meta" id="meta"></div><div class="placar" id="placar" hidden></div></div></header>
 <main id="conteudo" aria-live="polite"></main>
 <script src="ao-vivo.js"></script>
 <script src="graficos.js"></script>
@@ -275,7 +291,7 @@ footer { margin-top: 22px; font-size: 13px; color: var(--grafite); text-align: c
     return box;
   }
   function secaoBolas(p) {
-    var b = p.bolas, cores = ["#B14C1D", "#103B32", "#5B6B63"];
+    var b = p.bolas, cores = temaScout() ? ["#C65825", "#6A12BA", "#5C546A"] : ["#B14C1D", "#103B32", "#5B6B63"];
     var box = el("section", {}, [el("h2", { texto: "Onde o ponto se decidiu" }), el("p", { cls: "nota", texto: "Cerca de 70% dos pontos do circuito terminam em até quatro bolas." })]);
     var barra = el("div", { cls: "barra", role: "img", "aria-label": "Pontos por duração: " + b.pctCurtos + "% em 1–4 bolas, " + b.pctMedios + "% em 5–9, " + b.pctLongos + "% em 10 ou mais" });
     [["1–4 bolas", b.pctCurtos], ["5–9 bolas", b.pctMedios], ["10+ bolas", b.pctLongos]].forEach(function (x, i) { var d = el("div", { texto: x[1] + "%" }); d.style.width = Math.max(x[1], 4) + "%"; d.style.background = cores[i]; barra.appendChild(d); });
@@ -297,10 +313,19 @@ footer { margin-top: 22px; font-size: 13px; color: var(--grafite); text-align: c
     return box;
   }
 
+  /* cores e marca do app QuadraLab Scout quando o link ao vivo nasceu nele */
+  function temaScout() { return document.documentElement.classList.contains("tema-scout"); }
+  function aplicarTemaScout() {
+    document.documentElement.classList.add("tema-scout");
+    var m = document.getElementById("marca");
+    if (m && !m.getAttribute("data-scout")) { m.setAttribute("data-scout", "1"); m.textContent = "QuadraLab "; m.appendChild(el("b", { texto: "Scout" })); m.appendChild(document.createTextNode(" · ao vivo")); }
+    var tc = document.querySelector('meta[name="theme-color"]'); if (tc) tc.setAttribute("content", "#260A3E");
+  }
+  if (temaScout()) aplicarTemaScout();
   function desenhar(p, ate) {
     var sy = window.scrollY;
     if (token) cont.removeAttribute("aria-live");
-    document.title = "Scout da partida · " + p.atleta;
+    document.title = (temaScout() ? "QuadraLab Scout · " : "Scout da partida · ") + p.atleta;
     document.getElementById("titulo").textContent = "Partida de " + p.atleta;
     document.getElementById("meta").textContent = [dataBR(p.data), p.torneio, p.concluida || p.aoVivo ? "" : "Acompanhamento interrompido"].filter(Boolean).join(" · ");
     if (p.resultado && p.resultado !== "—") { var pl = document.getElementById("placar"); pl.textContent = p.resultado; pl.hidden = false; }
@@ -308,7 +333,7 @@ footer { margin-top: 22px; font-size: 13px; color: var(--grafite); text-align: c
     var gr = el("div", {}); if (p.n > 0 && window.QLScoutGraficos) gr.innerHTML = QLScoutGraficos.topo(p) + QLScoutGraficos.secoes(p);
     [p.n > 0 ? gr : null, secaoMomento(p), p.n > 0 ? secaoNumeros(p) : null, p.n > 0 ? secaoBolas(p) : null, secaoMapa(p), p.n > 0 ? secaoSinais(p) : null].forEach(function (x) { if (x) cont.appendChild(x); });
     cont.appendChild(el("p", { cls: "aviso", texto: "Um jogo é uma amostra. Três jogos na mesma direção são um sinal; um jogo isolado é ruído. O que importa é o padrão que se repete." }));
-    cont.appendChild(el("footer", { texto: token ? "Compartilhado pelo treinador no QuadraLab. Esta página se atualiza sozinha enquanto a partida acontece; o link expira em algumas horas e pode ser desativado pelo treinador." : (ate ? "Compartilhado pelo treinador no QuadraLab. Este link vale até " + dataBR(ate) + " e pode ser desativado pelo treinador a qualquer momento." : "Do seu link de aluno, compartilhado pelo treinador no QuadraLab.") }));
+    cont.appendChild(el("footer", { texto: token && temaScout() ? "Compartilhado pelo QuadraLab Scout. Esta página se atualiza sozinha enquanto a partida acontece; o link expira em algumas horas e pode ser encerrado por quem está marcando o jogo." : token ? "Compartilhado pelo treinador no QuadraLab. Esta página se atualiza sozinha enquanto a partida acontece; o link expira em algumas horas e pode ser desativado pelo treinador." : (ate ? "Compartilhado pelo treinador no QuadraLab. Este link vale até " + dataBR(ate) + " e pode ser desativado pelo treinador a qualquer momento." : "Do seu link de aluno, compartilhado pelo treinador no QuadraLab.") }));
     if (token || !ate) { window.scrollTo(0, sy); return; }
     var imp = el("p", { cls: "nota", style: "text-align:center;margin-top:10px" });
     imp.appendChild(document.createTextNode("Você é o atleta? Guarde este scout na sua conta em "));
@@ -342,16 +367,17 @@ footer { margin-top: 22px; font-size: 13px; color: var(--grafite); text-align: c
           /* a mesma partida passou para outro link: segue para ele sozinho (o endereço da página também muda) */
           if (c.substituidoPor && /^[0-9a-f]{32}$/.test(c.substituidoPor) && c.substituidoPor !== token) {
             token = c.substituidoPor; versao = 0;
-            try { history.replaceState(null, "", location.pathname + "?l=" + token); } catch (e) { /* segue sem trocar o endereço */ }
+            try { history.replaceState(null, "", location.pathname + "?l=" + token + (temaScout() ? "&s=1" : "")); } catch (e) { /* segue sem trocar o endereço */ }
             return buscar();
           }
+          if (c.origem === "scout-app") aplicarTemaScout(); // link antigo, sem o &s=1: o servidor também avisa
           if (!c.semMudanca) { versao = c.versao; aoVivo = !!c.publico.aoVivo; desenhar(c.publico, c.expiraEm); }
           else if (aoVivo !== !!c.aoVivo) { aoVivo = !!c.aoVivo; versao = 0; return buscar(); }
           selo(aoVivo ? "AO VIVO · atualizado às " + hora(new Date()) : "Partida encerrada · resultado final", aoVivo);
           timer = setTimeout(buscar, aoVivo ? 5000 : 30000);
         })
         .catch(function (e) {
-          if (e.status === 404 || e.status === 410) { clearTimeout(timer); erro("Este acompanhamento foi encerrado pelo treinador ou expirou."); return; }
+          if (e.status === 404 || e.status === 410) { clearTimeout(timer); erro(temaScout() ? "Este acompanhamento foi encerrado ou expirou." : "Este acompanhamento foi encerrado pelo treinador ou expirou."); return; }
           falhas++; selo("Reconectando… (" + (e.status ? "erro " + e.status : "sem conexão") + ")", false);
           if (!versao) { document.getElementById("titulo").textContent = "Conectando ao jogo…"; cont.textContent = ""; cont.appendChild(el("p", { cls: "espera", texto: "Ainda não consegui abrir o acompanhamento" + (e.status ? " (erro " + e.status + (e.message ? ": " + e.message : "") + ")" : "; verifique a internet") + ". Vou tentar de novo automaticamente." })); }
           timer = setTimeout(buscar, Math.min(30000, 4000 * falhas));

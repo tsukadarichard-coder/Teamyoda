@@ -53,7 +53,8 @@ exports.handler = async function (event) {
       if (d.substituidoPor && TOKEN.test(d.substituidoPor)) return resposta(200, { substituidoPor: d.substituidoPor });
       if (!(Date.parse(d.expiraEm) > Date.now())) return invalido();
       if (String(q.v || "") === String(d.versao)) return resposta(200, { semMudanca: true, versao: d.versao, aoVivo: !!ler(d).aoVivo });
-      return resposta(200, { versao: d.versao, publico: limpar(ler(d)), expiraEm: d.expiraEm });
+      /* link aberto pelo app QuadraLab Scout (dono "app:<uid>", gravado por scout-app.js): a página da família usa as cores do app */
+      return resposta(200, { versao: d.versao, publico: limpar(ler(d)), expiraEm: d.expiraEm, ...(String(d.orgId || "").startsWith("app:") ? { origem: "scout-app" } : {}) });
     }
     if (event.httpMethod !== "POST") return resposta(405, { erro: "Método não permitido." });
 

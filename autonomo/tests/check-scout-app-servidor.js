@@ -96,6 +96,12 @@ const chama = async (tk, corpo, metodo) => {
   const familia = require(fx + "scout-ao-vivo.js").handler;
   const lida = JSON.parse((await familia({ httpMethod: "GET", queryStringParameters: { t: tok, v: "0" }, headers: {} })).body);
   assert.strictEqual(lida.publico.atleta, "Lucas"); assert.strictEqual(lida.publico.n, 10);
+  /* cores do Scout na página da família: o servidor avisa que o link nasceu no app; link de treinador não leva o aviso */
+  assert.strictEqual(lida.origem, "scout-app", "link do app avisa a origem");
+  store["scoutsAoVivo/" + "b".repeat(32)] = { orgId: "team-yoda", uid: "u-prof", versao: 1, expiraEm: new Date(Date.now() + 3600000).toISOString(), publico: store["scoutsAoVivo/" + tok].publico };
+  const doTreinador = JSON.parse((await familia({ httpMethod: "GET", queryStringParameters: { t: "b".repeat(32), v: "0" }, headers: {} })).body);
+  assert.ok(doTreinador.publico && doTreinador.origem === undefined, "link do treinador segue com as cores de sempre");
+  delete store["scoutsAoVivo/" + "b".repeat(32)];
   /* atualizar mantém o mesmo link; fim encurta a validade */
   r = await chama("tk-ana", { acao: "aoVivo", jogoId: j.id, resumo });
   assert.strictEqual(r.token, tok); assert.strictEqual(store["scoutsAoVivo/" + tok].versao, 2);

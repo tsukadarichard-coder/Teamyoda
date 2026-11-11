@@ -185,9 +185,23 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   const tok = /\/scout\/\?l=([a-f0-9]{32})/.exec(wa)[1];
   assert.ok(wa.startsWith("Acompanhe o jogo de Lucas ao vivo"), wa);
   assert.ok(store["scoutsAoVivo/" + tok] && store["scoutsAoVivo/" + tok].orgId === "app:" + uid, "link na coleção da família");
+  assert.ok(new RegExp("/scout/\\?l=" + tok + "&s=1").test(wa), "o link do app já leva o aviso das cores do Scout: " + wa);
   const fam = (await celular()).p;
+  /* a página da família com as cores do app: roxo no topo, marca QuadraLab Scout, nada de "treinador" */
+  const coresFamilia = () => fam.evaluate(() => ({ tema: document.documentElement.classList.contains("tema-scout"), topo: getComputedStyle(document.querySelector("header")).backgroundColor,
+    fundo: getComputedStyle(document.body).backgroundColor, marca: document.getElementById("marca").textContent, rodape: (document.querySelector("footer") || {}).textContent || "" }));
+  await fam.goto(origem + "/scout/?l=" + tok + "&s=1", { waitUntil: "domcontentloaded" });
+  assert.strictEqual((await coresFamilia()).topo, "rgb(38, 10, 62)", "com o &s=1 o topo já nasce roxo, antes de os dados chegarem");
+  await fam.waitForFunction(() => document.getElementById("titulo").textContent.includes("Lucas"));
+  let cf = await coresFamilia();
+  assert.deepStrictEqual([cf.tema, cf.topo, cf.fundo, cf.marca], [true, "rgb(38, 10, 62)", "rgb(245, 243, 248)", "QuadraLab Scout · ao vivo"], "cores do Scout no link ao vivo");
+  assert.ok(/Compartilhado pelo QuadraLab Scout/.test(cf.rodape) && !/treinador/i.test(cf.rodape), cf.rodape);
+  assert.strictEqual(await fam.evaluate(() => { const x = document.querySelector(".qg-pl"); return x ? getComputedStyle(x).backgroundColor : "sem placar"; }), "rgb(38, 10, 62)", "o placar ao vivo também fica roxo");
+  /* link antigo, sem o &s=1: o servidor avisa que nasceu no app e as cores entram do mesmo jeito */
   await fam.goto(origem + "/scout/?l=" + tok, { waitUntil: "networkidle" });
   await fam.waitForFunction(() => document.getElementById("titulo").textContent.includes("Lucas"));
+  cf = await coresFamilia();
+  assert.deepStrictEqual([cf.tema, cf.topo, cf.marca], [true, "rgb(38, 10, 62)", "QuadraLab Scout · ao vivo"], "link antigo também fica com as cores do Scout");
   const tf = await fam.evaluate(() => document.body.innerText);
   assert.ok(tf.includes("Partida de Lucas") && !tf.includes("Fulano") && !tf.includes("Andrade"), "família vê só o primeiro nome: " + tf.slice(0, 300));
   await foto(fam, "scout-familia");
