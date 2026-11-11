@@ -34,9 +34,8 @@ function contaPublica(c, full) {
 function perfil(corpo) {
   const nome = txt(corpo.nome, 60);
   if (!nome) throw new ErroPedido(400, "Digite o seu nome.");
-  const papel = PAPEIS.includes(corpo.papel) ? corpo.papel : "";
-  if (!papel) throw new ErroPedido(400, "Escolha quem você é: responsável, atleta ou treinador.");
-  return { nome, papel };
+  /* o Scout é de acompanhamento livre: ninguém precisa dizer se é responsável, atleta ou treinador (campo antigo, opcional) */
+  return { nome };
 }
 
 function atletas(lista, atuais, plus) {

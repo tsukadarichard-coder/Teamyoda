@@ -130,9 +130,8 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   /* criar conta */
   await p.click('a[href="#/criar"]');
   await p.fill("#acNome", "Ana Andrade"); await p.fill("#acEmail", "ana@exemplo.com"); await p.fill("#acSenha", "123");
+  assert.ok(!(await p.$("[data-papel]")) && !(await texto()).includes("Quem é você"), "acompanhamento livre: sem escolher papel");
   await p.click("#btAcesso");
-  assert.ok((await texto()).includes("Escolha quem você é"), "papel obrigatório");
-  await p.click('[data-papel="responsavel"]'); await p.click("#btAcesso");
   assert.ok((await texto()).includes("pelo menos 8"), "senha curta");
   await p.fill("#acSenha", "12345678"); await p.click("#btAcesso");
   await p.waitForSelector("[data-novo]");
@@ -142,7 +141,7 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   assert.strictEqual(await p.textContent("#btConta"), "A", "botão da conta com a inicial");
   await nuvemQuieta();
   const uid = usuarios["ana@exemplo.com"].uid;
-  assert.strictEqual(store["scoutAppContas/" + uid].papel, "responsavel");
+  assert.strictEqual(store["scoutAppContas/" + uid].nome, "Ana Andrade");
   assert.strictEqual(Object.keys(store).filter((k) => k.startsWith("scoutAppContas/" + uid + "/jogos/")).length, 1, "jogo antigo na nuvem");
   assert.ok(await p.evaluate(() => !localStorage.getItem("qls:v1") && !!localStorage.getItem("qls:v1:antigo")), "cópia antiga guardada à parte");
   await semRolagem(p, "início"); await foto(p, "scout-1-inicio");
@@ -289,7 +288,7 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   /* Minha conta: cópia dos jogos e sair */
   await p.goto(base + "#/conta"); await p.waitForSelector("#btCopia");
   t = await texto();
-  assert.ok(t.includes("Ana Andrade") && t.includes("Pai, mãe ou responsável") && t.includes("ana@exemplo.com") && t.includes("Scout Plus"), "minha conta: " + t.slice(0, 400));
+  assert.ok(t.includes("Ana Andrade") && !t.includes("Pai, mãe") && t.includes("ana@exemplo.com") && t.includes("Scout Plus"), "minha conta: " + t.slice(0, 400));
   const [dl] = await Promise.all([p.waitForEvent("download"), p.click("#btCopia")]);
   const arquivo = path.join(require("os").tmpdir(), "ql-scout-copia-" + Date.now() + ".json");
   await dl.saveAs(arquivo);

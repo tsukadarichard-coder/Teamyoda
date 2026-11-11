@@ -87,7 +87,6 @@
       if (r.conta) { conta = r.conta; guardarConta(); }
       estadoNuvem = "";
       if (r.baixados && !/^#\/(jogo|novo)/.test(location.hash)) rota();
-      if (conta && !conta.papel && !/^#\/(jogo|novo|perfil)/.test(location.hash)) location.hash = "#/perfil";
     } catch (e) {
       estadoNuvem = e.semRede ? "sem internet" : e.message;
       if (e.status === 401) toast("Sua sessão venceu. Entre de novo para salvar na nuvem.");
@@ -116,15 +115,12 @@
   function mostrarEstadoAoVivo(j) { var el = q("[data-estado-aovivo]"); if (el && marc.id === j.id) el.textContent = aoVivoEstado[j.id] || ""; }
 
   /* ══ Entrar ══ */
-  var PAPEIS = [["responsavel", "Pai, mãe ou responsável"], ["atleta", "Atleta"], ["treinador", "Treinador"], ["outro", "Outro"]];
-  var acesso = { papel: "" };
   function telaEntrar(modo) {
     var criar = modo === "criar", recuperar = modo === "recuperar";
     var h = '<section class="entrar"><h1>' + (criar ? "Criar a sua conta" : recuperar ? "Nova senha" : "Entrar no QuadraLab Scout") + "</h1>" +
       '<p class="sub">' + (criar ? "Grátis. Os seus jogos ficam guardados na conta e aparecem em qualquer celular." : recuperar ? "Digite o e-mail da conta. Mandamos um link para criar a nova senha." : "Marque o jogo ponto a ponto, mande o placar ao vivo para a família e acompanhe a evolução.") + "</p>" +
       '<form class="cartao" id="fAcesso" novalidate>' +
-      (criar ? '<div class="campo" style="margin-top:0"><label for="acNome">Seu nome</label><input id="acNome" autocomplete="name" maxlength="60"></div>' +
-        '<p class="olho" style="margin-top:14px">Quem é você</p><div class="chips" role="group" aria-label="Quem é você">' + PAPEIS.map(function (p) { return '<button type="button" class="chip" data-papel="' + p[0] + '" aria-pressed="' + (acesso.papel === p[0]) + '">' + p[1] + "</button>"; }).join("") + "</div>" : "") +
+      (criar ? '<div class="campo" style="margin-top:0"><label for="acNome">Seu nome</label><input id="acNome" autocomplete="name" maxlength="60"></div>' : "") +
       '<div class="campo"' + (criar ? "" : ' style="margin-top:0"') + '><label for="acEmail">E-mail</label><input id="acEmail" type="email" inputmode="email" autocomplete="email" maxlength="120"></div>' +
       (recuperar ? "" : '<div class="campo"><label for="acSenha">Senha' + (criar ? ' <span class="nota">(pelo menos 8 caracteres)</span>' : "") + '</label><input id="acSenha" type="password" autocomplete="' + (criar ? "new-password" : "current-password") + '" maxlength="100"></div>') +
       '<div class="aviso atencao" id="acErro" role="alert" hidden></div><div class="aviso" id="acOk" role="status" hidden></div>' +
@@ -132,48 +128,45 @@
       '<div class="acoes" style="justify-content:center">' + (criar || recuperar ? '<a class="bt bt-texto" href="#/entrar">Já tenho conta: entrar</a>' : '<a class="bt bt-texto" href="#/criar">Criar conta grátis</a><a class="bt bt-texto" href="#/recuperar">Esqueci a senha</a>') + "</div>" +
       '<p class="rodape">Quem já tem conta no QuadraLab (Player, Competição ou Treinador) entra com o mesmo e-mail e senha.<br><a href="conheca.html">Conheça o QuadraLab Scout e os planos</a></p></section>';
     tela(h, true);
-    cada("[data-papel]", function (b) { b.addEventListener("click", function () { acesso.papel = b.getAttribute("data-papel"); cada("[data-papel]", function (x) { x.setAttribute("aria-pressed", String(x === b)); }); }); });
     document.getElementById("fAcesso").addEventListener("submit", async function (ev) {
       ev.preventDefault();
       var bt = document.getElementById("btAcesso"), er = document.getElementById("acErro"), ok = document.getElementById("acOk");
       if (bt.disabled) return;
       er.hidden = true; ok.hidden = true;
       var email = document.getElementById("acEmail").value.trim(), senha = recuperar ? "" : document.getElementById("acSenha").value, nome = criar ? document.getElementById("acNome").value.trim() : "";
-      var falha = criar && !nome ? "Digite o seu nome." : criar && !acesso.papel ? "Escolha quem você é." : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? "Digite um e-mail válido." : !recuperar && !senha ? "Digite a senha." : criar && senha.length < 8 ? "A senha precisa ter pelo menos 8 caracteres." : "";
+      var falha = criar && !nome ? "Digite o seu nome." : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? "Digite um e-mail válido." : !recuperar && !senha ? "Digite a senha." : criar && senha.length < 8 ? "A senha precisa ter pelo menos 8 caracteres." : "";
       if (falha) { er.textContent = falha; er.hidden = false; return; }
       if (navigator.onLine === false) { er.textContent = "Sem internet. Conecte-se para " + (criar ? "criar a conta." : recuperar ? "pedir a nova senha." : "entrar.") + " Depois disso o app funciona sem sinal."; er.hidden = false; return; }
       ocupado(bt, true, criar ? "Criando a conta…" : recuperar ? "Mandando…" : "Entrando…");
       try {
         if (recuperar) { await N.recuperar(email); ok.textContent = "Se houver uma conta com esse e-mail, chega um link para criar a nova senha."; ok.hidden = false; ocupado(bt, false); return; }
-        if (criar) await N.criar({ nome: nome, email: email, senha: senha, papel: acesso.papel });
+        if (criar) await N.criar({ nome: nome, email: email, senha: senha });
         else await N.entrar(email, senha);
         /* onAuthStateChanged segue daqui */
       } catch (e) { er.textContent = e.message; er.hidden = false; ocupado(bt, false); }
     });
   }
 
-  /* ══ Perfil (primeiro acesso de quem já tinha conta no QuadraLab) e Minha conta ══ */
+  /* ══ Nome da conta e Minha conta ══ */
   function telaPerfil() {
-    var h = '<h1>Só mais um passo</h1><p class="sub">Conte quem você é. Assim o app mostra o que faz sentido para você.</p><section class="cartao">' +
+    var h = '<p class="voltar"><a class="bt bt-texto" href="#/conta">‹ Minha conta</a></p><h1>Seu nome</h1><p class="sub">É o nome que aparece no app. O link da família mostra só o nome do atleta.</p><section class="cartao">' +
       '<div class="campo" style="margin-top:0"><label for="pfNome">Seu nome</label><input id="pfNome" maxlength="60" value="' + esc((conta && conta.nome) || eu.nome || "") + '"></div>' +
-      '<p class="olho" style="margin-top:14px">Quem é você</p><div class="chips">' + PAPEIS.map(function (p) { return '<button type="button" class="chip" data-papel="' + p[0] + '" aria-pressed="' + (acesso.papel === p[0]) + '">' + p[1] + "</button>"; }).join("") + "</div>" +
-      '<div class="aviso atencao" id="pfErro" role="alert" hidden></div><div class="acoes"><button type="button" class="bt bt-principal bt-grande" id="btPerfil">Continuar</button></div></section>';
+      '<div class="aviso atencao" id="pfErro" role="alert" hidden></div><div class="acoes"><button type="button" class="bt bt-principal bt-grande" id="btPerfil">Salvar</button></div></section>';
     tela(h, true);
-    cada("[data-papel]", function (b) { b.addEventListener("click", function () { acesso.papel = b.getAttribute("data-papel"); cada("[data-papel]", function (x) { x.setAttribute("aria-pressed", String(x === b)); }); }); });
     document.getElementById("btPerfil").addEventListener("click", async function () {
       var bt = this, er = document.getElementById("pfErro"); er.hidden = true;
       ocupado(bt, true, "Salvando…");
-      try { conta = await N.perfil(document.getElementById("pfNome").value, acesso.papel); guardarConta(); botaoConta(); location.hash = "#/"; }
+      try { conta = await N.perfil(document.getElementById("pfNome").value); guardarConta(); botaoConta(); toast("Nome salvo."); location.hash = "#/conta"; }
       catch (e) { er.textContent = e.message; er.hidden = false; ocupado(bt, false); }
     });
   }
   function telaConta() {
-    var c = conta || {}, papel = (PAPEIS.filter(function (p) { return p[0] === c.papel; })[0] || [null, "—"])[1], meta = N.lerMeta(eu.uid);
+    var c = conta || {}, meta = N.lerMeta(eu.uid);
     var h = '<p class="voltar"><a class="bt bt-texto" href="#/">‹ Seus jogos</a></p><h1>Minha conta</h1>' +
-      '<section class="cartao"><p class="olho">Conta</p><p style="margin:0"><b>' + esc(c.nome || eu.nome || "Sem nome") + "</b> · " + esc(papel) + '</p><p class="nota">' + esc(eu.email) + "</p>" +
+      '<section class="cartao"><p class="olho">Conta</p><p style="margin:0"><b>' + esc(c.nome || eu.nome || "Sem nome") + '</b></p><p class="nota">' + esc(eu.email) + "</p>" +
       '<p class="nota">Plano: <b>' + (c.plano === "plus" ? "Scout Plus" : "Grátis") + "</b>" + (c.plano === "plus" && c.plusAte ? " até " + esc(dataBR(c.plusAte)) : "") + ' · <a href="#/plus">' + (c.plano === "plus" ? "ver o plano" : "conhecer o Scout Plus") + "</a></p>" +
       '<p class="nota" data-estado-nuvem>' + (navigator.onLine === false ? "Sem internet agora: os jogos vão para a nuvem quando o sinal voltar." : meta.ultima ? "Jogos guardados na nuvem. Última sincronização: " + new Date(meta.ultima).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) + "." : "Sincronizando os jogos com a nuvem…") + "</p>" +
-      '<div class="acoes"><button type="button" class="bt bt-pq" id="btSync">Sincronizar agora</button><a class="bt bt-pq" href="#/perfil">Mudar nome ou papel</a><button type="button" class="bt bt-pq bt-perigo" id="btSair">Sair da conta</button></div></section>' +
+      '<div class="acoes"><button type="button" class="bt bt-pq" id="btSync">Sincronizar agora</button><a class="bt bt-pq" href="#/perfil">Mudar o nome</a><button type="button" class="bt bt-pq bt-perigo" id="btSair">Sair da conta</button></div></section>' +
       '<section class="cartao"><h2>Cópia dos jogos</h2><p class="nota">Os jogos já ficam na sua conta. Se quiser guardar um arquivo seu também (ou levar para outra conta), faça uma cópia.</p>' +
       '<div class="acoes"><button type="button" class="bt bt-pq" id="btCopia"' + (st.jogos.length ? "" : " disabled") + '>Fazer cópia</button><label class="bt bt-pq" for="arqCopia">Carregar uma cópia</label><input type="file" id="arqCopia" accept=".json,application/json" hidden></div></section>' +
       '<p class="rodape">O nome do adversário e as anotações ficam só na sua conta. O link ao vivo da família mostra só o primeiro nome do atleta e os números.</p>';
