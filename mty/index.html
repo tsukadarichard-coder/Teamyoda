@@ -53,6 +53,7 @@
 <script src="aulas-mes.js"></script>
 <script src="situacoes-jogo.js"></script>
 <script src="alto-rendimento.js"></script>
+<script src="atendimento.js"></script>
 <script src="relatorio-atleta.js"></script>
 <script src="scout/video-jogo.js"></script>
 <link rel="stylesheet" href="scout/movimento.css">
@@ -7452,6 +7453,175 @@ function garanteBrincadeira(exerciciosAtuais, evitar, estagio) {
   return brincadeira ? [...exerciciosAtuais, brincadeira] : exerciciosAtuais;
 }
 
+/* ── Padrão de Atendimento MTY (atendimento.js) ──
+   O mesmo cuidado em toda aula: antes, o cartão de preparação (foco do plano, conquista da última aula, nota pessoal); ao
+   fechar, a conquista do dia (com "é marco"), a nota pessoal, a observação por pilar e o checklist de 6 itens — 3 marcam
+   sozinhos (abriu a preparação, preencheu a conquista, registrou). Tudo opcional: nada aqui impede registrar a aula, e os
+   campos novos entram no MESMO registro de sessão do caderno. Quem acompanha é o Head Trainer (TelaPadraoAtendimento). */
+const ATEND_VAZIO = () => ({ conquista: { texto: "", marco: false }, pilares: {}, notaPessoal: "" });
+function prepVistaChave(tipo, id) { return "mty-prep:" + tipo + ":" + id + ":" + new Date().toISOString().slice(0, 10); }
+function prepFoiVista(tipo, id) { try { return localStorage.getItem(prepVistaChave(tipo, id)) === "1"; } catch { return false; } }
+function marcarPrepVista(tipo, id) {
+  try {
+    /* as marcas de dias anteriores não servem mais: saem para não acumular no aparelho */
+    const fim = ":" + new Date().toISOString().slice(0, 10);
+    Object.keys(localStorage).filter((k) => k.startsWith("mty-prep:") && !k.endsWith(fim)).forEach((k) => localStorage.removeItem(k));
+    localStorage.setItem(prepVistaChave(tipo, id), "1");
+  } catch { /* sem armazenamento: vale só nesta tela */ }
+}
+function focoDoPlano(entidade) {
+  const a = entidade && entidade.plano ? aulaEmVigor(entidade) : null;
+  return a && !a.gate && a.t ? { titulo: a.t, detalhe: a.bloco + " · semana " + a.semana, descricao: a.d || "" } : null;
+}
+function LinhaPreparacao({ aluno, foco, comNome }) {
+  const A = window.MTYAtendimento;
+  const p = A.preparacao(aluno, { foco });
+  const rot = { fontFamily: ARCH, fontSize: 10.5, fontWeight: 700, color: C.grafite, textTransform: "uppercase", letterSpacing: ".04em" };
+  return (
+    <div data-prep-aluno={aluno.id} style={{ borderTop: comNome ? "1px solid " + C.linha : "none", paddingTop: comNome ? 10 : 0, marginTop: comNome ? 10 : 0 }}>
+      {comNome && <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{aluno.nome || "Sem nome"}</p>}
+      <p style={rot}>Foco do plano</p>
+      <p style={{ ...prosa, fontSize: 13.5, marginBottom: 6 }}>
+        {p.foco ? <>{p.foco.titulo}{p.foco.detalhe ? <span style={{ color: C.grafite }}> · {p.foco.detalhe}</span> : p.foco.origem === "proximoFoco" ? <span style={{ color: C.grafite }}> · próximo foco anotado em {A.dataCurta(p.foco.data)}</span> : null}</>
+          : <span style={{ color: C.grafite }}>Sem plano em andamento.</span>}
+      </p>
+      <p style={rot}>Conquista da última aula</p>
+      <p style={{ ...prosa, fontSize: 13.5, marginBottom: 6 }}>
+        {p.ultimaConquista ? <>{p.ultimaConquista.marco && <span style={{ fontFamily: ARCH, fontSize: 10.5, fontWeight: 700, color: "#fff", background: C.saibro, borderRadius: 8, padding: "1px 7px", marginRight: 6 }}>Marco</span>}{p.ultimaConquista.texto} <span style={{ color: C.grafite }}>({A.dataCurta(p.ultimaConquista.data)})</span></>
+          : <span style={{ color: C.grafite }}>Ainda sem conquista registrada.</span>}
+      </p>
+      <p style={rot}>Nota pessoal</p>
+      <p style={{ ...prosa, fontSize: 13.5 }}>
+        {p.notaPessoal ? <>{p.notaPessoal.texto} <span style={{ color: C.grafite }}>({A.dataCurta(p.notaPessoal.data)})</span></>
+          : <span style={{ color: C.grafite }}>Nada anotado ainda. Pergunte algo e anote ao fechar a aula.</span>}
+      </p>
+    </div>
+  );
+}
+function CartaoPreparacao({ itens, vista, aoVer }) {
+  const [aberto, setAberto] = useState(false);
+  if (!window.MTYAtendimento || !itens.length) return null;
+  const varios = itens.length > 1;
+  return (
+    <div data-preparacao className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.quadra, borderRadius: 10, padding: "12px 14px" }}>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <Etiqueta cor={C.quadra}>Preparação da aula</Etiqueta>
+          {!aberto && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>Foco do plano, conquista da última aula e nota pessoal{varios ? " de cada aluno" : ""}.{vista ? " Já vista hoje." : ""}</p>}
+        </div>
+        <Botao key={aberto ? "ocultar" : "ver"} pequeno variante={aberto ? "vazio" : "saibro"} onClick={() => { if (!aberto && aoVer) aoVer(); setAberto(!aberto); }}>{aberto ? "Ocultar" : "Ver preparação"}</Botao>
+      </div>
+      {aberto && <div className="mt-3">{itens.map((x, i) => <LinhaPreparacao key={x.aluno.id} aluno={x.aluno} foco={x.foco} comNome={varios || i > 0} />)}</div>}
+    </div>
+  );
+}
+function CamposAtendimentoAluno({ valor, aoMudar, desabilitado, pilaresAbertos }) {
+  const A = window.MTYAtendimento;
+  const v = valor || ATEND_VAZIO();
+  const [verPilares, setVerPilares] = useState(!!pilaresAbertos || Object.values(v.pilares || {}).some(Boolean));
+  const set = (parcial) => aoMudar({ ...v, ...parcial });
+  const marco = !!(v.conquista && v.conquista.marco);
+  return (
+    <div data-campos-atendimento>
+      <Campo rotulo="Conquista do dia" nota="Uma coisa concreta que o aluno conseguiu hoje. É a devolutiva final e aparece na preparação da próxima aula.">
+        <input style={entrada} disabled={desabilitado} maxLength={300} aria-label="Conquista do dia" value={(v.conquista && v.conquista.texto) || ""} placeholder="ex.: acertou 6 de 10 saques no alvo"
+          onChange={(e) => set({ conquista: { ...(v.conquista || {}), texto: e.target.value } })} />
+        <button type="button" disabled={desabilitado} aria-pressed={marco} onClick={() => set({ conquista: { texto: "", ...(v.conquista || {}), marco: !marco } })}
+          style={{ fontFamily: ARCH, fontSize: 12, fontWeight: 700, minHeight: 36, padding: "0 12px", borderRadius: 10, cursor: "pointer", marginTop: 6,
+            border: "1px solid " + (marco ? C.saibro : C.linha), background: marco ? C.saibro : C.papel, color: marco ? "#fff" : C.grafite }}>
+          {marco ? "★ Marcado como marco" : "☆ Marcar como marco"}
+        </button>
+      </Campo>
+      <Campo rotulo="Nota pessoal" nota="Algo que o aluno contou (torneio, viagem, objetivo). Só os professores veem; volta no cartão da próxima aula.">
+        <input style={entrada} disabled={desabilitado} maxLength={400} aria-label="Nota pessoal" value={v.notaPessoal || ""} onChange={(e) => set({ notaPessoal: e.target.value })} />
+      </Campo>
+      {!verPilares ? (
+        <button type="button" onClick={() => setVerPilares(true)} style={{ ...prosa, fontSize: 12.5, color: C.saibro, fontWeight: 700, border: "none", background: "none", cursor: "pointer", padding: 0, marginBottom: 14 }}>+ observação por pilar (opcional)</button>
+      ) : (
+        <Campo rotulo="Observação por pilar" nota="Opcional. Entra no relatório do ciclo para o cliente, reescrita em linguagem simples.">
+          {A.PILARES.map(([k, r]) => (
+            <textarea key={k} rows={2} disabled={desabilitado} maxLength={600} aria-label={"Pilar " + r} placeholder={r} style={{ ...entrada, resize: "vertical", marginBottom: 6 }}
+              value={(v.pilares && v.pilares[k]) || ""} onChange={(e) => set({ pilares: { ...(v.pilares || {}), [k]: e.target.value } })} />
+          ))}
+        </Campo>
+      )}
+    </div>
+  );
+}
+/* devolutiva: true/false (aula individual) ou texto ("2 de 4 com conquista", na turma) */
+function ChecklistAtendimento({ marcados, aoMudar, fichaVista, devolutiva, desabilitado }) {
+  const A = window.MTYAtendimento;
+  const feito = (i) => i.id === "ficha" ? !!fichaVista : i.id === "devolutiva" ? (typeof devolutiva === "string" ? null : !!devolutiva) : i.id === "registro" ? true : !!(marcados || {})[i.id];
+  return (
+    <Campo rotulo="Padrão de atendimento" nota="Opcional: não impede registrar a aula. Três itens marcam sozinhos.">
+      <div data-checklist-atendimento>
+        {A.ITENS.map((i) => {
+          const f = feito(i);
+          const caixa = (
+            <span aria-hidden="true" style={{ width: 20, height: 20, borderRadius: 6, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700,
+              border: "1.5px solid " + (f ? C.quadra : C.linha), background: f ? C.quadra : C.papel, color: "#fff" }}>{f ? "✓" : ""}</span>
+          );
+          if (i.auto) return (
+            <div key={i.id} data-item={i.id} data-feito={f == null ? "parcial" : f ? "sim" : "nao"} className="flex items-start gap-2" style={{ padding: "7px 0" }}>
+              {caixa}
+              <span style={{ ...prosa, fontSize: 13 }}>{i.r}{typeof devolutiva === "string" && i.id === "devolutiva" ? <b> · {devolutiva}</b> : null}
+                <span style={{ display: "block", fontSize: 11.5, color: C.grafite }}>{i.id === "ficha" && !f ? "Ainda não: abra \"Ver preparação\" no topo da sessão antes da aula." : i.auto}</span>
+              </span>
+            </div>
+          );
+          return (
+            <button key={i.id} type="button" data-item={i.id} data-feito={f ? "sim" : "nao"} aria-pressed={f} disabled={desabilitado} onClick={() => aoMudar({ ...(marcados || {}), [i.id]: !f })}
+              className="flex items-center gap-2" style={{ width: "100%", minHeight: 44, padding: "6px 0", border: "none", background: "none", cursor: "pointer", textAlign: "left" }}>
+              {caixa}<span style={{ ...prosa, fontSize: 13.5, fontWeight: 600 }}>{i.r}</span>
+            </button>
+          );
+        })}
+      </div>
+    </Campo>
+  );
+}
+/* O próprio professor vê como está o SEU padrão nos últimos 7 dias (Aulas de hoje): sem cobrança na hora de fechar a aula, mas visível. */
+function AvisoMeuAtendimento({ alunos, uidAtual }) {
+  const A = window.MTYAtendimento;
+  if (!A || !uidAtual) return null;
+  const hoje = new Date().toISOString().slice(0, 10), desde = A.somaDias(hoje, -6);
+  let total = 0, completas = 0; const faltou = {};
+  (alunos || []).forEach((a) => (a.registros || []).forEach((r) => {
+    if (!r || r.tipo !== "sessao" || r.presenca === "ausente" || String(r.data).slice(0, 10) < desde) return;
+    if (A.professorDoRegistro(r, a).uid !== uidAtual) return;
+    const c = A.checklist(r);
+    if (!c) return;
+    total++; if (c.completo) completas++; else c.itens.forEach((i) => { if (!i.feito) faltou[i.id] = (faltou[i.id] || 0) + 1; });
+  }));
+  if (!total) return null;
+  const pior = Object.entries(faltou).sort((x, y) => y[1] - x[1])[0];
+  const item = pior ? A.ITENS.find((i) => i.id === pior[0]) : null;
+  return (
+    <div data-meu-atendimento className="mb-4" style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + (completas === total ? C.quadra : C.saibro), borderRadius: 10, padding: "10px 13px" }}>
+      <p style={{ ...prosa, fontSize: 13.5, fontWeight: 700 }}>Seu padrão de atendimento nos últimos 7 dias: {completas} de {total} {total === 1 ? "aula" : "aulas"} com o checklist completo.</p>
+      {item && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>O que mais ficou sem marcar: {item.r.toLowerCase()} ({pior[1]}×).</p>}
+    </div>
+  );
+}
+/* o que o caderno mostra de uma aula registrada com o padrão: conquista, nota pessoal, pilares e o checklist */
+function ResumoAtendimentoRegistro({ r }) {
+  const A = window.MTYAtendimento;
+  if (!A) return null;
+  const c = A.checklist(r), pil = A.PILARES.filter(([k]) => r.pilares && r.pilares[k]);
+  if (!c && !r.conquista && !r.notaPessoal && !pil.length) return null;
+  const faltando = c ? c.itens.filter((i) => !i.feito) : [];
+  return (
+    <div data-atendimento-registro className="mb-2">
+      {r.conquista && r.conquista.texto && <Linha rotulo={r.conquista.marco ? "Conquista · marco" : "Conquista"} texto={r.conquista.texto} />}
+      {pil.map(([k, rot]) => <Linha key={k} rotulo={rot} texto={r.pilares[k]} />)}
+      {r.notaPessoal && <Linha rotulo="Nota pessoal" texto={r.notaPessoal} />}
+      {c && <p style={{ ...prosa, fontSize: 12.5, color: c.completo ? C.quadra : C.grafite, marginTop: 4 }}>
+        Padrão de atendimento: {c.feitos} de {c.total}{faltando.length ? " · faltou: " + faltando.map((i) => i.r.toLowerCase()).join("; ") : ""}
+      </p>}
+    </div>
+  );
+}
+
 function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual, exerciciosCustom, setExerciciosCustom }) {
   const podeEditar = podeEditarAluno(aluno, papelAtual, uidAtual);
   /* Encerrar a aula de hoje é diferente de editar o plano do jogador —
@@ -7501,6 +7671,10 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
   const [salvandoRegistro, setSalvandoRegistro] = useState(false);
   const registrandoRef = useRef(false);
   const [obs, setObs] = useState({ corrigi: "", ignorei: "", mudaria: "", proximoFoco: "", leituraDaAula: "", nota: 3 });
+  /* Padrão de Atendimento: conquista, nota pessoal, pilares e os 3 itens que o professor marca; a preparação vista hoje fica no aparelho */
+  const [atend, setAtend] = useState(ATEND_VAZIO);
+  const [atendMarcados, setAtendMarcados] = useState({});
+  const [prepVista, setPrepVista] = useState(() => prepFoiVista("a", aluno.id));
   const [statusAulaPlano, setStatusAulaPlano] = useState("feita");
   const [motivoAulaPlano, setMotivoAulaPlano] = useState("");
   /* Quais exercícios foram feitos, parcialmente feitos ou não feitos —
@@ -7852,6 +8026,9 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
       // próprio titular) — é o que a tela Aulas da equipe mostra.
       registradoPorUid: uidAtual || "",
       registradoPorNome: meuNomeSessao || "",
+      // Padrão de Atendimento: só quando a aula aconteceu (falta e cancelada não têm conquista nem checklist)
+      ...(window.MTYAtendimento && !(aulaAtual && statusAulaPlano !== "feita")
+        ? window.MTYAtendimento.camposDoRegistro({ fichaVista: prepVista, marcados: atendMarcados, conquista: atend.conquista, pilares: atend.pilares, notaPessoal: atend.notaPessoal }) : {}),
     };
     const alunosAtualizados = alunos.map((a) => {
       if (a.id !== aluno.id) return a;
@@ -7888,6 +8065,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
 
     setPlano(null); setFechando(false); setDivergencias([]); setStatusExercicios({});
     setObs({ corrigi: "", ignorei: "", mudaria: "", proximoFoco: "", leituraDaAula: "", nota: 3 });
+    setAtend(ATEND_VAZIO()); setAtendMarcados({});
     setStatusTemas({});
     setStatusAulaPlano("feita"); setMotivoAulaPlano("");
     setPersonalizados([]); setNovoPersonalizado(PERSONALIZADO_VAZIO); setFormPersonalizadoAberto(false);
@@ -8004,6 +8182,7 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
         )}
       </div>
 
+      {podeSessao && <CartaoPreparacao itens={[{ aluno, foco: focoDoPlano(aluno) }]} vista={prepVista} aoVer={() => { marcarPrepVista("a", aluno.id); setPrepVista(true); }} />}
       {!podeEditar && podeSessao && (
         <div className="mb-5"><Aviso cor={C.quadra}>Este jogador é do professor {aluno.professorNome || "titular"}. Você pode gerar e registrar a sessão no lugar dele (o registro guarda o seu nome como substituto). O plano e a ficha seguem com o titular ou o coordenador.</Aviso></div>
       )}
@@ -8329,6 +8508,13 @@ function TelaSessao({ aluno, alunos, setAlunos, setSubaba, papelAtual, uidAtual,
                     <Seletor opcoes={[1, 2, 3, 4, 5].map((n) => ({ v: n, r: String(n) }))} valor={obs.nota}
                       aoMudar={(v) => setObs({ ...obs, nota: v })} />
                   </Campo>
+                  {window.MTYAtendimento && !(aulaAtual && statusAulaPlano !== "feita") && (
+                    <>
+                      <CamposAtendimentoAluno valor={atend} aoMudar={setAtend} />
+                      <ChecklistAtendimento marcados={atendMarcados} aoMudar={setAtendMarcados} fichaVista={prepVista}
+                        devolutiva={!!(atend.conquista && atend.conquista.texto.trim())} />
+                    </>
+                  )}
 
                   {aulaAtual && statusAulaPlano === "feita" && (
                     <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>
@@ -12250,9 +12436,20 @@ function DetalheSessaoRegistro({ r, aoSalvar }) {
   });
   const semObservacoes = !campos.corrigi && !campos.ignorei && !campos.mudaria && !campos.proximoFoco && !campos.leituraDaAula && !(r.temas || []).length;
 
+  /* conquista, nota pessoal e pilares também podem ser completados depois; o checklist antigo (se houver) só ajusta a devolutiva */
+  const [atendEdit, setAtendEdit] = useState(() => ({ conquista: { texto: (r.conquista && r.conquista.texto) || "", marco: !!(r.conquista && r.conquista.marco) }, pilares: { ...(r.pilares || {}) }, notaPessoal: r.notaPessoal || "" }));
   function salvar() {
     const temasAtualizados = (r.temas || []).map((t, i) => ({ ...t, status: statusTemas[i] }));
-    aoSalvar({ ...campos, temas: temasAtualizados });
+    const A = window.MTYAtendimento;
+    const extra = {};
+    if (A && r.presenca !== "ausente") {
+      const conquista = A.limparConquista(atendEdit.conquista), pilares = A.limparPilares(atendEdit.pilares), nota = (atendEdit.notaPessoal || "").trim().slice(0, 400);
+      if (conquista || r.conquista) extra.conquista = conquista;
+      if (pilares || r.pilares) extra.pilares = pilares;
+      if (nota || r.notaPessoal) extra.notaPessoal = nota;
+      if (r.atendimento) extra.atendimento = { ...r.atendimento, devolutiva: !!conquista };
+    }
+    aoSalvar({ ...campos, temas: temasAtualizados, ...extra });
     setEditando(false);
   }
 
@@ -12276,6 +12473,7 @@ function DetalheSessaoRegistro({ r, aoSalvar }) {
           {r.notaIndividual ? <><br />Nota individual: {r.notaIndividual}</> : null}
         </p>
       )}
+      {!editando && <ResumoAtendimentoRegistro r={r} />}
       {!editando ? (
         <>
           {campos.corrigi && <Linha rotulo="Corrigi" texto={campos.corrigi} />}
@@ -12310,6 +12508,7 @@ function DetalheSessaoRegistro({ r, aoSalvar }) {
           <Campo rotulo="Próximo foco"><textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={campos.proximoFoco} onChange={(e) => setCampo("proximoFoco", e.target.value)} /></Campo>
           <Campo rotulo="Leitura da aula"><textarea rows={2} style={{ ...entrada, resize: "vertical" }} value={campos.leituraDaAula} onChange={(e) => setCampo("leituraDaAula", e.target.value)} /></Campo>
           <CamposTemas temas={temasParaChips} statusTemas={statusTemas} setStatusTemas={setStatusTemas} podeEditar />
+          {window.MTYAtendimento && r.presenca !== "ausente" && <CamposAtendimentoAluno valor={atendEdit} aoMudar={setAtendEdit} />}
           <div className="flex gap-2 mt-2">
             <Botao pequeno variante="saibro" onClick={salvar}>Salvar</Botao>
             <Botao pequeno variante="vazio" onClick={() => setEditando(false)}>Cancelar</Botao>
@@ -17636,6 +17835,11 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
   const [presenca, setPresenca] = useState({});
   const [obsIndividual, setObsIndividual] = useState({});
   const [notaAbertaId, setNotaAbertaId] = useState(null);
+  /* Padrão de Atendimento na turma: conquista, nota pessoal e pilares por jogador; os 3 itens marcados valem para os presentes */
+  const [atendTurma, setAtendTurma] = useState({});
+  const [atendAbertoId, setAtendAbertoId] = useState(null);
+  const [atendMarcadosTurma, setAtendMarcadosTurma] = useState({});
+  const [prepVistaTurma, setPrepVistaTurma] = useState(() => prepFoiVista("t", turma.id));
   const [sessaoTurma, setSessaoTurma] = useState(() => (rascunhoTurma ? rascunhoTurma.sessaoTurma : null)); // { aquecimento, conteudo } | null — a sessão de hoje da turma, com exercícios de verdade pra rodar em quadra
   /* Mesmo checklist "Atividades realizadas" (Feito/Parcial/Não feito)
      por exercício que a sessão individual (TelaSessao) já tinha — a
@@ -17812,6 +18016,9 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
           substitutoNome: nomeSubstitutoTurma,
           registradoPorUid: uidAtual || "",
           registradoPorNome: meuNomeSessaoTurma || "",
+          // Padrão de Atendimento: só de quem esteve na aula
+          ...(window.MTYAtendimento && !ausente
+            ? window.MTYAtendimento.camposDoRegistro({ fichaVista: prepVistaTurma, marcados: atendMarcadosTurma, ...(atendTurma[a.id] || {}) }) : {}),
         };
         /* Salvar de novo no mesmo dia pra esta turma substitui o registro
            anterior em vez de empilhar duplicata — ver seção 6, "impedir
@@ -17842,6 +18049,7 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
     setPresenca({});
     setObsIndividual({});
     setNotaAbertaId(null);
+    setAtendTurma({}); setAtendAbertoId(null); setAtendMarcadosTurma({});
     setFechando(false);
   }
 
@@ -17975,6 +18183,10 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
         </div>
       )}
 
+      {(statusGeral === "feita" || statusGeral === "chuva") && podeRegistrarSessaoTurma && (
+        <CartaoPreparacao itens={membros.map((m) => ({ aluno: m, foco: focoDoPlano(turma) || focoDoPlano(m) }))} vista={prepVistaTurma}
+          aoVer={() => { marcarPrepVista("t", turma.id); setPrepVistaTurma(true); }} />
+      )}
       {(statusGeral === "feita" || statusGeral === "chuva") && (
         <div className="mb-5" style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: 15 }}>
           <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
@@ -18018,6 +18230,23 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
                     value={obsIndividual[m.id] || ""} onChange={(e) => setObsIndividual((o) => ({ ...o, [m.id]: e.target.value }))}
                     placeholder="Observação só deste jogador nesta sessão." />
                 )}
+                {window.MTYAtendimento && st !== "ausente" && (() => {
+                  const at = atendTurma[m.id], aberto = atendAbertoId === m.id;
+                  const tem = at && ((at.conquista && at.conquista.texto.trim()) || (at.notaPessoal || "").trim());
+                  return (
+                    <>
+                      <button type="button" data-atend-jogador={m.id} onClick={() => setAtendAbertoId(aberto ? null : m.id)}
+                        style={{ ...prosa, fontSize: 11.5, color: C.saibro, cursor: "pointer", border: "none", background: "none", padding: 0, marginTop: 4, marginLeft: 12, fontWeight: 700 }}>
+                        {aberto ? "Ocultar conquista e nota pessoal" : (tem ? "Editar conquista e nota pessoal" : "+ conquista e nota pessoal")}
+                      </button>
+                      {aberto && (
+                        <div style={{ marginTop: 8 }}>
+                          <CamposAtendimentoAluno valor={at} desabilitado={!podeRegistrarSessaoTurma} aoMudar={(v) => setAtendTurma((o) => ({ ...o, [m.id]: v }))} />
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             );
           })}
@@ -18190,6 +18419,12 @@ function SessaoTurma({ turma, alunos, setAlunos, turmas, setTurmas, aoFechar, ao
                 <Seletor opcoes={[1, 2, 3, 4, 5].map((n) => ({ v: n, r: String(n) }))} valor={obs.nota}
                   aoMudar={(v) => setObs({ ...obs, nota: v })} />
               </Campo>
+              {window.MTYAtendimento && (() => {
+                const presentes = membros.filter((m) => presenca[m.id] !== "ausente");
+                const comConquista = presentes.filter((m) => atendTurma[m.id] && atendTurma[m.id].conquista && atendTurma[m.id].conquista.texto.trim()).length;
+                return <ChecklistAtendimento marcados={atendMarcadosTurma} aoMudar={setAtendMarcadosTurma} fichaVista={prepVistaTurma} desabilitado={!podeRegistrarSessaoTurma}
+                  devolutiva={comConquista + " de " + presentes.length + " com conquista"} />;
+              })()}
               <div className="mb-4">
                 <QuemDeuAula titularNome={turma.professorNome} titularUid={turma.professorUid} substitutoUid={substitutoTurma}
                   aoMudar={setSubstitutoTurma} uidAtual={uidAtual} professores={professoresSessaoTurma} />
@@ -19220,6 +19455,7 @@ function TelaAulasHoje({ alunos, setAlunos, turmas, setTurmas, quadras, reservas
       <p style={{ ...prosa, fontSize: 14, color: C.grafite, marginBottom: 4 }}>
         {new Date(hoje + "T00:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}
       </p>
+      <AvisoMeuAtendimento alunos={alunos} uidAtual={uidAtual} />
       {papelAtual === "coordenador" ? (
         <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 16 }}>Mostrando as aulas de toda a academia.</p>
       ) : (
@@ -24185,7 +24421,7 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   );
 }
 /* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
-const NOVIDADES_TY_VERSAO = "ty-2026-11-alto-rendimento";
+const NOVIDADES_TY_VERSAO = "ty-2026-11-atendimento";
 /* Itens com `so: "financeiro"` só aparecem para o dono e para a parte administrativa. Enquanto o item novo do topo for um
    desses, quem não o vê continua na versão da equipe abaixo (a janela não reabre vazia para os professores). */
 const NOVIDADES_TY_VERSAO_EQUIPE = "ty-2026-11w";
@@ -24194,7 +24430,8 @@ function novidadesTYPara(veFinanceiro) {
   return { itens, versao: itens.some((x) => x.novo) ? NOVIDADES_TY_VERSAO : NOVIDADES_TY_VERSAO_EQUIPE };
 }
 const NOVIDADES_TY = [
-  { novo: true, t: "Alto rendimento: plano individual e sessão do dia no CT (no lugar das Equipes de competição)", d: "Em Grupos › Alto rendimento cada atleta tem o próprio plano: o calendário de torneios com prioridade (principal, secundário, preparatório) define as fases e a carga, e a IA escolhe os conteúdos e os exercícios com a ficha, os scouts, as evidências, as metas e testes e o que ficou do ciclo anterior (você revisa antes de usar). Há um marcador de onde ele está (semana atual, o que já fez e os essenciais que ficaram para trás). Jogos e treinos feitos em viagem entram pelo próprio atleta, no Meu plano, ou por você; tudo soma na carga da semana (minutos × esforço). Na Sessão do dia você marca quem está no CT e a sessão sai pronta: blocos coletivos com o que é comum aos presentes e tarefas individuais com o que é de cada um, com os mesmos cartões de exercício das aulas (substituir, remover, editar e escolher outro); ao fechar, o marcador e a carga de cada atleta se atualizam. Metas e testes repetíveis por pilar mostram a evolução. O planejamento por equipe saiu; um botão traz os atletas das equipes antigas para o alto rendimento.", onde: "Mais › Grupos › Alto rendimento (e Jogadores › ficha › Alto rendimento)", aba: "equipes" },
+  { novo: true, t: "Padrão de Atendimento MTY: preparação da aula, conquista do dia e relatório do ciclo", d: "O mesmo cuidado com o aluno em toda aula. 1) Antes da aula: no topo da Sessão (do jogador e da turma) aparece Preparação da aula, com o foco do plano, a conquista da última aula e a nota pessoal de cada aluno. 2) Ao finalizar: anote a conquista do dia (dá para marcar como marco), a nota pessoal (algo que o aluno contou: torneio, viagem, objetivo) e, se quiser, uma observação por pilar. Na turma, cada jogador tem a sua em \"+ conquista e nota pessoal\". 3) Checklist de 6 itens: três marcam sozinhos (abrir a preparação, preencher a conquista e registrar a aula) e três você marca. É opcional e não impede registrar a aula; em Aulas de hoje você vê como está o seu nos últimos 7 dias, e o Richard acompanha o da equipe. 4) Relatório do ciclo para o cliente: na ficha do jogador, em Relatório, a IA escreve um rascunho só com as conquistas, os marcos e as observações por pilar (as suas anotações internas não entram), em versão para os pais ou para o aluno adulto. Você revisa, publica e ele aparece no Meu plano do aluno, com a mensagem do Richard. Nada mudou no que você já fazia: os campos novos são opcionais.", onde: "Jogadores › ficha › Sessão de hoje e Relatório (e Turmas › Sessão)", aba: "aulas-hoje" },
+  { t: "Alto rendimento: plano individual e sessão do dia no CT (no lugar das Equipes de competição)", d: "Em Grupos › Alto rendimento cada atleta tem o próprio plano: o calendário de torneios com prioridade (principal, secundário, preparatório) define as fases e a carga, e a IA escolhe os conteúdos e os exercícios com a ficha, os scouts, as evidências, as metas e testes e o que ficou do ciclo anterior (você revisa antes de usar). Há um marcador de onde ele está (semana atual, o que já fez e os essenciais que ficaram para trás). Jogos e treinos feitos em viagem entram pelo próprio atleta, no Meu plano, ou por você; tudo soma na carga da semana (minutos × esforço). Na Sessão do dia você marca quem está no CT e a sessão sai pronta: blocos coletivos com o que é comum aos presentes e tarefas individuais com o que é de cada um, com os mesmos cartões de exercício das aulas (substituir, remover, editar e escolher outro); ao fechar, o marcador e a carga de cada atleta se atualizam. Metas e testes repetíveis por pilar mostram a evolução. O planejamento por equipe saiu; um botão traz os atletas das equipes antigas para o alto rendimento.", onde: "Mais › Grupos › Alto rendimento (e Jogadores › ficha › Alto rendimento)", aba: "equipes" },
   { t: "Área do aluno com e-mail e senha", d: "O aluno (e o pai e a mãe, cada um com a sua conta, até 3 por aluno) agora pode guardar o plano numa área com e-mail e senha, em teamyoda.com.br/minha-area. No Meu plano que você manda aparece \"Criar minha área\": a pessoa cria a conta e o aluno já fica ligado. Depois ela abre o plano, as aulas, as reposições, os relatórios e a Academia Digital sem precisar guardar o link. O botão \"Acessar minha área\" do site também leva para lá. Se você trocar o link de um aluno, as contas ligadas a ele param de abrir o plano até receberem o link novo.", onde: "teamyoda.com.br/minha-area (e o Meu plano de cada aluno)", aba: "alunos" },
   { t: "Situações de jogo no catálogo, nas Táticas e nos planos", d: "96 exercícios novos de situação de jogo, cada um com o que ler, o que decidir, a montagem, como variar e o indicador, entraram nas famílias que você já usa: Drills táticos (leitura, organização e defesa), Início do ponto (saque e devolução com a bola seguinte), Power drills de base (construção e mudança no fundo), Ataque (transição e bola curta), Power drills de rede (rede e finalização) e Duplas. A aba Táticas ganhou a situação de jogo e os quatro estados do ponto, da leitura à transferência, nível por situação, como variar e como medir decisão e execução; Condução ganhou as perguntas que ajudam a decidir; Aulas, como desenhar a tarefa, os formatos de prática e sessões com situações. Os planos gerados (jogador e turma) passam a ter pelo menos uma situação de jogo por semana.", onde: "Catálogo de exercícios e Mais › Método e formação › Táticas", aba: "taticas" },
   { t: "Site novo do Team Yoda", d: "O teamyoda.com.br ganhou cara nova: a Metodologia MTY, as duas unidades (Team Yoda · Cooper Tênis e 39 Ranch Tennis Club), a Academia Digital com telas reais da plataforma e as trilhas de Técnica, Tática e Mental, as consultorias com o Richard para jogadores de fora e um caminho claro para quem já é aluno (Acessar minha área e Preciso do meu link). A Área do professor fica no menu e no rodapé, e o app continua em teamyoda.com.br/treinador.", onde: "teamyoda.com.br" },
@@ -25987,6 +26224,328 @@ function DestaqueResultadoP({ titulo, r, anterior }) {
   );
 }
 
+/* ── Padrão de Atendimento: relatório do ciclo para o cliente e painel do Head Trainer ──
+   Relatório: a IA escreve o rascunho SÓ com conquistas, marcos, observações por pilar, temas e o foco do próximo ciclo
+   (atendimento.js → dadosRelatorio: nada de "corrigi", "deixei passar", leitura da aula ou nota pessoal). O professor revisa
+   e publica; nunca sai sozinho. Publicado, aparece na página do aluno (Meu plano). Fica em aluno.relatoriosCiclo.
+   Mensagem do ciclo: o Richard escreve uma vez (mty:atendimento:v1) e ela é copiada para cada relatório na hora de publicar.
+   Painel: só a conta do dono abre (o item do menu e a rota conferem); é leitura do que já está registrado. */
+const CHAVE_ATENDIMENTO = "mty:atendimento:v1";
+function RelatorioCicloCliente({ aluno, setAlunos, identidade, papelAtual, uidAtual }) {
+  const A = window.MTYAtendimento;
+  const hoje = new Date().toISOString().slice(0, 10);
+  const podeEditar = podeEditarAluno(aluno, papelAtual, uidAtual);
+  const academia = identidade && identidade.nome;
+  const lista = (aluno.relatoriosCiclo || []).slice().sort((a, b) => String(b.atualizadoEm || "").localeCompare(String(a.atualizadoEm || "")));
+  const [id, setId] = useState(null);
+  const [periodo, setPeriodo] = useState(() => A.periodoPadrao(aluno, hoje));
+  const [publico, setPublico] = useState(() => A.publicoPadrao(aluno, hoje));
+  const [texto, setTexto] = useState(null);
+  const [msgInd, setMsgInd] = useState("");
+  const [etapa, setEtapa] = useState("");
+  const [msg, setMsg] = useState(null);
+  const [config, setConfig] = useState({});
+  const [meuNome, setMeuNome] = useState("");
+  useEffect(() => {
+    let vivo = true;
+    leia(CHAVE_ATENDIMENTO, {}, true).then((c) => { if (vivo) setConfig(c || {}); });
+    if (uidAtual) listaProfessoresCache().then((l) => { if (vivo) setMeuNome((l.find((p) => p.uid === uidAtual) || {}).nome || ""); });
+    return () => { vivo = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const dados = useMemo(() => A.dadosRelatorio(aluno, periodo), [aluno.registros, aluno.nome, periodo.de, periodo.ate]);
+  const atual = id ? (aluno.relatoriosCiclo || []).find((r) => r.id === id) || null : null;
+  const publicado = !!(atual && atual.status === "publicado");
+  const dono = ehDonoFinanceiro();
+  const msgCiclo = config && config.mensagemCiclo && String(config.mensagemCiclo.texto || "").trim() ? config.mensagemCiclo : null;
+
+  function novo() { setId("rc-" + Date.now().toString(36)); setPeriodo(A.periodoPadrao(aluno, hoje)); setPublico(A.publicoPadrao(aluno, hoje)); setTexto(null); setMsgInd(""); setMsg(null); }
+  function abrir(r) { setId(r.id); setPeriodo(r.periodo || A.periodoPadrao(aluno, hoje)); setPublico(r.publico === "pais" ? "pais" : "adulto"); setTexto(A.normalizarTexto(r.texto)); setMsgInd(r.mensagemIndividual || ""); setMsg(null); }
+  function fechar() { setId(null); setTexto(null); setMsg(null); }
+  async function gerarIA() {
+    setMsg(null); setEtapa("Começando");
+    try {
+      const t = A.lerResposta(await chamarIA(A.promptRelatorio(dados, { publico, academia, treinador: meuNome }), 1600, setEtapa));
+      setTexto(t); setMsg({ t: "Rascunho escrito pela IA com o que foi registrado no período. Revise antes de publicar." });
+    } catch (e) { setMsg({ erro: true, t: (e && e.message) || "Não foi possível gerar agora. Você pode escrever sem IA." }); }
+    setEtapa("");
+  }
+  function semIA() { setTexto(A.rascunhoSemIA(dados, publico)); setMsg({ t: "Rascunho montado com os registros do período, sem IA. Reescreva com as suas palavras." }); }
+  function relAtual(extra) {
+    return { id, periodo, publico, texto: A.normalizarTexto(texto), marcos: dados.marcos, aulas: dados.aulas, mensagemIndividual: String(msgInd || "").slice(0, 3000), ...(extra || {}) };
+  }
+  function gravar(extra) {
+    const agora = new Date().toISOString();
+    const base = { ...relAtual(), atualizadoEm: agora, autorUid: uidAtual || null, autorNome: meuNome || "" };
+    setAlunos((l) => l.map((a) => {
+      if (a.id !== aluno.id) return a;
+      const ls = a.relatoriosCiclo || [], ant = ls.find((r) => r.id === id);
+      const novoRel = { status: "rascunho", criadoEm: agora, ...(ant || {}), ...base, ...(extra || {}) };
+      return { ...a, relatoriosCiclo: ant ? ls.map((r) => (r.id === id ? novoRel : r)) : [...ls, novoRel].slice(-24) };
+    }));
+  }
+  function publicar() {
+    gravar({ status: "publicado", publicadoEm: new Date().toISOString(), publicadoPor: meuNome || "", publicadoPorUid: uidAtual || null,
+      mensagemCiclo: msgCiclo ? { texto: String(msgCiclo.texto).slice(0, 3000), autor: msgCiclo.autor || "Richard Tsukada" } : null });
+    avisarPushAluno("relatorio", aluno.id);
+    setMsg({ t: "Publicado: já aparece na página do aluno." });
+  }
+  async function whatsapp() {
+    const url = await linkPaginaAluno(aluno, setAlunos);
+    window.open("https://wa.me/?text=" + encodeURIComponent("Olá! O relatório do ciclo de " + String(aluno.nome || "").split(" ")[0] + " já está disponível. Abra pelo link: " + url), "_blank", "noopener");
+  }
+  function pdf() {
+    const w = window.open("", "_blank");
+    if (!w) { setMsg({ erro: true, t: "O navegador bloqueou a nova janela. Permita pop-ups para baixar o PDF." }); return; }
+    w.document.write(A.documento(previa, { nome: aluno.nome, academia })); w.document.close();
+  }
+  const previa = texto ? relAtual({ mensagemCiclo: publicado ? atual.mensagemCiclo : msgCiclo, publicadoPor: (atual && atual.publicadoPor) || meuNome, publicadoEm: atual && atual.publicadoEm }) : null;
+  const setT = (k, v) => setTexto((t) => ({ ...t, [k]: v }));
+  const chip = (ativo) => ({ fontFamily: ARCH, fontSize: 13, fontWeight: 600, minHeight: 40, padding: "0 14px", borderRadius: 999, cursor: "pointer",
+    border: "1.5px solid " + C.quadra, background: ativo ? C.quadra : "transparent", color: ativo ? "#fff" : C.quadra });
+  const nObs = A.PILARES.reduce((s, [k]) => s + dados.pilares[k].length, 0);
+
+  return (
+    <div data-relatorio-ciclo className="mb-6" style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 14, padding: "14px 16px", boxShadow: SOMBRA }}>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div style={{ flex: "1 1 240px" }}>
+          <h2 style={{ fontFamily: ARCH, fontSize: 18, fontWeight: 700, margin: 0 }}>Relatório do ciclo para o cliente</h2>
+          <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginTop: 2 }}>Evolução nos pilares, conquistas, marcos e o foco do próximo ciclo, em linguagem simples. As suas anotações internas não entram.</p>
+        </div>
+        {!id && podeEditar && <Botao pequeno variante="saibro" onClick={novo}>Novo relatório do ciclo</Botao>}
+      </div>
+
+      {!id && lista.length > 0 && (
+        <div className="mt-3">
+          {lista.map((r) => (
+            <div key={r.id} data-rc-item={r.id} className="flex items-center justify-between gap-3 flex-wrap" style={{ borderTop: "1px solid " + C.linha, padding: "8px 0" }}>
+              <span style={{ ...prosa, fontSize: 13.5 }}>
+                <b>{A.dataBR(r.periodo && r.periodo.de)} a {A.dataBR(r.periodo && r.periodo.ate)}</b> · {r.publico === "pais" ? "para os pais" : "para o aluno"} ·{" "}
+                <span style={{ color: r.status === "publicado" ? C.quadra : C.grafite, fontWeight: 700 }}>{r.status === "publicado" ? "publicado" : "rascunho"}</span>
+              </span>
+              <Botao pequeno variante="vazio" onClick={() => abrir(r)}>{podeEditar ? "Abrir" : "Ver"}</Botao>
+            </div>
+          ))}
+        </div>
+      )}
+      {!id && !lista.length && <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginTop: 10 }}>Nenhum relatório do ciclo ainda.</p>}
+
+      {id && (
+        <div className="mt-3" data-rc-editor>
+          <button onClick={fechar} style={{ ...prosa, fontSize: 13.5, color: C.quadra, fontWeight: 700, background: "none", border: "none", cursor: "pointer", padding: 0, minHeight: 36 }}>‹ Voltar à lista</button>
+          <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>{publicado ? "Publicado: aparece na página do aluno." : "Rascunho: só a equipe vê."}</p>
+          <div className="flex gap-3 flex-wrap items-end mt-2">
+            <label style={{ ...prosa, fontSize: 12.5, fontWeight: 700 }}>De
+              <input type="date" aria-label="Início do período" style={{ ...entrada, display: "block", marginTop: 3 }} value={periodo.de} max={periodo.ate} disabled={!podeEditar} onChange={(e) => e.target.value && setPeriodo({ ...periodo, de: e.target.value })} />
+            </label>
+            <label style={{ ...prosa, fontSize: 12.5, fontWeight: 700 }}>Até
+              <input type="date" aria-label="Fim do período" style={{ ...entrada, display: "block", marginTop: 3 }} value={periodo.ate} min={periodo.de} max={hoje} disabled={!podeEditar} onChange={(e) => e.target.value && setPeriodo({ ...periodo, ate: e.target.value })} />
+            </label>
+            <div role="radiogroup" aria-label="Para quem é o relatório" className="flex gap-2">
+              {[["pais", "Para os pais"], ["adulto", "Para o aluno adulto"]].map(([v, r]) => (
+                <button key={v} type="button" role="radio" aria-checked={publico === v} disabled={!podeEditar} onClick={() => setPublico(v)} style={chip(publico === v)}>{r}</button>
+              ))}
+            </div>
+          </div>
+          <p data-rc-contagem style={{ ...prosa, fontSize: 13, color: C.grafite, marginTop: 8 }}>
+            No período: {dados.aulas} {dados.aulas === 1 ? "aula" : "aulas"} · {dados.conquistas.length} {dados.conquistas.length === 1 ? "conquista" : "conquistas"} · {dados.marcos.length} {dados.marcos.length === 1 ? "marco" : "marcos"} · {nObs} {nObs === 1 ? "observação por pilar" : "observações por pilar"}.
+          </p>
+          {!A.temDados(dados) && <Aviso>Não há aulas registradas neste período. Ajuste as datas ou registre as aulas com a conquista do dia.</Aviso>}
+          {A.temDados(dados) && !dados.conquistas.length && !nObs && <Aviso cor={C.quadra}>As aulas deste período não têm conquista nem observação por pilar. O relatório vai sair curto: a IA não inventa o que não foi registrado.</Aviso>}
+
+          {podeEditar && (
+            <div className="flex gap-2 flex-wrap mt-2">
+              <Botao pequeno variante="saibro" disabled={!!etapa || !A.temDados(dados)} onClick={gerarIA}>{etapa ? etapa + "…" : texto ? "Gerar de novo com IA" : "Gerar rascunho com IA"}</Botao>
+              <Botao pequeno variante="vazio" disabled={!!etapa || !A.temDados(dados)} onClick={semIA}>Escrever sem IA</Botao>
+            </div>
+          )}
+          {msg && <p role="status" style={{ ...prosa, fontSize: 13, color: msg.erro ? "#A33" : C.quadra, marginTop: 8 }}>{msg.t}</p>}
+
+          {(dados.conquistas.length > 0 || nObs > 0) && (
+            <details className="mt-3" data-rc-fontes>
+              <summary style={{ ...prosa, fontSize: 13, fontWeight: 700, color: C.saibro, cursor: "pointer" }}>De onde vem cada parte (o que foi registrado nas aulas)</summary>
+              <div style={{ marginTop: 6 }}>
+                {dados.conquistas.map((c, i) => <p key={"c" + i} style={{ ...prosa, fontSize: 12.5 }}>{A.dataCurta(c.data)} · {c.marco ? "marco" : "conquista"}: {c.texto}</p>)}
+                {A.PILARES.map(([k, r]) => dados.pilares[k].map((o, i) => <p key={k + i} style={{ ...prosa, fontSize: 12.5 }}>{A.dataCurta(o.data)} · {r}: {o.texto}</p>))}
+                {dados.focoProximo && <p style={{ ...prosa, fontSize: 12.5 }}>Próximo foco anotado: {dados.focoProximo}</p>}
+              </div>
+            </details>
+          )}
+
+          {texto && (
+            <>
+              {podeEditar && (
+                <div className="mt-4" data-rc-campos>
+                  <Campo rotulo="Abertura"><textarea aria-label="Abertura" rows={3} style={{ ...entrada, resize: "vertical" }} value={texto.abertura} onChange={(e) => setT("abertura", e.target.value)} /></Campo>
+                  <Campo rotulo="Conquistas" nota="Uma por linha. Os marcos aparecem à parte, com a data.">
+                    <textarea aria-label="Conquistas" rows={4} style={{ ...entrada, resize: "vertical" }} value={texto.conquistas.join("\n")} onChange={(e) => setT("conquistas", e.target.value.split("\n"))} />
+                  </Campo>
+                  <Campo rotulo="Evolução nos pilares" nota="Pilar em branco não aparece no relatório.">
+                    {A.PILARES.map(([k, r]) => (
+                      <textarea key={k} aria-label={"Relatório · " + r} rows={2} placeholder={r} style={{ ...entrada, resize: "vertical", marginBottom: 6 }} value={texto.pilares[k] || ""}
+                        onChange={(e) => setTexto((t) => ({ ...t, pilares: { ...t.pilares, [k]: e.target.value } }))} />
+                    ))}
+                  </Campo>
+                  <Campo rotulo="Foco do próximo ciclo"><textarea aria-label="Foco do próximo ciclo" rows={2} style={{ ...entrada, resize: "vertical" }} value={texto.proximoCiclo} onChange={(e) => setT("proximoCiclo", e.target.value)} /></Campo>
+                  <Campo rotulo="Fechamento"><textarea aria-label="Fechamento" rows={2} style={{ ...entrada, resize: "vertical" }} value={texto.fechamento} onChange={(e) => setT("fechamento", e.target.value)} /></Campo>
+                  {dono ? (
+                    <Campo rotulo="Mensagem individual do Richard" nota="Opcional. Entra depois da mensagem do ciclo, só neste relatório.">
+                      <textarea aria-label="Mensagem individual do Richard" rows={2} style={{ ...entrada, resize: "vertical" }} value={msgInd} onChange={(e) => setMsgInd(e.target.value)} />
+                    </Campo>
+                  ) : null}
+                  <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 10 }}>
+                    {msgCiclo ? "A mensagem do ciclo do Richard entra ao publicar (ela já aparece na prévia abaixo)." : "Ainda não há mensagem do ciclo do Richard. O relatório pode ser publicado sem ela."}
+                  </p>
+                </div>
+              )}
+              <div data-rc-previa style={{ background: "#fff", border: "1px solid " + C.linha, borderRadius: 12, padding: "14px 16px", marginTop: 6 }}>
+                <style>{A.CSS}</style>
+                <div dangerouslySetInnerHTML={{ __html: A.html(previa, { nome: aluno.nome, academia }) }} />
+              </div>
+              {podeEditar && (
+                <div className="flex gap-2 flex-wrap mt-3">
+                  <Botao variante="vazio" onClick={() => { gravar(); setMsg({ t: publicado ? "Alterações salvas no relatório publicado." : "Rascunho salvo." }); }}>{publicado ? "Salvar alterações" : "Salvar rascunho"}</Botao>
+                  {!publicado && <Botao variante="saibro" onClick={publicar}>Publicar para o cliente</Botao>}
+                </div>
+              )}
+              {publicado && (
+                <div data-rc-publicado className="flex gap-2 flex-wrap mt-2">
+                  <Botao variante="vazio" onClick={whatsapp}>Enviar pelo WhatsApp</Botao>
+                  <Botao variante="vazio" onClick={pdf}>Baixar PDF</Botao>
+                  {podeEditar && <Botao variante="vazio" onClick={() => { gravar({ status: "rascunho", publicadoEm: null }); setMsg({ t: "O relatório saiu da página do aluno e voltou a ser rascunho." }); }}>Despublicar</Botao>}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TelaPadraoAtendimento({ alunos, turmas, ocorrencias, irParaAluno, irParaTurma }) {
+  const A = window.MTYAtendimento;
+  const hoje = new Date().toISOString().slice(0, 10);
+  const [professores, setProfessores] = useState([]);
+  const [config, setConfig] = useState(null);
+  const [mensagem, setMensagem] = useState("");
+  const [aviso, setAviso] = useState("");
+  useEffect(() => {
+    let vivo = true;
+    listaProfessores().then((l) => { if (vivo) setProfessores(l || []); });
+    leia(CHAVE_ATENDIMENTO, {}, true).then((c) => { if (vivo) { setConfig(c || {}); setMensagem((c && c.mensagemCiclo && c.mensagemCiclo.texto) || ""); } });
+    return () => { vivo = false; };
+  }, []);
+  const P = useMemo(() => {
+    const desde = A.somaDias(hoje, -(A.LIMITES.janelaDias - 1));
+    const previstas = gerarOcorrenciasFaltantes(ocorrencias, alunos, turmas, desde, hoje, []);
+    const aulas = QLAulasMes.aulasDoPeriodo({ ocorrencias, alunos, turmas, inicio: desde, fim: hoje, hoje, extras: previstas });
+    return A.painel({ alunos, turmas, aulas, hoje, agora: Date.now() });
+  }, [alunos, turmas, ocorrencias, hoje]);
+  /* professor aprovado que ainda não tem aula com o padrão novo também aparece (é quem o Head Trainer precisa notar) */
+  const linhas = useMemo(() => {
+    const vistos = new Set(P.professores.map((p) => p.chave)), nomes = new Set(P.professores.map((p) => p.nome));
+    const extras = professores.filter((p) => !vistos.has("u:" + p.uid) && !nomes.has(p.nome)).map((p) => ({ chave: "u:" + p.uid, nome: p.nome, aulas: 0, completas: 0, pctCompleto: null, mediaItens: null, itemMaisEsquecido: null, atrasadas: 0, conversa: [] }));
+    return [...P.professores, ...extras];
+  }, [P, professores]);
+  async function salvarMensagem() {
+    const novo = { ...(config || {}), mensagemCiclo: { texto: mensagem.trim().slice(0, 3000), autor: "Richard Tsukada", atualizadoEm: new Date().toISOString() } };
+    const ok = await grave(CHAVE_ATENDIMENTO, novo, true);
+    if (ok) setConfig(novo);
+    setAviso(ok ? "Mensagem do ciclo salva. Ela entra nos relatórios publicados a partir de agora." : "Não foi possível salvar. Tente de novo.");
+  }
+  const L = P.limites, T = P.totais;
+  const semDados = !T.aulas && !T.atrasadas && !T.faltas && !T.semMarco;
+  const tempo = (h) => (h >= 48 ? Math.floor(h / 24) + " dias" : h + " h");
+  const linkFicha = (c) => (
+    <button type="button" onClick={() => (c.alunoId ? irParaAluno(c.alunoId) : c.turmaId ? irParaTurma(c.turmaId) : null)} disabled={!c.alunoId && !c.turmaId}
+      style={{ ...prosa, fontSize: 13.5, fontWeight: 700, color: C.quadra, background: "none", border: "none", cursor: c.alunoId || c.turmaId ? "pointer" : "default", padding: 0, textAlign: "left", minHeight: 32 }}>{c.nome}</button>
+  );
+  const itemLista = { borderTop: "1px solid #EEF1EF", padding: "7px 0" };
+  return (
+    <div data-padrao-atendimento>
+      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginBottom: 2 }}>Padrão de atendimento</h1>
+      <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginBottom: 14 }}>Últimos {L.janelaDias} dias, de {A.dataCurta(P.desde)} a {A.dataCurta(P.hoje)}. Só a sua conta abre este painel.</p>
+      {semDados && <Aviso cor={C.quadra}>Ainda não há aulas registradas com o padrão novo. Os números aparecem conforme os professores registram as aulas com a conquista do dia e o checklist.</Aviso>}
+      <Painel>
+        <CartaoP largura="mini" data-kpi="checklist"><NumeroP rotulo="Checklist completo" valor={T.pctCompleto == null ? "—" : T.pctCompleto + "%"} nota={T.aulas ? T.completas + " de " + T.aulas + " aulas" : "nenhuma aula com o padrão"} /></CartaoP>
+        <CartaoP largura="mini" data-kpi="atrasadas"><NumeroP rotulo="Aulas sem registro" valor={T.atrasadas} nota={"há mais de " + L.horasRegistro + " h"} cor={T.atrasadas ? COR_ALERTA : undefined} /></CartaoP>
+        <CartaoP largura="mini" data-kpi="faltas"><NumeroP rotulo={"Alunos com " + L.faltas + " faltas ou mais"} valor={T.faltas} nota={"em " + L.diasFaltas + " dias"} cor={T.faltas ? COR_ALERTA : undefined} /></CartaoP>
+        <CartaoP largura="mini" data-kpi="sem-marco"><NumeroP rotulo="Alunos sem marco" valor={T.semMarco} nota={"há " + L.diasSemMarco + " dias ou mais"} cor={T.semMarco ? COR_ALERTA : undefined} /></CartaoP>
+
+        <CartaoP largura="cheio" titulo="Checklist por professor" data-secao="professores">
+          {linhas.length === 0 && <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Nenhum professor com aula no período.</p>}
+          {linhas.map((p) => (
+            <div key={p.chave} data-prof={p.nome} style={itemLista}>
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{p.nome}</span>
+                <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>{p.pctCompleto == null ? "sem aulas com o padrão" : p.pctCompleto + "% completo"}</span>
+              </div>
+              {p.pctCompleto != null && (
+                <div role="img" aria-label={p.pctCompleto + "% das aulas com checklist completo"} style={{ height: 8, borderRadius: 4, background: "#EEF1EF", marginTop: 5, overflow: "hidden" }}>
+                  <div style={{ width: p.pctCompleto + "%", height: "100%", background: C.quadra, borderRadius: 4 }} />
+                </div>
+              )}
+              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 5 }}>
+                {p.aulas ? p.completas + " de " + p.aulas + " aulas completas · média " + String(p.mediaItens).replace(".", ",") + " de 6 itens" : "Nenhuma aula registrada com o padrão novo nos últimos " + L.janelaDias + " dias."}
+                {p.itemMaisEsquecido ? " · mais esquecido: " + p.itemMaisEsquecido.r.toLowerCase() + " (" + p.itemMaisEsquecido.vezes + "×)" : ""}
+                {p.atrasadas ? " · " + p.atrasadas + (p.atrasadas === 1 ? " aula sem registro" : " aulas sem registro") : ""}
+              </p>
+            </div>
+          ))}
+        </CartaoP>
+
+        <CartaoP largura="cheio" titulo="Conversa semanal: fichas sugeridas por professor" data-secao="conversa">
+          {!linhas.some((p) => p.conversa.length) && <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Nenhuma ficha pede conversa agora.</p>}
+          {linhas.filter((p) => p.conversa.length).map((p) => (
+            <div key={p.chave} data-conversa={p.nome} style={{ marginBottom: 10 }}>
+              <p style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700, margin: "0 0 2px" }}>{p.nome}</p>
+              {p.conversa.map((c, i) => (
+                <div key={i} className="flex gap-2 flex-wrap items-baseline" style={itemLista}>{linkFicha(c)}<span style={{ ...prosa, fontSize: 13, color: C.grafite }}>{c.motivo}</span></div>
+              ))}
+            </div>
+          ))}
+        </CartaoP>
+
+        <CartaoP largura="2" titulo="Aulas sem registro" direita={<ChipP tom={P.atrasadas.length ? "vermelho" : "verde"}>{P.atrasadas.length}</ChipP>} data-secao="atrasadas">
+          {!P.atrasadas.length && <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Todas as aulas dos últimos {L.janelaDias} dias têm registro.</p>}
+          {P.atrasadas.slice(0, 30).map((x, i) => (
+            <div key={i} style={itemLista}>
+              <div className="flex gap-2 flex-wrap items-baseline">{linkFicha({ nome: x.nome, alunoId: x.origemTipo === "individual" ? x.origemId : null, turmaId: x.origemTipo === "turma" ? x.origemId : null })}
+                <span style={{ ...prosa, fontSize: 13, color: C.grafite }}>{A.dataCurta(x.data)}{x.hora ? " às " + x.hora : ""} · {x.professor}</span></div>
+              <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>{x.tipo === "so-agenda" ? "Marcada na Agenda, sem a ficha da aula" : "Sem nenhum registro"} · há {tempo(x.horas)}</p>
+            </div>
+          ))}
+          {P.atrasadas.length > 30 && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 6 }}>E mais {P.atrasadas.length - 30}.</p>}
+        </CartaoP>
+
+        <CartaoP titulo={"Faltas (" + L.faltas + " ou mais em " + L.diasFaltas + " dias)"} data-secao="faltas">
+          {!P.alunosFaltas.length && <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Nenhum aluno neste limite.</p>}
+          {P.alunosFaltas.map((x) => (
+            <div key={x.alunoId} style={itemLista}>{linkFicha(x)}<p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>{x.faltas} faltas · última em {A.dataCurta(x.ultima)} · {x.professor}</p></div>
+          ))}
+        </CartaoP>
+
+        <CartaoP titulo={"Sem marco há " + L.diasSemMarco + " dias ou mais"} data-secao="sem-marco">
+          {!P.alunosSemMarco.length && <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>Nenhum aluno neste limite.</p>}
+          {P.alunosSemMarco.map((x) => (
+            <div key={x.alunoId} style={itemLista}>{linkFicha(x)}<p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>{x.dias} dias · {x.ultimoMarco ? "último marco em " + A.dataCurta(x.ultimoMarco) : "nenhum marco registrado"} · {x.professor}</p></div>
+          ))}
+        </CartaoP>
+
+        <CartaoP largura="cheio" titulo="Mensagem do ciclo" data-secao="mensagem">
+          <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginBottom: 8 }}>Escreva uma vez por ciclo. Ela entra em todos os relatórios do ciclo que os professores publicarem a partir de agora; os já publicados não mudam.</p>
+          <textarea aria-label="Mensagem do ciclo" rows={4} maxLength={3000} style={{ ...entrada, resize: "vertical" }} value={mensagem} onChange={(e) => { setMensagem(e.target.value); setAviso(""); }} />
+          <div className="flex gap-3 flex-wrap items-center mt-2">
+            <Botao pequeno variante="saibro" disabled={config == null} onClick={salvarMensagem}>Salvar mensagem</Botao>
+            {aviso && <span role="status" style={{ ...prosa, fontSize: 13, color: C.quadra }}>{aviso}</span>}
+          </div>
+        </CartaoP>
+      </Painel>
+    </div>
+  );
+}
+
 function TelaFinanceiro() {
   const [mes, setMes] = useState(() => (mesISOAtual() < FINANCEIRO_INICIO ? FINANCEIRO_INICIO : mesISOAtual()));
   const [dados, setDados] = useState(null);
@@ -27098,6 +27657,7 @@ function App() {
       ...(ehCoordenador ? [{ v: "aulas-equipe", r: "Aulas da equipe" }] : []),
       // o professor também vê o próprio relatório (a tela restringe por dentro)
       { v: "relatorio", r: "Relatório de aulas" },
+      ...(ehDonoFinanceiro() ? [{ v: "atendimento", r: "Padrão de atendimento" }] : []),
       ...(ehDonoFinanceiro() ? [{ v: "financeiro", r: "Financeiro" }] : papelFin === "admin" ? [{ v: "cobranca", r: "Cobrança" }] : []),
     ] },
     { id: "metodo", label: "Método e formação", itens: [
@@ -27545,6 +28105,9 @@ function App() {
            irParaCaderno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("registro"); }}
            irParaTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} irParaManual={irParaManual} /> :
          aba === "financeiro" && ehDonoFinanceiro() ? <TelaFinanceiro /> :
+         aba === "atendimento" && ehDonoFinanceiro() && window.MTYAtendimento ? <TelaPadraoAtendimento alunos={alunos} turmas={turmas} ocorrencias={ocorrencias}
+           irParaAluno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("registro"); }}
+           irParaTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} /> :
          aba === "cobranca" && papelFin === "admin" ? <TelaCobranca /> :
          aba === "academia-digital" && mostraDigital ? <TelaAcademiaDigital /> :
          aba === "pendencias" && podePendencias ? <>{topoHoje}<TelaPendencias alunos={alunos} setAlunos={setAlunos} turmas={turmas} quadras={quadras} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} regrasReposicao={regrasReposicao}
@@ -27762,7 +28325,8 @@ function App() {
              subaba === "fechamento" ? <TelaPlano aluno={aberto} alunos={alunos} setAlunos={setAlunos} setSubaba={setSubaba} aoAcessarFicha={() => { setSubaba("ficha"); setEtapaFichaAlvo(4); }} modo="fechamento" papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} ocorrencias={ocorrencias} /> :
              subaba === "periodizacao" ? <TelaPeriodizacao aluno={aberto} aoCriarPeriodo={() => { setEtapaFichaAlvo(2); setSubaba("ficha"); }} /> :
              subaba === "scout" ? <TelaScout aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade} /> :
-             subaba === "relatorio" ? <TelaRelatorioAluno aluno={aberto} setAlunos={setAlunos} identidade={identidade} /> :
+             subaba === "relatorio" ? <>{window.MTYAtendimento && <RelatorioCicloCliente key={aberto.id} aluno={aberto} setAlunos={setAlunos} identidade={identidade} papelAtual={papelAtual} uidAtual={uidAtual} />}
+               <TelaRelatorioAluno aluno={aberto} setAlunos={setAlunos} identidade={identidade} /></> :
              subaba === "canal" ? <CanalConversa canal={"aluno:" + aberto.id} /> :
              subaba === "registro" ? <TelaRegistro aluno={aberto} alunos={alunos} setAlunos={setAlunos} identidade={identidade} aoReabrirJogo={(id) => { try { sessionStorage.setItem("ql-reabrir:" + aberto.id, id); } catch { /* sem sessionStorage */ } setSubaba("scout"); }}
                abrirRegistroId={registroAbertoAlvo} aoConsumirAbrirRegistro={() => setRegistroAbertoAlvo(null)} /> :

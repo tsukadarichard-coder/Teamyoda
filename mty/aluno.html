@@ -151,6 +151,7 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catc
 <script src="scout/movimento.js"></script>
 <script src="plano-equipe.js"></script>
 <script src="relatorio-atleta.js"></script>
+<script src="atendimento.js"></script>
 <script>
 function escapar(s){ return String(s||'').replace(/[&<>"]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
 
@@ -559,7 +560,7 @@ function todosHorarios(agenda) {
         ? 'Seu treinador está preparando seu plano — assim que for revisado e aprovado, aparece aqui.'
         : 'Ainda não há um plano montado para você.';
       el.innerHTML = '<header><h1>' + escapar(d.nome) + '</h1><div class="sub">' + subtitulo + '</div></header><div id="ql-avisos-celular"></div>' +
-        painelMinhaArea() + '<div id="ar-painel"></div>' + painelAcademiaDigital() + painelTurmas(d) + painelPlanoEquipe(d) + painelRelatoriosAtleta(d) + painelObservacoes(d) + painelMovimentos(d) + painelJogos(d) + painelJogosVideo(d) +
+        painelMinhaArea() + '<div id="ar-painel"></div>' + painelAcademiaDigital() + painelTurmas(d) + painelPlanoEquipe(d) + painelRelatoriosCiclo(d) + painelRelatoriosAtleta(d) + painelObservacoes(d) + painelMovimentos(d) + painelJogos(d) + painelJogosVideo(d) +
         painelMapaConceitos(d, ui) + painelEvolucao(d) + painelRelatorios(d) + painelComunicacao(d) + '<div class="sincronia" id="mty-sincronia"></div>';
       ligarEventos(d);
       return;
@@ -580,6 +581,7 @@ function todosHorarios(agenda) {
     html += painelTurmas(d);
     html += painelPlanoEquipe(d);
     html += painelGlossario(d.aulas);
+    html += painelRelatoriosCiclo(d);
     html += painelRelatoriosAtleta(d);
     html += painelObservacoes(d);
     html += painelMovimentos(d);
@@ -738,6 +740,22 @@ function todosHorarios(agenda) {
     imagensDoRelatorio(dados, d).catch(function () { return {}; }).then(function (x) {
       w.document.open(); w.document.write(window.QLRelatorioAtleta.documento(dados, Object.assign({}, opcoes, { imagensMov: Object.assign({}, ui.imagensMov, x) }))); w.document.close();
     });
+  }
+  /* Relatório do ciclo (Padrão de Atendimento): o texto que o professor revisou e publicou — evolução nos pilares, conquistas,
+     marcos, foco do próximo ciclo e a mensagem do Richard. Sem relatório publicado, o painel não aparece. */
+  function painelRelatoriosCiclo(d) {
+    const A = window.MTYAtendimento, l = d.relatoriosCiclo || [];
+    if (!A || !l.length) return '';
+    return '<div class="painel" data-painel="relatorios-ciclo"><style>' + A.CSS + '</style><h2>Relatório do ciclo</h2>' +
+      '<p class="desc">Como foi cada ciclo de treino: evolução, conquistas e o foco do próximo.</p>' +
+      l.map(function (r, i) {
+        const aberto = ui.relCicloAberto ? ui.relCicloAberto === r.id : i === 0 && ui.relCicloAberto !== '';
+        return '<div style="border-top:1px solid var(--linha);padding:10px 0"><div style="font-weight:700">' + escapar(A.dataBR(r.periodo.de)) + ' a ' + escapar(A.dataBR(r.periodo.ate)) + '</div>' +
+          '<div style="font-size:12px;color:var(--cinza)">Publicado em ' + escapar(A.dataBR(r.publicadoEm)) + (r.publicadoPor ? ' por ' + escapar(r.publicadoPor) : '') + '</div>' +
+          '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><button type="button" class="btn" data-rc-ver="' + escapar(r.id) + '">' + (aberto ? 'Fechar' : 'Ver relatório') + '</button>' +
+          '<button type="button" class="btn fraco" data-rc-pdf="' + escapar(r.id) + '">Baixar PDF</button></div>' +
+          (aberto ? '<div style="margin-top:10px" data-rc-aberto>' + A.html(r, { nome: d.nome, academia: d.academiaNome }) + '</div>' : '') + '</div>';
+      }).join('') + '</div>';
   }
   function painelRelatoriosAtleta(d) {
     const R = window.QLRelatorioAtleta;
@@ -1135,6 +1153,18 @@ function todosHorarios(agenda) {
     carregarAltoRendimento();
     montarAvisosCelular();
     el.querySelectorAll('[data-plano-equipe-ver]').forEach(function (b) { b.addEventListener('click', function () { const i = b.getAttribute('data-plano-equipe-ver'); ui.planoEquipeAberto[i] = !ui.planoEquipeAberto[i]; render(d); }); });
+    el.querySelectorAll('[data-rc-ver]').forEach(function (b) { b.addEventListener('click', function () {
+      const id = b.getAttribute('data-rc-ver'), l = d.relatoriosCiclo || [];
+      const abertoAgora = ui.relCicloAberto ? ui.relCicloAberto : (ui.relCicloAberto === '' || !l.length ? '' : l[0].id);
+      ui.relCicloAberto = abertoAgora === id ? '' : id; render(d);
+    }); });
+    el.querySelectorAll('[data-rc-pdf]').forEach(function (b) { b.addEventListener('click', function () {
+      const r = (d.relatoriosCiclo || []).find(function (x) { return x.id === b.getAttribute('data-rc-pdf'); });
+      if (!r || !window.MTYAtendimento) return;
+      const w = window.open('', '_blank');
+      if (!w) { alert('Permita pop-ups para baixar o PDF.'); return; }
+      w.document.write(window.MTYAtendimento.documento(r, { nome: d.nome, academia: d.academiaNome })); w.document.close();
+    }); });
     el.querySelectorAll('[data-rel-ver]').forEach(function (b) { b.addEventListener('click', function () { const id = b.getAttribute('data-rel-ver'); ui.relAtletaAberto = ui.relAtletaAberto === id ? null : id; render(d); }); });
     el.querySelectorAll('[data-rel-pdf]').forEach(function (b) { b.addEventListener('click', function () {
       const r = (d.relatoriosAtleta || []).find(function (x) { return x.id === b.getAttribute('data-rel-pdf'); });
