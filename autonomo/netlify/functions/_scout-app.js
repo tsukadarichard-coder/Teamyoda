@@ -18,18 +18,27 @@ const nota = (v) => { v = Math.round(+v); return v >= 1 && v <= 5 ? v : 0; };
 function contaNova(token, agora) {
   return { nome: txt(token.name, 60), email: txt(token.email, 120).toLowerCase(), papel: "", plano: "gratis", criadoEm: agora, atualizadoEm: agora, atletas: [], apagados: [] };
 }
+/* Scout Plus (link do Essencial na Eduzz; liberado pelo webhook-eduzz até plusAte). "full" = acesso completo da lista PLAYER_EMAILS_FULL.
+   Grátis: 1 atleta; Plus: até MAX_ATLETAS. O resto dos limites do grátis (relatório em PDF, evolução completa) é mostrado pelo app;
+   a análise de movimento tem o limite conferido em scout-app-movimento. */
+const LIMITE_ATLETAS_GRATIS = 1;
+const hojeBR = () => new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
+function plusAtivo(c, full) { return !!full || (!!c && c.plano === "plus" && typeof c.plusAte === "string" && c.plusAte >= hojeBR()); }
 /* o que o app recebe da conta (nunca o e-mail de outra pessoa: aqui só existe a conta de quem pediu) */
-function contaPublica(c) { return { nome: c.nome || "", email: c.email || "", papel: c.papel || "", plano: c.plano === "plus" ? "plus" : "gratis", criadoEm: c.criadoEm || null }; }
+function contaPublica(c, full) {
+  const plus = plusAtivo(c, full);
+  return { nome: c.nome || "", email: c.email || "", papel: c.papel || "", plano: plus ? "plus" : "gratis", plusAte: plus && !full ? c.plusAte : null, acessoCompleto: !!full,
+    limites: { atletas: plus ? MAX_ATLETAS : LIMITE_ATLETAS_GRATIS }, criadoEm: c.criadoEm || null };
+}
 
 function perfil(corpo) {
   const nome = txt(corpo.nome, 60);
   if (!nome) throw new ErroPedido(400, "Digite o seu nome.");
-  const papel = PAPEIS.includes(corpo.papel) ? corpo.papel : "";
-  if (!papel) throw new ErroPedido(400, "Escolha quem você é: responsável, atleta ou treinador.");
-  return { nome, papel };
+  /* o Scout é de acompanhamento livre: ninguém precisa dizer se é responsável, atleta ou treinador (campo antigo, opcional) */
+  return { nome };
 }
 
-function atletas(lista) {
+function atletas(lista, atuais, plus) {
   if (!Array.isArray(lista)) throw new ErroPedido(400, "Lista de atletas inválida.");
   if (lista.length > MAX_ATLETAS) throw new ErroPedido(400, "Limite de " + MAX_ATLETAS + " atletas por conta.");
   const vistos = {}, out = [];
@@ -37,6 +46,11 @@ function atletas(lista) {
     if (!a || !ID_ATLETA.test(String(a.id)) || vistos[a.id]) continue;
     const nome = txt(a.nome, 60); if (!nome) continue;
     vistos[a.id] = 1; out.push({ id: a.id, nome, criadoEm: ISO.test(a.criadoEm) ? a.criadoEm : new Date().toISOString() });
+  }
+  /* no grátis não entra atleta novo além do limite; quem já estava na conta (de quando era Plus) continua */
+  if (!plus && atuais) {
+    const ja = new Set(atuais.map((a) => a.id)), novos = out.filter((a) => !ja.has(a.id));
+    if (novos.length && out.length > LIMITE_ATLETAS_GRATIS) throw new ErroPedido(403, "No plano grátis é 1 atleta por conta. Com o Scout Plus, atletas sem limite.");
   }
   return out;
 }
@@ -73,4 +87,4 @@ function jogo(j, idsAtletas) {
 /* apagados: lista curta de ids para os outros aparelhos também tirarem o jogo */
 function comApagado(lista, id, em) { return [{ id, em }].concat((lista || []).filter((x) => x && x.id !== id)).slice(0, MAX_APAGADOS); }
 
-module.exports = { PAPEIS, MAX_ATLETAS, MAX_JOGOS, MAX_LOTE, MAX_BAIXAR, ID_JOGO, ID_ATLETA, ErroPedido, contaNova, contaPublica, perfil, atletas, jogo, comApagado };
+module.exports = { PAPEIS, LIMITE_ATLETAS_GRATIS, plusAtivo, hojeBR, MAX_ATLETAS, MAX_JOGOS, MAX_LOTE, MAX_BAIXAR, ID_JOGO, ID_ATLETA, ErroPedido, contaNova, contaPublica, perfil, atletas, jogo, comApagado };

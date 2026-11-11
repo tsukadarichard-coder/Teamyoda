@@ -233,6 +233,9 @@ async function liberarAcesso(db, ev) {
     // já existe conta com este e-mail (ex.: cadastro grátis anterior) —
     // só faz upgrade do plano dela, nunca cria uma segunda conta.
     orgId = (usuario.customClaims || {}).orgId;
+    /* QuadraLab Scout (aprovado pelo Richard em 11/11/2026): o Scout Plus usa o mesmo link do Essencial. Conta sem academia que tem
+       cadastro no Scout recebe o Plus; conta de treinador continua exatamente como antes. */
+    if (!orgId && infoProduto && await liberarScout(db, usuario.uid, ev, infoProduto)) return;
     if (!orgId) throw new Error("Usuário " + ev.email + " existe mas não tem orgId — não dá pra decidir qual conta liberar.");
   } else {
     usuario = await admin.auth().createUser({ email: ev.email, password: senhaAleatoria(), displayName: ev.nome || undefined });
@@ -278,7 +281,7 @@ async function revogarAcesso(db, ev) {
     throw e;
   }
   const orgId = (usuario.customClaims || {}).orgId;
-  if (!orgId) return;
+  if (!orgId) { await revogarScout(db, usuario.uid, ev); return; }
 
   // nunca apaga a conta nem os dados — só derruba pro plano grátis.
   // Se o limite de jogadores do plano grátis for menor que o que a
@@ -288,6 +291,25 @@ async function revogarAcesso(db, ev) {
     plano: "gratis", planoAtivoAte: admin.firestore.FieldValue.delete(),
     eduzzUltimaFatura: ev.faturaId, eduzzRevogadoEm: new Date().toISOString(),
   }, { merge: true });
+}
+
+/* ── QuadraLab Scout ──
+   Scout Plus pelo produto do Essencial (e qualquer produto de MAPA_PRODUTO): vale para a conta do Scout (scoutAppContas/{uid}) do e-mail
+   que comprou, quando essa conta não é de academia. Renovação soma a partir da validade; reembolso, cancelamento e chargeback voltam ao
+   grátis sem apagar nada (jogos, atletas e análises ficam). Devolve false quando o e-mail não tem conta no Scout. */
+async function liberarScout(db, uid, ev, infoProduto) {
+  const ref = db.collection("scoutAppContas").doc(uid), s = await ref.get();
+  if (!s.exists) return false;
+  const atual = s.data() || {}, dias = infoProduto.duracaoDias || 32;
+  const base = atual.plano === "plus" && atual.plusAte && atual.plusAte > hojeISO() ? new Date(atual.plusAte + "T12:00:00Z") : new Date();
+  base.setUTCDate(base.getUTCDate() + dias);
+  await ref.set({ plano: "plus", plusAte: base.toISOString().slice(0, 10), eduzzUltimaFatura: ev.faturaId, eduzzAtualizadoEm: new Date().toISOString() }, { merge: true });
+  return true;
+}
+async function revogarScout(db, uid, ev) {
+  const ref = db.collection("scoutAppContas").doc(uid);
+  if (!(await ref.get()).exists) return;
+  await ref.set({ plano: "gratis", plusAte: admin.firestore.FieldValue.delete(), eduzzUltimaFatura: ev.faturaId, eduzzRevogadoEm: new Date().toISOString() }, { merge: true });
 }
 
 function hojeISO() {

@@ -48,9 +48,8 @@ const chama = async (tk, corpo, metodo) => {
 
   /* perfil */
   assert.strictEqual((await chama("tk-ana", { acao: "perfil", nome: "", papel: "responsavel" })).s, 400);
-  assert.strictEqual((await chama("tk-ana", { acao: "perfil", nome: "Ana", papel: "rei" })).s, 400);
-  r = await chama("tk-ana", { acao: "perfil", nome: "Ana Souza", papel: "responsavel" });
-  assert.strictEqual(r.conta.papel, "responsavel");
+  r = await chama("tk-ana", { acao: "perfil", nome: "Ana Souza" });
+  assert.strictEqual(r.conta.nome, "Ana Souza", "acompanhamento livre: só o nome, sem papel");
 
   /* atletas e um jogo feito no app (dados.js + motor) */
   const st = D.normalizar(null), lucas = D.addAtleta(st, "Lucas Souza").atleta;
@@ -156,17 +155,34 @@ const chama = async (tk, corpo, metodo) => {
   for (const id of ["mvbia000001", "mvbia000002"]) assert.strictEqual((await mv("tk-bia", { acao: "salvar", atletaId: "abiaatleta1", resumo: resumoMv(id, "saque") })).s, 200, "acesso completo sem limite");
   r = await mv("tk-bia", null, { atleta: "abiaatleta1" }); assert.strictEqual(r.cota.plano, "pago"); assert.strictEqual(r.analises.length, 2);
 
+  /* Scout Plus: no grátis 1 atleta; Plus válido libera; Plus vencido volta ao grátis */
+  const contaAna = () => store["scoutAppContas/u-ana"];
+  r = await chama("tk-ana"); assert.strictEqual(r.conta.plano, "gratis"); assert.strictEqual(r.conta.limites.atletas, 1);
+  const doisAtletas = st.atletas.concat([{ id: "asegundo0001", nome: "Marina" }]);
+  r = await chama("tk-ana", { acao: "atletas", atletas: doisAtletas }); assert.strictEqual(r.s, 403); assert.ok(/Scout Plus/.test(r.erro), r.erro);
+  const amanha = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10), ontem = new Date(Date.now() - 2 * 86400000).toISOString().slice(0, 10);
+  contaAna().plano = "plus"; contaAna().plusAte = amanha;
+  r = await chama("tk-ana"); assert.strictEqual(r.conta.plano, "plus"); assert.strictEqual(r.conta.plusAte, amanha); assert.strictEqual(r.conta.limites.atletas, 60);
+  r = await chama("tk-ana", { acao: "atletas", atletas: doisAtletas }); assert.strictEqual(r.s, 200, "Plus: segundo atleta");
+  r = await mv("tk-ana", { acao: "salvar", atletaId: lucas.id, resumo: resumoMv("mvplus00001", "forehand") }); assert.strictEqual(r.s, 200, "Plus: análise sem limite");
+  contaAna().plusAte = ontem;
+  r = await chama("tk-ana"); assert.strictEqual(r.conta.plano, "gratis", "Plus vencido");
+  r = await chama("tk-ana", { acao: "atletas", atletas: doisAtletas }); assert.strictEqual(r.s, 200, "quem já estava na conta continua");
+  r = await chama("tk-ana", { acao: "atletas", atletas: doisAtletas.concat([{ id: "aterceiro001", nome: "Caio" }]) }); assert.strictEqual(r.s, 403, "grátis não acrescenta atleta");
+  assert.strictEqual((await mv("tk-ana", { acao: "salvar", atletaId: lucas.id, resumo: resumoMv("mvplus00002", "forehand") })).s, 403, "Plus vencido: limite do grátis volta");
+  r = await chama("tk-bia"); assert.strictEqual(r.conta.plano, "plus"); assert.strictEqual(r.conta.acessoCompleto, true); assert.strictEqual(r.conta.plusAte, null);
+
   /* criar conta (sem login) */
   const conta = require(fx + "scout-app-conta.js").handler;
   const cria = async (c) => { const x = await conta({ httpMethod: "POST", body: JSON.stringify(c) }); return { s: x.statusCode, ...JSON.parse(x.body) }; };
-  assert.strictEqual((await cria({ nome: "Caio", email: "caio@x.com", senha: "12345678" })).s, 400, "papel obrigatório");
-  assert.strictEqual((await cria({ nome: "Caio", email: "caio", senha: "12345678", papel: "atleta" })).s, 400);
-  assert.strictEqual((await cria({ nome: "Caio", email: "caio@x.com", senha: "123", papel: "atleta" })).s, 400);
-  r = await cria({ nome: "Ana", email: "ana@exemplo.com", senha: "12345678", papel: "responsavel" });
+  assert.strictEqual((await cria({ nome: "", email: "caio@x.com", senha: "12345678" })).s, 400, "nome obrigatório");
+  assert.strictEqual((await cria({ nome: "Caio", email: "caio", senha: "12345678" })).s, 400);
+  assert.strictEqual((await cria({ nome: "Caio", email: "caio@x.com", senha: "123" })).s, 400);
+  r = await cria({ nome: "Ana", email: "ana@exemplo.com", senha: "12345678" });
   assert.strictEqual(r.s, 409); assert.ok(/mesma senha/.test(r.erro), "conta do QuadraLab já existe: entrar com a mesma senha");
-  r = await cria({ nome: "Caio Lima", email: "Caio@X.com", senha: "12345678", papel: "treinador" });
-  assert.strictEqual(r.s, 200); assert.deepStrictEqual(claims["u-novo0"], { tipo: "scout" });
-  assert.strictEqual(store["scoutAppContas/u-novo0"].papel, "treinador"); assert.strictEqual(store["scoutAppContas/u-novo0"].email, "caio@x.com");
+  r = await cria({ nome: "Caio Lima", email: "Caio@X.com", senha: "12345678" });
+  assert.strictEqual(r.s, 200, "conta sem papel"); assert.deepStrictEqual(claims["u-novo0"], { tipo: "scout" });
+  assert.strictEqual(store["scoutAppContas/u-novo0"].nome, "Caio Lima"); assert.strictEqual(store["scoutAppContas/u-novo0"].email, "caio@x.com");
   assert.strictEqual((await conta({ httpMethod: "GET" })).statusCode, 405);
   console.log("check-scout-app-servidor: ok");
 })().catch((e) => { console.error(e); process.exit(1); });

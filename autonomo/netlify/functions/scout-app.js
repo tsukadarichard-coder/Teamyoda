@@ -14,6 +14,7 @@ const crypto = require("crypto");
 const { admin, app } = require("./_firebase-admin");
 const R = require("./_scout-app");
 const { limpar } = require("./_scout-publico");
+const { planoFull } = require("./_player");
 
 const VALIDADE_MS = 12 * 3600 * 1000, APOS_FIM_MS = 2 * 3600 * 1000, MAX_AO_VIVO = 3;
 const TOKEN = /^[a-f0-9]{32}$/;
@@ -36,11 +37,12 @@ exports.handler = async function (event) {
     const refConta = db.collection("scoutAppContas").doc(uid), jogos = refConta.collection("jogos");
     let sConta = await refConta.get(), conta = sConta.exists ? sConta.data() : null;
     if (!conta) { conta = R.contaNova(tk, agora()); await refConta.set(conta); }
+    const full = planoFull(tk.email), plus = R.plusAtivo(conta, full);
 
     if (event.httpMethod === "GET") {
       const s = await jogos.get(), lista = [];
       s.forEach((d) => { const x = d.data(); lista.push({ id: d.id, atletaId: x.atletaId, atualizadoEm: x.atualizadoEm }); });
-      return resposta(200, { conta: R.contaPublica(conta), atletas: conta.atletas || [], jogos: lista, apagados: conta.apagados || [] });
+      return resposta(200, { conta: R.contaPublica(conta, full), atletas: conta.atletas || [], jogos: lista, apagados: conta.apagados || [] });
     }
     if (event.httpMethod !== "POST") return resposta(405, { erro: "Método não permitido." });
     if (String(event.body || "").length > 3000000) return resposta(413, { erro: "Pedido grande demais." });
@@ -48,10 +50,10 @@ exports.handler = async function (event) {
 
     if (b.acao === "perfil") {
       const p = R.perfil(b); await refConta.update({ ...p, atualizadoEm: agora() });
-      return resposta(200, { conta: R.contaPublica({ ...conta, ...p }) });
+      return resposta(200, { conta: R.contaPublica({ ...conta, ...p }, full) });
     }
     if (b.acao === "atletas") {
-      const lista = R.atletas(b.atletas); await refConta.update({ atletas: lista, atualizadoEm: agora() });
+      const lista = R.atletas(b.atletas, conta.atletas || [], plus); await refConta.update({ atletas: lista, atualizadoEm: agora() });
       return resposta(200, { atletas: lista });
     }
     if (b.acao === "salvarJogos") {

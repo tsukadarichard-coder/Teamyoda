@@ -15,7 +15,7 @@ const { planoFull } = require("./_player");
 const R = require("./_scout-app");
 
 function resposta(statusCode, corpo) { return { statusCode, headers: { "content-type": "application/json", "cache-control": "no-store" }, body: JSON.stringify(corpo) }; }
-const nivel = (conta) => (conta && conta.plano === "plus" ? "plus" : "gratis");
+const nivel = (conta) => (R.plusAtivo(conta, false) ? "plus" : "gratis");
 
 exports.handler = async function (event) {
   try {
