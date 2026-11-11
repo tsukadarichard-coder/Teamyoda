@@ -445,8 +445,16 @@
     var vistos = {}, membros = (Array.isArray(t.membros) ? t.membros : []).filter(function (id) {
       if (!id || vistos[id] || (idsValidos && idsValidos.indexOf(id) < 0)) return false; vistos[id] = 1; return true;
     });
+    /* horários fixos da semana ({dia 0–6, hora "HH:MM", quadraId?}): é o que põe a turma na Agenda */
+    var hv = {}, horarios = (Array.isArray(t.horarios) ? t.horarios : []).filter(function (h) {
+      var ok = h && Number(h.dia) >= 0 && Number(h.dia) <= 6 && Math.floor(Number(h.dia)) === Number(h.dia) && /^([01]\d|2[0-3]):[0-5]\d$/.test(String(h.hora || ""));
+      if (!ok || hv[h.dia + "|" + h.hora]) return false; hv[h.dia + "|" + h.hora] = 1; return true;
+    }).slice(0, 14).map(function (h) { return { dia: Number(h.dia), hora: String(h.hora), quadraId: String(h.quadraId || "") }; })
+      .sort(function (a, b) { return ((a.dia + 6) % 7) - ((b.dia + 6) % 7) || (a.hora < b.hora ? -1 : a.hora > b.hora ? 1 : 0); });
+    var dur = Math.round(Number(t.duracaoMin)); if (!(dur >= 30 && dur <= 300)) dur = 120;
     return { id: String(t.id || ""), nome: String(t.nome || "").trim().slice(0, 60), membros: membros,
       professorUid: String(t.professorUid || ""), professorNome: String(t.professorNome || "").slice(0, 80),
+      horarios: horarios, duracaoMin: dur,
       horario: String(t.horario || "").trim().slice(0, 120), criadoEm: String(t.criadoEm || ""), atualizadoEm: String(t.atualizadoEm || "") };
   }
   function treinouNaSessao(s, id) {

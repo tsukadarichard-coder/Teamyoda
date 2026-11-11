@@ -18567,8 +18567,8 @@ function rotuloTipoOcorrencia(v) { return (TIPOS_OCORRENCIA.find((t) => t.v === 
    continua vindo de C.*, que já muda por orgId). Nunca é o único jeito
    de diferenciar (sempre some junto com o texto da etiqueta). */
 const CATEGORIA_TIPO_OCORRENCIA = { regular: "aula", experimental: "aula", reposicao: "reposicao", locacao: "locacao", bloqueio: "bloqueio" };
-const COR_CATEGORIA_TIPO = { aula: "#2E7D32", reposicao: "#6A3FA0", locacao: "#1565C0", bloqueio: "#6B6B6B" };
-const ROTULO_CATEGORIA_TIPO = { aula: "Aula", reposicao: "Reposição", locacao: "Locação", bloqueio: "Bloqueio" };
+const COR_CATEGORIA_TIPO = { aula: "#2E7D32", reposicao: "#6A3FA0", locacao: "#1565C0", bloqueio: "#6B6B6B", alto: "#B4532A" };
+const ROTULO_CATEGORIA_TIPO = { aula: "Aula", reposicao: "Reposição", locacao: "Locação", bloqueio: "Bloqueio", alto: "Alto rendimento" };
 function categoriaOcorrencia(tipo) { return CATEGORIA_TIPO_OCORRENCIA[tipo] || "aula"; }
 function corCategoriaOcorrencia(tipo) { return COR_CATEGORIA_TIPO[categoriaOcorrencia(tipo)]; }
 function chaveRecorrencia(origemTipo, origemId, dia, hora) { return origemTipo + ":" + origemId + ":" + dia + ":" + hora; }
@@ -19399,7 +19399,31 @@ function LinhaPendenciaQuadra({ oc, alunos, turmas, quadras, ocorrencias, reserv
   );
 }
 
-function TelaAulasHoje({ alunos, setAlunos, turmas, setTurmas, quadras, reservas, bloqueiosAula, ocorrencias, setOcorrencias, regrasReposicao, uidAtual, papelAtual, irParaSessaoAluno, irParaSessaoTurma }) {
+/* turmas do alto rendimento com treino hoje (pelo horário fixo da turma): o professor vê as dele; o coordenador, todas */
+function TurmasARHoje({ hoje, uidAtual, papelAtual, irParaTurmaAR }) {
+  const ar = useTurmasARAgenda();
+  const blocos = blocosTurmasAR({ inicioISO: hoje, fimISO: hoje, turmasAR: ar.turmas, sessoesAR: ar.sessoes, hojeISO: hoje })
+    .filter((b) => papelAtual === "coordenador" || !b.professorUid || !uidAtual || b.professorUid === uidAtual)
+    .sort((a, b) => a.horaInicio.localeCompare(b.horaInicio));
+  if (!blocos.length) return null;
+  return (
+    <div data-ar-hoje className="mb-4">
+      <Etiqueta cor={COR_CATEGORIA_TIPO.alto}>Alto rendimento hoje</Etiqueta>
+      {blocos.map((b) => (
+        <div key={b.id} className="flex items-center justify-between gap-3 flex-wrap" style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + COR_CATEGORIA_TIPO.alto, borderRadius: 10, padding: "10px 13px", marginTop: 6 }}>
+          <div style={{ flex: "1 1 180px" }}>
+            <p style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 700 }}>{b.horaInicio} · {b.titulo}</p>
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>{(b.turmaAR.membros || []).length} atleta(s){b.turmaAR.professorNome ? " · " + b.turmaAR.professorNome : ""}{b.situacaoAR === "realizada" ? " · sessão fechada" : b.situacaoAR === "andamento" ? " · sessão em andamento" : ""}</p>
+          </div>
+          <Botao pequeno variante={b.situacaoAR === "realizada" ? "vazio" : "saibro"} onClick={() => irParaTurmaAR && irParaTurmaAR(b.turmaAR.id, b.situacaoAR === "realizada" ? "lista" : "sessao")}>
+            {b.situacaoAR === "realizada" ? "Ver a turma" : b.situacaoAR === "andamento" ? "Continuar a sessão" : "Abrir a sessão"}
+          </Botao>
+        </div>
+      ))}
+    </div>
+  );
+}
+function TelaAulasHoje({ alunos, setAlunos, turmas, setTurmas, quadras, reservas, bloqueiosAula, ocorrencias, setOcorrencias, regrasReposicao, uidAtual, papelAtual, irParaSessaoAluno, irParaSessaoTurma, irParaTurmaAR }) {
   const hoje = new Date().toISOString().slice(0, 10);
   const geradasRef = useRef(false);
   useEffect(() => {
@@ -19471,6 +19495,7 @@ function TelaAulasHoje({ alunos, setAlunos, turmas, setTurmas, quadras, reservas
         {new Date(hoje + "T00:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}
       </p>
       <AvisoMeuAtendimento alunos={alunos} uidAtual={uidAtual} />
+      <TurmasARHoje hoje={hoje} uidAtual={uidAtual} papelAtual={papelAtual} irParaTurmaAR={irParaTurmaAR} />
       {papelAtual === "coordenador" ? (
         <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginBottom: 16 }}>Mostrando as aulas de toda a academia.</p>
       ) : (
@@ -21379,8 +21404,54 @@ function GradeColunas({ colunas, horasEixo, aoClicarSlotVazio, aoClicarBloco }) 
    recorrentes materializados no período — a MESMA fonte de dados nas 3
    visualizações da Agenda, não só no botão "+ Agendar" (pedido: "as
    visualizações precisam compartilhar contexto, dados e ações"). */
-function construirBlocosPeriodo({ inicioISO, fimISO, alunos, turmas, ocorrencias, reservas, bloqueiosAula }) {
+/* Turmas do alto rendimento na Agenda: cada horário fixo da turma vira um bloco no dia. Não é ocorrência (não tem
+   realizada/cancelada/reposição): a presença é a da sessão da turma, e o bloco só mostra em que pé ela está. */
+function resumoHorariosAR(t) {
+  const hs = (t && t.horarios) || [];
+  if (!hs.length) return "";
+  return hs.map((h) => nomeDia(h.dia) + " " + h.hora).join(", ") + " · " + (t.duracaoMin || 120) + " min";
+}
+function blocosTurmasAR({ inicioISO, fimISO, turmasAR, sessoesAR, hojeISO }) {
   const blocos = [];
+  (turmasAR || []).forEach((t) => {
+    if (!t || !(t.horarios || []).length) return;
+    const desde = String(t.criadoEm || "").slice(0, 10);
+    listaDatasEntre(inicioISO, fimISO).forEach((data) => {
+      if (desde && data < desde) return; // antes de a turma existir não havia treino
+      const dia = diaDaSemanaISO(data);
+      t.horarios.filter((h) => h.dia === dia).forEach((h) => {
+        const doDia = (sessoesAR || []).filter((x) => x.turmaId === t.id && x.data === data);
+        const sessao = doDia.find((x) => x.status === "fechada") || doDia[0] || null;
+        const situacao = sessao ? (sessao.status === "fechada" ? "realizada" : "andamento") : data < hojeISO ? "sem-sessao" : "agendada";
+        const rot = { realizada: " · sessão fechada", andamento: " · sessão em andamento", "sem-sessao": " · sem sessão registrada", agendada: "" }[situacao];
+        blocos.push({
+          id: "ar:" + t.id + ":" + data + ":" + h.hora, kind: "ar", data, horaInicio: h.hora, horaFim: horaMaisMinutos(h.hora, t.duracaoMin || 120),
+          categoria: "alto", cor: COR_CATEGORIA_TIPO.alto, titulo: t.nome, linha2: "Alto rendimento" + (t.professorNome ? " · " + t.professorNome : "") + rot,
+          cancelada: false, quadraId: h.quadraId || "", semQuadra: false, professorUid: t.professorUid || "", turmaAR: t, sessaoAR: sessao, situacaoAR: situacao,
+        });
+      });
+    });
+  });
+  return blocos;
+}
+function useTurmasARAgenda() {
+  const [d, setD] = useState({ turmas: [], sessoes: [] });
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      const turmas = await leia(CHAVE_AR_TURMAS, [], true);
+      const comHorario = (Array.isArray(turmas) ? turmas : []).filter((t) => t && (t.horarios || []).length);
+      if (!comHorario.length) return; // sem turma com horário fixo, nem consulta as sessões
+      let sessoes = [];
+      try { sessoes = await arSessoesLista(80); } catch (e) { sessoes = []; }
+      if (vivo) setD({ turmas: comHorario, sessoes });
+    })();
+    return () => { vivo = false; };
+  }, []);
+  return d;
+}
+function construirBlocosPeriodo({ inicioISO, fimISO, alunos, turmas, ocorrencias, reservas, bloqueiosAula, turmasAR, sessoesAR, hojeISO }) {
+  const blocos = blocosTurmasAR({ inicioISO, fimISO, turmasAR, sessoesAR, hojeISO: hojeISO || dataISO(new Date()) });
   (ocorrencias || []).forEach((o) => {
     if (o.data < inicioISO || o.data > fimISO) return;
     if (o.tipo === "locacao" || o.tipo === "bloqueio") return;
@@ -21416,8 +21487,9 @@ function construirBlocosPeriodo({ inicioISO, fimISO, alunos, turmas, ocorrencias
   return blocos;
 }
 
-function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, ocorrencias, setOcorrencias, quadras, reservas, setReservas, bloqueiosAula, orgAtual, mostraQuadras, uidAtual, papelAtual, exigeLogin, regrasReposicao, setAba, dataAlvo, visualizacaoAlvo, aoConsumirAlvo, irParaSessaoAluno, irParaSessaoTurma }) {
+function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, ocorrencias, setOcorrencias, quadras, reservas, setReservas, bloqueiosAula, orgAtual, mostraQuadras, uidAtual, papelAtual, exigeLogin, regrasReposicao, setAba, dataAlvo, visualizacaoAlvo, aoConsumirAlvo, irParaSessaoAluno, irParaSessaoTurma, irParaTurmaAR }) {
   const hojeISO = dataISO(new Date());
+  const arAgenda = useTurmasARAgenda();
   // Celular abre em "Dia" (lista cabe numa tela sem rolagem horizontal);
   // computador abre em "Semana" — pedido explícito da seção 1.
   const [visualizacao, setVisualizacao] = useState(() => (typeof window !== "undefined" && window.innerWidth < 640 ? "dia" : "semana"));
@@ -21459,13 +21531,13 @@ function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, ocorrencias, setOcor
   const quadrasAtivas = (quadras || []).filter((q) => q.ativa !== false);
 
   const compromissos = useMemo(() => {
-    let base = construirBlocosPeriodo({ inicioISO: inicioRange, fimISO: fimRange, alunos, turmas, ocorrencias, reservas, bloqueiosAula });
+    let base = construirBlocosPeriodo({ inicioISO: inicioRange, fimISO: fimRange, alunos, turmas, ocorrencias, reservas, bloqueiosAula, turmasAR: arAgenda.turmas, sessoesAR: arAgenda.sessoes, hojeISO });
     if (exigeLogin && uidAtual && !verTodos) {
-      base = base.filter((b) => (b.categoria !== "aula" && b.categoria !== "reposicao")
+      base = base.filter((b) => (b.categoria !== "aula" && b.categoria !== "reposicao" && b.categoria !== "alto")
         || !b.professorUid || b.professorUid === uidAtual || b.professorAuxiliarUid === uidAtual);
     }
     return base;
-  }, [inicioRange, fimRange, alunos, turmas, ocorrencias, reservas, bloqueiosAula, exigeLogin, uidAtual, verTodos]);
+  }, [inicioRange, fimRange, alunos, turmas, ocorrencias, reservas, bloqueiosAula, exigeLogin, uidAtual, verTodos, arAgenda]);
 
   const semQuadraNoPeriodo = compromissos.filter((b) => b.semQuadra && !b.cancelada);
 
@@ -21635,7 +21707,7 @@ function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, ocorrencias, setOcor
       )}
 
       <div className="flex gap-3 flex-wrap mt-3">
-        {["aula", "locacao", "reposicao", "bloqueio"].map((cat) => (
+        {["aula", "locacao", "reposicao", "bloqueio", ...(arAgenda.turmas.length ? ["alto"] : [])].map((cat) => (
           <span key={cat} className="flex items-center gap-1.5" style={{ ...prosa, fontSize: 11, color: C.grafite }}>
             <span style={{ width: 10, height: 10, borderRadius: 3, background: COR_CATEGORIA_TIPO[cat], display: "inline-block" }} />
             {ROTULO_CATEGORIA_TIPO[cat]}
@@ -21680,6 +21752,27 @@ function TelaAgenda({ alunos, setAlunos, turmas, setTurmas, ocorrencias, setOcor
                     )}
                   </div>
                 </>
+              ) : detalheAberto.kind === "ar" ? (
+                <div data-detalhe-ar={detalheAberto.turmaAR.id}>
+                  <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{detalheAberto.titulo}</p>
+                  <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>
+                    {rotuloData(detalheAberto.data)} · {detalheAberto.horaInicio}–{detalheAberto.horaFim}{detalheAberto.quadraId && nomeQuadraPorId(detalheAberto.quadraId) ? " · " + nomeQuadraPorId(detalheAberto.quadraId) : ""}{detalheAberto.turmaAR.professorNome ? " · " + detalheAberto.turmaAR.professorNome : ""}
+                  </p>
+                  <p style={{ ...prosa, fontSize: 13, marginTop: 6 }}>
+                    {(detalheAberto.turmaAR.membros || []).map((id) => (((alunos || []).find((a) => a.id === id) || {}).nome || "").split(" ")[0]).filter(Boolean).join(", ") || "Sem atletas na turma"}
+                  </p>
+                  <p style={{ ...prosa, fontSize: 13, color: C.grafite, marginTop: 6 }}>
+                    {detalheAberto.situacaoAR === "realizada" ? "Sessão fechada: " + ((detalheAberto.sessaoAR.presentes || []).length + ((detalheAberto.sessaoAR.semPlano || []).length)) + " presente(s)."
+                      : detalheAberto.situacaoAR === "andamento" ? "Sessão montada, ainda não fechada."
+                      : detalheAberto.situacaoAR === "sem-sessao" ? "Nenhuma sessão desta turma foi registrada neste dia."
+                      : "A presença é marcada na sessão da turma, no dia do treino."}
+                  </p>
+                  <div className="mt-3">
+                    <Botao pequeno onClick={() => { const id = detalheAberto.turmaAR.id; setDetalheAberto(null); irParaTurmaAR && irParaTurmaAR(id, detalheAberto.situacaoAR === "andamento" || (detalheAberto.data === hojeISO && detalheAberto.situacaoAR !== "realizada") ? "sessao" : "lista"); }}>
+                      {detalheAberto.situacaoAR === "andamento" ? "Continuar a sessão da turma" : detalheAberto.data === hojeISO && detalheAberto.situacaoAR !== "realizada" ? "Abrir a sessão da turma" : "Ver a turma no Alto rendimento"}
+                    </Botao>
+                  </div>
+                </div>
               ) : detalheAberto.kind === "reserva" ? (
                 <>
                   <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{detalheAberto.reserva.nomeContato}</p>
@@ -24059,12 +24152,12 @@ function CargaAR({ doc, hoje }) {
 }
 
 /* ── tela "Alto rendimento" (no lugar das Equipes de competição) ── */
-function TelaAltoRendimento({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAbrirJogador, exerciciosCustom, setExerciciosCustom }) {
+function TelaAltoRendimento({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAbrirJogador, exerciciosCustom, setExerciciosCustom, quadras, turmaAlvo, aoConsumirTurmaAlvo }) {
   const A = ARM(), hoje = hojeEq();
   const [ars, setArs] = useState(null), [regs, setRegs] = useState({}), [sessoes, setSessoes] = useState([]), [equipes, setEquipes] = useState([]);
   const [modo, setModo] = useState({ v: "lista" }), [escolha, setEscolha] = useState(""), [msg, setMsg] = useState(null), [professores, setProfessores] = useState([]);
   /* turmas do alto rendimento: grupos salvos de atletas (mty:arTurmas:v1); o plano continua individual */
-  const [turmasAR, setTurmasAR] = useState([]), [presencaAberta, setPresencaAberta] = useState(null);
+  const [turmasAR, setTurmasAR] = useState([]), [presencaAberta, setPresencaAberta] = useState(null), [turmasProntas, setTurmasProntas] = useState(false);
   const salvarTurmasAR = async (l) => { setTurmasAR(l); await grave(CHAVE_AR_TURMAS, l, true); };
   const atletas = (alunos || []).filter((a) => a.altoRendimento && a.altoRendimento.ativo).sort((a, b) => String(a.nome).localeCompare(String(b.nome)));
   const chave = atletas.map((a) => a.id).join(",");
@@ -24073,7 +24166,16 @@ function TelaAltoRendimento({ alunos, setAlunos, uidAtual, papelAtual, identidad
     for (const a of atletas) { d[a.id] = (await arLer(a.id)) || { ativo: true, calendario: [] }; r[a.id] = await arLista(a.id, "registros", "data", 30); }
     setArs(d); setRegs(r); setSessoes(await arSessoesLista(80));
   };
-  useEffect(() => { carregar(); leia(CHAVE_EQUIPES, [], true).then((l) => setEquipes(Array.isArray(l) ? l : [])); leia(CHAVE_AR_TURMAS, [], true).then((l) => setTurmasAR(Array.isArray(l) ? l : [])); listaProfessores().then(setProfessores).catch(() => {}); }, [chave]);
+  useEffect(() => { carregar(); leia(CHAVE_EQUIPES, [], true).then((l) => setEquipes(Array.isArray(l) ? l : [])); leia(CHAVE_AR_TURMAS, [], true).then((l) => { setTurmasAR(Array.isArray(l) ? l : []); setTurmasProntas(true); }); listaProfessores().then(setProfessores).catch(() => {}); }, [chave]);
+  /* veio da Agenda ou de Aulas de hoje: abre direto a sessão da turma (continua a de hoje, se já foi montada) ou só mostra a turma */
+  useEffect(() => {
+    if (!turmaAlvo || !ars || !turmasProntas) return;
+    const t = turmasAR.find((x) => x.id === turmaAlvo.id);
+    if (t && turmaAlvo.modo === "sessao") setModo({ v: "sessao", turma: t, sessao: sessoes.find((x) => x.turmaId === t.id && x.status !== "fechada" && x.data === hoje) || null });
+    else if (t) setPresencaAberta(t.id);
+    if (aoConsumirTurmaAlvo) aoConsumirTurmaAlvo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turmaAlvo, !!ars, turmasProntas]);
   if (!A) return <p style={{ ...prosa, color: C.grafite }}>O módulo de alto rendimento não carregou. Recarregue a página.</p>;
   if (!ars) return <p style={{ ...prosa, color: C.grafite }}>Carregando…</p>;
   const eu = professores.find((p) => p.uid === uidAtual) || {};
@@ -24087,7 +24189,7 @@ function TelaAltoRendimento({ alunos, setAlunos, uidAtual, papelAtual, identidad
       aoVoltar={async () => { setModo({ v: "lista" }); await carregar(); }} />;
   }
   if (modo.v === "turma") {
-    return <FormTurmaAR inicial={modo.turma || null} atletas={atletas} professores={professores} aoCancelar={() => setModo({ v: "lista" })}
+    return <FormTurmaAR inicial={modo.turma || null} atletas={atletas} professores={professores} quadras={quadras} aoCancelar={() => setModo({ v: "lista" })}
       aoSalvar={async (t) => {
         const agora = new Date().toISOString(), limpa = A.limparTurma({ ...t, atualizadoEm: agora }, atletas.map((a) => a.id));
         await salvarTurmasAR(turmasAR.some((x) => x.id === limpa.id) ? turmasAR.map((x) => (x.id === limpa.id ? limpa : x)) : [...turmasAR, limpa]);
@@ -24128,7 +24230,8 @@ function TelaAltoRendimento({ alunos, setAlunos, uidAtual, papelAtual, identidad
               <div key={t.id} data-turma-ar={t.id} style={cartaoAR}>
                 <p style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700 }}>{t.nome}</p>
                 <p style={{ ...prosa, fontSize: 13.5, marginTop: 2 }}>{membros.length} {membros.length === 1 ? "atleta" : "atletas"}: {membros.map((a) => (a.nome || "").split(" ")[0]).join(", ") || "ninguém"}</p>
-                <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>{[t.professorNome, t.horario].filter(Boolean).join(" · ") || "Sem professor e horário definidos"}{P.total ? " · " + P.total + (P.total === 1 ? " sessão" : " sessões") + (somaS ? " · presença " + Math.round(100 * somaP / somaS) + "%" : "") : " · nenhuma sessão fechada ainda"}</p>
+                {!(t.horarios || []).length && <p style={{ ...prosa, fontSize: 12.5, color: C.saibro }}>Sem horário fixo: toque em Editar para a turma aparecer na Agenda.</p>}
+                <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>{[t.professorNome, resumoHorariosAR(t), t.horario].filter(Boolean).join(" · ") || "Sem professor e horário definidos"}{P.total ? " · " + P.total + (P.total === 1 ? " sessão" : " sessões") + (somaS ? " · presença " + Math.round(100 * somaP / somaS) + "%" : "") : " · nenhuma sessão fechada ainda"}</p>
                 <div className="flex gap-2 flex-wrap" style={{ marginTop: 8 }}>
                   <Botao pequeno disabled={!membros.length} onClick={() => setModo({ v: "sessao", turma: t, sessao: emAndamento || null })}>{emAndamento ? "Continuar a sessão" : "Sessão da turma"}</Botao>
                   <Botao pequeno variante="vazio" onClick={() => setPresencaAberta(aberta ? null : t.id)}>{aberta ? "Ocultar presença" : "Presença"}</Botao>
@@ -24209,8 +24312,9 @@ function TelaAltoRendimento({ alunos, setAlunos, uidAtual, papelAtual, identidad
 
 /* ── turma do alto rendimento: nome, atletas, professor e horário (edição livre; excluir não apaga as sessões já feitas) ── */
 const CHAVE_AR_TURMAS = "mty:arTurmas:v1";
-function FormTurmaAR({ inicial, atletas, professores, aoSalvar, aoCancelar, aoExcluir }) {
+function FormTurmaAR({ inicial, atletas, professores, quadras, aoSalvar, aoCancelar, aoExcluir }) {
   const [nome, setNome] = useState((inicial && inicial.nome) || ""), [horario, setHorario] = useState((inicial && inicial.horario) || "");
+  const [horarios, setHorarios] = useState((inicial && inicial.horarios) || []), [duracaoMin, setDuracaoMin] = useState((inicial && inicial.duracaoMin) || 120);
   const [prof, setProf] = useState((inicial && inicial.professorUid) || ""), [membros, setMembros] = useState((inicial && inicial.membros) || []);
   const [erro, setErro] = useState(""), [salvando, setSalvando] = useState(false);
   const salvar = async () => {
@@ -24218,7 +24322,7 @@ function FormTurmaAR({ inicial, atletas, professores, aoSalvar, aoCancelar, aoEx
     if (!membros.length) return setErro("Escolha pelo menos um atleta.");
     setErro(""); setSalvando(true);
     const p = (professores || []).find((x) => x.uid === prof);
-    await aoSalvar({ id: (inicial && inicial.id) || "tu-" + Date.now().toString(36), criadoEm: (inicial && inicial.criadoEm) || new Date().toISOString(), nome, horario, membros,
+    await aoSalvar({ id: (inicial && inicial.id) || "tu-" + Date.now().toString(36), criadoEm: (inicial && inicial.criadoEm) || new Date().toISOString(), nome, horario, horarios, duracaoMin, membros,
       professorUid: prof, professorNome: p ? p.nome : prof && inicial && inicial.professorUid === prof ? inicial.professorNome : "" });
     setSalvando(false);
   };
@@ -24241,7 +24345,12 @@ function FormTurmaAR({ inicial, atletas, professores, aoSalvar, aoCancelar, aoEx
         {(professores || []).map((p) => <option key={p.uid} value={p.uid}>{p.nome}</option>)}
         {prof && !(professores || []).some((p) => p.uid === prof) && <option value={prof}>{(inicial && inicial.professorNome) || "Professor"}</option>}
       </select></Campo>
-      <Campo rotulo="Dias e horário" nota="Texto livre, só para identificar a turma."><input value={horario} maxLength={120} onChange={(e) => setHorario(e.target.value)} style={entrada} aria-label="Dias e horário" placeholder="ex.: seg, qua e sex às 14h" /></Campo>
+      <Campo rotulo="Horários fixos na semana" nota="É o que coloca a turma na Agenda e em Aulas de hoje. Escolha o dia e a hora e toque em Adicionar; repita para cada dia.">
+        <div data-horarios-turma-ar><EditorHorarios horarios={horarios} setHorarios={setHorarios} quadras={quadras || []} /></div>
+      </Campo>
+      <Campo rotulo="Duração do treino"><select value={duracaoMin} onChange={(e) => setDuracaoMin(Number(e.target.value))} style={entrada} aria-label="Duração do treino">
+        {[60, 90, 120, 150, 180].map((n) => <option key={n} value={n}>{n} min</option>)}</select></Campo>
+      <Campo rotulo="Observação do horário" nota="Opcional, texto livre."><input value={horario} maxLength={120} onChange={(e) => setHorario(e.target.value)} style={entrada} aria-label="Dias e horário" placeholder="ex.: só em semana de treino no CT" /></Campo>
       {erro && <p role="alert" style={{ ...prosa, fontSize: 13, color: "#A33", marginBottom: 8 }}>{erro}</p>}
       <div className="flex gap-2 flex-wrap">
         <Botao onClick={salvar} disabled={salvando}>{salvando ? "Salvando…" : "Salvar turma"}</Botao>
@@ -24577,7 +24686,7 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   );
 }
 /* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
-const NOVIDADES_TY_VERSAO = "ty-2026-11-ar-turmas";
+const NOVIDADES_TY_VERSAO = "ty-2026-11-ar-agenda";
 /* Itens com `so: "financeiro"` só aparecem para o dono e para a parte administrativa. Enquanto o item novo do topo for um
    desses, quem não o vê continua na versão da equipe abaixo (a janela não reabre vazia para os professores). */
 const NOVIDADES_TY_VERSAO_EQUIPE = "ty-2026-11w";
@@ -24586,7 +24695,8 @@ function novidadesTYPara(veFinanceiro) {
   return { itens, versao: itens.some((x) => x.novo) ? NOVIDADES_TY_VERSAO : NOVIDADES_TY_VERSAO_EQUIPE };
 }
 const NOVIDADES_TY = [
-  { novo: true, t: "Alto rendimento: turmas com presença e torneios com início e término", d: "Três mudanças. 1) Turmas no alto rendimento: em Grupos › Alto rendimento, toque em Nova turma, dê um nome e escolha os atletas que treinam juntos (dá para definir professor, dias e horário). A turma pode ser editada ou excluída a qualquer momento. Em Sessão da turma os atletas dela já vêm marcados: desmarque quem faltou, inclua alguém de fora se precisar e monte a sessão, que continua saindo do plano individual de cada um. Em Presença você vê, por atleta, quantas sessões da turma ele fez, a porcentagem e a última falta, além das últimas sessões com quem veio e quem faltou. 2) Torneios com início e término: na ficha do jogador (Perfil › Calendário › Competições) cada torneio agora tem data de início e de término, e as fases ocupam todas as semanas do período. No calendário do alto rendimento, um torneio já lançado pode ser editado (datas, prioridade, local) sem apagar e lançar de novo. 3) Página do aluno: o relatório de fechamento antigo, escrito para o treinador, não aparece mais para o aluno. Ele vê o Relatório do ciclo que você revisa e publica.", onde: "Mais › Grupos › Alto rendimento (e Jogadores › ficha › Perfil › Calendário)", aba: "equipes" },
+  { novo: true, t: "Turmas do alto rendimento na Agenda", d: "As turmas do alto rendimento agora têm horário fixo e aparecem na Agenda. Em Grupos › Alto rendimento, abra a turma em Editar e, em Horários fixos na semana, escolha o dia e a hora e toque em Adicionar (repita para cada dia); defina também a duração do treino. A partir daí a turma aparece na Agenda, na cor de Alto rendimento, em todos os dias do horário, e em Aulas de hoje no dia do treino. Tocando no bloco você vê os atletas e abre a sessão da turma, onde a presença é marcada; depois de fechada, a Agenda mostra que a sessão foi feita. Turma que você já criou continua igual: ela só entra na Agenda depois que receber um horário fixo.", onde: "Agenda e Hoje › Aulas de hoje (o horário se define em Mais › Grupos › Alto rendimento › Editar a turma)", aba: "agenda" },
+  { t: "Alto rendimento: turmas com presença e torneios com início e término", d: "Três mudanças. 1) Turmas no alto rendimento: em Grupos › Alto rendimento, toque em Nova turma, dê um nome e escolha os atletas que treinam juntos (dá para definir professor, dias e horário). A turma pode ser editada ou excluída a qualquer momento. Em Sessão da turma os atletas dela já vêm marcados: desmarque quem faltou, inclua alguém de fora se precisar e monte a sessão, que continua saindo do plano individual de cada um. Em Presença você vê, por atleta, quantas sessões da turma ele fez, a porcentagem e a última falta, além das últimas sessões com quem veio e quem faltou. 2) Torneios com início e término: na ficha do jogador (Perfil › Calendário › Competições) cada torneio agora tem data de início e de término, e as fases ocupam todas as semanas do período. No calendário do alto rendimento, um torneio já lançado pode ser editado (datas, prioridade, local) sem apagar e lançar de novo. 3) Página do aluno: o relatório de fechamento antigo, escrito para o treinador, não aparece mais para o aluno. Ele vê o Relatório do ciclo que você revisa e publica.", onde: "Mais › Grupos › Alto rendimento (e Jogadores › ficha › Perfil › Calendário)", aba: "equipes" },
   { t: "Padrão de Atendimento MTY: preparação da aula, conquista do dia e relatório do ciclo", d: "O mesmo cuidado com o aluno em toda aula. 1) Antes da aula: no topo da Sessão (do jogador e da turma) aparece Preparação da aula, com o foco do plano, a conquista da última aula e a nota pessoal de cada aluno. 2) Ao finalizar: anote a conquista do dia (dá para marcar como marco), a nota pessoal (algo que o aluno contou: torneio, viagem, objetivo) e, se quiser, uma observação por pilar. Na turma, cada jogador tem a sua em \"+ conquista e nota pessoal\". 3) Checklist de 6 itens: três marcam sozinhos (abrir a preparação, preencher a conquista e registrar a aula) e três você marca. É opcional e não impede registrar a aula; em Aulas de hoje você vê como está o seu nos últimos 7 dias, e o Richard acompanha o da equipe. 4) Relatório do ciclo para o cliente: na ficha do jogador, em Relatório, a IA escreve um rascunho só com as conquistas, os marcos e as observações por pilar (as suas anotações internas não entram), em versão para os pais ou para o aluno adulto. Você revisa, publica e ele aparece no Meu plano do aluno, com a mensagem do Richard. Nada mudou no que você já fazia: os campos novos são opcionais.", onde: "Jogadores › ficha › Sessão de hoje e Relatório (e Turmas › Sessão)", aba: "aulas-hoje" },
   { t: "Alto rendimento: plano individual e sessão do dia no CT (no lugar das Equipes de competição)", d: "Em Grupos › Alto rendimento cada atleta tem o próprio plano: o calendário de torneios com prioridade (principal, secundário, preparatório) define as fases e a carga, e a IA escolhe os conteúdos e os exercícios com a ficha, os scouts, as evidências, as metas e testes e o que ficou do ciclo anterior (você revisa antes de usar). Há um marcador de onde ele está (semana atual, o que já fez e os essenciais que ficaram para trás). Jogos e treinos feitos em viagem entram pelo próprio atleta, no Meu plano, ou por você; tudo soma na carga da semana (minutos × esforço). Na Sessão do dia você marca quem está no CT e a sessão sai pronta: blocos coletivos com o que é comum aos presentes e tarefas individuais com o que é de cada um, com os mesmos cartões de exercício das aulas (substituir, remover, editar e escolher outro); ao fechar, o marcador e a carga de cada atleta se atualizam. Metas e testes repetíveis por pilar mostram a evolução. O planejamento por equipe saiu; um botão traz os atletas das equipes antigas para o alto rendimento.", onde: "Mais › Grupos › Alto rendimento (e Jogadores › ficha › Alto rendimento)", aba: "equipes" },
   { t: "Área do aluno com e-mail e senha", d: "O aluno (e o pai e a mãe, cada um com a sua conta, até 3 por aluno) agora pode guardar o plano numa área com e-mail e senha, em teamyoda.com.br/minha-area. No Meu plano que você manda aparece \"Criar minha área\": a pessoa cria a conta e o aluno já fica ligado. Depois ela abre o plano, as aulas, as reposições, os relatórios e a Academia Digital sem precisar guardar o link. O botão \"Acessar minha área\" do site também leva para lá. Se você trocar o link de um aluno, as contas ligadas a ele param de abrir o plano até receberem o link novo.", onde: "teamyoda.com.br/minha-area (e o Meu plano de cada aluno)", aba: "alunos" },
@@ -27294,6 +27404,9 @@ function App() {
      turmas. Sem isto, Agenda e Turmas eram dois pontos de entrada que
      nunca se encontravam na mesma tela. */
   const [turmaAbertaAlvo, setTurmaAbertaAlvo] = useState(null);
+  /* turma do alto rendimento a abrir, vinda da Agenda ou de Aulas de hoje: { id, modo: "sessao" | "lista" } */
+  const [turmaARAlvo, setTurmaARAlvo] = useState(null);
+  const irParaTurmaAR = (id, modo) => { setTurmaARAlvo({ id, modo: modo || "sessao" }); setAba("equipes"); setAbertoId(null); };
   /* Mesmo padrão, pra abrir direto a ficha de uma aula JÁ realizada no
      Caderno, a partir do cartão dela na aba Aulas — consultar o que
      aconteceu numa aula passada sem precisar ir caçar no Caderno, e sem
@@ -28246,7 +28359,8 @@ function App() {
          aba === "ajuda" ? <TelaAjuda mostraManual={mostraManual} aoIr={irNav}
            aoPrimeirosPassos={() => { setOnboardingDispensado(false); irNav("dashboard"); }}
            aoNovidades={() => { try { localStorage.removeItem("ql-novidades:" + novidadesTYPara(ehDonoFinanceiro() || papelFin === "admin").versao); } catch { /* sem armazenamento */ } setNovidadesChave((k) => k + 1); }} /> :
-         aba === "equipes" ? <TelaAltoRendimento exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} alunos={alunos} setAlunos={setAlunos} uidAtual={uidAtual} papelAtual={papelAtual} identidade={identidade} aoAbrirJogador={(id, sub) => { setAba("alunos"); setAbertoId(id); setSubaba(sub || "ficha"); }} /> :
+         aba === "equipes" ? <TelaAltoRendimento exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} alunos={alunos} setAlunos={setAlunos} uidAtual={uidAtual} papelAtual={papelAtual} identidade={identidade} aoAbrirJogador={(id, sub) => { setAba("alunos"); setAbertoId(id); setSubaba(sub || "ficha"); }}
+           quadras={quadras} turmaAlvo={turmaARAlvo} aoConsumirTurmaAlvo={() => setTurmaARAlvo(null)} /> :
          aba === "observar" ? <TelaObservar alunos={alunos} setAlunos={setAlunos} planoAtual={null} aoVerCaderno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("registro"); }} /> :
          aba === "quadro" ? <TelaQuadroTatico /> :
          aba === "catalogo" ? <TelaCatalogo exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom} /> :
@@ -28289,10 +28403,10 @@ function App() {
            orgAtual={orgAtual} mostraQuadras={mostraQuadras} uidAtual={uidAtual} papelAtual={papelAtual} exigeLogin={exigeLogin} regrasReposicao={regrasReposicao} setAba={setAba}
            dataAlvo={agendaDataAlvo} visualizacaoAlvo={agendaVisualizacaoAlvo} aoConsumirAlvo={() => { setAgendaDataAlvo(null); setAgendaVisualizacaoAlvo(null); }}
            irParaSessaoAluno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("sessao"); }}
-           irParaSessaoTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} /></> :
+           irParaSessaoTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} irParaTurmaAR={irParaTurmaAR} /></> :
          aba === "aulas-hoje" ? <>{topoHoje}<TelaAulasHoje alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} quadras={quadras} reservas={reservas} bloqueiosAula={bloqueiosAula} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} regrasReposicao={regrasReposicao} uidAtual={uidAtual} papelAtual={papelAtual}
            irParaSessaoAluno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("sessao"); }}
-           irParaSessaoTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} /></> :
+           irParaSessaoTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} irParaTurmaAR={irParaTurmaAR} /></> :
          aba === "reposicoes" ? <>{topoAgenda}<TelaReposicoes alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} irParaRelatorio={() => setAba("relatorio")} quadras={quadras} reservas={reservas} bloqueiosAula={bloqueiosAula} ocorrencias={ocorrencias} setOcorrencias={setOcorrencias}
            regrasReposicao={regrasReposicao} setRegrasReposicao={setRegrasReposicao} papelAtual={papelAtual} /></> :
          aba === "relatorio" ? <TelaFechamentoMes ocorrencias={ocorrencias} setOcorrencias={setOcorrencias} alunos={alunos} setAlunos={setAlunos} turmas={turmas} setTurmas={setTurmas} quadras={quadras} reservas={reservas} bloqueiosAula={bloqueiosAula} regrasReposicao={regrasReposicao} papelAtual={papelAtual} uidAtual={uidAtual} identidade={identidade} irParaReposicoes={() => { setAba("reposicoes"); setAbertoId(null); }} irParaAluno={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("ficha"); }} /> :
