@@ -54,6 +54,11 @@ async function organizacao(){return null;} var db=null, auth=null;
 window.storage = { async get(k, sh) { const raw = localStorage.getItem((sh ? "shared:" : "local:") + k); return raw === null ? null : { key: k, value: raw }; }, async set(k, v, sh) { localStorage.setItem((sh ? "shared:" : "local:") + k, v); return { key: k }; } };
 ` + ms.slice(0, corte) + `
 window.mtyAuth={entrar:async()=>{},usuario:()=>null};
+/* IA simulada: guarda o pedido e devolve um plano com códigos reais do catálogo */
+iniciarJobIA = async (prompt, max, etapa) => { window.__prompt = prompt; if (etapa) etapa("Enviando o pedido"); return { jobId: "job-teste", org: "demo" }; };
+aguardarJobIA = async () => { await new Promise((r) => setTimeout(r, 300)); const cat = TODOS_EXERCICIOS(), d = (f) => cat.find((e) => e.f === f && !e.semBola).c, sit = cat.find((e) => e.tl).c;
+  const crases = String.fromCharCode(96, 96, 96); return crases + "json\\n" + JSON.stringify({ prioridade: "Devolução agressiva antes do Brasileiro", observacao: [{ t: "a · scout", d: "sem jogos com scout ainda" }], semanas: [
+    { n: 1, foco: "Afinação", conteudos: [{ tema: "ip:inicio", ex: d("IP"), vezes: 2, essencial: true, criterio: "60% de devoluções em jogo" }, { tema: "tat:situacao", ex: sit, vezes: 1 }, { tema: "tec:rede", ex: d("PDR"), vezes: 1, essencial: true }] }] }) + "\\n" + crases; };
 function Raiz(){
   const [alunos, setAlunosBase] = React.useState(() => ${fixtures}.map((a) => ({ ...novoAluno(), ...a })));
   const [tela, setTela] = React.useState({ v: "ar" });
@@ -128,8 +133,15 @@ const base = "http://localhost:" + srv.address().port;
   await espera(/Brasileiro/);
   await p.getByRole("button", { name: "Plano", exact: true }).click();
   await p.fill('input[aria-label="Semanas"]', "12");
-  await p.getByRole("button", { name: "Gerar o plano", exact: true }).click();
-  await espera(/Plano individual · versão 1/);
+  await p.getByRole("button", { name: "Gerar com IA", exact: true }).click();
+  await espera(/Revise o plano da IA antes de usar/);
+  const pedido = await p.evaluate(() => window.__prompt);
+  for (const x of ["PRINCÍPIOS TRAVADOS", "use SOMENTE estes códigos", "FICHA DO ATLETA", "CALENDÁRIO DE TORNEIOS", "Brasileiro", "Principal", "ESQUELETO DO PLANO", "NÃO mude fases nem carga", "TEMAS (use exatamente estas chaves)", "ÚLTIMAS 8 SEMANAS"])
+    assert(pedido.includes(x), "o pedido da IA tem: " + x);
+  assert(/Prioridade:.*Devolução agressiva/.test(await texto()));
+  await cap("ar-02-revisao-ia");
+  await p.getByRole("button", { name: "Usar este plano", exact: true }).click();
+  await espera(/Plano individual · versão 1 · gerado pela IA/);
   assert(/Pré-competitiva/.test(await texto()) && /Competição/.test(await texto()), "fases pelo calendário");
   await cap("ar-02-plano");
   /* registro fora do CT */
@@ -161,7 +173,8 @@ const base = "http://localhost:" + srv.address().port;
   for (const id of ["j2", "j3"]) {
     await p.click("#voltar"); await espera(/Sessão do dia/);
     await p.locator(`[data-atleta-ar="${id}"] >> text=Abrir`).click();
-    await p.getByRole("button", { name: "Plano", exact: true }).click(); await p.getByRole("button", { name: "Gerar o plano", exact: true }).click(); await espera(/Plano individual · versão 1/);
+    await p.getByRole("button", { name: "Plano", exact: true }).click(); await p.getByRole("button", { name: "Gerar sem IA (modelo)", exact: true }).click();
+    await p.getByRole("button", { name: "Usar este plano", exact: true }).click(); await espera(/Plano individual · versão 1 · modelo sem IA/);
   }
   await p.click("#voltar"); await espera(/Sessão do dia/);
 
@@ -173,12 +186,24 @@ const base = "http://localhost:" + srv.address().port;
   await espera(/Sessão de .* · 120 min/);
   assert(await p.locator('[data-bloco-ar="entrada"]').count() === 1 && await p.locator('[data-bloco-ar="ip:inicio"]').count() === 1 && await p.locator('[data-bloco-ar="jogo"]').count() === 1, "esqueleto MTY");
   if (process.env.MOSTRA) console.log(await p.evaluate(() => [...document.querySelectorAll("[data-bloco-ar]")].map((b) => b.getAttribute("data-bloco-ar") + ": " + b.innerText.replace(/\n/g, " | ")).join("\n")));
-  /* Ana está em afinação (torneio em 10 dias); Bia e Caio, na base, têm rede pendente: bloco coletivo só dos dois */
+  /* rede está pendente nos três planos (IA da Ana e modelo de Bia e Caio): bloco coletivo dos três */
   const rede = p.locator('[data-bloco-ar="tec:rede"]');
-  assert.strictEqual(await rede.count(), 1, "bloco coletivo do tema comum (rede: Bia e Caio)");
+  assert.strictEqual(await rede.count(), 1, "bloco coletivo do tema comum (rede)");
   const tRede = await rede.innerText();
-  assert(/Bia/.test(tRede) && /Caio/.test(tRede) && !/Ana/.test(tRede), tRede);
-  assert(/Ana[\s\S]*Plano de jogo/.test(await p.locator('[data-bloco-ar="individual"]').innerText()), "a afinação da Ana vira tarefa individual");
+  assert(/Ana/.test(tRede) && /Bia/.test(tRede) && /Caio/.test(tRede), tRede);
+  /* cartões de exercício como nas outras sessões: ↻ substituir, escolher outro */
+  assert(await p.locator("[data-exercicio-ar]").count() >= 5, "cartões de exercício nos blocos e nas tarefas");
+  const antes = await rede.locator("[data-exercicio-ar]").first().getAttribute("data-exercicio-ar");
+  await rede.getByRole("button", { name: "Substituir exercício" }).first().click();
+  await p.waitForTimeout(300);
+  const depois = await rede.locator("[data-exercicio-ar]").first().getAttribute("data-exercicio-ar");
+  assert(depois && depois !== antes, "↻ trocou o exercício do bloco: " + antes + " → " + depois);
+  await rede.getByRole("button", { name: "Escolher outro" }).first().click();
+  const sel = rede.locator("select").first(), opcao = await sel.locator("option").nth(1).getAttribute("value");
+  await sel.selectOption(opcao); await p.waitForTimeout(300);
+  assert.strictEqual(await rede.locator("[data-exercicio-ar]").first().getAttribute("data-exercicio-ar"), opcao, "escolher outro");
+  const sesSalva = await p.evaluate(() => JSON.parse(localStorage.getItem("mty:ar:sessoes"))[0]);
+  assert.deepStrictEqual(sesSalva.divergencias.map((d) => d.tipo), ["troca", "escolha"], "trocas registradas na sessão");
   assert.strictEqual(await p.locator('[data-bloco-ar="individual"]').count(), 1, "tarefas individuais");
   await cap("ar-04-sessao");
   await p.getByRole("button", { name: "Fechar a sessão", exact: true }).click();

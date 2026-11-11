@@ -322,8 +322,10 @@
     var nCol = Math.min(temas.length, Math.max(1, Math.floor(resto / 30))), mInd = resto;
     if (temas.length) { var mCol = Math.max(15, Math.round((resto * 0.6) / nCol)); mInd = Math.max(0, resto - mCol * nCol);
       temas.slice(0, nCol).forEach(function (x, i) { var m = {}; x.ids.forEach(function (id) { m[id] = contagem[x.t][id]; });
+        var cont = {}; x.ids.forEach(function (id) { var c = m[id].codigoExercicio; if (c) cont[c] = { n: (cont[c] ? cont[c].n : 0) + 1, nome: m[id].nomeExercicio }; });
+        var top = Object.keys(cont).sort(function (a, b) { return cont[b].n - cont[a].n; })[0];
         bloco({ tipo: "coletivo", tema: x.t, titulo: TEMAS[x.t] ? TEMAS[x.t].r : x.t, minutos: mCol, atletas: x.ids, conteudoPorAtleta: conteudoIds(m), dose: doseDe(x.ids),
-          codigoExercicio: (m[x.ids[0]].codigoExercicio) || ex(x.t, i + 3).c || null, nomeExercicio: (m[x.ids[0]].nomeExercicio) || ex(x.t, i + 3).n || null }); }); }
+          codigoExercicio: top || ex(x.t, i + 3).c || null, nomeExercicio: top ? cont[top].nome : ex(x.t, i + 3).n || null }); }); }
     /* tarefas individuais: o que sobrou do plano de cada um (até 2), em estações */
     var tarefas = {};
     info.forEach(function (x) { tarefas[x.id] = x.pend.filter(function (p) { return !usados[x.id + ":" + p.id]; }).slice(0, x.teto.v === "regenerativo" ? 1 : 2)
@@ -387,6 +389,53 @@
     return (alunos || []).filter(function (a) { return ids[a.id] && !(a.altoRendimento && a.altoRendimento.ativo); });
   }
 
+  /* ── plano pela IA ──
+     O calendário decide as fases e a carga (gerarPlano, sem IA); a IA escolhe os conteúdos e os exercícios de cada semana.
+     esqueleto(plano): o que vai no pedido. aplicarIA(base, resposta, catalogo): valida e encaixa a resposta no esqueleto;
+     código que não existe no catálogo derruba o plano (como no plano das turmas); semana que a IA esqueceu fica com o modelo. */
+  function esqueleto(plano) {
+    return semanasDoPlano(plano).map(function (x) {
+      return { n: x.semana.n, inicio: x.semana.inicio, fase: x.bloco.fase, faseNome: FASES[x.bloco.fase].r, bloco: x.bloco.titulo, torneioId: x.bloco.torneioId || null,
+        cargaAlvo: x.semana.cargaAlvo, modelo: x.semana.conteudos.map(function (c) { return { tema: c.tema, vezes: c.vezesAlvo, essencial: c.essencial }; }) };
+    });
+  }
+  function aplicarIA(base, resposta, catalogo) {
+    if (!base || !base.blocos) throw new Error("Plano base ausente.");
+    var r = resposta && (resposta.plano || resposta);
+    if (!r || !Array.isArray(r.semanas) || !r.semanas.length) throw new Error("A resposta não trouxe as semanas do plano.");
+    var mapa = {}; (catalogo || []).forEach(function (e) { if (e && e.c) mapa[e.c] = e; });
+    var porN = {}; r.semanas.forEach(function (s) { if (s && s.n != null) porN[Number(s.n)] = s; });
+    var ruins = [], usadasIA = 0;
+    var plano = JSON.parse(JSON.stringify(base));
+    plano.blocos.forEach(function (b) {
+      b.semanas.forEach(function (sem) {
+        var ia = porN[sem.n]; if (!ia || !Array.isArray(ia.conteudos) || !ia.conteudos.length) return;
+        var k = 0, lista = [];
+        ia.conteudos.slice(0, 10).forEach(function (c) {
+          if (!c) return;
+          var tema = TEMAS[c.tema] ? c.tema : null, cod = c.ex ? String(c.ex).trim().toUpperCase() : null;
+          if (cod && !mapa[cod]) { ruins.push(cod); return; }
+          if (!tema) { if (!cod) return; tema = "tat:situacao"; }
+          var T = TEMAS[tema]; k++;
+          lista.push({ id: "s" + sem.n + "-" + k, pilar: T.pilar, tema: tema, titulo: String(c.titulo || T.r).slice(0, 90), codigoExercicio: T.foraDoCT ? null : cod, nomeExercicio: T.foraDoCT || !cod ? null : mapa[cod].n,
+            tipo: T.foraDoCT ? "fora_do_ct" : c.tipo === "individual" || T.individual ? "individual" : "coletivo",
+            vezesAlvo: Math.max(1, Math.min(4, Math.round(Number(c.vezes) || 1))), essencial: !!c.essencial, criterio: String(c.criterio || "").slice(0, 200) });
+        });
+        if (!lista.length) return;
+        if ((b.fase === "competicao" || b.fase === "preparatoria") && !lista.some(function (c) { return c.tema === "jogo:torneio"; })) {
+          k++; lista.unshift({ id: "s" + sem.n + "-" + k, pilar: "tatico", tema: "jogo:torneio", titulo: TEMAS["jogo:torneio"].r, codigoExercicio: null, nomeExercicio: null, tipo: "fora_do_ct", vezesAlvo: 1, essencial: false, criterio: "" });
+        }
+        sem.conteudos = lista; sem.foco = String(ia.foco || "").slice(0, 160); usadasIA++;
+      });
+    });
+    if (ruins.length) throw new Error("Códigos que não existem no catálogo: " + ruins.filter(function (x, i, l) { return l.indexOf(x) === i; }).join(", "));
+    if (!usadasIA) throw new Error("A resposta não trouxe conteúdos válidos para nenhuma semana.");
+    plano.origem = "ia"; plano.semanasIA = usadasIA;
+    plano.prioridade = String(r.prioridade || "").slice(0, 240);
+    plano.observacao = (Array.isArray(r.observacao) ? r.observacao : []).slice(0, 10).map(function (o) { return { t: String((o && o.t) || o || "").slice(0, 120), d: String((o && o.d) || "").slice(0, 300) }; });
+    return plano;
+  }
+
   var api = {
     PILARES: PILARES, PRIORIDADES: PRIORIDADES, FASES: FASES, TEMAS: TEMAS, MODELO: MODELO, TESTES_PADRAO: TESTES_PADRAO,
     segunda: segunda, somaDias: somaDias, dias: dias, chaveSemana: chaveSemana,
@@ -394,7 +443,7 @@
     gerarPlano: gerarPlano, semanasDoPlano: semanasDoPlano, semanaAtual: semanaAtual, pendentes: pendentes, marcador: marcador,
     normalizarRegistro: normalizarRegistro, aplicarRegistro: aplicarRegistro, recalcular: recalcular, cargaSemanaAtual: cargaSemanaAtual, acwr: acwr,
     tetoDoDia: tetoDoDia, ajusteSemanal: ajusteSemanal, montarSessao: montarSessao, conteudosDaSessao: conteudosDaSessao,
-    registrosDoFechamento: registrosDoFechamento, evolucaoTestes: evolucaoTestes, situacaoMeta: situacaoMeta, atletasDasEquipes: atletasDasEquipes,
+    registrosDoFechamento: registrosDoFechamento, esqueleto: esqueleto, aplicarIA: aplicarIA, evolucaoTestes: evolucaoTestes, situacaoMeta: situacaoMeta, atletasDasEquipes: atletasDasEquipes,
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   raiz.MTYAltoRendimento = api;

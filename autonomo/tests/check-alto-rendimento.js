@@ -133,4 +133,28 @@ assert(ajs.some((a) => a.tipo === "carga_baixa"), "semana anterior com 33% do al
 const alunos = [{ id: "a1" }, { id: "a2", altoRendimento: { ativo: true } }, { id: "a3" }];
 assert.deepStrictEqual(A.atletasDasEquipes([{ membros: ["a1", "a2"] }], alunos).map((a) => a.id), ["a1"]);
 
+/* 12. plano pela IA: o calendário decide fases e carga; a IA escolhe conteúdos e exercícios */
+const esq = A.esqueleto(plano);
+assert.strictEqual(esq.length, 12); assert.strictEqual(esq[9].faseNome, "Competição"); assert(esq[0].modelo.length && esq[0].cargaAlvo.ua === 3000);
+const resp = { prioridade: "Devolução agressiva antes do Brasileiro", observacao: [{ t: "a · scout", d: "devolução abaixo de 55%" }], semanas: [
+  { n: 1, foco: "Construção", conteudos: [{ tema: "tec:fundo", ex: "DC001", vezes: 2, essencial: true, criterio: "75% além da linha de saque" }, { tema: "tat:situacao", ex: "dt031", vezes: 1 }, { tema: "fis:forca", ex: "CF001", vezes: 2, tipo: "individual" }] },
+  { n: 10, foco: "Torneio", conteudos: [{ tema: "men:rotina", ex: "DM001", vezes: 1 }] },
+] };
+const pIA = A.aplicarIA(plano, resp, cat);
+const s1 = A.semanasDoPlano(pIA)[0].semana, s10 = A.semanasDoPlano(pIA)[9].semana;
+assert.strictEqual(pIA.origem, "ia"); assert.strictEqual(pIA.semanasIA, 2); assert.strictEqual(pIA.prioridade, "Devolução agressiva antes do Brasileiro");
+assert.deepStrictEqual(s1.conteudos.map((c) => c.codigoExercicio), ["DC001", "DT031", "CF001"], "códigos normalizados");
+assert.strictEqual(s1.conteudos[0].nomeExercicio, "Cruzado profundo"); assert.strictEqual(s1.conteudos[2].tipo, "individual"); assert.strictEqual(s1.foco, "Construção");
+assert.deepStrictEqual(s1.cargaAlvo, sems[0].semana.cargaAlvo, "a carga continua a do calendário");
+assert(s10.conteudos.some((c) => c.tema === "jogo:torneio" && c.tipo === "fora_do_ct"), "semana de torneio sempre com os jogos");
+assert.deepStrictEqual(A.semanasDoPlano(pIA)[1].semana.conteudos, sems[1].semana.conteudos, "semana que a IA não mandou fica com o modelo");
+assert.throws(() => A.aplicarIA(plano, { semanas: [{ n: 1, conteudos: [{ tema: "tec:fundo", ex: "XX999" }] }] }, cat), /XX999/, "código inventado derruba");
+assert.throws(() => A.aplicarIA(plano, { semanas: [] }, cat), /semanas/);
+/* sessão com plano da IA: o bloco coletivo usa o exercício mais comum */
+const pA = A.aplicarIA(planoB, { semanas: [{ n: 1, conteudos: [{ tema: "tec:fundo", ex: "DC001", vezes: 1, essencial: true }] }] }, cat);
+const pB = A.aplicarIA(planoC, { semanas: [{ n: 1, conteudos: [{ tema: "tec:fundo", ex: "DC001", vezes: 1, essencial: true }] }] }, cat);
+const pC = A.aplicarIA(planoC, { semanas: [{ n: 1, conteudos: [{ tema: "tec:fundo", ex: "DT031", vezes: 1, essencial: true }] }] }, cat);
+const sIA = A.montarSessao({ atletas: [{ id: "x", ar: { plano: pA } }, { id: "y", ar: { plano: pB } }, { id: "z", ar: { plano: pC } }], hoje: "2026-11-12", duracaoMin: 120, catalogo: cat, estagio: "C" });
+assert.strictEqual(sIA.blocos.find((b) => b.tema === "tec:fundo").codigoExercicio, "DC001");
+
 console.log("check-alto-rendimento: ok");
