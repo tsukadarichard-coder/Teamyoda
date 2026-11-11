@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>QuadraLab Scout · o jogo de tênis ponto a ponto no celular</title>
+<meta name="description" content="Marque o jogo de tênis ponto a ponto no celular. A família acompanha ao vivo e, no fim, você tem os números do jogo e a evolução do atleta. Grátis para começar.">
+<!-- teste fechado: fora dos buscadores até o Richard liberar -->
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#FFFFFF">
+<meta name="color-scheme" content="light">
+<meta property="og:type" content="website">
+<meta property="og:title" content="QuadraLab Scout">
+<meta property="og:description" content="O jogo de tênis ponto a ponto no celular, com placar ao vivo para a família e a evolução do atleta.">
+<meta property="og:image" content="https://quadralab.com.br/scout-app/img/logo-scout-192.png">
+<link rel="icon" type="image/png" sizes="32x32" href="img/scout-favicon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="img/scout-apple-touch-icon.png">
+<style>
+  /* Página de vendas do QuadraLab Scout: uma coluna no celular, duas no computador; as telas são capturas reais do app. */
+  :root {
+    --roxo: #260A3E; --violeta: #6A12BA; --violeta-claro: #EFE6F9; --tinta: #1E1529; --papel: #F5F3F8; --branco: #FFFFFF; --linha: #E2DCEA; --grafite: #5C546A;
+    --azul: #0F5E8C; --laranja: #C65825;
+    --fonte: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--branco); color: var(--tinta); font: 17px/1.55 var(--fonte); -webkit-font-smoothing: antialiased; }
+  img { max-width: 100%; height: auto; display: block; }
+  a { color: var(--violeta); }
+  :focus-visible { outline: 3px solid var(--violeta); outline-offset: 2px; }
+  .in { max-width: 1080px; margin: 0 auto; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); }
+  h1, h2, h3 { line-height: 1.12; letter-spacing: -.015em; text-wrap: balance; margin: 0; }
+  h1 { font-size: clamp(34px, 6.4vw, 58px); font-weight: 850; }
+  h2 { font-size: clamp(27px, 4.2vw, 40px); font-weight: 820; }
+  h3 { font-size: 21px; font-weight: 780; }
+  p { margin: 12px 0 0; max-width: 60ch; }
+  .olho { font-size: 13px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: var(--violeta); margin: 0 0 10px; }
+  .suave { color: var(--grafite); }
+
+  .topo { position: sticky; top: 0; z-index: 5; background: rgba(255,255,255,.94); backdrop-filter: blur(8px); border-bottom: 1px solid var(--linha); padding-top: env(safe-area-inset-top, 0px); }
+  .topo .in { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 60px; }
+  .topo img { height: 40px; width: auto; }
+  .bt { display: inline-flex; align-items: center; justify-content: center; min-height: 50px; padding: 12px 22px; border-radius: 14px; font-weight: 780; font-size: 16.5px; text-decoration: none; border: 2px solid var(--violeta); }
+  .bt-cheio { background: var(--violeta); color: #fff; }
+  .bt-borda { background: transparent; color: var(--violeta); }
+  .bt-pq { min-height: 42px; padding: 8px 16px; font-size: 15px; border-radius: 12px; }
+  .acoes { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+
+  .hero { background: linear-gradient(180deg, var(--papel), var(--branco)); padding-block: 44px 56px; }
+  .hero .in { display: grid; gap: 36px; align-items: center; }
+  .hero .lead { font-size: 19px; color: var(--grafite); }
+  .selos { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 18px; font-size: 14.5px; color: var(--grafite); }
+  .selos span::before { content: "✓ "; color: var(--violeta); font-weight: 800; }
+
+  .cel { width: min(300px, 78vw); margin: 0 auto; border-radius: 36px; background: var(--roxo); padding: 10px; box-shadow: 0 24px 60px rgba(38,10,62,.22); }
+  .cel img { border-radius: 27px; aspect-ratio: 1 / 2; object-fit: cover; object-position: top; width: 100%; }
+
+  .secao { padding-block: 64px; }
+  .secao.alt { background: var(--papel); }
+  .passos { list-style: none; padding: 0; margin: 30px 0 0; display: grid; gap: 16px; counter-reset: p; }
+  .passos li { counter-increment: p; background: var(--branco); border: 1px solid var(--linha); border-radius: 18px; padding: 20px; display: grid; grid-template-columns: 44px 1fr; gap: 4px 14px; }
+  .passos li::before { content: counter(p); grid-row: span 2; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: var(--violeta); color: #fff; font-weight: 850; font-size: 19px; }
+  .passos b { font-size: 18px; }
+  .passos span { color: var(--grafite); font-size: 15.5px; }
+
+  .recurso { display: grid; gap: 30px; align-items: center; padding-block: 34px; }
+  .recurso + .recurso { border-top: 1px solid var(--linha); }
+  .recurso ul { margin: 14px 0 0; padding-left: 20px; color: var(--grafite); }
+  .recurso li { margin: 6px 0; }
+  .ponto { display: inline-block; width: 11px; height: 11px; border-radius: 50%; vertical-align: 1px; margin-right: 6px; }
+
+  .publico { display: grid; gap: 14px; margin-top: 28px; }
+  .publico div { background: var(--branco); border: 1px solid var(--linha); border-radius: 18px; padding: 20px; }
+  .publico p { font-size: 15.5px; color: var(--grafite); margin-top: 6px; }
+
+  .planos { display: grid; gap: 18px; margin-top: 30px; }
+  .plano { border: 1px solid var(--linha); border-radius: 22px; padding: 26px 22px; background: var(--branco); display: flex; flex-direction: column; }
+  .plano.plus { border: 2px solid var(--violeta); box-shadow: 0 16px 40px rgba(106,18,186,.14); }
+  .plano .preco { font-size: 36px; font-weight: 850; color: var(--roxo); margin-top: 8px; font-variant-numeric: tabular-nums; }
+  .plano .preco small { font-size: 16px; font-weight: 650; color: var(--grafite); }
+  .plano ul { list-style: none; padding: 0; margin: 16px 0 0; flex: 1; }
+  .plano li { padding: 9px 0; border-bottom: 1px solid var(--linha); font-size: 15.5px; }
+  .plano li:last-child { border-bottom: 0; }
+  .plano li b { color: var(--violeta); }
+  .plano .acoes { margin-top: 18px; }
+  .nota { font-size: 14px; color: var(--grafite); }
+
+  details { border-bottom: 1px solid var(--linha); padding-block: 4px; }
+  details:first-of-type { border-top: 1px solid var(--linha); }
+  summary { cursor: pointer; font-weight: 760; font-size: 17.5px; padding-block: 14px; list-style: none; display: flex; justify-content: space-between; gap: 12px; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: "+"; color: var(--violeta); font-size: 22px; line-height: 1; }
+  details[open] summary::after { content: "–"; }
+  details p { margin: 0 0 16px; color: var(--grafite); }
+  .faq { margin-top: 24px; max-width: 760px; }
+
+  .final { background: var(--roxo); color: #fff; padding-block: 60px; text-align: center; }
+  .final p { margin-left: auto; margin-right: auto; color: rgba(255,255,255,.82); }
+  .final .acoes { justify-content: center; }
+  .final .bt-cheio { background: #fff; color: var(--roxo); border-color: #fff; }
+  footer { padding-block: 28px calc(28px + env(safe-area-inset-bottom, 0px)); font-size: 14px; color: var(--grafite); text-align: center; }
+
+  @media (min-width: 860px) {
+    .hero .in { grid-template-columns: 1.15fr .85fr; }
+    .passos { grid-template-columns: repeat(3, 1fr); }
+    .recurso { grid-template-columns: 1fr 1fr; gap: 56px; }
+    .recurso.inverte .texto { order: 2; }
+    .publico { grid-template-columns: repeat(3, 1fr); }
+    .planos { grid-template-columns: 1fr 1fr; max-width: 820px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<header class="topo"><div class="in">
+  <a href="#inicio" aria-label="QuadraLab Scout"><picture><source srcset="img/logo-scout-96.webp 1x, img/logo-scout-192.webp 2x" type="image/webp"><img src="img/logo-scout-96.png" srcset="img/logo-scout-96.png 1x, img/logo-scout-192.png 2x" width="150" height="40" alt="QuadraLab Scout"></picture></a>
+  <a class="bt bt-borda bt-pq" href="./#/entrar">Entrar</a>
+</div></header>
+
+<main id="inicio">
+  <section class="hero"><div class="in">
+    <div>
+      <p class="olho">Para quem acompanha tênis de perto</p>
+      <h1>Cada ponto do jogo, na palma da mão.</h1>
+      <p class="lead">Marque o jogo ponto a ponto no celular. A família acompanha o placar ao vivo, de onde estiver, e no fim você tem os números do jogo e a evolução do atleta.</p>
+      <div class="acoes"><a class="bt bt-cheio" href="./#/criar" data-cta="topo">Criar conta grátis</a><a class="bt bt-borda" href="#planos">Ver os planos</a></div>
+      <div class="selos"><span>2 toques por ponto</span><span>Funciona sem internet</span><span>Grátis para começar</span></div>
+    </div>
+    <div class="cel"><picture><source srcset="img/vendas/tela-marcar.webp" type="image/webp"><img src="img/vendas/tela-marcar.jpg" width="600" height="1200" alt="Tela de marcação do QuadraLab Scout: placar 0-15, quem saca e os botões de como o ponto terminou"></picture></div>
+  </div></section>
+
+  <section class="secao"><div class="in">
+    <p class="olho">Como funciona</p>
+    <h2>Do primeiro saque ao relatório, sem complicação.</h2>
+    <ol class="passos">
+      <li><b>Escolha o atleta e o formato</b><span>Melhor de 3 sets, set único, tie-break, sem vantagem. Leva menos de um minuto.</span></li>
+      <li><b>Toque em cada ponto</b><span>Como o ponto terminou e em que bola. O placar, o saque e o lado da quadra o app faz sozinho.</span></li>
+      <li><b>Veja o que o jogo mostrou</b><span>Pontos ganhos, erros, saque, placar adverso e a comparação com os jogos anteriores.</span></li>
+    </ol>
+  </div></section>
+
+  <section class="secao alt"><div class="in">
+    <div class="recurso">
+      <div class="texto">
+        <p class="olho">Marcação</p>
+        <h3>Dois toques por ponto. Sem precisar ser técnico.</h3>
+        <p class="suave">Botões grandes, pensados para a arquibancada. Os detalhes (golpe, direção, zona da quadra, decisão) são opcionais: marque quando quiser mais profundidade.</p>
+        <ul><li><span class="ponto" style="background:var(--azul)"></span>Azul: ponto do atleta. <span class="ponto" style="background:var(--laranja);margin-left:10px"></span>Laranja: ponto do adversário.</li><li>Ace e dupla falta em um toque. Errou? É só desfazer.</li><li>Sem sinal no clube, continua marcando. Sincroniza quando a internet volta.</li></ul>
+      </div>
+      <div class="cel"><picture><source srcset="img/vendas/tela-fim.webp" type="image/webp"><img src="img/vendas/tela-fim.jpg" width="600" height="1200" loading="lazy" alt="Fim de jogo no QuadraLab Scout: Lucas venceu 4-0, com o botão de compartilhar o resultado"></picture></div>
+    </div>
+    <div class="recurso inverte">
+      <div class="texto">
+        <p class="olho">Ao vivo para a família</p>
+        <h3>Quem não foi ao torneio acompanha cada ponto.</h3>
+        <p class="suave">Um toque abre o link ao vivo e manda no WhatsApp. Avós, pai, mãe ou treinador veem o placar e os números atualizando a cada ponto.</p>
+        <ul><li>Só o primeiro nome do atleta. O nome do adversário e as anotações nunca vão para o link.</li><li>Você encerra o link quando quiser.</li></ul>
+      </div>
+      <div class="cel"><picture><source srcset="img/vendas/tela-familia.webp" type="image/webp"><img src="img/vendas/tela-familia.jpg" width="600" height="1200" loading="lazy" alt="Página ao vivo da família: Partida de Lucas, ao vivo, com placar e pontos ganhos"></picture></div>
+    </div>
+    <div class="recurso">
+      <div class="texto">
+        <p class="olho">Evolução</p>
+        <h3>Um jogo é uma amostra. Vários jogos mostram o caminho.</h3>
+        <p class="suave">Cada atleta tem a sua página, com vitórias, média de pontos ganhos e a comparação jogo a jogo: o que melhorou, o que piorou e onde está o padrão.</p>
+        <ul><li>Relatório dos jogos em PDF, para levar ao treinador.</li><li>Avaliação mental de 1 a 5: como o atleta chega, joga e termina.</li></ul>
+      </div>
+      <div class="cel"><picture><source srcset="img/vendas/tela-atleta.webp" type="image/webp"><img src="img/vendas/tela-atleta.jpg" width="600" height="1200" loading="lazy" alt="Página do atleta com vitórias, média de pontos ganhos e a evolução jogo a jogo"></picture></div>
+    </div>
+    <div class="recurso inverte">
+      <div class="texto">
+        <p class="olho">Análise de movimento</p>
+        <h3>Filme um golpe e veja o que ajustar.</h3>
+        <p class="suave">Forehand, backhand ou saque. A análise roda no próprio celular, mostra o checklist por fase, os pontos fortes e o que treinar. O vídeo não é enviado para lugar nenhum.</p>
+      </div>
+      <div class="cel"><picture><source srcset="img/vendas/tela-movimento.webp" type="image/webp"><img src="img/vendas/tela-movimento.jpg" width="600" height="1200" loading="lazy" alt="Tela da análise de movimento: escolher o vídeo, o golpe e a mão dominante"></picture></div>
+    </div>
+  </div></section>
+
+  <section class="secao"><div class="in">
+    <p class="olho">Para quem é</p>
+    <h2>Feito para quem está na beira da quadra.</h2>
+    <div class="publico">
+      <div><h3>Pai, mãe ou responsável</h3><p>Acompanhe o filho nos torneios com dados de verdade, não só com a impressão do dia.</p></div>
+      <div><h3>Atleta</h3><p>Marque seus jogos ou os de colegas, veja os seus números e leve o relatório para o treinador.</p></div>
+      <div><h3>Treinador</h3><p>Marque vários alunos no mesmo torneio e acompanhe a evolução de cada um.</p></div>
+    </div>
+  </div></section>
+
+  <section class="secao alt" id="planos"><div class="in">
+    <p class="olho">Planos</p>
+    <h2>Comece grátis. Assine quando quiser mais.</h2>
+    <div class="planos">
+      <div class="plano">
+        <h3>Grátis</h3>
+        <p class="preco">R$ 0</p>
+        <ul><li>Marcar jogos <b>sem limite</b></li><li>Link ao vivo para a família</li><li>Jogos na nuvem, em vários celulares</li><li>1 atleta na conta</li><li>Comparação dos últimos 3 jogos</li><li>1 análise de movimento de cada golpe</li></ul>
+        <div class="acoes"><a class="bt bt-borda" href="./#/criar" data-cta="gratis">Criar conta grátis</a></div>
+      </div>
+      <div class="plano plus">
+        <h3>Scout Plus</h3>
+        <p class="preco">R$ 29,90 <small>por mês</small></p>
+        <ul><li>Tudo do grátis</li><li>Atletas <b>sem limite</b> (irmãos, alunos, a equipe)</li><li>Evolução completa jogo a jogo</li><li>Relatório dos jogos em PDF</li><li>Análise de movimento <b>sem limite</b></li></ul>
+        <div class="acoes"><a class="bt bt-cheio" href="./#/criar" data-cta="plus">Criar conta e assinar</a></div>
+        <p class="nota">A assinatura é feita dentro do app, em Minha conta › Scout Plus, com o mesmo e-mail da sua conta. Pagamento pela Eduzz.</p>
+      </div>
+    </div>
+  </div></section>
+
+  <section class="secao"><div class="in">
+    <p class="olho">Perguntas</p>
+    <h2>Dúvidas comuns</h2>
+    <div class="faq">
+      <details><summary>Preciso entender de tênis para marcar?</summary><p>Não. Em cada ponto você só diz quem ganhou e como terminou (winner ou erro) e em que bola. O placar, o saque e o lado da quadra o app faz sozinho.</p></details>
+      <details><summary>Funciona sem internet?</summary><p>Sim. Depois do primeiro acesso, o app abre e marca sem sinal. Os jogos vão para a sua conta quando a internet volta. O link ao vivo precisa de internet para atualizar.</p></details>
+      <details><summary>O nome do adversário aparece para a família?</summary><p>Não. O link ao vivo e o texto do WhatsApp mostram só o primeiro nome do atleta, o placar e os números. O nome do adversário e as anotações ficam só na sua conta.</p></details>
+      <details><summary>Posso usar em mais de um celular?</summary><p>Sim. Entre com a mesma conta e os jogos aparecem nos dois. Pai e mãe podem acompanhar o mesmo atleta.</p></details>
+      <details><summary>Como assino e como cancelo o Scout Plus?</summary><p>No app, em Minha conta › Scout Plus. O pagamento é pela Eduzz, com o mesmo e-mail da sua conta. Para cancelar ou tirar dúvidas, fale com a gente pelo WhatsApp (11) 94177-3228.</p></details>
+      <details><summary>Já tenho conta no QuadraLab. Preciso criar outra?</summary><p>Não. Quem tem conta no QuadraLab (Player, Competição ou Treinador) entra com o mesmo e-mail e senha.</p></details>
+    </div>
+  </div></section>
+
+  <section class="final"><div class="in">
+    <h2>O próximo torneio já pode ser diferente.</h2>
+    <p>Crie a conta grátis, marque o primeiro jogo e mande o link ao vivo para a família.</p>
+    <div class="acoes"><a class="bt bt-cheio" href="./#/criar" data-cta="final">Criar conta grátis</a></div>
+  </div></section>
+</main>
+<footer><div class="in">QuadraLab Scout · Tecnologia QuadraLab · Dúvidas: WhatsApp (11) 94177-3228</div></footer>
+</body>
+</html>

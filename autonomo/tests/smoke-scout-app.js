@@ -81,7 +81,7 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   const { chromium } = require("/opt/node22/lib/node_modules/playwright");
   const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", args: ["--no-sandbox"] });
   async function celular() {
-    const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, hasTouch: true, serviceWorkers: "block", acceptDownloads: true });
+    const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: Number(process.env.DPR || 1), hasTouch: true, serviceWorkers: "block", acceptDownloads: true });
     await ctx.route(/gstatic\.com\/firebasejs\/.*firebase-app-compat\.js/, (rt) => rt.fulfill({ contentType: "text/javascript", body: FIREBASE_FALSO }));
     await ctx.route(/gstatic\.com\/firebasejs\/.*firebase-auth-compat\.js/, (rt) => rt.fulfill({ contentType: "text/javascript", body: "/* auth no arquivo acima */" }));
     const p = await ctx.newPage(), erros = [];
@@ -93,7 +93,17 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   const texto = () => p.evaluate(() => document.body.innerText);
   const tem = (t, trecho) => t.toLowerCase().includes(trecho.toLowerCase()); // rótulos em MAIÚSCULO via CSS
   const semRolagem = async (pg, onde) => { const w = await pg.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]); assert.ok(w[0] <= w[1], onde + ": rolagem lateral " + w); };
-  const foto = async (pg, nome) => { if (capturas) { fs.mkdirSync(capturas, { recursive: true }); await pg.screenshot({ path: path.join(capturas, nome + ".png"), fullPage: true }); } };
+  /* DPR=2 (capturas para a página de vendas): cabeçalho solto e um nome comum no lugar do adversário de teste */
+  const foto = async (pg, nome) => {
+    if (!capturas) return;
+    fs.mkdirSync(capturas, { recursive: true });
+    if (process.env.DPR) await pg.evaluate(() => {
+      document.querySelectorAll(".topo").forEach((e) => { e.style.position = "static"; });
+      const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT); let n; while ((n = w.nextNode())) n.nodeValue = n.nodeValue.replace(/Fulano Secreto/g, "Pedro");
+    });
+    await pg.screenshot({ path: path.join(capturas, nome + ".png"), fullPage: true });
+    if (process.env.DPR) await pg.evaluate(() => document.querySelectorAll(".topo").forEach((e) => { e.style.position = ""; }));
+  };
   const pontos = () => p.textContent("[data-pontos]");
   const ponto = async (fim, bola) => { await p.click(`[data-fim="${fim}"]`); await p.click(`[data-bola="${bola || "5-9"}"]`); };
   const nuvemQuieta = () => p.waitForTimeout(3200); // a sincronização roda 2,5 s depois da última mudança
@@ -221,13 +231,7 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   t = await texto();
   assert.ok(t.includes("Lucas Andrade") && t.includes("2 jogos") && t.includes("1 vitória e 0 derrotas") && t.includes("Evolução jogo a jogo"), "atleta: " + t.slice(0, 600).replace(/\n+/g, " | "));
   await semRolagem(p, "atleta"); await foto(p, "scout-5-atleta");
-  /* relatório dos jogos em PDF (janela nova com o documento) */
-  const [rel] = await Promise.all([p.waitForEvent("popup"), p.click("#btRelatorio")]);
-  await rel.waitForLoadState("load");
-  const tr = await rel.evaluate(() => document.body.innerText);
-  assert.ok(tr.includes("Lucas") && /QUADRALAB/i.test(tr) && tr.includes("Copa Sul") && !tr.includes("Fulano"), "relatório: " + tr.slice(0, 300));
-  await foto(rel, "scout-relatorio"); await rel.close();
-  /* análise de movimento do atleta */
+  /* análise de movimento no grátis */
   const mvGets = []; p.on("request", (rq) => { if (rq.url().includes("scout-app-movimento")) mvGets.push(rq.url()); });
   await p.click("[data-movimento]");
   await p.waitForFunction(() => document.querySelector("#movArea") && document.querySelector("#movArea").children.length > 0, null, { timeout: 15000 }).catch(async (e) => { console.log("TELA", (await texto()).slice(0, 500), "ERROS", erros, "GETS", mvGets); throw e; });
@@ -235,6 +239,34 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   assert.ok(t.includes("Análise de movimento") && t.includes("Lucas Andrade: filme um golpe") && t.includes("Plano grátis"), "tela da análise: " + t.slice(0, 400));
   assert.ok(mvGets.some((u) => /atleta=a/.test(u)), "análises do atleta pedidas ao servidor");
   await semRolagem(p, "análise de movimento"); await foto(p, "scout-7-movimento");
+
+  /* grátis: 1 atleta e relatório no Plus */
+  await p.goto(base + "#/novo"); await p.waitForSelector("#btComecar");
+  await p.click('[data-atleta="+"]');
+  assert.ok(await p.$("[data-limite-atletas]") && !(await p.$("#nvNome")), "grátis: sem segundo atleta");
+  await p.goto(base + "#/"); await p.waitForSelector("[data-novo]");
+  await p.click('a[href^="#/atleta/"]'); await p.waitForSelector("#atNome");
+  assert.ok(!(await p.$("#btRelatorio")) && (await texto()).includes("No grátis, os últimos 3 jogos"), "grátis: relatório e evolução completa no Plus");
+  await p.click("[data-relatorio-plus]"); await p.waitForSelector("#lkAssinar");
+  t = await texto();
+  assert.strictEqual(await p.getAttribute("#lkAssinar", "href"), "https://chk.eduzz.com/6W4GYZEO0Z", "checkout do Essencial");
+  assert.ok(t.includes("R$ 29,90 por mês") && t.includes("ana@exemplo.com") && t.includes("mesmo e-mail"), "tela do Plus: " + t.slice(0, 500));
+  await semRolagem(p, "Scout Plus"); await foto(p, "scout-8-plus");
+  await p.click("#btJaAssinei"); await p.waitForFunction(() => document.body.innerText.includes("O pagamento ainda não chegou"));
+  /* a Eduzz confirma (o webhook grava o Plus na conta; testado em check-webhook-eduzz-planos) */
+  store["scoutAppContas/" + uid].plano = "plus"; store["scoutAppContas/" + uid].plusAte = new Date(Date.now() + 32 * 86400000).toISOString().slice(0, 10);
+  await p.click("#btJaAssinei"); await p.waitForSelector("[data-plus-ativo]");
+  assert.ok((await texto()).includes("Você tem o Scout Plus até"), "Plus ativo");
+  await p.goto(base + "#/novo"); await p.waitForSelector("#btComecar"); await p.click('[data-atleta="+"]');
+  assert.ok(await p.$("#nvNome"), "Plus: segundo atleta liberado");
+  await p.goto(base + "#/"); await p.waitForSelector("[data-novo]");
+  await p.click('a[href^="#/atleta/"]'); await p.waitForSelector("#btRelatorio");
+  /* relatório dos jogos em PDF (janela nova com o documento) */
+  const [rel] = await Promise.all([p.waitForEvent("popup"), p.click("#btRelatorio")]);
+  await rel.waitForLoadState("load");
+  const tr = await rel.evaluate(() => document.body.innerText);
+  assert.ok(tr.includes("Lucas") && /QUADRALAB/i.test(tr) && tr.includes("Copa Sul") && !tr.includes("Fulano"), "relatório: " + tr.slice(0, 300));
+  await foto(rel, "scout-relatorio"); await rel.close();
 
   /* segundo celular na mesma conta */
   const c2 = await celular();
@@ -257,7 +289,7 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   /* Minha conta: cópia dos jogos e sair */
   await p.goto(base + "#/conta"); await p.waitForSelector("#btCopia");
   t = await texto();
-  assert.ok(t.includes("Ana Andrade") && t.includes("Pai, mãe ou responsável") && t.includes("ana@exemplo.com") && t.includes("Grátis"), "minha conta: " + t.slice(0, 400));
+  assert.ok(t.includes("Ana Andrade") && t.includes("Pai, mãe ou responsável") && t.includes("ana@exemplo.com") && t.includes("Scout Plus"), "minha conta: " + t.slice(0, 400));
   const [dl] = await Promise.all([p.waitForEvent("download"), p.click("#btCopia")]);
   const arquivo = path.join(require("os").tmpdir(), "ql-scout-copia-" + Date.now() + ".json");
   await dl.saveAs(arquivo);

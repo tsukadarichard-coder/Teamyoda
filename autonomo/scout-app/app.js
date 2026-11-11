@@ -13,6 +13,12 @@
   var st = null, eu = null, conta = null, salvoOk = true;
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
   function chave() { return D.CHAVE + ":" + eu.uid; }
+  /* Scout Plus: link do Essencial na Eduzz; o webhook libera na conta do Scout com o mesmo e-mail */
+  var CHECKOUT_PLUS = "https://chk.eduzz.com/6W4GYZEO0Z", PRECO_PLUS = "R$ 29,90 por mês";
+  function ehPlus() { return !!(conta && conta.plano === "plus"); }
+  function limiteAtletas() { return (conta && conta.limites && conta.limites.atletas) || 1; }
+  function guardarConta() { try { localStorage.setItem("qls:conta:" + eu.uid, JSON.stringify(conta)); } catch (e) { /* sem espaço */ } }
+  function lerContaGuardada() { try { return JSON.parse(localStorage.getItem("qls:conta:" + eu.uid) || "null"); } catch (e) { return null; } }
   function carregar() {
     var bruto = null;
     try { bruto = JSON.parse(localStorage.getItem(chave()) || "null"); } catch (e) { salvoOk = false; }
@@ -78,7 +84,7 @@
       while (pend.length) { await N.apagarJogo(pend[0]); pend.shift(); gravarApagar(pend); }
       var r = await N.sincronizar(D, uid, function () { return st; }, function (n) { st = n; salvar(true); });
       if (!eu || eu.uid !== uid) return;
-      if (r.conta) conta = r.conta;
+      if (r.conta) { conta = r.conta; guardarConta(); }
       estadoNuvem = "";
       if (r.baixados && !/^#\/(jogo|novo)/.test(location.hash)) rota();
       if (conta && !conta.papel && !/^#\/(jogo|novo|perfil)/.test(location.hash)) location.hash = "#/perfil";
@@ -124,7 +130,7 @@
       '<div class="aviso atencao" id="acErro" role="alert" hidden></div><div class="aviso" id="acOk" role="status" hidden></div>' +
       '<div class="acoes"><button type="submit" class="bt bt-principal bt-grande" id="btAcesso">' + (criar ? "Criar conta" : recuperar ? "Mandar o link" : "Entrar") + "</button></div></form>" +
       '<div class="acoes" style="justify-content:center">' + (criar || recuperar ? '<a class="bt bt-texto" href="#/entrar">Já tenho conta: entrar</a>' : '<a class="bt bt-texto" href="#/criar">Criar conta grátis</a><a class="bt bt-texto" href="#/recuperar">Esqueci a senha</a>') + "</div>" +
-      '<p class="rodape">Quem já tem conta no QuadraLab (Player, Competição ou Treinador) entra com o mesmo e-mail e senha.</p></section>';
+      '<p class="rodape">Quem já tem conta no QuadraLab (Player, Competição ou Treinador) entra com o mesmo e-mail e senha.<br><a href="conheca.html">Conheça o QuadraLab Scout e os planos</a></p></section>';
     tela(h, true);
     cada("[data-papel]", function (b) { b.addEventListener("click", function () { acesso.papel = b.getAttribute("data-papel"); cada("[data-papel]", function (x) { x.setAttribute("aria-pressed", String(x === b)); }); }); });
     document.getElementById("fAcesso").addEventListener("submit", async function (ev) {
@@ -157,7 +163,7 @@
     document.getElementById("btPerfil").addEventListener("click", async function () {
       var bt = this, er = document.getElementById("pfErro"); er.hidden = true;
       ocupado(bt, true, "Salvando…");
-      try { conta = await N.perfil(document.getElementById("pfNome").value, acesso.papel); botaoConta(); location.hash = "#/"; }
+      try { conta = await N.perfil(document.getElementById("pfNome").value, acesso.papel); guardarConta(); botaoConta(); location.hash = "#/"; }
       catch (e) { er.textContent = e.message; er.hidden = false; ocupado(bt, false); }
     });
   }
@@ -165,7 +171,7 @@
     var c = conta || {}, papel = (PAPEIS.filter(function (p) { return p[0] === c.papel; })[0] || [null, "—"])[1], meta = N.lerMeta(eu.uid);
     var h = '<p class="voltar"><a class="bt bt-texto" href="#/">‹ Seus jogos</a></p><h1>Minha conta</h1>' +
       '<section class="cartao"><p class="olho">Conta</p><p style="margin:0"><b>' + esc(c.nome || eu.nome || "Sem nome") + "</b> · " + esc(papel) + '</p><p class="nota">' + esc(eu.email) + "</p>" +
-      '<p class="nota">Plano: <b>' + (c.plano === "plus" ? "Scout Plus" : "Grátis") + "</b></p>" +
+      '<p class="nota">Plano: <b>' + (c.plano === "plus" ? "Scout Plus" : "Grátis") + "</b>" + (c.plano === "plus" && c.plusAte ? " até " + esc(dataBR(c.plusAte)) : "") + ' · <a href="#/plus">' + (c.plano === "plus" ? "ver o plano" : "conhecer o Scout Plus") + "</a></p>" +
       '<p class="nota" data-estado-nuvem>' + (navigator.onLine === false ? "Sem internet agora: os jogos vão para a nuvem quando o sinal voltar." : meta.ultima ? "Jogos guardados na nuvem. Última sincronização: " + new Date(meta.ultima).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) + "." : "Sincronizando os jogos com a nuvem…") + "</p>" +
       '<div class="acoes"><button type="button" class="bt bt-pq" id="btSync">Sincronizar agora</button><a class="bt bt-pq" href="#/perfil">Mudar nome ou papel</a><button type="button" class="bt bt-pq bt-perigo" id="btSair">Sair da conta</button></div></section>' +
       '<section class="cartao"><h2>Cópia dos jogos</h2><p class="nota">Os jogos já ficam na sua conta. Se quiser guardar um arquivo seu também (ou levar para outra conta), faça uma cópia.</p>' +
@@ -249,13 +255,14 @@
   /* ══ Novo jogo ══ */
   var novo = null;
   function telaNovo() {
-    if (!novo) novo = { atletaId: st.atletas.length === 1 ? st.atletas[0].id : null, nome: "", outro: !st.atletas.length, torneio: "", adversario: "", cfg: Object.assign({}, D.CFG_PADRAO), mental: { antes: {} }, mentalAberto: false };
+    if (!novo) novo = { atletaId: st.atletas.length >= 1 && st.atletas.length >= limiteAtletas() ? st.atletas[0].id : st.atletas.length === 1 ? st.atletas[0].id : null, nome: "", outro: !st.atletas.length, torneio: "", adversario: "", cfg: Object.assign({}, D.CFG_PADRAO), mental: { antes: {} }, mentalAberto: false };
     var c = novo.cfg, sel = novo.atletaId ? D.atleta(st, novo.atletaId) : null, nomeSaque = sel && !novo.outro ? primeiroNome(sel.nome) : (novo.nome ? primeiroNome(novo.nome) : "Atleta");
     function chip(attr, v, rot, on) { return '<button type="button" class="chip" ' + attr + '="' + esc(v) + '" aria-pressed="' + !!on + '">' + rot + "</button>"; }
     var h = '<p class="voltar"><a class="bt bt-texto" href="#/">‹ Seus jogos</a></p><h1>Marcar um jogo</h1><p class="sub">Só o atleta é obrigatório. O resto ajuda a comparar os jogos depois.</p>' +
       '<section class="cartao"><h2>Atleta</h2>' +
       (st.atletas.length ? '<div class="chips" role="group" aria-label="Atleta">' + st.atletas.map(function (a) { return chip("data-atleta", a.id, esc(a.nome), !novo.outro && novo.atletaId === a.id); }).join("") + chip("data-atleta", "+", "+ Outro atleta", novo.outro) + "</div>" : "") +
-      (novo.outro ? '<div class="campo"><label for="nvNome">Nome do atleta</label><input id="nvNome" maxlength="60" autocomplete="off" autocapitalize="words" placeholder="Ex.: Lucas" value="' + esc(novo.nome) + '"></div>' : "") +
+      (novo.outro && st.atletas.length >= limiteAtletas() ? '<div class="aviso" data-limite-atletas style="margin-top:12px">No plano grátis é 1 atleta por conta. Com o Scout Plus, atletas sem limite (irmãos, alunos, a equipe toda). <a href="#/plus">Conhecer o Scout Plus</a></div>' :
+        novo.outro ? '<div class="campo"><label for="nvNome">Nome do atleta</label><input id="nvNome" maxlength="60" autocomplete="off" autocapitalize="words" placeholder="Ex.: Lucas" value="' + esc(novo.nome) + '"></div>' : "") +
       '<div class="campo"><label for="nvTorneio">Torneio <span class="nota">(opcional)</span></label><input id="nvTorneio" maxlength="80" placeholder="Torneio ou jogo-treino" value="' + esc(novo.torneio) + '"></div>' +
       '<div class="campo"><label for="nvAdv">Adversário <span class="nota">(opcional, nunca vai para o link da família)</span></label><input id="nvAdv" maxlength="80" autocomplete="off" value="' + esc(novo.adversario) + '"></div></section>' +
       '<section class="cartao"><h2>Formato</h2><div class="chips" role="group" aria-label="Formato">' + [["3sets", "Melhor de 3 sets"], ["1set", "Set único"], ["4games", "Set a 4 games"], ["tb10", "Match tie-break (10)"], ["tb7", "Só tie-break (7)"]].map(function (f) { return chip("data-formato", f[0], f[1], c.formato === f[0]); }).join("") + "</div>" +
@@ -266,7 +273,7 @@
       '<div class="aviso atencao" id="nvErro" role="alert" hidden></div><div class="acoes"><button type="button" class="bt bt-principal bt-grande" id="btComecar">Começar o jogo</button></div>';
     tela(h);
     function lerCampos() { var n = document.getElementById("nvNome"); if (n) novo.nome = n.value; novo.torneio = document.getElementById("nvTorneio").value; novo.adversario = document.getElementById("nvAdv").value; }
-    cada("[data-atleta]", function (b) { b.addEventListener("click", function () { lerCampos(); var v = b.getAttribute("data-atleta"); if (v === "+") { novo.outro = true; novo.atletaId = null; } else { novo.outro = false; novo.atletaId = v; } telaNovo(); if (novo.outro) document.getElementById("nvNome").focus(); }); });
+    cada("[data-atleta]", function (b) { b.addEventListener("click", function () { lerCampos(); var v = b.getAttribute("data-atleta"); if (v === "+") { novo.outro = true; novo.atletaId = null; } else { novo.outro = false; novo.atletaId = v; } telaNovo(); var cn = document.getElementById("nvNome"); if (novo.outro && cn) cn.focus(); }); });
     cada("[data-formato]", function (b) { b.addEventListener("click", function () { lerCampos(); c.formato = b.getAttribute("data-formato"); novo.cfg = D.cfgLimpa(c); telaNovo(); }); });
     cada("[data-saca]", function (b) { b.addEventListener("click", function () { lerCampos(); c.saca = b.getAttribute("data-saca"); telaNovo(); }); });
     cada("[data-tog]", function (b) { b.addEventListener("click", function () { lerCampos(); var k = b.getAttribute("data-tog"); c[k] = !c[k]; novo.cfg = D.cfgLimpa(c); telaNovo(); }); });
@@ -276,6 +283,7 @@
     document.getElementById("btComecar").addEventListener("click", function () {
       lerCampos();
       var er = document.getElementById("nvErro"), atletaId = novo.atletaId;
+      if ((novo.outro || !atletaId) && st.atletas.length >= limiteAtletas()) { er.textContent = "No plano grátis é 1 atleta por conta. Escolha o atleta que já está na conta ou assine o Scout Plus."; er.hidden = false; return; }
       if (novo.outro || !atletaId) { var antes = st.atletas.length, r = D.addAtleta(st, novo.nome); if (r.erro) { er.textContent = r.erro; er.hidden = false; return; } atletaId = r.atleta.id; if (st.atletas.length > antes) atletasMudaram(); }
       var x = D.novoJogo(st, { atletaId: atletaId, torneio: novo.torneio, adversario: novo.adversario, cfg: novo.cfg });
       if (x.erro) { er.textContent = x.erro; er.hidden = false; return; }
@@ -408,7 +416,7 @@
     var a = D.atleta(st, j.atletaId), nome = primeiroNome(a && a.nome), pl = D.placar(M, j), r = D.resumo(M, st, j), n = j.pontos.length;
     if (st.atual === j.id) { delete st.atual; salvar(); }
     var titulo = pl.fim ? nome + (pl.vencedor === "nos" ? " venceu" : " perdeu") : "Jogo encerrado antes do fim";
-    var cmp = D.comparacao(M, st, j.atletaId, 6), link = linkDe(j);
+    var cmp = D.comparacao(M, st, j.atletaId, ehPlus() ? 6 : 3), link = linkDe(j);
     var h = '<p class="voltar"><a class="bt bt-texto" href="#/">‹ Seus jogos</a></p>' +
       '<section class="resultado" data-fim-jogo><p class="olho">Fim de jogo' + (j.torneio ? " · " + esc(j.torneio) : "") + " · " + esc(dataBR(j.data)) + "</p><h1>" + esc(titulo) + "</h1>" +
       (r.resultado ? '<p class="placar-f">' + esc(r.resultado) + "</p>" : "") + '<p class="nota">' + n + (n === 1 ? " ponto" : " pontos") + " · " + esc(nome) + " ganhou " + r.ganhos + " (" + r.pctGanhos + "%)" + (j.adversario ? " · contra " + esc(j.adversario) : "") + "</p>" +
@@ -416,7 +424,7 @@
       '<div class="acoes"><button type="button" class="bt bt-principal" id="btCompartilhar">Compartilhar o resultado</button><a class="bt" id="lkWhats" target="_blank" rel="noopener noreferrer" href="https://wa.me/?text=' + encodeURIComponent(D.textoCompartilhar(M, st, j)) + '">Mandar no WhatsApp</a></div></section>';
     if (n && G) h += '<div class="graficos">' + G.topo(r) + G.secoes(r) + "</div>";
     if (r.sinais && r.sinais.length) h += '<section class="cartao"><h2>O que este jogo aponta</h2><p class="nota">Leitura automática pelos números. É ponto de partida para conversar com o treinador, não conclusão.</p>' + r.sinais.map(function (t) { return '<div class="sinal">' + t + "</div>"; }).join("") + "</section>";
-    if (cmp.jogos.length >= 2) h += '<section class="cartao"><h2>Comparação com os jogos anteriores</h2>' + tabelaComparacao(cmp) + '<div class="acoes"><a class="bt bt-pq" href="#/atleta/' + esc(j.atletaId) + '">Ver todos os jogos de ' + esc(nome) + '</a><button type="button" class="bt bt-pq" id="btRelatorioFim">Relatório dos jogos (PDF)</button></div></section>';
+    if (cmp.jogos.length >= 2) h += '<section class="cartao"><h2>Comparação com os jogos anteriores</h2>' + tabelaComparacao(cmp) + '<div class="acoes"><a class="bt bt-pq" href="#/atleta/' + esc(j.atletaId) + '">Ver todos os jogos de ' + esc(nome) + '</a>' + (ehPlus() ? '<button type="button" class="bt bt-pq" id="btRelatorioFim">Relatório dos jogos (PDF)</button>' : '<a class="bt bt-pq" href="#/plus">Relatório em PDF · Scout Plus</a>') + "</div></section>";
     else h += '<div class="aviso">Marque mais jogos de ' + esc(nome) + " para ver a comparação jogo a jogo. Um jogo é uma amostra; três na mesma direção já são um sinal.</div>";
     h += '<section class="cartao"><h2>Depois do jogo <span class="nota">(opcional)</span></h2><div class="campo"><label for="fmNivel">Nível do adversário</label><select id="fmNivel"><option value="">Não informar</option>' +
       M.NIVEIS_ADVERSARIO.map(function (x) { return '<option value="' + esc(x[0]) + '"' + (j.nivelAdversario === x[0] ? " selected" : "") + ">" + esc(x[1]) + "</option>"; }).join("") + "</select></div>" +
@@ -465,13 +473,13 @@
     if (!a) { tela('<p class="voltar"><a class="bt bt-texto" href="#/">‹ Seus jogos</a></p><div class="aviso atencao">Atleta não encontrado na sua conta.</div>', true); return; }
     var jogos = D.historico(st, id), linhas = jogos.map(function (j) { return D.linhaJogo(M, st, j); }), fim = linhas.filter(function (l) { return l.fim && l.n; });
     var vit = fim.filter(function (l) { return l.venceu === true; }).length, der = fim.filter(function (l) { return l.venceu === false; }).length;
-    var media = fim.length ? Math.round(fim.reduce(function (s, l) { return s + l.pct; }, 0) / fim.length) : null, cmp = D.comparacao(M, st, id, 8);
+    var media = fim.length ? Math.round(fim.reduce(function (s, l) { return s + l.pct; }, 0) / fim.length) : null, cmp = D.comparacao(M, st, id, ehPlus() ? 8 : 3);
     var h = '<p class="voltar"><a class="bt bt-texto" href="#/">‹ Seus jogos</a></p><h1>' + esc(a.nome) + '</h1><p class="sub">' + jogos.length + (jogos.length === 1 ? " jogo" : " jogos") + (fim.length ? " · " + vit + (vit === 1 ? " vitória" : " vitórias") + " e " + der + (der === 1 ? " derrota" : " derrotas") + " · média de " + media + "% dos pontos" : "") + "</p>" +
       '<div class="acoes"><a class="bt bt-principal" href="#/novo" data-novo-atleta="' + esc(id) + '">+ Marcar um jogo de ' + esc(primeiroNome(a.nome)) + "</a></div>" +
       '<section class="cartao"><h2>Relatório e análise</h2><p class="nota" style="margin-top:0">O relatório reúne os jogos terminados em um PDF com gráficos de evolução. A análise de movimento filma um golpe e mostra o que ajustar.</p><div class="acoes">' +
-        (window.QLScoutRelatorio && window.QLScoutRelatorio.jogosDoRelatorio(M, D, st, id).length ? '<button type="button" class="bt bt-pq" id="btRelatorio">Relatório dos jogos (PDF)</button>' : '<span class="nota">O relatório aparece com 1 jogo terminado de pelo menos 10 pontos.</span>') +
+        (!ehPlus() ? '<a class="bt bt-pq" href="#/plus" data-relatorio-plus>Relatório em PDF · Scout Plus</a>' : window.QLScoutRelatorio && window.QLScoutRelatorio.jogosDoRelatorio(M, D, st, id).length ? '<button type="button" class="bt bt-pq" id="btRelatorio">Relatório dos jogos (PDF)</button>' : '<span class="nota">O relatório aparece com 1 jogo terminado de pelo menos 10 pontos.</span>') +
         '<a class="bt bt-pq" href="#/movimento/' + esc(id) + '" data-movimento>Análise de movimento</a></div></section>' +
-      (cmp.jogos.length >= 2 ? '<section class="cartao"><h2>Evolução jogo a jogo</h2>' + tabelaComparacao(cmp) + "</section>" : '<div class="aviso">A comparação aparece a partir de 2 jogos terminados.</div>') +
+      (cmp.jogos.length >= 2 ? '<section class="cartao"><h2>Evolução jogo a jogo</h2>' + tabelaComparacao(cmp) + (ehPlus() ? "" : '<p class="nota">No grátis, os últimos 3 jogos. <a href="#/plus">Com o Scout Plus, a evolução completa</a>.</p>') + "</section>" : '<div class="aviso">A comparação aparece a partir de 2 jogos terminados.</div>') +
       (jogos.length ? '<section class="secao"><h2>Jogos</h2><ul class="lista">' + jogos.map(linhaHtml).join("") + "</ul></section>" : "") +
       '<section class="cartao"><h2>Nome</h2><div class="campo" style="margin-top:6px"><label for="atNome">Nome do atleta</label><input id="atNome" maxlength="60" value="' + esc(a.nome) + '"></div><div class="acoes"><button type="button" class="bt bt-pq" id="btRenomear">Salvar nome</button>' +
       (confirmaAtleta === id ? '</div><div class="cartao confirma"><p style="margin:0"><b>Apagar ' + esc(a.nome) + " e " + (jogos.length === 1 ? "o jogo" : "os " + jogos.length + " jogos") + '?</b> Sai da conta e de todos os aparelhos. Não dá para desfazer.</p><div class="acoes"><button type="button" class="bt bt-pq bt-perigo" id="btAtApagarSim">Sim, apagar</button><button type="button" class="bt bt-pq" id="btAtApagarNao">Manter</button></div></div>' :
@@ -489,8 +497,35 @@
     });
   }
 
+  /* ══ Scout Plus ══ */
+  function telaPlus() {
+    var c = conta || {}, plus = ehPlus();
+    var linhas = [["Marcar jogos", "sem limite", "sem limite"], ["Link ao vivo para a família", "✓", "✓"], ["Jogos na nuvem, em vários celulares", "✓", "✓"],
+      ["Atletas na conta", "1", "sem limite"], ["Comparação jogo a jogo", "últimos 3 jogos", "evolução completa"], ["Relatório dos jogos em PDF", "—", "✓"],
+      ["Análise de movimento", "1 de cada golpe", "sem limite"]];
+    var h = '<p class="voltar"><a class="bt bt-texto" href="#/conta">‹ Minha conta</a></p><h1>Scout Plus</h1>' +
+      (plus ? '<div class="aviso" data-plus-ativo>Você tem o Scout Plus' + (c.acessoCompleto ? " (acesso completo)." : c.plusAte ? " até " + esc(dataBR(c.plusAte)) + "." : ".") + "</div>" :
+        '<p class="sub">Para quem acompanha mais de um atleta e quer a evolução completa, o relatório em PDF e a análise de movimento sem limite.</p>') +
+      '<div class="tab" role="region" aria-label="Grátis e Scout Plus" tabindex="0"><table class="planos"><thead><tr><th></th><th>Grátis</th><th>Plus</th></tr></thead><tbody>' +
+      linhas.map(function (l) { return "<tr><td>" + esc(l[0]) + "</td><td>" + esc(l[1]) + "</td><td><b>" + esc(l[2]) + "</b></td></tr>"; }).join("") + "</tbody></table></div>" +
+      (plus ? "" : '<section class="cartao plus-oferta"><p class="preco"><b>' + PRECO_PLUS + '</b></p><p class="nota" style="margin-top:0">Pagamento pela Eduzz (cartão, Pix ou boleto, conforme o checkout).</p>' +
+        '<div class="aviso atencao">Na compra, use o <b>mesmo e-mail da sua conta</b>: ' + esc(eu.email) + ". É por ele que o Plus entra na conta.</div>" +
+        '<div class="acoes"><a class="bt bt-principal bt-grande" id="lkAssinar" href="' + CHECKOUT_PLUS + '" target="_blank" rel="noopener noreferrer">Assinar o Scout Plus</a></div>' +
+        '<div class="acoes" style="justify-content:center"><button type="button" class="bt bt-texto" id="btJaAssinei">Já assinei: atualizar a conta</button></div>' +
+        '<p class="nota">Depois que a Eduzz confirma o pagamento, o Plus entra na conta em alguns minutos. Pix e cartão costumam confirmar na hora; boleto, em até 3 dias úteis.</p></section>') +
+      '<p class="rodape">Dúvidas ou cancelamento: fale com a gente pelo WhatsApp (11) 94177-3228.</p>';
+    tela(h, true);
+    var ja = document.getElementById("btJaAssinei");
+    if (ja) ja.addEventListener("click", async function () {
+      ocupado(ja, true, "Conferindo…"); await sincronizarAgora();
+      if (ehPlus()) { toast("Scout Plus ativo. Obrigado!"); telaPlus(); }
+      else { ocupado(ja, false); toast(estadoNuvem ? "Não deu para conferir agora: " + estadoNuvem + "." : "O pagamento ainda não chegou. Tente de novo em alguns minutos."); }
+    });
+  }
+
   /* ══ Relatório dos jogos (PDF) ══ */
   function abrirRelatorio(atletaId) {
+    if (!ehPlus()) { location.hash = "#/plus"; return; }
     if (!window.QLRelatorioJogos || !window.QLScoutRelatorio) { toast("Não foi possível carregar o relatório. Confira a internet e recarregue a página."); return; }
     var o = window.QLScoutRelatorio.opcoes(M, D, st, atletaId);
     if (!o.jogos.length) { toast("O relatório precisa de pelo menos 1 jogo terminado com 10 pontos."); return; }
@@ -570,6 +605,7 @@
     else if (partes[0] === "atleta" && partes[1]) { if (confirmaAtleta !== partes[1]) confirmaAtleta = null; telaAtleta(partes[1]); }
     else if (partes[0] === "movimento" && partes[1]) telaMovimento(partes[1]);
     else if (partes[0] === "conta") telaConta();
+    else if (partes[0] === "plus") telaPlus();
     else if (partes[0] === "perfil") telaPerfil();
     else { novo = null; telaInicio(); }
   }
@@ -583,7 +619,7 @@
   function aoMudarConta(u) {
     eu = u; conta = null; marc = { id: null }; novo = null;
     if (!u) { st = null; botaoConta(); if (!/^#\/(criar|recuperar|entrar)/.test(location.hash)) location.hash = "#/entrar"; else rota(); return; }
-    carregar(); botaoConta();
+    conta = lerContaGuardada(); carregar(); botaoConta();
     if (!contouAbertura) { contouAbertura = true; uso("abriu"); }
     if (/^#\/(criar|recuperar|entrar)/.test(location.hash) || !location.hash) location.hash = "#/"; else rota();
     sincronizarAgora().then(botaoConta);

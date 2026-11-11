@@ -69,6 +69,30 @@ const dias = (iso) => Math.round((Date.parse(iso) - Date.parse(new Date().toISOS
   /* produto desconhecido nunca dá plano pago */
   await chamar(evento("paid", "9999999", "eva@treino.com")); assert.strictEqual(info("eva@treino.com").plano, "gratis");
 
+  /* QuadraLab Scout: a conta do Scout (sem academia) que compra pelo link do Essencial recebe o Scout Plus; nada de academia é criado */
+  usuarios.uscout = { uid: "uscout", email: "mae@scout.com", customClaims: { tipo: "scout" } };
+  store["scoutAppContas/uscout"] = { nome: "Mãe", plano: "gratis", atletas: [] };
+  const antesOrgs = Object.keys(store).filter((k) => k.startsWith("orgs/")).length;
+  { const r = await chamar(evento("paid", "3124922", "mae@scout.com")); assert.strictEqual(r.statusCode, 200, r.body); }
+  let sc = store["scoutAppContas/uscout"];
+  assert(sc.plano === "plus" && dias(sc.plusAte) === 32, "Scout Plus por 32 dias: " + JSON.stringify(sc));
+  assert.strictEqual(sc.nome, "Mãe", "resto da conta preservado");
+  assert.strictEqual(Object.keys(store).filter((k) => k.startsWith("orgs/")).length, antesOrgs, "nenhuma academia criada");
+  assert.deepStrictEqual(usuarios.uscout.customClaims, { tipo: "scout" }, "claims da conta do Scout intactas");
+  await chamar(evento("paid", "3124922", "mae@scout.com"));
+  assert.strictEqual(dias(store["scoutAppContas/uscout"].plusAte), 64, "renovação do Plus estende");
+  await chamar(evento("refunded", "3124922", "mae@scout.com"));
+  sc = store["scoutAppContas/uscout"]; assert(sc.plano === "gratis" && !sc.plusAte, "reembolso volta ao grátis: " + JSON.stringify(sc));
+  /* produto desconhecido não dá Plus; conta sem academia e sem Scout continua dando erro (nada muda para ela) */
+  await chamar(evento("paid", "9999999", "mae@scout.com")); assert.strictEqual(store["scoutAppContas/uscout"].plano, "gratis");
+  usuarios.uplayer = { uid: "uplayer", email: "so@player.com", customClaims: { tipo: "jogador" } };
+  assert.strictEqual((await chamar(evento("paid", "3124922", "so@player.com"))).statusCode, 500, "conta só do Player: comportamento de antes");
+  /* treinador com academia que também tem conta no Scout continua recebendo o plano da academia */
+  const ana = Object.values(usuarios).find((x) => x.email === "ana@treino.com");
+  store["scoutAppContas/" + ana.uid] = { plano: "gratis" };
+  await chamar(evento("paid", "3124932", "ana@treino.com"));
+  assert.strictEqual(info("ana@treino.com").plano, "premium"); assert.strictEqual(store["scoutAppContas/" + ana.uid].plano, "gratis", "academia tem prioridade");
+
   /* botões dos dois apps apontam para os produtos da conta original */
   for (const f of ["autonomo/index.html", "mty/index.html"]) {
     const h = fs.readFileSync(path.join(__dirname, "..", "..", f), "utf8");

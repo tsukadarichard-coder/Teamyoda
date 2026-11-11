@@ -139,3 +139,8 @@ details.cartao.det { margin-top: 12px; border-top: 1px solid var(--linha); }
 
 /* a área principal recebe foco a cada troca de tela (leitores de tela): sem contorno nela */
 main:focus, main:focus-visible { outline: none; }
+
+/* Scout Plus */
+table.planos th:not(:first-child), table.planos td:not(:first-child) { text-align: center; white-space: normal; }
+table.planos th:last-child { color: var(--violeta); }
+.plus-oferta .preco { font-size: 26px; margin: 0 0 4px; color: var(--roxo); font-variant-numeric: tabular-nums; }
