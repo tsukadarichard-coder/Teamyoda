@@ -160,6 +160,9 @@ function fakeDb() {
   assert.strictEqual((await chama("POST", "{oi")).s, 400);
   assert.strictEqual((await chama("POST", { a: A, e: "abriu", torneio: "Copa" })).s, 400, "torneio recusado");
   assert.strictEqual((await chama("POST", { a: "c".repeat(24), e: "abriu" })).s, 200);
-  assert.strictEqual((await chama("POST", { a: B, e: "abriu" })).s, 429, "limite do dia");
+  /* o handler usa a data de hoje: o aparelho que bate no limite é preparado hoje, não na data fixa de cima */
+  const D = "d".repeat(24);
+  for (let i = 0; i < USO.MAX_EVENTOS_DIA; i++) await USO.registrar(db, { a: D, e: "abriu", n: 0 }, Date.now());
+  assert.strictEqual((await chama("POST", { a: D, e: "abriu" })).s, 429, "limite do dia");
   console.log("check-scout-app: ok");
 })().catch((e) => { console.error(e); process.exit(1); });
