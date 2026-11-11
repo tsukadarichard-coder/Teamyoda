@@ -107,7 +107,7 @@ const chamar = async (metodo, corpo, tk) => { const x = await digital({ httpMeth
   assert(await vis.isHidden("#assinatura"), "sem link de pagamento não aparece preço nem Assinar (assinatura ainda em breve)");
   assert(await vis.isHidden("#btAssinar"));
   assert(!/Assine agora|Entrar ou criar conta/.test(await vis.textContent("body")), "sem chamadas de contratação enquanto a assinatura não abre");
-  assert.strictEqual(await vis.getAttribute("[data-acesso=aluno] a.btn", "href"), "../digital/", "Acessar minha área leva ao fluxo da Academia Digital");
+  assert.strictEqual(await vis.getAttribute("[data-acesso=aluno] a.btn", "href"), "../minha-area/", "Acessar minha área leva à área do aluno (que tem a Academia Digital dentro)");
   await vis.click("#btPrecisoLink");
   assert(/^https:\/\/wa\.me\/\d+\?text=.*Cooper/.test(decodeURIComponent(await vis.getAttribute("#escolhaUnidade a:has-text('Cooper')", "href"))), "pedir o link escolhendo a unidade");
   assert.deepStrictEqual(await vis.$$eval("a[data-professor]", (els) => els.map((e) => e.getAttribute("href"))), ["/treinador", "/treinador"], "Área do professor no menu e no rodapé");

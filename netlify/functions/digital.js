@@ -181,7 +181,7 @@ async function unidadesDaConta(conta) {
     listas[v.org] = listas[v.org] || alunosDaOrg(v.org);
     const al = (await listas[v.org]).find((a) => a && a.id === v.alunoId);
     return { org: v.org, alunoId: v.alunoId, unidade: ORGS[v.org] || v.org, nome: al ? String(al.nome || "").split(/\s+/)[0] : "", naLista: !!al,
-      linkAtual: !!(al && al.linkToken && v.marca && marcaLink(al.linkToken) === v.marca) };
+      linkAtual: !!(al && al.linkToken && v.marca && marcaLink(al.linkToken) === v.marca), confirmar: !v.marca };
   }));
 }
 async function resumoPresencial(ac) {
@@ -245,7 +245,8 @@ async function meuLink(claims, conta, b) {
   if (!v) throw new Erro(403, "Esta conta não está ligada a este aluno.");
   const al = (await alunosDaOrg(org)).find((a) => a && a.id === alunoId);
   if (!al) throw new Erro(404, "Não encontrei o aluno na lista da unidade. Fale com o professor.");
-  if (!al.linkToken || !v.marca || marcaLink(al.linkToken) !== v.marca) throw new Erro(409, "O link do aluno mudou. Cole o link novo que o professor mandou para continuar.");
+  if (!v.marca) throw new Erro(409, "Para abrir o plano por aqui, confirme o link do aluno uma vez: cole o link que o professor mandou.");
+  if (!al.linkToken || marcaLink(al.linkToken) !== v.marca) throw new Erro(409, "O link do aluno mudou. Cole o link novo que o professor mandou para continuar.");
   return { url: "/aluno.html?org=" + encodeURIComponent(org) + "&id=" + encodeURIComponent(alunoId) + "&t=" + encodeURIComponent(al.linkToken) };
 }
 

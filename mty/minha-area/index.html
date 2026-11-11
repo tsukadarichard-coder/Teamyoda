@@ -233,7 +233,9 @@
         var nome = a.nome || "Aluno";
         var corpo;
         if (!a.naLista) corpo = '<p class="msg msg-aviso" style="margin-top:14px">Este aluno não está mais na lista da unidade. Se for engano, fale com o professor.</p>';
-        else if (!a.linkAtual) corpo = '<p class="msg msg-aviso" style="margin-top:14px">O link do aluno mudou. Cole o link novo que o professor mandou para continuar.</p>' + formLink("fRel" + i, "Link novo do aluno");
+        else if (!a.linkAtual) corpo = '<p class="msg msg-aviso" style="margin-top:14px">' + (a.confirmar
+            ? "Para abrir o plano por aqui, confirme o link do aluno uma vez: cole o link que o professor mandou."
+            : "O link do aluno mudou. Cole o link novo que o professor mandou para continuar.") + "</p>" + formLink("fRel" + i, a.confirmar ? "Link do aluno" : "Link novo do aluno");
         else corpo = '<ul class="inclui"><li>Plano e aulas</li><li>Reposições</li><li>Relatórios e jogos</li><li>Conversa com o professor</li></ul>' +
           '<div class="acoes"><button class="btn btn-verm" type="button" data-plano="' + i + '">Meu plano e aulas</button><a class="btn btn-linha" href="../digital/">Academia Digital</a></div><p class="msg" role="status" hidden data-msg="' + i + '"></p>';
         return '<article class="aluno" data-aluno="' + esc(a.org + ":" + a.alunoId) + '"><h2>' + esc(nome) + '</h2><p class="uni">' + esc(a.unidade) + "</p>" + corpo + "</article>";
