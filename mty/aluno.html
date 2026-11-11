@@ -537,6 +537,17 @@ function todosHorarios(agenda) {
       '<p class="aviso-mini" style="font-size:13px;margin-top:0">Trilhas de aulas em vídeo, treinos da Metodologia MTY com a quadra animada e o simulador de decisões, para treinar também fora da quadra. <b>Incluída na sua matrícula: você não paga nada.</b></p>' +
       '<div class="linha-btns"><a class="btn" style="text-decoration:none;display:inline-block" href="' + href + '">Entrar na Academia Digital</a></div></div>';
   }
+  /* Área do aluno (/minha-area/): guardar este plano numa conta de e-mail e senha, para abrir sem precisar do link.
+     Quem já chegou pela área (de=area) vê só o caminho de volta. */
+  const DA_AREA = /(?:^|[?&])de=area(?:&|$)/.test(location.search);
+  function painelMinhaArea() {
+    if (org !== 'team-yoda' && org !== '39-ranch') return '';
+    if (DA_AREA) return '<p data-minha-area style="margin:0 0 12px"><a href="minha-area/" style="font-weight:700">← Minha área</a></p>';
+    const href = 'minha-area/?org=' + encodeURIComponent(org) + '&id=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(t);
+    return '<div class="painel" data-minha-area><h2>Guarde este plano na sua área</h2>' +
+      '<p class="aviso-mini" style="font-size:13px;margin-top:0">Crie a sua conta com e-mail e senha e abra o plano, as aulas e a Academia Digital sem precisar guardar este link. Aluno, pai e mãe podem ter cada um a sua conta.</p>' +
+      '<div class="linha-btns"><a class="btn" style="text-decoration:none;display:inline-block" href="' + href + '">Criar minha área</a></div></div>';
+  }
   function render(d) {
     if (!d.temPlano) {
       // sem plano ainda, mas dá pra dizer o que gostaria de trabalhar e
@@ -548,7 +559,7 @@ function todosHorarios(agenda) {
         ? 'Seu treinador está preparando seu plano — assim que for revisado e aprovado, aparece aqui.'
         : 'Ainda não há um plano montado para você.';
       el.innerHTML = '<header><h1>' + escapar(d.nome) + '</h1><div class="sub">' + subtitulo + '</div></header><div id="ql-avisos-celular"></div>' +
-        painelAcademiaDigital() + painelTurmas(d) + painelPlanoEquipe(d) + painelRelatoriosAtleta(d) + painelObservacoes(d) + painelMovimentos(d) + painelJogos(d) + painelJogosVideo(d) +
+        painelMinhaArea() + painelAcademiaDigital() + painelTurmas(d) + painelPlanoEquipe(d) + painelRelatoriosAtleta(d) + painelObservacoes(d) + painelMovimentos(d) + painelJogos(d) + painelJogosVideo(d) +
         painelMapaConceitos(d, ui) + painelEvolucao(d) + painelRelatorios(d) + painelComunicacao(d) + '<div class="sincronia" id="mty-sincronia"></div>';
       ligarEventos(d);
       return;
@@ -559,6 +570,7 @@ function todosHorarios(agenda) {
     html += '<header><h1>' + escapar(d.nome) + '</h1><div class="sub">' + escapar(d.tipoPlano) + '</div></header><div id="ql-avisos-celular"></div>';
     if (d.prioridade) html += '<p class="sub">' + escapar(d.prioridade) + '</p>';
     html += painelProximaAula(d);
+    html += painelMinhaArea();
     html += painelAcademiaDigital();
     html += '<div class="painel"><h2>Progresso do ciclo</h2><div class="rosca-wrap" style="margin-top:0">' + rosquinhaSvg(d.aulasFeitas, pendente, repetindo) +
       '<div>' + legendaRosca(d.aulasFeitas, pendente, repetindo) +
