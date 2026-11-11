@@ -298,6 +298,7 @@ async function responderGet(org, id, q, ctx) {
     jogosVideo: extras.jogosVideo,
     observacoes: observacoesCompartilhadas(aluno),
     relatoriosAtleta: relatoriosPublicados(aluno),
+    relatoriosCiclo: relatoriosCicloPublicados(aluno),
     planosEquipe,
   });
 }
@@ -328,6 +329,30 @@ async function planosEquipeDoAluno(org, id) {
   const equipes = doc ? lerJSON(doc.value, []) : [];
   return (Array.isArray(equipes) ? equipes : []).filter((e) => e && Array.isArray(e.membros) && e.membros.includes(id) && e.plano && e.plano.status !== "rascunho") /* rascunho: o coordenador ainda não fechou */
     .map((e) => ({ equipe: String(e.nome || "Equipe").slice(0, 60), coordenador: String(e.coordenadorNome || "").slice(0, 80), plano: limparPlanoEquipe(e.plano) })).filter((x) => x.plano).slice(0, 4);
+}
+/* Relatórios do ciclo para o cliente (Padrão de Atendimento, mty/atendimento.js): só os publicados e só os campos do relatório
+   pronto — o texto revisado pelo professor, os marcos, o período e as mensagens do Richard. Rascunho nunca sai daqui. */
+const PILARES_RC = ["tecnico", "tatico", "fisico", "mental"];
+function relatoriosCicloPublicados(aluno) {
+  const t = (x, n) => String(x == null ? "" : x).slice(0, n);
+  const d = (x) => (/^\d{4}-\d{2}-\d{2}$/.test(String(x || "")) ? String(x) : "");
+  return (Array.isArray(aluno.relatoriosCiclo) ? aluno.relatoriosCiclo : []).filter((r) => r && r.status === "publicado" && r.texto && typeof r.texto === "object")
+    .map((r) => {
+      const x = r.texto, p = (r.periodo && typeof r.periodo === "object") ? r.periodo : {};
+      return {
+        id: t(r.id, 80), publicadoEm: t(r.publicadoEm, 30), publicadoPor: t(r.publicadoPor, 80), publico: r.publico === "pais" ? "pais" : "adulto",
+        periodo: { de: d(p.de), ate: d(p.ate) }, aulas: Math.max(0, Math.min(999, +r.aulas || 0)),
+        texto: {
+          abertura: t(x.abertura, 1200), proximoCiclo: t(x.proximoCiclo, 1200), fechamento: t(x.fechamento, 600),
+          pilares: Object.fromEntries(PILARES_RC.map((k) => [k, t(x.pilares && x.pilares[k], 1200)])),
+          conquistas: (Array.isArray(x.conquistas) ? x.conquistas : []).slice(0, 8).map((c) => t(c, 300)).filter(Boolean),
+        },
+        marcos: (Array.isArray(r.marcos) ? r.marcos : []).slice(0, 20).map((m) => ({ data: d(m && m.data), texto: t(m && m.texto, 300) })).filter((m) => m.texto),
+        mensagemCiclo: r.mensagemCiclo && r.mensagemCiclo.texto ? { texto: t(r.mensagemCiclo.texto, 3000), autor: t(r.mensagemCiclo.autor, 80) } : null,
+        mensagemIndividual: t(r.mensagemIndividual, 3000),
+      };
+    })
+    .sort((a, b) => b.publicadoEm.localeCompare(a.publicadoEm)).slice(0, 24);
 }
 function relatoriosPublicados(aluno) {
   return (Array.isArray(aluno.relatoriosAtleta) ? aluno.relatoriosAtleta : []).filter((r) => r && r.status === "publicado" && r.dados && typeof r.dados === "object")
