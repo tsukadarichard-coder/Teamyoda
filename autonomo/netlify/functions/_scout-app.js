@@ -18,10 +18,10 @@ const nota = (v) => { v = Math.round(+v); return v >= 1 && v <= 5 ? v : 0; };
 function contaNova(token, agora) {
   return { nome: txt(token.name, 60), email: txt(token.email, 120).toLowerCase(), papel: "", plano: "gratis", criadoEm: agora, atualizadoEm: agora, atletas: [], apagados: [] };
 }
-/* Scout Plus (link do Essencial na Eduzz; liberado pelo webhook-eduzz até plusAte). "full" = acesso completo da lista PLAYER_EMAILS_FULL.
-   Grátis: 1 atleta; Plus: até MAX_ATLETAS. O resto dos limites do grátis (relatório em PDF, evolução completa) é mostrado pelo app;
-   a análise de movimento tem o limite conferido em scout-app-movimento. */
-const LIMITE_ATLETAS_GRATIS = 1;
+/* Plano (decisão do Richard em 11/11/2026): o grátis tem até 3 atletas e todas as funções liberadas (comparação completa e
+   relatório em PDF); a análise de movimento saiu do app e a venda do Scout Plus está parada até ele definir o preço. Conta que já
+   tem Plus (webhook-eduzz, até plusAte) ou acesso completo (PLAYER_EMAILS_FULL) continua com atletas até MAX_ATLETAS. */
+const LIMITE_ATLETAS_GRATIS = 3;
 const hojeBR = () => new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
 function plusAtivo(c, full) { return !!full || (!!c && c.plano === "plus" && typeof c.plusAte === "string" && c.plusAte >= hojeBR()); }
 /* o que o app recebe da conta (nunca o e-mail de outra pessoa: aqui só existe a conta de quem pediu) */
@@ -50,7 +50,7 @@ function atletas(lista, atuais, plus) {
   /* no grátis não entra atleta novo além do limite; quem já estava na conta (de quando era Plus) continua */
   if (!plus && atuais) {
     const ja = new Set(atuais.map((a) => a.id)), novos = out.filter((a) => !ja.has(a.id));
-    if (novos.length && out.length > LIMITE_ATLETAS_GRATIS) throw new ErroPedido(403, "No plano grátis é 1 atleta por conta. Com o Scout Plus, atletas sem limite.");
+    if (novos.length && out.length > LIMITE_ATLETAS_GRATIS) throw new ErroPedido(403, "São até " + LIMITE_ATLETAS_GRATIS + " atletas por conta.");
   }
   return out;
 }
@@ -80,6 +80,10 @@ function jogo(j, idsAtletas) {
     nivelAdversario: txt(j.nivelAdversario, 20), observacaoFinal: txt(j.observacaoFinal, 1200), fim: !!j.fim, usoFim: !!j.usoFim,
     criadoEm: ISO.test(String(j.criadoEm)) ? j.criadoEm : j.atualizadoEm, atualizadoEm: j.atualizadoEm,
   };
+  /* tempo de partida: do primeiro ponto ao fim, e o ajuste à mão em minutos */
+  if (ISO.test(String(j.inicioEm))) out.inicioEm = j.inicioEm;
+  if (out.inicioEm && ISO.test(String(j.fimEm)) && j.fimEm >= out.inicioEm) out.fimEm = j.fimEm;
+  const dur = Math.round(+j.duracaoMin); if (dur >= 1 && dur <= 720) out.duracaoMin = dur;
   if (JSON.stringify(out).length > MAX_JOGO_BYTES) throw new ErroPedido(413, "Jogo grande demais.");
   return out;
 }

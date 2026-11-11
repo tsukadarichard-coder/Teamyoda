@@ -233,50 +233,51 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   assert.ok(!zap.includes("Fulano") && !zap.includes("Andrade"), "texto sem adversário e sem sobrenome");
   await p.click("#detMentalDepois summary"); await p.click('[data-ment="depois"][data-mk="foco"][data-mv="5"]');
   await p.fill("#fmObs", "Sacou bem no corpo");
+  /* tempo de partida: contado do primeiro ponto ao fim, no resultado e no texto para compartilhar; dá para ajustar à mão */
+  assert.ok(/Tempo de jogo: /.test(await p.innerText("[data-duracao]")) && /Tempo de jogo: /.test(zap), "tempo de jogo no fim e no texto: " + zap);
+  await p.fill("#fmDuracao", "75"); await p.locator("#fmDuracao").blur();
+  await p.waitForFunction(() => document.querySelector("[data-duracao]").innerText.includes("1h15"));
   await semRolagem(p, "fim"); await foto(p, "scout-4-fim");
   await nuvemQuieta();
   const naNuvem = Object.keys(store).filter((k) => k.startsWith("scoutAppContas/" + uid + "/jogos/")).map((k) => JSON.parse(store[k].dados)).filter((j) => j.torneio === "Copa Sul")[0];
   assert.ok(naNuvem && naNuvem.mental.depois.foco === 5 && naNuvem.observacaoFinal === "Sacou bem no corpo", "jogo completo na nuvem");
+  assert.ok(naNuvem.inicioEm && naNuvem.fimEm && naNuvem.fimEm >= naNuvem.inicioEm && naNuvem.duracaoMin === 75, "tempo de partida na nuvem: " + JSON.stringify([naNuvem.inicioEm, naNuvem.fimEm, naNuvem.duracaoMin]));
 
   /* comparação e atleta */
   await p.click('a[href^="#/atleta/"]'); await p.waitForSelector("#atNome");
   t = await texto();
   assert.ok(t.includes("Lucas Andrade") && t.includes("2 jogos") && t.includes("1 vitória e 0 derrotas") && t.includes("Evolução jogo a jogo"), "atleta: " + t.slice(0, 600).replace(/\n+/g, " | "));
   await semRolagem(p, "atleta"); await foto(p, "scout-5-atleta");
-  /* análise de movimento no grátis, pela aba Movimento */
+  assert.ok(/1h15/.test(await p.innerText("a.jogo-l >> nth=0")), "o tempo de jogo aparece na lista de jogos do atleta");
+  /* a análise de movimento saiu do app: sem aba, sem botão, e o link antigo cai nos jogos */
   const mvGets = []; p.on("request", (rq) => { if (rq.url().includes("scout-app-movimento")) mvGets.push(rq.url()); });
-  assert.ok(await p.isVisible('#navBaixo [data-aba="movimento"]'), "aba Movimento visível");
-  await p.click('#navBaixo [data-aba="movimento"]'); await p.waitForSelector("[data-mov-atleta]");
-  assert.strictEqual(await p.getAttribute('#navBaixo [data-aba="movimento"]', "aria-current"), "page");
-  assert.ok(!(await p.$("#mvNome")) && (await texto()).includes("1 atleta por conta"), "grátis com 1 atleta: sem cadastrar outro");
-  await p.click("[data-mov-atleta]");
-  await p.waitForFunction(() => document.querySelector("#movArea") && document.querySelector("#movArea").children.length > 0, null, { timeout: 15000 }).catch(async (e) => { console.log("TELA", (await texto()).slice(0, 500), "ERROS", erros, "GETS", mvGets); throw e; });
-  t = await texto();
-  assert.ok(t.includes("Análise de movimento") && t.includes("Lucas Andrade: filme um golpe") && t.includes("Plano grátis"), "tela da análise: " + t.slice(0, 400));
-  assert.ok(mvGets.some((u) => /atleta=a/.test(u)), "análises do atleta pedidas ao servidor");
-  await semRolagem(p, "análise de movimento"); await foto(p, "scout-7-movimento");
+  assert.ok(!(await p.$('#navBaixo [data-aba="movimento"]')) && !(await p.$("[data-movimento]")) && !/Análise de movimento/i.test(await texto()), "sem análise de movimento");
+  await p.goto(base + "#/movimento"); await p.waitForSelector("[data-novo]");
+  assert.ok(!/Análise de movimento/i.test(await texto()) && mvGets.length === 0, "link antigo do movimento abre os jogos, sem chamar o servidor");
 
-  /* grátis: 1 atleta e relatório no Plus */
+  /* grátis: até 3 atletas, com relatório em PDF e evolução completa; nada de preço nem link de compra */
   await p.goto(base + "#/novo"); await p.waitForSelector("#btComecar");
   await p.click('[data-atleta="+"]');
-  assert.ok(await p.$("[data-limite-atletas]") && !(await p.$("#nvNome")), "grátis: sem segundo atleta");
-  await p.goto(base + "#/"); await p.waitForSelector("[data-novo]");
-  await p.click('a[href^="#/atleta/"]'); await p.waitForSelector("#atNome");
-  assert.ok(!(await p.$("#btRelatorio")) && (await texto()).includes("No grátis, os últimos 3 jogos"), "grátis: relatório e evolução completa no Plus");
-  await p.click("[data-relatorio-plus]"); await p.waitForSelector("#lkAssinar");
+  assert.ok(await p.$("#nvNome") && !(await p.$("[data-limite-atletas]")), "grátis: segundo atleta liberado");
+  await p.goto(base + "#/plus"); await p.waitForSelector("[data-plano-gratis]");
   t = await texto();
-  assert.strictEqual(await p.getAttribute("#lkAssinar", "href"), "https://chk.eduzz.com/6W4GYZEO0Z", "checkout do Essencial");
-  assert.ok(t.includes("R$ 29,90 por mês") && t.includes("ana@exemplo.com") && t.includes("mesmo e-mail"), "tela do Plus: " + t.slice(0, 500));
-  await semRolagem(p, "Scout Plus"); await foto(p, "scout-8-plus");
-  await p.click("#btJaAssinei"); await p.waitForFunction(() => document.body.innerText.includes("O pagamento ainda não chegou"));
-  /* a Eduzz confirma (o webhook grava o Plus na conta; testado em check-webhook-eduzz-planos) */
-  store["scoutAppContas/" + uid].plano = "plus"; store["scoutAppContas/" + uid].plusAte = new Date(Date.now() + 32 * 86400000).toISOString().slice(0, 10);
-  await p.click("#btJaAssinei"); await p.waitForSelector("[data-plus-ativo]");
-  assert.ok((await texto()).includes("Você tem o Scout Plus até"), "Plus ativo");
-  await p.goto(base + "#/novo"); await p.waitForSelector("#btComecar"); await p.click('[data-atleta="+"]');
-  assert.ok(await p.$("#nvNome"), "Plus: segundo atleta liberado");
+  assert.ok(t.includes("Seu plano") && t.includes("Até 3 atletas na conta") && t.includes("Relatório dos jogos em PDF"), "tela do plano: " + t.slice(0, 400));
+  assert.ok(!/R\$|29,90|Assinar|Eduzz|Análise de movimento/i.test(t) && !(await p.$('a[href*="eduzz"]')) && !(await p.$("#lkAssinar")), "sem preço, sem link de compra");
+  await semRolagem(p, "plano"); await foto(p, "scout-8-plano");
+  /* com 3 atletas na conta, o quarto não entra */
+  store["scoutAppContas/" + uid].atletas = store["scoutAppContas/" + uid].atletas.concat([{ id: "asegundo0001", nome: "Marina", criadoEm: new Date().toISOString() }, { id: "aterceiro001", nome: "Caio", criadoEm: new Date().toISOString() }]);
+  await p.goto(base + "#/conta"); await p.waitForSelector("#btSync"); await p.click("#btSync");
+  await p.waitForFunction(() => document.body.innerText.includes("Tudo sincronizado"));
+  /* espera o aviso sumir: a próxima sincronização do teste confere o mesmo texto */
+  await p.waitForFunction(() => !document.body.innerText.includes("Tudo sincronizado"), null, { timeout: 15000 });
+  await p.goto(base + "#/novo"); await p.waitForSelector("#btComecar");
+  assert.strictEqual(await p.locator("[data-atleta]").count(), 4, "três atletas e o botão de outro");
+  await p.click('[data-atleta="+"]');
+  assert.ok(await p.$("[data-limite-atletas]") && !(await p.$("#nvNome")), "com 3 atletas, o quarto não entra");
+  assert.ok(/São até 3 atletas por conta/.test(await p.innerText("[data-limite-atletas]")) && !/Plus/.test(await p.innerText("[data-limite-atletas]")));
   await p.goto(base + "#/"); await p.waitForSelector("[data-novo]");
   await p.click('a[href^="#/atleta/"]'); await p.waitForSelector("#btRelatorio");
+  assert.ok(!(await texto()).includes("No grátis") && !(await p.$("[data-relatorio-plus]")), "grátis: relatório em PDF e evolução completa, sem aviso de Plus");
   /* relatório dos jogos em PDF (janela nova com o documento) */
   const [rel] = await Promise.all([p.waitForEvent("popup"), p.click("#btRelatorio")]);
   await rel.waitForLoadState("load");
@@ -305,7 +306,7 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   /* Minha conta: cópia dos jogos e sair */
   await p.goto(base + "#/conta"); await p.waitForSelector("#btCopia");
   t = await texto();
-  assert.ok(t.includes("Ana Andrade") && !t.includes("Pai, mãe") && t.includes("ana@exemplo.com") && t.includes("Scout Plus"), "minha conta: " + t.slice(0, 400));
+  assert.ok(t.includes("Ana Andrade") && !t.includes("Pai, mãe") && t.includes("ana@exemplo.com") && t.includes("Grátis") && t.includes("até 3 atletas") && !t.includes("Scout Plus"), "minha conta: " + t.slice(0, 400));
   const [dl] = await Promise.all([p.waitForEvent("download"), p.click("#btCopia")]);
   const arquivo = path.join(require("os").tmpdir(), "ql-scout-copia-" + Date.now() + ".json");
   await dl.saveAs(arquivo);
@@ -337,7 +338,7 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   await g.waitForFunction(() => document.querySelector(".guia-balao").textContent.includes("Começar o jogo"));
   await g.click("#btComecar");
   for (const [trecho, acao] of [["Este é o placar", "ok"], ["marque o saque", "ok"], ["como ele terminou", '[data-fim="winner_nos"]'], ["detalhes do ponto", "ok"], ["em que bola", '[data-bola="5-9"]'],
-    ["Ponto registrado", "ok"], ["modo completo", "ok"], ["link ao vivo", "ok"], ["análise de movimento", "ok"]]) {
+    ["Ponto registrado", "ok"], ["modo completo", "ok"], ["link ao vivo", "ok"]]) {
     await g.waitForFunction((x) => { const b = document.querySelector(".guia-balao"); return b && !b.hidden && b.textContent.includes(x); }, trecho, { timeout: 8000 });
     if (trecho === "como ele terminou") await foto(g, "scout-guia-2");
     if (trecho === "detalhes do ponto") await foto(g, "scout-guia-3");

@@ -20,6 +20,7 @@
     var m = [
       m1("O jogo", "n", "Pontos coletados", "", null, function (s) { return s.n; }),
       m1("", "pctGanhos", "Pontos ganhos", "%", true, function (s) { return s.pctGanhos; }),
+      m1("", "duracaoMin", "Tempo de jogo (min)", "", null, function (s) { return s.duracaoMin || null; }),
       m1("Onde o ponto se decidiu", "pctCurtos", "Em 1–4 bolas", "%", null, function (s) { return s.pctCurtos; }),
       m1("", "pctMedios", "Em 5–9 bolas", "%", null, function (s) { return s.pctMedios; }),
       m1("", "pctLongos", "Em 10 bolas ou mais", "%", null, function (s) { return s.pctLongos; }),
@@ -57,7 +58,7 @@
   function opcoes(M, D, st, atletaId, extra) {
     extra = extra || {};
     var a = D.atleta(st, atletaId), jogos = jogosDoRelatorio(M, D, st, atletaId).map(function (j) {
-      var r = D.resumo(M, st, j), flat = Object.assign({}, r, r.numeros, r.bolas);
+      var r = D.resumo(M, st, j), flat = Object.assign({}, r, r.numeros, r.bolas, { duracaoMin: D.duracaoMin ? D.duracaoMin(j) : null });
       return { id: j.id, data: j.data, torneio: r.torneio || "", adversario: "", resultado: r.resultado || "", concluida: r.concluida !== false, nivelAdversario: r.nivelAdversario || "", observacaoFinal: r.observacaoFinal || "", mental: r.mental || null, scout: flat };
     });
     return {

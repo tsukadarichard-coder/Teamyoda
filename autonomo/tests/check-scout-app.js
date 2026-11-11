@@ -71,6 +71,39 @@ assert.ok(!tx.includes("Fulano") && !tx.includes("Andrade"), "texto sem adversá
 assert.ok(D.textoCompartilhar(M, st, j3).startsWith("Jogo de Lucas em andamento"));
 
 /* relatório dos jogos (PDF): jogos terminados, do mais antigo ao mais novo, no gerador do scout do treinador */
+/* ── tempo de partida: começa no primeiro ponto, fecha no fim do jogo, aceita ajuste à mão ── */
+{
+  const st = D.normalizar(null), a = D.addAtleta(st, "Tempo Teste").atleta;
+  const j = D.novoJogo(st, { atletaId: a.id, cfg: { formato: "tb7", saca: "nos" } }).jogo;
+  assert.strictEqual(D.duracaoSeg(j), null, "antes do primeiro ponto não há relógio");
+  assert.strictEqual(j.inicioEm, undefined);
+  D.marcarPonto(M, j, { nos: true });
+  assert.ok(/^\d{4}-\d{2}-\d{2}T/.test(j.inicioEm) && !j.fimEm, "o relógio começa no primeiro ponto");
+  const inicio = j.inicioEm;
+  j.inicioEm = new Date(Date.parse(inicio) - 50 * 60000).toISOString(); // como se o jogo tivesse começado há 50 minutos
+  assert.strictEqual(D.duracaoMin(j), 50); assert.strictEqual(D.textoDuracao(D.duracaoSeg(j)), "50 min", "jogo em andamento: até agora");
+  for (let i = 0; i < 6; i++) D.marcarPonto(M, j, { nos: true });
+  assert.ok(D.encerrado(M, j) && j.fimEm >= j.inicioEm, "o fim do placar fecha o relógio");
+  assert.strictEqual(D.linhaJogo(M, st, j).duracao, "50 min", "a lista de jogos mostra o tempo");
+  assert.ok(D.textoCompartilhar(M, st, j).includes("Tempo de jogo: 50 min"), "o texto para compartilhar leva o tempo");
+  assert.ok(D.desfazer(j) && !j.fimEm && j.inicioEm, "desfazer o último ponto reabre o relógio");
+  D.encerrar(j); assert.ok(j.fim && j.fimEm, "encerrar antes do fim também fecha o relógio");
+  D.reabrir(j); assert.ok(!j.fim && !j.fimEm, "voltar a marcar reabre");
+  D.encerrar(j);
+  D.definirDuracao(j, 95); assert.strictEqual(D.textoDuracao(D.duracaoSeg(j)), "1h35", "o ajuste à mão vale mais que o relógio");
+  D.definirDuracao(j, ""); assert.strictEqual(j.duracaoMin, undefined); assert.strictEqual(D.duracaoMin(j), 50, "apagar o ajuste volta ao relógio");
+  D.definirDuracao(j, 99999); assert.strictEqual(j.duracaoMin, undefined, "duração absurda não entra");
+  /* sobrevive a salvar e ler; jogo antigo, sem relógio, continua valendo */
+  D.definirDuracao(j, 70);
+  const volta = D.normalizar(JSON.parse(JSON.stringify(st))).jogos[0];
+  assert.deepStrictEqual([volta.inicioEm, volta.fimEm, volta.duracaoMin], [j.inicioEm, j.fimEm, 70]);
+  const antigo = D.normalizar({ v: st.v, aparelho: st.aparelho, atletas: st.atletas, jogos: [{ id: "jantigo00001", atletaId: a.id, pontos: [{ nos: true }], fim: true }] }).jogos[0];
+  assert.strictEqual(D.duracaoSeg(antigo), null); assert.strictEqual(D.linhaJogo(M, st, antigo).duracao, "");
+  while (j.pontos.length) D.desfazer(j);
+  assert.strictEqual(j.inicioEm, undefined, "sem pontos, o relógio zera");
+  assert.strictEqual(D.textoDuracao(20), "menos de 1 min"); assert.strictEqual(D.textoDuracao(3600), "1h00");
+}
+
 const REL = require("../scout-app/relatorio.js"), RJ = require("../scout/relatorio-jogos.js");
 assert.deepStrictEqual(REL.jogosDoRelatorio(M, D, st, lucas.id).map((j) => j.id), [j1.id, j2.id], "só os terminados, mais antigo primeiro");
 const op = REL.opcoes(M, D, st, lucas.id, { geradoEm: "10/11/2026" });

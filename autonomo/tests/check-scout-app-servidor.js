@@ -155,21 +155,35 @@ const chama = async (tk, corpo, metodo) => {
   for (const id of ["mvbia000001", "mvbia000002"]) assert.strictEqual((await mv("tk-bia", { acao: "salvar", atletaId: "abiaatleta1", resumo: resumoMv(id, "saque") })).s, 200, "acesso completo sem limite");
   r = await mv("tk-bia", null, { atleta: "abiaatleta1" }); assert.strictEqual(r.cota.plano, "pago"); assert.strictEqual(r.analises.length, 2);
 
-  /* Scout Plus: no grátis 1 atleta; Plus válido libera; Plus vencido volta ao grátis */
+  /* Plano (11/11/2026): no grátis até 3 atletas; conta que já tem Plus continua sem limite; Plus vencido volta ao grátis sem perder quem já estava */
   const contaAna = () => store["scoutAppContas/u-ana"];
-  r = await chama("tk-ana"); assert.strictEqual(r.conta.plano, "gratis"); assert.strictEqual(r.conta.limites.atletas, 1);
-  const doisAtletas = st.atletas.concat([{ id: "asegundo0001", nome: "Marina" }]);
-  r = await chama("tk-ana", { acao: "atletas", atletas: doisAtletas }); assert.strictEqual(r.s, 403); assert.ok(/Scout Plus/.test(r.erro), r.erro);
+  r = await chama("tk-ana"); assert.strictEqual(r.conta.plano, "gratis"); assert.strictEqual(r.conta.limites.atletas, 3);
+  const doisAtletas = st.atletas.concat([{ id: "asegundo0001", nome: "Marina" }]), tresAtletas = doisAtletas.concat([{ id: "aterceiro001", nome: "Caio" }]);
+  const quatroAtletas = tresAtletas.concat([{ id: "aquarto00001", nome: "Duda" }]), cincoAtletas = quatroAtletas.concat([{ id: "aquinto00001", nome: "Enzo" }]);
+  r = await chama("tk-ana", { acao: "atletas", atletas: doisAtletas }); assert.strictEqual(r.s, 200, "grátis: segundo atleta");
+  r = await chama("tk-ana", { acao: "atletas", atletas: tresAtletas }); assert.strictEqual(r.s, 200, "grátis: terceiro atleta");
+  r = await chama("tk-ana", { acao: "atletas", atletas: quatroAtletas }); assert.strictEqual(r.s, 403, "grátis: o quarto não entra"); assert.ok(/até 3 atletas/.test(r.erro) && !/Plus/.test(r.erro), r.erro);
   const amanha = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10), ontem = new Date(Date.now() - 2 * 86400000).toISOString().slice(0, 10);
   contaAna().plano = "plus"; contaAna().plusAte = amanha;
   r = await chama("tk-ana"); assert.strictEqual(r.conta.plano, "plus"); assert.strictEqual(r.conta.plusAte, amanha); assert.strictEqual(r.conta.limites.atletas, 60);
-  r = await chama("tk-ana", { acao: "atletas", atletas: doisAtletas }); assert.strictEqual(r.s, 200, "Plus: segundo atleta");
+  r = await chama("tk-ana", { acao: "atletas", atletas: cincoAtletas }); assert.strictEqual(r.s, 200, "quem já tem Plus: atletas além de 3");
   r = await mv("tk-ana", { acao: "salvar", atletaId: lucas.id, resumo: resumoMv("mvplus00001", "forehand") }); assert.strictEqual(r.s, 200, "Plus: análise sem limite");
   contaAna().plusAte = ontem;
   r = await chama("tk-ana"); assert.strictEqual(r.conta.plano, "gratis", "Plus vencido");
-  r = await chama("tk-ana", { acao: "atletas", atletas: doisAtletas }); assert.strictEqual(r.s, 200, "quem já estava na conta continua");
-  r = await chama("tk-ana", { acao: "atletas", atletas: doisAtletas.concat([{ id: "aterceiro001", nome: "Caio" }]) }); assert.strictEqual(r.s, 403, "grátis não acrescenta atleta");
+  r = await chama("tk-ana", { acao: "atletas", atletas: cincoAtletas }); assert.strictEqual(r.s, 200, "quem já estava na conta continua");
+  r = await chama("tk-ana", { acao: "atletas", atletas: cincoAtletas.concat([{ id: "asexto000001", nome: "Fabi" }]) }); assert.strictEqual(r.s, 403, "acima do limite não acrescenta atleta");
   assert.strictEqual((await mv("tk-ana", { acao: "salvar", atletaId: lucas.id, resumo: resumoMv("mvplus00002", "forehand") })).s, 403, "Plus vencido: limite do grátis volta");
+
+  /* tempo de partida: o servidor guarda início, fim e o ajuste em minutos, e descarta o que não faz sentido */
+  {
+    const R = require(fx + "_scout-app.js"), base = { id: "jtempo000001", atletaId: lucas.id, atualizadoEm: "2026-11-11T12:00:00.000Z", pontos: [] };
+    let jt = R.jogo({ ...base, inicioEm: "2026-11-11T10:00:00.000Z", fimEm: "2026-11-11T11:12:00.000Z", duracaoMin: 70 }, null);
+    assert.deepStrictEqual([jt.inicioEm, jt.fimEm, jt.duracaoMin], ["2026-11-11T10:00:00.000Z", "2026-11-11T11:12:00.000Z", 70]);
+    jt = R.jogo({ ...base, inicioEm: "2026-11-11T10:00:00.000Z", fimEm: "2026-11-11T09:00:00.000Z", duracaoMin: 9999 }, null);
+    assert.deepStrictEqual([jt.inicioEm, jt.fimEm, jt.duracaoMin], ["2026-11-11T10:00:00.000Z", undefined, undefined], "fim antes do início e duração absurda não entram");
+    jt = R.jogo({ ...base, inicioEm: "ontem", fimEm: "2026-11-11T11:12:00.000Z" }, null);
+    assert.deepStrictEqual([jt.inicioEm, jt.fimEm], [undefined, undefined], "jogo antigo, sem relógio, continua valendo");
+  }
   r = await chama("tk-bia"); assert.strictEqual(r.conta.plano, "plus"); assert.strictEqual(r.conta.acessoCompleto, true); assert.strictEqual(r.conta.plusAte, null);
 
   /* criar conta (sem login) */
