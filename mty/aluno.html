@@ -561,7 +561,7 @@ function todosHorarios(agenda) {
         : 'Ainda não há um plano montado para você.';
       el.innerHTML = '<header><h1>' + escapar(d.nome) + '</h1><div class="sub">' + subtitulo + '</div></header><div id="ql-avisos-celular"></div>' +
         painelMinhaArea() + '<div id="ar-painel"></div>' + painelAcademiaDigital() + painelTurmas(d) + painelPlanoEquipe(d) + painelRelatoriosCiclo(d) + painelRelatoriosAtleta(d) + painelObservacoes(d) + painelMovimentos(d) + painelJogos(d) + painelJogosVideo(d) +
-        painelMapaConceitos(d, ui) + painelEvolucao(d) + painelRelatorios(d) + painelComunicacao(d) + '<div class="sincronia" id="mty-sincronia"></div>';
+        painelMapaConceitos(d, ui) + painelEvolucao(d) + painelComunicacao(d) + '<div class="sincronia" id="mty-sincronia"></div>';
       ligarEventos(d);
       return;
     }
@@ -589,7 +589,6 @@ function todosHorarios(agenda) {
     html += painelJogosVideo(d);
     html += painelMapaConceitos(d, ui);
     html += painelEvolucao(d);
-    html += painelRelatorios(d);
     html += painelComunicacao(d);
     html += '<div class="sincronia" id="mty-sincronia"></div>';
     el.innerHTML = html;
@@ -967,6 +966,9 @@ function todosHorarios(agenda) {
       '</div>';
   }
 
+  /* Fora da página desde 11/11/2026: este painel mostrava o relatório de fechamento escrito para o treinador (anotações
+     internas). O cliente agora recebe o Relatório do ciclo (painelRelatoriosCiclo), revisado e publicado pelo professor.
+     A function ver-aluno também deixou de mandar o texto. */
   function painelRelatorios(d) {
     const historico = d.historicoRelatorios || [];
     if (!historico.length) return '';

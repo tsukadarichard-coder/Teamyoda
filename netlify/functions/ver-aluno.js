@@ -289,7 +289,10 @@ async function responderGet(org, id, q, ctx) {
     feedbacksEnviados,
     jogosRelatados: aluno.jogosRelatados || [],
     pedidosConteudo: aluno.pedidosConteudo || [],
-    historicoRelatorios: aluno.historicoRelatorios || [],
+    /* fechamentos de ciclo: só os números (aulas e critérios). O texto é do treinador (corrigi, deixei passar, leitura da
+       aula) e não sai mais para o cliente — ele recebe o Relatório do ciclo publicado (relatoriosCiclo, abaixo). */
+    historicoRelatorios: (Array.isArray(aluno.historicoRelatorios) ? aluno.historicoRelatorios : []).filter(Boolean)
+      .map((h) => ({ id: h.id, data: h.data, tipo: h.tipo, feitas: h.feitas, total: h.total, criterios: Array.isArray(h.criterios) ? h.criterios : [] })),
     mapaConceitos: mapaConceitosDoAluno(aluno.registros),
     /* planejamento de cada turma em que o jogador treina (além do individual, quando ele tiver os dois) */
     turmas: turmasDoAluno.filter((tu) => tu !== turmaDoAluno).map(resumoPlanoTurma),

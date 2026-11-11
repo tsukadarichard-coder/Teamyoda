@@ -436,7 +436,51 @@
     return plano;
   }
 
+  /* ── turmas do alto rendimento ──
+     Uma turma é só um grupo salvo de atletas (nome, quem treina junto, professor, horário): o plano continua individual e a
+     sessão da turma é a sessão do dia montada com quem está presente. A sessão guarda `turmaId` e `convocados` (quem era da
+     turma naquele dia), então a presença se lê depois sem depender de quem está na turma hoje. */
+  function limparTurma(t, idsValidos) {
+    t = t || {};
+    var vistos = {}, membros = (Array.isArray(t.membros) ? t.membros : []).filter(function (id) {
+      if (!id || vistos[id] || (idsValidos && idsValidos.indexOf(id) < 0)) return false; vistos[id] = 1; return true;
+    });
+    return { id: String(t.id || ""), nome: String(t.nome || "").trim().slice(0, 60), membros: membros,
+      professorUid: String(t.professorUid || ""), professorNome: String(t.professorNome || "").slice(0, 80),
+      horario: String(t.horario || "").trim().slice(0, 120), criadoEm: String(t.criadoEm || ""), atualizadoEm: String(t.atualizadoEm || "") };
+  }
+  function treinouNaSessao(s, id) {
+    /* semPlano: esteve na sessão da turma, mas ainda não tem plano individual (conta a presença, não entra na montagem) */
+    if ((s.semPlano || []).indexOf(id) >= 0) return true;
+    return (s.presentes || []).indexOf(id) >= 0 && !(s.realizado && s.realizado[id] && s.realizado[id].presente === false);
+  }
+  /* só sessões fechadas da turma contam; devolve a lista (mais recente primeiro) e o resumo de cada atleta que está na turma hoje */
+  function presencaDaTurma(turma, sessoes) {
+    var lista = (sessoes || []).filter(function (s) { return s && s.turmaId === turma.id && s.status === "fechada"; })
+      .sort(function (a, b) { return a.data < b.data ? 1 : a.data > b.data ? -1 : 0; })
+      .map(function (s) {
+        var esperados = Array.isArray(s.convocados) && s.convocados.length ? s.convocados : (turma.membros || []);
+        var presentes = esperados.filter(function (id) { return treinouNaSessao(s, id); });
+        return { id: s.id, data: s.data, esperados: esperados, presentes: presentes,
+          ausentes: esperados.filter(function (id) { return presentes.indexOf(id) < 0; }),
+          convidados: (s.presentes || []).filter(function (id) { return esperados.indexOf(id) < 0 && treinouNaSessao(s, id); }) };
+      });
+    var porAtleta = {};
+    (turma.membros || []).forEach(function (id) {
+      var x = { sessoes: 0, presencas: 0, faltas: 0, pct: null, ultimaFalta: null };
+      lista.forEach(function (s) {
+        if (s.esperados.indexOf(id) < 0) return;
+        x.sessoes++;
+        if (s.presentes.indexOf(id) >= 0) x.presencas++; else { x.faltas++; if (!x.ultimaFalta) x.ultimaFalta = s.data; }
+      });
+      x.pct = x.sessoes ? Math.round(100 * x.presencas / x.sessoes) : null;
+      porAtleta[id] = x;
+    });
+    return { sessoes: lista, porAtleta: porAtleta, total: lista.length };
+  }
+
   var api = {
+    limparTurma: limparTurma, presencaDaTurma: presencaDaTurma,
     PILARES: PILARES, PRIORIDADES: PRIORIDADES, FASES: FASES, TEMAS: TEMAS, MODELO: MODELO, TESTES_PADRAO: TESTES_PADRAO,
     segunda: segunda, somaDias: somaDias, dias: dias, chaveSemana: chaveSemana,
     statusAtleta: statusAtleta, proximoTorneio: proximoTorneio, fasesDoCalendario: fasesDoCalendario, exercicioPara: exercicioPara,
