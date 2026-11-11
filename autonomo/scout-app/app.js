@@ -1,7 +1,7 @@
 /* QuadraLab Scout: telas do app (entrar, início, novo jogo, marcação, fim de jogo, atleta, minha conta).
    Dados e contas do jogo em dados.js (QLScoutApp) sobre o motor do scout (QLScoutMotor); conta e nuvem em nuvem.js (QLScoutNuvem);
    análise ao vivo em scout/ao-vivo.js (QLAoVivo); gráficos do resumo em scout/graficos.js (QLScoutGraficos), os mesmos da página da família.
-   Relatório dos jogos em PDF em relatorio.js (QLScoutRelatorio, sobre scout/relatorio-jogos.js); análise de movimento com scout/movimento.js (carregado só ao abrir).
+   Relatório dos jogos em PDF em relatorio.js (QLScoutRelatorio, sobre scout/relatorio-jogos.js); tempo de partida em dados.js (do primeiro ponto ao fim, com ajuste à mão).
    A conta é obrigatória. Tudo é gravado primeiro no aparelho (funciona sem internet) e vai para a nuvem da conta quando há conexão.
    Para o servidor de contagem vai só o número sorteado do aparelho e o evento (scout-app-uso). */
 (function () {
@@ -13,10 +13,12 @@
   var st = null, eu = null, conta = null, salvoOk = true;
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
   function chave() { return D.CHAVE + ":" + eu.uid; }
-  /* Scout Plus: link do Essencial na Eduzz; o webhook libera na conta do Scout com o mesmo e-mail */
-  var CHECKOUT_PLUS = "https://chk.eduzz.com/6W4GYZEO0Z", PRECO_PLUS = "R$ 29,90 por mês";
+  /* Plano (11/11/2026): grátis com até 3 atletas e todas as funções; a venda do Scout Plus está parada (sem link de compra
+     no app) até o preço ser definido. Conta que já tem Plus continua com atletas sem limite: o servidor manda o limite. */
+  var LIMITE_PADRAO = 3;
   function ehPlus() { return !!(conta && conta.plano === "plus"); }
-  function limiteAtletas() { return (conta && conta.limites && conta.limites.atletas) || 1; }
+  function limiteAtletas() { return (conta && conta.limites && conta.limites.atletas) || LIMITE_PADRAO; }
+  function textoLimite() { var n = limiteAtletas(); return "São até " + n + " atletas por conta."; }
   function guardarConta() { try { localStorage.setItem("qls:conta:" + eu.uid, JSON.stringify(conta)); } catch (e) { /* sem espaço */ } }
   function lerContaGuardada() { try { return JSON.parse(localStorage.getItem("qls:conta:" + eu.uid) || "null"); } catch (e) { return null; } }
   function carregar() {
@@ -164,7 +166,7 @@
     var c = conta || {}, meta = N.lerMeta(eu.uid);
     var h = '<p class="voltar"><a class="bt bt-texto" href="#/">‹ Seus jogos</a></p><h1>Minha conta</h1>' +
       '<section class="cartao"><p class="olho">Conta</p><p style="margin:0"><b>' + esc(c.nome || eu.nome || "Sem nome") + '</b></p><p class="nota">' + esc(eu.email) + "</p>" +
-      '<p class="nota">Plano: <b>' + (c.plano === "plus" ? "Scout Plus" : "Grátis") + "</b>" + (c.plano === "plus" && c.plusAte ? " até " + esc(dataBR(c.plusAte)) : "") + ' · <a href="#/plus">' + (c.plano === "plus" ? "ver o plano" : "conhecer o Scout Plus") + "</a></p>" +
+      '<p class="nota">Plano: <b>' + (c.plano === "plus" ? "Scout Plus" : "Grátis") + "</b>" + (c.plano === "plus" && c.plusAte ? " até " + esc(dataBR(c.plusAte)) : "") + ' · ' + (c.plano === "plus" ? "atletas sem limite" : "até " + limiteAtletas() + " atletas") + ', com todas as funções</p>' +
       '<p class="nota" data-estado-nuvem>' + (navigator.onLine === false ? "Sem internet agora: os jogos vão para a nuvem quando o sinal voltar." : meta.ultima ? "Jogos guardados na nuvem. Última sincronização: " + new Date(meta.ultima).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) + "." : "Sincronizando os jogos com a nuvem…") + "</p>" +
       '<div class="acoes"><button type="button" class="bt bt-pq" id="btSync">Sincronizar agora</button><a class="bt bt-pq" href="#/perfil">Mudar o nome</a><button type="button" class="bt bt-pq" id="btGuia">Ver o guia de novo</button><button type="button" class="bt bt-pq bt-perigo" id="btSair">Sair da conta</button></div></section>' +
       '<section class="cartao"><h2>Cópia dos jogos</h2><p class="nota">Os jogos já ficam na sua conta. Se quiser guardar um arquivo seu também (ou levar para outra conta), faça uma cópia.</p>' +
@@ -183,7 +185,7 @@
     var l = D.linhaJogo(M, st, j);
     var tag = !l.fim ? '<span class="tag a">em andamento</span>' : l.venceu === true ? '<span class="tag v">venceu</span>' : l.venceu === false ? '<span class="tag p">perdeu</span>' : '<span class="tag a">encerrado</span>';
     return '<li><a class="jogo-l" href="#/jogo/' + esc(l.id) + '"><strong>' + esc(primeiroNome(l.atleta)) + (l.torneio ? " · " + esc(l.torneio) : "") + " " + tag + '</strong><span class="pct" aria-label="' + l.pct + ' por cento dos pontos ganhos">' + (l.n ? l.pct + "%" : "—") + '</span>' +
-      '<span class="q">' + esc(l.resultado || "sem games ainda") + '</span><span class="d">' + esc(dataCurta(l.data)) + " · " + l.n + (l.n === 1 ? " ponto" : " pontos") + "</span></a></li>";
+      '<span class="q">' + esc(l.resultado || "sem games ainda") + '</span><span class="d">' + esc(dataCurta(l.data)) + " · " + l.n + (l.n === 1 ? " ponto" : " pontos") + (l.duracao ? " · " + esc(l.duracao) : "") + "</span></a></li>";
   }
   function telaInicio() {
     var jogos = D.historico(st), andamento = jogos.filter(function (j) { return !D.encerrado(M, j); });
@@ -255,7 +257,7 @@
     var h = '<p class="voltar"><a class="bt bt-texto" href="#/">‹ Seus jogos</a></p><h1>Marcar um jogo</h1><p class="sub">Só o atleta é obrigatório. O resto ajuda a comparar os jogos depois.</p>' +
       '<section class="cartao"><h2>Atleta</h2>' +
       (st.atletas.length ? '<div class="chips" role="group" aria-label="Atleta" data-tour="atletas">' + st.atletas.map(function (a) { return chip("data-atleta", a.id, esc(a.nome), !novo.outro && novo.atletaId === a.id); }).join("") + chip("data-atleta", "+", "+ Outro atleta", novo.outro) + "</div>" : "") +
-      (novo.outro && st.atletas.length >= limiteAtletas() ? '<div class="aviso" data-limite-atletas style="margin-top:12px">No plano grátis é 1 atleta por conta. Com o Scout Plus, atletas sem limite (irmãos, alunos, a equipe toda). <a href="#/plus">Conhecer o Scout Plus</a></div>' :
+      (novo.outro && st.atletas.length >= limiteAtletas() ? '<div class="aviso" data-limite-atletas style="margin-top:12px">' + textoLimite() + ' Escolha um dos atletas acima ou apague um atleta que não acompanha mais.</div>' :
         novo.outro ? '<div class="campo"><label for="nvNome">Nome do atleta</label><input id="nvNome" maxlength="60" autocomplete="off" autocapitalize="words" placeholder="Ex.: Lucas" value="' + esc(novo.nome) + '"></div>' : "") +
       '<div class="campo"><label for="nvTorneio">Torneio <span class="nota">(opcional)</span></label><input id="nvTorneio" maxlength="80" placeholder="Torneio ou jogo-treino" value="' + esc(novo.torneio) + '"></div>' +
       '<div class="campo"><label for="nvAdv">Adversário <span class="nota">(opcional, nunca vai para o link da família)</span></label><input id="nvAdv" maxlength="80" autocomplete="off" value="' + esc(novo.adversario) + '"></div></section>' +
@@ -277,7 +279,7 @@
     document.getElementById("btComecar").addEventListener("click", function () {
       lerCampos();
       var er = document.getElementById("nvErro"), atletaId = novo.atletaId;
-      if ((novo.outro || !atletaId) && st.atletas.length >= limiteAtletas()) { er.textContent = "No plano grátis é 1 atleta por conta. Escolha o atleta que já está na conta ou assine o Scout Plus."; er.hidden = false; return; }
+      if ((novo.outro || !atletaId) && st.atletas.length >= limiteAtletas()) { er.textContent = textoLimite() + " Escolha um atleta que já está na conta."; er.hidden = false; return; }
       if (novo.outro || !atletaId) { var antes = st.atletas.length, r = D.addAtleta(st, novo.nome); if (r.erro) { er.textContent = r.erro; er.hidden = false; return; } atletaId = r.atleta.id; if (st.atletas.length > antes) atletasMudaram(); }
       var x = D.novoJogo(st, { atletaId: atletaId, torneio: novo.torneio, adversario: novo.adversario, cfg: novo.cfg });
       if (x.erro) { er.textContent = x.erro; er.hidden = false; return; }
@@ -311,13 +313,19 @@
       '<div class="acoes"><a class="bt bt-principal bt-pq" target="_blank" rel="noopener noreferrer" id="lkAoVivoWhats" href="https://wa.me/?text=' + encodeURIComponent(msg) + '">Mandar no WhatsApp</a><button type="button" class="bt bt-pq" id="btCopiarLink" data-url="' + esc(link.url) + '">Copiar link</button><button type="button" class="bt bt-pq bt-perigo" id="btEncerrarLink">Encerrar link</button></div>' +
       '<p class="nota" data-estado-aovivo>' + esc(aoVivoEstado[j.id] || "") + "</p></section>";
   }
+  /* relógio da partida: começa no primeiro ponto; o texto se atualiza sozinho enquanto a tela de marcação está aberta */
+  function textoTempo(j) { var s = D.duracaoSeg(j); return s == null ? "Tempo de jogo: começa no primeiro ponto" : "Tempo de jogo: " + D.textoDuracao(s); }
+  setInterval(function () {
+    var el = app && app.querySelector("[data-tempo]"); if (!el || !st) return;
+    var j = D.jogo(st, el.getAttribute("data-tempo")); if (j) el.textContent = textoTempo(j);
+  }, 15000);
   function desenharMarcacao(j, topo) {
     var a = D.atleta(st, j.atletaId), nome = primeiroNome(a && a.nome), pl = D.placar(M, j), sacador = M.quemSaca(pl), meu = sacador === "nos", n = j.pontos.length;
     var gan = j.pontos.filter(function (p) { return p.nos; }).length, ant = anterioresDe(j), r = marc.rasc, gameAtual = M.numeroDoGame(pl), completo = modoCompleto();
     var soTb = j.cfg.formato === "tb7" || j.cfg.formato === "tb10", sets = soTb ? "tie-break" : pl.sets.map(function (x) { return x[0] + "-" + x[1]; }).concat([pl.g[0] + "-" + pl.g[1]]).join("  ");
     var h = '<p class="voltar"><a class="bt bt-texto" href="#/">‹ Seus jogos</a></p>' +
       '<section class="placar" aria-label="Placar"><div><p class="l">' + esc((meu ? "Saque de " + nome : "Saque do adversário") + " · " + M.ROTULO_LADO[M.ladoDoSaque(pl)]) + '</p><p class="pts" data-pontos>' + esc(M.rotuloPontos(pl)) + '</p></div><div><p class="l">Games</p><p class="sets" data-sets>' + esc(sets) + "</p></div>" +
-      '<p class="quem">' + esc(nome) + " × " + esc(j.adversario || "adversário") + (j.torneio ? " · " + esc(j.torneio) : "") + "</p></section>" +
+      '<p class="quem">' + esc(nome) + " × " + esc(j.adversario || "adversário") + (j.torneio ? " · " + esc(j.torneio) : "") + '</p><p class="tempo" data-tempo="' + esc(j.id) + '">' + esc(textoTempo(j)) + "</p></section>" +
       (M.ehAdverso(pl) ? '<p class="adverso">PLACAR ADVERSO · este ponto entra na comparação</p>' : "") +
       (AV && n ? AV.faixaAlerta(j.pontos, nome, ant) : "");
     if (!r) {
@@ -423,7 +431,7 @@
     var bd = document.getElementById("btDesfazer"); if (bd) bd.addEventListener("click", function () { if (marc.rasc) { marc.rasc = null; redesenhar(); return; } if (D.desfazer(j)) { salvar(); agendarAoVivo(j); toast("Último ponto desfeito."); redesenhar(); } });
     var be = document.getElementById("btEncerrar"); if (be) be.addEventListener("click", function () { marc.confirmaFim = true; redesenhar(); });
     var bn = document.getElementById("btFimNao"); if (bn) bn.addEventListener("click", function () { marc.confirmaFim = false; redesenhar(); });
-    var bs = document.getElementById("btFimSim"); if (bs) bs.addEventListener("click", function () { j.fim = true; D.tocar(j); marc.confirmaFim = false; marc.rasc = null; if (st.atual === j.id) delete st.atual; salvar(); agendarAoVivo(j, true); contarFim(j); telaFim(j, true); });
+    var bs = document.getElementById("btFimSim"); if (bs) bs.addEventListener("click", function () { D.encerrar(j); marc.confirmaFim = false; marc.rasc = null; if (st.atual === j.id) delete st.atual; salvar(); agendarAoVivo(j, true); contarFim(j); telaFim(j, true); });
     var ab = document.getElementById("btAbrirLink"); if (ab) ab.addEventListener("click", async function () {
       if (navigator.onLine === false) { toast("Sem internet agora. O link ao vivo precisa de sinal para abrir."); return; }
       ocupado(ab, true, "Abrindo…");
@@ -443,18 +451,20 @@
     var a = D.atleta(st, j.atletaId), nome = primeiroNome(a && a.nome), pl = D.placar(M, j), r = D.resumo(M, st, j), n = j.pontos.length;
     if (st.atual === j.id) { delete st.atual; salvar(); }
     var titulo = pl.fim ? nome + (pl.vencedor === "nos" ? " venceu" : " perdeu") : "Jogo encerrado antes do fim";
-    var cmp = D.comparacao(M, st, j.atletaId, ehPlus() ? 6 : 3), link = linkDe(j);
+    var cmp = D.comparacao(M, st, j.atletaId, 6), link = linkDe(j);
     var h = '<p class="voltar"><a class="bt bt-texto" href="#/">‹ Seus jogos</a></p>' +
       '<section class="resultado" data-fim-jogo><p class="olho">Fim de jogo' + (j.torneio ? " · " + esc(j.torneio) : "") + " · " + esc(dataBR(j.data)) + "</p><h1>" + esc(titulo) + "</h1>" +
       (r.resultado ? '<p class="placar-f">' + esc(r.resultado) + "</p>" : "") + '<p class="nota">' + n + (n === 1 ? " ponto" : " pontos") + " · " + esc(nome) + " ganhou " + r.ganhos + " (" + r.pctGanhos + "%)" + (j.adversario ? " · contra " + esc(j.adversario) : "") + "</p>" +
+      (D.duracaoSeg(j) != null ? '<p class="nota" data-duracao><b>Tempo de jogo: ' + esc(D.textoDuracao(D.duracaoSeg(j))) + "</b></p>" : "") +
       (link ? '<p class="nota">O link ao vivo mostra o resultado final por mais 2 horas.</p>' : "") +
       '<div class="acoes"><button type="button" class="bt bt-principal" id="btCompartilhar">Compartilhar o resultado</button><a class="bt" id="lkWhats" target="_blank" rel="noopener noreferrer" href="https://wa.me/?text=' + encodeURIComponent(D.textoCompartilhar(M, st, j)) + '">Mandar no WhatsApp</a></div></section>';
     if (n && G) h += '<div class="graficos">' + G.topo(r) + G.secoes(r) + "</div>";
     if (r.sinais && r.sinais.length) h += '<section class="cartao"><h2>O que este jogo aponta</h2><p class="nota">Leitura automática pelos números. É ponto de partida para conversar com o treinador, não conclusão.</p>' + r.sinais.map(function (t) { return '<div class="sinal">' + t + "</div>"; }).join("") + "</section>";
-    if (cmp.jogos.length >= 2) h += '<section class="cartao"><h2>Comparação com os jogos anteriores</h2>' + tabelaComparacao(cmp) + '<div class="acoes"><a class="bt bt-pq" href="#/atleta/' + esc(j.atletaId) + '">Ver todos os jogos de ' + esc(nome) + '</a>' + (ehPlus() ? '<button type="button" class="bt bt-pq" id="btRelatorioFim">Relatório dos jogos (PDF)</button>' : '<a class="bt bt-pq" href="#/plus">Relatório em PDF · Scout Plus</a>') + "</div></section>";
+    if (cmp.jogos.length >= 2) h += '<section class="cartao"><h2>Comparação com os jogos anteriores</h2>' + tabelaComparacao(cmp) + '<div class="acoes"><a class="bt bt-pq" href="#/atleta/' + esc(j.atletaId) + '">Ver todos os jogos de ' + esc(nome) + '</a>' + '<button type="button" class="bt bt-pq" id="btRelatorioFim">Relatório dos jogos (PDF)</button>' + "</div></section>";
     else h += '<div class="aviso">Marque mais jogos de ' + esc(nome) + " para ver a comparação jogo a jogo. Um jogo é uma amostra; três na mesma direção já são um sinal.</div>";
     h += '<section class="cartao"><h2>Depois do jogo <span class="nota">(opcional)</span></h2><div class="campo"><label for="fmNivel">Nível do adversário</label><select id="fmNivel"><option value="">Não informar</option>' +
       M.NIVEIS_ADVERSARIO.map(function (x) { return '<option value="' + esc(x[0]) + '"' + (j.nivelAdversario === x[0] ? " selected" : "") + ">" + esc(x[1]) + "</option>"; }).join("") + "</select></div>" +
+      '<div class="campo"><label for="fmDuracao">Tempo de jogo, em minutos <span class="nota">(o app conta do primeiro ponto ao fim; ajuste se houve pausa ou se começou a marcar depois)</span></label><input id="fmDuracao" type="number" inputmode="numeric" min="1" max="720" style="max-width:140px" value="' + (D.duracaoMin(j) || "") + '"></div>' +
       '<details class="det" id="detMentalDepois"' + (marc.mentalDepois ? " open" : "") + '><summary>Como o atleta termina (mental, de 1 a 5)</summary>' + escalasHtml("depois", j.mental.depois) + "</details>" +
       '<div class="campo"><label for="fmObs">Anotações <span class="nota">(ficam só na sua conta)</span></label><textarea id="fmObs" maxlength="1200" placeholder="O que funcionou, o que treinar">' + esc(j.observacaoFinal) + "</textarea></div></section>" +
       '<section class="cartao" id="acoesJogo">' + (marc.confirmaApagar ? '<div class="confirma cartao" style="margin-top:0"><p style="margin:0"><b>Apagar este jogo?</b> Ele sai da conta e de todos os aparelhos. Não dá para desfazer.</p><div class="acoes"><button type="button" class="bt bt-pq bt-perigo" id="btApagarSim">Sim, apagar</button><button type="button" class="bt bt-pq" id="btApagarNao">Manter o jogo</button></div></div>' :
@@ -468,10 +478,17 @@
     });
     var rf = document.getElementById("btRelatorioFim"); if (rf) rf.addEventListener("click", function () { abrirRelatorio(j.atletaId); });
     document.getElementById("fmNivel").addEventListener("change", function (e) { j.nivelAdversario = e.target.value; D.tocar(j); salvar(); });
+    document.getElementById("fmDuracao").addEventListener("change", function (e) {
+      D.definirDuracao(j, e.target.value); salvar();
+      var d = q("[data-duracao]"), s2 = D.duracaoSeg(j);
+      if (d && s2 != null) d.innerHTML = "<b>Tempo de jogo: " + esc(D.textoDuracao(s2)) + "</b>";
+      if (!e.target.value) e.target.value = D.duracaoMin(j) || "";
+      toast(s2 != null ? "Tempo de jogo: " + D.textoDuracao(s2) + "." : "Tempo de jogo apagado.");
+    });
     document.getElementById("fmObs").addEventListener("input", function (e) { j.observacaoFinal = e.target.value.slice(0, 1200); D.tocar(j); salvar(); });
     var dd = document.getElementById("detMentalDepois"); dd.addEventListener("toggle", function () { marc.mentalDepois = dd.open; });
     ligarEscalas(j.mental, function () { D.tocar(j); salvar(); var y = window.scrollY; telaFim(j); window.scrollTo(0, y); });
-    var re = document.getElementById("btReabrir"); if (re) re.addEventListener("click", function () { if (pl.fim) D.desfazer(j); else { j.fim = false; D.tocar(j); } st.atual = j.id; salvar(); agendarAoVivo(j); desenharMarcacao(j, true); });
+    var re = document.getElementById("btReabrir"); if (re) re.addEventListener("click", function () { if (pl.fim) D.desfazer(j); else D.reabrir(j); st.atual = j.id; salvar(); agendarAoVivo(j); desenharMarcacao(j, true); });
     var ap = document.getElementById("btApagar"); if (ap) ap.addEventListener("click", function () { marc.confirmaApagar = true; telaFim(j); document.getElementById("acoesJogo").scrollIntoView({ block: "center" }); });
     var an = document.getElementById("btApagarNao"); if (an) an.addEventListener("click", function () { marc.confirmaApagar = false; telaFim(j); });
     var as = document.getElementById("btApagarSim"); if (as) as.addEventListener("click", function () { D.removerJogo(st, j.id); salvar(true); apagarNaNuvem([j.id]); toast("Jogo apagado."); location.hash = "#/"; });
@@ -500,13 +517,12 @@
     if (!a) { tela('<p class="voltar"><a class="bt bt-texto" href="#/">‹ Seus jogos</a></p><div class="aviso atencao">Atleta não encontrado na sua conta.</div>', true); return; }
     var jogos = D.historico(st, id), linhas = jogos.map(function (j) { return D.linhaJogo(M, st, j); }), fim = linhas.filter(function (l) { return l.fim && l.n; });
     var vit = fim.filter(function (l) { return l.venceu === true; }).length, der = fim.filter(function (l) { return l.venceu === false; }).length;
-    var media = fim.length ? Math.round(fim.reduce(function (s, l) { return s + l.pct; }, 0) / fim.length) : null, cmp = D.comparacao(M, st, id, ehPlus() ? 8 : 3);
+    var media = fim.length ? Math.round(fim.reduce(function (s, l) { return s + l.pct; }, 0) / fim.length) : null, cmp = D.comparacao(M, st, id, 8);
     var h = '<p class="voltar"><a class="bt bt-texto" href="#/">‹ Seus jogos</a></p><h1>' + esc(a.nome) + '</h1><p class="sub">' + jogos.length + (jogos.length === 1 ? " jogo" : " jogos") + (fim.length ? " · " + vit + (vit === 1 ? " vitória" : " vitórias") + " e " + der + (der === 1 ? " derrota" : " derrotas") + " · média de " + media + "% dos pontos" : "") + "</p>" +
       '<div class="acoes"><a class="bt bt-principal" href="#/novo" data-novo-atleta="' + esc(id) + '">+ Marcar um jogo de ' + esc(primeiroNome(a.nome)) + "</a></div>" +
-      '<section class="cartao"><h2>Relatório e análise</h2><p class="nota" style="margin-top:0">O relatório reúne os jogos terminados em um PDF com gráficos de evolução. A análise de movimento filma um golpe e mostra o que ajustar.</p><div class="acoes">' +
-        (!ehPlus() ? '<a class="bt bt-pq" href="#/plus" data-relatorio-plus>Relatório em PDF · Scout Plus</a>' : window.QLScoutRelatorio && window.QLScoutRelatorio.jogosDoRelatorio(M, D, st, id).length ? '<button type="button" class="bt bt-pq" id="btRelatorio">Relatório dos jogos (PDF)</button>' : '<span class="nota">O relatório aparece com 1 jogo terminado de pelo menos 10 pontos.</span>') +
-        '<a class="bt bt-pq" href="#/movimento/' + esc(id) + '" data-movimento>Análise de movimento</a></div></section>' +
-      (cmp.jogos.length >= 2 ? '<section class="cartao"><h2>Evolução jogo a jogo</h2>' + tabelaComparacao(cmp) + (ehPlus() ? "" : '<p class="nota">No grátis, os últimos 3 jogos. <a href="#/plus">Com o Scout Plus, a evolução completa</a>.</p>') + "</section>" : '<div class="aviso">A comparação aparece a partir de 2 jogos terminados.</div>') +
+      '<section class="cartao"><h2>Relatório dos jogos</h2><p class="nota" style="margin-top:0">Reúne os jogos terminados em um PDF com gráficos de evolução.</p><div class="acoes">' +
+        (window.QLScoutRelatorio && window.QLScoutRelatorio.jogosDoRelatorio(M, D, st, id).length ? '<button type="button" class="bt bt-pq" id="btRelatorio">Relatório dos jogos (PDF)</button>' : '<span class="nota">O relatório aparece com 1 jogo terminado de pelo menos 10 pontos.</span>') + "</div></section>" +
+      (cmp.jogos.length >= 2 ? '<section class="cartao"><h2>Evolução jogo a jogo</h2>' + tabelaComparacao(cmp) + "</section>" : '<div class="aviso">A comparação aparece a partir de 2 jogos terminados.</div>') +
       (jogos.length ? '<section class="secao"><h2>Jogos</h2><ul class="lista">' + jogos.map(linhaHtml).join("") + "</ul></section>" : "") +
       '<section class="cartao"><h2>Nome</h2><div class="campo" style="margin-top:6px"><label for="atNome">Nome do atleta</label><input id="atNome" maxlength="60" value="' + esc(a.nome) + '"></div><div class="acoes"><button type="button" class="bt bt-pq" id="btRenomear">Salvar nome</button>' +
       (confirmaAtleta === id ? '</div><div class="cartao confirma"><p style="margin:0"><b>Apagar ' + esc(a.nome) + " e " + (jogos.length === 1 ? "o jogo" : "os " + jogos.length + " jogos") + '?</b> Sai da conta e de todos os aparelhos. Não dá para desfazer.</p><div class="acoes"><button type="button" class="bt bt-pq bt-perigo" id="btAtApagarSim">Sim, apagar</button><button type="button" class="bt bt-pq" id="btAtApagarNao">Manter</button></div></div>' :
@@ -524,35 +540,19 @@
     });
   }
 
-  /* ══ Scout Plus ══ */
+  /* ══ Plano (a venda do Scout Plus está parada: nada de preço nem link de compra aqui) ══ */
   function telaPlus() {
     var c = conta || {}, plus = ehPlus();
-    var linhas = [["Marcar jogos", "sem limite", "sem limite"], ["Link ao vivo para a família", "✓", "✓"], ["Jogos na nuvem, em vários celulares", "✓", "✓"],
-      ["Atletas na conta", "1", "sem limite"], ["Comparação jogo a jogo", "últimos 3 jogos", "evolução completa"], ["Relatório dos jogos em PDF", "—", "✓"],
-      ["Análise de movimento", "1 de cada golpe", "sem limite"]];
-    var h = '<p class="voltar"><a class="bt bt-texto" href="#/conta">‹ Minha conta</a></p><h1>Scout Plus</h1>' +
-      (plus ? '<div class="aviso" data-plus-ativo>Você tem o Scout Plus' + (c.acessoCompleto ? " (acesso completo)." : c.plusAte ? " até " + esc(dataBR(c.plusAte)) + "." : ".") + "</div>" :
-        '<p class="sub">Para quem acompanha mais de um atleta e quer a evolução completa, o relatório em PDF e a análise de movimento sem limite.</p>') +
-      '<div class="tab" role="region" aria-label="Grátis e Scout Plus" tabindex="0"><table class="planos"><thead><tr><th></th><th>Grátis</th><th>Plus</th></tr></thead><tbody>' +
-      linhas.map(function (l) { return "<tr><td>" + esc(l[0]) + "</td><td>" + esc(l[1]) + "</td><td><b>" + esc(l[2]) + "</b></td></tr>"; }).join("") + "</tbody></table></div>" +
-      (plus ? "" : '<section class="cartao plus-oferta"><p class="preco"><b>' + PRECO_PLUS + '</b></p><p class="nota" style="margin-top:0">Pagamento pela Eduzz (cartão, Pix ou boleto, conforme o checkout).</p>' +
-        '<div class="aviso atencao">Na compra, use o <b>mesmo e-mail da sua conta</b>: ' + esc(eu.email) + ". É por ele que o Plus entra na conta.</div>" +
-        '<div class="acoes"><a class="bt bt-principal bt-grande" id="lkAssinar" href="' + CHECKOUT_PLUS + '" target="_blank" rel="noopener noreferrer">Assinar o Scout Plus</a></div>' +
-        '<div class="acoes" style="justify-content:center"><button type="button" class="bt bt-texto" id="btJaAssinei">Já assinei: atualizar a conta</button></div>' +
-        '<p class="nota">Depois que a Eduzz confirma o pagamento, o Plus entra na conta em alguns minutos. Pix e cartão costumam confirmar na hora; boleto, em até 3 dias úteis.</p></section>') +
-      '<p class="rodape">Dúvidas ou cancelamento: fale com a gente pelo WhatsApp (11) 94177-3228.</p>';
+    var h = '<p class="voltar"><a class="bt bt-texto" href="#/conta">‹ Minha conta</a></p><h1>Seu plano</h1>' +
+      (plus ? '<div class="aviso" data-plus-ativo>Você tem o Scout Plus' + (c.acessoCompleto ? " (acesso completo)." : c.plusAte ? " até " + esc(dataBR(c.plusAte)) + "." : ".") + " Atletas sem limite.</div>" : "") +
+      '<section class="cartao" data-plano-gratis><p class="olho">Grátis</p><ul style="margin:6px 0 0;padding-left:18px"><li>Até ' + LIMITE_PADRAO + ' atletas na conta</li><li>Jogos sem limite, com o tempo de cada partida</li><li>Link ao vivo para a família</li>' +
+      "<li>Comparação e evolução jogo a jogo, completas</li><li>Relatório dos jogos em PDF</li><li>Jogos na nuvem, em vários celulares</li></ul></section>" +
+      '<p class="rodape">Dúvidas: fale com a gente pelo WhatsApp (11) 94177-3228.</p>';
     tela(h, true);
-    var ja = document.getElementById("btJaAssinei");
-    if (ja) ja.addEventListener("click", async function () {
-      ocupado(ja, true, "Conferindo…"); await sincronizarAgora();
-      if (ehPlus()) { toast("Scout Plus ativo. Obrigado!"); telaPlus(); }
-      else { ocupado(ja, false); toast(estadoNuvem ? "Não deu para conferir agora: " + estadoNuvem + "." : "O pagamento ainda não chegou. Tente de novo em alguns minutos."); }
-    });
   }
 
   /* ══ Relatório dos jogos (PDF) ══ */
   function abrirRelatorio(atletaId) {
-    if (!ehPlus()) { location.hash = "#/plus"; return; }
     if (!window.QLRelatorioJogos || !window.QLScoutRelatorio) { toast("Não foi possível carregar o relatório. Confira a internet e recarregue a página."); return; }
     var o = window.QLScoutRelatorio.opcoes(M, D, st, atletaId);
     if (!o.jogos.length) { toast("O relatório precisa de pelo menos 1 jogo terminado com 10 pontos."); return; }
@@ -563,85 +563,10 @@
     w.document.write(html); w.document.close();
   }
 
-  /* ══ Análise de movimento (o mesmo módulo do app do treinador e do Player; a análise roda no celular e o vídeo não é enviado) ══ */
-  var movCarregado = null;
-  function carregarMovimento() {
-    if (movCarregado) return movCarregado;
-    function script(src) { return new Promise(function (ok, falha) { var x = document.createElement("script"); x.src = src; x.onload = ok; x.onerror = function () { falha(new Error("Não foi possível carregar a análise. Confira a internet.")); }; document.head.appendChild(x); }); }
-    if (!document.querySelector('link[href="../scout/movimento.css"]')) { var l = document.createElement("link"); l.rel = "stylesheet"; l.href = "../scout/movimento.css"; document.head.appendChild(l); }
-    movCarregado = (window.QLBiomec ? Promise.resolve() : script("../scout/movimento-motor.js")).then(function () { return window.QLMovimento ? null : script("../scout/movimento.js"); })
-      .catch(function (e) { movCarregado = null; throw e; });
-    return movCarregado;
-  }
-  var NOME_GOLPE = { forehand: "forehand", backhand: "backhand", saque: "saque" };
-  function textoCota(c, g) {
-    if (!c || c.limite == null) return null;
-    return { limite: c.limite, usados: c.usadas, restantes: Math.max(0, c.limite - c.usadas), liberado: c.liberado,
-      texto: c.liberado ? "Plano grátis: 1 análise de " + NOME_GOLPE[g] + " por conta. Ela fica salva com o relatório." : "Você já usou a análise grátis de " + NOME_GOLPE[g] + ". Os relatórios continuam aqui; para analisar este golpe de novo, assine o Scout Plus." };
-  }
-  /* Movimento (aba de baixo): escolher o atleta; quem ainda não tem atleta cadastra aqui mesmo, sem precisar marcar jogo */
-  function telaEscolherMovimento() {
-    var h = '<h1>Análise de movimento</h1><p class="sub">Filme um golpe (forehand, backhand ou saque) e veja o checklist por fase, os pontos fortes e o que treinar. A análise roda no celular: o vídeo não é enviado.</p>';
-    if (st.atletas.length) h += '<section class="secao"><h2>Escolha o atleta</h2><div class="lista">' + st.atletas.map(function (a) { return '<a class="mov-atleta" href="#/movimento/' + esc(a.id) + '" data-mov-atleta>' + esc(a.nome) + "<span>Analisar ›</span></a>"; }).join("") + "</div></section>";
-    var pode = st.atletas.length < limiteAtletas();
-    h += '<section class="cartao"><h2>' + (st.atletas.length ? "Outro atleta" : "Cadastre o atleta") + "</h2>" +
-      (pode ? '<div class="campo" style="margin-top:6px"><label for="mvNome">Nome do atleta</label><input id="mvNome" maxlength="60" autocomplete="off" autocapitalize="words" placeholder="Ex.: Lucas"></div><div class="aviso atencao" id="mvErro" role="alert" hidden></div><div class="acoes"><button type="button" class="bt bt-principal" id="btMvAtleta">Cadastrar e analisar</button></div>'
-        : '<p class="nota">No plano grátis é 1 atleta por conta. <a href="#/plus">Com o Scout Plus, atletas sem limite</a>.</p>') + "</section>";
-    tela(h, true);
-    var bt = document.getElementById("btMvAtleta");
-    if (bt) bt.addEventListener("click", function () {
-      var er = document.getElementById("mvErro"), r = D.addAtleta(st, document.getElementById("mvNome").value);
-      if (r.erro) { er.textContent = r.erro; er.hidden = false; return; }
-      atletasMudaram(); salvar(); location.hash = "#/movimento/" + r.atleta.id;
-    });
-  }
-  async function telaMovimento(atletaId) {
-    var a = D.atleta(st, atletaId), voltar = '<p class="voltar"><a class="bt bt-texto" href="#/movimento">‹ Movimento</a></p>';
-    if (!a) { tela(voltar + '<div class="aviso atencao">Atleta não encontrado na sua conta.</div>', true); return; }
-    if (navigator.onLine === false) { tela(voltar + '<div class="aviso atencao">A análise de movimento precisa de internet para abrir e guardar o relatório.</div>', true); return; }
-    tela(voltar + '<p class="carregando">Carregando a análise de movimento…</p>', true);
-    var d;
-    try {
-      await sincronizarAgora(); /* o atleta precisa estar na conta antes de guardar a análise */
-      var r = await Promise.all([N.api("scout-app-movimento?atleta=" + encodeURIComponent(atletaId)), carregarMovimento()]); d = r[0];
-    } catch (e) {
-      tela(voltar + '<div class="aviso atencao">' + esc(e.message) + '</div><div class="acoes"><button type="button" class="bt bt-pq" id="btMovDeNovo">Tentar de novo</button></div>', true);
-      document.getElementById("btMovDeNovo").addEventListener("click", function () { telaMovimento(atletaId); });
-      return;
-    }
-    if (location.hash !== "#/movimento/" + atletaId) return;
-    var cota = d.cota || { plano: "pago", porGolpe: {} }, gratis = cota.plano === "free";
-    tela(voltar + "<h1>Análise de movimento</h1>" +
-      '<p class="sub">' + esc(a.nome) + ": filme um golpe (forehand, backhand ou saque) e veja o checklist por fase, os pontos fortes e o que treinar. A análise roda no celular: o vídeo não é enviado.</p>" +
-      (gratis ? '<div class="aviso" data-mov-gratis>Plano grátis: 1 análise de cada golpe por conta (forehand, backhand e saque). No Scout Plus, sem limite.</div>' : "") +
-      '<div id="movArea" style="margin-top:14px"></div>', true);
-    var salvando = Promise.resolve(), api = function (corpo) { return N.api("scout-app-movimento", corpo); };
-    var arquivo = {
-      salvar: function (_al, arq) { return salvando.then(function () { return api({ acao: "relatorio", id: arq.id, relatorio: JSON.stringify(arq) }); }); },
-      ler: function (id) { return N.api("scout-app-movimento?id=" + encodeURIComponent(id)).then(function (x) { return x.relatorio; }); },
-      salvarClip: function (id, clip) { return salvando.then(function () { return api({ acao: "clip", id: id, clip: JSON.stringify(clip) }); }); },
-      lerClip: function (id) { return N.api("scout-app-movimento?clip=" + encodeURIComponent(id)).then(function (x) { return x.clip; }); },
-      indice: function () { return Promise.resolve({ itens: d.analises || [], removidos: [] }); },
-      registrar: function () { return Promise.resolve(); },
-      remover: function () { return Promise.resolve(); },
-    };
-    var logo = new URL("img/logo-scout-192.png", location.href).href;
-    window.QL_MOVIMENTO = window.QLMovimento.montar(document.getElementById("movArea"), {
-      atleta: a.nome, alunoId: atletaId, historico: d.analises || [], logo: "img/logo-scout-192.png", logoAbsoluto: logo, arquivo: arquivo,
-      modelos: false, publico: "atleta",
-      cotaGolpe: function (g) { return textoCota(cota.porGolpe[g], g); },
-      aoSalvar: function (reg) {
-        salvando = api({ acao: "salvar", atletaId: atletaId, resumo: reg }).then(function (x) { if (x.cota) cota = x.cota; }).catch(function (e) { e.publico = true; throw e; });
-        return salvando;
-      },
-      aoRemover: function (id) { return api({ acao: "remover", id: id }); },
-    });
-  }
-
   /* ══ rotas ══ */
   function navBaixo() {
     var nav = document.getElementById("navBaixo"); if (!nav) return;
-    var aba = /^#\/(movimento)/.test(location.hash) ? "movimento" : /^#\/(conta|plus|perfil)/.test(location.hash) ? "conta" : "jogos";
+    var aba = /^#\/(conta|plus|perfil)/.test(location.hash) ? "conta" : "jogos";
     nav.hidden = !eu; document.body.classList.toggle("com-nav", !!eu);
     Array.prototype.forEach.call(nav.querySelectorAll("a"), function (x) { if (x.getAttribute("data-aba") === aba) x.setAttribute("aria-current", "page"); else x.removeAttribute("aria-current"); });
   }
@@ -653,8 +578,7 @@
     if (partes[0] === "novo") telaNovo();
     else if (partes[0] === "jogo" && partes[1]) telaJogo(partes[1]);
     else if (partes[0] === "atleta" && partes[1]) { if (confirmaAtleta !== partes[1]) confirmaAtleta = null; telaAtleta(partes[1]); }
-    else if (partes[0] === "movimento" && partes[1]) telaMovimento(partes[1]);
-    else if (partes[0] === "movimento") telaEscolherMovimento();
+    else if (partes[0] === "movimento") { location.hash = "#/"; return; } // a análise de movimento saiu do app: link antigo cai nos jogos
     else if (partes[0] === "conta") telaConta();
     else if (partes[0] === "plus") telaPlus();
     else if (partes[0] === "perfil") telaPerfil();
@@ -685,7 +609,6 @@
       { rota: JOGO, alvo: "[data-registrado]", acao: "ok", texto: "Ponto registrado! Marcou errado? Toque em Corrigir e o ponto volta." },
       { rota: JOGO, alvo: "#btModo", acao: "ok", texto: "Você está no modo completo. Com pressa? Troque aqui pelo modo rápido: só como terminou e a bola." },
       { rota: JOGO, alvo: "#cartaoAoVivo", acao: "ok", texto: "Quer que a família acompanhe de longe? Abra o link ao vivo e mande no WhatsApp. Eles veem cada ponto." },
-      { rota: JOGO, alvo: "#navBaixo [data-aba=\"movimento\"]", acao: "ok", texto: "Aqui fica a análise de movimento: filme um golpe (forehand, backhand ou saque) e veja o que ajustar." },
       { rota: JOGO, alvo: "#navBaixo [data-aba=\"jogos\"]", acao: "ok", texto: "Em Jogos ficam todos os jogos e a evolução de cada atleta. Agora é com você: continue marcando. Bom jogo!", botao: "Concluir" },
     ];
   }

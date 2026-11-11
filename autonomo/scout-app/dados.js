@@ -31,7 +31,38 @@
     var f = FORMATOS.indexOf(c.formato) >= 0 ? c.formato : CFG_PADRAO.formato;
     return { formato: f, saca: c.saca === "ele" ? "ele" : "nos", semVantagem: f === "tb7" || f === "tb10" ? false : !!c.semVantagem, superTiebreakDecisivo: f === "3sets" ? !!c.superTiebreakDecisivo : false };
   }
+  /* Tempo de partida: `inicioEm` nasce no primeiro ponto marcado e `fimEm` quando o jogo termina (pelo placar ou por
+     "encerrar"). `duracaoMin` é o ajuste à mão (chuva, marcação começada depois): quando existe, vale mais que o relógio. */
+  var ISO_T = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z$/, MAX_DURACAO_MIN = 720;
+  function minutosValidos(v) { var n = Math.round(Number(v)); return n >= 1 && n <= MAX_DURACAO_MIN ? n : null; }
   function jogoLimpo(j) {
+    var x = jogoLimpoBase(j);
+    if (!x) return null;
+    if (ISO_T.test(String(j.inicioEm))) x.inicioEm = j.inicioEm;
+    if (x.inicioEm && ISO_T.test(String(j.fimEm)) && j.fimEm >= x.inicioEm) x.fimEm = j.fimEm;
+    if (minutosValidos(j.duracaoMin)) x.duracaoMin = minutosValidos(j.duracaoMin);
+    return x;
+  }
+  /* segundos de jogo: o ajuste à mão, ou do primeiro ponto até o fim (ou até agora, com o jogo em andamento); null se não dá para saber */
+  function duracaoSeg(j, agoraMs) {
+    if (!j) return null;
+    if (minutosValidos(j.duracaoMin)) return minutosValidos(j.duracaoMin) * 60;
+    if (!j.inicioEm) return null;
+    var fim = j.fimEm ? Date.parse(j.fimEm) : (agoraMs == null ? Date.now() : agoraMs), seg = Math.round((fim - Date.parse(j.inicioEm)) / 1000);
+    return seg >= 0 && seg <= MAX_DURACAO_MIN * 60 ? seg : null;
+  }
+  function duracaoMin(j, agoraMs) { var s = duracaoSeg(j, agoraMs); return s == null ? null : Math.max(1, Math.round(s / 60)); }
+  function textoDuracao(seg) {
+    if (seg == null) return "";
+    var m = Math.round(seg / 60);
+    if (m < 1) return "menos de 1 min";
+    return m < 60 ? m + " min" : Math.floor(m / 60) + "h" + String(m % 60).padStart(2, "0");
+  }
+  function definirDuracao(j, minutos) { var n = minutosValidos(minutos); if (n) j.duracaoMin = n; else delete j.duracaoMin; tocar(j); }
+  /* encerrar antes do fim do placar, e voltar a marcar */
+  function encerrar(j) { j.fim = true; if (j.inicioEm && !j.fimEm) j.fimEm = agoraISO(); tocar(j); }
+  function reabrir(j) { j.fim = false; delete j.fimEm; tocar(j); }
+  function jogoLimpoBase(j) {
     if (!j || typeof j !== "object" || typeof j.id !== "string" || typeof j.atletaId !== "string") return null;
     return {
       id: txt(j.id, 40), atletaId: txt(j.atletaId, 40), data: /^\d{4}-\d{2}-\d{2}$/.test(j.data) ? j.data : hojeLocal(),
@@ -113,10 +144,13 @@
     if (pl.fim || j.fim) return { erro: "A partida já terminou." };
     var q = {}; Object.keys(p || {}).forEach(function (k) { q[k] = p[k]; });
     q.nos = !!q.nos; q.n = j.pontos.length + 1; q.placarAntes = M.rotuloPontos(pl); q.jogo = M.numeroDoGame(pl); q.set = M.numeroDoSet(pl);
+    if (!j.inicioEm) j.inicioEm = agoraISO(); // o relógio da partida começa no primeiro ponto
     j.pontos.push(q); tocar(j);
-    return { ponto: q, fim: placar(M, j).fim };
+    var acabou = placar(M, j).fim;
+    if (acabou) j.fimEm = agoraISO();
+    return { ponto: q, fim: acabou };
   }
-  function desfazer(j) { if (!j.pontos.length) return false; j.pontos.pop(); j.fim = false; tocar(j); return true; }
+  function desfazer(j) { if (!j.pontos.length) return false; j.pontos.pop(); j.fim = false; delete j.fimEm; if (!j.pontos.length) delete j.inicioEm; tocar(j); return true; }
 
   /* resumo no formato da página da família (o mesmo que os gráficos de scout/graficos.js desenham) */
   function resumo(M, st, j) {
@@ -139,7 +173,7 @@
     var pl = placar(M, j), n = j.pontos.length, g = j.pontos.filter(function (p) { return p.nos; }).length, a = atleta(st, j.atletaId);
     var fim = !!(pl.fim || j.fim);
     return { id: j.id, atleta: a ? a.nome : "Atleta", data: j.data, torneio: j.torneio, resultado: textoSets(pl), n: n, ganhos: g, pct: n ? Math.round(g * 100 / n) : 0,
-      fim: fim, venceu: pl.fim ? pl.vencedor === "nos" : null };
+      fim: fim, venceu: pl.fim ? pl.vencedor === "nos" : null, duracao: fim || j.duracaoMin ? textoDuracao(duracaoSeg(j)) : "" };
   }
   /* medidas lado a lado dos últimos jogos terminados (mais antigo à esquerda) */
   var MEDIDAS = [["pctGanhos", "Pontos ganhos", "%", true], ["pctPrimeiro", "1º saque dentro", "%", true], ["errosNos", "Erros", "", false], ["df", "Duplas faltas", "", false],
@@ -163,6 +197,7 @@
     linhas.push((fim ? (pl.fim ? nome + (pl.vencedor === "nos" ? " venceu" : " perdeu") : "Jogo de " + nome + " encerrado") : "Jogo de " + nome + " em andamento") + (r.torneio ? " · " + r.torneio : ""));
     if (r.resultado) linhas.push("Placar: " + r.resultado);
     if (r.n) linhas.push(r.n + " pontos · " + nome + " ganhou " + r.ganhos + " (" + r.pctGanhos + "%)");
+    if (fim && duracaoSeg(j) != null) linhas.push("Tempo de jogo: " + textoDuracao(duracaoSeg(j)));
     var nu = r.numeros || {}, extra = [];
     if (nu.pctPrimeiro) extra.push("1º saque dentro: " + nu.pctPrimeiro + "%");
     if (nu.errosNos != null && r.n) extra.push("erros: " + nu.errosNos);
@@ -207,6 +242,7 @@
 
   var api = { VERSAO: VERSAO, CHAVE: CHAVE, CFG_PADRAO: CFG_PADRAO, MEDIDAS: MEDIDAS, vazio: vazio, normalizar: normalizar, atleta: atleta, jogo: jogo, addAtleta: addAtleta, renomearAtleta: renomearAtleta, removerAtleta: removerAtleta,
     novoJogo: novoJogo, removerJogo: removerJogo, tocar: tocar, placar: placar, textoSets: textoSets, encerrado: encerrado, marcarPonto: marcarPonto, desfazer: desfazer, resumo: resumo, anteriores: anteriores,
+    duracaoSeg: duracaoSeg, duracaoMin: duracaoMin, textoDuracao: textoDuracao, definirDuracao: definirDuracao, encerrar: encerrar, reabrir: reabrir,
     historico: historico, linhaJogo: linhaJogo, comparacao: comparacao, textoCompartilhar: textoCompartilhar, exportar: exportar, importar: importar, eventoUso: eventoUso, hojeLocal: hojeLocal, cfgLimpa: cfgLimpa };
   if (typeof module !== "undefined" && module.exports) module.exports = api; else raiz.QLScoutApp = api;
 })(typeof window !== "undefined" ? window : this);

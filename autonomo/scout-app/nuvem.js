@@ -106,10 +106,10 @@
     var m = lerMeta(uid); m.enviados[j.id] = j.atualizadoEm;
     if (r.token) m.aoVivo[j.id] = { token: r.token, expiraEm: r.expiraEm }; else delete m.aoVivo[j.id];
     gravarMeta(uid, m);
-    return { token: r.token, expiraEm: r.expiraEm, url: r.token ? location.origin + "/scout/?l=" + r.token : null };
+    return { token: r.token, expiraEm: r.expiraEm, url: r.token ? location.origin + "/scout/?l=" + r.token + "&s=1" : null };
   }
   async function encerrarAoVivo(uid, jogoId) { await api("scout-app", { acao: "encerrarAoVivo", jogoId: jogoId }); var m = lerMeta(uid); delete m.aoVivo[jogoId]; gravarMeta(uid, m); }
-  function linkAoVivo(uid, jogoId) { var x = lerMeta(uid).aoVivo[jogoId]; return x && Date.parse(x.expiraEm) > Date.now() ? { token: x.token, expiraEm: x.expiraEm, url: location.origin + "/scout/?l=" + x.token } : null; }
+  function linkAoVivo(uid, jogoId) { var x = lerMeta(uid).aoVivo[jogoId]; return x && Date.parse(x.expiraEm) > Date.now() ? { token: x.token, expiraEm: x.expiraEm, url: location.origin + "/scout/?l=" + x.token + "&s=1" } : null; }
   async function apagarJogo(jogoId) { await api("scout-app", { acao: "apagarJogo", id: jogoId }); }
   async function perfil(nome) { return (await api("scout-app", { acao: "perfil", nome: nome })).conta; }
 

@@ -169,6 +169,12 @@ assert.strictEqual(sIA.blocos.find((b) => b.tema === "tec:fundo").codigoExercici
     { id: "s5", turmaId: "outra", status: "fechada", data: "2026-11-05", convocados: ["a"], presentes: ["a"] },
     { id: "s6", status: "fechada", data: "2026-11-05", presentes: ["a", "b", "c"] },
   ];
+  /* horários fixos (para a Agenda): só os válidos, sem repetir, de segunda a domingo; duração com padrão de 120 min */
+  assert.deepStrictEqual([turma.horarios, turma.duracaoMin], [[], 120], "turma antiga, sem horário fixo, continua valendo");
+  const comHorario = A.limparTurma({ id: "tu2", nome: "B", membros: ["a"], duracaoMin: 90, horarios: [{ dia: 0, hora: "09:00" }, { dia: 3, hora: "14:00", quadraId: "q1" }, { dia: 1, hora: "14:00" }, { dia: 1, hora: "14:00" }, { dia: 9, hora: "10:00" }, { dia: 2, hora: "25:00" }, null] });
+  assert.deepStrictEqual(comHorario.horarios, [{ dia: 1, hora: "14:00", quadraId: "" }, { dia: 3, hora: "14:00", quadraId: "q1" }, { dia: 0, hora: "09:00", quadraId: "" }]);
+  assert.strictEqual(comHorario.duracaoMin, 90);
+  assert.strictEqual(A.limparTurma({ duracaoMin: 5 }).duracaoMin, 120);
   const P = A.presencaDaTurma(turma, ses);
   assert.deepStrictEqual(P.sessoes.map((x) => x.id), ["s3", "s2", "s1"], "só as fechadas desta turma, da mais recente para a mais antiga");
   assert.deepStrictEqual([P.sessoes[1].presentes, P.sessoes[1].ausentes, P.sessoes[1].convidados], [["a", "c"], ["b"], ["z"]], "quem saiu no fechamento conta como ausente; atleta de fora é convidado");

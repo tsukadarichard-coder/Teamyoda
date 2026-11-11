@@ -62,10 +62,15 @@ aguardarJobIA = async () => { await new Promise((r) => setTimeout(r, 300)); cons
 function Raiz(){
   const [alunos, setAlunosBase] = React.useState(() => ${fixtures}.map((a) => ({ ...novoAluno(), ...a })));
   const [tela, setTela] = React.useState({ v: "ar" });
+  const [alvo, setAlvo] = React.useState(null);
+  window.__alvo = setAlvo;
   const setAlunos = (l) => { setAlunosBase(l); window.__alunos = l; };
   window.__alunos = alunos; window.__tela = setTela;
   const aberto = alunos.find((a) => a.id === tela.id);
-  return tela.v === "ar" ? <TelaAltoRendimento alunos={alunos} setAlunos={setAlunos} uidAtual="p1" papelAtual="coordenador" identidade={{ nome: "Team Yoda" }} aoAbrirJogador={(id, sub) => setTela({ v: "ficha", id, sub })} />
+  if (tela.v === "agenda") return <TelaAgenda alunos={alunos} setAlunos={setAlunos} turmas={[]} setTurmas={() => {}} ocorrencias={[]} setOcorrencias={() => {}} quadras={[]} reservas={[]} setReservas={() => {}} bloqueiosAula={[]}
+    orgAtual="" mostraQuadras={false} uidAtual="p1" papelAtual="coordenador" exigeLogin={false} regrasReposicao={{}} setAba={() => {}} irParaSessaoAluno={() => {}} irParaSessaoTurma={() => {}} irParaTurmaAR={(id, modo) => { window.__arAlvo = { id, modo }; }} />;
+  if (tela.v === "hoje") return <TurmasARHoje hoje={tela.hoje} uidAtual="p1" papelAtual="coordenador" irParaTurmaAR={(id, modo) => { window.__arAlvo = { id, modo }; }} />;
+  return tela.v === "ar" ? <TelaAltoRendimento alunos={alunos} setAlunos={setAlunos} uidAtual="p1" papelAtual="coordenador" identidade={{ nome: "Team Yoda" }} aoAbrirJogador={(id, sub) => setTela({ v: "ficha", id, sub })} quadras={[]} turmaAlvo={alvo} aoConsumirTurmaAlvo={() => setAlvo(null)} />
     : <div><button id="voltar" onClick={() => setTela({ v: "ar" })}>voltar</button><AbaAltoRendimento aluno={aberto} alunos={alunos} setAlunos={setAlunos} /></div>;
 }
 ReactDOM.createRoot(document.getElementById("root")).render(<Raiz />);`;
@@ -239,19 +244,48 @@ const base = "http://localhost:" + srv.address().port;
   await p.fill('input[aria-label="Nome da turma"]', "Juvenil A");
   await p.locator('[data-membro="j1"] input').check(); await p.locator('[data-membro="j2"] input').check();
   await p.selectOption('select[aria-label="Professor responsável"]', "p1");
-  await p.fill('input[aria-label="Dias e horário"]', "seg, qua e sex às 14h");
   await p.getByRole("button", { name: "Salvar turma", exact: true }).click();
   await espera(/Turma Juvenil A salva/);
   let cartaoT = p.locator("[data-turma-ar]").first();
-  assert(/2 atletas: Ana, Bia/.test(await cartaoT.innerText()) && /Carlos · seg, qua e sex às 14h · nenhuma sessão fechada ainda/.test(await cartaoT.innerText()), await cartaoT.innerText());
+  assert(/2 atletas: Ana, Bia/.test(await cartaoT.innerText()) && /Sem horário fixo: toque em Editar para a turma aparecer na Agenda/.test(await cartaoT.innerText()), await cartaoT.innerText());
   /* editar: entra o Caio */
   await cartaoT.getByRole("button", { name: "Editar", exact: true }).click();
   await espera(/Editar turma/);
   await p.locator('[data-membro="j3"] input').check();
+  /* horário fixo: o dia de hoje (no fuso do app e no UTC da Agenda, que podem diferir de madrugada), às 14h, 90 min */
+  const utcHoje = new Date().toISOString().slice(0, 10), dsem = (iso) => new Date(iso + "T00:00:00").getDay();
+  const diasTeste = [...new Set([dsem(hoje), dsem(utcHoje)])];
+  for (const d of diasTeste) {
+    await p.locator("[data-horarios-turma-ar]").getByRole("button", { name: ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"][d], exact: true }).click();
+    await p.locator('[data-horarios-turma-ar] input[type="time"]').fill("14:00");
+    await p.locator("[data-horarios-turma-ar]").getByRole("button", { name: "+ Adicionar", exact: true }).click();
+  }
+  await p.selectOption('select[aria-label="Duração do treino"]', "90");
   await p.getByRole("button", { name: "Salvar turma", exact: true }).click();
   await espera(/3 atletas: Ana, Bia, Caio/);
+  assert(/14:00.* · 90 min/.test(await p.locator("[data-turma-ar]").first().innerText()), "o horário fixo aparece no cartão da turma");
   const turmasSalvas = await p.evaluate(() => JSON.parse(localStorage.getItem("shared:mty:arTurmas:v1")));
-  assert.deepStrictEqual([turmasSalvas.length, turmasSalvas[0].membros, turmasSalvas[0].professorNome], [1, ["j1", "j2", "j3"], "Carlos"]);
+  assert.deepStrictEqual([turmasSalvas.length, turmasSalvas[0].membros, turmasSalvas[0].professorNome, turmasSalvas[0].duracaoMin, turmasSalvas[0].horarios.length], [1, ["j1", "j2", "j3"], "Carlos", 90, diasTeste.length]);
+  /* na Agenda, antes da sessão: o bloco da turma no dia e o botão que leva para a sessão */
+  await p.evaluate(() => window.__tela({ v: "agenda" }));
+  await espera(/Juvenil A/);
+  assert(/Alto rendimento/.test(await texto()), "a Agenda mostra a turma com a categoria Alto rendimento (e a legenda)");
+  await p.getByText("Juvenil A").first().click();
+  await p.waitForSelector("[data-detalhe-ar]");
+  let det = await p.locator("[data-detalhe-ar]").innerText();
+  assert(/14:00–15:30/.test(det) && /Carlos/.test(det) && /Ana, Bia, Caio/.test(det) && /A presença é marcada na sessão da turma/.test(det), det);
+  await cap("ar-07-agenda");
+  await p.locator("[data-detalhe-ar]").getByRole("button", { name: "Abrir a sessão da turma", exact: true }).click();
+  assert.deepStrictEqual(await p.evaluate(() => window.__arAlvo), { id: turmasSalvas[0].id, modo: "sessao" }, "o bloco de hoje abre a sessão da turma");
+  /* Aulas de hoje: a turma do dia com o botão para abrir a sessão */
+  await p.evaluate((h) => window.__tela({ v: "hoje", hoje: h }), utcHoje);
+  await p.waitForSelector("[data-ar-hoje]");
+  assert(/14:00 · Juvenil A/.test(await p.locator("[data-ar-hoje]").innerText()) && await p.locator("[data-ar-hoje]").getByRole("button", { name: "Abrir a sessão", exact: true }).count() === 1);
+  /* chegando da Agenda: a tela do alto rendimento abre direto a sessão da turma */
+  await p.evaluate((id) => { window.__alvo({ id, modo: "sessao" }); window.__tela({ v: "ar" }); }, turmasSalvas[0].id);
+  await espera(/Sessão da turma Juvenil A/);
+  await p.locator("text=← Alto rendimento").click();
+  await espera(/3 atletas: Ana, Bia, Caio/);
   /* sessão da turma: presença de quem veio; o Caio faltou */
   await p.locator("[data-turma-ar]").first().getByRole("button", { name: "Sessão da turma", exact: true }).click();
   await espera(/Sessão da turma Juvenil A/);
@@ -274,6 +308,19 @@ const base = "http://localhost:" + srv.address().port;
   assert(/presentes: Ana, Bia · faltaram: Caio/.test(await p.locator("[data-presenca-turma]").innerText()), await p.locator("[data-presenca-turma]").innerText());
   assert(/Juvenil A/.test(await p.locator("[data-sessao-ar]").first().innerText()), "a sessão da turma aparece com o nome dela");
   await cap("ar-06-turma");
+  /* depois da sessão fechada: a Agenda mostra o estado e leva para a turma (não abre outra sessão) */
+  if (hoje === utcHoje) {
+    await p.evaluate(() => window.__tela({ v: "agenda" }));
+    await espera(/Juvenil A/);
+    await p.getByText("Juvenil A").first().click();
+    await p.waitForSelector("[data-detalhe-ar]");
+    det = await p.locator("[data-detalhe-ar]").innerText();
+    assert(/Sessão fechada: 2 presente\(s\)/.test(det), det);
+    await p.locator("[data-detalhe-ar]").getByRole("button", { name: "Ver a turma no Alto rendimento", exact: true }).click();
+    assert.strictEqual((await p.evaluate(() => window.__arAlvo)).modo, "lista");
+    await p.evaluate((id) => { window.__alvo({ id, modo: "lista" }); window.__tela({ v: "ar" }); }, turmasSalvas[0].id);
+    await p.waitForSelector("[data-presenca-turma]");
+  } else { await p.evaluate(() => window.__tela({ v: "ar" })); await espera(/Sessões no CT/); }
   /* calendário: editar um torneio já lançado (muda o término, mantém o id) */
   await p.locator('[data-atleta-ar="j1"] >> text=Abrir').click();
   await p.getByRole("button", { name: "Calendário", exact: true }).click();
