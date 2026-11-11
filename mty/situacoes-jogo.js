@@ -1,8 +1,8 @@
-/* Manual de ensino tático e estratégico (Richard Tsukada, versão 1, 8/11/2026) dentro do app do Team Yoda.
-   Gerado a partir do PDF do manual: as 96 fichas de situações (F, S, R, C, T, N, D, U), os formatos de exercício E01 a E16,
-   os contextos X01 a X32 e as referências. As fichas entram no catálogo como a família TE (código "TE" + código da ficha,
-   ex.: TEF01) e o gerador de planos recebe o resumo do método (blocoPrompt). Só o app do professor carrega este arquivo.
-   Nada aqui muda o que as outras famílias fazem. */
+/* Situações de jogo do Team Yoda (conteúdo do Richard, 8/11/2026), integradas ao que o app já tem:
+   · as 96 situações entram como exercícios das famílias existentes (leitura e defesa em DT, saque e devolução em IP,
+     construção no fundo em PDB, transição em AT, rede em PDR, duplas em DP), continuando a numeração de cada uma;
+   · o método vira seções das abas Táticas, Condução, Aulas e Como decide, e três princípios a mais nos pedidos de plano.
+   Só o app do professor carrega este arquivo. */
 (function (raiz) {
   "use strict";
   /* ficha: [código, nome, competência inicial, prioridade, ler, decidir, exercício, variar e observar, indicador] */
@@ -171,10 +171,10 @@
     ["R09","Farrow D, Reid M. 2010. The effect of equipment scaling on the skill acquisition of beginning tennis players. Journal of Sports Sciences 28, 723-732.","https://doi.org/10.1080/02640411003770238","Intervenção com equipamento e espaço adaptados. A escolha de escala para um aluno ainda requer observação funcional."],
     ["R10","International Tennis Federation. Tennis Play and Stay. Página oficial consultada em 8 de novembro de 2026.","https://www.itftennis.com/en/growing-the-game/itf-tennis-play-and-stay/","Orientação institucional para iniciar sacando, trocando e contando pontos com material adequado. É diretriz de prática, não ensaio experimental."],
     ["R11","Tapan T, Şahan A, Erman KA. 2023. The effect of internal and external focus of attention on tennis skill acquisition in children. Frontiers in Psychology 14, 1308244.","https://doi.org/10.3389/fpsyg.2023.1308244","Sessenta crianças. O resultado favoreceu foco externo no teste de habilidade; não houve superioridade entre os dois focos no teste de transferência."],
-    ["R12","Shea CH, Lai Q, Black C, Park JH. 2000. Spacing practice sessions across days benefits the learning of motor skills. Human Movement Science 19, 737-760.","https://www.sciencedirect.com/science/article/pii/S016794570000021X","Experimentos com equilíbrio e temporização de teclas. Evidência indireta para tênis; não define a duração ideal dos blocos deste manual."],
+    ["R12","Shea CH, Lai Q, Black C, Park JH. 2000. Spacing practice sessions across days benefits the learning of motor skills. Human Movement Science 19, 737-760.","https://www.sciencedirect.com/science/article/pii/S016794570000021X","Experimentos com equilíbrio e temporização de teclas. Evidência indireta para tênis; não define a duração ideal dos blocos propostos aqui."],
     ["R13","Kvint S et al. 2011. Acquisition and retention of motor sequences: The effects of time of the day and sleep. Archives Italiennes de Biologie 149(3).","https://doi.org/10.4449/aib.v149i3.1244","Estudo de sequências motoras, não de decisões táticas em partidas. A extrapolação para a organização de treino deve ser limitada."],
     ["R14","Kovalchik SA, Reid M. 2017. Comparing Matchplay Characteristics and Physical Demands of Junior and Professional Tennis Athletes in the Era of Big Data. Journal of Sports Science and Medicine 16, 489-497.","https://pmc.ncbi.nlm.nih.gov/articles/PMC5721178/","Comparação observacional entre juvenis e profissionais. Não fornece uma frequência universal de cada jogada para iniciantes."],
-    ["R15","Krause L, Farrow D, Reid M, Buszard T, Pinder R. 2018. Helping coaches apply the principles of representative learning design: validation of a tennis specific practice assessment tool. Journal of Sports Sciences 36, 1277-1286.","https://doi.org/10.1080/02640414.2017.1374684","Referência para avaliação de representatividade. As fichas de observação deste manual são próprias e não devem ser apresentadas como a ferramenta RPAT validada."],
+    ["R15","Krause L, Farrow D, Reid M, Buszard T, Pinder R. 2018. Helping coaches apply the principles of representative learning design: validation of a tennis specific practice assessment tool. Journal of Sports Sciences 36, 1277-1286.","https://doi.org/10.1080/02640414.2017.1374684","Referência para avaliação de representatividade. A observação de pontos proposta aqui é própria e não deve ser apresentada como a ferramenta RPAT validada."],
   ];
 
   var MOMENTOS = [
@@ -187,13 +187,6 @@
     { l: "D", n: "Defesa e contra-ataque" },
     { l: "U", n: "Duplas e coordenação da parceria" },
   ];
-  var COMO_USAR = [
-    "Comece por um problema observado em jogo. Escolha uma situação do catálogo, adapte a tarefa ao jogador e mantenha pelo menos duas respostas possíveis. Termine com jogo sem instrução e retome o problema em outra sessão, antes de lembrar a solução.",
-    "O catálogo é material do professor: o aluno recebe um objetivo simples por vez.",
-    "Convenções: A é o jogador focal; B é o adversário. Forehand e backhand indicam o golpe, não um lado fixo da quadra. Saque + 1 é o terceiro golpe da sequência; devolução + 1 é o quarto. Ajuste direções para destros e canhotos.",
-    "As 96 fichas descrevem famílias recorrentes de problemas e respostas, não todos os pontos possíveis. A matriz de variações gera novas tarefas sem transformar cada combinação em uma jogada independente.",
-  ];
-  var EVIDENCIA = "O material propõe uma metodologia de trabalho informada por pesquisa. As fichas, durações, escalas e exemplos são propostas de aplicação, a testar e ajustar na escola; não constituem um método integralmente validado em estudo experimental.";
   var ELEMENTOS = [
     ["Situação", "Como estão bola, jogadores, tempo e espaço antes da escolha?"],
     ["Intenção", "O jogador quer neutralizar, construir, pressionar ou finalizar?"],
@@ -210,13 +203,14 @@
     ["Finalização", "Bola e posição permitem encerrar com boa margem", "Escolher alvo acessível, sem exigir potência máxima"],
   ];
   var ESTADOS_NOTA = "Registre o estado antes do golpe e a ação depois: essa ordem reduz o viés de chamar toda bola que terminou em winner de boa oportunidade. Para o iniciante, use só “tenho tempo” e “preciso de tempo”. Dois erros de simplificação: “bola curta é ataque” (falha com bola baixa ou chegada atrasada) e “bola alta é defesa” (falha quando altura e efeito pressionam).";
+  /* nível por situação: os descritores de competência, ligados à escada Y1–Y6 do método */
   var NIVEIS = [
-    ["N0", "Exploração", "Participar de trocas muito curtas em ambiente adaptado", "Enviar, perceber o outro lado e recuperar posição"],
-    ["N1", "Iniciação", "Sacar de forma adaptada e sustentar alguma troca", "Escolher espaço e distinguir bola confortável de pressionante"],
-    ["N2", "Construção", "Variar direção e profundidade com alguma intenção", "Construir vantagem, usar primeiras bolas e reconhecer transição"],
-    ["N3", "Desenvolvimento competitivo", "Jogar pontos completos e ajustar mais de uma solução", "Integrar plano, adversário, placar e adaptação autônoma"],
+    ["N0", "Y1", "Exploração", "Participar de trocas muito curtas em ambiente adaptado", "Enviar, perceber o outro lado e recuperar posição"],
+    ["N1", "Y2", "Iniciação", "Sacar de forma adaptada e sustentar alguma troca", "Escolher espaço e distinguir bola confortável de pressionante"],
+    ["N2", "Y3–Y4", "Construção", "Variar direção e profundidade com alguma intenção", "Construir vantagem, usar primeiras bolas e reconhecer transição"],
+    ["N3", "Y5–Y6", "Desenvolvimento competitivo", "Jogar pontos completos e ajustar mais de uma solução", "Integrar plano, adversário, placar e adaptação autônoma"],
   ];
-  var NIVEIS_NOTA = "Os níveis não equivalem a ranking nem idade: um jogador pode ser N3 no fundo e N1 na rede. Escolha o nível por situação. Adultos iniciantes também ganham com bola mais lenta e espaço menor. Ampliar o ambiente quando o jogador sustenta a intenção e se recupera; se a mudança elimina as escolhas, voltar uma variável.";
+  var NIVEIS_NOTA = "O nível é por situação, não do jogador inteiro: o mesmo aluno pode estar em Y5 no fundo e em Y2 na rede. Adultos iniciantes também ganham com bola mais lenta e espaço menor. Ampliar o ambiente quando o jogador sustenta a intenção e se recupera; se a mudança elimina as escolhas, voltar uma variável.";
   var ETAPAS = [
     ["1", "Observar", "Pontos sem orientação sobre a resposta", "Problema descrito por comportamento e contexto"],
     ["2", "Reconhecer", "Contrastar duas situações reais", "Distingue oportunidades também pela ação"],
@@ -258,7 +252,7 @@
   var PROGRESSAO = "Retirar a previsibilidade, variar B, começar pelo saque e testar com placar normal. Repetir sem ajuda em outro dia.";
   var IGNORAR = "O resultado isolado do ponto. Julgue a escolha pela condição antes do golpe: ganhar por erro casual de B não torna boa a decisão, e boa escolha com erro continua boa escolha.";
   var ORGANIZAR = [
-    "As fichas descrevem decisões; os formatos E01 a E16 organizam a prática. Escolha uma decisão principal por bloco para que o aluno saiba o que procurar.",
+    "As situações descrevem decisões; os formatos E01 a E16 organizam a prática. Escolha uma decisão principal por bloco para que o aluno saiba o que procurar.",
     "Turma de quatro numa quadra: dois jogam e dois observam uma única variável por um bloco breve; depois trocam. Não colocar quatro jogadores com bola livre em simples no mesmo espaço.",
     "Aula individual: o professor pode fazer o papel de B variando respostas de forma honesta; depois inclua a oposição de outro jogador.",
     "Blocos de quatro a seis minutos e pausas breves são logística, não dose ideal. Pontuação bônus, quando usada, destaca a decisão e dura pouco; termine com contagem normal.",
@@ -282,9 +276,9 @@
     ["Revisão e próximo objetivo", 5, 6, 10],
   ];
   var SESSAO_EXEMPLOS = [
-    ["60 minutos · iniciação", "Reconhecer espaço e recuperar. Fichas F01, F02 e F04; formatos E02 e E04. Bola e quadra que permitam troca; no jogo final, retirar zonas obrigatórias e observar se a escolha continua aparecendo."],
-    ["60 minutos · construção", "Saque + 1 adaptável. Fichas S02, S10 e S11 com E06. A mesma intenção de saque encontra devoluções diferentes; o jogo final inclui primeiro e segundo saque."],
-    ["90 minutos · desenvolvimento competitivo", "Construir e finalizar com resposta adversária. Fichas C05, T06, N01 e N12; formatos E05, E09 e E12, uma decisão por bloco. O jogo com placar testa a estratégia sem bônus."],
+    ["60 minutos · iniciação", "Reconhecer espaço e recuperar. Situações F01, F02 e F04; formatos E02 e E04. Bola e quadra que permitam troca; no jogo final, retirar zonas obrigatórias e observar se a escolha continua aparecendo."],
+    ["60 minutos · construção", "Saque + 1 adaptável. Situações S02, S10 e S11 com o formato E06. A mesma intenção de saque encontra devoluções diferentes; o jogo final inclui primeiro e segundo saque."],
+    ["90 minutos · desenvolvimento competitivo", "Construir e finalizar com resposta adversária. Situações C05, T06, N01 e N12; formatos E05, E09 e E12, uma decisão por bloco. O jogo com placar testa a estratégia sem bônus."],
   ];
   var CICLO_OITO = [
     ["1", "Participar e reconhecer espaço", "F01 F02 F04; E01 E02", "Pontos adaptados sem alvo obrigatório"],
@@ -336,75 +330,75 @@
     ["Tática", "Escolhas e ajustes realizados nas situações concretas do ponto"],
   ];
 
-  /* Competência funcional → estágios do app. N0 e N1 cabem na bola vermelha/laranja e no adulto iniciante; N2 na verde,
-     no adulto e na competição; N3 no adulto e na competição. Uma ficha "N1 a N2" vale para a união dos dois. */
-  var NIVEL_ESTAGIOS = { N0: ["V", "L", "A"], N1: ["L", "G", "A"], N2: ["G", "A", "C"], N3: ["A", "C"] };
-  function niveisDaFaixa(faixa) {
-    var m = String(faixa || "").match(/N(\d)(?:\s*a\s*N(\d))?/);
-    if (!m) return [];
-    var a = +m[1], b = m[2] != null ? +m[2] : a, out = [];
-    for (var i = a; i <= b; i++) out.push("N" + i);
-    return out;
+
+  var PESQUISA = [
+    ["Variar a prática", "Em estudos com tenistas, a prática variada favoreceu retenção e decisão em transferência, e a interferência moderada favoreceu uma medida em jogo enquanto a baixa favoreceu o teste fechado. São achados específicos, não superioridade universal da aleatoriedade.", "R02, R03"],
+    ["Preservar a sequência do ponto", "No treino de antecipação por vídeo, manter a sequência das ações do rally ajudou o tempo de decisão. Variar tarefas e preservar contexto são decisões diferentes: embaralhar tudo pode tirar informação útil.", "R04"],
+    ["Perguntas e vídeo", "Vídeo das próprias ações com questionamento melhorou conhecimento tático e decisão em grupos pequenos de tenistas intermediários.", "R05, R06"],
+    ["Representatividade", "Exercícios comuns diferem das partidas nas bolas e no movimento; mais realismo não melhorou linearmente todas as medidas.", "R07, R08, R15"],
+    ["Equipamento e espaço adaptados", "Bola e quadra adaptadas aumentaram oportunidades de golpe em iniciantes. Vale também para adultos.", "R09, R10"],
+    ["Foco externo", "Em crianças, o foco no efeito da ação favoreceu o teste de habilidade, sem superioridade na transferência: instruções curtas sobre o efeito, sem proibir toda explicação corporal.", "R11"],
+    ["Distribuir a prática", "Distribuir sessões e dormir entre elas ajuda tarefas motoras em laboratório; é evidência indireta, não define a duração ideal de um bloco de tênis.", "R12, R13"],
+  ];
+  var PESQUISA_NOTA = "As tarefas de situação, durações e escalas são propostas de aplicação informadas por pesquisa, a testar e ajustar na academia. Os testes de quadra medem comportamento: não se atribui exercício a hemisfério, dopamina ou conexão neural garantida.";
+
+  /* Cada momento do ponto entra numa família que o app já tem, continuando a numeração dela. */
+  var FAMILIA_MOMENTO = { F: ["DT", 31], D: ["DT", 43], S: ["IP", 21], R: ["IP", 33], C: ["PDB", 18], T: ["AT", 13], N: ["PDR", 9], U: ["DP", 13] };
+  function codigo(cod) {
+    var fm = FAMILIA_MOMENTO[cod.charAt(0)];
+    var n = fm[1] + Number(cod.slice(1)) - 1;
+    return fm[0] + ("00" + n).slice(-3);
   }
+  /* troca as referências entre situações (F01, S02…) pelo código do catálogo */
+  function traduz(txt) { return String(txt || "").replace(/\b([FSRCTNDU])(\d\d)\b/g, function (m) { return codigo(m); }); }
+
+  /* Competência → estágios do app: N0 e N1 cabem na bola vermelha/laranja e no adulto iniciante; N2 na verde, no adulto
+     e na competição; N3 no adulto e na competição. "N1 a N2" vale para a união. */
+  var NIVEL_ESTAGIOS = { N0: ["V", "L", "A"], N1: ["L", "G", "A"], N2: ["G", "A", "C"], N3: ["A", "C"] };
   function estagiosDaFaixa(faixa) {
-    var set = {};
-    niveisDaFaixa(faixa).forEach(function (n) { (NIVEL_ESTAGIOS[n] || []).forEach(function (s) { set[s] = 1; }); });
+    var m = String(faixa || "").match(/N(\d)(?:\s*a\s*N(\d))?/), set = {};
+    if (!m) return [];
+    for (var i = +m[1]; i <= (m[2] != null ? +m[2] : +m[1]); i++) (NIVEL_ESTAGIOS["N" + i] || []).forEach(function (s) { set[s] = 1; });
     return ["V", "L", "G", "A", "C"].filter(function (s) { return set[s]; });
   }
-  function nomeMomento(l) { for (var i = 0; i < MOMENTOS.length; i++) if (MOMENTOS[i].l === l) return MOMENTOS[i].n; return ""; }
-  function faixaCurta(faixa) { return String(faixa || "").replace(/\s*a\s*/, "–"); }
-
-  /* Uma ficha no formato do catálogo do app. Campos próprios: tl (ler), ti (indicador), tn (competência), tp (prioridade),
-     tm (momento), tr (código no manual). */
   function paraExercicio(f) {
+    var c = codigo(f[0]);
     return {
-      c: "TE" + f[0], n: f[1], f: "TE", e: estagiosDaFaixa(f[2]),
+      c: c, n: f[1], f: c.replace(/\d+$/, ""), e: estagiosDaFaixa(f[2]),
       m: f[6], g: "Blocos de 4 a 6 min, alternando papéis e lados", r: SIMPLIFICACAO, p: f[7], i: IGNORAR, o: f[5], v: 0,
-      tl: f[4], ti: f[8], tn: f[2], tp: f[3], tm: f[0].charAt(0), tr: f[0],
+      tl: f[4], ti: f[8], sit: f[0].charAt(0),
     };
   }
   function exercicios() { return FICHAS.map(paraExercicio); }
-  /* rótulo curto que acompanha o código no índice que a IA recebe; "p" minúsculo para não virar link de padrão (P1–P16) */
-  function etiquetaIndice(e) { return e && e.f === "TE" && e.tn ? " [" + faixaCurta(e.tn) + "·" + String(e.tp || "").toLowerCase() + "]" : ""; }
 
-  /* O resumo do método que viaja no pedido de planejamento (individual e turma). qtd = quantas fichas TE o catálogo do
-     estágio tem: com poucas (bola vermelha), a regra semanal vira sugestão. */
-  function blocoPrompt(qtd) {
-    var L = [
-      "MÉTODO TÁTICO E ESTRATÉGICO (família TE · manual de ensino tático e estratégico do Richard Tsukada):",
-      "· As fichas TE são situações de jogo, não sequências decoradas: cada uma tem sinal, intenção, resposta e alternativa.",
-      "  A é o jogador focal; B, o adversário. No catálogo, cada ficha TE traz [competência inicial·prioridade]: N0 exploração,",
-      "  N1 iniciação, N2 construção, N3 desenvolvimento competitivo; p1 base, p2 ampliação, p3 contexto.",
-      "· Escolha as fichas pelo problema que a ficha do jogador e o scout mostram e pela competência dele NAQUELA situação",
-      "  (pode ser N3 no fundo e N1 na rede), não pela idade. Sem base em iniciar ponto, devolver, manter bola, recuperar e",
-      "  reconhecer pressão/oportunidade, comece pelas p1.",
-    ];
-    if (qtd >= 3) L.push(
-      "· Toda semana do plano tem pelo menos uma aula com uma ficha TE. Na semana: uma situação principal, uma de apoio e",
-      "  uma de contraste (ex.: atacar a bola curta alta, recuperar após a abordagem, reconhecer a curta baixa).");
-    else L.push("· Use a ficha TE disponível para este estágio quando o problema observado for de leitura e escolha de espaço.");
-    L.push(
-      "· Aula com ficha TE: pelo menos duas respostas possíveis, o ponto continua depois da decisão, uma variável ajustada",
-      "  por vez, e o fim é jogo sem instrução. Na aula seguinte, retestar o problema antes de lembrar a solução.",
-      "· O bloco progride pelas etapas: observar, reconhecer, escolher, construir, adaptar, planejar, pressão (placar) e",
-      "  transferir (outro dia e outro adversário, sem lembrete). Jogador experiente pode começar em adaptar.",
-      "· Medir decisão e execução separadas, sempre em contagem (ex.: 6 de 10 oportunidades), sem percentual universal.",
-      "· Não atribuir exercício a hemisfério, dopamina ou conexão neural, nem prometer o padrão instalado num número fixo de dias.",
-      "· Os princípios travados do método continuam acima destas regras.");
-    return L.join("\n");
+  /* Princípios que se somam aos princípios travados do método, e a regra semanal dos pedidos de plano. */
+  var PRINCIPIOS = [
+    "Tática se ensina por situação de jogo: o sinal que permite escolher, a intenção, a resposta e a alternativa. Toda tarefa tática oferece pelo menos duas respostas possíveis, e o ponto continua depois da decisão.",
+    "A escolha se julga pela condição antes do golpe, não pelo resultado: boa escolha com erro continua boa escolha, e ponto ganho por erro casual do adversário não valida a decisão.",
+    "Aprendeu quando aparece sem lembrete: a aula seguinte retesta o problema antes de lembrar a solução, e o teste final é outro dia, outro adversário e placar normal.",
+  ];
+  function regraPrompt(qtd) {
+    if (!qtd) return "";
+    return qtd >= 3
+      ? "Exercícios marcados (situação) no índice são situações de jogo (A = o jogador que aprende, B = o adversário). Toda semana do plano\n" +
+        "tem pelo menos uma aula com uma delas, escolhida pelo problema que a ficha e o scout mostram e pelo nível do jogador naquela\n" +
+        "situação; na semana, uma situação principal, uma de apoio e uma de contraste. Meça decisão e execução separadas, em contagem (6 de 10)."
+      : "Exercícios marcados (situação) no índice são situações de jogo; use quando o problema observado for de leitura e escolha de espaço.";
   }
 
-  raiz.MTYManualTatico = {
-    FICHAS: FICHAS, FORMATOS: FORMATOS, CONTEXTOS: CONTEXTOS, REFERENCIAS: REFERENCIAS, MOMENTOS: MOMENTOS,
-    COMO_USAR: COMO_USAR, EVIDENCIA: EVIDENCIA, ELEMENTOS: ELEMENTOS, ESTRATEGIA_TATICA: ESTRATEGIA_TATICA,
-    ESTADOS: ESTADOS, ESTADOS_NOTA: ESTADOS_NOTA, NIVEIS: NIVEIS, NIVEIS_NOTA: NIVEIS_NOTA, ETAPAS: ETAPAS, ETAPAS_NOTA: ETAPAS_NOTA,
-    DESENHO: DESENHO, CESTO: CESTO, FEEDBACK: FEEDBACK, FEEDBACK_NOTA: FEEDBACK_NOTA, PRIORIDADES: PRIORIDADES, PRIORIDADES_NOTA: PRIORIDADES_NOTA,
+  raiz.MTYSituacoes = {
+    FICHAS: FICHAS, FORMATOS: FORMATOS.map(function (e) { return [e[0], e[1], traduz(e[2])].concat(e.slice(3)); }),
+    CONTEXTOS: CONTEXTOS, REFERENCIAS: REFERENCIAS, MOMENTOS: MOMENTOS,
+    ELEMENTOS: ELEMENTOS, ESTRATEGIA_TATICA: ESTRATEGIA_TATICA, ESTADOS: ESTADOS, ESTADOS_NOTA: ESTADOS_NOTA,
+    NIVEIS: NIVEIS, NIVEIS_NOTA: NIVEIS_NOTA, ETAPAS: ETAPAS, ETAPAS_NOTA: ETAPAS_NOTA, DESENHO: DESENHO, CESTO: CESTO,
+    FEEDBACK: FEEDBACK, FEEDBACK_NOTA: FEEDBACK_NOTA, PRIORIDADES: PRIORIDADES, PRIORIDADES_NOTA: PRIORIDADES_NOTA,
     MONTAGEM_COMUM: MONTAGEM_COMUM, SIMPLIFICACAO: SIMPLIFICACAO, PROGRESSAO: PROGRESSAO, ORGANIZAR: ORGANIZAR, MATRIZ: MATRIZ,
-    SESSAO_BLOCOS: SESSAO_BLOCOS, SESSAO_EXEMPLOS: SESSAO_EXEMPLOS, CICLO_OITO: CICLO_OITO, CICLO_NOTA: CICLO_NOTA,
+    SESSAO_BLOCOS: SESSAO_BLOCOS, SESSAO_EXEMPLOS: SESSAO_EXEMPLOS.map(function (x) { return [x[0], traduz(x[1])]; }),
+    CICLO_OITO: CICLO_OITO.map(function (x) { return [x[0], x[1], traduz(x[2]), x[3]]; }), CICLO_NOTA: CICLO_NOTA,
     MEDIDAS: MEDIDAS, MEDIDAS_NOTA: MEDIDAS_NOTA, OBSERVACAO: OBSERVACAO, OBSERVACAO_NOTA: OBSERVACAO_NOTA, PLANO_JOGO: PLANO_JOGO,
-    VOCABULARIO: VOCABULARIO, NIVEL_ESTAGIOS: NIVEL_ESTAGIOS,
-    estagiosDaFaixa: estagiosDaFaixa, nomeMomento: nomeMomento, faixaCurta: faixaCurta, paraExercicio: paraExercicio,
-    exercicios: exercicios, etiquetaIndice: etiquetaIndice, blocoPrompt: blocoPrompt,
+    VOCABULARIO: VOCABULARIO, PESQUISA: PESQUISA, PESQUISA_NOTA: PESQUISA_NOTA, PRINCIPIOS: PRINCIPIOS,
+    FAMILIA_MOMENTO: FAMILIA_MOMENTO, NIVEL_ESTAGIOS: NIVEL_ESTAGIOS,
+    codigo: codigo, traduz: traduz, estagiosDaFaixa: estagiosDaFaixa, paraExercicio: paraExercicio, exercicios: exercicios, regraPrompt: regraPrompt,
   };
 
 })(typeof window !== "undefined" ? window : globalThis);
