@@ -101,7 +101,7 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
       document.querySelectorAll(".topo").forEach((e) => { e.style.position = "static"; });
       const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT); let n; while ((n = w.nextNode())) n.nodeValue = n.nodeValue.replace(/Fulano Secreto/g, "Pedro");
     });
-    await pg.screenshot({ path: path.join(capturas, nome + ".png"), fullPage: true });
+    await pg.screenshot({ path: path.join(capturas, nome + ".png"), fullPage: !nome.startsWith("scout-guia") });
     if (process.env.DPR) await pg.evaluate(() => document.querySelectorAll(".topo").forEach((e) => { e.style.position = ""; }));
   };
   const pontos = () => p.textContent("[data-pontos]");
@@ -164,12 +164,18 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   await ponto("winner_nos"); assert.strictEqual(await pontos(), "15-0");
   await p.click('[data-fim="erro_nos"]'); await p.click("#btTrocar"); await ponto("erro_dele", "1-4"); assert.strictEqual(await pontos(), "30-0");
   await p.click("#btDesfazer"); assert.strictEqual(await pontos(), "15-0", "desfazer");
-  await p.click('[data-saq="ace"]'); assert.strictEqual(await pontos(), "30-0", "ace em um toque");
+  /* modo completo (padrão): direção do saque antes do ponto */
+  assert.strictEqual(await p.textContent("#btModo"), "Modo completo ✓", "modo completo é o padrão");
+  await p.click('[data-dsq="aberto"]'); await p.click('[data-saq="ace"]'); assert.strictEqual(await pontos(), "30-0", "ace em um toque");
+  assert.ok((await p.textContent("[data-registrado]")).includes("Ace"), "faixa do ponto registrado");
+  /* modo rápido: detalhes do último ponto depois; e volta ao completo */
+  await p.click("#btModo"); assert.strictEqual(await p.textContent("#btModo"), "Modo rápido ✓");
   await p.click("#detPonto summary"); await p.click('[data-det="golpe"] >> nth=0');
+  await p.click("#btModo"); assert.ok(!(await p.$("#detPonto")), "completo não mostra os detalhes depois");
   /* mental no game */
   await p.click("#detMental summary"); await p.click('[data-mjogo="3"]');
   const jl = await p.evaluate((u) => { const s = JSON.parse(localStorage.getItem("qls:v1:" + u)); return s.jogos.filter((j) => j.torneio === "Copa Sul")[0]; }, uid);
-  assert.ok(jl.pontos[1].golpe && jl.pontos[1].saque === "ace", "detalhe no último ponto");
+  assert.ok(jl.pontos[1].golpe && jl.pontos[1].saque === "ace" && jl.pontos[1].dirSaque === "aberto", "direção do saque e detalhe no último ponto: " + JSON.stringify(jl.pontos[1]));
   assert.strictEqual(jl.mental.antes.conf, 4); assert.strictEqual(jl.mental.jogo["1"], 3, "mental no game 1");
 
   /* link ao vivo */
@@ -186,7 +192,14 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   assert.ok(tf.includes("Partida de Lucas") && !tf.includes("Fulano") && !tf.includes("Andrade"), "família vê só o primeiro nome: " + tf.slice(0, 300));
   await foto(fam, "scout-familia");
   const versao = store["scoutsAoVivo/" + tok].versao;
-  await ponto("winner_nos"); await ponto("winner_nos"); // 1-0 em games
+  /* modo completo: detalhes antes da bola */
+  await p.click('[data-fim="winner_nos"]'); await p.waitForSelector('[data-tour="detalhes"]');
+  await p.click('[data-rd="situacao"][data-v="ataque"]'); await p.click('[data-rd="zona"] >> nth=0'); await p.click('[data-rdb="rede"]');
+  assert.strictEqual(await p.getAttribute('[data-rd="situacao"][data-v="ataque"]', "aria-pressed"), "true");
+  await p.click('[data-bola="1-4"]');
+  const p3 = await p.evaluate((u) => { const s = JSON.parse(localStorage.getItem("qls:v1:" + u)); const j = s.jogos.filter((x) => x.torneio === "Copa Sul")[0]; return j.pontos[2]; }, uid);
+  assert.ok(p3.situacao === "ataque" && p3.zona && p3.rede === true && p3.bola === "1-4", "detalhes gravados com o ponto: " + JSON.stringify(p3));
+  await ponto("winner_nos"); // 1-0 em games
   await p.waitForTimeout(1800);
   assert.ok(store["scoutsAoVivo/" + tok].versao > versao, "link atualiza a cada ponto");
   assert.strictEqual(JSON.parse(store["scoutsAoVivo/" + tok].publico).n, 4);
@@ -230,9 +243,13 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   t = await texto();
   assert.ok(t.includes("Lucas Andrade") && t.includes("2 jogos") && t.includes("1 vitória e 0 derrotas") && t.includes("Evolução jogo a jogo"), "atleta: " + t.slice(0, 600).replace(/\n+/g, " | "));
   await semRolagem(p, "atleta"); await foto(p, "scout-5-atleta");
-  /* análise de movimento no grátis */
+  /* análise de movimento no grátis, pela aba Movimento */
   const mvGets = []; p.on("request", (rq) => { if (rq.url().includes("scout-app-movimento")) mvGets.push(rq.url()); });
-  await p.click("[data-movimento]");
+  assert.ok(await p.isVisible('#navBaixo [data-aba="movimento"]'), "aba Movimento visível");
+  await p.click('#navBaixo [data-aba="movimento"]'); await p.waitForSelector("[data-mov-atleta]");
+  assert.strictEqual(await p.getAttribute('#navBaixo [data-aba="movimento"]', "aria-current"), "page");
+  assert.ok(!(await p.$("#mvNome")) && (await texto()).includes("1 atleta por conta"), "grátis com 1 atleta: sem cadastrar outro");
+  await p.click("[data-mov-atleta]");
   await p.waitForFunction(() => document.querySelector("#movArea") && document.querySelector("#movArea").children.length > 0, null, { timeout: 15000 }).catch(async (e) => { console.log("TELA", (await texto()).slice(0, 500), "ERROS", erros, "GETS", mvGets); throw e; });
   t = await texto();
   assert.ok(t.includes("Análise de movimento") && t.includes("Lucas Andrade: filme um golpe") && t.includes("Plano grátis"), "tela da análise: " + t.slice(0, 400));
@@ -298,6 +315,46 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   await p.click("#btSair");
   await p.waitForFunction(() => document.body.innerText.includes("Entrar no QuadraLab Scout"));
   assert.ok(await p.$eval("#btConta", (e) => e.hidden), "botão da conta some ao sair");
+
+  /* guia do primeiro acesso: conta nova, sem jogos; só avança tocando no lugar iluminado */
+  const c3 = await celular(), g = c3.p;
+  await g.goto(base + "#/criar", { waitUntil: "networkidle" });
+  await g.fill("#acNome", "Bruno"); await g.fill("#acEmail", "bruno@exemplo.com"); await g.fill("#acSenha", "12345678"); await g.click("#btAcesso");
+  const balao = () => g.textContent(".guia-balao");
+  const visivel = () => g.evaluate(() => { const b = document.querySelector(".guia-balao"); return !!b && !b.hidden; });
+  await g.waitForFunction(() => { const b = document.querySelector(".guia-balao"); return b && !b.hidden && b.textContent.includes("Marcar um jogo"); }, null, { timeout: 10000 });
+  await foto(g, "scout-guia-1");
+  /* tocar fora da área iluminada não faz nada */
+  await g.click('#navBaixo [data-aba="conta"]', { force: true });
+  assert.ok(!g.url().includes("#/conta") && await visivel(), "fora da área iluminada não navega");
+  await g.click("[data-novo]");
+  await g.waitForFunction(() => document.querySelector(".guia-balao") && document.querySelector(".guia-balao").textContent.includes("nome do atleta"));
+  await g.click("[data-guia-ok]"); assert.ok((await balao()).includes("Digite o nome do atleta"), "Pronto sem nome não segue");
+  await g.fill("#nvNome", "Duda"); await g.click("[data-guia-ok]");
+  await g.waitForFunction(() => document.querySelector(".guia-balao").textContent.includes("formato"));
+  await g.click('[data-formato="4games"]');
+  assert.strictEqual(await g.inputValue("#nvNome"), "Duda", "nome mantido");
+  await g.waitForFunction(() => document.querySelector(".guia-balao").textContent.includes("Começar o jogo"));
+  await g.click("#btComecar");
+  for (const [trecho, acao] of [["Este é o placar", "ok"], ["marque o saque", "ok"], ["como ele terminou", '[data-fim="winner_nos"]'], ["detalhes do ponto", "ok"], ["em que bola", '[data-bola="5-9"]'],
+    ["Ponto registrado", "ok"], ["modo completo", "ok"], ["link ao vivo", "ok"], ["análise de movimento", "ok"]]) {
+    await g.waitForFunction((x) => { const b = document.querySelector(".guia-balao"); return b && !b.hidden && b.textContent.includes(x); }, trecho, { timeout: 8000 });
+    if (trecho === "como ele terminou") await foto(g, "scout-guia-2");
+    if (trecho === "detalhes do ponto") await foto(g, "scout-guia-3");
+    await g.click(acao === "ok" ? "[data-guia-ok]" : acao);
+  }
+  await g.waitForFunction(() => document.querySelector(".guia-balao").textContent.includes("Bom jogo"));
+  await g.click("[data-guia-ok]");
+  await g.waitForFunction(() => document.body.innerText.includes("Guia concluído"));
+  assert.ok(!(await visivel()), "guia fechado");
+  assert.strictEqual(await g.textContent("[data-pontos]"), "15-0", "o ponto do guia ficou marcado");
+  assert.strictEqual(await g.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("qls:guia:")).map((k) => localStorage.getItem(k)).join()), "feito");
+  /* não volta sozinho; Conta › Ver o guia de novo reabre */
+  await g.reload({ waitUntil: "load" }); await g.waitForTimeout(800); assert.ok(!(await visivel()), "guia não volta sozinho");
+  await g.goto(base + "#/conta"); await g.waitForSelector("#btGuia"); await g.click("#btGuia");
+  await g.waitForFunction(() => { const b = document.querySelector(".guia-balao"); return b && !b.hidden && b.textContent.includes("Marcar um jogo"); });
+  await g.click("[data-guia-pular]"); assert.ok(!(await visivel()), "pular fecha o guia");
+  assert.deepStrictEqual(c3.erros, [], "sem erro de JavaScript no guia");
 
   /* contagem de uso: só aparelho, evento e pontos */
   const ev = usos.map((x) => JSON.parse(x)), tipos = ev.map((x) => x.e);
