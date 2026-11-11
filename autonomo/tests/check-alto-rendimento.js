@@ -157,4 +157,25 @@ const pC = A.aplicarIA(planoC, { semanas: [{ n: 1, conteudos: [{ tema: "tec:fund
 const sIA = A.montarSessao({ atletas: [{ id: "x", ar: { plano: pA } }, { id: "y", ar: { plano: pB } }, { id: "z", ar: { plano: pC } }], hoje: "2026-11-12", duracaoMin: 120, catalogo: cat, estagio: "C" });
 assert.strictEqual(sIA.blocos.find((b) => b.tema === "tec:fundo").codigoExercicio, "DC001");
 
+/* ── turmas do alto rendimento: grupo salvo e controle de presença pelas sessões fechadas ── */
+{
+  const turma = A.limparTurma({ id: "tu1", nome: "  Juvenil A  ", membros: ["a", "b", "b", "x", "c"], professorUid: "p1", professorNome: "Carlos", horario: "seg, qua e sex às 14h" }, ["a", "b", "c"]);
+  assert.deepStrictEqual([turma.nome, turma.membros, turma.horario], ["Juvenil A", ["a", "b", "c"], "seg, qua e sex às 14h"], "nome limpo, sem repetido e sem quem não é do alto rendimento");
+  const ses = [
+    { id: "s1", turmaId: "tu1", status: "fechada", data: "2026-11-02", convocados: ["a", "b", "c"], presentes: ["a", "b"], realizado: { a: { presente: true }, b: { presente: true } } },
+    { id: "s2", turmaId: "tu1", status: "fechada", data: "2026-11-04", convocados: ["a", "b", "c"], presentes: ["a", "b", "c", "z"], realizado: { a: { presente: true }, b: { presente: false }, c: { presente: true }, z: { presente: true } } },
+    { id: "s3", turmaId: "tu1", status: "fechada", data: "2026-11-06", convocados: ["a", "b"], presentes: ["a"], realizado: { a: { presente: true } } },
+    { id: "s4", turmaId: "tu1", status: "rascunho", data: "2026-11-09", convocados: ["a", "b", "c"], presentes: ["a"] },
+    { id: "s5", turmaId: "outra", status: "fechada", data: "2026-11-05", convocados: ["a"], presentes: ["a"] },
+    { id: "s6", status: "fechada", data: "2026-11-05", presentes: ["a", "b", "c"] },
+  ];
+  const P = A.presencaDaTurma(turma, ses);
+  assert.deepStrictEqual(P.sessoes.map((x) => x.id), ["s3", "s2", "s1"], "só as fechadas desta turma, da mais recente para a mais antiga");
+  assert.deepStrictEqual([P.sessoes[1].presentes, P.sessoes[1].ausentes, P.sessoes[1].convidados], [["a", "c"], ["b"], ["z"]], "quem saiu no fechamento conta como ausente; atleta de fora é convidado");
+  assert.deepStrictEqual(P.porAtleta.a, { sessoes: 3, presencas: 3, faltas: 0, pct: 100, ultimaFalta: null });
+  assert.deepStrictEqual(P.porAtleta.b, { sessoes: 3, presencas: 1, faltas: 2, pct: 33, ultimaFalta: "2026-11-06" });
+  assert.deepStrictEqual(P.porAtleta.c, { sessoes: 2, presencas: 1, faltas: 1, pct: 50, ultimaFalta: "2026-11-02" }, "quem não era da turma no dia não leva falta");
+  assert.deepStrictEqual(A.presencaDaTurma(turma, []).porAtleta.a, { sessoes: 0, presencas: 0, faltas: 0, pct: null, ultimaFalta: null }, "turma sem sessão");
+}
+
 console.log("check-alto-rendimento: ok");

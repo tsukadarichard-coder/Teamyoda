@@ -2784,13 +2784,16 @@ function montaFases({ inicio, semanas, competicoes }) {
   const idxTorneios = [];
   competicoes.forEach((c) => {
     if (!c.data) return;
-    const dc = segundaDaSemana(c.data).getTime();
-    const alvo = linha.find((s) => s.data.getTime() === dc);
-    if (alvo) {
-      alvo.fase = "Torneio";
-      alvo.evento = c.nome || "Competição";
-      idxTorneios.push(alvo.n - 1);
-    }
+    /* do início ao término: todas as semanas que o torneio ocupa (sem término, só a semana do início) */
+    const de = segundaDaSemana(c.data).getTime();
+    const ate = c.fim && c.fim >= c.data ? segundaDaSemana(c.fim).getTime() : de;
+    linha.forEach((s) => {
+      const t = s.data.getTime();
+      if (t < de || t > ate || s.fase === "Torneio") return;
+      s.fase = "Torneio";
+      s.evento = c.nome || "Competição";
+      idxTorneios.push(s.n - 1);
+    });
   });
   idxTorneios.sort((a, b) => a - b);
 
@@ -6676,10 +6679,22 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
                 </div>
                 <Campo rotulo="Competições">
                   {f.competicoes.map((c, i) => (
-                    <div key={i} className="flex gap-2 mb-2">
-                      <input style={entrada} value={c.nome} onChange={(e) => mudaLista("competicoes", i, "nome", e.target.value)} placeholder="Nome do torneio" />
-                      <input type="date" style={{ ...entrada, maxWidth: 160 }} value={c.data} onChange={(e) => mudaLista("competicoes", i, "data", e.target.value)} />
-                      <button onClick={() => tiraLista("competicoes", i)} style={iconeEstilo}>×</button>
+                    <div key={i} data-competicao={i} className="mb-3">
+                      <div className="flex gap-2 mb-2">
+                        <input style={entrada} value={c.nome} onChange={(e) => mudaLista("competicoes", i, "nome", e.target.value)} placeholder="Nome do torneio" />
+                        <button onClick={() => tiraLista("competicoes", i)} style={iconeEstilo} aria-label="Tirar competição">×</button>
+                      </div>
+                      {/* início e término: o torneio ocupa todas as semanas entre as duas datas (sem término, vale só o dia do início) */}
+                      <div className="flex gap-2 flex-wrap items-center">
+                        <label style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Início{" "}
+                          <input type="date" aria-label="Início do torneio" style={{ ...entrada, maxWidth: 160, display: "inline-block" }} value={c.data || ""}
+                            onChange={(e) => { mudaLista("competicoes", i, "data", e.target.value); if (c.fim && e.target.value && c.fim < e.target.value) mudaLista("competicoes", i, "fim", e.target.value); }} />
+                        </label>
+                        <label style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Término{" "}
+                          <input type="date" aria-label="Término do torneio" style={{ ...entrada, maxWidth: 160, display: "inline-block" }} value={c.fim || ""} min={c.data || undefined}
+                            onChange={(e) => mudaLista("competicoes", i, "fim", e.target.value)} />
+                        </label>
+                      </div>
                     </div>
                   ))}
                   <Botao pequeno variante="vazio" onClick={() => addLista("competicoes", { nome: "", data: "" })}>+ Competição</Botao>
@@ -23539,7 +23554,7 @@ async function arAtivar(alunos, setAlunos, ids) {
     const a = alunos.find((x) => x.id === id); if (!a) continue;
     const ja = await arLer(id);
     const cal = ja && ja.calendario ? ja.calendario : (a.competicoes || []).filter((c) => c && c.data)
-      .map((c, i) => ({ id: "t" + Date.now().toString(36) + i, nome: c.nome || "Competição", inicio: c.data, fim: c.data, prioridade: "secundario", local: "", superficie: "" }));
+      .map((c, i) => ({ id: "t" + Date.now().toString(36) + i, nome: c.nome || "Competição", inicio: c.data, fim: c.fim && c.fim >= c.data ? c.fim : c.data, prioridade: "secundario", local: "", superficie: "" }));
     await arGravar(id, { ativo: true, desde: (ja && ja.desde) || desde, calendario: cal, metas: (ja && ja.metas) || [] });
   }
   setAlunos(alunos.map((a) => (ids.includes(a.id) ? { ...a, altoRendimento: { ativo: true, desde: (a.altoRendimento && a.altoRendimento.desde) || desde } } : a)));
@@ -23630,13 +23645,18 @@ function ResumoAR({ m }) {
 }
 function CalendarioAR({ doc, salvarDoc, hoje }) {
   const A = ARM(), vazio = { nome: "", local: "", inicio: hoje, fim: hoje, prioridade: "secundario", superficie: "" };
-  const [f, setF] = useState(vazio), [erro, setErro] = useState("");
+  const [f, setF] = useState(vazio), [erro, setErro] = useState(""), [editId, setEditId] = useState(null);
   const lista = (doc.calendario || []).slice().sort((a, b) => (a.inicio < b.inicio ? -1 : 1));
   const add = () => {
     if (!f.nome.trim()) return setErro("Escreva o nome do torneio.");
-    if (!f.inicio || (f.fim && f.fim < f.inicio)) return setErro("Confira as datas.");
-    setErro(""); salvarDoc({ calendario: [...(doc.calendario || []), { ...f, nome: f.nome.trim(), fim: f.fim || f.inicio, id: "t" + Date.now().toString(36) }] }); setF(vazio);
+    if (!f.inicio || (f.fim && f.fim < f.inicio)) return setErro("Confira as datas: o término não pode ser antes do início.");
+    const item = { ...f, nome: f.nome.trim(), fim: f.fim || f.inicio };
+    setErro("");
+    /* editar mantém o id (o plano já gerado aponta para ele) e o resultado anotado */
+    salvarDoc({ calendario: editId ? (doc.calendario || []).map((x) => (x.id === editId ? { ...x, ...item, id: x.id } : x)) : [...(doc.calendario || []), { ...item, id: "t" + Date.now().toString(36) }] });
+    setF(vazio); setEditId(null);
   };
+  const editar = (t) => { setEditId(t.id); setErro(""); setF({ nome: t.nome || "", local: t.local || "", inicio: t.inicio, fim: t.fim || t.inicio, prioridade: t.prioridade || "secundario", superficie: t.superficie || "" }); };
   return (
     <div style={cartaoAR} data-calendario-ar>
       <p style={tituloAR}>Calendário de torneios</p>
@@ -23651,16 +23671,19 @@ function CalendarioAR({ doc, salvarDoc, hoje }) {
               {passado && <input aria-label={"Resultado em " + t.nome} placeholder="Resultado (ex.: semifinal)" defaultValue={t.resultado || ""} style={{ ...entrada, marginTop: 4, padding: "5px 8px", fontSize: 13 }}
                 onBlur={(e) => salvarDoc({ calendario: doc.calendario.map((x) => (x.id === t.id ? { ...x, resultado: e.target.value.slice(0, 120) } : x)) })} />}
             </div>
-            <Botao pequeno variante="vazio" onClick={() => { if (window.confirm("Tirar " + t.nome + " do calendário?")) salvarDoc({ calendario: doc.calendario.filter((x) => x.id !== t.id) }); }}>Tirar</Botao>
+            <div className="flex gap-1 flex-wrap" style={{ justifyContent: "flex-end" }}>
+              <Botao pequeno variante="vazio" onClick={() => editar(t)}>Editar</Botao>
+              <Botao pequeno variante="vazio" onClick={() => { if (window.confirm("Tirar " + t.nome + " do calendário?")) { salvarDoc({ calendario: doc.calendario.filter((x) => x.id !== t.id) }); if (editId === t.id) { setEditId(null); setF(vazio); } } }}>Tirar</Botao>
+            </div>
           </div>
         );
       })}
       <div style={{ borderTop: "1px solid " + C.linha, marginTop: 6, paddingTop: 10 }}>
-        <p style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>Novo torneio</p>
+        <p style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700 }}>{editId ? "Editar torneio" : "Novo torneio"}</p>
         <Campo rotulo="Nome"><input value={f.nome} onChange={(e) => setF({ ...f, nome: e.target.value })} style={entrada} aria-label="Nome do torneio" /></Campo>
         <div className="flex gap-2 flex-wrap">
           <Campo rotulo="Início"><input type="date" value={f.inicio} onChange={(e) => setF({ ...f, inicio: e.target.value, fim: f.fim < e.target.value ? e.target.value : f.fim })} style={entrada} aria-label="Início" /></Campo>
-          <Campo rotulo="Fim"><input type="date" value={f.fim} onChange={(e) => setF({ ...f, fim: e.target.value })} style={entrada} aria-label="Fim" /></Campo>
+          <Campo rotulo="Término"><input type="date" value={f.fim} min={f.inicio || undefined} onChange={(e) => setF({ ...f, fim: e.target.value })} style={entrada} aria-label="Fim" /></Campo>
         </div>
         <div className="flex gap-2 flex-wrap">
           <Campo rotulo="Prioridade"><select value={f.prioridade} onChange={(e) => setF({ ...f, prioridade: e.target.value })} style={entrada} aria-label="Prioridade">
@@ -23670,7 +23693,11 @@ function CalendarioAR({ doc, salvarDoc, hoje }) {
           <Campo rotulo="Local"><input value={f.local} onChange={(e) => setF({ ...f, local: e.target.value })} style={entrada} aria-label="Local" /></Campo>
         </div>
         {erro && <p style={{ ...prosa, fontSize: 13, color: C.saibro }}>{erro}</p>}
-        <Botao pequeno onClick={add}>Adicionar torneio</Botao>
+        <div className="flex gap-2 flex-wrap">
+          <Botao pequeno onClick={add}>{editId ? "Salvar torneio" : "Adicionar torneio"}</Botao>
+          {editId && <Botao pequeno variante="vazio" onClick={() => { setEditId(null); setF(vazio); setErro(""); }}>Cancelar</Botao>}
+        </div>
+        {editId && doc.plano && <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 6 }}>Mudou as datas? As fases do plano já gerado não mudam sozinhas: gere o plano de novo para ele seguir o calendário novo.</p>}
         <p style={{ ...prosa, fontSize: 12, color: C.grafite, marginTop: 6 }}>Principal: 2 semanas de afinação antes e 1 de regeneração depois. Secundário: 1 semana de afinação. Preparatório: treina durante, sem afinação. Depois de mudar o calendário, gere o plano de novo.</p>
       </div>
     </div>
@@ -24036,14 +24063,17 @@ function TelaAltoRendimento({ alunos, setAlunos, uidAtual, papelAtual, identidad
   const A = ARM(), hoje = hojeEq();
   const [ars, setArs] = useState(null), [regs, setRegs] = useState({}), [sessoes, setSessoes] = useState([]), [equipes, setEquipes] = useState([]);
   const [modo, setModo] = useState({ v: "lista" }), [escolha, setEscolha] = useState(""), [msg, setMsg] = useState(null), [professores, setProfessores] = useState([]);
+  /* turmas do alto rendimento: grupos salvos de atletas (mty:arTurmas:v1); o plano continua individual */
+  const [turmasAR, setTurmasAR] = useState([]), [presencaAberta, setPresencaAberta] = useState(null);
+  const salvarTurmasAR = async (l) => { setTurmasAR(l); await grave(CHAVE_AR_TURMAS, l, true); };
   const atletas = (alunos || []).filter((a) => a.altoRendimento && a.altoRendimento.ativo).sort((a, b) => String(a.nome).localeCompare(String(b.nome)));
   const chave = atletas.map((a) => a.id).join(",");
   const carregar = async () => {
     const d = {}, r = {};
     for (const a of atletas) { d[a.id] = (await arLer(a.id)) || { ativo: true, calendario: [] }; r[a.id] = await arLista(a.id, "registros", "data", 30); }
-    setArs(d); setRegs(r); setSessoes(await arSessoesLista(20));
+    setArs(d); setRegs(r); setSessoes(await arSessoesLista(80));
   };
-  useEffect(() => { carregar(); leia(CHAVE_EQUIPES, [], true).then((l) => setEquipes(Array.isArray(l) ? l : [])); listaProfessores().then(setProfessores).catch(() => {}); }, [chave]);
+  useEffect(() => { carregar(); leia(CHAVE_EQUIPES, [], true).then((l) => setEquipes(Array.isArray(l) ? l : [])); leia(CHAVE_AR_TURMAS, [], true).then((l) => setTurmasAR(Array.isArray(l) ? l : [])); listaProfessores().then(setProfessores).catch(() => {}); }, [chave]);
   if (!A) return <p style={{ ...prosa, color: C.grafite }}>O módulo de alto rendimento não carregou. Recarregue a página.</p>;
   if (!ars) return <p style={{ ...prosa, color: C.grafite }}>Carregando…</p>;
   const eu = professores.find((p) => p.uid === uidAtual) || {};
@@ -24053,8 +24083,17 @@ function TelaAltoRendimento({ alunos, setAlunos, uidAtual, papelAtual, identidad
       autor={{ uid: uidAtual || null, nome: eu.nome || "" }} academia={(identidade && (identidade.nomeAcademia || identidade.nome)) || ""} planos={[]} aoVoltar={() => setModo({ v: "lista" })} />;
   }
   if (modo.v === "sessao") {
-    return <SessaoAltoRendimento atletas={atletas} ars={ars} regs={regs} sessaoInicial={modo.sessao || null} uidAtual={uidAtual} nomeProfessor={eu.nome || ""} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom}
+    return <SessaoAltoRendimento atletas={atletas} ars={ars} regs={regs} sessaoInicial={modo.sessao || null} turma={modo.turma || null} uidAtual={uidAtual} nomeProfessor={eu.nome || ""} exerciciosCustom={exerciciosCustom} setExerciciosCustom={setExerciciosCustom}
       aoVoltar={async () => { setModo({ v: "lista" }); await carregar(); }} />;
+  }
+  if (modo.v === "turma") {
+    return <FormTurmaAR inicial={modo.turma || null} atletas={atletas} professores={professores} aoCancelar={() => setModo({ v: "lista" })}
+      aoSalvar={async (t) => {
+        const agora = new Date().toISOString(), limpa = A.limparTurma({ ...t, atualizadoEm: agora }, atletas.map((a) => a.id));
+        await salvarTurmasAR(turmasAR.some((x) => x.id === limpa.id) ? turmasAR.map((x) => (x.id === limpa.id ? limpa : x)) : [...turmasAR, limpa]);
+        setMsg("Turma " + limpa.nome + " salva."); setModo({ v: "lista" });
+      }}
+      aoExcluir={modo.turma ? async () => { await salvarTurmasAR(turmasAR.filter((x) => x.id !== modo.turma.id)); setMsg("Turma " + modo.turma.nome + " excluída. As sessões já feitas continuam guardadas."); setModo({ v: "lista" }); } : null} />;
   }
   const migrar = A.atletasDasEquipes(equipes, alunos);
   const fora = (alunos || []).filter((a) => !(a.altoRendimento && a.altoRendimento.ativo)).sort((a, b) => String(a.nome).localeCompare(String(b.nome)));
@@ -24072,6 +24111,55 @@ function TelaAltoRendimento({ alunos, setAlunos, uidAtual, papelAtual, identidad
         </div>
       )}
       {msg && <p style={{ ...prosa, fontSize: 13, color: C.quadra, marginTop: 8 }}>{msg}</p>}
+      {atletas.length > 0 && (
+        <div data-turmas-ar style={{ marginTop: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <h2 style={{ fontFamily: ARCH, fontSize: 18, fontWeight: 700 }}>Turmas</h2>
+            <Botao pequeno variante="vazio" onClick={() => setModo({ v: "turma" })}>Nova turma</Botao>
+          </div>
+          {!turmasAR.length && <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginTop: 4 }}>Monte uma turma com os atletas que treinam juntos. O plano continua individual: a sessão da turma junta o que é comum a quem está presente e marca a presença de cada um.</p>}
+          {turmasAR.map((t) => {
+            const membros = t.membros.map((id) => atletas.find((a) => a.id === id)).filter(Boolean);
+            const P = A.presencaDaTurma({ ...t, membros: membros.map((a) => a.id) }, sessoes), aberta = presencaAberta === t.id;
+            const emAndamento = sessoes.find((x) => x.turmaId === t.id && x.status !== "fechada" && x.data === hoje);
+            const somaP = membros.reduce((n, a) => n + P.porAtleta[a.id].presencas, 0), somaS = membros.reduce((n, a) => n + P.porAtleta[a.id].sessoes, 0);
+            const primeiro = (id) => (((alunos || []).find((a) => a.id === id) || {}).nome || "Atleta").split(" ")[0];
+            return (
+              <div key={t.id} data-turma-ar={t.id} style={cartaoAR}>
+                <p style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700 }}>{t.nome}</p>
+                <p style={{ ...prosa, fontSize: 13.5, marginTop: 2 }}>{membros.length} {membros.length === 1 ? "atleta" : "atletas"}: {membros.map((a) => (a.nome || "").split(" ")[0]).join(", ") || "ninguém"}</p>
+                <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>{[t.professorNome, t.horario].filter(Boolean).join(" · ") || "Sem professor e horário definidos"}{P.total ? " · " + P.total + (P.total === 1 ? " sessão" : " sessões") + (somaS ? " · presença " + Math.round(100 * somaP / somaS) + "%" : "") : " · nenhuma sessão fechada ainda"}</p>
+                <div className="flex gap-2 flex-wrap" style={{ marginTop: 8 }}>
+                  <Botao pequeno disabled={!membros.length} onClick={() => setModo({ v: "sessao", turma: t, sessao: emAndamento || null })}>{emAndamento ? "Continuar a sessão" : "Sessão da turma"}</Botao>
+                  <Botao pequeno variante="vazio" onClick={() => setPresencaAberta(aberta ? null : t.id)}>{aberta ? "Ocultar presença" : "Presença"}</Botao>
+                  <Botao pequeno variante="vazio" onClick={() => setModo({ v: "turma", turma: t })}>Editar</Botao>
+                </div>
+                {aberta && (
+                  <div data-presenca-turma={t.id} style={{ borderTop: "1px solid " + C.linha, marginTop: 10, paddingTop: 8 }}>
+                    {!P.total && <p style={{ ...prosa, fontSize: 13, color: C.grafite }}>A presença aparece aqui depois da primeira sessão fechada desta turma.</p>}
+                    {P.total > 0 && membros.map((a) => {
+                      const x = P.porAtleta[a.id];
+                      return (
+                        <div key={a.id} data-presenca-atleta={a.id} style={{ display: "flex", gap: 8, alignItems: "baseline", justifyContent: "space-between", padding: "4px 0" }}>
+                          <span style={{ ...prosa, fontSize: 13.5, fontWeight: 700 }}>{a.nome}</span>
+                          <span style={{ ...prosa, fontSize: 13, color: C.grafite, textAlign: "right" }}>{x.sessoes ? x.presencas + " de " + x.sessoes + " · " + x.pct + "%" + (x.ultimaFalta ? " · última falta " + dataBR(x.ultimaFalta).slice(0, 5) : "") : "sem sessão ainda"}</span>
+                        </div>
+                      );
+                    })}
+                    {P.total > 0 && <p style={{ fontFamily: ARCH, fontSize: 12.5, fontWeight: 700, marginTop: 8 }}>Últimas sessões</p>}
+                    {P.sessoes.slice(0, 8).map((x) => (
+                      <p key={x.id} style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 2 }}>
+                        <b style={{ color: C.tinta }}>{dataBR(x.data).slice(0, 5)}</b> · presentes: {x.presentes.map(primeiro).join(", ") || "ninguém"}{x.ausentes.length ? " · faltaram: " + x.ausentes.map(primeiro).join(", ") : ""}{x.convidados.length ? " · de fora da turma: " + x.convidados.map(primeiro).join(", ") : ""}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          <h2 style={{ fontFamily: ARCH, fontSize: 18, fontWeight: 700, marginTop: 18 }}>Atletas</h2>
+        </div>
+      )}
       {!atletas.length && <p style={{ ...prosa, fontSize: 14, marginTop: 14 }}>Nenhum atleta no alto rendimento ainda.</p>}
       {atletas.map((a) => {
         const d = ars[a.id] || {}, st = A.statusAtleta(d, hoje), m = d.plano ? A.marcador(d, hoje) : null, c = A.cargaSemanaAtual(d, hoje), teto = A.tetoDoDia(d, regs[a.id], hoje);
@@ -24100,10 +24188,10 @@ function TelaAltoRendimento({ alunos, setAlunos, uidAtual, papelAtual, identidad
       {sessoes.length > 0 && (
         <div style={{ marginTop: 18 }}>
           <h2 style={{ fontFamily: ARCH, fontSize: 18, fontWeight: 700 }}>Sessões no CT</h2>
-          {sessoes.map((s) => (
+          {sessoes.slice(0, 20).map((s) => (
             <div key={s.id} data-sessao-ar={s.id} style={{ ...cartaoAR, display: "flex", gap: 8, alignItems: "center" }}>
-              <p style={{ ...prosa, fontSize: 13.5, flex: 1 }}><b>{dataBR(s.data)}</b> · {s.presentes.length} atleta(s) · {s.duracaoMin} min · {s.status === "fechada" ? "fechada" : "rascunho"}</p>
-              <Botao pequeno variante="vazio" onClick={() => setModo({ v: "sessao", sessao: s })}>{s.status === "fechada" ? "Ver" : "Continuar"}</Botao>
+              <p style={{ ...prosa, fontSize: 13.5, flex: 1 }}><b>{dataBR(s.data)}</b>{s.turmaNome ? " · " + s.turmaNome : ""} · {s.presentes.length} atleta(s) · {s.duracaoMin} min · {s.status === "fechada" ? "fechada" : "rascunho"}</p>
+              <Botao pequeno variante="vazio" onClick={() => setModo({ v: "sessao", sessao: s, turma: s.turmaId ? turmasAR.find((t) => t.id === s.turmaId) || null : null })}>{s.status === "fechada" ? "Ver" : "Continuar"}</Botao>
             </div>
           ))}
         </div>
@@ -24115,6 +24203,51 @@ function TelaAltoRendimento({ alunos, setAlunos, uidAtual, papelAtual, identidad
           {equipes.map((e) => <p key={e.id} style={{ ...prosa, fontSize: 13 }}>· {e.nome} — {(e.membros || []).length} atleta(s){e.coordenadorNome ? ", coordenação " + e.coordenadorNome : ""}</p>)}
         </details>
       )}
+    </div>
+  );
+}
+
+/* ── turma do alto rendimento: nome, atletas, professor e horário (edição livre; excluir não apaga as sessões já feitas) ── */
+const CHAVE_AR_TURMAS = "mty:arTurmas:v1";
+function FormTurmaAR({ inicial, atletas, professores, aoSalvar, aoCancelar, aoExcluir }) {
+  const [nome, setNome] = useState((inicial && inicial.nome) || ""), [horario, setHorario] = useState((inicial && inicial.horario) || "");
+  const [prof, setProf] = useState((inicial && inicial.professorUid) || ""), [membros, setMembros] = useState((inicial && inicial.membros) || []);
+  const [erro, setErro] = useState(""), [salvando, setSalvando] = useState(false);
+  const salvar = async () => {
+    if (!nome.trim()) return setErro("Dê um nome à turma.");
+    if (!membros.length) return setErro("Escolha pelo menos um atleta.");
+    setErro(""); setSalvando(true);
+    const p = (professores || []).find((x) => x.uid === prof);
+    await aoSalvar({ id: (inicial && inicial.id) || "tu-" + Date.now().toString(36), criadoEm: (inicial && inicial.criadoEm) || new Date().toISOString(), nome, horario, membros,
+      professorUid: prof, professorNome: p ? p.nome : prof && inicial && inicial.professorUid === prof ? inicial.professorNome : "" });
+    setSalvando(false);
+  };
+  return (
+    <div data-form-turma-ar>
+      <Botao pequeno variante="vazio" onClick={aoCancelar}>← Alto rendimento</Botao>
+      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginTop: 10 }}>{inicial ? "Editar turma" : "Nova turma"}</h1>
+      <p style={{ ...prosa, fontSize: 14, color: C.grafite, marginBottom: 10 }}>Quem treina junto no CT. O plano de cada atleta continua individual.</p>
+      <Campo rotulo="Nome da turma"><input value={nome} maxLength={60} onChange={(e) => setNome(e.target.value)} style={entrada} aria-label="Nome da turma" placeholder="ex.: Juvenil A" /></Campo>
+      <Campo rotulo="Atletas" nota={membros.length + " de " + atletas.length + " escolhidos"}>
+        {atletas.map((a) => (
+          <label key={a.id} data-membro={a.id} style={{ display: "flex", gap: 10, alignItems: "center", minHeight: 44, borderBottom: "1px solid " + C.linha }}>
+            <input type="checkbox" checked={membros.includes(a.id)} onChange={(e) => setMembros(e.target.checked ? [...membros, a.id] : membros.filter((x) => x !== a.id))} style={{ width: 20, height: 20 }} />
+            <span style={{ fontFamily: ARCH, fontSize: 14.5, fontWeight: 600 }}>{a.nome}</span>
+          </label>
+        ))}
+      </Campo>
+      <Campo rotulo="Professor responsável"><select value={prof} onChange={(e) => setProf(e.target.value)} style={entrada} aria-label="Professor responsável">
+        <option value="">Sem professor definido</option>
+        {(professores || []).map((p) => <option key={p.uid} value={p.uid}>{p.nome}</option>)}
+        {prof && !(professores || []).some((p) => p.uid === prof) && <option value={prof}>{(inicial && inicial.professorNome) || "Professor"}</option>}
+      </select></Campo>
+      <Campo rotulo="Dias e horário" nota="Texto livre, só para identificar a turma."><input value={horario} maxLength={120} onChange={(e) => setHorario(e.target.value)} style={entrada} aria-label="Dias e horário" placeholder="ex.: seg, qua e sex às 14h" /></Campo>
+      {erro && <p role="alert" style={{ ...prosa, fontSize: 13, color: "#A33", marginBottom: 8 }}>{erro}</p>}
+      <div className="flex gap-2 flex-wrap">
+        <Botao onClick={salvar} disabled={salvando}>{salvando ? "Salvando…" : "Salvar turma"}</Botao>
+        <Botao variante="vazio" onClick={aoCancelar}>Cancelar</Botao>
+        {aoExcluir && <Botao variante="vazio" onClick={() => { if (window.confirm("Excluir a turma " + ((inicial && inicial.nome) || "") + "? As sessões já feitas continuam guardadas.")) aoExcluir(); }}>Excluir turma</Botao>}
+      </div>
     </div>
   );
 }
@@ -24141,16 +24274,24 @@ function ExercicioSessaoAR({ codigo, tema, editado, fechada, aoTrocar, aoRemover
     </div>
   );
 }
-function SessaoAltoRendimento({ atletas, ars, regs, sessaoInicial, uidAtual, nomeProfessor, aoVoltar, exerciciosCustom, setExerciciosCustom }) {
+function SessaoAltoRendimento({ atletas, ars, regs, sessaoInicial, turma, uidAtual, nomeProfessor, aoVoltar, exerciciosCustom, setExerciciosCustom }) {
   const A = ARM(), hoje = hojeEq();
-  const [sessao, setSessao] = useState(sessaoInicial), [presentes, setPresentes] = useState(() => atletas.filter((a) => A.statusAtleta(ars[a.id] || {}, hoje).v !== "torneio").map((a) => a.id));
+  /* sessão de uma turma: começa com os atletas da turma (quem está em torneio vem desmarcado); os outros ficam à mão, desmarcados */
+  const daTurma = (id) => !turma || (turma.membros || []).includes(id);
+  const [sessao, setSessao] = useState(sessaoInicial), [presentes, setPresentes] = useState(() => atletas.filter((a) => daTurma(a.id) && A.statusAtleta(ars[a.id] || {}, hoje).v !== "torneio").map((a) => a.id));
   const [duracao, setDuracao] = useState(120), [fechando, setFechando] = useState(false), [entradas, setEntradas] = useState({}), [salvando, setSalvando] = useState(false);
   const nome = (id) => ((atletas.find((a) => a.id === id) || {}).nome || "").split(" ")[0];
   const fechada = sessao && sessao.status === "fechada";
   const montar = async () => {
-    const lista = atletas.filter((a) => presentes.includes(a.id)).map((a) => ({ id: a.id, nome: a.nome, ar: ars[a.id], registros: regs[a.id] || [] }));
+    const lista = atletas.filter((a) => presentes.includes(a.id) && (ars[a.id] || {}).plano).map((a) => ({ id: a.id, nome: a.nome, ar: ars[a.id], registros: regs[a.id] || [] }));
     const s = A.montarSessao({ atletas: lista, hoje, duracaoMin: duracao, catalogo: TODOS_EXERCICIOS(), estagio: "C" });
     s.id = "ses-" + Date.now().toString(36); s.treinadorUid = uidAtual || null; s.treinadorNome = nomeProfessor || "";
+    if (turma) {
+      /* a presença da turma se lê por aqui: quem era da turma hoje, e quem veio mas ainda não tem plano individual */
+      s.turmaId = turma.id; s.turmaNome = turma.nome;
+      s.convocados = atletas.filter((a) => daTurma(a.id)).map((a) => a.id);
+      s.semPlano = atletas.filter((a) => presentes.includes(a.id) && !(ars[a.id] || {}).plano).map((a) => a.id);
+    }
     setSessao(s); await arGravarSessao(s);
   };
   const alterar = async (fn) => { const s = fn(JSON.parse(JSON.stringify(sessao))); setSessao(s); await arGravarSessao(s); };
@@ -24196,17 +24337,31 @@ function SessaoAltoRendimento({ atletas, ars, regs, sessaoInicial, uidAtual, nom
     return (
       <div data-sessao-presenca>
         <Botao pequeno variante="vazio" onClick={aoVoltar}>← Alto rendimento</Botao>
-        <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginTop: 10 }}>Sessão do dia · {dataBR(hoje)}</h1>
-        <p style={{ ...prosa, fontSize: 14, color: C.grafite }}>Marque quem está no CT. A sessão sai do ponto atual do plano de cada um.</p>
-        {atletas.map((a) => {
-          const d = ars[a.id] || {}, st = A.statusAtleta(d, hoje), semPlano = !d.plano;
+        <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginTop: 10 }}>{turma ? "Sessão da turma " + turma.nome : "Sessão do dia"} · {dataBR(hoje)}</h1>
+        <p style={{ ...prosa, fontSize: 14, color: C.grafite }}>{turma ? "Marque quem veio: é a presença da turma. A sessão sai do ponto atual do plano de cada um." : "Marque quem está no CT. A sessão sai do ponto atual do plano de cada um."}</p>
+        {(() => {
+          const linha = (a) => {
+            const d = ars[a.id] || {}, st = A.statusAtleta(d, hoje), semPlano = !d.plano, soPresenca = semPlano && !!turma && daTurma(a.id);
+            return (
+              <label key={a.id} data-presenca={a.id} style={{ ...cartaoAR, display: "flex", gap: 10, alignItems: "center", opacity: semPlano && !soPresenca ? 0.6 : 1 }}>
+                <input type="checkbox" disabled={semPlano && !soPresenca} checked={presentes.includes(a.id) && (!semPlano || soPresenca)} onChange={(e) => setPresentes(e.target.checked ? [...presentes, a.id] : presentes.filter((x) => x !== a.id))} style={{ width: 20, height: 20 }} />
+                <span style={{ flex: 1 }}><b style={{ fontFamily: ARCH }}>{a.nome}</b><br /><span style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>{semPlano ? (soPresenca ? "Sem plano individual: conta a presença, mas não entra na montagem" : "Sem plano individual") : st.r + " · " + A.tetoDoDia(d, regs[a.id], hoje).r}</span></span>
+              </label>
+            );
+          };
+          const outros = atletas.filter((a) => !daTurma(a.id));
           return (
-            <label key={a.id} data-presenca={a.id} style={{ ...cartaoAR, display: "flex", gap: 10, alignItems: "center", opacity: semPlano ? 0.6 : 1 }}>
-              <input type="checkbox" disabled={semPlano} checked={presentes.includes(a.id) && !semPlano} onChange={(e) => setPresentes(e.target.checked ? [...presentes, a.id] : presentes.filter((x) => x !== a.id))} style={{ width: 20, height: 20 }} />
-              <span style={{ flex: 1 }}><b style={{ fontFamily: ARCH }}>{a.nome}</b><br /><span style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>{semPlano ? "Sem plano individual" : st.r + " · " + A.tetoDoDia(d, regs[a.id], hoje).r}</span></span>
-            </label>
+            <>
+              {atletas.filter((a) => daTurma(a.id)).map(linha)}
+              {turma && outros.length > 0 && (
+                <details data-outros-atletas style={{ marginTop: 12 }}>
+                  <summary style={{ fontFamily: ARCH, fontSize: 13.5, fontWeight: 700, cursor: "pointer" }}>Incluir atleta de fora da turma ({outros.length})</summary>
+                  {outros.map(linha)}
+                </details>
+              )}
+            </>
           );
-        })}
+        })()}
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
           <select value={duracao} onChange={(e) => setDuracao(Number(e.target.value))} style={entrada} aria-label="Duração da sessão">{[60, 90, 120, 150, 180].map((n) => <option key={n} value={n}>{n} min</option>)}</select>
           <Botao onClick={montar} disabled={!presentes.filter((id) => (ars[id] || {}).plano).length}>Montar a sessão</Botao>
@@ -24244,7 +24399,8 @@ function SessaoAltoRendimento({ atletas, ars, regs, sessaoInicial, uidAtual, nom
   return (
     <div data-sessao-blocos>
       <Botao pequeno variante="vazio" onClick={aoVoltar}>← Alto rendimento</Botao>
-      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginTop: 10 }}>Sessão de {dataBR(sessao.data)} · {sessao.duracaoMin} min</h1>
+      <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700, marginTop: 10 }}>{sessao.turmaNome ? "Turma " + sessao.turmaNome + " · " : "Sessão de "}{dataBR(sessao.data)} · {sessao.duracaoMin} min</h1>
+      {(sessao.semPlano || []).length > 0 && <p style={{ ...prosa, fontSize: 12.5, color: C.grafite }}>Presença contada, sem plano individual: {sessao.semPlano.map(nome).join(", ")}.</p>}
       {fechada && <p style={{ ...prosa, fontSize: 13.5, color: C.quadra }}>Sessão fechada: os registros já entraram no marcador e na carga de cada atleta.</p>}
       <div style={{ ...cartaoAR }}>
         {(sessao.atletas || []).map((x) => <p key={x.id} style={{ ...prosa, fontSize: 13 }}><b>{(x.nome || "").split(" ")[0]}</b>{x.semana ? " · " + x.semana.bloco + ", semana " + x.semana.n : ""} · {x.teto.r} · {x.pendentes} pendente(s)</p>)}
@@ -24421,7 +24577,7 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   );
 }
 /* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
-const NOVIDADES_TY_VERSAO = "ty-2026-11-atendimento";
+const NOVIDADES_TY_VERSAO = "ty-2026-11-ar-turmas";
 /* Itens com `so: "financeiro"` só aparecem para o dono e para a parte administrativa. Enquanto o item novo do topo for um
    desses, quem não o vê continua na versão da equipe abaixo (a janela não reabre vazia para os professores). */
 const NOVIDADES_TY_VERSAO_EQUIPE = "ty-2026-11w";
@@ -24430,7 +24586,8 @@ function novidadesTYPara(veFinanceiro) {
   return { itens, versao: itens.some((x) => x.novo) ? NOVIDADES_TY_VERSAO : NOVIDADES_TY_VERSAO_EQUIPE };
 }
 const NOVIDADES_TY = [
-  { novo: true, t: "Padrão de Atendimento MTY: preparação da aula, conquista do dia e relatório do ciclo", d: "O mesmo cuidado com o aluno em toda aula. 1) Antes da aula: no topo da Sessão (do jogador e da turma) aparece Preparação da aula, com o foco do plano, a conquista da última aula e a nota pessoal de cada aluno. 2) Ao finalizar: anote a conquista do dia (dá para marcar como marco), a nota pessoal (algo que o aluno contou: torneio, viagem, objetivo) e, se quiser, uma observação por pilar. Na turma, cada jogador tem a sua em \"+ conquista e nota pessoal\". 3) Checklist de 6 itens: três marcam sozinhos (abrir a preparação, preencher a conquista e registrar a aula) e três você marca. É opcional e não impede registrar a aula; em Aulas de hoje você vê como está o seu nos últimos 7 dias, e o Richard acompanha o da equipe. 4) Relatório do ciclo para o cliente: na ficha do jogador, em Relatório, a IA escreve um rascunho só com as conquistas, os marcos e as observações por pilar (as suas anotações internas não entram), em versão para os pais ou para o aluno adulto. Você revisa, publica e ele aparece no Meu plano do aluno, com a mensagem do Richard. Nada mudou no que você já fazia: os campos novos são opcionais.", onde: "Jogadores › ficha › Sessão de hoje e Relatório (e Turmas › Sessão)", aba: "aulas-hoje" },
+  { novo: true, t: "Alto rendimento: turmas com presença e torneios com início e término", d: "Três mudanças. 1) Turmas no alto rendimento: em Grupos › Alto rendimento, toque em Nova turma, dê um nome e escolha os atletas que treinam juntos (dá para definir professor, dias e horário). A turma pode ser editada ou excluída a qualquer momento. Em Sessão da turma os atletas dela já vêm marcados: desmarque quem faltou, inclua alguém de fora se precisar e monte a sessão, que continua saindo do plano individual de cada um. Em Presença você vê, por atleta, quantas sessões da turma ele fez, a porcentagem e a última falta, além das últimas sessões com quem veio e quem faltou. 2) Torneios com início e término: na ficha do jogador (Perfil › Calendário › Competições) cada torneio agora tem data de início e de término, e as fases ocupam todas as semanas do período. No calendário do alto rendimento, um torneio já lançado pode ser editado (datas, prioridade, local) sem apagar e lançar de novo. 3) Página do aluno: o relatório de fechamento antigo, escrito para o treinador, não aparece mais para o aluno. Ele vê o Relatório do ciclo que você revisa e publica.", onde: "Mais › Grupos › Alto rendimento (e Jogadores › ficha › Perfil › Calendário)", aba: "equipes" },
+  { t: "Padrão de Atendimento MTY: preparação da aula, conquista do dia e relatório do ciclo", d: "O mesmo cuidado com o aluno em toda aula. 1) Antes da aula: no topo da Sessão (do jogador e da turma) aparece Preparação da aula, com o foco do plano, a conquista da última aula e a nota pessoal de cada aluno. 2) Ao finalizar: anote a conquista do dia (dá para marcar como marco), a nota pessoal (algo que o aluno contou: torneio, viagem, objetivo) e, se quiser, uma observação por pilar. Na turma, cada jogador tem a sua em \"+ conquista e nota pessoal\". 3) Checklist de 6 itens: três marcam sozinhos (abrir a preparação, preencher a conquista e registrar a aula) e três você marca. É opcional e não impede registrar a aula; em Aulas de hoje você vê como está o seu nos últimos 7 dias, e o Richard acompanha o da equipe. 4) Relatório do ciclo para o cliente: na ficha do jogador, em Relatório, a IA escreve um rascunho só com as conquistas, os marcos e as observações por pilar (as suas anotações internas não entram), em versão para os pais ou para o aluno adulto. Você revisa, publica e ele aparece no Meu plano do aluno, com a mensagem do Richard. Nada mudou no que você já fazia: os campos novos são opcionais.", onde: "Jogadores › ficha › Sessão de hoje e Relatório (e Turmas › Sessão)", aba: "aulas-hoje" },
   { t: "Alto rendimento: plano individual e sessão do dia no CT (no lugar das Equipes de competição)", d: "Em Grupos › Alto rendimento cada atleta tem o próprio plano: o calendário de torneios com prioridade (principal, secundário, preparatório) define as fases e a carga, e a IA escolhe os conteúdos e os exercícios com a ficha, os scouts, as evidências, as metas e testes e o que ficou do ciclo anterior (você revisa antes de usar). Há um marcador de onde ele está (semana atual, o que já fez e os essenciais que ficaram para trás). Jogos e treinos feitos em viagem entram pelo próprio atleta, no Meu plano, ou por você; tudo soma na carga da semana (minutos × esforço). Na Sessão do dia você marca quem está no CT e a sessão sai pronta: blocos coletivos com o que é comum aos presentes e tarefas individuais com o que é de cada um, com os mesmos cartões de exercício das aulas (substituir, remover, editar e escolher outro); ao fechar, o marcador e a carga de cada atleta se atualizam. Metas e testes repetíveis por pilar mostram a evolução. O planejamento por equipe saiu; um botão traz os atletas das equipes antigas para o alto rendimento.", onde: "Mais › Grupos › Alto rendimento (e Jogadores › ficha › Alto rendimento)", aba: "equipes" },
   { t: "Área do aluno com e-mail e senha", d: "O aluno (e o pai e a mãe, cada um com a sua conta, até 3 por aluno) agora pode guardar o plano numa área com e-mail e senha, em teamyoda.com.br/minha-area. No Meu plano que você manda aparece \"Criar minha área\": a pessoa cria a conta e o aluno já fica ligado. Depois ela abre o plano, as aulas, as reposições, os relatórios e a Academia Digital sem precisar guardar o link. O botão \"Acessar minha área\" do site também leva para lá. Se você trocar o link de um aluno, as contas ligadas a ele param de abrir o plano até receberem o link novo.", onde: "teamyoda.com.br/minha-area (e o Meu plano de cada aluno)", aba: "alunos" },
   { t: "Situações de jogo no catálogo, nas Táticas e nos planos", d: "96 exercícios novos de situação de jogo, cada um com o que ler, o que decidir, a montagem, como variar e o indicador, entraram nas famílias que você já usa: Drills táticos (leitura, organização e defesa), Início do ponto (saque e devolução com a bola seguinte), Power drills de base (construção e mudança no fundo), Ataque (transição e bola curta), Power drills de rede (rede e finalização) e Duplas. A aba Táticas ganhou a situação de jogo e os quatro estados do ponto, da leitura à transferência, nível por situação, como variar e como medir decisão e execução; Condução ganhou as perguntas que ajudam a decidir; Aulas, como desenhar a tarefa, os formatos de prática e sessões com situações. Os planos gerados (jogador e turma) passam a ter pelo menos uma situação de jogo por semana.", onde: "Catálogo de exercícios e Mais › Método e formação › Táticas", aba: "taticas" },

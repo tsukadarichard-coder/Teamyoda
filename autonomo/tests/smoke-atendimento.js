@@ -37,7 +37,9 @@ require.cache[require.resolve(fx + "_firebase-admin.js")] = { id: "y", filename:
 require.cache[require.resolve(fx + "_firebase-admin.js")] = { id: "y", filename: "y", loaded: true, exports: { admin, app: () => {} } };
 const verAluno = require(fx + "ver-aluno.js").handler;
 const textoRel = { abertura: "Foi um ciclo muito bom para a Ana.", pilares: { tecnico: "Saque mais solto.", tatico: "", fisico: "", mental: "" }, conquistas: ["Primeiro ace no jogo"], proximoCiclo: "Devolução.", fechamento: "Parabéns!" };
-store["orgs/team-yoda/dados/mty:alunos:v2"] = { value: JSON.stringify([{ id: "a1", nome: "Ana Souza", linkToken: "tA", registros: [], horarios: [], relatoriosCiclo: [
+store["orgs/team-yoda/dados/mty:alunos:v2"] = { value: JSON.stringify([{ id: "a1", nome: "Ana Souza", linkToken: "tA", registros: [], horarios: [],
+  historicoRelatorios: [{ id: "REL-1", data: dia(-30) + "T10:00:00Z", tipo: "ciclo", feitas: 6, total: 8, texto: "FECHAMENTO-INTERNO: corrigi a empunhadura; deixei passar o saque.", criterios: [{ nome: "Cruzado", resultado: "sim" }] }],
+  relatoriosCiclo: [
   { id: "rc1", status: "publicado", publicadoEm: dia(-1) + "T10:00:00Z", publicadoPor: "Carlos", publico: "pais", periodo: { de: dia(-60), ate: dia(-1) }, aulas: 8, texto: textoRel,
     marcos: [{ data: dia(-3), texto: "Primeiro ace no jogo" }], mensagemCiclo: { texto: "Orgulho deste grupo.", autor: "Richard Tsukada" }, mensagemIndividual: "Ana, siga assim.", autorUid: "INTERNO-UID" },
   { id: "rc2", status: "rascunho", publico: "pais", periodo: { de: dia(-60), ate: hoje }, texto: { ...textoRel, abertura: "RASCUNHO-SECRETO" } },
@@ -249,6 +251,9 @@ const base = "http://localhost:" + srv.address().port;
   assert(!/RASCUNHO-SECRETO/.test(await texto()), "rascunho nunca chega à página do aluno");
   const resp = await p.evaluate(async () => (await fetch("/.netlify/functions/ver-aluno?org=team-yoda&id=a1&t=tA")).text());
   assert(!/RASCUNHO-SECRETO|INTERNO-UID/.test(resp), "a function só entrega o relatório publicado e os campos do relatório");
+  /* o relatório de fechamento antigo (escrito para o treinador) saiu da página e o texto não sai mais da function */
+  assert(!/FECHAMENTO-INTERNO/.test(resp) && /"feitas":6/.test(resp), "do fechamento só saem os números");
+  assert(!/Seus relatórios de ciclo|FECHAMENTO-INTERNO/.test(await texto()), "a página do aluno não mostra mais o fechamento do treinador");
   await p.locator('[data-rc-ver="rc1"]').click();
   assert.strictEqual(await p.locator("[data-rc-aberto]").count(), 0, "fecha");
   await semRolagem("página do aluno"); await cap("atend-06-aluno");

@@ -44,7 +44,7 @@ const html = fs.readFileSync(path.join(raiz, "index.html"), "utf8");
 const ms = [...html.matchAll(/<script type="text\/babel"[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]).join("\n");
 const corte = ms.indexOf('ReactDOM.createRoot(document.getElementById("root")).render(<App />);');
 const fixtures = JSON.stringify([
-  { ...{ id: "j1", nome: "Ana Souza", estagio: "C", nivel: "Y5", prioridades: ["fundo", "saque"], competicoes: [{ nome: "Copa Sul", data: AR.somaDias(hoje, 10) }] } },
+  { ...{ id: "j1", nome: "Ana Souza", estagio: "C", nivel: "Y5", prioridades: ["fundo", "saque"], competicoes: [{ nome: "Copa Sul", data: AR.somaDias(hoje, 10), fim: AR.somaDias(hoje, 13) }] } },
   { id: "j2", nome: "Bia Lima", estagio: "C", nivel: "Y5", prioridades: ["fundo", "rede"], competicoes: [] },
   { id: "j3", nome: "Caio Reis", estagio: "C", nivel: "Y5", prioridades: ["rede", "saque"], competicoes: [] },
   { id: "j4", nome: "Duda Prado", estagio: "A", nivel: "Y3", prioridades: [], competicoes: [] },
@@ -120,6 +120,11 @@ const base = "http://localhost:" + srv.address().port;
   assert.deepStrictEqual(flags.sort(), ["j1", "j2", "j3"]);
   const docAna = await p.evaluate(() => JSON.parse(localStorage.getItem("mty:ar:doc:j1")));
   assert.strictEqual(docAna.calendario.length, 1, "a competição da ficha vira o primeiro torneio do calendário");
+  assert.deepStrictEqual([docAna.calendario[0].inicio, docAna.calendario[0].fim], [AR.somaDias(hoje, 10), AR.somaDias(hoje, 13)], "com o início e o término da ficha");
+  /* fases da ficha: o torneio ocupa todas as semanas entre o início e o término */
+  const fases = await p.evaluate(() => { const f = (c) => montaFases({ inicio: "2026-11-02", semanas: 8, competicoes: [c] }).map((x) => x.fase === "Torneio" ? "T" : "-").join("");
+    return [f({ nome: "T", data: "2026-11-18" }), f({ nome: "T", data: "2026-11-18", fim: "2026-11-26" }), f({ nome: "T", data: "2026-11-18", fim: "2026-11-10" })]; });
+  assert.deepStrictEqual(fases, ["--T-----", "--TT----", "--T-----"], "um dia: uma semana; início e término: as semanas do período; término antes do início é ignorado");
   await cap("ar-01-lista");
 
   /* ficha da Ana: calendário com torneio principal, gerar plano */
@@ -223,6 +228,64 @@ const base = "http://localhost:" + srv.address().port;
   assert(/fechada/.test(await p.locator("[data-sessao-ar]").first().innerText()));
   await cap("ar-05-depois");
   console.log("  A · professor: migração, calendário, plano, registro, meta, sessão do dia e fechamento");
+
+  /* ── A2 · turmas do alto rendimento: montar, editar, sessão da turma e presença ── */
+  assert(/Monte uma turma com os atletas que treinam juntos/.test(await texto()));
+  await p.getByRole("button", { name: "Nova turma", exact: true }).click();
+  await espera(/Quem treina junto no CT/);
+  assert.strictEqual(await p.locator("[data-membro]").count(), 3, "só os atletas do alto rendimento entram na lista");
+  await p.getByRole("button", { name: "Salvar turma", exact: true }).click();
+  await espera(/Dê um nome à turma/);
+  await p.fill('input[aria-label="Nome da turma"]', "Juvenil A");
+  await p.locator('[data-membro="j1"] input').check(); await p.locator('[data-membro="j2"] input').check();
+  await p.selectOption('select[aria-label="Professor responsável"]', "p1");
+  await p.fill('input[aria-label="Dias e horário"]', "seg, qua e sex às 14h");
+  await p.getByRole("button", { name: "Salvar turma", exact: true }).click();
+  await espera(/Turma Juvenil A salva/);
+  let cartaoT = p.locator("[data-turma-ar]").first();
+  assert(/2 atletas: Ana, Bia/.test(await cartaoT.innerText()) && /Carlos · seg, qua e sex às 14h · nenhuma sessão fechada ainda/.test(await cartaoT.innerText()), await cartaoT.innerText());
+  /* editar: entra o Caio */
+  await cartaoT.getByRole("button", { name: "Editar", exact: true }).click();
+  await espera(/Editar turma/);
+  await p.locator('[data-membro="j3"] input').check();
+  await p.getByRole("button", { name: "Salvar turma", exact: true }).click();
+  await espera(/3 atletas: Ana, Bia, Caio/);
+  const turmasSalvas = await p.evaluate(() => JSON.parse(localStorage.getItem("shared:mty:arTurmas:v1")));
+  assert.deepStrictEqual([turmasSalvas.length, turmasSalvas[0].membros, turmasSalvas[0].professorNome], [1, ["j1", "j2", "j3"], "Carlos"]);
+  /* sessão da turma: presença de quem veio; o Caio faltou */
+  await p.locator("[data-turma-ar]").first().getByRole("button", { name: "Sessão da turma", exact: true }).click();
+  await espera(/Sessão da turma Juvenil A/);
+  assert.strictEqual(await p.locator("[data-presenca] input:checked").count(), 3, "os atletas da turma vêm marcados");
+  await p.locator('[data-presenca="j3"] input').uncheck();
+  await p.getByRole("button", { name: "Montar a sessão", exact: true }).click();
+  await espera(/Turma Juvenil A · .* · 120 min/);
+  const sesTurma = await p.evaluate(() => JSON.parse(localStorage.getItem("mty:ar:sessoes")).find((x) => x.turmaId));
+  assert.deepStrictEqual([sesTurma.turmaNome, sesTurma.convocados, sesTurma.presentes.slice().sort()], ["Juvenil A", ["j1", "j2", "j3"], ["j1", "j2"]]);
+  await p.getByRole("button", { name: "Fechar a sessão", exact: true }).click();
+  await espera(/O que cada um realmente fez/);
+  await p.getByRole("button", { name: "Registrar e fechar", exact: true }).click();
+  await espera(/Sessão fechada/);
+  await p.locator("text=← Alto rendimento").click();
+  await espera(/1 sessão · presença 67%/);
+  cartaoT = p.locator("[data-turma-ar]").first();
+  await cartaoT.getByRole("button", { name: "Presença", exact: true }).click();
+  assert(/1 de 1 · 100%/.test(await p.locator('[data-presenca-atleta="j1"]').innerText()));
+  assert(/0 de 1 · 0% · última falta/.test(await p.locator('[data-presenca-atleta="j3"]').innerText()));
+  assert(/presentes: Ana, Bia · faltaram: Caio/.test(await p.locator("[data-presenca-turma]").innerText()), await p.locator("[data-presenca-turma]").innerText());
+  assert(/Juvenil A/.test(await p.locator("[data-sessao-ar]").first().innerText()), "a sessão da turma aparece com o nome dela");
+  await cap("ar-06-turma");
+  /* calendário: editar um torneio já lançado (muda o término, mantém o id) */
+  await p.locator('[data-atleta-ar="j1"] >> text=Abrir').click();
+  await p.getByRole("button", { name: "Calendário", exact: true }).click();
+  const idBr = await p.locator("[data-torneio]", { hasText: "Brasileiro" }).getAttribute("data-torneio");
+  await p.locator("[data-torneio]", { hasText: "Brasileiro" }).getByRole("button", { name: "Editar", exact: true }).click();
+  await espera(/Editar torneio/);
+  await p.fill('input[aria-label="Fim"]', AR.somaDias(hoje, 45));
+  await p.getByRole("button", { name: "Salvar torneio", exact: true }).click();
+  await espera(/Novo torneio/);
+  const calAna = (await p.evaluate(() => JSON.parse(localStorage.getItem("mty:ar:doc:j1")))).calendario.find((x) => x.nome === "Brasileiro");
+  assert.deepStrictEqual([calAna.id, calAna.inicio, calAna.fim, calAna.prioridade], [idBr, AR.somaDias(hoje, 35), AR.somaDias(hoje, 45), "principal"], "torneio editado no lugar");
+  console.log("  A2 · turmas: montar, editar, sessão da turma, presença; torneio editado com início e término");
 
   /* ── B · Meu plano do atleta ── */
   await p.goto(base + "/aluno.html?org=team-yoda&id=a1&t=tA");
