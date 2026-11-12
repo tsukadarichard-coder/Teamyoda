@@ -53,7 +53,7 @@
     if (!meta.atletasSujos) {
       var locais = st.atletas.filter(function (a) { return !(nuvem.atletas || []).some(function (b) { return b.id === a.id; }) && st.jogos.some(function (j) { return j.atletaId === a.id; }); });
       var antes = JSON.stringify(st.atletas);
-      st.atletas = (nuvem.atletas || []).map(function (a) { return { id: a.id, nome: a.nome, criadoEm: a.criadoEm }; }).concat(locais);
+      st.atletas = (nuvem.atletas || []).map(function (a) { return D.atletaLimpo ? D.atletaLimpo(a) : { id: a.id, nome: a.nome, criadoEm: a.criadoEm }; }).concat(locais);
       if (locais.length) meta.atletasSujos = true;
       if (JSON.stringify(st.atletas) !== antes) mudou = true;
     }

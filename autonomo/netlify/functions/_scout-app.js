@@ -38,6 +38,17 @@ function perfil(corpo) {
   return { nome };
 }
 
+/* UTR (1 a 16,5) e WTN (1 a 40) do atleta, digitados no app, com a data e um histórico curto */
+const FAIXA_NOTA = { utr: [1, 16.5, 100], wtn: [1, 40, 10] };
+function notaRanking(tipo, v) { const f = FAIXA_NOTA[tipo], n = Number(v); return f && typeof v === "number" && Number.isFinite(n) && n >= f[0] && n <= f[1] ? Math.round(n * f[2]) / f[2] : null; }
+function notasDoAtleta(x) {
+  if (!x || typeof x !== "object") return null;
+  const out = {};
+  for (const t of Object.keys(FAIXA_NOTA)) { const v = notaRanking(t, x[t] && x[t].v); if (v != null && DATA.test(String(x[t].em))) out[t] = { v, em: x[t].em }; }
+  const hist = (Array.isArray(x.hist) ? x.hist : []).map((h) => { const v = h && notaRanking(h.t, h.v); return v != null && DATA.test(String(h.em)) ? { t: h.t, v, em: h.em } : null; }).filter(Boolean).slice(-40);
+  if (hist.length) out.hist = hist;
+  return Object.keys(out).length ? out : null;
+}
 function atletas(lista, atuais, plus) {
   if (!Array.isArray(lista)) throw new ErroPedido(400, "Lista de atletas inválida.");
   if (lista.length > MAX_ATLETAS) throw new ErroPedido(400, "Limite de " + MAX_ATLETAS + " atletas por conta.");
@@ -45,7 +56,8 @@ function atletas(lista, atuais, plus) {
   for (const a of lista) {
     if (!a || !ID_ATLETA.test(String(a.id)) || vistos[a.id]) continue;
     const nome = txt(a.nome, 60); if (!nome) continue;
-    vistos[a.id] = 1; out.push({ id: a.id, nome, criadoEm: ISO.test(a.criadoEm) ? a.criadoEm : new Date().toISOString() });
+    const n = notasDoAtleta(a.notas);
+    vistos[a.id] = 1; out.push({ id: a.id, nome, criadoEm: ISO.test(a.criadoEm) ? a.criadoEm : new Date().toISOString(), ...(n ? { notas: n } : {}) });
   }
   /* no grátis não entra atleta novo além do limite; quem já estava na conta (de quando era Plus) continua */
   if (!plus && atuais) {

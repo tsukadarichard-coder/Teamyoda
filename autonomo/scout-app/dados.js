@@ -78,12 +78,71 @@
     if (!x || typeof x !== "object") return vazio();
     var st = { v: VERSAO, aparelho: /^[a-f0-9]{16,32}$/.test(x.aparelho) ? x.aparelho : aleatorio(24), criadoEm: typeof x.criadoEm === "string" ? x.criadoEm : agoraISO(), atletas: [], jogos: [] };
     (Array.isArray(x.atletas) ? x.atletas : []).forEach(function (a) {
-      if (a && typeof a.id === "string" && txt(a.nome, 60) && st.atletas.length < MAX_ATLETAS) st.atletas.push({ id: txt(a.id, 40), nome: txt(a.nome, 60), criadoEm: typeof a.criadoEm === "string" ? a.criadoEm : agoraISO() });
+      if (a && typeof a.id === "string" && txt(a.nome, 60) && st.atletas.length < MAX_ATLETAS) st.atletas.push(atletaLimpo(a));
     });
     var ids = {}; st.atletas.forEach(function (a) { ids[a.id] = 1; });
     (Array.isArray(x.jogos) ? x.jogos : []).forEach(function (j) { var l = jogoLimpo(j); if (l && ids[l.atletaId] && st.jogos.length < MAX_JOGOS) st.jogos.push(l); });
     if (x.atual && st.jogos.some(function (j) { return j.id === x.atual && !j.fim; })) st.atual = x.atual;
     return st;
+  }
+
+  /* Notas do atleta: UTR (1,00 a 16,50; maior é melhor) e WTN (1,0 a 40,0; menor é melhor). Digitadas por quem acompanha o atleta,
+     com a data; o histórico guarda cada mudança para mostrar a evolução. A busca automática depende de autorização do UTR e do WTN. */
+  var NOTAS = { utr: { rot: "UTR", min: 1, max: 16.5, casas: 2 }, wtn: { rot: "WTN", min: 1, max: 40, casas: 1 } }, MAX_HIST_NOTAS = 40;
+  function numeroNota(tipo, v) {
+    var c = NOTAS[tipo]; if (!c || v == null || v === "") return null;
+    var n = Number(String(v).replace(",", ".").trim());
+    if (!isFinite(n) || n < c.min || n > c.max) return null;
+    var f = Math.pow(10, c.casas); return Math.round(n * f) / f;
+  }
+  function dataNota(d) { return /^\d{4}-\d{2}-\d{2}$/.test(String(d || "")) ? d : null; }
+  function notasLimpas(x) {
+    if (!x || typeof x !== "object") return null;
+    var out = {};
+    Object.keys(NOTAS).forEach(function (t) { var v = numeroNota(t, x[t] && x[t].v), em = dataNota(x[t] && x[t].em); if (v != null && em) out[t] = { v: v, em: em }; });
+    var hist = (Array.isArray(x.hist) ? x.hist : []).map(function (h) { var v = h && numeroNota(h.t, h.v), em = h && dataNota(h.em); return v != null && em ? { t: h.t, v: v, em: em } : null; }).filter(Boolean).slice(-MAX_HIST_NOTAS);
+    if (hist.length) out.hist = hist;
+    return Object.keys(out).length ? out : null;
+  }
+  /* grava (ou apaga, com valor vazio) a nota de hoje; o mesmo dia substitui o que já estava no histórico */
+  function definirNota(st, atletaId, tipo, valor, hoje) {
+    var a = atleta(st, atletaId), c = NOTAS[tipo];
+    if (!a || !c) return { erro: "Atleta não encontrado." };
+    var notas = notasLimpas(a.notas) || {}, em = dataNota(hoje) || hojeLocal();
+    if (valor == null || String(valor).trim() === "") { delete notas[tipo]; }
+    else {
+      var v = numeroNota(tipo, valor);
+      if (v == null) return { erro: c.rot + " deve ficar entre " + String(c.min).replace(".", ",") + " e " + String(c.max).replace(".", ",") + "." };
+      notas[tipo] = { v: v, em: em };
+      notas.hist = (notas.hist || []).filter(function (h) { return !(h.t === tipo && h.em === em); }).concat([{ t: tipo, v: v, em: em }]).slice(-MAX_HIST_NOTAS);
+    }
+    var limpa = notasLimpas(notas); if (limpa) a.notas = limpa; else delete a.notas;
+    return { atleta: a };
+  }
+  /* junta as notas de uma cópia às do aparelho: vale a mais recente de cada tipo e o histórico soma, sem repetir o dia */
+  function juntarNotas(a, outras) {
+    var o = notasLimpas(outras); if (!o) return;
+    var m = notasLimpas(a.notas) || {}, visto = {};
+    Object.keys(NOTAS).forEach(function (t) { if (o[t] && (!m[t] || o[t].em > m[t].em)) m[t] = o[t]; });
+    m.hist = (m.hist || []).concat(o.hist || []).filter(function (h) { var k = h.t + h.em; if (visto[k]) return false; visto[k] = 1; return true; })
+      .sort(function (x, y) { return x.em < y.em ? -1 : x.em > y.em ? 1 : 0; }).slice(-MAX_HIST_NOTAS);
+    var limpa = notasLimpas(m); if (limpa) a.notas = limpa;
+  }
+  function formatarNota(tipo, v) { return v == null ? "" : Number(v).toFixed(NOTAS[tipo].casas).replace(".", ","); }
+  /* nota anterior à atual (a última do histórico com valor diferente), para mostrar se subiu ou desceu */
+  function notaAnterior(a, tipo) {
+    var n = a && a.notas, atual = n && n[tipo]; if (!atual) return null;
+    var h = (n.hist || []).filter(function (x) { return x.t === tipo && x.em < atual.em && x.v !== atual.v; });
+    return h.length ? h[h.length - 1] : null;
+  }
+  function textoNotas(a) {
+    var n = a && a.notas; if (!n) return "";
+    return Object.keys(NOTAS).filter(function (t) { return n[t]; }).map(function (t) { return NOTAS[t].rot + " " + formatarNota(t, n[t].v); }).join(" · ");
+  }
+  function atletaLimpo(a) {
+    var out = { id: txt(a.id, 40), nome: txt(a.nome, 60), criadoEm: typeof a.criadoEm === "string" ? a.criadoEm : agoraISO() }, n = notasLimpas(a.notas);
+    if (n) out.notas = n;
+    return out;
   }
 
   function atleta(st, id) { return st.atletas.filter(function (a) { return a.id === id; })[0] || null; }
@@ -221,7 +280,7 @@
     x.atletas.forEach(function (a) {
       if (!a || typeof a.id !== "string" || !txt(a.nome, 60)) return;
       var antes = st.atletas.length, r = addAtleta(st, a.nome);
-      if (r.atleta) { mapa[a.id] = r.atleta.id; if (st.atletas.length > antes) novosAtletas++; }
+      if (r.atleta) { mapa[a.id] = r.atleta.id; if (st.atletas.length > antes) novosAtletas++; juntarNotas(r.atleta, a.notas); }
     });
     x.jogos.forEach(function (j0) {
       var j = jogoLimpo(j0); if (!j || !mapa[j.atletaId]) return;
@@ -242,6 +301,7 @@
 
   var api = { VERSAO: VERSAO, CHAVE: CHAVE, CFG_PADRAO: CFG_PADRAO, MEDIDAS: MEDIDAS, vazio: vazio, normalizar: normalizar, atleta: atleta, jogo: jogo, addAtleta: addAtleta, renomearAtleta: renomearAtleta, removerAtleta: removerAtleta,
     novoJogo: novoJogo, removerJogo: removerJogo, tocar: tocar, placar: placar, textoSets: textoSets, encerrado: encerrado, marcarPonto: marcarPonto, desfazer: desfazer, resumo: resumo, anteriores: anteriores,
+    NOTAS: NOTAS, notasLimpas: notasLimpas, definirNota: definirNota, formatarNota: formatarNota, notaAnterior: notaAnterior, textoNotas: textoNotas, atletaLimpo: atletaLimpo,
     duracaoSeg: duracaoSeg, duracaoMin: duracaoMin, textoDuracao: textoDuracao, definirDuracao: definirDuracao, encerrar: encerrar, reabrir: reabrir,
     historico: historico, linhaJogo: linhaJogo, comparacao: comparacao, textoCompartilhar: textoCompartilhar, exportar: exportar, importar: importar, eventoUso: eventoUso, hojeLocal: hojeLocal, cfgLimpa: cfgLimpa };
   if (typeof module !== "undefined" && module.exports) module.exports = api; else raiz.QLScoutApp = api;

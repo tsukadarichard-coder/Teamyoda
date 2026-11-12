@@ -459,8 +459,13 @@
       (link ? '<p class="nota">O link ao vivo mostra o resultado final por mais 2 horas.</p>' : "") +
       '<div class="acoes"><button type="button" class="bt bt-principal" id="btCompartilhar">Compartilhar o resultado</button><a class="bt" id="lkWhats" target="_blank" rel="noopener noreferrer" href="https://wa.me/?text=' + encodeURIComponent(D.textoCompartilhar(M, st, j)) + '">Mandar no WhatsApp</a></div></section>';
     if (n && G) h += '<div class="graficos">' + G.topo(r) + G.secoes(r) + "</div>";
+    /* exportar: o relatório deste jogo (sempre que há pontos) e o de todos os jogos terminados do atleta */
+    var temTodos = !!(window.QLScoutRelatorio && window.QLScoutRelatorio.jogosDoRelatorio(M, D, st, j.atletaId).length);
+    if (n) h += '<section class="cartao" data-exportar><h2>Exportar relatório</h2><p class="nota" style="margin-top:0">Abre o relatório pronto para salvar em PDF, imprimir ou mandar para o treinador. O nome do adversário não entra.</p><div class="acoes">' +
+      '<button type="button" class="bt bt-principal" id="btRelatorioJogo">Relatório deste jogo (PDF)</button>' +
+      (temTodos ? '<button type="button" class="bt bt-pq" id="btRelatorioFim">Todos os jogos de ' + esc(nome) + " (PDF)</button>" : "") + "</div></section>";
     if (r.sinais && r.sinais.length) h += '<section class="cartao"><h2>O que este jogo aponta</h2><p class="nota">Leitura automática pelos números. É ponto de partida para conversar com o treinador, não conclusão.</p>' + r.sinais.map(function (t) { return '<div class="sinal">' + t + "</div>"; }).join("") + "</section>";
-    if (cmp.jogos.length >= 2) h += '<section class="cartao"><h2>Comparação com os jogos anteriores</h2>' + tabelaComparacao(cmp) + '<div class="acoes"><a class="bt bt-pq" href="#/atleta/' + esc(j.atletaId) + '">Ver todos os jogos de ' + esc(nome) + '</a>' + '<button type="button" class="bt bt-pq" id="btRelatorioFim">Relatório dos jogos (PDF)</button>' + "</div></section>";
+    if (cmp.jogos.length >= 2) h += '<section class="cartao"><h2>Comparação com os jogos anteriores</h2>' + tabelaComparacao(cmp) + '<div class="acoes"><a class="bt bt-pq" href="#/atleta/' + esc(j.atletaId) + '">Ver todos os jogos de ' + esc(nome) + '</a>' + "</div></section>";
     else h += '<div class="aviso">Marque mais jogos de ' + esc(nome) + " para ver a comparação jogo a jogo. Um jogo é uma amostra; três na mesma direção já são um sinal.</div>";
     h += '<section class="cartao"><h2>Depois do jogo <span class="nota">(opcional)</span></h2><div class="campo"><label for="fmNivel">Nível do adversário</label><select id="fmNivel"><option value="">Não informar</option>' +
       M.NIVEIS_ADVERSARIO.map(function (x) { return '<option value="' + esc(x[0]) + '"' + (j.nivelAdversario === x[0] ? " selected" : "") + ">" + esc(x[1]) + "</option>"; }).join("") + "</select></div>" +
@@ -477,6 +482,7 @@
       copiar(t, "Texto copiado. Cole no WhatsApp ou onde quiser.");
     });
     var rf = document.getElementById("btRelatorioFim"); if (rf) rf.addEventListener("click", function () { abrirRelatorio(j.atletaId); });
+    var rj = document.getElementById("btRelatorioJogo"); if (rj) rj.addEventListener("click", function () { abrirRelatorioPartida(j); });
     document.getElementById("fmNivel").addEventListener("change", function (e) { j.nivelAdversario = e.target.value; D.tocar(j); salvar(); });
     document.getElementById("fmDuracao").addEventListener("change", function (e) {
       D.definirDuracao(j, e.target.value); salvar();
@@ -512,23 +518,48 @@
 
   /* ══ Atleta ══ */
   var confirmaAtleta = null;
+  /* UTR e WTN do atleta: digitados por quem acompanha (o app ainda não busca sozinho: os dois exigem autorização para isso) */
+  function notasHtml(a) {
+    function campo(t, idc, dica) {
+      var n = a.notas && a.notas[t], ant = D.notaAnterior(a, t), c = D.NOTAS[t];
+      var mudou = n && ant ? (t === "utr" ? n.v > ant.v : n.v < ant.v) : null;
+      return '<div class="campo" style="flex:1 1 140px;margin-top:6px"><label for="' + idc + '">' + c.rot + ' <span class="nota">(' + dica + ')</span></label><input id="' + idc + '" inputmode="decimal" autocomplete="off" maxlength="6" placeholder="' + (t === "utr" ? "ex.: 7,42" : "ex.: 18,3") + '" value="' + (n ? esc(D.formatarNota(t, n.v)) : "") + '">' +
+        '<p class="nota" data-nota-info="' + t + '" style="margin:4px 0 0">' + (n ? "Atualizado em " + esc(dataBR(n.em)) + (ant ? " · antes " + esc(D.formatarNota(t, ant.v)) + (mudou ? " (melhorou)" : " (piorou)") : "") : "Ainda não informado") + "</p></div>";
+    }
+    return '<section class="cartao" data-notas><h2>UTR e WTN</h2><p class="nota" style="margin-top:0">Digite os números que aparecem no perfil do atleta. Eles entram nos relatórios e o app guarda a evolução.</p>' +
+      '<div style="display:flex;gap:12px;flex-wrap:wrap">' + campo("utr", "atUtr", "de 1 a 16,5; maior é melhor") + campo("wtn", "atWtn", "de 1 a 40; menor é melhor") + "</div>" +
+      '<div class="aviso atencao" id="notasErro" role="alert" hidden></div>' +
+      '<div class="acoes"><button type="button" class="bt bt-pq" id="btNotas">Salvar UTR e WTN</button><a class="bt bt-texto" href="https://app.utrsports.net/" target="_blank" rel="noopener noreferrer">Abrir o UTR</a><a class="bt bt-texto" href="https://worldtennisnumber.com/" target="_blank" rel="noopener noreferrer">Abrir o WTN</a></div></section>';
+  }
   function telaAtleta(id) {
     var a = D.atleta(st, id);
     if (!a) { tela('<p class="voltar"><a class="bt bt-texto" href="#/">‹ Seus jogos</a></p><div class="aviso atencao">Atleta não encontrado na sua conta.</div>', true); return; }
     var jogos = D.historico(st, id), linhas = jogos.map(function (j) { return D.linhaJogo(M, st, j); }), fim = linhas.filter(function (l) { return l.fim && l.n; });
     var vit = fim.filter(function (l) { return l.venceu === true; }).length, der = fim.filter(function (l) { return l.venceu === false; }).length;
     var media = fim.length ? Math.round(fim.reduce(function (s, l) { return s + l.pct; }, 0) / fim.length) : null, cmp = D.comparacao(M, st, id, 8);
-    var h = '<p class="voltar"><a class="bt bt-texto" href="#/">‹ Seus jogos</a></p><h1>' + esc(a.nome) + '</h1><p class="sub">' + jogos.length + (jogos.length === 1 ? " jogo" : " jogos") + (fim.length ? " · " + vit + (vit === 1 ? " vitória" : " vitórias") + " e " + der + (der === 1 ? " derrota" : " derrotas") + " · média de " + media + "% dos pontos" : "") + "</p>" +
+    var h = '<p class="voltar"><a class="bt bt-texto" href="#/">‹ Seus jogos</a></p><h1>' + esc(a.nome) + '</h1><p class="sub">' + jogos.length + (jogos.length === 1 ? " jogo" : " jogos") + (fim.length ? " · " + vit + (vit === 1 ? " vitória" : " vitórias") + " e " + der + (der === 1 ? " derrota" : " derrotas") + " · média de " + media + "% dos pontos" : "") + (D.textoNotas(a) ? ' · <b data-notas-resumo>' + esc(D.textoNotas(a)) + "</b>" : "") + "</p>" +
       '<div class="acoes"><a class="bt bt-principal" href="#/novo" data-novo-atleta="' + esc(id) + '">+ Marcar um jogo de ' + esc(primeiroNome(a.nome)) + "</a></div>" +
       '<section class="cartao"><h2>Relatório dos jogos</h2><p class="nota" style="margin-top:0">Reúne os jogos terminados em um PDF com gráficos de evolução.</p><div class="acoes">' +
         (window.QLScoutRelatorio && window.QLScoutRelatorio.jogosDoRelatorio(M, D, st, id).length ? '<button type="button" class="bt bt-pq" id="btRelatorio">Relatório dos jogos (PDF)</button>' : '<span class="nota">O relatório aparece com 1 jogo terminado de pelo menos 10 pontos.</span>') + "</div></section>" +
       (cmp.jogos.length >= 2 ? '<section class="cartao"><h2>Evolução jogo a jogo</h2>' + tabelaComparacao(cmp) + "</section>" : '<div class="aviso">A comparação aparece a partir de 2 jogos terminados.</div>') +
       (jogos.length ? '<section class="secao"><h2>Jogos</h2><ul class="lista">' + jogos.map(linhaHtml).join("") + "</ul></section>" : "") +
+      notasHtml(a) +
       '<section class="cartao"><h2>Nome</h2><div class="campo" style="margin-top:6px"><label for="atNome">Nome do atleta</label><input id="atNome" maxlength="60" value="' + esc(a.nome) + '"></div><div class="acoes"><button type="button" class="bt bt-pq" id="btRenomear">Salvar nome</button>' +
       (confirmaAtleta === id ? '</div><div class="cartao confirma"><p style="margin:0"><b>Apagar ' + esc(a.nome) + " e " + (jogos.length === 1 ? "o jogo" : "os " + jogos.length + " jogos") + '?</b> Sai da conta e de todos os aparelhos. Não dá para desfazer.</p><div class="acoes"><button type="button" class="bt bt-pq bt-perigo" id="btAtApagarSim">Sim, apagar</button><button type="button" class="bt bt-pq" id="btAtApagarNao">Manter</button></div></div>' :
         '<button type="button" class="bt bt-pq bt-perigo" id="btAtApagar">Apagar atleta</button></div>') + "</section>";
     tela(h, true);
     var brl = document.getElementById("btRelatorio"); if (brl) brl.addEventListener("click", function () { abrirRelatorio(id); });
+    var bn = document.getElementById("btNotas");
+    if (bn) bn.addEventListener("click", function () {
+      var er = document.getElementById("notasErro"), hoje = D.hojeLocal(), erros = [];
+      ["utr", "wtn"].forEach(function (t) {
+        var campo = document.getElementById(t === "utr" ? "atUtr" : "atWtn"), atual = a.notas && a.notas[t] ? D.formatarNota(t, a.notas[t].v) : "";
+        if (campo.value.trim() === atual) return; // não mexeu: mantém a data da última atualização
+        var r = D.definirNota(st, id, t, campo.value, hoje); if (r.erro) erros.push(r.erro);
+      });
+      if (erros.length) { er.textContent = erros.join(" "); er.hidden = false; return; }
+      atletasMudaram(); salvar(); toast("UTR e WTN salvos."); telaAtleta(id);
+    });
     var nv = q("[data-novo-atleta]"); if (nv) nv.addEventListener("click", function () { novo = { atletaId: id, nome: "", outro: false, torneio: "", adversario: "", cfg: Object.assign({}, D.CFG_PADRAO), mental: { antes: {} }, mentalAberto: false }; });
     document.getElementById("btRenomear").addEventListener("click", function () { var r = D.renomearAtleta(st, id, document.getElementById("atNome").value); if (r.erro) { toast(r.erro); return; } atletasMudaram(); salvar(); toast("Nome salvo."); telaAtleta(id); });
     var ap = document.getElementById("btAtApagar"); if (ap) ap.addEventListener("click", function () { confirmaAtleta = id; telaAtleta(id); });
@@ -552,6 +583,20 @@
   }
 
   /* ══ Relatório dos jogos (PDF) ══ */
+  /* janela nova com o documento pronto para "Salvar como PDF" */
+  function abrirDocumento(montar) {
+    if (!window.QLRelatorioJogos || !window.QLScoutRelatorio) { toast("Não foi possível carregar o relatório. Confira a internet e recarregue a página."); return; }
+    var w = window.open("", "_blank");
+    if (!w) { toast("O navegador bloqueou a janela do relatório. Permita janelas novas para este site."); return; }
+    var html;
+    try { html = montar(); } catch (e) { w.close(); toast("Não foi possível montar o relatório: " + e.message); return; }
+    w.document.write(html); w.document.close();
+  }
+  /* relatório de UM jogo, comparado com os jogos anteriores do atleta */
+  function abrirRelatorioPartida(j) {
+    if (!j.pontos.length) { toast("Marque pelo menos um ponto para gerar o relatório."); return; }
+    abrirDocumento(function () { return window.QLRelatorioJogos.gerarPartida(window.QLScoutRelatorio.opcoesPartida(M, D, st, j)); });
+  }
   function abrirRelatorio(atletaId) {
     if (!window.QLRelatorioJogos || !window.QLScoutRelatorio) { toast("Não foi possível carregar o relatório. Confira a internet e recarregue a página."); return; }
     var o = window.QLScoutRelatorio.opcoes(M, D, st, atletaId);

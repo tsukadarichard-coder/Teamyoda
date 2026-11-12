@@ -190,6 +190,18 @@ const chama = async (tk, corpo, metodo) => {
     jt = R.jogo({ ...base, inicioEm: "ontem", fimEm: "2026-11-11T11:12:00.000Z" }, null);
     assert.deepStrictEqual([jt.inicioEm, jt.fimEm], [undefined, undefined], "jogo antigo, sem relógio, continua valendo");
   }
+
+  /* UTR e WTN do atleta: o servidor guarda o que está dentro da escala e descarta o resto */
+  {
+    const R = require(fx + "_scout-app.js"), id = "anotas000001";
+    let at = R.atletas([{ id, nome: "Lia", notas: { utr: { v: 7.416, em: "2026-11-12" }, wtn: { v: 18.34, em: "2026-11-12" }, hist: [{ t: "utr", v: 7.2, em: "2026-10-01" }, { t: "utr", v: 7.42, em: "2026-11-12" }] } }], null, true)[0];
+    assert.deepStrictEqual(at.notas, { utr: { v: 7.42, em: "2026-11-12" }, wtn: { v: 18.3, em: "2026-11-12" }, hist: [{ t: "utr", v: 7.2, em: "2026-10-01" }, { t: "utr", v: 7.42, em: "2026-11-12" }] });
+    at = R.atletas([{ id, nome: "Lia", notas: { utr: { v: 99, em: "2026-11-12" }, wtn: { v: "18", em: "2026-11-12" }, hist: [{ t: "elo", v: 5, em: "2026-11-12" }, { t: "wtn", v: 20, em: "ontem" }], extra: "x" } }], null, true)[0];
+    assert.strictEqual(at.notas, undefined, "fora da escala, texto, tipo estranho e data errada não entram");
+    assert.strictEqual(R.atletas([{ id, nome: "Lia" }], null, true)[0].notas, undefined, "atleta sem nota continua igual");
+    const cem = Array.from({ length: 100 }, (_, i) => ({ t: "utr", v: 5, em: "2026-01-01" }));
+    assert.strictEqual(R.atletas([{ id, nome: "Lia", notas: { hist: cem } }], null, true)[0].notas.hist.length, 40, "histórico limitado");
+  }
   r = await chama("tk-bia"); assert.strictEqual(r.conta.plano, "plus"); assert.strictEqual(r.conta.acessoCompleto, true); assert.strictEqual(r.conta.plusAte, null);
 
   /* criar conta (sem login) */

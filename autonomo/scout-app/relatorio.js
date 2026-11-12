@@ -67,9 +67,28 @@
       detalheDe: function (r) { return r.scout.detalhe || null; }, zonasDe: function (_p, s) { return s.zonas || {}; },
       cabecalhoHtml: '<div style="border-bottom:3px solid #260A3E;padding-bottom:10px;margin-bottom:16px"><div style="font-weight:800;font-size:13px;letter-spacing:.06em;color:#260A3E">QUADRALAB <span style="color:#6A12BA">SCOUT</span></div></div>',
       geradoEm: extra.geradoEm || new Date().toLocaleDateString("pt-BR"),
+      notaAtleta: D.textoNotas ? D.textoNotas(a) : "",
+    };
+  }
+  /* um jogo no formato que o relatório usa (o nome do adversário nunca entra) */
+  function registroDoJogo(M, D, st, j) {
+    var r = D.resumo(M, st, j), flat = Object.assign({}, r, r.numeros, r.bolas, { duracaoMin: D.duracaoMin ? D.duracaoMin(j) : null, pontos: j.pontos, cfg: j.cfg });
+    return { id: j.id, data: j.data, torneio: r.torneio || "", adversario: "", resultado: r.resultado || "", concluida: r.concluida !== false, nivelAdversario: r.nivelAdversario || "", observacaoFinal: r.observacaoFinal || "",
+      mental: r.mental || null, duracaoMin: D.duracaoMin ? D.duracaoMin(j) : null, scout: flat };
+  }
+  /* entrada de QLRelatorioJogos.gerarPartida: o relatório de UM jogo (também de jogo ainda em andamento), comparado com até 5 anteriores */
+  function opcoesPartida(M, D, st, j, extra) {
+    extra = extra || {};
+    var base = opcoes(M, D, st, j.atletaId, extra), pl = D.placar(M, j);
+    var anteriores = D.historico(st, j.atletaId).filter(function (x) { return x.id !== j.id && D.encerrado(M, x) && x.pontos.length >= 10 && (x.data + x.criadoEm) < (j.data + j.criadoEm); })
+      .slice(0, 5).reverse().map(function (x) { return registroDoJogo(M, D, st, x); });
+    return {
+      atleta: base.atleta, reg: registroDoJogo(M, D, st, j), anteriores: anteriores, metricas: base.metricas, leitura: base.leitura, zonasDe: base.zonasDe, detalheDe: base.detalheDe,
+      placarFinal: { sets: pl.sets.map(function (x) { return [x[0], x[1]]; }), games: [pl.g[0], pl.g[1]], pontos: pl.fim ? "" : M.rotuloPontos(pl), fim: !!pl.fim },
+      cabecalhoHtml: base.cabecalhoHtml, geradoEm: base.geradoEm, notaAtleta: base.notaAtleta,
     };
   }
 
-  var api = { metricas: metricas, tendencia: tendencia, sequencias: sequencias, jogosDoRelatorio: jogosDoRelatorio, opcoes: opcoes };
+  var api = { metricas: metricas, tendencia: tendencia, sequencias: sequencias, jogosDoRelatorio: jogosDoRelatorio, opcoes: opcoes, opcoesPartida: opcoesPartida, registroDoJogo: registroDoJogo };
   if (typeof module !== "undefined" && module.exports) module.exports = api; else raiz.QLScoutRelatorio = api;
 })(typeof window !== "undefined" ? window : this);
