@@ -4,6 +4,7 @@
    · aluno com conta (Área do aluno, contasAluno ativo): { app: "aluno", uid, orgId, alunoId }
    · aluno/pais pelo link do aluno ({ org, id, t }):     { app: "aluno", orgId, alunoId }
    · atleta do QuadraLab Player:                        { app: "player", uid, atletaUid }
+   · consultoria (teamyoda.com.br/richard):              { app: "consultoria", uid, papel: "richard" | "cliente" }
 
    GET                                   → { chave }  (chave pública VAPID, para o navegador se inscrever)
    POST { acao: "inscrever", app, inscricao: { endpoint, keys: { p256dh, auth } }, link?, url? } → { ok }  (url: a tela que o toque abre)
@@ -13,6 +14,7 @@
 const { admin, app } = require("./_firebase-admin");
 const P = require("./_push");
 const VA = require("./ver-aluno").interno;
+const C = require("./_consultoria");
 
 class Erro extends Error { constructor(status, msg) { super(msg); this.status = status; } }
 const resposta = (statusCode, corpo) => ({ statusCode, headers: { "content-type": "application/json", "cache-control": "no-store" }, body: JSON.stringify(corpo) });
@@ -49,6 +51,11 @@ async function destinatario(appPedido, claims, link) {
     const v = c.exists ? c.data().vinculo : null;
     if (!v || v.status !== "ativo" || !v.alunoId) throw new Erro(409, "Sua conta ainda não está ligada a um professor.");
     return { app: "aluno", uid: claims.uid, orgId: String(v.orgId), alunoId: String(v.alunoId) };
+  }
+  /* consultoria com o Richard (teamyoda.com.br/richard): o cliente recebe as devolutivas; o Richard, os envios novos */
+  if (appPedido === "consultoria") {
+    if (!claims) throw new Erro(403, "Entre com a sua conta.");
+    return { app: "consultoria", uid: claims.uid, papel: C.ehDono(claims) ? "richard" : "cliente" };
   }
   throw new Erro(400, "App desconhecido.");
 }
