@@ -9,10 +9,13 @@
   var API = "/.netlify/functions/consultoria";
   var ERROS_AUTH = { "auth/invalid-credential": "E-mail ou senha não conferem.", "auth/wrong-password": "E-mail ou senha não conferem.", "auth/user-not-found": "E-mail ou senha não conferem.",
     "auth/invalid-email": "E-mail inválido.", "auth/too-many-requests": "Muitas tentativas. Espere um pouco e tente de novo." };
-  var app = document.getElementById("app"), nav = document.getElementById("nav"), btSair = document.getElementById("btSair"), toastEl = document.getElementById("toast");
+  var app = document.getElementById("app"), nav = document.getElementById("nav"), btSair = document.getElementById("btSair"), lkEntrar = document.getElementById("lkEntrar"), toastEl = document.getElementById("toast");
   var auth = null;
   try { if (!firebase.apps.length) firebase.initializeApp(MTY_CONFIG); auth = firebase.auth(); } catch (e) { console.error("consultoria: Firebase", e); }
-  var st = { usuario: null, dados: null, modo: "entrar", carregado: false };
+  /* sem conta entrada: #/ é a home de vendas; #/entrar, #/convite (primeiro acesso de quem foi convidado) e #/comecar abrem cada caminho */
+  function modoDoHash() { var h = location.hash || ""; return /^#\/entrar/.test(h) ? "entrar" : /^#\/convite/.test(h) ? "primeiro" : /^#\/comecar/.test(h) ? "criar" : "home"; }
+  var HASH_DO_MODO = { home: "#/", entrar: "#/entrar", primeiro: "#/convite", criar: "#/comecar" };
+  var st = { usuario: null, dados: null, modo: modoDoHash(), carregado: false };
   var envioAtivo = null; // { controle, envioId } enquanto um vídeo sobe
 
   /* ── utilidades ── */
@@ -70,7 +73,7 @@
     }).join("");
   }
   function rota() {
-    btSair.hidden = !st.usuario;
+    btSair.hidden = !st.usuario; if (lkEntrar) lkEntrar.hidden = !!st.usuario || st.modo !== "home";
     if (!st.usuario) { barra([]); return telaEntrada(); }
     if (!st.carregado) { barra([]); return tela('<p class="carregando">Carregando…</p>'); }
     var h = location.hash.replace(/^#\/?/, "").split("/"), d = st.dados;
@@ -85,13 +88,63 @@
     atualizando = true;
     carregar().then(function () { atualizando = false; if (telaDeLista() && !envioAtivo) rota(); }).catch(function () { atualizando = false; });
   }
-  window.addEventListener("hashchange", function () { rota(); atualizarLista(); });
+  window.addEventListener("hashchange", function () { if (!st.usuario) st.modo = modoDoHash(); rota(); atualizarLista(); });
   document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible") atualizarLista(); });
 
   /* ══════════════ Entrada ══════════════ */
+  /* ══════════════ Home de vendas (quem chega sem conta entrada) ══════════════
+     Sem preço nem compra no app: o Richard combina o valor por fora; os botões levam a "Quero começar" (conta + cadastro, fica
+     pendente até ele liberar) ou ao WhatsApp. Nada de depoimento inventado. */
+  function telaHome() {
+    var zap = typeof MTY_WHATSAPP !== "undefined" && MTY_WHATSAPP ? "https://wa.me/" + MTY_WHATSAPP + "?text=" + encodeURIComponent("Oi, Richard! Quero saber da consultoria de tênis por vídeo.") : "";
+    var btZap = function (cls) { return zap ? '<a class="btn ' + cls + '" href="' + zap + '" target="_blank" rel="noopener" data-cta="whatsapp">Falar com o Richard</a>' : ""; };
+    tela('<section class="h-heroi" data-home><img src="/assets/foto-forehand.jpg" alt="" width="1179" height="804"><div class="in">' +
+      '<span class="olho">Consultoria de tênis por vídeo</span><h1>Mande o vídeo. Receba o que treinar.</h1>' +
+      '<p class="lead">Você filma o golpe ou o jogo e conta a sua dúvida. O Richard Tsukada assiste, responde com o que viu e monta os exercícios da semana.</p>' +
+      '<div class="acoes"><button class="btn btn-verm" type="button" data-modo-ent="criar" data-cta="comecar-topo">Quero começar</button>' + btZap("btn-linha") + "</div>" +
+      '<p class="entrar">Já é cliente? <button class="link" type="button" data-modo-ent="entrar">Entrar</button> · Recebeu o convite? <button class="link" type="button" data-modo-ent="primeiro">Primeiro acesso</button></p></div></section>' +
+
+      '<section class="h-sec"><span class="olho">Como funciona</span><h2>Quatro passos, tudo pelo celular.</h2><ol class="h-passos">' +
+      "<li><b>Filme</b><span>Até 3 minutos do golpe ou do jogo. O celular basta; de lado ou de trás, com o corpo inteiro no quadro.</span></li>" +
+      "<li><b>Conte a dúvida</b><span>Escreva o que você quer que o Richard olhe. Pode mandar o link do YouTube ou o arquivo do celular.</span></li>" +
+      "<li><b>Receba a devolutiva</b><span>Em até 3 dias: o que ele viu, um recado em texto, áudio ou vídeo, e o que treinar.</span></li>" +
+      "<li><b>Treine e mande o próximo</b><span>Ficou dúvida? Pergunte sobre a devolutiva. Tudo fica guardado para ver a evolução.</span></li></ol></section>" +
+
+      '<section class="h-sec"><span class="olho">O que chega para você</span><h2>Uma devolutiva que vira treino.</h2>' +
+      '<div class="h-mock" aria-label="Exemplo de devolutiva"><div class="topo-m"><span>Devolutiva do Richard</span><span class="selo novo">Nova</span></div>' +
+      '<div class="audio"><i aria-hidden="true"></i><s aria-hidden="true"></s><span>3:40</span></div>' +
+      "<h3>O que eu vi</h3><p>No segundo saque o lançamento cai para trás e você perde a perna de apoio.</p>" +
+      '<h3>O que treinar</h3><ol class="treinar"><li>Lançamento com alvo, 3 séries de 10</li><li>Saque com pés juntos, 20 bolas</li></ol>' +
+      '<p class="det" style="margin-top:10px">Exemplo de como a devolutiva aparece no app.</p></div>' +
+      '<ul class="h-lista"><li>Resposta do próprio Richard, não de um robô.</li><li>Aviso no celular quando a devolutiva chega.</li><li>"Entendi" ou "Tenho uma dúvida", direto na devolutiva.</li><li>Histórico com todos os vídeos e respostas.</li></ul></section>' +
+
+      '<section class="h-sec"><span class="olho">Para quem é</span><h2>Para quem joga e quer evoluir com direção.</h2><div class="h-pub">' +
+      "<div><b>Juvenil que compete</b><span>Ajustes de golpe e de jogo entre um torneio e outro, sem depender de estar perto.</span></div>" +
+      "<div><b>Adulto que joga torneios</b><span>Um olhar de fora sobre o que está travando o seu jogo, no seu tempo.</span></div>" +
+      "<div><b>Pai e mãe</b><span>Você filma, manda e acompanha as respostas junto com o atleta. Para menores, o responsável autoriza o envio.</span></div>" +
+      "<div><b>Treinador do atleta</b><span>Use a devolutiva como apoio no treino do dia a dia.</span></div></div></section>" +
+
+      '<section class="h-sec"><span class="olho">Quem responde</span><h2>Richard Tsukada</h2><div class="h-sobre"><img src="/assets/richard-tsukada.jpg" alt="Richard Tsukada" width="900" height="900" loading="lazy">' +
+      '<div><p class="lead" style="margin-top:0">Head trainer do Team Yoda. Cada vídeo é assistido e respondido por ele, com o método de treino que usa com os atletas da academia.</p>' +
+      '<p class="det" style="margin-top:10px">Os vídeos são privados: só você e o Richard veem. Pelo YouTube, publique como "Não listado". Arquivos enviados pelo app são apagados 90 dias depois da devolutiva; a devolutiva fica.</p></div></div></section>' +
+
+      '<section class="h-sec h-faq"><span class="olho">Perguntas</span><h2>Dúvidas comuns</h2>' +
+      "<details><summary>Quanto custa?</summary><p>O formato e o valor são combinados direto com o Richard, de acordo com o seu objetivo. Fale com ele pelo WhatsApp.</p></details>" +
+      "<details><summary>Preciso de câmera profissional?</summary><p>Não. O celular basta. Filme de lado ou de trás, com o corpo inteiro e a bola no quadro, em 1080p.</p></details>" +
+      "<details><summary>Em quanto tempo chega a resposta?</summary><p>Até 3 dias depois do envio. Você recebe um aviso no celular quando ela chega.</p></details>" +
+      "<details><summary>Posso mandar um jogo inteiro?</summary><p>Mande até 3 minutos, ou o link do YouTube dizendo o trecho que importa (ex.: de 1:20 a 2:40).</p></details>" +
+      "<details><summary>E se o atleta for menor de idade?</summary><p>O pai, a mãe ou o responsável autoriza o envio dos vídeos no cadastro e pode usar a conta junto.</p></details>" +
+      "<details><summary>Já tenho conta no Team Yoda. Preciso de outra?</summary><p>Não. Use o mesmo e-mail e senha da Área do aluno ou da Academia Digital.</p></details></section>" +
+
+      '<section class="h-final"><h2>O próximo vídeo pode ser o que muda o seu jogo.</h2><p>Crie a conta, conte quem é o atleta e o Richard combina com você como começar.</p>' +
+      '<div class="acoes"><button class="btn btn-verm" type="button" data-modo-ent="criar" data-cta="comecar-final">Quero começar</button>' + btZap("btn-linha") + "</div></section>");
+    cada("[data-modo-ent]", function (b) { b.onclick = function () { var m = b.getAttribute("data-modo-ent"); location.hash = HASH_DO_MODO[m]; }; });
+  }
+
   /* entrada: três caminhos claros — entrar; primeiro acesso de quem o Richard convidou (cria a senha pelo e-mail); quero começar */
   function telaEntrada() {
     var modo = st.modo;
+    if (modo === "home") return telaHome();
     var topo = '<span class="olho">Consultoria</span><h1>Seu tênis analisado pelo Richard Tsukada</h1>' +
       '<p class="lead">Envie o vídeo do golpe ou do jogo, conte a sua dúvida e receba a devolutiva com o que treinar.</p>' +
       '<div class="foto"><img src="/assets/richard-tsukada-240.jpg" alt="" width="64" height="64"><p class="det">Richard Tsukada, head trainer do Team Yoda. Cada vídeo é visto e respondido por ele.</p></div>';
@@ -109,7 +162,7 @@
         '<label class="campo">Crie uma senha (pelo menos 8 caracteres)<input name="senha" type="password" autocomplete="new-password"></label>' +
         '<p id="mEnt" class="msg" role="status" hidden></p><div class="acoes"><button class="btn btn-verm" type="submit" id="btEnt">Criar conta</button></div></form></section>';
     } else {
-      h = topo + '<section class="cartao" style="margin-top:22px"><h2>Entrar</h2>' +
+      h = '<p><button class="link" type="button" data-modo-ent="home">‹ Conhecer a consultoria</button></p>' + topo + '<section class="cartao" style="margin-top:22px"><h2>Entrar</h2>' +
         '<form id="fEntrar" novalidate><label class="campo">E-mail<input name="email" type="email" autocomplete="email" inputmode="email"></label>' +
         '<label class="campo">Senha<input name="senha" type="password" autocomplete="current-password"></label>' +
         '<p id="mEnt" class="msg" role="status" hidden></p><div class="acoes"><button class="btn btn-verm" type="submit" id="btEnt">Entrar</button><button class="link" type="button" id="btEsqueci">Esqueci a senha</button></div></form>' +
@@ -118,7 +171,7 @@
         '<button type="button" class="cartao item" data-modo-ent="criar" style="width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer"><div><p class="t">Ainda não sou cliente</p><p class="s">Quero começar a consultoria</p></div><span class="ir">›</span></button>';
     }
     tela(h);
-    cada("[data-modo-ent]", function (b) { b.onclick = function () { st.modo = b.getAttribute("data-modo-ent"); telaEntrada(); }; });
+    cada("[data-modo-ent]", function (b) { b.onclick = function () { var m = b.getAttribute("data-modo-ent"); if (location.hash === HASH_DO_MODO[m]) { st.modo = m; telaEntrada(); } else location.hash = HASH_DO_MODO[m]; }; });
     var fp = $("#fPrim");
     if (fp) fp.onsubmit = function (ev) {
       ev.preventDefault();
@@ -143,7 +196,7 @@
       var passo = criar ? api("POST", { acao: "criarConta", nome: nome, email: email, senha: senha }) : Promise.resolve();
       passo.then(function () { return auth.signInWithEmailAndPassword(email, senha); }).catch(function (e) {
         bt.disabled = false;
-        if (e && e.status === 409) { st.modo = "entrar"; telaEntrada(); msg($("#mEnt"), "aviso", e.message); $("#fEntrar").email.value = email; return; }
+        if (e && e.status === 409) { st.modo = "entrar"; try { history.replaceState(null, "", HASH_DO_MODO.entrar); } catch (x) { /* ok */ } telaEntrada(); msg($("#mEnt"), "aviso", e.message); $("#fEntrar").email.value = email; return; }
         msg(m, "erro", (e && ERROS_AUTH[e.code]) || (e && e.message) || "Não foi possível entrar.");
       });
     };
@@ -616,8 +669,8 @@
       ocupado(bt, true, "Convidando…");
       api("POST", { acao: "convidar", nome: nome, email: email }).then(function (r) {
         ocupado(bt, false); fc.reset(); msg($("#mConv"), "", "");
-        var site = location.origin + "/richard/", txt = "Oi! A sua consultoria com o Richard Tsukada está liberada.\n\n1. Abra " + site + "\n" +
-          (r.contaNova ? "2. Toque em \"Recebi o convite do Richard\" e use este e-mail: " + email + "\n3. Crie a sua senha pelo e-mail que chegar e entre." : "2. Entre com o e-mail " + email + " e a senha que você já usa no Team Yoda.");
+        var site = location.origin + "/richard/#/convite", txt = "Oi! A sua consultoria com o Richard Tsukada está liberada.\n\n1. Abra " + site + "\n" +
+          (r.contaNova ? "2. Digite este e-mail para receber o link de criar a senha: " + email + "\n3. Crie a sua senha pelo e-mail que chegar e entre." : "2. Entre com o e-mail " + email + " e a senha que você já usa no Team Yoda.");
         $("#convPronto").innerHTML = '<div class="msg msg-ok" data-convite-ok><b>' + esc(nome) + " está liberado(a).</b> Mande o convite:</div>" +
           '<div class="acoes"><a class="btn btn-verm btn-pq" target="_blank" rel="noopener" href="https://wa.me/?text=' + encodeURIComponent(txt) + '">Mandar no WhatsApp</a><button class="btn btn-linha btn-pq" type="button" id="btCopiarConv">Copiar o convite</button></div>';
         $("#btCopiarConv").onclick = function () { try { navigator.clipboard.writeText(txt).then(function () { toast("Convite copiado."); }); } catch (e) { toast("Não deu para copiar aqui."); } };

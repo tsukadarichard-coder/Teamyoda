@@ -121,10 +121,16 @@ window.firebase={apps:[],initializeApp:function(){this.apps.push({})},auth:funct
   /* ── cliente: criar conta e cadastro de atleta menor ── */
   const cli = await celular(), p = cli.p;
   /* endereço sem a barra no fim (o que a pessoa digita): a página carrega com estilo e vai para /richard/ */
-  await p.goto(base.replace(/\/$/, ""), { waitUntil: "load" }); await p.waitForSelector("#fEntrar");
+  await p.goto(base.replace(/\/$/, ""), { waitUntil: "load" }); await p.waitForSelector("[data-home]");
   assert.ok(new URL(p.url()).pathname === "/richard/", "foi para /richard/: " + p.url());
   assert.strictEqual(await p.evaluate(() => getComputedStyle(document.querySelector(".topo")).position), "sticky", "o estilo da página carregou");
-  assert.ok((await texto(p)).includes("Seu tênis analisado pelo Richard Tsukada"));
+  /* quem chega sem conta vê a home de vendas: sem preço nem compra; "Quero começar", WhatsApp e os caminhos de quem já é cliente */
+  const th = await texto(p);
+  assert.ok(th.includes("Mande o vídeo. Receba o que treinar.") && /como funciona/i.test(th) && th.includes("Dúvidas comuns"), th.slice(0, 300));
+  assert.ok(!/R\$\s?\d/.test(th) && !(await p.$('a[href*="eduzz"]')), "sem preço nem link de compra");
+  assert.ok(/wa\.me\/\d+/.test(await p.getAttribute('[data-cta="whatsapp"]', "href")), "botão do WhatsApp");
+  assert.ok(await p.isVisible("#lkEntrar"), "Entrar no topo");
+  await semRolagem(p, "home"); await foto(p, "consultoria-0-home");
   await semRolagem(p, "entrada"); await foto(p, "consultoria-1-entrada");
   assert.ok(await p.$('[data-modo-ent="primeiro"]') && await p.$('[data-modo-ent="criar"]'), "três caminhos: entrar, convite, quero começar");
   await p.click('[data-modo-ent="criar"]'); await p.waitForSelector('[name="nome"]');
@@ -148,7 +154,7 @@ window.firebase={apps:[],initializeApp:function(){this.apps.push({})},auth:funct
 
   /* ── Richard: libera ── */
   const ric = await celular(), r = ric.p;
-  await r.goto(base, { waitUntil: "load" }); await r.waitForSelector("#fEntrar");
+  await r.goto(base + "#/entrar", { waitUntil: "load" }); await r.waitForSelector("#fEntrar");
   await r.fill('[name="email"]', "tsukada.richard@gmail.com"); await r.fill('[name="senha"]', "segredo123"); await r.click("#btEnt");
   await r.waitForFunction(() => document.body.innerText.includes("Fila em dia"));
   assert.ok(await r.$("[data-visao-richard]"), "a tela diz que é a visão do Richard");
@@ -257,17 +263,17 @@ window.firebase={apps:[],initializeApp:function(){this.apps.push({})},auth:funct
   await r.fill('#fConv [name="nome"]', "Caio Reis"); await r.fill('#fConv [name="email"]', "caio@exemplo.com"); await r.click("#btConv");
   await r.waitForSelector("[data-convite-ok]");
   const zap = decodeURIComponent((await r.getAttribute('[data-convite-ok] ~ .acoes a', "href")).split("text=")[1]);
-  assert.ok(/Recebi o convite do Richard/.test(zap) && zap.includes("caio@exemplo.com") && zap.includes("/richard/"), zap);
+  assert.ok(zap.includes("/richard/#/convite") && zap.includes("caio@exemplo.com") && /criar a senha/.test(zap), zap);
   await semRolagem(r, "convite"); await foto(r, "consultoria-11-convite");
   const caio = await celular(), c = caio.p;
-  await c.goto(base, { waitUntil: "load" }); await c.waitForSelector('[data-modo-ent="primeiro"]');
-  await c.click('[data-modo-ent="primeiro"]'); await c.waitForSelector("#fPrim");
+  /* o link do convite abre direto o primeiro acesso */
+  await c.goto(base + "#/convite", { waitUntil: "load" }); await c.waitForSelector("#fPrim");
   await c.fill('#fPrim [name="email"]', "caio@exemplo.com"); await c.click("#btPrim");
   await c.waitForFunction(() => /criar a sua senha/.test(document.querySelector("#mPrim").textContent));
   await foto(c, "consultoria-12-primeiro-acesso");
   /* (a senha é criada pelo link do e-mail; aqui o teste a define direto) */
   Object.values(usuarios).filter((u) => u.email === "caio@exemplo.com")[0].senha = "senhaNova1";
-  await c.click('[data-modo-ent="entrar"]'); await c.fill('[name="email"]', "caio@exemplo.com"); await c.fill('[name="senha"]', "senhaNova1"); await c.click("#btEnt");
+  await c.click('[data-modo-ent="entrar"]'); await c.waitForSelector("#fEntrar"); await c.fill('[name="email"]', "caio@exemplo.com"); await c.fill('[name="senha"]', "senhaNova1"); await c.click("#btEnt");
   await c.waitForSelector("#fCad");
   assert.ok((await texto(c)).includes("Bem-vindo à consultoria") && (await c.inputValue('#fCad [name="nome"]')) === "Caio Reis");
   await c.fill('#fCad [name="nascimento"]', "1990-05-05"); await c.click("#btCad");
