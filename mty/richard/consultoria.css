@@ -68,6 +68,8 @@ p { margin: 0; }
 .prog { height: 10px; border-radius: 6px; background: var(--suave); overflow: hidden; margin-top: 12px; }
 .prog > i { display: block; height: 100%; width: 0; background: var(--verm); transition: width .2s; }
 .arquivo { display: flex; gap: 10px; align-items: center; margin-top: 10px; font-size: 14.5px; color: var(--grafite); }
+.yt { position: relative; width: 100%; padding-top: 56.25%; margin-top: 12px; border-radius: 8px; overflow: hidden; background: #000; }
+.yt iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
 video, audio { width: 100%; margin-top: 12px; border-radius: 8px; background: #000; }
 audio { background: none; }
 .bloco-dev h3 { margin-top: 18px; }

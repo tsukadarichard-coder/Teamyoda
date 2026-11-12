@@ -52,7 +52,8 @@
 
   /* jogos terminados do atleta com pontos suficientes, do mais antigo ao mais novo */
   function jogosDoRelatorio(M, D, st, atletaId) {
-    return D.historico(st, atletaId).filter(function (j) { return D.encerrado(M, j) && j.pontos.length >= 10; }).reverse();
+    /* o relatório de todos os jogos é dos jogos de simples; os de dupla têm o relatório de cada jogo, comparado só com outras duplas */
+    return D.historico(st, atletaId).filter(function (j) { return !(j.cfg && j.cfg.dupla) && D.encerrado(M, j) && j.pontos.length >= 10; }).reverse();
   }
   /* entrada de QLRelatorioJogos.gerar */
   function opcoes(M, D, st, atletaId, extra) {
@@ -81,7 +82,7 @@
   function opcoesPartida(M, D, st, j, extra) {
     extra = extra || {};
     var base = opcoes(M, D, st, j.atletaId, extra), pl = D.placar(M, j);
-    var anteriores = D.historico(st, j.atletaId).filter(function (x) { return x.id !== j.id && D.encerrado(M, x) && x.pontos.length >= 10 && (x.data + x.criadoEm) < (j.data + j.criadoEm); })
+    var anteriores = D.historico(st, j.atletaId).filter(function (x) { return x.id !== j.id && D.mesmaModalidade(x, j) && D.encerrado(M, x) && x.pontos.length >= 10 && (x.data + x.criadoEm) < (j.data + j.criadoEm); })
       .slice(0, 5).reverse().map(function (x) { return registroDoJogo(M, D, st, x); });
     return {
       atleta: base.atleta, reg: registroDoJogo(M, D, st, j), anteriores: anteriores, metricas: base.metricas, leitura: base.leitura, zonasDe: base.zonasDe, detalheDe: base.detalheDe,

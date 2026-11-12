@@ -106,6 +106,7 @@ window.firebase={apps:[],initializeApp:function(){this.apps.push({})},auth:funct
     await ctx.addInitScript(() => { window.QL_ENVIO_PEDACO = 64 * 1024; });
     await ctx.route("https://www.gstatic.com/**", (r) => r.fulfill({ contentType: "text/javascript", body: /app-compat/.test(r.request().url()) ? FIREBASE_STUB : "" }));
     await ctx.route("https://fonts.googleapis.com/**", (r) => r.fulfill({ contentType: "text/css", body: "" }));
+    await ctx.route("https://www.youtube-nocookie.com/**", (r) => r.fulfill({ contentType: "text/html", body: "<title>YouTube</title>" }));
     const p = await ctx.newPage(), erros = [];
     p.on("pageerror", (e) => erros.push(e.message));
     p.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource|ERR_|net::/.test(m.text())) erros.push(m.text()); });
@@ -156,6 +157,18 @@ window.firebase={apps:[],initializeApp:function(){this.apps.push({})},auth:funct
   await p.click("#btAtualizar"); await p.waitForSelector('#nav [data-aba="enviar"]');
   assert.ok((await texto(p)).includes("Mande o seu primeiro vídeo"));
   await p.click('#nav [data-aba="enviar"]'); await p.waitForSelector("#fEnv");
+  /* começa pelo link do YouTube (o padrão, para testar sem o armazenamento) */
+  assert.strictEqual(await p.getAttribute('[data-modo="link"]', "aria-pressed"), "true");
+  await p.click('[data-tema="jogo"]'); await p.fill('[name="duvida"]', "Decido mal quando subo à rede. Olhe de 0:40 a 2:10.");
+  await p.fill('[name="url"]', "https://vimeo.com/123"); await p.click("#btEnviar");
+  await p.waitForFunction(() => /link de um vídeo do YouTube/.test(document.querySelector("#mEnv").textContent));
+  await p.fill('[name="url"]', "https://youtu.be/dQw4w9WgXcQ");
+  await semRolagem(p, "enviar link"); await foto(p, "consultoria-5a-link");
+  await p.click("#btEnviar");
+  await p.waitForFunction(() => location.hash.startsWith("#/envio/")); await p.waitForSelector('[data-video] iframe[src*="youtube-nocookie.com/embed/dQw4w9WgXcQ"]');
+  assert.ok(Object.values(store).some((e) => e && e.youtube && e.youtube.id === "dQw4w9WgXcQ" && e.estado === "recebido"), "envio por link na fila");
+  await p.click('#nav [data-aba="enviar"]'); await p.waitForSelector("#fEnv");
+  await p.click('[data-modo="arquivo"]'); await p.waitForSelector("#arqVideo", { state: "attached" });
   /* vídeo de 3min20 é recusado */
   await p.setInputFiles("#arqVideo", path.join(VIDEOS, "longo.webm"));
   await p.waitForFunction(() => { const m = document.querySelector("#mEnv"); return m && !m.hidden && /3:20/.test(m.textContent); });
@@ -169,7 +182,7 @@ window.firebase={apps:[],initializeApp:function(){this.apps.push({})},auth:funct
   await p.click("#btEnviar");
   await p.waitForFunction(() => location.hash.startsWith("#/envio/"), null, { timeout: 30000 });
   await p.waitForSelector("[data-duvida]");
-  const enviados = Object.keys(store).filter((k) => k.startsWith("consultoriaEnvios/")).map((k) => store[k]);
+  const enviados = Object.keys(store).filter((k) => k.startsWith("consultoriaEnvios/")).map((k) => store[k]).filter((e) => e.video);
   assert.strictEqual(enviados.length, 1); assert.strictEqual(enviados[0].estado, "recebido");
   const original = fs.readFileSync(path.join(VIDEOS, "curto.webm"));
   assert.ok(arquivos[enviados[0].video.caminho].dados.equals(original), "o vídeo chegou inteiro e igual, mesmo com a queda no meio");
@@ -179,6 +192,7 @@ window.firebase={apps:[],initializeApp:function(){this.apps.push({})},auth:funct
 
   /* pausar no meio e retomar escolhendo o mesmo vídeo */
   await p.goto(base + "#/enviar"); await p.waitForSelector("#fEnv");
+  await p.click('[data-modo="arquivo"]'); await p.waitForSelector("#arqVideo", { state: "attached" });
   await p.click('[data-tema="forehand"]'); await p.fill('[name="duvida"]', "Forehand na corrida sai curto.");
   await p.setInputFiles("#arqVideo", path.join(VIDEOS, "curto.webm")); await p.waitForSelector("[data-arquivo]");
   atrasoMs = 250;
@@ -193,13 +207,14 @@ window.firebase={apps:[],initializeApp:function(){this.apps.push({})},auth:funct
   await p.waitForFunction(() => /não é o mesmo vídeo/.test(document.querySelector("#mRet").textContent));
   await p.setInputFiles("#arqRetomar", path.join(VIDEOS, "curto.webm"));
   await p.waitForFunction(() => location.hash.startsWith("#/envio/"), null, { timeout: 30000 });
-  assert.strictEqual(Object.keys(store).filter((k) => k.startsWith("consultoriaEnvios/") && store[k].estado === "recebido").length, 2, "o envio pausado terminou");
+  assert.strictEqual(Object.keys(store).filter((k) => k.startsWith("consultoriaEnvios/") && store[k].estado === "recebido").length, 3, "o envio pausado terminou (link + 2 vídeos)");
 
   /* ── Richard: fila e devolutiva com áudio ── */
   await r.click('#nav [data-aba="fila"]'); await r.waitForSelector("[data-fila]"); // abrir a aba busca a fila de novo
-  assert.ok(/2 envios aguardando/.test(await texto(r)) && /Lia Souza · Saque/.test(await texto(r)) && /No prazo/.test(await texto(r)));
+  assert.ok(/3 envios aguardando/.test(await texto(r)) && /Lia Souza · Saque/.test(await texto(r)) && /No prazo/.test(await texto(r)));
   await semRolagem(r, "fila"); await foto(r, "consultoria-7-fila");
-  await r.click("[data-fila] >> nth=0"); await r.waitForSelector("#fResp");
+  assert.ok(/YouTube/.test(await r.innerText("[data-fila] >> nth=0")), "o link do YouTube é o mais antigo da fila");
+  await r.click('[data-fila]:has-text("Saque")'); await r.waitForSelector("#fResp");
   assert.ok((await texto(r)).includes("Perco força no segundo saque"));
   await r.click("#btVideo"); await r.waitForSelector("[data-video] video");
   await r.waitForFunction(() => document.querySelector("[data-video] video").readyState >= 1, null, { timeout: 10000 });
@@ -209,7 +224,7 @@ window.firebase={apps:[],initializeApp:function(){this.apps.push({})},auth:funct
   await r.fill("#treinar input >> nth=0", "Lançamento com alvo, 3 séries de 10"); await r.fill("#treinar input >> nth=1", "Saque com pés juntos, 20 bolas");
   await semRolagem(r, "responder"); await foto(r, "consultoria-8-responder");
   await r.click("#btResponder");
-  await r.waitForFunction(() => location.hash === "#/fila" && document.body.innerText.includes("1 envio aguardando"), null, { timeout: 20000 });
+  await r.waitForFunction(() => location.hash === "#/fila" && document.body.innerText.includes("2 envios aguardando"), null, { timeout: 20000 });
   const resp = Object.keys(store).filter((k) => k.startsWith("consultoriaEnvios/")).map((k) => store[k]).filter((e) => e.estado === "respondido")[0];
   assert.ok(resp && resp.devolutiva.midia && arquivos[resp.devolutiva.midia.caminho].dados.equals(fs.readFileSync(path.join(VIDEOS, "resp.webm"))), "áudio da devolutiva guardado");
   assert.deepStrictEqual(resp.devolutiva.treinar, ["Lançamento com alvo, 3 séries de 10", "Saque com pés juntos, 20 bolas"]);

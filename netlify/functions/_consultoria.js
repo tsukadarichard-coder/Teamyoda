@@ -108,12 +108,35 @@ function novoCaminho(uid, envioId, marca, ext) {
 const caminhoDoEnvio = (caminho, uid, envioId, marca) => CAMINHO.test(String(caminho || "")) && String(caminho).startsWith("consultoria/" + uid + "/" + envioId + "/" + (marca || ""));
 const origemPermitida = (o) => ORIGENS.some((r) => r.test(String(o || "")));
 
+/* link do YouTube (pedido do Richard em 12/11/2026, para testar sem o armazenamento): o vídeo fica no YouTube do cliente, de preferência
+   como "Não listado"; aqui só guardamos o código de 11 caracteres e mostramos pelo player do YouTube (sem cookies) */
+function idYoutube(url) {
+  let u; try { u = new URL(String(url || "").trim()); } catch (e) { return null; }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+  const h = u.hostname.replace(/^(www\.|m\.|music\.)/, ""); let id = null;
+  if (h === "youtu.be") id = u.pathname.split("/")[1];
+  else if (h === "youtube.com" || h === "youtube-nocookie.com") {
+    if (u.pathname === "/watch") id = u.searchParams.get("v");
+    else { const m = /^\/(shorts|embed|live|v)\/([^/?#]+)/.exec(u.pathname); if (m) id = m[2]; }
+  }
+  return /^[A-Za-z0-9_-]{11}$/.test(String(id || "")) ? id : null;
+}
+function validarLink(b) {
+  const tema = String(b.tema || ""), duvida = txt(b.duvida, LIMITES.duvidaMax), id = idYoutube(b.url);
+  if (!temaValido(tema)) throw new Erro(400, "Escolha sobre o que é o vídeo.");
+  if (duvida.length < 3) throw new Erro(400, "Escreva a sua dúvida: o que você quer que o Richard olhe.");
+  if (!id) throw new Erro(400, "Cole o link de um vídeo do YouTube (youtube.com/watch?v=… ou youtu.be/…).");
+  return { tema, duvida, youtube: { id } };
+}
+
 /* devolutiva: o que o Richard viu, o que treinar e o texto (ao menos o texto ou uma gravação) */
 function limparDevolutiva(b, temMidia) {
   const texto = txt(b.texto, LIMITES.textoMax), viu = txt(b.viu, LIMITES.textoMax);
   const treinar = (Array.isArray(b.treinar) ? b.treinar : []).map((x) => linha(x, LIMITES.itemMax)).filter((x) => x.length >= 2).slice(0, LIMITES.treinarMax);
-  if (!texto && !viu && !temMidia) throw new Erro(400, "Escreva a devolutiva ou grave um áudio ou vídeo.");
-  return { texto, viu, treinar };
+  let youtube = null;
+  if (b.linkVideo && String(b.linkVideo).trim()) { const id = idYoutube(b.linkVideo); if (!id) throw new Erro(400, "O link do vídeo da devolutiva não é um link do YouTube."); youtube = { id }; }
+  if (!texto && !viu && !temMidia && !youtube) throw new Erro(400, "Escreva a devolutiva, grave um áudio ou cole o link de um vídeo.");
+  return youtube ? { texto, viu, treinar, youtube } : { texto, viu, treinar };
 }
 
 /* prazo da fila: conta do recebimento */
@@ -131,7 +154,8 @@ function envioParaCliente(id, e) {
   return {
     id, tipo: e.tipo, tema: e.tema, rotuloTema: rotuloTema(e.tema), duvida: e.duvida || "", refEnvio: e.refEnvio || null, estado: e.estado, criadoEm: e.criadoEm, recebidoEm: e.recebidoEm || null,
     video: e.video ? { duracaoSeg: e.video.duracaoSeg || null, tamanho: e.video.tamanho || null, apagado: !!e.videoApagadoEm } : null,
-    devolutiva: d ? { texto: d.texto || "", viu: d.viu || "", treinar: d.treinar || [], midia: d.midia ? { tipo: d.midia.tipo } : null, respondidoEm: d.respondidoEm } : null,
+    youtube: e.youtube ? { id: e.youtube.id } : null,
+    devolutiva: d ? { texto: d.texto || "", viu: d.viu || "", treinar: d.treinar || [], midia: d.midia ? { tipo: d.midia.tipo } : null, youtube: d.youtube ? { id: d.youtube.id } : null, respondidoEm: d.respondidoEm } : null,
     entendidoEm: e.entendidoEm || null, videoApagadoEm: e.videoApagadoEm || null,
     apagarVideoEm: d && !e.videoApagadoEm && e.video ? new Date(Date.parse(d.respondidoEm) + LIMITES.guardarDias * 86400000).toISOString() : null,
   };
@@ -152,5 +176,5 @@ function paraLimpar(envios, agora) {
   return { apagarVideo, abandonados };
 }
 
-module.exports = { TEMAS, TIPOS_VIDEO, TIPOS_RESPOSTA, LIMITES, ID, UID, CAMINHO, Erro, txt, donos, ehDono, idade, limparCadastro, temaValido, rotuloTema, motivoSemEnvio,
+module.exports = { idYoutube, validarLink, TEMAS, TIPOS_VIDEO, TIPOS_RESPOSTA, LIMITES, ID, UID, CAMINHO, Erro, txt, donos, ehDono, idade, limparCadastro, temaValido, rotuloTema, motivoSemEnvio,
   validarVideo, validarMidiaResposta, novoCaminho, caminhoDoEnvio, origemPermitida, limparDevolutiva, prazo, ordenarFila, envioParaCliente, clientePublico, paraLimpar, tipoBase };

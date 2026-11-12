@@ -202,7 +202,13 @@
   }
 
   /* ── enviar vídeo ── */
-  var form = { tema: "", duvida: "", arquivo: null, duracao: null, desconhecida: false };
+  var form = { tema: "", duvida: "", arquivo: null, duracao: null, desconhecida: false, modo: "link", url: "" };
+  /* link do YouTube (para testar sem o armazenamento de vídeo): o player do YouTube sem cookies */
+  function idYoutube(url) {
+    var m = /(?:youtu\.be\/|youtube(?:-nocookie)?\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/|live\/|v\/))([A-Za-z0-9_-]{11})/.exec(String(url || ""));
+    return m ? m[1] : null;
+  }
+  function ytHtml(id, titulo) { return '<div class="yt"><iframe src="https://www.youtube-nocookie.com/embed/' + esc(id) + '?rel=0&playsinline=1" title="' + esc(titulo || "Vídeo") + '" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen loading="lazy"></iframe></div>'; }
   function lerDuracao(arquivo) {
     return new Promise(function (ok) {
       var v = document.createElement("video"), url = URL.createObjectURL(arquivo), feito = false;
@@ -224,12 +230,17 @@
       '<label class="btn btn-verm" style="margin-top:12px">Escolher o mesmo vídeo<input type="file" accept="video/*" id="arqRetomar" class="sr"></label>' +
       '<div class="acoes"><button class="link" type="button" id="btDescartar">Descartar este envio</button></div><p id="mRet" class="msg" role="status" hidden></p></div>';
     if (!d.motivoSemEnvio) {
+      var link = form.modo === "link";
       h += '<form id="fEnv" novalidate class="cartao"><p class="campo" style="margin-top:0">Sobre o que é o vídeo?</p><div class="chips" role="group" aria-label="Tema">' +
         d.temas.map(function (t) { return '<button type="button" class="chip" data-tema="' + esc(t[0]) + '" aria-pressed="' + (form.tema === t[0]) + '">' + esc(t[1]) + "</button>"; }).join("") + "</div>" +
         '<label class="campo">Sua dúvida<textarea name="duvida" maxlength="1500" placeholder="Ex.: perco força no segundo saque quando estou cansado.">' + esc(form.duvida) + "</textarea></label>" +
-        '<p class="campo">Vídeo<small>Até ' + d.limites.duracaoSeg / 60 + " minutos e " + d.limites.videoMB + " MB. Só você e o Richard veem.</small></p>" +
-        '<label class="btn btn-linha btn-largo">' + (form.arquivo ? "Trocar o vídeo" : "Escolher o vídeo") + '<input type="file" accept="video/*" id="arqVideo" class="sr"></label>' +
-        (form.arquivo ? '<p class="arquivo" data-arquivo>' + esc(form.arquivo.name) + " · " + esc(mb(form.arquivo.size)) + (form.duracao ? " · " + minSeg(form.duracao) : "") + "</p>" : "") +
+        '<p class="campo">Vídeo</p><div class="chips" role="group" aria-label="Como mandar o vídeo"><button type="button" class="chip" data-modo="link" aria-pressed="' + link + '">Link do YouTube</button>' +
+        '<button type="button" class="chip" data-modo="arquivo" aria-pressed="' + !link + '">Arquivo do celular</button></div>' +
+        (link ? '<label class="campo">Link do vídeo no YouTube<input name="url" inputmode="url" autocomplete="off" placeholder="https://youtu.be/…" value="' + esc(form.url) + '">' +
+          '<small>No YouTube, publique como <b>Não listado</b>: só quem tem o link vê. Até ' + d.limites.duracaoSeg / 60 + " minutos, ou diga na dúvida o trecho (ex.: de 1:20 a 2:40).</small></label>" :
+          '<p class="det" style="margin-top:8px">Até ' + d.limites.duracaoSeg / 60 + " minutos e " + d.limites.videoMB + " MB. Só você e o Richard veem.</p>" +
+          '<label class="btn btn-linha btn-largo" style="margin-top:8px">' + (form.arquivo ? "Trocar o vídeo" : "Escolher o vídeo") + '<input type="file" accept="video/*" id="arqVideo" class="sr"></label>' +
+          (form.arquivo ? '<p class="arquivo" data-arquivo>' + esc(form.arquivo.name) + " · " + esc(mb(form.arquivo.size)) + (form.duracao ? " · " + minSeg(form.duracao) : "") + "</p>" : "")) +
         '<p id="mEnv" class="msg" role="status" hidden></p><div class="acoes"><button class="btn btn-verm btn-largo" type="submit" id="btEnviar">Enviar para o Richard</button></div></form>';
     }
     tela(h, true);
@@ -237,7 +248,9 @@
     var f = $("#fEnv");
     if (f) {
       f.duvida.oninput = function () { form.duvida = f.duvida.value; };
-      $("#arqVideo").onchange = function (ev) { escolher(ev.target.files[0]); };
+      if (f.url) f.url.oninput = function () { form.url = f.url.value; msg($("#mEnv"), "erro", ""); };
+      cada("[data-modo]", function (b) { b.onclick = function () { form.modo = b.getAttribute("data-modo"); telaEnviar(); }; });
+      var av = $("#arqVideo"); if (av) av.onchange = function (ev) { escolher(ev.target.files[0]); };
       f.onsubmit = function (ev) { ev.preventDefault(); iniciarEnvio(); };
     }
     var ar = $("#arqRetomar");
@@ -265,6 +278,15 @@
     var m = $("#mEnv"), bt = $("#btEnviar");
     if (!form.tema) return msg(m, "erro", "Escolha sobre o que é o vídeo.");
     if (form.duvida.trim().length < 3) return msg(m, "erro", "Escreva a sua dúvida: o que você quer que o Richard olhe.");
+    if (form.modo === "link") {
+      if (!idYoutube(form.url)) return msg(m, "erro", "Cole o link de um vídeo do YouTube (youtube.com/watch?v=… ou youtu.be/…).");
+      ocupado(bt, true, "Enviando…");
+      return api("POST", { acao: "envioLink", tema: form.tema, duvida: form.duvida, url: form.url.trim() }).then(function (r) {
+        form = { tema: "", duvida: "", arquivo: null, duracao: null, desconhecida: false, modo: "link", url: "" };
+        toast("Vídeo enviado. O Richard recebeu um aviso.");
+        return carregar().then(function () { location.hash = "#/envio/" + r.envio.id; rota(); });
+      }).catch(function (e) { ocupado(bt, false); msg(m, "erro", e.message); });
+    }
     if (!form.arquivo) return msg(m, "erro", "Escolha o vídeo.");
     ocupado(bt, true, "Preparando…");
     var arq = form.arquivo;
@@ -292,7 +314,7 @@
       return api("POST", { acao: "envioConcluir", envioId: envioId });
     }).then(function (r) {
       envioAtivo = null; window.removeEventListener("beforeunload", avisoSaida);
-      form = { tema: "", duvida: "", arquivo: null, duracao: null, desconhecida: false };
+      form = { tema: "", duvida: "", arquivo: null, duracao: null, desconhecida: false, modo: "link", url: "" };
       toast("Vídeo enviado. O Richard recebeu um aviso.");
       return carregar().then(function () { location.hash = "#/envio/" + r.envio.id; rota(); });
     }).catch(function (e) {
@@ -334,6 +356,7 @@
   function devolutivaHtml(e) {
     var d = e.devolutiva; if (!d) return "";
     return '<section class="cartao bloco-dev" data-devolutiva><p class="olho" style="margin-bottom:4px">Devolutiva do Richard · ' + dataBR(d.respondidoEm) + "</p>" +
+      (d.youtube ? '<div data-yt-resp>' + ytHtml(d.youtube.id, "Devolutiva do Richard") + "</div>" : "") +
       (d.midia ? '<div data-midia-resp><button class="btn btn-verm btn-pq" type="button" id="btResp">' + (d.midia.tipo === "audio" ? "Ouvir a devolutiva" : "Assistir à devolutiva") + "</button></div>" : "") +
       (d.viu ? "<h3>O que eu vi</h3><p>" + esc(d.viu) + "</p>" : "") + (d.texto ? "<h3>" + (d.viu ? "Recado" : "Devolutiva") + "</h3><p>" + esc(d.texto) + "</p>" : "") +
       (d.treinar && d.treinar.length ? '<h3>O que treinar</h3><ol class="treinar">' + d.treinar.map(function (t) { return "<li>" + esc(t) + "</li>"; }).join("") + "</ol>" : "") + "</section>";
@@ -362,6 +385,7 @@
   function cartaoDuvida(e) {
     return '<section class="cartao" data-duvida><p class="olho" style="margin-bottom:4px">' + (e.tipo === "pergunta" ? "Sua dúvida" : "Sua dúvida · enviado em " + dataBR(e.recebidoEm)) + '</p><p style="white-space:pre-wrap">' + esc(e.duvida) + "</p>" +
       (e.refEnvio ? '<p class="det" style="margin-top:8px"><a href="#/envio/' + esc(e.refEnvio) + '">Ver a devolutiva sobre a qual é a dúvida</a></p>' : "") +
+      (e.youtube ? '<div data-video>' + ytHtml(e.youtube.id, "Vídeo enviado") + "</div>" : "") +
       (e.video ? (e.video.apagado ? '<p class="det" style="margin-top:10px">O vídeo foi apagado ' + st.dados.limites.guardarDias + " dias depois da devolutiva.</p>" :
         '<div data-video><button class="btn btn-linha btn-pq" type="button" id="btVideo" style="margin-top:12px">Ver o vídeo' + (e.video.duracaoSeg ? " (" + minSeg(e.video.duracaoSeg) + ")" : "") + "</button></div>") : "") + "</section>";
   }
@@ -429,7 +453,7 @@
       '<p class="lead">Do mais antigo para o mais novo. Prazo de ' + st.dados.limites.prazoDias + " dias a partir do envio.</p>";
     h += f.length ? '<ul class="lista">' + f.map(function (e) {
       return '<li><a class="item" href="#/responder/' + esc(e.id) + '" data-fila="' + esc(e.id) + '"><div><p class="t">' + esc(e.cliente) + " · " + esc(e.rotuloTema) + (e.tipo === "pergunta" ? " · dúvida" : "") + '</p><p class="s">Enviado ' + esc(ha(e.recebidoEm)) +
-        (e.duracaoSeg ? " · " + minSeg(e.duracaoSeg) : "") + '</p></div><span class="selo ' + esc(e.prazo.estado) + '">' + esc(e.prazo.rotulo) + "</span></a></li>";
+        (e.duracaoSeg ? " · " + minSeg(e.duracaoSeg) : e.youtube ? " · YouTube" : "") + '</p></div><span class="selo ' + esc(e.prazo.estado) + '">' + esc(e.prazo.rotulo) + "</span></a></li>";
     }).join("") + "</ul>" : '<div class="cartao calmo"><p>Nenhum vídeo esperando resposta. Quando chegar um, ele aparece aqui e você recebe um aviso.</p></div>';
     h += '<div class="numeros"><div><b>' + f.length + '</b><span>na fila</span></div><div><b>' + st.dados.respondidos + '</b><span>respondidos</span></div><div><b>' + st.dados.clientes.filter(function (c) { return c.estado === "ativo"; }).length + "</b><span>clientes ativos</span></div></div>";
     tela(h);
@@ -460,6 +484,7 @@
         '<div class="gravador" id="gravador"></div>' +
         '<label class="campo">O que eu vi<textarea name="viu" maxlength="5000" placeholder="Ex.: o lançamento cai para trás e você perde a perna de apoio."></textarea></label>' +
         '<label class="campo">Recado<textarea name="texto" maxlength="5000" placeholder="O que você quer dizer para o atleta."></textarea></label>' +
+        '<label class="campo">Ou um vídeo seu no YouTube (opcional)<input name="linkVideo" inputmode="url" autocomplete="off" placeholder="https://youtu.be/…"><small>Publique como Não listado.</small></label>' +
         '<p class="campo">O que treinar<small>Um exercício por linha.</small></p><div class="treinar-ed" id="treinar">' + [0, 1, 2].map(function () { return '<input maxlength="160" placeholder="Ex.: lançamento com alvo, 3 séries de 10">'; }).join("") + "</div>" +
         '<div class="acoes"><button class="link" type="button" id="btMaisTreino">+ outra linha</button></div>' +
         '<div id="pgResp" hidden><div class="prog"><i id="pgRespBarra"></i></div><p class="det" id="pgRespTexto" style="margin-top:6px"></p></div>' +
@@ -509,9 +534,11 @@
     var f = $("#fResp"), m = $("#mResp"), bt = $("#btResponder");
     var treinar = []; cada("#treinar input", function (i) { if (i.value.trim()) treinar.push(i.value.trim()); });
     if (grav.rec) return msg(m, "erro", "Pare a gravação antes de enviar.");
-    if (!grav.arquivo && !f.viu.value.trim() && !f.texto.value.trim()) return msg(m, "erro", "Escreva a devolutiva ou grave um áudio.");
+    var link = f.linkVideo.value.trim();
+    if (link && !idYoutube(link)) return msg(m, "erro", "O link do vídeo não é um link do YouTube.");
+    if (!grav.arquivo && !link && !f.viu.value.trim() && !f.texto.value.trim()) return msg(m, "erro", "Escreva a devolutiva, grave um áudio ou cole o link de um vídeo.");
     ocupado(bt, true, "Enviando…"); msg(m, "aviso", "");
-    var corpo = { acao: "responder", envioId: e.id, viu: f.viu.value, texto: f.texto.value, treinar: treinar };
+    var corpo = { acao: "responder", envioId: e.id, viu: f.viu.value, texto: f.texto.value, treinar: treinar, linkVideo: link };
     var passo = Promise.resolve();
     if (grav.arquivo) {
       var arq = grav.arquivo, ct = (arq.type || "").split(";")[0] || "audio/webm";

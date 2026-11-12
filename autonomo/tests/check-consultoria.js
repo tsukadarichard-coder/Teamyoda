@@ -78,6 +78,14 @@ const videoOk = { tema: "saque", duvida: "Perco força no segundo saque quando e
   assert.ok(C.origemPermitida("https://teamyoda.com.br") && C.origemPermitida("https://abc--teamyoda.netlify.app") && !C.origemPermitida("https://teamyoda.com.br.evil.com"));
   assert.ok(C.ehDono({ email: "tsukada.richard@gmail.com" }) && !C.ehDono({ email: "tsukada.richard@gmail.com", email_verified: false }), "e-mail sem verificação não vira Richard");
 
+  /* links do YouTube */
+  for (const u of ["https://www.youtube.com/watch?v=dQw4w9WgXcQ", "https://youtu.be/dQw4w9WgXcQ?t=42", "https://m.youtube.com/watch?feature=x&v=dQw4w9WgXcQ", "https://youtube.com/shorts/dQw4w9WgXcQ"])
+    assert.strictEqual(C.idYoutube(u), "dQw4w9WgXcQ", u);
+  for (const u of ["https://vimeo.com/123", "https://youtube.com.evil.com/watch?v=dQw4w9WgXcQ", "javascript:alert(1)", "https://youtu.be/curto", ""]) assert.strictEqual(C.idYoutube(u), null, u);
+  assert.throws(() => C.validarLink({ tema: "saque", duvida: "Meu saque", url: "https://vimeo.com/1" }), /YouTube/);
+  assert.deepStrictEqual(C.limparDevolutiva({ linkVideo: "https://youtu.be/dQw4w9WgXcQ" }, false).youtube, { id: "dQw4w9WgXcQ" }, "devolutiva só com vídeo do YouTube");
+  assert.throws(() => C.limparDevolutiva({ texto: "ok", linkVideo: "https://vimeo.com/1" }, false), /YouTube/);
+
   /* ── conta ── */
   assert.strictEqual((await chama(null)).s, 401);
   assert.strictEqual((await chama(null, { acao: "criarConta", nome: "Lia", email: "lia@x.com", senha: "123" })).s, 400, "senha curta");
@@ -190,6 +198,20 @@ const videoOk = { tema: "saque", duvida: "Perco força no segundo saque quando e
   r = await chama("tk-richard", { acao: "cliente", uid: "uLia000001" });
   assert.strictEqual(r.nota, "Mãe muito presente; falar de rotina."); assert.ok(r.envios.length >= 4);
   assert.ok(!JSON.stringify(await chama("tk-lia")).includes("Mãe muito presente"), "a anotação nunca vai para a cliente");
+  /* outro cliente manda pelo link do YouTube (sem armazenamento) e recebe a devolutiva também por link */
+  usuarios["tk-caio"] = { uid: "uCaio00001", email: "caio@x.com" };
+  await chama("tk-caio", { acao: "cadastro", nome: "Caio Reis", nascimento: anosAtras(32), objetivo: "Voleio" });
+  await chama("tk-richard", { acao: "liberar", uid: "uCaio00001" });
+  assert.strictEqual((await chama("tk-caio", { acao: "envioLink", tema: "rede", duvida: "Voleio de backhand", url: "https://exemplo.com/v" })).s, 400);
+  r = await chama("tk-caio", { acao: "envioLink", tema: "rede", duvida: "Voleio de backhand sai alto.", url: "https://youtu.be/dQw4w9WgXcQ" });
+  assert.strictEqual(r.s, 200); assert.strictEqual(r.envio.estado, "recebido"); assert.deepStrictEqual(r.envio.youtube, { id: "dQw4w9WgXcQ" }); assert.strictEqual(r.envio.video, null);
+  const idYt = r.envio.id;
+  assert.ok(avisos.some((a) => a.filtro.papel === "richard" && /link do YouTube/.test(a.aviso.corpo)));
+  assert.strictEqual((await chama("tk-richard")).fila.filter((x) => x.id === idYt)[0].youtube, true);
+  assert.strictEqual((await chama("tk-caio", { acao: "verVideo", envioId: idYt })).s, 404, "link do YouTube não passa pelo armazenamento");
+  r = await chama("tk-richard", { acao: "responder", envioId: idYt, viu: "Cabeça da raquete cai.", linkVideo: "https://www.youtube.com/watch?v=abcdefghijk" });
+  assert.strictEqual(r.s, 200); assert.deepStrictEqual(r.envio.devolutiva.youtube, { id: "abcdefghijk" });
+
   /* pausar: não envia mais, mas vê o histórico */
   await chama("tk-richard", { acao: "pausar", uid: "uLia000001" });
   r = await chama("tk-lia"); assert.ok(/pausada/.test(r.motivoSemEnvio)); assert.ok(r.envios.length >= 4);
