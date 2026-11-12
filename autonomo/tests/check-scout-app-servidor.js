@@ -84,6 +84,11 @@ const chama = async (tk, corpo, metodo) => {
   r = await chama("tk-ana", { acao: "aoVivo", jogoId: "jnaoexiste1", resumo: {} });
   assert.strictEqual(r.s, 404, "jogo precisa estar na conta");
   const resumo = D.resumo(M, st, j);
+  /* link ao vivo só no Scout Plus (12/11/2026): no grátis o servidor recusa e não cria nada */
+  r = await chama("tk-ana", { acao: "aoVivo", jogoId: j.id, resumo });
+  assert.strictEqual(r.s, 403, "grátis não abre link ao vivo"); assert.ok(/Scout Plus/.test(r.erro));
+  assert.ok(!Object.keys(store).some((k) => k.startsWith("scoutsAoVivo/")) && !store["scoutAppContas/u-ana/jogos/" + j.id].aoVivo, "nada criado");
+  store["scoutAppContas/u-ana"].plano = "plus"; store["scoutAppContas/u-ana"].plusAte = "2099-12-31";
   r = await chama("tk-ana", { acao: "aoVivo", jogoId: j.id, resumo: { ...resumo, adversario: "Fulano Secreto" } });
   assert.strictEqual(r.s, 200); assert.ok(/^[a-f0-9]{32}$/.test(r.token));
   const tok = r.token, av = store["scoutsAoVivo/" + tok];
@@ -135,6 +140,11 @@ const chama = async (tk, corpo, metodo) => {
 
   assert.strictEqual((await chama("tk-ana", { acao: "outra" })).s, 400);
   assert.strictEqual((await chama("tk-ana", null, "PUT")).s, 405);
+  /* um link já aberto segue atualizando mesmo se o Plus acabar; só um link NOVO é barrado */
+  const comLink = Object.keys(store).filter((k) => /^scoutAppContas\/u-ana\/jogos\//.test(k) && store[k].aoVivo && Date.parse(store[k].aoVivo.expiraEm) > Date.now())[0];
+  delete store["scoutAppContas/u-ana"].plano; delete store["scoutAppContas/u-ana"].plusAte;
+  if (comLink) { const jl = JSON.parse(store[comLink].dados); assert.strictEqual((await chama("tk-ana", { acao: "aoVivo", jogoId: jl.id, resumo: D.resumo(M, st, jl) })).s, 200, "link aberto continua no grátis"); }
+  assert.ok(comLink, "há um link aberto para conferir");
   /* análise de movimento: por atleta, 1 de cada golpe no grátis, acesso completo sem limite */
   process.env.PLAYER_EMAILS_FULL = "bia@exemplo.com";
   const mov = require(fx + "scout-app-movimento.js").handler;

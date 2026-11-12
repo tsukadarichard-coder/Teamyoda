@@ -18,8 +18,8 @@ const nota = (v) => { v = Math.round(+v); return v >= 1 && v <= 5 ? v : 0; };
 function contaNova(token, agora) {
   return { nome: txt(token.name, 60), email: txt(token.email, 120).toLowerCase(), papel: "", plano: "gratis", criadoEm: agora, atualizadoEm: agora, atletas: [], apagados: [] };
 }
-/* Plano (decisão do Richard em 11/11/2026): o grátis tem até 3 atletas e todas as funções liberadas (comparação completa e
-   relatório em PDF); a análise de movimento saiu do app e a venda do Scout Plus está parada até ele definir o preço. Conta que já
+/* Plano (decisão do Richard em 11/11/2026): o grátis tem até 3 atletas; a análise de movimento saiu do app e a venda do Scout Plus
+   está parada até ele definir o preço. Em 12/11/2026: link ao vivo e relatório em PDF só no Scout Plus (o link é barrado em scout-app.js). Conta que já
    tem Plus (webhook-eduzz, até plusAte) ou acesso completo (PLAYER_EMAILS_FULL) continua com atletas até MAX_ATLETAS. */
 const LIMITE_ATLETAS_GRATIS = 3;
 const hojeBR = () => new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
