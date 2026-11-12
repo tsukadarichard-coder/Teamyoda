@@ -624,6 +624,8 @@
 
   var contouAbertura = false;
   function aoMudarConta(u) {
+    /* a entrada do app (index.html) usa esta marca: com conta entrada abre os jogos; sem conta, a página de apresentação */
+    try { localStorage.setItem("qls:sessao", u ? "1" : "0"); } catch (e) { /* sem armazenamento */ }
     eu = u; conta = null; marc = { id: null }; novo = null;
     if (!u) { if (window.QLScoutGuia && window.QLScoutGuia.ativo()) window.QLScoutGuia.terminar(false); st = null; botaoConta(); if (!/^#\/(criar|recuperar|entrar)/.test(location.hash)) location.hash = "#/entrar"; else rota(); return; }
     conta = lerContaGuardada(); carregar(); botaoConta();

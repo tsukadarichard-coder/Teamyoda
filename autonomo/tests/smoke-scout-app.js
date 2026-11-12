@@ -108,14 +108,23 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   const ponto = async (fim, bola) => { await p.click(`[data-fim="${fim}"]`); await p.click(`[data-bola="${bola || "5-9"}"]`); };
   const nuvemQuieta = () => p.waitForTimeout(3200); // a sincronização roda 2,5 s depois da última mudança
 
-  /* /scout sem link abre o app; link da família continua na página da família */
+  /* /scout sem link leva ao app e, sem conta entrada neste aparelho, a página principal é a de apresentação */
   await p.goto(origem + "/scout/", { waitUntil: "networkidle" });
-  assert.ok(p.url().startsWith(base), "/scout leva ao app: " + p.url());
+  assert.strictEqual(p.url(), base + "conheca.html", "/scout sem conta entrada abre a apresentação: " + p.url());
+  await p.goto(base, { waitUntil: "networkidle" });
+  assert.strictEqual(p.url(), base + "conheca.html", "o endereço do app, sem conta entrada, abre a apresentação");
+  assert.ok((await p.evaluate(() => document.body.innerText)).includes("Grátis, com tudo liberado"), "é a página de apresentação");
+  /* os botões da apresentação levam para o app, sem voltar para ela */
+  await p.click('a[href="./#/entrar"]'); await p.waitForSelector("#acEmail");
+  assert.ok(p.url().startsWith(base + "#/entrar") && (await p.evaluate(() => document.body.innerText)).includes("Entrar no QuadraLab Scout"), "Entrar abre a tela de entrar do app: " + p.url());
+  await p.goto(base + "conheca.html", { waitUntil: "networkidle" });
+  await p.click('a[data-cta="topo"]'); await p.waitForSelector("#acEmail");
+  assert.ok(p.url().startsWith(base + "#/criar"), "Criar conta grátis abre o cadastro do app: " + p.url());
   await p.goto(origem + "/scout/?l=" + "a".repeat(32), { waitUntil: "domcontentloaded" });
   assert.ok(p.url().includes("/scout/?l="), "link ao vivo fica na página da família: " + p.url());
 
   /* um jogo marcado na primeira versão do app (sem conta) */
-  await p.goto(base, { waitUntil: "networkidle" });
+  await p.goto(base + "#/entrar", { waitUntil: "networkidle" });
   await p.evaluate(() => {
     const D = window.QLScoutApp, M = window.QLScoutMotor, s = D.normalizar(null), a = D.addAtleta(s, "Lucas Andrade").atleta, j = D.novoJogo(s, { atletaId: a.id, torneio: "Treino antigo", cfg: { formato: "1set" } }).jogo;
     for (let i = 0; i < 12; i++) D.marcarPonto(M, j, { fim: "winner_nos", nos: true, bola: "1-4" });
@@ -227,6 +236,11 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
 
   /* fechar e abrir no meio do jogo */
   await p.goto(base + "#/", { waitUntil: "networkidle" }); await p.reload({ waitUntil: "load" }); await p.waitForTimeout(1500);
+  /* com a conta entrada neste aparelho, o endereço do app abre direto os jogos (não a apresentação) */
+  assert.strictEqual(await p.evaluate(() => localStorage.getItem("qls:sessao")), "1");
+  await p.goto(base + "conheca.html", { waitUntil: "load" }); await p.goto(base, { waitUntil: "load" });
+  await p.waitForSelector("[data-novo]");
+  assert.ok(p.url() === base || p.url() === base + "#/", "com conta entrada o app abre direto: " + p.url());
   await p.waitForSelector("[data-andamento]");
   t = await texto();
   assert.ok(tem(t, "Jogo em andamento") && t.includes("Lucas · 0-15"), "jogo em andamento: " + t.slice(0, 300));
@@ -301,7 +315,7 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
 
   /* segundo celular na mesma conta */
   const c2 = await celular();
-  await c2.p.goto(base, { waitUntil: "networkidle" });
+  await c2.p.goto(base + "#/entrar", { waitUntil: "networkidle" });
   await c2.p.fill("#acEmail", "ana@exemplo.com"); await c2.p.fill("#acSenha", "errada"); await c2.p.click("#btAcesso");
   await c2.p.waitForFunction(() => document.body.innerText.includes("E-mail ou senha incorretos"));
   await c2.p.fill("#acSenha", "12345678"); await c2.p.click("#btAcesso");
@@ -329,7 +343,12 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   await semRolagem(p, "minha conta"); await foto(p, "scout-6-conta");
   await p.click("#btSair");
   await p.waitForFunction(() => document.body.innerText.includes("Entrar no QuadraLab Scout"));
+  /* com a conta entrada, o endereço do app abria direto os jogos; */
+  assert.strictEqual(await p.evaluate(() => localStorage.getItem("qls:sessao")), "0", "sair desmarca a conta entrada neste aparelho");
   assert.ok(await p.$eval("#btConta", (e) => e.hidden), "botão da conta some ao sair");
+  /* depois de sair, o endereço do app volta a abrir a apresentação */
+  await p.goto(base, { waitUntil: "networkidle" });
+  assert.strictEqual(p.url(), base + "conheca.html", "sem conta entrada: apresentação");
 
   /* guia do primeiro acesso: conta nova, sem jogos; só avança tocando no lugar iluminado */
   const c3 = await celular(), g = c3.p;
