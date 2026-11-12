@@ -9,6 +9,7 @@
    cliente:
      { acao: "cadastro", nome, nascimento, objetivo, responsavel? }    → { cliente }   (entra como "pendente")
      { acao: "envioIniciar", tema, duvida, contentType, tamanho, duracaoSeg } → { envioId, sessao }
+     { acao: "envioLink", tema, duvida, url }                          → { envio }   (vídeo pelo link do YouTube, sem armazenamento)
      { acao: "envioRetomar", envioId }                                 → { sessao, tamanho }
      { acao: "envioConcluir", envioId }                                → { envio }
      { acao: "envioCancelar", envioId }                                → { ok }
@@ -97,6 +98,16 @@ async function envioIniciar(event, claims, b) {
     video: { caminho, contentType: v.contentType, tamanho: v.tamanho, duracaoSeg: v.duracaoSeg } });
   return { envioId: ref.id, sessao, tamanho: v.tamanho };
 }
+async function envioLink(claims, b) {
+  const cli = await lerCliente(claims.uid), lista = await enviosDe(claims.uid);
+  const motivo = C.motivoSemEnvio(cli, aguardando(lista));
+  if (motivo) throw new Erro(cli && cli.estado === "ativo" ? 409 : 403, motivo);
+  const v = C.validarLink(b), ref = envios().doc(), t = agora();
+  const novo = { uid: claims.uid, tipo: "video", tema: v.tema, duvida: v.duvida, youtube: v.youtube, estado: "recebido", criadoEm: t, recebidoEm: t };
+  await ref.set(novo);
+  await avisarRichard("Vídeo novo: " + C.rotuloTema(v.tema), (cli ? cli.nome : "Cliente") + " mandou um link do YouTube para a consultoria.", "/richard/#/responder/" + ref.id);
+  return { envio: C.envioParaCliente(ref.id, novo) };
+}
 async function meuEnvio(claims, id, estado) {
   const e = await lerEnvio(id);
   if (e.uid !== claims.uid) throw new Erro(404, "Envio não encontrado.");
@@ -160,7 +171,7 @@ async function painel() {
   const t = agora();
   const fila = C.ordenarFila(sr.docs.map((d) => ({ id: d.id, ...d.data() }))).map((e) => ({
     id: e.id, uid: e.uid, cliente: cli[e.uid] ? cli[e.uid].nome : "Cliente", tipo: e.tipo, tema: e.tema, rotuloTema: C.rotuloTema(e.tema), duvida: e.duvida, recebidoEm: e.recebidoEm, prazo: C.prazo(e, t),
-    duracaoSeg: e.video ? e.video.duracaoSeg : null }));
+    duracaoSeg: e.video ? e.video.duracaoSeg : null, youtube: !!e.youtube }));
   const contagem = {}; se.docs.forEach((d) => { const u = d.data().uid; contagem[u] = (contagem[u] || 0) + 1; });
   const naFila = {}; fila.forEach((e) => { naFila[e.uid] = (naFila[e.uid] || 0) + 1; });
   const lista = Object.keys(cli).map((uid) => ({ uid, ...C.clientePublico(cli[uid]), respondidos: contagem[uid] || 0, naFila: naFila[uid] || 0 }))
@@ -248,6 +259,7 @@ exports.handler = async function (event) {
     }
     if (a === "cadastro") return resposta(200, await cadastro(claims, b));
     if (a === "envioIniciar") return resposta(200, await envioIniciar(event, claims, b));
+    if (a === "envioLink") return resposta(200, await envioLink(claims, b));
     if (a === "envioRetomar") { const e = await meuEnvio(claims, b.envioId, "enviando"); return resposta(200, { sessao: e.sessao, tamanho: e.video.tamanho }); }
     if (a === "envioConcluir") return resposta(200, await envioConcluir(claims, b));
     if (a === "envioCancelar") return resposta(200, await envioCancelar(claims, b));
