@@ -271,12 +271,32 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   assert.ok(naNuvem && naNuvem.mental.depois.foco === 5 && naNuvem.observacaoFinal === "Sacou bem no corpo", "jogo completo na nuvem");
   assert.ok(naNuvem.inicioEm && naNuvem.fimEm && naNuvem.fimEm >= naNuvem.inicioEm && naNuvem.duracaoMin === 75, "tempo de partida na nuvem: " + JSON.stringify([naNuvem.inicioEm, naNuvem.fimEm, naNuvem.duracaoMin]));
 
+  /* exportar o relatório deste jogo, direto da tela do fim: placar, tempo de jogo e a comparação, sem o adversário */
+  assert.ok(await p.$("[data-exportar] #btRelatorioJogo"), "botão de exportar o relatório do jogo");
+  const [relJogo] = await Promise.all([p.waitForEvent("popup"), p.click("#btRelatorioJogo")]);
+  await relJogo.waitForLoadState("load");
+  const trj = await relJogo.evaluate(() => document.body.innerText);
+  assert.ok(trj.includes("Lucas") && /QUADRALAB/i.test(trj) && trj.includes("Copa Sul") && /tempo de jogo 1h15/i.test(trj) && !trj.includes("Fulano") && !trj.includes("Andrade"), "relatório do jogo: " + trj.slice(0, 400));
+  await foto(relJogo, "scout-relatorio-jogo"); await relJogo.close();
+
   /* comparação e atleta */
   await p.click('a[href^="#/atleta/"]'); await p.waitForSelector("#atNome");
   t = await texto();
   assert.ok(t.includes("Lucas Andrade") && t.includes("2 jogos") && t.includes("1 vitória e 0 derrotas") && t.includes("Evolução jogo a jogo"), "atleta: " + t.slice(0, 600).replace(/\n+/g, " | "));
   await semRolagem(p, "atleta"); await foto(p, "scout-5-atleta");
   assert.ok(/1h15/.test(await p.innerText("a.jogo-l >> nth=0")), "o tempo de jogo aparece na lista de jogos do atleta");
+  /* UTR e WTN: digitados no cadastro do atleta; fora da escala avisa e não grava */
+  assert.ok(await p.$("[data-notas]") && !(await p.$("[data-notas-resumo]")) && /Ainda não informado/.test(await p.innerText('[data-nota-info="utr"]')), "cartão de UTR e WTN vazio");
+  await p.fill("#atUtr", "17"); await p.click("#btNotas");
+  await p.waitForFunction(() => { const e = document.getElementById("notasErro"); return e && !e.hidden && /UTR deve ficar entre 1 e 16,5/.test(e.innerText); });
+  await p.fill("#atUtr", "7,42"); await p.fill("#atWtn", "18.3"); await p.click("#btNotas");
+  await p.waitForSelector("[data-notas-resumo]");
+  assert.strictEqual(await p.innerText("[data-notas-resumo]"), "UTR 7,42 · WTN 18,3");
+  assert.ok(/Atualizado em \d{2}\/\d{2}\/\d{4}/.test(await p.innerText('[data-nota-info="wtn"]')) && (await p.inputValue("#atUtr")) === "7,42", "nota salva volta ao campo com a data");
+  await semRolagem(p, "atleta com UTR e WTN"); await foto(p, "scout-5b-notas");
+  await nuvemQuieta();
+  const atNuvem = store["scoutAppContas/" + uid].atletas.filter((x) => x.nome === "Lucas Andrade")[0];
+  assert.ok(atNuvem && atNuvem.notas && atNuvem.notas.utr.v === 7.42 && atNuvem.notas.wtn.v === 18.3 && atNuvem.notas.hist.length === 2, "UTR e WTN na nuvem: " + JSON.stringify(atNuvem && atNuvem.notas));
   /* a análise de movimento saiu do app: sem aba, sem botão, e o link antigo cai nos jogos */
   const mvGets = []; p.on("request", (rq) => { if (rq.url().includes("scout-app-movimento")) mvGets.push(rq.url()); });
   assert.ok(!(await p.$('#navBaixo [data-aba="movimento"]')) && !(await p.$("[data-movimento]")) && !/Análise de movimento/i.test(await texto()), "sem análise de movimento");
@@ -311,6 +331,7 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   await rel.waitForLoadState("load");
   const tr = await rel.evaluate(() => document.body.innerText);
   assert.ok(tr.includes("Lucas") && /QUADRALAB/i.test(tr) && tr.includes("Copa Sul") && !tr.includes("Fulano"), "relatório: " + tr.slice(0, 300));
+  assert.ok(tr.includes("UTR 7,42 · WTN 18,3"), "UTR e WTN no relatório dos jogos (e voltaram da nuvem na sincronização)");
   await foto(rel, "scout-relatorio"); await rel.close();
 
   /* segundo celular na mesma conta */

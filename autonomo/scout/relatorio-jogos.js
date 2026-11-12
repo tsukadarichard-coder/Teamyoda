@@ -212,7 +212,7 @@
 
     return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Relatório dos jogos · ' + esc(atleta) + "</title><style>" + CSS + "</style></head><body>" +
       '<div class="no-print"><button onclick="window.print()">Salvar como PDF / Imprimir</button><button onclick="window.close()">Fechar</button></div>' +
-      (o.cabecalhoHtml || "") + "<h1>Relatório dos jogos</h1>" + '<div class="sub">' + esc(atleta) + " · " + N + (N === 1 ? " jogo com scout salvo" : " jogos com scout salvo") + " · gerado em " + esc(o.geradoEm || "") + " · Tecnologia QuadraLab</div>" + h +
+      (o.cabecalhoHtml || "") + "<h1>Relatório dos jogos</h1>" + '<div class="sub">' + esc(atleta) + " · " + N + (N === 1 ? " jogo com scout salvo" : " jogos com scout salvo") + (o.notaAtleta ? " · " + esc(o.notaAtleta) : "") + " · gerado em " + esc(o.geradoEm || "") + " · Tecnologia QuadraLab</div>" + h +
       '<p class="rodape">Um jogo é uma amostra: três jogos na mesma direção são um sinal, um jogo isolado é ruído. Este relatório serve para orientar o trabalho, não para julgar o jogador. Os números vêm dos pontos marcados pelo treinador; medidas que um jogo não registrou ficam de fora das médias e tendências. Análise gerada com a Tecnologia QuadraLab.</p></body></html>';
   }
 
@@ -262,7 +262,10 @@
     var d = (o.detalheDe || function (x) { return x.scout.detalhe || null; })(r);
     function val(k, reg) { var m = M.filter(function (x) { return x.k === k; })[0]; if (!m) return null; var v = m.get((reg || r).scout); return typeof v === "number" && isFinite(v) ? v : null; }
     function fmt(v, suf) { return v === null ? "—" : r1(v) + (suf || ""); }
-    var ctx = [r.torneio && r.torneio !== "jogo-treino" ? r.torneio : "Jogo-treino", r.adversario && r.adversario !== "—" ? "contra " + r.adversario : "", NIVEL[r.nivelAdversario] ? "adversário " + NIVEL[r.nivelAdversario].toLowerCase() : "", dataBR(r.data)].filter(Boolean);
+    var ctx = [r.torneio && r.torneio !== "jogo-treino" ? r.torneio : "Jogo-treino", r.adversario && r.adversario !== "—" ? "contra " + r.adversario : "", NIVEL[r.nivelAdversario] ? "adversário " + NIVEL[r.nivelAdversario].toLowerCase() : "", dataBR(r.data),
+      /* opcionais, só quando o app informa: tempo de jogo (minutos) e as notas do atleta (ex.: "UTR 7,42 · WTN 18,3") */
+      n0(r.duracaoMin) > 0 ? "tempo de jogo " + (n0(r.duracaoMin) < 60 ? Math.round(n0(r.duracaoMin)) + " min" : Math.floor(n0(r.duracaoMin) / 60) + "h" + ("0" + Math.round(n0(r.duracaoMin) % 60)).slice(-2)) : "",
+      o.notaAtleta ? String(o.notaAtleta) : ""].filter(Boolean);
     var concl = r.concluida !== false && !!(r.concluida || /\d-\d/.test(String(r.resultado || "")) && r.resultado !== "não concluído");
     var res = r.resultado && r.resultado !== "—" && r.resultado !== "não concluído" ? r.resultado : "", parcialHtml = "";
     /* placar refeito a partir dos pontos (o app envia em o.placarFinal): sets concluídos, set em andamento e game em andamento */

@@ -115,6 +115,56 @@ assert.ok(html.includes("Lucas") && html.includes("QUADRALAB") && html.includes(
 assert.ok(!html.includes("Fulano") && !html.includes("Andrade"), "relatório sem adversário nem sobrenome");
 assert.deepStrictEqual(REL.opcoes(M, D, st, marina.id).jogos, [], "atleta sem jogos terminados");
 
+/* ── UTR e WTN: digitados no cadastro do atleta, com histórico, e levados para os relatórios ── */
+{
+  assert.strictEqual(D.textoNotas(lucas), "", "sem nota, nada aparece");
+  assert.ok(!RJ.gerar(op).includes("UTR"), "relatório sem nota não fala de UTR");
+  assert.ok(D.definirNota(st, "x", "utr", "7").erro, "atleta inexistente");
+  assert.ok(/UTR deve ficar entre 1 e 16,5/.test(D.definirNota(st, lucas.id, "utr", "17").erro), "UTR acima da escala");
+  assert.ok(/WTN deve ficar entre 1 e 40/.test(D.definirNota(st, lucas.id, "wtn", "0,5").erro), "WTN abaixo da escala");
+  assert.ok(D.definirNota(st, lucas.id, "utr", "sete").erro, "texto não é nota");
+  assert.strictEqual(lucas.notas, undefined, "erro não grava nada");
+  D.definirNota(st, lucas.id, "utr", "7,416", "2026-10-01");
+  assert.deepStrictEqual(lucas.notas.utr, { v: 7.42, em: "2026-10-01" }, "vírgula aceita, UTR com 2 casas");
+  D.definirNota(st, lucas.id, "wtn", "18.34", "2026-10-01");
+  assert.deepStrictEqual(lucas.notas.wtn, { v: 18.3, em: "2026-10-01" }, "WTN com 1 casa");
+  assert.strictEqual(D.textoNotas(lucas), "UTR 7,42 · WTN 18,3");
+  assert.strictEqual(D.notaAnterior(lucas, "utr"), null, "primeira nota não tem anterior");
+  D.definirNota(st, lucas.id, "utr", "7,5", "2026-11-12"); D.definirNota(st, lucas.id, "utr", "7,6", "2026-11-12");
+  assert.deepStrictEqual(lucas.notas.hist.filter((h) => h.t === "utr").map((h) => h.v), [7.42, 7.6], "o mesmo dia substitui, não duplica");
+  assert.deepStrictEqual(D.notaAnterior(lucas, "utr"), { t: "utr", v: 7.42, em: "2026-10-01" });
+  assert.strictEqual(D.textoNotas(lucas), "UTR 7,60 · WTN 18,3");
+  /* sobrevive a salvar e ler, e à cópia de segurança; lixo guardado é descartado */
+  assert.deepStrictEqual(D.normalizar(JSON.parse(JSON.stringify(st))).atletas[0].notas, lucas.notas);
+  assert.deepStrictEqual(D.atletaLimpo({ id: "a1", nome: "Zé", notas: { utr: { v: 99, em: "2026-11-12" }, wtn: { v: 20, em: "ontem" }, hist: [{ t: "xyz", v: 3, em: "2026-11-12" }] } }).notas, undefined);
+  const copia = D.normalizar(null); D.importar(copia, D.exportar(st));
+  assert.deepStrictEqual(copia.atletas[0].notas, lucas.notas, "a cópia de segurança leva as notas");
+  copia.atletas[0].notas.utr = { v: 8, em: "2026-12-01" }; D.importar(copia, D.exportar(st));
+  assert.strictEqual(copia.atletas[0].notas.utr.v, 8, "importar não troca uma nota mais nova por uma mais antiga");
+  /* relatório de todos os jogos e relatório de um jogo só */
+  const opN = REL.opcoes(M, D, st, lucas.id, { geradoEm: "12/11/2026" });
+  assert.strictEqual(opN.notaAtleta, "UTR 7,60 · WTN 18,3");
+  assert.ok(RJ.gerar(opN).includes("UTR 7,60 · WTN 18,3"), "notas no relatório dos jogos");
+  const opP = REL.opcoesPartida(M, D, st, j2, { geradoEm: "12/11/2026" });
+  assert.strictEqual(opP.reg.id, j2.id); assert.strictEqual(opP.reg.adversario, ""); assert.strictEqual(opP.placarFinal.fim, true);
+  assert.deepStrictEqual(opP.anteriores.map((x) => x.id), [j1.id], "compara com os jogos anteriores, não com os de depois");
+  assert.deepStrictEqual(REL.opcoesPartida(M, D, st, j1).anteriores, [], "o primeiro jogo não tem anterior");
+  const htmlP = RJ.gerarPartida(opP);
+  assert.ok(htmlP.includes("Lucas") && htmlP.includes("UTR 7,60 · WTN 18,3"), "relatório do jogo com o atleta e as notas");
+  assert.ok(!htmlP.includes("Fulano") && !htmlP.includes("Andrade"), "relatório do jogo sem adversário nem sobrenome");
+  /* jogo ainda em andamento também exporta, com o tempo de jogo */
+  const jr = D.novoJogo(st, { atletaId: marina.id, torneio: "Treino", adversario: "Beltrana Oculta", cfg: { formato: "3sets", saca: "nos" } }).jogo;
+  for (let i = 0; i < 12; i++) D.marcarPonto(M, jr, ponto(i % 3 !== 0));
+  D.definirDuracao(jr, 75);
+  const opA = REL.opcoesPartida(M, D, st, jr), htmlA = RJ.gerarPartida(opA);
+  assert.strictEqual(opA.placarFinal.fim, false); assert.strictEqual(opA.reg.duracaoMin, 75);
+  assert.ok(htmlA.includes("tempo de jogo 1h15") && !htmlA.includes("Beltrana") && !htmlA.includes("UTR"), "jogo em andamento: tempo sim, adversário e nota que não existe não");
+  D.definirNota(st, lucas.id, "wtn", "", "2026-11-12");
+  assert.strictEqual(D.textoNotas(lucas), "UTR 7,60", "campo vazio apaga a nota atual");
+  D.definirNota(st, lucas.id, "wtn", "18,3", "2026-11-12");
+  st.jogos = st.jogos.filter((x) => x.id !== jr.id); if (st.atual === jr.id) st.atual = j3 ? j3.id : null;
+}
+
 /* cópia de segurança: exportar, importar em outro aparelho, importar de novo não duplica */
 const arquivo = D.exportar(st);
 const outro = D.normalizar(null); D.addAtleta(outro, "Lucas Andrade");
