@@ -171,6 +171,12 @@
     return telaInicio();
   }
 
+  /* com qual conta a pessoa entrou (ajuda quem tem mais de um e-mail) */
+  function contaHtml() {
+    var e = st.dados && st.dados.eu && st.dados.eu.email; if (!e) return "";
+    return '<p class="det" data-conta style="margin-top:24px">Você entrou com <b>' + esc(e) + '</b>. Não é este e-mail? <button class="link" type="button" data-sair>Sair e entrar com outro</button></p>';
+  }
+  function ligarConta() { cada("[data-sair]", function (b) { b.onclick = function () { if (auth) auth.signOut(); }; }); }
   function telaCadastro() {
     var conv = st.dados.cliente && st.dados.cliente.cadastroPendente;
     tela('<span class="olho">Primeiro acesso</span><h1>' + (conv ? "Bem-vindo à consultoria" : "Quem é o atleta?") + '</h1><p class="lead">' + (conv ? "O Richard já liberou o seu acesso. Falta só contar quem é o atleta; você preenche uma vez." : "O Richard usa isso para entender o seu momento. Você só precisa preencher uma vez.") + "</p>" +
@@ -182,7 +188,9 @@
       '<label class="campo">Nome do responsável<input name="rnome" autocomplete="off" maxlength="80"></label>' +
       '<label class="campo">E-mail do responsável<input name="remail" type="email" inputmode="email" autocomplete="off"></label>' +
       '<label class="check"><input type="checkbox" name="aceite"><span>Sou o responsável e autorizo o envio de vídeos do atleta para a análise do Richard Tsukada. Os vídeos ficam privados: só o atleta, eu e o Richard veem, e são apagados 90 dias depois da devolutiva.</span></label></div>' +
-      '<p id="mCad" class="msg" role="status" hidden></p><div class="acoes"><button class="btn btn-verm" type="submit" id="btCad">Enviar cadastro</button></div></form>');
+      '<p id="mCad" class="msg" role="status" hidden></p><div class="acoes"><button class="btn btn-verm" type="submit" id="btCad">Enviar cadastro</button></div></form>' +
+      contaHtml() + '<p class="det" style="margin-top:6px">É o Richard e caiu aqui? O e-mail desta conta não é o cadastrado como consultor: saia e entre com o e-mail certo.</p>');
+    ligarConta();
     var f = $("#fCad"), m = $("#mCad"), bt = $("#btCad");
     function menor() { var i = idadeDe(f.nascimento.value); $("#blocoMenor").hidden = !(i != null && i < 18); }
     f.nascimento.addEventListener("change", menor); f.nascimento.addEventListener("input", menor);
@@ -199,7 +207,8 @@
     tela('<span class="olho">Cadastro recebido</span><h1>Quase lá, ' + esc(primeiro(c.nome)) + "</h1>" +
       '<p class="lead">O Richard combina a consultoria com você e libera o acesso. Assim que estiver liberado, você recebe um aviso e já pode mandar o primeiro vídeo.</p>' +
       '<div class="cartao calmo"><h3>Enquanto isso, prepare o vídeo</h3><ol class="passos"><li>Filme de lado ou de trás, com o corpo inteiro e a bola no quadro.</li><li>Até 3 minutos: escolha o trecho que mostra a sua dúvida.</li><li>Grave em 1080p (não em 4K): o envio fica mais rápido.</li></ol></div>' +
-      avisosHtml() + '<div class="acoes"><button class="btn btn-linha" type="button" id="btAtualizar">Atualizar</button></div>');
+      avisosHtml() + '<div class="acoes"><button class="btn btn-linha" type="button" id="btAtualizar">Atualizar</button></div>' + contaHtml());
+    ligarConta();
     $("#btAtualizar").onclick = function () { recarregar(); };
     ligarAvisos();
   }
@@ -220,9 +229,9 @@
     if (esperando.length) h += '<section class="secao"><h2>Com o Richard</h2><ul class="lista">' + esperando.map(function (e) {
       return '<li><a class="item" href="#/envio/' + esc(e.id) + '"><div><p class="t">' + esc(e.rotuloTema) + (e.tipo === "pergunta" ? " · dúvida" : "") + '</p><p class="s">Enviado ' + esc(ha(e.recebidoEm)) + ' · a devolutiva chega aqui</p></div><span class="selo">Aguardando</span></a></li>';
     }).join("") + "</ul></section>";
-    h += avisosHtml();
+    h += avisosHtml() + contaHtml();
     tela(h);
-    ligarAvisos();
+    ligarAvisos(); ligarConta();
   }
 
   /* ── enviar vídeo ── */
@@ -473,7 +482,7 @@
   }
   function telaFila() {
     var f = st.dados.fila;
-    var h = '<p class="msg msg-aviso" data-visao-richard style="margin:0 0 16px">Você está na <b>visão do Richard</b>: fila, clientes e respostas. Os clientes veem outra tela.</p><span class="olho">Fila</span><h1>' + (f.length ? f.length + (f.length === 1 ? " envio aguardando" : " envios aguardando") : "Fila em dia") + "</h1>" +
+    var h = '<p class="msg msg-aviso" data-visao-richard style="margin:0 0 16px">Você está na <b>visão do Richard</b> (' + esc(st.dados.eu ? st.dados.eu.email : "") + '): fila, clientes e respostas. Os clientes veem outra tela.</p><span class="olho">Fila</span><h1>' + (f.length ? f.length + (f.length === 1 ? " envio aguardando" : " envios aguardando") : "Fila em dia") + "</h1>" +
       '<p class="lead">Do mais antigo para o mais novo. Prazo de ' + st.dados.limites.prazoDias + " dias a partir do envio.</p>";
     h += f.length ? '<ul class="lista">' + f.map(function (e) {
       return '<li><a class="item" href="#/responder/' + esc(e.id) + '" data-fila="' + esc(e.id) + '"><div><p class="t">' + esc(e.cliente) + " · " + esc(e.rotuloTema) + (e.tipo === "pergunta" ? " · dúvida" : "") + '</p><p class="s">Enviado ' + esc(ha(e.recebidoEm)) +
@@ -657,7 +666,8 @@
       '<section class="cartao"><h3>Armazenamento dos vídeos</h3><p class="det" style="margin-top:4px">Uma vez só: libera o envio dos vídeos direto do celular do cliente para o armazenamento privado do Team Yoda. Faça depois de ativar o Storage no Firebase do Team Yoda.</p>' +
       '<p id="mArm" class="msg" role="status" hidden></p><div class="acoes"><button class="btn btn-linha btn-pq" type="button" id="btArm">Preparar armazenamento</button></div></section>' +
       '<section class="cartao"><h3>Endereço para os clientes</h3><p style="margin-top:4px"><b>teamyoda.com.br/richard</b></p><p class="det" style="margin-top:4px">O cliente cria a conta, faz o cadastro e aparece em Clientes para você liberar. Vídeos com devolutiva são apagados depois de ' + st.dados.limites.guardarDias + " dias; a devolutiva fica.</p></section>" +
-      avisosHtml());
+      avisosHtml() + contaHtml());
+    ligarConta();
     var b = $("#btArm");
     b.onclick = function () { ocupado(b, true, "Preparando…"); api("POST", { acao: "prepararArmazenamento" }).then(function (r) { ocupado(b, false); msg($("#mArm"), "ok", "Pronto: o armazenamento " + r.bucket + " aceita os envios do teamyoda.com.br."); }).catch(function (x) { ocupado(b, false); msg($("#mArm"), "erro", x.message); }); };
     ligarAvisos();

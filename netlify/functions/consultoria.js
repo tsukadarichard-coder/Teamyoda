@@ -260,9 +260,10 @@ exports.handler = async function (event) {
     const dono = C.ehDono(claims), base = { temas: C.TEMAS, limites: { duracaoSeg: C.LIMITES.duracaoSeg, videoMB: Math.round(C.LIMITES.videoBytes / 1048576), aguardandoMax: C.LIMITES.aguardandoMax, guardarDias: C.LIMITES.guardarDias, prazoDias: C.LIMITES.prazoDias } };
 
     if (event.httpMethod === "GET") {
-      if (dono) return resposta(200, { papel: "richard", ...base, ...(await painel()) });
+      const eu = { email: String(claims.email || "").toLowerCase() };
+      if (dono) return resposta(200, { papel: "richard", eu, ...base, ...(await painel()) });
       const cli = await lerCliente(claims.uid), lista = await enviosDe(claims.uid);
-      return resposta(200, { papel: "cliente", ...base, cliente: C.clientePublico(cli), envios: lista.filter((x) => x.e.estado !== "enviando").map((x) => C.envioParaCliente(x.id, x.e)),
+      return resposta(200, { papel: "cliente", eu, ...base, cliente: C.clientePublico(cli), envios: lista.filter((x) => x.e.estado !== "enviando").map((x) => C.envioParaCliente(x.id, x.e)),
         interrompidos: lista.filter((x) => x.e.estado === "enviando").map((x) => ({ id: x.id, tema: x.e.tema, rotuloTema: C.rotuloTema(x.e.tema), tamanho: x.e.video.tamanho, criadoEm: x.e.criadoEm })),
         motivoSemEnvio: C.motivoSemEnvio(cli, aguardando(lista)) });
     }

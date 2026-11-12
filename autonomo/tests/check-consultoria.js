@@ -77,7 +77,8 @@ const videoOk = { tema: "saque", duvida: "Perco força no segundo saque quando e
   assert.strictEqual(C.prazo({ recebidoEm: "2026-11-10T12:00:00.000Z" }, agoraT).rotulo, "Vence amanhã");
   assert.strictEqual(C.prazo({ recebidoEm: "2026-11-12T12:00:00.000Z" }, agoraT).estado, "no-prazo");
   assert.ok(C.origemPermitida("https://teamyoda.com.br") && C.origemPermitida("https://abc--teamyoda.netlify.app") && !C.origemPermitida("https://teamyoda.com.br.evil.com"));
-  assert.ok(C.ehDono({ email: "tsukada.richard@gmail.com" }) && !C.ehDono({ email: "tsukada.richard@gmail.com", email_verified: false }), "e-mail sem verificação não vira Richard");
+  assert.ok(C.ehDono({ email: "tsukada.richard@gmail.com" }) && C.ehDono({ email: " Tsukada.Richard@Gmail.com", email_verified: false }), "o e-mail do Richard vale mesmo sem verificação, como no financeiro");
+  assert.ok(!C.ehDono({ email: "outro@gmail.com" }) && !C.ehDono({}), "outro e-mail não é o Richard");
 
   /* links do YouTube */
   for (const u of ["https://www.youtube.com/watch?v=dQw4w9WgXcQ", "https://youtu.be/dQw4w9WgXcQ?t=42", "https://m.youtube.com/watch?feature=x&v=dQw4w9WgXcQ", "https://youtube.com/shorts/dQw4w9WgXcQ"])
@@ -108,7 +109,8 @@ const videoOk = { tema: "saque", duvida: "Perco força no segundo saque quando e
   assert.strictEqual(r.s, 403); assert.ok(/liberar/.test(r.erro), "pendente não envia");
 
   /* ── Richard: impostor e cliente não entram no painel ── */
-  assert.strictEqual((await chama("tk-impostor")).papel, "cliente", "e-mail sem verificação não abre o painel");
+  assert.strictEqual((await chama("tk-impostor")).papel, "richard", "conta do Richard sem verificação abre o painel");
+  assert.strictEqual((await chama("tk-lia")).eu.email, "lia@x.com", "a tela recebe com qual e-mail a pessoa entrou");
   assert.strictEqual((await chama("tk-lia", { acao: "liberar", uid: "uLia000001" })).s, 403, "cliente não libera ninguém");
   r = await chama("tk-richard");
   assert.strictEqual(r.papel, "richard"); assert.strictEqual(r.clientes[0].estado, "pendente"); assert.deepStrictEqual(r.fila, []);

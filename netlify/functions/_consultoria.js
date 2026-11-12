@@ -42,7 +42,9 @@ const tipoBase = (ct) => String(ct || "").toLowerCase().split(";")[0].trim();
 function donos() {
   return String(process.env.CONSULTORIA_RESPONDEM || process.env.FINANCEIRO_DONOS || "tsukada.richard@gmail.com").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
 }
-const ehDono = (claims) => !!(claims && claims.email && claims.email_verified !== false && donos().includes(String(claims.email).toLowerCase()));
+/* mesma regra do financeiro: o e-mail da conta (o Firebase não deixa outra conta usar o mesmo e-mail). Não exige e-mail verificado:
+   a conta do Richard foi criada pelo administrador e pode não ter a verificação, e aí ele caía na tela de cliente. */
+const ehDono = (claims) => !!(claims && claims.email && donos().includes(String(claims.email).trim().toLowerCase()));
 
 function idade(nascimento, hoje) {
   if (!DATA.test(String(nascimento || "")) || !DATA.test(String(hoje || ""))) return null;
