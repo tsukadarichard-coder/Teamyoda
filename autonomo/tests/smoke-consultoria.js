@@ -84,7 +84,8 @@ const servidor = http.createServer(async (req, res) => {
     catch (e) { res.writeHead(500); return res.end(JSON.stringify({ erro: String(e.message) })); }
   }
   if (u.pathname === "/.netlify/functions/push-inscricao") { res.writeHead(200, { "content-type": "application/json" }); return res.end(req.method === "GET" ? '{"chave":"x"}' : '{"inscrito":false}'); }
-  let f = path.join(raizMty, decodeURIComponent(u.pathname)); if (u.pathname.endsWith("/")) f = path.join(f, "index.html");
+  /* como o Netlify: /richard (sem a barra) também entrega a página */
+  let f = path.join(raizMty, decodeURIComponent(u.pathname === "/richard" ? "/richard/index.html" : u.pathname)); if (u.pathname.endsWith("/")) f = path.join(f, "index.html");
   if (!f.startsWith(raizMty) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); return res.end("não encontrado"); }
   res.writeHead(200, { "content-type": MIME[path.extname(f)] || "application/octet-stream" }); res.end(fs.readFileSync(f));
 });
@@ -118,7 +119,10 @@ window.firebase={apps:[],initializeApp:function(){this.apps.push({})},auth:funct
 
   /* ── cliente: criar conta e cadastro de atleta menor ── */
   const cli = await celular(), p = cli.p;
-  await p.goto(base, { waitUntil: "load" }); await p.waitForSelector("#fEntrar");
+  /* endereço sem a barra no fim (o que a pessoa digita): a página carrega com estilo e vai para /richard/ */
+  await p.goto(base.replace(/\/$/, ""), { waitUntil: "load" }); await p.waitForSelector("#fEntrar");
+  assert.ok(new URL(p.url()).pathname === "/richard/", "foi para /richard/: " + p.url());
+  assert.strictEqual(await p.evaluate(() => getComputedStyle(document.querySelector(".topo")).position), "sticky", "o estilo da página carregou");
   assert.ok((await texto(p)).includes("Seu tênis analisado pelo Richard Tsukada"));
   await semRolagem(p, "entrada"); await foto(p, "consultoria-1-entrada");
   await p.click("#mCriar");

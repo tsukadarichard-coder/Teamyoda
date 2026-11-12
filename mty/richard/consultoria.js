@@ -93,7 +93,7 @@
     var criar = st.modo === "criar";
     tela('<span class="olho">Consultoria</span><h1>Seu tênis analisado pelo Richard Tsukada</h1>' +
       '<p class="lead">Envie o vídeo do golpe ou do jogo, conte a sua dúvida e receba a devolutiva com o que treinar.</p>' +
-      '<div class="foto"><img src="../assets/richard-tsukada-240.jpg" alt="" width="64" height="64"><p class="det">Richard Tsukada, head trainer do Team Yoda. Cada vídeo é visto e respondido por ele.</p></div>' +
+      '<div class="foto"><img src="/assets/richard-tsukada-240.jpg" alt="" width="64" height="64"><p class="det">Richard Tsukada, head trainer do Team Yoda. Cada vídeo é visto e respondido por ele.</p></div>' +
       '<div class="alternar" role="tablist"><button type="button" role="tab" id="mEntrar" aria-selected="' + !criar + '">Entrar</button><button type="button" role="tab" id="mCriar" aria-selected="' + criar + '">Criar conta</button></div>' +
       '<form id="fEntrar" novalidate>' +
       (criar ? '<label class="campo">Seu nome<input name="nome" autocomplete="name" maxlength="80"></label>' : "") +
