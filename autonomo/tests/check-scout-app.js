@@ -178,6 +178,43 @@ assert.deepStrictEqual(REL.opcoes(M, D, st, marina.id).jogos, [], "atleta sem jo
   st.jogos = st.jogos.filter((x) => x.id !== jr.id); if (st.atual === jr.id) st.atual = j3 ? j3.id : null;
 }
 
+/* ── dupla (12/11/2026): rodízio do saque, quem fez o quê, resumo da "Dupla de", e simples e dupla não se misturam ── */
+{
+  const sd = D.normalizar(null), at = D.addAtleta(sd, "Lucas Andrade").atleta;
+  const jd = D.novoJogo(sd, { atletaId: at.id, parceiro: "Pedro Lima", adversario: "Fulano e Beltrano", cfg: { formato: "3sets", saca: "nos", dupla: true, sacaDupla: "parceiro", semVantagem: true } }).jogo;
+  assert.strictEqual(jd.cfg.dupla, true); assert.strictEqual(jd.parceiro, "Pedro Lima");
+  const ordem = [];
+  for (let g = 0; g < 6; g++) { ordem.push(D.sacadorDaDupla(M, jd) || "adv"); for (let k = 0; k < 4; k++) D.marcarPonto(M, jd, { fim: k % 2 ? "winner_nos" : "erro_dele", nos: true, quem: "atleta" }); }
+  assert.deepStrictEqual(ordem, ["parceiro", "adv", "atleta", "adv", "parceiro", "adv"], "a dupla alterna quem saca a cada vez que é a vez dela");
+  assert.strictEqual(jd.pontos[0].sacadorNos, "parceiro"); assert.strictEqual(jd.pontos[4].sacadorNos, undefined, "saque do adversário não tem sacador da dupla");
+  assert.strictEqual(jd.pontos[1].quem, "atleta"); assert.strictEqual(jd.pontos[0].quem, undefined, "erro do adversário não é de ninguém da dupla");
+  /* ace e dupla falta ficam com quem saca; trocar quem saca vale daqui em diante */
+  const g7 = D.sacadorDaDupla(M, jd); assert.strictEqual(g7, "atleta");
+  assert.ok(D.trocarSacadorDupla(M, jd)); assert.strictEqual(D.sacadorDaDupla(M, jd), "parceiro");
+  D.marcarPonto(M, jd, { fim: "winner_nos", nos: true, saque: "ace", quem: "atleta" });
+  assert.strictEqual(jd.pontos[jd.pontos.length - 1].quem, "parceiro", "ace é de quem sacou, mesmo marcado errado");
+  D.marcarPonto(M, jd, { fim: "erro_nos", nos: false, quem: "parceiro", bola: "5-9" });
+  const nd = D.numerosDaDupla(jd);
+  assert.strictEqual(nd.parceiro.aces, 1); assert.strictEqual(nd.parceiro.erros, 1); assert.strictEqual(nd.atleta.winners, 12);
+  assert.ok(nd.parceiro.pontosSacando >= 4);
+  /* resumo e texto: "Dupla de Lucas", sem o parceiro nem os adversários */
+  const rd = D.resumo(M, sd, jd), tx = D.textoCompartilhar(M, sd, jd);
+  assert.strictEqual(rd.atleta, "Dupla de Lucas"); assert.strictEqual(rd.dupla, true);
+  assert.ok(!/Pedro|Fulano|Beltrano/.test(JSON.stringify(rd) + tx), "nem parceiro nem adversários no resumo público");
+  /* sobrevive a salvar e ler */
+  const vd = D.normalizar(JSON.parse(JSON.stringify(sd))).jogos[0];
+  assert.deepStrictEqual([vd.cfg.dupla, vd.cfg.sacaDupla, vd.parceiro, vd.inversoes], [true, "parceiro", "Pedro Lima", jd.inversoes]);
+  assert.strictEqual(D.linhaJogo(M, sd, jd).dupla, true);
+  /* simples e dupla separados na evolução e nos relatórios */
+  D.encerrar(jd);
+  const js = D.novoJogo(sd, { atletaId: at.id, cfg: { formato: "4games", saca: "nos" } }).jogo; for (let i = 0; i < 16; i++) D.marcarPonto(M, js, { fim: "winner_nos", nos: true });
+  assert.deepStrictEqual(D.comparacao(M, sd, at.id, 8).jogos.map((x) => x.id), [js.id], "evolução de simples sem a dupla");
+  assert.deepStrictEqual(D.comparacao(M, sd, at.id, 8, true).jogos.map((x) => x.id), [jd.id], "evolução das duplas sem o simples");
+  assert.deepStrictEqual(REL.jogosDoRelatorio(M, D, sd, at.id).map((x) => x.id), [js.id], "relatório de todos os jogos: só simples");
+  assert.deepStrictEqual(REL.opcoesPartida(M, D, sd, js).anteriores, [], "o jogo de simples não compara com a dupla");
+  assert.strictEqual(D.cfgLimpa({ formato: "1set" }).dupla, false, "jogo antigo continua simples");
+}
+
 /* cópia de segurança: exportar, importar em outro aparelho, importar de novo não duplica */
 const arquivo = D.exportar(st);
 const outro = D.normalizar(null); D.addAtleta(outro, "Lucas Andrade");

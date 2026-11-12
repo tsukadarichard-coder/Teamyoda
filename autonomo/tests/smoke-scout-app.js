@@ -450,6 +450,33 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   await g.goto(base + "#/conta"); await g.waitForSelector("#btGuia"); await g.click("#btGuia");
   await g.waitForFunction(() => { const b = document.querySelector(".guia-balao"); return b && !b.hidden && b.textContent.includes("Marcar um jogo"); });
   await g.click("[data-guia-pular]"); assert.ok(!(await visivel()), "pular fecha o guia");
+
+  /* ── dupla: parceiro, quem saca primeiro, 6 botões de fim, rodízio e troca do saque, "Na dupla" no fim ── */
+  await g.goto(base + "#/novo"); await g.waitForSelector("#btComecar");
+  await g.click('[data-modalidade="dupla"]'); await g.waitForSelector("#nvParceiro");
+  assert.strictEqual(await g.getAttribute('[data-tog="semVantagem"]', "aria-pressed"), "true", "dupla já vem com ponto decisivo");
+  await g.fill("#nvParceiro", "Pedro Lima"); await g.fill("#nvAdv", "Irmãos Silva");
+  await g.click('[data-sacadupla="parceiro"]');
+  assert.strictEqual(await g.getAttribute('[data-sacadupla="parceiro"]', "aria-pressed"), "true");
+  await semRolagem(g, "novo jogo de dupla"); await foto(g, "scout-dupla-1-novo");
+  await g.click("#btComecar"); await g.waitForSelector("[data-pontos]");
+  assert.ok(/Saque de Pedro/i.test(await g.innerText(".placar")) && /Duda e Pedro × Irmãos Silva/.test(await g.innerText(".placar")), await g.innerText(".placar"));
+  assert.strictEqual(await g.locator("[data-fim]").count(), 6, "seis botões: winner e erro de cada um, e os dos adversários");
+  const pontoD = async (sel) => { await g.click(sel); await g.click('[data-bola="1-4"]'); };
+  for (let i = 0; i < 4; i++) await pontoD('[data-fim="winner_nos"][data-quem="parceiro"]');
+  assert.ok(/Saque dos adversários/i.test(await g.innerText(".placar")), "game 2: saque dos adversários");
+  for (let i = 0; i < 4; i++) await pontoD('[data-fim="erro_dele"]');
+  assert.ok(/Saque de Duda/i.test(await g.innerText(".placar")), "game 3: a vez da Duda sacar");
+  await g.click("#btTrocarSaque"); await g.waitForFunction(() => /Saque de Pedro/i.test(document.querySelector(".placar").innerText));
+  await pontoD('[data-fim="erro_nos"][data-quem="atleta"]');
+  await semRolagem(g, "marcação de dupla"); await foto(g, "scout-dupla-2-marcacao");
+  await g.click("#btEncerrar"); await g.click("#btFimSim"); await g.waitForSelector("[data-dupla]");
+  assert.ok(/Duda e Pedro/.test(await g.innerText("[data-fim-jogo]")) || /encerrado/.test(await g.innerText("[data-fim-jogo]")), await g.innerText("[data-fim-jogo]"));
+  const td = await g.innerText("[data-dupla]");
+  assert.ok(/Pedro/.test(td) && /Winners\s+0\s+4/.test(td) && /Erros\s+1\s+0/.test(td), td);
+  await semRolagem(g, "fim de dupla"); await foto(g, "scout-dupla-3-fim");
+  await g.goto(base + "#/"); await g.waitForSelector("[data-novo]");
+  assert.ok(/Duda e Pedro/.test(await g.innerText("a.jogo-l >> nth=0")) && /dupla/.test(await g.innerText("a.jogo-l >> nth=0")), "lista mostra a dupla");
   assert.deepStrictEqual(c3.erros, [], "sem erro de JavaScript no guia");
 
   /* contagem de uso: só aparelho, evento e pontos */

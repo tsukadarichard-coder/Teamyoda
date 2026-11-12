@@ -9,7 +9,7 @@ const PAPEIS = ["responsavel", "atleta", "treinador", "outro"];
 const FORMATOS = ["3sets", "1set", "4games", "tb7", "tb10"];
 const ID_ATLETA = /^a[a-z0-9]{6,40}$/, ID_JOGO = /^j[a-z0-9]{6,40}$/, DATA = /^\d{4}-\d{2}-\d{2}$/, ISO = /^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/;
 const MAX_ATLETAS = 60, MAX_JOGOS = 400, MAX_PONTOS = 2000, MAX_JOGO_BYTES = 450000, MAX_APAGADOS = 300, MAX_LOTE = 10, MAX_BAIXAR = 40;
-const CAMPOS_PONTO = { fim: 20, saque: 8, bola: 6, causa: 12, situacao: 16, golpe: 16, direcao: 16, zona: 12, dirSaque: 12, qualDev: 12, dec: 8, sacador: 6, lado: 6, placarAntes: 8 };
+const CAMPOS_PONTO = { quem: 9, sacadorNos: 9, fim: 20, saque: 8, bola: 6, causa: 12, situacao: 16, golpe: 16, direcao: 16, zona: 12, dirSaque: 12, qualDev: 12, dec: 8, sacador: 6, lado: 6, placarAntes: 8 };
 
 class ErroPedido extends Error { constructor(status, msg) { super(msg); this.status = status; } }
 const txt = (v, n) => String(v == null ? "" : v).replace(/[\u0000-\u001f]/g, " ").trim().slice(0, n);
@@ -86,7 +86,10 @@ function jogo(j, idsAtletas) {
   const out = {
     id: j.id, atletaId: j.atletaId, data: DATA.test(j.data) ? j.data : new Date().toISOString().slice(0, 10),
     torneio: txt(j.torneio, 80), adversario: txt(j.adversario, 80),
-    cfg: { formato: f, saca: c.saca === "ele" ? "ele" : "nos", semVantagem: f === "tb7" || f === "tb10" ? false : !!c.semVantagem, superTiebreakDecisivo: f === "3sets" ? !!c.superTiebreakDecisivo : false },
+    cfg: { formato: f, saca: c.saca === "ele" ? "ele" : "nos", semVantagem: f === "tb7" || f === "tb10" ? false : !!c.semVantagem, superTiebreakDecisivo: f === "3sets" ? !!c.superTiebreakDecisivo : false,
+      ...(c.dupla ? { dupla: true, sacaDupla: c.sacaDupla === "parceiro" ? "parceiro" : "atleta" } : {}) },
+    /* dupla (pedido de 12/11/2026): o nome do parceiro fica só na conta, como o do adversário; inversoes = turnos de saque em que a ordem da dupla foi trocada */
+    ...(c.dupla ? { parceiro: txt(j.parceiro, 60), inversoes: (Array.isArray(j.inversoes) ? j.inversoes : []).map((x) => Math.round(+x)).filter((x) => x >= 0 && x <= 999).slice(0, 200) } : {}),
     pontos: (Array.isArray(j.pontos) ? j.pontos : []).slice(0, MAX_PONTOS).map(ponto).filter(Boolean),
     mental: { antes: bloco(mental.antes), jogo: jg, depois: bloco(mental.depois) },
     nivelAdversario: txt(j.nivelAdversario, 20), observacaoFinal: txt(j.observacaoFinal, 1200), fim: !!j.fim, usoFim: !!j.usoFim,

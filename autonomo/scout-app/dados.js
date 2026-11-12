@@ -7,7 +7,7 @@
   var VERSAO = 1;
   var CHAVE = "qls:v1";
   var MAX_ATLETAS = 60, MAX_JOGOS = 400;
-  var CFG_PADRAO = { formato: "3sets", saca: "nos", semVantagem: false, superTiebreakDecisivo: false };
+  var CFG_PADRAO = { formato: "3sets", saca: "nos", semVantagem: false, superTiebreakDecisivo: false, dupla: false, sacaDupla: "atleta" };
   var FORMATOS = ["3sets", "1set", "4games", "tb7", "tb10"];
 
   function txt(v, max) { return String(v == null ? "" : v).replace(/[\u0000-\u001f]/g, " ").trim().slice(0, max); }
@@ -29,7 +29,8 @@
   function cfgLimpa(c) {
     c = c || {};
     var f = FORMATOS.indexOf(c.formato) >= 0 ? c.formato : CFG_PADRAO.formato;
-    return { formato: f, saca: c.saca === "ele" ? "ele" : "nos", semVantagem: f === "tb7" || f === "tb10" ? false : !!c.semVantagem, superTiebreakDecisivo: f === "3sets" ? !!c.superTiebreakDecisivo : false };
+    return { formato: f, saca: c.saca === "ele" ? "ele" : "nos", semVantagem: f === "tb7" || f === "tb10" ? false : !!c.semVantagem, superTiebreakDecisivo: f === "3sets" ? !!c.superTiebreakDecisivo : false,
+      dupla: !!c.dupla, sacaDupla: c.sacaDupla === "parceiro" ? "parceiro" : "atleta" };
   }
   /* Tempo de partida: `inicioEm` nasce no primeiro ponto marcado e `fimEm` quando o jogo termina (pelo placar ou por
      "encerrar"). `duracaoMin` é o ajuste à mão (chuva, marcação começada depois): quando existe, vale mais que o relógio. */
@@ -70,6 +71,7 @@
       pontos: Array.isArray(j.pontos) ? j.pontos.filter(function (p) { return p && typeof p === "object" && typeof p.nos === "boolean"; }).slice(0, 2000) : [],
       mental: j.mental && typeof j.mental === "object" ? { antes: j.mental.antes || {}, jogo: j.mental.jogo || {}, depois: j.mental.depois || {} } : { antes: {}, jogo: {}, depois: {} },
       nivelAdversario: txt(j.nivelAdversario, 20), observacaoFinal: txt(j.observacaoFinal, 1200), fim: !!j.fim, usoFim: !!j.usoFim,
+      parceiro: txt(j.parceiro, 60), inversoes: (Array.isArray(j.inversoes) ? j.inversoes : []).map(function (x) { return Math.round(+x); }).filter(function (x) { return x >= 0 && x <= 999; }).slice(0, 200),
       criadoEm: typeof j.criadoEm === "string" ? j.criadoEm : agoraISO(), atualizadoEm: typeof j.atualizadoEm === "string" ? j.atualizadoEm : agoraISO(),
     };
   }
@@ -177,7 +179,7 @@
     o = o || {};
     if (!atleta(st, o.atletaId)) return { erro: "Escolha o atleta." };
     if (st.jogos.length >= MAX_JOGOS) return { erro: "Limite de " + MAX_JOGOS + " jogos neste aparelho. Faça uma cópia e apague jogos antigos." };
-    var j = jogoLimpo({ id: novoId("j"), atletaId: o.atletaId, data: hojeLocal(), torneio: o.torneio, adversario: o.adversario, cfg: o.cfg, pontos: [] });
+    var j = jogoLimpo({ id: novoId("j"), atletaId: o.atletaId, data: hojeLocal(), torneio: o.torneio, adversario: o.adversario, parceiro: o.parceiro, cfg: o.cfg, pontos: [] });
     st.jogos.push(j); st.atual = j.id;
     return { jogo: j };
   }
@@ -197,12 +199,63 @@
   }
   function encerrado(M, j) { return !!(j.fim || placar(M, j).fim); }
 
+  /* ── Dupla (pedido de 12/11/2026) ──
+     Quem da nossa dupla saca: cada bloco seguido de pontos com saque da dupla é um "turno" (um game, ou 1–2 pontos no tie-break);
+     os turnos alternam atleta e parceiro, começando por cfg.sacaDupla. "Trocar quem saca" grava o turno em j.inversoes e inverte
+     a ordem dali em diante (ex.: no começo do 2º set a dupla escolheu outra ordem). */
+  function turnoDaDupla(M, j) {
+    var c = j.cfg, e = M.placarInicial(c.formato, c.saca, c.semVantagem, c.superTiebreakDecisivo), turnos = 0, ant = null;
+    j.pontos.forEach(function (p) { var s = M.quemSaca(e); if (s === "nos" && ant !== "nos") turnos++; ant = s; e = M.aplicaPonto(e, p.nos); });
+    if (M.quemSaca(e) !== "nos") return -1;
+    return (ant === "nos" ? turnos : turnos + 1) - 1;
+  }
+  function quemSacaNoTurno(j, turno) {
+    var inv = (j.inversoes || []).filter(function (t) { return t <= turno; }).length, primeiro = j.cfg.sacaDupla === "parceiro" ? "parceiro" : "atleta";
+    return (turno + inv) % 2 === 0 ? primeiro : (primeiro === "atleta" ? "parceiro" : "atleta");
+  }
+  function sacadorDaDupla(M, j) { if (!j.cfg.dupla) return null; var t = turnoDaDupla(M, j); return t < 0 ? null : quemSacaNoTurno(j, t); }
+  function trocarSacadorDupla(M, j) {
+    if (!j.cfg.dupla) return false;
+    var t = turnoDaDupla(M, j); if (t < 0) return false;
+    j.inversoes = j.inversoes || []; var i = j.inversoes.indexOf(t);
+    if (i >= 0) j.inversoes.splice(i, 1); else j.inversoes.push(t);
+    tocar(j); return true;
+  }
+  function nomeParceiro(j) { return txt(j.parceiro, 60) || "Parceiro(a)"; }
+  /* números de cada um na dupla: winners, erros, aces, duplas faltas e o saque */
+  function numerosDaDupla(j) {
+    var z = function () { return { winners: 0, erros: 0, aces: 0, df: 0, saquesMarcados: 0, primeiroDentro: 0, pontosSacando: 0, ganhosSacando: 0 }; };
+    var out = { atleta: z(), parceiro: z() };
+    j.pontos.forEach(function (p) {
+      var quem = p.quem === "parceiro" ? "parceiro" : p.quem === "atleta" ? "atleta" : null, sac = p.sacadorNos === "parceiro" ? "parceiro" : p.sacadorNos === "atleta" ? "atleta" : null;
+      if (quem && p.fim === "winner_nos" && p.saque !== "ace") out[quem].winners++;
+      if (quem && p.fim === "erro_nos" && p.saque !== "df") out[quem].erros++;
+      if (sac) {
+        var x = out[sac]; x.pontosSacando++; if (p.nos) x.ganhosSacando++;
+        if (p.saque === "ace") x.aces++;
+        if (p.saque === "df") x.df++;
+        if (p.saque) { x.saquesMarcados++; if (p.saque === "1" || p.saque === "ace") x.primeiroDentro++; }
+      }
+    });
+    ["atleta", "parceiro"].forEach(function (k) { var x = out[k]; x.pctPrimeiro = x.saquesMarcados ? Math.round(x.primeiroDentro * 100 / x.saquesMarcados) : null; x.pctGanhosSacando = x.pontosSacando ? Math.round(x.ganhosSacando * 100 / x.pontosSacando) : null; });
+    return out;
+  }
+  function mesmaModalidade(a, b) { return !!(a && a.cfg && a.cfg.dupla) === !!(b && b.cfg && b.cfg.dupla); }
+
   /* marca um ponto: completa placar antes, game e set, como o scout do responsável */
   function marcarPonto(M, j, p) {
     var pl = placar(M, j);
     if (pl.fim || j.fim) return { erro: "A partida já terminou." };
     var q = {}; Object.keys(p || {}).forEach(function (k) { q[k] = p[k]; });
     q.nos = !!q.nos; q.n = j.pontos.length + 1; q.placarAntes = M.rotuloPontos(pl); q.jogo = M.numeroDoGame(pl); q.set = M.numeroDoSet(pl);
+    if (j.cfg.dupla) {
+      var sac = sacadorDaDupla(M, j);
+      if (sac) q.sacadorNos = sac; else delete q.sacadorNos;
+      /* ace e dupla falta da dupla são de quem está sacando; winner e erro, de quem a pessoa marcou */
+      if ((q.saque === "ace" || q.saque === "df") && sac) q.quem = sac;
+      else if (q.fim === "winner_nos" || q.fim === "erro_nos") q.quem = q.quem === "parceiro" ? "parceiro" : "atleta";
+      else delete q.quem;
+    } else { delete q.quem; delete q.sacadorNos; }
     if (!j.inicioEm) j.inicioEm = agoraISO(); // o relógio da partida começa no primeiro ponto
     j.pontos.push(q); tocar(j);
     var acabou = placar(M, j).fim;
@@ -212,14 +265,16 @@
   function desfazer(j) { if (!j.pontos.length) return false; j.pontos.pop(); j.fim = false; delete j.fimEm; if (!j.pontos.length) delete j.inicioEm; tocar(j); return true; }
 
   /* resumo no formato da página da família (o mesmo que os gráficos de scout/graficos.js desenham) */
-  function resumo(M, st, j) {
+  function resumoBase(M, st, j) {
     var a = atleta(st, j.atletaId), pl = placar(M, j), rr = M.resume(j.pontos);
     return M.montarResumoPublico({ data: j.data, torneio: j.torneio, resultado: textoSets(pl), concluida: !!(pl.fim || j.fim), observacaoFinal: j.observacaoFinal, nivelAdversario: j.nivelAdversario, mental: j.mental,
       scout: Object.assign({}, rr, { pontos: j.pontos, cfg: j.cfg }) }, { nome: a ? a.nome : "Atleta" });
   }
+  /* na dupla, o resumo (gráficos, link da família, texto do WhatsApp) fala da dupla, sem o nome do parceiro: "Dupla de Lucas" */
+  function resumo(M, st, j) { var r = resumoBase(M, st, j); if (j.cfg && j.cfg.dupla) { r.atleta = ("Dupla de " + r.atleta).slice(0, 40); r.dupla = true; } return r; }
   /* jogos terminados do mesmo atleta, antes deste, no formato que a análise ao vivo usa para comparar (QLAoVivo "anteriores") */
   function anteriores(M, st, j) {
-    return historico(st, j.atletaId).filter(function (x) { return x.id !== j.id && encerrado(M, x) && x.pontos.length >= 10 && (x.data + x.criadoEm) < (j.data + j.criadoEm); })
+    return historico(st, j.atletaId).filter(function (x) { return x.id !== j.id && mesmaModalidade(x, j) && encerrado(M, x) && x.pontos.length >= 10 && (x.data + x.criadoEm) < (j.data + j.criadoEm); })
       .slice(0, 10).map(function (x) { var r = resumo(M, st, x); return Object.assign({}, r, r.numeros, r.bolas); });
   }
   /* jogos de um atleta (ou de todos), do mais novo para o mais antigo */
@@ -232,13 +287,14 @@
     var pl = placar(M, j), n = j.pontos.length, g = j.pontos.filter(function (p) { return p.nos; }).length, a = atleta(st, j.atletaId);
     var fim = !!(pl.fim || j.fim);
     return { id: j.id, atleta: a ? a.nome : "Atleta", data: j.data, torneio: j.torneio, resultado: textoSets(pl), n: n, ganhos: g, pct: n ? Math.round(g * 100 / n) : 0,
-      fim: fim, venceu: pl.fim ? pl.vencedor === "nos" : null, duracao: fim || j.duracaoMin ? textoDuracao(duracaoSeg(j)) : "" };
+      fim: fim, venceu: pl.fim ? pl.vencedor === "nos" : null, duracao: fim || j.duracaoMin ? textoDuracao(duracaoSeg(j)) : "", dupla: !!j.cfg.dupla, parceiro: j.cfg.dupla ? txt(j.parceiro, 60) : "" };
   }
   /* medidas lado a lado dos últimos jogos terminados (mais antigo à esquerda) */
   var MEDIDAS = [["pctGanhos", "Pontos ganhos", "%", true], ["pctPrimeiro", "1º saque dentro", "%", true], ["errosNos", "Erros", "", false], ["df", "Duplas faltas", "", false],
     ["pctAdversos", "Ganhos em placar adverso", "%", true], ["pctAte4", "Pontos em até 4 bolas", "%", null]];
-  function comparacao(M, st, atletaId, max) {
-    var jogos = historico(st, atletaId).filter(function (j) { return encerrado(M, j) && j.pontos.length >= 10; }).slice(0, max || 6).reverse();
+  /* simples e dupla não se misturam: dupla = true compara só os jogos de dupla */
+  function comparacao(M, st, atletaId, max, dupla) {
+    var jogos = historico(st, atletaId).filter(function (j) { return !!j.cfg.dupla === !!dupla && encerrado(M, j) && j.pontos.length >= 10; }).slice(0, max || 6).reverse();
     var rs = jogos.map(function (j) {
       var r = resumo(M, st, j), o = Object.assign({ id: j.id, data: j.data, torneio: j.torneio, resultado: r.resultado }, r, r.numeros, r.bolas);
       /* saque não marcado no jogo: "—", não 0% */
@@ -300,6 +356,7 @@
   }
 
   var api = { VERSAO: VERSAO, CHAVE: CHAVE, CFG_PADRAO: CFG_PADRAO, MEDIDAS: MEDIDAS, vazio: vazio, normalizar: normalizar, atleta: atleta, jogo: jogo, addAtleta: addAtleta, renomearAtleta: renomearAtleta, removerAtleta: removerAtleta,
+    sacadorDaDupla: sacadorDaDupla, trocarSacadorDupla: trocarSacadorDupla, numerosDaDupla: numerosDaDupla, nomeParceiro: nomeParceiro, mesmaModalidade: mesmaModalidade, turnoDaDupla: turnoDaDupla,
     novoJogo: novoJogo, removerJogo: removerJogo, tocar: tocar, placar: placar, textoSets: textoSets, encerrado: encerrado, marcarPonto: marcarPonto, desfazer: desfazer, resumo: resumo, anteriores: anteriores,
     NOTAS: NOTAS, notasLimpas: notasLimpas, definirNota: definirNota, formatarNota: formatarNota, notaAnterior: notaAnterior, textoNotas: textoNotas, atletaLimpo: atletaLimpo,
     duracaoSeg: duracaoSeg, duracaoMin: duracaoMin, textoDuracao: textoDuracao, definirDuracao: definirDuracao, encerrar: encerrar, reabrir: reabrir,

@@ -189,7 +189,7 @@
   function linhaHtml(j) {
     var l = D.linhaJogo(M, st, j);
     var tag = !l.fim ? '<span class="tag a">em andamento</span>' : l.venceu === true ? '<span class="tag v">venceu</span>' : l.venceu === false ? '<span class="tag p">perdeu</span>' : '<span class="tag a">encerrado</span>';
-    return '<li><a class="jogo-l" href="#/jogo/' + esc(l.id) + '"><strong>' + esc(primeiroNome(l.atleta)) + (l.torneio ? " · " + esc(l.torneio) : "") + " " + tag + '</strong><span class="pct" aria-label="' + l.pct + ' por cento dos pontos ganhos">' + (l.n ? l.pct + "%" : "—") + '</span>' +
+    return '<li><a class="jogo-l" href="#/jogo/' + esc(l.id) + '"><strong>' + esc(primeiroNome(l.atleta)) + (l.dupla ? " e " + esc(primeiroNome(l.parceiro || "parceiro")) : "") + (l.torneio ? " · " + esc(l.torneio) : "") + " " + (l.dupla ? '<span class="tag a">dupla</span> ' : "") + tag + '</strong><span class="pct" aria-label="' + l.pct + ' por cento dos pontos ganhos">' + (l.n ? l.pct + "%" : "—") + '</span>' +
       '<span class="q">' + esc(l.resultado || "sem games ainda") + '</span><span class="d">' + esc(dataCurta(l.data)) + " · " + l.n + (l.n === 1 ? " ponto" : " pontos") + (l.duracao ? " · " + esc(l.duracao) : "") + "</span></a></li>";
   }
   function telaInicio() {
@@ -256,7 +256,8 @@
   /* ══ Novo jogo ══ */
   var novo = null;
   function telaNovo() {
-    if (!novo) novo = { atletaId: st.atletas.length >= 1 && st.atletas.length >= limiteAtletas() ? st.atletas[0].id : st.atletas.length === 1 ? st.atletas[0].id : null, nome: "", outro: !st.atletas.length, torneio: "", adversario: "", cfg: Object.assign({}, D.CFG_PADRAO), mental: { antes: {} }, mentalAberto: false };
+    if (!novo) novo = { atletaId: st.atletas.length >= 1 && st.atletas.length >= limiteAtletas() ? st.atletas[0].id : st.atletas.length === 1 ? st.atletas[0].id : null, nome: "", outro: !st.atletas.length, torneio: "", adversario: "", parceiro: "", cfg: Object.assign({}, D.CFG_PADRAO), mental: { antes: {} }, mentalAberto: false };
+    if (novo.parceiro == null) novo.parceiro = "";
     var c = novo.cfg, sel = novo.atletaId ? D.atleta(st, novo.atletaId) : null, nomeSaque = sel && !novo.outro ? primeiroNome(sel.nome) : (novo.nome ? primeiroNome(novo.nome) : "Atleta");
     function chip(attr, v, rot, on) { return '<button type="button" class="chip" ' + attr + '="' + esc(v) + '" aria-pressed="' + !!on + '">' + rot + "</button>"; }
     var h = '<p class="voltar"><a class="bt bt-texto" href="#/">‹ Seus jogos</a></p><h1>Marcar um jogo</h1><p class="sub">Só o atleta é obrigatório. O resto ajuda a comparar os jogos depois.</p>' +
@@ -264,19 +265,27 @@
       (st.atletas.length ? '<div class="chips" role="group" aria-label="Atleta" data-tour="atletas">' + st.atletas.map(function (a) { return chip("data-atleta", a.id, esc(a.nome), !novo.outro && novo.atletaId === a.id); }).join("") + chip("data-atleta", "+", "+ Outro atleta", novo.outro) + "</div>" : "") +
       (novo.outro && st.atletas.length >= limiteAtletas() ? '<div class="aviso" data-limite-atletas style="margin-top:12px">' + textoLimite() + ' Escolha um dos atletas acima ou apague um atleta que não acompanha mais.</div>' :
         novo.outro ? '<div class="campo"><label for="nvNome">Nome do atleta</label><input id="nvNome" maxlength="60" autocomplete="off" autocapitalize="words" placeholder="Ex.: Lucas" value="' + esc(novo.nome) + '"></div>' : "") +
+      '<p class="olho" style="margin-top:16px">Jogo</p><div class="chips" role="group" aria-label="Simples ou dupla" data-tour="modalidade">' + chip("data-modalidade", "simples", "Simples", !c.dupla) + chip("data-modalidade", "dupla", "Dupla", c.dupla) + "</div>" +
+      (c.dupla ? '<div class="campo"><label for="nvParceiro">Parceiro(a) de dupla <span class="nota">(opcional, nunca vai para o link da família)</span></label><input id="nvParceiro" maxlength="60" autocomplete="off" autocapitalize="words" placeholder="Ex.: Pedro" value="' + esc(novo.parceiro) + '"></div>' : "") +
       '<div class="campo"><label for="nvTorneio">Torneio <span class="nota">(opcional)</span></label><input id="nvTorneio" maxlength="80" placeholder="Torneio ou jogo-treino" value="' + esc(novo.torneio) + '"></div>' +
-      '<div class="campo"><label for="nvAdv">Adversário <span class="nota">(opcional, nunca vai para o link da família)</span></label><input id="nvAdv" maxlength="80" autocomplete="off" value="' + esc(novo.adversario) + '"></div></section>' +
+      '<div class="campo"><label for="nvAdv">' + (c.dupla ? "Adversários" : "Adversário") + ' <span class="nota">(opcional, nunca vai para o link da família)</span></label><input id="nvAdv" maxlength="80" autocomplete="off" value="' + esc(novo.adversario) + '"></div></section>' +
       '<section class="cartao"><h2>Formato</h2><div class="chips" role="group" aria-label="Formato" data-tour="formato">' + [["3sets", "Melhor de 3 sets"], ["1set", "Set único"], ["4games", "Set a 4 games"], ["tb10", "Match tie-break (10)"], ["tb7", "Só tie-break (7)"]].map(function (f) { return chip("data-formato", f[0], f[1], c.formato === f[0]); }).join("") + "</div>" +
-      '<p class="olho" style="margin-top:16px">Quem saca primeiro</p><div class="chips" role="group" aria-label="Quem saca primeiro">' + chip("data-saca", "nos", esc(nomeSaque), c.saca === "nos") + chip("data-saca", "ele", "Adversário", c.saca === "ele") + "</div>" +
+      '<p class="olho" style="margin-top:16px">Quem saca primeiro</p><div class="chips" role="group" aria-label="Quem saca primeiro">' + chip("data-saca", "nos", c.dupla ? "Dupla de " + esc(nomeSaque) : esc(nomeSaque), c.saca === "nos") + chip("data-saca", "ele", c.dupla ? "Adversários" : "Adversário", c.saca === "ele") + "</div>" +
+      (c.dupla && c.saca === "nos" ? '<p class="olho" style="margin-top:16px">Quem da dupla saca primeiro</p><div class="chips" role="group" aria-label="Quem da dupla saca primeiro">' + chip("data-sacadupla", "atleta", esc(nomeSaque), c.sacaDupla !== "parceiro") +
+        chip("data-sacadupla", "parceiro", esc(novo.parceiro ? primeiroNome(novo.parceiro) : "Parceiro(a)"), c.sacaDupla === "parceiro") + '</div><p class="nota" style="margin-top:6px">Depois o app alterna sozinho. Se a dupla mudar a ordem, troque durante o jogo.</p>' : "") +
       (c.formato === "tb7" || c.formato === "tb10" ? '<p class="nota" style="margin-top:12px">Um único tie-break de ' + (c.formato === "tb10" ? "10" : "7") + " pontos, com 2 de diferença.</p>" :
         '<p class="olho" style="margin-top:16px">Pontuação</p><div class="chips">' + chip("data-tog", "semVantagem", "Sem vantagem (ponto decisivo no 40-40)", c.semVantagem) + (c.formato === "3sets" ? chip("data-tog", "superTiebreakDecisivo", "Super tie-break no 3º set", c.superTiebreakDecisivo) : "") + "</div>") +
       '</section><details class="cartao det" id="detMentalAntes"' + (novo.mentalAberto ? " open" : "") + '><summary>Como o atleta chega (opcional)</summary><p class="nota">De 1 (muito baixo) a 5 (muito alto). Depois do jogo dá para comparar com como ele terminou.</p>' + escalasHtml("antes", novo.mental.antes) + "</details>" +
       '<div class="aviso atencao" id="nvErro" role="alert" hidden></div><div class="acoes"><button type="button" class="bt bt-principal bt-grande" id="btComecar">Começar o jogo</button></div>';
     tela(h);
-    function lerCampos() { var n = document.getElementById("nvNome"); if (n) novo.nome = n.value; novo.torneio = document.getElementById("nvTorneio").value; novo.adversario = document.getElementById("nvAdv").value; }
+    function lerCampos() { var n = document.getElementById("nvNome"); if (n) novo.nome = n.value; var pc = document.getElementById("nvParceiro"); if (pc) novo.parceiro = pc.value; novo.torneio = document.getElementById("nvTorneio").value; novo.adversario = document.getElementById("nvAdv").value; }
     cada("[data-atleta]", function (b) { b.addEventListener("click", function () { lerCampos(); var v = b.getAttribute("data-atleta"); if (v === "+") { novo.outro = true; novo.atletaId = null; } else { novo.outro = false; novo.atletaId = v; } telaNovo(); var cn = document.getElementById("nvNome"); if (novo.outro && cn) cn.focus(); }); });
     cada("[data-formato]", function (b) { b.addEventListener("click", function () { lerCampos(); c.formato = b.getAttribute("data-formato"); novo.cfg = D.cfgLimpa(c); telaNovo(); }); });
     cada("[data-saca]", function (b) { b.addEventListener("click", function () { lerCampos(); c.saca = b.getAttribute("data-saca"); telaNovo(); }); });
+    /* dupla: em torneio de dupla é comum o ponto decisivo e o super tie-break no 3º set; já vêm marcados (dá para desmarcar) */
+    cada("[data-modalidade]", function (b) { b.addEventListener("click", function () { lerCampos(); var d = b.getAttribute("data-modalidade") === "dupla"; if (d && !c.dupla) { c.semVantagem = true; c.superTiebreakDecisivo = true; } c.dupla = d; novo.cfg = D.cfgLimpa(c); telaNovo(); }); });
+    cada("[data-sacadupla]", function (b) { b.addEventListener("click", function () { lerCampos(); c.sacaDupla = b.getAttribute("data-sacadupla"); novo.cfg = D.cfgLimpa(c); telaNovo(); }); });
+    var pcp = document.getElementById("nvParceiro"); if (pcp) pcp.addEventListener("input", function () { novo.parceiro = pcp.value; });
     cada("[data-tog]", function (b) { b.addEventListener("click", function () { lerCampos(); var k = b.getAttribute("data-tog"); c[k] = !c[k]; novo.cfg = D.cfgLimpa(c); telaNovo(); }); });
     var dm = document.getElementById("detMentalAntes"); dm.addEventListener("toggle", function () { novo.mentalAberto = dm.open; });
     ligarEscalas(novo.mental, function () { lerCampos(); telaNovo(); });
@@ -286,7 +295,7 @@
       var er = document.getElementById("nvErro"), atletaId = novo.atletaId;
       if ((novo.outro || !atletaId) && st.atletas.length >= limiteAtletas()) { er.textContent = textoLimite() + " Escolha um atleta que já está na conta."; er.hidden = false; return; }
       if (novo.outro || !atletaId) { var antes = st.atletas.length, r = D.addAtleta(st, novo.nome); if (r.erro) { er.textContent = r.erro; er.hidden = false; return; } atletaId = r.atleta.id; if (st.atletas.length > antes) atletasMudaram(); }
-      var x = D.novoJogo(st, { atletaId: atletaId, torneio: novo.torneio, adversario: novo.adversario, cfg: novo.cfg });
+      var x = D.novoJogo(st, { atletaId: atletaId, torneio: novo.torneio, adversario: novo.adversario, parceiro: novo.cfg.dupla ? novo.parceiro : "", cfg: novo.cfg });
       if (x.erro) { er.textContent = x.erro; er.hidden = false; return; }
       x.jogo.mental.antes = novo.mental.antes || {};
       salvar(); uso("jogo-iniciado"); novo = null;
@@ -300,6 +309,13 @@
   function modoCompleto() { try { return localStorage.getItem("qls:modo") !== "rapido"; } catch (e) { return true; } }
   function trocarModo() { try { localStorage.setItem("qls:modo", modoCompleto() ? "rapido" : "completo"); } catch (e) { /* sem armazenamento */ } }
   var FIM_ROT = [["winner_nos", "Winner de ", true], ["erro_dele", "Erro do adversário", true], ["erro_nos", "Erro de ", false], ["winner_dele", "Winner do adversário", false]];
+  /* dupla: winner e erro de cada um da dupla (2 toques por ponto, como no simples) */
+  function botoesFim(j, nome) {
+    if (!j.cfg.dupla) return FIM_ROT.map(function (o) { return { fim: o[0], rot: o[1] + (/ $/.test(o[1]) ? nome : ""), nos: o[2], quem: null }; });
+    var pc = primeiroNome(D.nomeParceiro(j));
+    return [{ fim: "winner_nos", rot: "Winner de " + nome, nos: true, quem: "atleta" }, { fim: "winner_nos", rot: "Winner de " + pc, nos: true, quem: "parceiro" }, { fim: "erro_dele", rot: "Erro dos adversários", nos: true, quem: null },
+      { fim: "erro_nos", rot: "Erro de " + nome, nos: false, quem: "atleta" }, { fim: "erro_nos", rot: "Erro de " + pc, nos: false, quem: "parceiro" }, { fim: "winner_dele", rot: "Winner dos adversários", nos: false, quem: null }];
+  }
   var marc = { id: null };
   function telaJogo(id) {
     var j = D.jogo(st, id);
@@ -327,33 +343,36 @@
   }, 15000);
   function desenharMarcacao(j, topo) {
     var a = D.atleta(st, j.atletaId), nome = primeiroNome(a && a.nome), pl = D.placar(M, j), sacador = M.quemSaca(pl), meu = sacador === "nos", n = j.pontos.length;
+    var dupla = !!j.cfg.dupla, sacDupla = dupla && meu ? D.sacadorDaDupla(M, j) : null, nomeSac = sacDupla === "parceiro" ? primeiroNome(D.nomeParceiro(j)) : nome;
     var gan = j.pontos.filter(function (p) { return p.nos; }).length, ant = anterioresDe(j), r = marc.rasc, gameAtual = M.numeroDoGame(pl), completo = modoCompleto();
     var soTb = j.cfg.formato === "tb7" || j.cfg.formato === "tb10", sets = soTb ? "tie-break" : pl.sets.map(function (x) { return x[0] + "-" + x[1]; }).concat([pl.g[0] + "-" + pl.g[1]]).join("  ");
     var h = '<p class="voltar"><a class="bt bt-texto" href="#/">‹ Seus jogos</a></p>' +
-      '<section class="placar" aria-label="Placar"><div><p class="l">' + esc((meu ? "Saque de " + nome : "Saque do adversário") + " · " + M.ROTULO_LADO[M.ladoDoSaque(pl)]) + '</p><p class="pts" data-pontos>' + esc(M.rotuloPontos(pl)) + '</p></div><div><p class="l">Games</p><p class="sets" data-sets>' + esc(sets) + "</p></div>" +
-      '<p class="quem">' + esc(nome) + " × " + esc(j.adversario || "adversário") + (j.torneio ? " · " + esc(j.torneio) : "") + '</p><p class="tempo" data-tempo="' + esc(j.id) + '">' + esc(textoTempo(j)) + "</p></section>" +
+      '<section class="placar" aria-label="Placar"><div><p class="l">' + esc((meu ? "Saque de " + nomeSac : dupla ? "Saque dos adversários" : "Saque do adversário") + " · " + M.ROTULO_LADO[M.ladoDoSaque(pl)]) + '</p><p class="pts" data-pontos>' + esc(M.rotuloPontos(pl)) + '</p></div><div><p class="l">Games</p><p class="sets" data-sets>' + esc(sets) + "</p></div>" +
+      '<p class="quem">' + esc(nome) + (dupla ? " e " + esc(primeiroNome(D.nomeParceiro(j))) : "") + " × " + esc(j.adversario || (dupla ? "adversários" : "adversário")) + (j.torneio ? " · " + esc(j.torneio) : "") + '</p><p class="tempo" data-tempo="' + esc(j.id) + '">' + esc(textoTempo(j)) + "</p></section>" +
       (M.ehAdverso(pl) ? '<p class="adverso">PLACAR ADVERSO · este ponto entra na comparação</p>' : "") +
       (AV && n ? AV.faixaAlerta(j.pontos, nome, ant) : "");
     if (!r) {
-      h += '<section class="cartao" data-tour="saque"><p class="olho">' + (meu ? "Saque de " + esc(nome) : "Saque do adversário") + ' (opcional)</p>' +
+      h += '<section class="cartao" data-tour="saque"><p class="olho">' + (meu ? "Saque de " + esc(nomeSac) : dupla ? "Saque dos adversários" : "Saque do adversário") + ' (opcional)' +
+        (dupla && meu ? ' <button type="button" class="bt bt-texto bt-pq" id="btTrocarSaque" style="margin-left:6px;text-transform:none;letter-spacing:0">Trocar quem saca</button>' : "") + "</p>" +
         (completo ? '<div class="chips" role="group" aria-label="Direção do saque" style="margin-bottom:8px">' + M.DIRECOES_SAQUE.map(function (x) { return '<button type="button" class="chip" data-dsq="' + esc(x[0]) + '" aria-pressed="' + (marc.dirS === x[0]) + '">' + esc(x[1]) + "</button>"; }).join("") + '<span class="nota" style="align-self:center;margin:0">direção do saque</span></div>' : "") +
         '<div class="grade4">' +
-        [["1", "1º dentro"], ["2", "2º dentro"], ["ace", meu ? "Ace" : "Ace dele"], ["df", meu ? "Dupla falta" : "Dupla falta dele"]].map(function (x) {
+        [["1", "1º dentro"], ["2", "2º dentro"], ["ace", meu ? "Ace" : dupla ? "Ace deles" : "Ace dele"], ["df", meu ? "Dupla falta" : dupla ? "Dupla falta deles" : "Dupla falta dele"]].map(function (x) {
           return '<button type="button" class="bt-saque" data-saq="' + x[0] + '"' + (x[0] === "1" || x[0] === "2" ? ' aria-pressed="' + (marc.saquePre === x[0]) + '"' : "") + ">" + x[1] + "</button>";
         }).join("") + "</div></section>" +
-        '<section class="cartao" data-tour="fim"><p class="olho">Como o ponto terminou</p><div class="grade2">' + FIM_ROT.map(function (o) {
-          return '<button type="button" class="bt-fim ' + (o[2] ? "nos" : "ele") + '" data-fim="' + o[0] + '">' + esc(o[1] + (/ $/.test(o[1]) ? nome : "")) + "<small>" + (o[2] ? "ponto de " + esc(nome) : "ponto do adversário") + "</small></button>";
+        '<section class="cartao" data-tour="fim"><p class="olho">Como o ponto terminou</p><div class="grade2">' + botoesFim(j, nome).map(function (o) {
+          return '<button type="button" class="bt-fim ' + (o.nos ? "nos" : "ele") + '" data-fim="' + o.fim + '"' + (o.quem ? ' data-quem="' + o.quem + '"' : "") + ">" + esc(o.rot) + "<small>" +
+            (o.nos ? "ponto " + (dupla ? "da dupla" : "de " + esc(nome)) : dupla ? "ponto dos adversários" : "ponto do adversário") + "</small></button>";
         }).join("") + "</div></section>";
     } else {
-      var rot = FIM_ROT.filter(function (o) { return o[0] === r.fim; })[0];
-      h += '<section class="cartao rasc' + (r.nos ? "" : " ele") + '"><div class="contagem"><p class="olho" style="margin:0">' + esc(rot[1] + (/ $/.test(rot[1]) ? nome : "")) + '</p><button type="button" class="bt bt-texto bt-pq" id="btTrocar">Trocar</button></div>' +
+      var rot = botoesFim(j, nome).filter(function (o) { return o.fim === r.fim && (!o.quem || o.quem === r.quem); })[0];
+      h += '<section class="cartao rasc' + (r.nos ? "" : " ele") + '"><div class="contagem"><p class="olho" style="margin:0">' + esc(rot ? rot.rot : "") + '</p><button type="button" class="bt bt-texto bt-pq" id="btTrocar">Trocar</button></div>' +
         (completo ? detalhesRascHtml(r, nome) : "") +
         '<p class="olho" style="margin-top:14px" data-tour="bola-titulo">Em que bola o ponto terminou</p><div class="grade3" data-tour="bola">' + [["1-4", "curto"], ["5-9", "médio"], ["10+", "longo"]].map(function (b) { return '<button type="button" class="bt-bola" data-bola="' + b[0] + '">' + b[0] + "<small>" + b[1] + "</small></button>"; }).join("") + "</div>" +
         '<p class="nota">Contando o saque como a 1ª bola. Na dúvida, escolha o mais perto.</p></section>';
     }
     if (n && !r) h += registradoHtml(j);
     if (n && !r && !completo) h += detalhesHtml(j, nome);
-    h += '<section class="cartao" data-tour="contagem"><div class="contagem"><span><b>' + n + "</b> " + (n === 1 ? "ponto" : "pontos") + " · " + esc(nome) + " ganhou <b>" + gan + "</b>" + (n ? " (" + Math.round(gan * 100 / n) + "%)" : "") + "</span></div>" +
+    h += '<section class="cartao" data-tour="contagem"><div class="contagem"><span><b>' + n + "</b> " + (n === 1 ? "ponto" : "pontos") + " · " + (dupla ? "a dupla" : esc(nome)) + " ganhou <b>" + gan + "</b>" + (n ? " (" + Math.round(gan * 100 / n) + "%)" : "") + "</span></div>" +
       (marc.confirmaFim ? '<div class="cartao confirma"><p style="margin:0"><b>Encerrar o jogo agora?</b> Use quando o jogo parou antes do fim (desistência, chuva, tempo).</p><div class="acoes"><button type="button" class="bt bt-principal bt-pq" id="btFimSim">Sim, encerrar</button><button type="button" class="bt bt-pq" id="btFimNao">Continuar marcando</button></div></div>' :
         '<div class="acoes"><button type="button" class="bt bt-pq" id="btDesfazer"' + (n || r ? "" : " disabled") + '>Desfazer</button><button type="button" class="bt bt-pq" id="btModo" aria-pressed="' + completo + '">' + (completo ? "Modo completo ✓" : "Modo rápido ✓") + '</button><button type="button" class="bt bt-pq bt-perigo" id="btEncerrar">Encerrar jogo</button></div>' +
         '<p class="nota">' + (completo ? "Modo completo: direção do saque e detalhes de cada ponto antes da bola. Toque para trocar pelo rápido." : "Modo rápido: só como terminou e a bola; os detalhes ficam no último ponto. Toque para trocar pelo completo.") + "</p>") + "</section>";
@@ -425,7 +444,11 @@
     cada("[data-rdb]", function (b) { b.addEventListener("click", function () { var k = b.getAttribute("data-rdb"); marc.rasc[k] = !marc.rasc[k]; redesenhar(); }); });
     var bm = document.getElementById("btModo"); if (bm) bm.addEventListener("click", function () { trocarModo(); toast(modoCompleto() ? "Modo completo: detalhes antes da bola." : "Modo rápido: só como terminou e a bola."); redesenhar(); });
     var bc = document.getElementById("btCorrigir"); if (bc) bc.addEventListener("click", function () { if (D.desfazer(j)) { salvar(); agendarAoVivo(j); toast("Ponto desfeito. Marque de novo."); redesenhar(); } });
-    cada("[data-fim]", function (b) { b.addEventListener("click", function () { var f = FIM_ROT.filter(function (o) { return o[0] === b.getAttribute("data-fim"); })[0]; marc.rasc = base(f[2], f[0]); redesenhar(); }); });
+    cada("[data-fim]", function (b) { b.addEventListener("click", function () {
+      var fim = b.getAttribute("data-fim"), quem = b.getAttribute("data-quem"), f = botoesFim(j, nome).filter(function (o) { return o.fim === fim && (o.quem || null) === (quem || null); })[0];
+      marc.rasc = base(f.nos, f.fim); if (f.quem) marc.rasc.quem = f.quem; redesenhar();
+    }); });
+    var ts = document.getElementById("btTrocarSaque"); if (ts) ts.addEventListener("click", function () { if (D.trocarSacadorDupla(M, j)) { salvar(); toast("Saque trocado: a ordem da dupla vale daqui em diante."); redesenhar(); } });
     var tr = document.getElementById("btTrocar"); if (tr) tr.addEventListener("click", function () { marc.rasc = null; redesenhar(); });
     cada("[data-bola]", function (b) { b.addEventListener("click", function () { var p = marc.rasc; p.bola = b.getAttribute("data-bola"); marcar(p); }); });
     cada("[data-det]", function (b) { b.addEventListener("click", function () { var p = j.pontos[j.pontos.length - 1], k = b.getAttribute("data-det"), v = b.getAttribute("data-v"); p[k] = p[k] === v ? null : v; D.tocar(j); salvar(); agendarAoVivo(j); redesenhar(); }); });
@@ -454,17 +477,27 @@
   }
 
   /* ══ Fim de jogo ══ */
+  /* dupla: o que cada um fez (winners e erros marcados por pessoa; ace, dupla falta e 1º saque de quem sacava) */
+  function duplaHtml(j, nome) {
+    var nd = D.numerosDaDupla(j), pc = primeiroNome(D.nomeParceiro(j)), a = nd.atleta, p = nd.parceiro;
+    var pct = function (v) { return v == null ? "—" : v + "%"; };
+    var linhas = [["Winners", a.winners, p.winners], ["Erros", a.erros, p.erros], ["Aces", a.aces, p.aces], ["Duplas faltas", a.df, p.df], ["1º saque dentro", pct(a.pctPrimeiro), pct(p.pctPrimeiro)], ["Pontos ganhos no seu saque", pct(a.pctGanhosSacando), pct(p.pctGanhosSacando)]];
+    return '<section class="cartao" data-dupla><h2>Na dupla</h2><p class="nota" style="margin-top:0">Quem fez o quê. Os números de cima são da dupla.</p><div class="tab"><table><thead><tr><th>Medida</th><th>' + esc(nome) + "</th><th>" + esc(pc) + "</th></tr></thead><tbody>" +
+      linhas.map(function (l) { return "<tr><td>" + l[0] + "</td><td>" + l[1] + "</td><td>" + l[2] + "</td></tr>"; }).join("") + "</tbody></table></div></section>";
+  }
   function telaFim(j, topo) {
     var a = D.atleta(st, j.atletaId), nome = primeiroNome(a && a.nome), pl = D.placar(M, j), r = D.resumo(M, st, j), n = j.pontos.length;
     if (st.atual === j.id) { delete st.atual; salvar(); }
-    var titulo = pl.fim ? nome + (pl.vencedor === "nos" ? " venceu" : " perdeu") : "Jogo encerrado antes do fim";
-    var cmp = D.comparacao(M, st, j.atletaId, 6), link = linkDe(j);
+    var dupla = !!j.cfg.dupla, quemJogou = dupla ? nome + " e " + primeiroNome(D.nomeParceiro(j)) : nome;
+    var titulo = pl.fim ? quemJogou + (pl.vencedor === "nos" ? (dupla ? " venceram" : " venceu") : (dupla ? " perderam" : " perdeu")) : "Jogo encerrado antes do fim";
+    var cmp = D.comparacao(M, st, j.atletaId, 6, dupla), link = linkDe(j);
     var h = '<p class="voltar"><a class="bt bt-texto" href="#/">‹ Seus jogos</a></p>' +
       '<section class="resultado" data-fim-jogo><p class="olho">Fim de jogo' + (j.torneio ? " · " + esc(j.torneio) : "") + " · " + esc(dataBR(j.data)) + "</p><h1>" + esc(titulo) + "</h1>" +
-      (r.resultado ? '<p class="placar-f">' + esc(r.resultado) + "</p>" : "") + '<p class="nota">' + n + (n === 1 ? " ponto" : " pontos") + " · " + esc(nome) + " ganhou " + r.ganhos + " (" + r.pctGanhos + "%)" + (j.adversario ? " · contra " + esc(j.adversario) : "") + "</p>" +
+      (r.resultado ? '<p class="placar-f">' + esc(r.resultado) + "</p>" : "") + '<p class="nota">' + n + (n === 1 ? " ponto" : " pontos") + " · " + (dupla ? "a dupla ganhou " : esc(nome) + " ganhou ") + r.ganhos + " (" + r.pctGanhos + "%)" + (j.adversario ? " · contra " + esc(j.adversario) : "") + "</p>" +
       (D.duracaoSeg(j) != null ? '<p class="nota" data-duracao><b>Tempo de jogo: ' + esc(D.textoDuracao(D.duracaoSeg(j))) + "</b></p>" : "") +
       (link ? '<p class="nota">O link ao vivo mostra o resultado final por mais 2 horas.</p>' : "") +
       '<div class="acoes"><button type="button" class="bt bt-principal" id="btCompartilhar">Compartilhar o resultado</button><a class="bt" id="lkWhats" target="_blank" rel="noopener noreferrer" href="https://wa.me/?text=' + encodeURIComponent(D.textoCompartilhar(M, st, j)) + '">Mandar no WhatsApp</a></div></section>';
+    if (n && dupla) h += duplaHtml(j, nome);
     if (n && G) h += '<div class="graficos">' + G.topo(r) + G.secoes(r) + "</div>";
     /* exportar: o relatório deste jogo (sempre que há pontos) e o de todos os jogos terminados do atleta */
     var temTodos = !!(window.QLScoutRelatorio && window.QLScoutRelatorio.jogosDoRelatorio(M, D, st, j.atletaId).length);
@@ -544,13 +577,14 @@
     if (!a) { tela('<p class="voltar"><a class="bt bt-texto" href="#/">‹ Seus jogos</a></p><div class="aviso atencao">Atleta não encontrado na sua conta.</div>', true); return; }
     var jogos = D.historico(st, id), linhas = jogos.map(function (j) { return D.linhaJogo(M, st, j); }), fim = linhas.filter(function (l) { return l.fim && l.n; });
     var vit = fim.filter(function (l) { return l.venceu === true; }).length, der = fim.filter(function (l) { return l.venceu === false; }).length;
-    var media = fim.length ? Math.round(fim.reduce(function (s, l) { return s + l.pct; }, 0) / fim.length) : null, cmp = D.comparacao(M, st, id, 8);
+    var media = fim.length ? Math.round(fim.reduce(function (s, l) { return s + l.pct; }, 0) / fim.length) : null, cmp = D.comparacao(M, st, id, 8), cmpD = D.comparacao(M, st, id, 8, true), temDupla = jogos.some(function (x) { return x.cfg.dupla; });
     var h = '<p class="voltar"><a class="bt bt-texto" href="#/">‹ Seus jogos</a></p><h1>' + esc(a.nome) + '</h1><p class="sub">' + jogos.length + (jogos.length === 1 ? " jogo" : " jogos") + (fim.length ? " · " + vit + (vit === 1 ? " vitória" : " vitórias") + " e " + der + (der === 1 ? " derrota" : " derrotas") + " · média de " + media + "% dos pontos" : "") + (D.textoNotas(a) ? ' · <b data-notas-resumo>' + esc(D.textoNotas(a)) + "</b>" : "") + "</p>" +
       '<div class="acoes"><a class="bt bt-principal" href="#/novo" data-novo-atleta="' + esc(id) + '">+ Marcar um jogo de ' + esc(primeiroNome(a.nome)) + "</a></div>" +
       (!ehPlus() ? cadeadoPlus("pdf", "Relatório dos jogos", "Reúne os jogos terminados em um PDF com gráficos de evolução.") :
       '<section class="cartao"><h2>Relatório dos jogos</h2><p class="nota" style="margin-top:0">Reúne os jogos terminados em um PDF com gráficos de evolução.</p><div class="acoes">' +
         (window.QLScoutRelatorio && window.QLScoutRelatorio.jogosDoRelatorio(M, D, st, id).length ? '<button type="button" class="bt bt-pq" id="btRelatorio">Relatório dos jogos (PDF)</button>' : '<span class="nota">O relatório aparece com 1 jogo terminado de pelo menos 10 pontos.</span>') + "</div></section>") +
-      (cmp.jogos.length >= 2 ? '<section class="cartao"><h2>Evolução jogo a jogo</h2>' + tabelaComparacao(cmp) + "</section>" : '<div class="aviso">A comparação aparece a partir de 2 jogos terminados.</div>') +
+      (cmp.jogos.length >= 2 ? '<section class="cartao"><h2>Evolução jogo a jogo' + (temDupla ? " · simples" : "") + "</h2>" + tabelaComparacao(cmp) + "</section>" : '<div class="aviso">A comparação aparece a partir de 2 jogos ' + (temDupla ? "de simples " : "") + "terminados.</div>") +
+      (cmpD.jogos.length >= 2 ? '<section class="cartao" data-evolucao-dupla><h2>Evolução nas duplas</h2><p class="nota" style="margin-top:0">Só os jogos de dupla, para não misturar com os de simples.</p>' + tabelaComparacao(cmpD) + "</section>" : "") +
       (jogos.length ? '<section class="secao"><h2>Jogos</h2><ul class="lista">' + jogos.map(linhaHtml).join("") + "</ul></section>" : "") +
       notasHtml(a) +
       '<section class="cartao"><h2>Nome</h2><div class="campo" style="margin-top:6px"><label for="atNome">Nome do atleta</label><input id="atNome" maxlength="60" value="' + esc(a.nome) + '"></div><div class="acoes"><button type="button" class="bt bt-pq" id="btRenomear">Salvar nome</button>' +

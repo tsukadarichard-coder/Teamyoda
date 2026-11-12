@@ -201,6 +201,16 @@ const chama = async (tk, corpo, metodo) => {
     assert.deepStrictEqual([jt.inicioEm, jt.fimEm], [undefined, undefined], "jogo antigo, sem relógio, continua valendo");
   }
 
+  /* dupla: o servidor guarda a modalidade, o parceiro, as trocas de ordem do saque e quem fez cada ponto */
+  {
+    const R = require(fx + "_scout-app.js"), base = { id: "jdupla000001", atletaId: lucas.id, atualizadoEm: "2026-11-12T12:00:00.000Z" };
+    let jd = R.jogo({ ...base, parceiro: "Pedro", inversoes: [2, "x", -1, 5], cfg: { formato: "3sets", dupla: true, sacaDupla: "parceiro" }, pontos: [{ nos: true, fim: "winner_nos", quem: "parceiro", sacadorNos: "atleta", extra: "x" }] }, null);
+    assert.deepStrictEqual([jd.cfg.dupla, jd.cfg.sacaDupla, jd.parceiro, jd.inversoes], [true, "parceiro", "Pedro", [2, 5]]);
+    assert.deepStrictEqual([jd.pontos[0].quem, jd.pontos[0].sacadorNos, jd.pontos[0].extra], ["parceiro", "atleta", undefined]);
+    jd = R.jogo({ ...base, parceiro: "Pedro", cfg: { formato: "3sets" }, pontos: [] }, null);
+    assert.ok(!jd.cfg.dupla && jd.parceiro === undefined, "simples não guarda parceiro");
+  }
+
   /* UTR e WTN do atleta: o servidor guarda o que está dentro da escala e descarta o resto */
   {
     const R = require(fx + "_scout-app.js"), id = "anotas000001";
