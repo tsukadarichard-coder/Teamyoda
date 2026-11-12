@@ -34,6 +34,7 @@ const usuarios = { uRichard01: { uid: "uRichard01", email: "tsukada.richard@gmai
 let nUid = 0;
 const auth = {
   async createUser(d) { if (Object.values(usuarios).some((u) => u.email === d.email)) { const e = new Error("x"); e.code = "auth/email-already-exists"; throw e; } const uid = "uCli" + String(++nUid).padStart(6, "0"); usuarios[uid] = { uid, email: d.email, name: d.displayName, senha: d.password }; return { uid }; },
+  async getUserByEmail(email) { const u = Object.values(usuarios).filter((x) => x.email === email)[0]; if (!u) { const e = new Error("x"); e.code = "auth/user-not-found"; throw e; } return { uid: u.uid }; },
   async verifyIdToken(t) { const u = usuarios[t]; if (!u) throw new Error("token"); return { uid: u.uid, email: u.email, name: u.name, email_verified: u.email_verified !== false }; },
 };
 require.cache[require.resolve(fx + "_firebase-admin.js")] = { id: "a", filename: "a", loaded: true, exports: { admin: { firestore: () => ({ collection: (n) => colRef(n) }), auth: () => auth }, app: () => {} } };
@@ -125,7 +126,8 @@ window.firebase={apps:[],initializeApp:function(){this.apps.push({})},auth:funct
   assert.strictEqual(await p.evaluate(() => getComputedStyle(document.querySelector(".topo")).position), "sticky", "o estilo da página carregou");
   assert.ok((await texto(p)).includes("Seu tênis analisado pelo Richard Tsukada"));
   await semRolagem(p, "entrada"); await foto(p, "consultoria-1-entrada");
-  await p.click("#mCriar");
+  assert.ok(await p.$('[data-modo-ent="primeiro"]') && await p.$('[data-modo-ent="criar"]'), "três caminhos: entrar, convite, quero começar");
+  await p.click('[data-modo-ent="criar"]'); await p.waitForSelector('[name="nome"]');
   await p.fill('[name="nome"]', "Lia Souza"); await p.fill('[name="email"]', "lia@exemplo.com"); await p.fill('[name="senha"]', "12345678");
   await p.click("#btEnt"); await p.waitForSelector("#fCad");
   const nasc = (new Date().getFullYear() - 15) + "-03-10";
@@ -149,6 +151,7 @@ window.firebase={apps:[],initializeApp:function(){this.apps.push({})},auth:funct
   await r.goto(base, { waitUntil: "load" }); await r.waitForSelector("#fEntrar");
   await r.fill('[name="email"]', "tsukada.richard@gmail.com"); await r.fill('[name="senha"]', "segredo123"); await r.click("#btEnt");
   await r.waitForFunction(() => document.body.innerText.includes("Fila em dia"));
+  assert.ok(await r.$("[data-visao-richard]"), "a tela diz que é a visão do Richard");
   assert.strictEqual(await r.innerText('#nav [data-aba="clientes"] .n'), "1", "pedido novo marcado em Clientes");
   await r.click('#nav [data-aba="clientes"]'); await r.waitForSelector("[data-pendente]");
   const tc = await texto(r);
@@ -248,6 +251,29 @@ window.firebase={apps:[],initializeApp:function(){this.apps.push({})},auth:funct
   await p.click("#btMandarDuv");
   await p.waitForFunction(() => document.body.innerText.includes("O lançamento é com a mão esticada?") && document.body.innerText.includes("Com o Richard"));
   assert.ok(Object.values(store).some((e) => e && e.tipo === "pergunta" && e.estado === "recebido"));
+
+  /* ── convite: o Richard convida, o cliente faz o primeiro acesso e já entra liberado ── */
+  await r.click('#nav [data-aba="clientes"]'); await r.waitForSelector("#fConv");
+  await r.fill('#fConv [name="nome"]', "Caio Reis"); await r.fill('#fConv [name="email"]', "caio@exemplo.com"); await r.click("#btConv");
+  await r.waitForSelector("[data-convite-ok]");
+  const zap = decodeURIComponent((await r.getAttribute('[data-convite-ok] ~ .acoes a', "href")).split("text=")[1]);
+  assert.ok(/Recebi o convite do Richard/.test(zap) && zap.includes("caio@exemplo.com") && zap.includes("/richard/"), zap);
+  await semRolagem(r, "convite"); await foto(r, "consultoria-11-convite");
+  const caio = await celular(), c = caio.p;
+  await c.goto(base, { waitUntil: "load" }); await c.waitForSelector('[data-modo-ent="primeiro"]');
+  await c.click('[data-modo-ent="primeiro"]'); await c.waitForSelector("#fPrim");
+  await c.fill('#fPrim [name="email"]', "caio@exemplo.com"); await c.click("#btPrim");
+  await c.waitForFunction(() => /criar a sua senha/.test(document.querySelector("#mPrim").textContent));
+  await foto(c, "consultoria-12-primeiro-acesso");
+  /* (a senha é criada pelo link do e-mail; aqui o teste a define direto) */
+  Object.values(usuarios).filter((u) => u.email === "caio@exemplo.com")[0].senha = "senhaNova1";
+  await c.click('[data-modo-ent="entrar"]'); await c.fill('[name="email"]', "caio@exemplo.com"); await c.fill('[name="senha"]', "senhaNova1"); await c.click("#btEnt");
+  await c.waitForSelector("#fCad");
+  assert.ok((await texto(c)).includes("Bem-vindo à consultoria") && (await c.inputValue('#fCad [name="nome"]')) === "Caio Reis");
+  await c.fill('#fCad [name="nascimento"]', "1990-05-05"); await c.click("#btCad");
+  await c.waitForFunction(() => document.body.innerText.includes("Mande o seu primeiro vídeo"), null, { timeout: 15000 });
+  assert.ok(!(await c.$("#btAtualizar")), "convidado não passa pela espera de liberação");
+  assert.deepStrictEqual(caio.erros, [], "sem erro de JavaScript (convidado)");
 
   assert.deepStrictEqual(cli.erros, [], "sem erro de JavaScript (cliente)");
   assert.deepStrictEqual(ric.erros, [], "sem erro de JavaScript (Richard)");

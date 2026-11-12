@@ -89,25 +89,48 @@
   document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible") atualizarLista(); });
 
   /* ══════════════ Entrada ══════════════ */
+  /* entrada: três caminhos claros — entrar; primeiro acesso de quem o Richard convidou (cria a senha pelo e-mail); quero começar */
   function telaEntrada() {
-    var criar = st.modo === "criar";
-    tela('<span class="olho">Consultoria</span><h1>Seu tênis analisado pelo Richard Tsukada</h1>' +
+    var modo = st.modo;
+    var topo = '<span class="olho">Consultoria</span><h1>Seu tênis analisado pelo Richard Tsukada</h1>' +
       '<p class="lead">Envie o vídeo do golpe ou do jogo, conte a sua dúvida e receba a devolutiva com o que treinar.</p>' +
-      '<div class="foto"><img src="/assets/richard-tsukada-240.jpg" alt="" width="64" height="64"><p class="det">Richard Tsukada, head trainer do Team Yoda. Cada vídeo é visto e respondido por ele.</p></div>' +
-      '<div class="alternar" role="tablist"><button type="button" role="tab" id="mEntrar" aria-selected="' + !criar + '">Entrar</button><button type="button" role="tab" id="mCriar" aria-selected="' + criar + '">Criar conta</button></div>' +
-      '<form id="fEntrar" novalidate>' +
-      (criar ? '<label class="campo">Seu nome<input name="nome" autocomplete="name" maxlength="80"></label>' : "") +
-      '<label class="campo">E-mail<input name="email" type="email" autocomplete="email" inputmode="email"></label>' +
-      '<label class="campo">Senha' + (criar ? " (pelo menos 8 caracteres)" : "") + '<input name="senha" type="password" autocomplete="' + (criar ? "new-password" : "current-password") + '"></label>' +
-      '<p id="mEnt" class="msg" role="status" hidden></p>' +
-      '<div class="acoes"><button class="btn btn-verm" type="submit" id="btEnt">' + (criar ? "Criar conta e entrar" : "Entrar") + "</button>" +
-      (!criar ? '<button class="link" type="button" id="btEsqueci">Esqueci a senha</button>' : "") + "</div></form>" +
-      '<div class="cartao calmo" style="margin-top:28px"><h3>Como funciona</h3><ol class="passos"><li>Crie a conta e conte quem é o atleta.</li><li>O Richard combina a consultoria com você e libera o acesso.</li>' +
-      "<li>Filme até 3 minutos, escreva a dúvida e envie.</li><li>A devolutiva chega aqui, com o que treinar.</li></ol>" +
-      '<p class="det" style="margin-top:10px">Já tem conta no Team Yoda (Área do aluno ou Academia Digital)? Entre com ela.</p></div>');
-    $("#mEntrar").onclick = function () { st.modo = "entrar"; telaEntrada(); };
-    $("#mCriar").onclick = function () { st.modo = "criar"; telaEntrada(); };
-    var f = $("#fEntrar"), m = $("#mEnt"), bt = $("#btEnt");
+      '<div class="foto"><img src="/assets/richard-tsukada-240.jpg" alt="" width="64" height="64"><p class="det">Richard Tsukada, head trainer do Team Yoda. Cada vídeo é visto e respondido por ele.</p></div>';
+    var voltar = '<p style="margin-top:22px"><button class="link" type="button" data-modo-ent="entrar">‹ Voltar para entrar</button></p>';
+    var h;
+    if (modo === "primeiro") {
+      h = topo + voltar + '<section class="cartao" data-primeiro><h2>Primeiro acesso</h2><p class="det" style="margin-top:4px">Para quem recebeu o convite do Richard. Digite o e-mail que você passou para ele: chega um e-mail para você criar a sua senha.</p>' +
+        '<form id="fPrim" novalidate><label class="campo">E-mail<input name="email" type="email" autocomplete="email" inputmode="email"></label><p id="mPrim" class="msg" role="status" hidden></p>' +
+        '<div class="acoes"><button class="btn btn-verm" type="submit" id="btPrim">Receber o e-mail para criar a senha</button></div></form>' +
+        '<p class="det" style="margin-top:12px">Depois de criar a senha, volte aqui e toque em Entrar. Não chegou? Olhe a caixa de spam.</p></section>';
+    } else if (modo === "criar") {
+      h = topo + voltar + '<section class="cartao"><h2>Quero começar</h2><p class="det" style="margin-top:4px">Crie a sua conta e conte quem é o atleta. O Richard combina a consultoria com você e libera o acesso.</p>' +
+        '<form id="fEntrar" novalidate><label class="campo">Seu nome<input name="nome" autocomplete="name" maxlength="80"></label>' +
+        '<label class="campo">E-mail<input name="email" type="email" autocomplete="email" inputmode="email"></label>' +
+        '<label class="campo">Crie uma senha (pelo menos 8 caracteres)<input name="senha" type="password" autocomplete="new-password"></label>' +
+        '<p id="mEnt" class="msg" role="status" hidden></p><div class="acoes"><button class="btn btn-verm" type="submit" id="btEnt">Criar conta</button></div></form></section>';
+    } else {
+      h = topo + '<section class="cartao" style="margin-top:22px"><h2>Entrar</h2>' +
+        '<form id="fEntrar" novalidate><label class="campo">E-mail<input name="email" type="email" autocomplete="email" inputmode="email"></label>' +
+        '<label class="campo">Senha<input name="senha" type="password" autocomplete="current-password"></label>' +
+        '<p id="mEnt" class="msg" role="status" hidden></p><div class="acoes"><button class="btn btn-verm" type="submit" id="btEnt">Entrar</button><button class="link" type="button" id="btEsqueci">Esqueci a senha</button></div></form>' +
+        '<p class="det" style="margin-top:12px">Já tem conta no Team Yoda (Área do aluno ou Academia Digital)? Use o mesmo e-mail e senha.</p></section>' +
+        '<button type="button" class="cartao item" data-modo-ent="primeiro" style="width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer"><div><p class="t">Recebi o convite do Richard</p><p class="s">Primeiro acesso: crie a sua senha</p></div><span class="ir">›</span></button>' +
+        '<button type="button" class="cartao item" data-modo-ent="criar" style="width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer"><div><p class="t">Ainda não sou cliente</p><p class="s">Quero começar a consultoria</p></div><span class="ir">›</span></button>';
+    }
+    tela(h);
+    cada("[data-modo-ent]", function (b) { b.onclick = function () { st.modo = b.getAttribute("data-modo-ent"); telaEntrada(); }; });
+    var fp = $("#fPrim");
+    if (fp) fp.onsubmit = function (ev) {
+      ev.preventDefault();
+      var email = fp.email.value.trim(), m = $("#mPrim");
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return msg(m, "erro", "Confira o e-mail.");
+      if (!auth) return msg(m, "erro", "Não foi possível conectar agora. Recarregue a página.");
+      var bt = $("#btPrim"); ocupado(bt, true, "Enviando…");
+      auth.sendPasswordResetEmail(email).then(function () { ocupado(bt, false); msg(m, "ok", "Pronto. Se o Richard cadastrou este e-mail, chega nele um link para criar a sua senha. Depois volte aqui e entre."); })
+        .catch(function (e) { ocupado(bt, false); msg(m, "erro", ERROS_AUTH[e.code] || "Não foi possível enviar agora."); });
+    };
+    var f = $("#fEntrar"); if (!f) return;
+    var criar = modo === "criar", m = $("#mEnt"), bt = $("#btEnt");
     f.onsubmit = function (ev) {
       ev.preventDefault();
       var nome = f.nome ? f.nome.value.trim() : "", email = f.email.value.trim(), senha = f.senha.value;
@@ -137,7 +160,7 @@
   function novas(d) { return (d.envios || []).filter(function (e) { return e.estado === "respondido" && !e.entendidoEm; }); }
   function rotaCliente(h) {
     var d = st.dados;
-    if (!d.cliente) { barra([]); return telaCadastro(); }
+    if (!d.cliente || d.cliente.cadastroPendente) { barra([]); return telaCadastro(); }
     if (d.cliente.estado === "pendente") { barra([]); return telaPendente(); }
     var aba = h[0] || "inicio";
     barra([{ id: "inicio", rot: "Início", href: "#/" }, { id: "enviar", rot: "Enviar", href: "#/enviar" }, { id: "devolutivas", rot: "Devolutivas", href: "#/devolutivas", n: novas(d).length }],
@@ -149,9 +172,10 @@
   }
 
   function telaCadastro() {
-    tela('<span class="olho">Primeiro acesso</span><h1>Quem é o atleta?</h1><p class="lead">O Richard usa isso para entender o seu momento. Você só precisa preencher uma vez.</p>' +
+    var conv = st.dados.cliente && st.dados.cliente.cadastroPendente;
+    tela('<span class="olho">Primeiro acesso</span><h1>' + (conv ? "Bem-vindo à consultoria" : "Quem é o atleta?") + '</h1><p class="lead">' + (conv ? "O Richard já liberou o seu acesso. Falta só contar quem é o atleta; você preenche uma vez." : "O Richard usa isso para entender o seu momento. Você só precisa preencher uma vez.") + "</p>" +
       '<form id="fCad" novalidate class="cartao">' +
-      '<label class="campo">Nome do atleta<input name="nome" autocomplete="name" maxlength="80" value="' + esc(st.usuario && st.usuario.displayName || "") + '"></label>' +
+      '<label class="campo">Nome do atleta<input name="nome" autocomplete="name" maxlength="80" value="' + esc((st.dados.cliente && st.dados.cliente.nome) || (st.usuario && st.usuario.displayName) || "") + '"></label>' +
       '<label class="campo">Data de nascimento do atleta<input name="nascimento" type="date"></label>' +
       '<label class="campo">O que você quer melhorar?<textarea name="objetivo" maxlength="600" placeholder="Ex.: ganhar consistência no segundo saque e decidir melhor quando subir à rede."></textarea></label>' +
       '<div id="blocoMenor" hidden><div class="msg msg-aviso">Atleta menor de 18 anos: o responsável autoriza o envio dos vídeos.</div>' +
@@ -449,7 +473,7 @@
   }
   function telaFila() {
     var f = st.dados.fila;
-    var h = '<span class="olho">Fila</span><h1>' + (f.length ? f.length + (f.length === 1 ? " envio aguardando" : " envios aguardando") : "Fila em dia") + "</h1>" +
+    var h = '<p class="msg msg-aviso" data-visao-richard style="margin:0 0 16px">Você está na <b>visão do Richard</b>: fila, clientes e respostas. Os clientes veem outra tela.</p><span class="olho">Fila</span><h1>' + (f.length ? f.length + (f.length === 1 ? " envio aguardando" : " envios aguardando") : "Fila em dia") + "</h1>" +
       '<p class="lead">Do mais antigo para o mais novo. Prazo de ' + st.dados.limites.prazoDias + " dias a partir do envio.</p>";
     h += f.length ? '<ul class="lista">' + f.map(function (e) {
       return '<li><a class="item" href="#/responder/' + esc(e.id) + '" data-fila="' + esc(e.id) + '"><div><p class="t">' + esc(e.cliente) + " · " + esc(e.rotuloTema) + (e.tipo === "pergunta" ? " · dúvida" : "") + '</p><p class="s">Enviado ' + esc(ha(e.recebidoEm)) +
@@ -560,7 +584,10 @@
   function telaClientes() {
     var l = st.dados.clientes;
     var pend = l.filter(function (c) { return c.estado === "pendente"; }), outros = l.filter(function (c) { return c.estado !== "pendente"; });
-    var h = '<span class="olho">Clientes</span><h1>Clientes</h1>';
+    var h = '<span class="olho">Clientes</span><h1>Clientes</h1>' +
+      '<section class="cartao destaque" data-convidar><h2>Convidar cliente</h2><p class="det" style="margin-top:4px">Para quem você já combinou a consultoria. Entra liberado: no primeiro acesso cria a senha e conta quem é o atleta.</p>' +
+      '<form id="fConv" novalidate><label class="campo">Nome do atleta<input name="nome" maxlength="80" autocomplete="off"></label><label class="campo">E-mail de quem vai usar<small>O atleta, ou o pai ou a mãe se for menor.</small><input name="email" type="email" inputmode="email" autocomplete="off"></label>' +
+      '<p id="mConv" class="msg" role="status" hidden></p><div class="acoes"><button class="btn btn-verm" type="submit" id="btConv">Convidar</button></div></form><div id="convPronto"></div></section>';
     if (pend.length) h += '<section class="secao"><h2>Pedindo para entrar</h2><p class="det">Combine a consultoria e libere. O cliente recebe um aviso.</p>' + pend.map(function (c) {
       var i = idadeDe(c.nascimento);
       return '<div class="cartao" data-pendente="' + esc(c.uid) + '"><h3>' + esc(c.nome) + '</h3><p class="det" style="margin-top:4px">' + (i != null ? i + " anos · " : "") + esc(c.email) + " · pediu " + esc(ha(c.criadoEm)) + "</p>" +
@@ -573,6 +600,21 @@
         (c.estado === "pausado" ? '<span class="selo">Pausado</span>' : '<span class="selo ok">Ativo</span>') + "</a></li>";
     }).join("") + "</ul>" : '<p class="det" style="margin-top:8px">Ainda nenhum cliente liberado. Mande o endereço teamyoda.com.br/richard para quem vai começar.</p>') + "</section>";
     tela(h);
+    var fc = $("#fConv");
+    fc.onsubmit = function (ev) {
+      ev.preventDefault();
+      var bt = $("#btConv"), nome = fc.nome.value.trim(), email = fc.email.value.trim();
+      ocupado(bt, true, "Convidando…");
+      api("POST", { acao: "convidar", nome: nome, email: email }).then(function (r) {
+        ocupado(bt, false); fc.reset(); msg($("#mConv"), "", "");
+        var site = location.origin + "/richard/", txt = "Oi! A sua consultoria com o Richard Tsukada está liberada.\n\n1. Abra " + site + "\n" +
+          (r.contaNova ? "2. Toque em \"Recebi o convite do Richard\" e use este e-mail: " + email + "\n3. Crie a sua senha pelo e-mail que chegar e entre." : "2. Entre com o e-mail " + email + " e a senha que você já usa no Team Yoda.");
+        $("#convPronto").innerHTML = '<div class="msg msg-ok" data-convite-ok><b>' + esc(nome) + " está liberado(a).</b> Mande o convite:</div>" +
+          '<div class="acoes"><a class="btn btn-verm btn-pq" target="_blank" rel="noopener" href="https://wa.me/?text=' + encodeURIComponent(txt) + '">Mandar no WhatsApp</a><button class="btn btn-linha btn-pq" type="button" id="btCopiarConv">Copiar o convite</button></div>';
+        $("#btCopiarConv").onclick = function () { try { navigator.clipboard.writeText(txt).then(function () { toast("Convite copiado."); }); } catch (e) { toast("Não deu para copiar aqui."); } };
+        return carregar().then(function () { var box = $("#convPronto").innerHTML; telaClientes(); $("#convPronto").innerHTML = box; $("#btCopiarConv").onclick = function () { try { navigator.clipboard.writeText(txt).then(function () { toast("Convite copiado."); }); } catch (e) { toast("Não deu para copiar aqui."); } }; });
+      }).catch(function (x) { ocupado(bt, false); msg($("#mConv"), "erro", x.message); });
+    };
     cada("[data-liberar]", function (b) { b.onclick = function () { ocupado(b, true, "Liberando…"); api("POST", { acao: "liberar", uid: b.getAttribute("data-liberar") }).then(function () { toast("Cliente liberado e avisado."); return recarregar(); }).catch(function (x) { ocupado(b, false); toast(x.message); }); }; });
   }
   function telaFicha(uid) {
