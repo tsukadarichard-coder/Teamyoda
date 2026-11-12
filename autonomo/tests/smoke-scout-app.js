@@ -113,7 +113,9 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   assert.strictEqual(p.url(), base + "conheca.html", "/scout sem conta entrada abre a apresentação: " + p.url());
   await p.goto(base, { waitUntil: "networkidle" });
   assert.strictEqual(p.url(), base + "conheca.html", "o endereço do app, sem conta entrada, abre a apresentação");
-  assert.ok((await p.evaluate(() => document.body.innerText)).includes("Grátis, com tudo liberado"), "é a página de apresentação");
+  const tApr = await p.evaluate(() => document.body.innerText);
+  assert.ok(tApr.includes("Comece grátis. O Plus abre em breve.") && /Scout Plus/.test(tApr) && /Em breve/i.test(tApr), "é a página de apresentação, com o grátis e o Plus");
+  assert.ok(!/R\$ ?\d+,\d\d|29,90|eduzz/i.test(tApr) && !(await p.$('a[href*="eduzz"]')), "apresentação sem preço do Plus nem link de compra");
   /* os botões da apresentação levam para o app, sem voltar para ela */
   await p.click('a[href="./#/entrar"]'); await p.waitForSelector("#acEmail");
   assert.ok(p.url().startsWith(base + "#/entrar") && (await p.evaluate(() => document.body.innerText)).includes("Entrar no QuadraLab Scout"), "Entrar abre a tela de entrar do app: " + p.url());
@@ -186,6 +188,17 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   const jl = await p.evaluate((u) => { const s = JSON.parse(localStorage.getItem("qls:v1:" + u)); return s.jogos.filter((j) => j.torneio === "Copa Sul")[0]; }, uid);
   assert.ok(jl.pontos[1].golpe && jl.pontos[1].saque === "ace" && jl.pontos[1].dirSaque === "aberto", "direção do saque e detalhe no último ponto: " + JSON.stringify(jl.pontos[1]));
   assert.strictEqual(jl.mental.antes.conf, 4); assert.strictEqual(jl.mental.jogo["1"], 3, "mental no game 1");
+
+  /* grátis: o link ao vivo fica com cadeado (Scout Plus), sem preço nem link de compra */
+  assert.ok(await p.$('[data-plus-bloqueio="aovivo"]') && !(await p.$("#btAbrirLink")), "grátis: link ao vivo com cadeado");
+  assert.ok(!/R\$|Assinar|Eduzz/i.test(await p.innerText('[data-plus-bloqueio="aovivo"]')), "cadeado sem preço");
+  await foto(p, "scout-3b-cadeado");
+  /* a conta passa a ter o Plus: o app recebe na sincronização e o link ao vivo abre */
+  store["scoutAppContas/" + uid].plano = "plus"; store["scoutAppContas/" + uid].plusAte = "2099-12-31";
+  await p.goto(base + "#/conta"); await p.waitForSelector("#btSync"); await p.click("#btSync");
+  await p.waitForFunction(() => document.body.innerText.includes("Tudo sincronizado"));
+  await p.waitForFunction(() => !document.body.innerText.includes("Tudo sincronizado"), null, { timeout: 15000 });
+  await p.goto(base + "#/jogo/" + jl.id); await p.waitForSelector("#btAbrirLink");
 
   /* link ao vivo */
   await p.click("#btAbrirLink");
@@ -271,6 +284,17 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   assert.ok(naNuvem && naNuvem.mental.depois.foco === 5 && naNuvem.observacaoFinal === "Sacou bem no corpo", "jogo completo na nuvem");
   assert.ok(naNuvem.inicioEm && naNuvem.fimEm && naNuvem.fimEm >= naNuvem.inicioEm && naNuvem.duracaoMin === 75, "tempo de partida na nuvem: " + JSON.stringify([naNuvem.inicioEm, naNuvem.fimEm, naNuvem.duracaoMin]));
 
+  /* o placar por sets no resultado: fundo escuro e letras claras, com os games dos DOIS lados legíveis (antes o adversário sumia no branco) */
+  const plFim = await p.evaluate(() => {
+    const lum = (c) => { const m = c.match(/[\d.]+/g).map(Number); return (0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2]) / 255; };
+    const sec = document.querySelector(".graficos .qg-pl"), tds = [...sec.querySelectorAll("tbody tr:nth-child(2) td")], nota = sec.querySelector(".qg-pl-nota");
+    /* o fundo que se vê atrás da célula: o primeiro antepassado com cor (a tabela do app é branca por padrão) */
+    const fundoDe = (el) => { for (let x = el; x; x = x.parentElement) { const c = getComputedStyle(x).backgroundColor; if (!/rgba\(.*, 0\)|transparent/.test(c)) return lum(c); } return 1; };
+    return { fundo: fundoDe(tds[0]), fundoNome: fundoDe(sec.querySelector("tbody tr:nth-child(2) th")), adv: tds.map((td) => td.textContent.trim()), letra: lum(getComputedStyle(tds[0]).color), nome: lum(getComputedStyle(sec.querySelector("tbody tr:nth-child(2) th")).color), nota: lum(getComputedStyle(nota).color), textoNota: nota.textContent };
+  });
+  assert.ok(plFim.fundo < 0.2 && plFim.fundoNome < 0.2 && plFim.letra > 0.8 && plFim.nome > 0.8 && plFim.nota > 0.8, "placar do resultado com contraste: " + JSON.stringify(plFim));
+  assert.ok(plFim.adv.length >= 1 && plFim.adv.every((x) => /^\d+$/.test(x)) && /Partida encerrada/.test(plFim.textoNota), "games do adversário e a linha da partida aparecem: " + JSON.stringify(plFim));
+
   /* exportar o relatório deste jogo, direto da tela do fim: placar, tempo de jogo e a comparação, sem o adversário */
   assert.ok(await p.$("[data-exportar] #btRelatorioJogo"), "botão de exportar o relatório do jogo");
   const [relJogo] = await Promise.all([p.waitForEvent("popup"), p.click("#btRelatorioJogo")]);
@@ -297,19 +321,32 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   await nuvemQuieta();
   const atNuvem = store["scoutAppContas/" + uid].atletas.filter((x) => x.nome === "Lucas Andrade")[0];
   assert.ok(atNuvem && atNuvem.notas && atNuvem.notas.utr.v === 7.42 && atNuvem.notas.wtn.v === 18.3 && atNuvem.notas.hist.length === 2, "UTR e WTN na nuvem: " + JSON.stringify(atNuvem && atNuvem.notas));
+  /* relatório dos jogos em PDF (Plus; janela nova com o documento) */
+  const [rel] = await Promise.all([p.waitForEvent("popup"), p.click("#btRelatorio")]);
+  await rel.waitForLoadState("load");
+  const tr = await rel.evaluate(() => document.body.innerText);
+  assert.ok(tr.includes("Lucas") && /QUADRALAB/i.test(tr) && tr.includes("Copa Sul") && !tr.includes("Fulano"), "relatório: " + tr.slice(0, 300));
+  assert.ok(tr.includes("UTR 7,42 · WTN 18,3"), "UTR e WTN no relatório dos jogos");
+  await foto(rel, "scout-relatorio"); await rel.close();
   /* a análise de movimento saiu do app: sem aba, sem botão, e o link antigo cai nos jogos */
   const mvGets = []; p.on("request", (rq) => { if (rq.url().includes("scout-app-movimento")) mvGets.push(rq.url()); });
   assert.ok(!(await p.$('#navBaixo [data-aba="movimento"]')) && !(await p.$("[data-movimento]")) && !/Análise de movimento/i.test(await texto()), "sem análise de movimento");
   await p.goto(base + "#/movimento"); await p.waitForSelector("[data-novo]");
   assert.ok(!/Análise de movimento/i.test(await texto()) && mvGets.length === 0, "link antigo do movimento abre os jogos, sem chamar o servidor");
 
-  /* grátis: até 3 atletas, com relatório em PDF e evolução completa; nada de preço nem link de compra */
+  /* volta ao grátis: até 3 atletas e evolução completa; link ao vivo e PDF com cadeado; nada de preço nem link de compra */
+  delete store["scoutAppContas/" + uid].plano; delete store["scoutAppContas/" + uid].plusAte;
+  await p.goto(base + "#/conta"); await p.waitForSelector("#btSync"); await p.click("#btSync");
+  await p.waitForFunction(() => document.body.innerText.includes("Tudo sincronizado"));
+  await p.waitForFunction(() => !document.body.innerText.includes("Tudo sincronizado"), null, { timeout: 15000 });
+  await p.goto(base + "#/jogo/" + jl.id); await p.waitForSelector('[data-plus-bloqueio="pdf"]');
+  assert.ok(!(await p.$("#btRelatorioJogo")) && !(await p.$("[data-exportar]")), "grátis: exportar o relatório do jogo com cadeado");
   await p.goto(base + "#/novo"); await p.waitForSelector("#btComecar");
   await p.click('[data-atleta="+"]');
   assert.ok(await p.$("#nvNome") && !(await p.$("[data-limite-atletas]")), "grátis: segundo atleta liberado");
   await p.goto(base + "#/plus"); await p.waitForSelector("[data-plano-gratis]");
   t = await texto();
-  assert.ok(t.includes("Seu plano") && t.includes("Até 3 atletas na conta") && t.includes("Relatório dos jogos em PDF"), "tela do plano: " + t.slice(0, 400));
+  assert.ok(t.includes("Seu plano") && t.includes("Até 3 atletas na conta") && await p.$("[data-plano-plus]") && /Link ao vivo/.test(t) && /Relatório em PDF/.test(t) && t.includes("A assinatura abre em breve"), "tela do plano: " + t.slice(0, 600));
   assert.ok(!/R\$|29,90|Assinar|Eduzz|Análise de movimento/i.test(t) && !(await p.$('a[href*="eduzz"]')) && !(await p.$("#lkAssinar")), "sem preço, sem link de compra");
   await semRolagem(p, "plano"); await foto(p, "scout-8-plano");
   /* com 3 atletas na conta, o quarto não entra */
@@ -324,15 +361,9 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   assert.ok(await p.$("[data-limite-atletas]") && !(await p.$("#nvNome")), "com 3 atletas, o quarto não entra");
   assert.ok(/São até 3 atletas por conta/.test(await p.innerText("[data-limite-atletas]")) && !/Plus/.test(await p.innerText("[data-limite-atletas]")));
   await p.goto(base + "#/"); await p.waitForSelector("[data-novo]");
-  await p.click('a[href^="#/atleta/"]'); await p.waitForSelector("#btRelatorio");
-  assert.ok(!(await texto()).includes("No grátis") && !(await p.$("[data-relatorio-plus]")), "grátis: relatório em PDF e evolução completa, sem aviso de Plus");
-  /* relatório dos jogos em PDF (janela nova com o documento) */
-  const [rel] = await Promise.all([p.waitForEvent("popup"), p.click("#btRelatorio")]);
-  await rel.waitForLoadState("load");
-  const tr = await rel.evaluate(() => document.body.innerText);
-  assert.ok(tr.includes("Lucas") && /QUADRALAB/i.test(tr) && tr.includes("Copa Sul") && !tr.includes("Fulano"), "relatório: " + tr.slice(0, 300));
-  assert.ok(tr.includes("UTR 7,42 · WTN 18,3"), "UTR e WTN no relatório dos jogos (e voltaram da nuvem na sincronização)");
-  await foto(rel, "scout-relatorio"); await rel.close();
+  await p.click('a[href^="#/atleta/"]'); await p.waitForSelector('[data-plus-bloqueio="pdf"]');
+  assert.ok(!(await p.$("#btRelatorio")) && (await texto()).includes("Evolução jogo a jogo"), "grátis: relatório em PDF com cadeado, evolução completa");
+  assert.ok(/UTR 7,42 · WTN 18,3/.test(await p.innerText("[data-notas-resumo]")), "UTR e WTN voltaram da nuvem na sincronização");
 
   /* segundo celular na mesma conta */
   const c2 = await celular();
@@ -373,6 +404,7 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
 
   /* guia do primeiro acesso: conta nova, sem jogos; só avança tocando no lugar iluminado */
   const c3 = await celular(), g = c3.p;
+  await g.addInitScript(() => { window.QL_GUIA_DEMO_MS = 500; }); // demonstração mais rápida no teste
   await g.goto(base + "#/criar", { waitUntil: "networkidle" });
   await g.fill("#acNome", "Bruno"); await g.fill("#acEmail", "bruno@exemplo.com"); await g.fill("#acSenha", "12345678"); await g.click("#btAcesso");
   const balao = () => g.textContent(".guia-balao");
@@ -392,8 +424,15 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   await g.waitForFunction(() => document.querySelector(".guia-balao").textContent.includes("Começar o jogo"));
   await g.click("#btComecar");
   for (const [trecho, acao] of [["Este é o placar", "ok"], ["marque o saque", "ok"], ["como ele terminou", '[data-fim="winner_nos"]'], ["detalhes do ponto", "ok"], ["em que bola", '[data-bola="5-9"]'],
-    ["Ponto registrado", "ok"], ["modo completo", "ok"], ["link ao vivo", "ok"]]) {
-    await g.waitForFunction((x) => { const b = document.querySelector(".guia-balao"); return b && !b.hidden && b.textContent.includes(x); }, trecho, { timeout: 8000 });
+    ["Ponto registrado", "ok"], ["Veja o app marcando", "demo"], ["modo completo", "ok"], ["link ao vivo", "ok"], ["Como o jogo termina", "demo"], ["jogo de treino", "ok"]]) {
+    await g.waitForFunction((x) => { const b = document.querySelector(".guia-balao"); return b && !b.hidden && b.textContent.includes(x); }, trecho, { timeout: 20000 });
+    if (acao === "demo") {
+      /* demonstração: o app toca sozinho; durante ela, tocar fora não faz nada */
+      await g.click("[data-guia-demo]");
+      await g.waitForFunction(() => /Demonstração · 1 de/.test(document.querySelector(".guia-balao").textContent));
+      if (trecho === "Veja o app marcando") await foto(g, "scout-guia-4-demo");
+      continue;
+    }
     if (trecho === "como ele terminou") await foto(g, "scout-guia-2");
     if (trecho === "detalhes do ponto") await foto(g, "scout-guia-3");
     await g.click(acao === "ok" ? "[data-guia-ok]" : acao);
@@ -402,7 +441,9 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   await g.click("[data-guia-ok]");
   await g.waitForFunction(() => document.body.innerText.includes("Guia concluído"));
   assert.ok(!(await visivel()), "guia fechado");
-  assert.strictEqual(await g.textContent("[data-pontos]"), "15-0", "o ponto do guia ficou marcado");
+  /* o ponto do guia e o da demonstração ficaram (o ace foi desfeito na demonstração); o jogo terminou pela demonstração do fim */
+  assert.ok(await g.$("[data-fim-jogo]"), "a demonstração encerrou o jogo de treino");
+  assert.ok(/2 pontos · Duda ganhou 1/.test(await g.innerText("[data-fim-jogo]")), await g.innerText("[data-fim-jogo]"));
   assert.strictEqual(await g.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("qls:guia:")).map((k) => localStorage.getItem(k)).join()), "feito");
   /* não volta sozinho; Conta › Ver o guia de novo reabre */
   await g.reload({ waitUntil: "load" }); await g.waitForTimeout(800); assert.ok(!(await visivel()), "guia não volta sozinho");

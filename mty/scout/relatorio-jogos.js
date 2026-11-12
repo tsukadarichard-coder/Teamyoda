@@ -426,6 +426,15 @@
       '<div class="no-print"><button onclick="window.print()">Salvar como PDF / Imprimir</button><button onclick="window.close()">Fechar</button></div>' + (o.cabecalhoHtml ? '<div class="marca">' + o.cabecalhoHtml + "</div>" : "") + h +
       '<p class="rodape">Um jogo é uma amostra: o resultado não muda a rota do plano, quem muda a rota é o padrão que se repete. Os números vêm dos pontos marcados pelo treinador; medidas que o jogo não registrou ficam de fora. Análise gerada com a Tecnologia QuadraLab.</p></body></html>';
   }
-  var api = { gerar: gerar, gerarPartida: gerarPartida, esc: esc };
+  /* Tema do documento. Sem tema, o verde de sempre (Team Yoda, Treinador, Competição). "scout": o roxo do QuadraLab Scout.
+     Troca só as cores da marca e os cinzas de fundo; o azul e o laranja dos dados não mudam. */
+  var TEMAS = { scout: {
+    troca: { "#103B32": "#260A3E", "#69B32A": "#6A12BA", "#9BD65B": "#C9A7F5", "#E6F3D6": "#EADCFB", "#F6F8F7": "#F7F5FB", "#EDF1EF": "#EEEAF4", "#EEF3F0": "#F0EAF8", "#E2E8E5": "#E4E0EC", "#17251F": "#1B1326", "#5B6B63": "#5F5A6B" },
+    css: ".selo.ok{background:#C9A7F5;color:#260A3E}" } };
+  function comTema(html, o) {
+    var t = o && o.tema && TEMAS[o.tema]; if (!t) return html;
+    return html.replace(/#[0-9A-Fa-f]{6}\b/g, function (c) { return t.troca[c.toUpperCase()] || c; }).replace("</style>", t.css + "</style>");
+  }
+  var api = { gerar: function (o) { return comTema(gerar(o), o); }, gerarPartida: function (o) { return comTema(gerarPartida(o), o); }, esc: esc };
   if (typeof module !== "undefined" && module.exports) module.exports = api; else raiz.QLRelatorioJogos = api;
 })(typeof window !== "undefined" ? window : this);

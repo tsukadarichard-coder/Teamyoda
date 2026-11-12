@@ -107,6 +107,8 @@ exports.handler = async function (event) {
         return resposta(200, { token: atual.token, expiraEm });
       }
       if (fim) return resposta(200, { token: null, expiraEm: null });
+      /* link novo só no Scout Plus (decisão do Richard em 12/11/2026); um link já aberto segue atualizando até vencer */
+      if (!plus) throw new R.ErroPedido(403, "O link ao vivo é do Scout Plus.");
       const ativos = (await col.where("orgId", "==", dono).get()).docs.filter((d) => Date.parse(d.data().expiraEm) > Date.now());
       if (ativos.length >= MAX_AO_VIVO) throw new R.ErroPedido(409, "Você já tem " + MAX_AO_VIVO + " links ao vivo abertos. Encerre um jogo antes de abrir outro link.");
       const token = crypto.randomBytes(16).toString("hex"), expiraEm = new Date(Date.now() + VALIDADE_MS).toISOString();

@@ -114,6 +114,19 @@ const html = RJ.gerar(op);
 assert.ok(html.includes("Lucas") && html.includes("QUADRALAB") && html.includes("Copa Sul"), "relatório montado");
 assert.ok(!html.includes("Fulano") && !html.includes("Andrade"), "relatório sem adversário nem sobrenome");
 assert.deepStrictEqual(REL.opcoes(M, D, st, marina.id).jogos, [], "atleta sem jogos terminados");
+/* cores: o relatório do Scout sai no roxo do app; nos outros apps (sem tema) continua no verde de sempre */
+{
+  const VERDES = /#103B32|#69B32A|#9BD65B|#E6F3D6/i;
+  assert.strictEqual(op.tema, "scout");
+  assert.ok(html.includes("#260A3E") && !VERDES.test(html), "relatório dos jogos sem o verde antigo");
+  const semTema = RJ.gerar(Object.assign({}, op, { tema: undefined }));
+  assert.ok(semTema.includes("#103B32") && !semTema.includes("#C9A7F5"), "sem tema, o verde dos outros apps não muda");
+  const opCor = REL.opcoesPartida(M, D, st, j1), htmlCor = RJ.gerarPartida(opCor);
+  assert.strictEqual(opCor.tema, "scout");
+  assert.ok(htmlCor.includes("#260A3E") && htmlCor.includes(".selo.ok{background:#C9A7F5") && !VERDES.test(htmlCor), "relatório do jogo sem o verde antigo");
+  assert.ok(VERDES.test(RJ.gerarPartida(Object.assign({}, opCor, { tema: undefined }))), "relatório do jogo sem tema continua verde");
+  assert.ok(htmlCor.includes("#0F5E8C") && htmlCor.includes("#C65825"), "azul e laranja dos dados continuam");
+}
 
 /* ── UTR e WTN: digitados no cadastro do atleta, com histórico, e levados para os relatórios ── */
 {

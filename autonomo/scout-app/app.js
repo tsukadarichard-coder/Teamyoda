@@ -19,6 +19,11 @@
   function ehPlus() { return !!(conta && conta.plano === "plus"); }
   function limiteAtletas() { return (conta && conta.limites && conta.limites.atletas) || LIMITE_PADRAO; }
   function textoLimite() { var n = limiteAtletas(); return "São até " + n + " atletas por conta."; }
+  /* link ao vivo e relatório em PDF são do Scout Plus (decisão do Richard em 12/11/2026). A venda está parada: sem preço nem link de compra. */
+  function cadeadoPlus(id, titulo, texto) {
+    return '<section class="cartao"' + (id === "aovivo" ? ' id="cartaoAoVivo"' : "") + ' data-plus-bloqueio="' + id + '"><p class="olho">' + esc(titulo) + ' · Scout Plus</p><p class="nota" style="margin-top:0">' + esc(texto) +
+      '</p><p class="nota"><b>Disponível no Scout Plus.</b> A assinatura abre em breve.</p><div class="acoes"><a class="bt bt-pq" href="#/plus">Ver o que o Plus inclui</a></div></section>';
+  }
   function guardarConta() { try { localStorage.setItem("qls:conta:" + eu.uid, JSON.stringify(conta)); } catch (e) { /* sem espaço */ } }
   function lerContaGuardada() { try { return JSON.parse(localStorage.getItem("qls:conta:" + eu.uid) || "null"); } catch (e) { return null; } }
   function carregar() {
@@ -307,6 +312,7 @@
   function anterioresDe(j) { try { return D.anteriores(M, st, j); } catch (e) { return []; } }
   function aoVivoHtml(j, nome) {
     var link = linkDe(j);
+    if (!link && !ehPlus()) return cadeadoPlus("aovivo", "Link ao vivo para a família", "Quem abrir o link vê o placar e os números a cada ponto, de qualquer lugar.");
     if (!link) return '<section class="cartao" id="cartaoAoVivo"><p class="olho">Link ao vivo para a família</p><p class="nota" style="margin-top:0">Quem abrir o link vê o placar e os números a cada ponto, de qualquer lugar.</p><div class="acoes"><button type="button" class="bt bt-principal bt-pq" id="btAbrirLink">Abrir link ao vivo</button></div></section>';
     var msg = "Acompanhe o jogo de " + nome + " ao vivo no QuadraLab Scout: " + link.url;
     return '<section class="cartao" id="cartaoAoVivo"><p class="olho"><span class="ponto-vivo" aria-hidden="true"></span>Link ao vivo aberto</p><p class="nota" style="margin-top:0">Só o primeiro nome do atleta, o placar e os números. Nunca o adversário nem as anotações.</p>' +
@@ -433,6 +439,7 @@
     var bn = document.getElementById("btFimNao"); if (bn) bn.addEventListener("click", function () { marc.confirmaFim = false; redesenhar(); });
     var bs = document.getElementById("btFimSim"); if (bs) bs.addEventListener("click", function () { D.encerrar(j); marc.confirmaFim = false; marc.rasc = null; if (st.atual === j.id) delete st.atual; salvar(); agendarAoVivo(j, true); contarFim(j); telaFim(j, true); });
     var ab = document.getElementById("btAbrirLink"); if (ab) ab.addEventListener("click", async function () {
+      if (!ehPlus()) { toast("O link ao vivo é do Scout Plus."); return; }
       if (navigator.onLine === false) { toast("Sem internet agora. O link ao vivo precisa de sinal para abrir."); return; }
       ocupado(ab, true, "Abrindo…");
       try { await N.aoVivo(eu.uid, j, D.resumo(M, st, j), false); aoVivoEstado[j.id] = "Ao vivo: a família vê cada ponto."; redesenhar(); toast("Link ao vivo aberto. Mande para a família."); }
@@ -461,7 +468,8 @@
     if (n && G) h += '<div class="graficos">' + G.topo(r) + G.secoes(r) + "</div>";
     /* exportar: o relatório deste jogo (sempre que há pontos) e o de todos os jogos terminados do atleta */
     var temTodos = !!(window.QLScoutRelatorio && window.QLScoutRelatorio.jogosDoRelatorio(M, D, st, j.atletaId).length);
-    if (n) h += '<section class="cartao" data-exportar><h2>Exportar relatório</h2><p class="nota" style="margin-top:0">Abre o relatório pronto para salvar em PDF, imprimir ou mandar para o treinador. O nome do adversário não entra.</p><div class="acoes">' +
+    if (n && !ehPlus()) h += cadeadoPlus("pdf", "Exportar relatório", "O relatório deste jogo e o de todos os jogos, prontos para salvar em PDF e mandar para o treinador.");
+    else if (n) h += '<section class="cartao" data-exportar><h2>Exportar relatório</h2><p class="nota" style="margin-top:0">Abre o relatório pronto para salvar em PDF, imprimir ou mandar para o treinador. O nome do adversário não entra.</p><div class="acoes">' +
       '<button type="button" class="bt bt-principal" id="btRelatorioJogo">Relatório deste jogo (PDF)</button>' +
       (temTodos ? '<button type="button" class="bt bt-pq" id="btRelatorioFim">Todos os jogos de ' + esc(nome) + " (PDF)</button>" : "") + "</div></section>";
     if (r.sinais && r.sinais.length) h += '<section class="cartao"><h2>O que este jogo aponta</h2><p class="nota">Leitura automática pelos números. É ponto de partida para conversar com o treinador, não conclusão.</p>' + r.sinais.map(function (t) { return '<div class="sinal">' + t + "</div>"; }).join("") + "</section>";
@@ -539,8 +547,9 @@
     var media = fim.length ? Math.round(fim.reduce(function (s, l) { return s + l.pct; }, 0) / fim.length) : null, cmp = D.comparacao(M, st, id, 8);
     var h = '<p class="voltar"><a class="bt bt-texto" href="#/">‹ Seus jogos</a></p><h1>' + esc(a.nome) + '</h1><p class="sub">' + jogos.length + (jogos.length === 1 ? " jogo" : " jogos") + (fim.length ? " · " + vit + (vit === 1 ? " vitória" : " vitórias") + " e " + der + (der === 1 ? " derrota" : " derrotas") + " · média de " + media + "% dos pontos" : "") + (D.textoNotas(a) ? ' · <b data-notas-resumo>' + esc(D.textoNotas(a)) + "</b>" : "") + "</p>" +
       '<div class="acoes"><a class="bt bt-principal" href="#/novo" data-novo-atleta="' + esc(id) + '">+ Marcar um jogo de ' + esc(primeiroNome(a.nome)) + "</a></div>" +
+      (!ehPlus() ? cadeadoPlus("pdf", "Relatório dos jogos", "Reúne os jogos terminados em um PDF com gráficos de evolução.") :
       '<section class="cartao"><h2>Relatório dos jogos</h2><p class="nota" style="margin-top:0">Reúne os jogos terminados em um PDF com gráficos de evolução.</p><div class="acoes">' +
-        (window.QLScoutRelatorio && window.QLScoutRelatorio.jogosDoRelatorio(M, D, st, id).length ? '<button type="button" class="bt bt-pq" id="btRelatorio">Relatório dos jogos (PDF)</button>' : '<span class="nota">O relatório aparece com 1 jogo terminado de pelo menos 10 pontos.</span>') + "</div></section>" +
+        (window.QLScoutRelatorio && window.QLScoutRelatorio.jogosDoRelatorio(M, D, st, id).length ? '<button type="button" class="bt bt-pq" id="btRelatorio">Relatório dos jogos (PDF)</button>' : '<span class="nota">O relatório aparece com 1 jogo terminado de pelo menos 10 pontos.</span>') + "</div></section>") +
       (cmp.jogos.length >= 2 ? '<section class="cartao"><h2>Evolução jogo a jogo</h2>' + tabelaComparacao(cmp) + "</section>" : '<div class="aviso">A comparação aparece a partir de 2 jogos terminados.</div>') +
       (jogos.length ? '<section class="secao"><h2>Jogos</h2><ul class="lista">' + jogos.map(linhaHtml).join("") + "</ul></section>" : "") +
       notasHtml(a) +
@@ -575,9 +584,11 @@
   function telaPlus() {
     var c = conta || {}, plus = ehPlus();
     var h = '<p class="voltar"><a class="bt bt-texto" href="#/conta">‹ Minha conta</a></p><h1>Seu plano</h1>' +
-      (plus ? '<div class="aviso" data-plus-ativo>Você tem o Scout Plus' + (c.acessoCompleto ? " (acesso completo)." : c.plusAte ? " até " + esc(dataBR(c.plusAte)) + "." : ".") + " Atletas sem limite.</div>" : "") +
-      '<section class="cartao" data-plano-gratis><p class="olho">Grátis</p><ul style="margin:6px 0 0;padding-left:18px"><li>Até ' + LIMITE_PADRAO + ' atletas na conta</li><li>Jogos sem limite, com o tempo de cada partida</li><li>Link ao vivo para a família</li>' +
-      "<li>Comparação e evolução jogo a jogo, completas</li><li>Relatório dos jogos em PDF</li><li>Jogos na nuvem, em vários celulares</li></ul></section>" +
+      (plus ? '<div class="aviso" data-plus-ativo>Você tem o Scout Plus' + (c.acessoCompleto ? " (acesso completo)." : c.plusAte ? " até " + esc(dataBR(c.plusAte)) + "." : ".") + " Link ao vivo, relatório em PDF e atletas sem limite.</div>" : "") +
+      '<section class="cartao" data-plano-gratis><p class="olho">Grátis</p><ul style="margin:6px 0 0;padding-left:18px"><li>Até ' + LIMITE_PADRAO + ' atletas na conta</li><li>Jogos sem limite, com o tempo de cada partida</li>' +
+      "<li>Comparação e evolução jogo a jogo, completas</li><li>Resultado para compartilhar no WhatsApp</li><li>Jogos na nuvem, em vários celulares</li></ul></section>" +
+      '<section class="cartao" data-plano-plus><p class="olho">Scout Plus</p><ul style="margin:6px 0 0;padding-left:18px"><li>Tudo do grátis</li><li><b>Link ao vivo</b>: a família acompanha cada ponto, de qualquer lugar</li>' +
+      "<li><b>Relatório em PDF</b> de cada jogo e de todos os jogos, para levar ao treinador</li><li>Atletas sem limite</li></ul>" + (plus ? "" : '<p class="nota"><b>A assinatura abre em breve.</b></p>') + "</section>" +
       '<p class="rodape">Dúvidas: fale com a gente pelo WhatsApp (11) 94177-3228.</p>';
     tela(h, true);
   }
@@ -594,10 +605,12 @@
   }
   /* relatório de UM jogo, comparado com os jogos anteriores do atleta */
   function abrirRelatorioPartida(j) {
+    if (!ehPlus()) { toast("O relatório em PDF é do Scout Plus."); return; }
     if (!j.pontos.length) { toast("Marque pelo menos um ponto para gerar o relatório."); return; }
     abrirDocumento(function () { return window.QLRelatorioJogos.gerarPartida(window.QLScoutRelatorio.opcoesPartida(M, D, st, j)); });
   }
   function abrirRelatorio(atletaId) {
+    if (!ehPlus()) { toast("O relatório em PDF é do Scout Plus."); return; }
     if (!window.QLRelatorioJogos || !window.QLScoutRelatorio) { toast("Não foi possível carregar o relatório. Confira a internet e recarregue a página."); return; }
     var o = window.QLScoutRelatorio.opcoes(M, D, st, atletaId);
     if (!o.jogos.length) { toast("O relatório precisa de pelo menos 1 jogo terminado com 10 pontos."); return; }
@@ -652,9 +665,30 @@
       { rota: JOGO, alvo: "[data-tour=\"detalhes\"]", acao: "ok", opcional: true, texto: "Estes são os detalhes do ponto: tipo de jogada, decisão, golpe, direção e onde na quadra. Tudo opcional. Quanto mais você marca, mais completo fica o relatório." },
       { rota: JOGO, alvo: "[data-tour=\"bola\"]", acao: "toque", texto: "Por último: em que bola o ponto terminou? Contando o saque como a 1ª bola." },
       { rota: JOGO, alvo: "[data-registrado]", acao: "ok", texto: "Ponto registrado! Marcou errado? Toque em Corrigir e o ponto volta." },
+      { rota: JOGO, alvo: "[data-tour=\"fim\"]", acao: "demo", titulo: "Veja o app marcando", botao: "Ver a demonstração",
+        texto: "Agora assista: o app marca mais dois pontos sozinho, para você ver o ritmo, e mostra como corrigir. Este é um jogo de treino: no fim do guia você escolhe se guarda.",
+        roteiro: [
+          { alvo: "[data-fim=\"erro_nos\"]", texto: "O atleta errou a bola: toque no botão laranja Erro (ponto do adversário).", toque: true },
+          { alvo: "[data-bola=\"5-9\"]", texto: "Em que bola terminou? Entre a 5ª e a 9ª: um ponto médio. Com esse toque o ponto entra.", toque: true },
+          { alvo: ".placar", texto: "Pronto: o placar mudou sozinho. São 2 toques por ponto.", ms: 2000 },
+          { alvo: "[data-saq=\"ace\"]", texto: "Ace ou dupla falta é um toque só: o ponto já entra.", toque: true },
+          { alvo: ".placar", texto: "Mais um ponto no placar.", ms: 1800 },
+          { alvo: "#btDesfazer", texto: "Marcou errado? Desfazer tira o último ponto.", toque: true },
+          { alvo: ".placar", texto: "O ace saiu do placar. Pode marcar de novo sem medo.", ms: 2000 },
+        ] },
       { rota: JOGO, alvo: "#btModo", acao: "ok", texto: "Você está no modo completo. Com pressa? Troque aqui pelo modo rápido: só como terminou e a bola." },
-      { rota: JOGO, alvo: "#cartaoAoVivo", acao: "ok", texto: "Quer que a família acompanhe de longe? Abra o link ao vivo e mande no WhatsApp. Eles veem cada ponto." },
-      { rota: JOGO, alvo: "#navBaixo [data-aba=\"jogos\"]", acao: "ok", texto: "Em Jogos ficam todos os jogos e a evolução de cada atleta. Agora é com você: continue marcando. Bom jogo!", botao: "Concluir" },
+      { rota: JOGO, alvo: "#cartaoAoVivo", acao: "ok", texto: ehPlus() ? "Quer que a família acompanhe de longe? Abra o link ao vivo e mande no WhatsApp. Eles veem cada ponto." :
+        "Com o Scout Plus, a família acompanha de longe pelo link ao vivo e vê cada ponto. A assinatura abre em breve." },
+      { rota: JOGO, alvo: "#btEncerrar", acao: "demo", titulo: "Como o jogo termina", botao: "Ver o fim do jogo",
+        texto: "Quando o último ponto é marcado, o app fecha o jogo sozinho e mostra o resultado. Se o jogo parar antes (chuva, desistência, tempo), use Encerrar jogo. Veja como fica.",
+        roteiro: [
+          { alvo: "#btEncerrar", texto: "Toque em Encerrar jogo.", toque: true },
+          { alvo: "#btFimSim", texto: "Confirme: Sim, encerrar.", toque: true },
+          { alvo: "[data-fim-jogo]", texto: "Este é o resultado: placar, pontos ganhos e o tempo de jogo. Daqui você manda no WhatsApp.", ms: 3200 },
+          { alvo: ".graficos", texto: "Logo abaixo ficam os números do jogo: como os pontos terminaram, saque, lado da quadra e mais.", ms: 3200 },
+        ] },
+      { rota: JOGO, alvo: "#btApagar", acao: "ok", opcional: true, texto: "Este foi um jogo de treino. Se não quiser guardar, apague aqui. O atleta continua na sua conta." },
+      { rota: /^#\/(jogo\/|$)|^$/, alvo: "#navBaixo [data-aba=\"jogos\"]", acao: "ok", texto: "Em Jogos ficam todos os jogos e a evolução de cada atleta. Agora é com você: marque o primeiro jogo de verdade. Bom jogo!", botao: "Concluir" },
     ];
   }
   function iniciarGuia() {
