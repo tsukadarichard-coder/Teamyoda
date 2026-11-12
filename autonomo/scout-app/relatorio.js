@@ -65,6 +65,7 @@
       atleta: String(a ? a.nome : "Atleta").trim().split(/\s+/)[0], jogos: jogos, metricas: metricas(M), tendencia: tendencia,
       leitura: function (s) { return (s.sinais || []).map(function (t) { return ["", t]; }); },
       detalheDe: function (r) { return r.scout.detalhe || null; }, zonasDe: function (_p, s) { return s.zonas || {}; },
+      tema: "scout", // o documento sai no roxo do Scout (o padrão do módulo é o verde dos outros apps)
       cabecalhoHtml: '<div style="border-bottom:3px solid #260A3E;padding-bottom:10px;margin-bottom:16px"><div style="font-weight:800;font-size:13px;letter-spacing:.06em;color:#260A3E">QUADRALAB <span style="color:#6A12BA">SCOUT</span></div></div>',
       geradoEm: extra.geradoEm || new Date().toLocaleDateString("pt-BR"),
       notaAtleta: D.textoNotas ? D.textoNotas(a) : "",
@@ -85,7 +86,7 @@
     return {
       atleta: base.atleta, reg: registroDoJogo(M, D, st, j), anteriores: anteriores, metricas: base.metricas, leitura: base.leitura, zonasDe: base.zonasDe, detalheDe: base.detalheDe,
       placarFinal: { sets: pl.sets.map(function (x) { return [x[0], x[1]]; }), games: [pl.g[0], pl.g[1]], pontos: pl.fim ? "" : M.rotuloPontos(pl), fim: !!pl.fim },
-      cabecalhoHtml: base.cabecalhoHtml, geradoEm: base.geradoEm, notaAtleta: base.notaAtleta,
+      cabecalhoHtml: base.cabecalhoHtml, geradoEm: base.geradoEm, notaAtleta: base.notaAtleta, tema: base.tema,
     };
   }
 
