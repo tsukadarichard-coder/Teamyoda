@@ -1,0 +1,16 @@
+{
+  "name": "Consultoria · Richard Tsukada",
+  "short_name": "Consultoria",
+  "description": "Envie o vídeo do golpe ou do jogo e receba a devolutiva do Richard Tsukada.",
+  "start_url": "/richard/",
+  "scope": "/richard/",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#FFFFFF",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "/assets/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/assets/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/assets/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

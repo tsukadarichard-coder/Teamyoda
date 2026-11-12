@@ -13,6 +13,10 @@
 [functions."push-lembretes"]
   schedule = "0 * * * *"
 
+# Consultoria (teamyoda.com.br/richard): apaga o vídeo do cliente 90 dias depois da devolutiva e os envios que nunca terminaram (todo dia, 4h17 de Brasília).
+[functions."consultoria-limpeza"]
+  schedule = "17 7 * * *"
+
 # teamyoda.com.br é a entrada de tudo do Team Yoda: na raiz, o portal (/portal/); o app do treinador em /treinador; Academia
 # Digital em /digital/; link do aluno, app do cliente, reservas e inscrições como sempre. O 39 Ranch segue no domínio dele
 # (39tennis.com.br e app.39tennis.com.br) e o QuadraLab no quadralab.com.br.
