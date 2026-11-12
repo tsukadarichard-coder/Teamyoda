@@ -21,6 +21,7 @@
      { acao: "cliente", uid }                                          → { cliente, nota, envios }
      { acao: "liberar" | "pausar", uid }                               → { cliente }
      { acao: "nota", uid, texto }                                      → { ok }
+     { acao: "convidar", nome, email }                                 → { cliente, contaNova }  (entra já liberado; completa o cadastro no 1º acesso)
      { acao: "respostaIniciar", envioId, contentType, tamanho }        → { sessao, caminho, tipo }
      { acao: "responder", envioId, texto, viu, treinar, midia?: { caminho } } → { envio }
      { acao: "prepararArmazenamento" }                                 → { bucket } */
@@ -84,6 +85,7 @@ async function cadastro(claims, b) {
   if (c.responsavel) c.responsavel.aceiteEm = (atual && atual.responsavel && atual.responsavel.email === c.responsavel.email && atual.responsavel.aceiteEm) || t;
   const novo = { ...(atual || {}), ...c, uid: claims.uid, email: String(claims.email || "").toLowerCase(), estado: atual ? atual.estado : "pendente", criadoEm: atual ? atual.criadoEm : t, atualizadoEm: t };
   if (!c.responsavel) delete novo.responsavel;
+  delete novo.cadastroPendente; // convidado pelo Richard: completou o cadastro no primeiro acesso
   await clientes().doc(claims.uid).set(novo);
   if (!atual) await avisarRichard("Novo cliente na consultoria", novo.nome + " pediu para entrar. Libere na tela de clientes.", "/richard/#/clientes");
   return { cliente: C.clientePublico(novo) };
@@ -194,6 +196,25 @@ async function mudarEstado(b, estado) {
   if (estado === "ativo" && c.estado !== "ativo") await avisarCliente(b.uid, "Consultoria liberada", "Pronto, " + primeiro(c.nome) + ": já pode mandar o primeiro vídeo para o Richard.", "/richard/#/enviar");
   return { cliente: { uid: b.uid, ...C.clientePublico(novo) } };
 }
+/* convite: o Richard cadastra o cliente com quem já combinou. A conta nasce (ou é a mesma do Team Yoda, se já existir) e o cliente
+   entra liberado; no primeiro acesso ele cria a senha pelo "Primeiro acesso" (e-mail de nova senha) e completa o cadastro do atleta. */
+async function convidar(b) {
+  const nome = C.txt(b.nome, 80).replace(/\s+/g, " "), email = String(b.email || "").trim().toLowerCase();
+  if (nome.length < 2) throw new Erro(400, "Escreva o nome do atleta.");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) throw new Erro(400, "Confira o e-mail de quem vai usar a consultoria.");
+  let u = null, contaNova = false;
+  try { u = await admin.auth().getUserByEmail(email); } catch (e) { u = null; }
+  if (!u) {
+    const senha = require("crypto").randomBytes(24).toString("base64url");
+    u = await admin.auth().createUser({ email, password: senha, displayName: nome });
+    contaNova = true;
+  }
+  const atual = await lerCliente(u.uid), t = agora();
+  const novo = atual ? { ...atual, estado: "ativo", liberadoEm: atual.liberadoEm || t, atualizadoEm: t }
+    : { uid: u.uid, nome, email, estado: "ativo", criadoEm: t, convidadoEm: t, liberadoEm: t, atualizadoEm: t, cadastroPendente: true };
+  await clientes().doc(u.uid).set(novo);
+  return { cliente: { uid: u.uid, ...C.clientePublico(novo) }, contaNova };
+}
 async function nota(b) {
   if (!C.UID.test(String(b.uid || ""))) throw new Erro(400, "Cliente inválido.");
   if (!(await lerCliente(b.uid))) throw new Erro(404, "Cliente não encontrado.");
@@ -239,9 +260,10 @@ exports.handler = async function (event) {
     const dono = C.ehDono(claims), base = { temas: C.TEMAS, limites: { duracaoSeg: C.LIMITES.duracaoSeg, videoMB: Math.round(C.LIMITES.videoBytes / 1048576), aguardandoMax: C.LIMITES.aguardandoMax, guardarDias: C.LIMITES.guardarDias, prazoDias: C.LIMITES.prazoDias } };
 
     if (event.httpMethod === "GET") {
-      if (dono) return resposta(200, { papel: "richard", ...base, ...(await painel()) });
+      const eu = { email: String(claims.email || "").toLowerCase() };
+      if (dono) return resposta(200, { papel: "richard", eu, ...base, ...(await painel()) });
       const cli = await lerCliente(claims.uid), lista = await enviosDe(claims.uid);
-      return resposta(200, { papel: "cliente", ...base, cliente: C.clientePublico(cli), envios: lista.filter((x) => x.e.estado !== "enviando").map((x) => C.envioParaCliente(x.id, x.e)),
+      return resposta(200, { papel: "cliente", eu, ...base, cliente: C.clientePublico(cli), envios: lista.filter((x) => x.e.estado !== "enviando").map((x) => C.envioParaCliente(x.id, x.e)),
         interrompidos: lista.filter((x) => x.e.estado === "enviando").map((x) => ({ id: x.id, tema: x.e.tema, rotuloTema: C.rotuloTema(x.e.tema), tamanho: x.e.video.tamanho, criadoEm: x.e.criadoEm })),
         motivoSemEnvio: C.motivoSemEnvio(cli, aguardando(lista)) });
     }
@@ -253,6 +275,7 @@ exports.handler = async function (event) {
       if (a === "liberar") return resposta(200, await mudarEstado(b, "ativo"));
       if (a === "pausar") return resposta(200, await mudarEstado(b, "pausado"));
       if (a === "nota") return resposta(200, await nota(b));
+      if (a === "convidar") return resposta(200, await convidar(b));
       if (a === "respostaIniciar") return resposta(200, await respostaIniciar(event, b));
       if (a === "responder") return resposta(200, await responder(claims, b));
       if (a === "prepararArmazenamento") return resposta(200, { bucket: await ARQ.prepararCors(SITE) });

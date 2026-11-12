@@ -95,3 +95,49 @@ audio { background: none; }
 .nav a .n { position: absolute; top: 6px; left: 54%; min-width: 18px; height: 18px; border-radius: 9px; background: var(--verm); color: #fff; font-size: 11px; line-height: 18px; text-align: center; padding: 0 5px; }
 .toast { position: fixed; left: 50%; bottom: calc(88px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--tinta); color: #fff; padding: 12px 16px; border-radius: 8px; font-size: 14.5px; max-width: calc(100% - 32px); z-index: 9; }
 @media (min-width: 720px) { main { padding-top: 36px; } }
+
+/* ── Home de vendas (quem chega sem conta entrada) ── */
+.h-heroi { position: relative; margin: -24px -16px 0; min-height: 460px; display: flex; align-items: flex-end; color: #fff; overflow: hidden; background: #111; }
+.h-heroi img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 40% 30%; }
+.h-heroi::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.35) 0%, rgba(0,0,0,.55) 40%, rgba(0,0,0,.88) 100%); }
+.h-heroi .in { position: relative; z-index: 1; padding: 28px 16px 26px; width: 100%; }
+.h-heroi .olho { color: #FFB3B7; }
+.h-heroi h1 { color: #fff; font-size: clamp(32px, 8.6vw, 48px); }
+.h-heroi p.lead { color: rgba(255,255,255,.9); }
+.h-heroi .btn-linha { background: transparent; color: #fff; border-color: #fff; } .h-heroi .btn-linha:hover { background: rgba(255,255,255,.12); color: #fff; }
+.h-heroi .entrar { color: #fff; font-size: 14.5px; margin-top: 14px; } .h-heroi .entrar button { color: #fff; }
+.h-sec { margin-top: 44px; }
+.h-sec > h2 { font-size: clamp(24px, 6vw, 30px); margin-top: 2px; }
+.h-sec > p.lead { margin-top: 8px; }
+.h-passos { list-style: none; padding: 0; margin: 18px 0 0; display: grid; gap: 12px; counter-reset: p; }
+.h-passos li { background: var(--branco); border: 1px solid var(--linha); border-radius: 12px; padding: 16px 16px 16px 60px; position: relative; counter-increment: p; }
+.h-passos li::before { content: counter(p); position: absolute; left: 16px; top: 16px; width: 30px; height: 30px; border-radius: 50%; background: var(--verm); color: #fff; font: 800 15px/30px var(--titulo); text-align: center; }
+.h-passos b { display: block; font-size: 16.5px; } .h-passos span { color: var(--grafite); font-size: 15px; }
+.h-mock { background: var(--branco); border: 1px solid var(--linha); border-radius: 18px; padding: 18px 16px; margin-top: 18px; box-shadow: 0 18px 40px rgba(17,17,17,.08); }
+.h-mock .topo-m { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--verm); }
+.h-mock h3 { margin-top: 12px; } .h-mock p { color: var(--grafite); font-size: 15px; margin-top: 4px; }
+.h-mock .audio { display: flex; align-items: center; gap: 10px; background: var(--suave); border-radius: 999px; padding: 8px 14px; margin-top: 12px; font-size: 13.5px; color: var(--grafite); }
+.h-mock .audio i { width: 26px; height: 26px; border-radius: 50%; background: var(--verm); display: inline-block; position: relative; flex: none; }
+.h-mock .audio i::after { content: ""; position: absolute; left: 10px; top: 7px; border-left: 9px solid #fff; border-top: 6px solid transparent; border-bottom: 6px solid transparent; }
+.h-mock .audio s { flex: 1; height: 4px; border-radius: 2px; background: linear-gradient(90deg, var(--verm) 30%, #D8D5CF 30%); text-decoration: none; }
+.h-lista { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 10px; }
+.h-lista li { padding-left: 28px; position: relative; font-size: 15.5px; }
+.h-lista li::before { content: ""; position: absolute; left: 4px; top: 8px; width: 12px; height: 7px; border-left: 2.5px solid var(--verm); border-bottom: 2.5px solid var(--verm); transform: rotate(-45deg); }
+.h-pub { display: grid; gap: 12px; margin-top: 16px; }
+.h-pub div { background: var(--branco); border: 1px solid var(--linha); border-radius: 12px; padding: 16px; }
+.h-pub b { display: block; font-family: var(--titulo); font-size: 17px; } .h-pub span { color: var(--grafite); font-size: 15px; }
+.h-sobre { display: grid; gap: 16px; align-items: center; margin-top: 16px; }
+.h-sobre img { width: 100%; max-width: 280px; border-radius: 14px; aspect-ratio: 1; object-fit: cover; }
+.h-faq details { border-top: 1px solid var(--linha); padding: 14px 2px; }
+.h-faq details:last-child { border-bottom: 1px solid var(--linha); }
+.h-faq summary { font-weight: 600; cursor: pointer; font-size: 16px; }
+.h-faq details p { margin-top: 8px; color: var(--grafite); font-size: 15px; }
+.h-final { margin: 44px -16px -40px; background: #111; color: #fff; padding: 36px 16px 44px; }
+.h-final h2 { color: #fff; font-size: clamp(24px, 6vw, 30px); } .h-final p { color: rgba(255,255,255,.85); margin-top: 8px; }
+.h-final .btn-linha { background: transparent; color: #fff; border-color: #fff; }
+@media (min-width: 720px) {
+  .h-heroi { margin: -36px 0 0; border-radius: 0 0 18px 18px; min-height: 520px; }
+  .h-passos { grid-template-columns: 1fr 1fr; } .h-pub { grid-template-columns: 1fr 1fr; }
+  .h-sobre { grid-template-columns: 240px 1fr; }
+  .h-final { margin: 44px 0 0; border-radius: 18px; }
+}

@@ -7,20 +7,23 @@
 <meta name="description" content="Consultoria de tênis com Richard Tsukada: envie o vídeo do golpe ou do jogo e receba a devolutiva com o que treinar.">
 <meta name="theme-color" content="#FFFFFF">
 <meta name="robots" content="noindex">
-<link rel="manifest" href="manifest.json">
-<link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
-<link rel="apple-touch-icon" sizes="180x180" href="../assets/apple-touch-icon.png">
+<script>/* teamyoda.com.br/richard sem a barra no fim: leva para /richard/ (os arquivos abaixo usam caminhos absolutos de qualquer jeito) */
+if (location.pathname === "/richard") location.replace("/richard/" + location.search + location.hash);</script>
+<link rel="manifest" href="/richard/manifest.json">
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@700;800&family=Inter:wght@400;500;600;700&display=swap">
 <!-- Consultoria com Richard Tsukada (teamyoda.com.br/richard), Etapa 1: o cliente envia vídeo e recebe a devolutiva; o Richard
      responde pela fila. Mesma conta do Team Yoda (Firebase Auth do projeto); dados e arquivos só pela function consultoria.js. -->
-<link rel="stylesheet" href="consultoria.css">
+<link rel="stylesheet" href="/richard/consultoria.css">
 </head>
 <body>
 <header class="topo"><div class="in">
-  <a href="#/" class="marca" aria-label="Consultoria — início"><img src="../assets/logo-team-yoda-transparente.png" alt="Team Yoda" width="76" height="30"><span>Consultoria<br><b>Richard Tsukada</b></span></a>
+  <a href="#/" class="marca" aria-label="Consultoria — início"><img src="/assets/logo-team-yoda-transparente.png" alt="Team Yoda" width="76" height="30"><span>Consultoria<br><b>Richard Tsukada</b></span></a>
   <span class="esp"></span>
+  <a class="link" href="#/entrar" id="lkEntrar" hidden>Entrar</a>
   <button class="link" type="button" id="btSair" hidden>Sair</button>
 </div></header>
 <main id="app" tabindex="-1"><p class="carregando">Carregando…</p></main>
@@ -28,9 +31,9 @@
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-auth-compat.js"></script>
-<script src="../mty-nuvem.js"></script>
-<script src="../push-cliente.js"></script>
-<script src="envio.js"></script>
-<script src="consultoria.js"></script>
+<script src="/mty-nuvem.js"></script>
+<script src="/push-cliente.js"></script>
+<script src="/richard/envio.js"></script>
+<script src="/richard/consultoria.js"></script>
 </body>
 </html>

@@ -23,7 +23,8 @@ function colRef(p, f = []) {
 const usuarios = { "tk-richard": { uid: "uRichard01", email: "tsukada.richard@gmail.com", email_verified: true }, "tk-impostor": { uid: "uImpostor1", email: "tsukada.richard@gmail.com", email_verified: false } };
 const criados = [];
 const auth = {
-  async createUser(u) { if (criados.some((x) => x.email === u.email)) { const e = new Error("x"); e.code = "auth/email-already-exists"; throw e; } criados.push(u); },
+  async createUser(u) { if (criados.some((x) => x.email === u.email)) { const e = new Error("x"); e.code = "auth/email-already-exists"; throw e; } const uid = "uNovo" + String(criados.length + 1).padStart(5, "0"); criados.push({ ...u, uid }); return { uid }; },
+  async getUserByEmail(email) { const c = criados.filter((x) => x.email === email)[0] || Object.values(usuarios).filter((x) => x.email === email)[0]; if (!c) { const e = new Error("x"); e.code = "auth/user-not-found"; throw e; } return { uid: c.uid }; },
   async verifyIdToken(t) { if (!usuarios[t]) throw new Error("token"); return usuarios[t]; },
 };
 const adminFalso = { firestore: () => ({ collection: (n) => colRef(n) }), auth: () => auth };
@@ -76,7 +77,8 @@ const videoOk = { tema: "saque", duvida: "Perco força no segundo saque quando e
   assert.strictEqual(C.prazo({ recebidoEm: "2026-11-10T12:00:00.000Z" }, agoraT).rotulo, "Vence amanhã");
   assert.strictEqual(C.prazo({ recebidoEm: "2026-11-12T12:00:00.000Z" }, agoraT).estado, "no-prazo");
   assert.ok(C.origemPermitida("https://teamyoda.com.br") && C.origemPermitida("https://abc--teamyoda.netlify.app") && !C.origemPermitida("https://teamyoda.com.br.evil.com"));
-  assert.ok(C.ehDono({ email: "tsukada.richard@gmail.com" }) && !C.ehDono({ email: "tsukada.richard@gmail.com", email_verified: false }), "e-mail sem verificação não vira Richard");
+  assert.ok(C.ehDono({ email: "tsukada.richard@gmail.com" }) && C.ehDono({ email: " Tsukada.Richard@Gmail.com", email_verified: false }), "o e-mail do Richard vale mesmo sem verificação, como no financeiro");
+  assert.ok(!C.ehDono({ email: "outro@gmail.com" }) && !C.ehDono({}), "outro e-mail não é o Richard");
 
   /* links do YouTube */
   for (const u of ["https://www.youtube.com/watch?v=dQw4w9WgXcQ", "https://youtu.be/dQw4w9WgXcQ?t=42", "https://m.youtube.com/watch?feature=x&v=dQw4w9WgXcQ", "https://youtube.com/shorts/dQw4w9WgXcQ"])
@@ -107,7 +109,8 @@ const videoOk = { tema: "saque", duvida: "Perco força no segundo saque quando e
   assert.strictEqual(r.s, 403); assert.ok(/liberar/.test(r.erro), "pendente não envia");
 
   /* ── Richard: impostor e cliente não entram no painel ── */
-  assert.strictEqual((await chama("tk-impostor")).papel, "cliente", "e-mail sem verificação não abre o painel");
+  assert.strictEqual((await chama("tk-impostor")).papel, "richard", "conta do Richard sem verificação abre o painel");
+  assert.strictEqual((await chama("tk-lia")).eu.email, "lia@x.com", "a tela recebe com qual e-mail a pessoa entrou");
   assert.strictEqual((await chama("tk-lia", { acao: "liberar", uid: "uLia000001" })).s, 403, "cliente não libera ninguém");
   r = await chama("tk-richard");
   assert.strictEqual(r.papel, "richard"); assert.strictEqual(r.clientes[0].estado, "pendente"); assert.deepStrictEqual(r.fila, []);
@@ -211,6 +214,21 @@ const videoOk = { tema: "saque", duvida: "Perco força no segundo saque quando e
   assert.strictEqual((await chama("tk-caio", { acao: "verVideo", envioId: idYt })).s, 404, "link do YouTube não passa pelo armazenamento");
   r = await chama("tk-richard", { acao: "responder", envioId: idYt, viu: "Cabeça da raquete cai.", linkVideo: "https://www.youtube.com/watch?v=abcdefghijk" });
   assert.strictEqual(r.s, 200); assert.deepStrictEqual(r.envio.devolutiva.youtube, { id: "abcdefghijk" });
+
+  /* convite: o Richard cadastra quem já combinou; entra liberado, completa o cadastro no primeiro acesso */
+  assert.strictEqual((await chama("tk-lia", { acao: "convidar", nome: "X", email: "x@x.com" })).s, 403, "cliente não convida");
+  assert.strictEqual((await chama("tk-richard", { acao: "convidar", nome: "Duda", email: "duda" })).s, 400);
+  r = await chama("tk-richard", { acao: "convidar", nome: "Duda  Ramos", email: "Duda@X.com" });
+  assert.strictEqual(r.s, 200); assert.strictEqual(r.contaNova, true); assert.strictEqual(r.cliente.estado, "ativo"); assert.strictEqual(r.cliente.cadastroPendente, true); assert.strictEqual(r.cliente.nome, "Duda Ramos");
+  const uidDuda = r.cliente.uid; usuarios["tk-duda"] = { uid: uidDuda, email: "duda@x.com" };
+  r = await chama("tk-duda"); assert.ok(/cadastro/.test(r.motivoSemEnvio), "convidado completa o cadastro antes de enviar"); assert.strictEqual(r.cliente.cadastroPendente, true);
+  r = await chama("tk-duda", { acao: "cadastro", nome: "Duda Ramos", nascimento: anosAtras(28), objetivo: "Saque" });
+  assert.strictEqual(r.cliente.estado, "ativo", "continua liberado depois do cadastro"); assert.strictEqual(r.cliente.cadastroPendente, false);
+  assert.strictEqual((await chama("tk-duda")).motivoSemEnvio, "", "já pode enviar");
+  assert.ok(!avisos.some((a) => /Novo cliente/.test(a.aviso.titulo) && /Duda/.test(a.aviso.corpo)), "convidado não aparece como pedido novo");
+  /* convidar quem já tem conta no Team Yoda usa a mesma conta */
+  r = await chama("tk-richard", { acao: "convidar", nome: "Beto", email: "beto@x.com" });
+  assert.strictEqual(r.contaNova, false); assert.strictEqual(r.cliente.uid, "uBeto00001");
 
   /* pausar: não envia mais, mas vê o histórico */
   await chama("tk-richard", { acao: "pausar", uid: "uLia000001" });

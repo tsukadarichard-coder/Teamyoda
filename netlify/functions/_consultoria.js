@@ -42,7 +42,9 @@ const tipoBase = (ct) => String(ct || "").toLowerCase().split(";")[0].trim();
 function donos() {
   return String(process.env.CONSULTORIA_RESPONDEM || process.env.FINANCEIRO_DONOS || "tsukada.richard@gmail.com").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
 }
-const ehDono = (claims) => !!(claims && claims.email && claims.email_verified !== false && donos().includes(String(claims.email).toLowerCase()));
+/* mesma regra do financeiro: o e-mail da conta (o Firebase não deixa outra conta usar o mesmo e-mail). Não exige e-mail verificado:
+   a conta do Richard foi criada pelo administrador e pode não ter a verificação, e aí ele caía na tela de cliente. */
+const ehDono = (claims) => !!(claims && claims.email && donos().includes(String(claims.email).trim().toLowerCase()));
 
 function idade(nascimento, hoje) {
   if (!DATA.test(String(nascimento || "")) || !DATA.test(String(hoje || ""))) return null;
@@ -72,7 +74,7 @@ function rotuloTema(t) { const x = TEMAS.filter((y) => y[0] === t)[0]; return x 
 
 /* pode mandar mais um vídeo? (devolve o motivo quando não pode) */
 function motivoSemEnvio(cliente, aguardando) {
-  if (!cliente) return "Complete o cadastro antes de enviar.";
+  if (!cliente || cliente.cadastroPendente) return "Complete o cadastro antes de enviar.";
   if (cliente.estado === "pendente") return "O Richard ainda vai liberar a sua consultoria. Você recebe um aviso quando estiver pronta.";
   if (cliente.estado !== "ativo") return "A sua consultoria está pausada. Fale com o Richard para retomar.";
   if (cliente.menor && !(cliente.responsavel && cliente.responsavel.aceiteEm)) return "Falta a autorização do responsável.";
@@ -163,7 +165,7 @@ function envioParaCliente(id, e) {
 function clientePublico(c) {
   if (!c) return null;
   return { nome: c.nome, email: c.email || "", nascimento: c.nascimento || "", menor: !!c.menor, responsavel: c.responsavel ? { nome: c.responsavel.nome, email: c.responsavel.email, aceiteEm: c.responsavel.aceiteEm || null } : null,
-    objetivo: c.objetivo || "", estado: c.estado, criadoEm: c.criadoEm, liberadoEm: c.liberadoEm || null };
+    objetivo: c.objetivo || "", estado: c.estado, criadoEm: c.criadoEm, liberadoEm: c.liberadoEm || null, cadastroPendente: !!c.cadastroPendente, convidadoEm: c.convidadoEm || null };
 }
 
 /* limpeza diária: vídeos com devolutiva há mais de 90 dias; envios que nunca terminaram de subir */
