@@ -196,7 +196,7 @@ window.firebase={apps:[],initializeApp:function(){this.apps.push({})},auth:funct
   assert.strictEqual(Object.keys(store).filter((k) => k.startsWith("consultoriaEnvios/") && store[k].estado === "recebido").length, 2, "o envio pausado terminou");
 
   /* ── Richard: fila e devolutiva com áudio ── */
-  await r.goto(base + "#/fila"); await r.waitForSelector("[data-fila]");
+  await r.click('#nav [data-aba="fila"]'); await r.waitForSelector("[data-fila]"); // abrir a aba busca a fila de novo
   assert.ok(/2 envios aguardando/.test(await texto(r)) && /Lia Souza · Saque/.test(await texto(r)) && /No prazo/.test(await texto(r)));
   await semRolagem(r, "fila"); await foto(r, "consultoria-7-fila");
   await r.click("[data-fila] >> nth=0"); await r.waitForSelector("#fResp");
@@ -222,7 +222,7 @@ window.firebase={apps:[],initializeApp:function(){this.apps.push({})},auth:funct
   await p.click("[data-nova]"); await p.waitForSelector("[data-devolutiva]");
   const td = await texto(p);
   assert.ok(td.includes("O que eu vi") && td.includes("perna de apoio") && td.includes("Lançamento com alvo") && /guardado até \d{2}\/\d{2}\/\d{4}/.test(td), td.slice(0, 900));
-  await p.click("#btResp"); await p.waitForSelector("[data-midia-resp] audio");
+  await p.click("#btResp"); await p.waitForSelector("[data-midia-resp] audio, [data-midia-resp] video", { state: "attached" }); // arquivo .webm escolhido no celular chega como vídeo
   await semRolagem(p, "devolutiva"); await foto(p, "consultoria-10-devolutiva");
   await p.click("#btEntendi"); await p.waitForFunction(() => document.body.innerText.includes("Você marcou como entendido"));
   await p.click("#btDuvida"); await p.fill('#fDuv [name="texto"]', "O lançamento é com a mão esticada?");

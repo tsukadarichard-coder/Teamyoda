@@ -77,7 +77,16 @@
     if (d.papel === "richard") return rotaRichard(h);
     return rotaCliente(h);
   }
-  window.addEventListener("hashchange", function () { rota(); });
+  /* listas (fila, clientes, início, devolutivas) se atualizam ao abrir a aba e ao voltar para o app; telas com formulário não são redesenhadas */
+  function telaDeLista() { var h = (location.hash.replace(/^#\/?/, "").split("/")[0]) || ""; return ["", "fila", "clientes", "inicio", "devolutivas"].indexOf(h) >= 0; }
+  var atualizando = false;
+  function atualizarLista() {
+    if (!st.usuario || !st.carregado || atualizando || envioAtivo || !telaDeLista()) return;
+    atualizando = true;
+    carregar().then(function () { atualizando = false; if (telaDeLista() && !envioAtivo) rota(); }).catch(function () { atualizando = false; });
+  }
+  window.addEventListener("hashchange", function () { rota(); atualizarLista(); });
+  document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible") atualizarLista(); });
 
   /* ══════════════ Entrada ══════════════ */
   function telaEntrada() {
