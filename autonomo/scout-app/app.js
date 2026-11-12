@@ -665,10 +665,30 @@
       { rota: JOGO, alvo: "[data-tour=\"detalhes\"]", acao: "ok", opcional: true, texto: "Estes são os detalhes do ponto: tipo de jogada, decisão, golpe, direção e onde na quadra. Tudo opcional. Quanto mais você marca, mais completo fica o relatório." },
       { rota: JOGO, alvo: "[data-tour=\"bola\"]", acao: "toque", texto: "Por último: em que bola o ponto terminou? Contando o saque como a 1ª bola." },
       { rota: JOGO, alvo: "[data-registrado]", acao: "ok", texto: "Ponto registrado! Marcou errado? Toque em Corrigir e o ponto volta." },
+      { rota: JOGO, alvo: "[data-tour=\"fim\"]", acao: "demo", titulo: "Veja o app marcando", botao: "Ver a demonstração",
+        texto: "Agora assista: o app marca mais dois pontos sozinho, para você ver o ritmo, e mostra como corrigir. Este é um jogo de treino: no fim do guia você escolhe se guarda.",
+        roteiro: [
+          { alvo: "[data-fim=\"erro_nos\"]", texto: "O atleta errou a bola: toque no botão laranja Erro (ponto do adversário).", toque: true },
+          { alvo: "[data-bola=\"5-9\"]", texto: "Em que bola terminou? Entre a 5ª e a 9ª: um ponto médio. Com esse toque o ponto entra.", toque: true },
+          { alvo: ".placar", texto: "Pronto: o placar mudou sozinho. São 2 toques por ponto.", ms: 2000 },
+          { alvo: "[data-saq=\"ace\"]", texto: "Ace ou dupla falta é um toque só: o ponto já entra.", toque: true },
+          { alvo: ".placar", texto: "Mais um ponto no placar.", ms: 1800 },
+          { alvo: "#btDesfazer", texto: "Marcou errado? Desfazer tira o último ponto.", toque: true },
+          { alvo: ".placar", texto: "O ace saiu do placar. Pode marcar de novo sem medo.", ms: 2000 },
+        ] },
       { rota: JOGO, alvo: "#btModo", acao: "ok", texto: "Você está no modo completo. Com pressa? Troque aqui pelo modo rápido: só como terminou e a bola." },
       { rota: JOGO, alvo: "#cartaoAoVivo", acao: "ok", texto: ehPlus() ? "Quer que a família acompanhe de longe? Abra o link ao vivo e mande no WhatsApp. Eles veem cada ponto." :
         "Com o Scout Plus, a família acompanha de longe pelo link ao vivo e vê cada ponto. A assinatura abre em breve." },
-      { rota: JOGO, alvo: "#navBaixo [data-aba=\"jogos\"]", acao: "ok", texto: "Em Jogos ficam todos os jogos e a evolução de cada atleta. Agora é com você: continue marcando. Bom jogo!", botao: "Concluir" },
+      { rota: JOGO, alvo: "#btEncerrar", acao: "demo", titulo: "Como o jogo termina", botao: "Ver o fim do jogo",
+        texto: "Quando o último ponto é marcado, o app fecha o jogo sozinho e mostra o resultado. Se o jogo parar antes (chuva, desistência, tempo), use Encerrar jogo. Veja como fica.",
+        roteiro: [
+          { alvo: "#btEncerrar", texto: "Toque em Encerrar jogo.", toque: true },
+          { alvo: "#btFimSim", texto: "Confirme: Sim, encerrar.", toque: true },
+          { alvo: "[data-fim-jogo]", texto: "Este é o resultado: placar, pontos ganhos e o tempo de jogo. Daqui você manda no WhatsApp.", ms: 3200 },
+          { alvo: ".graficos", texto: "Logo abaixo ficam os números do jogo: como os pontos terminaram, saque, lado da quadra e mais.", ms: 3200 },
+        ] },
+      { rota: JOGO, alvo: "#btApagar", acao: "ok", opcional: true, texto: "Este foi um jogo de treino. Se não quiser guardar, apague aqui. O atleta continua na sua conta." },
+      { rota: /^#\/(jogo\/|$)|^$/, alvo: "#navBaixo [data-aba=\"jogos\"]", acao: "ok", texto: "Em Jogos ficam todos os jogos e a evolução de cada atleta. Agora é com você: marque o primeiro jogo de verdade. Bom jogo!", botao: "Concluir" },
     ];
   }
   function iniciarGuia() {

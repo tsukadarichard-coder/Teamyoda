@@ -181,6 +181,11 @@ body.com-nav main { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)
 .guia-dica::before { content: "👆 "; }
 .guia-pular { min-height: 44px; padding: 6px 4px; border: 0; background: none; color: var(--grafite); font-size: 13.5px; text-decoration: underline; cursor: pointer; }
 .guia-sacode { animation: sacode .35s; }
+/* demonstração: o "toque" do app aparece como um aperto na área iluminada */
+.guia-assista { font-size: 13.5px; font-weight: 800; color: var(--violeta); }
+.guia-assista::before { content: "▶ "; }
+.guia-luz.guia-tocando { animation: toqueDemo .45s ease-out; }
+@keyframes toqueDemo { 0% { outline-width: 3px; transform: scale(1); } 50% { outline-width: 8px; transform: scale(.97); } 100% { outline-width: 3px; transform: scale(1); } }
 @keyframes sacode { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
 @media (prefers-reduced-motion: reduce) { .guia-sacode { animation: none; } }
 /* o guia rola até o alvo sem deixá-lo atrás do cabeçalho nem da barra de baixo */

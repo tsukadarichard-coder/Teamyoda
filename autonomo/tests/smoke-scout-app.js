@@ -404,6 +404,7 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
 
   /* guia do primeiro acesso: conta nova, sem jogos; só avança tocando no lugar iluminado */
   const c3 = await celular(), g = c3.p;
+  await g.addInitScript(() => { window.QL_GUIA_DEMO_MS = 500; }); // demonstração mais rápida no teste
   await g.goto(base + "#/criar", { waitUntil: "networkidle" });
   await g.fill("#acNome", "Bruno"); await g.fill("#acEmail", "bruno@exemplo.com"); await g.fill("#acSenha", "12345678"); await g.click("#btAcesso");
   const balao = () => g.textContent(".guia-balao");
@@ -423,8 +424,15 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   await g.waitForFunction(() => document.querySelector(".guia-balao").textContent.includes("Começar o jogo"));
   await g.click("#btComecar");
   for (const [trecho, acao] of [["Este é o placar", "ok"], ["marque o saque", "ok"], ["como ele terminou", '[data-fim="winner_nos"]'], ["detalhes do ponto", "ok"], ["em que bola", '[data-bola="5-9"]'],
-    ["Ponto registrado", "ok"], ["modo completo", "ok"], ["link ao vivo", "ok"]]) {
-    await g.waitForFunction((x) => { const b = document.querySelector(".guia-balao"); return b && !b.hidden && b.textContent.includes(x); }, trecho, { timeout: 8000 });
+    ["Ponto registrado", "ok"], ["Veja o app marcando", "demo"], ["modo completo", "ok"], ["link ao vivo", "ok"], ["Como o jogo termina", "demo"], ["jogo de treino", "ok"]]) {
+    await g.waitForFunction((x) => { const b = document.querySelector(".guia-balao"); return b && !b.hidden && b.textContent.includes(x); }, trecho, { timeout: 20000 });
+    if (acao === "demo") {
+      /* demonstração: o app toca sozinho; durante ela, tocar fora não faz nada */
+      await g.click("[data-guia-demo]");
+      await g.waitForFunction(() => /Demonstração · 1 de/.test(document.querySelector(".guia-balao").textContent));
+      if (trecho === "Veja o app marcando") await foto(g, "scout-guia-4-demo");
+      continue;
+    }
     if (trecho === "como ele terminou") await foto(g, "scout-guia-2");
     if (trecho === "detalhes do ponto") await foto(g, "scout-guia-3");
     await g.click(acao === "ok" ? "[data-guia-ok]" : acao);
@@ -433,7 +441,9 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   await g.click("[data-guia-ok]");
   await g.waitForFunction(() => document.body.innerText.includes("Guia concluído"));
   assert.ok(!(await visivel()), "guia fechado");
-  assert.strictEqual(await g.textContent("[data-pontos]"), "15-0", "o ponto do guia ficou marcado");
+  /* o ponto do guia e o da demonstração ficaram (o ace foi desfeito na demonstração); o jogo terminou pela demonstração do fim */
+  assert.ok(await g.$("[data-fim-jogo]"), "a demonstração encerrou o jogo de treino");
+  assert.ok(/2 pontos · Duda ganhou 1/.test(await g.innerText("[data-fim-jogo]")), await g.innerText("[data-fim-jogo]"));
   assert.strictEqual(await g.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("qls:guia:")).map((k) => localStorage.getItem(k)).join()), "feito");
   /* não volta sozinho; Conta › Ver o guia de novo reabre */
   await g.reload({ waitUntil: "load" }); await g.waitForTimeout(800); assert.ok(!(await visivel()), "guia não volta sozinho");
