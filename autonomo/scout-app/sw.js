@@ -1,7 +1,7 @@
 /* QuadraLab Scout: funciona sem internet (clube com sinal fraco).
    Rede primeiro, com 4 segundos de espera; sem resposta, usa a cópia guardada. Assim a versão nova chega sempre que há sinal,
    e sem sinal o app abre do mesmo jeito. As functions (contagem de uso) nunca passam pelo cache. */
-const CACHE = "ql-scout-v8";
+const CACHE = "ql-scout-v9";
 const ARQUIVOS = ["./", "index.html", "app.js", "app.css", "dados.js", "nuvem.js", "relatorio.js", "guia.js", "manifest.json", "../scout/relatorio-jogos.js", "../imprimir.js", "../player/scout-motor.js", "../scout/ao-vivo.js", "../scout/ao-vivo.css", "../scout/graficos.js", "../scout/graficos.css",
   "img/logo-scout-96.png", "img/logo-scout-96.webp", "img/logo-scout-192.png", "img/logo-scout-192.webp", "img/scout-favicon-32.png", "img/scout-favicon-16.png", "img/scout-apple-touch-icon.png", "img/scout-icon-192.png"];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ARQUIVOS)).then(() => self.skipWaiting())); });

@@ -108,6 +108,12 @@ details.det .olho { margin-top: 12px; }
 .resultado .placar-f { font-size: 30px; font-weight: 900; letter-spacing: -.01em; font-variant-numeric: tabular-nums; margin: 2px 0 6px; color: var(--violeta); }
 .sinal { border-left: 4px solid var(--laranja); padding: 2px 0 2px 12px; margin: 10px 0; }
 .graficos section { background: var(--branco); border: 1px solid var(--linha); border-radius: 14px; padding: 16px; margin-top: 12px; }
+/* o placar por sets tem letras brancas: precisa do fundo escuro (o roxo do Scout), senão os games do adversário somem no branco */
+.graficos section.qg-pl { background: #260A3E; border-color: #260A3E; color: #fff; }
+.graficos .qg-pl table.qg-pl-t { background: transparent; }
+.graficos .qg-pl-t th, .graficos .qg-pl-t td { color: inherit; border-bottom: 0; text-align: center; white-space: nowrap; min-width: 0; }
+.graficos .qg-pl-t tbody th { text-align: left; }
+.graficos .qg-pl-t .qg-pl-w th, .graficos .qg-pl-t .qg-pl-w td { color: #F2C94C; }
 
 /* comparação */
 .tab { overflow-x: auto; margin-top: 8px; -webkit-overflow-scrolling: touch; }

@@ -271,6 +271,17 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   assert.ok(naNuvem && naNuvem.mental.depois.foco === 5 && naNuvem.observacaoFinal === "Sacou bem no corpo", "jogo completo na nuvem");
   assert.ok(naNuvem.inicioEm && naNuvem.fimEm && naNuvem.fimEm >= naNuvem.inicioEm && naNuvem.duracaoMin === 75, "tempo de partida na nuvem: " + JSON.stringify([naNuvem.inicioEm, naNuvem.fimEm, naNuvem.duracaoMin]));
 
+  /* o placar por sets no resultado: fundo escuro e letras claras, com os games dos DOIS lados legíveis (antes o adversário sumia no branco) */
+  const plFim = await p.evaluate(() => {
+    const lum = (c) => { const m = c.match(/[\d.]+/g).map(Number); return (0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2]) / 255; };
+    const sec = document.querySelector(".graficos .qg-pl"), tds = [...sec.querySelectorAll("tbody tr:nth-child(2) td")], nota = sec.querySelector(".qg-pl-nota");
+    /* o fundo que se vê atrás da célula: o primeiro antepassado com cor (a tabela do app é branca por padrão) */
+    const fundoDe = (el) => { for (let x = el; x; x = x.parentElement) { const c = getComputedStyle(x).backgroundColor; if (!/rgba\(.*, 0\)|transparent/.test(c)) return lum(c); } return 1; };
+    return { fundo: fundoDe(tds[0]), fundoNome: fundoDe(sec.querySelector("tbody tr:nth-child(2) th")), adv: tds.map((td) => td.textContent.trim()), letra: lum(getComputedStyle(tds[0]).color), nome: lum(getComputedStyle(sec.querySelector("tbody tr:nth-child(2) th")).color), nota: lum(getComputedStyle(nota).color), textoNota: nota.textContent };
+  });
+  assert.ok(plFim.fundo < 0.2 && plFim.fundoNome < 0.2 && plFim.letra > 0.8 && plFim.nome > 0.8 && plFim.nota > 0.8, "placar do resultado com contraste: " + JSON.stringify(plFim));
+  assert.ok(plFim.adv.length >= 1 && plFim.adv.every((x) => /^\d+$/.test(x)) && /Partida encerrada/.test(plFim.textoNota), "games do adversário e a linha da partida aparecem: " + JSON.stringify(plFim));
+
   /* exportar o relatório deste jogo, direto da tela do fim: placar, tempo de jogo e a comparação, sem o adversário */
   assert.ok(await p.$("[data-exportar] #btRelatorioJogo"), "botão de exportar o relatório do jogo");
   const [relJogo] = await Promise.all([p.waitForEvent("popup"), p.click("#btRelatorioJogo")]);
