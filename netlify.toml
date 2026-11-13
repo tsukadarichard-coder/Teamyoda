@@ -21,6 +21,10 @@
 [functions."consultoria-avisos"]
   schedule = "7 * * * *"
 
+# Central Tsukada: avisos no celular (tarefas da Implantação, resumo de segunda às 8h), no horário de São Paulo.
+[functions."central-avisos"]
+  schedule = "*/5 * * * *"
+
 # teamyoda.com.br é a entrada de tudo do Team Yoda: na raiz, o portal (/portal/); o app do treinador em /treinador; Academia
 # Digital em /digital/; link do aluno, app do cliente, reservas e inscrições como sempre. O 39 Ranch segue no domínio dele
 # (39tennis.com.br e app.39tennis.com.br) e o QuadraLab no quadralab.com.br.
