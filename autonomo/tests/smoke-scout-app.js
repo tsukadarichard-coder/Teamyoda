@@ -457,12 +457,13 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   await g.goto(base + "#/novo"); await g.waitForSelector("#btComecar");
   await g.click('[data-modalidade="dupla"]'); await g.waitForSelector("#nvParceiro");
   assert.strictEqual(await g.getAttribute('[data-tog="semVantagem"]', "aria-pressed"), "true", "dupla já vem com ponto decisivo");
-  await g.fill("#nvParceiro", "Pedro Lima"); await g.fill("#nvAdv", "Irmãos Silva");
+  await g.fill("#nvParceiro", "Pedro Lima"); assert.ok(!(await g.$("#nvAdv")) && await g.$("#nvAdv1") && await g.$("#nvAdv2"), "dupla: um campo para cada adversário");
+  await g.fill("#nvAdv1", "Caio Silva"); await g.fill("#nvAdv2", "Léo Silva");
   await g.click('[data-sacadupla="parceiro"]');
   assert.strictEqual(await g.getAttribute('[data-sacadupla="parceiro"]', "aria-pressed"), "true");
   await semRolagem(g, "novo jogo de dupla"); await foto(g, "scout-dupla-1-novo");
   await g.click("#btComecar"); await g.waitForSelector("[data-pontos]");
-  assert.ok(/Saque de Pedro/i.test(await g.innerText(".placar")) && /Duda e Pedro × Irmãos Silva/.test(await g.innerText(".placar")), await g.innerText(".placar"));
+  assert.ok(/Saque de Pedro/i.test(await g.innerText(".placar")) && /Duda e Pedro × Caio Silva e Léo Silva/.test(await g.innerText(".placar")), await g.innerText(".placar"));
   assert.strictEqual(await g.locator("[data-fim]").count(), 6, "seis botões: winner e erro de cada um, e os dos adversários");
   const pontoD = async (sel) => { await g.click(sel); await g.click('[data-bola="1-4"]'); };
   for (let i = 0; i < 4; i++) await pontoD('[data-fim="winner_nos"][data-quem="parceiro"]');

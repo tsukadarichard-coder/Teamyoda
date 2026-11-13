@@ -94,6 +94,7 @@ h2 { font-size: 18px; margin: 0 0 6px; }
 .saque-topo { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
 .saque-topo .opc { text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--grafite); }
 .rot-mini { margin: 0 0 6px; font-size: 13px; font-weight: 700; color: var(--grafite); }
+.rot-campo { margin: 0 0 6px; font-weight: 700; }
 /* fim do ponto na dupla: linhas = quem, colunas = de quem é o ponto */
 .fim-dupla { display: grid; grid-template-columns: minmax(64px, auto) 1fr 1fr; gap: 8px; align-items: stretch; }
 .fim-dupla .cab { margin: 0; align-self: end; text-align: center; font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
