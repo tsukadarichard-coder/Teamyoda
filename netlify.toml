@@ -25,6 +25,10 @@
 [functions."central-avisos"]
   schedule = "*/5 * * * *"
 
+# Central Tsukada: agentes (rascunhos para o Richard revisar), de hora em hora no minuto 3; o trabalho roda em central-agentes-background.
+[functions."central-agentes"]
+  schedule = "3 * * * *"
+
 # teamyoda.com.br é a entrada de tudo do Team Yoda: na raiz, o portal (/portal/); o app do treinador em /treinador; Academia
 # Digital em /digital/; link do aluno, app do cliente, reservas e inscrições como sempre. O 39 Ranch segue no domínio dele
 # (39tennis.com.br e app.39tennis.com.br) e o QuadraLab no quadralab.com.br.

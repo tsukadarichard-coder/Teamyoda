@@ -18,10 +18,16 @@ const banco = {
   "orgs/39-ranch/dados/mty:quadras:v1": [{ id: "q1", nome: "Central", faixasPreco: [{ inicio: "06:00", fim: "23:00", preco: "100" }] }],
 };
 const gravados = {};
-const doc = (c) => ({ get: async () => { if (/^(financeiro|central|centralAvisos|pushInscricoes)\//.test(c)) { const v = gravados[c]; return { exists: !!v, data: () => v }; } const v = banco[c]; return { exists: !!v, data: () => ({ value: JSON.stringify(v) }) }; },
-  set: async (v) => { gravados[c] = v; }, delete: async () => { delete gravados[c]; }, collection: (x) => col(c + "/" + x) });
-const semNada = { get: async () => ({ forEach() {}, docs: [] }) }; semNada.where = () => semNada; semNada.limit = () => semNada;
-const col = (c) => ({ doc: (d) => doc(c + "/" + d), where: () => semNada });
+const doc = (c) => ({ get: async () => { if (/^(financeiro|central|centralAvisos|pushInscricoes|centralAgentes)\//.test(c)) { const v = gravados[c]; return { exists: !!v, data: () => v }; } const v = banco[c]; return { exists: !!v, data: () => ({ value: JSON.stringify(v) }) }; },
+  set: async (v) => { gravados[c] = JSON.parse(JSON.stringify(v)); }, create: async (v) => { if (gravados[c]) throw new Error("existe"); gravados[c] = JSON.parse(JSON.stringify(v)); }, delete: async () => { delete gravados[c]; }, collection: (x) => col(c + "/" + x) });
+function consulta(c) {
+  const f = [], st = {};
+  const q = { where: (k, op, v) => { f.push([k, v]); return q; }, orderBy: (k, d) => { st.o = [k, d]; return q; }, limit: (n) => { st.n = n; return q; },
+    get: async () => { let l = Object.keys(gravados).filter((k) => k.startsWith(c + "/") && k.slice(c.length + 1).indexOf("/") < 0).map((k) => ({ id: k.slice(c.length + 1), data: () => gravados[k] })).filter((d) => f.every(([k, v]) => d.data()[k] === v));
+      if (st.o) l.sort((a, b) => (String(a.data()[st.o[0]]) < String(b.data()[st.o[0]]) ? -1 : 1) * (st.o[1] === "desc" ? -1 : 1)); if (st.n) l = l.slice(0, st.n); return { forEach: (fn) => l.forEach(fn), docs: l }; } };
+  return q;
+}
+const col = (c) => ({ doc: (d) => doc(c + "/" + d), where: (k, op, v) => consulta(c).where(k, op, v), orderBy: (k, d) => consulta(c).orderBy(k, d), get: () => consulta(c).get() });
 const adminFalso = { auth: () => ({ verifyIdToken: async (t) => (t === "dono" ? { email: "tsukada.richard@gmail.com", uid: "u-ric" } : t === "adm" ? { email: "adm@x.com", uid: "u-adm" } : { email: "outro@x.com", uid: "u-outro" }) }), firestore: () => ({ collection: (c) => col(c) }) };
 const carregar = Module._load;
 Module._load = function (pedido) { if (/_firebase-admin$/.test(pedido)) return { admin: adminFalso, app: () => {} }; return carregar.apply(this, arguments); };
@@ -31,6 +37,10 @@ gravados["financeiro/_acesso"] = { admins: ["adm@x.com"] };
 const PUSH = require(path.join(__dirname, "../../netlify/functions/_push.js")), testes = [];
 PUSH.enviarPara = async (a, filtro, aviso) => { const n = Object.keys(gravados).filter((k) => k.startsWith("pushInscricoes/") && gravados[k].uid === filtro.uid && gravados[k].app === filtro.app).length; if (n) testes.push({ filtro, aviso }); return { enviados: n, falhas: 0, removidos: 0 }; };
 const central = require(path.join(__dirname, "../../netlify/functions/central.js"));
+const BG = require(path.join(__dirname, "../../netlify/functions/central-agentes-background.js"));
+const iaFalsa = async (sist, msg) => (/Separe o texto/.test(msg) ? { texto: JSON.stringify({ tarefas: [{ titulo: "Ligar para o João", prazo: "", prioridade: "alta", negocio: "team-yoda" }], compromissos: [], observacao: "" }), usage: { input_tokens: 200, output_tokens: 60 } }
+  : { texto: "Para fazer hoje:\n- Conversar com a professora sobre as aulas sem registro.", usage: { input_tokens: 4000, output_tokens: 500 } });
+global.fetch = async (url, o) => { setTimeout(() => BG._processar({ httpMethod: "POST", headers: o.headers, body: o.body }, { db: adminFalso.firestore(), agoraMs: Date.now(), ia: iaFalsa }).catch((e) => console.error(e)), 300); return { ok: true, status: 202 }; };
 let posts = 0;
 const m = { "/r.js": CDN + "/react-18.3.1/package/umd/react.development.js", "/d.js": CDN + "/react-dom-18.3.1/package/umd/react-dom.development.js", "/p.js": CDN + "/prop-types-15.8.1/package/prop-types.min.js", "/c.js": CDN + "/recharts-2.15.4/package/umd/Recharts.js", "/b.js": CDN + "/babel-standalone-7.29.9/package/babel.min.js" };
 
@@ -169,7 +179,7 @@ window.__auth = { currentUser: null, cbs: [], onAuthStateChanged(cb) { this.cbs.
       /* Avisos: ativar, testar, preferências */
       await p.click('[data-aba-central="avisos"]'); await p.waitForSelector("[data-estado-avisos=inativo]", { timeout: 10000 });
       const tv = await p.evaluate(() => document.body.innerText);
-      assert(/Tarefas da Implantação com data/.test(tv) && /Resumo da semana/.test(tv) && /chega na Etapa 2/.test(tv) && !/Rotina do administrativo/.test(tv), "Richard vê os avisos dele");
+      assert(/Tarefas da Implantação com data/.test(tv) && /Resumo da semana/.test(tv) && /Blocos da rotina/.test(tv) && /Agentes com rascunho novo/.test(tv) && /chega na Etapa 4/.test(tv) && !/Rotina do administrativo/.test(tv), "Richard vê os avisos dele");
       await p.click('button:text-is("Ativar neste aparelho")'); await p.waitForSelector("[data-estado-avisos=ativo]", { timeout: 10000 });
       await p.click('button:text-is("Enviar notificação de teste")');
       await p.waitForFunction(() => /Notificação de teste enviada/.test(document.body.innerText), null, { timeout: 10000 });
@@ -179,8 +189,40 @@ window.__auth = { currentUser: null, cbs: [], onAuthStateChanged(cb) { this.cbs.
       assert(gravados["centralAvisos/u-ric"].tipos.resumo === false && gravados["centralAvisos/u-ric"].silencio.de === "21:30", JSON.stringify(gravados["centralAvisos/u-ric"]));
       if (capturas) await p.screenshot({ path: path.join(capturas, "central-avisos.png"), fullPage: true });
       console.log("  Implantação (cartão, marcar, data e hora) e Avisos (ativar, teste, preferências) gravados à parte da agenda");
+      /* Rotina do Head Trainer: CT de 6h, viagem de 3h20, bloco feito, rodízio */
+      await p.click('[data-aba-central="hoje"]'); await p.waitForSelector("[data-cartao-rotina]");
+      assert(/Semana no CT/.test(await p.innerText("[data-cartao-rotina]")), "cartão da rotina no Hoje");
+      await p.click('[data-aba-central="rotina"]'); await p.waitForSelector("[data-rotina]");
+      let tr = await p.innerText("[data-rotina]");
+      assert(/planejadas/.test(tr) && /6h feitas|0 min/.test(tr) && /Observação de aula desta semana/.test(tr) && /Gestão pelo painel/.test(tr), tr.slice(0, 500));
+      await p.click('[data-modo="viagem"]'); await p.waitForFunction(() => document.querySelector('[data-modo="viagem"]').getAttribute("aria-pressed") === "true", null, { timeout: 10000 });
+      tr = await p.innerText("[data-rotina]");
+      assert(/3h20 planejadas/.test(tr) && /Vitrine do método/.test(tr) && /Descanso protegido/.test(tr), "viagem: " + tr.slice(0, 400));
+      await p.click('[data-bloco-rotina="g"] input[type="checkbox"]'); await p.waitForFunction(() => /45 min/.test(document.querySelector("[data-horas]").innerText), null, { timeout: 10000 });
+      const segAgora = Object.keys(gravados["central/rotina"].semanas)[0];
+      assert(gravados["central/rotina"].semanas[segAgora].modo === "viagem" && gravados["central/rotina"].semanas[segAgora].feitos.g, JSON.stringify(gravados["central/rotina"].semanas));
+      await p.click('[data-modo="ct"]'); await p.waitForFunction(() => /6h planejadas/.test(document.querySelector("[data-rotina]").innerText), null, { timeout: 10000 });
+      if (capturas) await p.screenshot({ path: path.join(capturas, "central-rotina.png"), fullPage: true });
+      /* Agentes: gerar agora, aprovar; caixa de entrada vira tarefa */
+      await p.click('[data-aba-central="agentes"]'); await p.waitForSelector("[data-config-agentes]");
+      const ta = await p.innerText("[data-agentes]");
+      assert(/Painel de segunda/.test(ta) && /toda segunda, às 7h/.test(ta) && /chega na Etapa 3/.test(ta) && /US\$ 0,00/.test(ta), ta.slice(0, 600));
+      await p.locator('[data-config-agentes] button:has-text("Gerar agora")').first().click();
+      await p.waitForSelector("[data-preparando]", { timeout: 10000 });
+      await p.waitForFunction(() => /Conversar com a professora/.test(document.body.innerText), null, { timeout: 20000 });
+      await p.locator('[data-item-agente] button:text-is("Aprovar")').first().click();
+      await p.waitForFunction(() => /aprovado/.test(document.querySelector("[data-item-agente]") ? document.querySelector("[data-item-agente]").innerText : ""), null, { timeout: 10000 });
+      assert(Object.keys(gravados).some((k) => k.startsWith("centralAgentes/painelSegunda-manual") && gravados[k].estado === "aprovado"), "rascunho aprovado gravado");
+      await p.fill("[data-caixa]", "ligar pro João amanhã"); await p.click('button:text-is("Organizar")');
+      await p.waitForFunction(() => /Pôr na agenda e nas tarefas/.test(document.body.innerText), null, { timeout: 20000 });
+      await p.click('button:text-is("Pôr na agenda e nas tarefas")');
+      await p.waitForFunction(() => /entrou na agenda e nas tarefas/.test(document.body.innerText), null, { timeout: 10000 });
+      assert(gravados["central/dono"].dados.tarefas.some((t) => t.titulo === "Ligar para o João" && t.prioridade === "alta"), "a caixa de entrada virou tarefa");
+      assert(/US\$ 0,0[2-9]/.test(await p.innerText("[data-gasto]")) || gravados["central/agentesConfig"].gasto, "gasto contado");
+      if (capturas) await p.screenshot({ path: path.join(capturas, "central-agentes.png"), fullPage: true });
+      console.log("  Rotina (CT/viagem, bloco feito) e Agentes (gerar, aprovar, caixa de entrada vira tarefa)");
     } else {
-      for (const aba of ["Hoje", "Agenda", "Tarefas", "Implantação", "Negócios", "Revisão semanal", "Notas e decisões", "Avisos"]) {
+      for (const aba of ["Hoje", "Rotina", "Agenda", "Tarefas", "Implantação", "Agentes", "Negócios", "Revisão semanal", "Notas e decisões", "Avisos"]) {
         await p.click('button:text-is("' + aba + '")');
         const w = await p.evaluate(() => document.documentElement.scrollWidth);
         assert(w <= 392, "celular sem rolagem lateral em " + aba + " (" + w + ")");

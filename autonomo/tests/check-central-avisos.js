@@ -60,7 +60,7 @@ const ms = (data, hhmm) => A.momentoSP(data, hhmm);
   /* ── regras puras ── */
   assert.deepStrictEqual(A.sp(ms("2026-11-16", "08:00")), { data: "2026-11-16", hhmm: "08:00", dow: 1 }, "São Paulo = UTC−3");
   const pr = A.prefsPadrao("richard");
-  assert.deepStrictEqual(Object.keys(pr.tipos), ["tarefas", "resumo", "blocos", "pagamentosAlerta"]);
+  assert.deepStrictEqual(Object.keys(pr.tipos), ["tarefas", "resumo", "blocos", "agentes", "pagamentosAlerta"]);
   assert.deepStrictEqual(Object.keys(A.prefsPadrao("administrativo").tipos), ["rotinaAdm", "lembretesPagamento"], "administrativo: só a rotina dele e os pagamentos");
   assert.ok(A.emSilencio(pr, ms("2026-11-16", "23:10")) && A.emSilencio(pr, ms("2026-11-17", "06:59")) && !A.emSilencio(pr, ms("2026-11-17", "07:00")), "22h às 7h atravessa a meia-noite");
   assert.ok(!A.emSilencio({ silencio: { ativo: false, de: "22:00", ate: "07:00" } }, ms("2026-11-16", "23:10")), "silêncio desligado");
@@ -101,7 +101,7 @@ const ms = (data, hhmm) => A.momentoSP(data, hhmm);
   r = await chamar("GET", "ric");
   assert.strictEqual(r.status, 200); assert.strictEqual(r.corpo.papel, "richard");
   assert.ok(r.corpo.dados && r.corpo.auto, "o de sempre continua"); assert.strictEqual(r.corpo.implantacao.length, 11, "a lista já vem carregada");
-  assert.deepStrictEqual(r.corpo.tipos.filter((t) => t.ativo).map((t) => t.id), ["tarefas", "resumo"]);
+  assert.deepStrictEqual(r.corpo.tipos.filter((t) => t.ativo).map((t) => t.id), ["tarefas", "resumo", "blocos", "agentes"], "Etapa 2 liga blocos e agentes");
 
   /* agenda continua igual: gravar dados não mexe na Implantação e vice-versa */
   assert.strictEqual((await chamar("POST", "ric", { dados: { agenda: [{ id: "ag1", titulo: "Reunião", data: "2026-11-18", inicio: "10:00" }] } })).status, 200);

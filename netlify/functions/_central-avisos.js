@@ -11,11 +11,12 @@ const TIPOS = {
   tarefas: { rot: "Tarefas da Implantação com data", papeis: ["richard"], etapa: 1 },
   resumo: { rot: "Resumo da semana (segunda, 8h)", papeis: ["richard"], etapa: 1 },
   blocos: { rot: "Blocos da rotina do Head Trainer (15 min antes)", papeis: ["richard"], etapa: 2 },
+  agentes: { rot: "Agentes com rascunho novo", papeis: ["richard"], etapa: 2 },
   pagamentosAlerta: { rot: "Pagamentos com 10 e 30 dias de atraso", papeis: ["richard"], etapa: 4 },
   rotinaAdm: { rot: "Rotina do administrativo", papeis: ["administrativo"], etapa: 3 },
   lembretesPagamento: { rot: "Lembretes de pagamento do dia", papeis: ["administrativo"], etapa: 4 },
 };
-const ETAPA_ATUAL = 1;
+const ETAPA_ATUAL = 2; // Etapa 2 (13/11/2026): blocos da rotina e agentes
 const PAPEIS = ["richard", "administrativo"];
 
 function tiposDoPapel(papel) { return Object.keys(TIPOS).filter((t) => TIPOS[t].papeis.indexOf(papel) >= 0); }
@@ -108,13 +109,14 @@ function tarefasDevidas(lista, agoraMs) {
     .map((x) => ({ chave: x.chave, tipo: "tarefas", aviso: { titulo: "Implantação", corpo: x.t.titulo + (x.t.hora ? " (" + x.t.hora + ")" : ""), url: "/#implantacao", tag: "central-tarefa-" + x.t.id } }));
 }
 /* resumo de segunda às 8h: tarefas da Implantação e agenda da semana (as etapas 2 a 4 acrescentam rotina e pagamentos) */
-function resumoDevido(implantacao, agenda, agoraMs) {
+function resumoDevido(implantacao, agenda, agoraMs, rotinaSemana) {
   const agora = sp(agoraMs); if (agora.dow !== 1) return null;
   const inicio = momentoSP(agora.data, "08:00"); if (agoraMs < inicio || agoraMs > inicio + JANELA_MS) return null;
   const seg = agora.data, dom = somaDias(seg, 6), p = progresso(implantacao), prox = proxima(implantacao);
   const compromissos = (agenda || []).filter((c) => c && c.data && (c.semanal ? c.data <= dom : c.data >= seg && c.data <= dom)).length;
   const partes = [];
   if (p.total) partes.push("Implantação: " + p.feitas + " de " + p.total + " feitas" + (prox ? "; próxima: " + prox.titulo : "."));
+  if (rotinaSemana) partes.push("Rotina: semana " + (rotinaSemana.modo === "viagem" ? "de viagem" : "no CT") + ", " + Math.floor(rotinaSemana.totalMin / 60) + "h" + (rotinaSemana.totalMin % 60 ? String(rotinaSemana.totalMin % 60).padStart(2, "0") : "") + " de gestão.");
   partes.push(compromissos ? compromissos + (compromissos === 1 ? " compromisso na agenda da semana." : " compromissos na agenda da semana.") : "Agenda da semana livre.");
   return { chave: "resumo:" + seg, tipo: "resumo", aviso: { titulo: "Resumo da semana", corpo: partes.join(" ").slice(0, 240), url: "/", tag: "central-resumo" } };
 }
