@@ -156,7 +156,7 @@ window.firebase={apps:[],initializeApp:function(){this.apps.push({})},auth:funct
   const ric = await celular(), r = ric.p;
   await r.goto(base + "#/entrar", { waitUntil: "load" }); await r.waitForSelector("#fEntrar");
   await r.fill('[name="email"]', "tsukada.richard@gmail.com"); await r.fill('[name="senha"]', "segredo123"); await r.click("#btEnt");
-  await r.waitForFunction(() => document.body.innerText.includes("Fila em dia"));
+  await r.waitForFunction(() => document.body.innerText.includes("Seu dia na consultoria"));
   assert.ok(await r.$("[data-visao-richard]"), "a tela diz que é a visão do Richard");
   assert.strictEqual(await r.innerText('#nav [data-aba="clientes"] .n'), "1", "pedido novo marcado em Clientes");
   await r.click('#nav [data-aba="clientes"]'); await r.waitForSelector("[data-pendente]");
@@ -167,9 +167,10 @@ window.firebase={apps:[],initializeApp:function(){this.apps.push({})},auth:funct
   assert.ok(avisos.some((a) => a.filtro.uid === uid && /liberada/.test(a.aviso.titulo)));
 
   /* ── cliente: envia ── */
-  await p.click("#btAtualizar"); await p.waitForSelector('#nav [data-aba="enviar"]');
+  await p.click("#btAtualizar"); await p.waitForSelector('#nav [data-aba="videos"]');
+  assert.ok(await p.$('#nav [data-aba="semana"]') && await p.$('#nav [data-aba="encontros"]') && await p.$('#nav [data-aba="plano"]') && !(await p.$('#nav [data-aba="rendimento"]')), "menu da consultoria: Início, Semana, Encontros, Vídeos, Plano");
   assert.ok((await texto(p)).includes("Mande o seu primeiro vídeo"));
-  await p.click('#nav [data-aba="enviar"]'); await p.waitForSelector("#fEnv");
+  await p.goto(base + "#/enviar"); await p.waitForSelector("#fEnv");
   /* começa pelo link do YouTube (o padrão, para testar sem o armazenamento) */
   assert.strictEqual(await p.getAttribute('[data-modo="link"]', "aria-pressed"), "true");
   await p.click('[data-tema="jogo"]'); await p.fill('[name="duvida"]', "Decido mal quando subo à rede. Olhe de 0:40 a 2:10.");
@@ -180,7 +181,7 @@ window.firebase={apps:[],initializeApp:function(){this.apps.push({})},auth:funct
   await p.click("#btEnviar");
   await p.waitForFunction(() => location.hash.startsWith("#/envio/")); await p.waitForSelector('[data-video] iframe[src*="youtube-nocookie.com/embed/dQw4w9WgXcQ"]');
   assert.ok(Object.values(store).some((e) => e && e.youtube && e.youtube.id === "dQw4w9WgXcQ" && e.estado === "recebido"), "envio por link na fila");
-  await p.click('#nav [data-aba="enviar"]'); await p.waitForSelector("#fEnv");
+  await p.goto(base + "#/enviar"); await p.waitForSelector("#fEnv");
   await p.click('[data-modo="arquivo"]'); await p.waitForSelector("#arqVideo", { state: "attached" });
   /* vídeo de 3min20 é recusado */
   await p.setInputFiles("#arqVideo", path.join(VIDEOS, "longo.webm"));
@@ -245,7 +246,7 @@ window.firebase={apps:[],initializeApp:function(){this.apps.push({})},auth:funct
 
   /* ── cliente: devolutiva nova, ouvir, entendi, dúvida ── */
   await p.goto(base + "#/"); await p.waitForSelector("[data-nova]");
-  assert.strictEqual(await p.innerText('#nav [data-aba="devolutivas"] .n'), "1");
+  assert.strictEqual(await p.innerText('#nav [data-aba="videos"] .n'), "1");
   await semRolagem(p, "início com devolutiva"); await foto(p, "consultoria-9-inicio");
   await p.click("[data-nova]"); await p.waitForSelector("[data-devolutiva]");
   const td = await texto(p);
@@ -280,6 +281,119 @@ window.firebase={apps:[],initializeApp:function(){this.apps.push({})},auth:funct
   await c.waitForFunction(() => document.body.innerText.includes("Mande o seu primeiro vídeo"), null, { timeout: 15000 });
   assert.ok(!(await c.$("#btAtualizar")), "convidado não passa pela espera de liberação");
   assert.deepStrictEqual(caio.erros, [], "sem erro de JavaScript (convidado)");
+
+  /* ══ acompanhamento (Etapas 2–5): Ajustes, ciclo, semana, encontro, check-in, análise, rendimento, feedback, relatório ══ */
+  const doStore = (pref) => Object.keys(store).filter((k) => k.startsWith(pref)).map((k) => store[k]);
+  await r.click('#nav [data-aba="ajustes"]'); await r.waitForSelector("#fConfig");
+  await r.fill('#fConfig [name="linkEncontro"]', "https://meet.google.com/abc-defg-hij");
+  await r.fill('[data-modelo] [name="titulo"]', "Saque: 50 bolas com alvo"); await r.fill('[data-modelo] [name="detalhe"]', "Alvo no T, 5 séries de 10.");
+  await r.fill('[data-formato-ed] [name="nome"]', "Trimestral"); await r.fill('[data-formato-ed] [name="encontros"]', "6"); await r.fill('[data-formato-ed] [name="analises"]', "3");
+  await semRolagem(r, "ajustes"); await foto(r, "consultoria-13-ajustes");
+  await r.focus("#btCfg"); await r.keyboard.press("Enter"); // (depois da captura de página inteira em 2x, o clique por coordenada sai deslocado no Chromium de teste)
+  await r.waitForFunction(() => /Ajustes salvos/.test(document.body.innerText) || (document.querySelector("#mCfg") && !document.querySelector("#mCfg").hidden)); assert.ok(!(await r.isVisible("#mCfg")), await r.innerText("#mCfg").catch(() => ""));
+  const cfg = store["consultoriaConfig/geral"];
+  assert.ok(cfg && cfg.linkEncontro === "https://meet.google.com/abc-defg-hij" && cfg.modelos.length === 1 && cfg.formatos[0].encontros === 6, JSON.stringify(cfg));
+
+  /* ciclo */
+  await r.goto(base + "#/cliente/" + uid + "/ciclo"); await r.waitForSelector("#fCiclo");
+  assert.ok(/ainda não tem ciclo/.test(await texto(r)));
+  await r.fill('#fCiclo [name="diagnostico"]', "Saque inconsistente sob pressão; boa movimentação.");
+  await r.fill('#fCiclo [name="objetivo"]', "Segundo saque confiável para o estadual.");
+  await r.fill('#fCiclo [name="p0"]', "Lançamento"); await r.fill('#fCiclo [name="p1"]', "Rotina entre pontos");
+  await r.selectOption('#fCiclo [name="formato"]', { label: "Trimestral · 6 encontros · 3 análises" });
+  await r.fill('[data-meta] [name="texto"]', "1º saque dentro"); await r.fill('[data-meta] [name="inicial"]', "48"); await r.fill('[data-meta] [name="atual"]', "48"); await r.fill('[data-meta] [name="alvo"]', "65"); await r.fill('[data-meta] [name="unidade"]', "%");
+  await semRolagem(r, "ficha ciclo"); await foto(r, "consultoria-14-ciclo");
+  await r.click("#btCiclo"); await r.waitForSelector("#btRascunho");
+  const ciclo = doStore("consultoriaCiclos/")[0];
+  assert.ok(ciclo && ciclo.uid === uid && ciclo.semanas === 12 && ciclo.metas[0].alvo === 65 && ciclo.formato.nome === "Trimestral", JSON.stringify(ciclo));
+  assert.ok(avisos.some((a) => a.filtro.uid === uid && /plano/i.test(a.aviso.titulo + a.aviso.corpo)), "cliente avisado do plano");
+
+  /* semana: tarefa pelo modelo e uma escrita */
+  await r.click('.subabas a:has-text("Semana")'); await r.waitForSelector("#fTarefa");
+  await r.selectOption("#selModelo", "0"); assert.strictEqual(await r.inputValue('#fTarefa [name="titulo"]'), "Saque: 50 bolas com alvo");
+  await r.click("#btTarefa"); await r.waitForSelector("[data-apagar-tarefa]");
+  await r.fill('#fTarefa [name="titulo"]', "Respiração 4-4 entre pontos"); await r.selectOption('#fTarefa [name="tipo"]', "mental"); await r.click("#btTarefa");
+  await r.waitForFunction(() => document.querySelectorAll("[data-apagar-tarefa]").length === 2);
+  await semRolagem(r, "ficha semana"); await foto(r, "consultoria-15-semana-richard");
+
+  /* encontro: link fixo vem dos Ajustes */
+  await r.click('.subabas a:has-text("Encontros")'); await r.waitForSelector("#fEncontro");
+  await r.fill('#fEncontro [name="pauta"]', "Rever o lançamento e planejar o estadual."); await r.click("#btEnc");
+  await r.waitForSelector("[data-encontro-ficha]");
+  const enc = doStore("consultoriaEncontros/")[0];
+  assert.ok(enc && enc.link === "https://meet.google.com/abc-defg-hij" && enc.estado === "marcado", JSON.stringify(enc));
+  assert.ok(avisos.some((a) => a.filtro.uid === uid && /Encontro/.test(a.aviso.titulo)));
+  await semRolagem(r, "ficha encontros"); await foto(r, "consultoria-16-encontros-richard");
+
+  /* cliente: início com encontro, semana, check-in */
+  await p.goto(base + "#/"); await p.waitForSelector("[data-prox-encontro]");
+  assert.ok(await p.$("[data-resumo-semana]") && await p.$("[data-pede-checkin]"));
+  assert.ok(/Ciclo 1 · semana 1 de 12/.test(await texto(p)), (await texto(p)).slice(0, 300));
+  await semRolagem(p, "início do ciclo"); await foto(p, "consultoria-17-inicio-ciclo");
+  await p.click('#nav [data-aba="semana"]'); await p.waitForSelector("[data-marcar]");
+  await p.click("[data-marcar] >> nth=0"); await p.waitForSelector("li.tarefa.feita");
+  assert.strictEqual(doStore("consultoriaTarefas/").filter((t) => t.estado === "feita").length, 1);
+  await p.click('[data-nota="4"]'); await p.fill('[data-checkin] [name="texto"]', "Treinei 3 vezes, o saque melhorou."); await p.fill('[data-checkin] [name="duvida"]', "Posso sacar com bola nova no treino?");
+  await p.click("#btCheckin"); await p.waitForFunction(() => /Atualizar check-in/.test(document.body.innerText));
+  await semRolagem(p, "semana do cliente"); await foto(p, "consultoria-18-semana-cliente");
+  assert.ok(avisos.some((a) => a.filtro.papel === "richard" && /Check-in/i.test(a.aviso.titulo)));
+
+  /* Richard: Hoje mostra o check-in e responde ali */
+  await r.goto(base + "#/hoje"); await r.waitForSelector("[data-checkin-ler]");
+  assert.ok(/Posso sacar com bola nova/.test(await texto(r)) && await r.$("[data-hoje-encontro]"));
+  await semRolagem(r, "hoje"); await foto(r, "consultoria-19-hoje");
+  await r.fill("[data-checkin-ler] textarea", "Pode, mas alterne com bolas usadas."); await r.click("[data-responder-checkin]");
+  await r.waitForFunction(() => !document.querySelector("[data-checkin-ler]"));
+  await p.goto(base + "#/"); await p.waitForSelector("[data-resumo-semana]"); await p.click('#nav [data-aba="semana"]'); await p.waitForSelector("[data-resposta-checkin]");
+
+  /* Richard: registra o encontro e os combinados viram tarefas */
+  await r.goto(base + "#/cliente/" + uid + "/encontros"); await r.waitForSelector("[data-encontro-ficha]");
+  await r.selectOption('[data-encontro-ficha] [name="estado"]', "feito");
+  await r.fill('[data-encontro-ficha] [name="notas"]', "Lançamento melhor; falta rotina.");
+  await r.fill('[data-encontro-ficha] [name="combinados"]', "Rotina de 4 passos antes do saque\nAssistir 2 jogos do estadual");
+  await r.fill('[data-encontro-ficha] [name="notaPrivada"]', "Família quer resultado rápido.");
+  await r.click("[data-salvar-encontro]"); await r.waitForSelector("[data-combinados]");
+  await r.click("[data-combinados]"); await r.waitForFunction(() => /Combinados viraram tarefas/.test(document.body.innerText));
+  assert.strictEqual(doStore("consultoriaTarefas/").filter((t) => t.uid === uid).length, 4, "2 tarefas + 2 combinados");
+
+  /* análise, feedback e rendimento */
+  await r.click('.subabas a:has-text("Análises")'); await r.waitForSelector("#fAnalise");
+  await r.fill('#fAnalise [name="titulo"]', "Scout · Copa Sul, 2ª rodada"); await r.fill('#fAnalise [name="resumo"]', "Ganhou mais pontos com o 1º saque aberto.");
+  await r.fill('#fAnalise [name="nr0"]', "1º saque dentro"); await r.fill('#fAnalise [name="nv0"]', "58%");
+  await r.click("#btAn"); await r.waitForSelector("[data-apagar-analise]");
+  await r.click('.subabas a:has-text("Feedback")'); await r.waitForSelector("#fRecado");
+  await r.fill('#fRecado [name="titulo"]', "Sobre o torneio de sábado"); await r.fill('#fRecado [name="texto"]', "Boa leitura do jogo. Siga com a rotina.");
+  await r.click("#btRec"); await r.waitForFunction(() => /Feedbacks mandados/.test(document.body.innerText));
+  await r.click('.subabas a:has-text("Rendimento")'); await r.waitForSelector("#btAR"); await r.click("#btAR"); await r.waitForSelector("#fTorneio");
+  const em = (n) => { const d = new Date(Date.now() + n * 86400000); return d.toISOString().slice(0, 10); };
+  await r.fill('#fTorneio [name="nome"]', "Estadual"); await r.fill('#fTorneio [name="inicio"]', em(20)); await r.fill('#fTorneio [name="fim"]', em(23)); await r.selectOption('#fTorneio [name="prioridade"]', "A");
+  await r.click("#btTor"); await r.waitForSelector("[data-apagar-torneio]");
+  assert.ok(/Estadual/.test(await texto(r)) && await r.$("[data-fase]"));
+  await semRolagem(r, "rendimento richard"); await foto(r, "consultoria-20-rendimento-richard");
+
+  /* cliente: plano com meta e análise; aba Rendimento; registro de treino */
+  await p.goto(base + "#/plano"); await p.waitForSelector("[data-metas]");
+  const tp = await texto(p);
+  assert.ok(tp.includes("Segundo saque confiável") && tp.includes("Copa Sul") && /Trimestral: encontros 1 de 6/.test(tp), tp.slice(0, 800));
+  await semRolagem(p, "plano"); await foto(p, "consultoria-21-plano");
+  await p.waitForSelector('#nav [data-aba="rendimento"]'); await p.click('#nav [data-aba="rendimento"]'); await p.waitForSelector("[data-registrar]");
+  await p.click('[data-pse="7"]'); await p.fill('[data-registrar] [name="minutos"]', "80"); await p.click("#btRegistrar");
+  await p.waitForSelector("[data-apagar-reg]");
+  assert.ok(/carga 560/.test(await texto(p)));
+  await semRolagem(p, "rendimento"); await foto(p, "consultoria-22-rendimento");
+
+  /* relatório do ciclo: rascunho, publicar e encerrar */
+  await r.click('.subabas a:has-text("Ciclo")'); await r.waitForSelector("#btRascunho");
+  await r.click("#btRascunho"); await r.waitForFunction(() => document.querySelector("#txRelatorio").value.length > 40);
+  assert.ok(/1º saque dentro/.test(await r.inputValue("#txRelatorio")));
+  await r.click("#btEncerrar"); await r.waitForFunction(() => /Ciclos anteriores/.test(document.body.innerText) && /Novo ciclo/.test(document.body.innerText));
+  await p.goto(base + "#/plano"); await p.waitForSelector("[data-relatorio-ciclo]");
+  assert.ok(Object.values(store).some((e) => e && e.tipo === "recado" && e.uid === uid), "feedback chegou como devolutiva");
+  assert.deepStrictEqual(Object.values(store).filter((e) => e && e.notaPrivada).length, 1);
+  await p.goto(base + "#/encontros"); await p.waitForSelector("[data-encontro-passado]");
+  const tEnc = await p.evaluate(() => document.querySelector("#app").textContent);
+  assert.ok(/Rotina de 4 passos/.test(tEnc) && /Lançamento melhor/.test(tEnc) && !/Família quer/.test(tEnc), "anotações e combinados chegam; a nota privada não");
+  await semRolagem(p, "encontros do cliente"); await foto(p, "consultoria-23-encontros-cliente");
 
   assert.deepStrictEqual(cli.erros, [], "sem erro de JavaScript (cliente)");
   assert.deepStrictEqual(ric.erros, [], "sem erro de JavaScript (Richard)");

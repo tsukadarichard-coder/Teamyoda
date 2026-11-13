@@ -59,6 +59,12 @@
 
   /* ── navegação ── */
   var ICONES = {
+    semana: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M3.5 6l1.5 1.5L7.5 5M3.5 12l1.5 1.5L7.5 11"/><circle cx="5" cy="18" r="1.4"/></svg>',
+    encontros: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
+    videos: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3"/></svg>',
+    plano: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.3"/></svg>',
+    rendimento: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
+    hoje: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
     inicio: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>',
     enviar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3"/></svg>',
     devolutivas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 5h16v11H8l-4 4z"/></svg>',
@@ -81,12 +87,14 @@
     return rotaCliente(h);
   }
   /* listas (fila, clientes, início, devolutivas) se atualizam ao abrir a aba e ao voltar para o app; telas com formulário não são redesenhadas */
-  function telaDeLista() { var h = (location.hash.replace(/^#\/?/, "").split("/")[0]) || ""; return ["", "fila", "clientes", "inicio", "devolutivas"].indexOf(h) >= 0; }
+  function telaDeLista() { var h = (location.hash.replace(/^#\/?/, "").split("/")[0]) || ""; return ["", "hoje", "fila", "clientes", "inicio", "devolutivas", "semana", "encontros", "plano", "rendimento"].indexOf(h) >= 0; }
+  /* não redesenha por cima do que a pessoa está escrevendo */
+  function digitando() { return Array.prototype.some.call(app.querySelectorAll("input, textarea"), function (el) { return el.type !== "hidden" && el.type !== "date" && el.type !== "number" && el.value !== el.defaultValue; }); }
   var atualizando = false;
   function atualizarLista() {
     if (!st.usuario || !st.carregado || atualizando || envioAtivo || !telaDeLista()) return;
     atualizando = true;
-    carregar().then(function () { atualizando = false; if (telaDeLista() && !envioAtivo) rota(); }).catch(function () { atualizando = false; });
+    carregar().then(function () { atualizando = false; if (telaDeLista() && !envioAtivo && !digitando()) rota(); }).catch(function () { atualizando = false; });
   }
   window.addEventListener("hashchange", function () { if (!st.usuario) st.modo = modoDoHash(); rota(); atualizarLista(); });
   document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible") atualizarLista(); });
@@ -215,12 +223,19 @@
     var d = st.dados;
     if (!d.cliente || d.cliente.cadastroPendente) { barra([]); return telaCadastro(); }
     if (d.cliente.estado === "pendente") { barra([]); return telaPendente(); }
-    var aba = h[0] || "inicio";
-    barra([{ id: "inicio", rot: "Início", href: "#/" }, { id: "enviar", rot: "Enviar", href: "#/enviar" }, { id: "devolutivas", rot: "Devolutivas", href: "#/devolutivas", n: novas(d).length }],
-      aba === "envio" ? "devolutivas" : aba);
+    var aba = h[0] || "inicio", ac = d.acomp || {};
+    var abertas = (ac.tarefas || []).filter(function (t) { return t.estado !== "feita" && t.semana <= ac.semana; }).length + (ac.ciclo && !ac.checkinDaSemana ? 1 : 0);
+    var itens = [{ id: "inicio", rot: "Início", href: "#/" }, { id: "semana", rot: "Semana", href: "#/semana", n: abertas }, { id: "encontros", rot: "Encontros", href: "#/encontros" },
+      { id: "videos", rot: "Vídeos", href: "#/devolutivas", n: novas(d).length }, { id: "plano", rot: "Plano", href: "#/plano" }];
+    if (ac.ar) itens.push({ id: "rendimento", rot: "Rendimento", href: "#/rendimento" });
+    barra(itens, { envio: "videos", enviar: "videos", devolutivas: "videos" }[aba] || aba);
     if (aba === "enviar") return telaEnviar();
     if (aba === "devolutivas") return telaDevolutivas();
     if (aba === "envio" && h[1]) return telaEnvio(h[1]);
+    if (aba === "semana") return telaSemana(h[1] === "checkin");
+    if (aba === "encontros") return telaEncontros();
+    if (aba === "plano") return telaPlano();
+    if (aba === "rendimento" && ac.ar) return telaRendimento();
     return telaInicio();
   }
 
@@ -268,7 +283,15 @@
 
   function telaInicio() {
     var d = st.dados, c = d.cliente, nv = novas(d), esperando = (d.envios || []).filter(function (e) { return e.estado === "recebido"; });
-    var h = '<span class="olho">Consultoria</span><h1>Olá, ' + esc(primeiro(c.nome)) + "</h1>";
+    var ac = d.acomp || {}, h = '<span class="olho">Consultoria</span><h1>Olá, ' + esc(primeiro(c.nome)) + "</h1>";
+    if (ac.ciclo) h += '<p class="lead">Ciclo ' + ac.ciclo.numero + " · semana " + ac.ciclo.semanaAtual + " de " + ac.ciclo.semanas + (ac.ciclo.objetivo ? " · " + esc(ac.ciclo.objetivo) : "") + "</p>";
+    var prox = proximoEncontro(ac);
+    if (prox) h += '<a class="cartao destaque item" href="#/encontros" data-prox-encontro><div><span class="selo novo">Próximo encontro</span><p class="t" style="margin-top:8px">' + esc(dataHora(prox.quando)) + '</p><p class="s">' + esc(prox.pauta || "Encontro online com o Richard") + '</p></div><span class="ir">›</span></a>';
+    if (ac.ciclo || (ac.tarefas || []).length) {
+      var daSemana = (ac.tarefas || []).filter(function (t) { return t.semana === ac.semana; }), feitas = daSemana.filter(function (t) { return t.estado === "feita"; }).length;
+      h += '<a class="cartao item" href="#/semana" data-resumo-semana><div><p class="t">Tarefas da semana</p><p class="s">' + (daSemana.length ? feitas + " de " + daSemana.length + " feitas" : "Nenhuma tarefa nesta semana ainda") + '</p></div><span class="ir">›</span></a>';
+      if (ac.ciclo && !ac.checkinDaSemana) h += '<a class="cartao item" href="#/semana/checkin" data-pede-checkin><div><p class="t">Check-in da semana</p><p class="s">Como foi a sua semana de treino? Leva um minuto.</p></div><span class="ir">›</span></a>';
+    }
     if (envioAtivo) h += '<a class="cartao destaque item" href="#/enviar"><div><p class="t">Enviando o seu vídeo…</p><p class="s">Toque para ver o andamento.</p></div><span class="ir">›</span></a>';
     nv.forEach(function (e) {
       h += '<a class="cartao destaque item" href="#/envio/' + esc(e.id) + '" data-nova><div><span class="selo novo">Devolutiva nova</span><p class="t" style="margin-top:8px">' + esc(e.rotuloTema) + (e.tipo === "pergunta" ? " · sua dúvida" : "") + '</p><p class="s">Chegou ' + esc(ha(e.devolutiva.respondidoEm)) + '</p></div><span class="ir">›</span></a>';
@@ -285,6 +308,156 @@
     h += avisosHtml() + contaHtml();
     tela(h);
     ligarAvisos(); ligarConta();
+  }
+
+  /* ══════════════ Acompanhamento do cliente (Etapas 2 a 5) ══════════════ */
+  function dataHora(iso) { try { return new Date(iso).toLocaleString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).replace(",", ""); } catch (e) { return iso; } }
+  function dataCurta(d) { return d ? d.slice(8, 10) + "/" + d.slice(5, 7) : ""; }
+  function proximoEncontro(ac) { var agora = Date.now(); return (ac.encontros || []).filter(function (e) { return e.estado === "marcado" && Date.parse(e.quando) > agora - 3600000; })[0] || null; }
+  var NOTAS_SEMANA = ["", "Difícil", "Abaixo", "Ok", "Boa", "Ótima"];
+  function linhaTarefa(t, podeMarcar) {
+    var feita = t.estado === "feita";
+    return '<li class="tarefa' + (feita ? " feita" : "") + '" data-tarefa="' + esc(t.id) + '"><div class="tarefa-l">' +
+      (podeMarcar ? '<button type="button" class="marca" data-marcar="' + esc(t.id) + '" aria-pressed="' + feita + '" aria-label="' + (feita ? "Desmarcar" : "Marcar como feita") + '">' + (feita ? "✓" : "") + "</button>" : '<span class="marca" aria-hidden="true">' + (feita ? "✓" : "") + "</span>") +
+      '<div><p class="t">' + esc(t.titulo) + '</p><p class="s">' + esc(t.rotuloTipo) + (t.semana ? " · semana de " + dataCurta(t.semana) : "") + "</p>" +
+      (t.detalhe ? '<p class="det" style="margin-top:4px;white-space:pre-wrap">' + esc(t.detalhe) + "</p>" : "") + (t.comentario ? '<p class="det" style="margin-top:4px">Comentário: ' + esc(t.comentario) + "</p>" : "") + "</div></div></li>";
+  }
+  function telaSemana(irParaCheckin) {
+    var ac = st.dados.acomp || {}, sem = ac.semana, tarefas = ac.tarefas || [];
+    var desta = tarefas.filter(function (t) { return t.semana === sem; }), atrasadas = tarefas.filter(function (t) { return t.semana < sem && t.estado !== "feita"; });
+    var proxima = tarefas.filter(function (t) { return t.semana > sem; });
+    var h = '<span class="olho">Semana de ' + dataCurta(sem) + '</span><h1>Sua semana</h1>' + (ac.adesao != null ? '<p class="lead">Você fez ' + ac.adesao + "% das tarefas até aqui.</p>" : "");
+    h += '<section class="secao"><h2>Tarefas</h2>' + (desta.length || atrasadas.length ? '<ul class="lista tarefas">' + atrasadas.concat(desta).map(function (t) { return linhaTarefa(t, true); }).join("") + "</ul>" :
+      '<p class="det" style="margin-top:6px">O Richard ainda não deixou tarefas para esta semana.</p>') + "</section>";
+    if (proxima.length) h += '<section class="secao"><h2>Próxima semana</h2><ul class="lista tarefas">' + proxima.map(function (t) { return linhaTarefa(t, false); }).join("") + "</ul></section>";
+    var ck = ac.checkinDaSemana || {};
+    h += '<section class="cartao" id="checkin" data-checkin><h2>Check-in da semana</h2><p class="det" style="margin-top:4px">Um minuto para o Richard saber como foi.</p>' +
+      '<p class="campo">Como foi a semana?</p><div class="chips" role="group" aria-label="Nota da semana">' + [1, 2, 3, 4, 5].map(function (n) { return '<button type="button" class="chip" data-nota="' + n + '" aria-pressed="' + (ck.nota === n) + '">' + n + " · " + NOTAS_SEMANA[n] + "</button>"; }).join("") + "</div>" +
+      '<label class="campo">O que aconteceu<textarea name="texto" maxlength="4000" placeholder="Treinos, jogos, como o corpo respondeu…">' + esc(ck.texto || "") + "</textarea></label>" +
+      '<label class="campo">Dúvida para o Richard (opcional)<textarea name="duvida" maxlength="4000">' + esc(ck.duvida || "") + "</textarea></label>" +
+      '<p id="mCk" class="msg" role="status" hidden></p><div class="acoes"><button class="btn btn-verm" type="button" id="btCheckin">' + (ck.nota ? "Atualizar check-in" : "Enviar check-in") + "</button></div>" +
+      (ck.resposta ? '<div class="msg msg-ok" data-resposta-checkin><b>Richard:</b> ' + esc(ck.resposta.texto) + "</div>" : "") + "</section>";
+    var antigos = (ac.checkins || []).filter(function (c) { return c.semana !== sem; }).slice(0, 4);
+    if (antigos.length) h += '<section class="secao"><h2>Check-ins anteriores</h2><ul class="linha-tempo">' + antigos.map(function (c) {
+      return "<li><time>" + dataCurta(c.semana) + "</time><div>Nota " + c.nota + (c.texto ? " · " + esc(c.texto) : "") + (c.resposta ? '<p class="det" style="margin-top:4px"><b>Richard:</b> ' + esc(c.resposta.texto) + "</p>" : "") + "</div></li>";
+    }).join("") + "</ul></section>";
+    tela(h);
+    if (irParaCheckin) { var a = $("#checkin"); if (a) a.scrollIntoView(); }
+    var nota = ck.nota || 0;
+    cada("[data-nota]", function (b) { b.onclick = function () { nota = +b.getAttribute("data-nota"); cada("[data-nota]", function (x) { x.setAttribute("aria-pressed", String(x === b)); }); }; });
+    $("#btCheckin").onclick = function () {
+      var bt = $("#btCheckin"), box = $("[data-checkin]");
+      if (!nota) return msg($("#mCk"), "erro", "Escolha uma nota de 1 a 5.");
+      ocupado(bt, true, "Enviando…");
+      api("POST", { acao: "checkin", nota: nota, texto: box.querySelector('[name="texto"]').value, duvida: box.querySelector('[name="duvida"]').value })
+        .then(function () { toast("Check-in enviado. Obrigado!"); return carregar().then(function () { telaSemana(); }); })
+        .catch(function (e) { ocupado(bt, false); msg($("#mCk"), "erro", e.message); });
+    };
+    cada("[data-marcar]", function (b) { b.onclick = function () {
+      var id = b.getAttribute("data-marcar"), t = tarefas.filter(function (x) { return x.id === id; })[0], feita = t.estado !== "feita";
+      b.disabled = true;
+      api("POST", { acao: "tarefaFeita", id: id, feita: feita }).then(function () { if (feita) toast("Tarefa feita. Quer contar como foi? Toque em Comentar."); return carregar().then(function () { telaSemana(); }); })
+        .catch(function (e) { b.disabled = false; toast(e.message); });
+    }; });
+    /* comentário numa tarefa feita (em vez de uma janela do navegador) */
+    cada("li.tarefa.feita", function (li) {
+      var id = li.getAttribute("data-tarefa"), t = tarefas.filter(function (x) { return x.id === id; })[0]; if (!t) return;
+      var bt = document.createElement("button"); bt.type = "button"; bt.className = "link"; bt.textContent = t.comentario ? "Editar comentário" : "Comentar"; bt.style.marginTop = "6px"; bt.setAttribute("data-comentar", id);
+      li.querySelector(".tarefa-l > div").appendChild(bt);
+      bt.onclick = function () {
+        var f = document.createElement("div"); f.innerHTML = '<label class="campo">Como foi?<textarea maxlength="4000">' + esc(t.comentario || "") + '</textarea></label><div class="acoes"><button class="btn btn-pq" type="button">Salvar comentário</button></div>';
+        bt.replaceWith(f);
+        f.querySelector("button").onclick = function () {
+          var b2 = f.querySelector("button"); ocupado(b2, true, "Salvando…");
+          api("POST", { acao: "tarefaFeita", id: id, feita: true, comentario: f.querySelector("textarea").value }).then(function () { toast("Comentário salvo. O Richard vê."); return carregar().then(function () { telaSemana(); }); })
+            .catch(function (e) { ocupado(b2, false); toast(e.message); });
+        };
+      };
+    });
+  }
+  function telaEncontros() {
+    var ac = st.dados.acomp || {}, agora = Date.now(), lista = ac.encontros || [];
+    var prox = lista.filter(function (e) { return e.estado === "marcado" && Date.parse(e.quando) > agora - 3 * 3600000; });
+    var passados = lista.filter(function (e) { return prox.indexOf(e) < 0 && e.estado !== "cancelado"; }).reverse();
+    var h = '<span class="olho">Encontros</span><h1>Encontros online</h1><p class="lead">O Richard marca os encontros. Você recebe um aviso na véspera e 1 hora antes.</p>';
+    h += prox.length ? prox.map(function (e) {
+      return '<section class="cartao destaque" data-encontro><p class="olho" style="margin-bottom:4px">' + esc(dataHora(e.quando)) + " · " + e.duracaoMin + " min</p>" + (e.pauta ? '<p style="white-space:pre-wrap">' + esc(e.pauta) + "</p>" : "") +
+        (e.link ? '<div class="acoes"><a class="btn btn-verm" href="' + esc(e.link) + '" target="_blank" rel="noopener" data-entrar-encontro>Entrar no encontro</a></div>' : '<p class="det" style="margin-top:8px">O link aparece aqui antes do encontro.</p>') + "</section>";
+    }).join("") : '<div class="cartao calmo"><p>Nenhum encontro marcado agora.</p></div>';
+    if (passados.length) h += '<section class="secao"><h2>Encontros anteriores</h2>' + passados.map(function (e) {
+      return '<details class="cartao" data-encontro-passado><summary><b>' + esc(dataHora(e.quando)) + "</b>" + (e.estado === "feito" ? "" : " · " + esc(e.estado)) + "</summary>" +
+        (e.notas ? '<h3 style="margin-top:12px">Anotações</h3><p style="white-space:pre-wrap;margin-top:4px">' + esc(e.notas) + "</p>" : "") +
+        (e.combinados.length ? '<h3 style="margin-top:12px">Combinados</h3><ol class="treinar">' + e.combinados.map(function (c) { return "<li>" + esc(c) + "</li>"; }).join("") + "</ol>" : "") + "</details>";
+    }).join("") + "</section>";
+    tela(h);
+  }
+  function barraProgresso(p) { return '<div class="prog" aria-hidden="true"><i style="width:' + Math.max(0, Math.min(100, p || 0)) + '%"></i></div>'; }
+  function progressoMeta(m) { if (m.inicial == null || m.alvo == null || m.atual == null || m.alvo === m.inicial) return null; return Math.max(0, Math.min(100, Math.round(((m.atual - m.inicial) / (m.alvo - m.inicial)) * 100))); }
+  function metaHtml(m) {
+    var v = function (x) { return x == null ? "—" : String(x).replace(".", ",") + (m.unidade ? " " + esc(m.unidade) : ""); }, p = progressoMeta(m);
+    return '<li class="meta"><p class="t">' + esc(m.texto) + '</p><p class="s">Início ' + v(m.inicial) + " · agora " + v(m.atual) + " · meta " + v(m.alvo) + (p != null ? " · " + p + "%" : "") + "</p>" + (p != null ? barraProgresso(p) : "") + "</li>";
+  }
+  function analiseHtml(a, botoes) {
+    return '<section class="cartao" data-analise><p class="olho" style="margin-bottom:4px">' + esc(a.rotuloTipo) + " · " + dataCurta(a.data) + "</p><h3>" + esc(a.titulo) + "</h3>" +
+      (a.numeros.length ? '<div class="numeros">' + a.numeros.map(function (n) { return "<div><b>" + esc(n.valor) + "</b><span>" + esc(n.rotulo) + "</span></div>"; }).join("") + "</div>" : "") +
+      (a.resumo ? '<p style="white-space:pre-wrap;margin-top:10px">' + esc(a.resumo) + "</p>" : "") + (a.link ? '<p style="margin-top:8px"><a href="' + esc(a.link) + '" target="_blank" rel="noopener">Abrir o material</a></p>' : "") + (botoes || "") + "</section>";
+  }
+  function telaPlano() {
+    var ac = st.dados.acomp || {}, c = ac.ciclo;
+    var h = '<span class="olho">Plano</span><h1>' + (c ? "Ciclo " + c.numero : "Seu plano") + "</h1>";
+    if (!c) h += '<div class="cartao calmo"><p>O Richard vai montar o plano do seu ciclo: objetivo, prioridades e metas. Você recebe um aviso quando estiver pronto.</p></div>';
+    else {
+      h += '<p class="lead">Semana ' + c.semanaAtual + " de " + c.semanas + " · " + dataCurta(c.inicio) + " a " + dataCurta(c.fim) + "</p>" + barraProgresso(Math.round((c.semanaAtual / c.semanas) * 100));
+      if (c.objetivo) h += '<section class="cartao"><p class="olho" style="margin-bottom:4px">Objetivo</p><p style="white-space:pre-wrap">' + esc(c.objetivo) + "</p></section>";
+      if (c.prioridades.length) h += '<section class="cartao"><p class="olho" style="margin-bottom:4px">Prioridades</p><ol class="treinar">' + c.prioridades.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ol></section>";
+      if (c.metas.length) h += '<section class="cartao" data-metas><p class="olho" style="margin-bottom:4px">Metas</p><ul class="lista metas">' + c.metas.map(metaHtml).join("") + "</ul></section>";
+      if (ac.uso) h += '<p class="det" style="margin-top:12px" data-uso>' + esc(c.formato ? c.formato.nome + ": " : "") + "encontros " + ac.uso.encontros.feitos + " de " + ac.uso.encontros.total + " · análises " + ac.uso.analises.feitas + " de " + ac.uso.analises.total + "</p>";
+      if (c.diagnostico) h += '<details class="cartao"><summary><b>Diagnóstico do Richard</b></summary><p style="white-space:pre-wrap;margin-top:8px">' + esc(c.diagnostico) + "</p></details>";
+    }
+    if ((ac.analises || []).length) h += '<section class="secao"><h2>Análises</h2>' + ac.analises.map(function (a) { return analiseHtml(a); }).join("") + "</section>";
+    if ((ac.ciclosAnteriores || []).length) h += '<section class="secao"><h2>Relatórios dos ciclos</h2>' + ac.ciclosAnteriores.map(function (x) {
+      return '<details class="cartao" data-relatorio-ciclo><summary><b>Ciclo ' + x.numero + "</b> · " + dataCurta(x.inicio) + " a " + dataCurta(x.fim) + '</summary><p style="white-space:pre-wrap;margin-top:8px">' + esc(x.relatorio ? x.relatorio.texto : "") + "</p></details>";
+    }).join("") + "</section>";
+    tela(h);
+  }
+  function cargaHtml(carga) {
+    var max = Math.max.apply(null, carga.map(function (c) { return c.carga; }).concat([1]));
+    return '<div class="carga" role="img" aria-label="Carga das últimas semanas">' + carga.map(function (c) {
+      return '<div><i style="height:' + Math.round((c.carga / max) * 100) + '%"></i><b>' + c.carga + "</b><span>" + dataCurta(c.semana) + "</span></div>";
+    }).join("") + "</div>";
+  }
+  function faseHtml(f) {
+    return '<section class="cartao destaque" data-fase><p class="olho" style="margin-bottom:4px">Fase do momento</p><h2>' + esc(f.rotulo) + "</h2>" +
+      (f.torneio ? '<p class="det" style="margin-top:4px">' + (f.fase === "competicao" ? "Em torneio: " : f.fase === "transicao" ? "Depois de " : "Próximo torneio: ") + esc(f.torneio.nome) + " · " + dataCurta(f.torneio.inicio) + (f.dias ? " · faltam " + f.dias + " dias" : "") + "</p>" : "") + "</section>";
+  }
+  function torneiosHtml(torneios, comApagar) {
+    return torneios.length ? '<ul class="lista">' + torneios.map(function (t) {
+      return '<li><div class="item"><div><p class="t">' + esc(t.nome) + ' <span class="selo">' + esc(t.prioridade) + '</span></p><p class="s">' + dataCurta(t.inicio) + (t.fim !== t.inicio ? " a " + dataCurta(t.fim) : "") + (t.resultado ? " · " + esc(t.resultado) : "") + "</p></div>" +
+        (comApagar ? '<button class="link" type="button" data-apagar-torneio="' + esc(t.id) + '">Apagar</button>' : "") + "</div></li>";
+    }).join("") + "</ul>" : '<p class="det" style="margin-top:6px">Nenhum torneio no calendário.</p>';
+  }
+  function telaRendimento() {
+    var ar = st.dados.acomp.ar, hoje = st.dados.acomp.hoje;
+    var h = '<span class="olho">Alto rendimento</span><h1>Rendimento</h1>' + faseHtml(ar.fase);
+    h += '<section class="secao"><h2>Carga por semana</h2><p class="det">Minutos × esforço (1 a 10) de treinos e jogos.</p>' + cargaHtml(ar.carga) + "</section>";
+    h += '<section class="cartao" data-registrar><h2>Registrar treino ou jogo</h2><div class="chips" role="group" aria-label="Tipo"><button type="button" class="chip" data-rtipo="treino" aria-pressed="true">Treino</button><button type="button" class="chip" data-rtipo="jogo" aria-pressed="false">Jogo</button></div>' +
+      '<label class="campo">Data<input type="date" name="data" value="' + esc(hoje) + '"></label><label class="campo">Minutos<input type="number" name="minutos" inputmode="numeric" min="5" max="600" value="90"></label>' +
+      '<p class="campo">Esforço (1 leve a 10 máximo)</p><div class="chips" role="group" aria-label="Esforço">' + [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(function (n) { return '<button type="button" class="chip" data-pse="' + n + '" aria-pressed="' + (n === 6) + '">' + n + "</button>"; }).join("") + "</div>" +
+      '<label class="campo">Nota (opcional)<input name="nota" maxlength="200" placeholder="Ex.: 2ª rodada, venci 6-4 6-3"></label><p id="mReg" class="msg" role="status" hidden></p><div class="acoes"><button class="btn btn-verm" type="button" id="btRegistrar">Registrar</button></div></section>';
+    h += '<section class="secao"><h2>Torneios</h2>' + torneiosHtml(ar.torneios, false) + "</section>";
+    if (ar.registros.length) h += '<section class="secao"><h2>Últimos registros</h2><ul class="lista">' + ar.registros.slice(0, 10).map(function (r) {
+      return '<li><div class="item"><div><p class="t">' + (r.tipo === "jogo" ? "Jogo" : "Treino") + " · " + dataCurta(r.data) + '</p><p class="s">' + r.minutos + " min · esforço " + r.pse + " · carga " + r.carga + (r.nota ? " · " + esc(r.nota) : "") + '</p></div><button class="link" type="button" data-apagar-reg="' + esc(r.id) + '">Apagar</button></div></li>';
+    }).join("") + "</ul></section>";
+    tela(h);
+    var tipo = "treino", pse = 6;
+    cada("[data-rtipo]", function (b) { b.onclick = function () { tipo = b.getAttribute("data-rtipo"); cada("[data-rtipo]", function (x) { x.setAttribute("aria-pressed", String(x === b)); }); }; });
+    cada("[data-pse]", function (b) { b.onclick = function () { pse = +b.getAttribute("data-pse"); cada("[data-pse]", function (x) { x.setAttribute("aria-pressed", String(x === b)); }); }; });
+    $("#btRegistrar").onclick = function () {
+      var box = $("[data-registrar]"), bt = $("#btRegistrar"); ocupado(bt, true, "Registrando…");
+      api("POST", { acao: "arRegistro", tipo: tipo, pse: pse, data: box.querySelector('[name="data"]').value, minutos: box.querySelector('[name="minutos"]').value, nota: box.querySelector('[name="nota"]').value })
+        .then(function () { toast("Registrado."); return carregar().then(telaRendimento); }).catch(function (e) { ocupado(bt, false); msg($("#mReg"), "erro", e.message); });
+    };
+    cada("[data-apagar-reg]", function (b) { b.onclick = function () { b.disabled = true; api("POST", { acao: "arRegistroApagar", id: b.getAttribute("data-apagar-reg") }).then(function () { return carregar().then(telaRendimento); }).catch(function (e) { b.disabled = false; toast(e.message); }); }; });
   }
 
   /* ── enviar vídeo ── */
@@ -436,7 +609,7 @@
   }
   function telaDevolutivas() {
     var l = st.dados.envios || [];
-    tela('<span class="olho">Devolutivas</span><h1>Seus envios</h1>' + (l.length ? '<ul class="lista">' + l.map(linhaEnvio).join("") + "</ul>" :
+    tela('<span class="olho">Vídeos</span><h1>Vídeos e devolutivas</h1>' + (l.length ? '<div class="acoes"><a class="btn btn-verm" href="#/enviar" data-enviar-video>Enviar vídeo</a></div><ul class="lista">' + l.map(linhaEnvio).join("") + "</ul>" :
       '<div class="cartao calmo"><p>Nenhum envio ainda. Quando você mandar um vídeo, ele e a devolutiva do Richard ficam aqui.</p><div class="acoes"><a class="btn btn-verm" href="#/enviar">Enviar vídeo</a></div></div>'));
   }
   function devolutivaHtml(e) {
@@ -522,16 +695,284 @@
   }
 
   /* ══════════════ Richard ══════════════ */
+  /* ══════════════ Richard: Hoje e a ficha com o acompanhamento ══════════════ */
+  var TIPOS_TAREFA = [["treino", "Treino"], ["mental", "Mental"], ["video", "Mandar vídeo"], ["jogo", "Marcar jogo no Scout"], ["conteudo", "Assistir ou ler"], ["outro", "Outro"]];
+  var TIPOS_ANALISE = [["scout", "Scout de jogo"], ["video", "Análise de vídeo"], ["movimento", "Análise de movimento"], ["torneio", "Torneio"], ["outro", "Outra"]];
+  function opcoes(lista, atual) { return lista.map(function (x) { return '<option value="' + esc(x[0]) + '"' + (x[0] === atual ? " selected" : "") + ">" + esc(x[1]) + "</option>"; }).join(""); }
+  function segundaDe(d) { var x = new Date(d + "T12:00:00Z"), dow = (x.getUTCDay() + 6) % 7; x.setUTCDate(x.getUTCDate() - dow); return x.toISOString().slice(0, 10); }
+  function somaDias(d, n) { var x = new Date(d + "T12:00:00Z"); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); }
+  function hojeLocal() { var d = new Date(); return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); }
+  /* data e hora digitadas no aparelho do Richard → ISO com o fuso do aparelho */
+  function isoLocal(data, hora) { var d = new Date(data + "T" + hora + ":00"); return isNaN(d) ? "" : d.toISOString(); }
+  function partesLocal(iso) { var d = new Date(iso); return { data: d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2), hora: ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2) }; }
+  function linhas(txt) { return String(txt || "").split("\n").map(function (x) { return x.trim(); }).filter(Boolean); }
+
+  function telaHoje() {
+    var d = st.dados, hj = d.hoje || { encontros: [], checkinsParaLer: [], semCheckin: [], adesaoBaixa: [] }, pend = d.clientes.filter(function (c) { return c.estado === "pendente"; });
+    var h = '<p class="msg msg-aviso" data-visao-richard style="margin:0 0 16px">Você está na <b>visão do Richard</b> (' + esc(d.eu ? d.eu.email : "") + '): o que os clientes veem é outra tela.</p>' +
+      '<span class="olho">Hoje</span><h1>Seu dia na consultoria</h1>' +
+      '<div class="numeros"><div><b>' + d.fila.length + '</b><span>vídeos na fila</span></div><div><b>' + hj.checkinsParaLer.length + '</b><span>check-ins para ler</span></div><div><b>' + (hj.ciclosAtivos || 0) + "</b><span>ciclos ativos</span></div></div>";
+    h += '<section class="secao"><h2>Encontros dos próximos dias</h2>' + (hj.encontros.length ? '<ul class="lista">' + hj.encontros.map(function (e) {
+      return '<li><a class="item" href="#/cliente/' + esc(e.uid) + '/encontros" data-hoje-encontro><div><p class="t">' + esc(dataHora(e.quando)) + " · " + esc(e.cliente) + '</p><p class="s">' + esc(e.pauta || "Sem pauta") + "</p></div>" +
+        (e.link ? '<span class="selo">Meet</span>' : "") + "</a></li>";
+    }).join("") + "</ul>" : '<p class="det" style="margin-top:6px">Nenhum encontro marcado nos próximos 7 dias.</p>') + "</section>";
+    if (hj.checkinsParaLer.length) h += '<section class="secao"><h2>Check-ins para ler</h2>' + hj.checkinsParaLer.map(function (c) {
+      return '<div class="cartao" data-checkin-ler="' + esc(c.id) + '"><p class="t"><b>' + esc(c.cliente) + "</b> · nota " + c.nota + " (" + NOTAS_SEMANA[c.nota] + ")</p>" + (c.texto ? '<p style="margin-top:6px;white-space:pre-wrap">' + esc(c.texto) + "</p>" : "") +
+        (c.duvida ? '<p class="msg msg-aviso"><b>Dúvida:</b> ' + esc(c.duvida) + "</p>" : "") +
+        '<label class="campo">Sua resposta<textarea maxlength="4000"></textarea></label><div class="acoes"><button class="btn btn-verm btn-pq" type="button" data-responder-checkin="' + esc(c.id) + '">Responder</button><a class="link" href="#/cliente/' + esc(c.uid) + '/semana">Ver a semana</a></div></div>';
+    }).join("") + "</section>";
+    if (hj.semCheckin.length) h += '<section class="secao"><h2>Ainda sem check-in nesta semana</h2><p class="det">' + hj.semCheckin.map(function (x) { return '<a href="#/cliente/' + esc(x.uid) + '/semana">' + esc(x.cliente) + "</a>"; }).join(" · ") + "</p></section>";
+    if (hj.adesaoBaixa.length) h += '<section class="secao"><h2>Fizeram menos da metade das tarefas</h2><ul class="lista">' + hj.adesaoBaixa.map(function (x) {
+      return '<li><a class="item" href="#/cliente/' + esc(x.uid) + '/semana"><div><p class="t">' + esc(x.cliente) + '</p><p class="s">Semana passada: ' + x.adesao + "% de " + x.tarefas + " tarefas</p></div><span class=\"ir\">›</span></a></li>";
+    }).join("") + "</ul></section>";
+    if (pend.length) h += '<a class="cartao item" href="#/clientes"><div><p class="t">' + pend.length + (pend.length === 1 ? " pedido para entrar" : " pedidos para entrar") + '</p><p class="s">Libere em Clientes.</p></div><span class="ir">›</span></a>';
+    if (d.fila.length) h += '<a class="cartao item" href="#/fila"><div><p class="t">' + d.fila.length + (d.fila.length === 1 ? " vídeo esperando devolutiva" : " vídeos esperando devolutiva") + '</p><p class="s">Abrir a fila</p></div><span class="ir">›</span></a>';
+    tela(h);
+    cada("[data-responder-checkin]", function (b) { b.onclick = function () {
+      var box = b.closest("[data-checkin-ler]"), texto = box.querySelector("textarea").value; if (texto.trim().length < 2) return toast("Escreva a resposta.");
+      ocupado(b, true, "Enviando…");
+      api("POST", { acao: "checkinResponder", id: b.getAttribute("data-responder-checkin"), texto: texto }).then(function () { toast("Resposta enviada."); return carregar().then(telaHoje); }).catch(function (x) { ocupado(b, false); toast(x.message); });
+    }; });
+  }
+
+  var SECOES = [["ciclo", "Ciclo"], ["semana", "Semana"], ["encontros", "Encontros"], ["feedback", "Feedback"], ["analises", "Análises"], ["rendimento", "Rendimento"], ["historico", "Histórico"]];
+  function telaFicha(uid, secao) {
+    secao = SECOES.some(function (x) { return x[0] === secao; }) ? secao : "ciclo";
+    tela('<p class="carregando">Abrindo…</p>');
+    api("POST", { acao: "cliente", uid: uid }).then(function (r) {
+      var c = r.cliente, i = idadeDe(c.nascimento), ac = r.acomp || {};
+      var h = '<p><a class="link" href="#/clientes">‹ Clientes</a></p><span class="olho" style="margin-top:16px">Ficha do cliente</span><h1>' + esc(c.nome) + "</h1>" +
+        '<p class="det" style="margin-top:4px">' + (i != null ? i + " anos · " : "") + esc(c.email) + (c.liberadoEm ? " · cliente desde " + dataLonga(c.liberadoEm) : "") + "</p>" +
+        (c.menor && c.responsavel ? '<p class="det" style="margin-top:4px">Responsável: ' + esc(c.responsavel.nome) + " (" + esc(c.responsavel.email) + "), autorizou em " + dataLonga(c.responsavel.aceiteEm) + "</p>" : "") +
+        (ac.ciclo ? '<p class="det" style="margin-top:4px">Ciclo ' + ac.ciclo.numero + " · semana " + ac.ciclo.semanaAtual + " de " + ac.ciclo.semanas + (ac.adesao != null ? " · tarefas " + ac.adesao + "%" : "") + "</p>" : "") +
+        '<nav class="subabas" aria-label="Seções da ficha">' + SECOES.map(function (x) { return '<a href="#/cliente/' + esc(uid) + "/" + x[0] + '"' + (x[0] === secao ? ' aria-current="page"' : "") + ">" + x[1] + "</a>"; }).join("") + "</nav>" +
+        '<div id="secaoFicha"></div>';
+      tela(h);
+      var alvo = $("#secaoFicha"), recarregarFicha = function () { return carregar().then(function () { telaFicha(uid, secao); }); };
+      ({ ciclo: secaoCiclo, semana: secaoSemana, encontros: secaoEncontros, feedback: secaoFeedback, analises: secaoAnalises, rendimento: secaoRendimento, historico: secaoHistorico })[secao](alvo, uid, r, recarregarFicha);
+    }).catch(function (x) { tela('<p><a class="link" href="#/clientes">‹ Clientes</a></p><div class="msg msg-erro">' + esc(x.message) + "</div>"); });
+  }
+  function enviarForm(bt, corpo, okMsg, depois, caixaMsg) {
+    ocupado(bt, true, "Salvando…");
+    return api("POST", corpo).then(function (r) { toast(okMsg); return depois(r); }).catch(function (x) { ocupado(bt, false); if (caixaMsg) msg(caixaMsg, "erro", x.message); else toast(x.message); });
+  }
+
+  /* ciclo: objetivo, prioridades, metas, diagnóstico, formato; relatório e encerramento */
+  function secaoCiclo(alvo, uid, r, recarregar) {
+    var ac = r.acomp || {}, c = ac.ciclo, formatos = (st.dados.config && st.dados.config.formatos) || [];
+    var metas = c ? c.metas.slice() : [];
+    function metaEd(m, k) {
+      m = m || {};
+      return '<div class="meta-ed" data-meta="' + k + '"><label class="campo" style="margin-top:0">Meta<input name="texto" maxlength="300" value="' + esc(m.texto || "") + '" placeholder="Ex.: 1º saque dentro"></label>' +
+        '<div class="linha-campos"><label class="campo">Início<input name="inicial" inputmode="decimal" value="' + esc(m.inicial == null ? "" : m.inicial) + '"></label><label class="campo">Agora<input name="atual" inputmode="decimal" value="' + esc(m.atual == null ? "" : m.atual) + '"></label>' +
+        '<label class="campo">Alvo<input name="alvo" inputmode="decimal" value="' + esc(m.alvo == null ? "" : m.alvo) + '"></label><label class="campo">Unidade<input name="unidade" maxlength="12" value="' + esc(m.unidade || "") + '" placeholder="%"></label></div>' +
+        (m.id ? '<input type="hidden" name="id" value="' + esc(m.id) + '">' : "") + "</div>";
+    }
+    var h = (c ? "" : '<div class="msg msg-aviso">Este cliente ainda não tem ciclo. Preencha o diagnóstico e o plano e salve: o ciclo começa e o cliente recebe um aviso.</div>') +
+      '<form id="fCiclo" class="cartao" novalidate><h2>' + (c ? "Ciclo " + c.numero : "Novo ciclo") + "</h2>" +
+      '<div class="linha-campos"><label class="campo">Começa na semana de<input type="date" name="inicio" value="' + esc(c ? c.inicio : segundaDe(hojeLocal())) + '"></label><label class="campo">Semanas<input type="number" name="semanas" min="4" max="52" value="' + (c ? c.semanas : 12) + '"></label></div>' +
+      (formatos.length ? '<label class="campo">Formato<select name="formato"><option value="">Sem formato</option>' + formatos.map(function (f) { return '<option value="' + esc(f.id) + '"' + (c && c.formato && c.formato.id === f.id ? " selected" : "") + ">" + esc(f.nome) + " · " + f.encontros + " encontros · " + f.analises + " análises</option>"; }).join("") + "</select></label>" : "") +
+      '<label class="campo">Diagnóstico<textarea name="diagnostico" maxlength="4000" placeholder="Onde o atleta está hoje: golpes, jogo, físico, mental.">' + esc(c ? c.diagnostico : "") + "</textarea></label>" +
+      '<label class="campo">Objetivo do ciclo<textarea name="objetivo" maxlength="4000">' + esc(c ? c.objetivo : "") + "</textarea></label>" +
+      '<p class="campo">Prioridades (até 3)</p>' + [0, 1, 2].map(function (k) { return '<input class="campo-p" name="p' + k + '" maxlength="300" value="' + esc(c && c.prioridades[k] ? c.prioridades[k] : "") + '" style="display:block;width:100%;min-height:44px;margin-top:6px;padding:8px 12px;border:1.5px solid #BDBAB4;border-radius:6px;font:16px var(--texto)">'; }).join("") +
+      '<p class="campo">Metas medidas</p><div id="metasEd">' + (metas.length ? metas : [{}]).map(metaEd).join("") + "</div>" +
+      '<div class="acoes"><button class="link" type="button" id="btMaisMeta">+ outra meta</button></div>' +
+      '<p id="mCiclo" class="msg" role="status" hidden></p><div class="acoes"><button class="btn btn-verm" type="submit" id="btCiclo">' + (c ? "Salvar o ciclo" : "Começar o ciclo") + "</button></div></form>";
+    if (c) h += '<section class="cartao" data-relatorio><h2>Relatório do ciclo</h2><p class="det" style="margin-top:4px">Monte o rascunho com os números do ciclo, ajuste o texto e publique. Publicar encerra o ciclo; depois é só começar o próximo.</p>' +
+      '<div class="acoes"><button class="btn btn-linha btn-pq" type="button" id="btRascunho">Montar o rascunho</button></div><label class="campo"><span class="sr">Relatório</span><textarea id="txRelatorio" rows="12" style="min-height:240px" maxlength="12000"></textarea></label>' +
+      '<p id="mRel" class="msg" role="status" hidden></p><div class="acoes"><button class="btn btn-verm" type="button" id="btEncerrar">Publicar e encerrar o ciclo</button></div></section>';
+    if ((ac.ciclosAnteriores || []).length) h += '<section class="secao"><h2>Ciclos anteriores</h2>' + ac.ciclosAnteriores.map(function (x) { return '<details class="cartao"><summary><b>Ciclo ' + x.numero + "</b> · " + dataCurta(x.inicio) + " a " + dataCurta(x.fim) + '</summary><p style="white-space:pre-wrap;margin-top:8px">' + esc(x.relatorio ? x.relatorio.texto : "") + "</p></details>"; }).join("") + "</section>";
+    alvo.innerHTML = h;
+    $("#btMaisMeta").onclick = function () { var k = document.querySelectorAll("[data-meta]").length; var div = document.createElement("div"); div.innerHTML = metaEd({}, k); $("#metasEd").appendChild(div.firstChild); };
+    $("#fCiclo").onsubmit = function (ev) {
+      ev.preventDefault();
+      var f = $("#fCiclo"), fid = f.formato ? f.formato.value : "", formato = formatos.filter(function (x) { return x.id === fid; })[0] || null;
+      var ms = []; cada("[data-meta]", function (m) { var g = function (n) { var e = m.querySelector('[name="' + n + '"]'); return e ? e.value.trim() : ""; }; if (g("texto")) ms.push({ id: g("id"), texto: g("texto"), inicial: g("inicial").replace(",", "."), atual: g("atual").replace(",", "."), alvo: g("alvo").replace(",", "."), unidade: g("unidade") }); });
+      enviarForm($("#btCiclo"), { acao: "cicloSalvar", uid: uid, inicio: f.inicio.value, semanas: f.semanas.value, diagnostico: f.diagnostico.value, objetivo: f.objetivo.value, prioridades: [f.p0.value, f.p1.value, f.p2.value], metas: ms, formato: formato },
+        c ? "Ciclo salvo." : "Ciclo começou. O cliente recebeu um aviso.", recarregar, $("#mCiclo"));
+    };
+    var br = $("#btRascunho");
+    if (br) br.onclick = function () { ocupado(br, true, "Montando…"); api("POST", { acao: "relatorioRascunho", uid: uid }).then(function (x) { ocupado(br, false); $("#txRelatorio").value = x.texto; }).catch(function (x) { ocupado(br, false); toast(x.message); }); };
+    var be = $("#btEncerrar");
+    if (be) be.onclick = function () { enviarForm(be, { acao: "cicloEncerrar", uid: uid, texto: $("#txRelatorio").value }, "Relatório publicado. Ciclo encerrado.", recarregar, $("#mRel")); };
+  }
+
+  /* semana: tarefas (com modelos), check-ins e respostas */
+  function secaoSemana(alvo, uid, r, recarregar) {
+    var ac = r.acomp || {}, sem = ac.semana, modelos = (st.dados.config && st.dados.config.modelos) || [];
+    var semanas = [[sem, "Esta semana (" + dataCurta(sem) + ")"], [somaDias(sem, 7), "Próxima semana (" + dataCurta(somaDias(sem, 7)) + ")"]];
+    var porSemana = function (s) { return (ac.tarefas || []).filter(function (t) { return t.semana === s; }); };
+    var h = semanas.map(function (s) {
+      var l = porSemana(s[0]);
+      return '<section class="secao"><h2>' + esc(s[1]) + "</h2>" + (l.length ? '<ul class="lista tarefas">' + l.map(function (t) {
+        return linhaTarefa(t, false).replace("</div></div></li>", '<button class="link" type="button" data-apagar-tarefa="' + esc(t.id) + '" style="margin-top:6px">Apagar</button></div></div></li>');
+      }).join("") + "</ul>" : '<p class="det" style="margin-top:6px">Sem tarefas.</p>') + "</section>";
+    }).join("");
+    var atrasadas = (ac.tarefas || []).filter(function (t) { return t.semana < sem && t.estado !== "feita"; });
+    if (atrasadas.length) h += '<section class="secao"><h2>Ainda abertas de semanas anteriores</h2><ul class="lista tarefas">' + atrasadas.map(function (t) { return linhaTarefa(t, false); }).join("") + "</ul></section>";
+    h += '<form id="fTarefa" class="cartao" novalidate><h2>Nova tarefa</h2>' +
+      (modelos.length ? '<label class="campo">Usar um modelo<select id="selModelo"><option value="">Escrever do zero</option>' + modelos.map(function (m, k) { return '<option value="' + k + '">' + esc(m.titulo) + "</option>"; }).join("") + "</select></label>" : "") +
+      '<label class="campo">Semana<select name="semana">' + semanas.map(function (s) { return '<option value="' + s[0] + '">' + esc(s[1]) + "</option>"; }).join("") + "</select></label>" +
+      '<label class="campo">Tarefa<input name="titulo" maxlength="120" placeholder="Ex.: Voleio na parede, 3 séries de 50"></label>' +
+      '<label class="campo">Tipo<select name="tipo">' + opcoes(TIPOS_TAREFA, "treino") + "</select></label>" +
+      '<label class="campo">Como fazer (opcional)<textarea name="detalhe" maxlength="4000"></textarea></label>' +
+      '<p id="mTarefa" class="msg" role="status" hidden></p><div class="acoes"><button class="btn btn-verm" type="submit" id="btTarefa">Adicionar tarefa</button></div></form>';
+    h += '<section class="secao"><h2>Check-ins</h2>' + ((ac.checkins || []).length ? ac.checkins.map(function (c) {
+      return '<div class="cartao" data-checkin-ficha><p class="t"><b>Semana de ' + dataCurta(c.semana) + "</b> · nota " + c.nota + " (" + NOTAS_SEMANA[c.nota] + ")</p>" + (c.texto ? '<p style="margin-top:6px;white-space:pre-wrap">' + esc(c.texto) + "</p>" : "") +
+        (c.duvida ? '<p class="msg msg-aviso"><b>Dúvida:</b> ' + esc(c.duvida) + "</p>" : "") +
+        (c.resposta ? '<p class="msg msg-ok"><b>Sua resposta:</b> ' + esc(c.resposta.texto) + "</p>" : '<label class="campo">Sua resposta<textarea maxlength="4000"></textarea></label><div class="acoes"><button class="btn btn-verm btn-pq" type="button" data-responder-checkin="' + esc(c.id) + '">Responder</button></div>') + "</div>";
+    }).join("") : '<p class="det" style="margin-top:6px">Nenhum check-in ainda.</p>') + "</section>";
+    alvo.innerHTML = h;
+    var f = $("#fTarefa"), sm = $("#selModelo");
+    if (sm) sm.onchange = function () { var m = modelos[+sm.value]; if (!m) return; f.titulo.value = m.titulo; f.tipo.value = m.tipo; f.detalhe.value = m.detalhe || ""; };
+    f.onsubmit = function (ev) { ev.preventDefault(); enviarForm($("#btTarefa"), { acao: "tarefaSalvar", uid: uid, semana: f.semana.value, titulo: f.titulo.value, tipo: f.tipo.value, detalhe: f.detalhe.value }, "Tarefa adicionada.", recarregar, $("#mTarefa")); };
+    cada("[data-apagar-tarefa]", function (b) { b.onclick = function () { b.disabled = true; api("POST", { acao: "tarefaApagar", id: b.getAttribute("data-apagar-tarefa") }).then(recarregar).catch(function (x) { b.disabled = false; toast(x.message); }); }; });
+    cada("[data-responder-checkin]", function (b) { b.onclick = function () {
+      var texto = b.closest("[data-checkin-ficha]").querySelector("textarea").value; if (texto.trim().length < 2) return toast("Escreva a resposta.");
+      enviarForm(b, { acao: "checkinResponder", id: b.getAttribute("data-responder-checkin"), texto: texto }, "Resposta enviada.", recarregar);
+    }; });
+  }
+
+  /* encontros: marcar, registrar (anotações, combinados, nota privada) e transformar combinados em tarefas */
+  function secaoEncontros(alvo, uid, r, recarregar) {
+    var ac = r.acomp || {}, lista = (ac.encontros || []).slice().reverse(), cfg = st.dados.config || {};
+    var amanha = somaDias(hojeLocal(), 1);
+    var h = '<form id="fEncontro" class="cartao" novalidate><h2>Marcar encontro</h2><div class="linha-campos"><label class="campo">Data<input type="date" name="data" value="' + amanha + '"></label><label class="campo">Hora<input type="time" name="hora" value="19:00"></label></div>' +
+      '<label class="campo">Duração<select name="duracaoMin"><option value="30">30 min</option><option value="45" selected>45 min</option><option value="60">1 hora</option><option value="90">1h30</option></select></label>' +
+      '<label class="campo">Link<input name="link" inputmode="url" placeholder="' + esc(cfg.linkEncontro || "https://meet.google.com/…") + '"><small>' + (cfg.linkEncontro ? "Em branco, vale o seu link fixo (Ajustes)." : "Dica: salve o seu link fixo do Meet em Ajustes.") + "</small></label>" +
+      '<label class="campo">Pauta (o cliente vê)<textarea name="pauta" maxlength="4000" placeholder="Ex.: rever o voleio e planejar o torneio."></textarea></label>' +
+      '<p id="mEnc" class="msg" role="status" hidden></p><div class="acoes"><button class="btn btn-verm" type="submit" id="btEnc">Marcar e avisar o cliente</button></div></form>';
+    h += '<section class="secao"><h2>Encontros</h2>' + (lista.length ? lista.map(function (e) {
+      var p = partesLocal(e.quando);
+      return '<details class="cartao" data-encontro-ficha="' + esc(e.id) + '"' + (e.estado === "marcado" || (e.combinados.length && !e.combinadosViraramTarefas) ? " open" : "") + '><summary><b>' + esc(dataHora(e.quando)) + "</b> · " + esc(e.estado) + "</summary>" +
+        (e.link ? '<p style="margin-top:8px"><a href="' + esc(e.link) + '" target="_blank" rel="noopener">Abrir o link do encontro</a></p>' : "") +
+        '<div class="linha-campos"><label class="campo">Data<input type="date" name="data" value="' + p.data + '"></label><label class="campo">Hora<input type="time" name="hora" value="' + p.hora + '"></label></div>' +
+        '<label class="campo">Situação<select name="estado">' + opcoes([["marcado", "Marcado"], ["feito", "Feito"], ["cancelado", "Cancelado"]], e.estado) + "</select></label>" +
+        '<label class="campo">Pauta<textarea name="pauta" maxlength="4000">' + esc(e.pauta) + "</textarea></label>" +
+        '<label class="campo">Anotações (o cliente vê)<textarea name="notas" maxlength="4000">' + esc(e.notas) + "</textarea></label>" +
+        '<label class="campo">Combinados (um por linha; viram tarefas)<textarea name="combinados" maxlength="4000">' + esc((e.combinados || []).join("\n")) + "</textarea></label>" +
+        '<label class="campo">Anotação privada (só você)<textarea name="notaPrivada" maxlength="4000">' + esc(e.notaPrivada || "") + "</textarea></label>" +
+        '<div class="acoes"><button class="btn btn-verm btn-pq" type="button" data-salvar-encontro="' + esc(e.id) + '">Salvar</button>' +
+        (e.combinados.length && !e.combinadosViraramTarefas ? '<button class="btn btn-linha btn-pq" type="button" data-combinados="' + esc(e.id) + '">Combinados → tarefas da semana</button>' : e.combinadosViraramTarefas ? '<span class="selo ok">Combinados viraram tarefas</span>' : "") +
+        '<button class="link" type="button" data-apagar-encontro="' + esc(e.id) + '">Apagar</button></div></details>';
+    }).join("") : '<p class="det" style="margin-top:6px">Nenhum encontro ainda.</p>') + "</section>";
+    alvo.innerHTML = h;
+    var f = $("#fEncontro");
+    f.onsubmit = function (ev) { ev.preventDefault(); var q = isoLocal(f.data.value, f.hora.value); if (!q) return msg($("#mEnc"), "erro", "Escolha a data e a hora.");
+      enviarForm($("#btEnc"), { acao: "encontroSalvar", uid: uid, quando: q, duracaoMin: f.duracaoMin.value, link: f.link.value.trim(), pauta: f.pauta.value }, "Encontro marcado. O cliente recebeu um aviso.", recarregar, $("#mEnc")); };
+    cada("[data-salvar-encontro]", function (b) { b.onclick = function () {
+      var box = b.closest("[data-encontro-ficha]"), g = function (n) { return box.querySelector('[name="' + n + '"]').value; }, e = lista.filter(function (x) { return x.id === b.getAttribute("data-salvar-encontro"); })[0];
+      enviarForm(b, { acao: "encontroSalvar", uid: uid, id: e.id, quando: isoLocal(g("data"), g("hora")), duracaoMin: e.duracaoMin, link: e.link, estado: g("estado"), pauta: g("pauta"), notas: g("notas"), combinados: linhas(g("combinados")), notaPrivada: g("notaPrivada") }, "Encontro salvo.", recarregar);
+    }; });
+    cada("[data-combinados]", function (b) { b.onclick = function () { enviarForm(b, { acao: "combinadosParaTarefas", id: b.getAttribute("data-combinados") }, "Combinados viraram tarefas da semana.", recarregar); }; });
+    cada("[data-apagar-encontro]", function (b) { b.onclick = function () { b.disabled = true; api("POST", { acao: "encontroApagar", id: b.getAttribute("data-apagar-encontro") }).then(recarregar).catch(function (x) { b.disabled = false; toast(x.message); }); }; });
+  }
+
+  /* feedback: recado sem vídeo do cliente (sobre torneio, check-in, encontro) */
+  function secaoFeedback(alvo, uid, r, recarregar) {
+    var recados = r.envios.filter(function (e) { return e.tipo === "recado"; });
+    var h = '<form id="fRecado" class="cartao" novalidate><h2>Mandar um feedback</h2><p class="det" style="margin-top:4px">Sobre um torneio, um check-in, um encontro ou o que quiser. Chega como devolutiva, com aviso no celular.</p>' +
+      '<label class="campo">Assunto<input name="titulo" maxlength="120" placeholder="Ex.: Sobre o torneio de sábado"></label><label class="campo">Mensagem<textarea name="texto" maxlength="5000"></textarea></label>' +
+      '<label class="campo">O que treinar (um por linha, opcional)<textarea name="treinar" maxlength="2000"></textarea></label><label class="campo">Vídeo seu no YouTube (opcional)<input name="linkVideo" inputmode="url" placeholder="https://youtu.be/…"></label>' +
+      '<p id="mRec" class="msg" role="status" hidden></p><div class="acoes"><button class="btn btn-verm" type="submit" id="btRec">Mandar feedback</button></div></form>';
+    if (recados.length) h += '<section class="secao"><h2>Feedbacks mandados</h2><ul class="linha-tempo">' + recados.map(function (e) { return "<li><time>" + dataBR(e.criadoEm) + '</time><a href="#/ver/' + esc(uid) + "/" + esc(e.id) + '">' + esc(e.duvida || "Recado") + "</a></li>"; }).join("") + "</ul></section>";
+    alvo.innerHTML = h;
+    var f = $("#fRecado");
+    f.onsubmit = function (ev) { ev.preventDefault(); enviarForm($("#btRec"), { acao: "recado", uid: uid, titulo: f.titulo.value, texto: f.texto.value, treinar: linhas(f.treinar.value), linkVideo: f.linkVideo.value.trim() }, "Feedback mandado.", recarregar, $("#mRec")); };
+  }
+
+  /* análises: scout, vídeo, movimento, torneio — com números e link */
+  function secaoAnalises(alvo, uid, r, recarregar) {
+    var ac = r.acomp || {};
+    var h = '<form id="fAnalise" class="cartao" novalidate><h2>Nova análise</h2><label class="campo">Tipo<select name="tipo">' + opcoes(TIPOS_ANALISE, "scout") + "</select></label>" +
+      '<label class="campo">Título<input name="titulo" maxlength="120" placeholder="Ex.: Scout · Copa Sul, 2ª rodada"></label><label class="campo">Data<input type="date" name="data" value="' + hojeLocal() + '"></label>' +
+      '<label class="campo">O que a análise mostra<textarea name="resumo" maxlength="4000"></textarea></label>' +
+      '<p class="campo">Números (opcional)</p>' + [0, 1, 2, 3].map(function (k) { return '<div class="linha-campos"><label class="campo">Medida<input name="nr' + k + '" maxlength="60" placeholder="Ex.: 1º saque dentro"></label><label class="campo">Valor<input name="nv' + k + '" maxlength="30" placeholder="62%"></label></div>'; }).join("") +
+      '<label class="campo">Link (relatório, vídeo, PDF)<input name="link" inputmode="url" placeholder="https://…"></label>' +
+      '<p id="mAn" class="msg" role="status" hidden></p><div class="acoes"><button class="btn btn-verm" type="submit" id="btAn">Publicar análise</button></div></form>';
+    h += '<section class="secao"><h2>Análises publicadas</h2>' + ((ac.analises || []).length ? ac.analises.map(function (a) { return analiseHtml(a, '<div class="acoes"><button class="link" type="button" data-apagar-analise="' + esc(a.id) + '">Apagar</button></div>'); }).join("") : '<p class="det" style="margin-top:6px">Nenhuma ainda.</p>') + "</section>";
+    alvo.innerHTML = h;
+    var f = $("#fAnalise");
+    f.onsubmit = function (ev) { ev.preventDefault(); var ns = [0, 1, 2, 3].map(function (k) { return { rotulo: f["nr" + k].value, valor: f["nv" + k].value }; });
+      enviarForm($("#btAn"), { acao: "analiseSalvar", uid: uid, tipo: f.tipo.value, titulo: f.titulo.value, data: f.data.value, resumo: f.resumo.value, numeros: ns, link: f.link.value.trim() }, "Análise publicada. O cliente recebeu um aviso.", recarregar, $("#mAn")); };
+    cada("[data-apagar-analise]", function (b) { b.onclick = function () { b.disabled = true; api("POST", { acao: "analiseApagar", id: b.getAttribute("data-apagar-analise") }).then(recarregar).catch(function (x) { b.disabled = false; toast(x.message); }); }; });
+  }
+
+  /* alto rendimento: ligar a aba, calendário de torneios, fase e carga */
+  function secaoRendimento(alvo, uid, r, recarregar) {
+    var ar = (r.acomp || {}).ar || { ligado: false, torneios: [] };
+    var h = '<section class="cartao"><h2>Alto rendimento</h2><p class="det" style="margin-top:4px">Para o atleta que compete: o cliente ganha a aba Rendimento, com a fase do momento, o calendário de torneios e o registro de treinos e jogos (carga = minutos × esforço).</p>' +
+      '<div class="acoes"><button class="btn ' + (ar.ligado ? "btn-linha" : "btn-verm") + ' btn-pq" type="button" id="btAR">' + (ar.ligado ? "Desligar a aba Rendimento" : "Ligar a aba Rendimento") + "</button></div></section>";
+    if (ar.ligado) {
+      h += faseHtml(ar.fase) + '<section class="secao"><h2>Carga por semana</h2>' + cargaHtml(ar.carga) + "</section>";
+      h += '<form id="fTorneio" class="cartao" novalidate><h2>Torneio no calendário</h2><label class="campo">Nome<input name="nome" maxlength="100"></label><div class="linha-campos"><label class="campo">Início<input type="date" name="inicio"></label><label class="campo">Término<input type="date" name="fim"></label></div>' +
+        '<label class="campo">Prioridade<select name="prioridade">' + opcoes([["A", "A · principal"], ["B", "B · importante"], ["C", "C · preparação"]], "B") + "</select></label><label class=\"campo\">Resultado (depois do torneio)<input name=\"resultado\" maxlength=\"120\"></label>" +
+        '<p id="mTor" class="msg" role="status" hidden></p><div class="acoes"><button class="btn btn-verm" type="submit" id="btTor">Salvar torneio</button></div></form>';
+      h += '<section class="secao"><h2>Calendário</h2>' + torneiosHtml(ar.torneios, true) + "</section>";
+      if ((ar.registros || []).length) h += '<section class="secao"><h2>Registros do atleta</h2><ul class="lista">' + ar.registros.slice(0, 15).map(function (x) { return '<li><div class="item"><div><p class="t">' + (x.tipo === "jogo" ? "Jogo" : "Treino") + " · " + dataCurta(x.data) + '</p><p class="s">' + x.minutos + " min · esforço " + x.pse + " · carga " + x.carga + (x.nota ? " · " + esc(x.nota) : "") + "</p></div></div></li>"; }).join("") + "</ul></section>";
+    }
+    alvo.innerHTML = h;
+    var b = $("#btAR"); b.onclick = function () { enviarForm(b, { acao: "arLigar", uid: uid, ligado: !ar.ligado }, ar.ligado ? "Aba Rendimento desligada." : "Aba Rendimento ligada.", recarregar); };
+    var f = $("#fTorneio");
+    if (f) f.onsubmit = function (ev) { ev.preventDefault(); enviarForm($("#btTor"), { acao: "arTorneioSalvar", uid: uid, torneio: { nome: f.nome.value, inicio: f.inicio.value, fim: f.fim.value, prioridade: f.prioridade.value, resultado: f.resultado.value } }, "Torneio salvo.", recarregar, $("#mTor")); };
+    cada("[data-apagar-torneio]", function (x) { x.onclick = function () { x.disabled = true; api("POST", { acao: "arTorneioApagar", uid: uid, id: x.getAttribute("data-apagar-torneio") }).then(recarregar).catch(function (e) { x.disabled = false; toast(e.message); }); }; });
+  }
+
+  /* histórico de vídeos e devolutivas + pausar/liberar + anotação privada (o que já existia) */
+  function secaoHistorico(alvo, uid, r, recarregar) {
+    var c = r.cliente, env = r.envios;
+    alvo.innerHTML = '<div class="numeros"><div><b>' + env.filter(function (e) { return e.tipo === "video"; }).length + "</b><span>vídeos</span></div><div><b>" + env.filter(function (e) { return e.estado === "respondido"; }).length +
+        "</b><span>devolutivas</span></div><div><b>" + env.filter(function (e) { return e.estado === "recebido"; }).length + "</b><span>na fila</span></div></div>" +
+      '<div class="acoes">' + (c.estado === "ativo" ? '<button class="btn btn-linha btn-pq" type="button" id="btPausar">Pausar consultoria</button>' : '<button class="btn btn-verm btn-pq" type="button" id="btLiberar">' + (c.estado === "pendente" ? "Liberar" : "Retomar consultoria") + "</button>") + "</div>" +
+      '<section class="secao"><h2>Vídeos, dúvidas e feedbacks</h2>' + (env.length ? '<ul class="linha-tempo">' + env.map(function (e) {
+        var alvoE = e.estado === "recebido" ? "#/responder/" + e.id : "#/ver/" + uid + "/" + e.id;
+        return '<li><time>' + dataBR(e.recebidoEm || e.criadoEm) + '</time><a href="' + alvoE + '">' + (e.tipo === "recado" ? "Feedback: " + esc(e.duvida) : (e.estado === "respondido" ? "Devolutiva: " : e.tipo === "pergunta" ? "Dúvida: " : "Vídeo: ") + esc(e.rotuloTema)) + (e.estado === "recebido" ? " (na fila)" : "") + "</a></li>";
+      }).join("") + "</ul>" : '<p class="det" style="margin-top:8px">Nenhum envio ainda.</p>') + "</section>" +
+      '<section class="secao"><h2>Anotação privada</h2><p class="det">Só você vê.</p><label class="campo"><span class="sr">Anotação</span><textarea id="txNota" maxlength="8000">' + esc(r.nota) + '</textarea></label>' +
+      '<div class="acoes"><button class="btn btn-linha btn-pq" type="button" id="btNota">Salvar anotação</button></div></section>';
+    var bp = $("#btPausar"), bl = $("#btLiberar"), bn = $("#btNota");
+    if (bp) bp.onclick = function () { enviarForm(bp, { acao: "pausar", uid: uid }, "Consultoria pausada.", recarregar); };
+    if (bl) bl.onclick = function () { enviarForm(bl, { acao: "liberar", uid: uid }, "Consultoria liberada.", recarregar); };
+    bn.onclick = function () { ocupado(bn, true, "Salvando…"); api("POST", { acao: "nota", uid: uid, texto: $("#txNota").value }).then(function () { ocupado(bn, false); toast("Anotação salva."); }).catch(function (x) { ocupado(bn, false); toast(x.message); }); };
+  }
+
+  /* Ajustes: link fixo, modelos de tarefa e formatos */
+  function ajustesAcompHtml() {
+    var cfg = st.dados.config || { linkEncontro: "", modelos: [], formatos: [] };
+    var modelo = function (m) { m = m || {}; return '<div class="meta-ed" data-modelo><label class="campo" style="margin-top:0">Tarefa<input name="titulo" maxlength="120" value="' + esc(m.titulo || "") + '"></label><label class="campo">Tipo<select name="tipo">' + opcoes(TIPOS_TAREFA, m.tipo || "treino") + '</select></label><label class="campo">Como fazer<textarea name="detalhe" maxlength="4000">' + esc(m.detalhe || "") + "</textarea></label></div>"; };
+    var formato = function (f) { f = f || {}; return '<div class="meta-ed" data-formato-ed>' + (f.id ? '<input type="hidden" name="id" value="' + esc(f.id) + '">' : "") + '<label class="campo" style="margin-top:0">Nome<input name="nome" maxlength="60" value="' + esc(f.nome || "") + '" placeholder="Ex.: Trimestral"></label>' +
+      '<div class="linha-campos"><label class="campo">Semanas<input type="number" name="semanas" value="' + (f.semanas || 12) + '"></label><label class="campo">Encontros<input type="number" name="encontros" value="' + (f.encontros || 0) + '"></label><label class="campo">Análises<input type="number" name="analises" value="' + (f.analises || 0) + '"></label><label class="campo">Vídeos por mês<input type="number" name="videosMes" value="' + (f.videosMes || 0) + '"></label></div></div>'; };
+    return '<form id="fConfig" class="cartao" novalidate><h2>Consultoria</h2>' +
+      '<label class="campo">Seu link fixo de encontro<input name="linkEncontro" inputmode="url" value="' + esc(cfg.linkEncontro || "") + '" placeholder="https://meet.google.com/…"><small>Usado quando você marca um encontro sem link.</small></label>' +
+      '<p class="campo">Modelos de tarefa<small>Para montar a semana sem escrever do zero.</small></p><div id="modelosEd">' + (cfg.modelos.length ? cfg.modelos : [{}]).map(modelo).join("") + '</div><div class="acoes"><button class="link" type="button" id="btMaisModelo">+ outro modelo</button></div>' +
+      '<p class="campo">Formatos<small>O que você combina com cada cliente. Sem preço e sem cobrança no app.</small></p><div id="formatosEd">' + (cfg.formatos.length ? cfg.formatos : [{}]).map(formato).join("") + '</div><div class="acoes"><button class="link" type="button" id="btMaisFormato">+ outro formato</button></div>' +
+      '<p id="mCfg" class="msg" role="status" hidden></p><div class="acoes"><button class="btn btn-verm" type="submit" id="btCfg">Salvar ajustes</button></div></form>';
+  }
+  function ligarAjustesAcomp() {
+    var f = $("#fConfig"); if (!f) return;
+    $("#btMaisModelo").onclick = function () { var d = document.createElement("div"); d.innerHTML = '<div class="meta-ed" data-modelo><label class="campo" style="margin-top:0">Tarefa<input name="titulo" maxlength="120"></label><label class="campo">Tipo<select name="tipo">' + opcoes(TIPOS_TAREFA, "treino") + '</select></label><label class="campo">Como fazer<textarea name="detalhe" maxlength="4000"></textarea></label></div>'; $("#modelosEd").appendChild(d.firstChild); };
+    $("#btMaisFormato").onclick = function () { var d = document.createElement("div"); d.innerHTML = '<div class="meta-ed" data-formato-ed><label class="campo" style="margin-top:0">Nome<input name="nome" maxlength="60"></label><div class="linha-campos"><label class="campo">Semanas<input type="number" name="semanas" value="12"></label><label class="campo">Encontros<input type="number" name="encontros" value="0"></label><label class="campo">Análises<input type="number" name="analises" value="0"></label><label class="campo">Vídeos por mês<input type="number" name="videosMes" value="0"></label></div></div>'; $("#formatosEd").appendChild(d.firstChild); };
+    f.onsubmit = function (ev) {
+      ev.preventDefault();
+      var g = function (box, n) { var e = box.querySelector('[name="' + n + '"]'); return e ? e.value : ""; };
+      var modelos = [], formatos = [];
+      cada("[data-modelo]", function (m) { if (g(m, "titulo").trim()) modelos.push({ titulo: g(m, "titulo"), tipo: g(m, "tipo"), detalhe: g(m, "detalhe") }); });
+      cada("[data-formato-ed]", function (m) { if (g(m, "nome").trim()) formatos.push({ id: g(m, "id"), nome: g(m, "nome"), semanas: g(m, "semanas"), encontros: g(m, "encontros"), analises: g(m, "analises"), videosMes: g(m, "videosMes") }); });
+      enviarForm($("#btCfg"), { acao: "configSalvar", linkEncontro: f.linkEncontro.value.trim(), modelos: modelos, formatos: formatos }, "Ajustes salvos.", function () { return carregar().then(telaAjustes); }, $("#mCfg"));
+    };
+  }
+
   function rotaRichard(h) {
-    var d = st.dados, aba = h[0] || "fila", pend = d.clientes.filter(function (c) { return c.estado === "pendente"; }).length;
-    var mapa = { responder: "fila", ver: "clientes", cliente: "clientes" };
-    barra([{ id: "fila", rot: "Fila", href: "#/fila", n: d.fila.length }, { id: "clientes", rot: "Clientes", href: "#/clientes", n: pend }, { id: "ajustes", rot: "Ajustes", href: "#/ajustes" }], mapa[aba] || aba);
+    var d = st.dados, aba = h[0] || "hoje", pend = d.clientes.filter(function (c) { return c.estado === "pendente"; }).length;
+    var mapa = { responder: "fila", ver: "clientes", cliente: "clientes" }, hj = d.hoje || {};
+    barra([{ id: "hoje", rot: "Hoje", href: "#/hoje", n: (hj.checkinsParaLer || []).length }, { id: "fila", rot: "Fila", href: "#/fila", n: d.fila.length }, { id: "clientes", rot: "Clientes", href: "#/clientes", n: pend }, { id: "ajustes", rot: "Ajustes", href: "#/ajustes" }], mapa[aba] || aba);
     if (aba === "responder" && h[1]) return telaResponder(h[1]);
     if (aba === "clientes") return telaClientes();
-    if (aba === "cliente" && h[1]) return telaFicha(h[1]);
+    if (aba === "cliente" && h[1]) return telaFicha(h[1], h[2]);
     if (aba === "ver" && h[1] && h[2]) return telaVerEnvio(h[1], h[2]);
     if (aba === "ajustes") return telaAjustes();
-    return telaFila();
+    if (aba === "fila") return telaFila();
+    return telaHoje();
   }
   function telaFila() {
     var f = st.dados.fila;
@@ -679,31 +1120,6 @@
     };
     cada("[data-liberar]", function (b) { b.onclick = function () { ocupado(b, true, "Liberando…"); api("POST", { acao: "liberar", uid: b.getAttribute("data-liberar") }).then(function () { toast("Cliente liberado e avisado."); return recarregar(); }).catch(function (x) { ocupado(b, false); toast(x.message); }); }; });
   }
-  function telaFicha(uid) {
-    tela('<p class="carregando">Abrindo…</p>');
-    api("POST", { acao: "cliente", uid: uid }).then(function (r) {
-      var c = r.cliente, i = idadeDe(c.nascimento), env = r.envios;
-      var h = '<p><a class="link" href="#/clientes">‹ Clientes</a></p><span class="olho" style="margin-top:16px">Ficha do cliente</span><h1>' + esc(c.nome) + "</h1>" +
-        '<p class="det" style="margin-top:4px">' + (i != null ? i + " anos · " : "") + esc(c.email) + (c.liberadoEm ? " · cliente desde " + dataLonga(c.liberadoEm) : "") + "</p>" +
-        (c.objetivo ? '<p style="margin-top:10px">' + esc(c.objetivo) + "</p>" : "") +
-        (c.menor && c.responsavel ? '<p class="det" style="margin-top:8px">Responsável: ' + esc(c.responsavel.nome) + " (" + esc(c.responsavel.email) + "), autorizou em " + dataLonga(c.responsavel.aceiteEm) + "</p>" : "") +
-        '<div class="numeros"><div><b>' + env.filter(function (e) { return e.tipo === "video"; }).length + "</b><span>vídeos</span></div><div><b>" + env.filter(function (e) { return e.estado === "respondido"; }).length +
-        "</b><span>devolutivas</span></div><div><b>" + env.filter(function (e) { return e.estado === "recebido"; }).length + "</b><span>na fila</span></div></div>" +
-        '<div class="acoes">' + (c.estado === "ativo" ? '<button class="btn btn-linha btn-pq" type="button" id="btPausar">Pausar consultoria</button>' : '<button class="btn btn-verm btn-pq" type="button" id="btLiberar">' + (c.estado === "pendente" ? "Liberar" : "Retomar consultoria") + "</button>") + "</div>" +
-        '<section class="secao"><h2>Histórico</h2>' + (env.length ? '<ul class="linha-tempo">' + env.map(function (e) {
-          var alvo = e.estado === "recebido" ? "#/responder/" + e.id : "#/ver/" + uid + "/" + e.id;
-          return '<li><time>' + dataBR(e.recebidoEm || e.criadoEm) + '</time><a href="' + alvo + '">' + (e.estado === "respondido" ? "Devolutiva: " : e.tipo === "pergunta" ? "Dúvida: " : "Vídeo: ") + esc(e.rotuloTema) +
-            (e.estado === "recebido" ? " (na fila)" : "") + "</a></li>";
-        }).join("") + "</ul>" : '<p class="det" style="margin-top:8px">Nenhum envio ainda.</p>') + "</section>" +
-        '<section class="secao"><h2>Anotação privada</h2><p class="det">Só você vê.</p><label class="campo"><span class="sr">Anotação</span><textarea id="txNota" maxlength="8000">' + esc(r.nota) + '</textarea></label>' +
-        '<div class="acoes"><button class="btn btn-linha btn-pq" type="button" id="btNota">Salvar anotação</button></div></section>';
-      tela(h);
-      var bp = $("#btPausar"), bl = $("#btLiberar"), bn = $("#btNota");
-      if (bp) bp.onclick = function () { ocupado(bp, true); api("POST", { acao: "pausar", uid: uid }).then(function () { toast("Consultoria pausada."); return carregar(); }).then(function () { telaFicha(uid); }).catch(function (x) { ocupado(bp, false); toast(x.message); }); };
-      if (bl) bl.onclick = function () { ocupado(bl, true); api("POST", { acao: "liberar", uid: uid }).then(function () { toast("Consultoria liberada."); return carregar(); }).then(function () { telaFicha(uid); }).catch(function (x) { ocupado(bl, false); toast(x.message); }); };
-      bn.onclick = function () { ocupado(bn, true, "Salvando…"); api("POST", { acao: "nota", uid: uid, texto: $("#txNota").value }).then(function () { ocupado(bn, false); toast("Anotação salva."); }).catch(function (x) { ocupado(bn, false); toast(x.message); }); };
-    }).catch(function (x) { tela('<p><a class="link" href="#/clientes">‹ Clientes</a></p><div class="msg msg-erro">' + esc(x.message) + "</div>"); });
-  }
   function telaVerEnvio(uid, id) {
     tela('<p class="carregando">Abrindo…</p>');
     api("POST", { acao: "cliente", uid: uid }).then(function (r) {
@@ -719,8 +1135,8 @@
       '<section class="cartao"><h3>Armazenamento dos vídeos</h3><p class="det" style="margin-top:4px">Uma vez só: libera o envio dos vídeos direto do celular do cliente para o armazenamento privado do Team Yoda. Faça depois de ativar o Storage no Firebase do Team Yoda.</p>' +
       '<p id="mArm" class="msg" role="status" hidden></p><div class="acoes"><button class="btn btn-linha btn-pq" type="button" id="btArm">Preparar armazenamento</button></div></section>' +
       '<section class="cartao"><h3>Endereço para os clientes</h3><p style="margin-top:4px"><b>teamyoda.com.br/richard</b></p><p class="det" style="margin-top:4px">O cliente cria a conta, faz o cadastro e aparece em Clientes para você liberar. Vídeos com devolutiva são apagados depois de ' + st.dados.limites.guardarDias + " dias; a devolutiva fica.</p></section>" +
-      avisosHtml() + contaHtml());
-    ligarConta();
+      ajustesAcompHtml() + avisosHtml() + contaHtml());
+    ligarConta(); ligarAjustesAcomp();
     var b = $("#btArm");
     b.onclick = function () { ocupado(b, true, "Preparando…"); api("POST", { acao: "prepararArmazenamento" }).then(function (r) { ocupado(b, false); msg($("#mArm"), "ok", "Pronto: o armazenamento " + r.bucket + " aceita os envios do teamyoda.com.br."); }).catch(function (x) { ocupado(b, false); msg($("#mArm"), "erro", x.message); }); };
     ligarAvisos();
