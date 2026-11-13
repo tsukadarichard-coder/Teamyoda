@@ -17,6 +17,10 @@
 [functions."consultoria-limpeza"]
   schedule = "17 7 * * *"
 
+# Consultoria: avisos de encontro (véspera e 1 hora antes) e lembrete do check-in no domingo às 18h de Brasília.
+[functions."consultoria-avisos"]
+  schedule = "7 * * * *"
+
 # teamyoda.com.br é a entrada de tudo do Team Yoda: na raiz, o portal (/portal/); o app do treinador em /treinador; Academia
 # Digital em /digital/; link do aluno, app do cliente, reservas e inscrições como sempre. O 39 Ranch segue no domínio dele
 # (39tennis.com.br e app.39tennis.com.br) e o QuadraLab no quadralab.com.br.

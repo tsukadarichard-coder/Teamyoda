@@ -215,6 +215,101 @@ const videoOk = { tema: "saque", duvida: "Perco força no segundo saque quando e
   r = await chama("tk-richard", { acao: "responder", envioId: idYt, viu: "Cabeça da raquete cai.", linkVideo: "https://www.youtube.com/watch?v=abcdefghijk" });
   assert.strictEqual(r.s, 200); assert.deepStrictEqual(r.envio.devolutiva.youtube, { id: "abcdefghijk" });
 
+  /* ── Etapas 2 a 5: acompanhamento (ciclo, tarefas, check-in, encontros, recado, análises, alto rendimento, formatos, relatório) ── */
+  {
+    const K = require(fx + "_consultoria-ciclo.js"), AC = require(fx + "_consultoria-acomp.js");
+    assert.strictEqual(K.segunda("2026-11-15"), "2026-11-09", "domingo pertence à semana que começou na segunda");
+    assert.strictEqual(K.numeroDaSemana({ inicio: "2026-11-09" }, "2026-11-23"), 3);
+    assert.strictEqual(K.progressoMeta({ inicial: 20, alvo: 10, atual: 15 }), 50, "meta de diminuir (ex.: erros)");
+    assert.strictEqual(K.faseAtual([{ nome: "X", inicio: K.somaDias(K.hojeBR(), 10), fim: K.somaDias(K.hojeBR(), 14), prioridade: "A" }], K.hojeBR()).fase, "especifica");
+    assert.strictEqual(K.faseAtual([{ nome: "X", inicio: K.somaDias(K.hojeBR(), -1), fim: K.somaDias(K.hojeBR(), 2), prioridade: "C" }], K.hojeBR()).fase, "competicao");
+    assert.throws(() => K.limparEncontro({ quando: "amanhã" }), /data e a hora/);
+    assert.throws(() => K.limparEncontro({ quando: "2026-12-01T19:00:00-03:00", link: "http://x" }), /https/);
+    const agoraMs = Date.now(), em = (h) => new Date(agoraMs + h * 3600000).toISOString();
+    assert.deepStrictEqual(K.avisosDevidos({ estado: "marcado", quando: em(24) }, agoraMs), ["vespera"]);
+    assert.deepStrictEqual(K.avisosDevidos({ estado: "marcado", quando: em(1), avisos: { vespera: "x" } }, agoraMs), ["hora"]);
+    assert.deepStrictEqual(K.avisosDevidos({ estado: "marcado", quando: em(1), avisos: { hora: "x" } }, agoraMs), [], "não avisa duas vezes");
+    assert.strictEqual(K.adesao([{ semana: "2026-11-02", estado: "feita" }, { semana: "2026-11-02", estado: "aberta" }, { semana: "2026-11-09", estado: "aberta" }], "2026-11-09"), 50, "a semana atual ainda aberta não conta contra");
+
+    const sem = K.semanaDe();
+    /* Ajustes: link fixo, modelos e formatos */
+    assert.strictEqual((await chama("tk-caio", { acao: "configSalvar", linkEncontro: "https://meet.google.com/abc" })).s, 403, "cliente não mexe nos ajustes");
+    r = await chama("tk-richard", { acao: "configSalvar", linkEncontro: "https://meet.google.com/abc-defg-hij", modelos: [{ titulo: "Rotina dos 20 segundos", tipo: "mental" }, { titulo: "" }],
+      formatos: [{ nome: "Trimestral", semanas: 12, encontros: 4, analises: 3 }] });
+    assert.strictEqual(r.s, 200); assert.strictEqual(r.config.modelos.length, 1); const formato = r.config.formatos[0];
+    assert.strictEqual((await chama("tk-richard")).config.linkEncontro, "https://meet.google.com/abc-defg-hij");
+    /* ciclo */
+    r = await chama("tk-richard", { acao: "cicloSalvar", uid: "uCaio00001", semanas: 12, objetivo: "Ganhar a rede", prioridades: ["Voleio", "Aproximação", "", "Smash", "x"],
+      metas: [{ texto: "Pontos ganhos na rede", inicial: 45, alvo: 60, atual: 45, unidade: "%" }], diagnostico: "Sobe pouco", formato });
+    assert.strictEqual(r.s, 200); assert.strictEqual(r.ciclo.numero, 1); assert.deepStrictEqual(r.ciclo.prioridades, ["Voleio", "Aproximação", "Smash"]); assert.strictEqual(r.ciclo.semanaAtual, 1);
+    assert.ok(avisos.some((x) => x.filtro.uid === "uCaio00001" && /ciclo começou/.test(x.aviso.titulo)));
+    r = await chama("tk-richard", { acao: "cicloSalvar", uid: "uCaio00001", objetivo: "Ganhar a rede e o saque", metas: [{ texto: "Pontos ganhos na rede", inicial: 45, alvo: 60, atual: 52, unidade: "%" }], formato });
+    assert.strictEqual(r.ciclo.numero, 1, "salvar de novo atualiza o mesmo ciclo"); assert.strictEqual(r.ciclo.metas[0].atual, 52);
+    /* tarefas da semana: o cliente marca como feita com comentário; aviso agrupado */
+    const antes = avisos.length;
+    let t1 = (await chama("tk-richard", { acao: "tarefaSalvar", uid: "uCaio00001", titulo: "Voleio na parede, 3x50", tipo: "treino", semana: sem })).tarefa;
+    await chama("tk-richard", { acao: "tarefaSalvar", uid: "uCaio00001", titulo: "Rotina dos 20 segundos", tipo: "mental", semana: sem });
+    assert.strictEqual(avisos.slice(antes).filter((x) => /Tarefas da semana/.test(x.aviso.titulo)).length, 1, "um aviso só para várias tarefas seguidas");
+    assert.strictEqual((await chama("tk-lia", { acao: "tarefaFeita", id: t1.id })).s, 404, "tarefa de outra pessoa");
+    r = await chama("tk-caio", { acao: "tarefaFeita", id: t1.id, comentario: "Fiz 2x50, cansou o braço" });
+    assert.strictEqual(r.tarefa.estado, "feita"); assert.ok(avisos.some((x) => x.filtro.papel === "richard" && /Tarefa feita/.test(x.aviso.titulo)));
+    /* check-in da semana: um por semana (editar não duplica) e o Richard responde */
+    assert.strictEqual((await chama("tk-caio", { acao: "checkin", nota: 9 })).s, 400);
+    r = await chama("tk-caio", { acao: "checkin", nota: 4, texto: "Semana boa", duvida: "Posso treinar voleio no paredão?" });
+    assert.strictEqual(r.checkin.semana, sem);
+    await chama("tk-caio", { acao: "checkin", nota: 3, texto: "Semana boa, mas cansei" });
+    assert.strictEqual(Object.keys(store).filter((k) => k.startsWith("consultoriaCheckins/uCaio00001_")).length, 1);
+    let hj = (await chama("tk-richard")).hoje;
+    assert.strictEqual(hj.checkinsParaLer[0].cliente, "Caio Reis"); assert.strictEqual(hj.ciclosAtivos, 1);
+    await chama("tk-richard", { acao: "checkinResponder", id: "uCaio00001_" + sem, texto: "Pode, 10 minutos por dia." });
+    assert.strictEqual((await chama("tk-richard")).hoje.checkinsParaLer.length, 0);
+    /* encontro: marcado com o link fixo; o cliente não vê a anotação privada; combinados viram tarefas */
+    const quando = new Date(Date.now() + 3 * 86400000).toISOString();
+    r = await chama("tk-richard", { acao: "encontroSalvar", uid: "uCaio00001", quando, pauta: "Rever o voleio" });
+    assert.strictEqual(r.encontro.link, "https://meet.google.com/abc-defg-hij", "usa o link fixo do Richard"); const enc = r.encontro;
+    assert.ok(avisos.some((x) => x.filtro.uid === "uCaio00001" && /Encontro marcado/.test(x.aviso.titulo)));
+    assert.strictEqual((await chama("tk-richard")).hoje.encontros[0].cliente, "Caio Reis");
+    r = await chama("tk-richard", { acao: "encontroSalvar", uid: "uCaio00001", id: enc.id, quando, estado: "feito", notas: "Foi ótimo.", combinados: ["Voleio cruzado 3x20", "Filmar um jogo"], notaPrivada: "Pai ansioso" });
+    assert.strictEqual(r.encontro.estado, "feito");
+    let dc = (await chama("tk-caio")).acomp;
+    assert.strictEqual(dc.encontros[0].notas, "Foi ótimo."); assert.strictEqual(dc.encontros[0].notaPrivada, undefined); assert.strictEqual(dc.encontros[0].link, "", "encontro feito não mostra mais o link");
+    assert.ok(!JSON.stringify(dc).includes("Pai ansioso"), "anotação privada nunca vai ao cliente");
+    r = await chama("tk-richard", { acao: "combinadosParaTarefas", id: enc.id }); assert.strictEqual(r.criadas, 2);
+    assert.strictEqual((await chama("tk-richard", { acao: "combinadosParaTarefas", id: enc.id })).s, 409, "não duplica");
+    dc = (await chama("tk-caio")).acomp;
+    assert.strictEqual(dc.tarefas.length, 4); assert.ok(dc.tarefas.some((x) => x.origem === "encontro:" + enc.id));
+    /* recado (feedback sem vídeo) entra como devolutiva */
+    r = await chama("tk-richard", { acao: "recado", uid: "uCaio00001", titulo: "Sobre o torneio de sábado", texto: "Gostei da coragem de subir.", treinar: ["Aproximação cruzada"] });
+    assert.strictEqual(r.envio.tipo, "recado"); assert.strictEqual(r.envio.estado, "respondido");
+    /* análise */
+    r = await chama("tk-richard", { acao: "analiseSalvar", uid: "uCaio00001", tipo: "scout", titulo: "Scout · Copa Sul", resumo: "Ganhou 60% na rede.", numeros: [{ rotulo: "Pontos na rede", valor: "60%" }], link: "https://youtu.be/dQw4w9WgXcQ" });
+    assert.strictEqual(r.s, 200); dc = (await chama("tk-caio")).acomp;
+    assert.strictEqual(dc.analises[0].titulo, "Scout · Copa Sul"); assert.deepStrictEqual(dc.uso, { encontros: { feitos: 1, total: 4 }, analises: { feitas: 1, total: 3 } }, "uso do formato");
+    /* alto rendimento: o cliente só registra quando o Richard liga */
+    assert.strictEqual((await chama("tk-caio", { acao: "arRegistro", data: K.hojeBR(), minutos: 90, pse: 6 })).s, 403);
+    await chama("tk-richard", { acao: "arLigar", uid: "uCaio00001", ligado: true });
+    r = await chama("tk-richard", { acao: "arTorneioSalvar", uid: "uCaio00001", torneio: { nome: "Brasileiro", inicio: K.somaDias(K.hojeBR(), 20), fim: K.somaDias(K.hojeBR(), 26), prioridade: "A" } });
+    assert.strictEqual(r.ar.fase.fase, "especifica");
+    r = await chama("tk-caio", { acao: "arRegistro", data: K.hojeBR(), tipo: "treino", minutos: 90, pse: 6 });
+    assert.strictEqual(r.ar.carga[5].carga, 540, "carga = minutos × esforço na semana atual");
+    assert.strictEqual((await chama("tk-caio", { acao: "arRegistro", data: K.hojeBR(), minutos: 90, pse: 11 })).s, 400);
+    /* relatório do ciclo: rascunho com os números; encerrar publica */
+    r = await chama("tk-richard", { acao: "relatorioRascunho", uid: "uCaio00001" });
+    assert.ok(/45 % → 52 %/.test(r.texto) && /1 encontro/.test(r.texto) && /Tarefas: 1 de 4/.test(r.texto) && /Check-ins: 1 de 12/.test(r.texto), r.texto);
+    assert.strictEqual((await chama("tk-richard", { acao: "cicloEncerrar", uid: "uCaio00001", texto: "curto" })).s, 400);
+    r = await chama("tk-richard", { acao: "cicloEncerrar", uid: "uCaio00001", texto: r.texto + "\nFoco: devolução." });
+    assert.strictEqual(r.ciclo.estado, "encerrado");
+    dc = (await chama("tk-caio")).acomp;
+    assert.strictEqual(dc.ciclo, null); assert.ok(/devolução/.test(dc.ciclosAnteriores[0].relatorio.texto), "o cliente vê o relatório do ciclo encerrado");
+    /* ficha do Richard traz tudo; avisos agendados (véspera) */
+    const ficha = await chama("tk-richard", { acao: "cliente", uid: "uCaio00001" });
+    assert.ok(ficha.acomp.encontros[0].notaPrivada === "Pai ansioso" && ficha.acomp.ar.torneios.length === 1);
+    store["consultoriaEncontros/encAviso000001"] = { uid: "uCaio00001", estado: "marcado", quando: em(24), link: "https://meet.google.com/x", avisos: {} };
+    const ctxA = { db: () => ({ collection: (n) => colRef(n) }), agora: () => new Date().toISOString(), avisarCliente: async (u, t) => avisos.push({ filtro: { uid: u }, aviso: { titulo: t } }), avisarRichard: async () => {} };
+    let ag = await AC.avisosAgendados(ctxA); assert.strictEqual(ag.encontros, 1);
+    ag = await AC.avisosAgendados(ctxA); assert.strictEqual(ag.encontros, 0, "o aviso da véspera vai uma vez só");
+  }
+
   /* convite: o Richard cadastra quem já combinou; entra liberado, completa o cadastro no primeiro acesso */
   assert.strictEqual((await chama("tk-lia", { acao: "convidar", nome: "X", email: "x@x.com" })).s, 403, "cliente não convida");
   assert.strictEqual((await chama("tk-richard", { acao: "convidar", nome: "Duda", email: "duda" })).s, 400);
