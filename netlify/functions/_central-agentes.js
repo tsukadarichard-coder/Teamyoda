@@ -27,7 +27,7 @@ const AGENTES = {
   faltasAdm: { rot: "Faltas e aulas sem registro", etapa: 3, quando: { dow: 3, hora: 14 }, para: "administrativo", desc: "Rascunho dos avisos aos professores sobre aulas sem registro e alunos com muitas faltas." },
   viagens: { rot: "Viagens", etapa: 3, quando: { hora: 9 }, para: "administrativo", desc: "Prazos de inscrição, hospedagem e transporte dos próximos torneios, e quem sai ou volta na semana." },
 };
-const ETAPA_AGENTES = 2;
+const ETAPA_AGENTES = 3; // Etapa 3 (13/11/2026): os três agentes do administrativo
 const ativo = (id) => !!AGENTES[id] && AGENTES[id].etapa <= ETAPA_AGENTES;
 
 function configPadrao() { const ligados = {}; Object.keys(AGENTES).forEach((k) => { ligados[k] = true; }); return { ligados, tetoUSD: TETO_PADRAO_USD, gasto: {} }; }
@@ -85,12 +85,25 @@ function contexto(id, f, extra) {
   if (id === "presenca") return { marcosDaSemana: curto(f.marcosSemana, 15), precisamDeIncentivo: curto(f.faltas, 8).concat(curto(P.alunosSemMarco, 8).map((x) => ({ nome: x.nome, motivo: x.dias + " dias sem marco", professor: x.professor }))) };
   if (id === "mensagemCiclo") return { mes: f.hoje.slice(0, 7), conquistasDoMes: curto(f.conquistasMes, 25), checklistGeral: P.totais && P.totais.pctCompleto };
   if (id === "caixaEntrada") return { hoje: f.hoje, texto: String((extra && extra.texto) || "").slice(0, 4000) };
+  /* ── administrativo (Etapa 3) ── */
+  if (id === "resumoAdm") return {
+    semanaAnterior: f.semanaAnterior || null, pagamentosDoMes: f.pagamentos || null,
+    alunosNovos: curto(f.alunosNovos, 20), saidas: f.saidas == null ? null : curto(f.saidas, 20),
+    reposicoesPendentes: f.reposicoes ? { total: f.reposicoes.total, exemplos: curto(f.reposicoes.lista, 8) } : null,
+  };
+  if (id === "faltasAdm") {
+    const porProf = {};
+    (f.faltas || []).forEach((x) => { (porProf[x.professor] = porProf[x.professor] || { professor: x.professor, faltas: [], semRegistro: [] }).faltas.push({ aluno: x.nome, faltas: x.faltas }); });
+    (P.atrasadas || []).forEach((x) => { (porProf[x.professor] = porProf[x.professor] || { professor: x.professor, faltas: [], semRegistro: [] }).semRegistro.push({ aula: x.nome, data: x.data }); });
+    return { professores: Object.values(porProf).slice(0, 10).map((p) => ({ professor: p.professor, faltas: curto(p.faltas, 8), semRegistro: curto(p.semRegistro, 8) })) };
+  }
+  if (id === "viagens") return { hoje: f.hoje, torneiosProximos: curto(f.torneiosProximos, 20), viagensCadastradas: curto(f.viagens, 20) };
   return {};
 }
 
-const SISTEMA = "Você é um assistente do Richard Tsukada, Head Trainer do Team Yoda (academia de tênis). Escreva em português do Brasil, direto e curto, "
-  + "no tom do Richard: próximo, cordial, prático. Use só os dados fornecidos; não invente aluno, número nem fato. O que você escreve é um rascunho que o "
-  + "Richard revisa antes de usar: nunca fale como se a mensagem já tivesse sido enviada. Sem markdown pesado: use títulos curtos em linha própria e listas com hífen.";
+const SISTEMA = "Você é um assistente do Team Yoda (academia de tênis do Richard Tsukada, Head Trainer), trabalhando para o Richard ou para o administrativo da academia. "
+  + "Escreva em português do Brasil, direto e curto, no tom da casa: próximo, cordial, prático. Use só os dados fornecidos; não invente aluno, número nem fato. O que você escreve é um rascunho que o "
+  + "Richard (ou o administrativo) revisa antes de usar: nunca fale como se a mensagem já tivesse sido enviada. Sem markdown pesado: use títulos curtos em linha própria e listas com hífen.";
 const PEDIDOS = {
   painelSegunda: "Monte o painel de segunda: só as exceções que pedem ação nesta semana, em ordem de prioridade (o mais urgente primeiro), cada uma com o porquê em uma linha e a ação sugerida. "
     + "Agrupe por: aulas sem registro, checklist por professor, faltas, alunos sem marco. Se uma lista estiver vazia, não a mencione. Termine com 'Para fazer hoje:' e no máximo 3 itens. Cabe em 20 minutos de leitura e ação.",
@@ -100,6 +113,13 @@ const PEDIDOS = {
     + "para cada aluno que precisa de incentivo, um roteiro de áudio curto e acolhedor, sem citar faltas como cobrança. Use o primeiro nome do aluno. Máximo de 10 roteiros, os marcos primeiro.",
   mensagemCiclo: "Escreva o rascunho da mensagem pessoal do Richard que vai em todos os relatórios de ciclo deste mês (de 60 a 100 palavras): tom caloroso, reconheça o esforço, "
     + "cite de forma geral o tipo de conquista que mais apareceu no mês (sem nomes de alunos) e termine olhando para o próximo ciclo. Depois, em 'Destaques do mês', liste até 5 conquistas com o nome do aluno, para o Richard escolher se cita alguma.",
+  resumoAdm: "Escreva o resumo da semana anterior que o administrativo vai revisar e enviar ao Richard. Seções curtas, nesta ordem: Pagamentos (situação do mês: recebido, em aberto, atrasados, "
+    + "e quem está atrasado), Alunos novos, Saídas (se a lista vier nula, diga que a contagem começa a partir desta semana), Reposições pendentes. Termine com 'Pontos de atenção:' (no máximo 3). "
+    + "Fale como o administrativo falando com o Richard, na primeira pessoa do plural.",
+  faltasAdm: "Prepare, para cada professor da lista, uma mensagem curta de WhatsApp que o administrativo vai mandar: os alunos com muitas faltas (pedindo que o professor fale com o aluno ou a família) "
+    + "e as aulas sem registro (pedindo para registrar). Tom cordial e prático, sem cobrança dura. Um bloco por professor, começando por 'Para <professor>:'. Professor sem nada, não aparece.",
+  viagens: "Monte a lista do que o administrativo precisa fazer para as viagens de torneio: para cada torneio dos próximos dias, o que falta (inscrição, hospedagem, transporte) e quem sai ou volta "
+    + "nesta semana, lembrando de avisar os professores. Torneio que ainda não está nas viagens cadastradas: sugira cadastrar. Ordem: o mais próximo primeiro. Curto.",
   caixaEntrada: "Separe o texto do Richard em tarefas e compromissos. Responda SÓ com um JSON neste formato, sem nada antes nem depois: "
     + '{"tarefas":[{"titulo":"…","prazo":"AAAA-MM-DD ou vazio","prioridade":"alta|media|baixa","negocio":"team-yoda|39-ranch|quadralab|alvor|geral"}],'
     + '"compromissos":[{"titulo":"…","data":"AAAA-MM-DD","inicio":"HH:MM ou vazio","negocio":"…"}],"observacao":"uma linha, se algo ficou ambíguo"}. '
@@ -125,6 +145,17 @@ function semIA(id, ctx) {
   if (id === "presenca") return (ctx.marcosDaSemana.length ? "Bateram marco\n" + linhas(ctx.marcosDaSemana, (x) => "- " + x.nome + ": " + x.texto) : "Nenhum marco registrado nesta semana.")
     + (ctx.precisamDeIncentivo.length ? "\n\nPrecisam de incentivo\n" + linhas(ctx.precisamDeIncentivo, (x) => "- " + x.nome + (x.motivo ? ": " + x.motivo : x.faltas ? ": " + x.faltas + " faltas" : "")) : "");
   if (id === "mensagemCiclo") return "Conquistas do mês\n" + (ctx.conquistasDoMes.length ? linhas(ctx.conquistasDoMes, (x) => "- " + x.nome + ": " + x.texto + (x.marco ? " (marco)" : "")) : "- nenhuma registrada");
+  if (id === "resumoAdm") {
+    const pg = ctx.pagamentosDoMes, real = (v) => "R$ " + Number(v || 0).toFixed(2).replace(".", ",");
+    return ["Pagamentos" + (pg ? "\n- Recebido no mês: " + real(pg.recebido) + "\n- Em aberto: " + pg.emAberto + " (" + real(pg.valorEmAberto) + ")\n- Atrasados: " + pg.atrasados + (pg.atrasadosNomes && pg.atrasadosNomes.length ? " (" + pg.atrasadosNomes.join(", ") + ")" : "") : "\n- sem dados"),
+      "Alunos novos\n" + (ctx.alunosNovos.length ? linhas(ctx.alunosNovos, (x) => "- " + x) : "- nenhum"),
+      "Saídas\n" + (ctx.saidas == null ? "- a contagem começa a partir desta semana" : ctx.saidas.length ? linhas(ctx.saidas, (x) => "- " + x) : "- nenhuma"),
+      "Reposições pendentes\n- " + (ctx.reposicoesPendentes ? ctx.reposicoesPendentes.total : 0)].join("\n\n");
+  }
+  if (id === "faltasAdm") return ctx.professores.length ? ctx.professores.map((p) => "Para " + p.professor + ":" + (p.faltas.length ? "\n- Faltas: " + p.faltas.map((x) => x.aluno + " (" + x.faltas + ")").join(", ") : "")
+    + (p.semRegistro.length ? "\n- Aulas sem registro: " + p.semRegistro.map((x) => x.aula + " " + x.data.split("-").reverse().slice(0, 2).join("/")).join(", ") : "")).join("\n\n") : "Nenhum aluno com muitas faltas e nenhuma aula sem registro.";
+  if (id === "viagens") return (ctx.torneiosProximos.length ? "Torneios nos próximos 30 dias\n" + linhas(ctx.torneiosProximos, (t) => "- " + t.atleta + ": " + t.torneio + " (" + t.data.split("-").reverse().slice(0, 2).join("/") + ")") : "Nenhum torneio nos próximos 30 dias.")
+    + (ctx.viagensCadastradas.length ? "\n\nViagens cadastradas\n" + linhas(ctx.viagensCadastradas, (v) => "- " + v.atleta + " · " + v.torneio + ": falta " + (["inscricao", "hospedagem", "transporte"].filter((k) => !v[k]).join(", ") || "nada")) : "");
   if (id === "caixaEntrada") return JSON.stringify({ tarefas: ctx.texto.split(/\n+/).map((t) => t.trim()).filter(Boolean).slice(0, 20).map((titulo) => ({ titulo: titulo.slice(0, 160), prazo: "", prioridade: "media", negocio: "geral" })), compromissos: [], observacao: "Sem IA: cada linha virou uma tarefa." });
   return "";
 }
@@ -152,12 +183,16 @@ function textoDasPropostas(p) {
   return out.join("\n\n") || "Nada para separar.";
 }
 
+/* conteúdo vazio não chama a IA (economiza o teto): as viagens só quando há torneio ou viagem pela frente */
+function vazio(id, ctx) { return id === "viagens" && !ctx.torneiosProximos.length && !ctx.viagensCadastradas.length; }
+const paraDe = (agente) => (AGENTES[agente] || {}).para || "richard";
+
 /* item como a tela vê */
 function itemPublico(id, x) {
-  return { id, agente: x.agente, rot: (AGENTES[x.agente] || {}).rot || x.agente, periodo: x.periodo || "", estado: x.estado, titulo: x.titulo || "", texto: x.texto || "",
+  return { id, agente: x.agente, para: paraDe(x.agente), enviadoEm: x.enviadoEm || "", rot: (AGENTES[x.agente] || {}).rot || x.agente, periodo: x.periodo || "", estado: x.estado, titulo: x.titulo || "", texto: x.texto || "",
     propostas: x.propostas || null, semIA: !!x.semIA, motivoSemIA: x.motivoSemIA || "", custoUSD: Math.round((x.custoUSD || 0) * 10000) / 10000,
     criadoEm: x.criadoEm || "", atualizadoEm: x.atualizadoEm || "", aplicadoEm: x.aplicadoEm || "" };
 }
 
 module.exports = { MODELO, PRECO, AGENTES, ETAPA_AGENTES, ativo, configPadrao, limparConfig, publicoConfig, custoUSD, dentroDoTeto, periodoDe, devidos,
-  contexto, SISTEMA, PEDIDOS, mensagem, semIA, lerPropostas, textoDasPropostas, itemPublico };
+  contexto, SISTEMA, PEDIDOS, mensagem, semIA, lerPropostas, textoDasPropostas, itemPublico, vazio, paraDe };

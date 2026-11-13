@@ -339,11 +339,22 @@ function PainelAvisos({ papel, avisosIni, tipos, chavePush }) {
   );
 }
 function TelaAdministrativo({ resp }) {
+  const ABAS_ADM = [["rotina-adm", "Hoje"], ["viagens", "Viagens"], ["agentes", "Agentes"], ["avisos", "Avisos"]];
+  const [aba, setAba] = useState(() => { const h = String(location.hash || "").replace("#", ""); return ABAS_ADM.some(([v]) => v === h) ? h : "rotina-adm"; });
+  useEffect(() => { const f = () => { const h = String(location.hash || "").replace("#", ""); if (ABAS_ADM.some(([v]) => v === h)) setAba(h); }; window.addEventListener("hashchange", f); return () => window.removeEventListener("hashchange", f); }, []);
+  const chip = (on) => ({ fontFamily: ARCH, fontSize: 13, fontWeight: 700, padding: "8px 14px", borderRadius: 999, cursor: "pointer", border: "1px solid " + (on ? "#0E1F17" : "#E0E6E3"), background: on ? "#0E1F17" : "#FFFFFF", color: on ? "#FFFFFF" : C.tinta, whiteSpace: "nowrap", flex: "none" });
+  const novos = (resp.agentes || []).filter((x) => x.estado === "novo").length;
   return (
     <div>
       <h1 style={{ fontFamily: ARCH, fontSize: 28, fontWeight: 700, letterSpacing: "-0.02em", margin: "0 0 4px" }}>Central · Administrativo</h1>
-      <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginBottom: 14 }}>Ative os avisos neste celular. A sua rotina e os lembretes de pagamento chegam aqui nas próximas etapas.</p>
-      <PainelAvisos papel="administrativo" avisosIni={resp.avisos} tipos={resp.tipos || []} chavePush={resp.chavePush} />
+      <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginBottom: 10 }}>A sua rotina, as viagens dos atletas, os rascunhos que a Central prepara para você e os avisos no celular.</p>
+      <div style={{ display: "flex", gap: 8, overflowX: "auto", margin: "0 -16px 12px", padding: "2px 16px 4px" }}>
+        {ABAS_ADM.map(([v, r]) => <button key={v} data-aba-adm={v} style={chip(aba === v)} onClick={() => setAba(v)}>{r}{v === "agentes" && novos ? " (" + novos + ")" : ""}</button>)}
+      </div>
+      {aba === "rotina-adm" && resp.rotinaAdm && <AbaRotinaAdm inicial={{ rotinaAdm: resp.rotinaAdm, viagens: resp.viagens, torneios: resp.torneios }} podeEditar />}
+      {aba === "viagens" && <AbaViagens inicial={{ rotinaAdm: resp.rotinaAdm, viagens: resp.viagens || [], torneios: resp.torneios || [] }} podeEditar />}
+      {aba === "agentes" && resp.agentesConfig && <AbaAgentes inicial={resp} defs={resp.agentesDef || []} papel="administrativo" />}
+      {aba === "avisos" && <PainelAvisos papel="administrativo" avisosIni={resp.avisos} tipos={resp.tipos || []} chavePush={resp.chavePush} />}
     </div>
   );
 }
@@ -497,7 +508,8 @@ function AbaRotina({ inicial }) {
     </div>
   );
 }
-function AbaAgentes({ inicial, defs }) {
+function AbaAgentes({ inicial, defs, papel }) {
+  const adm = papel === "administrativo";
   const [itens, setItens] = useState(inicial.agentes || []), [cfg, setCfg] = useState(inicial.agentesConfig);
   const [texto, setTexto] = useState(""), [msg, setMsg] = useState(""), [ocupado, setOcupado] = useState(""), [editando, setEditando] = useState(null), [verTodos, setVerTodos] = useState(false), [teto, setTeto] = useState(String(inicial.agentesConfig.tetoUSD));
   const sub = { ...prosa, fontSize: 12.5, color: C.grafite };
@@ -518,12 +530,12 @@ function AbaAgentes({ inicial, defs }) {
   const lista = itens.filter((x) => verTodos || x.estado === "novo" || x.estado === "gerando" || tocados[x.id]);
   return (
     <div data-agentes>
-      <div style={cartaoR}>
+      {!adm && <div style={cartaoR}>
         <p style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, margin: "0 0 4px" }}>Caixa de entrada</p>
         <p style={{ ...sub, marginBottom: 8 }}>Escreva solto ("ligar pro João quinta, revisar a proposta do AR"). O agente separa em tarefas e compromissos para você confirmar.</p>
         <textarea rows={3} style={{ ...entrada, fontSize: 15 }} value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="O que está na sua cabeça agora?" data-caixa />
         <div style={{ marginTop: 8 }}><Botao disabled={!!ocupado || texto.trim().length < 3} onClick={() => fazer("caixa", { acao: "caixaEntrada", texto }, (x) => { setItens(x.agentes); setTexto(""); })}>{ocupado === "caixa" ? "Enviando…" : "Organizar"}</Botao></div>
-      </div>
+      </div>}
       <div className="flex flex-wrap items-center gap-2" style={{ margin: "4px 0 8px" }}>
         <span style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, flex: 1 }}>Rascunhos {verTodos ? "" : "novos"}</span>
         <button type="button" onClick={() => setVerTodos(!verTodos)} style={{ border: "none", background: "none", color: C.grafite, cursor: "pointer", fontSize: 13, textDecoration: "underline" }}>{verTodos ? "Só os novos" : "Ver todos"}</button>
@@ -533,9 +545,9 @@ function AbaAgentes({ inicial, defs }) {
       {lista.map((it) => (
         <div key={it.id} style={{ ...cartaoR, borderLeft: it.estado === "novo" ? "4px solid " + C.saibro : "1px solid #E6EBE8" }} data-item-agente={it.id}>
           <div className="flex flex-wrap items-center gap-2">
-            <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, flex: 1 }}>{it.rot}</span>
+            <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, flex: 1 }}>{it.rot}{!adm && it.para === "administrativo" ? " · do administrativo" : ""}</span>
             <span style={sub}>{it.criadoEm ? new Date(it.criadoEm).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""}</span>
-            <ChipP>{{ gerando: "preparando", novo: "novo", aprovado: "aprovado", descartado: "descartado" }[it.estado] || it.estado}</ChipP>
+            <ChipP>{{ gerando: "preparando", novo: "novo", aprovado: "aprovado", descartado: "descartado", enviado: adm ? "enviado ao Richard" : "recebido" }[it.estado] || it.estado}</ChipP>
           </div>
           {it.estado === "gerando" ? <p style={{ ...sub, marginTop: 8 }} data-preparando>Preparando o rascunho…</p> : (
             <div>
@@ -543,17 +555,23 @@ function AbaAgentes({ inicial, defs }) {
               {editando && editando.id === it.id
                 ? <textarea rows={10} style={{ ...entrada, fontSize: 14, marginTop: 8 }} value={editando.texto} onChange={(e) => setEditando({ ...editando, texto: e.target.value })} />
                 : <p style={{ ...prosa, fontSize: 14, whiteSpace: "pre-wrap", marginTop: 8 }} data-texto-agente>{it.texto}</p>}
-              <div className="flex flex-wrap items-center gap-2" style={{ marginTop: 10 }}>
+              {(it.estado === "enviado" || (!adm && it.para === "administrativo")) ? (
+                <div className="flex flex-wrap items-center gap-2" style={{ marginTop: 10 }}>
+                  <Botao pequeno variante="vazio" onClick={() => { try { navigator.clipboard.writeText(it.texto); } catch (e) {} }}>Copiar</Botao>
+                  {it.enviadoEm && <span style={sub}>enviado em {new Date(it.enviadoEm).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>}
+                </div>
+              ) : <div className="flex flex-wrap items-center gap-2" style={{ marginTop: 10 }}>
                 {editando && editando.id === it.id ? (
                   <Botao pequeno disabled={!!ocupado} onClick={() => fazer("ed" + it.id, { acao: "agenteItem", id: it.id, op: "editar", texto: editando.texto }, (x) => { trocaItem(x.item); setEditando(null); })}>Salvar texto</Botao>
                 ) : (<>
-                  {it.estado !== "aprovado" && <Botao pequeno disabled={!!ocupado} onClick={() => fazer("ap" + it.id, { acao: "agenteItem", id: it.id, op: "aprovar" }, (x) => trocaItem(x.item))}>{it.agente === "caixaEntrada" ? "Pôr na agenda e nas tarefas" : "Aprovar"}</Botao>}
+                  {it.agente === "resumoAdm" ? <Botao pequeno disabled={!!ocupado} onClick={() => fazer("env" + it.id, { acao: "agenteItem", id: it.id, op: "enviar" }, (x) => trocaItem(x.item))}>Enviar ao Richard</Botao>
+                    : it.estado !== "aprovado" && <Botao pequeno disabled={!!ocupado} onClick={() => fazer("ap" + it.id, { acao: "agenteItem", id: it.id, op: "aprovar" }, (x) => trocaItem(x.item))}>{it.agente === "caixaEntrada" ? "Pôr na agenda e nas tarefas" : "Aprovar"}</Botao>}
                   {it.agente !== "caixaEntrada" && <Botao pequeno variante="vazio" onClick={() => setEditando({ id: it.id, texto: it.texto })}>Editar</Botao>}
                   {it.agente !== "caixaEntrada" && <Botao pequeno variante="vazio" onClick={() => { try { navigator.clipboard.writeText(it.texto); setMsg(""); } catch (e) {} }}>Copiar</Botao>}
                   {it.estado !== "descartado" && <Botao pequeno variante="vazio" disabled={!!ocupado} onClick={() => fazer("de" + it.id, { acao: "agenteItem", id: it.id, op: "descartar" }, (x) => trocaItem(x.item))}>Descartar</Botao>}
                 </>)}
                 {it.aplicadoEm && <span style={sub}>entrou na agenda e nas tarefas</span>}
-              </div>
+              </div>}
             </div>
           )}
         </div>
@@ -564,21 +582,150 @@ function AbaAgentes({ inicial, defs }) {
           <div key={d.id} style={{ padding: "8px 0", borderBottom: "1px solid #EEF1EF", opacity: d.ativo ? 1 : 0.6 }}>
             <div className="flex flex-wrap items-center gap-2">
               <label className="flex items-center gap-2" style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 600, flex: 1, minWidth: 180 }}>
-                <input type="checkbox" data-ligado={d.id} checked={!!cfg.ligados[d.id]} disabled={!d.ativo || !!ocupado} onChange={(e) => fazer("cfg", { acao: "agentesConfig", ligados: { [d.id]: e.target.checked } }, (x) => setCfg(x.agentesConfig))} />{d.rot}
+                <input type="checkbox" data-ligado={d.id} checked={!!cfg.ligados[d.id]} disabled={!d.ativo || !!ocupado || adm} onChange={(e) => fazer("cfg", { acao: "agentesConfig", ligados: { [d.id]: e.target.checked } }, (x) => setCfg(x.agentesConfig))} />{d.rot}
               </label>
               {d.ativo ? <Botao pequeno variante="vazio" disabled={!!ocupado} onClick={() => fazer("g" + d.id, { acao: "agenteGerar", agente: d.id }, (x) => setItens(x.agentes))}>{ocupado === "g" + d.id ? "Pedindo…" : "Gerar agora"}</Botao> : <span style={sub}>chega na Etapa {d.etapa}</span>}
             </div>
             <p style={{ ...sub, margin: "2px 0 0 21px" }}>{d.desc} {d.ativo ? "Roda " + quandoTxt(d.quando) + "." : ""}</p>
           </div>
         ))}
-        <div className="flex flex-wrap items-center gap-2" style={{ marginTop: 12 }}>
+        {!adm && <div className="flex flex-wrap items-center gap-2" style={{ marginTop: 12 }}>
           <span style={{ fontFamily: ARCH, fontSize: 14 }}>Teto do mês: US$</span>
           <input type="number" min="0" max="200" step="1" style={{ ...entrada, fontSize: 14, padding: "5px 8px", width: 90 }} value={teto} onChange={(e) => setTeto(e.target.value)} data-teto-usd />
           <Botao pequeno disabled={!!ocupado} onClick={() => fazer("teto", { acao: "agentesConfig", tetoUSD: Number(teto) }, (x) => setCfg(x.agentesConfig))}>Salvar</Botao>
           <span style={sub} data-gasto>gasto em {nomeMes(cfg.mes)}: US$ {cfg.gastoMes.toFixed(2).replace(".", ",")}</span>
-        </div>
-        <p style={{ ...sub, marginTop: 8 }}>Ao chegar no teto, os agentes entregam o rascunho sem IA (as mesmas listas, sem o texto corrido). Nenhum agente envia nada para aluno, pai ou professor.</p>
+        </div>}
+        <p style={{ ...sub, marginTop: 8 }}>{adm ? "Quem liga, desliga e define o teto de gasto dos agentes é o Richard. " : ""}Ao chegar no teto, os agentes entregam o rascunho sem IA (as mesmas listas, sem o texto corrido). Nenhum agente envia nada para aluno, pai ou professor.</p>
       </div>
+    </div>
+  );
+}
+
+/* ── Etapa 3 (13/11/2026): Rotina do Administrativo (ele edita; o Richard só vê) e viagens ── */
+function dataLongaAdm(iso) { return new Date(iso + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" }); }
+function AbaRotinaAdm({ inicial, podeEditar }) {
+  const [v, setV] = useState(inicial), [ocupado, setOcupado] = useState(false), [erro, setErro] = useState(""), [ini, setIni] = useState(inicial.rotinaAdm.horario.inicio);
+  const d = v.rotinaAdm, sub = { ...prosa, fontSize: 12.5, color: C.grafite };
+  const cartaoR = { background: "#FFFFFF", border: "1px solid #E6EBE8", borderRadius: 16, padding: "14px 16px", marginBottom: 12 };
+  async function chamar(acao, extra) {
+    setOcupado(true); setErro("");
+    try { const x = await chamarCentral("POST", { acao, data: d.data, ...(extra || {}) }); setV(x); setIni(x.rotinaAdm.horario.inicio); } catch (e) { setErro(String(e.message || e)); }
+    finally { setOcupado(false); }
+  }
+  const item = (i) => (
+    <label key={i.id} className="flex items-start gap-2" style={{ padding: "6px 0", fontFamily: ARCH, fontSize: 14, cursor: podeEditar ? "pointer" : "default" }} data-item-adm={i.id}>
+      <input type="checkbox" style={{ marginTop: 3 }} checked={i.feito} disabled={!podeEditar || ocupado} onChange={() => chamar("admMarcar", { id: i.id, feito: !i.feito })} />
+      <span style={{ textDecoration: i.feito ? "line-through" : "none", color: i.feito ? C.grafite : C.tinta }}>{i.r}</span>
+    </label>
+  );
+  return (
+    <div data-rotina-adm>
+      <div style={cartaoR}>
+        <div className="flex flex-wrap items-center gap-2">
+          <Botao pequeno variante="vazio" disabled={ocupado} onClick={() => chamar("admVer", { data: maisDias(d.data, -1) })}>◀</Botao>
+          <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, flex: 1 }}>{dataLongaAdm(d.data)}</span>
+          <Botao pequeno variante="vazio" disabled={ocupado} onClick={() => chamar("admVer", { data: maisDias(d.data, 1) })}>▶</Botao>
+        </div>
+        {!podeEditar && <p style={{ ...sub, marginTop: 8 }}>Você vê a rotina do administrativo; quem marca é ele.</p>}
+        <div className="flex flex-wrap items-center gap-2" style={{ marginTop: 10 }}>
+          <span style={{ fontFamily: ARCH, fontSize: 14 }}>Expediente: <b>{d.horario.inicio} às {d.horario.fim}</b></span>
+          {podeEditar && <><input type="time" style={{ ...entrada, fontSize: 14, padding: "5px 8px", width: 110 }} value={ini} onChange={(e) => setIni(e.target.value)} aria-label="Início do expediente" />
+            <Botao pequeno variante="vazio" disabled={ocupado || ini === d.horario.inicio} onClick={() => chamar("admHorario", { inicio: ini })}>Mudar o início</Botao></>}
+          {d.util && <span style={{ ...sub, marginLeft: "auto" }} data-progresso-adm>{d.feitos} de {d.total} feitos</span>}
+        </div>
+        {erro && <p style={{ ...prosa, fontSize: 13, color: "#B23A2E", marginTop: 8 }}>{erro}</p>}
+      </div>
+      {!d.util && <div style={cartaoR}><p style={prosa}>Fim de semana: sem rotina do administrativo.</p></div>}
+      {d.partes.map((p) => (
+        <div key={p.id} style={cartaoR} data-parte={p.id}>
+          <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, margin: "0 0 4px" }}>{p.titulo} <span style={{ ...sub, fontWeight: 400 }}>{p.inicio} às {p.fim}</span></p>
+          {p.itens.map(item)}
+        </div>
+      ))}
+      {(d.semanais.length > 0 || d.mensais.length > 0) && (
+        <div style={cartaoR}>
+          {d.semanais.length > 0 && <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, margin: "0 0 4px" }}>Desta semana</p>}
+          {d.semanais.map(item)}
+          {d.mensais.length > 0 && <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, margin: "10px 0 4px" }}>Do mês</p>}
+          {d.mensais.map(item)}
+        </div>
+      )}
+      {d.util && (
+        <div style={cartaoR}>
+          <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, margin: "0 0 6px" }}>Pendências do dia</p>
+          {podeEditar ? <textarea rows={3} style={{ ...entrada, fontSize: 14 }} defaultValue={d.pendencias} key={d.data} onBlur={(e) => { if (e.target.value !== d.pendencias) chamar("admPendencias", { texto: e.target.value }); }} placeholder="O que ficou para amanhã" data-pendencias />
+            : <p style={{ ...prosa, fontSize: 14, whiteSpace: "pre-wrap" }}>{d.pendencias || "Nenhuma anotada."}</p>}
+        </div>
+      )}
+      {d.viagens.length > 0 && (
+        <div style={cartaoR}>
+          <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, margin: "0 0 4px" }}>Viagens desta semana</p>
+          {d.viagens.map((x) => <p key={x.id} style={{ ...prosa, fontSize: 13.5, padding: "4px 0" }}>{x.pendente ? "⚠️ " : "✓ "}{x.atleta} · {x.torneio}{x.saida ? " · sai " + dataCurta(x.saida) : ""}{x.volta ? ", volta " + dataCurta(x.volta) : ""}</p>)}
+        </div>
+      )}
+      <p style={{ ...sub, margin: "4px 2px 12px" }}>{d.apos}</p>
+    </div>
+  );
+}
+function AbaViagens({ inicial, podeEditar }) {
+  const [v, setV] = useState(inicial), [ocupado, setOcupado] = useState(false), [erro, setErro] = useState(""), [nova, setNova] = useState(null);
+  const sub = { ...prosa, fontSize: 12.5, color: C.grafite }, inp = { ...entrada, fontSize: 14, padding: "5px 8px" };
+  const cartaoR = { background: "#FFFFFF", border: "1px solid #E6EBE8", borderRadius: 16, padding: "14px 16px", marginBottom: 12 };
+  async function chamar(acao, extra) {
+    setOcupado(true); setErro("");
+    try { const x = await chamarCentral("POST", { acao, ...(extra || {}) }); setV(x); return true; } catch (e) { setErro(String(e.message || e)); return false; }
+    finally { setOcupado(false); }
+  }
+  const CHECKS = [["inscricao", "Inscrição"], ["hospedagem", "Hospedagem"], ["transporte", "Transporte"], ["avisouSaida", "Avisou os professores da saída"], ["avisouVolta", "Avisou da volta"]];
+  const jaTem = (t) => v.viagens.some((x) => x.atleta === t.atleta && x.torneio === t.torneio);
+  return (
+    <div data-viagens>
+      {erro && <p style={{ ...prosa, fontSize: 13, color: "#B23A2E", marginBottom: 8 }}>{erro}</p>}
+      {v.torneios.filter((t) => !jaTem(t)).length > 0 && (
+        <div style={cartaoR}>
+          <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, margin: "0 0 4px" }}>Torneios dos atletas nos próximos 30 dias</p>
+          <p style={{ ...sub, marginBottom: 6 }}>Da ficha de cada atleta no Team Yoda.</p>
+          {v.torneios.filter((t) => !jaTem(t)).map((t, i) => (
+            <div key={i} className="flex flex-wrap items-center gap-2" style={{ padding: "6px 0", borderBottom: "1px solid #EEF1EF" }}>
+              <span style={{ fontFamily: ARCH, fontSize: 14, flex: 1 }}>{t.atleta} · {t.torneio} · {dataCurta(t.data)}</span>
+              {podeEditar && <Botao pequeno variante="vazio" disabled={ocupado} onClick={() => setNova({ atleta: t.atleta, torneio: t.torneio, saida: maisDias(t.data, -1), volta: t.fim || t.data })}>Criar viagem</Botao>}
+            </div>
+          ))}
+        </div>
+      )}
+      {v.viagens.map((x) => (
+        <div key={x.id} style={cartaoR} data-viagem={x.id}>
+          <div className="flex flex-wrap items-center gap-2">
+            <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, flex: 1 }}>{x.atleta} · {x.torneio}</span>
+            <span style={sub}>{x.saida ? "sai " + dataCurta(x.saida) : "sem data"}{x.volta ? " · volta " + dataCurta(x.volta) : ""}</span>
+          </div>
+          <div className="flex flex-wrap gap-3" style={{ marginTop: 8 }}>
+            {CHECKS.map(([k, r]) => (
+              <label key={k} className="flex items-center gap-1" style={{ fontFamily: ARCH, fontSize: 13.5 }}>
+                <input type="checkbox" checked={!!x[k]} disabled={!podeEditar || ocupado} onChange={() => chamar("admViagemSalvar", { viagem: { ...x, [k]: !x[k] } })} data-check={k} />{r}
+              </label>
+            ))}
+          </div>
+          {x.nota && <p style={{ ...sub, marginTop: 6 }}>{x.nota}</p>}
+          {podeEditar && <button type="button" onClick={() => chamar("admViagemApagar", { id: x.id })} style={{ border: "none", background: "none", color: C.grafite, cursor: "pointer", fontSize: 13, textDecoration: "underline", padding: 0, marginTop: 6 }}>Apagar</button>}
+        </div>
+      ))}
+      {!v.viagens.length && <p style={{ ...sub, marginBottom: 12 }}>Nenhuma viagem cadastrada.</p>}
+      {podeEditar && (nova ? (
+        <div style={cartaoR} data-nova-viagem>
+          <div className="flex flex-wrap gap-2">
+            <input style={{ ...inp, flex: 1, minWidth: 160 }} placeholder="Atleta" value={nova.atleta} onChange={(e) => setNova({ ...nova, atleta: e.target.value })} />
+            <input style={{ ...inp, flex: 1, minWidth: 160 }} placeholder="Torneio" value={nova.torneio} onChange={(e) => setNova({ ...nova, torneio: e.target.value })} />
+            <input type="date" style={{ ...inp, width: 150 }} value={nova.saida} onChange={(e) => setNova({ ...nova, saida: e.target.value })} aria-label="Saída" />
+            <input type="date" style={{ ...inp, width: 150 }} value={nova.volta} onChange={(e) => setNova({ ...nova, volta: e.target.value })} aria-label="Volta" />
+          </div>
+          <input style={{ ...inp, marginTop: 8 }} placeholder="Observação (hotel, carona, quem acompanha)" value={nova.nota || ""} onChange={(e) => setNova({ ...nova, nota: e.target.value })} />
+          <div className="flex gap-2" style={{ marginTop: 8 }}>
+            <Botao pequeno disabled={ocupado || !nova.atleta.trim() || !nova.torneio.trim()} onClick={async () => { if (await chamar("admViagemSalvar", { viagem: nova })) setNova(null); }}>Salvar viagem</Botao>
+            <Botao pequeno variante="vazio" onClick={() => setNova(null)}>Cancelar</Botao>
+          </div>
+        </div>
+      ) : <Botao pequeno onClick={() => setNova({ atleta: "", torneio: "", saida: "", volta: "", nota: "" })}>+ Viagem</Botao>)}
     </div>
   );
 }
@@ -588,7 +735,7 @@ function TelaCentral() {
   const [dados, setDados] = useState(null);
   const [erro, setErro] = useState("");
   const [estadoSalvar, setEstadoSalvar] = useState("");
-  const ABAS_HASH = ["hoje", "rotina", "agenda", "tarefas", "implantacao", "agentes", "negocios", "revisao", "notas", "avisos"];
+  const ABAS_HASH = ["hoje", "rotina", "agenda", "tarefas", "implantacao", "agentes", "administrativo", "negocios", "revisao", "notas", "avisos"];
   const [aba, setAba] = useState(() => { const h = String(location.hash || "").replace("#", ""); return ABAS_HASH.indexOf(h) >= 0 ? h : "hoje"; });
   const [impl, setImpl] = useState(null);
   const [estadoImpl, setEstadoImpl] = useState("");
@@ -774,7 +921,7 @@ function TelaCentral() {
       </div>
       <p style={{ ...sub, fontSize: 13.5, marginBottom: 10 }}>Central · {new Date(hoje + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })} · só você vê</p>
       <div data-abas style={{ display: "flex", gap: 8, overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "none", margin: "0 -16px 12px", padding: "2px 16px 4px" }}>
-        {[["hoje", "Hoje"], ["rotina", "Rotina"], ["agenda", "Agenda"], ["tarefas", "Tarefas"], ["implantacao", "Implantação"], ["agentes", "Agentes"], ["negocios", "Negócios"], ["revisao", "Revisão semanal"], ["notas", "Notas e decisões"], ["avisos", "Avisos"]].map(([v, r]) => <button key={v} data-aba-central={v} style={{ ...chipA(aba === v), whiteSpace: "nowrap", flex: "none" }} onClick={() => setAba(v)}>{r}</button>)}
+        {[["hoje", "Hoje"], ["rotina", "Rotina"], ["agenda", "Agenda"], ["tarefas", "Tarefas"], ["implantacao", "Implantação"], ["agentes", "Agentes"], ["administrativo", "Administrativo"], ["negocios", "Negócios"], ["revisao", "Revisão semanal"], ["notas", "Notas e decisões"], ["avisos", "Avisos"]].map(([v, r]) => <button key={v} data-aba-central={v} style={{ ...chipA(aba === v), whiteSpace: "nowrap", flex: "none" }} onClick={() => setAba(v)}>{r}</button>)}
       </div>
 
       {aba === "hoje" && (() => {
@@ -976,7 +1123,14 @@ function TelaCentral() {
 
       {aba === "implantacao" && impl && <AbaImplantacao lista={impl} mudar={mudarImpl} hoje={hoje} />}
       {aba === "rotina" && resp.rotina && <AbaRotina inicial={{ rotina: resp.rotina, ritmos: resp.ritmos, professores: resp.professores }} />}
-      {aba === "agentes" && resp.agentesConfig && <AbaAgentes inicial={resp} defs={resp.agentesDef || []} />}
+      {aba === "agentes" && resp.agentesConfig && <AbaAgentes inicial={resp} defs={(resp.agentesDef || []).filter((d) => d.para !== "administrativo")} papel="richard" />}
+      {aba === "administrativo" && resp.rotinaAdm && (
+        <div>
+          <AbaRotinaAdm inicial={{ rotinaAdm: resp.rotinaAdm, viagens: resp.viagens, torneios: resp.torneios }} podeEditar={false} />
+          <p style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, margin: "6px 0 8px" }}>Viagens</p>
+          <AbaViagens inicial={{ rotinaAdm: resp.rotinaAdm, viagens: resp.viagens || [], torneios: resp.torneios || [] }} podeEditar={false} />
+        </div>
+      )}
       {aba === "avisos" && <PainelAvisos papel="richard" avisosIni={resp.avisos || { tipos: {}, silencio: { ativo: true, de: "22:00", ate: "07:00" } }} tipos={resp.tipos || []} chavePush={resp.chavePush} />}
 
       {aba === "notas" && (
