@@ -322,6 +322,19 @@
     return [{ fim: "winner_nos", rot: "Winner de " + nome, nos: true, quem: "atleta" }, { fim: "winner_nos", rot: "Winner de " + pc, nos: true, quem: "parceiro" }, { fim: "erro_dele", rot: "Erro dos adversários", nos: true, quem: null },
       { fim: "erro_nos", rot: "Erro de " + nome, nos: false, quem: "atleta" }, { fim: "erro_nos", rot: "Erro de " + pc, nos: false, quem: "parceiro" }, { fim: "winner_dele", rot: "Winner dos adversários", nos: false, quem: null }];
   }
+  /* dupla (organizada em 13/11/2026): uma linha por pessoa e uma coluna por quem leva o ponto.
+     Esquerda (azul) = ponto da dupla; direita (laranja) = ponto dos adversários. */
+  function fimDuplaHtml(j, nome) {
+    var pc = primeiroNome(D.nomeParceiro(j)), bs = botoesFim(j, nome);
+    var bt = function (fim, quem, curto) {
+      var o = bs.filter(function (x) { return x.fim === fim && (x.quem || null) === (quem || null); })[0];
+      return '<button type="button" class="bt-fim ' + (o.nos ? "nos" : "ele") + '" data-fim="' + fim + '"' + (quem ? ' data-quem="' + quem + '"' : "") + ' aria-label="' + esc(o.rot) + (o.nos ? " (ponto da dupla)" : " (ponto dos adversários)") + '">' + esc(curto) + "</button>";
+    };
+    return '<div class="fim-dupla" data-fim-dupla><span></span><p class="cab nos">Ponto da dupla</p><p class="cab ele">Ponto deles</p>' +
+      '<p class="lin">' + esc(nome) + "</p>" + bt("winner_nos", "atleta", "Winner") + bt("erro_nos", "atleta", "Erro") +
+      '<p class="lin">' + esc(pc) + "</p>" + bt("winner_nos", "parceiro", "Winner") + bt("erro_nos", "parceiro", "Erro") +
+      '<span class="sep"></span><p class="lin">Adversários</p>' + bt("erro_dele", null, "Erro deles") + bt("winner_dele", null, "Winner deles") + "</div>";
+  }
   var marc = { id: null };
   function telaJogo(id) {
     var j = D.jogo(st, id);
@@ -358,17 +371,17 @@
       (M.ehAdverso(pl) ? '<p class="adverso">PLACAR ADVERSO · este ponto entra na comparação</p>' : "") +
       (AV && n ? AV.faixaAlerta(j.pontos, nome, ant) : "");
     if (!r) {
-      h += '<section class="cartao" data-tour="saque"><p class="olho">' + (meu ? "Saque de " + esc(nomeSac) : dupla ? "Saque dos adversários" : "Saque do adversário") + ' (opcional)' +
-        (dupla && meu ? ' <button type="button" class="bt bt-texto bt-pq" id="btTrocarSaque" style="margin-left:6px;text-transform:none;letter-spacing:0">Trocar quem saca</button>' : "") + "</p>" +
-        (completo ? '<div class="chips" role="group" aria-label="Direção do saque" style="margin-bottom:8px">' + M.DIRECOES_SAQUE.map(function (x) { return '<button type="button" class="chip" data-dsq="' + esc(x[0]) + '" aria-pressed="' + (marc.dirS === x[0]) + '">' + esc(x[1]) + "</button>"; }).join("") + '<span class="nota" style="align-self:center;margin:0">direção do saque</span></div>' : "") +
+      h += '<section class="cartao" data-tour="saque"><div class="saque-topo"><p class="olho" style="margin:0">' + (meu ? "Saque de " + esc(nomeSac) : dupla ? "Saque dos adversários" : "Saque do adversário") + ' <span class="opc">(opcional)</span></p>' +
+        (dupla && meu ? '<button type="button" class="bt bt-pq" id="btTrocarSaque">⇄ Trocar quem saca</button>' : "") + "</div>" +
+        (completo ? '<p class="rot-mini">Direção do saque</p><div class="chips" role="group" aria-label="Direção do saque" style="margin-bottom:10px">' + M.DIRECOES_SAQUE.map(function (x) { return '<button type="button" class="chip" data-dsq="' + esc(x[0]) + '" aria-pressed="' + (marc.dirS === x[0]) + '">' + esc(x[1]) + "</button>"; }).join("") + "</div>" : "") +
+        (completo ? '<p class="rot-mini">Como foi o saque</p>' : "") +
         '<div class="grade4">' +
         [["1", "1º dentro"], ["2", "2º dentro"], ["ace", meu ? "Ace" : dupla ? "Ace deles" : "Ace dele"], ["df", meu ? "Dupla falta" : dupla ? "Dupla falta deles" : "Dupla falta dele"]].map(function (x) {
           return '<button type="button" class="bt-saque" data-saq="' + x[0] + '"' + (x[0] === "1" || x[0] === "2" ? ' aria-pressed="' + (marc.saquePre === x[0]) + '"' : "") + ">" + x[1] + "</button>";
         }).join("") + "</div></section>" +
-        '<section class="cartao" data-tour="fim"><p class="olho">Como o ponto terminou</p><div class="grade2">' + botoesFim(j, nome).map(function (o) {
-          return '<button type="button" class="bt-fim ' + (o.nos ? "nos" : "ele") + '" data-fim="' + o.fim + '"' + (o.quem ? ' data-quem="' + o.quem + '"' : "") + ">" + esc(o.rot) + "<small>" +
-            (o.nos ? "ponto " + (dupla ? "da dupla" : "de " + esc(nome)) : dupla ? "ponto dos adversários" : "ponto do adversário") + "</small></button>";
-        }).join("") + "</div></section>";
+        '<section class="cartao" data-tour="fim"><p class="olho">Como o ponto terminou</p>' + (dupla ? fimDuplaHtml(j, nome) : '<div class="grade2">' + botoesFim(j, nome).map(function (o) {
+          return '<button type="button" class="bt-fim ' + (o.nos ? "nos" : "ele") + '" data-fim="' + o.fim + '">' + esc(o.rot) + "<small>" + (o.nos ? "ponto de " + esc(nome) : "ponto do adversário") + "</small></button>";
+        }).join("") + "</div>") + "</section>";
     } else {
       var rot = botoesFim(j, nome).filter(function (o) { return o.fim === r.fim && (!o.quem || o.quem === r.quem); })[0];
       h += '<section class="cartao rasc' + (r.nos ? "" : " ele") + '"><div class="contagem"><p class="olho" style="margin:0">' + esc(rot ? rot.rot : "") + '</p><button type="button" class="bt bt-texto bt-pq" id="btTrocar">Trocar</button></div>' +

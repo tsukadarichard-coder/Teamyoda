@@ -90,6 +90,18 @@ h2 { font-size: 18px; margin: 0 0 6px; }
 .bt-fim.nos { background: var(--azul); border-color: var(--azul); color: #fff; }
 .bt-fim.ele { background: var(--branco); border-color: var(--laranja); color: var(--laranja); }
 .bt-fim small { display: block; font-size: 12px; font-weight: 600; opacity: .85; margin-top: 2px; }
+/* saque: título e troca de quem saca na mesma linha; rótulos pequenos antes de cada grupo */
+.saque-topo { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.saque-topo .opc { text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--grafite); }
+.rot-mini { margin: 0 0 6px; font-size: 13px; font-weight: 700; color: var(--grafite); }
+/* fim do ponto na dupla: linhas = quem, colunas = de quem é o ponto */
+.fim-dupla { display: grid; grid-template-columns: minmax(64px, auto) 1fr 1fr; gap: 8px; align-items: stretch; }
+.fim-dupla .cab { margin: 0; align-self: end; text-align: center; font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.fim-dupla .cab.nos { color: var(--azul); }
+.fim-dupla .cab.ele { color: var(--laranja); }
+.fim-dupla .lin { margin: 0; align-self: center; font-size: 14.5px; font-weight: 800; overflow-wrap: anywhere; line-height: 1.15; }
+.fim-dupla .sep { grid-column: 1 / -1; height: 1px; background: var(--linha); margin: 2px 0; }
+.fim-dupla .bt-fim { min-height: 60px; font-size: 16px; }
 .bt-bola { min-height: 64px; font-size: 22px; font-weight: 900; border-radius: 14px; background: var(--violeta); color: #fff; border: 0; cursor: pointer; font-variant-numeric: tabular-nums; }
 .bt-bola small { display: block; font-size: 11.5px; font-weight: 600; opacity: .85; }
 .bt-saque { min-height: 48px; padding: 6px 4px; border-radius: 12px; border: 1.5px solid var(--linha); background: var(--branco); font-weight: 700; font-size: 13px; cursor: pointer; color: var(--tinta); line-height: 1.15; }
