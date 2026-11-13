@@ -394,12 +394,201 @@ function AbaImplantacao({ lista, mudar, hoje }) {
   );
 }
 
+/* ── Etapa 2 (13/11/2026): Rotina do Head Trainer e agentes ── */
+const DIAS_ROT = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"];
+const DOW_NOME = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+function horasTxt(min) { const h = Math.floor(min / 60), m = min % 60; return h ? h + "h" + (m ? String(m).padStart(2, "0") : "") : m + " min"; }
+function quandoTxt(q) { if (!q) return "quando você pedir"; if (q.diaMes) return "todo dia " + q.diaMes + ", às " + q.hora + "h"; if (q.dow != null) return "toda " + DOW_NOME[q.dow] + ", às " + q.hora + "h"; return "todo dia, às " + q.hora + "h"; }
+function AbaRotina({ inicial }) {
+  const [v, setV] = useState(inicial);
+  const [ocupado, setOcupado] = useState(false), [erro, setErro] = useState(""), [editando, setEditando] = useState(null), [profs, setProfs] = useState(inicial.professores);
+  const r = v.rotina, sub = { ...prosa, fontSize: 12.5, color: C.grafite }, inp = { ...entrada, fontSize: 14, padding: "5px 8px" };
+  const cartaoR = { background: "#FFFFFF", border: "1px solid #E6EBE8", borderRadius: 16, padding: "14px 16px", marginBottom: 12 };
+  async function chamar(acao, extra) {
+    setOcupado(true); setErro("");
+    try { const x = await chamarCentral("POST", { acao, semana: r.semana, ...(extra || {}) }); setV(x); setProfs(x.professores); return x; } catch (e) { setErro(String(e.message || e)); }
+    finally { setOcupado(false); }
+  }
+  const pct = Math.min(100, Math.round(r.feitosMin / Math.max(1, r.teto) * 100));
+  const visiveis = r.minimo ? r.blocos.filter((x) => x.minimo) : r.blocos;
+  const chipM = (on) => ({ fontFamily: ARCH, fontSize: 13, fontWeight: 700, padding: "8px 14px", borderRadius: 999, cursor: "pointer", border: "1px solid " + (on ? "#0E1F17" : "#E0E6E3"), background: on ? "#0E1F17" : "#FFFFFF", color: on ? "#FFFFFF" : C.tinta });
+  return (
+    <div data-rotina>
+      <div style={cartaoR}>
+        <div className="flex flex-wrap items-center gap-2">
+          <Botao pequeno variante="vazio" onClick={() => chamar("rotinaVer", { semana: maisDias(r.semana, -7) })} disabled={ocupado}>◀</Botao>
+          <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, flex: 1 }}>Semana de {dataCurta(r.semana)} a {dataCurta(maisDias(r.semana, 6))}</span>
+          <Botao pequeno variante="vazio" onClick={() => chamar("rotinaVer", { semana: maisDias(r.semana, 7) })} disabled={ocupado}>▶</Botao>
+        </div>
+        <div className="flex flex-wrap items-center gap-2" style={{ marginTop: 12 }}>
+          <button type="button" data-modo="ct" aria-pressed={r.modo === "ct"} style={chipM(r.modo === "ct")} onClick={() => chamar("rotinaModo", { modo: "ct" })}>Semana no CT</button>
+          <button type="button" data-modo="viagem" aria-pressed={r.modo === "viagem"} style={chipM(r.modo === "viagem")} onClick={() => chamar("rotinaModo", { modo: "viagem" })}>Semana de viagem</button>
+          {!r.marcada && <span style={sub}>sem marcar: vale o CT</span>}
+        </div>
+        <div style={{ marginTop: 14 }}>
+          <div className="flex items-end gap-2"><span style={{ fontFamily: ARCH, fontSize: 26, fontWeight: 700 }} data-horas>{horasTxt(r.feitosMin)}</span><span style={{ ...sub, fontSize: 13.5, paddingBottom: 4 }}>feitas de {horasTxt(r.totalMin)} planejadas · teto 6h</span></div>
+          <div style={{ height: 8, borderRadius: 8, background: "#EEF1EF", overflow: "hidden", marginTop: 6 }}><div style={{ width: pct + "%", height: "100%", background: C.saibro }} /></div>
+          {r.passouDoTeto && <p data-teto style={{ ...prosa, fontSize: 13.5, color: "#B23A2E", fontWeight: 700, marginTop: 8 }}>Esta semana soma {horasTxt(r.totalMin)}: passou do teto de 6 horas. Seis horas é o teto, não a meta.</p>}
+        </div>
+        <div className="flex flex-wrap items-center gap-2" style={{ marginTop: 12 }}>
+          <Botao pequeno variante={r.minimo ? "cheio" : "vazio"} onClick={() => chamar("rotinaMinimo", { ligado: !r.minimo })} disabled={ocupado}>{r.minimo ? "Mínimo da semana ligado" : "Semana apertada? Só o mínimo"}</Botao>
+          <span style={sub}>{r.minimo ? "Só gestão pelo painel e presença à distância (" + horasTxt(r.totalMinimo) + "). O resto não acumula." : "Mínimo: gestão pelo painel + áudios para alunos (" + horasTxt(r.totalMinimo) + ")."}</span>
+        </div>
+        {r.modo === "ct" && r.observacao && <p style={{ ...prosa, fontSize: 13.5, marginTop: 10 }} data-rodizio>Observação de aula desta semana: <b>{r.observacao}</b></p>}
+        {r.modo === "viagem" && <p style={{ ...sub, marginTop: 10 }}>Viagem: tudo à distância; a observação de aula passa para a próxima semana no CT.</p>}
+        {erro && <p style={{ ...prosa, fontSize: 13, color: "#B23A2E", marginTop: 8 }}>{erro}</p>}
+      </div>
+      <div style={cartaoR}>
+        {DIAS_ROT.map((nome, d) => {
+          const l = visiveis.filter((x) => x.dia === d); if (!l.length) return null;
+          return (
+            <div key={d} style={{ marginBottom: 10 }}>
+              <p style={{ fontFamily: ARCH, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: C.grafite, margin: "6px 0 2px" }}>{nome} {dataCurta(l[0].data)}</p>
+              {l.map((x) => (
+                <div key={x.id} data-bloco-rotina={x.id} style={{ padding: "8px 0", borderBottom: "1px solid #EEF1EF", opacity: x.tipo === "descanso" ? 0.85 : 1 }}>
+                  <div className="flex items-start gap-2">
+                    {x.tipo !== "descanso" ? <input type="checkbox" style={{ marginTop: 3 }} checked={x.feito} disabled={ocupado} aria-label={"Feito: " + x.titulo} onChange={() => chamar("rotinaFeito", { blocoId: x.id, feito: !x.feito })} /> : <span style={{ width: 13 }} />}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 600, margin: 0, textDecoration: x.feito ? "line-through" : "none", color: x.feito ? C.grafite : C.tinta }}>{x.titulo}{x.professor ? " · " + x.professor : ""}</p>
+                      <p style={{ ...sub, margin: "2px 0 0" }}>{x.inicio} · {horasTxt(x.duracaoMin)}{x.nota ? " · " + x.nota : ""}</p>
+                    </div>
+                    <button type="button" onClick={() => setEditando(editando && editando.id === x.id ? null : { id: x.id, dia: x.dia, inicio: x.inicio, duracaoMin: x.duracaoMin })} style={{ border: "none", background: "none", color: C.grafite, cursor: "pointer", fontSize: 13, textDecoration: "underline" }}>Horário</button>
+                  </div>
+                  {editando && editando.id === x.id && (
+                    <div className="flex flex-wrap items-center gap-2" style={{ marginTop: 8, paddingLeft: 21 }}>
+                      <select style={{ ...inp, width: 120 }} value={editando.dia} onChange={(e) => setEditando({ ...editando, dia: Number(e.target.value) })}>{DIAS_ROT.map((n, i) => <option key={i} value={i}>{n}</option>)}</select>
+                      <input type="time" style={{ ...inp, width: 110 }} value={editando.inicio} onChange={(e) => setEditando({ ...editando, inicio: e.target.value })} aria-label="Início" />
+                      <input type="number" min="5" max="480" style={{ ...inp, width: 90 }} value={editando.duracaoMin} onChange={(e) => setEditando({ ...editando, duracaoMin: e.target.value })} aria-label="Minutos" />
+                      <span style={sub}>min</span>
+                      <Botao pequeno disabled={ocupado} onClick={async () => { await chamar("rotinaBloco", { modo: r.modo, blocoId: x.id, dia: editando.dia, inicio: editando.inicio, duracaoMin: Number(editando.duracaoMin) }); setEditando(null); }}>Salvar</Botao>
+                      <span style={sub}>vale para as semanas {r.modo === "viagem" ? "de viagem" : "no CT"}</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          );
+        })}
+        <button type="button" onClick={() => chamar("rotinaRestaurar", { modo: r.modo })} style={{ border: "none", background: "none", color: C.grafite, cursor: "pointer", fontSize: 13, textDecoration: "underline", padding: 0 }}>Voltar os horários {r.modo === "viagem" ? "da viagem" : "do CT"} ao modelo inicial</button>
+      </div>
+      <div style={cartaoR} data-ritmos>
+        <p style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, margin: "0 0 6px" }}>Ritmo do mês ({nomeMes(v.ritmos.mes)})</p>
+        {v.ritmos.mensal.map((x) => (
+          <label key={x.i} className="flex items-center gap-2" style={{ padding: "6px 0", fontFamily: ARCH, fontSize: 14 }}>
+            <input type="checkbox" checked={x.feito} disabled={ocupado} onChange={() => chamar("rotinaRitmo", { tipo: "mensal", periodo: v.ritmos.mes, idx: x.i, feito: !x.feito })} />{x.r}
+          </label>
+        ))}
+        <div className="flex flex-wrap items-center gap-2" style={{ marginTop: 6 }}>
+          <input style={{ ...inp, flex: 1, minWidth: 200 }} placeholder="Tema de formação do mês" defaultValue={v.ritmos.tema} key={v.ritmos.mes + v.ritmos.tema} onBlur={(e) => { if (e.target.value !== v.ritmos.tema) chamar("rotinaRitmo", { tipo: "mensal", periodo: v.ritmos.mes, tema: e.target.value }); }} data-tema />
+        </div>
+        <p style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, margin: "16px 0 6px" }}>Ritmo do trimestre ({v.ritmos.trimestre.replace("-T", " · ")}º tri)</p>
+        {v.ritmos.trimestral.map((x) => (
+          <label key={x.i} className="flex items-center gap-2" style={{ padding: "6px 0", fontFamily: ARCH, fontSize: 14 }}>
+            <input type="checkbox" checked={x.feito} disabled={ocupado} onChange={() => chamar("rotinaRitmo", { tipo: "trimestral", periodo: v.ritmos.trimestre, idx: x.i, feito: !x.feito })} />{x.r}
+          </label>
+        ))}
+      </div>
+      <div style={cartaoR}>
+        <p style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, margin: "0 0 6px" }}>Os 4 professores</p>
+        <p style={{ ...sub, marginBottom: 8 }}>Nas conversas de terça e no rodízio da observação de aula, nesta ordem.</p>
+        <div className="flex flex-wrap gap-2">{profs.map((n, i) => <input key={i} style={{ ...inp, width: 150 }} value={n} onChange={(e) => setProfs(profs.map((y, k) => (k === i ? e.target.value : y)))} aria-label={"Professor " + (i + 1)} />)}</div>
+        <div style={{ marginTop: 10 }}><Botao pequeno disabled={ocupado} onClick={() => chamar("rotinaProfessores", { professores: profs })}>Salvar nomes</Botao></div>
+      </div>
+    </div>
+  );
+}
+function AbaAgentes({ inicial, defs }) {
+  const [itens, setItens] = useState(inicial.agentes || []), [cfg, setCfg] = useState(inicial.agentesConfig);
+  const [texto, setTexto] = useState(""), [msg, setMsg] = useState(""), [ocupado, setOcupado] = useState(""), [editando, setEditando] = useState(null), [verTodos, setVerTodos] = useState(false), [teto, setTeto] = useState(String(inicial.agentesConfig.tetoUSD));
+  const sub = { ...prosa, fontSize: 12.5, color: C.grafite };
+  const cartaoR = { background: "#FFFFFF", border: "1px solid #E6EBE8", borderRadius: 16, padding: "14px 16px", marginBottom: 12 };
+  const gerando = itens.some((x) => x.estado === "gerando");
+  useEffect(() => {
+    if (!gerando) return;
+    const t = setInterval(() => { chamarCentral("POST", { acao: "agentesListar" }).then((x) => { setItens(x.agentes); setCfg(x.agentesConfig); }).catch(() => {}); }, 4000);
+    return () => clearInterval(t);
+  }, [gerando]);
+  async function fazer(chave, corpo, depois) {
+    setOcupado(chave); setMsg("");
+    try { const x = await chamarCentral("POST", corpo); if (depois) depois(x); } catch (e) { setMsg(String(e.message || e)); }
+    setOcupado("");
+  }
+  const [tocados, setTocados] = useState({}); // aprovado ou descartado agora continua na tela, com a confirmação
+  const trocaItem = (it) => { setTocados((t) => ({ ...t, [it.id]: true })); setItens((l) => l.map((x) => (x.id === it.id ? it : x))); };
+  const lista = itens.filter((x) => verTodos || x.estado === "novo" || x.estado === "gerando" || tocados[x.id]);
+  return (
+    <div data-agentes>
+      <div style={cartaoR}>
+        <p style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, margin: "0 0 4px" }}>Caixa de entrada</p>
+        <p style={{ ...sub, marginBottom: 8 }}>Escreva solto ("ligar pro João quinta, revisar a proposta do AR"). O agente separa em tarefas e compromissos para você confirmar.</p>
+        <textarea rows={3} style={{ ...entrada, fontSize: 15 }} value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="O que está na sua cabeça agora?" data-caixa />
+        <div style={{ marginTop: 8 }}><Botao disabled={!!ocupado || texto.trim().length < 3} onClick={() => fazer("caixa", { acao: "caixaEntrada", texto }, (x) => { setItens(x.agentes); setTexto(""); })}>{ocupado === "caixa" ? "Enviando…" : "Organizar"}</Botao></div>
+      </div>
+      <div className="flex flex-wrap items-center gap-2" style={{ margin: "4px 0 8px" }}>
+        <span style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, flex: 1 }}>Rascunhos {verTodos ? "" : "novos"}</span>
+        <button type="button" onClick={() => setVerTodos(!verTodos)} style={{ border: "none", background: "none", color: C.grafite, cursor: "pointer", fontSize: 13, textDecoration: "underline" }}>{verTodos ? "Só os novos" : "Ver todos"}</button>
+      </div>
+      {msg && <p style={{ ...prosa, fontSize: 13.5, color: "#B23A2E", marginBottom: 8 }}>{msg}</p>}
+      {!lista.length && <p style={{ ...sub, marginBottom: 12 }}>Nada novo. Os agentes preparam os rascunhos nos horários abaixo, ou quando você toca em Gerar agora.</p>}
+      {lista.map((it) => (
+        <div key={it.id} style={{ ...cartaoR, borderLeft: it.estado === "novo" ? "4px solid " + C.saibro : "1px solid #E6EBE8" }} data-item-agente={it.id}>
+          <div className="flex flex-wrap items-center gap-2">
+            <span style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, flex: 1 }}>{it.rot}</span>
+            <span style={sub}>{it.criadoEm ? new Date(it.criadoEm).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""}</span>
+            <ChipP>{{ gerando: "preparando", novo: "novo", aprovado: "aprovado", descartado: "descartado" }[it.estado] || it.estado}</ChipP>
+          </div>
+          {it.estado === "gerando" ? <p style={{ ...sub, marginTop: 8 }} data-preparando>Preparando o rascunho…</p> : (
+            <div>
+              {it.semIA && <p style={{ ...sub, marginTop: 6 }}>Rascunho sem IA. {it.motivoSemIA}</p>}
+              {editando && editando.id === it.id
+                ? <textarea rows={10} style={{ ...entrada, fontSize: 14, marginTop: 8 }} value={editando.texto} onChange={(e) => setEditando({ ...editando, texto: e.target.value })} />
+                : <p style={{ ...prosa, fontSize: 14, whiteSpace: "pre-wrap", marginTop: 8 }} data-texto-agente>{it.texto}</p>}
+              <div className="flex flex-wrap items-center gap-2" style={{ marginTop: 10 }}>
+                {editando && editando.id === it.id ? (
+                  <Botao pequeno disabled={!!ocupado} onClick={() => fazer("ed" + it.id, { acao: "agenteItem", id: it.id, op: "editar", texto: editando.texto }, (x) => { trocaItem(x.item); setEditando(null); })}>Salvar texto</Botao>
+                ) : (<>
+                  {it.estado !== "aprovado" && <Botao pequeno disabled={!!ocupado} onClick={() => fazer("ap" + it.id, { acao: "agenteItem", id: it.id, op: "aprovar" }, (x) => trocaItem(x.item))}>{it.agente === "caixaEntrada" ? "Pôr na agenda e nas tarefas" : "Aprovar"}</Botao>}
+                  {it.agente !== "caixaEntrada" && <Botao pequeno variante="vazio" onClick={() => setEditando({ id: it.id, texto: it.texto })}>Editar</Botao>}
+                  {it.agente !== "caixaEntrada" && <Botao pequeno variante="vazio" onClick={() => { try { navigator.clipboard.writeText(it.texto); setMsg(""); } catch (e) {} }}>Copiar</Botao>}
+                  {it.estado !== "descartado" && <Botao pequeno variante="vazio" disabled={!!ocupado} onClick={() => fazer("de" + it.id, { acao: "agenteItem", id: it.id, op: "descartar" }, (x) => trocaItem(x.item))}>Descartar</Botao>}
+                </>)}
+                {it.aplicadoEm && <span style={sub}>entrou na agenda e nas tarefas</span>}
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+      <div style={cartaoR} data-config-agentes>
+        <p style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, margin: "0 0 8px" }}>Os agentes</p>
+        {defs.filter((d) => d.id !== "caixaEntrada").map((d) => (
+          <div key={d.id} style={{ padding: "8px 0", borderBottom: "1px solid #EEF1EF", opacity: d.ativo ? 1 : 0.6 }}>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="flex items-center gap-2" style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 600, flex: 1, minWidth: 180 }}>
+                <input type="checkbox" data-ligado={d.id} checked={!!cfg.ligados[d.id]} disabled={!d.ativo || !!ocupado} onChange={(e) => fazer("cfg", { acao: "agentesConfig", ligados: { [d.id]: e.target.checked } }, (x) => setCfg(x.agentesConfig))} />{d.rot}
+              </label>
+              {d.ativo ? <Botao pequeno variante="vazio" disabled={!!ocupado} onClick={() => fazer("g" + d.id, { acao: "agenteGerar", agente: d.id }, (x) => setItens(x.agentes))}>{ocupado === "g" + d.id ? "Pedindo…" : "Gerar agora"}</Botao> : <span style={sub}>chega na Etapa {d.etapa}</span>}
+            </div>
+            <p style={{ ...sub, margin: "2px 0 0 21px" }}>{d.desc} {d.ativo ? "Roda " + quandoTxt(d.quando) + "." : ""}</p>
+          </div>
+        ))}
+        <div className="flex flex-wrap items-center gap-2" style={{ marginTop: 12 }}>
+          <span style={{ fontFamily: ARCH, fontSize: 14 }}>Teto do mês: US$</span>
+          <input type="number" min="0" max="200" step="1" style={{ ...entrada, fontSize: 14, padding: "5px 8px", width: 90 }} value={teto} onChange={(e) => setTeto(e.target.value)} data-teto-usd />
+          <Botao pequeno disabled={!!ocupado} onClick={() => fazer("teto", { acao: "agentesConfig", tetoUSD: Number(teto) }, (x) => setCfg(x.agentesConfig))}>Salvar</Botao>
+          <span style={sub} data-gasto>gasto em {nomeMes(cfg.mes)}: US$ {cfg.gastoMes.toFixed(2).replace(".", ",")}</span>
+        </div>
+        <p style={{ ...sub, marginTop: 8 }}>Ao chegar no teto, os agentes entregam o rascunho sem IA (as mesmas listas, sem o texto corrido). Nenhum agente envia nada para aluno, pai ou professor.</p>
+      </div>
+    </div>
+  );
+}
+
 function TelaCentral() {
   const [resp, setResp] = useState(null);
   const [dados, setDados] = useState(null);
   const [erro, setErro] = useState("");
   const [estadoSalvar, setEstadoSalvar] = useState("");
-  const ABAS_HASH = ["hoje", "agenda", "tarefas", "implantacao", "negocios", "revisao", "notas", "avisos"];
+  const ABAS_HASH = ["hoje", "rotina", "agenda", "tarefas", "implantacao", "agentes", "negocios", "revisao", "notas", "avisos"];
   const [aba, setAba] = useState(() => { const h = String(location.hash || "").replace("#", ""); return ABAS_HASH.indexOf(h) >= 0 ? h : "hoje"; });
   const [impl, setImpl] = useState(null);
   const [estadoImpl, setEstadoImpl] = useState("");
@@ -585,7 +774,7 @@ function TelaCentral() {
       </div>
       <p style={{ ...sub, fontSize: 13.5, marginBottom: 10 }}>Central · {new Date(hoje + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })} · só você vê</p>
       <div data-abas style={{ display: "flex", gap: 8, overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "none", margin: "0 -16px 12px", padding: "2px 16px 4px" }}>
-        {[["hoje", "Hoje"], ["agenda", "Agenda"], ["tarefas", "Tarefas"], ["implantacao", "Implantação"], ["negocios", "Negócios"], ["revisao", "Revisão semanal"], ["notas", "Notas e decisões"], ["avisos", "Avisos"]].map(([v, r]) => <button key={v} data-aba-central={v} style={{ ...chipA(aba === v), whiteSpace: "nowrap", flex: "none" }} onClick={() => setAba(v)}>{r}</button>)}
+        {[["hoje", "Hoje"], ["rotina", "Rotina"], ["agenda", "Agenda"], ["tarefas", "Tarefas"], ["implantacao", "Implantação"], ["agentes", "Agentes"], ["negocios", "Negócios"], ["revisao", "Revisão semanal"], ["notas", "Notas e decisões"], ["avisos", "Avisos"]].map(([v, r]) => <button key={v} data-aba-central={v} style={{ ...chipA(aba === v), whiteSpace: "nowrap", flex: "none" }} onClick={() => setAba(v)}>{r}</button>)}
       </div>
 
       {aba === "hoje" && (() => {
@@ -643,6 +832,15 @@ function TelaCentral() {
               {listaCompromissos(hoje)}
               <div className="mt-2">{formCompromisso()}</div>
             </CartaoP>
+            {resp.rotina && (() => { const pb = resp.proximoBloco, r = resp.rotina, novos = (resp.agentes || []).filter((x) => x.estado === "novo").length; return (
+              <CartaoP titulo="Rotina do Head Trainer" direita={<ChipP>{horasTxt(r.feitosMin)} de {horasTxt(r.totalMin)}</ChipP>}>
+                <div data-cartao-rotina>
+                  <p style={{ ...prosa, fontSize: 13.5 }}>{r.modo === "viagem" ? "Semana de viagem" : "Semana no CT"}{r.minimo ? " · só o mínimo" : ""}</p>
+                  {pb ? <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }}>Próximo: <b>{pb.titulo}</b>{pb.professor ? " · " + pb.professor : ""} · {diaSemanaCurto(pb.data)} {pb.inicio}</p> : <p style={sub}>Nenhum bloco pela frente nesta semana.</p>}
+                  {novos > 0 && <p style={{ ...prosa, fontSize: 13.5, marginTop: 4 }} data-agentes-novos>{novos} {novos === 1 ? "rascunho novo" : "rascunhos novos"} dos agentes</p>}
+                  <div className="flex flex-wrap gap-2" style={{ marginTop: 8 }}><Botao pequeno variante="vazio" onClick={() => setAba("rotina")}>Ver a semana</Botao>{novos > 0 && <Botao pequeno variante="vazio" onClick={() => setAba("agentes")}>Ver os rascunhos</Botao>}</div>
+                </div>
+              </CartaoP>); })()}
             {impl && impl.length > 0 && (() => { const abertas = impl.filter((t) => t.status !== "feito"), f = impl.length - abertas.length; return (
               <CartaoP titulo="Implantação" direita={<ChipP>{f} de {impl.length}</ChipP>}>
                 <div data-cartao-implantacao>
@@ -777,6 +975,8 @@ function TelaCentral() {
       })()}
 
       {aba === "implantacao" && impl && <AbaImplantacao lista={impl} mudar={mudarImpl} hoje={hoje} />}
+      {aba === "rotina" && resp.rotina && <AbaRotina inicial={{ rotina: resp.rotina, ritmos: resp.ritmos, professores: resp.professores }} />}
+      {aba === "agentes" && resp.agentesConfig && <AbaAgentes inicial={resp} defs={resp.agentesDef || []} />}
       {aba === "avisos" && <PainelAvisos papel="richard" avisosIni={resp.avisos || { tipos: {}, silencio: { ativo: true, de: "22:00", ate: "07:00" } }} tipos={resp.tipos || []} chavePush={resp.chavePush} />}
 
       {aba === "notas" && (

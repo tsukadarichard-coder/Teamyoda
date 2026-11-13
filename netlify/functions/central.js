@@ -24,12 +24,24 @@
    POST { acao: "avisosInscrever", inscricao }            → este aparelho passa a receber (pushInscricoes, app "central", uid, papel)
    POST { acao: "avisosCancelar" | "avisosEstado", endpoint }
    POST { acao: "avisosTeste" }                           → um aviso só para os aparelhos de quem tocou */
+
+/* Etapa 2 (13/11/2026): Rotina do Head Trainer (_central-rotina.js, central/rotina) e agentes (_central-agentes.js, motor em
+   _central-agentes-motor.js, rascunhos em centralAgentes, teto e gasto em central/agentesConfig). Tudo só do Richard.
+   GET (Richard) também traz { rotina: semana atual, ritmos, proximoBloco, agentes: rascunhos, agentesConfig, agentesDef }
+   POST { acao: "rotinaVer" | "rotinaModo" | "rotinaMinimo" | "rotinaFeito" | "rotinaBloco" | "rotinaRestaurar" | "rotinaProfessores" | "rotinaRitmo", semana, … }
+        → { rotina, ritmos, professores } da semana pedida
+   POST { acao: "agentesConfig", ligados, tetoUSD } | { acao: "agenteGerar", agente } | { acao: "caixaEntrada", texto }
+   POST { acao: "agenteItem", id, op: "aprovar" | "descartar" | "editar", texto? } → aprovar a Caixa de entrada põe as
+        tarefas e os compromissos na agenda (central/dono, pelo mesmo limpar de sempre) */
 const { admin, app } = require("./_firebase-admin");
 const FIN = require("./financeiro");
 const F = require("./_financeiro-calc");
 const A = require("./_central-avisos");
 const P = require("./_push");
 const { endpointValido } = require("./push-inscricao");
+const R = require("./_central-rotina");
+const AG = require("./_central-agentes");
+const M = require("./_central-agentes-motor");
 
 const NEGOCIOS = ["team-yoda", "39-ranch", "quadralab", "alvor", "geral"];
 function resposta(statusCode, corpo) { return { statusCode, headers: { "content-type": "application/json", "cache-control": "no-store" }, body: JSON.stringify(corpo) }; }
@@ -147,8 +159,91 @@ async function extrasEtapa1(claims, papel) {
   const [avisos, chave] = await Promise.all([lerPrefs(claims.uid, papel), chavePush()]);
   return { papel, avisos, tipos: tiposPara(papel), chavePush: chave };
 }
+async function lerRotinaOuPadrao() {
+  const r = await M.lerRotina(db());
+  if (r) return r;
+  let nomes = [];
+  try { nomes = ((await FIN._lerAcademia("team-yoda")).dados.professores || []).map((p) => p.nome); } catch (e) { nomes = []; }
+  return R.rotinaPadrao(nomes);
+}
+const segundaPedida = (s) => (/^\d{4}-\d{2}-\d{2}$/.test(String(s || "")) ? A.segundaDe(s) : A.segundaDe(hojeBR()));
+function vistaRotina(rot, seg) { return { rotina: R.semana(rot, seg), ritmos: R.ritmos(rot, hojeBR()), professores: rot.professores }; }
+async function acaoEtapa2(b, claims) {
+  const a = b.acao;
+  if (/^rotina/.test(a)) {
+    const rot = await lerRotinaOuPadrao(), seg = segundaPedida(b.semana);
+    try {
+      if (a === "rotinaModo") R.marcarModo(rot, seg, b.modo);
+      else if (a === "rotinaMinimo") R.marcarMinimo(rot, seg, b.ligado);
+      else if (a === "rotinaFeito") R.marcarFeito(rot, seg, String(b.blocoId || ""), !!b.feito, hojeBR());
+      else if (a === "rotinaBloco") R.editarBloco(rot, b.modo, String(b.blocoId || ""), { inicio: b.inicio, duracaoMin: b.duracaoMin, dia: b.dia, titulo: b.titulo });
+      else if (a === "rotinaRestaurar") rot.modelos[b.modo === "viagem" ? "viagem" : "ct"] = R.rotinaPadrao(rot.professores).modelos[b.modo === "viagem" ? "viagem" : "ct"];
+      else if (a === "rotinaProfessores") rot.professores = R.limparRotina({ professores: b.professores }).professores;
+      else if (a === "rotinaRitmo") R.marcarRitmo(rot, b.tipo === "trimestral" ? "trimestral" : "mensal", String(b.periodo || ""), b.idx == null ? null : Number(b.idx), !!b.feito, b.tema);
+      else if (a !== "rotinaVer") throw new Error("Ação desconhecida.");
+    } catch (e) { throw new FIN._ErroPublico(400, e.message); }
+    const limpa = R.limparRotina(rot);
+    if (a !== "rotinaVer") await db().collection("central").doc("rotina").set({ ...limpa, atualizado: Date.now() });
+    return vistaRotina(limpa, seg);
+  }
+  const ctx = { db: db(), agoraMs: Date.now() };
+  if (a === "agentesListar") { const cfg = await M.lerConfig(db()); return { agentes: await M.listar(db()), agentesConfig: AG.publicoConfig(cfg, hojeBR()) }; }
+  if (a === "agentesConfig") {
+    const cfg = await M.lerConfig(db()), novo = AG.limparConfig({ ...cfg, ligados: { ...cfg.ligados, ...(b.ligados || {}) }, tetoUSD: b.tetoUSD == null ? cfg.tetoUSD : b.tetoUSD });
+    await db().collection("central").doc("agentesConfig").set(novo);
+    return { agentesConfig: AG.publicoConfig(novo, hojeBR()) };
+  }
+  if (a === "agenteGerar") {
+    const ag = String(b.agente || "");
+    if (!AG.ativo(ag) || !AG.AGENTES[ag].quando) throw new FIN._ErroPublico(400, "Agente desconhecido.");
+    const id = ag + "-manual-" + Date.now().toString(36);
+    await M.criar(ctx, id, ag, { periodo: AG.periodoDe(ag, ctx.agoraMs) });
+    return { id, agentes: await M.listar(db()) };
+  }
+  if (a === "caixaEntrada") {
+    const texto = String(b.texto || "").trim().slice(0, 4000);
+    if (texto.length < 3) throw new FIN._ErroPublico(400, "Escreva o que quer organizar.");
+    const id = "caixaEntrada-" + Date.now().toString(36);
+    await M.criar(ctx, id, "caixaEntrada", { periodo: hojeBR(), entrada: texto });
+    return { id, agentes: await M.listar(db()) };
+  }
+  if (a === "agenteItem") {
+    const id = String(b.id || ""); if (!/^[A-Za-z0-9_-]{3,80}$/.test(id)) throw new FIN._ErroPublico(400, "Rascunho inválido.");
+    const ref = db().collection("centralAgentes").doc(id), d = await ref.get();
+    if (!d.exists) throw new FIN._ErroPublico(404, "Rascunho não encontrado.");
+    const item = d.data(), agora = new Date().toISOString();
+    if (item.estado === "gerando") throw new FIN._ErroPublico(409, "O agente ainda está preparando este rascunho.");
+    if (b.op === "editar") { item.texto = String(b.texto || "").slice(0, 20000); item.editado = true; }
+    else if (b.op === "descartar") item.estado = "descartado";
+    else if (b.op === "aprovar") {
+      if (item.agente === "caixaEntrada" && item.propostas && !item.aplicadoEm) {
+        const dono = await db().collection("central").doc("dono").get(), dados = dono.exists ? (dono.data().dados || vazio()) : vazio(), hoje = hojeBR();
+        const p = item.propostas, n = Date.now().toString(36);
+        p.tarefas.forEach((t, i) => dados.tarefas.unshift({ id: "ta" + n + i, titulo: t.titulo, negocio: t.negocio, prazo: t.prazo, prioridade: t.prioridade, feita: false, nota: "", criadaEm: hoje }));
+        p.compromissos.forEach((c, i) => dados.agenda.push({ id: "ag" + n + i, titulo: c.titulo, data: c.data, inicio: c.inicio, fim: "", negocio: c.negocio, local: "", nota: "", semanal: false }));
+        await db().collection("central").doc("dono").set({ dados: limpar(dados), atualizado: Date.now(), por: claims.email });
+        item.aplicadoEm = agora;
+      }
+      item.estado = "aprovado";
+    } else throw new FIN._ErroPublico(400, "Ação desconhecida.");
+    item.atualizadoEm = agora;
+    await ref.set(item);
+    return { item: AG.itemPublico(id, item) };
+  }
+  return null;
+}
+async function extrasEtapa2() {
+  const hoje = hojeBR(), [rot, cfg, agentes] = await Promise.all([lerRotinaOuPadrao(), M.lerConfig(db()), M.listar(db()).catch(() => [])]);
+  return { ...vistaRotina(rot, A.segundaDe(hoje)), proximoBloco: R.proximoBloco(rot, Date.now()), agentes, agentesConfig: AG.publicoConfig(cfg, hoje),
+    agentesDef: Object.keys(AG.AGENTES).map((id) => ({ id, rot: AG.AGENTES[id].rot, desc: AG.AGENTES[id].desc, etapa: AG.AGENTES[id].etapa, ativo: AG.ativo(id), manual: !AG.AGENTES[id].quando, quando: AG.AGENTES[id].quando })) };
+}
+
 async function acao(b, claims, papel) {
   const uid = String(claims.uid || "");
+  if (/^(rotina|agente|caixaEntrada)/.test(b.acao)) {
+    if (papel !== "richard") throw new FIN._ErroPublico(403, "A rotina do Head Trainer e os agentes são só do Richard.");
+    const r = await acaoEtapa2(b, claims); if (r) return r;
+  }
   if (b.acao === "implantacaoSalvar") {
     if (papel !== "richard") throw new FIN._ErroPublico(403, "A lista Implantação é só do Richard.");
     const tarefas = A.limparImplantacao(b.tarefas);
@@ -193,8 +288,8 @@ exports.handler = async function (event) {
     if (event.httpMethod === "GET") {
       if (papel === "administrativo") return resposta(200, { hoje: hojeBR(), ...(await extrasEtapa1(claims, papel)) });
       const r = await handleGet(), corpo = JSON.parse(r.body);
-      const [extras, implantacao] = await Promise.all([extrasEtapa1(claims, papel), lerImplantacao()]);
-      return resposta(200, { ...corpo, ...extras, implantacao });
+      const [extras, implantacao, e2] = await Promise.all([extrasEtapa1(claims, papel), lerImplantacao(), extrasEtapa2()]);
+      return resposta(200, { ...corpo, ...extras, implantacao, ...e2 });
     }
     if (event.httpMethod === "POST") {
       let b = null; try { b = JSON.parse(event.body || "{}"); } catch (e) { b = null; }
