@@ -114,7 +114,7 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   await p.goto(base, { waitUntil: "networkidle" });
   assert.strictEqual(p.url(), base + "conheca.html", "o endereço do app, sem conta entrada, abre a apresentação");
   const tApr = await p.evaluate(() => document.body.innerText);
-  assert.ok(tApr.includes("Comece grátis. O Plus abre em breve.") && /Scout Plus/.test(tApr) && /Em breve/i.test(tApr), "é a página de apresentação, com o grátis e o Plus");
+  assert.ok(tApr.includes("Comece grátis. O Plus anual abre em breve.") && /Scout Plus/.test(tApr) && /Plano anual · em breve/i.test(tApr) && /Grátis com 1 atleta/.test(tApr) && !/3 atletas/.test(tApr), "é a página de apresentação, com o grátis e o Plus");
   assert.ok(!/R\$ ?\d+,\d\d|29,90|eduzz/i.test(tApr) && !(await p.$('a[href*="eduzz"]')), "apresentação sem preço do Plus nem link de compra");
   /* os botões da apresentação levam para o app, sem voltar para ela */
   await p.click('a[href="./#/entrar"]'); await p.waitForSelector("#acEmail");
@@ -324,7 +324,7 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   await p.goto(base + "#/movimento"); await p.waitForSelector("[data-novo]");
   assert.ok(!/Análise de movimento/i.test(await texto()) && mvGets.length === 0, "link antigo do movimento abre os jogos, sem chamar o servidor");
 
-  /* volta ao grátis: até 3 atletas e evolução completa; link ao vivo e PDF com cadeado; nada de preço nem link de compra */
+  /* volta ao grátis (14/11/2026: 1 atleta) e evolução completa; link ao vivo e PDF com cadeado; nada de preço nem link de compra */
   delete store["scoutAppContas/" + uid].plano; delete store["scoutAppContas/" + uid].plusAte;
   await p.goto(base + "#/conta"); await p.waitForSelector("#btSync"); await p.click("#btSync");
   await p.waitForFunction(() => document.body.innerText.includes("Tudo sincronizado"));
@@ -333,23 +333,13 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   assert.ok(!(await p.$("#btRelatorioJogo")) && !(await p.$("[data-exportar]")), "grátis: exportar o relatório do jogo com cadeado");
   await p.goto(base + "#/novo"); await p.waitForSelector("#btComecar");
   await p.click('[data-atleta="+"]');
-  assert.ok(await p.$("#nvNome") && !(await p.$("[data-limite-atletas]")), "grátis: segundo atleta liberado");
+  assert.ok(await p.$("[data-limite-atletas]") && !(await p.$("#nvNome")), "grátis com 1 atleta: o segundo não entra");
+  assert.ok(/No grátis é 1 atleta por conta/.test(await p.innerText("[data-limite-atletas]")) && /plano anual/.test(await p.innerText("[data-limite-atletas]")));
   await p.goto(base + "#/plus"); await p.waitForSelector("[data-plano-gratis]");
   t = await texto();
-  assert.ok(t.includes("Seu plano") && t.includes("Até 3 atletas na conta") && await p.$("[data-plano-plus]") && /Link ao vivo/.test(t) && /Relatório em PDF/.test(t) && t.includes("A assinatura abre em breve"), "tela do plano: " + t.slice(0, 600));
+  assert.ok(t.includes("Seu plano") && t.includes("1 atleta na conta") && await p.$("[data-plano-plus]") && /plano anual/i.test(t) && /Link ao vivo/.test(t) && /Relatório em PDF/.test(t) && t.includes("A assinatura anual abre em breve"), "tela do plano: " + t.slice(0, 600));
   assert.ok(!/R\$|29,90|Assinar|Eduzz|Análise de movimento/i.test(t) && !(await p.$('a[href*="eduzz"]')) && !(await p.$("#lkAssinar")), "sem preço, sem link de compra");
   await semRolagem(p, "plano"); await foto(p, "scout-8-plano");
-  /* com 3 atletas na conta, o quarto não entra */
-  store["scoutAppContas/" + uid].atletas = store["scoutAppContas/" + uid].atletas.concat([{ id: "asegundo0001", nome: "Marina", criadoEm: new Date().toISOString() }, { id: "aterceiro001", nome: "Caio", criadoEm: new Date().toISOString() }]);
-  await p.goto(base + "#/conta"); await p.waitForSelector("#btSync"); await p.click("#btSync");
-  await p.waitForFunction(() => document.body.innerText.includes("Tudo sincronizado"));
-  /* espera o aviso sumir: a próxima sincronização do teste confere o mesmo texto */
-  await p.waitForFunction(() => !document.body.innerText.includes("Tudo sincronizado"), null, { timeout: 15000 });
-  await p.goto(base + "#/novo"); await p.waitForSelector("#btComecar");
-  assert.strictEqual(await p.locator("[data-atleta]").count(), 4, "três atletas e o botão de outro");
-  await p.click('[data-atleta="+"]');
-  assert.ok(await p.$("[data-limite-atletas]") && !(await p.$("#nvNome")), "com 3 atletas, o quarto não entra");
-  assert.ok(/São até 3 atletas por conta/.test(await p.innerText("[data-limite-atletas]")) && !/Plus/.test(await p.innerText("[data-limite-atletas]")));
   await p.goto(base + "#/"); await p.waitForSelector("[data-novo]");
   await p.click('a[href^="#/atleta/"]'); await p.waitForSelector('[data-plus-bloqueio="pdf"]');
   assert.ok(!(await p.$("#btRelatorio")) && (await texto()).includes("Evolução jogo a jogo"), "grátis: relatório em PDF com cadeado, evolução completa");
@@ -375,7 +365,7 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   /* Minha conta: cópia dos jogos e sair */
   await p.goto(base + "#/conta"); await p.waitForSelector("#btCopia");
   t = await texto();
-  assert.ok(t.includes("Ana Andrade") && !t.includes("Pai, mãe") && t.includes("ana@exemplo.com") && t.includes("Grátis") && t.includes("até 3 atletas") && !t.includes("Scout Plus"), "minha conta: " + t.slice(0, 400));
+  assert.ok(t.includes("Ana Andrade") && !t.includes("Pai, mãe") && t.includes("ana@exemplo.com") && t.includes("Grátis") && t.includes("1 atleta") && !t.includes("Scout Plus"), "minha conta: " + t.slice(0, 400));
   const [dl] = await Promise.all([p.waitForEvent("download"), p.click("#btCopia")]);
   const arquivo = path.join(require("os").tmpdir(), "ql-scout-copia-" + Date.now() + ".json");
   await dl.saveAs(arquivo);

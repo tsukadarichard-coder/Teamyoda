@@ -171,14 +171,14 @@ const chama = async (tk, corpo, metodo) => {
   for (const id of ["mvbia000001", "mvbia000002"]) assert.strictEqual((await mv("tk-bia", { acao: "salvar", atletaId: "abiaatleta1", resumo: resumoMv(id, "saque") })).s, 200, "acesso completo sem limite");
   r = await mv("tk-bia", null, { atleta: "abiaatleta1" }); assert.strictEqual(r.cota.plano, "pago"); assert.strictEqual(r.analises.length, 2);
 
-  /* Plano (11/11/2026): no grátis até 3 atletas; conta que já tem Plus continua sem limite; Plus vencido volta ao grátis sem perder quem já estava */
+  /* Plano (14/11/2026): no grátis 1 atleta; conta que já tem Plus continua sem limite; Plus vencido volta ao grátis sem perder quem já estava */
   const contaAna = () => store["scoutAppContas/u-ana"];
-  r = await chama("tk-ana"); assert.strictEqual(r.conta.plano, "gratis"); assert.strictEqual(r.conta.limites.atletas, 3);
+  r = await chama("tk-ana"); assert.strictEqual(r.conta.plano, "gratis"); assert.strictEqual(r.conta.limites.atletas, 1);
   const doisAtletas = st.atletas.concat([{ id: "asegundo0001", nome: "Marina" }]), tresAtletas = doisAtletas.concat([{ id: "aterceiro001", nome: "Caio" }]);
   const quatroAtletas = tresAtletas.concat([{ id: "aquarto00001", nome: "Duda" }]), cincoAtletas = quatroAtletas.concat([{ id: "aquinto00001", nome: "Enzo" }]);
-  r = await chama("tk-ana", { acao: "atletas", atletas: doisAtletas }); assert.strictEqual(r.s, 200, "grátis: segundo atleta");
-  r = await chama("tk-ana", { acao: "atletas", atletas: tresAtletas }); assert.strictEqual(r.s, 200, "grátis: terceiro atleta");
-  r = await chama("tk-ana", { acao: "atletas", atletas: quatroAtletas }); assert.strictEqual(r.s, 403, "grátis: o quarto não entra"); assert.ok(/até 3 atletas/.test(r.erro) && !/Plus/.test(r.erro), r.erro);
+  r = await chama("tk-ana", { acao: "atletas", atletas: st.atletas }); assert.strictEqual(r.s, 200, "grátis: o primeiro atleta continua");
+  r = await chama("tk-ana", { acao: "atletas", atletas: doisAtletas }); assert.strictEqual(r.s, 403, "grátis: o segundo não entra"); assert.ok(/1 atleta por conta/.test(r.erro), r.erro);
+  r = await chama("tk-ana", { acao: "atletas", atletas: tresAtletas }); assert.strictEqual(r.s, 403);
   const amanha = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10), ontem = new Date(Date.now() - 2 * 86400000).toISOString().slice(0, 10);
   contaAna().plano = "plus"; contaAna().plusAte = amanha;
   r = await chama("tk-ana"); assert.strictEqual(r.conta.plano, "plus"); assert.strictEqual(r.conta.plusAte, amanha); assert.strictEqual(r.conta.limites.atletas, 60);
