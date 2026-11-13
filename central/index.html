@@ -236,12 +236,174 @@ function GraficoAulasP({ dias, hoje }) {
   );
 }
 
+/* ── Etapa 1 (13/11/2026): avisos no celular e lista Implantação ──
+   Os avisos usam as notificações que os apps do Team Yoda já têm (Web Push com as chaves do servidor). O aparelho se inscreve
+   aqui; quem recebe o quê o servidor decide pelo login (Richard ou administrativo). No iPhone, só com a Central na tela de início. */
+const GRUPOS_IMPL = [["viagem", "Durante a viagem"], ["code", "No Code"], ["time", "Com o time"], ["pessoal", "Pessoal"]];
+function chaveParaBytes(b64) { const p = "=".repeat((4 - (b64.length % 4)) % 4), s = atob((b64 + p).replace(/-/g, "+").replace(/_/g, "/")); return Uint8Array.from(s, (c) => c.charCodeAt(0)); }
+function suportePush() {
+  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const instalado = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || navigator.standalone === true;
+  const tem = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+  return { tem, ios, instalado, permissao: tem ? Notification.permission : "indisponivel" };
+}
+async function inscricaoAtual() {
+  if (!("serviceWorker" in navigator)) return null;
+  const reg = await navigator.serviceWorker.getRegistration("/"); if (!reg || !reg.pushManager) return null;
+  return reg.pushManager.getSubscription();
+}
+function PainelAvisos({ papel, avisosIni, tipos, chavePush }) {
+  const [prefs, setPrefs] = useState(avisosIni);
+  const [estado, setEstado] = useState("verificando"); // verificando | ativo | inativo | bloqueado | sem-suporte | ios-instalar
+  const [msg, setMsg] = useState(""), [ocupado, setOcupado] = useState(""), [salvo, setSalvo] = useState("");
+  const sup = suportePush();
+  useEffect(() => {
+    if (sup.ios && !sup.instalado) { setEstado("ios-instalar"); return; }
+    if (!sup.tem) { setEstado("sem-suporte"); return; }
+    if (sup.permissao === "denied") { setEstado("bloqueado"); return; }
+    inscricaoAtual().then((s) => (s ? chamarCentral("POST", { acao: "avisosEstado", endpoint: s.endpoint }).then((r) => setEstado(r.inscrito ? "ativo" : "inativo")) : setEstado("inativo")))
+      .catch(() => setEstado("inativo"));
+  }, []);
+  async function ativar() {
+    setMsg(""); setOcupado("ativar");
+    try {
+      if (!chavePush) throw new Error("O servidor não respondeu a chave dos avisos. Tente de novo em instantes.");
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") { setEstado(perm === "denied" ? "bloqueado" : "inativo"); throw new Error("Sem permissão, os avisos não chegam. Toque em Permitir quando o aparelho perguntar."); }
+      const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+      await navigator.serviceWorker.ready;
+      let s = await reg.pushManager.getSubscription();
+      if (!s) s = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: chaveParaBytes(chavePush) });
+      await chamarCentral("POST", { acao: "avisosInscrever", inscricao: s.toJSON ? s.toJSON() : s });
+      setEstado("ativo"); setMsg("Avisos ativados neste aparelho. Toque em Enviar notificação de teste para conferir.");
+    } catch (e) { setMsg(String(e.message || e)); }
+    setOcupado("");
+  }
+  async function desativar() {
+    setMsg(""); setOcupado("desativar");
+    try { const s = await inscricaoAtual(); if (s) { await chamarCentral("POST", { acao: "avisosCancelar", endpoint: s.endpoint }); await s.unsubscribe().catch(() => {}); } setEstado("inativo"); setMsg("Avisos desligados neste aparelho."); }
+    catch (e) { setMsg(String(e.message || e)); }
+    setOcupado("");
+  }
+  async function testar() {
+    setMsg(""); setOcupado("teste");
+    try { await chamarCentral("POST", { acao: "avisosTeste" }); setMsg("Notificação de teste enviada. Ela chega em alguns segundos."); } catch (e) { setMsg(String(e.message || e)); }
+    setOcupado("");
+  }
+  async function salvar() {
+    setSalvo("salvando");
+    try { const r = await chamarCentral("POST", { acao: "avisosSalvar", prefs }); setPrefs(r.avisos); setSalvo("salvo"); } catch (e) { setSalvo("erro"); setMsg(String(e.message || e)); }
+  }
+  const cartaoA = { background: "#FFFFFF", border: "1px solid #E6EBE8", borderRadius: 16, padding: "14px 16px", marginBottom: 12 };
+  const sub = { ...prosa, fontSize: 13, color: C.grafite };
+  const inpH = { ...entrada, fontSize: 15, padding: "6px 9px", width: 110 };
+  const textoEstado = { verificando: "Verificando este aparelho…", ativo: "Ativos neste aparelho.", inativo: "Desligados neste aparelho.",
+    bloqueado: "O aparelho bloqueou os avisos da Central. Libere nas configurações do navegador (ou do app) e volte aqui.",
+    "sem-suporte": "Este navegador não recebe avisos. No Android, use o Chrome; no computador, Chrome, Edge ou Firefox.",
+    "ios-instalar": "No iPhone, os avisos só chegam com a Central na tela de início: toque em Compartilhar › Adicionar à Tela de Início, abra a Central pelo ícone e volte aqui." }[estado];
+  return (
+    <div data-avisos>
+      <div style={cartaoA}>
+        <p style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, margin: "0 0 4px" }}>Avisos no celular</p>
+        <p style={sub} data-estado-avisos={estado}>{textoEstado}</p>
+        <div className="flex flex-wrap gap-2" style={{ marginTop: 10 }}>
+          {(estado === "inativo") && <Botao onClick={ativar} disabled={!!ocupado}>{ocupado === "ativar" ? "Ativando…" : "Ativar neste aparelho"}</Botao>}
+          {estado === "ativo" && <Botao onClick={testar} disabled={!!ocupado}>{ocupado === "teste" ? "Enviando…" : "Enviar notificação de teste"}</Botao>}
+          {estado === "ativo" && <Botao variante="vazio" onClick={desativar} disabled={!!ocupado}>Desligar neste aparelho</Botao>}
+        </div>
+        {msg && <p style={{ ...prosa, fontSize: 13.5, marginTop: 10 }} data-msg-avisos>{msg}</p>}
+      </div>
+      <div style={cartaoA}>
+        <p style={{ fontFamily: ARCH, fontSize: 16, fontWeight: 700, margin: "0 0 8px" }}>O que você recebe</p>
+        {tipos.map((t) => (
+          <label key={t.id} className="flex items-center gap-2" style={{ padding: "7px 0", borderBottom: "1px solid #EEF1EF", fontFamily: ARCH, fontSize: 14, opacity: t.ativo ? 1 : 0.6 }}>
+            <input type="checkbox" data-tipo={t.id} checked={!!prefs.tipos[t.id]} disabled={!t.ativo} onChange={(e) => { setPrefs({ ...prefs, tipos: { ...prefs.tipos, [t.id]: e.target.checked } }); setSalvo(""); }} />
+            <span style={{ flex: 1 }}>{t.rot}</span>{!t.ativo && <span style={sub}>chega na Etapa {t.etapa}</span>}
+          </label>
+        ))}
+        <label className="flex items-center gap-2" style={{ marginTop: 12, fontFamily: ARCH, fontSize: 14 }}>
+          <input type="checkbox" data-silencio checked={!!prefs.silencio.ativo} onChange={(e) => { setPrefs({ ...prefs, silencio: { ...prefs.silencio, ativo: e.target.checked } }); setSalvo(""); }} />
+          Horário de silêncio (nada é enviado)
+        </label>
+        <div className="flex flex-wrap items-center gap-2" style={{ marginTop: 8 }}>
+          <span style={sub}>das</span><input type="time" data-silencio-de style={inpH} value={prefs.silencio.de} onChange={(e) => { setPrefs({ ...prefs, silencio: { ...prefs.silencio, de: e.target.value } }); setSalvo(""); }} />
+          <span style={sub}>às</span><input type="time" data-silencio-ate style={inpH} value={prefs.silencio.ate} onChange={(e) => { setPrefs({ ...prefs, silencio: { ...prefs.silencio, ate: e.target.value } }); setSalvo(""); }} />
+        </div>
+        <div className="flex items-center gap-2" style={{ marginTop: 12 }}>
+          <Botao pequeno onClick={salvar} disabled={salvo === "salvando"}>Salvar preferências</Botao>
+          <span style={sub} data-prefs-salvas>{salvo === "salvo" ? "Salvo ✓" : salvo === "salvando" ? "Salvando…" : salvo === "erro" ? "Não salvou" : ""}</span>
+        </div>
+        <p style={{ ...sub, marginTop: 10 }}>{papel === "administrativo" ? "Você recebe só os avisos da sua rotina e dos pagamentos." : "Cada pessoa recebe só os avisos dela. Horários no fuso de São Paulo."}</p>
+      </div>
+    </div>
+  );
+}
+function TelaAdministrativo({ resp }) {
+  return (
+    <div>
+      <h1 style={{ fontFamily: ARCH, fontSize: 28, fontWeight: 700, letterSpacing: "-0.02em", margin: "0 0 4px" }}>Central · Administrativo</h1>
+      <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginBottom: 14 }}>Ative os avisos neste celular. A sua rotina e os lembretes de pagamento chegam aqui nas próximas etapas.</p>
+      <PainelAvisos papel="administrativo" avisosIni={resp.avisos} tipos={resp.tipos || []} chavePush={resp.chavePush} />
+    </div>
+  );
+}
+function AbaImplantacao({ lista, mudar, hoje }) {
+  const [nova, setNova] = useState({ titulo: "", grupo: "pessoal" });
+  const feitas = lista.filter((t) => t.status === "feito").length;
+  const sub = { ...prosa, fontSize: 12.5, color: C.grafite };
+  const inp = { ...entrada, fontSize: 14, padding: "5px 8px" };
+  const altera = (id, fn) => mudar((l) => l.map((t) => (t.id === id ? fn({ ...t }) : t)));
+  return (
+    <div data-implantacao style={{ background: "#FFFFFF", borderRadius: 20, padding: "16px 18px", border: "1px solid #E6EBE8" }}>
+      <div className="flex flex-wrap items-center gap-2" style={{ marginBottom: 6 }}>
+        <span style={{ fontFamily: ARCH, fontSize: 18, fontWeight: 700, flex: 1 }}>Implantação</span>
+        <span style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }} data-progresso>{feitas} de {lista.length}</span>
+      </div>
+      <div style={{ height: 8, borderRadius: 8, background: "#EEF1EF", overflow: "hidden", marginBottom: 6 }}><div style={{ width: (lista.length ? feitas / lista.length * 100 : 0) + "%", height: "100%", background: C.saibro }} /></div>
+      <p style={{ ...sub, marginBottom: 6 }}>Com data, a tarefa vira aviso no celular: na hora marcada, ou às 9h se não tiver hora.</p>
+      {GRUPOS_IMPL.map(([g, rot]) => {
+        const doGrupo = lista.filter((t) => t.grupo === g); if (!doGrupo.length) return null;
+        return (
+          <div key={g} style={{ marginTop: 14 }}>
+            <p style={{ fontFamily: ARCH, fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: C.grafite, margin: "0 0 4px" }}>{rot}</p>
+            {doGrupo.map((t) => { const n = lista.indexOf(t) + 1, feita = t.status === "feito", atrasada = !feita && t.data && t.data < hoje; return (
+              <div key={t.id} data-tarefa-impl={t.id} style={{ padding: "8px 0", borderBottom: "1px solid #EEF1EF" }}>
+                <label className="flex items-start gap-2" style={{ cursor: "pointer" }}>
+                  <input type="checkbox" checked={feita} style={{ marginTop: 3 }} aria-label={"Concluir " + t.titulo} onChange={() => altera(t.id, (x) => { x.status = feita ? "a_fazer" : "feito"; x.feitoEm = feita ? "" : hoje; return x; })} />
+                  <span style={{ fontFamily: ARCH, fontSize: 14, flex: 1, color: feita ? C.grafite : C.tinta, textDecoration: feita ? "line-through" : "none" }}>{n}. {t.titulo}</span>
+                </label>
+                {!feita && (
+                  <div className="flex flex-wrap items-center gap-2" style={{ marginTop: 6, paddingLeft: 22 }}>
+                    <input type="date" style={{ ...inp, width: 150 }} value={t.data} aria-label="Data" onChange={(e) => altera(t.id, (x) => { x.data = e.target.value; if (!x.data) x.hora = ""; return x; })} />
+                    <input type="time" style={{ ...inp, width: 110 }} value={t.hora} disabled={!t.data} aria-label="Hora" onChange={(e) => altera(t.id, (x) => { x.hora = e.target.value; return x; })} />
+                    {t.data && <span style={{ ...sub, color: atrasada ? "#B23A2E" : C.grafite, fontWeight: atrasada ? 700 : 400 }}>{atrasada ? "atrasada" : "aviso " + (t.data === hoje ? "hoje" : dataCurta(t.data)) + " às " + (t.hora || "9h")}</span>}
+                    {/^imx/.test(t.id) && <button type="button" onClick={() => mudar((l) => l.filter((x) => x.id !== t.id))} style={{ border: "none", background: "none", color: C.grafite, cursor: "pointer", fontSize: 13, textDecoration: "underline" }}>Apagar</button>}
+                  </div>
+                )}
+                {feita && t.feitoEm && <p style={{ ...sub, paddingLeft: 22, marginTop: 2 }}>feita em {dataCurta(t.feitoEm)}</p>}
+              </div>); })}
+          </div>
+        );
+      })}
+      <div className="flex flex-wrap items-end gap-2" style={{ marginTop: 16 }}>
+        <input style={{ ...inp, flex: 1, minWidth: 180 }} placeholder="Nova tarefa de implantação" value={nova.titulo} onChange={(e) => setNova({ ...nova, titulo: e.target.value })} data-nova-impl />
+        <select style={{ ...inp, width: 160 }} value={nova.grupo} onChange={(e) => setNova({ ...nova, grupo: e.target.value })}>{GRUPOS_IMPL.map(([g, r]) => <option key={g} value={g}>{r}</option>)}</select>
+        <Botao pequeno disabled={!nova.titulo.trim()} onClick={() => { mudar((l) => l.concat([{ id: "imx" + Date.now().toString(36), grupo: nova.grupo, titulo: nova.titulo.trim(), status: "a_fazer", data: "", hora: "", feitoEm: "" }])); setNova({ ...nova, titulo: "" }); }}>Adicionar</Botao>
+      </div>
+    </div>
+  );
+}
+
 function TelaCentral() {
   const [resp, setResp] = useState(null);
   const [dados, setDados] = useState(null);
   const [erro, setErro] = useState("");
   const [estadoSalvar, setEstadoSalvar] = useState("");
-  const [aba, setAba] = useState("hoje");
+  const ABAS_HASH = ["hoje", "agenda", "tarefas", "implantacao", "negocios", "revisao", "notas", "avisos"];
+  const [aba, setAba] = useState(() => { const h = String(location.hash || "").replace("#", ""); return ABAS_HASH.indexOf(h) >= 0 ? h : "hoje"; });
+  const [impl, setImpl] = useState(null);
+  const [estadoImpl, setEstadoImpl] = useState("");
+  const timerImplRef = useRef(null);
   const [semana, setSemana] = useState(() => segundaDe(dataISO(new Date())));
   const [mesNeg, setMesNeg] = useState(mesISOAtual());
   const [filtroNeg, setFiltroNeg] = useState("");
@@ -255,8 +417,21 @@ function TelaCentral() {
   const hoje = (resp && resp.hoje) || dataISO(new Date());
 
   useEffect(() => {
-    chamarCentral("GET").then((r) => { setResp(r); setDados(r.dados); carregadoRef.current = true; }).catch((e) => setErro(String(e.message || e)));
+    chamarCentral("GET").then((r) => { setResp(r); setDados(r.dados || null); setImpl(r.implantacao || []); carregadoRef.current = true; }).catch((e) => setErro(String(e.message || e)));
   }, []);
+  /* o toque num aviso abre a aba certa (/#implantacao, /#avisos) */
+  useEffect(() => { const f = () => { const h = String(location.hash || "").replace("#", ""); if (ABAS_HASH.indexOf(h) >= 0) setAba(h); }; window.addEventListener("hashchange", f); return () => window.removeEventListener("hashchange", f); }, []);
+  /* a Implantação salva à parte da agenda (outro documento), 1 s depois da última mudança */
+  function mudarImpl(fn) { setImpl((l) => fn(l)); setEstadoImpl("pendente"); }
+  useEffect(() => {
+    if (estadoImpl !== "pendente") return;
+    clearTimeout(timerImplRef.current);
+    timerImplRef.current = setTimeout(() => {
+      setEstadoImpl("salvando");
+      chamarCentral("POST", { acao: "implantacaoSalvar", tarefas: impl }).then(() => setEstadoImpl("salvo")).catch(() => setEstadoImpl("erro"));
+    }, 1000);
+    return () => clearTimeout(timerImplRef.current);
+  }, [impl, estadoImpl]);
   /* salva sozinho, 1 s depois da última mudança */
   function mudar(fn) {
     setDados((atual) => { const novo = JSON.parse(JSON.stringify(atual)); fn(novo); return novo; });
@@ -273,6 +448,7 @@ function TelaCentral() {
   }, [dados, estadoSalvar]);
 
   if (erro) return <div><h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700 }}>Central</h1><Aviso>{erro}</Aviso></div>;
+  if (resp && resp.papel === "administrativo") return <TelaAdministrativo resp={resp} />;
   if (!dados) return <p style={{ ...prosa, color: C.grafite }}>Abrindo a Central…</p>;
 
   const auto = resp.auto || {}, ty = auto["team-yoda"] || {}, rc = auto["39-ranch"] || {}, ql = auto.quadralab || {};
@@ -405,11 +581,11 @@ function TelaCentral() {
     <div>
       <div className="flex flex-wrap items-center gap-2" style={{ marginBottom: 4 }}>
         <h1 style={{ fontFamily: ARCH, fontSize: 30, fontWeight: 700, letterSpacing: "-0.02em", flex: 1, margin: 0 }}>{(() => { const h = new Date().getHours(); return h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite"; })()}, Richard</h1>
-        <span style={{ ...sub, color: estadoSalvar === "erro" ? "#B23A2E" : C.grafite }}>{estadoSalvar === "salvando" || estadoSalvar === "pendente" ? "Salvando…" : estadoSalvar === "salvo" ? "Salvo ✓" : estadoSalvar === "erro" ? "Não salvou — tente de novo" : ""}</span>
+        <span style={{ ...sub, color: estadoSalvar === "erro" ? "#B23A2E" : C.grafite }}>{estadoImpl === "salvando" || estadoImpl === "pendente" ? "Salvando…" : estadoImpl === "erro" ? "Não salvou a Implantação" : estadoSalvar === "salvando" || estadoSalvar === "pendente" ? "Salvando…" : estadoSalvar === "salvo" ? "Salvo ✓" : estadoSalvar === "erro" ? "Não salvou — tente de novo" : ""}</span>
       </div>
       <p style={{ ...sub, fontSize: 13.5, marginBottom: 10 }}>Central · {new Date(hoje + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })} · só você vê</p>
       <div data-abas style={{ display: "flex", gap: 8, overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "none", margin: "0 -16px 12px", padding: "2px 16px 4px" }}>
-        {[["hoje", "Hoje"], ["agenda", "Agenda"], ["tarefas", "Tarefas"], ["negocios", "Negócios"], ["revisao", "Revisão semanal"], ["notas", "Notas e decisões"]].map(([v, r]) => <button key={v} style={{ ...chipA(aba === v), whiteSpace: "nowrap", flex: "none" }} onClick={() => setAba(v)}>{r}</button>)}
+        {[["hoje", "Hoje"], ["agenda", "Agenda"], ["tarefas", "Tarefas"], ["implantacao", "Implantação"], ["negocios", "Negócios"], ["revisao", "Revisão semanal"], ["notas", "Notas e decisões"], ["avisos", "Avisos"]].map(([v, r]) => <button key={v} data-aba-central={v} style={{ ...chipA(aba === v), whiteSpace: "nowrap", flex: "none" }} onClick={() => setAba(v)}>{r}</button>)}
       </div>
 
       {aba === "hoje" && (() => {
@@ -467,6 +643,14 @@ function TelaCentral() {
               {listaCompromissos(hoje)}
               <div className="mt-2">{formCompromisso()}</div>
             </CartaoP>
+            {impl && impl.length > 0 && (() => { const abertas = impl.filter((t) => t.status !== "feito"), f = impl.length - abertas.length; return (
+              <CartaoP titulo="Implantação" direita={<ChipP>{f} de {impl.length}</ChipP>}>
+                <div data-cartao-implantacao>
+                  {abertas.length ? abertas.slice(0, 3).map((t) => <p key={t.id} style={{ ...prosa, fontSize: 13.5, padding: "5px 0", borderBottom: "1px solid #EEF1EF" }}>{impl.indexOf(t) + 1}. {t.titulo}{t.data ? <span style={{ ...sub, marginLeft: 6 }}>{dataCurta(t.data)}{t.hora ? " " + t.hora : ""}</span> : null}</p>)
+                    : <p style={sub}>Tudo feito. Parabéns!</p>}
+                  <div style={{ marginTop: 8 }}><Botao pequeno variante="vazio" onClick={() => setAba("implantacao")}>Ver a lista</Botao></div>
+                </div>
+              </CartaoP>); })()}
             <CartaoP titulo={"Tarefas · " + (atrasadas.length ? atrasadas.length + " atrasada(s) · " : "") + deHoje.length + " para hoje"} largura="2">
               {formTarefa()}
               {atrasadas.concat(deHoje).map((t) => linhaTarefa(t))}
@@ -592,6 +776,9 @@ function TelaCentral() {
         );
       })()}
 
+      {aba === "implantacao" && impl && <AbaImplantacao lista={impl} mudar={mudarImpl} hoje={hoje} />}
+      {aba === "avisos" && <PainelAvisos papel="richard" avisosIni={resp.avisos || { tipos: {}, silencio: { ativo: true, de: "22:00", ate: "07:00" } }} tipos={resp.tipos || []} chavePush={resp.chavePush} />}
+
       {aba === "notas" && (
         <div style={quadro}>
           <div style={cartao}>
@@ -653,14 +840,13 @@ function AppCentral() {
   if (!window.mtyAuth) return <div style={{ maxWidth: 520, margin: "60px auto", padding: "0 16px" }}><Aviso cor="#B23A2E">Não consegui carregar o login. Verifique a internet e recarregue a página.</Aviso></div>;
   if (usuario === undefined) return <p style={{ ...prosa, color: C.grafite, maxWidth: 760, margin: "60px auto", padding: "0 20px" }}>Abrindo a Central…</p>;
   if (!usuario) return <TelaEntrar />;
-  const dono = DONOS_CENTRAL.indexOf(String(usuario.email || "").toLowerCase()) >= 0;
   return (
     <div style={{ maxWidth: 1040, margin: "0 auto", padding: "14px 16px 40px" }}>
       <div className="flex items-center gap-2" style={{ marginBottom: 6 }}>
         <span style={{ ...prosa, fontSize: 12.5, color: C.grafite, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{usuario.email}</span>
         <Botao pequeno variante="vazio" onClick={() => window.mtyAuth.sair()}>Sair</Botao>
       </div>
-      {dono ? <TelaCentral /> : <Aviso cor="#B23A2E">Esta Central é só do dono. Entre com a conta tsukada.richard@gmail.com.</Aviso>}
+      <TelaCentral />
     </div>
   );
 }

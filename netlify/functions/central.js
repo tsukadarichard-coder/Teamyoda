@@ -12,9 +12,24 @@
 
    GET  → { dados, auto: { "team-yoda", "39-ranch", quadralab } }
    POST { dados } → grava (só campos conhecidos, textos curtos, listas com limite) */
+
+/* Etapa 1 da Central Tsukada (13/11/2026): avisos no celular e lista "Implantação" (regras em _central-avisos.js; envio
+   agendado em central-avisos.js). Perfis: Richard (FINANCEIRO_DONOS) vê tudo como antes; o administrativo (lista de
+   Financeiro › Acessos) entra só para os avisos dele; professores e qualquer outra conta recebem 403. O navegador nunca lê
+   o Firestore: estas coleções só passam por aqui (as regras do Firestore as fecham para o navegador).
+   GET (Richard)        → o de sempre + { papel: "richard", implantacao, avisos, tipos, chavePush }
+   GET (administrativo) → { papel: "administrativo", hoje, avisos, tipos, chavePush }   (nada da agenda, tarefas ou negócios)
+   POST { acao: "implantacaoSalvar", tarefas }            → só Richard; central/implantacao
+   POST { acao: "avisosSalvar", prefs }                   → cada um as suas; centralAvisos/{uid} (só os tipos do perfil)
+   POST { acao: "avisosInscrever", inscricao }            → este aparelho passa a receber (pushInscricoes, app "central", uid, papel)
+   POST { acao: "avisosCancelar" | "avisosEstado", endpoint }
+   POST { acao: "avisosTeste" }                           → um aviso só para os aparelhos de quem tocou */
 const { admin, app } = require("./_firebase-admin");
 const FIN = require("./financeiro");
 const F = require("./_financeiro-calc");
+const A = require("./_central-avisos");
+const P = require("./_push");
+const { endpointValido } = require("./push-inscricao");
 
 const NEGOCIOS = ["team-yoda", "39-ranch", "quadralab", "alvor", "geral"];
 function resposta(statusCode, corpo) { return { statusCode, headers: { "content-type": "application/json", "cache-control": "no-store" }, body: JSON.stringify(corpo) }; }
@@ -122,12 +137,71 @@ async function handlePost(event, claims) {
   return resposta(200, { ok: true, dados });
 }
 
+/* ── Etapa 1: perfis, Implantação e avisos ── */
+const db = () => admin.firestore();
+function tiposPara(papel) { return A.tiposDoPapel(papel).map((id) => ({ id, rot: A.TIPOS[id].rot, etapa: A.TIPOS[id].etapa, ativo: A.ativo(id) })); }
+async function chavePush() { try { return await P.chavePublica(admin); } catch (e) { return null; } }
+async function lerPrefs(uid, papel) { if (!uid) return A.prefsPadrao(papel); const d = await db().collection("centralAvisos").doc(uid).get(); return A.prefsDe(d.exists ? d.data() : null, papel); }
+async function lerImplantacao() { const d = await db().collection("central").doc("implantacao").get(); return d.exists ? A.limparImplantacao(d.data().tarefas) : A.implantacaoPadrao(); }
+async function extrasEtapa1(claims, papel) {
+  const [avisos, chave] = await Promise.all([lerPrefs(claims.uid, papel), chavePush()]);
+  return { papel, avisos, tipos: tiposPara(papel), chavePush: chave };
+}
+async function acao(b, claims, papel) {
+  const uid = String(claims.uid || "");
+  if (b.acao === "implantacaoSalvar") {
+    if (papel !== "richard") throw new FIN._ErroPublico(403, "A lista Implantação é só do Richard.");
+    const tarefas = A.limparImplantacao(b.tarefas);
+    await db().collection("central").doc("implantacao").set({ tarefas, atualizado: Date.now(), por: claims.email });
+    return { implantacao: tarefas };
+  }
+  if (!uid) throw new FIN._ErroPublico(401, "Entre de novo para mexer nos avisos.");
+  if (b.acao === "avisosSalvar") {
+    const prefs = A.limparPrefs(b.prefs, papel);
+    await db().collection("centralAvisos").doc(uid).set({ ...prefs, atualizado: Date.now() });
+    return { avisos: prefs };
+  }
+  if (b.acao === "avisosInscrever") {
+    const i = b.inscricao || {}, k = i.keys || {};
+    if (!endpointValido(i.endpoint) || !/^[A-Za-z0-9_-]{80,100}$/.test(String(k.p256dh || "")) || !/^[A-Za-z0-9_-]{16,30}$/.test(String(k.auth || ""))) throw new FIN._ErroPublico(400, "Inscrição inválida.");
+    const ref = db().collection(P.COLECAO).doc(P.idDaInscricao(i.endpoint)), antes = await ref.get(), agora = new Date().toISOString();
+    await ref.set({ app: "central", uid, papel, url: "/", endpoint: i.endpoint, keys: { p256dh: k.p256dh, auth: k.auth }, criadoEm: antes.exists ? antes.data().criadoEm || agora : agora, atualizadoEm: agora });
+    return { ok: true };
+  }
+  if (b.acao === "avisosCancelar" || b.acao === "avisosEstado") {
+    if (!endpointValido(b.endpoint)) return b.acao === "avisosEstado" ? { inscrito: false } : { ok: true };
+    const ref = db().collection(P.COLECAO).doc(P.idDaInscricao(b.endpoint)), d = await ref.get();
+    const meu = d.exists && d.data().app === "central" && d.data().uid === uid;
+    if (b.acao === "avisosEstado") return { inscrito: meu };
+    if (meu) await ref.delete();
+    return { ok: true };
+  }
+  if (b.acao === "avisosTeste") {
+    const r = await P.enviarPara(admin, { app: "central", uid }, { titulo: "Central", corpo: "Notificação de teste: os avisos estão chegando neste aparelho.", url: "/#avisos", tag: "central-teste" });
+    if (!r.enviados) throw new FIN._ErroPublico(409, r.removidos ? "O aparelho tinha desativado os avisos. Ative de novo e teste." : "Nenhum aparelho com avisos ativos nesta conta. Toque em Ativar neste aparelho primeiro.");
+    return { ok: true, enviados: r.enviados };
+  }
+  throw new FIN._ErroPublico(400, "Ação desconhecida.");
+}
+
 exports.handler = async function (event) {
   try {
     app();
-    const claims = await FIN._exigirDono(event);
-    if (event.httpMethod === "GET") return await handleGet();
-    if (event.httpMethod === "POST") return await handlePost(event, claims);
+    const claims = await FIN._login(event), p = await FIN._papelDe(claims);
+    const papel = p === "dono" ? "richard" : p === "admin" ? "administrativo" : null;
+    if (!papel) throw new FIN._ErroPublico(403, "A Central é só do Richard e do administrativo.");
+    if (event.httpMethod === "GET") {
+      if (papel === "administrativo") return resposta(200, { hoje: hojeBR(), ...(await extrasEtapa1(claims, papel)) });
+      const r = await handleGet(), corpo = JSON.parse(r.body);
+      const [extras, implantacao] = await Promise.all([extrasEtapa1(claims, papel), lerImplantacao()]);
+      return resposta(200, { ...corpo, ...extras, implantacao });
+    }
+    if (event.httpMethod === "POST") {
+      let b = null; try { b = JSON.parse(event.body || "{}"); } catch (e) { b = null; }
+      if (b && typeof b.acao === "string") return resposta(200, await acao(b, claims, papel));
+      if (papel !== "richard") throw new FIN._ErroPublico(403, "Só o Richard mexe na agenda e nos negócios.");
+      return await handlePost(event, claims);
+    }
     return resposta(405, { erro: "Método não permitido." });
   } catch (e) {
     if (e instanceof FIN._ErroPublico) return resposta(e.status, { erro: e.message });
