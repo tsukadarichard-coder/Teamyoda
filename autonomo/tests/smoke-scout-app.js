@@ -297,6 +297,9 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
 
   /* exportar o relatório deste jogo, direto da tela do fim: placar, tempo de jogo e a comparação, sem o adversário */
   assert.ok(await p.$("[data-exportar] #btRelatorioJogo"), "botão de exportar o relatório do jogo");
+  /* o cartão de exportar fica logo abaixo do resultado, antes dos gráficos (13/11/2026) */
+  assert.ok(await p.evaluate(() => !!(document.querySelector("[data-exportar]").compareDocumentPosition(document.querySelector(".graficos")) & Node.DOCUMENT_POSITION_FOLLOWING)), "exportar antes dos gráficos");
+  assert.ok(await p.$("[data-ir-relatorios]"), "atalho para as estatísticas de todos os jogos");
   const [relJogo] = await Promise.all([p.waitForEvent("popup"), p.click("#btRelatorioJogo")]);
   await relJogo.waitForLoadState("load");
   const trj = await relJogo.evaluate(() => document.body.innerText);
@@ -318,6 +321,24 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   assert.ok(tr.includes("Lucas") && /QUADRALAB/i.test(tr) && tr.includes("Copa Sul") && !tr.includes("Fulano"), "relatório: " + tr.slice(0, 300));
   assert.ok(!/UTR|WTN/.test(tr), "relatório dos jogos sem UTR e WTN");
   await foto(rel, "scout-relatorio"); await rel.close();
+
+  /* aba Relatórios (pedido de 13/11/2026): números somados, evolução e PDFs */
+  await p.click('#navBaixo [data-aba="relatorios"]'); await p.waitForSelector("[data-rel-resumo]");
+  t = await texto();
+  assert.ok(t.includes("Relatórios") && t.includes("Lucas") && t.includes("Vitórias e derrotas") && t.includes("Pontos ganhos") && t.includes("Estatísticas somadas"), "aba Relatórios: " + t.slice(0, 600).replace(/\n+/g, " | "));
+  assert.ok(await p.$("[data-rel-estatisticas] .graficos .qg-sec") && await p.$("[data-rel-evolucao]"), "estatísticas somadas com gráficos e evolução");
+  assert.strictEqual(await p.getAttribute('#navBaixo [data-aba="relatorios"]', "aria-current"), "page");
+  assert.ok(await p.$("#btRelTodos") && (await p.$$("[data-pdf-jogo]")).length >= 3, "Plus: PDF de todos os jogos, do último e de cada jogo");
+  const [relAba] = await Promise.all([p.waitForEvent("popup"), p.click("[data-rel-pdf] .lista [data-pdf-jogo] >> nth=0")]);
+  await relAba.waitForLoadState("load");
+  assert.ok((await relAba.evaluate(() => document.body.innerText)).includes("Lucas"), "PDF de um jogo pela aba Relatórios"); await relAba.close();
+  await p.click('[data-rel-qtd="5"]'); await p.waitForSelector('[data-rel-qtd="5"][aria-pressed="true"]');
+  await semRolagem(p, "relatorios"); await foto(p, "scout-9-relatorios");
+  /* o plano chega do servidor depois da tela desenhada (primeira vez no aparelho): o fim do jogo troca o cadeado pelos botões */
+  await p.evaluate(() => { for (const k of Object.keys(localStorage)) if (k.startsWith("qls:conta:")) { const c = JSON.parse(localStorage.getItem(k)); c.plano = "gratis"; localStorage.setItem(k, JSON.stringify(c)); } });
+  await p.goto(base + "#/jogo/" + jl.id); await p.reload();
+  await p.waitForSelector("[data-exportar] #btRelatorioJogo", { timeout: 15000 });
+  assert.ok(!(await p.$('[data-plus-bloqueio="pdf"]')), "depois da sincronização, o cadeado do PDF some para quem tem Plus");
   /* a análise de movimento saiu do app: sem aba, sem botão, e o link antigo cai nos jogos */
   const mvGets = []; p.on("request", (rq) => { if (rq.url().includes("scout-app-movimento")) mvGets.push(rq.url()); });
   assert.ok(!(await p.$('#navBaixo [data-aba="movimento"]')) && !(await p.$("[data-movimento]")) && !/Análise de movimento/i.test(await texto()), "sem análise de movimento");
@@ -343,6 +364,8 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   await p.goto(base + "#/"); await p.waitForSelector("[data-novo]");
   await p.click('a[href^="#/atleta/"]'); await p.waitForSelector('[data-plus-bloqueio="pdf"]');
   assert.ok(!(await p.$("#btRelatorio")) && (await texto()).includes("Evolução jogo a jogo"), "grátis: relatório em PDF com cadeado, evolução completa");
+  await p.goto(base + "#/relatorios"); await p.waitForSelector("[data-rel-resumo]");
+  assert.ok(await p.$("[data-rel-estatisticas] .graficos") && await p.$('[data-plus-bloqueio="pdf"]') && !(await p.$("#btRelTodos")) && !(await p.$("[data-pdf-jogo]")), "grátis: estatísticas liberadas, PDF com cadeado");
 
   /* segundo celular na mesma conta */
   const c2 = await celular();

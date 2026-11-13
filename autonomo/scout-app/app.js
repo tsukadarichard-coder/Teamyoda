@@ -92,9 +92,14 @@
       while (pend.length) { await N.apagarJogo(pend[0]); pend.shift(); gravarApagar(pend); }
       var r = await N.sincronizar(D, uid, function () { return st; }, function (n) { st = n; salvar(true); });
       if (!eu || eu.uid !== uid) return;
+      var plusAntes = ehPlus();
       if (r.conta) { conta = r.conta; guardarConta(); }
       estadoNuvem = "";
-      if (r.baixados && !/^#\/(jogo|novo)/.test(location.hash)) rota();
+      /* o plano chegou do servidor depois da tela desenhada (primeira vez no aparelho): redesenha para o PDF e o link ao vivo aparecerem.
+         Jogo em andamento ou novo jogo não são redesenhados no meio da marcação. */
+      var mudouPlano = ehPlus() !== plusAntes, mJogo = /^#\/jogo\/([^/]+)/.exec(location.hash), jogoAberto = mJogo && D.jogo(st, mJogo[1]);
+      if ((r.baixados || mudouPlano) && !/^#\/(jogo|novo)/.test(location.hash)) rota();
+      else if (mudouPlano && jogoAberto && D.encerrado(M, jogoAberto)) { var yy = window.scrollY; rota(); window.scrollTo(0, yy); }
     } catch (e) {
       estadoNuvem = e.semRede ? "sem internet" : e.message;
       if (e.status === 401) toast("Sua sessão venceu. Entre de novo para salvar na nuvem.");
@@ -498,14 +503,15 @@
       (D.duracaoSeg(j) != null ? '<p class="nota" data-duracao><b>Tempo de jogo: ' + esc(D.textoDuracao(D.duracaoSeg(j))) + "</b></p>" : "") +
       (link ? '<p class="nota">O link ao vivo mostra o resultado final por mais 2 horas.</p>' : "") +
       '<div class="acoes"><button type="button" class="bt bt-principal" id="btCompartilhar">Compartilhar o resultado</button><a class="bt" id="lkWhats" target="_blank" rel="noopener noreferrer" href="https://wa.me/?text=' + encodeURIComponent(D.textoCompartilhar(M, st, j)) + '">Mandar no WhatsApp</a></div></section>';
-    if (n && dupla) h += duplaHtml(j, nome);
-    if (n && G) h += '<div class="graficos">' + G.topo(r) + G.secoes(r) + "</div>";
-    /* exportar: o relatório deste jogo (sempre que há pontos) e o de todos os jogos terminados do atleta */
+    /* exportar (logo abaixo do resultado, pedido de 13/11/2026): o relatório deste jogo e o de todos os jogos terminados do atleta */
     var temTodos = !!(window.QLScoutRelatorio && window.QLScoutRelatorio.jogosDoRelatorio(M, D, st, j.atletaId).length);
     if (n && !ehPlus()) h += cadeadoPlus("pdf", "Exportar relatório", "O relatório deste jogo e o de todos os jogos, prontos para salvar em PDF e mandar para o treinador.");
     else if (n) h += '<section class="cartao" data-exportar><h2>Exportar relatório</h2><p class="nota" style="margin-top:0">Abre o relatório pronto para salvar em PDF, imprimir ou mandar para o treinador. O nome do adversário não entra.</p><div class="acoes">' +
       '<button type="button" class="bt bt-principal" id="btRelatorioJogo">Relatório deste jogo (PDF)</button>' +
       (temTodos ? '<button type="button" class="bt bt-pq" id="btRelatorioFim">Todos os jogos de ' + esc(nome) + " (PDF)</button>" : "") + "</div></section>";
+    if (n) h += '<div class="acoes" style="margin:-4px 0 14px"><a class="bt bt-texto" href="#/relatorios/' + esc(j.atletaId) + '" data-ir-relatorios>Estatísticas de todos os jogos de ' + esc(nome) + " ›</a></div>";
+    if (n && dupla) h += duplaHtml(j, nome);
+    if (n && G) h += '<div class="graficos">' + G.topo(r) + G.secoes(r) + "</div>";
     if (r.sinais && r.sinais.length) h += '<section class="cartao"><h2>O que este jogo aponta</h2><p class="nota">Leitura automática pelos números. É ponto de partida para conversar com o treinador, não conclusão.</p>' + r.sinais.map(function (t) { return '<div class="sinal">' + t + "</div>"; }).join("") + "</section>";
     if (cmp.jogos.length >= 2) h += '<section class="cartao"><h2>Comparação com os jogos anteriores</h2>' + tabelaComparacao(cmp) + '<div class="acoes"><a class="bt bt-pq" href="#/atleta/' + esc(j.atletaId) + '">Ver todos os jogos de ' + esc(nome) + '</a>' + "</div></section>";
     else h += '<div class="aviso">Marque mais jogos de ' + esc(nome) + " para ver a comparação jogo a jogo. Um jogo é uma amostra; três na mesma direção já são um sinal.</div>";
@@ -568,7 +574,7 @@
     var vit = fim.filter(function (l) { return l.venceu === true; }).length, der = fim.filter(function (l) { return l.venceu === false; }).length;
     var media = fim.length ? Math.round(fim.reduce(function (s, l) { return s + l.pct; }, 0) / fim.length) : null, cmp = D.comparacao(M, st, id, 8), cmpD = D.comparacao(M, st, id, 8, true), temDupla = jogos.some(function (x) { return x.cfg.dupla; });
     var h = '<p class="voltar"><a class="bt bt-texto" href="#/">‹ Seus jogos</a></p><h1>' + esc(a.nome) + '</h1><p class="sub">' + jogos.length + (jogos.length === 1 ? " jogo" : " jogos") + (fim.length ? " · " + vit + (vit === 1 ? " vitória" : " vitórias") + " e " + der + (der === 1 ? " derrota" : " derrotas") + " · média de " + media + "% dos pontos" : "") + (D.textoNotas(a) ? ' · <b data-notas-resumo>' + esc(D.textoNotas(a)) + "</b>" : "") + "</p>" +
-      '<div class="acoes"><a class="bt bt-principal" href="#/novo" data-novo-atleta="' + esc(id) + '">+ Marcar um jogo de ' + esc(primeiroNome(a.nome)) + "</a></div>" +
+      '<div class="acoes"><a class="bt bt-principal" href="#/novo" data-novo-atleta="' + esc(id) + '">+ Marcar um jogo de ' + esc(primeiroNome(a.nome)) + '</a><a class="bt bt-pq" href="#/relatorios/' + esc(id) + '">Estatísticas e relatórios</a></div>' +
       (!ehPlus() ? cadeadoPlus("pdf", "Relatório dos jogos", "Reúne os jogos terminados em um PDF com gráficos de evolução.") :
       '<section class="cartao"><h2>Relatório dos jogos</h2><p class="nota" style="margin-top:0">Reúne os jogos terminados em um PDF com gráficos de evolução.</p><div class="acoes">' +
         (window.QLScoutRelatorio && window.QLScoutRelatorio.jogosDoRelatorio(M, D, st, id).length ? '<button type="button" class="bt bt-pq" id="btRelatorio">Relatório dos jogos (PDF)</button>' : '<span class="nota">O relatório aparece com 1 jogo terminado de pelo menos 10 pontos.</span>') + "</div></section>") +
@@ -589,6 +595,77 @@
       confirmaAtleta = null; atletasMudaram(); salvar(true); apagarNaNuvem(ids);
       toast("Atleta apagado" + (r.jogosApagados ? " com " + r.jogosApagados + (r.jogosApagados === 1 ? " jogo." : " jogos.") : ".")); location.hash = "#/";
     });
+  }
+
+  /* ══ Relatórios e estatísticas (pedido de 13/11/2026) ══
+     Por atleta: números somados dos jogos escolhidos (mesmos gráficos do fim do jogo), evolução jogo a jogo e os PDFs.
+     Simples e dupla não se misturam. O PDF continua no Scout Plus (decisão de 12/11/2026); as estatísticas são de todos. */
+  var rel = { atleta: null, modo: "simples", qtd: "10" };
+  function telaRelatorios(idPedido) {
+    var h = "<h1>Relatórios</h1>";
+    if (!st.atletas.length) {
+      tela(h + '<section class="cartao vazio"><b>Nenhum atleta ainda</b>Marque o primeiro jogo e os números aparecem aqui.<div class="acoes" style="justify-content:center"><a class="bt bt-principal" href="#/novo">+ Marcar um jogo</a></div></section>', true);
+      return;
+    }
+    if (idPedido && D.atleta(st, idPedido)) rel.atleta = idPedido;
+    if (!rel.atleta || !D.atleta(st, rel.atleta)) {
+      var ult = D.historico(st)[0];
+      rel.atleta = ult && D.atleta(st, ult.atletaId) ? ult.atletaId : st.atletas[0].id;
+    }
+    var id = rel.atleta, a = D.atleta(st, id), nome = primeiroNome(a.nome), todos = D.historico(st, id);
+    var temDupla = todos.some(function (x) { return x.cfg.dupla; }), temSimples = todos.some(function (x) { return !x.cfg.dupla; });
+    if (rel.modo === "dupla" && !temDupla) rel.modo = "simples";
+    if (rel.modo === "simples" && !temSimples && temDupla) rel.modo = "dupla";
+    var dupla = rel.modo === "dupla", qtd = rel.qtd === "todos" ? 9999 : +rel.qtd;
+    var terminados = todos.filter(function (x) { return !!x.cfg.dupla === dupla && D.encerrado(M, x) && x.pontos.length; });
+    var jogos = terminados.slice(0, qtd), linhas = jogos.map(function (x) { return D.linhaJogo(M, st, x); });
+    var chip = function (attr, v, rot, on) { return '<button type="button" class="chip" ' + attr + '="' + esc(v) + '" aria-pressed="' + !!on + '">' + rot + "</button>"; };
+    h += '<p class="sub">Os números somados, a evolução e os relatórios em PDF de cada atleta.</p>';
+    if (st.atletas.length > 1) h += '<div class="chips" role="group" aria-label="Atleta" style="margin-bottom:10px">' + st.atletas.map(function (x) { return chip("data-rel-atleta", x.id, esc(x.nome), x.id === id); }).join("") + "</div>";
+    if (temDupla && temSimples) h += '<div class="chips" role="group" aria-label="Simples ou dupla" style="margin-bottom:10px">' + chip("data-rel-modo", "simples", "Simples", !dupla) + chip("data-rel-modo", "dupla", "Dupla", dupla) + "</div>";
+    h += '<div class="chips" role="group" aria-label="Quantos jogos" style="margin-bottom:14px">' + [["5", "Últimos 5"], ["10", "Últimos 10"], ["todos", "Todos"]].map(function (x) { return chip("data-rel-qtd", x[0], x[1], rel.qtd === x[0]); }).join("") + "</div>";
+    if (!jogos.length) {
+      tela(h + '<div class="aviso">Ainda não há jogo ' + (dupla ? "de dupla " : "") + "terminado de " + esc(nome) + '. Termine um jogo e os números aparecem aqui.</div><div class="acoes"><a class="bt bt-principal" href="#/novo">+ Marcar um jogo</a></div>', true);
+      ligarRelatorios(id); return;
+    }
+    var fins = linhas.filter(function (l) { return l.venceu != null; }), vit = fins.filter(function (l) { return l.venceu; }).length, der = fins.length - vit;
+    var pontos = linhas.reduce(function (s, l) { return s + l.n; }, 0), ganhos = linhas.reduce(function (s, l) { return s + l.ganhos; }, 0);
+    var durs = jogos.map(function (x) { return D.duracaoSeg(x); }).filter(function (v) { return v != null && v > 0; });
+    var mediaDur = durs.length ? Math.round(durs.reduce(function (s, v) { return s + v; }, 0) / durs.length) : null;
+    var quem = dupla ? "Dupla de " + esc(nome) : esc(nome);
+    h += '<section class="cartao" data-rel-resumo><h2>' + quem + " · " + jogos.length + (jogos.length === 1 ? " jogo" : " jogos") + "</h2>" +
+      '<div class="contagem"><span>Vitórias e derrotas</span><b>' + vit + " × " + der + "</b></div>" +
+      '<div class="contagem"><span>Pontos ganhos</span><b>' + ganhos + " de " + pontos + " (" + (pontos ? Math.round(ganhos * 100 / pontos) : 0) + "%)</b></div>" +
+      (mediaDur != null ? '<div class="contagem"><span>Tempo médio de jogo</span><b>' + esc(D.textoDuracao(mediaDur)) + "</b></div>" : "") +
+      '<p class="nota">' + (rel.qtd === "todos" || terminados.length <= qtd ? "Todos os jogos " + (dupla ? "de dupla " : "") + "terminados." : "Os " + jogos.length + " jogos mais recentes de " + terminados.length + " terminados.") + "</p></section>";
+    /* PDFs */
+    var temTodosPdf = !dupla && !!(window.QLScoutRelatorio && window.QLScoutRelatorio.jogosDoRelatorio(M, D, st, id).length);
+    if (!ehPlus()) h += cadeadoPlus("pdf", "Relatórios em PDF", "O relatório de cada jogo e o de todos os jogos, prontos para salvar em PDF e mandar para o treinador.");
+    else h += '<section class="cartao" data-rel-pdf><h2>Relatórios em PDF</h2><p class="nota" style="margin-top:0">Pronto para salvar em PDF, imprimir ou mandar para o treinador. O nome do adversário não entra.</p><div class="acoes">' +
+      (temTodosPdf ? '<button type="button" class="bt bt-principal" id="btRelTodos">Todos os jogos de ' + esc(nome) + " (PDF)</button>" : "") +
+      '<button type="button" class="bt' + (temTodosPdf ? " bt-pq" : " bt-principal") + '" data-pdf-jogo="' + esc(jogos[0].id) + '">Último jogo (PDF)</button></div>' +
+      (dupla ? '<p class="nota">O relatório de todos os jogos é só de simples; o de cada dupla compara com as outras duplas.</p>' : !temTodosPdf ? '<p class="nota">O relatório de todos os jogos aparece com 1 jogo terminado de pelo menos 10 pontos.</p>' : "") +
+      '<ul class="lista" style="margin-top:10px">' + linhas.map(function (l) {
+        return '<li><div class="jogo-l"><strong>' + esc(l.torneio || "Jogo") + " · " + esc(dataCurta(l.data)) + '</strong><span class="pct">' + l.pct + '%</span><span class="q">' + esc(l.resultado || "") + '</span><span class="d"><button type="button" class="bt bt-pq" data-pdf-jogo="' + esc(l.id) + '">PDF deste jogo</button></span></div></li>';
+      }).join("") + "</ul></section>";
+    /* estatísticas somadas */
+    var soma = D.resumoSomado(M, st, jogos);
+    if (soma && G) h += '<section class="secao" data-rel-estatisticas><h2>Estatísticas somadas</h2><p class="nota">Cada número soma os pontos ' + (jogos.length === 1 ? "do jogo" : "dos " + jogos.length + " jogos") + ". Placar, games e mental ficam no resultado de cada jogo.</p>" +
+      '<div class="graficos">' + G.painelGeral(soma) + [G.comoTerminaram, G.decisoes, G.saque, G.lado, G.situacoes, G.golpes, G.direcao, G.devolucao].map(function (f) { try { return f(soma); } catch (e) { return ""; } }).join("") + "</div></section>";
+    /* evolução */
+    var cmp = D.comparacao(M, st, id, Math.min(qtd, 10), dupla);
+    h += cmp.jogos.length >= 2 ? '<section class="cartao" data-rel-evolucao><h2>Evolução jogo a jogo</h2>' + tabelaComparacao(cmp) + (qtd > 10 ? '<p class="nota">A tabela mostra os 10 jogos mais recentes.</p>' : "") + "</section>"
+      : '<div class="aviso">A evolução jogo a jogo aparece a partir de 2 jogos terminados com pelo menos 10 pontos.</div>';
+    h += '<section class="secao"><h2>Jogos</h2><ul class="lista">' + jogos.map(linhaHtml).join("") + "</ul></section>";
+    tela(h, true);
+    ligarRelatorios(id);
+  }
+  function ligarRelatorios(id) {
+    cada("[data-rel-atleta]", function (b) { b.addEventListener("click", function () { rel.atleta = b.getAttribute("data-rel-atleta"); location.hash = "#/relatorios/" + rel.atleta; }); });
+    cada("[data-rel-modo]", function (b) { b.addEventListener("click", function () { rel.modo = b.getAttribute("data-rel-modo"); telaRelatorios(id); }); });
+    cada("[data-rel-qtd]", function (b) { b.addEventListener("click", function () { rel.qtd = b.getAttribute("data-rel-qtd"); telaRelatorios(id); }); });
+    cada("[data-pdf-jogo]", function (b) { b.addEventListener("click", function () { var j = D.jogo(st, b.getAttribute("data-pdf-jogo")); if (j) abrirRelatorioPartida(j); }); });
+    var bt = document.getElementById("btRelTodos"); if (bt) bt.addEventListener("click", function () { abrirRelatorio(id); });
   }
 
   /* ══ Plano (a venda do Scout Plus está parada: nada de preço nem link de compra aqui) ══ */
@@ -635,7 +712,7 @@
   /* ══ rotas ══ */
   function navBaixo() {
     var nav = document.getElementById("navBaixo"); if (!nav) return;
-    var aba = /^#\/(conta|plus|perfil)/.test(location.hash) ? "conta" : "jogos";
+    var aba = /^#\/(conta|plus|perfil)/.test(location.hash) ? "conta" : /^#\/relatorios/.test(location.hash) ? "relatorios" : "jogos";
     nav.hidden = !eu; document.body.classList.toggle("com-nav", !!eu);
     Array.prototype.forEach.call(nav.querySelectorAll("a"), function (x) { if (x.getAttribute("data-aba") === aba) x.setAttribute("aria-current", "page"); else x.removeAttribute("aria-current"); });
   }
@@ -648,6 +725,7 @@
     else if (partes[0] === "jogo" && partes[1]) telaJogo(partes[1]);
     else if (partes[0] === "atleta" && partes[1]) { if (confirmaAtleta !== partes[1]) confirmaAtleta = null; telaAtleta(partes[1]); }
     else if (partes[0] === "movimento") { location.hash = "#/"; return; } // a análise de movimento saiu do app: link antigo cai nos jogos
+    else if (partes[0] === "relatorios") telaRelatorios(partes[1]);
     else if (partes[0] === "conta") telaConta();
     else if (partes[0] === "plus") telaPlus();
     else if (partes[0] === "perfil") telaPerfil();

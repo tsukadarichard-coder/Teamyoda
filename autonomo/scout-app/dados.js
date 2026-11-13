@@ -272,6 +272,19 @@
   }
   /* na dupla, o resumo (gráficos, link da família, texto do WhatsApp) fala da dupla, sem o nome do parceiro: "Dupla de Lucas" */
   function resumo(M, st, j) { var r = resumoBase(M, st, j); if (j.cfg && j.cfg.dupla) { r.atleta = ("Dupla de " + r.atleta).slice(0, 40); r.dupla = true; } return r; }
+  /* estatísticas somadas (aba Relatórios, pedido de 13/11/2026): os pontos de vários jogos do mesmo atleta e da mesma modalidade
+     viram um resumo só, no mesmo formato dos gráficos do fim do jogo (sem placar, sets nem mental, que são de cada jogo) */
+  function resumoSomado(M, st, jogos) {
+    var lista = (jogos || []).filter(function (j) { return j && j.pontos && j.pontos.length; });
+    if (!lista.length) return null;
+    var pts = [], a = atleta(st, lista[0].atletaId), cfg = lista[0].cfg;
+    lista.forEach(function (j) { pts = pts.concat(j.pontos); });
+    var r = M.montarResumoPublico({ data: lista[0].data, torneio: "", resultado: "", concluida: true, observacaoFinal: "", nivelAdversario: "", mental: {},
+      scout: Object.assign({}, M.resume(pts), { pontos: pts, cfg: cfg }) }, { nome: a ? a.nome : "Atleta" });
+    if (cfg && cfg.dupla) { r.atleta = ("Dupla de " + r.atleta).slice(0, 40); r.dupla = true; }
+    r.jogosSomados = lista.length;
+    return r;
+  }
   /* jogos terminados do mesmo atleta, antes deste, no formato que a análise ao vivo usa para comparar (QLAoVivo "anteriores") */
   function anteriores(M, st, j) {
     return historico(st, j.atletaId).filter(function (x) { return x.id !== j.id && mesmaModalidade(x, j) && encerrado(M, x) && x.pontos.length >= 10 && (x.data + x.criadoEm) < (j.data + j.criadoEm); })
@@ -360,6 +373,6 @@
     novoJogo: novoJogo, removerJogo: removerJogo, tocar: tocar, placar: placar, textoSets: textoSets, encerrado: encerrado, marcarPonto: marcarPonto, desfazer: desfazer, resumo: resumo, anteriores: anteriores,
     NOTAS: NOTAS, notasLimpas: notasLimpas, definirNota: definirNota, formatarNota: formatarNota, notaAnterior: notaAnterior, textoNotas: textoNotas, atletaLimpo: atletaLimpo,
     duracaoSeg: duracaoSeg, duracaoMin: duracaoMin, textoDuracao: textoDuracao, definirDuracao: definirDuracao, encerrar: encerrar, reabrir: reabrir,
-    historico: historico, linhaJogo: linhaJogo, comparacao: comparacao, textoCompartilhar: textoCompartilhar, exportar: exportar, importar: importar, eventoUso: eventoUso, hojeLocal: hojeLocal, cfgLimpa: cfgLimpa };
+    historico: historico, linhaJogo: linhaJogo, comparacao: comparacao, resumoSomado: resumoSomado, textoCompartilhar: textoCompartilhar, exportar: exportar, importar: importar, eventoUso: eventoUso, hojeLocal: hojeLocal, cfgLimpa: cfgLimpa };
   if (typeof module !== "undefined" && module.exports) module.exports = api; else raiz.QLScoutApp = api;
 })(typeof window !== "undefined" ? window : this);
