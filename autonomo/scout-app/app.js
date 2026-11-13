@@ -274,7 +274,10 @@
       '<p class="olho" style="margin-top:16px">Jogo</p><div class="chips" role="group" aria-label="Simples ou dupla" data-tour="modalidade">' + chip("data-modalidade", "simples", "Simples", !c.dupla) + chip("data-modalidade", "dupla", "Dupla", c.dupla) + "</div>" +
       (c.dupla ? '<div class="campo"><label for="nvParceiro">Parceiro(a) de dupla <span class="nota">(opcional, nunca vai para o link da família)</span></label><input id="nvParceiro" maxlength="60" autocomplete="off" autocapitalize="words" placeholder="Ex.: Pedro" value="' + esc(novo.parceiro) + '"></div>' : "") +
       '<div class="campo"><label for="nvTorneio">Torneio <span class="nota">(opcional)</span></label><input id="nvTorneio" maxlength="80" placeholder="Torneio ou jogo-treino" value="' + esc(novo.torneio) + '"></div>' +
-      '<div class="campo"><label for="nvAdv">' + (c.dupla ? "Adversários" : "Adversário") + ' <span class="nota">(opcional, nunca vai para o link da família)</span></label><input id="nvAdv" maxlength="80" autocomplete="off" value="' + esc(novo.adversario) + '"></div></section>' +
+      (c.dupla ? '<div class="campo" data-adv-dupla><p class="rot-campo">Adversários <span class="nota">(opcional, nunca vai para o link da família)</span></p><div class="grade2">' +
+        '<div><label class="nota" for="nvAdv1" style="display:block;margin:0 0 4px">Adversário 1</label><input id="nvAdv1" maxlength="38" autocomplete="off" autocapitalize="words" placeholder="Nome" value="' + esc(novo.adv1 || "") + '"></div>' +
+        '<div><label class="nota" for="nvAdv2" style="display:block;margin:0 0 4px">Adversário 2</label><input id="nvAdv2" maxlength="38" autocomplete="off" autocapitalize="words" placeholder="Nome" value="' + esc(novo.adv2 || "") + '"></div></div></div>'
+        : '<div class="campo"><label for="nvAdv">Adversário <span class="nota">(opcional, nunca vai para o link da família)</span></label><input id="nvAdv" maxlength="80" autocomplete="off" value="' + esc(novo.adversario) + '"></div>') + "</section>" +
       '<section class="cartao"><h2>Formato</h2><div class="chips" role="group" aria-label="Formato" data-tour="formato">' + [["3sets", "Melhor de 3 sets"], ["1set", "Set único"], ["4games", "Set a 4 games"], ["tb10", "Match tie-break (10)"], ["tb7", "Só tie-break (7)"]].map(function (f) { return chip("data-formato", f[0], f[1], c.formato === f[0]); }).join("") + "</div>" +
       '<p class="olho" style="margin-top:16px">Quem saca primeiro</p><div class="chips" role="group" aria-label="Quem saca primeiro">' + chip("data-saca", "nos", c.dupla ? "Dupla de " + esc(nomeSaque) : esc(nomeSaque), c.saca === "nos") + chip("data-saca", "ele", c.dupla ? "Adversários" : "Adversário", c.saca === "ele") + "</div>" +
       (c.dupla && c.saca === "nos" ? '<p class="olho" style="margin-top:16px">Quem da dupla saca primeiro</p><div class="chips" role="group" aria-label="Quem da dupla saca primeiro">' + chip("data-sacadupla", "atleta", esc(nomeSaque), c.sacaDupla !== "parceiro") +
@@ -284,7 +287,16 @@
       '</section><details class="cartao det" id="detMentalAntes"' + (novo.mentalAberto ? " open" : "") + '><summary>Como o atleta chega (opcional)</summary><p class="nota">De 1 (muito baixo) a 5 (muito alto). Depois do jogo dá para comparar com como ele terminou.</p>' + escalasHtml("antes", novo.mental.antes) + "</details>" +
       '<div class="aviso atencao" id="nvErro" role="alert" hidden></div><div class="acoes"><button type="button" class="bt bt-principal bt-grande" id="btComecar">Começar o jogo</button></div>';
     tela(h);
-    function lerCampos() { var n = document.getElementById("nvNome"); if (n) novo.nome = n.value; var pc = document.getElementById("nvParceiro"); if (pc) novo.parceiro = pc.value; novo.torneio = document.getElementById("nvTorneio").value; novo.adversario = document.getElementById("nvAdv").value; }
+    function lerCampos() { var n = document.getElementById("nvNome"); if (n) novo.nome = n.value; var pc = document.getElementById("nvParceiro"); if (pc) novo.parceiro = pc.value; novo.torneio = document.getElementById("nvTorneio").value;
+      var av = document.getElementById("nvAdv"), a1 = document.getElementById("nvAdv1"), a2 = document.getElementById("nvAdv2");
+      if (av) novo.adversario = av.value;
+      if (a1 || a2) { novo.adv1 = a1 ? a1.value : ""; novo.adv2 = a2 ? a2.value : ""; }
+    }
+    /* na dupla, os dois nomes vão juntos no campo adversario do jogo ("Ana e Bia"); no simples, o campo único */
+    function adversarioDoJogo() {
+      if (!novo.cfg.dupla) return novo.adversario || "";
+      return [novo.adv1, novo.adv2].map(function (x) { return String(x || "").trim(); }).filter(Boolean).join(" e ").slice(0, 80);
+    }
     cada("[data-atleta]", function (b) { b.addEventListener("click", function () { lerCampos(); var v = b.getAttribute("data-atleta"); if (v === "+") { novo.outro = true; novo.atletaId = null; } else { novo.outro = false; novo.atletaId = v; } telaNovo(); var cn = document.getElementById("nvNome"); if (novo.outro && cn) cn.focus(); }); });
     cada("[data-formato]", function (b) { b.addEventListener("click", function () { lerCampos(); c.formato = b.getAttribute("data-formato"); novo.cfg = D.cfgLimpa(c); telaNovo(); }); });
     cada("[data-saca]", function (b) { b.addEventListener("click", function () { lerCampos(); c.saca = b.getAttribute("data-saca"); telaNovo(); }); });
@@ -301,7 +313,7 @@
       var er = document.getElementById("nvErro"), atletaId = novo.atletaId;
       if ((novo.outro || !atletaId) && st.atletas.length >= limiteAtletas()) { er.textContent = textoLimite() + " Escolha um atleta que já está na conta."; er.hidden = false; return; }
       if (novo.outro || !atletaId) { var antes = st.atletas.length, r = D.addAtleta(st, novo.nome); if (r.erro) { er.textContent = r.erro; er.hidden = false; return; } atletaId = r.atleta.id; if (st.atletas.length > antes) atletasMudaram(); }
-      var x = D.novoJogo(st, { atletaId: atletaId, torneio: novo.torneio, adversario: novo.adversario, parceiro: novo.cfg.dupla ? novo.parceiro : "", cfg: novo.cfg });
+      var x = D.novoJogo(st, { atletaId: atletaId, torneio: novo.torneio, adversario: adversarioDoJogo(), parceiro: novo.cfg.dupla ? novo.parceiro : "", cfg: novo.cfg });
       if (x.erro) { er.textContent = x.erro; er.hidden = false; return; }
       x.jogo.mental.antes = novo.mental.antes || {};
       salvar(); uso("jogo-iniciado"); novo = null;
