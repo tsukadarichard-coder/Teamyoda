@@ -309,24 +309,14 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   assert.ok(t.includes("Lucas Andrade") && t.includes("2 jogos") && t.includes("1 vitória e 0 derrotas") && t.includes("Evolução jogo a jogo"), "atleta: " + t.slice(0, 600).replace(/\n+/g, " | "));
   await semRolagem(p, "atleta"); await foto(p, "scout-5-atleta");
   assert.ok(/1h15/.test(await p.innerText("a.jogo-l >> nth=0")), "o tempo de jogo aparece na lista de jogos do atleta");
-  /* UTR e WTN: digitados no cadastro do atleta; fora da escala avisa e não grava */
-  assert.ok(await p.$("[data-notas]") && !(await p.$("[data-notas-resumo]")) && /Ainda não informado/.test(await p.innerText('[data-nota-info="utr"]')), "cartão de UTR e WTN vazio");
-  await p.fill("#atUtr", "17"); await p.click("#btNotas");
-  await p.waitForFunction(() => { const e = document.getElementById("notasErro"); return e && !e.hidden && /UTR deve ficar entre 1 e 16,5/.test(e.innerText); });
-  await p.fill("#atUtr", "7,42"); await p.fill("#atWtn", "18.3"); await p.click("#btNotas");
-  await p.waitForSelector("[data-notas-resumo]");
-  assert.strictEqual(await p.innerText("[data-notas-resumo]"), "UTR 7,42 · WTN 18,3");
-  assert.ok(/Atualizado em \d{2}\/\d{2}\/\d{4}/.test(await p.innerText('[data-nota-info="wtn"]')) && (await p.inputValue("#atUtr")) === "7,42", "nota salva volta ao campo com a data");
-  await semRolagem(p, "atleta com UTR e WTN"); await foto(p, "scout-5b-notas");
-  await nuvemQuieta();
-  const atNuvem = store["scoutAppContas/" + uid].atletas.filter((x) => x.nome === "Lucas Andrade")[0];
-  assert.ok(atNuvem && atNuvem.notas && atNuvem.notas.utr.v === 7.42 && atNuvem.notas.wtn.v === 18.3 && atNuvem.notas.hist.length === 2, "UTR e WTN na nuvem: " + JSON.stringify(atNuvem && atNuvem.notas));
+  /* UTR e WTN saíram do app: sem cartão na tela do atleta */
+  assert.ok(!(await p.$("[data-notas]")) && !/UTR|WTN/.test(await texto()), "sem UTR e WTN na tela do atleta");
   /* relatório dos jogos em PDF (Plus; janela nova com o documento) */
   const [rel] = await Promise.all([p.waitForEvent("popup"), p.click("#btRelatorio")]);
   await rel.waitForLoadState("load");
   const tr = await rel.evaluate(() => document.body.innerText);
   assert.ok(tr.includes("Lucas") && /QUADRALAB/i.test(tr) && tr.includes("Copa Sul") && !tr.includes("Fulano"), "relatório: " + tr.slice(0, 300));
-  assert.ok(tr.includes("UTR 7,42 · WTN 18,3"), "UTR e WTN no relatório dos jogos");
+  assert.ok(!/UTR|WTN/.test(tr), "relatório dos jogos sem UTR e WTN");
   await foto(rel, "scout-relatorio"); await rel.close();
   /* a análise de movimento saiu do app: sem aba, sem botão, e o link antigo cai nos jogos */
   const mvGets = []; p.on("request", (rq) => { if (rq.url().includes("scout-app-movimento")) mvGets.push(rq.url()); });
@@ -363,7 +353,6 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   await p.goto(base + "#/"); await p.waitForSelector("[data-novo]");
   await p.click('a[href^="#/atleta/"]'); await p.waitForSelector('[data-plus-bloqueio="pdf"]');
   assert.ok(!(await p.$("#btRelatorio")) && (await texto()).includes("Evolução jogo a jogo"), "grátis: relatório em PDF com cadeado, evolução completa");
-  assert.ok(/UTR 7,42 · WTN 18,3/.test(await p.innerText("[data-notas-resumo]")), "UTR e WTN voltaram da nuvem na sincronização");
 
   /* segundo celular na mesma conta */
   const c2 = await celular();

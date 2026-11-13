@@ -128,7 +128,7 @@ assert.deepStrictEqual(REL.opcoes(M, D, st, marina.id).jogos, [], "atleta sem jo
   assert.ok(htmlCor.includes("#0F5E8C") && htmlCor.includes("#C65825"), "azul e laranja dos dados continuam");
 }
 
-/* ── UTR e WTN: digitados no cadastro do atleta, com histórico, e levados para os relatórios ── */
+/* ── UTR e WTN: saíram das telas e dos relatórios (13/11/2026); os números já digitados continuam guardados no atleta ── */
 {
   assert.strictEqual(D.textoNotas(lucas), "", "sem nota, nada aparece");
   assert.ok(!RJ.gerar(op).includes("UTR"), "relatório sem nota não fala de UTR");
@@ -156,14 +156,13 @@ assert.deepStrictEqual(REL.opcoes(M, D, st, marina.id).jogos, [], "atleta sem jo
   assert.strictEqual(copia.atletas[0].notas.utr.v, 8, "importar não troca uma nota mais nova por uma mais antiga");
   /* relatório de todos os jogos e relatório de um jogo só */
   const opN = REL.opcoes(M, D, st, lucas.id, { geradoEm: "12/11/2026" });
-  assert.strictEqual(opN.notaAtleta, "UTR 7,60 · WTN 18,3");
-  assert.ok(RJ.gerar(opN).includes("UTR 7,60 · WTN 18,3"), "notas no relatório dos jogos");
+  assert.ok(!opN.notaAtleta && !RJ.gerar(opN).includes("UTR") && !RJ.gerar(opN).includes("WTN"), "UTR e WTN fora do relatório dos jogos");
   const opP = REL.opcoesPartida(M, D, st, j2, { geradoEm: "12/11/2026" });
   assert.strictEqual(opP.reg.id, j2.id); assert.strictEqual(opP.reg.adversario, ""); assert.strictEqual(opP.placarFinal.fim, true);
   assert.deepStrictEqual(opP.anteriores.map((x) => x.id), [j1.id], "compara com os jogos anteriores, não com os de depois");
   assert.deepStrictEqual(REL.opcoesPartida(M, D, st, j1).anteriores, [], "o primeiro jogo não tem anterior");
   const htmlP = RJ.gerarPartida(opP);
-  assert.ok(htmlP.includes("Lucas") && htmlP.includes("UTR 7,60 · WTN 18,3"), "relatório do jogo com o atleta e as notas");
+  assert.ok(htmlP.includes("Lucas") && !htmlP.includes("UTR") && !htmlP.includes("WTN"), "relatório do jogo com o atleta, sem UTR e WTN");
   assert.ok(!htmlP.includes("Fulano") && !htmlP.includes("Andrade"), "relatório do jogo sem adversário nem sobrenome");
   /* jogo ainda em andamento também exporta, com o tempo de jogo */
   const jr = D.novoJogo(st, { atletaId: marina.id, torneio: "Treino", adversario: "Beltrana Oculta", cfg: { formato: "3sets", saca: "nos" } }).jogo;

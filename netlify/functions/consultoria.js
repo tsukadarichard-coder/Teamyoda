@@ -29,6 +29,7 @@ const { admin, app } = require("./_firebase-admin");
 const C = require("./_consultoria");
 const ARQ = require("./_consultoria-armazenamento");
 const P = require("./_push");
+const AC = require("./_consultoria-acomp");
 
 const { Erro } = C;
 const resposta = (statusCode, corpo) => ({ statusCode, headers: { "content-type": "application/json", "cache-control": "no-store" }, body: JSON.stringify(corpo) });
@@ -66,6 +67,7 @@ function origemDo(event) {
 function avisarRichard(titulo, corpo, url) { return P.avisar(admin, { app: "consultoria", papel: "richard" }, { titulo, corpo, url: url || "/richard/#/fila", tag: "consultoria-fila" }); }
 function avisarCliente(uid, titulo, corpo, url) { return P.avisar(admin, { app: "consultoria", uid }, { titulo, corpo, url: url || "/richard/", tag: "consultoria" }); }
 const primeiro = (n) => String(n || "").split(" ")[0];
+const ctx = { db, agora, avisarCliente: (uid, t, c, u) => avisarCliente(uid, t, c, u), avisarRichard: (t, c, u) => avisarRichard(t, c, u) };
 
 /* ── cliente ── */
 async function criarConta(b) {
@@ -178,14 +180,25 @@ async function painel() {
   const naFila = {}; fila.forEach((e) => { naFila[e.uid] = (naFila[e.uid] || 0) + 1; });
   const lista = Object.keys(cli).map((uid) => ({ uid, ...C.clientePublico(cli[uid]), respondidos: contagem[uid] || 0, naFila: naFila[uid] || 0 }))
     .sort((a, b) => (a.estado === "pendente" ? 0 : 1) - (b.estado === "pendente" ? 0 : 1) || String(a.nome).localeCompare(String(b.nome), "pt-BR"));
-  return { fila, clientes: lista, respondidos: se.size };
+  return { fila, clientes: lista, respondidos: se.size, hoje: await AC.hoje(ctx, cli), config: await AC.lerConfig(ctx) };
 }
 async function fichaCliente(b) {
   if (!C.UID.test(String(b.uid || ""))) throw new Erro(400, "Cliente inválido.");
   const c = await lerCliente(b.uid); if (!c) throw new Erro(404, "Cliente não encontrado.");
   const n = await db().collection("consultoriaNotas").doc(b.uid).get(), lista = await enviosDe(b.uid), t = agora();
   return { cliente: { uid: b.uid, ...C.clientePublico(c) }, nota: n.exists ? n.data().texto || "" : "",
-    envios: lista.filter((x) => x.e.estado !== "enviando").map((x) => ({ ...C.envioParaCliente(x.id, x.e), prazo: x.e.estado === "recebido" ? C.prazo(x.e, t) : null })) };
+    envios: lista.filter((x) => x.e.estado !== "enviando").map((x) => ({ ...C.envioParaCliente(x.id, x.e), prazo: x.e.estado === "recebido" ? C.prazo(x.e, t) : null })),
+    acomp: await AC.dados(ctx, b.uid, true) };
+}
+/* recado: feedback do Richard sem vídeo do cliente (sobre um torneio, um check-in, um encontro). Entra como devolutiva */
+async function recado(claims, b) {
+  if (!C.UID.test(String(b.uid || ""))) throw new Erro(400, "Cliente inválido.");
+  const c = await lerCliente(b.uid); if (!c) throw new Erro(404, "Cliente não encontrado.");
+  const titulo = C.txt(b.titulo, 120) || "Recado", d = C.limparDevolutiva({ texto: b.texto, treinar: b.treinar, linkVideo: b.linkVideo }, false), t = agora(), ref = envios().doc();
+  const novo = { uid: b.uid, tipo: "recado", tema: "outro", duvida: titulo, estado: "respondido", criadoEm: t, recebidoEm: t, devolutiva: { ...d, respondidoEm: t, por: String(claims.email || "").toLowerCase() } };
+  await ref.set(novo);
+  await avisarCliente(b.uid, "Recado do Richard", titulo, "/richard/#/envio/" + ref.id);
+  return { envio: C.envioParaCliente(ref.id, novo) };
 }
 async function mudarEstado(b, estado) {
   if (!C.UID.test(String(b.uid || ""))) throw new Erro(400, "Cliente inválido.");
@@ -265,7 +278,8 @@ exports.handler = async function (event) {
       const cli = await lerCliente(claims.uid), lista = await enviosDe(claims.uid);
       return resposta(200, { papel: "cliente", eu, ...base, cliente: C.clientePublico(cli), envios: lista.filter((x) => x.e.estado !== "enviando").map((x) => C.envioParaCliente(x.id, x.e)),
         interrompidos: lista.filter((x) => x.e.estado === "enviando").map((x) => ({ id: x.id, tema: x.e.tema, rotuloTema: C.rotuloTema(x.e.tema), tamanho: x.e.video.tamanho, criadoEm: x.e.criadoEm })),
-        motivoSemEnvio: C.motivoSemEnvio(cli, aguardando(lista)) });
+        motivoSemEnvio: C.motivoSemEnvio(cli, aguardando(lista)),
+        acomp: cli && cli.estado !== "pendente" && !cli.cadastroPendente ? await AC.dados(ctx, claims.uid, false) : null });
     }
 
     const a = b.acao;
@@ -276,11 +290,14 @@ exports.handler = async function (event) {
       if (a === "pausar") return resposta(200, await mudarEstado(b, "pausado"));
       if (a === "nota") return resposta(200, await nota(b));
       if (a === "convidar") return resposta(200, await convidar(b));
+      if (a === "recado") return resposta(200, await recado(claims, b));
+      const rr = await AC.acaoRichard(ctx, claims, a, b); if (rr !== undefined) return resposta(200, rr);
       if (a === "respostaIniciar") return resposta(200, await respostaIniciar(event, b));
       if (a === "responder") return resposta(200, await responder(claims, b));
       if (a === "prepararArmazenamento") return resposta(200, { bucket: await ARQ.prepararCors(SITE) });
     }
     if (a === "cadastro") return resposta(200, await cadastro(claims, b));
+    { const rc = await AC.acaoCliente(ctx, claims, a, b, await lerCliente(claims.uid)); if (rc !== undefined) return resposta(200, rc); }
     if (a === "envioIniciar") return resposta(200, await envioIniciar(event, claims, b));
     if (a === "envioLink") return resposta(200, await envioLink(claims, b));
     if (a === "envioRetomar") { const e = await meuEnvio(claims, b.envioId, "enviando"); return resposta(200, { sessao: e.sessao, tamanho: e.video.tamanho }); }

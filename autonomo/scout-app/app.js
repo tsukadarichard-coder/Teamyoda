@@ -559,19 +559,7 @@
 
   /* ══ Atleta ══ */
   var confirmaAtleta = null;
-  /* UTR e WTN do atleta: digitados por quem acompanha (o app ainda não busca sozinho: os dois exigem autorização para isso) */
-  function notasHtml(a) {
-    function campo(t, idc, dica) {
-      var n = a.notas && a.notas[t], ant = D.notaAnterior(a, t), c = D.NOTAS[t];
-      var mudou = n && ant ? (t === "utr" ? n.v > ant.v : n.v < ant.v) : null;
-      return '<div class="campo" style="flex:1 1 140px;margin-top:6px"><label for="' + idc + '">' + c.rot + ' <span class="nota">(' + dica + ')</span></label><input id="' + idc + '" inputmode="decimal" autocomplete="off" maxlength="6" placeholder="' + (t === "utr" ? "ex.: 7,42" : "ex.: 18,3") + '" value="' + (n ? esc(D.formatarNota(t, n.v)) : "") + '">' +
-        '<p class="nota" data-nota-info="' + t + '" style="margin:4px 0 0">' + (n ? "Atualizado em " + esc(dataBR(n.em)) + (ant ? " · antes " + esc(D.formatarNota(t, ant.v)) + (mudou ? " (melhorou)" : " (piorou)") : "") : "Ainda não informado") + "</p></div>";
-    }
-    return '<section class="cartao" data-notas><h2>UTR e WTN</h2><p class="nota" style="margin-top:0">Digite os números que aparecem no perfil do atleta. Eles entram nos relatórios e o app guarda a evolução.</p>' +
-      '<div style="display:flex;gap:12px;flex-wrap:wrap">' + campo("utr", "atUtr", "de 1 a 16,5; maior é melhor") + campo("wtn", "atWtn", "de 1 a 40; menor é melhor") + "</div>" +
-      '<div class="aviso atencao" id="notasErro" role="alert" hidden></div>' +
-      '<div class="acoes"><button type="button" class="bt bt-pq" id="btNotas">Salvar UTR e WTN</button><a class="bt bt-texto" href="https://app.utrsports.net/" target="_blank" rel="noopener noreferrer">Abrir o UTR</a><a class="bt bt-texto" href="https://worldtennisnumber.com/" target="_blank" rel="noopener noreferrer">Abrir o WTN</a></div></section>';
-  }
+  /* UTR e WTN saíram do app (pedido de 13/11/2026): números já digitados ficam guardados na conta (atleta.notas), sem tela nem relatório */
   function telaAtleta(id) {
     var a = D.atleta(st, id);
     if (!a) { tela('<p class="voltar"><a class="bt bt-texto" href="#/">‹ Seus jogos</a></p><div class="aviso atencao">Atleta não encontrado na sua conta.</div>', true); return; }
@@ -586,23 +574,11 @@
       (cmp.jogos.length >= 2 ? '<section class="cartao"><h2>Evolução jogo a jogo' + (temDupla ? " · simples" : "") + "</h2>" + tabelaComparacao(cmp) + "</section>" : '<div class="aviso">A comparação aparece a partir de 2 jogos ' + (temDupla ? "de simples " : "") + "terminados.</div>") +
       (cmpD.jogos.length >= 2 ? '<section class="cartao" data-evolucao-dupla><h2>Evolução nas duplas</h2><p class="nota" style="margin-top:0">Só os jogos de dupla, para não misturar com os de simples.</p>' + tabelaComparacao(cmpD) + "</section>" : "") +
       (jogos.length ? '<section class="secao"><h2>Jogos</h2><ul class="lista">' + jogos.map(linhaHtml).join("") + "</ul></section>" : "") +
-      notasHtml(a) +
       '<section class="cartao"><h2>Nome</h2><div class="campo" style="margin-top:6px"><label for="atNome">Nome do atleta</label><input id="atNome" maxlength="60" value="' + esc(a.nome) + '"></div><div class="acoes"><button type="button" class="bt bt-pq" id="btRenomear">Salvar nome</button>' +
       (confirmaAtleta === id ? '</div><div class="cartao confirma"><p style="margin:0"><b>Apagar ' + esc(a.nome) + " e " + (jogos.length === 1 ? "o jogo" : "os " + jogos.length + " jogos") + '?</b> Sai da conta e de todos os aparelhos. Não dá para desfazer.</p><div class="acoes"><button type="button" class="bt bt-pq bt-perigo" id="btAtApagarSim">Sim, apagar</button><button type="button" class="bt bt-pq" id="btAtApagarNao">Manter</button></div></div>' :
         '<button type="button" class="bt bt-pq bt-perigo" id="btAtApagar">Apagar atleta</button></div>') + "</section>";
     tela(h, true);
     var brl = document.getElementById("btRelatorio"); if (brl) brl.addEventListener("click", function () { abrirRelatorio(id); });
-    var bn = document.getElementById("btNotas");
-    if (bn) bn.addEventListener("click", function () {
-      var er = document.getElementById("notasErro"), hoje = D.hojeLocal(), erros = [];
-      ["utr", "wtn"].forEach(function (t) {
-        var campo = document.getElementById(t === "utr" ? "atUtr" : "atWtn"), atual = a.notas && a.notas[t] ? D.formatarNota(t, a.notas[t].v) : "";
-        if (campo.value.trim() === atual) return; // não mexeu: mantém a data da última atualização
-        var r = D.definirNota(st, id, t, campo.value, hoje); if (r.erro) erros.push(r.erro);
-      });
-      if (erros.length) { er.textContent = erros.join(" "); er.hidden = false; return; }
-      atletasMudaram(); salvar(); toast("UTR e WTN salvos."); telaAtleta(id);
-    });
     var nv = q("[data-novo-atleta]"); if (nv) nv.addEventListener("click", function () { novo = { atletaId: id, nome: "", outro: false, torneio: "", adversario: "", cfg: Object.assign({}, D.CFG_PADRAO), mental: { antes: {} }, mentalAberto: false }; });
     document.getElementById("btRenomear").addEventListener("click", function () { var r = D.renomearAtleta(st, id, document.getElementById("atNome").value); if (r.erro) { toast(r.erro); return; } atletasMudaram(); salvar(); toast("Nome salvo."); telaAtleta(id); });
     var ap = document.getElementById("btAtApagar"); if (ap) ap.addEventListener("click", function () { confirmaAtleta = id; telaAtleta(id); });

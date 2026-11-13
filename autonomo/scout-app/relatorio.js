@@ -69,7 +69,6 @@
       tema: "scout", // o documento sai no roxo do Scout (o padrão do módulo é o verde dos outros apps)
       cabecalhoHtml: '<div style="border-bottom:3px solid #260A3E;padding-bottom:10px;margin-bottom:16px"><div style="font-weight:800;font-size:13px;letter-spacing:.06em;color:#260A3E">QUADRALAB <span style="color:#6A12BA">SCOUT</span></div></div>',
       geradoEm: extra.geradoEm || new Date().toLocaleDateString("pt-BR"),
-      notaAtleta: D.textoNotas ? D.textoNotas(a) : "",
     };
   }
   /* um jogo no formato que o relatório usa (o nome do adversário nunca entra) */
