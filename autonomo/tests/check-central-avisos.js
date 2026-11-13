@@ -94,7 +94,7 @@ const ms = (data, hhmm) => A.momentoSP(data, hhmm);
   let r = await chamar("GET", "adm");
   assert.strictEqual(r.status, 200); assert.strictEqual(r.corpo.papel, "administrativo");
   assert.ok(!("dados" in r.corpo) && !("auto" in r.corpo) && !("implantacao" in r.corpo), "o administrativo não vê agenda, negócios nem a Implantação");
-  assert.deepStrictEqual(r.corpo.tipos.map((t) => t.id), ["rotinaAdm", "lembretesPagamento"]); assert.ok(r.corpo.tipos.every((t) => !t.ativo), "chegam nas etapas 3 e 4");
+  assert.deepStrictEqual(r.corpo.tipos.map((t) => t.id), ["rotinaAdm", "lembretesPagamento"]); assert.deepStrictEqual(r.corpo.tipos.map((t) => t.ativo), [true, false], "rotina do administrativo na Etapa 3; pagamentos na Etapa 4");
   assert.strictEqual(r.corpo.chavePush, "BPublicaDeTeste");
   assert.strictEqual((await chamar("POST", "adm", { acao: "implantacaoSalvar", tarefas: [] })).status, 403, "Implantação só do Richard");
   assert.strictEqual((await chamar("POST", "adm", { dados: { agenda: [] } })).status, 403, "o administrativo não grava a agenda do Richard");

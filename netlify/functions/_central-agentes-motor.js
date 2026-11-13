@@ -11,6 +11,8 @@ const R = require("./_central-rotina");
 const AT = require("./_atendimento");
 const QA = require("./_aulas-mes");
 const P = require("./_push");
+const ADM = require("./_central-adm");
+const F = require("./_financeiro-calc");
 
 const col = (db, c) => db.collection(c);
 const agoraISO = (ms) => new Date(ms).toISOString();
@@ -20,6 +22,7 @@ async function lerConfig(db) {
   if (!c.segredo) { c.segredo = crypto.randomBytes(24).toString("hex"); await ref.set(c); }
   return c;
 }
+async function lerRotinaAdm(db) { const d = await col(db, "central").doc("rotinaAdm").get(); return ADM.limpar(d.exists ? d.data() : null); }
 async function lerRotina(db) { const d = await col(db, "central").doc("rotina").get(); return d.exists ? R.limparRotina(d.data()) : null; }
 
 /* faltas como o painel do Padrão de Atendimento (3 em 30 dias), com a presença de _aulas-mes.js */
@@ -33,7 +36,7 @@ function faltasDe(aulas, alunos, turmas, hoje) {
 async function lerFontes(ctx) {
   const hoje = AV.sp(ctx.agoraMs).data;
   const ler = ctx.lerAcademia || require("./financeiro")._lerAcademia;
-  const { dados } = await ler("team-yoda");
+  const { dados, config } = await ler("team-yoda");
   const alunos = dados.alunos || [], turmas = dados.turmas || [];
   const desde = AT.somaDias(hoje, -(AT.LIMITES.janelaDias - 1));
   let aulas = [];
@@ -46,9 +49,24 @@ async function lerFontes(ctx) {
     if (c.marco && d >= semanaAtras) marcosSemana.push({ nome: a.nome || "Sem nome", texto: String(c.texto).slice(0, 200), data: d, professor: AT.professorDoRegistro(r, a).nome });
     if (d.slice(0, 7) === mes) conquistasMes.push({ nome: a.nome || "Sem nome", texto: String(c.texto).slice(0, 200), marco: !!c.marco });
   }));
-  const rot = await lerRotina(ctx.db);
+  const rot = await lerRotina(ctx.db), adm = await lerRotinaAdm(ctx.db);
+  /* administrativo (Etapa 3): pagamentos do mês, alunos novos e saídas da semana anterior, reposições, torneios e viagens */
+  const seg = AV.segundaDe(hoje), segAnt = AV.somaDias(seg, -7), domAnt = AV.somaDias(seg, -1);
+  let pagamentos = null;
+  try {
+    const c = F.calcularMes(dados, config || {}, hoje.slice(0, 7), hoje).controle;
+    pagamentos = { recebido: c.recebido, emAberto: c.emAberto.length, valorEmAberto: Math.round(c.emAberto.reduce((s2, l) => s2 + l.valor, 0) * 100) / 100, atrasados: c.atrasados,
+      atrasadosNomes: c.emAberto.filter((l) => F.atrasado(l.venc, hoje.slice(0, 7), hoje)).map((l) => l.nome).slice(0, 12) };
+  } catch (e) { pagamentos = null; }
+  const alunosNovos = alunos.filter((a) => { const c = String(QA.criadoEmISO(a) || "").slice(0, 10); return c >= segAnt && c <= domAnt; }).map((a) => a.nome || "Sem nome");
+  let reposicoes = null;
+  try { const l = QA.todasPendentes({ ocorrencias: dados.ocorrencias || [], alunos, turmas, hoje }); reposicoes = { total: l.length, lista: l.slice(0, 8).map((x) => x.entNome + " (" + x.data.split("-").reverse().slice(0, 2).join("/") + ")") }; } catch (e) { reposicoes = null; }
+  const ate30 = AV.somaDias(hoje, 30), torneiosProximos = [];
+  alunos.forEach((a) => (a.competicoes || []).forEach((c) => { if (c && c.data && c.data >= hoje && c.data <= ate30) torneiosProximos.push({ atleta: a.nome || "Sem nome", torneio: c.nome || "Torneio", data: c.data, fim: c.fim || "" }); }));
+  torneiosProximos.sort((x, y) => x.data.localeCompare(y.data));
   return { hoje, painel, faltas: faltasDe(aulas, alunos, turmas, hoje), marcosSemana, conquistasMes,
-    rotina: rot ? R.semana(rot, AV.segundaDe(hoje)) : null, professores: rot ? rot.professores : [] };
+    rotina: rot ? R.semana(rot, AV.segundaDe(hoje)) : null, professores: rot ? rot.professores : [],
+    alunos, semanaAnterior: { de: segAnt, ate: domAnt }, pagamentos, alunosNovos, saidas: ADM.saidas(adm), reposicoes, torneiosProximos, viagens: adm.viagens };
 }
 
 /* IA de verdade: SDK oficial, claude-opus-5-5, fallback do servidor em caso de recusa */
@@ -64,16 +82,18 @@ async function iaClaude(sistema, msg) {
 }
 function iaPadrao() { return process.env.ANTHROPIC_API_KEY ? iaClaude : null; }
 
-/* avisa os aparelhos do Richard (tipo "agentes"), respeitando o que ele ligou e o horário de silêncio */
-async function avisarRichard(ctx, aviso) {
+/* avisa os aparelhos de um perfil (Richard: tipo "agentes"; administrativo: tipo "rotinaAdm"), respeitando o que a pessoa ligou e o silêncio */
+async function avisarPapel(ctx, papel, aviso) {
+  const tipo = papel === "administrativo" ? "rotinaAdm" : "agentes";
   const snap = await col(ctx.db, P.COLECAO).where("app", "==", "central").get(), uids = {};
-  snap.forEach((d) => { const x = d.data(); if (x.uid && x.papel === "richard") uids[x.uid] = 1; });
+  snap.forEach((d) => { const x = d.data(); if (x.uid && x.papel === papel) uids[x.uid] = 1; });
   for (const uid of Object.keys(uids)) {
-    const pd = await col(ctx.db, "centralAvisos").doc(uid).get(), prefs = AV.prefsDe(pd.exists ? pd.data() : null, "richard");
-    if (!prefs.tipos.agentes || AV.emSilencio(prefs, ctx.agoraMs)) continue;
+    const pd = await col(ctx.db, "centralAvisos").doc(uid).get(), prefs = AV.prefsDe(pd.exists ? pd.data() : null, papel);
+    if (!prefs.tipos[tipo] || AV.emSilencio(prefs, ctx.agoraMs)) continue;
     await ctx.enviar({ app: "central", uid }, aviso);
   }
 }
+const avisarRichard = (ctx, aviso) => avisarPapel(ctx, "richard", aviso);
 
 async function gerar(ctx, id) {
   const ref = col(ctx.db, "centralAgentes").doc(id), d = await ref.get();
@@ -83,10 +103,16 @@ async function gerar(ctx, id) {
   let fontes;
   try { fontes = item.agente === "caixaEntrada" ? { hoje } : await lerFontes(ctx); }
   catch (e) { console.error("central-agentes: não leu o Team Yoda", e && e.message); fontes = { hoje, painel: null, faltas: [], marcosSemana: [], conquistasMes: [], rotina: null, professores: [] }; }
+  if (item.agente === "resumoAdm" && fontes.alunos) {
+    /* a foto semanal dos alunos (para contar as saídas) anda junto com o resumo de segunda */
+    const adm = await lerRotinaAdm(ctx.db);
+    if (ADM.atualizarFoto(adm, fontes.alunos, AV.segundaDe(hoje))) { await col(ctx.db, "central").doc("rotinaAdm").set(adm); fontes.saidas = ADM.saidas(adm); }
+  }
   const contexto = AG.contexto(item.agente, fontes, { texto: item.entrada });
   let texto = "", semIA = false, motivo = "", custo = 0;
   const ia = ctx.ia === undefined ? iaPadrao() : ctx.ia;
-  if (!ia) { semIA = true; motivo = "A IA não está configurada no servidor."; }
+  if (AG.vazio(item.agente, contexto)) { semIA = true; motivo = "Nada para preparar agora."; }
+  else if (!ia) { semIA = true; motivo = "A IA não está configurada no servidor."; }
   else if (!AG.dentroDoTeto(cfg, hoje)) { semIA = true; motivo = "O teto de US$ " + cfg.tetoUSD.toFixed(2).replace(".", ",") + " do mês foi atingido."; }
   else {
     try {
@@ -96,20 +122,20 @@ async function gerar(ctx, id) {
     } catch (e) { semIA = true; motivo = "A IA falhou agora (" + String(e && e.message || e).slice(0, 80) + ")."; }
   }
   if (semIA) texto = AG.semIA(item.agente, contexto);
-  const novo = { ...item, estado: "novo", texto, semIA, motivoSemIA: motivo, custoUSD: custo, atualizadoEm: agoraISO(ctx.agoraMs) };
+  const novo = { ...item, estado: AG.vazio(item.agente, contexto) ? "descartado" : "novo", texto, semIA, motivoSemIA: motivo, custoUSD: custo, atualizadoEm: agoraISO(ctx.agoraMs) };
   if (item.agente === "caixaEntrada") {
     const p = AG.lerPropostas(texto) || AG.lerPropostas(AG.semIA("caixaEntrada", contexto));
     novo.propostas = p; novo.texto = AG.textoDasPropostas(p);
   }
   await ref.set(novo);
   if (custo) { cfg.gasto[mes] = (cfg.gasto[mes] || 0) + custo; await col(ctx.db, "central").doc("agentesConfig").set(cfg); }
-  if (item.agente !== "caixaEntrada" && ctx.enviar) await avisarRichard(ctx, { titulo: "Agente: " + (AG.AGENTES[item.agente] || {}).rot, corpo: "Rascunho pronto para você revisar.", url: "/#agentes", tag: "central-agente-" + item.agente }).catch(() => {});
+  if (item.agente !== "caixaEntrada" && ctx.enviar && !(AG.vazio(item.agente, contexto))) await avisarPapel(ctx, AG.paraDe(item.agente), { titulo: "Agente: " + (AG.AGENTES[item.agente] || {}).rot, corpo: "Rascunho pronto para você revisar.", url: "/#agentes", tag: "central-agente-" + item.agente }).catch(() => {});
   return { ok: true, custo, semIA };
 }
 
 /* cria o rascunho "gerando" (uma vez só por id) e chama a function em segundo plano */
 async function criar(ctx, id, agente, extra) {
-  try { await col(ctx.db, "centralAgentes").doc(id).create({ agente, periodo: (extra && extra.periodo) || "", estado: "gerando", criadoEm: agoraISO(ctx.agoraMs), tentativas: 1, ...(extra && extra.entrada ? { entrada: extra.entrada } : {}) }); }
+  try { await col(ctx.db, "centralAgentes").doc(id).create({ agente, para: AG.paraDe(agente), periodo: (extra && extra.periodo) || "", estado: "gerando", criadoEm: agoraISO(ctx.agoraMs), tentativas: 1, ...(extra && extra.entrada ? { entrada: extra.entrada } : {}) }); }
   catch (e) { return false; }
   await disparar(ctx, id);
   return true;
@@ -120,10 +146,11 @@ async function disparar(ctx, id) {
     await (ctx.fetch || fetch)(base + "/.netlify/functions/central-agentes-background", { method: "POST", headers: { "content-type": "application/json", "x-central-segredo": cfg.segredo }, body: JSON.stringify({ id }) });
   } catch (e) { console.error("central-agentes: não disparou", id, e && e.message); }
 }
-async function listar(db, n) {
-  const s = await col(db, "centralAgentes").orderBy("criadoEm", "desc").limit(n || 40).get(), out = [];
+/* cada perfil vê os seus; o Richard também vê o que o administrativo enviou para ele */
+async function listar(db, n, papel) {
+  const s = await col(db, "centralAgentes").orderBy("criadoEm", "desc").limit(120).get(), out = [];
   s.forEach((d) => out.push(AG.itemPublico(d.id, d.data())));
-  return out;
+  return out.filter((x) => (papel === "administrativo" ? x.para === "administrativo" : x.para === "richard" || x.estado === "enviado")).slice(0, n || 40);
 }
 
-module.exports = { lerConfig, lerRotina, lerFontes, faltasDe, gerar, criar, disparar, listar, iaClaude, avisarRichard };
+module.exports = { lerConfig, lerRotina, lerRotinaAdm, avisarPapel, lerFontes, faltasDe, gerar, criar, disparar, listar, iaClaude, avisarRichard };

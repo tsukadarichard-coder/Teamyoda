@@ -104,7 +104,7 @@ const ms = (d, h) => AV.momentoSP(d, h);
   assert.deepStrictEqual(AG.devidos(ms("2026-11-16", "07:03"), cfg).map((d) => d.id), ["painelSegunda-2026-11-16", "conversas-2026-11-16"], "segunda às 7h");
   assert.deepStrictEqual(AG.devidos(ms("2026-11-19", "20:03"), cfg).map((d) => d.id), ["presenca-2026-11-16"], "quinta às 20h");
   assert.deepStrictEqual(AG.devidos(ms("2026-11-25", "08:03"), cfg).map((d) => d.id), ["mensagemCiclo-2026-11"], "dia 25 às 8h");
-  assert.deepStrictEqual(AG.devidos(ms("2026-11-16", "08:03"), cfg).map((d) => d.id), [], "resumo do administrativo é da Etapa 3");
+  assert.deepStrictEqual(AG.devidos(ms("2026-11-16", "08:03"), cfg).map((d) => d.id), ["resumoAdm-2026-11-16"], "resumo do administrativo na segunda às 8h (Etapa 3)");
   cfg.ligados.conversas = false; assert.deepStrictEqual(AG.devidos(ms("2026-11-16", "07:03"), cfg).map((d) => d.id), ["painelSegunda-2026-11-16"], "desligado não roda");
   assert.ok(Math.abs(AG.custoUSD({ input_tokens: 1e6, output_tokens: 1e5 }) - 6) < 1e-9, "US$ 4 por milhão de entrada + 20 por milhão de saída");
   assert.strictEqual(AG.dentroDoTeto({ tetoUSD: 10, gasto: { "2026-11": 9.99 } }, "2026-11-20"), true);
@@ -120,7 +120,7 @@ const ms = (d, h) => AV.momentoSP(d, h);
   assert.strictEqual((await chamar("prof", { acao: "rotinaVer" })).status, 403);
   banco["financeiro/_acesso"] = { admins: ["adm@teamyoda.com"] };
   let r = await chamar("adm", null, "GET");
-  assert.ok(r.status === 200 && !("rotina" in r.corpo) && !("agentes" in r.corpo), "o administrativo não vê a rotina nem os agentes");
+  assert.ok(r.status === 200 && !("rotina" in r.corpo) && !("ritmos" in r.corpo) && r.corpo.agentes.every((x) => x.para === "administrativo") && r.corpo.agentesDef.every((x) => x.para === "administrativo"), "o administrativo não vê a rotina do Richard nem os agentes dele");
 
   /* ── rotina pela function: nomes dos professores do Team Yoda, marcar viagem, feito, bloco ── */
   r = await chamar("ric", null, "GET");
@@ -128,7 +128,7 @@ const ms = (d, h) => AV.momentoSP(d, h);
   assert.deepStrictEqual(r.corpo.professores, ["Ana", "Bruno", "Carla", "Duda"], "professores vêm do Team Yoda");
   assert.deepStrictEqual(r.corpo.agentesConfig, { ligados: AG.configPadrao().ligados, tetoUSD: 10, gastoMes: 0, mes: hoje.slice(0, 7) });
   assert.ok(!("segredo" in r.corpo.agentesConfig), "o segredo interno nunca vai para a tela");
-  assert.ok(r.corpo.agentesDef.find((a) => a.id === "resumoAdm").ativo === false && r.corpo.agentesDef.find((a) => a.id === "painelSegunda").ativo);
+  assert.ok(r.corpo.agentesDef.find((a) => a.id === "resumoAdm").ativo && r.corpo.agentesDef.find((a) => a.id === "painelSegunda").ativo);
   r = await chamar("ric", { acao: "rotinaModo", semana: "2026-11-18", modo: "viagem" });
   assert.strictEqual(r.corpo.rotina.semana, "2026-11-16", "qualquer dia vira a segunda da semana"); assert.strictEqual(r.corpo.rotina.modo, "viagem");
   r = await chamar("ric", { acao: "rotinaFeito", semana: "2026-11-16", blocoId: "v", feito: true });

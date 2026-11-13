@@ -16,7 +16,7 @@ const TIPOS = {
   rotinaAdm: { rot: "Rotina do administrativo", papeis: ["administrativo"], etapa: 3 },
   lembretesPagamento: { rot: "Lembretes de pagamento do dia", papeis: ["administrativo"], etapa: 4 },
 };
-const ETAPA_ATUAL = 2; // Etapa 2 (13/11/2026): blocos da rotina e agentes
+const ETAPA_ATUAL = 3; // Etapa 2: blocos da rotina e agentes; Etapa 3 (13/11/2026): rotina do administrativo
 const PAPEIS = ["richard", "administrativo"];
 
 function tiposDoPapel(papel) { return Object.keys(TIPOS).filter((t) => TIPOS[t].papeis.indexOf(papel) >= 0); }

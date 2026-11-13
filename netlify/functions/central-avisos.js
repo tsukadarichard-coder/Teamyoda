@@ -1,7 +1,8 @@
 /* Central Tsukada — avisos agendados (a cada 5 minutos; netlify.toml). Horário de São Paulo.
    Etapa 1: tarefas da Implantação com data (na hora marcada, ou às 9h quando não há hora) e o resumo de segunda às 8h,
    só para o Richard. Etapa 2: os blocos da rotina do Head Trainer, 15 min antes (o resumo de segunda diz o modelo e as horas
-   da semana). As etapas 3 e 4 acrescentam a rotina do administrativo e os pagamentos.
+   da semana). Etapa 3: o administrativo recebe o começo de cada parte do expediente (Início, Meio, Fim) com o que falta.
+   A Etapa 4 acrescenta os pagamentos.
    Quem recebe: só quem ativou os avisos na Central (pushInscricoes com app "central"), com o tipo ligado e fora do
    horário de silêncio. No silêncio nada sai (e não fica guardado para depois). Cada aviso sai uma vez só:
    centralEnviados/{hash(uid + chave)} é criado antes do envio. */
@@ -10,6 +11,7 @@ const { admin, app } = require("./_firebase-admin");
 const A = require("./_central-avisos");
 const P = require("./_push");
 const R = require("./_central-rotina");
+const ADM = require("./_central-adm");
 
 const idEnvio = (uid, chave) => crypto.createHash("sha256").update(uid + "|" + chave).digest("hex").slice(0, 40);
 
@@ -20,7 +22,8 @@ async function rodar(ctx) {
   snap.forEach((d) => { const x = d.data(); if (x.uid && A.PAPEIS.indexOf(x.papel) >= 0) pessoas[x.uid] = x.papel; });
   const out = { pessoas: Object.keys(pessoas).length, enviados: 0, silencio: 0, repetidos: 0 };
   if (!out.pessoas) return out;
-  const [impDoc, donoDoc, rotDoc] = await Promise.all([db.collection("central").doc("implantacao").get(), db.collection("central").doc("dono").get(), db.collection("central").doc("rotina").get()]);
+  const [impDoc, donoDoc, rotDoc, admDoc] = await Promise.all([db.collection("central").doc("implantacao").get(), db.collection("central").doc("dono").get(), db.collection("central").doc("rotina").get(), db.collection("central").doc("rotinaAdm").get()]);
+  const rotinaAdm = ADM.limpar(admDoc.exists ? admDoc.data() : null);
   const rotina = R.limparRotina(rotDoc.exists ? rotDoc.data() : null);
   const implantacao = impDoc.exists ? A.limparImplantacao(impDoc.data().tarefas) : A.implantacaoPadrao();
   const agenda = donoDoc.exists ? ((donoDoc.data().dados || {}).agenda || []) : [];
@@ -33,6 +36,7 @@ async function rodar(ctx) {
       itens.push(...R.blocosDevidos(rotina, agoraMs));
       const r = A.resumoDevido(implantacao, agenda, agoraMs, R.semana(rotina, A.segundaDe(A.sp(agoraMs).data))); if (r) itens.push(r);
     }
+    if (papel === "administrativo") itens.push(...ADM.avisosDevidos(rotinaAdm, agoraMs));
     const valem = itens.filter((i) => A.ativo(i.tipo) && prefs.tipos[i.tipo] && A.TIPOS[i.tipo].papeis.indexOf(papel) >= 0);
     if (!valem.length) continue;
     if (A.emSilencio(prefs, agoraMs)) { out.silencio += valem.length; continue; }

@@ -89,12 +89,31 @@ window.__auth = { currentUser: null, cbs: [], onAuthStateChanged(cb) { this.cbs.
       await p.waitForFunction(() => /só do Richard e do administrativo/.test(document.body.innerText), null, { timeout: 5000 });
       assert(!/Precisa de você|Implantação/.test(await p.evaluate(() => document.body.innerText)), "outra conta não vê nada");
       await p.click('button:text-is("Sair")'); await p.waitForSelector('input[type="password"]', { timeout: 5000 });
-      /* administrativo: só a tela de avisos, sem agenda, negócios nem Implantação */
+      /* administrativo: a rotina dele (Hoje), viagens, os agentes dele e os avisos; nada da agenda, negócios ou Implantação do Richard */
       await entrar("adm@x.com", "certa");
-      await p.waitForFunction(() => /Central · Administrativo/.test(document.body.innerText) && document.querySelector("[data-estado-avisos=inativo]"), null, { timeout: 20000 });
+      await p.waitForFunction(() => /Central · Administrativo/.test(document.body.innerText) && document.querySelector("[data-rotina-adm]"), null, { timeout: 20000 });
       let ta = await p.evaluate(() => document.body.innerText);
-      assert(/Rotina do administrativo/.test(ta) && /Lembretes de pagamento do dia/.test(ta) && !/Tarefas da Implantação|Precisa de você|Agenda de hoje/.test(ta), "administrativo vê só os avisos dele: " + ta.slice(0, 300));
-      assert(/chega na Etapa 3/.test(ta) && /chega na Etapa 4/.test(ta));
+      assert(!/Tarefas da Implantação|Precisa de você|Agenda de hoje|Rotina do Head Trainer/.test(ta), "administrativo não vê o que é do Richard: " + ta.slice(0, 300));
+      assert(/Expediente: 14:00 às 18:00/.test(ta) && /Depois do expediente, até as 22h/.test(ta), "rotina do dia: " + ta.slice(0, 400));
+      const ehUtil = await p.$("[data-parte]");
+      if (ehUtil) {
+        await p.click('[data-item-adm="d-whats"] input'); await p.waitForFunction(() => /1 de \d+ feitos/.test(document.querySelector("[data-progresso-adm]").innerText), null, { timeout: 10000 });
+        assert(Object.values(gravados["central/rotinaAdm"].dias)[0].feitos["d-whats"], "item marcado gravado");
+      }
+      await p.fill('input[aria-label="Início do expediente"]', "13:00"); await p.click('button:text-is("Mudar o início")');
+      await p.waitForFunction(() => /Expediente: 13:00 às 17:00/.test(document.body.innerText), null, { timeout: 10000 });
+      if (capturas) { fs.mkdirSync(capturas, { recursive: true }); await p.screenshot({ path: path.join(capturas, "central-adm-hoje.png"), fullPage: true }); }
+      await p.click('[data-aba-adm="viagens"]'); await p.waitForSelector("[data-viagens]");
+      await p.click('button:text-is("+ Viagem")'); await p.fill('[data-nova-viagem] input[placeholder="Atleta"]', "Lia Souza"); await p.fill('[data-nova-viagem] input[placeholder="Torneio"]', "Copa Sul");
+      await p.click('button:text-is("Salvar viagem")'); await p.waitForSelector("[data-viagem]");
+      await p.click('[data-viagem] [data-check="inscricao"]'); await p.waitForFunction(() => document.querySelector('[data-viagem] [data-check="inscricao"]').checked, null, { timeout: 10000 });
+      assert(gravados["central/rotinaAdm"].viagens[0].inscricao === true, "viagem com inscrição marcada");
+      await p.click('[data-aba-adm="agentes"]'); await p.waitForSelector("[data-config-agentes]");
+      ta = await p.innerText("[data-agentes]");
+      assert(/Resumo do administrativo/.test(ta) && /Faltas e aulas sem registro/.test(ta) && /Viagens/.test(ta) && !/Caixa de entrada|Painel de segunda|Teto do mês/.test(ta), "agentes do administrativo: " + ta.slice(0, 400));
+      await p.click('[data-aba-adm="avisos"]'); await p.waitForSelector("[data-estado-avisos=inativo]", { timeout: 10000 });
+      ta = await p.evaluate(() => document.body.innerText);
+      assert(/Rotina do administrativo/.test(ta) && /Lembretes de pagamento do dia/.test(ta) && /chega na Etapa 4/.test(ta) && !/chega na Etapa 3/.test(ta), "avisos do administrativo");
       await p.click('button:text-is("Ativar neste aparelho")');
       await p.waitForSelector("[data-estado-avisos=ativo]", { timeout: 10000 });
       assert.strictEqual(gravados["pushInscricoes/" + PUSH.idDaInscricao("https://fcm.googleapis.com/fcm/send/teste-central")].papel, "administrativo", "inscrito como administrativo");
@@ -103,7 +122,7 @@ window.__auth = { currentUser: null, cbs: [], onAuthStateChanged(cb) { this.cbs.
       if (capturas) { fs.mkdirSync(capturas, { recursive: true }); }
       await p.click('button:text-is("Sair")');
       await p.waitForSelector('input[type="password"]', { timeout: 5000 });
-      console.log("  login: senha errada recusada; outra conta vê só o aviso; administrativo só com os avisos dele");
+      console.log("  login: senha errada recusada; outra conta vê só o aviso; administrativo com a rotina, viagens, agentes e avisos dele");
     }
     await entrar("tsukada.richard@gmail.com", "certa");
     await p.waitForFunction(() => /Precisa de você/.test(document.body.innerText), null, { timeout: 90000 }).catch(() => { throw new Error("não renderizou: " + erros.join(" | ")); });
@@ -206,7 +225,7 @@ window.__auth = { currentUser: null, cbs: [], onAuthStateChanged(cb) { this.cbs.
       /* Agentes: gerar agora, aprovar; caixa de entrada vira tarefa */
       await p.click('[data-aba-central="agentes"]'); await p.waitForSelector("[data-config-agentes]");
       const ta = await p.innerText("[data-agentes]");
-      assert(/Painel de segunda/.test(ta) && /toda segunda, às 7h/.test(ta) && /chega na Etapa 3/.test(ta) && /US\$ 0,00/.test(ta), ta.slice(0, 600));
+      assert(/Painel de segunda/.test(ta) && /toda segunda, às 7h/.test(ta) && !/Resumo do administrativo/.test(ta) && /US\$ 0,00/.test(ta), ta.slice(0, 600));
       await p.locator('[data-config-agentes] button:has-text("Gerar agora")').first().click();
       await p.waitForSelector("[data-preparando]", { timeout: 10000 });
       await p.waitForFunction(() => /Conversar com a professora/.test(document.body.innerText), null, { timeout: 20000 });
@@ -221,8 +240,16 @@ window.__auth = { currentUser: null, cbs: [], onAuthStateChanged(cb) { this.cbs.
       assert(/US\$ 0,0[2-9]/.test(await p.innerText("[data-gasto]")) || gravados["central/agentesConfig"].gasto, "gasto contado");
       if (capturas) await p.screenshot({ path: path.join(capturas, "central-agentes.png"), fullPage: true });
       console.log("  Rotina (CT/viagem, bloco feito) e Agentes (gerar, aprovar, caixa de entrada vira tarefa)");
+      /* o Richard vê a rotina do administrativo, sem poder marcar */
+      await p.click('[data-aba-central="administrativo"]'); await p.waitForSelector("[data-rotina-adm]");
+      const tAdm = await p.innerText("[data-rotina-adm]");
+      assert(/quem marca é ele/.test(tAdm) && /Expediente: 13:00 às 17:00/.test(tAdm), tAdm.slice(0, 300));
+      assert(await p.evaluate(() => [...document.querySelectorAll("[data-item-adm] input")].every((i) => i.disabled)), "caixinhas travadas para o Richard");
+      assert(/Lia Souza · Copa Sul/.test(await p.innerText("[data-viagens]")), "o Richard vê as viagens");
+      if (capturas) await p.screenshot({ path: path.join(capturas, "central-ric-administrativo.png"), fullPage: true });
+      console.log("  Administrativo: o Richard vê a rotina e as viagens, sem editar");
     } else {
-      for (const aba of ["Hoje", "Rotina", "Agenda", "Tarefas", "Implantação", "Agentes", "Negócios", "Revisão semanal", "Notas e decisões", "Avisos"]) {
+      for (const aba of ["Hoje", "Rotina", "Agenda", "Tarefas", "Implantação", "Agentes", "Administrativo", "Negócios", "Revisão semanal", "Notas e decisões", "Avisos"]) {
         await p.click('button:text-is("' + aba + '")');
         const w = await p.evaluate(() => document.documentElement.scrollWidth);
         assert(w <= 392, "celular sem rolagem lateral em " + aba + " (" + w + ")");
