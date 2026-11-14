@@ -37,8 +37,9 @@ carregar_sim = ('<template id="simTpl">' + sim_html + "</template>\n<script>(fun
                 "var h='<!doctype html><html lang=\"pt-BR\"><head></head><body>'+t.innerHTML+'</body></html>';"
                 "window.QLT_SIM_URL=URL.createObjectURL(new Blob([h],{type:'text/html'}));})();</script>\n")
 idx = idx.replace('<script src="../../mty/situacoes-jogo.js"></script>', carregar_sim + "<script>" + sem_fim_script(ler(RAIZ, "mty", "situacoes-jogo.js")) + "</script>")
+idx = idx.replace('<script src="manual-completo.js"></script>', "<script>" + sem_fim_script(ler(AQUI, "manual-completo.js")) + "</script>")
 idx = idx.replace('<script src="app.js"></script>', "<script>" + sem_fim_script(ler(AQUI, "app.js")) + "</script>")
-assert 'src="app.js"' not in idx and "situacoes-jogo.js\"" not in idx
+assert 'src="app.js"' not in idx and 'src="manual-completo.js"' not in idx and "situacoes-jogo.js\"" not in idx
 
 saida = sys.argv[1] if len(sys.argv) > 1 else os.path.join(AQUI, "quadralab-tatica-prototipo.html")
 with open(saida, "w", encoding="utf-8") as f:

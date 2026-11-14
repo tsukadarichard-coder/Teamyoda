@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#0E2433">
 <title>QuadraLab Tática · protótipo</title>
-<meta name="description" content="Protótipo do app de tática: manual de situações de jogo, simulador de decisões e plano de jogo.">
+<meta name="description" content="Protótipo: o jogador conta onde trava em quadra e aprende, situação por situação, a decidir melhor.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
@@ -25,13 +25,14 @@
 </header>
 <main id="app" tabindex="-1"><p class="carregando">Carregando…</p></main>
 <nav class="abas" id="abas" aria-label="Menu">
-  <a href="#/" data-aba="inicio"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-6.5 8 6.5V20a1 1 0 0 1-1 1h-4.5v-5.5h-5V21H5a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Início</span></a>
-  <a href="#/manual" data-aba="manual"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h9.5a4 4 0 0 1 4 4V20H9a4 4 0 0 1-4-4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 9h6M9 13h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Manual</span></a>
-  <a href="#/simulador" data-aba="simulador"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 8.5l5.5 3.5-5.5 3.5z" fill="currentColor"/></svg><span>Simulador</span></a>
-  <a href="#/plano" data-aba="plano"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18c3-7 7-10 13-12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M14 4.5l4 1.6-1.6 4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5.5" cy="18.5" r="2" fill="currentColor"/></svg><span>Plano de jogo</span></a>
+  <a href="#/" data-aba="inicio"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-6.5 8 6.5V20a1 1 0 0 1-1 1h-4.5v-5.5h-5V21H5a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Trilha</span></a>
+  <a href="#/aprender" data-aba="aprender"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h9.5a4 4 0 0 1 4 4V20H9a4 4 0 0 1-4-4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 9h6M9 13h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Aprender</span></a>
+  <a href="#/treinar" data-aba="treinar"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 8.5l5.5 3.5-5.5 3.5z" fill="currentColor"/></svg><span>Treinar</span></a>
+  <a href="#/jogo" data-aba="jogo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18c3-7 7-10 13-12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M14 4.5l4 1.6-1.6 4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5.5" cy="18.5" r="2" fill="currentColor"/></svg><span>Jogo</span></a>
 </nav>
 <div class="toast" id="toast" role="status" hidden></div>
 <script src="../../mty/situacoes-jogo.js"></script>
+<script src="manual-completo.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
