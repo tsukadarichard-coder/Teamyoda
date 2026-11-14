@@ -203,3 +203,7 @@ body.com-nav main { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)
 @media (prefers-reduced-motion: reduce) { .guia-sacode { animation: none; } }
 /* o guia rola até o alvo sem deixá-lo atrás do cabeçalho nem da barra de baixo */
 [data-tour], [data-novo], [data-registrado], .placar, #cartaoAoVivo, #btComecar, #btModo, #nvNome { scroll-margin-top: 76px; scroll-margin-bottom: 100px; }
+
+/* preço do plano anual (só aparece quando venda.js tiver preço e link) */
+.preco-plano { margin: 12px 0 0; font-size: 15px; color: var(--grafite); }
+.preco-plano b { font-size: 24px; color: var(--violeta); font-variant-numeric: tabular-nums; }

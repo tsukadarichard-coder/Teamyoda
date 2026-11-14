@@ -361,6 +361,18 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   assert.ok(t.includes("Planos") && t.includes("1 atleta na conta") && await p.$("[data-plano-plus]") && await p.$("[data-plano-treinador]") && /Até 3 atletas/.test(t) && /Atletas sem limite/.test(t) && /plano anual/i.test(t) && /Link ao vivo/.test(t) && /Relatório em PDF/.test(t) && t.includes("As assinaturas anuais abrem em breve") && await p.$('[data-plano-gratis] [data-plano-atual]'), "tela do plano: " + t.slice(0, 600));
   assert.ok(!/R\$|29,90|Assinar|Eduzz|Análise de movimento/i.test(t) && !(await p.$('a[href*="eduzz"]')) && !(await p.$("#lkAssinar")), "sem preço, sem link de compra");
   await semRolagem(p, "plano"); await foto(p, "scout-8-plano");
+  /* venda ligada só pelo venda.js (quando a Eduzz estiver pronta): preço, botão de assinar e o aviso do e-mail; sem ele, nada disso aparece */
+  const vendaTeste = 'window.QLSVenda = { plus: { preco: "R$ 199", link: "https://chk.eduzz.com/TESTEPLUS" }, treinador: { preco: "R$ 449", link: "https://chk.eduzz.com/TESTETREINADOR" } };';
+  await p.route("**/scout-app/venda.js", (rq) => rq.fulfill({ contentType: "application/javascript", body: vendaTeste }));
+  await p.reload(); await p.waitForSelector('[data-assinar="plus"]');
+  assert.strictEqual(await p.getAttribute('[data-assinar="plus"]', "href"), "https://chk.eduzz.com/TESTEPLUS");
+  assert.strictEqual(await p.getAttribute('[data-assinar="treinador"]', "href"), "https://chk.eduzz.com/TESTETREINADOR");
+  t = await texto(); assert.ok(/R\$ 199/.test(t) && /R\$ 449/.test(t) && /mesmo e-mail desta conta/.test(t) && !t.includes("abrem em breve"), "venda ligada: " + t.slice(0, 500));
+  await foto(p, "scout-8b-plano-venda");
+  await p.goto(base + "conheca.html", { waitUntil: "load" });
+  assert.ok(/R\$ 199/.test(await p.innerText("[data-plano-plus]")) && /R\$ 449/.test(await p.innerText("[data-plano-treinador]")) && await p.$('[data-plano-treinador] a[href="./#/criar"]'), "página de apresentação com preço e botão para criar a conta");
+  await p.unroute("**/scout-app/venda.js");
+  await p.goto(base + "conheca.html", { waitUntil: "load" }); assert.ok(!/R\$ 199/.test(await p.innerText("main")), "sem venda.js preenchido, sem preço");
   await p.goto(base + "#/"); await p.waitForSelector("[data-novo]");
   await p.click('a[href^="#/atleta/"]'); await p.waitForSelector('[data-plus-bloqueio="pdf"]');
   assert.ok(!(await p.$("#btRelatorio")) && (await texto()).includes("Evolução jogo a jogo"), "grátis: relatório em PDF com cadeado, evolução completa");

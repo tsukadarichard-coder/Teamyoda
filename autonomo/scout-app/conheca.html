@@ -223,5 +223,21 @@
   </div></section>
 </main>
 <footer><div class="in">QuadraLab Scout · Tecnologia QuadraLab · Dúvidas: WhatsApp (11) 94177-3228</div></footer>
+<script src="venda.js"></script>
+<script>
+/* preço e botão de cada plano anual só aparecem quando venda.js tiver preço e link (até lá: "Plano anual · em breve").
+   A compra é feita de dentro do app (com a conta criada), para o plano ser liberado no e-mail certo. */
+(function () {
+  var V = window.QLSVenda || {}, algum = false;
+  ["plus", "treinador"].forEach(function (k) {
+    var v = V[k], card = document.querySelector("[data-plano-" + k + "]");
+    if (!card || !v || !String(v.preco || "").trim() || !/^https:\/\/[^\s"'<>]+$/.test(String(v.link || ""))) return;
+    algum = true;
+    var p = card.querySelector(".preco"); p.textContent = String(v.preco).trim() + " "; var s = document.createElement("small"); s.textContent = "por ano"; p.appendChild(s);
+    var d = document.createElement("div"); d.className = "acoes"; d.innerHTML = '<a class="bt bt-cheio" href="./#/criar" data-cta="' + k + '">Criar conta e assinar</a>'; card.appendChild(d);
+  });
+  var h = document.querySelector("#planos h2"); if (algum && h) h.textContent = "Comece grátis. Assine quando quiser.";
+})();
+</script>
 </body>
 </html>

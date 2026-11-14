@@ -19,6 +19,13 @@
   var LIMITE_PADRAO = 1, LIMITE_PLUS = 3;
   var NOME_PLANO = { gratis: "Grátis", plus: "Scout Plus", treinador: "Scout Treinador" };
   function planoAtual() { return (conta && NOME_PLANO[conta.plano]) ? conta.plano : "gratis"; }
+  /* venda.js: preço e link de cada plano anual; vazio = "em breve" (sem preço nem botão de compra) */
+  function venda(k) { var v = (window.QLSVenda || {})[k]; return v && String(v.preco || "").trim() && /^https:\/\/[^\s"'<>]+$/.test(String(v.link || "")) ? v : null; }
+  function botaoAssinar(k) {
+    var v = venda(k); if (!v) return "";
+    return '<p class="preco-plano" data-preco="' + k + '"><b>' + esc(v.preco) + '</b> por ano</p><div class="acoes"><a class="bt bt-principal" data-assinar="' + k + '" href="' + esc(v.link) + '" target="_blank" rel="noopener noreferrer">Assinar o ' + NOME_PLANO[k] + "</a></div>" +
+      '<p class="nota">Na compra, use o mesmo e-mail desta conta' + (eu && eu.email ? " (<b>" + esc(eu.email) + "</b>)" : "") + ": é por ele que o plano é liberado.</p>";
+  }
   function atletasTxt(n) { return n === 1 ? "1 atleta" : "até " + n + " atletas"; }
   function ehPlus() { return planoAtual() !== "gratis"; } // qualquer plano pago: link ao vivo e PDF
   function limiteAtletas() { return (conta && conta.limites && conta.limites.atletas) || LIMITE_PADRAO; }
@@ -31,7 +38,7 @@
   /* link ao vivo e relatório em PDF são do Scout Plus (decisão do Richard em 12/11/2026). A venda está parada: sem preço nem link de compra. */
   function cadeadoPlus(id, titulo, texto) {
     return '<section class="cartao"' + (id === "aovivo" ? ' id="cartaoAoVivo"' : "") + ' data-plus-bloqueio="' + id + '"><p class="olho">' + esc(titulo) + ' · Scout Plus</p><p class="nota" style="margin-top:0">' + esc(texto) +
-      '</p><p class="nota"><b>Disponível nos planos Scout Plus e Scout Treinador (anuais).</b> A assinatura abre em breve.</p><div class="acoes"><a class="bt bt-pq" href="#/plus">Ver os planos</a></div></section>';
+      '</p><p class="nota"><b>Disponível nos planos Scout Plus e Scout Treinador (anuais).</b>' + (venda("plus") || venda("treinador") ? "" : " A assinatura abre em breve.") + '</p><div class="acoes"><a class="bt bt-pq" href="#/plus">' + (venda("plus") || venda("treinador") ? "Ver os planos e assinar" : "Ver os planos") + "</a></div></section>";
   }
   function guardarConta() { try { localStorage.setItem("qls:conta:" + eu.uid, JSON.stringify(conta)); } catch (e) { /* sem espaço */ } }
   function lerContaGuardada() { try { return JSON.parse(localStorage.getItem("qls:conta:" + eu.uid) || "null"); } catch (e) { return null; } }
@@ -710,9 +717,9 @@
       '<section class="cartao" data-plano-gratis><p class="olho">Grátis' + atual("gratis") + '</p><ul style="margin:6px 0 0;padding-left:18px"><li>' + (LIMITE_PADRAO === 1 ? "1 atleta" : "Até " + LIMITE_PADRAO + " atletas") + ' na conta</li><li>Jogos sem limite, com o tempo de cada partida</li>' +
       "<li>Comparação e evolução jogo a jogo, completas</li><li>Resultado para compartilhar no WhatsApp</li><li>Jogos na nuvem, em vários celulares</li></ul></section>" +
       '<section class="cartao" data-plano-plus><p class="olho">Scout Plus · plano anual' + atual("plus") + '</p><p class="nota" style="margin:0 0 4px">Para a família e para quem joga.</p><ul style="margin:6px 0 0;padding-left:18px"><li>Tudo do grátis</li><li><b>Até ' + LIMITE_PLUS + " atletas</b> (filhos, irmãos, o parceiro de dupla)</li><li><b>Link ao vivo</b>: a família acompanha cada ponto, de qualquer lugar</li>" +
-      "<li><b>Relatório em PDF</b> de cada jogo e de todos os jogos, para levar ao treinador</li></ul></section>" +
-      '<section class="cartao" data-plano-treinador><p class="olho">Scout Treinador · plano anual' + atual("treinador") + '</p><p class="nota" style="margin:0 0 4px">Para o professor que acompanha os alunos.</p><ul style="margin:6px 0 0;padding-left:18px"><li>Tudo do Scout Plus</li><li><b>Atletas sem limite</b>: todos os seus alunos</li><li>Mais jogos guardados na nuvem</li></ul></section>' +
-      (p === "treinador" ? "" : '<p class="nota" data-em-breve><b>As assinaturas anuais abrem em breve.</b></p>') +
+      "<li><b>Relatório em PDF</b> de cada jogo e de todos os jogos, para levar ao treinador</li></ul>" + (p === "gratis" ? botaoAssinar("plus") : "") + "</section>" +
+      '<section class="cartao" data-plano-treinador><p class="olho">Scout Treinador · plano anual' + atual("treinador") + '</p><p class="nota" style="margin:0 0 4px">Para o professor que acompanha os alunos.</p><ul style="margin:6px 0 0;padding-left:18px"><li>Tudo do Scout Plus</li><li><b>Atletas sem limite</b>: todos os seus alunos</li><li>Mais jogos guardados na nuvem</li></ul>' + (p !== "treinador" ? botaoAssinar("treinador") : "") + "</section>" +
+      (p === "treinador" || (venda("plus") && venda("treinador")) ? "" : '<p class="nota" data-em-breve><b>' + (venda("plus") || venda("treinador") ? "O outro plano abre em breve." : "As assinaturas anuais abrem em breve.") + "</b></p>") +
       '<p class="rodape">Dúvidas: fale com a gente pelo WhatsApp (11) 94177-3228.</p>';
     tela(h, true);
   }
