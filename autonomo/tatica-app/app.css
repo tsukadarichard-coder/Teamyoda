@@ -1,0 +1,122 @@
+/* QuadraLab Tática · protótipo (14/11/2026). Azul-noite e âmbar, para não confundir com o roxo do Scout nem o verde do Team Yoda. */
+:root {
+  --noite: #0E2433; --noite-2: #17384D; --ambar: #F2A93B; --ambar-esc: #A8650A; --ambar-claro: #FDF1DD;
+  --tinta: #13202A; --grafite: #55626C; --papel: #F4F6F7; --branco: #FFFFFF; --linha: #DDE3E7;
+  --azul: #1F5E8A; --azul-claro: #E5EFF6; --ok: #2F6B3A; --ok-claro: #E7F2E9;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--papel); color: var(--tinta); font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 16px; line-height: 1.45; padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+a { color: var(--azul); }
+h1 { font-size: 26px; line-height: 1.15; letter-spacing: -.02em; margin: 6px 0 6px; }
+h2 { font-size: 18px; margin: 0 0 8px; letter-spacing: -.01em; }
+h3 { font-size: 15.5px; margin: 0 0 4px; }
+p { margin: 0 0 10px; }
+.topo { position: sticky; top: 0; z-index: 5; background: var(--branco); border-bottom: 1px solid var(--linha); padding-top: env(safe-area-inset-top, 0px); }
+.topo-in { max-width: 760px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.marca { display: flex; align-items: center; gap: 9px; text-decoration: none; color: var(--noite); font-size: 18px; letter-spacing: -.01em; }
+.marca b { font-weight: 800; }
+.selo-proto { font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--ambar-esc); background: var(--ambar-claro); border-radius: 999px; padding: 4px 10px; }
+main { max-width: 760px; margin: 0 auto; padding: 14px 16px 24px; outline: none; }
+.carregando { color: var(--grafite); }
+.sub { color: var(--grafite); margin: 0 0 14px; }
+.nota { color: var(--grafite); font-size: 13.5px; }
+.olho { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--grafite); margin: 0 0 6px; }
+.cartao { background: var(--branco); border: 1px solid var(--linha); border-radius: 16px; padding: 16px; margin: 0 0 12px; }
+.secao { margin: 18px 0 8px; }
+.voltar { margin: 0 0 4px; }
+.voltar a { text-decoration: none; font-weight: 700; }
+.acoes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.bt { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 46px; padding: 10px 16px; border-radius: 12px; border: 1.5px solid var(--linha); background: var(--branco); color: var(--tinta); font: inherit; font-weight: 700; font-size: 15px; text-decoration: none; cursor: pointer; }
+.bt-principal { background: var(--noite); border-color: var(--noite); color: #fff; }
+.bt-ambar { background: var(--ambar); border-color: var(--ambar); color: var(--noite); }
+.bt-pq { min-height: 38px; padding: 6px 12px; font-size: 14px; }
+.bt-texto { border: none; background: none; padding: 6px 0; min-height: 0; color: var(--azul); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { min-height: 40px; padding: 7px 13px; border-radius: 999px; border: 1.5px solid var(--linha); background: var(--branco); color: var(--tinta); font: inherit; font-weight: 600; font-size: 14px; cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--noite); border-color: var(--noite); color: #fff; }
+.campo { margin: 12px 0 0; }
+.campo label, .rot { display: block; font-weight: 700; margin: 0 0 5px; font-size: 14.5px; }
+input[type=text], input[type=search], textarea, select { width: 100%; font: inherit; font-size: 16px; padding: 11px 12px; border: 1.5px solid var(--linha); border-radius: 12px; background: var(--branco); color: var(--tinta); }
+textarea { min-height: 76px; resize: vertical; }
+input:focus, textarea:focus, select:focus, .bt:focus-visible, .chip:focus-visible, a:focus-visible { outline: 3px solid var(--ambar); outline-offset: 1px; }
+.tag { display: inline-block; font-size: 11.5px; font-weight: 800; padding: 2px 8px; border-radius: 999px; background: var(--azul-claro); color: var(--azul); vertical-align: middle; }
+.tag.p1 { background: var(--ok-claro); color: var(--ok); }
+.tag.p2 { background: var(--azul-claro); color: var(--azul); }
+.tag.p3 { background: var(--ambar-claro); color: var(--ambar-esc); }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(86px + env(safe-area-inset-bottom, 0px)); background: var(--noite); color: #fff; padding: 10px 16px; border-radius: 12px; font-weight: 600; font-size: 14.5px; z-index: 20; max-width: calc(100% - 32px); }
+
+/* menu de baixo */
+.abas { position: fixed; left: 0; right: 0; bottom: 0; z-index: 6; display: grid; grid-template-columns: repeat(4, 1fr); background: var(--branco); border-top: 1px solid var(--linha);
+  padding: 6px max(6px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(6px, env(safe-area-inset-left, 0px)); box-shadow: 0 -6px 20px rgba(14,36,51,.06); }
+.abas a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 52px; text-decoration: none; color: var(--grafite); font-size: 12px; font-weight: 700; border-radius: 12px; text-align: center; }
+.abas svg { width: 24px; height: 24px; }
+.abas a[aria-current="page"] { color: var(--noite); background: var(--ambar-claro); }
+
+/* início */
+.hero { background: linear-gradient(150deg, var(--noite) 0%, var(--noite-2) 100%); color: #fff; border-radius: 20px; padding: 20px 18px; margin: 0 0 12px; position: relative; overflow: hidden; }
+.hero h1 { color: #fff; font-size: 25px; }
+.hero p { color: #D5E1E8; }
+.hero .olho { color: var(--ambar); }
+.hero svg.quadra { position: absolute; right: -18px; bottom: -22px; width: 150px; opacity: .18; }
+.semana { border-left: 5px solid var(--ambar); }
+.trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0 0 12px; }
+.num { background: var(--branco); border: 1px solid var(--linha); border-radius: 14px; padding: 12px 10px; text-align: center; }
+.num b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; color: var(--noite); }
+.num span { font-size: 12px; color: var(--grafite); font-weight: 600; }
+.atalhos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 0 12px; }
+.atalho { display: block; background: var(--branco); border: 1px solid var(--linha); border-radius: 16px; padding: 14px; text-decoration: none; color: var(--tinta); }
+.atalho b { display: block; font-size: 15.5px; margin: 6px 0 2px; }
+.atalho span { font-size: 13px; color: var(--grafite); }
+.atalho .ic { width: 34px; height: 34px; border-radius: 10px; background: var(--ambar-claro); display: grid; place-items: center; color: var(--ambar-esc); font-weight: 800; }
+
+/* manual */
+.momentos { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.momento { display: flex; align-items: center; gap: 12px; background: var(--branco); border: 1px solid var(--linha); border-radius: 14px; padding: 12px 14px; text-decoration: none; color: var(--tinta); }
+.momento .letra { flex: none; width: 40px; height: 40px; border-radius: 12px; background: var(--noite); color: var(--ambar); font-weight: 800; font-size: 18px; display: grid; place-items: center; }
+.momento b { display: block; font-size: 15px; }
+.momento span { font-size: 13px; color: var(--grafite); }
+.momento .seta { margin-left: auto; color: var(--grafite); font-size: 20px; }
+.lista-fichas { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.ficha-l { display: block; background: var(--branco); border: 1px solid var(--linha); border-radius: 14px; padding: 12px 14px; text-decoration: none; color: var(--tinta); }
+.ficha-l .cod { font-size: 12px; font-weight: 800; color: var(--grafite); letter-spacing: .03em; }
+.ficha-l b { display: block; font-size: 15px; margin: 2px 0 4px; }
+.ficha-l .vista { color: var(--ok); font-size: 12px; font-weight: 800; }
+.bloco { border-top: 1px solid var(--linha); padding-top: 12px; margin-top: 12px; }
+.bloco:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
+.bloco h3 { display: flex; align-items: center; gap: 8px; }
+.bloco h3 i { font-style: normal; width: 26px; height: 26px; border-radius: 8px; background: var(--ambar-claro); color: var(--ambar-esc); display: inline-grid; place-items: center; font-size: 13px; font-weight: 800; flex: none; }
+.estados { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.estado { border-radius: 12px; padding: 10px 12px; background: var(--papel); }
+.estado b { display: block; font-size: 14px; }
+.estado span { font-size: 12.5px; color: var(--grafite); }
+
+/* simulador */
+.sim-nav { margin: 0 0 10px; }
+.sim-moldura { background: var(--branco); border: 1px solid var(--linha); border-radius: 16px; overflow: hidden; }
+.sim-moldura iframe { display: block; width: 100%; height: calc(100vh - 250px); min-height: 520px; border: 0; }
+
+/* plano de jogo */
+.passo-n { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--noite); color: #fff; font-size: 12.5px; font-weight: 800; margin-right: 6px; }
+.plano-doc .item { border-top: 1px solid var(--linha); padding: 12px 0 2px; }
+.plano-doc .item:first-child { border-top: none; padding-top: 0; }
+.plano-doc .item p { margin: 0 0 6px; }
+.plano-doc .item ul { margin: 0 0 6px; padding-left: 18px; }
+.sugestao { background: var(--ambar-claro); border-radius: 10px; padding: 8px 10px; font-size: 13.5px; margin: 6px 0 0; }
+.ia { display: flex; gap: 10px; align-items: flex-start; background: var(--azul-claro); border-radius: 12px; padding: 10px 12px; font-size: 13.5px; color: var(--tinta); }
+.ia b { color: var(--azul); }
+.planos-preco { display: grid; grid-template-columns: 1fr; gap: 10px; }
+.planos-preco .cartao ul { margin: 6px 0 0; padding-left: 18px; }
+.planos-preco .destaque { border: 2px solid var(--ambar); }
+
+@media (min-width: 620px) {
+  .momentos { grid-template-columns: 1fr 1fr; }
+  .planos-preco { grid-template-columns: 1fr 1fr; }
+  .atalhos { grid-template-columns: repeat(4, 1fr); }
+}
+@media (max-width: 360px) { .trio { grid-template-columns: 1fr 1fr; } .estados { grid-template-columns: 1fr; } }
+@media print {
+  .topo, .abas, .acoes, .voltar, .toast, .nao-imprimir { display: none !important; }
+  body { background: #fff; padding: 0; }
+  .cartao { border: none; padding: 0; }
+}

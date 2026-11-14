@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0E2433">
+<title>QuadraLab Tática · protótipo</title>
+<meta name="description" content="Protótipo do app de tática: manual de situações de jogo, simulador de decisões e plano de jogo.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<!-- Protótipo (pedido do Richard em 14/11/2026): não publicar, sem conta, sem cobrança. Tudo fica só neste aparelho. -->
+<header class="topo">
+  <div class="topo-in">
+    <a class="marca" href="#/" aria-label="QuadraLab Tática, início">
+      <svg viewBox="0 0 40 40" width="34" height="34" aria-hidden="true"><rect x="1.5" y="1.5" width="37" height="37" rx="10" fill="#0E2433"/><rect x="9" y="7" width="22" height="26" rx="1.5" fill="none" stroke="#fff" stroke-width="1.8"/><path d="M9 20h22M20 7v26" stroke="#fff" stroke-width="1.2" opacity=".55"/><path d="M14 28c3-6 8-9 13-11" fill="none" stroke="#F2A93B" stroke-width="2.6" stroke-linecap="round"/><path d="M24 14.5l3.4 2.4-2.2 3.4" fill="none" stroke="#F2A93B" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span><b>QuadraLab</b> Tática</span>
+    </a>
+    <span class="selo-proto">protótipo</span>
+  </div>
+</header>
+<main id="app" tabindex="-1"><p class="carregando">Carregando…</p></main>
+<nav class="abas" id="abas" aria-label="Menu">
+  <a href="#/" data-aba="inicio"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-6.5 8 6.5V20a1 1 0 0 1-1 1h-4.5v-5.5h-5V21H5a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Início</span></a>
+  <a href="#/manual" data-aba="manual"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h9.5a4 4 0 0 1 4 4V20H9a4 4 0 0 1-4-4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 9h6M9 13h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Manual</span></a>
+  <a href="#/simulador" data-aba="simulador"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 8.5l5.5 3.5-5.5 3.5z" fill="currentColor"/></svg><span>Simulador</span></a>
+  <a href="#/plano" data-aba="plano"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18c3-7 7-10 13-12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M14 4.5l4 1.6-1.6 4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5.5" cy="18.5" r="2" fill="currentColor"/></svg><span>Plano de jogo</span></a>
+</nav>
+<div class="toast" id="toast" role="status" hidden></div>
+<script src="../../mty/situacoes-jogo.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

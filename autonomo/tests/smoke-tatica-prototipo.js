@@ -1,0 +1,71 @@
+/* Teste e capturas do protótipo QuadraLab Tática. Rode da raiz: python3 -m http.server 8787 --bind 127.0.0.1 &  e  node autonomo/tests/smoke-tatica-prototipo.js <pasta-das-capturas> */
+const { chromium } = require("playwright");
+const assert = require("assert");
+const path = require("path");
+const OUT = process.argv[2];
+const BASE = "http://127.0.0.1:8787/autonomo/tatica-app/index.html";
+(async () => {
+  const b = await chromium.launch();
+  const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+  const p = await ctx.newPage();
+  const erros = [];
+  p.on("pageerror", (e) => erros.push(String(e)));
+  p.on("console", (m) => { if (m.type() === "error" && !/fonts\.g/.test(m.text())) erros.push(m.text()); });
+  const foto = async (nome) => p.screenshot({ path: path.join(OUT, nome + ".png") });
+  const fotoInteira = async (nome) => p.screenshot({ path: path.join(OUT, nome + ".png"), fullPage: true });
+  const semRolagem = async (nome) => { const w = await p.evaluate(() => document.documentElement.scrollWidth); assert.ok(w <= 390, nome + ": rolagem lateral " + w); };
+
+  await p.goto(BASE + "#/", { waitUntil: "networkidle" });
+  await p.waitForSelector("[data-escolher-nivel]");
+  await semRolagem("início"); await foto("tatica-1-inicio");
+  await p.click('[data-nivel="N2"]'); await p.waitForSelector("#btTrocarNivel");
+  assert.ok(/Situação da semana/i.test(await p.innerText("[data-semana]")));
+  await fotoInteira("tatica-1b-inicio-inteiro");
+
+  await p.click('#abas [data-aba="manual"]'); await p.waitForSelector(".momentos");
+  assert.strictEqual(await p.locator(".momento").count(), 8);
+  await semRolagem("manual"); await foto("tatica-2-manual");
+  await p.fill("#busca", "devolução"); await p.waitForFunction(() => document.querySelectorAll("#resBusca .ficha-l").length > 0);
+  await p.fill("#busca", "");
+  await p.click('a[href="#/manual/C"]'); await p.waitForSelector(".lista-fichas");
+  await semRolagem("momento"); await foto("tatica-3-momento");
+  await p.click(".ficha-l >> nth=0"); await p.waitForSelector("[data-ficha]");
+  assert.ok(/O que ler/.test(await p.innerText("[data-ficha]")) && /Como decidir/.test(await p.innerText("[data-ficha]")));
+  await p.click("#btTreinei"); await p.waitForSelector("#btTreinei:text('Treinei')");
+  await semRolagem("ficha"); await fotoInteira("tatica-4-ficha");
+  await p.goto(BASE + "#/metodo"); await p.waitForSelector(".estados");
+  await semRolagem("método"); await foto("tatica-5-metodo");
+
+  await p.click('#abas [data-aba="simulador"]'); await p.waitForSelector("#simFrame");
+  const fr = p.frameLocator("#simFrame");
+  await fr.locator("main").waitFor();
+  await p.waitForTimeout(1500);
+  const topoVisivel = await p.frame({ url: /decisoes/ }).evaluate(() => { const t = document.querySelector(".topo"); return t ? getComputedStyle(t).display !== "none" : false; });
+  assert.ok(!topoVisivel, "cabeçalho do simulador escondido dentro do app");
+  await semRolagem("simulador"); await foto("tatica-6-simulador");
+  await p.click('[data-sim="desafios"]'); await p.waitForTimeout(1000);
+
+  await p.click('#abas [data-aba="plano"]'); await p.waitForSelector('[data-tipo="adversario"]');
+  await p.click('[data-tipo="adversario"]'); await p.waitForSelector("#plTitulo");
+  await p.fill("#plTitulo", "Copa Sul · contra Marcos");
+  await p.click('[data-minha="C"]');
+  await p.click('[data-adv="X09"]'); await p.click('[data-adv="X16"]');
+  await p.click('[data-cond="X25"]');
+  assert.ok(await p.$("[data-sugestao]"), "sugestão de hipótese do manual");
+  await p.fill("#plSeFizer", "bolas profundas e altas no backhand"); await p.fill("#plEspero", "respostas curtas para eu atacar");
+  await semRolagem("novo plano"); await fotoInteira("tatica-7-novo-plano");
+  await p.click("#btGerar"); await p.waitForSelector("[data-plano]");
+  const tp = await p.innerText("[data-plano]");
+  assert.ok(/Se eu fizer bolas profundas/.test(tp) && /Quando não insistir/i.test(tp) && /Alternativa B/i.test(tp) && /Saibro/i.test(tp), tp.slice(0, 500));
+  assert.ok((await p.locator(".lista-fichas .ficha-l").count()) >= 2, "situações para treinar");
+  await p.fill('[data-depois-campo="boa"]', "Fui para a rede na hora certa.");
+  await semRolagem("plano"); await fotoInteira("tatica-8-plano");
+  await p.goto(BASE + "#/planos"); await p.waitForSelector(".planos-preco");
+  assert.ok(!/R\$/.test(await p.innerText("main")), "sem preço");
+  await foto("tatica-9-proposta");
+  await p.goto(BASE + "#/"); await p.waitForSelector("[data-semana]");
+  assert.ok(/1\s*planos de jogo/.test(await p.innerText(".trio")) || /1planos/.test((await p.innerText(".trio")).replace(/\s/g, "")), await p.innerText(".trio"));
+  assert.deepStrictEqual(erros, [], "erros no console: " + erros.join(" | "));
+  console.log("tatica-app: ok");
+  await b.close();
+})().catch((e) => { console.error(e); process.exit(1); });
