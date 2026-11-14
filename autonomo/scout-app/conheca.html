@@ -105,7 +105,7 @@
     .recurso { grid-template-columns: 1fr 1fr; gap: 56px; }
     .recurso.inverte .texto { order: 2; }
     .publico { grid-template-columns: repeat(3, 1fr); }
-    .planos { grid-template-columns: 1fr 1fr; max-width: 820px; }
+    .planos { grid-template-columns: repeat(3, 1fr); max-width: 1040px; }
   }
   @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
 </style>
@@ -180,7 +180,7 @@
 
   <section class="secao alt" id="planos"><div class="in">
     <p class="olho">Quanto custa</p>
-    <h2>Comece grátis. O Plus anual abre em breve.</h2>
+    <h2>Comece grátis. Os planos anuais abrem em breve.</h2>
     <div class="planos">
       <div class="plano">
         <h3>Grátis</h3>
@@ -191,7 +191,14 @@
       <div class="plano plus" data-plano-plus>
         <h3>Scout Plus</h3>
         <p class="preco"><small>Plano anual · em breve</small></p>
-        <ul><li>Tudo do grátis</li><li><b>Link ao vivo</b> para a família, a cada ponto</li><li><b>Relatório em PDF</b> de cada jogo e de todos os jogos</li><li>Atletas <b>sem limite</b></li></ul>
+        <p class="suave" style="margin:0 0 6px">Para a família e para quem joga.</p>
+        <ul><li>Tudo do grátis</li><li>Até <b>3 atletas</b></li><li><b>Link ao vivo</b> para a família, a cada ponto</li><li><b>Relatório em PDF</b> de cada jogo e de todos os jogos</li></ul>
+      </div>
+      <div class="plano plus" data-plano-treinador>
+        <h3>Scout Treinador</h3>
+        <p class="preco"><small>Plano anual · em breve</small></p>
+        <p class="suave" style="margin:0 0 6px">Para o professor que acompanha os alunos.</p>
+        <ul><li>Tudo do Scout Plus</li><li>Atletas <b>sem limite</b>: todos os seus alunos</li><li>Mais jogos guardados na nuvem</li></ul>
       </div>
     </div>
   </div></section>
@@ -204,7 +211,7 @@
       <details><summary>Funciona sem internet?</summary><p>Sim. Depois do primeiro acesso, o app abre e marca sem sinal. Os jogos vão para a sua conta quando a internet volta. O link ao vivo precisa de internet para atualizar.</p></details>
       <details><summary>O nome do adversário aparece para a família?</summary><p>Não. O link ao vivo (Scout Plus) e o texto do WhatsApp mostram só o primeiro nome do atleta, o placar e os números. O nome do adversário e as anotações ficam só na sua conta.</p></details>
       <details><summary>Posso usar em mais de um celular?</summary><p>Sim. Entre com a mesma conta e os jogos aparecem nos dois. Pai e mãe podem acompanhar o mesmo atleta.</p></details>
-      <details><summary>Quantos atletas posso acompanhar?</summary><p>No grátis, 1 atleta por conta, com jogos sem limite e evolução completa. No Scout Plus (plano anual), atletas sem limite, link ao vivo e relatório em PDF.</p></details>
+      <details><summary>Quantos atletas posso acompanhar?</summary><p>No grátis, 1 atleta por conta, com jogos sem limite e evolução completa. No Scout Plus (plano anual), até 3 atletas, link ao vivo e relatório em PDF. No Scout Treinador (plano anual), tudo isso com atletas sem limite.</p></details>
       <details><summary>Já tenho conta no QuadraLab. Preciso criar outra?</summary><p>Não. Quem tem conta no QuadraLab (Player, Competição ou Treinador) entra com o mesmo e-mail e senha.</p></details>
     </div>
   </div></section>

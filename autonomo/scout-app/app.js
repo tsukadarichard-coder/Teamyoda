@@ -13,17 +13,25 @@
   var st = null, eu = null, conta = null, salvoOk = true;
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
   function chave() { return D.CHAVE + ":" + eu.uid; }
-  /* Plano (14/11/2026): grátis com 1 atleta; o Scout Plus vira plano anual, mas a venda continua parada (sem preço nem link de
-     compra no app) até o produto existir na Eduzz. Conta que já tem Plus continua com atletas sem limite: o servidor manda o limite. */
-  var LIMITE_PADRAO = 1;
+  /* Planos (14/11/2026, "grátis 1, Plus 3 e Treinador ilimitado"): Grátis com 1 atleta; Scout Plus (anual) com até 3, link ao vivo e PDF;
+     Scout Treinador (anual) com atletas sem limite. A venda continua parada (sem preço nem link de compra no app) até os produtos existirem
+     na Eduzz. O servidor manda o plano e os limites; quem já tinha mais atletas continua com eles. */
+  var LIMITE_PADRAO = 1, LIMITE_PLUS = 3;
+  var NOME_PLANO = { gratis: "Grátis", plus: "Scout Plus", treinador: "Scout Treinador" };
+  function planoAtual() { return (conta && NOME_PLANO[conta.plano]) ? conta.plano : "gratis"; }
   function atletasTxt(n) { return n === 1 ? "1 atleta" : "até " + n + " atletas"; }
-  function ehPlus() { return !!(conta && conta.plano === "plus"); }
+  function ehPlus() { return planoAtual() !== "gratis"; } // qualquer plano pago: link ao vivo e PDF
   function limiteAtletas() { return (conta && conta.limites && conta.limites.atletas) || LIMITE_PADRAO; }
-  function textoLimite() { var n = limiteAtletas(); return n === 1 ? "No grátis é 1 atleta por conta. Atletas sem limite no Scout Plus (plano anual), que abre em breve." : "São até " + n + " atletas por conta."; }
+  function textoLimite() {
+    var p = planoAtual();
+    return p === "gratis" ? "No grátis é 1 atleta por conta. Até 3 atletas no Scout Plus e sem limite no Scout Treinador (planos anuais), que abrem em breve."
+      : p === "plus" ? "No Scout Plus são até 3 atletas por conta. Sem limite no Scout Treinador (plano anual), que abre em breve."
+      : "São até " + limiteAtletas() + " atletas por conta.";
+  }
   /* link ao vivo e relatório em PDF são do Scout Plus (decisão do Richard em 12/11/2026). A venda está parada: sem preço nem link de compra. */
   function cadeadoPlus(id, titulo, texto) {
     return '<section class="cartao"' + (id === "aovivo" ? ' id="cartaoAoVivo"' : "") + ' data-plus-bloqueio="' + id + '"><p class="olho">' + esc(titulo) + ' · Scout Plus</p><p class="nota" style="margin-top:0">' + esc(texto) +
-      '</p><p class="nota"><b>Disponível no Scout Plus (plano anual).</b> A assinatura abre em breve.</p><div class="acoes"><a class="bt bt-pq" href="#/plus">Ver o que o Plus inclui</a></div></section>';
+      '</p><p class="nota"><b>Disponível nos planos Scout Plus e Scout Treinador (anuais).</b> A assinatura abre em breve.</p><div class="acoes"><a class="bt bt-pq" href="#/plus">Ver os planos</a></div></section>';
   }
   function guardarConta() { try { localStorage.setItem("qls:conta:" + eu.uid, JSON.stringify(conta)); } catch (e) { /* sem espaço */ } }
   function lerContaGuardada() { try { return JSON.parse(localStorage.getItem("qls:conta:" + eu.uid) || "null"); } catch (e) { return null; } }
@@ -177,7 +185,7 @@
     var c = conta || {}, meta = N.lerMeta(eu.uid);
     var h = '<p class="voltar"><a class="bt bt-texto" href="#/">‹ Seus jogos</a></p><h1>Minha conta</h1>' +
       '<section class="cartao"><p class="olho">Conta</p><p style="margin:0"><b>' + esc(c.nome || eu.nome || "Sem nome") + '</b></p><p class="nota">' + esc(eu.email) + "</p>" +
-      '<p class="nota">Plano: <b>' + (c.plano === "plus" ? "Scout Plus" : "Grátis") + "</b>" + (c.plano === "plus" && c.plusAte ? " até " + esc(dataBR(c.plusAte)) : "") + ' · ' + (c.plano === "plus" ? "atletas sem limite" : atletasTxt(limiteAtletas())) + ', com todas as funções</p>' +
+      '<p class="nota" data-plano-conta>Plano: <b>' + NOME_PLANO[planoAtual()] + "</b>" + (c.acessoCompleto ? " (acesso completo)" : c.plusAte && ehPlus() ? " até " + esc(dataBR(c.plusAte)) : "") + " · " + (planoAtual() === "treinador" ? "atletas sem limite" : atletasTxt(limiteAtletas())) + ' · <a href="#/plus">ver os planos</a></p>' +
       '<p class="nota" data-estado-nuvem>' + (navigator.onLine === false ? "Sem internet agora: os jogos vão para a nuvem quando o sinal voltar." : meta.ultima ? "Jogos guardados na nuvem. Última sincronização: " + new Date(meta.ultima).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) + "." : "Sincronizando os jogos com a nuvem…") + "</p>" +
       '<div class="acoes"><button type="button" class="bt bt-pq" id="btSync">Sincronizar agora</button><a class="bt bt-pq" href="#/perfil">Mudar o nome</a><button type="button" class="bt bt-pq" id="btGuia">Ver o guia de novo</button><button type="button" class="bt bt-pq bt-perigo" id="btSair">Sair da conta</button></div></section>' +
       '<section class="cartao"><h2>Cópia dos jogos</h2><p class="nota">Os jogos já ficam na sua conta. Se quiser guardar um arquivo seu também (ou levar para outra conta), faça uma cópia.</p>' +
@@ -493,7 +501,7 @@
     var bn = document.getElementById("btFimNao"); if (bn) bn.addEventListener("click", function () { marc.confirmaFim = false; redesenhar(); });
     var bs = document.getElementById("btFimSim"); if (bs) bs.addEventListener("click", function () { D.encerrar(j); marc.confirmaFim = false; marc.rasc = null; if (st.atual === j.id) delete st.atual; salvar(); agendarAoVivo(j, true); contarFim(j); telaFim(j, true); });
     var ab = document.getElementById("btAbrirLink"); if (ab) ab.addEventListener("click", async function () {
-      if (!ehPlus()) { toast("O link ao vivo é do Scout Plus."); return; }
+      if (!ehPlus()) { toast("O link ao vivo é dos planos Scout Plus e Scout Treinador."); return; }
       if (navigator.onLine === false) { toast("Sem internet agora. O link ao vivo precisa de sinal para abrir."); return; }
       ocupado(ab, true, "Abrindo…");
       try { await N.aoVivo(eu.uid, j, D.resumo(M, st, j), false); aoVivoEstado[j.id] = "Ao vivo: a família vê cada ponto."; redesenhar(); toast("Link ao vivo aberto. Mande para a família."); }
@@ -693,15 +701,18 @@
     var bt = document.getElementById("btRelTodos"); if (bt) bt.addEventListener("click", function () { abrirRelatorio(id); });
   }
 
-  /* ══ Plano (a venda do Scout Plus está parada: nada de preço nem link de compra aqui) ══ */
+  /* ══ Planos (a venda está parada: nada de preço nem link de compra aqui) ══ */
   function telaPlus() {
-    var c = conta || {}, plus = ehPlus();
-    var h = '<p class="voltar"><a class="bt bt-texto" href="#/conta">‹ Minha conta</a></p><h1>Seu plano</h1>' +
-      (plus ? '<div class="aviso" data-plus-ativo>Você tem o Scout Plus' + (c.acessoCompleto ? " (acesso completo)." : c.plusAte ? " até " + esc(dataBR(c.plusAte)) + "." : ".") + " Link ao vivo, relatório em PDF e atletas sem limite.</div>" : "") +
-      '<section class="cartao" data-plano-gratis><p class="olho">Grátis</p><ul style="margin:6px 0 0;padding-left:18px"><li>' + (LIMITE_PADRAO === 1 ? "1 atleta" : "Até " + LIMITE_PADRAO + " atletas") + ' na conta</li><li>Jogos sem limite, com o tempo de cada partida</li>' +
+    var c = conta || {}, p = planoAtual(), plus = ehPlus();
+    var atual = function (k) { return p === k ? ' <span class="tag v" data-plano-atual>seu plano</span>' : ""; };
+    var h = '<p class="voltar"><a class="bt bt-texto" href="#/conta">‹ Minha conta</a></p><h1>Planos</h1>' +
+      (plus ? '<div class="aviso" data-plus-ativo>Você tem o ' + NOME_PLANO[p] + (c.acessoCompleto ? " (acesso completo)." : c.plusAte ? " até " + esc(dataBR(c.plusAte)) + "." : ".") + " Link ao vivo, relatório em PDF e " + (p === "treinador" ? "atletas sem limite." : "até 3 atletas.") + "</div>" : "") +
+      '<section class="cartao" data-plano-gratis><p class="olho">Grátis' + atual("gratis") + '</p><ul style="margin:6px 0 0;padding-left:18px"><li>' + (LIMITE_PADRAO === 1 ? "1 atleta" : "Até " + LIMITE_PADRAO + " atletas") + ' na conta</li><li>Jogos sem limite, com o tempo de cada partida</li>' +
       "<li>Comparação e evolução jogo a jogo, completas</li><li>Resultado para compartilhar no WhatsApp</li><li>Jogos na nuvem, em vários celulares</li></ul></section>" +
-      '<section class="cartao" data-plano-plus><p class="olho">Scout Plus · plano anual</p><ul style="margin:6px 0 0;padding-left:18px"><li>Tudo do grátis</li><li><b>Link ao vivo</b>: a família acompanha cada ponto, de qualquer lugar</li>' +
-      "<li><b>Relatório em PDF</b> de cada jogo e de todos os jogos, para levar ao treinador</li><li>Atletas sem limite</li></ul>" + (plus ? "" : '<p class="nota"><b>A assinatura anual abre em breve.</b></p>') + "</section>" +
+      '<section class="cartao" data-plano-plus><p class="olho">Scout Plus · plano anual' + atual("plus") + '</p><p class="nota" style="margin:0 0 4px">Para a família e para quem joga.</p><ul style="margin:6px 0 0;padding-left:18px"><li>Tudo do grátis</li><li><b>Até ' + LIMITE_PLUS + " atletas</b> (filhos, irmãos, o parceiro de dupla)</li><li><b>Link ao vivo</b>: a família acompanha cada ponto, de qualquer lugar</li>" +
+      "<li><b>Relatório em PDF</b> de cada jogo e de todos os jogos, para levar ao treinador</li></ul></section>" +
+      '<section class="cartao" data-plano-treinador><p class="olho">Scout Treinador · plano anual' + atual("treinador") + '</p><p class="nota" style="margin:0 0 4px">Para o professor que acompanha os alunos.</p><ul style="margin:6px 0 0;padding-left:18px"><li>Tudo do Scout Plus</li><li><b>Atletas sem limite</b>: todos os seus alunos</li><li>Mais jogos guardados na nuvem</li></ul></section>' +
+      (p === "treinador" ? "" : '<p class="nota" data-em-breve><b>As assinaturas anuais abrem em breve.</b></p>') +
       '<p class="rodape">Dúvidas: fale com a gente pelo WhatsApp (11) 94177-3228.</p>';
     tela(h, true);
   }
@@ -792,7 +803,7 @@
         ] },
       { rota: JOGO, alvo: "#btModo", acao: "ok", texto: "Você está no modo completo. Com pressa? Troque aqui pelo modo rápido: só como terminou e a bola." },
       { rota: JOGO, alvo: "#cartaoAoVivo", acao: "ok", texto: ehPlus() ? "Quer que a família acompanhe de longe? Abra o link ao vivo e mande no WhatsApp. Eles veem cada ponto." :
-        "Com o Scout Plus, a família acompanha de longe pelo link ao vivo e vê cada ponto. A assinatura abre em breve." },
+        "Com o Scout Plus ou o Scout Treinador, a família acompanha de longe pelo link ao vivo e vê cada ponto. As assinaturas abrem em breve." },
       { rota: JOGO, alvo: "#btEncerrar", acao: "demo", titulo: "Como o jogo termina", botao: "Ver o fim do jogo",
         texto: "Quando o último ponto é marcado, o app fecha o jogo sozinho e mostra o resultado. Se o jogo parar antes (chuva, desistência, tempo), use Encerrar jogo. Veja como fica.",
         roteiro: [

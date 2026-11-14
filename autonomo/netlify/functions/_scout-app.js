@@ -8,7 +8,7 @@
 const PAPEIS = ["responsavel", "atleta", "treinador", "outro"];
 const FORMATOS = ["3sets", "1set", "4games", "tb7", "tb10"];
 const ID_ATLETA = /^a[a-z0-9]{6,40}$/, ID_JOGO = /^j[a-z0-9]{6,40}$/, DATA = /^\d{4}-\d{2}-\d{2}$/, ISO = /^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/;
-const MAX_ATLETAS = 60, MAX_JOGOS = 400, MAX_PONTOS = 2000, MAX_JOGO_BYTES = 450000, MAX_APAGADOS = 300, MAX_LOTE = 10, MAX_BAIXAR = 40;
+const MAX_ATLETAS = 300, MAX_JOGOS = 400, MAX_PONTOS = 2000, MAX_JOGO_BYTES = 450000, MAX_APAGADOS = 300, MAX_LOTE = 10, MAX_BAIXAR = 40;
 const CAMPOS_PONTO = { quem: 9, sacadorNos: 9, fim: 20, saque: 8, bola: 6, causa: 12, situacao: 16, golpe: 16, direcao: 16, zona: 12, dirSaque: 12, qualDev: 12, dec: 8, sacador: 6, lado: 6, placarAntes: 8 };
 
 class ErroPedido extends Error { constructor(status, msg) { super(msg); this.status = status; } }
@@ -22,14 +22,36 @@ function contaNova(token, agora) {
    anual (preço e produto na Eduzz ainda por definir; a venda segue parada até lá). Antes: a análise de movimento saiu do app e a venda do Scout Plus
    está parada até ele definir o preço. Em 12/11/2026: link ao vivo e relatório em PDF só no Scout Plus (o link é barrado em scout-app.js). Conta que já
    tem Plus (webhook-eduzz, até plusAte) ou acesso completo (PLAYER_EMAILS_FULL) continua com atletas até MAX_ATLETAS. */
-const LIMITE_ATLETAS_GRATIS = 1;
+/* Três planos (decisão do Richard em 14/11/2026: "grátis 1, Plus 3 e Treinador ilimitado"): Grátis com 1 atleta; Scout Plus (anual) com até
+   3 atletas, link ao vivo e PDF; Scout Treinador (anual) com atletas sem limite (até MAX_ATLETAS) e mais jogos guardados. A venda segue
+   PARADA até os produtos anuais existirem na Eduzz; o webhook-eduzz.js continua gravando plano "plus" e só muda com o "pode fazer" dele.
+   O plano pago vale até plusAte (o mesmo campo para Plus e Treinador). Acesso completo (PLAYER_EMAILS_FULL) = Scout Treinador.
+   Quem passou de plano para um menor não perde atleta nem jogo: só não entra atleta novo acima do limite. */
+const PLANOS = {
+  gratis: { nome: "Grátis", atletas: 1, jogos: MAX_JOGOS },
+  plus: { nome: "Scout Plus", atletas: 3, jogos: MAX_JOGOS },
+  treinador: { nome: "Scout Treinador", atletas: MAX_ATLETAS, jogos: 2000 },
+};
+const LIMITE_ATLETAS_GRATIS = PLANOS.gratis.atletas;
 const hojeBR = () => new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
-function plusAtivo(c, full) { return !!full || (!!c && c.plano === "plus" && typeof c.plusAte === "string" && c.plusAte >= hojeBR()); }
+function planoAtivo(c, full) {
+  if (full) return "treinador";
+  if (c && (c.plano === "plus" || c.plano === "treinador") && typeof c.plusAte === "string" && c.plusAte >= hojeBR()) return c.plano;
+  return "gratis";
+}
+/* link ao vivo, PDF e análise sem limite: qualquer plano pago */
+function plusAtivo(c, full) { return planoAtivo(c, full) !== "gratis"; }
+function limiteJogos(c, full) { return PLANOS[planoAtivo(c, full)].jogos; }
 /* o que o app recebe da conta (nunca o e-mail de outra pessoa: aqui só existe a conta de quem pediu) */
 function contaPublica(c, full) {
-  const plus = plusAtivo(c, full);
-  return { nome: c.nome || "", email: c.email || "", papel: c.papel || "", plano: plus ? "plus" : "gratis", plusAte: plus && !full ? c.plusAte : null, acessoCompleto: !!full,
-    limites: { atletas: plus ? MAX_ATLETAS : LIMITE_ATLETAS_GRATIS }, criadoEm: c.criadoEm || null };
+  const plano = planoAtivo(c, full), pago = plano !== "gratis";
+  return { nome: c.nome || "", email: c.email || "", papel: c.papel || "", plano, plusAte: pago && !full ? c.plusAte : null, acessoCompleto: !!full,
+    limites: { atletas: PLANOS[plano].atletas, jogos: PLANOS[plano].jogos }, criadoEm: c.criadoEm || null };
+}
+function textoLimiteAtletas(plano) {
+  return plano === "gratis" ? "No grátis é 1 atleta por conta. Até 3 no Scout Plus e sem limite no Scout Treinador."
+    : plano === "plus" ? "No Scout Plus são até 3 atletas por conta. Sem limite no Scout Treinador."
+    : "Limite de " + MAX_ATLETAS + " atletas por conta.";
 }
 
 function perfil(corpo) {
@@ -50,7 +72,8 @@ function notasDoAtleta(x) {
   if (hist.length) out.hist = hist;
   return Object.keys(out).length ? out : null;
 }
-function atletas(lista, atuais, plus) {
+function atletas(lista, atuais, plano) {
+  if (typeof plano === "boolean" || plano == null) plano = plano ? "treinador" : "gratis"; // chamadas antigas: true = sem limite
   if (!Array.isArray(lista)) throw new ErroPedido(400, "Lista de atletas inválida.");
   if (lista.length > MAX_ATLETAS) throw new ErroPedido(400, "Limite de " + MAX_ATLETAS + " atletas por conta.");
   const vistos = {}, out = [];
@@ -60,10 +83,11 @@ function atletas(lista, atuais, plus) {
     const n = notasDoAtleta(a.notas);
     vistos[a.id] = 1; out.push({ id: a.id, nome, criadoEm: ISO.test(a.criadoEm) ? a.criadoEm : new Date().toISOString(), ...(n ? { notas: n } : {}) });
   }
-  /* no grátis não entra atleta novo além do limite; quem já estava na conta (de quando era Plus) continua */
-  if (!plus && atuais) {
+  /* acima do limite do plano não entra atleta novo; quem já estava na conta (de um plano maior) continua */
+  const limite = (PLANOS[plano] || PLANOS.gratis).atletas;
+  if (atuais && limite < MAX_ATLETAS) {
     const ja = new Set(atuais.map((a) => a.id)), novos = out.filter((a) => !ja.has(a.id));
-    if (novos.length && out.length > LIMITE_ATLETAS_GRATIS) throw new ErroPedido(403, LIMITE_ATLETAS_GRATIS === 1 ? "No grátis é 1 atleta por conta. Atletas sem limite no Scout Plus." : "São até " + LIMITE_ATLETAS_GRATIS + " atletas por conta.");
+    if (novos.length && out.length > limite) throw new ErroPedido(403, textoLimiteAtletas(plano));
   }
   return out;
 }
@@ -107,4 +131,4 @@ function jogo(j, idsAtletas) {
 /* apagados: lista curta de ids para os outros aparelhos também tirarem o jogo */
 function comApagado(lista, id, em) { return [{ id, em }].concat((lista || []).filter((x) => x && x.id !== id)).slice(0, MAX_APAGADOS); }
 
-module.exports = { PAPEIS, LIMITE_ATLETAS_GRATIS, plusAtivo, hojeBR, MAX_ATLETAS, MAX_JOGOS, MAX_LOTE, MAX_BAIXAR, ID_JOGO, ID_ATLETA, ErroPedido, contaNova, contaPublica, perfil, atletas, jogo, comApagado };
+module.exports = { PAPEIS, PLANOS, LIMITE_ATLETAS_GRATIS, planoAtivo, plusAtivo, limiteJogos, textoLimiteAtletas, hojeBR, MAX_ATLETAS, MAX_JOGOS, MAX_LOTE, MAX_BAIXAR, ID_JOGO, ID_ATLETA, ErroPedido, contaNova, contaPublica, perfil, atletas, jogo, comApagado };

@@ -114,7 +114,7 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   await p.goto(base, { waitUntil: "networkidle" });
   assert.strictEqual(p.url(), base + "conheca.html", "o endereço do app, sem conta entrada, abre a apresentação");
   const tApr = await p.evaluate(() => document.body.innerText);
-  assert.ok(tApr.includes("Comece grátis. O Plus anual abre em breve.") && /Scout Plus/.test(tApr) && /Plano anual · em breve/i.test(tApr) && /Grátis com 1 atleta/.test(tApr) && !/3 atletas/.test(tApr), "é a página de apresentação, com o grátis e o Plus");
+  assert.ok(tApr.includes("Comece grátis. Os planos anuais abrem em breve.") && /Scout Plus/.test(tApr) && /Scout Treinador/.test(tApr) && /Plano anual · em breve/i.test(tApr) && /Grátis com 1 atleta/.test(tApr) && /3 atletas/.test(tApr) && /sem limite/.test(tApr), "é a página de apresentação, com o grátis, o Plus e o Treinador");
   assert.ok(!/R\$ ?\d+,\d\d|29,90|eduzz/i.test(tApr) && !(await p.$('a[href*="eduzz"]')), "apresentação sem preço do Plus nem link de compra");
   /* os botões da apresentação levam para o app, sem voltar para ela */
   await p.click('a[href="./#/entrar"]'); await p.waitForSelector("#acEmail");
@@ -355,10 +355,10 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   await p.goto(base + "#/novo"); await p.waitForSelector("#btComecar");
   await p.click('[data-atleta="+"]');
   assert.ok(await p.$("[data-limite-atletas]") && !(await p.$("#nvNome")), "grátis com 1 atleta: o segundo não entra");
-  assert.ok(/No grátis é 1 atleta por conta/.test(await p.innerText("[data-limite-atletas]")) && /plano anual/.test(await p.innerText("[data-limite-atletas]")));
+  assert.ok(/No grátis é 1 atleta por conta/.test(await p.innerText("[data-limite-atletas]")) && /Até 3 atletas no Scout Plus/.test(await p.innerText("[data-limite-atletas]")) && /Scout Treinador/.test(await p.innerText("[data-limite-atletas]")));
   await p.goto(base + "#/plus"); await p.waitForSelector("[data-plano-gratis]");
   t = await texto();
-  assert.ok(t.includes("Seu plano") && t.includes("1 atleta na conta") && await p.$("[data-plano-plus]") && /plano anual/i.test(t) && /Link ao vivo/.test(t) && /Relatório em PDF/.test(t) && t.includes("A assinatura anual abre em breve"), "tela do plano: " + t.slice(0, 600));
+  assert.ok(t.includes("Planos") && t.includes("1 atleta na conta") && await p.$("[data-plano-plus]") && await p.$("[data-plano-treinador]") && /Até 3 atletas/.test(t) && /Atletas sem limite/.test(t) && /plano anual/i.test(t) && /Link ao vivo/.test(t) && /Relatório em PDF/.test(t) && t.includes("As assinaturas anuais abrem em breve") && await p.$('[data-plano-gratis] [data-plano-atual]'), "tela do plano: " + t.slice(0, 600));
   assert.ok(!/R\$|29,90|Assinar|Eduzz|Análise de movimento/i.test(t) && !(await p.$('a[href*="eduzz"]')) && !(await p.$("#lkAssinar")), "sem preço, sem link de compra");
   await semRolagem(p, "plano"); await foto(p, "scout-8-plano");
   await p.goto(base + "#/"); await p.waitForSelector("[data-novo]");

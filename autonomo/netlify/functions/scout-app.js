@@ -37,7 +37,7 @@ exports.handler = async function (event) {
     const refConta = db.collection("scoutAppContas").doc(uid), jogos = refConta.collection("jogos");
     let sConta = await refConta.get(), conta = sConta.exists ? sConta.data() : null;
     if (!conta) { conta = R.contaNova(tk, agora()); await refConta.set(conta); }
-    const full = planoFull(tk.email), plus = R.plusAtivo(conta, full);
+    const full = planoFull(tk.email), plano = R.planoAtivo(conta, full), plus = plano !== "gratis";
 
     if (event.httpMethod === "GET") {
       const s = await jogos.get(), lista = [];
@@ -53,7 +53,7 @@ exports.handler = async function (event) {
       return resposta(200, { conta: R.contaPublica({ ...conta, ...p }, full) });
     }
     if (b.acao === "atletas") {
-      const lista = R.atletas(b.atletas, conta.atletas || [], plus); await refConta.update({ atletas: lista, atualizadoEm: agora() });
+      const lista = R.atletas(b.atletas, conta.atletas || [], plano); await refConta.update({ atletas: lista, atualizadoEm: agora() });
       return resposta(200, { atletas: lista });
     }
     if (b.acao === "salvarJogos") {
@@ -62,7 +62,10 @@ exports.handler = async function (event) {
       const limpos = b.jogos.map((j) => R.jogo(j, ids));
       const existentes = await Promise.all(limpos.map((j) => jogos.doc(j.id).get()));
       const novos = existentes.filter((s) => !s.exists).length;
-      if (novos) { const total = (await jogos.get()).size; if (total + novos > R.MAX_JOGOS) throw new R.ErroPedido(409, "Limite de " + R.MAX_JOGOS + " jogos por conta. Apague jogos antigos para guardar novos."); }
+      if (novos) {
+        const lim = R.limiteJogos(conta, full), total = typeof jogos.count === "function" ? (await jogos.count().get()).data().count : (await jogos.get()).size;
+        if (total + novos > lim) throw new R.ErroPedido(409, "Limite de " + lim + " jogos por conta. Apague jogos antigos para guardar novos.");
+      }
       const salvos = [], antigos = [];
       for (let i = 0; i < limpos.length; i++) {
         const j = limpos[i], s = existentes[i];
@@ -108,7 +111,7 @@ exports.handler = async function (event) {
       }
       if (fim) return resposta(200, { token: null, expiraEm: null });
       /* link novo só no Scout Plus (decisão do Richard em 12/11/2026); um link já aberto segue atualizando até vencer */
-      if (!plus) throw new R.ErroPedido(403, "O link ao vivo é do Scout Plus.");
+      if (!plus) throw new R.ErroPedido(403, "O link ao vivo é dos planos Scout Plus e Scout Treinador.");
       const ativos = (await col.where("orgId", "==", dono).get()).docs.filter((d) => Date.parse(d.data().expiraEm) > Date.now());
       if (ativos.length >= MAX_AO_VIVO) throw new R.ErroPedido(409, "Você já tem " + MAX_AO_VIVO + " links ao vivo abertos. Encerre um jogo antes de abrir outro link.");
       const token = crypto.randomBytes(16).toString("hex"), expiraEm = new Date(Date.now() + VALIDADE_MS).toISOString();
