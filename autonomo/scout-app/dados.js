@@ -329,6 +329,7 @@
     var nu = r.numeros || {}, extra = [];
     if (nu.pctPrimeiro) extra.push("1º saque dentro: " + nu.pctPrimeiro + "%");
     if (nu.errosNos != null && r.n) extra.push("erros: " + nu.errosNos);
+    var gd = golpesDetalhe(j.pontos); if (gd && gd.errosNos.naoforcado + gd.errosNos.forcado) extra.push("erros não forçados: " + gd.errosNos.naoforcado);
     if (nu.aces) extra.push("aces: " + nu.aces);
     if (nu.df) extra.push("duplas faltas: " + nu.df);
     if (extra.length) linhas.push(extra.join(" · "));
@@ -368,7 +369,30 @@
     return e;
   }
 
-  var api = { VERSAO: VERSAO, CHAVE: CHAVE, CFG_PADRAO: CFG_PADRAO, MEDIDAS: MEDIDAS, vazio: vazio, normalizar: normalizar, atleta: atleta, jogo: jogo, addAtleta: addAtleta, renomearAtleta: renomearAtleta, removerAtleta: removerAtleta,
+  /* detalhes do golpe e do erro (pedido do Richard em 15/11/2026), só no app do Scout: efeito do último golpe, jogada e erro forçado ou não forçado.
+     Ficam no ponto (efeito, jogada, forcado) e entram nos números do fim do jogo e dos relatórios; o motor e os gráficos dos outros apps não mudam. */
+  var EFEITOS = [["spin", "Spin"], ["slice", "Slice"], ["flat", "Flat"]];
+  var JOGADAS = [["insideout", "Inside out"], ["insidein", "Inside in"], ["approach", "Approach"]];
+  var TIPOS_ERRO = [["forcado", "Forçado"], ["naoforcado", "Não forçado"]];
+  function golpesDetalhe(pontos) {
+    var z = function () { return { forcado: 0, naoforcado: 0, total: 0 }; }, out = { errosNos: z(), errosDele: z(), efeito: {}, jogada: {}, marcados: 0 };
+    (pontos || []).forEach(function (p) {
+      if (p.saque === "ace" || p.saque === "df") return;
+      var marcou = false;
+      if (p.fim === "erro_nos" || p.fim === "erro_dele") {
+        var e = p.fim === "erro_nos" ? out.errosNos : out.errosDele; e.total++;
+        if (p.forcado === "forcado" || p.forcado === "naoforcado") { e[p.forcado]++; marcou = true; }
+      }
+      [["efeito", EFEITOS], ["jogada", JOGADAS]].forEach(function (c) {
+        var v = p[c[0]]; if (!c[1].some(function (x) { return x[0] === v; })) return;
+        var o = out[c[0]][v] || (out[c[0]][v] = { total: 0, ganhos: 0 }); o.total++; if (p.nos) o.ganhos++; marcou = true;
+      });
+      if (marcou) out.marcados++;
+    });
+    return out.marcados ? out : null;
+  }
+
+  var api = { VERSAO: VERSAO, CHAVE: CHAVE, EFEITOS: EFEITOS, JOGADAS: JOGADAS, TIPOS_ERRO: TIPOS_ERRO, golpesDetalhe: golpesDetalhe, CFG_PADRAO: CFG_PADRAO, MEDIDAS: MEDIDAS, vazio: vazio, normalizar: normalizar, atleta: atleta, jogo: jogo, addAtleta: addAtleta, renomearAtleta: renomearAtleta, removerAtleta: removerAtleta,
     sacadorDaDupla: sacadorDaDupla, trocarSacadorDupla: trocarSacadorDupla, numerosDaDupla: numerosDaDupla, nomeParceiro: nomeParceiro, mesmaModalidade: mesmaModalidade, turnoDaDupla: turnoDaDupla,
     novoJogo: novoJogo, removerJogo: removerJogo, tocar: tocar, placar: placar, textoSets: textoSets, encerrado: encerrado, marcarPonto: marcarPonto, desfazer: desfazer, resumo: resumo, anteriores: anteriores,
     NOTAS: NOTAS, notasLimpas: notasLimpas, definirNota: definirNota, formatarNota: formatarNota, notaAnterior: notaAnterior, textoNotas: textoNotas, atletaLimpo: atletaLimpo,
