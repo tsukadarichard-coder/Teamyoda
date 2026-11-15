@@ -436,13 +436,16 @@
   function togRasc(campo, rot, on) { return '<button type="button" class="chip" data-rdb="' + campo + '" aria-pressed="' + !!on + '">' + esc(rot) + "</button>"; }
   function detalhesRascHtml(r, nome) {
     return '<div class="det-rasc" data-tour="detalhes"><p class="nota" style="margin-top:8px">Detalhes do ponto (opcionais). Depois toque na bola.</p>' +
+      (r.fim === "erro_nos" || r.fim === "erro_dele" ? '<p class="olho">' + (r.fim === "erro_nos" ? "Erro de " + esc(nome) : "Erro do adversário") + '</p><div class="chips" data-tour="tipo-erro">' + opRasc(D.TIPOS_ERRO, "forcado", r.forcado) + "</div>" : "") +
       (r.fim === "erro_nos" ? '<p class="olho">O erro foi de</p><div class="chips">' + opRasc([["decisao", "Decisão"], ["execucao", "Execução"]], "causa", r.causa) + "</div>" : "") +
       '<p class="olho">Como foi o ponto</p><div class="chips">' + opRasc(M.SITUACOES, "situacao", r.situacao) + togRasc("rede", "Subiu à rede", r.rede) + "</div>" +
       '<p class="olho">Decisão de ' + esc(nome) + '</p><div class="chips">' + opRasc(M.DECISOES, "dec", r.dec) + "</div>" +
       (r.sacador === "ele" && r.saque !== "df" && r.saque !== "ace" ? '<p class="olho">Devolução de ' + esc(nome) + '</p><div class="chips">' + opRasc(M.QUALIDADES_DEVOLUCAO, "qualDev", r.qualDev) + "</div>" : "") +
       (r.sacador === "nos" && r.fim === "erro_dele" && r.saque !== "df" && r.saque !== "ace" ? '<div class="chips" style="margin-top:10px">' + togRasc("devAdv", "Erro de devolução do adversário", r.devAdv) + "</div>" : "") +
       '<p class="olho">Último golpe de ' + esc(nome) + ' (vale também quando o ponto foi do adversário)</p><div class="chips">' + opRasc(M.GOLPES, "golpe", r.golpe) + "</div>" +
+      '<p class="olho">Efeito</p><div class="chips" data-tour="efeito">' + opRasc(D.EFEITOS, "efeito", r.efeito) + "</div>" +
       '<div class="chips" style="margin-top:8px">' + togRasc("corrida", "Na corrida", r.corrida) + opRasc(M.DIRECOES, "direcao", r.direcao) + "</div>" +
+      '<p class="olho">Jogada</p><div class="chips" data-tour="jogada">' + opRasc(D.JOGADAS, "jogada", r.jogada) + "</div>" +
       '<p class="olho">Onde foi o último golpe de ' + esc(nome) + '</p><div class="grade3 zonas">' + opRasc(M.ZONAS, "zona", r.zona) + "</div></div>";
   }
   function registradoHtml(j) {
@@ -455,11 +458,14 @@
     var p = j.pontos[j.pontos.length - 1];
     return '<details class="cartao det" id="detPonto"' + (marc.detAberto ? " open" : "") + '><summary>Detalhes do ponto ' + p.n + " (opcional)</summary>" +
       '<p class="nota">Vale para o último ponto marcado. Pule à vontade: o placar e os números principais não dependem disso.</p>' +
+      ((p.fim === "erro_nos" || p.fim === "erro_dele") && p.saque !== "df" ? '<p class="olho">' + (p.fim === "erro_nos" ? "Erro de " + esc(nome) : "Erro do adversário") + '</p><div class="chips">' + opcoesHtml(D.TIPOS_ERRO, "forcado", p.forcado) + "</div>" : "") +
       (p.fim === "erro_nos" ? '<p class="olho">O erro foi de</p><div class="chips">' + opcoesHtml([["decisao", "Decisão"], ["execucao", "Execução"]], "causa", p.causa) + "</div>" : "") +
       '<p class="olho">Como foi o ponto</p><div class="chips">' + opcoesHtml(M.SITUACOES, "situacao", p.situacao) + '<button type="button" class="chip" data-detb="rede" aria-pressed="' + !!p.rede + '">Subiu à rede</button></div>' +
       '<p class="olho">Decisão de ' + esc(nome) + '</p><div class="chips">' + opcoesHtml(M.DECISOES, "dec", p.dec) + "</div>" +
       '<p class="olho">Último golpe de ' + esc(nome) + '</p><div class="chips">' + opcoesHtml(M.GOLPES, "golpe", p.golpe) + "</div>" +
+      '<p class="olho">Efeito</p><div class="chips">' + opcoesHtml(D.EFEITOS, "efeito", p.efeito) + "</div>" +
       '<p class="olho">Direção</p><div class="chips">' + opcoesHtml(M.DIRECOES, "direcao", p.direcao) + '<button type="button" class="chip" data-detb="corrida" aria-pressed="' + !!p.corrida + '">Na corrida</button></div>' +
+      '<p class="olho">Jogada</p><div class="chips">' + opcoesHtml(D.JOGADAS, "jogada", p.jogada) + "</div>" +
       '<p class="olho">Onde foi o último golpe de ' + esc(nome) + '</p><div class="chips">' + opcoesHtml(M.ZONAS, "zona", p.zona) + "</div>" +
       '<p class="olho">Direção do saque</p><div class="chips">' + opcoesHtml(M.DIRECOES_SAQUE, "dirSaque", p.dirSaque) + "</div>" +
       (p.sacador === "ele" && p.saque !== "df" && p.saque !== "ace" ? '<p class="olho">Devolução de ' + esc(nome) + '</p><div class="chips">' + opcoesHtml(M.QUALIDADES_DEVOLUCAO, "qualDev", p.qualDev) + "</div>" : "") +
@@ -474,7 +480,7 @@
       if (r.fim) { contarFim(j); telaFim(j, true); return; }
       redesenhar();
     }
-    function base(nos, fim) { var pl = D.placar(M, j); return { fim: fim, nos: nos, saque: marc.saquePre, bola: null, causa: null, rede: false, situacao: null, golpe: null, corrida: false, direcao: null, zona: null, dirSaque: marc.dirS || null, qualDev: null, dec: null, devAdv: false, adverso: M.ehAdverso(pl), sacador: M.quemSaca(pl), lado: M.ladoDoSaque(pl) }; }
+    function base(nos, fim) { var pl = D.placar(M, j); return { fim: fim, nos: nos, saque: marc.saquePre, bola: null, causa: null, forcado: null, efeito: null, jogada: null, rede: false, situacao: null, golpe: null, corrida: false, direcao: null, zona: null, dirSaque: marc.dirS || null, qualDev: null, dec: null, devAdv: false, adverso: M.ehAdverso(pl), sacador: M.quemSaca(pl), lado: M.ladoDoSaque(pl) }; }
     cada("[data-saq]", function (b) {
       b.addEventListener("click", function () {
         var v = b.getAttribute("data-saq");
@@ -531,6 +537,25 @@
     return '<section class="cartao" data-dupla><h2>Na dupla</h2><p class="nota" style="margin-top:0">Quem fez o quê. Os números de cima são da dupla.</p><div class="tab"><table><thead><tr><th>Medida</th><th>' + esc(nome) + "</th><th>" + esc(pc) + "</th></tr></thead><tbody>" +
       linhas.map(function (l) { return "<tr><td>" + l[0] + "</td><td>" + l[1] + "</td><td>" + l[2] + "</td></tr>"; }).join("") + "</tbody></table></div></section>";
   }
+  /* golpes e erros (15/11/2026): erro forçado × não forçado, efeito e jogada do último golpe, com quantos pontos foram ganhos */
+  function golpesHtml(det, nome, dupla) {
+    if (!det) return "";
+    var quem = dupla ? "da dupla" : "de " + esc(nome), h = '<section class="cartao" data-golpes><h2>Golpes e erros</h2>';
+    var linha = function (rot, v) { return '<div class="contagem"><span>' + rot + "</span><b>" + v + "</b></div>"; };
+    var en = det.errosNos, ed = det.errosDele;
+    if (en.forcado + en.naoforcado + ed.forcado + ed.naoforcado) {
+      h += '<p class="olho" style="margin-top:4px">Erros</p>' +
+        linha("Não forçados " + quem, en.naoforcado + (en.total > en.forcado + en.naoforcado ? ' <small class="nota">de ' + en.total + "</small>" : "")) + linha("Forçados " + quem, en.forcado) +
+        linha("Não forçados do adversário", ed.naoforcado) + linha("Forçados do adversário (pressão " + quem + ")", ed.forcado) +
+        '<p class="nota" style="margin:4px 0 0">Conta só os erros em que o tipo foi marcado.</p>';
+    }
+    [["efeito", D.EFEITOS, "Efeito do último golpe"], ["jogada", D.JOGADAS, "Jogadas"]].forEach(function (c) {
+      var lista = c[1].filter(function (x) { return det[c[0]][x[0]]; });
+      if (!lista.length) return;
+      h += '<p class="olho" style="margin-top:12px">' + c[2] + "</p>" + lista.map(function (x) { var o = det[c[0]][x[0]]; return linha(x[1], o.total + (o.total === 1 ? " vez" : " vezes") + ' <small class="nota">· ' + o.ganhos + " ganho" + (o.ganhos === 1 ? "" : "s") + "</small>"); }).join("");
+    });
+    return h + "</section>";
+  }
   function telaFim(j, topo) {
     var a = D.atleta(st, j.atletaId), nome = primeiroNome(a && a.nome), pl = D.placar(M, j), r = D.resumo(M, st, j), n = j.pontos.length;
     if (st.atual === j.id) { delete st.atual; salvar(); }
@@ -552,6 +577,7 @@
     if (n) h += '<div class="acoes" style="margin:-4px 0 14px"><a class="bt bt-texto" href="#/relatorios/' + esc(j.atletaId) + '" data-ir-relatorios>Estatísticas de todos os jogos de ' + esc(nome) + " ›</a></div>";
     if (n && dupla) h += duplaHtml(j, nome);
     if (n && G) h += '<div class="graficos">' + G.topo(r) + G.secoes(r) + "</div>";
+    if (n) h += golpesHtml(D.golpesDetalhe(j.pontos), nome, dupla);
     if (r.sinais && r.sinais.length) h += '<section class="cartao"><h2>O que este jogo aponta</h2><p class="nota">Leitura automática pelos números. É ponto de partida para conversar com o treinador, não conclusão.</p>' + r.sinais.map(function (t) { return '<div class="sinal">' + t + "</div>"; }).join("") + "</section>";
     if (cmp.jogos.length >= 2) h += '<section class="cartao"><h2>Comparação com os jogos anteriores</h2>' + tabelaComparacao(cmp) + '<div class="acoes"><a class="bt bt-pq" href="#/atleta/' + esc(j.atletaId) + '">Ver todos os jogos de ' + esc(nome) + '</a>' + "</div></section>";
     else h += '<div class="aviso">Marque mais jogos de ' + esc(nome) + " para ver a comparação jogo a jogo. Um jogo é uma amostra; três na mesma direção já são um sinal.</div>";
@@ -691,7 +717,8 @@
     /* estatísticas somadas */
     var soma = D.resumoSomado(M, st, jogos);
     if (soma && G) h += '<section class="secao" data-rel-estatisticas><h2>Estatísticas somadas</h2><p class="nota">Cada número soma os pontos ' + (jogos.length === 1 ? "do jogo" : "dos " + jogos.length + " jogos") + ". Placar, games e mental ficam no resultado de cada jogo.</p>" +
-      '<div class="graficos">' + G.painelGeral(soma) + [G.comoTerminaram, G.decisoes, G.saque, G.lado, G.situacoes, G.golpes, G.direcao, G.devolucao].map(function (f) { try { return f(soma); } catch (e) { return ""; } }).join("") + "</div></section>";
+      '<div class="graficos">' + G.painelGeral(soma) + [G.comoTerminaram, G.decisoes, G.saque, G.lado, G.situacoes, G.golpes, G.direcao, G.devolucao].map(function (f) { try { return f(soma); } catch (e) { return ""; } }).join("") + "</div>" +
+      golpesHtml(D.golpesDetalhe([].concat.apply([], jogos.map(function (x) { return x.pontos; }))), nome, dupla) + "</section>";
     /* evolução */
     var cmp = D.comparacao(M, st, id, Math.min(qtd, 10), dupla);
     h += cmp.jogos.length >= 2 ? '<section class="cartao" data-rel-evolucao><h2>Evolução jogo a jogo</h2>' + tabelaComparacao(cmp) + (qtd > 10 ? '<p class="nota">A tabela mostra os 10 jogos mais recentes.</p>' : "") + "</section>"

@@ -9,7 +9,7 @@ const PAPEIS = ["responsavel", "atleta", "treinador", "outro"];
 const FORMATOS = ["3sets", "1set", "4games", "tb7", "tb10"];
 const ID_ATLETA = /^a[a-z0-9]{6,40}$/, ID_JOGO = /^j[a-z0-9]{6,40}$/, DATA = /^\d{4}-\d{2}-\d{2}$/, ISO = /^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/;
 const MAX_ATLETAS = 300, MAX_JOGOS = 400, MAX_PONTOS = 2000, MAX_JOGO_BYTES = 450000, MAX_APAGADOS = 300, MAX_LOTE = 10, MAX_BAIXAR = 40;
-const CAMPOS_PONTO = { quem: 9, sacadorNos: 9, fim: 20, saque: 8, bola: 6, causa: 12, situacao: 16, golpe: 16, direcao: 16, zona: 12, dirSaque: 12, qualDev: 12, dec: 8, sacador: 6, lado: 6, placarAntes: 8 };
+const CAMPOS_PONTO = { quem: 9, sacadorNos: 9, fim: 20, saque: 8, bola: 6, causa: 12, situacao: 16, golpe: 16, direcao: 16, zona: 12, dirSaque: 12, qualDev: 12, dec: 8, sacador: 6, lado: 6, placarAntes: 8, efeito: 8, jogada: 12, forcado: 12 };
 
 class ErroPedido extends Error { constructor(status, msg) { super(msg); this.status = status; } }
 const txt = (v, n) => String(v == null ? "" : v).replace(/[\u0000-\u001f]/g, " ").trim().slice(0, n);

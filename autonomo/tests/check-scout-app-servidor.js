@@ -202,6 +202,8 @@ const chama = async (tk, corpo, metodo) => {
   /* tempo de partida: o servidor guarda início, fim e o ajuste em minutos, e descarta o que não faz sentido */
   {
     const R = require(fx + "_scout-app.js"), base = { id: "jtempo000001", atletaId: lucas.id, atualizadoEm: "2026-11-11T12:00:00.000Z", pontos: [] };
+    const jg = R.jogo({ ...base, pontos: [{ nos: true, fim: "erro_dele", forcado: "forcado", efeito: "spin", jogada: "insideout", bola: "5-9" }] }, null);
+    assert.deepStrictEqual([jg.pontos[0].forcado, jg.pontos[0].efeito, jg.pontos[0].jogada], ["forcado", "spin", "insideout"], "efeito, jogada e tipo de erro vão para a nuvem");
     let jt = R.jogo({ ...base, inicioEm: "2026-11-11T10:00:00.000Z", fimEm: "2026-11-11T11:12:00.000Z", duracaoMin: 70 }, null);
     assert.deepStrictEqual([jt.inicioEm, jt.fimEm, jt.duracaoMin], ["2026-11-11T10:00:00.000Z", "2026-11-11T11:12:00.000Z", 70]);
     jt = R.jogo({ ...base, inicioEm: "2026-11-11T10:00:00.000Z", fimEm: "2026-11-11T09:00:00.000Z", duracaoMin: 9999 }, null);

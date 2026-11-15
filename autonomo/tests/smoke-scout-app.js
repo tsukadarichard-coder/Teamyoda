@@ -78,8 +78,9 @@ const srv = http.createServer((q, r) => {
 const origem = "http://localhost:" + srv.address().port, base = origem + "/scout-app/";
 
 (async () => {
-  const { chromium } = require("/opt/node22/lib/node_modules/playwright");
-  const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", args: ["--no-sandbox"] });
+  /* Playwright do ambiente (o caminho antigo fixo quebrava quando o ambiente era atualizado) */
+  const { chromium } = require("playwright");
+  const b = await chromium.launch({ args: ["--no-sandbox"] });
   async function celular() {
     const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: Number(process.env.DPR || 1), hasTouch: true, serviceWorkers: "block", acceptDownloads: true });
     await ctx.route(/gstatic\.com\/firebasejs\/.*firebase-app-compat\.js/, (rt) => rt.fulfill({ contentType: "text/javascript", body: FIREBASE_FALSO }));
@@ -231,11 +232,16 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   /* modo completo: detalhes antes da bola */
   await p.click('[data-fim="winner_nos"]'); await p.waitForSelector('[data-tour="detalhes"]');
   await p.click('[data-rd="situacao"][data-v="ataque"]'); await p.click('[data-rd="zona"] >> nth=0'); await p.click('[data-rdb="rede"]');
+  await p.click('[data-rd="efeito"][data-v="spin"]'); await p.click('[data-rd="jogada"][data-v="insideout"]');
+  assert.ok(!(await p.$('[data-rd="forcado"]')), "winner não pergunta o tipo de erro");
   assert.strictEqual(await p.getAttribute('[data-rd="situacao"][data-v="ataque"]', "aria-pressed"), "true");
   await p.click('[data-bola="1-4"]');
   const p3 = await p.evaluate((u) => { const s = JSON.parse(localStorage.getItem("qls:v1:" + u)); const j = s.jogos.filter((x) => x.torneio === "Copa Sul")[0]; return j.pontos[2]; }, uid);
-  assert.ok(p3.situacao === "ataque" && p3.zona && p3.rede === true && p3.bola === "1-4", "detalhes gravados com o ponto: " + JSON.stringify(p3));
-  await ponto("winner_nos"); // 1-0 em games
+  assert.ok(p3.situacao === "ataque" && p3.zona && p3.rede === true && p3.bola === "1-4" && p3.efeito === "spin" && p3.jogada === "insideout", "detalhes gravados com o ponto: " + JSON.stringify(p3));
+  /* erro do adversário (forçado ou não forçado) fecha o game: 1-0 em games */
+  await p.click('[data-fim="erro_dele"]'); await p.waitForSelector('[data-rd="forcado"]');
+  assert.ok(/Erro do adversário/i.test(await p.innerText('[data-tour="detalhes"]')));
+  await p.click('[data-rd="forcado"][data-v="forcado"]'); await p.click('[data-bola="5-9"]');
   await p.waitForTimeout(1800);
   assert.ok(store["scoutsAoVivo/" + tok].versao > versao, "link atualiza a cada ponto");
   assert.strictEqual(JSON.parse(store["scoutsAoVivo/" + tok].publico).n, 4);
@@ -278,6 +284,9 @@ const origem = "http://localhost:" + srv.address().port, base = origem + "/scout
   assert.ok(/Tempo de jogo: /.test(await p.innerText("[data-duracao]")) && /Tempo de jogo: /.test(zap), "tempo de jogo no fim e no texto: " + zap);
   await p.fill("#fmDuracao", "75"); await p.locator("#fmDuracao").blur();
   await p.waitForFunction(() => document.querySelector("[data-duracao]").innerText.includes("1h15"));
+  /* golpes e erros: o erro forçado do adversário, o efeito e a jogada marcados aparecem no fim do jogo */
+  const tg = await p.innerText("[data-golpes]");
+  assert.ok(/Forçados do adversário/.test(tg) && /Spin/.test(tg) && /Inside out/.test(tg), "golpes e erros: " + tg);
   await semRolagem(p, "fim"); await foto(p, "scout-4-fim");
   await nuvemQuieta();
   const naNuvem = Object.keys(store).filter((k) => k.startsWith("scoutAppContas/" + uid + "/jogos/")).map((k) => JSON.parse(store[k].dados)).filter((j) => j.torneio === "Copa Sul")[0];

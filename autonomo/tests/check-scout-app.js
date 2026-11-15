@@ -293,6 +293,21 @@ function fakeDb() {
   assert.strictEqual((await chama("POST", { a: A, e: "abriu", torneio: "Copa" })).s, 400, "torneio recusado");
   assert.strictEqual((await chama("POST", { a: "c".repeat(24), e: "abriu" })).s, 200);
   /* o handler usa a data de hoje: o aparelho que bate no limite é preparado hoje, não na data fixa de cima */
+  /* golpes e erros (15/11/2026): erro forçado × não forçado, efeito e jogada, sem contar ace e dupla falta */
+  {
+    const Dd = require("../scout-app/dados.js");
+    assert.strictEqual(Dd.golpesDetalhe([{ fim: "winner_nos", nos: true }]), null, "nada marcado: sem cartão");
+    const g = Dd.golpesDetalhe([
+      { fim: "erro_nos", nos: false, forcado: "naoforcado", efeito: "flat" }, { fim: "erro_nos", nos: false, forcado: "forcado" }, { fim: "erro_nos", nos: false },
+      { fim: "erro_dele", nos: true, forcado: "forcado", efeito: "spin", jogada: "insideout" }, { fim: "winner_nos", nos: true, efeito: "spin", jogada: "insideout" },
+      { fim: "winner_nos", nos: true, jogada: "approach" }, { fim: "erro_nos", nos: false, saque: "df", forcado: "naoforcado" }, { fim: "winner_nos", nos: true, efeito: "topspin" },
+    ]);
+    assert.deepStrictEqual(g.errosNos, { forcado: 1, naoforcado: 1, total: 3 }, "dupla falta não entra; erro sem tipo conta só no total");
+    assert.deepStrictEqual(g.errosDele, { forcado: 1, naoforcado: 0, total: 1 });
+    assert.deepStrictEqual(g.efeito, { flat: { total: 1, ganhos: 0 }, spin: { total: 2, ganhos: 2 } }, "efeito desconhecido não entra");
+    assert.deepStrictEqual(g.jogada, { insideout: { total: 2, ganhos: 2 }, approach: { total: 1, ganhos: 1 } });
+    assert.strictEqual(g.marcados, 5);
+  }
   const D = "d".repeat(24);
   for (let i = 0; i < USO.MAX_EVENTOS_DIA; i++) await USO.registrar(db, { a: D, e: "abriu", n: 0 }, Date.now());
   assert.strictEqual((await chama("POST", { a: D, e: "abriu" })).s, 429, "limite do dia");
