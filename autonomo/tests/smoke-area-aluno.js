@@ -6,7 +6,7 @@
    Rode: node tests/smoke-area-aluno.js [pasta-das-capturas] */
 const http = require("http"), fs = require("fs"), path = require("path"), assert = require("assert");
 const AULAS_MES_JS=require("fs").readFileSync(require("path").join(__dirname,"../../mty/aulas-mes.js"),"utf8");
-const { chromium } = require("/opt/node22/lib/node_modules/playwright");
+const { chromium } = require("playwright");
 const raiz = path.join(__dirname, ".."), fx = path.join(raiz, "netlify/functions/");
 const capturas = process.argv[2] || "";
 const CDN = process.env.CDN_DIR || "/tmp/claude-0/-home-user-Teamyoda/f36f7b1a-5380-5cd8-93be-4b9b8aa1980b/scratchpad/cdn";
@@ -82,7 +82,7 @@ window.firebase={apps:[],initializeApp:function(){this.apps.push({})},auth:funct
 (async () => {
   await new Promise((r) => servidor.listen(0, r));
   const base = "http://localhost:" + servidor.address().port;
-  const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", args: ["--no-sandbox"] });
+  const browser = await chromium.launch({ args: ["--no-sandbox"] });
   const erros = [];
   const novo = async () => {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, reducedMotion: "reduce" });

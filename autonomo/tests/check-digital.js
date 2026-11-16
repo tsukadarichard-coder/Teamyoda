@@ -5,6 +5,7 @@
    · assinatura ativa libera; vencida não; lista de espera; progresso das aulas. Rode: node tests/check-digital.js */
 process.env.DIGITAL_SEM_CURSOS_MTY = "1"; /* os cursos MTY automáticos têm teste próprio (check-digital) */
 const assert = require("assert"), path = require("path");
+process.env.DIGITAL_PAUSADA = "0"; // a primeira parte testa a Academia aberta; o fim testa a pausa (o padrão desde 16/11/2026)
 const fx = path.join(__dirname, "../../netlify/functions/");
 const store = {}; const J = (v) => JSON.parse(JSON.stringify(v)); let seq = 0;
 function docRef(p) { return { id: p.split("/").pop(), ref: null, collection: (n) => colRef(p + "/" + n), async get() { const v = store[p]; return { exists: v !== undefined, id: p.split("/").pop(), data: () => J(v) }; }, async set(v, o) { store[p] = o && o.merge ? { ...(store[p] || {}), ...J(v) } : J(v); } }; }
@@ -273,5 +274,22 @@ store["orgs/39-ranch/dados/mty:alunos:v2"] = { value: JSON.stringify([{ id: "r1"
   const cc3 = await chamar("POST", { acao: "conteudoCompleto" }, "coord");
   await chamar("POST", { acao: "salvarConteudo", trilhas: cc3.trilhas, venda: cc3.venda }, "coord");
   assert.deepStrictEqual(store["digitalConteudo/academia"].trilhas.find((t) => t.id === "cmty-tecnica").aulas.find((a) => a.id === "cmty-tec-03").imagens, ["img:" + ri.id, "assets/foto-sequencia-backhand2-ty.jpg", "assets/foto-sequencia-backhand2.jpg"]);
+  /* Academia pausada para alunos e famílias (16/11/2026): o padrão em produção. A Área do aluno (criar conta, entrar, ligar, Meu plano)
+     continua; a equipe das unidades continua entrando; nada do que está guardado some. */
+  {
+    process.env.DIGITAL_PAUSADA = "1"; delete require.cache[require.resolve(fx + "digital.js")];
+    const DP = require(fx + "digital.js");
+    const ch = async (metodo, corpo, tk, qs) => { const x = await DP.handler({ httpMethod: metodo, headers: tk ? { authorization: "Bearer " + tk } : {}, body: corpo ? JSON.stringify(corpo) : null, queryStringParameters: qs || {} }); return { status: x.statusCode, ...JSON.parse(x.body) }; };
+    let q = await ch("GET", null, null, { vitrine: "1" }); assert.strictEqual(q.pausada, true, "vitrine avisa que está pausada");
+    q = await ch("GET", null, "tk-c2@x.com");
+    assert.strictEqual(q.pausada, true); assert.strictEqual(q.conteudo, null, "aluno não recebe o conteúdo"); assert.notStrictEqual(q.acesso.tipo, "nenhum", "o vínculo do aluno continua guardado");
+    assert.strictEqual((await ch("POST", { acao: "progresso", trilhaId: "cmty-tecnica", aulaId: "cmty-tec-01", feita: true }, "tk-c2@x.com")).status, 403, "sem progresso novo");
+    assert.strictEqual((await ch("POST", { acao: "quiz", trilhaId: "cmty-tecnica", aulaId: "cmty-tec-01", respostas: [0] }, "tk-c2@x.com")).status, 403);
+    assert.strictEqual((await ch("GET", null, "tk-c2@x.com", { catalogo: "1" })).status, 403);
+    assert.strictEqual((await ch("POST", { acao: "criar", nome: "Nova Pessoa", email: "nova@x.com", senha: "segredo123" })).status, 200, "a Área do aluno ainda cria conta");
+    q = await ch("GET", null, "coord"); assert.strictEqual(q.pausada, false); assert.ok(q.conteudo && q.conteudo.trilhas.length, "a coordenação continua vendo o conteúdo");
+    q = await ch("GET", null, "prof"); assert.strictEqual(q.pausada, false, "professor da unidade continua entrando");
+    delete process.env.DIGITAL_PAUSADA;
+  }
   console.log("check-digital: ok");
 })().catch((e) => { console.error(e); process.exit(1); });

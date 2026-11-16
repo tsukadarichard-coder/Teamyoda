@@ -3,7 +3,7 @@
    (abrem a página do scout com o mesmo resumo da família) e os jogos em vídeo.
    Rode: node tests/smoke-link-aluno-conteudo.js [pasta-das-capturas] */
 const fs = require("fs"), path = require("path"), http = require("http");
-const { chromium } = require("/opt/node22/lib/node_modules/playwright");
+const { chromium } = require("playwright");
 const assert = require("assert");
 const capturas = process.argv[2] || "";
 
@@ -29,7 +29,7 @@ function dadosIniciais() {
 }
 
 (async () => {
-  const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", args: ["--no-sandbox"] });
+  const b = await chromium.launch({ args: ["--no-sandbox"] });
   for (const app of ["mty", "autonomo"]) {
     const raiz = path.join(__dirname, "..", app === "mty" ? "../mty" : ".");
     const fnDir = path.join(__dirname, "..", app === "mty" ? "../netlify/functions" : "netlify/functions");

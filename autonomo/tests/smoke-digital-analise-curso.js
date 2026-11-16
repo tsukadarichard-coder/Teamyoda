@@ -5,7 +5,7 @@
 const fs = require("fs"), path = require("path"), http = require("http"), assert = require("assert");
 const CDN = process.env.CDN_DIR || "/tmp/claude-0/-home-user-Teamyoda/f36f7b1a-5380-5cd8-93be-4b9b8aa1980b/scratchpad/cdn";
 if (!fs.existsSync(CDN)) { console.log("smoke-digital-analise-curso: pulado (sem React/Babel locais; defina CDN_DIR)"); process.exit(0); }
-const { chromium } = require("/opt/node22/lib/node_modules/playwright");
+const { chromium } = require("playwright");
 const capturas = process.argv[2] || "";
 const raiz = path.join(__dirname, "../../mty"), fx = path.join(__dirname, "../../netlify/functions/");
 /* poses de referência do backhand (unidades do corpo) levadas para o quadro da foto (0–1), em cima do atleta */
@@ -68,7 +68,7 @@ const srv = http.createServer((q, r) => {
 const base = "http://localhost:" + srv.address().port;
 
 (async () => {
-  const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", args: ["--no-sandbox"] });
+  const b = await chromium.launch({ args: ["--no-sandbox"] });
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 } });
   await ctx.route(/^https?:\/\/(?!localhost)/, (rota) => rota.fulfill({ contentType: "text/plain", body: "" }));
   const p = await ctx.newPage(), erros = [];
