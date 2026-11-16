@@ -160,6 +160,8 @@ const chamar = async (metodo, corpo, tk) => { const x = await digital({ httpMeth
   assert(!(await p2.$("[data-academia-digital]")), "Meu plano sem o cartão da Academia Digital");
   await p2.goto(base + "/portal/"); await p2.waitForSelector("#acesso");
   assert(!(await p2.isVisible("#academia-digital")) && !(await p2.isVisible('[data-acesso="externo"]')), "site sem a seção da Academia Digital");
+  assert(!(await p2.isVisible("#consultorias")) && !/Consultoria|R\$/.test(await p2.innerText("body")), "site sem consultorias e sem valores");
+  assert(!/R\$/.test(await p2.content()), "nenhum valor no código da página de entrada");
 
   assert.deepStrictEqual(erros, [], "erros de JS: " + erros.join(" | "));
   console.log("smoke-minha-area: ok");

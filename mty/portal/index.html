@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Team Yoda · Metodologia MTY</title>
-<meta name="description" content="Team Yoda: tênis com a Metodologia MTY. Treinos no Team Yoda · Cooper Tênis e no 39 Ranch Tennis Club e consultorias com Richard Tsukada.">
+<meta name="description" content="Team Yoda: tênis com a Metodologia MTY. Treinos no Team Yoda · Cooper Tênis e no 39 Ranch Tennis Club.">
 <meta name="theme-color" content="#FFFFFF">
 <link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
 <link rel="apple-touch-icon" sizes="180x180" href="../assets/apple-touch-icon.png">
@@ -73,7 +73,7 @@
   .menu-bt[aria-expanded="true"] span::after { transform: translateY(-6px) rotate(-45deg); }
   .menu { border-top: 1px solid var(--linha); background: var(--fundo); }
   .menu[hidden] { display: none; }
-  [data-academia][hidden] { display: none !important; }
+  [data-academia][hidden], [data-consultorias][hidden] { display: none !important; }
   .menu a { display: block; padding: 14px 20px; text-decoration: none; font-weight: 600; border-bottom: 1px solid var(--linha); }
   .menu a.prof { color: var(--cinza); font-weight: 500; }
   @media (min-width: 900px) {
@@ -221,7 +221,7 @@
       <a href="#metodologia">Metodologia</a>
       <a href="#unidades">Unidades</a>
       <a href="#academia-digital" data-academia hidden>Academia Digital</a>
-      <a href="#consultorias">Consultorias</a>
+      <a href="#consultorias" data-consultorias hidden>Consultorias</a>
       <a class="btn btn-verm" href="#acesso" style="margin-left:8px">Área do aluno</a>
     </nav>
     <a class="btn btn-verm aluno-cel" href="#acesso">Área do aluno</a>
@@ -231,7 +231,7 @@
     <a href="#metodologia">Metodologia</a>
     <a href="#unidades">Unidades</a>
     <a href="#academia-digital" data-academia hidden>Academia Digital</a>
-    <a href="#consultorias">Consultorias</a>
+    <a href="#consultorias" data-consultorias hidden>Consultorias</a>
     <a href="#perguntas">Perguntas</a>
     <a class="prof" href="/treinador" data-professor>Área do professor</a>
   </nav>
@@ -279,7 +279,7 @@
         <span class="olho">Quem conduz</span>
         <h2 id="tRichard">Richard Tsukada</h2>
         <p class="lead">Treinador e criador da Metodologia MTY. Acompanha de perto o trabalho do Team Yoda em quadra e a evolução de cada jogador.</p>
-        <div class="acoes" style="margin-top:24px"><a class="btn btn-linha" href="#consultorias">Consultorias com o Richard</a></div>
+        <div class="acoes" style="margin-top:24px" data-consultorias hidden><a class="btn btn-linha" href="#consultorias">Consultorias com o Richard</a></div>
       </div>
     </div>
   </section>
@@ -335,7 +335,10 @@
     </div>
   </section>
 
-  <section class="sec" id="consultorias" aria-labelledby="tCons">
+  <!-- Consultorias e valores fora da página de entrada (pedido do Richard em 16/11/2026: "Retire tb as consultorias e valores da página de
+       entrada"): a seção, os links do menu e do rodapé e o botão em "Quem conduz" ficam escondidos (data-consultorias hidden). Para voltar,
+       tirar o hidden desses elementos. -->
+  <section class="sec" id="consultorias" aria-labelledby="tCons" data-consultorias hidden>
     <div class="cont cons">
       <div class="surge">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px"><img src="../assets/richard-tsukada-240.jpg" alt="" width="56" height="56" loading="lazy" style="width:56px;height:56px;border-radius:50%;object-fit:cover"><span class="olho" style="margin:0">Consultorias com Richard Tsukada</span></div>
@@ -346,10 +349,10 @@
       </div>
       <div class="surge">
         <ul class="servicos">
-          <li><b>Acompanhamento MTY</b><span class="preco">3 × R$ 790</span><span class="det">Três meses com o Richard: avaliação inicial e três encontros mensais por videochamada.</span></li>
-          <li><b>Revisão de estratégia</b><span class="preco">R$ 149</span><span class="det">Revisão de um plano existente, com ajustes e três prioridades.</span></li>
-          <li><b>Consultoria ao vivo</b><span class="preco">R$ 299</span><span class="det">Videochamada individual de 50 minutos para discutir o momento do jogador.</span></li>
-          <li><b>Análise completa do jogador</b><span class="preco">R$ 1.190</span><span class="det">Três partidas completas, devolutiva em vídeo, relatório e plano de ação.</span></li>
+          <li><b>Acompanhamento MTY</b><span class="det">Três meses com o Richard: avaliação inicial e três encontros mensais por videochamada.</span></li>
+          <li><b>Revisão de estratégia</b><span class="det">Revisão de um plano existente, com ajustes e três prioridades.</span></li>
+          <li><b>Consultoria ao vivo</b><span class="det">Videochamada individual de 50 minutos para discutir o momento do jogador.</span></li>
+          <li><b>Análise completa do jogador</b><span class="det">Três partidas completas, devolutiva em vídeo, relatório e plano de ação.</span></li>
         </ul>
         <p class="obs">Contratação e atendimento pelo QuadraLab Competição, onde o jogador também organiza temporada, partidas e planejamento.</p>
       </div>
@@ -419,7 +422,7 @@
       <div><p>Tênis com a Metodologia MTY: técnica, tática e preparação mental.</p></div>
       <div><h3>Unidades</h3><ul><li><a href="/cliente.html?org=team-yoda">Team Yoda · Cooper Tênis</a></li><li><a href="https://39tennis.com.br/">39 Ranch Tennis Club</a></li></ul></div>
       <div><h3>Acesso</h3><ul><li><a href="../minha-area/">Área do aluno</a></li><li data-academia hidden><a href="../digital/">Academia Digital</a></li><li><a href="/treinador" data-professor>Área do professor</a></li></ul></div>
-      <div><h3>Contato</h3><ul><li><a data-whatsapp="Olá! Quero saber mais sobre o Team Yoda." href="#" target="_blank" rel="noopener">WhatsApp</a></li><li><a href="https://quadralab.com.br/competicao/">Consultorias</a></li></ul></div>
+      <div><h3>Contato</h3><ul><li><a data-whatsapp="Olá! Quero saber mais sobre o Team Yoda." href="#" target="_blank" rel="noopener">WhatsApp</a></li><li data-consultorias hidden><a href="https://quadralab.com.br/competicao/">Consultorias</a></li></ul></div>
     </div>
     <div class="fim"><span>Team Yoda · Metodologia MTY</span><span>Tecnologia QuadraLab</span></div>
   </div>
