@@ -6,7 +6,7 @@
    · a tabela de planos mostra a linha da análise de movimento.
    A pose vem do motor sintético (o modelo MediaPipe não é baixado no teste). Rode: node tests/smoke-player-movimento.js [pasta-das-capturas] */
 const http = require("http"), fs = require("fs"), path = require("path"), assert = require("assert");
-const { chromium } = require("/opt/node22/lib/node_modules/playwright");
+const { chromium } = require("playwright");
 const raiz = path.join(__dirname, ".."), fx = path.join(raiz, "netlify/functions/");
 const capturas = process.argv[2] || "";
 
@@ -67,7 +67,7 @@ window.firebase={initializeApp:function(){},auth:function(){return a}};})();`;
   store["jogadores/ua"] = { nome: "Ana Souza", email: "ana@exemplo.com", criadoEm: "2026-09-01T10:00:00Z", planosGratisUsados: 1, ficha: { nivel: "intermediario", mao: "destro", backhand: "duas", adversario: {} } };
   await new Promise((r) => servidor.listen(0, r));
   const base = "http://localhost:" + servidor.address().port;
-  const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", args: ["--no-sandbox"] });
+  const browser = await chromium.launch({ args: ["--no-sandbox"] });
   const erros = [];
   async function pagina(largura) {
     const ctx = await browser.newContext({ viewport: { width: largura || 390, height: 844 } });

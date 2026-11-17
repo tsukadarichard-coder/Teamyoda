@@ -179,6 +179,34 @@
       return { src: "", foto: false };
     });
   }
+  /* A mesma imagem de cada fase, mas em JPEG desenhado num canvas (foto à esquerda, boneco à direita), na proporção da PRÓPRIA foto.
+     O iPhone cortava e esticava a foto quando ela ia dentro do SVG acima (data:image/svg+xml com <image>), então os relatórios usam
+     esta versão; o SVG fica de reserva (sem canvas ou se a foto não abrir). imagensFasesJPEG(resultado, fotos) → Promise do mesmo [{ src, foto }]. */
+  function carregarImg(src) {
+    return new Promise(function (ok) { var im = new Image(); im.onload = function () { ok(im.naturalWidth && im.naturalHeight ? im : null); }; im.onerror = function () { ok(null); }; im.src = src; });
+  }
+  function imagensFasesJPEG(resultado, fotos) {
+    var r = resultado || {}, base = imagensFases(r, fotos);
+    if (typeof document === "undefined") return Promise.resolve(base);
+    return Promise.all((r.fases || []).map(function (f, i) {
+      var temPose = f && f.pose && f.pose.some(Boolean), foto = fotos && fotos[i];
+      if (!temPose) return base[i];
+      return (foto ? carregarImg(foto) : Promise.resolve(null)).then(function (im) {
+        if (foto && !im) return base[i];
+        var W = 480, prop = im ? im.naturalHeight / im.naturalWidth : r.proporcao;
+        if (!(prop > 0.2 && prop < 5)) prop = 1.33;
+        var H = Math.round(W * prop), X = im ? W + 8 : 0, c = document.createElement("canvas"), x = c.getContext("2d");
+        if (!x) return base[i];
+        c.width = X + W; c.height = H;
+        x.fillStyle = "#fff"; x.fillRect(0, 0, c.width, H);
+        if (im) x.drawImage(im, 0, 0, W, H);
+        x.save(); x.translate(X, 0); x.fillStyle = "#EEF2F0"; x.fillRect(0, 0, W, H);
+        desenharBoneco(x, f.pose, W, H, { cor: "#1E88E5", corLonge: "#64B5F6" });
+        x.fillStyle = "#5C6B78"; x.font = "17px system-ui,-apple-system,sans-serif"; x.fillText(im ? "boneco da análise" : "boneco da análise (pose detectada)", 10, H - 12); x.restore();
+        try { return { src: c.toDataURL("image/jpeg", 0.85), foto: !!im }; } catch (e) { return base[i]; }
+      });
+    })).catch(function () { return base; });
+  }
 
   /* ── vídeo e boneco juntos no relatório ──
      O trecho do golpe (quadros pequenos do vídeo + a pose de cada um) roda no próprio relatório: à esquerda o vídeo real, à direita
@@ -265,7 +293,7 @@
   /* ── relatório (janela própria, como o relatório dos jogos) ── */
   function relatorioHTML(d) {
     var r = d.resultado, co = B.conclusao(r), nm = nomeGolpe(d.golpe, d.emp), logo = d.logo || "assets/logo-quadralab.png";
-    var imgs = imagensFases(r, d.fotos), temImgs = imgs.some(function (x) { return !!x.src; }), algumaPose = imgs.some(function (x) { return x.src && !x.foto; });
+    var imgs = d.imagens && d.imagens.length === (r.fases || []).length ? d.imagens : imagensFases(r, d.fotos), temImgs = imgs.some(function (x) { return !!x.src; }), algumaPose = imgs.some(function (x) { return x.src && !x.foto; });
     var fotos = temImgs ? '<div class="fotos">' + r.fases.map(function (f, i) {
       var daFase = r.itens.filter(function (it) { return it.fase === i && it.status !== "nao_avaliavel"; }), at = daFase.filter(function (it) { return it.status === "atencao"; }).length;
       var selo = f.foraDoVideo ? '<i class="sl na">fora do vídeo</i>' : daFase.length ? '<i class="sl ' + (at ? "atencao" : "ok") + '">' + (at ? at + " em atenção" : "tudo OK") + "</i>" : "";
@@ -359,8 +387,11 @@
     var pc = o.arquivo && o.arquivo.lerClip ? Promise.resolve().then(function () { return o.arquivo.lerClip(h.id); }).catch(function () { return null; }) : Promise.resolve(null);
     return Promise.all([p, pc]).then(function (x) {
       var arq = x[0], clip = x[1];
+      return (arq && arq.resultado ? imagensFasesJPEG(arq.resultado, arq.fotos || []) : Promise.resolve(null)).then(function (imagens) { return [arq, clip, imagens]; });
+    }).then(function (x) {
+      var arq = x[0], clip = x[1], imagens = x[2];
       var html = arq && arq.resultado
-        ? relatorioHTML({ resultado: arq.resultado, golpe: arq.golpe, emp: arq.emp, dom: arq.dom, atleta: arq.atleta || o.atleta || "", fotos: arq.fotos || [], semFotos: arq.semFotos, logo: o.logo, comparacao: arq.comparacao, historico: hist, cabecalho: arq.cabecalho || o.cabecalho, data: arq.criadoEm, clip: clip, publico: o.publico })
+        ? relatorioHTML({ resultado: arq.resultado, golpe: arq.golpe, emp: arq.emp, dom: arq.dom, atleta: arq.atleta || o.atleta || "", fotos: arq.fotos || [], imagens: imagens, semFotos: arq.semFotos, logo: o.logo, comparacao: arq.comparacao, historico: hist, cabecalho: arq.cabecalho || o.cabecalho, data: arq.criadoEm, clip: clip, publico: o.publico })
         : relatorioResumoHTML(h, { atleta: o.atleta || "", logo: o.logo, cabecalho: o.cabecalho, historico: hist, publico: o.publico });
       w.document.open(); w.document.write(html); w.document.close();
     });
@@ -890,10 +921,10 @@
       if (!w) { alert("O navegador bloqueou a janela do relatório — permita pop-ups para este site e tente de novo."); return; }
       w.document.write('<!doctype html><meta charset="utf-8"><title>Preparando o relatório…</title><p style="font:14px system-ui,sans-serif;padding:20px;color:#14202B">Preparando as imagens das fases…</p>');
       /* espera as fotos das fases ficarem prontas, para o PDF nunca sair sem elas */
-      Promise.resolve(S.fotosProntas).catch(function () {}).then(function () {
+      Promise.resolve(S.fotosProntas).catch(function () {}).then(function () { return imagensFasesJPEG(S.resultado, S.fotos); }).then(function (imagens) {
         var hist = S.historico.filter(function (h) { return h.golpe === golpe(); });
         w.document.open();
-        w.document.write(relatorioHTML({ resultado: S.resultado, golpe: golpe(), emp: S.emp, dom: q("dom").value, atleta: q("atl").value || opts.atleta || "", fotos: S.fotos, logo: opts.logoAbsoluto || logo, demo: S.sintetico, comparacao: S.comparacao, historico: hist, cabecalho: opts.cabecalho, clip: S.clip, publico: opts.publico }));
+        w.document.write(relatorioHTML({ resultado: S.resultado, golpe: golpe(), emp: S.emp, dom: q("dom").value, atleta: q("atl").value || opts.atleta || "", fotos: S.fotos, imagens: imagens, logo: opts.logoAbsoluto || logo, demo: S.sintetico, comparacao: S.comparacao, historico: hist, cabecalho: opts.cabecalho, clip: S.clip, publico: opts.publico }));
         w.document.close();
       });
     };
@@ -906,5 +937,5 @@
     return { injetar: injetar, seek: seek, estado: S, tempoVideoBoneco: function () { return tempoVB(); }, atualizarHistorico: function (h, cota) { S.historico = h.slice(); if (cota) S.cota = cota; atualizaCota(); renderHistorico(); } };
   }
 
-  raiz.QLMovimento = { montar: montar, imagensFases: imagensFases, desenharBoneco: desenharBoneco, evolucaoHTML: evolucaoHTML, comparacaoHTML: comparacaoHTML, relatorioHTML: relatorioHTML, badgeHTML: badgeHTML, abrirRelatorio: abrirRelatorio, listaHTML: listaHTML };
+  raiz.QLMovimento = { montar: montar, imagensFases: imagensFases, imagensFasesJPEG: imagensFasesJPEG, desenharBoneco: desenharBoneco, evolucaoHTML: evolucaoHTML, comparacaoHTML: comparacaoHTML, relatorioHTML: relatorioHTML, badgeHTML: badgeHTML, abrirRelatorio: abrirRelatorio, listaHTML: listaHTML };
 })(typeof window !== "undefined" ? window : this);

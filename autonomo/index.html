@@ -11178,15 +11178,22 @@ function dadosAulasRelatorio(a, periodo) {
     .map((r) => ({ data: r.data, titulo: r.turma ? "Turma " + r.turma : r.ciclo ? "Ciclo " + r.ciclo : "Sessão", exercicios: r.exercicios || [], obs: r.corrigi || "" }));
   return { feitas: marc.filter((s) => s === "feita").length, faltas: marc.filter((s) => s === "falta").length, canceladas: marc.filter((s) => s === "cancelada").length, sessoes };
 }
+/* Imagens das fases em JPEG (scout/movimento.js): o iPhone cortava e esticava a versão em SVG. Sem o módulo novo, a versão antiga. */
+async function imagensFasesRelatorio(arq) {
+  const r = arq && arq.resultado, M = window.QLMovimento;
+  if (!r || !M) return [];
+  try { return M.imagensFasesJPEG ? await M.imagensFasesJPEG(r, arq.fotos) : M.imagensFases(r, arq.fotos); } catch (e) { return M.imagensFases(r, arq.fotos); }
+}
 async function movimentosRelatorio(a, periodo) {
   const R = window.QLRelatorioAluno, arqMov = arquivoMovimento();
   let movs = a.movimentos || [];
   if (arqMov && window.QLMovArquivo && a.id) { try { movs = window.QLMovArquivo.juntar(movs, await arqMov.indice(a.id)); } catch (e) { /* fica a ficha */ } }
   movs = movs.filter((m) => R.noPeriodo(m.criadoEm, periodo));
   const arqs = arqMov ? await Promise.all(movs.map((m) => arqMov.ler(m.id).catch(() => null))) : movs.map(() => null);
+  const imgsMov = await Promise.all(arqs.map(imagensFasesRelatorio));
   return movs.map((m, k) => {
     const arq = arqs[k], r = arq && arq.resultado, res = m.res || {};
-    const imgs = r && window.QLMovimento ? window.QLMovimento.imagensFases(r, arq.fotos) : [];
+    const imgs = imgsMov[k] || [];
     const itens = r ? (r.itens || []) : (m.itens || []).map((i) => ({ nome: i.n, valor: i.v, unidade: i.u, ref: i.r, status: i.s }));
     return { data: m.criadoEm, golpe: nomeGolpeMov(m), ok: res.ok || 0, atencao: res.atencao || 0, nao: res.nao || 0, itens, texto: m.texto || "", prio: m.prio || [],
       fotos: imgs.map((x, i) => ({ src: x && x.src, nome: (r && r.nomes || [])[i] || "" })).filter((x) => x.src) };
@@ -11304,10 +11311,11 @@ async function exportarCadernoPDF(a, identidade) {
   if (arqMov && window.QLMovArquivo && a.id) { try { movs = window.QLMovArquivo.juntar(movs, await arqMov.indice(a.id)); } catch (e) { /* fica a ficha */ } }
   movs = [...movs].sort((x, y) => String(x.criadoEm).localeCompare(String(y.criadoEm)));
   const relMov = arqMov ? await Promise.all(movs.map((m) => arqMov.ler(m.id).catch(() => null))) : movs.map(() => null);
+  const imgsMov = await Promise.all(relMov.map(imagensFasesRelatorio));
   const movHTML = movs.length ? (
     '<h2>Análises de movimento</h2>' + movs.map((m, k) => {
       const arq = relMov[k], r = arq && arq.resultado, res = m.res || {};
-      const imgs = r && window.QLMovimento ? window.QLMovimento.imagensFases(r, arq.fotos) : [];
+      const imgs = imgsMov[k] || [];
       const itens = r ? (r.itens || []) : (m.itens || []).map((i) => ({ nome: i.n, valor: i.v, unidade: i.u, ref: i.r, status: i.s }));
       return '<div class="mov"><h3>' + escaparHTML(new Date(m.criadoEm).toLocaleDateString("pt-BR")) + ' · ' + escaparHTML(nomeGolpeMov(m)) + '</h3>' +
         '<p class="detalhe">' + (res.ok || 0) + ' itens OK · ' + (res.atencao || 0) + ' em atenção · ' + (res.nao || 0) + ' para revisar</p>' +
@@ -11780,6 +11788,12 @@ const ROTULO_STATUS_MOV = { ok: "OK", atencao: "Atenção", nao_avaliavel: "Revi
 function CartaoMovimentoCaderno({ m, aluno, setAlunos, historico, identidade, aoRemovido }) {
   const [aberto, setAberto] = useState(false);
   const [arq, setArq] = useState(undefined); // undefined = ainda não carregou · null = análise sem arquivo (antiga)
+  const [imgsJPEG, setImgsJPEG] = useState(null);
+  useEffect(() => {
+    let vivo = true;
+    if (arq && arq.resultado) imagensFasesRelatorio(arq).then((x) => { if (vivo) setImgsJPEG(x); });
+    return () => { vivo = false; };
+  }, [arq]);
   useEffect(() => {
     if (!aberto || arq !== undefined) return;
     const a = arquivoMovimento();
@@ -11798,8 +11812,8 @@ function CartaoMovimentoCaderno({ m, aluno, setAlunos, historico, identidade, ao
     if (a) a.remover(aluno.id, m.id).catch(() => {}).then(() => { if (aoRemovido) aoRemovido(); });
   }
   const r = arq && arq.resultado;
-  /* imagem de cada fase: a foto do vídeo ou, sem ela, a pose detectada (scout/movimento.js) */
-  const imgs = r && window.QLMovimento ? window.QLMovimento.imagensFases(r, arq.fotos) : [];
+  /* imagem de cada fase: a foto do vídeo ou, sem ela, a pose detectada (scout/movimento.js); em JPEG assim que fica pronta */
+  const imgs = imgsJPEG && r && imgsJPEG.length === (r.fases || []).length ? imgsJPEG : r && window.QLMovimento ? window.QLMovimento.imagensFases(r, arq.fotos) : [];
   const temImgs = imgs.some((x) => x.src);
   return (
     <div data-movimento={m.id} style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderLeft: "3px solid #2E8B57", padding: "11px 13px", marginBottom: 8 }}>

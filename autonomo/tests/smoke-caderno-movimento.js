@@ -4,7 +4,7 @@
    Defina CDN_DIR (padrão: scratchpad/cdn). Rode: node tests/smoke-caderno-movimento.js [pasta-das-capturas] */
 const fs = require("fs"), path = require("path"), http = require("http");
 const AULAS_MES_JS=require("fs").readFileSync(require("path").join(__dirname,"../../mty/aulas-mes.js"),"utf8");
-const { chromium } = require("/opt/node22/lib/node_modules/playwright");
+const { chromium } = require("playwright");
 const assert = require("assert");
 const CDN = process.env.CDN_DIR || "/tmp/claude-0/-home-user-Teamyoda/f36f7b1a-5380-5cd8-93be-4b9b8aa1980b/scratchpad/cdn";
 if (!fs.existsSync(CDN)) { console.log("smoke-caderno-movimento: pulado (sem React/Babel locais; defina CDN_DIR)"); process.exit(0); }
@@ -48,7 +48,7 @@ const arquivo = { id: "mv2", alunoId: "a1", criadoEm: "2026-10-01T10:00:00.000Z"
     resumo: { ok: 5, atencao: 1, nao_avaliavel: 0 } }, fotos: nomes.map(() => FOTO), resumo: resumo("mv2", "2026-10-01T10:00:00.000Z", 5) };
 
 (async () => {
-  const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", args: ["--no-sandbox"] });
+  const b = await chromium.launch({ args: ["--no-sandbox"] });
   for (const app of ["mty", "autonomo"]) {
     /* mv1: análise antiga (só na ficha) · mv2: está só no arquivo da academia (a ficha perdeu), com fotos */
     const alunos = [{ id: "a1", nome: "Ana Souza", estagio: "E2", nivel: "Y2", registros: [{ id: "j1", tipo: "jogo", data: "2026-09-15", torneio: "Copa", adversario: "X", resultado: "6/4", protocolo: 60 }], anotacoes: [], movimentos: [resumo("mv1", "2026-09-01T10:00:00.000Z", 4)] }];

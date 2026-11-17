@@ -2,7 +2,7 @@
    com cotas por plano (gratis bloqueado, essencial limitado, premium e sem plano ilimitados), histórico e evolução.
    Precisa de React/Babel locais: defina CDN_DIR (padrão: scratchpad/cdn). Rode: node tests/smoke-movimento-app.js */
 const fs = require("fs"), path = require("path"), http = require("http");
-const { chromium } = require("/opt/node22/lib/node_modules/playwright");
+const { chromium } = require("playwright");
 const assert = require("assert");
 const CDN = process.env.CDN_DIR || "/tmp/claude-0/-home-user-Teamyoda/f36f7b1a-5380-5cd8-93be-4b9b8aa1980b/scratchpad/cdn";
 if (!fs.existsSync(CDN)) { console.log("smoke-movimento-app: pulado (sem React/Babel locais em " + CDN + ")"); process.exit(0); }
@@ -50,7 +50,7 @@ ReactDOM.createRoot(document.getElementById("raiz")).render(<Host />);
       res.writeHead(200, { "content-type": f.endsWith(".css") ? "text/css" : f.endsWith(".png") ? "image/png" : "text/javascript" }); res.end(fs.readFileSync(f));
     }).listen(0);
     const porta = srv.address().port;
-    const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", args: ["--no-sandbox"] });
+    const b = await chromium.launch({ args: ["--no-sandbox"] });
     const erros = [];
     async function abre(plano) {
       const p = await b.newPage({ viewport: { width: 390, height: 900 } });
@@ -127,15 +127,18 @@ ReactDOM.createRoot(document.getElementById("raiz")).render(<Host />);
     [pop] = await Promise.all([p.waitForEvent("popup"), p.locator(".qlm [data-r=lista] [data-ver]").last().click()]);
     await pop.waitForFunction(() => /^Análise de movimento/.test(document.title));
     assert.strictEqual(await pop.locator(".fotos img").count(), 6, app + ": análise mais antiga também reabre completa");
-    /* cada fase: a imagem real e o boneco lado a lado (duas metades em pé); a foto guardada, embutida, continua reduzida */
+    /* cada fase: a imagem real e o boneco lado a lado (duas metades em pé), em JPEG (o iPhone cortava e esticava a versão em SVG);
+       a foto guardada no arquivo continua reduzida */
+    assert.strictEqual(await pop.evaluate(() => [...document.querySelectorAll(".fotos img")].filter((i) => /^data:image\/jpeg/.test(i.getAttribute("src"))).length), 6, app + ": imagens das fases em JPEG");
     const pares = await pop.evaluate(() => Promise.all([...document.querySelectorAll(".fotos img")].map((i) => (i.complete ? Promise.resolve() : new Promise((r) => { i.onload = r; })).then(() => [i.naturalWidth, i.naturalHeight]))));
     assert(pares.every(([w, h]) => w > 0 && h > (w - 8) / 2), app + ": imagem real + boneco lado a lado (" + JSON.stringify(pares[0]) + ")");
-    const tamanhos = await pop.evaluate(() => Promise.all([...document.querySelectorAll(".fotos img")].map((i) => {
-      const m = decodeURIComponent(i.getAttribute("src")).match(/xlink:href="(data:image\/jpeg[^"]+)"/);
-      if (!m) return [0, 0];
-      const im = new Image(); im.src = m[1];
+    const tamanhos = await p.evaluate(() => Promise.all(Object.keys(localStorage).map((k) => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } })
+      .filter((x) => x && Array.isArray(x.fotos) && x.fotos.length === 6 && x.resultado).slice(-1).flatMap((x) => x.fotos).map((src) => {
+      if (!/^data:image\/jpeg/.test(src || "")) return [0, 0];
+      const im = new Image(); im.src = src;
       return new Promise((r) => { im.onload = () => r([im.naturalWidth, im.naturalHeight]); im.onerror = () => r([0, 0]); });
     })));
+    assert.strictEqual(tamanhos.length, 6, app + ": fotos guardadas no arquivo");
     assert(tamanhos.every(([w, h]) => w > 0 && h > 0 && Math.max(w, h) <= 560 && h > w), app + ": fotos em pé guardadas reduzidas (" + JSON.stringify(tamanhos[0]) + ")");
     if (process.env.CAPTURAS) { await pop.setViewportSize({ width: 390, height: 1400 }); await pop.screenshot({ path: path.join(process.env.CAPTURAS, app + "-relatorio.png") }); }
     await pop.close();
