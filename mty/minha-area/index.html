@@ -14,7 +14,9 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@700;800&family=Inter:wght@400;500;600;700&display=swap">
 <!-- Área do aluno (teamyoda.com.br/minha-area/): entra com e-mail e senha (a mesma conta da Academia Digital), liga a conta ao
      aluno colando o link do aluno uma vez e depois abre o Meu plano sem precisar guardar o link (digital acao=meuLink). Aluno,
-     pai e mãe: cada um com o seu e-mail, até 3 contas por aluno. Nada de login novo: Firebase Auth do projeto e digital.js. -->
+     pai e mãe: cada um com o seu e-mail, até 3 contas por aluno. Nada de login novo: Firebase Auth do projeto e digital.js.
+     Acesso por e-mail, sem link (17/11/2026): o professor cadastra o e-mail na ficha; "Primeiro acesso" manda o e-mail de criar
+     a senha (digital acao=primeiroAcesso garante a conta) e, com o e-mail confirmado, os alunos aparecem sozinhos. -->
 <style>
   :root { --fundo: #FAFAF8; --branco: #FFFFFF; --tinta: #111111; --grafite: #4A4A48; --cinza: #6E6E6B; --linha: #E4E2DE; --verm: #C2000B; --verm-esc: #9E0009; --escuro: #121212;
     --titulo: "Archivo", "Inter", system-ui, sans-serif; --texto: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif; }
@@ -89,7 +91,8 @@
   var zap = typeof MTY_WHATSAPP !== "undefined" ? MTY_WHATSAPP : "";
   var auth = null;
   try { if (!firebase.apps.length) firebase.initializeApp(MTY_CONFIG); auth = firebase.auth(); } catch (e) { console.error("área do aluno: Firebase", e); }
-  var st = { usuario: null, dados: null, modo: "entrar", aviso: null };
+  var st = { usuario: null, dados: null, modo: /(^|[?&])primeiro=1/.test(location.search) ? "primeiro" : "entrar", aviso: null };
+  var EMAIL_OK = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
   function $(s) { return document.querySelector(s); }
@@ -146,11 +149,12 @@
   }
 
   function telaEntrada() {
+    if (st.modo === "primeiro") return telaPrimeiroAcesso();
     var criar = st.modo === "criar", l = linkGuardado();
     tela('<span class="olho">Área do aluno</span><h1>Sua área no Team Yoda</h1>' +
       '<p class="lead">Entre com o seu e-mail e senha para ver o plano, as aulas, as reposições e os relatórios.</p>' +
       (l ? '<p class="msg msg-aviso" style="margin-top:20px">Aluno de ' + esc(ORG_NOME[l.org]) + ": " + (criar ? "crie a sua conta" : "entre") + " e ela fica ligada ao seu plano.</p>" : "") +
-      '<div class="alternar" role="tablist"><button type="button" role="tab" id="mEntrar" aria-selected="' + !criar + '">Entrar</button><button type="button" role="tab" id="mCriar" aria-selected="' + criar + '">Criar conta</button></div>' +
+      abas(criar ? "criar" : "entrar") +
       '<form id="fEntrar" novalidate>' +
       (criar ? '<label class="campo">Seu nome<input name="nome" autocomplete="name" required maxlength="80"></label>' : "") +
       '<label class="campo">E-mail<input name="email" type="email" autocomplete="email" inputmode="email" required></label>' +
@@ -158,10 +162,8 @@
       '<p id="mEnt" class="msg" role="status" hidden></p>' +
       '<div class="acoes" style="margin-top:6px"><button class="btn btn-verm" type="submit" id="btEnt">' + (criar ? "Criar conta e entrar" : "Entrar") + "</button>" +
       (!criar ? '<button class="link" type="button" id="btEsqueci">Esqueci a senha</button>' : "") + "</div></form>" +
-      '<div class="bloco"><h3>Primeira vez?</h3><p class="det" style="margin-top:6px">Crie a conta com o seu e-mail e ligue ao aluno com o link do aluno que o professor manda. Aluno, pai e mãe podem ter cada um a sua conta (até 3 por aluno).</p>' +
-      '<p class="det" style="margin-top:10px">É professor? Use a <a href="/treinador">Área do professor</a>.</p></div>');
-    $("#mEntrar").onclick = function () { st.modo = "entrar"; telaEntrada(); };
-    $("#mCriar").onclick = function () { st.modo = "criar"; telaEntrada(); };
+      blocoPrimeiraVez());
+    ligarAbas();
     var f = $("#fEntrar"), m = $("#mEnt"), bt = $("#btEnt");
     f.onsubmit = function (ev) {
       ev.preventDefault();
@@ -188,6 +190,43 @@
     };
   }
 
+  function abas(atual) {
+    var b = function (id, modo, rot) { return '<button type="button" role="tab" id="' + id + '" aria-selected="' + (atual === modo) + '">' + rot + "</button>"; };
+    return '<div class="alternar" role="tablist">' + b("mEntrar", "entrar", "Entrar") + b("mPrimeiro", "primeiro", "Primeiro acesso") + b("mCriar", "criar", "Criar conta") + "</div>";
+  }
+  function ligarAbas() {
+    $("#mEntrar").onclick = function () { st.modo = "entrar"; telaEntrada(); };
+    $("#mPrimeiro").onclick = function () { st.modo = "primeiro"; telaEntrada(); };
+    $("#mCriar").onclick = function () { st.modo = "criar"; telaEntrada(); };
+  }
+  function blocoPrimeiraVez() {
+    return '<div class="bloco"><h3>Primeira vez?</h3><p class="det" style="margin-top:6px">O professor cadastrou o seu e-mail na ficha do aluno? Toque em <b>Primeiro acesso</b>: chega um e-mail para você criar a senha e o seu plano aparece sozinho, sem link. Pai, mãe e aluno podem usar cada um o seu e-mail.</p>' +
+      '<p class="det" style="margin-top:10px">Recebeu o link do aluno? Crie a conta e cole o link uma vez.</p>' +
+      '<p class="det" style="margin-top:10px">É professor? Use a <a href="/treinador">Área do professor</a>.</p></div>';
+  }
+  /* Primeiro acesso: o e-mail que o professor cadastrou na ficha recebe o link para criar a senha (a resposta é sempre a mesma) */
+  function telaPrimeiroAcesso() {
+    tela('<span class="olho">Área do aluno</span><h1>Sua área no Team Yoda</h1>' +
+      '<p class="lead">Use o e-mail que o professor cadastrou na ficha do aluno (o seu ou o do responsável).</p>' + abas("primeiro") +
+      '<form id="fPrimeiro" novalidate><label class="campo">E-mail<input name="email" type="email" autocomplete="email" inputmode="email" required></label>' +
+      '<p id="mPri" class="msg" role="status" hidden></p><div class="acoes" style="margin-top:6px"><button class="btn btn-verm" type="submit" id="btPri">Receber o e-mail para criar a senha</button></div></form>' +
+      '<ol class="det" style="margin:18px 0 0;padding-left:20px"><li>Abra o e-mail do Team Yoda (veja também o spam) e crie a sua senha.</li><li>Volte aqui, toque em <b>Entrar</b> e use o e-mail e a nova senha.</li><li>O seu plano aparece sozinho. Nas próximas vezes é só entrar.</li></ol>' +
+      blocoPrimeiraVez());
+    ligarAbas();
+    var f = $("#fPrimeiro"), m = $("#mPri"), bt = $("#btPri");
+    f.onsubmit = function (ev) {
+      ev.preventDefault();
+      var email = f.email.value.trim().toLowerCase();
+      if (!EMAIL_OK.test(email)) return msg(m, "erro", "Confira o e-mail.");
+      if (!auth) return msg(m, "erro", "Não foi possível conectar agora. Recarregue a página.");
+      bt.disabled = true; msg(m, "aviso", "Enviando…");
+      api("POST", { acao: "primeiroAcesso", email: email })
+        .then(function () { return auth.sendPasswordResetEmail(email).catch(function (e) { if (!e || e.code !== "auth/user-not-found") throw e; }); })
+        .then(function () { bt.disabled = false; msg(m, "ok", "Pronto. Se o professor cadastrou este e-mail, chega nele um link para criar a sua senha. Depois volte aqui e toque em Entrar."); })
+        .catch(function (e) { bt.disabled = false; msg(m, "erro", (e && ERROS_AUTH[e.code]) || (e && e.message) || "Não foi possível enviar agora."); });
+    };
+  }
+
   function formLink(id, rotulo) {
     return '<form id="' + id + '" novalidate style="margin-top:16px"><label class="campo">' + (rotulo || "Link do aluno") + '<input name="link" inputmode="url" autocomplete="off" placeholder="https://teamyoda.com.br/aluno.html?org=…"></label>' +
       '<p class="msg" role="status" hidden></p><div class="acoes" style="margin-top:4px"><button class="btn" type="submit">Ligar à minha conta</button></div></form>';
@@ -209,14 +248,31 @@
   }
   function avisoHtml() { var a = st.aviso; st.aviso = null; return a ? '<p class="msg msg-' + a.tipo + '" role="status" style="margin-top:20px">' + esc(a.texto) + "</p>" : ""; }
   function primeiro(n) { return String(n || "").split(/\s+/)[0] || ""; }
+  function ola() { var n = primeiro(st.dados && st.dados.conta && st.dados.conta.nome); return n ? "Olá, " + esc(n) : "Olá"; }
 
   function telaLigar() {
     var d = st.dados;
-    tela('<span class="olho">Área do aluno</span><h1>Olá, ' + esc(primeiro(d.conta.nome)) + "</h1>" + avisoHtml() +
-      '<p class="lead">Falta ligar a sua conta ao aluno. Cole o link do aluno que o professor mandou (a página “Meu plano”). É só uma vez.</p>' +
+    tela('<span class="olho">Área do aluno</span><h1>' + ola() + "</h1>" + avisoHtml() +
+      (d.emailConfirmado
+        ? '<p class="lead">Ainda não há aluno com este e-mail (' + esc(d.conta.email) + '). Peça ao professor para cadastrar o seu e-mail na ficha do aluno: depois é só entrar de novo. Se você tem o link do aluno, pode colar aqui.</p>'
+        : '<div class="msg msg-aviso" style="margin-top:20px"><b>O professor cadastrou o seu e-mail na ficha do aluno?</b> Confirme o e-mail e o seu plano aparece sozinho.<div class="acoes" style="margin-top:10px"><button class="btn" type="button" id="btConfirmar">Enviar e-mail de confirmação</button><button class="link" type="button" id="btJaConfirmei">Já confirmei</button></div><p id="mConf" class="msg" role="status" hidden></p></div>' +
+          '<p class="lead">Ou cole o link do aluno que o professor mandou (a página “Meu plano”). É só uma vez.</p>') +
       formLink("fLigar") + pedirLink() +
       (d.acesso && d.acesso.tipo !== "nenhum" && !d.pausada ? '<div class="bloco"><h3>Academia Digital</h3><p class="det" style="margin-top:6px">A sua conta já tem acesso.</p><div class="acoes"><a class="btn btn-linha" href="../digital/">Abrir a Academia Digital</a></div></div>' : ""));
     ligarForm("fLigar");
+    var bc = $("#btConfirmar"), bj = $("#btJaConfirmei"), mc = $("#mConf");
+    if (bc) bc.onclick = function () {
+      bc.disabled = true;
+      st.usuario.sendEmailVerification().then(function () { msg(mc, "ok", "Enviamos um e-mail para " + st.dados.conta.email + ". Abra o link dele (veja também o spam) e depois toque em Já confirmei."); })
+        .catch(function (e) { bc.disabled = false; msg(mc, "erro", (e && ERROS_AUTH[e.code]) || "Não foi possível enviar agora."); });
+    };
+    if (bj) bj.onclick = function () {
+      msg(mc, "aviso", "Conferindo…");
+      st.usuario.reload().then(function () { return st.usuario.getIdToken(true); }).then(carregar).then(function () {
+        if (!st.dados.emailConfirmado) return msg($("#mConf"), "erro", "O e-mail ainda não foi confirmado. Abra o link do e-mail e toque de novo.");
+        render();
+      }).catch(function (e) { msg(mc, "erro", e.message); });
+    };
   }
 
   function telaEquipe() {
@@ -227,12 +283,13 @@
 
   function telaAlunos(alunos) {
     var d = st.dados;
-    tela('<span class="olho">Área do aluno</span><h1>Olá, ' + esc(primeiro(d.conta.nome)) + "</h1>" + avisoHtml() +
+    tela('<span class="olho">Área do aluno</span><h1>' + ola() + "</h1>" + avisoHtml() +
       '<p class="lead">' + (alunos.length > 1 ? "Escolha o aluno." : "Tudo do seu tênis num lugar só.") + "</p>" +
       '<div style="margin-top:28px">' + alunos.map(function (a, i) {
         var nome = a.nome || "Aluno";
         var corpo;
         if (!a.naLista) corpo = '<p class="msg msg-aviso" style="margin-top:14px">Este aluno não está mais na lista da unidade. Se for engano, fale com o professor.</p>';
+        else if (a.porEmail && !a.linkAtual) corpo = '<p class="msg msg-aviso" style="margin-top:14px">O professor ainda está liberando o acesso deste aluno. Tente de novo mais tarde ou fale com ele.</p>';
         else if (!a.linkAtual) corpo = '<p class="msg msg-aviso" style="margin-top:14px">' + (a.confirmar
             ? "Para abrir o plano por aqui, confirme o link do aluno uma vez: cole o link que o professor mandou."
             : "O link do aluno mudou. Cole o link novo que o professor mandou para continuar.") + "</p>" + formLink("fRel" + i, a.confirmar ? "Link do aluno" : "Link novo do aluno");
@@ -241,7 +298,7 @@
         return '<article class="aluno" data-aluno="' + esc(a.org + ":" + a.alunoId) + '"><h2>' + esc(nome) + '</h2><p class="uni">' + esc(a.unidade) + "</p>" + corpo + "</article>";
       }).join("") + "</div>" +
       '<div class="bloco"><button class="link" type="button" id="btOutro" aria-expanded="false" aria-controls="outro">Ligar outro aluno (irmão, por exemplo)</button><div id="outro" hidden>' + formLink("fOutro") + "</div></div>");
-    alunos.forEach(function (a, i) { if (!a.linkAtual) ligarForm("fRel" + i); });
+    alunos.forEach(function (a, i) { if (!a.linkAtual && !a.porEmail) ligarForm("fRel" + i); });
     ligarForm("fOutro");
     var bo = $("#btOutro"), ou = $("#outro");
     bo.onclick = function () { ou.hidden = !ou.hidden; bo.setAttribute("aria-expanded", String(!ou.hidden)); };

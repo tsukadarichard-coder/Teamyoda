@@ -18,7 +18,13 @@
    POST (logado) { acao: "meuLink", org, alunoId } → endereço do Meu plano daquele aluno (Área do aluno: entra com e-mail e senha
         em vez de guardar o link). Só para uma conta ligada a ele e só enquanto o link do aluno for o mesmo de quando a conta foi
         ligada: se o professor troca o link (para cortar um acesso), a conta precisa do link novo.
-   POST (coordenação) { acao: "salvarConteudo", trilhas, venda } | { acao: "membros" } | { acao: "cortesia", email, sim } */
+   POST (coordenação) { acao: "salvarConteudo", trilhas, venda } | { acao: "membros" } | { acao: "cortesia", email, sim }
+   Acesso por e-mail (pedido do Richard em 17/11/2026, "Quero um acesso melhor p o aluno...sem necessidade de link"): o professor
+   cadastra até 2 e-mails na ficha do aluno (`emailsAcesso`, aluno e/ou responsável). Quem entra na Área do aluno com um desses
+   e-mails, CONFIRMADO (token com email_verified: criar a senha pelo e-mail do Firebase confirma), vê o aluno sem colar link.
+   POST { acao: "primeiroAcesso", email } (sem login) → se o e-mail está numa ficha, garante a conta (o navegador manda em seguida
+        o e-mail de criar senha do Firebase); a resposta é sempre a mesma, sem dizer se o e-mail existe.
+   POST (equipe) { acao: "convidarAluno", alunoId, email } → o mesmo para o e-mail de um aluno da unidade do professor. */
 const { admin, app } = require("./_firebase-admin");
 const VA = require("./ver-aluno").interno;
 
@@ -159,6 +165,49 @@ async function alunosDaOrg(org) {
   const s = await db().collection("orgs").doc(org).collection("dados").doc("mty:alunos:v2").get();
   try { return s.exists ? JSON.parse(s.data().value || "[]") : []; } catch (e) { return []; }
 }
+/* acesso por e-mail: os e-mails que o professor cadastrou na ficha do aluno */
+const MAX_EMAILS_ACESSO = 2;
+const emailLimpo = (e) => String(e || "").trim().toLowerCase();
+const emailsDoAluno = (a) => (a && Array.isArray(a.emailsAcesso) ? a.emailsAcesso : []).map(emailLimpo).filter((e) => EMAIL.test(e)).slice(0, MAX_EMAILS_ACESSO);
+/* e-mail confirmado de quem entrou (a conta da equipe não entra por aqui) */
+const emailConfirmado = (claims) => (claims && !claims.orgId && claims.email && claims.email_verified === true ? emailLimpo(claims.email) : "");
+async function alunosDoEmail(email, listas) {
+  email = emailLimpo(email);
+  if (!EMAIL.test(email)) return [];
+  const out = [];
+  for (const org of Object.keys(ORGS)) {
+    const lista = await (listas && listas[org] ? listas[org] : alunosDaOrg(org));
+    lista.forEach((a) => { if (a && a.id && emailsDoAluno(a).includes(email)) out.push({ org, aluno: a }); });
+  }
+  return out;
+}
+/* garante a conta de login do e-mail (sem senha conhecida: a pessoa cria a senha pelo e-mail do Firebase) */
+async function garantirContaDoEmail(email) {
+  let u = null;
+  try { u = await admin.auth().getUserByEmail(email); }
+  catch (e) { if (!(e && (e.code === "auth/user-not-found" || /no user record/i.test(String(e.message))))) throw e; }
+  if (!u) {
+    u = await admin.auth().createUser({ email, password: require("crypto").randomBytes(24).toString("base64") });
+    await refConta(u.uid).set({ nome: "", email, criadoEm: agora(), criadaPor: "acesso-por-email", vinculos: [], vinculoChaves: [], progresso: {} });
+  }
+  return u;
+}
+async function primeiroAcesso(b) {
+  const email = emailLimpo(b.email);
+  if (!EMAIL.test(email)) throw new Erro(400, "E-mail inválido.");
+  if ((await alunosDoEmail(email)).length) await garantirContaDoEmail(email);
+  return { ok: true };
+}
+async function convidarAluno(claims, b) {
+  if (!claims.orgId || !ORGS[claims.orgId]) throw new Erro(403, "Só a equipe da unidade convida alunos.");
+  const email = emailLimpo(b.email), alunoId = String(b.alunoId || "");
+  if (!EMAIL.test(email)) throw new Erro(400, "E-mail inválido.");
+  const al = (await alunosDaOrg(claims.orgId)).find((a) => a && a.id === alunoId);
+  if (!al) throw new Erro(404, "Não encontrei este aluno na lista da unidade. Espere salvar e tente de novo.");
+  if (!emailsDoAluno(al).includes(email)) throw new Erro(409, "Este e-mail ainda não está salvo na ficha do aluno. Espere salvar e tente de novo.");
+  await garantirContaDoEmail(email);
+  return { ok: true };
+}
 /* acesso de quem está logado: equipe › aluno da unidade (ainda na lista) › assinante em dia › cortesia */
 /* Academia Digital PAUSADA para alunos e famílias (pedido do Richard em 16/11/2026: "Desative o acesso da academia digital do Team Yoda
    por enquanto... somente deixe disponível a área de aluno"). Continuam: a Área do aluno (/minha-area/: criar conta, entrar, ligar ao
@@ -174,6 +223,8 @@ async function acessoDe(claims, conta) {
     const al = lista.find((a) => a && a.id === v.alunoId);
     if (al) return { tipo: "unidade", unidade: ORGS[v.org] || v.org, aluno: String(al.nome || "").split(/\s+/)[0], org: v.org, alunoId: v.alunoId };
   }
+  const pe = emailConfirmado(claims) ? (await alunosDoEmail(emailConfirmado(claims)))[0] : null;
+  if (pe) return { tipo: "unidade", unidade: ORGS[pe.org] || pe.org, aluno: String(pe.aluno.nome || "").split(/\s+/)[0], org: pe.org, alunoId: pe.aluno.id };
   const hoje = agora().slice(0, 10), a = conta && conta.assinatura;
   if (a && a.status === "ativa" && (!a.ate || a.ate >= hoje)) return { tipo: "assinante", ate: a.ate || null };
   const c = conta && conta.cortesia;
@@ -182,14 +233,22 @@ async function acessoDe(claims, conta) {
 }
 /* aluno da unidade: o resumo do plano presencial (o mesmo do link do aluno, só os números) para o painel da Academia Digital */
 /* alunos ligados à conta, com o primeiro nome e se o link ainda é o mesmo (senão, a Área do aluno pede o link novo) */
-async function unidadesDaConta(conta) {
-  const listas = {};
-  return Promise.all((conta.vinculos || []).map(async (v) => {
-    listas[v.org] = listas[v.org] || alunosDaOrg(v.org);
-    const al = (await listas[v.org]).find((a) => a && a.id === v.alunoId);
+async function unidadesDaConta(conta, claims) {
+  const listas = {}, email = emailConfirmado(claims);
+  const daLista = (org) => (listas[org] = listas[org] || alunosDaOrg(org));
+  const ligados = await Promise.all((conta.vinculos || []).map(async (v) => {
+    const al = (await daLista(v.org)).find((a) => a && a.id === v.alunoId);
+    /* o e-mail confirmado na ficha vale no lugar do link: o aluno abre mesmo que o link tenha mudado */
+    if (al && email && emailsDoAluno(al).includes(email))
+      return { org: v.org, alunoId: v.alunoId, unidade: ORGS[v.org] || v.org, nome: String(al.nome || "").split(/\s+/)[0], naLista: true, linkAtual: !!al.linkToken, confirmar: false, porEmail: true };
     return { org: v.org, alunoId: v.alunoId, unidade: ORGS[v.org] || v.org, nome: al ? String(al.nome || "").split(/\s+/)[0] : "", naLista: !!al,
       linkAtual: !!(al && al.linkToken && v.marca && marcaLink(al.linkToken) === v.marca), confirmar: !v.marca };
   }));
+  if (!email) return ligados;
+  for (const org of Object.keys(ORGS)) daLista(org);
+  const porEmail = (await alunosDoEmail(email, listas)).filter((x) => !ligados.some((l) => l.org === x.org && l.alunoId === x.aluno.id));
+  return ligados.concat(porEmail.map((x) => ({ org: x.org, alunoId: x.aluno.id, unidade: ORGS[x.org] || x.org, nome: String(x.aluno.nome || "").split(/\s+/)[0],
+    naLista: true, linkAtual: !!x.aluno.linkToken, confirmar: false, porEmail: true })));
 }
 async function resumoPresencial(ac) {
   try {
@@ -249,8 +308,13 @@ async function vincular(claims, conta, b) {
 async function meuLink(claims, conta, b) {
   const org = String(b.org || ""), alunoId = String(b.alunoId || "");
   const v = (conta.vinculos || []).find((x) => x.org === org && x.alunoId === alunoId);
+  const al = ORGS[org] ? (await alunosDaOrg(org)).find((a) => a && a.id === alunoId) : null;
+  const email = emailConfirmado(claims);
+  if (al && email && emailsDoAluno(al).includes(email)) {
+    if (!al.linkToken) throw new Erro(409, "O acesso deste aluno precisa ser liberado de novo. Fale com o professor.");
+    return { url: "/aluno.html?org=" + encodeURIComponent(org) + "&id=" + encodeURIComponent(alunoId) + "&t=" + encodeURIComponent(al.linkToken) };
+  }
   if (!v) throw new Erro(403, "Esta conta não está ligada a este aluno.");
-  const al = (await alunosDaOrg(org)).find((a) => a && a.id === alunoId);
   if (!al) throw new Erro(404, "Não encontrei o aluno na lista da unidade. Fale com o professor.");
   if (!v.marca) throw new Erro(409, "Para abrir o plano por aqui, confirme o link do aluno uma vez: cole o link que o professor mandou.");
   if (!al.linkToken || marcaLink(al.linkToken) !== v.marca) throw new Erro(409, "O link do aluno mudou. Cole o link novo que o professor mandou para continuar.");
@@ -308,7 +372,7 @@ exports.handler = async function (event) {
       }
       return resposta(200, {
         conta: { nome: conta.nome, email: conta.email }, acesso, coordenacao: ehCoordenacao(claims), pausada, pausadaParaAlunos: ACADEMIA_PAUSADA,
-        unidades: await unidadesDaConta(conta),
+        unidades: await unidadesDaConta(conta, claims), emailConfirmado: !!(claims.email_verified === true),
         conteudo: liberado ? { trilhas: publicadas(c) } : null, vitrine: liberado ? null : vitrine(c), venda: c.venda, progresso: conta.progresso || {},
         quiz: conta.quiz || {},
         sessoes: (conta.sessoes || []).slice(-60),
@@ -319,6 +383,7 @@ exports.handler = async function (event) {
     if (event.httpMethod !== "POST") return resposta(405, { erro: "Método não permitido." });
     let b; try { b = JSON.parse(event.body || "{}"); } catch (e) { throw new Erro(400, "Pedido inválido."); }
     if (b.acao === "criar") return resposta(200, await criarConta(b));
+    if (b.acao === "primeiroAcesso") return resposta(200, await primeiroAcesso(b));
     if (b.acao === "interesse") {
       const email = String(b.email || "").trim().toLowerCase();
       if (!EMAIL.test(email)) throw new Erro(400, "E-mail inválido.");
@@ -336,6 +401,7 @@ exports.handler = async function (event) {
       await db().collection("digitalConteudo").doc("academia").set({ ...limpo, cursosMty: atual.cursosMty, cursosMtyInseridos: atual.cursosMtyInseridos, atualizadoEm: agora(), atualizadoPor: claims.email || claims.uid });
       return resposta(200, { ok: true, ...limpo });
     }
+    if (b.acao === "convidarAluno") return resposta(200, await convidarAluno(claims, b));
     const conta = await lerConta(claims);
     if (b.acao === "vincular") return resposta(200, await vincular(claims, conta, b));
     if (b.acao === "meuLink") return resposta(200, await meuLink(claims, conta, b));
@@ -418,4 +484,4 @@ exports.handler = async function (event) {
     return resposta(500, { erro: "Não foi possível agora. Tente de novo." });
   }
 };
-module.exports.interno = { idDoYoutube, limparConteudo, ORGS };
+module.exports.interno = { idDoYoutube, limparConteudo, ORGS, emailsDoAluno };

@@ -5,7 +5,9 @@
    · "Meu plano e aulas" abre o plano sem guardar o link (de=area: o plano mostra "← Minha área" e não oferece criar de novo);
    · o professor troca o link: a área pede o link novo e volta a abrir com ele;
    · conta ligada antes desta versão (sem marca do link): a área pede para confirmar o link uma vez, sem dizer que mudou;
-   · servidor: conta não ligada não recebe o link de outro aluno (403); conta da equipe vê o caminho do professor.
+   · servidor: conta não ligada não recebe o link de outro aluno (403); conta da equipe vê o caminho do professor;
+   · acesso por e-mail (17/11/2026): "Primeiro acesso" com o e-mail da ficha cria a conta e manda o e-mail de criar senha; com o
+     e-mail confirmado o aluno aparece sozinho, sem link; conta com e-mail não confirmado confirma pelo e-mail e o aluno aparece.
    Rode: node tests/smoke-minha-area.js [pasta-das-capturas] */
 process.env.DIGITAL_SEM_CURSOS_MTY = "1"; /* os cursos MTY automáticos têm teste próprio (check-digital) */
 const fs = require("fs"), path = require("path"), http = require("http"), assert = require("assert");
@@ -33,6 +35,7 @@ let uidSeq = 0;
 const admin = {
   firestore: () => ({ collection: (n) => colRef(n) }),
   auth: () => ({
+    getUserByEmail: async (email) => { if (!contas[email]) { const e = new Error("no user record"); e.code = "auth/user-not-found"; throw e; } return { uid: contas[email].uid, email }; },
     verifyIdToken: async (t) => { const c = Object.values(contas).find((x) => "tk-" + x.uid === t); if (!c) throw new Error("x"); return c.claims; },
     createUser: async ({ email, password, displayName }) => { if (contas[email]) { const e = new Error("exists"); e.code = "auth/email-already-exists"; throw e; } const uid = "u" + (++uidSeq); contas[email] = { uid, senha: password, claims: { uid, email, name: displayName } }; return { uid }; },
   }),
@@ -47,9 +50,9 @@ store["orgs/39-ranch/dados/mty:alunos:v2"] = { value: JSON.stringify([{ id: "r1"
 /* Firebase de mentira (app + auth) no lugar do gstatic */
 const FIREBASE = `window.firebase=(function(){var cbs=[],user=null;
 function chamar(u){cbs.forEach(function(f){f(u)})}
-try{var s=JSON.parse(sessionStorage.getItem("fakeUser")||"null");if(s)user={uid:s.uid,email:s.email,getIdToken:function(){return Promise.resolve(s.tk)}}}catch(e){}
-var a={signInWithEmailAndPassword:function(e,p){return fetch("/__login",{method:"POST",body:JSON.stringify({e:e,p:p})}).then(function(r){if(!r.ok)return Promise.reject({code:"auth/invalid-credential"});return r.json()}).then(function(j){sessionStorage.setItem("fakeUser",JSON.stringify({uid:j.uid,email:e,tk:j.tk}));user={uid:j.uid,email:e,getIdToken:function(){return Promise.resolve(j.tk)}};chamar(user);return {user:user}})},
-onAuthStateChanged:function(f){cbs.push(f);setTimeout(function(){f(user)},0)},signOut:function(){user=null;sessionStorage.removeItem("fakeUser");chamar(null);return Promise.resolve()},sendPasswordResetEmail:function(){return Promise.resolve()}};
+try{var s=JSON.parse(sessionStorage.getItem("fakeUser")||"null");if(s)user={uid:s.uid,email:s.email,getIdToken:function(){return Promise.resolve(s.tk)},reload:function(){return Promise.resolve()},sendEmailVerification:function(){window.__verif=(window.__verif||0)+1;return Promise.resolve()}}}catch(e){}
+var a={signInWithEmailAndPassword:function(e,p){return fetch("/__login",{method:"POST",body:JSON.stringify({e:e,p:p})}).then(function(r){if(!r.ok)return Promise.reject({code:"auth/invalid-credential"});return r.json()}).then(function(j){sessionStorage.setItem("fakeUser",JSON.stringify({uid:j.uid,email:e,tk:j.tk}));user={uid:j.uid,email:e,getIdToken:function(){return Promise.resolve(j.tk)},reload:function(){return Promise.resolve()},sendEmailVerification:function(){window.__verif=(window.__verif||0)+1;return Promise.resolve()}};chamar(user);return {user:user}})},
+onAuthStateChanged:function(f){cbs.push(f);setTimeout(function(){f(user)},0)},signOut:function(){user=null;sessionStorage.removeItem("fakeUser");chamar(null);return Promise.resolve()},sendPasswordResetEmail:function(e){var l=JSON.parse(sessionStorage.getItem("resets")||"[]");l.push(e);sessionStorage.setItem("resets",JSON.stringify(l));return Promise.resolve()}};
 return {apps:[],initializeApp:function(){this.apps.push({})},auth:function(){return a}}})();`;
 const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".png": "image/png", ".jpg": "image/jpeg", ".svg": "image/svg+xml" };
 const srv = http.createServer((q, r) => {
@@ -162,6 +165,42 @@ const chamar = async (metodo, corpo, tk) => { const x = await digital({ httpMeth
   assert(!(await p2.isVisible("#academia-digital")) && !(await p2.isVisible('[data-acesso="externo"]')), "site sem a seção da Academia Digital");
   assert(!(await p2.isVisible("#consultorias")) && !/Consultoria|R\$/.test(await p2.innerText("body")), "site sem consultorias e sem valores");
   assert(!/R\$/.test(await p2.content()), "nenhum valor no código da página de entrada");
+
+  /* 7. acesso por e-mail, sem link: o professor cadastrou o e-mail da mãe e o da tia na ficha da Ana */
+  const l7 = JSON.parse(store["orgs/team-yoda/dados/mty:alunos:v2"].value); l7[0].emailsAcesso = ["mae@ex.com", "tia@ex.com"];
+  store["orgs/team-yoda/dados/mty:alunos:v2"] = { value: JSON.stringify(l7) };
+  await p.goto(base + "/minha-area/"); await esperaTexto(/Sua área no Team Yoda/);
+  await p.click("#mPrimeiro"); await p.waitForSelector("#fPrimeiro");
+  await cap("area-04-primeiro-acesso");
+  await p.fill('#fPrimeiro input[name="email"]', "ninguem@ex.com"); await p.click("#btPri");
+  await esperaTexto(/Se o professor cadastrou este e-mail/);
+  assert(!contas["ninguem@ex.com"], "e-mail fora das fichas não cria conta");
+  await p.fill('#fPrimeiro input[name="email"]', "MAE@ex.com"); await p.click("#btPri");
+  await p.waitForFunction(() => JSON.parse(sessionStorage.getItem("resets") || "[]").includes("mae@ex.com"));
+  assert(contas["mae@ex.com"], "conta criada para o e-mail da ficha");
+  /* a mãe abre o e-mail do Firebase e cria a senha (o e-mail fica confirmado) */
+  contas["mae@ex.com"].senha = "senha-mae-1"; contas["mae@ex.com"].claims.email_verified = true;
+  await p.click("#mEntrar");
+  await p.fill('input[name="email"]', "mae@ex.com"); await p.fill('input[name="senha"]', "senha-mae-1"); await p.click("#btEnt");
+  await esperaTexto(/Meu plano e aulas/);
+  assert(/Olá\n/.test(await texto()) || /^Olá$/m.test(await texto()), "sem nome na conta: só Olá");
+  assert(/Ana/.test(await texto()) && !/Cole o link/.test(await texto()), "o aluno aparece sozinho, sem link");
+  await cap("area-05-por-email");
+  await p.click('[data-plano="0"]');
+  await p.waitForURL(/[?&]t=tA2&de=area/, { timeout: 15000 });
+  /* a tia criou a conta antes, sem confirmar o e-mail: confirma e o aluno aparece */
+  await p.goto(base + "/minha-area/"); await p.click("#btSair"); await esperaTexto(/Sua área no Team Yoda/);
+  await chamar("POST", { acao: "criar", nome: "Tia Bia", email: "tia@ex.com", senha: "senha-tia-1" });
+  await p.fill('input[name="email"]', "tia@ex.com"); await p.fill('input[name="senha"]', "senha-tia-1"); await p.click("#btEnt");
+  await esperaTexto(/O professor cadastrou o seu e-mail na ficha do aluno/);
+  assert(!/Meu plano e aulas/.test(await texto()), "e-mail não confirmado não vê o aluno");
+  await cap("area-06-confirmar-email");
+  await p.click("#btConfirmar"); await esperaTexto(/Enviamos um e-mail para tia@ex.com/);
+  assert.strictEqual(await p.evaluate(() => window.__verif), 1);
+  await p.click("#btJaConfirmei"); await esperaTexto(/ainda não foi confirmado/);
+  contas["tia@ex.com"].claims.email_verified = true;
+  await p.click("#btJaConfirmei"); await esperaTexto(/Meu plano e aulas/);
+  assert(/Olá, Tia/.test(await texto()));
 
   assert.deepStrictEqual(erros, [], "erros de JS: " + erros.join(" | "));
   console.log("smoke-minha-area: ok");
