@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Área do aluno · Team Yoda</title>
-<meta name="description" content="Área do aluno Team Yoda: entre com e-mail e senha e veja o seu plano, as aulas, as reposições, os relatórios e a Academia Digital.">
+<meta name="description" content="Área do aluno Team Yoda: entre com e-mail e senha e veja o seu plano, as aulas, as reposições e os relatórios.">
 <meta name="theme-color" content="#FFFFFF">
 <meta name="robots" content="noindex">
 <link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
@@ -73,7 +73,7 @@
   <button class="link" type="button" id="btSair" hidden>Sair</button>
 </div></header>
 <main id="app" tabindex="-1"><p class="carregando">Carregando…</p></main>
-<footer class="rodape"><a href="../portal/">teamyoda.com.br</a><a href="../digital/">Academia Digital</a><a href="/treinador">Área do professor</a><span>Tecnologia QuadraLab</span></footer>
+<footer class="rodape"><a href="../portal/">teamyoda.com.br</a><a href="/treinador">Área do professor</a><span>Tecnologia QuadraLab</span></footer>
 <div id="anuncio" class="sr" aria-live="polite"></div>
 <script src="../mty-nuvem.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-app-compat.js"></script>
@@ -148,7 +148,7 @@
   function telaEntrada() {
     var criar = st.modo === "criar", l = linkGuardado();
     tela('<span class="olho">Área do aluno</span><h1>Sua área no Team Yoda</h1>' +
-      '<p class="lead">Entre com o seu e-mail e senha para ver o plano, as aulas, as reposições, os relatórios e a Academia Digital.</p>' +
+      '<p class="lead">Entre com o seu e-mail e senha para ver o plano, as aulas, as reposições e os relatórios.</p>' +
       (l ? '<p class="msg msg-aviso" style="margin-top:20px">Aluno de ' + esc(ORG_NOME[l.org]) + ": " + (criar ? "crie a sua conta" : "entre") + " e ela fica ligada ao seu plano.</p>" : "") +
       '<div class="alternar" role="tablist"><button type="button" role="tab" id="mEntrar" aria-selected="' + !criar + '">Entrar</button><button type="button" role="tab" id="mCriar" aria-selected="' + criar + '">Criar conta</button></div>' +
       '<form id="fEntrar" novalidate>' +
@@ -215,13 +215,13 @@
     tela('<span class="olho">Área do aluno</span><h1>Olá, ' + esc(primeiro(d.conta.nome)) + "</h1>" + avisoHtml() +
       '<p class="lead">Falta ligar a sua conta ao aluno. Cole o link do aluno que o professor mandou (a página “Meu plano”). É só uma vez.</p>' +
       formLink("fLigar") + pedirLink() +
-      (d.acesso && d.acesso.tipo !== "nenhum" ? '<div class="bloco"><h3>Academia Digital</h3><p class="det" style="margin-top:6px">A sua conta já tem acesso.</p><div class="acoes"><a class="btn btn-linha" href="../digital/">Abrir a Academia Digital</a></div></div>' : ""));
+      (d.acesso && d.acesso.tipo !== "nenhum" && !d.pausada ? '<div class="bloco"><h3>Academia Digital</h3><p class="det" style="margin-top:6px">A sua conta já tem acesso.</p><div class="acoes"><a class="btn btn-linha" href="../digital/">Abrir a Academia Digital</a></div></div>' : ""));
     ligarForm("fLigar");
   }
 
   function telaEquipe() {
     tela('<span class="olho">Conta da equipe</span><h1>Olá, ' + esc(primeiro(st.dados.conta.nome)) + "</h1>" +
-      '<p class="lead">Esta é uma conta de professor. O seu trabalho fica na Área do professor; a Academia Digital também está liberada.</p>' +
+      '<p class="lead">Esta é uma conta de professor. O seu trabalho fica na Área do professor' + (st.dados.pausadaParaAlunos ? " (a Academia Digital está pausada para os alunos; a equipe continua entrando para preparar o conteúdo)." : "; a Academia Digital também está liberada.") + "</p>" +
       '<div class="acoes"><a class="btn btn-verm" href="/treinador">Área do professor</a><a class="btn btn-linha" href="../digital/">Academia Digital</a></div>');
   }
 
@@ -237,7 +237,7 @@
             ? "Para abrir o plano por aqui, confirme o link do aluno uma vez: cole o link que o professor mandou."
             : "O link do aluno mudou. Cole o link novo que o professor mandou para continuar.") + "</p>" + formLink("fRel" + i, a.confirmar ? "Link do aluno" : "Link novo do aluno");
         else corpo = '<ul class="inclui"><li>Plano e aulas</li><li>Reposições</li><li>Relatórios e jogos</li><li>Conversa com o professor</li></ul>' +
-          '<div class="acoes"><button class="btn btn-verm" type="button" data-plano="' + i + '">Meu plano e aulas</button><a class="btn btn-linha" href="../digital/">Academia Digital</a></div><p class="msg" role="status" hidden data-msg="' + i + '"></p>';
+          '<div class="acoes"><button class="btn btn-verm" type="button" data-plano="' + i + '">Meu plano e aulas</button>' + (d.pausada ? "" : '<a class="btn btn-linha" href="../digital/">Academia Digital</a>') + '</div><p class="msg" role="status" hidden data-msg="' + i + '"></p>';
         return '<article class="aluno" data-aluno="' + esc(a.org + ":" + a.alunoId) + '"><h2>' + esc(nome) + '</h2><p class="uni">' + esc(a.unidade) + "</p>" + corpo + "</article>";
       }).join("") + "</div>" +
       '<div class="bloco"><button class="link" type="button" id="btOutro" aria-expanded="false" aria-controls="outro">Ligar outro aluno (irmão, por exemplo)</button><div id="outro" hidden>' + formLink("fOutro") + "</div></div>");

@@ -160,6 +160,13 @@ async function alunosDaOrg(org) {
   try { return s.exists ? JSON.parse(s.data().value || "[]") : []; } catch (e) { return []; }
 }
 /* acesso de quem está logado: equipe › aluno da unidade (ainda na lista) › assinante em dia › cortesia */
+/* Academia Digital PAUSADA para alunos e famílias (pedido do Richard em 16/11/2026: "Desative o acesso da academia digital do Team Yoda
+   por enquanto... somente deixe disponível a área de aluno"). Continuam: a Área do aluno (/minha-area/: criar conta, entrar, ligar ao
+   aluno, Meu plano), a equipe das unidades (professores e coordenação, para preparar o conteúdo) e tudo o que já está guardado
+   (contas, vínculos, progresso, análises e conteúdo; nada é apagado). Para reabrir: false aqui e ACADEMIA_ABERTA = true no
+   mty/portal/index.html e no mty/aluno.html (a /digital/ e a /minha-area/ leem "pausada" do servidor). */
+const ACADEMIA_PAUSADA = process.env.DIGITAL_PAUSADA !== "0"; // os testes antigos rodam com DIGITAL_PAUSADA=0 (Academia aberta)
+function pausadaPara(claims) { return ACADEMIA_PAUSADA && !(claims && claims.orgId && ORGS[claims.orgId]); }
 async function acessoDe(claims, conta) {
   if (claims.orgId && ORGS[claims.orgId]) return { tipo: "equipe", unidade: ORGS[claims.orgId] };
   for (const v of (conta && conta.vinculos) || []) {
@@ -283,9 +290,9 @@ exports.handler = async function (event) {
     const claims = await quem(event);
     if (event.httpMethod === "GET") {
       const c = await lerConteudo();
-      if (!claims || (event.queryStringParameters || {}).vitrine) return resposta(200, vitrine(c));
-      const conta = await lerConta(claims), acesso = await acessoDe(claims, conta);
-      const liberado = acesso.tipo !== "nenhum";
+      if (!claims || (event.queryStringParameters || {}).vitrine) return resposta(200, { ...vitrine(c), pausada: ACADEMIA_PAUSADA });
+      const conta = await lerConta(claims), acesso = await acessoDe(claims, conta), pausada = pausadaPara(claims);
+      const liberado = acesso.tipo !== "nenhum" && !pausada;
       const qsp = event.queryStringParameters || {};
       if (qsp.movRel || qsp.movClip) {
         if (!liberado) throw new Erro(403, "Sem acesso à Academia Digital.");
@@ -300,13 +307,13 @@ exports.handler = async function (event) {
         return resposta(200, { exercicios: require("./_exercicios-digital.json") });
       }
       return resposta(200, {
-        conta: { nome: conta.nome, email: conta.email }, acesso, coordenacao: ehCoordenacao(claims),
+        conta: { nome: conta.nome, email: conta.email }, acesso, coordenacao: ehCoordenacao(claims), pausada, pausadaParaAlunos: ACADEMIA_PAUSADA,
         unidades: await unidadesDaConta(conta),
         conteudo: liberado ? { trilhas: publicadas(c) } : null, vitrine: liberado ? null : vitrine(c), venda: c.venda, progresso: conta.progresso || {},
         quiz: conta.quiz || {},
         sessoes: (conta.sessoes || []).slice(-60),
         movimentos: conta.movimentos || [],
-        presencial: acesso.tipo === "unidade" ? await resumoPresencial(acesso) : null,
+        presencial: acesso.tipo === "unidade" && !pausada ? await resumoPresencial(acesso) : null,
       });
     }
     if (event.httpMethod !== "POST") return resposta(405, { erro: "Método não permitido." });
@@ -337,6 +344,7 @@ exports.handler = async function (event) {
       await refConta(claims.uid).set({ vinculos: (conta.vinculos || []).filter((v) => v.org + ":" + v.alunoId !== chave), vinculoChaves: (conta.vinculoChaves || []).filter((k) => k !== chave) }, { merge: true });
       return resposta(200, { ok: true });
     }
+    if (pausadaPara(claims) && /^(mov(Salvar|Relatorio|Clip|Remover)|sessao|quiz|progresso)$/.test(String(b.acao))) throw new Erro(403, "A Academia Digital está pausada por enquanto.");
     if (/^mov(Salvar|Relatorio|Clip|Remover)$/.test(String(b.acao))) {
       /* análise de movimento (a mesma do QuadraLab Player): roda no aparelho; aqui ficam só o resumo (histórico e evolução),
          o relatório completo e o trecho do golpe, na conta de quem analisou. A equipe pode testar, mas nada é guardado. */

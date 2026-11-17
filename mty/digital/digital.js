@@ -93,10 +93,22 @@
     window.scrollTo(0, 0);
   }
   function rota() { return location.hash.replace(/^#\/?/, "").split("/"); }
+  /* Academia Digital pausada para alunos e famílias (16/11/2026): quem não é da equipe vê este aviso e vai para a Área do aluno */
+  function telaPausada(semConta) {
+    abas.hidden = true; selo.hidden = true;
+    tela('<div class="entrada"><section class="cartao" data-pausada><h1>A Academia Digital está pausada</h1>' +
+      '<p class="lead">Por enquanto, a Academia Digital do Team Yoda está fechada. O seu plano, as aulas, as reposições, os relatórios e a conversa com o professor continuam na Área do aluno.</p>' +
+      '<div class="acoes"><a class="btn" href="../minha-area/">Ir para a Área do aluno</a></div>' +
+      (semConta ? '<p class="det" style="margin-top:14px">É da equipe do Team Yoda? <button type="button" class="link" id="btEquipe">Entrar com a conta do app</button></p>' : '<p class="det" style="margin-top:14px"><button type="button" class="link" id="btSairPausa">Sair desta conta</button></p>') +
+      "</section></div>");
+    var be = $("#btEquipe"); if (be) be.onclick = function () { st.entrarEquipe = true; st.modo = "entrar"; telaEntrada(); };
+    var bs = $("#btSairPausa"); if (bs) bs.onclick = function () { auth.signOut(); };
+  }
   function render() {
-    if (!st.usuario) return telaEntrada();
+    if (!st.usuario) return st.vitrinePublica && st.vitrinePublica.pausada && !st.entrarEquipe ? telaPausada(true) : telaEntrada();
     var d = st.dados;
     if (!d) return;
+    if (d.pausada) return telaPausada(false);
     var liberado = d.acesso.tipo !== "nenhum";
     abas.hidden = !liberado;
     selo.hidden = !liberado; selo.textContent = liberado ? (ACESSO[d.acesso.tipo] || "") : "";
@@ -169,7 +181,7 @@
       auth.sendPasswordResetEmail(email).then(function () { msg(m, "ok", "Se houver uma conta com este e-mail, chega nele um link para criar uma nova senha."); })
         .catch(function (e) { msg(m, "erro", ERROS_AUTH[e.code] || "Não foi possível enviar agora."); });
     };
-    if (!st.vitrinePublica) api("GET", null, "vitrine=1").then(function (v) { st.vitrinePublica = v; if (!st.usuario && v.trilhas && v.trilhas.length) telaEntrada(); }).catch(function () { st.vitrinePublica = {}; });
+    if (!st.vitrinePublica) api("GET", null, "vitrine=1").then(function (v) { st.vitrinePublica = v; if (!st.usuario && v.pausada && !st.entrarEquipe) return telaPausada(true); if (!st.usuario && v.trilhas && v.trilhas.length) telaEntrada(); }).catch(function () { st.vitrinePublica = {}; });
   }
 
   /* cartão para ligar o link do aluno (Conta e tela sem acesso) */

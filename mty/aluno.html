@@ -531,7 +531,10 @@ function todosHorarios(agenda) {
      canais de contato. */
   /* Academia Digital Team Yoda (/digital/): incluída para quem treina nas unidades; o link leva este aluno, e a conta que ele
      criar (ou em que entrar) lá fica ligada a ele sem pagar. */
+  /* pausada para alunos e famílias em 16/11/2026 (pedido do Richard): o cartão some; para reabrir, true aqui e no servidor (digital.js) */
+  const ACADEMIA_ABERTA = false;
   function painelAcademiaDigital() {
+    if (!ACADEMIA_ABERTA) return '';
     if (org !== 'team-yoda' && org !== '39-ranch') return '';
     const href = 'digital/?org=' + encodeURIComponent(org) + '&id=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(t);
     return '<div class="painel" data-academia-digital><h2>Academia Digital Team Yoda</h2>' +

@@ -7,7 +7,7 @@
    · professor entra com a conta do app do treinador como equipe. Rode: node tests/smoke-digital.js [pasta-das-capturas] */
 process.env.DIGITAL_SEM_CURSOS_MTY = "1"; /* os cursos MTY automáticos têm teste próprio (check-digital) */
 const fs = require("fs"), path = require("path"), http = require("http"), assert = require("assert");
-const { chromium } = require("/opt/node22/lib/node_modules/playwright");
+const { chromium } = require("playwright");
 const capturas = process.argv[2] || "";
 const raiz = path.join(__dirname, "../../mty"), fx = path.join(__dirname, "../../netlify/functions/");
 
@@ -36,6 +36,7 @@ const admin = {
   }),
 };
 require.cache[require.resolve(fx + "_firebase-admin.js")] = { id: "y", filename: "y", loaded: true, exports: { admin, app: () => {} } };
+process.env.DIGITAL_PAUSADA = "0"; // este teste cobre a Academia aberta; a pausa (padrão desde 16/11/2026) está no smoke-minha-area
 const digital = require(fx + "digital.js").handler, verAluno = require(fx + "ver-aluno.js").handler;
 store["orgs/team-yoda/dados/mty:alunos:v2"] = { value: JSON.stringify([{ id: "a1", nome: "Ana Souza", linkToken: "tA", registros: [], horarios: [{ dia: 4, hora: "17:00" }],
   plano: { aprovado: true, tipo: "Ciclo de 8 semanas", blocos: [{ titulo: "Base", semanasLista: [{ n: 1, foco: "Consistência", aulas: [{ t: "Forehand cruzado" }, { t: "Backhand paralelo" }, { t: "Saque e devolução" }] }] }] },
@@ -61,7 +62,12 @@ const srv = http.createServer((q, r) => {
     }
     let rel = decodeURIComponent(u.pathname); if (rel.endsWith("/")) rel += "index.html";
     const f = path.join(raiz, rel);
-    if (f.startsWith(raiz) && fs.existsSync(f) && fs.statSync(f).isFile()) { r.writeHead(200, { "content-type": MIME[path.extname(f)] || "application/octet-stream" }); return r.end(fs.readFileSync(f)); }
+    if (f.startsWith(raiz) && fs.existsSync(f) && fs.statSync(f).isFile()) {
+      r.writeHead(200, { "content-type": MIME[path.extname(f)] || "application/octet-stream" });
+      if (rel === "/aluno.html") return r.end(fs.readFileSync(f, "utf8").replace("const ACADEMIA_ABERTA = false;", "const ACADEMIA_ABERTA = true;"));
+      if (rel === "/portal/index.html") return r.end(fs.readFileSync(f, "utf8").replace("var ACADEMIA_ABERTA = false;", "var ACADEMIA_ABERTA = true;"));
+      return r.end(fs.readFileSync(f));
+    }
     r.writeHead(404); r.end();
   });
 }).listen(0);
@@ -83,7 +89,7 @@ const chamar = async (metodo, corpo, tk) => { const x = await digital({ httpMeth
   ], venda: { preco: "R$ 59,90/mês", observacao: "Cancele quando quiser." } }, "tk-c1");
   assert(salvo.ok, JSON.stringify(salvo));
 
-  const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", args: ["--no-sandbox"] });
+  const b = await chromium.launch({ args: ["--no-sandbox"] });
   const erros = [], externos = [];
   async function pagina(largura) {
     const ctx = await b.newContext({ viewport: { width: largura, height: 844 } });

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Team Yoda · Metodologia MTY</title>
-<meta name="description" content="Team Yoda: tênis com a Metodologia MTY. Treinos no Team Yoda · Cooper Tênis e no 39 Ranch Tennis Club, Academia Digital e consultorias com Richard Tsukada.">
+<meta name="description" content="Team Yoda: tênis com a Metodologia MTY. Treinos no Team Yoda · Cooper Tênis e no 39 Ranch Tennis Club.">
 <meta name="theme-color" content="#FFFFFF">
 <link rel="icon" type="image/png" sizes="32x32" href="../assets/favicon-32.png">
 <link rel="apple-touch-icon" sizes="180x180" href="../assets/apple-touch-icon.png">
@@ -73,6 +73,7 @@
   .menu-bt[aria-expanded="true"] span::after { transform: translateY(-6px) rotate(-45deg); }
   .menu { border-top: 1px solid var(--linha); background: var(--fundo); }
   .menu[hidden] { display: none; }
+  [data-academia][hidden], [data-consultorias][hidden] { display: none !important; }
   .menu a { display: block; padding: 14px 20px; text-decoration: none; font-weight: 600; border-bottom: 1px solid var(--linha); }
   .menu a.prof { color: var(--cinza); font-weight: 500; }
   @media (min-width: 900px) {
@@ -219,8 +220,8 @@
     <nav class="desk" aria-label="Principal">
       <a href="#metodologia">Metodologia</a>
       <a href="#unidades">Unidades</a>
-      <a href="#academia-digital">Academia Digital</a>
-      <a href="#consultorias">Consultorias</a>
+      <a href="#academia-digital" data-academia hidden>Academia Digital</a>
+      <a href="#consultorias" data-consultorias hidden>Consultorias</a>
       <a class="btn btn-verm" href="#acesso" style="margin-left:8px">Área do aluno</a>
     </nav>
     <a class="btn btn-verm aluno-cel" href="#acesso">Área do aluno</a>
@@ -229,8 +230,8 @@
   <nav class="menu" id="menuCel" aria-label="Menu" hidden>
     <a href="#metodologia">Metodologia</a>
     <a href="#unidades">Unidades</a>
-    <a href="#academia-digital">Academia Digital</a>
-    <a href="#consultorias">Consultorias</a>
+    <a href="#academia-digital" data-academia hidden>Academia Digital</a>
+    <a href="#consultorias" data-consultorias hidden>Consultorias</a>
     <a href="#perguntas">Perguntas</a>
     <a class="prof" href="/treinador" data-professor>Área do professor</a>
   </nav>
@@ -243,7 +244,7 @@
       <div class="txt">
         <span class="faixa" aria-hidden="true"></span>
         <h1 id="tInicio">Tênis com método.<em>Evolução dentro e fora da quadra.</em></h1>
-        <p>Conheça a Metodologia MTY, presente nos treinos do Team Yoda e na Academia Digital.</p>
+        <p>Conheça a Metodologia MTY, presente nos treinos do Team Yoda.</p>
         <div class="acoes">
           <a class="btn btn-verm" href="#metodologia">Conhecer a metodologia</a>
           <a class="btn btn-claro" href="#acesso">Sou aluno</a>
@@ -278,7 +279,7 @@
         <span class="olho">Quem conduz</span>
         <h2 id="tRichard">Richard Tsukada</h2>
         <p class="lead">Treinador e criador da Metodologia MTY. Acompanha de perto o trabalho do Team Yoda em quadra e a evolução de cada jogador.</p>
-        <div class="acoes" style="margin-top:24px"><a class="btn btn-linha" href="#consultorias">Consultorias com o Richard</a></div>
+        <div class="acoes" style="margin-top:24px" data-consultorias hidden><a class="btn btn-linha" href="#consultorias">Consultorias com o Richard</a></div>
       </div>
     </div>
   </section>
@@ -309,7 +310,7 @@
     </div>
   </section>
 
-  <section class="sec escura" id="academia-digital" aria-labelledby="tAd">
+  <section class="sec escura" id="academia-digital" aria-labelledby="tAd" data-academia hidden>
     <div class="cont">
       <div class="ad-topo">
         <div class="surge">
@@ -334,7 +335,10 @@
     </div>
   </section>
 
-  <section class="sec" id="consultorias" aria-labelledby="tCons">
+  <!-- Consultorias e valores fora da página de entrada (pedido do Richard em 16/11/2026: "Retire tb as consultorias e valores da página de
+       entrada"): a seção, os links do menu e do rodapé e o botão em "Quem conduz" ficam escondidos (data-consultorias hidden). Para voltar,
+       tirar o hidden desses elementos. -->
+  <section class="sec" id="consultorias" aria-labelledby="tCons" data-consultorias hidden>
     <div class="cont cons">
       <div class="surge">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px"><img src="../assets/richard-tsukada-240.jpg" alt="" width="56" height="56" loading="lazy" style="width:56px;height:56px;border-radius:50%;object-fit:cover"><span class="olho" style="margin:0">Consultorias com Richard Tsukada</span></div>
@@ -345,10 +349,10 @@
       </div>
       <div class="surge">
         <ul class="servicos">
-          <li><b>Acompanhamento MTY</b><span class="preco">3 × R$ 790</span><span class="det">Três meses com o Richard: avaliação inicial e três encontros mensais por videochamada.</span></li>
-          <li><b>Revisão de estratégia</b><span class="preco">R$ 149</span><span class="det">Revisão de um plano existente, com ajustes e três prioridades.</span></li>
-          <li><b>Consultoria ao vivo</b><span class="preco">R$ 299</span><span class="det">Videochamada individual de 50 minutos para discutir o momento do jogador.</span></li>
-          <li><b>Análise completa do jogador</b><span class="preco">R$ 1.190</span><span class="det">Três partidas completas, devolutiva em vídeo, relatório e plano de ação.</span></li>
+          <li><b>Acompanhamento MTY</b><span class="det">Três meses com o Richard: avaliação inicial e três encontros mensais por videochamada.</span></li>
+          <li><b>Revisão de estratégia</b><span class="det">Revisão de um plano existente, com ajustes e três prioridades.</span></li>
+          <li><b>Consultoria ao vivo</b><span class="det">Videochamada individual de 50 minutos para discutir o momento do jogador.</span></li>
+          <li><b>Análise completa do jogador</b><span class="det">Três partidas completas, devolutiva em vídeo, relatório e plano de ação.</span></li>
         </ul>
         <p class="obs">Contratação e atendimento pelo QuadraLab Competição, onde o jogador também organiza temporada, partidas e planejamento.</p>
       </div>
@@ -362,20 +366,20 @@
         <div class="publico surge" data-acesso="aluno">
           <span class="olho">Alunos das unidades</span>
           <h2 style="font-size:clamp(28px,6vw,40px)">Já é nosso aluno?</h2>
-          <p class="txt">Na sua área ficam o plano, as aulas, as reposições, os relatórios e a conversa com o professor, com e-mail e senha. A Academia Digital está incluída para alunos das nossas unidades, sem custo adicional.</p>
+          <p class="txt">Na sua área ficam o plano, as aulas, as reposições, os relatórios e a conversa com o professor, com e-mail e senha.</p>
           <div class="acoes">
             <a class="btn btn-verm" href="../minha-area/">Acessar minha área</a>
             <button class="link" type="button" id="btPrecisoLink" aria-expanded="false" aria-controls="escolhaUnidade">Preciso do meu link de acesso</button>
           </div>
           <div class="unid-escolha" id="escolhaUnidade" hidden>
-            <p>O link do aluno é pessoal: mostra o seu plano, as aulas e libera a Academia Digital. Peça na sua unidade:</p>
+            <p>O link do aluno é pessoal: mostra o seu plano e as aulas. Peça na sua unidade:</p>
             <div class="acoes">
               <a class="btn btn-linha" data-whatsapp="Olá! Sou aluno do Team Yoda no Cooper Tênis e preciso do meu link do aluno." href="#" target="_blank" rel="noopener">Team Yoda · Cooper Tênis</a>
               <a class="btn btn-linha" data-whatsapp="Olá! Sou aluno do 39 Ranch Tennis Club e preciso do meu link do aluno." href="#" target="_blank" rel="noopener">39 Ranch</a>
             </div>
           </div>
         </div>
-        <div class="publico surge" data-acesso="externo">
+        <div class="publico surge" data-acesso="externo" data-academia hidden>
           <span class="olho">Público externo</span>
           <h2 style="font-size:clamp(28px,6vw,40px)">Treina em outro lugar?</h2>
           <div class="assinatura" id="assinatura" hidden>
@@ -401,11 +405,11 @@
       <span class="olho">Perguntas</span>
       <h2 id="tFaq">Perguntas frequentes</h2>
       <div class="faq">
-        <details><summary>Quem pode acessar a Academia Digital?</summary><p>Os alunos do Team Yoda · Cooper Tênis e do 39 Ranch Tennis Club, pelo link do aluno, e os professores das unidades. <span data-faq-externo>Para quem treina em outro lugar, as assinaturas abrem em breve.</span></p></details>
-        <details><summary>Sou aluno de uma unidade. Preciso pagar?</summary><p>Não. A Academia Digital está incluída para quem faz aula nas nossas unidades. O acesso vale enquanto você estiver matriculado.</p></details>
-        <details><summary>Como consigo meu link de acesso?</summary><p>Peça ao seu professor ou fale com a gente pelo WhatsApp. O link é pessoal: mostra o seu plano, as aulas e as conversas com o professor, e por ele você liga a sua conta na Academia Digital.</p></details>
+        <details data-academia hidden><summary>Quem pode acessar a Academia Digital?</summary><p>Os alunos do Team Yoda · Cooper Tênis e do 39 Ranch Tennis Club, pelo link do aluno, e os professores das unidades. <span data-faq-externo>Para quem treina em outro lugar, as assinaturas abrem em breve.</span></p></details>
+        <details data-academia hidden><summary>Sou aluno de uma unidade. Preciso pagar?</summary><p>Não. A Academia Digital está incluída para quem faz aula nas nossas unidades. O acesso vale enquanto você estiver matriculado.</p></details>
+        <details><summary>Como consigo meu link de acesso?</summary><p>Peça ao seu professor ou fale com a gente pelo WhatsApp. O link é pessoal: mostra o seu plano, as aulas e as conversas com o professor, e por ele você liga a sua conta na Área do aluno.</p></details>
         <details><summary>Pais e responsáveis podem acompanhar?</summary><p>Sim. Até três contas podem ser ligadas ao mesmo aluno (por exemplo, o aluno, o pai e a mãe), cada uma com o seu e-mail.</p></details>
-        <details><summary>Posso participar se treino em outro lugar?</summary><p data-faq-fora>A Academia Digital para quem treina fora das nossas unidades abre em breve; deixe o seu e-mail em “Quero ser avisado”. Já as consultorias com Richard Tsukada são para jogadores de qualquer lugar.</p></details>
+        <details data-academia hidden><summary>Posso participar se treino em outro lugar?</summary><p data-faq-fora>A Academia Digital para quem treina fora das nossas unidades abre em breve; deixe o seu e-mail em “Quero ser avisado”. Já as consultorias com Richard Tsukada são para jogadores de qualquer lugar.</p></details>
       </div>
     </div>
   </section>
@@ -415,10 +419,10 @@
   <div class="cont">
     <img class="logo-rod" src="../assets/logo-team-yoda-transparente.png" alt="Team Yoda" width="86" height="34" loading="lazy">
     <div class="grade">
-      <div><p>Tênis com a Metodologia MTY: técnica, tática e preparação mental, na quadra e na Academia Digital.</p></div>
+      <div><p>Tênis com a Metodologia MTY: técnica, tática e preparação mental.</p></div>
       <div><h3>Unidades</h3><ul><li><a href="/cliente.html?org=team-yoda">Team Yoda · Cooper Tênis</a></li><li><a href="https://39tennis.com.br/">39 Ranch Tennis Club</a></li></ul></div>
-      <div><h3>Acesso</h3><ul><li><a href="../minha-area/">Área do aluno</a></li><li><a href="../digital/">Academia Digital</a></li><li><a href="/treinador" data-professor>Área do professor</a></li></ul></div>
-      <div><h3>Contato</h3><ul><li><a data-whatsapp="Olá! Quero saber mais sobre o Team Yoda." href="#" target="_blank" rel="noopener">WhatsApp</a></li><li><a href="https://quadralab.com.br/competicao/">Consultorias</a></li></ul></div>
+      <div><h3>Acesso</h3><ul><li><a href="../minha-area/">Área do aluno</a></li><li data-academia hidden><a href="../digital/">Academia Digital</a></li><li><a href="/treinador" data-professor>Área do professor</a></li></ul></div>
+      <div><h3>Contato</h3><ul><li><a data-whatsapp="Olá! Quero saber mais sobre o Team Yoda." href="#" target="_blank" rel="noopener">WhatsApp</a></li><li data-consultorias hidden><a href="https://quadralab.com.br/competicao/">Consultorias</a></li></ul></div>
     </div>
     <div class="fim"><span>Team Yoda · Metodologia MTY</span><span>Tecnologia QuadraLab</span></div>
   </div>
@@ -458,7 +462,11 @@
   function escH(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
   var API = "/.netlify/functions/digital";
   var CATS = [["tecnica", "Técnica"], ["tatica", "Tática"], ["mental", "Mental"], ["geral", "Outras trilhas"]];
-  fetch(API + "?vitrine=1").then(function (r) { return r.ok ? r.json() : null; }).then(function (v) {
+  /* Academia Digital pausada para alunos e famílias (pedido do Richard em 16/11/2026): seção, links e perguntas ficam escondidos
+     (data-academia hidden). Para reabrir: true aqui, o mesmo no mty/aluno.html e ACADEMIA_PAUSADA = false no netlify/functions/digital.js. */
+  var ACADEMIA_ABERTA = false;
+  if (ACADEMIA_ABERTA) Array.prototype.forEach.call(document.querySelectorAll("[data-academia]"), function (el) { el.hidden = false; });
+  if (ACADEMIA_ABERTA) fetch(API + "?vitrine=1").then(function (r) { return r.ok ? r.json() : null; }).then(function (v) {
     if (!v) return;
     var tr = v.trilhas || [];
     if (tr.length) {

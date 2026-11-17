@@ -9,7 +9,7 @@
    Rode: node tests/smoke-minha-area.js [pasta-das-capturas] */
 process.env.DIGITAL_SEM_CURSOS_MTY = "1"; /* os cursos MTY automáticos têm teste próprio (check-digital) */
 const fs = require("fs"), path = require("path"), http = require("http"), assert = require("assert");
-const { chromium } = require("/opt/node22/lib/node_modules/playwright");
+const { chromium } = require("playwright");
 const capturas = process.argv[2] || "";
 const raiz = path.join(__dirname, "../../mty"), fx = path.join(__dirname, "../../netlify/functions/");
 
@@ -71,7 +71,7 @@ const base = "http://localhost:" + srv.address().port;
 
 const chamar = async (metodo, corpo, tk) => { const x = await digital({ httpMethod: metodo, headers: tk ? { authorization: "Bearer " + tk } : {}, body: corpo ? JSON.stringify(corpo) : null, queryStringParameters: {} }); return JSON.parse(x.body); };
 (async () => {
-  const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", args: ["--no-sandbox"] });
+  const b = await chromium.launch({ args: ["--no-sandbox"] });
   const erros = [];
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 } });
   await ctx.route(/^https?:\/\/(?!localhost)/, (rota) => {
@@ -142,6 +142,7 @@ const chamar = async (metodo, corpo, tk) => { const x = await digital({ httpMeth
   await p.click('form[id^="fRel"] button[type="submit"]');
   await esperaTexto(/Pronto: a sua conta está ligada/);
   assert(/Meu plano e aulas/.test(await texto()));
+  assert(!/Academia Digital/.test(await texto()), "Academia Digital pausada: sem botão nem link na Área do aluno");
 
   /* 6. servidor: aluno de outra conta e conta da equipe */
   const outro = await digital({ httpMethod: "POST", headers: { authorization: "Bearer tk-" + uidPai }, body: JSON.stringify({ acao: "meuLink", org: "39-ranch", alunoId: "r1" }), queryStringParameters: {} });
@@ -149,6 +150,18 @@ const chamar = async (metodo, corpo, tk) => { const x = await digital({ httpMeth
   await p.click("#btSair"); await esperaTexto(/Sua área no Team Yoda/);
   await p.fill('input[name="email"]', "prof@39.com"); await p.fill('input[name="senha"]', "senha-prof"); await p.click("#btEnt");
   await esperaTexto(/Esta é uma conta de professor/);
+  assert(/pausada para os alunos/.test(await texto()));
+  /* Academia pausada (16/11/2026): quem abre /digital/ sem ser da equipe vai para a Área do aluno; o Meu plano não mostra o cartão */
+  await p.click("#btSair"); await esperaTexto(/Sua área no Team Yoda/);
+  const p2 = p;
+  await p2.goto(base + "/digital/"); await p2.waitForSelector("[data-pausada]", { timeout: 15000 });
+  assert(/A Academia Digital está pausada/.test(await p2.innerText("[data-pausada]")) && await p2.$('[data-pausada] a[href="../minha-area/"]'), "aviso de pausa com o caminho da Área do aluno");
+  await p2.goto(base + "/aluno.html?org=team-yoda&id=a1&t=tA2"); await p2.waitForTimeout(2500);
+  assert(!(await p2.$("[data-academia-digital]")), "Meu plano sem o cartão da Academia Digital");
+  await p2.goto(base + "/portal/"); await p2.waitForSelector("#acesso");
+  assert(!(await p2.isVisible("#academia-digital")) && !(await p2.isVisible('[data-acesso="externo"]')), "site sem a seção da Academia Digital");
+  assert(!(await p2.isVisible("#consultorias")) && !/Consultoria|R\$/.test(await p2.innerText("body")), "site sem consultorias e sem valores");
+  assert(!/R\$/.test(await p2.content()), "nenhum valor no código da página de entrada");
 
   assert.deepStrictEqual(erros, [], "erros de JS: " + erros.join(" | "));
   console.log("smoke-minha-area: ok");
