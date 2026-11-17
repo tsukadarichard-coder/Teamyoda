@@ -667,7 +667,7 @@ function nomeTipoAula(estagio) {
   const info = ESTAGIOS.find((e) => e.s === estagio);
   return info ? info.n : "Sem tipo definido";
 }
-const ORDEM_TIPOS_AULA = [...ESTAGIOS.map((e) => e.n), "Sem tipo definido"];
+const ORDEM_TIPOS_AULA = [...ESTAGIOS.map((e) => e.n), "Sem tipo definido", "Só cadastro"];
 /* Agrupa pra virar um menu de duas camadas na lista de Jogadores — evita
    uma lista corrida quando a academia tem vários professores e vários
    tipos de aula: professor > tipo de aula > jogadores. */
@@ -675,7 +675,7 @@ function agruparAlunosPorProfessorETipo(lista) {
   const grupos = {};
   lista.forEach((a) => {
     const prof = a.professorNome || "Sem professor definido";
-    const tipo = nomeTipoAula(a.estagio);
+    const tipo = a.soCadastro ? "Só cadastro" : nomeTipoAula(a.estagio);
     grupos[prof] = grupos[prof] || {};
     grupos[prof][tipo] = grupos[prof][tipo] || [];
     grupos[prof][tipo].push(a);
@@ -4140,7 +4140,7 @@ function EditorExercicio({ ex, aoSalvar, aoCancelar }) {
       </label>
       <div className="flex gap-2">
         <Botao variante="saibro" onClick={() => aoSalvar(dados, salvarNoCatalogo)} disabled={!dados.n.trim()}>Salvar exercício</Botao>
-        <Botao variante="vazio" onClick={aoCancelar}>Cancelar</Botao>
+        <Botao variante="vazio" type="button" onClick={aoCancelar}>Cancelar</Botao>
       </div>
     </div>
   );
@@ -4701,6 +4701,135 @@ function novoAluno() {
        assim o comportamento de quem já usava a plataforma não muda. */
     cadastroConcluido: false,
   };
+}
+
+/* Cadastro rápido (pedido do Richard em 17/11/2026: cadastrar aluno sem precisar estar ligado a um planejamento ou aula):
+   só o nome (nascimento, e-mails de acesso e professor são opcionais). O aluno nasce com `soCadastro: true` e o cadastro
+   concluído, sem horário, plano nem nível avaliado; aparece no grupo "Só cadastro" da lista e pode usar a Área do aluno.
+   "Completar cadastro" na ficha leva às 5 etapas de sempre; concluir a ficha tira a marca. */
+const MAX_EMAILS_ACESSO = 2;
+const EMAIL_ACESSO_OK = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const emailsAcessoLimpos = (l) => [...new Set((l || []).map((e) => String(e || "").trim().toLowerCase()).filter(Boolean))].slice(0, MAX_EMAILS_ACESSO);
+function novoAlunoSoCadastro({ nome, nascimento, emails, professorUid, professorNome }) {
+  const emailsAcesso = emailsAcessoLimpos(emails);
+  return { ...novoAluno(), nome: String(nome || "").trim(), nascimento: nascimento || "", professorUid: professorUid || "", professorNome: professorNome || "",
+    emailsAcesso, ...(emailsAcesso.length ? { linkToken: MTY.tokenSeguro() } : {}), soCadastro: true, cadastroConcluido: true, criadoEm: new Date().toISOString() };
+}
+function CadastroRapido({ uidAtual, aoCriar, aoCancelar }) {
+  const [professores, setProfessores] = useState([]);
+  useEffect(() => { listaProfessores().then(setProfessores).catch(() => {}); }, []);
+  const [d, setD] = useState({ nome: "", nascimento: "", email1: "", email2: "", professorUid: uidAtual || "" });
+  const [erro, setErro] = useState("");
+  const set = (k, v) => setD((x) => ({ ...x, [k]: v }));
+  function criar(ev) {
+    ev.preventDefault();
+    if (d.nome.trim().length < 2) { setErro("Escreva o nome do aluno."); return; }
+    const emails = emailsAcessoLimpos([d.email1, d.email2]), ruim = emails.find((e) => !EMAIL_ACESSO_OK.test(e));
+    if (ruim) { setErro("Confira o e-mail: " + ruim); return; }
+    const prof = professores.find((p) => p.uid === d.professorUid);
+    aoCriar(novoAlunoSoCadastro({ nome: d.nome, nascimento: d.nascimento, emails, professorUid: d.professorUid, professorNome: prof ? prof.nome : "" }));
+  }
+  return (
+    <form onSubmit={criar} noValidate data-cadastro-rapido className="mt-4" style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 10, padding: "15px 15px 6px" }}>
+      <p style={{ fontFamily: ARCH, fontSize: 15, fontWeight: 700, marginBottom: 2 }}>Cadastro rápido</p>
+      <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 12 }}>Só o nome é obrigatório. O aluno fica cadastrado sem aula nem planejamento e já pode entrar na Área do aluno com o e-mail. Quando ele começar a treinar, complete a ficha.</p>
+      <Campo rotulo="Nome do aluno"><input style={entrada} value={d.nome} onChange={(e) => set("nome", e.target.value)} autoComplete="off" data-rapido-nome /></Campo>
+      <Campo rotulo="Nascimento (opcional)"><input type="date" style={entrada} value={d.nascimento} max={new Date().toISOString().slice(0, 10)} onChange={(e) => set("nascimento", e.target.value)} /></Campo>
+      <Campo rotulo="E-mail de acesso (opcional)" nota="Do aluno ou, se for menor, do responsável. Com ele, a pessoa entra em teamyoda.com.br/minha-area sem link.">
+        <input style={entrada} type="email" inputMode="email" value={d.email1} onChange={(e) => set("email1", e.target.value)} placeholder="nome@exemplo.com" data-rapido-email />
+      </Campo>
+      <Campo rotulo="Outro e-mail de acesso (opcional)" nota="Por exemplo, o do pai ou da mãe.">
+        <input style={entrada} type="email" inputMode="email" value={d.email2} onChange={(e) => set("email2", e.target.value)} placeholder="nome@exemplo.com" />
+      </Campo>
+      {professores.length > 0 && (
+        <Campo rotulo="Professor (opcional)">
+          <select style={entrada} value={d.professorUid} onChange={(e) => set("professorUid", e.target.value)}>
+            <option value="">Sem professor definido</option>
+            {professores.map((p) => <option key={p.uid} value={p.uid}>{p.nome}</option>)}
+          </select>
+        </Campo>
+      )}
+      {erro && <p role="alert" style={{ ...prosa, fontSize: 13, color: "#B3261E", marginBottom: 8 }}>{erro}</p>}
+      <div className="flex gap-2 flex-wrap mb-3">
+        <Botao variante="saibro" type="submit">Cadastrar aluno</Botao>
+        <Botao variante="vazio" type="button" onClick={aoCancelar}>Cancelar</Botao>
+      </div>
+    </form>
+  );
+}
+/* Área do aluno sem link (pedido do Richard em 17/11/2026): até 2 e-mails de acesso na ficha (aluno e/ou responsável) e o convite,
+   que manda o e-mail do Firebase para criar a senha. Quem entra em teamyoda.com.br/minha-area com um destes e-mails, confirmado,
+   vê o aluno sozinho (netlify/functions/digital.js). Tirar o e-mail daqui corta esse acesso; o link do aluno continua como antes. */
+function AcessoAreaAluno({ aluno, salvarAcesso, podeEditar }) {
+  const salvos = emailsAcessoLimpos(aluno.emailsAcesso);
+  const chaveSalvos = salvos.join(",");
+  const [campos, setCampos] = useState([salvos[0] || "", salvos[1] || ""]);
+  useEffect(() => { setCampos([salvos[0] || "", salvos[1] || ""]); }, [aluno.id, chaveSalvos]);
+  const [aviso, setAviso] = useState(null);
+  const [ocupado, setOcupado] = useState("");
+  const [convidado, setConvidado] = useState("");
+  const limpos = emailsAcessoLimpos(campos), mudou = limpos.join(",") !== chaveSalvos;
+  const nuvem = !!(window.mtyAuth && window.mtyAuth.usuario());
+  async function gravar() {
+    const ruim = limpos.find((e) => !EMAIL_ACESSO_OK.test(e));
+    if (ruim) { setAviso({ tipo: "erro", texto: "Confira o e-mail: " + ruim }); return false; }
+    setOcupado("salvar");
+    const ok = await salvarAcesso({ emailsAcesso: limpos, ...(limpos.length && !aluno.linkToken ? { linkToken: MTY.tokenSeguro() } : {}) });
+    setOcupado("");
+    if (!ok) { setAviso({ tipo: "erro", texto: "Não deu para salvar agora. Confira a internet e tente de novo." }); return false; }
+    setAviso({ tipo: "ok", texto: limpos.length ? "E-mails salvos. Agora toque em Enviar convite." : "E-mails removidos: o acesso por e-mail deste aluno foi cortado." });
+    return true;
+  }
+  async function convidar(email) {
+    if (mudou && !(await gravar())) return;
+    setOcupado(email); setAviso({ tipo: "aviso", texto: "Enviando o convite…" });
+    try {
+      let falha = null;
+      for (let i = 0; i < 3; i++) {
+        try { await chamarDigital({ acao: "convidarAluno", alunoId: aluno.id, email }); falha = null; break; }
+        catch (e) { falha = e; if (!/salv/i.test(String(e && e.message))) break; await new Promise((r) => setTimeout(r, 1500)); }
+      }
+      if (falha) throw falha;
+      await window.mtyAuth.recuperarSenha(email);
+      setConvidado(email);
+      setAviso({ tipo: "ok", texto: "Convite enviado para " + email + ". Chega um e-mail do Team Yoda para criar a senha (pode cair no spam)." });
+    } catch (e) { setAviso({ tipo: "erro", texto: (e && e.message) || "Não foi possível enviar o convite agora." }); }
+    setOcupado("");
+  }
+  const primeiro = String(aluno.nome || "").split(/\s+/)[0] || "o aluno";
+  const textoZap = (email) => "Olá! A Área do aluno do Team Yoda de " + primeiro + " está liberada.\n" +
+    "1. Abra o e-mail que chegou em " + email + " (veja também o spam) e crie a sua senha.\n" +
+    "2. Entre em https://teamyoda.com.br/minha-area/ com esse e-mail e a nova senha.\n" +
+    "O plano, as aulas e os relatórios aparecem lá, sem precisar de link.";
+  const fone = numeroWhatsApp(aluno.telefoneResponsavel || aluno.telefone);
+  const corAviso = { ok: C.quadra, erro: "#B3261E", aviso: C.grafite };
+  return (
+    <div data-acesso-aluno style={{ background: C.cal, border: "1px solid " + C.linha, boxShadow: SOMBRA, borderRadius: 10, borderLeft: "3px solid " + C.quadra, padding: "13px 15px", margin: "14px 0" }}>
+      <Etiqueta cor={C.quadra}>Área do aluno</Etiqueta>
+      <p style={{ ...prosa, fontSize: 13, color: C.grafite, margin: "4px 0 10px" }}>
+        Com o e-mail cadastrado aqui, o aluno (ou o responsável) entra em teamyoda.com.br/minha-area e vê o plano, as aulas e os relatórios, sem precisar de link.
+        {salvos.length ? "" : " Ainda sem e-mail."}
+      </p>
+      {[0, 1].map((i) => (
+        <Campo key={i} rotulo={i === 0 ? "E-mail de acesso (aluno ou responsável)" : "Outro e-mail (opcional)"}>
+          <input style={entrada} type="email" inputMode="email" value={campos[i]} disabled={!podeEditar} placeholder="nome@exemplo.com" data-email-acesso={i}
+            onChange={(e) => { const v = e.target.value; setCampos((c) => c.map((x, k) => (k === i ? v : x))); }} />
+        </Campo>
+      ))}
+      {podeEditar && mudou && <div className="mb-3"><Botao pequeno disabled={!!ocupado} onClick={gravar}>{ocupado === "salvar" ? "Salvando…" : "Salvar e-mails"}</Botao></div>}
+      {podeEditar && !mudou && salvos.length > 0 && (nuvem ? (
+        <div className="flex gap-2 flex-wrap mb-2">
+          {salvos.map((e) => <Botao key={e} pequeno variante="vazio" disabled={!!ocupado} onClick={() => convidar(e)}>{ocupado === e ? "Enviando…" : "Enviar convite para " + e}</Botao>)}
+        </div>
+      ) : <p style={{ ...prosa, fontSize: 12, color: C.grafite }}>O convite sai com a conta da academia (entre com a sua conta para enviar).</p>)}
+      {aviso && <p role="status" style={{ ...prosa, fontSize: 12.5, color: corAviso[aviso.tipo], fontWeight: 600, margin: "6px 0" }}>{aviso.texto}</p>}
+      {convidado && (
+        <a href={"https://wa.me/" + fone + "?text=" + encodeURIComponent(textoZap(convidado))} target="_blank" rel="noopener" data-zap-convite
+          style={{ ...prosa, fontSize: 13, fontWeight: 700, color: C.saibro }}>Avisar pelo WhatsApp →</a>
+      )}
+      <p style={{ ...prosa, fontSize: 11.5, color: C.grafite, marginTop: 8 }}>Para tirar o acesso, apague o e-mail e salve. O link do aluno continua funcionando como antes.</p>
+    </div>
+  );
 }
 
 /* ── aulas do plano, achatadas numa lista única, e o status de cada uma ──
@@ -6386,7 +6515,7 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
   async function concluirFicha() {
     const primeiraClassificacao = !aluno.classificacaoSugeridaEm && (f.camadas.tecnico || "").trim().length > 0;
     const agora = new Date().toISOString();
-    const { ok, dados } = await persistir({ fichaAtualizadaEm: agora, cadastroConcluido: true, ...(primeiraClassificacao ? { classificacaoSugeridaEm: agora } : {}) });
+    const { ok, dados } = await persistir({ fichaAtualizadaEm: agora, cadastroConcluido: true, soCadastro: false, ...(primeiraClassificacao ? { classificacaoSugeridaEm: agora } : {}) });
     if (!ok) { setRetry(() => concluirFicha); return; }
     setRetry(null);
     setEditando(false);
@@ -6475,8 +6604,26 @@ function TelaFicha({ aluno, salvar, papelAtual, uidAtual, etapaAlvo, aoConsumirE
   }, [f]);
 
   if (!editando) {
-    return <ResumoFicha aluno={aluno} aoEditar={() => { setEtapa(1); setEditando(true); }} salvo={salvo} papelAtual={papelAtual} podeEditar={podeEditar}
-      sugerindoAuto={sugerindoAuto} sugestaoAuto={sugestaoAuto} aplicarSugestaoAuto={aplicarSugestaoAuto} descartarSugestaoAuto={() => setSugestaoAuto(null)} />;
+    /* e-mails de acesso: gravados no aluno e também no rascunho da ficha (senão concluir a ficha depois os apagaria) */
+    const salvarAcesso = (campos) => { setF((x) => ({ ...x, ...campos })); return salvar({ ...aluno, ...campos }); };
+    const acesso = <AcessoAreaAluno aluno={aluno} salvarAcesso={salvarAcesso} podeEditar={podeEditar} />;
+    return (
+      <>
+        {aluno.soCadastro && (
+          <div data-so-cadastro style={{ background: C.cal, border: "1px solid " + C.linha, borderLeft: "3px solid " + C.saibro, borderRadius: 10, padding: "13px 15px", marginBottom: 4 }}>
+            <p style={{ fontFamily: ARCH, fontSize: 14, fontWeight: 700 }}>Só cadastro</p>
+            <p style={{ ...prosa, fontSize: 13, color: C.grafite, margin: "3px 0 6px" }}>Este aluno está cadastrado sem aula nem planejamento. Quando ele começar a treinar, complete o cadastro (dados, rotina, nível e avaliação).</p>
+            <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginBottom: 8 }}>{aluno.professorNome ? "Professor: " + aluno.professorNome : "Sem professor definido"}{aluno.nascimento ? " · nascimento " + aluno.nascimento.split("-").reverse().join("/") : ""}</p>
+            {podeEditar && <Botao pequeno variante="saibro" onClick={() => { setEtapa(1); setEditando(true); }}>Completar cadastro</Botao>}
+          </div>
+        )}
+        {aluno.soCadastro && acesso}
+        {/* o resumo da ficha mostraria estágio e nível padrão que ninguém avaliou: fica para quando o cadastro for completado */}
+        {!aluno.soCadastro && <ResumoFicha aluno={aluno} aoEditar={() => { setEtapa(1); setEditando(true); }} salvo={salvo} papelAtual={papelAtual} podeEditar={podeEditar}
+          sugerindoAuto={sugerindoAuto} sugestaoAuto={sugestaoAuto} aplicarSugestaoAuto={aplicarSugestaoAuto} descartarSugestaoAuto={() => setSugestaoAuto(null)} />}
+        {!aluno.soCadastro && acesso}
+      </>
+    );
   }
   if (!podeEditar) return <ResumoFicha aluno={aluno} aoEditar={() => {}} salvo={salvo} papelAtual={papelAtual} podeEditar={false} />;
 
@@ -14587,8 +14734,9 @@ function TelaPlano({ aluno, alunos, setAlunos, turma, membros, turmas, setTurmas
      passa a dar "link inválido", de verdade, não só deixa de aparecer
      aqui. Gerar de novo depois cria um token novo, diferente. */
   function revogarLinkAluno() {
-    if (!confirm("Revogar este link? Quem já tiver o link antigo (inclusive salvo ou enviado por mensagem) deixa de conseguir abri-lo.")) return;
-    atualiza({ linkToken: null });
+    if (!confirm("Revogar este link? Quem já tiver o link antigo (inclusive salvo ou enviado por mensagem) deixa de conseguir abri-lo." + ((aluno.emailsAcesso || []).length ? " Quem entra pela Área do aluno com o e-mail cadastrado continua entrando." : ""))) return;
+    /* com e-mail de acesso, nasce outro link na hora: o antigo morre e o acesso por e-mail continua */
+    atualiza({ linkToken: (aluno.emailsAcesso || []).length ? MTY.tokenSeguro() : null });
     setLinkAluno("");
     setLinkCopiado(false);
   }
@@ -22213,7 +22361,7 @@ function FormNovosJogosObs({ alunos, ocupados, apelidosEmUso, aoComecar, aoCance
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
         <Botao variante="saibro" disabled={!prontos.length} onClick={() => aoComecar(prontos.map((l) => ({ ...l, apelido: l.apelido.trim() })))}>Começar a observar</Botao>
         <Botao variante="vazio" onClick={() => setLinhas([...linhas, vazio()])}>+ Adicionar jogo</Botao>
-        {aoCancelar && <Botao variante="vazio" onClick={aoCancelar}>Cancelar</Botao>}
+        {aoCancelar && <Botao variante="vazio" type="button" onClick={aoCancelar}>Cancelar</Botao>}
       </div>
     </div>
   );
@@ -23000,7 +23148,7 @@ function situacaoAtleta(a) {
   const regs = a.registros || [], maior = (l) => l.filter(Boolean).sort().pop() || "";
   const rels = (a.relatoriosAtleta || []).slice().sort((x, y) => String(y.atualizadoEm || "").localeCompare(String(x.atualizadoEm || "")));
   return {
-    fichaCompleta: a.cadastroConcluido !== false,
+    fichaCompleta: a.cadastroConcluido !== false && !a.soCadastro,
     scout: maior(regs.filter((r) => r.tipo === "jogo" && r.scout && r.scout.n > 0).map((r) => String(r.data || "").slice(0, 10))),
     observacao: maior(regs.filter((r) => r.tipo === "observacao" && r.contexto !== "conversa").map((r) => String(r.data || "").slice(0, 10))),
     movimento: maior((a.movimentos || []).map((m) => String(m.criadoEm || "").slice(0, 10))),
@@ -23193,7 +23341,7 @@ function FormEquipe({ inicial, alunos, professores, aoSalvar, aoCancelar, aoExcl
       </Campo>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <Botao variante="saibro" disabled={!nome.trim() || !membros.length} onClick={salvar}>Salvar equipe</Botao>
-        <Botao variante="vazio" onClick={aoCancelar}>Cancelar</Botao>
+        <Botao variante="vazio" type="button" onClick={aoCancelar}>Cancelar</Botao>
       </div>
       {inicial && (
         <div data-excluir-equipe style={{ borderTop: "1px solid " + C.linha, marginTop: 14, paddingTop: 10 }}>
@@ -23291,7 +23439,7 @@ function ConfigCicloEquipe({ inicial, aoSalvar, aoCancelar }) {
       <p style={{ ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 8 }}>{semanas} {semanas === 1 ? "semana" : "semanas"} · {dias.length} {dias.length === 1 ? "dia" : "dias"} de treino por semana{inicio ? " · de " + new Date(inicio + "T12:00:00").toLocaleDateString("pt-BR") + " a " + new Date(PE.somar(inicio, semanas * 7 - 1) + "T12:00:00").toLocaleDateString("pt-BR") : ""}</p>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
         <Botao variante="saibro" disabled={!inicio || !dias.length} onClick={() => aoSalvar({ semanas, inicio, dias, duracaoMin: duracao, grupo, objetivo: objetivo.trim() })}>{inicial ? "Salvar o ciclo" : "Criar o planejamento"}</Botao>
-        {aoCancelar && <Botao variante="vazio" onClick={aoCancelar}>Cancelar</Botao>}
+        {aoCancelar && <Botao variante="vazio" type="button" onClick={aoCancelar}>Cancelar</Botao>}
       </div>
     </div>
   );
@@ -24368,7 +24516,7 @@ function FormTurmaAR({ inicial, atletas, professores, quadras, aoSalvar, aoCance
       {erro && <p role="alert" style={{ ...prosa, fontSize: 13, color: "#A33", marginBottom: 8 }}>{erro}</p>}
       <div className="flex gap-2 flex-wrap">
         <Botao onClick={salvar} disabled={salvando}>{salvando ? "Salvando…" : "Salvar turma"}</Botao>
-        <Botao variante="vazio" onClick={aoCancelar}>Cancelar</Botao>
+        <Botao variante="vazio" type="button" onClick={aoCancelar}>Cancelar</Botao>
         {aoExcluir && <Botao variante="vazio" onClick={() => { if (window.confirm("Excluir a turma " + ((inicial && inicial.nome) || "") + "? As sessões já feitas continuam guardadas.")) aoExcluir(); }}>Excluir turma</Botao>}
       </div>
     </div>
@@ -24700,7 +24848,7 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   );
 }
 /* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
-const NOVIDADES_TY_VERSAO = "ty-2026-11-fotos-movimento-iphone";
+const NOVIDADES_TY_VERSAO = "ty-2026-11-acesso-por-email";
 /* Itens com `so: "financeiro"` só aparecem para o dono e para a parte administrativa. Enquanto o item novo do topo for um
    desses, quem não o vê continua na versão da equipe abaixo (a janela não reabre vazia para os professores). */
 const NOVIDADES_TY_VERSAO_EQUIPE = "ty-2026-11w";
@@ -24709,7 +24857,8 @@ function novidadesTYPara(veFinanceiro) {
   return { itens, versao: itens.some((x) => x.novo) ? NOVIDADES_TY_VERSAO : NOVIDADES_TY_VERSAO_EQUIPE };
 }
 const NOVIDADES_TY = [
-  { novo: true, t: "Análise de movimento: fotos das fases certas no iPhone", d: "No iPhone, as imagens das fases nos relatórios da análise de movimento saíam cortadas ou esticadas. Agora cada fase sai como uma imagem só, com a foto do vídeo e o boneco lado a lado, sempre na proporção do vídeo: no relatório completo (PDF), nas fotos do caderno, no relatório do aluno e no relatório que a família abre. Vale também para as análises já salvas.", onde: "Jogadores › abra o jogador › Análise de movimento", aba: "alunos" },
+  { novo: true, t: "Cadastro rápido e Área do aluno com e-mail, sem link", d: "Em Jogadores, o Cadastro rápido cadastra o aluno só com o nome, sem aula nem planejamento (nascimento, e-mail e professor são opcionais); ele fica no grupo Só cadastro e, quando começar a treinar, é só tocar em Completar cadastro. Na ficha de cada aluno, o cartão Área do aluno guarda até 2 e-mails (aluno e responsável): toque em Enviar convite e a pessoa recebe um e-mail para criar a senha. Depois ela entra em teamyoda.com.br/minha-area e vê o plano, as aulas e os relatórios sem precisar de link. Para tirar o acesso, apague o e-mail. O link do aluno continua funcionando como antes.", onde: "Jogadores › Cadastro rápido · Jogadores › abra o jogador › Perfil", aba: "alunos" },
+  { t: "Análise de movimento: fotos das fases certas no iPhone", d: "No iPhone, as imagens das fases nos relatórios da análise de movimento saíam cortadas ou esticadas. Agora cada fase sai como uma imagem só, com a foto do vídeo e o boneco lado a lado, sempre na proporção do vídeo: no relatório completo (PDF), nas fotos do caderno, no relatório do aluno e no relatório que a família abre. Vale também para as análises já salvas.", onde: "Jogadores › abra o jogador › Análise de movimento", aba: "alunos" },
   { t: "Site sem consultorias e sem valores", d: "A página de entrada (teamyoda.com.br) não mostra mais as consultorias com o Richard nem os valores: saíram a seção, os preços e os links do menu e do rodapé. Ficam a Metodologia MTY, as unidades, quem conduz e o acesso à Área do aluno.", onde: "teamyoda.com.br" },
   { t: "Academia Digital pausada para os alunos", d: "Por decisão do Richard, a Academia Digital está fechada para alunos e famílias por enquanto. Quem abrir a Academia vê um aviso e vai para a Área do aluno (teamyoda.com.br/minha-area), que continua igual: plano, aulas, reposições, relatórios e a conversa com o professor. O cartão da Academia saiu do Meu plano e o site não mostra mais a Academia Digital. Nada foi apagado: cursos, contas, progresso e análises ficam guardados para quando reabrir. A equipe continua entrando para preparar o conteúdo em Mais › Academia Digital.", onde: "Mais › Academia Digital", aba: "academia-digital" },
   { t: "Turmas do alto rendimento na Agenda", d: "As turmas do alto rendimento agora têm horário fixo e aparecem na Agenda. Em Grupos › Alto rendimento, abra a turma em Editar e, em Horários fixos na semana, escolha o dia e a hora e toque em Adicionar (repita para cada dia); defina também a duração do treino. A partir daí a turma aparece na Agenda, na cor de Alto rendimento, em todos os dias do horário, e em Aulas de hoje no dia do treino. Tocando no bloco você vê os atletas e abre a sessão da turma, onde a presença é marcada; depois de fechada, a Agenda mostra que a sessão foi feita. Turma que você já criou continua igual: ela só entra na Agenda depois que receber um horário fixo.", onde: "Agenda e Hoje › Aulas de hoje (o horário se define em Mais › Grupos › Alto rendimento › Editar a turma)", aba: "agenda" },
@@ -24952,7 +25101,7 @@ function TelaPlanejamentos({ alunos, turmas, aoAbrirJogador, aoAbrirTurma, aoAdi
     </button>
   );
   const situacaoJogador = (a) => {
-    if (!a.plano) return ["Sem planejamento", false];
+    if (!a.plano) return [a.soCadastro ? "Só cadastro (sem aula nem planejamento)" : "Sem planejamento", false];
     if (revisar.has("individual" + a.id)) return ["A ficha mudou depois do planejamento: revisar", true];
     const aula = aulaEmVigor(a);
     return [aula ? "Em andamento · " + [aula.bloco, aula.semana ? "semana " + aula.semana : "", aula.t].filter(Boolean).join(" · ") : "Planejamento concluído", false];
@@ -27558,6 +27707,7 @@ function App() {
      sozinho quando é o único grupo existente, senão fica fechado pra não
      virar lista extensa de novo). */
   const [professoresAbertos, setProfessoresAbertos] = useState({});
+  const [rapidoAberto, setRapidoAberto] = useState(false);
   const [tiposAulaAbertos, setTiposAulaAbertos] = useState({});
   const [avisosAberto, setAvisosAberto] = useState(false);
   const [perfilAberto, setPerfilAberto] = useState(false);
@@ -27983,6 +28133,13 @@ function App() {
   const rotuloDaAba = (v) => { const p = NAV_PRINCIPAL_TY.find((x) => x.v === v); if (p) return p.r; const r = { "aulas-hoje": "Aulas de hoje", pendencias: "Pendências", reposicoes: "Reposições" }[v]; if (r) return r;
     for (const g of gruposNav) { const t = g.itens.find((x) => x.v === v); if (t) return t.r; } return ""; };
   const topoAgenda = <SecoesPagina rotulo="Seções da Agenda" atual={aba} aoTrocar={(v) => setAba(v)} itens={[{ v: "agenda", r: "Calendário" }, { v: "reposicoes", r: "Reposições" }, { v: "relatorio", r: "Relatório de aulas" }]} />;
+  function criarRapido(n) {
+    if (planoVencido || (limitePlano != null && alunos.length >= limitePlano)) { setLimiteAtingido(true); setRapidoAberto(false); return; }
+    setAlunos([...alunos, n]);
+    setRapidoAberto(false);
+    setAbertoId(n.id);
+    setSubaba("ficha");
+  }
   function criar() {
     if (planoVencido || (limitePlano != null && alunos.length >= limitePlano)) {
       setLimiteAtingido(true);
@@ -28501,9 +28658,11 @@ function App() {
               if (!mostrarResumo) return null;
               return (
                 <>
-                  <div className="mt-2">
-                    <CardTrilha aluno={aberto} aoVerCriterios={() => { setEtapaFichaAlvo(3); setSubaba("ficha"); }} />
-                  </div>
+                  {!aberto.soCadastro && (
+                    <div className="mt-2">
+                      <CardTrilha aluno={aberto} aoVerCriterios={() => { setEtapaFichaAlvo(3); setSubaba("ficha"); }} />
+                    </div>
+                  )}
                   <CardPedidosReposicao aluno={aberto} aoMudar={(patch) => setAlunos((prev) => prev.map((a) => (a.id === aberto.id ? { ...a, ...patch } : a)))} />
                   <CardPedidosConteudo aluno={aberto} aoMudar={(patch) => setAlunos((prev) => prev.map((a) => (a.id === aberto.id ? { ...a, ...patch } : a)))} />
                   {subaba !== "sessao" && <CardAulaEmVigor aluno={aberto} aoClicar={() => setSubaba("sessao")} aoAbrirAulas={() => setSubaba("aulas")} />}
@@ -28701,6 +28860,8 @@ function App() {
                                         <p style={{ ...prosa, fontSize: 13, color: C.saibro, fontWeight: 600, marginTop: 2 }}>
                                           Continuar cadastro{etapaPendente ? " — " + ETAPAS_FICHA[etapaPendente - 1].titulo : ""}
                                         </p>
+                                      ) : a.soCadastro ? (
+                                        <div className="mt-1"><Etiqueta>Só cadastro · sem aula nem plano{(a.emailsAcesso || []).length ? " · Área do aluno com e-mail" : ""}</Etiqueta></div>
                                       ) : (
                                         <div className="mt-1">
                                           <Etiqueta>{a.nivel} · Estágio {a.estagio} · {a.inicio ? `início ${a.inicio}` : "sem calendário"}</Etiqueta>
@@ -28746,7 +28907,11 @@ function App() {
                   emailAtual={window.mtyAuth.usuario() ? window.mtyAuth.usuario().email : ""} pequeno />
               </div>
             )}
-            <div className="mt-4"><Botao onClick={criar} variante="saibro">Novo jogador</Botao></div>
+            <div className="mt-4 flex gap-2 flex-wrap">
+              <Botao onClick={criar} variante="saibro">Novo jogador</Botao>
+              {!rapidoAberto && <Botao onClick={() => setRapidoAberto(true)} variante="vazio">Cadastro rápido (sem aula nem plano)</Botao>}
+            </div>
+            {rapidoAberto && <CadastroRapido uidAtual={uidAtual} aoCriar={criarRapido} aoCancelar={() => setRapidoAberto(false)} />}
           </div>
         )}
       </main>
