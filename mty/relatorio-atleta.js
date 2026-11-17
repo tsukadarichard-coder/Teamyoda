@@ -192,7 +192,10 @@
       if (!id) return;
       let arq = null; try { arq = await ler(id); } catch (e) { arq = null; }
       const r = arq && arq.resultado;
-      if (r) saida[chaveMov(m)] = M.imagensFases(r, arq.fotos).map((x, i) => ({ src: x.src, nome: (r.nomes || [])[i] || "Fase " + (i + 1) }));
+      if (!r) return;
+      /* em JPEG (o iPhone cortava e esticava a versão em SVG); sem o módulo novo, a versão antiga */
+      let imgs; try { imgs = M.imagensFasesJPEG ? await M.imagensFasesJPEG(r, arq.fotos) : M.imagensFases(r, arq.fotos); } catch (e) { imgs = M.imagensFases(r, arq.fotos); }
+      saida[chaveMov(m)] = imgs.map((x, i) => ({ src: x.src, nome: (r.nomes || [])[i] || "Fase " + (i + 1) }));
     }));
     return saida;
   }

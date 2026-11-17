@@ -2,7 +2,7 @@
    modelo da academia salvo de uma análise ou análise anterior do atleta). Roda scout/movimento.js de verdade no navegador.
    Rode: node tests/smoke-video-boneco.js (VIDEO_TESTE = um .webm curto em pé; sem ele, só a parte da demonstração) */
 const fs = require("fs"), path = require("path"), http = require("http");
-const { chromium } = require("/opt/node22/lib/node_modules/playwright");
+const { chromium } = require("playwright");
 const assert = require("assert");
 const raiz = path.join(__dirname, "..");
 const VIDEO = process.env.VIDEO_TESTE || "/tmp/claude-0/-home-user-Teamyoda/f36f7b1a-5380-5cd8-93be-4b9b8aa1980b/scratchpad/teste-golpe.webm";
@@ -22,7 +22,7 @@ const srv = http.createServer((q, r) => {
   r.writeHead(200, { "content-type": f.endsWith(".css") ? "text/css" : "text/javascript" }); r.end(fs.readFileSync(f));
 }).listen(0);
 (async () => {
-  const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", args: ["--no-sandbox", "--autoplay-policy=no-user-gesture-required"] });
+  const b = await chromium.launch({ args: ["--no-sandbox", "--autoplay-policy=no-user-gesture-required"] });
   const p = await b.newPage({ viewport: { width: 390, height: 900 } });
   const erros = []; p.on("pageerror", (e) => erros.push(e.message)); p.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource/.test(m.text())) erros.push(m.text()); });
   p.on("dialog", (d) => d.accept("Forehand de referência"));
