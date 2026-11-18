@@ -7,7 +7,7 @@
        semana e a carga, registro de jogo fora do CT que entra no marcador e na carga.
    Rode: node tests/smoke-alto-rendimento.js [pasta-das-capturas] */
 const fs = require("fs"), path = require("path"), http = require("http"), assert = require("assert");
-const { chromium } = require("/opt/node22/lib/node_modules/playwright");
+const { chromium } = require("playwright");
 const raiz = path.join(__dirname, "../../mty"), fx = path.join(__dirname, "../../netlify/functions/");
 const capturas = process.argv[2] || "";
 const CDN = process.env.CDN_DIR || "/tmp/claude-0/-home-user-Teamyoda/f36f7b1a-5380-5cd8-93be-4b9b8aa1980b/scratchpad/cdn";
@@ -101,7 +101,7 @@ const srv = http.createServer((q, r) => {
 const base = "http://localhost:" + srv.address().port;
 
 (async () => {
-  const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", args: ["--no-sandbox"] });
+  const b = await chromium.launch({ args: ["--no-sandbox"] });
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 } });
   await ctx.route(/^https?:\/\/(?!localhost)/, (rota) => rota.fulfill({ contentType: /fonts/.test(rota.request().url()) ? "text/css" : "text/javascript", body: "" }));
   const p = await ctx.newPage();
@@ -184,14 +184,21 @@ const base = "http://localhost:" + srv.address().port;
     await p.click("#voltar"); await espera(/Sessão do dia/);
     await p.locator(`[data-atleta-ar="${id}"] >> text=Abrir`).click();
     await p.getByRole("button", { name: "Plano", exact: true }).click(); await p.getByRole("button", { name: "Gerar sem IA (modelo)", exact: true }).click();
+    /* o do Caio fica montado e sem aprovar (correção de 18/11/2026: a sessão não dizia por que ele não entrava) */
+    if (id === "j3") { await espera(/Revise o plano do modelo antes de usar/); continue; }
     await p.getByRole("button", { name: "Usar este plano", exact: true }).click(); await espera(/Plano individual · versão 1 · modelo sem IA/);
   }
   await p.click("#voltar"); await espera(/Sessão do dia/);
+  assert.strictEqual(await p.locator('[data-atleta-ar="j3"] [data-plano-a-aprovar]').count(), 1, "lista avisa o plano que falta aprovar");
 
   /* Sessão do dia */
   await p.getByRole("button", { name: "Sessão do dia", exact: true }).click();
   await espera(/Marque quem está no CT/);
-  assert.strictEqual(await p.locator("[data-presenca] input:checked").count(), 3, "os três no CT vêm marcados");
+  assert.strictEqual(await p.locator("[data-presenca] input:checked").count(), 2, "Caio sem plano aprovado fica de fora");
+  assert(/Plano montado, falta aprovar para entrar na sessão/.test(await p.innerText('[data-presenca="j3"]')));
+  await p.locator('[data-presenca="j3"]').getByRole("button", { name: "Usar o plano", exact: true }).click();
+  await p.waitForFunction(() => document.querySelector('[data-presenca="j3"] input').checked);
+  assert.strictEqual(await p.locator("[data-presenca] input:checked").count(), 3, "aprovado ali mesmo, entra na sessão");
   await p.getByRole("button", { name: "Montar a sessão", exact: true }).click();
   await espera(/Sessão de .* · 120 min/);
   assert(await p.locator('[data-bloco-ar="entrada"]').count() === 1 && await p.locator('[data-bloco-ar="ip:inicio"]').count() === 1 && await p.locator('[data-bloco-ar="jogo"]').count() === 1, "esqueleto MTY");
