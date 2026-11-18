@@ -27,8 +27,8 @@ const posts = [];
 
 const m = {"/aulas-mes.js":require("path").join(__dirname,"../../mty/aulas-mes.js"), "/r.js": CDN + "/react-18.3.1/package/umd/react.development.js", "/d.js": CDN + "/react-dom-18.3.1/package/umd/react-dom.development.js", "/p.js": CDN + "/prop-types-15.8.1/package/prop-types.min.js", "/c.js": CDN + "/recharts-2.15.4/package/umd/Recharts.js", "/b.js": CDN + "/babel-standalone-7.29.9/package/babel.min.js" };
 (async () => {
-  const { chromium } = require("/opt/node22/lib/node_modules/playwright");
-  const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", args: ["--no-sandbox"] });
+  const { chromium } = require("playwright");
+  const b = await chromium.launch({ args: ["--no-sandbox"] });
   const raiz = path.join(__dirname, "..", "..", "mty"), html = fs.readFileSync(path.join(raiz, "index.html"), "utf8");
   const ms = [...html.matchAll(/<script type="text\/babel"[^>]*>([\s\S]*?)<\/script>/g)].map((x) => x[1]).join("\n");
   const corte = ms.indexOf('ReactDOM.createRoot(document.getElementById("root")).render(<App />);');

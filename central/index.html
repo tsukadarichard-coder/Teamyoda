@@ -338,6 +338,8 @@ function PainelAvisos({ papel, avisosIni, tipos, chavePush }) {
     </div>
   );
 }
+/* painel de gestão do Team Yoda: quadras, horários, clientes, torneios, eventos, relatório de aulas, financeiro/cobrança e equipe */
+const GESTAO_TY = "https://teamyoda.com.br/gestao";
 function TelaAdministrativo({ resp }) {
   const ABAS_ADM = [["rotina-adm", "Hoje"], ["viagens", "Viagens"], ["agentes", "Agentes"], ["avisos", "Avisos"]];
   const [aba, setAba] = useState(() => { const h = String(location.hash || "").replace("#", ""); return ABAS_ADM.some(([v]) => v === h) ? h : "rotina-adm"; });
@@ -350,6 +352,7 @@ function TelaAdministrativo({ resp }) {
       <p style={{ ...prosa, fontSize: 13.5, color: C.grafite, marginBottom: 10 }}>A sua rotina, as viagens dos atletas, os rascunhos que a Central prepara para você e os avisos no celular.</p>
       <div style={{ display: "flex", gap: 8, overflowX: "auto", margin: "0 -16px 12px", padding: "2px 16px 4px" }}>
         {ABAS_ADM.map(([v, r]) => <button key={v} data-aba-adm={v} style={chip(aba === v)} onClick={() => setAba(v)}>{r}{v === "agentes" && novos ? " (" + novos + ")" : ""}</button>)}
+        <a href={GESTAO_TY} target="_blank" rel="noopener" data-gestao-ty style={{ ...chip(false), textDecoration: "none", display: "inline-flex", alignItems: "center" }}>Gestão do Team Yoda ↗</a>
       </div>
       {aba === "rotina-adm" && resp.rotinaAdm && <AbaRotinaAdm inicial={{ rotinaAdm: resp.rotinaAdm, viagens: resp.viagens, torneios: resp.torneios }} podeEditar />}
       {aba === "viagens" && <AbaViagens inicial={{ rotinaAdm: resp.rotinaAdm, viagens: resp.viagens || [], torneios: resp.torneios || [] }} podeEditar />}
@@ -922,6 +925,8 @@ function TelaCentral() {
       <p style={{ ...sub, fontSize: 13.5, marginBottom: 10 }}>Central · {new Date(hoje + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })} · só você vê</p>
       <div data-abas style={{ display: "flex", gap: 8, overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "none", margin: "0 -16px 12px", padding: "2px 16px 4px" }}>
         {[["hoje", "Hoje"], ["rotina", "Rotina"], ["agenda", "Agenda"], ["tarefas", "Tarefas"], ["implantacao", "Implantação"], ["agentes", "Agentes"], ["administrativo", "Administrativo"], ["negocios", "Negócios"], ["revisao", "Revisão semanal"], ["notas", "Notas e decisões"], ["avisos", "Avisos"]].map(([v, r]) => <button key={v} data-aba-central={v} style={{ ...chipA(aba === v), whiteSpace: "nowrap", flex: "none" }} onClick={() => setAba(v)}>{r}</button>)}
+        {/* painel de gestão do Team Yoda (18/11/2026): saiu do app dos professores e abre daqui, em outra aba */}
+        <a href={GESTAO_TY} target="_blank" rel="noopener" data-gestao-ty style={{ ...chipA(false), whiteSpace: "nowrap", flex: "none", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>Gestão do Team Yoda ↗</a>
       </div>
 
       {aba === "hoje" && (() => {

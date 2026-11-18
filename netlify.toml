@@ -37,6 +37,19 @@
   to = "/index.html"
   status = 200
 
+# Painel de gestão do Team Yoda (18/11/2026): o mesmo app em modo gestão (mty/index.html lê o endereço /gestao). Sem a barra no
+# fim, para os arquivos do app (scout/…, assets/…) seguirem saindo da raiz do site.
+[[redirects]]
+  from = "/gestao/"
+  to = "/gestao"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/gestao"
+  to = "/index.html"
+  status = 200
+
 [[redirects]]
   from = "https://teamyoda.com.br/"
   to = "/portal/"

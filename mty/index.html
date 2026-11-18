@@ -3082,10 +3082,12 @@ async function resolverGeracaoPendente(org, geracaoPlano) {
 function Marca({ identidade, altura = 26 }) {
   const nome = identidade && identidade.nome;
   const logoUrl = identidade && identidade.logoUrl;
-  if (logoUrl) return <img src={logoUrl} alt={nome || "Academia"} style={{ height: altura, maxWidth: 220, objectFit: "contain" }} />;
+  /* no painel de gestão, a marca diz que é a gestão (para não confundir com o app dos professores) */
+  const selo = PAINEL_GESTAO ? <span data-selo-gestao style={{ fontFamily: ARCH, fontWeight: 700, fontSize: Math.max(10, Math.round(altura * 0.42)), color: C.saibro, marginLeft: 8, textTransform: "uppercase", letterSpacing: ".06em" }}>Gestão</span> : null;
+  if (logoUrl) return <span style={{ display: "inline-flex", alignItems: "center" }}><img src={logoUrl} alt={nome || "Academia"} style={{ height: altura, maxWidth: 220, objectFit: "contain" }} />{selo}</span>;
   return (
     <span style={{ fontFamily: ARCH, fontWeight: 700, fontSize: Math.round(altura * 0.62), color: C.tinta, lineHeight: 1 }}>
-      {nome || "Painel do Treinador"}
+      {nome || (PAINEL_GESTAO ? "Painel de gestão" : "Painel do Treinador")}{nome ? selo : null}
     </span>
   );
 }
@@ -24936,7 +24938,7 @@ function TelaEquipes({ alunos, setAlunos, uidAtual, papelAtual, identidade, aoAb
   );
 }
 /* Novidades do Team Yoda (abre ao entrar; nova versão da lista volta a aparecer) */
-const NOVIDADES_TY_VERSAO = "ty-2026-11-sessao-compartilhada";
+const NOVIDADES_TY_VERSAO = "ty-2026-11-painel-gestao";
 /* Itens com `so: "financeiro"` só aparecem para o dono e para a parte administrativa. Enquanto o item novo do topo for um
    desses, quem não o vê continua na versão da equipe abaixo (a janela não reabre vazia para os professores). */
 const NOVIDADES_TY_VERSAO_EQUIPE = "ty-2026-11w";
@@ -24945,7 +24947,8 @@ function novidadesTYPara(veFinanceiro) {
   return { itens, versao: itens.some((x) => x.novo) ? NOVIDADES_TY_VERSAO : NOVIDADES_TY_VERSAO_EQUIPE };
 }
 const NOVIDADES_TY = [
-  { novo: true, t: "Sessão do dia igual para todos os treinadores", d: "Quando um treinador gera ou muda a sessão do dia (individual, de turma ou do alto rendimento), quem está com a mesma sessão aberta passa a ver a mudança na hora, com o aviso de quem mudou, e a edição de um não apaga mais a do outro. No alto rendimento, quem abre a sessão da turma depois entra na sessão que já foi montada, em vez de montar outra. E o atleta com o plano gerado e ainda sem aprovar aparece como Plano montado, falta aprovar, com o botão Usar o plano ali mesmo (antes a sessão não montava e não dizia por quê).", onde: "Jogadores › Sessão de hoje · Turmas › Sessão · Grupos › Alto rendimento › Sessão da turma", aba: "equipes" },
+  { novo: true, t: "Gestão da academia em painel próprio", d: "As telas de gestão saíram do app dos professores e foram para o painel teamyoda.com.br/gestao: quadras, horários recorrentes, clientes, torneios, eventos, aulas da equipe, relatório de aulas de toda a equipe, padrão de atendimento, financeiro e cobrança e a equipe da organização (contas e pedidos de cadastro). Quem usa é a coordenação e o administrativo, com a mesma conta e os mesmos dados; o Richard e o administrativo também abrem pela Central. No app continuam Hoje, Jogadores, Agenda (com as reposições e o relatório de aulas de cada professor), Pendências, turmas, alto rendimento, planejamentos e o método.", onde: "teamyoda.com.br/gestao", aba: "gestao-inicio" },
+  { t: "Sessão do dia igual para todos os treinadores", d: "Quando um treinador gera ou muda a sessão do dia (individual, de turma ou do alto rendimento), quem está com a mesma sessão aberta passa a ver a mudança na hora, com o aviso de quem mudou, e a edição de um não apaga mais a do outro. No alto rendimento, quem abre a sessão da turma depois entra na sessão que já foi montada, em vez de montar outra. E o atleta com o plano gerado e ainda sem aprovar aparece como Plano montado, falta aprovar, com o botão Usar o plano ali mesmo (antes a sessão não montava e não dizia por quê).", onde: "Jogadores › Sessão de hoje · Turmas › Sessão · Grupos › Alto rendimento › Sessão da turma", aba: "equipes" },
   { t: "Cadastro rápido e Área do aluno com e-mail, sem link", d: "Em Jogadores, o Cadastro rápido cadastra o aluno só com o nome, sem aula nem planejamento (nascimento, e-mail e professor são opcionais); ele fica no grupo Só cadastro e, quando começar a treinar, é só tocar em Completar cadastro. Na ficha de cada aluno, o cartão Área do aluno guarda até 2 e-mails (aluno e responsável): toque em Enviar convite e a pessoa recebe um e-mail para criar a senha. Depois ela entra em teamyoda.com.br/minha-area e vê o plano, as aulas e os relatórios sem precisar de link. Para tirar o acesso, apague o e-mail. O link do aluno continua funcionando como antes.", onde: "Jogadores › Cadastro rápido · Jogadores › abra o jogador › Perfil", aba: "alunos" },
   { t: "Análise de movimento: fotos das fases certas no iPhone", d: "No iPhone, as imagens das fases nos relatórios da análise de movimento saíam cortadas ou esticadas. Agora cada fase sai como uma imagem só, com a foto do vídeo e o boneco lado a lado, sempre na proporção do vídeo: no relatório completo (PDF), nas fotos do caderno, no relatório do aluno e no relatório que a família abre. Vale também para as análises já salvas.", onde: "Jogadores › abra o jogador › Análise de movimento", aba: "alunos" },
   { t: "Site sem consultorias e sem valores", d: "A página de entrada (teamyoda.com.br) não mostra mais as consultorias com o Richard nem os valores: saíram a seção, os preços e os links do menu e do rodapé. Ficam a Metodologia MTY, as unidades, quem conduz e o acesso à Área do aluno.", onde: "teamyoda.com.br" },
@@ -25061,11 +25064,46 @@ function JanelaNovidades({ nomeApp, versao, itens, irPara }) {
    "Aulas de hoje" e "Pendências do dia" são seções de Hoje, "Reposições" é seção de Agenda (mesmos valores de aba de antes).
    Computador (≥ 1024 px): menu lateral expandido ou recolhido numa faixa de ícones (preferência por usuário e aparelho).
    Tablet: menu sobreposto pelo ☰ do topo. Celular: barra inferior; "Mais" abre o painel com os grupos. */
-const NAV_PRINCIPAL_TY = [
+/* Painel de gestão (pedido do Richard em 18/11/2026: "Toda parte de gestão quero separar do app do Team Yoda... painel dentro do
+   teamyoda.com.br/gestao... pode tirar do app o gestão da academia, eu entro direto pela central"): o mesmo app aberto em /gestao
+   mostra só as telas de gestão (quadras, horários recorrentes, clientes, torneios, eventos, aulas da equipe, relatório de aulas,
+   padrão de atendimento, financeiro/cobrança e equipe da organização), para a coordenação e o administrativo. No app dos
+   professores (/treinador) essas telas saíram do menu; Agenda, Pendências do dia e o relatório de aulas do próprio professor
+   (Agenda › Relatório de aulas) continuam lá. Os dados são os mesmos: nada mudou de lugar na nuvem. */
+const PAINEL_GESTAO = typeof location !== "undefined" && /^\/gestao\/?$/.test(location.pathname);
+/* telas que só abrem no painel (o relatório de aulas fica nos dois: no app, cada professor vê o dele) */
+const ABAS_SO_PAINEL = new Set(["quadras", "grade-aulas", "clientes", "torneios", "eventos", "aulas-equipe", "atendimento", "financeiro", "cobranca", "equipe"]);
+const NAV_PRINCIPAL_TY = PAINEL_GESTAO ? [
+  { v: "gestao-inicio", r: "Painel", icone: "hoje", inclui: ["gestao-inicio"] },
+] : [
   { v: "dashboard", r: "Hoje", icone: "hoje", inclui: ["dashboard", "aulas-hoje", "pendencias"] },
   { v: "alunos", r: "Jogadores", icone: "jogadores", inclui: ["alunos"] },
   { v: "agenda", r: "Agenda", icone: "agenda", inclui: ["agenda", "reposicoes"] },
 ];
+/* tela inicial do painel: um atalho para cada tela de gestão que esta conta pode abrir */
+function GestaoInicio({ itens, aoIr }) {
+  const notas = {
+    financeiro: "Mensalidades, recebimentos e o fechamento do mês", cobranca: "Cobranças e lembretes de pagamento", quadras: "Quadras, link de reservas e bloqueios",
+    "grade-aulas": "Os horários fixos das aulas e turmas", clientes: "Reservas e inscrições de quem não treina aqui", torneios: "Torneios e inscrições", eventos: "Eventos e convidados",
+    "aulas-equipe": "As aulas de cada professor", relatorio: "Aulas dadas, faltas e reposições do mês", atendimento: "O painel do Head Trainer",
+    equipe: "Professores, contas e pedidos de cadastro",
+  };
+  return (
+    <div data-gestao-inicio>
+      <h1 style={{ fontFamily: ARCH, fontSize: 24, fontWeight: 700 }}>Gestão da academia</h1>
+      <p style={{ ...prosa, color: C.grafite, marginTop: 4, marginBottom: 16 }}>As telas de gestão do Team Yoda, separadas do app dos professores. Os dados são os mesmos do app.</p>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
+        {itens.map((t) => (
+          <button key={t.v} type="button" onClick={() => aoIr(t.v)} data-atalho-gestao={t.v} className="text-left"
+            style={{ background: C.cal, border: "1px solid " + C.linha, borderRadius: 12, padding: "13px 15px", cursor: "pointer", minHeight: 76 }}>
+            <span style={{ display: "block", fontFamily: ARCH, fontSize: 15, fontWeight: 700, color: C.tinta }}>{t.r}</span>
+            {notas[t.v] && <span style={{ display: "block", ...prosa, fontSize: 12.5, color: C.grafite, marginTop: 3 }}>{notas[t.v]}</span>}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 const principalDaAba = (aba) => NAV_PRINCIPAL_TY.find((p) => p.inclui.includes(aba)) || null;
 const LARGURA_MENU = { expandido: 248, recolhido: 68 };
 function IconeNav({ nome, tam = 20 }) {
@@ -27517,7 +27555,7 @@ function proximoPassoFormacao(membro) {
   return { completa: true, feitos, totalModulos, cursos: CURSOS_FORMACAO.length };
 }
 function avisosDoProfessorPopup({ uid, alunos, turmas, ocorrencias, membrosFormacao, agora }) {
-  if (!uid) return null;
+  if (!uid || PAINEL_GESTAO) return null; /* os avisos de aula e formação são do app dos professores, não do painel de gestão */
   const d = agora || new Date(), hoje = dataISO(d), hora = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
   const minha = (o) => o.professorUid === uid || o.professorAuxiliarUid === uid || o.substitutoUid === uid;
   const titulo = (o) => o.origemTipo === "turma" ? ((turmas || []).find((t) => t.id === o.origemId) || {}).nome || "Turma"
@@ -27632,20 +27670,31 @@ function App() {
      esse recarregamento (mesma aba) e some só quando a aba é fechada de
      verdade — por isso é usado aqui, e não localStorage (que vazaria o
      estado de navegação de uma conta pra outra no mesmo aparelho). */
+  const PREFIXO_NAV = PAINEL_GESTAO ? "mty:navg:" : "mty:nav:";
   function lerNavPersistida(chave, padrao) {
-    try { return sessionStorage.getItem("mty:nav:" + chave) || padrao; } catch { return padrao; }
+    try { return sessionStorage.getItem(PREFIXO_NAV + chave) || padrao; } catch { return padrao; }
   }
-  const [abertoId, setAbertoId] = useState(() => lerNavPersistida("abertoId", null));
-  const [aba, setAba] = useState(() => lerNavPersistida("aba", "dashboard"));
+  const [abertoId, setAbertoId] = useState(() => (PAINEL_GESTAO ? null : lerNavPersistida("abertoId", null)));
+  const [aba, setAba] = useState(() => {
+    /* painel: ?aba= (atalho da Central ou de um aviso do app) ou a última tela de gestão; app: nunca abre numa tela que saiu dele */
+    if (PAINEL_GESTAO) {
+      let pedida = ""; try { pedida = new URLSearchParams(location.search).get("aba") || ""; } catch { /* sem URL */ }
+      if (ABAS_SO_PAINEL.has(pedida) || pedida === "relatorio") return pedida;
+      const salva = lerNavPersistida("aba", "gestao-inicio");
+      return ABAS_SO_PAINEL.has(salva) || salva === "relatorio" || salva === "gestao-inicio" ? salva : "gestao-inicio";
+    }
+    const salva = lerNavPersistida("aba", "dashboard");
+    return ABAS_SO_PAINEL.has(salva) || salva === "gestao-inicio" ? "dashboard" : salva;
+  });
   const [subaba, setSubaba] = useState(() => lerNavPersistida("subaba", "ficha"));
   useEffect(() => {
     try {
-      if (abertoId) sessionStorage.setItem("mty:nav:abertoId", abertoId);
-      else sessionStorage.removeItem("mty:nav:abertoId");
+      if (abertoId) sessionStorage.setItem(PREFIXO_NAV + "abertoId", abertoId);
+      else sessionStorage.removeItem(PREFIXO_NAV + "abertoId");
     } catch { /* sessionStorage indisponível (modo privado, por ex.) */ }
   }, [abertoId]);
-  useEffect(() => { try { sessionStorage.setItem("mty:nav:aba", aba); } catch {} }, [aba]);
-  useEffect(() => { try { sessionStorage.setItem("mty:nav:subaba", subaba); } catch {} }, [subaba]);
+  useEffect(() => { try { sessionStorage.setItem(PREFIXO_NAV + "aba", aba); } catch {} }, [aba]);
+  useEffect(() => { try { sessionStorage.setItem(PREFIXO_NAV + "subaba", subaba); } catch {} }, [subaba]);
   /* "Ver critérios e evolução" no cabeçalho do jogador manda direto pra
      etapa Nível da ficha (ver TelaFicha/etapaAlvo) — nulo o resto do
      tempo, sem afetar a navegação normal entre as abas do jogador. */
@@ -27924,7 +27973,8 @@ function App() {
      identidade dela carrega — antes disso (ou pra quem não configurou
      nome) fica o rótulo neutro do <title> estático. */
   useEffect(() => {
-    document.title = identidade && identidade.nome ? identidade.nome + " · Painel do Treinador" : "Painel do Treinador";
+    const tituloApp = PAINEL_GESTAO ? "Gestão" : "Painel do Treinador";
+    document.title = identidade && identidade.nome ? identidade.nome + " · " + tituloApp : tituloApp;
   }, [identidade]);
 
   /* trava contra gravar dado errado ao trocar de conta/academia na MESMA
@@ -28096,7 +28146,7 @@ function App() {
         inscritos: c.inscritos.map((x) => (x.id === i.id ? { ...x, vistoPeloStaff: true } : x)),
       })),
     })));
-    setAba("torneios");
+    irGestao("torneios");
     setAvisosAberto(false);
   }
   function verInscricaoEvento(i) {
@@ -28104,7 +28154,7 @@ function App() {
       ...e,
       convidados: e.convidados.map((x) => (x.id === i.id ? { ...x, vistoPeloStaff: true } : x)),
     })));
-    setAba("eventos");
+    irGestao("eventos");
     setAvisosAberto(false);
   }
   function verPlanoGerado(item) {
@@ -28171,7 +28221,37 @@ function App() {
   /* Academia Digital (/digital/): só a coordenação das duas unidades monta (o servidor confere o token de novo) */
   const mostraDigital = ehCoordenador && (orgAtual === "team-yoda" || orgAtual === "39-ranch");
   const podePendencias = ehCoordenador || ehDonoFinanceiro();
-  const gruposNav = [
+  /* quem usa o painel de gestão: coordenação, o Richard (Financeiro) e o administrativo (Cobrança) */
+  const podeGestao = ehCoordenador || ehDonoFinanceiro() || papelFin === "admin";
+  const itensGestao = [
+    ...(ehDonoFinanceiro() ? [{ v: "financeiro", r: "Financeiro" }] : papelFin === "admin" ? [{ v: "cobranca", r: "Cobrança" }] : []),
+    ...(mostraQuadras ? [{ v: "quadras", r: "Quadras" }, { v: "grade-aulas", r: "Horários recorrentes" }] : []),
+    ...(mostraQuadras || mostraTorneiosEventos ? [{ v: "clientes", r: "Clientes" }] : []),
+    ...(mostraTorneiosEventos ? [{ v: "torneios", r: "Torneios" }, { v: "eventos", r: "Eventos" }] : []),
+    ...(ehCoordenador ? [{ v: "aulas-equipe", r: "Aulas da equipe" }] : []),
+    { v: "relatorio", r: "Relatório de aulas" },
+    ...(ehDonoFinanceiro() ? [{ v: "atendimento", r: "Padrão de atendimento" }] : []),
+    ...(ehCoordenador ? [{ v: "equipe", r: "Equipe da organização" }] : []),
+  ];
+  /* no app, uma tela que agora mora no painel (atalho da Agenda, aviso de inscrição ou de cadastro) abre o painel nela */
+  function irGestao(v) {
+    if (PAINEL_GESTAO) { setAba(v); return; }
+    if (!podeGestao) { alert("Esta tela fica no painel de gestão, da coordenação e do administrativo."); return; }
+    window.location.href = "/gestao?aba=" + encodeURIComponent(v);
+  }
+  useEffect(() => { if (!PAINEL_GESTAO && (ABAS_SO_PAINEL.has(aba) || aba === "gestao-inicio")) { const v = aba; setAba("dashboard"); irGestao(v); } }, [aba]);
+  /* no painel só abrem as telas de gestão desta conta (e a ficha de um jogador aberta a partir delas) */
+  useEffect(() => {
+    if (!PAINEL_GESTAO || !podeGestao) return;
+    if (aba === "cobranca" && papelFin === null) return; /* o papel do Financeiro ainda está chegando */
+    const ok = aba === "gestao-inicio" || aba === "ajuda" || (aba === "alunos" && abertoId) || itensGestao.some((t) => t.v === aba);
+    if (!ok) setAba("gestao-inicio");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aba, podeGestao, papelFin, abertoId]);
+  const gruposNav = PAINEL_GESTAO ? [
+    { id: "gestao", label: "Gestão da academia", itens: itensGestao },
+    { id: "config", label: "Ajuda", itens: [{ v: "ajuda", r: "Ajuda" }] },
+  ] : [
     { id: "treino", label: "Treino e análise", itens: [
       { v: "planejamentos", r: "Planejamentos" },
       ...(mostraManual ? [{ v: "catalogo", r: "Catálogo de exercícios" }] : []),
@@ -28179,29 +28259,20 @@ function App() {
     ] },
     { id: "grupos", label: "Grupos", itens: [{ v: "turmas", r: "Turmas" }, { v: "equipes", r: "Alto rendimento" }] },
     ...(mostraDigital ? [{ id: "digital", label: "Academia Digital", itens: [{ v: "academia-digital", r: "Academia Digital" }] }] : []),
-    { id: "gestao", label: "Gestão da academia", itens: [
-      ...(mostraQuadras ? [{ v: "quadras", r: "Quadras" }, { v: "grade-aulas", r: "Horários recorrentes" }] : []),
-      ...(mostraQuadras || mostraTorneiosEventos ? [{ v: "clientes", r: "Clientes" }] : []),
-      ...(mostraTorneiosEventos ? [{ v: "torneios", r: "Torneios" }, { v: "eventos", r: "Eventos" }] : []),
-      ...(ehCoordenador ? [{ v: "aulas-equipe", r: "Aulas da equipe" }] : []),
-      // o professor também vê o próprio relatório (a tela restringe por dentro)
-      { v: "relatorio", r: "Relatório de aulas" },
-      ...(ehDonoFinanceiro() ? [{ v: "atendimento", r: "Padrão de atendimento" }] : []),
-      ...(ehDonoFinanceiro() ? [{ v: "financeiro", r: "Financeiro" }] : papelFin === "admin" ? [{ v: "cobranca", r: "Cobrança" }] : []),
-    ] },
+    /* a "Gestão da academia" saiu do app (18/11/2026): mora no painel teamyoda.com.br/gestao; o professor vê o próprio relatório de
+       aulas em Agenda › Relatório de aulas */
     { id: "metodo", label: "Método e formação", itens: [
       ...(mostraManual ? [{ v: "tecnica", r: "Técnica" }, { v: "taticas", r: "Táticas" }, { v: "conducao", r: "Condução" }, { v: "publicos", r: "Públicos" }, { v: "aulas", r: "Aulas do método" }, { v: "metodo", r: "Como decide" }] : []),
       ...NAV_CONTEUDO,
       ...(exigeLogin && uidAtual ? [{ v: "formacao", r: "Formação" }] : []),
     ] },
     { id: "config", label: "Configurações e suporte", itens: [
-      ...(ehCoordenador ? [{ v: "equipe", r: "Equipe da organização" }] : []),
       { v: "ajuda", r: "Ajuda" },
     ] },
   ].filter((g) => g.itens.length > 0);
   /* grupos abertos: na primeira vez, só o grupo da página atual; depois, a escolha de cada um fica salva */
   const grupoDaAba = gruposNav.find((g) => g.itens.some((t) => t.v === aba));
-  const gruposNavAbertos = gruposNavSalvos || (grupoDaAba ? { [grupoDaAba.id]: true } : {});
+  const gruposNavAbertos = PAINEL_GESTAO ? { ...(gruposNavSalvos || {}), gestao: true } : gruposNavSalvos || (grupoDaAba ? { [grupoDaAba.id]: true } : {});
   function alternarGrupoNav(id) {
     const n = { ...gruposNavAbertos, [id]: !gruposNavAbertos[id] };
     setGruposNavSalvos(n); gravarPrefMenu(chaveMenu + ":grupos", n);
@@ -28409,7 +28480,7 @@ function App() {
       {/* ── barra inferior (celular) ── */}
       {modoTela === "celular" && (
         <nav className="mty-bottomnav" aria-label="Navegação principal" data-barra-inferior style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 28, background: C.cal,
-          borderTop: "1px solid " + C.linha, display: "grid", gridTemplateColumns: "repeat(4, 1fr)", paddingBottom: "env(safe-area-inset-bottom)", boxShadow: "0 -2px 10px rgba(0,0,0,.05)" }}>
+          borderTop: "1px solid " + C.linha, display: "grid", gridTemplateColumns: "repeat(" + (NAV_PRINCIPAL_TY.length + 1) + ", 1fr)", paddingBottom: "env(safe-area-inset-bottom)", boxShadow: "0 -2px 10px rgba(0,0,0,.05)" }}>
           {[...NAV_PRINCIPAL_TY, { v: "__mais", r: "Mais", icone: "mais" }].map((p) => {
             const ehMais = p.v === "__mais", ativo = ehMais ? maisAtivo || painelNav : principalAtual === p && !painelNav;
             return (
@@ -28561,7 +28632,7 @@ function App() {
                         {pedidosPendentesCount > 0 && (
                           <div>
                             <Etiqueta cor={C.saibro}>Equipe</Etiqueta>
-                            <button onClick={() => { setAba("equipe"); setAvisosAberto(false); }}
+                            <button onClick={() => { irGestao("equipe"); setAvisosAberto(false); }}
                               className="w-full text-left" style={{ display: "block", padding: "6px 0", border: "none", background: "none", cursor: "pointer" }}>
                               <p style={{ ...prosa, fontSize: 12.5 }}>
                                 {pedidosPendentesCount === 1 ? "1 pedido de cadastro" : pedidosPendentesCount + " pedidos de cadastro"} esperando
@@ -28620,6 +28691,15 @@ function App() {
         paddingBottom: modoTela === "celular" ? "calc(84px + env(safe-area-inset-bottom))" : undefined }}>
         <AvisoEnderecoNovo orgAtual={orgAtual} />
         {carregando ? <p style={{ ...prosa, color: C.grafite }}>Carregando…</p> :
+         PAINEL_GESTAO && !podeGestao ? (
+           uidAtual && papelFin === null && papelAtual === null ? <p style={{ ...prosa, color: C.grafite }}>Carregando…</p> : (
+           <div data-gestao-sem-acesso>
+             <h1 style={{ fontFamily: ARCH, fontSize: 22, fontWeight: 700 }}>Painel de gestão</h1>
+             <p style={{ ...prosa, marginTop: 6 }}>Este painel é da coordenação e do administrativo. Para as aulas, os jogadores e a agenda, use o app dos professores.</p>
+             <div className="mt-4"><Botao onClick={() => { window.location.href = "/treinador"; }}>Abrir o app dos professores</Botao></div>
+           </div>)
+         ) :
+         aba === "gestao-inicio" ? (PAINEL_GESTAO ? <GestaoInicio itens={itensGestao} aoIr={irNav} /> : null) :
          aba === "planejamentos" ? <TelaPlanejamentos alunos={alunos} turmas={turmas} aoAbrirJogador={(id) => { setAba("alunos"); setAbertoId(id); setSubaba("plano"); }}
            aoAbrirTurma={(id) => { setTurmaAbertaAlvo(id); setAba("turmas"); }} aoAdicionarJogador={() => { criar(); setAba("alunos"); }} /> :
          aba === "ajuda" ? <TelaAjuda mostraManual={mostraManual} aoIr={irNav}
