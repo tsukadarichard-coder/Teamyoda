@@ -45,8 +45,8 @@ let posts = 0;
 const m = { "/r.js": CDN + "/react-18.3.1/package/umd/react.development.js", "/d.js": CDN + "/react-dom-18.3.1/package/umd/react-dom.development.js", "/p.js": CDN + "/prop-types-15.8.1/package/prop-types.min.js", "/c.js": CDN + "/recharts-2.15.4/package/umd/Recharts.js", "/b.js": CDN + "/babel-standalone-7.29.9/package/babel.min.js" };
 
 (async () => {
-  const { chromium } = require("/opt/node22/lib/node_modules/playwright");
-  const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", args: ["--no-sandbox"] });
+  const { chromium } = require("playwright");
+  const b = await chromium.launch({ args: ["--no-sandbox"] });
   const raiz = path.join(__dirname, "..", "..", "central"), pagina = fs.readFileSync(path.join(raiz, "index.html"), "utf8");
   const toml = fs.readFileSync(path.join(raiz, "netlify.toml"), "utf8");
   assert(/from = "\/api\/central"\s+to = "https:\/\/app\.39tennis\.com\.br\/\.netlify\/functions\/central"\s+status = 200/.test(toml), "proxy /api/central → function do Team Yoda");
